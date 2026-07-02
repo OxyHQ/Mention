@@ -102,7 +102,7 @@ const EngagementListSheet: React.FC<EngagementListSheetProps> = ({ postId, type,
               <Ionicons name="checkmark-circle" size={16} color={theme.colors.primary} style={{ marginLeft: 4 }} />
             )}
           </View>
-          {hasName ? (
+          {hasName && !!item.handle ? (
             <Text className="text-muted-foreground text-sm mt-0.5" numberOfLines={1}>
               @{item.handle}
             </Text>

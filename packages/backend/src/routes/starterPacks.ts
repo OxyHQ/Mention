@@ -68,8 +68,8 @@ interface StarterPackMember {
  * "0 accounts". This mirrors the list path's {@link enrichWithMemberAvatars}.
  *
  * Ids that don't resolve to a real Oxy user (deleted/unknown — the resolver
- * returns its minimal fallback summary) are skipped so we never render a row
- * with the raw id as both name and handle. Best-effort: a resolution failure
+ * returns its degraded fallback summary) are skipped so we never render a
+ * nameless/handle-less placeholder row. Best-effort: a resolution failure
  * returns `[]` so the detail still renders (the caller keeps `memberCount`).
  */
 async function hydratePackMembers(memberIds: string[]): Promise<StarterPackMember[]> {
@@ -79,7 +79,7 @@ async function hydratePackMembers(memberIds: string[]): Promise<StarterPackMembe
     const members: StarterPackMember[] = [];
     for (const id of memberIds) {
       const resolved = summaries.get(id);
-      if (!resolved || isFallbackUserSummary(id, resolved.summary)) continue;
+      if (!resolved || isFallbackUserSummary(resolved.summary)) continue;
       members.push({
         id,
         username: resolved.summary.handle,

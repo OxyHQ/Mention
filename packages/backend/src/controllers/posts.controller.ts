@@ -13,7 +13,7 @@ import { userPreferenceService, readInteractionSurface } from '../services/UserP
 import { postCreationService } from '../services/PostCreationService';
 import ArticleModel, { IArticle } from '../models/Article';
 import { logger } from '../utils/logger';
-import { postHydrationService, resolveUserSummaries } from '../services/PostHydrationService';
+import { postHydrationService, resolveUserSummaries, degradedActorSummary } from '../services/PostHydrationService';
 import { config } from '../config';
 import { mergeHashtags, escapeRegex } from '../utils/textProcessing';
 import { createScopedOxyClient } from '../utils/oxyHelpers';
@@ -56,22 +56,22 @@ const MAX_ALT_TEXT_LENGTH = config.posts.maxAltTextLength;
  * (`GET /posts/:id/likes` and `GET /posts/:id/boosts`). The summary already
  * carries the canonical `displayName` (from Oxy `name.displayName`), resolved
  * handle, and final avatar URL. When the resolver could not resolve a user, fall
- * back to a minimal placeholder keyed by the raw id.
+ * back to the degraded actor summary (neutral name, EMPTY handle) — never the raw
+ * id as a handle, which would render a ghost `@<oxyUserId>` and a broken profile
+ * link.
  */
 const mapActorSummary = (
   userId: string,
   summary: PostActorSummary | undefined,
 ): { id: string; displayName?: string; handle: string; avatar?: string; verified: boolean } => {
-  if (!summary) {
-    return { id: userId, handle: userId, avatar: undefined, verified: false };
-  }
+  const actor = summary ?? degradedActorSummary(userId);
   return {
-    id: summary.id,
+    id: actor.id,
     // May be absent — the client renders the (always-present) handle instead.
-    displayName: summary.displayName,
-    handle: summary.handle,
-    avatar: summary.avatarUrl,
-    verified: Boolean(summary.isVerified),
+    displayName: actor.displayName,
+    handle: actor.handle,
+    avatar: actor.avatarUrl,
+    verified: Boolean(actor.isVerified),
   };
 };
 

@@ -154,28 +154,43 @@ function summaryFromOxyUser(userId: string, userData: OxyUser): CachedUserSummar
   };
 }
 
-/** A minimal, safe summary used when an author cannot be resolved from Oxy. */
-function fallbackSummary(userId: string): CachedUserSummary {
+/**
+ * The clearly-degraded actor summary emitted when an author cannot be resolved
+ * from Oxy (a transient bulk + per-id fetch failure). It carries an EMPTY handle
+ * ON PURPOSE: every renderer gates the `@handle` line and the `/@handle` profile
+ * link on a non-empty handle, so a momentarily-unresolvable author shows a
+ * neutral "Unknown user" with no tappable handle rather than rendering its raw
+ * Oxy id as a fake username (the ghost-handle bug). This summary is NEVER written
+ * to the Redis user-summary cache (see {@link resolveUserSummaries}), so the next
+ * hydration re-resolves the real user and the DTO self-heals.
+ */
+export function degradedActorSummary(userId: string): PostActorSummary {
   return {
-    summary: {
-      id: userId,
-      handle: userId,
-      displayName: userId,
-      avatarUrl: undefined,
-      badges: undefined,
-      isVerified: false,
-    },
+    id: userId,
+    handle: '',
+    displayName: 'Unknown user',
+    avatarUrl: undefined,
+    badges: undefined,
+    isVerified: false,
   };
 }
 
+/** A minimal, safe summary used when an author cannot be resolved from Oxy. */
+function fallbackSummary(userId: string): CachedUserSummary {
+  return { summary: degradedActorSummary(userId) };
+}
+
 /**
- * Whether a summary is the {@link fallbackSummary} produced when a user could
- * not be resolved from Oxy (handle === displayName === id). Mentions that only
- * resolve to a fallback must be left as their raw placeholder rather than
- * rendered with the raw id as a name. Kept in lockstep with `fallbackSummary`.
+ * Whether a summary is the {@link degradedActorSummary} produced when a user
+ * could not be resolved from Oxy. The degraded summary is the ONLY summary with
+ * an empty handle — a resolved Oxy user always has a non-empty handle (the
+ * `username → handle → id` fallback in {@link summaryFromOxyUser}). Callers use
+ * this to SKIP an unresolved actor (starter-pack members, mention-placeholder
+ * replacement) instead of rendering a nameless row. Kept in lockstep with
+ * `degradedActorSummary`.
  */
-export function isFallbackUserSummary(userId: string, summary: PostActorSummary): boolean {
-  return summary.handle === userId && summary.displayName === userId;
+export function isFallbackUserSummary(summary: PostActorSummary): boolean {
+  return summary.handle === '';
 }
 
 /**
@@ -1154,14 +1169,10 @@ export class PostHydrationService {
       }
     }
 
-    const user = userMap.get(authorId) ?? {
-      id: authorId,
-      handle: authorId,
-      displayName: authorId,
-      avatarUrl: undefined,
-      badges: undefined,
-      isVerified: false,
-    };
+    // `resolveUserSummaries` always populates an entry for every requested id
+    // (a real user or the degraded fallback), so this default is defensive — but
+    // it must STILL never emit the raw id as a handle if ever reached.
+    const user = userMap.get(authorId) ?? degradedActorSummary(authorId);
 
     const content = this.buildContent(post, pollMap, params.viewerContext);
     const attachments = this.buildAttachments(post, pollMap);
@@ -1536,14 +1547,14 @@ export class PostHydrationService {
     // batched Redis read + ONE bulk service-token Oxy fetch for the misses, and
     // it writes the resolved summaries back to the Redis cache. A user who is
     // both a post author and a mention is already warm from `buildUserMap`, so
-    // this never re-fetches them. Ids that only resolve to a fallback summary
-    // (handle === displayName === id, i.e. the lookup failed) are treated as
-    // unresolved and left as the original placeholder.
+    // this never re-fetches them. Ids that only resolve to the degraded fallback
+    // summary (empty handle, i.e. the lookup failed) are treated as unresolved
+    // and left as the original placeholder.
     if (uncachedIds.length > 0) {
       const resolved = await resolveUserSummaries(uncachedIds);
       for (const mentionId of uncachedIds) {
         const value = resolved.get(mentionId);
-        if (!value || isFallbackUserSummary(mentionId, value.summary)) {
+        if (!value || isFallbackUserSummary(value.summary)) {
           continue;
         }
         mentionCache.set(mentionId, value.summary);
