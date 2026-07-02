@@ -12,7 +12,7 @@
  */
 
 import { MtnConfig } from '@mention/shared-types';
-import type { SlicedFeedResponse } from '@mention/shared-types';
+import type { HydratedPost, SlicedFeedResponse } from '@mention/shared-types';
 import { feedRankingService } from '../../../services/FeedRankingService';
 import { feedSeenPostsService } from '../../../services/FeedSeenPostsService';
 import { postHydrationService } from '../../../services/PostHydrationService';
@@ -88,6 +88,37 @@ export class FeedEngine {
     return definition.mode === 'ranked'
       ? this.finalizeRanked(definition, ctx, exec, pool, cursor, limit, parsedScoreCursor)
       : this.finalizeChronological(ctx, exec, pool, cursor, limit);
+  }
+
+  /**
+   * Peek at the newest item in a feed's scope for the "new posts" indicator.
+   * Deliberately cheap: it gathers the definition's sources (no cursor, no seen
+   * exclusion, no ranking, no slicing) and returns the single newest candidate,
+   * hydrated. The safety filter still applies via the merge.
+   */
+  async peekLatest(definition: FeedDefinition, context: FeedEngineContext): Promise<HydratedPost | undefined> {
+    const exec: FeedExecution = definition.execution ?? {};
+    const ctx: FeedEngineContext = { ...context, cursor: undefined, pageLimit: 1, seenPostIds: undefined };
+
+    const pool = await this.gatherPool(definition, ctx, exec, 1);
+    if (pool.length === 0) return undefined;
+
+    let newest = pool[0];
+    let newestTs = new Date(newest.createdAt ?? 0).getTime();
+    for (const post of pool) {
+      const ts = new Date(post.createdAt ?? 0).getTime();
+      if (ts > newestTs) {
+        newest = post;
+        newestTs = ts;
+      }
+    }
+
+    const [hydrated] = await postHydrationService.hydratePosts([newest], {
+      viewerId: ctx.currentUserId,
+      oxyClient: ctx.oxyClient,
+      maxDepth: exec.hydrateMaxDepth ?? 0,
+    });
+    return hydrated;
   }
 
   /**
