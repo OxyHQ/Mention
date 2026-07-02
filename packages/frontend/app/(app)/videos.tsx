@@ -197,6 +197,9 @@ interface VideoItemProps {
 // tears the decoder down. A poster sits behind the surface until `readyToPlay`.
 interface ActiveVideoSurfaceProps {
     videoUrl: string;
+    // The raw (non-HLS) original URL, always playable. Used as a one-shot
+    // retry source if `videoUrl` (the preferred/HLS source) errors.
+    fallbackVideoUrl?: string;
     posterUrl?: string;
     isActive: boolean;
     // See VideoItemProps.screenFocused — only play when active AND focused.
@@ -213,6 +216,7 @@ interface ActiveVideoSurfaceProps {
 
 const ActiveVideoSurface = memo<ActiveVideoSurfaceProps>(({
     videoUrl,
+    fallbackVideoUrl,
     posterUrl,
     isActive,
     screenFocused,
@@ -234,6 +238,14 @@ const ActiveVideoSurface = memo<ActiveVideoSurfaceProps>(({
     // Poster frame can 404 (no extractable frame) or fail to load → fall back to
     // the neutral icon instead of a blank/broken image. Reset when the source changes.
     const [posterFailed, setPosterFailed] = useState(false);
+    // The source actually handed to the player. Starts as the preferred
+    // `videoUrl` (HLS when the server resolved one); swaps to
+    // `fallbackVideoUrl` EXACTLY ONCE if that source errors (e.g. the HLS
+    // ladder hasn't finished transcoding yet). `triedFallbackRef` prevents a
+    // second swap if the fallback ALSO errors — at that point it's a genuine
+    // terminal failure and `onError` (the parent's give-up path) fires.
+    const [currentSource, setCurrentSource] = useState(videoUrl);
+    const triedFallbackRef = useRef(false);
     // Reels tap-to-pause: a viewer-driven pause override on the ACTIVE surface. It
     // is cleared whenever the surface stops being active (see the playback effect)
     // so a newly-activated video always autoplays instead of inheriting a stale
@@ -250,7 +262,7 @@ const ActiveVideoSurface = memo<ActiveVideoSurfaceProps>(({
 
     const handlePosterError = useCallback(() => setPosterFailed(true), []);
 
-    const player = useVideoPlayer(videoUrl, (p: VideoPlayer) => {
+    const player = useVideoPlayer(currentSource, (p: VideoPlayer) => {
         p.loop = true;
         // Drive the scrubber at a smooth-but-cheap cadence.
         p.timeUpdateEventInterval = TIME_UPDATE_INTERVAL_S;
@@ -278,12 +290,17 @@ const ActiveVideoSurface = memo<ActiveVideoSurfaceProps>(({
                     return rendered;
                 });
             } else if (next === 'error') {
-                setHasError(true);
-                onError();
+                if (!triedFallbackRef.current && fallbackVideoUrl) {
+                    triedFallbackRef.current = true;
+                    setCurrentSource(fallbackVideoUrl);
+                } else {
+                    setHasError(true);
+                    onError();
+                }
             }
         });
         return () => sub.remove();
-    }, [player, onError]);
+    }, [player, onError, fallbackVideoUrl]);
 
     // Track the playhead for the scrubber. Skipped while the viewer is dragging so
     // the thumb follows the gesture, not the (lagging) player position.
@@ -607,6 +624,7 @@ const VideoItem = memo<VideoItemProps>(({
             {canRenderPlayer ? (
                 <ActiveVideoSurface
                     videoUrl={item.videoUrl}
+                    fallbackVideoUrl={item.fallbackVideoUrl}
                     posterUrl={item.posterUrl}
                     isActive={isActive}
                     screenFocused={screenFocused}
