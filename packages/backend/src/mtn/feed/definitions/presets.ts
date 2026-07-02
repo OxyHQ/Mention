@@ -122,6 +122,66 @@ export const mediaDefinition: FeedDefinition = {
   },
 };
 
+/**
+ * Trending — ranked engagement×recency over the engagement-sorted popular
+ * source. Reuses the Phase 1 `popular` source (excludes boosts); `safety`
+ * guards the merged pool and `passSensitiveOptIn` honors the viewer's opt-in.
+ */
+export const trendingDefinition: FeedDefinition = {
+  id: 'trending',
+  title: 'Trending',
+  mode: 'ranked',
+  sources: [enabled('popular')],
+  signals: [enabled('engagement'), enabled('recency')],
+  filters: [enabled('safety')],
+  execution: {
+    passSensitiveOptIn: true,
+    threadGrouping: true,
+    replyContext: false,
+    hydrateMaxDepth: 0,
+  },
+};
+
+/**
+ * Mutuals — chronological timeline of the viewer's mutual-follow authors.
+ * Requires `ctx.mutualIds` (populated by the controller). Reply context + boost
+ * hydration (`maxDepth:1`) so mutual replies/reposts render in full.
+ */
+export const mutualsDefinition: FeedDefinition = {
+  id: 'mutuals',
+  title: 'Mutuals',
+  mode: 'chronological',
+  sources: [enabled('mutuals')],
+  signals: [],
+  filters: [],
+  execution: {
+    threadGrouping: true,
+    replyContext: true,
+    hydrateMaxDepth: 1,
+  },
+};
+
+/**
+ * Popular with Friends — ranked feed of posts the viewer's follows engaged with
+ * (the `friendsEngaged` source pre-orders by friend-engagement count; the engine
+ * re-ranks with engagement×recency, so `preScored:false`). `maxDepth:1` embeds
+ * quoted originals; `safety` guards the pool.
+ */
+export const friendsPopularDefinition: FeedDefinition = {
+  id: 'friends_popular',
+  title: 'Popular with Friends',
+  mode: 'ranked',
+  sources: [enabled('friendsEngaged')],
+  signals: [enabled('engagement'), enabled('recency')],
+  filters: [enabled('safety')],
+  execution: {
+    preScored: false,
+    hydrateMaxDepth: 1,
+    threadGrouping: true,
+    replyContext: false,
+  },
+};
+
 /** Saved — the viewer's bookmarks, in bookmark order (ordered, items-only). */
 export const savedDefinition: FeedDefinition = {
   id: 'saved',
