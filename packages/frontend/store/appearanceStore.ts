@@ -26,10 +26,15 @@ function unwrapApiData<T>(value: T | { data: T } | null | undefined): T | null {
  */
 export type PostTextExpand = 'default' | 'more' | 'muchMore' | 'all';
 
+/** Behavior when tapping a truncated post's "Read more" link. */
+export type PostReadMoreAction = 'openPost' | 'expandInline';
+
 export interface AppearanceSettings {
   themeMode: ThemeMode;
   primaryColor?: string;
   postTextExpand?: PostTextExpand;
+  postReadMoreAction?: PostReadMoreAction;
+  collapseLongBio?: boolean;
 }
 
 /**
