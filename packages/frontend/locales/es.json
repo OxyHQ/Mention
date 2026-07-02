@@ -814,6 +814,213 @@
       "members": "Miembros",
       "remove": "Eliminar",
       "createButton": "Crear Feed"
+    },
+    "presets": {
+      "title": "Feeds integrados",
+      "for_you": {
+        "label": "Para Ti",
+        "description": "Una mezcla personalizada según lo que te interesa."
+      },
+      "following": {
+        "label": "Siguiendo",
+        "description": "Las últimas publicaciones de las personas que sigues."
+      },
+      "trending": {
+        "label": "Tendencias",
+        "description": "Lo más popular en Mention ahora mismo."
+      },
+      "explore": {
+        "label": "Descubrir",
+        "description": "Publicaciones y personas nuevas de toda la red."
+      },
+      "mutuals": {
+        "label": "Mutuos",
+        "description": "Publicaciones de personas que sigues y te siguen."
+      },
+      "friends_popular": {
+        "label": "Popular con Amigos",
+        "description": "Publicaciones con las que interactúan tus amigos."
+      },
+      "videos": {
+        "label": "Vídeos",
+        "description": "Un feed de vídeos a pantalla completa."
+      }
+    },
+    "builder": {
+      "createTitle": "Nuevo feed",
+      "editTitle": "Editar feed",
+      "create": "Crear",
+      "saveChanges": "Guardar cambios",
+      "titleLabel": "Título",
+      "titlePlaceholder": "Mi feed increíble",
+      "descriptionLabel": "Descripción",
+      "descriptionPlaceholder": "¿De qué trata este feed?",
+      "visibility": "Visibilidad",
+      "public": "Público",
+      "private": "Privado",
+      "publicDescription": "Cualquiera puede descubrir y compartir los feeds públicos.",
+      "mode": "Orden",
+      "ranked": "Relevancia",
+      "chronological": "Recientes",
+      "modeDescription": "Relevancia ordena por interés; Recientes muestra lo más nuevo primero.",
+      "sources": "Fuentes",
+      "sourcesDescription": "De dónde vienen las publicaciones. Activa al menos una.",
+      "filters": "Filtros",
+      "filtersDescription": "Acota qué publicaciones aparecen.",
+      "signals": "Señales de orden",
+      "signalsDescription": "Ajusta cómo se ordenan las publicaciones.",
+      "preview": "Vista previa",
+      "saveToPreview": "Guarda el feed para ver una vista previa.",
+      "addAccounts": "Añadir cuentas",
+      "searchAccounts": "Buscar personas",
+      "chipPlaceholder": "Escribe y pulsa enter",
+      "add": "Añadir",
+      "needsSource": "Activa al menos una fuente",
+      "needsTitle": "Ponle un título a tu feed",
+      "saved": "Feed guardado",
+      "saveFailed": "No se pudo guardar el feed"
+    },
+    "modules": {
+      "accounts": {
+        "label": "Cuentas",
+        "description": "Publicaciones de personas concretas que elijas."
+      },
+      "keywords": {
+        "label": "Palabras y hashtags",
+        "description": "Publicaciones que coinciden con palabras o hashtags."
+      },
+      "topic": {
+        "label": "Tema",
+        "description": "Publicaciones clasificadas en un tema."
+      },
+      "trending": {
+        "label": "Tendencias",
+        "description": "Publicaciones populares de la red."
+      },
+      "globalDiscovery": {
+        "label": "Descubrimiento global",
+        "description": "Publicaciones nuevas de toda la red."
+      },
+      "quotes": {
+        "label": "Citas",
+        "description": "Publicaciones que citan a una publicación o autor."
+      },
+      "starterPack": {
+        "label": "Pack de inicio",
+        "description": "Publicaciones de los miembros de un pack."
+      },
+      "questions": {
+        "label": "Preguntas",
+        "description": "Publicaciones que hacen preguntas."
+      },
+      "news": {
+        "label": "Noticias",
+        "description": "Publicaciones que enlazan noticias."
+      },
+      "instance": {
+        "label": "Instancia",
+        "description": "Publicaciones de una instancia del fediverso."
+      },
+      "links": {
+        "label": "Enlaces",
+        "description": "Publicaciones que enlazan a un dominio."
+      },
+      "newVoices": {
+        "label": "Voces nuevas",
+        "description": "Publicaciones de cuentas nuevas."
+      },
+      "topReplies": {
+        "label": "Mejores respuestas",
+        "description": "Respuestas con mucha interacción."
+      },
+      "curated": {
+        "label": "Seleccionadas",
+        "description": "Publicaciones seleccionadas editorialmente."
+      },
+      "language": {
+        "label": "Idioma",
+        "description": "Publicaciones en los idiomas elegidos."
+      },
+      "region": {
+        "label": "Región",
+        "description": "Publicaciones de una región."
+      },
+      "languagePreference": {
+        "label": "Idioma",
+        "description": "Solo publicaciones en estos idiomas."
+      },
+      "mediaOnly": {
+        "label": "Solo multimedia",
+        "description": "Solo publicaciones con imágenes o vídeo."
+      },
+      "noReplies": {
+        "label": "Sin respuestas",
+        "description": "Ocultar respuestas."
+      },
+      "noBoosts": {
+        "label": "Sin impulsos",
+        "description": "Ocultar impulsos."
+      },
+      "linksOnly": {
+        "label": "Solo enlaces",
+        "description": "Solo publicaciones con enlaces."
+      },
+      "maxLength": {
+        "label": "Longitud máxima",
+        "description": "Ocultar publicaciones más largas que un límite."
+      },
+      "minLength": {
+        "label": "Longitud mínima",
+        "description": "Ocultar publicaciones más cortas que un límite."
+      },
+      "minEngagement": {
+        "label": "Interacción mínima",
+        "description": "Requerir un mínimo de me gusta, impulsos, etc."
+      },
+      "recencyWindow": {
+        "label": "Ventana de tiempo",
+        "description": "Solo publicaciones dentro de un periodo."
+      },
+      "customMuteWords": {
+        "label": "Palabras silenciadas",
+        "description": "Ocultar publicaciones con estas palabras."
+      },
+      "keywordDenylist": {
+        "label": "Lista de palabras vetadas",
+        "description": "Ocultar publicaciones con estas palabras."
+      },
+      "domainAllowlist": {
+        "label": "Dominios permitidos",
+        "description": "Solo publicaciones que enlacen a estos dominios."
+      },
+      "domainDenylist": {
+        "label": "Dominios vetados",
+        "description": "Ocultar publicaciones que enlacen a estos dominios."
+      },
+      "instanceAllowlist": {
+        "label": "Instancias permitidas",
+        "description": "Solo publicaciones de estas instancias."
+      },
+      "instanceDenylist": {
+        "label": "Instancias vetadas",
+        "description": "Ocultar publicaciones de estas instancias."
+      },
+      "topicAllowlist": {
+        "label": "Temas permitidos",
+        "description": "Solo publicaciones de estos temas."
+      },
+      "topicDenylist": {
+        "label": "Temas vetados",
+        "description": "Ocultar publicaciones de estos temas."
+      },
+      "minFollowers": {
+        "label": "Seguidores mínimos",
+        "description": "Solo autores por encima de un número de seguidores."
+      },
+      "minAccountAge": {
+        "label": "Antigüedad mínima",
+        "description": "Solo cuentas más antiguas."
+      }
     }
   },
   "connections": {
