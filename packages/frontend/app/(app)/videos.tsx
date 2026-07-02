@@ -47,10 +47,14 @@ const ACTIVE_WINDOW_RADIUS = 2;
 const POSTER_PREFETCH_RADIUS = ACTIVE_WINDOW_RADIUS + 2;
 // FlatList must keep the window rows mounted (poster) so they can promote to a
 // live player without a remount; WINDOW_SIZE is in screens (one screen = one row).
+// WINDOW_SIZE must stay >= 2*ACTIVE_WINDOW_RADIUS+1 (5 for radius 2) or the extra
+// radius above is inert on native — a row FlatList never renders can't mount an
+// ActiveVideoSurface no matter what ACTIVE_WINDOW_RADIUS says.
 const FLATLIST_CONFIG = {
     INITIAL_NUM_TO_RENDER: 2,
     MAX_TO_RENDER_PER_BATCH: 2,
-    WINDOW_SIZE: 3,
+    // 1 visible + 2 above + 2 below = 5 retained rows, matching ACTIVE_WINDOW_RADIUS=2.
+    WINDOW_SIZE: 5,
     // Raised from 0.4: trigger the next page fetch with more runway left in
     // the current page, so pagination network latency is absorbed before the
     // viewer actually runs out of loaded posts, instead of racing it.
