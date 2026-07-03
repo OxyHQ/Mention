@@ -9,7 +9,7 @@ import { useTranslation } from 'react-i18next';
 import { BaseWidget } from './BaseWidget';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { useLiveRoom } from '@/context/LiveRoomContext';
-import { type Room } from '@/services/roomsService';
+import type { Room } from '@syra.fm/live';
 import { useLiveRoomsStore } from '@/stores/liveRoomsStore';
 import { useRoomUsers, getDisplayName } from '@/hooks/useRoomUsers';
 import { useUserById } from '@/hooks/useCachedUser';

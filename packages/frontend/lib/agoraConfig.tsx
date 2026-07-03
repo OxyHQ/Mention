@@ -1,4 +1,5 @@
 import type { AgoraConfig, AgoraTheme, UserEntity } from '@syra.fm/live';
+import { createAgoraService } from '@syra.fm/live';
 import type { ComponentType } from 'react';
 import type { ViewStyle } from 'react-native';
 import { queryKeys } from '@oxyhq/services';
@@ -47,6 +48,14 @@ const syraRoomsClient = {
     return { data };
   },
 };
+
+/**
+ * The one live-rooms service — the engine's `createAgoraService` bound to the
+ * Syra client above. Exposed at module scope so non-React callers (Zustand
+ * stores) and screens can reuse it without re-instantiating a client. React
+ * components can equivalently read `useAgoraConfig().agoraService`.
+ */
+export const roomsService = createAgoraService(syraRoomsClient);
 
 const useAgoraTheme = (): AgoraTheme => {
   const theme = useBloomTheme();
