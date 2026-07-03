@@ -16,6 +16,7 @@ import { MIGRATIONS_COLLECTION } from './constants';
 import { migrationRepostToBoost } from './0001-repost-to-boost';
 import { migrationLowercaseHashtags } from './0002-lowercase-hashtags';
 import { migrationTrendingTtlIndex } from './0003-trending-ttl-index';
+import { migrationNotificationTtlIndex } from './0004-notification-ttl-index';
 
 export interface Migration {
   /** Stable, unique migration id recorded in the migrations collection. */
@@ -34,6 +35,7 @@ const MIGRATIONS: readonly Migration[] = [
   migrationRepostToBoost,
   migrationLowercaseHashtags,
   migrationTrendingTtlIndex,
+  migrationNotificationTtlIndex,
 ];
 
 /**

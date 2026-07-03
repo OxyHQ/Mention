@@ -129,10 +129,14 @@ router.get("/", async (req: AuthRequest, res: Response) => {
       query._id = { $lt: new mongoose.Types.ObjectId(cursor) };
     }
 
-    // Fetch limit + 1 to determine if there are more results
+    // Fetch limit + 1 to determine if there are more results.
+    // Sort by `_id` descending to match the `_id < cursor` keyset filter (both
+    // the range and the sort are on `_id`), so the query is fully served by the
+    // `{ recipientId: 1, _id: -1 }` index and pagination is consistent. `_id`
+    // descending is chronological newest-first (ObjectIds embed a timestamp).
     const [notificationsRaw, unreadCount] = await Promise.all([
       Notification.find(query)
-        .sort({ createdAt: -1 })
+        .sort({ _id: -1 })
         .limit(limit + 1)
         .populate('entityId', '_id oxyUserId content.text stats metadata.isPinned createdAt')
         .lean<LeanNotification[]>(),
