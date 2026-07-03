@@ -1,1 +1,1 @@
-export { StreamConfigModal } from '@mention/agora-shared';
+export { StreamConfigModal } from '@syra.fm/live';

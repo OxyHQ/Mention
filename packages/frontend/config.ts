@@ -13,6 +13,14 @@ export const API_URL_SOCKET =
     ? "wss://api.mention.earth"
     : (process.env.API_URL_SOCKET ?? "ws://localhost:3000");
 
+// Syra live-rooms backend. Mention's rooms feature is powered by Syra, so room
+// HTTP + realtime traffic targets Syra (NOT api.mention.earth). The Oxy bearer
+// token authenticates cross-app (same Oxy identity). Overridable per-environment.
+export const SYRA_API_URL =
+  process.env.EXPO_PUBLIC_SYRA_API_URL || 'https://api.syra.fm/api';
+export const SYRA_SOCKET_URL =
+  process.env.EXPO_PUBLIC_SYRA_SOCKET_URL || 'wss://api.syra.fm';
+
 export const API_URL_SOCKET_CHAT =
   process.env.API_URL_SOCKET_CHAT ||
   (process.env.NODE_ENV === 'production' ? 'wss://api.mention.earth' : 'http://localhost:4000');

@@ -20,7 +20,6 @@ vi.mock('../../../server', () => ({
   oxy: {},
   io: { of: () => ({ emit: vi.fn() }) },
   notificationsNamespace: { emit: vi.fn() },
-  roomsNamespace: { emit: vi.fn() },
 }));
 
 vi.mock('../../services/PostHydrationService', () => ({

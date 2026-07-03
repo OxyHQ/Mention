@@ -11,19 +11,10 @@ import { Server as SocketIOServer } from 'socket.io';
 export const SOCKET_EVENTS = {
   /** Trending data recalculated. Payload: `{ calculatedAt?: string }`. */
   TRENDS_UPDATED: 'trends:updated',
-  /** The set of live rooms or a live room's participant count changed. Payload: `{ reason?: LiveRoomsUpdateReason }`. */
-  ROOMS_LIVE_UPDATED: 'rooms:live:updated',
 } as const;
-
-/** Reason a `rooms:live:updated` signal was emitted. */
-export type LiveRoomsUpdateReason = 'created' | 'ended' | 'participants';
 
 export interface TrendsUpdatedPayload {
   calculatedAt?: string;
-}
-
-export interface LiveRoomsUpdatedPayload {
-  reason?: LiveRoomsUpdateReason;
 }
 
 let io: SocketIOServer | null = null;
@@ -41,15 +32,6 @@ export const closeIO = () => {
     io.close();
     io = null;
   }
-};
-
-/**
- * Broadcast a lightweight live-rooms-changed signal on the main namespace.
- * Null-guarded: a no-op when `io` is uninitialized (tests/scripts).
- */
-export const emitLiveRoomsUpdated = (reason: LiveRoomsUpdateReason): void => {
-  const payload: LiveRoomsUpdatedPayload = { reason };
-  io?.emit(SOCKET_EVENTS.ROOMS_LIVE_UPDATED, payload);
 };
 
 /**

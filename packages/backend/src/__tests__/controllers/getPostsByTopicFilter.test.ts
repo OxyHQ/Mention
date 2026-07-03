@@ -15,7 +15,6 @@ vi.mock('../../../server', () => ({
   oxy: {},
   io: { of: () => ({ emit: vi.fn() }) },
   notificationsNamespace: { emit: vi.fn() },
-  roomsNamespace: { emit: vi.fn() },
 }));
 
 import { buildPostsByHashtagFilter, buildPostsByTopicFilter } from '../../controllers/posts.controller';

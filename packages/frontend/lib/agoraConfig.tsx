@@ -1,9 +1,9 @@
-import type { AgoraConfig, AgoraTheme, UserEntity } from '@mention/agora-shared';
+import type { AgoraConfig, AgoraTheme, UserEntity } from '@syra.fm/live';
 import type { ComponentType } from 'react';
 import type { ViewStyle } from 'react-native';
 import { queryKeys } from '@oxyhq/services';
-import { authenticatedClient } from '@/utils/api';
-import { API_URL_SOCKET } from '@/config';
+import { oxyServices } from '@/lib/oxyServices';
+import { SYRA_API_URL, SYRA_SOCKET_URL } from '@/config';
 import { useTheme as useBloomTheme } from '@oxyhq/bloom/theme';
 import { useUserById } from '@/hooks/useCachedUser';
 import { queryClient } from '@/lib/queryClient';
@@ -12,6 +12,41 @@ import { Avatar } from '@oxyhq/bloom/avatar';
 import { show } from '@oxyhq/bloom/toast';
 import i18n from '@/lib/i18n';
 import { useAppearanceStore } from '@/store/appearanceStore';
+
+/**
+ * Syra-pointed HTTP client for live rooms. Mirrors Mention's global
+ * `authenticatedClient` (`utils/api.ts`) — an Oxy linked client adapted into the
+ * `{ data }` response shape the live-room engine expects — but targets Syra's
+ * rooms backend (`SYRA_API_URL`) instead of `api.mention.earth`. The Oxy bearer
+ * token authenticates cross-app (same Oxy identity). GET caching stays off (the
+ * linked client defaults to no-cache); do NOT re-enable it here.
+ */
+const syraLinkedClient = oxyServices.createLinkedClient({ baseURL: SYRA_API_URL }).client;
+type SyraRequestConfig = NonNullable<Parameters<typeof syraLinkedClient.get>[1]>;
+type SyraDeleteConfig = NonNullable<Parameters<typeof syraLinkedClient.delete>[1]>;
+
+const syraRoomsClient = {
+  async get<T = unknown>(endpoint: string, config?: SyraRequestConfig): Promise<{ data: T }> {
+    const data = await syraLinkedClient.get<T>(endpoint, config);
+    return { data };
+  },
+  async post<T = unknown>(endpoint: string, body?: unknown, config?: SyraRequestConfig): Promise<{ data: T }> {
+    const data = await syraLinkedClient.post<T>(endpoint, body, config);
+    return { data };
+  },
+  async put<T = unknown>(endpoint: string, body?: unknown, config?: SyraRequestConfig): Promise<{ data: T }> {
+    const data = await syraLinkedClient.put<T>(endpoint, body, config);
+    return { data };
+  },
+  async delete<T = unknown>(endpoint: string, config?: SyraDeleteConfig): Promise<{ data: T }> {
+    const data = await syraLinkedClient.delete<T>(endpoint, config);
+    return { data };
+  },
+  async patch<T = unknown>(endpoint: string, body?: unknown, config?: SyraRequestConfig): Promise<{ data: T }> {
+    const data = await syraLinkedClient.patch<T>(endpoint, body, config);
+    return { data };
+  },
+};
 
 const useAgoraTheme = (): AgoraTheme => {
   const theme = useBloomTheme();
@@ -72,8 +107,8 @@ const getPinnedPodcast: NonNullable<AgoraConfig['getPinnedPodcast']> = async () 
 };
 
 export const agoraConfig: AgoraConfig = {
-  httpClient: authenticatedClient,
-  socketUrl: API_URL_SOCKET,
+  httpClient: syraRoomsClient,
+  socketUrl: SYRA_SOCKET_URL,
   useTheme: useAgoraTheme,
   t: translate,
   getPinnedPodcast,

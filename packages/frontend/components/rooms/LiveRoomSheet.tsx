@@ -1,1 +1,1 @@
-export { LiveRoomSheet } from '@mention/agora-shared';
+export { LiveRoomSheet } from '@syra.fm/live';

@@ -10,7 +10,7 @@ import { API_URL, OXY_BASE_URL } from '@/config';
 /**
  * The subset of `OxyServices` these resolvers actually call. Accepting this
  * structural shape (rather than `any`) keeps the param assignable from the SDK
- * client AND from `unknown`-typed callers (agora-shared passes `unknown`), which
+ * client AND from `unknown`-typed callers (the live-room engine passes `unknown`), which
  * we narrow at the call site with optional chaining.
  */
 interface FileUrlResolver {

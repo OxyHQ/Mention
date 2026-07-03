@@ -7,8 +7,6 @@ on:
     paths:
       - '.github/workflows/deploy-frontends.yml'
       - 'packages/frontend/**'
-      - 'packages/agora/**'
-      - 'packages/agora-shared/**'
       - 'packages/shared-types/**'
       - 'package.json'
       - 'bun.lock'
@@ -18,7 +16,6 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       frontend: ${{ steps.changes.outputs.frontend }}
-      agora: ${{ steps.changes.outputs.agora }}
     steps:
       - uses: actions/checkout@v7
       - uses: dorny/paths-filter@v4
@@ -27,12 +24,6 @@ jobs:
           filters: |
             frontend:
               - 'packages/frontend/**'
-              - 'packages/shared-types/**'
-              - 'package.json'
-              - 'bun.lock'
-            agora:
-              - 'packages/agora/**'
-              - 'packages/agora-shared/**'
               - 'packages/shared-types/**'
               - 'package.json'
               - 'bun.lock'
@@ -63,30 +54,3 @@ jobs:
           packageManager: 'bun'
           wranglerVersion: '4.81.0'
           command: pages deploy packages/frontend/dist --project-name=mention-frontend --branch=main
-
-  deploy-agora:
-    needs: detect-changes
-    if: needs.detect-changes.outputs.agora == 'true' || github.event_name == 'workflow_dispatch'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: '1.3.14'
-      - run: bun install --frozen-lockfile
-      - name: Build shared types
-        run: bun run --cwd packages/shared-types build
-      - name: Build agora
-        run: bun run --cwd packages/agora build
-        timeout-minutes: 60
-        env:
-          NODE_ENV: production
-          EXPO_PUBLIC_API_URL: 'https://api.mention.earth'
-      - name: Deploy to Cloudflare Pages
-        uses: cloudflare/wrangler-action@v4
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          packageManager: 'bun'
-          wranglerVersion: '4.81.0'
-          command: pages deploy packages/agora/dist --project-name=agora-frontend --branch=main
