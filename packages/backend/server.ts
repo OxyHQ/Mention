@@ -288,7 +288,7 @@ const broadcastPresence = (io: SocketIOServer, userId: string, online: boolean) 
 
 // Periodic cleanup of stale online user entries (every 5 minutes)
 // Validates that tracked socket IDs are still actually connected to the server
-setInterval(() => {
+const presenceCleanupInterval = setInterval(() => {
   let cleanedUsers = 0;
   let cleanedSockets = 0;
   for (const [userId, sockets] of onlineUsers.entries()) {
@@ -311,6 +311,8 @@ setInterval(() => {
     logger.debug(`Presence cleanup: removed ${cleanedSockets} stale sockets, ${cleanedUsers} users now offline`);
   }
 }, 5 * 60 * 1000);
+// Never keep the event loop (or a test run) alive solely for this housekeeping timer.
+presenceCleanupInterval.unref?.();
 
 type DisconnectReason =
   | "server disconnect" | "client disconnect" | "transport close" | "transport error" | "ping timeout" | "parse error" | "forced close" | "forced server close" | "server shutting down" | "client namespace disconnect" | "server namespace disconnect" | "unknown transport";

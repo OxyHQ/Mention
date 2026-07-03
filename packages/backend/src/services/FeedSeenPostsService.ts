@@ -43,7 +43,9 @@ export class FeedSeenPostsService {
           this.memoryCache.delete(userId);
         }
       }
-    }, 5 * 60 * 1000) as unknown as ReturnType<typeof setInterval>;
+    }, 5 * 60 * 1000);
+    // Never keep the event loop (or a test run) alive solely for this timer.
+    this.memoryCacheCleanupInterval.unref?.();
   }
 
   /**
