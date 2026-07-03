@@ -34,6 +34,15 @@ vi.mock('../models/FederatedActor', () => ({ default: { find: vi.fn(() => ({ lea
 vi.mock('../models/MuteWord', () => ({ MuteWord: { find: vi.fn(() => ({ lean: vi.fn(async () => []) })) } }));
 vi.mock('../models/UserSettings', () => ({ default: { findOne: vi.fn(() => ({ lean: vi.fn(async () => null) })) } }));
 
+// Driveable anon-feed cache: read defaults to a miss so the engine still runs
+// (existing tests unaffected); individual tests override to assert hit/gating.
+const anonCache = vi.hoisted(() => ({
+  read: vi.fn(async (): Promise<unknown> => null),
+  write: vi.fn(async (): Promise<void> => undefined),
+  buildKey: vi.fn((): string => 'anon-key'),
+}));
+vi.mock('../services/anonFeedCache', () => ({ anonFeedCache: anonCache }));
+
 import { mtnFeedController } from '../mtn/controllers/feed.controller';
 
 interface MockRes {
@@ -80,5 +89,48 @@ describe('MtnFeedController.getFeed → engine', () => {
     const res = makeRes();
     await mtnFeedController.getFeed(req, res as never);
     expect(res.statusCode).toBe(400);
+  });
+});
+
+describe('MtnFeedController.getFeed → anonymous cache', () => {
+  it('reads the mtn-namespaced anon cache before the engine and writes it after a miss', async () => {
+    anonCache.read.mockResolvedValueOnce(null);
+    const req = { query: { descriptor: 'for_you' }, user: undefined } as never;
+    const res = makeRes();
+
+    await mtnFeedController.getFeed(req, res as never);
+
+    expect(anonCache.buildKey).toHaveBeenCalledWith(
+      expect.objectContaining({ namespace: 'mtn', type: 'for_you' }),
+    );
+    expect(anonCache.read).toHaveBeenCalledWith('anon-key');
+    expect(engineRun).toHaveBeenCalledOnce();
+    // The freshly built page is persisted for the next anonymous viewer.
+    expect(anonCache.write).toHaveBeenCalledWith('anon-key', expect.objectContaining({ items: expect.any(Array) }));
+  });
+
+  it('returns the cached page on a hit without running the engine', async () => {
+    const cached = { slices: [], items: [{ id: 'cachedPost', user: { id: 'u9' } }], hasMore: false, totalCount: 1 };
+    anonCache.read.mockResolvedValueOnce(cached);
+    const req = { query: { descriptor: 'for_you' }, user: undefined } as never;
+    const res = makeRes();
+
+    await mtnFeedController.getFeed(req, res as never);
+
+    expect(engineRun).not.toHaveBeenCalled();
+    expect(anonCache.write).not.toHaveBeenCalled();
+    expect(res.body).toEqual({ success: true, data: cached });
+  });
+
+  it('never reads or writes the anon cache for an authenticated viewer', async () => {
+    const req = { query: { descriptor: 'for_you' }, user: { id: 'viewer1' } } as never;
+    const res = makeRes();
+
+    await mtnFeedController.getFeed(req, res as never);
+
+    expect(anonCache.buildKey).not.toHaveBeenCalled();
+    expect(anonCache.read).not.toHaveBeenCalled();
+    expect(anonCache.write).not.toHaveBeenCalled();
+    expect(engineRun).toHaveBeenCalledOnce();
   });
 });

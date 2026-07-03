@@ -26,6 +26,7 @@ import FederatedFollow from '../../models/FederatedFollow';
 import FederatedActor from '../../models/FederatedActor';
 import { MuteWord } from '../../models/MuteWord';
 import { listSubscriptionService } from '../../services/ListSubscriptionService';
+import { anonFeedCache } from '../../services/anonFeedCache';
 import type { TunerContext } from '../feed/FeedTuner';
 
 type MutePreference = NonNullable<TunerContext['preferences']['muteWords']>;
@@ -153,6 +154,14 @@ function resolveLegacyFeed(descriptor: FeedDescriptor): FeedAPI | null {
   return null;
 }
 
+/**
+ * Keyspace isolator for {@link anonFeedCache}. The MTN controller emits a
+ * `SlicedFeedResponse`, whereas the legacy feed controller caches a flat
+ * `FeedResponse` under the same key helper — namespacing guarantees the two
+ * never read each other's entries for an overlapping descriptor name.
+ */
+const ANON_FEED_CACHE_NAMESPACE = 'mtn';
+
 class MtnFeedController {
   /**
    * GET /api/feed?descriptor=for_you&cursor=...&limit=30
@@ -175,6 +184,31 @@ class MtnFeedController {
       );
 
       const currentUserId = req.user?.id;
+
+      // Anonymous feeds are identical for every logged-out viewer (no per-user
+      // following/blocked/muted/seen state — see loadViewerFeedContext), so the
+      // fully built page is cached in Redis for a short window. Reading here
+      // short-circuits the entire context load + engine run + hydration. The key
+      // captures everything that varies an anon result (descriptor, limit,
+      // cursor); it is namespaced so it never collides with the legacy
+      // controller's differently-shaped cache. Fail-soft: a miss/error falls
+      // straight through to a live build. Authenticated feeds are personalized
+      // and must never be cached.
+      const anonCacheKey = !currentUserId
+        ? anonFeedCache.buildKey({
+            namespace: ANON_FEED_CACHE_NAMESPACE,
+            type: descriptor,
+            limit,
+            cursor,
+          })
+        : undefined;
+      if (anonCacheKey) {
+        const cached = await anonFeedCache.read(anonCacheKey);
+        if (cached) {
+          res.json({ success: true, data: cached });
+          return;
+        }
+      }
 
       // Privacy state (blocked/muted authors) is loaded here and applied to the
       // response below; the viewer's following ids / subscribed lists / learned
@@ -244,6 +278,13 @@ class MtnFeedController {
           },
         });
         syncFlattenedItemsWithSlices(response);
+      }
+
+      // Persist the freshly built anonymous page (fail-soft; no-op for
+      // authenticated requests). Written after the tuner pipeline so the cached
+      // value is identical to what a live build returns.
+      if (anonCacheKey) {
+        await anonFeedCache.write(anonCacheKey, response);
       }
 
       res.json({

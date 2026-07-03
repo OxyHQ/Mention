@@ -23,7 +23,15 @@ import { logger } from '../utils/logger';
 type CacheableFeedResponse = FeedResponse | SlicedFeedResponse;
 
 interface AnonFeedCacheKeyInput {
-  /** Feed type descriptor (e.g. `mixed`, `posts`, `media`). */
+  /**
+   * Optional keyspace isolator. Two callers cache different response SHAPES for
+   * overlapping `type` names (the legacy feed controller emits a flat
+   * {@link FeedResponse}; the MTN controller emits a {@link SlicedFeedResponse}),
+   * so each passes a distinct namespace to guarantee they never read each other's
+   * entries. Omitted ⇒ the legacy (unnamespaced) keyspace.
+   */
+  namespace?: string;
+  /** Feed type descriptor (e.g. `mixed`, `posts`, `media`, or an MTN descriptor). */
   type: string;
   /** Optional sort mode (`recent` | `best` | `oldest`). */
   sort?: string;
@@ -72,8 +80,9 @@ class AnonFeedCache {
     const filtersFingerprint = hasFilters
       ? createHash('sha256').update(stableStringify(input.filters)).digest('hex').slice(0, 16)
       : 'none';
+    const namespacedType = input.namespace ? `${input.namespace}:${input.type}` : input.type;
     return [
-      this.KEY_PREFIX + input.type,
+      this.KEY_PREFIX + namespacedType,
       input.sort ?? 'default',
       String(input.limit),
       input.cursor ?? 'first',

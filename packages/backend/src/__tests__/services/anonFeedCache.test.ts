@@ -59,6 +59,15 @@ describe('anonFeedCache.buildKey', () => {
     expect(key).toContain(':none');
     expect(key.startsWith('anonfeed:v1:mixed:default:20:first:')).toBe(true);
   });
+
+  it('isolates keyspaces by namespace so overlapping type names never collide', () => {
+    const legacy = anonFeedCache.buildKey({ type: 'for_you', limit: 20 });
+    const mtn = anonFeedCache.buildKey({ namespace: 'mtn', type: 'for_you', limit: 20 });
+
+    expect(legacy).not.toBe(mtn);
+    expect(legacy.startsWith('anonfeed:v1:for_you:')).toBe(true);
+    expect(mtn.startsWith('anonfeed:v1:mtn:for_you:')).toBe(true);
+  });
 });
 
 describe('anonFeedCache.read', () => {
