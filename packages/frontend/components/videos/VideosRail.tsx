@@ -184,7 +184,7 @@ interface RailStyles {
 
 const styles = StyleSheet.create<RailStyles>({
   container: {
-    alignItems: 'center',
+    alignItems: 'flex-start',
     gap: 20,
     paddingTop: 4,
   },
