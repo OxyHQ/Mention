@@ -49,13 +49,13 @@ const SYSTEM_ACTOR: ActorProfile = {
 };
 
 /**
- * Lean shape of a Notification as read in the GET handler. `entityId` is
- * declared with `.populate('entityId', ...)`, so at runtime it may be the
- * populated post subdocument (`{ _id, ... }`) or the raw ObjectId.
+ * Lean shape of a Notification as read in the GET handler. `entityId` is the raw
+ * reference id (never populated — the post rows are batch-fetched by `$in`
+ * below); `string` covers legacy/defensive reads.
  */
 type LeanNotification = Omit<INotification, keyof mongoose.Document | 'entityId'> & {
   _id: mongoose.Types.ObjectId;
-  entityId: mongoose.Types.ObjectId | { _id: mongoose.Types.ObjectId } | string | null;
+  entityId: mongoose.Types.ObjectId | string | null;
 };
 
 // Helper function to emit notification event
@@ -138,7 +138,6 @@ router.get("/", async (req: AuthRequest, res: Response) => {
       Notification.find(query)
         .sort({ _id: -1 })
         .limit(limit + 1)
-        .populate('entityId', '_id oxyUserId content.text stats metadata.isPinned createdAt')
         .lean<LeanNotification[]>(),
       Notification.countDocuments({
         recipientId: userId,
@@ -179,14 +178,9 @@ router.get("/", async (req: AuthRequest, res: Response) => {
       }
     }
 
-    // `entityId` may be a populated subdocument (after `.populate`) or a raw
-    // ObjectId; this resolves either to its string id.
-    const resolveEntityId = (ent: LeanNotification['entityId']): string => {
-      if (!ent) return '';
-      if (typeof ent === 'string') return ent;
-      if (typeof ent === 'object' && '_id' in ent && ent._id) return String(ent._id);
-      return String(ent);
-    };
+    // `entityId` is a raw ObjectId (or a legacy string); resolve it to its id.
+    const resolveEntityId = (ent: LeanNotification['entityId']): string =>
+      ent ? String(ent) : '';
 
     // For 'post' notifications, fetch post docs to provide a short preview and full post data
     const postEntityIds = notificationsRaw
