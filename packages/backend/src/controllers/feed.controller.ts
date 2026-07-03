@@ -23,6 +23,7 @@ import { IAccountList } from '../models/AccountList';
 import { io } from '../../server';
 import { oxy as oxyClient } from '../../server';
 import { userPreferenceService, readInteractionSurface } from '../services/UserPreferenceService';
+import { affinityEventService } from '../services/AffinityEventService';
 import { postHydrationService } from '../services/PostHydrationService';
 import UserSettings from '../models/UserSettings';
 import { checkFollowAccess, extractFollowingIds, requiresAccessCheck, ProfileVisibility, OxyClient } from '../utils/privacyHelpers';
@@ -1329,6 +1330,15 @@ class FeedController {
         logger.error('createReply: MTN record emission failed', mtnError);
       }
 
+      // Affinity graph: the replier expresses affinity toward the parent post's
+      // author. Fire-and-forget — buffering must never block or fail the reply.
+      const parentAuthorId = parentPost.oxyUserId ? String(parentPost.oxyUserId) : undefined;
+      if (parentAuthorId) {
+        void affinityEventService
+          .record({ fromUserId: currentUserId, toUserId: parentAuthorId, type: 'reply', eventId: `reply:${String(reply._id)}` })
+          .catch(() => undefined);
+      }
+
       // Update parent post comment count
       await Post.findByIdAndUpdate(postId, {
         $inc: { 'stats.commentsCount': 1 }
@@ -1426,6 +1436,15 @@ class FeedController {
       // MTN dual-write: a boost emits an `app.mention.feed.repost` record whose
       // subject is the boosted original's MTN URI. Best-effort, never blocks.
       await emitRepostCreated(boost, String(originalPostId), originalPost?.oxyUserId?.toString?.());
+
+      // Affinity graph: the booster expresses affinity toward the boosted post's
+      // author. Fire-and-forget — buffering must never block or fail the boost.
+      const boostedAuthorId = originalPost?.oxyUserId?.toString?.();
+      if (boostedAuthorId) {
+        void affinityEventService
+          .record({ fromUserId: currentUserId, toUserId: boostedAuthorId, type: 'boost', eventId: `boost:${String(boost._id)}` })
+          .catch(() => undefined);
+      }
 
       // Update original post boost count and get the updated count
       const updatedPost = await Post.findByIdAndUpdate(
@@ -1547,6 +1566,15 @@ class FeedController {
         likedPostId: postId,
         likedPostOwnerOxyUserId: existingPost.oxyUserId?.toString?.(),
       });
+
+      // Affinity graph: the liker expresses affinity toward the post's author.
+      // Fire-and-forget — buffering must never block or fail the like.
+      const likedAuthorId = existingPost.oxyUserId?.toString?.();
+      if (likedAuthorId) {
+        void affinityEventService
+          .record({ fromUserId: currentUserId, toUserId: likedAuthorId, type: 'like', eventId: `like:${String(createdLike._id)}` })
+          .catch(() => undefined);
+      }
 
       // Record interaction for user preference learning
       logger.debug(`[Like] Recording interaction for user ${currentUserId}, post ${postId}`);

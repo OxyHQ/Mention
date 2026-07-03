@@ -32,7 +32,8 @@ export type PeriodicTaskName =
   | 'runMediaCacheWorker'
   | 'runMediaCacheEviction'
   | 'computeInterestScores'
-  | 'flushEndorsementOutbox';
+  | 'flushEndorsementOutbox'
+  | 'flushAffinityEvents';
 
 /** Payload for a periodic (repeatable) federation maintenance job. */
 export interface PeriodicJobData {

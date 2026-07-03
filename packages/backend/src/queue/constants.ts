@@ -122,6 +122,7 @@ export const PERIODIC_MEDIA_CACHE_EVICTION = 'federation:media-cache-eviction';
  */
 export const PERIODIC_COMPUTE_INTEREST_SCORES = 'recommendations:compute-interest-scores';
 export const PERIODIC_FLUSH_ENDORSEMENT_OUTBOX = 'recommendations:flush-endorsement-outbox';
+export const PERIODIC_FLUSH_AFFINITY_EVENTS = 'recommendations:flush-affinity-events';
 
 /**
  * Cadences for the repeatable jobs. These reuse the exact intervals the legacy
@@ -147,6 +148,14 @@ export const COMPUTE_INTEREST_SCORES_INTERVAL_MS = 6 * MS_PER_HOUR;
  * error), so it runs every 2 minutes to keep the backlog small.
  */
 export const FLUSH_ENDORSEMENT_OUTBOX_INTERVAL_MS = 2 * MS_PER_MINUTE;
+
+/**
+ * Affinity-event buffer drain cadence. Interaction events are buffered in Redis
+ * (not pushed per-event); this drain batches them to Oxy. 30 seconds keeps the
+ * buffer small and the affinity graph reasonably fresh while amortizing the
+ * per-event push cost across a whole batch.
+ */
+export const FLUSH_AFFINITY_EVENTS_INTERVAL_MS = 30 * MS_PER_SECOND;
 
 /** Concurrency for the periodic worker. MUST be 1 so a repeatable job never overlaps itself. */
 export const PERIODIC_WORKER_CONCURRENCY = 1;

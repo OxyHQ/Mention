@@ -10,6 +10,7 @@ import { createNotification, createMentionNotifications, createBatchNotification
 import PostSubscription from '../models/PostSubscription';
 import { PostVisibility, PostAttachmentDescriptor, PostAttachmentType, PostContent, PostActorSummary } from '@mention/shared-types';
 import { userPreferenceService, readInteractionSurface } from '../services/UserPreferenceService';
+import { affinityEventService } from '../services/AffinityEventService';
 import { postCreationService } from '../services/PostCreationService';
 import ArticleModel, { IArticle } from '../models/Article';
 import { logger } from '../utils/logger';
@@ -740,6 +741,32 @@ export const createPost = async (req: AuthRequest, res: Response) => {
         await Poll.findByIdAndUpdate(pollId, { postId: String(post._id) });
       } catch (pollUpdateError) {
         logger.error('Failed to update poll postId', pollUpdateError);
+      }
+    }
+
+    // Affinity graph: a quote / reply created via POST /posts expresses affinity
+    // from the author toward the quoted / replied-to post's author. Fire-and-
+    // forget — buffering must never block or fail post creation. Only published
+    // (non-draft/non-scheduled) posts emit; a quote and a reply are independent
+    // (a post can be both). Resolve the target author with a lean lookup.
+    if (postStatus === 'published') {
+      const parentIdForAffinity = parentPostId || in_reply_to_status_id;
+      const affinityTargets: Array<{ targetPostId: string; type: 'quote' | 'reply' }> = [];
+      if (quoted_post_id) affinityTargets.push({ targetPostId: String(quoted_post_id), type: 'quote' });
+      if (parentIdForAffinity) affinityTargets.push({ targetPostId: String(parentIdForAffinity), type: 'reply' });
+
+      for (const { targetPostId, type } of affinityTargets) {
+        void (async () => {
+          const target = await Post.findById(targetPostId).select('oxyUserId').lean();
+          const targetAuthorId = target?.oxyUserId?.toString?.();
+          if (!targetAuthorId) return;
+          await affinityEventService.record({
+            fromUserId: userId,
+            toUserId: targetAuthorId,
+            type,
+            eventId: `${type}:${String(post._id)}`,
+          });
+        })().catch(() => undefined);
       }
     }
 
@@ -1535,6 +1562,15 @@ export const likePost = async (req: AuthRequest, res: Response) => {
         likedPostId: postId,
         likedPostOwnerOxyUserId: likedPost?.oxyUserId?.toString?.(),
       });
+
+      // Affinity graph: the liker expresses affinity toward the post's author.
+      // Fire-and-forget — buffering must never block or fail the like.
+      const authorId = likedPost?.oxyUserId?.toString?.();
+      if (authorId) {
+        void affinityEventService
+          .record({ fromUserId: userId, toUserId: authorId, type: 'like', eventId: `like:${String(createdLike._id)}` })
+          .catch(() => undefined);
+      }
     }
 
     // Record interaction for user preference learning

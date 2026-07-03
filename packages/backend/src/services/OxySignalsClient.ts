@@ -20,11 +20,26 @@ import { logger } from '../utils/logger';
 const INGEST_PATH = '/app-signals/ingest';
 
 /**
+ * Interaction-affinity events endpoint path (service-token call). Oxy folds
+ * these into decayed per-app affinity edges (`fromUserId`→`toUserId`) that boost
+ * recommendations. The source application is derived from the service credential
+ * (Mention's Oxy `Application`), so no `appId`/`clientId` is sent.
+ */
+const EVENTS_PATH = '/app-signals/events';
+
+/**
  * Max edges/items per ingest request. The Oxy contract caps each array at 500;
  * we chunk at that boundary so a large desired-state push or interest batch is
  * split across multiple idempotent requests.
  */
 const INGEST_CHUNK_SIZE = 500;
+
+/**
+ * Max affinity events per `/app-signals/events` request. The Oxy contract caps
+ * the `events` array at 1000; we chunk at that boundary so a large drain batch
+ * is split across multiple idempotent requests.
+ */
+const EVENTS_CHUNK_SIZE = 1000;
 
 /** One endorsement edge: `ownerId` endorses `memberId`. */
 export interface EndorsementEdge {
@@ -43,10 +58,47 @@ export interface InterestSignal {
   interestScore: number;
 }
 
+/**
+ * The interaction types the Oxy `/app-signals/events` contract accepts. Mention
+ * only emits a subset (`like`, `reply`, `boost`, `quote`) for v1; the full union
+ * mirrors the Oxy contract so the wire type never drifts.
+ */
+export type AffinityEventType =
+  | 'like'
+  | 'reply'
+  | 'boost'
+  | 'follow'
+  | 'mention'
+  | 'profile_view'
+  | 'quote'
+  | 'repost';
+
+/**
+ * One interaction-affinity event. Local wire type mirroring the Oxy
+ * `/app-signals/events` contract (contracts are not published with it). Oxy
+ * dedupes re-delivery on `eventId`.
+ */
+export interface AffinityEvent {
+  fromUserId: string;
+  toUserId: string;
+  type: AffinityEventType;
+  /** Optional relative weight; Oxy defaults it when omitted. */
+  weight?: number;
+  /** ISO-8601 occurrence time; Oxy defaults to receipt time when omitted. */
+  occurredAt?: string;
+  /** Stable id for idempotent re-delivery (e.g. `like:<likeId>`). */
+  eventId?: string;
+}
+
 /** Body sent to `POST /app-signals/ingest`. */
 interface SignalIngestBody {
   endorsements?: EndorsementEdge[];
   interests?: InterestSignal[];
+}
+
+/** Body sent to `POST /app-signals/events`. */
+interface AffinityEventsBody {
+  events: AffinityEvent[];
 }
 
 /** Split an array into fixed-size chunks. */
@@ -91,6 +143,21 @@ export class OxySignalsClient {
       await client.makeServiceRequest('POST', INGEST_PATH, body);
     }
     logger.debug(`[OxySignalsClient] pushed ${items.length} interest signals`);
+  }
+
+  /**
+   * Push interaction-affinity events (append-only; deduped by Oxy on `eventId`).
+   * No-op when `events` is empty. THROWS on transport/HTTP failure so the caller
+   * (the affinity drain job) can decide whether to re-buffer or drop.
+   */
+  async pushEvents(events: AffinityEvent[]): Promise<void> {
+    if (events.length === 0) return;
+    const client = getServiceOxyClient();
+    for (const batch of chunk(events, EVENTS_CHUNK_SIZE)) {
+      const body: AffinityEventsBody = { events: batch };
+      await client.makeServiceRequest('POST', EVENTS_PATH, body);
+    }
+    logger.debug(`[OxySignalsClient] pushed ${events.length} affinity events`);
   }
 }
 

@@ -23,16 +23,19 @@ import {
   PERIODIC_MEDIA_CACHE_EVICTION,
   PERIODIC_COMPUTE_INTEREST_SCORES,
   PERIODIC_FLUSH_ENDORSEMENT_OUTBOX,
+  PERIODIC_FLUSH_AFFINITY_EVENTS,
   REFRESH_STALE_ACTORS_INTERVAL_MS,
   SYNC_FOLLOWED_OUTBOX_INTERVAL_MS,
   RECENT_OUTBOX_BACKFILL_INTERVAL_MS,
   COMPUTE_INTEREST_SCORES_INTERVAL_MS,
   FLUSH_ENDORSEMENT_OUTBOX_INTERVAL_MS,
+  FLUSH_AFFINITY_EVENTS_INTERVAL_MS,
   DELIVERY_DRAIN_PAGE_SIZE,
 } from '../queue/constants';
 import type { PeriodicTaskName } from '../queue/types';
 import { interestScoreService } from './InterestScoreService';
 import { endorsementSignalService } from './EndorsementSignalService';
+import { affinityEventService } from './AffinityEventService';
 import { oxy } from '../../server';
 import type { User } from '@oxyhq/core';
 
@@ -81,6 +84,7 @@ class FederationJobScheduler {
   private mediaCacheEvictionInterval: ReturnType<typeof setInterval> | null = null;
   private interestScoresInterval: ReturnType<typeof setInterval> | null = null;
   private endorsementOutboxInterval: ReturnType<typeof setInterval> | null = null;
+  private affinityEventsInterval: ReturnType<typeof setInterval> | null = null;
 
   // Startup delay timeout handles (cleared in stop())
   private initialSyncTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -93,6 +97,7 @@ class FederationJobScheduler {
   private isMediaCacheEvictionRunning = false;
   private isComputeInterestScoresRunning = false;
   private isFlushEndorsementOutboxRunning = false;
+  private isFlushAffinityEventsRunning = false;
 
   /** True when this scheduler registered BullMQ repeatable jobs (queue mode). */
   private usingQueue = false;
@@ -195,6 +200,12 @@ class FederationJobScheduler {
       );
     }, FLUSH_ENDORSEMENT_OUTBOX_INTERVAL_MS);
 
+    this.affinityEventsInterval = setInterval(() => {
+      this.flushAffinityEvents().catch((err) =>
+        logger.error('Affinity events flush job failed:', err)
+      );
+    }, FLUSH_AFFINITY_EVENTS_INTERVAL_MS);
+
     // Stagger startup tasks to let DB connections warm up
     this.initialSyncTimeout = setTimeout(() => {
       this.syncFollowedActorsPosts().catch((err) =>
@@ -233,6 +244,7 @@ class FederationJobScheduler {
     await upsert(PERIODIC_RECENT_OUTBOX_BACKFILL, RECENT_OUTBOX_BACKFILL_INTERVAL_MS, 'syncRecentOutboxBackfills');
     await upsert(PERIODIC_COMPUTE_INTEREST_SCORES, COMPUTE_INTEREST_SCORES_INTERVAL_MS, 'computeInterestScores');
     await upsert(PERIODIC_FLUSH_ENDORSEMENT_OUTBOX, FLUSH_ENDORSEMENT_OUTBOX_INTERVAL_MS, 'flushEndorsementOutbox');
+    await upsert(PERIODIC_FLUSH_AFFINITY_EVENTS, FLUSH_AFFINITY_EVENTS_INTERVAL_MS, 'flushAffinityEvents');
 
     if (isMediaCacheEnabled()) {
       await upsert(PERIODIC_MEDIA_CACHE_WORKER, MEDIA_CACHE_WORKER_INTERVAL_MS, 'runMediaCacheWorker');
@@ -354,6 +366,10 @@ class FederationJobScheduler {
       clearInterval(this.endorsementOutboxInterval);
       this.endorsementOutboxInterval = null;
     }
+    if (this.affinityEventsInterval) {
+      clearInterval(this.affinityEventsInterval);
+      this.affinityEventsInterval = null;
+    }
     if (this.initialSyncTimeout) {
       clearTimeout(this.initialSyncTimeout);
       this.initialSyncTimeout = null;
@@ -377,6 +393,7 @@ class FederationJobScheduler {
       PERIODIC_MEDIA_CACHE_EVICTION,
       PERIODIC_COMPUTE_INTEREST_SCORES,
       PERIODIC_FLUSH_ENDORSEMENT_OUTBOX,
+      PERIODIC_FLUSH_AFFINITY_EVENTS,
     ];
 
     await Promise.allSettled(ids.map((id) => queue.removeJobScheduler(id)));
@@ -884,6 +901,28 @@ class FederationJobScheduler {
       await endorsementSignalService.flushOutbox();
     } finally {
       this.isFlushEndorsementOutboxRunning = false;
+    }
+  }
+
+  /**
+   * Drain the buffered interaction-affinity events (Redis list) and push a batch
+   * to Oxy's recommendation affinity graph. No-ops when Redis is unavailable or
+   * the buffer is empty. Best-effort — a push failure re-buffers a bounded
+   * amount inside the service and the next tick retries.
+   *
+   * Public so the BullMQ periodic worker can invoke it; also called by the
+   * legacy in-process interval path.
+   */
+  async flushAffinityEvents(): Promise<void> {
+    if (this.isFlushAffinityEventsRunning) {
+      logger.debug('[AffinityEvent] flush already running, skipping');
+      return;
+    }
+    this.isFlushAffinityEventsRunning = true;
+    try {
+      await affinityEventService.drainOnce();
+    } finally {
+      this.isFlushAffinityEventsRunning = false;
     }
   }
 
