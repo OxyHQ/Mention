@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { Text, View, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Avatar } from '@oxyhq/bloom/avatar';
+import { LiveAvatar } from '@/components/ui/LiveAvatar';
 
 import UserName from '../UserName';
 import { ProfileHoverCard } from '../ProfileHoverCard';
@@ -78,6 +78,12 @@ interface PostHeaderProps {
   avatarVariant?: string;
   avatarSize?: number;
   avatarGap?: number;
+  /**
+   * Oxy user id of the post author. When that author is currently live in a Syra
+   * room, the avatar shows a live badge and tapping it joins the room instead of
+   * opening the profile. Omit it for non-user avatars (e.g. the compose preview).
+   */
+  authorUserId?: string;
   placeholderColor?: string;
   onPressUser?: () => void;
   onPressAvatar?: () => void;
@@ -95,7 +101,7 @@ const PostHeader: React.FC<PostHeaderProps> = ({
   avatarSource,
   avatarVariant,
   avatarSize = 36,
-
+  authorUserId,
   placeholderColor,
   onPressUser,
   onPressAvatar,
@@ -117,9 +123,15 @@ const PostHeader: React.FC<PostHeaderProps> = ({
     <View style={{ paddingHorizontal }}>
       <View className="flex-row items-start justify-between">
         <ProfileHoverCard username={user.handle}>
-          <TouchableOpacity activeOpacity={0.7} onPress={onPressAvatar} style={{ marginTop: headerTopOffset }}>
-            <Avatar source={avatarSource} variant={avatarVariant} size={avatarSize} placeholderColor={placeholderColor} style={{ marginRight: 12 }} />
-          </TouchableOpacity>
+          <LiveAvatar
+            userId={authorUserId}
+            source={avatarSource}
+            variant={avatarVariant}
+            size={avatarSize}
+            placeholderColor={placeholderColor}
+            onPress={onPressAvatar}
+            style={{ marginTop: headerTopOffset, marginRight: 12 }}
+          />
         </ProfileHoverCard>
         <View className="flex-1" style={{ gap: HEADER_CONTENT_GAP }}>
           {contextTop}

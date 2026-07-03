@@ -28,7 +28,7 @@ import { useTheme, useBloomTheme } from '@oxyhq/bloom/theme';
 import { useAppearanceStore } from '@/store/appearanceStore';
 import { Chat, ChatActive } from '@/assets/icons/chat-icon';
 import { Bell, BellActive } from '@/assets/icons/bell-icon';
-import { Agora, AgoraActive } from '@syra.fm/live';
+import { LiveRoomsIcon, LiveRoomsIconActive } from '@syra.fm/live';
 import { useAuth, ProfileButton } from '@oxyhq/services';
 import { getNormalizedUserHandle } from '@oxyhq/core';
 import { asViewStyle, type WebViewStyle } from '@/types/webStyles';
@@ -75,7 +75,7 @@ export function SideBar({ asDrawer = false, onNavigate }: SideBarProps) {
     }, [resetAppearance, resetTheme]);
 
     // Every sidebar destination is a TAB ROOT (home, the current user's own
-    // profile, explore, notifications, chat, agora, insights, saved, feeds,
+    // profile, explore, notifications, chat, live rooms, insights, saved, feeds,
     // lists, videos, settings). With the (app) center now a Stack, `navigate`
     // pops to an existing instance of the target instead of stacking a new copy,
     // so repeatedly clicking tabs never grows the stack or duplicates Home.
@@ -147,10 +147,10 @@ export function SideBar({ asDrawer = false, onNavigate }: SideBarProps) {
             route: '/chat',
         },
         {
-            title: t("sidebar.agora"),
-            icon: <Agora />,
-            iconActive: <AgoraActive />,
-            route: '/agora',
+            title: t("sidebar.liveRooms"),
+            icon: <LiveRoomsIcon />,
+            iconActive: <LiveRoomsIconActive />,
+            route: '/live-rooms',
         },
         {
             title: t("sidebar.insights"),

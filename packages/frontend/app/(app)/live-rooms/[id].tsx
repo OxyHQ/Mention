@@ -27,7 +27,8 @@ import { useTheme, type Theme } from '@oxyhq/bloom/theme';
 import { useRoomUsers, getDisplayName, getAvatarUrl } from '@/hooks/useRoomUsers';
 import { useUserById } from '@/hooks/useCachedUser';
 import { useLiveRoom } from '@/context/LiveRoomContext';
-import { roomsService, type Room } from '@/services/roomsService';
+import { roomsService } from '@/lib/liveConfig';
+import type { Room } from '@syra.fm/live';
 import { useAuth } from '@oxyhq/services';
 import { useTranslation } from 'react-i18next';
 import { logger } from '@/lib/logger';
@@ -146,7 +147,7 @@ const RoomDetailScreen = () => {
 
   const handleShareRoom = useCallback(async () => {
     if (!room) return;
-    const url = `https://mention.earth/agora/${id}`;
+    const url = `https://mention.earth/live-rooms/${id}`;
     try {
       await Share.share({
         message: `${room.title}\n\n${url}`,

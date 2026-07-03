@@ -23,7 +23,7 @@ interface ShareLinkOptions {
  * - native: RN `Share.share`
  * - web: `navigator.share` when available, otherwise copy to clipboard + toast
  *
- * Mirrors the app's existing share behavior (`usePostShare`, agora room share).
+ * Mirrors the app's existing share behavior (`usePostShare`, live room share).
  */
 export async function shareLink({
   title,
