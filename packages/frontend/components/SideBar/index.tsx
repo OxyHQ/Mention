@@ -28,7 +28,7 @@ import { useTheme, useBloomTheme } from '@oxyhq/bloom/theme';
 import { useAppearanceStore } from '@/store/appearanceStore';
 import { Chat, ChatActive } from '@/assets/icons/chat-icon';
 import { Bell, BellActive } from '@/assets/icons/bell-icon';
-import { Agora as LiveRoomsIcon, AgoraActive as LiveRoomsIconActive } from '@syra.fm/live';
+import { LiveRoomsIcon, LiveRoomsIconActive } from '@syra.fm/live';
 import { useAuth, ProfileButton } from '@oxyhq/services';
 import { getNormalizedUserHandle } from '@oxyhq/core';
 import { asViewStyle, type WebViewStyle } from '@/types/webStyles';

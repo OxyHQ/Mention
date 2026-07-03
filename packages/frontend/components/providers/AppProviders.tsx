@@ -14,7 +14,7 @@ import { SafeAreaProvider, initialWindowMetrics } from 'react-native-safe-area-c
 import { StatusBar } from 'expo-status-bar';
 import { OxyProvider } from '@oxyhq/services';
 import { OxyServices } from '@oxyhq/core';
-import { AgoraProvider, LiveRoomProvider } from '@syra.fm/live';
+import { LiveConfigProvider, LiveRoomProvider } from '@syra.fm/live';
 import { AppErrorBoundary } from '@/components/AppErrorBoundary';
 import { BottomSheetProvider } from '@/context/BottomSheetContext';
 import { HomeRefreshProvider } from '@/context/HomeRefreshContext';
@@ -24,7 +24,7 @@ import { ToastOutlet } from '@oxyhq/bloom/toast';
 import { ConfirmPromptProvider } from '@/components/common/ConfirmPrompt';
 import { FediverseInfoDialogProvider } from '@/components/Fediverse/FediverseInfoDialog';
 import i18n from '@/lib/i18n';
-import { agoraConfig } from '@/lib/agoraConfig';
+import { liveConfig } from '@/lib/liveConfig';
 import { createScopedLogger } from '@/lib/logger';
 
 const logger = createScopedLogger('AppProviders');
@@ -63,7 +63,7 @@ export const AppProviders = memo(function AppProviders({
             queryClient={queryClient}
           >
             <I18nextProvider i18n={i18n}>
-              <AgoraProvider config={agoraConfig}>
+              <LiveConfigProvider config={liveConfig}>
                 <LiveRoomProvider>
                   <BottomSheetProvider>
                     <MenuProvider>
@@ -83,7 +83,7 @@ export const AppProviders = memo(function AppProviders({
                     </MenuProvider>
                   </BottomSheetProvider>
                 </LiveRoomProvider>
-              </AgoraProvider>
+              </LiveConfigProvider>
             </I18nextProvider>
           </OxyProvider>
         </KeyboardProvider>

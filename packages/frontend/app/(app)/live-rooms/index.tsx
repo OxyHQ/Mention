@@ -14,7 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@oxyhq/services';
 
 import { ThemedText } from '@/components/ThemedText';
-import { Agora as LiveRoomsIcon } from '@syra.fm/live';
+import { LiveRoomsIcon } from '@syra.fm/live';
 import { Header } from '@/components/Header';
 import { EmptyState } from '@/components/common/EmptyState';
 import RoomCard from '@/components/RoomCard';
@@ -23,7 +23,7 @@ import SEO from '@/components/SEO';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { useRoomUsers } from '@/hooks/useRoomUsers';
 import { useLiveRoom } from '@/context/LiveRoomContext';
-import { roomsService } from '@/lib/agoraConfig';
+import { roomsService } from '@/lib/liveConfig';
 import type { Room } from '@syra.fm/live';
 import { logger } from '@/lib/logger';
 import { BottomSheetContext } from '@/context/BottomSheetContext';

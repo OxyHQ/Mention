@@ -27,7 +27,7 @@ import { useTheme, type Theme } from '@oxyhq/bloom/theme';
 import { useRoomUsers, getDisplayName, getAvatarUrl } from '@/hooks/useRoomUsers';
 import { useUserById } from '@/hooks/useCachedUser';
 import { useLiveRoom } from '@/context/LiveRoomContext';
-import { roomsService } from '@/lib/agoraConfig';
+import { roomsService } from '@/lib/liveConfig';
 import type { Room } from '@syra.fm/live';
 import { useAuth } from '@oxyhq/services';
 import { useTranslation } from 'react-i18next';
