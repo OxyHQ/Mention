@@ -37,8 +37,10 @@ import {
   parseFeedFilters,
   parseFeedCursor,
   validateResultSize,
+  fetchWithRecencyFallback,
   FEED_CONSTANTS
 } from '../utils/feedUtils';
+import { anonFeedCache } from '../services/anonFeedCache';
 import { metrics } from '../utils/metrics';
 import { config } from '../config';
 import { mergeHashtags } from '../utils/textProcessing';
@@ -448,6 +450,22 @@ class FeedController {
         }
       }
 
+      // Anonymous feeds are identical for every logged-out viewer (no per-user
+      // blocked/muted filtering, no seen-set), so the fully built page is cached
+      // in Redis for a short window. This collapses a burst of anon requests
+      // into a single engagement-sort + hydration recompute. Fail-soft: a cache
+      // miss/error falls straight through to a live build. Authenticated feeds
+      // are personalized and never cached here.
+      const anonCacheKey = !currentUserId
+        ? anonFeedCache.buildKey({ type: feedType, sort: feedSort, limit, cursor, filters })
+        : undefined;
+      if (anonCacheKey) {
+        const cachedResponse = await anonFeedCache.read(anonCacheKey);
+        if (cachedResponse) {
+          return res.json(cachedResponse);
+        }
+      }
+
       // Build query
       let query: FilterQuery<IPost>;
       if (feedType === 'saved' && savedPostIds.length > 0) {
@@ -514,43 +532,54 @@ class FeedController {
       // For authenticated users, use the personalized algorithm
       let posts;
       if (!currentUserId) {
-        // Sort by engagement score (popular posts) for unauthenticated users
-        posts = await Post.aggregate([
-          { $match: query },
-          {
-            $project: {
-              _id: 1,
-              oxyUserId: 1,
-              createdAt: 1,
-              visibility: 1,
-              type: 1,
-              parentPostId: 1,
-              boostOf: 1,
-              quoteOf: 1,
-              threadId: 1,
-              content: 1,
-              stats: 1,
-              metadata: 1,
-              hashtags: 1,
-              mentions: 1,
-              language: 1
-            }
-          },
-          {
-            $addFields: {
-              engagementScore: {
-                $add: [
-                  { $ifNull: ['$stats.likesCount', 0] },
-                  { $multiply: [{ $ifNull: ['$stats.boostsCount', 0] }, 2] },
-                  { $multiply: [{ $ifNull: ['$stats.commentsCount', 0] }, 1.5] }
-                ]
+        // Sort by engagement score (popular posts) for unauthenticated users.
+        // A recency window bounds the scan through the
+        // `{ visibility, status, createdAt }` index instead of sorting the whole
+        // collection; the never-blank fallback (7d → 30d → unbounded) guarantees
+        // a sparse instance still fills the page. When the caller already set an
+        // explicit `createdAt` range (date filters), that range bounds the scan
+        // and the window is skipped so the filter is respected exactly.
+        const runAnonPopular = (cutoff: Date | undefined) =>
+          Post.aggregate([
+            { $match: cutoff ? { ...query, createdAt: { $gte: cutoff } } : query },
+            {
+              $project: {
+                _id: 1,
+                oxyUserId: 1,
+                createdAt: 1,
+                visibility: 1,
+                type: 1,
+                parentPostId: 1,
+                boostOf: 1,
+                quoteOf: 1,
+                threadId: 1,
+                content: 1,
+                stats: 1,
+                metadata: 1,
+                hashtags: 1,
+                mentions: 1,
+                language: 1
               }
-            }
-          },
-          { $sort: { engagementScore: -1, createdAt: -1 } },
-          { $limit: limit + 1 }
-        ]).option({ maxTimeMS: FEED_CONSTANTS.QUERY_TIMEOUT_MS });
-        
+            },
+            {
+              $addFields: {
+                engagementScore: {
+                  $add: [
+                    { $ifNull: ['$stats.likesCount', 0] },
+                    { $multiply: [{ $ifNull: ['$stats.boostsCount', 0] }, 2] },
+                    { $multiply: [{ $ifNull: ['$stats.commentsCount', 0] }, 1.5] }
+                  ]
+                }
+              }
+            },
+            { $sort: { engagementScore: -1, createdAt: -1 } },
+            { $limit: limit + 1 }
+          ]).option({ maxTimeMS: FEED_CONSTANTS.QUERY_TIMEOUT_MS });
+
+        posts = 'createdAt' in query
+          ? await runAnonPopular(undefined)
+          : await fetchWithRecencyFallback(limit + 1, runAnonPopular);
+
         // Validate result size
         validateResultSize(posts, limit + 1);
       } else {
@@ -703,6 +732,13 @@ class FeedController {
         metrics.incrementCounter('feed_slow_queries_total', 1, { feed_type: type });
       } else if (process.env.NODE_ENV === 'development') {
         logger.debug(`[Feed] Query completed: ${duration}ms`, performanceMetrics);
+      }
+
+      // Cache the freshly built anonymous page (fail-soft; no-op for
+      // authenticated requests). Written after the response is fully built so
+      // the cached value is byte-identical to a live build.
+      if (anonCacheKey) {
+        await anonFeedCache.write(anonCacheKey, response);
       }
 
       res.json(response);

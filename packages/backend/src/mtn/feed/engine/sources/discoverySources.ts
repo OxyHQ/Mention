@@ -11,6 +11,7 @@ import mongoose from 'mongoose';
 import { MtnConfig } from '@mention/shared-types';
 import { Post } from '../../../../models/Post';
 import { FeedQueryBuilder } from '../../../../utils/feedQueryBuilder';
+import { fetchWithRecencyFallback } from '../../../../utils/feedUtils';
 import { FEED_FIELDS } from '../../FeedAPI';
 import { ScoreCursor } from '../../CursorBuilder';
 import { DISCOVERY_SAFE_MATCH, filterDiscoverable, FeedSafetyPostShape } from '../../feedSafety';
@@ -252,30 +253,38 @@ export const popularSource: SourceModule = {
   userComposable: false,
   gather: async (ctx, _params, cap) => {
     const allowSensitive = ctx.showSensitiveContent === true;
-    const match: Record<string, unknown> = {
+    const baseMatch: Record<string, unknown> = {
       visibility: 'public',
       status: 'published',
       ...(allowSensitive ? {} : DISCOVERY_SAFE_MATCH),
       $and: [{ $or: [{ boostOf: null }, { boostOf: { $exists: false } }] }],
     };
     if (ctx.cursor && mongoose.Types.ObjectId.isValid(ctx.cursor)) {
-      match._id = { $lt: new mongoose.Types.ObjectId(ctx.cursor) };
+      baseMatch._id = { $lt: new mongoose.Types.ObjectId(ctx.cursor) };
     }
 
-    const posts = (await Post.aggregate([
-      { $match: match },
-      {
-        $project: {
-          _id: 1, oxyUserId: 1, federation: 1, createdAt: 1, visibility: 1, type: 1,
-          parentPostId: 1, boostOf: 1, quoteOf: 1, threadId: 1,
-          content: 1, stats: 1, metadata: 1, hashtags: 1, mentions: 1, language: 1,
-          'postClassification.sensitive': 1,
+    // A recency window bounds the engagement scan through the
+    // `{ visibility, status, createdAt }` index; the never-blank fallback widens
+    // (7d → 30d → unbounded) so this source (For You anonymous + never-blank
+    // fallback) is never starved on a low-traffic instance. Cutoff computed
+    // per-call inside the helper.
+    const runPopular = (cutoff: Date | undefined) =>
+      Post.aggregate([
+        { $match: cutoff ? { ...baseMatch, createdAt: { $gte: cutoff } } : baseMatch },
+        {
+          $project: {
+            _id: 1, oxyUserId: 1, federation: 1, createdAt: 1, visibility: 1, type: 1,
+            parentPostId: 1, boostOf: 1, quoteOf: 1, threadId: 1,
+            content: 1, stats: 1, metadata: 1, hashtags: 1, mentions: 1, language: 1,
+            'postClassification.sensitive': 1,
+          },
         },
-      },
-      { $addFields: { engagementScore: engagementScoreExpr() } },
-      { $sort: { engagementScore: -1, createdAt: -1 } },
-      { $limit: cap },
-    ]).option({ maxTimeMS: 5000 })) as unknown as PopularLeanPost[];
+        { $addFields: { engagementScore: engagementScoreExpr() } },
+        { $sort: { engagementScore: -1, createdAt: -1 } },
+        { $limit: cap },
+      ]).option({ maxTimeMS: 5000 }) as unknown as Promise<PopularLeanPost[]>;
+
+    const posts = await fetchWithRecencyFallback(cap, runPopular);
 
     const eligible = allowSensitive ? posts : filterDiscoverable(posts);
     return eligible as unknown as CandidatePost[];

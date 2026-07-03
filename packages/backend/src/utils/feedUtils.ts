@@ -19,6 +19,47 @@ export const FEED_CONSTANTS = {
 } as const;
 
 /**
+ * Progressive recency windows (milliseconds) for the popular/engagement
+ * discovery scans. A bounded `createdAt >= now - window` match lets the planner
+ * use the `{ visibility, status, createdAt }` index instead of scanning the
+ * whole collection. Ordered narrowest → widest; {@link fetchWithRecencyFallback}
+ * widens through them and finally drops the bound entirely so a sparse instance
+ * is NEVER served a blank/short page.
+ */
+export const FEED_RECENCY_WINDOWS_MS: readonly number[] = [
+  7 * 24 * 60 * 60 * 1000, // 7 days
+  30 * 24 * 60 * 60 * 1000, // 30 days
+];
+
+/**
+ * Run an engagement/popular query under progressively wider recency windows,
+ * returning the first window whose result fills the requested page. The cutoff
+ * is computed per-call (never at module scope) and passed to `runWithCutoff`;
+ * the final pass receives `undefined` (no time bound) as the never-blank
+ * fallback, so the result is at most `FEED_RECENCY_WINDOWS_MS.length + 1`
+ * queries and is only more than one when the narrower windows underfill.
+ *
+ * @param desiredCount minimum rows for a window to be accepted (typically the
+ *   overfetch size, `limit + 1`).
+ * @param runWithCutoff executes the scan for a given cutoff Date, or unbounded
+ *   when `undefined`.
+ */
+export async function fetchWithRecencyFallback<T>(
+  desiredCount: number,
+  runWithCutoff: (cutoff: Date | undefined) => Promise<T[]>,
+): Promise<T[]> {
+  const now = Date.now();
+  for (const windowMs of FEED_RECENCY_WINDOWS_MS) {
+    const result = await runWithCutoff(new Date(now - windowMs));
+    if (result.length >= desiredCount) {
+      return result;
+    }
+  }
+  // Never-blank fallback: no time bound — return whatever exists.
+  return runWithCutoff(undefined);
+}
+
+/**
  * Validate and normalize limit parameter
  * Ensures limit is within acceptable bounds
  * Handles string, number, and Express ParsedQs types
