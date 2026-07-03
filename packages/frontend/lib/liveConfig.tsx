@@ -57,6 +57,45 @@ const syraRoomsClient = {
  */
 export const roomsService = createRoomsService(syraRoomsClient);
 
+/**
+ * A user currently live in a Syra room. `userId` is the Oxy user id (the same id
+ * Mention post authors and profiles carry), `roomId` the live room to join.
+ */
+export interface LiveUserEntry {
+  userId: string;
+  roomId: string;
+}
+
+/**
+ * The viewer's own live-visibility preference — governs WHEN their avatar shows
+ * the live badge to others: `'active'` = whenever they are in a live room,
+ * `'speaking'` = only while they hold the mic.
+ */
+export type LiveVisibility = 'active' | 'speaking';
+
+/**
+ * Live-presence reads/writes that live on Syra's rooms backend but are NOT part
+ * of the engine's `roomsService`. They reuse the SAME Syra `{ data }` client the
+ * live config is built on, so every call hits `api.syra.fm` (cross-app Oxy
+ * identity), never `api.mention.earth`.
+ */
+export const getLiveUsers = async (): Promise<LiveUserEntry[]> => {
+  const { data } = await syraRoomsClient.get<{ liveUsers: LiveUserEntry[] }>('/rooms/live-users');
+  return data.liveUsers ?? [];
+};
+
+export const getLivePresencePreference = async (): Promise<LiveVisibility> => {
+  const { data } = await syraRoomsClient.get<{ liveVisibility: LiveVisibility }>('/rooms/me/presence-preference');
+  return data.liveVisibility;
+};
+
+export const updateLivePresencePreference = async (liveVisibility: LiveVisibility): Promise<LiveVisibility> => {
+  const { data } = await syraRoomsClient.put<{ liveVisibility: LiveVisibility }>('/rooms/me/presence-preference', {
+    liveVisibility,
+  });
+  return data.liveVisibility ?? liveVisibility;
+};
+
 const useLiveTheme = (): LiveTheme => {
   const theme = useBloomTheme();
   return {

@@ -3,11 +3,13 @@ import { View, Text, TouchableOpacity } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import FontAwesome5 from '@expo/vector-icons/FontAwesome5';
-import { useDerivedValue, interpolate, Extrapolation } from 'react-native-reanimated';
+import Animated, { useDerivedValue, useAnimatedStyle, interpolate, Extrapolation } from 'react-native-reanimated';
 import { cn } from '@/lib/utils';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import { ZoomableAvatar } from '@/components/ZoomableAvatar';
+import { LiveAvatar } from '@/components/ui/LiveAvatar';
+import { useLiveUsers } from '@/hooks/useLiveUsers';
 import { useLayoutScroll } from '@/context/LayoutScrollContext';
 import { AnalyticsIcon } from '@/assets/icons/analytics-icon';
 import { Gear } from '@/assets/icons/gear-icon';
@@ -22,6 +24,12 @@ import type {
   ShowBottomSheetFn,
   UserNameComponent,
 } from './types';
+
+// Shrink the 90px header avatar toward these values as the profile scrolls. The
+// same constants drive both the ZoomableAvatar (non-live) collapse and the live
+// avatar's collapse wrapper so the two stay pixel-identical during scroll.
+const PROFILE_AVATAR_COLLAPSE_MIN_SCALE = 0.45;
+const PROFILE_AVATAR_COLLAPSE_TRANSLATE_Y = 16;
 
 /**
  * Default profile header with avatar on left
@@ -62,19 +70,41 @@ export const ProfileHeaderDefault = memo(function ProfileHeaderDefault({
     ),
   );
 
+  // When the profile owner is live, swap the zoom-to-fullscreen avatar for the
+  // live-badged one (tap joins the room). The collapse-on-scroll shrink is
+  // preserved by wrapping it in an animated view that mirrors ZoomableAvatar's
+  // transform, so live and non-live headers behave identically while scrolling.
+  const { isLive } = useLiveUsers();
+  const isProfileLive = isLive(profileId);
+  const liveAvatarCollapseStyle = useAnimatedStyle(() => ({
+    transform: [
+      { scale: interpolate(avatarCollapseProgress.value, [0, 1], [1, PROFILE_AVATAR_COLLAPSE_MIN_SCALE], Extrapolation.CLAMP) },
+      { translateY: interpolate(avatarCollapseProgress.value, [0, 1], [0, PROFILE_AVATAR_COLLAPSE_TRANSLATE_Y], Extrapolation.CLAMP) },
+    ],
+  }));
+
   return (
     <View className="flex-row justify-between items-end mb-2.5" style={{ marginTop: -45 }}>
       <View className="relative">
-        <ZoomableAvatar
-          source={avatarUri}
-          size={90}
-          className="border-[3px] border-background bg-secondary"
-          style={{ width: 90, height: 90, borderRadius: 45 }}
-          imageStyle={{}}
-          collapseProgress={avatarCollapseProgress}
-          collapseMinScale={0.45}
-          collapseTranslateY={16}
-        />
+        {isProfileLive ? (
+          <Animated.View
+            className="border-[3px] border-background bg-secondary rounded-full"
+            style={liveAvatarCollapseStyle}
+          >
+            <LiveAvatar userId={profileId} source={avatarUri ?? undefined} size={90} />
+          </Animated.View>
+        ) : (
+          <ZoomableAvatar
+            source={avatarUri}
+            size={90}
+            className="border-[3px] border-background bg-secondary"
+            style={{ width: 90, height: 90, borderRadius: 45 }}
+            imageStyle={{}}
+            collapseProgress={avatarCollapseProgress}
+            collapseMinScale={PROFILE_AVATAR_COLLAPSE_MIN_SCALE}
+            collapseTranslateY={PROFILE_AVATAR_COLLAPSE_TRANSLATE_Y}
+          />
+        )}
         {!isOwnProfile && profileId && (
           <PresenceIndicator
             userId={profileId}
@@ -159,6 +189,8 @@ export const ProfileHeaderMinimalist = memo(function ProfileHeaderMinimalist({
   trailingBadge,
 }: ProfileHeaderMinimalistProps & { profileId?: string; isOwnProfile?: boolean; trailingBadge?: React.ReactNode }) {
   const theme = useTheme();
+  const { isLive } = useLiveUsers();
+  const isProfileLive = isLive(profileId);
   return (
     <View className="flex-row justify-between items-start mb-4 relative w-full gap-4">
       <View className="flex-1">
@@ -177,13 +209,19 @@ export const ProfileHeaderMinimalist = memo(function ProfileHeaderMinimalist({
         {isPrivate && <PrivateBadge privacySettings={privacySettings} />}
       </View>
       <View className="relative">
-        <ZoomableAvatar
-          source={avatarUri}
-          size={70}
-          className="border-[3px] border-background bg-secondary"
-          style={{ width: 70, height: 70, borderRadius: 35 }}
-          imageStyle={{}}
-        />
+        {isProfileLive ? (
+          <View className="border-[3px] border-background bg-secondary rounded-full">
+            <LiveAvatar userId={profileId} source={avatarUri ?? undefined} size={70} />
+          </View>
+        ) : (
+          <ZoomableAvatar
+            source={avatarUri}
+            size={70}
+            className="border-[3px] border-background bg-secondary"
+            style={{ width: 70, height: 70, borderRadius: 35 }}
+            imageStyle={{}}
+          />
+        )}
         {verified && (
           <View className="absolute rounded-[10px] p-0.5 bg-background" style={{ left: -6, bottom: -2 }}>
             <Ionicons name="checkmark-circle" size={18} color={theme.colors.primary} />

@@ -809,6 +809,7 @@ const PostItem: React.FC<PostItemProps> = ({
                         contextTop={contextRows.length > 0 ? contextRows : undefined}
                         avatarSource={avatarSource}
                         avatarVariant={avatarVariant}
+                        authorUserId={viewPost.user.id || undefined}
                         onPressUser={goToUser}
                         onPressAvatar={goToUser}
                         onPressMenu={openMenu}

@@ -187,6 +187,12 @@ export default function SettingsScreen() {
                             description={t('settings.node.description', { defaultValue: 'Your own copy of your signed posts' })}
                             onPress={() => router.push('/settings/node')}
                         />
+                        <SettingsListItem
+                            icon={<RowIcon name="radio-outline" />}
+                            title={t('settings.livePresence.title', { defaultValue: 'Live presence' })}
+                            description={t('settings.livePresence.description', { defaultValue: 'When your avatar shows a live badge' })}
+                            onPress={() => router.push('/settings/live-presence')}
+                        />
                     </SettingsListGroup>
                 )}
 
