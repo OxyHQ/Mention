@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, StyleSheet, ViewStyle } from 'react-native';
-import { PressableScale } from '@/lib/animations/PressableScale';
+import { PressableScale } from '@oxyhq/bloom/pressable-scale';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { ThemedText } from './ThemedText';

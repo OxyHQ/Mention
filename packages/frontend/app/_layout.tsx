@@ -45,6 +45,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import { AppState, Platform, type AppStateStatus } from "react-native";
 import { useAuth } from '@oxyhq/services';
 import { BloomThemeProvider } from '@oxyhq/bloom/theme';
+import { BloomHapticsProvider } from '@oxyhq/bloom/hooks';
 import { ImageResolverProvider } from '@oxyhq/bloom/image-resolver';
 
 // Components
@@ -56,6 +57,7 @@ import { Provider as PortalProvider, Outlet as PortalOutlet } from '@oxyhq/bloom
 // Hooks
 import { useServerAppearanceSync } from '@/hooks/useServerAppearanceSync';
 import { useHydrateExternalEmbeds } from '@/stores/externalEmbedsStore';
+import { useHapticsStore } from '@/stores/hapticsStore';
 
 // Services & Utils
 import { oxyServices } from '@/lib/oxyServices';
@@ -99,6 +101,9 @@ interface SplashState {
 export default function RootLayout() {
   // State
   const [appIsReady, setAppIsReady] = useState(false);
+  // Global haptics on/off, persisted via the accessibility settings toggle. Drives
+  // Bloom's BloomHapticsProvider so every useHaptics() call honors the preference.
+  const hapticsDisabled = useHapticsStore((s) => s.disabled);
   const [splashState, setSplashState] = useState<SplashState>({
     initializationComplete: false,
     fadeComplete: false,
@@ -189,30 +194,32 @@ export default function RootLayout() {
         // because the held OS splash is already covering the screen.
         onFontsLoading={Platform.OS === 'web' ? <AppSplashScreen /> : null}
       >
-        <AppProviders oxyServices={oxyServices} queryClient={queryClient}>
-          {appIsReady ? (
-            <>
-            {Platform.OS !== 'web' && (
-              <NotificationPermissionGate
-                appIsReady={appIsReady}
-                initializationComplete={splashState.initializationComplete}
+        <BloomHapticsProvider enabled={!hapticsDisabled}>
+          <AppProviders oxyServices={oxyServices} queryClient={queryClient}>
+            {appIsReady ? (
+              <>
+              {Platform.OS !== 'web' && (
+                <NotificationPermissionGate
+                  appIsReady={appIsReady}
+                  initializationComplete={splashState.initializationComplete}
+                />
+              )}
+              <PortalProvider>
+                <AuthRouter />
+                <PortalOutlet />
+              </PortalProvider>
+              </>
+            ) : Platform.OS === 'web' ? (
+              // WEB: the custom splash covers font-load + init and fades out; its
+              // `onFadeComplete` gates `appIsReady`. NATIVE renders null here — the
+              // held OS splash is on top, so nothing underneath needs to paint.
+              <AppSplashScreen
+                startFade={splashState.initializationComplete}
+                onFadeComplete={handleSplashFadeComplete}
               />
-            )}
-            <PortalProvider>
-              <AuthRouter />
-              <PortalOutlet />
-            </PortalProvider>
-            </>
-          ) : Platform.OS === 'web' ? (
-            // WEB: the custom splash covers font-load + init and fades out; its
-            // `onFadeComplete` gates `appIsReady`. NATIVE renders null here — the
-            // held OS splash is on top, so nothing underneath needs to paint.
-            <AppSplashScreen
-              startFade={splashState.initializationComplete}
-              onFadeComplete={handleSplashFadeComplete}
-            />
-          ) : null}
-        </AppProviders>
+            ) : null}
+          </AppProviders>
+        </BloomHapticsProvider>
       </BloomThemeProvider>
     </ImageResolverProvider>
   );

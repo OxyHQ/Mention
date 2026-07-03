@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '@oxyhq/bloom/theme';
+import { MediaInsetBorder } from '@oxyhq/bloom/media-inset-border';
 import { LazyImage } from '@/components/ui/LazyImage';
 import VideoPlayer from '@/components/common/VideoPlayer';
 import { MEDIA_CARD_WIDTH, MEDIA_CARD_HEIGHT, MEDIA_CARD_RADIUS } from '@/utils/composeUtils';
@@ -123,7 +124,7 @@ const PostAttachmentVideo: React.FC<{
   const { cardStyle, onAspectRatio } = useSingleMediaCardStyle();
   return (
     <View
-      className="border border-border bg-secondary rounded-[15px] overflow-hidden"
+      className="bg-secondary rounded-[15px] overflow-hidden"
       style={[
         webGrabCursorStyle,
         hasMultipleMedia && { width: undefined, maxWidth: undefined, alignSelf: 'flex-start' as const },
@@ -140,6 +141,7 @@ const PostAttachmentVideo: React.FC<{
         onPress={onPress}
         onAspectRatio={hasSingleMedia ? onAspectRatio : undefined}
       />
+      <MediaInsetBorder style={styles.mediaBorder} />
     </View>
   );
 };
@@ -155,7 +157,7 @@ const PostAttachmentGif: React.FC<{
   const { cardStyle, onAspectRatio } = useSingleMediaCardStyle();
   return (
     <View
-      className="border border-border bg-secondary rounded-[15px] overflow-hidden"
+      className="bg-secondary rounded-[15px] overflow-hidden"
       style={[
         webGrabCursorStyle,
         hasMultipleMedia && { width: undefined, maxWidth: undefined, alignSelf: 'flex-start' as const },
@@ -171,6 +173,7 @@ const PostAttachmentGif: React.FC<{
         gif={true}
         onAspectRatio={hasSingleMedia ? onAspectRatio : undefined}
       />
+      <MediaInsetBorder style={styles.mediaBorder} />
     </View>
   );
 };
@@ -242,7 +245,6 @@ const PostAttachmentImage: React.FC<{
   const containerStyles: ViewStyle[] = [
     styles.itemContainer,
     {
-      borderColor: theme.colors.border,
       backgroundColor: theme.colors.backgroundSecondary,
       height: MEDIA_CARD_HEIGHT,
       width: computedWidth,
@@ -271,19 +273,23 @@ const PostAttachmentImage: React.FC<{
     />
   );
 
-  // Bluesky-style "ALT" badge: a small dark pill in the image's bottom-left
-  // corner, non-interactive so it never swallows the tap that opens the lightbox.
-  const imageContent = hasAlt ? (
-    <View>
+  // The media box holds the image plus two non-interactive overlays: the
+  // optional "ALT" badge and the hairline inset border that separates the image
+  // from the surrounding background (Bluesky-style, replaces a solid 1px border).
+  const imageContent = (
+    <View style={{ width: computedWidth, height: MEDIA_CARD_HEIGHT }}>
       {lazyImage}
-      <View
-        pointerEvents="none"
-        className="absolute bottom-1 left-1 bg-black/60 rounded px-1 py-0.5"
-      >
-        <Text className="text-white text-[10px] font-bold">ALT</Text>
-      </View>
+      {hasAlt && (
+        <View
+          pointerEvents="none"
+          className="absolute bottom-1 left-1 bg-black/60 rounded px-1 py-0.5"
+        >
+          <Text className="text-white text-[10px] font-bold">ALT</Text>
+        </View>
+      )}
+      <MediaInsetBorder style={styles.mediaBorder} />
     </View>
-  ) : lazyImage;
+  );
 
   if (!onPress) {
     return imageContent;
@@ -396,9 +402,12 @@ const PostAttachmentMedia: React.FC<PostAttachmentMediaProps> = ({
 
 const styles = StyleSheet.create({
   itemContainer: {
-    borderWidth: 1,
     borderRadius: MEDIA_CARD_RADIUS,
     overflow: 'hidden',
+  },
+  // Corner radius for the inset hairline so it tracks the media box's rounding.
+  mediaBorder: {
+    borderRadius: MEDIA_CARD_RADIUS,
   },
   fullSize: {
     width: FULL_DIMENSION,

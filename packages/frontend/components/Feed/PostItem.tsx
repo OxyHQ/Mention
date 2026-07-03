@@ -41,7 +41,7 @@ import { BoostIcon } from '@/assets/icons/boost-icon';
 import { api } from '@/utils/api';
 import { THREAD_LINE_WIDTH, THREAD_LINE_BORDER_RADIUS, THREAD_LINE_Z_INDEX } from '@/components/Compose/composeLayout';
 import { POST_ITEM_SPACING } from '@/styles/shared';
-import { SubtleHover } from '@/components/SubtleHover';
+import { SubtleHover } from '@oxyhq/bloom/subtle-hover';
 import { useAutoTranslateStore } from '@/stores/autoTranslateStore';
 import { useThreadHoverStore } from '@/stores/threadHoverStore';
 import { show as toast } from '@oxyhq/bloom/toast';

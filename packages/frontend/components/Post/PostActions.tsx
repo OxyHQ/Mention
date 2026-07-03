@@ -10,9 +10,9 @@ import { AnalyticsIcon } from '@/assets/icons/analytics-icon';
 import { Avatar } from '@oxyhq/bloom/avatar';
 
 import { useTheme } from '@oxyhq/bloom/theme';
-import { useHaptics } from '@/hooks/useHaptics';
+import { useHaptics } from '@oxyhq/bloom/hooks';
 import { formatCompactNumber } from '@/utils/formatNumber';
-import { PressableScale } from '@/lib/animations/PressableScale';
+import { PressableScale } from '@oxyhq/bloom/pressable-scale';
 import { AnimatedLikeIcon } from '@/lib/animations/AnimatedLikeIcon';
 import { CountWheel } from '@/lib/animations/CountWheel';
 import { useVoteStyle } from '@/hooks/useVoteStyle';
@@ -160,7 +160,7 @@ const PostActions: React.FC<Props> = ({
               style={{ gap: 6 }}
               onPress={() => {
                 hasBeenToggled.current = true;
-                haptic('Light');
+                haptic('light');
                 onLike();
               }}
               hitSlop={{ top: 5, bottom: 10, left: 10, right: 10 }}
@@ -175,7 +175,7 @@ const PostActions: React.FC<Props> = ({
             className="flex-row items-center"
             style={{ gap: 6 }}
             onPress={() => {
-              haptic('Light');
+              haptic('light');
               onReply();
             }}
             hitSlop={{ top: 5, bottom: 10, left: 10, right: 10 }}
@@ -189,7 +189,7 @@ const PostActions: React.FC<Props> = ({
             className="flex-row items-center"
             style={{ gap: 6 }}
             onPress={() => {
-              haptic('Medium');
+              haptic('medium');
               onBoost();
             }}
             hitSlop={{ top: 5, bottom: 10, left: 10, right: 10 }}
@@ -212,7 +212,7 @@ const PostActions: React.FC<Props> = ({
 
           <PressableScale
             onPress={() => {
-              haptic('Light');
+              haptic('light');
               onSave();
             }}
             hitSlop={{ top: 5, bottom: 10, left: 10, right: 10 }}
@@ -228,7 +228,7 @@ const PostActions: React.FC<Props> = ({
 
           <PressableScale
             onPress={() => {
-              haptic('Light');
+              haptic('light');
               onShare();
             }}
             hitSlop={{ top: 5, bottom: 10, left: 10, right: 10 }}
@@ -240,7 +240,7 @@ const PostActions: React.FC<Props> = ({
           {onInsightsPress && (
             <PressableScale
               onPress={() => {
-                haptic('Light');
+                haptic('light');
                 onInsightsPress();
               }}
               hitSlop={{ top: 5, bottom: 10, left: 10, right: 10 }}
@@ -282,7 +282,7 @@ const PostActions: React.FC<Props> = ({
             style={styles.iconButton}
             onPress={() => {
               hasBeenToggled.current = true;
-              haptic('Light');
+              haptic('light');
               onLike();
             }}
             hitSlop={{ top: 5, bottom: 10, left: 10, right: 10 }}
@@ -305,7 +305,7 @@ const PostActions: React.FC<Props> = ({
         <PressableScale
           style={styles.iconButton}
           onPress={() => {
-            haptic('Light');
+            haptic('light');
             onReply();
           }}
           hitSlop={{ top: 5, bottom: 10, left: 10, right: 10 }}
@@ -317,7 +317,7 @@ const PostActions: React.FC<Props> = ({
         <PressableScale
           style={styles.iconButton}
           onPress={() => {
-            haptic('Medium');
+            haptic('medium');
             onBoost();
           }}
           hitSlop={{ top: 5, bottom: 10, left: 10, right: 10 }}
@@ -333,7 +333,7 @@ const PostActions: React.FC<Props> = ({
         <PressableScale
           style={styles.iconButton}
           onPress={() => {
-            haptic('Light');
+            haptic('light');
             onShare();
           }}
           hitSlop={{ top: 5, bottom: 10, left: 10, right: 10 }}
@@ -348,7 +348,7 @@ const PostActions: React.FC<Props> = ({
         <PressableScale
           style={styles.iconButton}
           onPress={() => {
-            haptic('Light');
+            haptic('light');
             onSave();
           }}
           hitSlop={{ top: 5, bottom: 10, left: 10, right: 10 }}
@@ -366,7 +366,7 @@ const PostActions: React.FC<Props> = ({
           <PressableScale
             style={styles.iconButton}
             onPress={() => {
-              haptic('Light');
+              haptic('light');
               onTranslate();
             }}
             hitSlop={{ top: 5, bottom: 10, left: 10, right: 10 }}
@@ -399,7 +399,7 @@ const PostActions: React.FC<Props> = ({
           <PressableScale
             style={styles.iconButton}
             onPress={() => {
-              haptic('Light');
+              haptic('light');
               onInsightsPress();
             }}
             hitSlop={{ top: 5, bottom: 10, left: 10, right: 10 }}

@@ -11,7 +11,7 @@ import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { starterPacksService } from '@/services/starterPacksService';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { useAuth, FollowButton } from '@oxyhq/services';
-import { useHaptics } from '@/hooks/useHaptics';
+import { useHaptics } from '@oxyhq/bloom/hooks';
 import { Ionicons } from '@expo/vector-icons';
 import { Avatar } from '@oxyhq/bloom/avatar';
 import { AvatarGroup, type AvatarGroupItem } from '@oxyhq/bloom/avatar-group';
@@ -95,7 +95,7 @@ export default function StarterPackDetailScreen() {
   // once the bulk follow lands we record pack usage (increments useCount) and
   // reflect the new count in the UI.
   const handleBulkFollow = useCallback(async () => {
-    haptics('Medium');
+    haptics('medium');
     try {
       const used = await starterPacksService.use(String(id));
       setPack((prev) => (prev ? { ...prev, useCount: used.useCount } : prev));

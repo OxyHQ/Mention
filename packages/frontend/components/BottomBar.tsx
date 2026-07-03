@@ -6,7 +6,7 @@ import { Avatar } from '@oxyhq/bloom/avatar';
 
 import { useAuth } from '@oxyhq/services';
 import { useTheme } from '@oxyhq/bloom/theme';
-import { useHaptics } from '@/hooks/useHaptics';
+import { useHaptics } from '@oxyhq/bloom/hooks';
 import { useHomeRefresh } from '@/context/HomeRefreshContext';
 import { useBottomBarHidden } from '@/context/BottomBarVisibilityContext';
 import { cn } from '@/lib/utils';
@@ -147,12 +147,12 @@ export const BottomBar = () => {
     // existing instance of the target tab instead of stacking a new copy, so the
     // bottom-bar tabs never grow the stack or leave duplicate Home entries.
     const handlePress = useCallback((route: Href) => {
-        haptic('Light');
+        haptic('light');
         router.navigate(route);
     }, [haptic, router]);
 
     const handleHomePress = useCallback(() => {
-        haptic('Light');
+        haptic('light');
         if (pathname === '/') {
             triggerHomeRefresh();
         } else {
@@ -199,7 +199,7 @@ export const BottomBar = () => {
     // (over whatever screen is focused) rather than `navigate`. It does NOT go
     // through `handlePress`, which now uses navigate semantics for tab roots.
     const handlePressCompose = useCallback(() => {
-        haptic('Light');
+        haptic('light');
         router.push('/compose');
     }, [haptic, router]);
     const handlePressNotifications = useCallback(() => handlePress('/notifications'), [handlePress]);
@@ -211,7 +211,7 @@ export const BottomBar = () => {
         }
     }, [isAuthenticated, user?.username, handlePress, signIn]);
     const handleLongPressProfile = useCallback(() => {
-        haptic('Heavy');
+        haptic('heavy');
         showBottomSheet?.('ManageAccount');
     }, [haptic, showBottomSheet]);
 

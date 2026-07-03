@@ -3,8 +3,8 @@ import { View, ScrollView } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { Loading } from '@oxyhq/bloom/loading';
 import { useTheme } from '@oxyhq/bloom/theme';
-import { useHaptics } from '@/hooks/useHaptics';
-import { PressableScale } from '@/lib/animations/PressableScale';
+import { useHaptics } from '@oxyhq/bloom/hooks';
+import { PressableScale } from '@oxyhq/bloom/pressable-scale';
 import { MediaIcon } from '@/assets/icons/media-icon';
 import { PollIcon } from '@/assets/icons/poll-icon';
 import { LocationIcon } from '@/assets/icons/location-icon';
@@ -76,7 +76,7 @@ const ComposeToolbar = memo<ComposeToolbarProps>(({
     const { t } = useTranslation();
 
     const withHaptic = useCallback((handler?: () => void) => () => {
-        haptic('Light');
+        haptic('light');
         handler?.();
     }, [haptic]);
 
