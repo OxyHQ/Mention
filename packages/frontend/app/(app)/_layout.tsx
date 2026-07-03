@@ -106,6 +106,7 @@ const MainLayout: React.FC<MainLayoutProps & { isAuthenticated: boolean; isAuthR
   const pathname = usePathname();
   const insets = useSafeAreaInsets();
   const onProfileRoute = isProfileRoute(pathname);
+  const isVideosScreen = pathname === '/videos';
 
   // Unscoped app theme. This `useTheme()` runs at the MainLayout level — OUTSIDE
   // the `<BloomColorScope>` that wraps `<ContentPanel>` below — so
@@ -179,7 +180,12 @@ const MainLayout: React.FC<MainLayoutProps & { isAuthenticated: boolean; isAuthR
           "flex-1 justify-between bg-background",
           isScreenNotMobile ? "flex-row" : "flex-col"
         )}
-        style={isScreenNotMobile ? { maxWidth: 950, flexShrink: 1 } : undefined}
+        // 950 + 360: on /videos the right bar grows by RightBar.tsx's
+        // `REPLIES_COLUMN_WIDTH` (360px, the always-open replies column beside
+        // the rail), so the cap widens by that exact amount too — otherwise the
+        // center content's flex-grow column (below) would absorb the loss and
+        // squeeze the video to less than half its normal width.
+        style={isScreenNotMobile ? { maxWidth: isVideosScreen ? 1310 : 950, flexShrink: 1 } : undefined}
       >
         {/* Gutter wrapper (desktop web only). This is the `bg-background` band
             that shows AROUND the floating panel — 8px on top/right/bottom, 0 on
