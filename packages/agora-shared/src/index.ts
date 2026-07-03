@@ -61,6 +61,8 @@ export {
   createAgoraService,
   type AgoraServiceInstance,
   type CreateRoomData,
+  type PodcastResult,
+  type EpisodeListItem,
 } from './services/spacesService';
 export { RoomSocketService } from './services/spaceSocketService';
 export {

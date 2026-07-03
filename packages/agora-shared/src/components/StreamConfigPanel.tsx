@@ -15,6 +15,7 @@ import * as ImagePicker from 'expo-image-picker';
 
 import { useAgoraConfig } from '../context/AgoraConfigContext';
 import { PanelHeader } from './PanelHeader';
+import { PodcastStreamPicker } from './PodcastStreamPicker';
 
 interface StreamConfigPanelProps {
   roomId: string;
@@ -26,7 +27,7 @@ interface StreamConfigPanelProps {
   onStreamStarted: () => void;
 }
 
-type StreamMode = 'url' | 'rtmp';
+type StreamMode = 'url' | 'rtmp' | 'podcast';
 
 type NativeFormDataFile = {
   uri: string;
@@ -167,6 +168,27 @@ export function StreamConfigPanel({ roomId, roomStatus, initialStreamUrl, initia
     }
   };
 
+  const handleStartPodcast = async (syraPodcastId: string, episodeId: string) => {
+    if (loading) return;
+    setLoading(true);
+    try {
+      if (!(await ensureRoomLive())) return;
+      const result = await agoraService.startPodcastStream(roomId, { syraPodcastId, episodeId });
+      if (result) {
+        toast.success('Stream started');
+        resetState();
+        onStreamStarted();
+        onClose();
+      } else {
+        toast.error('Failed to start stream');
+      }
+    } catch {
+      toast.error('Failed to start stream');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const generatingRef = useRef(false);
 
   const generateKey = async () => {
@@ -251,41 +273,57 @@ export function StreamConfigPanel({ roomId, roomStatus, initialStreamUrl, initia
     <View style={styles.container}>
       <PanelHeader title="Stream Setup" theme={theme} onBack={onClose} />
 
+      <View style={styles.modeSelector}>
+        <TouchableOpacity
+          style={[
+            styles.modeTab,
+            { borderColor: theme.colors.border },
+            mode === 'url' && { backgroundColor: theme.colors.primary, borderColor: theme.colors.primary },
+          ]}
+          onPress={() => setMode('url')}
+        >
+          <MaterialCommunityIcons name="link" size={16} color={mode === 'url' ? '#FFFFFF' : theme.colors.text} />
+          <Text style={[styles.modeTabText, { color: mode === 'url' ? '#FFFFFF' : theme.colors.text }]}>
+            Stream URL
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[
+            styles.modeTab,
+            { borderColor: theme.colors.border },
+            mode === 'rtmp' && { backgroundColor: theme.colors.primary, borderColor: theme.colors.primary },
+          ]}
+          onPress={() => setMode('rtmp')}
+        >
+          <MaterialCommunityIcons name="key" size={16} color={mode === 'rtmp' ? '#FFFFFF' : theme.colors.text} />
+          <Text style={[styles.modeTabText, { color: mode === 'rtmp' ? '#FFFFFF' : theme.colors.text }]}>
+            External App
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[
+            styles.modeTab,
+            { borderColor: theme.colors.border },
+            mode === 'podcast' && { backgroundColor: theme.colors.primary, borderColor: theme.colors.primary },
+          ]}
+          onPress={() => setMode('podcast')}
+        >
+          <MaterialCommunityIcons name="podcast" size={16} color={mode === 'podcast' ? '#FFFFFF' : theme.colors.text} />
+          <Text style={[styles.modeTabText, { color: mode === 'podcast' ? '#FFFFFF' : theme.colors.text }]}>
+            Podcast
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      {mode === 'podcast' ? (
+        <PodcastStreamPicker onSelectEpisode={handleStartPodcast} />
+      ) : (
       <ScrollView
         style={{ flex: 1 }}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-        <View style={styles.modeSelector}>
-          <TouchableOpacity
-            style={[
-              styles.modeTab,
-              { borderColor: theme.colors.border },
-              mode === 'url' && { backgroundColor: theme.colors.primary, borderColor: theme.colors.primary },
-            ]}
-            onPress={() => setMode('url')}
-          >
-            <MaterialCommunityIcons name="link" size={16} color={mode === 'url' ? '#FFFFFF' : theme.colors.text} />
-            <Text style={[styles.modeTabText, { color: mode === 'url' ? '#FFFFFF' : theme.colors.text }]}>
-              Stream URL
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[
-              styles.modeTab,
-              { borderColor: theme.colors.border },
-              mode === 'rtmp' && { backgroundColor: theme.colors.primary, borderColor: theme.colors.primary },
-            ]}
-            onPress={() => setMode('rtmp')}
-          >
-            <MaterialCommunityIcons name="key" size={16} color={mode === 'rtmp' ? '#FFFFFF' : theme.colors.text} />
-            <Text style={[styles.modeTabText, { color: mode === 'rtmp' ? '#FFFFFF' : theme.colors.text }]}>
-              External App
-            </Text>
-          </TouchableOpacity>
-        </View>
-
         {mode === 'url' && (
           <View style={styles.section}>
             <TextInput
@@ -463,6 +501,7 @@ export function StreamConfigPanel({ roomId, roomStatus, initialStreamUrl, initia
           )}
         </View>
       </ScrollView>
+      )}
     </View>
   );
 }

@@ -25,6 +25,7 @@ import Recording, { IRecording, RecordingStatus, RecordingAccess } from '../mode
 import { getRecordingObjectKey, uploadObject, deleteObject, getAgoraRoomImageKey } from '../utils/spaces';
 import { processImage } from '../utils/imageProcessor';
 import { emitLiveRoomsUpdated } from '../utils/socket';
+import { resolvePodcastEpisode } from '../utils/syraPodcast';
 
 const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
 const uploadMiddleware = multer({
@@ -191,6 +192,61 @@ async function cleanupPreviousIngressAfterReplacement(roomId: string, result: In
     await deleteIngress(result.previousIngressId);
     logger.info(`Replaced previous ingress for room ${roomId}: ${result.previousIngressId}`);
   }
+}
+
+/**
+ * Start (or replace) a LiveKit URL ingress for a live room and respond to the
+ * request. Shared by `POST /:id/stream` (host-supplied audio URL) and
+ * `POST /:id/stream/podcast` (Syra episode audio URL) so both surfaces drive the
+ * exact same ingress lifecycle + persistence + socket broadcast + response shape.
+ *
+ * Callers MUST perform their own auth / manager / `RoomStatus.LIVE` validation
+ * and pass an already-validated `meta.url`; this helper owns only the ingress +
+ * persistence half. On a LiveKit failure it responds via
+ * {@link sendLiveKitIngressError} and returns without persisting. `meta.title` /
+ * `meta.image` / `meta.description` are stored verbatim (callers normalize) and
+ * the RTMP fields are cleared, since starting a URL ingress switches the room out
+ * of RTMP mode.
+ */
+async function startUrlIngressForRoom(
+  room: IRoom,
+  id: string,
+  meta: { url: string; title?: string; image?: string; description?: string },
+  res: Response,
+  userId: string,
+): Promise<void> {
+  let ingressResult: IngressReplacementResult;
+  try {
+    await ensureLiveKitRoomForRoom(id, room.maxParticipants);
+    ingressResult = await createIngressReplacingExisting(room, id, () =>
+      createRoomUrlIngress(id, meta.url)
+    );
+    await cleanupPreviousIngressAfterReplacement(id, ingressResult);
+  } catch (liveKitError) {
+    sendLiveKitIngressError(res, liveKitError, 'create-url-ingress', { roomId: id, userId });
+    return;
+  }
+
+  // Persist ingress info + metadata (clear RTMP fields if switching modes)
+  room.activeIngressId = ingressResult.ingress.ingressId;
+  room.activeStreamUrl = meta.url;
+  room.rtmpUrl = undefined;
+  room.rtmpStreamKey = undefined;
+  room.streamTitle = meta.title;
+  room.streamImage = meta.image;
+  room.streamDescription = meta.description;
+  await room.save();
+
+  logger.info(`Live stream started in room ${id}: ${meta.url}`);
+
+  // Notify participants via socket (no URL -- only metadata)
+  emitStreamStarted(id, room);
+
+  res.json({
+    message: 'Stream started successfully',
+    ingressId: ingressResult.ingress.ingressId,
+    url: meta.url,
+  });
 }
 
 // --- Recording auto-stop timers (1 hour max) ---
@@ -1171,42 +1227,96 @@ router.post('/:id/stream', async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ message: 'Room must be live to add a stream' });
     }
 
-    let ingressResult: IngressReplacementResult;
-    try {
-      await ensureLiveKitRoomForRoom(String(id), room.maxParticipants);
-      ingressResult = await createIngressReplacingExisting(room, String(id), () =>
-        createRoomUrlIngress(String(id), trimmedUrl)
-      );
-      await cleanupPreviousIngressAfterReplacement(String(id), ingressResult);
-    } catch (liveKitError) {
-      return sendLiveKitIngressError(res, liveKitError, 'create-url-ingress', {
-        roomId: String(id),
-        userId,
-      });
-    }
-
-    // Persist ingress info + metadata (clear RTMP fields if switching modes)
-    room.activeIngressId = ingressResult.ingress.ingressId;
-    room.activeStreamUrl = trimmedUrl;
-    room.rtmpUrl = undefined;
-    room.rtmpStreamKey = undefined;
-    room.streamTitle = title ? String(title).trim() : undefined;
-    room.streamImage = image ? String(image).trim() : undefined;
-    room.streamDescription = description ? String(description).trim() : undefined;
-    await room.save();
-
-    logger.info(`Live stream started in room ${id}: ${trimmedUrl}`);
-
-    // Notify participants via socket (no URL -- only metadata)
-    emitStreamStarted(String(id), room);
-
-    res.json({
-      message: 'Stream started successfully',
-      ingressId: ingressResult.ingress.ingressId,
-      url: trimmedUrl,
-    });
+    await startUrlIngressForRoom(
+      room,
+      String(id),
+      {
+        url: trimmedUrl,
+        title: title ? String(title).trim() : undefined,
+        image: image ? String(image).trim() : undefined,
+        description: description ? String(description).trim() : undefined,
+      },
+      res,
+      userId,
+    );
   } catch (error) {
     logger.error('Error starting stream:', { userId: req.user?.id, roomId: req.params.id, error });
+    res.status(500).json({
+      message: 'Error starting stream',
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
+  }
+});
+
+/**
+ * Start streaming a Syra podcast episode into the room (room manager only)
+ * POST /api/rooms/:id/stream/podcast
+ * Body: { syraPodcastId?: string, episodeId: string }
+ *
+ * Rate limiting is handled by the global Oxy limiter (`createOxyRateLimit`,
+ * `app.use(rateLimiter)` in server.ts) that fronts every route — like the sibling
+ * `/:id/stream` routes, this handler carries no per-route limiter of its own.
+ *
+ * The client sends only the episode reference — never a media URL. The backend
+ * resolves the episode's playable `enclosureUrl` + metadata server-side from the
+ * Syra catalog (O(1) by-id lookup) and feeds it into the SAME LiveKit URL ingress
+ * path as `POST /:id/stream`. When `syraPodcastId` is supplied it is cross-checked
+ * against the resolved episode's show to reject a mismatched pairing.
+ */
+router.post('/:id/stream/podcast', async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    const { id } = req.params;
+    const { syraPodcastId, episodeId } = req.body ?? {};
+
+    if (!userId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    if (typeof episodeId !== 'string' || !episodeId.trim()) {
+      return res.status(400).json({ message: 'episodeId is required' });
+    }
+
+    if (syraPodcastId !== undefined && typeof syraPodcastId !== 'string') {
+      return res.status(400).json({ message: 'syraPodcastId must be a string' });
+    }
+
+    const trimmedEpisodeId = episodeId.trim();
+    const trimmedPodcastId =
+      typeof syraPodcastId === 'string' && syraPodcastId.trim() ? syraPodcastId.trim() : undefined;
+
+    const room = await Room.findById(id);
+    if (!room) {
+      return res.status(404).json({ message: 'Room not found' });
+    }
+
+    if (!(await sendForbiddenUnlessRoomManager(room, userId, res, 'Only a room manager can add a live stream'))) {
+      return;
+    }
+
+    if (room.status !== RoomStatus.LIVE) {
+      return res.status(400).json({ message: 'Room must be live to add a stream' });
+    }
+
+    const resolved = await resolvePodcastEpisode(trimmedEpisodeId, trimmedPodcastId);
+    if (!resolved) {
+      return res.status(404).json({ message: 'Podcast episode not found' });
+    }
+
+    await startUrlIngressForRoom(
+      room,
+      String(id),
+      {
+        url: resolved.audioUrl,
+        title: resolved.title,
+        image: resolved.artworkUrl,
+        description: undefined,
+      },
+      res,
+      userId,
+    );
+  } catch (error) {
+    logger.error('Error starting podcast stream:', { userId: req.user?.id, roomId: req.params.id, error });
     res.status(500).json({
       message: 'Error starting stream',
       error: error instanceof Error ? error.message : 'Unknown error',

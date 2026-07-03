@@ -22,6 +22,32 @@ export interface StreamMetadataUpdate extends Record<string, unknown> {
   description?: string;
 }
 
+/** A Syra podcast show, as proxied by Mention `GET /profile/media/search?type=podcast`. */
+export interface PodcastResult {
+  syraPodcastId: string;
+  title: string;
+  author?: string;
+  artworkUrl?: string;
+}
+
+/**
+ * A single episode row for the picker. Deliberately carries NO audio URL — the
+ * enclosure stays server-owned and is resolved at stream-start by the backend.
+ */
+export interface EpisodeListItem {
+  episodeId: string;
+  title: string;
+  durationSec?: number;
+  publishedAt?: string;
+  artworkUrl?: string;
+}
+
+interface PaginatedResult<T> {
+  items: T[];
+  hasMore: boolean;
+  offset: number;
+}
+
 interface RecordingResponse {
   recording: Recording;
   playbackUrl: string;
@@ -29,6 +55,47 @@ interface RecordingResponse {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
+}
+
+function readPaginationMeta(data: Record<string, unknown>, requestedOffset: number): { hasMore: boolean; offset: number } {
+  const pagination = isRecord(data.pagination) ? data.pagination : {};
+  return {
+    hasMore: pagination.hasMore === true,
+    offset: typeof pagination.offset === 'number' ? pagination.offset : requestedOffset,
+  };
+}
+
+function parsePodcastSearchResponse(data: Record<string, unknown>, requestedOffset: number): PaginatedResult<PodcastResult> {
+  const raw = Array.isArray(data.data) ? data.data : [];
+  const items: PodcastResult[] = [];
+  for (const entry of raw) {
+    if (!isRecord(entry)) continue;
+    if (typeof entry.syraPodcastId !== 'string' || typeof entry.title !== 'string') continue;
+    items.push({
+      syraPodcastId: entry.syraPodcastId,
+      title: entry.title,
+      author: typeof entry.author === 'string' ? entry.author : undefined,
+      artworkUrl: typeof entry.artworkUrl === 'string' ? entry.artworkUrl : undefined,
+    });
+  }
+  return { items, ...readPaginationMeta(data, requestedOffset) };
+}
+
+function parseEpisodeListResponse(data: Record<string, unknown>, requestedOffset: number): PaginatedResult<EpisodeListItem> {
+  const raw = Array.isArray(data.data) ? data.data : [];
+  const items: EpisodeListItem[] = [];
+  for (const entry of raw) {
+    if (!isRecord(entry)) continue;
+    if (typeof entry.episodeId !== 'string' || typeof entry.title !== 'string') continue;
+    items.push({
+      episodeId: entry.episodeId,
+      title: entry.title,
+      durationSec: typeof entry.durationSec === 'number' ? entry.durationSec : undefined,
+      publishedAt: typeof entry.publishedAt === 'string' ? entry.publishedAt : undefined,
+      artworkUrl: typeof entry.artworkUrl === 'string' ? entry.artworkUrl : undefined,
+    });
+  }
+  return { items, ...readPaginationMeta(data, requestedOffset) };
 }
 
 function parseRecordingResponse(value: unknown): RecordingResponse | null {
@@ -192,6 +259,49 @@ export function createAgoraService(httpClient: HttpClient) {
       } catch (error) {
         console.warn("Failed to stop stream", error);
         return false;
+      }
+    },
+
+    // --- Podcast streaming (Syra catalog → LiveKit URL ingress) ---
+
+    async searchPodcasts(query: string, offset = 0): Promise<PaginatedResult<PodcastResult>> {
+      try {
+        const res = await httpClient.get('/profile/media/search', {
+          params: { type: 'podcast', q: query, offset: String(offset) },
+        });
+        return parsePodcastSearchResponse(res.data, offset);
+      } catch (error) {
+        console.warn("Failed to search podcasts", error);
+        return { items: [], hasMore: false, offset };
+      }
+    },
+
+    async getPodcastEpisodes(syraPodcastId: string, offset = 0): Promise<PaginatedResult<EpisodeListItem>> {
+      if (!syraPodcastId) return { items: [], hasMore: false, offset };
+      try {
+        const res = await httpClient.get(`/profile/media/podcasts/${syraPodcastId}/episodes`, {
+          params: { offset: String(offset) },
+        });
+        return parseEpisodeListResponse(res.data, offset);
+      } catch (error) {
+        console.warn("Failed to fetch podcast episodes", error);
+        return { items: [], hasMore: false, offset };
+      }
+    },
+
+    async startPodcastStream(roomId: string, body: { syraPodcastId: string; episodeId: string }): Promise<{ ingressId: string; url: string } | null> {
+      if (!roomId) return null;
+      try {
+        const res = await httpClient.post(`/rooms/${roomId}/stream/podcast`, body);
+        const parsed = ZStartStreamResponse.safeParse(res.data);
+        if (!parsed.success) {
+          console.warn('[agora] Invalid startPodcastStream response:', parsed.error.issues[0]);
+          return null;
+        }
+        return parsed.data;
+      } catch (error) {
+        console.warn("Failed to start podcast stream", error);
+        return null;
       }
     },
 
