@@ -5,7 +5,7 @@ import { SearchBar } from './SearchBar';
 import { WidgetManager } from './widgets/WidgetManager';
 import { openExternalLink } from '@/utils/openExternalLink';
 import { VideosRail } from './videos/VideosRail';
-import { VideoComments } from './videos/VideoComments';
+import { VideoReplies } from './videos/VideoReplies';
 import { useIsRightBarVisible } from '@/hooks/useOptimizedMediaQuery';
 import { useVideosRail } from '@/context/VideosRailContext';
 import { asViewStyle, asTextStyle, type WebViewStyle } from '@/types/webStyles';
@@ -56,26 +56,24 @@ export function RightBar() {
     // route is mounted. Reading it here keeps the rail swap reactive and exact
     // (no pathname string-matching), so the immersive rail mounts/unmounts in
     // lockstep with the videos screen.
-    const { active: videosRailActive, commentsOpen, commentsPostId, setRailState, onCommentPosted } = useVideosRail();
+    const { active: videosRailActive, activePost, onCommentPosted } = useVideosRail();
 
     if (!isRightBarVisible) return null;
 
-    if (videosRailActive && commentsOpen && commentsPostId) {
-        return (
-            <View className="flex-col" style={styles.container}>
-                <VideoComments
-                    postId={commentsPostId}
-                    onClose={() => setRailState({ commentsOpen: false, commentsPostId: null })}
-                    onCommentPosted={() => onCommentPosted(commentsPostId)}
-                />
-            </View>
-        );
-    }
-
     if (videosRailActive) {
         return (
-            <View className="flex-col px-4 pt-4" style={[styles.container, styles.videosRailContainer]}>
-                <VideosRail />
+            <View className="flex-row" style={styles.videosOuterContainer}>
+                <View className="px-4 pt-4" style={styles.videosRailColumn}>
+                    <VideosRail />
+                </View>
+                {activePost && (
+                    <View style={styles.repliesColumn}>
+                        <VideoReplies
+                            postId={activePost.id}
+                            onCommentPosted={() => onCommentPosted(activePost.id)}
+                        />
+                    </View>
+                )}
             </View>
         );
     }
@@ -123,18 +121,35 @@ const FooterLink = React.memo(function FooterLink({ label, url }: { label: strin
     );
 });
 
+// The replies column's target width — generous enough for readable reply text
+// (avatar + username + timestamp + body), matching the reference Reels-on-iPad
+// comments panel proportions.
+const REPLIES_COLUMN_WIDTH = 360;
+
 const styles = StyleSheet.create({
     container: {
         width: 350,
         ...(Platform.OS === 'web' ? asViewStyle(webStickyContainer) : null),
     },
-    // Anchors the rail's arrows/follow/actions/views cluster toward the bottom
-    // of the sticky slot instead of hugging its top. On native the container
-    // already stretches to the parent's height (no `alignSelf` override there),
-    // so `justifyContent` alone is enough; on web the explicit height above is
-    // required first since `alignSelf: flex-start` would otherwise shrink-wrap it.
-    videosRailContainer: {
+    // Wider than the default 350px right bar since the /videos screen hosts TWO
+    // columns (rail + always-open replies) side by side. Every OTHER screen's
+    // right bar keeps the default 350px (`styles.container`, above) — this only
+    // applies here.
+    videosOuterContainer: {
+        width: 350 + REPLIES_COLUMN_WIDTH,
+        ...(Platform.OS === 'web' ? asViewStyle(webStickyContainer) : null),
+    },
+    // No fixed width — shrinks to the rail's own content (arrows/buttons),
+    // so it sits directly adjacent to the replies column with no dead gap,
+    // matching today's left-alignment fix. `justifyContent: flex-end` keeps
+    // the rail's content bottom-anchored within the sticky slot.
+    videosRailColumn: {
         justifyContent: 'flex-end',
+        ...(Platform.OS === 'web' ? asViewStyle(videosRailStickyHeight) : null),
+    },
+    // Fills the remaining width next to the rail column.
+    repliesColumn: {
+        flex: 1,
         ...(Platform.OS === 'web' ? asViewStyle(videosRailStickyHeight) : null),
     },
 });

@@ -29,7 +29,7 @@ import { LinkifiedText } from '@/components/common/LinkifiedText';
 import { useIsRightBarVisible } from '@/hooks/useOptimizedMediaQuery';
 import { useVideosRail, type VideosRailActivePost } from '@/context/VideosRailContext';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
-import { VideoComments } from '@/components/videos/VideoComments';
+import { VideoReplies } from '@/components/videos/VideoReplies';
 
 // ── Tuning constants ─────────────────────────────────────────────
 // One-screen vertical pager: keep the live-player window tight so only the
@@ -861,7 +861,7 @@ export default function VideosScreen() {
     // Desktop (>=990) gate — shared source of truth with the RightBar. On desktop
     // the engagement column + on-video follow move into the rail.
     const isDesktop = useIsRightBarVisible();
-    const { setRailState, commentsOpen: railCommentsOpen } = useVideosRail();
+    const { setRailState } = useVideosRail();
     const { openBottomSheet, setBottomSheetContent } = useContext(BottomSheetContext);
 
     const [posts, setPosts] = useState<VideoPost[]>([]);
@@ -871,46 +871,19 @@ export default function VideosScreen() {
     const [loadingMore, setLoadingMore] = useState(false);
     const [currentVisibleIndex, setCurrentVisibleIndex] = useState(0);
 
-    // Close any open comments (desktop panel and/or mobile sheet) when the
-    // active video changes — otherwise swiping to a new video while comments
-    // are open would leave the PREVIOUS video's comments showing over the new
-    // one. Reads railCommentsOpen/setRailState/openBottomSheet via refs so this
-    // effect re-runs ONLY on an actual index change — NOT when opening/closing
-    // comments itself flips railCommentsOpen (that would immediately undo the
-    // open).
-    const railCommentsOpenRef = useRef(railCommentsOpen);
-    railCommentsOpenRef.current = railCommentsOpen;
-    const setRailStateRef = useRef(setRailState);
-    setRailStateRef.current = setRailState;
-    const openBottomSheetRef = useRef(openBottomSheet);
-    openBottomSheetRef.current = openBottomSheet;
-
+    // Close the mobile bottom sheet when the active video changes — otherwise
+    // swiping to a new video while it's open would leave the PREVIOUS video's
+    // replies showing over the new one. Desktop has no such toggle anymore —
+    // the always-open replies column (RightBar) reflects whatever video is
+    // currently active via VideosRailContext's `activePost`, no reset needed.
     const isFirstVisibleIndexRender = useRef(true);
     useEffect(() => {
         if (isFirstVisibleIndexRender.current) {
             isFirstVisibleIndexRender.current = false;
             return;
         }
-        if (railCommentsOpenRef.current) {
-            setRailStateRef.current({ commentsOpen: false, commentsPostId: null });
-        }
-        openBottomSheetRef.current(false);
-    }, [currentVisibleIndex]);
-
-    // Reset comments-open state whenever the viewport crosses the desktop
-    // breakpoint while comments are open — otherwise a stale panel/sheet from
-    // one layout can resurface after resizing back across the breakpoint.
-    // `isDesktop` only changes on real breakpoint crossings, so depending on it
-    // directly (unlike the effect above) is safe.
-    const isFirstDesktopRender = useRef(true);
-    useEffect(() => {
-        if (isFirstDesktopRender.current) {
-            isFirstDesktopRender.current = false;
-            return;
-        }
-        setRailState({ commentsOpen: false, commentsPostId: null });
         openBottomSheet(false);
-    }, [isDesktop, setRailState, openBottomSheet]);
+    }, [currentVisibleIndex, openBottomSheet]);
 
     // Prefetch posters in a wider radius than the live-player window — see
     // `POSTER_PREFETCH_RADIUS` above.
@@ -1319,12 +1292,12 @@ export default function VideosScreen() {
 
     const handleComment = useCallback((postId: string) => {
         if (isDesktop) {
-            // Desktop: Task 5 wires this through VideosRailContext instead.
-            setRailState({ commentsOpen: true, commentsPostId: postId });
+            // The replies column (RightBar) is always visible on desktop —
+            // there's nothing to open/toggle here.
             return;
         }
         setBottomSheetContent(
-            <VideoComments
+            <VideoReplies
                 postId={postId}
                 onClose={() => openBottomSheet(false)}
                 onCommentPosted={() => handleCommentPosted(postId)}
@@ -1332,7 +1305,7 @@ export default function VideosScreen() {
             { scrollable: false },
         );
         openBottomSheet(true);
-    }, [isDesktop, setRailState, setBottomSheetContent, openBottomSheet, handleCommentPosted]);
+    }, [isDesktop, setBottomSheetContent, openBottomSheet, handleCommentPosted]);
 
     const handleBoost = useCallback(async (postId: string, isBoosted: boolean) => {
         try {
