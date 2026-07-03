@@ -46,6 +46,10 @@ function roomsEqual(prev: Room[], next: Room[]): boolean {
 }
 
 let pollHandle: ReturnType<typeof setInterval> | null = null;
+// Ref count of mounted consumers. The shared interval runs while at least one
+// consumer is mounted and is cleared when the last one unmounts, so polling no
+// longer leaks for the whole session.
+let pollSubscribers = 0;
 
 export const useLiveRoomsStore = create<LiveRoomsStore>()(
   persist(
@@ -75,18 +79,22 @@ export const useLiveRoomsStore = create<LiveRoomsStore>()(
       },
 
       startPolling: () => {
+        pollSubscribers += 1;
         if (pollHandle) return;
         void get().fetchLiveRooms();
         pollHandle = setInterval(() => {
           void get().fetchLiveRooms({ silent: true });
         }, POLL_INTERVAL_MS);
+        // Non-Node runtimes (RN/web) return a numeric handle with no unref — the
+        // optional chain no-ops there; on Node it keeps the loop from staying alive.
+        pollHandle.unref?.();
       },
 
       stopPolling: () => {
-        if (pollHandle) {
-          clearInterval(pollHandle);
-          pollHandle = null;
-        }
+        if (pollSubscribers > 0) pollSubscribers -= 1;
+        if (pollSubscribers > 0 || !pollHandle) return;
+        clearInterval(pollHandle);
+        pollHandle = null;
       },
 
       hideRoom: (id: string) => {

@@ -48,6 +48,10 @@ function momentumToDirection(momentum: number): 'up' | 'down' | 'flat' {
 }
 
 let pollHandle: ReturnType<typeof setInterval> | null = null;
+// Ref count of mounted consumers. The shared interval runs while at least one
+// consumer is mounted and is cleared when the last one unmounts, so polling no
+// longer leaks for the whole session.
+let pollSubscribers = 0;
 
 export const useTrendsStore = create<TrendsStore>()(
   persist(
@@ -106,18 +110,22 @@ export const useTrendsStore = create<TrendsStore>()(
       },
 
       startPolling: () => {
+        pollSubscribers += 1;
         if (pollHandle) return;
         void get().fetchTrends();
         pollHandle = setInterval(() => {
           void get().fetchTrends({ silent: true });
         }, POLL_INTERVAL_MS);
+        // Non-Node runtimes (RN/web) return a numeric handle with no unref — the
+        // optional chain no-ops there; on Node it keeps the loop from staying alive.
+        pollHandle.unref?.();
       },
 
       stopPolling: () => {
-        if (pollHandle) {
-          clearInterval(pollHandle);
-          pollHandle = null;
-        }
+        if (pollSubscribers > 0) pollSubscribers -= 1;
+        if (pollSubscribers > 0 || !pollHandle) return;
+        clearInterval(pollHandle);
+        pollHandle = null;
       },
 
       hideTrend: (id: string) => {

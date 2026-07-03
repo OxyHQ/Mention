@@ -95,10 +95,12 @@ export default function ExploreTrendingScreen() {
   const trendsLoading = useTrendsStore((state) => state.isLoading);
   const fetchTrends = useTrendsStore((state) => state.fetchTrends);
   const startPolling = useTrendsStore((state) => state.startPolling);
+  const stopPolling = useTrendsStore((state) => state.stopPolling);
 
   useEffect(() => {
     startPolling();
-  }, [startPolling]);
+    return () => stopPolling();
+  }, [startPolling, stopPolling]);
 
   const visibleTrends = useMemo(
     () => (trends || []).filter((trend) => !hiddenTrendIds.includes(trend.id)),

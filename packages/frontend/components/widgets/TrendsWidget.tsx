@@ -21,14 +21,15 @@ interface TrendsWidgetProps {
 
 export function TrendsWidget({ variant = 'card' }: TrendsWidgetProps) {
   const { t } = useTranslation();
-  const { trends, summary, isLoading, hasFetched, error, hiddenTrendIds, startPolling, hideTrend } =
+  const { trends, summary, isLoading, hasFetched, error, hiddenTrendIds, startPolling, stopPolling, hideTrend } =
     useTrendsStore();
   const router = useRouter();
   const openWidgetMenu = useWidgetItemMenu();
 
   useEffect(() => {
     startPolling();
-  }, [startPolling]);
+    return () => stopPolling();
+  }, [startPolling, stopPolling]);
 
   const { navigateToTrend } = useTrendNavigation();
 

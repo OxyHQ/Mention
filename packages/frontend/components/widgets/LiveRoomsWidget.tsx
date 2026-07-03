@@ -93,13 +93,14 @@ export function LiveRoomsWidget() {
   const { joinLiveRoom } = useLiveRoom();
   const openWidgetMenu = useWidgetItemMenu();
 
-  const { rooms, isLoading, hasFetched, error, hiddenRoomIds, startPolling, hideRoom } =
+  const { rooms, isLoading, hasFetched, error, hiddenRoomIds, startPolling, stopPolling, hideRoom } =
     useLiveRoomsStore();
 
   useEffect(() => {
     if (!isAuthenticated) return;
     startPolling();
-  }, [isAuthenticated, startPolling]);
+    return () => stopPolling();
+  }, [isAuthenticated, startPolling, stopPolling]);
 
   const visibleRooms = useMemo(
     () => rooms.filter((room) => !hiddenRoomIds.includes(room._id)),
