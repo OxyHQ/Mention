@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useContext } from 'react';
 import {
   Pressable,
   type GestureResponderEvent,
@@ -8,7 +8,8 @@ import {
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { FediverseIcon } from '@/assets/icons/fediverse-icon';
-import { showFediverseInfo } from './FediverseInfoDialog';
+import { BottomSheetContext } from '@/context/BottomSheetContext';
+import { FediverseInfoSheet } from './FediverseInfoSheet';
 
 interface FediverseBadgeProps {
   /** Icon size in px. Defaults to 15 (inline-with-text size). */
@@ -24,22 +25,29 @@ interface FediverseBadgeProps {
 }
 
 /**
- * Tappable fediverse icon that opens the educational fediverse `Dialog`.
- * Rendered wherever a fediverse marker appears — federated profile cards and
- * headers, post headers, search results, and the web profile hover card — so the
- * marker is consistently explained on tap.
+ * Tappable fediverse icon that opens the educational `FediverseInfoSheet` in
+ * Mention's shared bottom sheet. Rendered wherever a fediverse marker appears —
+ * federated profile cards and headers, post headers, search results, and the
+ * web profile hover card — so the marker is consistently explained on tap.
  */
 export function FediverseBadge({ size = 15, className, color, containerClassName, style }: FediverseBadgeProps) {
   const { t } = useTranslation();
+  const bottomSheet = useContext(BottomSheetContext);
 
-  const openSheet = useCallback((event?: GestureResponderEvent) => {
-    // The badge is nested inside a pressable row/card (ProfileCard, post
-    // header, search card); stop the click from bubbling to click-based
-    // parents so tapping it opens the dialog without also triggering the
-    // parent's navigation.
-    event?.stopPropagation?.();
-    showFediverseInfo();
-  }, []);
+  const openSheet = useCallback(
+    (event?: GestureResponderEvent) => {
+      // The badge is nested inside a pressable row/card (ProfileCard, post
+      // header, search card); stop the click from bubbling to click-based
+      // parents so tapping it opens the sheet without also triggering the
+      // parent's navigation.
+      event?.stopPropagation?.();
+      bottomSheet.setBottomSheetContent(
+        <FediverseInfoSheet onClose={() => bottomSheet.openBottomSheet(false)} />,
+      );
+      bottomSheet.openBottomSheet(true);
+    },
+    [bottomSheet],
+  );
 
   // The web profile hover card navigates on a raw `onPointerUp` on an ancestor
   // View — a channel `onPress`/click stopPropagation cannot reach. Stopping the

@@ -22,7 +22,6 @@ import { LayoutScrollProvider } from '@/context/LayoutScrollContext';
 import { OXY_CLIENT_ID } from '@/config';
 import { ToastOutlet } from '@oxyhq/bloom/toast';
 import { ConfirmPromptProvider } from '@/components/common/ConfirmPrompt';
-import { FediverseInfoDialogProvider } from '@/components/Fediverse/FediverseInfoDialog';
 import i18n from '@/lib/i18n';
 import { agoraConfig } from '@/lib/agoraConfig';
 import { createScopedLogger } from '@/lib/logger';
@@ -76,7 +75,6 @@ export const AppProviders = memo(function AppProviders({
                             <StatusBar style="auto" />
                             <ToastOutlet />
                             <ConfirmPromptProvider />
-                            <FediverseInfoDialogProvider />
                           </HomeRefreshProvider>
                         </LayoutScrollProvider>
                       </AppErrorBoundary>
