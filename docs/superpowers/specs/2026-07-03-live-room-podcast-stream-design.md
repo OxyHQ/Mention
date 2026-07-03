@@ -16,11 +16,12 @@ Verified against the live Syra API (`https://api.syra.fm`):
 
 - `GET /api/podcasts/search?q=` → podcast **shows** (already proxied by Mention `GET /profile/media/search?type=podcast`, `packages/backend/src/routes/profileMedia.ts:79`).
 - `GET /api/podcasts/:id` → show detail, **no inline episodes** (`episodeCount`, `feedUrl`, `persons` only).
-- `GET /api/podcasts/:id/episodes` → **public**, returns episodes each carrying:
+- `GET /api/podcasts/:id/episodes` → **public**, `{ data: Episode[], total, page, limit }`. Each episode carries:
   - `enclosureUrl` — a direct audio file, e.g. `https://api.fastcast.ai/audio/<guid>.mp3`
   - `enclosureType` — `audio/mpeg`
   - `duration` (seconds), `pubDate`, `image`, `title`
   - `hls` — an array, **empty** for the sampled episodes → do NOT rely on it; use `enclosureUrl`.
+- `GET /api/episodes/:id` → **public**, `{ data: { episode, persons } }` — a single episode by id with the same `enclosureUrl`. Enables **O(1)** resolution at stream-start (no page scan).
 
 The `@syra.fm/sdk` (v0.3.0) **strips episodes** from `getPodcast` and has no episodes method (`node_modules/@syra.fm/sdk/src/client.ts:106` comment). The SDK source is ours: `~/Oxy/Syra/packages/sdk`. Per the fix-upstream rule, we extend the SDK rather than hand-roll raw Syra HTTP inside Mention.
 
@@ -41,19 +42,20 @@ Add episode support to the public-catalog SDK.
 - **`schema.ts`** — new `episodeSummarySchema` + `EpisodeSummary` type. Fields the consumers need (tolerantly strips the rest, like the other schemas):
   `{ id, podcastId, title, description?, enclosureUrl, enclosureType?, duration?, image?, imageSizes?, imageSourceUrl?, pubDate? }`.
   `enclosureUrl` is required — rows without it are unplayable and dropped.
-- **`client.ts`** — new interface method + impl:
-  `getPodcastEpisodes(podcastId: string, options?: { limit?: number; offset?: number }): Promise<SearchPage<EpisodeSummary>>` → `GET /api/podcasts/:id/episodes?limit=&offset=`. Rows validated with `safeParse`; invalid/enclosure-less rows skipped. Derive `hasMore` from returned length vs requested `limit` (the episodes response carries no `pagination` object — mirror how `searchPodcasts` builds its `SearchPage`).
-  Add an `episodeImageUrl(ep, size?)` helper mirroring `podcastArtworkUrl` (resolve `image`/`imageSizes`/`imageSourceUrl` → absolute URL).
+- **`client.ts`** — two new interface methods + impls:
+  - `getPodcastEpisodes(podcastId, options?: { limit?; offset? }): Promise<SearchPage<EpisodeSummary>>` → `GET /api/podcasts/:id/episodes?limit=&offset=`. Response is `{ data: Episode[], total, page, limit }`; rows validated with `safeParse` (invalid/enclosure-less skipped); `hasMore = page * limit < total`. Powers the picker's episode list.
+  - `getEpisode(episodeId): Promise<EpisodeSummary>` → `GET /api/episodes/:id`, parse `json?.data?.episode` (mirrors `getPodcast`'s `json?.data?.podcast`). Powers O(1) stream-start resolution.
+  - Add an `episodeImageUrl(ep, size?)` helper mirroring `podcastArtworkUrl` (resolve `image`/`imageSizes`/`imageSourceUrl` → absolute URL).
 - **`index.ts`** — export `EpisodeSummary` (+ schema if others are exported).
-- **`client.test.ts`** — add a `getPodcastEpisodes` test mirroring existing tests (mock fetch, assert URL, validation, hasMore).
+- **`client.test.ts`** — add `getPodcastEpisodes` + `getEpisode` tests mirroring existing tests (mock fetch, assert URL, validation, hasMore / `data.episode` unwrap).
 - **Publish:** bump SDK version, commit + push Syra, `bun publish` (via the `publish` skill: pack + inspect + verify propagation with a clean external install + import). Then bump `@syra.fm/sdk` in Mention backend `package.json` + `bun install` (lockfile in the same commit).
 
 ### Layer 2 — Mention backend
 
 **`packages/backend/src/utils/syraPodcast.ts`** — add server-side resolvers (denormalize from Syra, never trust client):
 
-- `listPodcastEpisodes(podcastId, { offset }) → { items: EpisodeListItem[]; hasMore; offset }` for the picker. `EpisodeListItem = { episodeId, title, durationSec?, publishedAt?, artworkUrl? }` — **no audio URL leaked to the picker** (it's not needed there and stays server-owned).
-- `resolvePodcastEpisode(podcastId, episodeId) → { audioUrl, title, artworkUrl?, durationSec? } | null`. Scans `getPodcastEpisodes` pages to find `episodeId`; returns `null` when not found. `audioUrl = enclosureUrl`.
+- `listPodcastEpisodes(podcastId, { offset }) → { items: EpisodeListItem[]; hasMore; offset }` via SDK `getPodcastEpisodes`, for the picker. `EpisodeListItem = { episodeId, title, durationSec?, publishedAt?, artworkUrl? }` — **no audio URL leaked to the picker** (it's not needed there and stays server-owned).
+- `resolvePodcastEpisode(episodeId, expectedPodcastId?) → { audioUrl, title, artworkUrl?, durationSec? } | null` via SDK `getEpisode` (**O(1)**, no page scan). When `expectedPodcastId` is passed, cross-check `episode.podcastId` and return `null` on mismatch. `audioUrl = enclosureUrl`.
 
 **`packages/backend/src/routes/profileMedia.ts`** — add (router already `requireAuth`, mounted at `/api/profile/media`, `server.ts:806`):
 
@@ -64,7 +66,7 @@ Add episode support to the public-catalog SDK.
 - **Refactor:** pull the ingress-start body of `POST /:id/stream` (`:1174`–`:1207`: `ensureLiveKitRoomForRoom` → `createIngressReplacingExisting`/`createRoomUrlIngress` → `cleanupPreviousIngressAfterReplacement` → persist fields → `emitStreamStarted` → response) into a shared internal `startUrlIngress(room, id, { url, title, image, description }, res, userId)`. `POST /:id/stream` calls it after its existing url/manager/live validation. No behavior change to the existing route.
 - **New route** `POST /:id/stream/podcast`, body `{ syraPodcastId, episodeId }`:
   1. auth → `sendForbiddenUnlessRoomManager` → `room.status === LIVE` (identical gates to `POST /:id/stream`).
-  2. `resolvePodcastEpisode(syraPodcastId, episodeId)`; `404`/`400` if unresolvable.
+  2. `resolvePodcastEpisode(episodeId, syraPodcastId)`; `404`/`400` if unresolvable or podcast-id mismatch.
   3. call `startUrlIngress(room, id, { url: audioUrl, title, image: artworkUrl, description: undefined }, res, userId)`.
   Response shape identical to `POST /:id/stream` (`{ message, ingressId, url }`).
 
@@ -107,7 +109,7 @@ Note: `streamImage` for URL streams is a `cloud.oxy.so` URL; here it's the Syra 
 
 ## Testing
 
-- **SDK:** `client.test.ts` — `getPodcastEpisodes` (mock fetch: URL, schema validation, enclosure-less rows dropped, hasMore).
+- **SDK:** `client.test.ts` — `getPodcastEpisodes` (URL, schema validation, enclosure-less rows dropped, `hasMore` from `total`) + `getEpisode` (`data.episode` unwrap, validation).
 - **Backend:** unit-test `resolvePodcastEpisode`/`listPodcastEpisodes` (mock `syraClient`); route test for `POST /:id/stream/podcast` (manager gate, live gate, resolution → ingress call) and `GET /podcasts/:id/episodes`. Run from `packages/backend` (`cd packages/backend && bun run test`) — note Mention CI does not run vitest, so run the suite locally before merge.
 - **Manual (required):** agora web, real foregrounded tab — search a podcast, pick an episode, confirm audio ingests into the room and the stream card shows the episode. Jest does not exercise LiveKit/render.
 
