@@ -1,4 +1,4 @@
-import React, { useCallback, useContext, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { View, ScrollView } from 'react-native';
 import { Loading } from '@oxyhq/bloom/loading';
 import { Switch } from '@oxyhq/bloom/switch';
@@ -10,8 +10,7 @@ import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { RowIcon } from '@/components/settings/RowIcon';
-import { BottomSheetContext } from '@/context/BottomSheetContext';
-import { FediverseInfoSheet } from '@/components/Fediverse/FediverseInfoSheet';
+import { showFediverseInfo } from '@/components/Fediverse/FediverseInfoDialog';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { confirmDialog } from '@/utils/alerts';
 import { api } from '@/utils/api';
@@ -29,7 +28,6 @@ const logger = createScopedLogger('FediverseSettings');
 function FediverseSharingBody() {
   const { t } = useTranslation();
   const { user, oxyServices } = useAuth();
-  const bottomSheet = useContext(BottomSheetContext);
 
   const [sharing, setSharing] = useState<boolean>(user?.fediverseSharing !== false);
   const [pending, setPending] = useState(false);
@@ -84,17 +82,13 @@ function FediverseSharingBody() {
   );
 
   const openInfoSheet = useCallback(() => {
-    bottomSheet.setBottomSheetContent(
-      <FediverseInfoSheet
-        onClose={() => bottomSheet.openBottomSheet(false)}
-        showEnableCta={!sharing}
-        onEnable={() => {
-          void applyChange(true);
-        }}
-      />,
-    );
-    bottomSheet.openBottomSheet(true);
-  }, [applyChange, bottomSheet, sharing]);
+    showFediverseInfo({
+      showEnableCta: !sharing,
+      onEnable: () => {
+        void applyChange(true);
+      },
+    });
+  }, [applyChange, sharing]);
 
   return (
     <ScrollView
