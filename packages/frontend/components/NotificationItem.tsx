@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { confirmDialog } from '@/utils/alerts';
-import { PressableScale } from '@/lib/animations/PressableScale';
+import { PressableScale } from '@oxyhq/bloom/pressable-scale';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 

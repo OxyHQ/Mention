@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { Loading } from '@oxyhq/bloom/loading';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { useHaptics } from '@oxyhq/bloom/hooks';
-import { PressableScale } from '@/lib/animations/PressableScale';
+import { PressableScale } from '@oxyhq/bloom/pressable-scale';
 import { MediaIcon } from '@/assets/icons/media-icon';
 import { PollIcon } from '@/assets/icons/poll-icon';
 import { LocationIcon } from '@/assets/icons/location-icon';

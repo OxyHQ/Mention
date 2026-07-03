@@ -32,7 +32,7 @@
   },
   "dependencies": {
     "@lottiefiles/dotlottie-react": "^0.19.5",
-    "@oxyhq/bloom": "^0.28.0",
+    "@oxyhq/bloom": "^0.29.0",
     "@oxyhq/contracts": "^0.8.0",
     "@oxyhq/core": "^5.5.0",
     "@oxyhq/services": "^14.1.0",
@@ -52,7 +52,7 @@
     "@react-native/babel-preset": "0.85.3",
     "@react-native/metro-babel-transformer": "0.85.3",
     "@react-native/metro-config": "0.85.3",
-    "@oxyhq/bloom": "^0.28.0",
+    "@oxyhq/bloom": "^0.29.0",
     "@oxyhq/core": "^5.5.0",
     "@oxyhq/services": "^14.1.0",
     "mongoose": "^8.17.0",

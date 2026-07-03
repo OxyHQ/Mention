@@ -13,7 +13,7 @@ import {
 } from '@mention/shared-types';
 import PostItem from './PostItem';
 import { PostErrorBoundary } from './PostErrorBoundary';
-import { SubtleHover } from '@/components/SubtleHover';
+import { SubtleHover } from '@oxyhq/bloom/subtle-hover';
 import { useThreadHoverStore } from '@/stores/threadHoverStore';
 import { createScopedLogger } from '@/lib/logger';
 import { getItemKey, deduplicateItems, buildReplyTree, ReplyNode } from '@/utils/feedUtils';

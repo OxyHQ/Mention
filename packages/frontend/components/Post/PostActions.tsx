@@ -12,7 +12,7 @@ import { Avatar } from '@oxyhq/bloom/avatar';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { useHaptics } from '@oxyhq/bloom/hooks';
 import { formatCompactNumber } from '@/utils/formatNumber';
-import { PressableScale } from '@/lib/animations/PressableScale';
+import { PressableScale } from '@oxyhq/bloom/pressable-scale';
 import { AnimatedLikeIcon } from '@/lib/animations/AnimatedLikeIcon';
 import { CountWheel } from '@/lib/animations/CountWheel';
 import { useVoteStyle } from '@/hooks/useVoteStyle';

@@ -5,7 +5,7 @@ import { ChevronDownIcon } from '@/assets/icons/chevron-down-icon';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { useHaptics } from '@oxyhq/bloom/hooks';
 import { formatCompactNumber } from '@/utils/formatNumber';
-import { PressableScale } from '@/lib/animations/PressableScale';
+import { PressableScale } from '@oxyhq/bloom/pressable-scale';
 
 const ARROW_SIZE = 18;
 
