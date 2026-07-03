@@ -3,7 +3,6 @@ import type { RoomParticipant } from './validation';
 export type {
   Room,
   RoomParticipant,
-  StreamInfo,
   Recording,
   House,
   HouseMember,
@@ -13,6 +12,24 @@ export type {
   RoomTemplate,
   RoomAttachment,
 } from './validation';
+
+/**
+ * The "now playing" stream surfaced in the live room. Derived from the
+ * `room:stream:started` socket payload (and the room's persisted stream fields);
+ * it is NOT parsed through zod, so it stays a plain structural type rather than
+ * `z.infer<typeof ZStreamInfo>`. `startedAt` / `durationSec` are present for
+ * length-known streams (e.g. a podcast episode) and drive the progress bar;
+ * manual URL/RTMP streams omit them and render no progress UI.
+ */
+export interface StreamInfo {
+  title?: string;
+  image?: string;
+  description?: string;
+  /** ISO timestamp when the current stream began. */
+  startedAt?: string;
+  /** Total length of the current stream in seconds, when known. */
+  durationSec?: number;
+}
 
 export interface ParticipantsUpdateData {
   roomId: string;

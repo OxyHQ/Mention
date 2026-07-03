@@ -10,6 +10,8 @@ import { queryClient } from '@/lib/queryClient';
 import { getCachedFileDownloadUrl, getCachedFileDownloadUrlSync } from '@/utils/imageUrlCache';
 import { Avatar } from '@oxyhq/bloom/avatar';
 import { show } from '@oxyhq/bloom/toast';
+import i18n from '@/lib/i18n';
+import { useAppearanceStore } from '@/store/appearanceStore';
 
 const useAgoraTheme = (): AgoraTheme => {
   const theme = useBloomTheme();
@@ -44,10 +46,37 @@ const ensureUserById: AgoraConfig['ensureUserById'] = (id, loader) =>
     staleTime: 5 * 60 * 1000,
   }).then((user) => user ?? undefined);
 
+/**
+ * Localize the shared live-room UI via Mention's i18n instance. `i18n.t` is
+ * stable and resolves keys flat (see `lib/i18n.ts`); the agora-shared components
+ * only ask for plain strings, so `String()` collapses i18next's wide return type.
+ */
+const translate: NonNullable<AgoraConfig['t']> = (key, options) => String(i18n.t(key, options));
+
+/**
+ * Resolve the viewer's pinned Syra podcast from their profile media so the
+ * podcast stream picker can offer a one-tap quick-start row. Reads the appearance
+ * store (loading it once if cold); returns `null` when the viewer has no pinned
+ * podcast (or has a pinned song instead).
+ */
+const getPinnedPodcast: NonNullable<AgoraConfig['getPinnedPodcast']> = async () => {
+  const store = useAppearanceStore.getState();
+  let settings = store.mySettings;
+  if (!settings) {
+    await store.loadMySettings(true);
+    settings = useAppearanceStore.getState().mySettings;
+  }
+  const media = settings?.profileMedia;
+  if (!media || media.type !== 'podcast') return null;
+  return { syraPodcastId: media.syraPodcastId, title: media.title, artworkUrl: media.artworkUrl };
+};
+
 export const agoraConfig: AgoraConfig = {
   httpClient: authenticatedClient,
   socketUrl: API_URL_SOCKET,
   useTheme: useAgoraTheme,
+  t: translate,
+  getPinnedPodcast,
   useUserById,
   ensureUserById,
   getCachedFileDownloadUrl,

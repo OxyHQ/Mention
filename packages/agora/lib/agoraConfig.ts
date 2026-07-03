@@ -8,6 +8,13 @@ import { getCachedFileDownloadUrl, getCachedFileDownloadUrlSync } from '@/utils/
 import Avatar from '@/components/Avatar';
 import { show } from '@oxyhq/bloom/toast';
 
+// The standalone Agora app deliberately omits two optional AgoraConfig hooks the
+// shared live-room UI can use:
+//   - `t`: Agora has no i18n layer, so the shared components fall back to their
+//     bundled English source copy (the picker keys are absent here).
+//   - `getPinnedPodcast`: Agora has no profile-media concept, so the podcast
+//     stream picker simply hides its "stream my pinned podcast" quick-start row.
+// Both are no-ops-on-absence by design — no stub is needed.
 export const agoraConfig: AgoraConfig = {
   httpClient: authenticatedClient,
   socketUrl: API_URL_SOCKET,

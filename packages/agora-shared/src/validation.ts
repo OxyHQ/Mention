@@ -1,5 +1,20 @@
 import { z } from 'zod';
 
+// --- Podcast queue ---
+
+/**
+ * One podcast episode queued behind the current stream. `episodeId` is the
+ * opaque Syra episode handle; `syraPodcastId` (when present) identifies its show.
+ * The playable audio URL is never carried here — it is resolved server-side at
+ * play-time.
+ */
+export const ZPodcastQueueItem = z.object({
+  syraPodcastId: z.string().optional(),
+  episodeId: z.string(),
+}).passthrough();
+
+export type PodcastQueueItem = z.infer<typeof ZPodcastQueueItem>;
+
 // --- Room (replaces Space) ---
 
 export const ZRoom = z.object({
@@ -50,6 +65,13 @@ export const ZRoom = z.object({
   streamDescription: z.string().nullish(),
   rtmpUrl: z.string().nullish(),
   rtmpStreamKey: z.string().nullish(),
+  // Stream progress + podcast lifecycle (shared contract with the backend).
+  // `streamStartedAt` is an ISO timestamp; `streamDurationSec` is the current
+  // stream's total length in seconds when known (e.g. a podcast episode);
+  // `podcastQueue` holds the episodes queued behind the current one.
+  streamStartedAt: z.string().nullish(),
+  streamDurationSec: z.number().nullish(),
+  podcastQueue: z.array(ZPodcastQueueItem).nullish(),
 
   // Recording
   recordingEnabled: z.boolean().optional().default(true),

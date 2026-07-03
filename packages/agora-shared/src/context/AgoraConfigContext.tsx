@@ -5,10 +5,37 @@ import { createAgoraService, type AgoraServiceInstance } from '../services/space
 import { RoomSocketService } from '../services/spaceSocketService';
 import { createGetRoomToken, type GetRoomTokenFn } from '../services/livekitService';
 
+/**
+ * The viewer's pinned Syra podcast (resolved from their profile media), surfaced
+ * by {@link AgoraConfig.getPinnedPodcast}. `title`/`artworkUrl` are optional —
+ * the id is all the picker needs to drill into the episode list.
+ */
+export interface PinnedPodcast {
+  syraPodcastId: string;
+  title?: string;
+  artworkUrl?: string;
+}
+
 export interface AgoraConfig {
   httpClient: HttpClient;
   socketUrl: string;
   useTheme: () => AgoraTheme;
+  /**
+   * Translate a UI string key to the active locale. Optional: hosts WITH an i18n
+   * layer (the Mention frontend) inject their real translator so the shared
+   * live-room UI localizes; hosts WITHOUT one (the standalone Agora app) omit it
+   * and the shared components fall back to their bundled English source copy.
+   * Keys are looked up flat (e.g. `agora.podcastStream.disclaimer`).
+   */
+  t?: (key: string, options?: Record<string, string | number>) => string;
+  /**
+   * Resolve the viewer's pinned Syra podcast from their profile media, or `null`
+   * when they have none / it can't be read. Optional: hosts that expose profile
+   * media wire it so the podcast picker can offer a one-tap "stream my pinned
+   * podcast" quick-start row. The picker renders nothing when this is absent or
+   * resolves to `null`.
+   */
+  getPinnedPodcast?: () => Promise<PinnedPodcast | null>;
   useUserById: (id: string | undefined) => UserEntity | undefined;
   ensureUserById: (
     id: string,

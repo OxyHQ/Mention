@@ -33,6 +33,17 @@ export enum SpeakerPermission {
 
 // --- Interface ---
 
+/**
+ * One queued podcast episode awaiting playback after the current one. The
+ * `syraPodcastId` (when present) is cross-checked against the resolved episode's
+ * show at play-time to reject a mismatched pairing; only the opaque `episodeId`
+ * is required — the playable audio URL is always resolved server-side.
+ */
+export interface PodcastQueueItem {
+  syraPodcastId?: string;
+  episodeId: string;
+}
+
 export interface IRoom extends Document {
   title: string;
   description?: string;
@@ -84,6 +95,16 @@ export interface IRoom extends Document {
   streamDescription?: string;
   rtmpUrl?: string;
   rtmpStreamKey?: string;
+  // When the current stream's ingress started — powers the "now playing"
+  // progress card. Cleared whenever the stream stops.
+  streamStartedAt?: Date;
+  // Total length of the current stream in seconds, when known (e.g. a podcast
+  // episode's duration). Absent for open-ended streams (RTMP, arbitrary URLs).
+  streamDurationSec?: number;
+  // Remaining podcast episodes queued behind the current one. Advanced manually
+  // (`POST /:id/stream/podcast/next`) or automatically when the current ingress
+  // ends (LiveKit `ingress_ended` webhook).
+  podcastQueue?: PodcastQueueItem[];
 
   // Timestamps
   createdAt: Date;
@@ -253,6 +274,27 @@ const RoomSchema = new Schema({
   rtmpStreamKey: {
     type: String,
     default: null,
+  },
+  streamStartedAt: {
+    type: Date,
+    default: null,
+  },
+  streamDurationSec: {
+    type: Number,
+    default: null,
+    min: 0,
+  },
+  podcastQueue: {
+    type: [
+      new Schema<PodcastQueueItem>(
+        {
+          syraPodcastId: { type: String },
+          episodeId: { type: String, required: true },
+        },
+        { _id: false },
+      ),
+    ],
+    default: undefined,
   },
 }, {
   timestamps: true

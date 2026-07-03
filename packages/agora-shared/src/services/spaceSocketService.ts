@@ -114,7 +114,7 @@ export class RoomSocketService {
     return () => { this.socket?.off('room:user:left', cb); };
   }
 
-  onStreamStarted(cb: (data: { roomId: string; title?: string; image?: string; description?: string; timestamp: string }) => void): () => void {
+  onStreamStarted(cb: (data: { roomId: string; title?: string; image?: string; description?: string; startedAt?: string; durationSec?: number; timestamp: string }) => void): () => void {
     this.socket?.on('room:stream:started', cb);
     return () => { this.socket?.off('room:stream:started', cb); };
   }

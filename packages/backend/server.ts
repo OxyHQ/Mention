@@ -62,6 +62,7 @@ import reportsRoutes from './src/routes/reports.routes';
 import trendingRoutes from './src/routes/trending.routes';
 import topicsRoutes from './src/routes/topics.routes';
 import roomsRoutes from './src/routes/rooms.routes';
+import livekitWebhookRoutes from './src/routes/livekitWebhook.routes';
 import recordingsRoutes from './src/routes/recordings.routes';
 import housesRoutes from './src/routes/houses.routes';
 import seriesRoutes from './src/routes/series.routes';
@@ -211,6 +212,12 @@ app.use(compression({
   level: 6, // Compression level (0-9, 6 is a good balance)
   threshold: 1024, // Only compress responses > 1KB
 }));
+
+// LiveKit webhook — mounted BEFORE the global JSON parser because its own raw
+// body parser must own the request bytes for signature verification (a JSON
+// re-serialization would invalidate the LiveKit signature). Machine-to-machine
+// and gated by signature verification, so it also sits ahead of the rate limiter.
+app.use('/livekit', livekitWebhookRoutes);
 
 app.use(express.json({
   limit: '1mb',
