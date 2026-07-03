@@ -1,1 +1,1 @@
-export { useRoomAudio } from '@mention/agora-shared';
+export { useRoomAudio } from '@syra.fm/live';

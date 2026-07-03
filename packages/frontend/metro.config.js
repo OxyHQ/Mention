@@ -41,7 +41,6 @@ config.resolver = {
   ],
   extraNodeModules: {
     '@mention/shared-types': path.join(monorepoRoot, 'packages/shared-types'),
-    '@mention/agora-shared': path.join(monorepoRoot, 'packages/agora-shared'),
   },
   // Resolve from frontend node_modules first, then monorepo root (for hoisted deps)
   nodeModulesPaths: [

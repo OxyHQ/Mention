@@ -4,17 +4,18 @@
  *
  * Runs `tsc --noEmit` and fails on ANY frontend (app/source) type error.
  *
- * The frontend tsconfig resolves `@mention/agora-shared` to its SOURCE
- * (`src/index.ts`), so tsc also type-checks agora-shared. agora-shared imports
- * `livekit-client`, whose package `exports` map omits a `react-native`
- * condition. Combined with the Expo base's `customConditions: ["react-native"]`,
- * tsc cannot resolve livekit-client's value exports (`Participant`,
- * `ConnectionState`) and the call-arity check on the unresolved symbol fails.
+ * The `@syra.fm/live` package (Mention's live-rooms engine) ships a
+ * `react-native` export condition pointing at its SOURCE (`src/index.ts`), so
+ * — combined with the Expo base's `customConditions: ["react-native"]` — tsc
+ * resolves and type-checks that source. It imports `livekit-client`, whose
+ * package `exports` map omits a `react-native` condition, so tsc cannot resolve
+ * livekit-client's value exports (`Participant`, `ConnectionState`) and the
+ * call-arity check on the unresolved symbol fails.
  *
  * These are pre-existing, EXTERNAL (livekit-client packaging) errors that are
- * out of scope for the frontend type-check and are owned by the agora-shared /
+ * out of scope for the frontend type-check and are owned by the @syra.fm/live /
  * livekit upstream, not this app. They are allow-listed below by their exact
- * file+code signature. Every OTHER error — including any NEW agora-shared error
+ * file+code signature. Every OTHER error — including any NEW @syra.fm/live error
  * that is not one of these — fails the gate.
  */
 import { spawnSync } from 'node:child_process';
@@ -40,12 +41,12 @@ function resolveTscBin() {
 }
 
 // Exact, narrowly-scoped allow-list of known-external livekit-client errors
-// surfaced through agora-shared source. Matched as substrings against each
+// surfaced through @syra.fm/live source. Matched as substrings against each
 // tsc diagnostic line.
 const ALLOWED_EXTERNAL = [
-  `../agora-shared/src/hooks/useActiveSpeakers.ts(2,27): error TS2305: Module '"livekit-client"' has no exported member 'Participant'.`,
-  `../agora-shared/src/hooks/useRoomAudio.ts(3,34): error TS2305: Module '"livekit-client"' has no exported member 'ConnectionState'.`,
-  `../agora-shared/src/hooks/useRoomAudio.ts(49,27): error TS2554: Expected 0 arguments, but got 1.`,
+  `../../node_modules/@syra.fm/live/src/hooks/useActiveSpeakers.ts(2,27): error TS2305: Module '"livekit-client"' has no exported member 'Participant'.`,
+  `../../node_modules/@syra.fm/live/src/hooks/useRoomAudio.ts(3,34): error TS2305: Module '"livekit-client"' has no exported member 'ConnectionState'.`,
+  `../../node_modules/@syra.fm/live/src/hooks/useRoomAudio.ts(49,27): error TS2554: Expected 0 arguments, but got 1.`,
 ];
 
 const result = spawnSync(resolveTscBin(), ['--noEmit'], {

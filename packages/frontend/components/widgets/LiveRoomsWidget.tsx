@@ -16,7 +16,7 @@ import { useUserById } from '@/hooks/useCachedUser';
 import { useWidgetItemMenu } from '@/hooks/useWidgetItemMenu';
 import { shareLink } from '@/utils/shareLink';
 import { WEB_BASE_URL } from '@/config';
-import { Agora as AgoraIcon } from '@mention/agora-shared';
+import { Agora as AgoraIcon } from '@syra.fm/live';
 import * as Skeleton from '@oxyhq/bloom/skeleton';
 
 const MAX_ROOMS_DISPLAYED = 3;

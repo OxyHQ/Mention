@@ -14,7 +14,7 @@ import { SafeAreaProvider, initialWindowMetrics } from 'react-native-safe-area-c
 import { StatusBar } from 'expo-status-bar';
 import { OxyProvider } from '@oxyhq/services';
 import { OxyServices } from '@oxyhq/core';
-import { AgoraProvider, LiveRoomProvider } from '@mention/agora-shared';
+import { AgoraProvider, LiveRoomProvider } from '@syra.fm/live';
 import { AppErrorBoundary } from '@/components/AppErrorBoundary';
 import { BottomSheetProvider } from '@/context/BottomSheetContext';
 import { HomeRefreshProvider } from '@/context/HomeRefreshContext';

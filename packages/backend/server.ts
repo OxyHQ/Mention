@@ -61,13 +61,7 @@ import muteWordsRoutes from './src/routes/muteWords.routes';
 import reportsRoutes from './src/routes/reports.routes';
 import trendingRoutes from './src/routes/trending.routes';
 import topicsRoutes from './src/routes/topics.routes';
-import roomsRoutes from './src/routes/rooms.routes';
-import livekitWebhookRoutes from './src/routes/livekitWebhook.routes';
-import recordingsRoutes from './src/routes/recordings.routes';
-import housesRoutes from './src/routes/houses.routes';
-import seriesRoutes from './src/routes/series.routes';
 import entityFollowRoutes from './src/routes/entity-follow.routes';
-import adminRoutes from './src/routes/admin';
 import mediaRoutes from './src/routes/media';
 import recommendationsRoutes from './src/routes/recommendations';
 import mtnNodesRoutes from './src/routes/mtn-nodes.routes';
@@ -212,12 +206,6 @@ app.use(compression({
   level: 6, // Compression level (0-9, 6 is a good balance)
   threshold: 1024, // Only compress responses > 1KB
 }));
-
-// LiveKit webhook — mounted BEFORE the global JSON parser because its own raw
-// body parser must own the request bytes for signature verification (a JSON
-// re-serialization would invalidate the LiveKit signature). Machine-to-machine
-// and gated by signature verification, so it also sits ahead of the rate limiter.
-app.use('/livekit', livekitWebhookRoutes);
 
 app.use(express.json({
   limit: '1mb',
@@ -437,15 +425,11 @@ const configureNamespaceErrorHandling = (namespace: Namespace) => {
 const notificationsNamespace = io.of("/notifications");
 const postsNamespace = io.of("/posts");
 
-// Import and initialize rooms socket namespace (replaces spaces)
-import { initializeRoomSocket } from './src/sockets/roomSocket';
-const roomsNamespace = initializeRoomSocket(io);
-
 // --- Socket Auth Middleware ---
 // Use oxy.authSocket() which validates tokens via jwtDecode + Oxy API session validation.
 // This matches how oxy.auth() works for HTTP — no local JWT_SECRET needed.
 const oxySocketAuth = oxy.authSocket();
-const authTargets: Array<Namespace | SocketIOServer> = [notificationsNamespace, postsNamespace, roomsNamespace, io];
+const authTargets: Array<Namespace | SocketIOServer> = [notificationsNamespace, postsNamespace, io];
 authTargets.forEach((namespaceOrServer) => {
   if (namespaceOrServer && typeof namespaceOrServer.use === "function") {
     namespaceOrServer.use(oxySocketAuth);
@@ -572,7 +556,6 @@ postsNamespace.on("connection", (socket: AuthenticatedSocket) => {
 [
   notificationsNamespace,
   postsNamespace,
-  roomsNamespace,
 ].forEach((namespace) => {
   configureNamespaceErrorHandling(namespace);
 });
@@ -740,7 +723,7 @@ io.on("connection", (socket: AuthenticatedSocket) => {
 });
 
 // Enhanced error handling for namespaces
-[notificationsNamespace, postsNamespace, roomsNamespace].forEach(
+[notificationsNamespace, postsNamespace].forEach(
   (namespace: Namespace) => {
     namespace.on("connection_error", (error: Error) => {
       logger.error(`Namespace ${namespace.name} connection error`, error);
@@ -793,7 +776,6 @@ publicApiRouter.use("/trending", trendingRoutes); // Trending topics (no auth re
 publicApiRouter.use("/topics", topicsRoutes); // Topic collection (no auth required)
 publicApiRouter.use("/federation", optionalAuth, federationApiRoutes); // Write endpoints enforce auth internally
 publicApiRouter.use("/feeds", optionalAuth, customFeedsRoutes); // Public feed discovery; write routes enforce auth internally
-publicApiRouter.use("/rooms", optionalAuth, roomsRoutes); // Public room discovery; write routes enforce auth internally
 publicApiRouter.use("/recommendations", optionalAuth, recommendationsRoutes); // Cross-app profile recommendations (personalized when authed)
 publicApiRouter.use("/starter-packs", optionalAuth, starterPacksRoutes); // Public read/discovery + shared pack links; write routes enforce auth internally
 publicApiRouter.use("/mtn/nodes", optionalAuth, mtnNodesRoutes); // MTN user-node registry: authed me/managed routes enforce auth internally; ingest-notify is a public 202 hint
@@ -820,14 +802,10 @@ authenticatedApiRouter.use("/follows", followsRoutes);
 authenticatedApiRouter.use("/mute", muteRoutes);
 authenticatedApiRouter.use("/mute-words", muteWordsRoutes); // Muted words & hashtags (feed tuner)
 authenticatedApiRouter.use("/reports", reportsRoutes);
-authenticatedApiRouter.use("/recordings", recordingsRoutes);
-authenticatedApiRouter.use("/houses", housesRoutes);
-authenticatedApiRouter.use("/series", seriesRoutes);
 authenticatedApiRouter.use("/pokes", pokesRoutes);
 authenticatedApiRouter.use("/entity-follows", entityFollowRoutes);
 // Starter packs moved to the public router (optionalAuth) above so discovery and
 // shared pack links resolve during cold boot; its write routes enforce auth internally.
-authenticatedApiRouter.use("/admin", adminRoutes);
 
 // --- Root API Welcome Route ---
 app.get("", async (req, res) => {
@@ -1017,14 +995,6 @@ function startSchedulers(): void {
     logger.warn("Failed to initialize topic service", error);
   }
 
-  // Recording Cleanup Service (6-hour interval + startup recovery)
-  try {
-    const { recordingCleanupService } = require("./src/services/RecordingCleanupService");
-    recordingCleanupService.start();
-  } catch (error) {
-    logger.warn("Failed to start recording cleanup service", error);
-  }
-
   // Federation Job Scheduler (also owns the media-cache worker + eviction jobs)
   try {
     const { federationJobScheduler } = require("./src/services/FederationJobScheduler");
@@ -1090,13 +1060,6 @@ function stopSchedulers(): void {
     topicService.stop();
   } catch (error) {
     logger.warn("Failed to stop topic service", error);
-  }
-
-  try {
-    const { recordingCleanupService } = require("./src/services/RecordingCleanupService");
-    recordingCleanupService.stop();
-  } catch (error) {
-    logger.warn("Failed to stop recording cleanup service", error);
   }
 
   try {
@@ -1221,5 +1184,5 @@ if (require.main === module) {
   void bootServer();
 }
 
-export { io, notificationsNamespace, roomsNamespace };
+export { io, notificationsNamespace };
 export default server;

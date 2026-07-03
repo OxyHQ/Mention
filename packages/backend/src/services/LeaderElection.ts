@@ -9,8 +9,8 @@ import { logger } from '../utils/logger';
  *
  * Why: the Mention backend runs several unconditional per-process schedulers
  * (FeedJobScheduler, TrendingService, PostClassificationService, TopicService,
- * FederationJobScheduler, RecordingCleanupService, plus the media-cache worker
- * and eviction jobs owned by FederationJobScheduler). When the backend runs at
+ * FederationJobScheduler, plus the media-cache worker and eviction jobs owned
+ * by FederationJobScheduler). When the backend runs at
  * 2+ ECS tasks for HA / zero-downtime deploys, those schedulers would all
  * double-run — double trending writes, double federation sync, races. This
  * service gates them behind a single distributed lock so only the elected

@@ -16,7 +16,6 @@
 bun run dev                 # All packages dev mode
 bun run dev:frontend        # Frontend dev (Expo tunnel)
 bun run dev:backend         # Backend dev (watch mode)
-bun run dev:agora           # Agora dev
 bun run dev:mcp             # MCP server dev
 bun run build               # shared-types + backend + mcp
 bun run build:frontend      # Frontend only
@@ -53,8 +52,6 @@ packages/
   frontend/       @mention/frontend    Expo 56 / React Native 0.85.3 / React 19
   backend/        @mention/backend     Express 5.2 / Mongoose 9.3 / Redis / Socket.io
   shared-types/   @mention/shared-types TypeScript type definitions
-  agora/          @mention/agora       Expo app for live audio/video rooms (LiveKit)
-  agora-shared/   @mention/agora-shared Shared Agora components & hooks
   mcp/            @mention/mcp         Model Context Protocol server for Claude
 ```
 
@@ -195,7 +192,8 @@ Use `oxyServices.getFileDownloadUrl(id, variant)` everywhere. Mention backend `u
 ## Oxy SDK Conventions
 
 - **ContentPanel**: uses `@oxyhq/bloom/content-panel` in `packages/frontend/app/(app)/_layout.tsx`. `framed` breakpoint is 500px. Pass the UNSCOPED background as `maskColor` when inside `BloomColorScope`. Radius tokens `--radius-radius-{8,12,20,28,max}` must be in `global.css` `@theme` block.
-- **Linked clients**: `packages/frontend/utils/api.ts` and `packages/agora/utils/api.ts` adapt `oxyServices.createLinkedClient({ baseURL: API_URL })` into the app's `{ data }` response shape. Do NOT re-enable GET caching on linked clients.
+- **Linked clients**: `packages/frontend/utils/api.ts` adapts `oxyServices.createLinkedClient({ baseURL: API_URL })` into the app's `{ data }` response shape. Do NOT re-enable GET caching on linked clients.
+- **Live rooms (Syra)**: Mention's live-rooms feature is powered by the shared `@syra.fm/live` engine (DI-based; audio rooms over LiveKit) — same API the retired local live-rooms workspace package exposed. Rooms talk to SYRA's backend, NOT `api.mention.earth`: `lib/agoraConfig.tsx` builds a Syra-pointed linked client (`SYRA_API_URL` / `SYRA_SOCKET_URL` in `config.ts`; Oxy bearer token authenticates cross-app) and passes it as `agoraConfig.httpClient` / `socketUrl`. The rooms UI (`components/RoomCard.tsx`, `components/rooms/*`, `context/LiveRoomContext.tsx`, `hooks/useRoom*.ts`) re-exports from `@syra.fm/live`. Do NOT point the rooms client at Mention's global `authenticatedClient`, and do NOT re-enable GET caching on the Syra client.
 - **Backend auth**: `@oxyhq/core/server` only. No local `requireAuth`, bearer parsers, or token-decoding middleware.
 - **Notifications**: `POST /notifications` is server-authored — no client mass-assignment of notification fields.
 - **Debug routes**: `/test` debug route was removed from production. Do not re-add it.
@@ -266,7 +264,7 @@ Uses DOTTED `$set` to enrich the existing subdoc — NEVER a whole-subdoc overwr
 
 ## Theming
 
-- Default color preset for **Mention frontend: `blue`**. Default for **Agora: `yellow`** (matches `#FFC107` brand).
+- Default color preset for **Mention frontend: `blue`**.
 - `BloomThemeProvider` is the single source of truth for mode + color preset, with built-in persistence. Pass `persistKey` + `storage` — do NOT add a local theme store.
 - Settings UI uses `SettingsList` (`SettingsListGroup` / `SettingsListItem` from `@oxyhq/bloom/settings-list`). Do not introduce local `SettingsItem` wrappers.
 - `BloomColorScope` owns scoped Bloom/NativeWind variables for profile theming. Do not add app-local scope helpers.

@@ -1,7 +1,7 @@
-export { useRoomUsers, getDisplayName } from '@mention/agora-shared';
-export type { UserEntity } from '@mention/agora-shared';
+export { useRoomUsers, getDisplayName } from '@syra.fm/live';
+export type { UserEntity } from '@syra.fm/live';
 
-import { getAvatarUrl as _getAvatarUrl } from '@mention/agora-shared';
+import { getAvatarUrl as _getAvatarUrl } from '@syra.fm/live';
 import { getCachedFileDownloadUrlSync } from '@/utils/imageUrlCache';
 
 /**
@@ -10,7 +10,7 @@ import { getCachedFileDownloadUrlSync } from '@/utils/imageUrlCache';
  * implementation so existing callers don't need to change.
  */
 export function getAvatarUrl(
-  userProfile: import('@mention/agora-shared').UserEntity | undefined,
+  userProfile: import('@syra.fm/live').UserEntity | undefined,
   oxyServices: unknown,
 ): string | undefined {
   return _getAvatarUrl(userProfile, oxyServices, getCachedFileDownloadUrlSync);

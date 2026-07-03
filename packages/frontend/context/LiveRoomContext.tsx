@@ -1,1 +1,1 @@
-export { LiveRoomProvider, useLiveRoom } from '@mention/agora-shared';
+export { LiveRoomProvider, useLiveRoom } from '@syra.fm/live';
