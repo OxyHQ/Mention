@@ -146,7 +146,7 @@ const RoomDetailScreen = () => {
 
   const handleShareRoom = useCallback(async () => {
     if (!room) return;
-    const url = `https://mention.earth/agora/${id}`;
+    const url = `https://mention.earth/live-rooms/${id}`;
     try {
       await Share.share({
         message: `${room.title}\n\n${url}`,

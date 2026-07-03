@@ -16,14 +16,14 @@ import { useUserById } from '@/hooks/useCachedUser';
 import { useWidgetItemMenu } from '@/hooks/useWidgetItemMenu';
 import { shareLink } from '@/utils/shareLink';
 import { WEB_BASE_URL } from '@/config';
-import { Agora as AgoraIcon } from '@syra.fm/live';
+import { Agora as LiveRoomsIcon } from '@syra.fm/live';
 import * as Skeleton from '@oxyhq/bloom/skeleton';
 
 const MAX_ROOMS_DISPLAYED = 3;
-const AGORA_ROUTE = '/agora';
+const LIVE_ROOMS_ROUTE = '/live-rooms';
 
 function buildRoomUrl(roomId: string): string {
-  return `${WEB_BASE_URL}/agora/${roomId}`;
+  return `${WEB_BASE_URL}/live-rooms/${roomId}`;
 }
 
 const RoomRow = React.memo(function RoomRow({
@@ -119,7 +119,7 @@ export function LiveRoomsWidget() {
   useRoomUsers(hostIds);
 
   const handleShowMore = useCallback(() => {
-    router.push(AGORA_ROUTE);
+    router.push(LIVE_ROOMS_ROUTE);
   }, [router]);
 
   const handleMenuPress = useCallback(
@@ -149,7 +149,7 @@ export function LiveRoomsWidget() {
   return (
     <BaseWidget
       title="Live Rooms"
-      icon={<AgoraIcon size={16} color={theme.colors.text} />}
+      icon={<LiveRoomsIcon size={16} color={theme.colors.text} />}
     >
       {isLoading && !hasFetched ? (
         <View className="gap-2.5 py-1">
