@@ -59,6 +59,42 @@ let redisClientCreatedWithUrl = false;
 let hasLoggedRedisUnavailable = false; // Track if we've already logged Redis unavailability
 let isMainClient = true; // Track if this is the main client (for logging)
 
+/** One-shot guard so the Redis self-test runs at most once per process. */
+let redisSelfTested = false;
+
+/**
+ * TEMPORARY diagnostic: on first 'ready', round-trip a probe key (set → get →
+ * del) and log exactly what `get` returns, so we can see why cache reads never
+ * hit in prod (Redis connects but no cached value comes back). Bounded to one
+ * run per process; fully fail-soft.
+ */
+async function runRedisSelfTest(client: RedisClientType): Promise<void> {
+  if (redisSelfTested) return;
+  redisSelfTested = true;
+  const key = 'mtn:redisdiag';
+  const payload = JSON.stringify({ ok: true, ts: Date.now() });
+  try {
+    const setReply = await client.set(key, payload, { EX: 60 });
+    const got = await client.get(key);
+    let parseOk = false;
+    try { JSON.parse(got as string); parseOk = true; } catch { parseOk = false; }
+    logger.warn('[RedisDiag] set→get round-trip', {
+      setReply: String(setReply),
+      getType: typeof got,
+      getIsNull: got === null,
+      getCtor: got == null ? 'null' : (got as object).constructor?.name,
+      getSample: got == null ? null : String(got).slice(0, 80),
+      matchesWritten: got === payload,
+      parseOk,
+    });
+    await client.del(key);
+  } catch (error) {
+    logger.warn('[RedisDiag] self-test threw', {
+      message: error instanceof Error ? error.message : 'unknown',
+    });
+  }
+}
+
 /**
  * Get or create Redis client singleton
  */
@@ -158,6 +194,7 @@ export function getRedisClient(): RedisClientType {
 
     redisClient.on('ready', () => {
       logger.info('Redis connected');
+      if (isMainClient) void runRedisSelfTest(redisClient);
     });
 
     redisClient.on('error', (err: Error) => {
