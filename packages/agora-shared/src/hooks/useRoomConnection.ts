@@ -84,7 +84,7 @@ export function useRoomConnection({
       if (data.roomId === roomId) setIsMuted(true);
     }));
     unsubs.push(roomSocketService.onStreamStarted((data) => {
-      if (data.roomId === roomId) setActiveStream({ title: data.title, image: data.image, description: data.description });
+      if (data.roomId === roomId) setActiveStream({ title: data.title, image: data.image, description: data.description, startedAt: data.startedAt, durationSec: data.durationSec });
     }));
     unsubs.push(roomSocketService.onStreamStopped((data) => {
       if (data.roomId === roomId) setActiveStream(null);

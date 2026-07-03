@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useCallback, useEffect, useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -25,6 +25,28 @@ import { useRoomUsers, getDisplayName, getAvatarUrl } from '../hooks/useRoomUser
 import type { RoomParticipant, Room, StreamInfo, UserEntity, AgoraTheme } from '../types';
 
 type ActivePanel = null | 'stream' | 'insights' | 'settings';
+
+/**
+ * English source copy for the podcast host-control strings added to the stream
+ * card. Hosts with an i18n layer inject `t`; hosts without one fall back here.
+ * Keys mirror the `agora.podcastStream.*` entries in the app locale files.
+ */
+const LIVE_ROOM_STRINGS: Record<string, string> = {
+  'agora.podcastStream.skipNext': 'Skip to next episode',
+  'agora.podcastStream.skipped': 'Skipped to the next episode',
+  'agora.podcastStream.queueEnded': 'Podcast queue finished',
+  'agora.podcastStream.skipFailed': "Couldn't skip to the next episode",
+};
+
+/** Format a second count as `m:ss` (or `h:mm:ss` when hours are relevant). */
+function formatClock(totalSeconds: number, withHours: boolean): string {
+  const s = Math.max(0, Math.floor(totalSeconds));
+  const hours = Math.floor(s / 3600);
+  const minutes = Math.floor((s % 3600) / 60);
+  const secs = s % 60;
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return withHours ? `${hours}:${pad(minutes)}:${pad(secs)}` : `${minutes}:${pad(secs)}`;
+}
 
 type AvatarComponentType = React.ComponentType<{ size: number; source?: string; shape?: string; style?: ViewStyle }>;
 type CachedFileDownloadUrlSyncFn = (oxyServices: unknown, fileId: string, variant?: string) => string;
@@ -161,10 +183,15 @@ interface LiveRoomSheetProps {
 }
 
 export function LiveRoomSheet({ roomId, isExpanded, onCollapse, onExpand, onLeave }: LiveRoomSheetProps) {
-  const { useTheme, useUserById, AvatarComponent, agoraService, toast, getCachedFileDownloadUrl, getCachedFileDownloadUrlSync, onRoomChanged } = useAgoraConfig();
+  const { useTheme, useUserById, AvatarComponent, agoraService, toast, getCachedFileDownloadUrl, getCachedFileDownloadUrlSync, onRoomChanged, t } = useAgoraConfig();
   const theme = useTheme();
   const { user, oxyServices } = useAuth();
   const [room, setRoom] = useState<Room | null>(null);
+
+  const tr = useCallback(
+    (key: string) => (t ? t(key) : LIVE_ROOM_STRINGS[key] ?? key),
+    [t],
+  );
 
   useEffect(() => {
     if (roomId) {
@@ -289,7 +316,13 @@ export function LiveRoomSheet({ roomId, isExpanded, onCollapse, onExpand, onLeav
 
   const effectiveStream: StreamInfo | null = activeStream
     ?? (room?.streamTitle || room?.activeStreamUrl
-      ? { title: room.streamTitle ?? undefined, image: room.streamImage ?? undefined, description: room.streamDescription ?? undefined }
+      ? {
+          title: room.streamTitle ?? undefined,
+          image: room.streamImage ?? undefined,
+          description: room.streamDescription ?? undefined,
+          startedAt: room.streamStartedAt ?? undefined,
+          durationSec: room.streamDurationSec ?? undefined,
+        }
       : null);
 
   const [streamImageUrl, setStreamImageUrl] = useState<string | null>(null);
@@ -300,6 +333,33 @@ export function LiveRoomSheet({ roomId, isExpanded, onCollapse, onExpand, onLeav
       setStreamImageUrl(null);
     }
   }, [effectiveStream?.image, oxyServices]);
+
+  // Stream progress — only for length-known streams (e.g. podcast episodes).
+  const streamStartedAt = effectiveStream?.startedAt;
+  const streamDurationSec = effectiveStream?.durationSec ?? 0;
+  const hasProgress = !!streamStartedAt && streamDurationSec > 0;
+
+  // A lightweight 1s tick that advances the elapsed readout while a length-known
+  // stream plays. Runs only when there's progress to show; cleared on unmount
+  // and whenever the stream clears.
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  useEffect(() => {
+    if (!hasProgress) return;
+    setNowMs(Date.now());
+    const id = setInterval(() => setNowMs(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [hasProgress]);
+
+  const elapsedSec = useMemo(() => {
+    if (!hasProgress || !streamStartedAt) return 0;
+    const startMs = new Date(streamStartedAt).getTime();
+    if (Number.isNaN(startMs)) return 0;
+    return Math.min(Math.max(Math.floor((nowMs - startMs) / 1000), 0), streamDurationSec);
+  }, [hasProgress, streamStartedAt, nowMs, streamDurationSec]);
+
+  const progressPct = hasProgress ? Math.min(Math.max(elapsedSec / streamDurationSec, 0), 1) * 100 : 0;
+  const progressFillStyle: ViewStyle = { backgroundColor: theme.colors.primary, width: `${progressPct}%` };
+  const withHours = streamDurationSec >= 3600;
 
   const handleStopStream = async () => {
     if (!roomId || streamLoading) return;
@@ -315,6 +375,26 @@ export function LiveRoomSheet({ roomId, isExpanded, onCollapse, onExpand, onLeav
       toast.error('Failed to stop stream');
     } finally {
       setStreamLoading(false);
+    }
+  };
+
+  const [skipLoading, setSkipLoading] = useState(false);
+  const handleSkipNext = async () => {
+    if (!roomId || skipLoading) return;
+    setSkipLoading(true);
+    try {
+      const result = await agoraService.skipPodcastNext(roomId);
+      if (!result) {
+        toast.error(tr('agora.podcastStream.skipFailed'));
+      } else {
+        toast.success(tr(result.ended ? 'agora.podcastStream.queueEnded' : 'agora.podcastStream.skipped'));
+        const updated = await agoraService.getRoom(roomId);
+        if (updated) setRoom(updated);
+      }
+    } catch {
+      toast.error(tr('agora.podcastStream.skipFailed'));
+    } finally {
+      setSkipLoading(false);
     }
   };
 
@@ -492,27 +572,52 @@ export function LiveRoomSheet({ roomId, isExpanded, onCollapse, onExpand, onLeav
 
       {effectiveStream && (
         <View style={[styles.streamCard, { backgroundColor: `${theme.colors.card}80`, borderColor: theme.colors.border }]}>
-          {streamImageUrl ? (
-            <Image source={{ uri: streamImageUrl }} style={styles.streamCardImage} />
-          ) : (
-            <View style={[styles.streamCardIconBox, { backgroundColor: '#E8F5E9' }]}>
-              <MaterialCommunityIcons name="radio" size={20} color="#2E7D32" />
-            </View>
-          )}
-          <View style={styles.streamCardContent}>
-            <Text style={[styles.streamCardTitle, { color: theme.colors.text }]} numberOfLines={1}>
-              {effectiveStream.title || 'Live Stream'}
-            </Text>
-            {effectiveStream.description ? (
-              <Text style={[styles.streamCardDesc, { color: theme.colors.textSecondary }]} numberOfLines={2}>
-                {effectiveStream.description}
+          <View style={styles.streamCardRow}>
+            {streamImageUrl ? (
+              <Image source={{ uri: streamImageUrl }} style={styles.streamCardImage} />
+            ) : (
+              <View style={[styles.streamCardIconBox, { backgroundColor: '#E8F5E9' }]}>
+                <MaterialCommunityIcons name="radio" size={20} color="#2E7D32" />
+              </View>
+            )}
+            <View style={styles.streamCardContent}>
+              <Text style={[styles.streamCardTitle, { color: theme.colors.text }]} numberOfLines={1}>
+                {effectiveStream.title || 'Live Stream'}
               </Text>
-            ) : null}
+              {effectiveStream.description ? (
+                <Text style={[styles.streamCardDesc, { color: theme.colors.textSecondary }]} numberOfLines={2}>
+                  {effectiveStream.description}
+                </Text>
+              ) : null}
+            </View>
+            {isHost && (
+              <View style={styles.streamCardActions}>
+                {(room?.podcastQueue?.length ?? 0) > 0 && (
+                  <TouchableOpacity
+                    onPress={handleSkipNext}
+                    disabled={skipLoading}
+                    style={styles.streamCardAction}
+                    accessibilityRole="button"
+                    accessibilityLabel={tr('agora.podcastStream.skipNext')}
+                  >
+                    <MaterialCommunityIcons name="skip-next-circle" size={22} color={theme.colors.primary} />
+                  </TouchableOpacity>
+                )}
+                <TouchableOpacity onPress={handleStopStream} disabled={streamLoading} style={styles.streamCardAction}>
+                  <MaterialCommunityIcons name="close-circle" size={22} color="#C62828" />
+                </TouchableOpacity>
+              </View>
+            )}
           </View>
-          {isHost && (
-            <TouchableOpacity onPress={handleStopStream} disabled={streamLoading} style={styles.streamCardStop}>
-              <MaterialCommunityIcons name="close-circle" size={22} color="#C62828" />
-            </TouchableOpacity>
+          {hasProgress && (
+            <View style={styles.streamProgress}>
+              <View style={[styles.progressTrack, { backgroundColor: theme.colors.border }]}>
+                <View style={[styles.progressFill, progressFillStyle]} />
+              </View>
+              <Text style={[styles.progressTime, { color: theme.colors.textSecondary }]}>
+                {formatClock(elapsedSec, withHours)} / {formatClock(streamDurationSec, withHours)}
+              </Text>
+            </View>
           )}
         </View>
       )}
@@ -814,14 +919,17 @@ const styles = StyleSheet.create({
   },
   controlLabel: { fontSize: 11, fontWeight: '500' },
   streamCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
     marginHorizontal: 16,
     marginBottom: 4,
     padding: 10,
     borderRadius: 12,
     borderWidth: 1,
+    gap: 8,
+  },
+  streamCardRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
   },
   streamCardImage: { width: 44, height: 44, borderRadius: 8 },
   streamCardIconBox: {
@@ -834,7 +942,12 @@ const styles = StyleSheet.create({
   streamCardContent: { flex: 1, gap: 2 },
   streamCardTitle: { fontSize: 14, fontWeight: '600' },
   streamCardDesc: { fontSize: 12 },
-  streamCardStop: { padding: 4 },
+  streamCardActions: { flexDirection: 'row', alignItems: 'center', gap: 2 },
+  streamCardAction: { padding: 4 },
+  streamProgress: { gap: 4 },
+  progressTrack: { height: 4, borderRadius: 2, overflow: 'hidden' },
+  progressFill: { height: 4, borderRadius: 2 },
+  progressTime: { fontSize: 11, fontWeight: '500', textAlign: 'right' },
   settingsContent: {
     paddingHorizontal: 16,
     paddingTop: 16,

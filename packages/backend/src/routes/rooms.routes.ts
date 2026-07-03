@@ -1,6 +1,6 @@
 import { Router, Response } from 'express';
 import multer from 'multer';
-import Room, { IRoom, RoomStatus, RoomType, OwnerType, BroadcastKind, SpeakerPermission } from '../models/Room';
+import Room, { IRoom, PodcastQueueItem, RoomStatus, RoomType, OwnerType, BroadcastKind, SpeakerPermission } from '../models/Room';
 import House, { HouseMemberRole } from '../models/House';
 import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
 import { isAdmin } from '../middleware/admin';
@@ -26,6 +26,11 @@ import { getRecordingObjectKey, uploadObject, deleteObject, getAgoraRoomImageKey
 import { processImage } from '../utils/imageProcessor';
 import { emitLiveRoomsUpdated } from '../utils/socket';
 import { resolvePodcastEpisode } from '../utils/syraPodcast';
+import {
+  fetchUpstreamFollowingRedirects,
+  contentTypeFamily,
+  SsrfRejection,
+} from '../utils/safeUpstreamFetch';
 
 const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
 const uploadMiddleware = multer({
@@ -101,7 +106,10 @@ async function sendForbiddenUnlessRoomManager(
   return false;
 }
 
-function emitStreamStarted(roomId: string, room: Pick<IRoom, 'streamTitle' | 'streamImage' | 'streamDescription'>) {
+function emitStreamStarted(
+  roomId: string,
+  room: Pick<IRoom, 'streamTitle' | 'streamImage' | 'streamDescription' | 'streamStartedAt' | 'streamDurationSec'>,
+) {
   const io = global.io;
   if (!io) return;
 
@@ -110,6 +118,11 @@ function emitStreamStarted(roomId: string, room: Pick<IRoom, 'streamTitle' | 'st
     title: room.streamTitle || undefined,
     image: room.streamImage || undefined,
     description: room.streamDescription || undefined,
+    // Progress-card inputs: when the stream started (ISO) and its total length
+    // (seconds) when known. The client can render elapsed/total from these
+    // alone, without re-fetching the room.
+    startedAt: room.streamStartedAt ? room.streamStartedAt.toISOString() : undefined,
+    durationSec: typeof room.streamDurationSec === 'number' ? room.streamDurationSec : undefined,
     timestamp: new Date().toISOString(),
   };
 
@@ -194,27 +207,59 @@ async function cleanupPreviousIngressAfterReplacement(roomId: string, result: In
   }
 }
 
+/** Metadata persisted alongside a URL ingress. `durationSec` is known only for
+ * finite sources (e.g. a podcast episode); open-ended URLs omit it. */
+type UrlIngressMeta = {
+  url: string;
+  title?: string;
+  image?: string;
+  description?: string;
+  durationSec?: number;
+};
+
+/** Res-free result of {@link applyUrlIngressToRoom}. */
+type ApplyUrlIngressOutcome =
+  | { ok: true; ingressId: string; url: string }
+  | { ok: false; error: unknown };
+
 /**
- * Start (or replace) a LiveKit URL ingress for a live room and respond to the
- * request. Shared by `POST /:id/stream` (host-supplied audio URL) and
- * `POST /:id/stream/podcast` (Syra episode audio URL) so both surfaces drive the
- * exact same ingress lifecycle + persistence + socket broadcast + response shape.
+ * Clear EVERY stream field on a room in one place, so the "stop / teardown"
+ * paths (DELETE /stream, /stop, /end, queue-drained, webhook) can never drift
+ * out of sync as fields are added. Includes the progress fields
+ * (`streamStartedAt`, `streamDurationSec`) and the `podcastQueue`.
+ */
+function clearRoomStreamFields(room: IRoom): void {
+  room.activeIngressId = undefined;
+  room.activeStreamUrl = undefined;
+  room.streamTitle = undefined;
+  room.streamImage = undefined;
+  room.streamDescription = undefined;
+  room.rtmpUrl = undefined;
+  room.rtmpStreamKey = undefined;
+  room.streamStartedAt = undefined;
+  room.streamDurationSec = undefined;
+  room.podcastQueue = undefined;
+}
+
+/**
+ * Start (or replace) a LiveKit URL ingress for a live room and persist it —
+ * the res-FREE core shared by `POST /:id/stream`, `POST /:id/stream/podcast`,
+ * `POST /:id/stream/podcast/next`, and the LiveKit auto-advance webhook.
  *
  * Callers MUST perform their own auth / manager / `RoomStatus.LIVE` validation
- * and pass an already-validated `meta.url`; this helper owns only the ingress +
- * persistence half. On a LiveKit failure it responds via
- * {@link sendLiveKitIngressError} and returns without persisting. `meta.title` /
- * `meta.image` / `meta.description` are stored verbatim (callers normalize) and
- * the RTMP fields are cleared, since starting a URL ingress switches the room out
- * of RTMP mode.
+ * and pass an already-validated `meta.url`; this owns only the ingress +
+ * persistence + socket-broadcast half. `meta.title` / `meta.image` /
+ * `meta.description` are stored verbatim (callers normalize); the RTMP fields
+ * are cleared (starting a URL ingress switches the room out of RTMP mode);
+ * `streamStartedAt` is stamped now and `streamDurationSec` mirrors
+ * `meta.durationSec` (undefined for open-ended URLs). On a LiveKit failure it
+ * returns `{ ok: false, error }` WITHOUT persisting — the caller maps the error.
  */
-async function startUrlIngressForRoom(
+async function applyUrlIngressToRoom(
   room: IRoom,
   id: string,
-  meta: { url: string; title?: string; image?: string; description?: string },
-  res: Response,
-  userId: string,
-): Promise<void> {
+  meta: UrlIngressMeta,
+): Promise<ApplyUrlIngressOutcome> {
   let ingressResult: IngressReplacementResult;
   try {
     await ensureLiveKitRoomForRoom(id, room.maxParticipants);
@@ -223,8 +268,7 @@ async function startUrlIngressForRoom(
     );
     await cleanupPreviousIngressAfterReplacement(id, ingressResult);
   } catch (liveKitError) {
-    sendLiveKitIngressError(res, liveKitError, 'create-url-ingress', { roomId: id, userId });
-    return;
+    return { ok: false, error: liveKitError };
   }
 
   // Persist ingress info + metadata (clear RTMP fields if switching modes)
@@ -235,6 +279,8 @@ async function startUrlIngressForRoom(
   room.streamTitle = meta.title;
   room.streamImage = meta.image;
   room.streamDescription = meta.description;
+  room.streamStartedAt = new Date();
+  room.streamDurationSec = typeof meta.durationSec === 'number' ? meta.durationSec : undefined;
   await room.save();
 
   logger.info(`Live stream started in room ${id}: ${meta.url}`);
@@ -242,11 +288,277 @@ async function startUrlIngressForRoom(
   // Notify participants via socket (no URL -- only metadata)
   emitStreamStarted(id, room);
 
+  return { ok: true, ingressId: ingressResult.ingress.ingressId, url: meta.url };
+}
+
+/**
+ * HTTP wrapper over {@link applyUrlIngressToRoom} for the host-supplied-URL
+ * route: starts the ingress and writes the standard `{ message, ingressId, url }`
+ * response, or maps a LiveKit failure via {@link sendLiveKitIngressError}.
+ */
+async function startUrlIngressForRoom(
+  room: IRoom,
+  id: string,
+  meta: UrlIngressMeta,
+  res: Response,
+  userId: string,
+): Promise<void> {
+  const outcome = await applyUrlIngressToRoom(room, id, meta);
+  if (!outcome.ok) {
+    sendLiveKitIngressError(res, outcome.error, 'create-url-ingress', { roomId: id, userId });
+    return;
+  }
+
   res.json({
     message: 'Stream started successfully',
-    ingressId: ingressResult.ingress.ingressId,
-    url: meta.url,
+    ingressId: outcome.ingressId,
+    url: outcome.url,
   });
+}
+
+/**
+ * Bounded time-to-first-byte deadline for the pre-ingress audio-URL probe.
+ * Kept short: this only confirms the upstream is alive and serving audio, not
+ * that the whole file downloads.
+ */
+const AUDIO_URL_VALIDATION_TIMEOUT_MS = 6_000;
+
+/** HLS playlist content-types a URL ingress can consume as audio. */
+const HLS_PLAYLIST_CONTENT_TYPES: ReadonlySet<string> = new Set([
+  'application/vnd.apple.mpegurl',
+  'application/x-mpegurl',
+  'application/mpegurl',
+  'audio/mpegurl',
+  'audio/x-mpegurl',
+]);
+
+/**
+ * Generic binary content-types podcast CDNs frequently serve for a direct
+ * audio file instead of a precise `audio/*` label. Accepted so the safety layer
+ * rejects only clearly-wrong bodies (HTML error pages, images, video) without
+ * dropping legitimate episodes served as an opaque download.
+ */
+const OPAQUE_BINARY_CONTENT_TYPES: ReadonlySet<string> = new Set([
+  'application/octet-stream',
+  'binary/octet-stream',
+]);
+
+function isPlayableAudioContentType(family: string): boolean {
+  return (
+    family.startsWith('audio/') ||
+    HLS_PLAYLIST_CONTENT_TYPES.has(family) ||
+    OPAQUE_BINARY_CONTENT_TYPES.has(family)
+  );
+}
+
+type AudioUrlValidation = { ok: true } | { ok: false; status: 400 | 502; message: string };
+
+/**
+ * SSRF-guarded, bounded pre-ingress probe of a resolved audio URL. Confirms the
+ * URL is a reachable PUBLIC http(s) endpoint (every hop re-validated by
+ * {@link fetchUpstreamFollowingRedirects} / `assertSafePublicUrl`, IP-pinned to
+ * close the DNS-rebind window) serving audio — so we never hand LiveKit a dead,
+ * internal, or non-audio ingress URL.
+ *
+ * A tiny `bytes=0-1` range request keeps it bounded; only the status line +
+ * headers are inspected and the body is destroyed immediately. Mapping:
+ *  - blocked/malformed target, upstream 4xx, or non-audio body → `400` (the URL
+ *    is invalid for our purposes);
+ *  - unreachable / timeout / upstream 5xx → `502`.
+ */
+async function validatePlayableAudioUrl(url: string): Promise<AudioUrlValidation> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), AUDIO_URL_VALIDATION_TIMEOUT_MS);
+  try {
+    const { response } = await fetchUpstreamFollowingRedirects(
+      url,
+      { range: 'bytes=0-1' },
+      controller.signal,
+    );
+    const status = response.statusCode ?? 0;
+    const family = contentTypeFamily(response.headers);
+    // Only the status line + headers are needed; never drain the media body.
+    response.destroy();
+
+    if (status >= 400 && status < 500) {
+      return { ok: false, status: 400, message: 'Podcast episode audio is not available' };
+    }
+    if (status < 200 || status >= 300) {
+      return { ok: false, status: 502, message: 'Podcast episode audio is temporarily unreachable' };
+    }
+    if (!isPlayableAudioContentType(family)) {
+      return { ok: false, status: 400, message: 'Resolved URL is not playable audio' };
+    }
+    return { ok: true };
+  } catch (err) {
+    if (err instanceof SsrfRejection) {
+      logger.warn('Rejected non-public podcast audio URL', { reason: err.message });
+      return { ok: false, status: 400, message: 'Podcast episode audio URL is not allowed' };
+    }
+    logger.warn('Podcast audio URL unreachable', {
+      reason: err instanceof Error ? err.message : 'unknown',
+    });
+    return { ok: false, status: 502, message: 'Podcast episode audio is temporarily unreachable' };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/** Res-free outcome shape shared by every podcast stream-start path. */
+type PodcastStreamOutcome =
+  | { ok: true; ingressId: string; url: string }
+  | { ok: false; status: number; body: { message: string; code?: string } };
+
+/**
+ * The full server-side podcast-episode → live-stream pipeline (res-free):
+ * tri-state resolve → SSRF-guarded audio probe → URL ingress. Shared by the
+ * `POST /:id/stream/podcast` route, the `/next` manual-advance route, and the
+ * LiveKit auto-advance webhook so all three enforce the identical policy.
+ *
+ * Failure mapping: `not_found` → 404, `unavailable` → 503, non-audio/blocked
+ * URL → 400, unreachable upstream → 502, LiveKit ingress failure → the mapped
+ * LiveKit status. The caller MUST have already set `room.podcastQueue` to the
+ * post-start remainder (persisted atomically by the ingress save on success).
+ */
+async function startPodcastEpisodeStream(
+  room: IRoom,
+  id: string,
+  episodeId: string,
+  expectedPodcastId: string | undefined,
+  userId: string,
+): Promise<PodcastStreamOutcome> {
+  const resolved = await resolvePodcastEpisode(episodeId, expectedPodcastId);
+  if (resolved.status === 'not_found') {
+    return { ok: false, status: 404, body: { message: 'Podcast episode not found' } };
+  }
+  if (resolved.status === 'unavailable') {
+    return { ok: false, status: 503, body: { message: 'Podcast service is temporarily unavailable' } };
+  }
+
+  const validation = await validatePlayableAudioUrl(resolved.episode.audioUrl);
+  if (!validation.ok) {
+    return { ok: false, status: validation.status, body: { message: validation.message } };
+  }
+
+  const outcome = await applyUrlIngressToRoom(room, id, {
+    url: resolved.episode.audioUrl,
+    title: resolved.episode.title,
+    image: resolved.episode.artworkUrl,
+    description: undefined,
+    durationSec: resolved.episode.durationSec,
+  });
+  if (!outcome.ok) {
+    const mapped = mapLiveKitIngressError(outcome.error);
+    logger.warn('LiveKit stream ingress operation failed', {
+      operation: 'create-podcast-ingress',
+      roomId: id,
+      userId,
+      status: mapped.liveKit.status,
+      code: mapped.liveKit.code,
+      message: mapped.liveKit.message,
+    });
+    return { ok: false, status: mapped.statusCode, body: { message: mapped.message, code: mapped.code } };
+  }
+
+  return { ok: true, ingressId: outcome.ingressId, url: outcome.url };
+}
+
+/** Upper bound on episodes queued behind the current one (DoS / abuse guard). */
+const MAX_PODCAST_QUEUE_LENGTH = 100;
+
+type ParsedPodcastQueue =
+  | { ok: true; queue: PodcastQueueItem[] }
+  | { ok: false; message: string };
+
+/**
+ * Validate + normalize an optional client-supplied podcast queue. Each item
+ * must carry a non-empty `episodeId`; `syraPodcastId` is optional (used for the
+ * show cross-check at play-time). Absent/null ⇒ an empty queue. The playable
+ * audio URL is never accepted from the client — only opaque ids.
+ */
+function parsePodcastQueue(input: unknown): ParsedPodcastQueue {
+  if (input === undefined || input === null) {
+    return { ok: true, queue: [] };
+  }
+  if (!Array.isArray(input)) {
+    return { ok: false, message: 'queue must be an array' };
+  }
+  if (input.length > MAX_PODCAST_QUEUE_LENGTH) {
+    return { ok: false, message: `queue cannot exceed ${MAX_PODCAST_QUEUE_LENGTH} episodes` };
+  }
+
+  const queue: PodcastQueueItem[] = [];
+  for (const item of input) {
+    if (!item || typeof item !== 'object') {
+      return { ok: false, message: 'each queue item must be an object' };
+    }
+    const obj = item as Record<string, unknown>;
+    const episodeId = typeof obj.episodeId === 'string' ? obj.episodeId.trim() : '';
+    if (!episodeId) {
+      return { ok: false, message: 'each queue item requires an episodeId' };
+    }
+    const syraPodcastId =
+      typeof obj.syraPodcastId === 'string' && obj.syraPodcastId.trim() ? obj.syraPodcastId.trim() : undefined;
+    queue.push(syraPodcastId ? { syraPodcastId, episodeId } : { episodeId });
+  }
+  return { ok: true, queue };
+}
+
+/**
+ * Stop the room's current stream (res-free): delete the active ingress, clear
+ * every stream field (via {@link clearRoomStreamFields}), persist, and broadcast
+ * `room:stream:stopped`. Safe to call when nothing is streaming — the ingress
+ * delete is skipped and the field clears are no-ops.
+ */
+async function stopRoomStream(room: IRoom, id: string): Promise<void> {
+  if (room.activeIngressId) {
+    await deleteIngress(room.activeIngressId);
+  }
+  clearRoomStreamFields(room);
+  await room.save();
+  logger.info(`Live stream stopped in room ${id}`);
+  emitStreamStopped(id);
+}
+
+/** Res-free result of {@link advancePodcastQueueForRoom}. */
+export type AdvancePodcastResult =
+  | { kind: 'ended' }
+  | { kind: 'started'; ingressId: string; url: string }
+  | { kind: 'error'; status: number; body: { message: string; code?: string } };
+
+/**
+ * Advance a room to the next queued podcast episode, or stop the stream when the
+ * queue is empty. Shared by `POST /:id/stream/podcast/next` (manual) and the
+ * LiveKit `ingress_ended` webhook (auto-advance).
+ *
+ * Pops the head of `room.podcastQueue`, sets the room's queue to the remainder
+ * in memory (persisted atomically by the ingress save only on a SUCCESSFUL
+ * start — so a failed start leaves the persisted queue untouched, keeping the
+ * head for a retry), then runs it through {@link startPodcastEpisodeStream}.
+ * When the queue is empty it stops the stream via {@link stopRoomStream}.
+ */
+export async function advancePodcastQueueForRoom(
+  room: IRoom,
+  id: string,
+  userId: string,
+): Promise<AdvancePodcastResult> {
+  const queue: PodcastQueueItem[] = Array.isArray(room.podcastQueue)
+    ? room.podcastQueue.map((item) => ({ syraPodcastId: item.syraPodcastId, episodeId: item.episodeId }))
+    : [];
+
+  const head = queue.shift();
+  if (!head) {
+    await stopRoomStream(room, id);
+    return { kind: 'ended' };
+  }
+
+  room.podcastQueue = queue.length > 0 ? queue : undefined;
+
+  const outcome = await startPodcastEpisodeStream(room, id, head.episodeId, head.syraPodcastId, userId);
+  if (!outcome.ok) {
+    return { kind: 'error', status: outcome.status, body: outcome.body };
+  }
+  return { kind: 'started', ingressId: outcome.ingressId, url: outcome.url };
 }
 
 // --- Recording auto-stop timers (1 hour max) ---
@@ -784,13 +1096,7 @@ router.post('/:id/end', async (req: AuthRequest, res: Response) => {
       deleteIngress(room.activeIngressId).catch((err) => {
         logger.error(`Failed to delete ingress for room ${id}:`, err);
       });
-      room.activeIngressId = undefined;
-      room.activeStreamUrl = undefined;
-      room.streamTitle = undefined;
-      room.streamImage = undefined;
-      room.streamDescription = undefined;
-      room.rtmpUrl = undefined;
-      room.rtmpStreamKey = undefined;
+      clearRoomStreamFields(room);
     }
 
     await room.save();
@@ -865,13 +1171,7 @@ router.post('/:id/stop', async (req: AuthRequest, res: Response) => {
       deleteIngress(room.activeIngressId).catch((err) => {
         logger.error(`Failed to delete ingress for room ${id}:`, err);
       });
-      room.activeIngressId = undefined;
-      room.activeStreamUrl = undefined;
-      room.streamTitle = undefined;
-      room.streamImage = undefined;
-      room.streamDescription = undefined;
-      room.rtmpUrl = undefined;
-      room.rtmpStreamKey = undefined;
+      clearRoomStreamFields(room);
     }
 
     await room.save();
@@ -1259,15 +1559,21 @@ router.post('/:id/stream', async (req: AuthRequest, res: Response) => {
  *
  * The client sends only the episode reference — never a media URL. The backend
  * resolves the episode's playable `enclosureUrl` + metadata server-side from the
- * Syra catalog (O(1) by-id lookup) and feeds it into the SAME LiveKit URL ingress
- * path as `POST /:id/stream`. When `syraPodcastId` is supplied it is cross-checked
- * against the resolved episode's show to reject a mismatched pairing.
+ * Syra catalog (O(1) by-id lookup), validates the audio URL is a reachable,
+ * public, audio upstream (SSRF-guarded), then feeds it into the SAME LiveKit URL
+ * ingress path as `POST /:id/stream`. When `syraPodcastId` is supplied it is
+ * cross-checked against the resolved episode's show to reject a mismatched
+ * pairing.
+ *
+ * An optional `queue` of `{ syraPodcastId?, episodeId }[]` (the episodes AFTER
+ * this one) is persisted as `room.podcastQueue` and advanced manually via
+ * `POST /:id/stream/podcast/next` or automatically when the current ingress ends.
  */
 router.post('/:id/stream/podcast', async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?.id;
     const { id } = req.params;
-    const { syraPodcastId, episodeId } = req.body ?? {};
+    const { syraPodcastId, episodeId, queue } = req.body ?? {};
 
     if (!userId) {
       return res.status(401).json({ message: 'Unauthorized' });
@@ -1279,6 +1585,11 @@ router.post('/:id/stream/podcast', async (req: AuthRequest, res: Response) => {
 
     if (syraPodcastId !== undefined && typeof syraPodcastId !== 'string') {
       return res.status(400).json({ message: 'syraPodcastId must be a string' });
+    }
+
+    const parsedQueue = parsePodcastQueue(queue);
+    if (!parsedQueue.ok) {
+      return res.status(400).json({ message: parsedQueue.message });
     }
 
     const trimmedEpisodeId = episodeId.trim();
@@ -1298,27 +1609,78 @@ router.post('/:id/stream/podcast', async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ message: 'Room must be live to add a stream' });
     }
 
-    const resolved = await resolvePodcastEpisode(trimmedEpisodeId, trimmedPodcastId);
-    if (!resolved) {
-      return res.status(404).json({ message: 'Podcast episode not found' });
+    // Stage the remaining queue in memory; it is persisted atomically by the
+    // ingress save only when the first episode actually starts.
+    room.podcastQueue = parsedQueue.queue.length > 0 ? parsedQueue.queue : undefined;
+
+    const outcome = await startPodcastEpisodeStream(room, String(id), trimmedEpisodeId, trimmedPodcastId, userId);
+    if (!outcome.ok) {
+      return res.status(outcome.status).json(outcome.body);
     }
 
-    await startUrlIngressForRoom(
-      room,
-      String(id),
-      {
-        url: resolved.audioUrl,
-        title: resolved.title,
-        image: resolved.artworkUrl,
-        description: undefined,
-      },
-      res,
-      userId,
-    );
+    res.json({
+      message: 'Stream started successfully',
+      ingressId: outcome.ingressId,
+      url: outcome.url,
+    });
   } catch (error) {
     logger.error('Error starting podcast stream:', { userId: req.user?.id, roomId: req.params.id, error });
     res.status(500).json({
       message: 'Error starting stream',
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
+  }
+});
+
+/**
+ * Advance to the next queued podcast episode, or stop the stream when the queue
+ * is drained (room manager only, room must be LIVE).
+ * POST /api/rooms/:id/stream/podcast/next
+ *
+ * Pops the head of `room.podcastQueue` and drives it through the identical
+ * resolve → SSRF-validate → ingress path as `POST /:id/stream/podcast`. Returns
+ * `{ message, ingressId, url }` when the next episode starts, or
+ * `{ message, ended: true }` when the queue was empty and the stream stopped.
+ */
+router.post('/:id/stream/podcast/next', async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    const { id } = req.params;
+
+    if (!userId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    const room = await Room.findById(id);
+    if (!room) {
+      return res.status(404).json({ message: 'Room not found' });
+    }
+
+    if (!(await sendForbiddenUnlessRoomManager(room, userId, res, 'Only a room manager can control the stream'))) {
+      return;
+    }
+
+    if (room.status !== RoomStatus.LIVE) {
+      return res.status(400).json({ message: 'Room must be live to advance the stream' });
+    }
+
+    const result = await advancePodcastQueueForRoom(room, String(id), userId);
+    if (result.kind === 'ended') {
+      return res.json({ message: 'Stream ended', ended: true });
+    }
+    if (result.kind === 'error') {
+      return res.status(result.status).json(result.body);
+    }
+
+    res.json({
+      message: 'Stream started successfully',
+      ingressId: result.ingressId,
+      url: result.url,
+    });
+  } catch (error) {
+    logger.error('Error advancing podcast stream:', { userId: req.user?.id, roomId: req.params.id, error });
+    res.status(500).json({
+      message: 'Error advancing stream',
       error: error instanceof Error ? error.message : 'Unknown error',
     });
   }
@@ -1353,14 +1715,8 @@ router.delete('/:id/stream', async (req: AuthRequest, res: Response) => {
     // Delete the ingress from LiveKit
     await deleteIngress(room.activeIngressId);
 
-    // Clear all stream fields
-    room.activeIngressId = undefined;
-    room.activeStreamUrl = undefined;
-    room.streamTitle = undefined;
-    room.streamImage = undefined;
-    room.streamDescription = undefined;
-    room.rtmpUrl = undefined;
-    room.rtmpStreamKey = undefined;
+    // Clear all stream fields (incl. progress + podcast queue)
+    clearRoomStreamFields(room);
     await room.save();
 
     logger.info(`Live stream stopped in room ${id}`);

@@ -48,6 +48,17 @@ interface PaginatedResult<T> {
   offset: number;
 }
 
+/**
+ * The outcome of a podcast catalog fetch. `ok:false` signals a genuine request
+ * failure (network/transport error), letting the picker distinguish it from a
+ * successful-but-empty result (`ok:true` with `items: []`). Neither
+ * `searchPodcasts` nor `getPodcastEpisodes` throws — a failure resolves to
+ * `{ ok:false }`.
+ */
+export type PodcastFetchResult<T> =
+  | { ok: true; items: T[]; hasMore: boolean; offset: number }
+  | { ok: false };
+
 interface RecordingResponse {
   recording: Recording;
   playbackUrl: string;
@@ -264,32 +275,36 @@ export function createAgoraService(httpClient: HttpClient) {
 
     // --- Podcast streaming (Syra catalog → LiveKit URL ingress) ---
 
-    async searchPodcasts(query: string, offset = 0): Promise<PaginatedResult<PodcastResult>> {
+    async searchPodcasts(query: string, offset = 0): Promise<PodcastFetchResult<PodcastResult>> {
       try {
         const res = await httpClient.get('/profile/media/search', {
           params: { type: 'podcast', q: query, offset: String(offset) },
         });
-        return parsePodcastSearchResponse(res.data, offset);
+        return { ok: true, ...parsePodcastSearchResponse(res.data, offset) };
       } catch (error) {
         console.warn("Failed to search podcasts", error);
-        return { items: [], hasMore: false, offset };
+        return { ok: false };
       }
     },
 
-    async getPodcastEpisodes(syraPodcastId: string, offset = 0): Promise<PaginatedResult<EpisodeListItem>> {
-      if (!syraPodcastId) return { items: [], hasMore: false, offset };
+    async getPodcastEpisodes(syraPodcastId: string, offset = 0): Promise<PodcastFetchResult<EpisodeListItem>> {
+      // An empty id is not a failure — it is simply an empty (successful) result.
+      if (!syraPodcastId) return { ok: true, items: [], hasMore: false, offset };
       try {
         const res = await httpClient.get(`/profile/media/podcasts/${syraPodcastId}/episodes`, {
           params: { offset: String(offset) },
         });
-        return parseEpisodeListResponse(res.data, offset);
+        return { ok: true, ...parseEpisodeListResponse(res.data, offset) };
       } catch (error) {
         console.warn("Failed to fetch podcast episodes", error);
-        return { items: [], hasMore: false, offset };
+        return { ok: false };
       }
     },
 
-    async startPodcastStream(roomId: string, body: { syraPodcastId: string; episodeId: string }): Promise<{ ingressId: string; url: string } | null> {
+    async startPodcastStream(
+      roomId: string,
+      body: { syraPodcastId: string; episodeId: string; queue?: { syraPodcastId?: string; episodeId: string }[] },
+    ): Promise<{ ingressId: string; url: string } | null> {
       if (!roomId) return null;
       try {
         const res = await httpClient.post(`/rooms/${roomId}/stream/podcast`, body);
@@ -301,6 +316,27 @@ export function createAgoraService(httpClient: HttpClient) {
         return parsed.data;
       } catch (error) {
         console.warn("Failed to start podcast stream", error);
+        return null;
+      }
+    },
+
+    /**
+     * Advance a live podcast stream to the next queued episode (manager + live
+     * gated server-side). Resolves `{ ended: false }` when the next episode
+     * started, `{ ended: true }` when the queue drained (the stream will clear
+     * via the `room:stream:stopped` socket event), or `null` on failure.
+     */
+    async skipPodcastNext(roomId: string): Promise<{ ended: boolean } | null> {
+      if (!roomId) return null;
+      try {
+        const res = await httpClient.post(`/rooms/${roomId}/stream/podcast/next`);
+        if (res.data.ended === true) return { ended: true };
+        const parsed = ZStartStreamResponse.safeParse(res.data);
+        if (parsed.success) return { ended: false };
+        console.warn('[agora] Invalid skipPodcastNext response:', parsed.error.issues[0]);
+        return null;
+      } catch (error) {
+        console.warn("Failed to skip to next podcast episode", error);
         return null;
       }
     },

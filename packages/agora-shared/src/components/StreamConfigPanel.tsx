@@ -189,6 +189,34 @@ export function StreamConfigPanel({ roomId, roomStatus, initialStreamUrl, initia
     }
   };
 
+  // Start a multi-episode session: the first episode plays now, the rest are
+  // persisted as the room's up-next queue.
+  const handleStartPodcastQueue = async (items: { syraPodcastId: string; episodeId: string }[]) => {
+    if (loading || items.length === 0) return;
+    const [first, ...rest] = items;
+    setLoading(true);
+    try {
+      if (!(await ensureRoomLive())) return;
+      const result = await agoraService.startPodcastStream(roomId, {
+        syraPodcastId: first.syraPodcastId,
+        episodeId: first.episodeId,
+        queue: rest,
+      });
+      if (result) {
+        toast.success('Stream started');
+        resetState();
+        onStreamStarted();
+        onClose();
+      } else {
+        toast.error('Failed to start stream');
+      }
+    } catch {
+      toast.error('Failed to start stream');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const generatingRef = useRef(false);
 
   const generateKey = async () => {
@@ -316,7 +344,7 @@ export function StreamConfigPanel({ roomId, roomStatus, initialStreamUrl, initia
       </View>
 
       {mode === 'podcast' ? (
-        <PodcastStreamPicker onSelectEpisode={handleStartPodcast} />
+        <PodcastStreamPicker onSelectEpisode={handleStartPodcast} onStartQueue={handleStartPodcastQueue} />
       ) : (
       <ScrollView
         style={{ flex: 1 }}
