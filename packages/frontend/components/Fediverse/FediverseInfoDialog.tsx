@@ -37,39 +37,75 @@ export function showFediverseInfo(options: FediverseInfoOptions = {}) {
 }
 
 /**
- * Single global host for the fediverse educational flow. Presents Bloom's
- * adaptive `Dialog` — a bottom-sheet on narrow viewports, a centered card on
- * desktop — and steps through the three explainer cards (what it is, how sharing
- * works, staying in control). Owns the step index and the current request; the
- * badge and settings screen drive it through `showFediverseInfo`.
+ * Single global host for the fediverse educational flow. Mount once near the app
+ * root (see `AppProviders`).
  *
- * Mount once near the app root (see `AppProviders`).
+ * BOOT-SAFETY (critical): this host is mounted eagerly at app boot — before the
+ * async i18n init effect in `RootLayout` has run. It must therefore NOT call any
+ * suspenseful hook (notably `useTranslation`, which throws a promise while
+ * react-i18next is still initializing under its default `useSuspense: true`). A
+ * suspend here would discard the root render, so the i18n-init effect never
+ * commits, its promise never resolves, and the whole app deadlocks on a blank
+ * screen with no error. So the host owns ONLY the request store and renders
+ * NOTHING until `showFediverseInfo` is called — which also defers the Dialog's
+ * reanimated bottom-sheet, so nothing heavy mounts at boot. All translation- and
+ * dialog-dependent UI lives in `FediverseInfoDialogContent`, mounted on demand,
+ * by which point i18n is long ready.
  */
 export function FediverseInfoDialogProvider() {
-  const { t } = useTranslation();
-  const control = useDialogControl();
   const [options, setOptions] = useState<FediverseInfoOptions | null>(null);
-  const [step, setStep] = useState<SheetStep>(0);
 
   useEffect(() => {
     globalShowFediverseInfo = (opts) => {
       setOptions(opts);
-      setStep(0);
-      // Open on the next tick so the Dialog mounts with the fresh request first.
-      setTimeout(() => control.open(), 0);
     };
     return () => {
       globalShowFediverseInfo = null;
     };
-  }, [control]);
+  }, []);
 
   const handleClose = useCallback(() => {
     setOptions(null);
   }, []);
 
+  // No pending request → render nothing. Crucially this returns BEFORE any
+  // suspenseful hook exists in this component, keeping app boot safe.
+  if (!options) return null;
+
+  return <FediverseInfoDialogContent options={options} onClose={handleClose} />;
+}
+
+/**
+ * The educational flow's actual UI: Bloom's adaptive `Dialog` — a bottom-sheet on
+ * narrow viewports, a centered card on desktop — stepping through the three
+ * explainer cards (what it is, how sharing works, staying in control). Mounted
+ * ONLY once a request exists, so `useTranslation` here is always safe (i18n is
+ * initialized well before any badge/settings tap).
+ *
+ * It owns its own `control` and OPENS ITSELF on mount: the Dialog's imperative
+ * handle binds `control` during the commit's layout phase, before this passive
+ * mount effect runs, so `control.open()` always reaches a bound handle — no
+ * `setTimeout` and no dependency on how the request was triggered (badge tap,
+ * settings button, or a programmatic call).
+ */
+function FediverseInfoDialogContent({
+  options,
+  onClose,
+}: {
+  options: FediverseInfoOptions;
+  onClose: () => void;
+}) {
+  const { t } = useTranslation();
+  const control = useDialogControl();
+  const [step, setStep] = useState<SheetStep>(0);
+
+  useEffect(() => {
+    control.open();
+  }, [control]);
+
   const isFirstStep = step === 0;
   const isLastStep = step === 2;
-  const showEnableCta = options?.showEnableCta ?? false;
+  const showEnableCta = options.showEnableCta ?? false;
 
   const onPrimary = useCallback(() => {
     if (!isLastStep) {
@@ -77,7 +113,7 @@ export function FediverseInfoDialogProvider() {
       return;
     }
     if (showEnableCta) {
-      options?.onEnable?.();
+      options.onEnable?.();
     }
     control.close();
   }, [control, isLastStep, options, showEnableCta]);
@@ -113,7 +149,7 @@ export function FediverseInfoDialogProvider() {
   return (
     <Dialog
       control={control}
-      onClose={handleClose}
+      onClose={onClose}
       placement={{ base: 'bottom', md: 'center' }}
       label={t('fediverse.badge.a11yLabel')}
     >
