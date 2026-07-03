@@ -15,39 +15,14 @@ import i18n from '@/lib/i18n';
 import { useAppearanceStore } from '@/store/appearanceStore';
 
 /**
- * Syra-pointed HTTP client for live rooms. Mirrors Mention's global
- * `authenticatedClient` (`utils/api.ts`) — an Oxy linked client adapted into the
- * `{ data }` response shape the live-room engine expects — but targets Syra's
- * rooms backend (`SYRA_API_URL`) instead of `api.mention.earth`. The Oxy bearer
- * token authenticates cross-app (same Oxy identity). GET caching stays off (the
- * linked client defaults to no-cache); do NOT re-enable it here.
+ * Syra-pointed Oxy linked client for live rooms — the SAME `createLinkedClient`
+ * Mention uses everywhere, just aimed at Syra's rooms backend (`SYRA_API_URL`)
+ * instead of `api.mention.earth`. The Oxy bearer authenticates cross-app (same
+ * identity). The `@syra.fm/live` engine consumes this client directly (its
+ * methods resolve to the parsed body), so there is NO per-app adapter. GET
+ * caching stays off (the linked client defaults to no-cache).
  */
 const syraLinkedClient = oxyServices.createLinkedClient({ baseURL: SYRA_API_URL }).client;
-type SyraRequestConfig = NonNullable<Parameters<typeof syraLinkedClient.get>[1]>;
-type SyraDeleteConfig = NonNullable<Parameters<typeof syraLinkedClient.delete>[1]>;
-
-const syraRoomsClient = {
-  async get<T = unknown>(endpoint: string, config?: SyraRequestConfig): Promise<{ data: T }> {
-    const data = await syraLinkedClient.get<T>(endpoint, config);
-    return { data };
-  },
-  async post<T = unknown>(endpoint: string, body?: unknown, config?: SyraRequestConfig): Promise<{ data: T }> {
-    const data = await syraLinkedClient.post<T>(endpoint, body, config);
-    return { data };
-  },
-  async put<T = unknown>(endpoint: string, body?: unknown, config?: SyraRequestConfig): Promise<{ data: T }> {
-    const data = await syraLinkedClient.put<T>(endpoint, body, config);
-    return { data };
-  },
-  async delete<T = unknown>(endpoint: string, config?: SyraDeleteConfig): Promise<{ data: T }> {
-    const data = await syraLinkedClient.delete<T>(endpoint, config);
-    return { data };
-  },
-  async patch<T = unknown>(endpoint: string, body?: unknown, config?: SyraRequestConfig): Promise<{ data: T }> {
-    const data = await syraLinkedClient.patch<T>(endpoint, body, config);
-    return { data };
-  },
-};
 
 /**
  * The one live-rooms service — the engine's `createRoomsService` bound to the
@@ -55,7 +30,7 @@ const syraRoomsClient = {
  * stores) and screens can reuse it without re-instantiating a client. React
  * components can equivalently read `useLiveConfig().roomsService`.
  */
-export const roomsService = createRoomsService(syraRoomsClient);
+export const roomsService = createRoomsService(syraLinkedClient);
 
 /**
  * A user currently live in a Syra room. `userId` is the Oxy user id (the same id
@@ -75,22 +50,22 @@ export type LiveVisibility = 'active' | 'speaking';
 
 /**
  * Live-presence reads/writes that live on Syra's rooms backend but are NOT part
- * of the engine's `roomsService`. They reuse the SAME Syra `{ data }` client the
- * live config is built on, so every call hits `api.syra.fm` (cross-app Oxy
- * identity), never `api.mention.earth`.
+ * of the engine's `roomsService`. They reuse the SAME Syra client the live config
+ * is built on, so every call hits `api.syra.fm` (cross-app Oxy identity), never
+ * `api.mention.earth`.
  */
 export const getLiveUsers = async (): Promise<LiveUserEntry[]> => {
-  const { data } = await syraRoomsClient.get<{ liveUsers: LiveUserEntry[] }>('/rooms/live-users');
+  const data = await syraLinkedClient.get<{ liveUsers: LiveUserEntry[] }>('/rooms/live-users');
   return data.liveUsers ?? [];
 };
 
 export const getLivePresencePreference = async (): Promise<LiveVisibility> => {
-  const { data } = await syraRoomsClient.get<{ liveVisibility: LiveVisibility }>('/rooms/me/presence-preference');
+  const data = await syraLinkedClient.get<{ liveVisibility: LiveVisibility }>('/rooms/me/presence-preference');
   return data.liveVisibility;
 };
 
 export const updateLivePresencePreference = async (liveVisibility: LiveVisibility): Promise<LiveVisibility> => {
-  const { data } = await syraRoomsClient.put<{ liveVisibility: LiveVisibility }>('/rooms/me/presence-preference', {
+  const data = await syraLinkedClient.put<{ liveVisibility: LiveVisibility }>('/rooms/me/presence-preference', {
     liveVisibility,
   });
   return data.liveVisibility ?? liveVisibility;
@@ -155,7 +130,7 @@ const getPinnedPodcast: NonNullable<LiveConfig['getPinnedPodcast']> = async () =
 };
 
 export const liveConfig: LiveConfig = {
-  httpClient: syraRoomsClient,
+  httpClient: syraLinkedClient,
   socketUrl: SYRA_SOCKET_URL,
   useTheme: useLiveTheme,
   t: translate,
