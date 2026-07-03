@@ -5,7 +5,9 @@ import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { useAuth } from '@oxyhq/services';
+import { useQueryClient } from '@tanstack/react-query';
 import { starterPacksService } from '@/services/starterPacksService';
+import { STARTER_PACKS_MINE_KEY } from '@/components/AddToStarterPackSheet';
 import { router } from 'expo-router';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { cn } from '@/lib/utils';
@@ -19,6 +21,7 @@ export default function CreateStarterPackScreen() {
   const { oxyServices } = useAuth();
   const { t } = useTranslation();
   const safeBack = useSafeBack();
+  const queryClient = useQueryClient();
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [search, setSearch] = useState('');
@@ -64,13 +67,16 @@ export default function CreateStarterPackScreen() {
         description: description.trim() || undefined,
         memberOxyUserIds: members.map((m) => m.id),
       });
+      // Refresh the viewer's cached pack list so the new pack appears in the
+      // AddToStarterPackSheet (which now inherits the global staleTime).
+      queryClient.invalidateQueries({ queryKey: STARTER_PACKS_MINE_KEY });
       router.replace('/starter-packs');
     } catch (e) {
       logger.error('Create starter pack failed', { error: e });
     } finally {
       setSaving(false);
     }
-  }, [name, description, members]);
+  }, [name, description, members, queryClient]);
 
   return (
     <ThemedView className="flex-1">

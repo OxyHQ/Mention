@@ -13,12 +13,15 @@ import { createScopedLogger } from '@/lib/logger';
 const logger = createScopedLogger('AddToStarterPackSheet');
 
 /**
- * React Query cache key for the viewer's own (editable) starter packs. The
- * starter-pack list/detail screens fetch imperatively and refresh on focus, so
- * this key is scoped to this sheet; it is the single React Query owner of the
- * viewer's pack membership and is the cache updated optimistically on toggle.
+ * React Query cache key for the viewer's own (editable) starter packs. This
+ * sheet is the React Query owner of the viewer's pack membership: it fetches the
+ * list, updates it optimistically on add/remove toggle, and revalidates on
+ * success. The create screen (`/starter-packs/create`) imports this key and
+ * invalidates it after creating a pack, so a freshly created pack shows up the
+ * next time the sheet opens — which is why the query can inherit the global
+ * 5-min staleTime instead of forcing `staleTime: 0` (a refetch on every open).
  */
-const STARTER_PACKS_MINE_KEY = ['starter-packs', 'mine'] as const;
+export const STARTER_PACKS_MINE_KEY = ['starter-packs', 'mine'] as const;
 
 interface PackRow {
   id: string;
@@ -65,7 +68,6 @@ export function AddToStarterPackSheet({ targetUserId, targetLabel, onClose }: Ad
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: STARTER_PACKS_MINE_KEY,
     queryFn: () => starterPacksService.list({ mine: true }),
-    staleTime: 0,
   });
 
   const label = useMemo(
