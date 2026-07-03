@@ -68,21 +68,22 @@ let redisSelfTested = false;
  * hit in prod (Redis connects but no cached value comes back). Bounded to one
  * run per process; fully fail-soft.
  */
-async function runRedisSelfTest(client: RedisClientType): Promise<void> {
-  if (redisSelfTested) return;
+async function runRedisSelfTest(client: RedisClientType | null): Promise<void> {
+  if (!client || redisSelfTested) return;
   redisSelfTested = true;
   const key = 'mtn:redisdiag';
   const payload = JSON.stringify({ ok: true, ts: Date.now() });
   try {
     const setReply = await client.set(key, payload, { EX: 60 });
-    const got = await client.get(key);
+    const got: unknown = await client.get(key);
+    const gotStr = typeof got === 'string' ? got : undefined;
     let parseOk = false;
-    try { JSON.parse(got as string); parseOk = true; } catch { parseOk = false; }
+    if (gotStr !== undefined) { try { JSON.parse(gotStr); parseOk = true; } catch { parseOk = false; } }
     logger.warn('[RedisDiag] set→get round-trip', {
       setReply: String(setReply),
       getType: typeof got,
       getIsNull: got === null,
-      getCtor: got == null ? 'null' : (got as object).constructor?.name,
+      getTag: Object.prototype.toString.call(got),
       getSample: got == null ? null : String(got).slice(0, 80),
       matchesWritten: got === payload,
       parseOk,
