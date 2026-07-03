@@ -43,7 +43,7 @@ Add episode support to the public-catalog SDK.
   `{ id, podcastId, title, description?, enclosureUrl, enclosureType?, duration?, image?, imageSizes?, imageSourceUrl?, pubDate? }`.
   `enclosureUrl` is required — rows without it are unplayable and dropped.
 - **`client.ts`** — two new interface methods + impls:
-  - `getPodcastEpisodes(podcastId, options?: { limit?; offset? }): Promise<SearchPage<EpisodeSummary>>` → `GET /api/podcasts/:id/episodes?limit=&offset=`. Response is `{ data: Episode[], total, page, limit }`; rows validated with `safeParse` (invalid/enclosure-less skipped); `hasMore = page * limit < total`. Powers the picker's episode list.
+  - `getPodcastEpisodes(podcastId, options?: { limit?; offset? }): Promise<SearchPage<EpisodeSummary>>` → the real endpoint is **page-based** (`GET /api/podcasts/:id/episodes?page=&limit=`, response `{ data: Episode[], total, page, limit }`). The SDK keeps its `SearchPage` **offset-based** for uniformity with `searchPodcasts`: it converts `page = floor(offset/limit) + 1`, validates rows with `safeParse` (invalid/enclosure-less skipped), and returns `{ items, hasMore: page * limit < total, offset, limit }`. Callers (picker + Mention layer) stay offset-based; the page translation is hidden here. Powers the picker's episode list.
   - `getEpisode(episodeId): Promise<EpisodeSummary>` → `GET /api/episodes/:id`, parse `json?.data?.episode` (mirrors `getPodcast`'s `json?.data?.podcast`). Powers O(1) stream-start resolution.
   - Add an `episodeImageUrl(ep, size?)` helper mirroring `podcastArtworkUrl` (resolve `image`/`imageSizes`/`imageSourceUrl` → absolute URL).
 - **`index.ts`** — export `EpisodeSummary` (+ schema if others are exported).
