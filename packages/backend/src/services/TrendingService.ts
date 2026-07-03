@@ -1,5 +1,5 @@
 import { Post } from '../models/Post';
-import Trending, { TrendingType, ITrending } from '../models/Trending';
+import Trending, { TrendingType, ITrending, TRENDING_TTL_SECONDS } from '../models/Trending';
 import { PostVisibility, TopicType } from '@mention/shared-types';
 import TrendBatch from '../models/TrendBatch';
 import { logger } from '../utils/logger';
@@ -25,8 +25,19 @@ interface TrendItem {
 class TrendingService {
   private calculationInterval: NodeJS.Timeout | null = null;
   private readonly REDIS_CACHE_TTL = 1800; // 30 minutes in seconds
+  // History changes only every 30 minutes (each calculation batch), so a short
+  // TTL is safe and makes repeat loads of the Explore "Trending" history tab
+  // cache reads instead of re-running the day-grouping aggregation.
+  private readonly REDIS_HISTORY_CACHE_TTL = 300; // 5 minutes in seconds
   private readonly CALCULATION_INTERVAL = 1800000; // 30 minutes in milliseconds
   private readonly CLEANUP_DAYS = 30; // Remove trends older than 30 days
+  // Default `limit` for the public trending list (mirrors the GET /trending
+  // route default). Warmed into Redis after each recalculation so the most
+  // common request is a cache hit, never a cold aggregate.
+  private readonly DEFAULT_TRENDING_LIMIT = 20;
+  // History query window, in milliseconds, derived from the collection's TTL
+  // retention so the window never asks for data the TTL has already reaped.
+  private readonly HISTORY_WINDOW_MS = TRENDING_TTL_SECONDS * 1000;
 
   /**
    * Relevance contributed by a canonical topic ref that carries no `relevance`
@@ -38,6 +49,12 @@ class TrendingService {
 
   /**
    * Initialize the service and start periodic calculations.
+   *
+   * Leader-gated by design: this is invoked ONLY from `startSchedulers()` in
+   * `server.ts`, which `LeaderElection` runs on exactly one backend task. Non-
+   * leader tasks never compute trends — they serve reads from the shared
+   * `Trending` collection / Redis cache. Same pattern as every other periodic
+   * job (FeedJobScheduler, FollowerSnapshotJob, etc.).
    */
   public initialize(): void {
     this.calculateTrending().catch(error => {
@@ -49,6 +66,8 @@ class TrendingService {
         logger.error('[Trending] Periodic calculation failed:', error);
       });
     }, this.CALCULATION_INTERVAL);
+    // Never keep the event loop (or the jest run) alive solely for this timer.
+    this.calculationInterval.unref?.();
 
     logger.info('[Trending] Service initialized with 30-minute calculation interval');
   }
@@ -111,6 +130,11 @@ class TrendingService {
       );
 
       await this.invalidateCache();
+
+      // Warm the default trending cache immediately after invalidation so the
+      // first reader after each recalculation gets a cache hit instead of
+      // paying the full aggregate cost (see getTrending). Fail-soft.
+      await this.warmDefaultCache();
 
       // Broadcast a lightweight signal so connected clients refetch trends.
       emitTrendsUpdated(calculatedAt.toISOString());
@@ -398,13 +422,39 @@ class TrendingService {
   /**
    * Get paginated trending history grouped by day.
    * Deduplicates trends by name within each day, keeping the highest score.
+   *
+   * Both aggregations are WINDOWED: their first stage matches
+   * `calculatedAt >= cutoff` (now − retention window) so MongoDB narrows the
+   * scan through the `{ calculatedAt: 1 }` index instead of grouping the entire
+   * (previously unbounded) collection. The result is cached in Redis per
+   * `page:limit` with a short TTL so repeat loads are cache reads. Both the
+   * window and the cache are fail-soft.
    */
   public async getTrendingHistory(
     page: number = 1,
     limit: number = 10,
   ): Promise<{ days: Array<{ date: string; trends: ITrending[] }>; page: number; totalPages: number }> {
-    // Get distinct days
+    const cacheKey = `trending:history:${page}:${limit}`;
+    const redis = await getRedisClient();
+
+    if (redis) {
+      try {
+        const cached = await redis.get(cacheKey);
+        if (cached) {
+          logger.debug('[Trending] Cache hit for trending history');
+          return JSON.parse(cached);
+        }
+      } catch (cacheError) {
+        logger.warn('[Trending] Redis history cache read failed:', cacheError);
+      }
+    }
+
+    // Only scan the retained window. Computed per-call (never at module scope).
+    const cutoff = new Date(Date.now() - this.HISTORY_WINDOW_MS);
+
+    // Get distinct days within the window.
     const allDays = await Trending.aggregate<{ _id: string }>([
+      { $match: { calculatedAt: { $gte: cutoff } } },
       {
         $group: {
           _id: { $dateToString: { format: '%Y-%m-%d', date: '$calculatedAt' } },
@@ -421,8 +471,11 @@ class TrendingService {
       return { days: [], page, totalPages };
     }
 
-    // For each day, get unique trends with highest score
+    // For each day, get unique trends with highest score. The leading
+    // `$match` on `calculatedAt` lets the planner use the index before the
+    // day-string derivation and `$in` filter.
     const grouped = await Trending.aggregate<{ date: string; trends: ITrending[] }>([
+      { $match: { calculatedAt: { $gte: cutoff } } },
       {
         $addFields: {
           day: { $dateToString: { format: '%Y-%m-%d', date: '$calculatedAt' } },
@@ -458,7 +511,32 @@ class TrendingService {
       trends: g.trends,
     }));
 
-    return { days, page, totalPages };
+    const result = { days, page, totalPages };
+
+    if (redis && days.length > 0) {
+      try {
+        await redis.setEx(cacheKey, this.REDIS_HISTORY_CACHE_TTL, JSON.stringify(result));
+      } catch (cacheError) {
+        logger.warn('[Trending] Redis history cache write failed:', cacheError);
+      }
+    }
+
+    return result;
+  }
+
+  /**
+   * Warm the default `getTrending` cache entry so the first read after a cache
+   * invalidation is a hit rather than a cold aggregate. Reuses the normal read
+   * path (which populates the cache on a miss) so the warmed value has the exact
+   * same shape a request would produce. Fail-soft — a warm failure never breaks
+   * the calculation.
+   */
+  private async warmDefaultCache(): Promise<void> {
+    try {
+      await this.getTrending(this.DEFAULT_TRENDING_LIMIT);
+    } catch (error) {
+      logger.warn('[Trending] Default cache warm failed:', error);
+    }
   }
 
   /**

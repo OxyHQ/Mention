@@ -15,6 +15,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   postAggregate: vi.fn(),
+  trendingAggregate: vi.fn(),
+  redisGet: vi.fn(),
+  redisSetEx: vi.fn(),
 }));
 
 vi.mock('../../models/Post', () => ({ Post: { aggregate: mocks.postAggregate } }));
@@ -23,8 +26,22 @@ vi.mock('../../models/Post', () => ({ Post: { aggregate: mocks.postAggregate } }
 // here; stub them so the singleton imports cleanly and the methods stay pure.
 vi.mock('../../models/Trending', () => ({
   __esModule: true,
-  default: { collection: {}, insertMany: vi.fn(), find: vi.fn(), findOne: vi.fn(), aggregate: vi.fn(), deleteMany: vi.fn() },
+  default: { collection: {}, insertMany: vi.fn(), find: vi.fn(), findOne: vi.fn(), aggregate: mocks.trendingAggregate, deleteMany: vi.fn() },
   TrendingType: { HASHTAG: 'hashtag', TOPIC: 'topic', ENTITY: 'entity' },
+  TRENDING_TTL_SECONDS: 90 * 24 * 60 * 60,
+}));
+
+// Override the global setup's Redis stub with a ready client whose get/setEx we
+// can drive, so the history cache read/write path is exercised directly.
+vi.mock('../../utils/redis', () => ({
+  getRedisClient: () => ({
+    isReady: true,
+    get: mocks.redisGet,
+    setEx: mocks.redisSetEx,
+    set: vi.fn(),
+    del: vi.fn(),
+    keys: vi.fn().mockResolvedValue([]),
+  }),
 }));
 vi.mock('../../models/TrendBatch', () => ({ __esModule: true, default: { create: vi.fn(), findOne: vi.fn(), deleteMany: vi.fn() } }));
 vi.mock('../../utils/socket', () => ({ emitTrendsUpdated: vi.fn() }));
@@ -161,5 +178,71 @@ describe('TrendingService.aggregateTopics — canonical topicRefs source with sl
     // Slug-only refs (no relevance) contribute the neutral default relevance.
     expect(group.totalRelevance.$sum.$ifNull[0]).toBe('$_topicSource.relevance');
     expect(typeof group.totalRelevance.$sum.$ifNull[1]).toBe('number');
+  });
+});
+
+describe('TrendingService.getTrendingHistory — windowed aggregation', () => {
+  const NINETY_DAYS_MS = 90 * 24 * 60 * 60 * 1000;
+
+  it('matches calculatedAt >= (now - 90d) as the FIRST stage of BOTH aggregations', async () => {
+    mocks.redisGet.mockResolvedValue(null); // force a cache miss so it aggregates
+    mocks.trendingAggregate
+      .mockResolvedValueOnce([{ _id: '2026-07-01' }]) // distinct days
+      .mockResolvedValueOnce([{ date: '2026-07-01', trends: [] }]); // grouped
+
+    await trendingService.getTrendingHistory(1, 10);
+
+    // Distinct-days pipeline: leading $match on calculatedAt.
+    const daysPipeline = mocks.trendingAggregate.mock.calls[0][0];
+    expect('$match' in daysPipeline[0]).toBe(true);
+    expect(daysPipeline[0].$match.calculatedAt).toHaveProperty('$gte');
+    const daysCutoff = daysPipeline[0].$match.calculatedAt.$gte as Date;
+    expect(daysCutoff).toBeInstanceOf(Date);
+    expect(Math.abs(daysCutoff.getTime() - (Date.now() - NINETY_DAYS_MS))).toBeLessThan(5000);
+
+    // Grouped pipeline: leading $match on calculatedAt BEFORE the $addFields day derivation.
+    const groupedPipeline = mocks.trendingAggregate.mock.calls[1][0];
+    expect('$match' in groupedPipeline[0]).toBe(true);
+    expect(groupedPipeline[0].$match.calculatedAt).toHaveProperty('$gte');
+    expect('$addFields' in groupedPipeline[1]).toBe(true);
+  });
+});
+
+describe('TrendingService.getTrendingHistory — Redis caching', () => {
+  it('returns the cached payload on a hit and never runs an aggregation', async () => {
+    const cached = { days: [{ date: '2026-07-01', trends: [] }], page: 1, totalPages: 1 };
+    mocks.redisGet.mockResolvedValue(JSON.stringify(cached));
+
+    const result = await trendingService.getTrendingHistory(1, 10);
+
+    expect(result).toEqual(cached);
+    expect(mocks.trendingAggregate).not.toHaveBeenCalled();
+    expect(mocks.redisSetEx).not.toHaveBeenCalled();
+  });
+
+  it('writes the computed history to cache (key page:limit, ~5m TTL) on a miss', async () => {
+    mocks.redisGet.mockResolvedValue(null);
+    mocks.trendingAggregate
+      .mockResolvedValueOnce([{ _id: '2026-07-01' }])
+      .mockResolvedValueOnce([{ date: '2026-07-01', trends: [] }]);
+
+    await trendingService.getTrendingHistory(1, 5);
+
+    expect(mocks.redisSetEx).toHaveBeenCalledTimes(1);
+    const [key, ttl] = mocks.redisSetEx.mock.calls[0];
+    expect(key).toBe('trending:history:1:5');
+    expect(ttl).toBe(300);
+  });
+
+  it('does not throw when the cache read fails (fail-soft) and still aggregates', async () => {
+    mocks.redisGet.mockRejectedValue(new Error('redis down'));
+    mocks.trendingAggregate
+      .mockResolvedValueOnce([{ _id: '2026-07-01' }])
+      .mockResolvedValueOnce([{ date: '2026-07-01', trends: [] }]);
+
+    const result = await trendingService.getTrendingHistory(1, 10);
+
+    expect(result.days).toHaveLength(1);
+    expect(mocks.trendingAggregate).toHaveBeenCalledTimes(2);
   });
 });

@@ -22,3 +22,11 @@ export const MIGRATION_REPOST_TO_BOOST = '0001-repost-to-boost';
  * exact operations performed.
  */
 export const MIGRATION_LOWERCASE_HASHTAGS = '0002-lowercase-hashtags';
+
+/**
+ * One-shot conversion of the `Trending.calculatedAt` single-field index into a
+ * TTL index so the (append-only, every-30-min) trending collection stays
+ * bounded. `autoIndex`/`autoCreate` are OFF in production, so the schema-
+ * declared TTL index is created here. See {@link ./0003-trending-ttl-index}.
+ */
+export const MIGRATION_TRENDING_TTL_INDEX = '0003-trending-ttl-index';

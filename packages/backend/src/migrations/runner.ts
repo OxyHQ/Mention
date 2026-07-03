@@ -15,6 +15,7 @@ import { logger } from '../utils/logger';
 import { MIGRATIONS_COLLECTION } from './constants';
 import { migrationRepostToBoost } from './0001-repost-to-boost';
 import { migrationLowercaseHashtags } from './0002-lowercase-hashtags';
+import { migrationTrendingTtlIndex } from './0003-trending-ttl-index';
 
 export interface Migration {
   /** Stable, unique migration id recorded in the migrations collection. */
@@ -29,7 +30,11 @@ interface AppliedMigrationDoc {
 }
 
 /** Ordered list of migrations to run at boot. */
-const MIGRATIONS: readonly Migration[] = [migrationRepostToBoost, migrationLowercaseHashtags];
+const MIGRATIONS: readonly Migration[] = [
+  migrationRepostToBoost,
+  migrationLowercaseHashtags,
+  migrationTrendingTtlIndex,
+];
 
 /**
  * Run all pending migrations. Idempotent: previously applied migrations are
