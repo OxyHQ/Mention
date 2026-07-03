@@ -1,6 +1,6 @@
 import { Router, Response } from 'express';
 import { requireOxyAuth as requireAuth, type OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
-import { syraClient } from '../utils/syraPodcast';
+import { syraClient, listPodcastEpisodes } from '../utils/syraPodcast';
 import { sendErrorResponse } from '../utils/apiHelpers';
 import { sendPaginated } from '../utils/apiResponse';
 import { logger } from '../utils/logger';
@@ -93,6 +93,47 @@ router.get('/search', async (req: AuthRequest, res: Response) => {
   } catch (err) {
     logger.error('[ProfileMedia] Error searching Syra catalog:', { userId: req.user?.id, error: err });
     return sendErrorResponse(res, 500, 'Internal Server Error', 'Failed to search profile media');
+  }
+});
+
+/**
+ * GET /api/profile/media/podcasts/:id/episodes?offset=
+ * List a Syra podcast show's episodes for the episode picker, proxied server-side
+ * for the same reason as `/search` (avoids browser CORS, keeps the Syra base URL
+ * server-owned). Paginated for infinite scroll: `offset` advances through the
+ * show's episodes in SDK-sized pages, and `hasMore` comes from the Syra backend,
+ * not the page's row count (invalid/enclosure-less rows are dropped by the SDK,
+ * so a page can be short while more episodes remain). The playable audio URL is
+ * intentionally NOT surfaced here — it is resolved server-side only at
+ * stream-start (see `POST /rooms/:id/stream/podcast`).
+ */
+router.get('/podcasts/:id/episodes', async (req: AuthRequest, res: Response) => {
+  try {
+    const rawId = req.params.id;
+    const id = typeof rawId === 'string' ? rawId.trim() : '';
+    if (!id) {
+      return sendErrorResponse(res, 400, 'Bad Request', 'Missing podcast id');
+    }
+
+    // Zero-based page offset for infinite scroll. Absent or malformed values
+    // start from the first page rather than erroring a scroll.
+    const rawOffset = typeof req.query.offset === 'string' ? Number.parseInt(req.query.offset, 10) : 0;
+    const offset = Number.isInteger(rawOffset) && rawOffset >= 0 ? rawOffset : 0;
+
+    const page = await listPodcastEpisodes(id, { offset });
+
+    return sendPaginated(res, page.items, {
+      hasMore: page.hasMore,
+      offset: page.offset,
+      limit: page.limit,
+    });
+  } catch (err) {
+    logger.error('[ProfileMedia] Error listing Syra podcast episodes:', {
+      userId: req.user?.id,
+      podcastId: req.params.id,
+      error: err,
+    });
+    return sendErrorResponse(res, 500, 'Internal Server Error', 'Failed to list podcast episodes');
   }
 });
 

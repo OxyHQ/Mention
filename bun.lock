@@ -114,7 +114,7 @@
         "@oxyhq/core": "^5.4.3",
         "@oxyhq/protocol": "^0.1.1",
         "@socket.io/redis-adapter": "^8.3.0",
-        "@syra.fm/sdk": "^0.3.0",
+        "@syra.fm/sdk": "^0.4.0",
         "@types/compression": "^1.8.1",
         "@types/multer": "^2.1.0",
         "ai": "^6.0.134",
@@ -1106,7 +1106,7 @@
 
     "@standard-schema/spec": ["@standard-schema/spec@1.1.0", "", {}, "sha512-l2aFy5jALhniG5HgqrD6jXLi/rUWrKvqN/qJx6yoJsgKhblVd+iqqU4RCXavm/jPityDo5TCvKMnpjKnOriy0w=="],
 
-    "@syra.fm/sdk": ["@syra.fm/sdk@0.3.0", "", { "dependencies": { "zod": "^3.25.76" } }, "sha512-ItDSe/ykNwkSeGVNct0a3RV5WzqEUo7oIfYFqcU3FvvoKMFndSv9wdk9PmWlml893orQj/ovICTC84qOqG/pqg=="],
+    "@syra.fm/sdk": ["@syra.fm/sdk@0.4.0", "", { "dependencies": { "zod": "^3.25.76" } }, "sha512-9Lf4oGrtssmnC/6QdizJzA2UDdqAOCTPAZWpXQc8UJpxHHksQfSocmAQUn5fe/kgSXHehZnyTdcbYrDo0I+xpQ=="],
 
     "@szmarczak/http-timer": ["@szmarczak/http-timer@4.0.6", "", { "dependencies": { "defer-to-connect": "^2.0.0" } }, "sha512-4BAffykYOgO+5nzBWYwE3W90sBgLJoUPRWWcL8wlyiM8IB8ipJz3UMJ9KXQd1RKQXpKp8Tutn80HZtWsu2u76w=="],
 
