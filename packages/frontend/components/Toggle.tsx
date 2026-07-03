@@ -1,7 +1,7 @@
 import React, { useCallback } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Switch } from '@oxyhq/bloom/switch';
-import { useHaptics } from '@/hooks/useHaptics';
+import { useHaptics } from '@oxyhq/bloom/hooks';
 import type { StyleProp, ViewStyle } from 'react-native';
 
 interface ToggleProps {
@@ -22,7 +22,7 @@ export const Toggle: React.FC<ToggleProps> = ({
   const haptic = useHaptics();
 
   const handleValueChange = useCallback((newValue: boolean) => {
-    haptic('Light');
+    haptic('light');
     onValueChange(newValue);
   }, [haptic, onValueChange]);
 

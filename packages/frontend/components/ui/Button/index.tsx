@@ -24,7 +24,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useMediaQuery } from 'react-responsive';
 
 import { useTheme } from '@oxyhq/bloom/theme';
-import { useHaptics } from '@/hooks/useHaptics';
+import { useHaptics } from '@oxyhq/bloom/hooks';
 import { flattenStyleArray } from '@/styles/shared';
 
 import type { ButtonProps } from './types';
@@ -100,7 +100,7 @@ const ButtonComponent: React.FC<ButtonProps> = ({
   // Handle link navigation
   const handlePress = useCallback(() => {
     if (disabled) return;
-    haptic('Light');
+    haptic('light');
     if (href && as === 'link') {
       router.push(href);
       return;

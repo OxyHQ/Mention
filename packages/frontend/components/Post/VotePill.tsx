@@ -3,7 +3,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import { ChevronUpIcon } from '@/assets/icons/chevron-up-icon';
 import { ChevronDownIcon } from '@/assets/icons/chevron-down-icon';
 import { useTheme } from '@oxyhq/bloom/theme';
-import { useHaptics } from '@/hooks/useHaptics';
+import { useHaptics } from '@oxyhq/bloom/hooks';
 import { formatCompactNumber } from '@/utils/formatNumber';
 import { PressableScale } from '@/lib/animations/PressableScale';
 
@@ -42,7 +42,7 @@ const VotePill: React.FC<VotePillProps> = ({
       <PressableScale
         style={styles.arrowButton}
         onPress={() => {
-          haptic('Light');
+          haptic('light');
           onUpvote();
         }}
         hitSlop={{ top: 5, bottom: 5, left: 5, right: 0 }}
@@ -72,7 +72,7 @@ const VotePill: React.FC<VotePillProps> = ({
       <PressableScale
         style={styles.arrowButton}
         onPress={() => {
-          haptic('Light');
+          haptic('light');
           onDownvote();
         }}
         hitSlop={{ top: 5, bottom: 5, left: 0, right: 5 }}
