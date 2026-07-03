@@ -9,14 +9,12 @@ COPY package.json bun.lock bunfig.toml tsconfig.json ./
 
 # Copy every workspace member's package.json. Bun's frozen lockfile install
 # requires the manifest of every workspace member to be present, even for
-# packages we don't build here (frontend, agora, agora-shared, mcp). Their
-# heavy sources are excluded via .dockerignore so the context stays small.
+# packages we don't build here (frontend, mcp). Their heavy sources are
+# excluded via .dockerignore so the context stays small.
 COPY packages/shared-types/package.json packages/shared-types/
 COPY packages/backend/package.json packages/backend/
-COPY packages/agora-shared/package.json packages/agora-shared/
 COPY packages/mcp/package.json packages/mcp/
 COPY packages/frontend/package.json packages/frontend/
-COPY packages/agora/package.json packages/agora/
 
 # Install all workspace deps. --ignore-scripts skips lifecycle scripts
 # (notably the root postinstall that compiles shared-types) because the
@@ -49,10 +47,8 @@ COPY --from=builder /app/package.json /app/bun.lock /app/bunfig.toml ./
 # install to reconcile, even in the production runtime image.
 COPY --from=builder /app/packages/shared-types/package.json packages/shared-types/
 COPY --from=builder /app/packages/backend/package.json packages/backend/
-COPY --from=builder /app/packages/agora-shared/package.json packages/agora-shared/
 COPY --from=builder /app/packages/mcp/package.json packages/mcp/
 COPY --from=builder /app/packages/frontend/package.json packages/frontend/
-COPY --from=builder /app/packages/agora/package.json packages/agora/
 
 # Compiled output for the packages the backend actually runs.
 COPY --from=builder /app/packages/shared-types/dist/ packages/shared-types/dist/
