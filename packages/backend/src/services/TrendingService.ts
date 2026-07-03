@@ -30,7 +30,10 @@ class TrendingService {
   // cache reads instead of re-running the day-grouping aggregation.
   private readonly REDIS_HISTORY_CACHE_TTL = 300; // 5 minutes in seconds
   private readonly CALCULATION_INTERVAL = 1800000; // 30 minutes in milliseconds
-  private readonly CLEANUP_DAYS = 30; // Remove trends older than 30 days
+  // Manual-cleanup window, DERIVED from the Trending TTL so the two retention
+  // bounds can never drift (previously a hardcoded 30 days — more aggressive than
+  // the 90-day TTL/history window, which silently capped visible history at 30d).
+  private readonly CLEANUP_DAYS = TRENDING_TTL_SECONDS / (24 * 60 * 60); // 90 days
   // Default `limit` for the public trending list (mirrors the GET /trending
   // route default). Warmed into Redis after each recalculation so the most
   // common request is a cache hit, never a cold aggregate.
@@ -540,7 +543,12 @@ class TrendingService {
   }
 
   /**
-   * Remove trends older than CLEANUP_DAYS to prevent unbounded growth.
+   * Remove trends older than CLEANUP_DAYS (= the 90-day TTL window) to prevent
+   * unbounded growth. The `Trending` collection also has a TTL index that reaps
+   * it at the storage layer, so this manual delete is redundant for `Trending`;
+   * it is retained because `TrendBatch` has NO TTL index and this is the only
+   * thing that keeps it bounded. Both are cleaned to the SAME cutoff so trend
+   * batches and their trends expire together.
    */
   private async cleanupOldTrends(): Promise<void> {
     try {
