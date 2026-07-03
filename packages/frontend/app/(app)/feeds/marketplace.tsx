@@ -11,6 +11,14 @@ import {
   Platform,
   StyleProp,
 } from 'react-native';
+import {
+  useInfiniteQuery,
+  useQuery,
+  useQueryClient,
+  keepPreviousData,
+  type InfiniteData,
+} from '@tanstack/react-query';
+import { useAuth } from '@oxyhq/services';
 import { SpinnerIcon } from '@oxyhq/bloom/loading';
 import { ThemedView } from '@/components/ThemedView';
 import { Header } from '@/components/Header';
@@ -27,7 +35,7 @@ import StarRating from '@/components/StarRating';
 import { cn } from '@/lib/utils';
 import { FeedCard, FeedCardSkeleton, type FeedCardData } from '@/components/FeedCard';
 import { LoadMoreSentinel } from '@/components/common/LoadMoreSentinel';
-import type { CustomFeed } from '@mention/shared-types';
+import type { CustomFeed, CustomFeedListResponse } from '@mention/shared-types';
 
 const PAGE_LIMIT = 20;
 
@@ -179,15 +187,9 @@ export default function FeedMarketplaceScreen() {
   const theme = useTheme();
   const { t } = useTranslation();
   const safeBack = useSafeBack();
+  const queryClient = useQueryClient();
+  const { isAuthenticated, user } = useAuth();
 
-  const [feeds, setFeeds] = useState<MarketplaceFeed[]>([]);
-  const [total, setTotal] = useState(0);
-  const [page, setPage] = useState(1);
-  const [loading, setLoading] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
-
-  const [categories, setCategories] = useState<Array<{ category: string; count: number }>>([]);
   const [activeCategory, setActiveCategory] = useState<string>(ALL_CATEGORY);
   const [sortBy, setSortBy] = useState<SortBy>('trending');
   const [search, setSearch] = useState('');
@@ -208,93 +210,116 @@ export default function FeedMarketplaceScreen() {
     if (searchTimer.current) clearTimeout(searchTimer.current);
     searchTimer.current = setTimeout(() => {
       setDebouncedSearch(text);
-      setPage(1);
     }, 350);
   }, []);
 
-  useEffect(() => {
-    customFeedsService
-      .getMarketplaceCategories()
-      .then((res) => setCategories(res.categories || []))
-      .catch(() => {});
-  }, []);
+  // Include the viewer identity in the key so the per-viewer `isLiked`
+  // (subscribed) flags refetch when a slow SSO cold-boot session lands, rather
+  // than sticking to the anonymous snapshot for the whole staleTime window.
+  const authKey = isAuthenticated && user?.id ? user.id : 'anon';
 
-  const fetchFeeds = useCallback(
-    async (opts: { pageNum: number; replace: boolean }) => {
-      const { pageNum, replace } = opts;
-      if (replace) {
-        setLoading(true);
-      } else {
-        setLoadingMore(true);
-      }
-
-      try {
-        const params: Parameters<typeof customFeedsService.getMarketplace>[0] = {
-          page: pageNum,
-          limit: PAGE_LIMIT,
-          sortBy,
-        };
-        if (activeCategory !== ALL_CATEGORY) params.category = activeCategory;
-        if (debouncedSearch.trim()) params.search = debouncedSearch.trim();
-
-        const res = await customFeedsService.getMarketplace(params);
-        const items = res.items || [];
-        setTotal(res.total || 0);
-        setFeeds((prev) => (replace ? items : [...prev, ...items]));
-        setPage(pageNum);
-      } catch {
-        toast(t('marketplace.loadError', { defaultValue: 'Failed to load feeds' }), { type: 'error' });
-      } finally {
-        setLoading(false);
-        setLoadingMore(false);
-        setRefreshing(false);
-      }
-    },
-    [activeCategory, sortBy, debouncedSearch, t],
+  const marketplaceKey = useMemo(
+    () => ['marketplace', sortBy, activeCategory, debouncedSearch, authKey] as const,
+    [sortBy, activeCategory, debouncedSearch, authKey],
   );
 
-  useEffect(() => {
-    fetchFeeds({ pageNum: 1, replace: true });
-  }, [fetchFeeds]);
+  const feedsQuery = useInfiniteQuery({
+    queryKey: marketplaceKey,
+    queryFn: ({ pageParam }) => {
+      const params: Parameters<typeof customFeedsService.getMarketplace>[0] = {
+        page: pageParam,
+        limit: PAGE_LIMIT,
+        sortBy,
+      };
+      if (activeCategory !== ALL_CATEGORY) params.category = activeCategory;
+      if (debouncedSearch.trim()) params.search = debouncedSearch.trim();
+      return customFeedsService.getMarketplace(params);
+    },
+    initialPageParam: 1,
+    getNextPageParam: (lastPage, allPages) => {
+      const loaded = allPages.reduce((sum, pageData) => sum + (pageData.items?.length ?? 0), 0);
+      return loaded < (lastPage.total ?? 0) ? allPages.length + 1 : undefined;
+    },
+    // Keep the current results on screen while a new sort/category/search query
+    // resolves (mirrors the old "keep old feeds until the replace lands" UX).
+    placeholderData: keepPreviousData,
+  });
+
+  const {
+    data: feedsData,
+    isLoading: loading,
+    isRefetching,
+    isFetchingNextPage: loadingMore,
+    hasNextPage: hasMore,
+    refetch,
+    fetchNextPage,
+  } = feedsQuery;
+
+  const feeds = useMemo<MarketplaceFeed[]>(
+    () => feedsData?.pages.flatMap((pageData) => pageData.items ?? []) ?? [],
+    [feedsData],
+  );
+
+  // Pull-to-refresh spins only on a same-key refetch, not while paginating.
+  const refreshing = isRefetching && !loadingMore;
 
   const handleRefresh = useCallback(() => {
-    setRefreshing(true);
-    fetchFeeds({ pageNum: 1, replace: true });
-  }, [fetchFeeds]);
+    void refetch();
+  }, [refetch]);
 
   const handleLoadMore = useCallback(() => {
-    if (loadingMore || loading) return;
-    if (feeds.length >= total) return;
-    fetchFeeds({ pageNum: page + 1, replace: false });
-  }, [loadingMore, loading, feeds.length, total, page, fetchFeeds]);
+    if (loadingMore || !hasMore) return;
+    void fetchNextPage();
+  }, [loadingMore, hasMore, fetchNextPage]);
 
   const handleCategoryPress = useCallback((cat: string) => {
     setActiveCategory(cat);
-    setPage(1);
   }, []);
 
   const handleSortPress = useCallback((id: SortBy) => {
     setSortBy(id);
-    setPage(1);
   }, []);
+
+  // Categories rarely change — cache for 10 minutes and share across revisits.
+  // Public (not viewer-specific) data, so keyed without the viewer identity.
+  const categoriesQuery = useQuery({
+    queryKey: ['marketplaceCategories'],
+    queryFn: () => customFeedsService.getMarketplaceCategories(),
+    staleTime: 10 * 60 * 1000,
+  });
+
+  const categories = useMemo(
+    () => categoriesQuery.data?.categories ?? [],
+    [categoriesQuery.data],
+  );
 
   const handleSubscribeToggle = useCallback(
     async (feedId: string, isSubscribed: boolean) => {
       if (subscribingId) return;
       setSubscribingId(feedId);
 
-      setFeeds((prev) =>
-        prev.map((f) => {
-          const fid = String(f._id || f.id);
-          if (fid !== feedId) return f;
-          const delta = isSubscribed ? -1 : 1;
+      // Optimistically flip the subscribed flag + like count in the infinite
+      // query cache; `delta` reverses on failure.
+      const applyToggle = (nextSubscribed: boolean, delta: number) =>
+        queryClient.setQueryData<InfiniteData<CustomFeedListResponse>>(marketplaceKey, (prev) => {
+          if (!prev) return prev;
           return {
-            ...f,
-            isLiked: !isSubscribed,
-            likeCount: Math.max(0, (f.likeCount || 0) + delta),
+            ...prev,
+            pages: prev.pages.map((pageData) => ({
+              ...pageData,
+              items: pageData.items.map((f) => {
+                if (String(f._id || f.id) !== feedId) return f;
+                return {
+                  ...f,
+                  isLiked: nextSubscribed,
+                  likeCount: Math.max(0, (f.likeCount || 0) + delta),
+                };
+              }),
+            })),
           };
-        }),
-      );
+        });
+
+      applyToggle(!isSubscribed, isSubscribed ? -1 : 1);
 
       try {
         if (isSubscribed) {
@@ -303,24 +328,13 @@ export default function FeedMarketplaceScreen() {
           await customFeedsService.likeFeed(feedId);
         }
       } catch {
-        setFeeds((prev) =>
-          prev.map((f) => {
-            const fid = String(f._id || f.id);
-            if (fid !== feedId) return f;
-            const delta = isSubscribed ? 1 : -1;
-            return {
-              ...f,
-              isLiked: isSubscribed,
-              likeCount: Math.max(0, (f.likeCount || 0) + delta),
-            };
-          }),
-        );
+        applyToggle(isSubscribed, isSubscribed ? 1 : -1);
         toast(t('marketplace.subscribeError', { defaultValue: 'Action failed' }), { type: 'error' });
       } finally {
         setSubscribingId(null);
       }
     },
-    [subscribingId, t],
+    [subscribingId, t, queryClient, marketplaceKey],
   );
 
   const categoryPills = useMemo(
@@ -459,7 +473,7 @@ export default function FeedMarketplaceScreen() {
             virtualizers with no `onEndReached`, so a 1px sentinel fires
             `handleLoadMore` ~600px before it enters the viewport. Inert on
             native, which paginates via the FlatList's `onEndReached`. */}
-        <LoadMoreSentinel onLoadMore={handleLoadMore} enabled={feeds.length < total} />
+        <LoadMoreSentinel onLoadMore={handleLoadMore} enabled={hasMore} />
         {loadingMore ? (
           <View className="py-5 items-center">
             <SpinnerIcon size={20} className="text-primary" />
@@ -469,7 +483,7 @@ export default function FeedMarketplaceScreen() {
         )}
       </View>
     ),
-    [loadingMore, handleLoadMore, feeds.length, total],
+    [loadingMore, handleLoadMore, hasMore],
   );
 
   return (
