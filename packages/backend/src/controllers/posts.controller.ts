@@ -1527,11 +1527,11 @@ export const likePost = async (req: AuthRequest, res: Response) => {
 
       const { likesCount, downvotesCount } = await clampVoteCounts(postId, updatedPost);
 
-      try {
-        await userPreferenceService.recordInteraction(userId, postId, 'like', { surface });
-      } catch (error) {
-        logger.error('Failed to record interaction for vote switch', error);
-      }
+      // Best-effort preference learning — detached so it never adds latency to
+      // the vote response.
+      void userPreferenceService
+        .recordInteraction(userId, postId, 'like', { surface })
+        .catch((error) => logger.warn('Failed to record interaction for vote switch', error));
 
       return res.json({
         message: 'Vote switched successfully',
@@ -1573,12 +1573,11 @@ export const likePost = async (req: AuthRequest, res: Response) => {
       }
     }
 
-    // Record interaction for user preference learning
-    try {
-      await userPreferenceService.recordInteraction(userId, postId, 'like', { surface });
-    } catch (error) {
-      logger.error('Failed to record interaction for preferences', error);
-    }
+    // Best-effort preference learning — detached so it never adds latency to the
+    // like response.
+    void userPreferenceService
+      .recordInteraction(userId, postId, 'like', { surface })
+      .catch((error) => logger.warn('Failed to record interaction for preferences', error));
 
     // Create notification for upvotes only (not downvotes)
     if (value === 1) {
@@ -1687,13 +1686,11 @@ export const savePost = async (req: AuthRequest, res: Response) => {
     if (existingSave) {
       logger.debug(`Post ${postId} already saved by user ${userId}`);
 
-      // Still record the interaction even if already saved (user expressed interest)
-      try {
-        await userPreferenceService.recordInteraction(userId, postId, 'save', { surface });
-        logger.debug('Recorded interaction for already-saved post');
-      } catch (error) {
-        logger.warn('Failed to record interaction for already-saved post', error);
-      }
+      // Still record the interaction even if already saved (user expressed
+      // interest). Best-effort, detached — never adds latency to the response.
+      void userPreferenceService
+        .recordInteraction(userId, postId, 'save', { surface })
+        .catch((error) => logger.warn('Failed to record interaction for already-saved post', error));
 
       return res.json({ message: 'Post already saved' });
     }
@@ -1721,15 +1718,11 @@ export const savePost = async (req: AuthRequest, res: Response) => {
       bookmarkedPostOwnerOxyUserId: savedPost?.oxyUserId?.toString?.(),
     });
 
-    // Record interaction for user preference learning
-    logger.debug(`Recording interaction for user ${userId}, post ${postId}`);
-    try {
-      await userPreferenceService.recordInteraction(userId, postId, 'save', { surface });
-      logger.debug('Successfully recorded interaction');
-    } catch (error) {
-      logger.error('Failed to record interaction for preferences', error);
-      // Don't fail the request if preference tracking fails, but log the error
-    }
+    // Best-effort preference learning — detached so it never adds latency to the
+    // save response.
+    void userPreferenceService
+      .recordInteraction(userId, postId, 'save', { surface })
+      .catch((error) => logger.warn('Failed to record interaction for preferences', error));
 
     res.json({ message: 'Post saved successfully' });
   } catch (error) {

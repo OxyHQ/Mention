@@ -245,26 +245,28 @@ export const trackPostView = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ message: 'Post ID is required' });
     }
 
-    const post = await Post.findById(postId);
-    if (!post) {
+    // Single round-trip: atomically increment the view count and read back the
+    // new value. `findByIdAndUpdate` returns null for a missing post (no $inc is
+    // applied), so no separate existence probe is needed.
+    const updatedPost = await Post.findByIdAndUpdate(
+      postId,
+      { $inc: { 'stats.viewsCount': 1 } },
+      { new: true, projection: { 'stats.viewsCount': 1 } }
+    ).lean();
+
+    if (!updatedPost) {
       return res.status(404).json({ message: 'Post not found' });
     }
 
-    // Increment view count (we could add deduplication later)
-    await Post.findByIdAndUpdate(postId, {
-      $inc: { 'stats.viewsCount': 1 }
-    });
-
-    // Record interaction for user preference learning
+    // Best-effort preference learning — detached so it never adds latency to the
+    // view response.
     if (userId) {
-      try {
-        await userPreferenceService.recordInteraction(userId, postId, 'view');
-      } catch (error) {
-        logger.warn('Failed to record view interaction:', error);
-      }
+      void userPreferenceService
+        .recordInteraction(userId, postId, 'view')
+        .catch((error) => logger.warn('Failed to record view interaction:', error));
     }
 
-    res.json({ success: true, viewsCount: (post.stats?.viewsCount || 0) + 1 });
+    res.json({ success: true, viewsCount: updatedPost.stats?.viewsCount ?? 0 });
   } catch (error) {
     logger.error('Error tracking post view:', error);
     res.status(500).json({
