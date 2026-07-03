@@ -1,5 +1,5 @@
-import type { AgoraConfig, AgoraTheme, UserEntity } from '@syra.fm/live';
-import { createAgoraService } from '@syra.fm/live';
+import type { LiveConfig, LiveTheme, UserEntity } from '@syra.fm/live';
+import { createRoomsService } from '@syra.fm/live';
 import type { ComponentType } from 'react';
 import type { ViewStyle } from 'react-native';
 import { queryKeys } from '@oxyhq/services';
@@ -50,40 +50,40 @@ const syraRoomsClient = {
 };
 
 /**
- * The one live-rooms service — the engine's `createAgoraService` bound to the
+ * The one live-rooms service — the engine's `createRoomsService` bound to the
  * Syra client above. Exposed at module scope so non-React callers (Zustand
  * stores) and screens can reuse it without re-instantiating a client. React
- * components can equivalently read `useAgoraConfig().agoraService`.
+ * components can equivalently read `useLiveConfig().roomsService`.
  */
-export const roomsService = createAgoraService(syraRoomsClient);
+export const roomsService = createRoomsService(syraRoomsClient);
 
-const useAgoraTheme = (): AgoraTheme => {
+const useLiveTheme = (): LiveTheme => {
   const theme = useBloomTheme();
   return {
     isDark: theme.isDark,
-    colors: { ...theme.colors } as AgoraTheme['colors'],
+    colors: { ...theme.colors } as LiveTheme['colors'],
   };
 };
 
-interface AgoraAvatarProps {
+interface LiveAvatarProps {
   size: number;
   source?: string;
   shape?: string;
   style?: ViewStyle;
 }
 
-const AgoraAvatar: ComponentType<AgoraAvatarProps> = ({ shape, ...rest }) => {
+const LiveAvatar: ComponentType<LiveAvatarProps> = ({ shape, ...rest }) => {
   const safeShape: 'circle' | 'squircle' | undefined =
     shape === 'squircle' ? 'squircle' : shape === 'circle' ? 'circle' : undefined;
   return <Avatar {...rest} shape={safeShape} />;
 };
 
 /**
- * Cache-first user fetch for Agora — reads/writes the shared React Query cache.
- * Returns the cached user when fresh, otherwise runs the caller's loader and
- * primes the cache via `fetchQuery`.
+ * Cache-first user fetch for live rooms — reads/writes the shared React Query
+ * cache. Returns the cached user when fresh, otherwise runs the caller's loader
+ * and primes the cache via `fetchQuery`.
  */
-const ensureUserById: AgoraConfig['ensureUserById'] = (id, loader) =>
+const ensureUserById: LiveConfig['ensureUserById'] = (id, loader) =>
   queryClient.fetchQuery<UserEntity | null | undefined>({
     queryKey: queryKeys.users.detail(id),
     queryFn: () => loader(id),
@@ -92,10 +92,10 @@ const ensureUserById: AgoraConfig['ensureUserById'] = (id, loader) =>
 
 /**
  * Localize the shared live-room UI via Mention's i18n instance. `i18n.t` is
- * stable and resolves keys flat (see `lib/i18n.ts`); the agora-shared components
+ * stable and resolves keys flat (see `lib/i18n.ts`); the live-room components
  * only ask for plain strings, so `String()` collapses i18next's wide return type.
  */
-const translate: NonNullable<AgoraConfig['t']> = (key, options) => String(i18n.t(key, options));
+const translate: NonNullable<LiveConfig['t']> = (key, options) => String(i18n.t(key, options));
 
 /**
  * Resolve the viewer's pinned Syra podcast from their profile media so the
@@ -103,7 +103,7 @@ const translate: NonNullable<AgoraConfig['t']> = (key, options) => String(i18n.t
  * store (loading it once if cold); returns `null` when the viewer has no pinned
  * podcast (or has a pinned song instead).
  */
-const getPinnedPodcast: NonNullable<AgoraConfig['getPinnedPodcast']> = async () => {
+const getPinnedPodcast: NonNullable<LiveConfig['getPinnedPodcast']> = async () => {
   const store = useAppearanceStore.getState();
   let settings = store.mySettings;
   if (!settings) {
@@ -115,17 +115,17 @@ const getPinnedPodcast: NonNullable<AgoraConfig['getPinnedPodcast']> = async () 
   return { syraPodcastId: media.syraPodcastId, title: media.title, artworkUrl: media.artworkUrl };
 };
 
-export const agoraConfig: AgoraConfig = {
+export const liveConfig: LiveConfig = {
   httpClient: syraRoomsClient,
   socketUrl: SYRA_SOCKET_URL,
-  useTheme: useAgoraTheme,
+  useTheme: useLiveTheme,
   t: translate,
   getPinnedPodcast,
   useUserById,
   ensureUserById,
   getCachedFileDownloadUrl,
   getCachedFileDownloadUrlSync,
-  AvatarComponent: AgoraAvatar,
+  AvatarComponent: LiveAvatar,
   toast: Object.assign(
     (message: string) => show(message),
     {
