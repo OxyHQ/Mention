@@ -42,10 +42,14 @@ export const ProfileTabs = memo(function ProfileTabs({
 
   // Pinned post lives in React Query so pin/unpin can invalidate it
   // (see usePostActions) and the post re-sorts without a profile remount.
+  // Only the posts tab renders the pinned post (see below), so the query is
+  // gated to `tab === 'posts'` — otherwise every profile tab fired this fetch.
+  // Pin/unpin still invalidates correctly because pinning happens from the
+  // posts tab, where this query is enabled.
   const pinnedPostQuery = useQuery<HydratedPost | null>({
     queryKey: queryKeys.pinnedPost(profileId),
     queryFn: () => feedService.getPinnedPost(profileId as string),
-    enabled: Boolean(profileId) && !(isPrivate && !isOwnProfile),
+    enabled: tab === 'posts' && Boolean(profileId) && !(isPrivate && !isOwnProfile),
   });
   const pinnedPost = pinnedPostQuery.data ?? null;
 
