@@ -14,7 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@oxyhq/services';
 
 import { ThemedText } from '@/components/ThemedText';
-import { Agora as AgoraIcon } from '@syra.fm/live';
+import { Agora as LiveRoomsIcon } from '@syra.fm/live';
 import { Header } from '@/components/Header';
 import { EmptyState } from '@/components/common/EmptyState';
 import RoomCard from '@/components/RoomCard';
@@ -30,7 +30,7 @@ import { useTranslation } from 'react-i18next';
 
 const CreateRoomSheet = lazy(() => import('@/components/rooms/CreateRoomSheet'));
 
-const AgoraScreen = () => {
+const LiveRoomsScreen = () => {
   const { isAuthenticated } = useAuth();
   const theme = useTheme();
   const { t } = useTranslation();
@@ -98,7 +98,7 @@ const AgoraScreen = () => {
         <EmptyState
           title="No rooms available"
           subtitle="Create a room to start a live audio conversation or schedule one for later"
-          customIcon={<AgoraIcon size={48} color={theme.colors.textSecondary} />}
+          customIcon={<LiveRoomsIcon size={48} color={theme.colors.textSecondary} />}
           action={{
             label: t('agora.createRoom'),
             onPress: openCreateSheet,
@@ -111,7 +111,7 @@ const AgoraScreen = () => {
             <View className="mt-4 px-4">
               <View className="flex-row items-center mb-3">
                 <View style={styles.sectionIcon} className="bg-[#FF4458]">
-                  <AgoraIcon size={18} color="#FFFFFF" />
+                  <LiveRoomsIcon size={18} color="#FFFFFF" />
                 </View>
                 <View className="flex-1">
                   <ThemedText type="subtitle">{t('agora.liveNow')}</ThemedText>
@@ -147,7 +147,7 @@ const AgoraScreen = () => {
                 <RoomCard
                   key={room._id}
                   room={room}
-                  onPress={() => router.push(`/agora/${room._id}`)}
+                  onPress={() => router.push(`/live-rooms/${room._id}`)}
                 />
               ))}
             </View>
@@ -159,7 +159,7 @@ const AgoraScreen = () => {
 
   return (
     <>
-      <SEO title="Agora" description="Join live audio conversations" />
+      <SEO title="Live Rooms" description="Join live audio conversations" />
       <SafeAreaView className="flex-1 bg-background">
         <Header
           options={{
@@ -218,4 +218,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default AgoraScreen;
+export default LiveRoomsScreen;
