@@ -120,11 +120,11 @@ function useWebFeed(props: Required<Pick<FeedProps, 'type' | 'showOnlySaved'>> &
 
     // Infinite scroll for EVERYONE, anonymous included — public browse must keep
     // paginating as you scroll. The ONLY web-specific divergence from native is
-    // that an anonymous viewer is never auto-redirected to sign-in here: web
-    // `signIn()` resolves to `signInWithRedirect` (a top-level bounce to
-    // auth.<apex>/sso), so an eager `signIn()` would hijack public browse. The
-    // passive "Sign in to see more" footer (rendered via `showFooter` below) is
-    // the ONLY sign-in affordance and fires `signIn()` exclusively on user tap.
+    // that an anonymous viewer is never auto-prompted to sign in here: `signIn()`
+    // opens the SDK sign-in modal, so an eager `signIn()` would hijack public
+    // browse by popping the modal unprompted. The passive "Sign in to see more"
+    // footer (rendered via `showFooter` below) is the ONLY sign-in affordance and
+    // fires `signIn()` exclusively on user tap.
     // Pagination itself runs for anon and authed alike (gated only by
     // `hasMore`/`isLoading`, debounced inside the hook).
     const handleLoadMore = useCallback(() => {
