@@ -9,9 +9,9 @@
  * import { useAuth } from '@oxyhq/services';
  *
  * function MyComponent() {
- *   const { user, isAuthenticated, loading } = useAuth();
+ *   const { user, isAuthenticated, isLoading } = useAuth();
  *
- *   if (loading) return <LoadingScreen />;
+ *   if (isLoading) return <LoadingScreen />;
  *   if (!isAuthenticated) return <SignInScreen />;
  *
  *   return <Dashboard user={user} />;
