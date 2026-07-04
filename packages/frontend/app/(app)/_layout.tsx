@@ -1,4 +1,4 @@
-import React, { memo, useCallback } from "react";
+import React from "react";
 import { Platform, View } from "react-native";
 import { Slot, Stack, usePathname } from "expo-router";
 
@@ -39,7 +39,28 @@ function isProfileRoute(pathname: string | null | undefined): boolean {
   return pathname.startsWith('/@');
 }
 
-const MainLayout = memo(function MainLayout() {
+/**
+ * Leaf host for the mobile BottomBar. Owns the high-frequency `keyboardVisible`
+ * read so a keyboard toggle re-renders only this tiny node — not the whole shell
+ * (the feed no longer re-renders when the keyboard opens/closes).
+ */
+function BottomBarHost() {
+  const keyboardVisible = useKeyboardVisibility();
+  return keyboardVisible ? null : <BottomBar />;
+}
+
+/**
+ * Leaf host for the web keyboard-shortcuts help modal. Owns `showHelpModal` so its
+ * high-frequency toggle stays isolated from the visual shell.
+ */
+function KeyboardShortcutsHost() {
+  const { showHelpModal, setShowHelpModal } = useKeyboardShortcuts();
+  return (
+    <KeyboardShortcutsModal visible={showHelpModal} onClose={() => setShowHelpModal(false)} />
+  );
+}
+
+export default function AppLayout() {
   const isScreenNotMobile = useIsScreenNotMobile();
   const { isAuthenticated, isAuthResolved } = useAuth();
   const { screenColor } = useScreenColor();
@@ -96,67 +117,52 @@ const MainLayout = memo(function MainLayout() {
   );
 
   return (
-    <View
-      className={cn(
-        "flex-1 w-full bg-background",
-        isScreenNotMobile ? "flex-row justify-center" : "flex-col"
-      )}
-    >
-      <SideBar />
-      <View
-        className={cn(
-          "flex-1 justify-between bg-background",
-          isScreenNotMobile ? "flex-row" : "flex-col"
-        )}
-        style={isScreenNotMobile ? { maxWidth: 950, flexShrink: 1 } : undefined}
-      >
-        {/* Desktop-web gutter: the `bg-background` band around the floating panel
-            (`p-2 pl-0` so the panel meets the rail flush). Gated to the same
-            >=500px breakpoint as the sidebar; full-bleed once the sidebar hides. */}
-        <View
-          className={cn(
-            "bg-background",
-            IS_WEB && isScreenNotMobile && "p-2 pl-0",
-          )}
-          style={{ flex: isScreenNotMobile ? 2.2 : 1 }}
-        >
-          <BloomColorScope colorPreset={activeScreenColor} asChild>
-            <ContentPanel
-              framed={IS_WEB && isScreenNotMobile}
-              maskColor={theme.colors.background}
-              contentStyle={{ paddingBottom: mobileWebBottomInset }}
-            >
-              {centerContent}
-            </ContentPanel>
-          </BloomColorScope>
-        </View>
-        <RightBar />
-      </View>
-    </View>
-  );
-});
-
-MainLayout.displayName = 'MainLayout';
-
-export default function AppLayout() {
-  const isScreenNotMobile = useIsScreenNotMobile();
-  const { isAuthenticated } = useAuth();
-  const keyboardVisible = useKeyboardVisibility();
-  const { showHelpModal, setShowHelpModal } = useKeyboardShortcuts();
-  const handleCloseHelpModal = useCallback(() => setShowHelpModal(false), [setShowHelpModal]);
-
-  return (
     <AppShellProviders>
       <ConnectionStatus />
       <RealtimePostsBridge />
-      <MainLayout />
+      {/* ── visual shell (was MainLayout): SideBar + gutter/ContentPanel + RightBar ── */}
+      <View
+        className={cn(
+          "flex-1 w-full bg-background",
+          isScreenNotMobile ? "flex-row justify-center" : "flex-col"
+        )}
+      >
+        <SideBar />
+        <View
+          className={cn(
+            "flex-1 justify-between bg-background",
+            isScreenNotMobile ? "flex-row" : "flex-col"
+          )}
+          style={isScreenNotMobile ? { maxWidth: 950, flexShrink: 1 } : undefined}
+        >
+          {/* Desktop-web gutter: the `bg-background` band around the floating panel
+              (`p-2 pl-0` so the panel meets the rail flush). Gated to the same
+              >=500px breakpoint as the sidebar; full-bleed once the sidebar hides. */}
+          <View
+            className={cn(
+              "bg-background",
+              IS_WEB && isScreenNotMobile && "p-2 pl-0",
+            )}
+            style={{ flex: isScreenNotMobile ? 2.2 : 1 }}
+          >
+            <BloomColorScope colorPreset={activeScreenColor} asChild>
+              <ContentPanel
+                framed={IS_WEB && isScreenNotMobile}
+                maskColor={theme.colors.background}
+                contentStyle={{ paddingBottom: mobileWebBottomInset }}
+              >
+                {centerContent}
+              </ContentPanel>
+            </BloomColorScope>
+          </View>
+          <RightBar />
+        </View>
+      </View>
       <RegisterPush />
-      {isAuthenticated && !isScreenNotMobile && !keyboardVisible && <BottomBar />}
+      {isAuthenticated && !isScreenNotMobile && <BottomBarHost />}
       {!isScreenNotMobile && <DrawerOverlay />}
       <WelcomeModalGate appIsReady={true} />
-      {Platform.OS === 'web' && (
-        <KeyboardShortcutsModal visible={showHelpModal} onClose={handleCloseHelpModal} />
-      )}
+      {Platform.OS === 'web' && <KeyboardShortcutsHost />}
     </AppShellProviders>
   );
 }
