@@ -89,6 +89,21 @@ const WEB_ORIGIN = 'https://mention.earth';
  */
 const PREBOOT_BG = '#0B0B0F';
 
+/**
+ * PWA/head markup that Expo's `output: "single"` build drops: `web.manifest` and
+ * `web.meta` in app.config are NOT wired into the bare exported `index.html`, so
+ * the manifest link + apple/theme metas never reach the browser (no installable
+ * PWA, and the Web Share Target → /compose flow is dead without a linked manifest).
+ * The manifest file itself is a static asset at `public/manifest.json`; this links
+ * it and restores the essential PWA head. Injected into every HTML page.
+ */
+const PWA_HEAD =
+  '<link rel="manifest" href="/manifest.json">' +
+  '<meta name="theme-color" content="#0B0B0F">' +
+  '<meta name="apple-mobile-web-app-capable" content="yes">' +
+  '<meta name="apple-mobile-web-app-title" content="Mention">' +
+  '<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">';
+
 /** Hard timeout for the per-request OG data fetch — a slow API must never block a page. */
 const OG_FETCH_TIMEOUT_MS = 2500;
 
@@ -339,6 +354,7 @@ function transformHtml(response, og) {
         `<style id="mention-preboot-bg">html,body,#root{background-color:${PREBOOT_BG}}</style>`,
         { html: true },
       );
+      element.append(PWA_HEAD, { html: true });
       if (og) element.append(ogMetaHtml(og), { html: true });
     },
   });
