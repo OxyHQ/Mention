@@ -16,7 +16,7 @@ import { useUserById } from '@/hooks/useCachedUser';
 import { useWidgetItemMenu } from '@/hooks/useWidgetItemMenu';
 import { shareLink } from '@/utils/shareLink';
 import { WEB_BASE_URL } from '@/config';
-import { LiveRoomsIcon } from '@syra.fm/sdk';
+import { SyraIcon } from '@syra.fm/sdk';
 import * as Skeleton from '@oxyhq/bloom/skeleton';
 
 const MAX_ROOMS_DISPLAYED = 3;
@@ -149,7 +149,7 @@ export function LiveRoomsWidget({ divider }: { divider?: boolean }) {
   return (
     <BaseWidget
       title="Live Rooms"
-      icon={<LiveRoomsIcon size={16} color={theme.colors.text} />}
+      icon={<SyraIcon size={16} color={theme.colors.text} />}
       divider={divider}
     >
       {isLoading && !hasFetched ? (
