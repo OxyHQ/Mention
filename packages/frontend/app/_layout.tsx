@@ -1,39 +1,20 @@
-// Import Reanimated early to ensure proper initialization before other modules
+// Import Reanimated early so it initializes before other modules.
 import 'react-native-reanimated';
 
-// Freeze inactive (blurred) screens app-wide. Combined with `freezeOnBlur: true`
-// on the (app) Stack, screens that the user navigates away from stay MOUNTED
-// (retaining their state + scroll position) but have their JS/render work paused
-// until they regain focus. This is what lets feed → /videos → back restore the
-// exact feed scroll position natively, Instagram-style. Must run once at module
-// scope, before any navigator mounts.
+// Freeze inactive (blurred) screens app-wide. With `freezeOnBlur: true` on the
+// (app) Stack, navigated-away screens stay MOUNTED (state + scroll retained) but
+// pause their JS/render work until refocused — this is what restores the exact
+// feed scroll on feed → /videos → back. Must run once at module scope, before any
+// navigator mounts.
 import { enableFreeze } from 'react-native-screens';
 enableFreeze(true);
 
-// Suppress known React Native Web warning about text nodes in Views.
-// The React Compiler (Hermes) can produce stray punctuation string children in
-// compiled JSX (e.g. a literal ".") which triggers a harmless dev-only
-// console.error in RNW's View component.  LogBox.ignoreLogs hides the overlay
-// but the console.error still fires, so we also patch console.error itself.
-import { LogBox } from 'react-native';
-LogBox.ignoreLogs(['Unexpected text node: . A text node cannot be a child of a <View>.']);
+// Swallow the harmless dev-only RNW "Unexpected text node" console noise.
+import { suppressRnwTextNodeWarning } from '@/lib/suppressRnwTextNodeWarning';
+suppressRnwTextNodeWarning();
 
-if (__DEV__) {
-  const origConsoleError = console.error;
-  console.error = (...args: unknown[]) => {
-    if (
-      typeof args[0] === 'string' &&
-      args[0].startsWith('Unexpected text node: ') &&
-      args[0].includes('A text node cannot be a child of a <View>')
-    ) {
-      return; // swallow harmless React Compiler + RNW noise
-    }
-    origConsoleError.apply(console, args);
-  };
-}
-
-// Register LiveKit WebRTC globals (must be called before any LiveKit usage)
-// Platform-split: livekit.native.ts imports @livekit/react-native, livekit.web.ts is a no-op
+// Register LiveKit WebRTC globals before any LiveKit usage (platform-split:
+// livekit.native.ts imports @livekit/react-native, livekit.web.ts is a no-op).
 import { initLiveKit } from '@/lib/livekit';
 initLiveKit();
 
@@ -71,23 +52,16 @@ import { BLOOM_THEME_PERSIST_KEY, BLOOM_THEME_STORAGE } from '@/lib/themePersist
 // Styles
 import '../global.css';
 
-// NATIVE ONLY: hold the OS splash screen so it stays visible until the app has
-// finished loading fonts + running init, then we hide it in `RootLayout` once
-// `appIsReady` flips. This makes the native OS splash the SINGLE splash on
-// native (Mention logo centered + Oxy branding at the bottom, configured via the
-// `expo-splash-screen` plugin in app.config.js). The custom `AppSplashScreen`
-// React overlay is gated to web only. On web this call is unnecessary/noisy, so
-// it is skipped. `preventAutoHideAsync` can reject if called too late, so we
-// swallow that — a failure here just means the OS splash hides at the first JS
-// frame, which the web-only custom splash never depends on.
+// NATIVE ONLY: hold the OS splash until `appIsReady` flips (hidden in RootLayout),
+// making the held OS splash the single native splash; the custom <AppSplashScreen>
+// overlay is web-only. Skipped on web. `preventAutoHideAsync` may reject if called
+// too late — swallow it (the OS splash then just hides at the first JS frame).
 if (Platform.OS !== 'web') {
   SplashScreen.preventAutoHideAsync().catch(() => {});
 }
 
-// Resolve file IDs to download URLs for Bloom components that call useImageResolver().
-// Honors the rendition `variant` Bloom forwards (e.g. 'thumb' for list/grid
-// avatars, a larger rendition for detail headers); defaults to 'thumb' when a
-// caller omits it so small avatars stay light by default.
+// Resolve file IDs → download URLs for Bloom's useImageResolver(). Honors the
+// rendition `variant` Bloom forwards, defaulting to 'thumb' so small avatars stay light.
 function resolveImageSource(fileId: string, variant?: string): string | undefined {
   const url = getCachedFileDownloadUrlSync(oxyServices, fileId, variant ?? 'thumb');
   return url && url.startsWith('http') ? url : undefined;
@@ -153,15 +127,10 @@ export default function RootLayout() {
     initializeApp();
   }, [initializeApp]);
 
-  // Readiness gate.
-  // - WEB keeps the fade-gated flow: the custom <AppSplashScreen> is rendered,
-  //   fades out when init completes, and its `onFadeComplete` sets `fadeComplete`.
-  //   So web readiness = init complete AND the custom splash has finished fading.
-  // - NATIVE renders NO custom splash (the held OS splash covers the screen), so
-  //   `onFadeComplete` never fires and readiness must NOT depend on `fadeComplete`.
-  //   Native readiness = init complete (fonts are gated separately by
-  //   BloomThemeProvider's `onFontsLoading`, which renders the held OS splash's
-  //   backdrop — null — on native).
+  // Readiness gate. WEB: init complete AND the custom <AppSplashScreen> has finished
+  // fading (its `onFadeComplete` sets `fadeComplete`). NATIVE: init complete only —
+  // there is no custom splash (the held OS splash covers the screen) so
+  // `onFadeComplete` never fires; fonts are gated separately by BloomThemeProvider.
   useEffect(() => {
     if (appIsReady) return;
     const ready =
@@ -173,10 +142,8 @@ export default function RootLayout() {
     }
   }, [splashState.initializationComplete, splashState.fadeComplete, appIsReady]);
 
-  // NATIVE ONLY: once the app is ready to render real UI, hide the held OS splash.
-  // Because the OS splash stayed up until this exact moment, there is no blank gap
-  // between it and the first real frame. On web this is a no-op (the OS splash was
-  // never held; the custom overlay handles the transition).
+  // NATIVE ONLY: hide the held OS splash once ready — it stayed up until this exact
+  // moment, so there is no blank gap before the first real frame. No-op on web.
   useEffect(() => {
     if (appIsReady && Platform.OS !== 'web') {
       SplashScreen.hideAsync().catch(() => {});
@@ -241,19 +208,16 @@ function AuthRouter() {
     return null;
   }
 
-  // WEB: render <Slot/> so the matched group/route flows in normal document
-  // flow (the BODY is the scroller). A native-stack <Stack> wraps each scene in
-  // a `position: absolute; inset: 0` container clamped to the viewport height,
-  // which sits above the (app) group and gives `position: sticky` no taller
-  // scroll container to pin within — the rails scroll away. <Slot/> avoids that
-  // absolute, viewport-clamped scene wrapper.
+  // WEB: render <Slot/> so the matched route flows in normal document flow (the
+  // BODY is the scroller). A native-stack <Stack> clamps each scene in a
+  // viewport-height `position: absolute; inset: 0` container, leaving
+  // `position: sticky` no taller scroll container to pin within — the rails scroll
+  // away. <Slot/> avoids that.
   //
-  // The root <Stack> was the sole authority for the (auth)↔(app) swap via
-  // `redirect={isAuthenticated}` (an authenticated user can never sit on an
-  // (auth) route). We reproduce that EXACT behavior declaratively with
-  // <Redirect>: when authenticated AND currently inside the (auth) group, bounce
-  // to "/". Anonymous users are never redirected away from (app), so public
-  // browse keeps working. There is no competing child redirect on the same
+  // <Slot> is the SOLE authority for the (auth)↔(app) swap: reproduce the old root
+  // `redirect={isAuthenticated}` declaratively with <Redirect> — authenticated AND
+  // inside the (auth) group → bounce to "/". Anonymous users are never redirected
+  // away, so public browse keeps working; no competing child redirect on the same
   // signal, so no cold-load race.
   if (Platform.OS === 'web') {
     const inAuthGroup = segments[0] === '(auth)';
