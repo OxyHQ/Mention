@@ -1,5 +1,5 @@
-import type { LiveConfig, LiveTheme, UserEntity } from '@syra.fm/live';
-import { createRoomsService } from '@syra.fm/live';
+import type { LiveConfig, LiveTheme, UserEntity } from '@syra.fm/sdk';
+import { createRoomsService } from '@syra.fm/sdk';
 import type { ComponentType } from 'react';
 import type { ViewStyle } from 'react-native';
 import { queryKeys } from '@oxyhq/services';
@@ -18,7 +18,7 @@ import { useAppearanceStore } from '@/store/appearanceStore';
  * Syra-pointed Oxy linked client for live rooms — the SAME `createLinkedClient`
  * Mention uses everywhere, just aimed at Syra's rooms backend (`SYRA_API_URL`)
  * instead of `api.mention.earth`. The Oxy bearer authenticates cross-app (same
- * identity). The `@syra.fm/live` engine consumes this client directly (its
+ * identity). The `@syra.fm/sdk` engine consumes this client directly (its
  * methods resolve to the parsed body), so there is NO per-app adapter. GET
  * caching stays off (the linked client defaults to no-cache).
  */

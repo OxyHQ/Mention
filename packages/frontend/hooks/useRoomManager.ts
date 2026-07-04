@@ -1,2 +1,2 @@
-export { useRoomManager } from '@syra.fm/live';
-export type { RoomAttachmentData } from '@syra.fm/live';
+export { useRoomManager } from '@syra.fm/sdk';
+export type { RoomAttachmentData } from '@syra.fm/sdk';

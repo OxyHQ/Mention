@@ -1,2 +1,2 @@
-export { useRoomConnection } from '@syra.fm/live';
-export type { StreamInfo } from '@syra.fm/live';
+export { useRoomConnection } from '@syra.fm/sdk';
+export type { StreamInfo } from '@syra.fm/sdk';

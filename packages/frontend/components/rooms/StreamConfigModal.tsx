@@ -1,1 +1,1 @@
-export { StreamConfigModal } from '@syra.fm/live';
+export { StreamConfigModal } from '@syra.fm/sdk';

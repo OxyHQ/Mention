@@ -14,7 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@oxyhq/services';
 
 import { ThemedText } from '@/components/ThemedText';
-import { LiveRoomsIcon } from '@syra.fm/live';
+import { LiveRoomsIcon } from '@syra.fm/sdk';
 import { Header } from '@/components/Header';
 import { EmptyState } from '@/components/common/EmptyState';
 import RoomCard from '@/components/RoomCard';
@@ -24,7 +24,7 @@ import { useTheme } from '@oxyhq/bloom/theme';
 import { useRoomUsers } from '@/hooks/useRoomUsers';
 import { useLiveRoom } from '@/context/LiveRoomContext';
 import { roomsService } from '@/lib/liveConfig';
-import type { Room } from '@syra.fm/live';
+import type { Room } from '@syra.fm/sdk';
 import { logger } from '@/lib/logger';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
 import { useTranslation } from 'react-i18next';

@@ -28,7 +28,7 @@ import { useTheme, useBloomTheme } from '@oxyhq/bloom/theme';
 import { useAppearanceStore } from '@/store/appearanceStore';
 import { Chat, ChatActive } from '@/assets/icons/chat-icon';
 import { Bell, BellActive } from '@/assets/icons/bell-icon';
-import { LiveRoomsIcon, LiveRoomsIconActive } from '@syra.fm/live';
+import { SyraIcon, SyraIconActive } from '@syra.fm/sdk';
 import { useAuth, ProfileButton } from '@oxyhq/services';
 import { getNormalizedUserHandle } from '@oxyhq/core';
 import { asViewStyle, type WebViewStyle } from '@/types/webStyles';
@@ -148,8 +148,8 @@ export function SideBar({ asDrawer = false, onNavigate }: SideBarProps) {
         },
         {
             title: t("sidebar.liveRooms"),
-            icon: <LiveRoomsIcon />,
-            iconActive: <LiveRoomsIconActive />,
+            icon: <SyraIcon />,
+            iconActive: <SyraIconActive />,
             route: '/live-rooms',
         },
         {

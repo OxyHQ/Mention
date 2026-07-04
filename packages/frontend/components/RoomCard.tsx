@@ -1,1 +1,1 @@
-export { RoomCard, RoomCard as default } from '@syra.fm/live';
+export { RoomCard, RoomCard as default } from '@syra.fm/sdk';

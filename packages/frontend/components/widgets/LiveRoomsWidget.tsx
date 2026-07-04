@@ -9,14 +9,14 @@ import { useTranslation } from 'react-i18next';
 import { BaseWidget } from './BaseWidget';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { useLiveRoom } from '@/context/LiveRoomContext';
-import type { Room } from '@syra.fm/live';
+import type { Room } from '@syra.fm/sdk';
 import { useLiveRoomsStore } from '@/stores/liveRoomsStore';
 import { useRoomUsers, getDisplayName } from '@/hooks/useRoomUsers';
 import { useUserById } from '@/hooks/useCachedUser';
 import { useWidgetItemMenu } from '@/hooks/useWidgetItemMenu';
 import { shareLink } from '@/utils/shareLink';
 import { WEB_BASE_URL } from '@/config';
-import { LiveRoomsIcon } from '@syra.fm/live';
+import { LiveRoomsIcon } from '@syra.fm/sdk';
 import * as Skeleton from '@oxyhq/bloom/skeleton';
 
 const MAX_ROOMS_DISPLAYED = 3;

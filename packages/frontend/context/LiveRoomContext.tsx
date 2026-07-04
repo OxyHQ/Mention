@@ -1,1 +1,1 @@
-export { LiveRoomProvider, useLiveRoom } from '@syra.fm/live';
+export { LiveRoomProvider, useLiveRoom } from '@syra.fm/sdk';

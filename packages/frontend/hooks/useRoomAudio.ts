@@ -1,1 +1,1 @@
-export { useRoomAudio } from '@syra.fm/live';
+export { useRoomAudio } from '@syra.fm/sdk';

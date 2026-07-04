@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { roomsService } from '@/lib/liveConfig';
-import type { Room } from '@syra.fm/live';
+import type { Room } from '@syra.fm/sdk';
 import { createScopedLogger } from '@/lib/logger';
 
 const logger = createScopedLogger('LiveRoomsStore');

@@ -1,1 +1,1 @@
-export { CreateRoomSheet, CreateRoomSheet as default } from '@syra.fm/live';
+export { CreateRoomSheet, CreateRoomSheet as default } from '@syra.fm/sdk';

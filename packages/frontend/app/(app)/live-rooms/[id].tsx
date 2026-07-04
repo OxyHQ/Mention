@@ -28,7 +28,7 @@ import { useRoomUsers, getDisplayName, getAvatarUrl } from '@/hooks/useRoomUsers
 import { useUserById } from '@/hooks/useCachedUser';
 import { useLiveRoom } from '@/context/LiveRoomContext';
 import { roomsService } from '@/lib/liveConfig';
-import type { Room } from '@syra.fm/live';
+import type { Room } from '@syra.fm/sdk';
 import { useAuth } from '@oxyhq/services';
 import { useTranslation } from 'react-i18next';
 import { logger } from '@/lib/logger';

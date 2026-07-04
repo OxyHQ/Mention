@@ -26,7 +26,7 @@
     "@oxyhq/core": "^5.5.0",
     "@oxyhq/protocol": "^0.1.1",
     "@socket.io/redis-adapter": "^8.3.0",
-    "@syra.fm/sdk": "^0.4.0",
+    "@syra.fm/sdk": "^0.5.0",
     "@types/compression": "^1.8.1",
     "@types/multer": "^2.1.0",
     "ai": "^6.0.134",
