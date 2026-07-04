@@ -5,6 +5,7 @@ import { SearchBar } from './SearchBar';
 import { WidgetManager } from './widgets/WidgetManager';
 import { openExternalLink } from '@/utils/openExternalLink';
 import { VideoReplies } from './videos/VideoReplies';
+import { ContentPanel } from '@oxyhq/bloom/content-panel';
 import { useIsRightBarVisible } from '@/hooks/useOptimizedMediaQuery';
 import { useVideosRail } from '@/context/VideosRailContext';
 import { asViewStyle, asTextStyle, type WebViewStyle } from '@/types/webStyles';
@@ -61,10 +62,15 @@ export function RightBar() {
         return (
             <View style={styles.videosRepliesContainer}>
                 {activePost && (
-                    <VideoReplies
-                        postId={activePost.id}
-                        onCommentPosted={() => onCommentPosted(activePost.id)}
-                    />
+                    <ContentPanel
+                        framed={false}
+                        surfaceClassName="bg-card rounded-radius-28 border border-border overflow-hidden"
+                    >
+                        <VideoReplies
+                            postId={activePost.id}
+                            onCommentPosted={() => onCommentPosted(activePost.id)}
+                        />
+                    </ContentPanel>
                 )}
             </View>
         );
