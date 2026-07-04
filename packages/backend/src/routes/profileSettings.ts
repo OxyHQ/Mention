@@ -391,32 +391,54 @@ router.delete('/settings/behavior', async (req: AuthRequest, res: Response) => {
 
 /**
  * POST /api/profile/export
- * Export user data as JSON
+ * Export the caller's data as newline-delimited JSON (NDJSON).
+ *
+ * The export is STREAMED from Mongo cursors, one document per line, so a power
+ * user's entire history is never buffered into a single in-memory JSON blob —
+ * the previous implementation loaded every post, bookmark, and like at once,
+ * which spikes memory (and can OOM the task) for large accounts. Nothing is
+ * truncated: every matching document is emitted.
+ *
+ * Line shape: `{"type":"meta"|"post"|"bookmark"|"like"|"settings","data":<doc>}`.
+ * A single `meta` line comes first, then all posts, bookmarks, and likes, then
+ * the settings document.
  */
 router.post('/export', async (req: AuthRequest, res: Response) => {
+  const oxyUserId = getAuthenticatedUserId(req);
+
+  res.setHeader('Content-Type', 'application/x-ndjson; charset=utf-8');
+  res.setHeader('Content-Disposition', `attachment; filename="mention-export-${oxyUserId}.ndjson"`);
+
+  const writeLine = (type: string, data: unknown): void => {
+    res.write(`${JSON.stringify({ type, data })}\n`);
+  };
+
   try {
-    const oxyUserId = getAuthenticatedUserId(req);
+    writeLine('meta', { exportedAt: new Date().toISOString(), userId: oxyUserId });
 
-    // Collect user's data in parallel
-    const [posts, bookmarks, likes, settings] = await Promise.all([
-      Post.find({ oxyUserId }).sort({ createdAt: -1 }).lean(),
-      Bookmark.find({ userId: oxyUserId }).sort({ createdAt: -1 }).lean(),
-      Like.find({ userId: oxyUserId }).sort({ createdAt: -1 }).lean(),
-      UserSettings.findOne({ oxyUserId }).lean(),
-    ]);
+    for await (const post of Post.find({ oxyUserId }).sort({ createdAt: -1 }).lean().cursor()) {
+      writeLine('post', post);
+    }
+    for await (const bookmark of Bookmark.find({ userId: oxyUserId }).sort({ createdAt: -1 }).lean().cursor()) {
+      writeLine('bookmark', bookmark);
+    }
+    for await (const like of Like.find({ userId: oxyUserId }).sort({ createdAt: -1 }).lean().cursor()) {
+      writeLine('like', like);
+    }
 
-    const exportData = {
-      exportedAt: new Date().toISOString(),
-      userId: oxyUserId,
-      posts,
-      bookmarks,
-      likes,
-      settings,
-    };
+    const settings = await UserSettings.findOne({ oxyUserId }).lean();
+    writeLine('settings', settings ?? null);
 
-    return sendSuccessResponse(res, 200, exportData, 'Data export completed successfully');
+    res.end();
   } catch (err) {
     logger.error('[ProfileSettings] Error exporting user data:', { userId: req.user?.id, error: err });
+    if (res.headersSent) {
+      // The stream already started, so a JSON error body is no longer possible —
+      // destroy the socket so the client sees a failed/incomplete download
+      // rather than a silently truncated one it would treat as complete.
+      res.destroy(err instanceof Error ? err : new Error('export failed'));
+      return;
+    }
     return sendErrorResponse(res, 500, 'Internal Server Error', 'Failed to export user data');
   }
 });

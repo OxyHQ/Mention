@@ -26,12 +26,14 @@ class TopicService {
         logger.warn('[TopicService] Enrichment failed:', err);
       });
     }, 60_000);
+    this.initialRunTimeout.unref?.();
 
     this.enrichmentInterval = setInterval(() => {
       this.enrichTopics().catch(err => {
         logger.warn('[TopicService] Enrichment failed:', err);
       });
     }, this.ENRICHMENT_INTERVAL_MS);
+    this.enrichmentInterval.unref?.();
 
     logger.info('[TopicService] Enrichment pipeline scheduled (daily)');
   }

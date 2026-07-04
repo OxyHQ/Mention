@@ -1,6 +1,6 @@
-import express, { Request, Response } from "express";
-import { getRequiredOxyUserId, type OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
-import mongoose, { HydratedDocument } from 'mongoose';
+import express, { Response } from "express";
+import { type OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
+import mongoose from 'mongoose';
 import Notification, { INotification } from "../models/Notification";
 import Post from "../models/Post";
 import { Server } from 'socket.io';
@@ -56,49 +56,6 @@ const SYSTEM_ACTOR: ActorProfile = {
 type LeanNotification = Omit<INotification, keyof mongoose.Document | 'entityId'> & {
   _id: mongoose.Types.ObjectId;
   entityId: mongoose.Types.ObjectId | string | null;
-};
-
-// Helper function to emit notification event
-const emitNotification = async (req: Request, notification: HydratedDocument<INotification>) => {
-  const io = req.app.get('io') as Server;
-  const notificationsNamespace = io.of('/notifications');
-  let actor: ActorProfile | null = null;
-  try {
-    if (notification.actorId && notification.actorId !== 'system') {
-      actor = await oxy.getUserById(notification.actorId);
-    } else if (notification.actorId === 'system') {
-      actor = SYSTEM_ACTOR;
-    }
-  } catch (e) {
-    logger.warn('[Notifications] Failed to resolve actor profile:', e);
-  }
-  // Attach preview and embedded post for post notifications if applicable
-  let preview: string | undefined;
-  let embeddedPost: HydratedPost | undefined;
-  try {
-    if (notification.type === 'post' && notification.entityType === 'post' && notification.entityId) {
-      const post = await Post.findById(notification.entityId).lean();
-      if (post) {
-        const text: string = post?.content?.text || '';
-        const trimmed = typeof text === 'string' ? text.trim() : '';
-        preview = trimmed.length > 200 ? `${trimmed.slice(0, 200)}…` : trimmed;
-        [embeddedPost] = await postHydrationService.hydratePosts([post], {
-          viewerId: String(notification.recipientId || ''),
-          maxDepth: 1,
-          includeLinkMetadata: true,
-        });
-      }
-    }
-  } catch (e) {
-    logger.warn('[Notifications] Failed to build post preview for notification:', e);
-  }
-  const payload = {
-    ...notification.toObject(),
-    preview,
-    post: embeddedPost,
-    actorId_populated: actor ? toPopulatedActor(actor, notification.actorId) : undefined
-  };
-  notificationsNamespace.to(`user:${notification.recipientId}`).emit('notification', payload);
 };
 
 // Get notifications for current user
@@ -192,10 +149,13 @@ router.get("/", async (req: AuthRequest, res: Response) => {
     const postMap = new Map<string, HydratedPost>();
     if (postEntityIds.length > 0) {
       try {
-        const posts = await Post.find(
-          { _id: { $in: postEntityIds } },
-          { _id: 1, oxyUserId: 1, content: 1, stats: 1, metadata: 1, createdAt: 1 }
-        ).lean();
+        // Fetch full lean docs (no field projection): `hydratePosts` reads
+        // `boostOf`/`quoteOf` (nested embeds), `parentPostId`/`threadId`/`type`
+        // (thread + type flags) and `visibility`/`status` (publication controls).
+        // A narrow projection silently drops these, rendering quote/boost cards
+        // blank and mis-flagging replies. This mirrors the single-notification
+        // realtime path above and every other `hydratePosts` call site.
+        const posts = await Post.find({ _id: { $in: postEntityIds } }).lean();
 
         // Build preview map
         for (const p of posts) {
@@ -261,94 +221,13 @@ router.get("/", async (req: AuthRequest, res: Response) => {
   }
 });
 
-// Notification field whitelists — these mirror the schema enums in
-// `models/Notification.ts`. They are the ONLY values a client may set.
-const ALLOWED_NOTIFICATION_TYPES = new Set<INotification['type']>([
-  'like', 'reply', 'mention', 'follow', 'boost', 'quote', 'welcome', 'post', 'poke',
-]);
-const ALLOWED_ENTITY_TYPES = new Set<INotification['entityType']>([
-  'post', 'reply', 'profile',
-]);
-
-// Create a notification (requires authentication).
-//
-// SECURITY: the actor is ALWAYS the authenticated user — it is never read from
-// the request body. Only an explicit whitelist of fields is accepted; a raw
-// `req.body` is never spread into the document, preventing mass-assignment of
-// arbitrary notification fields (e.g. forging the actor or recipient state).
-router.post("/", async (req: AuthRequest, res: Response) => {
-  try {
-    // Throws/short-circuits via 401 if unauthenticated.
-    const actorId = getRequiredOxyUserId(req);
-
-    const body: unknown = req.body;
-    if (!body || typeof body !== 'object') {
-      return res.status(400).json({ message: 'Invalid request body' });
-    }
-    const { recipientId, type, entityId, entityType } = body as Record<string, unknown>;
-
-    // Recipient: required, must be a non-empty valid Oxy/Mongo id, and must not
-    // be the actor (a user cannot notify themselves).
-    if (typeof recipientId !== 'string' || !mongoose.Types.ObjectId.isValid(recipientId)) {
-      return res.status(400).json({ message: 'Invalid recipientId' });
-    }
-    if (recipientId === actorId) {
-      return res.status(400).json({ message: 'Cannot create a self-notification' });
-    }
-
-    // Type / entityType: must be in the schema enums.
-    if (typeof type !== 'string' || !ALLOWED_NOTIFICATION_TYPES.has(type as INotification['type'])) {
-      return res.status(400).json({ message: 'Invalid notification type' });
-    }
-    if (typeof entityType !== 'string' || !ALLOWED_ENTITY_TYPES.has(entityType as INotification['entityType'])) {
-      return res.status(400).json({ message: 'Invalid entityType' });
-    }
-
-    // entityId: required ObjectId (post/reply id, or the profile id for
-    // follow/poke notifications — Oxy user ids are ObjectId-shaped).
-    if (typeof entityId !== 'string' || !mongoose.Types.ObjectId.isValid(entityId)) {
-      return res.status(400).json({ message: 'Invalid entityId' });
-    }
-
-    const notification = new Notification({
-      recipientId,
-      actorId,
-      type,
-      entityId,
-      entityType,
-    });
-
-    try {
-      await notification.save();
-    } catch (saveError) {
-      // The unique index (recipientId, actorId, type, entityId) makes repeated
-      // creates idempotent rather than an error.
-      if (saveError instanceof mongoose.mongo.MongoServerError && saveError.code === 11000) {
-        const existing = await Notification.findOne({ recipientId, actorId, type, entityId });
-        return res.status(200).json(existing ? existing.toObject() : { message: 'Notification already exists' });
-      }
-      throw saveError;
-    }
-
-    await emitNotification(req, notification);
-
-    // Enrich immediate response with the actor profile.
-    let actor: ActorProfile | null = null;
-    try {
-      actor = await oxy.getUserById(actorId);
-    } catch (e) {
-      logger.warn('[Notifications] Failed to resolve actor for new notification:', e);
-    }
-    const payload = {
-      ...notification.toObject(),
-      actorId_populated: actor ? toPopulatedActor(actor, actorId) : undefined,
-    };
-    res.status(201).json(payload);
-  } catch (error) {
-    logger.error('[Notifications] Error creating notification:', { userId: req.user?.id, error });
-    res.status(500).json({ message: "Error creating notification" });
-  }
-});
+// Notifications are SERVER-AUTHORED ONLY. There is intentionally no
+// client-callable creation route: legitimate notifications are created as
+// side effects of verified actions via the `createNotification` service
+// (`utils/notificationUtils.ts`), never from a client-supplied payload. A
+// public POST here would let any authenticated user forge a persisted +
+// realtime notification to any recipient with an attacker-chosen
+// type/entityId (a phishing/harassment vector).
 
 // Mark notification as read
 // Shared handler to mark notification as read

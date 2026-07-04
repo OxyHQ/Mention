@@ -47,6 +47,14 @@ export interface ExternalActorResolution {
   followed: boolean;
 }
 
+/** A page of the viewer's saved posts, as returned by `GET /posts/saved`. */
+export interface SavedPostsPage {
+  posts: HydratedPost[];
+  hasMore: boolean;
+  page: number;
+  limit: number;
+}
+
 /**
  * In-flight dedup discriminator for the viewer's auth state.
  *
@@ -318,7 +326,7 @@ class FeedService {
    * Maps the camelCase {@link CreatePostRequest} into the backend's
    * snake_case wire format (e.g. `quotedPostId` → `quoted_post_id`).
    */
-  async createPost(request: CreatePostRequest): Promise<{ success: boolean; post: unknown }> {
+  async createPost(request: CreatePostRequest): Promise<{ success: boolean; post: HydratedPost | null }> {
     const backendRequest = {
       content: {
         ...request.content,
@@ -343,19 +351,17 @@ class FeedService {
       ...(request.quotedPostId && { quoted_post_id: request.quotedPostId }),
     };
 
-    const response = await authenticatedClient.post('/posts', backendRequest);
+    const response = await authenticatedClient.post<{ success?: boolean; post?: HydratedPost }>('/posts', backendRequest);
     const data = response?.data;
 
-    if (data && typeof data === 'object' && data !== null && 'post' in data) {
+    if (data && typeof data === 'object' && data.post) {
       return {
-        success: typeof (data as Record<string, unknown>).success === 'boolean'
-          ? (data as Record<string, boolean>).success
-          : true,
-        post: (data as Record<string, unknown>).post
+        success: typeof data.success === 'boolean' ? data.success : true,
+        post: data.post,
       };
     }
 
-    return { success: true, post: data };
+    return { success: true, post: null };
   }
 
   /**
@@ -471,7 +477,7 @@ class FeedService {
   /**
    * Get saved posts for current user
    */
-  async getSavedPosts(request: { page?: number; limit?: number; search?: string } = {}): Promise<{ success: boolean; data: unknown }> {
+  async getSavedPosts(request: { page?: number; limit?: number; search?: string } = {}): Promise<{ success: boolean; data: SavedPostsPage }> {
     const params: Record<string, unknown> = {
       page: request.page || 1,
       limit: request.limit || 20
@@ -481,7 +487,7 @@ class FeedService {
       params.search = request.search;
     }
 
-    const response = await authenticatedClient.get('/posts/saved', { params });
+    const response = await authenticatedClient.get<SavedPostsPage>('/posts/saved', { params });
     return { success: true, data: response.data };
   }
 

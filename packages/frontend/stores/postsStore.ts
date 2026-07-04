@@ -493,7 +493,7 @@ export const usePostsStore = create<PostsStoreState>()(
 
       try {
         const response = await feedService.getSavedPosts(request);
-        let processedPosts = (response.data as any).posts?.map((post: any) => transformToUIItem({ ...post, isSaved: true })) || [];
+        let processedPosts = response.data.posts?.map((post) => transformToUIItem({ ...post, isSaved: true })) || [];
 
         // Fallback: derive from SQLite saved posts
         if (!processedPosts.length) {
@@ -512,7 +512,7 @@ export const usePostsStore = create<PostsStoreState>()(
         precacheActorsFromPosts(processedPosts);
 
         dbSetFeedItems(feedKey, processedPosts, {
-          hasMore: (response.data as any).hasMore || false,
+          hasMore: response.data.hasMore || false,
           totalCount: processedPosts.length,
           lastUpdated: Date.now(),
         });
@@ -647,9 +647,9 @@ export const usePostsStore = create<PostsStoreState>()(
         const response = await feedService.createPost(request);
         if (!response.success) { set({ isLoading: false }); return null; }
 
-        const rawPost = (response as any)?.post?.post ?? response.post;
+        const rawPost = response.post;
         if (!rawPost) { set({ isLoading: false }); return null; }
-        if (rawPost.status === 'scheduled') { set({ isLoading: false }); return rawPost; }
+        if (rawPost.metadata.status === 'scheduled') { set({ isLoading: false }); return transformToUIItem(rawPost); }
 
         const newPost: FeedItem = {
           ...transformToUIItem(rawPost),

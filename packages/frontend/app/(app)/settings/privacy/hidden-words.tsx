@@ -41,7 +41,7 @@ export default function HiddenWordsScreen() {
     const { t } = useTranslation();
     const { colors } = useTheme();
     const safeBack = useSafeBack();
-    const { isAuthenticated } = useAuth();
+    const { isAuthenticated, user, canUsePrivateApi } = useAuth();
     const bottomSheet = React.useContext(BottomSheetContext);
     const queryClient = useQueryClient();
     const [input, setInput] = useState('');
@@ -61,9 +61,9 @@ export default function HiddenWordsScreen() {
         isError,
         refetch,
     } = useQuery<SerializedMuteWord[]>({
-        queryKey: MUTE_WORDS_QUERY_KEY,
+        queryKey: [...MUTE_WORDS_QUERY_KEY, user?.id],
         queryFn: () => muteWordsService.list(),
-        enabled: isAuthenticated,
+        enabled: canUsePrivateApi,
     });
 
     // Muting/unmuting changes which posts are filtered out of the MTN feed.

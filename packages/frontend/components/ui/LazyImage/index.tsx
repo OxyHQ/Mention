@@ -4,7 +4,19 @@
  */
 
 import React, { useEffect, useRef, useCallback, useMemo, memo } from 'react';
-import { Image, ImageProps, View, StyleSheet, ViewStyle, ImageStyle, StyleProp, Platform } from 'react-native';
+import {
+  Image,
+  ImageProps,
+  View,
+  StyleSheet,
+  ViewStyle,
+  ImageStyle,
+  StyleProp,
+  Platform,
+  NativeSyntheticEvent,
+  ImageLoadEventData,
+  ImageErrorEventData,
+} from 'react-native';
 import { flattenStyleArray } from '@/utils/theme';
 
 export interface LazyImageProps extends Omit<ImageProps, 'source' | 'style'> {
@@ -170,20 +182,17 @@ const LazyImageComponent: React.FC<LazyImageProps> = ({
     }
   }, [progressive, shouldLoad, shouldLoadHighRes, effectiveLowResSource]);
 
-  // Handle image load success
-  const handleLoad = useCallback(() => {
+  // Handle image load success — forward the real RN event so consumers can read
+  // `nativeEvent`/`source` off it.
+  const handleLoad = useCallback((event: NativeSyntheticEvent<ImageLoadEventData>) => {
     setImgState({ isLoading: false });
-    if (imageProps.onLoad) {
-      imageProps.onLoad({} as any);
-    }
+    imageProps.onLoad?.(event);
   }, [imageProps]);
 
-  // Handle image load errors
-  const handleError = useCallback(() => {
+  // Handle image load errors — forward the real RN error event.
+  const handleError = useCallback((event: NativeSyntheticEvent<ImageErrorEventData>) => {
     setImgState({ hasError: true, isLoading: false });
-    if (imageProps.onError) {
-      imageProps.onError({} as any);
-    }
+    imageProps.onError?.(event);
   }, [imageProps]);
 
   // Default placeholder

@@ -145,6 +145,7 @@ class FederationJobScheduler {
         logger.error('Actor refresh job failed:', err)
       );
     }, REFRESH_STALE_ACTORS_INTERVAL_MS);
+    this.actorRefreshInterval.unref?.();
 
     // Retry failed deliveries every minute (Mongo delivery queue)
     this.deliveryRetryInterval = setInterval(() => {
@@ -152,18 +153,21 @@ class FederationJobScheduler {
         logger.error('Delivery retry job failed:', err)
       );
     }, DELIVERY_RETRY_INTERVAL_MS);
+    this.deliveryRetryInterval.unref?.();
 
     this.outboxSyncInterval = setInterval(() => {
       this.syncFollowedActorsPosts().catch((err) =>
         logger.error('Outbox sync job failed:', err)
       );
     }, SYNC_FOLLOWED_OUTBOX_INTERVAL_MS);
+    this.outboxSyncInterval.unref?.();
 
     this.outboxBackfillInterval = setInterval(() => {
       this.syncRecentOutboxBackfills().catch((err) =>
         logger.error('Recent outbox backfill job failed:', err)
       );
     }, RECENT_OUTBOX_BACKFILL_INTERVAL_MS);
+    this.outboxBackfillInterval.unref?.();
 
     // Media-cache worker + eviction intervals are only created when the cache is
     // enabled; while disabled they would no-op every tick, so we avoid arming the
@@ -176,6 +180,7 @@ class FederationJobScheduler {
           logger.error('Media cache worker job failed:', err)
         );
       }, MEDIA_CACHE_WORKER_INTERVAL_MS);
+      this.mediaCacheWorkerInterval.unref?.();
 
       // Evict idle cached media from Oxy S3 (activity-based TTL).
       this.mediaCacheEvictionInterval = setInterval(() => {
@@ -183,6 +188,7 @@ class FederationJobScheduler {
           logger.error('Media cache eviction job failed:', err)
         );
       }, MEDIA_CACHE_EVICTION_INTERVAL_MS);
+      this.mediaCacheEvictionInterval.unref?.();
 
     }
 
@@ -193,18 +199,21 @@ class FederationJobScheduler {
         logger.error('Interest score recompute job failed:', err)
       );
     }, COMPUTE_INTEREST_SCORES_INTERVAL_MS);
+    this.interestScoresInterval.unref?.();
 
     this.endorsementOutboxInterval = setInterval(() => {
       this.flushEndorsementOutbox().catch((err) =>
         logger.error('Endorsement outbox flush job failed:', err)
       );
     }, FLUSH_ENDORSEMENT_OUTBOX_INTERVAL_MS);
+    this.endorsementOutboxInterval.unref?.();
 
     this.affinityEventsInterval = setInterval(() => {
       this.flushAffinityEvents().catch((err) =>
         logger.error('Affinity events flush job failed:', err)
       );
     }, FLUSH_AFFINITY_EVENTS_INTERVAL_MS);
+    this.affinityEventsInterval.unref?.();
 
     // Stagger startup tasks to let DB connections warm up
     this.initialSyncTimeout = setTimeout(() => {
@@ -215,6 +224,7 @@ class FederationJobScheduler {
         logger.error('Initial recent outbox backfill failed:', err)
       );
     }, INITIAL_SYNC_STARTUP_DELAY_MS);
+    this.initialSyncTimeout.unref?.();
   }
 
   /**

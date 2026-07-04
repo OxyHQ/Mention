@@ -55,7 +55,6 @@ import pokesRoutes from './src/routes/pokes';
 import starterPacksRoutes from './src/routes/starterPacks';
 import gifsRoutes from './src/routes/gifs';
 import articlesRoutes from './src/routes/articles';
-import followsRoutes from './src/routes/follows';
 import muteRoutes from './src/routes/mute.routes';
 import muteWordsRoutes from './src/routes/muteWords.routes';
 import reportsRoutes from './src/routes/reports.routes';
@@ -524,25 +523,29 @@ postsNamespace.on("connection", (socket: AuthenticatedSocket) => {
     logger.debug(`Client ${socket.id} left post room: ${room}`);
   }));
 
-  // Join feed room for real-time updates (posts namespace)
-  socket.on("joinFeed", socketRateLimiter.wrap(socket, 'joinFeed', (data: { feedType?: string; userId?: string }) => {
-    const { feedType, userId } = data || {};
+  // Join feed room for real-time updates (posts namespace). The user-scoped room
+  // is ALWAYS derived from the authenticated socket identity — never a
+  // client-supplied id — so a client can only ever join its OWN feed room.
+  socket.on("joinFeed", socketRateLimiter.wrap(socket, 'joinFeed', (data: { feedType?: string }) => {
+    const feedType = data?.feedType;
     if (feedType && typeof feedType === 'string') {
       socket.join(`feed:${feedType}`);
     }
-    if (userId && typeof userId === 'string') {
-      socket.join(`feed:user:${userId}`);
+    const selfId = socket.user?.id;
+    if (selfId) {
+      socket.join(`feed:user:${selfId}`);
     }
   }));
 
   // Leave feed room (posts namespace)
-  socket.on("leaveFeed", socketRateLimiter.wrap(socket, 'leaveFeed', (data: { feedType?: string; userId?: string }) => {
-    const { feedType, userId } = data || {};
+  socket.on("leaveFeed", socketRateLimiter.wrap(socket, 'leaveFeed', (data: { feedType?: string }) => {
+    const feedType = data?.feedType;
     if (feedType && typeof feedType === 'string') {
       socket.leave(`feed:${feedType}`);
     }
-    if (userId && typeof userId === 'string') {
-      socket.leave(`feed:user:${userId}`);
+    const selfId = socket.user?.id;
+    if (selfId) {
+      socket.leave(`feed:user:${selfId}`);
     }
   }));
 
@@ -650,31 +653,35 @@ io.on("connection", (socket: AuthenticatedSocket) => {
     logger.debug(`Client ${socket.id} left room: ${room}`);
   }));
 
-  // Join feed room for real-time updates
-  socket.on("joinFeed", socketRateLimiter.wrap(socket, 'joinFeed', (data: { feedType?: string; userId?: string }) => {
-    const { feedType, userId: feedUserId } = data || {};
+  // Join feed room for real-time updates. The user-scoped room is ALWAYS derived
+  // from the authenticated socket identity — never a client-supplied id — so a
+  // client can only ever join its OWN feed room.
+  socket.on("joinFeed", socketRateLimiter.wrap(socket, 'joinFeed', (data: { feedType?: string }) => {
+    const feedType = data?.feedType;
     if (feedType && typeof feedType === 'string') {
       const room = `feed:${feedType}`;
       socket.join(room);
       logger.debug(`Client ${socket.id} joined feed room: ${room}`);
     }
-    if (feedUserId && typeof feedUserId === 'string') {
-      const userRoom = `feed:user:${feedUserId}`;
+    const selfId = socket.user?.id;
+    if (selfId) {
+      const userRoom = `feed:user:${selfId}`;
       socket.join(userRoom);
       logger.debug(`Client ${socket.id} joined user feed room: ${userRoom}`);
     }
   }));
 
   // Leave feed room
-  socket.on("leaveFeed", socketRateLimiter.wrap(socket, 'leaveFeed', (data: { feedType?: string; userId?: string }) => {
-    const { feedType, userId: feedUserId } = data || {};
+  socket.on("leaveFeed", socketRateLimiter.wrap(socket, 'leaveFeed', (data: { feedType?: string }) => {
+    const feedType = data?.feedType;
     if (feedType && typeof feedType === 'string') {
       const room = `feed:${feedType}`;
       socket.leave(room);
       logger.debug(`Client ${socket.id} left feed room: ${room}`);
     }
-    if (feedUserId && typeof feedUserId === 'string') {
-      const userRoom = `feed:user:${feedUserId}`;
+    const selfId = socket.user?.id;
+    if (selfId) {
+      const userRoom = `feed:user:${selfId}`;
       socket.leave(userRoom);
       logger.debug(`Client ${socket.id} left user feed room: ${userRoom}`);
     }
@@ -798,7 +805,6 @@ authenticatedApiRouter.use("/profile/media", profileMediaRoutes);
 authenticatedApiRouter.use("/profile", profileSettingsRoutes);
 authenticatedApiRouter.use("/subscriptions", subscriptionsRoutes);
 authenticatedApiRouter.use("/gifs", gifsRoutes);
-authenticatedApiRouter.use("/follows", followsRoutes);
 authenticatedApiRouter.use("/mute", muteRoutes);
 authenticatedApiRouter.use("/mute-words", muteWordsRoutes); // Muted words & hashtags (feed tuner)
 authenticatedApiRouter.use("/reports", reportsRoutes);

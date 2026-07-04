@@ -40,18 +40,22 @@ export class FeedJobScheduler {
     this.isRunning = true;
 
     // Update user preferences every hour
-    this.intervals.set('updatePreferences', setInterval(() => {
+    const updatePreferencesTimer = setInterval(() => {
       this.updateUserPreferences().catch(err => {
         logger.error('Error in update preferences job:', err);
       });
-    }, 60 * 60 * 1000) as unknown as NodeJS.Timeout); // 1 hour
+    }, 60 * 60 * 1000) as unknown as NodeJS.Timeout; // 1 hour
+    updatePreferencesTimer.unref?.();
+    this.intervals.set('updatePreferences', updatePreferencesTimer);
 
     // Clean up old active user records every hour
-    this.intervals.set('cleanActiveUsers', setInterval(() => {
+    const cleanActiveUsersTimer = setInterval(() => {
       this.cleanupActiveUsers().catch(err => {
         logger.error('Error in cleanup active users job:', err);
       });
-    }, 60 * 60 * 1000) as unknown as NodeJS.Timeout); // 1 hour
+    }, 60 * 60 * 1000) as unknown as NodeJS.Timeout; // 1 hour
+    cleanActiveUsersTimer.unref?.();
+    this.intervals.set('cleanActiveUsers', cleanActiveUsersTimer);
 
     logger.info('Feed job scheduler started');
   }

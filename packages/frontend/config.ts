@@ -3,15 +3,10 @@ export const API_URL =
   process.env.NODE_ENV === 'production'
     ? 'https://api.mention.earth'
     : (process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000');
-export const SOCKET_URL =
-  process.env.NODE_ENV === "production"
-    ? "wss://api.mention.earth"
-    : (process.env.API_URL_SOCKET ?? "ws://localhost:3000");
-
 export const API_URL_SOCKET =
   process.env.NODE_ENV === "production"
     ? "wss://api.mention.earth"
-    : (process.env.API_URL_SOCKET ?? "ws://localhost:3000");
+    : (process.env.EXPO_PUBLIC_API_URL_SOCKET ?? "ws://localhost:3000");
 
 // Syra live-rooms backend. Mention's rooms feature is powered by Syra, so room
 // HTTP + realtime traffic targets Syra (NOT api.mention.earth). The Oxy bearer
@@ -21,12 +16,6 @@ export const SYRA_API_URL =
 export const SYRA_SOCKET_URL =
   process.env.EXPO_PUBLIC_SYRA_SOCKET_URL || 'wss://api.syra.fm';
 
-export const API_URL_SOCKET_CHAT =
-  process.env.API_URL_SOCKET_CHAT ||
-  (process.env.NODE_ENV === 'production' ? 'wss://api.mention.earth' : 'http://localhost:4000');
-export const API_OXY_CHAT =
-  process.env.API_OXY_CHAT ||
-  (process.env.NODE_ENV === 'production' ? 'wss://api.mention.earth' : 'http://localhost:4000');
 export const OXY_BASE_URL =
   process.env.EXPO_PUBLIC_OXY_BASE_URL ||
   (process.env.NODE_ENV === 'production' ? 'https://api.oxy.so' : 'http://localhost:3001');
