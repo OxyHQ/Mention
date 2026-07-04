@@ -37,6 +37,7 @@ import { useTranslation } from 'react-i18next';
 import { FollowButton } from '@oxyhq/services';
 import { EntityFollowButton } from '@/components/EntityFollowButton';
 import { getNormalizedUserHandle } from '@oxyhq/core';
+import { logger } from '@/lib/logger';
 
 type FeedTab = 'recent' | 'profiles' | 'topics' | 'reviews';
 
@@ -706,7 +707,9 @@ export default function CustomFeedTimelineScreen() {
         url,
         title: `${feed.title} on Mention`,
       });
-    } catch { }
+    } catch (error) {
+      logger.warn('Failed to share feed', { error, feedId: id });
+    }
   }, [feed, id]);
 
   const handleTabPress = useCallback((tabId: string) => {

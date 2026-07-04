@@ -1090,10 +1090,12 @@ class SocketService {
    */
   subscribeToPresence(userId: string, callback: (online: boolean) => void): () => void {
     this.pruneListenerMap(this.presenceListeners);
-    if (!this.presenceListeners.has(userId)) {
-      this.presenceListeners.set(userId, new Set());
+    let listeners = this.presenceListeners.get(userId);
+    if (!listeners) {
+      listeners = new Set();
+      this.presenceListeners.set(userId, listeners);
     }
-    this.presenceListeners.get(userId)!.add(callback);
+    listeners.add(callback);
 
     // Tell server to subscribe to this user's presence
     if (this.socket?.connected) {

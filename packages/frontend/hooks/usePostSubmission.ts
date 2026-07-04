@@ -1,7 +1,12 @@
 import { useState, useCallback, useRef } from 'react';
 import { MentionData } from '@/components/MentionTextInput';
 import { createScopedLogger } from '@/lib/logger';
-import { GeoJSONPoint } from '@mention/shared-types';
+import {
+  GeoJSONPoint,
+  CreatePostRequest,
+  CreateThreadPostRequest,
+  ReplyPermission,
+} from '@mention/shared-types';
 import { classifyApiError } from '@/utils/apiError';
 import { buildAttachmentsPayload } from '@/utils/attachmentsUtils';
 import {
@@ -11,6 +16,7 @@ import {
   createMediaAttachmentKey,
 } from '@/utils/composeUtils';
 import type { ThreadItem } from '@/hooks/useThreadManager';
+import type { FeedItem } from '@/db/schema';
 
 const logger = createScopedLogger('usePostSubmission');
 
@@ -30,13 +36,13 @@ interface PostSubmissionProps {
   attachmentOrder: string[];
   threadItems: ThreadItem[];
   postingMode: 'thread' | 'beast';
-  replyPermission: string[];
+  replyPermission: ReplyPermission[];
   reviewReplies: boolean;
   quotesDisabled: boolean;
   scheduledAt: Date | null;
   scheduleEnabled: boolean;
   sanitizeSourcesForSubmit: (sources: any[]) => any[];
-  createPost: (post: any) => Promise<any>;
+  createPost: (post: CreatePostRequest) => Promise<FeedItem | null>;
   createThread: (thread: any) => Promise<any>;
   deleteDraft: (draftId: string) => Promise<void>;
   currentDraftId: string | null;
@@ -93,7 +99,7 @@ export const usePostSubmission = ({
     return hasText || hasMedia || hasPoll || hasArticleContent || hasEventContent;
   }, [postContent, mediaIds, pollOptions, hasArticleContent, hasEventContent]);
 
-  const buildMainPost = useCallback(() => {
+  const buildMainPost = useCallback((): CreatePostRequest => {
     const formattedSources = sanitizeSourcesForSubmit(sources);
     const hasPoll = pollOptions.length > 0 && pollOptions.some(opt => opt.trim().length > 0);
     
@@ -183,8 +189,8 @@ export const usePostSubmission = ({
     sanitizeSourcesForSubmit,
   ]);
 
-  const buildThreadPosts = useCallback(() => {
-    const posts: any[] = [];
+  const buildThreadPosts = useCallback((): CreateThreadPostRequest[] => {
+    const posts: CreateThreadPostRequest[] = [];
 
     threadItems.forEach(item => {
       if (item.text.trim().length > 0 || item.mediaIds.length > 0 ||
@@ -256,7 +262,7 @@ export const usePostSubmission = ({
     try {
       logger.info('Attempting to create posts...');
 
-      const allPosts = [];
+      const allPosts: CreatePostRequest[] = [];
       const mainPost = buildMainPost();
       allPosts.push(mainPost);
 
@@ -266,7 +272,7 @@ export const usePostSubmission = ({
       logger.info(`Creating ${allPosts.length} posts in ${postingMode} mode`);
 
       if (allPosts.length === 1) {
-        await createPost(allPosts[0] as any);
+        await createPost(allPosts[0]);
       } else {
         await createThread({
           mode: postingMode,

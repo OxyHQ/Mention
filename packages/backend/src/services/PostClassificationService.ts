@@ -131,6 +131,7 @@ class PostClassificationService {
         logger.error('[PostClassification] Processing failed:', error);
       });
     }, this.CLASSIFICATION_INTERVAL_MS);
+    this.classificationInterval.unref?.();
 
     // Run once on startup after a short delay. Tracked so stop() can cancel it
     // if leadership is lost before the initial run fires.
@@ -140,6 +141,7 @@ class PostClassificationService {
         logger.error('[PostClassification] Initial processing failed:', error);
       });
     }, this.INITIAL_RUN_DELAY_MS);
+    this.initialRunTimeout.unref?.();
 
     logger.info('[PostClassification] Service started with 5-minute interval');
   }
