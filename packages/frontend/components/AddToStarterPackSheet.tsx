@@ -7,6 +7,7 @@ import { SpinnerIcon } from '@oxyhq/bloom/loading';
 import { show as toast } from '@oxyhq/bloom/toast';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { useTranslation } from 'react-i18next';
+import { useAuth } from '@oxyhq/services';
 import { starterPacksService, type StarterPackCollection } from '@/services/starterPacksService';
 import { createScopedLogger } from '@/lib/logger';
 
@@ -63,11 +64,19 @@ export function AddToStarterPackSheet({ targetUserId, targetLabel, onClose }: Ad
   const theme = useTheme();
   const { t } = useTranslation();
   const queryClient = useQueryClient();
+  const { user, canUsePrivateApi } = useAuth();
   const [pendingIds, setPendingIds] = useState<Set<string>>(new Set());
 
+  // Account-scoped cache key: prevents the previous account's packs from leaking
+  // after a switch. Shares the `STARTER_PACKS_MINE_KEY` prefix so the create
+  // screen's `invalidateQueries({ queryKey: STARTER_PACKS_MINE_KEY })` still
+  // matches (invalidation is prefix-based; get/setQueryData below are exact).
+  const packsQueryKey = useMemo(() => [...STARTER_PACKS_MINE_KEY, user?.id], [user?.id]);
+
   const { data, isLoading, isError, refetch } = useQuery({
-    queryKey: STARTER_PACKS_MINE_KEY,
+    queryKey: packsQueryKey,
     queryFn: () => starterPacksService.list({ mine: true }),
+    enabled: canUsePrivateApi,
   });
 
   const label = useMemo(
@@ -96,11 +105,11 @@ export function AddToStarterPackSheet({ targetUserId, targetLabel, onClose }: Ad
   const toggle = useCallback(async (row: PackRow) => {
     if (row.pending) return;
     const willAdd = !row.hasUser;
-    const previous = queryClient.getQueryData<StarterPackCollection>(STARTER_PACKS_MINE_KEY);
+    const previous = queryClient.getQueryData<StarterPackCollection>(packsQueryKey);
 
     // Optimistic: flip membership in the cache and disable the row.
     setPendingIds((prev) => new Set(prev).add(row.id));
-    queryClient.setQueryData<StarterPackCollection>(STARTER_PACKS_MINE_KEY, (prev) => {
+    queryClient.setQueryData<StarterPackCollection>(packsQueryKey, (prev) => {
       if (!prev) return prev;
       return {
         ...prev,
@@ -132,11 +141,11 @@ export function AddToStarterPackSheet({ targetUserId, targetLabel, onClose }: Ad
         );
       }
       // Revalidate against server truth after a successful membership change.
-      queryClient.invalidateQueries({ queryKey: STARTER_PACKS_MINE_KEY });
+      queryClient.invalidateQueries({ queryKey: packsQueryKey });
     } catch (e) {
       logger.error('Starter pack membership toggle failed', { error: e });
       // Revert optimistic cache state.
-      if (previous) queryClient.setQueryData(STARTER_PACKS_MINE_KEY, previous);
+      if (previous) queryClient.setQueryData(packsQueryKey, previous);
       toast(
         readServerError(e) ?? t('starterPacks.addTo.toggleFailed', { defaultValue: 'Something went wrong' }),
         { type: 'error' }
@@ -148,7 +157,7 @@ export function AddToStarterPackSheet({ targetUserId, targetLabel, onClose }: Ad
         return next;
       });
     }
-  }, [queryClient, targetUserId, t]);
+  }, [queryClient, targetUserId, t, packsQueryKey]);
 
   const goCreate = useCallback(() => {
     onClose();

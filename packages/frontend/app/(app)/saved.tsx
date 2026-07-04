@@ -62,6 +62,32 @@ const SavedPostsScreen: React.FC = () => {
         fetchFolders();
     }, [isAuthenticated, viewerId, fetchFolders]);
 
+    // Fetch the saved-posts list for the current search + folder. Extracted so
+    // both the list effect and the "move to folder" flow can trigger the same
+    // refetch.
+    const fetchSavedPosts = useCallback(async () => {
+        setLoading(true);
+        try {
+            const params: { page: number; limit: number; search?: string; folder?: string } = {
+                page: 1,
+                limit: 50,
+            };
+            if (searchQuery.trim()) {
+                params.search = searchQuery.trim();
+            }
+            if (selectedFolder) {
+                params.folder = selectedFolder;
+            }
+            const response = await authenticatedClient.get<{ posts?: SavedPost[] }>('/posts/saved', { params });
+            setPosts(response.data?.posts || []);
+            setPage(1);
+        } catch (error) {
+            logger.error('Error fetching saved posts', { error });
+        } finally {
+            setLoading(false);
+        }
+    }, [searchQuery, selectedFolder]);
+
     // Fetch saved posts
     useEffect(() => {
         if (!isAuthenticated) {
@@ -70,32 +96,9 @@ const SavedPostsScreen: React.FC = () => {
             return;
         }
 
-        const fetchSavedPosts = async () => {
-            setLoading(true);
-            try {
-                const params: { page: number; limit: number; search?: string; folder?: string } = {
-                    page: 1,
-                    limit: 50,
-                };
-                if (searchQuery.trim()) {
-                    params.search = searchQuery.trim();
-                }
-                if (selectedFolder) {
-                    params.folder = selectedFolder;
-                }
-                const response = await authenticatedClient.get<{ posts?: SavedPost[] }>('/posts/saved', { params });
-                setPosts(response.data?.posts || []);
-                setPage(1);
-            } catch (error) {
-                logger.error('Error fetching saved posts', { error });
-            } finally {
-                setLoading(false);
-            }
-        };
-
         const timeoutId = setTimeout(fetchSavedPosts, searchQuery.trim() ? 500 : 0);
         return () => clearTimeout(timeoutId);
-    }, [isAuthenticated, viewerId, searchQuery, selectedFolder]);
+    }, [isAuthenticated, viewerId, searchQuery, fetchSavedPosts]);
 
     const handleCreateFolder = async () => {
         const name = newFolderName.trim();
@@ -111,14 +114,11 @@ const SavedPostsScreen: React.FC = () => {
     const handleMoveToFolder = async (folder: string | null) => {
         if (!movingPostId) return;
         try {
-            // Find the bookmark by postId - we need to query bookmarks
-            const savedResponse = await authenticatedClient.get('/posts/saved', { params: { limit: 100 } });
-            // The backend returns hydrated posts, but we need the bookmark ID.
-            // We'll use a PATCH with the post ID approach instead
-            // For simplicity, move by finding bookmarks on backend
             await authenticatedClient.patch(`/posts/bookmarks/${movingPostId}/folder`, { folder });
-            // Refresh
+            // Refresh the folder list and the saved-posts list: a post moved out
+            // of the active folder must drop off the current view immediately.
             fetchFolders();
+            fetchSavedPosts();
         } catch (error) {
             logger.error('Error moving bookmark', { error });
         }
