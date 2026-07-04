@@ -131,3 +131,4 @@ packages/backend/uploads/
 # AI tool worktrees
 .claude/
 .opencode
+.superpowers
