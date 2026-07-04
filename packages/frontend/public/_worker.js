@@ -65,11 +65,38 @@
  * is an infra step, not worker code — see the go-live runbook.
  */
 
+/* global HTMLRewriter -- provided by the Cloudflare Pages runtime (no import). */
+
 /** Canonical ActivityPub actor base for local users. */
 const ACTOR_BASE = 'https://api.mention.earth/ap/users/';
 
 /** Backend origin that serves the atproto bridge XRPC + apex handle resolution. */
 const BACKEND_ORIGIN = 'https://api.mention.earth';
+
+/** Oxy API origin — canonical profiles live here, NOT on `api.mention.earth`. */
+const OXY_API_ORIGIN = 'https://api.oxy.so';
+
+/** By-id media CDN — bare Oxy file ids resolve to `${CLOUD_ORIGIN}/<id>`. */
+const CLOUD_ORIGIN = 'https://cloud.oxy.so';
+
+/** Canonical web origin used for `og:url` (the apex this worker serves). */
+const WEB_ORIGIN = 'https://mention.earth';
+
+/**
+ * Pre-hydration background color injected into every HTML `<head>`. Matches the
+ * native splash bg + `AppSplashScreen` dark base so a hard reload paints dark
+ * immediately instead of the browser's default white (the "white flash").
+ */
+const PREBOOT_BG = '#0B0B0F';
+
+/** Hard timeout for the per-request OG data fetch — a slow API must never block a page. */
+const OG_FETCH_TIMEOUT_MS = 2500;
+
+/** Profile URL: `/@handle` plus sub-tabs (`/@handle/media`, …). Handle = `user` or `user@domain`. */
+const OG_PROFILE_PATH = /^\/@([^/]+)(?:\/|$)/;
+
+/** Post URL: `/p/<id>` (optional trailing slash). */
+const POST_PATH = /^\/p\/([^/]+)\/?$/;
 
 /** Local profile path: a single segment after `@`, with no second `@`. */
 const LOCAL_PROFILE_PATH = /^\/@([^/@]+)$/;
@@ -142,6 +169,192 @@ function proxyToBackend(request) {
   });
 }
 
+/*
+ * ---------------------------------------------------------------------------
+ * Pre-hydration background + per-request OpenGraph/Twitter meta injection.
+ *
+ * WHY: an Expo single-output web build ships ONE static `index.html` with a
+ * bare `<title>Mention</title>` and no per-URL meta — the SPA fills content in
+ * only after the JS boots. That means (a) a hard reload flashes the browser's
+ * default white page before React paints, and (b) crawlers / link-unfurlers
+ * (Slack, Discord, iMessage, Mastodon, Twitter) that never run JS see the same
+ * empty shell for every profile and post — no rich preview.
+ *
+ * This is the CF-edge equivalent of Bluesky's `bskyweb` server, which injects
+ * per-request OG tags into the SPA HTML. We do the same with `HTMLRewriter`
+ * (a CF runtime global — no import): inject a dark `<style>` into every page,
+ * and for `/@handle` and `/p/:id` fetch the public OG data and inject meta.
+ *
+ * FAIL-OPEN is the contract: if the OG fetch errors, times out, or returns a
+ * non-OK/non-JSON body we serve the page normally (still with the dark bg). A
+ * slow or broken API must never block or fail a page load.
+ * ---------------------------------------------------------------------------
+ */
+
+/**
+ * Escape a string for safe interpolation into HTML attribute/text contexts.
+ * Handles the minimum dangerous set (`& < > "`). Non-string input → empty.
+ */
+function escapeHtml(str) {
+  if (typeof str !== 'string') return '';
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+/**
+ * Fetch public OG JSON with an abort-timeout and edge caching. Returns the
+ * parsed body, or `null` on ANY failure (timeout, network, non-OK, bad JSON).
+ * Never throws — callers rely on `null` to fail open.
+ */
+async function fetchOgJson(url) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), OG_FETCH_TIMEOUT_MS);
+  try {
+    const response = await fetch(url, {
+      headers: { Accept: 'application/json' },
+      signal: controller.signal,
+      // Edge-cache the public OG payload for 5 minutes — crawlers hammer these.
+      cf: { cacheTtl: 300, cacheEverything: true },
+    });
+    if (!response.ok) return null;
+    return await response.json();
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
+ * Build OG data for a profile URL (`/@handle`). Works for local and federated
+ * handles — both resolve through the Oxy API. Returns `{title, description,
+ * image, url, type}` or `null` when the handle is unknown / the fetch failed.
+ */
+async function buildProfileOg(handle) {
+  const json = await fetchOgJson(
+    `${OXY_API_ORIGIN}/profiles/username/${encodeURIComponent(handle)}`,
+  );
+  const data = json?.data;
+  if (!data?.username) return null;
+
+  const username = data.username;
+  const displayName = data.name?.displayName;
+  const avatar = data.avatar;
+
+  let image;
+  if (typeof avatar === 'string' && avatar.length > 0) {
+    // Federated avatars are absolute URLs; local avatars are bare Oxy file ids.
+    image = avatar.startsWith('http')
+      ? avatar
+      : `${CLOUD_ORIGIN}/${encodeURIComponent(avatar)}?variant=thumb`;
+  }
+
+  return {
+    title: displayName
+      ? `${displayName} (@${username}) on Mention`
+      : `@${username} on Mention`,
+    description: (data.bio || data.description || '').trim(),
+    image,
+    url: `${WEB_ORIGIN}/@${username}`,
+    type: 'profile',
+  };
+}
+
+/**
+ * Build OG data for a post URL (`/p/:id`). The feed-item endpoint returns the
+ * post object at the TOP LEVEL (not wrapped in `{data}`). Returns `{title,
+ * description, image, url, type}` or `null` when the post is missing.
+ */
+async function buildPostOg(id) {
+  const post = await fetchOgJson(
+    `${BACKEND_ORIGIN}/feed/item/${encodeURIComponent(id)}`,
+  );
+  if (!post?.user) return null;
+
+  const user = post.user;
+  const author = user.displayName || `@${user.handle}`;
+  const media = post.content?.media?.[0];
+
+  const image =
+    media?.url ||
+    media?.thumbUrl ||
+    media?.posterUrl ||
+    post.linkPreview?.image ||
+    user.avatarUrl ||
+    undefined;
+
+  return {
+    title: `${author} on Mention`,
+    description: (post.content?.text || '').trim().slice(0, 200),
+    image,
+    url: `${WEB_ORIGIN}/p/${id}`,
+    type: 'article',
+  };
+}
+
+/**
+ * Render the OG/Twitter `<meta>` block for injection into `<head>`. Every
+ * dynamic value is HTML-escaped. `og:image`/`twitter:image` are emitted only
+ * when an image is present (a preview card without an image is still valid).
+ */
+function ogMetaHtml(og) {
+  const title = escapeHtml(og.title);
+  const description = escapeHtml(og.description);
+  const url = escapeHtml(og.url);
+  const type = escapeHtml(og.type);
+
+  let html =
+    `<meta property="og:type" content="${type}">` +
+    `<meta property="og:site_name" content="Mention">` +
+    `<meta property="og:url" content="${url}">` +
+    `<meta property="og:title" content="${title}">` +
+    `<meta property="og:description" content="${description}">` +
+    `<meta name="twitter:card" content="summary_large_image">` +
+    `<meta name="twitter:title" content="${title}">` +
+    `<meta name="twitter:description" content="${description}">` +
+    `<meta name="description" content="${description}">`;
+
+  if (og.image) {
+    const image = escapeHtml(og.image);
+    html +=
+      `<meta property="og:image" content="${image}">` +
+      `<meta name="twitter:image" content="${image}">`;
+  }
+
+  return html;
+}
+
+/**
+ * Stream the HTML response through `HTMLRewriter`, injecting the dark preboot
+ * background into every page and — when `og` is present — the OG meta block +
+ * a replaced `<title>`. Non-HTML responses never reach here.
+ */
+function transformHtml(response, og) {
+  const rewriter = new HTMLRewriter().on('head', {
+    element(element) {
+      element.append(
+        `<style id="mention-preboot-bg">html,body,#root{background-color:${PREBOOT_BG}}</style>`,
+        { html: true },
+      );
+      if (og) element.append(ogMetaHtml(og), { html: true });
+    },
+  });
+
+  // Replace the static `<title>Mention</title>` rather than appending a second one.
+  if (og) {
+    rewriter.on('title', {
+      element(element) {
+        element.setInnerContent(og.title);
+      },
+    });
+  }
+
+  return rewriter.transform(response);
+}
+
 export default {
   async fetch(request, env) {
     const { pathname } = new URL(request.url);
@@ -172,7 +385,25 @@ export default {
     }
 
     // 4. Serve the static export (and the `_redirects` SPA fallback) for everything
-    // else: human browsers, federated profiles, and all other routes.
-    return env.ASSETS.fetch(request);
+    // else: human browsers, federated profiles, and all other routes. Only GET
+    // `text/html` responses get the preboot-bg + OG-meta injection; every other
+    // asset (JS/CSS/images/fonts) passes through untouched. OG fetching is fully
+    // fail-open — any error falls back to serving the page with just the bg.
+    const assetResponse = await env.ASSETS.fetch(request);
+    if (request.method !== 'GET') return assetResponse;
+    const contentType = assetResponse.headers.get('content-type') || '';
+    if (!contentType.includes('text/html')) return assetResponse;
+
+    let og = null;
+    const profileMatch = pathname.match(OG_PROFILE_PATH);
+    const postMatch = pathname.match(POST_PATH);
+    try {
+      if (profileMatch) og = await buildProfileOg(decodeURIComponent(profileMatch[1]));
+      else if (postMatch) og = await buildPostOg(postMatch[1]);
+    } catch {
+      og = null;
+    }
+
+    return transformHtml(assetResponse, og);
   },
 };
