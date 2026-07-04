@@ -41,13 +41,6 @@ interface PresenceUpdateData {
   online: boolean;
 }
 
-interface FollowEventData {
-  followerId: string;
-  followingId: string;
-  followerCount?: number;
-  followingCount?: number;
-}
-
 interface EngagementUpdate {
   type: 'like' | 'unlike' | 'boost' | 'unboost' | 'save' | 'unsave' | 'reply';
   data: EngagementEventData;
@@ -253,7 +246,6 @@ class SocketService {
 
     // Clear all listener maps
     this.presenceListeners.clear();
-    this.followListeners.clear();
 
     // Stop health monitoring
     this.stopHealthMonitoring();
@@ -316,8 +308,6 @@ class SocketService {
     this.socket.off('post:unsaved');
     this.socket.off('user:presence');
     this.socket.off('user:presenceBulk');
-    this.socket.off('user:followed');
-    this.socket.off('user:unfollowed');
     this.socket.off(SOCKET_EVENT_TRENDS_UPDATED);
     this.socket.off(SOCKET_EVENT_ROOMS_LIVE_UPDATED);
   }
@@ -422,15 +412,6 @@ class SocketService {
 
     this.socket.on('user:presenceBulk', (data) => {
       this.handlePresenceBulkUpdate(data);
-    });
-
-    // Follow events
-    this.socket.on('user:followed', (data) => {
-      this.handleUserFollowed(data);
-    });
-
-    this.socket.on('user:unfollowed', (data) => {
-      this.handleUserUnfollowed(data);
     });
 
     // Trends recalculated server-side → silently refetch the trends list
@@ -1085,60 +1066,6 @@ class SocketService {
     });
   }
 
-  // Follow event listeners
-  private followListeners: Map<string, Set<(data: FollowEventData) => void>> = new Map();
-
-  /**
-   * Handle user followed event
-   */
-  private handleUserFollowed(data: FollowEventData) {
-    if (!data) return;
-
-    const eventData: FollowEventData = {
-      followerId: data.followerId,
-      followingId: data.followingId,
-      followerCount: data.followerCount ?? 0,
-      followingCount: data.followingCount ?? 0
-    };
-
-    // Notify listeners for the user who was followed (their follower count changed)
-    const followedListeners = this.followListeners.get(data.followingId);
-    if (followedListeners) {
-      followedListeners.forEach(callback => callback(eventData));
-    }
-
-    // Notify listeners for the user who followed (their following count changed)
-    const followerListeners = this.followListeners.get(data.followerId);
-    if (followerListeners) {
-      followerListeners.forEach(callback => callback(eventData));
-    }
-  }
-
-  /**
-   * Handle user unfollowed event
-   */
-  private handleUserUnfollowed(data: FollowEventData) {
-    if (!data) return;
-
-    const eventData: FollowEventData = {
-      followerId: data.followerId,
-      followingId: data.followingId,
-      followerCount: data.followerCount ?? 0,
-      followingCount: data.followingCount ?? 0
-    };
-
-    // Same as followed - notify both parties
-    const unfollowedListeners = this.followListeners.get(data.followingId);
-    if (unfollowedListeners) {
-      unfollowedListeners.forEach(callback => callback(eventData));
-    }
-
-    const unfollowerListeners = this.followListeners.get(data.followerId);
-    if (unfollowerListeners) {
-      unfollowerListeners.forEach(callback => callback(eventData));
-    }
-  }
-
   /**
    * Prune empty entries from a listener map and evict oldest if over limit
    */
@@ -1219,30 +1146,6 @@ class SocketService {
         resolve(data || {});
       });
     });
-  }
-
-  /**
-   * Subscribe to follow count updates for a user
-   */
-  subscribeToFollowUpdates(userId: string, callback: (data: FollowEventData) => void): () => void {
-    this.pruneListenerMap(this.followListeners);
-    let listeners = this.followListeners.get(userId);
-    if (!listeners) {
-      listeners = new Set();
-      this.followListeners.set(userId, listeners);
-    }
-    listeners.add(callback);
-
-    // Return unsubscribe function
-    return () => {
-      const current = this.followListeners.get(userId);
-      if (current) {
-        current.delete(callback);
-        if (current.size === 0) {
-          this.followListeners.delete(userId);
-        }
-      }
-    };
   }
 
   /**

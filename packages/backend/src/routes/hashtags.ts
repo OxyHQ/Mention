@@ -72,16 +72,28 @@ router.get("/", async (req: Request, res: Response) => {
       return { ...x, direction };
     });
 
-    // Fallback: if no stored hashtags yet, derive from post content.text
+    // Fallback: if no stored hashtags yet, derive from post content.text.
+    // This scans post bodies and regex-extracts inline #tags, so it MUST stay
+    // bounded — an unbounded scan would load every public text post into memory.
+    // Two guards: a recent-window floor on `createdAt` (never wider than
+    // FALLBACK_WINDOW_MS, even when no `days` filter was supplied) and a hard
+    // document cap via `.limit()` on the newest posts.
     if (!agg || agg.length === 0) {
+      const FALLBACK_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+      const FALLBACK_SCAN_LIMIT = 1000;
+      const fallbackFloor = new Date(Date.now() - FALLBACK_WINDOW_MS);
+      // Honor a caller-supplied window but never let it exceed the floor.
+      const fallbackSince = since && since > fallbackFloor ? since : fallbackFloor;
       const textMatch: Record<string, unknown> = {
         visibility: 'public',
-        'content.text': { $exists: true, $ne: '' }
+        'content.text': { $exists: true, $ne: '' },
+        createdAt: { $gte: fallbackSince },
       };
-      if (since) {
-        textMatch.createdAt = { $gte: since };
-      }
-      const posts = await Post.find(textMatch).select({ 'content.text': 1, createdAt: 1 }).lean();
+      const posts = await Post.find(textMatch)
+        .select({ 'content.text': 1, createdAt: 1 })
+        .sort({ createdAt: -1 })
+        .limit(FALLBACK_SCAN_LIMIT)
+        .lean();
       const counts: Record<string, { c: number; latest: Date }> = {};
       for (const p of posts) {
         const text: string = p?.content?.text || '';

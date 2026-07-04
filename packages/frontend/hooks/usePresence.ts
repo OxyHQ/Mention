@@ -86,19 +86,4 @@ export function usePresenceBulk(userIds: string[]): Record<string, boolean> {
   return presenceMap;
 }
 
-/**
- * Hook to subscribe to follow count updates for a user
- */
-export function useFollowUpdates(
-  userId: string | undefined,
-  onUpdate?: (data: { followerId: string; followingId: string; followerCount?: number; followingCount?: number }) => void
-) {
-  useEffect(() => {
-    if (!userId || !onUpdate) return;
-
-    const unsubscribe = socketService.subscribeToFollowUpdates(userId, onUpdate);
-    return unsubscribe;
-  }, [userId, onUpdate]);
-}
-
 export default usePresence;
