@@ -85,7 +85,7 @@ const RoomRow = React.memo(function RoomRow({
   );
 });
 
-export function LiveRoomsWidget() {
+export function LiveRoomsWidget({ divider }: { divider?: boolean }) {
   const { isAuthenticated } = useAuth();
   const { t } = useTranslation();
   const router = useRouter();
@@ -150,6 +150,7 @@ export function LiveRoomsWidget() {
     <BaseWidget
       title="Live Rooms"
       icon={<LiveRoomsIcon size={16} color={theme.colors.text} />}
+      divider={divider}
     >
       {isLoading && !hasFetched ? (
         <View className="gap-2.5 py-1">

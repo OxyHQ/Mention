@@ -16,7 +16,7 @@ import { getNormalizedUserHandle } from '@oxyhq/core';
 
 const MAX_DISPLAY_USERS = 5;
 
-export function WhoToFollowWidget() {
+export function WhoToFollowWidget({ divider }: { divider?: boolean }) {
   const { t } = useTranslation();
   const router = useRouter();
 
@@ -35,7 +35,7 @@ export function WhoToFollowWidget() {
 
   if (loading) {
     return (
-      <BaseWidget title={t("Who to follow")}>
+      <BaseWidget title={t("Who to follow")} divider={divider}>
         <View className="gap-2 py-1">
           {Array.from({ length: 3 }).map((_, i) => (
             <Skeleton.Row key={i} style={{ alignItems: 'center', gap: 10 }}>
@@ -54,7 +54,7 @@ export function WhoToFollowWidget() {
 
   if (error) {
     return (
-      <BaseWidget title={t("Who to follow")}>
+      <BaseWidget title={t("Who to follow")} divider={divider}>
         <View className="py-2 items-center gap-2">
           <ThemedText className="text-destructive text-[13px]">
             {error.message}
@@ -66,7 +66,7 @@ export function WhoToFollowWidget() {
 
   if (displayedUsers.length === 0) {
     return (
-      <BaseWidget title={t("Who to follow")}>
+      <BaseWidget title={t("Who to follow")} divider={divider}>
         <View className="py-2 items-center">
           <ThemedText className="text-muted-foreground">
             {t("No recommendations available")}
@@ -77,7 +77,7 @@ export function WhoToFollowWidget() {
   }
 
   return (
-    <BaseWidget title={t("Who to follow")}>
+    <BaseWidget title={t("Who to follow")} divider={divider}>
       <View className="gap-2">
         <View>
           {displayedUsers.map((user, index) => (

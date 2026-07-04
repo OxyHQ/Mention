@@ -17,9 +17,10 @@ const TRENDING_ROUTE = '/explore/trending';
 
 interface TrendsWidgetProps {
   variant?: 'card' | 'inline';
+  divider?: boolean;
 }
 
-export function TrendsWidget({ variant = 'card' }: TrendsWidgetProps) {
+export function TrendsWidget({ variant = 'card', divider }: TrendsWidgetProps) {
   const { t } = useTranslation();
   const { trends, summary, isLoading, hasFetched, error, hiddenTrendIds, startPolling, stopPolling, hideTrend } =
     useTrendsStore();
@@ -125,7 +126,7 @@ export function TrendsWidget({ variant = 'card' }: TrendsWidgetProps) {
   }
 
   return (
-    <BaseWidget title={t('Trending')}>
+    <BaseWidget title={t('Trending')} divider={divider}>
       {content}
     </BaseWidget>
   );

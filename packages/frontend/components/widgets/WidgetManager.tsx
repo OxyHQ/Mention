@@ -44,8 +44,8 @@ export function WidgetManager({ screenId, customWidgets = [] }: WidgetManagerPro
         switch (screen) {
             case 'home':
                 return [
-                    <LiveRoomsWidget key="live-rooms" />,
-                    <TrendsWidget key="trends" />,
+                    <LiveRoomsWidget key="live-rooms" divider />,
+                    <TrendsWidget key="trends" divider />,
                     <WhoToFollowWidget key="who-to-follow" />,
                 ];
 

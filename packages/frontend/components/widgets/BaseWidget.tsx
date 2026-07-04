@@ -5,14 +5,15 @@ import { ThemedText } from '@/components/ThemedText';
 type BaseWidgetProps = {
     title?: string;
     icon?: ReactNode;
+    divider?: boolean;
     children: ReactNode;
 };
 
-export function BaseWidget({ title, icon, children }: BaseWidgetProps) {
+export function BaseWidget({ title, icon, divider, children }: BaseWidgetProps) {
     return (
         <View
-            className="bg-card border-border rounded-2xl overflow-hidden p-3 gap-2"
-            style={styles.hairlineBorder}
+            className={`gap-2${divider ? ' pb-4 border-border' : ''}`}
+            style={[styles.base, divider && styles.divider]}
         >
             {title && (
                 <View className="flex-row justify-between items-center">
@@ -26,8 +27,10 @@ export function BaseWidget({ title, icon, children }: BaseWidgetProps) {
 }
 
 const styles = StyleSheet.create({
-    hairlineBorder: {
-        borderWidth: StyleSheet.hairlineWidth,
+    base: {
         pointerEvents: 'auto',
+    },
+    divider: {
+        borderBottomWidth: StyleSheet.hairlineWidth,
     },
 });
