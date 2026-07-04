@@ -202,9 +202,6 @@ interface VideoItemProps {
     bottomBarHeight: number;
     t: (key: string) => string;
     windowHeight: number;
-    // Desktop (>=990) moves the action column + on-video follow into the rail; the
-    // overlay keeps only the Shorts-style author/caption/sound block.
-    isDesktop: boolean;
     // The signed-in viewer's id — hides the on-video follow button on the
     // author's own video.
     viewerId?: string;
@@ -597,7 +594,6 @@ const VideoItem = memo<VideoItemProps>(({
     bottomBarHeight,
     t,
     windowHeight,
-    isDesktop,
     viewerId,
 }) => {
     const router = useRouter();
@@ -630,8 +626,10 @@ const VideoItem = memo<VideoItemProps>(({
     }, [item.id, item.isLiked, onLike]);
 
     const canRenderPlayer = isNear && !videoError && item.videoUrl.length > 0;
-    const showOnVideoActions = !isDesktop;
-    const showOnVideoFollow = !isDesktop && Boolean(item.user?.id) && item.user?.id !== viewerId;
+    // Actions + follow always overlay the video, on every breakpoint — desktop
+    // matches mobile (there is no separate rail).
+    const showOnVideoActions = true;
+    const showOnVideoFollow = Boolean(item.user?.id) && item.user?.id !== viewerId;
     const showCaptionToggle = postText.length > CAPTION_EXPAND_MIN_CHARS;
 
     return (
@@ -858,8 +856,10 @@ export default function VideosScreen() {
     const { oxyServices, user, canUsePrivateApi, isAuthResolved, isAuthenticated } = useAuth();
     const viewerId = user?.id;
     const { likePost, unlikePost, boostPost, unboostPost, getPostById } = usePostsStore();
-    // Desktop (>=990) gate — shared source of truth with the RightBar. On desktop
-    // the engagement column + on-video follow move into the rail.
+    // Desktop (>=990) gate. Actions + follow now overlay the video on every
+    // breakpoint (matching mobile); `isDesktop` only decides how the comment
+    // button behaves — a no-op on desktop (replies are already open in the
+    // RightBar) vs. opening the bottom sheet on mobile.
     const isDesktop = useIsRightBarVisible();
     const { setRailState } = useVideosRail();
     const { openBottomSheet, setBottomSheetContent } = useContext(BottomSheetContext);
@@ -1366,12 +1366,12 @@ export default function VideosScreen() {
         loadMutedState();
     }, [loadMutedState]);
 
-    // ── Desktop rail coordination ───────────────────────────────────
-    // The rail (rendered in RightBar) is a read-only projection of this screen's
-    // active post + a set of screen-bound callbacks. Writing this derived state to
-    // an external store is the same legitimate-effect pattern as the ScreenColor
-    // screens. `active` flips true on mount and false on unmount so the rail
-    // mounts/unmounts in lockstep with /videos.
+    // ── Desktop replies-panel coordination ──────────────────────────
+    // The RightBar replies panel is a read-only projection of this screen's
+    // active post. Writing this derived state to an external store is the same
+    // legitimate-effect pattern as the ScreenColor screens. `active` flips true
+    // on mount and false on unmount so the panel mounts/unmounts in lockstep
+    // with /videos.
     useEffect(() => {
         setRailState({ active: true });
         return () => {
@@ -1383,46 +1383,16 @@ export default function VideosScreen() {
 
     const railActivePost = useMemo<VideosRailActivePost | null>(() => {
         if (!activeVideoPost) return null;
-        const authorId = activeVideoPost.user?.id;
-        return {
-            id: activeVideoPost.id,
-            authorId,
-            authorIsViewer: Boolean(authorId) && authorId === viewerId,
-            isLiked: activeVideoPost.isLiked || false,
-            isBoosted: activeVideoPost.isBoosted || false,
-            likesCount: activeVideoPost.stats?.likesCount || 0,
-            commentsCount: activeVideoPost.stats?.commentsCount || 0,
-            boostsCount: activeVideoPost.stats?.boostsCount || 0,
-            viewsCount: activeVideoPost.stats?.viewsCount || 0,
-        };
-    }, [activeVideoPost, viewerId]);
+        return { id: activeVideoPost.id };
+    }, [activeVideoPost]);
 
-    // Push the snapshot + freshly-bound callbacks. The like/boost callbacks are
-    // FULL toggles (unlike the double-tap like-only path) and reuse the same
-    // screen handlers, so a rail mutation flows back through setPosts → re-derives
-    // railActivePost → the rail re-renders with the new count/state.
+    // Publish the active post + the comment-posted callback so the RightBar
+    // replies panel tracks whichever video is currently active and can bump the
+    // comment count after a reply posts. Engagement itself lives on the on-video
+    // action buttons (both platforms), so nothing else needs to cross over.
     useEffect(() => {
-        setRailState({
-            index: currentVisibleIndex,
-            total: posts.length,
-            activePost: railActivePost,
-            prev,
-            next,
-            onLike: () => {
-                if (railActivePost) handleLike(railActivePost.id, railActivePost.isLiked);
-            },
-            onComment: () => {
-                if (railActivePost) handleComment(railActivePost.id);
-            },
-            onBoost: () => {
-                if (railActivePost) handleBoost(railActivePost.id, railActivePost.isBoosted);
-            },
-            onShare: () => {
-                if (activeVideoPost) handleShare(activeVideoPost);
-            },
-            onCommentPosted: handleCommentPosted,
-        });
-    }, [setRailState, currentVisibleIndex, posts.length, railActivePost, prev, next, handleLike, handleComment, handleBoost, handleShare, activeVideoPost, handleCommentPosted]);
+        setRailState({ activePost: railActivePost, onCommentPosted: handleCommentPosted });
+    }, [setRailState, railActivePost, handleCommentPosted]);
 
     const renderVideoItem = useCallback(({ item, index }: { item: VideoPost; index: number }) => (
         <VideoItem
@@ -1441,10 +1411,9 @@ export default function VideosScreen() {
             bottomBarHeight={bottomBarHeight}
             t={t}
             windowHeight={WINDOW_HEIGHT}
-            isDesktop={isDesktop}
             viewerId={viewerId}
         />
-    ), [currentVisibleIndex, isFocused, theme, handleLike, handleComment, handleBoost, handleShare, globalMuted, handleMuteChange, bottomBarHeight, t, WINDOW_HEIGHT, isDesktop, viewerId]);
+    ), [currentVisibleIndex, isFocused, theme, handleLike, handleComment, handleBoost, handleShare, globalMuted, handleMuteChange, bottomBarHeight, t, WINDOW_HEIGHT, viewerId]);
 
     const keyExtractor = useCallback((item: VideoPost) => item.id, []);
 
@@ -1527,7 +1496,6 @@ export default function VideosScreen() {
                                     bottomBarHeight={bottomBarHeight}
                                     t={t}
                                     windowHeight={WINDOW_HEIGHT}
-                                    isDesktop={isDesktop}
                                     viewerId={viewerId}
                                 />
                             ))}

@@ -4,7 +4,6 @@ import { useTranslation } from 'react-i18next';
 import { SearchBar } from './SearchBar';
 import { WidgetManager } from './widgets/WidgetManager';
 import { openExternalLink } from '@/utils/openExternalLink';
-import { VideosRail } from './videos/VideosRail';
 import { VideoReplies } from './videos/VideoReplies';
 import { useIsRightBarVisible } from '@/hooks/useOptimizedMediaQuery';
 import { useVideosRail } from '@/context/VideosRailContext';
@@ -31,12 +30,10 @@ const webStickyContainer: WebViewStyle = {
     bottom: RIGHTBAR_STICKY_BOTTOM,
 };
 
-// The videos-rail branch needs its content anchored toward the BOTTOM of the
-// sticky slot (not shrink-wrapped to the top, which is what `webStickyContainer`
-// alone produces). Giving the box an explicit height equal to the sticky
-// window itself (viewport height minus the same top/bottom offsets above) lets
-// `justifyContent: 'flex-end'` push the rail's content down within that window,
-// instead of `alignSelf: flex-start` shrinking the box to its own content height.
+// The videos replies column needs an explicit height equal to the sticky slot
+// (viewport height minus the same top/bottom offsets above) so `VideoReplies` —
+// which is `flex: 1` with no intrinsic height — fills the sticky window and
+// scrolls its own content instead of collapsing to zero height.
 const videosRailStickyHeight: WebViewStyle = {
     height: `calc(100vh - ${RIGHTBAR_STICKY_TOP + RIGHTBAR_STICKY_BOTTOM}px)`,
 };
@@ -62,17 +59,12 @@ export function RightBar() {
 
     if (videosRailActive) {
         return (
-            <View className="flex-row" style={styles.videosOuterContainer}>
-                <View className="px-4 pt-4" style={styles.videosRailColumn}>
-                    <VideosRail />
-                </View>
+            <View style={styles.videosRepliesContainer}>
                 {activePost && (
-                    <View style={styles.repliesColumn}>
-                        <VideoReplies
-                            postId={activePost.id}
-                            onCommentPosted={() => onCommentPosted(activePost.id)}
-                        />
-                    </View>
+                    <VideoReplies
+                        postId={activePost.id}
+                        onCommentPosted={() => onCommentPosted(activePost.id)}
+                    />
                 )}
             </View>
         );
@@ -121,35 +113,19 @@ const FooterLink = React.memo(function FooterLink({ label, url }: { label: strin
     );
 });
 
-// The replies column's target width — generous enough for readable reply text
-// (avatar + username + timestamp + body), matching the reference Reels-on-iPad
-// comments panel proportions.
-const REPLIES_COLUMN_WIDTH = 360;
-
 const styles = StyleSheet.create({
     container: {
         width: 350,
         ...(Platform.OS === 'web' ? asViewStyle(webStickyContainer) : null),
     },
-    // Wider than the default 350px right bar since the /videos screen hosts TWO
-    // columns (rail + always-open replies) side by side. Every OTHER screen's
-    // right bar keeps the default 350px (`styles.container`, above) — this only
-    // applies here.
-    videosOuterContainer: {
-        width: 350 + REPLIES_COLUMN_WIDTH,
-        ...(Platform.OS === 'web' ? asViewStyle(webStickyContainer) : null),
-    },
-    // No fixed width — shrinks to the rail's own content (arrows/buttons),
-    // so it sits directly adjacent to the replies column with no dead gap,
-    // matching today's left-alignment fix. `justifyContent: flex-end` keeps
-    // the rail's content bottom-anchored within the sticky slot.
-    videosRailColumn: {
-        justifyContent: 'flex-end',
-        ...(Platform.OS === 'web' ? asViewStyle(videosRailStickyHeight) : null),
-    },
-    // Fills the remaining width next to the rail column.
-    repliesColumn: {
-        flex: 1,
-        ...(Platform.OS === 'web' ? asViewStyle(videosRailStickyHeight) : null),
+    // The /videos right bar shows ONLY the replies panel, at the SAME 350px
+    // width the widgets use on every other screen (`styles.container`, above).
+    // On web it's sticky + full-height (the sticky-slot height) so the embedded
+    // `VideoReplies` fills it and scrolls its own content.
+    videosRepliesContainer: {
+        width: 350,
+        ...(Platform.OS === 'web'
+            ? asViewStyle({ ...webStickyContainer, ...videosRailStickyHeight })
+            : null),
     },
 });
