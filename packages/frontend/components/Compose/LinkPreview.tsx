@@ -9,7 +9,20 @@ import { useTranslation } from 'react-i18next';
 import { composePreviewEnter, composePreviewExit } from '@/lib/animations/entryExit';
 import { MEDIA_CARD_HEIGHT } from '@/utils/composeUtils';
 import { getApiOrigin } from '@/utils/api';
-import { proxyExternalUrl } from '@/utils/imageUrlCache';
+
+const LINK_PREVIEW_IMAGE_MAX_WIDTH = 600;
+const LINK_PREVIEW_IMAGE_MAX_HEIGHT = 315;
+const LINK_PREVIEW_IMAGE_QUALITY = 75;
+
+function getOptimizedExternalImageUrl(imageUrl: string): string {
+  const params = new URLSearchParams({
+    url: imageUrl,
+    w: String(LINK_PREVIEW_IMAGE_MAX_WIDTH),
+    h: String(LINK_PREVIEW_IMAGE_MAX_HEIGHT),
+    q: String(LINK_PREVIEW_IMAGE_QUALITY),
+  });
+  return `${getApiOrigin()}/images/optimize?${params.toString()}`;
+}
 
 /**
  * Resolve a link-preview image URL for display.
@@ -17,17 +30,30 @@ import { proxyExternalUrl } from '@/utils/imageUrlCache';
  * Link previews carry an `image` that is often hosted on the EXTERNAL site (e.g.
  * an og:image). Hot-linking that on web breaks for CORS-restricted hosts and dies
  * when the upstream link expires, so external absolute URLs are routed through our
- * media proxy (`proxyExternalUrl`), which serves them same-origin, cached, and
- * CORS-safe. Own-origin URLs — including our cached `/links/images/` previews — and
- * already-proxied URLs are returned unchanged by `proxyExternalUrl`. Relative
- * paths are resolved against the API origin first (handles localhost port + cached
- * previews) and are already on our origin, so they need no proxying.
+ * bounded image optimizer, which serves them same-origin, cached, resized, and
+ * CORS-safe. Own-origin URLs — including our cached `/links/images/` previews —
+ * are returned unchanged. Relative paths are resolved against the API origin
+ * first (handles localhost port + cached previews).
  */
 function fixImageUrl(imageUrl: string | undefined): string | undefined {
   if (!imageUrl) return imageUrl;
 
-  // Absolute URL: keep our cached preview on the right origin, otherwise proxy it.
+  // Absolute URL: keep our cached/optimized previews on the right origin, otherwise optimize it.
   if (imageUrl.startsWith('http://') || imageUrl.startsWith('https://')) {
+    try {
+      const parsed = new URL(imageUrl);
+      const apiOrigin = getApiOrigin();
+
+      // Already optimized/cached by our backend: keep the final URL to avoid an
+      // optimizer loop or a needless second optimization pass.
+      if (parsed.origin === apiOrigin && parsed.pathname === '/images/optimize') {
+        return imageUrl;
+      }
+    } catch {
+      // If parsing somehow fails despite the prefix check, fall through to the
+      // optimizer path; the backend will validate and reject malformed URLs.
+    }
+
     // If it's our cached preview image with the wrong port/origin, normalize it.
     if (imageUrl.includes('/links/images/')) {
       const apiOrigin = getApiOrigin();
@@ -36,10 +62,11 @@ function fixImageUrl(imageUrl: string | undefined): string | undefined {
         return `${apiOrigin}${pathMatch[0]}`;
       }
     }
-    // External (or any other absolute) image → route through our media proxy so it
-    // loads reliably on web and survives expiring upstream links. Own-origin and
-    // already-proxied URLs are returned unchanged by proxyExternalUrl.
-    return proxyExternalUrl(imageUrl);
+    // External image → route through the bounded image optimizer instead of the
+    // general media proxy. Link previews render as thumbnails, so using the
+    // streaming proxy would make viewers fetch the full attacker-controlled
+    // object even for tiny cards.
+    return getOptimizedExternalImageUrl(imageUrl);
   }
 
   // Relative URL - construct absolute URL on our origin (correct port locally).
