@@ -40,8 +40,8 @@
  *    parsed with the matching `mention*RecordSchema` before any projection.
  */
 
-import mongoose from 'mongoose';
-import type { SignedRecordEnvelope } from '@oxyhq/contracts';
+import mongoose from "mongoose";
+import type { SignedRecordEnvelope } from "@oxyhq/contracts";
 import {
   MENTION_POST_COLLECTION,
   MENTION_LIKE_COLLECTION,
@@ -60,17 +60,22 @@ import {
   type MentionTombstoneRecord,
   type MentionBookmarkRecord,
   type MtnMediaEmbed,
-} from '@mention/shared-types';
-import { PostType, PostVisibility } from '@mention/shared-types';
-import { Post, POST_CLASSIFICATION_PENDING } from '../../models/Post';
-import Like from '../../models/Like';
-import Bookmark from '../../models/Bookmark';
-import { logger } from '../../utils/logger';
-import { parseUserDid } from './mentionDid';
-import { baselineContentClassifier } from '../BaselineContentClassifier';
+} from "@mention/shared-types";
+import { PostType, PostVisibility } from "@mention/shared-types";
+import { Post, POST_CLASSIFICATION_PENDING } from "../../models/Post";
+import Like from "../../models/Like";
+import Bookmark from "../../models/Bookmark";
+import { logger } from "../../utils/logger";
+import { parseUserDid } from "./mentionDid";
+import { baselineContentClassifier } from "../BaselineContentClassifier";
 
 /** The kind of native row a successful projection produced/removed. */
-export type ProjectedKind = 'post' | 'like' | 'repost' | 'tombstone' | 'bookmark';
+export type ProjectedKind =
+  | "post"
+  | "like"
+  | "repost"
+  | "tombstone"
+  | "bookmark";
 
 /**
  * The outcome of {@link projectRecord}. Discriminates a successful projection
@@ -121,6 +126,19 @@ function toObjectId(rkey: string): mongoose.Types.ObjectId | null {
   return new mongoose.Types.ObjectId(rkey);
 }
 
+function isDuplicateKeyError(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    (error as { code?: unknown }).code === 11000
+  );
+}
+
+function ownerMatchesUriIdentity(uri: MtnUri, oxyUserId: string): boolean {
+  return uri.identity === oxyUserId || parseUserDid(uri.identity) === oxyUserId;
+}
+
 /**
  * Build the Stage-A `postClassification` subdoc + primary `language` for a post
  * record, MIRRORING `PostCreationService.applyBaselineClassification` EXACTLY so
@@ -130,7 +148,9 @@ function toObjectId(rkey: string): mongoose.Types.ObjectId | null {
  * can never fail projection — the caller then leaves the schema-default
  * `{ status: 'pending' }` subdoc in place (mirrors PostCreationService).
  */
-function buildClassificationFields(record: MentionPostRecord): Record<string, unknown> {
+function buildClassificationFields(
+  record: MentionPostRecord,
+): Record<string, unknown> {
   try {
     const signals = baselineContentClassifier.classify({
       text: record.text,
@@ -168,7 +188,10 @@ function buildClassificationFields(record: MentionPostRecord): Record<string, un
     return fields;
   } catch (error) {
     // Never fail projection on classification — leave the default pending subdoc.
-    logger.warn('PostMaterializer: baseline classification failed; projecting without Stage-A signals', error);
+    logger.warn(
+      "PostMaterializer: baseline classification failed; projecting without Stage-A signals",
+      error,
+    );
     return {};
   }
 }
@@ -202,7 +225,7 @@ async function projectPost(
   const set: Record<string, unknown> = {
     oxyUserId,
     type: PostType.TEXT,
-    'content.text': record.text ?? '',
+    "content.text": record.text ?? "",
     hashtags: tags,
     parentPostId,
     threadId,
@@ -215,37 +238,53 @@ async function projectPost(
 
   // `content.sources`: map the record's source links to the native shape.
   if (Array.isArray(record.sources) && record.sources.length > 0) {
-    set['content.sources'] = record.sources.map((s) =>
+    set["content.sources"] = record.sources.map((s) =>
       s.title ? { url: s.url, title: s.title } : { url: s.url },
     );
   }
 
   // `content.location`: a GeoJSON Point, when present on the record.
   if (record.location) {
-    set['content.location'] = {
-      type: 'Point',
-      coordinates: [record.location.coordinates[0], record.location.coordinates[1]],
+    set["content.location"] = {
+      type: "Point",
+      coordinates: [
+        record.location.coordinates[0],
+        record.location.coordinates[1],
+      ],
     };
   }
 
-  await Post.findByIdAndUpdate(
-    rkey,
-    {
-      $set: set,
-      $setOnInsert: { visibility: PostVisibility.PUBLIC, status: 'published' },
-    },
-    { upsert: true, new: true, setDefaultsOnInsert: true },
-  );
+  try {
+    await Post.findOneAndUpdate(
+      { _id: rkey, oxyUserId },
+      {
+        $set: set,
+        $setOnInsert: {
+          visibility: PostVisibility.PUBLIC,
+          status: "published",
+        },
+      },
+      { upsert: true, new: true, setDefaultsOnInsert: true },
+    );
+  } catch (error) {
+    if (isDuplicateKeyError(error)) {
+      return { ok: false, reason: "record_owner_mismatch" };
+    }
+    throw error;
+  }
 
   // Re-derive the Stage-A classification from the SAME inputs the native path
   // uses, and write it with a dotted `$set` (so it overwrites the whole subdoc
   // + the top-level primary language without touching unrelated fields).
   const classificationFields = buildClassificationFields(record);
   if (Object.keys(classificationFields).length > 0) {
-    await Post.findByIdAndUpdate(rkey, { $set: classificationFields });
+    await Post.findOneAndUpdate(
+      { _id: rkey, oxyUserId },
+      { $set: classificationFields },
+    );
   }
 
-  return { ok: true, kind: 'post', id: rkey };
+  return { ok: true, kind: "post", id: rkey };
 }
 
 /** Project an `app.mention.feed.like` record into a `Like` row (upsert by _id). */
@@ -255,17 +294,24 @@ async function projectLike(
   record: MentionLikeRecord,
 ): Promise<ProjectResult> {
   const likedRkey = rkeyFromMtnUri(record.subject);
-  if (!likedRkey) return { ok: false, reason: 'unresolvable_like_subject' };
+  if (!likedRkey) return { ok: false, reason: "unresolvable_like_subject" };
   const postId = toObjectId(likedRkey);
-  if (!postId) return { ok: false, reason: 'invalid_like_post_id' };
+  if (!postId) return { ok: false, reason: "invalid_like_post_id" };
 
-  await Like.findByIdAndUpdate(
-    rkey,
-    { $set: { userId, postId, value: 1 } },
-    { upsert: true, new: true, setDefaultsOnInsert: true },
-  );
+  try {
+    await Like.findOneAndUpdate(
+      { _id: rkey, userId },
+      { $set: { userId, postId, value: 1 } },
+      { upsert: true, new: true, setDefaultsOnInsert: true },
+    );
+  } catch (error) {
+    if (isDuplicateKeyError(error)) {
+      return { ok: false, reason: "record_owner_mismatch" };
+    }
+    throw error;
+  }
 
-  return { ok: true, kind: 'like', id: rkey };
+  return { ok: true, kind: "like", id: rkey };
 }
 
 /**
@@ -280,24 +326,34 @@ async function projectRepost(
   createdAt: Date,
 ): Promise<ProjectResult> {
   const boostOf = rkeyFromMtnUri(record.subject);
-  if (!boostOf) return { ok: false, reason: 'unresolvable_repost_subject' };
+  if (!boostOf) return { ok: false, reason: "unresolvable_repost_subject" };
 
-  await Post.findByIdAndUpdate(
-    rkey,
-    {
-      $set: {
-        oxyUserId,
-        type: PostType.BOOST,
-        boostOf,
-        'content.text': '',
-        createdAt,
+  try {
+    await Post.findOneAndUpdate(
+      { _id: rkey, oxyUserId },
+      {
+        $set: {
+          oxyUserId,
+          type: PostType.BOOST,
+          boostOf,
+          "content.text": "",
+          createdAt,
+        },
+        $setOnInsert: {
+          visibility: PostVisibility.PUBLIC,
+          status: "published",
+        },
       },
-      $setOnInsert: { visibility: PostVisibility.PUBLIC, status: 'published' },
-    },
-    { upsert: true, new: true, setDefaultsOnInsert: true },
-  );
+      { upsert: true, new: true, setDefaultsOnInsert: true },
+    );
+  } catch (error) {
+    if (isDuplicateKeyError(error)) {
+      return { ok: false, reason: "record_owner_mismatch" };
+    }
+    throw error;
+  }
 
-  return { ok: true, kind: 'repost', id: rkey };
+  return { ok: true, kind: "repost", id: rkey };
 }
 
 /** Project an `app.mention.feed.bookmark` record into a `Bookmark` row (upsert). */
@@ -307,17 +363,25 @@ async function projectBookmark(
   record: MentionBookmarkRecord,
 ): Promise<ProjectResult> {
   const bookmarkedRkey = rkeyFromMtnUri(record.subject);
-  if (!bookmarkedRkey) return { ok: false, reason: 'unresolvable_bookmark_subject' };
+  if (!bookmarkedRkey)
+    return { ok: false, reason: "unresolvable_bookmark_subject" };
   const postId = toObjectId(bookmarkedRkey);
-  if (!postId) return { ok: false, reason: 'invalid_bookmark_post_id' };
+  if (!postId) return { ok: false, reason: "invalid_bookmark_post_id" };
 
-  await Bookmark.findByIdAndUpdate(
-    rkey,
-    { $set: { userId, postId } },
-    { upsert: true, new: true, setDefaultsOnInsert: true },
-  );
+  try {
+    await Bookmark.findOneAndUpdate(
+      { _id: rkey, userId },
+      { $set: { userId, postId } },
+      { upsert: true, new: true, setDefaultsOnInsert: true },
+    );
+  } catch (error) {
+    if (isDuplicateKeyError(error)) {
+      return { ok: false, reason: "record_owner_mismatch" };
+    }
+    throw error;
+  }
 
-  return { ok: true, kind: 'bookmark', id: rkey };
+  return { ok: true, kind: "bookmark", id: rkey };
 }
 
 /**
@@ -328,15 +392,22 @@ async function projectBookmark(
  * COLLECTION selects which model to delete from. Idempotent: removing an
  * already-removed row is a no-op (still `ok`).
  */
-async function projectTombstone(record: MentionTombstoneRecord): Promise<ProjectResult> {
+async function projectTombstone(
+  record: MentionTombstoneRecord,
+  oxyUserId: string,
+): Promise<ProjectResult> {
   if (!MtnUri.isValid(record.subject)) {
-    return { ok: false, reason: 'unresolvable_tombstone_subject' };
+    return { ok: false, reason: "unresolvable_tombstone_subject" };
   }
   let subject: MtnUri;
   try {
     subject = MtnUri.parse(record.subject);
   } catch {
-    return { ok: false, reason: 'unresolvable_tombstone_subject' };
+    return { ok: false, reason: "unresolvable_tombstone_subject" };
+  }
+
+  if (!ownerMatchesUriIdentity(subject, oxyUserId)) {
+    return { ok: false, reason: "tombstone_owner_mismatch" };
   }
 
   const rkey = subject.rkey;
@@ -346,16 +417,16 @@ async function projectTombstone(record: MentionTombstoneRecord): Promise<Project
     case MENTION_REPOST_COLLECTION:
       // A post or boost: delete the Post by id (mirrors delete-post's hard
       // delete). Idempotent — a missing row deletes nothing.
-      await Post.findByIdAndDelete(rkey);
-      return { ok: true, kind: 'tombstone', id: rkey };
+      await Post.findOneAndDelete({ _id: rkey, oxyUserId });
+      return { ok: true, kind: "tombstone", id: rkey };
     case MENTION_LIKE_COLLECTION:
-      await Like.findByIdAndDelete(rkey);
-      return { ok: true, kind: 'tombstone', id: rkey };
+      await Like.findOneAndDelete({ _id: rkey, userId: oxyUserId });
+      return { ok: true, kind: "tombstone", id: rkey };
     case MENTION_BOOKMARK_COLLECTION:
-      await Bookmark.findByIdAndDelete(rkey);
-      return { ok: true, kind: 'tombstone', id: rkey };
+      await Bookmark.findOneAndDelete({ _id: rkey, userId: oxyUserId });
+      return { ok: true, kind: "tombstone", id: rkey };
     default:
-      return { ok: false, reason: 'unsupported_tombstone_subject_collection' };
+      return { ok: false, reason: "unsupported_tombstone_subject_collection" };
   }
 }
 
@@ -371,56 +442,72 @@ async function projectTombstone(record: MentionTombstoneRecord): Promise<Project
  *
  * @param envelope A verified v2 envelope with `collection`/`rkey`/`subject`/`record`.
  */
-export async function projectRecord(envelope: SignedRecordEnvelope): Promise<ProjectResult> {
+export async function projectRecord(
+  envelope: SignedRecordEnvelope,
+): Promise<ProjectResult> {
   try {
     const { collection, rkey, subject, record } = envelope;
 
-    if (typeof collection !== 'string' || typeof rkey !== 'string' || rkey.length === 0) {
-      return { ok: false, reason: 'missing_record_key' };
+    if (
+      typeof collection !== "string" ||
+      typeof rkey !== "string" ||
+      rkey.length === 0
+    ) {
+      return { ok: false, reason: "missing_record_key" };
     }
 
     // The subject DID identifies the chain owner (the author / liker / bookmarker).
     // A non-parseable subject DID is a clear no-op (we cannot key a native row).
     const oxyUserId = parseUserDid(subject);
     if (!oxyUserId) {
-      return { ok: false, reason: 'unresolvable_subject_did' };
+      return { ok: false, reason: "unresolvable_subject_did" };
     }
 
     switch (collection) {
       case MENTION_POST_COLLECTION: {
         const parsed = mentionPostRecordSchema.safeParse(record);
-        if (!parsed.success) return { ok: false, reason: 'invalid_record' };
-        return await projectPost(rkey, oxyUserId, parsed.data, new Date(parsed.data.createdAt));
+        if (!parsed.success) return { ok: false, reason: "invalid_record" };
+        return await projectPost(
+          rkey,
+          oxyUserId,
+          parsed.data,
+          new Date(parsed.data.createdAt),
+        );
       }
       case MENTION_LIKE_COLLECTION: {
         const parsed = mentionLikeRecordSchema.safeParse(record);
-        if (!parsed.success) return { ok: false, reason: 'invalid_record' };
+        if (!parsed.success) return { ok: false, reason: "invalid_record" };
         return await projectLike(rkey, oxyUserId, parsed.data);
       }
       case MENTION_REPOST_COLLECTION: {
         const parsed = mentionRepostRecordSchema.safeParse(record);
-        if (!parsed.success) return { ok: false, reason: 'invalid_record' };
-        return await projectRepost(rkey, oxyUserId, parsed.data, new Date(parsed.data.createdAt));
+        if (!parsed.success) return { ok: false, reason: "invalid_record" };
+        return await projectRepost(
+          rkey,
+          oxyUserId,
+          parsed.data,
+          new Date(parsed.data.createdAt),
+        );
       }
       case MENTION_TOMBSTONE_COLLECTION: {
         const parsed = mentionTombstoneRecordSchema.safeParse(record);
-        if (!parsed.success) return { ok: false, reason: 'invalid_record' };
-        return await projectTombstone(parsed.data);
+        if (!parsed.success) return { ok: false, reason: "invalid_record" };
+        return await projectTombstone(parsed.data, oxyUserId);
       }
       case MENTION_BOOKMARK_COLLECTION: {
         const parsed = mentionBookmarkRecordSchema.safeParse(record);
-        if (!parsed.success) return { ok: false, reason: 'invalid_record' };
+        if (!parsed.success) return { ok: false, reason: "invalid_record" };
         return await projectBookmark(rkey, oxyUserId, parsed.data);
       }
       default:
-        return { ok: false, reason: 'unsupported_collection' };
+        return { ok: false, reason: "unsupported_collection" };
     }
   } catch (error) {
-    logger.error('PostMaterializer: projectRecord failed', {
+    logger.error("PostMaterializer: projectRecord failed", {
       collection: envelope.collection,
       rkey: envelope.rkey,
       error: error instanceof Error ? error.message : String(error),
     });
-    return { ok: false, reason: 'error' };
+    return { ok: false, reason: "error" };
   }
 }

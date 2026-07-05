@@ -1,6 +1,6 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import mongoose from 'mongoose';
-import type { SignedRecordEnvelope } from '@oxyhq/contracts';
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import mongoose from "mongoose";
+import type { SignedRecordEnvelope } from "@oxyhq/contracts";
 
 /**
  * MTN PostMaterializer — `projectRecord` projection + idempotency tests.
@@ -31,7 +31,10 @@ const h = vi.hoisted(() => {
   function applyUpsert(
     map: Map<string, StoredDoc>,
     id: string,
-    update: { $set?: Record<string, unknown>; $setOnInsert?: Record<string, unknown> },
+    update: {
+      $set?: Record<string, unknown>;
+      $setOnInsert?: Record<string, unknown>;
+    },
   ): StoredDoc {
     const isInsert = !map.has(id);
     const doc: StoredDoc = map.get(id) ?? { _id: id };
@@ -46,12 +49,16 @@ const h = vi.hoisted(() => {
     return doc;
   }
 
-  function setDottedPath(target: Record<string, unknown>, path: string, value: unknown): void {
-    const segments = path.split('.');
+  function setDottedPath(
+    target: Record<string, unknown>,
+    path: string,
+    value: unknown,
+  ): void {
+    const segments = path.split(".");
     let cursor = target;
     for (let i = 0; i < segments.length - 1; i++) {
       const seg = segments[i];
-      if (typeof cursor[seg] !== 'object' || cursor[seg] === null) {
+      if (typeof cursor[seg] !== "object" || cursor[seg] === null) {
         cursor[seg] = {};
       }
       cursor = cursor[seg] as Record<string, unknown>;
@@ -59,23 +66,51 @@ const h = vi.hoisted(() => {
     cursor[segments[segments.length - 1]] = value;
   }
 
-  function findByIdAndUpdate(map: Map<string, StoredDoc>) {
+  type OwnerFilter = { _id: string; oxyUserId?: string; userId?: string };
+
+  function matchesFilter(
+    doc: StoredDoc | undefined,
+    filter: OwnerFilter,
+  ): boolean {
+    if (!doc) return false;
+    if (filter.oxyUserId !== undefined && doc.oxyUserId !== filter.oxyUserId)
+      return false;
+    if (filter.userId !== undefined && doc.userId !== filter.userId)
+      return false;
+    return true;
+  }
+
+  function duplicateKeyError(): Error & { code: number } {
+    return Object.assign(new Error("E11000 duplicate key error"), {
+      code: 11000,
+    });
+  }
+
+  function findOneAndUpdate(map: Map<string, StoredDoc>) {
     return vi.fn(
       async (
-        id: string,
-        update: { $set?: Record<string, unknown>; $setOnInsert?: Record<string, unknown> },
+        filter: OwnerFilter,
+        update: {
+          $set?: Record<string, unknown>;
+          $setOnInsert?: Record<string, unknown>;
+        },
         options?: { upsert?: boolean },
       ) => {
-        if (!map.has(id) && !options?.upsert) return null;
-        return applyUpsert(map, id, update);
+        const existing = map.get(filter._id);
+        if (!matchesFilter(existing, filter)) {
+          if (existing && options?.upsert) throw duplicateKeyError();
+          if (!options?.upsert) return null;
+        }
+        return applyUpsert(map, filter._id, update);
       },
     );
   }
 
-  function findByIdAndDelete(map: Map<string, StoredDoc>) {
-    return vi.fn(async (id: string) => {
-      const existing = map.get(id) ?? null;
-      map.delete(id);
+  function findOneAndDelete(map: Map<string, StoredDoc>) {
+    return vi.fn(async (filter: OwnerFilter) => {
+      const existing = map.get(filter._id) ?? null;
+      if (!matchesFilter(existing, filter)) return null;
+      map.delete(filter._id);
       return existing;
     });
   }
@@ -84,25 +119,31 @@ const h = vi.hoisted(() => {
     posts,
     likes,
     bookmarks,
-    Post: { findByIdAndUpdate: findByIdAndUpdate(posts), findByIdAndDelete: findByIdAndDelete(posts) },
-    Like: { findByIdAndUpdate: findByIdAndUpdate(likes), findByIdAndDelete: findByIdAndDelete(likes) },
+    Post: {
+      findOneAndUpdate: findOneAndUpdate(posts),
+      findOneAndDelete: findOneAndDelete(posts),
+    },
+    Like: {
+      findOneAndUpdate: findOneAndUpdate(likes),
+      findOneAndDelete: findOneAndDelete(likes),
+    },
     Bookmark: {
-      findByIdAndUpdate: findByIdAndUpdate(bookmarks),
-      findByIdAndDelete: findByIdAndDelete(bookmarks),
+      findOneAndUpdate: findOneAndUpdate(bookmarks),
+      findOneAndDelete: findOneAndDelete(bookmarks),
     },
   };
 });
 
-vi.mock('../../../models/Post', () => ({
+vi.mock("../../../models/Post", () => ({
   Post: h.Post,
-  POST_CLASSIFICATION_PENDING: 'pending',
+  POST_CLASSIFICATION_PENDING: "pending",
 }));
-vi.mock('../../../models/Like', () => ({ default: h.Like }));
-vi.mock('../../../models/Bookmark', () => ({ default: h.Bookmark }));
+vi.mock("../../../models/Like", () => ({ default: h.Like }));
+vi.mock("../../../models/Bookmark", () => ({ default: h.Bookmark }));
 
-import { projectRecord } from '../../../services/mtn/PostMaterializer';
-import { buildUserDid } from '../../../services/mtn/mentionDid';
-import { baselineContentClassifier } from '../../../services/BaselineContentClassifier';
+import { projectRecord } from "../../../services/mtn/PostMaterializer";
+import { buildUserDid } from "../../../services/mtn/mentionDid";
+import { baselineContentClassifier } from "../../../services/BaselineContentClassifier";
 import {
   MENTION_POST_COLLECTION,
   MENTION_LIKE_COLLECTION,
@@ -112,17 +153,17 @@ import {
   createPostUri,
   createLikeUri,
   createBookmarkUri,
-} from '@mention/shared-types';
+} from "@mention/shared-types";
 
-const SUBJECT_OXY_ID = '650000000000000000000abc';
+const SUBJECT_OXY_ID = "650000000000000000000abc";
 const SUBJECT_DID = buildUserDid(SUBJECT_OXY_ID);
 // 24-hex Mongo ObjectId strings used as rkeys / post ids.
-const POST_RKEY = '650000000000000000000001';
-const LIKE_RKEY = '650000000000000000000002';
-const REPOST_RKEY = '650000000000000000000003';
-const BOOKMARK_RKEY = '650000000000000000000004';
-const LIKED_POST_ID = '650000000000000000000005';
-const OWNER_OXY_ID = '650000000000000000000fff';
+const POST_RKEY = "650000000000000000000001";
+const LIKE_RKEY = "650000000000000000000002";
+const REPOST_RKEY = "650000000000000000000003";
+const BOOKMARK_RKEY = "650000000000000000000004";
+const LIKED_POST_ID = "650000000000000000000005";
+const OWNER_OXY_ID = "650000000000000000000fff";
 
 /** Build a v2 envelope around an inner `record` for the materializer to project. */
 function envelope(
@@ -133,18 +174,18 @@ function envelope(
 ): SignedRecordEnvelope {
   return {
     version: 2,
-    type: 'app_record',
+    type: "app_record",
     subject,
-    issuer: 'did:web:mention.earth',
+    issuer: "did:web:mention.earth",
     record,
     issuedAt: Date.now(),
     seq: 0,
     prev: null,
     collection,
     rkey,
-    publicKey: 'pub',
-    alg: 'ES256K-DER-SHA256',
-    signature: 'sig',
+    publicKey: "pub",
+    alg: "ES256K-DER-SHA256",
+    signature: "sig",
   };
 }
 
@@ -152,43 +193,47 @@ beforeEach(() => {
   h.posts.clear();
   h.likes.clear();
   h.bookmarks.clear();
-  h.Post.findByIdAndUpdate.mockClear();
-  h.Post.findByIdAndDelete.mockClear();
-  h.Like.findByIdAndUpdate.mockClear();
-  h.Like.findByIdAndDelete.mockClear();
-  h.Bookmark.findByIdAndUpdate.mockClear();
-  h.Bookmark.findByIdAndDelete.mockClear();
+  h.Post.findOneAndUpdate.mockClear();
+  h.Post.findOneAndDelete.mockClear();
+  h.Like.findOneAndUpdate.mockClear();
+  h.Like.findOneAndDelete.mockClear();
+  h.Bookmark.findOneAndUpdate.mockClear();
+  h.Bookmark.findOneAndDelete.mockClear();
 });
 
-describe('projectRecord — post', () => {
-  const createdAtIso = '2024-01-02T03:04:05.000Z';
+describe("projectRecord — post", () => {
+  const createdAtIso = "2024-01-02T03:04:05.000Z";
   const postRecord = {
-    text: 'hello materialized world from the chain',
+    text: "hello materialized world from the chain",
     createdAt: createdAtIso,
-    tags: ['mtn', 'protocol'],
-    langs: ['en'],
+    tags: ["mtn", "protocol"],
+    langs: ["en"],
   };
 
-  it('projects a post record into a feed-identical Post row', async () => {
-    const result = await projectRecord(envelope(MENTION_POST_COLLECTION, POST_RKEY, postRecord));
+  it("projects a post record into a feed-identical Post row", async () => {
+    const result = await projectRecord(
+      envelope(MENTION_POST_COLLECTION, POST_RKEY, postRecord),
+    );
 
-    expect(result).toEqual({ ok: true, kind: 'post', id: POST_RKEY });
+    expect(result).toEqual({ ok: true, kind: "post", id: POST_RKEY });
     const doc = h.posts.get(POST_RKEY);
     expect(doc).toBeDefined();
     expect(doc?.oxyUserId).toBe(SUBJECT_OXY_ID);
-    expect(doc?.type).toBe('text');
+    expect(doc?.type).toBe("text");
     expect((doc?.content as { text: string }).text).toBe(postRecord.text);
-    expect(doc?.hashtags).toEqual(['mtn', 'protocol']);
+    expect(doc?.hashtags).toEqual(["mtn", "protocol"]);
     expect(doc?.parentPostId).toBeNull();
     expect(doc?.threadId).toBeNull();
     expect((doc?.createdAt as Date).toISOString()).toBe(createdAtIso);
     // Insert-only defaults applied.
-    expect(doc?.visibility).toBe('public');
-    expect(doc?.status).toBe('published');
+    expect(doc?.visibility).toBe("public");
+    expect(doc?.status).toBe("published");
   });
 
-  it('writes a postClassification identical to baselineContentClassifier output', async () => {
-    await projectRecord(envelope(MENTION_POST_COLLECTION, POST_RKEY, postRecord));
+  it("writes a postClassification identical to baselineContentClassifier output", async () => {
+    await projectRecord(
+      envelope(MENTION_POST_COLLECTION, POST_RKEY, postRecord),
+    );
 
     const expected = baselineContentClassifier.classify({
       text: postRecord.text,
@@ -206,7 +251,7 @@ describe('projectRecord — post', () => {
       sensitive?: boolean;
       version: number;
     };
-    expect(classification.status).toBe('pending');
+    expect(classification.status).toBe("pending");
     expect(classification.topics).toEqual(expected.topics);
     expect(classification.languages).toEqual(expected.languages);
     expect(classification.hashtagsNorm).toEqual(expected.hashtagsNorm);
@@ -216,11 +261,15 @@ describe('projectRecord — post', () => {
     expect(doc?.language).toBe(expected.languages[0]);
   });
 
-  it('is idempotent on a second projection (same row, stable classification)', async () => {
-    await projectRecord(envelope(MENTION_POST_COLLECTION, POST_RKEY, postRecord));
+  it("is idempotent on a second projection (same row, stable classification)", async () => {
+    await projectRecord(
+      envelope(MENTION_POST_COLLECTION, POST_RKEY, postRecord),
+    );
     const first = JSON.parse(JSON.stringify(h.posts.get(POST_RKEY)));
 
-    await projectRecord(envelope(MENTION_POST_COLLECTION, POST_RKEY, postRecord));
+    await projectRecord(
+      envelope(MENTION_POST_COLLECTION, POST_RKEY, postRecord),
+    );
     const second = JSON.parse(JSON.stringify(h.posts.get(POST_RKEY)));
 
     // Exactly one row, and its content/structure is stable across re-projection
@@ -229,15 +278,19 @@ describe('projectRecord — post', () => {
     expect(second.oxyUserId).toBe(first.oxyUserId);
     expect(second.content).toEqual(first.content);
     expect(second.hashtags).toEqual(first.hashtags);
-    expect(second.postClassification.topics).toEqual(first.postClassification.topics);
-    expect(second.postClassification.languages).toEqual(first.postClassification.languages);
+    expect(second.postClassification.topics).toEqual(
+      first.postClassification.topics,
+    );
+    expect(second.postClassification.languages).toEqual(
+      first.postClassification.languages,
+    );
   });
 
-  it('recovers reply context (threadId=root rkey, parentPostId=parent rkey)', async () => {
-    const rootId = '650000000000000000000010';
-    const parentId = '650000000000000000000011';
+  it("recovers reply context (threadId=root rkey, parentPostId=parent rkey)", async () => {
+    const rootId = "650000000000000000000010";
+    const parentId = "650000000000000000000011";
     const replyRecord = {
-      text: 'a reply in a thread that is long enough to classify',
+      text: "a reply in a thread that is long enough to classify",
       createdAt: createdAtIso,
       reply: {
         root: createPostUri(OWNER_OXY_ID, rootId),
@@ -245,36 +298,43 @@ describe('projectRecord — post', () => {
       },
     };
 
-    await projectRecord(envelope(MENTION_POST_COLLECTION, POST_RKEY, replyRecord));
+    await projectRecord(
+      envelope(MENTION_POST_COLLECTION, POST_RKEY, replyRecord),
+    );
 
     const doc = h.posts.get(POST_RKEY);
     expect(doc?.threadId).toBe(rootId);
     expect(doc?.parentPostId).toBe(parentId);
   });
 
-  it('PRESERVES existing content.media (BLOB DEFERRED — never clobbers to empty)', async () => {
+  it("PRESERVES existing content.media (BLOB DEFERRED — never clobbers to empty)", async () => {
     // Seed an existing post that already carries fileId media (the B2 corpus case).
     h.posts.set(POST_RKEY, {
       _id: POST_RKEY,
       oxyUserId: SUBJECT_OXY_ID,
       content: {
-        text: 'original',
-        media: [{ id: 'file-abc', type: 'image' }],
+        text: "original",
+        media: [{ id: "file-abc", type: "image" }],
       },
     });
 
-    const result = await projectRecord(envelope(MENTION_POST_COLLECTION, POST_RKEY, postRecord));
+    const result = await projectRecord(
+      envelope(MENTION_POST_COLLECTION, POST_RKEY, postRecord),
+    );
     expect(result.ok).toBe(true);
 
     const doc = h.posts.get(POST_RKEY);
-    const content = doc?.content as { text: string; media: Array<{ id: string; type: string }> };
+    const content = doc?.content as {
+      text: string;
+      media: Array<{ id: string; type: string }>;
+    };
     // Text was updated from the record…
     expect(content.text).toBe(postRecord.text);
     // …but the fileId media survives (the materializer never writes content.media).
-    expect(content.media).toEqual([{ id: 'file-abc', type: 'image' }]);
+    expect(content.media).toEqual([{ id: "file-abc", type: "image" }]);
   });
 
-  it('READ-SIDE DEFERRED: a record that CARRIES a blob embed never writes content.media', async () => {
+  it("READ-SIDE DEFERRED: a record that CARRIES a blob embed never writes content.media", async () => {
     // The write side now emits content-addressed blob refs, but the read side
     // cannot turn a bare sha256 back into a servable fileId/URL (no reverse
     // upstream index). The materializer must NOT write content.media from the
@@ -283,13 +343,24 @@ describe('projectRecord — post', () => {
     const recordWithEmbed = {
       ...postRecord,
       embed: {
-        type: 'media',
-        items: [{ blob: { sha256: 'sha-from-chain', mediaType: 'image', mime: 'image/png', size: 42 } }],
+        type: "media",
+        items: [
+          {
+            blob: {
+              sha256: "sha-from-chain",
+              mediaType: "image",
+              mime: "image/png",
+              size: 42,
+            },
+          },
+        ],
       },
     };
 
-    const result = await projectRecord(envelope(MENTION_POST_COLLECTION, POST_RKEY, recordWithEmbed));
-    expect(result).toEqual({ ok: true, kind: 'post', id: POST_RKEY });
+    const result = await projectRecord(
+      envelope(MENTION_POST_COLLECTION, POST_RKEY, recordWithEmbed),
+    );
+    expect(result).toEqual({ ok: true, kind: "post", id: POST_RKEY });
 
     const doc = h.posts.get(POST_RKEY);
     const content = doc?.content as { text: string; media?: unknown };
@@ -298,127 +369,229 @@ describe('projectRecord — post', () => {
     expect(content.media).toBeUndefined();
   });
 
-  it('rejects an invalid inner record with reason invalid_record', async () => {
+  it("rejects projection when the rkey already belongs to another post owner", async () => {
+    h.posts.set(POST_RKEY, {
+      _id: POST_RKEY,
+      oxyUserId: OWNER_OXY_ID,
+      content: { text: "victim" },
+    });
+
+    const result = await projectRecord(
+      envelope(MENTION_POST_COLLECTION, POST_RKEY, postRecord),
+    );
+
+    expect(result).toEqual({ ok: false, reason: "record_owner_mismatch" });
+    const doc = h.posts.get(POST_RKEY);
+    expect(doc?.oxyUserId).toBe(OWNER_OXY_ID);
+    expect((doc?.content as { text: string }).text).toBe("victim");
+  });
+
+  it("rejects an invalid inner record with reason invalid_record", async () => {
     // `text` is required by mentionPostRecordSchema; omit it.
     const result = await projectRecord(
       envelope(MENTION_POST_COLLECTION, POST_RKEY, { createdAt: createdAtIso }),
     );
-    expect(result).toEqual({ ok: false, reason: 'invalid_record' });
+    expect(result).toEqual({ ok: false, reason: "invalid_record" });
     expect(h.posts.size).toBe(0);
   });
 
-  it('is a clear no-op for a non-parseable subject DID', async () => {
+  it("is a clear no-op for a non-parseable subject DID", async () => {
     const result = await projectRecord(
-      envelope(MENTION_POST_COLLECTION, POST_RKEY, postRecord, 'did:web:not-a-user-did'),
+      envelope(
+        MENTION_POST_COLLECTION,
+        POST_RKEY,
+        postRecord,
+        "did:web:not-a-user-did",
+      ),
     );
-    expect(result).toEqual({ ok: false, reason: 'unresolvable_subject_did' });
+    expect(result).toEqual({ ok: false, reason: "unresolvable_subject_did" });
     expect(h.posts.size).toBe(0);
   });
 });
 
-describe('projectRecord — like', () => {
-  it('projects a like record into a Like row', async () => {
+describe("projectRecord — like", () => {
+  it("projects a like record into a Like row", async () => {
     const likeRecord = {
       subject: createPostUri(OWNER_OXY_ID, LIKED_POST_ID),
-      createdAt: '2024-01-02T03:04:05.000Z',
+      createdAt: "2024-01-02T03:04:05.000Z",
     };
-    const result = await projectRecord(envelope(MENTION_LIKE_COLLECTION, LIKE_RKEY, likeRecord));
+    const result = await projectRecord(
+      envelope(MENTION_LIKE_COLLECTION, LIKE_RKEY, likeRecord),
+    );
 
-    expect(result).toEqual({ ok: true, kind: 'like', id: LIKE_RKEY });
+    expect(result).toEqual({ ok: true, kind: "like", id: LIKE_RKEY });
     const doc = h.likes.get(LIKE_RKEY);
     expect(doc?.userId).toBe(SUBJECT_OXY_ID);
-    expect((doc?.postId as mongoose.Types.ObjectId).toString()).toBe(LIKED_POST_ID);
+    expect((doc?.postId as mongoose.Types.ObjectId).toString()).toBe(
+      LIKED_POST_ID,
+    );
     expect(doc?.value).toBe(1);
   });
-});
 
-describe('projectRecord — repost', () => {
-  it('projects a repost record into a boost Post (type boost, boostOf set, empty body)', async () => {
-    const repostRecord = {
+  it("rejects projection when the rkey already belongs to another liker", async () => {
+    h.likes.set(LIKE_RKEY, { _id: LIKE_RKEY, userId: OWNER_OXY_ID, value: 1 });
+    const likeRecord = {
       subject: createPostUri(OWNER_OXY_ID, LIKED_POST_ID),
-      createdAt: '2024-01-02T03:04:05.000Z',
+      createdAt: "2024-01-02T03:04:05.000Z",
     };
-    const result = await projectRecord(envelope(MENTION_REPOST_COLLECTION, REPOST_RKEY, repostRecord));
 
-    expect(result).toEqual({ ok: true, kind: 'repost', id: REPOST_RKEY });
-    const doc = h.posts.get(REPOST_RKEY);
-    expect(doc?.type).toBe('boost');
-    expect(doc?.boostOf).toBe(LIKED_POST_ID);
-    expect(doc?.oxyUserId).toBe(SUBJECT_OXY_ID);
-    expect((doc?.content as { text: string }).text).toBe('');
+    const result = await projectRecord(
+      envelope(MENTION_LIKE_COLLECTION, LIKE_RKEY, likeRecord),
+    );
+
+    expect(result).toEqual({ ok: false, reason: "record_owner_mismatch" });
+    expect(h.likes.get(LIKE_RKEY)?.userId).toBe(OWNER_OXY_ID);
   });
 });
 
-describe('projectRecord — bookmark', () => {
-  it('projects a bookmark record into a Bookmark row', async () => {
+describe("projectRecord — repost", () => {
+  it("projects a repost record into a boost Post (type boost, boostOf set, empty body)", async () => {
+    const repostRecord = {
+      subject: createPostUri(OWNER_OXY_ID, LIKED_POST_ID),
+      createdAt: "2024-01-02T03:04:05.000Z",
+    };
+    const result = await projectRecord(
+      envelope(MENTION_REPOST_COLLECTION, REPOST_RKEY, repostRecord),
+    );
+
+    expect(result).toEqual({ ok: true, kind: "repost", id: REPOST_RKEY });
+    const doc = h.posts.get(REPOST_RKEY);
+    expect(doc?.type).toBe("boost");
+    expect(doc?.boostOf).toBe(LIKED_POST_ID);
+    expect(doc?.oxyUserId).toBe(SUBJECT_OXY_ID);
+    expect((doc?.content as { text: string }).text).toBe("");
+  });
+});
+
+describe("projectRecord — bookmark", () => {
+  it("projects a bookmark record into a Bookmark row", async () => {
     const bookmarkRecord = {
       subject: createPostUri(OWNER_OXY_ID, LIKED_POST_ID),
-      createdAt: '2024-01-02T03:04:05.000Z',
+      createdAt: "2024-01-02T03:04:05.000Z",
     };
     const result = await projectRecord(
       envelope(MENTION_BOOKMARK_COLLECTION, BOOKMARK_RKEY, bookmarkRecord),
     );
 
-    expect(result).toEqual({ ok: true, kind: 'bookmark', id: BOOKMARK_RKEY });
+    expect(result).toEqual({ ok: true, kind: "bookmark", id: BOOKMARK_RKEY });
     const doc = h.bookmarks.get(BOOKMARK_RKEY);
     expect(doc?.userId).toBe(SUBJECT_OXY_ID);
-    expect((doc?.postId as mongoose.Types.ObjectId).toString()).toBe(LIKED_POST_ID);
+    expect((doc?.postId as mongoose.Types.ObjectId).toString()).toBe(
+      LIKED_POST_ID,
+    );
   });
 });
 
-describe('projectRecord — tombstone', () => {
-  it('removes the referenced Post for a post-subject tombstone', async () => {
+describe("projectRecord — tombstone", () => {
+  it("removes the referenced Post for a post-subject tombstone", async () => {
     h.posts.set(POST_RKEY, { _id: POST_RKEY, oxyUserId: SUBJECT_OXY_ID });
     const tombstone = {
       subject: createPostUri(SUBJECT_OXY_ID, POST_RKEY),
-      createdAt: '2024-01-02T03:04:05.000Z',
+      createdAt: "2024-01-02T03:04:05.000Z",
     };
 
     const result = await projectRecord(
-      envelope(MENTION_TOMBSTONE_COLLECTION, '650000000000000000000099', tombstone),
+      envelope(
+        MENTION_TOMBSTONE_COLLECTION,
+        "650000000000000000000099",
+        tombstone,
+      ),
     );
 
-    expect(result).toEqual({ ok: true, kind: 'tombstone', id: POST_RKEY });
+    expect(result).toEqual({ ok: true, kind: "tombstone", id: POST_RKEY });
     expect(h.posts.has(POST_RKEY)).toBe(false);
   });
 
-  it('removes the referenced Like for a like-subject tombstone', async () => {
+  it("removes the referenced Like for a like-subject tombstone", async () => {
     h.likes.set(LIKE_RKEY, { _id: LIKE_RKEY, userId: SUBJECT_OXY_ID });
     const tombstone = {
       subject: createLikeUri(SUBJECT_OXY_ID, LIKE_RKEY),
-      createdAt: '2024-01-02T03:04:05.000Z',
+      createdAt: "2024-01-02T03:04:05.000Z",
     };
 
     const result = await projectRecord(
-      envelope(MENTION_TOMBSTONE_COLLECTION, '650000000000000000000098', tombstone),
+      envelope(
+        MENTION_TOMBSTONE_COLLECTION,
+        "650000000000000000000098",
+        tombstone,
+      ),
     );
 
-    expect(result).toEqual({ ok: true, kind: 'tombstone', id: LIKE_RKEY });
+    expect(result).toEqual({ ok: true, kind: "tombstone", id: LIKE_RKEY });
     expect(h.likes.has(LIKE_RKEY)).toBe(false);
   });
 
-  it('removes the referenced Bookmark for a bookmark-subject tombstone', async () => {
-    h.bookmarks.set(BOOKMARK_RKEY, { _id: BOOKMARK_RKEY, userId: SUBJECT_OXY_ID });
+  it("removes the referenced Bookmark for a bookmark-subject tombstone", async () => {
+    h.bookmarks.set(BOOKMARK_RKEY, {
+      _id: BOOKMARK_RKEY,
+      userId: SUBJECT_OXY_ID,
+    });
     const tombstone = {
       subject: createBookmarkUri(SUBJECT_OXY_ID, BOOKMARK_RKEY),
-      createdAt: '2024-01-02T03:04:05.000Z',
+      createdAt: "2024-01-02T03:04:05.000Z",
     };
 
     const result = await projectRecord(
-      envelope(MENTION_TOMBSTONE_COLLECTION, '650000000000000000000097', tombstone),
+      envelope(
+        MENTION_TOMBSTONE_COLLECTION,
+        "650000000000000000000097",
+        tombstone,
+      ),
     );
 
-    expect(result).toEqual({ ok: true, kind: 'tombstone', id: BOOKMARK_RKEY });
+    expect(result).toEqual({ ok: true, kind: "tombstone", id: BOOKMARK_RKEY });
     expect(h.bookmarks.has(BOOKMARK_RKEY)).toBe(false);
   });
 
-  it('is idempotent: tombstoning an already-removed row is a no-op success', async () => {
+  it("rejects a tombstone whose subject identity differs from the envelope signer", async () => {
+    h.posts.set(POST_RKEY, { _id: POST_RKEY, oxyUserId: OWNER_OXY_ID });
+    const tombstone = {
+      subject: createPostUri(OWNER_OXY_ID, POST_RKEY),
+      createdAt: "2024-01-02T03:04:05.000Z",
+    };
+
+    const result = await projectRecord(
+      envelope(
+        MENTION_TOMBSTONE_COLLECTION,
+        "650000000000000000000095",
+        tombstone,
+      ),
+    );
+
+    expect(result).toEqual({ ok: false, reason: "tombstone_owner_mismatch" });
+    expect(h.posts.has(POST_RKEY)).toBe(true);
+  });
+
+  it("does not delete a row owned by another user even if the tombstone identity matches signer", async () => {
+    h.posts.set(POST_RKEY, { _id: POST_RKEY, oxyUserId: OWNER_OXY_ID });
     const tombstone = {
       subject: createPostUri(SUBJECT_OXY_ID, POST_RKEY),
-      createdAt: '2024-01-02T03:04:05.000Z',
+      createdAt: "2024-01-02T03:04:05.000Z",
+    };
+
+    const result = await projectRecord(
+      envelope(
+        MENTION_TOMBSTONE_COLLECTION,
+        "650000000000000000000094",
+        tombstone,
+      ),
+    );
+
+    expect(result).toEqual({ ok: true, kind: "tombstone", id: POST_RKEY });
+    expect(h.posts.has(POST_RKEY)).toBe(true);
+  });
+
+  it("is idempotent: tombstoning an already-removed row is a no-op success", async () => {
+    const tombstone = {
+      subject: createPostUri(SUBJECT_OXY_ID, POST_RKEY),
+      createdAt: "2024-01-02T03:04:05.000Z",
     };
     const result = await projectRecord(
-      envelope(MENTION_TOMBSTONE_COLLECTION, '650000000000000000000096', tombstone),
+      envelope(
+        MENTION_TOMBSTONE_COLLECTION,
+        "650000000000000000000096",
+        tombstone,
+      ),
     );
     expect(result.ok).toBe(true);
   });
