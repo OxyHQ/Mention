@@ -83,13 +83,6 @@ const CLOUD_ORIGIN = 'https://cloud.oxy.so';
 const WEB_ORIGIN = 'https://mention.earth';
 
 /**
- * Pre-hydration background color injected into every HTML `<head>`. Matches the
- * native splash bg + `AppSplashScreen` dark base so a hard reload paints dark
- * immediately instead of the browser's default white (the "white flash").
- */
-const PREBOOT_BG = '#0B0B0F';
-
-/**
  * PWA/head markup that Expo's `output: "single"` build drops: `web.manifest` and
  * `web.meta` in app.config are NOT wired into the bare exported `index.html`, so
  * the manifest link + apple/theme metas never reach the browser (no installable
@@ -343,17 +336,16 @@ function ogMetaHtml(og) {
 }
 
 /**
- * Stream the HTML response through `HTMLRewriter`, injecting the dark preboot
- * background into every page and — when `og` is present — the OG meta block +
- * a replaced `<title>`. Non-HTML responses never reach here.
+ * Stream the HTML response through `HTMLRewriter`, injecting the PWA head (manifest
+ * link + apple/theme metas Expo drops) into every page and — when `og` is present —
+ * the OG meta block + a replaced `<title>`. Non-HTML responses never reach here.
+ * The pre-hydration dark background is NOT injected here: it lives in `global.css`
+ * as a static render-blocking rule, so the white flash is fixed even when this
+ * worker isn't running.
  */
 function transformHtml(response, og) {
   const rewriter = new HTMLRewriter().on('head', {
     element(element) {
-      element.append(
-        `<style id="mention-preboot-bg">html,body,#root{background-color:${PREBOOT_BG}}</style>`,
-        { html: true },
-      );
       element.append(PWA_HEAD, { html: true });
       if (og) element.append(ogMetaHtml(og), { html: true });
     },
