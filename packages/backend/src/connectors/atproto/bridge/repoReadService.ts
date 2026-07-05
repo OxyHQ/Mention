@@ -28,9 +28,11 @@ import {
   mentionLikeRecordSchema,
   mentionRepostRecordSchema,
   mentionTombstoneRecordSchema,
+  PostVisibility,
 } from '@mention/shared-types';
 import type { SignedRecordEnvelope } from '@oxyhq/contracts';
 import MentionSignedRecord from '../../../models/MentionSignedRecord';
+import { Post } from '../../../models/Post';
 import { buildUserDid } from '../../../services/mtn/mentionDid';
 import { logger } from '../../../utils/logger';
 import {
@@ -204,6 +206,26 @@ function reduceLiveRecords(
  * then runs {@link reduceLiveRecords} — the shared rule `getRecord` also uses, so
  * the list and single-get views cannot drift.
  */
+async function filterPublicPublishedPosts(
+  oxyUserId: string,
+  records: BridgeRecord[],
+): Promise<BridgeRecord[]> {
+  if (records.length === 0) return records;
+
+  const postIds = records.map((record) => record.rkey);
+  const publicPosts = await Post.find(
+    {
+      _id: { $in: postIds },
+      oxyUserId,
+      status: 'published',
+      visibility: PostVisibility.PUBLIC,
+    },
+    { _id: 1 },
+  ).lean<Array<{ _id: unknown }>>();
+  const publicPostIds = new Set(publicPosts.map((post) => String(post._id)));
+  return records.filter((record) => publicPostIds.has(record.rkey));
+}
+
 async function materializeCollection(
   oxyUserId: string,
   bskyCollection: string,
@@ -212,7 +234,10 @@ async function materializeCollection(
   if (!mtnCollection) return [];
 
   const rows = await readLiveRows(oxyUserId, mtnCollection);
-  return reduceLiveRecords(rows, oxyUserId, bskyCollection, mtnCollection);
+  const records = reduceLiveRecords(rows, oxyUserId, bskyCollection, mtnCollection);
+  return bskyCollection === BSKY_POST_COLLECTION
+    ? filterPublicPublishedPosts(oxyUserId, records)
+    : records;
 }
 
 /**
@@ -272,7 +297,10 @@ export async function getRecord(
   if (!mtnCollection) return null;
 
   const rows = await readLiveRows(oxyUserId, mtnCollection, rkey);
-  const records = reduceLiveRecords(rows, oxyUserId, bskyCollection, mtnCollection);
+  const liveRecords = reduceLiveRecords(rows, oxyUserId, bskyCollection, mtnCollection);
+  const records = bskyCollection === BSKY_POST_COLLECTION
+    ? await filterPublicPublishedPosts(oxyUserId, liveRecords)
+    : liveRecords;
   return records.find((record) => record.rkey === rkey) ?? null;
 }
 

@@ -254,6 +254,8 @@ describe('MentionRecordEmitter dual-write gate', () => {
       oxyUserId: SUBJECT_OXY_ID,
       federation: undefined,
       content: { text: 'native post', sources: [], media: [] },
+      visibility: 'public',
+      status: 'published',
       hashtags: ['mtn'],
       language: 'en',
       createdAt: new Date().toISOString(),
@@ -265,5 +267,31 @@ describe('MentionRecordEmitter dual-write gate', () => {
     expect(stored.collection).toBe(MENTION_POST_COLLECTION);
     expect(stored.rkey).toBe('local-post-1');
     expect(stored.record).toMatchObject({ text: 'native post', tags: ['mtn'], langs: ['en'] });
+  });
+
+  it('does NOT emit public bridge records for draft or non-public LOCAL posts', async () => {
+    const draftPost = {
+      _id: 'draft-post-1',
+      oxyUserId: SUBJECT_OXY_ID,
+      federation: undefined,
+      content: { text: 'draft secret', sources: [], media: [] },
+      visibility: 'public',
+      status: 'draft',
+      createdAt: new Date().toISOString(),
+    } as unknown as Parameters<typeof emitPostCreated>[0];
+    const privatePost = {
+      _id: 'private-post-1',
+      oxyUserId: SUBJECT_OXY_ID,
+      federation: undefined,
+      content: { text: 'private secret', sources: [], media: [] },
+      visibility: 'private',
+      status: 'published',
+      createdAt: new Date().toISOString(),
+    } as unknown as Parameters<typeof emitPostCreated>[0];
+
+    await emitPostCreated(draftPost);
+    await emitPostCreated(privatePost);
+
+    expect(memoryStore.rows).toHaveLength(0);
   });
 });

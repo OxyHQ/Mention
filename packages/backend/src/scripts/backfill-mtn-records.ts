@@ -10,6 +10,8 @@
  * SCOPE: `app.mention.feed.post` records only. A post QUALIFIES iff:
  *   - it is LOCAL-authored: `federation == null && oxyUserId` set (federated
  *     posts belong to the origin instance and never emit a Mention record), and
+ *   - it is published and public (draft/private posts must never appear on the
+ *     public atproto bridge), and
  *   - it is NOT a boost (`type: 'boost'` / `boostOf` set) — boosts are
  *     `app.mention.feed.repost` records, a different collection, intentionally
  *     out of scope here so this backfill stays idempotent (a boost would never
@@ -42,7 +44,7 @@
 import mongoose from 'mongoose';
 import { Post, type IPost } from '../models/Post';
 import MentionSignedRecord from '../models/MentionSignedRecord';
-import { MENTION_POST_COLLECTION } from '@mention/shared-types';
+import { MENTION_POST_COLLECTION, PostVisibility } from '@mention/shared-types';
 import { connectToDatabase } from '../utils/database';
 import { logger } from '../utils/logger';
 import { isMentionRecordSigningEnabled } from '../services/mtn/mentionRecordEnv';
@@ -120,6 +122,8 @@ async function backfillMtnRecords(): Promise<void> {
   const candidateFilter: Record<string, unknown> = {
     'federation.activityId': { $exists: false },
     oxyUserId: { $exists: true, $ne: null },
+    status: 'published',
+    visibility: PostVisibility.PUBLIC,
     boostOf: { $exists: false },
   };
 

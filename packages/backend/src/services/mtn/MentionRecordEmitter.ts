@@ -18,6 +18,7 @@
 
 import type { IPost } from '../../models/Post';
 import {
+  PostVisibility,
   MENTION_POST_COLLECTION,
   MENTION_LIKE_COLLECTION,
   MENTION_REPOST_COLLECTION,
@@ -44,6 +45,11 @@ import {
 /** True when a post is authored by a LOCAL Mention user (eligible to emit). */
 function isLocalAuthored(post: Pick<IPost, 'federation' | 'oxyUserId'>): post is Pick<IPost, 'federation' | 'oxyUserId'> & { oxyUserId: string } {
   return post.federation == null && typeof post.oxyUserId === 'string' && post.oxyUserId.length > 0;
+}
+
+/** True when a post is safe to publish to public MTN/atproto read surfaces. */
+function isPublicPublishedPost(post: Pick<IPost, 'status' | 'visibility'>): boolean {
+  return (post.status ?? 'published') === 'published' && post.visibility === PostVisibility.PUBLIC;
 }
 
 /**
@@ -83,7 +89,7 @@ export async function emitPostCreated(
   post: IPost,
   options: { reply?: ReplyContext; facets?: MtnFacet[] } = {},
 ): Promise<void> {
-  if (!isLocalAuthored(post)) return;
+  if (!isLocalAuthored(post) || !isPublicPublishedPost(post)) return;
   const authorOxyUserId = post.oxyUserId;
   await isolate('emitPostCreated', async () => {
     // Resolve the post's media to content-addressed blob refs (fileId → sha256).
