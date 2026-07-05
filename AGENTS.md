@@ -4,7 +4,7 @@
 
 ## AWS Deployment
 
-- **Port**: `3000` | **Domain**: `api.mention.earth`
+- **Port**: `3000` | **Domain**: `api.mention.earth` (DNS-only → ALB) **+ apex `mention.earth`** (CF-proxied → same ALB → same backend, which serves the whole web app + OG + federation — see "Fediverse Discovery"). No Cloudflare Worker.
 - **ECR**: `237343248947.dkr.ecr.us-west-2.amazonaws.com/oxy/mention`
 - **Deploy**: `git push origin main` → `.github/workflows/deploy-aws.yml` builds `linux/arm64` → ECR → `ecs update-service --force-new-deployment`
 - **Auth**: GitHub OIDC → role `oxy-github-deploy`. No AWS keys in GitHub.
@@ -144,18 +144,18 @@ Two resolution entry points; BOTH must work for full Mastodon compatibility.
 
 **By handle (`@user@mention.earth`):** webfinger `/.well-known/webfinger?resource=acct:...` → `self` link → fetch actor.
 
-**By profile URL (`https://mention.earth/@user`):** Mastodon GETs the URL with `Accept: application/activity+json`. Handled by the CF Pages Advanced-Mode `_worker.js` at `packages/frontend/public/_worker.js` (Expo export copies `public/` → `dist/`). Profile URLs matching `^/@<user>$` with AP Accept → 302-redirect to the canonical actor at `https://api.mention.earth/ap/users/<user>` (GET-only content negotiation — redirecting here is correct). The federation ENDPOINT paths — `/ap/*`, `/.well-known/webfinger`, `/.well-known/host-meta(.json)`, `/.well-known/nodeinfo`, `/nodeinfo/*` — are instead PROXIED (fetched and returned, never redirected) through to `https://api.mention.earth`; all other requests → `env.ASSETS.fetch(request)`.
+**By profile URL (`https://mention.earth/@user`):** Mastodon GETs the URL with `Accept: application/activity+json`. Served by the BACKEND (`packages/backend/src/routes/webShell.routes.ts`): with AP Accept, `/@user` 302-redirects to the canonical actor at `https://api.mention.earth/ap/users/<user>` (GET-only content negotiation — redirecting a GET here is correct); with a browser Accept it returns an OG-injected SPA shell.
 
-**CRITICAL — CF Pages `_worker.js`:** A `functions/` directory inside a `wrangler pages deploy <dir>` output is served as a STATIC ASSET, not compiled as Pages Functions. Always use Advanced-Mode `_worker.js` at the output root.
+**Apex is served entirely by the backend — NO Cloudflare Worker.** `mention.earth` is a CF-PROXIED CNAME → the shared ALB (`oxy-alb-…us-west-2.elb.amazonaws.com`); the ALB routes `Host: mention.earth` to the Mention backend (a dedicated `mention.earth` ACM cert is attached to the 443 listener for SNI). Server mount order (`packages/backend/server.ts`): federation routes (`/.well-known`, `/ap`, `/xrpc`, `/media`) → `webShell.routes.ts` (`/@user`, `/p/:id` OG shells) → `apexFrontendProxy` (`packages/backend/src/middleware/apexFrontendProxy.ts` — reverse-proxies every other apex GET/HEAD to `mention-frontend.pages.dev`: the SPA, `_expo` assets, `manifest.json`). `pages.dev` is now PURE STATIC (SPA + `public/_redirects` `/* /index.html 200` fallback that the proxy relies on for client routes); the backend consumes it as `WEB_SHELL_ORIGIN` (SWR-cached). The root `/` welcome route is host-gated so the apex serves the SPA, not API JSON. History: the apex used to be CF Pages + an Advanced-Mode `_worker.js`; that worker + `_routes.json` were deleted 2026-07-05 after CF Pages Functions hit the Free 100k/day cap and Origin Rules (transparent proxy) proved paid-only. Do NOT reintroduce a worker.
 
-**CRITICAL — never redirect the apex ActivityPub ENDPOINT paths:** `/ap/*`, webfinger, host-meta, and nodeinfo must always be PROXIED, never served via a 301/302 (CF zone redirect rule or otherwise) — Mastodon's inbox POST deliveries die on a redirect (no re-sign, strict redirector), silently killing ALL inbound federation (follows/accepts/likes/replies) while GETs keep working, so the profile still renders and looks healthy. HTTP signatures are bound to the apex host; the backend verifies the signature against `X-Forwarded-Host` (`crypto.ts`), which only works if the request reaches the backend unredirected. (The profile-URL 302 above is unaffected — it's a GET-only redirect, not an endpoint path.) The CF zone redirect rules that 301/302'd the endpoint paths were deleted 2026-07-02 — do not recreate them.
+**CRITICAL — never redirect the apex ActivityPub ENDPOINT paths:** `/ap/*`, webfinger, host-meta, and nodeinfo must always be served DIRECTLY (200), never via a 301/302 (CF zone redirect rule or otherwise) — Mastodon's inbox POST deliveries die on a redirect (no re-sign, strict redirector), silently killing ALL inbound federation (follows/accepts/likes/replies) while GETs keep working, so the profile still renders and looks healthy. HTTP signatures are bound to the apex host; the backend verifies the signature against `X-Forwarded-Host` (`crypto.ts`), which CF sets when proxying `mention.earth` → ALB (mount these federation routers BEFORE `apexFrontendProxy`). (The profile-URL 302 above is unaffected — it's a GET-only redirect, not an endpoint path.) The CF zone redirect rules that 301/302'd the endpoint paths were deleted 2026-07-02 — do not recreate them.
 
 **Other verified requirements:**
 - Actor `publicKey.id` host MUST equal the actor `id` host — cross-domain key causes Mastodon to reject the actor.
 - Actor `icon.url` must be absolute and reachable.
 - `/.well-known/host-meta` must be PUBLIC — mount before auth middleware in `webfinger.routes.ts`.
 - Mastodon negative-caches failed resolutions for minutes/hours — after a fix, cache-bust by searching the full profile URL (different cache key than the acct handle).
-- To rule out CF bot-blocking: curl from an AWS us-west-2 Fargate one-shot using the Mastodon UA; `api.mention.earth` is DNS-only → ALB (not CF-proxied); only apex `mention.earth` is behind CF.
+- To rule out CF bot-blocking: curl from an AWS us-west-2 Fargate one-shot using the Mastodon UA. `api.mention.earth` is DNS-only → ALB (not CF-proxied); the apex `mention.earth` is CF-proxied → the same ALB → the same backend.
 
 ## Federated Media Cache
 
