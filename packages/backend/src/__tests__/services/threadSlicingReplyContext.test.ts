@@ -120,6 +120,33 @@ describe('ThreadSlicingService reply-context parent author', () => {
     expect(resolveUserSummaries.mock.calls[0][0]).toContain(PARENT_AUTHOR_ID);
   });
 
+  it('fetches reply-context parents only when public and published', async () => {
+    postFind.mockImplementation(() => []);
+    resolveUserSummaries.mockResolvedValue(new Map<string, CachedUserSummary>());
+
+    const reply = {
+      _id: REPLY_ID,
+      oxyUserId: REPLY_AUTHOR_ID,
+      parentPostId: PARENT_ID,
+      visibility: PostVisibility.PUBLIC,
+      status: 'published',
+      content: { text: 'a public reply' },
+    };
+
+    await threadSlicingService.sliceFeed([reply], {
+      enableThreadGrouping: false,
+      enableReplyContext: true,
+      maxSliceSize: 3,
+    });
+
+    expect(postFind).toHaveBeenCalledTimes(1);
+    expect(postFind.mock.calls[0][0]).toMatchObject({
+      _id: { $in: [PARENT_ID] },
+      visibility: PostVisibility.PUBLIC,
+      status: 'published',
+    });
+  });
+
   it('never emits a blank displayName/handle when the author cannot be resolved', async () => {
     // Author resolution returns nothing (e.g. Oxy lookup miss).
     resolveUserSummaries.mockResolvedValue(new Map<string, CachedUserSummary>());
