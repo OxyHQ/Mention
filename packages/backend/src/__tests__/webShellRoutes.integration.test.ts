@@ -1,0 +1,118 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import express from 'express';
+import request from 'supertest';
+
+// Mock the heavy deps BEFORE importing the router so the real PostHydrationService
+// (which imports the server entrypoint) never loads — keeps this a fast, isolated
+// route test. mongoose/redis/logger are already mocked in the global setup.
+vi.mock('../models/Post', () => ({ Post: { findById: vi.fn() } }));
+vi.mock('../services/PostHydrationService', () => ({
+  postHydrationService: { hydratePosts: vi.fn() },
+}));
+
+import webShellRoutes from '../routes/webShell.routes';
+import { Post } from '../models/Post';
+import { postHydrationService } from '../services/PostHydrationService';
+import type { HydratedPost } from '@mention/shared-types';
+
+const SHELL =
+  '<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>Mention</title></head>' +
+  '<body><div id="root"></div><script src="/_expo/static/js/web/entry.js" defer></script></body></html>';
+
+/** A 24-hex ObjectId so the route's `mongoose.isValidObjectId` guard passes. */
+const POST_ID = '507f1f77bcf86cd799439011';
+
+function makeApp() {
+  const app = express();
+  app.use('/', webShellRoutes);
+  return app;
+}
+
+/** Stub `global.fetch`: the shell fetch returns SHELL; the Oxy profile fetch returns `profile`. */
+function stubFetch(profile: { ok: boolean; body?: unknown }) {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: string | URL) => {
+      const href = String(url);
+      if (href.includes('/profiles/username/')) {
+        return { ok: profile.ok, json: async () => profile.body } as Response;
+      }
+      return { ok: true, text: async () => SHELL } as unknown as Response;
+    }),
+  );
+}
+
+describe('webShell routes (integration)', () => {
+  beforeEach(() => {
+    vi.unstubAllGlobals();
+    vi.clearAllMocks();
+  });
+
+  it('serves the shell with profile OG for a non-AP /@handle request', async () => {
+    stubFetch({ ok: true, body: { data: { username: 'nate', name: { displayName: 'Nate' }, bio: 'bio' } } });
+
+    const res = await request(makeApp()).get('/@nate');
+
+    expect(res.status).toBe(200);
+    expect(res.headers['content-type']).toContain('text/html');
+    expect(res.headers.vary).toContain('Accept');
+    expect(res.text).toContain('<meta property="og:title" content="Nate (@nate) on Mention">');
+    expect(res.text).toContain('<title>Nate (@nate) on Mention</title>');
+    expect(res.text).not.toContain('<title>Mention</title>');
+  });
+
+  it('302-redirects a local /@handle to the AP actor when Accept wants ActivityPub', async () => {
+    stubFetch({ ok: true, body: {} });
+
+    const res = await request(makeApp()).get('/@nate').set('Accept', 'application/activity+json');
+
+    expect(res.status).toBe(302);
+    expect(res.headers.location).toBe('https://api.mention.earth/ap/users/nate');
+  });
+
+  it('does NOT AP-redirect a federated handle (@user@domain), serving the shell instead', async () => {
+    stubFetch({ ok: false });
+
+    const res = await request(makeApp())
+      .get('/@user@remote.social')
+      .set('Accept', 'application/ld+json');
+
+    expect(res.status).toBe(200);
+    expect(res.headers['content-type']).toContain('text/html');
+  });
+
+  it('serves the shell with post OG for /p/:id', async () => {
+    stubFetch({ ok: false });
+    vi.mocked(Post.findById).mockReturnValue({
+      maxTimeMS: () => ({ lean: () => Promise.resolve({ _id: POST_ID, oxyUserId: 'u1', content: { text: 'hi there' } }) }),
+    } as unknown as ReturnType<typeof Post.findById>);
+    vi.mocked(postHydrationService.hydratePosts).mockResolvedValue([
+      {
+        id: POST_ID,
+        user: { id: 'u1', handle: 'nate', displayName: 'Nate', avatarUrl: 'https://cdn/a.png' },
+        content: { text: 'hi there' },
+      } as unknown as HydratedPost,
+    ]);
+
+    const res = await request(makeApp()).get(`/p/${POST_ID}`);
+
+    expect(res.status).toBe(200);
+    expect(res.headers['content-type']).toContain('text/html');
+    expect(res.text).toContain('<meta property="og:title" content="Nate on Mention">');
+    expect(res.text).toContain(`<meta property="og:url" content="https://mention.earth/p/${POST_ID}">`);
+    expect(res.text).toContain('<meta property="og:image" content="https://cdn/a.png">');
+  });
+
+  it('fails open with a plain shell when the post is missing', async () => {
+    stubFetch({ ok: false });
+    vi.mocked(Post.findById).mockReturnValue({
+      maxTimeMS: () => ({ lean: () => Promise.resolve(null) }),
+    } as unknown as ReturnType<typeof Post.findById>);
+
+    const res = await request(makeApp()).get(`/p/${POST_ID}`);
+
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('<title>Mention</title>');
+    expect(res.text).not.toContain('og:title');
+  });
+});
