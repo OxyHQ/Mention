@@ -429,6 +429,7 @@ export class FeedQueryBuilder {
     const query: Record<string, unknown> = {
       oxyUserId: { $in: followingIds },
       visibility: PostVisibility.PUBLIC,
+      status: 'published',
       // No parentPostId filter — replies flow through for thread slicing
       // Exclude boosts (they are shown differently)
       $and: [
@@ -450,6 +451,7 @@ export class FeedQueryBuilder {
   static buildExploreQuery(cursor?: string): Record<string, unknown> {
     const match: Record<string, unknown> = {
       visibility: PostVisibility.PUBLIC,
+      status: 'published',
       $and: [
         { $or: [{ parentPostId: null }, { parentPostId: { $exists: false } }] },
         { $or: [{ boostOf: null }, { boostOf: { $exists: false } }] }
@@ -540,4 +542,3 @@ export class FeedQueryBuilder {
     return query;
   }
 }
-
