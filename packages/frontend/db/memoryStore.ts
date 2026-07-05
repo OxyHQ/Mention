@@ -216,3 +216,13 @@ export function memClearFeed(feedKey: string): void {
   feedItems.delete(feedKey);
   feedMeta.delete(feedKey);
 }
+
+export function memClearAllFeeds(): void {
+  feedItems.clear();
+  feedMeta.clear();
+}
+
+export function memClearAll(): void {
+  posts.clear();
+  memClearAllFeeds();
+}

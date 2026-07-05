@@ -19,6 +19,7 @@ import { confirmDialog } from "@/utils/alerts";
 import { createScopedLogger } from "@/lib/logger";
 import { useBloomTheme } from '@oxyhq/bloom/theme';
 import { useAppearanceStore } from '@/store/appearanceStore';
+import { clearViewerSessionCache } from '@/utils/sessionCache';
 
 const logger = createScopedLogger('SettingsScreen');
 
@@ -74,6 +75,7 @@ export default function SettingsScreen() {
         } catch (error) {
             logger.warn('Sign-out failed; resetting local state and navigating anyway', { error });
         }
+        clearViewerSessionCache();
         resetAppearance();
         resetTheme();
         router.replace('/');

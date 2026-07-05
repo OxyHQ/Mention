@@ -34,6 +34,7 @@ import { Agora, AgoraActive } from '@mention/agora-shared';
 import { useAuth } from '@oxyhq/services';
 import { getNormalizedUserHandle } from '@oxyhq/core';
 import { asViewStyle, type WebViewStyle } from '@/types/webStyles';
+import { clearViewerSessionCache } from '@/utils/sessionCache';
 
 const WindowHeight = Dimensions.get('window').height;
 
@@ -74,6 +75,7 @@ export function SideBar({ asDrawer = false, onNavigate }: SideBarProps) {
         } catch (error: unknown) {
             logger.warn('Sign out failed', { error });
         }
+        clearViewerSessionCache();
         resetAppearance();
         resetTheme();
         onNavigate?.();

@@ -21,6 +21,7 @@ import {
   memAddFeedItemAtStart,
   memRemovePostFromAllFeeds,
   memClearFeed,
+  memClearAllFeeds,
 } from './memoryStore';
 import { createScopedLogger } from '@/lib/logger';
 
@@ -465,6 +466,11 @@ export function clearFeed(feedKey: string): void {
  * Clear all feeds.
  */
 export function clearAllFeeds(): void {
+  if (!isDbAvailable()) {
+    memClearAllFeeds();
+    return;
+  }
+
   const db = getDb();
   if (!db) return;
   try {
