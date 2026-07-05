@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import type { AnyBulkWriteOperation, Types } from 'mongoose';
 import { Post, type IPost } from '../models/Post';
-import type { PostClassificationScores } from '@mention/shared-types';
+import { PostVisibility, type PostClassificationScores } from '@mention/shared-types';
 import { aliaJSON, isAliaEnabled } from '../utils/alia';
 import { logger } from '../utils/logger';
 import { config } from '../config';
@@ -208,6 +208,7 @@ class PostClassificationService {
       ...UNCLASSIFIED_FILTER,
       'content.text': { $exists: true, $ne: '' },
       status: 'published',
+      visibility: PostVisibility.PUBLIC,
       boostOf: { $exists: false },
     })
       .select({ 'content.text': 1, createdAt: 1, 'postClassification.attempts': 1 })

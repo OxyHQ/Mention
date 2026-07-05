@@ -1,6 +1,6 @@
 import { Post } from '../models/Post';
 import Trending, { TrendingType, ITrending } from '../models/Trending';
-import { TopicType } from '@mention/shared-types';
+import { PostVisibility, TopicType } from '@mention/shared-types';
 import TrendBatch from '../models/TrendBatch';
 import { logger } from '../utils/logger';
 import { getRedisClient } from '../utils/redis';
@@ -227,6 +227,7 @@ class TrendingService {
         $match: {
           createdAt: { $gte: oneDayAgo },
           status: 'published',
+          visibility: PostVisibility.PUBLIC,
           boostOf: { $exists: false },
           // At least one topic source must be present.
           $or: [

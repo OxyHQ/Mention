@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { PostVisibility } from '@mention/shared-types';
 
 /**
  * Unit coverage for {@link TrendingService} NSFW/sensitive exclusion.
@@ -133,6 +134,9 @@ describe('TrendingService.aggregateTopics — canonical topicRefs source with sl
     ]);
     // The window is keyed on the post createdAt (shared time basis for both sources).
     expect(firstMatch.createdAt).toHaveProperty('$gte');
+    // Public trend/topic endpoints must never aggregate topics from private or
+    // followers-only posts.
+    expect(firstMatch.visibility).toBe(PostVisibility.PUBLIC);
 
     // An $addFields stage computes the unified `_topicSource`: topicRefs when
     // non-empty, else the slug-only `postClassification.topics` mapped to `{ name }`.

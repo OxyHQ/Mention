@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { ClassificationTopicRef } from '@mention/shared-types';
+import { PostVisibility, type ClassificationTopicRef } from '@mention/shared-types';
 
 /**
  * Unit coverage for the AI post-classification batch service.
@@ -421,6 +421,19 @@ describe('PostClassificationService — Stage-A baseline preservation', () => {
 });
 
 describe('PostClassificationService — canonical topicRefs resolution', () => {
+  it('only selects public posts for AI topic registry resolution', async () => {
+    findResult.docs = [];
+
+    await postClassificationService.processQueue();
+
+    expect(find).toHaveBeenCalledTimes(1);
+    expect(find.mock.calls[0][0]).toMatchObject({
+      status: 'published',
+      visibility: PostVisibility.PUBLIC,
+      boostOf: { $exists: false },
+    });
+  });
+
   it('resolves AI-refined topics into registry-linked topicRefs (preserving topicId linkage)', async () => {
     findResult.docs = [post('refs_post', 'A post about basketball and the lakers.')];
     aliaJSON.mockResolvedValue([
