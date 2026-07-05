@@ -64,6 +64,7 @@ import entityFollowRoutes from './src/routes/entity-follow.routes';
 import mediaRoutes from './src/routes/media';
 import recommendationsRoutes from './src/routes/recommendations';
 import mtnNodesRoutes from './src/routes/mtn-nodes.routes';
+import webShellRoutes from './src/routes/webShell.routes';
 
 // Federation (ActivityPub) — network connectors. Importing the connectors index
 // instantiates the enabled connectors and registers the connector registry as
@@ -919,6 +920,16 @@ app.use('/media', mediaRoutes);
 
 // Mount public and authenticated API routers
 app.use("/", publicApiRouter);
+
+// --- Public web shell with OpenGraph (PUBLIC, no auth) ---
+// Serves the SPA shell HTML with per-request OG tags for `/@handle` and `/p/:id`
+// (the `bskyweb` model — replaces the retired CF Pages `_worker.js` OG injection).
+// Mounted LAST among the public routes and BEFORE the authenticated router so
+// anonymous browsers/crawlers reach it — the auth router's oxy.auth() middleware
+// would otherwise reject these public page loads. Its RegExp routes (`/@…`, `/p/…`)
+// do not collide with any API/federation mount.
+app.use("/", webShellRoutes);
+
 app.use("/", oxy.auth(), authenticatedApiRouter);
 
 // Global error handler — must be the LAST middleware registered.
