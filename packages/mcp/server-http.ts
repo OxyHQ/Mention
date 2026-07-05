@@ -8,8 +8,9 @@
  * Environment variables:
  *   MENTION_API_URL — Base URL of the Mention API (default: https://api.mention.earth)
  *   MCP_PORT        — Port to listen on (default: 3100)
+ *   MCP_AUTH_TOKEN  — Optional endpoint token required in X-MCP-Token
  */
-import { randomUUID } from "node:crypto";
+import { randomUUID, timingSafeEqual } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
@@ -17,6 +18,7 @@ import { createMcpServer } from "./lib/create-server.js";
 import { requestContext } from "./lib/context.js";
 
 const PORT = parseInt(process.env.MCP_PORT || "3100", 10);
+const ENDPOINT_AUTH_TOKEN = process.env.MCP_AUTH_TOKEN;
 
 // ── Transport store ──────────────────────────────────────────
 const transports: Record<string, StreamableHTTPServerTransport | SSEServerTransport> = {};
@@ -76,6 +78,28 @@ function readBody(req: IncomingMessage): Promise<unknown> {
   });
 }
 
+function extractEndpointAuthToken(
+  headers: Record<string, string | string[] | undefined>,
+  query?: Record<string, string | undefined>,
+): string | undefined {
+  const tokenHeader = headers["x-mcp-token"] ?? headers["mcp-auth-token"];
+  const header = Array.isArray(tokenHeader) ? tokenHeader[0] : tokenHeader;
+  return header || query?.mcpAuthToken;
+}
+
+function isEndpointAuthorized(
+  headers: Record<string, string | string[] | undefined>,
+  query?: Record<string, string | undefined>,
+): boolean {
+  if (!ENDPOINT_AUTH_TOKEN) return true;
+  const providedToken = extractEndpointAuthToken(headers, query);
+  if (!providedToken) return false;
+
+  const expected = Buffer.from(ENDPOINT_AUTH_TOKEN);
+  const provided = Buffer.from(providedToken);
+  return expected.length === provided.length && timingSafeEqual(expected, provided);
+}
+
 function sendJsonRpcError(res: ServerResponse, httpStatus: number, code: number, message: string): void {
   res.setHeader("Content-Type", "application/json");
   res.writeHead(httpStatus);
@@ -111,7 +135,7 @@ async function main() {
     // CORS headers
     res.setHeader("Access-Control-Allow-Origin", "*");
     res.setHeader("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS");
-    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, Mcp-Session-Id");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, Mcp-Session-Id, X-MCP-Token, MCP-Auth-Token");
     if (req.method === "OPTIONS") {
       res.writeHead(204);
       res.end();
@@ -130,6 +154,12 @@ async function main() {
       res.setHeader("Content-Type", "application/json");
       res.writeHead(404);
       res.end(JSON.stringify({ error: "OAuth not supported" }));
+      return;
+    }
+
+    const isMcpEndpoint = pathname === "/mcp" || pathname === "/sse" || pathname === "/messages";
+    if (isMcpEndpoint && !isEndpointAuthorized(headers, query)) {
+      sendJsonRpcError(res, 401, -32001, "Unauthorized MCP endpoint. Provide the configured MCP_AUTH_TOKEN in the X-MCP-Token header.");
       return;
     }
 
