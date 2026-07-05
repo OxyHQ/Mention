@@ -73,6 +73,15 @@
 
 html, body, #root {
   font-family: 'Inter', 'Inter-Regular', sans-serif;
+  /* Pre-hydration dark canvas. Bloom applies the real theme (the `.dark` class +
+     `--background` var) at RUNTIME from BloomThemeProvider, so before the JS
+     bundle runs there is no themed background and the first paint would be white.
+     This render-blocking rule (global.css ships as a <link rel=stylesheet> in the
+     head, before the deferred bundle) paints the boot canvas the same dark as the
+     always-dark AppSplashScreen (#0B0B0F, matching the native splash), killing the
+     white flash with no worker/JS. The app's own `bg-background` covers it once
+     mounted. This is the Expo analog of the Vite apps' static `<html class="dark">`. */
+  background-color: #0B0B0F;
 }
 
 /* Document-level scrolling. Expo / react-native-web automatically inject a
