@@ -198,6 +198,10 @@ Use `oxyServices.getFileDownloadUrl(id, variant)` everywhere. Mention backend `u
 - **Notifications**: `POST /notifications` is server-authored — no client mass-assignment of notification fields.
 - **Debug routes**: `/test` debug route was removed from production. Do not re-add it.
 
+## CORS (Web) — Intentional Exception to `createOxyCors`
+
+Mention keeps its own CORS middleware (`server.ts` + `utils/allowedOrigins.ts`) on purpose — do NOT "fix" it to use `@oxyhq/core/server`'s `createOxyCors`. Two reasons: (1) `createOxyCors` only does exact-origin allowlist matching, so it can't express Mention's dev `DEV_ORIGIN_PATTERN` (any localhost/127.0.0.1/RFC1918 LAN-IP on any port, non-prod only — needed for the Expo dev server + physical test devices); (2) it unconditionally allows the whole HTTPS `*.oxy.so` family, which would BROADEN Mention's prod CORS (currently scoped to `mention.earth` + `agora.mention.earth`) — a credentialed-CORS loosening. The hand-rolled middleware also sets `Cache-Control: no-store` on non-federation routes, which `createOxyCors` doesn't. The strict hand-rolled allowlist is the correct, tighter choice here.
+
 ## Auth Cold-Boot Reactivity (Web)
 
 The SSO restore path can take 5–25s. React Query keys and effect deps MUST include `isAuthenticated` / `user?.id` — keying on `oxyServices` or `[]` fetches once while anonymous and never recovers when the session lands.

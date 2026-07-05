@@ -29,7 +29,7 @@ const SENT_PREVIEW_COUNT = 3;
 const SUGGESTED_PREVIEW_COUNT = 5;
 
 export default function PokesScreen() {
-    const { user, isAuthenticated } = useAuth();
+    const { user, isAuthenticated, canUsePrivateApi } = useAuth();
     const queryClient = useQueryClient();
     const router = useRouter();
     const safeBack = useSafeBack();
@@ -45,9 +45,9 @@ export default function PokesScreen() {
         error: errorReceived,
         refetch: refetchReceived,
     } = useQuery({
-        queryKey: ['pokes', 'received'],
+        queryKey: ['pokes', 'received', user?.id],
         queryFn: () => pokeService.getReceivedPokes(),
-        enabled: isAuthenticated,
+        enabled: canUsePrivateApi,
     });
 
     const {
@@ -55,9 +55,9 @@ export default function PokesScreen() {
         isLoading: loadingSent,
         refetch: refetchSent,
     } = useQuery({
-        queryKey: ['pokes', 'sent'],
+        queryKey: ['pokes', 'sent', user?.id],
         queryFn: () => pokeService.getSentPokes(),
-        enabled: isAuthenticated,
+        enabled: canUsePrivateApi,
     });
 
     const {
@@ -65,9 +65,9 @@ export default function PokesScreen() {
         isLoading: loadingSuggested,
         refetch: refetchSuggested,
     } = useQuery({
-        queryKey: ['pokes', 'suggested'],
+        queryKey: ['pokes', 'suggested', user?.id],
         queryFn: () => pokeService.getSuggested(),
-        enabled: isAuthenticated,
+        enabled: canUsePrivateApi,
     });
 
     const invalidatePokeQueries = useCallback(() => {

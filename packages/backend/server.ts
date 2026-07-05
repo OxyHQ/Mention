@@ -55,7 +55,6 @@ import pokesRoutes from './src/routes/pokes';
 import starterPacksRoutes from './src/routes/starterPacks';
 import gifsRoutes from './src/routes/gifs';
 import articlesRoutes from './src/routes/articles';
-import followsRoutes from './src/routes/follows';
 import muteRoutes from './src/routes/mute.routes';
 import muteWordsRoutes from './src/routes/muteWords.routes';
 import reportsRoutes from './src/routes/reports.routes';
@@ -65,6 +64,8 @@ import entityFollowRoutes from './src/routes/entity-follow.routes';
 import mediaRoutes from './src/routes/media';
 import recommendationsRoutes from './src/routes/recommendations';
 import mtnNodesRoutes from './src/routes/mtn-nodes.routes';
+import webShellRoutes from './src/routes/webShell.routes';
+import { apexFrontendProxy, isApexHost } from './src/middleware/apexFrontendProxy';
 
 // Federation (ActivityPub) — network connectors. Importing the connectors index
 // instantiates the enabled connectors and registers the connector registry as
@@ -524,25 +525,29 @@ postsNamespace.on("connection", (socket: AuthenticatedSocket) => {
     logger.debug(`Client ${socket.id} left post room: ${room}`);
   }));
 
-  // Join feed room for real-time updates (posts namespace)
-  socket.on("joinFeed", socketRateLimiter.wrap(socket, 'joinFeed', (data: { feedType?: string; userId?: string }) => {
-    const { feedType, userId } = data || {};
+  // Join feed room for real-time updates (posts namespace). The user-scoped room
+  // is ALWAYS derived from the authenticated socket identity — never a
+  // client-supplied id — so a client can only ever join its OWN feed room.
+  socket.on("joinFeed", socketRateLimiter.wrap(socket, 'joinFeed', (data: { feedType?: string }) => {
+    const feedType = data?.feedType;
     if (feedType && typeof feedType === 'string') {
       socket.join(`feed:${feedType}`);
     }
-    if (userId && typeof userId === 'string') {
-      socket.join(`feed:user:${userId}`);
+    const selfId = socket.user?.id;
+    if (selfId) {
+      socket.join(`feed:user:${selfId}`);
     }
   }));
 
   // Leave feed room (posts namespace)
-  socket.on("leaveFeed", socketRateLimiter.wrap(socket, 'leaveFeed', (data: { feedType?: string; userId?: string }) => {
-    const { feedType, userId } = data || {};
+  socket.on("leaveFeed", socketRateLimiter.wrap(socket, 'leaveFeed', (data: { feedType?: string }) => {
+    const feedType = data?.feedType;
     if (feedType && typeof feedType === 'string') {
       socket.leave(`feed:${feedType}`);
     }
-    if (userId && typeof userId === 'string') {
-      socket.leave(`feed:user:${userId}`);
+    const selfId = socket.user?.id;
+    if (selfId) {
+      socket.leave(`feed:user:${selfId}`);
     }
   }));
 
@@ -650,31 +655,35 @@ io.on("connection", (socket: AuthenticatedSocket) => {
     logger.debug(`Client ${socket.id} left room: ${room}`);
   }));
 
-  // Join feed room for real-time updates
-  socket.on("joinFeed", socketRateLimiter.wrap(socket, 'joinFeed', (data: { feedType?: string; userId?: string }) => {
-    const { feedType, userId: feedUserId } = data || {};
+  // Join feed room for real-time updates. The user-scoped room is ALWAYS derived
+  // from the authenticated socket identity — never a client-supplied id — so a
+  // client can only ever join its OWN feed room.
+  socket.on("joinFeed", socketRateLimiter.wrap(socket, 'joinFeed', (data: { feedType?: string }) => {
+    const feedType = data?.feedType;
     if (feedType && typeof feedType === 'string') {
       const room = `feed:${feedType}`;
       socket.join(room);
       logger.debug(`Client ${socket.id} joined feed room: ${room}`);
     }
-    if (feedUserId && typeof feedUserId === 'string') {
-      const userRoom = `feed:user:${feedUserId}`;
+    const selfId = socket.user?.id;
+    if (selfId) {
+      const userRoom = `feed:user:${selfId}`;
       socket.join(userRoom);
       logger.debug(`Client ${socket.id} joined user feed room: ${userRoom}`);
     }
   }));
 
   // Leave feed room
-  socket.on("leaveFeed", socketRateLimiter.wrap(socket, 'leaveFeed', (data: { feedType?: string; userId?: string }) => {
-    const { feedType, userId: feedUserId } = data || {};
+  socket.on("leaveFeed", socketRateLimiter.wrap(socket, 'leaveFeed', (data: { feedType?: string }) => {
+    const feedType = data?.feedType;
     if (feedType && typeof feedType === 'string') {
       const room = `feed:${feedType}`;
       socket.leave(room);
       logger.debug(`Client ${socket.id} left feed room: ${room}`);
     }
-    if (feedUserId && typeof feedUserId === 'string') {
-      const userRoom = `feed:user:${feedUserId}`;
+    const selfId = socket.user?.id;
+    if (selfId) {
+      const userRoom = `feed:user:${selfId}`;
       socket.leave(userRoom);
       logger.debug(`Client ${socket.id} left user feed room: ${userRoom}`);
     }
@@ -798,7 +807,6 @@ authenticatedApiRouter.use("/profile/media", profileMediaRoutes);
 authenticatedApiRouter.use("/profile", profileSettingsRoutes);
 authenticatedApiRouter.use("/subscriptions", subscriptionsRoutes);
 authenticatedApiRouter.use("/gifs", gifsRoutes);
-authenticatedApiRouter.use("/follows", followsRoutes);
 authenticatedApiRouter.use("/mute", muteRoutes);
 authenticatedApiRouter.use("/mute-words", muteWordsRoutes); // Muted words & hashtags (feed tuner)
 authenticatedApiRouter.use("/reports", reportsRoutes);
@@ -808,7 +816,12 @@ authenticatedApiRouter.use("/entity-follows", entityFollowRoutes);
 // shared pack links resolve during cold boot; its write routes enforce auth internally.
 
 // --- Root API Welcome Route ---
-app.get("", async (req, res) => {
+// On the API host `/` is the API root; on the frontend apex `/` is the SPA
+// homepage, so defer to the apex frontend proxy (mounted below) for apex hosts.
+app.get("", async (req, res, next) => {
+  if (isApexHost(req)) {
+    return next();
+  }
   try {
     const postsCount = await Post.countDocuments();
     res.json({ message: "Welcome to the API", posts: postsCount });
@@ -911,8 +924,30 @@ app.use('/.well-known', wellKnownBridgeRouter);
 // public path is exactly `/media/proxy`. SSRF-guarded internally.
 app.use('/media', mediaRoutes);
 
-// Mount public and authenticated API routers
+// --- Public web shell with OpenGraph (PUBLIC, no auth) ---
+// Serves the SPA shell HTML with per-request OG tags for `/@handle` and `/p/:id`
+// (the `bskyweb` model — replaces the retired CF Pages `_worker.js` OG injection).
+// Mounted BEFORE the apex proxy and the API routers so anonymous browsers/crawlers
+// reach it (the auth router's oxy.auth() would otherwise reject these public page
+// loads) AND so apex `/@handle` / `/p/:id` get the OG-injected shell rather than a
+// dumb CDN proxy. Its RegExp routes (`/@…`, `/p/…`) do not collide with any
+// API/federation mount.
+app.use("/", webShellRoutes);
+
+// --- Apex frontend reverse-proxy (host-aware; the "bskyweb-full" model) ---
+// For the frontend apex host (`mention.earth`) this proxies every remaining
+// request (`/`, `/explore`, `/feed`, `/notifications`, `/lists`, `/starter-packs`,
+// `/_expo/*`, …) to the static frontend CDN so the apex serves the whole SPA. It
+// is a STRICT no-op (`next()`) for the API host, so the API routers below are
+// reached ONLY by non-apex hosts and behave exactly as before. Must sit BEFORE the
+// API routers so apex SPA routes whose prefixes collide with API mounts are
+// proxied to the SPA instead of hitting the API.
+app.use(apexFrontendProxy);
+
+// Mount public and authenticated API routers (API host only — apex traffic was
+// already handled by the proxy above).
 app.use("/", publicApiRouter);
+
 app.use("/", oxy.auth(), authenticatedApiRouter);
 
 // Global error handler — must be the LAST middleware registered.

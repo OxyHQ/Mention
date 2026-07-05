@@ -5,6 +5,7 @@ import { logger } from '../utils/logger';
 import { aliaChat, isAliaEnabled } from '../utils/alia';
 import { oxy as oxyClient } from '../../server';
 import { userPreferenceService } from '../services/UserPreferenceService';
+import { recordDedupedView } from '../services/feedViewCounter';
 
 interface DateRange {
   startDate: Date;
@@ -245,16 +246,22 @@ export const trackPostView = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ message: 'Post ID is required' });
     }
 
-    // Single round-trip: atomically increment the view count and read back the
-    // new value. `findByIdAndUpdate` returns null for a missing post (no $inc is
-    // applied), so no separate existence probe is needed.
-    const updatedPost = await Post.findByIdAndUpdate(
-      postId,
-      { $inc: { 'stats.viewsCount': 1 } },
-      { new: true, projection: { 'stats.viewsCount': 1 } }
-    ).lean();
+    // Deduplicate the view per (viewer, post) through the SAME canonical
+    // feed-impression guard used by ranking (`recordDedupedView` → Redis
+    // `SET NX EX viewseen:<post>:<viewer>`): only the FIRST view within the
+    // window performs the `$inc` on `stats.viewsCount`; a duplicate view or an
+    // ineligible/absent post is a no-op. This closes the previous
+    // undeduplicated `$inc`-on-any-postId inflation path. An anonymous request
+    // (no viewer id) cannot be deduped, so — matching `feedViewCounter`, which
+    // requires a viewer id — it is never counted.
+    if (userId) {
+      await recordDedupedView(postId, userId);
+    }
 
-    if (!updatedPost) {
+    // Read back the current count for the response; this also serves as the
+    // existence check, so a missing post still returns 404.
+    const post = await Post.findById(postId, { 'stats.viewsCount': 1 }).lean();
+    if (!post) {
       return res.status(404).json({ message: 'Post not found' });
     }
 
@@ -266,7 +273,7 @@ export const trackPostView = async (req: AuthRequest, res: Response) => {
         .catch((error) => logger.warn('Failed to record view interaction:', error));
     }
 
-    res.json({ success: true, viewsCount: updatedPost.stats?.viewsCount ?? 0 });
+    res.json({ success: true, viewsCount: post.stats?.viewsCount ?? 0 });
   } catch (error) {
     logger.error('Error tracking post view:', error);
     res.status(500).json({

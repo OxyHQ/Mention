@@ -1,4 +1,5 @@
 import { Router, Response } from 'express';
+import mongoose from 'mongoose';
 import Report, { ReportedType, ReportCategory, ReportStatus } from '../models/Report.model';
 import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
 import { logger } from '../utils/logger';
@@ -131,9 +132,11 @@ router.get('/', async (req: AuthRequest, res: Response) => {
       }
     }
 
-    // Cursor-based pagination
-    if (cursor && typeof cursor === 'string') {
-      query._id = { $lt: cursor };
+    // Cursor-based pagination. Guard against a non-ObjectId cursor: casting a raw
+    // client string that isn't a valid ObjectId throws a Mongoose CastError → 500.
+    // An invalid cursor is ignored (returns the first page) rather than erroring.
+    if (cursor && typeof cursor === 'string' && mongoose.Types.ObjectId.isValid(cursor)) {
+      query._id = { $lt: new mongoose.Types.ObjectId(cursor) };
     }
 
     const limitNum = Math.min(Math.max(parseInt(limit as string, 10) || 20, 1), 100);

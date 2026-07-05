@@ -29,7 +29,7 @@ export default function InterestsSettingsScreen() {
     const { t } = useTranslation();
     const safeBack = useSafeBack();
     const { colors } = useTheme();
-    const { isAuthenticated } = useAuth();
+    const { canUsePrivateApi, isPrivateApiPending } = useAuth();
     const mySettings = useAppearanceStore((state) => state.mySettings);
     const loadMySettings = useAppearanceStore((state) => state.loadMySettings);
     const [loading, setLoading] = useState(true);
@@ -43,7 +43,12 @@ export default function InterestsSettingsScreen() {
     );
 
     useEffect(() => {
-        if (!isAuthenticated) {
+        // Wait out the token-pending SSO window; keep the initial `loading`
+        // spinner up rather than firing private reads that would 401.
+        if (isPrivateApiPending) {
+            return;
+        }
+        if (!canUsePrivateApi) {
             setLoading(false);
             return;
         }
@@ -60,7 +65,7 @@ export default function InterestsSettingsScreen() {
         });
 
         return () => { cancelled = true; };
-    }, [isAuthenticated, loadMySettings]);
+    }, [canUsePrivateApi, isPrivateApiPending, loadMySettings]);
 
     useEffect(() => {
         if (mySettings) {
@@ -112,7 +117,29 @@ export default function InterestsSettingsScreen() {
         onChangeInterests(newInterests);
     }, [interests, onChangeInterests]);
 
-    if (!isAuthenticated) {
+    if (isPrivateApiPending) {
+        return (
+            <ThemedView className="flex-1">
+                <Header
+                    options={{
+                        title: t('settings.interests.title', { defaultValue: 'Your interests' }),
+                        leftComponents: [
+                            <IconButton variant="icon" key="back" onPress={() => safeBack()}>
+                                <BackArrowIcon size={20} className="text-foreground" />
+                            </IconButton>,
+                        ],
+                    }}
+                    hideBottomBorder
+                    disableSticky
+                />
+                <View className="flex-1 justify-center items-center bg-background">
+                    <Loading className="text-primary" size="large" />
+                </View>
+            </ThemedView>
+        );
+    }
+
+    if (!canUsePrivateApi) {
         return (
             <ThemedView className="flex-1">
                 <Header

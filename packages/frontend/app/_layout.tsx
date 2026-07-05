@@ -32,6 +32,7 @@ import { ImageResolverProvider } from '@oxyhq/bloom/image-resolver';
 // Components
 import AppSplashScreen from '@/components/AppSplashScreen';
 import { NotificationPermissionGate } from '@/components/NotificationPermissionGate';
+import { PwaHead } from '@/components/PwaHead';
 import { AppProviders } from '@/components/providers/AppProviders';
 import { Provider as PortalProvider, Outlet as PortalOutlet } from '@oxyhq/bloom/portal';
 
@@ -152,6 +153,10 @@ export default function RootLayout() {
 
   return (
     <ImageResolverProvider value={resolveImageSource}>
+      {/* WEB-only: inject the PWA manifest <link> + apple/theme metas into
+          document.head at runtime (installability + Web Share Target). Mounted at
+          the root so it is present on every page; renders nothing. No-op on native. */}
+      <PwaHead />
       <BloomThemeProvider
         defaultMode="system"
         defaultColorPreset="blue"

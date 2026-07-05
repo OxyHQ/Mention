@@ -57,7 +57,9 @@ export class MentionNodeScheduler {
       this.livenessInterval = setInterval(() => {
         void this.runLivenessSweep();
       }, MENTION_NODE_LIVENESS_SWEEP_INTERVAL_MS);
+      this.livenessInterval.unref?.();
     }, MENTION_NODE_LIVENESS_SWEEP_START_DELAY_MS);
+    this.livenessStartTimeout.unref?.();
 
     this.syncStartTimeout = setTimeout(() => {
       this.syncStartTimeout = null;
@@ -65,7 +67,9 @@ export class MentionNodeScheduler {
       this.syncInterval = setInterval(() => {
         void this.runSyncSweep();
       }, MENTION_NODE_INGEST_SWEEP_INTERVAL_MS);
+      this.syncInterval.unref?.();
     }, MENTION_NODE_INGEST_SWEEP_START_DELAY_MS);
+    this.syncStartTimeout.unref?.();
 
     logger.info('MentionNodeScheduler started (leader-gated node liveness + sync sweeps)');
   }
