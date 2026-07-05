@@ -15,10 +15,12 @@ import { Post } from '../../../../models/Post';
 import Like from '../../../../models/Like';
 import { EntityFollow } from '../../../../models/EntityFollow';
 import { StarterPack } from '../../../../models/StarterPack';
+import UserSettings from '../../../../models/UserSettings';
 import { FEED_FIELDS } from '../../FeedAPI';
 import { ChronoCursor } from '../../CursorBuilder';
 import { DISCOVERY_SAFE_MATCH } from '../../feedSafety';
 import { logger } from '../../../../utils/logger';
+import { ProfileVisibility, requiresAccessCheck } from '../../../../utils/privacyHelpers';
 import type { CandidatePost, FeedEngineContext, SourceModule } from '../types';
 
 /**
@@ -48,6 +50,29 @@ async function fetchPostsByIds(ids: mongoose.Types.ObjectId[]): Promise<Candidat
     .lean()) as unknown as CandidatePost[];
   const order = new Map(ids.map((id, i) => [String(id), i]));
   return posts.sort((a, b) => (order.get(String(a._id)) ?? 0) - (order.get(String(b._id)) ?? 0));
+}
+
+/** Filter author ids through the same profile-visibility gate used by profile feeds. */
+async function filterProfileVisibleAuthorIds(ctx: FeedEngineContext, authorIds: string[]): Promise<string[]> {
+  const uniqueAuthorIds = Array.from(new Set(authorIds.filter((id) => typeof id === 'string' && id.length > 0)));
+  if (uniqueAuthorIds.length === 0) return [];
+
+  const followAuthorizedIds = new Set([ctx.currentUserId, ...(ctx.followingIds ?? [])].filter(Boolean));
+  const settings = await UserSettings.find(
+    { oxyUserId: { $in: uniqueAuthorIds } },
+    { oxyUserId: 1, 'privacy.profileVisibility': 1 },
+  ).lean();
+  const visibilityByAuthor = new Map(
+    settings.map((row) => [
+      row.oxyUserId,
+      row.privacy?.profileVisibility ?? ProfileVisibility.PUBLIC,
+    ]),
+  );
+
+  return uniqueAuthorIds.filter((authorId) => {
+    const visibility = visibilityByAuthor.get(authorId) ?? ProfileVisibility.PUBLIC;
+    return !requiresAccessCheck(visibility) || followAuthorizedIds.has(authorId);
+  });
 }
 
 /** Standard engagement composite (mirrors the discovery aggregations). */
@@ -510,19 +535,19 @@ export const topRepliesSource: SourceModule = {
  * viewer does not) — social-graph expansion. `ctx.fofIds` is populated by the
  * controller (via the Oxy follows-of-follows endpoint, guarded optional call)
  * ONLY for the Friends-of-Friends feed; returns `[]` when it is empty (any other
- * context, or a viewer whose network yields none). PUBLIC-only — FoF authors are
- * NOT the viewer's followers, so followers-only posts are excluded.
+ * context, or a viewer whose network yields none). PUBLIC-only, and excludes
+ * authors whose profile privacy would deny the viewer's normal profile access.
  */
 export const friendsOfFriendsSource: SourceModule = {
   id: 'friendsOfFriends',
   kind: 'source',
   userComposable: false,
   gather: async (ctx, _params, cap) => {
-    const fofIds = ctx.fofIds ?? [];
-    if (fofIds.length === 0) return [];
+    const visibleFofIds = await filterProfileVisibleAuthorIds(ctx, ctx.fofIds ?? []);
+    if (visibleFofIds.length === 0) return [];
 
     return fetchChrono(
-      { oxyUserId: { $in: fofIds }, visibility: PostVisibility.PUBLIC, status: 'published' },
+      { oxyUserId: { $in: visibleFofIds }, visibility: PostVisibility.PUBLIC, status: 'published' },
       ctx.cursor,
       cap,
     );
