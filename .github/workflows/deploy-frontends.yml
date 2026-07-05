@@ -39,7 +39,7 @@ jobs:
 
   deploy-frontend:
     needs: detect-changes
-    if: needs.detect-changes.outputs.frontend == 'true' || github.event_name == 'workflow_dispatch'
+    if: github.ref == 'refs/heads/main' && (needs.detect-changes.outputs.frontend == 'true' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -65,7 +65,7 @@ jobs:
 
   deploy-agora:
     needs: detect-changes
-    if: needs.detect-changes.outputs.agora == 'true' || github.event_name == 'workflow_dispatch'
+    if: github.ref == 'refs/heads/main' && (needs.detect-changes.outputs.agora == 'true' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
