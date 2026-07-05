@@ -60,12 +60,31 @@ type DownloadOutcome =
 
 type MediaUploader = (source: CachedMediaSource) => Promise<UploadedAsset>;
 
+interface DownloadPolicy {
+  allowedContentTypePrefixes?: readonly string[];
+  maxBytes?: number;
+}
+
+export interface PersistFederatedMediaOptions {
+  downloadPolicy?: DownloadPolicy;
+}
+
+export const FEDERATED_BANNER_MAX_BYTES = 10 * 1024 * 1024;
+export const FEDERATED_BANNER_DOWNLOAD_POLICY: DownloadPolicy = {
+  allowedContentTypePrefixes: ['image/'],
+  maxBytes: FEDERATED_BANNER_MAX_BYTES,
+};
+
 /**
  * Stream a remote media body to a local temp file, enforcing the per-type size
  * cap. Never buffers the whole body in memory. The caller owns cleanup of the
  * temp directory (passed in) in its `finally`.
  */
-async function downloadToTempFile(remoteUrl: string, dir: string): Promise<DownloadOutcome> {
+async function downloadToTempFile(
+  remoteUrl: string,
+  dir: string,
+  policy: DownloadPolicy = {},
+): Promise<DownloadOutcome> {
   const abortController = new AbortController();
   let response: IncomingMessage | null = null;
 
@@ -91,7 +110,11 @@ async function downloadToTempFile(remoteUrl: string, dir: string): Promise<Downl
   }
 
   const contentType = contentTypeFamily(response.headers);
-  if (!isCacheableMediaType(contentType)) {
+  const allowedByGenericPolicy = isCacheableMediaType(contentType);
+  const allowedByCallerPolicy = policy.allowedContentTypePrefixes
+    ? policy.allowedContentTypePrefixes.some((prefix) => contentType.startsWith(prefix))
+    : true;
+  if (!allowedByGenericPolicy || !allowedByCallerPolicy) {
     response.destroy();
     logger.info('[MediaCache] Worker skipping non-cacheable media type', {
       contentType: contentType || 'unknown',
@@ -99,7 +122,7 @@ async function downloadToTempFile(remoteUrl: string, dir: string): Promise<Downl
     return { ok: false, reason: 'not-media' };
   }
 
-  const maxBytes = maxBytesForType(contentType);
+  const maxBytes = Math.min(maxBytesForType(contentType), policy.maxBytes ?? Number.POSITIVE_INFINITY);
 
   // Reject over-large declared bodies up front (streamed bytes are capped too).
   const declared = Number(response.headers['content-length']);
@@ -328,6 +351,7 @@ export async function persistRemoteMediaForFederatedOwnerDetailed(
   remoteUrl: string,
   ownerUserId: string,
   metadata?: Record<string, unknown>,
+  options: PersistFederatedMediaOptions = {},
 ): Promise<PersistFederatedMediaResult> {
   if (!isMediaCacheEnabled()) {
     logger.debug('[MediaCache] Durable federation upload skipped — media writes disabled');
@@ -336,7 +360,7 @@ export async function persistRemoteMediaForFederatedOwnerDetailed(
 
   const dir = await mkdtemp(join(tmpdir(), TEMP_DIR_PREFIX));
   try {
-    const outcome = await downloadToTempFile(remoteUrl, dir);
+    const outcome = await downloadToTempFile(remoteUrl, dir, options.downloadPolicy);
     if (!outcome.ok) {
       return {
         ok: false,

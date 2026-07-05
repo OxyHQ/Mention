@@ -1,7 +1,10 @@
 import { logger } from '../utils/logger';
 import { getServiceOxyClient } from '../utils/oxyHelpers';
 import UserSettings from '../models/UserSettings';
-import { persistRemoteMediaForFederatedOwnerDetailed } from '../services/mediaCache/cacheWorker';
+import {
+  FEDERATED_BANNER_DOWNLOAD_POLICY,
+  persistRemoteMediaForFederatedOwnerDetailed,
+} from '../services/mediaCache/cacheWorker';
 import { isAbsoluteHttpUrl, getRemoteHost } from './shared/url';
 import type { NormalizedExternalActor } from './types';
 
@@ -116,11 +119,16 @@ export async function mirrorFederatedBanner(
   }
 
   const remoteHost = getRemoteHost(bannerUrl);
-  const result = await persistRemoteMediaForFederatedOwnerDetailed(bannerUrl, oxyUserId, {
-    role: 'banner',
-    actorUri,
-    remoteHost,
-  });
+  const result = await persistRemoteMediaForFederatedOwnerDetailed(
+    bannerUrl,
+    oxyUserId,
+    {
+      role: 'banner',
+      actorUri,
+      remoteHost,
+    },
+    { downloadPolicy: FEDERATED_BANNER_DOWNLOAD_POLICY },
+  );
 
   if (result.ok) {
     await UserSettings.updateOne(

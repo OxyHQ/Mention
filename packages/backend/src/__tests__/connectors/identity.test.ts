@@ -29,6 +29,7 @@ vi.mock('../../utils/oxyHelpers', () => ({
 
 vi.mock('../../services/mediaCache/cacheWorker', () => ({
   persistRemoteMediaForFederatedOwnerDetailed: mocks.persistRemoteMedia,
+  FEDERATED_BANNER_DOWNLOAD_POLICY: { allowedContentTypePrefixes: ['image/'], maxBytes: 10 * 1024 * 1024 },
 }));
 
 vi.mock('../../models/UserSettings', () => ({
@@ -141,6 +142,9 @@ describe('resolveOxyExternalUser', () => {
         actorUri: 'https://mastodon.social/users/alice',
         remoteHost: 'files.mastodon.social',
       }),
+      expect.objectContaining({
+        downloadPolicy: expect.objectContaining({ allowedContentTypePrefixes: ['image/'] }),
+      }),
     );
     expect(mocks.userSettingsUpdateOne).toHaveBeenCalledWith(
       { oxyUserId: 'oxy-resolved' },
@@ -166,6 +170,9 @@ describe('resolveOxyExternalUser', () => {
       'https://files.mastodon.social/banner.txt',
       'oxy-resolved',
       expect.objectContaining({ role: 'banner' }),
+      expect.objectContaining({
+        downloadPolicy: expect.objectContaining({ allowedContentTypePrefixes: ['image/'] }),
+      }),
     );
     expect(mocks.userSettingsUpdateOne).not.toHaveBeenCalled();
   });

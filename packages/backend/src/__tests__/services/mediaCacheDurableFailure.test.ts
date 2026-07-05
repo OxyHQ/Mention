@@ -91,3 +91,49 @@ describe('durable federated media failure classification', () => {
     ).resolves.toMatchObject({ ok: false, reason: 'upstream-error', status: 410, permanent: true });
   });
 });
+
+const FEDERATED_BANNER_DOWNLOAD_POLICY = { allowedContentTypePrefixes: ['image/'], maxBytes: 10 * 1024 * 1024 };
+
+describe('durable federated banner media policy', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('rejects video banners before upload or poster extraction', async () => {
+    mocks.fetchUpstreamFollowingRedirects.mockResolvedValue(
+      upstreamResponse(200, { 'content-type': 'video/mp4', 'content-length': String(11 * 1024 * 1024) }),
+    );
+    const { persistRemoteMediaForFederatedOwnerDetailed } = await import(
+      '../../services/mediaCache/cacheWorker'
+    );
+
+    await expect(
+      persistRemoteMediaForFederatedOwnerDetailed(
+        'https://remote.example/banner.mp4',
+        'oxy_user',
+        { role: 'banner' },
+        { downloadPolicy: FEDERATED_BANNER_DOWNLOAD_POLICY },
+      ),
+    ).resolves.toMatchObject({ ok: false, reason: 'not-media' });
+    expect(mocks.uploadFederatedMedia).not.toHaveBeenCalled();
+  });
+
+  it('applies the 10 MiB banner cap even for image content', async () => {
+    mocks.fetchUpstreamFollowingRedirects.mockResolvedValue(
+      upstreamResponse(200, { 'content-type': 'image/jpeg', 'content-length': String(11 * 1024 * 1024) }),
+    );
+    const { persistRemoteMediaForFederatedOwnerDetailed } = await import(
+      '../../services/mediaCache/cacheWorker'
+    );
+
+    await expect(
+      persistRemoteMediaForFederatedOwnerDetailed(
+        'https://remote.example/banner.jpg',
+        'oxy_user',
+        { role: 'banner' },
+        { downloadPolicy: FEDERATED_BANNER_DOWNLOAD_POLICY },
+      ),
+    ).resolves.toMatchObject({ ok: false, reason: 'too-large' });
+    expect(mocks.uploadFederatedMedia).not.toHaveBeenCalled();
+  });
+});

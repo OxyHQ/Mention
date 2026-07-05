@@ -17,6 +17,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('../../services/mediaCache/cacheWorker', () => ({
   persistRemoteMediaForFederatedOwnerDetailed: mocks.persistRemoteMedia,
+  FEDERATED_BANNER_DOWNLOAD_POLICY: { allowedContentTypePrefixes: ['image/'], maxBytes: 10 * 1024 * 1024 },
 }));
 
 vi.mock('../../models/UserSettings', () => ({
@@ -59,6 +60,9 @@ describe('mirrorFederatedBanner', () => {
         role: 'banner',
         actorUri: 'https://mastodon.social/users/alice',
         remoteHost: 'files.mastodon.social',
+      }),
+      expect.objectContaining({
+        downloadPolicy: expect.objectContaining({ allowedContentTypePrefixes: ['image/'] }),
       }),
     );
     expect(mocks.userSettingsUpdateOne).toHaveBeenCalledWith(
