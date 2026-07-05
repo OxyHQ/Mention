@@ -69,6 +69,14 @@ const OUTBOX_SYNC_MIN_INTERVAL_MS = 15 * 60 * 1000; // 15 minutes
 const FEDERATED_ACTOR_PROFILE_STALE_MS = 24 * 60 * 60 * 1000; // 24 hours
 
 /**
+ * Process-local in-flight guard for public profile-triggered federated syncs.
+ * This keeps repeated empty profile-feed requests from spawning overlapping
+ * outbound ActivityPub/Oxy work for the same actor/user while preserving the
+ * non-blocking response behavior.
+ */
+const federatedProfileSyncsInFlight = new Set<string>();
+
+/**
  * A follower/mention reference may arrive as a bare user-id string or as a
  * populated object carrying `id`/`_id`. Used when checking reply permissions.
  */
@@ -961,6 +969,13 @@ class FeedController {
   private runFederatedProfileSyncInBackground(syncUserId: string, cachedActor?: IFederatedActor): void {
     if (!FEDERATION_ENABLED) return;
 
+    const syncKey = syncUserId;
+    if (federatedProfileSyncsInFlight.has(syncKey)) {
+      logger.info(`[FedSync] background profile sync skipped (in-flight) for userId=${syncUserId} key=${syncKey}`);
+      return;
+    }
+    federatedProfileSyncsInFlight.add(syncKey);
+
     void (async () => {
       try {
         let actor: IFederatedActor | null = cachedActor ?? null;
@@ -1120,6 +1135,8 @@ class FeedController {
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         logger.warn(`[FedSync] background profile sync failed for userId=${syncUserId}: ${message}`);
+      } finally {
+        federatedProfileSyncsInFlight.delete(syncKey);
       }
     })();
   }
