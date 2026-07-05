@@ -11,6 +11,7 @@ import { ensureProfileMediaPublic } from '../utils/oxyHelpers';
 import { sendErrorResponse, sendSuccessResponse, validateRequired } from '../utils/apiHelpers';
 import { getRequiredOxyUserId as getAuthenticatedUserId } from '@oxyhq/core/server';
 import { logger } from '../utils/logger';
+import { checkFollowAccess, ProfileVisibility, requiresAccessCheck } from '../utils/privacyHelpers';
 
 const router = Router();
 
@@ -54,7 +55,15 @@ router.get('/settings/:userId', async (req: AuthRequest, res: Response) => {
     const doc = userId === viewerUserId
       ? await ensureUserSettings(userId)
       : await UserSettings.findOne({ oxyUserId: userId }).lean().exec();
-    return sendSuccessResponse(res, 200, buildSettingsResponseForViewer(doc, userId, viewerUserId));
+    const profileVisibility = doc?.privacy?.profileVisibility || ProfileVisibility.PUBLIC;
+    const canViewProfileDesign = userId === viewerUserId
+      || !requiresAccessCheck(profileVisibility)
+      || (await checkFollowAccess(viewerUserId, userId));
+    return sendSuccessResponse(
+      res,
+      200,
+      buildSettingsResponseForViewer(doc, userId, viewerUserId, { canViewProfileDesign })
+    );
   } catch (err) {
     logger.error('[ProfileSettings] Error fetching user settings:', { userId: req.user?.id, targetUserId: req.params.userId, error: err });
     return sendErrorResponse(res, 500, 'Internal Server Error', 'Failed to fetch settings');
@@ -235,14 +244,17 @@ router.put('/settings', async (req: AuthRequest, res: Response) => {
       ).lean()
       : await ensureUserSettings(oxyUserId);
 
-    // Profile banners are public-facing media: an anonymous <img> on a profile
-    // page can't send a bearer token, so a private Oxy asset is denied and the
-    // banner never renders. Promote the newly set banner asset to public using
-    // the owner's own session token (Oxy's visibility route requires it). This
-    // mirrors how Oxy auto-publishes avatars on PUT /users/me; the banner is a
-    // Mention-only field, so Mention owns this promotion. Best-effort: it never
-    // throws and never blocks the settings update.
-    if (newBannerFileId) {
+    // Profile banners are public-facing media only when the profile design is
+    // public. An anonymous <img> on a public profile can't send a bearer token,
+    // so a private Oxy asset is denied and the banner never renders. Promote the
+    // newly set banner asset to public only for public profiles; private and
+    // followers-only profiles must not publish their banner bytes. Best-effort:
+    // it never throws and never blocks the settings update.
+    if (
+      newBannerFileId
+      && doc?.privacy?.profileVisibility !== ProfileVisibility.PRIVATE
+      && doc?.privacy?.profileVisibility !== ProfileVisibility.FOLLOWERS_ONLY
+    ) {
       await ensureProfileMediaPublic(req.accessToken, newBannerFileId);
     }
 

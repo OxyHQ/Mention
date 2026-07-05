@@ -84,9 +84,22 @@ export function buildSettingsResponseForViewer(
   doc: Partial<UserSettingsData> | null | undefined,
   targetUserId: string,
   viewerUserId: string,
+  options: { canViewProfileDesign?: boolean } = {},
 ) {
   if (targetUserId === viewerUserId) {
     return doc;
+  }
+
+  if (options.canViewProfileDesign === false) {
+    return {
+      oxyUserId: targetUserId,
+      appearance: undefined,
+      profileHeaderImage: undefined,
+      profileCustomization: undefined,
+      privacy: doc?.privacy?.profileVisibility ? {
+        profileVisibility: doc.privacy.profileVisibility,
+      } : undefined,
+    };
   }
 
   return extractPublicProfileData(doc, targetUserId);
