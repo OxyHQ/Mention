@@ -183,9 +183,45 @@ app.use((req, res, next) => {
 // Basic liveness/readiness endpoints
 app.use(healthRoutes);
 
-// Security headers — crossOriginResourcePolicy set to cross-origin since API serves a different subdomain
+// Security headers. This backend serves BOTH the JSON API (api.mention.earth) AND the
+// web-app HTML at the apex (mention.earth, via apexFrontendProxy + webShell.routes), so
+// the CSP must permit everything the SPA talks to — helmet's default `default-src 'self'`
+// would block every cross-origin call/image/embed. connect-src is the exfiltration-
+// sensitive directive and is kept to an explicit first-party allowlist; img/media are
+// generous (passive resources); frame-src mirrors the embed players in
+// packages/frontend/utils/embedPlayer.ts. crossOriginResourcePolicy stays cross-origin
+// because the API is served from a different subdomain than the web app.
+const CSP_CONNECT_SRC = [
+  "'self'", "blob:", "data:",
+  "https://api.mention.earth", "wss://api.mention.earth", // Mention API + socket.io
+  "https://api.oxy.so",                                   // Oxy SDK (auth/profiles)
+  "https://cloud.oxy.so",                                 // canonical media
+  "https://api.syra.fm", "wss://api.syra.fm",             // Syra live rooms
+  "https://livekit.oxy.so", "wss://livekit.oxy.so",       // LiveKit signaling
+];
+const CSP_FRAME_SRC = [
+  "'self'",
+  "https://www.youtube-nocookie.com", "https://www.youtube.com",
+  "https://player.vimeo.com",
+  "https://open.spotify.com",
+  "https://player.twitch.tv", "https://clips.twitch.tv",
+  "https://w.soundcloud.com",
+  "https://embed.music.apple.com",
+  "https://embedr.flickr.com",
+  "https://bandcamp.com",
+];
 app.use(helmet({
   crossOriginResourcePolicy: { policy: "cross-origin" },
+  contentSecurityPolicy: {
+    useDefaults: true,
+    directives: {
+      "connect-src": CSP_CONNECT_SRC,
+      "img-src": ["'self'", "data:", "blob:", "https:"],
+      "media-src": ["'self'", "data:", "blob:", "https:"],
+      "frame-src": CSP_FRAME_SRC,
+      "worker-src": ["'self'", "blob:"],
+    },
+  },
 }));
 
 // Response compression - compress responses > 1KB
