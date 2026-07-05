@@ -17,9 +17,14 @@ import { buildUserDid } from '../../../../services/mtn/mentionDid';
  */
 
 const mockFind = vi.fn();
+const mockPostFind = vi.fn();
 
 vi.mock('../../../../models/MentionSignedRecord', () => ({
   default: { find: (...a: unknown[]) => mockFind(...a) },
+}));
+
+vi.mock('../../../../models/Post', () => ({
+  Post: { find: (...a: unknown[]) => mockPostFind(...a) },
 }));
 
 import { listRecords, getRecord } from '../../../../connectors/atproto/bridge/repoReadService';
@@ -67,6 +72,12 @@ function mockLedger(rows: ReturnType<typeof row>[]): void {
   mockFind.mockReturnValue({
     sort: () => ({ lean: () => Promise.resolve(rows) }),
   });
+
+  mockPostFind.mockImplementation((query: { _id?: { $in?: string[] } }) => ({
+    select: () => ({
+      lean: () => Promise.resolve((query._id?.$in ?? []).map((_id) => ({ _id }))),
+    }),
+  }));
 }
 
 beforeEach(() => {
@@ -111,6 +122,29 @@ describe('listRecords', () => {
     const page = await listRecords(OWNER, 'app.bsky.feed.post');
     expect(page.records).toHaveLength(1);
     expect(page.records[0].rkey).toBe('p2');
+  });
+
+
+  it('filters post records to the authoritative public published Post set', async () => {
+    mockLedger([
+      row({ nsid: MENTION_POST_COLLECTION, rkey: 'published', record: postRecord('public'), createdAt: '2026-06-30T03:00:00.000Z' }),
+      row({ nsid: MENTION_POST_COLLECTION, rkey: 'draft', record: postRecord('draft secret'), createdAt: '2026-06-30T02:00:00.000Z' }),
+      row({ nsid: MENTION_POST_COLLECTION, rkey: 'private', record: postRecord('private secret'), createdAt: '2026-06-30T01:00:00.000Z' }),
+    ]);
+    mockPostFind.mockReturnValue({
+      select: () => ({ lean: () => Promise.resolve([{ _id: 'published' }]) }),
+    });
+
+    const page = await listRecords(OWNER, 'app.bsky.feed.post');
+
+    expect(mockPostFind).toHaveBeenCalledWith({
+      _id: { $in: ['published', 'draft', 'private'] },
+      oxyUserId: OWNER,
+      visibility: 'public',
+      status: 'published',
+    });
+    expect(page.records.map((record) => record.rkey)).toEqual(['published']);
+    expect(page.records[0].value).toMatchObject({ text: 'public' });
   });
 
   it('serves likes and reposts from their own collections', async () => {

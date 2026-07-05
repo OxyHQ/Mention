@@ -114,17 +114,19 @@ async function backfillMtnRecords(): Promise<void> {
     return;
   }
 
-  // The local, non-boost post set. `boostOf` excludes boosts (which are
+  // The local, public, published, non-boost post set. `boostOf` excludes boosts (which are
   // `app.mention.feed.repost` records, out of scope). The filter is immutable for
   // this run (we never mutate the fields it selects on), so the cursor is stable.
   const candidateFilter: Record<string, unknown> = {
     'federation.activityId': { $exists: false },
     oxyUserId: { $exists: true, $ne: null },
     boostOf: { $exists: false },
+    status: 'published',
+    visibility: 'public',
   };
 
   const totalCount = await Post.countDocuments(candidateFilter);
-  logger.info(`[backfill-mtn-records] ${totalCount} local non-boost posts to scan`);
+  logger.info(`[backfill-mtn-records] ${totalCount} local public published non-boost posts to scan`);
 
   if (totalCount === 0) {
     logger.info('[backfill-mtn-records] nothing to do');

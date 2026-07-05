@@ -241,9 +241,11 @@ class PostCreationService {
 
     // MTN Protocol dual-write (best-effort, never blocks, never changes output).
     // Mongo is authoritative; this emits a signed `app.mention.feed.*` record for
-    // LOCAL authors only (`federation == null && oxyUserId`). A scheduled post is
-    // not yet published, so it emits when the scheduler publishes it, not here.
-    if (!isScheduled) {
+    // LOCAL authors only (`federation == null && oxyUserId`). Only published,
+    // public, non-scheduled posts are safe to expose through public bridge reads.
+    const shouldEmitMtnRecord =
+      !isScheduled && post.visibility === PostVisibility.PUBLIC && (post.status ?? 'published') === 'published';
+    if (shouldEmitMtnRecord) {
       await this.emitMtnRecord(post, params);
     }
 

@@ -27,6 +27,7 @@ import {
   MENTION_LIKE_COLLECTION,
   MENTION_REPOST_COLLECTION,
   MENTION_TOMBSTONE_COLLECTION,
+  PostVisibility,
   mentionPostRecordSchema,
   mentionLikeRecordSchema,
   mentionRepostRecordSchema,
@@ -34,6 +35,7 @@ import {
 } from '@mention/shared-types';
 import type { SignedRecordEnvelope } from '@oxyhq/contracts';
 import MentionSignedRecord from '../../../models/MentionSignedRecord';
+import { Post } from '../../../models/Post';
 import { buildUserDid } from '../../../services/mtn/mentionDid';
 import { logger } from '../../../utils/logger';
 import {
@@ -157,6 +159,21 @@ function translateRow(row: LedgerRow, bskyCollection: string): AtprotoRecordValu
  * This is the shared core both `listRecords` (paginated) and `getRecord`
  * (single) read from — one materialization, no drift.
  */
+async function getPublicPostRkeys(oxyUserId: string, rkeys: string[]): Promise<Set<string>> {
+  if (rkeys.length === 0) return new Set();
+
+  const publicPosts = await Post.find({
+    _id: { $in: rkeys },
+    oxyUserId,
+    visibility: PostVisibility.PUBLIC,
+    status: 'published',
+  })
+    .select('_id')
+    .lean<Array<{ _id: unknown }>>();
+
+  return new Set(publicPosts.map((post) => String(post._id)));
+}
+
 async function materializeCollection(
   oxyUserId: string,
   bskyCollection: string,
@@ -166,6 +183,15 @@ async function materializeCollection(
 
   const rows = await readLiveRows(oxyUserId);
   const tombstoned = collectTombstonedKeys(rows);
+  const publicPostRkeys =
+    mtnCollection === MENTION_POST_COLLECTION
+      ? await getPublicPostRkeys(
+          oxyUserId,
+          rows
+            .filter((row) => row.nsid === MENTION_POST_COLLECTION && typeof row.rkey === 'string')
+            .map((row) => row.rkey as string),
+        )
+      : undefined;
 
   const seen = new Set<string>();
   const out: BridgeRecord[] = [];
@@ -180,6 +206,11 @@ async function materializeCollection(
 
     // Tombstone removal: drop a key explicitly deleted.
     if (tombstoned.has(`${mtnCollection}/${rkey}`)) continue;
+
+    // The bridge is a public unauthenticated read surface. Ledger rows can exist
+    // for drafts or historical/private posts, so app.bsky.feed.post output must
+    // be joined back to Mongo's authoritative Post state before translation.
+    if (publicPostRkeys && !publicPostRkeys.has(rkey)) continue;
 
     const value = translateRow(row, bskyCollection);
     if (!value) continue;
