@@ -37,6 +37,22 @@ interface RestrictedUser {
 
 const getUserId = (user: RestrictedUser): string | undefined => user.id || user._id;
 
+const getSafeErrorMetadata = (error: unknown) => {
+    const maybeError = error as {
+        name?: unknown;
+        message?: unknown;
+        code?: unknown;
+        response?: { status?: unknown };
+    };
+
+    return {
+        errorName: typeof maybeError?.name === 'string' ? maybeError.name : undefined,
+        errorMessage: typeof maybeError?.message === 'string' ? maybeError.message : undefined,
+        errorCode: typeof maybeError?.code === 'string' ? maybeError.code : undefined,
+        status: typeof maybeError?.response?.status === 'number' ? maybeError.response.status : undefined,
+    };
+};
+
 export default function RestrictedUsersScreen() {
     const { t } = useTranslation();
     const { colors } = useTheme();
@@ -120,8 +136,7 @@ export default function RestrictedUsersScreen() {
             restrictedLogger.debug(`Loaded ${users.length} users`);
             setRestrictedUsers(users);
         } catch (error) {
-            const err = error as { response?: { data?: unknown } };
-            restrictedLogger.error('Error loading restricted users', { error, responseData: err.response?.data });
+            restrictedLogger.error('Error loading restricted users', getSafeErrorMetadata(error));
             bottomSheet.setBottomSheetContent(
                 <MessageBottomSheet
                     title={t('common.error')}
@@ -172,7 +187,7 @@ export default function RestrictedUsersScreen() {
                     const { data } = await oxyServices.searchProfiles(query, { limit: 20 });
                     results = Array.isArray(data) ? data : [];
                 } catch (oxyError) {
-                    restrictedLogger.warn('oxyServices.searchProfiles failed, falling back', { error: oxyError });
+                    restrictedLogger.warn('oxyServices.searchProfiles failed, falling back', getSafeErrorMetadata(oxyError));
                     const fallbackResults = await searchService.searchUsers(query);
                     results = fallbackResults.filter((user) => Boolean(user.name));
                 }
@@ -195,7 +210,7 @@ export default function RestrictedUsersScreen() {
         } catch (error) {
             const err = error as { name?: string };
             if (err.name !== 'AbortError') {
-                restrictedLogger.error('Error searching users', { error });
+                restrictedLogger.error('Error searching users', getSafeErrorMetadata(error));
             }
         } finally {
             if (!abortController.signal.aborted) {
@@ -276,7 +291,7 @@ export default function RestrictedUsersScreen() {
             bottomSheet.openBottomSheet(true);
         } catch (error) {
             const err = error as { response?: { data?: { error?: string } } };
-            restrictedLogger.error('Error restricting user', { error });
+            restrictedLogger.error('Error restricting user', getSafeErrorMetadata(error));
             setRestrictedUserIds(prev => prev.filter(id => id !== userId));
             setRestrictedUsers(prev => prev.filter(u => getUserId(u) !== userId));
             const errorMessage = err.response?.data?.error || t('settings.privacy.failedToRestrictUser');
@@ -322,7 +337,7 @@ export default function RestrictedUsersScreen() {
                 bottomSheet.openBottomSheet(true);
             } catch (error) {
                 const err = error as { response?: { data?: { error?: string } } };
-                restrictedLogger.error('Error unrestricting user', { error, responseData: err.response?.data });
+                restrictedLogger.error('Error unrestricting user', getSafeErrorMetadata(error));
                 if (userToRemove) {
                     setRestrictedUserIds(prev => [...prev, userId]);
                     setRestrictedUsers(prev => [...prev, userToRemove]);
@@ -521,7 +536,12 @@ export default function RestrictedUsersScreen() {
                                                 if (userId) {
                                                     handleUnrestrict(userId);
                                                 } else {
-                                                    restrictedLogger.error('No userId found for user', { user });
+                                                    restrictedLogger.error('No userId found for user', {
+                                                        hasId: Boolean(user.id),
+                                                        hasMongoId: Boolean(user._id),
+                                                        hasUsername: Boolean(user.username),
+                                                        hasHandle: Boolean(user.handle),
+                                                    });
                                                     bottomSheet.setBottomSheetContent(
                                                         <MessageBottomSheet
                                                             title={t('common.error')}
