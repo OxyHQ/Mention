@@ -65,6 +65,7 @@ import mediaRoutes from './src/routes/media';
 import recommendationsRoutes from './src/routes/recommendations';
 import mtnNodesRoutes from './src/routes/mtn-nodes.routes';
 import webShellRoutes from './src/routes/webShell.routes';
+import { apexFrontendProxy, isApexHost } from './src/middleware/apexFrontendProxy';
 
 // Federation (ActivityPub) — network connectors. Importing the connectors index
 // instantiates the enabled connectors and registers the connector registry as
@@ -815,7 +816,12 @@ authenticatedApiRouter.use("/entity-follows", entityFollowRoutes);
 // shared pack links resolve during cold boot; its write routes enforce auth internally.
 
 // --- Root API Welcome Route ---
-app.get("", async (req, res) => {
+// On the API host `/` is the API root; on the frontend apex `/` is the SPA
+// homepage, so defer to the apex frontend proxy (mounted below) for apex hosts.
+app.get("", async (req, res, next) => {
+  if (isApexHost(req)) {
+    return next();
+  }
   try {
     const postsCount = await Post.countDocuments();
     res.json({ message: "Welcome to the API", posts: postsCount });
@@ -918,17 +924,29 @@ app.use('/.well-known', wellKnownBridgeRouter);
 // public path is exactly `/media/proxy`. SSRF-guarded internally.
 app.use('/media', mediaRoutes);
 
-// Mount public and authenticated API routers
-app.use("/", publicApiRouter);
-
 // --- Public web shell with OpenGraph (PUBLIC, no auth) ---
 // Serves the SPA shell HTML with per-request OG tags for `/@handle` and `/p/:id`
 // (the `bskyweb` model — replaces the retired CF Pages `_worker.js` OG injection).
-// Mounted LAST among the public routes and BEFORE the authenticated router so
-// anonymous browsers/crawlers reach it — the auth router's oxy.auth() middleware
-// would otherwise reject these public page loads. Its RegExp routes (`/@…`, `/p/…`)
-// do not collide with any API/federation mount.
+// Mounted BEFORE the apex proxy and the API routers so anonymous browsers/crawlers
+// reach it (the auth router's oxy.auth() would otherwise reject these public page
+// loads) AND so apex `/@handle` / `/p/:id` get the OG-injected shell rather than a
+// dumb CDN proxy. Its RegExp routes (`/@…`, `/p/…`) do not collide with any
+// API/federation mount.
 app.use("/", webShellRoutes);
+
+// --- Apex frontend reverse-proxy (host-aware; the "bskyweb-full" model) ---
+// For the frontend apex host (`mention.earth`) this proxies every remaining
+// request (`/`, `/explore`, `/feed`, `/notifications`, `/lists`, `/starter-packs`,
+// `/_expo/*`, …) to the static frontend CDN so the apex serves the whole SPA. It
+// is a STRICT no-op (`next()`) for the API host, so the API routers below are
+// reached ONLY by non-apex hosts and behave exactly as before. Must sit BEFORE the
+// API routers so apex SPA routes whose prefixes collide with API mounts are
+// proxied to the SPA instead of hitting the API.
+app.use(apexFrontendProxy);
+
+// Mount public and authenticated API routers (API host only — apex traffic was
+// already handled by the proxy above).
+app.use("/", publicApiRouter);
 
 app.use("/", oxy.auth(), authenticatedApiRouter);
 
