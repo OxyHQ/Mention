@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "include": [
+    "/ap",
+    "/ap/*",
+    "/.well-known/*",
+    "/nodeinfo/*",
+    "/xrpc/*",
+    "/@*",
+    "/p/*"
+  ],
+  "exclude": []
+}
