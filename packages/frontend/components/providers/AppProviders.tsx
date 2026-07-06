@@ -16,6 +16,7 @@ import { OxyProvider } from '@oxyhq/services';
 import { OxyServices } from '@oxyhq/core';
 import { LiveConfigProvider, LiveRoomProvider } from '@syra.fm/sdk';
 import { AppErrorBoundary } from '@/components/AppErrorBoundary';
+import { AccountSwitchReset } from '@/components/providers/AccountSwitchReset';
 import { BottomSheetProvider } from '@/context/BottomSheetContext';
 import { HomeRefreshProvider } from '@/context/HomeRefreshContext';
 import { LayoutScrollProvider } from '@/context/LayoutScrollContext';
@@ -62,6 +63,7 @@ export const AppProviders = memo(function AppProviders({
             storageKeyPrefix="mention"
             queryClient={queryClient}
           >
+            <AccountSwitchReset />
             <I18nextProvider i18n={i18n}>
               <LiveConfigProvider config={liveConfig}>
                 <LiveRoomProvider>

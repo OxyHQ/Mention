@@ -24,8 +24,7 @@ import { List, ListActive } from "@/assets/icons/list-icon";
 import { Video, VideoActive } from "@/assets/icons/video-icon";
 import { Hashtag, HashtagActive } from "@/assets/icons/hashtag-icon";
 import { AnalyticsIcon, AnalyticsIconActive } from "@/assets/icons/analytics-icon";
-import { useTheme, useBloomTheme } from '@oxyhq/bloom/theme';
-import { useAppearanceStore } from '@/store/appearanceStore';
+import { useTheme } from '@oxyhq/bloom/theme';
 import { Chat, ChatActive } from '@/assets/icons/chat-icon';
 import { Bell, BellActive } from '@/assets/icons/bell-icon';
 import { SyraIcon, SyraIconActive } from '@syra.fm/sdk';
@@ -62,17 +61,7 @@ export function SideBar({ asDrawer = false, onNavigate }: SideBarProps) {
     const router = useRouter();
     const { user, signIn } = useAuth();
     const theme = useTheme();
-    const { resetTheme } = useBloomTheme();
-    const resetAppearance = useAppearanceStore((state) => state.reset);
     const avatarUri = user?.avatar;
-
-    // ProfileButton owns the account switcher (switch/sign-out/sign-out-all live
-    // in the SDK). This fires just before the active identity changes so we can
-    // clear the previous account's scoped UI state (appearance + Bloom theme).
-    const handleBeforeSessionChange = useCallback(() => {
-        resetAppearance();
-        resetTheme();
-    }, [resetAppearance, resetTheme]);
 
     // Every sidebar destination is a TAB ROOT (home, the current user's own
     // profile, explore, notifications, chat, live rooms, insights, saved, feeds,
@@ -258,7 +247,6 @@ export function SideBar({ asDrawer = false, onNavigate }: SideBarProps) {
                         onNavigateManage={handleNavigateManage}
                         onNavigateProfile={handleNavigateProfile}
                         onAddAccount={handleAddAccount}
-                        onBeforeSessionChange={handleBeforeSessionChange}
                     />
                 </View>
             </View>
