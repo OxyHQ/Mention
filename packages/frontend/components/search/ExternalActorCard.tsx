@@ -47,7 +47,7 @@ export function ExternalActorCard({ actor }: ExternalActorCardProps) {
   const router = useRouter();
   const theme = useTheme();
   const { t } = useTranslation();
-  const { isAuthenticated, showBottomSheet } = useAuth();
+  const { isAuthenticated, signIn } = useAuth();
 
   const [following, setFollowing] = useState(actor.followed);
   const [pending, setPending] = useState(false);
@@ -83,7 +83,7 @@ export function ExternalActorCard({ actor }: ExternalActorCardProps) {
   const handleFollow = useCallback(async () => {
     if (pending) return;
     if (!isAuthenticated) {
-      showBottomSheet?.('OxyAuth');
+      signIn().catch(() => {});
       return;
     }
     setPending(true);
@@ -108,7 +108,7 @@ export function ExternalActorCard({ actor }: ExternalActorCardProps) {
     } finally {
       setPending(false);
     }
-  }, [pending, isAuthenticated, showBottomSheet, actor.externalId, openProfile, t]);
+  }, [pending, isAuthenticated, signIn, actor.externalId, openProfile, t]);
 
   return (
     <TouchableOpacity
