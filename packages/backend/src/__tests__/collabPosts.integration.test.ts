@@ -1,3 +1,4 @@
+import { describe, it, expect, vi } from 'vitest';
 import { buildAuthorship, buildAuthorFeedMatch, isProfileVisible } from '../utils/postAuthorship';
 import { postCollaborationService } from '../services/PostCollaborationService';
 

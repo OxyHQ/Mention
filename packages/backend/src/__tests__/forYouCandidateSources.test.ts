@@ -68,6 +68,20 @@ function affinityStub(userIds: string[]) {
   };
 }
 
+/** Extract author ids from a following/affinity/subscribed-list match. */
+function authorIdsInMatch(match: Record<string, unknown>): string[] | undefined {
+  const oxy = match.oxyUserId as { $in?: string[] } | undefined;
+  if (oxy?.$in) return oxy.$in;
+  const or = match.$or as Array<Record<string, unknown>> | undefined;
+  if (or) {
+    for (const branch of or) {
+      const branchOxy = branch.oxyUserId as { $in?: string[] } | undefined;
+      if (branchOxy?.$in) return branchOxy.$in;
+    }
+  }
+  return undefined;
+}
+
 /** Classify a Post.find match by which source built it. */
 function sourceOf(match: Record<string, unknown>): string {
   if (match['postClassification.topics']) return 'topics';
@@ -75,8 +89,7 @@ function sourceOf(match: Record<string, unknown>): string {
   // `postClassification.languages` array (the single canonical language field).
   if (match['postClassification.languages']) return 'language';
   if (match['postClassification.region']) return 'region';
-  const oxy = match.oxyUserId as { $in?: string[] } | undefined;
-  if (oxy?.$in) return 'authors'; // following OR affinity (disambiguated by ids)
+  if (authorIdsInMatch(match)) return 'authors'; // following OR affinity (disambiguated by ids)
   return 'global';
 }
 
@@ -92,8 +105,8 @@ beforeEach(() => {
 describe('gatherForYouCandidates — union semantics', () => {
   it('includes subscribed-list authors through a public-only source', async () => {
     findRouter = (match) => {
-      const oxy = match.oxyUserId as { $in?: string[] } | undefined;
-      if (oxy?.$in?.includes('list-only')) return [makePost(oid(11), 'list-only')];
+      const ids = authorIdsInMatch(match);
+      if (ids?.includes('list-only')) return [makePost(oid(11), 'list-only')];
       return [];
     };
 
@@ -107,13 +120,12 @@ describe('gatherForYouCandidates — union semantics', () => {
     });
 
     expect(pool.map((p) => p.oxyUserId)).toContain('list-only');
-    const listSource = findCalls.find((match) => {
-      const oxy = match.oxyUserId as { $in?: string[] } | undefined;
-      return oxy?.$in?.includes('list-only');
-    });
+    const listSource = findCalls.find((match) => authorIdsInMatch(match)?.includes('list-only'));
     expect(listSource).toMatchObject({
-      oxyUserId: { $in: ['list-only'] },
-      visibility: PostVisibility.PUBLIC,
+      $or: [
+        { oxyUserId: { $in: ['list-only'] } },
+        { authorship: { $elemMatch: { oxyUserId: { $in: ['list-only'] }, status: 'accepted' } } },
+      ],
     });
   });
 
@@ -128,9 +140,9 @@ describe('gatherForYouCandidates — union semantics', () => {
     findRouter = (match) => {
       const src = sourceOf(match);
       if (src === 'authors') {
-        const ids = (match.oxyUserId as { $in: string[] }).$in;
-        if (ids.includes('follow-1')) return [makePost(oid(1), 'follow-1')];
-        if (ids.includes('affinity-1')) return [makePost(oid(2), 'affinity-1')];
+        const ids = authorIdsInMatch(match);
+        if (ids?.includes('follow-1')) return [makePost(oid(1), 'follow-1')];
+        if (ids?.includes('affinity-1')) return [makePost(oid(2), 'affinity-1')];
         return [];
       }
       if (src === 'topics') return [makePost(oid(3), 'topic-author', { postClassification: { topics: ['tech'] } })];
@@ -237,8 +249,8 @@ describe('gatherForYouCandidates — discovery safety', () => {
     findRouter = (match) => {
       const src = sourceOf(match);
       if (src === 'authors') {
-        const ids = (match.oxyUserId as { $in: string[] }).$in;
-        if (ids.includes('follow-1')) {
+        const ids = authorIdsInMatch(match);
+        if (ids?.includes('follow-1')) {
           // Even a FOLLOWED author's NSFW-tagged post is dropped from For You.
           return [
             makePost(oid(30), 'follow-1', { hashtags: ['nsfw'] }),
@@ -272,8 +284,8 @@ describe('gatherForYouCandidates — discovery safety', () => {
     findRouter = (match) => {
       const src = sourceOf(match);
       if (src === 'authors') {
-        const ids = (match.oxyUserId as { $in: string[] }).$in;
-        if (ids.includes('follow-1')) {
+        const ids = authorIdsInMatch(match);
+        if (ids?.includes('follow-1')) {
           return [
             makePost(oid(40), 'follow-1', { postClassification: { sensitive: true } }),
             makePost(oid(41), 'follow-1', { metadata: { isSensitive: true } }),
@@ -330,8 +342,8 @@ describe('gatherForYouCandidates — viewer opted in (showSensitiveContent)', ()
     findRouter = (match) => {
       const src = sourceOf(match);
       if (src === 'authors') {
-        const ids = (match.oxyUserId as { $in: string[] }).$in;
-        if (ids.includes('follow-1')) {
+        const ids = authorIdsInMatch(match);
+        if (ids?.includes('follow-1')) {
           return [
             makePost(oid(30), 'follow-1', { hashtags: ['nsfw'] }),
             makePost(oid(40), 'follow-1', { postClassification: { sensitive: true } }),
@@ -366,8 +378,8 @@ describe('gatherForYouCandidates — viewer opted in (showSensitiveContent)', ()
     findRouter = (match) => {
       const src = sourceOf(match);
       if (src === 'authors') {
-        const ids = (match.oxyUserId as { $in: string[] }).$in;
-        if (ids.includes('follow-1')) {
+        const ids = authorIdsInMatch(match);
+        if (ids?.includes('follow-1')) {
           return [
             makePost(oid(30), 'follow-1', { hashtags: ['nsfw'] }),
             makePost(oid(43), 'follow-1', {}), // clean — kept
@@ -398,8 +410,8 @@ describe('gatherForYouCandidates — caps and exclusions', () => {
     // Following alone returns far more than maxPool unique posts.
     findRouter = (match) => {
       if (sourceOf(match) === 'authors') {
-        const ids = (match.oxyUserId as { $in: string[] }).$in;
-        if (ids.includes('follow-1')) {
+        const ids = authorIdsInMatch(match);
+        if (ids?.includes('follow-1')) {
           return Array.from({ length: cap + 50 }, (_, i) => makePost(oid(100 + i), 'follow-1'));
         }
       }
@@ -447,9 +459,9 @@ describe('gatherForYouCandidates — caps and exclusions', () => {
     let affinityQueriedIds: string[] = [];
     findRouter = (match) => {
       if (sourceOf(match) === 'authors') {
-        const ids = (match.oxyUserId as { $in: string[] }).$in;
+        const ids = authorIdsInMatch(match);
         // The affinity query is the one that does NOT include 'follow-1' only.
-        if (!ids.includes('follow-1')) affinityQueriedIds = ids;
+        if (ids && !ids.includes('follow-1')) affinityQueriedIds = ids;
       }
       return [];
     };

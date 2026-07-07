@@ -142,7 +142,7 @@ class PostCollaborationService {
     }
 
     entry.status = 'accepted';
-    entry.respondedAt = new Date();
+    entry.respondedAt = new Date().toISOString();
     await post.save();
 
     const ownerId = getOwnerId(post.authorship ?? [], post.oxyUserId);
@@ -171,7 +171,7 @@ class PostCollaborationService {
     }
 
     entry.status = 'declined';
-    entry.respondedAt = new Date();
+    entry.respondedAt = new Date().toISOString();
     await post.save();
 
     const ownerId = getOwnerId(post.authorship ?? [], post.oxyUserId);
@@ -201,7 +201,7 @@ class PostCollaborationService {
     }
 
     entry.status = 'stopped';
-    entry.respondedAt = new Date();
+    entry.respondedAt = new Date().toISOString();
     await post.save();
     await this.emitPostUpdate(post);
     return post;

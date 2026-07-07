@@ -47,7 +47,13 @@ describe('following source (timeline) visibility authorization', () => {
       $and: [
         {
           $or: [
-            { oxyUserId: { $in: ['viewer', 'real-follow'] }, visibility: { $in: ['public', 'followers_only'] } },
+            {
+              $or: [
+                { oxyUserId: { $in: ['viewer', 'real-follow'] } },
+                { authorship: { $elemMatch: { oxyUserId: { $in: ['viewer', 'real-follow'] }, status: 'accepted' } } },
+              ],
+              visibility: { $in: ['public', 'followers_only'] },
+            },
             { oxyUserId: { $in: ['list-only'] }, visibility: 'public' },
           ],
         },
@@ -67,7 +73,13 @@ describe('following source (timeline) visibility authorization', () => {
       $and: [
         {
           $or: [
-            { oxyUserId: { $in: ['viewer', 'real-follow'] }, visibility: { $in: ['public', 'followers_only'] } },
+            {
+              $or: [
+                { oxyUserId: { $in: ['viewer', 'real-follow'] } },
+                { authorship: { $elemMatch: { oxyUserId: { $in: ['viewer', 'real-follow'] }, status: 'accepted' } } },
+              ],
+              visibility: { $in: ['public', 'followers_only'] },
+            },
             { oxyUserId: { $in: ['list-only'] }, visibility: 'public' },
           ],
         },

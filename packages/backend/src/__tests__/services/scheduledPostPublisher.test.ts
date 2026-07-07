@@ -1,3 +1,4 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { scheduledPostPublisher } from '../../services/ScheduledPostPublisher';
 import { Post } from '../../models/Post';
 import { postCreationService } from '../../services/PostCreationService';

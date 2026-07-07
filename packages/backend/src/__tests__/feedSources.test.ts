@@ -74,8 +74,13 @@ describe('following source', () => {
     const posts = await followingSource.gather(ctx, {}, 60);
     expect(posts.map((p) => String(p._id))).toEqual([oid(1).toString()]);
     const match = findCalls[0];
-    expect(match.oxyUserId).toEqual({ $in: ['f1'] });
-    expect(match.visibility).toBe(PostVisibility.PUBLIC);
+    expect(match).toMatchObject({
+      $or: [
+        { oxyUserId: { $in: ['f1'] } },
+        { authorship: { $elemMatch: { oxyUserId: { $in: ['f1'] }, status: 'accepted' } } },
+      ],
+      visibility: PostVisibility.PUBLIC,
+    });
   });
 
   it('timeline: uses the followers-only visibility match', async () => {
@@ -83,8 +88,13 @@ describe('following source', () => {
     const ctx: FeedEngineContext = { currentUserId: 'viewer', followingIds: ['f1'], subscribedListMemberIds: [] };
     await followingSource.gather(ctx, { timeline: true }, 31);
     const match = findCalls[0];
-    expect(match.visibility).toEqual({ $in: [PostVisibility.PUBLIC, PostVisibility.FOLLOWERS_ONLY] });
-    expect(match.oxyUserId).toEqual({ $in: ['viewer', 'f1'] });
+    expect(match).toMatchObject({
+      $or: [
+        { oxyUserId: { $in: ['viewer', 'f1'] } },
+        { authorship: { $elemMatch: { oxyUserId: { $in: ['viewer', 'f1'] }, status: 'accepted' } } },
+      ],
+      visibility: { $in: [PostVisibility.PUBLIC, PostVisibility.FOLLOWERS_ONLY] },
+    });
   });
 
   it('returns [] for an anonymous viewer (For You lane)', async () => {
@@ -144,8 +154,10 @@ describe('authored source', () => {
     findRouter = () => [makePost(6)];
     await authoredSource.gather({ currentUserId: 'viewer' }, { authorId: 'a6', filter: 'posts' }, 31);
     const match = findCalls[0];
-    expect(match.oxyUserId).toBe('a6');
-    expect(match.parentPostId).toBeNull();
+    expect(match).toMatchObject({
+      authorship: { $elemMatch: { oxyUserId: 'a6', status: 'accepted' } },
+      parentPostId: null,
+    });
   });
 });
 

@@ -396,7 +396,7 @@ class PostCreationService {
           if (parent) {
             await createPostAuthorNotifications(
               parent.authorship as import('@mention/shared-types').PostAuthorshipEntry[] | undefined,
-              parent.oxyUserId?.toString() ?? null,
+              parent.oxyUserId?.toString() ?? undefined,
               {
                 actorId: oxyUserId,
                 type: 'reply',
@@ -412,7 +412,7 @@ class PostCreationService {
           if (original) {
             await createPostAuthorNotifications(
               original.authorship as import('@mention/shared-types').PostAuthorshipEntry[] | undefined,
-              original.oxyUserId?.toString() ?? null,
+              original.oxyUserId?.toString() ?? undefined,
               {
                 actorId: oxyUserId,
                 type: 'quote',
@@ -428,7 +428,7 @@ class PostCreationService {
           if (original) {
             await createPostAuthorNotifications(
               original.authorship as import('@mention/shared-types').PostAuthorshipEntry[] | undefined,
-              original.oxyUserId?.toString() ?? null,
+              original.oxyUserId?.toString() ?? undefined,
               {
                 actorId: oxyUserId,
                 type: 'boost',

@@ -1,3 +1,4 @@
+import { describe, it, expect, vi } from 'vitest';
 import { postCollaborationService, CollabValidationError, CollabStateError } from '../../services/PostCollaborationService';
 import { buildAuthorship } from '../../utils/postAuthorship';
 import { Post } from '../../models/Post';
