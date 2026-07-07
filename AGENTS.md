@@ -142,7 +142,7 @@ A post carries an `authorship[]` array (`owner` + up to `MAX_POST_COLLABORATORS`
 - **Scheduled publish:** `ScheduledPostPublisher` (leader-gated 60s sweep wired into `FeedJobScheduler`) flips due `status:'scheduled'` posts to `published` via `PostCreationService.publishScheduledPost`, which runs the SAME publish pipeline (invites, MTN dual-write, notifications, socket emit, deferred federation).
 - **Pending-collaborator preview:** `PostHydrationService` lets a pending collaborator (not just accepted) bypass the unpublished/private ACL so the invite UI can preview the actual post. The byline (`getHeaderAuthorshipEntries`) still shows owner + ACCEPTED collaborators only.
 - **Threads have no collaborators:** `POST /posts/thread` rejects `collaboratorIds` with 400.
-- **ONE-SHOT AFTER FIRST COLLAB DEPLOY:** run `bun packages/backend/dist/src/scripts/backfillPostAuthorship.js` once after the first deploy that ships `authorship[]` — it seeds `authorship` from `oxyUserId` for legacy posts (idempotent; skips posts that already have it). Feed/author queries key off `authorship.$elemMatch` (`buildAuthorFeedMatch`/`buildFollowedAuthorsMatch`), so legacy posts are invisible to those paths until backfilled.
+- **ONE-SHOT AFTER FIRST COLLAB DEPLOY (recommended):** run `bun packages/backend/dist/src/scripts/backfillPostAuthorship.js` once after the first deploy that ships `authorship[]` — it seeds `authorship` from `oxyUserId` for legacy posts (idempotent; skips posts that already have it). `buildAuthorFeedMatch`/`buildFollowedAuthorsMatch` also fall back to `oxyUserId` for legacy rows without `authorship[]`, so feeds keep working before the backfill runs; run it anyway so hydration/DTOs carry a canonical `authorship[]` on every post.
 
 ## Profile Identity
 

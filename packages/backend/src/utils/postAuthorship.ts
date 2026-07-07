@@ -114,7 +114,14 @@ export function collectAuthorshipUserIds(authorship: PostAuthorshipEntry[] | und
 
 export function buildAuthorFeedMatch(authorId: string): Record<string, unknown> {
   return {
-    authorship: { $elemMatch: { oxyUserId: authorId, status: 'accepted' } },
+    $or: [
+      { authorship: { $elemMatch: { oxyUserId: authorId, status: 'accepted' } } },
+      // Legacy posts pre-authorship[]: owner-only rows keyed by oxyUserId.
+      {
+        oxyUserId: authorId,
+        $or: [{ authorship: { $exists: false } }, { authorship: { $size: 0 } }],
+      },
+    ],
   };
 }
 

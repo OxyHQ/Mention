@@ -25,9 +25,15 @@ describe('collaborative posts integration', () => {
     expect(isProfileVisible(authorship, 'collab-1')).toBe(true);
   });
 
-  it('author feed match uses authorship elemMatch', () => {
+  it('author feed match uses authorship elemMatch with legacy oxyUserId fallback', () => {
     expect(buildAuthorFeedMatch('user-x')).toEqual({
-      authorship: { $elemMatch: { oxyUserId: 'user-x', status: 'accepted' } },
+      $or: [
+        { authorship: { $elemMatch: { oxyUserId: 'user-x', status: 'accepted' } } },
+        {
+          oxyUserId: 'user-x',
+          $or: [{ authorship: { $exists: false } }, { authorship: { $size: 0 } }],
+        },
+      ],
     });
   });
 
