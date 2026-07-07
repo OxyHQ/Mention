@@ -23,6 +23,7 @@ import { EmptyState } from '@/components/common/EmptyState';
 import { Video } from '@/assets/icons/video-icon';
 import { formatCompactNumber } from '@/utils/formatNumber';
 import { getNormalizedUserHandle } from '@oxyhq/core';
+import { cn } from '@/lib/utils';
 import type { PostActorSummary } from '@mention/shared-types';
 import { readMediaDurationSec } from '@/utils/mediaTypes';
 import { LinkifiedText } from '@/components/common/LinkifiedText';
