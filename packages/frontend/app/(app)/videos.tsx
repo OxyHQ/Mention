@@ -24,7 +24,7 @@ import { Video } from '@/assets/icons/video-icon';
 import { formatCompactNumber } from '@/utils/formatNumber';
 import { getNormalizedUserHandle } from '@oxyhq/core';
 import type { PostActorSummary } from '@mention/shared-types';
-import { cn } from '@/lib/utils';
+import { readMediaDurationSec } from '@/utils/mediaTypes';
 import { LinkifiedText } from '@/components/common/LinkifiedText';
 import { useIsRightBarVisible } from '@/hooks/useOptimizedMediaQuery';
 import { useVideosRail, type VideosRailActivePost } from '@/context/VideosRailContext';
@@ -136,6 +136,9 @@ interface MediaRef {
     posterUrl?: string;
     hlsUrl?: string;
     type?: 'image' | 'video' | 'gif';
+    durationSec?: number;
+    orientation?: 'portrait' | 'landscape' | 'square';
+    aspectRatio?: number;
 }
 
 interface RawPost {
@@ -166,6 +169,8 @@ interface VideoPost {
     // exactly once if the preferred source errors (e.g. HLS not transcoded yet).
     fallbackVideoUrl?: string;
     posterUrl?: string;
+    /** Persisted duration from content.media[] (seconds); seeds scrubber before player metadata loads. */
+    durationSec?: number;
     stats: {
         likesCount: number;
         boostsCount: number;
@@ -217,6 +222,8 @@ interface ActiveVideoSurfaceProps {
     // retry source if `videoUrl` (the preferred/HLS source) errors.
     fallbackVideoUrl?: string;
     posterUrl?: string;
+    /** Persisted duration from the post DTO; used until the player reports duration. */
+    initialDurationSec?: number;
     isActive: boolean;
     // See VideoItemProps.screenFocused — only play when active AND focused.
     screenFocused: boolean;
@@ -234,6 +241,7 @@ const ActiveVideoSurface = memo<ActiveVideoSurfaceProps>(({
     videoUrl,
     fallbackVideoUrl,
     posterUrl,
+    initialDurationSec,
     isActive,
     screenFocused,
     muted,
@@ -269,7 +277,7 @@ const ActiveVideoSurface = memo<ActiveVideoSurfaceProps>(({
     const [userPaused, setUserPaused] = useState(false);
     // Scrubber state — current playhead + total duration, driven by player events.
     const [currentTime, setCurrentTime] = useState(0);
-    const [duration, setDuration] = useState(0);
+    const [duration, setDuration] = useState(initialDurationSec ?? 0);
     const [isScrubbing, setIsScrubbing] = useState(false);
 
     useEffect(() => {
@@ -642,6 +650,7 @@ const VideoItem = memo<VideoItemProps>(({
                     videoUrl={item.videoUrl}
                     fallbackVideoUrl={item.fallbackVideoUrl}
                     posterUrl={item.posterUrl}
+                    initialDurationSec={item.durationSec}
                     isActive={isActive}
                     screenFocused={screenFocused}
                     muted={muted}
@@ -1003,6 +1012,7 @@ export default function VideosScreen() {
             videoUrl,
             fallbackVideoUrl,
             posterUrl: resolvePosterUrl(selected),
+            durationSec: readMediaDurationSec(selected),
         };
     }, [resolveVideoUrl, resolveFallbackVideoUrl, resolvePosterUrl]);
 

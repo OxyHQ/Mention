@@ -2,7 +2,8 @@ import { PostVisibility } from '@mention/shared-types';
 import { logger } from '../../utils/logger';
 import { Post } from '../../models/Post';
 import { getPostCreator } from '../../services/serviceRegistry';
-import { materializeFederatedMedia, type ExtractedMediaItem, type ExtractedMediaAttachment } from '../shared/federatedMedia';
+import { materializeFederatedMedia, type ExtractedMediaAttachment } from '../shared/federatedMedia';
+import type { MediaItem } from '@mention/shared-types';
 import type { NormalizedExternalActor, NormalizedExternalMedia, NormalizedExternalPost } from '../types';
 import { xrpcGet } from './xrpcClient';
 import { BSKY_APP_ORIGIN, POST_COLLECTION, PUBLIC_APPVIEW } from './constants';
@@ -49,12 +50,14 @@ interface AtprotoEmbedImage {
   thumb?: string;
   fullsize?: string;
   alt?: string;
+  aspectRatio?: { width: number; height: number };
 }
 interface AtprotoEmbedView {
   $type?: string;
   images?: AtprotoEmbedImage[];
   playlist?: string;
   thumbnail?: string;
+  aspectRatio?: { width: number; height: number };
   media?: AtprotoEmbedView;
 }
 interface AtprotoPostView {
@@ -128,6 +131,20 @@ function hasAdultLabel(record: AtprotoPostRecord): boolean {
   return values.some((entry) => typeof entry?.val === 'string' && ADULT_LABEL_VALUES.has(entry.val));
 }
 
+function patchFromAspectRatio(
+  aspectRatio: { width: number; height: number } | undefined,
+): Pick<NormalizedExternalMedia, 'width' | 'height' | 'orientation' | 'aspectRatio'> {
+  if (!aspectRatio || aspectRatio.width <= 0 || aspectRatio.height <= 0) return {};
+  const width = Math.trunc(aspectRatio.width);
+  const height = Math.trunc(aspectRatio.height);
+  const ratio = height / width;
+  let orientation: 'portrait' | 'landscape' | 'square';
+  if (ratio >= 1.1) orientation = 'portrait';
+  else if (ratio <= 0.9) orientation = 'landscape';
+  else orientation = 'square';
+  return { width, height, orientation, aspectRatio: width / height };
+}
+
 /**
  * Extract playable media from a hydrated embed VIEW. Bluesky returns full CDN
  * URLs in `app.bsky.embed.images#view` (`fullsize`) and
@@ -142,12 +159,27 @@ function extractMediaFromEmbed(embed: AtprotoEmbedView | undefined): NormalizedE
       case 'app.bsky.embed.images#view':
         for (const image of view.images ?? []) {
           const url = image?.fullsize || image?.thumb;
-          if (typeof url === 'string' && url) out.push({ id: url, type: 'image', remoteUrl: url });
+          if (typeof url === 'string' && url) {
+            out.push({
+              id: url,
+              type: 'image',
+              remoteUrl: url,
+              alt: typeof image.alt === 'string' ? image.alt : undefined,
+              ...patchFromAspectRatio(image.aspectRatio),
+            });
+          }
         }
         break;
       case 'app.bsky.embed.video#view': {
         const url = view.playlist || view.thumbnail;
-        if (typeof url === 'string' && url) out.push({ id: url, type: 'video', remoteUrl: url });
+        if (typeof url === 'string' && url) {
+          out.push({
+            id: url,
+            type: 'video',
+            remoteUrl: url,
+            ...patchFromAspectRatio(view.aspectRatio),
+          });
+        }
         break;
       }
       case 'app.bsky.embed.recordWithMedia#view':
@@ -222,7 +254,17 @@ async function createPostFromNormalized(
   did: string,
   instanceDomain: string,
 ): Promise<boolean> {
-  const media: ExtractedMediaItem[] = (post.media ?? []).map((item) => ({ id: item.id, type: item.type }));
+  const media: MediaItem[] = (post.media ?? []).map((item) => ({
+    id: item.id,
+    type: item.type,
+    ...(item.remoteUrl ? { remoteUrl: item.remoteUrl } : {}),
+    ...(item.alt ? { alt: item.alt } : {}),
+    ...(item.width !== undefined ? { width: item.width } : {}),
+    ...(item.height !== undefined ? { height: item.height } : {}),
+    ...(item.durationSec !== undefined ? { durationSec: item.durationSec } : {}),
+    ...(item.orientation !== undefined ? { orientation: item.orientation } : {}),
+    ...(item.aspectRatio !== undefined ? { aspectRatio: item.aspectRatio } : {}),
+  }));
   const attachments: ExtractedMediaAttachment[] = (post.media ?? []).map((item) => ({
     type: 'media',
     id: item.id,

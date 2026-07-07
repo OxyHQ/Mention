@@ -6,10 +6,12 @@ import {
   FEDERATION_DELIVERY_QUEUE,
   FEDERATION_PERIODIC_QUEUE,
   FEDERATION_SHARING_CLEANUP_QUEUE,
+  MEDIA_METADATA_ENRICH_QUEUE,
   INBOX_WORKER_CONCURRENCY,
   DELIVERY_WORKER_CONCURRENCY,
   PERIODIC_WORKER_CONCURRENCY,
   SHARING_CLEANUP_WORKER_CONCURRENCY,
+  MEDIA_METADATA_ENRICH_WORKER_CONCURRENCY,
   DELIVERY_BACKOFF_INTERVALS_MS,
   DELIVERY_BACKOFF_STRATEGY,
 } from './constants';
@@ -19,11 +21,13 @@ import type {
   PeriodicJobData,
   PeriodicTaskName,
   SharingCleanupJobData,
+  MediaMetadataEnrichJobData,
 } from './types';
 import { logger } from '../utils/logger';
 import { activityPubConnector } from '../connectors/activitypub/ActivityPubConnector';
 import { federationJobScheduler } from '../services/FederationJobScheduler';
 import { runSharingCleanup } from '../connectors/activitypub/sharingCleanup.service';
+import { processMediaMetadataEnrichJob } from '../services/mediaMetadataEnrichJob';
 import { oxy } from '../../server';
 
 /**
@@ -47,6 +51,7 @@ let inboxWorker: Worker<InboxJobData> | null = null;
 let deliveryWorker: Worker<DeliveryJobData> | null = null;
 let periodicWorker: Worker<PeriodicJobData> | null = null;
 let sharingCleanupWorker: Worker<SharingCleanupJobData> | null = null;
+let mediaMetadataEnrichWorker: Worker<MediaMetadataEnrichJobData> | null = null;
 let workersStarted = false;
 
 /**
@@ -124,6 +129,11 @@ export async function processDeliveryJob(job: Job<DeliveryJobData>): Promise<voi
 export async function processSharingCleanupJob(job: Job<SharingCleanupJobData>): Promise<void> {
   const { oxyUserId, username } = job.data;
   await runSharingCleanup(oxyUserId, username);
+}
+
+/** Process one media-metadata enrich retry job. */
+export async function processMediaMetadataEnrichWorkerJob(job: Job<MediaMetadataEnrichJobData>): Promise<void> {
+  await processMediaMetadataEnrichJob(job.data.postId);
 }
 
 /**
@@ -210,7 +220,16 @@ export function startWorkers(): void {
     },
   );
 
-  for (const worker of [inboxWorker, deliveryWorker, periodicWorker, sharingCleanupWorker]) {
+  mediaMetadataEnrichWorker = new Worker<MediaMetadataEnrichJobData>(
+    MEDIA_METADATA_ENRICH_QUEUE,
+    processMediaMetadataEnrichWorkerJob,
+    {
+      connection,
+      concurrency: MEDIA_METADATA_ENRICH_WORKER_CONCURRENCY,
+    },
+  );
+
+  for (const worker of [inboxWorker, deliveryWorker, periodicWorker, sharingCleanupWorker, mediaMetadataEnrichWorker]) {
     worker.on('failed', (job, err) => {
       const jobId = job?.id ?? 'unknown';
       logger.warn(`[Queue] job ${worker.name}:${jobId} failed: ${err.message}`);
@@ -220,7 +239,7 @@ export function startWorkers(): void {
     });
   }
 
-  logger.info('Federation queue workers started (inbox, delivery, periodic, sharing-cleanup)');
+  logger.info('Federation queue workers started (inbox, delivery, periodic, sharing-cleanup, media-metadata-enrich)');
 }
 
 /**
@@ -233,12 +252,17 @@ export async function shutdownQueues(): Promise<void> {
   }
 
   const workers: Array<
-    Worker<InboxJobData> | Worker<DeliveryJobData> | Worker<PeriodicJobData> | Worker<SharingCleanupJobData>
+    | Worker<InboxJobData>
+    | Worker<DeliveryJobData>
+    | Worker<PeriodicJobData>
+    | Worker<SharingCleanupJobData>
+    | Worker<MediaMetadataEnrichJobData>
   > = [];
   if (inboxWorker) workers.push(inboxWorker);
   if (deliveryWorker) workers.push(deliveryWorker);
   if (periodicWorker) workers.push(periodicWorker);
   if (sharingCleanupWorker) workers.push(sharingCleanupWorker);
+  if (mediaMetadataEnrichWorker) workers.push(mediaMetadataEnrichWorker);
 
   await Promise.allSettled(workers.map((w) => w.close()));
 
@@ -246,6 +270,7 @@ export async function shutdownQueues(): Promise<void> {
   deliveryWorker = null;
   periodicWorker = null;
   sharingCleanupWorker = null;
+  mediaMetadataEnrichWorker = null;
   workersStarted = false;
 
   await closeQueues();

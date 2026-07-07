@@ -50,6 +50,13 @@ const EMPTY_RESPONSE: SlicedFeedResponse = {
   totalCount: 0,
 };
 
+function hasPortraitVideo(post: RankedCandidate): boolean {
+  const content = (post as CandidatePost).content as { media?: Array<{ type?: string; orientation?: string }> } | undefined;
+  const media = content?.media;
+  return Array.isArray(media)
+    && media.some((item) => item.type === 'video' && item.orientation === 'portrait');
+}
+
 export class FeedEngine {
   constructor(private readonly registry: FeedModuleRegistry = feedModuleRegistry) {}
 
@@ -261,6 +268,11 @@ export class FeedEngine {
       })) as RankedCandidate[];
 
       const sorted = ranked.sort((a, b) => {
+        if (definition.id === 'videos') {
+          const aPortrait = hasPortraitVideo(a) ? 1 : 0;
+          const bPortrait = hasPortraitVideo(b) ? 1 : 0;
+          if (bPortrait !== aPortrait) return bPortrait - aPortrait;
+        }
         const diff = readCandidateScore(b) - readCandidateScore(a);
         if (Math.abs(diff) < MtnConfig.feed.scoreEpsilon) {
           return readCandidateId(b).localeCompare(readCandidateId(a));

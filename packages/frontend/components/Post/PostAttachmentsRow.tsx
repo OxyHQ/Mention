@@ -43,6 +43,11 @@ interface MediaObj {
   type: 'image' | 'video' | 'gif';
   /** Author-authored accessibility description (Bluesky-style "ALT"). Images only. */
   alt?: string;
+  width?: number;
+  height?: number;
+  aspectRatio?: number;
+  orientation?: 'portrait' | 'landscape' | 'square';
+  durationSec?: number;
   url?: string;
   thumbUrl?: string;
   posterUrl?: string;
@@ -85,9 +90,9 @@ type AttachmentItem =
   | { type: 'room' }
   | { type: 'podcast' }
   | { type: 'link'; url: string; title?: string; description?: string; image?: string; siteName?: string; embedParams?: EmbedPlayerParams }
-  | { type: 'video'; mediaId: string; src: string; poster?: string }
-  | { type: 'gif'; mediaId: string; src: string }
-  | { type: 'image'; mediaId: string; src: string; fullSrc: string; mediaType: 'image' | 'gif'; alt?: string };
+  | { type: 'video'; mediaId: string; src: string; poster?: string; width?: number; height?: number; aspectRatio?: number; orientation?: 'portrait' | 'landscape' | 'square'; durationSec?: number }
+  | { type: 'gif'; mediaId: string; src: string; width?: number; height?: number; aspectRatio?: number }
+  | { type: 'image'; mediaId: string; src: string; fullSrc: string; mediaType: 'image' | 'gif'; alt?: string; width?: number; height?: number; aspectRatio?: number; orientation?: 'portrait' | 'landscape' | 'square' };
 
 const PostAttachmentsRow: React.FC<Props> = React.memo(({
   media,
@@ -199,13 +204,20 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
       if (!mediaItem) return;
       usedMedia.add(id);
       const resolvedType = explicitType || mediaItem.type || 'image';
+      const persistedDims = {
+        ...(mediaItem.width !== undefined ? { width: mediaItem.width } : {}),
+        ...(mediaItem.height !== undefined ? { height: mediaItem.height } : {}),
+        ...(mediaItem.aspectRatio !== undefined ? { aspectRatio: mediaItem.aspectRatio } : {}),
+        ...(mediaItem.orientation !== undefined ? { orientation: mediaItem.orientation } : {}),
+        ...(mediaItem.durationSec !== undefined ? { durationSec: mediaItem.durationSec } : {}),
+      };
       if (resolvedType === 'video') {
         const src = resolveMediaSrc(mediaItem, 'playable');
         if (!src) return;
         // Poster: prefer the server-resolved final `posterUrl`; fall back to the
         // legacy client resolver from the RAW media id when absent (old data).
         const poster = mediaItem.posterUrl || videoPosterUrl(id, oxyServices);
-        results.push({ type: 'video', mediaId: id, src, poster });
+        results.push({ type: 'video', mediaId: id, src, poster, ...persistedDims });
       } else if (resolvedType === 'gif') {
         // Federated gifs carry an absolute http URL as their media id — a <video>
         // can't play a remote `.gif`, so keep the animated-gif image render (via
@@ -215,11 +227,11 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
           const src = resolveMediaSrc(mediaItem, 'thumb');
           if (!src) return;
           const fullSrc = resolveMediaSrc(mediaItem, 'large') || src;
-          results.push({ type: 'image', mediaId: id, src, fullSrc, mediaType: 'gif' });
+          results.push({ type: 'image', mediaId: id, src, fullSrc, mediaType: 'gif', ...persistedDims });
         } else {
           const src = resolveMediaSrc(mediaItem, 'playable');
           if (!src) return;
-          results.push({ type: 'gif', mediaId: id, src });
+          results.push({ type: 'gif', mediaId: id, src, ...persistedDims });
         }
       } else {
         // Thumbnail for the in-feed card; a larger variant for the lightbox so
@@ -228,7 +240,7 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
         if (!src) return;
         const fullSrc = resolveMediaSrc(mediaItem, 'large') || src;
         const alt = typeof mediaItem.alt === 'string' && mediaItem.alt.trim() ? mediaItem.alt : undefined;
-        results.push({ type: 'image', mediaId: id, src, fullSrc, mediaType: 'image', alt });
+        results.push({ type: 'image', mediaId: id, src, fullSrc, mediaType: 'image', alt, ...persistedDims });
       }
     };
 
@@ -648,6 +660,9 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
               src={item.src}
               mediaId={item.mediaId}
               postId={postId}
+              width={item.width}
+              height={item.height}
+              aspectRatio={item.aspectRatio}
               hasSingleMedia={hasSingleMedia}
               hasMultipleMedia={hasMultipleMedia}
               sensitive={sensitive}
@@ -667,6 +682,10 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
               alt={item.type === 'image' ? item.alt : undefined}
               mediaId={mediaId}
               poster={item.type === 'video' ? item.poster : undefined}
+              width={item.width}
+              height={item.height}
+              aspectRatio={item.aspectRatio}
+              durationSec={item.type === 'video' ? item.durationSec : undefined}
               postId={postId}
               onPress={pressHandlerByMedia(mediaId, item.type)}
               registerHost={imageIndex !== undefined ? registerThumbHost(imageIndex) : undefined}

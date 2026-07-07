@@ -29,7 +29,9 @@ vi.mock('../../utils/safeUpstreamFetch', async () => {
   };
 });
 
-const assetUploadMock = vi.fn();
+const { assetUploadMock } = vi.hoisted(() => ({
+  assetUploadMock: vi.fn(),
+}));
 vi.mock('@oxyhq/core', async () => {
   const actual = await vi.importActual<typeof import('@oxyhq/core')>('@oxyhq/core');
   return {
@@ -40,6 +42,12 @@ vi.mock('@oxyhq/core', async () => {
     },
   };
 });
+
+vi.mock('../../utils/oxyHelpers', () => ({
+  getServiceOxyClient: () => ({
+    getServiceAssetMetadataByIds: vi.fn().mockResolvedValue([]),
+  }),
+}));
 
 import intentMediaRoutes from '../../routes/intentMedia';
 

@@ -6,6 +6,7 @@ import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
 
 import { logger } from '../utils/logger';
 import { RedisStore } from '../middleware/rateLimitStore';
+import { getServiceOxyClient } from '../utils/oxyHelpers';
 import {
   SsrfRejection,
   UpstreamResult,
@@ -270,7 +271,25 @@ router.post('/', intentMediaRateLimiter, async (req: AuthRequest, res: Response)
       return;
     }
 
-    res.status(HTTP_STATUS.OK).json({ fileId, contentType });
+    const responseBody: Record<string, unknown> = { fileId, contentType };
+    try {
+      const assets = await getServiceOxyClient().getServiceAssetMetadataByIds([fileId]);
+      const asset = assets[0];
+      if (asset) {
+        if (asset.width !== undefined) responseBody.width = asset.width;
+        if (asset.height !== undefined) responseBody.height = asset.height;
+        if (asset.durationSec !== undefined) responseBody.durationSec = asset.durationSec;
+        if (asset.orientation !== undefined) responseBody.orientation = asset.orientation;
+        if (asset.aspectRatio !== undefined) responseBody.aspectRatio = asset.aspectRatio;
+        if (asset.size !== undefined) responseBody.sizeBytes = asset.size;
+      }
+    } catch (error) {
+      logger.debug('[IntentMedia] Metadata lookup after upload failed (variant may still be pending)', {
+        reason: error instanceof Error ? error.message : 'unknown',
+      });
+    }
+
+    res.status(HTTP_STATUS.OK).json(responseBody);
   } finally {
     clearTimeout(deadline);
   }

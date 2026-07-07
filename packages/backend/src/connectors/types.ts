@@ -61,6 +61,12 @@ export interface NormalizedExternalMedia {
   id: string;
   type: 'image' | 'video';
   remoteUrl?: string;
+  alt?: string;
+  width?: number;
+  height?: number;
+  durationSec?: number;
+  orientation?: 'portrait' | 'landscape' | 'square';
+  aspectRatio?: number;
 }
 
 /**

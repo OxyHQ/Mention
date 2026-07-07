@@ -119,7 +119,7 @@ describe('mapPostViewToNormalizedPost', () => {
     expect(post?.languages).toEqual(['en', 'es']);
     expect(post?.hashtags).toEqual(expect.arrayContaining(['atproto', 'bluesky']));
     expect(post?.sensitive).toBe(true);
-    expect(post?.media).toEqual([{ id: 'https://cdn/full.jpg', type: 'image', remoteUrl: 'https://cdn/full.jpg' }]);
+    expect(post?.media).toEqual([{ id: 'https://cdn/full.jpg', type: 'image', remoteUrl: 'https://cdn/full.jpg', alt: 'a' }]);
   });
 
   it('extracts video playlist media from a video embed view', () => {

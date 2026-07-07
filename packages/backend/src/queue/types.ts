@@ -51,3 +51,8 @@ export interface SharingCleanupJobData {
   username: string;
   nonce: string;
 }
+
+/** Retry Oxy ffprobe/sharp metadata copy onto a post's content.media[]. */
+export interface MediaMetadataEnrichJobData {
+  postId: string;
+}

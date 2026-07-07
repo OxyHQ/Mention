@@ -15,25 +15,42 @@ interface SamplePost {
   type: string;
   visibility: string;
   status: string;
-  content: { text?: string; media?: Array<{ id: string; type: string }> };
+  content: {
+    text?: string;
+    media?: Array<{
+      id: string;
+      type: string;
+      width?: number;
+      height?: number;
+      durationSec?: number;
+      orientation?: string;
+    }>;
+  };
   federation?: { activityId: string };
   boostOf?: string | null;
 }
 
 /**
  * Pure predicate that mirrors FeedQueryBuilder.buildVideosQuery's semantics so
- * we can assert inclusion/exclusion without a live MongoDB. Kept in lockstep
- * with the query: public + published, not a boost, and contains a video either
- * by post type or by a video item in content.media.
+ * we can assert inclusion/exclusion without a live MongoDB. Post-backfill:
+ * public + published, not a boost, and a video item with complete metadata.
  */
 function matchesVideosFeed(post: SamplePost): boolean {
   if (post.visibility !== PostVisibility.PUBLIC) return false;
   if (post.status !== 'published') return false;
   if (post.boostOf) return false;
-  const isVideoType = post.type === PostType.VIDEO;
-  const hasVideoMedia = Array.isArray(post.content.media)
-    && post.content.media.some((m) => m.type === 'video');
-  return isVideoType || hasVideoMedia;
+  const media = post.content.media;
+  if (!Array.isArray(media)) return false;
+  return media.some((m) =>
+    m.type === 'video'
+    && typeof m.durationSec === 'number'
+    && m.durationSec >= 20
+    && m.orientation !== undefined
+    && typeof m.width === 'number'
+    && m.width > 0
+    && typeof m.height === 'number'
+    && m.height > 0,
+  );
 }
 
 describe('videos feed descriptor', () => {
@@ -49,7 +66,7 @@ describe('videos feed descriptor', () => {
 });
 
 describe('FeedQueryBuilder.buildVideosQuery', () => {
-  it('matches video posts by type OR a video item in content.media', () => {
+  it('requires complete video metadata with default min duration', () => {
     const query = FeedQueryBuilder.buildVideosQuery([], undefined);
 
     expect(query.visibility).toBe(PostVisibility.PUBLIC);
@@ -58,13 +75,12 @@ describe('FeedQueryBuilder.buildVideosQuery', () => {
     const and = query.$and as Array<Record<string, unknown>>;
     expect(Array.isArray(and)).toBe(true);
 
-    const videoClause = and.find((c) => Array.isArray(c.$or)
-      && (c.$or as Array<Record<string, unknown>>).some((o) => o.type === PostType.VIDEO));
-    expect(videoClause).toBeDefined();
-
-    const orConditions = (videoClause?.$or ?? []) as Array<Record<string, unknown>>;
-    expect(orConditions).toContainEqual({ type: PostType.VIDEO });
-    expect(orConditions).toContainEqual({ 'content.media': { $elemMatch: { type: 'video' } } });
+    const mediaClause = and.find((c) => typeof c['content.media'] === 'object');
+    expect(mediaClause).toBeDefined();
+    const elemMatch = (mediaClause?.['content.media'] as { $elemMatch: Record<string, unknown> }).$elemMatch;
+    expect(elemMatch.type).toBe('video');
+    expect(elemMatch.durationSec).toEqual({ $gte: 20 });
+    expect(elemMatch.orientation).toEqual({ $exists: true });
   });
 
   it('excludes boosts and seen posts, and applies a cursor', () => {
@@ -94,21 +110,35 @@ describe('FeedQueryBuilder.buildVideosQuery', () => {
 });
 
 describe('videos feed candidate selection', () => {
+  const completeVideoMedia = {
+    id: 'm1',
+    type: 'video',
+    width: 1080,
+    height: 1920,
+    durationSec: 30,
+    orientation: 'portrait',
+  };
+
   const nativeVideo: SamplePost = {
     type: PostType.VIDEO,
     visibility: PostVisibility.PUBLIC,
     status: 'published',
-    content: { text: 'native clip', media: [{ id: 'm1', type: 'video' }] },
+    content: { text: 'native clip', media: [completeVideoMedia] },
   };
 
   const federatedVideo: SamplePost = {
-    // Federated posts often arrive typed as IMAGE/TEXT but carry a video in
-    // content.media — they must still be included.
     type: PostType.IMAGE,
     visibility: PostVisibility.PUBLIC,
     status: 'published',
-    content: { text: 'remote clip', media: [{ id: 'm2', type: 'video' }] },
+    content: { text: 'remote clip', media: [{ ...completeVideoMedia, id: 'm2' }] },
     federation: { activityId: 'https://remote.example/users/alice/statuses/1' },
+  };
+
+  const incompleteVideo: SamplePost = {
+    type: PostType.VIDEO,
+    visibility: PostVisibility.PUBLIC,
+    status: 'published',
+    content: { text: 'missing metadata', media: [{ id: 'm3', type: 'video' }] },
   };
 
   const textOnly: SamplePost = {
@@ -128,5 +158,9 @@ describe('videos feed candidate selection', () => {
 
   it('excludes a text-only post', () => {
     expect(matchesVideosFeed(textOnly)).toBe(false);
+  });
+
+  it('excludes video posts missing persisted metadata', () => {
+    expect(matchesVideosFeed(incompleteVideo)).toBe(false);
   });
 });

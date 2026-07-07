@@ -1,5 +1,5 @@
 import { createHash } from 'crypto';
-import { getInboxQueue, getDeliveryQueue, getSharingCleanupQueue } from './queues';
+import { getInboxQueue, getDeliveryQueue, getSharingCleanupQueue, getMediaMetadataEnrichQueue } from './queues';
 import {
   DELIVERY_JOB_ATTEMPTS,
   DELIVERY_BACKOFF_STRATEGY,
@@ -7,8 +7,10 @@ import {
   INBOX_BACKOFF_BASE_MS,
   SHARING_CLEANUP_JOB_ATTEMPTS,
   SHARING_CLEANUP_BACKOFF_BASE_MS,
+  MEDIA_METADATA_ENRICH_JOB_ATTEMPTS,
+  MEDIA_METADATA_ENRICH_BACKOFF_BASE_MS,
 } from './constants';
-import type { InboxJobData, DeliveryJobData, SharingCleanupJobData } from './types';
+import type { InboxJobData, DeliveryJobData, SharingCleanupJobData, MediaMetadataEnrichJobData } from './types';
 
 /**
  * Producer helpers — the single place that enqueues federation jobs with the
@@ -124,6 +126,19 @@ export async function enqueueSharingCleanup(data: SharingCleanupJobData): Promis
     jobId: `sharingcleanup-${shortHash(`${data.oxyUserId}|${data.nonce}`)}`,
     attempts: SHARING_CLEANUP_JOB_ATTEMPTS,
     backoff: { type: 'exponential', delay: SHARING_CLEANUP_BACKOFF_BASE_MS },
+  });
+  return true;
+}
+
+/** Enqueue a post media-metadata enrich retry. Dedupes on postId. */
+export async function enqueueMediaMetadataEnrich(data: MediaMetadataEnrichJobData): Promise<boolean> {
+  const queue = getMediaMetadataEnrichQueue();
+  if (!queue) return false;
+
+  await queue.add('media-metadata-enrich', data, {
+    jobId: `mediameta-${shortHash(data.postId)}`,
+    attempts: MEDIA_METADATA_ENRICH_JOB_ATTEMPTS,
+    backoff: { type: 'exponential', delay: MEDIA_METADATA_ENRICH_BACKOFF_BASE_MS },
   });
   return true;
 }

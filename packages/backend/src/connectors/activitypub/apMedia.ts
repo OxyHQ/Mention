@@ -1,3 +1,6 @@
+import type { MediaItem } from '@mention/shared-types';
+import { mergeMediaItem, patchFromApAttachment } from '../../services/MediaMetadataService';
+
 /**
  * ActivityPub media-attachment extraction.
  *
@@ -24,6 +27,11 @@ export interface ApUrlEntry {
 export interface ApAttachment {
   type?: string;
   mediaType?: string;
+  /** Accessibility text on Mastodon/Pleroma attachments. */
+  name?: string;
+  width?: number;
+  height?: number;
+  duration?: number | string;
   /** String (Mastodon), Link object (Pleroma), or array of Link objects (PeerTube). */
   url?: string | ApUrlEntry | Array<string | ApUrlEntry>;
 }
@@ -182,10 +190,10 @@ export function resolveApAttachment(
  * Post `attachments` descriptor — the frontend and native posts depend on it.
  */
 export function extractApMediaFromNote(note: { attachment?: unknown }): {
-  media: Array<{ id: string; type: ApMediaType }>;
+  media: MediaItem[];
   attachments: Array<{ type: 'media'; id: string; mediaType: ApMediaType }>;
 } {
-  const media: Array<{ id: string; type: ApMediaType }> = [];
+  const media: MediaItem[] = [];
   const attachments: Array<{ type: 'media'; id: string; mediaType: ApMediaType }> = [];
 
   if (!Array.isArray(note.attachment)) return { media, attachments };
@@ -193,7 +201,9 @@ export function extractApMediaFromNote(note: { attachment?: unknown }): {
   for (const att of note.attachment) {
     const resolved = resolveApAttachment(att as ApAttachment);
     if (!resolved) continue;
-    media.push({ id: resolved.href, type: resolved.type });
+    const patch = patchFromApAttachment(att as ApAttachment);
+    const item = mergeMediaItem({ id: resolved.href, type: resolved.type }, patch);
+    media.push(item);
     attachments.push({ type: 'media', id: resolved.href, mediaType: resolved.type });
   }
 

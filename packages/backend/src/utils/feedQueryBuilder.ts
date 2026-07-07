@@ -4,7 +4,7 @@
  * Separates query construction from business logic
  */
 
-import { FeedType, PostType, PostVisibility } from '@mention/shared-types';
+import { FeedType, PostType, PostVisibility, MtnConfig } from '@mention/shared-types';
 import mongoose from 'mongoose';
 import { ContentLabel } from '../models/ContentLabel';
 import { parseFeedCursor } from './feedUtils';
@@ -17,6 +17,13 @@ export interface FeedQueryOptions {
   cursor?: string;
   limit?: number;
   savedPostIds?: mongoose.Types.ObjectId[];
+}
+
+export interface VideosQueryOptions {
+  /** Minimum video duration in seconds (defaults to {@link MtnConfig.videosFeed.minDurationSec}). */
+  minDurationSec?: number;
+  /** Restrict to videos with this stored orientation. */
+  orientation?: 'portrait' | 'landscape' | 'square';
 }
 
 export class FeedQueryBuilder {
@@ -338,12 +345,22 @@ export class FeedQueryBuilder {
   static buildVideosQuery(
     seenPostIds: string[],
     cursor?: string,
+    options: VideosQueryOptions = {},
   ): Record<string, unknown> {
+    const minDurationSec = options.minDurationSec ?? MtnConfig.videosFeed.minDurationSec;
+    const elemMatch: Record<string, unknown> = {
+      type: 'video',
+      durationSec: { $gte: minDurationSec },
+      orientation: { $exists: true },
+      width: { $gt: 0 },
+      height: { $gt: 0 },
+    };
+    if (options.orientation) {
+      elemMatch.orientation = options.orientation;
+    }
+
     const videoMatch = {
-      $or: [
-        { type: PostType.VIDEO },
-        { 'content.media': { $elemMatch: { type: 'video' } } },
-      ],
+      'content.media': { $elemMatch: elemMatch },
     };
 
     const match: Record<string, unknown> = {

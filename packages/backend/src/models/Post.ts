@@ -96,10 +96,26 @@ const PostContentSchema = new Schema({
     type: Schema.Types.Mixed,
     validate: {
       validator: function(item: any) {
-        // Only allow MediaItem objects with id and type
         if (typeof item === 'object' && item !== null) {
-          return typeof item.id === 'string' && 
-                 (item.type === 'image' || item.type === 'video' || item.type === 'gif');
+          if (typeof item.id !== 'string') return false;
+          if (item.type !== 'image' && item.type !== 'video' && item.type !== 'gif') return false;
+          const numericFields = ['width', 'height', 'durationSec', 'sizeBytes', 'aspectRatio'] as const;
+          for (const field of numericFields) {
+            if (item[field] !== undefined && item[field] !== null) {
+              if (typeof item[field] !== 'number' || !Number.isFinite(item[field]) || item[field] <= 0) {
+                return false;
+              }
+            }
+          }
+          if (
+            item.orientation !== undefined
+            && item.orientation !== 'portrait'
+            && item.orientation !== 'landscape'
+            && item.orientation !== 'square'
+          ) {
+            return false;
+          }
+          return true;
         }
         return false;
       },
@@ -578,6 +594,12 @@ PostSchema.index({ threadId: 1, createdAt: -1 });
 PostSchema.index({ boostOf: 1, createdAt: -1 });
 PostSchema.index({ quoteOf: 1, createdAt: -1 });
 PostSchema.index({ 'content.media': 1, createdAt: -1 });
+PostSchema.index({
+  'content.media.type': 1,
+  'content.media.orientation': 1,
+  'content.media.durationSec': 1,
+  createdAt: -1,
+});
 PostSchema.index({ createdAt: -1 }); // Default sort order
 // Canonical topic-page lookup: getPostsByTopic matches the canonical
 // postClassification.topicRefs.name (with the slug-only postClassification.topics

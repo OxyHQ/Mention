@@ -214,7 +214,7 @@ describe('extractApMediaFromNote', () => {
     });
   });
 
-  it('preserves the exact MediaItem + attachment descriptor shape (no extra fields)', () => {
+  it('preserves minimal MediaItem shape when AP sends no metadata fields', () => {
     const note = {
       attachment: [
         { type: 'Document', mediaType: 'image/jpeg', url: 'https://example/a.jpg' },
@@ -225,9 +225,31 @@ describe('extractApMediaFromNote', () => {
       media: [{ id: 'https://example/a.jpg', type: 'image' }],
       attachments: [{ type: 'media', id: 'https://example/a.jpg', mediaType: 'image' }],
     });
-    // Guard: id is always a string, never an object/array.
     expect(typeof out.media[0].id).toBe('string');
     expect(Object.keys(out.media[0]).sort()).toEqual(['id', 'type']);
+  });
+
+  it('copies AP width/height/duration/alt and derives orientation onto media items', () => {
+    const note = {
+      attachment: [{
+        mediaType: 'video/mp4',
+        url: 'https://mastodon.example/media/clip.mp4',
+        width: 720,
+        height: 1280,
+        duration: 45,
+        name: 'Behind the scenes',
+      }],
+    };
+    const out = extractApMediaFromNote(note);
+    expect(out.media[0]).toMatchObject({
+      id: 'https://mastodon.example/media/clip.mp4',
+      type: 'video',
+      width: 720,
+      height: 1280,
+      durationSec: 45,
+      alt: 'Behind the scenes',
+      orientation: 'portrait',
+    });
   });
 
   it('extracts multiple attachments and skips unclassifiable ones', () => {

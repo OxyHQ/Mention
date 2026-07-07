@@ -14,6 +14,7 @@ import {
   setAspectRatio as setAspectRatioInCache,
   DEFAULT_ASPECT_RATIO,
 } from '@/utils/imageAspectRatioCache';
+import { readMediaAspectRatio } from '@/utils/mediaTypes';
 
 /** Screen-space rectangle of a tapped thumbnail, used to seed the zoom origin. */
 export interface MeasuredRect {
@@ -58,11 +59,11 @@ const SINGLE_MEDIA_MAX_HEIGHT = Math.round(MEDIA_CARD_WIDTH / SINGLE_MEDIA_MIN_A
  * native video view is bounded and clipped; on web only the width is fixed so the
  * <video> keeps its intrinsic auto-height.
  */
-function useSingleMediaCardStyle(): {
+function useSingleMediaCardStyle(initialAspectRatio?: number): {
   cardStyle: ViewStyle;
   onAspectRatio: (ratio: number) => void;
 } {
-  const [aspectRatio, setAspectRatio] = useState<number | undefined>(undefined);
+  const [aspectRatio, setAspectRatio] = useState<number | undefined>(initialAspectRatio);
   const onAspectRatio = useCallback((ratio: number) => {
     setAspectRatio((prev) => (prev === ratio ? prev : ratio));
   }, []);
@@ -92,6 +93,12 @@ interface PostAttachmentMediaProps {
   postId?: string;
   /** Poster (thumbnail) shown over the video until the first frame plays. */
   poster?: string;
+  /** Persisted intrinsic dimensions from the backend DTO (preferred over runtime probing). */
+  width?: number;
+  height?: number;
+  aspectRatio?: number;
+  orientation?: 'portrait' | 'landscape' | 'square';
+  durationSec?: number;
   /**
    * Video: fired with no args (routes to the reels viewer).
    * Image: fired with the measured on-screen rect of the tapped thumbnail so the
@@ -117,11 +124,15 @@ interface PostAttachmentMediaProps {
 const PostAttachmentVideo: React.FC<{
   src: string;
   poster?: string;
+  aspectRatio?: number;
+  width?: number;
+  height?: number;
   onPress?: () => void;
   hasSingleMedia?: boolean;
   hasMultipleMedia?: boolean;
-}> = ({ src, poster, onPress, hasSingleMedia, hasMultipleMedia }) => {
-  const { cardStyle, onAspectRatio } = useSingleMediaCardStyle();
+}> = ({ src, poster, aspectRatio, width, height, onPress, hasSingleMedia, hasMultipleMedia }) => {
+  const initialRatio = readMediaAspectRatio({ aspectRatio, width, height });
+  const { cardStyle, onAspectRatio } = useSingleMediaCardStyle(initialRatio);
   return (
     <View
       className="bg-secondary rounded-[15px] overflow-hidden"
@@ -151,10 +162,14 @@ const PostAttachmentVideo: React.FC<{
 // no controls, no mute toggle, and the surface is NOT tappable (no reels/lightbox).
 const PostAttachmentGif: React.FC<{
   src: string;
+  aspectRatio?: number;
+  width?: number;
+  height?: number;
   hasSingleMedia?: boolean;
   hasMultipleMedia?: boolean;
-}> = ({ src, hasSingleMedia, hasMultipleMedia }) => {
-  const { cardStyle, onAspectRatio } = useSingleMediaCardStyle();
+}> = ({ src, aspectRatio, width, height, hasSingleMedia, hasMultipleMedia }) => {
+  const initialRatio = readMediaAspectRatio({ aspectRatio, width, height });
+  const { cardStyle, onAspectRatio } = useSingleMediaCardStyle(initialRatio);
   return (
     <View
       className="bg-secondary rounded-[15px] overflow-hidden"
@@ -183,14 +198,17 @@ const FULL_DIMENSION = '100%' as const;
 const PostAttachmentImage: React.FC<{
   src: string;
   alt?: string;
+  aspectRatio?: number;
+  width?: number;
+  height?: number;
   onPress?: (rect?: MeasuredRect) => void;
   registerHost?: RegisterThumbHost;
-}> = ({ src, alt, onPress, registerHost }) => {
+}> = ({ src, alt, aspectRatio: dtoAspectRatio, width, height, onPress, registerHost }) => {
   const theme = useTheme();
   const wrapperRef = useRef<View | null>(null);
-  const [aspectRatio, setAspectRatio] = useState<number | undefined>(
-    () => getAspectRatio(src)
-  );
+  const initialRatio = readMediaAspectRatio({ aspectRatio: dtoAspectRatio, width, height })
+    ?? getAspectRatio(src);
+  const [aspectRatio, setAspectRatio] = useState<number | undefined>(initialRatio);
 
   // Callback ref: keep the local ref (for open-press measurement) AND mirror the
   // host into the parent's index registry (for the close fly-back). Registers on
@@ -201,6 +219,14 @@ const PostAttachmentImage: React.FC<{
   }, [registerHost]);
 
   useEffect(() => {
+    if (dtoAspectRatio !== undefined || (width !== undefined && height !== undefined)) {
+      const ratio = readMediaAspectRatio({ aspectRatio: dtoAspectRatio, width, height });
+      if (ratio !== undefined) {
+        setAspectRatio(ratio);
+        setAspectRatioInCache(src, ratio);
+      }
+      return;
+    }
     if (hasAspectRatio(src)) {
       setAspectRatio(getAspectRatio(src));
       return;
@@ -224,7 +250,7 @@ const PostAttachmentImage: React.FC<{
       }
     );
     return () => { cancelled = true; };
-  }, [src]);
+  }, [src, dtoAspectRatio, width, height]);
 
   const handlePress = useCallback(() => {
     if (!onPress) return;
@@ -353,6 +379,9 @@ const PostAttachmentMedia: React.FC<PostAttachmentMediaProps> = ({
   src,
   alt,
   poster,
+  width,
+  height,
+  aspectRatio,
   onPress,
   hasSingleMedia,
   hasMultipleMedia,
@@ -369,6 +398,9 @@ const PostAttachmentMedia: React.FC<PostAttachmentMediaProps> = ({
       <PostAttachmentVideo
         src={src}
         poster={poster}
+        width={width}
+        height={height}
+        aspectRatio={aspectRatio}
         onPress={onPress}
         hasSingleMedia={hasSingleMedia}
         hasMultipleMedia={hasMultipleMedia}
@@ -378,12 +410,25 @@ const PostAttachmentMedia: React.FC<PostAttachmentMediaProps> = ({
     media = (
       <PostAttachmentGif
         src={src}
+        width={width}
+        height={height}
+        aspectRatio={aspectRatio}
         hasSingleMedia={hasSingleMedia}
         hasMultipleMedia={hasMultipleMedia}
       />
     );
   } else {
-    media = <PostAttachmentImage src={src} alt={alt} onPress={onPress} registerHost={registerHost} />;
+    media = (
+      <PostAttachmentImage
+        src={src}
+        alt={alt}
+        width={width}
+        height={height}
+        aspectRatio={aspectRatio}
+        onPress={onPress}
+        registerHost={registerHost}
+      />
+    );
   }
 
   if (!sensitive) {

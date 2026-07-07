@@ -49,6 +49,24 @@ export interface MediaItem {
    * badge. Not a URL; never resolved/rewritten.
    */
   alt?: string;
+  /** Intrinsic pixel width when known (persisted at ingest from Oxy or AP). */
+  width?: number;
+  /** Intrinsic pixel height when known (persisted at ingest from Oxy or AP). */
+  height?: number;
+  /** Playback duration in seconds for video (and animated gif when detected). */
+  durationSec?: number;
+  /** Byte size when known (Oxy asset or federated cache). */
+  sizeBytes?: number;
+  /** Derived at ingest from width/height (Oxy canonical; AP pre-cache until Oxy wins). */
+  orientation?: 'portrait' | 'landscape' | 'square';
+  /** width / height, set at ingest together with orientation. */
+  aspectRatio?: number;
+  /** MIME type when known at ingest. */
+  mime?: string;
+  /** Original remote URL when federated media was cached to an Oxy file id. */
+  remoteUrl?: string;
+  /** True when this item's id was rewritten from a remote URL to an Oxy asset. */
+  cachedFromFederation?: boolean;
   /**
    * Final, ready-to-render media URL resolved server-side (CDN or our media
    * proxy). Backends populate this so the frontend never computes URLs from `id`.

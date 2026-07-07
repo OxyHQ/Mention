@@ -3,11 +3,13 @@ FROM oven/bun:1.3.14 AS builder
 
 WORKDIR /app
 
-COPY package.json bunfig.toml bun.lock ./
+COPY package.json bunfig.toml bun.lock tsconfig.json ./
 COPY packages/shared-types/package.json packages/shared-types/
 COPY packages/mcp/package.json packages/mcp/
+COPY packages/backend/package.json packages/backend/
+COPY packages/frontend/package.json packages/frontend/
 
-RUN bun install --frozen-lockfile
+RUN bun install --frozen-lockfile --ignore-scripts
 
 COPY packages/shared-types packages/shared-types
 COPY packages/mcp packages/mcp

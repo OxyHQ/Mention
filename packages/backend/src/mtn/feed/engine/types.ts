@@ -54,6 +54,14 @@ export interface FeedEngineContext extends FeedContext {
   cursor?: string;
   /** The resolved page limit, so ordered/pre-scored sources can size their fetch. */
   pageLimit?: number;
+  /**
+   * Optional videos-feed filters parsed from query params (`orientation`, `minDuration`).
+   * Applied by {@link FeedQueryBuilder.buildVideosQuery} — reads persisted media fields only.
+   */
+  videoFilters?: {
+    orientation?: 'portrait' | 'landscape' | 'square';
+    minDurationSec?: number;
+  };
 }
 
 export interface SourceModule {

@@ -7,7 +7,7 @@ import {
   USER_AGENT,
   extractLocalPostIdFromApUri,
 } from './constants';
-import { PostVisibility } from '@mention/shared-types';
+import { PostVisibility, type MediaItem } from '@mention/shared-types';
 import { extractApMediaFromNote, type ApMediaType } from './apMedia';
 import { normalizeHashtag } from '../../utils/textProcessing';
 import { assertSafePublicUrl } from '../../utils/ssrfGuard';
@@ -459,7 +459,7 @@ export function extractInReplyToUri(inReplyTo: unknown): string | undefined {
  * array of `Link` objects) and picks the most broadly-playable video variant.
  */
 export function extractApMedia(note: Record<string, any>): {
-  media: Array<{ id: string; type: ApMediaType }>;
+  media: MediaItem[];
   attachments: Array<{ type: 'media'; id: string; mediaType: ApMediaType }>;
 } {
   return extractApMediaFromNote(note);

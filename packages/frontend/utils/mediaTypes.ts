@@ -6,6 +6,44 @@
  * different runtime) — this util covers the frontend only.
  */
 
+/** Persisted intrinsic media fields the backend copies onto each MediaItem. */
+export interface PersistedMediaDimensions {
+  width?: number;
+  height?: number;
+  aspectRatio?: number;
+  orientation?: 'portrait' | 'landscape' | 'square';
+  durationSec?: number;
+}
+
+/**
+ * Read the stored aspect ratio from a media DTO. Returns undefined when the
+ * backend has not yet backfilled metadata for this item.
+ */
+export function readMediaAspectRatio(item: PersistedMediaDimensions | undefined): number | undefined {
+  if (!item) return undefined;
+  if (typeof item.aspectRatio === 'number' && item.aspectRatio > 0) return item.aspectRatio;
+  if (typeof item.width === 'number' && typeof item.height === 'number' && item.width > 0 && item.height > 0) {
+    return item.width / item.height;
+  }
+  return undefined;
+}
+
+/** Read stored orientation from the media DTO (never computed client-side). */
+export function readMediaOrientation(
+  item: PersistedMediaDimensions | undefined,
+): 'portrait' | 'landscape' | 'square' | undefined {
+  const orientation = item?.orientation;
+  return orientation === 'portrait' || orientation === 'landscape' || orientation === 'square'
+    ? orientation
+    : undefined;
+}
+
+/** Read stored duration in seconds from the media DTO. */
+export function readMediaDurationSec(item: PersistedMediaDimensions | undefined): number | undefined {
+  const duration = item?.durationSec;
+  return typeof duration === 'number' && Number.isFinite(duration) && duration > 0 ? duration : undefined;
+}
+
 /**
  * File extensions we treat as video. Matched against the END of a URL/path
  * (case-insensitive). Kept in sync with the formats the player + poster

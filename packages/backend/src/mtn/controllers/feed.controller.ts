@@ -162,6 +162,26 @@ function resolveLegacyFeed(descriptor: FeedDescriptor): FeedAPI | null {
  */
 const ANON_FEED_CACHE_NAMESPACE = 'mtn';
 
+function parseVideoFeedFilters(
+  descriptor: FeedDescriptor,
+  query: AuthRequest['query'],
+): FeedEngineContext['videoFilters'] | undefined {
+  if (parseFeedDescriptor(descriptor).source !== 'videos') return undefined;
+
+  const orientationRaw = typeof query.orientation === 'string' ? query.orientation.trim().toLowerCase() : '';
+  const orientation = orientationRaw === 'portrait' || orientationRaw === 'landscape' || orientationRaw === 'square'
+    ? orientationRaw
+    : undefined;
+
+  const minDurationRaw = typeof query.minDuration === 'string' ? parseInt(query.minDuration, 10) : NaN;
+  const minDurationSec = Number.isFinite(minDurationRaw) && minDurationRaw > 0
+    ? minDurationRaw
+    : undefined;
+
+  if (!orientation && minDurationSec === undefined) return undefined;
+  return { orientation, minDurationSec };
+}
+
 class MtnFeedController {
   /**
    * GET /api/feed?descriptor=for_you&cursor=...&limit=30
@@ -182,6 +202,7 @@ class MtnFeedController {
         Math.max(parseInt(req.query.limit as string, 10) || MtnConfig.feed.defaultLimit, 1),
         MtnConfig.feed.maxLimit
       );
+      const videoFilters = parseVideoFeedFilters(descriptor, req.query);
 
       const currentUserId = req.user?.id;
 
@@ -200,6 +221,7 @@ class MtnFeedController {
             type: descriptor,
             limit,
             cursor,
+            ...(videoFilters ? { filters: videoFilters as Record<string, unknown> } : {}),
           })
         : undefined;
       if (anonCacheKey) {
@@ -219,6 +241,9 @@ class MtnFeedController {
         : null;
 
       const context = await loadViewerFeedContext(currentUserId, oxyClient);
+      if (videoFilters) {
+        context.videoFilters = videoFilters;
+      }
 
       // The Mutuals feed needs the viewer's mutual-follow id set. Compute it ONLY
       // for that descriptor (Oxy graph mutuals ∪ federated mutuals) so no other

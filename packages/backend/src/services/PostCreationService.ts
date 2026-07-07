@@ -16,6 +16,8 @@ import { emitPostCreated, emitRepostCreated } from './mtn/MentionRecordEmitter';
 import type { ReplyContext } from './mtn/mentionRecordBuilders';
 import { postCollaborationService } from './PostCollaborationService';
 import { getOwnerId, hasPendingCollabInvites } from '../utils/postAuthorship';
+import { mediaMetadataService } from './MediaMetadataService';
+import { enqueueMediaMetadataEnrich } from './mediaMetadataEnrichJob';
 
 export interface CreatePostParams {
   oxyUserId: string | null;
@@ -191,9 +193,15 @@ class PostCreationService {
   async create(params: CreatePostParams): Promise<IPost> {
     const isScheduled = params.status === 'scheduled';
 
+    let content = params.content;
+    if (Array.isArray(content.media) && content.media.length > 0) {
+      const enrichedMedia = await mediaMetadataService.enrichFromOxy(content.media as MediaItem[]);
+      content = { ...content, media: enrichedMedia };
+    }
+
     const postData: Record<string, unknown> = {
-      type: derivePostType(params),
-      content: params.content,
+      type: derivePostType({ ...params, content }),
+      content,
       visibility: params.visibility ?? PostVisibility.PUBLIC,
       hashtags: params.hashtags ?? [],
       mentions: params.mentions ?? [],
@@ -251,6 +259,11 @@ class PostCreationService {
 
     const post = new Post(postData);
     await post.save();
+
+    const savedMedia = post.content?.media;
+    if (Array.isArray(savedMedia) && mediaMetadataService.needsOxyRetry(savedMedia as MediaItem[])) {
+      void enqueueMediaMetadataEnrich(String(post._id));
+    }
 
     const isPublished = (post.status ?? 'published') === 'published';
     const hasPendingInvites = hasPendingCollabInvites(post.authorship ?? []);

@@ -33,6 +33,9 @@ export const FEDERATION_PERIODIC_QUEUE = 'federation-periodic';
  */
 export const FEDERATION_SHARING_CLEANUP_QUEUE = 'federation-sharing-cleanup';
 
+/** Retry copying Oxy asset metadata onto post content.media[] when ffprobe was pending at create. */
+export const MEDIA_METADATA_ENRICH_QUEUE = 'media-metadata-enrich';
+
 // --- Inbox worker tunables --------------------------------------------------
 
 /**
@@ -191,3 +194,20 @@ export const SHARING_CLEANUP_REMOVE_ON_COMPLETE_COUNT = 500;
 
 /** Failed sharing-cleanup jobs retained for debugging before automatic removal. */
 export const SHARING_CLEANUP_REMOVE_ON_FAIL_COUNT = 2000;
+
+// --- Media-metadata enrich worker tunables -----------------------------------
+
+/** Total attempts when Oxy ffprobe was not ready at post create. */
+export const MEDIA_METADATA_ENRICH_JOB_ATTEMPTS = 8;
+
+/** Base delay for the media-metadata enrich exponential backoff (ms). */
+export const MEDIA_METADATA_ENRICH_BACKOFF_BASE_MS = 30 * MS_PER_SECOND;
+
+/** Concurrency for the media-metadata enrich worker (per process). */
+export const MEDIA_METADATA_ENRICH_WORKER_CONCURRENCY = 4;
+
+/** Completed media-metadata enrich jobs retained before automatic removal. */
+export const MEDIA_METADATA_ENRICH_REMOVE_ON_COMPLETE_COUNT = 500;
+
+/** Failed media-metadata enrich jobs retained before automatic removal. */
+export const MEDIA_METADATA_ENRICH_REMOVE_ON_FAIL_COUNT = 2000;

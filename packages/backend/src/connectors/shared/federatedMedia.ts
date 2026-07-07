@@ -1,6 +1,8 @@
+import type { MediaItem } from '@mention/shared-types';
 import { logger } from '../../utils/logger';
 import { recordAccessAndMaybeEnqueue } from '../../services/mediaCache/cacheStore';
 import { persistRemoteMediaForFederatedOwnerDetailed } from '../../services/mediaCache/cacheWorker';
+import { mediaMetadataService } from '../../services/MediaMetadataService';
 import { isAbsoluteHttpUrl, getRemoteHost } from './url';
 import type { ApMediaType } from '../activitypub/apMedia';
 
@@ -18,7 +20,6 @@ import type { ApMediaType } from '../activitypub/apMedia';
  * runtime), so this file carries no ActivityPub runtime dependency.
  */
 
-export type ExtractedMediaItem = { id: string; type: ApMediaType };
 export type ExtractedMediaAttachment = { type: 'media'; id: string; mediaType: ApMediaType };
 
 /**
@@ -28,16 +29,16 @@ export type ExtractedMediaAttachment = { type: 'media'; id: string; mediaType: A
  * original remote URL and queue it for a later cache attempt.
  */
 export async function materializeFederatedMedia(
-  media: ExtractedMediaItem[],
+  media: MediaItem[],
   attachments: ExtractedMediaAttachment[],
   ownerOxyUserId: string | null | undefined,
   context: { activityId?: string; actorUri?: string } = {},
-): Promise<{ media: ExtractedMediaItem[]; attachments: ExtractedMediaAttachment[] }> {
+): Promise<{ media: MediaItem[]; attachments: ExtractedMediaAttachment[] }> {
   if (media.length === 0) return { media, attachments };
 
   const idMap = new Map<string, string>();
   const removedRemoteUrls = new Set<string>();
-  const outputMedia: ExtractedMediaItem[] = [];
+  const outputMedia: MediaItem[] = [];
 
   for (const item of media) {
     const remoteUrl = item.id;
@@ -56,7 +57,7 @@ export async function materializeFederatedMedia(
       remoteHost: getRemoteHost(remoteUrl),
       activityId: context.activityId,
       actorUri: context.actorUri,
-      mediaType: item.type,
+      mediaType: item.type === 'video' ? 'video' : 'image',
     });
 
     if (!persistedResult.ok) {
@@ -81,11 +82,12 @@ export async function materializeFederatedMedia(
       id: persisted.oxyFileId,
       remoteUrl,
       cachedFromFederation: true,
-      ...(persisted.posterFileId ? { posterFileId: persisted.posterFileId } : {}),
-    } as ExtractedMediaItem);
+    });
   }
 
-  if (idMap.size === 0 && removedRemoteUrls.size === 0) return { media: outputMedia, attachments };
+  if (idMap.size === 0 && removedRemoteUrls.size === 0) {
+    return { media: outputMedia, attachments };
+  }
 
   const outputAttachments = attachments
     .filter((attachment) => !removedRemoteUrls.has(attachment.id))
@@ -94,5 +96,6 @@ export async function materializeFederatedMedia(
       id: idMap.get(attachment.id) || attachment.id,
     }));
 
-  return { media: outputMedia, attachments: outputAttachments };
+  const enrichedMedia = await mediaMetadataService.enrichFromOxy(outputMedia);
+  return { media: enrichedMedia, attachments: outputAttachments };
 }

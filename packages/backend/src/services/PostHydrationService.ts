@@ -11,6 +11,7 @@ import { getServiceOxyClient } from '../utils/oxyHelpers';
 import { getBlockedUserIds, getRestrictedUserIds, extractFollowingIds, extractFollowersIds, OxyClient } from '../utils/privacyHelpers';
 import { resolveAvatarUrl, resolveMediaItems } from '../utils/mediaResolver';
 import { logger } from '../utils/logger';
+import { readPersistedMediaFields } from './MediaMetadataService';
 import type { User as OxyUser } from '@oxyhq/core';
 import type { LinkPreview } from '@oxyhq/contracts';
 import { assignThreadState } from './ThreadSlicingService';
@@ -1365,10 +1366,11 @@ export class PostHydrationService {
         if (typeof item === 'object') {
           const obj = item as Record<string, unknown>;
           if (obj.id) {
+            const persisted = readPersistedMediaFields(obj);
             return {
               id: String(obj.id),
               type: obj.type === 'video' || obj.type === 'gif' ? (obj.type as 'video' | 'gif') : 'image',
-              ...(typeof obj.alt === 'string' && obj.alt.length > 0 ? { alt: obj.alt } : {}),
+              ...persisted,
             };
           }
         }

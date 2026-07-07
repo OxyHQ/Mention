@@ -40,7 +40,10 @@ export const videosSource: SourceModule = {
   gather: async (ctx, _params, cap) => {
     const seenPostIds = ctx.seenPostIds ?? [];
     const parsed = ScoreCursor.parse(ctx.cursor);
-    const match = FeedQueryBuilder.buildVideosQuery(seenPostIds, parsed?.id);
+    const match = FeedQueryBuilder.buildVideosQuery(seenPostIds, parsed?.id, {
+      orientation: ctx.videoFilters?.orientation,
+      minDurationSec: ctx.videoFilters?.minDurationSec,
+    });
     return (await Post.find(match)
       .select(FEED_FIELDS)
       .sort({ createdAt: -1 })
@@ -314,7 +317,13 @@ export const popularVideosSource: SourceModule = {
   kind: 'source',
   userComposable: false,
   gather: async (ctx, _params, cap) =>
-    gatherPopularByQuery(FeedQueryBuilder.buildVideosQuery([], ctx.cursor), cap),
+    gatherPopularByQuery(
+      FeedQueryBuilder.buildVideosQuery([], ctx.cursor, {
+        orientation: ctx.videoFilters?.orientation,
+        minDurationSec: ctx.videoFilters?.minDurationSec,
+      }),
+      cap,
+    ),
 };
 
 /** `popularMedia`: anonymous Media fallback (wraps `MediaFeed.fetchPopular`). */

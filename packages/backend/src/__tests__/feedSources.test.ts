@@ -118,13 +118,17 @@ describe('globalDiscovery source', () => {
 });
 
 describe('videos source', () => {
-  it('builds the video content match', async () => {
+  it('builds the video content match with metadata elemMatch', async () => {
     findRouter = () => [makePost(4)];
     await videosSource.gather({ currentUserId: 'viewer', seenPostIds: [] }, {}, 90);
     const match = findCalls[0];
     const and = match.$and as Array<Record<string, unknown>>;
-    const videoClause = and.find((c) => Array.isArray(c.$or) && (c.$or as Array<Record<string, unknown>>).some((o) => o.type === 'video'));
-    expect(videoClause).toBeDefined();
+    const mediaClause = and.find((c) => typeof c['content.media'] === 'object');
+    expect(mediaClause).toBeDefined();
+    const elemMatch = (mediaClause?.['content.media'] as { $elemMatch: Record<string, unknown> }).$elemMatch;
+    expect(elemMatch.type).toBe('video');
+    expect(elemMatch.durationSec).toEqual({ $gte: 20 });
+    expect(elemMatch.orientation).toEqual({ $exists: true });
   });
 });
 

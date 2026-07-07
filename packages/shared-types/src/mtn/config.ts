@@ -357,6 +357,12 @@ export const MtnConfig = {
     },
   },
 
+  /** Videos (Reels) feed — metadata-backed filters (no runtime probing). */
+  videosFeed: {
+    /** Default minimum video duration in seconds for the ranked videos feed. */
+    minDurationSec: 20,
+  },
+
   // --- Cache TTLs (milliseconds) ---
   cache: {
     /** Per-feed-type TTLs for frontend caching */

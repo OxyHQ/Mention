@@ -5,6 +5,7 @@ import {
   FEDERATION_DELIVERY_QUEUE,
   FEDERATION_PERIODIC_QUEUE,
   FEDERATION_SHARING_CLEANUP_QUEUE,
+  MEDIA_METADATA_ENRICH_QUEUE,
   INBOX_REMOVE_ON_COMPLETE_COUNT,
   INBOX_REMOVE_ON_FAIL_COUNT,
   DELIVERY_REMOVE_ON_COMPLETE_COUNT,
@@ -13,8 +14,16 @@ import {
   PERIODIC_REMOVE_ON_FAIL_COUNT,
   SHARING_CLEANUP_REMOVE_ON_COMPLETE_COUNT,
   SHARING_CLEANUP_REMOVE_ON_FAIL_COUNT,
+  MEDIA_METADATA_ENRICH_REMOVE_ON_COMPLETE_COUNT,
+  MEDIA_METADATA_ENRICH_REMOVE_ON_FAIL_COUNT,
 } from './constants';
-import type { InboxJobData, DeliveryJobData, PeriodicJobData, SharingCleanupJobData } from './types';
+import type {
+  InboxJobData,
+  DeliveryJobData,
+  PeriodicJobData,
+  SharingCleanupJobData,
+  MediaMetadataEnrichJobData,
+} from './types';
 
 /**
  * Lazily-constructed BullMQ producer queues.
@@ -38,6 +47,7 @@ let inboxQueue: Queue<InboxJobData> | null = null;
 let deliveryQueue: Queue<DeliveryJobData> | null = null;
 let periodicQueue: Queue<PeriodicJobData> | null = null;
 let sharingCleanupQueue: Queue<SharingCleanupJobData> | null = null;
+let mediaMetadataEnrichQueue: Queue<MediaMetadataEnrichJobData> | null = null;
 
 /**
  * Get the inbound-activity queue, or null when Redis is not configured (callers
@@ -100,13 +110,35 @@ export function getSharingCleanupQueue(): Queue<SharingCleanupJobData> | null {
   return sharingCleanupQueue;
 }
 
+/** Get the media-metadata enrich queue, or null when Redis is not configured. */
+export function getMediaMetadataEnrichQueue(): Queue<MediaMetadataEnrichJobData> | null {
+  if (!isQueueEnabled()) return null;
+  if (!mediaMetadataEnrichQueue) {
+    mediaMetadataEnrichQueue = new Queue<MediaMetadataEnrichJobData>(
+      MEDIA_METADATA_ENRICH_QUEUE,
+      baseQueueOptions(
+        MEDIA_METADATA_ENRICH_REMOVE_ON_COMPLETE_COUNT,
+        MEDIA_METADATA_ENRICH_REMOVE_ON_FAIL_COUNT,
+      ),
+    );
+  }
+  return mediaMetadataEnrichQueue;
+}
+
 /** Close all open producer queues. Internal — used by {@link shutdownQueues}. */
 export async function closeQueues(): Promise<void> {
-  const open: Array<Queue<InboxJobData> | Queue<DeliveryJobData> | Queue<PeriodicJobData> | Queue<SharingCleanupJobData>> = [];
+  const open: Array<
+    | Queue<InboxJobData>
+    | Queue<DeliveryJobData>
+    | Queue<PeriodicJobData>
+    | Queue<SharingCleanupJobData>
+    | Queue<MediaMetadataEnrichJobData>
+  > = [];
   if (inboxQueue) open.push(inboxQueue);
   if (deliveryQueue) open.push(deliveryQueue);
   if (periodicQueue) open.push(periodicQueue);
   if (sharingCleanupQueue) open.push(sharingCleanupQueue);
+  if (mediaMetadataEnrichQueue) open.push(mediaMetadataEnrichQueue);
 
   await Promise.allSettled(open.map((q) => q.close()));
 
@@ -114,4 +146,5 @@ export async function closeQueues(): Promise<void> {
   deliveryQueue = null;
   periodicQueue = null;
   sharingCleanupQueue = null;
+  mediaMetadataEnrichQueue = null;
 }
