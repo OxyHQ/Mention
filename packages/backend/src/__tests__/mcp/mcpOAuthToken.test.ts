@@ -12,6 +12,8 @@ const mocks = vi.hoisted(() => ({
   authCodeCreate: vi.fn(),
   connectionCreate: vi.fn(),
   connectionFindOne: vi.fn(),
+  registeredClientFindOne: vi.fn(),
+  registeredClientCreate: vi.fn(),
   revokeJti: vi.fn(),
 }));
 
@@ -27,6 +29,14 @@ vi.mock('../../mcp/models/McpConnection', () => ({
   McpConnection: {
     create: mocks.connectionCreate,
     findOne: mocks.connectionFindOne,
+  },
+}));
+
+// Dynamic-client lookup (getMcpClientAsync) queries this for non-static ids.
+vi.mock('../../mcp/models/McpRegisteredClient', () => ({
+  McpRegisteredClient: {
+    findOne: mocks.registeredClientFindOne,
+    create: mocks.registeredClientCreate,
   },
 }));
 
@@ -62,6 +72,9 @@ describe('POST /mcp/oauth/token', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.revokeJti.mockResolvedValue(undefined);
+    // No dynamically-registered clients by default; static clients short-circuit
+    // before this is consulted. `.lean()` mirrors the real mongoose query chain.
+    mocks.registeredClientFindOne.mockReturnValue({ lean: () => Promise.resolve(null) });
   });
 
   it('rejects an unsupported grant_type', async () => {

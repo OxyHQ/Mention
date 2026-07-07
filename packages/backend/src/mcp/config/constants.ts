@@ -7,8 +7,24 @@
  * with Oxy) POSTs back to `/mcp/oauth/approve`.
  */
 
-/** JWT `aud` claim for every MCP access token — the resource server identifier. */
-export const MCP_TOKEN_AUDIENCE = 'mention-mcp';
+/**
+ * The MCP resource server identifier — the public URL of the MCP server, with
+ * NO trailing slash. This is the canonical `resource` value published in the
+ * RFC 9728 protected-resource metadata AND the JWT `aud` claim on every access
+ * token. It MUST byte-for-byte equal the URL the user enters into their MCP
+ * client (Claude requires an exact match with no trailing slash) so token
+ * audience validation and resource discovery line up.
+ */
+export const MCP_RESOURCE_URL = (
+  process.env.MENTION_MCP_PUBLIC_URL || 'https://mcp.mention.earth'
+).replace(/\/+$/, '');
+
+/**
+ * JWT `aud` claim for every MCP access token — the resource server identifier.
+ * Aligned to {@link MCP_RESOURCE_URL} so the audience the token is minted with
+ * matches the `resource` a compliant client requests / discovers.
+ */
+export const MCP_TOKEN_AUDIENCE = MCP_RESOURCE_URL;
 
 /**
  * OAuth issuer / authorization-server origin (no trailing slash). This is the

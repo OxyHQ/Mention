@@ -1,9 +1,11 @@
 import { Router, Request, Response } from 'express';
 import type { OxyServices } from '@oxyhq/core';
 import type { OxyAuthRequest } from '@oxyhq/core/server';
+import crypto from 'crypto';
 import { McpAuthCode } from '../models/McpAuthCode';
 import { McpConnection } from '../models/McpConnection';
-import { getMcpClient, isAllowedRedirectUri } from '../config/mcpClients';
+import { McpRegisteredClient } from '../models/McpRegisteredClient';
+import { getMcpClientAsync, isAllowedRedirectUri } from '../config/mcpClients';
 import {
   MCP_ACCESS_TOKEN_TTL_SECONDS,
   MCP_AUTH_CODE_TTL_SECONDS,
@@ -11,8 +13,8 @@ import {
   MCP_DEFAULT_SCOPES,
   MCP_FRONTEND_ORIGIN,
   MCP_ISSUER,
+  MCP_RESOURCE_URL,
   MCP_SUPPORTED_SCOPES,
-  MCP_TOKEN_AUDIENCE,
 } from '../config/constants';
 import {
   generateAuthCode,
@@ -65,6 +67,9 @@ export function createMcpOAuthRoutes(oxy: OxyServices): Router {
       issuer: MCP_ISSUER,
       authorization_endpoint: `${MCP_ISSUER}/mcp/oauth/authorize`,
       token_endpoint: `${MCP_ISSUER}/mcp/oauth/token`,
+      // RFC 7591 dynamic client registration — Claude refuses to connect
+      // against a fixed client_id and requires this endpoint to be advertised.
+      registration_endpoint: `${MCP_ISSUER}/mcp/oauth/register`,
       response_types_supported: ['code'],
       grant_types_supported: ['authorization_code', 'refresh_token'],
       code_challenge_methods_supported: [PKCE_METHOD],
@@ -76,15 +81,70 @@ export function createMcpOAuthRoutes(oxy: OxyServices): Router {
   // --- Protected-resource metadata (RFC 9728) — helps MCP clients discover the AS ---
   router.get('/.well-known/oauth-protected-resource', (_req: Request, res: Response) => {
     res.json({
-      resource: MCP_TOKEN_AUDIENCE,
+      // MUST byte-for-byte equal the URL the user enters into their client
+      // (no trailing slash) — Claude rejects a mismatched resource identifier.
+      resource: MCP_RESOURCE_URL,
       authorization_servers: [MCP_ISSUER],
       scopes_supported: MCP_SUPPORTED_SCOPES,
       bearer_methods_supported: ['header'],
     });
   });
 
+  // --- Dynamic client registration (RFC 7591) ---
+  // Public clients only: no secret is issued, token_endpoint_auth_method is
+  // `none`, and PKCE + the exact redirect_uri allowlist below carry the
+  // security. redirect_uris MUST be HTTPS.
+  router.post('/mcp/oauth/register', async (req: Request, res: Response) => {
+    try {
+      const rawRedirects = req.body?.redirect_uris;
+      const redirectUris = Array.isArray(rawRedirects)
+        ? rawRedirects.filter((uri): uri is string => typeof uri === 'string' && uri.length > 0)
+        : [];
+
+      if (redirectUris.length === 0) {
+        return res.status(400).json({
+          error: 'invalid_redirect_uri',
+          error_description: 'At least one redirect_uri is required',
+        });
+      }
+
+      const allHttps = redirectUris.every((uri) => {
+        try {
+          return new URL(uri).protocol === 'https:';
+        } catch {
+          return false;
+        }
+      });
+      if (!allHttps) {
+        return res.status(400).json({
+          error: 'invalid_redirect_uri',
+          error_description: 'All redirect_uris must be valid HTTPS URLs',
+        });
+      }
+
+      const requestedName = firstString(req.body?.client_name);
+      const clientId = `mcp-dcr-${crypto.randomUUID()}`;
+      const label = requestedName && requestedName.length <= 200 ? requestedName : 'MCP Client';
+
+      await McpRegisteredClient.create({ clientId, redirectUris, label });
+
+      // RFC 7591 client information response for a public client.
+      return res.status(201).json({
+        client_id: clientId,
+        redirect_uris: redirectUris,
+        token_endpoint_auth_method: 'none',
+        grant_types: ['authorization_code', 'refresh_token'],
+        response_types: ['code'],
+        client_name: label,
+      });
+    } catch (error) {
+      logger.error('[McpOAuth] register failed', { error: error instanceof Error ? error.message : String(error) });
+      return res.status(500).json({ error: 'server_error' });
+    }
+  });
+
   // --- Authorization endpoint: bounce the user to the frontend consent screen ---
-  router.get('/mcp/oauth/authorize', (req: Request, res: Response) => {
+  router.get('/mcp/oauth/authorize', async (req: Request, res: Response) => {
     const responseType = firstString(req.query.response_type);
     const clientId = firstString(req.query.client_id);
     const redirectUri = firstString(req.query.redirect_uri);
@@ -96,10 +156,10 @@ export function createMcpOAuthRoutes(oxy: OxyServices): Router {
     if (responseType !== 'code') {
       return res.status(400).json({ error: 'unsupported_response_type' });
     }
-    if (!getMcpClient(clientId)) {
+    if (!(await getMcpClientAsync(clientId))) {
       return res.status(400).json({ error: 'invalid_client', message: 'Unknown client_id' });
     }
-    if (!isAllowedRedirectUri(clientId, redirectUri)) {
+    if (!(await isAllowedRedirectUri(clientId, redirectUri))) {
       return res.status(400).json({ error: 'invalid_request', message: 'redirect_uri not allowed for this client' });
     }
     if (!codeChallenge || codeChallengeMethod !== PKCE_METHOD) {
@@ -133,10 +193,10 @@ export function createMcpOAuthRoutes(oxy: OxyServices): Router {
       const scope = firstString(req.body?.scope);
       const state = firstString(req.body?.state);
 
-      if (!getMcpClient(clientId)) {
+      if (!(await getMcpClientAsync(clientId))) {
         return res.status(400).json({ error: 'invalid_client', message: 'Unknown client_id' });
       }
-      if (!isAllowedRedirectUri(clientId, redirectUri)) {
+      if (!(await isAllowedRedirectUri(clientId, redirectUri))) {
         return res.status(400).json({ error: 'invalid_request', message: 'redirect_uri not allowed for this client' });
       }
       if (!codeChallenge || codeChallengeMethod !== PKCE_METHOD) {
@@ -196,7 +256,7 @@ async function handleAuthorizationCodeGrant(req: Request, res: Response): Promis
   if (!code || !clientId || !redirectUri || !codeVerifier) {
     return res.status(400).json({ error: 'invalid_request', message: 'Missing required parameters' });
   }
-  const client = getMcpClient(clientId);
+  const client = await getMcpClientAsync(clientId);
   if (!client) {
     return res.status(400).json({ error: 'invalid_client' });
   }
@@ -258,7 +318,7 @@ async function handleRefreshTokenGrant(req: Request, res: Response): Promise<Res
   if (!refreshToken || !clientId) {
     return res.status(400).json({ error: 'invalid_request', message: 'Missing required parameters' });
   }
-  if (!getMcpClient(clientId)) {
+  if (!(await getMcpClientAsync(clientId))) {
     return res.status(400).json({ error: 'invalid_client' });
   }
 

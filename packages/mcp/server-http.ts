@@ -23,6 +23,9 @@ const MAX_REQUEST_BODY_BYTES = parseInt(process.env.MCP_MAX_REQUEST_BODY_BYTES |
 const MCP_PUBLIC_URL = (process.env.MENTION_MCP_PUBLIC_URL || "https://mcp.mention.earth").replace(/\/+$/, "");
 const OAUTH_AS_URL = (process.env.MENTION_OAUTH_AS_URL || "https://api.mention.earth").replace(/\/+$/, "");
 
+/** Canonical protected-resource metadata URL advertised in 401 challenges. */
+const RESOURCE_METADATA_URL = `${MCP_PUBLIC_URL}/.well-known/oauth-protected-resource`;
+
 const DEFAULT_CORS_ORIGINS = [
   "https://claude.ai",
   "https://www.claude.ai",
@@ -111,6 +114,27 @@ function sendJsonRpcError(res: ServerResponse, httpStatus: number, code: number,
   }));
 }
 
+/**
+ * Emit an OAuth 2.0 challenge (RFC 9728 §5.1). MCP clients like Claude expect an
+ * unauthenticated request to the MCP endpoint to answer 401 with a
+ * `WWW-Authenticate: Bearer` header pointing at the protected-resource metadata
+ * — that is how the client discovers the authorization server and begins the
+ * OAuth flow. Answering 404 here breaks discovery.
+ */
+function sendUnauthorized(res: ServerResponse): void {
+  res.setHeader(
+    "WWW-Authenticate",
+    `Bearer realm="mention-mcp", resource_metadata="${RESOURCE_METADATA_URL}"`,
+  );
+  res.setHeader("Content-Type", "application/json");
+  res.writeHead(401);
+  res.end(JSON.stringify({
+    jsonrpc: "2.0",
+    error: { code: -32001, message: "Authentication required." },
+    id: null,
+  }));
+}
+
 function cleanupSession(id: string): void {
   delete transports[id];
   sessionLastActivity.delete(id);
@@ -125,6 +149,9 @@ function setCorsHeaders(req: IncomingMessage, res: ServerResponse): void {
   }
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, Mcp-Session-Id");
+  // The client reads the session id assigned on `initialize` from the response;
+  // it is invisible to browser fetch() unless explicitly exposed.
+  res.setHeader("Access-Control-Expose-Headers", "Mcp-Session-Id, WWW-Authenticate");
 }
 
 function isMcpPath(pathname: string): boolean {
@@ -141,6 +168,13 @@ async function handleStreamableMcp(
 
   if (method === "GET") {
     const sessionId = req.headers["mcp-session-id"] as string | undefined;
+    // An unauthenticated GET (no session, no bearer token) is the client's
+    // discovery probe — answer with a 401 OAuth challenge, NOT a 404, so the
+    // client can find the protected-resource metadata and start the OAuth flow.
+    if (!sessionId && !userToken) {
+      sendUnauthorized(res);
+      return;
+    }
     if (!sessionId || !(transports[sessionId] instanceof StreamableHTTPServerTransport)) {
       sendJsonRpcError(res, 404, -32001, "Session not found.");
       return;
@@ -242,17 +276,12 @@ async function main() {
     if (pathname === "/.well-known/oauth-protected-resource" && req.method === "GET") {
       res.setHeader("Content-Type", "application/json");
       res.end(JSON.stringify({
-        resource: `${MCP_PUBLIC_URL}/`,
+        // No trailing slash — MUST match the URL the user enters in the client.
+        resource: MCP_PUBLIC_URL,
         authorization_servers: [OAUTH_AS_URL],
         bearer_methods_supported: ["header"],
         scopes_supported: ["mcp:read", "mcp:write", "offline_access"],
       }));
-      return;
-    }
-
-    if (pathname === "/mcp" && req.method === "GET" && !req.headers["mcp-session-id"]) {
-      res.writeHead(301, { Location: `${MCP_PUBLIC_URL}/` });
-      res.end();
       return;
     }
 
