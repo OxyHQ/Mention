@@ -269,7 +269,7 @@ export async function gatherSubscribedListsLane(params: GatherForYouCandidatesPa
   if (subscribedListMemberIds.length === 0) return [];
   return runSource('subscribed-lists', {
     ...buildBaseMatch(toObjectIds(params.seenPostIds), recencyStart()),
-    oxyUserId: { $in: subscribedListMemberIds },
+    ...buildFollowedAuthorsMatch(subscribedListMemberIds),
   }, MtnConfig.feed.candidateSources.perSource.following);
 }
 
@@ -279,7 +279,7 @@ export async function gatherAffinityLane(params: GatherForYouCandidatesParams): 
   if (affinityAuthorIds.length === 0) return [];
   return runSource('affinity', {
     ...buildBaseMatch(toObjectIds(params.seenPostIds), recencyStart()),
-    oxyUserId: { $in: affinityAuthorIds },
+    ...buildFollowedAuthorsMatch(affinityAuthorIds),
   }, MtnConfig.feed.candidateSources.perSource.affinity);
 }
 

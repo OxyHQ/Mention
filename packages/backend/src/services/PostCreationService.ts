@@ -15,7 +15,7 @@ import { getServiceOxyClient } from '../utils/oxyHelpers';
 import { emitPostCreated, emitRepostCreated } from './mtn/MentionRecordEmitter';
 import type { ReplyContext } from './mtn/mentionRecordBuilders';
 import { postCollaborationService } from './PostCollaborationService';
-import { hasCollaborators } from '../utils/postAuthorship';
+import { getOwnerId, hasPendingCollabInvites } from '../utils/postAuthorship';
 
 export interface CreatePostParams {
   oxyUserId: string | null;
@@ -144,30 +144,30 @@ class PostCreationService {
    * resolved here with a single lean lookup. Entirely best-effort and isolated by
    * the emitter — a failure NEVER blocks creation or changes the response.
    */
-  private async emitMtnRecord(post: IPost, params: CreatePostParams): Promise<void> {
+  private async emitMtnRecord(post: IPost): Promise<void> {
     try {
       if (post.federation != null || !post.oxyUserId) {
         return;
       }
 
-      if (params.boostOf) {
-        const original = await Post.findById(params.boostOf).select('oxyUserId').lean();
-        await emitRepostCreated(post, String(params.boostOf), original?.oxyUserId);
+      if (post.boostOf) {
+        const original = await Post.findById(post.boostOf).select('oxyUserId').lean();
+        await emitRepostCreated(post, String(post.boostOf), original?.oxyUserId);
         return;
       }
 
       let reply: ReplyContext | undefined;
-      if (params.parentPostId) {
-        const rootId = params.threadId ?? params.parentPostId;
-        const ids = [...new Set([params.parentPostId, rootId])];
+      if (post.parentPostId) {
+        const rootId = post.threadId ?? post.parentPostId;
+        const ids = [...new Set([String(post.parentPostId), String(rootId)])];
         const refs = await Post.find({ _id: { $in: ids } }).select('oxyUserId').lean();
         const ownerById = new Map(refs.map((r) => [String(r._id), r.oxyUserId]));
-        const parentOwner = ownerById.get(String(params.parentPostId));
+        const parentOwner = ownerById.get(String(post.parentPostId));
         const rootOwner = ownerById.get(String(rootId));
         if (parentOwner && rootOwner) {
           reply = {
             root: { postId: String(rootId), oxyUserId: rootOwner },
-            parent: { postId: String(params.parentPostId), oxyUserId: parentOwner },
+            parent: { postId: String(post.parentPostId), oxyUserId: parentOwner },
           };
         }
       }
@@ -251,34 +251,125 @@ class PostCreationService {
     const post = new Post(postData);
     await post.save();
 
-    const hasCollabInvites = hasCollaborators(post.authorship ?? []);
-    if (hasCollabInvites && params.oxyUserId) {
+    const isPublished = (post.status ?? 'published') === 'published';
+    const hasPendingInvites = hasPendingCollabInvites(post.authorship ?? []);
+
+    // Collaboration invites: notify pending collaborators, but ONLY once the post
+    // is actually published. A scheduled (or draft) post defers its invites until
+    // it goes live — the scheduler calls publishScheduledPost, which sends them.
+    if (isPublished && hasPendingInvites && params.oxyUserId) {
       await postCollaborationService.createCollabInviteNotifications(post, params.oxyUserId);
     }
 
-    const skipFederation = params.skipFederationDelivery || hasCollabInvites;
+    // Federation is deferred while ANY collaborator invite is still pending — the
+    // post fans out to the fediverse only after every collaborator has resolved
+    // their invite (accepted/declined), so an invitee is never leaked before
+    // consenting. `PostCollaborationService.accept` triggers the deferred
+    // federation once the last invite resolves.
+    const skipFederation = params.skipFederationDelivery || hasPendingInvites;
 
     // MTN Protocol dual-write (best-effort, never blocks, never changes output).
     // Mongo is authoritative; this emits a signed `app.mention.feed.*` record for
     // LOCAL authors only (`federation == null && oxyUserId`). A scheduled post is
     // not yet published, so it emits when the scheduler publishes it, not here.
     if (!isScheduled) {
-      await this.emitMtnRecord(post, params);
+      await this.emitMtnRecord(post);
     }
 
     if (isScheduled || params.skipNotifications) {
       return post;
     }
 
-    const oxyUserId = params.oxyUserId ?? null;
+    await this.runPostSideEffects(post, {
+      oxyUserId: params.oxyUserId ?? null,
+      senderUsername: params.senderUsername,
+      skipSocketEmit: params.skipSocketEmit,
+      skipFederation,
+    });
+
+    return post;
+  }
+
+  /**
+   * Publish a post that was created with `status: 'scheduled'` once its
+   * `scheduledFor` time has arrived. Flips the status to `published`, then runs
+   * the SAME publish pipeline a fresh published post runs in `create()`:
+   * collaborator invites, the MTN dual-write, notifications, the real-time feed
+   * emit, and (deferred until every collaborator has resolved) federation.
+   *
+   * Driven by {@link ScheduledPostPublisher} (leader-gated). Every side effect
+   * is isolated so one stage's failure never aborts the others; the caller
+   * further isolates each post so one post never sinks the batch.
+   */
+  async publishScheduledPost(post: IPost): Promise<IPost> {
+    post.status = 'published';
+    await post.save();
+
+    const ownerId = getOwnerId(post.authorship ?? [], post.oxyUserId ?? undefined) ?? null;
+    const hasPendingInvites = hasPendingCollabInvites(post.authorship ?? []);
+
+    if (ownerId && hasPendingInvites) {
+      await postCollaborationService.createCollabInviteNotifications(post, ownerId);
+    }
+
+    // MTN dual-write now — the signed record's authoritative timestamp is the
+    // publish moment, not the (earlier) scheduling moment.
+    await this.emitMtnRecord(post);
+
+    // Resolve the owner's username so federation can build the actor. Deferred
+    // (skipped) while any collaborator invite is still pending, mirroring
+    // create(); the eventual accept() federates the post.
+    let senderUsername: string | undefined;
+    if (ownerId && !hasPendingInvites) {
+      try {
+        const owner = await getServiceOxyClient().getUserById(ownerId);
+        senderUsername = owner.username;
+      } catch (error) {
+        logger.warn('PostCreationService: failed to resolve owner username for scheduled publish', error);
+      }
+    }
+
+    await this.runPostSideEffects(post, {
+      oxyUserId: ownerId,
+      senderUsername,
+      skipFederation: hasPendingInvites,
+    });
+
+    return post;
+  }
+
+  /**
+   * Run the publish-time side-effect pipeline for a post that is now live:
+   * mention / reply / quote / boost / subscriber notifications, the real-time
+   * feed socket emit, and outbound ActivityPub federation delivery.
+   *
+   * Reads everything it needs from the persisted `post` document (mentions,
+   * parent/quote/boost refs, visibility, status) so it can be driven both by
+   * `create()` (a fresh publish) and by `publishScheduledPost()` (a previously
+   * scheduled post going live). Every stage is isolated — a failure in one never
+   * aborts the others or surfaces to the caller.
+   */
+  private async runPostSideEffects(
+    post: IPost,
+    ctx: {
+      oxyUserId: string | null;
+      senderUsername?: string;
+      skipSocketEmit?: boolean;
+      skipFederation: boolean;
+    },
+  ): Promise<void> {
+    const oxyUserId = ctx.oxyUserId;
+    const mentions = post.mentions ?? [];
+    const parentPostId = post.parentPostId ?? null;
+    const quoteOf = post.quoteOf ?? null;
+    const boostOf = post.boostOf ?? null;
 
     // Run all notification stages in parallel — they are independent
     const results = await Promise.allSettled([
       // Mention notifications
       (async () => {
-        const mentions = params.mentions ?? [];
         if (oxyUserId && mentions.length > 0) {
-          const isReply = Boolean(params.parentPostId);
+          const isReply = Boolean(parentPostId);
           await createMentionNotifications(
             mentions,
             String(post._id),
@@ -290,8 +381,7 @@ class PostCreationService {
       // Reply / quote / boost notifications
       (async () => {
         if (!oxyUserId) return;
-        const replyParentId = params.parentPostId ?? null;
-        const idsToFetch = [replyParentId, params.quoteOf, params.boostOf].filter(
+        const idsToFetch = [parentPostId, quoteOf, boostOf].filter(
           (id): id is string => Boolean(id),
         );
         if (idsToFetch.length === 0) return;
@@ -301,8 +391,8 @@ class PostCreationService {
           .lean();
         const postsMap = new Map(relatedPosts.map((p) => [String(p._id), p]));
 
-        if (replyParentId) {
-          const parent = postsMap.get(replyParentId);
+        if (parentPostId) {
+          const parent = postsMap.get(String(parentPostId));
           if (parent) {
             await createPostAuthorNotifications(
               parent.authorship as import('@mention/shared-types').PostAuthorshipEntry[] | undefined,
@@ -317,8 +407,8 @@ class PostCreationService {
           }
         }
 
-        if (params.quoteOf) {
-          const original = postsMap.get(params.quoteOf);
+        if (quoteOf) {
+          const original = postsMap.get(String(quoteOf));
           if (original) {
             await createPostAuthorNotifications(
               original.authorship as import('@mention/shared-types').PostAuthorshipEntry[] | undefined,
@@ -333,8 +423,8 @@ class PostCreationService {
           }
         }
 
-        if (params.boostOf) {
-          const original = postsMap.get(params.boostOf);
+        if (boostOf) {
+          const original = postsMap.get(String(boostOf));
           if (original) {
             await createPostAuthorNotifications(
               original.authorship as import('@mention/shared-types').PostAuthorshipEntry[] | undefined,
@@ -351,7 +441,7 @@ class PostCreationService {
       })(),
       // Subscriber notifications (top-level posts only)
       (async () => {
-        const isTopLevelPost = !params.parentPostId;
+        const isTopLevelPost = !parentPostId;
         if (!oxyUserId || !isTopLevelPost) return;
         const subs = await PostSubscription.find({ authorId: oxyUserId }).lean();
         if (subs.length === 0) return;
@@ -376,8 +466,10 @@ class PostCreationService {
       }
     }
 
-    const shouldEmitGlobally = post.visibility === 'public' && (post.status ?? 'published') === 'published';
-    if (!params.skipSocketEmit && shouldEmitGlobally) {
+    const isPublished = (post.status ?? 'published') === 'published';
+
+    const shouldEmitGlobally = post.visibility === 'public' && isPublished;
+    if (!ctx.skipSocketEmit && shouldEmitGlobally) {
       try {
         const io = global.io;
         if (io) {
@@ -415,16 +507,16 @@ class PostCreationService {
       }
     }
 
-    if (!skipFederation && oxyUserId && params.senderUsername) {
+    // Federation is published-only: a draft never fans out even if a username is
+    // resolvable, and the collab-pending gate is honored via `ctx.skipFederation`.
+    if (!ctx.skipFederation && isPublished && oxyUserId && ctx.senderUsername) {
       try {
         // Late-bound accessor avoids a circular import with the connector registry.
-        await getPostFederator().federateNewPost(post, oxyUserId, params.senderUsername);
+        await getPostFederator().federateNewPost(post, oxyUserId, ctx.senderUsername);
       } catch (fedError) {
         logger.error('PostCreationService: failed to federate post', fedError);
       }
     }
-
-    return post;
   }
 }
 

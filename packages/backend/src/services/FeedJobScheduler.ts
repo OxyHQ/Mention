@@ -1,4 +1,5 @@
 import { userPreferenceService } from './UserPreferenceService';
+import { scheduledPostPublisher } from './ScheduledPostPublisher';
 import { logger } from '../utils/logger';
 import { getRedisClient } from '../utils/redis';
 
@@ -56,6 +57,17 @@ export class FeedJobScheduler {
     }, 60 * 60 * 1000) as unknown as NodeJS.Timeout; // 1 hour
     cleanActiveUsersTimer.unref?.();
     this.intervals.set('cleanActiveUsers', cleanActiveUsersTimer);
+
+    // Publish due scheduled posts every 60s. This scheduler only runs on the
+    // elected leader (see server.ts startSchedulers), so the sweep runs on
+    // exactly one task; the publisher additionally guards against overlap.
+    const publishScheduledTimer = setInterval(() => {
+      scheduledPostPublisher.publishDuePosts().catch(err => {
+        logger.error('Error in scheduled post publish job:', err);
+      });
+    }, 60 * 1000) as unknown as NodeJS.Timeout; // 60 seconds
+    publishScheduledTimer.unref?.();
+    this.intervals.set('publishScheduledPosts', publishScheduledTimer);
 
     logger.info('Feed job scheduler started');
   }

@@ -9,6 +9,7 @@ import {
   getPendingCollaborators,
   getViewerEntry,
   hasCollaborators,
+  hasPendingCollabInvites,
   isProfileVisible,
   normalizeAuthorship,
   validateCollaboratorIds,
@@ -59,6 +60,28 @@ describe('postAuthorship', () => {
   it('hasCollaborators detects collaborator entries', () => {
     expect(hasCollaborators([buildOwnerEntry(ownerId)])).toBe(false);
     expect(hasCollaborators(buildAuthorship(ownerId, [collabA]))).toBe(true);
+  });
+
+  it('hasPendingCollabInvites is true only while an invite is pending', () => {
+    // No collaborators → nothing pending.
+    expect(hasPendingCollabInvites([buildOwnerEntry(ownerId)])).toBe(false);
+
+    // Fresh invites start pending.
+    const authorship = buildAuthorship(ownerId, [collabA, collabB]);
+    expect(hasPendingCollabInvites(authorship)).toBe(true);
+
+    // One accepts — the other is still pending.
+    authorship[1].status = 'accepted';
+    expect(hasPendingCollabInvites(authorship)).toBe(true);
+
+    // Last resolves (declined) — none pending anymore.
+    authorship[2].status = 'declined';
+    expect(hasPendingCollabInvites(authorship)).toBe(false);
+
+    // A stopped collaborator is not pending either.
+    const stopped = buildAuthorship(ownerId, [collabA]);
+    stopped[1].status = 'stopped';
+    expect(hasPendingCollabInvites(stopped)).toBe(false);
   });
 
   it('getHeaderAuthorshipEntries returns owner + accepted only', () => {

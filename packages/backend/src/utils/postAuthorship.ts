@@ -75,6 +75,17 @@ export function hasCollaborators(authorship: PostAuthorshipEntry[]): boolean {
   return authorship.some((entry) => entry.role === 'collaborator');
 }
 
+/**
+ * Whether the post still has at least one collaborator invite awaiting a
+ * response. Federation delivery is deferred while any invite is pending — the
+ * post only fans out to the fediverse once every collaborator has accepted or
+ * declined (resolved), so a collaborator's identity is never leaked before they
+ * consent. Declined/stopped/accepted collaborators do NOT count as pending.
+ */
+export function hasPendingCollabInvites(authorship: PostAuthorshipEntry[]): boolean {
+  return getPendingCollaborators(authorship).length > 0;
+}
+
 export function getHeaderAuthorshipEntries(authorship: PostAuthorshipEntry[]): PostAuthorshipEntry[] {
   const owner = getOwner(authorship);
   if (!owner) return [];

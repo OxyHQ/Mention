@@ -10,8 +10,10 @@ import {
   getOwnerId,
   getPendingCollaborators,
   getViewerEntry,
+  hasPendingCollabInvites,
   validateCollaboratorIds,
 } from '../utils/postAuthorship';
+import { getPostFederator } from './serviceRegistry';
 
 export class CollabValidationError extends Error {
   constructor(message: string) {
@@ -82,6 +84,34 @@ class PostCollaborationService {
     return post;
   }
 
+  /**
+   * Deliver the DEFERRED federation for a collaborative post once every invite
+   * has resolved. Collaborative posts skip federation at creation (an invitee
+   * must never be leaked to the fediverse before consenting), so the fan-out is
+   * triggered here the moment the LAST pending invite is accepted or declined.
+   *
+   * Only local (`federation == null`), published posts fan out, and only when
+   * NO invite is still pending. The owner's username is resolved from Oxy to
+   * build the actor. Best-effort and fully isolated — a federation failure never
+   * fails the accept/decline response.
+   */
+  private async maybeFederateOnResolve(post: IPost): Promise<void> {
+    if (post.federation != null) return;
+    if ((post.status ?? 'published') !== 'published') return;
+    if (hasPendingCollabInvites(post.authorship ?? [])) return;
+
+    const ownerId = getOwnerId(post.authorship ?? [], post.oxyUserId ?? undefined);
+    if (!ownerId) return;
+
+    try {
+      const owner = await getServiceOxyClient().getUserById(ownerId);
+      if (!owner.username) return;
+      await getPostFederator().federateNewPost(post, ownerId, owner.username);
+    } catch (error) {
+      logger.warn('PostCollaborationService: deferred federation on invite resolve failed', { error });
+    }
+  }
+
   private async emitPostUpdate(post: IPost): Promise<void> {
     try {
       const io = global.io;
@@ -127,6 +157,9 @@ class PostCollaborationService {
     }
 
     await this.emitPostUpdate(post);
+    // The accept may have resolved the LAST pending invite — deliver the deferred
+    // federation now that every collaborator has consented.
+    await this.maybeFederateOnResolve(post);
     return post;
   }
 
@@ -152,6 +185,11 @@ class PostCollaborationService {
       });
     }
 
+    await this.emitPostUpdate(post);
+    // A decline can also resolve the last pending invite — the post is still a
+    // valid owner post and must not stay stuck un-federated, so trigger the
+    // deferred federation once no invite remains pending.
+    await this.maybeFederateOnResolve(post);
     return post;
   }
 

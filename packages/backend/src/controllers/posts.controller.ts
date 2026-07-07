@@ -727,6 +727,7 @@ export const createPost = async (req: AuthRequest, res: Response) => {
       status: postStatus,
       scheduledFor: scheduledForDate || undefined,
       metadata: postMetadata,
+      senderUsername: req.user?.username,
     });
 
     if (pendingArticleDoc) {
@@ -864,6 +865,21 @@ export const createThread = async (req: AuthRequest, res: Response) => {
 
     if (req.body.status || req.body.scheduledFor) {
       return res.status(400).json({ message: 'Scheduling threads is not supported yet' });
+    }
+
+    // Collaborative authorship is a single-post feature; a thread has no single
+    // owner/collaborator surface, so reject any collaborator invites up front
+    // (both the top-level field and any per-post field) rather than silently
+    // dropping them.
+    const threadHasCollaborators =
+      (Array.isArray(req.body.collaboratorIds) && req.body.collaboratorIds.length > 0) ||
+      (Array.isArray(req.body.posts) &&
+        req.body.posts.some(
+          (p: { collaboratorIds?: unknown }) =>
+            Array.isArray(p?.collaboratorIds) && p.collaboratorIds.length > 0,
+        ));
+    if (threadHasCollaborators) {
+      return res.status(400).json({ message: 'Collaborators are not supported on threads' });
     }
 
     logger.debug('Creating thread with body', JSON.stringify(req.body, null, 2));

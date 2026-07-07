@@ -1229,7 +1229,14 @@ export class PostHydrationService {
     // on callers to pre-filter every referenced post.
     if (!isFederatedPost) {
       const viewerEntry = getViewerEntry(authorship, viewerContext.viewerId);
-      const viewerOwnsPost = viewerContext.viewerId === authorId || viewerEntry?.role === 'collaborator' && viewerEntry.status === 'accepted';
+      // Pending collaborators may PREVIEW the post they were invited to (so the
+      // collab-invite UI can render the actual content before they accept),
+      // alongside the owner and accepted collaborators. All three bypass the
+      // unpublished/private/followers-only/restricted ACL checks below.
+      const viewerOwnsPost =
+        viewerContext.viewerId === authorId ||
+        (viewerEntry?.role === 'collaborator' &&
+          (viewerEntry.status === 'accepted' || viewerEntry.status === 'pending'));
 
       if ((post.status ?? 'published') !== 'published' && !viewerOwnsPost) {
         return null;

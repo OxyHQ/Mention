@@ -133,6 +133,17 @@ Tool for the VIEWER to follow pack members — one-by-one or all at once via mul
 
 Following a list = SUBSCRIBING via `EntityFollow` entityType `'list'` — viewer sees members' posts without following individually. `AccountList.subscriberCount` maintained by `src/services/ListSubscriptionService.ts`. Subscribed-list members merged into main feed via `feed.controller.ts` `mergeSubscribedListMemberIds()`. Caps: `MAX_SUBSCRIBED_LISTS_FOR_FEED=200`, `MAX_SUBSCRIBED_LIST_AUTHORS_FOR_FEED=5000`.
 
+### Collaborative Posts
+
+A post carries an `authorship[]` array (`owner` + up to `MAX_POST_COLLABORATORS` `collaborator` entries) — the denormalized `oxyUserId` is synced FROM the owner entry by the `Post` pre-save hook. Helpers live in `src/utils/postAuthorship.ts`; the write API is `src/services/PostCollaborationService.ts`.
+
+- **Deferred federation:** a post with a still-pending collaborator invite (`hasPendingCollabInvites`) does NOT federate at creation — an invitee must never be leaked to the fediverse before consenting. Federation fans out only once the LAST invite resolves: `accept()`/`decline()` call `maybeFederateOnResolve` (local + published + no-pending), which resolves the owner's username via Oxy and calls `getPostFederator().federateNewPost`.
+- **Invites are published-only:** `PostCreationService.create` sends collab-invite notifications only when the post is actually published. A scheduled post defers invites (and MTN/notifications/federation) until it goes live.
+- **Scheduled publish:** `ScheduledPostPublisher` (leader-gated 60s sweep wired into `FeedJobScheduler`) flips due `status:'scheduled'` posts to `published` via `PostCreationService.publishScheduledPost`, which runs the SAME publish pipeline (invites, MTN dual-write, notifications, socket emit, deferred federation).
+- **Pending-collaborator preview:** `PostHydrationService` lets a pending collaborator (not just accepted) bypass the unpublished/private ACL so the invite UI can preview the actual post. The byline (`getHeaderAuthorshipEntries`) still shows owner + ACCEPTED collaborators only.
+- **Threads have no collaborators:** `POST /posts/thread` rejects `collaboratorIds` with 400.
+- **ONE-SHOT AFTER FIRST COLLAB DEPLOY:** run `bun packages/backend/dist/src/scripts/backfillPostAuthorship.js` once after the first deploy that ships `authorship[]` — it seeds `authorship` from `oxyUserId` for legacy posts (idempotent; skips posts that already have it). Feed/author queries key off `authorship.$elemMatch` (`buildAuthorFeedMatch`/`buildFollowedAuthorsMatch`), so legacy posts are invisible to those paths until backfilled.
+
 ## Profile Identity
 
 - Post DTOs MUST be produced by `PostHydrationService` (`packages/backend/src/services/PostHydrationService.ts`). Controllers must not hand-build post `user` objects, notification embedded posts, or feed post shapes.
