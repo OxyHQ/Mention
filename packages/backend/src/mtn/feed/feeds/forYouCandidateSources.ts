@@ -50,6 +50,7 @@ import { Post } from '../../../models/Post';
 import { ContentAffinityService } from '../../../services/ContentAffinityService';
 import { SENSITIVE_EXCLUDE_MATCH, isSensitivePost } from '../feedSafety';
 import { logger } from '../../../utils/logger';
+import { buildFollowedAuthorsMatch } from '../../../utils/postAuthorship';
 import { FEED_FIELDS } from '../FeedAPI';
 import { RankedCandidate } from '../rankedCandidate';
 
@@ -258,7 +259,7 @@ export async function gatherFollowingLane(params: GatherForYouCandidatesParams):
   if (followingIds.length === 0) return [];
   return runSource('following', {
     ...buildBaseMatch(toObjectIds(params.seenPostIds), recencyStart()),
-    oxyUserId: { $in: followingIds },
+    ...buildFollowedAuthorsMatch(followingIds),
   }, MtnConfig.feed.candidateSources.perSource.following);
 }
 

@@ -1221,6 +1221,8 @@ export class PostHydrationService {
     const authorId = post?.oxyUserId ? String(post.oxyUserId) : undefined;
     if (!authorId) return null;
 
+    const authorship = normalizeAuthorship(post.authorship as PostAuthorshipEntry[] | undefined, authorId);
+
     // Privacy checks only apply to local users (federated posts are public by definition).
     // Hydration can be used for globally-broadcast DTOs and for nested quote/boost
     // references fetched by id, so enforce post-level ACL here instead of relying
@@ -1261,7 +1263,6 @@ export class PostHydrationService {
     // (a real user or the degraded fallback), so this default is defensive — but
     // it must STILL never emit the raw id as a handle if ever reached.
     const user = userMap.get(authorId) ?? degradedActorSummary(authorId);
-    const authorship = normalizeAuthorship(post.authorship as PostAuthorshipEntry[] | undefined, authorId);
     const headerEntries = getHeaderAuthorshipEntries(authorship);
     const authors: HydratedAuthor[] = headerEntries.map((entry) => {
       const summary = userMap.get(entry.oxyUserId) ?? degradedActorSummary(entry.oxyUserId);
