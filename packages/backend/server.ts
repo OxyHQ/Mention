@@ -35,6 +35,7 @@ import Notification from "./src/models/Notification";
 
 // Routers
 import postsRouter from "./src/routes/posts";
+import intentMediaRoutes from "./src/routes/intentMedia";
 import healthRoutes from './src/routes/health.routes';
 import notificationsRouter from "./src/routes/notifications";
 import listsRoutes from "./src/routes/lists";
@@ -829,6 +830,9 @@ publicApiRouter.use("/mtn/nodes", optionalAuth, mtnNodesRoutes); // MTN user-nod
 const authenticatedApiRouter = express.Router();
 // Note: The feed routes that require auth (like, save, repost, etc.) are in feedRoutes
 // They're protected by the oxy.auth() middleware applied to authenticatedApiRouter
+// Mounted BEFORE "/posts" so the more specific compose-intent media prefix
+// matches first rather than falling through to the parameterized posts router.
+authenticatedApiRouter.use("/posts/intent-media", intentMediaRoutes);
 authenticatedApiRouter.use("/posts", postsRouter); // All post routes require authentication
 authenticatedApiRouter.use("/lists", listsRoutes);
 authenticatedApiRouter.use("/notifications", notificationsRouter);

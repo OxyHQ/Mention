@@ -4,7 +4,7 @@ import * as Clipboard from 'expo-clipboard';
 import { show as toast } from '@oxyhq/bloom/toast';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { VerifiedIcon } from '@/assets/icons/verified-icon';
-import { FediverseBadge } from '@/components/Fediverse/FediverseBadge';
+import { RemoteActorBadge } from '@/components/Fediverse/FediverseBadge';
 import { AgentIcon } from '@/assets/icons/agent-icon';
 import { AutomatedIcon } from '@/assets/icons/automated-icon';
 import type { UserNameProps } from '@/components/Profile/types';
@@ -52,7 +52,7 @@ const UserName: React.FC<UserNameProps> = ({ name, handle, verified, isFederated
                     <VerifiedIcon size={iconSize} className={unifiedColors ? "text-foreground" : "text-primary"} style={{ transform: [{ translateY: baselineNudge }] }} />
                 )}
                 {isFederated && (
-                    <FediverseBadge size={iconSize} color={theme.colors.text} style={{ transform: [{ translateY: baselineNudge }] }} />
+                    <RemoteActorBadge size={iconSize} color={theme.colors.text} style={{ transform: [{ translateY: baselineNudge }] }} />
                 )}
                 {isAgent && (
                     <AgentIcon size={iconSize} className="text-muted-foreground" style={{ transform: [{ translateY: baselineNudge }] }} />

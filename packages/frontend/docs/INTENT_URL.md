@@ -34,7 +34,9 @@ Always URL-encode parameter values (`encodeURIComponent` in JS).
 - **iOS / Android (native app installed)**: Mention appears in the OS share
   sheet through `expo-share-intent`. Shared text and URLs route to the same
   intent endpoint.
-- Image / video share is **not yet supported** in this release.
+- **Image / video share**: shared media files are uploaded and attached to the
+  composer automatically (a media-only share opens the composer with the
+  attachment ready).
 
 ## Supported parameters
 
@@ -45,6 +47,8 @@ builds). Invalid values are dropped without breaking the rest of the intent.
 |---|---|---|
 | `text` | string | Trimmed, HTML stripped, clamped to 500 chars after assembly. |
 | `url` | string | http/https only. Appended to text with a leading space. |
+| `mediaUrl` | string | Single http/https image or video URL. Fetched server-side (SSRF-guarded), uploaded to your library, and attached as media. |
+| `thread[N].text` | string | Follow-up post text for a thread. `N` = 0–4. HTML stripped; empty entries dropped. |
 | `hashtags` | string | Comma-separated. Lowercased, deduped. Max 10. |
 | `via` | string | Handle to credit. Leading `@` stripped. Renders as ` via @handle`. |
 | `mentions` | string | Comma-separated handles. Deduped. Max 10. |
@@ -124,9 +128,24 @@ https://mention.earth/compose?eventName=Meetup&eventDate=2026-06-15T18%3A00%3A00
   composer UI doesn't yet expose them as editable fields; they're
   forward-compat for when those controls land.
 
-## Out of scope (Phase 2)
+### Media share
 
-- `mediaUrl=` (remote media fetch + attach)
-- `thread[0].text=` (multi-post thread prefill)
-- POST-based Web Share Target (file uploads)
+```
+https://mention.earth/compose?text=Look%20at%20this&mediaUrl=https%3A%2F%2Fcdn.example.com%2Fphoto.jpg
+```
+
+Fetches the image server-side (SSRF-guarded, image/video only, size-capped),
+uploads it to your library, and attaches it to the post.
+
+### Thread prefill
+
+```
+https://mention.earth/compose?text=First%20post&thread[0].text=Second&thread[1].text=Third
+```
+
+Opens the composer with the main post plus two queued follow-up posts.
+
+## Out of scope (future)
+
+- POST-based Web Share Target (multi-file uploads)
 - Server-side intent shortlinks (e.g. `mention.earth/intent/{shortcode}`)

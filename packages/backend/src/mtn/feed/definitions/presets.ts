@@ -22,6 +22,59 @@ const ALL_RANKING_SIGNALS: ModuleRef[] = [
 ].map((id) => enabled(id));
 
 /**
+ * Phase 2b opt-in signals enabled on For You / Videos when the env flag is on.
+ * Roll back instantly by setting `FOR_YOU_PHASE2B_SIGNALS=off` (no preset redeploy).
+ *
+ * Env values:
+ * - unset / `default` / `on` → the conservative default subset below
+ * - `off` / `false` / `0` → no Phase 2b signals (legacy ranking)
+ * - comma-separated ids → explicit subset (e.g. `penalizeSeen,dwellTime`)
+ */
+const PHASE2B_DEFAULT_SIGNAL_IDS = [
+  'penalizeSeen',
+  'dwellTime',
+  'mediaBoost',
+  'coldStartBoost',
+] as const;
+
+const PHASE2B_ALLOWED_SIGNAL_IDS = new Set<string>([
+  'mediaBoost',
+  'positivity',
+  'conversational',
+  'coldStartBoost',
+  'penalizeSeen',
+  'verifiedBoost',
+  'dwellTime',
+  'socialProof',
+  'reciprocityBoost',
+  'noveltyBoost',
+]);
+
+function parsePhase2bSignalIds(): string[] {
+  const raw = process.env.FOR_YOU_PHASE2B_SIGNALS?.trim();
+  if (raw === 'off' || raw === 'false' || raw === '0') {
+    return [];
+  }
+  if (!raw || raw === 'default' || raw === 'on' || raw === 'true') {
+    return [...PHASE2B_DEFAULT_SIGNAL_IDS];
+  }
+  return raw
+    .split(',')
+    .map((part) => part.trim())
+    .filter((id) => id.length > 0 && PHASE2B_ALLOWED_SIGNAL_IDS.has(id));
+}
+
+/** Phase 2b opt-in signals resolved from `FOR_YOU_PHASE2B_SIGNALS`. */
+export function resolvePhase2bSignals(): ModuleRef[] {
+  return parsePhase2bSignalIds().map((id) => enabled(id));
+}
+
+/** Preset ranking signals = always-on catalog + env-gated Phase 2b subset. */
+function buildPresetRankingSignals(): ModuleRef[] {
+  return [...ALL_RANKING_SIGNALS, ...resolvePhase2bSignals()];
+}
+
+/**
  * For You — ranked, multi-source. Sources are listed in the exact merge order of
  * `gatherForYouCandidates` (following, subscribed lists, affinity, topics,
  * language, region, trending, global) so the engine merge reproduces it. The
@@ -42,7 +95,7 @@ export const forYouDefinition: FeedDefinition = {
     enabled('trending'),
     enabled('globalDiscovery'),
   ],
-  signals: ALL_RANKING_SIGNALS,
+  signals: buildPresetRankingSignals(),
   filters: [enabled('safety')],
   execution: {
     maxPool: MtnConfig.feed.candidateSources.maxPool,
@@ -94,7 +147,7 @@ export const videosDefinition: FeedDefinition = {
   title: 'Videos',
   mode: 'ranked',
   sources: [enabled('videos')],
-  signals: ALL_RANKING_SIGNALS,
+  signals: buildPresetRankingSignals(),
   filters: [],
   execution: {
     seenPosts: true,

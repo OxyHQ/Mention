@@ -29,7 +29,7 @@ let globalShowFediverseInfo: ((options: FediverseInfoOptions) => void) | null = 
 /**
  * Open the Threads-style educational fediverse flow from anywhere. Routed to the
  * single `FediverseInfoDialogProvider` host mounted in the providers tree, so the
- * many `FediverseBadge` instances a screen renders share ONE dialog rather than
+ * many fediverse badge instances a screen renders share ONE dialog rather than
  * each mounting their own. No-ops if the host isn't mounted yet.
  */
 export function showFediverseInfo(options: FediverseInfoOptions = {}) {

@@ -10,9 +10,8 @@ import { getNormalizedUserHandle } from '@oxyhq/core';
 
 import { ThemedText } from '@/components/ThemedText';
 import { Button } from '@/components/ui/Button';
-import { FediverseBadge } from '@/components/Fediverse/FediverseBadge';
+import { RemoteActorBadge } from '@/components/Fediverse/FediverseBadge';
 import { displayNameOrHandle } from '@/utils/displayName';
-import { proxyExternalUrl } from '@/utils/imageUrlCache';
 import {
   feedService,
   type ExternalActorResolution,
@@ -50,18 +49,18 @@ export function ExternalActorCard({ actor }: ExternalActorCardProps) {
   const { isAuthenticated, signIn } = useAuth();
 
   const [following, setFollowing] = useState(actor.followed);
-  const [pending, setPending] = useState(false);
+  // In-flight submit guard (a follow request is being sent).
+  const [submitting, setSubmitting] = useState(false);
+  // The remote account is locked: the follow was accepted as a REQUEST and is
+  // awaiting the actor's approval (`pending:true` from `POST /federation/follow`).
+  const [requested, setRequested] = useState(false);
 
   const displayName = displayNameOrHandle(actor.displayName, `@${actor.handle}`);
   const networkLabel = NETWORK_LABEL[actor.network];
 
-  // The avatar URL from a resolve is a REMOTE actor URL (Mastodon/Bluesky CDN) —
-  // route it through the media proxy so it loads on web and stays cached. Passing
-  // a full http URL to Bloom Avatar bypasses the file-id ImageResolver.
-  const avatarSource = useMemo(
-    () => (actor.avatarUrl ? proxyExternalUrl(actor.avatarUrl) : undefined),
-    [actor.avatarUrl],
-  );
+  // Pre-import search results may still carry a remote actor URL until
+  // `PUT /users/resolve` mirrors the avatar into Oxy; render as-is (no client proxy).
+  const avatarSource = actor.avatarUrl || undefined;
 
   // The route handle for the federated profile screen (resolves by Oxy handle:
   // `user@domain` for ActivityPub via WebFinger, the bare handle for atproto).
@@ -81,19 +80,26 @@ export function ExternalActorCard({ actor }: ExternalActorCardProps) {
   }, [router, profileHandle]);
 
   const handleFollow = useCallback(async () => {
-    if (pending) return;
+    if (submitting) return;
     if (!isAuthenticated) {
       signIn().catch(() => {});
       return;
     }
-    setPending(true);
+    setSubmitting(true);
     try {
       // Follow the actor's CANONICAL protocol id (AP actor URI / atproto DID).
       const result = await feedService.followFederatedActor(actor.externalId);
       if (result.success) {
         setFollowing(true);
-        // Route into the existing federated-profile flow keyed by the Oxy user.
-        openProfile();
+        // A locked account accepts the follow as a pending REQUEST — reflect that
+        // in the button ("Requested") instead of "Following", and don't navigate
+        // into a profile the viewer can't see yet.
+        if (result.pending) {
+          setRequested(true);
+        } else {
+          // Route into the existing federated-profile flow keyed by the Oxy user.
+          openProfile();
+        }
       } else {
         toast(
           t('search.external.followFailed', { defaultValue: 'Could not follow this account' }),
@@ -106,9 +112,9 @@ export function ExternalActorCard({ actor }: ExternalActorCardProps) {
         { type: 'error' },
       );
     } finally {
-      setPending(false);
+      setSubmitting(false);
     }
-  }, [pending, isAuthenticated, signIn, actor.externalId, openProfile, t]);
+  }, [submitting, isAuthenticated, signIn, actor.externalId, openProfile, t]);
 
   return (
     <TouchableOpacity
@@ -128,7 +134,12 @@ export function ExternalActorCard({ actor }: ExternalActorCardProps) {
             {displayName}
           </ThemedText>
           <View className="flex-row items-center gap-1">
-            <FediverseBadge size={13} color={theme.colors.textSecondary} />
+            {/* Bluesky/atproto is NOT the fediverse — the network is named by the
+                pill below, so only ActivityPub actors get the inline fediverse
+                marker here (avoids mislabeling a Bluesky account). */}
+            {actor.network === 'activitypub' ? (
+              <RemoteActorBadge network={actor.network} size={13} color={theme.colors.textSecondary} />
+            ) : null}
             <ThemedText
               className="text-muted-foreground text-sm"
               style={{ lineHeight: 18 }}
@@ -154,13 +165,15 @@ export function ExternalActorCard({ actor }: ExternalActorCardProps) {
             variant={following ? 'secondary' : 'primary'}
             size="small"
             onPress={handleFollow}
-            disabled={following || pending}
+            disabled={following || submitting}
           >
-            {following
-              ? t('search.external.following', { defaultValue: 'Following' })
-              : pending
-                ? t('search.external.followingPending', { defaultValue: 'Following…' })
-                : t('search.external.follow', { defaultValue: 'Follow' })}
+            {requested
+              ? t('search.external.requested', { defaultValue: 'Requested' })
+              : following
+                ? t('search.external.following', { defaultValue: 'Following' })
+                : submitting
+                  ? t('search.external.followingPending', { defaultValue: 'Following…' })
+                  : t('search.external.follow', { defaultValue: 'Follow' })}
           </Button>
         </View>
       </View>

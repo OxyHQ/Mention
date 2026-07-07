@@ -2,6 +2,7 @@ import React, { useCallback, useState } from 'react';
 import { View, ScrollView } from 'react-native';
 import { Loading } from '@oxyhq/bloom/loading';
 import { Switch } from '@oxyhq/bloom/switch';
+import { show as toast } from '@oxyhq/bloom/toast';
 import { SettingsListGroup, SettingsListItem } from '@oxyhq/bloom/settings-list';
 import { OxyAuthPrompt, useAuth } from '@oxyhq/services';
 import { useTranslation } from 'react-i18next';
@@ -46,6 +47,12 @@ function FediverseSharingBody() {
         logger.error('Failed to update fediverse sharing preference', { error });
         setSharing(!value);
         setPending(false);
+        toast(
+          t('fediverse.settings.updateFailed', {
+            defaultValue: "Couldn't update fediverse sharing. Please try again.",
+          }),
+          { type: 'error' },
+        );
         return;
       }
       // Best-effort backend notify: queues remote cleanup when turning off and

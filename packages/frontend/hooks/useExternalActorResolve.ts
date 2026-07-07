@@ -19,6 +19,8 @@ export interface UseExternalActorResolveResult {
   error: boolean;
   /** Whether the (debounced) query looks like a remote handle worth resolving. */
   isRemoteQuery: boolean;
+  /** Re-run the resolve (used by the search UI's error-retry affordance). */
+  retry: () => void;
 }
 
 /**
@@ -60,5 +62,8 @@ export function useExternalActorResolve(rawQuery: string): UseExternalActorResol
     loading: isRemoteQuery && query.isPending && query.fetchStatus !== 'idle',
     error: isRemoteQuery && query.isError,
     isRemoteQuery,
+    retry: () => {
+      void query.refetch();
+    },
   };
 }

@@ -3,6 +3,7 @@ import { RefreshControl, View } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
 import type { FlashListRef } from '@shopify/flash-list';
 import { useTheme } from '@oxyhq/bloom/theme';
+import { Loading } from '@oxyhq/bloom/loading';
 import { useLayoutScroll } from '@/context/LayoutScrollContext';
 import type { GroupedNotification } from '@/utils/groupNotifications';
 
@@ -15,6 +16,12 @@ export interface NotificationsListProps {
     tabKey: string;
     refreshing: boolean;
     onRefresh: () => void;
+    /** Fired when the list nears its end and another page can be loaded. */
+    onEndReached?: () => void;
+    /** Gates the load-more trigger — no next page ⇒ no trigger. */
+    hasMore?: boolean;
+    /** True while the next page is in flight (renders a footer spinner). */
+    isFetchingMore?: boolean;
 }
 
 /**
@@ -30,6 +37,9 @@ export function NotificationsList({
     tabKey,
     refreshing,
     onRefresh,
+    onEndReached,
+    hasMore,
+    isFetchingMore,
 }: NotificationsListProps) {
     const theme = useTheme();
     const listRef = useRef<FlashListRef<GroupedNotification> | null>(null);
@@ -71,6 +81,18 @@ export function NotificationsList({
     const getItemKey = useCallback((item: GroupedNotification) => item.key, []);
     const getItemType = useCallback((item: GroupedNotification) => item.type, []);
 
+    const handleEndReached = useCallback(() => {
+        if (hasMore && onEndReached) {
+            onEndReached();
+        }
+    }, [hasMore, onEndReached]);
+
+    const listFooter = isFetchingMore ? (
+        <View style={{ paddingVertical: 16 }}>
+            <Loading />
+        </View>
+    ) : null;
+
     return (
         <View style={{ flex: 1, minHeight: 0 }}>
             <FlashList
@@ -81,6 +103,9 @@ export function NotificationsList({
                 getItemType={getItemType}
                 ListHeaderComponent={header}
                 ListEmptyComponent={emptyState}
+                ListFooterComponent={listFooter}
+                onEndReached={handleEndReached}
+                onEndReachedThreshold={0.5}
                 refreshControl={
                     <RefreshControl
                         refreshing={refreshing}

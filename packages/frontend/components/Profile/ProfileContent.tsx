@@ -20,7 +20,7 @@ import { LAYOUT } from './types';
 import type { ProfileContentProps } from './types';
 import { getNormalizedUserHandle } from '@oxyhq/core';
 import { useAuth } from '@oxyhq/services';
-import { FediverseBadge } from '@/components/Fediverse/FediverseBadge';
+import { FediverseSharingBadge } from '@/components/Fediverse/FediverseBadge';
 import { mergeBioAndProfileLinks } from '@/utils/mergeBioAndProfileLinks';
 import { useAppearanceStore } from '@/store/appearanceStore';
 import { useExpandableText } from '@/hooks/useExpandableText';
@@ -56,7 +56,7 @@ export const ProfileContent = memo(function ProfileContent({
   // a tappable badge next to the handle explaining the fediverse.
   const fediverseBadge =
     isOwnProfile && !profileData.isFederated && user?.fediverseSharing !== false ? (
-      <FediverseBadge size={20} />
+      <FediverseSharingBadge size={20} />
     ) : undefined;
   const profileHandle = getNormalizedUserHandle({
     username: profileData.username || username,

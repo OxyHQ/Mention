@@ -11,10 +11,11 @@
  *  - HTML is stripped from text fields.
  *
  * Schema (see `docs/INTENT_URL.md`):
- *  text, url, hashtags, via, mentions, replyToPostId, quotePostId, editPostId,
- *  pollOptions, pollDurationDays, articleTitle, articleBody, eventName,
- *  eventDate, eventLocation, eventDescription, lat, lng, address, sources,
- *  scheduledFor, sensitive, replyPermission, quotesDisabled, lang.
+ *  text, url, mediaUrl, hashtags, via, mentions, replyToPostId, quotePostId,
+ *  editPostId, pollOptions, pollDurationDays, articleTitle, articleBody,
+ *  eventName, eventDate, eventLocation, eventDescription, lat, lng, address,
+ *  sources, scheduledFor, sensitive, replyPermission, quotesDisabled, lang,
+ *  thread[0].text … thread[4].text.
  */
 
 /** Hard cap on text length applied after assembly (text + url + tags + via). */
@@ -33,10 +34,16 @@ export const MIN_POLL_OPTIONS = 2;
 export const POLL_DURATION_MIN_DAYS = 1;
 export const POLL_DURATION_MAX_DAYS = 7;
 export const POLL_DURATION_DEFAULT_DAYS = 7;
+/**
+ * Hard cap on thread items accepted from intent (`thread[0].text` …
+ * `thread[N-1].text`). Matches the Phase 2 schema (N = 0..4).
+ */
+export const MAX_THREAD_ITEMS = 5;
 
 const KNOWN_INTENT_KEYS: ReadonlySet<string> = new Set([
   'text',
   'url',
+  'mediaUrl',
   'hashtags',
   'via',
   'mentions',
@@ -61,6 +68,13 @@ const KNOWN_INTENT_KEYS: ReadonlySet<string> = new Set([
   'quotesDisabled',
   'lang',
 ]);
+
+/**
+ * Matches a thread-item text key: `thread[0].text` … `thread[N].text`. Only the
+ * `.text` sub-field is supported in Phase 2. Used both to accept these dynamic
+ * keys past the unknown-key filter and to extract the numeric index.
+ */
+const THREAD_TEXT_KEY_REGEX = /^thread\[(\d+)\]\.text$/;
 
 export type ReplyPermissionIntent = 'anyone' | 'following';
 
@@ -91,6 +105,14 @@ export interface ComposeIntentLocation {
 export interface ComposeIntent {
   text?: string;
   url?: string;
+  /** Single remote http/https media URL to fetch + attach server-side. */
+  mediaUrl?: string;
+  /**
+   * Additional thread items (`thread[0].text` … `thread[N-1].text`), in order.
+   * Each entry is the sanitized text for one follow-up post. Empty entries are
+   * dropped; capped at {@link MAX_THREAD_ITEMS}.
+   */
+  thread?: string[];
   hashtags?: string[];
   via?: string;
   mentions?: string[];
@@ -249,6 +271,30 @@ const normalizeHandle = (raw: string): string | undefined => {
 const dedupe = <T,>(items: T[]): T[] => Array.from(new Set(items));
 
 /**
+ * Extract ordered thread-item texts from `thread[0].text` … keys. Indexes are
+ * read in ascending numeric order (not object key order), sanitized like any
+ * free-form text field, and empty results are dropped. Only indices in
+ * `[0, MAX_THREAD_ITEMS)` are considered; the result is capped at
+ * {@link MAX_THREAD_ITEMS}.
+ */
+const parseThreadItems = (raw: ComposeIntentRawParams): string[] => {
+  const byIndex = new Map<number, string>();
+  for (const [key, value] of Object.entries(raw)) {
+    const match = THREAD_TEXT_KEY_REGEX.exec(key);
+    if (!match) continue;
+    const index = Number(match[1]);
+    if (!Number.isInteger(index) || index < 0 || index >= MAX_THREAD_ITEMS) continue;
+    const cleaned = sanitizeText(firstString(value));
+    if (cleaned !== undefined) byIndex.set(index, cleaned);
+  }
+  return Array.from(byIndex.keys())
+    .sort((a, b) => a - b)
+    .map((index) => byIndex.get(index))
+    .filter((text): text is string => text !== undefined)
+    .slice(0, MAX_THREAD_ITEMS);
+};
+
+/**
  * Parse a `?text=Hello&hashtags=foo,bar&...` query into a typed `ComposeIntent`.
  *
  * Robust to:
@@ -258,7 +304,9 @@ const dedupe = <T,>(items: T[]): T[] => Array.from(new Set(items));
  */
 export const parseComposeIntent = (raw: ComposeIntentRawParams): ComposeIntent => {
   if (typeof __DEV__ !== 'undefined' && __DEV__) {
-    const unknown = Object.keys(raw).filter((key) => !KNOWN_INTENT_KEYS.has(key));
+    const unknown = Object.keys(raw).filter(
+      (key) => !KNOWN_INTENT_KEYS.has(key) && !THREAD_TEXT_KEY_REGEX.test(key),
+    );
     if (unknown.length > 0) {
       // Lightweight dev signal: third-party callers may be using stale param
       // names. Production builds drop the check entirely (gated by __DEV__).
@@ -276,6 +324,16 @@ export const parseComposeIntent = (raw: ComposeIntentRawParams): ComposeIntent =
   const urlValue = validateHttpUrl(firstString(raw.url));
   if (urlValue !== undefined) {
     intent.url = urlValue;
+  }
+
+  const mediaUrlValue = validateHttpUrl(firstString(raw.mediaUrl));
+  if (mediaUrlValue !== undefined) {
+    intent.mediaUrl = mediaUrlValue;
+  }
+
+  const threadItems = parseThreadItems(raw);
+  if (threadItems.length > 0) {
+    intent.thread = threadItems;
   }
 
   const hashtagsRaw = parseCommaList(firstString(raw.hashtags));
@@ -478,6 +536,8 @@ export const hasIntentContent = (intent: ComposeIntent): boolean => {
   return Boolean(
     intent.text ||
       intent.url ||
+      intent.mediaUrl ||
+      (intent.thread && intent.thread.length > 0) ||
       (intent.hashtags && intent.hashtags.length > 0) ||
       intent.via ||
       (intent.mentions && intent.mentions.length > 0) ||

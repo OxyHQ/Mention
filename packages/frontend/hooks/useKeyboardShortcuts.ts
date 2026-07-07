@@ -27,7 +27,7 @@ export const SHORTCUTS = [
 export function useKeyboardShortcuts(): KeyboardShortcutsState {
   const [showHelpModal, setShowHelpModal] = useState(false);
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, canUsePrivateApi, signIn } = useAuth();
   const pendingComboRef = useRef<string | null>(null);
   const comboTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -103,10 +103,16 @@ export function useKeyboardShortcuts(): KeyboardShortcutsState {
         return;
       }
 
-      // Ctrl+n or plain n -> compose
+      // Ctrl+n or plain n -> compose. Requires a usable private session; a
+      // signed-out (or still-resolving) viewer is offered the SDK sign-in modal
+      // instead of being dropped on the composer's auth prompt.
       if (key === 'n' && !event.metaKey && !event.altKey) {
         event.preventDefault();
-        router.push('/compose');
+        if (canUsePrivateApi) {
+          router.push('/compose');
+        } else {
+          signIn().catch(() => {});
+        }
         return;
       }
 
@@ -130,7 +136,7 @@ export function useKeyboardShortcuts(): KeyboardShortcutsState {
       document.removeEventListener('keydown', handleKeyDown);
       clearCombo();
     };
-  }, [router, user?.username, clearCombo]);
+  }, [router, user?.username, clearCombo, canUsePrivateApi, signIn]);
 
   return { showHelpModal, setShowHelpModal };
 }

@@ -6,9 +6,9 @@ import {
 import { SafeAreaView } from '@/lib/SafeAreaViewInterop';
 import { Ionicons } from '@expo/vector-icons';
 import FontAwesome5 from '@expo/vector-icons/FontAwesome5';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
-import { useAuth } from '@oxyhq/services';
+import { OxyAuthPrompt, useAuth } from '@oxyhq/services';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { Loading } from '@oxyhq/bloom/loading';
@@ -43,7 +43,7 @@ const notificationLogger = createScopedLogger('Notifications');
 type NotificationTab = 'all' | 'mentions' | 'follows' | 'likes' | 'posts' | 'pokes';
 
 const NotificationsScreen: React.FC = () => {
-    const { user, isAuthenticated, oxyServices } = useAuth();
+    const { user, oxyServices, isAuthResolved, canUsePrivateApi, isPrivateApiPending } = useAuth();
     const queryClient = useQueryClient();
     const router = useRouter();
     const [refreshing, setRefreshing] = useState(false);
@@ -57,17 +57,35 @@ const NotificationsScreen: React.FC = () => {
     // Enable real-time notifications
     useRealtimeNotifications();
 
-    // Fetch notifications
+    // Fetch notifications — cursor-paginated. Gated on `canUsePrivateApi` (not
+    // just `isAuthenticated`) so the private `/notifications` read never fires
+    // while the SSO cold-boot is still resolving (which would 401-loop).
     const {
         data: notificationsData,
         isLoading,
         error,
-        refetch
-    } = useQuery({
+        refetch,
+        fetchNextPage,
+        hasNextPage,
+        isFetchingNextPage,
+    } = useInfiniteQuery({
         queryKey: ['notifications', user?.id],
-        queryFn: () => notificationService.getNotifications(),
-        enabled: isAuthenticated && !!user?.id,
+        queryFn: ({ pageParam }) => notificationService.getNotifications(pageParam),
+        initialPageParam: undefined as string | undefined,
+        getNextPageParam: (lastPage) => (lastPage.hasMore ? lastPage.nextCursor : undefined),
+        enabled: canUsePrivateApi && !!user?.id,
     });
+
+    const allNotifications = useMemo(
+        () => notificationsData?.pages.flatMap((page) => page.notifications) ?? [],
+        [notificationsData],
+    );
+
+    const handleLoadMore = useCallback(() => {
+        if (hasNextPage && !isFetchingNextPage) {
+            fetchNextPage();
+        }
+    }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
     // Mark notification as read mutation
     const markAsReadMutation = useMutation({
@@ -119,7 +137,7 @@ const NotificationsScreen: React.FC = () => {
         markAsReadMutation.mutate(notificationId);
     }, [markAsReadMutation]);
 
-    const unreadCount = notificationsData?.unreadCount || 0;
+    const unreadCount = notificationsData?.pages[0]?.unreadCount || 0;
 
     const handleMarkAllAsRead = useCallback(async () => {
         if (unreadCount === 0) {
@@ -152,8 +170,8 @@ const NotificationsScreen: React.FC = () => {
     }, [activeTab, refetch, scrollToTop]);
 
     const validatedNotifications = useMemo(
-        () => validateNotifications(notificationsData?.notifications ?? []),
-        [notificationsData]
+        () => validateNotifications(allNotifications),
+        [allNotifications]
     );
 
     // Notifications whose actor the backend did NOT populate would each fire their
@@ -179,7 +197,7 @@ const NotificationsScreen: React.FC = () => {
     useQuery({
         queryKey: ['notifications', 'actorWarm', unpopulatedActorIds],
         queryFn: () => prewarmUsersByIds(unpopulatedActorIds, (ids) => oxyServices.getUsersByIds(ids), queryClient),
-        enabled: isAuthenticated && !!oxyServices && unpopulatedActorIds.length > 0,
+        enabled: canUsePrivateApi && !!oxyServices && unpopulatedActorIds.length > 0,
         staleTime: 5 * 60 * 1000,
     });
 
@@ -325,13 +343,24 @@ const NotificationsScreen: React.FC = () => {
     );
 
     const renderContent = () => {
-        if (!isAuthenticated) {
+        // Auth cold-boot: the SSO restore can take several seconds. Show a
+        // spinner until auth is resolved, then either prompt to sign in or
+        // render the list — gated on `canUsePrivateApi`, never bare
+        // `isAuthenticated` (pattern from settings/fediverse.tsx).
+        if (!isAuthResolved || isPrivateApiPending) {
             return (
-                <ThemedView className="flex-1 justify-center items-center px-5">
-                    <ThemedText className="text-base text-center text-muted-foreground">
-                        {t('state.no_session')}
-                    </ThemedText>
+                <ThemedView className="flex-1 justify-center items-center">
+                    <Loading className="text-primary" size="large" />
                 </ThemedView>
+            );
+        }
+
+        if (!canUsePrivateApi) {
+            return (
+                <OxyAuthPrompt
+                    label={t('notification.signInRequired', { defaultValue: 'Sign in to see your notifications' })}
+                    description={t('notification.signInRequiredDesc', { defaultValue: 'Mentions, follows, likes, and more will appear here once you sign in.' })}
+                />
             );
         }
 
@@ -394,6 +423,9 @@ const NotificationsScreen: React.FC = () => {
                 tabKey={activeTab}
                 refreshing={refreshing}
                 onRefresh={handleRefresh}
+                onEndReached={handleLoadMore}
+                hasMore={!!hasNextPage}
+                isFetchingMore={isFetchingNextPage}
             />
         );
     };
@@ -437,12 +469,12 @@ const NotificationsScreen: React.FC = () => {
                                     ) : null,
                                 ].filter(Boolean),
                             }}
-                            hideBottomBorder={isAuthenticated}
+                            hideBottomBorder={canUsePrivateApi}
                             disableSticky
                         />
                     </PanelStickyHeader>
 
-                    {isAuthenticated && (
+                    {canUsePrivateApi && (
                         <PanelStickyHeader level={1} zIndex={100}>
                             <AnimatedTabBar
                                 tabs={[

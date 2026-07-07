@@ -1,6 +1,9 @@
 import { useEffect, useRef } from 'react';
 import { useFollow } from '@oxyhq/services';
 import { feedService } from '@/services/feedService';
+import { createScopedLogger } from '@/lib/logger';
+
+const logger = createScopedLogger('FederatedFollowSync');
 
 /**
  * Watches the Oxy follow state for a federated profile and bridges it
@@ -45,9 +48,16 @@ export function useFederatedFollowSync(
     if (wasFollowing === isFollowing) return;
 
     if (isFollowing) {
-      feedService.followFederatedActor(actorUri).catch(() => {});
+      feedService.followFederatedActor(actorUri).catch((error) => {
+        // The Oxy follow edge already flipped optimistically; the ActivityPub
+        // bridge failing must not be silent — a dropped Follow means the remote
+        // server never learns about the follow (no posts, no accept).
+        logger.warn('Failed to bridge follow to ActivityPub', { actorUri, error });
+      });
     } else {
-      feedService.unfollowFederatedActor(actorUri).catch(() => {});
+      feedService.unfollowFederatedActor(actorUri).catch((error) => {
+        logger.warn('Failed to bridge unfollow to ActivityPub', { actorUri, error });
+      });
     }
   }, [isFederated, actorUri, profileId, isFollowing]);
 }

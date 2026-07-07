@@ -18,6 +18,7 @@ import {
   MAX_POLL_OPTIONS,
   MAX_POST_LENGTH,
   MAX_SOURCES,
+  MAX_THREAD_ITEMS,
   parseComposeIntent,
   POLL_DURATION_DEFAULT_DAYS,
   validateHttpUrl,
@@ -120,6 +121,91 @@ describe('parseComposeIntent — url', () => {
 
   it('drops malformed URLs', () => {
     expect(parseComposeIntent({ url: 'not a url' })).toEqual({});
+  });
+});
+
+describe('parseComposeIntent — mediaUrl', () => {
+  it('keeps a valid https media URL', () => {
+    expect(parseComposeIntent({ mediaUrl: 'https://cdn.example.com/a.png' })).toEqual({
+      mediaUrl: 'https://cdn.example.com/a.png',
+    });
+  });
+
+  it('drops javascript: media URLs', () => {
+    expect(parseComposeIntent({ mediaUrl: 'javascript:alert(1)' })).toEqual({});
+  });
+
+  it('drops data: media URLs', () => {
+    expect(
+      parseComposeIntent({ mediaUrl: 'data:image/png;base64,AAAA' }),
+    ).toEqual({});
+  });
+
+  it('takes the first when mediaUrl is an array (max 1)', () => {
+    expect(
+      parseComposeIntent({
+        mediaUrl: ['https://cdn.example.com/a.png', 'https://cdn.example.com/b.png'],
+      }),
+    ).toEqual({ mediaUrl: 'https://cdn.example.com/a.png' });
+  });
+});
+
+describe('parseComposeIntent — thread', () => {
+  it('parses ordered thread items', () => {
+    expect(
+      parseComposeIntent({
+        'thread[0].text': 'first',
+        'thread[1].text': 'second',
+      }),
+    ).toEqual({ thread: ['first', 'second'] });
+  });
+
+  it('orders by numeric index, not key order', () => {
+    expect(
+      parseComposeIntent({
+        'thread[2].text': 'third',
+        'thread[0].text': 'first',
+        'thread[1].text': 'second',
+      }),
+    ).toEqual({ thread: ['first', 'second', 'third'] });
+  });
+
+  it('drops empty thread entries and strips HTML', () => {
+    expect(
+      parseComposeIntent({
+        'thread[0].text': '   ',
+        'thread[1].text': '<b>hi</b>',
+      }),
+    ).toEqual({ thread: ['hi'] });
+  });
+
+  it('ignores indexes beyond MAX_THREAD_ITEMS', () => {
+    expect(
+      parseComposeIntent({
+        'thread[0].text': 'ok',
+        'thread[5].text': 'too far',
+        'thread[9].text': 'way too far',
+      }),
+    ).toEqual({ thread: ['ok'] });
+  });
+
+  it('caps the number of thread items at MAX_THREAD_ITEMS', () => {
+    const raw: Record<string, string> = {};
+    for (let i = 0; i < MAX_THREAD_ITEMS; i++) {
+      raw[`thread[${i}].text`] = `item ${i}`;
+    }
+    const result = parseComposeIntent(raw);
+    expect(result.thread?.length).toBe(MAX_THREAD_ITEMS);
+  });
+
+  it('ignores malformed thread keys', () => {
+    expect(
+      parseComposeIntent({
+        'thread[].text': 'nope',
+        'thread[0].media': 'nope',
+        'thread.text': 'nope',
+      } as Record<string, string>),
+    ).toEqual({});
   });
 });
 
@@ -469,6 +555,14 @@ describe('hasIntentContent', () => {
 
   it('returns true for text-only intent', () => {
     expect(hasIntentContent({ text: 'hi' })).toBe(true);
+  });
+
+  it('returns true for mediaUrl-only intent', () => {
+    expect(hasIntentContent({ mediaUrl: 'https://cdn.example.com/a.png' })).toBe(true);
+  });
+
+  it('returns true for thread-only intent', () => {
+    expect(hasIntentContent({ thread: ['a'] })).toBe(true);
   });
 
   it('returns true for sensitive false', () => {

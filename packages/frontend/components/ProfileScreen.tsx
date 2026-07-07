@@ -504,7 +504,9 @@ const MentionProfileContent: React.FC<MentionProfileContentProps> = ({
     // instead of sliding under the icons.
     const headerActionCount = useMemo(() => {
         let count = 1; // share is always present
-        if (!isOwnProfile) count += 3; // subscribe + DM + more
+        if (!isOwnProfile) count += 2; // subscribe + more
+        // DM is local-only — remote (federated) actors have no Mention inbox.
+        if (!isOwnProfile && !isFederated) count += 1; // DM
         if (isFederated) count += 1; // open-on-instance
         return count;
     }, [isOwnProfile, isFederated]);
@@ -712,7 +714,7 @@ const MentionProfileContent: React.FC<MentionProfileContentProps> = ({
                                         )}
                                     </IconButton>
                                 )}
-                                {!isOwnProfile && (
+                                {!isOwnProfile && !isFederated && (
                                     <IconButton variant="icon" onPress={handleDM}>
                                         <MailIcon size={18} className="text-foreground" />
                                     </IconButton>

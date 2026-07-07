@@ -12,7 +12,8 @@ import { formatCompactNumber } from '@/utils/formatNumber';
 import { Portal } from '@oxyhq/bloom/portal';
 import { Avatar } from '@oxyhq/bloom/avatar';
 import UserName from '@/components/UserName';
-import { FediverseBadge } from '@/components/Fediverse/FediverseBadge';
+import { RemoteActorBadge } from '@/components/Fediverse/FediverseBadge';
+import { useFederatedFollowSync } from '@/components/Profile/hooks/useFederatedFollowSync';
 import { type ProfileHoverCardProps } from './types';
 
 const IS_TOUCH_DEVICE = typeof window !== 'undefined' && 'ontouchstart' in window;
@@ -337,6 +338,11 @@ function CardContent({
 }) {
   const theme = useTheme();
 
+  // Bridge an Oxy follow of a federated actor to the ActivityPub layer, the same
+  // way the full profile screen does — so following from the hover card actually
+  // sends the remote Follow (not just a local Oxy edge).
+  useFederatedFollowSync(profile.id, profile.isFederated, profile.actorUri);
+
   const followersCount = profile.followersCount ?? 0;
   const followingCount = profile.followingCount ?? 0;
 
@@ -353,7 +359,7 @@ function CardContent({
           />
         </View>
 
-        {FollowButton && profile.id && !profile.isFederated && (
+        {FollowButton && profile.id && (
           <FollowButton userId={profile.id} size="small" />
         )}
       </View>
@@ -381,7 +387,7 @@ function CardContent({
             <Text className="text-muted-foreground text-xs">@{profile.instance}</Text>
           )}
           {profile.isFederated && (
-            <FediverseBadge size={13} className="text-muted-foreground" />
+            <RemoteActorBadge size={13} className="text-muted-foreground" />
           )}
         </View>
       </View>

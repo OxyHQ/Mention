@@ -105,6 +105,7 @@ export default function SearchIndex() {
         loading: externalLoading,
         error: externalError,
         isRemoteQuery,
+        retry: retryExternal,
     } = useExternalActorResolve(query);
 
     // Load search history on mount
@@ -404,13 +405,20 @@ export default function SearchIndex() {
     // remote handle — independent of whether the LOCAL search returned anything.
     const showExternalSection =
         isRemoteQuery && (activeTab === "all" || activeTab === "users");
-    const hasExternalContent = showExternalSection && (externalLoading || externalError || Boolean(externalActor));
+    // A remote-looking query that resolved to nothing (404 miss): not loading, no
+    // error, no actor. Surface a helpful "no account found" hint rather than a
+    // blank section, so the user learns the expected handle format.
+    const externalNotFound =
+        showExternalSection && !externalLoading && !externalError && !externalActor;
+    const hasExternalContent =
+        showExternalSection &&
+        (externalLoading || externalError || externalNotFound || Boolean(externalActor));
 
     const renderExternalSection = () => {
         if (!showExternalSection) return null;
         return (
             <View style={styles.section}>
-                {activeTab === "all" && (externalLoading || externalActor) ? (
+                {activeTab === "all" ? (
                     <Text className="text-xl font-bold text-foreground" style={{ paddingHorizontal: SPACING.base, paddingVertical: SPACING.md }}>
                         {t("search.sections.fromOtherNetworks", "From other networks")}
                     </Text>
@@ -424,9 +432,30 @@ export default function SearchIndex() {
                         <ExternalActorCard actor={externalActor} />
                     </View>
                 ) : externalError ? (
-                    <Text className="text-sm text-muted-foreground" style={{ paddingHorizontal: SPACING.base, paddingVertical: SPACING.sm }}>
-                        {t("search.external.error", "Couldn't reach that network. Try again.")}
-                    </Text>
+                    <View style={{ paddingHorizontal: SPACING.base, paddingVertical: SPACING.sm }}>
+                        <Text className="text-sm text-muted-foreground" style={{ marginBottom: SPACING.sm }}>
+                            {t("search.external.error", "Couldn't reach that network. Try again.")}
+                        </Text>
+                        <TouchableOpacity
+                            onPress={retryExternal}
+                            className="self-start bg-secondary rounded-full"
+                            style={{ paddingHorizontal: SPACING.base, paddingVertical: SPACING.sm }}
+                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                        >
+                            <Text className="text-sm font-semibold text-primary">
+                                {t("search.external.retry", "Retry")}
+                            </Text>
+                        </TouchableOpacity>
+                    </View>
+                ) : externalNotFound ? (
+                    <View style={{ paddingHorizontal: SPACING.base, paddingVertical: SPACING.sm }}>
+                        <Text className="text-sm font-medium text-foreground">
+                            {t("search.external.notFound", "No account found on other networks")}
+                        </Text>
+                        <Text className="text-sm text-muted-foreground" style={{ marginTop: 2 }}>
+                            {t("search.external.notFoundHint", "Try a full handle like @user@mastodon.social or name.bsky.social")}
+                        </Text>
+                    </View>
                 ) : null}
             </View>
         );

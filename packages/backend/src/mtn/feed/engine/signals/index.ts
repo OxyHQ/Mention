@@ -24,7 +24,8 @@ import type { SignalModule } from '../types';
  * to the id) is what `FeedEngine` forwards to `rankPosts` as `enabledSignals`, so
  * the scorer fires ONLY when a definition enables it. Config lives under
  * `MtnConfig.ranking.optInSignals.<id>`. They are default-neutral and NOT in any
- * preset's signal set.
+ * preset's signal set unless `FOR_YOU_PHASE2B_SIGNALS` enables a subset on For You
+ * and Videos (see `definitions/presets.ts`).
  */
 const SIGNAL_WEIGHT_KEYS: Record<string, string> = {
   engagement: 'engagement',

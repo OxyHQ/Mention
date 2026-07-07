@@ -27,7 +27,7 @@ export default function SettingsScreen() {
     const { t } = useTranslation();
     const router = useRouter();
     const safeBack = useSafeBack();
-    const { user, isAuthenticated, showBottomSheet, signOut } = useAuth();
+    const { user, isAuthenticated, isAuthResolved, showBottomSheet, signOut } = useAuth();
     const { resetTheme } = useBloomTheme();
     const resetAppearance = useAppearanceStore((state) => state.reset);
     const { data: currentUserProfile } = useProfileData(user?.username);
@@ -109,7 +109,14 @@ export default function SettingsScreen() {
                 onScroll={onScroll}
                 scrollEventThrottle={scrollEventThrottle}
             >
-                {isAuthenticated && !currentUserProfile ? (
+                {!isAuthResolved ? (
+                    // Auth cold-boot: the SSO restore can take several seconds.
+                    // Hold on a spinner until auth resolves so the signed-out
+                    // hero doesn't flash before a restored session lands.
+                    <View className="items-center py-4">
+                        <Loading />
+                    </View>
+                ) : isAuthenticated && !currentUserProfile ? (
                     <View className="items-center py-4">
                         <Loading />
                     </View>

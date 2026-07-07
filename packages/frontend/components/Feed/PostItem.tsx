@@ -30,7 +30,6 @@ import { useTheme } from '@oxyhq/bloom/theme';
 import { cn } from '@/lib/utils';
 import { useTranslation } from 'react-i18next';
 import { useImagePreload } from '@/hooks/useImagePreload';
-import { proxyExternalUrl } from '@/utils/imageUrlCache';
 import { usePostLike } from '@/hooks/usePostLike';
 import { usePostVote } from '@/hooks/usePostVote';
 import { usePostSave } from '@/hooks/usePostSave';
@@ -251,20 +250,9 @@ const PostItem: React.FC<PostItemProps> = ({
         (viewPost?.user?.isFederated === true ||
             rawAvatar.startsWith('http://') ||
             rawAvatar.startsWith('https://'));
-    // Route a remote/federated avatar URL through the media proxy so it loads on
-    // web (CORS), survives expiring upstream links, and is cached — matching every
-    // other federated-media surface. `proxyExternalUrl` passes local Oxy file ids
-    // (non-http) and our own origins through untouched, so the local path is
-    // unchanged and still resolved by Bloom's ImageResolver.
-    const avatarSource = useMemo(
-        () =>
-            typeof rawAvatar === 'string'
-                ? isRemoteAvatar
-                    ? proxyExternalUrl(rawAvatar)
-                    : rawAvatar
-                : undefined,
-        [rawAvatar, isRemoteAvatar],
-    );
+    // Federated avatars are mirrored into Oxy at resolve/hydration time and arrive
+    // as file ids or cloud.oxy.so URLs — same path as local users. No client proxy.
+    const avatarSource = typeof rawAvatar === 'string' ? rawAvatar : undefined;
     const avatarVariant = isRemoteAvatar ? undefined : 'thumb';
 
     // Preload only when the avatar is already an absolute URL (remote/federated).

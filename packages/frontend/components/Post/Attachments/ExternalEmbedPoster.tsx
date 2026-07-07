@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
@@ -23,15 +23,24 @@ interface ExternalEmbedPosterProps {
  * used by both `ExternalEmbedPlayer.web.tsx` and `.native.tsx`.
  */
 export function ExternalEmbedPoster({ thumb, active, loading, onPressPlay }: ExternalEmbedPosterProps) {
+  // A remote link-preview thumbnail can 404 or fail to load even through the
+  // proxy — fall back to the plain dim scrim + play button rather than showing a
+  // broken image. Reset the error state when the thumb URL changes.
+  const [thumbErrored, setThumbErrored] = useState(false);
+  useEffect(() => {
+    setThumbErrored(false);
+  }, [thumb]);
+
   if (active && !loading) return null;
 
   return (
     <View className="absolute inset-0" pointerEvents="box-none">
-      {thumb ? (
+      {thumb && !thumbErrored ? (
         <Image
           source={{ uri: proxyExternalUrl(thumb) }}
           style={StyleSheet.absoluteFill}
           contentFit="cover"
+          onError={() => setThumbErrored(true)}
         />
       ) : null}
       <View className="absolute inset-0 bg-black/30" />
