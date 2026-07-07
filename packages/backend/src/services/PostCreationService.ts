@@ -4,6 +4,7 @@ import {
   createNotification,
   createMentionNotifications,
   createBatchNotifications,
+  createPostAuthorNotifications,
 } from '../utils/notificationUtils';
 import PostSubscription from '../models/PostSubscription';
 import { logger } from '../utils/logger';
@@ -13,6 +14,8 @@ import { postHydrationService } from './PostHydrationService';
 import { getServiceOxyClient } from '../utils/oxyHelpers';
 import { emitPostCreated, emitRepostCreated } from './mtn/MentionRecordEmitter';
 import type { ReplyContext } from './mtn/mentionRecordBuilders';
+import { postCollaborationService } from './PostCollaborationService';
+import { hasCollaborators } from '../utils/postAuthorship';
 
 export interface CreatePostParams {
   oxyUserId: string | null;
@@ -55,6 +58,8 @@ export interface CreatePostParams {
   skipNotifications?: boolean;
   skipSocketEmit?: boolean;
   skipFederationDelivery?: boolean;
+  /** Local Oxy user ids to invite as collaborators (max 5). */
+  collaboratorIds?: string[];
   // Override timestamps for federated posts with original publish dates
   createdAt?: Date;
   updatedAt?: Date;
@@ -212,6 +217,13 @@ class PostCreationService {
 
     if (params.oxyUserId != null) {
       postData.oxyUserId = params.oxyUserId;
+      const collaboratorIds = params.collaboratorIds ?? [];
+      if (collaboratorIds.length > 0 && params.oxyUserId) {
+        const validated = await postCollaborationService.validateInvites(params.oxyUserId, collaboratorIds);
+        postData.authorship = postCollaborationService.buildAuthorship(params.oxyUserId, validated);
+      } else {
+        postData.authorship = postCollaborationService.buildAuthorship(params.oxyUserId, []);
+      }
     }
     if (params.federation != null) {
       postData.federation = params.federation;
@@ -238,6 +250,13 @@ class PostCreationService {
 
     const post = new Post(postData);
     await post.save();
+
+    const hasCollabInvites = hasCollaborators(post.authorship ?? []);
+    if (hasCollabInvites && params.oxyUserId) {
+      await postCollaborationService.createCollabInviteNotifications(post, params.oxyUserId);
+    }
+
+    const skipFederation = params.skipFederationDelivery || hasCollabInvites;
 
     // MTN Protocol dual-write (best-effort, never blocks, never changes output).
     // Mongo is authoritative; this emits a signed `app.mention.feed.*` record for
@@ -278,49 +297,55 @@ class PostCreationService {
         if (idsToFetch.length === 0) return;
 
         const relatedPosts = await Post.find({ _id: { $in: idsToFetch } })
-          .select('oxyUserId')
+          .select('oxyUserId authorship')
           .lean();
         const postsMap = new Map(relatedPosts.map((p) => [String(p._id), p]));
 
         if (replyParentId) {
           const parent = postsMap.get(replyParentId);
-          const recipientId = parent?.oxyUserId?.toString() ?? null;
-          if (recipientId && recipientId !== oxyUserId) {
-            await createNotification({
-              recipientId,
-              actorId: oxyUserId,
-              type: 'reply',
-              entityId: String(post._id),
-              entityType: 'reply',
-            });
+          if (parent) {
+            await createPostAuthorNotifications(
+              parent.authorship as import('@mention/shared-types').PostAuthorshipEntry[] | undefined,
+              parent.oxyUserId?.toString() ?? null,
+              {
+                actorId: oxyUserId,
+                type: 'reply',
+                entityId: String(post._id),
+                entityType: 'reply',
+              },
+            );
           }
         }
 
         if (params.quoteOf) {
           const original = postsMap.get(params.quoteOf);
-          const recipientId = original?.oxyUserId?.toString() ?? null;
-          if (recipientId && recipientId !== oxyUserId) {
-            await createNotification({
-              recipientId,
-              actorId: oxyUserId,
-              type: 'quote',
-              entityId: String(original!._id),
-              entityType: 'post',
-            });
+          if (original) {
+            await createPostAuthorNotifications(
+              original.authorship as import('@mention/shared-types').PostAuthorshipEntry[] | undefined,
+              original.oxyUserId?.toString() ?? null,
+              {
+                actorId: oxyUserId,
+                type: 'quote',
+                entityId: String(original._id),
+                entityType: 'post',
+              },
+            );
           }
         }
 
         if (params.boostOf) {
           const original = postsMap.get(params.boostOf);
-          const recipientId = original?.oxyUserId?.toString() ?? null;
-          if (recipientId && recipientId !== oxyUserId) {
-            await createNotification({
-              recipientId,
-              actorId: oxyUserId,
-              type: 'boost',
-              entityId: String(original?._id),
-              entityType: 'post',
-            });
+          if (original) {
+            await createPostAuthorNotifications(
+              original.authorship as import('@mention/shared-types').PostAuthorshipEntry[] | undefined,
+              original.oxyUserId?.toString() ?? null,
+              {
+                actorId: oxyUserId,
+                type: 'boost',
+                entityId: String(original._id),
+                entityType: 'post',
+              },
+            );
           }
         }
       })(),
@@ -390,7 +415,7 @@ class PostCreationService {
       }
     }
 
-    if (!params.skipFederationDelivery && oxyUserId && params.senderUsername) {
+    if (!skipFederation && oxyUserId && params.senderUsername) {
       try {
         // Late-bound accessor avoids a circular import with the connector registry.
         await getPostFederator().federateNewPost(post, oxyUserId, params.senderUsername);

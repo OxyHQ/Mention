@@ -24,7 +24,10 @@ import {
   getLocationStats,
   getPostLikes,
   getPostBoosts,
-  translatePost
+  translatePost,
+  acceptCollabInvite,
+  declineCollabInvite,
+  stopCollabSharing,
 } from '../controllers/posts.controller';
 import { Threadgate } from '../models/Threadgate';
 import { Postgate } from '../models/Postgate';
@@ -59,6 +62,9 @@ router.get('/:id/boosts', getPostBoosts);
 router.get('/:id', getPostById);
 
 // Protected routes with parameters
+router.post('/:id/collaborators/accept', acceptCollabInvite);
+router.post('/:id/collaborators/decline', declineCollabInvite);
+router.post('/:id/collaborators/stop-sharing', stopCollabSharing);
 router.put('/:id', updatePost);
 router.patch('/:id/settings', updatePostSettings);
 router.delete('/:id', deletePost);

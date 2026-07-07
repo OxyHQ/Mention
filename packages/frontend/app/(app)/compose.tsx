@@ -15,7 +15,7 @@ import { Loading } from '@oxyhq/bloom/loading';
 import { Ionicons } from '@expo/vector-icons';
 import { logger } from '@/lib/logger';
 import { classifyApiError, normalizeApiError, type ApiErrorReason } from '@/utils/apiError';
-import { useAuth } from '@oxyhq/services';
+import { OxyAuthPrompt, useAuth } from '@oxyhq/services';
 import type { FileMetadata } from '@oxyhq/core';
 import { StatusBar } from 'expo-status-bar';
 import * as ExpoLocation from 'expo-location';
@@ -40,6 +40,7 @@ import { useTheme } from '@oxyhq/bloom/theme';
 import MentionTextInput, { MentionData, MentionTextInputHandle } from '@/components/MentionTextInput';
 import SEO from '@/components/SEO';
 import { IconButton } from '@/components/ui/Button';
+import { Header } from '@/components/Header';
 import { DraftsIcon } from '@/assets/icons/drafts';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { CloseIcon } from '@/assets/icons/close-icon';
@@ -130,8 +131,12 @@ import {
   type ComposeIntent,
   type ComposeIntentRawParams,
 } from '@/utils/composeIntent';
+import { consumePendingShareMedia } from '@/utils/pendingShareMedia';
+import { api } from '@/utils/api';
+import type { ThreadItem } from '@/hooks/useThreadManager';
 import { useQuoteManager } from '@/hooks/useQuoteManager';
 import QuoteCard from '@/components/Compose/QuoteCard';
+import CollaboratorPicker, { type CollaboratorUser } from '@/components/Compose/CollaboratorPicker';
 
 // Keep this in sync with PostItem constants
 import { HPAD, AVATAR_SIZE, BOTTOM_LEFT_PAD, TIMELINE_LINE_OFFSET } from '@/components/Compose/composeLayout';
@@ -141,7 +146,7 @@ const bottomLeftPadStyle = { marginLeft: BOTTOM_LEFT_PAD };
 const bottomLeftPadWithHPadStyle = { marginLeft: BOTTOM_LEFT_PAD, paddingHorizontal: HPAD };
 const avatarMarginStyle = { marginRight: 12 };
 
-const ComposeScreen = () => {
+const ComposeScreenBody = () => {
   const theme = useTheme();
   const safeBack = useSafeBack();
   const bottomSheet = React.useContext(BottomSheetContext);
@@ -171,6 +176,7 @@ const ComposeScreen = () => {
   const [editLoading, setEditLoading] = useState(false);
   const [replyToPost, setReplyToPost] = useState<HydratedPost | null>(null);
   const [replyLoading, setReplyLoading] = useState(false);
+  const [collaborators, setCollaborators] = useState<CollaboratorUser[]>([]);
 
   // Use custom hooks for state management
   const mediaManager = useMediaManager();
@@ -484,7 +490,53 @@ const ComposeScreen = () => {
   // effect below runs exactly once.
   const intentAppliedRef = useRef(false);
   const intentPayloadRef = useRef(initialIntent);
+  // Media shared via the native OS share sheet is uploaded by the share-intent
+  // bridge and handed off here. Consume it ONCE on first render (a later plain
+  // `/compose` open must not re-attach it); apply it alongside the URL intent so
+  // the draft-conflict decision governs it too.
+  const pendingShareMediaRef = useRef<ReturnType<typeof consumePendingShareMedia> | null>(null);
+  if (pendingShareMediaRef.current === null) {
+    pendingShareMediaRef.current = consumePendingShareMedia();
+  }
+  const hasPendingShareMedia = pendingShareMediaRef.current.length > 0;
   const [draftConflict, setDraftConflict] = useState(false);
+
+  // Attach an already-uploaded Oxy file to the composer's media list, de-duped.
+  const attachMediaById = useCallback(
+    (id: string, contentType: string) => {
+      const isVideo = contentType.startsWith('video/');
+      const item: ComposerMediaItem = {
+        id,
+        type: toComposerMediaType(isVideo ? 'video' : 'image', contentType),
+      };
+      setMediaIds((prev) => (prev.some((m) => m.id === id) ? prev : [...prev, item]));
+    },
+    [setMediaIds],
+  );
+
+  // Fetch a remote `mediaUrl=` intent through the backend (SSRF-guarded fetch +
+  // Oxy upload) and attach the resulting file. Fire-and-forget: a failure toasts
+  // but never blocks the rest of the composer.
+  const applyMediaUrl = useCallback(
+    async (mediaUrl: string) => {
+      try {
+        const { data } = await api.post<{ fileId: string; contentType: string }>(
+          '/posts/intent-media',
+          { url: mediaUrl },
+        );
+        if (data?.fileId) {
+          attachMediaById(data.fileId, data.contentType || 'image/*');
+        }
+      } catch (e: unknown) {
+        logger.warn('Failed to attach shared media URL', { error: e });
+        toast(
+          t('compose.mediaUrlFailed', { defaultValue: "Couldn't attach the shared media" }),
+          { type: 'error' },
+        );
+      }
+    },
+    [attachMediaById, t],
+  );
 
   // Apply the parsed intent to the composer managers on first mount.
   // Skipped when an existing draft exists — the user is then prompted to pick
@@ -569,10 +621,48 @@ const ComposeScreen = () => {
       setQuoteId(intent.quotePostId);
     }
 
+    // Thread prefill: build follow-up items directly (unique ids so a
+    // same-millisecond `addThread` loop can't collide) and load them at once.
+    if (intent.thread && intent.thread.length > 0) {
+      const stamp = Date.now();
+      const items: ThreadItem[] = intent.thread.map((text, index) => ({
+        id: `thread-intent-${stamp}-${index}`,
+        text,
+        mediaIds: [],
+        pollOptions: [],
+        pollTitle: '',
+        showPollCreator: false,
+        location: null,
+        mentions: [],
+        sources: [],
+        article: null,
+        event: null,
+        room: null,
+        attachmentOrder: [],
+        replyPermission: ['anyone'],
+        reviewReplies: false,
+        quotesDisabled: false,
+        isSensitive: false,
+      }));
+      loadThreadsFromDraft(items);
+    }
+
+    // Attach native share-sheet media (already uploaded) and fetch any remote
+    // `mediaUrl=` through the backend. Both funnel into the shared media list.
+    for (const media of pendingShareMediaRef.current ?? []) {
+      attachMediaById(media.id, media.contentType);
+    }
+    if (intent.mediaUrl) {
+      void applyMediaUrl(intent.mediaUrl);
+    }
+
     intentAppliedRef.current = true;
   }, [
     generateSourceId,
     setQuoteId,
+    loadThreadsFromDraft,
+    attachMediaById,
+    applyMediaUrl,
   ]);
 
   const discardIntent = useCallback(() => {
@@ -595,7 +685,7 @@ const ComposeScreen = () => {
       intentAppliedRef.current = true;
       return;
     }
-    if (!hasIntentContent(initialIntent)) {
+    if (!hasIntentContent(initialIntent) && !hasPendingShareMedia) {
       intentAppliedRef.current = true;
       return;
     }
@@ -734,6 +824,7 @@ const ComposeScreen = () => {
         scheduledAt: scheduledAtRef.current,
         isSensitive,
         quotedPostId: quotedPost?.id,
+        collaboratorIds: collaborators.length > 0 ? collaborators.map((c) => c.id) : undefined,
       });
       allPosts.push(mainPost);
 
@@ -1521,6 +1612,10 @@ const ComposeScreen = () => {
                       autoFocus
                     />
                   </PostHeader>
+
+                  {!replyToPostId && !isEditMode && threadItems.length === 0 && (
+                    <CollaboratorPicker selected={collaborators} onChange={setCollaborators} />
+                  )}
 
                   {/* Attachments row (poll + article + media + link) */}
                   {attachmentOrder.length > 0 ? (
@@ -2857,5 +2952,56 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
 });
+
+/**
+ * Session gate for the composer. Creating a post requires a usable private
+ * session, so mount the (hook-heavy) composer body only once auth has resolved
+ * and a private bearer is available — otherwise show a spinner during the SSO
+ * cold boot, or an `OxyAuthPrompt` for a signed-out viewer. Mirrors the
+ * settings-screen pattern (settings/fediverse.tsx) and prevents the composer
+ * from running its submit path with no session.
+ */
+const ComposeScreen = () => {
+  const { t } = useTranslation();
+  const safeBack = useSafeBack();
+  const { isAuthResolved, canUsePrivateApi, isPrivateApiPending } = useAuth();
+
+  if (!isAuthResolved || isPrivateApiPending) {
+    return (
+      <SafeAreaView className="flex-1 bg-background" edges={['top']}>
+        <ThemedView className="flex-1 items-center justify-center">
+          <Loading />
+        </ThemedView>
+      </SafeAreaView>
+    );
+  }
+
+  if (!canUsePrivateApi) {
+    return (
+      <SafeAreaView className="flex-1 bg-background" edges={['top']}>
+        <ThemedView className="flex-1">
+          <Header
+            options={{
+              title: t('New post'),
+              leftComponents: [
+                <IconButton variant="icon" key="back" onPress={() => safeBack()}>
+                  <BackArrowIcon size={20} className="text-foreground" />
+                </IconButton>,
+              ],
+            }}
+            hideBottomBorder
+            disableSticky
+          />
+          <OxyAuthPrompt
+            label={t('compose.signInRequired', { defaultValue: 'Sign in to post' })}
+            description={t('compose.signInRequiredDesc', { defaultValue: 'You need to be signed in to write and publish a post.' })}
+          />
+        </ThemedView>
+      </SafeAreaView>
+    );
+  }
+
+  return <ComposeScreenBody />;
+};
 
 export default ComposeScreen;

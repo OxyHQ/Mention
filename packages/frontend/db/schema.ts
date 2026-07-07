@@ -215,6 +215,7 @@ export function rowToFeedItem(row: PostRow): FeedItem {
 
   const viewerState: PostViewerState = {
     isOwner: Boolean(row.is_owner),
+    isCollaborator: false,
     isLiked: Boolean(row.is_liked),
     isDownvoted: Boolean(row.is_downvoted),
     isBoosted: Boolean(row.is_boosted),
@@ -240,6 +241,18 @@ export function rowToFeedItem(row: PostRow): FeedItem {
     if (raw?.quoted) quoted = raw.quoted;
   }
 
+  const authorsFromRaw = row.raw_json
+    ? safeJsonParse<any>(row.raw_json, null)?.authors
+    : undefined;
+  const authors = Array.isArray(authorsFromRaw) && authorsFromRaw.length > 0
+    ? authorsFromRaw
+    : [{
+        ...user,
+        id: user.id || row.user_id,
+        role: 'owner' as const,
+        status: 'accepted' as const,
+      }];
+
   const feedItem: FeedItem = {
     id: row.id,
     content,
@@ -252,6 +265,7 @@ export function rowToFeedItem(row: PostRow): FeedItem {
       isVerified: user.isVerified,
       id: user.id || row.user_id,
     },
+    authors,
     engagement,
     viewerState,
     permissions,

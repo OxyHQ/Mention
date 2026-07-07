@@ -6,9 +6,12 @@ import { LiveAvatar } from '@/components/ui/LiveAvatar';
 import UserName from '../UserName';
 import { ProfileHoverCard } from '../ProfileHoverCard';
 import { useTheme } from '@oxyhq/bloom/theme';
-import { FediverseBadge } from '@/components/Fediverse/FediverseBadge';
+import { useTranslation } from 'react-i18next';
+import { RemoteActorBadge } from '@/components/Fediverse/FediverseBadge';
 import { BoostIcon } from '@/assets/icons/boost-icon';
 import { formatTimeAgo } from '@/utils/dateUtils';
+import type { HydratedAuthor } from '@mention/shared-types';
+import { displayNameOrHandle } from '@/utils/displayName';
 
 // Inline indicator icons (boost/reply) are subtler than the action-bar glyphs.
 const INDICATOR_ICON_SIZE = 14;
@@ -48,6 +51,8 @@ interface User {
 
 interface PostHeaderProps {
   user: User;
+  /** Owner + accepted collaborators for collab posts. Falls back to `user` when omitted. */
+  authors?: HydratedAuthor[];
   date?: string;
   showBoost?: boolean;
   showReply?: boolean;
@@ -88,10 +93,23 @@ interface PostHeaderProps {
   onPressUser?: () => void;
   onPressAvatar?: () => void;
   onPressMenu?: () => void;
+  onPressAuthor?: (handle: string) => void;
+}
+
+function formatCollabAuthorLine(authors: HydratedAuthor[], t: (key: string, opts?: Record<string, unknown>) => string): string {
+  const names = authors.map((a) => displayNameOrHandle(a.displayName, a.handle ? `@${a.handle}` : ''));
+  if (names.length <= 1) return names[0] ?? '';
+  if (names.length === 2) {
+    return t('collab.twoAuthors', { defaultValue: '{{a}} and {{b}}', a: names[0], b: names[1] });
+  }
+  const last = names[names.length - 1];
+  const rest = names.slice(0, -1).join(', ');
+  return t('collab.manyAuthors', { defaultValue: '{{rest}} and {{last}}', rest, last });
 }
 
 const PostHeader: React.FC<PostHeaderProps> = ({
   user,
+  authors,
   date,
   showBoost,
   showReply,
@@ -106,11 +124,19 @@ const PostHeader: React.FC<PostHeaderProps> = ({
   onPressUser,
   onPressAvatar,
   onPressMenu,
+  onPressAuthor,
 }) => {
   const theme = useTheme();
+  const { t } = useTranslation();
 
   const timeLabel = useMemo(() => formatTimeAgo(date || ''), [date]);
-  const hasDisplayName = !!user.displayName?.trim();
+  const headerAuthors = authors && authors.length > 0 ? authors : [{ ...user, role: 'owner' as const, status: 'accepted' as const, id: '' }];
+  const isCollabHeader = headerAuthors.length > 1;
+  const collabLine = useMemo(
+    () => (isCollabHeader ? formatCollabAuthorLine(headerAuthors, t) : ''),
+    [headerAuthors, isCollabHeader, t],
+  );
+  const hasDisplayName = !isCollabHeader && !!user.displayName?.trim();
 
   // `contextTop` rows are the first children of the flex-1 content column, so the
   // name row is pushed down by each fixed-height context row plus the column gap.
@@ -142,25 +168,38 @@ const PostHeader: React.FC<PostHeaderProps> = ({
                 With NO display name the @handle becomes the bold primary (rendered
                 ONCE here \u2014 the trailing muted handle is suppressed), never blank. */}
             <View className="flex-row items-end flex-shrink" style={{ minWidth: 0 }}>
-              <UserName
-                name={hasDisplayName ? user.displayName : (user.handle ? `@${user.handle}` : undefined)}
-                verified={user.verified}
-                onPress={onPressUser}
-                style={{ container: { flexShrink: 0 } }}
-              />
-              {hasDisplayName && user.handle ? (
+              {isCollabHeader ? (
                 <Text
-                  className="text-muted-foreground text-[15px] leading-tight"
-                  style={{ flexShrink: 10, minWidth: 0 }}
-                  numberOfLines={1}
-                  ellipsizeMode="tail"
+                  className="text-foreground text-[15px] font-semibold leading-tight"
+                  style={{ flexShrink: 1, minWidth: 0 }}
+                  numberOfLines={2}
+                  onPress={onPressUser}
                 >
-                  {`\u00A0@${user.handle}`}
+                  {collabLine}
                 </Text>
-              ) : null}
-              {user.isFederated ? (
-                <FediverseBadge size={13} className="text-muted-foreground" containerClassName="self-center ml-1" />
-              ) : null}
+              ) : (
+                <>
+                  <UserName
+                    name={hasDisplayName ? user.displayName : (user.handle ? `@${user.handle}` : undefined)}
+                    verified={user.verified}
+                    onPress={onPressUser}
+                    style={{ container: { flexShrink: 0 } }}
+                  />
+                  {hasDisplayName && user.handle ? (
+                    <Text
+                      className="text-muted-foreground text-[15px] leading-tight"
+                      style={{ flexShrink: 10, minWidth: 0 }}
+                      numberOfLines={1}
+                      ellipsizeMode="tail"
+                    >
+                      {`\u00A0@${user.handle}`}
+                    </Text>
+                  ) : null}
+                  {user.isFederated ? (
+                    <RemoteActorBadge size={13} className="text-muted-foreground" containerClassName="self-center ml-1" />
+                  ) : null}
+                </>
+              )}
             </View>
             {!!timeLabel && (
               <Text

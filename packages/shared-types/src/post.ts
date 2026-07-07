@@ -347,10 +347,25 @@ export interface PostClassification {
   classifiedAt?: Date;
 }
 
+export type PostAuthorRole = 'owner' | 'collaborator';
+export type PostAuthorStatus = 'accepted' | 'pending' | 'declined' | 'stopped';
+
+export interface PostAuthorshipEntry {
+  oxyUserId: string;
+  role: PostAuthorRole;
+  status: PostAuthorStatus;
+  invitedAt?: string;
+  respondedAt?: string;
+}
+
+export const MAX_POST_COLLABORATORS = 5;
+
 export interface Post {
   id: string;
   _id?: string;
-  oxyUserId: string; // Links to Oxy user
+  oxyUserId: string; // Links to Oxy user (denormalized owner cache)
+  /** Canonical multi-author list. Always includes exactly one owner with status accepted. */
+  authorship?: PostAuthorshipEntry[];
   type: PostType;
   content: PostContent;
   visibility: PostVisibility;
@@ -429,6 +444,8 @@ export interface CreatePostMetadata {
 export interface CreatePostRequest {
   content: PostContentInput;
   visibility?: PostVisibility;
+  /** Up to {@link MAX_POST_COLLABORATORS} local users to invite as co-authors. */
+  collaboratorIds?: string[];
   parentPostId?: string;
   threadId?: string;
   /**
@@ -515,8 +532,16 @@ export interface PostActorSummary {
   profileUrl?: string;
 }
 
+export interface HydratedAuthor extends PostActorSummary {
+  role: PostAuthorRole;
+  status: PostAuthorStatus;
+}
+
 export interface PostViewerState {
   isOwner: boolean;
+  isCollaborator: boolean;
+  collabInvitePending?: boolean;
+  viewerRole?: PostAuthorRole;
   isLiked: boolean;
   isDownvoted: boolean;
   isBoosted: boolean;
@@ -529,6 +554,8 @@ export interface PostPermissions {
   canPin: boolean;
   canViewSources: boolean;
   canEdit?: boolean;
+  canStopSharing?: boolean;
+  canViewInsights?: boolean;
 }
 
 export interface PostEngagementSummary {
@@ -602,7 +629,12 @@ export interface HydratedPostSummary {
   content: PostContent;
   attachments: PostAttachmentBundle;
   linkPreview?: PostLinkPreview | null;
+  /** Primary author (owner) — backward-compatible single-author field. */
   user: PostActorSummary;
+  /** Owner + accepted collaborators for multi-author header rendering. */
+  authors: HydratedAuthor[];
+  /** Full authorship state when the viewer is a participant. */
+  authorship?: PostAuthorshipEntry[];
   engagement: PostEngagementSummary;
   viewerState: PostViewerState;
   permissions: PostPermissions;

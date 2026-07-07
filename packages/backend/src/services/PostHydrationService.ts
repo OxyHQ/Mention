@@ -1,4 +1,4 @@
-import { FeedPostSlice, FeedSliceItem, HydratedPost, HydratedPostSummary, HydratedBoostContext, PostActorSummary, PostAttachmentBundle, PostEngagementSummary, PostLinkPreview, PostPermissions, PostViewerState, PostVisibility } from '@mention/shared-types';
+import { FeedPostSlice, FeedSliceItem, HydratedPost, HydratedPostSummary, HydratedBoostContext, HydratedAuthor, PostActorSummary, PostAttachmentBundle, PostEngagementSummary, PostLinkPreview, PostPermissions, PostViewerState, PostVisibility, PostAuthorshipEntry } from '@mention/shared-types';
 import mongoose from 'mongoose';
 import { Post } from '../models/Post';
 import Poll from '../models/Poll';
@@ -15,6 +15,12 @@ import type { User as OxyUser } from '@oxyhq/core';
 import type { LinkPreview } from '@oxyhq/contracts';
 import { assignThreadState } from './ThreadSlicingService';
 import { mget as mgetUserSummaries, mset as msetUserSummaries, CachedUserSummary } from './userSummaryCache';
+import {
+  collectAuthorshipUserIds,
+  getHeaderAuthorshipEntries,
+  getViewerEntry,
+  normalizeAuthorship,
+} from '../utils/postAuthorship';
 
 import { PostContent, PostMetadata } from '@mention/shared-types';
 
@@ -26,6 +32,7 @@ interface RawPost {
   _id?: unknown;
   id?: string;
   oxyUserId?: string;
+  authorship?: PostAuthorshipEntry[];
   content?: Partial<PostContent>;
   metadata?: Partial<PostMetadata>;
   /**
@@ -891,8 +898,8 @@ export class PostHydrationService {
     const localUserIds = new Set<string>();
 
     for (const { post } of nodes) {
-      if (post?.oxyUserId) {
-        localUserIds.add(String(post.oxyUserId));
+      for (const userId of collectAuthorshipUserIds(post?.authorship, post?.oxyUserId ? String(post.oxyUserId) : undefined)) {
+        localUserIds.add(userId);
       }
     }
 
@@ -1219,7 +1226,8 @@ export class PostHydrationService {
     // references fetched by id, so enforce post-level ACL here instead of relying
     // on callers to pre-filter every referenced post.
     if (!isFederatedPost) {
-      const viewerOwnsPost = viewerContext.viewerId === authorId;
+      const viewerEntry = getViewerEntry(authorship, viewerContext.viewerId);
+      const viewerOwnsPost = viewerContext.viewerId === authorId || viewerEntry?.role === 'collaborator' && viewerEntry.status === 'accepted';
 
       if ((post.status ?? 'published') !== 'published' && !viewerOwnsPost) {
         return null;
@@ -1253,12 +1261,22 @@ export class PostHydrationService {
     // (a real user or the degraded fallback), so this default is defensive — but
     // it must STILL never emit the raw id as a handle if ever reached.
     const user = userMap.get(authorId) ?? degradedActorSummary(authorId);
+    const authorship = normalizeAuthorship(post.authorship as PostAuthorshipEntry[] | undefined, authorId);
+    const headerEntries = getHeaderAuthorshipEntries(authorship);
+    const authors: HydratedAuthor[] = headerEntries.map((entry) => {
+      const summary = userMap.get(entry.oxyUserId) ?? degradedActorSummary(entry.oxyUserId);
+      return {
+        ...summary,
+        role: entry.role,
+        status: entry.status,
+      };
+    });
 
     const content = this.buildContent(post, pollMap, params.viewerContext);
     const attachments = this.buildAttachments(post, pollMap);
     const linkPreview = linkPreviewMap.get(postId) ?? null;
-    const viewerState = this.buildViewerState(postId, authorId, viewerContext);
-    const permissions = this.buildPermissions(post, authorId, viewerContext);
+    const viewerState = this.buildViewerState(postId, authorId, viewerContext, authorship);
+    const permissions = this.buildPermissions(post, authorId, viewerContext, authorship);
     const authorPrivacy = authorPrivacyMap.get(authorId) ?? { ...DEFAULT_PRIVACY };
     const replierAvatars = recentReplierMap?.get(postId);
     const engagement = this.buildEngagement(post, authorPrivacy, replierAvatars);
@@ -1300,12 +1318,17 @@ export class PostHydrationService {
       content.text = finalText;
     }
 
+    const viewerEntry = getViewerEntry(authorship, viewerContext.viewerId);
+    const includeAuthorship = viewerEntry != null;
+
     return {
       id: postId,
       content: content ?? { text: finalText },
       attachments,
       linkPreview,
       user,
+      authors,
+      ...(includeAuthorship ? { authorship } : {}),
       engagement,
       viewerState,
       permissions,
@@ -1454,11 +1477,21 @@ export class PostHydrationService {
     return attachments;
   }
 
-  private buildViewerState(postId: string, authorId: string, viewerContext: ViewerContext): PostViewerState {
-    const isOwner = viewerContext.viewerId === authorId;
+  private buildViewerState(
+    postId: string,
+    authorId: string,
+    viewerContext: ViewerContext,
+    authorship: PostAuthorshipEntry[],
+  ): PostViewerState {
+    const viewerEntry = getViewerEntry(authorship, viewerContext.viewerId);
+    const isOwner = viewerEntry?.role === 'owner';
+    const isCollaborator = viewerEntry?.role === 'collaborator' && viewerEntry.status === 'accepted';
 
     return {
       isOwner,
+      isCollaborator,
+      collabInvitePending: viewerEntry?.role === 'collaborator' && viewerEntry.status === 'pending',
+      viewerRole: viewerEntry?.role,
       isLiked: viewerContext.likedPosts.has(postId),
       isDownvoted: viewerContext.downvotedPosts.has(postId),
       isBoosted: viewerContext.boostedPosts.has(postId),
@@ -1466,8 +1499,15 @@ export class PostHydrationService {
     };
   }
 
-  private buildPermissions(post: RawPost, authorId: string, viewerContext: ViewerContext): PostPermissions {
-    const isOwner = viewerContext.viewerId === authorId;
+  private buildPermissions(
+    post: RawPost,
+    authorId: string,
+    viewerContext: ViewerContext,
+    authorship: PostAuthorshipEntry[],
+  ): PostPermissions {
+    const viewerEntry = getViewerEntry(authorship, viewerContext.viewerId);
+    const isOwner = viewerEntry?.role === 'owner';
+    const isAcceptedCollaborator = viewerEntry?.role === 'collaborator' && viewerEntry.status === 'accepted';
     const canReply = this.computeReplyPermission(post, authorId, viewerContext);
 
     return {
@@ -1476,6 +1516,8 @@ export class PostHydrationService {
       canPin: isOwner,
       canViewSources: Boolean(post?.content?.sources?.length),
       canEdit: isOwner,
+      canStopSharing: isAcceptedCollaborator,
+      canViewInsights: isOwner || isAcceptedCollaborator,
     };
   }
 

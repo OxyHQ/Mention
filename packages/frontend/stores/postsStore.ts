@@ -99,6 +99,9 @@ const transformToUIItem = (raw: HydratedPost | HydratedPostSummary | any, option
 
   const viewerState = {
     isOwner: raw?.viewerState?.isOwner ?? false,
+    isCollaborator: raw?.viewerState?.isCollaborator ?? false,
+    collabInvitePending: raw?.viewerState?.collabInvitePending,
+    viewerRole: raw?.viewerState?.viewerRole,
     isLiked: raw?.viewerState?.isLiked ?? raw?.isLiked ?? false,
     isDownvoted: raw?.viewerState?.isDownvoted ?? raw?.isDownvoted ?? false,
     isBoosted: raw?.viewerState?.isBoosted ?? raw?.isBoosted ?? false,
@@ -134,6 +137,15 @@ const transformToUIItem = (raw: HydratedPost | HydratedPostSummary | any, option
   };
 
   const user = raw?.user ?? {};
+  const authors = Array.isArray(raw?.authors) && raw.authors.length > 0
+    ? raw.authors
+    : [{
+        ...user,
+        id: user.id || '',
+        handle: user.handle || '',
+        role: 'owner' as const,
+        status: 'accepted' as const,
+      }];
 
   const metadata = {
     ...raw?.metadata,
@@ -163,6 +175,7 @@ const transformToUIItem = (raw: HydratedPost | HydratedPostSummary | any, option
       isVerified: user.isVerified,
       id: user.id || '',
     },
+    authors,
     date: metadata.createdAt,
     isLiked: viewerState.isLiked,
     isDownvoted: viewerState.isDownvoted,

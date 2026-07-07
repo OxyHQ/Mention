@@ -9,7 +9,10 @@ export type NotificationType =
   | 'quote'
   | 'welcome'
   | 'post'
-  | 'poke';
+  | 'poke'
+  | 'collab_invite'
+  | 'collab_accepted'
+  | 'collab_declined';
 
 export type NotificationEntityType = 'post' | 'reply' | 'profile';
 
@@ -41,7 +44,7 @@ const NotificationSchema = new Schema({
   type: { 
     type: String, 
     required: true,
-  enum: ['like', 'reply', 'mention', 'follow', 'boost', 'quote', 'welcome', 'post', 'poke']
+  enum: ['like', 'reply', 'mention', 'follow', 'boost', 'quote', 'welcome', 'post', 'poke', 'collab_invite', 'collab_accepted', 'collab_declined']
   },
   entityId: { type: Schema.Types.ObjectId, required: true },
   entityType: { 

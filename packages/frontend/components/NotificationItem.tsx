@@ -24,6 +24,11 @@ import { cn } from '@/lib/utils';
 import { logger } from '@/lib/logger';
 import { formatRelativeTimeLocalized } from '@/utils/dateUtils';
 import { displayNameOrHandle } from '@/utils/displayName';
+import { BottomSheetContext } from '@/context/BottomSheetContext';
+import CollabAcceptSheet from '@/components/Compose/CollabAcceptSheet';
+import { feedService } from '@/services/feedService';
+import { show as toast } from '@oxyhq/bloom/toast';
+import { Button } from '@oxyhq/bloom/button';
 
 type NotificationPost = React.ComponentProps<typeof PostItem>['post'];
 
@@ -50,6 +55,15 @@ function normalizeEmbeddedPost(embedded: TEmbeddedPost): NotificationPost {
             avatarUrl: embedded.user.avatarUrl,
             isVerified: embedded.user.verified,
         },
+        authors: [{
+            id: embedded.user.id ?? '',
+            handle: embedded.user.handle ?? '',
+            displayName: embedded.user.displayName,
+            avatarUrl: embedded.user.avatarUrl,
+            isVerified: embedded.user.verified,
+            role: 'owner' as const,
+            status: 'accepted' as const,
+        }],
         engagement: {
             likes: engagement?.likes ?? null,
             downvotes: null,
@@ -58,6 +72,7 @@ function normalizeEmbeddedPost(embedded: TEmbeddedPost): NotificationPost {
         },
         viewerState: {
             isOwner: false,
+            isCollaborator: false,
             isLiked: Boolean(embedded.isLiked),
             isDownvoted: false,
             isBoosted: Boolean(embedded.isBoosted),
@@ -234,6 +249,12 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({
                 return t('notification.post', { actorName: display, defaultValue: `${display} posted a new update` });
             case 'poke':
                 return t('notification.poke', { actorName: display });
+            case 'collab_invite':
+                return t('collab.notificationInvite', { actorName: display, defaultValue: '{{actorName}} invited you to collaborate on a post' });
+            case 'collab_accepted':
+                return t('collab.notificationAccepted', { actorName: display, defaultValue: '{{actorName}} accepted your collaboration invite' });
+            case 'collab_declined':
+                return t('collab.notificationDeclined', { actorName: display, defaultValue: '{{actorName}} declined your collaboration invite' });
             case 'welcome':
                 return t('notification.welcome.title');
             default:
@@ -259,6 +280,10 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({
                 return 'create';
             case 'poke':
                 return 'hand-left';
+            case 'collab_invite':
+            case 'collab_accepted':
+            case 'collab_declined':
+                return 'people';
             case 'welcome':
                 return 'notifications';
             default:
@@ -327,6 +352,15 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({
         />;
     }
 
+    if (notification.type === 'collab_invite') {
+        return <CollabInviteNotificationItem
+            notification={notification}
+            actorName={actorName}
+            actorAvatar={actorAvatar}
+            onMarkAsRead={onMarkAsRead}
+        />;
+    }
+
     return (
         <PressableScale
             className={cn("border-border", !notification.read && "bg-primary/5")}
@@ -369,6 +403,109 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({
 // one notification (or a list re-render) doesn't re-render every row — effective
 // because the parent passes a stable `notification` and a memoized `onMarkAsRead`.
 export const NotificationItem = React.memo(NotificationItemComponent);
+
+const CollabInviteNotificationItem: React.FC<{
+    notification: RawNotification;
+    actorName: string;
+    actorAvatar?: string;
+    onMarkAsRead: (id: string) => void;
+}> = ({ notification, actorName, actorAvatar, onMarkAsRead }) => {
+    const { t } = useTranslation();
+    const bottomSheet = React.useContext(BottomSheetContext);
+    const { getPostById } = usePostsStore();
+    const updatePostEverywhere = usePostsStore((s) => s.updatePostEverywhere);
+    const [post, setPost] = useState<NotificationPost | null>(null);
+    const [loading, setLoading] = useState(true);
+    const [actionLoading, setActionLoading] = useState(false);
+    const postId = String(notification.entityId ?? '');
+
+    useEffect(() => {
+        const load = async () => {
+            try {
+                const data = await getPostById(postId);
+                setPost(data as NotificationPost | null);
+            } catch {
+                logger.error('Failed to load collab invite post');
+            } finally {
+                setLoading(false);
+            }
+        };
+        if (postId) void load();
+    }, [getPostById, postId]);
+
+    const inviter = useMemo(() => ({
+        id: notification.actorId_populated?.id || notification.actorId_populated?._id || '',
+        handle: notification.actorId_populated?.username || '',
+        displayName: notification.actorId_populated?.name?.displayName || actorName,
+        avatarUrl: actorAvatar,
+    }), [notification.actorId_populated, actorName, actorAvatar]);
+
+    const runAccept = useCallback(async () => {
+        if (!postId) return;
+        setActionLoading(true);
+        try {
+            const result = await feedService.acceptCollabInvite(postId);
+            if (result.post) updatePostEverywhere(postId, () => result.post as NotificationPost);
+            onMarkAsRead(notification._id);
+            bottomSheet.openBottomSheet(false);
+            toast(t('collab.acceptedToast', { defaultValue: "You're now a collaborator on this post" }), { type: 'success' });
+        } catch {
+            toast(t('collab.acceptFailed', { defaultValue: 'Failed to accept invite' }), { type: 'error' });
+        } finally {
+            setActionLoading(false);
+        }
+    }, [postId, notification._id, onMarkAsRead, bottomSheet, t, updatePostEverywhere]);
+
+    const runDecline = useCallback(async () => {
+        if (!postId) return;
+        setActionLoading(true);
+        try {
+            await feedService.declineCollabInvite(postId);
+            onMarkAsRead(notification._id);
+            bottomSheet.openBottomSheet(false);
+        } catch {
+            toast(t('collab.declineFailed', { defaultValue: 'Failed to decline invite' }), { type: 'error' });
+        } finally {
+            setActionLoading(false);
+        }
+    }, [postId, notification._id, onMarkAsRead, bottomSheet, t]);
+
+    const openAcceptSheet = useCallback(() => {
+        bottomSheet.setBottomSheetContent(
+            <CollabAcceptSheet
+                inviter={inviter}
+                loading={actionLoading}
+                onAccept={runAccept}
+                onDecline={runDecline}
+                onClose={() => bottomSheet.openBottomSheet(false)}
+            />,
+        );
+        bottomSheet.openBottomSheet(true);
+    }, [bottomSheet, inviter, actionLoading, runAccept, runDecline]);
+
+    return (
+        <View className={cn('border-border px-4 py-3 gap-3', !notification.read && 'bg-primary/5')} style={styles.postNotificationContainer}>
+            <ThemedText className="text-foreground text-[15px]">
+                {t('collab.notificationInvite', { actorName, defaultValue: '{{actorName}} invited you to collaborate on a post' })}
+            </ThemedText>
+            {loading ? (
+                <ThemedText className="text-muted-foreground text-sm">{t('common.loading', { defaultValue: 'Loading...' })}</ThemedText>
+            ) : post ? (
+                <View className="bg-surface rounded-xl overflow-hidden">
+                    <PostItem post={post} isNested={false} style={styles.nestedPost} />
+                </View>
+            ) : null}
+            <View className="flex-row gap-2">
+                <Button className="flex-1" onPress={openAcceptSheet} disabled={actionLoading}>
+                    {t('collab.accept', { defaultValue: 'Accept' })}
+                </Button>
+                <Button variant="secondary" className="flex-1" onPress={runDecline} disabled={actionLoading}>
+                    {t('collab.decline', { defaultValue: 'Decline' })}
+                </Button>
+            </View>
+        </View>
+    );
+};
 
 // Component for post notifications using PostItem
 const PostNotificationItem: React.FC<{

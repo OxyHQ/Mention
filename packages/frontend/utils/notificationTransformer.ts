@@ -145,6 +145,27 @@ export const transformNotification = (
         message: rawNotification.preview || getEntityDescription(rawNotification, t),
       };
 
+    case 'collab_invite':
+      return {
+        ...baseNotification,
+        title: t('collab.notificationInvite', { actorName, defaultValue: '{{actorName}} invited you to collaborate on a post' }),
+        message: getEntityDescription(rawNotification, t),
+      };
+
+    case 'collab_accepted':
+      return {
+        ...baseNotification,
+        title: t('collab.notificationAccepted', { actorName, defaultValue: '{{actorName}} accepted your collaboration invite' }),
+        message: getEntityDescription(rawNotification, t),
+      };
+
+    case 'collab_declined':
+      return {
+        ...baseNotification,
+        title: t('collab.notificationDeclined', { actorName, defaultValue: '{{actorName}} declined your collaboration invite' }),
+        message: getEntityDescription(rawNotification, t),
+      };
+
     default:
       return {
         ...baseNotification,

@@ -11,6 +11,7 @@
 import mongoose from 'mongoose';
 import { PostVisibility } from '@mention/shared-types';
 import { Post } from '../../../../models/Post';
+import { buildFollowedAuthorsMatch } from '../../../../utils/postAuthorship';
 import { FEED_FIELDS } from '../../FeedAPI';
 import { ChronoCursor } from '../../CursorBuilder';
 import { logger } from '../../../../utils/logger';
@@ -47,7 +48,7 @@ export function buildFollowingVisibilityMatch(
 
   if (publicOnlyListIds.length === 0) {
     return {
-      oxyUserId: { $in: followAuthorizedIds },
+      ...buildFollowedAuthorsMatch(followAuthorizedIds),
       visibility: { $in: [PostVisibility.PUBLIC, PostVisibility.FOLLOWERS_ONLY] },
     };
   }
@@ -57,7 +58,7 @@ export function buildFollowingVisibilityMatch(
       {
         $or: [
           {
-            oxyUserId: { $in: followAuthorizedIds },
+            ...buildFollowedAuthorsMatch(followAuthorizedIds),
             visibility: { $in: [PostVisibility.PUBLIC, PostVisibility.FOLLOWERS_ONLY] },
           },
           {

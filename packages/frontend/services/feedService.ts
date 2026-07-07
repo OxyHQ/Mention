@@ -349,6 +349,7 @@ class FeedService {
       // `content` or `metadata`. Keep it out of the payload when empty so
       // we don't accidentally turn a regular post into an empty-quote.
       ...(request.quotedPostId && { quoted_post_id: request.quotedPostId }),
+      ...(request.collaboratorIds && request.collaboratorIds.length > 0 && { collaboratorIds: request.collaboratorIds }),
     };
 
     const response = await authenticatedClient.post<{ success?: boolean; post?: HydratedPost }>('/posts', backendRequest);
@@ -552,6 +553,25 @@ class FeedService {
   async deletePost(postId: string): Promise<{ success: boolean }> {
     await authenticatedClient.delete(`/posts/${postId}`);
     return { success: true };
+  }
+
+  async acceptCollabInvite(postId: string): Promise<{ success: boolean; post: HydratedPost | null }> {
+    const response = await authenticatedClient.post<{ success?: boolean; post?: HydratedPost }>(
+      `/posts/${postId}/collaborators/accept`,
+    );
+    return { success: true, post: response?.data?.post ?? null };
+  }
+
+  async declineCollabInvite(postId: string): Promise<{ success: boolean }> {
+    await authenticatedClient.post(`/posts/${postId}/collaborators/decline`);
+    return { success: true };
+  }
+
+  async stopCollabSharing(postId: string): Promise<{ success: boolean; post: HydratedPost | null }> {
+    const response = await authenticatedClient.post<{ success?: boolean; post?: HydratedPost }>(
+      `/posts/${postId}/collaborators/stop-sharing`,
+    );
+    return { success: true, post: response?.data?.post ?? null };
   }
 
   /**

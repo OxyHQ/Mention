@@ -6,7 +6,7 @@ import Like from '../models/Like';
 import Bookmark from '../models/Bookmark';
 import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
 import mongoose from 'mongoose';
-import { createNotification, createMentionNotifications, createBatchNotifications } from '../utils/notificationUtils';
+import { createNotification, createMentionNotifications, createBatchNotifications, createPostAuthorNotifications } from '../utils/notificationUtils';
 import PostSubscription from '../models/PostSubscription';
 import { PostVisibility, PostAttachmentDescriptor, PostAttachmentType, PostContent, PostActorSummary } from '@mention/shared-types';
 import { userPreferenceService, readInteractionSurface } from '../services/UserPreferenceService';
@@ -30,6 +30,7 @@ import {
   bookmarkRecordUri,
   postRecordUri,
 } from '../services/mtn/MentionRecordEmitter';
+import { postCollaborationService, CollabValidationError, CollabStateError } from '../services/PostCollaborationService';
 
 // Constants from centralized config
 const MAX_SOURCES = config.posts.maxSources;
@@ -441,7 +442,7 @@ export const createPost = async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ message: 'Unauthorized' });
     }
 
-    const { content, hashtags, mentions, quoted_post_id, boost_of, in_reply_to_status_id, parentPostId, threadId, contentLocation, postLocation, replyPermission, reviewReplies, quotesDisabled, status: incomingStatus, scheduledFor } = req.body;
+    const { content, hashtags, mentions, quoted_post_id, boost_of, in_reply_to_status_id, parentPostId, threadId, contentLocation, postLocation, replyPermission, reviewReplies, quotesDisabled, status: incomingStatus, scheduledFor, collaboratorIds } = req.body;
 
     // Support both new content structure and legacy text/media structure
     const text = content?.text || req.body.text;
@@ -714,6 +715,7 @@ export const createPost = async (req: AuthRequest, res: Response) => {
       location: processedPostLocation,
       hashtags: uniqueTags,
       mentions: mentions || [],
+      collaboratorIds: Array.isArray(collaboratorIds) ? collaboratorIds : undefined,
       quoteOf: quoted_post_id || null,
       boostOf: boost_of || null,
       parentPostId: parentPostId || in_reply_to_status_id || null,
@@ -783,8 +785,72 @@ export const createPost = async (req: AuthRequest, res: Response) => {
 
     res.status(201).json({ success: true, post: hydratedPost });
   } catch (error) {
+    if (error instanceof CollabValidationError) {
+      return res.status(400).json({ message: error.message });
+    }
     logger.error('Error creating post', error);
     res.status(500).json({ message: 'Error creating post' });
+  }
+};
+
+// Accept a collaboration invite
+export const acceptCollabInvite = async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ message: 'Unauthorized' });
+
+    const post = await postCollaborationService.accept(String(req.params.id), userId);
+    const [hydratedPost] = await postHydrationService.hydratePosts([post.toObject()], {
+      viewerId: userId,
+      oxyClient: createScopedOxyClient(req),
+      maxDepth: 1,
+      includeLinkMetadata: true,
+    });
+    return res.status(200).json({ success: true, post: hydratedPost ?? null });
+  } catch (error) {
+    if (error instanceof CollabStateError) {
+      return res.status(400).json({ message: error.message });
+    }
+    logger.error('Error accepting collab invite', error);
+    return res.status(500).json({ message: 'Error accepting collaboration invite' });
+  }
+};
+
+export const declineCollabInvite = async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ message: 'Unauthorized' });
+
+    await postCollaborationService.decline(String(req.params.id), userId);
+    return res.status(200).json({ success: true });
+  } catch (error) {
+    if (error instanceof CollabStateError) {
+      return res.status(400).json({ message: error.message });
+    }
+    logger.error('Error declining collab invite', error);
+    return res.status(500).json({ message: 'Error declining collaboration invite' });
+  }
+};
+
+export const stopCollabSharing = async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ message: 'Unauthorized' });
+
+    const post = await postCollaborationService.stopSharing(String(req.params.id), userId);
+    const [hydratedPost] = await postHydrationService.hydratePosts([post.toObject()], {
+      viewerId: userId,
+      oxyClient: createScopedOxyClient(req),
+      maxDepth: 1,
+      includeLinkMetadata: true,
+    });
+    return res.status(200).json({ success: true, post: hydratedPost ?? null });
+  } catch (error) {
+    if (error instanceof CollabStateError) {
+      return res.status(400).json({ message: error.message });
+    }
+    logger.error('Error stopping collab sharing', error);
+    return res.status(500).json({ message: 'Error stopping collaboration sharing' });
   }
 };
 
@@ -1582,16 +1648,16 @@ export const likePost = async (req: AuthRequest, res: Response) => {
     // Create notification for upvotes only (not downvotes)
     if (value === 1) {
       try {
-        const recipientId = likedPost?.oxyUserId?.toString?.() || null;
-        if (recipientId && recipientId !== userId) {
-          await createNotification({
-            recipientId,
+        await createPostAuthorNotifications(
+          likedPost?.authorship as import('@mention/shared-types').PostAuthorshipEntry[] | undefined,
+          likedPost?.oxyUserId?.toString() ?? undefined,
+          {
             actorId: userId,
             type: 'like',
             entityId: postId,
-            entityType: 'post'
-          });
-        }
+            entityType: 'post',
+          },
+        );
       } catch (e) {
         logger.error('Failed to create like notification', e);
       }

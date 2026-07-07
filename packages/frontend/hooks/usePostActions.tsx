@@ -48,6 +48,8 @@ interface ActionItem {
 interface UsePostActionsParams {
     viewPost: HydratedPost;
     isOwner: boolean;
+    canViewInsights: boolean;
+    canStopSharing: boolean;
     isSaved: boolean;
     hasArticle: boolean;
     hasSources: boolean;
@@ -60,6 +62,7 @@ interface PostActionsResult {
     insightsAction: ActionItem[];
     saveActionGroup: ActionItem[];
     addToListAction: ActionItem[];
+    stopSharingAction: ActionItem[];
     deleteAction: ActionItem[];
     articleAction: ActionItem[];
     sourcesAction: ActionItem[];
@@ -70,6 +73,8 @@ interface PostActionsResult {
 export function usePostActions({
     viewPost,
     isOwner,
+    canViewInsights,
+    canStopSharing,
     isSaved,
     hasArticle,
     hasSources,
@@ -135,7 +140,7 @@ export function usePostActions({
             }
         };
 
-        const insightsAction = isOwner ? [{
+        const insightsAction = canViewInsights ? [{
             icon: <AnalyticsIcon size={20} className="text-muted-foreground" />,
             text: t('postActions.insights'),
             onPress: () => {
@@ -268,6 +273,35 @@ export function usePostActions({
             });
         }
 
+        const stopSharingAction = canStopSharing ? [{
+            icon: <Ionicons name="close-circle-outline" size={20} color={theme.colors.error} />,
+            text: t('collab.stopSharing', { defaultValue: 'Stop sharing' }),
+            onPress: async () => {
+                try { bottomSheet.openBottomSheet(false); } catch (e) { logger.warn('Failed to close bottom sheet'); }
+                const confirmed = await confirmDialog({
+                    title: t('collab.stopSharingTitle', { defaultValue: 'Stop sharing this post?' }),
+                    message: t('collab.stopSharingMessage', { defaultValue: 'This post will be removed from your profile. Other collaborators can still see it.' }),
+                    okText: t('collab.stopSharing', { defaultValue: 'Stop sharing' }),
+                    cancelText: t('postActions.cancel'),
+                    destructive: true,
+                });
+                if (!confirmed || !postId) return;
+                try {
+                    const result = await feedService.stopCollabSharing(postId);
+                    if (result.post) {
+                        updatePostEverywhere(postId, () => result.post as HydratedPost);
+                    } else {
+                        removePostEverywhere(postId);
+                    }
+                    toast(t('collab.stopSharingSuccess', { defaultValue: 'You stopped sharing this post' }), { type: 'success' });
+                } catch (e) {
+                    logger.error('Stop sharing failed', { error: e });
+                    toast(t('collab.stopSharingFailed', { defaultValue: 'Failed to stop sharing' }), { type: 'error' });
+                }
+            },
+            color: theme.colors.error,
+        }] : [];
+
         const deleteAction = isOwner ? [
             { icon: <TrashIcon size={20} className="text-destructive" />, text: t('postActions.delete'), onPress: handleDelete, color: theme.colors.error }
         ] : [];
@@ -391,11 +425,12 @@ export function usePostActions({
             insightsAction,
             saveActionGroup,
             addToListAction,
+            stopSharingAction,
             deleteAction,
             articleAction,
             sourcesAction,
             muteReportAction,
             copyLinkAction,
         };
-    }, [viewPost, isOwner, isSaved, hasArticle, hasSources, onSave, onOpenArticle, onOpenSources, theme, t, bottomSheet, router, pathname, safeBack, removePostEverywhere, reinsertPost, updatePostEverywhere, queryClient]);
+    }, [viewPost, isOwner, canViewInsights, canStopSharing, isSaved, hasArticle, hasSources, onSave, onOpenArticle, onOpenSources, theme, t, bottomSheet, router, pathname, safeBack, removePostEverywhere, reinsertPost, updatePostEverywhere, queryClient]);
 }

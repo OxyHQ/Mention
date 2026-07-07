@@ -2,11 +2,13 @@ import Notification from '../models/Notification';
 import { oxy } from '../../server';
 import { formatPushForNotification, sendPushToUser } from './push';
 import { logger } from './logger';
+import type { PostAuthorshipEntry } from '@mention/shared-types';
+import { getNotificationRecipients, normalizeAuthorship } from './postAuthorship';
 
 export interface CreateNotificationData {
   recipientId: string;
   actorId: string;
-  type: 'like' | 'reply' | 'mention' | 'follow' | 'boost' | 'quote' | 'welcome' | 'post' | 'poke';
+  type: 'like' | 'reply' | 'mention' | 'follow' | 'boost' | 'quote' | 'welcome' | 'post' | 'poke' | 'collab_invite' | 'collab_accepted' | 'collab_declined';
   entityId: string;
   entityType: 'post' | 'reply' | 'profile';
 }
@@ -186,4 +188,18 @@ export const createBatchNotifications = async (
   } catch (error) {
     logger.error('[Notifications] Error creating batch notifications:', error);
   }
+};
+
+/** Notify owner + accepted collaborators (excludes actor). */
+export const createPostAuthorNotifications = async (
+  authorship: PostAuthorshipEntry[] | undefined,
+  fallbackOwnerId: string | undefined,
+  data: Omit<CreateNotificationData, 'recipientId'>,
+): Promise<void> => {
+  const recipients = getNotificationRecipients(normalizeAuthorship(authorship, fallbackOwnerId));
+  await Promise.allSettled(
+    recipients
+      .filter((recipientId) => recipientId !== data.actorId)
+      .map((recipientId) => createNotification({ ...data, recipientId })),
+  );
 };

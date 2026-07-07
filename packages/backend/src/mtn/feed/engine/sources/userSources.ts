@@ -9,6 +9,7 @@ import { PostType, PostVisibility } from '@mention/shared-types';
 import { Post } from '../../../../models/Post';
 import UserSettings from '../../../../models/UserSettings';
 import { ProfileVisibility, requiresAccessCheck } from '../../../../utils/privacyHelpers';
+import { buildAuthorFeedMatch } from '../../../../utils/postAuthorship';
 import { FEED_FIELDS } from '../../FeedAPI';
 import { ChronoCursor } from '../../CursorBuilder';
 import type { AuthorFeedFilter } from '@mention/shared-types';
@@ -88,10 +89,10 @@ export const accountsSource: SourceModule = {
   },
 };
 
-/** Author query for the posts/replies/media filters (wraps `AuthorFeed.buildQuery`). */
+/** Author query: posts owned by or accepted-collaborated by the profile user. */
 function buildAuthoredQuery(authorId: string, filter: AuthorFeedFilter, cursor?: string): Record<string, unknown> {
   const query: Record<string, unknown> = {
-    oxyUserId: authorId,
+    ...buildAuthorFeedMatch(authorId),
     visibility: PostVisibility.PUBLIC,
     status: 'published',
   };

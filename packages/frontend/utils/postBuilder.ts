@@ -47,6 +47,7 @@ interface BuildMainPostParams {
   isSensitive?: boolean;
   /** When set, links the new post as a quote of this post id. */
   quotedPostId?: string;
+  collaboratorIds?: string[];
 }
 
 export const buildMainPost = (params: BuildMainPostParams): CreatePostRequest => {
@@ -73,6 +74,7 @@ export const buildMainPost = (params: BuildMainPostParams): CreatePostRequest =>
     scheduledAt,
     isSensitive,
     quotedPostId,
+    collaboratorIds,
   } = params;
 
   const hasPoll = pollOptions.length > 0 && pollOptions.some(opt => opt.trim().length > 0);
@@ -147,6 +149,7 @@ export const buildMainPost = (params: BuildMainPostParams): CreatePostRequest =>
     reviewReplies: reviewReplies,
     quotesDisabled: quotesDisabled,
     ...(quotedPostId ? { quotedPostId } : {}),
+    ...(collaboratorIds && collaboratorIds.length > 0 ? { collaboratorIds } : {}),
     ...(isSensitive ? { metadata: { isSensitive: true } } : {}),
     ...(wasScheduled && scheduledAt ? {
       status: 'scheduled' as const,

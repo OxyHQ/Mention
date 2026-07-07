@@ -30,6 +30,7 @@ import { useTheme } from '@oxyhq/bloom/theme';
 import { cn } from '@/lib/utils';
 import { useTranslation } from 'react-i18next';
 import { useImagePreload } from '@/hooks/useImagePreload';
+import { proxyExternalUrl } from '@/utils/imageUrlCache';
 import { usePostLike } from '@/hooks/usePostLike';
 import { usePostVote } from '@/hooks/usePostVote';
 import { usePostSave } from '@/hooks/usePostSave';
@@ -160,15 +161,17 @@ const PostItem: React.FC<PostItemProps> = ({
     const viewPostId = viewPost?.id ? String(viewPost.id) : undefined;
 
     const viewerState =
-        viewPost?.viewerState ?? { isOwner: false, isLiked: false, isDownvoted: false, isBoosted: false, isSaved: false };
+        viewPost?.viewerState ?? { isOwner: false, isCollaborator: false, isLiked: false, isDownvoted: false, isBoosted: false, isSaved: false };
 
     const metadata = viewPost?.metadata ?? {};
+    const permissions = viewPost?.permissions ?? {};
     const content: PostContent = viewPost?.content ?? {};
     const attachmentsBundle: PostAttachmentBundle = viewPost?.attachments ?? {};
     const linkPreview = viewPost?.linkPreview ?? null;
     const isSensitiveContent = metadata.isSensitive === true;
 
     const isOwner = viewerState.isOwner ?? false;
+    const canViewInsights = permissions.canViewInsights ?? isOwner;
     const isLiked = viewerState.isLiked ?? false;
     const isDownvoted = viewerState.isDownvoted ?? false;
     const isBoosted = viewerState.isBoosted ?? false;
@@ -248,7 +251,20 @@ const PostItem: React.FC<PostItemProps> = ({
         (viewPost?.user?.isFederated === true ||
             rawAvatar.startsWith('http://') ||
             rawAvatar.startsWith('https://'));
-    const avatarSource = typeof rawAvatar === 'string' ? rawAvatar : undefined;
+    // Route a remote/federated avatar URL through the media proxy so it loads on
+    // web (CORS), survives expiring upstream links, and is cached — matching every
+    // other federated-media surface. `proxyExternalUrl` passes local Oxy file ids
+    // (non-http) and our own origins through untouched, so the local path is
+    // unchanged and still resolved by Bloom's ImageResolver.
+    const avatarSource = useMemo(
+        () =>
+            typeof rawAvatar === 'string'
+                ? isRemoteAvatar
+                    ? proxyExternalUrl(rawAvatar)
+                    : rawAvatar
+                : undefined,
+        [rawAvatar, isRemoteAvatar],
+    );
     const avatarVariant = isRemoteAvatar ? undefined : 'thumb';
 
     // Preload only when the avatar is already an absolute URL (remote/federated).
@@ -481,6 +497,8 @@ const PostItem: React.FC<PostItemProps> = ({
     const postActions = usePostActions({
         viewPost,
         isOwner,
+        canViewInsights,
+        canStopSharing: permissions.canStopSharing ?? false,
         isSaved,
         hasArticle,
         hasSources,
@@ -540,6 +558,7 @@ const PostItem: React.FC<PostItemProps> = ({
             <View className="bg-background p-4 gap-2">
                 {postActions.insightsAction.length > 0 && <ActionGroup actions={postActions.insightsAction} />}
                 {postActions.saveActionGroup.length > 0 && <ActionGroup actions={postActions.saveActionGroup} />}
+                {postActions.stopSharingAction.length > 0 && <ActionGroup actions={postActions.stopSharingAction} />}
                 {postActions.deleteAction.length > 0 && <ActionGroup actions={postActions.deleteAction} />}
                 {postActions.articleAction.length > 0 && <ActionGroup actions={postActions.articleAction} />}
                 {postActions.sourcesAction.length > 0 && <ActionGroup actions={postActions.sourcesAction} />}
@@ -803,6 +822,7 @@ const PostItem: React.FC<PostItemProps> = ({
                             isFederated: viewPost.user.isFederated,
                             instance: viewPost.user.instance,
                         }}
+                        authors={viewPost.authors && viewPost.authors.length > 0 ? viewPost.authors : undefined}
                         date={metadata.createdAt}
                         showBoost={Boolean(viewPost.boost) && !isNested}
                         showReply={false}

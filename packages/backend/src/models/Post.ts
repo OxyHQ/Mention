@@ -6,6 +6,9 @@ import {
   PostStats,
   PostMetadata,
   PostClassification,
+  PostAuthorshipEntry,
+  PostAuthorRole,
+  PostAuthorStatus,
 } from '@mention/shared-types';
 import { normalizePostHashtags } from '../utils/textProcessing';
 
@@ -21,7 +24,8 @@ export interface PostFederationData {
 }
 
 export interface IPost extends Document {
-  oxyUserId?: string; // Links to Oxy user (local or federated)
+  oxyUserId?: string; // Denormalized owner cache — synced from authorship[]
+  authorship?: PostAuthorshipEntry[];
   federation?: PostFederationData; // AP metadata (only for federated posts)
   type: PostType;
   content: PostContent;
@@ -404,8 +408,21 @@ const PostClassificationSchema = new Schema({
   classifiedAt: { type: Date },
 }, { _id: false });
 
+const PostAuthorshipSchema = new Schema({
+  oxyUserId: { type: String, required: true },
+  role: { type: String, enum: ['owner', 'collaborator'] satisfies PostAuthorRole[], required: true },
+  status: {
+    type: String,
+    enum: ['accepted', 'pending', 'declined', 'stopped'] satisfies PostAuthorStatus[],
+    required: true,
+  },
+  invitedAt: { type: Date },
+  respondedAt: { type: Date },
+}, { _id: false });
+
 const PostSchema = new Schema<IPost>({
   oxyUserId: { type: String, required: false, index: true },
+  authorship: { type: [PostAuthorshipSchema], default: undefined },
   federation: { type: FederationSchema, default: undefined },
   type: { type: String, enum: Object.values(PostType), default: PostType.TEXT, index: true },
   content: { type: PostContentSchema, required: true },
@@ -528,8 +545,19 @@ PostSchema.pre('validate', function() {
   this.hashtags = hashtags;
 });
 
-// Pre-save hook to clean up empty location objects
+// Pre-save hook to clean up empty location objects and sync authorship → oxyUserId
 PostSchema.pre('save', function() {
+  // Sync denormalized owner id from authorship[]
+  if (this.authorship && this.authorship.length > 0) {
+    const owner = this.authorship.find((entry) => entry.role === 'owner');
+    if (owner?.oxyUserId) {
+      this.oxyUserId = owner.oxyUserId;
+    }
+  } else if (this.oxyUserId) {
+    // Legacy path: seed authorship from oxyUserId when not yet migrated
+    this.authorship = [{ oxyUserId: this.oxyUserId, role: 'owner', status: 'accepted' }];
+  }
+
   // Clean up content.location if it has empty coordinates
   if (this.content?.location && (!this.content.location.coordinates || this.content.location.coordinates.length !== 2)) {
     this.content.location = undefined;
@@ -543,6 +571,7 @@ PostSchema.pre('save', function() {
 
 // Indexes for optimal query performance
 PostSchema.index({ oxyUserId: 1, createdAt: -1 });
+PostSchema.index({ 'authorship.oxyUserId': 1, 'authorship.status': 1, createdAt: -1 });
 PostSchema.index({ type: 1, createdAt: -1 });
 PostSchema.index({ visibility: 1, createdAt: -1 });
 PostSchema.index({ hashtags: 1, createdAt: -1 });
