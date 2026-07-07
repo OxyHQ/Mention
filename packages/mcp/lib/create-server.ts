@@ -1,5 +1,5 @@
 /**
- * Shared MCP server factory used by both stdio and HTTP transports.
+ * Shared MCP server factory used by the HTTP transport.
  */
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { registerPostsTools } from "../tools/posts.js";
@@ -10,6 +10,9 @@ import { registerListsTools } from "../tools/lists.js";
 import { registerNotificationsTools } from "../tools/notifications.js";
 import { registerPollsTools } from "../tools/polls.js";
 import { registerHashtagsTools } from "../tools/hashtags.js";
+import { registerProfileTools } from "../tools/profile.js";
+import { registerSocialTools } from "../tools/social.js";
+import { registerStarterPackTools } from "../tools/starter-packs.js";
 import { SERVER_INSTRUCTIONS } from "./instructions.js";
 
 export function createMcpServer(): McpServer {
@@ -29,6 +32,9 @@ export function createMcpServer(): McpServer {
   registerNotificationsTools(server);
   registerPollsTools(server);
   registerHashtagsTools(server);
+  registerProfileTools(server);
+  registerSocialTools(server);
+  registerStarterPackTools(server);
 
   return server;
 }

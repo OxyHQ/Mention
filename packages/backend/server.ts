@@ -68,6 +68,14 @@ import mtnNodesRoutes from './src/routes/mtn-nodes.routes';
 import webShellRoutes from './src/routes/webShell.routes';
 import { apexFrontendProxy, isApexHost } from './src/middleware/apexFrontendProxy';
 
+// MCP OAuth (Model Context Protocol client authorization). Public discovery +
+// authorize/token endpoints are mounted before the auth router; the dual-auth
+// middleware lets an MCP JWT (aud: mention-mcp) authenticate the same
+// authenticated API routes an Oxy session can.
+import { createMcpOAuthRoutes } from './src/mcp/routes/mcpOAuth.routes';
+import mcpConnectionsRoutes from './src/mcp/routes/mcpConnections.routes';
+import { createRequireMcpOrOxyAuth } from './src/mcp/middleware/mcpAuth';
+
 // Federation (ActivityPub) — network connectors. Importing the connectors index
 // instantiates the enabled connectors and registers the connector registry as
 // the PostFederator (the seam PostCreationService.create uses), replacing the
@@ -852,6 +860,9 @@ authenticatedApiRouter.use("/mute-words", muteWordsRoutes); // Muted words & has
 authenticatedApiRouter.use("/reports", reportsRoutes);
 authenticatedApiRouter.use("/pokes", pokesRoutes);
 authenticatedApiRouter.use("/entity-follows", entityFollowRoutes);
+// MCP connection management (list/revoke authorized MCP clients). Works with
+// either an Oxy session or an MCP JWT via the authenticated router's dual auth.
+authenticatedApiRouter.use("/mcp/connections", mcpConnectionsRoutes);
 // Starter packs moved to the public router (optionalAuth) above so discovery and
 // shared pack links resolve during cold boot; its write routes enforce auth internally.
 
@@ -964,6 +975,13 @@ app.use('/.well-known', wellKnownBridgeRouter);
 // public path is exactly `/media/proxy`. SSRF-guarded internally.
 app.use('/media', mediaRoutes);
 
+// --- MCP OAuth (PUBLIC, before auth) ---
+// The OAuth authorization-server discovery document plus the authorize/token
+// endpoints must be reachable without a session. `POST /mcp/oauth/approve`
+// self-guards with oxy.auth() inside the router. Mounted before the apex proxy
+// so both the API host and the apex serve these from the backend directly.
+app.use(createMcpOAuthRoutes(oxy));
+
 // --- Public web shell with OpenGraph (PUBLIC, no auth) ---
 // Serves the SPA shell HTML with per-request OG tags for `/@handle` and `/p/:id`
 // (the `bskyweb` model — replaces the retired CF Pages `_worker.js` OG injection).
@@ -988,7 +1006,9 @@ app.use(apexFrontendProxy);
 // already handled by the proxy above).
 app.use("/", publicApiRouter);
 
-app.use("/", oxy.auth(), authenticatedApiRouter);
+// Dual auth: accept EITHER a valid MCP JWT (aud: mention-mcp, validated locally)
+// OR a valid Oxy session (validated by oxy.auth()). See src/mcp/middleware/mcpAuth.ts.
+app.use("/", createRequireMcpOrOxyAuth(oxy), authenticatedApiRouter);
 
 // Global error handler — must be the LAST middleware registered.
 // Catches unhandled errors from route handlers and prevents raw error leakage.

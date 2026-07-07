@@ -171,6 +171,12 @@ export default function SettingsScreen() {
                             description={t('fediverse.settings.description')}
                             onPress={() => router.push('/settings/fediverse')}
                         />
+                        <SettingsListItem
+                            icon={<RowIcon name="sparkles-outline" />}
+                            title={t('mcp.connections.title', { defaultValue: 'Connected AI' })}
+                            description={t('mcp.connections.description', { defaultValue: 'AI apps connected to your account' })}
+                            onPress={() => router.push('/settings/connected-ai')}
+                        />
                     </SettingsListGroup>
                 )}
 

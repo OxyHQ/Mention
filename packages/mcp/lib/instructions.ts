@@ -1,65 +1,26 @@
 /**
- * Server instructions sent to LLM clients so they understand how to use
- * the Mention MCP server effectively.
+ * Server instructions sent to MCP clients (Claude Web, ChatGPT, etc.).
  */
 export const SERVER_INSTRUCTIONS = `# Mention MCP Server
 
 ## What is Mention?
-Mention (mention.earth) is a social platform for sharing posts, following users, and engaging with content. Think of it as a modern social network with features like:
-- **Posts** with text, media, polls, articles, events, and location
-- **Feeds**: For You (personalized), Explore (trending), Following, and user profiles
-- **Interactions**: Like, boost, quote, save/bookmark
-- **Lists**: Curate groups of users and view their combined timeline
-- **Notifications**: Real-time updates on likes, boosts, replies, and follows
-- **Search**: Full-text search with advanced operators
-- **Polls**: Create polls with multiple options and vote
+Mention (mention.earth) is a social platform. Connect at **https://mcp.mention.earth** from Claude or other MCP clients.
 
-## Authentication
-Provide your Oxy access token as a Bearer token in MCP requests. The token is forwarded to the Mention API for authentication.
-- **Required** for write operations: creating posts, liking, boosting, following, voting on polls
-- **Optional** for read operations: feeds, search, trending, and hashtags work without auth
-- **Personalized** when authenticated: For You feed and notifications require a token
+## Public vs authorized access
+- **No authorization needed** for public reads: explore feed, trending hashtags, public profiles, starter packs, public user feeds, replies, single post lookup.
+- **Authorization required** for account actions: posting, liking, boosting, personalized feeds (For You, Following), search, lists, notifications, polls, follow/unfollow.
 
-## Tool Usage Guide
+When a tool returns an authentication error, the user must connect Mention in their AI app's connector settings and approve access on mention.earth.
 
-### Creating Posts
-Use \`create-post\` with at minimum a \`text\` field. You can also set:
-- \`visibility\`: "public" (default), "private", "followers", "mentioned"
-- \`hashtags\`: Array of hashtag strings (without #)
-- \`mentions\`: Array of user IDs to mention
-- \`parentPostId\`: Set this to reply to another post
-- \`sources\`: Array of {url, title} for cited sources
-- \`scheduledFor\`: ISO date to schedule the post for later
-- \`status\`: "published" (default), "draft", "scheduled"
+## OAuth
+Authorization is handled by Mention (not manual tokens). The user approves on mention.earth and can revoke access under Settings → Connected AI.
 
-### Reading Feeds
-Multiple feed types are available:
-- \`get-for-you-feed\`: Personalized recommendations
-- \`get-explore-feed\`: Trending content
-- \`get-following-feed\`: Posts from followed users
-- \`get-user-feed\`: A specific user's posts
-All feed tools support cursor-based pagination via \`cursor\` and \`limit\` params.
+## Feeds (MTN)
+All feed tools use the unified MTN feed engine via descriptors: \`for_you\`, \`following\`, \`explore\`, \`videos\`, \`author|<userId>\`, \`hashtag|<tag>\`.
 
-### Search Operators
-The \`search\` tool supports advanced operators in the query string:
-- \`from:username\` — filter by author
-- \`since:YYYY-MM-DD\` — posts after date
-- \`until:YYYY-MM-DD\` — posts before date
-- \`has:media\` — posts with images/video
-- \`has:links\` — posts containing URLs
-- \`min_likes:N\` — minimum like count
-- \`min_boosts:N\` — minimum boost count
+## Post visibility
+Valid values: \`public\`, \`private\`, \`followers_only\` (alias \`followers\` accepted).
 
-Example: \`"climate change from:scienceguy since:2025-01-01 has:media min_likes:10"\`
-
-### Post Visibility
-- **public**: Visible to everyone
-- **private**: Only visible to the author
-- **followers**: Only visible to followers
-- **mentioned**: Only visible to mentioned users
-
-### Pagination
-Most list endpoints use cursor-based pagination. The response includes:
-- \`hasMore\`: Whether more results exist
-- \`nextCursor\`: Pass this as the \`cursor\` parameter to get the next page
+## Pagination
+Feed and list tools support \`cursor\` and \`limit\`. Responses include \`hasMore\` and \`nextCursor\` when more results exist.
 `;

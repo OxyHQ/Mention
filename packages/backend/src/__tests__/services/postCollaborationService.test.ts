@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { postCollaborationService, CollabValidationError, CollabStateError } from '../../services/PostCollaborationService';
 import { buildAuthorship } from '../../utils/postAuthorship';
-import { Post } from '../../models/Post';
+import { Post, IPost } from '../../models/Post';
 
 const { federateNewPost } = vi.hoisted(() => ({ federateNewPost: vi.fn(async () => undefined) }));
 
@@ -32,18 +32,20 @@ vi.mock('../../services/serviceRegistry', () => ({
   getPostFederator: () => ({ federateNewPost }),
 }));
 
-function fakePost(overrides: Record<string, unknown> = {}) {
+function fakePost(overrides: Record<string, unknown> = {}): IPost {
   return {
     _id: 'post-1',
     oxyUserId: 'owner-1',
     status: 'published',
     federation: undefined,
+    metadata: { collabFederationDeferred: true },
+    markModified: vi.fn(),
     save: vi.fn(async function (this: unknown) {
       return this;
     }),
     toObject: vi.fn(() => ({})),
     ...overrides,
-  };
+  } as unknown as IPost;
 }
 
 describe('PostCollaborationService', () => {
@@ -63,6 +65,39 @@ describe('PostCollaborationService', () => {
       const authorship = postCollaborationService.buildAuthorship('owner-1', ['c-1']);
       expect(authorship[0]).toMatchObject({ oxyUserId: 'owner-1', role: 'owner', status: 'accepted' });
       expect(authorship[1]).toMatchObject({ oxyUserId: 'c-1', role: 'collaborator', status: 'pending' });
+    });
+  });
+
+  describe('attachCollaborators', () => {
+    it('appends pending collaborators to a solo post', async () => {
+      const post = fakePost({ authorship: buildAuthorship('owner-1', []) });
+      await postCollaborationService.attachCollaborators(post, 'owner-1', ['c-1']);
+      expect(post.authorship).toHaveLength(2);
+      expect(post.authorship?.[1]).toMatchObject({ oxyUserId: 'c-1', role: 'collaborator', status: 'pending' });
+      expect((post.metadata as { collabFederationDeferred?: boolean }).collabFederationDeferred).toBe(true);
+    });
+
+    it('does not set collabFederationDeferred when post already federated', async () => {
+      const post = fakePost({
+        authorship: buildAuthorship('owner-1', []),
+        metadata: { federationDelivered: true },
+      });
+      await postCollaborationService.attachCollaborators(post, 'owner-1', ['c-1']);
+      expect((post.metadata as { collabFederationDeferred?: boolean }).collabFederationDeferred).toBeUndefined();
+    });
+
+    it('rejects posts that already have collaborators', async () => {
+      const post = fakePost({ authorship: buildAuthorship('owner-1', ['c-1']) });
+      await expect(
+        postCollaborationService.attachCollaborators(post, 'owner-1', ['c-2']),
+      ).rejects.toBeInstanceOf(CollabStateError);
+    });
+
+    it('rejects replies', async () => {
+      const post = fakePost({ authorship: buildAuthorship('owner-1', []), parentPostId: 'parent-1' });
+      await expect(
+        postCollaborationService.attachCollaborators(post, 'owner-1', ['c-1']),
+      ).rejects.toBeInstanceOf(CollabValidationError);
     });
   });
 
@@ -92,6 +127,18 @@ describe('PostCollaborationService', () => {
 
     it('does NOT federate a scheduled post on accept (defers to publish)', async () => {
       const post = fakePost({ status: 'scheduled', authorship: buildAuthorship('owner-1', ['c-1']) });
+      (Post.findById as unknown as ReturnType<typeof vi.fn>).mockResolvedValueOnce(post);
+
+      await postCollaborationService.accept('post-1', 'c-1');
+
+      expect(federateNewPost).not.toHaveBeenCalled();
+    });
+
+    it('does NOT federate when collabFederationDeferred is unset (solo post converted via edit)', async () => {
+      const post = fakePost({
+        authorship: buildAuthorship('owner-1', ['c-1']),
+        metadata: { federationDelivered: true },
+      });
       (Post.findById as unknown as ReturnType<typeof vi.fn>).mockResolvedValueOnce(post);
 
       await postCollaborationService.accept('post-1', 'c-1');

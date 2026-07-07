@@ -4,6 +4,11 @@
   "description": "MCP server for Mention social platform",
   "type": "module",
   "main": "server.ts",
+  "dependencies": {
+    "@mention/shared-types": "file:../shared-types",
+    "@modelcontextprotocol/sdk": "^1.27.1",
+    "zod": "^4.4.3"
+  },
   "scripts": {
     "start": "bun server.ts",
     "start:http": "bun server-http.ts",
@@ -11,11 +16,8 @@
     "dev": "bun --watch server.ts",
     "dev:http": "bun --watch server-http.ts",
     "build": "tsc",
-    "typecheck": "tsc --noEmit"
-  },
-  "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.27.1",
-    "zod": "^4.4.3"
+    "typecheck": "tsc --noEmit",
+    "test": "bun test"
   },
   "devDependencies": {
     "@types/node": "^25.5.0",

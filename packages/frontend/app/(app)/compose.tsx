@@ -174,6 +174,7 @@ const ComposeScreenBody = () => {
   const replyToPostId = initialIntent.replyToPostId;
   const [isEditMode, setIsEditMode] = useState(false);
   const [editLoading, setEditLoading] = useState(false);
+  const [editCollabEligible, setEditCollabEligible] = useState(false);
   const [replyToPost, setReplyToPost] = useState<HydratedPost | null>(null);
   const [replyLoading, setReplyLoading] = useState(false);
   const [collaborators, setCollaborators] = useState<CollaboratorUser[]>([]);
@@ -736,6 +737,10 @@ const ComposeScreenBody = () => {
         if (mentions && mentions.length > 0) {
           setMentions(mentions.map((m): MentionData => ({ userId: m, username: m, displayName: m })));
         }
+        const soloForCollab =
+          !post?.parentPostId &&
+          !(post?.authorship?.some((entry) => entry.role === 'collaborator'));
+        setEditCollabEligible(soloForCollab);
       } catch (e) {
         logger.error('Failed to load post for editing', { error: e });
         toast(t('Failed to load post for editing'), { type: 'error' });
@@ -857,6 +862,9 @@ const ComposeScreenBody = () => {
           },
           hashtags: mainPost.hashtags || [],
           mentions: mainPost.mentions || [],
+          ...(collaborators.length > 0
+            ? { collaboratorIds: collaborators.map((c) => c.id) }
+            : {}),
         };
         await feedService.editPost(editPostId, editData);
       } else if (allPosts.length === 1) {
@@ -1613,7 +1621,7 @@ const ComposeScreenBody = () => {
                     />
                   </PostHeader>
 
-                  {!replyToPostId && !isEditMode && threadItems.length === 0 && (
+                  {(!replyToPostId && threadItems.length === 0 && (!isEditMode || editCollabEligible)) && (
                     <CollaboratorPicker selected={collaborators} onChange={setCollaborators} />
                   )}
 

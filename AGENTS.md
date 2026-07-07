@@ -16,7 +16,7 @@
 bun run dev                 # All packages dev mode
 bun run dev:frontend        # Frontend dev (Expo tunnel)
 bun run dev:backend         # Backend dev (watch mode)
-bun run dev:mcp             # MCP server dev
+bun run dev:mcp             # MCP server (internal dev only — prod: https://mcp.mention.earth)
 bun run build               # shared-types + backend + mcp
 bun run build:frontend      # Frontend only
 bun run build:backend       # shared-types then backend
@@ -142,6 +142,7 @@ A post carries an `authorship[]` array (`owner` + up to `MAX_POST_COLLABORATORS`
 - **Scheduled publish:** `ScheduledPostPublisher` (leader-gated 60s sweep wired into `FeedJobScheduler`) flips due `status:'scheduled'` posts to `published` via `PostCreationService.publishScheduledPost`, which runs the SAME publish pipeline (invites, MTN dual-write, notifications, socket emit, deferred federation).
 - **Pending-collaborator preview:** `PostHydrationService` lets a pending collaborator (not just accepted) bypass the unpublished/private ACL so the invite UI can preview the actual post. The byline (`getHeaderAuthorshipEntries`) still shows owner + ACCEPTED collaborators only.
 - **Threads have no collaborators:** `POST /posts/thread` rejects `collaboratorIds` with 400.
+- **Edit-to-collab:** within the 30-minute edit window, the owner can attach collaborators to a solo top-level local post via `PUT /posts/:id` with `collaboratorIds`. Posts that already have collaborator entries, are replies/boosts, or are federated are rejected. Solo posts that already federated at creation do not re-federate when invites resolve (`metadata.federationDelivered` / `metadata.collabFederationDeferred` gate `maybeFederateOnResolve`).
 
 ## Profile Identity
 

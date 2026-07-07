@@ -1,0 +1,83 @@
+name: Deploy Mention MCP
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'packages/mcp/**'
+      - 'packages/shared-types/**'
+      - 'package.json'
+      - 'bun.lock'
+      - 'bunfig.toml'
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: us-west-2
+  ECR_REGISTRY: 237343248947.dkr.ecr.us-west-2.amazonaws.com
+  APP: mention-mcp
+  CLUSTER: oxy-cluster
+  DOCKERFILE: packages/mcp/Dockerfile
+
+jobs:
+  deploy:
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: arn:aws:iam::237343248947:role/oxy-github-deploy
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push (linux/arm64)
+        run: |
+          IMG=$ECR_REGISTRY/oxy/$APP
+          docker build -f "$DOCKERFILE" -t "$IMG:${{ github.sha }}" -t "$IMG:latest" .
+          docker push "$IMG:${{ github.sha }}"
+          docker push "$IMG:latest"
+
+      - name: Deploy to ECS
+        run: |
+          set -euo pipefail
+          MAX_WAIT_SECS=1200
+          POLL_INTERVAL=15
+
+          STATUS=$(aws ecs describe-services --cluster "$CLUSTER" --services "$APP" --query 'services[0].status' --output text 2>/dev/null || echo NONE)
+          if [ "$STATUS" != "ACTIVE" ]; then
+            echo "ECS service $APP not created yet — image pushed to ECR, skipping deploy"
+            echo "Create the service in oxy-infra (mention-mcp task + mcp.mention.earth ALB rule) then re-run."
+            exit 0
+          fi
+
+          aws ecs update-service --cluster "$CLUSTER" --service "$APP" --force-new-deployment >/dev/null
+          elapsed=0
+          while [ "$elapsed" -lt "$MAX_WAIT_SECS" ]; do
+            DESC=$(aws ecs describe-services \
+              --cluster "$CLUSTER" --services "$APP" \
+              --query 'services[0].deployments[?status==`PRIMARY`]|[0].[rolloutState,runningCount,desiredCount]' \
+              --output text 2>/dev/null) || DESC=""
+            ROLLOUT_STATE=$(echo "$DESC" | awk '{print $1}')
+            RUNNING=$(echo "$DESC" | awk '{print $2}')
+            DESIRED=$(echo "$DESC" | awk '{print $3}')
+            echo "  ($elapsed s) rolloutState=$ROLLOUT_STATE running=$RUNNING desired=$DESIRED"
+            if [ "$ROLLOUT_STATE" = "COMPLETED" ] && [ "$RUNNING" = "$DESIRED" ]; then
+              echo "deployed $APP"
+              exit 0
+            fi
+            if [ "$ROLLOUT_STATE" = "FAILED" ]; then
+              echo "deploy FAILED"
+              exit 1
+            fi
+            sleep "$POLL_INTERVAL"
+            elapsed=$((elapsed + POLL_INTERVAL))
+          done
+          echo "deploy timed out after ${MAX_WAIT_SECS}s"
+          exit 1

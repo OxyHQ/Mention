@@ -221,6 +221,7 @@ class PostCreationService {
       if (collaboratorIds.length > 0 && params.oxyUserId) {
         const validated = await postCollaborationService.validateInvites(params.oxyUserId, collaboratorIds);
         postData.authorship = postCollaborationService.buildAuthorship(params.oxyUserId, validated);
+        postData.metadata = { ...(postData.metadata as Record<string, unknown>), collabFederationDeferred: true };
       } else {
         postData.authorship = postCollaborationService.buildAuthorship(params.oxyUserId, []);
       }
@@ -510,6 +511,9 @@ class PostCreationService {
       try {
         // Late-bound accessor avoids a circular import with the connector registry.
         await getPostFederator().federateNewPost(post, oxyUserId, ctx.senderUsername);
+        post.metadata = { ...(post.metadata ?? {}), federationDelivered: true };
+        post.markModified('metadata');
+        await post.save();
       } catch (fedError) {
         logger.error('PostCreationService: failed to federate post', fedError);
       }

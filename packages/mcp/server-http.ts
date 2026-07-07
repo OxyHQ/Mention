@@ -1,15 +1,15 @@
 /**
- * Mention MCP Server — HTTP/SSE transport
+ * Mention MCP Server — HTTP transport for remote clients (Claude Web, etc.)
  *
- * Supports both:
- *   1. Streamable HTTP (protocol 2025-11-25) on POST/GET/DELETE /mcp
- *   2. SSE (protocol 2024-11-05) on GET /sse + POST /messages
+ * Public URL: https://mcp.mention.earth/
  *
  * Environment variables:
- *   MENTION_API_URL             — Base URL of the Mention API (default: https://api.mention.earth)
- *   MCP_PORT                    — Port to listen on (default: 3100)
- *   MCP_ALLOWED_ORIGINS         — Comma-separated browser origins allowed by CORS (default: none)
- *   MCP_MAX_REQUEST_BODY_BYTES  — Maximum JSON body size (default: 1048576)
+ *   MENTION_API_URL              — Mention REST API (default: https://api.mention.earth)
+ *   MENTION_MCP_PUBLIC_URL       — This server's public URL (default: https://mcp.mention.earth)
+ *   MENTION_OAUTH_AS_URL         — OAuth authorization server (default: https://api.mention.earth)
+ *   MCP_PORT                     — Listen port (default: 3100)
+ *   MCP_ALLOWED_ORIGINS          — CORS allowlist (comma-separated)
+ *   MCP_MAX_REQUEST_BODY_BYTES   — Max JSON body size (default: 1048576)
  */
 import { randomUUID } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
@@ -20,18 +20,27 @@ import { requestContext } from "./lib/context.js";
 
 const PORT = parseInt(process.env.MCP_PORT || "3100", 10);
 const MAX_REQUEST_BODY_BYTES = parseInt(process.env.MCP_MAX_REQUEST_BODY_BYTES || "1048576", 10);
-const ALLOWED_ORIGINS = (process.env.MCP_ALLOWED_ORIGINS || "")
-  .split(",")
-  .map((origin) => origin.trim())
-  .filter(Boolean);
+const MCP_PUBLIC_URL = (process.env.MENTION_MCP_PUBLIC_URL || "https://mcp.mention.earth").replace(/\/+$/, "");
+const OAUTH_AS_URL = (process.env.MENTION_OAUTH_AS_URL || "https://api.mention.earth").replace(/\/+$/, "");
 
-// ── Transport store ──────────────────────────────────────────
+const DEFAULT_CORS_ORIGINS = [
+  "https://claude.ai",
+  "https://www.claude.ai",
+  "https://api.anthropic.com",
+];
+
+const ALLOWED_ORIGINS = [
+  ...DEFAULT_CORS_ORIGINS,
+  ...(process.env.MCP_ALLOWED_ORIGINS || "")
+    .split(",")
+    .map((origin) => origin.trim())
+    .filter(Boolean),
+];
+
 const transports: Record<string, StreamableHTTPServerTransport | SSEServerTransport> = {};
 const sessionLastActivity: Map<string, number> = new Map();
+const SESSION_IDLE_TIMEOUT_MS = 30 * 60 * 1000;
 
-const SESSION_IDLE_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
-
-// Clean up idle sessions every 10 minutes
 const cleanupInterval = setInterval(() => {
   let cleaned = 0;
   const now = Date.now();
@@ -50,8 +59,6 @@ const cleanupInterval = setInterval(() => {
   }
 }, 10 * 60 * 1000);
 cleanupInterval.unref();
-
-// ── Helpers ──────────────────────────────────────────────────
 
 function extractBearerToken(
   headers: Record<string, string | string[] | undefined>,
@@ -120,7 +127,85 @@ function setCorsHeaders(req: IncomingMessage, res: ServerResponse): void {
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, Mcp-Session-Id");
 }
 
-// ── Main ─────────────────────────────────────────────────────
+function isMcpPath(pathname: string): boolean {
+  return pathname === "/" || pathname === "/mcp";
+}
+
+async function handleStreamableMcp(
+  req: IncomingMessage,
+  res: ServerResponse,
+  headers: Record<string, string | string[] | undefined>,
+  method: "POST" | "GET" | "DELETE",
+): Promise<void> {
+  const userToken = extractBearerToken(headers);
+
+  if (method === "GET") {
+    const sessionId = req.headers["mcp-session-id"] as string | undefined;
+    if (!sessionId || !(transports[sessionId] instanceof StreamableHTTPServerTransport)) {
+      sendJsonRpcError(res, 404, -32001, "Session not found.");
+      return;
+    }
+    sessionLastActivity.set(sessionId, Date.now());
+    const transport = transports[sessionId] as StreamableHTTPServerTransport;
+    await transport.handleRequest(req, res);
+    return;
+  }
+
+  if (method === "DELETE") {
+    const sessionId = req.headers["mcp-session-id"] as string | undefined;
+    if (!sessionId || !(transports[sessionId] instanceof StreamableHTTPServerTransport)) {
+      sendJsonRpcError(res, 404, -32001, "Session not found.");
+      return;
+    }
+    const transport = transports[sessionId] as StreamableHTTPServerTransport;
+    await transport.handleRequest(req, res);
+    cleanupSession(sessionId);
+    return;
+  }
+
+  try {
+    const sessionId = req.headers["mcp-session-id"] as string | undefined;
+    let transport: StreamableHTTPServerTransport;
+
+    if (sessionId && transports[sessionId] instanceof StreamableHTTPServerTransport) {
+      transport = transports[sessionId] as StreamableHTTPServerTransport;
+      sessionLastActivity.set(sessionId, Date.now());
+    } else if (sessionId) {
+      sendJsonRpcError(res, 404, -32001, "Session not found. Send an initialize request without a session ID.");
+      return;
+    } else {
+      const server = createMcpServer();
+      transport = new StreamableHTTPServerTransport({
+        sessionIdGenerator: () => randomUUID(),
+      });
+      transport.onclose = () => {
+        if (transport.sessionId) {
+          cleanupSession(transport.sessionId);
+        }
+      };
+      await server.connect(transport);
+    }
+
+    const body = await readBody(req);
+    await requestContext.run({ userToken }, () =>
+      transport.handleRequest(req, res, body),
+    );
+
+    if (transport.sessionId && !transports[transport.sessionId]) {
+      transports[transport.sessionId] = transport;
+      sessionLastActivity.set(transport.sessionId, Date.now());
+      console.log(`[mention-mcp-http] New session: ${transport.sessionId}`);
+    }
+  } catch (error) {
+    if (!res.headersSent) {
+      if (error instanceof BodyTooLargeError) {
+        sendJsonRpcError(res, 413, -32000, error.message);
+      } else {
+        sendJsonRpcError(res, 500, -32603, `Internal error: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    }
+  }
+}
 
 async function main() {
   const { createServer } = await import("node:http");
@@ -143,110 +228,53 @@ async function main() {
       return;
     }
 
-    // ── Health check ─────────────────────────────────────────
     if (pathname === "/health" && req.method === "GET") {
       res.setHeader("Content-Type", "application/json");
-      res.end(JSON.stringify({ status: "ok", server: "mention-mcp", transport: ["streamable-http", "sse"] }));
+      res.end(JSON.stringify({
+        status: "ok",
+        server: "mention-mcp",
+        url: MCP_PUBLIC_URL,
+        transport: ["streamable-http", "sse"],
+      }));
       return;
     }
 
-    // ── OAuth discovery (return JSON 404 to prevent mcp-remote crashes) ──
-    if (pathname.startsWith("/.well-known/oauth") || pathname === "/register") {
+    if (pathname === "/.well-known/oauth-protected-resource" && req.method === "GET") {
       res.setHeader("Content-Type", "application/json");
-      res.writeHead(404);
-      res.end(JSON.stringify({ error: "OAuth not supported" }));
+      res.end(JSON.stringify({
+        resource: `${MCP_PUBLIC_URL}/`,
+        authorization_servers: [OAUTH_AS_URL],
+        bearer_methods_supported: ["header"],
+        scopes_supported: ["mcp:read", "mcp:write", "offline_access"],
+      }));
       return;
     }
 
-    // ── Streamable HTTP: POST /mcp ───────────────────────────
-    if (pathname === "/mcp" && req.method === "POST") {
-      const userToken = extractBearerToken(headers);
-      try {
-        const sessionId = req.headers["mcp-session-id"] as string | undefined;
-        let transport: StreamableHTTPServerTransport;
-
-        if (sessionId && transports[sessionId] instanceof StreamableHTTPServerTransport) {
-          transport = transports[sessionId] as StreamableHTTPServerTransport;
-          sessionLastActivity.set(sessionId, Date.now());
-        } else if (sessionId) {
-          sendJsonRpcError(res, 404, -32001, "Session not found. Send an initialize request without a session ID.");
-          return;
-        } else {
-          const server = createMcpServer();
-          transport = new StreamableHTTPServerTransport({
-            sessionIdGenerator: () => randomUUID(),
-          });
-          transport.onclose = () => {
-            if (transport.sessionId) {
-              cleanupSession(transport.sessionId);
-            }
-          };
-          await server.connect(transport);
-        }
-
-        const body = await readBody(req);
-        await requestContext.run({ userToken }, () =>
-          transport.handleRequest(req, res, body),
-        );
-
-        if (transport.sessionId && !transports[transport.sessionId]) {
-          transports[transport.sessionId] = transport;
-          sessionLastActivity.set(transport.sessionId, Date.now());
-          console.log(`[mention-mcp-http] New session: ${transport.sessionId}`);
-        }
-      } catch (error) {
-        if (!res.headersSent) {
-          if (error instanceof BodyTooLargeError) {
-            sendJsonRpcError(res, 413, -32000, error.message);
-          } else {
-            sendJsonRpcError(res, 500, -32603, `Internal error: ${error instanceof Error ? error.message : String(error)}`);
-          }
-        }
-      }
+    if (pathname === "/mcp" && req.method === "GET" && !req.headers["mcp-session-id"]) {
+      res.writeHead(301, { Location: `${MCP_PUBLIC_URL}/` });
+      res.end();
       return;
     }
 
-    // ── Streamable HTTP: GET /mcp ────────────────────────────
-    if (pathname === "/mcp" && req.method === "GET") {
-      const sessionId = req.headers["mcp-session-id"] as string | undefined;
-      if (!sessionId || !(transports[sessionId] instanceof StreamableHTTPServerTransport)) {
-        sendJsonRpcError(res, 404, -32001, "Session not found.");
+    if (isMcpPath(pathname)) {
+      const method = req.method;
+      if (method === "POST" || method === "GET" || method === "DELETE") {
+        await handleStreamableMcp(req, res, headers, method);
         return;
       }
-      sessionLastActivity.set(sessionId, Date.now());
-      const transport = transports[sessionId] as StreamableHTTPServerTransport;
-      await transport.handleRequest(req, res);
-      return;
     }
 
-    // ── Streamable HTTP: DELETE /mcp ─────────────────────────
-    if (pathname === "/mcp" && req.method === "DELETE") {
-      const sessionId = req.headers["mcp-session-id"] as string | undefined;
-      if (!sessionId || !(transports[sessionId] instanceof StreamableHTTPServerTransport)) {
-        sendJsonRpcError(res, 404, -32001, "Session not found.");
-        return;
-      }
-      const transport = transports[sessionId] as StreamableHTTPServerTransport;
-      await transport.handleRequest(req, res);
-      cleanupSession(sessionId);
-      return;
-    }
-
-    // ── SSE: GET /sse ────────────────────────────────────────
     if (pathname === "/sse" && req.method === "GET") {
       const server = createMcpServer();
       const transport = new SSEServerTransport("/messages", res);
       transports[transport.sessionId] = transport;
-
       res.on("close", () => {
         cleanupSession(transport.sessionId);
       });
-
       await server.connect(transport);
       return;
     }
 
-    // ── SSE: POST /messages ──────────────────────────────────
     if (pathname === "/messages" && req.method === "POST") {
       const sessionId = query.sessionId;
       const transport = sessionId ? transports[sessionId] : undefined;
@@ -274,34 +302,20 @@ async function main() {
       return;
     }
 
-    // ── 404 ──────────────────────────────────────────────────
     res.setHeader("Content-Type", "application/json");
     res.writeHead(404);
     res.end(JSON.stringify({ error: "Not found" }));
   });
 
   httpServer.listen(PORT, "0.0.0.0", () => {
-    console.log(`
-╔══════════════════════════════════════════════════╗
-║  Mention MCP Server (HTTP/SSE)                   ║
-║  Port: ${String(PORT).padEnd(41)}║
-╠══════════════════════════════════════════════════╣
-║  Endpoints:                                      ║
-║  • POST/GET/DELETE /mcp  (Streamable HTTP)       ║
-║  • GET /sse + POST /messages  (SSE)              ║
-║  • GET /health  (Health check)                   ║
-╚══════════════════════════════════════════════════╝
-    `);
+    console.log(`[mention-mcp-http] Listening on :${PORT} — public URL ${MCP_PUBLIC_URL}/`);
   });
 
-  // Graceful shutdown
   process.on("SIGINT", () => {
     console.log("\n[mention-mcp-http] Shutting down...");
     const closePromises: Promise<void>[] = [];
     for (const [id, transport] of Object.entries(transports)) {
-      closePromises.push(
-        Promise.resolve(transport.close()).catch(() => {}),
-      );
+      closePromises.push(Promise.resolve(transport.close()).catch(() => {}));
       cleanupSession(id);
     }
     Promise.allSettled(closePromises).then(() => {

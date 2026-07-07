@@ -23,5 +23,13 @@ jobs:
         run: bun run --cwd packages/frontend typecheck
       - name: Build backend
         run: bun run --cwd packages/backend build
+      - name: Typecheck MCP
+        run: bun run --cwd packages/mcp typecheck
+      - name: Test MCP
+        run: bun run --cwd packages/mcp test
+      - name: Build MCP
+        run: bun run --cwd packages/mcp build
+      - name: Test backend MCP module
+        run: bun run --cwd packages/backend test -- src/__tests__/mcp
       - name: Build frontend
         run: bun run --cwd packages/frontend build

@@ -1,23 +1,20 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { api, formatApiError } from "../lib/api-client.js";
+import { withAuthGuard } from "../lib/auth-guard.js";
 import { formatList, formatFeed } from "../lib/formatters.js";
 
 export function registerListsTools(server: McpServer): void {
-  // ── create-list ──────────────────────────────────────────────
   server.tool(
     "create-list",
-    "Create a new user list for organizing accounts.",
+    "Create a user list (requires authorization).",
     {
-      title: z.string().describe("List title"),
-      description: z.string().optional().describe("List description"),
-      isPublic: z.boolean().optional().describe("Whether the list is public (default: true)"),
-      memberUserIds: z
-        .array(z.string())
-        .optional()
-        .describe("Initial member user IDs to add"),
+      title: z.string(),
+      description: z.string().optional(),
+      isPublic: z.boolean().optional(),
+      memberUserIds: z.array(z.string()).optional(),
     },
-    async ({ title, description, isPublic, memberUserIds }) => {
+    withAuthGuard(async ({ title, description, isPublic, memberUserIds }) => {
       try {
         const body: Record<string, unknown> = { title };
         if (description) body.description = description;
@@ -29,52 +26,48 @@ export function registerListsTools(server: McpServer): void {
       } catch (error) {
         return { content: [{ type: "text" as const, text: formatApiError(error) }], isError: true };
       }
-    },
+    }),
   );
 
-  // ── get-lists ────────────────────────────────────────────────
   server.tool(
     "get-lists",
-    "Get your lists or public lists.",
+    "Get your lists (requires authorization).",
     {
-      mine: z.boolean().optional().describe("Only return your own lists"),
-      publicOnly: z.boolean().optional().describe("Only return public lists"),
+      mine: z.boolean().optional(),
+      publicOnly: z.boolean().optional(),
     },
-    async ({ mine, publicOnly }) => {
+    withAuthGuard(async ({ mine, publicOnly }) => {
       try {
         const query: Record<string, string | number | boolean | undefined> = {};
         if (mine) query.mine = true;
         if (publicOnly) query.publicOnly = true;
 
         const result = await api.get("/lists", query);
-        const resultObj = result as Record<string, unknown>;
-        const items = Array.isArray(resultObj.items) ? resultObj.items : [];
+        const items = Array.isArray((result as Record<string, unknown>).items)
+          ? (result as Record<string, unknown>).items as Record<string, unknown>[]
+          : [];
         if (items.length === 0) {
           return { content: [{ type: "text" as const, text: "No lists found." }] };
         }
-        const formatted = items.map((l: Record<string, unknown>) => formatList(l)).join("\n\n");
+        const formatted = items.map((l) => formatList(l)).join("\n\n");
         return { content: [{ type: "text" as const, text: `Lists (${items.length}):\n\n${formatted}` }] };
       } catch (error) {
         return { content: [{ type: "text" as const, text: formatApiError(error) }], isError: true };
       }
-    },
+    }),
   );
 
-  // ── update-list ──────────────────────────────────────────────
   server.tool(
     "update-list",
-    "Update a list's title, description, visibility, or members.",
+    "Update a list (requires authorization).",
     {
-      id: z.string().describe("List ID to update"),
-      title: z.string().optional().describe("New title"),
-      description: z.string().optional().describe("New description"),
-      isPublic: z.boolean().optional().describe("New visibility setting"),
-      memberUserIds: z
-        .array(z.string())
-        .optional()
-        .describe("Replace all members with these user IDs"),
+      id: z.string(),
+      title: z.string().optional(),
+      description: z.string().optional(),
+      isPublic: z.boolean().optional(),
+      memberUserIds: z.array(z.string()).optional(),
     },
-    async ({ id, title, description, isPublic, memberUserIds }) => {
+    withAuthGuard(async ({ id, title, description, isPublic, memberUserIds }) => {
       try {
         const body: Record<string, unknown> = {};
         if (title !== undefined) body.title = title;
@@ -87,36 +80,32 @@ export function registerListsTools(server: McpServer): void {
       } catch (error) {
         return { content: [{ type: "text" as const, text: formatApiError(error) }], isError: true };
       }
-    },
+    }),
   );
 
-  // ── delete-list ──────────────────────────────────────────────
   server.tool(
     "delete-list",
-    "Delete a list.",
-    {
-      id: z.string().describe("List ID to delete"),
-    },
-    async ({ id }) => {
+    "Delete a list (requires authorization).",
+    { id: z.string() },
+    withAuthGuard(async ({ id }) => {
       try {
         await api.delete(`/lists/${encodeURIComponent(id)}`);
         return { content: [{ type: "text" as const, text: `List ${id} deleted.` }] };
       } catch (error) {
         return { content: [{ type: "text" as const, text: formatApiError(error) }], isError: true };
       }
-    },
+    }),
   );
 
-  // ── get-list-timeline ────────────────────────────────────────
   server.tool(
     "get-list-timeline",
-    "Get the timeline of posts from members of a list.",
+    "Get posts from list members (requires authorization).",
     {
-      id: z.string().describe("List ID"),
-      limit: z.number().optional().describe("Number of posts (default: 20)"),
-      cursor: z.string().optional().describe("Pagination cursor"),
+      id: z.string(),
+      limit: z.number().optional(),
+      cursor: z.string().optional(),
     },
-    async ({ id, limit, cursor }) => {
+    withAuthGuard(async ({ id, limit, cursor }) => {
       try {
         const query: Record<string, string | number | boolean | undefined> = {};
         if (limit) query.limit = limit;
@@ -127,6 +116,6 @@ export function registerListsTools(server: McpServer): void {
       } catch (error) {
         return { content: [{ type: "text" as const, text: formatApiError(error) }], isError: true };
       }
-    },
+    }),
   );
 }

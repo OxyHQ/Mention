@@ -118,6 +118,7 @@ function boostRow() {
   return {
     _id: BOOST_ID,
     oxyUserId: BOOSTER_OXY_ID,
+    authorship: [{ oxyUserId: BOOSTER_OXY_ID, role: 'owner', status: 'accepted' }],
     type: 'boost',
     boostOf: ORIGINAL_ID,
     content: { text: '' },
@@ -135,6 +136,7 @@ function originalRow() {
   return {
     _id: ORIGINAL_ID,
     oxyUserId: ORIGINAL_AUTHOR_OXY_ID,
+    authorship: [{ oxyUserId: ORIGINAL_AUTHOR_OXY_ID, role: 'owner', status: 'accepted' }],
     type: 'post',
     content: { text: 'the original note body' },
     stats: { likesCount: 5, boostsCount: 2, commentsCount: 1, downvotesCount: 0, viewsCount: 9 },
@@ -319,6 +321,7 @@ describe('PostHydrationService — boost original embedding is deterministic', (
         return [{
           ...originalRow(),
           oxyUserId: FEDERATED_AUTHOR_OXY_ID,
+          authorship: [{ oxyUserId: FEDERATED_AUTHOR_OXY_ID, role: 'owner', status: 'accepted' }],
           federation: { activityId: 'https://zpravobot.news/users/TerribleMaps/statuses/123' },
         }];
       }

@@ -1385,7 +1385,19 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
     if (hashtags !== undefined) post.hashtags = mergeHashtags('', hashtags || []);
     if (mentions !== undefined) post.mentions = mentions || [];
 
+    const collaboratorIds = Array.isArray(req.body.collaboratorIds)
+      ? req.body.collaboratorIds.filter((id: unknown): id is string => typeof id === 'string' && id.length > 0)
+      : undefined;
+    if (collaboratorIds && collaboratorIds.length > 0) {
+      await postCollaborationService.attachCollaborators(post, userId, collaboratorIds);
+    }
+
     await post.save();
+
+    const isPublished = (post.status ?? 'published') === 'published';
+    if (isPublished && collaboratorIds && collaboratorIds.length > 0) {
+      await postCollaborationService.createCollabInviteNotifications(post, userId);
+    }
 
     // MTN dual-write: an edit re-emits the `app.mention.feed.post` record under
     // the SAME rkey (the post id). The chain is append-only and materialization
@@ -1408,6 +1420,12 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
     }
     res.json(hydrated[0]);
   } catch (error) {
+    if (error instanceof CollabValidationError) {
+      return res.status(400).json({ message: error.message });
+    }
+    if (error instanceof CollabStateError) {
+      return res.status(400).json({ message: error.message });
+    }
     logger.error('Error updating post', error);
     res.status(500).json({ message: 'Error updating post' });
   }

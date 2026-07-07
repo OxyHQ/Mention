@@ -6,11 +6,14 @@ import { postHydrationService } from './PostHydrationService';
 import { logger } from '../utils/logger';
 import {
   buildAuthorship,
+  buildCollaboratorEntry,
   getOwner,
   getOwnerId,
   getPendingCollaborators,
   getViewerEntry,
+  hasCollaborators,
   hasPendingCollabInvites,
+  normalizeAuthorship,
   validateCollaboratorIds,
 } from '../utils/postAuthorship';
 import { getPostFederator } from './serviceRegistry';
@@ -59,6 +62,44 @@ class PostCollaborationService {
     return buildAuthorship(ownerId, collaboratorIds);
   }
 
+  /**
+   * Attach collaborator invites to an existing solo post (edit-within-window flow).
+   * Mutates `post.authorship` in memory — the caller persists via `post.save()`.
+   */
+  async attachCollaborators(post: IPost, ownerId: string, collaboratorIds: string[]): Promise<void> {
+    if (collaboratorIds.length === 0) return;
+
+    const authorship = normalizeAuthorship(post.authorship);
+    if (hasCollaborators(authorship)) {
+      throw new CollabStateError('This post already has collaborators');
+    }
+
+    const owner = getOwner(authorship);
+    if (!owner || owner.oxyUserId !== ownerId) {
+      throw new CollabStateError('Only the post owner can invite collaborators');
+    }
+
+    if (post.federation != null) {
+      throw new CollabValidationError('Collaborators cannot be added to federated posts');
+    }
+
+    if (post.parentPostId || post.boostOf) {
+      throw new CollabValidationError('Only top-level posts can have collaborators');
+    }
+
+    const validated = await this.validateInvites(ownerId, collaboratorIds);
+    post.authorship = [...authorship, ...validated.map((id) => buildCollaboratorEntry(id))];
+    post.markModified('authorship');
+
+    const meta = (post.metadata ?? {}) as Record<string, unknown>;
+    // Solo posts federate immediately at creation. Converting them to collab via
+    // edit must not schedule a second delivery when invites resolve.
+    if (!meta.federationDelivered) {
+      post.metadata = { ...meta, collabFederationDeferred: true };
+      post.markModified('metadata');
+    }
+  }
+
   async createCollabInviteNotifications(post: IPost, ownerId: string): Promise<void> {
     const pending = getPendingCollaborators(post.authorship ?? []);
     if (pending.length === 0) return;
@@ -100,6 +141,9 @@ class PostCollaborationService {
     if ((post.status ?? 'published') !== 'published') return;
     if (hasPendingCollabInvites(post.authorship ?? [])) return;
 
+    const meta = (post.metadata ?? {}) as Record<string, unknown>;
+    if (!meta.collabFederationDeferred) return;
+
     const ownerId = getOwnerId(post.authorship ?? []);
     if (!ownerId) return;
 
@@ -107,6 +151,9 @@ class PostCollaborationService {
       const owner = await getServiceOxyClient().getUserById(ownerId);
       if (!owner.username) return;
       await getPostFederator().federateNewPost(post, ownerId, owner.username);
+      post.metadata = { ...(post.metadata ?? {}), federationDelivered: true, collabFederationDeferred: false };
+      post.markModified('metadata');
+      await post.save();
     } catch (error) {
       logger.warn('PostCollaborationService: deferred federation on invite resolve failed', { error });
     }

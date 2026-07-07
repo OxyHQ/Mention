@@ -429,6 +429,11 @@ export interface PostMetadata {
   // Track user interactions
   likedBy?: string[]; // Array of user IDs who liked this post
   savedBy?: string[]; // Array of user IDs who saved this post
+  // Collaborative post federation lifecycle flags
+  /** Set when a post with pending collab invites defers its fediverse delivery. Cleared once federation runs. */
+  collabFederationDeferred?: boolean;
+  /** Set after the post has been successfully delivered to the fediverse. Prevents a second delivery on invite resolution. */
+  federationDelivered?: boolean;
 }
 
 /**
@@ -487,6 +492,8 @@ export interface UpdatePostRequest {
   tags?: string[];
   mentions?: string[];
   hashtags?: string[];
+  /** Invite collaborators when editing a solo post within the 30-minute window. */
+  collaboratorIds?: string[];
 }
 
 export interface PostFeed {
