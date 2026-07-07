@@ -1,9 +1,9 @@
 import { buildAuthorship, buildAuthorFeedMatch, isProfileVisible } from '../utils/postAuthorship';
 import { postCollaborationService } from '../services/PostCollaborationService';
 
-jest.mock('../utils/oxyHelpers', () => ({
-  getServiceOxyClient: jest.fn(() => ({
-    getUsersByIds: jest.fn(async (ids: string[]) =>
+vi.mock('../utils/oxyHelpers', () => ({
+  getServiceOxyClient: vi.fn(() => ({
+    getUsersByIds: vi.fn(async (ids: string[]) =>
       ids.map((id) => ({ id, type: 'local', username: id, name: { displayName: id } })),
     ),
   })),

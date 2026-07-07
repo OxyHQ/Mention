@@ -1,21 +1,21 @@
 import { postCollaborationService, CollabValidationError, CollabStateError } from '../../services/PostCollaborationService';
 import { buildAuthorship } from '../../utils/postAuthorship';
 
-jest.mock('../../utils/oxyHelpers', () => ({
-  getServiceOxyClient: jest.fn(() => ({
-    getUsersByIds: jest.fn(async (ids: string[]) =>
+vi.mock('../../utils/oxyHelpers', () => ({
+  getServiceOxyClient: vi.fn(() => ({
+    getUsersByIds: vi.fn(async (ids: string[]) =>
       ids.map((id) => ({ id, type: 'local', username: id, name: { displayName: id } })),
     ),
   })),
 }));
 
-jest.mock('../../utils/notificationUtils', () => ({
-  createNotification: jest.fn(async () => undefined),
+vi.mock('../../utils/notificationUtils', () => ({
+  createNotification: vi.fn(async () => undefined),
 }));
 
-jest.mock('../../services/PostHydrationService', () => ({
+vi.mock('../../services/PostHydrationService', () => ({
   postHydrationService: {
-    hydratePosts: jest.fn(async () => [{}]),
+    hydratePosts: vi.fn(async () => [{}]),
   },
 }));
 
