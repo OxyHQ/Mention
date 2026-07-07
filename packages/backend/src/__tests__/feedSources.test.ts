@@ -75,10 +75,7 @@ describe('following source', () => {
     expect(posts.map((p) => String(p._id))).toEqual([oid(1).toString()]);
     const match = findCalls[0];
     expect(match).toMatchObject({
-      $or: [
-        { oxyUserId: { $in: ['f1'] } },
-        { authorship: { $elemMatch: { oxyUserId: { $in: ['f1'] }, status: 'accepted' } } },
-      ],
+      authorship: { $elemMatch: { oxyUserId: { $in: ['f1'] }, status: 'accepted' } },
       visibility: PostVisibility.PUBLIC,
     });
   });
@@ -89,10 +86,7 @@ describe('following source', () => {
     await followingSource.gather(ctx, { timeline: true }, 31);
     const match = findCalls[0];
     expect(match).toMatchObject({
-      $or: [
-        { oxyUserId: { $in: ['viewer', 'f1'] } },
-        { authorship: { $elemMatch: { oxyUserId: { $in: ['viewer', 'f1'] }, status: 'accepted' } } },
-      ],
+      authorship: { $elemMatch: { oxyUserId: { $in: ['viewer', 'f1'] }, status: 'accepted' } },
       visibility: { $in: [PostVisibility.PUBLIC, PostVisibility.FOLLOWERS_ONLY] },
     });
   });

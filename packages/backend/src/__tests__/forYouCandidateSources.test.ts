@@ -70,16 +70,10 @@ function affinityStub(userIds: string[]) {
 
 /** Extract author ids from a following/affinity/subscribed-list match. */
 function authorIdsInMatch(match: Record<string, unknown>): string[] | undefined {
-  const oxy = match.oxyUserId as { $in?: string[] } | undefined;
-  if (oxy?.$in) return oxy.$in;
-  const or = match.$or as Array<Record<string, unknown>> | undefined;
-  if (or) {
-    for (const branch of or) {
-      const branchOxy = branch.oxyUserId as { $in?: string[] } | undefined;
-      if (branchOxy?.$in) return branchOxy.$in;
-    }
-  }
-  return undefined;
+  const authorship = match.authorship as
+    | { $elemMatch?: { oxyUserId?: { $in?: string[] } } }
+    | undefined;
+  return authorship?.$elemMatch?.oxyUserId?.$in;
 }
 
 /** Classify a Post.find match by which source built it. */
@@ -122,10 +116,7 @@ describe('gatherForYouCandidates — union semantics', () => {
     expect(pool.map((p) => p.oxyUserId)).toContain('list-only');
     const listSource = findCalls.find((match) => authorIdsInMatch(match)?.includes('list-only'));
     expect(listSource).toMatchObject({
-      $or: [
-        { oxyUserId: { $in: ['list-only'] } },
-        { authorship: { $elemMatch: { oxyUserId: { $in: ['list-only'] }, status: 'accepted' } } },
-      ],
+      authorship: { $elemMatch: { oxyUserId: { $in: ['list-only'] }, status: 'accepted' } },
     });
   });
 

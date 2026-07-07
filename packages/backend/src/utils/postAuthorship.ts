@@ -19,23 +19,16 @@ export function buildAuthorship(ownerId: string, collaboratorIds: string[] = [])
 
 export function normalizeAuthorship(
   authorship: PostAuthorshipEntry[] | undefined,
-  fallbackOwnerId?: string,
 ): PostAuthorshipEntry[] {
-  if (authorship && authorship.length > 0) {
-    return authorship;
-  }
-  if (fallbackOwnerId) {
-    return [buildOwnerEntry(fallbackOwnerId)];
-  }
-  return [];
+  return authorship && authorship.length > 0 ? authorship : [];
 }
 
 export function getOwner(authorship: PostAuthorshipEntry[]): PostAuthorshipEntry | undefined {
   return authorship.find((entry) => entry.role === 'owner');
 }
 
-export function getOwnerId(authorship: PostAuthorshipEntry[], fallbackOwnerId?: string): string | undefined {
-  return getOwner(authorship)?.oxyUserId ?? fallbackOwnerId;
+export function getOwnerId(authorship: PostAuthorshipEntry[]): string | undefined {
+  return getOwner(authorship)?.oxyUserId;
 }
 
 export function getAcceptedCollaborators(authorship: PostAuthorshipEntry[]): PostAuthorshipEntry[] {
@@ -103,8 +96,8 @@ export function validateCollaboratorIds(ownerId: string, collaboratorIds: string
   return unique;
 }
 
-export function collectAuthorshipUserIds(authorship: PostAuthorshipEntry[] | undefined, fallbackOwnerId?: string): string[] {
-  const entries = normalizeAuthorship(authorship, fallbackOwnerId);
+export function collectAuthorshipUserIds(authorship: PostAuthorshipEntry[] | undefined): string[] {
+  const entries = normalizeAuthorship(authorship);
   const ids = new Set<string>();
   for (const entry of getHeaderAuthorshipEntries(entries)) {
     ids.add(entry.oxyUserId);
@@ -114,22 +107,12 @@ export function collectAuthorshipUserIds(authorship: PostAuthorshipEntry[] | und
 
 export function buildAuthorFeedMatch(authorId: string): Record<string, unknown> {
   return {
-    $or: [
-      { authorship: { $elemMatch: { oxyUserId: authorId, status: 'accepted' } } },
-      // Legacy posts pre-authorship[]: owner-only rows keyed by oxyUserId.
-      {
-        oxyUserId: authorId,
-        $or: [{ authorship: { $exists: false } }, { authorship: { $size: 0 } }],
-      },
-    ],
+    authorship: { $elemMatch: { oxyUserId: authorId, status: 'accepted' } },
   };
 }
 
 export function buildFollowedAuthorsMatch(authorIds: string[]): Record<string, unknown> {
   return {
-    $or: [
-      { oxyUserId: { $in: authorIds } },
-      { authorship: { $elemMatch: { oxyUserId: { $in: authorIds }, status: 'accepted' } } },
-    ],
+    authorship: { $elemMatch: { oxyUserId: { $in: authorIds }, status: 'accepted' } },
   };
 }

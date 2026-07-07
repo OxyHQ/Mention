@@ -27,8 +27,11 @@ describe('postAuthorship', () => {
     expect(getPendingCollaborators(authorship)).toHaveLength(2);
   });
 
-  it('normalizeAuthorship falls back to owner entry', () => {
-    expect(normalizeAuthorship(undefined, ownerId)).toEqual([buildOwnerEntry(ownerId)]);
+  it('normalizeAuthorship returns authorship or an empty array', () => {
+    const authorship = buildAuthorship(ownerId, [collabA]);
+    expect(normalizeAuthorship(authorship)).toBe(authorship);
+    expect(normalizeAuthorship(undefined)).toEqual([]);
+    expect(normalizeAuthorship([])).toEqual([]);
   });
 
   it('getOwnerId returns owner oxyUserId', () => {

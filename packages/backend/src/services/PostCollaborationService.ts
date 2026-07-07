@@ -100,7 +100,7 @@ class PostCollaborationService {
     if ((post.status ?? 'published') !== 'published') return;
     if (hasPendingCollabInvites(post.authorship ?? [])) return;
 
-    const ownerId = getOwnerId(post.authorship ?? [], post.oxyUserId ?? undefined);
+    const ownerId = getOwnerId(post.authorship ?? []);
     if (!ownerId) return;
 
     try {
@@ -145,7 +145,7 @@ class PostCollaborationService {
     entry.respondedAt = new Date().toISOString();
     await post.save();
 
-    const ownerId = getOwnerId(post.authorship ?? [], post.oxyUserId);
+    const ownerId = getOwnerId(post.authorship ?? []);
     if (ownerId && ownerId !== userId) {
       await createNotification({
         recipientId: ownerId,
@@ -174,7 +174,7 @@ class PostCollaborationService {
     entry.respondedAt = new Date().toISOString();
     await post.save();
 
-    const ownerId = getOwnerId(post.authorship ?? [], post.oxyUserId);
+    const ownerId = getOwnerId(post.authorship ?? []);
     if (ownerId && ownerId !== userId) {
       await createNotification({
         recipientId: ownerId,

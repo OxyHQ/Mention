@@ -76,6 +76,7 @@ import { logger } from '../../utils/logger';
 import { getServiceOxyClient } from '../../utils/oxyHelpers';
 import { parseUserDid } from './mentionDid';
 import { baselineContentClassifier } from '../BaselineContentClassifier';
+import { buildAuthorship } from '../../utils/postAuthorship';
 
 /** The kind of native row a successful projection produced/removed. */
 export type ProjectedKind = 'post' | 'like' | 'repost' | 'tombstone' | 'bookmark';
@@ -269,6 +270,7 @@ async function projectPost(
 
   const set: Record<string, unknown> = {
     oxyUserId,
+    authorship: buildAuthorship(oxyUserId, []),
     type: PostType.TEXT,
     'content.text': record.text ?? '',
     hashtags: tags,
@@ -364,6 +366,7 @@ async function projectRepost(
     {
       $set: {
         oxyUserId,
+        authorship: buildAuthorship(oxyUserId, []),
         type: PostType.BOOST,
         boostOf,
         'content.text': '',

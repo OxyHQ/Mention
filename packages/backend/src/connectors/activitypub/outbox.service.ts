@@ -40,6 +40,7 @@ import {
 } from './helpers';
 import { isAbsoluteHttpUrl, getRemoteHost } from '../shared/url';
 import { materializeFederatedMedia } from '../shared/federatedMedia';
+import { buildAuthorship } from '../../utils/postAuthorship';
 import {
   parseOrderedCollection,
   parseOrderedCollectionPage,
@@ -683,6 +684,7 @@ export class OutboxSyncService {
 
         newDocs.push({
           oxyUserId: resolvedOxyUserId,
+          authorship: buildAuthorship(resolvedOxyUserId, []),
           federation: {
             activityId,
             actorUri,

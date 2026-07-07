@@ -305,7 +305,7 @@ class PostCreationService {
     post.status = 'published';
     await post.save();
 
-    const ownerId = getOwnerId(post.authorship ?? [], post.oxyUserId ?? undefined) ?? null;
+    const ownerId = getOwnerId(post.authorship ?? []) ?? null;
     const hasPendingInvites = hasPendingCollabInvites(post.authorship ?? []);
 
     if (ownerId && hasPendingInvites) {
@@ -396,7 +396,6 @@ class PostCreationService {
           if (parent) {
             await createPostAuthorNotifications(
               parent.authorship as import('@mention/shared-types').PostAuthorshipEntry[] | undefined,
-              parent.oxyUserId?.toString() ?? undefined,
               {
                 actorId: oxyUserId,
                 type: 'reply',
@@ -412,7 +411,6 @@ class PostCreationService {
           if (original) {
             await createPostAuthorNotifications(
               original.authorship as import('@mention/shared-types').PostAuthorshipEntry[] | undefined,
-              original.oxyUserId?.toString() ?? undefined,
               {
                 actorId: oxyUserId,
                 type: 'quote',
@@ -428,7 +426,6 @@ class PostCreationService {
           if (original) {
             await createPostAuthorNotifications(
               original.authorship as import('@mention/shared-types').PostAuthorshipEntry[] | undefined,
-              original.oxyUserId?.toString() ?? undefined,
               {
                 actorId: oxyUserId,
                 type: 'boost',

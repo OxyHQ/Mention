@@ -1666,7 +1666,6 @@ export const likePost = async (req: AuthRequest, res: Response) => {
       try {
         await createPostAuthorNotifications(
           likedPost?.authorship as import('@mention/shared-types').PostAuthorshipEntry[] | undefined,
-          likedPost?.oxyUserId?.toString() ?? undefined,
           {
             actorId: userId,
             type: 'like',

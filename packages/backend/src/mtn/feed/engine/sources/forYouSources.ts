@@ -62,7 +62,7 @@ export function buildFollowingVisibilityMatch(
             visibility: { $in: [PostVisibility.PUBLIC, PostVisibility.FOLLOWERS_ONLY] },
           },
           {
-            oxyUserId: { $in: publicOnlyListIds },
+            ...buildFollowedAuthorsMatch(publicOnlyListIds),
             visibility: PostVisibility.PUBLIC,
           },
         ],

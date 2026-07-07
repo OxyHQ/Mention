@@ -553,9 +553,6 @@ PostSchema.pre('save', function() {
     if (owner?.oxyUserId) {
       this.oxyUserId = owner.oxyUserId;
     }
-  } else if (this.oxyUserId) {
-    // Legacy path: seed authorship from oxyUserId when not yet migrated
-    this.authorship = [{ oxyUserId: this.oxyUserId, role: 'owner', status: 'accepted' }];
   }
 
   // Clean up content.location if it has empty coordinates

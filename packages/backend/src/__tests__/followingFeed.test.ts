@@ -48,13 +48,13 @@ describe('following source (timeline) visibility authorization', () => {
         {
           $or: [
             {
-              $or: [
-                { oxyUserId: { $in: ['viewer', 'real-follow'] } },
-                { authorship: { $elemMatch: { oxyUserId: { $in: ['viewer', 'real-follow'] }, status: 'accepted' } } },
-              ],
+              authorship: { $elemMatch: { oxyUserId: { $in: ['viewer', 'real-follow'] }, status: 'accepted' } },
               visibility: { $in: ['public', 'followers_only'] },
             },
-            { oxyUserId: { $in: ['list-only'] }, visibility: 'public' },
+            {
+              authorship: { $elemMatch: { oxyUserId: { $in: ['list-only'] }, status: 'accepted' } },
+              visibility: 'public',
+            },
           ],
         },
       ],
@@ -74,13 +74,13 @@ describe('following source (timeline) visibility authorization', () => {
         {
           $or: [
             {
-              $or: [
-                { oxyUserId: { $in: ['viewer', 'real-follow'] } },
-                { authorship: { $elemMatch: { oxyUserId: { $in: ['viewer', 'real-follow'] }, status: 'accepted' } } },
-              ],
+              authorship: { $elemMatch: { oxyUserId: { $in: ['viewer', 'real-follow'] }, status: 'accepted' } },
               visibility: { $in: ['public', 'followers_only'] },
             },
-            { oxyUserId: { $in: ['list-only'] }, visibility: 'public' },
+            {
+              authorship: { $elemMatch: { oxyUserId: { $in: ['list-only'] }, status: 'accepted' } },
+              visibility: 'public',
+            },
           ],
         },
       ],

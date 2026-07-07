@@ -44,6 +44,7 @@ import { anonFeedCache } from '../services/anonFeedCache';
 import { metrics } from '../utils/metrics';
 import { config } from '../config';
 import { mergeHashtags } from '../utils/textProcessing';
+import { buildAuthorship } from '../utils/postAuthorship';
 import { validatePublicShareTarget } from '../utils/postAccessControl';
 import { baselineContentClassifier } from '../services/BaselineContentClassifier';
 import { createScopedOxyClient, getServiceOxyClient } from '../utils/oxyHelpers';
@@ -1291,6 +1292,7 @@ class FeedController {
       // For now, we'll still create it but mark it for review
       const reply = new Post({
         oxyUserId: currentUserId,
+        authorship: buildAuthorship(currentUserId, []),
         type: PostType.TEXT,
         content: replyContent,
         visibility: parentPost.reviewReplies ? PostVisibility.PRIVATE : PostVisibility.PUBLIC,
@@ -1452,6 +1454,7 @@ class FeedController {
 
       const boost = new Post({
         oxyUserId: currentUserId,
+        authorship: buildAuthorship(currentUserId, []),
         type: PostType.BOOST,
         content: content || { text: '' },
         visibility: PostVisibility.PUBLIC,

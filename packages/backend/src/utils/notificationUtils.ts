@@ -193,10 +193,9 @@ export const createBatchNotifications = async (
 /** Notify owner + accepted collaborators (excludes actor). */
 export const createPostAuthorNotifications = async (
   authorship: PostAuthorshipEntry[] | undefined,
-  fallbackOwnerId: string | undefined,
   data: Omit<CreateNotificationData, 'recipientId'>,
 ): Promise<void> => {
-  const recipients = getNotificationRecipients(normalizeAuthorship(authorship, fallbackOwnerId));
+  const recipients = getNotificationRecipients(normalizeAuthorship(authorship));
   await Promise.allSettled(
     recipients
       .filter((recipientId) => recipientId !== data.actorId)

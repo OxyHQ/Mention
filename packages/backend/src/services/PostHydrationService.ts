@@ -898,7 +898,7 @@ export class PostHydrationService {
     const localUserIds = new Set<string>();
 
     for (const { post } of nodes) {
-      for (const userId of collectAuthorshipUserIds(post?.authorship, post?.oxyUserId ? String(post.oxyUserId) : undefined)) {
+      for (const userId of collectAuthorshipUserIds(post?.authorship)) {
         localUserIds.add(userId);
       }
     }
@@ -1221,7 +1221,7 @@ export class PostHydrationService {
     const authorId = post?.oxyUserId ? String(post.oxyUserId) : undefined;
     if (!authorId) return null;
 
-    const authorship = normalizeAuthorship(post.authorship as PostAuthorshipEntry[] | undefined, authorId);
+    const authorship = normalizeAuthorship(post.authorship as PostAuthorshipEntry[] | undefined);
 
     // Privacy checks only apply to local users (federated posts are public by definition).
     // Hydration can be used for globally-broadcast DTOs and for nested quote/boost
