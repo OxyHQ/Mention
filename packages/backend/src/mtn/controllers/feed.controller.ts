@@ -169,7 +169,10 @@ function parseVideoFeedFilters(
   if (parseFeedDescriptor(descriptor).source !== 'videos') return undefined;
 
   const orientationRaw = typeof query.orientation === 'string' ? query.orientation.trim().toLowerCase() : '';
-  const orientation = orientationRaw === 'portrait' || orientationRaw === 'landscape' || orientationRaw === 'square'
+  const orientation = orientationRaw === 'portrait'
+    || orientationRaw === 'landscape'
+    || orientationRaw === 'square'
+    || orientationRaw === 'all'
     ? orientationRaw
     : undefined;
 

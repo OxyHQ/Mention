@@ -128,7 +128,7 @@ describe('videos source', () => {
     const elemMatch = (mediaClause?.['content.media'] as { $elemMatch: Record<string, unknown> }).$elemMatch;
     expect(elemMatch.type).toBe('video');
     expect(elemMatch.durationSec).toEqual({ $gte: 20 });
-    expect(elemMatch.orientation).toEqual({ $exists: true });
+    expect(elemMatch.orientation).toBe('portrait');
   });
 });
 

@@ -59,7 +59,7 @@ export interface FeedEngineContext extends FeedContext {
    * Applied by {@link FeedQueryBuilder.buildVideosQuery} — reads persisted media fields only.
    */
   videoFilters?: {
-    orientation?: 'portrait' | 'landscape' | 'square';
+    orientation?: 'portrait' | 'landscape' | 'square' | 'all';
     minDurationSec?: number;
   };
 }

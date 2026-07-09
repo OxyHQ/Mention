@@ -991,7 +991,8 @@ export default function VideosScreen() {
         ) {
             selected = media[preferredMediaIndex];
         } else {
-            selected = media.find((m) => m?.type === 'video');
+            selected = media.find((m) => m?.type === 'video' && m?.orientation === 'portrait')
+                ?? media.find((m) => m?.type === 'video');
         }
         if (!selected) return null;
 

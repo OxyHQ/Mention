@@ -3,9 +3,10 @@ import { MtnConfig, PostVisibility } from '@mention/shared-types';
 import { FeedQueryBuilder } from '../utils/feedQueryBuilder';
 
 describe('FeedQueryBuilder.buildVideosQuery metadata filters', () => {
-  it('requires complete video metadata with default min duration', () => {
+  it('requires complete persisted video metadata with default min duration', () => {
     const query = FeedQueryBuilder.buildVideosQuery([], undefined);
     const and = query.$and as Array<Record<string, unknown>>;
+
     const mediaClause = and.find((c) => typeof c['content.media'] === 'object');
     expect(mediaClause).toBeDefined();
 
@@ -13,10 +14,18 @@ describe('FeedQueryBuilder.buildVideosQuery metadata filters', () => {
     expect(elemMatch).toEqual({
       type: 'video',
       durationSec: { $gte: MtnConfig.videosFeed.minDurationSec },
-      orientation: { $exists: true },
+      orientation: MtnConfig.videosFeed.defaultOrientation,
       width: { $gt: 0 },
       height: { $gt: 0 },
     });
+  });
+
+  it('applies orientation=all to include every stored orientation', () => {
+    const query = FeedQueryBuilder.buildVideosQuery([], undefined, { orientation: 'all' });
+    const and = query.$and as Array<Record<string, unknown>>;
+    const mediaClause = and.find((c) => typeof c['content.media'] === 'object');
+    const elemMatch = (mediaClause?.['content.media'] as { $elemMatch: Record<string, unknown> }).$elemMatch;
+    expect(elemMatch.orientation).toEqual({ $exists: true });
   });
 
   it('applies orientation and minDuration overrides', () => {
@@ -25,7 +34,9 @@ describe('FeedQueryBuilder.buildVideosQuery metadata filters', () => {
       minDurationSec: 30,
     });
     const and = query.$and as Array<Record<string, unknown>>;
+
     const mediaClause = and.find((c) => typeof c['content.media'] === 'object');
+    expect(mediaClause).toBeDefined();
     const elemMatch = (mediaClause?.['content.media'] as { $elemMatch: Record<string, unknown> }).$elemMatch;
     expect(elemMatch.orientation).toBe('portrait');
     expect(elemMatch.durationSec).toEqual({ $gte: 30 });

@@ -1,0 +1,43 @@
+name: Setup MCP DNS (one-shot)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  dns:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create mcp.mention.earth DNS + ACM validation
+        env:
+          CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          ZONE_ID: 6c2a616f72102ee543329c87fa3b5e08
+          ALB_DNS: oxy-alb-648111691.us-west-2.elb.amazonaws.com
+        run: |
+          set -euo pipefail
+          if [ -z "${CF_TOKEN:-}" ] || [ "$CF_TOKEN" = "-" ]; then
+            echo "::error::CLOUDFLARE_API_TOKEN secret is missing on this repo"
+            exit 1
+          fi
+          auth=(-H "Authorization: Bearer $CF_TOKEN" -H "Content-Type: application/json")
+          upsert() {
+            local type="$1" name="$2" content="$3" proxied="$4"
+            existing=$(curl -sS "${auth[@]}" \
+              "https://api.cloudflare.com/client/v4/zones/$ZONE_ID/dns_records?type=$type&name=$name" \
+              | jq -r '.result[0].id // empty')
+            body=$(jq -nc --arg type "$type" --arg name "$name" --arg content "$content" --argjson proxied "$proxied" \
+              '{type:$type,name:$name,content:$content,proxied:$proxied,ttl:300}')
+            if [ -n "$existing" ]; then
+              curl -sS -X PUT "${auth[@]}" \
+                "https://api.cloudflare.com/client/v4/zones/$ZONE_ID/dns_records/$existing" \
+                --data "$body" | jq '{success,errors}'
+            else
+              curl -sS -X POST "${auth[@]}" \
+                "https://api.cloudflare.com/client/v4/zones/$ZONE_ID/dns_records" \
+                --data "$body" | jq '{success,errors}'
+            fi
+          }
+          upsert CNAME "mcp.mention.earth" "$ALB_DNS" false
+          upsert CNAME "_05fcd9b35de10c5aa2b9660fbbf833fa.mcp.mention.earth" "_8086e146534f1dba36d48897eb67e058.jkddzztszm.acm-validations.aws" false

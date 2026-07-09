@@ -30,22 +30,19 @@ interface SamplePost {
   boostOf?: string | null;
 }
 
-/**
- * Pure predicate that mirrors FeedQueryBuilder.buildVideosQuery's semantics so
- * we can assert inclusion/exclusion without a live MongoDB. Post-backfill:
- * public + published, not a boost, and a video item with complete metadata.
- */
+/** Pure predicate mirroring FeedQueryBuilder.buildVideosQuery strict metadata match (default portrait). */
 function matchesVideosFeed(post: SamplePost): boolean {
   if (post.visibility !== PostVisibility.PUBLIC) return false;
   if (post.status !== 'published') return false;
   if (post.boostOf) return false;
+
   const media = post.content.media;
   if (!Array.isArray(media)) return false;
   return media.some((m) =>
     m.type === 'video'
     && typeof m.durationSec === 'number'
     && m.durationSec >= 20
-    && m.orientation !== undefined
+    && m.orientation === 'portrait'
     && typeof m.width === 'number'
     && m.width > 0
     && typeof m.height === 'number'
@@ -66,7 +63,7 @@ describe('videos feed descriptor', () => {
 });
 
 describe('FeedQueryBuilder.buildVideosQuery', () => {
-  it('requires complete video metadata with default min duration', () => {
+  it('requires complete persisted video metadata with default min duration', () => {
     const query = FeedQueryBuilder.buildVideosQuery([], undefined);
 
     expect(query.visibility).toBe(PostVisibility.PUBLIC);
@@ -77,10 +74,13 @@ describe('FeedQueryBuilder.buildVideosQuery', () => {
 
     const mediaClause = and.find((c) => typeof c['content.media'] === 'object');
     expect(mediaClause).toBeDefined();
+
     const elemMatch = (mediaClause?.['content.media'] as { $elemMatch: Record<string, unknown> }).$elemMatch;
     expect(elemMatch.type).toBe('video');
     expect(elemMatch.durationSec).toEqual({ $gte: 20 });
-    expect(elemMatch.orientation).toEqual({ $exists: true });
+    expect(elemMatch.orientation).toBe('portrait');
+    expect(elemMatch.width).toEqual({ $gt: 0 });
+    expect(elemMatch.height).toEqual({ $gt: 0 });
   });
 
   it('excludes boosts and seen posts, and applies a cursor', () => {
@@ -89,12 +89,10 @@ describe('FeedQueryBuilder.buildVideosQuery', () => {
     const query = FeedQueryBuilder.buildVideosQuery(seen, cursor);
     const and = query.$and as Array<Record<string, unknown>>;
 
-    // Boost exclusion clause is present.
     const boostClause = and.find((c) => Array.isArray(c.$or)
       && (c.$or as Array<Record<string, unknown>>).some((o) => o.boostOf === null));
     expect(boostClause).toBeDefined();
 
-    // Seen-post exclusion ($nin) and cursor ($lt) clauses are present.
     const ninClause = and.find((c) => {
       const id = c._id as { $nin?: unknown[] } | undefined;
       return Array.isArray(id?.$nin);
@@ -148,7 +146,7 @@ describe('videos feed candidate selection', () => {
     content: { text: 'just text' },
   };
 
-  it('includes a native video post', () => {
+  it('includes a native video post with complete metadata', () => {
     expect(matchesVideosFeed(nativeVideo)).toBe(true);
   });
 
@@ -162,5 +160,25 @@ describe('videos feed candidate selection', () => {
 
   it('excludes video posts missing persisted metadata', () => {
     expect(matchesVideosFeed(incompleteVideo)).toBe(false);
+  });
+
+  it('excludes landscape videos from the default portrait feed', () => {
+    const landscapeVideo: SamplePost = {
+      type: PostType.VIDEO,
+      visibility: PostVisibility.PUBLIC,
+      status: 'published',
+      content: {
+        text: 'wide clip',
+        media: [{
+          id: 'm4',
+          type: 'video',
+          width: 1920,
+          height: 1080,
+          durationSec: 30,
+          orientation: 'landscape',
+        }],
+      },
+    };
+    expect(matchesVideosFeed(landscapeVideo)).toBe(false);
   });
 });

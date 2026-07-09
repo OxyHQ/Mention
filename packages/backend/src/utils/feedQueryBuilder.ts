@@ -22,8 +22,12 @@ export interface FeedQueryOptions {
 export interface VideosQueryOptions {
   /** Minimum video duration in seconds (defaults to {@link MtnConfig.videosFeed.minDurationSec}). */
   minDurationSec?: number;
-  /** Restrict to videos with this stored orientation. */
-  orientation?: 'portrait' | 'landscape' | 'square';
+  /**
+   * Restrict to videos with this stored orientation.
+   * Omit to use {@link MtnConfig.videosFeed.defaultOrientation} (`portrait`).
+   * Pass `'all'` to include every orientation with persisted metadata.
+   */
+  orientation?: 'portrait' | 'landscape' | 'square' | 'all';
 }
 
 export class FeedQueryBuilder {
@@ -337,10 +341,12 @@ export class FeedQueryBuilder {
    * Build query for the Videos (Reels) feed.
    *
    * Matches public, published posts that contain at least one video — either a
-   * post typed as VIDEO or a post whose content.media array contains a video
-   * item. Both native and federated posts are included (no federation
-   * exclusion). Boosts are excluded (the underlying original is surfaced
-   * instead). Replies flow through so multi-post threads can still be sliced.
+   * Matches public, published posts whose `content.media[]` contains a video
+   * item with persisted metadata: durationSec ≥ min (default 20), orientation,
+   * width, and height. Both native and federated posts are included (no
+   * federation exclusion). Boosts are excluded (the underlying original is
+   * surfaced instead). Replies flow through so multi-post threads can still
+   * be sliced.
    */
   static buildVideosQuery(
     seenPostIds: string[],
@@ -348,18 +354,16 @@ export class FeedQueryBuilder {
     options: VideosQueryOptions = {},
   ): Record<string, unknown> {
     const minDurationSec = options.minDurationSec ?? MtnConfig.videosFeed.minDurationSec;
+    const orientation = options.orientation ?? MtnConfig.videosFeed.defaultOrientation;
     const elemMatch: Record<string, unknown> = {
       type: 'video',
       durationSec: { $gte: minDurationSec },
-      orientation: { $exists: true },
+      orientation: orientation === 'all' ? { $exists: true } : orientation,
       width: { $gt: 0 },
       height: { $gt: 0 },
     };
-    if (options.orientation) {
-      elemMatch.orientation = options.orientation;
-    }
 
-    const videoMatch = {
+    const strictMediaMatch = {
       'content.media': { $elemMatch: elemMatch },
     };
 
@@ -367,7 +371,7 @@ export class FeedQueryBuilder {
       visibility: PostVisibility.PUBLIC,
       status: 'published',
       $and: [
-        videoMatch,
+        strictMediaMatch,
         { $or: [{ boostOf: null }, { boostOf: { $exists: false } }] },
       ],
     };

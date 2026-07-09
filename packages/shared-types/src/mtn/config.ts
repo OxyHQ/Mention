@@ -361,6 +361,8 @@ export const MtnConfig = {
   videosFeed: {
     /** Default minimum video duration in seconds for the ranked videos feed. */
     minDurationSec: 20,
+    /** Default orientation filter — Reels surface is portrait-first. */
+    defaultOrientation: 'portrait' as const,
   },
 
   // --- Cache TTLs (milliseconds) ---
