@@ -20,7 +20,7 @@ import { AccountSwitchReset } from '@/components/providers/AccountSwitchReset';
 import { BottomSheetProvider } from '@/context/BottomSheetContext';
 import { HomeRefreshProvider } from '@/context/HomeRefreshContext';
 import { LayoutScrollProvider } from '@/context/LayoutScrollContext';
-import { OXY_CLIENT_ID } from '@/config';
+import { OXY_CLIENT_ID, OXY_AUTH_REDIRECT_URI } from '@/config';
 import { ToastOutlet } from '@oxyhq/bloom/toast';
 import { ConfirmPromptProvider } from '@/components/common/ConfirmPrompt';
 import { FediverseInfoDialogProvider } from '@/components/Fediverse/FediverseInfoDialog';
@@ -60,6 +60,7 @@ export const AppProviders = memo(function AppProviders({
           <OxyProvider
             oxyServices={oxyServices}
             clientId={OXY_CLIENT_ID}
+            authRedirectUri={OXY_AUTH_REDIRECT_URI}
             storageKeyPrefix="mention"
             queryClient={queryClient}
           >

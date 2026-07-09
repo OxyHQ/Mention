@@ -27,6 +27,10 @@ export const OXY_CLIENT_ID =
   process.env.EXPO_PUBLIC_OXY_CLIENT_ID ??
   'oxy_dk_ba07b16e89bd180d2b58c09b02db550e727fa598ed73e2f2';
 
+/** Registered OAuth redirect surface for this web origin (exact match). */
+export const OXY_AUTH_REDIRECT_URI =
+  process.env.EXPO_PUBLIC_OXY_AUTH_REDIRECT_URI ?? 'https://mention.earth';
+
 // Public web origin used to build shareable deep links (posts, trends, rooms).
 export const WEB_BASE_URL =
   process.env.EXPO_PUBLIC_WEB_BASE_URL || 'https://mention.earth';
