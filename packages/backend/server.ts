@@ -74,7 +74,7 @@ import { apexFrontendProxy, isApexHost } from './src/middleware/apexFrontendProx
 // authenticated API routes an Oxy session can.
 import { createMcpOAuthRoutes } from './src/mcp/routes/mcpOAuth.routes';
 import mcpConnectionsRoutes from './src/mcp/routes/mcpConnections.routes';
-import { createRequireMcpOrOxyAuth } from './src/mcp/middleware/mcpAuth';
+import { bearerLooksLikeMcpToken, createOptionalMcpAuth, createRequireMcpOrOxyAuth } from './src/mcp/middleware/mcpAuth';
 
 // Federation (ActivityPub) — network connectors. Importing the connectors index
 // instantiates the enabled connectors and registers the connector registry as
@@ -137,6 +137,12 @@ const optionalAuth = (req: express.Request, res: express.Response, next: express
   if (!authHeader) {
     // No auth header, continue as unauthenticated
     logger.debug("Optional auth: No authorization header, continuing as unauthenticated");
+    return next();
+  }
+
+  // MCP JWTs are validated by createOptionalMcpAuth on publicApiRouter. Never
+  // pass them to oxy.auth() — it would fail and previously wiped identity.
+  if (bearerLooksLikeMcpToken(req)) {
     return next();
   }
 
@@ -812,6 +818,10 @@ app.set("postsNamespace", postsNamespace);
 // --- API ROUTES ---
 // Public API routes (no authentication required)
 const publicApiRouter = express.Router();
+// Resolve MCP JWT identity on public routes before optionalAuth runs. Without
+// this pass, MCP tools that hit /feed/* or /federation/* would stay anonymous
+// because optionalAuth only understood Oxy session tokens.
+publicApiRouter.use(createOptionalMcpAuth());
 publicApiRouter.use("/hashtags", hashtagsRoutes);
 // Move polls under authenticated router so req.user is available for create/vote
 // If you want public GET access later, split the router or add a public shim.

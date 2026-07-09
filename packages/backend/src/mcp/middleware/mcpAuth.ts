@@ -29,6 +29,12 @@ import { logger } from '../../utils/logger';
  * `getRequiredOxyUserId`) work identically regardless of credential type.
  */
 
+/** Whether the request carries a bearer token whose `aud` is the MCP resource. */
+export function bearerLooksLikeMcpToken(req: Request): boolean {
+  const token = extractBearer(req);
+  return token ? looksLikeMcpToken(token) : false;
+}
+
 /** Pull a bearer token from the Authorization header, or `undefined`. */
 function extractBearer(req: Request): string | undefined {
   const header = req.headers.authorization;
