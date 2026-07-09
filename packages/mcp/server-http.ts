@@ -213,15 +213,9 @@ async function handleStreamableMcp(
       // the client connects anonymously and never sees the WWW-Authenticate
       // challenge that starts the OAuth flow.
       if (!userToken) {
-        // #region agent log
-        fetch('http://127.0.0.1:7379/ingest/0a9bf759-460f-4407-91a0-8d8c0d3fbc72',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'01f3f1'},body:JSON.stringify({sessionId:'01f3f1',runId:'mcp-oauth-gate',hypothesisId:'H1',location:'server-http.ts:handleStreamableMcp',message:'POST new session rejected — no bearer',data:{method},timestamp:Date.now()})}).catch(()=>{});
-        // #endregion
         sendUnauthorized(res);
         return;
       }
-      // #region agent log
-      fetch('http://127.0.0.1:7379/ingest/0a9bf759-460f-4407-91a0-8d8c0d3fbc72',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'01f3f1'},body:JSON.stringify({sessionId:'01f3f1',runId:'mcp-oauth-gate',hypothesisId:'H2',location:'server-http.ts:handleStreamableMcp',message:'POST new session allowed — bearer present',data:{method,hasToken:true},timestamp:Date.now()})}).catch(()=>{});
-      // #endregion
       const server = createMcpServer();
       transport = new StreamableHTTPServerTransport({
         sessionIdGenerator: () => randomUUID(),
