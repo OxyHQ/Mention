@@ -29,6 +29,11 @@ interface McpConnection {
   clientLabel?: string;
   clientName?: string;
   scopes?: string[];
+  bundleId?: string | null;
+  isBundlePrimary?: boolean;
+  handle?: string;
+  displayName?: string;
+  bundleHandles?: string[];
   createdAt?: string;
   lastUsedAt?: string;
 }
@@ -50,6 +55,20 @@ function connectionLabel(connection: McpConnection): string {
   if (connection.clientLabel) return connection.clientLabel;
   if (connection.clientName) return connection.clientName;
   return KNOWN_MCP_CLIENTS[connection.clientId?.toLowerCase()] ?? connection.clientId;
+}
+
+function connectionTitle(connection: McpConnection): string {
+  const label = connectionLabel(connection);
+  const handle = connection.handle ? `@${connection.handle.replace(/^@+/, '')}` : undefined;
+  if (handle) {
+    return `${label} — ${handle}`;
+  }
+  return label;
+}
+
+function bundleSummary(handles: string[] | undefined): string | undefined {
+  if (!handles || handles.length <= 1) return undefined;
+  return handles.map((h) => `@${h.replace(/^@+/, '')}`).join(', ');
 }
 
 /** Pull a human-readable message off an axios-style error without `as any`. */
@@ -207,7 +226,8 @@ export default function ConnectedAiScreen() {
           >
             {connections.map((connection) => {
               const revoking = revokeMutation.isPending && revokeMutation.variables === connection.id;
-              const description = connection.lastUsedAt
+              const bundleLine = bundleSummary(connection.bundleHandles);
+              const timeLine = connection.lastUsedAt
                 ? t('mcp.connections.lastUsed', {
                     defaultValue: 'Last used {{time}}',
                     time: formatRelativeTimeLocalized(connection.lastUsedAt, t),
@@ -218,11 +238,12 @@ export default function ConnectedAiScreen() {
                       time: formatRelativeTimeLocalized(connection.createdAt, t),
                     })
                   : undefined;
+              const description = [bundleLine, timeLine].filter(Boolean).join(' · ') || undefined;
               return (
                 <SettingsListItem
                   key={connection.id}
                   icon={<RowIcon name="sparkles-outline" />}
-                  title={connectionLabel(connection)}
+                  title={connectionTitle(connection)}
                   description={description}
                   showChevron={false}
                   rightElement={

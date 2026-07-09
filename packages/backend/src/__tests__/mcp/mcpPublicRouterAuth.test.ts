@@ -11,6 +11,16 @@ vi.mock('../../mcp/services/mcpRevocationService', () => ({
   revokeJti: vi.fn().mockResolvedValue(undefined),
 }));
 
+vi.mock('../../mcp/services/mcpBundleService', () => ({
+  resolveBundleContext: vi.fn().mockResolvedValue({
+    bundleId: 'bundle-test',
+    primaryUserId: 'mcp-user-1',
+    activeUserId: 'mcp-user-1',
+    clientId: 'claude-web',
+    jti: 'jti-public-router',
+  }),
+}));
+
 import {
   bearerLooksLikeMcpToken,
   createOptionalMcpAuth,

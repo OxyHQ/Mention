@@ -43,6 +43,14 @@ export const MCP_FRONTEND_ORIGIN = (
 /** Path on the frontend SPA that renders the MCP consent screen. */
 export const MCP_CONSENT_PATH = '/oauth/mcp/authorize';
 
+/** Path on the frontend SPA for linking an additional account to a bundle. */
+export const MCP_LINK_PATH = '/oauth/mcp/link';
+
+/** Signed link-token lifetime for the add-account browser flow (seconds). */
+export const MCP_LINK_TOKEN_TTL_SECONDS = Number(
+  process.env.MCP_LINK_TOKEN_TTL_SECONDS || 900,
+);
+
 /** Access-token lifetime in seconds (short-lived; refreshed via refresh_token). */
 export const MCP_ACCESS_TOKEN_TTL_SECONDS = Number(
   process.env.MCP_ACCESS_TOKEN_TTL_SECONDS || 3600,

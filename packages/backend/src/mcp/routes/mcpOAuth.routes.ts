@@ -25,6 +25,7 @@ import {
   verifyPkceS256,
 } from '../services/mcpTokenService';
 import { revokeJti } from '../services/mcpRevocationService';
+import { verifyLinkToken } from '../services/mcpBundleService';
 import { logger } from '../../utils/logger';
 
 /**
@@ -88,6 +89,35 @@ export function createMcpOAuthRoutes(oxy: OxyServices): Router {
       scopes_supported: MCP_SUPPORTED_SCOPES,
       bearer_methods_supported: ['header'],
     });
+  });
+
+  // --- Public preview for add-account link flow (no auth) ---
+  router.get('/mcp/bundles/link/preview', async (req: Request, res: Response) => {
+    try {
+      const token = firstString(req.query.token);
+      if (!token) {
+        return res.status(400).json({ message: 'token is required' });
+      }
+      const parsed = verifyLinkToken(token);
+      if (!parsed) {
+        return res.status(400).json({ message: 'Invalid or expired link token' });
+      }
+      const primary = await McpConnection.findOne({
+        bundleId: parsed.bundleId,
+        isBundlePrimary: true,
+        revokedAt: null,
+      }).lean();
+      const client = primary ? await getMcpClientAsync(primary.clientId) : null;
+      return res.json({
+        clientLabel: client?.label ?? primary?.clientLabel ?? parsed.clientId,
+        bundleId: parsed.bundleId,
+      });
+    } catch (error) {
+      logger.error('[McpOAuth] link preview failed', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return res.status(500).json({ message: 'Error previewing link' });
+    }
   });
 
   // --- Dynamic client registration (RFC 7591) ---
@@ -284,15 +314,21 @@ async function handleAuthorizationCodeGrant(req: Request, res: Response): Promis
 
   const jti = generateJti();
   const refresh = generateRefreshToken();
+  const bundleId = crypto.randomUUID();
   await McpConnection.create({
     oxyUserId: authCode.oxyUserId,
     clientId,
     clientLabel: client.label,
     scopes: authCode.scopes,
+    bundleId,
+    isBundlePrimary: true,
     refreshTokenHash: refresh.hash,
     jti,
     lastUsedAt: new Date(),
   });
+
+  const { setActiveAccount } = await import('../services/mcpBundleService');
+  await setActiveAccount(bundleId, authCode.oxyUserId);
 
   const accessToken = signAccessToken({
     oxyUserId: authCode.oxyUserId,

@@ -12,6 +12,22 @@ https://mcp.mention.earth
 
 Public read tools work without authorization. Posting, liking, personalized feeds, and other account actions require OAuth — Claude opens mention.earth for consent. Revoke access anytime in Mention → Settings → Connected AI.
 
+## Multiple accounts
+
+Claude allows only **one** connector for `https://mcp.mention.earth`. To publish as different Mention accounts from the same connector:
+
+1. Connect once (OAuth as your first account).
+2. In chat, run **`link-account`** → open the URL in your browser → sign in as the other account → **Link**.
+3. Run **`switch-account`** with the target `@handle`.
+4. Run **`whoami`** to confirm, then **`create-post`**.
+
+| Tool | Purpose |
+|------|---------|
+| `whoami` | Active account for this connector |
+| `list-accounts` | All linked accounts |
+| `link-account` | Browser URL to add another account |
+| `switch-account` | Set active account by @handle |
+
 ## Architecture
 
 ```

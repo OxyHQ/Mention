@@ -5,7 +5,18 @@ import type { OxyAuthRequest } from '@oxyhq/core/server';
 import { verifyAccessToken } from '../services/mcpTokenService';
 import { isRevoked } from '../services/mcpRevocationService';
 import { MCP_TOKEN_AUDIENCE } from '../config/constants';
-import { logger } from '../../utils/logger';
+import { resolveBundleContext } from '../services/mcpBundleService';
+
+export interface McpRequestContext {
+  jti: string;
+  scope: string;
+  clientId: string;
+  bundleId: string;
+  primaryUserId: string;
+  activeUserId: string;
+}
+
+export type OxyAuthRequestWithMcp = OxyAuthRequest & { mcp?: McpRequestContext };
 
 /**
  * Dual-auth for MCP.
@@ -90,15 +101,36 @@ async function resolveMcpUser(token: string): Promise<McpAuthOutcome> {
 }
 
 /** Attach the resolved MCP identity to the request in the Oxy-compatible shape. */
-function attachMcpIdentity(req: OxyAuthRequest, outcome: Extract<McpAuthOutcome, { status: 'ok' }>): void {
-  req.user = { id: outcome.userId } as OxyAuthRequest['user'];
-  req.userId = outcome.userId;
+async function attachMcpIdentity(
+  req: OxyAuthRequest,
+  outcome: Extract<McpAuthOutcome, { status: 'ok' }>,
+): Promise<void> {
+  const bundle = await resolveBundleContext(outcome.jti, outcome.userId);
+  if (!bundle) {
+    req.user = { id: outcome.userId } as OxyAuthRequest['user'];
+    req.userId = outcome.userId;
+    req.accessToken = undefined;
+    (req as OxyAuthRequestWithMcp).mcp = {
+      jti: outcome.jti,
+      scope: outcome.scope,
+      clientId: outcome.clientId,
+      bundleId: '',
+      primaryUserId: outcome.userId,
+      activeUserId: outcome.userId,
+    };
+    return;
+  }
+
+  req.user = { id: bundle.activeUserId } as OxyAuthRequest['user'];
+  req.userId = bundle.activeUserId;
   req.accessToken = undefined;
-  // Expose MCP-specific context for handlers that want to scope by grant.
-  (req as OxyAuthRequest & { mcp?: { jti: string; scope: string; clientId: string } }).mcp = {
-    jti: outcome.jti,
+  (req as OxyAuthRequestWithMcp).mcp = {
+    jti: bundle.jti,
     scope: outcome.scope,
-    clientId: outcome.clientId,
+    clientId: bundle.clientId,
+    bundleId: bundle.bundleId,
+    primaryUserId: bundle.primaryUserId,
+    activeUserId: bundle.activeUserId,
   };
 }
 
@@ -115,7 +147,7 @@ export function createOptionalMcpAuth(): RequestHandler {
     }
     const outcome = await resolveMcpUser(token);
     if (outcome.status === 'ok') {
-      attachMcpIdentity(req as OxyAuthRequest, outcome);
+      await attachMcpIdentity(req as OxyAuthRequest, outcome);
     }
     next();
   };
@@ -141,7 +173,7 @@ export function createRequireMcpOrOxyAuth(oxy: OxyServices): RequestHandler {
     if (token && looksLikeMcpToken(token)) {
       const outcome = await resolveMcpUser(token);
       if (outcome.status === 'ok') {
-        attachMcpIdentity(req as OxyAuthRequest, outcome);
+        await attachMcpIdentity(req as OxyAuthRequest, outcome);
         next();
         return;
       }

@@ -74,6 +74,7 @@ import { apexFrontendProxy, isApexHost } from './src/middleware/apexFrontendProx
 // authenticated API routes an Oxy session can.
 import { createMcpOAuthRoutes } from './src/mcp/routes/mcpOAuth.routes';
 import mcpConnectionsRoutes from './src/mcp/routes/mcpConnections.routes';
+import mcpBundlesRoutes from './src/mcp/routes/mcpBundles.routes';
 import { bearerLooksLikeMcpToken, createOptionalMcpAuth, createRequireMcpOrOxyAuth } from './src/mcp/middleware/mcpAuth';
 
 // Federation (ActivityPub) — network connectors. Importing the connectors index
@@ -873,6 +874,7 @@ authenticatedApiRouter.use("/entity-follows", entityFollowRoutes);
 // MCP connection management (list/revoke authorized MCP clients). Works with
 // either an Oxy session or an MCP JWT via the authenticated router's dual auth.
 authenticatedApiRouter.use("/mcp/connections", mcpConnectionsRoutes);
+authenticatedApiRouter.use("/mcp/bundles", mcpBundlesRoutes);
 // Starter packs moved to the public router (optionalAuth) above so discovery and
 // shared pack links resolve during cold boot; its write routes enforce auth internally.
 

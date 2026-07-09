@@ -13,6 +13,7 @@ import { registerHashtagsTools } from "../tools/hashtags.js";
 import { registerProfileTools } from "../tools/profile.js";
 import { registerSocialTools } from "../tools/social.js";
 import { registerStarterPackTools } from "../tools/starter-packs.js";
+import { registerAccountTools } from "../tools/accounts.js";
 import { SERVER_INSTRUCTIONS } from "./instructions.js";
 
 export function createMcpServer(): McpServer {
@@ -35,6 +36,7 @@ export function createMcpServer(): McpServer {
   registerProfileTools(server);
   registerSocialTools(server);
   registerStarterPackTools(server);
+  registerAccountTools(server);
 
   return server;
 }

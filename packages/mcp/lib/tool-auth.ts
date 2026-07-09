@@ -3,6 +3,10 @@
  * Public read tools work anonymously, matching Mention's optionalAuth feeds.
  */
 export const AUTH_REQUIRED_TOOLS = new Set<string>([
+  "whoami",
+  "list-accounts",
+  "link-account",
+  "switch-account",
   "create-post",
   "create-thread",
   "update-post",

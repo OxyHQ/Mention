@@ -18,6 +18,10 @@ export interface IMcpConnection extends Document {
   clientId: string;
   clientLabel: string;
   scopes: string[];
+  /** Shared id for all accounts linked to the same MCP client connector. */
+  bundleId: string;
+  /** True only for the account whose OAuth grant Claude holds and refreshes. */
+  isBundlePrimary: boolean;
   refreshTokenHash: string;
   jti: string;
   createdAt: Date;
@@ -30,6 +34,8 @@ const McpConnectionSchema = new Schema<IMcpConnection>({
   clientId: { type: String, required: true },
   clientLabel: { type: String, required: true },
   scopes: { type: [String], default: [] },
+  bundleId: { type: String, index: true },
+  isBundlePrimary: { type: Boolean, default: false },
   // SHA-256 hex digest of the active refresh token. Unique so a refresh lookup
   // resolves exactly one connection; sparse is unnecessary (always present).
   refreshTokenHash: { type: String, required: true, unique: true },
@@ -42,6 +48,7 @@ const McpConnectionSchema = new Schema<IMcpConnection>({
 
 // A user's connection list is the common query; filter out revoked in the route.
 McpConnectionSchema.index({ oxyUserId: 1, revokedAt: 1 });
+McpConnectionSchema.index({ bundleId: 1, revokedAt: 1 });
 
 export const McpConnection = mongoose.model<IMcpConnection>('McpConnection', McpConnectionSchema);
 

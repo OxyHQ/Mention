@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { Loading } from '@oxyhq/bloom/loading';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { useAuth, OxyAuthPrompt } from '@oxyhq/services';
+import { getNormalizedUserHandle } from '@oxyhq/core';
 import { Avatar } from '@oxyhq/bloom/avatar';
 import { ThemedView } from '@/components/ThemedView';
 import { Header } from '@/components/Header';
@@ -13,6 +14,7 @@ import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { Icon } from '@/lib/icons';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { useProfileData } from '@/hooks/useProfileData';
+import { displayNameOrHandle } from '@/utils/displayName';
 import { api } from '@/utils/api';
 import { createScopedLogger } from '@/lib/logger';
 
@@ -106,6 +108,16 @@ function ConsentBody({ params }: { params: Required<Pick<McpAuthorizeParams, 'cl
 
   const clientLabel = resolveClientLabel(params.client_id) ?? params.client_id;
 
+  const accountHandle = useMemo(() => {
+    if (!currentUserProfile) return user?.username ? `@${user.username}` : undefined;
+    return `@${getNormalizedUserHandle(currentUserProfile)}`;
+  }, [currentUserProfile, user?.username]);
+
+  const displayName = useMemo(() => {
+    if (!currentUserProfile) return user?.username;
+    return displayNameOrHandle(currentUserProfile.name?.displayName, accountHandle ?? '');
+  }, [accountHandle, currentUserProfile, user?.username]);
+
   const scopes = useMemo(
     () => (params.scope ? params.scope.split(/\s+/).filter(Boolean) : []),
     [params.scope],
@@ -180,7 +192,17 @@ function ConsentBody({ params }: { params: Required<Pick<McpAuthorizeParams, 'cl
           </View>
         </View>
 
-        <Text className="text-2xl font-bold text-foreground text-center">
+        <Text className="text-sm font-semibold uppercase text-muted-foreground">
+          {t('mcp.authorize.authorizingAs', { defaultValue: 'Authorizing as' })}
+        </Text>
+        <Text className="text-3xl font-bold text-foreground text-center">
+          {accountHandle ?? t('mcp.authorize.unknownAccount', { defaultValue: 'Your account' })}
+        </Text>
+        {displayName ? (
+          <Text className="text-base text-muted-foreground text-center">{displayName}</Text>
+        ) : null}
+
+        <Text className="text-2xl font-bold text-foreground text-center pt-2">
           {t('mcp.authorize.title', {
             defaultValue: 'Authorize {{client}}',
             client: clientLabel,

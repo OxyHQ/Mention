@@ -45,6 +45,10 @@ vi.mock('../../mcp/services/mcpRevocationService', () => ({
   isRevoked: vi.fn().mockResolvedValue(false),
 }));
 
+vi.mock('../../mcp/services/mcpBundleService', () => ({
+  setActiveAccount: vi.fn().mockResolvedValue(undefined),
+}));
+
 import { createMcpOAuthRoutes } from '../../mcp/routes/mcpOAuth.routes';
 import { verifyAccessToken, hashToken } from '../../mcp/services/mcpTokenService';
 
@@ -131,6 +135,8 @@ describe('POST /mcp/oauth/token', () => {
       const created = mocks.connectionCreate.mock.calls[0][0];
       expect(created.refreshTokenHash).toBe(hashToken(res.body.refresh_token));
       expect(created.oxyUserId).toBe('user-42');
+      expect(created.bundleId).toBeTruthy();
+      expect(created.isBundlePrimary).toBe(true);
     });
 
     it('rejects a code with a failing PKCE verifier', async () => {

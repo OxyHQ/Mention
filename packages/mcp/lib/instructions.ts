@@ -11,6 +11,13 @@ All MCP connections require OAuth authorization in Claude (Settings → Connecto
 
 When authentication fails, reconnect Mention in Claude connector settings and approve access on mention.earth. Revoke old access under Settings → Connected AI if reconnecting.
 
+## Multiple accounts (one connector)
+Claude allows only **one** connector per MCP URL. To post as different Mention accounts:
+1. Connect once at https://mcp.mention.earth
+2. Call **link-account** → open the URL in a browser → sign in as the other account → approve
+3. Call **switch-account** with the target @handle
+4. Call **whoami** to confirm before **create-post**
+
 ## OAuth
 Authorization is handled by Mention (not manual tokens). The user approves on mention.earth and can revoke access under Settings → Connected AI.
 
