@@ -28,7 +28,7 @@ async function hydrateHandles(
     for (const user of users) {
       const id = user.id;
       if (!id) continue;
-      const handle = getNormalizedUserHandle(user);
+      const handle = getNormalizedUserHandle(user) ?? user.username ?? id;
       const displayName = user.name?.displayName?.trim() || handle;
       map.set(id, { handle, displayName });
     }

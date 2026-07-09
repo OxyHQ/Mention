@@ -30,7 +30,7 @@ async function hydrateUserSummary(oxyUserId: string): Promise<{
   try {
     const user = await getServiceOxyClient().getUserById(oxyUserId, { cache: false });
     const username = typeof user.username === 'string' ? user.username : oxyUserId;
-    const handle = getNormalizedUserHandle(user);
+    const handle = getNormalizedUserHandle(user) ?? username;
     const displayName = user.name?.displayName?.trim() || handle;
     return { oxyUserId, username, handle, displayName };
   } catch {

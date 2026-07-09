@@ -6,6 +6,7 @@ import { verifyAccessToken } from '../services/mcpTokenService';
 import { isRevoked } from '../services/mcpRevocationService';
 import { MCP_TOKEN_AUDIENCE } from '../config/constants';
 import { resolveBundleContext } from '../services/mcpBundleService';
+import { logger } from '../../utils/logger';
 
 export interface McpRequestContext {
   jti: string;
