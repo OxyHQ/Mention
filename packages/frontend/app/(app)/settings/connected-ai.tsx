@@ -26,10 +26,16 @@ const MCP_CONNECTIONS_QUERY_KEY = ['mcp-connections'] as const;
 interface McpConnection {
   id: string;
   clientId: string;
+  clientLabel?: string;
   clientName?: string;
-  scope?: string;
+  scopes?: string[];
   createdAt?: string;
   lastUsedAt?: string;
+}
+
+interface McpConnectionsResponse {
+  connections: McpConnection[];
+  count?: number;
 }
 
 const KNOWN_MCP_CLIENTS: Record<string, string> = {
@@ -41,6 +47,7 @@ const KNOWN_MCP_CLIENTS: Record<string, string> = {
 };
 
 function connectionLabel(connection: McpConnection): string {
+  if (connection.clientLabel) return connection.clientLabel;
   if (connection.clientName) return connection.clientName;
   return KNOWN_MCP_CLIENTS[connection.clientId?.toLowerCase()] ?? connection.clientId;
 }
@@ -84,8 +91,9 @@ export default function ConnectedAiScreen() {
   } = useQuery<McpConnection[]>({
     queryKey: [...MCP_CONNECTIONS_QUERY_KEY, user?.id],
     queryFn: async () => {
-      const response = await api.get<McpConnection[]>('/mcp/connections');
-      return response.data ?? [];
+      const response = await api.get<McpConnectionsResponse>('/mcp/connections');
+      const rows = response.data?.connections;
+      return Array.isArray(rows) ? rows : [];
     },
     enabled: canUsePrivateApi,
   });
