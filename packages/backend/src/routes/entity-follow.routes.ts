@@ -1,5 +1,7 @@
 import { Router, Response } from 'express';
 import { EntityFollow } from '../models/EntityFollow';
+import { CustomFeed } from '../models/CustomFeed';
+import { AccountList } from '../models/AccountList';
 import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
 import { logger } from '../utils/logger';
 import { listSubscriptionService, LIST_ENTITY_TYPE } from '../services/ListSubscriptionService';
@@ -7,9 +9,39 @@ import { listSubscriptionService, LIST_ENTITY_TYPE } from '../services/ListSubsc
 const router = Router();
 
 const VALID_ENTITY_TYPES = ['hashtag', 'feed', 'list', 'topic'] as const;
+type EntityType = (typeof VALID_ENTITY_TYPES)[number];
+type AccessError = { status: number; message: string };
 
 function isValidEntityType(type: string): type is (typeof VALID_ENTITY_TYPES)[number] {
   return (VALID_ENTITY_TYPES as readonly string[]).includes(type);
+}
+
+async function assertEntityFollowAccess(
+  entityType: EntityType,
+  entityId: string,
+  userId: string,
+): Promise<AccessError | null> {
+  if (entityType === 'feed') {
+    const feed = await CustomFeed.findById(entityId).select('isPublic ownerOxyUserId').lean();
+    if (!feed) {
+      return { status: 404, message: 'Feed not found' };
+    }
+    if (!feed.isPublic && feed.ownerOxyUserId !== userId) {
+      return { status: 403, message: 'Not allowed' };
+    }
+  }
+
+  if (entityType === LIST_ENTITY_TYPE) {
+    const list = await AccountList.findById(entityId).select('isPublic ownerOxyUserId').lean();
+    if (!list) {
+      return { status: 404, message: 'List not found' };
+    }
+    if (!list.isPublic && list.ownerOxyUserId !== userId) {
+      return { status: 403, message: 'Not allowed' };
+    }
+  }
+
+  return null;
 }
 
 /**
@@ -31,6 +63,11 @@ router.post('/', async (req: AuthRequest, res: Response) => {
 
     if (!isValidEntityType(entityType)) {
       return res.status(400).json({ message: `entityType must be one of: ${VALID_ENTITY_TYPES.join(', ')}` });
+    }
+
+    const accessError = await assertEntityFollowAccess(entityType, entityId, userId);
+    if (accessError) {
+      return res.status(accessError.status).json({ message: accessError.message });
     }
 
     const follow = new EntityFollow({ userId, entityType, entityId });
@@ -197,6 +234,11 @@ router.get('/:entityType/:entityId/followers', async (req: AuthRequest, res: Res
 
     if (!isValidEntityType(entityType)) {
       return res.status(400).json({ message: `entityType must be one of: ${VALID_ENTITY_TYPES.join(', ')}` });
+    }
+
+    const accessError = await assertEntityFollowAccess(entityType, entityId, userId);
+    if (accessError) {
+      return res.status(accessError.status).json({ message: accessError.message });
     }
 
     const limit = Math.min(Math.max(parseInt(String(req.query.limit || 20), 10), 1), 50);
