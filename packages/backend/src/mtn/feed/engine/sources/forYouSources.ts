@@ -81,7 +81,6 @@ function forYouParams(ctx: FeedEngineContext): GatherForYouCandidatesParams | nu
     userBehavior: ctx.userBehavior as CandidateUserBehavior | undefined,
     viewerRegion: ctx.viewerRegion,
     seenPostIds: ctx.seenPostIds ?? [],
-    showSensitiveContent: ctx.showSensitiveContent === true,
   };
 }
 
@@ -96,12 +95,12 @@ async function gatherFollowingTimeline(ctx: FeedEngineContext, cap: number): Pro
   };
   ChronoCursor.applyToQuery(match, ctx.cursor);
 
-  return (await Post.find(match)
+  return await Post.find(match)
     .select(FEED_FIELDS)
     .sort({ _id: -1 })
     .limit(cap)
     .maxTimeMS(5000)
-    .lean()) as unknown as CandidatePost[];
+    .lean<CandidatePost[]>();
 }
 
 /** CHRONOLOGICAL List-feed query (posts from an AccountList's members). */
@@ -125,12 +124,12 @@ async function gatherListTimeline(listId: string, ctx: FeedEngineContext, cap: n
   };
   ChronoCursor.applyToQuery(match, ctx.cursor);
 
-  return (await Post.find(match)
+  return await Post.find(match)
     .select(FEED_FIELDS)
     .sort({ _id: -1 })
     .limit(cap)
     .maxTimeMS(5000)
-    .lean()) as unknown as CandidatePost[];
+    .lean<CandidatePost[]>();
 }
 
 /** CHRONOLOGICAL Topic-feed query (posts whose classification topics contain the slug). */
@@ -143,25 +142,25 @@ async function gatherTopicTimeline(slug: string, ctx: FeedEngineContext, cap: nu
   };
   ChronoCursor.applyToQuery(match, ctx.cursor);
 
-  return (await Post.find(match)
+  return await Post.find(match)
     .select(FEED_FIELDS)
     .sort({ _id: -1 })
     .limit(cap)
     .maxTimeMS(5000)
-    .lean()) as unknown as CandidatePost[];
+    .lean<CandidatePost[]>();
 }
 
 /**
  * Run a For You lane for the viewer, returning `[]` when anonymous. The lane
- * results are lean Mongo docs; bridge them to the engine's `CandidatePost` shape.
+ * results are lean Mongo docs typed as the shared engine {@link CandidatePost}.
  */
 async function runForYouLane(
   ctx: FeedEngineContext,
-  lane: (p: GatherForYouCandidatesParams) => Promise<unknown[]>,
+  lane: (p: GatherForYouCandidatesParams) => Promise<CandidatePost[]>,
 ): Promise<CandidatePost[]> {
   const p = forYouParams(ctx);
   if (!p) return [];
-  return (await lane(p)) as unknown as CandidatePost[];
+  return lane(p);
 }
 
 /**

@@ -9,16 +9,20 @@
  * For You ranking — is preserved.
  */
 
-import type { HydratedPost, SlicedFeedResponse } from '@mention/shared-types';
+import type { HydratedPost, PostClassification, SlicedFeedResponse } from '@mention/shared-types';
 import type { FeedContext } from '../FeedAPI';
+import type { FeedSafetyPostShape } from '../feedSafety';
 
 /**
  * A lean candidate post as returned by a source before hydration (a lean Post
  * doc). Sources may attach engine bookkeeping fields (`finalScore` for
  * pre-scored sources, `_feedCursor` for ordered sources); those are read only by
  * the engine and left opaque otherwise.
+ *
+ * Extends {@link FeedSafetyPostShape} so safety filters can call
+ * `isSensitivePost(post)` without casting.
  */
-export type CandidatePost = Record<string, unknown> & {
+export type CandidatePost = Record<string, unknown> & Omit<FeedSafetyPostShape, 'postClassification'> & {
   _id: unknown;
   oxyUserId?: string;
   createdAt?: Date | string;
@@ -26,6 +30,11 @@ export type CandidatePost = Record<string, unknown> & {
   finalScore?: number;
   /** Ordered sources (Saved, Author-likes) attach the next-page cursor token. */
   _feedCursor?: string;
+  /** Classification fields used by sources, ranking, and safety filters. */
+  postClassification?: Partial<PostClassification> & {
+    /** Legacy extracted topics — used by related sources when topicRefs absent. */
+    topics?: string[];
+  };
 };
 
 export type ModuleKind = 'source' | 'signal' | 'filter';
@@ -150,8 +159,6 @@ export interface FeedExecution {
    * single-source feeds rely on the source's own fetch limit (no engine cap).
    */
   maxPool?: number;
-  /** Ranked feeds: pass the viewer's sensitive opt-in into `rankPosts`. Default `false`. */
-  passSensitiveOptIn?: boolean;
   /**
    * "Ordered" feeds (Saved, Author-likes): the source returns the page's
    * candidates already in order (stamping `_feedCursor` on the last one when more

@@ -27,6 +27,34 @@ beforeEach(() => {
 });
 
 describe('buildCustomFeedDefinition', () => {
+  it('strips onlySensitive and injects safety when absent', () => {
+    const def = buildCustomFeedDefinition({
+      _id: 'feed-1',
+      title: 'NSFW attempt',
+      isPublic: true,
+      definition: {
+        ...storedDefinition,
+        filters: [{ module: 'onlySensitive', enabled: true }],
+      },
+    });
+    expect(def.filters.some((f) => f.module === 'onlySensitive')).toBe(false);
+    expect(def.filters.some((f) => f.module === 'safety' && f.enabled)).toBe(true);
+  });
+
+  it('keeps excludeSensitive and does not duplicate safety', () => {
+    const def = buildCustomFeedDefinition({
+      _id: 'feed-1',
+      title: 'SFW custom',
+      isPublic: true,
+      definition: {
+        ...storedDefinition,
+        filters: [{ module: 'excludeSensitive', enabled: true }],
+      },
+    });
+    expect(def.filters.filter((f) => f.module === 'safety')).toHaveLength(0);
+    expect(def.filters.some((f) => f.module === 'excludeSensitive' && f.enabled)).toBe(true);
+  });
+
   it('uses the stored definition, attaches id/title, and hydrates boosts (depth 1)', () => {
     const def = buildCustomFeedDefinition({ _id: 'feed-1', title: 'Comics', isPublic: true, definition: storedDefinition });
     expect(def.id).toBe('custom|feed-1');

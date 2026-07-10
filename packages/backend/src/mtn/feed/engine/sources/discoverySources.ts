@@ -14,11 +14,8 @@ import { FeedQueryBuilder } from '../../../../utils/feedQueryBuilder';
 import { fetchWithRecencyFallback } from '../../../../utils/feedUtils';
 import { FEED_FIELDS } from '../../FeedAPI';
 import { ScoreCursor } from '../../CursorBuilder';
-import { DISCOVERY_SAFE_MATCH, filterDiscoverable, FeedSafetyPostShape } from '../../feedSafety';
+import { DISCOVERY_SAFE_MATCH, filterDiscoverable } from '../../feedSafety';
 import type { CandidatePost, FeedEngineContext, SourceModule } from '../types';
-
-/** Lean projection shape the popular aggregation returns (satisfies the safety predicate). */
-type PopularLeanPost = FeedSafetyPostShape & { _id: mongoose.Types.ObjectId };
 
 /** Standard engagement composite used by the popular aggregations. */
 function engagementScoreExpr() {
@@ -40,16 +37,19 @@ export const videosSource: SourceModule = {
   gather: async (ctx, _params, cap) => {
     const seenPostIds = ctx.seenPostIds ?? [];
     const parsed = ScoreCursor.parse(ctx.cursor);
-    const match = FeedQueryBuilder.buildVideosQuery(seenPostIds, parsed?.id, {
-      orientation: ctx.videoFilters?.orientation,
-      minDurationSec: ctx.videoFilters?.minDurationSec,
-    });
-    return (await Post.find(match)
+    const match = {
+      ...FeedQueryBuilder.buildVideosQuery(seenPostIds, parsed?.id, {
+        orientation: ctx.videoFilters?.orientation,
+        minDurationSec: ctx.videoFilters?.minDurationSec,
+      }),
+      ...DISCOVERY_SAFE_MATCH,
+    };
+    return await Post.find(match)
       .select(FEED_FIELDS)
       .sort({ createdAt: -1 })
       .limit(cap)
       .maxTimeMS(5000)
-      .lean()) as unknown as CandidatePost[];
+      .lean<CandidatePost[]>();
   },
 };
 
@@ -61,13 +61,16 @@ export const mediaSource: SourceModule = {
   gather: async (ctx, _params, cap) => {
     const seenPostIds = ctx.seenPostIds ?? [];
     const parsed = ScoreCursor.parse(ctx.cursor);
-    const match = FeedQueryBuilder.buildMediaFeedQuery(seenPostIds, parsed?.id);
-    return (await Post.find(match)
+    const match = {
+      ...FeedQueryBuilder.buildMediaFeedQuery(seenPostIds, parsed?.id),
+      ...DISCOVERY_SAFE_MATCH,
+    };
+    return await Post.find(match)
       .select(FEED_FIELDS)
       .sort({ createdAt: -1 })
       .limit(cap)
       .maxTimeMS(5000)
-      .lean()) as unknown as CandidatePost[];
+      .lean<CandidatePost[]>();
   },
 };
 
@@ -171,13 +174,11 @@ export const exploreSource: SourceModule = {
 
     const relevance = resolveExploreRelevance(ctx);
     const trendingCutoff = new Date(Date.now() - MtnConfig.feed.trendingWindowMs);
-    const allowSensitive = ctx.showSensitiveContent === true;
-
     const match: Record<string, unknown> = {
       visibility: 'public',
       status: 'published',
       createdAt: { $gte: trendingCutoff },
-      ...(allowSensitive ? {} : DISCOVERY_SAFE_MATCH),
+      ...DISCOVERY_SAFE_MATCH,
       $and: [
         { $or: [{ parentPostId: null }, { parentPostId: { $exists: false } }] },
         { $or: [{ boostOf: null }, { boostOf: { $exists: false } }] },
@@ -224,7 +225,7 @@ export const exploreSource: SourceModule = {
           engagementBase: { $add: [1, { $ln: { $add: [1, '$rawEngagement'] } }] },
         },
       },
-      { $addFields: { relevanceBoost: relevance.expr } } as mongoose.PipelineStage,
+      { $addFields: { relevanceBoost: relevance.expr } },
       { $addFields: { finalScore: { $multiply: ['$engagementBase', '$recencyDecay', '$relevanceBoost'] } } },
     ];
 
@@ -241,7 +242,7 @@ export const exploreSource: SourceModule = {
 
     pipeline.push({ $sort: { finalScore: -1, _id: -1 } }, { $limit: cap + 1 });
 
-    return (await Post.aggregate(pipeline).option({ maxTimeMS: 5000 })) as unknown as CandidatePost[];
+    return await Post.aggregate<CandidatePost>(pipeline).option({ maxTimeMS: 5000 });
   },
 };
 
@@ -255,11 +256,10 @@ export const popularSource: SourceModule = {
   kind: 'source',
   userComposable: false,
   gather: async (ctx, _params, cap) => {
-    const allowSensitive = ctx.showSensitiveContent === true;
     const baseMatch: Record<string, unknown> = {
       visibility: 'public',
       status: 'published',
-      ...(allowSensitive ? {} : DISCOVERY_SAFE_MATCH),
+      ...DISCOVERY_SAFE_MATCH,
       $and: [{ $or: [{ boostOf: null }, { boostOf: { $exists: false } }] }],
     };
     if (ctx.cursor && mongoose.Types.ObjectId.isValid(ctx.cursor)) {
@@ -271,8 +271,8 @@ export const popularSource: SourceModule = {
     // (7d → 30d → unbounded) so this source (For You anonymous + never-blank
     // fallback) is never starved on a low-traffic instance. Cutoff computed
     // per-call inside the helper.
-    const runPopular = (cutoff: Date | undefined) =>
-      Post.aggregate([
+    const runPopular = (cutoff: Date | undefined): Promise<CandidatePost[]> =>
+      Post.aggregate<CandidatePost>([
         { $match: cutoff ? { ...baseMatch, createdAt: { $gte: cutoff } } : baseMatch },
         {
           $project: {
@@ -285,18 +285,17 @@ export const popularSource: SourceModule = {
         { $addFields: { engagementScore: engagementScoreExpr() } },
         { $sort: { engagementScore: -1, createdAt: -1 } },
         { $limit: cap },
-      ]).option({ maxTimeMS: 5000 }) as unknown as Promise<PopularLeanPost[]>;
+      ]).option({ maxTimeMS: 5000 });
 
     const posts = await fetchWithRecencyFallback(cap, runPopular);
 
-    const eligible = allowSensitive ? posts : filterDiscoverable(posts);
-    return eligible as unknown as CandidatePost[];
+    return filterDiscoverable(posts);
   },
 };
 
 /** Shared engagement-sorted popular aggregation for the media/video anonymous fallbacks. */
 async function gatherPopularByQuery(match: Record<string, unknown>, cap: number): Promise<CandidatePost[]> {
-  return (await Post.aggregate([
+  return await Post.aggregate<CandidatePost>([
     { $match: match },
     {
       $project: {
@@ -308,7 +307,7 @@ async function gatherPopularByQuery(match: Record<string, unknown>, cap: number)
     { $addFields: { engagementScore: engagementScoreExpr() } },
     { $sort: { engagementScore: -1, createdAt: -1, _id: -1 } },
     { $limit: cap },
-  ]).option({ maxTimeMS: 5000 })) as unknown as CandidatePost[];
+  ]).option({ maxTimeMS: 5000 });
 }
 
 /** `popularVideos`: anonymous Videos fallback (wraps `VideosFeed.fetchPopular`). */
@@ -318,10 +317,13 @@ export const popularVideosSource: SourceModule = {
   userComposable: false,
   gather: async (ctx, _params, cap) =>
     gatherPopularByQuery(
-      FeedQueryBuilder.buildVideosQuery([], ctx.cursor, {
-        orientation: ctx.videoFilters?.orientation,
-        minDurationSec: ctx.videoFilters?.minDurationSec,
-      }),
+      {
+        ...FeedQueryBuilder.buildVideosQuery([], ctx.cursor, {
+          orientation: ctx.videoFilters?.orientation,
+          minDurationSec: ctx.videoFilters?.minDurationSec,
+        }),
+        ...DISCOVERY_SAFE_MATCH,
+      },
       cap,
     ),
 };
@@ -332,7 +334,10 @@ export const popularMediaSource: SourceModule = {
   kind: 'source',
   userComposable: false,
   gather: async (ctx, _params, cap) =>
-    gatherPopularByQuery(FeedQueryBuilder.buildMediaFeedQuery([], ctx.cursor), cap),
+    gatherPopularByQuery(
+      { ...FeedQueryBuilder.buildMediaFeedQuery([], ctx.cursor), ...DISCOVERY_SAFE_MATCH },
+      cap,
+    ),
 };
 
 export const discoverySourceModules: SourceModule[] = [

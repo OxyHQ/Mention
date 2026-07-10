@@ -102,7 +102,6 @@ export const forYouDefinition: FeedDefinition = {
     seenPosts: true,
     neverBlank: true,
     popularFallback: 'popular',
-    passSensitiveOptIn: true,
     replyContext: true,
     threadGrouping: true,
     hydrateMaxDepth: 0,
@@ -116,7 +115,7 @@ export const followingDefinition: FeedDefinition = {
   mode: 'chronological',
   sources: [enabled('following', { timeline: true })],
   signals: [],
-  filters: [],
+  filters: [enabled('safety')],
   execution: {
     overfetchMultiplier: MtnConfig.feed.sliceOverfetchMultiplier,
     replyContext: true,
@@ -132,7 +131,7 @@ export const exploreDefinition: FeedDefinition = {
   mode: 'ranked',
   sources: [enabled('explore')],
   signals: [enabled('engagement'), enabled('recency')],
-  filters: [],
+  filters: [enabled('safety')],
   execution: {
     preScored: true,
     threadGrouping: true,
@@ -148,7 +147,7 @@ export const videosDefinition: FeedDefinition = {
   mode: 'ranked',
   sources: [enabled('videos')],
   signals: buildPresetRankingSignals(),
-  filters: [],
+  filters: [enabled('safety')],
   execution: {
     seenPosts: true,
     popularFallback: 'popularVideos',
@@ -165,7 +164,7 @@ export const mediaDefinition: FeedDefinition = {
   mode: 'ranked',
   sources: [enabled('media')],
   signals: ALL_RANKING_SIGNALS,
-  filters: [],
+  filters: [enabled('safety')],
   execution: {
     seenPosts: true,
     popularFallback: 'popularMedia',
@@ -178,7 +177,7 @@ export const mediaDefinition: FeedDefinition = {
 /**
  * Trending — ranked engagement×recency over the engagement-sorted popular
  * source. Reuses the Phase 1 `popular` source (excludes boosts); `safety`
- * guards the merged pool and `passSensitiveOptIn` honors the viewer's opt-in.
+ * guards the merged pool.
  */
 export const trendingDefinition: FeedDefinition = {
   id: 'trending',
@@ -188,7 +187,6 @@ export const trendingDefinition: FeedDefinition = {
   signals: [enabled('engagement'), enabled('recency')],
   filters: [enabled('safety')],
   execution: {
-    passSensitiveOptIn: true,
     threadGrouping: true,
     replyContext: false,
     hydrateMaxDepth: 0,
@@ -206,7 +204,7 @@ export const mutualsDefinition: FeedDefinition = {
   mode: 'chronological',
   sources: [enabled('mutuals')],
   signals: [],
-  filters: [],
+  filters: [enabled('safety')],
   execution: {
     threadGrouping: true,
     replyContext: true,
@@ -247,7 +245,7 @@ export const friendsOfFriendsDefinition: FeedDefinition = {
   mode: 'chronological',
   sources: [enabled('friendsOfFriends')],
   signals: [],
-  filters: [],
+  filters: [enabled('safety')],
   execution: {
     threadGrouping: true,
     replyContext: true,
@@ -262,7 +260,7 @@ export const savedDefinition: FeedDefinition = {
   mode: 'chronological',
   sources: [enabled('saved')],
   signals: [],
-  filters: [],
+  filters: [enabled('safety')],
   execution: {
     ordered: true,
     markSaved: true,
@@ -296,7 +294,7 @@ export function hashtagDefinition(tag: string): FeedDefinition {
     mode: 'chronological',
     sources: [enabled('keywords', { hashtags: [normalized] })],
     signals: [],
-    filters: [],
+    filters: [enabled('safety')],
     execution: { threadGrouping: true, replyContext: false, hydrateMaxDepth: 0 },
   };
 }
@@ -309,7 +307,7 @@ export function topicDefinition(slug: string): FeedDefinition {
     mode: 'chronological',
     sources: [enabled('topic', { slug })],
     signals: [],
-    filters: [],
+    filters: [enabled('safety')],
     execution: { threadGrouping: true, replyContext: false, hydrateMaxDepth: 0 },
   };
 }
@@ -322,7 +320,7 @@ export function listDefinition(listId: string): FeedDefinition {
     mode: 'chronological',
     sources: [enabled('lists', { listId })],
     signals: [],
-    filters: [],
+    filters: [enabled('safety')],
     execution: { threadGrouping: true, replyContext: true, hydrateMaxDepth: 0 },
   };
 }

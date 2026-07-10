@@ -6,7 +6,7 @@
  */
 
 import { PostType } from '@mention/shared-types';
-import { isSensitivePost, DISCOVERY_SAFE_MATCH, FeedSafetyPostShape } from '../../feedSafety';
+import { isSensitivePost, DISCOVERY_SAFE_MATCH } from '../../feedSafety';
 import { feedModuleRegistry, FeedModuleRegistry } from '../FeedModuleRegistry';
 import type { CandidatePost, FilterModule } from '../types';
 
@@ -155,16 +155,15 @@ function authorFollowerCount(post: CandidatePost): number | undefined {
 }
 
 /**
- * `safety`: the single sensitive/NSFW gate (wraps {@link feedSafety}). Drops
- * sensitive posts for safe-for-work viewers; a Mongo clause is available for
- * query pushdown on discovery feeds.
+ * `safety`: the single sensitive/NSFW gate (wraps {@link feedSafety}). Always
+ * drops sensitive posts — no viewer opt-in bypass. A Mongo clause is available
+ * for query pushdown on discovery feeds.
  */
 export const safetyFilter: FilterModule = {
   id: 'safety',
   kind: 'filter',
-  clause: (ctx) => (ctx.showSensitiveContent === true ? undefined : { ...DISCOVERY_SAFE_MATCH }),
-  keep: (post, ctx) =>
-    ctx.showSensitiveContent === true ? true : !isSensitivePost(post as unknown as FeedSafetyPostShape),
+  clause: () => ({ ...DISCOVERY_SAFE_MATCH }),
+  keep: (post) => !isSensitivePost(post),
 };
 
 /**
@@ -569,7 +568,7 @@ export const onlySensitiveFilter: FilterModule = {
   id: 'onlySensitive',
   kind: 'filter',
   userComposable: true,
-  keep: (post) => isSensitivePost(post as unknown as FeedSafetyPostShape),
+  keep: (post) => isSensitivePost(post),
 };
 
 /** `excludeSensitive`: drop sensitive posts regardless of the viewer opt-in. */
@@ -577,7 +576,7 @@ export const excludeSensitiveFilter: FilterModule = {
   id: 'excludeSensitive',
   kind: 'filter',
   userComposable: true,
-  keep: (post) => !isSensitivePost(post as unknown as FeedSafetyPostShape),
+  keep: (post) => !isSensitivePost(post),
 };
 
 /**

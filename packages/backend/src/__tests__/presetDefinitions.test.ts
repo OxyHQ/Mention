@@ -15,7 +15,6 @@ describe('trending definition', () => {
     expect(def!.sources.map((s) => s.module)).toEqual(['popular']);
     expect(def!.signals.map((s) => s.module)).toEqual(['engagement', 'recency']);
     expect(def!.filters.map((f) => f.module)).toEqual(['safety']);
-    expect(def!.execution?.passSensitiveOptIn).toBe(true);
   });
 });
 
@@ -25,6 +24,7 @@ describe('mutuals definition', () => {
     expect(def!.mode).toBe('chronological');
     expect(def!.sources.map((s) => s.module)).toEqual(['mutuals']);
     expect(def!.signals).toEqual([]);
+    expect(def!.filters.map((f) => f.module)).toEqual(['safety']);
     expect(def!.execution?.hydrateMaxDepth).toBe(1);
     expect(def!.execution?.replyContext).toBe(true);
   });

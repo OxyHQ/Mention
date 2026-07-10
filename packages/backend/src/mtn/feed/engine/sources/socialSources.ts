@@ -31,21 +31,21 @@ const NEW_VOICE_MAX_RECENT_POSTS = 20;
 /** Chronological fetch shared by the timeline-style social sources. */
 async function fetchChrono(match: Record<string, unknown>, cursor: string | undefined, cap: number): Promise<CandidatePost[]> {
   ChronoCursor.applyToQuery(match, cursor);
-  return (await Post.find(match)
+  return await Post.find(match)
     .select(FEED_FIELDS)
     .sort({ _id: -1 })
     .limit(cap)
     .maxTimeMS(5000)
-    .lean()) as unknown as CandidatePost[];
+    .lean<CandidatePost[]>();
 }
 
 /** Fetch posts by id, preserving the given id order (used by the pre-ranked aggregate sources). */
 async function fetchPostsByIds(ids: mongoose.Types.ObjectId[]): Promise<CandidatePost[]> {
   if (ids.length === 0) return [];
-  const posts = (await Post.find({ _id: { $in: ids } })
+  const posts = await Post.find({ _id: { $in: ids } })
     .select(FEED_FIELDS)
     .maxTimeMS(5000)
-    .lean()) as unknown as CandidatePost[];
+    .lean<CandidatePost[]>();
   const order = new Map(ids.map((id, i) => [String(id), i]));
   return posts.sort((a, b) => (order.get(String(a._id)) ?? 0) - (order.get(String(b._id)) ?? 0));
 }
@@ -84,14 +84,14 @@ export const friendsEngagedSource: SourceModule = {
 
     const windowStart = new Date(Date.now() - MtnConfig.feed.candidateSources.recencyWindowMs);
 
-    const likeGroups = (await Like.aggregate([
+    const likeGroups = await Like.aggregate<{ _id: unknown; friendCount: number }>([
       { $match: { userId: { $in: followingIds }, value: 1, createdAt: { $gte: windowStart } } },
       { $group: { _id: '$postId', friendCount: { $sum: 1 } } },
       { $sort: { friendCount: -1 } },
       { $limit: cap },
-    ]).option({ maxTimeMS: 5000 })) as Array<{ _id: unknown; friendCount: number }>;
+    ]).option({ maxTimeMS: 5000 });
 
-    const boostDocs = (await Post.find({
+    const boostDocs = await Post.find({
       type: PostType.BOOST,
       oxyUserId: { $in: followingIds },
       createdAt: { $gte: windowStart },
@@ -99,7 +99,7 @@ export const friendsEngagedSource: SourceModule = {
       .select('boostOf')
       .limit(cap)
       .maxTimeMS(5000)
-      .lean()) as Array<{ boostOf?: string }>;
+      .lean<Array<{ boostOf?: string }>>();
 
     const friendCountByPost = new Map<string, number>();
     for (const group of likeGroups) {
@@ -126,10 +126,10 @@ export const friendsEngagedSource: SourceModule = {
     };
     if (ctx.currentUserId) match.oxyUserId = { $ne: ctx.currentUserId };
 
-    const posts = (await Post.find(match)
+    const posts = await Post.find(match)
       .select(FEED_FIELDS)
       .maxTimeMS(5000)
-      .lean()) as unknown as CandidatePost[];
+      .lean<CandidatePost[]>();
 
     return posts
       .map((post) => {
@@ -433,21 +433,19 @@ export const newVoicesSource: SourceModule = {
   kind: 'source',
   userComposable: true,
   gather: async (ctx, _params, cap) => {
-    const allowSensitive = ctx.showSensitiveContent === true;
     const windowStart = new Date(Date.now() - MtnConfig.feed.candidateSources.recencyWindowMs);
-
     const match: Record<string, unknown> = {
       visibility: PostVisibility.PUBLIC,
       status: 'published',
       createdAt: { $gte: windowStart },
-      ...(allowSensitive ? {} : DISCOVERY_SAFE_MATCH),
+      ...DISCOVERY_SAFE_MATCH,
       $and: [
         { $or: [{ parentPostId: null }, { parentPostId: { $exists: false } }] },
         { $or: [{ boostOf: null }, { boostOf: { $exists: false } }] },
       ],
     };
 
-    const groups = (await Post.aggregate([
+    const groups = await Post.aggregate<{ latestPostId: unknown }>([
       { $match: match },
       {
         $group: {
@@ -460,7 +458,7 @@ export const newVoicesSource: SourceModule = {
       { $match: { recentCount: { $lte: NEW_VOICE_MAX_RECENT_POSTS } } },
       { $sort: { firstPostAt: -1 } },
       { $limit: cap },
-    ]).option({ maxTimeMS: 5000 })) as Array<{ latestPostId: unknown }>;
+    ]).option({ maxTimeMS: 5000 });
 
     const ids = groups
       .map((g) => g.latestPostId)
@@ -479,24 +477,22 @@ export const topRepliesSource: SourceModule = {
   kind: 'source',
   userComposable: true,
   gather: async (ctx, _params, cap) => {
-    const allowSensitive = ctx.showSensitiveContent === true;
     const windowStart = new Date(Date.now() - MtnConfig.feed.candidateSources.recencyWindowMs);
-
     const match: Record<string, unknown> = {
       parentPostId: { $ne: null },
       visibility: PostVisibility.PUBLIC,
       status: 'published',
       createdAt: { $gte: windowStart },
-      ...(allowSensitive ? {} : DISCOVERY_SAFE_MATCH),
+      ...DISCOVERY_SAFE_MATCH,
     };
 
-    const ranked = (await Post.aggregate([
+    const ranked = await Post.aggregate<{ _id: unknown }>([
       { $match: match },
       { $addFields: { engagementScore: engagementScoreExpr() } },
       { $sort: { engagementScore: -1, _id: -1 } },
       { $limit: cap },
       { $project: { _id: 1 } },
-    ]).option({ maxTimeMS: 5000 })) as Array<{ _id: unknown }>;
+    ]).option({ maxTimeMS: 5000 });
 
     const ids = ranked
       .map((r) => r._id)

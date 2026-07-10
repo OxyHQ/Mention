@@ -52,7 +52,7 @@ import { SENSITIVE_EXCLUDE_MATCH, isSensitivePost } from '../feedSafety';
 import { logger } from '../../../utils/logger';
 import { buildFollowedAuthorsMatch } from '../../../utils/postAuthorship';
 import { FEED_FIELDS } from '../FeedAPI';
-import { RankedCandidate } from '../rankedCandidate';
+import type { CandidatePost as EngineCandidatePost } from '../engine/types';
 
 /** Minimal viewer-behavior shape this module reads (a lean UserBehavior doc). */
 export interface CandidateUserBehavior {
@@ -79,24 +79,12 @@ export interface GatherForYouCandidatesParams {
   viewerRegion?: string;
   /** Post ids already seen this session — excluded from every source. */
   seenPostIds: string[];
-  /**
-   * Whether the viewer opted in to sensitive/NSFW content. When `true`, the
-   * per-source discovery sensitivity filter and the merged-pool sensitive/NSFW
-   * guard are skipped so sensitive posts are eligible. Defaults to `false`
-   * (safe-for-work — every source excludes sensitive/NSFW).
-   */
-  showSensitiveContent?: boolean;
   /** Injectable for testing; defaults to the shared singleton. */
   contentAffinityService?: Pick<ContentAffinityService, 'getContentCandidates'>;
 }
 
-/** A lean candidate post carrying the fields the union/dedup path reads. */
-export type CandidatePost = RankedCandidate & {
-  hashtags?: string[];
-  postClassification?: { sensitive?: boolean; topics?: string[] };
-  metadata?: { isSensitive?: boolean };
-  federation?: { sensitive?: boolean };
-};
+/** Lean candidate post — same shape the feed engine sources return. */
+export type CandidatePost = EngineCandidatePost;
 
 const sharedContentAffinityService = new ContentAffinityService();
 
@@ -152,12 +140,12 @@ async function runSource(
   cap: number,
 ): Promise<CandidatePost[]> {
   try {
-    return (await Post.find(match)
+    return await Post.find(match)
       .select(FEED_FIELDS)
       .sort({ createdAt: -1 })
       .limit(cap)
       .maxTimeMS(MtnConfig.feed.candidateSources.maxTimeMS)
-      .lean()) as unknown as CandidatePost[];
+      .lean<CandidatePost[]>();
   } catch (error) {
     logger.warn(`[ForYouCandidates] source "${label}" failed; skipping`, error);
     return [];
@@ -208,11 +196,6 @@ async function resolveAffinityAuthorIds(
  */
 function recencyStart(): Date {
   return new Date(Date.now() - MtnConfig.feed.candidateSources.recencyWindowMs);
-}
-
-/** Whether the discovery sensitivity filter should be applied for these params. */
-function shouldApplySafety(params: GatherForYouCandidatesParams): boolean {
-  return params.showSensitiveContent !== true;
 }
 
 /** Followed author ids, clamped to the id-set cap. */
@@ -291,7 +274,7 @@ export async function gatherTopicsLane(params: GatherForYouCandidatesParams): Pr
     ...buildBaseMatch(toObjectIds(params.seenPostIds), recencyStart()),
     'postClassification.topics': { $in: preferredTopics },
   };
-  return runSource('topics', shouldApplySafety(params) ? withDiscoverySafety(match) : match,
+  return runSource('topics', withDiscoverySafety(match),
     MtnConfig.feed.candidateSources.perSource.topics);
 }
 
@@ -306,7 +289,7 @@ export async function gatherLanguageLane(params: GatherForYouCandidatesParams): 
     ...buildBaseMatch(toObjectIds(params.seenPostIds), recencyStart()),
     'postClassification.languages': { $in: preferredLanguages },
   };
-  return runSource('language', shouldApplySafety(params) ? withDiscoverySafety(match) : match,
+  return runSource('language', withDiscoverySafety(match),
     MtnConfig.feed.candidateSources.perSource.language);
 }
 
@@ -318,7 +301,7 @@ export async function gatherRegionLane(params: GatherForYouCandidatesParams): Pr
     ...buildBaseMatch(toObjectIds(params.seenPostIds), recencyStart()),
     'postClassification.region': region,
   };
-  return runSource('region', shouldApplySafety(params) ? withDiscoverySafety(match) : match,
+  return runSource('region', withDiscoverySafety(match),
     MtnConfig.feed.candidateSources.perSource.region);
 }
 
@@ -332,9 +315,9 @@ export async function gatherTrendingLane(params: GatherForYouCandidatesParams): 
   try {
     const eng = MtnConfig.ranking.engagement;
     const base = buildBaseMatch(toObjectIds(params.seenPostIds), recencyStart());
-    const match = shouldApplySafety(params) ? withDiscoverySafety(base) : base;
+    const match = withDiscoverySafety(base);
     match.parentPostId = { $in: [null, undefined] };
-    return (await Post.aggregate([
+    return await Post.aggregate<CandidatePost>([
       { $match: match },
       {
         $addFields: {
@@ -350,7 +333,7 @@ export async function gatherTrendingLane(params: GatherForYouCandidatesParams): 
       { $sort: { _engagementScore: -1, createdAt: -1 } },
       { $limit: cfg.perSource.trending },
       { $project: { _engagementScore: 0 } },
-    ]).option({ maxTimeMS: cfg.maxTimeMS })) as unknown as CandidatePost[];
+    ]).option({ maxTimeMS: cfg.maxTimeMS });
   } catch (error) {
     logger.warn('[ForYouCandidates] source "trending" failed; skipping', error);
     return [];
@@ -360,7 +343,7 @@ export async function gatherTrendingLane(params: GatherForYouCandidatesParams): 
 /** GLOBAL (DISCOVERY): recent public, small cap, sensitive excluded (SFW). */
 export async function gatherGlobalLane(params: GatherForYouCandidatesParams): Promise<CandidatePost[]> {
   const base = buildBaseMatch(toObjectIds(params.seenPostIds), recencyStart());
-  return runSource('global', shouldApplySafety(params) ? withDiscoverySafety(base) : base,
+  return runSource('global', withDiscoverySafety(base),
     MtnConfig.feed.candidateSources.perSource.global);
 }
 
@@ -368,9 +351,10 @@ export async function gatherGlobalLane(params: GatherForYouCandidatesParams): Pr
  * Gather the multi-source For You candidate pool for an authenticated viewer.
  *
  * Returns a merged, de-duplicated array of lean candidate posts (each carrying
- * {@link FEED_FIELDS}), bounded by `maxPool`. The DISCOVERY sources exclude
- * sensitive/NSFW content; FOLLOWING/AFFINITY do not over-filter. The result is
- * fed verbatim into the existing ranking pipeline.
+ * {@link FEED_FIELDS}), bounded by `maxPool`. Discovery sources exclude
+ * sensitive/NSFW at query level; the merged pool also drops sensitive posts from
+ * every lane (including following). The result is fed verbatim into the existing
+ * ranking pipeline.
  *
  * NEVER throws: every source soft-fails to empty, so the worst case is an empty
  * pool, which the caller handles via its never-blank `fetchPopular` fallback.
@@ -379,7 +363,6 @@ export async function gatherForYouCandidates(
   params: GatherForYouCandidatesParams,
 ): Promise<CandidatePost[]> {
   const cfg = MtnConfig.feed.candidateSources;
-  const allowSensitive = params.showSensitiveContent === true;
 
   const [following, subscribedLists, affinity, topics, language, regionPosts, trending, global] = await Promise.all([
     gatherFollowingLane(params),
@@ -396,10 +379,8 @@ export async function gatherForYouCandidates(
   // content) first, then DISCOVERY. A full `maxPool` clamp therefore keeps the
   // viewer's chosen content over pure discovery.
   //
-  // SFW GUARD: For a safe-for-work viewer, For You must be uniformly SFW, so a
-  // single sensitive/NSFW filter ({@link isSensitivePost}) is applied to the
-  // merged pool covering EVERY source — including following and affinity — on top
-  // of the per-source discovery query filter.
+  // SFW GUARD: For You must be uniformly SFW — sensitive/NSFW posts are dropped
+  // from the merged pool covering EVERY source (including following and affinity).
   const sources: CandidatePost[][] = [
     following,
     subscribedLists,
@@ -417,8 +398,8 @@ export async function gatherForYouCandidates(
       if (merged.size >= cfg.maxPool) break;
       const id = post?._id?.toString();
       if (!id || merged.has(id)) continue;
-      // SFW guard: drop sensitive/NSFW from ALL sources unless the viewer opted in.
-      if (!allowSensitive && isSensitivePost(post)) continue;
+      // SFW guard: drop sensitive/NSFW from ALL sources.
+      if (isSensitivePost(post)) continue;
       merged.set(id, post);
     }
     if (merged.size >= cfg.maxPool) break;
