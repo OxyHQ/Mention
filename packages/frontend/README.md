@@ -158,6 +158,18 @@ This package is part of the Mention monorepo and integrates with:
 - The app registers the device push token after the user authenticates and posts it to the backend endpoint `/api/notifications/push-token`.
 - Backend requires Firebase Admin credentials via env vars to send FCM pushes.
 
+## MCP OAuth UI (Claude connector)
+
+Browser screens for authorizing the remote MCP server (`https://mcp.mention.earth`):
+
+| Route | Purpose |
+|-------|---------|
+| `app/(app)/oauth/mcp/authorize.tsx` | Initial OAuth consent (shows @handle) |
+| `app/(app)/oauth/mcp/link.tsx` | Link an additional Mention account to an existing Claude connector |
+| `app/(app)/settings/connected-ai.tsx` | List/revoke MCP connections (grouped by bundle) |
+
+i18n keys: `mcp.authorize.*`, `mcp.link.*` in `locales/{en,es,it}.json`. See [`packages/mcp/README.md`](../mcp/README.md) for the full flow.
+
 ## Contributing
 
 Contributions are welcome! Please see the [main README](../../README.md) for the complete contributing guidelines.

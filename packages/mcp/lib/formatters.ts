@@ -26,8 +26,13 @@ interface PostData {
     text?: string;
     media?: Array<{ id: string; type: string }>;
     pollId?: string;
+    poll?: { question?: string; options?: string[] };
     sources?: Array<{ url: string; title?: string }>;
     location?: { address?: string; coordinates?: [number, number] };
+    article?: { title?: string; excerpt?: string };
+    event?: { name?: string; date?: string; location?: string };
+    room?: { roomId?: string; title?: string; status?: string };
+    podcast?: { syraPodcastId?: string; title?: string };
   };
   type?: string;
   visibility?: string;
@@ -84,6 +89,32 @@ export function formatPost(post: PostData): string {
 
   if (post.content?.sources && post.content.sources.length > 0) {
     parts.push(`Sources: ${post.content.sources.map((s) => s.title || s.url).join(", ")}`);
+  }
+
+  if (post.content?.poll?.question) {
+    parts.push(`Poll: ${post.content.poll.question}`);
+  } else if (post.content?.pollId) {
+    parts.push(`Poll: ${post.content.pollId}`);
+  }
+
+  if (post.content?.location?.address) {
+    parts.push(`Location: ${post.content.location.address}`);
+  }
+
+  if (post.content?.article?.title) {
+    parts.push(`Article: ${post.content.article.title}`);
+  }
+
+  if (post.content?.event?.name) {
+    parts.push(`Event: ${post.content.event.name} (${post.content.event.date ?? ""})`);
+  }
+
+  if (post.content?.room?.title) {
+    parts.push(`Room: ${post.content.room.title}`);
+  }
+
+  if (post.content?.podcast?.title) {
+    parts.push(`Podcast: ${post.content.podcast.title}`);
   }
 
   if (post.parentPostId) parts.push(`Reply to: ${post.parentPostId}`);

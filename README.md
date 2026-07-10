@@ -58,6 +58,7 @@ This is a **monorepo** using Bun workspaces with the following structure:
 │   │   └── ...
 │   ├── agora/           # Agora audio/video spaces app (Expo)
 │   ├── agora-shared/    # Shared utilities for Agora
+│   ├── mcp/             # Remote MCP server for Claude (https://mcp.mention.earth)
 │   └── shared-types/    # Shared TypeScript types
 │       ├── src/         # Type definitions
 │       └── dist/        # Compiled types
@@ -99,6 +100,9 @@ bun run dev:frontend
 
 # Backend only
 bun run dev:backend
+
+# MCP HTTP server (requires backend on :3000)
+bun run dev:mcp:http
 ```
 
 #### Frontend Development
@@ -119,6 +123,8 @@ bun run dev:backend
 - `bun run dev` — Start all services in development mode
 - `bun run dev:frontend` — Start frontend development server
 - `bun run dev:backend` — Start backend development server
+- `bun run dev:mcp` — Start local MCP server (stdio transport)
+- `bun run dev:mcp:http` — Start local MCP HTTP server (matches production transport)
 - `bun run build` — Build all packages
 - `bun run build:shared-types` — Build shared types package
 - `bun run build:frontend` — Build frontend for production
@@ -168,6 +174,7 @@ All project documentation is available in the [`docs/`](./docs/) folder:
 - [Compose Refactoring](./docs/COMPOSE_REFACTORING.md) - Compose screen architecture
 - [Performance Optimizations](./docs/PERFORMANCE_OPTIMIZATIONS.md) - Performance best practices
 - [Federation (ActivityPub)](./packages/backend/README.md#federation-activitypub--fediverse) - Fediverse federation setup, endpoints, and sync
+- [MCP / Claude connector](./packages/mcp/README.md) - Remote MCP server, OAuth, multi-account bundles, deployment
 - [DigitalOcean Deployment](./docs/DIGITALOCEAN_DEPLOYMENT.md) - Production deployment guide for DigitalOcean App Platform
 - [Vercel Deployment](./docs/VERCEL_DEPLOYMENT.md) - Deployment guide for Vercel
 

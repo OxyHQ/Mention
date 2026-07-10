@@ -4,6 +4,8 @@ import { api, formatApiError } from "../lib/api-client.js";
 import { unwrapApiResponse } from "../lib/api-response.js";
 import { withAuthGuard } from "../lib/auth-guard.js";
 import { formatPost } from "../lib/formatters.js";
+import { buildPostContentPayload } from "../lib/resolve-media.js";
+import { mediaInputSchema } from "../lib/post-content-schema.js";
 
 export function registerInteractionsTools(server: McpServer): void {
   server.tool(
@@ -86,15 +88,20 @@ export function registerInteractionsTools(server: McpServer): void {
 
   server.tool(
     "quote-post",
-    "Quote a post with commentary (requires authorization).",
+    "Quote a post with commentary and optional media (requires authorization).",
     {
       id: z.string(),
       text: z.string().describe("Your commentary"),
+      media: z.array(mediaInputSchema).max(10).optional(),
     },
-    withAuthGuard(async ({ id, text }) => {
+    withAuthGuard(async ({ id, text, media }) => {
       try {
+        const content = await buildPostContentPayload({
+          text,
+          ...(media ? { media } : {}),
+        });
         const result = await api.post("/posts", {
-          content: { text, media: [] },
+          content,
           hashtags: [],
           mentions: [],
           visibility: "public",

@@ -5,10 +5,11 @@
 ## AWS Deployment
 
 - **Port**: `3000` | **Domain**: `api.mention.earth` (DNS-only → ALB) **+ apex `mention.earth`** (CF-proxied → same ALB → same backend, which serves the whole web app + OG + federation — see "Fediverse Discovery"). No Cloudflare Worker.
-- **ECR**: `237343248947.dkr.ecr.us-west-2.amazonaws.com/oxy/mention`
-- **Deploy**: `git push origin main` → `.github/workflows/deploy-aws.yml` builds `linux/arm64` → ECR → `ecs update-service --force-new-deployment`
+- **MCP**: `https://mcp.mention.earth` → ECS `mention-mcp` (port `3100`, ALB rule priority 140). Separate image/workflow from main backend — see § MCP below.
+- **ECR**: `237343248947.dkr.ecr.us-west-2.amazonaws.com/oxy/mention` (+ `oxy/mention-mcp` for MCP)
+- **Deploy**: `git push origin main` → `.github/workflows/deploy-aws.yml` (backend) + `deploy-mcp-aws.yml` (MCP, path-filtered) → ECR → `ecs update-service --force-new-deployment`
 - **Auth**: GitHub OIDC → role `oxy-github-deploy`. No AWS keys in GitHub.
-- **Secrets**: GitHub Actions secrets → synced to SSM `/oxy/mention/*`; ECS injects them. Change a secret in GitHub — the next deploy applies it.
+- **Secrets**: GitHub Actions secrets → synced to SSM `/oxy/mention/*` and `/oxy/mention-mcp/*`; ECS injects them. Change a secret in GitHub — the next deploy applies it.
 
 ## Commands
 
@@ -16,7 +17,8 @@
 bun run dev                 # All packages dev mode
 bun run dev:frontend        # Frontend dev (Expo tunnel)
 bun run dev:backend         # Backend dev (watch mode)
-bun run dev:mcp             # MCP server (internal dev only — prod: https://mcp.mention.earth)
+bun run dev:mcp             # MCP stdio transport (local)
+bun run dev:mcp:http        # MCP HTTP transport (local; matches production)
 bun run build               # shared-types + backend + mcp
 bun run build:frontend      # Frontend only
 bun run build:backend       # shared-types then backend
@@ -201,6 +203,19 @@ Use `oxyServices.getFileDownloadUrl(id, variant)` everywhere. Mention backend `u
 - Platform split: `shareIntent.web.ts` / `shareIntent.native.ts`
 - Quote flow: `hooks/useQuoteManager.ts` + `components/Compose/QuoteCard.tsx`
 - Quote wire format: `quoted_post_id` top-level snake_case body field (NOT nested under `content`)
+
+## MCP (Claude / remote connector)
+
+Production: **`https://mcp.mention.earth`**. Full doc: [`packages/mcp/README.md`](packages/mcp/README.md).
+
+- **Two ECS services:** `mention` (OAuth AS + REST API on `api.mention.earth`) and `mention-mcp` (streamable HTTP MCP on port 3100). Backend OAuth/bundle changes → `deploy-aws.yml`; MCP tools/transport → `deploy-mcp-aws.yml`.
+- **OAuth:** RFC 8414 AS on backend, protected-resource on MCP server. `resource` and JWT `aud` MUST equal `https://mcp.mention.earth` (no trailing slash). DCR at `POST /mcp/oauth/register`. Claude requires **401 + `WWW-Authenticate`** on unauthenticated `GET /` and OAuth Bearer before `initialize` POST.
+- **Multi-account:** Claude allows only one connector per URL. Users link extra accounts via MCP tool `link-account` → browser `mention.earth/oauth/mcp/link` → `switch-account` / `whoami`. Server-side **bundles** (`McpConnection.bundleId`); active account in Redis + `activeOxyUserId` on primary connection. Link tokens are **single-use** (HMAC + Redis).
+- **Auth on API:** `createRequireMcpOrOxyAuth` in `packages/backend/src/mcp/middleware/mcpAuth.ts` — MCP JWT OR Oxy session; resolves active bundle member to `req.user.id`.
+- **UI:** consent `oauth/mcp/authorize.tsx`, link `oauth/mcp/link.tsx`, revoke Settings → Connected AI (`/mcp/connections`).
+- **Secret:** `MENTION_MCP_JWT_SECRET` in GitHub → SSM `/oxy/mention/` + `/oxy/mention-mcp/` (must match both services).
+- **Do not** add a second MCP URL per account — use bundle link flow. **Do not** add `as_user` on `create-post`; require `switch-account` first.
+- **Media upload:** MCP uses `POST /posts/intent-media` (`url` or `base64`) → Oxy `POST /assets/service/user-media` via service token when auth is MCP JWT. Never call Oxy `assetUpload` directly from `@mention/mcp`.
 
 ## Oxy SDK Conventions
 

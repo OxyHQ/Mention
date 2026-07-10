@@ -44,6 +44,11 @@ Welcome to the Mention project documentation.
 - **[Federation (ActivityPub)](../packages/backend/README.md#federation-activitypub--fediverse)**
   ActivityPub/Fediverse federation setup, endpoints, environment variables, and deployment requirements.
 
+### MCP (Claude / AI connectors)
+
+- **[MCP Server](../packages/mcp/README.md)**
+  Remote Model Context Protocol server at `https://mcp.mention.earth`: Claude Web setup, OAuth, multi-account bundles (`link-account` / `switch-account`), tool catalog, backend routes, AWS deployment, and production checklist.
+
 ### Performance & Deployment
 
 - **[Performance Optimizations](./PERFORMANCE_OPTIMIZATIONS.md)**
@@ -61,6 +66,7 @@ Welcome to the Mention project documentation.
 - New to the project? Start with [Mention System Overview](./MENTION_SYSTEM_README.md)
 - Working on theming? Check [Theme Quick Reference](./THEME_QUICK_REFERENCE.md)
 - Need to deploy? See [DigitalOcean Deployment](./DIGITALOCEAN_DEPLOYMENT.md) or [Vercel Deployment](./VERCEL_DEPLOYMENT.md)
+- Connecting Claude to Mention? See [MCP Server](../packages/mcp/README.md)
 
 ### For Contributors
 - [Theming Guide](./THEMING_REFACTOR_SUMMARY.md) - Complete theming implementation
@@ -75,4 +81,5 @@ Welcome to the Mention project documentation.
 
 - [Main README](../README.md) - Project overview and getting started guide
 - [Backend README](../packages/backend/README.md) - API documentation
+- [MCP README](../packages/mcp/README.md) - Claude connector and OAuth
 - [Frontend README](../packages/frontend/README.md) - Frontend package documentation

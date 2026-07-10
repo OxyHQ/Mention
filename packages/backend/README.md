@@ -451,6 +451,68 @@ Routes:
 
 When a notification is created, the server attempts to send an FCM push to registered tokens.
 
+## MCP OAuth & bundles (Claude connector)
+
+The backend hosts Mention's **OAuth authorization server** and **multi-account bundle API** for the remote MCP server at `https://mcp.mention.earth`. Full operator guide: [`packages/mcp/README.md`](../mcp/README.md).
+
+### Architecture
+
+- **MCP protocol** runs in ECS `mention-mcp` (`@mention/mcp` package).
+- **OAuth AS + bundle state** runs in this backend (`packages/backend/src/mcp/`).
+- **Consent / link UI** on `mention.earth` (`packages/frontend/app/(app)/oauth/mcp/`).
+
+Claude allows only one connector per MCP URL. Extra Mention accounts are linked via browser flow (`link-account` tool → `/oauth/mcp/link`) and switched server-side per request (`bundleId` + `activeOxyUserId`).
+
+### Public routes (no Oxy session)
+
+| Route | Purpose |
+|-------|---------|
+| `GET /.well-known/oauth-authorization-server` | RFC 8414 AS metadata (+ `registration_endpoint`) |
+| `GET /.well-known/oauth-protected-resource` | Resource metadata for MCP origin |
+| `POST /mcp/oauth/register` | Dynamic client registration (RFC 7591) |
+| `GET /mcp/oauth/authorize` | Authorization code + PKCE |
+| `POST /mcp/oauth/token` | Token exchange / refresh |
+| `GET /mcp/bundles/link/preview` | Link-token preview (public) |
+
+### Authenticated routes (MCP JWT or Oxy session)
+
+Mounted under the authenticated API router:
+
+| Route | Purpose |
+|-------|---------|
+| `POST /mcp/oauth/approve` | User consent after Oxy sign-in |
+| `GET /mcp/connections` | List authorized MCP clients |
+| `DELETE /mcp/connections/:id` | Revoke access |
+| `GET /mcp/bundles/accounts` | Linked accounts in bundle |
+| `GET /mcp/bundles/me` | Active account |
+| `POST /mcp/bundles/link-token` | Mint single-use link token |
+| `POST /mcp/bundles/link/complete` | Complete account link |
+| `POST /mcp/bundles/active` | Switch active account |
+
+`createRequireMcpOrOxyAuth` (`src/mcp/middleware/mcpAuth.ts`) accepts either a valid MCP access JWT (`aud` = `https://mcp.mention.earth`) or a normal Oxy session, and resolves the active bundle member to `req.user.id`.
+
+### Environment variables
+
+```env
+MENTION_MCP_JWT_SECRET=...           # Shared with mention-mcp ECS task
+MENTION_MCP_PUBLIC_URL=https://mcp.mention.earth
+MENTION_FRONTEND_ORIGIN=https://mention.earth
+MENTION_PUBLIC_API_URL=https://api.mention.earth
+MCP_LINK_TOKEN_TTL_SECONDS=900       # Optional; link token TTL
+MCP_MAX_BUNDLE_MEMBERS=8             # Optional; max linked accounts
+```
+
+### Key files
+
+- `src/mcp/routes/mcpOAuth.routes.ts` — OAuth AS
+- `src/mcp/routes/mcpBundles.routes.ts` — multi-account bundles
+- `src/mcp/routes/mcpConnections.routes.ts` — list/revoke
+- `src/mcp/middleware/mcpAuth.ts` — dual auth + active account
+- `src/mcp/services/mcpBundleService.ts` — bundle + link tokens
+- `src/mcp/models/McpConnection.ts` — OAuth grants
+
+Tests: `src/__tests__/mcp/`
+
 ## Troubleshooting Guide
 
 ### Common Issues

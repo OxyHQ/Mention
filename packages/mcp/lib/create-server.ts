@@ -14,6 +14,7 @@ import { registerProfileTools } from "../tools/profile.js";
 import { registerSocialTools } from "../tools/social.js";
 import { registerStarterPackTools } from "../tools/starter-packs.js";
 import { registerAccountTools } from "../tools/accounts.js";
+import { registerMediaTools } from "../tools/media.js";
 import { SERVER_INSTRUCTIONS } from "./instructions.js";
 
 export function createMcpServer(): McpServer {
@@ -37,6 +38,7 @@ export function createMcpServer(): McpServer {
   registerSocialTools(server);
   registerStarterPackTools(server);
   registerAccountTools(server);
+  registerMediaTools(server);
 
   return server;
 }

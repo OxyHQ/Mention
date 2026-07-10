@@ -29,8 +29,9 @@ vi.mock('../../utils/safeUpstreamFetch', async () => {
   };
 });
 
-const { assetUploadMock } = vi.hoisted(() => ({
+const { assetUploadMock, uploadServiceUserMediaMock } = vi.hoisted(() => ({
   assetUploadMock: vi.fn(),
+  uploadServiceUserMediaMock: vi.fn(),
 }));
 vi.mock('@oxyhq/core', async () => {
   const actual = await vi.importActual<typeof import('@oxyhq/core')>('@oxyhq/core');
@@ -47,6 +48,7 @@ vi.mock('../../utils/oxyHelpers', () => ({
   getServiceOxyClient: () => ({
     getServiceAssetMetadataByIds: vi.fn().mockResolvedValue([]),
   }),
+  uploadServiceUserMedia: (...args: unknown[]) => uploadServiceUserMediaMock(...args),
 }));
 
 import intentMediaRoutes from '../../routes/intentMedia';
@@ -71,6 +73,43 @@ describe('POST /posts/intent-media', () => {
   beforeEach(() => {
     fetchUpstreamFollowingRedirects.mockReset();
     assetUploadMock.mockReset();
+    uploadServiceUserMediaMock.mockReset();
+    assetUploadMock.mockResolvedValue({ file: { id: 'oxy-file-1' } });
+    uploadServiceUserMediaMock.mockResolvedValue({ fileId: 'mcp-file-1', contentType: 'image/png' });
+  });
+
+  it('uploads via service path when MCP context is present', async () => {
+    const mcpApp = express();
+    mcpApp.use(express.json());
+    mcpApp.use((req, _res, next) => {
+      const r = req as express.Request & { user?: { id: string }; mcp?: { activeUserId: string } };
+      r.user = { id: 'user-mcp' };
+      r.mcp = { activeUserId: 'user-mcp' } as { activeUserId: string };
+      next();
+    });
+    mcpApp.use('/', intentMediaRoutes);
+
+    const png = Buffer.from('PNG!');
+    const res = await request(mcpApp)
+      .post('/')
+      .send({ base64: png.toString('base64'), mimeType: 'image/png', filename: 'x.png' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.fileId).toBe('mcp-file-1');
+    expect(uploadServiceUserMediaMock).toHaveBeenCalledTimes(1);
+    expect(assetUploadMock).not.toHaveBeenCalled();
+  });
+
+  it('uploads via Oxy session when accessToken is present', async () => {
+    const png = Buffer.from('PNG!');
+    const res = await request(app)
+      .post('/')
+      .send({ base64: png.toString('base64'), mimeType: 'image/png' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.fileId).toBe('oxy-file-1');
+    expect(assetUploadMock).toHaveBeenCalledTimes(1);
+    expect(uploadServiceUserMediaMock).not.toHaveBeenCalled();
   });
 
   it('returns 401 without auth user', async () => {

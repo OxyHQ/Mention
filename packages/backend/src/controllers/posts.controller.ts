@@ -695,6 +695,16 @@ export const createPost = async (req: AuthRequest, res: Response) => {
       }
     }
 
+    const rawVisibility = typeof req.body.visibility === 'string' ? req.body.visibility : undefined;
+    let resolvedVisibility = PostVisibility.PUBLIC;
+    if (rawVisibility === 'followers' || rawVisibility === 'followers_only') {
+      resolvedVisibility = PostVisibility.FOLLOWERS_ONLY;
+    } else if (rawVisibility === 'private') {
+      resolvedVisibility = PostVisibility.PRIVATE;
+    } else if (rawVisibility === 'public') {
+      resolvedVisibility = PostVisibility.PUBLIC;
+    }
+
     const post = await postCreationService.create({
       oxyUserId: userId,
       content: postContent,
@@ -706,7 +716,7 @@ export const createPost = async (req: AuthRequest, res: Response) => {
       boostOf: boost_of || null,
       parentPostId: parentPostId || in_reply_to_status_id || null,
       threadId: threadId || null,
-      visibility: PostVisibility.PUBLIC,
+      visibility: resolvedVisibility,
       replyPermission: replyPermission || ['anyone'],
       reviewReplies: reviewReplies || false,
       quotesDisabled: quotesDisabled || false,

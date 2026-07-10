@@ -59,8 +59,11 @@ Or run pieces individually:
 bun run dev:frontend    # Expo dev server (press w / i / a for web / iOS / Android)
 bun run dev:backend     # Express server, watch mode
 bun run dev:agora       # Agora app (LiveKit rooms)
-bun run dev:mcp         # MCP server for Claude
+bun run dev:mcp         # MCP server (stdio)
+bun run dev:mcp:http    # MCP HTTP server (local prod-like transport)
 ```
+
+Claude connector docs: [`packages/mcp/README.md`](../packages/mcp/README.md).
 
 Build the apps:
 
