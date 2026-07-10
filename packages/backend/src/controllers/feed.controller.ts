@@ -1144,7 +1144,10 @@ class FeedController {
           // Backfill oxyUserId on any posts that were stored without it
           if (syncedCount > 0) {
             await Post.updateMany(
-              { 'federation.activityId': { $regex: `^${actor.uri}` }, oxyUserId: null },
+              {
+                'federation.activityId': { $gte: actor.uri + '/', $lt: actor.uri + '/\uffff' },
+                oxyUserId: null,
+              },
               { $set: { oxyUserId: syncUserId } },
             );
           }
