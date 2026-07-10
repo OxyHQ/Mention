@@ -27,6 +27,24 @@ beforeEach(() => {
 });
 
 describe('buildCustomFeedDefinition', () => {
+  it('injects safety when filters is null or undefined', () => {
+    const fromNull = buildCustomFeedDefinition({
+      _id: 'feed-1',
+      title: 'Null filters',
+      isPublic: true,
+      definition: { ...storedDefinition, filters: null as never },
+    });
+    expect(fromNull.filters.some((f) => f.module === 'safety' && f.enabled)).toBe(true);
+
+    const fromUndefined = buildCustomFeedDefinition({
+      _id: 'feed-1',
+      title: 'Undefined filters',
+      isPublic: true,
+      definition: { ...storedDefinition, filters: undefined as never },
+    });
+    expect(fromUndefined.filters.some((f) => f.module === 'safety' && f.enabled)).toBe(true);
+  });
+
   it('strips onlySensitive and injects safety when absent', () => {
     const def = buildCustomFeedDefinition({
       _id: 'feed-1',

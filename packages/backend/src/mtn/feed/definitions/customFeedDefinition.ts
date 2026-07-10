@@ -23,8 +23,8 @@ function enabled(module: string): ModuleRef {
 }
 
 /** Strip `onlySensitive` and ensure a safety gate is present. */
-function ensureSafetyFilters(filters: ModuleRef[]): ModuleRef[] {
-  const stripped = filters.filter((f) => f.module !== 'onlySensitive');
+function ensureSafetyFilters(filters?: ModuleRef[] | null): ModuleRef[] {
+  const stripped = (filters ?? []).filter((f) => f.module !== 'onlySensitive');
   const hasSafety = stripped.some(
     (f) => f.enabled && (f.module === 'safety' || f.module === 'excludeSensitive'),
   );
@@ -40,7 +40,7 @@ type CustomFeedSource = Pick<ICustomFeed, 'title' | 'isPublic'> &
 
 /** Whether the definition excludes boosts (so boost hydration depth is unneeded). */
 function excludesBoosts(def: StoredFeedDefinition): boolean {
-  return def.filters.some((f) => f.enabled && (f.module === 'noBoosts' || f.module === 'originalOnly'));
+  return (def.filters ?? []).some((f) => f.enabled && (f.module === 'noBoosts' || f.module === 'originalOnly'));
 }
 
 /**
