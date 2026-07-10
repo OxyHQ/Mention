@@ -70,9 +70,9 @@ export function useOriginalPost({ post, isNested, nestingDepth }: UseOriginalPos
             if (fromStore) {
                 if (!cancelled) {
                     setFetchedPost(fromStore);
-                    // Spread into a fresh object so the strict `PostActorSummary`
-                    // satisfies `CacheableUser`'s index signature (intersection
-                    // types lack an implicit one).
+                    // Spread into a fresh object so the strict canonical `PostUser`
+                    // satisfies `CacheableUser`'s index signature (named types lack
+                    // an implicit one).
                     primeUsersCache(post?.user, fromStore.user ? { ...fromStore.user } : undefined);
                 }
                 return;

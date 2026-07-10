@@ -27,12 +27,18 @@ export interface RawNotification {
   preview?: string;
   post?: {
     id?: string;
+    // Canonical embedded Oxy `User` shape (matches `PostHydrationService` output
+    // and `ZEmbeddedUser`): render `name.displayName`, derive the handle via
+    // `getNormalizedUserHandle`, resolve `avatar` through Bloom's ImageResolver.
     user?: {
       id?: string;
-      displayName?: string;
-      handle?: string;
-      avatar?: string;
+      username?: string;
+      name?: { displayName?: string };
+      avatar?: string | null;
       verified?: boolean;
+      isFederated?: boolean;
+      instance?: string;
+      federation?: { domain?: string };
     };
     content?: unknown;
     [key: string]: unknown;

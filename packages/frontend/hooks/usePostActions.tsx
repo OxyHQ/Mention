@@ -14,6 +14,7 @@ import { Platform } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { show as toast } from '@oxyhq/bloom/toast';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
+import { getNormalizedUserHandle } from '@oxyhq/core';
 import type { HydratedPost } from '@mention/shared-types';
 import type { FeedItem } from '@/db';
 import { AnalyticsIcon } from '@/assets/icons/analytics-icon';
@@ -325,7 +326,7 @@ export function usePostActions({
         const handleMuteUser = async () => {
             try { bottomSheet.openBottomSheet(false); } catch (e) { logger.warn('Failed to close bottom sheet'); }
             const userId = viewPost?.user?.id;
-            const username = viewPost?.user?.handle || viewPost?.user?.displayName || 'this user';
+            const username = getNormalizedUserHandle(viewPost?.user) || viewPost?.user?.name?.displayName || 'this user';
 
             if (!userId) {
                 toast(t('postActions.unableToMuteUser'), { type: 'error' });
@@ -371,7 +372,7 @@ export function usePostActions({
         const muteReportAction: ActionItem[] = [];
 
         if (!isOwner) {
-            const username = viewPost?.user?.handle || viewPost?.user?.displayName || 'user';
+            const username = getNormalizedUserHandle(viewPost?.user) || viewPost?.user?.name?.displayName || 'user';
             muteReportAction.push({
                 icon: <MuteIcon size={20} className="text-muted-foreground" />,
                 text: t('postActions.muteUser', { username }),
@@ -389,7 +390,7 @@ export function usePostActions({
         const addToListAction: ActionItem[] = [];
         const authorId = viewPost?.user?.id;
         if (!isOwner && authorId) {
-            const authorHandle = viewPost?.user?.handle || '';
+            const authorHandle = getNormalizedUserHandle(viewPost?.user) || '';
             addToListAction.push({
                 icon: <ListIcon size={20} className="text-muted-foreground" />,
                 text: t('lists.addTo.menuItem', { defaultValue: 'Add/remove from lists' }),

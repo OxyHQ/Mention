@@ -2,6 +2,7 @@ import { useCallback } from 'react';
 import { Share, Platform } from 'react-native';
 import { queryKeys } from '@oxyhq/services';
 import type { User } from '@oxyhq/core';
+import { getNormalizedUserHandle } from '@oxyhq/core';
 import { logger } from '@/lib/logger';
 import { show as toast } from '@oxyhq/bloom/toast';
 import { queryClient } from '@/lib/queryClient';
@@ -9,9 +10,11 @@ import { queryClient } from '@/lib/queryClient';
 interface SharePostUser {
     id?: string;
     _id?: string;
-    displayName?: string;
+    name?: { displayName?: string };
     username?: string;
-    handle?: string;
+    isFederated?: boolean;
+    instance?: string;
+    federation?: { domain?: string };
 }
 
 interface SharePost {
@@ -31,9 +34,9 @@ export function usePostShare(post: SharePost | null | undefined) {
             const contentText = content.text ?? post.text ?? '';
             const user: SharePostUser = post.user ?? {};
             const id = String(user.id ?? user._id ?? '');
-            const name = post.user ? post.user.displayName : 'Someone';
+            const name = user.name?.displayName || 'Someone';
 
-            let handle = user.handle || user.username || '';
+            let handle = getNormalizedUserHandle(user) || '';
             if (!handle && id) {
                 try {
                     const cached = queryClient.getQueryData<User>(queryKeys.users.detail(id));

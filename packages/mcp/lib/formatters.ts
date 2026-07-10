@@ -4,13 +4,21 @@
  * scannable output without excessive JSON noise.
  */
 
+import { getNormalizedUserHandle } from "@oxyhq/core";
+
 interface PostData {
   id?: string;
   _id?: string;
+  // Canonical Oxy `User` shape emitted by `PostHydrationService` (Oxy owns
+  // identity): render `name.displayName`, derive the handle via
+  // `getNormalizedUserHandle`. No flat `name`/`handle` strings.
   user?: {
     id?: string;
-    name?: string;
-    handle?: string;
+    username?: string;
+    name?: { displayName?: string };
+    isFederated?: boolean;
+    instance?: string;
+    federation?: { domain?: string };
     verified?: boolean;
   };
   oxyUserId?: string;
@@ -47,8 +55,9 @@ interface PostData {
 
 export function formatPost(post: PostData): string {
   const id = post.id || post._id || "unknown";
+  const handle = post.user ? getNormalizedUserHandle(post.user) : undefined;
   const author = post.user
-    ? `@${post.user.handle || "unknown"}${post.user.verified ? " ✓" : ""} (${post.user.name || ""})`
+    ? `@${handle || "unknown"}${post.user.verified ? " ✓" : ""} (${post.user.name?.displayName || ""})`
     : post.oxyUserId || "unknown author";
 
   const text = post.content?.text || "(no text)";

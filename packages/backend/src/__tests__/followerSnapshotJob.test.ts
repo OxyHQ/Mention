@@ -37,7 +37,7 @@ import {
 
 function summary(followerCount?: number): CachedUserSummary {
   return {
-    summary: { id: 'x', handle: 'x' },
+    user: { id: 'x', username: 'x', name: {} },
     followerCount,
   };
 }

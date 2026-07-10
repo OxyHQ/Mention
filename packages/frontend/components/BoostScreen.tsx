@@ -18,6 +18,7 @@ import { Avatar } from '@oxyhq/bloom/avatar';
 import UserName from "./UserName";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "@oxyhq/services";
+import { getNormalizedUserHandle } from "@oxyhq/core";
 import { usePostsStore } from "../stores/postsStore";
 import { CreateBoostRequest } from "@mention/shared-types";
 import { useTheme } from '@oxyhq/bloom/theme';
@@ -148,11 +149,11 @@ const BoostScreen: React.FC = () => {
                 {/* Original Post */}
                 <View className="py-4 border-b border-border mb-4">
                     <View className="flex-row items-center mb-2">
-                        <Avatar source={originalPost.user.avatarUrl} size={32} style={{ marginRight: 8 }} />
+                        <Avatar source={originalPost.user.avatar ?? undefined} size={32} style={{ marginRight: 8 }} />
                         <View className="flex-1">
                             <UserName
-                                name={originalPost.user.displayName}
-                                handle={originalPost.user.handle}
+                                name={originalPost.user.name?.displayName}
+                                handle={getNormalizedUserHandle(originalPost.user) ?? undefined}
                                 verified={originalPost.user.verified}
                                 variant="small"
                                 style={{ handle: { fontSize: 13 } }}

@@ -8,7 +8,7 @@ import {
   PostContent,
   PostContentInput,
   PostVisibility,
-  PostActorSummary,
+  PostUser,
 } from './post';
 
 export interface Reply extends HydratedPost {
@@ -116,8 +116,8 @@ export interface FeedSliceItem {
 }
 
 export type FeedSliceReason =
-  | { type: 'boost'; actor: PostActorSummary }
-  | { type: 'replyContext'; parentAuthor: PostActorSummary }
+  | { type: 'boost'; actor: PostUser }
+  | { type: 'replyContext'; parentAuthor: PostUser }
   | { type: 'selfThread' };
 
 export interface FeedPostSlice {

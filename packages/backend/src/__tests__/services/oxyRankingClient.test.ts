@@ -3,16 +3,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({
   makeServiceRequest: vi.fn(),
   getMentionOxyClientId: vi.fn(),
-  resolveAvatarUrl: vi.fn(),
 }));
 
 vi.mock('../../utils/oxyHelpers', () => ({
   getServiceOxyClient: () => ({ makeServiceRequest: mocks.makeServiceRequest }),
   getMentionOxyClientId: mocks.getMentionOxyClientId,
-}));
-
-vi.mock('../../utils/mediaResolver', () => ({
-  resolveAvatarUrl: mocks.resolveAvatarUrl,
 }));
 
 import { OxyRankingClient } from '../../services/OxyRankingClient';
@@ -40,10 +35,6 @@ function makeItem(overrides: Record<string, unknown> = {}) {
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.getMentionOxyClientId.mockReturnValue(CLIENT_ID);
-  // Echo the ref as the resolved URL so assertions are deterministic.
-  mocks.resolveAvatarUrl.mockImplementation((ref?: string | null) =>
-    ref ? `https://cdn/${ref}` : undefined,
-  );
 });
 
 describe('OxyRankingClient.rank', () => {
@@ -150,14 +141,15 @@ describe('OxyRankingClient.rank', () => {
       id: 'u1',
       username: 'alice',
       name: { displayName: 'Alice' },
-      avatar: 'https://cdn/file_avatar_1',
+      // Bare Oxy file id passed through untouched — the client resolves it via
+      // Bloom's ImageResolver, same as `post.user.avatar` (Oxy owns identity).
+      avatar: 'file_avatar_1',
       verified: true,
       trustTier: 'gold',
       mutualCount: 3,
       isFederated: false,
       _count: { followers: 10, following: 5 },
     });
-    expect(mocks.resolveAvatarUrl).toHaveBeenCalledWith('file_avatar_1');
   });
 
   it('unwraps a bare array response too', async () => {

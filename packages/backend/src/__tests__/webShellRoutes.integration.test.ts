@@ -89,7 +89,7 @@ describe('webShell routes (integration)', () => {
     vi.mocked(postHydrationService.hydratePosts).mockResolvedValue([
       {
         id: POST_ID,
-        user: { id: 'u1', handle: 'nate', displayName: 'Nate', avatarUrl: 'https://cdn/a.png' },
+        user: { id: 'u1', username: 'nate', name: { displayName: 'Nate' }, avatar: 'https://cdn/a.png' },
         content: { text: 'hi there' },
       } as unknown as HydratedPost,
     ]);

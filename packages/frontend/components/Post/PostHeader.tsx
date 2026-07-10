@@ -11,6 +11,7 @@ import { RemoteActorBadge } from '@/components/Fediverse/FediverseBadge';
 import { BoostIcon } from '@/assets/icons/boost-icon';
 import { formatTimeAgo } from '@/utils/dateUtils';
 import type { HydratedAuthor } from '@mention/shared-types';
+import { getNormalizedUserHandle } from '@oxyhq/core';
 import { displayNameOrHandle } from '@/utils/displayName';
 
 // Inline indicator icons (boost/reply) are subtler than the action-bar glyphs.
@@ -96,7 +97,13 @@ interface PostHeaderProps {
   onPressAuthor?: (handle: string) => void;
 }
 
-function formatCollabAuthorLine(authors: HydratedAuthor[], t: (key: string, opts?: Record<string, unknown>) => string): string {
+interface HeaderAuthor {
+  displayName?: string;
+  handle: string;
+  verified?: boolean;
+}
+
+function formatCollabAuthorLine(authors: HeaderAuthor[], t: (key: string, opts?: Record<string, unknown>) => string): string {
   const names = authors.map((a) => displayNameOrHandle(a.displayName, a.handle ? `@${a.handle}` : ''));
   if (names.length <= 1) return names[0] ?? '';
   if (names.length === 2) {
@@ -130,7 +137,16 @@ const PostHeader: React.FC<PostHeaderProps> = ({
   const { t } = useTranslation();
 
   const timeLabel = useMemo(() => formatTimeAgo(date || ''), [date]);
-  const headerAuthors = authors && authors.length > 0 ? authors : [{ ...user, role: 'owner' as const, status: 'accepted' as const, id: '' }];
+  // Adapt the canonical Oxy `User` collaborator shape (`name.displayName` +
+  // normalized handle) into the header's flat presentational view-model. Falls
+  // back to the single `user` prop when there are no collab authors.
+  const headerAuthors: HeaderAuthor[] = authors && authors.length > 0
+    ? authors.map((a) => ({
+        displayName: a.name?.displayName,
+        handle: getNormalizedUserHandle(a) ?? '',
+        verified: a.verified,
+      }))
+    : [{ displayName: user.displayName, handle: user.handle, verified: user.verified }];
   const isCollabHeader = headerAuthors.length > 1;
   const collabLine = useMemo(
     () => (isCollabHeader ? formatCollabAuthorLine(headerAuthors, t) : ''),

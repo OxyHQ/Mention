@@ -127,7 +127,9 @@ describe('mapProfileOg', () => {
 describe('mapPostOg', () => {
   const base = {
     id: 'p1',
-    user: { id: 'u1', handle: 'nate', displayName: 'Nate', avatarUrl: 'https://cdn/a.png' },
+    // Canonical Oxy `User` shape: `name.displayName`, `username`, and an absolute
+    // federated avatar URL (Bloom would render it directly; OG uses it as-is).
+    user: { id: 'u1', username: 'nate', name: { displayName: 'Nate' }, avatar: 'https://cdn/a.png' },
     content: { text: 'hello world' },
   } as unknown as HydratedPost;
 
@@ -137,12 +139,12 @@ describe('mapPostOg', () => {
     expect(og.description).toBe('hello world');
     expect(og.url).toBe('https://mention.earth/p/p1');
     expect(og.type).toBe('article');
-    // no media/linkPreview → falls back to author avatar
+    // no media/linkPreview → falls back to author avatar (absolute URL passthrough)
     expect(og.image).toBe('https://cdn/a.png');
   });
 
   it('falls back to @handle when the author has no display name', () => {
-    const post = { ...base, user: { ...base.user, displayName: undefined } } as HydratedPost;
+    const post = { ...base, user: { ...base.user, name: {} } } as HydratedPost;
     expect(mapPostOg(post, 'p1').title).toBe('@nate on Mention');
   });
 

@@ -275,7 +275,7 @@ const PostDetailScreen: React.FC = () => {
     const postDescription = postText.length > 200
         ? `${postText.substring(0, 197)}...`
         : postText || t('seo.post.description', { defaultValue: 'View this post on Mention' });
-    const postAuthor = post ? post.user.displayName : t('common.someone');
+    const postAuthor = post?.user?.name?.displayName || t('common.someone');
     const postTitle = t('seo.post.title', { author: postAuthor, defaultValue: `${postAuthor} on Mention` });
     const postImage = getPostImage();
 

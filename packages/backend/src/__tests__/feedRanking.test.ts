@@ -18,6 +18,15 @@ vi.mock('../utils/redis', () => ({
   }),
 }));
 
+// `resolveUserSummaries` (used by rankPosts for the authority signal) enriches
+// any degraded federated author from the FederatedActor collection. There is no
+// Mongo in unit tests, so stub the lookup to an immediate empty result — without
+// it, `.lean()` on the real model never resolves and the ranking tests time out.
+vi.mock('../models/FederatedActor', () => ({
+  FederatedActor: { find: () => ({ select: () => ({ lean: async () => [] }) }) },
+  default: { find: () => ({ select: () => ({ lean: async () => [] }) }) },
+}));
+
 import { FeedRankingService } from '../services/FeedRankingService';
 import { BASELINE_CLASSIFIER_VERSION } from '../services/BaselineContentClassifier';
 

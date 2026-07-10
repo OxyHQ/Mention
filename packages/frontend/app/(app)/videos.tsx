@@ -24,7 +24,7 @@ import { Video } from '@/assets/icons/video-icon';
 import { formatCompactNumber } from '@/utils/formatNumber';
 import { getNormalizedUserHandle } from '@oxyhq/core';
 import { cn } from '@/lib/utils';
-import type { PostActorSummary } from '@mention/shared-types';
+import type { PostUser } from '@mention/shared-types';
 import { readMediaDurationSec } from '@/utils/mediaTypes';
 import { LinkifiedText } from '@/components/common/LinkifiedText';
 import { useIsRightBarVisible } from '@/hooks/useOptimizedMediaQuery';
@@ -157,9 +157,10 @@ interface RawPost {
 
 interface VideoPost {
     id: string;
-    // The already-hydrated author DTO. Fields (`avatarUrl`, `isVerified`, …) are
-    // read straight off the backend contract — never a re-invented parallel shape.
-    user?: PostActorSummary;
+    // The already-hydrated author DTO — the canonical Oxy `User` shape
+    // (`name.displayName`, `avatar` file id, `username`, `verified`). Read straight
+    // off the backend contract — never a re-invented parallel shape.
+    user?: PostUser;
     content: {
         text?: string;
         media?: MediaRef[];
@@ -616,16 +617,19 @@ const VideoItem = memo<VideoItemProps>(({
     const handlePosterError = useCallback(() => setPosterFailed(true), []);
     const toggleCaption = useCallback(() => setCaptionExpanded((prev) => !prev), []);
 
-    const userName = useMemo(() => item.user?.displayName ?? '', [item.user?.displayName]);
-    const userHandle = useMemo(() => item.user?.handle || t('common.unknown'), [item.user?.handle, t]);
+    const userName = useMemo(() => item.user?.name?.displayName ?? '', [item.user?.name?.displayName]);
+    const userHandle = useMemo(
+        () => getNormalizedUserHandle(item.user) || t('common.unknown'),
+        [item.user, t],
+    );
     const postText = useMemo(() => item.content?.text?.trim() || '', [item.content?.text]);
 
     const handleProfilePress = useCallback(() => {
-        const handle = getNormalizedUserHandle({ handle: item.user?.handle });
+        const handle = getNormalizedUserHandle(item.user);
         if (handle) {
             router.push(`/@${handle}/videos`);
         }
-    }, [item.user?.handle, router]);
+    }, [item.user, router]);
 
     // Like-only handler for the double-tap gesture — never unlikes.
     const handleDoubleTapLike = useCallback(() => {
@@ -702,9 +706,9 @@ const VideoItem = memo<VideoItemProps>(({
                         <View style={styles.userHeaderRow} pointerEvents="box-none">
                             <Pressable onPress={handleProfilePress} style={styles.userHeader}>
                                 <Avatar
-                                    source={item.user?.avatarUrl}
+                                    source={item.user?.avatar ?? undefined}
                                     size={40}
-                                    verified={item.user?.isVerified || false}
+                                    verified={item.user?.verified || false}
                                     style={styles.userAvatar}
                                 />
                                 <View style={styles.userNameContainer}>
@@ -712,7 +716,7 @@ const VideoItem = memo<VideoItemProps>(({
                                         <Text style={styles.userFullName} numberOfLines={1}>
                                             {userName}
                                         </Text>
-                                        {item.user?.isVerified && (
+                                        {item.user?.verified && (
                                             <Ionicons name="checkmark-circle" size={14} color={VERIFIED_COLOR} style={styles.verifiedIcon} />
                                         )}
                                     </View>
@@ -1342,8 +1346,8 @@ export default function VideosScreen() {
             const postUrl = `https://mention.earth/p/${post.id}`;
             const contentText = post?.content?.text || '';
             const user = post?.user;
-            const name = user?.displayName ?? t('common.someone');
-            const handle = user?.handle || '';
+            const name = user?.name?.displayName ?? t('common.someone');
+            const handle = getNormalizedUserHandle(user) || '';
             const shareMessage = contentText
                 ? `${name}${handle ? ` (@${handle})` : ''}: ${contentText}`
                 : `${name}${handle ? ` (@${handle})` : ''} ${t('videos.shared_a_post')}`;

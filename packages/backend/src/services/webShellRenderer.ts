@@ -12,7 +12,7 @@
  * The IO layer (fetching the shell, the Oxy profile, and the hydrated post) lives
  * in `routes/webShell.routes.ts`, which is the only caller of these functions.
  */
-import { OxyServices } from '@oxyhq/core';
+import { OxyServices, getNormalizedUserHandle } from '@oxyhq/core';
 import type { HydratedPost } from '@mention/shared-types';
 
 /** Normalized OG payload injected into a shell for one profile / post URL. */
@@ -149,16 +149,26 @@ export function mapProfileOg(data: OxyProfileData | null | undefined): OgData | 
 }
 
 /**
- * Map a hydrated post into OG data. Media / poster / link-preview / avatar URLs
- * are already absolute (resolved server-side during hydration).
+ * Map a hydrated post into OG data. Media / poster / link-preview URLs are
+ * already absolute (resolved server-side during hydration). The author avatar is
+ * a canonical Oxy `User` shape: a federated absolute URL or a bare Oxy file id
+ * resolved to its public CDN URL through the SDK — never a pre-resolved
+ * `avatarUrl` shim.
  */
 export function mapPostOg(post: HydratedPost, id: string): OgData {
   const user = post.user;
-  const author = user.displayName || `@${user.handle}`;
+  const handle = getNormalizedUserHandle(user);
+  const author = user.name?.displayName?.trim() || (handle ? `@${handle}` : 'Someone');
   const media = post.content?.media?.[0];
 
+  let avatarImage: string | undefined;
+  const avatar = user.avatar;
+  if (typeof avatar === 'string' && avatar.length > 0) {
+    avatarImage = /^https?:\/\//.test(avatar) ? avatar : cdnUrlClient.getFileDownloadUrl(avatar, 'thumb');
+  }
+
   const image =
-    media?.url || media?.thumbUrl || media?.posterUrl || post.linkPreview?.image || user.avatarUrl || undefined;
+    media?.url || media?.thumbUrl || media?.posterUrl || post.linkPreview?.image || avatarImage || undefined;
 
   return {
     title: `${author} on Mention`,

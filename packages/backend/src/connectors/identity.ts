@@ -1,6 +1,7 @@
 import { logger } from '../utils/logger';
 import { getServiceOxyClient } from '../utils/oxyHelpers';
 import UserSettings from '../models/UserSettings';
+import { invalidate as invalidateUserSummaryCache } from '../services/userSummaryCache';
 import { persistRemoteMediaForFederatedOwnerDetailed } from '../services/mediaCache/cacheWorker';
 import { isAbsoluteHttpUrl, getRemoteHost } from './shared/url';
 import type { NormalizedExternalActor } from './types';
@@ -60,6 +61,11 @@ export async function resolveOxyExternalUser(
     });
     const oxyId = String(oxyUser?._id || oxyUser?.id || '');
     if (!oxyId) return null;
+
+    // A re-resolve can refresh the federated actor's display name / avatar in
+    // Oxy. Evict any warm user-summary cache entry so the next feed hydration
+    // reads the updated Oxy user instead of the stale 10-min cached copy.
+    await invalidateUserSummaryCache([oxyId]);
 
     if (actor.bannerUrl) {
       // Best-effort on the live path: the outcome (stored / transient / permanent)

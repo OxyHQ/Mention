@@ -5,7 +5,7 @@ import {
     FeedType,
     HydratedPost,
     HydratedPostSummary,
-    PostActorSummary,
+    PostUser,
     Reply,
     FeedBoost as Boost,
     FeedPostSlice,
@@ -310,7 +310,7 @@ export function renderFeedRow(row: FeedRow, { router, threadLineColor, feedDescr
     // boundary all target the ORIGINAL so engagement and tap-to-open hit it. Quote
     // posts carry `quotedPost` (not `boost`) and are untouched. If the boost's
     // original is missing (deleted), fall back to rendering the boost item as-is.
-    const boostCtx = (post as { boost?: { originalPost?: HydratedPostSummary | null; actor?: PostActorSummary } }).boost;
+    const boostCtx = (post as { boost?: { originalPost?: HydratedPostSummary | null; actor?: PostUser } }).boost;
     const boostedOriginal = boostCtx?.originalPost;
     const renderedPost: FeedItem = boostedOriginal ?? post;
     const renderedPostId = renderedPost.id;

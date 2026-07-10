@@ -28,7 +28,6 @@
 
 import type { UserNameResponse } from '@oxyhq/contracts';
 import { getServiceOxyClient, getMentionOxyClientId } from '../utils/oxyHelpers';
-import { resolveAvatarUrl } from '../utils/mediaResolver';
 import { logger } from '../utils/logger';
 
 /**
@@ -156,10 +155,11 @@ function extractItems(response: unknown): OxyRecommendationItem[] {
 }
 
 /**
- * Map one raw Oxy recommendation item to Mention's frontend DTO. Resolves the
- * avatar to a final URL via the shared media resolver; passes `name` through
- * untouched so `name.displayName` stays canonical. Returns `null` for an item
- * with no usable id or no canonical display name so the caller can drop it.
+ * Map one raw Oxy recommendation item to Mention's frontend DTO. Passes the
+ * bare `avatar` file id and `name` through untouched (Oxy owns identity;
+ * `name.displayName` stays canonical, the client resolves the avatar via Bloom's
+ * ImageResolver). Returns `null` for an item with no usable id or no canonical
+ * display name so the caller can drop it.
  */
 function toRankedProfile(raw: OxyRecommendationItem): RankedProfile | null {
   const id = typeof raw.id === 'string' && raw.id.length > 0
@@ -183,7 +183,10 @@ function toRankedProfile(raw: OxyRecommendationItem): RankedProfile | null {
     id,
     username: typeof raw.username === 'string' ? raw.username : undefined,
     name,
-    avatar: resolveAvatarUrl(rawAvatar),
+    // Bare Oxy file id — passed through untouched (Oxy owns identity). The client
+    // resolves it via Bloom's ImageResolver, same as `post.user.avatar` and
+    // Who-to-follow. Never pre-resolve to a URL here.
+    avatar: rawAvatar,
     description: typeof raw.description === 'string' ? raw.description : undefined,
     verified: raw.verified === true,
     trustTier: typeof raw.trustTier === 'string' ? raw.trustTier : undefined,

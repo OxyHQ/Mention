@@ -1,30 +1,36 @@
-import type { PostActorSummary } from '@mention/shared-types';
+import type { PostUser } from '@mention/shared-types';
 import { getRedisClient } from '../utils/redis';
 import { withRedisFallback, ensureRedisConnected } from '../utils/redisHelpers';
 import { logger } from '../utils/logger';
 
 /**
- * Redis-backed cache for resolved post-author summaries (the {@link PostActorSummary}
- * shape that {@link PostHydrationService.buildUserMap} produces from an Oxy user).
+ * Redis-backed cache for resolved post-author identities (the canonical Oxy
+ * {@link PostUser} that {@link PostHydrationService.resolveUserSummaries}
+ * passes through UNCHANGED from Oxy, plus the author's follower count for
+ * ranking's authority signal).
  *
  * WHY THIS EXISTS — hydrating a feed used to issue ONE `getUserById` HTTP request
  * per unique author on every render (the classic M+1). The same authors appear
  * across consecutive feed pages and across viewers, so resolving them once and
- * caching the ready-to-render summary collapses that fan-out to a single batched
- * Oxy call for the cache MISSES only.
+ * caching the raw Oxy user collapses that fan-out to a single batched Oxy call
+ * for the cache MISSES only.
+ *
+ * This cache does NOT reshape identity — Oxy owns the user shape. It only stores
+ * the Oxy user verbatim (so the feed doesn't re-fetch it) and the follower count.
  *
  * Design constraints (mirror {@link ./mediaCache/negativeCache}):
  *  - Uses the shared {@link getRedisClient} singleton — never opens a new socket.
  *  - When Redis is unavailable (no `REDIS_URL`, or the server is down) every
  *    operation degrades to a no-op via {@link withRedisFallback}: hydration still
  *    works, it just resolves every author from Oxy each time.
- *  - Only the resolved summary is cached — never auth-scoped or viewer-scoped
- *    data. The summary is identical for every viewer, so a single shared entry
- *    per author id is correct.
+ *  - Only public identity is cached — never auth-scoped or viewer-scoped data.
+ *    The Oxy user is identical for every viewer, so a single shared entry per
+ *    author id is correct. It is invalidated ({@link invalidate}) when the
+ *    federated-actor identity bridge re-resolves a user (avatar/name refresh).
  */
 
-/** Redis key prefix for cached author summaries. `v1` namespaces the schema so a shape change can bump it. */
-const USER_SUMMARY_PREFIX = 'usersummary:v1:';
+/** Redis key prefix for cached user identities. `v2` bumps the schema (raw Oxy user, not the old flat summary). */
+const USER_SUMMARY_PREFIX = 'usersummary:v2:';
 
 /**
  * TTL for a cached summary. Display name / avatar / verification change rarely;
@@ -34,13 +40,13 @@ const USER_SUMMARY_PREFIX = 'usersummary:v1:';
 const SUMMARY_TTL_SECONDS = Number(process.env.USER_SUMMARY_CACHE_TTL_SECONDS ?? 10 * 60);
 
 /**
- * The cached value: the ready-to-render {@link PostActorSummary} plus the
- * author's follower count (used by ranking's authority signal). Follower count
- * is OPTIONAL — older entries or users whose count was unavailable simply omit
- * it, and ranking falls back to a neutral authority multiplier.
+ * The cached value: the raw canonical Oxy {@link PostUser} plus the author's
+ * follower count (used by ranking's authority signal). Follower count is
+ * OPTIONAL — older entries or users whose count was unavailable simply omit it,
+ * and ranking falls back to a neutral authority multiplier.
  */
 export interface CachedUserSummary {
-  summary: PostActorSummary;
+  user: PostUser;
   followerCount?: number;
 }
 
@@ -175,6 +181,35 @@ export async function mset(entries: Map<string, CachedUserSummary>): Promise<voi
     'userSummaryCacheMset',
   ).catch((error: unknown) => {
     logger.debug('[UserSummaryCache] Store failed', {
+      reason: error instanceof Error ? error.message : 'unknown',
+    });
+  });
+}
+
+/**
+ * Evict cached identities for a set of user ids so the next hydration re-reads
+ * the authoritative Oxy user. Called from the federated-actor identity bridge
+ * ({@link resolveOxyExternalUser}) after a successful re-resolve — an avatar or
+ * display-name refresh on a federated actor must not be masked by a warm 10-min
+ * cache entry. A failure degrades to a no-op (the entry simply ages out via TTL).
+ */
+export async function invalidate(userIds: string[]): Promise<void> {
+  if (userIds.length === 0) {
+    return;
+  }
+
+  const redis = getRedisClient();
+  await withRedisFallback(
+    redis,
+    async () => {
+      const connected = await ensureRedisConnected(redis);
+      if (!connected) return;
+      await redis.del(userIds.map(keyFor));
+    },
+    undefined,
+    'userSummaryCacheInvalidate',
+  ).catch((error: unknown) => {
+    logger.debug('[UserSummaryCache] Invalidate failed', {
       reason: error instanceof Error ? error.message : 'unknown',
     });
   });

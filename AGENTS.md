@@ -147,6 +147,8 @@ A post carries an `authorship[]` array (`owner` + up to `MAX_POST_COLLABORATORS`
 ## Profile Identity
 
 - Post DTOs MUST be produced by `PostHydrationService` (`packages/backend/src/services/PostHydrationService.ts`). Controllers must not hand-build post `user` objects, notification embedded posts, or feed post shapes.
+- **`post.user` / `authors[]` / `boost.actor` are the canonical Oxy `User` shape (`PostUser` in `@mention/shared-types`), NOT a Mention-local adapter.** Oxy owns identity — hydration passes Oxy user fields through UNCHANGED: `name.displayName` (render directly; fall back to the handle when absent), `avatar` (bare Oxy file id OR absolute federated URL — resolved by Bloom's `ImageResolver`, never pre-resolved to `avatarUrl`), `username`, `verified`, `isFederated`, `federation`, `instance`, `badges`. There is NO `PostActorSummary`, no flat `displayName`/`handle`/`avatarUrl` on post users, and no dual-write shims. Every renderer derives the handle via `getNormalizedUserHandle(user)`.
+- **Degraded author (Oxy resolve miss)** = `degradedActorSummary`: EMPTY `username` + `name.displayName: 'Unknown user'` (ghost-handle rule — an empty username suppresses the `@handle` line and profile link, never emits the raw id as a handle). A degraded FEDERATED author is enriched from Mention's own `FederatedActor` record inside `resolveUserSummaries` (fills only `username`/`federation`/`avatar`, NEVER invents `name.displayName`); enriched/degraded users are never cached, so the DTO self-heals once Oxy recovers.
 - Profile routes use `getNormalizedUserHandle` from `@oxyhq/core`. Valid URLs: `/@username` and `/@username@domain`. Duplicate suffixes (`/@user@domain@domain`) are bugs in handle normalization.
 
 ## Fediverse Discovery of Mention Profiles
@@ -237,7 +239,7 @@ Panel chrome insets: `packages/frontend/components/shell/PanelChrome.tsx` (`PANE
 
 ## Feed Performance
 
-- **Hydration author-batch**: `PostHydrationService.buildUserMap` batch-resolves authors via `oxyServices.getUsersByIds`. `services/userSummaryCache.ts` caches `PostActorSummary` + followerCount in Redis (key `usersummary:v1:<id>`, 10m TTL).
+- **Hydration author-batch**: `PostHydrationService.buildUserMap` batch-resolves authors via `oxyServices.getUsersByIds`. `services/userSummaryCache.ts` caches the raw canonical Oxy `User` (as `PostUser`) + followerCount in Redis (key `usersummary:v2:<id>`, 10m TTL); `invalidate()` evicts on federated-actor re-resolve (`connectors/identity.ts`).
 - **View counts**: `services/feedViewCounter.ts` (Redis SET NX EX `viewseen:<postId>:<viewerId>`). Frontend reports impressions via `utils/feedTelemetry.ts`.
 - **Instant post-detail**: memory-mode feeds seed the shared post cache (`postsStore.cachePosts`) in `useFeedState`; `app/(app)/p/[id].tsx` paints from cache + background-revalidates (`revalidatePostById`).
 

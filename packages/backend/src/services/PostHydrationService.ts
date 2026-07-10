@@ -1,4 +1,4 @@
-import { FeedPostSlice, FeedSliceItem, HydratedPost, HydratedPostSummary, HydratedBoostContext, HydratedAuthor, PostActorSummary, PostAttachmentBundle, PostEngagementSummary, PostLinkPreview, PostPermissions, PostViewerState, PostVisibility, PostAuthorshipEntry } from '@mention/shared-types';
+import { FeedPostSlice, FeedSliceItem, HydratedPost, HydratedPostSummary, HydratedBoostContext, HydratedAuthor, PostUser, PostAttachmentBundle, PostEngagementSummary, PostLinkPreview, PostPermissions, PostViewerState, PostVisibility, PostAuthorshipEntry } from '@mention/shared-types';
 import mongoose from 'mongoose';
 import { Post } from '../models/Post';
 import Poll from '../models/Poll';
@@ -9,10 +9,11 @@ import { UserSettings } from '../models/UserSettings';
 import { oxy as defaultOxyClient } from '../../server';
 import { getServiceOxyClient } from '../utils/oxyHelpers';
 import { getBlockedUserIds, getRestrictedUserIds, extractFollowingIds, extractFollowersIds, OxyClient } from '../utils/privacyHelpers';
-import { resolveAvatarUrl, resolveMediaItems } from '../utils/mediaResolver';
+import { resolveMediaItems } from '../utils/mediaResolver';
 import { logger } from '../utils/logger';
 import { readPersistedMediaFields } from './MediaMetadataService';
 import type { User as OxyUser } from '@oxyhq/core';
+import { getNormalizedUserHandle } from '@oxyhq/core';
 import type { LinkPreview } from '@oxyhq/contracts';
 import { assignThreadState } from './ThreadSlicingService';
 import { mget as mgetUserSummaries, mset as msetUserSummaries, CachedUserSummary } from './userSummaryCache';
@@ -124,82 +125,143 @@ const DEFAULT_PRIVACY = {
 };
 
 /**
- * Build the ready-to-render {@link CachedUserSummary} (author summary + follower
- * count) from a raw Oxy user. Centralized so the per-id fallback path and the
- * bulk path produce IDENTICAL output, and so the same shape is what we cache.
+ * Build the cached identity ({@link CachedUserSummary}: raw Oxy user + follower
+ * count) from a resolved Oxy user. Oxy owns the user shape, so this is a
+ * PASSTHROUGH: it selects the canonical fields onto {@link PostUser} without
+ * reshaping — no flat `displayName`, no pre-resolved `avatarUrl`, no wire
+ * `handle`. `avatar` stays the bare Oxy file id (Bloom's `ImageResolver` renders
+ * it, same as Who-to-follow / the profile header). Centralized so the per-id and
+ * the bulk resolution paths cache IDENTICAL output.
  */
-function summaryFromOxyUser(userId: string, userData: OxyUser): CachedUserSummary {
-  const username: string = String(userData?.username || userData?.handle || userId);
-  // May be absent — the renderer falls back to the (always-present) handle. Do
-  // NOT synthesize a name from the handle here; the handle fallback lives once,
-  // client-side, on `PostActorSummary.handle`.
-  const displayName: string | undefined = userData.name?.displayName;
-  const profileImage = (userData as { profileImage?: unknown }).profileImage;
-  const rawAvatar: string | undefined = typeof userData?.avatar === 'string'
-    ? userData.avatar
-    : typeof profileImage === 'string'
-      ? profileImage
-      : undefined;
-  const avatarValue = resolveAvatarUrl(rawAvatar);
+function toCachedUser(userId: string, userData: OxyUser): CachedUserSummary {
+  const isFederated = Boolean(userData.isFederated) || userData.type === 'federated';
+  const federation = userData.federation;
+  const badges = Array.isArray(userData.badges)
+    ? userData.badges
+        .map((badge) => (typeof badge === 'string' ? badge : (badge as Record<string, unknown>)?.name as string | undefined))
+        .filter((b): b is string => typeof b === 'string')
+    : undefined;
 
-  const isFederated = Boolean((userData as Record<string, unknown>)?.isFederated);
-  const federation = (userData as Record<string, unknown>)?.federation as { domain?: string } | undefined;
+  const user: PostUser = {
+    id: String(userData.id || userId),
+    username: userData.username || undefined,
+    // Canonical structured name — passed through unchanged. `name.displayName`
+    // is present only when the user has a real name; renderers fall back to the
+    // handle when it is absent (never synthesize a name here).
+    name: userData.name ?? {},
+    // Bare Oxy file id (or a mirrored absolute URL) — never pre-resolved here.
+    avatar: userData.avatar ?? null,
+    verified: Boolean(userData.verified || userData.isVerified),
+    isFederated: isFederated || undefined,
+    federation: federation
+      ? { domain: federation.domain, actorUri: federation.actorUri, actorId: federation.actorId }
+      : undefined,
+    instance: isFederated ? (userData.instance || federation?.domain) : (userData.instance || undefined),
+    badges: badges && badges.length > 0 ? badges : undefined,
+  };
+
   const followerCount = userData._count?.followers;
-
   return {
-    summary: {
-      id: String(userData?.id || userId),
-      handle: username,
-      displayName,
-      avatarUrl: avatarValue,
-      badges: Array.isArray(userData.badges)
-        ? userData.badges.map((badge) => (typeof badge === 'string' ? badge : (badge as Record<string, unknown>)?.name as string | undefined)).filter((b): b is string => typeof b === 'string')
-        : undefined,
-      isVerified: Boolean(userData.verified || userData.isVerified),
-      isFederated: isFederated || undefined,
-      instance: isFederated ? federation?.domain : undefined,
-    },
+    user,
     followerCount: typeof followerCount === 'number' ? followerCount : undefined,
   };
 }
 
 /**
- * The clearly-degraded actor summary emitted when an author cannot be resolved
- * from Oxy (a transient bulk + per-id fetch failure). It carries an EMPTY handle
- * ON PURPOSE: every renderer gates the `@handle` line and the `/@handle` profile
- * link on a non-empty handle, so a momentarily-unresolvable author shows a
+ * The clearly-degraded user emitted when an author cannot be resolved from Oxy
+ * (a transient bulk + per-id fetch failure). It carries an EMPTY `username` and
+ * a neutral `name.displayName: 'Unknown user'` ON PURPOSE: every renderer derives
+ * the `@handle` line and the `/@handle` profile link from a non-empty username
+ * (via `getNormalizedUserHandle`), so a momentarily-unresolvable author shows a
  * neutral "Unknown user" with no tappable handle rather than rendering its raw
- * Oxy id as a fake username (the ghost-handle bug). This summary is NEVER written
- * to the Redis user-summary cache (see {@link resolveUserSummaries}), so the next
+ * Oxy id as a fake username (the ghost-handle bug). This user is NEVER written to
+ * the Redis user-summary cache (see {@link resolveUserSummaries}), so the next
  * hydration re-resolves the real user and the DTO self-heals.
  */
-export function degradedActorSummary(userId: string): PostActorSummary {
+export function degradedActorSummary(userId: string): PostUser {
   return {
     id: userId,
-    handle: '',
-    displayName: 'Unknown user',
-    avatarUrl: undefined,
-    badges: undefined,
-    isVerified: false,
+    username: '',
+    name: { displayName: 'Unknown user' },
+    avatar: null,
   };
 }
 
-/** A minimal, safe summary used when an author cannot be resolved from Oxy. */
+/** A minimal, safe cached value used when an author cannot be resolved from Oxy. */
 function fallbackSummary(userId: string): CachedUserSummary {
-  return { summary: degradedActorSummary(userId) };
+  return { user: degradedActorSummary(userId) };
 }
 
 /**
- * Whether a summary is the {@link degradedActorSummary} produced when a user
- * could not be resolved from Oxy. The degraded summary is the ONLY summary with
- * an empty handle — a resolved Oxy user always has a non-empty handle (the
- * `username → handle → id` fallback in {@link summaryFromOxyUser}). Callers use
- * this to SKIP an unresolved actor (starter-pack members, mention-placeholder
+ * Whether a {@link PostUser} is the degraded/unresolved placeholder — the ONLY
+ * user with an EMPTY `username` (a resolved Oxy user always has one, and a
+ * federated-enriched user has its `username@domain` restored). Callers use this
+ * to SKIP an unresolved actor (starter-pack members, mention-placeholder
  * replacement) instead of rendering a nameless row. Kept in lockstep with
  * `degradedActorSummary`.
  */
-export function isFallbackUserSummary(summary: PostActorSummary): boolean {
-  return summary.handle === '';
+export function isFallbackUserSummary(user: PostUser): boolean {
+  return !user.username;
+}
+
+/**
+ * Enrich any author that degraded (Oxy resolution failed transiently) with its
+ * canonical FEDERATED identity from Mention's own {@link FederatedActor} record.
+ *
+ * Unlike a local author, a federated author's `username@domain` + remote avatar
+ * are knowable WITHOUT Oxy. This fills the MISSING `username` / `federation.domain`
+ * / `avatar` so a federated post shows its REAL, tappable handle (and image)
+ * instead of a neutral "Unknown user" whenever Oxy is momentarily unreachable (or
+ * in the brief window right after the bridge mints the Oxy user).
+ *
+ * It NEVER invents `name.displayName` — the FederatedActor has no display-name
+ * field, so an enriched author renders its handle. Enriched (still-incomplete)
+ * users are NOT cached (see {@link resolveUserSummaries}), so they self-heal once
+ * Oxy recovers. Mutates `resolved` in place; batched, best-effort.
+ */
+async function enrichDegradedFederatedUsers(resolved: Map<string, CachedUserSummary>): Promise<void> {
+  const degradedIds: string[] = [];
+  for (const [userId, value] of resolved) {
+    if (isFallbackUserSummary(value.user)) {
+      degradedIds.push(userId);
+    }
+  }
+  if (degradedIds.length === 0) return;
+
+  let actors: Array<{ oxyUserId?: string; acct?: string; username?: string; domain?: string; avatarUrl?: string }>;
+  try {
+    actors = await FederatedActor.find({ oxyUserId: { $in: degradedIds } })
+      .select('oxyUserId acct username domain avatarUrl')
+      .lean();
+  } catch (error) {
+    logger.warn('[PostHydration] Federated author enrich lookup failed', {
+      count: degradedIds.length,
+      reason: error instanceof Error ? error.message : 'unknown',
+    });
+    return;
+  }
+
+  for (const actor of actors) {
+    const oxyUserId = actor.oxyUserId ? String(actor.oxyUserId) : '';
+    if (!oxyUserId) continue;
+    const username = actor.username || (actor.acct ? actor.acct.split('@')[0] : '');
+    if (!username) continue;
+    const existing = resolved.get(oxyUserId);
+    resolved.set(oxyUserId, {
+      user: {
+        id: oxyUserId,
+        username,
+        // Deliberately empty: never invent a display name. The renderer falls
+        // back to the (now-restored) `username@domain` handle.
+        name: {},
+        avatar: existing?.user.avatar ?? actor.avatarUrl ?? null,
+        isFederated: true,
+        federation: actor.domain ? { domain: actor.domain } : undefined,
+        instance: actor.domain || undefined,
+      },
+      followerCount: existing?.followerCount,
+    });
+  }
 }
 
 /**
@@ -249,7 +311,7 @@ export async function resolveUserSummaries(userIds: string[]): Promise<Map<strin
       ids.map(async (userId) => {
         try {
           const userData: OxyUser = await defaultOxyClient.getUserById(userId);
-          freshlyResolved.set(userId, summaryFromOxyUser(userId, userData));
+          freshlyResolved.set(userId, toCachedUser(userId, userData));
         } catch (error) {
           logger.warn(`[PostHydration] Failed to load user ${userId}:`, error);
           resolved.set(userId, fallbackSummary(userId));
@@ -269,7 +331,7 @@ export async function resolveUserSummaries(userIds: string[]): Promise<Map<strin
     for (const userId of missIds) {
       const userData = byId.get(userId);
       if (userData) {
-        freshlyResolved.set(userId, summaryFromOxyUser(userId, userData));
+        freshlyResolved.set(userId, toCachedUser(userId, userData));
       } else {
         unresolved.push(userId);
       }
@@ -285,7 +347,8 @@ export async function resolveUserSummaries(userIds: string[]): Promise<Map<strin
     await resolvePerId(missIds);
   }
 
-  // 3. Merge fresh results and write them back to cache (only real resolutions).
+  // 3. Merge fresh results and write them back to cache (only real resolutions —
+  //    degraded/enriched users are never cached, so the DTO self-heals).
   for (const [userId, value] of freshlyResolved) {
     resolved.set(userId, value);
   }
@@ -293,73 +356,11 @@ export async function resolveUserSummaries(userIds: string[]): Promise<Map<strin
     await msetUserSummaries(freshlyResolved);
   }
 
+  // 4. Enrich any still-degraded federated author from Mention's own
+  //    FederatedActor record (fill-missing username/domain/avatar, never a name).
+  await enrichDegradedFederatedUsers(resolved);
+
   return resolved;
-}
-
-/**
- * Repair FEDERATED author summaries that degraded to {@link degradedActorSummary}
- * (empty handle, "Unknown user") because Oxy resolution failed transiently.
- *
- * Unlike a local author, a federated author's canonical `username@domain` is
- * knowable WITHOUT Oxy: Mention's own {@link FederatedActor} record carries
- * `acct`. Repairing from it lets a federated post show its REAL, tappable handle
- * (`/@username@domain` → WebFinger-resolved profile) instead of a neutral
- * "Unknown user" whenever Oxy is momentarily unreachable (or in the brief window
- * right after the federation bridge creates the Oxy user).
- *
- * Mutates `summaries` in place. Batched (a single query), scoped to the ids that
- * actually degraded, and best-effort — a lookup failure leaves the degraded
- * summary untouched rather than failing hydration. Shared by feed hydration
- * ({@link PostHydrationService.buildUserMap}) and reply-context author
- * resolution ({@link ThreadSlicingService}).
- */
-export async function repairFederatedFallbackSummaries(
-  summaries: Map<string, PostActorSummary>,
-  federatedAuthorIds: Set<string>,
-): Promise<void> {
-  const needsRepair: string[] = [];
-  for (const authorId of federatedAuthorIds) {
-    const summary = summaries.get(authorId);
-    // The degraded summary has an empty handle; `handle === authorId` guards any
-    // legacy raw-id summary. Either is the placeholder we want to replace.
-    if (!summary || isFallbackUserSummary(summary) || summary.handle === authorId) {
-      needsRepair.push(authorId);
-    }
-  }
-  if (needsRepair.length === 0) return;
-
-  let actors: Array<{ oxyUserId?: string; acct?: string; username?: string; domain?: string; name?: string }>;
-  try {
-    actors = await FederatedActor.find({ oxyUserId: { $in: needsRepair } })
-      .select('oxyUserId acct username domain name')
-      .lean();
-  } catch (error) {
-    logger.warn('[PostHydration] Federated author repair lookup failed', {
-      count: needsRepair.length,
-      reason: error instanceof Error ? error.message : 'unknown',
-    });
-    return;
-  }
-
-  for (const actor of actors) {
-    const oxyUserId = actor.oxyUserId ? String(actor.oxyUserId) : '';
-    if (!oxyUserId) continue;
-    const handle = actor.acct
-      || (actor.username && actor.domain ? `${actor.username}@${actor.domain}` : '');
-    if (!handle) continue;
-    const existing = summaries.get(oxyUserId);
-    summaries.set(oxyUserId, {
-      id: oxyUserId,
-      handle,
-      // Prefer the federated actor's own display name; leave undefined (never the
-      // raw id / "Unknown user") so the renderer falls back to the real handle.
-      displayName: actor.name?.trim() || undefined,
-      avatarUrl: existing?.avatarUrl,
-      isVerified: existing?.isVerified ?? false,
-      isFederated: true,
-      instance: actor.domain || undefined,
-    });
-  }
 }
 
 export class PostHydrationService {
@@ -413,7 +414,7 @@ export class PostHydrationService {
         ? this.buildLinkPreviewMap(postsForHydration)
         : Promise.resolve(new Map<string, PostLinkPreview>()),
     ]);
-    const mentionCache: Map<string, PostActorSummary> = new Map(userMap);
+    const mentionCache: Map<string, PostUser> = new Map(userMap);
 
     const summaryMap = new Map<string, HydratedPostSummary>();
 
@@ -895,40 +896,31 @@ export class PostHydrationService {
   private async buildUserMap(
     nodes: HydratedGraphNode[],
     extraLocalUserIds?: Set<string>,
-  ): Promise<Map<string, PostActorSummary>> {
-    const localUserIds = new Set<string>();
+  ): Promise<Map<string, PostUser>> {
+    const userIds = new Set<string>();
 
     for (const { post } of nodes) {
       for (const userId of collectAuthorshipUserIds(post?.authorship)) {
-        localUserIds.add(userId);
+        userIds.add(userId);
       }
     }
 
     // Merge in extra user IDs (e.g., replier IDs) for batch fetching
     if (extraLocalUserIds) {
       for (const id of extraLocalUserIds) {
-        localUserIds.add(id);
+        userIds.add(id);
       }
     }
 
-    const resolved = await resolveUserSummaries([...localUserIds]);
+    // `resolveUserSummaries` returns raw Oxy users (Oxy owns identity) and
+    // already enriches any degraded FEDERATED author from the FederatedActor
+    // record — no separate repair step here.
+    const resolved = await resolveUserSummaries([...userIds]);
 
-    const userMap = new Map<string, PostActorSummary>();
+    const userMap = new Map<string, PostUser>();
     for (const [userId, value] of resolved) {
-      userMap.set(userId, value.summary);
+      userMap.set(userId, value.user);
     }
-
-    // A FEDERATED author whose Oxy resolution degraded (empty handle, "Unknown
-    // user") still has a knowable canonical handle in Mention's own
-    // FederatedActor record. Repair those so a federated post shows its real
-    // `@username@domain` (tappable) instead of a neutral "Unknown user".
-    const federatedAuthorIds = new Set<string>();
-    for (const { post } of nodes) {
-      if (post?.federation && post?.oxyUserId) {
-        federatedAuthorIds.add(String(post.oxyUserId));
-      }
-    }
-    await repairFederatedFallbackSummaries(userMap, federatedAuthorIds);
 
     return userMap;
   }
@@ -1177,7 +1169,7 @@ export class PostHydrationService {
    */
   private buildReplierAvatarsFromUserMap(
     perPostRepliers: Map<string, string[]>,
-    userMap: Map<string, PostActorSummary>,
+    userMap: Map<string, PostUser>,
   ): Map<string, string[]> {
     const replierMap = new Map<string, string[]>();
 
@@ -1185,8 +1177,10 @@ export class PostHydrationService {
       const avatars: string[] = [];
       for (const replierId of replierIds) {
         const user = userMap.get(replierId);
-        if (user?.avatarUrl) {
-          avatars.push(user.avatarUrl);
+        // Bare Oxy file id (or mirrored URL) — the client resolves it through
+        // Bloom's ImageResolver, same as every other avatar.
+        if (user?.avatar) {
+          avatars.push(user.avatar);
         }
       }
       if (avatars.length > 0) {
@@ -1201,8 +1195,8 @@ export class PostHydrationService {
     post: RawPost;
     viewerContext: ViewerContext;
     pollMap: Map<string, Record<string, unknown>>;
-    userMap: Map<string, PostActorSummary>;
-    mentionCache: Map<string, PostActorSummary>;
+    userMap: Map<string, PostUser>;
+    mentionCache: Map<string, PostUser>;
     linkPreviewMap: Map<string, PostLinkPreview>;
     authorPrivacyMap: Map<string, typeof DEFAULT_PRIVACY>;
     recentReplierMap?: Map<string, string[]>;
@@ -1640,7 +1634,7 @@ export class PostHydrationService {
   private async replaceMentionPlaceholders(
     text: string,
     mentions: string[],
-    mentionCache: Map<string, PostActorSummary>,
+    mentionCache: Map<string, PostUser>,
   ): Promise<string> {
     if (!text || !Array.isArray(mentions) || mentions.length === 0) {
       return text;
@@ -1686,10 +1680,10 @@ export class PostHydrationService {
       const resolved = await resolveUserSummaries(uncachedIds);
       for (const mentionId of uncachedIds) {
         const value = resolved.get(mentionId);
-        if (!value || isFallbackUserSummary(value.summary)) {
+        if (!value || isFallbackUserSummary(value.user)) {
           continue;
         }
-        mentionCache.set(mentionId, value.summary);
+        mentionCache.set(mentionId, value.user);
       }
     }
 
@@ -1700,9 +1694,13 @@ export class PostHydrationService {
     for (const mentionId of declaredMentionIds) {
       const mentionUser = mentionCache.get(mentionId);
       if (mentionUser) {
+        // Canonical handle (`username@domain` for federated) owns both the label
+        // fallback and the link target, so they can never diverge.
+        const handle = getNormalizedUserHandle(mentionUser);
+        if (!handle) continue;
         // A mention with no display name renders as `@handle` — never `@undefined`.
-        const mentionLabel = mentionUser.displayName?.trim() || mentionUser.handle;
-        replacements.set(mentionId, `[@${mentionLabel}](${mentionUser.handle})`);
+        const mentionLabel = mentionUser.name?.displayName?.trim() || handle;
+        replacements.set(mentionId, `[@${mentionLabel}](${handle})`);
       }
     }
 

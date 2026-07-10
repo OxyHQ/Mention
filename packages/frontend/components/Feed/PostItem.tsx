@@ -4,7 +4,7 @@ import { useRouter, usePathname } from 'expo-router';
 import {
     HydratedPost,
     HydratedPostSummary,
-    PostActorSummary,
+    PostUser,
     PostAttachmentDescriptor,
     PostAttachmentBundle,
     PostContent,
@@ -77,7 +77,7 @@ interface PostItemProps {
      * "Replying to @handle" row in the avatar-gutter lane above the header,
      * mirroring the Pinned row layout (Bluesky-style context rows, all muted).
      */
-    replyContextAuthor?: { handle?: string; displayName?: string };
+    replyContextAuthor?: PostUser;
     /**
      * When this row is a PURE repost (boost) surfaced into a feed, the actor who
      * reposted it. The main post body is the ORIGINAL post (passed as `post`);
@@ -88,7 +88,7 @@ interface PostItemProps {
      * repost affordance (no duplicate indicator). Quote posts use `quotedPost`
      * nesting instead and never set this prop.
      */
-    repostedBy?: PostActorSummary;
+    repostedBy?: PostUser;
     /**
      * Render the FOCUSED post-detail variant: full-width body, the larger spread-out
      * action bar (with the full absolute timestamp + engagement-stats rows), and a
@@ -240,11 +240,11 @@ const PostItem: React.FC<PostItemProps> = ({
     // `source` with `variant="thumb"` so Bloom's resolver fetches the thumb
     // rendition. We no longer pre-resolve the file id with `useImageUrl`.
     //
-    // NOTE (durable upstream fix): the backend PostHydrationService should emit a
-    // clean file id for local actors and a remote URL for federated actors so the
-    // client never has to disambiguate. Until then we branch on `isFederated` and
-    // on whether the value is already an absolute URL.
-    const rawAvatar = viewPost?.user?.avatarUrl;
+    // The backend emits the canonical Oxy `User` shape: `avatar` is a bare Oxy
+    // file id for local actors and an absolute remote URL for federated actors.
+    // We branch on `isFederated` and on whether the value is already an absolute
+    // URL so Bloom's resolver only gets a `variant` for local file ids.
+    const rawAvatar = viewPost?.user?.avatar;
     const isRemoteAvatar =
         typeof rawAvatar === 'string' &&
         (viewPost?.user?.isFederated === true ||
@@ -313,13 +313,8 @@ const PostItem: React.FC<PostItemProps> = ({
     // value so they can never diverge. Empty for a degraded/unresolvable author
     // (empty handle) → no `@handle` shown and no tappable link.
     const authorHandle = useMemo(
-        () =>
-            getNormalizedUserHandle({
-                handle: viewPost.user?.handle,
-                isFederated: viewPost.user?.isFederated,
-                instance: viewPost.user?.instance,
-            }) ?? undefined,
-        [viewPost.user?.handle, viewPost.user?.isFederated, viewPost.user?.instance],
+        () => getNormalizedUserHandle(viewPost.user) ?? undefined,
+        [viewPost.user],
     );
 
     const goToUser = useCallback(() => {
@@ -332,15 +327,11 @@ const PostItem: React.FC<PostItemProps> = ({
     // also trigger the outer container press (which opens the ORIGINAL post detail).
     const goToReposter = useCallback((event?: GestureResponderEvent) => {
         event?.stopPropagation?.();
-        const handle = getNormalizedUserHandle({
-            handle: repostedBy?.handle,
-            isFederated: repostedBy?.isFederated,
-            instance: repostedBy?.instance,
-        });
+        const handle = getNormalizedUserHandle(repostedBy);
         if (handle) {
             router.push(`/@${handle}`);
         }
-    }, [router, repostedBy?.handle, repostedBy?.isFederated, repostedBy?.instance]);
+    }, [router, repostedBy]);
 
     // Pass the originating feed descriptor as the engagement `source` so the
     // backend can attribute a like/save/boost to the surface it happened on
@@ -661,9 +652,9 @@ const PostItem: React.FC<PostItemProps> = ({
     const hasBelowHeaderBlocks = Boolean((hasValidLocation && location) || hasSources || shouldRenderMediaBlock || !isNested);
     const headerToBlocksGap = content.text ? SECTION_GAP : HEADER_CONTENT_GAP;
 
-    const replyContextHandle = replyContextAuthor?.handle || replyContextAuthor?.displayName;
+    const replyContextHandle = getNormalizedUserHandle(replyContextAuthor) || replyContextAuthor?.name?.displayName;
 
-    const postAuthor = displayNameOrHandle(viewPost.user.displayName, `@${authorHandle ?? viewPost.user.handle}`);
+    const postAuthor = displayNameOrHandle(viewPost.user.name?.displayName, authorHandle ? `@${authorHandle}` : '');
     const postTextSummary = content.text
         ? content.text.length > 80
             ? content.text.substring(0, 80) + '...'
@@ -698,7 +689,7 @@ const PostItem: React.FC<PostItemProps> = ({
                     <BoostIcon size={13} color={theme.colors.textSecondary} />
                 </View>
                 <Text className="text-muted-foreground text-[13px] font-semibold" numberOfLines={1}>
-                    {t('post.repostedBy', { defaultValue: 'Reposted by' })} {displayNameOrHandle(repostedBy.displayName, `@${repostedBy.handle}`)}
+                    {t('post.repostedBy', { defaultValue: 'Reposted by' })} {displayNameOrHandle(repostedBy.name?.displayName, getNormalizedUserHandle(repostedBy) ? `@${getNormalizedUserHandle(repostedBy)}` : '')}
                 </Text>
             </TouchableOpacity>,
         );
@@ -804,9 +795,9 @@ const PostItem: React.FC<PostItemProps> = ({
                 <View style={{ gap: headerToBlocksGap }}>
                     <PostHeader
                         user={{
-                            displayName: viewPost.user.displayName,
-                            handle: authorHandle || viewPost.user.handle || '',
-                            verified: viewPost.user.isVerified,
+                            displayName: viewPost.user.name?.displayName,
+                            handle: authorHandle || '',
+                            verified: viewPost.user.verified,
                             isFederated: viewPost.user.isFederated,
                             instance: viewPost.user.instance,
                         }}

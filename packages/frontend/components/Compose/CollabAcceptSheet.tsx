@@ -2,11 +2,12 @@ import React from 'react';
 import { View, Text } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@oxyhq/bloom/button';
-import type { PostActorSummary } from '@mention/shared-types';
+import type { PostUser } from '@mention/shared-types';
+import { getNormalizedUserHandle } from '@oxyhq/core';
 import { displayNameOrHandle } from '@/utils/displayName';
 
 interface CollabAcceptSheetProps {
-  inviter: PostActorSummary;
+  inviter: PostUser;
   onAccept: () => void;
   onDecline: () => void;
   onClose: () => void;
@@ -21,7 +22,8 @@ const CollabAcceptSheet: React.FC<CollabAcceptSheetProps> = ({
   loading = false,
 }) => {
   const { t } = useTranslation();
-  const inviterName = displayNameOrHandle(inviter.displayName, inviter.handle ? `@${inviter.handle}` : '');
+  const inviterHandle = getNormalizedUserHandle(inviter);
+  const inviterName = displayNameOrHandle(inviter.name?.displayName, inviterHandle ? `@${inviterHandle}` : '');
 
   return (
     <View className="px-4 pb-8 pt-2 gap-4">

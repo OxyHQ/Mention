@@ -4,6 +4,7 @@ import { Avatar } from '@oxyhq/bloom/avatar';
 import { Loading } from '@oxyhq/bloom/loading';
 import { useTranslation } from 'react-i18next';
 import type { HydratedPost, HydratedPostSummary } from '@mention/shared-types';
+import { getNormalizedUserHandle } from '@oxyhq/core';
 
 import { CloseIcon } from '@/assets/icons/close-icon';
 
@@ -37,17 +38,9 @@ const QuoteCard: React.FC<QuoteCardProps> = ({ post, loading, onDismiss }) => {
     return '';
   }, [post]);
 
-  const userName = useMemo(() => {
-    if (!post) return '';
-    return post.user ? post.user.displayName : '';
-  }, [post]);
+  const userName = useMemo(() => post?.user?.name?.displayName ?? '', [post]);
 
-  const userHandle = useMemo(() => {
-    if (!post) return '';
-    const handle = post.user?.handle;
-    if (!handle) return '';
-    return handle.startsWith('@') ? handle.slice(1) : handle;
-  }, [post]);
+  const userHandle = useMemo(() => getNormalizedUserHandle(post?.user) ?? '', [post]);
 
   // Federation-aware avatar source for Bloom's Avatar (via the app-wide
   // ImageResolver): a FEDERATED/remote actor carries an absolute http(s) URL
@@ -55,7 +48,7 @@ const QuoteCard: React.FC<QuoteCardProps> = ({ post, loading, onDismiss }) => {
   // (resolved with `variant="thumb"`). Bloom disambiguates URL vs file id, so we
   // pass the raw value through and only steer the variant.
   const avatar = useMemo(() => {
-    const raw = post?.user?.avatarUrl;
+    const raw = post?.user?.avatar;
     if (typeof raw !== 'string' || !raw) return { source: undefined, variant: undefined };
     const isRemote =
       post?.user?.isFederated === true || raw.startsWith('http://') || raw.startsWith('https://');

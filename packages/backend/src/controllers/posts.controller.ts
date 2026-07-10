@@ -8,7 +8,7 @@ import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
 import mongoose from 'mongoose';
 import { createNotification, createMentionNotifications, createBatchNotifications, createPostAuthorNotifications } from '../utils/notificationUtils';
 import PostSubscription from '../models/PostSubscription';
-import { PostVisibility, PostAttachmentDescriptor, PostAttachmentType, PostContent, PostActorSummary } from '@mention/shared-types';
+import { PostVisibility, PostAttachmentDescriptor, PostAttachmentType, PostContent, PostUser } from '@mention/shared-types';
 import { userPreferenceService, readInteractionSurface } from '../services/UserPreferenceService';
 import { affinityEventService } from '../services/AffinityEventService';
 import { postCreationService } from '../services/PostCreationService';
@@ -54,32 +54,18 @@ const MAX_TEXT_LENGTH = config.posts.maxTextLength;
 const MAX_ALT_TEXT_LENGTH = config.posts.maxAltTextLength;
 
 /**
- * Map a resolved {@link PostActorSummary} to the engagement-users response shape
- * (`GET /posts/:id/likes` and `GET /posts/:id/boosts`). The summary already
- * carries the canonical `displayName` (from Oxy `name.displayName`), resolved
- * handle, and final avatar URL. When the resolver could not resolve a user, fall
- * back to the degraded actor summary (neutral name, EMPTY handle) — never the raw
- * id as a handle, which would render a ghost `@<oxyUserId>` and a broken profile
- * link.
+ * Resolve the canonical Oxy {@link PostUser} for an engagement-list entry
+ * (`GET /posts/:id/likes` and `GET /posts/:id/boosts`). Oxy owns identity, so the
+ * response embeds the raw Oxy user (same shape as `post.user` / Who-to-follow):
+ * `name.displayName`, `avatar` file id, `username`, `verified`, `isFederated`,
+ * `federation`. When the resolver could not resolve a user, fall back to the
+ * degraded user (neutral name, EMPTY username) — never the raw id as a handle,
+ * which would render a ghost `@<oxyUserId>` and a broken profile link.
  */
 const mapActorSummary = (
   userId: string,
-  summary: PostActorSummary | undefined,
-): { id: string; displayName?: string; handle: string; avatar?: string; verified: boolean; isFederated?: boolean; instance?: string } => {
-  const actor = summary ?? degradedActorSummary(userId);
-  return {
-    id: actor.id,
-    // May be absent — the client renders the (always-present) handle instead.
-    displayName: actor.displayName,
-    handle: actor.handle,
-    avatar: actor.avatarUrl,
-    verified: Boolean(actor.isVerified),
-    // Federation context so the client builds a `username@domain` profile link
-    // for a federated liker/booster instead of a bare/local handle.
-    isFederated: actor.isFederated,
-    instance: actor.instance,
-  };
-};
+  user: PostUser | undefined,
+): PostUser => user ?? degradedActorSummary(userId);
 
 const buildPostMetadata = (metadata: unknown): Record<string, unknown> => {
   if (!metadata || typeof metadata !== 'object') {
@@ -2304,7 +2290,7 @@ export const getPostLikes = async (req: AuthRequest, res: Response) => {
     // bulk fetch, Redis-cached) instead of N hand-built per-id Oxy reads.
     const userIds = [...new Set(likesToReturn.map(like => like.userId))];
     const summaries = await resolveUserSummaries(userIds);
-    const users = userIds.map((userId) => mapActorSummary(userId, summaries.get(userId)?.summary));
+    const users = userIds.map((userId) => mapActorSummary(userId, summaries.get(userId)?.user));
 
     res.json({
       users,
@@ -2348,7 +2334,7 @@ export const getPostBoosts = async (req: AuthRequest, res: Response) => {
     // bulk fetch, Redis-cached) instead of N hand-built per-id Oxy reads.
     const userIds = [...new Set(boostsToReturn.map(boost => boost.oxyUserId).filter((id): id is string => typeof id === 'string'))];
     const summaries = await resolveUserSummaries(userIds);
-    const users = userIds.map((userId) => mapActorSummary(userId, summaries.get(userId)?.summary));
+    const users = userIds.map((userId) => mapActorSummary(userId, summaries.get(userId)?.user));
 
     res.json({
       users,

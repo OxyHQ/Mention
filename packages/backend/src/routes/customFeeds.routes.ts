@@ -10,36 +10,28 @@ import { loadViewerFeedContext } from '../mtn/feed/feedContext';
 import { feedEngine } from '../mtn/feed/engine/FeedEngine';
 import FeedLike from '../models/FeedLike';
 import { escapeRegex } from '../utils/textProcessing';
-import { resolveUserSummaries } from '../services/PostHydrationService';
+import { resolveUserSummaries, degradedActorSummary } from '../services/PostHydrationService';
 import { getServiceOxyClient } from '../utils/oxyHelpers';
 import type { CachedUserSummary } from '../services/userSummaryCache';
+import type { PostUser } from '@mention/shared-types';
 import { logger } from '../utils/logger';
 
 const router = Router();
 
-interface UserProfile {
-  id: string;
-  username: string;
-  handle: string;
-  displayName: string;
-  avatar?: string;
-}
+/**
+ * The public owner/member/reviewer profile this route embeds — the canonical Oxy
+ * {@link PostUser} (Oxy owns identity, same shape as `post.user` / Who-to-follow).
+ */
+type UserProfile = PostUser;
 
 /**
- * Map a resolved {@link CachedUserSummary} to the public {@link UserProfile}
- * shape this route returns. `summary.avatarUrl` is already a FINAL, ready-to-render
- * URL (resolved server-side via the avatar resolver) — the same value the feed
- * hydration path emits — so the frontend never constructs URLs.
+ * Map a resolved {@link CachedUserSummary} to the embedded Oxy {@link PostUser}.
+ * Passthrough — Oxy owns the shape (`name.displayName`, `avatar` file id,
+ * `username`). Falls back to the degraded user (EMPTY username, so the client
+ * suppresses the handle instead of rendering the raw id — the ghost-handle rule).
  */
 function profileFromSummary(oxyUserId: string, cached: CachedUserSummary | undefined): UserProfile {
-  const summary = cached?.summary;
-  return {
-    id: summary?.id ?? oxyUserId,
-    username: summary?.handle ?? oxyUserId,
-    handle: summary?.handle ?? oxyUserId,
-    displayName: summary?.displayName ?? oxyUserId,
-    avatar: typeof summary?.avatarUrl === 'string' && summary.avatarUrl.length > 0 ? summary.avatarUrl : undefined,
-  };
+  return cached?.user ?? degradedActorSummary(oxyUserId);
 }
 
 /**
@@ -186,7 +178,7 @@ router.get('/', async (req: AuthRequest, res: Response) => {
     const ownersMap = profilesById;
     const memberAvatarsMap = new Map<string, string | undefined>();
     for (const memberId of allMemberIds) {
-      memberAvatarsMap.set(memberId, profilesById.get(memberId)?.avatar);
+      memberAvatarsMap.set(memberId, profilesById.get(memberId)?.avatar ?? undefined);
     }
 
     // Normalize _id to id for frontend consistency and add like data, owner info, and member avatars

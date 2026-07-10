@@ -12,13 +12,20 @@ export const ZActor = z.object({
   avatar: z.string().optional(),
 }).partial();
 
-// Embedded post user
+// Embedded post user — the canonical Oxy `User` shape emitted by
+// `PostHydrationService` (Oxy owns identity). Render `name.displayName` directly,
+// derive the handle via `getNormalizedUserHandle`, and resolve `avatar` (a bare
+// Oxy file id OR absolute remote URL) through Bloom's ImageResolver. No flat
+// `displayName` / `handle` / `avatarUrl` shims.
 export const ZEmbeddedUser = z.object({
   id: z.string().optional(),
-  displayName: z.string(),
-  handle: z.string().optional(),
-  avatarUrl: z.string().optional(),
+  username: z.string().optional(),
+  name: z.object({ displayName: z.string().optional() }).partial().optional(),
+  avatar: z.string().nullable().optional(),
   verified: z.boolean().optional(),
+  isFederated: z.boolean().optional(),
+  instance: z.string().optional(),
+  federation: z.object({ domain: z.string().optional() }).partial().optional(),
 });
 
 // Embedded post object shape (loose to be resilient)

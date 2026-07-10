@@ -86,6 +86,14 @@ vi.mock('../../models/UserSettings', () => ({
   UserSettings: { find: () => chainable([]), findOne: () => chainable(null) },
 }));
 
+// Federated enrichment lookup for any still-degraded author. Return nothing so
+// an unresolved federated author stays degraded (the boost original with no
+// oxyUserId is dropped upstream, never enriched).
+vi.mock('../../models/FederatedActor', () => ({
+  FederatedActor: { find: () => ({ select: () => ({ lean: async () => [] }) }) },
+  default: { find: () => ({ select: () => ({ lean: async () => [] }) }) },
+}));
+
 vi.mock('../../services/userSummaryCache', () => ({
   mget: vi.fn(async (ids: string[]) => {
     const hits = new Map<string, CachedUserSummary>();
@@ -350,11 +358,11 @@ describe('PostHydrationService — boost original embedding is deterministic', (
 
     expect(hydrated.boost?.originalPost?.id).toBe(ORIGINAL_ID);
     // The Oxy `name.displayName` — the single source of truth.
-    expect(hydrated.boost?.originalPost?.user?.displayName).toBe('Terrible Maps');
+    expect(hydrated.boost?.originalPost?.user?.name?.displayName).toBe('Terrible Maps');
     expect(hydrated.boost?.originalPost?.user?.isFederated).toBe(true);
     expect(hydrated.boost?.originalPost?.user?.instance).toBe('zpravobot.news');
-    // The federated avatar (re-hosted as an Oxy file id) is carried through.
-    expect(hydrated.boost?.originalPost?.user?.avatarUrl).toBeTruthy();
+    // The federated avatar (a bare Oxy file id) is carried through untouched.
+    expect(hydrated.boost?.originalPost?.user?.avatar).toBe('terrible-maps-avatar-file-id');
   });
 
   it('does not embed non-public boost originals when publicReferencesOnly is enabled', async () => {

@@ -202,8 +202,8 @@ export class FeedRankingService {
         if (typeof value.followerCount === 'number') {
           followerCounts.set(authorId, value.followerCount);
         }
-        if (typeof value.summary?.isVerified === 'boolean') {
-          verified.set(authorId, value.summary.isVerified);
+        if (typeof value.user?.verified === 'boolean') {
+          verified.set(authorId, value.user.verified);
         }
       }
     } catch (error) {

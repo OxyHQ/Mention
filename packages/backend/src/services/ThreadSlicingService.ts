@@ -12,12 +12,12 @@ import {
   FeedSliceItem,
   FeedSliceReason,
   MtnConfig,
-  PostActorSummary,
+  PostUser,
   PostVisibility,
 } from '@mention/shared-types';
 import { Post } from '../models/Post';
 import { logger } from '../utils/logger';
-import { resolveUserSummaries, repairFederatedFallbackSummaries } from './PostHydrationService';
+import { resolveUserSummaries } from './PostHydrationService';
 
 export interface ThreadSlicingOptions {
   enableThreadGrouping: boolean;
@@ -104,7 +104,7 @@ class ThreadSlicingService {
     // blank display name. Never hand-recompute names — use the resolved summary.
     const parentAuthorSummaries = opts.enableReplyContext
       ? await this.resolveReplyContextAuthors(posts, parentPostMap, postById)
-      : new Map<string, PostActorSummary>();
+      : new Map<string, PostUser>();
 
     // Build slices in feed order
     const slices: FeedPostSlice[] = [];
@@ -154,10 +154,13 @@ class ThreadSlicingService {
 
           slices.push(buildSlice([parent, post], true, {
             type: 'replyContext',
+            // Degraded fallback carries an EMPTY username (ghost-handle rule) and
+            // no display name — never the raw id as a handle.
             parentAuthor: resolved ?? {
               id: parentAuthorId,
-              handle: parentAuthorId,
-              displayName: parentAuthorId,
+              username: '',
+              name: {},
+              avatar: null,
             },
           }));
           continue;
@@ -281,8 +284,8 @@ class ThreadSlicingService {
   /**
    * Resolve canonical author summaries for every parent post that will anchor a
    * reply-context slice ("Replying to @…"). Returns a map keyed by the parent's
-   * `oxyUserId` → {@link PostActorSummary} (canonical `name.displayName`, handle,
-   * avatar resolved via Oxy). Uses {@link resolveUserSummaries} — the same
+   * `oxyUserId` → the canonical Oxy {@link PostUser} (`name.displayName`,
+   * `username`, `avatar`). Uses {@link resolveUserSummaries} — the same
    * batched/Redis-cached path PostHydrationService uses — so authors already in
    * the feed cost nothing extra and the result never blanks for an existing
    * parent author.
@@ -291,11 +294,8 @@ class ThreadSlicingService {
     posts: RawPost[],
     parentPostMap: Map<string, RawPost>,
     postById: Map<string, RawPost>,
-  ): Promise<Map<string, PostActorSummary>> {
+  ): Promise<Map<string, PostUser>> {
     const authorIds = new Set<string>();
-    // Federated parent authors — so a degraded "Replying to @Unknown user"
-    // header is repaired to the real `@username@domain` handle.
-    const federatedAuthorIds = new Set<string>();
 
     for (const post of posts) {
       if (!post.parentPostId) continue;
@@ -303,22 +303,21 @@ class ThreadSlicingService {
       const authorId = parent?.oxyUserId ? String(parent.oxyUserId) : '';
       if (authorId) {
         authorIds.add(authorId);
-        if (parent?.federation) {
-          federatedAuthorIds.add(authorId);
-        }
       }
     }
 
     if (authorIds.size === 0) {
-      return new Map<string, PostActorSummary>();
+      return new Map<string, PostUser>();
     }
 
+    // `resolveUserSummaries` returns raw Oxy users and already enriches any
+    // degraded FEDERATED parent author from the FederatedActor record, so a
+    // "Replying to @…" header never blanks for a known federated author.
     const resolved = await resolveUserSummaries([...authorIds]);
-    const summaries = new Map<string, PostActorSummary>();
+    const summaries = new Map<string, PostUser>();
     for (const [userId, value] of resolved) {
-      summaries.set(userId, value.summary);
+      summaries.set(userId, value.user);
     }
-    await repairFederatedFallbackSummaries(summaries, federatedAuthorIds);
     return summaries;
   }
 }

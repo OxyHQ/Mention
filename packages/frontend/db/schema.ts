@@ -101,9 +101,6 @@ export type FeedItem = HydratedPost & {
   isDownvoted?: boolean;
   isBoosted?: boolean;
   isSaved?: boolean;
-  user: HydratedPost['user'] & {
-    avatar?: string;
-  };
   media?: string[];
   mediaIds?: string[];
   originalMediaIds?: string[];
@@ -199,8 +196,7 @@ export function rowToFeedItem(row: PostRow): FeedItem {
   const context = safeJsonParse<PostFeedContext | null>(row.context_json, null);
   const user = safeJsonParse<HydratedPost['user']>(row.user_json, {
     id: row.user_id,
-    handle: '',
-    displayName: '',
+    name: {},
   });
 
   const engagement: PostEngagementSummary = {
@@ -260,9 +256,6 @@ export function rowToFeedItem(row: PostRow): FeedItem {
     linkPreview,
     user: {
       ...user,
-      handle: user.handle,
-      badges: user.badges,
-      isVerified: user.isVerified,
       id: user.id || row.user_id,
     },
     authors,

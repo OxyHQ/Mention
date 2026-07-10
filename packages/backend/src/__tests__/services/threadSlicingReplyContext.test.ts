@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { PostVisibility, type PostActorSummary } from '@mention/shared-types';
+import { PostVisibility, type PostUser } from '@mention/shared-types';
 import type { CachedUserSummary } from '../../services/userSummaryCache';
 
 /**
@@ -44,10 +44,6 @@ vi.mock('../../models/Post', () => ({
 // PostHydrationService; mocking it keeps this a pure unit test of the slicer.
 vi.mock('../../services/PostHydrationService', () => ({
   resolveUserSummaries: (...args: unknown[]) => resolveUserSummaries(...args),
-  // Federated fallback repair is a separate, DB-backed boundary exercised in its
-  // own suite (postHydrationFederatedRepair.test.ts). Stub it here so this stays
-  // a pure unit test of the slicer (parents in these cases are local).
-  repairFederatedFallbackSummaries: vi.fn(async () => undefined),
 }));
 
 import { threadSlicingService } from '../../services/ThreadSlicingService';
@@ -57,14 +53,14 @@ const REPLY_ID = '650000000000000000000002';
 const PARENT_AUTHOR_ID = 'oxy-parent-author';
 const REPLY_AUTHOR_ID = 'oxy-reply-author';
 
-function summary(id: string, handle: string, displayName: string): CachedUserSummary {
+function summary(id: string, username: string, displayName: string): CachedUserSummary {
   return {
-    summary: {
+    user: {
       id,
-      handle,
-      displayName,
-      avatarUrl: `https://cloud.oxy.so/${id}?variant=thumb`,
-      isVerified: false,
+      username,
+      name: { displayName },
+      avatar: `${id}-avatar`,
+      verified: false,
     },
     followerCount: 0,
   };
@@ -112,10 +108,10 @@ describe('ThreadSlicingService reply-context parent author', () => {
     expect(reason?.type).toBe('replyContext');
     if (reason?.type !== 'replyContext') throw new Error('expected replyContext reason');
 
-    const parentAuthor: PostActorSummary = reason.parentAuthor;
-    expect(parentAuthor.displayName).toBe('Parent Display Name');
-    expect(parentAuthor.handle).toBe('parenthandle');
-    expect(parentAuthor.displayName).not.toBe('');
+    const parentAuthor: PostUser = reason.parentAuthor;
+    expect(parentAuthor.name.displayName).toBe('Parent Display Name');
+    expect(parentAuthor.username).toBe('parenthandle');
+    expect(parentAuthor.name.displayName).not.toBe('');
     expect(parentAuthor.id).toBe(PARENT_AUTHOR_ID);
 
     // The slicer must resolve the PARENT author id through the canonical path.
@@ -123,8 +119,8 @@ describe('ThreadSlicingService reply-context parent author', () => {
     expect(resolveUserSummaries.mock.calls[0][0]).toContain(PARENT_AUTHOR_ID);
   });
 
-  it('never emits a blank displayName/handle when the author cannot be resolved', async () => {
-    // Author resolution returns nothing (e.g. Oxy lookup miss).
+  it('emits the degraded (ghost-handle-safe) parent author when it cannot be resolved', async () => {
+    // Author resolution returns nothing (e.g. Oxy lookup miss + no FederatedActor).
     resolveUserSummaries.mockResolvedValue(new Map<string, CachedUserSummary>());
 
     const reply = {
@@ -143,12 +139,12 @@ describe('ThreadSlicingService reply-context parent author', () => {
     const reason = slices.find((s) => s.reason?.type === 'replyContext')?.reason;
     if (reason?.type !== 'replyContext') throw new Error('expected replyContext reason');
 
-    // Falls back to the parent author id for BOTH fields — never an empty string,
-    // so the rendered "@<handle>" is never a bare "@".
-    expect(reason.parentAuthor.handle).toBe(PARENT_AUTHOR_ID);
-    expect(reason.parentAuthor.displayName).toBe(PARENT_AUTHOR_ID);
-    expect(reason.parentAuthor.handle).not.toBe('');
-    expect(reason.parentAuthor.displayName).not.toBe('');
+    // Ghost-handle rule: an unresolvable parent carries an EMPTY username and no
+    // display name — NEVER the raw oxyUserId as a handle. The renderer then
+    // suppresses the "@<handle>" line instead of showing a fake handle.
+    expect(reason.parentAuthor.id).toBe(PARENT_AUTHOR_ID);
+    expect(reason.parentAuthor.username).toBe('');
+    expect(reason.parentAuthor.name.displayName).toBeUndefined();
   });
 });
 

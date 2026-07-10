@@ -2,6 +2,7 @@
  * Post-related types for Mention social network
  */
 
+import type { UserNameResponse } from '@oxyhq/contracts';
 import { GeoJSONPoint } from './common';
 
 export enum PostType {
@@ -535,29 +536,42 @@ export interface PostFilters {
  * Normalized API response structures for hydrated posts
  */
 
-export interface PostActorSummary {
+/**
+ * Canonical embedded user identity on a post DTO — the SAME shape as the Oxy
+ * `User` / `PublicUserProfile` (`@oxyhq/core` / `@oxyhq/contracts`). Oxy is the
+ * single authority for user identity, so post hydration passes Oxy user fields
+ * through UNCHANGED: there is NO Mention-local reshape (no flat `displayName`,
+ * no pre-resolved `avatarUrl`, no wire `handle`).
+ *
+ * Renderers use ONE pattern (identical to Who-to-follow / the profile header):
+ *  - name:   `name.displayName`, handle fallback via `getNormalizedUserHandle`
+ *            / `displayNameOrHandle` — never show a blank name.
+ *  - avatar: `<Avatar source={avatar} variant="thumb" />` through Bloom's
+ *            `ImageResolver`. `avatar` is a bare Oxy file id; for a federated
+ *            actor whose image was mirrored as a raw URL it may be an absolute
+ *            `http(s)` URL, which Bloom renders directly.
+ *  - handle: `getNormalizedUserHandle(user)` (reads `username` + `federation`/
+ *            `instance`) — never a Mention-local `handle` field on the wire.
+ *
+ * A degraded/unresolvable author is represented with an EMPTY `username` and a
+ * neutral `name.displayName: 'Unknown user'` (see `degradedActorSummary`), which
+ * suppresses the `@handle` line and the profile link (the ghost-handle rule).
+ */
+export interface PostUser {
   id: string;
-  handle: string;
-  /**
-   * Canonical Oxy `name.displayName`. OPTIONAL: an actor may have no display
-   * name (the API may stop synthesizing one). Renderers MUST fall back to the
-   * (always-present) `handle` — never show a blank name or the handle twice.
-   */
-  displayName?: string;
-  /**
-   * Final, ready-to-render avatar URL resolved server-side — NOT a raw Oxy file
-   * id or relative path.
-   */
-  avatarUrl?: string;
-  badges?: string[];
-  isVerified?: boolean;
+  username?: string;
+  /** Canonical structured name; render `name.displayName` directly when present. */
+  name: UserNameResponse;
+  /** Bare Oxy file id (resolved by Bloom's ImageResolver) OR an absolute remote URL. */
+  avatar?: string | null;
+  verified?: boolean;
   isFederated?: boolean;
+  federation?: { domain?: string; actorUri?: string; actorId?: string };
   instance?: string;
-  actorUri?: string;
-  profileUrl?: string;
+  badges?: string[];
 }
 
-export interface HydratedAuthor extends PostActorSummary {
+export interface HydratedAuthor extends PostUser {
   role: PostAuthorRole;
   status: PostAuthorStatus;
 }
@@ -655,7 +669,7 @@ export interface HydratedPostSummary {
   attachments: PostAttachmentBundle;
   linkPreview?: PostLinkPreview | null;
   /** Primary author (owner) — backward-compatible single-author field. */
-  user: PostActorSummary;
+  user: PostUser;
   /** Owner + accepted collaborators for multi-author header rendering. */
   authors: HydratedAuthor[];
   /** Full authorship state when the viewer is a participant. */
@@ -669,7 +683,7 @@ export interface HydratedPostSummary {
 
 export interface HydratedBoostContext {
   originalPost: HydratedPostSummary;
-  actor: PostActorSummary;
+  actor: PostUser;
   reason?: string;
 }
 

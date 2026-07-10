@@ -15,7 +15,7 @@ import { Avatar } from '@oxyhq/bloom/avatar';
 import PostItem from './Feed/PostItem';
 import { usePostsStore } from '../stores/postsStore';
 import { ZEmbeddedPost, type TEmbeddedPost } from '../types/validation';
-import { PostVisibility } from '@mention/shared-types';
+import { PostVisibility, type PostUser } from '@mention/shared-types';
 import { queryKeys } from '@oxyhq/services';
 import type { User } from '@oxyhq/core';
 import { queryClient } from '@/lib/queryClient';
@@ -50,17 +50,23 @@ function normalizeEmbeddedPost(embedded: TEmbeddedPost): NotificationPost {
         linkPreview: null,
         user: {
             id: embedded.user.id ?? '',
-            handle: embedded.user.handle ?? '',
-            displayName: embedded.user.displayName,
-            avatarUrl: embedded.user.avatarUrl,
-            isVerified: embedded.user.verified,
+            username: embedded.user.username,
+            name: embedded.user.name ?? {},
+            avatar: embedded.user.avatar ?? null,
+            verified: embedded.user.verified,
+            isFederated: embedded.user.isFederated,
+            instance: embedded.user.instance,
+            federation: embedded.user.federation,
         },
         authors: [{
             id: embedded.user.id ?? '',
-            handle: embedded.user.handle ?? '',
-            displayName: embedded.user.displayName,
-            avatarUrl: embedded.user.avatarUrl,
-            isVerified: embedded.user.verified,
+            username: embedded.user.username,
+            name: embedded.user.name ?? {},
+            avatar: embedded.user.avatar ?? null,
+            verified: embedded.user.verified,
+            isFederated: embedded.user.isFederated,
+            instance: embedded.user.instance,
+            federation: embedded.user.federation,
             role: 'owner' as const,
             status: 'accepted' as const,
         }],
@@ -433,11 +439,11 @@ const CollabInviteNotificationItem: React.FC<{
         if (postId) void load();
     }, [getPostById, postId]);
 
-    const inviter = useMemo(() => ({
+    const inviter = useMemo<PostUser>(() => ({
         id: notification.actorId_populated?.id || notification.actorId_populated?._id || '',
-        handle: notification.actorId_populated?.username || '',
-        displayName: notification.actorId_populated?.name?.displayName || actorName,
-        avatarUrl: actorAvatar,
+        username: notification.actorId_populated?.username || undefined,
+        name: { displayName: notification.actorId_populated?.name?.displayName || actorName },
+        avatar: actorAvatar ?? null,
     }), [notification.actorId_populated, actorName, actorAvatar]);
 
     const runAccept = useCallback(async () => {

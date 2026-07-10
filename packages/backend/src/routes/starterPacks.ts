@@ -3,6 +3,7 @@ import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
 import StarterPack, { IStarterPack } from '../models/StarterPack';
 import { escapeRegex } from '../utils/textProcessing';
 import { resolveUserSummaries, isFallbackUserSummary } from '../services/PostHydrationService';
+import type { PostUser } from '@mention/shared-types';
 import { logger } from '../utils/logger';
 import { endorsementSignalService } from '../services/EndorsementSignalService';
 
@@ -47,14 +48,13 @@ interface StarterPackListItem extends LeanStarterPack {
   memberCount: number;
 }
 
-/** A ready-to-render member in the `GET /starter-packs/:id` detail response. */
-interface StarterPackMember {
-  id: string;
-  username: string;
-  displayName?: string;
-  /** Fully-resolved avatar URL (e.g. `cloud.oxy.so/<id>?variant=`), not a raw file id. */
-  avatar?: string;
-}
+/**
+ * A member in the `GET /starter-packs/:id` detail response — the canonical Oxy
+ * {@link PostUser} (Oxy owns identity, same shape as `post.user` / Who-to-follow):
+ * `name.displayName`, `avatar` file id, `username`. The client renders it with
+ * the same pattern (`getNormalizedUserHandle` + Bloom `ImageResolver`).
+ */
+type StarterPackMember = PostUser;
 
 /**
  * Resolve a starter pack's members to ready-to-render summaries server-side, in
@@ -79,13 +79,8 @@ async function hydratePackMembers(memberIds: string[]): Promise<StarterPackMembe
     const members: StarterPackMember[] = [];
     for (const id of memberIds) {
       const resolved = summaries.get(id);
-      if (!resolved || isFallbackUserSummary(resolved.summary)) continue;
-      members.push({
-        id,
-        username: resolved.summary.handle,
-        displayName: resolved.summary.displayName,
-        avatar: resolved.summary.avatarUrl,
-      });
+      if (!resolved || isFallbackUserSummary(resolved.user)) continue;
+      members.push(resolved.user);
     }
     return members;
   } catch (error) {
@@ -122,9 +117,11 @@ async function enrichWithMemberAvatars(packs: LeanStarterPack[]): Promise<Starte
   if (uniqueMemberIds.size > 0) {
     try {
       const summaries = await resolveUserSummaries(Array.from(uniqueMemberIds));
-      for (const [memberId, { summary }] of summaries) {
-        if (typeof summary.avatarUrl === 'string' && summary.avatarUrl.length > 0) {
-          avatarById.set(memberId, summary.avatarUrl);
+      for (const [memberId, { user }] of summaries) {
+        // Bare Oxy file id (or mirrored URL) — the client resolves it via Bloom's
+        // ImageResolver, same as every other avatar surface.
+        if (typeof user.avatar === 'string' && user.avatar.length > 0) {
+          avatarById.set(memberId, user.avatar);
         }
       }
     } catch (error) {

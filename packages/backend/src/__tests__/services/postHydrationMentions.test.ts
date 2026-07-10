@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { PostActorSummary } from '@mention/shared-types';
+import type { PostUser } from '@mention/shared-types';
 import type { CachedUserSummary } from '../../services/userSummaryCache';
 
 /**
@@ -43,6 +43,12 @@ vi.mock('../../models/Poll', () => ({ default: {} }));
 vi.mock('../../models/Like', () => ({ default: {} }));
 vi.mock('../../models/Bookmark', () => ({ default: {} }));
 vi.mock('../../models/UserSettings', () => ({ UserSettings: {} }));
+// Federated enrichment lookup for still-degraded ids — return nothing so an
+// unresolved mention stays a raw placeholder (no ghost handle).
+vi.mock('../../models/FederatedActor', () => ({
+  FederatedActor: { find: () => ({ select: () => ({ lean: async () => [] }) }) },
+  default: { find: () => ({ select: () => ({ lean: async () => [] }) }) },
+}));
 
 // The Redis-backed user-summary cache: start cold (all misses), capture writes.
 vi.mock('../../services/userSummaryCache', () => ({
@@ -57,6 +63,7 @@ vi.mock('../../services/userSummaryCache', () => ({
   mset: vi.fn(async (entries: Map<string, CachedUserSummary>) => {
     for (const [id, value] of entries) cacheStore.set(id, value);
   }),
+  invalidate: vi.fn(async () => undefined),
 }));
 
 import { PostHydrationService } from '../../services/PostHydrationService';
@@ -66,7 +73,7 @@ interface MentionReplacer {
   replaceMentionPlaceholders(
     text: string,
     mentions: string[],
-    mentionCache: Map<string, PostActorSummary>,
+    mentionCache: Map<string, PostUser>,
   ): Promise<string>;
 }
 
@@ -74,7 +81,7 @@ function asReplacer(service: PostHydrationService): MentionReplacer {
   return service as unknown as MentionReplacer;
 }
 
-/** A minimal Oxy user shape sufficient for `summaryFromOxyUser`. */
+/** A minimal canonical Oxy user shape sufficient for `toCachedUser`. */
 function makeOxyUser(id: string, username: string, displayName: string) {
   return {
     id,
@@ -131,8 +138,8 @@ describe('PostHydrationService.replaceMentionPlaceholders', () => {
   });
 
   it('does not re-fetch an id already in the per-request mention cache', async () => {
-    const mentionCache = new Map<string, PostActorSummary>([
-      ['u1', { id: 'u1', handle: 'alice', displayName: 'Alice', isVerified: false }],
+    const mentionCache = new Map<string, PostUser>([
+      ['u1', { id: 'u1', username: 'alice', name: { displayName: 'Alice' } }],
     ]);
 
     const result = await asReplacer(service).replaceMentionPlaceholders(
@@ -163,9 +170,9 @@ describe('PostHydrationService.replaceMentionPlaceholders', () => {
   });
 
   it('does not replace undeclared placeholders from the shared hydration cache', async () => {
-    const mentionCache = new Map<string, PostActorSummary>([
-      ['attacker', { id: 'attacker', handle: 'attacker', displayName: 'Attacker', isVerified: false }],
-      ['victim', { id: 'victim', handle: 'victim', displayName: 'Victim', isVerified: false }],
+    const mentionCache = new Map<string, PostUser>([
+      ['attacker', { id: 'attacker', username: 'attacker', name: { displayName: 'Attacker' } }],
+      ['victim', { id: 'victim', username: 'victim', name: { displayName: 'Victim' } }],
     ]);
 
     const result = await asReplacer(service).replaceMentionPlaceholders(
