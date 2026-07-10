@@ -3,8 +3,8 @@
  * Media).
  *
  * `FeedRankingService.rankPosts` decorates each lean Mongo document with a
- * `finalScore` number. These readers capture only the fields the feed code reads
- * directly so the feeds avoid `any` while leaving the rich post body opaque.
+ * `finalScore` number. {@link toRankedCandidate} preserves the full lean post
+ * document while narrowing `_id` for score/cursor helpers.
  */
 
 import { FeedPostSlice } from '@mention/shared-types';
@@ -29,19 +29,17 @@ function hasToString(value: object): value is { toString(): string } {
 }
 
 /** Narrow a lean engine candidate to a ranked candidate when `_id` is stringifiable. */
-export function toRankedCandidate(post: {
-  _id?: unknown;
-  oxyUserId?: string;
-  finalScore?: number;
-}): RankedCandidate | null {
+export function toRankedCandidate<T extends { _id?: unknown; oxyUserId?: string; finalScore?: number }>(
+  post: T,
+): (Omit<T, '_id'> & RankedCandidate) | null {
   const id = post._id;
   if (id === null || id === undefined) return null;
   if (typeof id === 'string' || typeof id === 'number' || typeof id === 'boolean' || typeof id === 'bigint') {
     const text = String(id);
-    return { _id: { toString: () => text }, oxyUserId: post.oxyUserId, finalScore: post.finalScore };
+    return { ...post, _id: { toString: () => text } };
   }
   if (typeof id === 'object' && hasToString(id)) {
-    return { _id: id, oxyUserId: post.oxyUserId, finalScore: post.finalScore };
+    return { ...post, _id: id };
   }
   return null;
 }
@@ -95,8 +93,8 @@ export function sliceCursorAnchor(slice: FeedPostSlice): { score: number; id: st
       return { score: finalScore, id: idField };
     }
     const rawId = Reflect.get(post, '_id');
-    if (rawId !== null && rawId !== undefined && typeof rawId === 'object' && hasToString(rawId)) {
-      const id = rawId.toString();
+    if (rawId !== null && rawId !== undefined) {
+      const id = typeof rawId === 'object' && hasToString(rawId) ? rawId.toString() : String(rawId);
       if (id) return { score: finalScore, id };
     }
   }
