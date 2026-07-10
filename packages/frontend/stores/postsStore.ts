@@ -666,7 +666,7 @@ export const usePostsStore = create<PostsStoreState>()(
 
         const newPost: FeedItem = {
           ...transformToUIItem(rawPost),
-          engagement: { replies: 0, boosts: 0, likes: 0, downvotes: 0, saves: null, views: null, impressions: null },
+          engagement: { replies: 0, boosts: 0, likes: 0, downvotes: 0, saves: 0, views: null, impressions: null },
           isLocalNew: true,
         };
 
@@ -709,7 +709,7 @@ export const usePostsStore = create<PostsStoreState>()(
 
         const newPosts: FeedItem[] = response.posts.map((post: any) => ({
           ...transformToUIItem(post),
-          engagement: { replies: 0, boosts: 0, likes: 0, downvotes: 0, saves: null, views: null, impressions: null },
+          engagement: { replies: 0, boosts: 0, likes: 0, downvotes: 0, saves: 0, views: null, impressions: null },
           isLocalNew: true,
         }));
 
@@ -1002,24 +1002,30 @@ export const usePostsStore = create<PostsStoreState>()(
     // ── savePost ─────────────────────────────────────────────
     savePost: async (request: { postId: string }, source?: string) => {
       const postId = request.postId;
+      const engagementKey = getEngagementKey(postId, 'save');
       let previousPost: FeedItem | null = null;
+
+      if (inFlightEngagements.has(engagementKey)) return;
+      inFlightEngagements.set(engagementKey, 'save');
 
       try {
         markLocalAction(postId, 'save');
         const currentPost = dbGetPostById(postId);
         if (currentPost) {
           previousPost = { ...currentPost };
-          get().updatePostEverywhere(postId, (prev) => ({
-            ...prev,
-            isSaved: true,
-            viewerState: { ...prev.viewerState, isSaved: true },
-            engagement: {
-              ...prev.engagement,
-              ...(typeof prev.engagement.saves === 'number'
-                ? { saves: prev.engagement.saves + 1 }
-                : {}),
-            },
-          }));
+          if (!currentPost.isSaved) {
+            get().updatePostEverywhere(postId, (prev) => ({
+              ...prev,
+              isSaved: true,
+              viewerState: { ...prev.viewerState, isSaved: true },
+              engagement: {
+                ...prev.engagement,
+                ...(typeof prev.engagement.saves === 'number'
+                  ? { saves: prev.engagement.saves + 1 }
+                  : {}),
+              },
+            }));
+          }
         }
 
         const response = await feedService.saveItem(request, source);
@@ -1032,30 +1038,38 @@ export const usePostsStore = create<PostsStoreState>()(
         const errorMessage = error instanceof Error ? error.message : 'Failed to save';
         set({ error: errorMessage });
         throw error;
+      } finally {
+        inFlightEngagements.delete(engagementKey);
       }
     },
 
     // ── unsavePost ───────────────────────────────────────────
     unsavePost: async (request: { postId: string }) => {
       const postId = request.postId;
+      const engagementKey = getEngagementKey(postId, 'unsave');
       let previousPost: FeedItem | null = null;
+
+      if (inFlightEngagements.has(engagementKey)) return;
+      inFlightEngagements.set(engagementKey, 'unsave');
 
       try {
         markLocalAction(postId, 'unsave');
         const currentPost = dbGetPostById(postId);
         if (currentPost) {
           previousPost = { ...currentPost };
-          get().updatePostEverywhere(postId, (prev) => ({
-            ...prev,
-            isSaved: false,
-            viewerState: { ...prev.viewerState, isSaved: false },
-            engagement: {
-              ...prev.engagement,
-              ...(typeof prev.engagement.saves === 'number'
-                ? { saves: Math.max(0, prev.engagement.saves - 1) }
-                : {}),
-            },
-          }));
+          if (currentPost.isSaved) {
+            get().updatePostEverywhere(postId, (prev) => ({
+              ...prev,
+              isSaved: false,
+              viewerState: { ...prev.viewerState, isSaved: false },
+              engagement: {
+                ...prev.engagement,
+                ...(typeof prev.engagement.saves === 'number'
+                  ? { saves: Math.max(0, prev.engagement.saves - 1) }
+                  : {}),
+              },
+            }));
+          }
         }
 
         const response = await feedService.unsaveItem(request);
@@ -1068,6 +1082,8 @@ export const usePostsStore = create<PostsStoreState>()(
         const errorMessage = error instanceof Error ? error.message : 'Failed to unsave';
         set({ error: errorMessage });
         throw error;
+      } finally {
+        inFlightEngagements.delete(engagementKey);
       }
     },
 

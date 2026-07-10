@@ -615,7 +615,7 @@ const PostItem: React.FC<PostItemProps> = ({
             boosts: engagementSummary?.boosts ?? 0,
             likes: engagementSummary?.likes ?? 0,
             downvotes: engagementSummary?.downvotes ?? 0,
-            saves: engagementSummary?.saves ?? null,
+            saves: engagementSummary?.saves ?? 0,
             views: engagementSummary?.views ?? null,
             recentReplierAvatars: engagementSummary?.recentReplierAvatars,
         }),
