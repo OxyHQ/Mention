@@ -39,6 +39,10 @@ export const AUTH_REQUIRED_TOOLS = new Set<string>([
   "follow-user",
   "unfollow-user",
   "get-starter-pack",
+  "upload-media-from-url",
+  "upload-media",
+  "search-gifs",
+  "use-gif",
 ]);
 
 export const AUTH_REQUIRED_MESSAGE =

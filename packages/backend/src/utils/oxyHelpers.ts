@@ -46,6 +46,62 @@ export function getServiceOxyClient(): OxyServices {
   return serviceClient;
 }
 
+const OXY_ASSET_USER_MEDIA_PATH = '/assets/service/user-media';
+
+export interface ServiceUserMediaUploadResult {
+  fileId: string;
+  contentType: string;
+}
+
+/**
+ * Upload media bytes to Oxy as a durable public asset owned by a local user,
+ * using the Mention service credential. Used when the caller authenticated with
+ * an MCP JWT (no Oxy session bearer).
+ */
+export async function uploadServiceUserMedia(params: {
+  ownerUserId: string;
+  buffer: Buffer;
+  contentType: string;
+  fileName: string;
+}): Promise<ServiceUserMediaUploadResult> {
+  const client = getServiceOxyClient();
+  const token = await client.getServiceToken();
+  const baseUrl = client.getBaseURL().replace(/\/+$/, '');
+  const url = `${baseUrl}${OXY_ASSET_USER_MEDIA_PATH}`;
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': params.contentType,
+      'Content-Length': String(params.buffer.length),
+      'x-owner-user-id': params.ownerUserId,
+      'x-original-name': params.fileName,
+      Accept: 'application/json',
+    },
+    body: new Uint8Array(params.buffer),
+  });
+
+  if (!response.ok) {
+    let detail = '';
+    try {
+      const errBody = await response.json() as { message?: string; error?: string };
+      detail = errBody.message || errBody.error || '';
+    } catch {
+      detail = await response.text().catch(() => '');
+    }
+    throw new Error(detail || `Oxy user-media upload failed (${response.status})`);
+  }
+
+  const body = await response.json() as { data?: { file?: { id?: string } } };
+  const fileId = body.data?.file?.id;
+  if (typeof fileId !== 'string' || fileId.length === 0) {
+    throw new Error('Oxy user-media upload response missing file id');
+  }
+
+  return { fileId, contentType: params.contentType };
+}
+
 /**
  * Promote an Oxy asset that a user has set as public-facing profile media
  * (e.g. the Mention profile banner) to `public` visibility, so it renders for

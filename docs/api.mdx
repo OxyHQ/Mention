@@ -8,6 +8,8 @@ order: 3
 
 `@mention/backend` is an Express 5 service that powers the Mention frontend, the mobile apps, the MCP server, and the federation surface. It speaks REST over HTTPS for request/response work and Socket.io for real-time updates. Authentication is delegated to Oxy: every authenticated request carries an Oxy access token in `Authorization: Bearer <token>`, verified by `@oxyhq/core`'s `auth()` middleware.
 
+MCP-specific routes (`/mcp/oauth/*`, `/mcp/bundles/*`, `/mcp/connections`) also accept a Mention MCP access JWT with the same Bearer header; see [`packages/mcp/README.md`](../packages/mcp/README.md).
+
 ## Base URL
 
 ```
