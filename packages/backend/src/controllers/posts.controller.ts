@@ -898,7 +898,7 @@ export const createThread = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ message: 'Posts array is required and cannot be empty' });
     }
 
-    const createdPostObjects: object[] = [];
+    const createdPostObjects: Array<{ content?: { text?: string } }> = [];
     let mainPostId: string | null = null;
     let previousPostId: string | null = null;
 
