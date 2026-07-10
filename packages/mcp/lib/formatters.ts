@@ -56,6 +56,24 @@ interface PostData {
   parentPostId?: string;
   boostOf?: string;
   quoteOf?: string;
+  authors?: Array<{
+    id?: string;
+    username?: string;
+    name?: { displayName?: string };
+    role?: string;
+    status?: string;
+    isFederated?: boolean;
+  }>;
+  authorship?: Array<{
+    oxyUserId: string;
+    role: string;
+    status: string;
+  }>;
+  viewerState?: {
+    collabInvitePending?: boolean;
+    isCollaborator?: boolean;
+    isOwner?: boolean;
+  };
   linkPreview?: {
     url?: string;
     title?: string;
@@ -136,6 +154,15 @@ export function formatPost(post: PostData): string {
   if (post.boostOf) parts.push(`Boost of: ${post.boostOf}`);
   if (post.quoteOf) parts.push(`Quote of: ${post.quoteOf}`);
 
+  const authorLines = formatAuthors(post);
+  if (authorLines.length > 0) {
+    parts.push(`Authors: ${authorLines.join(", ")}`);
+  }
+
+  if (post.viewerState?.collabInvitePending) {
+    parts.push("Collab invite: pending (use accept-collab-invite or decline-collab-invite)");
+  }
+
   if (date) parts.push(`Date: ${date}`);
   if (post.visibility && post.visibility !== "public") parts.push(`Visibility: ${post.visibility}`);
 
@@ -146,6 +173,25 @@ export function formatPost(post: PostData): string {
   if (flags.length > 0) parts.push(`You: ${flags.join(", ")}`);
 
   return parts.join("\n");
+}
+
+function formatAuthors(post: PostData): string[] {
+  if (post.authors && post.authors.length > 0) {
+    return post.authors.map((author) => {
+      const handle = author.username ? `@${author.username}` : author.id || "unknown";
+      const role = author.role ?? "author";
+      const status = author.status ?? "accepted";
+      return `${handle} (${role}, ${status})`;
+    });
+  }
+
+  if (post.authorship && post.authorship.length > 0) {
+    return post.authorship.map((entry) => {
+      return `${entry.oxyUserId} (${entry.role}, ${entry.status})`;
+    });
+  }
+
+  return [];
 }
 
 interface FeedResponse {

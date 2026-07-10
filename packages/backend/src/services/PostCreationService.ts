@@ -63,6 +63,8 @@ export interface CreatePostParams {
   skipFederationDelivery?: boolean;
   /** Local Oxy user ids to invite as collaborators (max 5). */
   collaboratorIds?: string[];
+  /** IDs of collaborators to auto-accept after save (e.g. linked MCP bundle members). */
+  autoAcceptCollaboratorIds?: string[];
   // Override timestamps for federated posts with original publish dates
   createdAt?: Date;
   updatedAt?: Date;
@@ -227,9 +229,8 @@ class PostCreationService {
     if (params.oxyUserId != null) {
       postData.oxyUserId = params.oxyUserId;
       const collaboratorIds = params.collaboratorIds ?? [];
-      if (collaboratorIds.length > 0 && params.oxyUserId) {
-        const validated = await postCollaborationService.validateInvites(params.oxyUserId, collaboratorIds);
-        postData.authorship = postCollaborationService.buildAuthorship(params.oxyUserId, validated);
+      if (collaboratorIds.length > 0) {
+        postData.authorship = postCollaborationService.buildAuthorship(params.oxyUserId, collaboratorIds);
         postData.metadata = { ...(postData.metadata as Record<string, unknown>), collabFederationDeferred: true };
       } else {
         postData.authorship = postCollaborationService.buildAuthorship(params.oxyUserId, []);
@@ -267,21 +268,24 @@ class PostCreationService {
     }
 
     const isPublished = (post.status ?? 'published') === 'published';
-    const hasPendingInvites = hasPendingCollabInvites(post.authorship ?? []);
 
-    // Collaboration invites: notify pending collaborators, but ONLY once the post
-    // is actually published. A scheduled (or draft) post defers its invites until
-    // it goes live — the scheduler calls publishScheduledPost, which sends them.
-    if (isPublished && hasPendingInvites && params.oxyUserId) {
-      await postCollaborationService.createCollabInviteNotifications(post, params.oxyUserId);
+    if (
+      params.autoAcceptCollaboratorIds &&
+      params.autoAcceptCollaboratorIds.length > 0
+    ) {
+      await postCollaborationService.autoAcceptInvites(
+        post,
+        new Set(params.autoAcceptCollaboratorIds),
+      );
     }
 
-    // Federation is deferred while ANY collaborator invite is still pending — the
-    // post fans out to the fediverse only after every collaborator has resolved
-    // their invite (accepted/declined), so an invitee is never leaked before
-    // consenting. `PostCollaborationService.accept` triggers the deferred
-    // federation once the last invite resolves.
-    const skipFederation = params.skipFederationDelivery || hasPendingInvites;
+    const hasPendingInvites = hasPendingCollabInvites(post.authorship ?? []);
+
+    if (isPublished && hasPendingInvites && params.oxyUserId) {
+      await postCollaborationService.notifyPendingInvites(post, params.oxyUserId);
+    }
+
+    const skipFederation = params.skipFederationDelivery || hasPendingCollabInvites(post.authorship ?? []);
 
     // MTN Protocol dual-write (best-effort, never blocks, never changes output).
     // Mongo is authoritative; this emits a signed `app.mention.feed.*` record for
@@ -331,7 +335,7 @@ class PostCreationService {
     const hasPendingInvites = hasPendingCollabInvites(post.authorship ?? []);
 
     if (ownerId && hasPendingInvites) {
-      await postCollaborationService.createCollabInviteNotifications(post, ownerId);
+      await postCollaborationService.notifyPendingInvites(post, ownerId);
     }
 
     // MTN dual-write now — the signed record's authoritative timestamp is the

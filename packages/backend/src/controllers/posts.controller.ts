@@ -32,6 +32,7 @@ import {
   postRecordUri,
 } from '../services/mtn/MentionRecordEmitter';
 import { postCollaborationService, CollabValidationError, CollabStateError } from '../services/PostCollaborationService';
+import { resolveMcpAutoAcceptIds } from '../mcp/utils/resolveMcpAutoAcceptIds';
 
 // Constants from centralized config
 const MAX_SOURCES = config.posts.maxSources;
@@ -429,7 +430,7 @@ export const createPost = async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ message: 'Unauthorized' });
     }
 
-    const { content, hashtags, mentions, quoted_post_id, boost_of, in_reply_to_status_id, parentPostId, threadId, contentLocation, postLocation, replyPermission, reviewReplies, quotesDisabled, status: incomingStatus, scheduledFor, collaboratorIds } = req.body;
+    const { content, hashtags, mentions, quoted_post_id, boost_of, in_reply_to_status_id, parentPostId, threadId, contentLocation, postLocation, replyPermission, reviewReplies, quotesDisabled, status: incomingStatus, scheduledFor, collaboratorIds, collaboratorHandles } = req.body;
 
     // Support both new content structure and legacy text/media structure
     const text = content?.text || req.body.text;
@@ -706,13 +707,21 @@ export const createPost = async (req: AuthRequest, res: Response) => {
       resolvedVisibility = PostVisibility.PUBLIC;
     }
 
+    const invitedCollaboratorIds = await postCollaborationService.resolveCollaboratorRefs(
+      userId,
+      Array.isArray(collaboratorIds) ? collaboratorIds : undefined,
+      Array.isArray(collaboratorHandles) ? collaboratorHandles : undefined,
+    );
+    const autoAcceptCollaboratorIds = await resolveMcpAutoAcceptIds(req, invitedCollaboratorIds);
+
     const post = await postCreationService.create({
       oxyUserId: userId,
       content: postContent,
       location: processedPostLocation,
       hashtags: uniqueTags,
       mentions: mentions || [],
-      collaboratorIds: Array.isArray(collaboratorIds) ? collaboratorIds : undefined,
+      collaboratorIds: invitedCollaboratorIds,
+      autoAcceptCollaboratorIds,
       quoteOf: quoted_post_id || null,
       boostOf: boost_of || null,
       parentPostId: parentPostId || in_reply_to_status_id || null,
@@ -1386,9 +1395,11 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
     if (hashtags !== undefined) post.hashtags = mergeHashtags('', hashtags || []);
     if (mentions !== undefined) post.mentions = mentions || [];
 
-    const collaboratorIds = Array.isArray(req.body.collaboratorIds)
-      ? req.body.collaboratorIds.filter((id: unknown): id is string => typeof id === 'string' && id.length > 0)
-      : undefined;
+    const collaboratorIds = await postCollaborationService.resolveCollaboratorRefs(
+      userId,
+      Array.isArray(req.body.collaboratorIds) ? req.body.collaboratorIds : undefined,
+      Array.isArray(req.body.collaboratorHandles) ? req.body.collaboratorHandles : undefined,
+    );
     if (collaboratorIds && collaboratorIds.length > 0) {
       await postCollaborationService.attachCollaborators(post, userId, collaboratorIds);
     }
@@ -1397,7 +1408,11 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
 
     const isPublished = (post.status ?? 'published') === 'published';
     if (isPublished && collaboratorIds && collaboratorIds.length > 0) {
-      await postCollaborationService.createCollabInviteNotifications(post, userId);
+      const autoAcceptIds = await resolveMcpAutoAcceptIds(req, collaboratorIds);
+      if (autoAcceptIds && autoAcceptIds.length > 0) {
+        await postCollaborationService.autoAcceptInvites(post, new Set(autoAcceptIds));
+      }
+      await postCollaborationService.notifyPendingInvites(post, userId);
     }
 
     // MTN dual-write: an edit re-emits the `app.mention.feed.post` record under

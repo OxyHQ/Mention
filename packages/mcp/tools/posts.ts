@@ -41,14 +41,26 @@ const createPostFields = {
   replyPermission: replyPermissionSchema,
   reviewReplies: z.boolean().optional(),
   quotesDisabled: z.boolean().optional(),
-  collaboratorIds: z.array(z.string()).optional(),
+  collaboratorIds: z
+    .array(z.string())
+    .optional()
+    .describe("Oxy user IDs of local collaborators to invite (max 5)"),
+  collaboratorHandles: z
+    .array(z.string())
+    .optional()
+    .describe("Mention @handles of local collaborators to invite (max 5 total with IDs)"),
   metadata: postMetadataSchema.optional(),
+};
+
+const collaboratorFields = {
+  collaboratorIds: createPostFields.collaboratorIds,
+  collaboratorHandles: createPostFields.collaboratorHandles,
 };
 
 export function registerPostsTools(server: McpServer): void {
   server.tool(
     "create-post",
-    "Create a new post on Mention with optional media, poll, article, event, room, podcast, location, and sources (requires authorization).",
+    "Create a new post on Mention with optional media, poll, article, event, room, podcast, location, sources, and collaborators (requires authorization). Invite up to 5 local users via collaboratorIds or collaboratorHandles; linked MCP bundle accounts are auto-accepted by the backend.",
     createPostFields,
     withAuthGuard(async (args) => {
       try {
@@ -77,6 +89,7 @@ export function registerPostsTools(server: McpServer): void {
         if (args.reviewReplies !== undefined) body.reviewReplies = args.reviewReplies;
         if (args.quotesDisabled !== undefined) body.quotesDisabled = args.quotesDisabled;
         if (args.collaboratorIds) body.collaboratorIds = args.collaboratorIds;
+        if (args.collaboratorHandles) body.collaboratorHandles = args.collaboratorHandles;
         if (args.metadata) body.metadata = args.metadata;
 
         const result = await api.post("/posts", body);
@@ -90,7 +103,7 @@ export function registerPostsTools(server: McpServer): void {
 
   server.tool(
     "create-thread",
-    "Create a multi-post thread with full attachment support per post (requires authorization).",
+    "Create a multi-post thread with full attachment support per post (requires authorization). Collaborators are not supported on threads.",
     {
       posts: z.array(threadPostSchema).min(2),
       mode: z.enum(["thread", "beast"]).optional().describe("thread = linked chain (default); beast = separate posts"),
@@ -143,7 +156,7 @@ export function registerPostsTools(server: McpServer): void {
 
   server.tool(
     "update-post",
-    "Update an existing post including media and sources (requires authorization).",
+    "Update an existing post including media, sources, and collaborators within the 30-minute edit window (requires authorization).",
     {
       id: z.string(),
       text: z.string().optional(),
@@ -151,8 +164,9 @@ export function registerPostsTools(server: McpServer): void {
       sources: z.array(sourceLinkSchema).max(5).optional(),
       visibility: visibilitySchema,
       hashtags: z.array(z.string()).optional(),
+      ...collaboratorFields,
     },
-    withAuthGuard(async ({ id, text, media, sources, visibility, hashtags }) => {
+    withAuthGuard(async ({ id, text, media, sources, visibility, hashtags, collaboratorIds, collaboratorHandles }) => {
       try {
         const body: Record<string, unknown> = {};
         const content: Record<string, unknown> = {};
@@ -167,9 +181,56 @@ export function registerPostsTools(server: McpServer): void {
         if (vis) body.visibility = vis;
         if (hashtags) body.hashtags = hashtags;
 
+        if (collaboratorIds) body.collaboratorIds = collaboratorIds;
+        if (collaboratorHandles) body.collaboratorHandles = collaboratorHandles;
+
         const result = await api.put(`/posts/${encodeURIComponent(id)}`, body);
         const post = unwrapApiResponse(result);
         return { content: [{ type: "text" as const, text: `Post updated.\n\n${formatPost(post)}` }] };
+      } catch (error) {
+        return { content: [{ type: "text" as const, text: formatApiError(error) }], isError: true };
+      }
+    }),
+  );
+
+  server.tool(
+    "accept-collab-invite",
+    "Accept a pending collaboration invite on a post (requires authorization). Use switch-account first if the invite is for another linked account.",
+    { id: z.string().describe("Post ID") },
+    withAuthGuard(async ({ id }) => {
+      try {
+        const result = await api.post(`/posts/${encodeURIComponent(id)}/collaborators/accept`);
+        const post = unwrapApiResponse(result);
+        return { content: [{ type: "text" as const, text: `Collaboration invite accepted.\n\n${formatPost(post)}` }] };
+      } catch (error) {
+        return { content: [{ type: "text" as const, text: formatApiError(error) }], isError: true };
+      }
+    }),
+  );
+
+  server.tool(
+    "decline-collab-invite",
+    "Decline a pending collaboration invite on a post (requires authorization).",
+    { id: z.string().describe("Post ID") },
+    withAuthGuard(async ({ id }) => {
+      try {
+        await api.post(`/posts/${encodeURIComponent(id)}/collaborators/decline`);
+        return { content: [{ type: "text" as const, text: `Collaboration invite declined for post ${id}.` }] };
+      } catch (error) {
+        return { content: [{ type: "text" as const, text: formatApiError(error) }], isError: true };
+      }
+    }),
+  );
+
+  server.tool(
+    "stop-collab-sharing",
+    "Stop sharing a collaborative post from your profile (requires authorization; accepted collaborator only).",
+    { id: z.string().describe("Post ID") },
+    withAuthGuard(async ({ id }) => {
+      try {
+        const result = await api.post(`/posts/${encodeURIComponent(id)}/collaborators/stop-sharing`);
+        const post = unwrapApiResponse(result);
+        return { content: [{ type: "text" as const, text: `Stopped sharing post.\n\n${formatPost(post)}` }] };
       } catch (error) {
         return { content: [{ type: "text" as const, text: formatApiError(error) }], isError: true };
       }

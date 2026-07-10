@@ -17,6 +17,7 @@ import {
   validateCollaboratorIds,
 } from '../utils/postAuthorship';
 import { getPostFederator } from './serviceRegistry';
+import { resolveLocalMentionHandles } from '../utils/resolveLocalMentionHandles';
 
 export class CollabValidationError extends Error {
   constructor(message: string) {
@@ -33,6 +34,41 @@ export class CollabStateError extends Error {
 }
 
 class PostCollaborationService {
+  async resolveCollaboratorRefs(
+    ownerId: string,
+    collaboratorIds?: string[],
+    collaboratorHandles?: string[],
+  ): Promise<string[] | undefined> {
+    const ids = (collaboratorIds ?? []).filter(
+      (id): id is string => typeof id === 'string' && id.trim().length > 0,
+    );
+
+    const handles = (collaboratorHandles ?? []).filter(
+      (handle): handle is string => typeof handle === 'string' && handle.trim().length > 0,
+    );
+
+    if (ids.length === 0 && handles.length === 0) {
+      return undefined;
+    }
+
+    let resolvedFromHandles: string[] = [];
+    if (handles.length > 0) {
+      try {
+        const users = await resolveLocalMentionHandles(handles);
+        resolvedFromHandles = users.map((user) => user.oxyUserId);
+      } catch (err) {
+        throw new CollabValidationError(err instanceof Error ? err.message : 'Invalid collaborators');
+      }
+    }
+
+    const merged = Array.from(new Set([...ids, ...resolvedFromHandles]));
+    if (merged.length === 0) {
+      return undefined;
+    }
+
+    return this.validateInvites(ownerId, merged);
+  }
+
   async validateInvites(ownerId: string, collaboratorIds: string[]): Promise<string[]> {
     let uniqueIds: string[];
     try {
@@ -87,8 +123,7 @@ class PostCollaborationService {
       throw new CollabValidationError('Only top-level posts can have collaborators');
     }
 
-    const validated = await this.validateInvites(ownerId, collaboratorIds);
-    post.authorship = [...authorship, ...validated.map((id) => buildCollaboratorEntry(id))];
+    post.authorship = [...authorship, ...collaboratorIds.map((id) => buildCollaboratorEntry(id))];
     post.markModified('authorship');
 
     const meta = (post.metadata ?? {}) as Record<string, unknown>;
@@ -100,7 +135,7 @@ class PostCollaborationService {
     }
   }
 
-  async createCollabInviteNotifications(post: IPost, ownerId: string): Promise<void> {
+  async notifyPendingInvites(post: IPost, ownerId: string): Promise<void> {
     const pending = getPendingCollaborators(post.authorship ?? []);
     if (pending.length === 0) return;
 
@@ -115,6 +150,47 @@ class PostCollaborationService {
         }),
       ),
     );
+  }
+
+  /**
+   * Accept pending collaborator invites for users in `userIds` (e.g. linked MCP
+   * bundle accounts). One save, owner notifications per accept, then deferred
+   * federation if every invite is resolved.
+   */
+  async autoAcceptInvites(post: IPost, userIds: ReadonlySet<string>): Promise<IPost> {
+    if (userIds.size === 0) return post;
+
+    const authorship = normalizeAuthorship(post.authorship);
+    const ownerId = getOwnerId(authorship);
+    let changed = false;
+
+    for (const entry of authorship) {
+      if (entry.role !== 'collaborator' || entry.status !== 'pending') continue;
+      if (!userIds.has(entry.oxyUserId)) continue;
+
+      entry.status = 'accepted';
+      entry.respondedAt = new Date().toISOString();
+      changed = true;
+
+      if (ownerId && ownerId !== entry.oxyUserId) {
+        await createNotification({
+          recipientId: ownerId,
+          actorId: entry.oxyUserId,
+          type: 'collab_accepted',
+          entityId: String(post._id),
+          entityType: 'post',
+        });
+      }
+    }
+
+    if (!changed) return post;
+
+    post.authorship = authorship;
+    post.markModified('authorship');
+    await post.save();
+    await this.emitPostUpdate(post);
+    await this.maybeFederateOnResolve(post);
+    return post;
   }
 
   private async loadPost(postId: string): Promise<IPost> {
