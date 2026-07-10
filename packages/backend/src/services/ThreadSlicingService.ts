@@ -262,8 +262,10 @@ class ThreadSlicingService {
     try {
       const parents = await Post.find({
         _id: { $in: uniqueParentIds },
+        visibility: PostVisibility.PUBLIC,
+        status: 'published',
       })
-        .select('_id oxyUserId createdAt parentPostId threadId content stats metadata hashtags mentions language visibility type boostOf quoteOf')
+        .select('_id oxyUserId createdAt parentPostId threadId content stats metadata hashtags mentions language visibility status type boostOf quoteOf')
         .maxTimeMS(3000)
         .lean();
 
