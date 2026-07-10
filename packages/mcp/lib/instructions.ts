@@ -38,4 +38,14 @@ Typical flow: \`upload-media-from-url\` → \`create-post\` with \`media: [{ kin
 
 ## Pagination
 Feed and list tools support \`cursor\` and \`limit\`. Responses include \`hasMore\` and \`nextCursor\` when more results exist.
+
+## Collaborative posts
+Invite up to **5 local** co-authors on \`create-post\` or \`update-post\` (within the 30-minute edit window) via \`collaboratorIds\` or \`collaboratorHandles\` (@username). Federated users and threads are not supported.
+
+- **Linked MCP accounts:** when you invite another account linked to the same connector, the backend auto-accepts that invite (no notification).
+- **External users:** the invite stays \`pending\` until they accept. The invitee should \`switch-account\` to their account, then call \`accept-collab-invite\` or \`decline-collab-invite\`.
+- **Stop sharing:** an accepted collaborator can call \`stop-collab-sharing\`.
+- **Federation:** posts with pending invites are not federated until every invite is resolved.
+
+Post responses show \`Authors:\` lines with role/status and a \`Collab invite: pending\` hint when the active account has a pending invite.
 `;

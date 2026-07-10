@@ -46,7 +46,7 @@ Claude Web  →  mcp.mention.earth (ECS mention-mcp)  →  api.mention.earth (EC
 
 **Identity model:** Claude holds one OAuth token (primary account). The backend resolves the **active account** per request via `bundleId` + Redis/Mongo (`activeOxyUserId` on the primary `McpConnection`). Linked accounts approve via browser link flow — not a second Claude OAuth grant.
 
-## MCP tools (42 total)
+## MCP tools (45 total)
 
 ### Accounts (auth required)
 
@@ -62,11 +62,23 @@ Claude Web  →  mcp.mention.earth (ECS mention-mcp)  →  api.mention.earth (EC
 | Tool | Backend |
 |------|---------|
 | `create-post` | `POST /posts` |
-| `create-thread` | `POST /posts/thread` |
+| `create-thread` | `POST /posts/thread` (no collaborators) |
 | `update-post` | `PUT /posts/:id` |
 | `delete-post` | `DELETE /posts/:id` |
+| `accept-collab-invite` | `POST /posts/:id/collaborators/accept` |
+| `decline-collab-invite` | `POST /posts/:id/collaborators/decline` |
+| `stop-collab-sharing` | `POST /posts/:id/collaborators/stop-sharing` |
 | `get-drafts` | `GET /posts/drafts` |
 | `get-scheduled-posts` | `GET /posts/scheduled` |
+
+### Collaborative posts
+
+- Invite up to **5 local** co-authors on `create-post` or `update-post` via `collaboratorIds` or `collaboratorHandles` (@username). The **backend** resolves handles to user IDs (MCP passes them through unchanged).
+- **Linked bundle accounts** are auto-accepted when invited (backend intersects with bundle members).
+- External users stay `pending` until they `switch-account` and call `accept-collab-invite` or `decline-collab-invite`.
+- Accepted collaborators can call `stop-collab-sharing`.
+- Threads do not support collaborators (backend returns 400).
+- Federation is deferred until all invites resolve.
 
 ### Feed (public unless noted)
 

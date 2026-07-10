@@ -244,3 +244,13 @@ export async function listBundleMembers(bundleId: string): Promise<IMcpConnectio
 export async function countBundleMembers(bundleId: string): Promise<number> {
   return McpConnection.countDocuments({ bundleId, revokedAt: null });
 }
+
+export async function intersectWithBundleMembers(
+  bundleId: string,
+  invitedIds: string[],
+): Promise<string[]> {
+  if (invitedIds.length === 0) return [];
+  const members = await listBundleMembers(bundleId);
+  const memberIds = new Set(members.map((m) => m.oxyUserId));
+  return invitedIds.filter((id) => memberIds.has(id));
+}

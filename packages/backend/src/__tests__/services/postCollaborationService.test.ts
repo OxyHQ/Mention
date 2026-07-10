@@ -11,6 +11,15 @@ vi.mock('../../utils/oxyHelpers', () => ({
       ids.map((id) => ({ id, type: 'local', username: id, name: { displayName: id } })),
     ),
     getUserById: vi.fn(async (id: string) => ({ id, type: 'local', username: id, name: { displayName: id } })),
+    getProfileByUsername: vi.fn(async (username: string) => {
+      if (username === 'ghost') {
+        throw new Error('not found');
+      }
+      if (username === 'remote') {
+        return { id: 'fed-1', type: 'federated', username: 'remote' };
+      }
+      return { id: `user-${username}`, type: 'local', username };
+    }),
   })),
 }));
 
@@ -60,6 +69,36 @@ describe('PostCollaborationService', () => {
     });
   });
 
+  describe('resolveCollaboratorRefs', () => {
+    it('returns undefined when no collaborators provided', async () => {
+      await expect(postCollaborationService.resolveCollaboratorRefs('owner-1')).resolves.toBeUndefined();
+    });
+
+    it('passes through collaborator IDs', async () => {
+      await expect(
+        postCollaborationService.resolveCollaboratorRefs('owner-1', ['c-1', 'c-2']),
+      ).resolves.toEqual(['c-1', 'c-2']);
+    });
+
+    it('resolves local handles to IDs', async () => {
+      await expect(
+        postCollaborationService.resolveCollaboratorRefs('owner-1', undefined, ['@alice', 'bob']),
+      ).resolves.toEqual(['user-alice', 'user-bob']);
+    });
+
+    it('rejects unknown handles', async () => {
+      await expect(
+        postCollaborationService.resolveCollaboratorRefs('owner-1', undefined, ['ghost']),
+      ).rejects.toThrow('Unknown user: @ghost');
+    });
+
+    it('rejects federated users from handle lookup', async () => {
+      await expect(
+        postCollaborationService.resolveCollaboratorRefs('owner-1', undefined, ['remote']),
+      ).rejects.toThrow('Federated users cannot be collaborators');
+    });
+  });
+
   describe('buildAuthorship', () => {
     it('creates owner + pending collaborators', () => {
       const authorship = postCollaborationService.buildAuthorship('owner-1', ['c-1']);
@@ -98,6 +137,35 @@ describe('PostCollaborationService', () => {
       await expect(
         postCollaborationService.attachCollaborators(post, 'owner-1', ['c-1']),
       ).rejects.toBeInstanceOf(CollabValidationError);
+    });
+  });
+
+  describe('autoAcceptInvites', () => {
+    beforeEach(() => {
+      federateNewPost.mockClear();
+    });
+
+    it('accepts pending invites for users in the set', async () => {
+      const post = fakePost({ authorship: buildAuthorship('owner-1', ['c-1', 'c-2']) });
+      const result = await postCollaborationService.autoAcceptInvites(post, new Set(['c-1']));
+
+      expect(result.authorship?.find((e) => e.oxyUserId === 'c-1')?.status).toBe('accepted');
+      expect(result.authorship?.find((e) => e.oxyUserId === 'c-2')?.status).toBe('pending');
+      expect(post.save).toHaveBeenCalledTimes(1);
+      expect(federateNewPost).not.toHaveBeenCalled();
+    });
+
+    it('federates when auto-accept resolves the last pending invite', async () => {
+      const post = fakePost({ authorship: buildAuthorship('owner-1', ['c-1']) });
+      await postCollaborationService.autoAcceptInvites(post, new Set(['c-1']));
+      expect(federateNewPost).toHaveBeenCalledTimes(1);
+    });
+
+    it('is a no-op when no pending invite matches', async () => {
+      const post = fakePost({ authorship: buildAuthorship('owner-1', ['c-1']) });
+      const result = await postCollaborationService.autoAcceptInvites(post, new Set(['stranger']));
+      expect(result).toBe(post);
+      expect(post.save).not.toHaveBeenCalled();
     });
   });
 

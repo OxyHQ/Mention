@@ -14,14 +14,11 @@ import { generateJti, generateRefreshToken } from '../services/mcpTokenService';
 import { getMcpClientAsync } from '../config/mcpClients';
 import { MCP_FRONTEND_ORIGIN, MCP_LINK_PATH, MCP_MAX_BUNDLE_MEMBERS } from '../config/constants';
 import { getServiceOxyClient } from '../../utils/oxyHelpers';
+import { stripMentionHandle } from '../../utils/resolveLocalMentionHandles';
 import type { OxyAuthRequestWithMcp } from '../middleware/mcpAuth';
 import { logger } from '../../utils/logger';
 
 const router = Router();
-
-function stripHandle(handle: string): string {
-  return handle.replace(/^@+/, '').trim();
-}
 
 async function hydrateUserSummary(oxyUserId: string): Promise<{
   oxyUserId: string;
@@ -241,7 +238,7 @@ router.post('/active', async (req: AuthRequest, res: Response) => {
 
     let targetUserId = rawUserId;
     if (rawHandle) {
-      const username = stripHandle(rawHandle);
+      const username = stripMentionHandle(rawHandle);
       try {
         const profile = await getServiceOxyClient().getProfileByUsername(username, { cache: false });
         targetUserId = profile.id;
