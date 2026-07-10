@@ -34,37 +34,33 @@ async function uploadFromBase64(base64: string, mimeType: string, filename?: str
 
 /** Resolve MCP media inputs (fileId / url / base64) to wire-format media items. */
 export async function resolveMediaInputs(items: MediaInput[]): Promise<ResolvedMediaItem[]> {
-  const resolved: ResolvedMediaItem[] = [];
+  return Promise.all(
+    items.map(async (item): Promise<ResolvedMediaItem> => {
+      if (item.kind === "fileId") {
+        return {
+          id: item.fileId,
+          ...(item.type ? { type: item.type } : {}),
+          ...(item.alt ? { alt: item.alt } : {}),
+        };
+      }
 
-  for (const item of items) {
-    if (item.kind === "fileId") {
-      resolved.push({
-        id: item.fileId,
-        ...(item.type ? { type: item.type } : {}),
-        ...(item.alt ? { alt: item.alt } : {}),
-      });
-      continue;
-    }
+      if (item.kind === "url") {
+        const uploaded = await uploadFromUrl(item.url);
+        return {
+          id: uploaded.fileId,
+          type: mediaTypeFromMime(uploaded.contentType, item.type),
+          ...(item.alt ? { alt: item.alt } : {}),
+        };
+      }
 
-    if (item.kind === "url") {
-      const uploaded = await uploadFromUrl(item.url);
-      resolved.push({
+      const uploaded = await uploadFromBase64(item.base64, item.mimeType, item.filename);
+      return {
         id: uploaded.fileId,
         type: mediaTypeFromMime(uploaded.contentType, item.type),
         ...(item.alt ? { alt: item.alt } : {}),
-      });
-      continue;
-    }
-
-    const uploaded = await uploadFromBase64(item.base64, item.mimeType, item.filename);
-    resolved.push({
-      id: uploaded.fileId,
-      type: mediaTypeFromMime(uploaded.contentType, item.type),
-      ...(item.alt ? { alt: item.alt } : {}),
-    });
-  }
-
-  return resolved;
+      };
+    }),
+  );
 }
 
 /** Build backend `content` object from validated MCP post content. */
@@ -74,7 +70,7 @@ export async function buildPostContentPayload(
   const payload: Record<string, unknown> = {};
 
   if (content.text !== undefined) payload.text = content.text;
-  if (content.media && content.media.length > 0) {
+  if (content.media !== undefined) {
     payload.media = await resolveMediaInputs(content.media);
   }
   if (content.poll) payload.poll = content.poll;

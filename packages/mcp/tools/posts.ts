@@ -22,7 +22,7 @@ import {
 } from "../lib/post-content-schema.js";
 
 const createPostFields = {
-  text: z.string().describe("The text content of the post"),
+  text: z.string().optional().describe("The text content of the post"),
   media: z.array(mediaInputSchema).max(10).optional().describe("Images/videos — fileId, url, or base64"),
   poll: pollInputSchema.optional(),
   location: locationInputSchema.optional(),
@@ -53,7 +53,7 @@ export function registerPostsTools(server: McpServer): void {
     withAuthGuard(async (args) => {
       try {
         const content = await buildPostContentPayload({
-          text: args.text,
+          ...(args.text !== undefined ? { text: args.text } : {}),
           ...(args.media ? { media: args.media } : {}),
           ...(args.poll ? { poll: args.poll } : {}),
           ...(args.location ? { location: args.location } : {}),
@@ -157,7 +157,7 @@ export function registerPostsTools(server: McpServer): void {
         const body: Record<string, unknown> = {};
         const content: Record<string, unknown> = {};
         if (text !== undefined) content.text = text;
-        if (media && media.length > 0) {
+        if (media !== undefined) {
           content.media = await resolveMediaInputs(media);
         }
         if (sources) content.sources = sources;

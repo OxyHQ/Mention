@@ -140,4 +140,28 @@ describe('POST /posts/intent-media', () => {
     expect(res.status).toBe(415);
     expect(assetUploadMock).not.toHaveBeenCalled();
   });
+
+  it('rejects oversized base64 before decode', async () => {
+    const huge = 'A'.repeat(60_000_000);
+    const res = await request(app)
+      .post('/')
+      .send({ base64: huge, mimeType: 'image/png' });
+
+    expect(res.status).toBe(413);
+    expect(assetUploadMock).not.toHaveBeenCalled();
+    expect(uploadServiceUserMediaMock).not.toHaveBeenCalled();
+  });
+
+  it('strips path traversal from filename on base64 upload', async () => {
+    const png = Buffer.from('PNG!');
+    const res = await request(app)
+      .post('/')
+      .send({ base64: png.toString('base64'), mimeType: 'image/png', filename: '../../etc/passwd' });
+
+    expect(res.status).toBe(200);
+    expect(uploadServiceUserMediaMock).not.toHaveBeenCalled();
+    expect(assetUploadMock).toHaveBeenCalledTimes(1);
+    const uploadedFile = assetUploadMock.mock.calls[0]?.[0] as File | undefined;
+    expect(uploadedFile?.name).toBe('passwd');
+  });
 });

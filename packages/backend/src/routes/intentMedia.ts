@@ -135,8 +135,17 @@ function extensionForMime(mime: string): string {
   return 'bin';
 }
 
+function safeUploadBasename(name: string): string {
+  const normalized = name.replace(/\\/g, '/');
+  const base = normalized.split('/').filter(Boolean).pop() ?? normalized;
+  return base.slice(0, 200);
+}
+
 function decodeBase64Payload(raw: string): Buffer {
   const trimmed = raw.trim();
+  if (trimmed.length === 0 || trimmed.length > MAX_BASE64_LENGTH) {
+    throw new PayloadTooLargeError();
+  }
   const dataUrlMatch = /^data:([^;,]+);base64,(.+)$/i.exec(trimmed);
   const payload = dataUrlMatch ? dataUrlMatch[2] : trimmed;
   if (payload.length === 0 || payload.length > MAX_BASE64_LENGTH) {
@@ -290,6 +299,10 @@ router.post('/', intentMediaRateLimiter, async (req: AuthRequest, res: Response)
         return;
       }
     } else {
+      if (rawBase64.length > MAX_BASE64_LENGTH) {
+        res.status(HTTP_STATUS.PAYLOAD_TOO_LARGE).json({ error: 'Media is too large' });
+        return;
+      }
       const mimeType = typeof req.body?.mimeType === 'string' ? req.body.mimeType.trim().toLowerCase() : '';
       if (!mimeType || !isComposerMediaType(mimeType)) {
         res.status(HTTP_STATUS.BAD_REQUEST).json({ error: 'Valid "mimeType" (image/* or video/*) is required with base64' });
@@ -312,7 +325,7 @@ router.post('/', intentMediaRateLimiter, async (req: AuthRequest, res: Response)
       contentType = mimeType;
       const requestedName = typeof req.body?.filename === 'string' ? req.body.filename.trim() : '';
       fileName = requestedName.length > 0
-        ? requestedName.slice(0, 200)
+        ? safeUploadBasename(requestedName)
         : `upload.${extensionForMime(mimeType)}`;
     }
 

@@ -76,24 +76,25 @@ export async function uploadServiceUserMedia(params: {
       'Content-Type': params.contentType,
       'Content-Length': String(params.buffer.length),
       'x-owner-user-id': params.ownerUserId,
-      'x-original-name': params.fileName,
+      'x-original-name': encodeURIComponent(params.fileName),
       Accept: 'application/json',
     },
     body: new Uint8Array(params.buffer),
   });
 
+  const rawText = await response.text();
   if (!response.ok) {
     let detail = '';
     try {
-      const errBody = await response.json() as { message?: string; error?: string };
+      const errBody = JSON.parse(rawText) as { message?: string; error?: string };
       detail = errBody.message || errBody.error || '';
     } catch {
-      detail = await response.text().catch(() => '');
+      detail = rawText;
     }
     throw new Error(detail || `Oxy user-media upload failed (${response.status})`);
   }
 
-  const body = await response.json() as { data?: { file?: { id?: string } } };
+  const body = JSON.parse(rawText) as { data?: { file?: { id?: string } } };
   const fileId = body.data?.file?.id;
   if (typeof fileId !== 'string' || fileId.length === 0) {
     throw new Error('Oxy user-media upload response missing file id');
