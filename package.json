@@ -31,7 +31,7 @@
     "typescript": "~5.9.3"
   },
   "dependencies": {
-    "@lottiefiles/dotlottie-react": "^0.19.5",
+    "@lottiefiles/dotlottie-react": "^0.19.8",
     "@oxyhq/bloom": "^0.29.3",
     "@oxyhq/contracts": "^0.13.1",
     "@oxyhq/core": "^9.2.0",
