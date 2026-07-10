@@ -1013,6 +1013,12 @@ export const usePostsStore = create<PostsStoreState>()(
             ...prev,
             isSaved: true,
             viewerState: { ...prev.viewerState, isSaved: true },
+            engagement: {
+              ...prev.engagement,
+              ...(typeof prev.engagement.saves === 'number'
+                ? { saves: prev.engagement.saves + 1 }
+                : {}),
+            },
           }));
         }
 
@@ -1043,6 +1049,12 @@ export const usePostsStore = create<PostsStoreState>()(
             ...prev,
             isSaved: false,
             viewerState: { ...prev.viewerState, isSaved: false },
+            engagement: {
+              ...prev.engagement,
+              ...(typeof prev.engagement.saves === 'number'
+                ? { saves: Math.max(0, prev.engagement.saves - 1) }
+                : {}),
+            },
           }));
         }
 
