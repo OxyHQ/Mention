@@ -1044,31 +1044,12 @@ class FeedController {
 
           if (!actor) {
             // The remote actor fetch failed (network error, blocked domain,
-            // unauthorized fetch, etc.). Fall back to a minimal FederatedActor
-            // with a guessed outbox so the sync can still attempt Mastodon-style
-            // layouts; the enqueued background refresh will correct it later.
-            const domain = new URL(actorUri).hostname;
-            const username = (acctHint || '').split('@')[0] || 'unknown';
-            const acct = `${username}@${domain}`;
-            const fallbackOutboxUrl = `${actorUri}${actorUri.endsWith('/') ? '' : '/'}outbox`;
-            logger.info(`[FedSync] fetchRemoteActor failed for ${actorUri}; creating minimal FederatedActor with fallback outboxUrl=${fallbackOutboxUrl}`);
-            actor = await FederatedActor.findOneAndUpdate(
-              { uri: actorUri },
-              {
-                $set: {
-                  uri: actorUri,
-                  username,
-                  domain,
-                  acct,
-                  inboxUrl: `${actorUri}${actorUri.endsWith('/') ? '' : '/'}inbox`,
-                  outboxUrl: fallbackOutboxUrl,
-                  oxyUserId: syncUserId,
-                  lastFetchedAt: new Date(0), // Mark stale so the refresh below runs
-                },
-                $setOnInsert: { type: 'Person', manuallyApprovesFollowers: false, discoverable: true, memorial: false, suspended: false, fields: [], followersCount: 0, followingCount: 0, postsCount: 0 },
-              },
-              { upsert: true, returnDocument: 'after', lean: true },
-            ) as IFederatedActor | null;
+            // unauthorized fetch, malformed actor document, etc.). Do not create
+            // a guessed minimal FederatedActor here: `fetchRemoteActor` is the
+            // validation boundary that rejects local/blocked domains and actors
+            // without required fields before any outbox import can run.
+            logger.info(`[FedSync] fetchRemoteActor failed for ${actorUri}; skipping profile outbox sync`);
+            return;
           } else {
             await stampActorOxyUserId();
           }
