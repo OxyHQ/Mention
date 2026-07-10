@@ -204,7 +204,7 @@ export const exploreSource: SourceModule = {
       { $match: match },
       {
         $project: {
-          _id: 1, oxyUserId: 1, federation: 1, createdAt: 1, visibility: 1, type: 1,
+          _id: 1, oxyUserId: 1, authorship: 1, federation: 1, createdAt: 1, visibility: 1, type: 1,
           parentPostId: 1, boostOf: 1, quoteOf: 1, threadId: 1,
           content: 1, stats: 1, metadata: 1, hashtags: 1, mentions: 1, language: 1,
           'postClassification.topics': 1,
@@ -276,7 +276,7 @@ export const popularSource: SourceModule = {
         { $match: cutoff ? { ...baseMatch, createdAt: { $gte: cutoff } } : baseMatch },
         {
           $project: {
-            _id: 1, oxyUserId: 1, federation: 1, createdAt: 1, visibility: 1, type: 1,
+            _id: 1, oxyUserId: 1, authorship: 1, federation: 1, createdAt: 1, visibility: 1, type: 1,
             parentPostId: 1, boostOf: 1, quoteOf: 1, threadId: 1,
             content: 1, stats: 1, metadata: 1, hashtags: 1, mentions: 1, language: 1,
             'postClassification.sensitive': 1,
@@ -300,7 +300,7 @@ async function gatherPopularByQuery(match: Record<string, unknown>, cap: number)
     { $match: match },
     {
       $project: {
-        _id: 1, oxyUserId: 1, federation: 1, createdAt: 1, visibility: 1, type: 1,
+        _id: 1, oxyUserId: 1, authorship: 1, federation: 1, createdAt: 1, visibility: 1, type: 1,
         parentPostId: 1, boostOf: 1, quoteOf: 1, threadId: 1,
         content: 1, stats: 1, metadata: 1, hashtags: 1, mentions: 1, language: 1,
       },

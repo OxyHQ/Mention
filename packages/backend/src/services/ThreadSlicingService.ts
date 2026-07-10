@@ -214,7 +214,7 @@ class ThreadSlicingService {
         status: 'published',
         $or: orConditions,
       })
-        .select('_id oxyUserId createdAt parentPostId threadId content stats metadata hashtags mentions language visibility type boostOf quoteOf')
+        .select('_id oxyUserId authorship federation createdAt parentPostId threadId content stats metadata hashtags mentions language visibility type boostOf quoteOf')
         .sort({ createdAt: 1 })
         .limit(threadRoots.size * (maxSliceSize - 1))
         .maxTimeMS(3000)
@@ -266,7 +266,7 @@ class ThreadSlicingService {
       const parents = await Post.find({
         _id: { $in: uniqueParentIds },
       })
-        .select('_id oxyUserId createdAt parentPostId threadId content stats metadata hashtags mentions language visibility type boostOf quoteOf')
+        .select('_id oxyUserId authorship federation createdAt parentPostId threadId content stats metadata hashtags mentions language visibility type boostOf quoteOf')
         .maxTimeMS(3000)
         .lean();
 

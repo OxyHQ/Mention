@@ -150,7 +150,7 @@ class FeedController {
   // ============================================================================
   
   /** Optimized field selection for feed queries - reduces data transfer by 60-80% */
-  private readonly FEED_FIELDS = '_id oxyUserId federation createdAt visibility type parentPostId boostOf quoteOf threadId content stats metadata hashtags mentions language';
+  private readonly FEED_FIELDS = '_id oxyUserId authorship federation createdAt visibility type parentPostId boostOf quoteOf threadId content stats metadata hashtags mentions language';
 
   /** Slow query threshold in milliseconds (logs warnings for queries exceeding this) */
   private readonly SLOW_QUERY_THRESHOLD_MS = config.feed.slowQueryThresholdMs;
@@ -547,6 +547,8 @@ class FeedController {
               $project: {
                 _id: 1,
                 oxyUserId: 1,
+                authorship: 1,
+                federation: 1,
                 createdAt: 1,
                 visibility: 1,
                 type: 1,
@@ -617,6 +619,8 @@ class FeedController {
               $project: {
                 _id: 1,
                 oxyUserId: 1,
+                authorship: 1,
+                federation: 1,
                 createdAt: 1,
                 visibility: 1,
                 type: 1,

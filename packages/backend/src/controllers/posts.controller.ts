@@ -2507,7 +2507,7 @@ export const translatePost = async (req: AuthRequest, res: Response): Promise<vo
     }
 
     const post = await Post.findById(id)
-      .select('_id oxyUserId content.text translations visibility status federation createdAt')
+      .select('_id oxyUserId authorship content.text translations visibility status federation createdAt')
       .lean();
     if (!post) {
       res.status(404).json({ message: 'Post not found' });
