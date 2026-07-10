@@ -8,6 +8,7 @@ import { FederatedActor } from '../models/FederatedActor';
 import { UserSettings } from '../models/UserSettings';
 import { oxy as defaultOxyClient } from '../../server';
 import { getServiceOxyClient } from '../utils/oxyHelpers';
+import { extractFirstUrl } from '../utils/extractFirstUrl';
 import { getBlockedUserIds, getRestrictedUserIds, extractFollowingIds, extractFollowersIds, OxyClient } from '../utils/privacyHelpers';
 import { resolveMediaItems } from '../utils/mediaResolver';
 import { logger } from '../utils/logger';
@@ -957,7 +958,7 @@ export class PostHydrationService {
       const text = post?.content?.text;
       if (!text || typeof text !== 'string') continue;
 
-      const url = this.extractFirstUrl(text);
+      const url = extractFirstUrl(text);
       if (!url) continue;
 
       if (!urlToPosts.has(url)) {
@@ -1002,29 +1003,6 @@ export class PostHydrationService {
     }
 
     return previewMap;
-  }
-
-  private extractFirstUrl(text: string): string | null {
-    if (!text) return null;
-    const urlPattern = /(https?:\/\/[^\s]+|www\.[^\s]+)/gi;
-    let match: RegExpExecArray | null;
-    while ((match = urlPattern.exec(text)) !== null) {
-      if (!match[0]) continue;
-      let url = match[0];
-      while (/[.,!?):;\]]$/.test(url)) {
-        url = url.slice(0, -1);
-      }
-      if (!/^https?:\/\//i.test(url)) {
-        url = `https://${url}`;
-      }
-      try {
-        new URL(url);
-        return url;
-      } catch {
-        continue;
-      }
-    }
-    return null;
   }
 
   private async buildAuthorPrivacyMap(

@@ -18,6 +18,7 @@ import { postCollaborationService } from './PostCollaborationService';
 import { getOwnerId, hasPendingCollabInvites } from '../utils/postAuthorship';
 import { mediaMetadataService } from './MediaMetadataService';
 import { enqueueMediaMetadataEnrich } from './mediaMetadataEnrichJob';
+import { warmLinkPreviewForTextDetached } from '../utils/linkPreviewWarm';
 
 export interface CreatePostParams {
   oxyUserId: string | null;
@@ -291,7 +292,14 @@ class PostCreationService {
     }
 
     if (isScheduled || params.skipNotifications) {
+      if (isPublished) {
+        warmLinkPreviewForTextDetached(content.text);
+      }
       return post;
+    }
+
+    if (isPublished) {
+      warmLinkPreviewForTextDetached(content.text);
     }
 
     await this.runPostSideEffects(post, {

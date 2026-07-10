@@ -18,6 +18,7 @@ import { postHydrationService, resolveUserSummaries, degradedActorSummary } from
 import { config } from '../config';
 import { mergeHashtags, escapeRegex } from '../utils/textProcessing';
 import { createScopedOxyClient } from '../utils/oxyHelpers';
+import { warmLinkPreviewForText } from '../utils/linkPreviewWarm';
 import { aliaChat } from '../utils/alia';
 import { validatePublicShareTarget } from '../utils/postAccessControl';
 import { sanitizePodcast, resolvePodcastContent } from '../utils/syraPodcast';
@@ -769,6 +770,8 @@ export const createPost = async (req: AuthRequest, res: Response) => {
       }
     }
 
+    await warmLinkPreviewForText(post.content?.text);
+
     const [hydratedPost] = await postHydrationService.hydratePosts([post.toObject()], {
       viewerId: userId,
       oxyClient: createScopedOxyClient(req),
@@ -1093,6 +1096,8 @@ export const createThread = async (req: AuthRequest, res: Response) => {
 
       createdPostObjects.push(post.toObject());
     }
+
+    await Promise.all(createdPostObjects.map((p) => warmLinkPreviewForText(p.content?.text)));
 
     const createdPosts = await postHydrationService.hydratePosts(createdPostObjects, {
       viewerId: userId,

@@ -56,6 +56,13 @@ interface PostData {
   parentPostId?: string;
   boostOf?: string;
   quoteOf?: string;
+  linkPreview?: {
+    url?: string;
+    title?: string;
+    description?: string;
+    image?: string;
+    siteName?: string;
+  } | null;
 }
 
 export function formatPost(post: PostData): string {
@@ -85,6 +92,14 @@ export function formatPost(post: PostData): string {
 
   if (post.content?.media && post.content.media.length > 0) {
     parts.push(`Media: ${post.content.media.map((m) => `${m.type}(${m.id})`).join(", ")}`);
+  }
+
+  if (post.linkPreview?.url) {
+    const previewTitle = post.linkPreview.title || post.linkPreview.siteName || post.linkPreview.url;
+    parts.push(`Link preview: ${previewTitle}`);
+    if (post.linkPreview.description) {
+      parts.push(`  ${post.linkPreview.description}`);
+    }
   }
 
   if (post.content?.sources && post.content.sources.length > 0) {

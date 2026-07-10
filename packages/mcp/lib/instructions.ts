@@ -31,6 +31,7 @@ Valid values: \`public\`, \`private\`, \`followers_only\` (alias \`followers\` a
 \`create-post\` and \`create-thread\` support the full Mention attachment model:
 - **Media** — pass \`media[]\` with \`kind: "fileId"\` (after upload), \`kind: "url"\` (remote fetch), or \`kind: "base64"\` (inline bytes)
 - **Poll, article, event, room, podcast, location, sources** — pass the matching fields on create-post / per thread post
+- **Link previews** — put a URL in \`text\`; Mention unfurls the first link automatically (same as the app). No separate field needed. Optional \`sources[]\` is for explicit citations, not auto-preview cards.
 - **Upload helpers** — \`upload-media-from-url\`, \`upload-media\`, \`search-gifs\`, \`use-gif\` return \`fileId\` values for \`kind: "fileId"\`
 
 Typical flow: \`upload-media-from-url\` → \`create-post\` with \`media: [{ kind: "fileId", fileId: "..." }]\`, or inline \`media: [{ kind: "url", url: "https://..." }]\`.
