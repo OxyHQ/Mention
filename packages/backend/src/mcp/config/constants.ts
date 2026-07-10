@@ -51,6 +51,9 @@ export const MCP_LINK_TOKEN_TTL_SECONDS = Number(
   process.env.MCP_LINK_TOKEN_TTL_SECONDS || 900,
 );
 
+/** Max Mention accounts per MCP connector bundle. */
+export const MCP_MAX_BUNDLE_MEMBERS = Number(process.env.MCP_MAX_BUNDLE_MEMBERS || 8);
+
 /** Access-token lifetime in seconds (short-lived; refreshed via refresh_token). */
 export const MCP_ACCESS_TOKEN_TTL_SECONDS = Number(
   process.env.MCP_ACCESS_TOKEN_TTL_SECONDS || 3600,

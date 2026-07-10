@@ -1,4 +1,3 @@
-import crypto from 'crypto';
 import express from 'express';
 import request from 'supertest';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -9,6 +8,8 @@ const mocks = vi.hoisted(() => ({
   connectionFindOne: vi.fn(),
   connectionFind: vi.fn(),
   connectionCreate: vi.fn(),
+  connectionUpdateOne: vi.fn(),
+  connectionCountDocuments: vi.fn(),
   getUserById: vi.fn(),
   getProfileByUsername: vi.fn(),
   redisGet: vi.fn(),
@@ -20,6 +21,8 @@ vi.mock('../../mcp/models/McpConnection', () => ({
     findOne: mocks.connectionFindOne,
     find: mocks.connectionFind,
     create: mocks.connectionCreate,
+    updateOne: mocks.connectionUpdateOne,
+    countDocuments: mocks.connectionCountDocuments,
   },
 }));
 
@@ -52,6 +55,7 @@ vi.mock('../../utils/redisHelpers', () => ({
 import mcpBundlesRoutes from '../../mcp/routes/mcpBundles.routes';
 import { signLinkToken } from '../../mcp/services/mcpBundleService';
 import type { OxyAuthRequestWithMcp } from '../../mcp/middleware/mcpAuth';
+import { ensureRedisConnected } from '../../utils/redisHelpers';
 
 function buildApp(mcpContext?: OxyAuthRequestWithMcp['mcp']) {
   const app = express();
@@ -80,6 +84,9 @@ const bundleContext: OxyAuthRequestWithMcp['mcp'] = {
 describe('MCP bundles routes', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.redisSet.mockResolvedValue('OK');
+    mocks.connectionUpdateOne.mockResolvedValue({ matchedCount: 1 });
+    mocks.connectionCountDocuments.mockResolvedValue(1);
     mocks.getUserById.mockResolvedValue({
       id: 'user-a',
       username: 'alice',
@@ -111,11 +118,24 @@ describe('MCP bundles routes', () => {
     expect(res.status).toBe(200);
     expect(res.body.activeUserId).toBe('user-b');
     expect(mocks.redisSet).toHaveBeenCalled();
+    expect(mocks.connectionUpdateOne).toHaveBeenCalled();
+  });
+
+  it('POST /mcp/bundles/active returns 503 when persistence fails', async () => {
+    const app = buildApp(bundleContext);
+    mocks.getProfileByUsername.mockResolvedValue({ id: 'user-b', username: 'brand' });
+    mocks.connectionFindOne.mockReturnValue({
+      lean: () => Promise.resolve({ oxyUserId: 'user-b', bundleId: 'bundle-1' }),
+    });
+    vi.mocked(ensureRedisConnected).mockResolvedValueOnce(false);
+    mocks.connectionUpdateOne.mockResolvedValue({ matchedCount: 0 });
+
+    const res = await request(app).post('/mcp/bundles/active').send({ handle: '@brand' });
+    expect(res.status).toBe(503);
   });
 
   it('POST /mcp/bundles/link/complete creates a linked connection', async () => {
     const token = signLinkToken('bundle-1', 'claude-web');
-    const app = buildApp();
     mocks.connectionFindOne
       .mockReturnValueOnce({ lean: () => Promise.resolve(null) })
       .mockReturnValueOnce(
@@ -152,5 +172,22 @@ describe('MCP bundles routes', () => {
         isBundlePrimary: false,
       }),
     );
+  });
+
+  it('POST /mcp/bundles/link/complete rejects reused link tokens', async () => {
+    const token = signLinkToken('bundle-1', 'claude-web');
+    mocks.redisSet.mockResolvedValue(null);
+
+    const authApp = express();
+    authApp.use(express.json());
+    authApp.use((req, _res, next) => {
+      (req as express.Request & { user?: { id: string } }).user = { id: 'user-b' };
+      next();
+    });
+    authApp.use('/mcp/bundles', mcpBundlesRoutes);
+
+    const res = await request(authApp).post('/mcp/bundles/link/complete').send({ token });
+    expect(res.status).toBe(400);
+    expect(res.body.message).toContain('already used');
   });
 });

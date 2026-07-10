@@ -322,6 +322,7 @@ async function handleAuthorizationCodeGrant(req: Request, res: Response): Promis
     scopes: authCode.scopes,
     bundleId,
     isBundlePrimary: true,
+    activeOxyUserId: authCode.oxyUserId,
     refreshTokenHash: refresh.hash,
     jti,
     lastUsedAt: new Date(),

@@ -9,13 +9,19 @@ import { MCP_LINK_TOKEN_TTL_SECONDS } from '../config/constants';
  * Multi-account MCP bundles: one Claude connector URL can authorize several
  * Mention accounts. Claude holds the primary OAuth token; linked accounts are
  * server-side grants sharing the same `bundleId`. The active account for each
- * request is stored in Redis (`mcp:bundle:active:{bundleId}`).
+ * request is stored in Redis (`mcp:bundle:active:{bundleId}`) with a durable
+ * fallback on the primary connection's `activeOxyUserId`.
  */
 
 const ACTIVE_KEY_PREFIX = 'mcp:bundle:active:';
+const LINK_USED_PREFIX = 'mcp:link:used:';
 
 function activeKey(bundleId: string): string {
   return `${ACTIVE_KEY_PREFIX}${bundleId}`;
+}
+
+function linkUsedKey(token: string): string {
+  return `${LINK_USED_PREFIX}${crypto.createHash('sha256').update(token).digest('hex')}`;
 }
 
 function getSecret(): string {
@@ -34,6 +40,7 @@ export async function ensureBundleFields(connection: IMcpConnection): Promise<IM
   const bundleId = crypto.randomUUID();
   connection.bundleId = bundleId;
   connection.isBundlePrimary = true;
+  connection.activeOxyUserId = connection.oxyUserId;
   await connection.save();
   await setActiveAccount(bundleId, connection.oxyUserId);
   return connection;
@@ -46,38 +53,77 @@ export async function findConnectionByJti(jti: string): Promise<IMcpConnection |
   return ensureBundleFields(row);
 }
 
-export async function setActiveAccount(bundleId: string, oxyUserId: string): Promise<void> {
+/**
+ * Persist the bundle's active account in Redis and on the primary connection doc.
+ * Returns false when persistence fails (caller should fail closed).
+ */
+export async function setActiveAccount(bundleId: string, oxyUserId: string): Promise<boolean> {
+  let redisOk = false;
   const redis = getRedisClient();
-  await withRedisFallback(
-    redis,
-    async () => {
-      const connected = await ensureRedisConnected(redis);
-      if (!connected) return;
-      await redis.set(activeKey(bundleId), oxyUserId);
-    },
-    undefined,
-    'mcpSetActiveAccount',
-  ).catch((error: unknown) => {
-    logger.warn('[McpBundle] Failed to set active account', {
+  try {
+    redisOk = await withRedisFallback(
+      redis,
+      async () => {
+        const connected = await ensureRedisConnected(redis);
+        if (!connected) return false;
+        await redis.set(activeKey(bundleId), oxyUserId);
+        return true;
+      },
+      false,
+      'mcpSetActiveAccount',
+    );
+  } catch (error: unknown) {
+    logger.warn('[McpBundle] Failed to set active account in Redis', {
       bundleId,
       reason: error instanceof Error ? error.message : 'unknown',
     });
-  });
+    redisOk = false;
+  }
+
+  let mongoOk = false;
+  try {
+    const result = await McpConnection.updateOne(
+      { bundleId, isBundlePrimary: true, revokedAt: null },
+      { activeOxyUserId: oxyUserId },
+    );
+    mongoOk = result.matchedCount > 0;
+  } catch (error: unknown) {
+    logger.warn('[McpBundle] Failed to set active account on primary connection', {
+      bundleId,
+      reason: error instanceof Error ? error.message : 'unknown',
+    });
+  }
+
+  return redisOk || mongoOk;
 }
 
-export async function getActiveAccount(bundleId: string, fallbackOxyUserId: string): Promise<string> {
+export async function getActiveAccount(
+  bundleId: string,
+  primaryOxyUserId: string,
+  persistedActive?: string | null,
+): Promise<string> {
   const redis = getRedisClient();
-  return withRedisFallback(
+  const fromRedis = await withRedisFallback(
     redis,
     async () => {
       const connected = await ensureRedisConnected(redis);
-      if (!connected) return fallbackOxyUserId;
+      if (!connected) return null;
       const value = await redis.get(activeKey(bundleId));
-      return value && value.length > 0 ? value : fallbackOxyUserId;
+      return value && value.length > 0 ? value : null;
     },
-    fallbackOxyUserId,
+    null,
     'mcpGetActiveAccount',
   );
+
+  if (fromRedis) {
+    return fromRedis;
+  }
+
+  if (persistedActive && persistedActive.length > 0) {
+    return persistedActive;
+  }
+
+  return primaryOxyUserId;
 }
 
 /** Verify the active account is a non-revoked member of the bundle. */
@@ -117,7 +163,7 @@ export async function resolveBundleContext(
 
   const bundleId = connection.bundleId;
   const primaryUserId = connection.oxyUserId;
-  const rawActive = await getActiveAccount(bundleId, primaryUserId);
+  const rawActive = await getActiveAccount(bundleId, primaryUserId, connection.activeOxyUserId);
   const activeUserId = await resolveActiveBundleMember(bundleId, primaryUserId, rawActive);
 
   if (activeUserId !== rawActive) {
@@ -172,6 +218,29 @@ export function verifyLinkToken(token: string): { bundleId: string; clientId: st
   }
 }
 
+/**
+ * Mark a link token as used (single-use). Returns false if already consumed or
+ * Redis is unavailable — callers must fail closed.
+ */
+export async function consumeLinkToken(token: string): Promise<boolean> {
+  const redis = getRedisClient();
+  return withRedisFallback(
+    redis,
+    async () => {
+      const connected = await ensureRedisConnected(redis);
+      if (!connected) return false;
+      const result = await redis.set(linkUsedKey(token), '1', { NX: true, EX: MCP_LINK_TOKEN_TTL_SECONDS });
+      return result === 'OK';
+    },
+    false,
+    'mcpConsumeLinkToken',
+  );
+}
+
 export async function listBundleMembers(bundleId: string): Promise<IMcpConnection[]> {
   return McpConnection.find({ bundleId, revokedAt: null }).sort({ isBundlePrimary: -1, createdAt: 1 });
+}
+
+export async function countBundleMembers(bundleId: string): Promise<number> {
+  return McpConnection.countDocuments({ bundleId, revokedAt: null });
 }

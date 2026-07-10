@@ -7,10 +7,12 @@ import {
   setActiveAccount,
   signLinkToken,
   verifyLinkToken,
+  consumeLinkToken,
+  countBundleMembers,
 } from '../services/mcpBundleService';
 import { generateJti, generateRefreshToken } from '../services/mcpTokenService';
 import { getMcpClientAsync } from '../config/mcpClients';
-import { MCP_FRONTEND_ORIGIN, MCP_LINK_PATH } from '../config/constants';
+import { MCP_FRONTEND_ORIGIN, MCP_LINK_PATH, MCP_MAX_BUNDLE_MEMBERS } from '../config/constants';
 import { getServiceOxyClient } from '../../utils/oxyHelpers';
 import type { OxyAuthRequestWithMcp } from '../middleware/mcpAuth';
 import { logger } from '../../utils/logger';
@@ -143,6 +145,11 @@ router.post('/link/complete', async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ message: 'Invalid or expired link token' });
     }
 
+    const consumed = await consumeLinkToken(linkToken);
+    if (!consumed) {
+      return res.status(400).json({ message: 'Link token already used or unavailable' });
+    }
+
     const existing = await McpConnection.findOne({
       bundleId: parsed.bundleId,
       oxyUserId,
@@ -172,18 +179,40 @@ router.post('/link/complete', async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ message: 'Unknown client' });
     }
 
+    const memberCount = await countBundleMembers(parsed.bundleId);
+    if (memberCount >= MCP_MAX_BUNDLE_MEMBERS) {
+      return res.status(400).json({
+        message: `This connector already has the maximum of ${MCP_MAX_BUNDLE_MEMBERS} linked accounts`,
+      });
+    }
+
     const refresh = generateRefreshToken();
-    await McpConnection.create({
-      oxyUserId,
-      clientId: parsed.clientId,
-      clientLabel: client.label,
-      scopes: primary.scopes,
-      bundleId: parsed.bundleId,
-      isBundlePrimary: false,
-      refreshTokenHash: refresh.hash,
-      jti: generateJti(),
-      lastUsedAt: new Date(),
-    });
+    try {
+      await McpConnection.create({
+        oxyUserId,
+        clientId: parsed.clientId,
+        clientLabel: client.label,
+        scopes: primary.scopes,
+        bundleId: parsed.bundleId,
+        isBundlePrimary: false,
+        refreshTokenHash: refresh.hash,
+        jti: generateJti(),
+        lastUsedAt: new Date(),
+      });
+    } catch (createError: unknown) {
+      const code = createError && typeof createError === 'object' && 'code' in createError
+        ? (createError as { code?: number }).code
+        : undefined;
+      if (code === 11000) {
+        const summary = await hydrateUserSummary(oxyUserId);
+        return res.json({
+          message: 'Already linked',
+          handle: summary.handle,
+          bundleId: parsed.bundleId,
+        });
+      }
+      throw createError;
+    }
 
     const summary = await hydrateUserSummary(oxyUserId);
     return res.json({
@@ -234,7 +263,10 @@ router.post('/active', async (req: AuthRequest, res: Response) => {
       return res.status(404).json({ message: 'Account is not linked to this connector' });
     }
 
-    await setActiveAccount(mcp.bundleId, targetUserId);
+    const persisted = await setActiveAccount(mcp.bundleId, targetUserId);
+    if (!persisted) {
+      return res.status(503).json({ message: 'Could not persist active account switch' });
+    }
     const summary = await hydrateUserSummary(targetUserId);
     return res.json({
       message: 'Active account updated',
