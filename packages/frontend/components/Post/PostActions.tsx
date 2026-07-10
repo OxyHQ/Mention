@@ -211,6 +211,8 @@ const PostActions: React.FC<Props> = ({
           </PressableScale>
 
           <PressableScale
+            className="flex-row items-center"
+            style={{ gap: 6 }}
             onPress={() => {
               haptic('light');
               onSave();
@@ -223,6 +225,14 @@ const PostActions: React.FC<Props> = ({
               <BookmarkActive size={DETAIL_ICON_SIZE} color={theme.colors.primary} />
             ) : (
               <Bookmark size={DETAIL_ICON_SIZE} className="text-muted-foreground" />
+            )}
+            {saves > 0 && (
+              <Text
+                className={isSaved ? 'text-[13px]' : 'text-[13px] text-muted-foreground'}
+                style={isSaved ? { color: theme.colors.primary } : undefined}
+              >
+                {formatCompactNumber(saves)}
+              </Text>
             )}
           </PressableScale>
 
@@ -346,7 +356,8 @@ const PostActions: React.FC<Props> = ({
         <View className="flex-1" />
 
         <PressableScale
-          style={styles.iconButton}
+          className="flex-row items-center"
+          style={[styles.iconButton, { gap: 6 }]}
           onPress={() => {
             haptic('light');
             onSave();
@@ -359,6 +370,14 @@ const PostActions: React.FC<Props> = ({
             <BookmarkActive size={ICON_SIZE} color={theme.colors.primary} />
           ) : (
             <Bookmark size={ICON_SIZE} className="text-muted-foreground" />
+          )}
+          {saves > 0 && (
+            <Text
+              className={isSaved ? 'text-[13px]' : 'text-[13px] text-muted-foreground'}
+              style={isSaved ? { color: theme.colors.primary } : undefined}
+            >
+              {formatCompactNumber(saves)}
+            </Text>
           )}
         </PressableScale>
 
