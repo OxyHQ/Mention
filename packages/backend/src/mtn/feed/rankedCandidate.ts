@@ -7,21 +7,43 @@
  * directly so the feeds avoid `any` while leaving the rich post body opaque.
  */
 
-import mongoose from 'mongoose';
 import { FeedPostSlice } from '@mention/shared-types';
 
 /**
  * A ranked candidate post: a lean Mongo document decorated with `finalScore` by
- * FeedRankingService.
+ * FeedRankingService. `_id` is intentionally wide so engine {@link CandidatePost}
+ * pools assign without casting; callers stringify via {@link readCandidateId}.
  */
 export interface RankedCandidate {
-  _id: mongoose.Types.ObjectId;
+  _id: { toString(): string };
   oxyUserId?: string;
   finalScore?: number;
 }
 
 export function readCandidateId(post: RankedCandidate): string {
   return post._id.toString();
+}
+
+function hasToString(value: object): value is { toString(): string } {
+  return typeof Reflect.get(value, 'toString') === 'function';
+}
+
+/** Narrow a lean engine candidate to a ranked candidate when `_id` is stringifiable. */
+export function toRankedCandidate(post: {
+  _id?: unknown;
+  oxyUserId?: string;
+  finalScore?: number;
+}): RankedCandidate | null {
+  const id = post._id;
+  if (id === null || id === undefined) return null;
+  if (typeof id === 'string' || typeof id === 'number' || typeof id === 'boolean' || typeof id === 'bigint') {
+    const text = String(id);
+    return { _id: { toString: () => text }, oxyUserId: post.oxyUserId, finalScore: post.finalScore };
+  }
+  if (typeof id === 'object' && hasToString(id)) {
+    return { _id: id, oxyUserId: post.oxyUserId, finalScore: post.finalScore };
+  }
+  return null;
 }
 
 export function readCandidateScore(post: RankedCandidate): number {
@@ -45,8 +67,11 @@ export function sliceAuthorKey(slice: FeedPostSlice): string | undefined {
   if (!anchor) return undefined;
   const hydratedId = anchor.user?.id;
   if (hydratedId) return hydratedId;
-  const rawAuthor = (anchor as { oxyUserId?: string }).oxyUserId;
-  return rawAuthor || undefined;
+  if ('oxyUserId' in anchor && typeof Reflect.get(anchor, 'oxyUserId') === 'string') {
+    const rawAuthor = Reflect.get(anchor, 'oxyUserId');
+    return typeof rawAuthor === 'string' && rawAuthor.length > 0 ? rawAuthor : undefined;
+  }
+  return undefined;
 }
 
 /**
@@ -61,11 +86,19 @@ export function sliceAuthorKey(slice: FeedPostSlice): string | undefined {
  */
 export function sliceCursorAnchor(slice: FeedPostSlice): { score: number; id: string } | undefined {
   for (const item of slice.items) {
-    const post = item.post as { finalScore?: number; id?: string; _id?: { toString(): string } } | undefined;
-    if (!post || post.finalScore === undefined) continue;
-    const id = post.id ?? post._id?.toString();
-    if (!id) continue;
-    return { score: post.finalScore, id };
+    const post = item.post;
+    if (!post || typeof post !== 'object') continue;
+    const finalScore = Reflect.get(post, 'finalScore');
+    if (typeof finalScore !== 'number') continue;
+    const idField = Reflect.get(post, 'id');
+    if (typeof idField === 'string' && idField.length > 0) {
+      return { score: finalScore, id: idField };
+    }
+    const rawId = Reflect.get(post, '_id');
+    if (rawId !== null && rawId !== undefined && typeof rawId === 'object' && hasToString(rawId)) {
+      const id = rawId.toString();
+      if (id) return { score: finalScore, id };
+    }
   }
   return undefined;
 }

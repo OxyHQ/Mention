@@ -180,7 +180,7 @@ describe('FeedEngine — ranked fallbacks', () => {
       sources: [{ module: 'lane', enabled: true }],
       signals: [],
       filters: [],
-      execution: { seenPosts: true, neverBlank: true, popularFallback: 'popular', passSensitiveOptIn: true },
+      execution: { seenPosts: true, neverBlank: true, popularFallback: 'popular' },
     };
   }
 
@@ -206,13 +206,18 @@ describe('FeedEngine — ranked fallbacks', () => {
     expect(result.items.map((i) => i.id)).toEqual([oid(9).toString()]);
   });
 
-  it('threads the viewer sensitive opt-in into rankPosts when passSensitiveOptIn is set', async () => {
+  it('does not pass showSensitiveContent into rankPosts', async () => {
     registry.register({ id: 'lane', kind: 'source', userComposable: false, gather: async () => [makePost(1, { _testScore: 5 })] });
     registry.register({ id: 'popular', kind: 'source', userComposable: false, gather: async () => [] });
 
     await engine.run(rankedDef(), { currentUserId: 'viewer', showSensitiveContent: true }, { limit: 30 });
     expect(rankPosts).toHaveBeenCalledOnce();
-    const rankCtx = rankPosts.mock.calls[0][2] as { showSensitiveContent?: boolean };
-    expect(rankCtx.showSensitiveContent).toBe(true);
+    const rankCtx = rankPosts.mock.calls[0]?.[2];
+    expect(rankCtx).toBeDefined();
+    expect(
+      rankCtx && typeof rankCtx === 'object' && 'showSensitiveContent' in rankCtx
+        ? rankCtx.showSensitiveContent
+        : undefined,
+    ).toBeUndefined();
   });
 });

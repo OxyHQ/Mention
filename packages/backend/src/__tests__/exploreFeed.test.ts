@@ -3,10 +3,9 @@ import mongoose from 'mongoose';
 import { MtnConfig } from '@mention/shared-types';
 
 /**
- * Tests for the `explore` SOURCE module (which wraps the former ExploreFeed
- * aggregation) proving the discovery sensitive/NSFW exclusion is
- * VIEWER-CONDITIONAL on `ctx.showSensitiveContent` and that the logged-in
- * relevance boost is built (and injection-guarded) correctly.
+ * Tests for the `explore` SOURCE module proving the discovery sensitive/NSFW
+ * exclusion is unconditional (ignores `ctx.showSensitiveContent`) and that the
+ * logged-in relevance boost is built (and injection-guarded) correctly.
  *
  * Explore scores inline in its aggregation pipeline (it does NOT pass through
  * `FeedRankingService`), so its only sensitivity gate is the query-level
@@ -79,20 +78,18 @@ describe('explore source — SFW (default / anonymous)', () => {
   });
 });
 
-describe('explore source — viewer opted in (showSensitiveContent)', () => {
-  it('does NOT exclude sensitive/NSFW at the query level when the viewer opted in', async () => {
+describe('explore source — hard SFW (ignores showSensitiveContent)', () => {
+  it('still excludes sensitive/NSFW at the query level when showSensitiveContent is true', async () => {
     await gather({ currentUserId: 'viewer', followingIds: [], showSensitiveContent: true });
     const match = firstMatch();
-    expect(match['postClassification.sensitive']).toBeUndefined();
-    expect(match['metadata.isSensitive']).toBeUndefined();
-    expect(match['federation.sensitive']).toBeUndefined();
-    expect(match.hashtags).toBeUndefined();
-    expect(match.visibility).toBe('public');
-    expect(match.status).toBe('published');
+    expect(match['postClassification.sensitive']).toEqual({ $ne: true });
+    expect(match['metadata.isSensitive']).toEqual({ $ne: true });
+    expect(match['federation.sensitive']).toEqual({ $ne: true });
+    expect((match.hashtags as { $nin: string[] }).$nin).toContain('nsfw');
   });
 
-  it('returns the aggregate results (sensitive included) when the viewer opted in', async () => {
-    aggregateMock.mockResolvedValue([{ _id: oid(1), oxyUserId: 'a', hashtags: ['nsfw'] }]);
+  it('still returns aggregate rows (query gate is the hard block; mock bypasses Mongo)', async () => {
+    aggregateMock.mockResolvedValue([{ _id: oid(1), oxyUserId: 'a', hashtags: ['tech'] }]);
     const posts = await gather({ currentUserId: 'viewer', followingIds: [], showSensitiveContent: true });
     expect(posts.map((p) => String(p._id))).toEqual([oid(1).toString()]);
   });

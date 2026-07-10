@@ -22,9 +22,10 @@ describe('safety filter', () => {
     expect(safety.keep!(post({ hashtags: ['tech'] }), ctx, {})).toBe(true);
   });
 
-  it('passes sensitive posts for a viewer who opted in', () => {
+  it('drops sensitive posts even when showSensitiveContent is true', () => {
     const ctx: FeedEngineContext = { showSensitiveContent: true };
-    expect(safety.keep!(post({ hashtags: ['nsfw'] }), ctx, {})).toBe(true);
+    expect(safety.keep!(post({ hashtags: ['nsfw'] }), ctx, {})).toBe(false);
+    expect(safety.keep!(post({ postClassification: { sensitive: true } }), ctx, {})).toBe(false);
   });
 });
 

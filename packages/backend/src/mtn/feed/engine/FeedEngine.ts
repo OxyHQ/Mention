@@ -26,6 +26,7 @@ import {
   readCandidateScore,
   sliceAuthorKey,
   sliceCursorAnchor,
+  toRankedCandidate,
 } from '../rankedCandidate';
 import { logger } from '../../../utils/logger';
 import { feedModuleRegistry, FeedModuleRegistry } from './FeedModuleRegistry';
@@ -50,11 +51,18 @@ const EMPTY_RESPONSE: SlicedFeedResponse = {
   totalCount: 0,
 };
 
+function readPortraitMedia(post: RankedCandidate): Array<{ type?: string; orientation?: string }> | undefined {
+  if (!('content' in post)) return undefined;
+  const content = Reflect.get(post, 'content');
+  if (!content || typeof content !== 'object') return undefined;
+  const media = Reflect.get(content, 'media');
+  return Array.isArray(media) ? media : undefined;
+}
+
 function hasPortraitVideo(post: RankedCandidate): boolean {
-  const content = (post as CandidatePost).content as { media?: Array<{ type?: string; orientation?: string }> } | undefined;
-  const media = content?.media;
+  const media = readPortraitMedia(post);
   return Array.isArray(media)
-    && media.some((item) => item.type === 'video' && item.orientation === 'portrait');
+    && media.some((item) => item?.type === 'video' && item?.orientation === 'portrait');
 }
 
 export class FeedEngine {
@@ -249,23 +257,29 @@ export class FeedEngine {
       // cursor; just dedupe, preserving the score-descending source order.
       const seen = new Set<string>();
       deduped = [];
-      for (const post of pool as unknown as RankedCandidate[]) {
-        const id = readCandidateId(post);
+      for (const post of pool) {
+        const ranked = toRankedCandidate(post);
+        if (!ranked) continue;
+        const id = readCandidateId(ranked);
         if (id && !seen.has(id)) {
           seen.add(id);
-          deduped.push(post);
+          deduped.push(ranked);
         }
       }
     } else {
-      const ranked = (await feedRankingService.rankPosts(pool, ctx.currentUserId, {
+      const rankedPosts = await feedRankingService.rankPosts(pool, ctx.currentUserId, {
         followingIds: ctx.followingIds,
         userBehavior: ctx.userBehavior,
         feedSettings: ctx.feedSettings,
         enabledSignals: this.resolveEnabledSignalKeys(definition),
         seenPostIds: ctx.seenPostIds,
         mutualIds: ctx.mutualIds,
-        ...(exec.passSensitiveOptIn ? { showSensitiveContent: ctx.showSensitiveContent === true } : {}),
-      })) as RankedCandidate[];
+      });
+      const ranked: RankedCandidate[] = [];
+      for (const post of rankedPosts) {
+        const candidate = toRankedCandidate(post);
+        if (candidate) ranked.push(candidate);
+      }
 
       const sorted = ranked.sort((a, b) => {
         if (definition.id === 'videos') {
@@ -408,7 +422,7 @@ export class FeedEngine {
     let nextCursor: string | undefined;
     if (postsToProcess.length > 0 && hasMore) {
       const last = postsToProcess[postsToProcess.length - 1];
-      nextCursor = ChronoCursor.build(String(last._id), last.createdAt as Date | string | undefined);
+      nextCursor = ChronoCursor.build(String(last._id), last.createdAt);
       if (!didCursorAdvance(nextCursor, cursor)) {
         logger.warn('[FeedEngine] Chronological cursor did not advance', { cursor, nextCursor });
         nextCursor = undefined;

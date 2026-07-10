@@ -133,14 +133,13 @@ function overlapScore(
   authorId: string,
 ): number {
   let score = 0;
-  const classification = post.postClassification as { topics?: unknown } | undefined;
-  const topics = Array.isArray(classification?.topics) ? classification.topics : [];
+  const topics = post.postClassification?.topics ?? [];
   for (const topic of topics) {
-    if (typeof topic === 'string' && topicSet.has(topic.toLowerCase())) score += 1;
+    if (topicSet.has(topic.toLowerCase())) score += 1;
   }
-  const hashtags = Array.isArray(post.hashtags) ? post.hashtags : [];
+  const hashtags = post.hashtags ?? [];
   for (const tag of hashtags) {
-    if (typeof tag === 'string' && tagSet.has(tag.toLowerCase())) score += 1;
+    if (tagSet.has(tag.toLowerCase())) score += 1;
   }
   if (authorId && post.oxyUserId === authorId) score += 1;
   return score;
@@ -148,7 +147,7 @@ function overlapScore(
 
 /** Epoch ms of a candidate's `createdAt` (0 when absent), for the recency tie-break. */
 function createdAtMs(post: CandidatePost): number {
-  return new Date((post.createdAt as Date | string | undefined) ?? 0).getTime();
+  return new Date(post.createdAt ?? 0).getTime();
 }
 
 /**
@@ -172,13 +171,12 @@ export const moreLikeThisSource: SourceModule = {
     if (seed.hashtags.length > 0) orConditions.push({ hashtags: { $in: seed.hashtags } });
     if (seed.authorId) orConditions.push({ oxyUserId: seed.authorId });
 
-    const allowSensitive = ctx.showSensitiveContent === true;
     const windowStart = new Date(Date.now() - MtnConfig.feed.candidateSources.recencyWindowMs);
     const match: Record<string, unknown> = {
       visibility: PostVisibility.PUBLIC,
       status: 'published',
       createdAt: { $gte: windowStart },
-      ...(allowSensitive ? {} : DISCOVERY_SAFE_MATCH),
+      ...DISCOVERY_SAFE_MATCH,
       $and: [
         { $or: orConditions },
         { $or: [{ boostOf: null }, { boostOf: { $exists: false } }] },
@@ -187,12 +185,12 @@ export const moreLikeThisSource: SourceModule = {
     if (seed.excludeId) match._id = { $ne: seed.excludeId };
 
     const poolSize = Math.min(cap * MORE_LIKE_THIS_POOL_MULTIPLIER, MORE_LIKE_THIS_MAX_POOL);
-    const candidates = (await Post.find(match)
+    const candidates = await Post.find(match)
       .select(FEED_FIELDS)
       .sort({ _id: -1 })
       .limit(poolSize)
       .maxTimeMS(5000)
-      .lean()) as unknown as CandidatePost[];
+      .lean<CandidatePost[]>();
 
     const topicSet = new Set(seed.topics);
     const tagSet = new Set(seed.hashtags);
@@ -249,7 +247,7 @@ export const nearbySource: SourceModule = {
   kind: 'source',
   userComposable: true,
   gather: async (ctx, params, cap) => {
-    const safety = ctx.showSensitiveContent === true ? {} : DISCOVERY_SAFE_MATCH;
+    const safety = DISCOVERY_SAFE_MATCH;
     const lat = toFiniteNumber(params.lat);
     const lng = toFiniteNumber(params.lng);
 
@@ -273,11 +271,11 @@ export const nearbySource: SourceModule = {
         },
         $and: [{ $or: [{ boostOf: null }, { boostOf: { $exists: false } }] }],
       };
-      return (await Post.find(match)
+      return await Post.find(match)
         .select(FEED_FIELDS)
         .limit(cap)
         .maxTimeMS(5000)
-        .lean()) as unknown as CandidatePost[];
+        .lean<CandidatePost[]>();
     }
 
     const region =
@@ -291,12 +289,12 @@ export const nearbySource: SourceModule = {
       ...safety,
     };
     ChronoCursor.applyToQuery(match, ctx.cursor);
-    return (await Post.find(match)
+    return await Post.find(match)
       .select(FEED_FIELDS)
       .sort({ _id: -1 })
       .limit(cap)
       .maxTimeMS(5000)
-      .lean()) as unknown as CandidatePost[];
+      .lean<CandidatePost[]>();
   },
 };
 
@@ -346,7 +344,7 @@ export const risingCreatorsSource: SourceModule = {
 
     let groups: SnapshotGroup[];
     try {
-      groups = (await AuthorFollowerSnapshot.aggregate([
+      groups = await AuthorFollowerSnapshot.aggregate<SnapshotGroup>([
         { $match: { at: { $gte: windowStart } } },
         { $sort: { at: 1 } },
         {
@@ -356,7 +354,7 @@ export const risingCreatorsSource: SourceModule = {
             last: { $last: '$followerCount' },
           },
         },
-      ]).option({ maxTimeMS: 5000 })) as SnapshotGroup[];
+      ]).option({ maxTimeMS: 5000 });
     } catch (error) {
       logger.warn('[risingCreators source] Failed to aggregate follower snapshots', error);
       return [];
@@ -381,14 +379,12 @@ export const risingCreatorsSource: SourceModule = {
     const rateById = new Map(ranked.map((group) => [group.id, group.rate]));
     const authorIds = ranked.map((group) => group.id);
 
-    const allowSensitive = ctx.showSensitiveContent === true;
-    const postWindowStart = new Date(Date.now() - MtnConfig.feed.candidateSources.recencyWindowMs);
     const match: Record<string, unknown> = {
       oxyUserId: { $in: authorIds },
       visibility: PostVisibility.PUBLIC,
       status: 'published',
-      createdAt: { $gte: postWindowStart },
-      ...(allowSensitive ? {} : DISCOVERY_SAFE_MATCH),
+      createdAt: { $gte: windowStart },
+      ...DISCOVERY_SAFE_MATCH,
       $and: [
         { $or: [{ parentPostId: null }, { parentPostId: { $exists: false } }] },
         { $or: [{ boostOf: null }, { boostOf: { $exists: false } }] },
@@ -396,12 +392,12 @@ export const risingCreatorsSource: SourceModule = {
     };
 
     const poolSize = Math.min(cap * RISING_CREATORS_POST_MULTIPLIER, MORE_LIKE_THIS_MAX_POOL);
-    const posts = (await Post.find(match)
+    const posts = await Post.find(match)
       .select(FEED_FIELDS)
       .sort({ _id: -1 })
       .limit(poolSize)
       .maxTimeMS(5000)
-      .lean()) as unknown as CandidatePost[];
+      .lean<CandidatePost[]>();
 
     return posts
       .map((post) => {

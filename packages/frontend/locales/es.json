@@ -335,7 +335,7 @@
   "settings.privacy.hideSaveCountsDesc": "Ocultar el botón de guardar en las publicaciones",
   "settings.privacy.content": "Contenido",
   "settings.privacy.showSensitiveContent": "Mostrar contenido sensible",
-  "settings.privacy.showSensitiveContentDesc": "Mostrar publicaciones marcadas como sensibles/NSFW en tus feeds",
+  "settings.privacy.showSensitiveContentDesc": "Las publicaciones sensibles y NSFW nunca aparecen en tus feeds. Permanecen visibles en el perfil del autor.",
   "settings.privacy.allowTags": "Permitir etiquetas",
   "settings.privacy.allowTagsDesc": "Permitir que otros te etiqueten en publicaciones",
   "settings.privacy.allowMentions": "Permitir menciones",

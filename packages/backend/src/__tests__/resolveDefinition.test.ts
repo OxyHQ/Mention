@@ -7,6 +7,13 @@ function sourceIds(def: { sources: Array<{ module: string }> }): string[] {
 }
 
 describe('resolveDefinition', () => {
+  it('videos → ranked definition with safety filter', async () => {
+    const def = await resolveDefinition('videos');
+    expect(def!.mode).toBe('ranked');
+    expect(def!.sources.map((s) => s.module)).toEqual(['videos']);
+    expect(def!.filters.some((f) => f.module === 'safety' && f.enabled)).toBe(true);
+  });
+
   it('for_you → ranked definition with the For You sources', async () => {
     const def = await resolveDefinition('for_you');
     expect(def).not.toBeNull();
@@ -17,23 +24,26 @@ describe('resolveDefinition', () => {
     expect(def!.execution?.neverBlank).toBe(true);
   });
 
-  it('following → chronological following definition', async () => {
+  it('following → chronological following definition with safety filter', async () => {
     const def = await resolveDefinition('following');
     expect(def!.mode).toBe('chronological');
     expect(def!.sources[0]).toMatchObject({ module: 'following', params: { timeline: true } });
+    expect(def!.filters.some((f) => f.module === 'safety' && f.enabled)).toBe(true);
   });
 
-  it('author|123|media → authored media source + mediaOnly filter', async () => {
+  it('author|123|media → authored media source + mediaOnly filter (no safety)', async () => {
     const def = await resolveDefinition('author|123|media' as FeedDescriptor);
     expect(def!.mode).toBe('chronological');
     expect(def!.sources[0]).toMatchObject({ module: 'authored', params: { authorId: '123', filter: 'media' } });
     expect(def!.filters.some((f) => f.module === 'mediaOnly')).toBe(true);
+    expect(def!.filters.some((f) => f.module === 'safety')).toBe(false);
     expect(def!.execution?.hydrateMaxDepth).toBe(1);
   });
 
-  it('author|123 → authored posts source (default filter)', async () => {
+  it('author|123 → authored posts source without safety filter', async () => {
     const def = await resolveDefinition('author|123' as FeedDescriptor);
     expect(def!.sources[0]).toMatchObject({ module: 'authored', params: { authorId: '123', filter: 'posts' } });
+    expect(def!.filters.some((f) => f.module === 'safety')).toBe(false);
   });
 
   it('author|123|likes → ordered execution', async () => {

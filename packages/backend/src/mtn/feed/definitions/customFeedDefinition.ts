@@ -15,8 +15,21 @@
 import mongoose from 'mongoose';
 import { MtnConfig } from '@mention/shared-types';
 import CustomFeed, { type ICustomFeed, type StoredFeedDefinition } from '../../../models/CustomFeed';
-import type { FeedDefinition, FeedExecution } from '../engine/types';
+import type { FeedDefinition, FeedExecution, ModuleRef } from '../engine/types';
 import { legacyCustomFeedToDefinition, type LegacyCustomFeedShape } from './legacyCustomFeed';
+
+function enabled(module: string): ModuleRef {
+  return { module, enabled: true };
+}
+
+/** Strip `onlySensitive` and ensure a safety gate is present. */
+function ensureSafetyFilters(filters: ModuleRef[]): ModuleRef[] {
+  const stripped = filters.filter((f) => f.module !== 'onlySensitive');
+  const hasSafety = stripped.some(
+    (f) => f.enabled && (f.module === 'safety' || f.module === 'excludeSensitive'),
+  );
+  return hasSafety ? stripped : [...stripped, enabled('safety')];
+}
 
 /** The loaded-feed fields this resolver reads. */
 type CustomFeedSource = Pick<ICustomFeed, 'title' | 'isPublic'> &
@@ -56,7 +69,7 @@ export function buildCustomFeedDefinition(feed: CustomFeedSource): FeedDefinitio
     mode: def.mode,
     sources: def.sources,
     signals: def.signals,
-    filters: def.filters,
+    filters: ensureSafetyFilters(def.filters),
     execution,
   };
 }

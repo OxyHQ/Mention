@@ -266,7 +266,7 @@ export default function PrivacySettingsScreen() {
                     <SettingsListItem
                         icon={<RowIcon name="alert-circle-outline" />}
                         title={t('settings.privacy.showSensitiveContent')}
-                        description={t('settings.privacy.showSensitiveContentDesc', { defaultValue: 'Show posts marked sensitive/NSFW in your feeds' })}
+                        description={t('settings.privacy.showSensitiveContentDesc', { defaultValue: "Sensitive and NSFW posts never appear in your feeds. They remain visible on the author's profile." })}
                         showChevron={false}
                         rightElement={
                             <Switch
