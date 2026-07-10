@@ -4,6 +4,32 @@ export function stripMentionHandle(handle: string): string {
   return handle.replace(/^@+/, '').trim();
 }
 
+async function resolveOneHandle(
+  username: string,
+): Promise<{ handle: string; oxyUserId: string }> {
+  if (username.includes('@')) {
+    throw new Error('Federated handles cannot be collaborators');
+  }
+
+  const oxy = getServiceOxyClient();
+  let profile;
+  try {
+    profile = await oxy.getProfileByUsername(username, { cache: false });
+  } catch {
+    throw new Error(`Unknown user: @${username}`);
+  }
+
+  if (!profile?.id) {
+    throw new Error(`Unknown user: @${username}`);
+  }
+
+  if (profile.type === 'federated') {
+    throw new Error(`Federated users cannot be collaborators: @${username}`);
+  }
+
+  return { handle: username, oxyUserId: profile.id };
+}
+
 export async function resolveLocalMentionHandles(
   rawHandles: string[],
 ): Promise<Array<{ handle: string; oxyUserId: string }>> {
@@ -16,31 +42,5 @@ export async function resolveLocalMentionHandles(
     return [];
   }
 
-  const oxy = getServiceOxyClient();
-  const users: Array<{ handle: string; oxyUserId: string }> = [];
-
-  for (const username of handles) {
-    if (username.includes('@')) {
-      throw new Error('Federated handles cannot be collaborators');
-    }
-
-    let profile;
-    try {
-      profile = await oxy.getProfileByUsername(username, { cache: false });
-    } catch {
-      throw new Error(`Unknown user: @${username}`);
-    }
-
-    if (!profile?.id) {
-      throw new Error(`Unknown user: @${username}`);
-    }
-
-    if (profile.type === 'federated') {
-      throw new Error(`Federated users cannot be collaborators: @${username}`);
-    }
-
-    users.push({ handle: username, oxyUserId: profile.id });
-  }
-
-  return users;
+  return Promise.all(handles.map((username) => resolveOneHandle(username)));
 }

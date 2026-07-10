@@ -163,6 +163,7 @@ class PostCollaborationService {
     const authorship = normalizeAuthorship(post.authorship);
     const ownerId = getOwnerId(authorship);
     let changed = false;
+    const notificationsToSend: Array<{ recipientId: string; actorId: string }> = [];
 
     for (const entry of authorship) {
       if (entry.role !== 'collaborator' || entry.status !== 'pending') continue;
@@ -173,12 +174,9 @@ class PostCollaborationService {
       changed = true;
 
       if (ownerId && ownerId !== entry.oxyUserId) {
-        await createNotification({
+        notificationsToSend.push({
           recipientId: ownerId,
           actorId: entry.oxyUserId,
-          type: 'collab_accepted',
-          entityId: String(post._id),
-          entityType: 'post',
         });
       }
     }
@@ -188,6 +186,21 @@ class PostCollaborationService {
     post.authorship = authorship;
     post.markModified('authorship');
     await post.save();
+
+    if (notificationsToSend.length > 0) {
+      await Promise.allSettled(
+        notificationsToSend.map(({ recipientId, actorId }) =>
+          createNotification({
+            recipientId,
+            actorId,
+            type: 'collab_accepted',
+            entityId: String(post._id),
+            entityType: 'post',
+          }),
+        ),
+      );
+    }
+
     await this.emitPostUpdate(post);
     await this.maybeFederateOnResolve(post);
     return post;

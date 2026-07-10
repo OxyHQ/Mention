@@ -285,7 +285,11 @@ class PostCreationService {
       await postCollaborationService.notifyPendingInvites(post, params.oxyUserId);
     }
 
-    const skipFederation = params.skipFederationDelivery || hasPendingCollabInvites(post.authorship ?? []);
+    const postMeta = (post.metadata ?? {}) as Record<string, unknown>;
+    const skipFederation =
+      params.skipFederationDelivery ||
+      hasPendingCollabInvites(post.authorship ?? []) ||
+      postMeta.federationDelivered === true;
 
     // MTN Protocol dual-write (best-effort, never blocks, never changes output).
     // Mongo is authoritative; this emits a signed `app.mention.feed.*` record for
