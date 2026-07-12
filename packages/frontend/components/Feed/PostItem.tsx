@@ -11,7 +11,7 @@ import {
     PostEngagementSummary,
     PostRoomContent,
 } from '@mention/shared-types';
-import { usePostsStore } from '../../stores/postsStore';
+import { usePostSelector } from '../../stores/postsStore';
 import PostHeader, { HEADER_CONTENT_GAP, POST_CONTEXT_ROW_HEIGHT } from '../Post/PostHeader';
 import PostContentText from '../Post/PostContentText';
 import PostActions from '../Post/PostActions';
@@ -151,11 +151,9 @@ const PostItem: React.FC<PostItemProps> = ({
     const hasManuallyDismissed = useRef(false);
 
     const postId = post?.id;
-    const dataVersion = usePostsStore((state) => state.dataVersion);
-    const storePost = useMemo(() => {
-        if (!postId) return null;
-        return usePostsStore.getState().getPostFromDb(postId);
-    }, [postId, dataVersion]);
+    // Reactive read of the cached post (compiler-safe `useSyncExternalStore`
+    // under the hood — never `useMemo` over an out-of-band SQLite read).
+    const storePost = usePostSelector(postId ? String(postId) : undefined);
     const viewPost = storePost ?? post;
     const viewPostId = viewPost?.id ? String(viewPost.id) : undefined;
 

@@ -14,7 +14,7 @@ import PostItem from '@/components/Feed/PostItem';
 import Feed from '@/components/Feed/Feed';
 import { FeedHeader } from '@/components/Feed/FeedHeader';
 import { useThreadPreferences, SORT_TO_API } from '@/hooks/useThreadPreferences';
-import { usePostsStore } from '@/stores/postsStore';
+import { usePostsStore, usePostSelector } from '@/stores/postsStore';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
 import ReplyPreferencesSheet from '@/components/ReplyPreferencesSheet';
 import { FeedType } from '@mention/shared-types';
@@ -48,17 +48,12 @@ const PostDetailScreen: React.FC = () => {
     const { treeView, sortOrder } = useThreadPreferences();
     const { openBottomSheet, setBottomSheetContent } = React.useContext(BottomSheetContext);
 
-    // Reactive store version — re-reads the cached post whenever the shared cache
-    // mutates (background revalidation, optimistic like/boost, etc.).
-    const dataVersion = usePostsStore((s) => s.dataVersion);
-
-    // The cached post for this id, read reactively from the shared cache. Seeded
-    // by the feed when the post was already visible, so the detail screen paints
+    // The cached post for this id, read reactively from the shared cache (re-reads
+    // whenever the cache mutates: background revalidation, optimistic like/boost,
+    // etc. — compiler-safe `useSyncExternalStore` under the hood). Seeded by the
+    // feed when the post was already visible, so the detail screen paints
     // instantly instead of issuing a cold blocking fetch on open.
-    const cachedPost = useMemo<PostDetailEntity | null>(
-        () => (id ? usePostsStore.getState().getPostFromDb(String(id)) : null),
-        [id, dataVersion],
-    );
+    const cachedPost: PostDetailEntity | null = usePostSelector(id ? String(id) : undefined);
 
     // `post` holds either the cached post (instant) or a network-fetched post
     // (cache miss). When the cache has the post, it is the source of truth and

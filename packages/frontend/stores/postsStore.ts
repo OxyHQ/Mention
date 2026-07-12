@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { subscribeWithSelector } from 'zustand/middleware';
-import { useMemo } from 'react';
+import { useSyncExternalStore } from 'react';
 import {
   FeedRequest,
   CreateReplyRequest,
@@ -1270,31 +1270,86 @@ export const usePostsStore = create<PostsStoreState>()(
   }))
 );
 
-// ── Compatibility layer ──────────────────────────────────────────
-// These selectors provide backwards-compatible access that reads from SQLite.
-// Components subscribe to dataVersion changes which trigger re-reads.
+// ── Reactive SQLite selectors ────────────────────────────────────
+// SQLite is EXTERNAL MUTABLE state, so all render-time reads of it go through
+// `useSyncExternalStore` — React's contract for external stores — subscribed to
+// the store's `dataVersion` counter (bumped by every data mutation).
 //
-// `'use no memo'` — these selectors read MUTABLE EXTERNAL state (SQLite, via
-// `dbGetAllFeedItems`/`dbGetFeedMeta`) inside a `useMemo` keyed on the store's
-// `dataVersion` counter. The React Compiler (enabled: `reactCompiler: true`)
-// assumes hook bodies are pure and memoizes these reads against its own inferred
-// inputs; because it cannot see that the memo result depends on the out-of-band
-// SQLite write, it can serve the stale first-render value and never re-read after
-// a `dataVersion` bump. On a FIRST launch (empty DB cold start) the feed's rows
-// only exist AFTER the network fetch writes them + bumps `dataVersion`, so the
-// compiler-stale read left the feed permanently on "No posts yet" even though the
-// fetch succeeded and SQLite held the rows (reopen worked because the DB was
-// already populated at mount → the first read was correct). Opting these three
-// selectors out of the compiler restores the manual `useMemo` invalidation.
-// Verified on-device: 6/6 empty with the compiler active, 0/8 with the opt-out.
+// Why not `useMemo(() => dbGetAllFeedItems(feedKey), [feedKey, dataVersion])`:
+// the React Compiler (`reactCompiler: true`) infers memo dependencies from the
+// callback's actual data flow, not from the manual deps array. `dataVersion` is
+// never referenced INSIDE the callback — it is a proxy counter — so the compiler
+// drops it and memoizes the read on `feedKey` alone, permanently serving the
+// first render's value. On a FIRST launch (empty DB cold start) that first value
+// is the empty feed; the fetch then writes rows out-of-band and bumps
+// `dataVersion`, but the compiled memo never re-read → the feed stayed on
+// "No posts yet" (verified on-device: direct DB read returned 20 rows while the
+// memoized selector returned 0). `useSyncExternalStore` fixes this at the root:
+// React itself re-runs `getSnapshot` when the subscription fires, so the compiler
+// can stay enabled with no opt-outs.
+//
+// `getSnapshot` MUST return a referentially-stable value until the data actually
+// changes (a fresh array per call → infinite render loop), so reads are cached
+// per key and both caches are dropped wholesale when `dataVersion` bumps.
+
+interface FeedSnapshot {
+  items: FeedItem[];
+  meta: FeedMetaData | null;
+}
+
+let snapshotVersion = -1;
+const feedSnapshotCache = new Map<string, FeedSnapshot>();
+const postSnapshotCache = new Map<string, FeedItem | null>();
+
+const syncSnapshotCaches = () => {
+  const version = usePostsStore.getState().dataVersion;
+  if (version !== snapshotVersion) {
+    feedSnapshotCache.clear();
+    postSnapshotCache.clear();
+    snapshotVersion = version;
+  }
+};
+
+const subscribeToDataVersion = (onStoreChange: () => void) =>
+  usePostsStore.subscribe((s) => s.dataVersion, onStoreChange);
+
+const getFeedSnapshot = (feedKey: string): FeedSnapshot => {
+  syncSnapshotCaches();
+  let snapshot = feedSnapshotCache.get(feedKey);
+  if (!snapshot) {
+    snapshot = { items: dbGetAllFeedItems(feedKey), meta: dbGetFeedMeta(feedKey) };
+    feedSnapshotCache.set(feedKey, snapshot);
+  }
+  return snapshot;
+};
+
+const getPostSnapshot = (postId: string): FeedItem | null => {
+  syncSnapshotCaches();
+  const cached = postSnapshotCache.get(postId);
+  if (cached !== undefined) return cached;
+  const post = dbGetPostById(postId);
+  postSnapshotCache.set(postId, post);
+  return post;
+};
+
+const useFeedSnapshot = (feedKey: string): FeedSnapshot =>
+  useSyncExternalStore(subscribeToDataVersion, () => getFeedSnapshot(feedKey));
+
+/**
+ * Reactive read of a single cached post. Re-renders whenever the shared post
+ * cache mutates (optimistic like/boost, background revalidation, delete, …).
+ * The compiler-safe replacement for `useMemo(() => getPostFromDb(id), [id,
+ * dataVersion])` — see the block comment above.
+ */
+export const usePostSelector = (postId: string | undefined): FeedItem | null =>
+  useSyncExternalStore(subscribeToDataVersion, () =>
+    postId ? getPostSnapshot(postId) : null
+  );
 
 export const useFeedSelector = (type: FeedType) => {
-  'use no memo';
-  const dataVersion = usePostsStore((s) => s.dataVersion);
   const feedKey = buildFeedKey(type);
   const ui = usePostsStore((s) => s.feedUI[feedKey]);
-  const meta = useMemo(() => dbGetFeedMeta(feedKey), [feedKey, dataVersion]);
-  const items = useMemo(() => dbGetAllFeedItems(feedKey), [feedKey, dataVersion]);
+  const { items, meta } = useFeedSnapshot(feedKey);
 
   return {
     items,
@@ -1310,12 +1365,9 @@ export const useFeedSelector = (type: FeedType) => {
 };
 
 export const useUserFeedSelector = (userId: string, type: FeedType) => {
-  'use no memo'; // see useFeedSelector — external SQLite read must not be compiler-memoized
-  const dataVersion = usePostsStore((s) => s.dataVersion);
   const feedKey = buildFeedKey(type, userId);
   const ui = usePostsStore((s) => s.feedUI[feedKey]);
-  const meta = useMemo(() => dbGetFeedMeta(feedKey), [feedKey, dataVersion]);
-  const items = useMemo(() => dbGetAllFeedItems(feedKey), [feedKey, dataVersion]);
+  const { items, meta } = useFeedSnapshot(feedKey);
 
   return {
     items,
@@ -1340,9 +1392,6 @@ export const useFeedError = (type: FeedType) => {
 };
 
 export const useFeedHasMore = (type: FeedType) => {
-  'use no memo'; // see useFeedSelector — external SQLite read must not be compiler-memoized
-  const dataVersion = usePostsStore((s) => s.dataVersion);
-  const feedKey = buildFeedKey(type);
-  const meta = useMemo(() => dbGetFeedMeta(feedKey), [feedKey, dataVersion]);
+  const { meta } = useFeedSnapshot(buildFeedKey(type));
   return meta?.hasMore ?? false;
 };
