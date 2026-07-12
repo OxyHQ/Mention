@@ -1,6 +1,7 @@
 import React, { memo, useCallback, useEffect, useReducer, useRef } from 'react';
 import { View, Text, StyleSheet, Platform, type ViewProps, type ViewStyle } from 'react-native';
 import { SpinnerIcon } from '@oxyhq/bloom/loading';
+import { ActivityHeatmap } from '@oxyhq/bloom/activity-heatmap';
 import { useRouter } from 'expo-router';
 import { flip, offset, shift, size, useFloating } from '@floating-ui/react-dom';
 import { FollowButton } from '@oxyhq/services';
@@ -8,6 +9,7 @@ import { getNormalizedUserHandle } from '@oxyhq/core';
 
 import { useTheme } from '@oxyhq/bloom/theme';
 import { useProfileData } from '@/hooks/useProfileData';
+import { usePostActivity } from '@/hooks/usePostActivity';
 import { formatCompactNumber } from '@/utils/formatNumber';
 import { Portal } from '@oxyhq/bloom/portal';
 import { Avatar } from '@oxyhq/bloom/avatar';
@@ -346,6 +348,12 @@ function CardContent({
   const followersCount = profile.followersCount ?? 0;
   const followingCount = profile.followingCount ?? 0;
 
+  // Post-activity contribution graph. Empty while loading, for private profiles
+  // the viewer can't see, or for federated actors with no local post history —
+  // in which case the section is hidden rather than shifting the card layout.
+  const activity = usePostActivity(profile.id);
+  const activityEndDate = new Date().toISOString().slice(0, 10);
+
   return (
     <View>
       <View className="flex-row justify-between items-start">
@@ -419,6 +427,24 @@ function CardContent({
             numberOfLines={3}>
             {profile.bio}
           </Text>
+        </View>
+      ) : null}
+
+      {activity.length > 0 ? (
+        <View className="pt-3">
+          <Text className="text-muted-foreground text-sm">Activity</Text>
+          {/* 119 days (17 weeks) at 11px cells + 3px gaps ≈ 249px worst case,
+              fitting the card's ~268px inner width without horizontal scroll.
+              No weekday/month labels — too cramped for a hover card. */}
+          <View className="pt-1">
+            <ActivityHeatmap
+              data={activity}
+              endDate={activityEndDate}
+              numDays={119}
+              cellSize={11}
+              gap={3}
+            />
+          </View>
         </View>
       ) : null}
     </View>

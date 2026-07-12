@@ -1,11 +1,15 @@
 import { Response } from "express";
 import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
+import { PostType, PostVisibility } from '@mention/shared-types';
 import Post from "../models/Post";
+import UserSettings from "../models/UserSettings";
 import { logger } from '../utils/logger';
 import { aliaChat, isAliaEnabled } from '../utils/alia';
 import { oxy as oxyClient } from '../../server';
 import { userPreferenceService } from '../services/UserPreferenceService';
 import { recordDedupedView } from '../services/feedViewCounter';
+import { validateRequired } from '../utils/apiHelpers';
+import { checkFollowAccess, requiresAccessCheck, ProfileVisibility } from '../utils/privacyHelpers';
 
 interface DateRange {
   startDate: Date;
@@ -139,6 +143,91 @@ export const getUserStatistics = async (req: AuthRequest, res: Response) => {
     logger.error('Error fetching user statistics:', error);
     res.status(500).json({
       message: 'Error fetching user statistics',
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+};
+
+/**
+ * Get a user's posting activity bucketed per UTC day (GitHub-style heatmap).
+ *
+ * PUBLIC profile data — keyed by the `:userId` path param, the same way public
+ * profile stats (follower counts, profile-design counts) are exposed. Optional
+ * auth: `req.user` is populated when a session is present but never required.
+ * The target user's profile visibility is respected exactly like the public
+ * profile-design counts: a private / followers-only profile returns an empty
+ * activity set unless the viewer is the owner or an approved follower.
+ */
+export const getUserActivity = async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.params.userId as string;
+    const validationError = validateRequired(userId, 'userId');
+    if (validationError) {
+      return res.status(400).json({ message: validationError });
+    }
+
+    // Clamp the requested window to a sane range. Default 365 (a full year of the
+    // heatmap); min 30, max 366.
+    const rawDays = parseInt(req.query.days as string, 10);
+    const days = Number.isFinite(rawDays) ? Math.min(366, Math.max(30, rawDays)) : 365;
+
+    // Respect the target user's profile visibility — mirrors the public
+    // profile-design stats. For a private / followers-only profile the viewer
+    // must be the owner or an approved follower; otherwise the activity is empty.
+    const currentUserId = req.user?.id;
+    if (currentUserId !== userId) {
+      const settings = await UserSettings.findOne({ oxyUserId: userId }).lean();
+      const profileVisibility = settings?.privacy?.profileVisibility || ProfileVisibility.PUBLIC;
+      if (requiresAccessCheck(profileVisibility)) {
+        if (!currentUserId) {
+          return res.json({ activity: [] });
+        }
+        const hasAccess = await checkFollowAccess(currentUserId, userId);
+        if (!hasAccess) {
+          return res.json({ activity: [] });
+        }
+      }
+    }
+
+    // Window boundary in UTC — end of today minus `days`. The request timezone is
+    // never read; both the boundary and the per-day buckets are computed in UTC.
+    const now = new Date();
+    const endOfToday = new Date(Date.UTC(
+      now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 23, 59, 59, 999
+    ));
+    const startDate = new Date(endOfToday.getTime() - days * 24 * 60 * 60 * 1000);
+
+    // Count authored posts per UTC day: original posts + replies + quotes, but
+    // NOT boosts/reposts (a repost is a `type: 'boost'` post that carries no
+    // authored content). Scoped to the user's public, published posts so it stays
+    // consistent with the public profile-design counts and never leaks
+    // followers-only/private content. Only days with count > 0 are returned; the
+    // client fills the gaps.
+    const activity = await Post.aggregate<{ date: string; count: number }>([
+      {
+        $match: {
+          oxyUserId: userId,
+          visibility: PostVisibility.PUBLIC,
+          status: 'published',
+          type: { $ne: PostType.BOOST },
+          createdAt: { $gte: startDate },
+        },
+      },
+      {
+        $group: {
+          _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt', timezone: 'UTC' } },
+          count: { $sum: 1 },
+        },
+      },
+      { $project: { _id: 0, date: '$_id', count: 1 } },
+      { $sort: { date: 1 } },
+    ]);
+
+    res.json({ activity });
+  } catch (error) {
+    logger.error('Error fetching user activity:', error);
+    res.status(500).json({
+      message: 'Error fetching user activity',
       error: error instanceof Error ? error.message : 'Unknown error'
     });
   }

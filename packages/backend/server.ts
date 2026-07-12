@@ -46,7 +46,7 @@ import feedRoutes from './src/routes/feed.routes';
 import pollsRoutes from './src/routes/polls';
 import customFeedsRoutes from './src/routes/customFeeds.routes';
 import labelerRoutes from './src/routes/labeler.routes';
-import statisticsRoutes from './src/routes/statistics.routes';
+import statisticsRoutes, { publicStatisticsRouter } from './src/routes/statistics.routes';
 import { OxyServices } from '@oxyhq/core';
 import profileSettingsRoutes from './src/routes/profileSettings';
 import profileDesignRoutes from './src/routes/profileDesign';
@@ -844,6 +844,7 @@ publicApiRouter.use("/feeds", optionalAuth, customFeedsRoutes); // Public feed d
 publicApiRouter.use("/recommendations", optionalAuth, recommendationsRoutes); // Cross-app profile recommendations (personalized when authed)
 publicApiRouter.use("/starter-packs", optionalAuth, starterPacksRoutes); // Public read/discovery + shared pack links; write routes enforce auth internally
 publicApiRouter.use("/mtn/nodes", optionalAuth, mtnNodesRoutes); // MTN user-node registry: authed me/managed routes enforce auth internally; ingest-notify is a public 202 hint
+publicApiRouter.use("/statistics", optionalAuth, publicStatisticsRouter); // Public per-user posting-activity heatmap; all other /statistics endpoints stay on the authed router below
 
 // Authenticated API routes (require authentication)
 const authenticatedApiRouter = express.Router();
