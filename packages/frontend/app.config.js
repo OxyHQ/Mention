@@ -18,10 +18,24 @@ module.exports = function(_config) {
   const IS_PRODUCTION = process.env.EXPO_PUBLIC_ENV === 'production'
   const IS_DEV = !IS_TESTFLIGHT || !IS_PRODUCTION
 
+  /**
+   * App variant — lets a development build sit next to the production app on the
+   * SAME device by giving it a distinct applicationId/bundleId + name. Build the
+   * dev variant with `APP_VARIANT=development`; production is the default.
+   * Both packages are present in `google-services.json` so the build passes;
+   * FCM push for `earth.mention.app`(.dev) requires those packages to be
+   * registered in the Firebase console (project mention-a7a53) and the real
+   * `google-services.json` swapped in — until then the entries are placeholders.
+   */
+  const IS_DEV_VARIANT = process.env.APP_VARIANT === 'development'
+  const APP_ID = IS_DEV_VARIANT ? 'earth.mention.app.dev' : 'earth.mention.app'
+  const IOS_ID = IS_DEV_VARIANT ? 'earth.mention.app.dev' : 'earth.mention.app'
+  const APP_NAME = IS_DEV_VARIANT ? 'Mention (Dev)' : 'Mention'
+
 
 return {
     expo: {
-        name: "Mention",
+        name: APP_NAME,
         slug: "mention",
         version: VERSION,
       orientation: 'portrait',
@@ -35,7 +49,7 @@ return {
       },
       ios: {
         supportsTablet: true,
-        bundleIdentifier: 'com.mention.ios',
+        bundleIdentifier: IOS_ID,
       },
         android: {
             adaptiveIcon: {
@@ -47,9 +61,11 @@ return {
                 "android.permission.CAMERA",
                 "android.permission.RECORD_AUDIO"
             ],
-            // Must match google-services.json package_name
-            package: "com.mention.earth",
-            // Point to your google-services.json for FCM
+            // Must match a client package_name in google-services.json.
+            package: APP_ID,
+            // google-services.json carries both earth.mention.app and its .dev
+            // variant so either build passes; real FCM needs those registered
+            // in Firebase and the file swapped (see the app-variant note above).
             googleServicesFile: process.env.GOOGLE_SERVICES_JSON || "../../google-services.json",
             intentFilters: [
                     {

@@ -9,7 +9,26 @@
       "client_info": {
         "mobilesdk_app_id": "1:606858345554:android:7a52d83ecb5de8e042f38b",
         "android_client_info": {
-          "package_name": "com.mention.earth"
+          "package_name": "earth.mention.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDwH4nkgd-hxl6G7NRl5nZRqOmY61ovPzA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:606858345554:android:7a52d83ecb5de8e042fd0b",
+        "android_client_info": {
+          "package_name": "earth.mention.app.dev"
         }
       },
       "oauth_client": [],
