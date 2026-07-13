@@ -86,36 +86,62 @@ type AuthorUriResult =
   | { kind: 'gone' }
   | { kind: 'transient' };
 
-/** actorUri → resolved oxyUserId (or null when unresolvable) — dedupes shared actors. */
+/** actorUri → resolved oxyUserId (or null when unresolvable) — dedupes shared actors across the whole run. */
 const actorOxyCache = new Map<string, string | null>();
+
+/**
+ * actorUri → in-flight resolution promise. The bulk of the 11,967 orphans come
+ * from far fewer actors, so within a page-chunk MANY concurrent orphans share one
+ * actor. `actorOxyCache` only dedupes AFTER a resolve settles, so without this two
+ * concurrent orphans of the same actor both hit `/users/resolve` and RACE on
+ * federated-user creation (observed as HTTP 409s in the dry run). Memoizing the
+ * in-flight PROMISE collapses concurrent callers for one actor onto a SINGLE
+ * resolve; the settled value then lands in `actorOxyCache` for the rest of the run.
+ */
+const inFlightActorResolves = new Map<string, Promise<string | null>>();
 
 /**
  * Resolve an actor URI to its Oxy user id, minting/linking the federated Oxy user
  * when necessary. `getOrFetchActor` returns a cached row as-is (kicking only a
  * background refresh), so when that row has no `oxyUserId` we force an AWAITED
  * `fetchRemoteActor`, which runs the shared identity bridge and stamps the id.
+ *
+ * Concurrency-safe: a settled result is served from `actorOxyCache`; a concurrent
+ * call for an actor already resolving awaits the SAME in-flight promise (no
+ * duplicate `/users/resolve`, no 409 race).
  */
-async function resolveAuthorOxyUserId(actorUri: string): Promise<string | null> {
+export async function resolveAuthorOxyUserId(actorUri: string): Promise<string | null> {
   const cached = actorOxyCache.get(actorUri);
   if (cached !== undefined) return cached;
 
-  let oxyUserId: string | null = null;
-  try {
-    const actor = await actorService.getOrFetchActor(actorUri);
-    oxyUserId = actor?.oxyUserId ?? null;
-    if (!oxyUserId) {
-      const refreshed = await actorService.fetchRemoteActor(actorUri);
-      oxyUserId = refreshed?.oxyUserId ?? null;
-    }
-  } catch (error) {
-    logger.warn('[backfillFederatedPostAuthors] actor resolution failed', {
-      actorUri,
-      reason: error instanceof Error ? error.message : 'unknown',
-    });
-  }
+  const inFlight = inFlightActorResolves.get(actorUri);
+  if (inFlight) return inFlight;
 
-  actorOxyCache.set(actorUri, oxyUserId);
-  return oxyUserId;
+  const resolution = (async (): Promise<string | null> => {
+    let oxyUserId: string | null = null;
+    try {
+      const actor = await actorService.getOrFetchActor(actorUri);
+      oxyUserId = actor?.oxyUserId ?? null;
+      if (!oxyUserId) {
+        const refreshed = await actorService.fetchRemoteActor(actorUri);
+        oxyUserId = refreshed?.oxyUserId ?? null;
+      }
+    } catch (error) {
+      logger.warn('[backfillFederatedPostAuthors] actor resolution failed', {
+        actorUri,
+        reason: error instanceof Error ? error.message : 'unknown',
+      });
+    }
+    actorOxyCache.set(actorUri, oxyUserId);
+    return oxyUserId;
+  })();
+
+  inFlightActorResolves.set(actorUri, resolution);
+  try {
+    return await resolution;
+  } finally {
+    inFlightActorResolves.delete(actorUri);
+  }
 }
 
 /**
