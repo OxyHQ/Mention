@@ -371,7 +371,7 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({ item, onMa
   // get the same subtle primary tint the feed uses for emphasis.
   return (
     <Pressable
-      className={cn('group bg-background border-b border-border py-3', hasUnread && 'bg-primary/5')}
+      className={cn('group w-full bg-background border-b border-border py-3', hasUnread && 'bg-primary/5')}
       onPress={handlePress}
       onLongPress={handleLongPress}
       accessibilityRole="button"
