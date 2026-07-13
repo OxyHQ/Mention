@@ -1,17 +1,22 @@
 import React from 'react';
-import { View, StyleSheet, ViewStyle, TouchableOpacity } from 'react-native';
+import { View, StyleSheet, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
 import { ThemedText } from './ThemedText';
 import { Avatar } from '@oxyhq/bloom/avatar';
 import { RemoteActorBadge } from '@/components/Fediverse/FediverseBadge';
 import { getNormalizedUserHandle } from '@oxyhq/core';
 import { displayNameOrHandle } from '@/utils/displayName';
+import { cn } from '@/lib/utils';
 
 /**
  * ProfileCard Component
  *
- * A card component for displaying user profiles in lists.
- * Reused from social-app and simplified for Mention's needs.
+ * A profile row/card for user lists.
+ *
+ * Two visual languages, picked with `variant`:
+ * - `card` (default): a bordered, rounded surface — for grids and standalone slots.
+ * - `row`: a flush, full-width feed row (bottom hairline, no radius) — for result
+ *   lists that must share ONE visual language with the feed (search, people lists).
  */
 
 export interface ProfileCardData {
@@ -29,11 +34,13 @@ export interface ProfileCardData {
   instance?: string;
 }
 
+export type ProfileCardVariant = 'card' | 'row';
+
 interface ProfileCardProps {
   profile: ProfileCardData;
   onPress?: () => void;
   showFollowButton?: boolean;
-  style?: ViewStyle;
+  variant?: ProfileCardVariant;
 }
 
 /**
@@ -43,19 +50,20 @@ export function ProfileCard({
   profile,
   onPress,
   showFollowButton = false,
-  style,
+  variant = 'card',
 }: ProfileCardProps) {
   const router = useRouter();
+  const isRow = variant === 'row';
   const hasName = !!profile.name?.displayName?.trim();
+  // A federated profile's canonical handle carries its instance (`user@domain`),
+  // so the row never needs a separate "globe + instance" line.
+  const handle = getNormalizedUserHandle(profile) || profile.username;
 
   const handlePress = () => {
     if (onPress) {
       onPress();
-    } else {
-      const handle = getNormalizedUserHandle(profile);
-      if (handle) {
-        router.push(`/@${handle}`);
-      }
+    } else if (handle) {
+      router.push(`/@${handle}`);
     }
   };
 
@@ -63,11 +71,13 @@ export function ProfileCard({
     <TouchableOpacity
       onPress={handlePress}
       activeOpacity={0.7}
-      className="bg-card border-border w-full p-4 rounded-xl gap-3"
-      style={[
-        { borderWidth: StyleSheet.hairlineWidth },
-        style,
-      ]}>
+      className={cn(
+        'w-full',
+        isRow
+          ? 'px-3 py-3 gap-2 border-b border-border'
+          : 'bg-card border-border p-4 rounded-xl gap-3',
+      )}
+      style={isRow ? undefined : { borderWidth: StyleSheet.hairlineWidth }}>
       <View className="flex-row items-center gap-3">
         <Avatar
           source={profile.avatar || undefined}
@@ -79,65 +89,34 @@ export function ProfileCard({
               with no display name the @handle becomes the bold primary, shown
               ONCE (the muted handle line is suppressed). */}
           <ThemedText
-            className="text-base font-semibold"
-            style={{ lineHeight: 20 }}
+            className="text-base font-semibold leading-5"
             numberOfLines={1}>
-            {displayNameOrHandle(profile.name.displayName, `@${profile.username}`)}
+            {displayNameOrHandle(profile.name.displayName, `@${handle}`)}
           </ThemedText>
           <View className="flex-row items-center gap-1">
             {hasName && (
               <ThemedText
-                className="text-muted-foreground text-sm"
-                style={{ lineHeight: 18 }}
+                className="text-muted-foreground text-sm leading-[18px]"
                 numberOfLines={1}>
-                @{profile.username}
+                @{handle}
               </ThemedText>
             )}
             {profile.isFederated && <RemoteActorBadge size={13} />}
           </View>
         </View>
         {showFollowButton && (
-          <View className="items-end" style={{ minWidth: 80 }}>
+          <View className="items-end min-w-[80px]">
             {/* Follow button can be added here if needed */}
           </View>
         )}
       </View>
       {profile.description && (
-        <View className="mt-1">
-          <ThemedText
-            className="text-muted-foreground text-sm"
-            style={{ lineHeight: 20 }}
-            numberOfLines={3}>
-            {profile.description}
-          </ThemedText>
-        </View>
+        <ThemedText
+          className={cn('text-muted-foreground text-sm leading-5', !isRow && 'mt-1')}
+          numberOfLines={isRow ? 2 : 3}>
+          {profile.description}
+        </ThemedText>
       )}
     </TouchableOpacity>
   );
-}
-
-/**
- * Outer container
- */
-export function ProfileCardOuter({
-  children,
-  style,
-}: {
-  children: React.ReactNode;
-  style?: ViewStyle;
-}) {
-  return <View className="w-full gap-2" style={style}>{children}</View>;
-}
-
-/**
- * Header section (avatar + name)
- */
-export function ProfileCardHeader({
-  children,
-  style,
-}: {
-  children: React.ReactNode;
-  style?: ViewStyle;
-}) {
-  return <View className="flex-row items-center gap-3" style={style}>{children}</View>;
 }

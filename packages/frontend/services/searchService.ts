@@ -1,5 +1,5 @@
 import { createScopedLogger } from "@/lib/logger";
-import { authenticatedClient, publicClient } from "@/utils/api";
+import { authenticatedClient, isUnauthorizedError, publicClient } from "@/utils/api";
 import { oxyServices } from "@/lib/oxyServices";
 import { feedService } from "./feedService";
 import { Storage } from "@/utils/storage";
@@ -43,7 +43,7 @@ export interface SearchFeedResult {
 
 export interface SearchHashtagResult {
   tag: string;
-  count?: number;
+  count: number;
 }
 
 export interface SearchListResult {
@@ -107,6 +107,21 @@ export const SEARCH_OPERATORS = [
   { operator: 'min_boosts:N', description: 'Minimum boosts' },
 ] as const;
 
+/**
+ * Posts, lists and saved posts live behind the authenticated API. A signed-out
+ * viewer gets a 401 from those sources, which means "this source has nothing for
+ * you" — NOT that the search failed. Every other failure propagates so the search
+ * screen can render a real error state (with retry) instead of an empty result
+ * list that looks like "no matches".
+ */
+function emptyIfSignedOut<T>(error: unknown, source: string): T[] {
+  if (isUnauthorizedError(error)) {
+    logger.info("Skipping auth-gated search source for signed-out viewer", { source });
+    return [];
+  }
+  throw error;
+}
+
 class SearchService {
   // Search posts - query is passed raw to backend which parses operators
   async searchPosts(query: string): Promise<SearchPostResult[]> {
@@ -116,8 +131,7 @@ class SearchService {
       });
       return res.data.posts || [];
     } catch (error) {
-      logger.warn("Failed searching posts", { error });
-      return [];
+      return emptyIfSignedOut<SearchPostResult>(error, "posts");
     }
   }
 
@@ -126,34 +140,23 @@ class SearchService {
     try {
       // Use OxyServices searchProfiles method
       const { data } = await oxyServices.searchProfiles(query, { limit: 20 });
-      if (Array.isArray(data)) {
-        return data;
-      }
-      return [];
+      return Array.isArray(data) ? data : [];
     } catch (error) {
-      logger.warn("Failed searching users", { error });
+      logger.warn("Profile search failed, falling back to exact username lookup", { error });
 
-      // Fallback: try to get exact username match
-      try {
-        const exactMatch = await oxyServices.getProfileByUsername(query);
-        return exactMatch ? [exactMatch] : [];
-      } catch (e) {
-        return [];
-      }
+      // Fallback: an exact username match still gives the viewer something useful.
+      // A miss on the fallback is a real failure — let it propagate.
+      const exactMatch = await oxyServices.getProfileByUsername(query);
+      return exactMatch ? [exactMatch] : [];
     }
   }
 
   // Search feeds
   async searchFeeds(query: string): Promise<SearchFeedResult[]> {
-    try {
-      const res = await publicClient.get<{ items?: SearchFeedResult[] }>("/feeds", {
-        params: { publicOnly: true, search: query }
-      });
-      return res.data.items || [];
-    } catch (error) {
-      logger.warn("Failed searching feeds", { error });
-      return [];
-    }
+    const res = await publicClient.get<{ items?: SearchFeedResult[] }>("/feeds", {
+      params: { publicOnly: true, search: query }
+    });
+    return res.data.items || [];
   }
 
   // Search lists
@@ -164,22 +167,17 @@ class SearchService {
       });
       return res.data.items || [];
     } catch (error) {
-      logger.warn("Failed searching lists", { error });
-      return [];
+      return emptyIfSignedOut<SearchListResult>(error, "lists");
     }
   }
 
-  // Search hashtags — backend exposes POST /hashtags/search with body { query }
-  // and returns { data: string[] }. The linked client unwraps the `{ data }`
-  // envelope, so `res.data` is the tag-string array; map it to the result shape.
+  // Search hashtags — `GET /hashtags/search` answers with each matching tag and
+  // the number of posts carrying it, so the result row can show a real count.
   async searchHashtags(query: string): Promise<SearchHashtagResult[]> {
-    try {
-      const res = await authenticatedClient.post<string[]>("/hashtags/search", { query });
-      return (res.data ?? []).map((tag) => ({ tag }));
-    } catch (error) {
-      logger.warn("Failed searching hashtags", { error });
-      return [];
-    }
+    const res = await authenticatedClient.get<{ hashtags?: SearchHashtagResult[] }>("/hashtags/search", {
+      params: { query }
+    });
+    return res.data.hashtags ?? [];
   }
 
   // Search saved posts
@@ -195,28 +193,47 @@ class SearchService {
         ? data.posts.filter(isHydratedPost)
         : [];
     } catch (error) {
-      logger.warn("Failed searching saved posts", { error });
-      return [];
+      return emptyIfSignedOut<SearchPostResult>(error, "saved");
     }
   }
 
-  // Search all - shows users above posts in "all" tab
+  // Search all - shows users above posts in "all" tab.
+  // One flaky source must not blank the whole screen, so sources settle
+  // independently: a partial failure degrades to that section being empty, and
+  // only a TOTAL failure (every source rejected) surfaces as an error.
   async searchAll(query: string): Promise<SearchResults> {
-    try {
-      const [posts, users, feeds, lists, hashtags, saved] = await Promise.all([
-        this.searchPosts(query),
-        this.searchUsers(query),
-        this.searchFeeds(query),
-        this.searchLists(query),
-        this.searchHashtags(query),
-        this.searchSaved(query)
-      ]);
+    const [posts, users, feeds, lists, hashtags, saved] = await Promise.allSettled([
+      this.searchPosts(query),
+      this.searchUsers(query),
+      this.searchFeeds(query),
+      this.searchLists(query),
+      this.searchHashtags(query),
+      this.searchSaved(query)
+    ]);
 
-      return { posts, users, feeds, lists, hashtags, saved };
-    } catch (error) {
-      logger.warn("Failed searching all", { error });
-      return {};
+    const settled = [posts, users, feeds, lists, hashtags, saved];
+    const rejections = settled.filter(
+      (result): result is PromiseRejectedResult => result.status === 'rejected',
+    );
+    for (const rejection of rejections) {
+      logger.warn("A search source failed", { error: rejection.reason });
     }
+    const firstRejection = rejections[0];
+    if (firstRejection && rejections.length === settled.length) {
+      throw firstRejection.reason;
+    }
+
+    const valueOf = <T>(result: PromiseSettledResult<T[]>): T[] =>
+      result.status === 'fulfilled' ? result.value : [];
+
+    return {
+      posts: valueOf(posts),
+      users: valueOf(users),
+      feeds: valueOf(feeds),
+      lists: valueOf(lists),
+      hashtags: valueOf(hashtags),
+      saved: valueOf(saved),
+    };
   }
 
   // Advanced search with filters
