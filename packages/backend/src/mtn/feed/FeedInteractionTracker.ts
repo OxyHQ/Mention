@@ -156,8 +156,13 @@ export async function applyImpressionSignals(interaction: FeedInteractionData): 
 export async function recordReportSignal(interaction: FeedInteractionData): Promise<void> {
   const postId = interaction.postUri;
   let federation: unknown;
-  if (postId && mongoose.isValidObjectId(postId)) {
-    const post = await Post.findOne({ _id: postId }, { federation: 1 }).lean();
+  if (postId && mongoose.Types.ObjectId.isValid(postId)) {
+    // `postUri` is client-supplied: query with a CONSTRUCTED ObjectId so no
+    // user-shaped value can reach the query as an operator.
+    const post = await Post.findOne(
+      { _id: new mongoose.Types.ObjectId(postId) },
+      { federation: 1 },
+    ).lean();
     federation = post?.federation;
   }
   recordReport(interaction.feedDescriptor, originForFederation(federation));
