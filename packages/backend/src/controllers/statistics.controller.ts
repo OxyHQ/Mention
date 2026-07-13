@@ -1,5 +1,6 @@
 import { Response } from "express";
 import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
+import { getBaseLanguage, getPrimaryLanguage } from '@oxyhq/core';
 import { PostType, PostVisibility } from '@mention/shared-types';
 import Post from "../models/Post";
 import UserSettings from "../models/UserSettings";
@@ -10,6 +11,12 @@ import { userPreferenceService } from '../services/UserPreferenceService';
 import { recordDedupedView } from '../services/feedViewCounter';
 import { validateRequired } from '../utils/apiHelpers';
 import { checkFollowAccess, requiresAccessCheck, ProfileVisibility } from '../utils/privacyHelpers';
+
+/**
+ * Language the AI weekly summary is written in when the viewer's Oxy account
+ * declares no language (ISO 639-1 base code, matching what the prompt expects).
+ */
+const DEFAULT_SUMMARY_LANGUAGE = 'en';
 
 interface DateRange {
   startDate: Date;
@@ -523,16 +530,23 @@ export const getWeeklySummary = async (req: AuthRequest, res: Response) => {
       return res.json({ summary: null });
     }
 
-    // Get language from Oxy user profile
-    let language = 'en';
+    // Write the summary in the viewer's PRIMARY account language. Oxy stores
+    // account languages as BCP-47 locales (`es-ES`), primary first; the prompt
+    // wants the base ISO 639-1 code (`es`). English is the fallback when the
+    // account declares no language or the profile fetch fails.
+    let language = DEFAULT_SUMMARY_LANGUAGE;
     try {
       const oxyUser = await oxyClient.getUserById(userId);
-      const userLang = (oxyUser as Record<string, unknown>)?.language;
-      if (typeof userLang === 'string' && userLang) {
-        language = userLang.split('-')[0]; // e.g. 'en-US' → 'en'
+      const primaryLocale = getPrimaryLanguage(oxyUser);
+      const baseLanguage = primaryLocale ? getBaseLanguage(primaryLocale) : '';
+      if (baseLanguage) {
+        language = baseLanguage;
       }
-    } catch {
-      // Fall back to English if profile fetch fails
+    } catch (error) {
+      logger.warn('[statistics] Failed to resolve viewer language for the weekly summary; using English', {
+        userId,
+        reason: error instanceof Error ? error.message : 'unknown',
+      });
     }
 
     const { startDate } = getDateRange(14);

@@ -14,7 +14,7 @@ import { resolveMediaItems } from '../utils/mediaResolver';
 import { logger } from '../utils/logger';
 import { readPersistedMediaFields } from './MediaMetadataService';
 import type { User as OxyUser } from '@oxyhq/core';
-import { getNormalizedUserHandle } from '@oxyhq/core';
+import { getNormalizedUserHandle, getUserLanguages } from '@oxyhq/core';
 import type { LinkPreview } from '@oxyhq/contracts';
 import { assignThreadState } from './ThreadSlicingService';
 import { mget as mgetUserSummaries, mset as msetUserSummaries, CachedUserSummary } from './userSummaryCache';
@@ -87,6 +87,17 @@ interface HydrationOptions {
    * graph expansion by id.
    */
   publicReferencesOnly?: boolean;
+  /**
+   * The viewer's already-resolved social graph, threaded from the feed context
+   * (`loadViewerFeedContext`). When present, {@link buildViewerContext} populates
+   * the viewer follows/followedBy sets from these ids and SKIPS the per-request
+   * `getUserFollowing`/`getUserFollowers` Oxy round trips (the feed already
+   * resolved them once, in parallel). When absent — every non-feed caller (post
+   * detail, notifications, profile, search) — hydration falls back to the live
+   * Oxy fetch, so those paths are unchanged. Both id lists are required together
+   * (the feed always threads both) so the graph is applied atomically.
+   */
+  viewerGraph?: { followingIds: string[]; followerIds: string[] };
 }
 
 interface HydratedGraphNode {
@@ -128,13 +139,14 @@ const DEFAULT_PRIVACY = {
 };
 
 /**
- * Build the cached identity ({@link CachedUserSummary}: raw Oxy user + follower
- * count) from a resolved Oxy user. Oxy owns the user shape, so this is a
- * PASSTHROUGH: it selects the canonical fields onto {@link PostUser} without
- * reshaping — no flat `displayName`, no pre-resolved `avatarUrl`, no wire
- * `handle`. `avatar` stays the bare Oxy file id (Bloom's `ImageResolver` renders
- * it, same as Who-to-follow / the profile header). Centralized so the per-id and
- * the bulk resolution paths cache IDENTICAL output.
+ * Build the cached identity ({@link CachedUserSummary}: raw Oxy user + the
+ * ranking-side follower count and account languages) from a resolved Oxy user.
+ * Oxy owns the user shape, so the {@link PostUser} half is a PASSTHROUGH: it
+ * selects the canonical fields without reshaping — no flat `displayName`, no
+ * pre-resolved `avatarUrl`, no wire `handle`. `avatar` stays the bare Oxy file id
+ * (Bloom's `ImageResolver` renders it, same as Who-to-follow / the profile
+ * header). Centralized so the per-id and the bulk resolution paths cache
+ * IDENTICAL output.
  */
 function toCachedUser(userId: string, userData: OxyUser): CachedUserSummary {
   const isFederated = Boolean(userData.isFederated) || userData.type === 'federated';
@@ -164,9 +176,15 @@ function toCachedUser(userId: string, userData: OxyUser): CachedUserSummary {
   };
 
   const followerCount = userData._count?.followers;
+  // Account locales, normalized/validated/deduped by the SDK (`es-es` → `es-ES`,
+  // unsupported tags dropped). Cached alongside the identity so the feed can read
+  // the VIEWER's languages without a second Oxy round trip; omitted when the
+  // account declares none, which keeps the language signal neutral.
+  const languages = getUserLanguages(userData);
   return {
     user,
     followerCount: typeof followerCount === 'number' ? followerCount : undefined,
+    languages: languages.length > 0 ? languages : undefined,
   };
 }
 
@@ -754,23 +772,36 @@ export class PostHydrationService {
       logger.warn('[PostHydration] Failed to load viewer privacy settings:', error);
     }
 
-    try {
-      const oxyForFollows = client || defaultOxyClient;
-      const [followingResponse, followersResponse] = await Promise.all([
-        oxyForFollows.getUserFollowing(viewerId).catch((error: unknown) => {
-          logger.warn('[PostHydration] getUserFollowing failed:', error);
-          return [];
-        }),
-        oxyForFollows.getUserFollowers(viewerId).catch((error: unknown) => {
-          logger.warn('[PostHydration] getUserFollowers failed:', error);
-          return [];
-        }),
-      ]);
+    const threadedGraph = options?.viewerGraph;
+    if (threadedGraph) {
+      // Feed path: the viewer graph was already resolved ONCE by
+      // `loadViewerFeedContext` (in parallel with the rest of the context) and
+      // threaded here — do NOT re-fetch it from Oxy. This is the deduplication
+      // that guarantees getUserFollowing/getUserFollowers hit Oxy at most once per
+      // feed request.
+      threadedGraph.followingIds.forEach((id) => context.follows.add(String(id)));
+      threadedGraph.followerIds.forEach((id) => context.followedBy.add(String(id)));
+    } else {
+      // Non-feed callers (post detail, notifications, profile, search) do not
+      // pre-resolve the graph — fall back to the live Oxy fetch (unchanged).
+      try {
+        const oxyForFollows = client || defaultOxyClient;
+        const [followingResponse, followersResponse] = await Promise.all([
+          oxyForFollows.getUserFollowing(viewerId).catch((error: unknown) => {
+            logger.warn('[PostHydration] getUserFollowing failed:', error);
+            return [];
+          }),
+          oxyForFollows.getUserFollowers(viewerId).catch((error: unknown) => {
+            logger.warn('[PostHydration] getUserFollowers failed:', error);
+            return [];
+          }),
+        ]);
 
-      extractFollowingIds(followingResponse).forEach((id) => context.follows.add(String(id)));
-      extractFollowersIds(followersResponse).forEach((id) => context.followedBy.add(String(id)));
-    } catch (error) {
-      logger.warn('[PostHydration] Failed to load follower/following context:', error);
+        extractFollowingIds(followingResponse).forEach((id) => context.follows.add(String(id)));
+        extractFollowersIds(followersResponse).forEach((id) => context.followedBy.add(String(id)));
+      } catch (error) {
+        logger.warn('[PostHydration] Failed to load follower/following context:', error);
+      }
     }
 
     return context;

@@ -16,6 +16,8 @@ import type {
   FeedModuleRef,
   FeedVisibility,
   ModuleCatalogEntry,
+  ModuleCategory,
+  ModuleParamDescriptor,
   ModuleParamProperty,
 } from '@mention/shared-types';
 
@@ -24,6 +26,7 @@ import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { Toggle } from '@/components/Toggle';
+import { Slider } from '@/components/Slider';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { useAuth } from '@oxyhq/services';
 import { useSafeBack } from '@/hooks/useSafeBack';
@@ -220,20 +223,169 @@ const AccountPicker = ({
   );
 };
 
-// One schema-driven param editor (string / number / boolean / string-array).
-const ParamField = ({
+/** Translate a param descriptor's label, falling back to its English default. */
+function useParamLabel(descriptor: ModuleParamDescriptor): string {
+  const { t } = useTranslation();
+  return t(descriptor.labelKey, { defaultValue: descriptor.label });
+}
+
+/**
+ * The generic, catalog-driven param control. Renders the right widget purely from
+ * the descriptor's `control` type, so adding a new module param to the catalog
+ * needs no UI code here:
+ *  - `boolean`      → switch;
+ *  - `number-range` → slider (min/max/step, live value; the default is DISPLAYED
+ *    but only persisted once the viewer moves it, so an untouched range never
+ *    writes a value);
+ *  - `enum`         → single-select list;
+ *  - `multiselect`  → fixed-option chips (when `options`) or a free-entry tag
+ *    input (when not), both capped by `maxItems`.
+ */
+const ParamControl = ({
+  descriptor,
+  value,
+  onChange,
+}: {
+  descriptor: ModuleParamDescriptor;
+  value: unknown;
+  onChange: (value: unknown) => void;
+}) => {
+  const { t } = useTranslation();
+  const theme = useTheme();
+  const label = useParamLabel(descriptor);
+
+  switch (descriptor.control) {
+    case 'boolean':
+      return (
+        <View className="flex-row items-center justify-between">
+          <Text className="text-[13px] font-semibold text-foreground">{label}</Text>
+          <Toggle value={value === true} onValueChange={(b) => onChange(b)} />
+        </View>
+      );
+
+    case 'number-range': {
+      const min = descriptor.min ?? 0;
+      const max = descriptor.max ?? 100;
+      const step = descriptor.step ?? 1;
+      const fractional = step < 1;
+      const fallback = typeof descriptor.default === 'number' ? descriptor.default : min;
+      const current = typeof value === 'number' ? value : fallback;
+      return (
+        <Slider
+          value={current}
+          onValueChange={(v) => onChange(fractional ? v : Math.round(v))}
+          minimumValue={min}
+          maximumValue={max}
+          step={step}
+          label={label}
+          formatValue={(v) => (fractional ? v.toFixed(2) : String(Math.round(v)))}
+        />
+      );
+    }
+
+    case 'enum': {
+      const options = descriptor.options ?? [];
+      const selected = typeof value === 'string' ? value : undefined;
+      return (
+        <View className="gap-1.5">
+          <Text className="text-[13px] font-semibold text-foreground">{label}</Text>
+          <View>
+            {options.map((option) => {
+              const active = selected === option.value;
+              return (
+                <TouchableOpacity
+                  key={option.value}
+                  className="flex-row items-center justify-between py-2"
+                  onPress={() => onChange(active ? undefined : option.value)}
+                  activeOpacity={0.7}
+                >
+                  <Text className="text-[14px] text-foreground">
+                    {t(option.labelKey, { defaultValue: option.label })}
+                  </Text>
+                  {active ? <Ionicons name="checkmark" size={18} color={theme.colors.primary} /> : null}
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </View>
+      );
+    }
+
+    case 'multiselect': {
+      const arr = Array.isArray(value) ? value.filter((x): x is string => typeof x === 'string') : [];
+      const cap = descriptor.maxItems;
+
+      if (descriptor.options && descriptor.options.length > 0) {
+        const toggle = (optionValue: string) => {
+          if (arr.includes(optionValue)) {
+            onChange(arr.filter((x) => x !== optionValue));
+          } else if (cap === undefined || arr.length < cap) {
+            onChange([...arr, optionValue]);
+          }
+        };
+        return (
+          <View className="gap-1.5">
+            <Text className="text-[13px] font-semibold text-foreground">{label}</Text>
+            <View className="flex-row flex-wrap gap-1.5">
+              {descriptor.options.map((option) => {
+                const active = arr.includes(option.value);
+                return (
+                  <TouchableOpacity
+                    key={option.value}
+                    onPress={() => toggle(option.value)}
+                    activeOpacity={0.7}
+                    className={
+                      active
+                        ? 'rounded-full px-3 py-1 bg-primary'
+                        : 'rounded-full px-3 py-1 bg-background border border-border'
+                    }
+                  >
+                    <Text className={active ? 'text-[13px] text-white' : 'text-[13px] text-foreground'}>
+                      {t(option.labelKey, { defaultValue: option.label })}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </View>
+        );
+      }
+
+      return (
+        <ChipInput
+          label={label}
+          values={arr}
+          onChange={(next) => onChange(cap !== undefined ? next.slice(0, cap) : next)}
+        />
+      );
+    }
+
+    default:
+      return null;
+  }
+};
+
+/**
+ * Fallback editor for a param that exists in a module's JSON-schema but has no
+ * curated UI descriptor (e.g. a source's `slug` / `domain` / `postId`). Renders
+ * from the schema property type so no composable module ever loses an editor.
+ */
+const SchemaParamField = ({
+  moduleId,
   name,
   prop,
   value,
   onChange,
 }: {
+  moduleId: string;
   name: string;
   prop: ModuleParamProperty;
   value: unknown;
   onChange: (value: unknown) => void;
 }) => {
+  const { t } = useTranslation();
   const theme = useTheme();
-  const label = humanize(name);
+  const label = t(`feeds.modules.${moduleId}.params.${name}`, { defaultValue: humanize(name) });
 
   if (prop.type === 'array') {
     const arr = Array.isArray(value) ? value.filter((x): x is string => typeof x === 'string') : [];
@@ -299,11 +451,17 @@ const ModuleCard = ({
 }) => {
   const { t } = useTranslation();
   const enabled = state?.enabled ?? false;
-  const label = t(entry.labelKey, { defaultValue: humanize(entry.id) });
-  const description = t(entry.descriptionKey, { defaultValue: '' });
-  const paramKeys = Object.keys(entry.paramsSchema.properties);
+  const label = t(entry.labelKey, { defaultValue: entry.label || humanize(entry.id) });
+  const description = t(entry.descriptionKey, { defaultValue: entry.description || '' });
   const isAccounts = entry.id === 'accounts';
-  const hasBody = enabled && (isAccounts || paramKeys.length > 0);
+
+  // Curated descriptor params render as rich controls; any schema param without a
+  // descriptor falls back to a type-driven editor. The union of both keeps the
+  // builder data-driven while never dropping an editor for an existing module.
+  const descriptorKeys = new Set(entry.params.map((param) => param.key));
+  const schemaOnlyKeys = Object.keys(entry.paramsSchema.properties).filter((key) => !descriptorKeys.has(key));
+  const hasParams = entry.params.length > 0 || schemaOnlyKeys.length > 0;
+  const hasBody = enabled && (isAccounts || hasParams);
 
   return (
     <View className="rounded-2xl p-4 bg-secondary mb-2">
@@ -319,20 +477,113 @@ const ModuleCard = ({
       {hasBody ? (
         <View className="mt-3 gap-3">
           <View style={styles.divider} className="bg-border" />
-          {isAccounts
-            ? accountsSlot
-            : paramKeys.map((key) => (
-                <ParamField
+          {isAccounts ? (
+            accountsSlot
+          ) : (
+            <>
+              {entry.params.map((param) => (
+                <ParamControl
+                  key={param.key}
+                  descriptor={param}
+                  value={state?.params?.[param.key]}
+                  onChange={(v) => onParam(param.key, v)}
+                />
+              ))}
+              {schemaOnlyKeys.map((key) => (
+                <SchemaParamField
                   key={key}
+                  moduleId={entry.id}
                   name={key}
                   prop={entry.paramsSchema.properties[key]}
                   value={state?.params?.[key]}
                   onChange={(v) => onParam(key, v)}
                 />
               ))}
+            </>
+          )}
         </View>
       ) : null}
     </View>
+  );
+};
+
+/** Deterministic category ordering for the builder's grouped module lists. */
+const CATEGORY_ORDER: readonly ModuleCategory[] = [
+  'quality',
+  'engagement',
+  'media',
+  'network',
+  'language',
+  'topics',
+  'authors',
+  'safety',
+  'recency',
+  'source',
+  'ranking',
+];
+
+interface ModuleCategoryGroup {
+  category: ModuleCategory;
+  entries: ModuleCatalogEntry[];
+}
+
+/** Group catalog entries by `category` in a stable, presentation-friendly order. */
+function groupEntriesByCategory(entries: ModuleCatalogEntry[]): ModuleCategoryGroup[] {
+  const byCategory = new Map<ModuleCategory, ModuleCatalogEntry[]>();
+  for (const entry of entries) {
+    const list = byCategory.get(entry.category) ?? [];
+    list.push(entry);
+    byCategory.set(entry.category, list);
+  }
+  const ordered: ModuleCategory[] = CATEGORY_ORDER.filter((category) => byCategory.has(category));
+  const extras: ModuleCategory[] = [...byCategory.keys()].filter((category) => !CATEGORY_ORDER.includes(category));
+  return [...ordered, ...extras].map((category) => ({ category, entries: byCategory.get(category) ?? [] }));
+}
+
+/**
+ * A kind's module list, grouped by `category`. A category subheading is shown only
+ * when the list actually spans more than one category (so single-category kinds
+ * like sources/signals stay flat). Fully data-driven off the catalog.
+ */
+const CategorizedModules = ({
+  entries,
+  states,
+  onToggle,
+  onParam,
+  renderAccountsSlot,
+}: {
+  entries: ModuleCatalogEntry[];
+  states: ModuleStates;
+  onToggle: (id: string, enabled: boolean) => void;
+  onParam: (id: string, key: string, value: unknown) => void;
+  renderAccountsSlot?: (entry: ModuleCatalogEntry) => React.ReactNode;
+}) => {
+  const { t } = useTranslation();
+  const groups = useMemo(() => groupEntriesByCategory(entries), [entries]);
+  const showHeadings = groups.length > 1;
+
+  return (
+    <>
+      {groups.map((group) => (
+        <View key={group.category}>
+          {showHeadings ? (
+            <Text className="text-[13px] font-bold uppercase tracking-wide text-muted-foreground mt-2 mb-1.5">
+              {t(`feeds.categories.${group.category}`, { defaultValue: humanize(group.category) })}
+            </Text>
+          ) : null}
+          {group.entries.map((entry) => (
+            <ModuleCard
+              key={entry.id}
+              entry={entry}
+              state={states[entry.id]}
+              onToggle={(e) => onToggle(entry.id, e)}
+              onParam={(k, v) => onParam(entry.id, k, v)}
+              accountsSlot={renderAccountsSlot?.(entry)}
+            />
+          ))}
+        </View>
+      ))}
+    </>
   );
 };
 
@@ -390,6 +641,8 @@ export function FeedBuilder({ feedId, initialFeed }: { feedId?: string; initialF
     setFilterStates((p) => ({ ...p, [id]: { enabled: p[id]?.enabled ?? true, params: { ...(p[id]?.params ?? {}), [key]: value } } })), []);
   const toggleSignal = useCallback((id: string, enabled: boolean) =>
     setSignalStates((p) => ({ ...p, [id]: { enabled, params: p[id]?.params ?? {} } })), []);
+  const paramSignal = useCallback((id: string, key: string, value: unknown) =>
+    setSignalStates((p) => ({ ...p, [id]: { enabled: p[id]?.enabled ?? true, params: { ...(p[id]?.params ?? {}), [key]: value } } })), []);
 
   const handleSave = useCallback(async () => {
     if (!catalog) return;
@@ -554,48 +807,39 @@ export function FeedBuilder({ feedId, initialFeed }: { feedId?: string; initialF
           {/* Sources */}
           <Text className="text-[15px] font-bold text-foreground mt-4 mb-1">{t('feeds.builder.sources')}</Text>
           <Text className="text-[13px] text-muted-foreground mb-2">{t('feeds.builder.sourcesDescription')}</Text>
-          {catalog.sources.map((entry) => (
-            <ModuleCard
-              key={entry.id}
-              entry={entry}
-              state={sourceStates[entry.id]}
-              onToggle={(e) => toggleSource(entry.id, e)}
-              onParam={(k, v) => paramSource(entry.id, k, v)}
-              accountsSlot={
-                entry.id === 'accounts'
-                  ? <AccountPicker selected={selectedAccounts} onChange={setSelectedAccounts} />
-                  : undefined
-              }
-            />
-          ))}
+          <CategorizedModules
+            entries={catalog.sources}
+            states={sourceStates}
+            onToggle={toggleSource}
+            onParam={paramSource}
+            renderAccountsSlot={(entry) =>
+              entry.id === 'accounts'
+                ? <AccountPicker selected={selectedAccounts} onChange={setSelectedAccounts} />
+                : undefined
+            }
+          />
 
           {/* Filters */}
           <Text className="text-[15px] font-bold text-foreground mt-4 mb-1">{t('feeds.builder.filters')}</Text>
           <Text className="text-[13px] text-muted-foreground mb-2">{t('feeds.builder.filtersDescription')}</Text>
-          {catalog.filters.map((entry) => (
-            <ModuleCard
-              key={entry.id}
-              entry={entry}
-              state={filterStates[entry.id]}
-              onToggle={(e) => toggleFilter(entry.id, e)}
-              onParam={(k, v) => paramFilter(entry.id, k, v)}
-            />
-          ))}
+          <CategorizedModules
+            entries={catalog.filters}
+            states={filterStates}
+            onToggle={toggleFilter}
+            onParam={paramFilter}
+          />
 
           {/* Ranking signals (ranked mode only) */}
           {mode === 'ranked' && catalog.signals.length > 0 ? (
             <>
               <Text className="text-[15px] font-bold text-foreground mt-4 mb-1">{t('feeds.builder.signals')}</Text>
               <Text className="text-[13px] text-muted-foreground mb-2">{t('feeds.builder.signalsDescription')}</Text>
-              {catalog.signals.map((entry) => (
-                <ModuleCard
-                  key={entry.id}
-                  entry={entry}
-                  state={signalStates[entry.id]}
-                  onToggle={(e) => toggleSignal(entry.id, e)}
-                  onParam={() => undefined}
-                />
-              ))}
+              <CategorizedModules
+                entries={catalog.signals}
+                states={signalStates}
+                onToggle={toggleSignal}
+                onParam={paramSignal}
+              />
             </>
           ) : null}
 

@@ -54,6 +54,10 @@ export interface CreatePostParams {
   // classifier can resolve a coarse region. (Language is threaded through the
   // existing `language` param so it also fixes the top-level `post.language`.)
   instanceDomain?: string;
+  // AP actor type of the author (`Person`/`Service`/`Application`/…), passed by
+  // the federation ingest paths so the deterministic classifier can flag RSS/bot
+  // mirrors. Absent for native posts (neutral).
+  actorType?: string;
   // Caller-supplied username enables outbound ActivityPub federation delivery.
   // When omitted, federation delivery is skipped.
   senderUsername?: string;
@@ -104,6 +108,7 @@ class PostCreationService {
         sensitive: params.federation?.sensitive ?? metadataSensitive,
         isFederated,
         instanceDomain: params.instanceDomain,
+        actorType: params.actorType,
       });
 
       // Populate the Stage-A deterministic fields but LEAVE status 'pending' so

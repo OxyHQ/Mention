@@ -16,6 +16,20 @@
  */
 
 import type { PostClassificationScores } from '@mention/shared-types';
+import { detectLowEffort, type LowEffortResult } from './lowEffort';
+import {
+  detectBotShape,
+  type BotShapeResult,
+  type BotSignalContext,
+} from './botSignals';
+
+/**
+ * Optional federated-origin context for the low-effort / bot-shape heuristics.
+ * Purely ADDITIVE: native (and unknown-origin) callers pass nothing, and the
+ * deterministic scores are byte-identical to the context-free result. Structurally
+ * a {@link BotSignalContext} — passed straight through to the bot detector.
+ */
+export type ScoreContext = BotSignalContext;
 
 /** The deterministic 0..1 score subset this module actually computes. */
 export interface DeterministicScores {
@@ -162,6 +176,58 @@ export const SPAM_QUALITY_CONFIG = {
     perTermWeight: 0.4,
     max: 0.9,
   },
+
+  /**
+   * LOW-EFFORT shapes (see {@link ./lowEffort}). Targets posts with no real prose
+   * — custom-emoji `:shortcode:`-only posts and Unicode-emoji-only posts — that
+   * technically carry "letters" and so evade the plain length/hashtag heuristics.
+   * The `minRealTextLength` here is deliberately LOW so only genuinely text-empty
+   * junk trips it; a two-letter reply like "OK" is untouched (regression-safe).
+   */
+  lowEffort: {
+    /**
+     * Real-letter count (after stripping shortcodes/URLs/mentions/hashtags/emoji)
+     * BELOW which a post is treated as carrying no meaningful prose.
+     */
+    minRealTextLength: 2,
+    /**
+     * Quality REMOVED when a post has no real text. Sized (with the spam coupling)
+     * to push such a post below the ranking low-quality threshold (0.3).
+     */
+    noRealTextQualityPenalty: 0.35,
+    /** Spam ADDED when a post has no real text. */
+    noRealTextSpamWeight: 0.3,
+    /** Spam ADDED when a post's body is ONLY custom-emoji shortcodes. */
+    shortcodeOnlySpamWeight: 0.5,
+  },
+
+  /**
+   * BOT-MIRROR shapes (see {@link ./botSignals}). RSS/bridge mirrors and link-only
+   * news bots. The two weights are sized so a post carrying BOTH signals combines
+   * (0.6 + 0.5, clamped to 1) well past the ranking safety spam threshold (0.7),
+   * so the existing AI-safety penalty fires and pushes it out of discovery.
+   */
+  bot: {
+    /** instanceDomain prefixes that mark an RSS/bot mirror instance (e.g. `rss-mstdn.example`). */
+    rssHostPrefixes: ['rss-', 'rss.', 'bot.'],
+    /** instanceDomain substrings that mark a bridge/mirror instance. */
+    rssHostContains: ['bridge'],
+    /** Spam ADDED for a post from an RSS/bot-mirror actor. */
+    rssMirrorSpamWeight: 0.6,
+    /** Spam ADDED for the link-only news-bot text shape. */
+    linkOnlyNewsBotSpamWeight: 0.5,
+    /**
+     * Hashtag count at/above which a trailing hashtag block reads as boilerplate
+     * (the news-bot hashtag tail).
+     */
+    boilerplateHashtagTailThreshold: 4,
+    /**
+     * Max visible-prose length (URL/hashtag/mention-stripped) for a leading-link +
+     * hashtag post to still count as a link-only news bot. Above this the post has
+     * enough original writing to be a human sharing a link, not a mirror.
+     */
+    linkOnlyNewsBotMaxProseLength: 40,
+  },
 } as const;
 
 /**
@@ -270,9 +336,11 @@ function longestRepeatRun(text: string): number {
 /**
  * Visible text with URLs, hashtags, and mentions removed, collapsed whitespace.
  * This is the "substance" of the post — what's left after the link/tag/mention
- * scaffolding — and is what quality/length heuristics measure.
+ * scaffolding — and is what quality/length heuristics measure. Exported so the
+ * `noBots` composable filter builds its {@link detectBotShape} features with the
+ * SAME visible-prose definition the ingest-time classifier uses (no divergence).
  */
-function visibleText(text: string): string {
+export function visibleText(text: string): string {
   return text
     .replace(URL_PATTERN, ' ')
     .replace(HASHTAG_PATTERN, ' ')
@@ -340,8 +408,17 @@ function profanityHitCount(text: string): number {
   return hits;
 }
 
-/** Compute the bounded 0..1 spam score from the extracted features. */
-function computeSpam(features: TextFeatures): number {
+/**
+ * Compute the bounded 0..1 spam score from the extracted features plus the
+ * pre-computed low-effort and bot-shape signals. The extra detector weights are
+ * purely ADDITIVE — for normal prose every one is `false` and contributes 0, so
+ * the score is identical to the pre-detector behavior.
+ */
+function computeSpam(
+  features: TextFeatures,
+  lowEffort: LowEffortResult,
+  botShape: BotShapeResult,
+): number {
   const cfg = SPAM_QUALITY_CONFIG.spam;
   let spam = 0;
 
@@ -387,11 +464,31 @@ function computeSpam(features: TextFeatures): number {
     spam += cfg.promoWeight;
   }
 
+  // Low-effort shapes: no real prose, and the shortcode-only special case.
+  if (lowEffort.isNoRealText) {
+    spam += SPAM_QUALITY_CONFIG.lowEffort.noRealTextSpamWeight;
+  }
+  if (lowEffort.shortcodeOnly) {
+    spam += SPAM_QUALITY_CONFIG.lowEffort.shortcodeOnlySpamWeight;
+  }
+
+  // Bot-mirror shapes: RSS/bot actor and the link-only news-bot text shape.
+  if (botShape.isRssMirror) {
+    spam += SPAM_QUALITY_CONFIG.bot.rssMirrorSpamWeight;
+  }
+  if (botShape.isLinkOnlyNewsBot) {
+    spam += SPAM_QUALITY_CONFIG.bot.linkOnlyNewsBotSpamWeight;
+  }
+
   return clampUnit(spam);
 }
 
-/** Compute the bounded 0..1 quality score from features + the spam score. */
-function computeQuality(features: TextFeatures, spam: number): number {
+/**
+ * Compute the bounded 0..1 quality score from features, the spam score, and the
+ * low-effort signal. The low-effort penalty is ADDITIVE — `false` for normal
+ * prose — so a real-text post's quality is unchanged.
+ */
+function computeQuality(features: TextFeatures, spam: number, lowEffort: LowEffortResult): number {
   const cfg = SPAM_QUALITY_CONFIG.quality;
   let quality = cfg.base;
 
@@ -421,6 +518,10 @@ function computeQuality(features: TextFeatures, spam: number): number {
     // Pure hashtag dump: hashtags present but no visible words.
     quality -= cfg.hashtagDumpPenalty;
   }
+  if (lowEffort.isNoRealText) {
+    // No meaningful prose (shortcode-/emoji-only, or otherwise text-empty).
+    quality -= SPAM_QUALITY_CONFIG.lowEffort.noRealTextQualityPenalty;
+  }
 
   // A spammy post is also low quality — couple them without making them identical.
   quality -= cfg.spamPenalty * spam;
@@ -442,11 +543,24 @@ function computeToxicity(features: TextFeatures): number {
  * `hashtagCount` is the count of canonical hashtags resolved upstream (so the
  * spam/quality heuristics agree with the rest of the classifier on what counts
  * as a hashtag, including any pulled from the text).
+ *
+ * `context` is OPTIONAL and ADDITIVE: it feeds only the low-effort/bot-shape
+ * detectors. When omitted (all native paths, and every existing caller), the
+ * bot-mirror signal is inert and the scores are byte-identical to the prior
+ * behavior — off-language real prose is NOT penalized here (that is handled by
+ * ranking, not classification).
  */
-export function computeDeterministicScores(text: string, hashtagCount: number): DeterministicScores {
-  const features = extractFeatures(text ?? '', hashtagCount);
-  const spam = computeSpam(features);
-  const quality = computeQuality(features, spam);
+export function computeDeterministicScores(
+  text: string,
+  hashtagCount: number,
+  context?: ScoreContext,
+): DeterministicScores {
+  const raw = text ?? '';
+  const features = extractFeatures(raw, hashtagCount);
+  const lowEffort = detectLowEffort(raw, SPAM_QUALITY_CONFIG.lowEffort);
+  const botShape = detectBotShape(features, context ?? {}, SPAM_QUALITY_CONFIG.bot);
+  const spam = computeSpam(features, lowEffort, botShape);
+  const quality = computeQuality(features, spam, lowEffort);
   const toxicity = computeToxicity(features);
   return { spam, quality, toxicity };
 }

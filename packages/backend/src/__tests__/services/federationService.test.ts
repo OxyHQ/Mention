@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   postFindOne: vi.fn(),
   postFindById: vi.fn(),
   postUpdateOne: vi.fn(),
+  postDeleteOne: vi.fn(),
   postCreate: vi.fn(),
   postInsertMany: vi.fn(),
   postExists: vi.fn(),
@@ -69,6 +70,7 @@ vi.mock('../../models/Post', () => ({
     findOne: mocks.postFindOne,
     findById: mocks.postFindById,
     updateOne: mocks.postUpdateOne,
+    deleteOne: mocks.postDeleteOne,
     exists: mocks.postExists,
     collection: {
       insertMany: mocks.postInsertMany,
@@ -181,6 +183,7 @@ beforeEach(() => {
     lean: vi.fn().mockResolvedValue(null),
   });
   mocks.postUpdateOne.mockResolvedValue({ modifiedCount: 1 });
+  mocks.postDeleteOne.mockResolvedValue({ deletedCount: 1 });
   mocks.postInsertMany.mockResolvedValue({ insertedCount: 0 });
   mocks.postExists.mockResolvedValue(null);
   mocks.followExists.mockResolvedValue({ _id: 'follow_1' });
@@ -853,9 +856,12 @@ describe('federationService.processInboxActivity → handleAnnounce', () => {
         updatedAt: new Date('2026-06-18T09:30:00Z'),
       }),
     );
+    // A federated Announce moves BOTH the native boost counter and the
+    // federated-boost subset counter +1 in lockstep, so `boostsCount -
+    // federatedBoostsCount` isolates native reposts.
     expect(mocks.postUpdateOne).toHaveBeenCalledWith(
       { _id: 'local_post_2' },
-      { $inc: { 'stats.boostsCount': 1 } },
+      { $inc: { 'stats.boostsCount': 1, 'stats.federatedBoostsCount': 1 } },
     );
   });
 
@@ -908,6 +914,52 @@ describe('federationService.processInboxActivity → handleAnnounce', () => {
     expect(mocks.assertSafePublicUrl).toHaveBeenCalledWith(unsafeUri);
     expect(fetchMock).not.toHaveBeenCalled();
     expect(mocks.postCreatorCreate).not.toHaveBeenCalled();
+    expect(mocks.postUpdateOne).not.toHaveBeenCalled();
+  });
+});
+
+describe('federationService.processInboxActivity → handleUndoAnnounce', () => {
+  const announcedUri = 'https://mastodon.social/users/alice/statuses/200';
+  const actorUri = 'https://mastodon.social/users/bob';
+  const announceId = 'https://mastodon.social/users/bob/statuses/200/activity';
+
+  it('deletes the boost and decrements BOTH counters in lockstep, each guarded ≥0', async () => {
+    // The boost is located by its Announce id.
+    mocks.postFindOne.mockReturnValue({
+      lean: vi.fn().mockResolvedValue({ _id: 'boost_1', boostOf: 'local_post_2' }),
+    });
+
+    await federationService.processInboxActivity(
+      { type: 'Undo', actor: actorUri, object: { type: 'Announce', id: announceId, object: announcedUri } },
+      actorUri,
+    );
+
+    expect(mocks.postDeleteOne).toHaveBeenCalledWith({ _id: 'boost_1' });
+    // Native boost counter — decrement guarded against underflow.
+    expect(mocks.postUpdateOne).toHaveBeenCalledWith(
+      { _id: 'local_post_2', 'stats.boostsCount': { $gt: 0 } },
+      { $inc: { 'stats.boostsCount': -1 } },
+    );
+    // Federated-boost subset counter — mirrored decrement, INDEPENDENTLY guarded
+    // so it never underflows and never blocks the boostsCount decrement above.
+    expect(mocks.postUpdateOne).toHaveBeenCalledWith(
+      { _id: 'local_post_2', 'stats.federatedBoostsCount': { $gt: 0 } },
+      { $inc: { 'stats.federatedBoostsCount': -1 } },
+    );
+  });
+
+  it('is a no-op when no matching boost exists (redelivered Undo)', async () => {
+    mocks.postFindOne.mockReturnValue({
+      lean: vi.fn().mockResolvedValue(null),
+    });
+    stubResolvedActor(null);
+
+    await federationService.processInboxActivity(
+      { type: 'Undo', actor: actorUri, object: { type: 'Announce', id: announceId, object: announcedUri } },
+      actorUri,
+    );
+
+    expect(mocks.postDeleteOne).not.toHaveBeenCalled();
     expect(mocks.postUpdateOne).not.toHaveBeenCalled();
   });
 });

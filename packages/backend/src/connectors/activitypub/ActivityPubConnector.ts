@@ -205,14 +205,14 @@ class ActivityPubConnector implements NetworkConnector {
   // ============================================================
 
   syncOutboxPosts(
-    actor: Pick<IFederatedActor, 'outboxUrl' | 'acct' | 'uri'> & { oxyUserId?: string },
+    actor: Pick<IFederatedActor, 'outboxUrl' | 'acct' | 'uri'> & { oxyUserId?: string; type?: string },
     limit = 20,
   ): Promise<number> {
     return outboxSyncService.syncOutboxPosts(actor, limit);
   }
 
   syncOutboxPostsDetailed(
-    actor: Pick<IFederatedActor, 'outboxUrl' | 'acct' | 'uri'> & { oxyUserId?: string },
+    actor: Pick<IFederatedActor, 'outboxUrl' | 'acct' | 'uri'> & { oxyUserId?: string; type?: string },
     limitOrOptions: number | OutboxSyncOptions = 20,
   ): Promise<OutboxSyncResult> {
     return outboxSyncService.syncOutboxPostsDetailed(actor, limitOrOptions);

@@ -1,5 +1,5 @@
 import mongoose, { Schema, Document } from 'mongoose';
-import type { ExternalEmbedsSettings } from '@mention/shared-types';
+import type { ExternalEmbedsSettings, FeedTuning, ForYouFeedTuning } from '@mention/shared-types';
 
 export type ThemeMode = 'light' | 'dark' | 'system' | 'adaptive';
 
@@ -140,6 +140,14 @@ export interface UserSettingsData {
   profileCustomization?: ProfileCustomization;
   interests?: InterestsSettings;
   feedSettings?: FeedSettings;
+  /**
+   * Mention-local per-user FEED TUNING (Phase 4B) — the viewer's overrides on
+   * their OWN For You discovery gate (toggle a gate module off / re-tune its
+   * threshold). NOT stored in Oxy: this is feed-behavior tuning, not identity.
+   * Validated against the shared `FOR_YOU_TUNING_MODULES` spec on write, so the
+   * schema below only round-trips the shape (no duplicated bounds).
+   */
+  feedTuning?: FeedTuning;
   notificationPreferences?: NotificationPreferences;
   /**
    * Per-provider preference for whether third-party media embeds (YouTube,
@@ -221,6 +229,30 @@ const InterestsSchema = new Schema<InterestsSettings>({
   tags: [{ type: String }],
 }, { _id: false });
 
+// Per-user For You discovery-gate tuning. Each module carries an optional
+// `enabled` toggle + a single numeric threshold. Bounds are NOT duplicated here —
+// `validateForYouTuning` (shared spec) is the authoritative validator run in the
+// settings controller before any write, so only in-range values ever reach this
+// schema, which just round-trips the shape.
+const ForYouTuningSchema = new Schema<ForYouFeedTuning>({
+  minLength: {
+    type: new Schema({ enabled: { type: Boolean }, minLength: { type: Number } }, { _id: false }),
+  },
+  lowEffortGate: {
+    type: new Schema({ enabled: { type: Boolean }, minMeaningfulTextLength: { type: Number } }, { _id: false }),
+  },
+  nativeEngagement: {
+    type: new Schema({ enabled: { type: Boolean }, minNativeEngagement: { type: Number } }, { _id: false }),
+  },
+  minQuality: {
+    type: new Schema({ enabled: { type: Boolean }, minQuality: { type: Number } }, { _id: false }),
+  },
+}, { _id: false });
+
+const FeedTuningSchema = new Schema<FeedTuning>({
+  forYou: { type: ForYouTuningSchema },
+}, { _id: false });
+
 const NotificationPreferencesSchema = new Schema<NotificationPreferences>({
   pushEnabled: { type: Boolean, default: true },
   emailEnabled: { type: Boolean, default: false },
@@ -274,6 +306,7 @@ const UserSettingsSchema = new Schema<IUserSettings>({
   profileCustomization: { type: ProfileCustomizationSchema },
   interests: { type: InterestsSchema },
   feedSettings: { type: FeedSettingsSchema },
+  feedTuning: { type: FeedTuningSchema },
   notificationPreferences: { type: NotificationPreferencesSchema },
   externalEmbeds: { type: ExternalEmbedsSchema },
 }, { timestamps: true, versionKey: false });

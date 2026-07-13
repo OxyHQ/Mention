@@ -70,8 +70,32 @@ describe('MtnFeedController.getFeed → ctx.mutualIds', () => {
     expect(mutualIds).toEqual(expect.arrayContaining(['oxymutual', 'fedmutual']));
   });
 
-  it('does NOT compute mutualIds for a non-mutuals descriptor', async () => {
+  it('builds mutualIds for a For You descriptor (socialProof active by default)', async () => {
+    // Phase 5: the For You default signal set enables `socialProof`, so the
+    // controller resolves mutuals to widen the network-engager set.
     const req = { query: { descriptor: 'for_you' }, user: { id: 'viewer' } } as never;
+    await mtnFeedController.getFeed(req, makeRes() as never);
+    expect(getMutualUserIds).toHaveBeenCalled();
+    const mutualIds = capturedContext?.mutualIds as string[];
+    expect(mutualIds).toEqual(expect.arrayContaining(['oxymutual', 'fedmutual']));
+  });
+
+  it('For You still builds when the Oxy mutuals lookup fails (fail-soft)', async () => {
+    // Phase 5: mutuals resolution must never break the feed. If the Oxy branch
+    // throws, `computeMutualIds` degrades to the surviving federated branch and the
+    // feed still serves (200) with the partial mutual set.
+    getMutualUserIds.mockRejectedValueOnce(new Error('oxy down'));
+    const req = { query: { descriptor: 'for_you' }, user: { id: 'viewer' } } as never;
+    const res = makeRes();
+    await mtnFeedController.getFeed(req, res as never);
+    expect(engineRun).toHaveBeenCalledOnce();
+    expect((res.body as { success: boolean }).success).toBe(true);
+    // Oxy branch failed → only the federated mutual survives (never throws).
+    expect(capturedContext?.mutualIds).toEqual(['fedmutual']);
+  });
+
+  it('does NOT compute mutualIds for a descriptor that uses neither (following)', async () => {
+    const req = { query: { descriptor: 'following' }, user: { id: 'viewer' } } as never;
     await mtnFeedController.getFeed(req, makeRes() as never);
     expect(capturedContext?.mutualIds).toBeUndefined();
     expect(getMutualUserIds).not.toHaveBeenCalled();

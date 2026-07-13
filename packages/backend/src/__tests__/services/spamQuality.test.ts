@@ -1,8 +1,10 @@
 import { describe, it, expect } from 'vitest';
+import { MtnConfig } from '@mention/shared-types';
 import {
   computeDeterministicScores,
   SPAM_QUALITY_CONFIG,
   type DeterministicScores,
+  type ScoreContext,
 } from '../../services/contentClassification/spamQuality';
 
 /**
@@ -190,5 +192,61 @@ describe('determinism & purity', () => {
   it('is deterministic for the same input', () => {
     const text = 'BUY NOW #deal #deal2 https://x.example shit';
     expect(score(text, 2)).toEqual(score(text, 2));
+  });
+});
+
+describe('v5 low-effort + bot hardening', () => {
+  const SAFETY_SPAM_THRESHOLD = MtnConfig.ranking.aiQuality.safety.spamThreshold; // 0.7
+  const QUALITY_LOW_THRESHOLD = MtnConfig.ranking.aiQuality.quality.lowThreshold; // 0.3
+
+  it('flags a custom-emoji shortcode-only post: high spam + quality below the low threshold', () => {
+    const { spam, quality } = score(':oyaki::oyaki::oyaki:', 0);
+    expect(spam).toBeGreaterThanOrEqual(
+      SPAM_QUALITY_CONFIG.lowEffort.noRealTextSpamWeight +
+        SPAM_QUALITY_CONFIG.lowEffort.shortcodeOnlySpamWeight -
+        1e-9,
+    );
+    expect(quality).toBeLessThan(QUALITY_LOW_THRESHOLD);
+  });
+
+  it('clears the ranking safety spam threshold for an RSS Service actor + link + hashtag tail', () => {
+    const context: ScoreContext = {
+      actorType: 'Service',
+      instanceDomain: 'rss-mstdn.example',
+      isFederated: true,
+    };
+    const { spam } = computeDeterministicScores(
+      'https://news.example/article #news #breaking #world #politics',
+      4,
+      context,
+    );
+    expect(spam).toBeGreaterThanOrEqual(SAFETY_SPAM_THRESHOLD);
+  });
+
+  it('does NOT penalize normal German prose (regression guard): spam stays 0, quality stays high', () => {
+    const german =
+      'Heute war ein wirklich schöner Tag im Park. Die Sonne schien und ich habe ' +
+      'ein gutes Buch gelesen. Am Abend habe ich noch lange mit Freunden geredet.';
+    const result = score(german, 0);
+    expect(result.spam).toBe(0);
+    expect(result.quality).toBeGreaterThan(SPAM_QUALITY_CONFIG.quality.base);
+    // A federated Person on a normal instance yields the SAME scores — off-language
+    // real prose is a ranking concern, never a classification penalty.
+    expect(
+      computeDeterministicScores(german, 0, {
+        actorType: 'Person',
+        instanceDomain: 'chaos.social',
+        isFederated: true,
+      }),
+    ).toEqual(result);
+  });
+
+  it('is byte-identical for a clean post whether or not a context is supplied', () => {
+    const text =
+      'I finally shipped the feature I was working on all week. Really proud of how it turned out!';
+    const withoutContext = computeDeterministicScores(text, 0);
+    expect(computeDeterministicScores(text, 0, undefined)).toEqual(withoutContext);
+    expect(computeDeterministicScores(text, 0, {})).toEqual(withoutContext);
+    expect(computeDeterministicScores(text, 0, { isFederated: false })).toEqual(withoutContext);
   });
 });

@@ -10,9 +10,11 @@ import { isValidFeedDescriptor, MtnConfig, createPostUri, parseFeedDescriptor } 
 import type { FeedDescriptor, SlicedFeedResponse } from '@mention/shared-types';
 import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
 import { resolveDefinition } from '../feed/definitions/resolveDefinition';
+import { forYouUsesSocialProof } from '../feed/definitions/presets';
 import { feedEngine } from '../feed/engine/FeedEngine';
 import type { FeedEngineContext } from '../feed/engine/types';
 import { loadViewerFeedContext, mergeFederatedFollowIds } from '../feed/feedContext';
+import { resolveDiscoveryGateBucket } from '../feed/discoveryGateExperiment';
 import { FeedGeneratorFeed } from '../feed/feeds/FeedGeneratorFeed';
 import type { FeedAPI } from '../feed/FeedAPI';
 import { FeedTuner } from '../feed/FeedTuner';
@@ -235,31 +237,71 @@ class MtnFeedController {
         }
       }
 
-      // Privacy state (blocked/muted authors) is loaded here and applied to the
-      // response below; the viewer's following ids / subscribed lists / learned
-      // behavior / region / sensitive opt-in are assembled by the shared context
-      // loader (each best-effort, soft-failing to a safe default).
-      const privacyState = currentUserId
-        ? await UserPrivacyManager.loadPrivacyState(currentUserId)
-        : null;
+      // Everything the feed needs before the engine runs is INDEPENDENT, so it
+      // loads CONCURRENTLY instead of in a serial waterfall (this was ~4 sequential
+      // round trips of pure latency on the hottest path):
+      //   - privacy state (blocked/muted authors) — applied to the response below;
+      //   - the viewer feed context (following/followers/subscribed lists/learned
+      //     behavior/region/sensitive opt-in), assembled by the shared loader;
+      //   - the descriptor-scoped mutual / friends-of-friends id sets (below);
+      //   - the viewer's muted words (prefetched; only awaited if the page has
+      //     slices — see the tuner block).
+      // Each branch already soft-fails to a safe default, so one failure can't
+      // break the feed.
+      const feedSource = parseFeedDescriptor(descriptor).source;
 
-      const context = await loadViewerFeedContext(currentUserId, oxyClient);
+      // The Mutuals feed ALWAYS needs the viewer's mutual-follow id set; For You
+      // needs it too, but ONLY when the `socialProof` signal is active (Phase 5) —
+      // it widens the network-engager set to `following ∪ mutuals`, so mutuals are
+      // worth the extra Oxy round trip only then. Resolved for exactly those
+      // descriptors so no other feed pays for it.
+      const needsMutuals = !!currentUserId
+        && (feedSource === 'mutuals' || (feedSource === 'for_you' && forYouUsesSocialProof()));
+      // The Friends-of-Friends feed needs the viewer's follows-of-follows id set
+      // (guarded Oxy optional call). Resolved ONLY for that descriptor.
+      const needsFof = !!currentUserId && feedSource === 'friends_of_friends';
+
+      // Prefetched here so it runs in parallel with the context load; only consumed
+      // (awaited) below if the built page actually has slices. `loadMuteWordsForUser`
+      // never rejects (soft-fails to `[]`), so leaving it un-awaited on a blank page
+      // cannot surface an unhandled rejection.
+      const muteWordsPromise = loadMuteWordsForUser(currentUserId);
+
+      const [privacyState, context, mutualIds, fofIds] = await Promise.all([
+        currentUserId
+          ? UserPrivacyManager.loadPrivacyState(currentUserId)
+          : Promise.resolve(null),
+        loadViewerFeedContext(currentUserId, oxyClient),
+        // `computeMutualIds` soft-fails each branch to `[]`, so a lookup failure
+        // never breaks the feed.
+        needsMutuals && currentUserId
+          ? computeMutualIds(currentUserId)
+          : Promise.resolve<string[] | null>(null),
+        needsFof
+          ? computeFriendsOfFriendsIds()
+          : Promise.resolve<string[] | null>(null),
+      ]);
+
       if (videoFilters) {
         context.videoFilters = videoFilters;
       }
-
-      // The Mutuals feed needs the viewer's mutual-follow id set. Compute it ONLY
-      // for that descriptor (Oxy graph mutuals ∪ federated mutuals) so no other
-      // feed pays for it.
-      if (currentUserId && parseFeedDescriptor(descriptor).source === 'mutuals') {
-        context.mutualIds = await computeMutualIds(currentUserId);
+      if (mutualIds) {
+        context.mutualIds = mutualIds;
+      }
+      if (fofIds) {
+        context.fofIds = fofIds;
       }
 
-      // The Friends-of-Friends feed needs the viewer's follows-of-follows id set.
-      // Resolve it ONLY for that descriptor (guarded Oxy optional call) so no
-      // other feed pays for it.
-      if (currentUserId && parseFeedDescriptor(descriptor).source === 'friends_of_friends') {
-        context.fofIds = await computeFriendsOfFriendsIds();
+      // Phase 7 discovery-gate A/B: assign this For You viewer a stable cohort so
+      // the gate is enforced (`gate-on`) or measure-only (`gate-off`) for them,
+      // letting the two be compared before full enforcement. `undefined` (the
+      // default — experiment off, or non-For-You) leaves gate behavior on the
+      // global shadow config.
+      if (currentUserId && feedSource === 'for_you') {
+        const bucket = resolveDiscoveryGateBucket(currentUserId);
+        if (bucket) {
+          context.discoveryGateBucket = bucket;
+        }
       }
 
       // Resolve the descriptor to a composable feed DEFINITION and run it through
@@ -294,7 +336,7 @@ class MtnFeedController {
 
       // Apply tuner pipeline
       if (response.slices.length > 0) {
-        const muteWords = await loadMuteWordsForUser(currentUserId);
+        const muteWords = await muteWordsPromise;
         const tuner = FeedTuner.default();
         response.slices = tuner.apply(response.slices, {
           viewerId: currentUserId,
@@ -430,7 +472,7 @@ class MtnFeedController {
         return;
       }
 
-      const validEvents = ['impression', 'click', 'like', 'reply', 'boost', 'save'];
+      const validEvents = ['impression', 'click', 'like', 'reply', 'boost', 'save', 'report'];
       if (!validEvents.includes(event)) {
         res.status(400).json({ success: false, error: `Invalid event: ${event}` });
         return;

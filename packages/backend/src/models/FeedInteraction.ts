@@ -11,7 +11,7 @@ export interface IFeedInteraction extends Document {
   userId: string;
   feedDescriptor: string;
   postUri: string;
-  event: 'impression' | 'click' | 'like' | 'reply' | 'boost' | 'save';
+  event: 'impression' | 'click' | 'like' | 'reply' | 'boost' | 'save' | 'report';
   durationMs?: number;
   createdAt: Date;
 }
@@ -23,7 +23,7 @@ const feedInteractionSchema = new Schema<IFeedInteraction>(
     postUri: { type: String, required: true },
     event: {
       type: String,
-      enum: ['impression', 'click', 'like', 'reply', 'boost', 'save'],
+      enum: ['impression', 'click', 'like', 'reply', 'boost', 'save', 'report'],
       required: true,
     },
     durationMs: { type: Number },

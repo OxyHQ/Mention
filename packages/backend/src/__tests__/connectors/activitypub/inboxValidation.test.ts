@@ -394,7 +394,7 @@ describe('processInboxActivity validation gate — valid Like/Announce/Undo stil
     );
     expect(mocks.postUpdateOne).toHaveBeenCalledWith(
       { _id: 'local_post_2' },
-      { $inc: { 'stats.boostsCount': 1 } },
+      { $inc: { 'stats.boostsCount': 1, 'stats.federatedBoostsCount': 1 } },
     );
   });
 

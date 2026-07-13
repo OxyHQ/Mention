@@ -17,13 +17,29 @@ import { ScoreCursor } from '../../CursorBuilder';
 import { DISCOVERY_SAFE_MATCH, filterDiscoverable } from '../../feedSafety';
 import type { CandidatePost, FeedEngineContext, SourceModule } from '../types';
 
-/** Standard engagement composite used by the popular aggregations. */
-function engagementScoreExpr() {
+/**
+ * The standard engagement composite used by the popular / explore / trending
+ * aggregations, as a Mongo aggregation expression. THE single source of truth for
+ * the Mongo composite so the discovery lanes can never drift.
+ *
+ * The boost term splits the total boosts into their native and federated subsets
+ * (`stats.federatedBoostsCount` counts inbound ActivityPub Announces): the native
+ * subset — `max(0, boostsCount − federatedBoostsCount)`, floored so an over-count
+ * can never go negative — is weighted at `boostWeight`, and the federated subset at
+ * the deliberately-lower `federatedBoostWeight`. `$ifNull` keeps it null-safe: a
+ * doc missing `federatedBoostsCount` (every pre-backfill post) reads 0, collapsing
+ * the term back to `boostsCount · boostWeight`. Likes/comments terms are unchanged.
+ */
+export function engagementScoreExpr(): Record<string, unknown> {
   const cfg = MtnConfig.ranking.engagement;
+  const boosts = { $ifNull: ['$stats.boostsCount', 0] };
+  const federatedBoosts = { $ifNull: ['$stats.federatedBoostsCount', 0] };
+  const nativeBoosts = { $max: [0, { $subtract: [boosts, federatedBoosts] }] };
   return {
     $add: [
       { $multiply: [{ $ifNull: ['$stats.likesCount', 0] }, cfg.likeWeight] },
-      { $multiply: [{ $ifNull: ['$stats.boostsCount', 0] }, cfg.boostWeight] },
+      { $multiply: [nativeBoosts, cfg.boostWeight] },
+      { $multiply: [federatedBoosts, cfg.federatedBoostWeight] },
       { $multiply: [{ $ifNull: ['$stats.commentsCount', 0] }, cfg.commentWeight] },
     ],
   };

@@ -35,6 +35,12 @@ router.get('/preferences', requireAuth, feedPreferencesController.get.bind(feedP
 router.put('/preferences', requireAuth, feedPreferencesController.update.bind(feedPreferencesController));
 
 // ────────────────────────────────────────────────────────────
+// Per-user For You discovery-gate tuning (Phase 4B)
+// ────────────────────────────────────────────────────────────
+router.get('/tuning', requireAuth, feedPreferencesController.getTuning.bind(feedPreferencesController));
+router.put('/tuning', requireAuth, feedPreferencesController.updateTuning.bind(feedPreferencesController));
+
+// ────────────────────────────────────────────────────────────
 // Replies
 // ────────────────────────────────────────────────────────────
 router.get('/replies/:parentId', feedController.getRepliesFeed.bind(feedController));

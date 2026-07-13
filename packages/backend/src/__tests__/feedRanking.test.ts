@@ -27,6 +27,15 @@ vi.mock('../models/FederatedActor', () => ({
   default: { find: () => ({ select: () => ({ lean: async () => [] }) }) },
 }));
 
+// `rankPosts` resolves author follower counts via `resolveUserSummaries`
+// (dynamically imported from PostHydrationService), which otherwise issues a
+// real service-token `getUsersByIds` fetch to Oxy and hangs the batch tests in
+// the unit env. These tests don't assert on follower counts, so resolve it to
+// an empty map — the intended "no author summaries available" outcome.
+vi.mock('../services/PostHydrationService', () => ({
+  resolveUserSummaries: vi.fn(async () => new Map()),
+}));
+
 import { FeedRankingService } from '../services/FeedRankingService';
 import { BASELINE_CLASSIFIER_VERSION } from '../services/BaselineContentClassifier';
 
@@ -658,6 +667,46 @@ describe('FeedRankingService language personalization (ANY-overlap on postClassi
     const noLang = makePost({ postClassification: { status: 'baseline', topics: [] } });
     const baseline = makePost({ postClassification: { status: 'baseline', topics: [] } });
     expect(await scoreWithSpanishPref(noLang)).toBeCloseTo(await scoreWithSpanishPref(baseline), 10);
+  });
+});
+
+describe('FeedRankingService federated-boost dampening (Phase 2)', () => {
+  it('scores an all-federated-boost post below an identical all-native-boost post', async () => {
+    // Same boost COUNT (5); the ONLY difference is native vs federated origin.
+    // The federated subset is weighted at federatedBoostWeight (0.5) instead of
+    // boostWeight (2.5), so its engagement — and thus its final score — is lower.
+    // No engagementScoreCache is passed, so real engagement math runs.
+    const nativeBoosts = makePost({
+      _id: 'native-boosts',
+      stats: { likesCount: 0, boostsCount: 5, federatedBoostsCount: 0, commentsCount: 0, viewsCount: 0 },
+    });
+    const federatedBoosts = makePost({
+      _id: 'federated-boosts',
+      stats: { likesCount: 0, boostsCount: 5, federatedBoostsCount: 5, commentsCount: 0, viewsCount: 0 },
+    });
+
+    const nativeScore = await service.calculatePostScore(nativeBoosts, undefined, {});
+    const federatedScore = await service.calculatePostScore(federatedBoosts, undefined, {});
+
+    expect(federatedScore).toBeLessThan(nativeScore);
+    expect(nativeScore).toBeGreaterThan(0);
+  });
+
+  it('is a NO-OP for a post with no federated boosts (pre-backfill safety)', async () => {
+    // A post with boostsCount but federatedBoostsCount omitted (the pre-backfill
+    // state) scores identically to one with federatedBoostsCount explicitly 0.
+    const absent = makePost({
+      _id: 'fed-absent',
+      stats: { likesCount: 1, boostsCount: 4, commentsCount: 0, viewsCount: 0 },
+    });
+    const explicitZero = makePost({
+      _id: 'fed-zero',
+      stats: { likesCount: 1, boostsCount: 4, federatedBoostsCount: 0, commentsCount: 0, viewsCount: 0 },
+    });
+
+    const absentScore = await service.calculatePostScore(absent, undefined, {});
+    const zeroScore = await service.calculatePostScore(explicitZero, undefined, {});
+    expect(absentScore).toBeCloseTo(zeroScore, 10);
   });
 });
 

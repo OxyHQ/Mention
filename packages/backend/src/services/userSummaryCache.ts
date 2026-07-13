@@ -29,8 +29,14 @@ import { logger } from '../utils/logger';
  *    federated-actor identity bridge re-resolves a user (avatar/name refresh).
  */
 
-/** Redis key prefix for cached user identities. `v2` bumps the schema (raw Oxy user, not the old flat summary). */
-const USER_SUMMARY_PREFIX = 'usersummary:v2:';
+/**
+ * Redis key prefix for cached user identities. Bumped whenever the cached VALUE
+ * schema changes so stale entries are never read back with missing fields:
+ *  - `v2` — raw Oxy user (replaced the old flat summary).
+ *  - `v3` — adds the account's BCP-47 `languages` (ranking-side, see
+ *    {@link CachedUserSummary}).
+ */
+const USER_SUMMARY_PREFIX = 'usersummary:v3:';
 
 /**
  * TTL for a cached summary. Display name / avatar / verification change rarely;
@@ -40,14 +46,24 @@ const USER_SUMMARY_PREFIX = 'usersummary:v2:';
 const SUMMARY_TTL_SECONDS = Number(process.env.USER_SUMMARY_CACHE_TTL_SECONDS ?? 10 * 60);
 
 /**
- * The cached value: the raw canonical Oxy {@link PostUser} plus the author's
- * follower count (used by ranking's authority signal). Follower count is
- * OPTIONAL — older entries or users whose count was unavailable simply omit it,
- * and ranking falls back to a neutral authority multiplier.
+ * The cached value: the raw canonical Oxy {@link PostUser} plus the RANKING-side
+ * facts about that account which never belong on a post DTO — the follower count
+ * (authority signal) and the account's languages (the viewer-language signal).
+ *
+ * Both are OPTIONAL: a user whose count was unavailable, or who set no account
+ * languages, simply omits the field and the corresponding signal falls back to
+ * its neutral multiplier.
  */
 export interface CachedUserSummary {
   user: PostUser;
   followerCount?: number;
+  /**
+   * The account's languages as canonical BCP-47 locales (`es-ES`, `en-US`),
+   * primary first — resolved from the Oxy user via `getUserLanguages`. Read for
+   * the VIEWER (`languageMismatchPenalty`); it is deliberately kept OFF
+   * {@link PostUser} so it never ships inside a post's author DTO.
+   */
+  languages?: string[];
 }
 
 /** Hash-free key: Oxy user ids are already short and bounded, so embed them directly. */

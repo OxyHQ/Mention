@@ -60,8 +60,23 @@ import {
  * primary (`languages[0]`) is written to the top-level `post.language` AP field.
  * Bumped so the version-gated backfill re-derives `languages` across the existing
  * corpus (and migrates off the removed singular `postClassification.language`).
+ *
+ * v5: HARDENED spam/quality against low-effort + bot junk so the deterministic
+ * scores are trustworthy enough for the discovery gate to act on. New pure
+ * detectors feed `computeDeterministicScores`: low-effort shapes (custom-emoji
+ * `:shortcode:`-only and Unicode-emoji-only posts, which carry "letters" but no
+ * prose — see `contentClassification/lowEffort`) and bot shapes (RSS/bridge/
+ * Service/Application mirrors + link-only news bots — see
+ * `contentClassification/botSignals`). These raise spam / lower quality for the
+ * junk while leaving normal real-text prose (including off-language) UNCHANGED —
+ * off-language is a ranking concern, not a classification one. Federated ingest
+ * now threads the AP actor `type` through as {@link ClassifyInput.actorType}.
+ * Bumped so the version-gated backfill re-stamps the corpus with the stronger
+ * scores; note that until the backfill runs, existing baseline-only v4 posts fall
+ * below the provenance bar and read as NEUTRAL in ranking (AI-`classified` posts
+ * are trusted via status and are unaffected).
  */
-export const BASELINE_CLASSIFIER_VERSION = 4;
+export const BASELINE_CLASSIFIER_VERSION = 5;
 
 /**
  * Minimum number of non-whitespace characters required before attempting
@@ -123,8 +138,14 @@ export interface ClassifyInput {
   sensitive?: boolean;
   /** Whether this post came from a federated instance. */
   isFederated?: boolean;
-  /** Federated instance domain (host), when known. Used for region only. */
+  /** Federated instance domain (host), when known. Feeds region + the RSS/bot-mirror signal. */
   instanceDomain?: string;
+  /**
+   * AP actor type of the author (`Person`/`Service`/`Application`/…), when the
+   * post is federated. Feeds the deterministic bot-mirror spam signal; absent for
+   * native posts (neutral).
+   */
+  actorType?: string;
   /** Author locale (e.g. `"es-ES"`), when known. Weak region fallback. */
   authorLocale?: string;
 }
@@ -211,10 +232,16 @@ export class BaselineContentClassifier {
 
     // Deterministic spam/quality/toxicity from the ORIGINAL-case text (caps ratio
     // needs case) and the canonical hashtag count (so the heuristics agree with
-    // the rest of the classifier on what counts as a hashtag). Lifted into the
-    // full scores shape (AI-only fields neutral) for storage.
+    // the rest of the classifier on what counts as a hashtag). The federated-origin
+    // context feeds the low-effort/bot-mirror signals; it is inert for native
+    // posts (no `actorType`/`instanceDomain`), so their scores are unchanged.
+    // Lifted into the full scores shape (AI-only fields neutral) for storage.
     const scores = toClassificationScores(
-      computeDeterministicScores(input.text ?? '', hashtagsNorm.length),
+      computeDeterministicScores(input.text ?? '', hashtagsNorm.length, {
+        actorType: input.actorType,
+        instanceDomain: input.instanceDomain,
+        isFederated: input.isFederated,
+      }),
     );
 
     // Sensitive = the source-provided flag OR any NSFW/adult hashtag. The

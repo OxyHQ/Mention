@@ -12,8 +12,14 @@ import { Post } from '../../models/Post';
 import { recordDedupedView } from '../../services/feedViewCounter';
 import { recordDwell } from '../../services/dwellAggregate';
 import { userPreferenceService } from '../../services/UserPreferenceService';
+import {
+  recordImpression,
+  recordInteractionSignal,
+  recordReport,
+  originForFederation,
+} from './feedMetrics';
 
-export type InteractionEvent = 'impression' | 'click' | 'like' | 'reply' | 'boost' | 'save';
+export type InteractionEvent = 'impression' | 'click' | 'like' | 'reply' | 'boost' | 'save' | 'report';
 
 export interface FeedInteractionData {
   userId: string;
@@ -55,6 +61,12 @@ export async function trackFeedInteraction(interaction: FeedInteractionData): Pr
     applyImpressionSignals(interaction).catch((error) => {
       logger.warn('[FeedInteractionTracker] Failed to apply impression signals', error);
     });
+  } else if (interaction.event === 'report') {
+    // A report is a strong negative feed signal — count it (split by origin) so
+    // report-per-impression can be tracked online and per A/B cohort offline.
+    recordReportSignal(interaction).catch((error) => {
+      logger.warn('[FeedInteractionTracker] Failed to record report signal', error);
+    });
   }
 }
 
@@ -84,10 +96,11 @@ export async function applyImpressionSignals(interaction: FeedInteractionData): 
 
   // Client telemetry is untrusted: only derive view/preference side effects for
   // real public, published local posts. Resolving the post here also yields its
-  // author, needed for the self-pumping guard below. A single lean read.
+  // author (self-pumping guard below) and its `federation` subdoc (the impression
+  // origin label). A single lean read.
   const post = await Post.findOne(
     { _id: postId, visibility: PostVisibility.PUBLIC, status: 'published' },
-    { oxyUserId: 1 },
+    { oxyUserId: 1, federation: 1 },
   ).lean();
   if (!post) {
     return;
@@ -95,10 +108,16 @@ export async function applyImpressionSignals(interaction: FeedInteractionData): 
 
   // Self-pumping guard: a viewer impressing their OWN post must not move any
   // ranking/learning signal (view count, dwell average, or affinity), otherwise
-  // an author could inflate their own reach by re-viewing their posts.
+  // an author could inflate their own reach by re-viewing their posts. Self-views
+  // are also excluded from the impression metrics so they never skew the
+  // engagement-per-impression denominator.
   if (post.oxyUserId && post.oxyUserId === interaction.userId) {
     return;
   }
+
+  // Online metric: a genuine third-party impression, split by federated vs local
+  // origin (the denominator for engagement- and report-per-impression).
+  recordImpression(interaction.feedDescriptor, originForFederation(post.federation));
 
   // 1. Deduped real view count. Returns true ONLY for the first view of this
   //    (post, viewer) pair within the window (no-op without Redis / on duplicate).
@@ -111,6 +130,8 @@ export async function applyImpressionSignals(interaction: FeedInteractionData): 
   //    view is attributed to video content, not the author.
   const dwellMs = interaction.durationMs ?? 0;
   const signal = dwellMs > 0 && dwellMs < MtnConfig.preferences.dwellSkipThresholdMs ? 'skip' : 'view';
+  // Online metric: the derived view/skip signal for this impression.
+  recordInteractionSignal(signal, interaction.feedDescriptor);
   await userPreferenceService.recordInteraction(interaction.userId, postId, signal, {
     surface: interaction.feedDescriptor,
   });
@@ -122,6 +143,29 @@ export async function applyImpressionSignals(interaction: FeedInteractionData): 
   if (countedNewView && dwellMs > 0) {
     await recordDwell(postId, Math.min(dwellMs, MtnConfig.preferences.maxDwellMs));
   }
+}
+
+/**
+ * Emit the `feed_report_total{descriptor,origin}` metric for a report interaction.
+ * Resolves the reported post's origin (federated vs local) with a single lean read
+ * when the uri is a local post id; a non-local / unresolved uri is counted as
+ * `local`. Best-effort — never fails the interaction record.
+ *
+ * Exported for unit testing; called only by {@link trackFeedInteraction}.
+ */
+export async function recordReportSignal(interaction: FeedInteractionData): Promise<void> {
+  const postId = interaction.postUri;
+  let federation: unknown;
+  if (postId && mongoose.Types.ObjectId.isValid(postId)) {
+    // `postUri` is client-supplied: query with a CONSTRUCTED ObjectId so no
+    // user-shaped value can reach the query as an operator.
+    const post = await Post.findOne(
+      { _id: new mongoose.Types.ObjectId(postId) },
+      { federation: 1 },
+    ).lean();
+    federation = post?.federation;
+  }
+  recordReport(interaction.feedDescriptor, originForFederation(federation));
 }
 
 /**

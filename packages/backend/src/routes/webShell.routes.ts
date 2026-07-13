@@ -28,10 +28,12 @@ import { logger } from '../utils/logger';
 import {
   OgData,
   OxyProfileData,
+  injectHeadHtml,
   mapPostOg,
   mapProfileOg,
   renderShellWithOg,
 } from '../services/webShellRenderer';
+import { getOgCached } from '../services/webShellOgCache';
 
 /** Frontend CDN origin the static SPA shell is fetched from (NOT the apex — that would loop the Origin Rule). */
 const SHELL_ORIGIN = process.env.WEB_SHELL_ORIGIN || 'https://mention-frontend.pages.dev/';
@@ -47,6 +49,33 @@ const OXY_API_URL = process.env.OXY_API_URL || 'https://api.oxy.so';
 /** Backend origin that serves the canonical ActivityPub actor. */
 const API_ORIGIN = (process.env.MENTION_API_ORIGIN || 'https://api.mention.earth').replace(/\/+$/, '');
 const AP_ACTOR_BASE = `${API_ORIGIN}/ap/users/`;
+/** Oxy file/media CDN origin — canonical avatars/media are served from here (see CSP `cloud.oxy.so`). */
+const OXY_MEDIA_CDN_ORIGIN = (process.env.OXY_MEDIA_CDN_ORIGIN || 'https://cloud.oxy.so').replace(/\/+$/, '');
+
+/**
+ * Static `<head>` resource hints injected into every deep-link shell so the
+ * browser opens TCP+TLS to the API and the media CDN in parallel with parsing the
+ * SPA bundle (the SPA fetches feed/profile data from the API and images from the
+ * CDN on mount). Crawlers ignore these; they cost browsers nothing but save a
+ * round trip.
+ */
+const HEAD_HINTS =
+  `<link rel="preconnect" href="${API_ORIGIN}" crossorigin>` +
+  `<link rel="preconnect" href="${OXY_MEDIA_CDN_ORIGIN}" crossorigin>`;
+
+/**
+ * Link-unfurlers / crawlers that need server-rendered OG tags because they do NOT
+ * execute the SPA's client-side JS. Real browsers are served the shell WITHOUT a
+ * blocking OG fetch (the SPA mounts the meta on hydration), so only these UAs pay
+ * the OG-resolution cost — and it is Redis-cached with stale-while-revalidate.
+ */
+const CRAWLER_UA_RE =
+  /bot|crawler|spider|crawling|facebookexternalhit|facebot|twitterbot|slackbot|slack-imgproxy|discordbot|whatsapp|telegram|linkedinbot|pinterest|redditbot|embedly|quora link preview|showyoubot|outbrain|vkshare|w3c_validator|applebot|googlebot|bingbot|yandex|baiduspider|duckduckbot|mastodon|pleroma|akkoma|misskey|iframely|skypeuripreview|nuzzel|google-inspectiontool|metainspector|opengraph|unfurl|preview|flipboard|tumblr|mediapartners/i;
+
+/** Whether the request is a crawler/unfurler that needs server-rendered OG tags. */
+function isCrawler(userAgent: string | undefined): boolean {
+  return typeof userAgent === 'string' && CRAWLER_UA_RE.test(userAgent);
+}
 
 /** A LOCAL profile path: a single `@handle` segment with no second `@` and no sub-tab. */
 const LOCAL_PROFILE_RE = /^\/@([^/@]+)$/;
@@ -171,13 +200,16 @@ async function fetchPostOg(id: string): Promise<OgData | null> {
   }
 }
 
-/** Serve the shell with OG injected, overriding the API no-store default for these public per-URL pages. */
+/** Serve the shell with head hints + optional OG injected, overriding the API no-store default. */
 async function serveShell(res: Response, og: OgData | null): Promise<void> {
   const shell = (await getShell()) ?? FALLBACK_SHELL;
   res.status(200);
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
-  res.setHeader('Cache-Control', 'public, max-age=300');
-  res.send(renderShellWithOg(shell, og));
+  // Per-URL page whose body depends on User-Agent (crawler OG vs plain browser
+  // shell) — `private` so a shared cache never serves one audience's variant to
+  // the other; the browser still caches its own copy for 5 minutes.
+  res.setHeader('Cache-Control', 'private, max-age=300');
+  res.send(renderShellWithOg(injectHeadHtml(shell, HEAD_HINTS), og));
 }
 
 const router = Router();
@@ -193,14 +225,29 @@ router.get(/^\/@([^/]+)(?:\/.*)?$/, async (req: Request, res: Response) => {
     return res.redirect(302, AP_ACTOR_BASE + encodeURIComponent(handle));
   }
 
-  res.setHeader('Vary', 'Accept');
-  const og = await fetchProfileOg(handle);
+  // The body varies by Accept (AP redirect above) and User-Agent (crawlers get
+  // server-side OG; browsers get the plain shell + client-side OG).
+  res.setHeader('Vary', 'Accept, User-Agent');
+
+  // Only crawlers/unfurlers need OG server-side; a browser boots the SPA which
+  // sets its own meta, so it is served the shell immediately — no OG fetch blocks
+  // the TTFB. Crawler OG is Redis-cached (short TTL + stale-while-revalidate).
+  const og = isCrawler(req.headers['user-agent'])
+    ? await getOgCached(`profile:${handle}`, () => fetchProfileOg(handle))
+    : null;
   await serveShell(res, og);
 });
 
 // Post: `/p/<id>` (optional trailing slash). No AP case.
 router.get(/^\/p\/([^/]+)\/?$/, async (req: Request, res: Response) => {
-  const og = await fetchPostOg(req.params[0]);
+  const id = req.params[0];
+  // Body varies by User-Agent (crawler OG vs plain browser shell).
+  res.setHeader('Vary', 'User-Agent');
+  // Browsers get the shell immediately; only crawlers pay the Mongo hydration to
+  // resolve post OG, cached in Redis with stale-while-revalidate.
+  const og = isCrawler(req.headers['user-agent'])
+    ? await getOgCached(`post:${id}`, () => fetchPostOg(id))
+    : null;
   await serveShell(res, og);
 });
 

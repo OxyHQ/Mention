@@ -30,6 +30,15 @@ export type CandidatePost = Record<string, unknown> & Omit<FeedSafetyPostShape, 
   finalScore?: number;
   /** Ordered sources (Saved, Author-likes) attach the next-page cursor token. */
   _feedCursor?: string;
+  /**
+   * DISCOVERY marker (Phase 4a). Stamped `true` by the engine on candidates that
+   * came from a NON-trusted (discovery) source and passed the definition's
+   * `discoveryFilters`. Read by the discovery-gate lane-scoping and the
+   * `languageMismatchPenalty` ranking signal. Opaque engine bookkeeping — like
+   * `finalScore` / `_feedCursor` it lives on the lean candidate ONLY and MUST NOT
+   * leak into the hydrated {@link HydratedPost} (hydration builds a fresh DTO).
+   */
+  _discovery?: boolean;
   /** Classification fields used by sources, ranking, and safety filters. */
   postClassification?: Partial<PostClassification> & {
     /** Legacy extracted topics — used by related sources when topicRefs absent. */
@@ -38,6 +47,16 @@ export type CandidatePost = Record<string, unknown> & Omit<FeedSafetyPostShape, 
 };
 
 export type ModuleKind = 'source' | 'signal' | 'filter';
+
+/**
+ * DISCOVERY-GATE A/B bucket (Phase 7). A viewer is deterministically assigned to
+ * exactly one bucket by hashing their `oxyUserId` when the experiment env flag is
+ * on. `gate-on` viewers get the For You discovery gate ENFORCED; `gate-off`
+ * viewers get it MEASURED-ONLY (rejections counted, nothing dropped), so the two
+ * cohorts' skip-rate / report-rate / engagement-per-impression can be compared
+ * offline (the bucket is recomputable from the id). See `discoveryGateExperiment`.
+ */
+export type DiscoveryGateBucket = 'gate-on' | 'gate-off';
 
 /**
  * The per-request execution context threaded through every module. Extends the
@@ -71,6 +90,16 @@ export interface FeedEngineContext extends FeedContext {
     orientation?: 'portrait' | 'landscape' | 'square' | 'all';
     minDurationSec?: number;
   };
+  /**
+   * DISCOVERY-GATE A/B bucket for this viewer (Phase 7). Resolved by the feed
+   * controller ONLY for the For You descriptor when the experiment is enabled
+   * (`FOR_YOU_DISCOVERY_GATE_AB`); otherwise absent. `gate-off` forces the gate
+   * into measure-only mode for this viewer (rejections counted, never dropped)
+   * exactly like the global shadow config, while `gate-on` enforces it — letting
+   * the two cohorts be compared without a new flag channel. Absent ⇒ enforcement
+   * follows the global `MtnConfig.feed.discoveryGate.shadow` config.
+   */
+  discoveryGateBucket?: DiscoveryGateBucket;
 }
 
 export interface SourceModule {
@@ -81,6 +110,15 @@ export interface SourceModule {
    * sources (following / mutuals / saved / authored) are `false`.
    */
   userComposable: boolean;
+  /**
+   * TRUSTED-lane marker (Phase 4a). A trusted source draws from the viewer's OWN
+   * chosen graph (following / subscribed lists / affinity), so its candidates are
+   * NEVER subjected to the discovery gate (`FeedDefinition.discoveryFilters`) nor
+   * marked `_discovery`. Absent/`false` = a DISCOVERY source (topics / language /
+   * region / trending / global), whose candidates ARE gated. Only meaningful for
+   * ranked multi-source definitions that declare `discoveryFilters` (For You).
+   */
+  trusted?: boolean;
   gather(ctx: FeedEngineContext, params: Record<string, unknown>, cap: number): Promise<CandidatePost[]>;
 }
 
@@ -174,6 +212,17 @@ export interface FeedExecution {
    * the source apply the cursor. Default `false`.
    */
   preScored?: boolean;
+  /**
+   * DISCOVERY-SHARE CAP (Phase 5) — the maximum SHARE (0..1) of a rendered ranked
+   * page that may come from DISCOVERY lanes (slices whose anchor post carries the
+   * opaque `_discovery` marker). After author diversification and BEFORE page
+   * truncation, `capDiscoveryShare` DEFERS — never drops (same contract as
+   * `diversifyByAuthor`) — discovery slices beyond `floor(maxDiscoveryShare ·
+   * limit)` to the page tail, guaranteeing a floor for trusted (following /
+   * affinity / lists) content. Unset (every feed except For You) = no cap. On a
+   * thin follow graph the cap is simply unmet and discovery backfills the page.
+   */
+  maxDiscoveryShare?: number;
 }
 
 /** The two execution modes a feed definition can run in. */
@@ -186,6 +235,16 @@ export interface FeedDefinition {
   sources: ModuleRef[];
   signals: ModuleRef[];
   filters: ModuleRef[];
+  /**
+   * DISCOVERY GATE (Phase 4a) — filters applied ONLY to candidates from
+   * NON-trusted (discovery) sources, on top of the always-applied {@link filters}.
+   * A candidate that also appears in a TRUSTED lane is inserted as the trusted
+   * copy first (source order + `_id` dedup), so followed/affinity authors are
+   * never gated. In SHADOW mode (`MtnConfig.feed.discoveryGate.shadow`) the gate
+   * is EVALUATED and counted but nothing is dropped. Only For You declares this;
+   * every other feed leaves it unset (unaffected).
+   */
+  discoveryFilters?: ModuleRef[];
   /** Internal engine execution profile (see {@link FeedExecution}). */
   execution?: FeedExecution;
 }

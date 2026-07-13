@@ -22,6 +22,17 @@ vi.mock('../models/CustomFeed', () => ({
   default: { findById: vi.fn(() => ({ lean: async () => customFeedDoc })) },
 }));
 
+let settingsDoc: { feedTuning?: { forYou?: unknown } } | null = null;
+const settingsUpdate = vi.fn((_q: unknown, update: { $set: Record<string, unknown> }) => ({
+  lean: async () => ({ feedTuning: { forYou: update.$set['feedTuning.forYou'] } }),
+}));
+vi.mock('../models/UserSettings', () => ({
+  default: {
+    findOne: vi.fn(() => ({ lean: async () => settingsDoc })),
+    findOneAndUpdate: (...a: unknown[]) => settingsUpdate(...(a as [unknown, { $set: Record<string, unknown> }])),
+  },
+}));
+
 import { feedPreferencesController } from '../mtn/controllers/feedPreferences.controller';
 
 function makeRes() {
@@ -38,6 +49,7 @@ const authed = (body?: unknown) => ({ user: { id: 'viewer' }, body }) as never;
 beforeEach(() => {
   storedDoc = null;
   customFeedDoc = null;
+  settingsDoc = null;
   vi.clearAllMocks();
 });
 
@@ -123,6 +135,66 @@ describe('PUT /feed/preferences', () => {
   it('401s an anonymous request', async () => {
     const res = makeRes();
     await feedPreferencesController.update({ user: undefined, body: { savedFeeds: [] } } as never, res as never);
+    expect(res.statusCode).toBe(401);
+  });
+});
+
+describe('GET /feed/tuning', () => {
+  it('returns an empty forYou when nothing is stored', async () => {
+    const res = makeRes();
+    await feedPreferencesController.getTuning(authed(), res as never);
+    expect(res.statusCode).toBe(200);
+    expect((res.body as { data: { forYou: unknown } }).data.forYou).toEqual({});
+  });
+
+  it('returns the stored forYou tuning', async () => {
+    settingsDoc = { feedTuning: { forYou: { minQuality: { enabled: true, minQuality: 0.5 } } } };
+    const res = makeRes();
+    await feedPreferencesController.getTuning(authed(), res as never);
+    expect((res.body as { data: { forYou: unknown } }).data.forYou).toEqual({
+      minQuality: { enabled: true, minQuality: 0.5 },
+    });
+  });
+
+  it('401s an anonymous request', async () => {
+    const res = makeRes();
+    await feedPreferencesController.getTuning({ user: undefined } as never, res as never);
+    expect(res.statusCode).toBe(401);
+  });
+});
+
+describe('PUT /feed/tuning', () => {
+  it('validates + persists the forYou tuning (rejecting out-of-range)', async () => {
+    const res = makeRes();
+    await feedPreferencesController.updateTuning(
+      authed({ forYou: { lowEffortGate: { enabled: false }, minQuality: { enabled: true, minQuality: 0.4 } } }),
+      res as never,
+    );
+    expect(res.statusCode).toBe(200);
+    const persisted = settingsUpdate.mock.calls[0][1].$set['feedTuning.forYou'];
+    expect(persisted).toEqual({
+      lowEffortGate: { enabled: false },
+      minQuality: { enabled: true, minQuality: 0.4 },
+    });
+  });
+
+  it('400s an out-of-range threshold and never writes', async () => {
+    const res = makeRes();
+    await feedPreferencesController.updateTuning(authed({ forYou: { minQuality: { minQuality: 2 } } }), res as never);
+    expect(res.statusCode).toBe(400);
+    expect(settingsUpdate).not.toHaveBeenCalled();
+  });
+
+  it('400s an unknown tuning module', async () => {
+    const res = makeRes();
+    await feedPreferencesController.updateTuning(authed({ forYou: { bogus: {} } }), res as never);
+    expect(res.statusCode).toBe(400);
+    expect(settingsUpdate).not.toHaveBeenCalled();
+  });
+
+  it('401s an anonymous request', async () => {
+    const res = makeRes();
+    await feedPreferencesController.updateTuning({ user: undefined, body: { forYou: {} } } as never, res as never);
     expect(res.statusCode).toBe(401);
   });
 });

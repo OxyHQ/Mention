@@ -925,6 +925,37 @@
       "members": "Membri",
       "remove": "Rimuovi",
       "createButton": "Crea Feed"
+    },
+    "categories": {
+      "quality": "Qualità",
+      "engagement": "Interazioni",
+      "media": "Media",
+      "network": "Link e rete",
+      "language": "Lingua",
+      "topics": "Argomenti e parole",
+      "authors": "Autori",
+      "safety": "Sicurezza",
+      "recency": "Recenti",
+      "source": "Fonti",
+      "ranking": "Classifica"
+    },
+    "modules": {
+      "minQuality": {
+        "label": "Qualità minima",
+        "description": "Mantieni solo i post la cui qualità classificata è pari o superiore alla soglia. I post senza un punteggio affidabile passano."
+      },
+      "noLowEffort": {
+        "label": "Niente post superficiali",
+        "description": "Scarta i post fatti solo di emoji, solo di shortcode o senza testo reale (a meno che non abbiano media). Facoltativamente scarta quelli pieni di emoji."
+      },
+      "linkCount": {
+        "label": "Numero di link",
+        "description": "Mantieni solo i post il cui numero di link rientra nell'intervallo."
+      },
+      "noBots": {
+        "label": "Niente bot",
+        "description": "Scarta i mirror RSS/bridge e i bot di notizie solo con link."
+      }
     }
   },
   "connections": {
@@ -1250,5 +1281,36 @@
     "roomHidden": "Stanza nascosta",
     "linkCopied": "Link copiato negli appunti",
     "shareFailed": "Impossibile condividere. Riprova."
+  },
+  "feed": {
+    "tuning": {
+      "title": "Per te",
+      "entryDescription": "Regola i filtri di qualità, interazioni e contenuto del tuo feed Per te",
+      "intro": "Questi filtri modellano solo il tuo feed di scoperta Per te. Gli account che segui non vengono mai filtrati.",
+      "threshold": "Soglia",
+      "signInRequired": "Accedi per regolare il tuo feed Per te",
+      "signInRequiredDesc": "Regola quali filtri di qualità, interazioni e contenuto modellano il tuo feed di scoperta.",
+      "categories": {
+        "quality": "Qualità",
+        "engagement": "Interazioni",
+        "content": "Contenuto"
+      },
+      "minLength": {
+        "label": "Lunghezza minima",
+        "description": "Nascondi i post di scoperta molto brevi sotto un certo numero di caratteri."
+      },
+      "lowEffortGate": {
+        "label": "Niente post superficiali",
+        "description": "Nascondi i post di scoperta fatti solo di emoji, solo di shortcode o senza testo reale."
+      },
+      "nativeEngagement": {
+        "label": "Richiedi interazioni o interesse",
+        "description": "Nascondi i post di scoperta senza interazioni reali che non corrispondono ai tuoi interessi."
+      },
+      "minQuality": {
+        "label": "Qualità minima",
+        "description": "Nascondi i post di scoperta la cui qualità classificata è sotto la tua soglia. Disattivato per impostazione predefinita."
+      }
+    }
   }
 }

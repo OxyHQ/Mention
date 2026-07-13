@@ -7,7 +7,8 @@
 
 import { FeedPostSlice, HydratedPost, SlicedFeedResponse } from '@mention/shared-types';
 import { FeedDescriptor } from '@mention/shared-types';
-import type { RankingUserBehavior, FeedRankingSettings } from '../../services/FeedRankingService';
+import type { FeedTuning } from '@mention/shared-types';
+import type { RankingUserBehavior, FeedRankingSettings } from '../../services/ranking/signalContext';
 import type { OxyClient } from '../../utils/privacyHelpers';
 
 export interface FeedAPIResponse {
@@ -26,6 +27,14 @@ export interface FeedFetchOptions {
 export interface FeedContext {
   currentUserId?: string;
   followingIds?: string[];
+  /**
+   * The viewer's follower ids (accounts that follow the viewer), resolved ONCE
+   * per feed request by `loadViewerFeedContext` alongside `followingIds`. Threaded
+   * into `PostHydrationService` so hydration does NOT re-fetch `getUserFollowers`
+   * from Oxy on the feed path (used there for reciprocal-relationship checks).
+   * Absent for anonymous viewers.
+   */
+  followerIds?: string[];
   /**
    * Author ids from lists the viewer subscribes to. These are feed-inclusion
    * candidates only and MUST NOT be treated as follow relationships for
@@ -53,6 +62,27 @@ export interface FeedContext {
    * (safe-for-work) for anonymous viewers and on any load failure.
    */
   showSensitiveContent?: boolean;
+  /**
+   * The viewer's account languages as canonical BCP-47 locales (`es-ES`,
+   * `en-US`), primary first, resolved from the Oxy account by
+   * `loadViewerFeedContext`. Consumed ONLY by the `languageMismatchPenalty`
+   * ranking signal (Phase 4c) to softly downrank off-language DISCOVERY posts —
+   * never a hard filter. The signal compares on the BASE subtag (`es-ES` matches
+   * a post classified `es`). EMPTY / absent ⇒ the penalty is neutral for every
+   * post (the viewer's languages are unknown, so we never penalize). Never
+   * derived from behavior and never defaulted to a UI locale.
+   */
+  viewerLanguages?: string[];
+  /**
+   * The viewer's Mention-local per-user FEED TUNING (Phase 4B), loaded from
+   * `UserSettings.feedTuning` by `loadViewerFeedContext`. The For You
+   * discovery-gate filter modules read `feedTuning.forYou` as EFFECTIVE overrides
+   * layered over the `MtnConfig.feed.discoveryGate` config defaults (toggle a gate
+   * module off / re-tune its threshold for THIS viewer only), while
+   * `forYouDefinition` stays static. Absent for anonymous viewers, viewers with no
+   * tuning, or on any load failure ⇒ the config-default gate applies unchanged.
+   */
+  feedTuning?: FeedTuning;
 }
 
 export interface FeedAPI {

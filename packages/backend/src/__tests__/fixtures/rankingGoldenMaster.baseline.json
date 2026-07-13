@@ -1,0 +1,524 @@
+{
+  "bare-anon": {
+    "finalScore": 0,
+    "engagement": 0,
+    "recency": 0.9438743126816935,
+    "relationship": 1,
+    "personalization": 1,
+    "quality": 1.2,
+    "diversity": 1
+  },
+  "high-engagement-computed": {
+    "finalScore": 4.3509396975081,
+    "engagement": 2.9549102790337356,
+    "recency": 0.9438743126816935,
+    "relationship": 1,
+    "personalization": 1,
+    "quality": 1.56,
+    "diversity": 1
+  },
+  "fresh-under-1h": {
+    "finalScore": 1.8859781395056812,
+    "engagement": 1.208960345836975,
+    "recency": 1,
+    "relationship": 1,
+    "personalization": 1,
+    "quality": 1.56,
+    "diversity": 1
+  },
+  "aged-12h": {
+    "finalScore": 0,
+    "engagement": 0,
+    "recency": 0.7071067811865476,
+    "relationship": 1,
+    "personalization": 1,
+    "quality": 1.1,
+    "diversity": 1
+  },
+  "aged-2d": {
+    "finalScore": 0,
+    "engagement": 0,
+    "recency": 0.25,
+    "relationship": 1,
+    "personalization": 1,
+    "quality": 1,
+    "diversity": 1
+  },
+  "older-than-maxage": {
+    "finalScore": 0,
+    "engagement": 0,
+    "recency": 0,
+    "relationship": 1,
+    "personalization": 1,
+    "quality": 1,
+    "diversity": 1
+  },
+  "invalid-createdAt": {
+    "finalScore": 0,
+    "engagement": 0,
+    "recency": 0,
+    "relationship": 1,
+    "personalization": 1,
+    "quality": 1,
+    "diversity": 1
+  },
+  "missing-createdAt": {
+    "finalScore": 0,
+    "engagement": 0,
+    "recency": 0,
+    "relationship": 1,
+    "personalization": 1,
+    "quality": 1,
+    "diversity": 1
+  },
+  "missing-stats": {
+    "finalScore": 0,
+    "engagement": 0,
+    "recency": 0.9438743126816935,
+    "relationship": 1,
+    "personalization": 1,
+    "quality": 1.2,
+    "diversity": 1
+  },
+  "following-author": {
+    "finalScore": 2.038768515392458,
+    "engagement": 1,
+    "recency": 0.9438743126816935,
+    "relationship": 1.8,
+    "personalization": 1,
+    "quality": 1.2,
+    "diversity": 1
+  },
+  "strong-affinity": {
+    "finalScore": 1.6989737628270483,
+    "engagement": 1,
+    "recency": 0.9438743126816935,
+    "relationship": 1.5,
+    "personalization": 1,
+    "quality": 1.2,
+    "diversity": 1
+  },
+  "weak-affinity": {
+    "finalScore": 1.3591790102616386,
+    "engagement": 1,
+    "recency": 0.9438743126816935,
+    "relationship": 1.2,
+    "personalization": 1,
+    "quality": 1.2,
+    "diversity": 1
+  },
+  "no-relation-viewer": {
+    "finalScore": 1.019384257696229,
+    "engagement": 1,
+    "recency": 0.9438743126816935,
+    "relationship": 0.9,
+    "personalization": 1,
+    "quality": 1.2,
+    "diversity": 1
+  },
+  "authority-large-account": {
+    "finalScore": 1.585708845305245,
+    "engagement": 1,
+    "recency": 0.9438743126816935,
+    "relationship": 1.4,
+    "personalization": 1,
+    "quality": 1.2,
+    "diversity": 1
+  },
+  "authority-small-account": {
+    "finalScore": 1.2111584334546248,
+    "engagement": 1,
+    "recency": 0.9438743126816935,
+    "relationship": 1.0693147180559945,
+    "personalization": 1,
+    "quality": 1.2,
+    "diversity": 1
+  },
+  "quality-high-rate": {
+    "finalScore": 4.118853947290309,
+    "engagement": 2.151762203259462,
+    "recency": 0.9438743126816935,
+    "relationship": 1,
+    "personalization": 1,
+    "quality": 2.028,
+    "diversity": 1
+  },
+  "quality-low-rate-manyviews": {
+    "finalScore": 2.0935802196424707,
+    "engagement": 2.772588722239781,
+    "recency": 0.9438743126816935,
+    "relationship": 1,
+    "personalization": 1,
+    "quality": 0.8,
+    "diversity": 1
+  },
+  "quality-tiny-views": {
+    "finalScore": 0.16810779638306833,
+    "engagement": 0.14842000511827327,
+    "recency": 0.9438743126816935,
+    "relationship": 1,
+    "personalization": 1,
+    "quality": 1.2,
+    "diversity": 1
+  },
+  "ai-high-quality": {
+    "finalScore": 0,
+    "engagement": 0,
+    "recency": 0.9438743126816935,
+    "relationship": 1,
+    "personalization": 1,
+    "quality": 1.56,
+    "diversity": 1
+  },
+  "ai-low-quality": {
+    "finalScore": 0,
+    "engagement": 0,
+    "recency": 0.9438743126816935,
+    "relationship": 1,
+    "personalization": 1,
+    "quality": 0.84,
+    "diversity": 1
+  },
+  "ai-high-spam": {
+    "finalScore": 0,
+    "engagement": 0,
+    "recency": 0.9438743126816935,
+    "relationship": 1,
+    "personalization": 1,
+    "quality": 1.2,
+    "diversity": 0.1
+  },
+  "ai-high-toxicity": {
+    "finalScore": 0,
+    "engagement": 0,
+    "recency": 0.9438743126816935,
+    "relationship": 1,
+    "personalization": 1,
+    "quality": 1.2,
+    "diversity": 0.1
+  },
+  "ai-malformed-scores": {
+    "finalScore": 0,
+    "engagement": 0,
+    "recency": 0.9438743126816935,
+    "relationship": 1,
+    "personalization": 1,
+    "quality": 1.2,
+    "diversity": 1
+  },
+  "baseline-scored-current-version": {
+    "finalScore": 0,
+    "engagement": 0,
+    "recency": 0.9438743126816935,
+    "relationship": 1,
+    "personalization": 1,
+    "quality": 1.2,
+    "diversity": 0.1
+  },
+  "stale-baseline-version": {
+    "finalScore": 0,
+    "engagement": 0,
+    "recency": 0.9438743126816935,
+    "relationship": 1,
+    "personalization": 1,
+    "quality": 1.2,
+    "diversity": 1
+  },
+  "pending-no-scores": {
+    "finalScore": 0,
+    "engagement": 0,
+    "recency": 0.9438743126816935,
+    "relationship": 1,
+    "personalization": 1,
+    "quality": 1.2,
+    "diversity": 1
+  },
+  "sensitive-classifier": {
+    "finalScore": 0,
+    "engagement": 1,
+    "recency": 0.9438743126816935,
+    "relationship": 1,
+    "personalization": 1,
+    "quality": 1.2,
+    "diversity": 0
+  },
+  "sensitive-opted-in": {
+    "finalScore": 1.132649175218032,
+    "engagement": 1,
+    "recency": 0.9438743126816935,
+    "relationship": 1,
+    "personalization": 1,
+    "quality": 1.2,
+    "diversity": 1
+  },
+  "nsfw-hashtag": {
+    "finalScore": 0,
+    "engagement": 1,
+    "recency": 0.9438743126816935,
+    "relationship": 1,
+    "personalization": 1,
+    "quality": 1.2,
+    "diversity": 0
+  },
+  "hidden-author": {
+    "finalScore": 0,
+    "engagement": 1,
+    "recency": 0.9438743126816935,
+    "relationship": 0.9,
+    "personalization": 1,
+    "quality": 1.2,
+    "diversity": 0
+  },
+  "blocked-author": {
+    "finalScore": 0,
+    "engagement": 1,
+    "recency": 0.9438743126816935,
+    "relationship": 0.9,
+    "personalization": 1,
+    "quality": 1.2,
+    "diversity": 0
+  },
+  "hidden-topic": {
+    "finalScore": 0.5096921288481145,
+    "engagement": 1,
+    "recency": 0.9438743126816935,
+    "relationship": 0.9,
+    "personalization": 1,
+    "quality": 1.2,
+    "diversity": 0.5
+  },
+  "hidden-topic-with-ai-spam": {
+    "finalScore": 0.05096921288481146,
+    "engagement": 1,
+    "recency": 0.9438743126816935,
+    "relationship": 0.9,
+    "personalization": 1,
+    "quality": 1.2,
+    "diversity": 0.05
+  },
+  "topicid-match": {
+    "finalScore": 1.1620980537737011,
+    "engagement": 1,
+    "recency": 0.9438743126816935,
+    "relationship": 0.9,
+    "personalization": 1.14,
+    "quality": 1.2,
+    "diversity": 1
+  },
+  "hashtag-topic-match": {
+    "finalScore": 1.1620980537737011,
+    "engagement": 1,
+    "recency": 0.9438743126816935,
+    "relationship": 0.9,
+    "personalization": 1.14,
+    "quality": 1.2,
+    "diversity": 1
+  },
+  "post-type-pref": {
+    "finalScore": 1.3251995350050978,
+    "engagement": 1,
+    "recency": 0.9438743126816935,
+    "relationship": 0.9,
+    "personalization": 1.3,
+    "quality": 1.2,
+    "diversity": 1
+  },
+  "language-match": {
+    "finalScore": 1.2232611092354748,
+    "engagement": 1,
+    "recency": 0.9438743126816935,
+    "relationship": 0.9,
+    "personalization": 1.2,
+    "quality": 1.2,
+    "diversity": 1
+  },
+  "language-miss": {
+    "finalScore": 1.019384257696229,
+    "engagement": 1,
+    "recency": 0.9438743126816935,
+    "relationship": 0.9,
+    "personalization": 1,
+    "quality": 1.2,
+    "diversity": 1
+  },
+  "thread-root-with-replies": {
+    "finalScore": 1.4096298352623688,
+    "engagement": 1.1314021114911006,
+    "recency": 0.9438743126816935,
+    "relationship": 1,
+    "personalization": 1,
+    "quality": 1.32,
+    "diversity": 1
+  },
+  "trending-density": {
+    "finalScore": 6.506883812101064,
+    "engagement": 2.8622008809294686,
+    "recency": 0.9715319411536059,
+    "relationship": 1,
+    "personalization": 1,
+    "quality": 2.34,
+    "diversity": 1
+  },
+  "federated-boosts-dampened": {
+    "finalScore": 0.25274335935126235,
+    "engagement": 0.22314355131420976,
+    "recency": 0.9438743126816935,
+    "relationship": 1,
+    "personalization": 1,
+    "quality": 1.2,
+    "diversity": 1
+  },
+  "native-boosts": {
+    "finalScore": 0.9184994405568053,
+    "engagement": 0.8109302162163288,
+    "recency": 0.9438743126816935,
+    "relationship": 1,
+    "personalization": 1,
+    "quality": 1.2,
+    "diversity": 1
+  },
+  "time-of-day-match": {
+    "finalScore": 1.2232611092354748,
+    "engagement": 1,
+    "recency": 0.9438743126816935,
+    "relationship": 0.9,
+    "personalization": 1,
+    "quality": 1.44,
+    "diversity": 1
+  },
+  "time-of-day-adjacent": {
+    "finalScore": 1.121322683465852,
+    "engagement": 1,
+    "recency": 0.9438743126816935,
+    "relationship": 0.9,
+    "personalization": 1,
+    "quality": 1.32,
+    "diversity": 1
+  },
+  "time-of-day-miss": {
+    "finalScore": 1.019384257696229,
+    "engagement": 1,
+    "recency": 0.9438743126816935,
+    "relationship": 0.9,
+    "personalization": 1,
+    "quality": 1.2,
+    "diversity": 1
+  },
+  "optin-absent-media-post": {
+    "finalScore": 1.132649175218032,
+    "engagement": 1,
+    "recency": 0.9438743126816935,
+    "relationship": 1,
+    "personalization": 1,
+    "quality": 1.2,
+    "diversity": 1
+  },
+  "optin-empty-set-nonopt-keys": {
+    "finalScore": 1.132649175218032,
+    "engagement": 1,
+    "recency": 0.9438743126816935,
+    "relationship": 1,
+    "personalization": 1,
+    "quality": 1.2,
+    "diversity": 1
+  },
+  "optin-mediaBoost-on": {
+    "finalScore": 1.3025465515007368,
+    "engagement": 1,
+    "recency": 0.9438743126816935,
+    "relationship": 1,
+    "personalization": 1.15,
+    "quality": 1.2,
+    "diversity": 1
+  },
+  "optin-coldStart-on": {
+    "finalScore": 1.4558042479180993,
+    "engagement": 1,
+    "recency": 1,
+    "relationship": 1.0549306144334054,
+    "personalization": 1.15,
+    "quality": 1.2,
+    "diversity": 1
+  },
+  "optin-penalizeSeen-on": {
+    "finalScore": 0.566324587609016,
+    "engagement": 1,
+    "recency": 0.9438743126816935,
+    "relationship": 1,
+    "personalization": 0.5,
+    "quality": 1.2,
+    "diversity": 1
+  },
+  "optin-verified-on": {
+    "finalScore": 1.2459140927398353,
+    "engagement": 1,
+    "recency": 0.9438743126816935,
+    "relationship": 1,
+    "personalization": 1.1,
+    "quality": 1.2,
+    "diversity": 1
+  },
+  "optin-socialProof-on": {
+    "finalScore": 1.4724439277834418,
+    "engagement": 1,
+    "recency": 0.9438743126816935,
+    "relationship": 1,
+    "personalization": 1.3,
+    "quality": 1.2,
+    "diversity": 1
+  },
+  "optin-dwell-on": {
+    "finalScore": 1.41581146902254,
+    "engagement": 1,
+    "recency": 0.9438743126816935,
+    "relationship": 1,
+    "personalization": 1.25,
+    "quality": 1.2,
+    "diversity": 1
+  },
+  "optin-novelty-on": {
+    "finalScore": 1.1722918963506634,
+    "engagement": 1,
+    "recency": 0.9438743126816935,
+    "relationship": 0.9,
+    "personalization": 1.15,
+    "quality": 1.2,
+    "diversity": 1
+  },
+  "optin-reciprocity-on": {
+    "finalScore": 2.0387685153924577,
+    "engagement": 1,
+    "recency": 0.9438743126816935,
+    "relationship": 1.5,
+    "personalization": 1.2,
+    "quality": 1.2,
+    "diversity": 1
+  },
+  "optin-positivity-conversational-on": {
+    "finalScore": 1.4950969112878025,
+    "engagement": 1,
+    "recency": 0.9438743126816935,
+    "relationship": 1,
+    "personalization": 1.32,
+    "quality": 1.2,
+    "diversity": 1
+  },
+  "optin-many-combined": {
+    "finalScore": 13.867248604771202,
+    "engagement": 1.3480731482996928,
+    "recency": 1,
+    "relationship": 1.634381960192104,
+    "personalization": 2.241435157499999,
+    "quality": 2.808,
+    "diversity": 1
+  },
+  "realistic-following-classified": {
+    "finalScore": 18.340614663994128,
+    "engagement": 2.0731719286662407,
+    "recency": 0.8908987181403393,
+    "relationship": 2.52,
+    "personalization": 1.9968000000000001,
+    "quality": 1.9734,
+    "diversity": 1
+  }
+}

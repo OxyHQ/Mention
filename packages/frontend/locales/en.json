@@ -1276,7 +1276,36 @@
       "minAccountAge": {
         "label": "Minimum account age",
         "description": "Only older accounts."
+      },
+      "minQuality": {
+        "label": "Minimum quality",
+        "description": "Keep only posts whose classified quality is at or above the threshold. Posts without a trusted score pass through."
+      },
+      "noLowEffort": {
+        "label": "No low-effort",
+        "description": "Drop emoji-only, shortcode-only, and text-empty posts (unless they carry media). Optionally drop emoji-heavy posts."
+      },
+      "linkCount": {
+        "label": "Link count",
+        "description": "Keep only posts whose number of links is within the range."
+      },
+      "noBots": {
+        "label": "No bots",
+        "description": "Drop RSS/bridge mirrors and link-only news bots."
       }
+    },
+    "categories": {
+      "quality": "Quality",
+      "engagement": "Engagement",
+      "media": "Media",
+      "network": "Links & network",
+      "language": "Language",
+      "topics": "Topics & words",
+      "authors": "Authors",
+      "safety": "Safety",
+      "recency": "Recency",
+      "source": "Sources",
+      "ranking": "Ranking"
     }
   },
   "connections": {
@@ -1456,5 +1485,36 @@
     "roomHidden": "Room hidden",
     "linkCopied": "Link copied to clipboard",
     "shareFailed": "Couldn't share. Please try again."
+  },
+  "feed": {
+    "tuning": {
+      "title": "For You",
+      "entryDescription": "Tune the quality, engagement, and content filters on your For You feed",
+      "intro": "These filters shape only your For You discovery feed. Accounts you follow are never filtered.",
+      "threshold": "Threshold",
+      "signInRequired": "Sign in to tune your For You feed",
+      "signInRequiredDesc": "Adjust which quality, engagement, and content filters shape your discovery feed.",
+      "categories": {
+        "quality": "Quality",
+        "engagement": "Engagement",
+        "content": "Content"
+      },
+      "minLength": {
+        "label": "Minimum length",
+        "description": "Hide very short discovery posts below a character count."
+      },
+      "lowEffortGate": {
+        "label": "No low-effort posts",
+        "description": "Hide emoji-only, shortcode-only, and text-empty discovery posts."
+      },
+      "nativeEngagement": {
+        "label": "Require engagement or interest",
+        "description": "Hide discovery posts with no real engagement that don't match your interests."
+      },
+      "minQuality": {
+        "label": "Minimum quality",
+        "description": "Hide discovery posts whose classified quality is below your threshold. Off by default."
+      }
+    }
   }
 }

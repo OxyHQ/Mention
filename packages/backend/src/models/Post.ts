@@ -283,6 +283,11 @@ const PostStatsSchema = new Schema({
   likesCount: { type: Number, default: 0 },
   downvotesCount: { type: Number, default: 0 },
   boostsCount: { type: Number, default: 0 },
+  // Of `boostsCount`, the subset that originated as inbound ActivityPub Announces
+  // (federated boosts) rather than native reposts. Maintained in lockstep with
+  // `boostsCount` at the federated import/undo sites, so
+  // `boostsCount - federatedBoostsCount` is the native boost count.
+  federatedBoostsCount: { type: Number, default: 0 },
   commentsCount: { type: Number, default: 0 },
   viewsCount: { type: Number, default: 0 },
   sharesCount: { type: Number, default: 0 }
@@ -293,6 +298,7 @@ PostStatsSchema.pre('save', function() {
   if (!this.likesCount && this.likesCount !== 0) this.likesCount = 0;
   if (!this.downvotesCount && this.downvotesCount !== 0) this.downvotesCount = 0;
   if (!this.boostsCount && this.boostsCount !== 0) this.boostsCount = 0;
+  if (!this.federatedBoostsCount && this.federatedBoostsCount !== 0) this.federatedBoostsCount = 0;
   if (!this.commentsCount && this.commentsCount !== 0) this.commentsCount = 0;
   if (!this.viewsCount && this.viewsCount !== 0) this.viewsCount = 0;
   if (!this.sharesCount && this.sharesCount !== 0) this.sharesCount = 0;
@@ -476,6 +482,7 @@ const PostSchema = new Schema<IPost>({
       likesCount: 0,
       downvotesCount: 0,
       boostsCount: 0,
+      federatedBoostsCount: 0,
       commentsCount: 0,
       viewsCount: 0,
       sharesCount: 0

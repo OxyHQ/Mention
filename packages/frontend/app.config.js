@@ -153,7 +153,19 @@ return {
         // native-only plugins (like expo-notifications) from web builds.
         plugins: (() => {
             const base = [
-                "expo-router",
+                [
+                    // Async routes split each route into its own lazy chunk under
+                    // `_expo/static/js/web/` so heavy screens (compose, videos,
+                    // statistics, insights) are fetched on demand instead of
+                    // shipping in the entry bundle. Web-only: `production` is the
+                    // documented web-only value and is disabled on native (see
+                    // expo-router plugin options — the setting lands in
+                    // `extra.router.asyncRoutes`, which @expo/metro-config reads).
+                    "expo-router",
+                    {
+                        asyncRoutes: { web: "production" },
+                    },
+                ],
                 [
                     "expo-splash-screen",
                     {
