@@ -258,6 +258,15 @@ Panel chrome insets: `packages/frontend/components/shell/PanelChrome.tsx` (`PANE
 - **View counts**: `services/feedViewCounter.ts` (Redis SET NX EX `viewseen:<postId>:<viewerId>`). Frontend reports impressions via `utils/feedTelemetry.ts`.
 - **Instant post-detail**: memory-mode feeds seed the shared post cache (`postsStore.cachePosts`) in `useFeedState`; `app/(app)/p/[id].tsx` paints from cache + background-revalidates (`revalidatePostById`).
 
+## Metrics (`/metrics`)
+
+The fleet runs several ECS tasks behind the ALB, so a scrape hits ONE arbitrary task. Counters are therefore aggregated in Redis; `GET /metrics` serves the fleet-wide total.
+
+- **Hot path stays I/O-free**: `metrics.incrementCounter` (`utils/metrics.ts`) is a Map update — the discovery gate increments per rejected candidate (~150/feed request). NEVER add a Redis call to a metric write.
+- **`services/metricsAggregator.ts`**: every task (NOT leader-gated) flushes its counter DELTAS every `config.metrics.flushIntervalMs` (10s) in ONE pipeline — `HINCRBY metrics:counter:<name> <labelSet>` + a `metrics:counters` registry SET. Counters are monotonic and never reset in Redis. Failure is fail-soft: deltas are handed back to the collector and retried, `/metrics` falls back to the in-memory values, nothing throws. No Redis configured ⇒ metrics stay in-memory, per-instance.
+- **Counters only, never gauges, for anything that must survive aggregation.** A gauge set per request cannot be summed across tasks. `feed_federated_share` was exactly that bug and is now `feed_pool_candidates_total{descriptor,origin}` — the share is DERIVED (`federated / (federated + local)`). Histograms/gauges remain per-instance by design.
+- Keep labels LOW-CARDINALITY (`mtn/feed/feedMetrics.ts` `baseDescriptor`) — every distinct label set is a Redis hash field.
+
 ## Feed Ranking, Content Classification & Safety
 
 ### Unified Content Classification (two-stage hybrid)

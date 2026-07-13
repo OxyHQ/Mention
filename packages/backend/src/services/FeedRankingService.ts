@@ -20,6 +20,7 @@ import {
 } from './ranking/signalContext';
 import { engagementScore } from './ranking/signals/engagement';
 import { authorityScore } from './ranking/signals/authority';
+import { poolSizeBucket } from '../mtn/feed/feedMetrics';
 import {
   coldStartBoost,
   conversationalBoost,
@@ -638,13 +639,17 @@ export class FeedRankingService {
       post.rankingExplanation = explainRanking(post);
     });
 
-    // Record ranking metrics
+    // Record ranking metrics.
+    //
+    // Labels MUST stay low-cardinality: every distinct label set is a retained
+    // histogram bucket (up to 1000 samples each). This used to be labelled with
+    // `user_id` and the raw `post_count`, which grew one retained series PER USER,
+    // forever — an in-process memory leak. The pool size is kept as a coarse bucket
+    // so "is ranking slow on big pools?" stays answerable without unbounded series.
     const rankingDuration = Date.now() - rankingStartTime;
     metrics.recordLatency('feed_ranking_duration_ms', rankingDuration, {
-      post_count: posts.length.toString(),
-      user_id: userId || 'anonymous'
+      pool_size: poolSizeBucket(posts.length),
     });
-    metrics.setGauge('feed_ranking_posts_processed', posts.length);
 
     // Return ranked posts with scores attached
     return postsWithScores.map(item => item.post);

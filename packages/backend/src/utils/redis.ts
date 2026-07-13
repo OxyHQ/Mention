@@ -221,6 +221,20 @@ export function getRedisClient(): RedisClientType {
 }
 
 /**
+ * Whether a Redis target is CONFIGURED in the environment (no connection attempt).
+ *
+ * A bare `localhost` default (no Redis env at all) is deliberately NOT considered
+ * configured, so local dev / a Redis-less task cleanly degrades to its in-process
+ * fallback instead of dialling a server that isn't there. Mirrors
+ * `queue/connection.ts#isQueueEnabled`.
+ */
+export function isRedisConfigured(): boolean {
+  const { redisUrl } = getRedisConfig();
+  if (redisUrl) return true;
+  return Boolean(process.env.REDIS_HOST && process.env.REDIS_HOST.trim().length > 0);
+}
+
+/**
  * Check if Redis is connected and healthy
  * This performs an actual ping to verify the connection is working
  */

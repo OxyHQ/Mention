@@ -10,8 +10,9 @@
  *   - `feed_discovery_gated_total{reason,source,shadow}` — a discovery candidate
  *     the gate rejected, labelled by the filter that rejected it, the source lane
  *     it came from, and whether the rejection was measure-only (`shadow`).
- *   - `feed_federated_share{descriptor}` — the federated share (0..1) of a feed's
- *     merged candidate pool.
+ *   - `feed_pool_candidates_total{descriptor,origin}` — candidates in a feed's
+ *     merged pool, split by federated vs local origin. The federated SHARE is
+ *     derived from the two series: `federated / (federated + local)`.
  *   - `feed_impression_total{origin,descriptor}` — a genuine feed impression,
  *     split by federated vs local origin. The denominator for engagement- and
  *     report-per-impression.
@@ -23,13 +24,18 @@
  * are fixed small sets, and free-form descriptors are normalized to their base
  * feed type via {@link baseDescriptor} (so `author|<id>` / `hashtag|<tag>` never
  * explode the label space).
+ *
+ * Every signal here is a COUNTER, never a gauge: the fleet runs several tasks and
+ * `/metrics` serves the Redis-aggregated total (see `services/metricsAggregator`).
+ * Counters sum correctly across instances; a gauge (a point-in-time value written
+ * per request) does not — summing or last-writing one across tasks is meaningless.
  */
 
 import { metrics } from '../../utils/metrics';
 
 export const FEED_METRICS = {
   discoveryGated: 'feed_discovery_gated_total',
-  federatedShare: 'feed_federated_share',
+  poolCandidates: 'feed_pool_candidates_total',
   impression: 'feed_impression_total',
   interactionSignal: 'feed_interaction_signal_total',
   report: 'feed_report_total',
@@ -54,6 +60,28 @@ export function originForFederation(federation: unknown): PostOrigin {
   return federation != null ? 'federated' : 'local';
 }
 
+/** Coarse pool-size buckets — the upper bound of each bucket, ascending. */
+const POOL_SIZE_BUCKETS = [10, 25, 50, 100, 150] as const;
+
+/**
+ * Bucket a candidate-pool size into one of a FIXED set of labels
+ * (`0-10`, `11-25`, …, `150+`).
+ *
+ * The raw count must never be used as a metric label: every distinct label set is
+ * a retained histogram series, so an unbounded label (a raw count, a user id) grows
+ * the in-process histogram map forever. Bucketing keeps "is ranking slow on big
+ * pools?" answerable with a bounded, constant number of series.
+ */
+export function poolSizeBucket(size: number): string {
+  if (!Number.isFinite(size) || size < 0) return 'unknown';
+  let lower = 0;
+  for (const upper of POOL_SIZE_BUCKETS) {
+    if (size <= upper) return `${lower}-${upper}`;
+    lower = upper + 1;
+  }
+  return `${POOL_SIZE_BUCKETS[POOL_SIZE_BUCKETS.length - 1]}+`;
+}
+
 /** Count a discovery candidate the gate rejected (see {@link FEED_METRICS}). */
 export function recordDiscoveryGated(reason: string, source: string, measureOnly: boolean): void {
   metrics.incrementCounter(FEED_METRICS.discoveryGated, 1, {
@@ -63,9 +91,25 @@ export function recordDiscoveryGated(reason: string, source: string, measureOnly
   });
 }
 
-/** Record the federated share (0..1) of a feed's merged candidate pool. */
-export function recordFederatedShare(descriptor: string, share: number): void {
-  metrics.setGauge(FEED_METRICS.federatedShare, share, { descriptor: baseDescriptor(descriptor) });
+/**
+ * Count a feed's merged candidate pool, split by origin. The federated share is
+ * DERIVED from the two series at query time:
+ *
+ *   feed_pool_candidates_total{origin="federated"}
+ *   / sum without (origin) (feed_pool_candidates_total)
+ *
+ * which stays correct once the fleet's counters are summed — unlike the gauge this
+ * replaces, whose per-request value could not be aggregated across instances.
+ * Zero-valued origins are not emitted (an increment of 0 is not a data point).
+ */
+export function recordPoolCandidates(descriptor: string, federated: number, local: number): void {
+  const label = baseDescriptor(descriptor);
+  if (federated > 0) {
+    metrics.incrementCounter(FEED_METRICS.poolCandidates, federated, { descriptor: label, origin: 'federated' });
+  }
+  if (local > 0) {
+    metrics.incrementCounter(FEED_METRICS.poolCandidates, local, { descriptor: label, origin: 'local' });
+  }
 }
 
 /** Count a genuine feed impression, split by origin. */

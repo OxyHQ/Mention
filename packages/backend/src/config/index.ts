@@ -101,6 +101,21 @@ export const config = {
   classification: {
     enabled: process.env.POST_CLASSIFICATION_ENABLED === 'true',
   },
+  /**
+   * Cross-instance metrics aggregation (see `services/metricsAggregator.ts`).
+   * Counters are accumulated in memory on the hot path and pushed to Redis on a
+   * timer, so `/metrics` can serve a fleet-wide total instead of one task's
+   * fragment.
+   */
+  metrics: {
+    /** How often each task pushes its accumulated counter deltas to Redis. */
+    flushIntervalMs: parseInt(process.env.METRICS_FLUSH_INTERVAL_MS || '10000', 10), // 10s
+    /**
+     * Expiry on the Redis counter keys, REFRESHED on every flush. It never expires
+     * a live metric — it only reclaims keys for metrics no task emits any more.
+     */
+    redisKeyTtlSeconds: parseInt(process.env.METRICS_REDIS_KEY_TTL_SECONDS || '2592000', 10), // 30 days
+  },
 } as const;
 
 // Validate critical environment variables at startup
