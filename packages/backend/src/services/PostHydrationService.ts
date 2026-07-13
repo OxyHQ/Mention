@@ -8,7 +8,7 @@ import { FederatedActor } from '../models/FederatedActor';
 import { UserSettings } from '../models/UserSettings';
 import { oxy as defaultOxyClient } from '../../server';
 import { getServiceOxyClient } from '../utils/oxyHelpers';
-import { extractFirstUrl } from '../utils/extractFirstUrl';
+import { extractUrls } from '../utils/extractUrls';
 import { getBlockedUserIds, getRestrictedUserIds, extractFollowingIds, extractFollowersIds, OxyClient } from '../utils/privacyHelpers';
 import { resolveMediaItems } from '../utils/mediaResolver';
 import { logger } from '../utils/logger';
@@ -586,7 +586,7 @@ export class PostHydrationService {
       this.buildAuthorPrivacyMap(postsForHydration, viewerContext),
       options.includeLinkMetadata !== false
         ? this.buildLinkPreviewMap(postsForHydration)
-        : Promise.resolve(new Map<string, PostLinkPreview>()),
+        : Promise.resolve(new Map<string, PostLinkPreview[]>()),
       this.buildOrphanFederatedAuthorMap(postsForHydration),
     ]);
     const mentionCache: Map<string, PostUser> = new Map(userMap);
@@ -1142,7 +1142,9 @@ export class PostHydrationService {
   }
 
   /**
-   * Build the per-post link-preview map for a batch of posts.
+   * Build the per-post link-preview map for a batch of posts. Each post maps to
+   * its resolved previews IN TEXT ORDER, capped at `MAX_POST_LINK_PREVIEWS` by
+   * {@link extractUrls} — a post with several links renders a card per link.
    *
    * Link previews are resolved through the Oxy ecosystem link-preview service
    * ({@link OxyServices.getLinkPreviews}) instead of being scraped locally. Oxy
@@ -1153,18 +1155,21 @@ export class PostHydrationService {
    *
    * This stays safe on the `/feed/*` response path: the batch call is a fast
    * cached read (mirroring the {@link OxyServices.getUsersByIds} author-batch
-   * call also awaited here). Oxy returns already-resolved previews immediately
-   * and a `'pending'` placeholder for any first-seen URL, which it warms
-   * server-side in the background — it does NOT block on a remote HTML fetch.
-   * A `'pending'`/`'empty'` result is omitted, so (exactly as before) a brand-new
-   * URL shows no preview on its first render and gains one on a later render once
-   * Oxy has resolved it. Only top-level posts carry previewable text; nested
-   * boosts/quotes have no preview of their own.
+   * call also awaited here) over the DEDUPED url set, so posts sharing a URL
+   * cost one resolution. Oxy returns already-resolved previews immediately and a
+   * `'pending'` placeholder for any first-seen URL, which it warms server-side in
+   * the background — it does NOT block on a remote HTML fetch. A
+   * `'pending'`/`'empty'` result is skipped (the remaining resolved previews keep
+   * their relative text order), so a brand-new URL shows no card on its first
+   * render and gains one on a later render once Oxy has resolved it. Only
+   * top-level posts carry previewable text; nested boosts/quotes have no preview
+   * of their own.
    */
-  private async buildLinkPreviewMap(nodes: HydratedGraphNode[]): Promise<Map<string, PostLinkPreview>> {
-    const previewMap = new Map<string, PostLinkPreview>();
+  private async buildLinkPreviewMap(nodes: HydratedGraphNode[]): Promise<Map<string, PostLinkPreview[]>> {
+    const previewMap = new Map<string, PostLinkPreview[]>();
 
-    const urlToPosts = new Map<string, string[]>(); // url -> [postId]
+    const postToUrls = new Map<string, string[]>(); // postId -> [url] (text order)
+    const urlToPosts = new Map<string, string[]>(); // url -> [postId] (dedupes the batch call)
 
     for (const { post } of nodes) {
       const postId = this.resolveId(post);
@@ -1173,13 +1178,19 @@ export class PostHydrationService {
       const text = post?.content?.text;
       if (!text || typeof text !== 'string') continue;
 
-      const url = extractFirstUrl(text);
-      if (!url) continue;
+      const urls = extractUrls(text);
+      if (urls.length === 0) continue;
 
-      if (!urlToPosts.has(url)) {
-        urlToPosts.set(url, []);
+      postToUrls.set(postId, urls);
+
+      for (const url of urls) {
+        const posts = urlToPosts.get(url);
+        if (posts) {
+          posts.push(postId);
+        } else {
+          urlToPosts.set(url, [postId]);
+        }
       }
-      urlToPosts.get(url)!.push(postId);
     }
 
     const uniqueUrls = Array.from(urlToPosts.keys());
@@ -1197,24 +1208,30 @@ export class PostHydrationService {
       return previewMap;
     }
 
-    for (const [url, postIds] of urlToPosts) {
+    const resolvedByUrl = new Map<string, PostLinkPreview>();
+    for (const url of uniqueUrls) {
       const preview = previews[url];
       // Only fully-resolved previews are rendered; `'pending'`/`'empty'` are
       // omitted so the URL re-resolves into a real preview on a later render.
       if (!preview || preview.status !== 'resolved') continue;
 
-      const mapped: PostLinkPreview = {
+      resolvedByUrl.set(url, {
         url: preview.url,
         title: preview.title || undefined,
         description: preview.description || undefined,
         // Already an absolute Oxy-hosted `cloud.oxy.so` URL — render directly.
         image: preview.image || undefined,
         siteName: preview.siteName || undefined,
-      };
+      });
+    }
 
-      for (const postId of postIds) {
-        previewMap.set(postId, mapped);
+    for (const [postId, urls] of postToUrls) {
+      const resolved: PostLinkPreview[] = [];
+      for (const url of urls) {
+        const preview = resolvedByUrl.get(url);
+        if (preview) resolved.push(preview);
       }
+      if (resolved.length > 0) previewMap.set(postId, resolved);
     }
 
     return previewMap;
@@ -1390,7 +1407,7 @@ export class PostHydrationService {
     pollMap: Map<string, Record<string, unknown>>;
     userMap: Map<string, PostUser>;
     mentionCache: Map<string, PostUser>;
-    linkPreviewMap: Map<string, PostLinkPreview>;
+    linkPreviewMap: Map<string, PostLinkPreview[]>;
     authorPrivacyMap: Map<string, typeof DEFAULT_PRIVACY>;
     recentReplierMap?: Map<string, string[]>;
     orphanAuthorMap: Map<string, PostUser>;
@@ -1485,7 +1502,7 @@ export class PostHydrationService {
 
     const content = this.buildContent(post, pollMap, params.viewerContext);
     const attachments = this.buildAttachments(post, pollMap);
-    const linkPreview = linkPreviewMap.get(postId) ?? null;
+    const linkPreviews = linkPreviewMap.get(postId) ?? [];
     const viewerState = this.buildViewerState(postId, authorId, viewerContext, authorship);
     const permissions = this.buildPermissions(post, authorId, viewerContext, authorship);
     const authorPrivacy = authorPrivacyMap.get(authorId) ?? { ...DEFAULT_PRIVACY };
@@ -1540,7 +1557,7 @@ export class PostHydrationService {
       id: postId,
       content: content ?? { text: finalText },
       attachments,
-      linkPreview,
+      linkPreviews,
       user,
       authors,
       ...(includeAuthorship ? { authorship } : {}),

@@ -12,7 +12,12 @@ interface Props {
   postId?: string;
   previewChars?: number;
   translatedText?: string | null;
-  linkPreviewUrl?: string | null;
+  /**
+   * URLs the post renders as preview cards. A trailing URL in the body is
+   * trimmed when it matches ANY of them — the card already shows the link, so
+   * repeating it as the last line of the text is noise.
+   */
+  linkPreviewUrls?: string[];
 }
 
 const TRAILING_URL_RE = /\s*(https?:\/\/[^\s]+|www\.[^\s]+)\s*$/;
@@ -20,7 +25,7 @@ const TRAILING_URL_RE = /\s*(https?:\/\/[^\s]+|www\.[^\s]+)\s*$/;
 /** In-feed truncation thresholds (chars) per the `postTextExpand` preference. */
 const PREVIEW_CHARS = { default: 280, more: 600, muchMore: 1200, all: Infinity } as const;
 
-const PostContentText: React.FC<Props> = ({ content, postId, previewChars, translatedText, linkPreviewUrl }) => {
+const PostContentText: React.FC<Props> = ({ content, postId, previewChars, translatedText, linkPreviewUrls }) => {
   const router = useRouter();
   const pathname = usePathname();
   const { t } = useTranslation();
@@ -30,8 +35,8 @@ const PostContentText: React.FC<Props> = ({ content, postId, previewChars, trans
   const originalText = typeof content === 'string' ? content : content?.text || '';
   const rawText = translatedText || originalText;
 
-  const textContent = linkPreviewUrl
-    ? rawText.replace(TRAILING_URL_RE, (match, url) => url === linkPreviewUrl ? '' : match)
+  const textContent = linkPreviewUrls && linkPreviewUrls.length > 0
+    ? rawText.replace(TRAILING_URL_RE, (match: string, url: string) => linkPreviewUrls.includes(url) ? '' : match)
     : rawText;
 
   const isDetailPage = pathname?.startsWith('/p');

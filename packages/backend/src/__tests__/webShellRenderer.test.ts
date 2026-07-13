@@ -139,7 +139,7 @@ describe('mapPostOg', () => {
     expect(og.description).toBe('hello world');
     expect(og.url).toBe('https://mention.earth/p/p1');
     expect(og.type).toBe('article');
-    // no media/linkPreview → falls back to author avatar (absolute URL passthrough)
+    // no media/linkPreviews → falls back to author avatar (absolute URL passthrough)
     expect(og.image).toBe('https://cdn/a.png');
   });
 
@@ -164,20 +164,23 @@ describe('mapPostOg', () => {
     expect(mapPostOg(boost, 'b1').description).toBe('the boosted original body');
   });
 
-  it('prefers media url over thumb/poster/linkPreview/avatar', () => {
+  it('prefers media url over thumb/poster/linkPreviews/avatar', () => {
     const post = {
       ...base,
       content: { text: 't', media: [{ id: 'm', type: 'image', url: 'https://m/u.jpg', thumbUrl: 'https://m/t.jpg' }] },
-      linkPreview: { url: 'https://l', image: 'https://l/i.jpg' },
+      linkPreviews: [{ url: 'https://l', image: 'https://l/i.jpg' }],
     } as unknown as HydratedPost;
     expect(mapPostOg(post, 'p1').image).toBe('https://m/u.jpg');
   });
 
-  it('uses the link-preview image when there is no media', () => {
+  it('uses the FIRST link-preview image when there is no media', () => {
     const post = {
       ...base,
       content: { text: 't' },
-      linkPreview: { url: 'https://l', image: 'https://l/i.jpg' },
+      linkPreviews: [
+        { url: 'https://l', image: 'https://l/i.jpg' },
+        { url: 'https://l2', image: 'https://l2/i.jpg' },
+      ],
     } as unknown as HydratedPost;
     expect(mapPostOg(post, 'p1').image).toBe('https://l/i.jpg');
   });

@@ -642,6 +642,13 @@ export interface PostLinkPreview {
   siteName?: string;
 }
 
+/**
+ * Maximum number of link-preview cards attached to a single post. Shared by the
+ * backend (URL extraction + hydration) and the frontend (composer preview +
+ * post rendering) so the two cannot diverge on how many links a post shows.
+ */
+export const MAX_POST_LINK_PREVIEWS = 4;
+
 export interface PostFeedContext {
   reason?: string;
   position?: number;
@@ -687,7 +694,12 @@ export interface HydratedPostSummary {
   id: string;
   content: PostContent;
   attachments: PostAttachmentBundle;
-  linkPreview?: PostLinkPreview | null;
+  /**
+   * Resolved link previews for the post text, in text order, capped at
+   * {@link MAX_POST_LINK_PREVIEWS}. Unresolved URLs are omitted, so this can be
+   * shorter than the number of links in the text (or empty).
+   */
+  linkPreviews?: PostLinkPreview[];
   /** Primary author (owner) — backward-compatible single-author field. */
   user: PostUser;
   /** Owner + accepted collaborators for multi-author header rendering. */

@@ -9,6 +9,7 @@ import {
     PostAttachmentBundle,
     PostContent,
     PostEngagementSummary,
+    PostLinkPreview,
     PostRoomContent,
 } from '@mention/shared-types';
 import { usePostSelector } from '../../stores/postsStore';
@@ -55,6 +56,9 @@ type PostEntity = HydratedPost & {
     original?: HydratedPostSummary | null;
     quoted?: HydratedPostSummary | null;
 };
+
+/** Stable identity for the "no link previews" case (see `linkPreviews` below). */
+const EMPTY_LINK_PREVIEWS: PostLinkPreview[] = [];
 
 interface PostItemProps {
     post: PostEntity;
@@ -172,7 +176,10 @@ const PostItem: React.FC<PostItemProps> = ({
     const permissions = viewPost?.permissions ?? {};
     const content: PostContent = viewPost?.content ?? {};
     const attachmentsBundle: PostAttachmentBundle = viewPost?.attachments ?? {};
-    const linkPreview = viewPost?.linkPreview ?? null;
+    // Module-level EMPTY fallback: a fresh `[]` each render would give the
+    // memoized PostAttachmentsRow a new array identity every time and defeat its
+    // React.memo (and that of the row's children).
+    const linkPreviews: PostLinkPreview[] = viewPost?.linkPreviews ?? EMPTY_LINK_PREVIEWS;
     const isSensitiveContent = metadata.isSensitive === true;
     // Content warning (federated `summary` / Mastodon CW) surfaced by the backend as
     // `metadata.spoilerText`. Rendered as a visible label above the body — media blur
@@ -242,7 +249,7 @@ const PostItem: React.FC<PostItemProps> = ({
         Boolean(eventContent) ||
         Boolean(roomContent) ||
         Boolean(podcastContent) ||
-        Boolean(linkPreview) ||
+        linkPreviews.length > 0 ||
         hasValidLocation;
 
     const attachmentDescriptors: PostAttachmentDescriptor[] | undefined = Array.isArray(content.attachments)
@@ -611,19 +618,9 @@ const PostItem: React.FC<PostItemProps> = ({
         [roomContent, roomId],
     );
 
-    const linkMetadataProp = useMemo(
-        () =>
-            linkPreview
-                ? {
-                      url: linkPreview.url,
-                      title: linkPreview.title,
-                      description: linkPreview.description,
-                      image: linkPreview.image,
-                      siteName: linkPreview.siteName,
-                  }
-                : null,
-        [linkPreview],
-    );
+    // URLs of the previewed links, used to trim a trailing URL from the body text
+    // when a card already renders it.
+    const linkPreviewUrls = useMemo(() => linkPreviews.map((preview) => preview.url), [linkPreviews]);
 
     const engagementSummary: PostEngagementSummary | undefined = viewPost?.engagement;
     const actionsEngagement = useMemo(
@@ -832,7 +829,7 @@ const PostItem: React.FC<PostItemProps> = ({
                         paddingHorizontal={isNested ? 0 : HPAD}
                     >
                         {spoilerText ? <ContentWarning text={spoilerText} /> : null}
-                        {content.text ? <PostContentText content={content} postId={viewPostId} translatedText={translatedText} linkPreviewUrl={linkPreview?.url} /> : null}
+                        {content.text ? <PostContentText content={content} postId={viewPostId} translatedText={translatedText} linkPreviewUrls={linkPreviewUrls} /> : null}
                     </PostHeader>
 
                     {hasBelowHeaderBlocks && (
@@ -891,7 +888,7 @@ const PostItem: React.FC<PostItemProps> = ({
                         sources={sourcesList}
                         onSourcesPress={hasSources ? openSourcesSheet : undefined}
                         text={content.text}
-                        linkMetadata={linkMetadataProp}
+                        linkPreviews={linkPreviews}
                     />
                 )}
 

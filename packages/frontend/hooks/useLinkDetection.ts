@@ -1,12 +1,16 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '@oxyhq/services';
+import { MAX_POST_LINK_PREVIEWS } from '@mention/shared-types';
 import { LinkMetadata } from '../stores/linksStore';
 import { useLinksStore } from '../stores/linksStore';
+import { extractUrls } from '@/utils/extractUrls';
 import { logger } from '@/lib/logger';
 
 /**
- * Hook to detect links in text and fetch their metadata
- * Similar to Twitter's link preview feature
+ * Hook to detect the links in a post's text and resolve their previews. A post
+ * shows up to `MAX_POST_LINK_PREVIEWS` cards (the same cap the backend applies),
+ * so only that many URLs are resolved — metadata for links that would never get
+ * a card is wasted work.
  */
 export const useLinkDetection = (text: string) => {
   const [detectedLinks, setDetectedLinks] = useState<LinkMetadata[]>([]);
@@ -17,41 +21,6 @@ export const useLinkDetection = (text: string) => {
   const { getCached, upsertLink } = useLinksStore();
   const fetchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
-
-  /**
-   * Extract URLs from text using the same pattern as LinkifiedText
-   */
-  const extractUrls = useCallback((inputText: string): string[] => {
-    if (!inputText || typeof inputText !== 'string') return [];
-
-    const urls: string[] = [];
-    // Match URLs: http(s)://... or www....
-    const urlPattern = /(https?:\/\/[^\s]+|www\.[^\s]+)/gi;
-    let match: RegExpExecArray | null;
-
-    while ((match = urlPattern.exec(inputText)) !== null) {
-      const urlCandidate = match[0];
-      if (urlCandidate) {
-        // Trim trailing punctuation
-        let url = urlCandidate;
-        while (/[.,!?):;\]]$/.test(url)) {
-          url = url.slice(0, -1);
-        }
-        
-        // Normalize URL
-        const normalized = url.startsWith('http') ? url : `https://${url}`;
-        try {
-          new URL(normalized); // Validate URL
-          urls.push(normalized);
-        } catch {
-          // Invalid URL, skip
-        }
-      }
-    }
-
-    // Deduplicate
-    return Array.from(new Set(urls));
-  }, []);
 
   /**
    * Fetch metadata for a URL
@@ -107,8 +76,8 @@ export const useLinkDetection = (text: string) => {
 
     // Debounce link detection (wait 500ms after user stops typing)
     fetchTimeoutRef.current = setTimeout(async () => {
-      const urls = extractUrls(text);
-      
+      const urls = extractUrls(text).slice(0, MAX_POST_LINK_PREVIEWS);
+
       if (urls.length === 0) {
         setDetectedLinks([]);
         setIsLoading(false);
@@ -157,7 +126,7 @@ export const useLinkDetection = (text: string) => {
         abortControllerRef.current.abort();
       }
     };
-  }, [text, extractUrls, fetchLinkMetadata]);
+  }, [text, fetchLinkMetadata]);
 
   return {
     detectedLinks,

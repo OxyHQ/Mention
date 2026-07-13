@@ -40,7 +40,7 @@ export interface PostRow {
   quoted_post_id: string | null;
   content_json: string;
   attachments_json: string | null;
-  link_preview_json: string | null;
+  link_previews_json: string | null;
   permissions_json: string | null;
   boost_json: string | null;
   context_json: string | null;
@@ -153,7 +153,7 @@ export function postToRow(post: FeedItem | HydratedPost | any): PostRow {
     quoted_post_id: post.quotedPost?.id || post.quoted?.id || null,
     content_json: safeJsonStringify(content) || '{"text":""}',
     attachments_json: safeJsonStringify(post.attachments),
-    link_preview_json: safeJsonStringify(post.linkPreview),
+    link_previews_json: safeJsonStringify(post.linkPreviews),
     permissions_json: safeJsonStringify(post.permissions),
     boost_json: safeJsonStringify(post.boost),
     context_json: safeJsonStringify(post.context),
@@ -185,7 +185,7 @@ export function postToRow(post: FeedItem | HydratedPost | any): PostRow {
 export function rowToFeedItem(row: PostRow): FeedItem {
   const content = safeJsonParse<PostContent>(row.content_json, { text: '' });
   const attachments = safeJsonParse<PostAttachmentBundle>(row.attachments_json, {} as PostAttachmentBundle);
-  const linkPreview = safeJsonParse<PostLinkPreview | null>(row.link_preview_json, null);
+  const linkPreviews = safeJsonParse<PostLinkPreview[]>(row.link_previews_json, []);
   const permissions = safeJsonParse<PostPermissions>(row.permissions_json, {
     canReply: true,
     canDelete: false,
@@ -253,7 +253,7 @@ export function rowToFeedItem(row: PostRow): FeedItem {
     id: row.id,
     content,
     attachments,
-    linkPreview,
+    linkPreviews,
     user: {
       ...user,
       id: user.id || row.user_id,

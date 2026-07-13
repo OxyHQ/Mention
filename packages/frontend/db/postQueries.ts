@@ -24,7 +24,7 @@ const logger = createScopedLogger('PostQueries');
 const UPSERT_POST_SQL = `
   INSERT OR REPLACE INTO posts (
     id, user_id, type, parent_post_id, original_post_id, quoted_post_id,
-    content_json, attachments_json, link_preview_json, permissions_json,
+    content_json, attachments_json, link_previews_json, permissions_json,
     boost_json, context_json, user_json,
     likes_count, downvotes_count, boosts_count, replies_count,
     saves_count, views_count, impressions_count,
@@ -62,7 +62,7 @@ export function upsertPost(post: FeedItem | any): void {
   db.runSync(
     UPSERT_POST_SQL,
     row.id, row.user_id, row.type, row.parent_post_id, row.original_post_id, row.quoted_post_id,
-    row.content_json, row.attachments_json, row.link_preview_json, row.permissions_json,
+    row.content_json, row.attachments_json, row.link_previews_json, row.permissions_json,
     row.boost_json, row.context_json, row.user_json,
     row.likes_count, row.downvotes_count, row.boosts_count, row.replies_count,
     row.saves_count, row.views_count, row.impressions_count,
@@ -94,7 +94,7 @@ export function upsertPosts(posts: (FeedItem | any)[]): void {
       db.runSync(
         UPSERT_POST_SQL,
         row.id, row.user_id, row.type, row.parent_post_id, row.original_post_id, row.quoted_post_id,
-        row.content_json, row.attachments_json, row.link_preview_json, row.permissions_json,
+        row.content_json, row.attachments_json, row.link_previews_json, row.permissions_json,
         row.boost_json, row.context_json, row.user_json,
         row.likes_count, row.downvotes_count, row.boosts_count, row.replies_count,
         row.saves_count, row.views_count, row.impressions_count,
@@ -278,7 +278,7 @@ export function updatePost(
     db.runSync(
       UPSERT_POST_SQL,
       newRow.id, newRow.user_id, newRow.type, newRow.parent_post_id, newRow.original_post_id, newRow.quoted_post_id,
-      newRow.content_json, newRow.attachments_json, newRow.link_preview_json, newRow.permissions_json,
+      newRow.content_json, newRow.attachments_json, newRow.link_previews_json, newRow.permissions_json,
       newRow.boost_json, newRow.context_json, newRow.user_json,
       newRow.likes_count, newRow.downvotes_count, newRow.boosts_count, newRow.replies_count,
       newRow.saves_count, newRow.views_count, newRow.impressions_count,

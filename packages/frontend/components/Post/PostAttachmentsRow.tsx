@@ -6,6 +6,7 @@ import {
   HydratedPostSummary,
   PollData,
   PostAttachmentDescriptor,
+  PostLinkPreview,
   PostPodcastContent,
   PostSourceLink,
   MEDIA_VARIANT_THUMB,
@@ -73,7 +74,12 @@ interface Props {
   sources?: PostSourceLink[];
   onSourcesPress?: (() => void) | null;
   text?: string;
-  linkMetadata?: { url: string; title?: string; description?: string; image?: string; siteName?: string } | null;
+  /**
+   * Resolved previews for the links in the post body, in text order (the backend
+   * caps them at `MAX_POST_LINK_PREVIEWS`). Each one renders its own card; only
+   * the FIRST embeddable link becomes an inline player — see `primaryEmbedIndex`.
+   */
+  linkPreviews?: PostLinkPreview[];
   /**
    * Per-post sensitivity flag. When true, every image/video/gif cell renders
    * behind its own blurred "Tap to reveal" cover that the viewer uncovers
@@ -94,6 +100,20 @@ type AttachmentItem =
   | { type: 'gif'; mediaId: string; src: string; width?: number; height?: number; aspectRatio?: number }
   | { type: 'image'; mediaId: string; src: string; fullSrc: string; mediaType: 'image' | 'gif'; alt?: string; width?: number; height?: number; aspectRatio?: number; orientation?: 'portrait' | 'landscape' | 'square' };
 
+/**
+ * The link previews of a post are identified by their URLs, in order — the rest
+ * of a preview (title/image/…) is resolved server-side and never changes for a
+ * given URL within a session. Compared element-wise so a re-rendered parent
+ * handing over an equivalent array doesn't force the row to re-render.
+ */
+const areLinkPreviewsEqual = (a?: PostLinkPreview[], b?: PostLinkPreview[]): boolean => {
+  if (a === b) return true;
+  const prev = a ?? [];
+  const next = b ?? [];
+  if (prev.length !== next.length) return false;
+  return prev.every((preview, index) => preview.url === next[index].url);
+};
+
 const PostAttachmentsRow: React.FC<Props> = React.memo(({
   media,
   attachments,
@@ -111,7 +131,7 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
   onRoomPress,
   podcast,
   text,
-  linkMetadata,
+  linkPreviews,
   sensitive,
   style
 }) => {
@@ -130,7 +150,7 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
   const hasEvent = useMemo(() => Boolean(event && event.name?.trim?.()), [event]);
   const hasRoom = useMemo(() => Boolean(room?.roomId), [room]);
   const hasPodcast = useMemo(() => Boolean(podcast?.syraPodcastId), [podcast]);
-  const hasLink = useMemo(() => Boolean(linkMetadata?.url), [linkMetadata]);
+  const linkPreviewArray = useMemo(() => Array.isArray(linkPreviews) ? linkPreviews.filter((preview) => Boolean(preview?.url)) : [], [linkPreviews]);
 
   // Resolve a media reference to a final render URL for a given context:
   //  - `thumb`: the post media card / grid thumbnail (server `thumbUrl`).
@@ -173,21 +193,20 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
 
   const attachmentItems = useMemo(() => {
     const results: AttachmentItem[] = [];
-    // Built once; pushed by the non-descriptor branch below, or inserted by the
-    // fallback for the descriptor branch — the two paths are mutually exclusive.
-    const linkItem: AttachmentItem | null = hasLink && linkMetadata
-      ? {
-          type: 'link',
-          url: linkMetadata.url,
-          title: linkMetadata.title,
-          description: linkMetadata.description,
-          image: linkMetadata.image,
-          siteName: linkMetadata.siteName,
-          // Parse the embed provider once here (memoized on `linkMetadata`) so
-          // the render loop doesn't run `new URL()` + regex on every frame.
-          embedParams: parseEmbedPlayerFromUrl(linkMetadata.url),
-        }
-      : null;
+    // One item per resolved preview, in text order. Built once; pushed by the
+    // non-descriptor branch below, or inserted by the fallback for the descriptor
+    // branch — the two paths are mutually exclusive.
+    const linkItems: AttachmentItem[] = linkPreviewArray.map((preview) => ({
+      type: 'link',
+      url: preview.url,
+      title: preview.title,
+      description: preview.description,
+      image: preview.image,
+      siteName: preview.siteName,
+      // Parse the embed provider once here (memoized on `linkPreviewArray`) so
+      // the render loop doesn't run `new URL()` + regex on every frame.
+      embedParams: parseEmbedPlayerFromUrl(preview.url),
+    }));
     const mediaById = new Map<string, MediaObj>();
     const usedMedia = new Set<string>();
 
@@ -288,7 +307,7 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
       if (hasEvent) results.push({ type: 'event' });
       if (hasRoom) results.push({ type: 'room' });
       if (hasPodcast) results.push({ type: 'podcast' });
-      if (linkItem) results.push(linkItem);
+      results.push(...linkItems);
     }
 
     mediaArray.forEach((m) => {
@@ -308,7 +327,10 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
       results.push({ type: 'podcast' });
     }
 
-    if (linkItem && !results.some(item => item.type === 'link')) {
+    // The descriptor switch above has no `link` case, so a descriptor-driven post
+    // never picks its link cards up there — insert them all here (after the last
+    // poll/article, else before the first media), keeping their text order.
+    if (attachmentDescriptors.length && linkItems.length) {
       let insertIdx = -1;
       for (let i = results.length - 1; i >= 0; i--) {
         if (results[i].type === 'poll' || results[i].type === 'article') {
@@ -320,11 +342,11 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
         const firstMediaIdx = results.findIndex(item => item.type === 'image' || item.type === 'video' || item.type === 'gif');
         insertIdx = firstMediaIdx !== -1 ? firstMediaIdx : results.length;
       }
-      results.splice(insertIdx, 0, linkItem);
+      results.splice(insertIdx, 0, ...linkItems);
     }
 
     return results;
-  }, [attachmentDescriptors, mediaArray, hasPoll, hasArticle, hasEvent, hasRoom, hasPodcast, hasLink, linkMetadata, resolveMediaSrc, oxyServices]);
+  }, [attachmentDescriptors, mediaArray, hasPoll, hasArticle, hasEvent, hasRoom, hasPodcast, linkPreviewArray, resolveMediaSrc, oxyServices]);
 
   type Item =
     | { type: 'nested' }
@@ -348,6 +370,16 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
   const mediaItems = useMemo(() =>
     items.filter((item): item is Extract<Item, { type: 'image' | 'video' | 'gif' }> => item.type === 'image' || item.type === 'video' || item.type === 'gif'),
     [items]);
+
+  // Index (within `items`) of the ONE link allowed to render an inline player:
+  // the first embeddable link the viewer hasn't disabled for its provider. Every
+  // other link — embeddable or not — renders as a static preview card, so a post
+  // never shows two players. Recomputed when the items or the per-provider prefs
+  // change, so toggling a preference flips the render with no effect/state sync.
+  const primaryEmbedIndex = useMemo(
+    () => items.findIndex((item) => item.type === 'link' && canEmbed(item.embedParams, item.embedParams ? embedPrefs[item.embedParams.source] : undefined)),
+    [items, embedPrefs],
+  );
 
   const hasMultipleMedia = mediaItems.length > 1;
   const hasSingleMedia = mediaItems.length === 1 && !items.some(item => item.type === 'poll' || item.type === 'article' || item.type === 'nested' || item.type === 'link');
@@ -601,12 +633,10 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
           );
         }
         if (item.type === 'link') {
-          // Embeddable provider URL (and not hidden by the viewer) → render the
-          // inline external player as the post's primary media. Otherwise keep
-          // the static link-preview card. The parse is precomputed on the item;
-          // the pref read stays in render so the decision reacts to pref changes.
-          const embedPref = item.embedParams ? embedPrefs[item.embedParams.source] : undefined;
-          if (canEmbed(item.embedParams, embedPref)) {
+          // Only the first embeddable link (and not one the viewer hid for that
+          // provider) becomes the inline external player — the post's primary
+          // media. Every other link stays a static preview card.
+          if (idx === primaryEmbedIndex) {
             return (
               <PostAttachmentExternalEmbed
                 key={`embed-${idx}`}
@@ -702,6 +732,7 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
     </>
   );
 }, (prevProps, nextProps) => {
+  if (!areLinkPreviewsEqual(prevProps.linkPreviews, nextProps.linkPreviews)) return false;
   return (
     prevProps.media === nextProps.media &&
     prevProps.attachments === nextProps.attachments &&
@@ -719,7 +750,6 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
     prevProps.onRoomPress === nextProps.onRoomPress &&
     prevProps.podcast === nextProps.podcast &&
     prevProps.text === nextProps.text &&
-    prevProps.linkMetadata?.url === nextProps.linkMetadata?.url &&
     prevProps.location === nextProps.location &&
     prevProps.sources === nextProps.sources &&
     prevProps.onSourcesPress === nextProps.onSourcesPress &&

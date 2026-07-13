@@ -36,18 +36,48 @@ export function toOpenableUrl(url: string): string {
 }
 
 /**
- * Extracts cleaned, openable URLs from free text. Matches http(s) URLs and bare
- * `www.` forms, strips trailing punctuation, and normalizes scheme-less matches
- * to an `https://` form. Does NOT match `#`/`@`/`$` entities.
+ * Extracts cleaned, openable URLs from free text, in text order and DEDUPLICATED.
+ * Matches http(s) URLs and bare `www.` forms, strips trailing punctuation, and
+ * normalizes scheme-less matches to an `https://` form. Does NOT match `#`/`@`/`$`
+ * entities.
+ *
+ * Deduplication is by the normalized URL: callers key UI off these values (the
+ * composer gives each detected link its own carousel key), so the same link
+ * written twice must not yield two identical keys.
  */
 export function extractUrls(text: string): string[] {
   if (!text) return [];
   const pattern = new RegExp(URL_PATTERN_SOURCE, 'g');
-  const urls: string[] = [];
+  const urls = new Set<string>();
   let match: RegExpExecArray | null;
   while ((match = pattern.exec(text)) !== null) {
     const { url } = trimUrlTrailingPunct(match[0]);
-    if (url) urls.push(toOpenableUrl(url));
+    if (url) urls.add(toOpenableUrl(url));
   }
-  return urls;
+  return Array.from(urls);
+}
+
+/**
+ * Deletes every occurrence of `url` from `text`, leaving the other links intact —
+ * the composer removes a single link-preview card without touching the rest.
+ *
+ * Detection and removal MUST agree on what counts as a URL, so this matches with
+ * the same {@link URL_PATTERN_SOURCE} / {@link trimUrlTrailingPunct} /
+ * {@link toOpenableUrl} pipeline that produced the value in the first place —
+ * otherwise a bare `www.x.com` in the text would never match its openable
+ * `https://www.x.com` form and removal would silently no-op.
+ *
+ * The spaces preceding the URL go with it, so removing a link mid-sentence does
+ * not strand a gap; punctuation that merely trailed it (`…example.com.`) is kept,
+ * as that belongs to the sentence, not the link. Line breaks are never collapsed.
+ */
+export function removeUrlFromText(text: string, url: string): string {
+  const pattern = new RegExp(`([^\\S\\r\\n]*)(${URL_PATTERN_SOURCE})`, 'g');
+  const stripped = text.replace(pattern, (match: string, spacing: string, rawUrl: string) => {
+    const { url: cleaned } = trimUrlTrailingPunct(rawUrl);
+    if (!cleaned || toOpenableUrl(cleaned) !== url) return match;
+    // Give back whatever trailed the URL but was not part of it.
+    return match.slice(spacing.length + cleaned.length);
+  });
+  return stripped.replace(/[^\S\r\n]{2,}/g, ' ').trim();
 }

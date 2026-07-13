@@ -119,11 +119,13 @@ import {
   PODCAST_ATTACHMENT_KEY,
   LOCATION_ATTACHMENT_KEY,
   SOURCES_ATTACHMENT_KEY,
-  LINK_ATTACHMENT_KEY,
   createMediaAttachmentKey,
   isMediaAttachmentKey,
   getMediaIdFromAttachmentKey,
+  isLinkAttachmentKey,
+  getUrlFromLinkAttachmentKey,
 } from '@/utils/composeUtils';
+import { removeUrlFromText } from '@/utils/extractUrls';
 import {
   parseComposeIntent,
   buildComposeText,
@@ -420,6 +422,9 @@ const ComposeScreenBody = () => {
   // Link detection and preview (must be before useAttachmentOrder)
   const linkDetection = useLinkDetection(postContent);
   const { detectedLinks, isLoading: isLoadingLinks } = linkDetection;
+  // One carousel key per detected link, so each preview card moves and is removed
+  // on its own. Memoized: a fresh array every render would churn the order hook.
+  const detectedLinkUrls = useMemo(() => detectedLinks.map((link) => link.url), [detectedLinks]);
 
   // Attachment order manager (needs detectedLinks)
   const attachmentOrderManager = useAttachmentOrder({
@@ -435,7 +440,7 @@ const ComposeScreenBody = () => {
     location,
     sources,
     mediaIds,
-    hasLink: detectedLinks.length > 0,
+    linkUrls: detectedLinkUrls,
     setMediaIds,
   });
   const { attachmentOrder, setAttachmentOrder, clearAttachmentOrder, moveAttachment } = attachmentOrderManager;
@@ -1798,9 +1803,10 @@ const ComposeScreenBody = () => {
                             );
                           }
 
-                          if (key === LINK_ATTACHMENT_KEY) {
-                            if (detectedLinks.length === 0) return null;
-                            const link = detectedLinks[0];
+                          if (isLinkAttachmentKey(key)) {
+                            const linkUrl = getUrlFromLinkAttachmentKey(key);
+                            const link = detectedLinks.find(detected => detected.url === linkUrl);
+                            if (!link) return null;
                             return (
                               <AttachmentCarouselItem
                                 key={key}
@@ -1808,11 +1814,9 @@ const ComposeScreenBody = () => {
                                 index={index}
                                 total={total}
                                 onMove={moveAttachment}
-                                onRemove={() => {
-                                  const urlPattern = /(https?:\/\/[^\s]+|www\.[^\s]+)/gi;
-                                  const newContent = postContent.replace(urlPattern, '').trim();
-                                  setPostContent(newContent);
-                                }}
+                                // Removing a link card deletes only THAT link from the
+                                // text — the other links (and their cards) stay.
+                                onRemove={() => setPostContent(removeUrlFromText(postContent, link.url))}
                                 wrapperStyle={styles.linkAttachmentWrapper}
                               >
                                 <LinkPreviewCard

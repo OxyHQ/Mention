@@ -166,7 +166,7 @@ const transformToUIItem = (raw: HydratedPost | HydratedPostSummary | any, option
     engagement,
     attachments,
     metadata,
-    linkPreview: raw?.linkPreview ?? null,
+    linkPreviews: Array.isArray(raw?.linkPreviews) ? raw.linkPreviews : [],
     user: {
       ...user,
       avatar: user.avatarUrl ?? user.avatar,

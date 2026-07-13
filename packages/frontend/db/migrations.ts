@@ -19,7 +19,7 @@ const logger = createScopedLogger('Schema');
  * Schema version. Bump this whenever the table definitions below change —
  * the next `getDb()` will drop the old cache and recreate it cleanly.
  */
-const SCHEMA_VERSION = 2;
+const SCHEMA_VERSION = 3;
 
 /**
  * Create the full schema from scratch. Idempotent (IF NOT EXISTS).
@@ -37,7 +37,7 @@ function createSchema(db: SQLite.SQLiteDatabase): void {
       quoted_post_id TEXT,
       content_json TEXT NOT NULL,
       attachments_json TEXT,
-      link_preview_json TEXT,
+      link_previews_json TEXT,
       permissions_json TEXT,
       boost_json TEXT,
       context_json TEXT,

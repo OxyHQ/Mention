@@ -1,6 +1,7 @@
 import { useState, useCallback, useMemo, useRef } from 'react';
 import {
   ComposerMediaItem,
+  createLinkAttachmentKey,
   createMediaAttachmentKey,
   getMediaIdFromAttachmentKey,
   isMediaAttachmentKey,
@@ -9,7 +10,6 @@ import {
   EVENT_ATTACHMENT_KEY,
   LOCATION_ATTACHMENT_KEY,
   SOURCES_ATTACHMENT_KEY,
-  LINK_ATTACHMENT_KEY,
   ROOM_ATTACHMENT_KEY,
   PODCAST_ATTACHMENT_KEY,
 } from '@/utils/composeUtils';
@@ -34,7 +34,8 @@ interface UseAttachmentOrderProps {
   location: any;
   sources: Source[];
   mediaIds: ComposerMediaItem[];
-  hasLink: boolean;
+  /** URLs of the links detected in the post text — one carousel card each. */
+  linkUrls: string[];
   setMediaIds?: (updater: (prev: ComposerMediaItem[]) => ComposerMediaItem[]) => void;
 }
 
@@ -51,7 +52,7 @@ export const useAttachmentOrder = ({
   location,
   sources,
   mediaIds,
-  hasLink,
+  linkUrls,
   setMediaIds,
 }: UseAttachmentOrderProps) => {
   // User-specified ordering (from drag-to-reorder or draft loading)
@@ -67,12 +68,14 @@ export const useAttachmentOrder = ({
     if (hasPodcastContent && podcast) keys.add(PODCAST_ATTACHMENT_KEY);
     if (location) keys.add(LOCATION_ATTACHMENT_KEY);
     if (sources.some(source => source?.url?.trim?.().length)) keys.add(SOURCES_ATTACHMENT_KEY);
-    if (hasLink) keys.add(LINK_ATTACHMENT_KEY);
+    linkUrls.forEach((url: string) => {
+      keys.add(createLinkAttachmentKey(url));
+    });
     mediaIds.forEach((media: ComposerMediaItem) => {
       keys.add(createMediaAttachmentKey(media.id));
     });
     return keys;
-  }, [showPollCreator, hasArticleContent, article, hasEventContent, event, hasRoomContent, room, hasPodcastContent, podcast, location, sources, mediaIds, hasLink]);
+  }, [showPollCreator, hasArticleContent, article, hasEventContent, event, hasRoomContent, room, hasPodcastContent, podcast, location, sources, mediaIds, linkUrls]);
 
   // Track previous activeKeys to detect additions for stable ordering
   const prevActiveKeysRef = useRef<Set<string>>(activeKeys);

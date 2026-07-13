@@ -74,13 +74,13 @@ interface PostData {
     isCollaborator?: boolean;
     isOwner?: boolean;
   };
-  linkPreview?: {
+  linkPreviews?: Array<{
     url?: string;
     title?: string;
     description?: string;
     image?: string;
     siteName?: string;
-  } | null;
+  }>;
 }
 
 export function formatPost(post: PostData): string {
@@ -112,11 +112,12 @@ export function formatPost(post: PostData): string {
     parts.push(`Media: ${post.content.media.map((m) => `${m.type}(${m.id})`).join(", ")}`);
   }
 
-  if (post.linkPreview?.url) {
-    const previewTitle = post.linkPreview.title || post.linkPreview.siteName || post.linkPreview.url;
+  for (const preview of post.linkPreviews ?? []) {
+    if (!preview.url) continue;
+    const previewTitle = preview.title || preview.siteName || preview.url;
     parts.push(`Link preview: ${previewTitle}`);
-    if (post.linkPreview.description) {
-      parts.push(`  ${post.linkPreview.description}`);
+    if (preview.description) {
+      parts.push(`  ${preview.description}`);
     }
   }
 

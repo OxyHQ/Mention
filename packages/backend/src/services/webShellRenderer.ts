@@ -181,7 +181,7 @@ export function mapPostOg(post: HydratedPost, id: string): OgData {
   }
 
   const image =
-    media?.url || media?.thumbUrl || media?.posterUrl || post.linkPreview?.image || avatarImage || undefined;
+    media?.url || media?.thumbUrl || media?.posterUrl || post.linkPreviews?.[0]?.image || avatarImage || undefined;
 
   // A boost has an intentionally empty body — its renderable text lives on the
   // boosted original (embedded at maxDepth:1). Fall back to the original's text so
