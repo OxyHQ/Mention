@@ -36,7 +36,7 @@
     "@oxyhq/contracts": "^0.14.0",
     "@oxyhq/core": "^10.0.0",
     "@oxyhq/expo-oxy-identity": "^0.1.0",
-    "@oxyhq/protocol": "^0.1.4",
+    "@oxyhq/protocol": "^0.1.5",
     "@oxyhq/services": "^20.0.0",
     "@react-native/js-polyfills": "^0.86.0",
     "array.prototype.map": "^1.0.8",

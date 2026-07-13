@@ -70,3 +70,17 @@ export const colors = {
         secondary: '#718096',
     },
 } as const;
+
+/**
+ * Broadcast red shared by every "live" affordance: the LIVE badge and End Room
+ * action on the room screen, the section marker on the rooms list, and the
+ * pulsing dot in the sidebar widget.
+ *
+ * It is a fixed status signal rather than a themed accent — it must read the
+ * same in light/dark and under every color preset — so it is NOT a Bloom theme
+ * token. This constant is its single source of truth; never re-type the hex.
+ */
+export const LIVE_INDICATOR_COLOR = '#FF4458';
+
+/** Text/icon color that sits on top of {@link LIVE_INDICATOR_COLOR}. */
+export const LIVE_INDICATOR_FOREGROUND_COLOR = '#FFFFFF';

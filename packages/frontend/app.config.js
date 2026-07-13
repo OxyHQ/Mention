@@ -245,10 +245,11 @@ return {
                 "expo-web-browser",
                 // Android sharedUserId for cross-app authentication
                 './plugins/withSharedUserId',
-                // Reader side of @oxyhq/expo-oxy-identity: request the signature
-                // permission + <queries> so cold boot can silently read the
-                // Commons-hosted shared identity (silent "Sign in with Oxy").
-                './plugins/withSharedIdentityReader',
+                // Reader side of the shared-identity native module (ships in
+                // @oxyhq/services): request the signature permission + <queries>
+                // so cold boot can silently read the Commons-hosted shared
+                // identity (silent "Sign in with Oxy").
+                '@oxyhq/services/plugins/withSharedIdentityReader',
             ];
 
             // Only include native-only plugins for native builds (android/ios)

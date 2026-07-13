@@ -4,11 +4,11 @@ import { useWindowVirtualizer } from '@tanstack/react-virtual';
 import { useScrollRestoration } from '@oxyhq/bloom/scroll';
 import { Loading } from '@oxyhq/bloom/loading';
 import { LoadMoreSentinel } from '@/components/common/LoadMoreSentinel';
-import type { GroupedNotification } from '@/utils/groupNotifications';
+import type { NotificationListItem } from '@/utils/groupNotifications';
 
 export interface NotificationsListProps {
-    items: GroupedNotification[];
-    renderRow: (item: GroupedNotification) => React.ReactElement;
+    items: NotificationListItem[];
+    renderRow: (item: NotificationListItem) => React.ReactElement;
     header: React.ReactElement | null;
     emptyState: React.ReactElement;
     tabKey: string;

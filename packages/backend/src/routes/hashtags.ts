@@ -1,8 +1,46 @@
 import express, { Request, Response } from "express";
 import Post from "../models/Post";
 import { logger } from "../utils/logger";
+import { escapeRegex } from "../utils/textProcessing";
 
 const router = express.Router();
+
+/** Max hashtag suggestions returned by either search endpoint. */
+const HASHTAG_SEARCH_LIMIT = 5;
+
+/** Upper bound on the raw query we turn into a regex. */
+const HASHTAG_QUERY_MAX_LENGTH = 64;
+
+export interface HashtagSearchResult {
+  tag: string;
+  count: number;
+}
+
+/**
+ * Matching public hashtags with the number of posts carrying each one.
+ *
+ * The query is regex-ESCAPED before it reaches Mongo — a raw user string would
+ * otherwise be interpreted as a pattern (regex injection / catastrophic
+ * backtracking).
+ */
+async function searchHashtagsWithCounts(rawQuery: string): Promise<HashtagSearchResult[]> {
+  const needle = escapeRegex(rawQuery.trim().toLowerCase().slice(0, HASHTAG_QUERY_MAX_LENGTH));
+
+  return Post.aggregate<HashtagSearchResult>([
+    { $match: { visibility: 'public', hashtags: { $exists: true, $ne: [] } } },
+    { $unwind: '$hashtags' },
+    { $project: { tag: { $toLower: '$hashtags' } } },
+    { $match: { tag: { $regex: needle, $options: 'i' } } },
+    { $group: { _id: '$tag', count: { $sum: 1 } } },
+    { $sort: { count: -1 } },
+    { $limit: HASHTAG_SEARCH_LIMIT },
+    { $project: { _id: 0, tag: '$_id', count: 1 } }
+  ]);
+}
+
+function parseSearchQuery(value: unknown): string | null {
+  return typeof value === 'string' && value.trim() ? value : null;
+}
 
 // Public routes
 // Get all hashtags
@@ -123,44 +161,49 @@ router.get("/", async (req: Request, res: Response) => {
   }
 });
 
-// Search hashtags
-router.post('/search', async (req: Request, res: Response) => {
+// Search hashtags — returns each matching tag WITH its post count, so a result
+// row can show "N posts" instead of a hardcoded zero.
+router.get('/search', async (req: Request, res: Response) => {
+  const query = parseSearchQuery(req.query.query);
+  if (!query) {
+    return res.status(400).json({
+      error: 'Invalid request',
+      message: 'Search query is required'
+    });
+  }
+
   try {
-    const { query } = req.body as { query?: string };
-
-    if (!query || typeof query !== 'string') {
-      return res.status(400).json({
-        error: 'Invalid request',
-        message: 'Search query is required'
-      });
-    }
-
-    const match: Record<string, unknown> = {
-      visibility: 'public',
-      hashtags: { $exists: true, $ne: [] },
-    };
-
-    const agg = await Post.aggregate<{ tag: string }>([
-      { $match: match },
-      { $unwind: '$hashtags' },
-      {
-        $project: {
-          tag: { $toLower: '$hashtags' }
-        }
-      },
-      { $match: { tag: { $regex: query.toLowerCase(), $options: 'i' } } },
-      { $group: { _id: '$tag', count: { $sum: 1 } } },
-      { $sort: { count: -1 } },
-      { $limit: 5 },
-      { $project: { _id: 0, tag: '$_id' } }
-    ]);
-
-    return res.json({ data: agg.map((x) => x.tag) });
+    const hashtags = await searchHashtagsWithCounts(query);
+    return res.json({ hashtags });
   } catch (error) {
-    logger.error('[Hashtags] Error in searchHashtags:', { error, searchQuery: req.body.query });
+    logger.error('[Hashtags] Error searching hashtags:', { error, searchQuery: query });
     return res.status(500).json({
       error: 'Server error',
-      message: `Error searching hashtags: ${error instanceof Error ? error.message : 'unknown error'}`
+      message: 'Error searching hashtags'
+    });
+  }
+});
+
+// Legacy hashtag search kept for app builds shipped before `GET /hashtags/search`
+// existed: those clients expect a bare array of tag NAMES under `data` and would
+// break on the richer `{ tag, count }` shape. New callers must use the GET above.
+router.post('/search', async (req: Request, res: Response) => {
+  const query = parseSearchQuery((req.body as { query?: unknown } | undefined)?.query);
+  if (!query) {
+    return res.status(400).json({
+      error: 'Invalid request',
+      message: 'Search query is required'
+    });
+  }
+
+  try {
+    const hashtags = await searchHashtagsWithCounts(query);
+    return res.json({ data: hashtags.map((hashtag) => hashtag.tag) });
+  } catch (error) {
+    logger.error('[Hashtags] Error in searchHashtags:', { error, searchQuery: query });
+    return res.status(500).json({
+      error: 'Server error',
+      message: 'Error searching hashtags'
     });
   }
 });

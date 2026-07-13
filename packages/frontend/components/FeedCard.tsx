@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo } from 'react';
-import { View, StyleSheet, ViewStyle } from 'react-native';
+import { View } from 'react-native';
 import { PressableScale } from '@oxyhq/bloom/pressable-scale';
 import { router } from 'expo-router';
 import { ThemedText } from './ThemedText';
@@ -26,14 +26,22 @@ export interface FeedCardData {
     memberAvatars?: string[];
 }
 
+export type FeedCardVariant = 'card' | 'row';
+
 interface FeedCardProps {
     feed: FeedCardData;
     onPress?: () => void;
     headerRight?: React.ReactNode;
     showDescription?: boolean;
     showLikes?: boolean;
-    style?: ViewStyle;
+    variant?: FeedCardVariant;
 }
+
+/** Card surface (default) vs. flush full-width feed row (result lists). */
+const OUTER_CLASS: Record<FeedCardVariant, string> = {
+    card: 'w-full p-4 gap-2 rounded-xl bg-surface',
+    row: 'w-full px-3 py-3 gap-1 border-b border-border',
+};
 
 /**
  * Feed card matching Bluesky's FeedSourceCard layout:
@@ -50,7 +58,7 @@ export function FeedCard({
     headerRight,
     showDescription = true,
     showLikes = false,
-    style,
+    variant = 'card',
 }: FeedCardProps) {
     const handlePress = useCallback(() => {
         if (onPress) {
@@ -68,7 +76,7 @@ export function FeedCard({
         if (feed.memberCount && feed.memberCount > 0) {
             parts.push(`${feed.memberCount} ${feed.memberCount === 1 ? 'profile' : 'profiles'}`);
         }
-        return parts.join(' \u00B7 ');
+        return parts.join(' · ');
     }, [feed.topicCount, feed.memberCount]);
 
     const accessibilityLabel = useMemo(() => {
@@ -96,33 +104,28 @@ export function FeedCard({
     return (
         <PressableScale
             onPress={handlePress}
-            style={[styles.outer, style]}
-            className="bg-surface"
+            className={OUTER_CLASS[variant]}
             accessibilityRole="button"
             accessibilityLabel={accessibilityLabel}
             testID={`feed-${feed.id}`}>
-            <View style={styles.row}>
+            <View className="flex-row items-center gap-3">
                 {/* Avatar */}
-                <View style={styles.avatarWrap}>
-                    <Avatar
-                        source={feed.avatar || feed.creator?.avatar}
-                        size={36}
-                        shape="squircle"
-                    />
-                </View>
+                <Avatar
+                    source={feed.avatar || feed.creator?.avatar}
+                    size={36}
+                    shape="squircle"
+                />
 
                 {/* Text content */}
-                <View style={styles.textContent}>
+                <View className="flex-1">
                     <ThemedText
-                        className="text-sm font-semibold"
-                        style={styles.name}
+                        className="text-sm font-semibold leading-[18px]"
                         numberOfLines={1}>
                         {feed.displayName}
                     </ThemedText>
                     {feed.creator && (
                         <ThemedText
-                            className="text-sm text-muted-foreground"
-                            style={styles.byline}
+                            className="text-sm text-muted-foreground leading-[18px]"
                             numberOfLines={1}>
                             Feed by @{feed.creator.username}
                         </ThemedText>
@@ -139,17 +142,15 @@ export function FeedCard({
 
             {showDescription && feed.description ? (
                 <ThemedText
-                    className="text-muted-foreground"
-                    style={styles.description}
-                    numberOfLines={3}>
+                    className="text-muted-foreground text-sm leading-5"
+                    numberOfLines={variant === 'row' ? 2 : 3}>
                     {feed.description}
                 </ThemedText>
             ) : null}
 
             {statsLine ? (
                 <ThemedText
-                    className="text-sm text-muted-foreground"
-                    style={styles.stats}
+                    className="text-sm text-muted-foreground leading-[18px]"
                     numberOfLines={1}>
                     {statsLine}
                 </ThemedText>
@@ -157,8 +158,7 @@ export function FeedCard({
 
             {showLikes && feed.likeCount && feed.likeCount > 0 ? (
                 <ThemedText
-                    className="text-sm font-semibold text-muted-foreground"
-                    style={styles.likes}
+                    className="text-sm font-semibold text-muted-foreground leading-[18px]"
                     numberOfLines={1}>
                     Pinned by {formatCompactNumber(feed.likeCount)}{' '}
                     {feed.likeCount === 1 ? 'user' : 'users'}
@@ -171,54 +171,21 @@ export function FeedCard({
 /**
  * Skeleton placeholder matching FeedCard layout.
  * Shows grey boxes for avatar, title, byline, and description.
+ *
+ * Bloom's Skeleton primitives take `style` (not `className`), so the shimmer
+ * geometry stays as plain style objects here.
  */
 export function FeedCardSkeleton() {
     return (
-        <View style={styles.outer} className="bg-surface">
-            <Skeleton.Row style={styles.row}>
+        <View className={OUTER_CLASS.card}>
+            <Skeleton.Row style={{ alignItems: 'center', gap: 12 }}>
                 <Skeleton.Circle size={36} />
-                <Skeleton.Col style={[styles.textContent, { gap: 6 }]}>
+                <Skeleton.Col style={{ flex: 1, gap: 6 }}>
                     <Skeleton.Text style={{ width: 140, fontSize: 14 }} />
                     <Skeleton.Text style={{ width: 100, fontSize: 13 }} />
                 </Skeleton.Col>
             </Skeleton.Row>
-            <Skeleton.Text style={{ width: '80%' as unknown as number, fontSize: 14 }} />
+            <Skeleton.Box width="80%" height={14} />
         </View>
     );
 }
-
-const styles = StyleSheet.create({
-    outer: {
-        width: '100%',
-        padding: 16,
-        gap: 8,
-        borderRadius: 12,
-    },
-    row: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 12,
-    },
-    avatarWrap: {
-        // Matches Bluesky's a.mr_md (margin-right medium)
-    },
-    textContent: {
-        flex: 1,
-    },
-    name: {
-        lineHeight: 18,
-    },
-    byline: {
-        lineHeight: 18,
-    },
-    description: {
-        fontSize: 14,
-        lineHeight: 20,
-    },
-    stats: {
-        lineHeight: 18,
-    },
-    likes: {
-        lineHeight: 18,
-    },
-});

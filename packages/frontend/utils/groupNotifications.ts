@@ -50,6 +50,20 @@ export interface GroupedNotification {
 }
 
 /**
+ * A single item in the RENDERED notifications list. The screen interleaves
+ * lightweight time-bucket section headers ("Today" / "This week" / "Earlier")
+ * between the grouped notification rows, so the virtualizers (web + native)
+ * receive a union rather than a bare {@link GroupedNotification}. Headers are a
+ * pure presentation layer inserted at bucket boundaries; each carries a stable
+ * `key` for the list, and rows keep every `GroupedNotification` field directly
+ * (via the intersection) so `renderRow` can pass a row straight to
+ * `NotificationItem`.
+ */
+export type NotificationListItem =
+  | { kind: 'header'; key: string; label: string }
+  | ({ kind: 'row' } & GroupedNotification);
+
+/**
  * Max actors kept in the {@link GroupedNotification.actors} array. The collapsed
  * strip still shows only the first 3 (+N); the extra entries are revealed by the
  * expandable actor list without any refetch.

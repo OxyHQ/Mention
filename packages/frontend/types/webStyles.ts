@@ -9,7 +9,7 @@ import type { ViewStyle, TextStyle } from 'react-native';
  * web-only intent explicit and type-checked instead of using an `as any` cast.
  *
  * The single source of the pattern previously duplicated in SideBar, RightBar,
- * SearchBar, and insights.
+ * and insights.
  */
 type WebOnlyStyleProps = {
   cursor?: 'pointer' | 'default' | 'text' | 'grab' | 'grabbing' | 'not-allowed' | 'auto';

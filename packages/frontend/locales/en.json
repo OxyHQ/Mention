@@ -173,6 +173,9 @@
   "notification.minutes_ago": "{{count}}m ago",
   "notification.hours_ago": "{{count}}h ago",
   "notification.days_ago": "{{count}}d ago",
+  "notification.section.today": "Today",
+  "notification.section.this_week": "This week",
+  "notification.section.earlier": "Earlier",
   "success.signup": "Registration successful",
   "action.retry": "Retry",
   "status.loading": "Loading...",
@@ -1004,7 +1007,14 @@
       "retry": "Retry",
       "notFound": "No account found on other networks",
       "notFoundHint": "Try a full handle like @user@mastodon.social or name.bsky.social"
-    }
+    },
+    "error": {
+      "title": "Search failed",
+      "message": "We couldn't complete that search. Check your connection and try again."
+    },
+    "retry": "Retry",
+    "clearInput": "Clear search",
+    "removeRecent": "Remove from recent searches"
   },
   "feeds": {
     "title": "Feeds",
@@ -1350,6 +1360,10 @@
   "agora.liveNow": "Live Now",
   "agora.upcoming": "Upcoming",
   "agora.room": "Room",
+  "agora.roomUnavailableTitle": "Couldn't load this room",
+  "agora.roomUnavailableMessage": "The room may have ended, or your connection dropped.",
+  "agora.loadRoomsFailedTitle": "Couldn't load rooms",
+  "agora.loadRoomsFailedMessage": "Check your connection and try again.",
   "agora.shareRoom": "Share room",
   "agora.reportRoom": "Report room",
   "agora.leaveRoom": "Leave room",

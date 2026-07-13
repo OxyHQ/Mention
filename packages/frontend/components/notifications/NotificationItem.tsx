@@ -1,5 +1,6 @@
 import React, { useCallback, useContext, useMemo, useState } from 'react';
 import { View, Pressable, Text } from 'react-native';
+import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -48,6 +49,8 @@ const BADGE_ICON_SIZE = 12;
 const BADGE_GLYPH_COLOR = '#ffffff';
 
 const STACK_AVATAR_SIZE = 24;
+// Compact media chip on the trailing edge of a row whose post carries an image.
+const THUMBNAIL_SIZE = 48;
 // Actors shown in the collapsed avatar strip before collapsing into "+N".
 const COLLAPSED_STRIP_LIMIT = 3;
 // Matches a bare Oxy user id so it is never surfaced as a display name.
@@ -153,6 +156,36 @@ function postContentText(content: unknown): string | undefined {
   if (content && typeof content === 'object') {
     const text = (content as { text?: unknown }).text;
     if (typeof text === 'string') return text;
+  }
+  return undefined;
+}
+
+/** Reads a non-empty string field off a loosely-typed embedded media object. */
+function mediaField(item: Record<string, unknown>, key: string): string | undefined {
+  const value = item[key];
+  return typeof value === 'string' && value.length > 0 ? value : undefined;
+}
+
+/**
+ * The first renderable image on an embedded/hydrated post's `content`, or
+ * `undefined` when the post carries no displayable media.
+ *
+ * The embedded post comes from `PostHydrationService`, so its media items
+ * already hold ready-to-render URLs — the precedence here (`thumbUrl` →
+ * `posterUrl` → `url`) matches the feed's media grid. Nothing extra is fetched.
+ * A video contributes only its still frame: its `url` is the playable stream,
+ * never an image. Fails soft (no chip) when nothing resolves.
+ */
+function postThumbnailUrl(content: unknown): string | undefined {
+  if (!content || typeof content !== 'object') return undefined;
+  const media = (content as { media?: unknown }).media;
+  if (!Array.isArray(media)) return undefined;
+  for (const entry of media) {
+    if (!entry || typeof entry !== 'object') continue;
+    const item = entry as Record<string, unknown>;
+    const still = mediaField(item, 'thumbUrl') ?? mediaField(item, 'posterUrl');
+    const url = item.type === 'video' ? still : (still ?? mediaField(item, 'url'));
+    if (url) return url;
   }
   return undefined;
 }
@@ -313,6 +346,14 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({ item, onMa
     const source = isCollabInvite ? collabPost?.content : item.leadNotification.post?.content;
     return postContentText(source)?.trim() || undefined;
   }, [descriptor.hasPreview, item.leadNotification.preview, item.leadNotification.post, isCollabInvite, collabPost]);
+
+  // Media chip: shown whenever the referenced post already carries an image on
+  // the notification (the backend embeds a hydrated post for `type:'post'`) —
+  // it complements the text preview rather than replacing it. No extra fetch.
+  const thumbnailUrl = useMemo(() => {
+    const source = isCollabInvite ? collabPost?.content : item.leadNotification.post?.content;
+    return postThumbnailUrl(source);
+  }, [item.leadNotification.post, isCollabInvite, collabPost]);
 
   const markRead = useCallback(() => {
     if (hasUnread) onMarkAsRead(item.notificationIds);
@@ -539,6 +580,22 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({ item, onMa
               </View>
             ) : null}
           </View>
+
+          {/* Trailing media chip — a compact square still of the post's first
+              image, mirroring the feed's thumb variant. Decorative: the row's
+              own accessibilityLabel already describes the notification. */}
+          {thumbnailUrl ? (
+            <Image
+              source={{ uri: thumbnailUrl }}
+              className="bg-secondary self-center ml-3 rounded-lg"
+              style={{ width: THUMBNAIL_SIZE, height: THUMBNAIL_SIZE }}
+              contentFit="cover"
+              transition={150}
+              cachePolicy="memory-disk"
+              accessibilityElementsHidden
+              importantForAccessibility="no"
+            />
+          ) : null}
 
           {hasUnread ? <View className="w-2 h-2 rounded-full bg-primary self-center ml-2" /> : null}
         </View>
