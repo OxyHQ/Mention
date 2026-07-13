@@ -153,6 +153,17 @@ describe('mapPostOg', () => {
     expect(mapPostOg(post, 'p1').description).toHaveLength(200);
   });
 
+  it('falls back to the boosted original text when the boost body is empty', () => {
+    // A boost carries an intentionally empty body; its text lives on the embedded
+    // original (hydrated at maxDepth:1). The OG description must not be blank.
+    const boost = {
+      ...base,
+      content: { text: '' },
+      originalPost: { id: 'orig', content: { text: 'the boosted original body' } },
+    } as unknown as HydratedPost;
+    expect(mapPostOg(boost, 'b1').description).toBe('the boosted original body');
+  });
+
   it('prefers media url over thumb/poster/linkPreview/avatar', () => {
     const post = {
       ...base,

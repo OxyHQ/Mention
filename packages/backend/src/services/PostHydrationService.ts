@@ -366,6 +366,114 @@ export async function resolveUserSummaries(userIds: string[]): Promise<Map<strin
   return resolved;
 }
 
+/**
+ * Lowercased host of the first parseable absolute URL among `urls` (an actor
+ * URI, a canonical post URL, or an activity id). Used as the `instance` on a
+ * degraded federated author so the ORIGIN still surfaces when no handle is
+ * knowable (e.g. a brid.gy/Bluesky-bridged note that carries only an
+ * `activityId`). Returns `undefined` when none parse.
+ */
+function federatedHost(...urls: Array<string | undefined>): string | undefined {
+  for (const url of urls) {
+    if (!url) continue;
+    try {
+      const host = new URL(url).host.toLowerCase();
+      if (host) return host;
+    } catch {
+      // Not a parseable absolute URL — try the next candidate.
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Build the author {@link PostUser} for FEDERATED posts whose Oxy author link is
+ * missing — legacy "orphans" ingested before the federated-actor → Oxy-user link
+ * was enforced, so `oxyUserId` is null. Such a post is NOT dropped: its CONTENT
+ * (text/media) must still render so a boost/quote referencing it — and the post
+ * itself — is not blank. The author is derived ONLY from the post's own
+ * federation data + Mention's own {@link FederatedActor} record, NEVER from a raw
+ * id (the ghost-handle rule):
+ *
+ *  1. If a {@link FederatedActor} exists for the post's `federation.actorUri`,
+ *     use its authoritative `username@domain` + avatar — the SAME enrichment
+ *     {@link enrichDegradedFederatedUsers} applies, keyed here by actor URI since
+ *     there is no `oxyUserId`. It NEVER invents a `name.displayName`.
+ *  2. Otherwise fall back to {@link degradedActorSummary} ("Unknown user", empty
+ *     handle), marked federated with the origin `instance` when a host is
+ *     derivable. The empty handle suppresses the `@handle` line and the profile
+ *     link, so no misleading handle is ever emitted.
+ *
+ * Batched (single FederatedActor query), best-effort, and never cached — the DTO
+ * self-heals once the post's `oxyUserId` is backfilled and normal Oxy resolution
+ * takes over. Keyed by post id (orphans have no `oxyUserId` to key on).
+ */
+async function resolveOrphanFederatedAuthors(
+  orphans: Array<{ postId: string; federation: PostFederationData }>,
+): Promise<Map<string, PostUser>> {
+  const result = new Map<string, PostUser>();
+  if (orphans.length === 0) return result;
+
+  const actorUris = Array.from(
+    new Set(orphans.map((o) => o.federation.actorUri).filter((uri): uri is string => Boolean(uri))),
+  );
+
+  const actorByUri = new Map<
+    string,
+    { username?: string; acct?: string; domain?: string; avatarUrl?: string; oxyUserId?: string }
+  >();
+  if (actorUris.length > 0) {
+    try {
+      const actors = await FederatedActor.find({ uri: { $in: actorUris } })
+        .select('uri username acct domain avatarUrl oxyUserId')
+        .lean();
+      for (const actor of actors) {
+        const uri = (actor as { uri?: string }).uri;
+        if (uri) actorByUri.set(uri, actor);
+      }
+    } catch (error) {
+      logger.warn('[PostHydration] Orphan federated author lookup failed', {
+        count: actorUris.length,
+        reason: error instanceof Error ? error.message : 'unknown',
+      });
+    }
+  }
+
+  for (const { postId, federation } of orphans) {
+    const actorUri = federation.actorUri;
+    const actor = actorUri ? actorByUri.get(actorUri) : undefined;
+    const username = actor?.username || (actor?.acct ? actor.acct.split('@')[0] : '');
+
+    if (actor && username) {
+      // Authoritative federated identity from Mention's own FederatedActor record
+      // (never invents a display name — the renderer falls back to the handle).
+      result.set(postId, {
+        id: actor.oxyUserId || actorUri || postId,
+        username,
+        name: {},
+        avatar: actor.avatarUrl ?? null,
+        isFederated: true,
+        federation: actor.domain
+          ? { domain: actor.domain, actorUri }
+          : (actorUri ? { actorUri } : undefined),
+        instance: actor.domain || federatedHost(actorUri),
+      });
+      continue;
+    }
+
+    // No knowable handle: a neutral "Unknown user", still marked federated with
+    // the origin host so the CONTENT (not a fabricated handle) is what renders.
+    const instance = federatedHost(actorUri, federation.url, federation.activityId);
+    result.set(postId, {
+      ...degradedActorSummary(actorUri || federation.url || federation.activityId || postId),
+      isFederated: true,
+      ...(instance ? { instance, federation: { domain: instance, ...(actorUri ? { actorUri } : {}) } } : {}),
+    });
+  }
+
+  return result;
+}
+
 export class PostHydrationService {
   async hydratePosts(rawPosts: object[], options: HydrationOptions = {}): Promise<HydratedPost[]> {
     if (!Array.isArray(rawPosts) || rawPosts.length === 0) {
@@ -377,8 +485,17 @@ export class PostHydrationService {
 
     const initialPosts = rawPosts
       .map((p): RawPost => (typeof (p as { toObject?: () => RawPost }).toObject === 'function' ? (p as { toObject: () => RawPost }).toObject() : p as RawPost))
-      .filter((post) => post && post.oxyUserId
-        && !viewerContext.blockedIds.has(String(post.oxyUserId)));
+      .filter((post) => {
+        if (!post) return false;
+        const authorId = post.oxyUserId ? String(post.oxyUserId) : undefined;
+        if (authorId) return !viewerContext.blockedIds.has(authorId);
+        // A FEDERATED post whose Oxy author link is missing (a legacy "orphan",
+        // ingested before the federated-actor → Oxy-user link was enforced) is
+        // NOT a data error — it still renders in a degraded form (see
+        // buildPostSummary) so the post itself, and any boost/quote referencing
+        // it, is not blank. A native post with no author IS a data error → drop.
+        return Boolean(post.federation?.activityId);
+      });
 
     if (initialPosts.length === 0) {
       return [];
@@ -403,6 +520,7 @@ export class PostHydrationService {
       pollMap,
       authorPrivacyMap,
       linkPreviewMap,
+      orphanAuthorMap,
     ] = await Promise.all([
       this.populateViewerInteractions(postIds, viewerContext),
       (async () => {
@@ -416,6 +534,7 @@ export class PostHydrationService {
       options.includeLinkMetadata !== false
         ? this.buildLinkPreviewMap(postsForHydration)
         : Promise.resolve(new Map<string, PostLinkPreview>()),
+      this.buildOrphanFederatedAuthorMap(postsForHydration),
     ]);
     const mentionCache: Map<string, PostUser> = new Map(userMap);
 
@@ -432,6 +551,7 @@ export class PostHydrationService {
           linkPreviewMap,
           authorPrivacyMap,
           recentReplierMap,
+          orphanAuthorMap,
         })
       )
     );
@@ -929,6 +1049,26 @@ export class PostHydrationService {
   }
 
   /**
+   * Resolve a degraded author (keyed by post id) for every FEDERATED post in the
+   * graph whose Oxy author link is missing — a legacy orphan. Native null-author
+   * posts are intentionally skipped: they carry no `federation` data and are a
+   * genuine data error that {@link buildPostSummary} drops. See
+   * {@link resolveOrphanFederatedAuthors} for the derivation.
+   */
+  private async buildOrphanFederatedAuthorMap(
+    nodes: HydratedGraphNode[],
+  ): Promise<Map<string, PostUser>> {
+    const orphans: Array<{ postId: string; federation: PostFederationData }> = [];
+    for (const { post } of nodes) {
+      if (post?.oxyUserId || !post?.federation) continue;
+      const postId = this.resolveId(post);
+      if (!postId) continue;
+      orphans.push({ postId, federation: post.federation });
+    }
+    return resolveOrphanFederatedAuthors(orphans);
+  }
+
+  /**
    * Build the per-post link-preview map for a batch of posts.
    *
    * Link previews are resolved through the Oxy ecosystem link-preview service
@@ -1180,21 +1320,33 @@ export class PostHydrationService {
     linkPreviewMap: Map<string, PostLinkPreview>;
     authorPrivacyMap: Map<string, typeof DEFAULT_PRIVACY>;
     recentReplierMap?: Map<string, string[]>;
+    orphanAuthorMap: Map<string, PostUser>;
   }): Promise<HydratedPostSummary | null> {
-    const { post, viewerContext, pollMap, userMap, mentionCache, linkPreviewMap, authorPrivacyMap, recentReplierMap } = params;
+    const { post, viewerContext, pollMap, userMap, mentionCache, linkPreviewMap, authorPrivacyMap, recentReplierMap, orphanAuthorMap } = params;
 
     const postId = this.resolveId(post);
     if (!postId) return null;
 
     const isFederatedPost = !!post?.federation;
 
-    // Every post — federated or native — now carries a mandatory `oxyUserId`:
-    // the federated-actor → Oxy user link is enforced at ingest, so orphaned
-    // federated posts no longer exist. A post with no author is a genuine data
-    // error and is dropped. The author always renders through the canonical Oxy
-    // `name.displayName` path (buildUserMap / resolveUserSummaries).
-    const authorId = post?.oxyUserId ? String(post.oxyUserId) : undefined;
-    if (!authorId) return null;
+    // A post normally carries a resolved `oxyUserId` — the federated-actor → Oxy
+    // user link is enforced at ingest, so NEW federated posts always have one and
+    // the author renders through the canonical Oxy `name.displayName` path
+    // (buildUserMap / resolveUserSummaries). Two exceptions are handled here:
+    //  - A NATIVE post with no author is a genuine data error → dropped.
+    //  - A FEDERATED post with no author is a legacy "orphan" (ingested before the
+    //    link was enforced, e.g. a brid.gy/Bluesky-bridged note). It still renders
+    //    in a DEGRADED form — its content plus a federation-derived author (see
+    //    buildOrphanFederatedAuthorMap) — so a boost/quote referencing it, and the
+    //    post itself, is not blank. The degraded author is transient/never cached,
+    //    so the DTO self-heals once `oxyUserId` is backfilled.
+    let orphanAuthor: PostUser | undefined;
+    let authorId = post?.oxyUserId ? String(post.oxyUserId) : undefined;
+    if (!authorId) {
+      if (!isFederatedPost) return null;
+      orphanAuthor = orphanAuthorMap.get(postId) ?? degradedActorSummary(postId);
+      authorId = orphanAuthor.id;
+    }
 
     const authorship = normalizeAuthorship(post.authorship as PostAuthorshipEntry[] | undefined);
 
@@ -1243,9 +1395,12 @@ export class PostHydrationService {
 
     // `resolveUserSummaries` always populates an entry for every requested id
     // (a real user or the degraded fallback), so this default is defensive — but
-    // it must STILL never emit the raw id as a handle if ever reached.
-    const user = userMap.get(authorId) ?? degradedActorSummary(authorId);
-    const headerEntries = getHeaderAuthorshipEntries(authorship);
+    // it must STILL never emit the raw id as a handle if ever reached. An orphan
+    // federated post uses its federation-derived author (its `oxyUserId` is null,
+    // so there is nothing in `userMap`), and its authorship carries no usable
+    // owner — the byline falls back to `user` from an empty `authors[]`.
+    const user = orphanAuthor ?? userMap.get(authorId) ?? degradedActorSummary(authorId);
+    const headerEntries = orphanAuthor ? [] : getHeaderAuthorshipEntries(authorship);
     const authors: HydratedAuthor[] = headerEntries.map((entry) => {
       const summary = userMap.get(entry.oxyUserId) ?? degradedActorSummary(entry.oxyUserId);
       return {

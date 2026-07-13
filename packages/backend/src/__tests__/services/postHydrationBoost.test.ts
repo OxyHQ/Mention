@@ -26,12 +26,13 @@ const BOOSTER_OXY_ID = 'oxy-booster';
 const ORIGINAL_AUTHOR_OXY_ID = 'oxy-original-author';
 const VIEWER_ID = 'oxy-viewer';
 
-const { getUserById, getUsersByIds, cacheStore, postFind, postFindOne } = vi.hoisted(() => ({
+const { getUserById, getUsersByIds, cacheStore, postFind, postFindOne, federatedActorFind } = vi.hoisted(() => ({
   getUserById: vi.fn(),
   getUsersByIds: vi.fn(),
   cacheStore: new Map<string, CachedUserSummary>(),
   postFind: vi.fn(),
   postFindOne: vi.fn(),
+  federatedActorFind: vi.fn(),
 }));
 
 vi.mock('../../../server', () => ({
@@ -86,12 +87,14 @@ vi.mock('../../models/UserSettings', () => ({
   UserSettings: { find: () => chainable([]), findOne: () => chainable(null) },
 }));
 
-// Federated enrichment lookup for any still-degraded author. Return nothing so
-// an unresolved federated author stays degraded (the boost original with no
-// oxyUserId is dropped upstream, never enriched).
+// FederatedActor lookup, shared by two paths: the degraded-author enrichment
+// (keyed by `oxyUserId`) and the orphan-federated-author resolution (keyed by
+// `uri`). Routed by query via `federatedActorFind`; defaults to no rows so an
+// unresolved federated author degrades to a neutral "Unknown user" (but its
+// content STILL renders — orphans are no longer dropped).
 vi.mock('../../models/FederatedActor', () => ({
-  FederatedActor: { find: () => ({ select: () => ({ lean: async () => [] }) }) },
-  default: { find: () => ({ select: () => ({ lean: async () => [] }) }) },
+  FederatedActor: { find: (...args: unknown[]) => ({ select: () => ({ lean: async () => federatedActorFind(...args) }) }) },
+  default: { find: (...args: unknown[]) => ({ select: () => ({ lean: async () => federatedActorFind(...args) }) }) },
 }));
 
 vi.mock('../../services/userSummaryCache', () => ({
@@ -165,6 +168,9 @@ describe('PostHydrationService — boost original embedding is deterministic', (
     getUsersByIds.mockReset();
     postFind.mockReset();
     postFindOne.mockReset();
+    federatedActorFind.mockReset();
+    // No FederatedActor rows unless a test opts in.
+    federatedActorFind.mockResolvedValue([]);
 
     // Both authors resolve via the bulk Oxy fetch.
     getUsersByIds.mockResolvedValue([
@@ -179,7 +185,7 @@ describe('PostHydrationService — boost original embedding is deterministic', (
     // aggregation must NOT match the original. Route by query shape.
     postFind.mockImplementation((query: Record<string, unknown> | undefined) => {
       const idIn = (query?._id as { $in?: unknown[] } | undefined)?.$in;
-      if (Array.isArray(idIn) && idIn.map(String).includes(ORIGINAL_ID)) {
+      if (Array.isArray(idIn) && idIn.some((v) => String(v) === ORIGINAL_ID)) {
         return [originalRow()];
       }
       return [];
@@ -229,7 +235,7 @@ describe('PostHydrationService — boost original embedding is deterministic', (
 
     postFind.mockImplementation((query: Record<string, unknown> | undefined) => {
       const idIn = (query?._id as { $in?: unknown[] } | undefined)?.$in;
-      if (Array.isArray(idIn) && idIn.map(String).includes(ORIGINAL_ID)) {
+      if (Array.isArray(idIn) && idIn.some((v) => String(v) === ORIGINAL_ID)) {
         return [{
           ...originalRow(),
           visibility: 'private',
@@ -252,7 +258,7 @@ describe('PostHydrationService — boost original embedding is deterministic', (
 
     postFind.mockImplementation((query: Record<string, unknown> | undefined) => {
       const idIn = (query?._id as { $in?: unknown[] } | undefined)?.$in;
-      if (Array.isArray(idIn) && idIn.map(String).includes(ORIGINAL_ID)) {
+      if (Array.isArray(idIn) && idIn.some((v) => String(v) === ORIGINAL_ID)) {
         return [{
           ...originalRow(),
           visibility: 'followers_only',
@@ -290,18 +296,22 @@ describe('PostHydrationService — boost original embedding is deterministic', (
     }
   });
 
-  it('drops a federated boost original that has no oxyUserId (invariant: no orphans)', async () => {
+  it('renders a federated boost original that has no oxyUserId in a degraded form (legacy orphan)', async () => {
     service = new PostHydrationService();
 
-    // Stage 1 made "every federated post has an oxyUserId" a true invariant, so
-    // an original whose author was never linked to an Oxy user no longer renders
-    // via a local-actor fallback — it is dropped, and the boost has no original.
+    // A LEGACY orphan: a federated original ingested before the federated-actor →
+    // Oxy-user link was enforced, so its `oxyUserId` is null. It is NO LONGER
+    // dropped — its content must render so the boost is not blank. With no
+    // `actorUri` (a brid.gy/Bluesky-style note carrying only an `activityId`) and
+    // no FederatedActor row, the author degrades to a neutral "Unknown user"
+    // marked federated with the origin instance — never a fabricated handle.
     postFind.mockImplementation((query: Record<string, unknown> | undefined) => {
       const idIn = (query?._id as { $in?: unknown[] } | undefined)?.$in;
-      if (Array.isArray(idIn) && idIn.map(String).includes(ORIGINAL_ID)) {
+      if (Array.isArray(idIn) && idIn.some((v) => String(v) === ORIGINAL_ID)) {
         return [{
           ...originalRow(),
           oxyUserId: null,
+          authorship: [],
           federation: { activityId: 'https://zpravobot.news/users/TerribleMaps/statuses/123' },
         }];
       }
@@ -312,11 +322,90 @@ describe('PostHydrationService — boost original embedding is deterministic', (
 
     const [hydrated] = await hydrateBoost(undefined);
 
-    // The boost itself still hydrates (the booster is a real Oxy user), but the
-    // authorless original is dropped rather than rendered with a fabricated name.
     expect(hydrated).toBeTruthy();
-    expect(hydrated.boost).toBeNull();
-    expect(hydrated.originalPost).toBeNull();
+    // The boost original now embeds, with its real content shown.
+    expect(hydrated.boost?.originalPost?.id).toBe(ORIGINAL_ID);
+    expect(hydrated.originalPost?.id).toBe(ORIGINAL_ID);
+    expect(hydrated.boost?.originalPost?.content?.text).toBe('the original note body');
+    // The author is the neutral, un-tappable "Unknown user" (ghost-handle rule:
+    // empty handle), marked federated with the origin instance.
+    const originalUser = hydrated.boost?.originalPost?.user;
+    expect(originalUser?.username).toBe('');
+    expect(originalUser?.name?.displayName).toBe('Unknown user');
+    expect(originalUser?.isFederated).toBe(true);
+    expect(originalUser?.instance).toBe('zpravobot.news');
+    // No collaborator byline for an orphan — the header falls back to `user`.
+    expect(hydrated.boost?.originalPost?.authors).toEqual([]);
+  });
+
+  it('renders an orphan federated boost original with its real handle from the FederatedActor record', async () => {
+    service = new PostHydrationService();
+
+    const ACTOR_URI = 'https://mastodon.online/users/kaleidotrope';
+    postFind.mockImplementation((query: Record<string, unknown> | undefined) => {
+      const idIn = (query?._id as { $in?: unknown[] } | undefined)?.$in;
+      if (Array.isArray(idIn) && idIn.some((v) => String(v) === ORIGINAL_ID)) {
+        return [{
+          ...originalRow(),
+          oxyUserId: null,
+          authorship: [],
+          federation: { activityId: `${ACTOR_URI}/statuses/9`, actorUri: ACTOR_URI },
+        }];
+      }
+      return [];
+    });
+    getUsersByIds.mockResolvedValue([makeOxyUser(BOOSTER_OXY_ID, 'booster', 'Booster')]);
+    // The orphan-author resolution queries FederatedActor by `uri`.
+    federatedActorFind.mockImplementation((query: Record<string, unknown> | undefined) => {
+      const uriIn = (query?.uri as { $in?: unknown[] } | undefined)?.$in;
+      if (Array.isArray(uriIn) && uriIn.some((v) => String(v) === ACTOR_URI)) {
+        return [{ uri: ACTOR_URI, username: 'kaleidotrope', acct: 'kaleidotrope@mastodon.online', domain: 'mastodon.online', avatarUrl: 'https://mastodon.online/a.png' }];
+      }
+      return [];
+    });
+
+    const [hydrated] = await hydrateBoost(undefined);
+
+    const originalUser = hydrated.boost?.originalPost?.user;
+    expect(hydrated.boost?.originalPost?.content?.text).toBe('the original note body');
+    // Authoritative federated handle + avatar, never an invented display name.
+    expect(originalUser?.username).toBe('kaleidotrope');
+    expect(originalUser?.isFederated).toBe(true);
+    expect(originalUser?.instance).toBe('mastodon.online');
+    expect(originalUser?.federation?.domain).toBe('mastodon.online');
+    expect(originalUser?.avatar).toBe('https://mastodon.online/a.png');
+    expect(originalUser?.name?.displayName).toBeUndefined();
+  });
+
+  it('hydrates a bare orphan federated post viewed directly (not dropped from the depth-0 set)', async () => {
+    service = new PostHydrationService();
+
+    const orphanRow = {
+      ...originalRow(),
+      oxyUserId: null,
+      authorship: [],
+      federation: { activityId: 'https://bsky.brid.gy/convert/ap/at://did:plc:abc/app.bsky.feed.post/xyz' },
+    };
+    // Only the depth-1 reference fetch returns rows; the orphan is the depth-0
+    // input, so no reference lookup is needed here.
+    postFind.mockReturnValue([]);
+    getUsersByIds.mockResolvedValue([]);
+
+    const [hydrated] = await service.hydratePosts([orphanRow], {
+      viewerId: undefined,
+      maxDepth: 0,
+      includeLinkMetadata: false,
+      includeFullMetadata: false,
+    });
+
+    // The orphan is NOT filtered out of the initial depth-0 set — it renders.
+    expect(hydrated).toBeTruthy();
+    expect(hydrated.id).toBe(ORIGINAL_ID);
+    expect(hydrated.content?.text).toBe('the original note body');
+    expect(hydrated.user?.username).toBe('');
+    expect(hydrated.user?.name?.displayName).toBe('Unknown user');
+    expect(hydrated.user?.isFederated).toBe(true);
+    expect(hydrated.user?.instance).toBe('bsky.brid.gy');
   });
 
   it('renders the Oxy name.displayName for a resolved federated boost original', async () => {
@@ -325,7 +414,7 @@ describe('PostHydrationService — boost original embedding is deterministic', (
     const FEDERATED_AUTHOR_OXY_ID = 'oxy-terrible-maps';
     postFind.mockImplementation((query: Record<string, unknown> | undefined) => {
       const idIn = (query?._id as { $in?: unknown[] } | undefined)?.$in;
-      if (Array.isArray(idIn) && idIn.map(String).includes(ORIGINAL_ID)) {
+      if (Array.isArray(idIn) && idIn.some((v) => String(v) === ORIGINAL_ID)) {
         return [{
           ...originalRow(),
           oxyUserId: FEDERATED_AUTHOR_OXY_ID,
@@ -365,12 +454,37 @@ describe('PostHydrationService — boost original embedding is deterministic', (
     expect(hydrated.boost?.originalPost?.user?.avatar).toBe('terrible-maps-avatar-file-id');
   });
 
+  it('still drops a NATIVE post with no author (a genuine data error, not a federated orphan)', async () => {
+    service = new PostHydrationService();
+
+    // A native (non-federated) post with a null author is a real data error — the
+    // degraded-render path is scoped to FEDERATED orphans only, so this stays
+    // dropped and never surfaces a nameless row.
+    const nativeNullAuthor = {
+      ...originalRow(),
+      oxyUserId: null,
+      authorship: [],
+      // No `federation` subdoc → native.
+    };
+    postFind.mockReturnValue([]);
+    getUsersByIds.mockResolvedValue([]);
+
+    const hydrated = await service.hydratePosts([nativeNullAuthor], {
+      viewerId: undefined,
+      maxDepth: 0,
+      includeLinkMetadata: false,
+      includeFullMetadata: false,
+    });
+
+    expect(hydrated).toEqual([]);
+  });
+
   it('does not embed non-public boost originals when publicReferencesOnly is enabled', async () => {
     service = new PostHydrationService();
 
     postFind.mockImplementation((query: Record<string, unknown> | undefined) => {
       const idIn = (query?._id as { $in?: unknown[] } | undefined)?.$in;
-      if (!Array.isArray(idIn) || !idIn.map(String).includes(ORIGINAL_ID)) {
+      if (!Array.isArray(idIn) || !idIn.some((v) => String(v) === ORIGINAL_ID)) {
         return [];
       }
 
