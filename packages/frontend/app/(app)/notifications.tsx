@@ -42,6 +42,7 @@ import { IconButton } from '@/components/ui/Button';
 import { Error } from '@/components/Error';
 import { EmptyState } from '@/components/common/EmptyState';
 import { Bell } from '@/assets/icons/bell-icon';
+import { DoneAllIcon } from '@/assets/icons/done-all-icon';
 import { PanelStickyHeader } from '@/components/shell/PanelChrome';
 import { prewarmUsersByIds } from '@/utils/userEnrichment';
 
@@ -475,8 +476,7 @@ const NotificationsScreen: React.FC = () => {
                                             disabled={markAllAsReadMutation.isPending}
                                             accessibilityLabel={t('notification.mark_all_read')}
                                         >
-                                            <Ionicons
-                                                name="checkmark-done-outline"
+                                            <DoneAllIcon
                                                 size={22}
                                                 color={theme.colors.primary}
                                             />
