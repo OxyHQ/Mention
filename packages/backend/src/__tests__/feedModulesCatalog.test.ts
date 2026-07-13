@@ -78,6 +78,7 @@ describe('buildModuleCatalog', () => {
       'socialProof',
       'reciprocityBoost',
       'noveltyBoost',
+      'starterPackBoost',
     ]) {
       expect(signalIds).toContain(id);
     }

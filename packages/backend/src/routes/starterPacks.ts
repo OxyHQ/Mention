@@ -3,6 +3,7 @@ import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
 import StarterPack, { IStarterPack } from '../models/StarterPack';
 import { escapeRegex } from '../utils/textProcessing';
 import { resolveUserSummaries, isFallbackUserSummary } from '../services/PostHydrationService';
+import { invalidate as invalidateUserSummaries } from '../services/userSummaryCache';
 import type { PostUser } from '@mention/shared-types';
 import { logger } from '../utils/logger';
 import { endorsementSignalService } from '../services/EndorsementSignalService';
@@ -16,6 +17,36 @@ function syncPackEndorsements(packId: string): void {
   void endorsementSignalService
     .syncScope('starterPack', packId)
     .catch((error) => logger.warn(`[StarterPacks] endorsement sync failed for ${packId}:`, error));
+}
+
+/**
+ * Evict the cached author summaries of every member whose starter-pack CURATION
+ * score just changed, so the `starterPackBoost` ranking signal picks the new value
+ * up on the next hydration instead of waiting out the 10-minute TTL.
+ *
+ * The score is a function of (pack membership × pack `useCount` × curator), so it
+ * changes for the members of ANY pack that is created, edited, deleted, or used.
+ * Pass BOTH the previous and the next member sets: a removed member's score has to
+ * be recomputed just as much as an added one's.
+ *
+ * Fire-and-forget and fail-soft — a cache eviction must never fail a write, and a
+ * miss only means the score is stale for at most one TTL.
+ */
+function invalidateCurationScores(...memberIdGroups: Array<string[] | undefined>): void {
+  const memberIds = new Set<string>();
+  for (const group of memberIdGroups) {
+    for (const id of group ?? []) {
+      if (typeof id === 'string' && id.length > 0) memberIds.add(id);
+    }
+  }
+  if (memberIds.size === 0) return;
+
+  void invalidateUserSummaries(Array.from(memberIds)).catch((error) =>
+    logger.warn('[StarterPacks] curation cache invalidation failed', {
+      memberCount: memberIds.size,
+      reason: error instanceof Error ? error.message : 'unknown',
+    }),
+  );
 }
 
 function syncPackMembershipChange(
@@ -164,6 +195,7 @@ router.post('/', async (req: AuthRequest, res: Response) => {
     });
 
     syncPackEndorsements(String(pack._id));
+    invalidateCurationScores(members);
     res.status(201).json(pack);
   } catch (error) {
     res.status(500).json({ error: 'Failed to create starter pack' });
@@ -251,6 +283,7 @@ router.put('/:id', async (req: AuthRequest, res: Response) => {
     await pack.save();
     if (Array.isArray(memberOxyUserIds)) {
       syncPackMembershipChange(String(pack._id), pack.ownerOxyUserId, previousMemberIds, pack.memberOxyUserIds || []);
+      invalidateCurationScores(previousMemberIds, pack.memberOxyUserIds);
     } else {
       syncPackEndorsements(String(pack._id));
     }
@@ -276,6 +309,7 @@ router.delete('/:id', async (req: AuthRequest, res: Response) => {
     void endorsementSignalService
       .syncScopeRemoval('starterPack', packId, ownerId, memberIds)
       .catch((error) => logger.warn(`[StarterPacks] endorsement retraction failed for ${packId}:`, error));
+    invalidateCurationScores(memberIds);
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({ error: 'Failed to delete starter pack' });
@@ -292,11 +326,13 @@ router.post('/:id/members', async (req: AuthRequest, res: Response) => {
     if (!pack) return res.status(404).json({ error: 'Starter pack not found' });
     if (pack.ownerOxyUserId !== userId) return res.status(403).json({ error: 'Not allowed' });
 
+    const previousMemberIds = [...(pack.memberOxyUserIds || [])];
     const set = new Set([...(pack.memberOxyUserIds || []), ...(Array.isArray(userIds) ? userIds : [])]);
     if (set.size > MAX_MEMBERS) return res.status(400).json({ error: `Maximum ${MAX_MEMBERS} members allowed` });
     pack.memberOxyUserIds = Array.from(set);
     await pack.save();
     syncPackEndorsements(String(pack._id));
+    invalidateCurationScores(previousMemberIds, pack.memberOxyUserIds);
     res.json(pack);
   } catch (error) {
     res.status(500).json({ error: 'Failed to add members' });
@@ -318,6 +354,7 @@ router.delete('/:id/members', async (req: AuthRequest, res: Response) => {
     pack.memberOxyUserIds = (pack.memberOxyUserIds || []).filter(id => !toRemove.has(id));
     await pack.save();
     syncPackMembershipChange(String(pack._id), pack.ownerOxyUserId, previousMemberIds, pack.memberOxyUserIds || []);
+    invalidateCurationScores(previousMemberIds, pack.memberOxyUserIds);
     res.json(pack);
   } catch (error) {
     res.status(500).json({ error: 'Failed to remove members' });
@@ -345,6 +382,8 @@ router.post('/:id/use', async (req: AuthRequest, res: Response) => {
       return res.json({ memberOxyUserIds: existing.memberOxyUserIds, useCount: existing.useCount, alreadyUsed: true });
     }
 
+    // `useCount` actually moved, so every member's curation score changed.
+    invalidateCurationScores(pack.memberOxyUserIds);
     res.json({ memberOxyUserIds: pack.memberOxyUserIds, useCount: pack.useCount });
   } catch (error) {
     res.status(500).json({ error: 'Failed to use starter pack' });

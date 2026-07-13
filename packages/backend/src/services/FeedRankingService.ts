@@ -32,6 +32,7 @@ import {
   positivityBoost,
   reciprocityBoost,
   socialProofBoost,
+  starterPackBoost,
   verifiedBoost,
 } from './ranking/signals/optIn';
 
@@ -65,21 +66,27 @@ export class FeedRankingService {
    * Resolve per-author summary maps for the unique authors of a candidate post
    * set, in a SINGLE pass:
    *   - `followerCounts` (`authorId → followerCount`) for the author-authority
-   *     signal, and
-   *   - `verified` (`authorId → isVerified`) for the opt-in `verifiedBoost` signal.
+   *     signal,
+   *   - `verified` (`authorId → isVerified`) for the opt-in `verifiedBoost` signal,
+   *     and
+   *   - `starterPackScores` (`authorId → curation score`) for the opt-in
+   *     `starterPackBoost` signal.
    *
    * Backed by the shared Redis user-summary cache + a single bulk Oxy fetch for
    * cold authors, so the common case (warm cache) is one Redis round trip with no
-   * Oxy call. Authors whose value is unavailable are simply absent from the
-   * relevant map and fall back to a neutral multiplier. Resolving both maps here
-   * means `verifiedBoost` costs nothing beyond the authority resolution that
-   * already runs on every ranked request.
+   * Oxy call. The curation score is computed and cached alongside the identity on
+   * that same cache-fill (`PostHydrationService.applyStarterPackScores`), so it
+   * costs NO extra query here. Authors whose value is unavailable are simply absent
+   * from the relevant map and fall back to a neutral multiplier.
    */
-  private async resolveAuthorSummaries(
-    posts: RankablePost[],
-  ): Promise<{ followerCounts: Map<string, number>; verified: Map<string, boolean> }> {
+  private async resolveAuthorSummaries(posts: RankablePost[]): Promise<{
+    followerCounts: Map<string, number>;
+    verified: Map<string, boolean>;
+    starterPackScores: Map<string, number>;
+  }> {
     const followerCounts = new Map<string, number>();
     const verified = new Map<string, boolean>();
+    const starterPackScores = new Map<string, number>();
 
     const authorIds = Array.from(
       new Set(
@@ -89,7 +96,7 @@ export class FeedRankingService {
       ),
     );
     if (authorIds.length === 0) {
-      return { followerCounts, verified };
+      return { followerCounts, verified, starterPackScores };
     }
 
     try {
@@ -104,12 +111,15 @@ export class FeedRankingService {
         if (typeof value.user?.verified === 'boolean') {
           verified.set(authorId, value.user.verified);
         }
+        if (typeof value.starterPackScore === 'number') {
+          starterPackScores.set(authorId, value.starterPackScore);
+        }
       }
     } catch (error) {
       logger.warn('Failed to resolve author summaries for ranking signals:', error);
     }
 
-    return { followerCounts, verified };
+    return { followerCounts, verified, starterPackScores };
   }
 
   /**
@@ -130,6 +140,8 @@ export class FeedRankingService {
     enabledSignals: Set<string> | undefined;
     /** Verified flags already resolved alongside the authority follower counts. */
     authorVerified: Map<string, boolean>;
+    /** Starter-pack curation scores already resolved alongside the follower counts. */
+    authorStarterPackScores: Map<string, number>;
     /** The viewer's seen post ids (for `penalizeSeen`). */
     seenPostIds?: string[];
     /** The viewer's following ids (for `socialProof`'s network set). */
@@ -137,7 +149,16 @@ export class FeedRankingService {
     /** The viewer's mutual ids (for `socialProof` + `reciprocityBoost`). */
     mutualIds?: string[];
   }): Promise<OptInSignalContext> {
-    const { posts, userId, enabledSignals, authorVerified, seenPostIds, followingIds, mutualIds } = params;
+    const {
+      posts,
+      userId,
+      enabledSignals,
+      authorVerified,
+      authorStarterPackScores,
+      seenPostIds,
+      followingIds,
+      mutualIds,
+    } = params;
     if (!enabledSignals || enabledSignals.size === 0) {
       return {};
     }
@@ -148,6 +169,10 @@ export class FeedRankingService {
 
     if (enabledSignals.has('verifiedBoost')) {
       optIn.authorVerified = authorVerified;
+    }
+
+    if (enabledSignals.has('starterPackBoost')) {
+      optIn.authorStarterPackScores = authorStarterPackScores;
     }
 
     if (enabledSignals.has('penalizeSeen') && seenPostIds && seenPostIds.length > 0) {
@@ -262,6 +287,14 @@ export class FeedRankingService {
   /** `languageMismatchPenalty` — soft downrank of off-language discovery posts. */
   public calculateLanguageMismatchPenalty(post: RankablePost, viewerLanguages: string[] | undefined): number {
     return languageMismatchPenalty(post, viewerLanguages);
+  }
+
+  /** `starterPackBoost` — bounded lift for authors curated into others' starter packs. */
+  public calculateStarterPackBoost(
+    post: RankablePost,
+    authorStarterPackScores: Map<string, number> | undefined,
+  ): number {
+    return starterPackBoost(post, authorStarterPackScores);
   }
 
   /**
@@ -453,14 +486,22 @@ export class FeedRankingService {
     const followingIdsSet = new Set(followingIds || []);
     const behaviorSets: BehaviorSets | undefined = buildBehaviorSets(userBehavior);
 
-    // Resolve author summaries ONCE for the authority signal (follower counts)
-    // and, in the same pass, the verified flags the opt-in `verifiedBoost` reads.
-    // Skipped entirely when the caller supplied follower counts (then verified is
-    // absent → `verifiedBoost` neutral, which only custom feeds enable anyway).
-    const { followerCounts: resolvedFollowerCounts, verified: authorVerified } =
-      context.authorFollowerCounts
-        ? { followerCounts: context.authorFollowerCounts, verified: new Map<string, boolean>() }
-        : await this.resolveAuthorSummaries(posts);
+    // Resolve author summaries ONCE for the authority signal (follower counts) and,
+    // in the same pass, the verified flags the opt-in `verifiedBoost` reads plus the
+    // curation scores the opt-in `starterPackBoost` reads. Skipped entirely when the
+    // caller supplied follower counts (then both opt-in maps are empty → those
+    // signals stay neutral, exactly as `verifiedBoost` already behaved).
+    const {
+      followerCounts: resolvedFollowerCounts,
+      verified: authorVerified,
+      starterPackScores: authorStarterPackScores,
+    } = context.authorFollowerCounts
+      ? {
+          followerCounts: context.authorFollowerCounts,
+          verified: new Map<string, boolean>(),
+          starterPackScores: new Map<string, number>(),
+        }
+      : await this.resolveAuthorSummaries(posts);
     const authorFollowerCounts = resolvedFollowerCounts;
 
     // Resolve the OPT-IN (Phase 2b) signal context ONCE for this request. Every
@@ -472,6 +513,7 @@ export class FeedRankingService {
       userId,
       enabledSignals: context.enabledSignals,
       authorVerified,
+      authorStarterPackScores,
       seenPostIds: context.seenPostIds,
       followingIds: followingIds ?? [],
       mutualIds: context.mutualIds,

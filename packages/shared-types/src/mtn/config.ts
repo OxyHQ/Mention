@@ -324,6 +324,83 @@ export const MtnConfig = {
         /** Multiplier (> 1) applied to a local (non-federated) post. */
         boost: 1.1,
       },
+      /**
+       * STARTER-PACK CURATION boost — a bounded lift for an author OTHER PEOPLE
+       * curated into their starter packs, weighted by how much those packs are
+       * actually USED and by the curator's own follower count.
+       *
+       * A starter pack contains USERS, so the signal is author-level: "humans who
+       * are not this author put them on a list newcomers actually followed". That
+       * is a strong, human-in-the-loop endorsement — precisely the thing raw
+       * engagement counts miss for a good author with a thin follow graph.
+       *
+       * SCORE (see `services/starterPackCuration.ts`), per author A:
+       *   candidate packs = packs where A ∈ members
+       *                     AND owner !== A                  (rule 1)
+       *                     AND useCount >= minUseCount      (rule 2)
+       *   curatorAuthority(owner) = clamp(1 + logScale · log1p(ownerFollowers),
+       *                                   min, max)          — unknown ⇒ `min`
+       *   packWeight              = log1p(useCount) · curatorAuthority(owner)
+       *   starterPackScore        = clamp(Σ over the top `maxCuratorsPerAuthor`
+       *                                   DISTINCT curators of their best
+       *                                   packWeight, 0, maxScore)   (rules 3, 4)
+       * SIGNAL:
+       *   multiplier = clamp(1 + scale · log1p(starterPackScore), 1, maxBoost)
+       *
+       * ANTI-GAMING (the whole point — every rule below is load-bearing):
+       *  1. SELF-OWNED PACKS ARE EXCLUDED. Otherwise anyone creates a pack, adds
+       *     themselves, and self-boosts.
+       *  2. ONLY CROWD-VALIDATED PACKS COUNT (`useCount >= minUseCount`). A pack
+       *     nobody ever used endorses nothing — and `useCount` only increments for
+       *     a DISTINCT user who actually followed through it.
+       *  3. DEDUPE BY CURATOR, NOT BY PACK. Each distinct curator contributes their
+       *     single BEST pack, so one curator spinning up 50 packs counts ONCE.
+       *  4. EVERYTHING IS BOUNDED and LOG-SCALED: at most `maxCuratorsPerAuthor`
+       *     curators count, the summed score is clamped to `maxScore`, and the
+       *     final multiplier is clamped to `maxBoost`. A sybil ring of low-follower
+       *     accounts curating each other therefore earns a small, capped lift —
+       *     never a takeover — while `curatorAuthority` gives a real curator with a
+       *     real audience up to a `max`/`min` (=1.5×) edge per pack.
+       *  5. NEVER PENALIZES. An uncurated author scores 0 ⇒ multiplier exactly 1.0.
+       */
+      starterPackBoost: {
+        /** Ceiling on the multiplier — the MOST curation can ever be worth. */
+        maxBoost: 1.35,
+        /** Growth rate of the lift in `log1p(starterPackScore)`. */
+        scale: 0.12,
+        /**
+         * How much a curator's own audience weights their endorsement. Same
+         * bounded log shape as `ranking.authority`, but its floor is a NEUTRAL
+         * 1.0: a curator with no (or unresolved) followers still endorses at full
+         * base weight — they are simply never AMPLIFIED. `max` caps a mega-account
+         * curator's edge at 1.5× per pack.
+         */
+        curatorAuthority: {
+          logScale: 0.05,
+          /** Floor — also the value used when the curator's follower count is unknown. */
+          min: 1.0,
+          /** Ceiling for a very large curator. */
+          max: 1.5,
+          /**
+           * TTL (seconds) of the DEDICATED curator follower-count cache
+           * (`curatorfollowers:v1:<id>` — see `services/curatorFollowerCounts.ts`).
+           * Deliberately much longer than the 10-minute identity cache: a follower
+           * count is a coarse, slow-moving input to a bounded log-scale factor, so
+           * an hour-stale value cannot move the multiplier meaningfully, and the
+           * long TTL is what keeps the Oxy fan-out for cold curators negligible.
+           */
+          cacheTtlSeconds: 60 * 60,
+        },
+        /** A pack must have been USED at least this many times to endorse anyone. */
+        minUseCount: 1,
+        /** At most this many DISTINCT curators contribute to one author's score. */
+        maxCuratorsPerAuthor: 10,
+        /**
+         * Clamp on the summed score. With `scale`, a score at this cap already
+         * saturates the multiplier at `maxBoost`, so nothing above it can matter.
+         */
+        maxScore: 25,
+      },
     },
   },
 

@@ -35,8 +35,10 @@ import { logger } from '../utils/logger';
  *  - `v2` — raw Oxy user (replaced the old flat summary).
  *  - `v3` — adds the account's BCP-47 `languages` (ranking-side, see
  *    {@link CachedUserSummary}).
+ *  - `v4` — adds the bounded `starterPackScore` (ranking-side, see
+ *    {@link CachedUserSummary}).
  */
-const USER_SUMMARY_PREFIX = 'usersummary:v3:';
+const USER_SUMMARY_PREFIX = 'usersummary:v4:';
 
 /**
  * TTL for a cached summary. Display name / avatar / verification change rarely;
@@ -48,11 +50,12 @@ const SUMMARY_TTL_SECONDS = Number(process.env.USER_SUMMARY_CACHE_TTL_SECONDS ??
 /**
  * The cached value: the raw canonical Oxy {@link PostUser} plus the RANKING-side
  * facts about that account which never belong on a post DTO — the follower count
- * (authority signal) and the account's languages (the viewer-language signal).
+ * (authority signal), the account's languages (the viewer-language signal), and
+ * the starter-pack curation score (the `starterPackBoost` signal).
  *
- * Both are OPTIONAL: a user whose count was unavailable, or who set no account
- * languages, simply omits the field and the corresponding signal falls back to
- * its neutral multiplier.
+ * All three are OPTIONAL: a user whose count was unavailable, who set no account
+ * languages, or whom nobody curated simply omits the field and the corresponding
+ * signal falls back to its neutral multiplier.
  */
 export interface CachedUserSummary {
   user: PostUser;
@@ -64,6 +67,16 @@ export interface CachedUserSummary {
    * {@link PostUser} so it never ships inside a post's author DTO.
    */
   languages?: string[];
+  /**
+   * The bounded starter-pack CURATION score for this account — how strongly OTHER
+   * people curated them into starter packs that newcomers actually used (see
+   * `services/starterPackCuration.ts`). Computed once per cache-fill (one batched
+   * aggregation for the whole author batch) and read back on every warm hydration,
+   * so the `starterPackBoost` ranking signal costs no per-post query. RANKING-side
+   * only: like `followerCount`, it never ships on the {@link PostUser} DTO.
+   * Absent ⇒ uncurated (or unresolvable) ⇒ the signal is exactly neutral.
+   */
+  starterPackScore?: number;
 }
 
 /** Hash-free key: Oxy user ids are already short and bounded, so embed them directly. */

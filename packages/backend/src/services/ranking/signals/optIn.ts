@@ -232,6 +232,40 @@ export function localBoost(post: RankablePost): number {
 }
 
 /**
+ * `starterPackBoost` — a BOUNDED lift for a post whose AUTHOR other people curated
+ * into their starter packs, weighted by how much those packs were actually USED and
+ * by each curator's own follower count.
+ *
+ * The heavy lifting (which packs count, dedupe by curator, bounding) is the
+ * curation POLICY in `services/starterPackCuration.ts`; the per-author score it
+ * produces is resolved ONCE per request alongside the follower counts and handed in
+ * as `ctx.authorStarterPackScores`. This scorer is the pure score → multiplier map:
+ *
+ *   `clamp(1 + scale · log1p(starterPackScore), 1, maxBoost)`
+ *
+ * Log-scaled so the first genuine curator matters far more than the tenth, and
+ * clamped so curation can never dominate the product. Exactly NEUTRAL (1.0) when
+ * the map is absent (signal not enabled / resolution failed), the author is not in
+ * it (nobody curated them), or the score is non-positive — curation only ever
+ * lifts, it never penalizes.
+ */
+export function starterPackBoost(
+  post: RankablePost,
+  authorStarterPackScores: Map<string, number> | undefined,
+): number {
+  if (!authorStarterPackScores || authorStarterPackScores.size === 0) {
+    return 1.0;
+  }
+  const authorId = post?.oxyUserId ? String(post.oxyUserId) : '';
+  const score = authorId ? authorStarterPackScores.get(authorId) : undefined;
+  if (typeof score !== 'number' || !Number.isFinite(score) || score <= 0) {
+    return 1.0;
+  }
+  const { scale, maxBoost } = R.optInSignals.starterPackBoost;
+  return Math.min(maxBoost, Math.max(1, 1 + scale * Math.log1p(score)));
+}
+
+/**
  * `languageMismatchPenalty` (Phase 4c) — a SOFT downrank (never a filter) of
  * off-language DISCOVERY posts. Applies the configured penalty (< 1) ONLY when:
  *   - the post is a DISCOVERY candidate (`post._discovery === true` — trusted-lane
@@ -301,6 +335,9 @@ export const OPT_IN_SIGNALS: readonly OptInScorer[] = [
   // enabled (DORMANT until Phase 5), so preset ranking is unaffected.
   { id: 'localBoost', score: (post) => localBoost(post) },
   { id: 'languageMismatchPenalty', score: (post, ctx) => languageMismatchPenalty(post, ctx.viewerLanguages) },
+  // Curation signal — appended at the END for the same reason: an existing feed's
+  // opt-in product is untouched unless it explicitly enables this signal.
+  { id: 'starterPackBoost', score: (post, ctx) => starterPackBoost(post, ctx.authorStarterPackScores) },
 ];
 
 /**

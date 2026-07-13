@@ -367,6 +367,10 @@ const SIGNAL_LABELS: Record<string, { label: string; description: string }> = {
   noveltyBoost: { label: 'Novelty', description: 'Explore topics you have not seen recently.' },
   localBoost: { label: 'Local boost', description: 'A modest lift for local (non-federated) posts.' },
   languageMismatchPenalty: { label: 'Off-language penalty', description: 'Downrank discovery posts not in your languages.' },
+  starterPackBoost: {
+    label: 'Starter-pack curation',
+    description: 'Lift accounts other people curated into starter packs that were actually used.',
+  },
 };
 
 /** Whether a registry module should be offered to the custom-feed builder. */
