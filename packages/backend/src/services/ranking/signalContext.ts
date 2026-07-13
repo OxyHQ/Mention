@@ -93,6 +93,13 @@ export interface OptInSignalContext {
   dwellAverages?: Map<string, number>;
   /** Topic slugs/ids the viewer has recently seen — `noveltyBoost`. */
   viewerRecentTopics?: Set<string>;
+  /**
+   * Oxy authorId → bounded starter-pack CURATION score — `starterPackBoost`.
+   * Resolved from the same cached user-summary batch as the follower counts (see
+   * `services/starterPackCuration.ts`), so it adds no query. An author absent from
+   * the map is uncurated ⇒ the signal is exactly neutral.
+   */
+  authorStarterPackScores?: Map<string, number>;
 }
 
 /**
@@ -210,6 +217,7 @@ export interface SignalContext {
   mutualIdsSet?: Set<string>;
   dwellAverages?: Map<string, number>;
   viewerRecentTopics?: Set<string>;
+  authorStarterPackScores?: Map<string, number>;
 }
 
 /**
@@ -261,5 +269,6 @@ export function buildSignalContext(
     mutualIdsSet: context.mutualIdsSet,
     dwellAverages: context.dwellAverages,
     viewerRecentTopics: context.viewerRecentTopics,
+    authorStarterPackScores: context.authorStarterPackScores,
   };
 }

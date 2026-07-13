@@ -70,6 +70,12 @@ vi.mock('../../models/FederatedActor', () => ({
   FederatedActor: { find: () => ({ select: () => ({ lean: async () => [] }) }) },
   default: { find: () => ({ select: () => ({ lean: async () => [] }) }) },
 }));
+// The starter-pack CURATION aggregation runs on the cache-fill path (it stamps the
+// ranking-side `starterPackScore`). No DB here → no packs → no scores.
+vi.mock('../../models/StarterPack', () => ({
+  StarterPack: { aggregate: async () => [] },
+  default: { aggregate: async () => [] },
+}));
 
 const cacheStore = new Map<string, CachedUserSummary>();
 vi.mock('../../services/userSummaryCache', () => ({

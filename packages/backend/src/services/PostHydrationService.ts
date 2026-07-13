@@ -18,6 +18,7 @@ import { getNormalizedUserHandle, getUserLanguages } from '@oxyhq/core';
 import type { LinkPreview } from '@oxyhq/contracts';
 import { assignThreadState } from './ThreadSlicingService';
 import { mget as mgetUserSummaries, mset as msetUserSummaries, CachedUserSummary } from './userSummaryCache';
+import { computeStarterPackScores, mongoStarterPackCurationDeps } from './starterPackCuration';
 import {
   collectAuthorshipUserIds,
   getHeaderAuthorshipEntries,
@@ -281,7 +282,34 @@ async function enrichDegradedFederatedUsers(resolved: Map<string, CachedUserSumm
         instance: actor.domain || undefined,
       },
       followerCount: existing?.followerCount,
+      starterPackScore: existing?.starterPackScore,
     });
+  }
+}
+
+/**
+ * Stamp the bounded starter-pack CURATION score onto the summaries resolved in
+ * this batch, BEFORE they are written to the Redis cache — so the score is read
+ * back on every warm hydration and the `starterPackBoost` ranking signal costs no
+ * per-post (and no per-author) query.
+ *
+ * ONE batched aggregation for the WHOLE set of freshly-resolved authors, run only
+ * on the cache-MISS path. Fail-soft by construction: {@link computeStarterPackScores}
+ * never throws, and an author with no score is simply left without the field,
+ * which the signal reads as exactly neutral. Mutates `freshlyResolved` in place.
+ */
+async function applyStarterPackScores(freshlyResolved: Map<string, CachedUserSummary>): Promise<void> {
+  if (freshlyResolved.size === 0) return;
+
+  const scores = await computeStarterPackScores(
+    Array.from(freshlyResolved.keys()),
+    mongoStarterPackCurationDeps,
+  );
+  for (const [userId, score] of scores) {
+    const summary = freshlyResolved.get(userId);
+    if (summary) {
+      summary.starterPackScore = score;
+    }
   }
 }
 
@@ -368,8 +396,11 @@ export async function resolveUserSummaries(userIds: string[]): Promise<Map<strin
     await resolvePerId(missIds);
   }
 
-  // 3. Merge fresh results and write them back to cache (only real resolutions —
-  //    degraded/enriched users are never cached, so the DTO self-heals).
+  // 3. Enrich the freshly-resolved authors with their ranking-side starter-pack
+  //    curation score (ONE batched aggregation), then merge and write them back to
+  //    cache (only real resolutions — degraded/enriched users are never cached, so
+  //    the DTO self-heals).
+  await applyStarterPackScores(freshlyResolved);
   for (const [userId, value] of freshlyResolved) {
     resolved.set(userId, value);
   }

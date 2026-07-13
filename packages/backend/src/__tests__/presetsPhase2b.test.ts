@@ -30,6 +30,7 @@ describe('resolvePhase2bSignals', () => {
       'verifiedBoost',
       'localBoost',
       'languageMismatchPenalty',
+      'starterPackBoost',
     ]);
   });
 
@@ -61,10 +62,11 @@ describe('preset definitions include Phase 2b signals', () => {
     expect(ids).toContain('verifiedBoost');
     expect(ids).toContain('localBoost');
     expect(ids).toContain('languageMismatchPenalty');
+    expect(ids).toContain('starterPackBoost');
     // `mediaBoost` / `dwellTime` are OPTIONAL — never in the default set.
     expect(ids).not.toContain('mediaBoost');
     expect(ids).not.toContain('dwellTime');
-    expect(forYouDefinition.signals.length).toBeGreaterThanOrEqual(BASE_SIGNAL_COUNT + 7);
+    expect(forYouDefinition.signals.length).toBeGreaterThanOrEqual(BASE_SIGNAL_COUNT + 8);
   });
 
   it('videosDefinition signals include the same Phase 2b modules as forYou', () => {

@@ -39,6 +39,11 @@ const ALL_RANKING_SIGNALS: ModuleRef[] = [
  *   - `verifiedBoost`          — small lift for verified authors (uses pre-rank `verified`).
  *   - `localBoost` (Phase 4d)   — modest first-party lift.
  *   - `languageMismatchPenalty` (Phase 4c) — off-language DISCOVERY downrank.
+ *   - `starterPackBoost`        — bounded lift for authors OTHER people curated into
+ *                                 starter packs that newcomers actually used. Costs
+ *                                 no extra query (the score rides the cached author
+ *                                 summary) and never penalizes, so it is safe ON by
+ *                                 default; `FOR_YOU_PHASE2B_SIGNALS` still disables it.
  * `mediaBoost` and `dwellTime` stay OPTIONAL (allowed via env, not default): each
  * is a strong surface-shaping nudge better reserved for deliberate tuning/A-B.
  */
@@ -50,6 +55,7 @@ const PHASE2B_DEFAULT_SIGNAL_IDS = [
   'verifiedBoost',
   'localBoost',
   'languageMismatchPenalty',
+  'starterPackBoost',
 ] as const;
 
 const PHASE2B_ALLOWED_SIGNAL_IDS = new Set<string>([
@@ -60,6 +66,7 @@ const PHASE2B_ALLOWED_SIGNAL_IDS = new Set<string>([
   'noveltyBoost',
   'localBoost',
   'languageMismatchPenalty',
+  'starterPackBoost',
   // OPTIONAL signals — enable-able via `FOR_YOU_PHASE2B_SIGNALS` for A/B + tuning,
   // but deliberately NOT in the default set.
   'mediaBoost',

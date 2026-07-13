@@ -55,6 +55,12 @@ vi.mock('../../models/Poll', () => ({ default: { find: () => chainable([]) } }))
 vi.mock('../../models/Like', () => ({ default: { find: () => chainable([]) } }));
 vi.mock('../../models/Bookmark', () => ({ default: { find: () => chainable([]) } }));
 vi.mock('../../models/UserSettings', () => ({ UserSettings: { find: () => chainable([]), findOne: () => chainable([]) } }));
+// The starter-pack CURATION aggregation runs on the cache-fill path (it stamps the
+// ranking-side `starterPackScore`). No DB here → no packs → no scores.
+vi.mock('../../models/StarterPack', () => ({
+  StarterPack: { aggregate: async () => [] },
+  default: { aggregate: async () => [] },
+}));
 // Cache always misses (so every author flows through the Oxy resolve + enrich
 // path), and writes are no-ops.
 vi.mock('../../services/userSummaryCache', () => ({

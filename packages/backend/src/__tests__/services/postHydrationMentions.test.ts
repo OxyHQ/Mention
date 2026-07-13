@@ -43,6 +43,12 @@ vi.mock('../../models/Poll', () => ({ default: {} }));
 vi.mock('../../models/Like', () => ({ default: {} }));
 vi.mock('../../models/Bookmark', () => ({ default: {} }));
 vi.mock('../../models/UserSettings', () => ({ UserSettings: {} }));
+// The starter-pack CURATION aggregation runs on the cache-fill path (it stamps the
+// ranking-side `starterPackScore`). No DB here → no packs → no scores.
+vi.mock('../../models/StarterPack', () => ({
+  StarterPack: { aggregate: async () => [] },
+  default: { aggregate: async () => [] },
+}));
 // Federated enrichment lookup for still-degraded ids — return nothing so an
 // unresolved mention stays a raw placeholder (no ghost handle).
 vi.mock('../../models/FederatedActor', () => ({

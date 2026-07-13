@@ -86,6 +86,12 @@ vi.mock('../../models/Bookmark', () => ({ default: { find: () => chainable([]) }
 vi.mock('../../models/UserSettings', () => ({
   UserSettings: { find: () => chainable([]), findOne: () => chainable(null) },
 }));
+// The starter-pack CURATION aggregation runs on the cache-fill path (it stamps the
+// ranking-side `starterPackScore`). No DB here → no packs → no scores.
+vi.mock('../../models/StarterPack', () => ({
+  StarterPack: { aggregate: async () => [] },
+  default: { aggregate: async () => [] },
+}));
 
 // FederatedActor lookup, shared by two paths: the degraded-author enrichment
 // (keyed by `oxyUserId`) and the orphan-federated-author resolution (keyed by

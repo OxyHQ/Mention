@@ -54,6 +54,9 @@ const SIGNAL_WEIGHT_KEYS: Record<string, string> = {
   // until Phase 5); the id === weightKey is forwarded to `rankPosts` when enabled.
   localBoost: 'localBoost',
   languageMismatchPenalty: 'languageMismatchPenalty',
+  // Opt-in — curation signal. A bounded lift for authors OTHER people curated into
+  // starter packs that were actually used (see `services/starterPackCuration.ts`).
+  starterPackBoost: 'starterPackBoost',
 };
 
 export const signalModules: SignalModule[] = Object.entries(SIGNAL_WEIGHT_KEYS).map(
