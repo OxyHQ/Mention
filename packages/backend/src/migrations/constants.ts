@@ -39,3 +39,13 @@ export const MIGRATION_TRENDING_TTL_INDEX = '0003-trending-ttl-index';
  * schema-declared indexes are created here. See {@link ./0004-notification-ttl-index}.
  */
 export const MIGRATION_NOTIFICATION_TTL_INDEX = '0004-notification-ttl-index';
+
+/**
+ * One-shot creation of the multikey `{ memberOxyUserIds: 1, useCount: -1 }` index
+ * on `starterpacks`, which serves the starter-pack curation aggregation
+ * (`services/starterPackCuration.ts`) run on every user-summary cache-fill batch.
+ * `autoIndex`/`autoCreate` are OFF in production, so the schema-declared index is
+ * created here — without it that aggregation collection-scans.
+ * See {@link ./0005-starter-pack-member-index}.
+ */
+export const MIGRATION_STARTER_PACK_MEMBER_INDEX = '0005-starter-pack-member-index';
