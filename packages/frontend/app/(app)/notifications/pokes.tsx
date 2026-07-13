@@ -3,10 +3,8 @@ import { View, StyleSheet, Platform, RefreshControl, ScrollView, TouchableOpacit
 import { SafeAreaView } from '@/lib/SafeAreaViewInterop';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@oxyhq/services';
-import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import FontAwesome5 from '@expo/vector-icons/FontAwesome5';
-import { Avatar } from '@oxyhq/bloom/avatar';
 import { Loading } from '@oxyhq/bloom/loading';
 import { show as toast } from '@oxyhq/bloom/toast';
 import { useTheme } from '@oxyhq/bloom/theme';
@@ -21,9 +19,9 @@ import { EmptyState } from '@/components/common/EmptyState';
 import { Error as ErrorComponent } from '@/components/Error';
 import { SuggestedUsers } from '@/components/suggestions/SuggestedUsers';
 import SEO from '@/components/SEO';
+import { ProfileCard } from '@/components/ProfileCard';
 import { pokeService, type PokeUser } from '@/services/pokeService';
 import { formatRelativeTimeLocalized } from '@/utils/dateUtils';
-import { getNormalizedUserHandle } from '@oxyhq/core';
 
 const SENT_PREVIEW_COUNT = 3;
 const SUGGESTED_PREVIEW_COUNT = 5;
@@ -31,7 +29,6 @@ const SUGGESTED_PREVIEW_COUNT = 5;
 export default function PokesScreen() {
     const { user, isAuthenticated, canUsePrivateApi } = useAuth();
     const queryClient = useQueryClient();
-    const router = useRouter();
     const safeBack = useSafeBack();
     const { t } = useTranslation();
     const theme = useTheme();
@@ -103,13 +100,6 @@ export default function PokesScreen() {
         setRefreshing(false);
     }, [refetchReceived, refetchSent, refetchSuggested]);
 
-    const navigateToProfile = useCallback((username: string) => {
-        const handle = getNormalizedUserHandle({ username });
-        if (handle) {
-            router.push(`/@${handle}`);
-        }
-    }, [router]);
-
     const receivedPokes = receivedData?.pokes ?? [];
     const sentPokes = sentData?.pokes ?? [];
     const suggestions = suggestedData?.suggestions ?? [];
@@ -151,31 +141,26 @@ export default function PokesScreen() {
         );
     }, [theme, handlePoke, handleUnpoke, isMutating]);
 
+    // The shared user row; `meta` carries the poke-specific line (when the poke
+    // happened) and the poke button rides along as the row's trailing accessory.
     const renderUserRow = useCallback((
         key: string,
         user: PokeUser,
-        subtitle: React.ReactNode,
+        meta: React.ReactNode,
         buttonVariant: 'poke' | 'pokeBack' | 'undo',
     ) => (
-        <View key={key} style={[styles.row, { borderBottomColor: theme.colors.border }]}>
-            <TouchableOpacity
-                style={styles.userInfo}
-                onPress={() => navigateToProfile(user.username)}
-                activeOpacity={0.7}
-            >
-                <Avatar source={user.avatar || undefined} size={40} />
-                <View style={styles.userText}>
-                    <ThemedText style={styles.userName} numberOfLines={1}>
-                        {user.name.displayName}
-                    </ThemedText>
-                    <ThemedText className="text-muted-foreground" style={styles.userMeta} numberOfLines={1}>
-                        {subtitle}
-                    </ThemedText>
-                </View>
-            </TouchableOpacity>
-            {renderPokeButton(user.id, buttonVariant)}
-        </View>
-    ), [theme, navigateToProfile, renderPokeButton]);
+        <ProfileCard
+            key={key}
+            profile={{
+                id: user.id,
+                username: user.username,
+                name: user.name,
+                avatar: user.avatar,
+            }}
+            meta={meta}
+            accessory={renderPokeButton(user.id, buttonVariant)}
+        />
+    ), [renderPokeButton]);
 
     const renderSectionHeader = useCallback((
         title: string,
@@ -315,8 +300,9 @@ export default function PokesScreen() {
                             showAllSuggested,
                             suggestions.length > SUGGESTED_PREVIEW_COUNT ? () => setShowAllSuggested((v) => !v) : undefined,
                         )}
+                        {/* No meta line: the row already shows the suggestion's @handle. */}
                         {visibleSuggested.map((item) => renderUserRow(
-                            item.user.id, item.user, `@${item.user.username}`, 'poke',
+                            item.user.id, item.user, null, 'poke',
                         ))}
                     </View>
                 )}
@@ -375,32 +361,6 @@ export default function PokesScreen() {
 }
 
 const styles = StyleSheet.create({
-    row: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingHorizontal: 16,
-        paddingVertical: 8,
-        borderBottomWidth: StyleSheet.hairlineWidth,
-        ...Platform.select({ web: { cursor: 'pointer' as const } }),
-    },
-    userInfo: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        flex: 1,
-        marginRight: 10,
-    },
-    userText: {
-        marginLeft: 10,
-        flex: 1,
-    },
-    userName: {
-        fontSize: 14,
-        fontWeight: '600',
-    },
-    userMeta: {
-        fontSize: 12,
-        marginTop: 1,
-    },
     pokeButton: {
         width: 40,
         height: 40,

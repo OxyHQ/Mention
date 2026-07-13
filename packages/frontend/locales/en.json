@@ -1516,5 +1516,8 @@
         "description": "Hide discovery posts whose classified quality is below your threshold. Off by default."
       }
     }
+  },
+  "user": {
+    "unknown": "Unknown user"
   }
 }

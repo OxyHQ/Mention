@@ -2,23 +2,24 @@ import React, { useCallback, useMemo } from 'react';
 import { Platform, StyleSheet, TouchableOpacity, View, Share } from 'react-native';
 import { Loading } from '@oxyhq/bloom/loading';
 import { useTranslation } from 'react-i18next';
-import { useRouter } from 'expo-router';
-import { useAuth, FollowButton } from '@oxyhq/services';
-import { Avatar } from '@oxyhq/bloom/avatar';
+import { useAuth } from '@oxyhq/services';
 
 import { useUserById } from '@/hooks/useCachedUser';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { VirtualList } from '@oxyhq/bloom/list';
 import { ThemedText } from '@/components/ThemedText';
+import { ProfileCard, ProfileCardSkeletonList, type ProfileCardData } from '@/components/ProfileCard';
 import { Ionicons } from '@expo/vector-icons';
 import { Error as ErrorDisplay } from '@/components/Error';
 import { LoadMoreSentinel } from '@/components/common/LoadMoreSentinel';
 import { logger } from '@/lib/logger';
 import { useInfiniteRecommendations } from '@/hooks/useRecommendations';
 import { type ProfileData } from '@/lib/recommendations';
-import { getNormalizedUserHandle } from '@oxyhq/core';
 
 const APP_URL = 'https://mention.earth';
+
+/** Placeholder rows painted while the first page of recommendations loads. */
+const SKELETON_ROW_COUNT = 8;
 
 interface WhoToFollowTabProps {
   /**
@@ -150,13 +151,13 @@ export function WhoToFollowTab({ listHeaderComponent }: WhoToFollowTabProps = {}
     [listHeaderComponent, handleInviteFriends, theme.colors.card, theme.colors.textSecondary, t],
   );
 
+  // The first load paints the row skeletons (the list header stays put), so the
+  // tab never swaps a centered spinner for a list and reflows.
   if (loading && recommendations.length === 0) {
     return (
-      <View style={styles.loadingContainer}>
-        <Loading className="text-primary" size="large" />
-        <ThemedText className="text-muted-foreground" style={styles.loadingText}>
-          {t('Loading...')}
-        </ThemedText>
+      <View className="flex-1 bg-background">
+        {listHeader}
+        <ProfileCardSkeletonList count={SKELETON_ROW_COUNT} showFollowButton />
       </View>
     );
   }
@@ -205,52 +206,29 @@ export function WhoToFollowTab({ listHeaderComponent }: WhoToFollowTabProps = {}
   );
 }
 
+/**
+ * A recommendation row. The cached user fills in the fields the recommendations
+ * payload can omit (avatar, username), then the shared {@link ProfileCard}
+ * renders the row and owns the follow button.
+ */
 const FollowRow = React.memo(({ item, userId }: { item: ProfileData; userId: string }) => {
-  const router = useRouter();
   const cachedUser = useUserById(userId);
 
-  const username = item.username || cachedUser?.username || '';
-  const instance = item.instance || item.federation?.domain;
-  const handle = getNormalizedUserHandle({
-    username,
-    instance,
+  const profile: ProfileCardData = {
+    id: userId,
+    username: item.username || cachedUser?.username || '',
+    name: item.name,
+    avatar: item.avatar || cachedUser?.avatar,
+    verified: item.verified,
+    description: item.bio,
     isFederated: item.isFederated,
-  });
+    isAgent: item.isAgent,
+    isAutomated: item.isAutomated,
+    instance: item.instance,
+    federation: item.federation,
+  };
 
-  const handlePress = useCallback(() => {
-    if (handle) {
-      router.push(`/@${handle}`);
-    }
-  }, [router, handle]);
-
-  return (
-    <View className="border-border" style={styles.row}>
-      <TouchableOpacity
-        style={styles.rowLeft}
-        onPress={handlePress}
-        disabled={!handle}
-        activeOpacity={0.7}
-      >
-        <Avatar source={item.avatar || cachedUser?.avatar} size={40} variant="thumb" />
-        <View style={styles.rowTextWrap}>
-          <ThemedText className="text-foreground" style={styles.rowTitle}>
-            {item.name.displayName}
-          </ThemedText>
-          {handle ? (
-            <ThemedText className="text-muted-foreground" style={styles.rowSub}>
-              @{handle}
-            </ThemedText>
-          ) : null}
-          {item.bio ? (
-            <ThemedText className="text-muted-foreground" style={styles.rowBio} numberOfLines={1}>
-              {item.bio}
-            </ThemedText>
-          ) : null}
-        </View>
-      </TouchableOpacity>
-      <FollowButton userId={userId} size="small" />
-    </View>
-  );
+  return <ProfileCard profile={profile} showFollowButton />;
 });
 FollowRow.displayName = 'FollowRow';
 
@@ -262,16 +240,6 @@ const styles = StyleSheet.create({
   list: {
     flex: 1,
     minHeight: 0,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingVertical: 40,
-    gap: 12,
-  },
-  loadingText: {
-    fontSize: 16,
   },
   errorContainer: {
     flex: 1,
@@ -287,37 +255,6 @@ const styles = StyleSheet.create({
   footer: {
     paddingVertical: 16,
     alignItems: 'center',
-  },
-  row: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    borderBottomWidth: 0.5,
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    ...Platform.select({ web: { cursor: 'pointer' } }),
-  },
-  rowLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-  },
-  rowTextWrap: {
-    marginLeft: 10,
-    flex: 1,
-  },
-  rowTitle: {
-    fontWeight: '600',
-    fontSize: 15,
-  },
-  rowSub: {
-    paddingTop: 2,
-    fontSize: 13,
-  },
-  rowBio: {
-    paddingTop: 2,
-    fontSize: 13,
-    lineHeight: 17,
   },
   inviteBanner: {
     flexDirection: 'row',

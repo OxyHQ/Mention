@@ -15,12 +15,14 @@ import { useSafeBack } from '@/hooks/useSafeBack';
 import { Ionicons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
 import { useAuth } from '@oxyhq/services';
+import { useQuery } from '@tanstack/react-query';
 
 import { ThemedView } from '@/components/ThemedView';
 import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { Avatar } from '@oxyhq/bloom/avatar';
+import { ProfileCard, ProfileCardSkeletonList } from '@/components/ProfileCard';
 
 import Feed from '@/components/Feed/Feed';
 import AnimatedTabBar from '@/components/common/AnimatedTabBar';
@@ -29,7 +31,7 @@ import { subscribeToListChanges } from '@/services/listMutations';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import { EntityFollowButton } from '@/components/EntityFollowButton';
-import { getNormalizedUserHandle } from '@oxyhq/core';
+import { getNormalizedUserHandle, type User } from '@oxyhq/core';
 
 interface ListOwner {
   _id?: string;
@@ -399,8 +401,14 @@ export default function ListDetailScreen() {
   );
 }
 
+/** Member profiles stay fresh for 5 minutes — membership changes invalidate the list itself. */
+const MEMBERS_STALE_TIME_MS = 5 * 60_000;
+
+/** Upper bound on placeholder rows while member profiles resolve. */
+const MAX_MEMBER_SKELETON_ROWS = 8;
+
 /**
- * Members tab: shows list members with avatars and usernames.
+ * Members tab: shows list members as the shared user row.
  * For list owners, shows an "Add people" button.
  */
 function ListMembers({
@@ -420,6 +428,23 @@ function ListMembers({
 }) {
   const theme = useTheme();
   const { t } = useTranslation();
+  const { oxyServices } = useAuth();
+
+  // The list document carries only member ids — Oxy owns the identities, so the
+  // profiles are resolved in ONE bulk call and rendered through the shared row.
+  const membersKey = useMemo(() => memberIds.join(','), [memberIds]);
+  const { data: members = [], isPending } = useQuery<User[]>({
+    queryKey: ['lists', listId, 'members', membersKey],
+    queryFn: () => oxyServices.getUsersByIds(memberIds),
+    enabled: memberIds.length > 0,
+    staleTime: MEMBERS_STALE_TIME_MS,
+  });
+
+  // The membership size is known before the profiles are: paint exactly that many
+  // placeholder rows (capped) so the tab reserves its real height from the start.
+  const resolvingMembers = isPending && memberIds.length > 0;
+  const skeletonRowCount = Math.min(memberIds.length, MAX_MEMBER_SKELETON_ROWS);
+
   return (
     <ScrollView
       className="flex-1"
@@ -465,21 +490,30 @@ function ListMembers({
           )}
         </View>
       ) : (
-        <View className="px-4 pt-2">
-          <Text className="text-muted-foreground text-sm mb-2">
+        <View className="pt-2">
+          <Text className="text-muted-foreground text-sm mb-2 px-4">
             {memberIds.length} {memberIds.length === 1 ? 'member' : 'members'}
           </Text>
-          {/* Member IDs are shown until profiles are resolved elsewhere. */}
-          {memberIds.map((memberId) => (
-            <View
-              key={memberId}
-              className="flex-row items-center gap-3 py-3 border-b border-border"
-            >
-              <Avatar size={40} />
-              <Text className="text-foreground text-[15px] font-medium flex-1" numberOfLines={1}>
-                {memberId}
-              </Text>
-            </View>
+          {resolvingMembers && (
+            <ProfileCardSkeletonList count={skeletonRowCount} showFollowButton />
+          )}
+          {members.map((member) => (
+            <ProfileCard
+              key={member.id}
+              profile={{
+                id: member.id,
+                username: member.username,
+                name: member.name,
+                avatar: member.avatar,
+                color: member.color,
+                // `verified` reaches the SDK `User` through its index signature
+                // (typed `unknown`), so it is narrowed rather than cast.
+                verified: typeof member.verified === 'boolean' ? member.verified : undefined,
+                isFederated: member.isFederated,
+                instance: member.instance,
+              }}
+              showFollowButton
+            />
           ))}
         </View>
       )}

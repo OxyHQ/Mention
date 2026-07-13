@@ -1532,5 +1532,8 @@
         "description": "Oculta publicaciones de descubrimiento cuya calidad clasificada esté por debajo de tu umbral. Desactivado por defecto."
       }
     }
+  },
+  "user": {
+    "unknown": "Usuario desconocido"
   }
 }

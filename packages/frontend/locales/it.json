@@ -1312,5 +1312,8 @@
         "description": "Nascondi i post di scoperta la cui qualità classificata è sotto la tua soglia. Disattivato per impostazione predefinita."
       }
     }
+  },
+  "user": {
+    "unknown": "Utente sconosciuto"
   }
 }

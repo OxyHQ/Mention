@@ -27,7 +27,7 @@ import AnimatedTabBar from "@/components/common/AnimatedTabBar";
 import PostItem from "@/components/Feed/PostItem";
 import { Search } from "@/assets/icons/search-icon";
 import SEO from "@/components/SEO";
-import { ProfileCard, type ProfileCardData } from "@/components/ProfileCard";
+import { ProfileCard, ProfileCardSkeletonList, type ProfileCardData } from "@/components/ProfileCard";
 import { FeedCard, type FeedCardData } from "@/components/FeedCard";
 import { ListCard, type ListCardData } from "@/components/ListCard";
 import { ExternalActorCard } from "@/components/search/ExternalActorCard";
@@ -74,6 +74,9 @@ const SEARCH_DEBOUNCE_MS = 500;
 
 /** Cap on the in-memory `${tab}-${query}` result cache. */
 const MAX_CACHE_SIZE = 50;
+
+/** Placeholder rows painted while the people tab searches. */
+const SKELETON_ROW_COUNT = 8;
 
 /** Trending rows offered on the idle (no query) screen. */
 const MAX_IDLE_TRENDS = 5;
@@ -699,7 +702,7 @@ export default function SearchIndex() {
                     return (
                         <ProfileCard
                             profile={profile}
-                            variant="row"
+                            showFollowButton
                             onPress={() => handleOpenProfile(profile)}
                         />
                     );
@@ -851,6 +854,11 @@ export default function SearchIndex() {
         }
 
         if (loading) {
+            // The people tab paints the row it is about to show; the other tabs mix
+            // result kinds (or show posts), so they keep the neutral spinner.
+            if (activeTab === "users") {
+                return <ProfileCardSkeletonList count={SKELETON_ROW_COUNT} showFollowButton />;
+            }
             return (
                 <View className="items-center justify-center py-20">
                     <Loading className="text-primary" size="large" />
