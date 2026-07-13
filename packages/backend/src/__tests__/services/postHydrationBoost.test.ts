@@ -185,7 +185,7 @@ describe('PostHydrationService — boost original embedding is deterministic', (
     // aggregation must NOT match the original. Route by query shape.
     postFind.mockImplementation((query: Record<string, unknown> | undefined) => {
       const idIn = (query?._id as { $in?: unknown[] } | undefined)?.$in;
-      if (Array.isArray(idIn) && idIn.map(String).includes(ORIGINAL_ID)) {
+      if (Array.isArray(idIn) && idIn.some((v) => String(v) === ORIGINAL_ID)) {
         return [originalRow()];
       }
       return [];
@@ -235,7 +235,7 @@ describe('PostHydrationService — boost original embedding is deterministic', (
 
     postFind.mockImplementation((query: Record<string, unknown> | undefined) => {
       const idIn = (query?._id as { $in?: unknown[] } | undefined)?.$in;
-      if (Array.isArray(idIn) && idIn.map(String).includes(ORIGINAL_ID)) {
+      if (Array.isArray(idIn) && idIn.some((v) => String(v) === ORIGINAL_ID)) {
         return [{
           ...originalRow(),
           visibility: 'private',
@@ -258,7 +258,7 @@ describe('PostHydrationService — boost original embedding is deterministic', (
 
     postFind.mockImplementation((query: Record<string, unknown> | undefined) => {
       const idIn = (query?._id as { $in?: unknown[] } | undefined)?.$in;
-      if (Array.isArray(idIn) && idIn.map(String).includes(ORIGINAL_ID)) {
+      if (Array.isArray(idIn) && idIn.some((v) => String(v) === ORIGINAL_ID)) {
         return [{
           ...originalRow(),
           visibility: 'followers_only',
@@ -307,7 +307,7 @@ describe('PostHydrationService — boost original embedding is deterministic', (
     // marked federated with the origin instance — never a fabricated handle.
     postFind.mockImplementation((query: Record<string, unknown> | undefined) => {
       const idIn = (query?._id as { $in?: unknown[] } | undefined)?.$in;
-      if (Array.isArray(idIn) && idIn.map(String).includes(ORIGINAL_ID)) {
+      if (Array.isArray(idIn) && idIn.some((v) => String(v) === ORIGINAL_ID)) {
         return [{
           ...originalRow(),
           oxyUserId: null,
@@ -344,7 +344,7 @@ describe('PostHydrationService — boost original embedding is deterministic', (
     const ACTOR_URI = 'https://mastodon.online/users/kaleidotrope';
     postFind.mockImplementation((query: Record<string, unknown> | undefined) => {
       const idIn = (query?._id as { $in?: unknown[] } | undefined)?.$in;
-      if (Array.isArray(idIn) && idIn.map(String).includes(ORIGINAL_ID)) {
+      if (Array.isArray(idIn) && idIn.some((v) => String(v) === ORIGINAL_ID)) {
         return [{
           ...originalRow(),
           oxyUserId: null,
@@ -358,7 +358,7 @@ describe('PostHydrationService — boost original embedding is deterministic', (
     // The orphan-author resolution queries FederatedActor by `uri`.
     federatedActorFind.mockImplementation((query: Record<string, unknown> | undefined) => {
       const uriIn = (query?.uri as { $in?: unknown[] } | undefined)?.$in;
-      if (Array.isArray(uriIn) && uriIn.map(String).includes(ACTOR_URI)) {
+      if (Array.isArray(uriIn) && uriIn.some((v) => String(v) === ACTOR_URI)) {
         return [{ uri: ACTOR_URI, username: 'kaleidotrope', acct: 'kaleidotrope@mastodon.online', domain: 'mastodon.online', avatarUrl: 'https://mastodon.online/a.png' }];
       }
       return [];
@@ -414,7 +414,7 @@ describe('PostHydrationService — boost original embedding is deterministic', (
     const FEDERATED_AUTHOR_OXY_ID = 'oxy-terrible-maps';
     postFind.mockImplementation((query: Record<string, unknown> | undefined) => {
       const idIn = (query?._id as { $in?: unknown[] } | undefined)?.$in;
-      if (Array.isArray(idIn) && idIn.map(String).includes(ORIGINAL_ID)) {
+      if (Array.isArray(idIn) && idIn.some((v) => String(v) === ORIGINAL_ID)) {
         return [{
           ...originalRow(),
           oxyUserId: FEDERATED_AUTHOR_OXY_ID,
@@ -484,7 +484,7 @@ describe('PostHydrationService — boost original embedding is deterministic', (
 
     postFind.mockImplementation((query: Record<string, unknown> | undefined) => {
       const idIn = (query?._id as { $in?: unknown[] } | undefined)?.$in;
-      if (!Array.isArray(idIn) || !idIn.map(String).includes(ORIGINAL_ID)) {
+      if (!Array.isArray(idIn) || !idIn.some((v) => String(v) === ORIGINAL_ID)) {
         return [];
       }
 
