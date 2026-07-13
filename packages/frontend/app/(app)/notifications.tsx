@@ -20,7 +20,7 @@ import { useTranslation } from 'react-i18next';
 import { validateNotifications } from '@/types/validation';
 import { normalizeApiError } from '@/utils/apiError';
 import { useTheme } from '@oxyhq/bloom/theme';
-import { groupNotifications, GroupedNotification } from '@/utils/groupNotifications';
+import { groupNotifications, GroupedNotification, NotificationListItem } from '@/utils/groupNotifications';
 import { useUnreadCount, unreadCountKey } from '@/hooks/useUnreadCount';
 import {
     notificationsKey,
@@ -52,6 +52,45 @@ import { prewarmUsersByIds } from '@/utils/userEnrichment';
 const notificationLogger = createScopedLogger('Notifications');
 
 type NotificationTab = 'all' | 'mentions' | 'follows' | 'likes' | 'posts' | 'pokes';
+
+/** Time buckets the list is sectioned into, newest first. */
+type TimeBucket = 'today' | 'this_week' | 'earlier';
+
+const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+
+/**
+ * Which section a notification falls into, relative to `now`:
+ * - `today`    — on or after the local start of today.
+ * - `this_week`— within the previous 7 days (excluding today).
+ * - `earlier`  — anything older. An unparseable date also lands here, so a bad
+ *                timestamp sinks to the bottom section instead of throwing.
+ */
+function timeBucketOf(createdAt: string, now: Date): TimeBucket {
+    const time = new Date(createdAt).getTime();
+    if (Number.isNaN(time)) return 'earlier';
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    if (time >= startOfToday) return 'today';
+    if (time >= startOfToday - WEEK_MS) return 'this_week';
+    return 'earlier';
+}
+
+/**
+ * The notification types each tab surfaces — the SINGLE tab→types mapping, read
+ * by both the list filter and the per-tab unread tallies so the two can never
+ * disagree. The `all` tab has no entry: it matches every type.
+ */
+type FilterableTab = Exclude<NotificationTab, 'all'>;
+
+const TAB_TYPES: Record<FilterableTab, readonly string[]> = {
+    mentions: ['mention', 'reply'],
+    follows: ['follow'],
+    likes: ['like', 'boost', 'quote'],
+    posts: ['post'],
+    pokes: ['poke'],
+};
+
+/** Per-tab unread tallies. The `all` tab uses the authoritative server total. */
+type TabUnreadCounts = Record<FilterableTab, number>;
 
 const NotificationsScreen: React.FC = () => {
     const { user, oxyServices, isAuthResolved, canUsePrivateApi, isPrivateApiPending } = useAuth();
@@ -271,21 +310,24 @@ const NotificationsScreen: React.FC = () => {
     });
 
     const filteredNotifications = useMemo(() => {
-        switch (activeTab) {
-            case 'mentions':
-                return validatedNotifications.filter((n) => n.type === 'mention' || n.type === 'reply');
-            case 'follows':
-                return validatedNotifications.filter((n) => n.type === 'follow');
-            case 'likes':
-                return validatedNotifications.filter((n) => n.type === 'like' || n.type === 'boost' || n.type === 'quote');
-            case 'posts':
-                return validatedNotifications.filter((n) => n.type === 'post');
-            case 'pokes':
-                return validatedNotifications.filter((n) => n.type === 'poke');
-            default:
-                return validatedNotifications;
-        }
+        if (activeTab === 'all') return validatedNotifications;
+        const types = TAB_TYPES[activeTab];
+        return validatedNotifications.filter((n) => types.includes(n.type));
     }, [validatedNotifications, activeTab]);
+
+    // Per-tab unread tallies, derived from the notifications already loaded (the
+    // only per-type data the client has — the server exposes a single aggregate
+    // unread total, which the `all` tab uses verbatim).
+    const tabUnreadCounts = useMemo<TabUnreadCounts>(() => {
+        const counts: TabUnreadCounts = { mentions: 0, follows: 0, likes: 0, posts: 0, pokes: 0 };
+        for (const n of validatedNotifications) {
+            if (n.read) continue;
+            for (const tab of Object.keys(TAB_TYPES) as FilterableTab[]) {
+                if (TAB_TYPES[tab].includes(n.type)) counts[tab] += 1;
+            }
+        }
+        return counts;
+    }, [validatedNotifications]);
 
     const groupedNotifications = useMemo(() => {
         return groupNotifications(filteredNotifications);
@@ -304,20 +346,55 @@ const NotificationsScreen: React.FC = () => {
         return out;
     }, [groupedNotifications]);
 
+    // Section the (already newest-first) rows into Today / This week / Earlier by
+    // inserting a header item at each bucket boundary. A header is only emitted
+    // when its bucket actually has a row, so an empty bucket leaves no orphan
+    // heading. Grouping/dedup above is untouched — this is a presentation layer.
+    const sectionedItems = useMemo<NotificationListItem[]>(() => {
+        const sectionLabels: Record<TimeBucket, string> = {
+            today: t('notification.section.today', { defaultValue: 'Today' }),
+            this_week: t('notification.section.this_week', { defaultValue: 'This week' }),
+            earlier: t('notification.section.earlier', { defaultValue: 'Earlier' }),
+        };
+        const now = new Date();
+        const out: NotificationListItem[] = [];
+        let currentBucket: TimeBucket | null = null;
+        for (const item of listItems) {
+            const bucket = timeBucketOf(item.createdAt, now);
+            if (bucket !== currentBucket) {
+                currentBucket = bucket;
+                out.push({ kind: 'header', key: `section:${bucket}`, label: sectionLabels[bucket] });
+            }
+            out.push({ kind: 'row', ...item });
+        }
+        return out;
+    }, [listItems, t]);
+
     const handleBoundaryError = useCallback((error: Error, errorInfo: React.ErrorInfo) => {
         notificationLogger.error('Error caught by boundary', { error, errorInfo });
     }, []);
 
-    const renderNotification = useCallback((item: GroupedNotification) => (
-        <ErrorBoundary
-            title={t("error.boundary.title")}
-            message={t("error.boundary.message")}
-            retryLabel={t("error.boundary.retry")}
-            onError={handleBoundaryError}
-        >
-            <NotificationItem item={item} onMarkAsRead={handleMarkAsRead} onDelete={handleDelete} />
-        </ErrorBoundary>
-    ), [t, handleBoundaryError, handleMarkAsRead, handleDelete]);
+    const renderNotification = useCallback((item: NotificationListItem) => {
+        if (item.kind === 'header') {
+            return (
+                <View className="bg-background px-3 pb-1 pt-3">
+                    <ThemedText className="text-muted-foreground text-[13px] font-semibold uppercase">
+                        {item.label}
+                    </ThemedText>
+                </View>
+            );
+        }
+        return (
+            <ErrorBoundary
+                title={t("error.boundary.title")}
+                message={t("error.boundary.message")}
+                retryLabel={t("error.boundary.retry")}
+                onError={handleBoundaryError}
+            >
+                <NotificationItem item={item} onMarkAsRead={handleMarkAsRead} onDelete={handleDelete} />
+            </ErrorBoundary>
+        );
+    }, [t, handleBoundaryError, handleMarkAsRead, handleDelete]);
 
     const emptyStateConfig = useMemo(() => {
         const iconBg = `${theme.colors.border}33`;
@@ -475,7 +552,7 @@ const NotificationsScreen: React.FC = () => {
 
         return (
             <NotificationsList
-                items={listItems}
+                items={sectionedItems}
                 renderRow={renderNotification}
                 header={pokesHeader}
                 emptyState={renderEmptyState()}
@@ -546,12 +623,12 @@ const NotificationsScreen: React.FC = () => {
                         <PanelStickyHeader level={1} zIndex={100}>
                             <AnimatedTabBar
                                 tabs={[
-                                    { id: 'all', label: t('notifications.tabs.all') },
-                                    { id: 'mentions', label: t('notifications.tabs.mentions') },
-                                    { id: 'follows', label: t('notifications.tabs.follows') },
-                                    { id: 'likes', label: t('notifications.tabs.likes') },
-                                    { id: 'posts', label: t('notifications.tabs.posts') },
-                                    { id: 'pokes', label: t('notifications.tabs.pokes', { defaultValue: 'Pokes' }) },
+                                    { id: 'all', label: t('notifications.tabs.all'), count: unreadCount },
+                                    { id: 'mentions', label: t('notifications.tabs.mentions'), count: tabUnreadCounts.mentions },
+                                    { id: 'follows', label: t('notifications.tabs.follows'), count: tabUnreadCounts.follows },
+                                    { id: 'likes', label: t('notifications.tabs.likes'), count: tabUnreadCounts.likes },
+                                    { id: 'posts', label: t('notifications.tabs.posts'), count: tabUnreadCounts.posts },
+                                    { id: 'pokes', label: t('notifications.tabs.pokes', { defaultValue: 'Pokes' }), count: tabUnreadCounts.pokes },
                                 ]}
                                 activeTabId={activeTab}
                                 onTabPress={handleTabPress}
