@@ -14,6 +14,7 @@ import {
 import { usePostSelector } from '../../stores/postsStore';
 import PostHeader, { HEADER_CONTENT_GAP, POST_CONTEXT_ROW_HEIGHT } from '../Post/PostHeader';
 import PostContentText from '../Post/PostContentText';
+import ContentWarning from '../Post/ContentWarning';
 import PostActions from '../Post/PostActions';
 import PostLocation from '../Post/PostLocation';
 import PostAttachmentsRow from '../Post/PostAttachmentsRow';
@@ -166,6 +167,10 @@ const PostItem: React.FC<PostItemProps> = ({
     const attachmentsBundle: PostAttachmentBundle = viewPost?.attachments ?? {};
     const linkPreview = viewPost?.linkPreview ?? null;
     const isSensitiveContent = metadata.isSensitive === true;
+    // Content warning (federated `summary` / Mastodon CW) surfaced by the backend as
+    // `metadata.spoilerText`. Rendered as a visible label above the body — media blur
+    // is handled separately via `isSensitiveContent`; this never gates the body text.
+    const spoilerText = typeof metadata.spoilerText === 'string' ? metadata.spoilerText.trim() : '';
 
     const isOwner = viewerState.isOwner ?? false;
     const canViewInsights = permissions.canViewInsights ?? isOwner;
@@ -812,6 +817,7 @@ const PostItem: React.FC<PostItemProps> = ({
                         onPressMenu={openMenu}
                         paddingHorizontal={isNested ? 0 : HPAD}
                     >
+                        {spoilerText ? <ContentWarning text={spoilerText} /> : null}
                         {content.text ? <PostContentText content={content} postId={viewPostId} translatedText={translatedText} linkPreviewUrl={linkPreview?.url} /> : null}
                     </PostHeader>
 

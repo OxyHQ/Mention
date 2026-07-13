@@ -445,6 +445,12 @@ export interface PostStats {
 
 export interface PostMetadata {
   isSensitive?: boolean;
+  /**
+   * Content-warning label from a federated source (ActivityPub `summary`, e.g.
+   * Mastodon's content warning). Present only on federated posts that carry a CW;
+   * the frontend renders it as a spoiler header gating the body.
+   */
+  spoilerText?: string;
   isPinned?: boolean;
   isBookmarked?: boolean;
   isLiked?: boolean;
@@ -650,6 +656,11 @@ export interface PostMetadataState {
   quotesDisabled?: boolean;
   isPinned?: boolean;
   isSensitive?: boolean;
+  /**
+   * Content-warning label from a federated source (ActivityPub `summary`). Set on
+   * federated posts carrying a CW; the frontend renders it as a spoiler header.
+   */
+  spoilerText?: string;
   hideEngagementCounts?: boolean;
   isThread?: boolean;
   /**

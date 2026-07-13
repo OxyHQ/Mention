@@ -27,10 +27,12 @@ import {
     findNotification,
     markNotificationsRead,
     markAllNotificationsRead,
+    removeNotification,
     bumpUnread,
     type NotificationsInfiniteData,
 } from '@/utils/notificationCache';
 import { NotificationsList } from '@/components/NotificationsList';
+import { NotificationSkeleton } from '@/components/notifications/NotificationSkeleton';
 import { useLayoutScroll } from '@/context/LayoutScrollContext';
 import AnimatedTabBar from '@/components/common/AnimatedTabBar';
 import { Header } from '@/components/Header';
@@ -42,6 +44,8 @@ import { IconButton } from '@/components/ui/Button';
 import { Error } from '@/components/Error';
 import { EmptyState } from '@/components/common/EmptyState';
 import { Bell } from '@/assets/icons/bell-icon';
+import { DoneAllIcon } from '@/assets/icons/done-all-icon';
+import { Gear } from '@/assets/icons/gear-icon';
 import { PanelStickyHeader } from '@/components/shell/PanelChrome';
 import { prewarmUsersByIds } from '@/utils/userEnrichment';
 
@@ -130,6 +134,42 @@ const NotificationsScreen: React.FC = () => {
         },
     });
 
+    // Optimistically drop the given ids from the cached list + decrement the
+    // badge for any that were unread (mirrors `applyReadPatch`). The server echo
+    // to `user:<id>` reconciles idempotently; `onError` resyncs.
+    const applyRemovePatch = useCallback((ids: string[]) => {
+        const prev = queryClient.getQueryData<NotificationsInfiniteData>(notificationsQueryKey);
+        let delta = 0;
+        if (prev) {
+            for (const id of ids) {
+                const found = findNotification(prev, id);
+                if (found && !found.read) delta -= 1;
+            }
+        }
+        queryClient.setQueryData<NotificationsInfiniteData>(notificationsQueryKey, (data) => {
+            if (!data) return data;
+            let next = data;
+            for (const id of ids) next = removeNotification(next, id);
+            return next;
+        });
+        if (delta !== 0) bumpUnread(queryClient, user?.id, delta);
+    }, [queryClient, notificationsQueryKey, user?.id]);
+
+    // Delete notification(s) — group rows pass every id in the group.
+    const deleteMutation = useMutation({
+        mutationFn: (ids: string[]) => Promise.all(ids.map((id) => notificationService.deleteNotification(id))),
+        onMutate: (ids: string[]) => applyRemovePatch(ids),
+        onSuccess: () => {
+            toast(t('notification.deleted', { defaultValue: 'Notification deleted' }), { type: 'success' });
+        },
+        onError: (error: unknown) => {
+            notificationLogger.error('Error deleting notification', { error });
+            toast(t('notification.delete_error', { defaultValue: 'Failed to delete notification' }), { type: 'error' });
+            // Resync from the server on failure to undo the optimistic patch.
+            queryClient.invalidateQueries({ queryKey: ['notifications'] });
+        },
+    });
+
     // Mark all as read mutation
     const markAllAsReadMutation = useMutation({
         mutationFn: () => notificationService.markAllAsRead(),
@@ -163,6 +203,10 @@ const NotificationsScreen: React.FC = () => {
     const handleMarkAsRead = useCallback((ids: string[]) => {
         markAsReadMutation.mutate(ids);
     }, [markAsReadMutation]);
+
+    const handleDelete = useCallback((ids: string[]) => {
+        deleteMutation.mutate(ids);
+    }, [deleteMutation]);
 
     const handleMarkAllAsRead = useCallback(async () => {
         if (unreadCount === 0) {
@@ -271,9 +315,9 @@ const NotificationsScreen: React.FC = () => {
             retryLabel={t("error.boundary.retry")}
             onError={handleBoundaryError}
         >
-            <NotificationItem item={item} onMarkAsRead={handleMarkAsRead} />
+            <NotificationItem item={item} onMarkAsRead={handleMarkAsRead} onDelete={handleDelete} />
         </ErrorBoundary>
-    ), [t, handleBoundaryError, handleMarkAsRead]);
+    ), [t, handleBoundaryError, handleMarkAsRead, handleDelete]);
 
     const emptyStateConfig = useMemo(() => {
         const iconBg = `${theme.colors.border}33`;
@@ -381,8 +425,8 @@ const NotificationsScreen: React.FC = () => {
 
         if (isLoading && !refreshing) {
             return (
-                <ThemedView className="flex-1 justify-center items-center">
-                    <Loading className="text-primary" size="large" />
+                <ThemedView className="flex-1">
+                    <NotificationSkeleton />
                 </ThemedView>
             );
         }
@@ -475,13 +519,22 @@ const NotificationsScreen: React.FC = () => {
                                             disabled={markAllAsReadMutation.isPending}
                                             accessibilityLabel={t('notification.mark_all_read')}
                                         >
-                                            <Ionicons
-                                                name="checkmark-done-outline"
+                                            <DoneAllIcon
                                                 size={22}
                                                 color={theme.colors.primary}
                                             />
                                         </IconButton>
                                     ) : null,
+                                    <IconButton variant="icon"
+                                        key="notification-settings"
+                                        onPress={() => router.push('/settings/notifications')}
+                                        accessibilityLabel={t('notification.settings', { defaultValue: 'Notification settings' })}
+                                    >
+                                        <Gear
+                                            size={22}
+                                            color={theme.colors.text}
+                                        />
+                                    </IconButton>,
                                 ].filter(Boolean),
                             }}
                             hideBottomBorder={canUsePrivateApi}

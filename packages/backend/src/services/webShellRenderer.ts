@@ -183,9 +183,15 @@ export function mapPostOg(post: HydratedPost, id: string): OgData {
   const image =
     media?.url || media?.thumbUrl || media?.posterUrl || post.linkPreview?.image || avatarImage || undefined;
 
+  // A boost has an intentionally empty body — its renderable text lives on the
+  // boosted original (embedded at maxDepth:1). Fall back to the original's text so
+  // a boost's OG/preview description is not blank.
+  const ownText = (post.content?.text || '').trim();
+  const description = (ownText || (post.originalPost?.content?.text || '').trim()).slice(0, 200);
+
   return {
     title: `${author} on Mention`,
-    description: (post.content?.text || '').trim().slice(0, 200),
+    description,
     image,
     url: `${WEB_ORIGIN}/p/${id}`,
     type: 'article',

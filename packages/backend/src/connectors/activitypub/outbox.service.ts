@@ -7,9 +7,8 @@ import {
   extractActorUriFromActivityId,
 } from './constants';
 import { PostVisibility } from '@mention/shared-types';
-import { htmlToPlainText } from '../../utils/federation/htmlToPlainText';
 import { extractApLanguage, extractApLanguages } from './apLanguage';
-import { normalizePostHashtags } from '../../utils/textProcessing';
+import { buildFederatedNoteContent } from './apPostContent';
 import { getPostCreator } from '../../services/serviceRegistry';
 import { baselineContentClassifier } from '../../services/BaselineContentClassifier';
 import {
@@ -31,8 +30,6 @@ import {
   isDuplicateKeyError,
   extractAnnouncedObjectUri,
   extractActorUri,
-  extractApMedia,
-  extractApHashtags,
   extractInReplyToUri,
   mapApVisibility,
   parseApPublished,
@@ -622,13 +619,6 @@ export class OutboxSyncService {
         // post-insert thread-linking pass below to resolve `parentPostId`/`threadId`.
         const inReplyToUri = extractInReplyToUri(note.inReplyTo);
 
-        const rawText = htmlToPlainText(rawContent);
-        const extracted = extractApMedia(note);
-        // The raw collection insertMany below bypasses Mongoose middleware, so
-        // run the centralized normalizer explicitly: clean spammy hashtag blocks
-        // from the visible text and merge inline tags with the AP `tag` array
-        // tags (passed as userProvided so non-inline federated tags survive).
-        const { content: text, hashtags } = normalizePostHashtags(rawText, extractApHashtags(note));
         // Preserve the ORIGINAL remote publish date (validated) so the post is
         // ordered by when it was authored, not when we backfilled it. The raw
         // `insertMany` below bypasses Mongoose timestamps, so a valid date is
@@ -651,12 +641,22 @@ export class OutboxSyncService {
           );
           continue;
         }
-        const { media, attachments } = await materializeFederatedMedia(
-          extracted.media,
-          extracted.attachments,
-          resolvedOxyUserId,
-          { activityId, actorUri: actorUri ?? undefined },
-        );
+
+        // Build the storable body via the shared builder: contentMap fallback,
+        // the SAME hashtag normalization the inbox path runs (fixes the ingest
+        // asymmetry), media materialization, and the empty-note guard. The raw
+        // `insertMany` below bypasses Mongoose middleware, so the builder is the
+        // single place that normalization/guarding happens for this path. A Note
+        // that carries nothing storable is skipped rather than inserted blank.
+        const built = await buildFederatedNoteContent(note, resolvedOxyUserId, {
+          activityId,
+          actorUri: actorUri ?? undefined,
+        });
+        if (built.skip) {
+          logger.debug(`[FedSync] skipping empty outbox note ${activityId}: ${built.reason}`);
+          continue;
+        }
+        const { text, media, attachments, hashtags, summary, sensitive } = built;
 
         // AP-derived language so federated posts carry their REAL language
         // instead of the schema default 'en'. `extractApLanguage` is the declared
@@ -667,16 +667,16 @@ export class OutboxSyncService {
         const apLanguages = extractApLanguages(note);
         // Stage-A deterministic baseline. The raw insertMany bypasses Mongoose
         // middleware AND schema defaults, so the baseline fields are set
-        // explicitly here (mirroring the explicit `postClassification` seed and
-        // explicit `normalizePostHashtags` call). Best-effort: a classifier throw
-        // must not abort the whole batch insert — fall back to the bare pending
-        // subdoc on failure.
+        // explicitly here (mirroring the explicit `postClassification` seed; the
+        // hashtag normalization now runs inside `buildFederatedNoteContent`).
+        // Best-effort: a classifier throw must not abort the whole batch insert —
+        // fall back to the bare pending subdoc on failure.
         const baseline = this.computeBaselineForNote({
           text,
           hashtags,
           language: apLanguage,
           languages: apLanguages,
-          sensitive: note.sensitive === true,
+          sensitive,
           instanceDomain: actorUri ? getRemoteHost(actorUri) : undefined,
           // The outbox owner authored every Note in its own outbox, so the
           // owner's AP type is the note author's type (RSS/bot-mirror signal).
@@ -695,8 +695,8 @@ export class OutboxSyncService {
             actorUri,
             inReplyTo: inReplyToUri,
             url: note.url || note.id,
-            sensitive: note.sensitive || false,
-            spoilerText: note.summary || undefined,
+            sensitive,
+            spoilerText: summary,
           },
           type: media.length > 0 ? (media.some((m) => m.type === 'video') ? 'video' : 'image') : 'text',
           content: {
@@ -721,7 +721,7 @@ export class OutboxSyncService {
             sharesCount: 0,
           },
           metadata: {
-            isSensitive: note.sensitive === true,
+            isSensitive: sensitive,
           },
           // The raw collection insertMany bypasses Mongoose schema defaults, so
           // seed the classification subdoc explicitly. Stage-A deterministic
@@ -1186,18 +1186,24 @@ export class OutboxSyncService {
       return null;
     }
 
-    const text = htmlToPlainText(rawContent);
-    const extracted = extractApMedia(note);
-    const hashtags = extractApHashtags(note);
+    const noteActivityId = typeof note.id === 'string' ? note.id : objectUri;
     // The boosted original keeps its OWN publish date (validated/falls back to now).
     const published = parseApPublished(note.published);
-    const noteActivityId = typeof note.id === 'string' ? note.id : objectUri;
-    const { media, attachments } = await materializeFederatedMedia(
-      extracted.media,
-      extracted.attachments,
-      authorOxyUserId,
-      { activityId: noteActivityId, actorUri: authorUri ?? undefined },
-    );
+
+    // Build the storable body via the shared builder (contentMap fallback,
+    // hashtag normalization, media materialization, empty-note guard) — the SAME
+    // path handleCreate and the outbox loop use. A boosted/ancestor Note that
+    // carries nothing storable is skipped (return null) rather than creating a
+    // blank post; the boost/ancestor link is simply not made this pass.
+    const built = await buildFederatedNoteContent(note, authorOxyUserId, {
+      activityId: noteActivityId,
+      actorUri: authorUri ?? undefined,
+    });
+    if (built.skip) {
+      logger.debug(`[FedSync] skipping empty boosted/ancestor note ${objectUri}: ${built.reason}`);
+      return null;
+    }
+    const { text, media, attachments, hashtags, summary, sensitive } = built;
 
     // When this note is itself a reply, link it into its thread (resolving /
     // backfilling its OWN parent chain up to the root). The depth budget is
@@ -1212,8 +1218,8 @@ export class OutboxSyncService {
           activityId: noteActivityId,
           inReplyTo: inReplyToUri,
           url: typeof note.url === 'string' ? note.url : noteActivityId,
-          sensitive: note.sensitive === true,
-          spoilerText: typeof note.summary === 'string' ? note.summary : undefined,
+          sensitive,
+          spoilerText: summary,
         },
         parentPostId: threadLink?.parentPostId ?? null,
         threadId: threadLink?.threadId ?? null,
@@ -1232,7 +1238,7 @@ export class OutboxSyncService {
         languages: extractApLanguages(note),
         instanceDomain: authorUri ? getRemoteHost(authorUri) : undefined,
         status: 'published',
-        metadata: { isSensitive: note.sensitive === true },
+        metadata: { isSensitive: sensitive },
         skipNotifications: true,
         skipSocketEmit: true,
         skipFederationDelivery: true,

@@ -50,6 +50,12 @@ return {
       ios: {
         supportsTablet: true,
         bundleIdentifier: IOS_ID,
+        infoPlist: {
+          // Allow Linking.canOpenURL('oxycommons://') so "Sign in with Oxy" can
+          // deep-link into Commons on iOS (custom schemes are hidden from
+          // canOpenURL unless whitelisted here). Android is unrestricted.
+          LSApplicationQueriesSchemes: ['oxycommons'],
+        },
       },
         android: {
             adaptiveIcon: {
@@ -239,6 +245,10 @@ return {
                 "expo-web-browser",
                 // Android sharedUserId for cross-app authentication
                 './plugins/withSharedUserId',
+                // Reader side of @oxyhq/expo-oxy-identity: request the signature
+                // permission + <queries> so cold boot can silently read the
+                // Commons-hosted shared identity (silent "Sign in with Oxy").
+                './plugins/withSharedIdentityReader',
             ];
 
             // Only include native-only plugins for native builds (android/ios)

@@ -18,12 +18,13 @@ import UserName from '../UserName';
 import { LinkifiedText } from '../common/LinkifiedText';
 import { RemoteActorBadge } from '@/components/Fediverse/FediverseBadge';
 import CollabAcceptSheet from '@/components/Compose/CollabAcceptSheet';
+import { DoneAllIcon } from '@/assets/icons/done-all-icon';
+import { TrashIcon } from '@/assets/icons/trash-icon';
 import { getDescriptor, type TranslateFn } from './notificationDescriptors';
 import { useUserById } from '@/hooks/useCachedUser';
 import type { GroupedNotification } from '@/utils/groupNotifications';
 import { POST_ITEM_SPACING } from '@/styles/shared';
 import { formatRelativeTimeLocalized } from '@/utils/dateUtils';
-import { confirmDialog } from '@/utils/alerts';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
 import { feedService } from '@/services/feedService';
 import { queryKeys } from '@/hooks/useOptimizedQuery';
@@ -196,13 +197,45 @@ const AvatarStrip: React.FC<{ actors: ResolvedActor[]; totalActors: number }> = 
   );
 };
 
+const ACTION_ICON_SIZE = 20;
+
+/**
+ * One row of the long-press action sheet. Mirrors the grouped, rounded row
+ * treatment the shared widget menu uses (`useWidgetItemMenu`), with a
+ * `destructive` variant for the red delete affordance.
+ */
+const NotificationActionRow: React.FC<{
+  icon: React.ReactNode;
+  label: string;
+  onPress: () => void;
+  destructive?: boolean;
+  isFirst: boolean;
+  isLast: boolean;
+}> = ({ icon, label, onPress, destructive, isFirst, isLast }) => (
+  <Pressable
+    className={cn(
+      'bg-surface flex-row items-center justify-between py-3 px-3.5 active:opacity-70',
+      isFirst && 'rounded-t-2xl',
+      isLast ? 'rounded-b-2xl' : 'mb-1',
+    )}
+    onPress={onPress}
+    accessibilityRole="button"
+    accessibilityLabel={label}
+  >
+    <Text className={cn('text-base font-medium', destructive ? 'text-destructive' : 'text-foreground')}>{label}</Text>
+    <View className="ml-3">{icon}</View>
+  </Pressable>
+);
+
 interface NotificationItemProps {
   item: GroupedNotification;
   /** Marks the given notification ids read (single -> `[id]`, group -> all ids). */
   onMarkAsRead: (ids: string[]) => void;
+  /** Deletes the given notification ids (single -> `[id]`, group -> all ids). */
+  onDelete: (ids: string[]) => void;
 }
 
-const NotificationItemComponent: React.FC<NotificationItemProps> = ({ item, onMarkAsRead }) => {
+const NotificationItemComponent: React.FC<NotificationItemProps> = ({ item, onMarkAsRead, onDelete }) => {
   const router = useRouter();
   const { t } = useTranslation();
   const theme = useTheme();
@@ -294,15 +327,50 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({ item, onMa
     }
   }, [markRead, item.entityType, item.entityId, resolvedPrimary.handle, router]);
 
-  const handleLongPress = useCallback(async () => {
-    const confirmed = await confirmDialog({
-      title: t('notification.options.title'),
-      message: t('notification.options.message'),
-      okText: t('notification.mark_read', { defaultValue: 'Mark as read' }),
-      cancelText: t('cancel', { defaultValue: 'Cancel' }),
+  // Long-press opens a small action sheet offering "Mark as read" (only when the
+  // row is unread) and a destructive "Delete". Dismissing the sheet is the
+  // implicit cancel. Tapping a row acts, then closes the sheet.
+  const handleLongPress = useCallback(() => {
+    const rows: { key: string; icon: React.ReactNode; label: string; onPress: () => void; destructive?: boolean }[] = [];
+    if (hasUnread) {
+      rows.push({
+        key: 'mark-read',
+        icon: <DoneAllIcon size={ACTION_ICON_SIZE} color={theme.colors.textSecondary} />,
+        label: t('notification.mark_read', { defaultValue: 'Mark as read' }),
+        onPress: () => {
+          bottomSheet.openBottomSheet(false);
+          onMarkAsRead(item.notificationIds);
+        },
+      });
+    }
+    rows.push({
+      key: 'delete',
+      icon: <TrashIcon size={ACTION_ICON_SIZE} color={theme.colors.error} />,
+      label: t('notification.delete', { defaultValue: 'Delete' }),
+      destructive: true,
+      onPress: () => {
+        bottomSheet.openBottomSheet(false);
+        onDelete(item.notificationIds);
+      },
     });
-    if (confirmed) onMarkAsRead(item.notificationIds);
-  }, [t, onMarkAsRead, item.notificationIds]);
+
+    bottomSheet.setBottomSheetContent(
+      <View className="bg-background p-4">
+        {rows.map((row, index) => (
+          <NotificationActionRow
+            key={row.key}
+            icon={row.icon}
+            label={row.label}
+            onPress={row.onPress}
+            destructive={row.destructive}
+            isFirst={index === 0}
+            isLast={index === rows.length - 1}
+          />
+        ))}
+      </View>,
+    );
+    bottomSheet.openBottomSheet(true);
+  }, [hasUnread, theme.colors.textSecondary, theme.colors.error, t, bottomSheet, onMarkAsRead, onDelete, item.notificationIds]);
 
   const openActorProfile = useCallback((actor: ResolvedActor) => {
     if (actor.handle) router.push(`/@${actor.handle}`);
@@ -371,11 +439,6 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({ item, onMa
   // get the same subtle primary tint the feed uses for emphasis.
   return (
     <Pressable
-      // `w-full`: RN-Web renders this Pressable as a flex box that otherwise
-      // shrinks to its content inside the virtualizer's plain block row `div`, so
-      // without an explicit width the background, bottom border, hover wash and
-      // unread dot stop partway across the panel. Filling the row makes it span
-      // edge-to-edge like a feed post.
       className={cn('group w-full bg-background border-b border-border py-3', hasUnread && 'bg-primary/5')}
       onPress={handlePress}
       onLongPress={handleLongPress}
@@ -416,7 +479,7 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({ item, onMa
                     numberOfLines={1}
                     ellipsizeMode="tail"
                   >
-                    {` @${resolvedPrimary.handle}`}
+                    {` @${resolvedPrimary.handle}`}
                   </Text>
                 ) : null}
                 {isSingleActor && resolvedPrimary.isFederated ? (
