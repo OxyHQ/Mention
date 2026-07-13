@@ -1,4 +1,4 @@
-import React, { useLayoutEffect, useRef, useState } from 'react';
+import React, { useCallback, useLayoutEffect, useRef, useState } from 'react';
 import { View } from 'react-native';
 import { useWindowVirtualizer } from '@tanstack/react-virtual';
 import { useScrollRestoration } from '@oxyhq/bloom/scroll';
@@ -22,9 +22,16 @@ export interface NotificationsListProps {
     isFetchingMore?: boolean;
 }
 
-// Notification rows are short; a small estimate + per-row measurement keeps the
-// mounted node count bounded while the document scrolls.
-const ESTIMATED_ROW_HEIGHT = 84;
+// First-paint size guess before a row is measured. Single-actor rows land around
+// ~71px and grouped rows (avatar strip + "Show all" + preview) around ~158px, so
+// the mix skews toward the single row. The estimate is biased slightly ABOVE the
+// common single-row height: an estimate under a grouped row's real height would
+// position the next row against the shorter guess and overlap it for a frame,
+// whereas a slightly-high guess only yields a transient gap that measurement
+// closes. `measureElement` (a ResizeObserver, wired via a stable ref below)
+// replaces this with the real height as each row mounts and as its grouped
+// content settles.
+const ESTIMATED_ROW_HEIGHT = 96;
 const OVERSCAN_ROWS = 8;
 
 /**
@@ -53,6 +60,35 @@ export function NotificationsList({ items, renderRow, header, emptyState, tabKey
         scrollMargin,
         getItemKey: (index) => items[index].key,
     });
+
+    // Per-row ref factory: returns a STABLE callback (cached per row key) that
+    // wires the virtualizer's measurement ref on the row node. Stability matters —
+    // a fresh inline `virtualizer.measureElement` each render makes React
+    // detach/re-attach the ref on every render, tearing down and rebuilding the
+    // ResizeObserver `measureElement` installs. That drops the resize
+    // notification when a grouped row grows from its short first mount (~71px) to
+    // its settled height (~158px), so the next row keeps its stale position and
+    // overlaps the grown row. Caching one callback per key (so the ref only fires
+    // on real mount/unmount, and the ResizeObserver stays attached) is the same
+    // robustness the posts feed uses in `components/Feed/Feed.web.tsx`.
+    // `measureElement` is stable for the lifetime of this virtualizer.
+    const measureElement = virtualizer.measureElement;
+    const rowRefCallbacks = useRef(new Map<string, (node: HTMLDivElement | null) => void>());
+    const getRowRef = useCallback((key: string) => {
+        const cache = rowRefCallbacks.current;
+        const existing = cache.get(key);
+        if (existing) return existing;
+        // Bound the cache so a long scroll session doesn't accumulate one closure
+        // per row forever. Only rows in the virtual window are ever mounted, so a
+        // modest cap covers the live set; evicting the rest just recreates a
+        // row's callback once on a future re-scroll.
+        if (cache.size > 500) cache.clear();
+        const cb = (node: HTMLDivElement | null) => {
+            measureElement(node);
+        };
+        cache.set(key, cb);
+        return cb;
+    }, [measureElement]);
 
     useScrollRestoration('window', { enabled: true, key: `notifications-${tabKey}` });
 
@@ -89,7 +125,10 @@ export function NotificationsList({ items, renderRow, header, emptyState, tabKey
                     return (
                         <div
                             key={virtualRow.key as React.Key}
-                            ref={virtualizer.measureElement}
+                            // Stable per-key ref (cached) so the ResizeObserver
+                            // `measureElement` installs survives re-renders and
+                            // catches a grouped row growing after first paint.
+                            ref={getRowRef(item.key)}
                             data-index={virtualRow.index}
                             style={{
                                 position: 'absolute',
