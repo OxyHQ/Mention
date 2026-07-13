@@ -1007,7 +1007,14 @@
       "retry": "Retry",
       "notFound": "No account found on other networks",
       "notFoundHint": "Try a full handle like @user@mastodon.social or name.bsky.social"
-    }
+    },
+    "error": {
+      "title": "Search failed",
+      "message": "We couldn't complete that search. Check your connection and try again."
+    },
+    "retry": "Retry",
+    "clearInput": "Clear search",
+    "removeRecent": "Remove from recent searches"
   },
   "feeds": {
     "title": "Feeds",

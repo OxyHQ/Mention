@@ -115,6 +115,12 @@ interface PostItemProps {
     sliceKey?: string;
     threadRootId?: string;
     isThread?: boolean;
+    /**
+     * Notified right before a tap opens the post detail. A pure observer — it does
+     * NOT replace the navigation (use it to record that the row was opened, e.g.
+     * the search screen committing its query to the search history).
+     */
+    onOpen?: () => void;
 }
 
 const PostItem: React.FC<PostItemProps> = ({
@@ -135,6 +141,7 @@ const PostItem: React.FC<PostItemProps> = ({
     sliceKey,
     threadRootId,
     isThread = false,
+    onOpen,
 }) => {
     const { user: authUser } = useAuth();
     const isPremium = (authUser as { premium?: { isPremium?: boolean } } | null)?.premium?.isPremium ?? false;
@@ -303,12 +310,13 @@ const PostItem: React.FC<PostItemProps> = ({
             if (feedDescriptor) {
                 reportFeedInteraction(feedDescriptor, viewPostId, 'click');
             }
+            onOpen?.();
             // Thread posts open the whole thread at its root; standalone posts
             // open their own detail.
             const targetPostId = isThreadUnit && threadRootId ? threadRootId : viewPostId;
             router.push(`/p/${targetPostId}`);
         }
-    }, [router, viewPostId, isTappable, feedDescriptor, isNested, isThreadUnit, threadRootId]);
+    }, [router, viewPostId, isTappable, feedDescriptor, isNested, isThreadUnit, threadRootId, onOpen]);
 
     // Canonical profile handle for the author. Built from the full actor so a
     // federated actor resolves to `username@domain` (via isFederated + instance)
