@@ -16,6 +16,38 @@ interface CustomFeedListParams {
   userId?: string;
 }
 
+/**
+ * A `CustomFeed` as returned by `GET /feeds/marketplace`, which enriches each
+ * item with a resolved owner summary, the viewer's `isLiked` (subscribed) flag,
+ * and derived member/topic counts. `memberAvatars` is only populated by the
+ * `GET /feeds` list route, so it stays optional here.
+ */
+export type MarketplaceFeed = CustomFeed & {
+  owner?: { username?: string; displayName?: string; avatar?: string };
+  memberAvatars?: string[];
+  topicCount?: number;
+};
+
+/** `GET /feeds/marketplace` — a {@link CustomFeedListResponse} of enriched items. */
+export interface MarketplaceListResponse extends CustomFeedListResponse {
+  items: MarketplaceFeed[];
+}
+
+/** A type alias, not an interface: the HTTP client's `params` takes a `Record`. */
+type MarketplaceParams = {
+  category?: string;
+  search?: string;
+  sortBy?: string;
+  page?: number;
+  limit?: number;
+  /**
+   * Drop the feeds the viewer already has — their own feeds and the ones they
+   * subscribed to. Recommendation surfaces must never suggest what the viewer
+   * is already reading. Ignored for anonymous viewers (they subscribe to none).
+   */
+  excludeSubscribed?: boolean;
+};
+
 interface FeedReviewsResponse {
   reviews: unknown[];
   total: number;
@@ -119,9 +151,9 @@ class CustomFeedsService {
     });
   }
 
-  async getMarketplace(params?: { category?: string; search?: string; sortBy?: string; page?: number; limit?: number }): Promise<CustomFeedListResponse> {
+  async getMarketplace(params?: MarketplaceParams): Promise<MarketplaceListResponse> {
     return run('getMarketplace', async () => {
-      const res = await authenticatedClient.get<CustomFeedListResponse>('/feeds/marketplace', { params });
+      const res = await authenticatedClient.get<MarketplaceListResponse>('/feeds/marketplace', { params });
       return res.data;
     });
   }

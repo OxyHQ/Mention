@@ -184,15 +184,23 @@ export function feedArrayEqual<T>(
 }
 
 /**
- * Element key for {@link feedArrayEqual}'s ordered-key comparison that works for BOTH
- * feed array shapes: a {@link FeedPostSlice} (keyed by its deterministic
- * `_sliceKey`) and a hydrated post item (keyed by {@link getItemKey}). A slice is
- * detected by its `_sliceKey` field; everything else falls back to the post key.
+ * Element key for {@link feedArrayEqual}'s ordered-key comparison that works for the
+ * THREE feed array shapes: a `FeedPostSlice` (keyed by its deterministic
+ * `_sliceKey`), a `FeedInterstitialSlot` (keyed by its server-issued `key`, which
+ * encodes the card's kind and anchor), and a hydrated post item (keyed by
+ * {@link getItemKey}). Each is detected by its discriminating field; anything else
+ * falls back to the post key.
  */
 function feedElementKey(element: unknown): string {
-    if (element && typeof element === 'object' && '_sliceKey' in element) {
-        const sliceKey = (element as { _sliceKey?: unknown })._sliceKey;
-        if (typeof sliceKey === 'string' && sliceKey) return sliceKey;
+    if (element && typeof element === 'object') {
+        if ('_sliceKey' in element) {
+            const sliceKey = (element as { _sliceKey?: unknown })._sliceKey;
+            if (typeof sliceKey === 'string' && sliceKey) return sliceKey;
+        }
+        if ('afterSliceKey' in element) {
+            const slotKey = (element as { key?: unknown }).key;
+            if (typeof slotKey === 'string' && slotKey) return slotKey;
+        }
     }
     return getItemKey(element);
 }

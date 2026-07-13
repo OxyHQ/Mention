@@ -8,11 +8,13 @@ import {
     PostUser,
     Reply,
     FeedBoost as Boost,
+    FeedInterstitialSlot,
     FeedPostSlice,
     FeedSliceReason,
 } from '@mention/shared-types';
 import PostItem from './PostItem';
 import { PostErrorBoundary } from './PostErrorBoundary';
+import FeedInterstitial from './interstitials/FeedInterstitial';
 import { SubtleHover } from '@oxyhq/bloom/subtle-hover';
 import { useThreadHoverStore } from '@/stores/threadHoverStore';
 import { createScopedLogger } from '@/lib/logger';
@@ -54,8 +56,9 @@ export type FeedItemProbe = FeedItem & {
     replyTo?: unknown;
 };
 
-// Row type with thread state — the unit both list implementations render.
-export interface FeedRow {
+// A post row: one hydrated post plus its thread state.
+export interface PostFeedRow {
+    kind: 'post';
     item: FeedItem;
     sliceKey: string;
     isThreadParent: boolean;
@@ -74,6 +77,23 @@ export interface FeedRow {
     threadRootId?: string;
 }
 
+// A recommendation card spliced between post slices. The row carries only the
+// server's PLACEMENT (which kind of card, and where); the card component fetches
+// its own content, so the feed never blocks on recommendation data.
+export interface InterstitialFeedRow {
+    kind: 'interstitial';
+    slot: FeedInterstitialSlot;
+    /**
+     * Position among ALL interstitials of the accumulated feed (0, 1, 2 …). The
+     * card pages its content off this, so consecutive cards of the same kind
+     * don't show the same suggestions.
+     */
+    ordinal: number;
+}
+
+// The unit both list implementations render.
+export type FeedRow = PostFeedRow | InterstitialFeedRow;
+
 export const MAX_THREAD_NESTING_DEPTH = 3;
 
 const logger = createScopedLogger('Feed');
@@ -87,12 +107,66 @@ export interface BuildFeedRowsParams {
     blockedSet: Set<string>;
     threaded?: boolean;
     threadPostId?: string;
+    /** Server-decided recommendation-card placements for the accumulated feed. */
+    interstitials?: FeedInterstitialSlot[];
 }
 
 /**
- * Transform slices (or flat items) into {@link FeedRow}s with thread state.
- * Extracted verbatim from the original Feed.tsx `feedRows` memo so the row set
- * is identical on every platform.
+ * Splice the server's recommendation slots into the post rows: a slot renders
+ * directly after the LAST row of the slice it is anchored to, so a card never
+ * lands inside a thread.
+ *
+ * A slot whose anchor slice produced no row — its posts were all dropped by the
+ * blocked-author filter — is DISCARDED, never re-anchored: a card must not drift
+ * to an unrelated position just because the client filtered a post.
+ *
+ * `ordinal` numbers the slots actually emitted, in feed order.
+ */
+function spliceInterstitials(
+    rows: PostFeedRow[],
+    interstitials?: FeedInterstitialSlot[],
+): FeedRow[] {
+    if (!interstitials || interstitials.length === 0 || rows.length === 0) return rows;
+
+    const slotsByAnchor = new Map<string, FeedInterstitialSlot[]>();
+    for (const slot of interstitials) {
+        const anchored = slotsByAnchor.get(slot.afterSliceKey);
+        if (anchored) {
+            anchored.push(slot);
+        } else {
+            slotsByAnchor.set(slot.afterSliceKey, [slot]);
+        }
+    }
+
+    // Last row index of every anchored slice. A thread slice yields several rows;
+    // the card belongs after the whole thread, not between its posts.
+    const anchorRowIndex = new Map<string, number>();
+    for (let i = 0; i < rows.length; i++) {
+        const { sliceKey } = rows[i];
+        if (slotsByAnchor.has(sliceKey)) anchorRowIndex.set(sliceKey, i);
+    }
+
+    const out: FeedRow[] = [];
+    let ordinal = 0;
+    for (let i = 0; i < rows.length; i++) {
+        const row = rows[i];
+        out.push(row);
+        if (anchorRowIndex.get(row.sliceKey) !== i) continue;
+        const slots = slotsByAnchor.get(row.sliceKey);
+        if (!slots) continue;
+        for (const slot of slots) {
+            out.push({ kind: 'interstitial', slot, ordinal });
+            ordinal += 1;
+        }
+    }
+    return out;
+}
+
+/**
+ * Transform slices (or flat items) into {@link FeedRow}s with thread state, then
+ * splice in the server's recommendation cards. Pure: it decides only WHERE a card
+ * goes, never what is inside it — which is what keeps the `useDeepCompareMemo`
+ * wrapper around it correct.
  */
 export function buildFeedRows({
     slices,
@@ -103,10 +177,11 @@ export function buildFeedRows({
     blockedSet,
     threaded,
     threadPostId,
+    interstitials,
 }: BuildFeedRowsParams): FeedRow[] {
     // If we have slices, transform them into FeedRows with thread state
     if (slices && slices.length > 0) {
-        const rows: FeedRow[] = [];
+        const rows: PostFeedRow[] = [];
         for (const slice of slices) {
             // Real threads (multi-post slices) share one root: the FIRST item's
             // post. Every row of the thread carries it so a tap opens the whole
@@ -126,6 +201,7 @@ export function buildFeedRows({
                 }
 
                 rows.push({
+                    kind: 'post',
                     item: post,
                     sliceKey: slice._sliceKey,
                     isThreadParent: i < slice.items.length - 1,
@@ -139,7 +215,7 @@ export function buildFeedRows({
                 });
             }
         }
-        return rows;
+        return spliceInterstitials(rows, interstitials);
     }
 
     // Fallback: wrap flat items into single-post FeedRows (no thread state)
@@ -156,13 +232,14 @@ export function buildFeedRows({
     // Threaded mode: build reply tree and flatten with nesting depth
     if (threaded && threadPostId && filteredByPrivacy.length > 0) {
         const tree = buildReplyTree(filteredByPrivacy, threadPostId);
-        const rows: FeedRow[] = [];
+        const rows: PostFeedRow[] = [];
 
         const flattenNode = (node: ReplyNode, depth: number) => {
             const item = node.reply as FeedItem;
             const isTruncated = depth >= MAX_THREAD_NESTING_DEPTH && node.children.length > 0;
 
             rows.push({
+                kind: 'post',
                 item,
                 sliceKey: getItemKey(item),
                 isThreadParent: node.children.length > 0 && !isTruncated,
@@ -184,7 +261,7 @@ export function buildFeedRows({
             flattenNode(node, 0);
         }
 
-        return rows;
+        return spliceInterstitials(rows, interstitials);
     }
 
     // Sort recent user posts to top for for_you feed
@@ -218,7 +295,8 @@ export function buildFeedRows({
         }
     }
 
-    return finalItems.map((item) => ({
+    const flatRows: PostFeedRow[] = finalItems.map((item) => ({
+        kind: 'post',
         item,
         sliceKey: getItemKey(item),
         isThreadParent: false,
@@ -228,16 +306,24 @@ export function buildFeedRows({
         nestingDepth: 0,
         truncatedChildCount: 0,
     }));
+
+    return spliceInterstitials(flatRows, interstitials);
 }
 
-/** Stable key for a feed row (slice-scoped). */
+/** Stable key for a feed row (slice-scoped for posts, server-issued for cards). */
 export function feedRowKey(row: FeedRow): string {
+    if (row.kind === 'interstitial') return row.slot.key;
     const itemId = getItemKey(row.item);
     return row.sliceKey !== itemId ? `${row.sliceKey}:${itemId}` : itemId;
 }
 
-/** Recycle/type bucket for a feed row. Used by FlashList recycling on native. */
+/**
+ * Recycle/type bucket for a feed row. Used by FlashList recycling on native.
+ * Each interstitial kind gets its own bucket, so a recommendation card can never
+ * be recycled onto a post cell (nor onto a card of a different kind).
+ */
 export function feedRowType(row: FeedRow): string {
+    if (row.kind === 'interstitial') return `interstitial:${row.slot.kind}`;
     if (row.nestingDepth > 0) return `nested_${row.nestingDepth}`;
     if (row.isThreadParent) return 'threadParent';
     if (row.isThreadChild) return 'threadChild';
@@ -287,10 +373,15 @@ const ShowThreadLink: React.FC<{ sliceKey: string; onPress: () => void }> = ({ s
 };
 
 /**
- * Render a single feed row (PostItem + thread/slice affordances). Shared by both
- * platform Feed implementations so the row markup never diverges.
+ * Render a single feed row (PostItem + thread/slice affordances, or a
+ * recommendation card). Shared by both platform Feed implementations so the row
+ * markup never diverges.
  */
 export function renderFeedRow(row: FeedRow, { router, threadLineColor, feedDescriptor }: RenderFeedRowDeps): React.ReactElement | null {
+    if (row.kind === 'interstitial') {
+        return <FeedInterstitial slot={row.slot} ordinal={row.ordinal} />;
+    }
+
     const post = row.item;
     if (!post || !post.id) {
         logger.warn('Invalid post item', { post });

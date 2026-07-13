@@ -19,6 +19,13 @@ import { logger } from '../utils/logger';
 const router = Router();
 
 /**
+ * Upper bound on how many of the viewer's subscribed feeds are excluded from the
+ * marketplace when `excludeSubscribed=true`. Bounds the `$nin` width so the query
+ * stays predictable no matter how many feeds one account has liked.
+ */
+const MAX_EXCLUDED_SUBSCRIBED_FEEDS = 500;
+
+/**
  * The public owner/member/reviewer profile this route embeds — the canonical Oxy
  * {@link PostUser} (Oxy owns identity, same shape as `post.user` / Who-to-follow).
  */
@@ -233,6 +240,21 @@ router.get('/marketplace', async (req: AuthRequest, res: Response) => {
     const skip = (page - 1) * limit;
 
     const q: Record<string, unknown> = { isPublic: true };
+
+    // `excludeSubscribed=true` — recommendation surfaces (the feed interstitial)
+    // must never suggest a feed the viewer already has. "Subscribed" is a
+    // `FeedLike` (the mechanism that maintains `CustomFeed.subscriberCount`), so
+    // the viewer's own feeds and their liked feeds drop out of the page AND out
+    // of `total`. Ignored for anonymous viewers — they subscribe to nothing.
+    if (userId && String(req.query.excludeSubscribed) === 'true') {
+      const likes = await FeedLike.find({ userId }, { feedId: 1, _id: 0 })
+        .limit(MAX_EXCLUDED_SUBSCRIBED_FEEDS)
+        .lean();
+      q.ownerOxyUserId = { $ne: userId };
+      if (likes.length > 0) {
+        q._id = { $nin: likes.map((like) => like.feedId) };
+      }
+    }
 
     if (category && typeof category === 'string') {
       q.category = category;

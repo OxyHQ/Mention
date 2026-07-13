@@ -240,17 +240,19 @@ const Feed = ((props: FeedProps) => {
         feedLoadMore();
     }, [feedState.hasMore, feedState.isLoading, feedLoadMore, isAuthenticated, signIn]);
 
-    // Transform slices (or items) into FeedRows with thread state
+    // Transform slices (or items) into FeedRows with thread state, and splice in
+    // the server's recommendation cards.
     const feedRows = useDeepCompareMemo((): FeedRow[] => buildFeedRows({
         slices: feedState.slices,
         items: feedState.items,
+        interstitials: feedState.interstitials,
         type,
         showOnlySaved,
         currentUserId: currentUser?.id,
         blockedSet,
         threaded,
         threadPostId,
-    }), [feedState.slices, feedState.items, type, showOnlySaved, currentUser?.id, blockedSet, threaded, threadPostId]);
+    }), [feedState.slices, feedState.items, feedState.interstitials, type, showOnlySaved, currentUser?.id, blockedSet, threaded, threadPostId]);
 
     // Feed-ranking telemetry: derive the descriptor this feed reports against and
     // own an impression tracker for the session. The session resets when the
@@ -278,7 +280,10 @@ const Feed = ((props: FeedProps) => {
             for (const token of viewableItems) {
                 if (!token.isViewable) continue;
                 const row = token.item as FeedRow | undefined;
-                if (row?.item) visibleUris.push(getItemKey(row.item));
+                // Only post rows produce impressions — a recommendation card has no
+                // post to report, and must never reach `/feed/mtn/interactions`.
+                if (row?.kind !== 'post') continue;
+                if (row.item) visibleUris.push(getItemKey(row.item));
             }
             impressionTracker.current.syncVisible(visibleUris);
         },
@@ -290,13 +295,15 @@ const Feed = ((props: FeedProps) => {
     // CRITICAL: getItemType helps FlashList properly recycle components
     const getItemType = useCallback((row: FeedRow) => feedRowType(row), []);
 
-    // Optimized data hash for FlashList extraData - only recalculate when items change
+    // Optimized data hash for FlashList extraData - only recalculate when rows change.
+    // Keys off `feedRowKey` so it covers BOTH row kinds (a post id is meaningless
+    // for a recommendation card).
     const dataHash = useMemo(() => {
         const count = feedRows.length;
         if (count === 0) return 'empty';
-        const firstKey = getItemKey(feedRows[0].item);
-        const lastKey = getItemKey(feedRows[count - 1].item);
-        const midKey = count > 2 ? getItemKey(feedRows[Math.floor(count / 2)].item) : '';
+        const firstKey = feedRowKey(feedRows[0]);
+        const lastKey = feedRowKey(feedRows[count - 1]);
+        const midKey = count > 2 ? feedRowKey(feedRows[Math.floor(count / 2)]) : '';
         return `${count}-${firstKey}-${midKey}-${lastKey}`;
     }, [feedRows]);
 

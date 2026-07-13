@@ -55,8 +55,21 @@ type StarterPackWriteBody = {
 /** Base path for every starter-pack read/write request. */
 const STARTER_PACKS_BASE = '/starter-packs';
 
+/** A type alias, not an interface: the HTTP client's `params` takes a `Record`. */
+type StarterPackListParams = {
+  mine?: boolean;
+  search?: string;
+  /**
+   * Drop the packs the viewer already has — their own packs and the ones they
+   * already used. Recommendation surfaces must never suggest a pack whose
+   * accounts the viewer has followed. Discovery-only; ignored when `mine` or a
+   * `userId` scopes the list, and for anonymous viewers (they used none).
+   */
+  excludeUsed?: boolean;
+};
+
 class StarterPacksService {
-  async list(params?: { mine?: boolean; search?: string }) {
+  async list(params?: StarterPackListParams) {
     const res = await authenticatedClient.get(STARTER_PACKS_BASE, { params });
     return res.data as StarterPackCollection;
   }

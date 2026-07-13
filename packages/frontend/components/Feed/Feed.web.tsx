@@ -11,13 +11,12 @@ import { useTranslation } from 'react-i18next';
 import { createScopedLogger } from '@/lib/logger';
 import { useFeedState } from '@/hooks/useFeedState';
 import { useDeepCompareMemo } from '@/hooks/useDeepCompare';
-import { FeedFilters, shallowFiltersEqual } from '@/utils/feedUtils';
+import { FeedFilters, getItemKey, shallowFiltersEqual } from '@/utils/feedUtils';
 import { FeedHeader } from './FeedHeader';
 import { FeedFooter } from './FeedFooter';
 import { FeedEmptyState } from './FeedEmptyState';
 import { usePrivacyControls } from '@/hooks/usePrivacyControls';
 import { resolveFeedDescriptor, useFeedImpressionTracker } from '@/utils/feedTelemetry';
-import { getItemKey } from '@/utils/feedUtils';
 import {
     type FeedRow,
     buildFeedRows,
@@ -72,8 +71,14 @@ const LOAD_MORE_ROOT_MARGIN = '600px';
 const IMPRESSION_VISIBILITY_THRESHOLD = 0.5;
 
 // DOM attribute carrying a row's post id, read by the impression observer to map
-// an intersecting row element back to its post.
+// an intersecting row element back to its post. ONLY post rows carry it —
+// a recommendation card has no post to report an impression for.
 const POST_URI_ATTR = 'data-post-uri';
+
+// Upper bound on each cached row-ref map. Only rows in the virtual window are
+// ever mounted, so a modest cap comfortably covers the live set; evicting the
+// rest just means a future re-scroll recreates that row's callback once.
+const ROW_REF_CACHE_LIMIT = 500;
 
 /**
  * Shared data wiring for the web feed. Returns the live row set plus the
@@ -110,13 +115,14 @@ function useWebFeed(props: Required<Pick<FeedProps, 'type' | 'showOnlySaved'>> &
     const feedRows = useDeepCompareMemo((): FeedRow[] => buildFeedRows({
         slices: feedState.slices,
         items: feedState.items,
+        interstitials: feedState.interstitials,
         type,
         showOnlySaved,
         currentUserId: currentUser?.id,
         blockedSet,
         threaded,
         threadPostId,
-    }), [feedState.slices, feedState.items, type, showOnlySaved, currentUser?.id, blockedSet, threaded, threadPostId]);
+    }), [feedState.slices, feedState.items, feedState.interstitials, type, showOnlySaved, currentUser?.id, blockedSet, threaded, threadPostId]);
 
     // Infinite scroll for EVERYONE, anonymous included — public browse must keep
     // paginating as you scroll. The ONLY web-specific divergence from native is
@@ -377,26 +383,39 @@ function VirtualizedWebFeed(props: FeedProps) {
         // trackerRef is a stable ref object; the observer reads `.current` live.
     }, [trackerRef]);
 
-    // Combined per-row ref factory: returns a STABLE callback (cached per post id)
-    // that wires BOTH the virtualizer's measurement ref and the impression
-    // observer on the same row node. Stability matters — a fresh inline arrow
-    // each render would make React detach/re-attach every ref on every render,
-    // re-measuring rows and thrashing observation. The cached callback is reused
-    // across renders for the same post, so the ref only fires on real mount/
-    // unmount. `measureElement` is stable for the lifetime of this virtualizer.
+    // Per-row ref factories. Both return a STABLE callback (cached per row) —
+    // stability matters, because a fresh inline arrow each render would make React
+    // detach/re-attach every ref on every render, re-measuring rows and thrashing
+    // observation. The cached callback is reused across renders for the same row,
+    // so the ref only fires on real mount/unmount. `measureElement` is stable for
+    // the lifetime of this virtualizer.
+    //
+    // A recommendation card gets MEASUREMENT ONLY: it must never carry a
+    // `data-post-uri`, never enter the impression observer, and therefore never
+    // send a bogus `postUri` to `POST /feed/mtn/interactions`.
     const measureElement = virtualizer.measureElement;
-    const rowRefCallbacks = useRef(new Map<string, (node: HTMLDivElement | null) => void>());
-    const getRowRef = useCallback((postUri: string) => {
-        const cache = rowRefCallbacks.current;
+
+    const measureRefCallbacks = useRef(new Map<string, (node: HTMLDivElement | null) => void>());
+    const getMeasureRef = useCallback((rowKey: string) => {
+        const cache = measureRefCallbacks.current;
+        const existing = cache.get(rowKey);
+        if (existing) return existing;
+        if (cache.size > ROW_REF_CACHE_LIMIT) cache.clear();
+        // Virtualizer measurement only (reads data-index → getBoundingClientRect).
+        const cb = (node: HTMLDivElement | null) => measureElement(node);
+        cache.set(rowKey, cb);
+        return cb;
+    }, [measureElement]);
+
+    // Post rows: measurement + impression observation on the SAME node, so
+    // impression ratios reflect the real row geometry.
+    const postRowRefCallbacks = useRef(new Map<string, (node: HTMLDivElement | null) => void>());
+    const getPostRowRef = useCallback((postUri: string) => {
+        const cache = postRowRefCallbacks.current;
         const existing = cache.get(postUri);
         if (existing) return existing;
-        // Bound the cache so a very long scroll session doesn't accumulate one
-        // closure per post id forever. Only rows in the virtual window are ever
-        // mounted, so a modest cap comfortably covers the live set; evicting the
-        // rest just means a future re-scroll recreates that row's callback once.
-        if (cache.size > 500) cache.clear();
+        if (cache.size > ROW_REF_CACHE_LIMIT) cache.clear();
         const cb = (node: HTMLDivElement | null) => {
-            // Virtualizer measurement (reads data-index → getBoundingClientRect).
             measureElement(node);
             if (node) {
                 node.setAttribute(POST_URI_ATTR, postUri);
@@ -461,15 +480,12 @@ function VirtualizedWebFeed(props: FeedProps) {
                         >
                             {virtualItems.map((virtualRow) => {
                                 const row = feedRows[virtualRow.index];
-                                const postUri = getItemKey(row.item);
                                 return (
                                     <div
                                         key={virtualRow.key as React.Key}
-                                        // Stable combined ref: virtualizer measurement
-                                        // (data-index → height) + impression observer
-                                        // (≥50% visibility) on the SAME row node, so
-                                        // impression ratios reflect the real row geometry.
-                                        ref={getRowRef(postUri)}
+                                        ref={row.kind === 'post'
+                                            ? getPostRowRef(getItemKey(row.item))
+                                            : getMeasureRef(feedRowKey(row))}
                                         data-index={virtualRow.index}
                                         style={{
                                             position: 'absolute',

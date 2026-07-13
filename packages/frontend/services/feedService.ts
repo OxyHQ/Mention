@@ -15,8 +15,12 @@ import {
   UpdatePostRequest,
 } from '@mention/shared-types';
 
-// Feed responses may include slices for thread grouping
-type FeedServiceResponse = FeedResponse & Partial<Pick<SlicedFeedResponse, 'slices'>>;
+// Feed responses may include slices for thread grouping, and recommendation-card
+// placements (`interstitials`) for authenticated viewers on the descriptors the
+// backend allows. Both are top-level, optional fields the response carries through
+// unchanged — the card CONTENT is fetched lazily by each card component, so a feed
+// response never blocks on recommendations.
+type FeedServiceResponse = FeedResponse & Partial<Pick<SlicedFeedResponse, 'slices' | 'interstitials'>>;
 import { FeedFilters } from '../utils/feedUtils';
 import { authenticatedClient, publicClient, isNotFoundError } from '../utils/api';
 import { oxyServices } from '@/lib/oxyServices';

@@ -18,6 +18,7 @@ import { resolveDiscoveryGateBucket } from '../feed/discoveryGateExperiment';
 import { FeedGeneratorFeed } from '../feed/feeds/FeedGeneratorFeed';
 import type { FeedAPI } from '../feed/FeedAPI';
 import { FeedTuner } from '../feed/FeedTuner';
+import { planInterstitials } from '../feed/interstitials/planInterstitials';
 import { FeedResponseBuilder } from '../../utils/FeedResponseBuilder';
 import { UserPrivacyManager } from '../UserPrivacyManager';
 import { trackFeedInteraction } from '../feed/FeedInteractionTracker';
@@ -348,6 +349,31 @@ class MtnFeedController {
           },
         });
         syncFlattenedItemsWithSlices(response);
+      }
+
+      // Plan this page's recommendation-card placements. Pure, synchronous, and
+      // I/O-free (it reads the already-truncated slices and the follow count the
+      // context loaded anyway), so the feed never waits on recommendation data —
+      // the client fetches each card's contents lazily. Planned LAST, after the
+      // tuner has settled the final slice list, so a slot can only ever anchor to
+      // a slice that actually shipped.
+      //
+      // Slots live at the TOP LEVEL of the response and NEVER inside
+      // `slices[].items` — that array is flattened into `items[]`, which must stay
+      // strictly posts for every existing client.
+      //
+      // Authenticated viewers only: slots are personalized (they key off the
+      // viewer's graph), and an anonymous page is shared via `anonFeedCache`.
+      if (currentUserId) {
+        response.interstitials = planInterstitials({
+          descriptor,
+          slices: response.slices,
+          // An unresolved follow list reads as an empty graph — the coldest
+          // temperature, which is the right default: it bootstraps discovery.
+          followingCount: context.followingIds?.length ?? 0,
+          isFirstPage: !cursor,
+          cursor,
+        });
       }
 
       // Persist the freshly built anonymous page (fail-soft; no-op for

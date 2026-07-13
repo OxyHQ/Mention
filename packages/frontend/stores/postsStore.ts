@@ -14,6 +14,7 @@ import {
   HydratedPostSummary,
   PostAttachmentBundle,
   PostEngagementSummary,
+  FeedInterstitialSlot,
   FeedPostSlice,
 } from '@mention/shared-types';
 import { createScopedLogger } from '@/lib/logger';
@@ -251,6 +252,14 @@ interface FeedSliceUI {
   error: string | null;
   lastUpdated: number;
   filters?: FeedFilters;
+  /**
+   * Recommendation-card placements accumulated across the loaded pages (replaced
+   * on fetch/refresh, appended on load-more — mirroring how the memory-mode feed
+   * accumulates them). They live in this in-memory UI slice rather than SQLite:
+   * they are per-response placement metadata, valid only for the viewer and the
+   * page set currently loaded, and must never outlive the session.
+   */
+  interstitials?: FeedInterstitialSlot[];
 }
 
 interface PostsStoreState {
@@ -421,7 +430,14 @@ export const usePostsStore = create<PostsStoreState>()(
           ...bumpVersion(s),
           feedUI: {
             ...s.feedUI,
-            [feedKey]: { isLoading: false, error: null, lastUpdated: Date.now(), filters: request.filters },
+            [feedKey]: {
+              isLoading: false,
+              error: null,
+              lastUpdated: Date.now(),
+              filters: request.filters,
+              // Fresh page 1 → the previous page's placements no longer apply.
+              interstitials: response.interstitials,
+            },
           },
           lastRefresh: Date.now(),
         }));
@@ -483,7 +499,17 @@ export const usePostsStore = create<PostsStoreState>()(
 
         set((s) => ({
           ...bumpVersion(s),
-          feedUI: { ...s.feedUI, [feedKey]: { isLoading: false, error: null, lastUpdated: Date.now() } },
+          feedUI: {
+            ...s.feedUI,
+            [feedKey]: {
+              isLoading: false,
+              error: null,
+              lastUpdated: Date.now(),
+              interstitials: request.cursor
+                ? [...(s.feedUI[feedKey]?.interstitials ?? []), ...(response.interstitials ?? [])]
+                : response.interstitials,
+            },
+          },
         }));
 
         return { pending: response.pending === true && items.length === 0 };
@@ -576,7 +602,16 @@ export const usePostsStore = create<PostsStoreState>()(
 
         set((s) => ({
           ...bumpVersion(s),
-          feedUI: { ...s.feedUI, [feedKey]: { isLoading: false, error: null, lastUpdated: Date.now() } },
+          feedUI: {
+            ...s.feedUI,
+            [feedKey]: {
+              isLoading: false,
+              error: null,
+              lastUpdated: Date.now(),
+              // A refresh rebuilds the feed from page 1 → replace the placements.
+              interstitials: response.interstitials,
+            },
+          },
           lastRefresh: Date.now(),
         }));
       } catch (error) {
@@ -639,7 +674,20 @@ export const usePostsStore = create<PostsStoreState>()(
 
         set((s) => ({
           ...bumpVersion(s),
-          feedUI: { ...s.feedUI, [feedKey]: { ...s.feedUI[feedKey], isLoading: false, lastUpdated: Date.now() } },
+          feedUI: {
+            ...s.feedUI,
+            [feedKey]: {
+              ...s.feedUI[feedKey],
+              isLoading: false,
+              lastUpdated: Date.now(),
+              // Each page's slots anchor to slices of THAT page, so appending keeps
+              // every card at its position in the accumulated feed.
+              interstitials: [
+                ...(s.feedUI[feedKey]?.interstitials ?? []),
+                ...(response.interstitials ?? []),
+              ],
+            },
+          },
         }));
       } catch (error) {
         if (abortController.signal.aborted) return;
@@ -1354,6 +1402,7 @@ export const useFeedSelector = (type: FeedType) => {
   return {
     items,
     slices: undefined as FeedPostSlice[] | undefined,
+    interstitials: ui?.interstitials,
     hasMore: meta?.hasMore ?? true,
     nextCursor: meta?.nextCursor,
     totalCount: meta?.totalCount ?? 0,
@@ -1372,6 +1421,7 @@ export const useUserFeedSelector = (userId: string, type: FeedType) => {
   return {
     items,
     slices: undefined as FeedPostSlice[] | undefined,
+    interstitials: ui?.interstitials,
     hasMore: meta?.hasMore ?? true,
     nextCursor: meta?.nextCursor,
     totalCount: meta?.totalCount ?? 0,
