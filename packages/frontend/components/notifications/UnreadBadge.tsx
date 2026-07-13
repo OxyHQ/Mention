@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text } from 'react-native';
 
 /** Above this the pill collapses to "99+" so it never grows unbounded. */
 const MAX_DISPLAY_COUNT = 99;
@@ -28,8 +28,7 @@ const UnreadBadgeComponent: React.FC<UnreadBadgeProps> = ({ count, dot = false, 
   if (dot) {
     return (
       <View
-        className="bg-primary border-background"
-        style={styles.dot}
+        className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 bg-primary border-background"
         accessibilityRole="image"
         accessibilityLabel={accessibilityLabel}
       />
@@ -40,46 +39,16 @@ const UnreadBadgeComponent: React.FC<UnreadBadgeProps> = ({ count, dot = false, 
 
   return (
     <View
-      className="bg-primary border-background"
-      style={styles.pill}
+      className="absolute -top-1 -right-1.5 h-[18px] min-w-[18px] items-center justify-center rounded-full border-2 px-[5px] bg-primary border-background"
       accessibilityRole="image"
       accessibilityLabel={accessibilityLabel}
     >
-      <Text className="text-primary-foreground" style={styles.pillText} numberOfLines={1}>
+      <Text className="text-primary-foreground text-[11px] font-bold leading-[14px]" numberOfLines={1}>
         {label}
       </Text>
     </View>
   );
 };
-
-const styles = StyleSheet.create({
-  pill: {
-    position: 'absolute',
-    top: -4,
-    right: -6,
-    minWidth: 18,
-    height: 18,
-    borderRadius: 9,
-    paddingHorizontal: 5,
-    borderWidth: 2,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  pillText: {
-    fontSize: 11,
-    fontWeight: '700',
-    lineHeight: 14,
-  },
-  dot: {
-    position: 'absolute',
-    top: -2,
-    right: -2,
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    borderWidth: 2,
-  },
-});
 
 export const UnreadBadge = React.memo(UnreadBadgeComponent);
 
