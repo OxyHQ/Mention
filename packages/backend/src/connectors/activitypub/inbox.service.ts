@@ -698,13 +698,26 @@ export class InboxProcessingService {
         return;
       }
 
-      const objectId = object.id;
-      if (!objectId) return;
+      // `object.id` is raw, remote-controlled AP JSON. Require a real string
+      // BEFORE it flows into any Mongo filter: a non-string value (e.g.
+      // `{ $gt: '' }`) would turn the equality match into an operator query
+      // matching arbitrary posts (NoSQL injection). This proven-string barrier
+      // is also the recognized CodeQL sanitizer for the query taint.
+      const objectActivityId = object.id;
+      if (typeof objectActivityId !== 'string' || objectActivityId.length === 0) return;
 
-      const existingPost = await Post.findOne(
-        { 'federation.activityId': objectId },
-        { oxyUserId: 1 },
-      ).lean<{ oxyUserId?: string | null } | null>();
+      // An Update may only edit the SENDING actor's OWN post. Scope every query
+      // by both the activity id AND `federation.actorUri` (stamped at create on
+      // the inbox Create + outbox backfill paths) so a remote server cannot
+      // overwrite another actor's post by replaying its activityId.
+      const editFilter = {
+        'federation.activityId': objectActivityId,
+        'federation.actorUri': actorUri,
+      };
+
+      const existingPost = await Post.findOne(editFilter, { oxyUserId: 1 }).lean<
+        { oxyUserId?: string | null } | null
+      >();
       const ownerOxyUserId = existingPost?.oxyUserId ?? (await actorService.getOrFetchActor(actorUri))?.oxyUserId ?? null;
 
       // Extract the edited body through the SAME shared logic as fresh ingest —
@@ -715,7 +728,7 @@ export class InboxProcessingService {
       // extracted fields (set when present, unset when the edit removed them),
       // never skips/deletes.
       const built = await buildFederatedNoteContentForEdit(object, ownerOxyUserId, {
-        activityId: objectId,
+        activityId: objectActivityId,
         actorUri,
       });
 
@@ -742,8 +755,8 @@ export class InboxProcessingService {
 
       const update: Record<string, unknown> = { $set: setOps };
       if (Object.keys(unsetOps).length > 0) update.$unset = unsetOps;
-      await Post.updateOne({ 'federation.activityId': objectId }, update);
-      logger.debug(`Updated federated post: ${objectId}`);
+      await Post.updateOne(editFilter, update);
+      logger.debug(`Updated federated post: ${objectActivityId}`);
     } else if (object.type === 'Person' || object.type === 'Service' || object.type === 'Application') {
       // Profile update — re-fetch the actor to get updated data
       await actorService.fetchRemoteActor(actorUri);
