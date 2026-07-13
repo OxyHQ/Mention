@@ -228,6 +228,12 @@ const PostItem: React.FC<PostItemProps> = ({
         return null;
     }, [viewPost]);
 
+    // A boost whose original is genuinely gone (deleted/never-imported): the
+    // backend marks `boost.unavailable` with a null `originalPost`. A boost has an
+    // empty body, so we render a muted "no longer available" placeholder in the
+    // embedded-original slot instead of a blank card.
+    const boostUnavailable = Boolean(viewPost?.boost?.unavailable);
+
     const shouldRenderMediaBlock =
         mediaItems.length > 0 ||
         Boolean(nestedPost) ||
@@ -660,7 +666,7 @@ const PostItem: React.FC<PostItemProps> = ({
     // between the identity row and inline body text. Subsequent external blocks
     // still use the normal section gap.
     const Container: React.ElementType = isTappable ? Pressable : View;
-    const hasBelowHeaderBlocks = Boolean((hasValidLocation && location) || hasSources || shouldRenderMediaBlock || !isNested);
+    const hasBelowHeaderBlocks = Boolean((hasValidLocation && location) || hasSources || shouldRenderMediaBlock || boostUnavailable || !isNested);
     const headerToBlocksGap = content.text ? SECTION_GAP : HEADER_CONTENT_GAP;
 
     const replyContextHandle = getNormalizedUserHandle(replyContextAuthor) || replyContextAuthor?.name?.displayName;
@@ -853,6 +859,16 @@ const PostItem: React.FC<PostItemProps> = ({
                                     </TouchableOpacity>
                                 </View>
                             )}
+
+                {boostUnavailable && (
+                    <View style={{ paddingLeft: AVATAR_OFFSET, paddingRight: HPAD }}>
+                        <View className="border-border rounded-2xl border px-3 py-3">
+                            <Text className="text-muted-foreground text-[14px]">
+                                {t('post.boostUnavailable', { defaultValue: 'This post is no longer available' })}
+                            </Text>
+                        </View>
+                    </View>
+                )}
 
                 {shouldRenderMediaBlock && (
                     <PostAttachmentsRow

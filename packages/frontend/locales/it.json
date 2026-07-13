@@ -1254,6 +1254,7 @@
   "post.translate.showOriginal": "Tradotto · Mostra originale",
   "post.translate.error": "Traduzione non riuscita. Riprova.",
   "post.contentWarning": "Avviso sul contenuto",
+  "post.boostUnavailable": "Questo post non è più disponibile",
   "translation.failed": "Traduzione non riuscita. Riprova più tardi.",
   "translation.rateLimited": "Troppe richieste di traduzione. Attendi un momento.",
   "subscribe.title": "Passa a Premium",

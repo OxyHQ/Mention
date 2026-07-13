@@ -1474,6 +1474,7 @@
   "post.translate.showOriginal": "Traducido · Ver original",
   "post.translate.error": "Error al traducir. Inténtalo de nuevo.",
   "post.contentWarning": "Advertencia de contenido",
+  "post.boostUnavailable": "Esta publicación ya no está disponible",
   "translation.failed": "Error al traducir. Inténtalo más tarde.",
   "translation.rateLimited": "Demasiadas solicitudes de traducción. Espera un momento.",
   "subscribe.title": "Hazte Premium",

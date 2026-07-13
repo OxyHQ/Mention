@@ -253,6 +253,53 @@ describe('PostHydrationService — boost original embedding is deterministic', (
     expect(hydrated.originalPost).toBeNull();
   });
 
+  it('surfaces an "unavailable" boost context when the boosted original is gone (deleted/never-imported)', async () => {
+    service = new PostHydrationService();
+
+    // The boosted original does not exist: its forced depth-1 reference fetch
+    // returns no row. Instead of a blank card the boost must carry an
+    // `unavailable` marker (with a null originalPost) — at EVERY maxDepth, since
+    // most feed paths hydrate boosts at maxDepth:0.
+    postFind.mockReturnValue([]);
+    getUsersByIds.mockResolvedValue([makeOxyUser(BOOSTER_OXY_ID, 'booster', 'Booster')]);
+
+    for (const depth of [0, 1, 2]) {
+      const [hydrated] = await service.hydratePosts([boostRow()], {
+        viewerId: undefined,
+        maxDepth: depth,
+        includeLinkMetadata: false,
+        includeFullMetadata: false,
+      });
+      expect(hydrated, `maxDepth ${depth}: boost post missing`).toBeTruthy();
+      expect(hydrated.boost, `maxDepth ${depth}: boost context should not be null`).toBeTruthy();
+      expect(hydrated.boost?.unavailable, `maxDepth ${depth}: unavailable flag`).toBe(true);
+      expect(hydrated.boost?.originalPost, `maxDepth ${depth}: originalPost should be null`).toBeNull();
+      expect(hydrated.originalPost, `maxDepth ${depth}: top-level originalPost should be null`).toBeNull();
+    }
+  });
+
+  it('keeps boost null — never "unavailable" — when the original EXISTS but is hidden from the viewer', async () => {
+    service = new PostHydrationService();
+
+    // The original is present (fetched into the graph) but private, so it is
+    // excluded for an anonymous viewer. The boost must stay `null` (its existence
+    // is never revealed) and must NOT be flagged `unavailable` — that marker is
+    // reserved for genuinely-gone originals.
+    postFind.mockImplementation((query: Record<string, unknown> | undefined) => {
+      const idIn = (query?._id as { $in?: unknown[] } | undefined)?.$in;
+      if (Array.isArray(idIn) && idIn.some((v) => String(v) === ORIGINAL_ID)) {
+        return [{ ...originalRow(), visibility: 'private', status: 'published' }];
+      }
+      return [];
+    });
+
+    const [hydrated] = await hydrateBoost(undefined);
+
+    expect(hydrated).toBeTruthy();
+    expect(hydrated.boost).toBeNull();
+    expect(hydrated.originalPost).toBeNull();
+  });
+
   it('allows a referenced followers-only original only for an authenticated follower viewer', async () => {
     service = new PostHydrationService();
 

@@ -702,8 +702,21 @@ export interface HydratedPostSummary {
 }
 
 export interface HydratedBoostContext {
-  originalPost: HydratedPostSummary;
+  /**
+   * The boosted original. `null` ONLY when the original is genuinely gone
+   * (deleted or never imported) — paired with `unavailable: true`. A boost has an
+   * empty body, so the client renders an "unavailable" placeholder rather than a
+   * blank card. When the original exists this is always populated.
+   */
+  originalPost: HydratedPostSummary | null;
   actor: PostUser;
+  /**
+   * True when the boosted original no longer exists (deleted/never-imported), so
+   * `originalPost` is null. Distinct from a boost whose original is hidden from
+   * THIS viewer by an ACL/visibility check — that yields `boost: null` (the
+   * original's existence is not revealed), not an `unavailable` placeholder.
+   */
+  unavailable?: boolean;
   reason?: string;
 }
 
