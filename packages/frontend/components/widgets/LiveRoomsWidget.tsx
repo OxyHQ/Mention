@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo } from 'react';
-import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Text, TouchableOpacity, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@oxyhq/services';
@@ -18,6 +18,7 @@ import { shareLink } from '@/utils/shareLink';
 import { WEB_BASE_URL } from '@/config';
 import { SyraIcon } from '@syra.fm/sdk';
 import * as Skeleton from '@oxyhq/bloom/skeleton';
+import { LIVE_INDICATOR_COLOR } from '@/styles/colors';
 
 const MAX_ROOMS_DISPLAYED = 3;
 const LIVE_ROOMS_ROUTE = '/live-rooms';
@@ -46,16 +47,15 @@ const RoomRow = React.memo(function RoomRow({
 
   return (
     <TouchableOpacity
-      className={`flex-row items-center py-1.5 ${!isLast ? "border-border" : ""}`}
-      style={[
-        styles.webCursor,
-        !isLast && styles.itemBorder,
-      ]}
+      className={`flex-row items-center py-1.5 web:cursor-pointer ${!isLast ? 'border-b-[0.5px] border-border' : ''}`}
       onPress={onPress}
       activeOpacity={0.7}
     >
       <View className="flex-1 flex-row items-center gap-2">
-        <View className="w-1.5 h-1.5 rounded-full bg-[#FF4458]" />
+        <View
+          className="w-1.5 h-1.5 rounded-full"
+          style={{ backgroundColor: LIVE_INDICATOR_COLOR }}
+        />
         <View className="flex-1">
           <Text
             className="text-foreground text-[13px] font-bold"
@@ -72,8 +72,7 @@ const RoomRow = React.memo(function RoomRow({
         </View>
       </View>
       <TouchableOpacity
-        className="p-1"
-        style={styles.webCursor}
+        className="p-1 web:cursor-pointer"
         onPress={() => onMenuPress(room)}
         hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         accessibilityLabel="More options"
@@ -180,7 +179,7 @@ export function LiveRoomsWidget({ divider }: { divider?: boolean }) {
             ))}
           </View>
           <TouchableOpacity
-            style={styles.webCursor}
+            className="web:cursor-pointer"
             onPress={handleShowMore}
             activeOpacity={0.7}
           >
@@ -193,8 +192,3 @@ export function LiveRoomsWidget({ divider }: { divider?: boolean }) {
     </BaseWidget>
   );
 }
-
-const styles = StyleSheet.create({
-  webCursor: Platform.select({ web: { cursor: 'pointer' }, default: {} }),
-  itemBorder: { borderBottomWidth: 0.5 },
-});
