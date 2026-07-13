@@ -1,19 +1,16 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity } from 'react-native';
+import { View, FlatList } from 'react-native';
 import { Loading } from '@oxyhq/bloom/loading';
-import { useTheme } from '@oxyhq/bloom/theme';
 import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';
 import { CloseIcon } from '@/assets/icons/close-icon';
 import { feedService } from '@/services/feedService';
-import { Avatar } from '@oxyhq/bloom/avatar';
+import { ProfileCard, ProfileCardSkeletonList } from '@/components/ProfileCard';
 
 import { useRouter } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
 import { EmptyState } from '@/components/common/EmptyState';
 import { logger } from '@/lib/logger';
 import { getNormalizedUserHandle } from '@oxyhq/core';
-import { displayNameOrHandle } from '@/utils/displayName';
 
 interface User {
   id: string;
@@ -25,6 +22,9 @@ interface User {
   instance?: string;
 }
 
+/** Placeholder rows painted while the first page of engagers loads. */
+const SKELETON_ROW_COUNT = 8;
+
 interface EngagementListSheetProps {
   postId: string;
   type: 'likes' | 'boosts';
@@ -32,7 +32,6 @@ interface EngagementListSheetProps {
 }
 
 const EngagementListSheet: React.FC<EngagementListSheetProps> = ({ postId, type, onClose }) => {
-  const theme = useTheme();
   const router = useRouter();
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
@@ -88,36 +87,21 @@ const EngagementListSheet: React.FC<EngagementListSheetProps> = ({ postId, type,
     }
   }, [onClose, router]);
 
-  const renderUser = useCallback(({ item }: { item: User }) => {
-    // A real display name is the bold primary with the muted @handle below; with
-    // no display name the @handle becomes the bold primary, shown ONCE.
-    const hasName = !!item.displayName?.trim();
-    return (
-      <TouchableOpacity
-        className="flex-row items-center px-4 py-3"
-        style={{ borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: 'transparent' }}
-        onPress={() => handleUserPress(item)}
-      >
-        <Avatar source={item.avatar} size={50} style={{ marginRight: 12 }} />
-        <View className="flex-1">
-          <View className="flex-row items-center">
-            <Text className="text-foreground text-base font-semibold" numberOfLines={1}>
-              {displayNameOrHandle(item.displayName, `@${item.handle}`)}
-            </Text>
-            {item.verified && (
-              <Ionicons name="checkmark-circle" size={16} color={theme.colors.primary} style={{ marginLeft: 4 }} />
-            )}
-          </View>
-          {hasName && !!item.handle ? (
-            <Text className="text-muted-foreground text-sm mt-0.5" numberOfLines={1}>
-              @{item.handle}
-            </Text>
-          ) : null}
-        </View>
-        <Ionicons name="chevron-forward" size={20} color={theme.colors.textSecondary} />
-      </TouchableOpacity>
-    );
-  }, [theme, handleUserPress]);
+  const renderUser = useCallback(({ item }: { item: User }) => (
+    <ProfileCard
+      profile={{
+        id: item.id,
+        handle: item.handle,
+        name: { displayName: item.displayName },
+        avatar: item.avatar,
+        verified: item.verified,
+        isFederated: item.isFederated,
+        instance: item.instance,
+      }}
+      showFollowButton
+      onPress={() => handleUserPress(item)}
+    />
+  ), [handleUserPress]);
 
   if (loading) {
     return (
@@ -137,9 +121,8 @@ const EngagementListSheet: React.FC<EngagementListSheetProps> = ({ postId, type,
           hideBottomBorder={true}
           disableSticky={true}
         />
-        <View className="flex-1 justify-center items-center">
-          <Loading className="text-primary" size="large" />
-        </View>
+        {/* The rows this list is about to paint, as placeholders. */}
+        <ProfileCardSkeletonList count={SKELETON_ROW_COUNT} showFollowButton />
       </View>
     );
   }

@@ -2,15 +2,12 @@ import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { ThemedText } from '@/components/ThemedText';
-import { Avatar } from '@oxyhq/bloom/avatar';
-
-import { StableFollowButton } from '@/components/StableFollowButton';
+import { ProfileCard, ProfileCardSkeletonList, type ProfileCardData } from '@/components/ProfileCard';
 import { useLocalSearchParams, router, usePathname } from 'expo-router';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { View, TouchableOpacity, Share, Platform, StyleSheet } from 'react-native';
-import { Loading } from '@oxyhq/bloom/loading';
+import { View, TouchableOpacity, Share, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ThemedView } from '@/components/ThemedView';
 import { VirtualList } from '@oxyhq/bloom/list';
@@ -29,7 +26,6 @@ import { logger } from '@/lib/logger';
 import { useRecommendations } from '@/hooks/useRecommendations';
 import { type ProfileData as RecommendedProfile } from '@/lib/recommendations';
 import { isAuthError } from '@/utils/authErrors';
-import { displayNameOrHandle } from '@/utils/displayName';
 import { getNormalizedUserHandle } from '@oxyhq/core';
 
 type TabType = 'followers' | 'following' | 'who-may-know' | 'in-common';
@@ -41,6 +37,9 @@ type TabType = 'followers' | 'following' | 'who-may-know' | 'in-common';
  * endpoint every time the user toggles between connection tabs.
  */
 const RECOMMENDATIONS_STALE_TIME_MS = 60_000;
+
+/** Placeholder rows painted while a connections tab loads. */
+const SKELETON_ROW_COUNT = 8;
 
 interface ConnectionUser {
   id?: string;
@@ -85,6 +84,27 @@ function toConnectionUser(profile: RecommendedProfile): ConnectionUser {
     instance: profile.instance,
     federation: profile.federation ? { domain: profile.federation.domain } : undefined,
     name: profile.name,
+  };
+}
+
+/**
+ * Map a connection row onto the shared {@link ProfileCard} shape. Returns null
+ * for a row with no id or no resolvable handle — an unidentified user must never
+ * render as a profile link (the ghost-handle rule).
+ */
+function toProfileCardData(item: ConnectionUser): ProfileCardData | null {
+  const id = String(item.id || item._id || item.userID || '');
+  const username = item.username || item.handle;
+  if (!id || !username) return null;
+  return {
+    id,
+    username,
+    name: item.name,
+    avatar: item.avatar ?? item.profilePicture,
+    description: item.profile?.bio || item.bio,
+    isFederated: item.isFederated || item.type === 'federated',
+    instance: item.instance,
+    federation: item.federation,
   };
 }
 
@@ -370,53 +390,10 @@ function ConnectionsContent({
   }, [getInviteMessage, t]);
 
   const renderUser = useCallback(({ item }: { item: ConnectionUser }) => {
-    const usernameValue = item?.username || item?.handle;
-    if (!usernameValue) return null;
-    const instance = item?.instance || item?.federation?.domain;
-    const isFederated = item?.isFederated || item?.type === 'federated';
-    const handle = getNormalizedUserHandle({
-      username: String(usernameValue),
-      instance,
-      isFederated,
-    });
-    if (!handle) return null;
-
-    const avatarSource = item?.avatar ?? item.profilePicture;
-    const bio = item?.profile?.bio || item?.bio;
-    const userId = String(item.id || item._id || item.userID || '');
-    if (!userId) return null;
-    // A real display name is the bold primary with the muted @handle below; with
-    // no display name the @handle becomes the bold primary, shown ONCE.
-    const hasName = !!item.name?.displayName?.trim();
-
-    return (
-      <View style={[styles.row, { borderBottomColor: theme.colors.border }]}>
-        <TouchableOpacity
-          className="flex-row items-center flex-1"
-          onPress={() => router.push(`/@${handle}`)}
-          activeOpacity={0.7}
-        >
-          <Avatar source={avatarSource || undefined} size={48} />
-          <View className="ml-3 flex-1">
-            <ThemedText className="font-semibold text-base text-foreground" numberOfLines={1}>
-              {displayNameOrHandle(item.name?.displayName, `@${handle}`)}
-            </ThemedText>
-            {hasName ? (
-              <ThemedText className="pt-0.5 text-sm text-muted-foreground" numberOfLines={1}>
-                @{handle}
-              </ThemedText>
-            ) : null}
-            {bio ? (
-              <ThemedText className="pt-1 text-sm leading-[18px] text-muted-foreground" numberOfLines={2}>
-                {bio}
-              </ThemedText>
-            ) : null}
-          </View>
-        </TouchableOpacity>
-        <StableFollowButton userId={userId} size="small" />
-      </View>
-    );
-  }, [router, theme.colors.border]);
+    const profile = toProfileCardData(item);
+    if (!profile) return null;
+    return <ProfileCard profile={profile} showFollowButton />;
+  }, []);
 
   const renderInviteBanner = useCallback(() => (
     <TouchableOpacity
@@ -573,26 +550,14 @@ function ConnectionsContent({
       );
     }
 
-    if (activeLoading && currentData.length === 0) {
-      return (
-        <View className="flex-1 items-center justify-center gap-3 px-4">
-          <Loading className="text-primary" size="large" />
-          <ThemedText className="text-base text-muted-foreground">
-            {t('Loading...', { defaultValue: 'Loading...' })}
-          </ThemedText>
-        </View>
-      );
-    }
-
-    if (profileLoading && activeTab !== 'who-may-know') {
-      return (
-        <View className="flex-1 items-center justify-center gap-3 px-4">
-          <Loading className="text-primary" size="large" />
-          <ThemedText className="text-base text-muted-foreground">
-            {t('Loading...', { defaultValue: 'Loading...' })}
-          </ThemedText>
-        </View>
-      );
+    // Every tab of this screen is a list of the SAME user row, so both waits (the
+    // tab's own fetch, and the profile lookup that keys it) paint the row
+    // skeletons rather than a centered spinner the list then replaces.
+    const isWaitingForRows =
+      (activeLoading && currentData.length === 0) ||
+      (profileLoading && activeTab !== 'who-may-know');
+    if (isWaitingForRows) {
+      return <ProfileCardSkeletonList count={SKELETON_ROW_COUNT} showFollowButton />;
     }
 
     return (
@@ -655,15 +620,3 @@ function ConnectionsContent({
     </ThemedView>
   );
 }
-
-const styles = StyleSheet.create({
-  row: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    borderBottomWidth: 0.5,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    ...Platform.select({ web: { cursor: 'pointer' as const } }),
-  },
-});

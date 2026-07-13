@@ -13,14 +13,13 @@ import { useTheme } from '@oxyhq/bloom/theme';
 import { useAuth, FollowButton } from '@oxyhq/services';
 import { useHaptics } from '@oxyhq/bloom/hooks';
 import { Ionicons } from '@expo/vector-icons';
-import { Avatar } from '@oxyhq/bloom/avatar';
 import { AvatarGroup, type AvatarGroupItem } from '@oxyhq/bloom/avatar-group';
+import { ProfileCard } from '@/components/ProfileCard';
 
 import SEO from '@/components/SEO';
 import { formatCompactNumber } from '@/utils/formatNumber';
 import { displayNameOrHandle } from '@/utils/displayName';
 import { logger } from '@/lib/logger';
-import { getNormalizedUserHandle } from '@oxyhq/core';
 
 interface MemberProfile {
   id: string;
@@ -174,41 +173,24 @@ export default function StarterPackDetailScreen() {
         )}
       </View>
 
-      {/* Member list */}
-      <View className="px-4 pt-2 pb-8">
-        <ThemedText className="text-base font-bold mb-3">
+      {/* Member list — rows are full-bleed, so only the section title is inset. */}
+      <View className="pt-2 pb-8">
+        <ThemedText className="text-base font-bold mb-3 px-4">
           Accounts in this pack
         </ThemedText>
+        {/* The shared user row; its follow button renders nothing on the viewer's own row. */}
         {members.map((m) => (
-            <TouchableOpacity
-              key={m.id}
-              className="flex-row items-center py-3 border-b border-border gap-3"
-              onPress={() => {
-                const handle = getNormalizedUserHandle({ username: m.username });
-                if (handle) {
-                  router.push(`/@${handle}`);
-                }
-              }}
-              activeOpacity={0.7}
-              accessibilityRole="button"
-              accessibilityLabel={`${m.displayName}, @${m.username}`}>
-              <Avatar source={m.avatar} size={44} />
-              <View className="flex-1 gap-0.5">
-                <ThemedText
-                  className="text-[15px] font-semibold"
-                  numberOfLines={1}>
-                  {m.displayName}
-                </ThemedText>
-                <ThemedText
-                  className="text-sm text-muted-foreground"
-                  numberOfLines={1}>
-                  @{m.username}
-                </ThemedText>
-              </View>
-              {/* Per-member follow; FollowButton returns null on the viewer's own row. */}
-              <FollowButton userId={m.id} size="small" />
-            </TouchableOpacity>
-          ))}
+          <ProfileCard
+            key={m.id}
+            profile={{
+              id: m.id,
+              username: m.username,
+              name: { displayName: m.displayName },
+              avatar: m.avatar,
+            }}
+            showFollowButton
+          />
+        ))}
       </View>
     </>
   ) : null;

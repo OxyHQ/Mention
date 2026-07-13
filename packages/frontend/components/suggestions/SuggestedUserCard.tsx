@@ -1,15 +1,10 @@
 import React, { memo, useCallback } from 'react';
-import { View, TouchableOpacity, Pressable, Platform, StyleSheet } from 'react-native';
-import { useRouter } from 'expo-router';
+import { Pressable } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { FollowButton } from '@oxyhq/services';
-import { Avatar } from '@oxyhq/bloom/avatar';
 
-import { ThemedText } from '@/components/ThemedText';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { useUserById } from '@/hooks/useCachedUser';
-import UserName from '@/components/UserName';
-import { getNormalizedUserHandle } from '@oxyhq/core';
+import { ProfileCard, type ProfileCardData } from '@/components/ProfileCard';
 
 interface SuggestedUserData {
   id: string;
@@ -29,76 +24,54 @@ interface SuggestedUserCardProps {
   hideDismiss?: boolean;
 }
 
+/**
+ * A suggestion row: the shared {@link ProfileCard} (identity + follow button)
+ * plus the dismiss control this surface adds on top of it.
+ */
 export const SuggestedUserCard = memo(function SuggestedUserCard({
   user,
   onDismiss,
   hideDismiss,
 }: SuggestedUserCardProps) {
   const theme = useTheme();
-  const router = useRouter();
   const cachedUser = useUserById(user.id);
-
-  const handle = getNormalizedUserHandle(user);
-
-  const handlePress = useCallback(() => {
-    if (handle) {
-      router.push(`/@${handle}`);
-    }
-  }, [router, handle]);
 
   const handleDismiss = useCallback(() => {
     onDismiss(user.id);
   }, [onDismiss, user.id]);
 
+  const profile: ProfileCardData = {
+    id: user.id,
+    username: user.username || cachedUser?.username || '',
+    name: user.name,
+    avatar: user.avatar || cachedUser?.avatar,
+    color: cachedUser?.color,
+    description: user.bio,
+    isFederated: user.isFederated,
+    isAgent: user.isAgent,
+    isAutomated: user.isAutomated,
+    instance: user.instance,
+  };
+
   return (
-    <TouchableOpacity
-      className="flex-row items-center py-3 px-4 border-b border-border"
-      style={Platform.select({ web: styles.webCursor })}
-      onPress={handlePress}
-      disabled={!handle}
-      activeOpacity={0.7}
-    >
-      <Avatar source={user.avatar || cachedUser?.avatar} size={40} variant="thumb" />
-      <View className="flex-1 ml-3 mr-3">
-        <UserName
-          name={user.name.displayName}
-          isFederated={user.isFederated}
-          isAgent={user.isAgent}
-          isAutomated={user.isAutomated}
-          variant="small"
-          style={{ name: { fontSize: 15, lineHeight: 20 } }}
-        />
-        <ThemedText className="text-muted-foreground text-sm" style={{ lineHeight: 18, marginTop: 1 }} numberOfLines={1}>
-          {handle ? `@${handle}` : '@unknown'}
-        </ThemedText>
-        {user.bio ? (
-          <ThemedText
-            className="text-muted-foreground text-sm mt-1"
-            style={{ lineHeight: 18 }}
-            numberOfLines={2}
+    <ProfileCard
+      profile={profile}
+      showFollowButton
+      accessory={
+        hideDismiss ? undefined : (
+          <Pressable
+            className="p-1"
+            onPress={handleDismiss}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            accessibilityRole="button"
+            accessibilityLabel="Dismiss suggestion"
           >
-            {user.bio}
-          </ThemedText>
-        ) : null}
-      </View>
-      <FollowButton userId={user.id} size="small" />
-      {!hideDismiss && (
-        <Pressable
-          className="p-1 ml-2"
-          onPress={handleDismiss}
-          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-        >
-          <Ionicons name="close" size={14} color={theme.colors.textSecondary} />
-        </Pressable>
-      )}
-    </TouchableOpacity>
+            <Ionicons name="close" size={14} color={theme.colors.textSecondary} />
+          </Pressable>
+        )
+      }
+    />
   );
 });
 
 export type { SuggestedUserData };
-
-const styles = StyleSheet.create({
-  webCursor: {
-    cursor: 'pointer',
-  },
-});
