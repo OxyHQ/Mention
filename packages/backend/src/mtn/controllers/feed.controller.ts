@@ -20,6 +20,7 @@ import type { FeedAPI } from '../feed/FeedAPI';
 import { FeedTuner } from '../feed/FeedTuner';
 import { planInterstitials } from '../feed/interstitials/planInterstitials';
 import { FeedResponseBuilder } from '../../utils/FeedResponseBuilder';
+import { queryString } from '../../utils/queryParams';
 import { UserPrivacyManager } from '../UserPrivacyManager';
 import { trackFeedInteraction } from '../feed/FeedInteractionTracker';
 import { logger } from '../../utils/logger';
@@ -196,16 +197,21 @@ class MtnFeedController {
    */
   async getFeed(req: AuthRequest, res: Response): Promise<void> {
     try {
-      const descriptorParam = req.query.descriptor as string;
+      // Read query params through `queryString`, never through a cast: a tampered
+      // `?cursor[]=a&cursor[]=b` arrives as an ARRAY, and the interstitial planner
+      // hashes the cursor character by character — an array there is an unhandled
+      // TypeError, i.e. a 500 from a crafted URL.
+      const descriptorParam = queryString(req.query.descriptor);
       if (!descriptorParam || !isValidFeedDescriptor(descriptorParam)) {
         res.status(400).json({ success: false, error: 'Invalid or missing feed descriptor' });
         return;
       }
 
-      const descriptor = descriptorParam as FeedDescriptor;
-      const cursor = req.query.cursor as string | undefined;
+      // `isValidFeedDescriptor` is a type guard, so this is already a FeedDescriptor.
+      const descriptor: FeedDescriptor = descriptorParam;
+      const cursor = queryString(req.query.cursor);
       const limit = Math.min(
-        Math.max(parseInt(req.query.limit as string, 10) || MtnConfig.feed.defaultLimit, 1),
+        Math.max(parseInt(queryString(req.query.limit) ?? '', 10) || MtnConfig.feed.defaultLimit, 1),
         MtnConfig.feed.maxLimit
       );
       const videoFilters = parseVideoFeedFilters(descriptor, req.query);
@@ -400,13 +406,14 @@ class MtnFeedController {
    */
   async peekLatest(req: AuthRequest, res: Response): Promise<void> {
     try {
-      const descriptorParam = req.query.descriptor as string;
+      // Same boundary narrowing as getFeed: a query param can arrive as an array.
+      const descriptorParam = queryString(req.query.descriptor);
       if (!descriptorParam || !isValidFeedDescriptor(descriptorParam)) {
         res.status(400).json({ success: false, error: 'Invalid or missing feed descriptor' });
         return;
       }
 
-      const descriptor = descriptorParam as FeedDescriptor;
+      const descriptor: FeedDescriptor = descriptorParam;
       const currentUserId = req.user?.id;
 
       const privacyState = currentUserId
