@@ -25,7 +25,6 @@ import { Video, VideoActive } from "@/assets/icons/video-icon";
 import { Hashtag, HashtagActive } from "@/assets/icons/hashtag-icon";
 import { AnalyticsIcon, AnalyticsIconActive } from "@/assets/icons/analytics-icon";
 import { useTheme } from '@oxyhq/bloom/theme';
-import { Chat, ChatActive } from '@/assets/icons/chat-icon';
 import { Bell, BellActive } from '@/assets/icons/bell-icon';
 import { SyraIcon, SyraIconActive } from '@syra.fm/sdk';
 import { useAuth, ProfileButton } from '@oxyhq/services';
@@ -64,7 +63,7 @@ export function SideBar({ asDrawer = false, onNavigate }: SideBarProps) {
     const avatarUri = user?.avatar;
 
     // Every sidebar destination is a TAB ROOT (home, the current user's own
-    // profile, explore, notifications, chat, live rooms, insights, saved, feeds,
+    // profile, explore, notifications, live rooms, insights, saved, feeds,
     // lists, videos, settings). With the (app) center now a Stack, `navigate`
     // pops to an existing instance of the target instead of stacking a new copy,
     // so repeatedly clicking tabs never grows the stack or duplicates Home.
@@ -128,12 +127,6 @@ export function SideBar({ asDrawer = false, onNavigate }: SideBarProps) {
             icon: <Bell />,
             iconActive: <BellActive />,
             route: '/notifications',
-        },
-        {
-            title: t("sidebar.chat"),
-            icon: <Chat />,
-            iconActive: <ChatActive />,
-            route: '/chat',
         },
         {
             title: t("sidebar.liveRooms"),
