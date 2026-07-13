@@ -40,7 +40,21 @@ export interface GroupedNotification {
   leadNotification: TRawNotification;
   /** Whether this is a group (true) or a single notification (false) */
   isGroup: boolean;
+  /**
+   * Whether the row can reveal more than the collapsed actor strip shows — true
+   * when there are more unique actors than the (capped) `actors` array, or when
+   * the group collapses multiple notifications from the same actor(s). Drives the
+   * "Show all / Show less" affordance on the unified row.
+   */
+  expandable: boolean;
 }
+
+/**
+ * Max actors kept in the {@link GroupedNotification.actors} array. The collapsed
+ * strip still shows only the first 3 (+N); the extra entries are revealed by the
+ * expandable actor list without any refetch.
+ */
+const MAX_GROUP_ACTORS = 8;
 
 /**
  * Groups an array of validated notifications.
@@ -121,12 +135,6 @@ function objectId(value: unknown): string | undefined {
     : stringValue(value);
 }
 
-function nameToString(value: unknown): string | undefined {
-  const object = objectValue(value);
-  const name = objectValue(object?.name);
-  return object ? stringValue(name?.displayName) || stringValue(object.displayName) : stringValue(value);
-}
-
 function extractActor(n: TRawNotification): GroupedActor {
   const populated = n.actorId_populated;
   const actorId = objectId(n.actorId) || 'unknown';
@@ -174,6 +182,7 @@ function toSingle(n: TRawNotification): GroupedNotification {
     notificationIds: [n._id],
     leadNotification: n,
     isGroup: false,
+    expandable: false,
   };
 }
 
@@ -191,6 +200,7 @@ function toGroup(n: TRawNotification, groupKey: string, entityId: string): Group
     notificationIds: [n._id],
     leadNotification: n,
     isGroup: false, // will flip to true when 2nd notification merges
+    expandable: false,
   };
 }
 
@@ -200,7 +210,7 @@ function mergeIntoGroup(group: GroupedNotification, n: TRawNotification): void {
   // Keep track of unique actors (by id)
   const existingIds = new Set(group.actors.map(a => a.id));
   if (!existingIds.has(actor.id)) {
-    if (group.actors.length < 3) {
+    if (group.actors.length < MAX_GROUP_ACTORS) {
       group.actors.push(actor);
     }
     group.totalActors += 1;
@@ -219,4 +229,7 @@ function mergeIntoGroup(group: GroupedNotification, n: TRawNotification): void {
   }
 
   group.isGroup = true;
+  // Expandable when there are more unique actors than we kept, or when the group
+  // merges multiple notifications (same actor(s) acting more than once).
+  group.expandable = group.totalActors > group.actors.length || group.notificationIds.length > 1;
 }

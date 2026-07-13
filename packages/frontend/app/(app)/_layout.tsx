@@ -10,6 +10,7 @@ import { DrawerOverlay } from "@/components/DrawerOverlay";
 import KeyboardShortcutsModal from "@/components/KeyboardShortcutsModal";
 import RegisterPush from '@/components/RegisterPushToken';
 import { RealtimePostsBridge } from '@/components/RealtimePostsBridge';
+import { RealtimeNotificationsBridge } from '@/components/RealtimeNotificationsBridge';
 import { RightBar } from "@/components/RightBar";
 import { SideBar } from "@/components/SideBar";
 import { SignInBanner } from "@/components/SignInBanner";
@@ -120,6 +121,7 @@ export default function AppLayout() {
     <AppShellProviders>
       <ConnectionStatus />
       <RealtimePostsBridge />
+      <RealtimeNotificationsBridge />
       {/* ── visual shell (was MainLayout): SideBar + gutter/ContentPanel + RightBar ── */}
       <View
         className={cn(

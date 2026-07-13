@@ -12,17 +12,24 @@ import { OxyAuthPrompt, useAuth } from '@oxyhq/services';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { Loading } from '@oxyhq/bloom/loading';
-import { NotificationItem } from '@/components/NotificationItem';
+import { NotificationItem } from '@/components/notifications/NotificationItem';
 import { ErrorBoundary } from '@oxyhq/bloom/error-boundary';
 import { createScopedLogger } from '@/lib/logger';
 import { notificationService } from '@/services/notificationService';
 import { useTranslation } from 'react-i18next';
-import { useRealtimeNotifications } from '@/hooks/useRealtimeNotifications';
 import { validateNotifications } from '@/types/validation';
 import { normalizeApiError } from '@/utils/apiError';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { groupNotifications, GroupedNotification } from '@/utils/groupNotifications';
-import { GroupedNotificationItem } from '@/components/GroupedNotificationItem';
+import { useUnreadCount, unreadCountKey } from '@/hooks/useUnreadCount';
+import {
+    notificationsKey,
+    findNotification,
+    markNotificationsRead,
+    markAllNotificationsRead,
+    bumpUnread,
+    type NotificationsInfiniteData,
+} from '@/utils/notificationCache';
 import { NotificationsList } from '@/components/NotificationsList';
 import { useLayoutScroll } from '@/context/LayoutScrollContext';
 import AnimatedTabBar from '@/components/common/AnimatedTabBar';
@@ -54,8 +61,9 @@ const NotificationsScreen: React.FC = () => {
     // the registered FlashList (the NotificationsList registers itself).
     const { scrollToTop } = useLayoutScroll();
 
-    // Enable real-time notifications
-    useRealtimeNotifications();
+    // The realtime socket is mounted app-wide via <RealtimeNotificationsBridge/>
+    // (a module singleton). This screen must NOT also call
+    // useRealtimeNotifications() — a second mount would double every listener.
 
     // Fetch notifications — cursor-paginated. Gated on `canUsePrivateApi` (not
     // just `isAuthenticated`) so the private `/notifications` read never fires
@@ -87,34 +95,52 @@ const NotificationsScreen: React.FC = () => {
         }
     }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
-    // Mark notification as read mutation
+    // Live unread count (drives both the header "mark all" affordance and the
+    // bell badges elsewhere) — the single source of truth, kept in lockstep with
+    // the list via the shared cache reducers below.
+    const unreadCount = useUnreadCount();
+    const notificationsQueryKey = useMemo(() => notificationsKey(user?.id), [user?.id]);
+
+    // Optimistically patch the cached list + badge in place (no invalidate/
+    // refetch flicker). The server echo to `user:<id>` reconciles idempotently.
+    const applyReadPatch = useCallback((ids: string[]) => {
+        const prev = queryClient.getQueryData<NotificationsInfiniteData>(notificationsQueryKey);
+        let delta = 0;
+        if (prev) {
+            for (const id of ids) {
+                const found = findNotification(prev, id);
+                if (found && !found.read) delta -= 1;
+            }
+        }
+        queryClient.setQueryData<NotificationsInfiniteData>(notificationsQueryKey, (data) =>
+            data ? markNotificationsRead(data, ids) : data,
+        );
+        if (delta !== 0) bumpUnread(queryClient, user?.id, delta);
+    }, [queryClient, notificationsQueryKey, user?.id]);
+
+    // Mark notification(s) as read — group rows pass every id in the group.
     const markAsReadMutation = useMutation({
-        mutationFn: (notificationId: string) =>
-            notificationService.markAsRead(notificationId),
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['notifications'] });
-        },
+        mutationFn: (ids: string[]) => Promise.all(ids.map((id) => notificationService.markAsRead(id))),
+        onMutate: (ids: string[]) => applyReadPatch(ids),
         onError: (error: unknown) => {
             notificationLogger.error('Error marking notification as read', { error });
             toast(t('notification.mark_read_error') || 'Failed to mark notification as read', { type: 'error' });
+            // Resync from the server on failure to undo the optimistic patch.
+            queryClient.invalidateQueries({ queryKey: ['notifications'] });
         },
     });
 
     // Mark all as read mutation
     const markAllAsReadMutation = useMutation({
-        mutationFn: async () => {
-            const result = await notificationService.markAllAsRead();
-            return result;
+        mutationFn: () => notificationService.markAllAsRead(),
+        onMutate: () => {
+            queryClient.setQueryData<NotificationsInfiniteData>(notificationsQueryKey, (data) =>
+                data ? markAllNotificationsRead(data) : data,
+            );
+            queryClient.setQueryData<number>(unreadCountKey(user?.id), 0);
         },
-        onSuccess: async () => {
-            try {
-                queryClient.invalidateQueries({ queryKey: ['notifications'] });
-                await refetch();
-                toast(t('notification.mark_all_read_success') || 'All notifications marked as read', { type: 'success' });
-            } catch (refetchError) {
-                notificationLogger.error('Error refetching notifications', { error: refetchError });
-                toast(t('notification.mark_all_read_success') || 'All notifications marked as read', { type: 'success' });
-            }
+        onSuccess: () => {
+            toast(t('notification.mark_all_read_success') || 'All notifications marked as read', { type: 'success' });
         },
         onError: (error: unknown) => {
             const { status: statusCode, message: errorMessage } = normalizeApiError(error);
@@ -124,6 +150,7 @@ const NotificationsScreen: React.FC = () => {
                 `Failed to mark all notifications as read${statusCode ? ` (${statusCode})` : ''}: ${errorMessage}`,
                 { type: 'error' }
             );
+            queryClient.invalidateQueries({ queryKey: ['notifications'] });
         },
     });
 
@@ -133,11 +160,9 @@ const NotificationsScreen: React.FC = () => {
         setRefreshing(false);
     }, [refetch]);
 
-    const handleMarkAsRead = useCallback((notificationId: string) => {
-        markAsReadMutation.mutate(notificationId);
+    const handleMarkAsRead = useCallback((ids: string[]) => {
+        markAsReadMutation.mutate(ids);
     }, [markAsReadMutation]);
-
-    const unreadCount = notificationsData?.pages[0]?.unreadCount || 0;
 
     const handleMarkAllAsRead = useCallback(async () => {
         if (unreadCount === 0) {
@@ -246,17 +271,7 @@ const NotificationsScreen: React.FC = () => {
             retryLabel={t("error.boundary.retry")}
             onError={handleBoundaryError}
         >
-            {item.isGroup ? (
-                <GroupedNotificationItem
-                    group={item}
-                    onMarkAsRead={handleMarkAsRead}
-                />
-            ) : (
-                <NotificationItem
-                    notification={item.leadNotification}
-                    onMarkAsRead={handleMarkAsRead}
-                />
-            )}
+            <NotificationItem item={item} onMarkAsRead={handleMarkAsRead} />
         </ErrorBoundary>
     ), [t, handleBoundaryError, handleMarkAsRead]);
 
