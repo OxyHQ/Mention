@@ -240,7 +240,14 @@ app.use(helmet({
   },
 }));
 
-// Response compression - compress responses > 1KB
+// Response compression. `compression` ≥1.8 negotiates the response encoding from
+// the client's Accept-Encoding, preferring Brotli (`br`) then gzip — so the API's
+// own JSON/HTML is served Brotli-compressed to modern clients WITHOUT adding any
+// dependency. It also correctly SKIPS any response that already carries a
+// Content-Encoding (e.g. the apex proxy relaying CF Pages' Brotli assets), so an
+// already-compressed body is never double-encoded. `level` applies to gzip/
+// deflate; Brotli uses the library's default quality (4) — a good balance for
+// dynamic content. Compress only responses > 1KB.
 app.use(compression({
   filter: (req, res) => {
     // Don't compress if client doesn't support it
@@ -256,7 +263,7 @@ app.use(compression({
     // Use compression filter function
     return compression.filter(req, res);
   },
-  level: 6, // Compression level (0-9, 6 is a good balance)
+  level: 6, // gzip/deflate level (0-9, 6 is a good balance); Brotli uses its own default quality
   threshold: 1024, // Only compress responses > 1KB
 }));
 

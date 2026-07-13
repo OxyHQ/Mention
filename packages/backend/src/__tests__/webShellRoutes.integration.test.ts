@@ -48,17 +48,35 @@ describe('webShell routes (integration)', () => {
     vi.clearAllMocks();
   });
 
-  it('serves the shell with profile OG for a non-AP /@handle request', async () => {
+  it('serves the shell with profile OG for a crawler /@handle request', async () => {
     stubFetch({ ok: true, body: { data: { username: 'nate', name: { displayName: 'Nate' }, bio: 'bio' } } });
 
-    const res = await request(makeApp()).get('/@nate');
+    const res = await request(makeApp()).get('/@nate').set('User-Agent', 'Twitterbot/1.0');
 
     expect(res.status).toBe(200);
     expect(res.headers['content-type']).toContain('text/html');
     expect(res.headers.vary).toContain('Accept');
+    expect(res.headers.vary).toContain('User-Agent');
     expect(res.text).toContain('<meta property="og:title" content="Nate (@nate) on Mention">');
     expect(res.text).toContain('<title>Nate (@nate) on Mention</title>');
     expect(res.text).not.toContain('<title>Mention</title>');
+    // Head hints are always injected (browsers benefit; crawlers ignore them).
+    expect(res.text).toContain('rel="preconnect"');
+  });
+
+  it('serves the plain shell (no blocking OG) for a real browser /@handle request', async () => {
+    stubFetch({ ok: true, body: { data: { username: 'nate', name: { displayName: 'Nate' }, bio: 'bio' } } });
+
+    const res = await request(makeApp())
+      .get('/@nate')
+      .set('User-Agent', 'Mozilla/5.0 (Macintosh) AppleWebKit/537.36 Chrome/125 Safari/537.36');
+
+    expect(res.status).toBe(200);
+    expect(res.headers['content-type']).toContain('text/html');
+    // A browser gets the untouched shell title + head hints, and NO server-side OG.
+    expect(res.text).toContain('<title>Mention</title>');
+    expect(res.text).not.toContain('og:title');
+    expect(res.text).toContain('rel="preconnect"');
   });
 
   it('302-redirects a local /@handle to the AP actor when Accept wants ActivityPub', async () => {
@@ -81,7 +99,7 @@ describe('webShell routes (integration)', () => {
     expect(res.headers['content-type']).toContain('text/html');
   });
 
-  it('serves the shell with post OG for /p/:id', async () => {
+  it('serves the shell with post OG for a crawler /p/:id request', async () => {
     stubFetch({ ok: false });
     vi.mocked(Post.findById).mockReturnValue({
       maxTimeMS: () => ({ lean: () => Promise.resolve({ _id: POST_ID, oxyUserId: 'u1', content: { text: 'hi there' } }) }),
@@ -94,7 +112,7 @@ describe('webShell routes (integration)', () => {
       } as unknown as HydratedPost,
     ]);
 
-    const res = await request(makeApp()).get(`/p/${POST_ID}`);
+    const res = await request(makeApp()).get(`/p/${POST_ID}`).set('User-Agent', 'facebookexternalhit/1.1');
 
     expect(res.status).toBe(200);
     expect(res.headers['content-type']).toContain('text/html');
@@ -103,13 +121,28 @@ describe('webShell routes (integration)', () => {
     expect(res.text).toContain('<meta property="og:image" content="https://cdn/a.png">');
   });
 
-  it('fails open with a plain shell when the post is missing', async () => {
+  it('serves the plain shell for a browser /p/:id request WITHOUT hydrating the post', async () => {
+    stubFetch({ ok: false });
+
+    const res = await request(makeApp())
+      .get(`/p/${POST_ID}`)
+      .set('User-Agent', 'Mozilla/5.0 (Windows NT 10.0) AppleWebKit/537.36 Chrome/125 Safari/537.36');
+
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('<title>Mention</title>');
+    expect(res.text).not.toContain('og:title');
+    // The browser fast-path must never touch Mongo — no OG hydration blocks the TTFB.
+    expect(vi.mocked(Post.findById)).not.toHaveBeenCalled();
+    expect(vi.mocked(postHydrationService.hydratePosts)).not.toHaveBeenCalled();
+  });
+
+  it('fails open with a plain shell when a crawler requests a missing post', async () => {
     stubFetch({ ok: false });
     vi.mocked(Post.findById).mockReturnValue({
       maxTimeMS: () => ({ lean: () => Promise.resolve(null) }),
     } as unknown as ReturnType<typeof Post.findById>);
 
-    const res = await request(makeApp()).get(`/p/${POST_ID}`);
+    const res = await request(makeApp()).get(`/p/${POST_ID}`).set('User-Agent', 'Slackbot-LinkExpanding 1.0');
 
     expect(res.status).toBe(200);
     expect(res.text).toContain('<title>Mention</title>');

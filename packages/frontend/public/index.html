@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="%LANG_ISO_CODE%">
+  <head>
+    <meta charset="utf-8" />
+    <meta httpEquiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+
+    <!--
+      Resource hints for the two cross-origin hosts the first screen hits before
+      any JS-driven fetch can resolve DNS/TLS on its own:
+        - the Mention API   (feed JSON + federated media proxy)
+        - the Oxy file CDN  (avatars / images / media via getFileDownloadUrl)
+      `preconnect` warms DNS + TCP + TLS; `dns-prefetch` is the wider-supported
+      fallback. Both hosts are hit by anonymous (bearer / no-cookie) requests, so
+      `crossorigin` matches the connection the browser actually reuses.
+
+      These mirror the PRODUCTION values of `API_URL` / `OXY_BASE_URL` in
+      `config.ts`. This shell is only used by the production web export
+      (web.output: "single"), which always targets these hosts. Keep in sync with
+      config.ts if the production API / CDN hosts ever change.
+    -->
+    <link rel="preconnect" href="https://api.mention.earth" crossorigin />
+    <link rel="preconnect" href="https://api.oxy.so" crossorigin />
+    <link rel="dns-prefetch" href="https://api.mention.earth" />
+    <link rel="dns-prefetch" href="https://api.oxy.so" />
+
+    <title>%WEB_TITLE%</title>
+    <!-- The `react-native-web` recommended style reset: https://necolas.github.io/react-native-web/docs/setup/#root-element -->
+    <style id="expo-reset">
+      /* These styles make the body full-height */
+      html,
+      body {
+        height: 100%;
+      }
+      /* These styles disable body scrolling if you are using <ScrollView> */
+      body {
+        overflow: hidden;
+      }
+      /* These styles make the root element full-height */
+      #root {
+        display: flex;
+        height: 100%;
+        flex: 1;
+      }
+    </style>
+  </head>
+
+  <body>
+    <!-- Use static rendering with Expo Router to support running without JavaScript. -->
+    <noscript>
+      You need to enable JavaScript to run this app.
+    </noscript>
+    <!-- The root element for your Expo app. -->
+    <div id="root"></div>
+  </body>
+</html>

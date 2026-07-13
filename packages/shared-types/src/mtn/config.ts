@@ -8,9 +8,30 @@
 export const MtnConfig = {
   // --- Ranking weights ---
   ranking: {
+    /**
+     * How per-signal ranking multipliers are combined into a post's final score.
+     * `'product'` = the current behavior (all signal multipliers multiplied
+     * together). This is a FUTURE-SWAP MARKER only: Phase 3 introduces a modular
+     * signal registry with a pluggable combiner, at which point this selects the
+     * strategy (e.g. `'product'` vs a weighted-sum stub). UNUSED today — declaring
+     * it here does NOT change ranking; the score math still multiplies inline.
+     */
+    combiner: 'product',
     engagement: {
       likeWeight: 1.0,
       boostWeight: 2.5,
+      /**
+       * Weight for a FEDERATED boost (an inbound ActivityPub Announce, tracked by
+       * `stats.federatedBoostsCount`) — deliberately LOWER than `boostWeight`
+       * (2.5) because a remote Announce is a much weaker relevance signal than a
+       * native repost: a handful of federated boosts routinely made low-quality
+       * off-instance posts look "trending". The unified engagement composite
+       * (Phase 2) will weight the native boost subset (`boostsCount -
+       * federatedBoostsCount`) at `boostWeight` and the federated subset here.
+       * UNUSED until Phase 2 wires it — defined now so config + the counter land
+       * together; it does NOT affect ranking yet.
+       */
+      federatedBoostWeight: 0.5,
       commentWeight: 2.0,
       saveWeight: 1.5,
       // Raised from 0.1 → 0.3 now that real impression-backed view counts flow
@@ -274,6 +295,34 @@ export const MtnConfig = {
       noveltyBoost: {
         boost: 1.15,
       },
+      /**
+       * OFF-LANGUAGE discovery PENALTY (Phase 4c). A modest DOWNRANK — never a hard
+       * filter — applied ONLY to DISCOVERY posts (`post._discovery === true`, i.e.
+       * candidates that entered via a non-trusted lane) whose declared
+       * `postClassification.languages` are KNOWN and DISJOINT from the viewer's
+       * account languages (`context.viewerLanguages`, resolved from the Oxy
+       * account). Neutral (1.0) when the viewer has no known languages, the post
+       * declares no language, the languages overlap, or the post is from a TRUSTED
+       * lane (followed/affinity/lists are never `_discovery`). Off-language content
+       * is deliberately PENALIZED, not removed — a good off-language post can still
+       * surface, it just yields to on-language content. DORMANT until Phase 5 adds
+       * it to the For You default signal set.
+       */
+      languageMismatchPenalty: {
+        /** Multiplier (< 1) applied to an off-language discovery post. */
+        penalty: 0.5,
+      },
+      /**
+       * MODEST LOCAL-priority lift (Phase 4d). A small boost for LOCAL posts
+       * (`federation` absent/null); neutral (1.0) for federated posts. Complements
+       * the `federatedBoostWeight` engagement dampening by giving first-party
+       * content a light edge without suppressing federated discovery. DORMANT until
+       * Phase 5 adds it to the For You default signal set.
+       */
+      localBoost: {
+        /** Multiplier (> 1) applied to a local (non-federated) post. */
+        boost: 1.1,
+      },
     },
   },
 
@@ -354,6 +403,84 @@ export const MtnConfig = {
       maxPreferredLanguages: 5,
       /** Per-source query time budget (ms). */
       maxTimeMS: 4000,
+    },
+
+    /**
+     * DISCOVERY GATE for the authenticated For You feed — a hard quality/bot/
+     * engagement floor applied ONLY to candidates from non-trusted (discovery)
+     * lanes (topics / language / region / trending / global). Trusted lanes
+     * (following / affinity / subscribed-lists) are NEVER gated.
+     *
+     * WIRED IN PHASE 4, shipping in SHADOW mode. `shadow: true` means the engine
+     * EVALUATES the gate on each discovery candidate and records/marks what it
+     * WOULD reject, but drops nothing — so served For You output is unchanged
+     * until `shadow` is flipped to `false` (after prod validation). The gate is
+     * applied by `FeedEngine.gatherPool` via `forYouDefinition.discoveryFilters`
+     * (see `resolveDiscoveryGate`), ONLY to candidates from non-trusted lanes.
+     */
+    discoveryGate: {
+      /** Master switch. When false the gate is fully bypassed (no compute, no metrics). */
+      enabled: true,
+      /**
+       * Measure-don't-filter mode. When true the gate evaluates each discovery
+       * candidate and records what it WOULD reject, but lets every post through —
+       * used to validate precision/recall in prod before enforcing.
+       */
+      shadow: true,
+      /**
+       * Minimum raw `content.text` length (characters) for a discovery post. Below
+       * this a post with no media/poll is treated as empty. Reuses the existing
+       * `minLength` filter primitive.
+       */
+      minTextLength: 3,
+      /**
+       * Minimum MEANINGFUL text length (characters) after stripping shortcodes,
+       * URLs, mentions/hashtags and emoji. Below this AND with no media/poll, the
+       * post is emoji/shortcode-only low-effort — the objective-junk case.
+       */
+      minMeaningfulTextLength: 12,
+      /**
+       * Native-engagement floor: `likes + comments + max(0, boosts −
+       * federatedBoostsCount) ≥ this` lets a discovery post pass the engagement
+       * branch. Federated Announces do NOT count toward this floor (that is the
+       * whole point of tracking `federatedBoostsCount`).
+       */
+      minNativeEngagement: 1,
+      /**
+       * Spam score AT OR ABOVE this (with trusted provenance only) hard-rejects a
+       * discovery post. Set high so only confident spam is dropped — never the
+       * all-zeros default, so the feed can never empty.
+       */
+      spamRejectThreshold: 0.8,
+      /**
+       * Quality score AT OR BELOW this (with trusted provenance only) hard-rejects
+       * a discovery post. Set low for the same never-empty reason.
+       */
+      qualityRejectThreshold: 0.2,
+      /**
+       * Freshness grace window (ms). A brand-new discovery post younger than this
+       * passes the engagement branch even with zero native engagement, so fresh
+       * content still surfaces (cold-start). 6 hours.
+       */
+      freshnessGraceMs: 6 * 60 * 60 * 1000,
+      /**
+       * Minimum topic-overlap weight for a discovery post to pass via the
+       * personalization branch (post topic matches the viewer's preferred topics).
+       * Lets on-interest discovery through even without native engagement.
+       */
+      strongTopicWeight: 0.3,
+    },
+
+    /** For You feed composition knobs. */
+    forYou: {
+      /**
+       * Maximum SHARE (0..1) of a rendered For You page that may come from
+       * discovery lanes, guaranteeing a floor for trusted (following/affinity)
+       * content. UNUSED until Phase 5, where `capDiscoveryShare` defers — never
+       * discards — discovery slices above `floor(maxDiscoveryShare · limit)`. On
+       * thin social graphs the cap simply isn't reached and discovery backfills.
+       */
+      maxDiscoveryShare: 0.7,
     },
   },
 

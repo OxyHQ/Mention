@@ -99,6 +99,46 @@ describe('buildModuleCatalog', () => {
     const trending = catalog.sources.find((s) => s.id === 'trending');
     expect(trending!.paramsSchema.properties).toEqual({});
   });
+
+  it('surfaces the Phase 4B userComposable modules with category + param descriptors', () => {
+    const catalog = buildModuleCatalog(registry);
+    const filterIds = catalog.filters.map((f) => f.id);
+    for (const id of ['minQuality', 'noLowEffort', 'linkCount', 'noBots']) {
+      expect(filterIds).toContain(id);
+    }
+
+    const minQuality = catalog.filters.find((f) => f.id === 'minQuality');
+    expect(minQuality!.category).toBe('quality');
+    expect(minQuality!.label.length).toBeGreaterThan(0);
+    expect(minQuality!.description.length).toBeGreaterThan(0);
+    const qParam = minQuality!.params.find((p) => p.key === 'minQuality');
+    expect(qParam).toMatchObject({ control: 'number-range', min: 0, max: 1, step: 0.05 });
+    expect(qParam!.labelKey).toBe('feeds.modules.minQuality.params.minQuality');
+
+    const linkCount = catalog.filters.find((f) => f.id === 'linkCount');
+    expect(linkCount!.params.map((p) => p.key).sort()).toEqual(['maxLinks', 'minLinks']);
+
+    const noBots = catalog.filters.find((f) => f.id === 'noBots');
+    expect(noBots!.category).toBe('quality');
+    expect(noBots!.params).toEqual([]); // toggle-only
+
+    // A fixed-option (enum-set) param carries its options with i18n keys.
+    const sentiment = catalog.filters.find((f) => f.id === 'sentimentFilter');
+    const sParam = sentiment!.params.find((p) => p.key === 'sentiments');
+    expect(sParam!.control).toBe('multiselect');
+    expect(sParam!.options?.map((o) => o.value)).toEqual(['positive', 'neutral', 'negative']);
+    expect(sParam!.options?.[0].labelKey).toBe('feeds.modules.sentimentFilter.options.positive');
+  });
+
+  it('gives every catalog entry a category, a non-empty label, and a params array', () => {
+    const catalog = buildModuleCatalog(registry);
+    for (const entry of [...catalog.sources, ...catalog.signals, ...catalog.filters]) {
+      expect(typeof entry.category).toBe('string');
+      expect(entry.category.length).toBeGreaterThan(0);
+      expect(entry.label.length).toBeGreaterThan(0);
+      expect(Array.isArray(entry.params)).toBe(true);
+    }
+  });
 });
 
 describe('GET /feed/modules (controller)', () => {

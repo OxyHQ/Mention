@@ -99,6 +99,19 @@ const TITLE_RE = /<title\b[^>]*>[\s\S]*?<\/title>/i;
 const HEAD_CLOSE_RE = /<\/head>/i;
 
 /**
+ * Insert an HTML snippet immediately before `</head>` (or prepend it when the
+ * shell somehow lacks a head). Used for STATIC `<head>` hints (e.g. `preconnect`)
+ * that are independent of the per-request OG block. A function replacement is used
+ * so a `$` in the snippet is never treated as a `String.replace` back-reference.
+ */
+export function injectHeadHtml(shell: string, snippet: string): string {
+  if (!snippet) return shell;
+  return HEAD_CLOSE_RE.test(shell)
+    ? shell.replace(HEAD_CLOSE_RE, () => `${snippet}</head>`)
+    : snippet + shell;
+}
+
+/**
  * Splice OG data into a static SPA shell: replace the existing `<title>` and
  * inject the OG/Twitter meta block immediately before `</head>`. When `og` is
  * null the shell is returned verbatim (browsers still boot the SPA; crawlers

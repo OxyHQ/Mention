@@ -393,6 +393,15 @@ export class InboxProcessingService {
       { _id: boost.boostOf, 'stats.boostsCount': { $gt: 0 } },
       { $inc: { 'stats.boostsCount': -1 } },
     );
+    // The federated Announce incremented both counters in lockstep at import, so
+    // mirror the decrement here. Guarded independently (its own `$gt: 0` filter,
+    // a separate updateOne) so it never underflows AND never blocks the
+    // boostsCount decrement above — federatedBoostsCount can legitimately lag
+    // boostsCount on posts that predate the field until the backfill runs.
+    await Post.updateOne(
+      { _id: boost.boostOf, 'stats.federatedBoostsCount': { $gt: 0 } },
+      { $inc: { 'stats.federatedBoostsCount': -1 } },
+    );
     logger.debug(`[Federation] undo Announce from ${actorUri} (boost ${String(boost._id)})`);
   }
 
@@ -509,6 +518,8 @@ export class InboxProcessingService {
       languages: extractApLanguages(object),
       // Instance host drives the Stage-A coarse region for federated posts.
       instanceDomain: getRemoteHost(actorUri),
+      // AP actor type feeds the Stage-A RSS/bot-mirror spam signal.
+      actorType: actor?.type,
       status: 'published',
       metadata: { isSensitive: object.sensitive === true },
       skipNotifications: true,

@@ -28,26 +28,45 @@ const ALL_RANKING_SIGNALS: ModuleRef[] = [
  * Env values:
  * - unset / `default` / `on` → the conservative default subset below
  * - `off` / `false` / `0` → no Phase 2b signals (legacy ranking)
- * - comma-separated ids → explicit subset (e.g. `penalizeSeen,dwellTime`)
+ * - comma-separated ids → explicit subset (e.g. `penalizeSeen,socialProof`)
+ *
+ * PHASE 5 — the default subset activates the useful, conservative, bounded
+ * Phase 2b signals for For You:
+ *   - `penalizeSeen`            — soft-downrank already-seen posts.
+ *   - `coldStartBoost`          — surface fresh posts / low-follower authors.
+ *   - `socialProof`            — lift posts the viewer's network engaged (needs `ctx.mutualIds`).
+ *   - `noveltyBoost`           — exploration lift for novel-topic posts.
+ *   - `verifiedBoost`          — small lift for verified authors (uses pre-rank `verified`).
+ *   - `localBoost` (Phase 4d)   — modest first-party lift.
+ *   - `languageMismatchPenalty` (Phase 4c) — off-language DISCOVERY downrank.
+ * `mediaBoost` and `dwellTime` stay OPTIONAL (allowed via env, not default): each
+ * is a strong surface-shaping nudge better reserved for deliberate tuning/A-B.
  */
 const PHASE2B_DEFAULT_SIGNAL_IDS = [
   'penalizeSeen',
-  'dwellTime',
-  'mediaBoost',
   'coldStartBoost',
+  'socialProof',
+  'noveltyBoost',
+  'verifiedBoost',
+  'localBoost',
+  'languageMismatchPenalty',
 ] as const;
 
 const PHASE2B_ALLOWED_SIGNAL_IDS = new Set<string>([
-  'mediaBoost',
-  'positivity',
-  'conversational',
   'coldStartBoost',
   'penalizeSeen',
   'verifiedBoost',
-  'dwellTime',
   'socialProof',
-  'reciprocityBoost',
   'noveltyBoost',
+  'localBoost',
+  'languageMismatchPenalty',
+  // OPTIONAL signals — enable-able via `FOR_YOU_PHASE2B_SIGNALS` for A/B + tuning,
+  // but deliberately NOT in the default set.
+  'mediaBoost',
+  'positivity',
+  'conversational',
+  'dwellTime',
+  'reciprocityBoost',
 ]);
 
 function parsePhase2bSignalIds(): string[] {
@@ -75,6 +94,69 @@ function buildPresetRankingSignals(): ModuleRef[] {
 }
 
 /**
+ * The For You DISCOVERY GATE (Phase 4b/4B) — hard filters applied ONLY to
+ * candidates from non-trusted (discovery) lanes. Reused primitives + the
+ * objective-junk gates + a per-user quality floor:
+ *   - `minLength`       — a crude text floor (`discoveryGate.minTextLength`).
+ *   - `lowEffortGate`   — emoji/shortcode-only + trusted spam/quality breach.
+ *   - `nativeEngagement`— native-engagement floor OR viewer-interest match.
+ *   - `minQuality`      — trusted-quality floor; NEUTRAL by default (opt-in via
+ *                         `feedTuning.forYou.minQuality`), so it changes nothing
+ *                         unless a viewer sets a threshold in For You settings.
+ * Each reads its thresholds from `MtnConfig.feed.discoveryGate`; the opaque
+ * `forYouGate` marker param lets these modules layer the viewer's
+ * `feedTuning.forYou` overrides ON TOP of the config defaults (Phase 4B) while the
+ * definition stays STATIC — a custom feed reusing the same module never carries
+ * the marker, so it never reads For You tuning.
+ */
+const DISCOVERY_GATE_MODULE_IDS = ['minLength', 'lowEffortGate', 'nativeEngagement', 'minQuality'] as const;
+const DISCOVERY_GATE_ALLOWED_IDS = new Set<string>(DISCOVERY_GATE_MODULE_IDS);
+
+/**
+ * Build a single gate ModuleRef. Every gate ref carries the opaque
+ * `forYouGate: true` marker so its filter module reads per-viewer
+ * `feedTuning.forYou` overrides (see `gateTuning` in `engine/filters`);
+ * `minLength` additionally injects its threshold from config.
+ */
+function discoveryGateModule(id: string): ModuleRef {
+  if (id === 'minLength') {
+    return enabled('minLength', { minLength: MtnConfig.feed.discoveryGate.minTextLength, forYouGate: true });
+  }
+  return enabled(id, { forYouGate: true });
+}
+
+/**
+ * Resolve the For You discovery-gate filters from `FOR_YOU_DISCOVERY_GATE` (mirror
+ * of {@link resolvePhase2bSignals}). The gate is fully bypassed when the config
+ * master switch `discoveryGate.enabled` is off.
+ *
+ * Env values:
+ * - unset / `default` / `on` / `true` → the full gate (all modules)
+ * - `off` / `false` / `0`            → no gate (empty)
+ * - comma-separated ids              → explicit subset (e.g. `lowEffortGate,nativeEngagement`)
+ *
+ * SHADOW mode (`discoveryGate.shadow`) is orthogonal: it controls whether the
+ * engine ENFORCES the resolved gate or only measures it (see `FeedEngine.gatherPool`).
+ */
+export function resolveDiscoveryGate(): ModuleRef[] {
+  if (MtnConfig.feed.discoveryGate.enabled !== true) {
+    return [];
+  }
+  const raw = process.env.FOR_YOU_DISCOVERY_GATE?.trim();
+  if (raw === 'off' || raw === 'false' || raw === '0') {
+    return [];
+  }
+  if (!raw || raw === 'default' || raw === 'on' || raw === 'true') {
+    return DISCOVERY_GATE_MODULE_IDS.map(discoveryGateModule);
+  }
+  return raw
+    .split(',')
+    .map((part) => part.trim())
+    .filter((id) => id.length > 0 && DISCOVERY_GATE_ALLOWED_IDS.has(id))
+    .map(discoveryGateModule);
+}
+
+/**
  * For You — ranked, multi-source. Sources are listed in the exact merge order of
  * `gatherForYouCandidates` (following, subscribed lists, affinity, topics,
  * language, region, trending, global) so the engine merge reproduces it. The
@@ -97,6 +179,10 @@ export const forYouDefinition: FeedDefinition = {
   ],
   signals: buildPresetRankingSignals(),
   filters: [enabled('safety')],
+  // Phase 4: the discovery gate applies ONLY to non-trusted lanes. `filters` stays
+  // `[safety]` (always-on, every lane); the gate goes here so following/affinity/
+  // lists are never gated. Ships in shadow mode (`discoveryGate.shadow`).
+  discoveryFilters: resolveDiscoveryGate(),
   execution: {
     maxPool: MtnConfig.feed.candidateSources.maxPool,
     seenPosts: true,
@@ -105,8 +191,27 @@ export const forYouDefinition: FeedDefinition = {
     replyContext: true,
     threadGrouping: true,
     hydrateMaxDepth: 0,
+    // Phase 5: cap the discovery SHARE of a rendered page. `capDiscoveryShare`
+    // DEFERS (never drops — same contract as `diversifyByAuthor`) discovery-origin
+    // slices above `floor(maxDiscoveryShare · limit)` to the page tail, so trusted
+    // (following/affinity/lists) content keeps a floor. On a thin follow graph the
+    // cap is unmet and discovery backfills; `neverBlank` + popular fallback intact.
+    maxDiscoveryShare: MtnConfig.feed.forYou.maxDiscoveryShare,
   },
 };
+
+/**
+ * Whether the resolved For You signal set enables the `socialProof` opt-in signal.
+ * The controller uses this to decide whether to populate `ctx.mutualIds` for a For
+ * You request: `socialProof` widens its network-engager set to `following ∪
+ * mutuals`, so mutuals are only worth resolving when the signal is active. Reads
+ * the module-load-resolved {@link forYouDefinition} signals (which honor the
+ * `FOR_YOU_PHASE2B_SIGNALS` env override), so a rollback that drops `socialProof`
+ * also stops the extra mutuals query.
+ */
+export function forYouUsesSocialProof(): boolean {
+  return forYouDefinition.signals.some((ref) => ref.enabled && ref.module === 'socialProof');
+}
 
 /** Following — chronological timeline of followed authors + subscribed lists. */
 export const followingDefinition: FeedDefinition = {

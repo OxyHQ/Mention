@@ -1144,7 +1144,36 @@
       "minAccountAge": {
         "label": "Antigüedad mínima",
         "description": "Solo cuentas más antiguas."
+      },
+      "minQuality": {
+        "label": "Calidad mínima",
+        "description": "Mantén solo publicaciones cuya calidad clasificada esté en el umbral o por encima. Las que no tienen una puntuación fiable pasan."
+      },
+      "noLowEffort": {
+        "label": "Sin bajo esfuerzo",
+        "description": "Descarta publicaciones solo de emojis, solo de shortcodes o sin texto real (salvo que lleven multimedia). Opcionalmente descarta las cargadas de emojis."
+      },
+      "linkCount": {
+        "label": "Número de enlaces",
+        "description": "Mantén solo publicaciones cuyo número de enlaces esté dentro del rango."
+      },
+      "noBots": {
+        "label": "Sin bots",
+        "description": "Descarta réplicas de RSS/puentes y bots de noticias solo con enlaces."
       }
+    },
+    "categories": {
+      "quality": "Calidad",
+      "engagement": "Interacción",
+      "media": "Multimedia",
+      "network": "Enlaces y red",
+      "language": "Idioma",
+      "topics": "Temas y palabras",
+      "authors": "Autores",
+      "safety": "Seguridad",
+      "recency": "Actualidad",
+      "source": "Fuentes",
+      "ranking": "Clasificación"
     }
   },
   "connections": {
@@ -1459,5 +1488,36 @@
     "roomHidden": "Sala ocultada",
     "linkCopied": "Enlace copiado al portapapeles",
     "shareFailed": "No se pudo compartir. Inténtalo de nuevo."
+  },
+  "feed": {
+    "tuning": {
+      "title": "Para ti",
+      "entryDescription": "Ajusta los filtros de calidad, interacción y contenido de tu feed Para ti",
+      "intro": "Estos filtros solo afectan a tu feed de descubrimiento Para ti. Las cuentas que sigues nunca se filtran.",
+      "threshold": "Umbral",
+      "signInRequired": "Inicia sesión para ajustar tu feed Para ti",
+      "signInRequiredDesc": "Ajusta qué filtros de calidad, interacción y contenido dan forma a tu feed de descubrimiento.",
+      "categories": {
+        "quality": "Calidad",
+        "engagement": "Interacción",
+        "content": "Contenido"
+      },
+      "minLength": {
+        "label": "Longitud mínima",
+        "description": "Oculta publicaciones de descubrimiento muy cortas por debajo de un número de caracteres."
+      },
+      "lowEffortGate": {
+        "label": "Sin publicaciones de bajo esfuerzo",
+        "description": "Oculta publicaciones de descubrimiento solo de emojis, solo de shortcodes o sin texto real."
+      },
+      "nativeEngagement": {
+        "label": "Requerir interacción o interés",
+        "description": "Oculta publicaciones de descubrimiento sin interacción real que no coincidan con tus intereses."
+      },
+      "minQuality": {
+        "label": "Calidad mínima",
+        "description": "Oculta publicaciones de descubrimiento cuya calidad clasificada esté por debajo de tu umbral. Desactivado por defecto."
+      }
+    }
   }
 }

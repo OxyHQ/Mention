@@ -20,15 +20,18 @@ import { threadSlicingService } from '../../../services/ThreadSlicingService';
 import { FeedResponseBuilder } from '../../../utils/FeedResponseBuilder';
 import { ScoreCursor, ChronoCursor, didCursorAdvance } from '../CursorBuilder';
 import { diversifyByAuthor } from '../diversifyByAuthor';
+import { capDiscoveryShare } from '../capDiscoveryShare';
 import {
   RankedCandidate,
   readCandidateId,
   readCandidateScore,
   sliceAuthorKey,
   sliceCursorAnchor,
+  sliceIsDiscovery,
   toRankedCandidate,
 } from '../rankedCandidate';
 import { logger } from '../../../utils/logger';
+import { recordDiscoveryGated, recordFederatedShare, originForFederation } from '../feedMetrics';
 import { feedModuleRegistry, FeedModuleRegistry } from './FeedModuleRegistry';
 import type {
   CandidatePost,
@@ -36,6 +39,7 @@ import type {
   FeedEngineContext,
   FeedExecution,
   FilterModule,
+  ModuleRef,
 } from './types';
 
 export interface FeedEngineRunOptions {
@@ -100,6 +104,18 @@ export class FeedEngine {
 
     const pool = await this.gatherPool(definition, ctx, exec, limit);
 
+    // Phase 7: record the federated share of the merged candidate pool for this
+    // feed (a gauge keyed by the base feed type). Emitted from the served `run`
+    // path only — never from the cheap `peekLatest` probe — so the share reflects
+    // real page builds. Non-empty guard avoids a spurious 0 on an empty pool.
+    if (pool.length > 0) {
+      let federatedCount = 0;
+      for (const post of pool) {
+        if (originForFederation(post.federation) === 'federated') federatedCount += 1;
+      }
+      recordFederatedShare(definition.id, federatedCount / pool.length);
+    }
+
     return definition.mode === 'ranked'
       ? this.finalizeRanked(definition, ctx, exec, pool, cursor, limit, parsedScoreCursor)
       : this.finalizeChronological(ctx, exec, pool, cursor, limit);
@@ -132,17 +148,48 @@ export class FeedEngine {
       viewerId: ctx.currentUserId,
       oxyClient: ctx.oxyClient,
       maxDepth: exec.hydrateMaxDepth ?? 0,
+      viewerGraph: this.viewerGraphOption(ctx),
     });
     return hydrated;
   }
 
   /**
    * Run every enabled source in parallel (soft-failing each to `[]`), then merge
-   * in source order: dedupe by `_id`, drop candidates rejected by any filter
-   * `keep()` predicate, and bound to `exec.maxPool` when set. This reproduces
-   * `gatherForYouCandidates`' merge → SFW-guard → cap loop for the For You family
-   * and is a no-op merge for single-source feeds.
+   * in source order: dedupe by `_id`, drop candidates rejected by any always-on
+   * filter `keep()` predicate, and bound to `exec.maxPool` when set. This
+   * reproduces `gatherForYouCandidates`' merge → SFW-guard → cap loop for the For
+   * You family and is a no-op merge for single-source feeds.
+   *
+   * DISCOVERY GATE (Phase 4a) — lane-scoped. Candidates from a NON-trusted
+   * (discovery) source are additionally subjected to `definition.discoveryFilters`
+   * and, when they pass, stamped with the opaque `_discovery = true` marker.
+   * TRUSTED-source candidates (following / affinity / lists) skip the gate
+   * entirely. Because trusted sources are listed FIRST and the merge dedupes by
+   * `_id`, a post that appears in BOTH a trusted and a discovery lane is inserted
+   * as the trusted (ungated, un-marked) copy — followed/affinity authors are never
+   * gated. In SHADOW mode the gate is evaluated + counted but nothing is dropped.
    */
+  /**
+   * The viewer's social graph (following/followers) already resolved ONCE by
+   * `loadViewerFeedContext`, packaged for `PostHydrationService` so hydration does
+   * NOT re-fetch `getUserFollowing`/`getUserFollowers` from Oxy.
+   *
+   * Returns `undefined` — leaving hydration to its own live fetch — unless BOTH id
+   * lists are present on the context. Only `loadViewerFeedContext` resolves the
+   * full graph (it always sets `followerIds`, possibly to `[]`); the peek path
+   * builds a partial context WITHOUT followers, so it must fall back to the live
+   * fetch rather than silently hydrate with an empty follower set. Anonymous
+   * viewers (no `currentUserId`) never thread — hydration skips the viewer-graph
+   * fetch entirely when there is no viewer.
+   */
+  private viewerGraphOption(
+    ctx: FeedEngineContext,
+  ): { followingIds: string[]; followerIds: string[] } | undefined {
+    if (!ctx.currentUserId) return undefined;
+    if (ctx.followingIds === undefined || ctx.followerIds === undefined) return undefined;
+    return { followingIds: ctx.followingIds, followerIds: ctx.followerIds };
+  }
+
   private async gatherPool(
     definition: FeedDefinition,
     ctx: FeedEngineContext,
@@ -172,19 +219,67 @@ export class FeedEngine {
       return [];
     });
 
-    const keeps = this.resolveKeepPredicates(definition, ctx);
+    // Always-on pool filters (safety, …) applied to EVERY candidate; the discovery
+    // gate applies ONLY to non-trusted lanes (empty for feeds without a gate). The
+    // discovery keeps carry their module id so a rejection can be attributed to the
+    // exact filter (the `reason` metric label).
+    const poolKeeps = this.resolveKeepPredicates(definition.filters, ctx);
+    const discoveryKeeps = this.resolveKeepPredicatesWithId(definition.discoveryFilters ?? [], ctx);
+
+    // MEASURE-ONLY when EITHER the global shadow config is on (Phase 4 ships the
+    // gate in shadow so served output is unchanged until validated in prod) OR the
+    // viewer is in the `gate-off` A/B cohort (Phase 7). In measure-only mode the
+    // gate's rejections are counted but nothing is dropped.
+    const gateShadow = MtnConfig.feed.discoveryGate.shadow === true;
+    const measureOnly = gateShadow || ctx.discoveryGateBucket === 'gate-off';
     const maxPool = exec.maxPool;
 
     const merged = new Map<string, CandidatePost>();
-    for (const posts of sourceResults) {
-      for (const post of posts) {
+    let gatedCount = 0;
+    for (let i = 0; i < sourceResults.length; i += 1) {
+      const sourceModule = enabledSources[i].module;
+      const isTrusted = this.registry.getSource(sourceModule)?.trusted === true;
+      const applyGate = !isTrusted && discoveryKeeps.length > 0;
+      for (const post of sourceResults[i]) {
         if (maxPool !== undefined && merged.size >= maxPool) break;
         const id = post?._id?.toString();
         if (!id || merged.has(id)) continue;
-        if (keeps.some((keep) => !keep(post))) continue;
+        if (poolKeeps.some((keep) => !keep(post))) continue;
+
+        if (applyGate) {
+          // Attribute a rejection to the FIRST gate filter that rejects, so the
+          // `reason` label pinpoints why (short-circuits like the engine's own
+          // `.every`). A passing candidate hits none of this.
+          let rejectedBy: string | undefined;
+          for (const { id: filterId, keep } of discoveryKeeps) {
+            if (!keep(post)) {
+              rejectedBy = filterId;
+              break;
+            }
+          }
+          if (rejectedBy) {
+            gatedCount += 1;
+            recordDiscoveryGated(rejectedBy, sourceModule, measureOnly);
+            // Enforcing mode drops the candidate; measure-only keeps it.
+            if (!measureOnly) continue;
+          }
+          // Mark every non-trusted candidate that survives (in measure-only mode,
+          // that is all of them) so ranking's discovery-scoped signals read the lane.
+          post._discovery = true;
+        }
+
         merged.set(id, post);
       }
       if (maxPool !== undefined && merged.size >= maxPool) break;
+    }
+
+    if (gatedCount > 0) {
+      logger.info('[FeedEngine] discovery gate evaluated', {
+        definition: definition.id,
+        gated: gatedCount,
+        measureOnly,
+        bucket: ctx.discoveryGateBucket,
+      });
     }
 
     return Array.from(merged.values());
@@ -207,18 +302,41 @@ export class FeedEngine {
     return keys;
   }
 
-  /** Resolve the in-memory `keep()` predicates of the definition's enabled filters. */
+  /** Resolve the in-memory `keep()` predicates of a set of enabled filter refs. */
   private resolveKeepPredicates(
-    definition: FeedDefinition,
+    refs: ModuleRef[],
     ctx: FeedEngineContext,
   ): Array<(post: CandidatePost) => boolean> {
     const keeps: Array<(post: CandidatePost) => boolean> = [];
-    for (const ref of definition.filters) {
+    for (const ref of refs) {
       if (!ref.enabled) continue;
       const filter: FilterModule | undefined = this.registry.getFilter(ref.module);
-      if (filter?.keep) {
+      const keep = filter?.keep;
+      if (keep) {
         const params = ref.params ?? {};
-        keeps.push((post) => filter.keep!(post, ctx, params));
+        keeps.push((post) => keep(post, ctx, params));
+      }
+    }
+    return keeps;
+  }
+
+  /**
+   * Like {@link resolveKeepPredicates} but pairs each predicate with its module
+   * id, so the discovery gate can attribute a rejection to the exact filter that
+   * caused it (the `reason` metric label).
+   */
+  private resolveKeepPredicatesWithId(
+    refs: ModuleRef[],
+    ctx: FeedEngineContext,
+  ): Array<{ id: string; keep: (post: CandidatePost) => boolean }> {
+    const keeps: Array<{ id: string; keep: (post: CandidatePost) => boolean }> = [];
+    for (const ref of refs) {
+      if (!ref.enabled) continue;
+      const filter: FilterModule | undefined = this.registry.getFilter(ref.module);
+      const keep = filter?.keep;
+      if (keep) {
+        const params = ref.params ?? {};
+        keeps.push({ id: ref.module, keep: (post) => keep(post, ctx, params) });
       }
     }
     return keeps;
@@ -274,6 +392,7 @@ export class FeedEngine {
         enabledSignals: this.resolveEnabledSignalKeys(definition),
         seenPostIds: ctx.seenPostIds,
         mutualIds: ctx.mutualIds,
+        viewerLanguages: ctx.viewerLanguages,
       });
       const ranked: RankedCandidate[] = [];
       for (const post of rankedPosts) {
@@ -330,14 +449,26 @@ export class FeedEngine {
 
     const diversifiedSlices = diversifyByAuthor(rawSlices, sliceAuthorKey);
 
-    const hasMore = diversifiedSlices.length > limit;
-    const pageSlices = hasMore ? diversifiedSlices.slice(0, limit) : diversifiedSlices;
+    // Phase 5: cap the discovery share of the page (For You sets
+    // `maxDiscoveryShare`; every other feed leaves it unset → no-op). Runs AFTER
+    // author diversification and BEFORE truncation; it DEFERS discovery overflow to
+    // the tail (never drops), so `hasMore` / cursor semantics are unchanged.
+    const cappedSlices = capDiscoveryShare(
+      diversifiedSlices,
+      sliceIsDiscovery,
+      exec.maxDiscoveryShare,
+      limit,
+    );
+
+    const hasMore = cappedSlices.length > limit;
+    const pageSlices = hasMore ? cappedSlices.slice(0, limit) : cappedSlices;
 
     const hydratedSlices = await postHydrationService.hydrateSlices(pageSlices, {
       viewerId: ctx.currentUserId,
       oxyClient: ctx.oxyClient,
       maxDepth: exec.hydrateMaxDepth ?? 0,
       includeLinkMetadata: true,
+      viewerGraph: this.viewerGraphOption(ctx),
     });
 
     if (exec.seenPosts && ctx.currentUserId) {
@@ -417,6 +548,7 @@ export class FeedEngine {
       oxyClient: ctx.oxyClient,
       maxDepth: exec.hydrateMaxDepth ?? 0,
       includeLinkMetadata: true,
+      viewerGraph: this.viewerGraphOption(ctx),
     });
 
     let nextCursor: string | undefined;
@@ -461,6 +593,7 @@ export class FeedEngine {
       oxyClient: ctx.oxyClient,
       maxDepth: exec.hydrateMaxDepth ?? 0,
       includeLinkMetadata: true,
+      viewerGraph: this.viewerGraphOption(ctx),
     });
 
     if (exec.markSaved) {

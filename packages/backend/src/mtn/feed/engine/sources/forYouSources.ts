@@ -171,6 +171,8 @@ export const followingSource: SourceModule = {
   id: 'following',
   kind: 'source',
   userComposable: false,
+  // TRUSTED: the viewer's own follow graph is never subjected to the discovery gate.
+  trusted: true,
   gather: async (ctx, params, cap) => {
     if (params.timeline === true) return gatherFollowingTimeline(ctx, cap);
     return runForYouLane(ctx, gatherFollowingLane);
@@ -185,6 +187,8 @@ export const listsSource: SourceModule = {
   id: 'lists',
   kind: 'source',
   userComposable: false,
+  // TRUSTED: subscribed-list authors are a viewer-chosen inclusion, never gated.
+  trusted: true,
   gather: async (ctx, params, cap) => {
     if (typeof params.listId === 'string' && params.listId) {
       return gatherListTimeline(params.listId, ctx, cap);
@@ -214,6 +218,8 @@ export const affinitySource: SourceModule = {
   id: 'affinity',
   kind: 'source',
   userComposable: false,
+  // TRUSTED: affinity authors are learned from the viewer's own engagement, never gated.
+  trusted: true,
   gather: async (ctx) => runForYouLane(ctx, gatherAffinityLane),
 };
 

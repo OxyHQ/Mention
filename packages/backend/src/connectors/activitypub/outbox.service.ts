@@ -248,6 +248,7 @@ export class OutboxSyncService {
     languages?: string[];
     sensitive: boolean;
     instanceDomain?: string;
+    actorType?: string;
   }): RawPostClassificationSeed {
     try {
       const signals = baselineContentClassifier.classify({
@@ -258,6 +259,7 @@ export class OutboxSyncService {
         sensitive: input.sensitive,
         isFederated: true,
         instanceDomain: input.instanceDomain,
+        actorType: input.actorType,
       });
       return {
         status: POST_CLASSIFICATION_PENDING,
@@ -293,7 +295,7 @@ export class OutboxSyncService {
    * Fetch a remote actor's outbox and store posts in the DB.
    * Uses the same storage format as handleCreate so posts go through normal hydration.
    */
-  async syncOutboxPosts(actor: Pick<IFederatedActor, 'outboxUrl' | 'acct' | 'uri'> & { oxyUserId?: string }, limit = 20): Promise<number> {
+  async syncOutboxPosts(actor: Pick<IFederatedActor, 'outboxUrl' | 'acct' | 'uri'> & { oxyUserId?: string; type?: string }, limit = 20): Promise<number> {
     const result = await this.syncOutboxPostsDetailed(actor, limit);
     return result.syncedCount;
   }
@@ -329,7 +331,7 @@ export class OutboxSyncService {
   }
 
   async syncOutboxPostsDetailed(
-    actor: Pick<IFederatedActor, 'outboxUrl' | 'acct' | 'uri'> & { oxyUserId?: string },
+    actor: Pick<IFederatedActor, 'outboxUrl' | 'acct' | 'uri'> & { oxyUserId?: string; type?: string },
     limitOrOptions: number | OutboxSyncOptions = 20,
   ): Promise<OutboxSyncResult> {
     if (!actor.outboxUrl) {
@@ -676,6 +678,9 @@ export class OutboxSyncService {
           languages: apLanguages,
           sensitive: note.sensitive === true,
           instanceDomain: actorUri ? getRemoteHost(actorUri) : undefined,
+          // The outbox owner authored every Note in its own outbox, so the
+          // owner's AP type is the note author's type (RSS/bot-mirror signal).
+          actorType: actor.type,
         });
         // Top-level AP `post.language` (single, protocol-facing) = the resolved
         // primary (`languages[0]`, normalized to ISO 639-1), falling back to the
@@ -1022,9 +1027,15 @@ export class OutboxSyncService {
       return false;
     }
 
-    // A new boost Post was created — move the boosted post's counter +1 in
+    // A new boost Post was created — move the boosted post's counters +1 in
     // lockstep so stats.boostsCount always equals the number of boost records.
-    await Post.updateOne({ _id: originalPostId }, { $inc: { 'stats.boostsCount': 1 } });
+    // This is the ONLY site where a federated Announce becomes a native boost
+    // count, so federatedBoostsCount is incremented alongside boostsCount here;
+    // `boostsCount - federatedBoostsCount` then isolates the native boost count.
+    await Post.updateOne(
+      { _id: originalPostId },
+      { $inc: { 'stats.boostsCount': 1, 'stats.federatedBoostsCount': 1 } },
+    );
     return true;
   }
 

@@ -1,12 +1,12 @@
 import React, { useCallback, useContext, useMemo, useState } from 'react';
-import { View, Pressable, StyleSheet, Text } from 'react-native';
+import { View, Pressable, Text } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Ionicons } from '@expo/vector-icons';
-import { PressableScale } from '@oxyhq/bloom/pressable-scale';
 import { Avatar } from '@oxyhq/bloom/avatar';
 import { Button } from '@oxyhq/bloom/button';
+import { SubtleHover } from '@oxyhq/bloom/subtle-hover';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { show as toast } from '@oxyhq/bloom/toast';
 import { queryKeys as sdkQueryKeys } from '@oxyhq/services';
@@ -14,7 +14,6 @@ import { getNormalizedUserHandle } from '@oxyhq/core';
 import type { User } from '@oxyhq/core';
 import type { PostUser } from '@mention/shared-types';
 
-import { ThemedText } from '../ThemedText';
 import UserName from '../UserName';
 import { LinkifiedText } from '../common/LinkifiedText';
 import { RemoteActorBadge } from '@/components/Fediverse/FediverseBadge';
@@ -35,18 +34,12 @@ const logger = createScopedLogger('NotificationItem');
 
 type GroupedActor = GroupedNotification['actors'][number];
 
-// Layout tokens copied (NOT imported) from the Post anatomy so notification rows
-// share the feed's avatar-column + content-column rhythm.
+// The avatar column mirrors the feed post anatomy (single source of truth:
+// POST_ITEM_SPACING). AVATAR_SIZE = 40. The row's horizontal padding (HPAD = 12
+// → px-3), vertical padding (VPAD = 12 → py-3) and avatar gap (AVATAR_GAP = 12 →
+// mr-3) are expressed as NativeWind classes below so the row reads like a post.
 const AVATAR_SIZE = POST_ITEM_SPACING.AVATAR_SIZE;
-const AVATAR_GAP = POST_ITEM_SPACING.AVATAR_GAP;
-const HPAD = POST_ITEM_SPACING.HPAD;
-const VPAD = POST_ITEM_SPACING.VPAD;
 
-// Byline row gap between name/handle and the trailing "· time" — mirrors
-// PostHeader's `ROW_GAP` so a notification reads like a feed post byline.
-const ROW_GAP = 8;
-
-const BADGE_SIZE = 20;
 const BADGE_ICON_SIZE = 12;
 // The action badge FILL is themed (`theme.colors[colorToken]`); this white glyph
 // sits on top of that saturated fill for contrast across every preset/mode. A
@@ -54,7 +47,6 @@ const BADGE_ICON_SIZE = 12;
 const BADGE_GLYPH_COLOR = '#ffffff';
 
 const STACK_AVATAR_SIZE = 24;
-const STACK_OVERLAP = -8;
 // Actors shown in the collapsed avatar strip before collapsing into "+N".
 const COLLAPSED_STRIP_LIMIT = 3;
 // Matches a bare Oxy user id so it is never surfaced as a display name.
@@ -170,7 +162,7 @@ function postContentText(content: unknown): string | undefined {
  * hooks or SQLite reads). Renders nothing when there is no text.
  */
 const NotificationPreview: React.FC<{ text: string }> = ({ text }) => (
-  <LinkifiedText text={text} numberOfLines={2} className="text-muted-foreground" style={styles.preview} />
+  <LinkifiedText text={text} numberOfLines={2} className="text-muted-foreground text-sm leading-5" />
 );
 
 /** Collapsed stacked-avatar strip (up to 3 + "+N") for grouped rows. */
@@ -178,23 +170,25 @@ const AvatarStrip: React.FC<{ actors: ResolvedActor[]; totalActors: number }> = 
   const shown = actors.slice(0, COLLAPSED_STRIP_LIMIT);
   const extra = totalActors - shown.length;
   return (
-    <View style={styles.stripRow}>
+    <View className="flex-row items-center">
       {shown.map((actor, index) => (
+        // `zIndex` is the only per-item dynamic value (stack order) — everything
+        // else is NativeWind. The -8px overlap for every avatar after the first
+        // is `-ml-2`.
         <View
           key={actor.id}
-          style={[styles.stripItem, { marginLeft: index > 0 ? STACK_OVERLAP : 0, zIndex: shown.length - index }]}
+          className={cn(index > 0 && '-ml-2')}
+          style={{ zIndex: shown.length - index }}
         >
-          <View className="border-background" style={styles.stripAvatarBorder}>
+          <View className="border-2 border-background rounded-full">
             <Avatar source={actor.avatar} size={STACK_AVATAR_SIZE} />
           </View>
         </View>
       ))}
       {extra > 0 ? (
-        <View style={[styles.stripItem, { marginLeft: STACK_OVERLAP }]}>
-          <View className="bg-primary border-background" style={styles.moreBadge}>
-            <ThemedText className="text-primary-foreground" style={styles.moreText}>
-              +{extra}
-            </ThemedText>
+        <View className="-ml-2">
+          <View className="w-7 h-7 rounded-full border-2 bg-primary border-background items-center justify-center">
+            <Text className="text-primary-foreground text-[9px] font-bold">+{extra}</Text>
           </View>
         </View>
       ) : null}
@@ -370,217 +364,125 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({ item, onMa
 
   const showStrip = isGroup && resolvedActors.length > 1 && !expanded;
 
+  // Row anatomy copied (NOT imported) from PostItem + PostHeader: a full-width,
+  // edge-to-edge Pressable (background + bottom border span the whole width, the
+  // group-hover wash matches the feed) with the horizontal padding living INSIDE
+  // via the px-3 wrapper — exactly how PostHeader insets its content. Unread rows
+  // get the same subtle primary tint the feed uses for emphasis.
   return (
-    <PressableScale
-      className={cn('border-border', hasUnread && 'bg-primary/5')}
-      style={styles.container}
+    <Pressable
+      // `w-full`: RN-Web renders this Pressable as a flex box that otherwise
+      // shrinks to its content inside the virtualizer's plain block row `div`, so
+      // without an explicit width the background, bottom border, hover wash and
+      // unread dot stop partway across the panel. Filling the row makes it span
+      // edge-to-edge like a feed post.
+      className={cn('group w-full bg-background border-b border-border py-3', hasUnread && 'bg-primary/5')}
       onPress={handlePress}
       onLongPress={handleLongPress}
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
     >
-      <View style={styles.avatarColumn}>
-        <Avatar source={resolvedPrimary.avatar} size={AVATAR_SIZE} />
-        <View className="border-background" style={[styles.actionBadge, { backgroundColor: badgeColor }]}>
-          <Ionicons name={descriptor.icon} size={BADGE_ICON_SIZE} color={BADGE_GLYPH_COLOR} />
-        </View>
-      </View>
+      <SubtleHover />
+      <View className="px-3">
+        <View className="flex-row items-start justify-between">
+          {/* Avatar column: avatar + themed action-badge overlay. */}
+          <View className="relative mr-3">
+            <Avatar source={resolvedPrimary.avatar} size={AVATAR_SIZE} />
+            <View
+              className="absolute -bottom-0.5 -right-0.5 w-5 h-5 rounded-full border-2 border-background items-center justify-center"
+              style={{ backgroundColor: badgeColor }}
+            >
+              <Ionicons name={descriptor.icon} size={BADGE_ICON_SIZE} color={BADGE_GLYPH_COLOR} />
+            </View>
+          </View>
 
-      <View style={styles.content}>
-        {showStrip ? <AvatarStrip actors={resolvedActors} totalActors={item.totalActors} /> : null}
+          {/* Content column — mirrors PostHeader's flex-1 name/handle/time byline
+              plus the muted action phrase and the text preview. */}
+          <View className="flex-1 gap-1">
+            {showStrip ? <AvatarStrip actors={resolvedActors} totalActors={item.totalActors} /> : null}
 
-        {/* Byline: bold name + muted @handle + "· time", mirroring PostHeader. */}
-        <View className="flex-row items-end" style={{ gap: ROW_GAP }}>
-          <View className="flex-row items-end flex-shrink" style={styles.bylineName}>
-            <UserName
-              name={bylineName}
-              verified={isSingleActor && resolvedPrimary.verified}
-              style={{ container: styles.nameContainer, name: styles.nameText }}
-            />
-            {showHandleLine ? (
-              <Text
-                className="text-muted-foreground"
-                style={styles.handle}
-                numberOfLines={1}
-                ellipsizeMode="tail"
-              >
-                {` @${resolvedPrimary.handle}`}
+            {/* Byline: bold name + muted @handle + federated badge + "· time". */}
+            <View className="flex-row items-end gap-2">
+              <View className="flex-row items-end flex-shrink min-w-0">
+                <UserName
+                  name={bylineName}
+                  verified={isSingleActor && resolvedPrimary.verified}
+                  style={{ container: { flexShrink: 0 } }}
+                />
+                {showHandleLine ? (
+                  <Text
+                    className="text-muted-foreground text-[15px] leading-5"
+                    style={{ flexShrink: 10, minWidth: 0 }}
+                    numberOfLines={1}
+                    ellipsizeMode="tail"
+                  >
+                    {` @${resolvedPrimary.handle}`}
+                  </Text>
+                ) : null}
+                {isSingleActor && resolvedPrimary.isFederated ? (
+                  <RemoteActorBadge size={13} className="text-muted-foreground" containerClassName="self-center ml-1" />
+                ) : null}
+              </View>
+              {timeLabel ? (
+                <Text className="text-muted-foreground text-[15px] leading-5 shrink-0 web:whitespace-nowrap">
+                  {'·'} {timeLabel}
+                </Text>
+              ) : null}
+            </View>
+
+            {actionText ? (
+              <Text className="text-muted-foreground text-[15px] leading-5" numberOfLines={2}>
+                {actionText}
               </Text>
             ) : null}
-            {isSingleActor && resolvedPrimary.isFederated ? (
-              <RemoteActorBadge size={13} className="text-muted-foreground" containerClassName="self-center ml-1" />
-            ) : null}
-          </View>
-          {timeLabel ? (
-            <Text className="text-muted-foreground web:whitespace-nowrap" style={styles.time}>
-              {'·'} {timeLabel}
-            </Text>
-          ) : null}
-        </View>
 
-        {actionText ? (
-          <ThemedText className="text-muted-foreground" style={styles.action} numberOfLines={2}>
-            {actionText}
-          </ThemedText>
-        ) : null}
+            {previewText ? <NotificationPreview text={previewText} /> : null}
 
-        {previewText ? <NotificationPreview text={previewText} /> : null}
-
-        {isGroup && item.expandable ? (
-          <View style={styles.expandBlock}>
-            {expanded ? (
-              <View style={styles.actorList}>
-                {resolvedActors.map((actor) => (
-                  <Pressable
-                    key={actor.id}
-                    onPress={() => openActorProfile(actor)}
-                    style={styles.actorRow}
-                    accessibilityRole="button"
-                  >
-                    <Avatar source={actor.avatar} size={STACK_AVATAR_SIZE} />
-                    <UserName name={actorLabel(actor, someone)} variant="small" style={{ name: styles.actorListName }} />
-                  </Pressable>
-                ))}
+            {isGroup && item.expandable ? (
+              <View className="mt-1 gap-2">
+                {expanded ? (
+                  <View className="gap-2">
+                    {resolvedActors.map((actor) => (
+                      <Pressable
+                        key={actor.id}
+                        onPress={() => openActorProfile(actor)}
+                        className="flex-row items-center gap-2"
+                        accessibilityRole="button"
+                      >
+                        <Avatar source={actor.avatar} size={STACK_AVATAR_SIZE} />
+                        <UserName name={actorLabel(actor, someone)} variant="small" />
+                      </Pressable>
+                    ))}
+                  </View>
+                ) : null}
+                <Pressable onPress={toggleExpanded} hitSlop={8} accessibilityRole="button">
+                  <Text className="text-primary text-sm font-semibold">
+                    {expanded
+                      ? t('notification.group.showLess', { defaultValue: 'Show less' })
+                      : t('notification.group.showAll', { defaultValue: 'Show all' })}
+                  </Text>
+                </Pressable>
               </View>
             ) : null}
-            <Pressable onPress={toggleExpanded} hitSlop={8} accessibilityRole="button">
-              <ThemedText className="text-primary" style={styles.toggle}>
-                {expanded
-                  ? t('notification.group.showLess', { defaultValue: 'Show less' })
-                  : t('notification.group.showAll', { defaultValue: 'Show all' })}
-              </ThemedText>
-            </Pressable>
-          </View>
-        ) : null}
 
-        {isCollabInvite ? (
-          <View style={styles.collabActions}>
-            <Button className="flex-1" onPress={openAcceptSheet} disabled={actionLoading}>
-              {t('collab.accept', { defaultValue: 'Accept' })}
-            </Button>
-            <Button variant="secondary" className="flex-1" onPress={runDecline} disabled={actionLoading}>
-              {t('collab.decline', { defaultValue: 'Decline' })}
-            </Button>
+            {isCollabInvite ? (
+              <View className="flex-row gap-2 mt-2">
+                <Button className="flex-1" onPress={openAcceptSheet} disabled={actionLoading}>
+                  {t('collab.accept', { defaultValue: 'Accept' })}
+                </Button>
+                <Button variant="secondary" className="flex-1" onPress={runDecline} disabled={actionLoading}>
+                  {t('collab.decline', { defaultValue: 'Decline' })}
+                </Button>
+              </View>
+            ) : null}
           </View>
-        ) : null}
+
+          {hasUnread ? <View className="w-2 h-2 rounded-full bg-primary self-center ml-2" /> : null}
+        </View>
       </View>
-
-      {hasUnread ? <View className="bg-primary" style={styles.unreadDot} /> : null}
-    </PressableScale>
+    </Pressable>
   );
 };
-
-const styles = StyleSheet.create({
-  container: {
-    flexDirection: 'row',
-    paddingHorizontal: HPAD,
-    paddingVertical: VPAD,
-    borderBottomWidth: 1,
-    backgroundColor: 'transparent',
-  },
-  avatarColumn: {
-    position: 'relative',
-    marginRight: AVATAR_GAP,
-  },
-  actionBadge: {
-    position: 'absolute',
-    bottom: -2,
-    right: -2,
-    width: BADGE_SIZE,
-    height: BADGE_SIZE,
-    borderRadius: BADGE_SIZE / 2,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 2,
-  },
-  content: {
-    flex: 1,
-    gap: 2,
-  },
-  bylineName: {
-    minWidth: 0,
-  },
-  nameContainer: {
-    flexShrink: 0,
-  },
-  nameText: {
-    fontSize: 15,
-    lineHeight: 20,
-  },
-  handle: {
-    fontSize: 15,
-    lineHeight: 20,
-    flexShrink: 10,
-    minWidth: 0,
-  },
-  time: {
-    fontSize: 15,
-    lineHeight: 20,
-    flexShrink: 0,
-  },
-  action: {
-    fontSize: 15,
-    lineHeight: 20,
-  },
-  preview: {
-    fontSize: 14,
-    lineHeight: 19,
-    marginTop: 2,
-  },
-  stripRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 4,
-  },
-  stripItem: {},
-  stripAvatarBorder: {
-    borderWidth: 2,
-    borderRadius: 14,
-  },
-  moreBadge: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    borderWidth: 2,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  moreText: {
-    fontSize: 9,
-    fontWeight: '700',
-  },
-  expandBlock: {
-    marginTop: 4,
-    gap: 8,
-  },
-  actorList: {
-    gap: 8,
-  },
-  actorRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  actorListName: {
-    fontSize: 14,
-  },
-  toggle: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  collabActions: {
-    flexDirection: 'row',
-    gap: 8,
-    marginTop: 8,
-  },
-  unreadDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    alignSelf: 'center',
-    marginLeft: 8,
-  },
-});
 
 // Memoized: a realtime patch to one notification (or a parent re-render) must not
 // re-render every row — the parent passes a stable `item` and a memoized

@@ -73,6 +73,21 @@ export function sliceAuthorKey(slice: FeedPostSlice): string | undefined {
 }
 
 /**
+ * Whether a feed slice ORIGINATED from a DISCOVERY lane — its anchor post carries
+ * the opaque `_discovery` marker stamped by `FeedEngine.gatherPool` on candidates
+ * from non-trusted sources. Read by `capDiscoveryShare` to bound the discovery
+ * share of a ranked For You page. Only RAW (pre-hydration) slices carry the marker
+ * (hydration builds a fresh DTO that drops engine bookkeeping) — which is exactly
+ * where the cap runs. Returns `false` for slices with no anchor or no marker
+ * (treated as trusted, so they are never deferred).
+ */
+export function sliceIsDiscovery(slice: FeedPostSlice): boolean {
+  const anchor = slice.items[0]?.post;
+  if (!anchor || typeof anchor !== 'object') return false;
+  return Reflect.get(anchor, '_discovery') === true;
+}
+
+/**
  * The score-cursor anchor of a slice: the RANKED candidate item within the slice
  * — the one decorated with a `finalScore` by FeedRankingService. A slice may also
  * contain non-ranked items (a reply-context PARENT or a thread CHILD fetched

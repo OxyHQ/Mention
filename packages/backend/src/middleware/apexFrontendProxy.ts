@@ -22,6 +22,8 @@
  * Fail-soft: a slow/broken CDN yields a 502 with a minimal bootable shell rather
  * than a crash or a hung apex.
  */
+import http, { type IncomingMessage } from 'http';
+import https from 'https';
 import type { Request, Response, NextFunction } from 'express';
 import { logger } from '../utils/logger';
 
@@ -42,6 +44,9 @@ const FRONTEND_CDN_ORIGIN = (process.env.WEB_SHELL_ORIGIN || 'https://mention-fr
 
 /** Hard timeout for a single upstream proxy fetch. The apex must never hang on a slow CDN. */
 const PROXY_FETCH_TIMEOUT_MS = 8000;
+
+/** Max upstream redirects to follow before giving up (a static CDN needs very few). */
+const MAX_PROXY_REDIRECTS = 3;
 
 /**
  * Minimal, valid HTML returned only when the CDN is unreachable — never a crash,
@@ -85,60 +90,152 @@ export function isApexHost(req: Request): boolean {
   return false;
 }
 
-/** Reverse-proxy one apex request to the static frontend CDN. Fail-soft: never throws, never hangs. */
-async function proxyToFrontend(req: Request, res: Response): Promise<void> {
-  const target = `${FRONTEND_CDN_ORIGIN}${req.originalUrl}`;
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), PROXY_FETCH_TIMEOUT_MS);
-  try {
-    const upstream = await fetch(target, {
-      method: req.method,
-      // Request `identity` so the downstream compression middleware owns the final
-      // transfer-encoding and no stale Content-Encoding/Content-Length is relayed.
-      headers: {
-        Accept: typeof req.headers.accept === 'string' ? req.headers.accept : '*/*',
-        'Accept-Encoding': 'identity',
-        'User-Agent': typeof req.headers['user-agent'] === 'string' ? req.headers['user-agent'] : 'Mention-apex-proxy',
-      },
-      redirect: 'follow',
-      signal: controller.signal,
-    });
-
-    res.status(upstream.status);
-    const contentType = upstream.headers.get('content-type');
-    if (contentType) res.setHeader('Content-Type', contentType);
-    // Pass the CDN's caching directives through, overriding the API `no-store`
-    // default the CORS middleware set — this is what lets CF edge-cache the static
-    // assets (`/_expo/static/*`, `/icons/*`, `/manifest.json`, `/favicon.ico`, …).
-    const cacheControl = upstream.headers.get('cache-control');
-    res.setHeader('Cache-Control', cacheControl ?? 'public, max-age=60');
-    const etag = upstream.headers.get('etag');
-    if (etag) res.setHeader('ETag', etag);
-    const lastModified = upstream.headers.get('last-modified');
-    if (lastModified) res.setHeader('Last-Modified', lastModified);
-
-    if (req.method === 'HEAD') {
-      res.end();
+/**
+ * Issue ONE upstream request to the frontend CDN with Node's raw http/https
+ * client and resolve with the FINAL {@link IncomingMessage} (redirects already
+ * followed). Unlike the global `fetch` (undici), the raw client does NOT
+ * transparently decompress the body, so the CDN's already-compressed bytes
+ * (Brotli/gzip) and their `Content-Encoding` header stay consistent and can be
+ * relayed to the browser verbatim — no decode-then-re-encode round trip. Rejects
+ * on connection/timeout errors; never resolves with a 3xx response.
+ */
+function requestUpstream(
+  targetUrl: string,
+  options: { method: string; headers: Record<string, string> },
+  redirectsLeft: number,
+): Promise<IncomingMessage> {
+  return new Promise((resolve, reject) => {
+    let url: URL;
+    try {
+      url = new URL(targetUrl);
+    } catch (error) {
+      reject(error instanceof Error ? error : new Error(String(error)));
       return;
     }
-    // Buffer the body (SPA assets are small/static); Express + compression set the
-    // final Content-Length/Content-Encoding. Do NOT rewrite the body — the SPA's
-    // asset refs are root-relative and resolve against the apex correctly.
-    const body = Buffer.from(await upstream.arrayBuffer());
-    res.send(body);
+
+    const client = url.protocol === 'http:' ? http : https;
+    const upstreamRequest = client.request(
+      url,
+      { method: options.method, headers: options.headers },
+      (upstream) => {
+        const status = upstream.statusCode ?? 502;
+        const location = upstream.headers.location;
+        if (status >= 300 && status < 400 && location && redirectsLeft > 0) {
+          // Drain the redirect body and follow the hop; a relative Location
+          // resolves against the current URL.
+          upstream.resume();
+          const nextUrl = new URL(location, url).toString();
+          requestUpstream(nextUrl, options, redirectsLeft - 1).then(resolve, reject);
+          return;
+        }
+        resolve(upstream);
+      },
+    );
+
+    upstreamRequest.on('error', reject);
+    upstreamRequest.setTimeout(PROXY_FETCH_TIMEOUT_MS, () => {
+      upstreamRequest.destroy(new Error(`Upstream request exceeded ${PROXY_FETCH_TIMEOUT_MS}ms`));
+    });
+    upstreamRequest.end();
+  });
+}
+
+/**
+ * Reverse-proxy one apex request to the static frontend CDN, STREAMING the
+ * upstream body straight through (never buffering the ~11 MB bundle in memory)
+ * and PRESERVING the CDN's compression end-to-end. Fail-soft: never throws,
+ * never hangs.
+ */
+async function proxyToFrontend(req: Request, res: Response): Promise<void> {
+  const target = `${FRONTEND_CDN_ORIGIN}${req.originalUrl}`;
+
+  // Forward the client's REAL Accept-Encoding so the CDN can answer with Brotli/
+  // gzip; that compressed body is relayed verbatim below. A client that advertised
+  // no encoding gets `identity` — never a compressed body it cannot decode.
+  const clientAcceptEncoding = req.headers['accept-encoding'];
+  const acceptEncoding =
+    typeof clientAcceptEncoding === 'string' && clientAcceptEncoding.length > 0
+      ? clientAcceptEncoding
+      : 'identity';
+
+  let upstream: IncomingMessage;
+  try {
+    upstream = await requestUpstream(
+      target,
+      {
+        method: req.method,
+        headers: {
+          Accept: typeof req.headers.accept === 'string' ? req.headers.accept : '*/*',
+          'Accept-Encoding': acceptEncoding,
+          'User-Agent':
+            typeof req.headers['user-agent'] === 'string' ? req.headers['user-agent'] : 'Mention-apex-proxy',
+        },
+      },
+      MAX_PROXY_REDIRECTS,
+    );
   } catch (error) {
+    logger.warn(`[apexProxy] Upstream fetch failed for ${req.originalUrl}`, error);
     if (res.headersSent) {
       res.end();
       return;
     }
-    logger.warn(`[apexProxy] Upstream fetch failed for ${req.originalUrl}`, error);
     res.status(502);
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     res.setHeader('Cache-Control', 'no-store');
     res.send(PROXY_FALLBACK_HTML);
-  } finally {
-    clearTimeout(timer);
+    return;
   }
+
+  res.status(upstream.statusCode ?? 502);
+
+  const contentType = upstream.headers['content-type'];
+  if (contentType) res.setHeader('Content-Type', contentType);
+
+  // Relay the CDN's Content-Encoding + its matching Content-Length UNCHANGED: the
+  // raw (still-compressed) bytes are streamed through as-is, so the browser
+  // decodes them directly. Because Content-Encoding is set, the outer
+  // `compression` middleware treats the response as already-encoded and does NOT
+  // re-compress it (which would waste CPU and, worse, double-encode the body).
+  const contentEncoding = upstream.headers['content-encoding'];
+  if (contentEncoding) res.setHeader('Content-Encoding', contentEncoding);
+  const contentLength = upstream.headers['content-length'];
+  if (contentLength) res.setHeader('Content-Length', contentLength);
+
+  // Pass the CDN's caching directives through, overriding the API `no-store`
+  // default the CORS middleware set — this is what lets the browser/edge cache the
+  // static assets (`/_expo/static/*`, `/icons/*`, `/manifest.json`, `/favicon.ico`, …).
+  const cacheControl = upstream.headers['cache-control'];
+  res.setHeader('Cache-Control', cacheControl ?? 'public, max-age=60');
+  const etag = upstream.headers['etag'];
+  if (etag) res.setHeader('ETag', etag);
+  const lastModified = upstream.headers['last-modified'];
+  if (lastModified) res.setHeader('Last-Modified', lastModified);
+  // The body varies by encoding — keep the CDN's Vary (or set the minimum) so a
+  // shared cache never hands a Brotli body to a client that only accepts gzip.
+  const vary = upstream.headers['vary'];
+  res.setHeader('Vary', vary ?? 'Accept-Encoding');
+
+  if (req.method === 'HEAD') {
+    upstream.resume(); // discard any body bytes
+    res.end();
+    return;
+  }
+
+  // If the client aborts, stop pulling from the CDN so the upstream socket is
+  // released rather than left draining a large asset into a dead response.
+  res.on('close', () => {
+    if (!upstream.destroyed) upstream.destroy();
+  });
+
+  // On an upstream stream error mid-flight the partially-sent response cannot be
+  // recovered — tear it down rather than hang.
+  upstream.on('error', (error) => {
+    logger.warn(`[apexProxy] Upstream stream error for ${req.originalUrl}`, error);
+    res.destroy();
+  });
+
+  // Stream the body straight to the client (no full-bundle buffer in memory).
+  upstream.pipe(res);
 }
 
 /**

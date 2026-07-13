@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import express from 'express';
 import request from 'supertest';
+import https from 'https';
+import { Readable } from 'stream';
 
 import { apexFrontendProxy, isApexHost } from '../middleware/apexFrontendProxy';
 
@@ -34,21 +36,54 @@ function makeApp() {
   return app;
 }
 
-/** Stub `global.fetch` so the CDN returns the SPA shell; returns the mock for URL assertions. */
+/**
+ * Stub the raw `http`/`https` client the proxy uses (NOT `fetch` — the proxy uses
+ * Node's http client so the CDN's compressed bytes pass through undecoded). Returns
+ * the request mock so tests can assert on the target URL / call count.
+ */
 function stubCdn(overrides?: { status?: number; cacheControl?: string; contentType?: string; fail?: boolean }) {
-  const fetchMock = vi.fn(async (_url: string | URL) => {
-    if (overrides?.fail) throw new Error('CDN unreachable');
-    return {
-      status: overrides?.status ?? 200,
-      headers: new Headers({
-        'content-type': overrides?.contentType ?? 'text/html; charset=utf-8',
-        'cache-control': overrides?.cacheControl ?? 'public, max-age=0, must-revalidate',
-      }),
-      arrayBuffer: async () => new TextEncoder().encode(SPA_SHELL).buffer,
-    } as unknown as Response;
-  });
-  vi.stubGlobal('fetch', fetchMock);
-  return fetchMock;
+  const requestMock = vi.fn(
+    (url: string | URL, _options: unknown, callback: (res: Readable & { statusCode?: number; headers?: Record<string, string> }) => void) => {
+      const handlers: Record<string, (arg?: unknown) => void> = {};
+      const clientReq = {
+        on(event: string, handler: (arg?: unknown) => void) {
+          handlers[event] = handler;
+          return clientReq;
+        },
+        setTimeout() {
+          return clientReq;
+        },
+        end() {
+          if (overrides?.fail) {
+            queueMicrotask(() => handlers.error?.(new Error('CDN unreachable')));
+            return;
+          }
+          const incoming = new Readable({ read() {} }) as Readable & {
+            statusCode?: number;
+            headers?: Record<string, string>;
+          };
+          incoming.statusCode = overrides?.status ?? 200;
+          incoming.headers = {
+            'content-type': overrides?.contentType ?? 'text/html; charset=utf-8',
+            'cache-control': overrides?.cacheControl ?? 'public, max-age=0, must-revalidate',
+          };
+          queueMicrotask(() => {
+            callback(incoming);
+            incoming.push(Buffer.from(SPA_SHELL));
+            incoming.push(null);
+          });
+        },
+        destroy() {
+          return clientReq;
+        },
+      };
+      return clientReq;
+    },
+  );
+  // Only `https` is stubbed: the CDN origin is https, while supertest itself uses
+  // `http.request` to reach the local Express app — mocking that would break it.
+  vi.spyOn(https, 'request').mockImplementation(requestMock as unknown as typeof https.request);
+  return requestMock;
 }
 
 const APEX = 'mention.earth';
@@ -56,8 +91,7 @@ const API = 'api.mention.earth';
 
 describe('apexFrontendProxy (host-aware reverse-proxy)', () => {
   beforeEach(() => {
-    vi.unstubAllGlobals();
-    vi.clearAllMocks();
+    vi.restoreAllMocks();
   });
 
   it('proxies apex `/` to the frontend CDN (SPA homepage, not the API welcome)', async () => {

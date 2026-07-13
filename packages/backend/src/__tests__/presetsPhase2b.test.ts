@@ -19,10 +19,18 @@ describe('resolvePhase2bSignals', () => {
     }
   });
 
-  it('defaults to the conservative Phase 2b subset when env is unset', () => {
+  it('defaults to the Phase 5 subset when env is unset', () => {
     delete process.env.FOR_YOU_PHASE2B_SIGNALS;
     const ids = resolvePhase2bSignals().map((ref) => ref.module);
-    expect(ids).toEqual(['penalizeSeen', 'dwellTime', 'mediaBoost', 'coldStartBoost']);
+    expect(ids).toEqual([
+      'penalizeSeen',
+      'coldStartBoost',
+      'socialProof',
+      'noveltyBoost',
+      'verifiedBoost',
+      'localBoost',
+      'languageMismatchPenalty',
+    ]);
   });
 
   it('returns no opt-in signals when FOR_YOU_PHASE2B_SIGNALS=off', () => {
@@ -30,27 +38,33 @@ describe('resolvePhase2bSignals', () => {
     expect(resolvePhase2bSignals()).toEqual([]);
   });
 
-  it('accepts an explicit comma-separated subset', () => {
-    process.env.FOR_YOU_PHASE2B_SIGNALS = 'penalizeSeen,mediaBoost';
+  it('accepts an explicit comma-separated subset (incl. optional signals)', () => {
+    process.env.FOR_YOU_PHASE2B_SIGNALS = 'penalizeSeen,mediaBoost,dwellTime';
     const ids = resolvePhase2bSignals().map((ref) => ref.module);
-    expect(ids).toEqual(['penalizeSeen', 'mediaBoost']);
+    expect(ids).toEqual(['penalizeSeen', 'mediaBoost', 'dwellTime']);
   });
 
   it('drops unknown signal ids from the env list', () => {
-    process.env.FOR_YOU_PHASE2B_SIGNALS = 'penalizeSeen,notASignal,dwellTime';
+    process.env.FOR_YOU_PHASE2B_SIGNALS = 'socialProof,notASignal,verifiedBoost';
     const ids = resolvePhase2bSignals().map((ref) => ref.module);
-    expect(ids).toEqual(['penalizeSeen', 'dwellTime']);
+    expect(ids).toEqual(['socialProof', 'verifiedBoost']);
   });
 });
 
 describe('preset definitions include Phase 2b signals', () => {
-  it('forYouDefinition signals include the default Phase 2b subset at module load', () => {
+  it('forYouDefinition signals include the Phase 5 default subset at module load', () => {
     const ids = forYouDefinition.signals.map((ref) => ref.module);
     expect(ids).toContain('penalizeSeen');
-    expect(ids).toContain('dwellTime');
-    expect(ids).toContain('mediaBoost');
     expect(ids).toContain('coldStartBoost');
-    expect(forYouDefinition.signals.length).toBeGreaterThanOrEqual(BASE_SIGNAL_COUNT + 4);
+    expect(ids).toContain('socialProof');
+    expect(ids).toContain('noveltyBoost');
+    expect(ids).toContain('verifiedBoost');
+    expect(ids).toContain('localBoost');
+    expect(ids).toContain('languageMismatchPenalty');
+    // `mediaBoost` / `dwellTime` are OPTIONAL — never in the default set.
+    expect(ids).not.toContain('mediaBoost');
+    expect(ids).not.toContain('dwellTime');
+    expect(forYouDefinition.signals.length).toBeGreaterThanOrEqual(BASE_SIGNAL_COUNT + 7);
   });
 
   it('videosDefinition signals include the same Phase 2b modules as forYou', () => {

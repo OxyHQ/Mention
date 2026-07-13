@@ -433,10 +433,11 @@ describe('OutboxSyncService — Announce item imports as a boost', () => {
         updatedAt: new Date('2024-05-20T10:00:00Z'),
       }),
     );
-    // The boosted post's counter moved +1 in lockstep with the new boost record.
+    // The boosted post's counters moved +1 in lockstep with the new boost record:
+    // both the native boost total and the federated-boost subset.
     expect(mocks.postUpdateOne).toHaveBeenCalledWith(
       { _id: 'local_boosted_post' },
-      { $inc: { 'stats.boostsCount': 1 } },
+      { $inc: { 'stats.boostsCount': 1, 'stats.federatedBoostsCount': 1 } },
     );
   });
 });

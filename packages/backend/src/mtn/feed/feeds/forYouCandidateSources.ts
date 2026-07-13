@@ -52,6 +52,7 @@ import { SENSITIVE_EXCLUDE_MATCH, isSensitivePost } from '../feedSafety';
 import { logger } from '../../../utils/logger';
 import { buildFollowedAuthorsMatch } from '../../../utils/postAuthorship';
 import { FEED_FIELDS } from '../FeedAPI';
+import { engagementScoreExpr } from '../engine/sources/discoverySources';
 import type { CandidatePost as EngineCandidatePost } from '../engine/types';
 
 /** Minimal viewer-behavior shape this module reads (a lean UserBehavior doc). */
@@ -313,23 +314,14 @@ export async function gatherRegionLane(params: GatherForYouCandidatesParams): Pr
 export async function gatherTrendingLane(params: GatherForYouCandidatesParams): Promise<CandidatePost[]> {
   const cfg = MtnConfig.feed.candidateSources;
   try {
-    const eng = MtnConfig.ranking.engagement;
     const base = buildBaseMatch(toObjectIds(params.seenPostIds), recencyStart());
     const match = withDiscoverySafety(base);
     match.parentPostId = { $in: [null, undefined] };
     return await Post.aggregate<CandidatePost>([
       { $match: match },
-      {
-        $addFields: {
-          _engagementScore: {
-            $add: [
-              { $multiply: [{ $ifNull: ['$stats.likesCount', 0] }, eng.likeWeight] },
-              { $multiply: [{ $ifNull: ['$stats.boostsCount', 0] }, eng.boostWeight] },
-              { $multiply: [{ $ifNull: ['$stats.commentsCount', 0] }, eng.commentWeight] },
-            ],
-          },
-        },
-      },
+      // Shared composite (single source of truth) — the federated boost subset is
+      // dampened, so a burst of remote Announces no longer fakes a trending post.
+      { $addFields: { _engagementScore: engagementScoreExpr() } },
       { $sort: { _engagementScore: -1, createdAt: -1 } },
       { $limit: cfg.perSource.trending },
       { $project: { _engagementScore: 0 } },

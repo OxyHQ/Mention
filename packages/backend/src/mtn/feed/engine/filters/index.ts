@@ -5,10 +5,15 @@
  * filtering logic — every rule mirrors a pre-existing feed behavior.
  */
 
-import { PostType } from '@mention/shared-types';
+import { PostType, MtnConfig } from '@mention/shared-types';
+import type { ForYouFeedTuning } from '@mention/shared-types';
 import { isSensitivePost, DISCOVERY_SAFE_MATCH } from '../../feedSafety';
+import { detectLowEffort } from '../../../../services/contentClassification/lowEffort';
+import { detectBotShape } from '../../../../services/contentClassification/botSignals';
+import { readTrustedScores } from '../../../../services/contentClassification/trustedScores';
+import { SPAM_QUALITY_CONFIG, visibleText } from '../../../../services/contentClassification/spamQuality';
 import { feedModuleRegistry, FeedModuleRegistry } from '../FeedModuleRegistry';
-import type { CandidatePost, FilterModule } from '../types';
+import type { CandidatePost, FeedEngineContext, FilterModule } from '../types';
 
 /** Read a nested field off a lean candidate without widening to `any`. */
 function field<T = unknown>(post: CandidatePost, key: string): T | undefined {
@@ -55,6 +60,9 @@ function hasAltText(post: CandidatePost): boolean {
   return Array.isArray(content?.media) && content.media.some((m) => typeof m?.alt === 'string' && m.alt.trim().length > 0);
 }
 
+/** HTTP(S) URL token — global so `.match()` collects every hit. */
+const TEXT_URL_PATTERN = /https?:\/\/[^\s]+/gi;
+
 /** All URLs cited in `content.sources` or inlined in `content.text`. */
 function contentUrls(post: CandidatePost): string[] {
   const content = field<{ text?: string; sources?: Array<{ url?: string }> }>(post, 'content');
@@ -63,10 +71,15 @@ function contentUrls(post: CandidatePost): string[] {
     for (const source of content.sources) if (typeof source?.url === 'string' && source.url) urls.push(source.url);
   }
   if (typeof content?.text === 'string') {
-    const matches = content.text.match(/https?:\/\/[^\s]+/gi);
+    const matches = content.text.match(TEXT_URL_PATTERN);
     if (matches) urls.push(...matches);
   }
   return urls;
+}
+
+/** Count of HTTP(S) URLs inlined in a text body (the bot-shape link signal). */
+function countTextUrls(text: string): number {
+  return (text.match(TEXT_URL_PATTERN) ?? []).length;
 }
 
 /** The lowercase host of a URL, or `undefined` when it is not parseable. */
@@ -102,10 +115,15 @@ function isFederated(post: CandidatePost): boolean {
   return federation !== undefined && federation !== null;
 }
 
+/** The candidate's raw text body, or `''` when absent. */
+function contentText(post: CandidatePost): string {
+  const content = field<{ text?: string }>(post, 'content');
+  return typeof content?.text === 'string' ? content.text : '';
+}
+
 /** Length of the candidate's text body. */
 function textLength(post: CandidatePost): number {
-  const content = field<{ text?: string }>(post, 'content');
-  return typeof content?.text === 'string' ? content.text.length : 0;
+  return contentText(post).length;
 }
 
 /** A numeric engagement stat off the candidate, defaulting to 0. */
@@ -408,13 +426,21 @@ export const maxLengthFilter: FilterModule = {
   },
 };
 
-/** `minLength`: drop posts whose text is shorter than `params.minLength` characters. */
+/**
+ * `minLength`: drop posts whose text is shorter than `params.minLength`
+ * characters. As a For You gate module (`params.forYouGate`) the viewer may
+ * disable the floor or override the threshold via `feedTuning.forYou.minLength`.
+ */
 export const minLengthFilter: FilterModule = {
   id: 'minLength',
   kind: 'filter',
   userComposable: true,
-  keep: (post, _ctx, params) => {
-    const min = typeof params.minLength === 'number' ? params.minLength : undefined;
+  keep: (post, ctx, params) => {
+    const tuning = gateTuning(ctx, params, 'minLength');
+    if (tuning?.enabled === false) return true;
+    const min = typeof tuning?.minLength === 'number'
+      ? tuning.minLength
+      : (typeof params.minLength === 'number' ? params.minLength : undefined);
     return min === undefined ? true : textLength(post) >= min;
   },
 };
@@ -655,8 +681,314 @@ export const minAccountAgeFilter: FilterModule = {
   },
 };
 
+// ─────────────────────────────────────────────────────────────────────────
+// Phase 4 DISCOVERY GATE — hard filters for OBJECTIVE junk only, applied by the
+// engine ONLY to non-trusted (discovery) lanes. Each rule is a REUSABLE PURE
+// predicate; the FilterModule is a thin wrapper. Phase 4B re-exposes the same
+// predicates as user-composable modules (`noLowEffort`, `noBots`, …); the For You
+// default gate reads its thresholds from `MtnConfig.feed.discoveryGate`, with
+// per-filter param overrides for custom feeds.
+// ─────────────────────────────────────────────────────────────────────────
+
+const DISCOVERY_GATE = MtnConfig.feed.discoveryGate;
+
+/**
+ * The per-viewer For You override for a discovery-gate module, or `undefined`
+ * when this filter is NOT running as the For You gate. The scoping is the opaque
+ * `params.forYouGate` marker that `resolveDiscoveryGate` stamps on the static For
+ * You gate refs (and ONLY those) — so the SAME filter reused in a custom feed
+ * never picks up a viewer's For You tuning, keeping the definition static while
+ * personalization flows through `ctx` (`ctx.feedTuning.forYou`).
+ */
+function gateTuning<K extends keyof ForYouFeedTuning>(
+  ctx: FeedEngineContext,
+  params: Record<string, unknown>,
+  id: K,
+): ForYouFeedTuning[K] | undefined {
+  return params.forYouGate === true ? ctx.feedTuning?.forYou?.[id] : undefined;
+}
+
+/** Whether the candidate carries any media OR a poll (either rescues a low-text post). */
+function hasMediaOrPoll(post: CandidatePost): boolean {
+  return hasMedia(post) || hasPoll(post);
+}
+
+/** Read a numeric threshold from filter params, falling back to a config default. */
+function numParam(params: Record<string, unknown>, key: string, fallback: number): number {
+  const value = params[key];
+  return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
+}
+
+/**
+ * `lowEffortGate` predicate (PURE) — reject OBJECTIVE low-effort junk:
+ *   1. the post has NO REAL PROSE (emoji-only / custom-emoji-shortcode-only / sub-
+ *      threshold real-letter count via {@link detectLowEffort}) AND carries no
+ *      media or poll — the "no writing, no picture" case; or
+ *   2. the post's TRUSTED classification scores breach the spam / quality floor.
+ *
+ * The score branch fires ONLY on real provenance ({@link readTrustedScores} !==
+ * null); an unscored post (the all-zeros default, or a stale baseline version) is
+ * NEVER rejected by scores, so the feed can never empty merely because scores are
+ * absent. Pure and pre-hydration safe (reads only lean-projected fields).
+ *
+ * @returns `true` to KEEP the post, `false` to reject it.
+ */
+export function passesLowEffortGate(
+  post: CandidatePost,
+  cfg: { minMeaningfulTextLength: number; spamRejectThreshold: number; qualityRejectThreshold: number },
+): boolean {
+  const lowEffort = detectLowEffort(contentText(post), { minRealTextLength: cfg.minMeaningfulTextLength });
+  const noRealText = lowEffort.isNoRealText || lowEffort.shortcodeOnly || lowEffort.emojiOnly;
+  if (noRealText && !hasMediaOrPoll(post)) {
+    return false;
+  }
+
+  const scores = readTrustedScores(post);
+  if (scores) {
+    if (scores.spam >= cfg.spamRejectThreshold) return false;
+    if (scores.quality <= cfg.qualityRejectThreshold) return false;
+  }
+
+  return true;
+}
+
+/** Native (non-federated) weighted engagement count: `likes + comments + native boosts`. */
+function nativeEngagementCount(post: CandidatePost): number {
+  const likes = statCount(post, 'likesCount');
+  const comments = statCount(post, 'commentsCount');
+  const boosts = statCount(post, 'boostsCount');
+  const federatedBoosts = statCount(post, 'federatedBoostsCount');
+  return likes + comments + Math.max(0, boosts - federatedBoosts);
+}
+
+/**
+ * Whether a DISCOVERY candidate matches the viewer's learned interests strongly
+ * enough to bypass the native-engagement floor — via ANY of:
+ *   - a classified TOPIC overlapping a `preferredTopics` entry above the weight
+ *     floor,
+ *   - the AUTHOR being one of the viewer's learned `preferredAuthors`, or
+ *   - FRESHNESS: the post is younger than the grace window (cold-start supply).
+ * Pure; neutral (`false`) for an anonymous / behavior-less viewer.
+ */
+export function matchesViewerInterests(
+  post: CandidatePost,
+  ctx: FeedEngineContext,
+  cfg: { strongTopicWeight: number; freshnessGraceMs: number },
+): boolean {
+  const behavior = ctx.userBehavior;
+
+  const preferredTopics = behavior?.preferredTopics ?? [];
+  if (preferredTopics.length > 0) {
+    const strongTopics = new Set(
+      preferredTopics
+        .filter((t) => typeof t.topic === 'string' && t.weight > cfg.strongTopicWeight)
+        .map((t) => t.topic.toLowerCase()),
+    );
+    if (strongTopics.size > 0 && classificationTopics(post).some((t) => strongTopics.has(t))) {
+      return true;
+    }
+  }
+
+  const authorId = post.oxyUserId;
+  if (authorId) {
+    const preferredAuthors = behavior?.preferredAuthors ?? [];
+    if (preferredAuthors.some((a) => a.authorId === authorId)) {
+      return true;
+    }
+  }
+
+  const created = new Date((post.createdAt as Date | string | undefined) ?? 0).getTime();
+  return Number.isFinite(created) && Date.now() - created <= cfg.freshnessGraceMs;
+}
+
+/**
+ * `nativeEngagementOrMatch` predicate (PURE) — keep a discovery candidate when it
+ * has EITHER real native (non-federated) traction OR a strong personalization
+ * match. Federated Announces (`federatedBoostsCount`) do NOT count toward the
+ * native floor — that is the whole point of tracking them separately — so a burst
+ * of remote boosts can no longer smuggle an off-interest post into the feed.
+ *
+ * @returns `true` to KEEP the post, `false` to reject it.
+ */
+export function passesNativeEngagementOrMatch(
+  post: CandidatePost,
+  ctx: FeedEngineContext,
+  cfg: { minNativeEngagement: number; strongTopicWeight: number; freshnessGraceMs: number },
+): boolean {
+  if (nativeEngagementCount(post) >= cfg.minNativeEngagement) {
+    return true;
+  }
+  return matchesViewerInterests(post, ctx, cfg);
+}
+
+/**
+ * `lowEffortGate`: hard-reject objective low-effort junk (see
+ * {@link passesLowEffortGate}). Thresholds come from filter params, defaulting to
+ * `MtnConfig.feed.discoveryGate`. INTERNAL gate module (not surfaced in the
+ * builder — Phase 4B adds the user-facing `noLowEffort` variant).
+ */
+export const lowEffortGateFilter: FilterModule = {
+  id: 'lowEffortGate',
+  kind: 'filter',
+  userComposable: false,
+  keep: (post, ctx, params) => {
+    const tuning = gateTuning(ctx, params, 'lowEffortGate');
+    if (tuning?.enabled === false) return true;
+    return passesLowEffortGate(post, {
+      minMeaningfulTextLength: tuning?.minMeaningfulTextLength
+        ?? numParam(params, 'minMeaningfulTextLength', DISCOVERY_GATE.minMeaningfulTextLength),
+      spamRejectThreshold: numParam(params, 'spamRejectThreshold', DISCOVERY_GATE.spamRejectThreshold),
+      qualityRejectThreshold: numParam(params, 'qualityRejectThreshold', DISCOVERY_GATE.qualityRejectThreshold),
+    });
+  },
+};
+
+/**
+ * `nativeEngagement`: keep a discovery candidate with native traction OR a strong
+ * personalization match (see {@link passesNativeEngagementOrMatch}). Thresholds
+ * come from filter params, defaulting to `MtnConfig.feed.discoveryGate`. INTERNAL
+ * gate module.
+ */
+export const nativeEngagementFilter: FilterModule = {
+  id: 'nativeEngagement',
+  kind: 'filter',
+  userComposable: false,
+  keep: (post, ctx, params) => {
+    const tuning = gateTuning(ctx, params, 'nativeEngagement');
+    if (tuning?.enabled === false) return true;
+    return passesNativeEngagementOrMatch(post, ctx, {
+      minNativeEngagement: tuning?.minNativeEngagement
+        ?? numParam(params, 'minNativeEngagement', DISCOVERY_GATE.minNativeEngagement),
+      strongTopicWeight: numParam(params, 'strongTopicWeight', DISCOVERY_GATE.strongTopicWeight),
+      freshnessGraceMs: numParam(params, 'freshnessGraceMs', DISCOVERY_GATE.freshnessGraceMs),
+    });
+  },
+};
+
+// ─────────────────────────────────────────────────────────────────────────
+// Phase 4B USER-COMPOSABLE quality/effort/link/bot modules. Same PURE predicates
+// as the For You gate (F4/F6), re-exposed as first-class custom-feed filters with
+// typed params. `minQuality` doubles as a For You gate module (its threshold then
+// comes from the viewer's `feedTuning.forYou.minQuality` via {@link gateTuning}).
+// ─────────────────────────────────────────────────────────────────────────
+
+/**
+ * `minQuality`: keep only posts whose TRUSTED classification quality
+ * ({@link readTrustedScores}) is at or above `params.minQuality` (0..1). NEUTRAL
+ * when the post carries no trusted score (the all-zeros default or a stale
+ * baseline → `null`), so the feed can never empty merely because scores are
+ * absent. A user-composable QUALITY floor for custom feeds; ALSO wired into the
+ * For You gate, where the threshold/toggle come from `feedTuning.forYou.minQuality`
+ * (default: no threshold ⇒ neutral, i.e. opt-in).
+ */
+export const minQualityFilter: FilterModule = {
+  id: 'minQuality',
+  kind: 'filter',
+  userComposable: true,
+  keep: (post, ctx, params) => {
+    const tuning = gateTuning(ctx, params, 'minQuality');
+    if (tuning?.enabled === false) return true;
+    const threshold = typeof tuning?.minQuality === 'number'
+      ? tuning.minQuality
+      : (typeof params.minQuality === 'number' ? params.minQuality : undefined);
+    if (threshold === undefined) return true; // no floor set → neutral
+    const scores = readTrustedScores(post);
+    if (!scores) return true; // no trusted provenance → neutral
+    return scores.quality >= threshold;
+  },
+};
+
+/**
+ * `noLowEffort`: drop OBJECTIVE low-effort posts — emoji-only / custom-emoji
+ * shortcode-only / no-real-prose (via {@link detectLowEffort}) — UNLESS the post
+ * carries media or a poll (which rescues a low-text post). Optionally also drops
+ * emoji-HEAVY posts when `params.maxEmojiRatio` (0..1) is set: a post whose emoji
+ * share of its visible glyphs (`emoji / (emoji + realLetters)`) exceeds the ratio
+ * and carries no media/poll. Threshold `params.minMeaningfulTextLength` defaults
+ * to the discovery-gate config. Thin wrapper over the F6 detector — no new parsing.
+ */
+export const noLowEffortFilter: FilterModule = {
+  id: 'noLowEffort',
+  kind: 'filter',
+  userComposable: true,
+  keep: (post, _ctx, params) => {
+    const minMeaningful = numParam(params, 'minMeaningfulTextLength', DISCOVERY_GATE.minMeaningfulTextLength);
+    const result = detectLowEffort(contentText(post), { minRealTextLength: minMeaningful });
+
+    // No meaningful prose AND nothing visual to rescue it → objective junk.
+    if ((result.isNoRealText || result.shortcodeOnly || result.emojiOnly) && !hasMediaOrPoll(post)) {
+      return false;
+    }
+
+    // Optional emoji-heavy rejection (text-only; media/poll rescues it).
+    const maxEmojiRatio = typeof params.maxEmojiRatio === 'number' ? params.maxEmojiRatio : undefined;
+    if (maxEmojiRatio !== undefined && !hasMediaOrPoll(post)) {
+      const visibleGlyphs = result.emojiCount + result.realTextLength;
+      if (visibleGlyphs > 0 && result.emojiCount / visibleGlyphs > maxEmojiRatio) {
+        return false;
+      }
+    }
+    return true;
+  },
+};
+
+/**
+ * `linkCount`: keep only posts whose number of cited/inlined links (via
+ * {@link contentUrls}) is within `[params.minLinks, params.maxLinks]`. Either
+ * bound is optional; with neither set the filter is a no-op. Complements the
+ * boolean `hasLink`.
+ */
+export const linkCountFilter: FilterModule = {
+  id: 'linkCount',
+  kind: 'filter',
+  userComposable: true,
+  keep: (post, _ctx, params) => {
+    const min = typeof params.minLinks === 'number' ? params.minLinks : undefined;
+    const max = typeof params.maxLinks === 'number' ? params.maxLinks : undefined;
+    if (min === undefined && max === undefined) return true;
+    const count = contentUrls(post).length;
+    if (min !== undefined && count < min) return false;
+    if (max !== undefined && count > max) return false;
+    return true;
+  },
+};
+
+/**
+ * `noBots`: drop RSS/bridge MIRRORS and link-only news bots (via
+ * {@link detectBotShape}). `isRssMirror` reads the federated instance host
+ * ({@link federationHost}); `isLinkOnlyNewsBot` reads the text shape (leading link
+ * + boilerplate hashtag tail) so it fires even on native/unknown-origin
+ * candidates. Uses the SAME visible-prose definition as ingest ({@link visibleText})
+ * and the shared `SPAM_QUALITY_CONFIG.bot` thresholds. Toggle (no params).
+ */
+export const noBotsFilter: FilterModule = {
+  id: 'noBots',
+  kind: 'filter',
+  userComposable: true,
+  keep: (post) => {
+    const rawText = contentText(post);
+    const shape = detectBotShape(
+      {
+        rawText,
+        visible: visibleText(rawText),
+        urlCount: countTextUrls(rawText),
+        hashtagCount: (field<string[]>(post, 'hashtags') ?? []).length,
+      },
+      { isFederated: isFederated(post), instanceDomain: federationHost(post) },
+      SPAM_QUALITY_CONFIG.bot,
+    );
+    return !shape.isRssMirror && !shape.isLinkOnlyNewsBot;
+  },
+};
+
 export const filterModules: FilterModule[] = [
   safetyFilter,
+  lowEffortGateFilter,
+  nativeEngagementFilter,
+  minQualityFilter,
+  noLowEffortFilter,
+  linkCountFilter,
+  noBotsFilter,
   languagePreferenceFilter,
   muteBlockFilter,
   noBoostsFilter,

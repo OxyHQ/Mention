@@ -429,6 +429,15 @@ export interface PostStats {
   likesCount: number;
   downvotesCount: number;
   boostsCount: number;
+  /**
+   * Of the total {@link PostStats.boostsCount}, the subset that originated as
+   * inbound ActivityPub Announces (federated boosts) rather than native reposts.
+   * Maintained in lockstep with `boostsCount` at the federated import/undo sites,
+   * so `boostsCount - federatedBoostsCount` yields the native boost count.
+   * Defaults to 0; a version-gated backfill populates it for posts that predate
+   * the field.
+   */
+  federatedBoostsCount: number;
   commentsCount: number;
   viewsCount: number;
   sharesCount: number;

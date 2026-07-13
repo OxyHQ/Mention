@@ -12,10 +12,11 @@
 
 import { Response } from 'express';
 import mongoose from 'mongoose';
-import { PRESET_FEEDS, isValidFeedDescriptor, parseFeedDescriptor } from '@mention/shared-types';
+import { PRESET_FEEDS, isValidFeedDescriptor, parseFeedDescriptor, validateForYouTuning } from '@mention/shared-types';
 import type { FeedDescriptor, SavedFeed } from '@mention/shared-types';
 import { getRequiredOxyUserId, type OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
 import UserFeedPreference from '../../models/UserFeedPreference';
+import UserSettings from '../../models/UserSettings';
 import CustomFeed from '../../models/CustomFeed';
 import { sendErrorResponse, sendSuccessResponse } from '../../utils/apiHelpers';
 import { logger } from '../../utils/logger';
@@ -134,6 +135,61 @@ class FeedPreferencesController {
     } catch (error) {
       logger.error('[FeedPreferences] Failed to update preferences', { userId, error });
       return sendErrorResponse(res, 500, 'Internal Server Error', 'Failed to update feed preferences');
+    }
+  }
+
+  /**
+   * GET /feed/tuning — the viewer's Mention-local For You discovery-gate tuning.
+   * Returns `{ forYou: {} }` when nothing is stored (the config-default gate
+   * applies). Owner id always comes from the session, never the body.
+   */
+  async getTuning(req: AuthRequest, res: Response): Promise<Response> {
+    if (!req.user?.id) {
+      return sendErrorResponse(res, 401, 'Unauthorized', 'Authentication required');
+    }
+    const userId = getRequiredOxyUserId(req);
+    try {
+      const doc = await UserSettings.findOne({ oxyUserId: userId }, { feedTuning: 1 }).lean();
+      return sendSuccessResponse(res, 200, { forYou: doc?.feedTuning?.forYou ?? {} });
+    } catch (error) {
+      logger.error('[FeedPreferences] Failed to load feed tuning', { userId, error });
+      return sendErrorResponse(res, 500, 'Internal Server Error', 'Failed to load feed tuning');
+    }
+  }
+
+  /**
+   * PUT /feed/tuning — replace the viewer's For You gate tuning. The `forYou`
+   * body is validated + normalized against the shared `FOR_YOU_TUNING_MODULES`
+   * spec (unknown modules/params and out-of-range thresholds are rejected), so
+   * only clean, in-range values are persisted (no mass-assignment).
+   */
+  async updateTuning(req: AuthRequest, res: Response): Promise<Response> {
+    if (!req.user?.id) {
+      return sendErrorResponse(res, 401, 'Unauthorized', 'Authentication required');
+    }
+    const userId = getRequiredOxyUserId(req);
+    try {
+      const raw = (req.body as { forYou?: unknown } | undefined)?.forYou;
+      const result = validateForYouTuning(raw);
+      if (!result.valid) {
+        return sendErrorResponse(res, 400, 'Bad Request', result.error);
+      }
+
+      const updated = await UserSettings.findOneAndUpdate(
+        { oxyUserId: userId },
+        { $set: { 'feedTuning.forYou': result.value } },
+        { new: true, upsert: true },
+      ).lean();
+
+      return sendSuccessResponse(
+        res,
+        200,
+        { forYou: updated?.feedTuning?.forYou ?? result.value },
+        'Feed tuning updated',
+      );
+    } catch (error) {
+      logger.error('[FeedPreferences] Failed to update feed tuning', { userId, error });
+      return sendErrorResponse(res, 500, 'Internal Server Error', 'Failed to update feed tuning');
     }
   }
 }

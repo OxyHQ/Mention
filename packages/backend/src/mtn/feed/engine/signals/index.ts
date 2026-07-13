@@ -50,6 +50,10 @@ const SIGNAL_WEIGHT_KEYS: Record<string, string> = {
   socialProof: 'socialProof',
   reciprocityBoost: 'reciprocityBoost',
   noveltyBoost: 'noveltyBoost',
+  // Opt-in (Phase 4) — discovery signals. DORMANT (not in any preset's default set
+  // until Phase 5); the id === weightKey is forwarded to `rankPosts` when enabled.
+  localBoost: 'localBoost',
+  languageMismatchPenalty: 'languageMismatchPenalty',
 };
 
 export const signalModules: SignalModule[] = Object.entries(SIGNAL_WEIGHT_KEYS).map(

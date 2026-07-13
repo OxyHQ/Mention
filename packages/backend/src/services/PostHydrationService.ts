@@ -85,6 +85,17 @@ interface HydrationOptions {
    * graph expansion by id.
    */
   publicReferencesOnly?: boolean;
+  /**
+   * The viewer's already-resolved social graph, threaded from the feed context
+   * (`loadViewerFeedContext`). When present, {@link buildViewerContext} populates
+   * the viewer follows/followedBy sets from these ids and SKIPS the per-request
+   * `getUserFollowing`/`getUserFollowers` Oxy round trips (the feed already
+   * resolved them once, in parallel). When absent — every non-feed caller (post
+   * detail, notifications, profile, search) — hydration falls back to the live
+   * Oxy fetch, so those paths are unchanged. Both id lists are required together
+   * (the feed always threads both) so the graph is applied atomically.
+   */
+  viewerGraph?: { followingIds: string[]; followerIds: string[] };
 }
 
 interface HydratedGraphNode {
@@ -632,23 +643,36 @@ export class PostHydrationService {
       logger.warn('[PostHydration] Failed to load viewer privacy settings:', error);
     }
 
-    try {
-      const oxyForFollows = client || defaultOxyClient;
-      const [followingResponse, followersResponse] = await Promise.all([
-        oxyForFollows.getUserFollowing(viewerId).catch((error: unknown) => {
-          logger.warn('[PostHydration] getUserFollowing failed:', error);
-          return [];
-        }),
-        oxyForFollows.getUserFollowers(viewerId).catch((error: unknown) => {
-          logger.warn('[PostHydration] getUserFollowers failed:', error);
-          return [];
-        }),
-      ]);
+    const threadedGraph = options?.viewerGraph;
+    if (threadedGraph) {
+      // Feed path: the viewer graph was already resolved ONCE by
+      // `loadViewerFeedContext` (in parallel with the rest of the context) and
+      // threaded here — do NOT re-fetch it from Oxy. This is the deduplication
+      // that guarantees getUserFollowing/getUserFollowers hit Oxy at most once per
+      // feed request.
+      threadedGraph.followingIds.forEach((id) => context.follows.add(String(id)));
+      threadedGraph.followerIds.forEach((id) => context.followedBy.add(String(id)));
+    } else {
+      // Non-feed callers (post detail, notifications, profile, search) do not
+      // pre-resolve the graph — fall back to the live Oxy fetch (unchanged).
+      try {
+        const oxyForFollows = client || defaultOxyClient;
+        const [followingResponse, followersResponse] = await Promise.all([
+          oxyForFollows.getUserFollowing(viewerId).catch((error: unknown) => {
+            logger.warn('[PostHydration] getUserFollowing failed:', error);
+            return [];
+          }),
+          oxyForFollows.getUserFollowers(viewerId).catch((error: unknown) => {
+            logger.warn('[PostHydration] getUserFollowers failed:', error);
+            return [];
+          }),
+        ]);
 
-      extractFollowingIds(followingResponse).forEach((id) => context.follows.add(String(id)));
-      extractFollowersIds(followersResponse).forEach((id) => context.followedBy.add(String(id)));
-    } catch (error) {
-      logger.warn('[PostHydration] Failed to load follower/following context:', error);
+        extractFollowingIds(followingResponse).forEach((id) => context.follows.add(String(id)));
+        extractFollowersIds(followersResponse).forEach((id) => context.followedBy.add(String(id)));
+      } catch (error) {
+        logger.warn('[PostHydration] Failed to load follower/following context:', error);
+      }
     }
 
     return context;
