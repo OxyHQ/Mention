@@ -202,6 +202,28 @@ class PostCreationService {
       content = { ...content, media: enrichedMedia };
     }
 
+    // Defense-in-depth against blank federated posts. `buildFederatedNoteContent`
+    // is the PRIMARY guard on the ingest paths, but the outbox backfill inserts
+    // raw docs via `Post.collection.insertMany` and bypasses this method entirely,
+    // so a federated Note that reaches `create` must never persist an empty body:
+    // no text, no media, no attachments, no poll, and no content-warning summary
+    // is a blank post with nothing to render. Reject it loudly rather than store a
+    // ghost. Native (non-federated) posts are unaffected — this only guards the
+    // federated branch.
+    if (params.federation != null) {
+      const hasText = typeof content.text === 'string' && content.text.trim().length > 0;
+      const hasMedia = Array.isArray(content.media) && content.media.length > 0;
+      const hasAttachments = Array.isArray(content.attachments) && content.attachments.length > 0;
+      const hasPoll = content.poll != null || (typeof content.pollId === 'string' && content.pollId.length > 0);
+      const hasSummary =
+        typeof params.federation.spoilerText === 'string' && params.federation.spoilerText.trim().length > 0;
+      if (!hasText && !hasMedia && !hasAttachments && !hasPoll && !hasSummary) {
+        throw new Error(
+          `PostCreationService: refusing to create empty federated post (activityId=${params.federation.activityId ?? 'unknown'})`,
+        );
+      }
+    }
+
     const postData: Record<string, unknown> = {
       type: derivePostType({ ...params, content }),
       content,

@@ -1407,6 +1407,7 @@
   "widgets.recentlyViewed": "Recently Viewed Widget",
   "post.translate.showOriginal": "Translated · Show original",
   "post.translate.error": "Translation failed. Please try again.",
+  "post.contentWarning": "Content warning",
   "translation.failed": "Translation failed. Try again later.",
   "translation.rateLimited": "Too many translation requests. Please wait.",
   "subscribe.title": "Upgrade to Premium",
