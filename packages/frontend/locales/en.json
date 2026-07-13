@@ -994,19 +994,14 @@
       "feeds": "Feeds",
       "hashtags": "Hashtags",
       "lists": "Lists",
-      "saved": "Saved",
-      "fromOtherNetworks": "From other networks"
+      "saved": "Saved"
     },
     "external": {
       "follow": "Follow",
       "following": "Following",
       "followingPending": "Following…",
       "requested": "Requested",
-      "followFailed": "Could not follow this account",
-      "error": "Couldn't reach that network. Try again.",
-      "retry": "Retry",
-      "notFound": "No account found on other networks",
-      "notFoundHint": "Try a full handle like @user@mastodon.social or name.bsky.social"
+      "followFailed": "Could not follow this account"
     },
     "error": {
       "title": "Search failed",

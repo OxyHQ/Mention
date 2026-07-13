@@ -30,8 +30,9 @@ import SEO from "@/components/SEO";
 import { ProfileCard, ProfileCardSkeletonList, type ProfileCardData } from "@/components/ProfileCard";
 import { FeedCard, type FeedCardData } from "@/components/FeedCard";
 import { ListCard, type ListCardData } from "@/components/ListCard";
-import { ExternalActorCard } from "@/components/search/ExternalActorCard";
+import { ExternalActorFollowButton } from "@/components/search/ExternalActorFollowButton";
 import { useExternalActorResolve } from "@/hooks/useExternalActorResolve";
+import type { ExternalActorResolution } from "@/services/feedService";
 import { EmptyState } from "@/components/common/EmptyState";
 import { Error } from "@/components/Error";
 import { TrendItemRow } from "@/components/trending/TrendItemRow";
@@ -99,7 +100,8 @@ type SearchRow =
     | { kind: "trendsLoading"; key: string }
     | { kind: "trendsError"; key: string }
     | { kind: "operators"; key: string }
-    | { kind: "user"; key: string; user: SearchUserResult }
+    | { kind: "user"; key: string; profile: ProfileCardData }
+    | { kind: "externalUser"; key: string; profile: ProfileCardData; actor: ExternalActorResolution }
     | { kind: "post"; key: string; post: SearchPostResult }
     | { kind: "feed"; key: string; feed: SearchFeedResult }
     | { kind: "hashtag"; key: string; hashtag: SearchHashtagResult }
@@ -125,6 +127,52 @@ function toProfileCardData(user: SearchUserResult): ProfileCardData | null {
         isFederated: user.isFederated || user.type === "federated",
         instance: user.instance || user.federation?.domain,
     };
+}
+
+/**
+ * A cross-network actor resolved by `GET /federation/resolve`, as a normal people
+ * row. Its handle is already network-qualified (`user@domain` for ActivityPub,
+ * the DNS handle for atproto), so it carries no `instance`: the handle passes
+ * through `getNormalizedUserHandle` unchanged, which is exactly the `/@handle`
+ * the federated profile screen resolves.
+ *
+ * The id is the Oxy user once the actor has been minted there, and the protocol
+ * id (actor URI / DID) until then — the row's only id-keyed control is its follow
+ * button, which dispatches on that very distinction.
+ */
+function externalActorToProfileCardData(actor: ExternalActorResolution): ProfileCardData {
+    return {
+        id: actor.oxyUserId ?? actor.externalId,
+        username: actor.handle,
+        name: { displayName: actor.displayName },
+        avatar: actor.avatarUrl,
+        isFederated: true,
+    };
+}
+
+/**
+ * The handles a people result can be recognized by when deduping the resolved
+ * cross-network actor against it.
+ *
+ * Oxy stores a federated account under `local@instance` — `usatoday@flipboard.com`
+ * (ActivityPub) or `alice.bsky.social@bsky.social` (atproto) — while a resolve
+ * returns the network-native handle: `usatoday@flipboard.com` for ActivityPub, the
+ * bare `alice.bsky.social` for atproto. So a federated row also answers to its
+ * handle's local part; a local row never does (its username is not an address).
+ */
+function profileIdentityKeys(profile: ProfileCardData): string[] {
+    const handle = getNormalizedUserHandle(profile)?.toLowerCase();
+    if (!handle) return [];
+    const at = handle.indexOf("@");
+    if (!profile.isFederated || at <= 0) return [handle];
+    return [handle, handle.slice(0, at)];
+}
+
+/** Whether a people result IS the resolved cross-network actor. */
+function isSameActor(profile: ProfileCardData, actor: ExternalActorResolution): boolean {
+    if (actor.oxyUserId && profile.id === actor.oxyUserId) return true;
+    const actorHandle = actor.handle.trim().replace(/^@+/, "").toLowerCase();
+    return actorHandle.length > 0 && profileIdentityKeys(profile).includes(actorHandle);
 }
 
 function toFeedCardData(feed: SearchFeedResult): FeedCardData | null {
@@ -264,15 +312,10 @@ export default function SearchIndex() {
 
     // Cross-network resolve — when the query looks like a remote handle
     // (`@user@host`, `user.bsky.social`, `did:`, `at://`), resolve it to an
-    // external actor (Mastodon / Bluesky). Local `@username` queries never
-    // trigger this and stay on the existing Oxy people search below.
-    const {
-        actor: externalActor,
-        loading: externalLoading,
-        error: externalError,
-        isRemoteQuery,
-        retry: retryExternal,
-    } = useExternalActorResolve(query);
+    // external actor (Mastodon / Bluesky) and merge it into the people results
+    // below as one more row. Local `@username` queries never trigger this and stay
+    // entirely on the Oxy people search. A miss is a quiet `null` — no extra row.
+    const externalActor = useExternalActorResolve(query);
 
     const writeCache = useCallback((key: string, value: LocalSearchResults) => {
         resultsCacheRef.current = pruneCache({ ...resultsCacheRef.current, [key]: value });
@@ -503,17 +546,6 @@ export default function SearchIndex() {
 
     const isIdle = !query.trim();
 
-    // The external (cross-network) result is a person, so it belongs on the "all"
-    // and "users" tabs only. It shows whenever the query looks like a remote
-    // handle — independent of whether the LOCAL search returned anything.
-    const showExternalSection = !isIdle && isRemoteQuery && (activeTab === "all" || activeTab === "users");
-    // A remote-looking query that resolved to nothing (404 miss): not loading, no
-    // error, no actor. Surface a helpful "no account found" hint rather than a
-    // blank section, so the user learns the expected handle format.
-    const externalNotFound = showExternalSection && !externalLoading && !externalError && !externalActor;
-    const hasExternalContent =
-        showExternalSection && (externalLoading || externalError || externalNotFound || Boolean(externalActor));
-
     // Idle rows: recent searches, then trending, then the (secondary) operator
     // chips. Empty while a query is active.
     const idleRows = useMemo<SearchRow[]>(() => {
@@ -564,13 +596,29 @@ export default function SearchIndex() {
             rows.push(...sectionRows);
         };
 
-        pushSection(
-            isAll || activeTab === "users",
-            t("search.sections.users", "People"),
-            results.users
-                .filter((user) => Boolean(user.username || user.handle))
-                .map((user): SearchRow => ({ kind: "user", key: `user-${user.id || user.username}`, user })),
+        // People — Oxy's own results, which ALREADY include the federated accounts
+        // it knows about.
+        const profiles = results.users
+            .map(toProfileCardData)
+            .filter((profile): profile is ProfileCardData => profile !== null);
+        const peopleRows = profiles.map(
+            (profile): SearchRow => ({ kind: "user", key: `user-${profile.id}`, profile }),
         );
+
+        // …plus the account a live cross-network lookup resolved, which Oxy cannot
+        // return until it has been minted there. It is an exact-handle match, so it
+        // leads the people results — unless Oxy already returned that same account,
+        // whose row is the richer local record and wins.
+        if (externalActor && !profiles.some((profile) => isSameActor(profile, externalActor))) {
+            peopleRows.unshift({
+                kind: "externalUser",
+                key: `external-${externalActor.externalId}`,
+                profile: externalActorToProfileCardData(externalActor),
+                actor: externalActor,
+            });
+        }
+
+        pushSection(isAll || activeTab === "users", t("search.sections.users", "People"), peopleRows);
         pushSection(
             isAll || activeTab === "posts",
             t("search.sections.posts", "Posts"),
@@ -598,7 +646,7 @@ export default function SearchIndex() {
         );
 
         return rows;
-    }, [isIdle, loading, searchFailed, activeTab, results, t]);
+    }, [isIdle, loading, searchFailed, activeTab, results, externalActor, t]);
 
     const rows = isIdle ? idleRows : resultRows;
 
@@ -696,17 +744,25 @@ export default function SearchIndex() {
                         </View>
                     );
 
-                case "user": {
-                    const profile = toProfileCardData(item.user);
-                    if (!profile) return null;
+                case "user":
                     return (
                         <ProfileCard
-                            profile={profile}
+                            profile={item.profile}
                             showFollowButton
-                            onPress={() => handleOpenProfile(profile)}
+                            onPress={() => handleOpenProfile(item.profile)}
                         />
                     );
-                }
+
+                // The same row as any other person — it only swaps in a follow
+                // control that can reach an account Oxy has not minted yet.
+                case "externalUser":
+                    return (
+                        <ProfileCard
+                            profile={item.profile}
+                            accessory={<ExternalActorFollowButton actor={item.actor} />}
+                            onPress={() => handleOpenProfile(item.profile)}
+                        />
+                    );
 
                 case "post":
                     return <PostItem post={item.post} onOpen={commitCurrentQuery} />;
@@ -770,71 +826,18 @@ export default function SearchIndex() {
     const keyExtractor = useCallback((item: SearchRow) => item.key, []);
     const getItemType = useCallback((item: SearchRow) => item.kind, []);
 
-    const renderExternalSection = () => {
-        if (!showExternalSection) return null;
-        return (
-            <View className="w-full border-b border-border">
-                {activeTab === "all" ? (
-                    <Text className="px-3 pt-4 pb-2 text-lg font-bold text-foreground">
-                        {t("search.sections.fromOtherNetworks", "From other networks")}
-                    </Text>
-                ) : null}
-                {externalLoading ? (
-                    <View className="items-center justify-center py-6">
-                        <Loading className="text-primary" size="small" />
-                    </View>
-                ) : externalActor ? (
-                    <View className="px-3 py-3">
-                        <ExternalActorCard actor={externalActor} />
-                    </View>
-                ) : externalError ? (
-                    <View className="px-3 py-3 gap-2">
-                        <Text className="text-sm text-muted-foreground">
-                            {t("search.external.error", "Couldn't reach that network. Try again.")}
-                        </Text>
-                        <TouchableOpacity
-                            onPress={retryExternal}
-                            className="self-start rounded-full bg-secondary px-4 py-2"
-                            accessibilityRole="button"
-                        >
-                            <Text className="text-sm font-semibold text-primary">
-                                {t("search.external.retry", "Retry")}
-                            </Text>
-                        </TouchableOpacity>
-                    </View>
-                ) : externalNotFound ? (
-                    <View className="px-3 py-3">
-                        <Text className="text-sm font-medium text-foreground">
-                            {t("search.external.notFound", "No account found on other networks")}
-                        </Text>
-                        <Text className="mt-0.5 text-sm text-muted-foreground">
-                            {t(
-                                "search.external.notFoundHint",
-                                "Try a full handle like @user@mastodon.social or name.bsky.social",
-                            )}
-                        </Text>
-                    </View>
-                ) : null}
-            </View>
-        );
-    };
-
     // Idle with nothing to show yet (no history, no trends) — introduce the screen
     // instead of leaving the operator chips alone on an empty canvas.
     const showIdleIntro = isIdle && searchHistory.length === 0 && visibleTrends.length === 0 && trendsFetched;
 
-    const renderListHeader = () => (
-        <View>
-            {showIdleIntro ? (
-                <EmptyState
-                    title={t("search.startSearching", "Search Mention")}
-                    subtitle={t("search.startDescription", "Find people, posts, hashtags, and more")}
-                    customIcon={<Search size={48} className="text-muted-foreground" />}
-                />
-            ) : null}
-            {renderExternalSection()}
-        </View>
-    );
+    const renderListHeader = () =>
+        showIdleIntro ? (
+            <EmptyState
+                title={t("search.startSearching", "Search Mention")}
+                subtitle={t("search.startDescription", "Find people, posts, hashtags, and more")}
+                customIcon={<Search size={48} className="text-muted-foreground" />}
+            />
+        ) : null;
 
     const renderListEmpty = () => {
         if (isIdle) return null;
@@ -866,8 +869,8 @@ export default function SearchIndex() {
             );
         }
 
-        if (hasExternalContent) return null;
-
+        // A resolved cross-network actor is a normal row now, so it keeps the list
+        // non-empty on its own — nothing to special-case here.
         return (
             <EmptyState
                 title={t("search.noResults", "No results found")}

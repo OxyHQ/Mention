@@ -10,32 +10,22 @@ const RESOLVE_DEBOUNCE_MS = 400;
 const RESOLVE_STALE_TIME = 5 * 60 * 1000;
 const RESOLVE_GC_TIME = 30 * 60 * 1000;
 
-export interface UseExternalActorResolveResult {
-  /** The resolved external actor, or null when the query resolves to nothing. */
-  actor: ExternalActorResolution | null;
-  /** True while a resolve request for a remote-looking query is in flight. */
-  loading: boolean;
-  /** True when the resolve request failed (network/server error, not a 404 miss). */
-  error: boolean;
-  /** Whether the (debounced) query looks like a remote handle worth resolving. */
-  isRemoteQuery: boolean;
-  /** Re-run the resolve (used by the search UI's error-retry affordance). */
-  retry: () => void;
-}
-
 /**
- * Resolve a raw search query to a cross-network external actor.
+ * Resolve a raw search query to a cross-network external actor (Mastodon /
+ * Bluesky), or `null` when there is none.
  *
  * Debounces the query, and only calls `GET /federation/resolve` when the
  * debounced value LOOKS like a remote handle (`@user@host`, `user.bsky.social`,
  * `did:…`, `at://…`) — a bare local `@username` never triggers a resolve and
- * stays entirely on the existing Oxy people search. Resolution, loading, error
- * and caching are owned by React Query.
+ * stays entirely on the Oxy people search. Resolution and caching are owned by
+ * React Query.
  *
- * A 404 miss ("not an external handle" / actor not found) surfaces as
- * `actor: null` with `error: false`, so the UI simply shows no external card.
+ * The lookup is a non-blocking ENRICHMENT of the normal people results: the
+ * resolved actor is merged into them as one more row, and every non-result — a
+ * 404 miss, an unreachable instance, a network error — is the same quiet `null`.
+ * The search screen never waits on it and never reports it.
  */
-export function useExternalActorResolve(rawQuery: string): UseExternalActorResolveResult {
+export function useExternalActorResolve(rawQuery: string): ExternalActorResolution | null {
   // Value-debounce the raw query: the search box updates on every keystroke, but
   // we only want to resolve once typing settles. This is the idiomatic place for
   // an effect — subscribing to a changing input and a timer.
@@ -48,7 +38,7 @@ export function useExternalActorResolve(rawQuery: string): UseExternalActorResol
 
   const isRemoteQuery = useMemo(() => looksLikeRemoteHandle(debounced), [debounced]);
 
-  const query = useQuery<ExternalActorResolution | null>({
+  const { data } = useQuery<ExternalActorResolution | null>({
     queryKey: ['federation', 'resolve', debounced],
     queryFn: () => feedService.resolveExternalActor(debounced),
     enabled: isRemoteQuery,
@@ -57,13 +47,5 @@ export function useExternalActorResolve(rawQuery: string): UseExternalActorResol
     retry: 1,
   });
 
-  return {
-    actor: isRemoteQuery ? query.data ?? null : null,
-    loading: isRemoteQuery && query.isPending && query.fetchStatus !== 'idle',
-    error: isRemoteQuery && query.isError,
-    isRemoteQuery,
-    retry: () => {
-      void query.refetch();
-    },
-  };
+  return isRemoteQuery ? data ?? null : null;
 }
