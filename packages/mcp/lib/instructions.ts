@@ -7,7 +7,7 @@ export const SERVER_INSTRUCTIONS = `# Mention MCP Server
 Mention (mention.earth) is a social platform. Connect at **https://mcp.mention.earth** from Claude or other MCP clients.
 
 ## Public vs authorized access
-All MCP connections require OAuth authorization in Claude (Settings → Connectors). After connecting, you can read public feeds and profiles and perform account actions (post, like, boost, follow, personalized feeds, search, lists, notifications).
+All MCP connections require OAuth authorization in Claude (Settings → Connectors). After connecting, you can read public feeds and profiles and perform account actions (post, like, boost, follow, personalized feeds, search, lists, starter packs, notifications).
 
 When authentication fails, reconnect Mention in Claude connector settings and approve access on mention.earth. Revoke old access under Settings → Connected AI if reconnecting.
 

@@ -304,4 +304,35 @@ export function registerPostsTools(server: McpServer): void {
       }
     }),
   );
+
+  server.tool(
+    "get-saved-posts",
+    "Get your saved (bookmarked) posts (requires authorization).",
+    {
+      limit: z.number().optional(),
+      page: z.number().optional(),
+      search: z.string().optional(),
+      folder: z.string().optional(),
+    },
+    withAuthGuard(async ({ limit, page, search, folder }) => {
+      try {
+        const query: Record<string, string | number | boolean | undefined> = {};
+        if (limit) query.limit = limit;
+        if (page) query.page = page;
+        if (search) query.search = search;
+        if (folder) query.folder = folder;
+
+        const result = await api.get("/posts/saved", query);
+        const resultObj = result as Record<string, unknown>;
+        const posts = Array.isArray(resultObj.posts) ? resultObj.posts : [];
+        if (posts.length === 0) {
+          return { content: [{ type: "text" as const, text: "No saved posts found." }] };
+        }
+        const formatted = posts.map((p: Record<string, unknown>) => formatPost(p)).join("\n\n---\n\n");
+        return { content: [{ type: "text" as const, text: `Saved posts (${posts.length}):\n\n${formatted}` }] };
+      } catch (error) {
+        return { content: [{ type: "text" as const, text: formatApiError(error) }], isError: true };
+      }
+    }),
+  );
 }

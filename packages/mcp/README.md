@@ -46,7 +46,7 @@ Claude Web  →  mcp.mention.earth (ECS mention-mcp)  →  api.mention.earth (EC
 
 **Identity model:** Claude holds one OAuth token (primary account). The backend resolves the **active account** per request via `bundleId` + Redis/Mongo (`activeOxyUserId` on the primary `McpConnection`). Linked accounts approve via browser link flow — not a second Claude OAuth grant.
 
-## MCP tools (45 total)
+## MCP tools (59 total)
 
 ### Accounts (auth required)
 
@@ -70,6 +70,7 @@ Claude Web  →  mcp.mention.earth (ECS mention-mcp)  →  api.mention.earth (EC
 | `stop-collab-sharing` | `POST /posts/:id/collaborators/stop-sharing` |
 | `get-drafts` | `GET /posts/drafts` |
 | `get-scheduled-posts` | `GET /posts/scheduled` |
+| `get-saved-posts` | `GET /posts/saved` |
 
 ### Collaborative posts
 
@@ -98,7 +99,28 @@ Claude Web  →  mcp.mention.earth (ECS mention-mcp)  →  api.mention.earth (EC
 
 `like-post`, `unlike-post`, `save-post`, `unsave-post`, `boost`, `quote-post`
 
-### Social, search, lists, notifications, polls, hashtags, profile, starter packs
+### Social (public unless noted)
+
+| Tool | Auth | Backend |
+|------|------|---------|
+| `follow-user` | yes | `POST /federation/follow` |
+| `unfollow-user` | yes | `POST /federation/unfollow` |
+| `get-recommendations` | no | `GET /recommendations` |
+
+### Starter packs (public reads; writes auth required)
+
+| Tool | Auth | Backend |
+|------|------|---------|
+| `get-starter-packs` | no | `GET /starter-packs` |
+| `get-starter-pack` | no | `GET /starter-packs/:id` |
+| `create-starter-pack` | yes | `POST /starter-packs` |
+| `update-starter-pack` | yes | `PUT /starter-packs/:id` |
+| `delete-starter-pack` | yes | `DELETE /starter-packs/:id` |
+| `add-starter-pack-members` | yes | `POST /starter-packs/:id/members` |
+| `remove-starter-pack-members` | yes | `DELETE /starter-packs/:id/members` |
+| `use-starter-pack` | yes | `POST /starter-packs/:id/use` |
+
+### Search, lists, notifications, polls, hashtags, profile
 
 See `packages/mcp/tools/*.ts`. Most write/personalized reads require auth per `lib/tool-auth.ts`.
 
