@@ -3,9 +3,10 @@
  *
  * The base {@link FeedEngineContext} a feed request runs against — following ids
  * (local + accepted federated), subscribed-list member ids, learned behavior,
- * dominant region, and the sensitive-content opt-in. Shared by the descriptor
- * feed controller (`/feed/mtn`) and the custom-feed timeline route so both build
- * an identical context (mutual-id resolution stays feed-specific in the controller).
+ * dominant region, account languages, and the sensitive-content opt-in. Shared by
+ * the descriptor feed controller (`/feed/mtn`) and the custom-feed timeline route
+ * so both build an identical context (mutual-id resolution stays feed-specific in
+ * the controller).
  *
  * Every load is best-effort and soft-fails to a safe default: a lookup error must
  * never break a feed or relax the sensitivity gate.
@@ -19,6 +20,7 @@ import FederatedActor from '../../models/FederatedActor';
 import UserSettings from '../../models/UserSettings';
 import { listSubscriptionService } from '../../services/ListSubscriptionService';
 import { userPreferenceService } from '../../services/UserPreferenceService';
+import { resolveUserSummaries } from '../../services/PostHydrationService';
 import type { IUserBehavior } from '../../models/UserBehavior';
 import { logger } from '../../utils/logger';
 import type { FeedEngineContext } from './engine/types';
@@ -51,29 +53,30 @@ export async function mergeFederatedFollowIds(localUserId: string, followingIds:
 }
 
 /**
- * Extract the viewer's account content-languages (ISO 639-1 codes) from their Oxy
- * user DTO, for the `languageMismatchPenalty` ranking signal.
+ * The viewer's account languages — canonical BCP-47 locales (`es-ES`, `en-US`),
+ * primary first — for the `languageMismatchPenalty` ranking signal. The Oxy
+ * account is the SINGLE source of truth here: languages are never derived from
+ * behavior and never defaulted to a UI locale.
  *
- * UPSTREAM-READY: the Oxy account is the SINGLE source of truth for the viewer's
- * languages (never derived from behavior, never defaulted to a locale). This pure
- * reader normalizes a plural `languages: string[]` field off the Oxy user — the
- * moment oxy-api/oxy-core expose it, wiring this into {@link loadViewerFeedContext}
- * lights the penalty up with zero further changes. Reads via the DTO index
- * signature (no `as any`), lowercases, trims, dedupes, and drops non-strings;
- * returns `[]` when the field is absent so the signal stays neutral.
+ * The viewer's Oxy user is resolved through the SAME Redis-cached identity path
+ * the feed already uses for post authors ({@link resolveUserSummaries}: batched
+ * cache read, one bulk Oxy fetch for a miss), so an authenticated feed request
+ * adds NO new Oxy round trip — the viewer is typically already warm in the cache.
+ * `CachedUserSummary.languages` is normalized by the SDK's `getUserLanguages`
+ * when the entry is filled.
+ *
+ * Fail-soft: an anonymous viewer, an unresolvable user, or any lookup error
+ * yields `[]`, which keeps the penalty neutral rather than breaking the feed.
  */
-export function resolveViewerLanguages(user: Record<string, unknown> | null | undefined): string[] {
-  const raw = user?.languages;
-  if (!Array.isArray(raw)) {
+export async function loadViewerLanguages(userId: string | undefined): Promise<string[]> {
+  if (!userId) return [];
+  try {
+    const summaries = await resolveUserSummaries([userId]);
+    return summaries.get(userId)?.languages ?? [];
+  } catch (error) {
+    logger.warn('[feedContext] Failed to load viewer languages', error);
     return [];
   }
-  const seen = new Set<string>();
-  for (const entry of raw) {
-    if (typeof entry !== 'string') continue;
-    const code = entry.trim().toLowerCase();
-    if (code.length > 0) seen.add(code);
-  }
-  return Array.from(seen);
 }
 
 /**
@@ -123,6 +126,7 @@ export async function loadViewerFeedContext(
   let userBehavior: IUserBehavior | undefined;
   let showSensitiveContent = false;
   let feedTuning: FeedTuning | undefined;
+  let viewerLanguages: string[] = [];
 
   if (currentUserId) {
     // Every branch is INDEPENDENT except the federated-follow merge, which chains
@@ -183,15 +187,26 @@ export async function loadViewerFeedContext(
     // Already soft-fails to `undefined` internally.
     const tuningPromise = loadFeedTuning(currentUserId);
 
-    [followingIds, followerIds, subscribedListMemberIds, userBehavior, showSensitiveContent, feedTuning] =
-      await Promise.all([
-        followingPromise,
-        followerPromise,
-        subscribedPromise,
-        behaviorPromise,
-        sensitivePromise,
-        tuningPromise,
-      ]);
+    // Already soft-fails to `[]` internally; served from the Redis identity cache.
+    const languagesPromise = loadViewerLanguages(currentUserId);
+
+    [
+      followingIds,
+      followerIds,
+      subscribedListMemberIds,
+      userBehavior,
+      showSensitiveContent,
+      feedTuning,
+      viewerLanguages,
+    ] = await Promise.all([
+      followingPromise,
+      followerPromise,
+      subscribedPromise,
+      behaviorPromise,
+      sensitivePromise,
+      tuningPromise,
+      languagesPromise,
+    ]);
   }
 
   return {
@@ -204,22 +219,9 @@ export async function loadViewerFeedContext(
     showSensitiveContent,
     feedTuning,
     viewerRegion: userPreferenceService.getTopRegion(userBehavior),
-    // Viewer content-languages — UPSTREAM-BLOCKED, left empty (→ neutral penalty).
-    //
-    // The Oxy user DTO the Mention backend receives (serialized by
-    // `formatUserResponse` in oxy-api) exposes ONLY a singular UI-locale
-    // `language` (default 'en'), NOT a plural account content-`languages`
-    // preference. Reading that singular default-'en' locale as the viewer's
-    // content languages would penalize ALL non-English discovery for essentially
-    // every account — exactly the "assume en" behavior this design forbids. No
-    // plural `languages`/`contentLanguages` field exists anywhere in Oxy today.
-    //
-    // FIX-UPSTREAM (oxy-api User model + `formatUserResponse`; oxy-core `User`
-    // interface): add an account `languages: string[]`. Once it lands on the DTO,
-    // resolve the viewer's own Oxy user (e.g. via `resolveUserSummaries([
-    // currentUserId])`, Redis-cached) and set:
-    //   viewerLanguages: resolveViewerLanguages(viewerUser)
-    // Until then this stays empty and `languageMismatchPenalty` is neutral for all.
-    viewerLanguages: [],
+    // The viewer's Oxy account locales (BCP-47, primary first) — `[]` for an
+    // anonymous viewer, an account with no languages, or any lookup failure, in
+    // which case `languageMismatchPenalty` stays neutral.
+    viewerLanguages,
   };
 }

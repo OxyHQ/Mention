@@ -34,6 +34,7 @@
 
 import type { PostClassification } from '@mention/shared-types';
 import type { FeedTuning } from '@mention/shared-types';
+import { getBaseLanguage } from '@oxyhq/core';
 import { explainRanking } from '../mtn/feed/RankingExplainer';
 import { readTrustedScores } from '../services/contentClassification/trustedScores';
 import {
@@ -81,6 +82,7 @@ export interface EvalGateModule {
 /** Viewer/session context for the gate predicates and ranking. */
 export interface EvalContext {
   userBehavior?: RankingUserBehavior;
+  /** The viewer's account languages — BCP-47 locales (`es-ES`) or bare base subtags (`es`). */
   viewerLanguages?: string[];
   feedTuning?: FeedTuning;
   followingIds?: string[];
@@ -290,7 +292,12 @@ export async function runFeedQualityEval(deps: FeedQualityEvalDeps): Promise<Eva
 
   // Built once (not per post) — the negative-penalty + personalization signals read it.
   const behaviorSets = buildBehaviorSets(context.userBehavior);
-  const viewerLangSet = new Set((context.viewerLanguages ?? []).map((l) => l.toLowerCase()));
+  // The language-match METRIC mirrors the `languageMismatchPenalty` signal: the
+  // viewer's BCP-47 locales are reduced to their base subtag (`es-ES` → `es`) so
+  // they compare like-for-like against a post's ISO 639-1 classification languages.
+  const viewerLangSet = new Set(
+    (context.viewerLanguages ?? []).map((locale) => getBaseLanguage(locale)).filter((base) => base.length > 0),
+  );
 
   const rows: EvalScoredRow[] = [];
 
@@ -365,11 +372,13 @@ function buildReport(
     rs.filter((r): r is EvalScoredRow & { quality: number } => r.quality !== null).map((r) => r.quality);
   const trustedAllQ = withQuality(rows);
 
-  // Language-match rate over candidates that declare a language (null if viewer unknown).
+  // Language-match rate over candidates that declare a language (null if viewer
+  // unknown). `viewerLangSet` already holds BASE subtags, so the post's languages
+  // are reduced the same way before the lookup.
   let languageMatchRate: number | null = null;
   if (viewerLangSet.size > 0) {
     const withLang = rows.filter((r) => r.languages.length > 0);
-    const matched = withLang.filter((r) => r.languages.some((l) => viewerLangSet.has(l.toLowerCase()))).length;
+    const matched = withLang.filter((r) => r.languages.some((l) => viewerLangSet.has(getBaseLanguage(l)))).length;
     languageMatchRate = ratio(matched, withLang.length);
   }
 
@@ -738,7 +747,7 @@ async function main(): Promise<void> {
     // ---- Assemble the candidate set (dedup by _id, labeled wins) ----
     const candidates = assembleCandidates(labeledPosts, randomSample, forYouPool, actorByUri);
 
-    // ---- Viewer languages: CLI override, else the (currently upstream-blocked) resolved set ----
+    // ---- Viewer languages: CLI override, else the viewer's resolved Oxy account locales ----
     const viewerLanguages = args.languages.length > 0
       ? args.languages
       : (viewerContext?.viewerLanguages ?? []);

@@ -14,7 +14,7 @@ import { resolveMediaItems } from '../utils/mediaResolver';
 import { logger } from '../utils/logger';
 import { readPersistedMediaFields } from './MediaMetadataService';
 import type { User as OxyUser } from '@oxyhq/core';
-import { getNormalizedUserHandle } from '@oxyhq/core';
+import { getNormalizedUserHandle, getUserLanguages } from '@oxyhq/core';
 import type { LinkPreview } from '@oxyhq/contracts';
 import { assignThreadState } from './ThreadSlicingService';
 import { mget as mgetUserSummaries, mset as msetUserSummaries, CachedUserSummary } from './userSummaryCache';
@@ -139,13 +139,14 @@ const DEFAULT_PRIVACY = {
 };
 
 /**
- * Build the cached identity ({@link CachedUserSummary}: raw Oxy user + follower
- * count) from a resolved Oxy user. Oxy owns the user shape, so this is a
- * PASSTHROUGH: it selects the canonical fields onto {@link PostUser} without
- * reshaping — no flat `displayName`, no pre-resolved `avatarUrl`, no wire
- * `handle`. `avatar` stays the bare Oxy file id (Bloom's `ImageResolver` renders
- * it, same as Who-to-follow / the profile header). Centralized so the per-id and
- * the bulk resolution paths cache IDENTICAL output.
+ * Build the cached identity ({@link CachedUserSummary}: raw Oxy user + the
+ * ranking-side follower count and account languages) from a resolved Oxy user.
+ * Oxy owns the user shape, so the {@link PostUser} half is a PASSTHROUGH: it
+ * selects the canonical fields without reshaping — no flat `displayName`, no
+ * pre-resolved `avatarUrl`, no wire `handle`. `avatar` stays the bare Oxy file id
+ * (Bloom's `ImageResolver` renders it, same as Who-to-follow / the profile
+ * header). Centralized so the per-id and the bulk resolution paths cache
+ * IDENTICAL output.
  */
 function toCachedUser(userId: string, userData: OxyUser): CachedUserSummary {
   const isFederated = Boolean(userData.isFederated) || userData.type === 'federated';
@@ -175,9 +176,15 @@ function toCachedUser(userId: string, userData: OxyUser): CachedUserSummary {
   };
 
   const followerCount = userData._count?.followers;
+  // Account locales, normalized/validated/deduped by the SDK (`es-es` → `es-ES`,
+  // unsupported tags dropped). Cached alongside the identity so the feed can read
+  // the VIEWER's languages without a second Oxy round trip; omitted when the
+  // account declares none, which keeps the language signal neutral.
+  const languages = getUserLanguages(userData);
   return {
     user,
     followerCount: typeof followerCount === 'number' ? followerCount : undefined,
+    languages: languages.length > 0 ? languages : undefined,
   };
 }
 

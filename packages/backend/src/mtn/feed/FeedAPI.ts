@@ -63,13 +63,14 @@ export interface FeedContext {
    */
   showSensitiveContent?: boolean;
   /**
-   * The viewer's account content-languages (ISO 639-1 codes), resolved from the
-   * Oxy account by `loadViewerFeedContext`. Consumed ONLY by the
-   * `languageMismatchPenalty` ranking signal (Phase 4c) to softly downrank
-   * off-language DISCOVERY posts — never a hard filter. EMPTY / absent ⇒ the
-   * penalty is neutral for every post (the viewer's languages are unknown, so we
-   * never penalize). Never derived from behavior and never defaulted to a locale;
-   * see `loadViewerFeedContext` for the (currently upstream-blocked) resolution.
+   * The viewer's account languages as canonical BCP-47 locales (`es-ES`,
+   * `en-US`), primary first, resolved from the Oxy account by
+   * `loadViewerFeedContext`. Consumed ONLY by the `languageMismatchPenalty`
+   * ranking signal (Phase 4c) to softly downrank off-language DISCOVERY posts —
+   * never a hard filter. The signal compares on the BASE subtag (`es-ES` matches
+   * a post classified `es`). EMPTY / absent ⇒ the penalty is neutral for every
+   * post (the viewer's languages are unknown, so we never penalize). Never
+   * derived from behavior and never defaulted to a UI locale.
    */
   viewerLanguages?: string[];
   /**

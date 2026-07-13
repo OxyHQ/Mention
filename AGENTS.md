@@ -254,7 +254,7 @@ Panel chrome insets: `packages/frontend/components/shell/PanelChrome.tsx` (`PANE
 
 ## Feed Performance
 
-- **Hydration author-batch**: `PostHydrationService.buildUserMap` batch-resolves authors via `oxyServices.getUsersByIds`. `services/userSummaryCache.ts` caches the raw canonical Oxy `User` (as `PostUser`) + followerCount in Redis (key `usersummary:v2:<id>`, 10m TTL); `invalidate()` evicts on federated-actor re-resolve (`connectors/identity.ts`).
+- **Hydration author-batch**: `PostHydrationService.buildUserMap` batch-resolves authors via `oxyServices.getUsersByIds`. `services/userSummaryCache.ts` caches the raw canonical Oxy `User` (as `PostUser`) + followerCount + the account's BCP-47 `languages` in Redis (key `usersummary:v3:<id>`, 10m TTL); `invalidate()` evicts on federated-actor re-resolve (`connectors/identity.ts`). The follower count and languages are RANKING-side (`CachedUserSummary`) and deliberately never ship on the `PostUser` DTO.
 - **View counts**: `services/feedViewCounter.ts` (Redis SET NX EX `viewseen:<postId>:<viewerId>`). Frontend reports impressions via `utils/feedTelemetry.ts`.
 - **Instant post-detail**: memory-mode feeds seed the shared post cache (`postsStore.cachePosts`) in `useFeedState`; `app/(app)/p/[id].tsx` paints from cache + background-revalidates (`revalidatePostById`).
 
@@ -292,6 +292,7 @@ Uses DOTTED `$set` to enrich the existing subdoc — NEVER a whole-subdoc overwr
 - **Never-blank fallback**: when the unseen pool is exhausted (seen-set 1000 cap / 30-min TTL), ForYou falls back to `fetchPopular`.
 - **Surface-aware engagement**: likes/saves/boosts from the Videos feed dampen author affinity but boost topic + post-type affinity. `Like.source` is persisted. Config: `preferences.engagementContext` in shared-types.
 - **`userBehavior` context**: loaded in `feed.controller` on every ForYou request — affinity and preferred-topic signals were dead without it.
+- **Viewer languages**: `loadViewerFeedContext` resolves the viewer's Oxy account languages (`loadViewerLanguages` → the Redis-cached `resolveUserSummaries` path — no extra Oxy round trip; fail-soft to `[]`). They are BCP-47 LOCALES (`es-ES`), while `postClassification.languages` are ISO 639-1 base codes (`es`), so `languageMismatchPenalty` compares on the BASE subtag via `getBaseLanguage` from `@oxyhq/core`. Empty on either side ⇒ neutral (never penalize).
 - **Never honor default-zero scores**: ranking gates on `status === 'classified' OR version >= BASELINE_CLASSIFIER_VERSION` before trusting quality/spam/toxicity values.
 
 ## Theming

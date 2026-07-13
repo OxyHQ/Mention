@@ -409,9 +409,10 @@ export class FeedRankingService {
        */
       mutualIds?: string[];
       /**
-       * The viewer's account content-languages (ISO 639-1), forwarded to the
-       * `languageMismatchPenalty` opt-in signal. Empty/absent ⇒ neutral. Only
-       * consumed when that signal is enabled.
+       * The viewer's account languages (BCP-47 locales), forwarded to the
+       * `languageMismatchPenalty` opt-in signal, which matches them against a
+       * post's ISO 639-1 classification languages on the base subtag.
+       * Empty/absent ⇒ neutral. Only consumed when that signal is enabled.
        */
       viewerLanguages?: string[];
     } = {}

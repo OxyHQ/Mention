@@ -95,6 +95,44 @@ describe('languageMismatchPenalty scorer', () => {
       R.languageMismatchPenalty.penalty,
     );
   });
+
+  /**
+   * The two sides speak different dialects of "language": the viewer's Oxy
+   * account carries full BCP-47 LOCALES (`es-ES`), a post's classification
+   * carries ISO 639-1 BASE codes (`es`). The signal must compare on the base
+   * subtag, so region never causes a false mismatch.
+   */
+  describe('BCP-47 viewer locales are matched on the BASE subtag', () => {
+    const viewer = ['es-ES', 'en-US'];
+
+    it('is neutral for a post in a language the viewer speaks (any region)', () => {
+      expect(service.calculateLanguageMismatchPenalty(discovery(['es']), viewer)).toBe(1.0);
+      expect(service.calculateLanguageMismatchPenalty(discovery(['en']), viewer)).toBe(1.0);
+      expect(service.calculateLanguageMismatchPenalty(discovery(['de', 'en']), viewer)).toBe(1.0);
+    });
+
+    it('ignores region — an es-MX viewer still matches an `es` post', () => {
+      expect(service.calculateLanguageMismatchPenalty(discovery(['es']), ['es-MX'])).toBe(1.0);
+    });
+
+    it('penalizes a genuinely foreign language', () => {
+      for (const language of ['de', 'ja', 'fr']) {
+        expect(service.calculateLanguageMismatchPenalty(discovery([language]), viewer)).toBe(
+          R.languageMismatchPenalty.penalty,
+        );
+      }
+    });
+
+    it('stays neutral when either side is unknown', () => {
+      expect(service.calculateLanguageMismatchPenalty(discovery(['de']), [])).toBe(1.0);
+      expect(service.calculateLanguageMismatchPenalty(discovery([]), viewer)).toBe(1.0);
+      expect(service.calculateLanguageMismatchPenalty(makePost({ _discovery: true }), viewer)).toBe(1.0);
+    });
+
+    it('is neutral for an unparseable viewer language (never penalizes on garbage input)', () => {
+      expect(service.calculateLanguageMismatchPenalty(discovery(['de']), ['', '   '])).toBe(1.0);
+    });
+  });
 });
 
 describe('Phase 4 signals are OFF unless the definition enables them', () => {

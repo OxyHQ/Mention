@@ -299,9 +299,10 @@ export const MtnConfig = {
        * OFF-LANGUAGE discovery PENALTY (Phase 4c). A modest DOWNRANK — never a hard
        * filter — applied ONLY to DISCOVERY posts (`post._discovery === true`, i.e.
        * candidates that entered via a non-trusted lane) whose declared
-       * `postClassification.languages` are KNOWN and DISJOINT from the viewer's
-       * account languages (`context.viewerLanguages`, resolved from the Oxy
-       * account). Neutral (1.0) when the viewer has no known languages, the post
+       * `postClassification.languages` (ISO 639-1) are KNOWN and DISJOINT from the
+       * viewer's account languages (`context.viewerLanguages` — BCP-47 locales
+       * resolved from the Oxy account, matched on the BASE subtag, so an `es-ES`
+       * viewer matches an `es` post). Neutral (1.0) when the viewer has no known languages, the post
        * declares no language, the languages overlap, or the post is from a TRUSTED
        * lane (followed/affinity/lists are never `_discovery`). Off-language content
        * is deliberately PENALIZED, not removed — a good off-language post can still

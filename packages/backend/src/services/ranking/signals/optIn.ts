@@ -16,6 +16,7 @@
  */
 
 import { MtnConfig } from '@mention/shared-types';
+import { getBaseLanguage } from '@oxyhq/core';
 import type { RankablePost, RankingUserBehavior, SignalContext } from '../signalContext';
 import { getCanonicalTopics, getClassifiedConstructiveness } from './classification';
 import type { RankingSignal } from './types';
@@ -238,8 +239,16 @@ export function localBoost(post: RankablePost): number {
  *   - the viewer's account languages are KNOWN (non-empty), AND
  *   - the post's `postClassification.languages` are KNOWN and DISJOINT from them.
  * Neutral (1.0) in every other case (unmarked post, unknown viewer languages,
- * unclassified post, or any language overlap). Both language lists are tiny
- * (≤ 3 codes), so the overlap check is a cheap nested scan — no Set needed.
+ * unclassified post, or any language overlap).
+ *
+ * The two sides are expressed in DIFFERENT units and are compared on the BASE
+ * language subtag: the viewer's languages are full BCP-47 locales from their Oxy
+ * account (`es-ES`, `en-US`), while a post's classification languages are ISO
+ * 639-1 base codes (`es`, `en`). `getBaseLanguage` (`'es-ES'` → `'es'`) puts them
+ * in the same unit, so an `es-ES`/`en-US` viewer matches `es` and `en` posts and
+ * is penalized only on a genuinely foreign language (`de`, `ja`, …). Region is
+ * deliberately ignored — a Mexican Spanish reader reads Spain's Spanish. Both
+ * lists are tiny (≤ 3 entries), so the overlap check is a cheap nested scan.
  */
 export function languageMismatchPenalty(post: RankablePost, viewerLanguages: string[] | undefined): number {
   if (post?._discovery !== true) {
@@ -252,8 +261,13 @@ export function languageMismatchPenalty(post: RankablePost, viewerLanguages: str
   if (!Array.isArray(postLanguages) || postLanguages.length === 0) {
     return 1.0;
   }
-  const viewerSet = viewerLanguages.map((l) => l.toLowerCase());
-  const overlaps = postLanguages.some((lang) => viewerSet.includes(lang.toLowerCase()));
+  const viewerBaseLanguages = viewerLanguages
+    .map((locale) => getBaseLanguage(locale))
+    .filter((base) => base.length > 0);
+  if (viewerBaseLanguages.length === 0) {
+    return 1.0;
+  }
+  const overlaps = postLanguages.some((lang) => viewerBaseLanguages.includes(getBaseLanguage(lang)));
   return overlaps ? 1.0 : R.optInSignals.languageMismatchPenalty.penalty;
 }
 

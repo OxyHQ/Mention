@@ -173,8 +173,10 @@ export interface CalculatePostScoreContext extends OptInSignalContext {
    */
   showSensitiveContent?: boolean;
   /**
-   * The viewer's account content-languages (ISO 639-1), for the
-   * `languageMismatchPenalty` signal. Empty/absent ⇒ neutral (never penalize).
+   * The viewer's account languages as BCP-47 locales (`es-ES`), for the
+   * `languageMismatchPenalty` signal, which matches them against a post's ISO
+   * 639-1 classification languages on the BASE subtag. Empty/absent ⇒ neutral
+   * (never penalize).
    */
   viewerLanguages?: string[];
 }
@@ -195,7 +197,7 @@ export interface SignalContext {
   authorFollowerCounts?: Map<string, number>;
   /** Whether the viewer opted in to sensitive/NSFW content (default false → SFW). */
   showSensitiveContent: boolean;
-  /** The viewer's account content-languages (ISO 639-1), for `languageMismatchPenalty`. */
+  /** The viewer's account languages (BCP-47 locales), for `languageMismatchPenalty`. */
   viewerLanguages?: string[];
   feedSettings?: FeedRankingSettings;
   /** Optional pre-calculated engagement scores (postId → score). */
