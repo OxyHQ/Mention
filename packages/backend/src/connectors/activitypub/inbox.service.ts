@@ -8,7 +8,7 @@ import {
   FEDERATION_MAX_CONTENT_LENGTH,
   resolveOxyUser,
 } from './constants';
-import { htmlToPlainText } from '../../utils/federation/htmlToPlainText';
+import { PostType } from '@mention/shared-types';
 import { extractApLanguage, extractApLanguages } from './apLanguage';
 import { getPostCreator } from '../../services/serviceRegistry';
 import { isFediverseSharingEnabled, isFediverseSharingEnabledFromUser } from '../../services/fediverseSharing';
@@ -19,15 +19,13 @@ import { followService } from './follow.service';
 import { getServiceOxyClient } from '../../utils/oxyHelpers';
 import {
   extractAnnouncedObjectUri,
-  extractApHashtags,
-  extractApMedia,
   extractInReplyToUri,
   isDuplicateKeyError,
   mapApVisibility,
   parseApPublished,
   resolvePostIdFromObjectUri,
 } from './helpers';
-import { materializeFederatedMedia } from '../shared/federatedMedia';
+import { buildFederatedNoteContent, buildFederatedNoteContentForEdit } from './apPostContent';
 import { getRemoteHost } from '../shared/url';
 import { parseInboundActivity, parseNote, primaryApType } from './apSchemas';
 import type { z } from 'zod';
@@ -427,9 +425,6 @@ export class InboxProcessingService {
       return;
     }
 
-    // Convert HTML to plain text
-    const text = htmlToPlainText(rawContent);
-
     // Dedup by activityId
     const existingPost = await Post.exists({ 'federation.activityId': object.id });
     if (existingPost) return;
@@ -444,14 +439,20 @@ export class InboxProcessingService {
     const actor = await actorService.getOrFetchActor(actorUri);
     const authorOxyUserId = requireActorOxyUserId(actor, actorUri, `Create ${object.id}`);
 
-    const hashtags = extractApHashtags(object);
-    const extracted = extractApMedia(object);
-    const { media, attachments } = await materializeFederatedMedia(
-      extracted.media,
-      extracted.attachments,
-      authorOxyUserId,
-      { activityId: object.id, actorUri },
-    );
+    // Extract the body (with contentMap fallback), normalize hashtags, and
+    // materialize media through the shared builder — the SAME path the outbox
+    // backfill and boost/ancestor import use. A Note that carries nothing
+    // storable (no text, no surviving media, no content-warning) is dropped
+    // instead of persisted as a blank post.
+    const built = await buildFederatedNoteContent(object, authorOxyUserId, {
+      activityId: object.id,
+      actorUri,
+    });
+    if (built.skip) {
+      logger.debug(`Skipping empty federated Create from ${actorUri} (${object.id}): ${built.reason}`);
+      return;
+    }
+    const { text, media, attachments, hashtags, summary, sensitive } = built;
 
     // Preserve the ORIGINAL publish date so a federated post reflects when it
     // was authored remotely, not when our inbox happened to receive it. The Note
@@ -488,8 +489,8 @@ export class InboxProcessingService {
         actorUri,
         inReplyTo: inReplyToUri,
         url: object.url || object.id,
-        sensitive: object.sensitive || false,
-        spoilerText: object.summary || undefined,
+        sensitive,
+        spoilerText: summary,
       },
       parentPostId: threadLink?.parentPostId ?? null,
       threadId: threadLink?.threadId ?? null,
@@ -510,7 +511,7 @@ export class InboxProcessingService {
       // Instance host drives the Stage-A coarse region for federated posts.
       instanceDomain: getRemoteHost(actorUri),
       status: 'published',
-      metadata: { isSensitive: object.sensitive === true },
+      metadata: { isSensitive: sensitive },
       skipNotifications: true,
       skipSocketEmit: true,
       skipFederationDelivery: true,
@@ -697,36 +698,65 @@ export class InboxProcessingService {
         return;
       }
 
-      const objectId = object.id;
-      if (!objectId) return;
+      // `object.id` is raw, remote-controlled AP JSON. Require a real string
+      // BEFORE it flows into any Mongo filter: a non-string value (e.g.
+      // `{ $gt: '' }`) would turn the equality match into an operator query
+      // matching arbitrary posts (NoSQL injection). This proven-string barrier
+      // is also the recognized CodeQL sanitizer for the query taint.
+      const objectActivityId = object.id;
+      if (typeof objectActivityId !== 'string' || objectActivityId.length === 0) return;
 
-      const text = htmlToPlainText(object.content || '');
-      const existingPost = await Post.findOne(
-        { 'federation.activityId': objectId },
-        { oxyUserId: 1 },
-      ).lean<{ oxyUserId?: string | null } | null>();
+      // An Update may only edit the SENDING actor's OWN post. Scope every query
+      // by both the activity id AND `federation.actorUri` (stamped at create on
+      // the inbox Create + outbox backfill paths) so a remote server cannot
+      // overwrite another actor's post by replaying its activityId.
+      const editFilter = {
+        'federation.activityId': objectActivityId,
+        'federation.actorUri': actorUri,
+      };
+
+      const existingPost = await Post.findOne(editFilter, { oxyUserId: 1 }).lean<
+        { oxyUserId?: string | null } | null
+      >();
       const ownerOxyUserId = existingPost?.oxyUserId ?? (await actorService.getOrFetchActor(actorUri))?.oxyUserId ?? null;
-      const extracted = extractApMedia(object);
-      const { media, attachments } = await materializeFederatedMedia(
-        extracted.media,
-        extracted.attachments,
-        ownerOxyUserId,
-        { activityId: objectId, actorUri },
-      );
 
-      await Post.updateOne(
-        { 'federation.activityId': objectId },
-        {
-          $set: {
-            'content.text': text,
-            'content.media': media.length > 0 ? media : undefined,
-            'content.attachments': attachments.length > 0 ? attachments : undefined,
-            'metadata.isEdited': true,
-            updatedAt: new Date(),
-          },
-        },
-      );
-      logger.debug(`Updated federated post: ${objectId}`);
+      // Extract the edited body through the SAME shared logic as fresh ingest —
+      // contentMap fallback, hashtag normalization, media materialization, and
+      // CW/sensitive passthrough — so an edited contentMap-only / CW / all-hashtag
+      // note keeps its body instead of being blanked. Edit semantics differ from
+      // Create: NO empty-note guard here — an Update applies its consistently
+      // extracted fields (set when present, unset when the edit removed them),
+      // never skips/deletes.
+      const built = await buildFederatedNoteContentForEdit(object, ownerOxyUserId, {
+        activityId: objectActivityId,
+        actorUri,
+      });
+
+      const derivedType = built.media.length > 0
+        ? (built.media.some((m) => m.type === 'video') ? PostType.VIDEO : PostType.IMAGE)
+        : PostType.TEXT;
+
+      const setOps: Record<string, unknown> = {
+        'content.text': built.text,
+        hashtags: built.hashtags,
+        type: derivedType,
+        'federation.sensitive': built.sensitive,
+        'metadata.isSensitive': built.sensitive,
+        'metadata.isEdited': true,
+        updatedAt: new Date(),
+      };
+      const unsetOps: Record<string, ''> = {};
+      if (built.media.length > 0) setOps['content.media'] = built.media;
+      else unsetOps['content.media'] = '';
+      if (built.attachments.length > 0) setOps['content.attachments'] = built.attachments;
+      else unsetOps['content.attachments'] = '';
+      if (built.summary !== undefined) setOps['federation.spoilerText'] = built.summary;
+      else unsetOps['federation.spoilerText'] = '';
+
+      const update: Record<string, unknown> = { $set: setOps };
+      if (Object.keys(unsetOps).length > 0) update.$unset = unsetOps;
+      await Post.updateOne(editFilter, update);
+      logger.debug(`Updated federated post: ${objectActivityId}`);
     } else if (object.type === 'Person' || object.type === 'Service' || object.type === 'Application') {
       // Profile update — re-fetch the actor to get updated data
       await actorService.fetchRemoteActor(actorUri);

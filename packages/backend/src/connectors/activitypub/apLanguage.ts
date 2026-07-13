@@ -30,6 +30,24 @@ function toIso6391(tag: unknown): string | undefined {
 }
 
 /**
+ * Narrows an AP object's `contentMap` to a plain (non-array) record, or returns
+ * `undefined` when it is absent or the wrong shape. `contentMap` is a map of
+ * BCP-47 language tag → localized HTML content; both the language extractors and
+ * the content-body fallback ({@link ../apPostContent}) need the same defensive
+ * narrowing, so it lives here as the single source of truth.
+ */
+export function getApContentMap(
+  object: Record<string, unknown> | null | undefined,
+): Record<string, unknown> | undefined {
+  if (!object || typeof object !== 'object') return undefined;
+  const contentMap = object.contentMap;
+  if (contentMap && typeof contentMap === 'object' && !Array.isArray(contentMap)) {
+    return contentMap as Record<string, unknown>;
+  }
+  return undefined;
+}
+
+/**
  * Extracts the best-effort ISO 639-1 language from an AP object. Prefers the
  * explicit top-level `language` field; falls back to the single key of
  * `contentMap` when it is unambiguous (exactly one language present). Returns
@@ -44,8 +62,8 @@ export function extractApLanguage(object: Record<string, unknown> | null | undef
   const fromLanguage = toIso6391(object.language);
   if (fromLanguage) return fromLanguage;
 
-  const contentMap = object.contentMap;
-  if (contentMap && typeof contentMap === 'object' && !Array.isArray(contentMap)) {
+  const contentMap = getApContentMap(object);
+  if (contentMap) {
     const keys = Object.keys(contentMap);
     // Only trust contentMap when it is unambiguous (a single localized variant).
     if (keys.length === 1) {
@@ -77,8 +95,8 @@ export function extractApLanguages(object: Record<string, unknown> | null | unde
   const fromLanguage = toIso6391(object.language);
   if (fromLanguage) codes.push(fromLanguage);
 
-  const contentMap = object.contentMap;
-  if (contentMap && typeof contentMap === 'object' && !Array.isArray(contentMap)) {
+  const contentMap = getApContentMap(object);
+  if (contentMap) {
     for (const key of Object.keys(contentMap)) {
       const code = toIso6391(key);
       if (code) codes.push(code);

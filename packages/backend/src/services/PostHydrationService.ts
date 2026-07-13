@@ -1,6 +1,6 @@
 import { FeedPostSlice, FeedSliceItem, HydratedPost, HydratedPostSummary, HydratedBoostContext, HydratedAuthor, PostUser, PostAttachmentBundle, PostEngagementSummary, PostLinkPreview, PostPermissions, PostViewerState, PostVisibility, PostAuthorshipEntry } from '@mention/shared-types';
 import mongoose from 'mongoose';
-import { Post } from '../models/Post';
+import { Post, type PostFederationData } from '../models/Post';
 import Poll from '../models/Poll';
 import Like from '../models/Like';
 import Bookmark from '../models/Bookmark';
@@ -38,6 +38,8 @@ interface RawPost {
   authorship?: PostAuthorshipEntry[];
   content?: Partial<PostContent>;
   metadata?: Partial<PostMetadata>;
+  /** AP federation metadata (federated posts only); `spoilerText` is the CW label. */
+  federation?: PostFederationData;
   /**
    * Stage-A classification subdoc. Only the canonical multi-language array is
    * read during hydration (surfaced to the DTO as `metadata.languages`).
@@ -1271,6 +1273,10 @@ export class PostHydrationService {
       quotesDisabled: Boolean(post.quotesDisabled),
       isPinned: Boolean(post.metadata?.isPinned),
       isSensitive: Boolean(post.metadata?.isSensitive),
+      // Content-warning label from the federated source (Mastodon `summary`). The
+      // frontend renders it as a spoiler/CW header; absent for native posts and
+      // federated posts without a CW.
+      spoilerText: post.federation?.spoilerText || undefined,
       isThread: Boolean(post.threadId),
       language: post.language || undefined,
       languages: post.postClassification?.languages ?? undefined,
