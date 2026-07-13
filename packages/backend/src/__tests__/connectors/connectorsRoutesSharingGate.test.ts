@@ -59,7 +59,7 @@ vi.mock('../../services/PostHydrationService', () => ({
 
 vi.mock('../../utils/oxyHelpers', () => ({
   createScopedOxyClient: vi.fn(),
-  getServiceOxyClient: vi.fn(),
+  getServiceOxyClient: () => ({ getUserById }),
 }));
 
 vi.mock('../../models/Post', () => ({ Post: { find: vi.fn() } }));

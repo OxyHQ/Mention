@@ -279,14 +279,10 @@ router.post('/follow', async (req: AuthRequest, res: Response) => {
     const connector = await resolveTargetConnector(parsed.data.actorUri);
     if (!connector) return res.status(404).json({ error: 'Unsupported or unknown actor' });
 
-    // Dynamic `import()` (not a static top-level import) defers module
-    // resolution past server.ts's own init order — same rationale as
-    // `resolveOxyUser` in `connectors/activitypub/constants.ts` and
-    // `isFediverseSharingEnabled` in `services/fediverseSharing.ts`, since this
-    // route module is pulled in by server.ts before `oxy` is constructed.
-    // Unlike a CJS `require()`, a dynamic `import()` is intercepted by `vi.mock`.
-    const { oxy } = await import('../../server');
-    const user = await oxy.getUserById(userId);
+    // Service-authed Oxy client — the bare `oxy` singleton in server.ts is
+    // unauthenticated and reserved for validating incoming request tokens
+    // (`oxy.auth()`), so resolving a user on it returns nothing.
+    const user = await getServiceOxyClient().getUserById(userId);
     if (!user?.username) return res.status(404).json({ error: 'User not found' });
 
     await connector.deliver({
@@ -343,9 +339,7 @@ router.post('/unfollow', async (req: AuthRequest, res: Response) => {
     const connector = await resolveTargetConnector(parsed.data.actorUri);
     if (!connector) return res.status(404).json({ error: 'Unsupported or unknown actor' });
 
-    // See the matching comment in `POST /follow` above.
-    const { oxy } = await import('../../server');
-    const user = await oxy.getUserById(userId);
+    const user = await getServiceOxyClient().getUserById(userId);
     if (!user?.username) return res.status(404).json({ error: 'User not found' });
 
     await connector.deliver({
@@ -389,10 +383,7 @@ router.post('/sharing-changed', async (req: AuthRequest, res: Response) => {
     // of the flag.
     const enabled = await isFediverseSharingEnabled(userId);
 
-    // See the matching comment in `POST /follow` above for why this is a
-    // dynamic `import()` rather than a static one.
-    const { oxy } = await import('../../server');
-    const user = await oxy.getUserById(userId);
+    const user = await getServiceOxyClient().getUserById(userId);
 
     let cleanupQueued = false;
     if (user?.username) {

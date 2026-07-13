@@ -36,7 +36,7 @@ import type { PeriodicTaskName } from '../queue/types';
 import { interestScoreService } from './InterestScoreService';
 import { endorsementSignalService } from './EndorsementSignalService';
 import { affinityEventService } from './AffinityEventService';
-import { oxy } from '../../server';
+import { getServiceOxyClient } from '../utils/oxyHelpers';
 import type { User } from '@oxyhq/core';
 
 /** Staleness threshold after which an actor profile is re-fetched. */
@@ -758,16 +758,14 @@ class FederationJobScheduler {
 
       // Resolve every distinct sender in ONE batched round-trip rather than a
       // per-delivery getUserById (up to 200 deliveries, with duplicate senders
-      // re-fetched). `oxy` is the service OxyServices singleton exported from
-      // server.ts. This module is only loaded via
-      // `require('./src/services/FederationJobScheduler')` at server bootstrap
-      // (after `oxy` and the services are constructed), so the static import
-      // binding is always live by the time a retry runs — same rationale as the
-      // delivery worker in queue/workers.ts.
+      // re-fetched). Uses the service-authed Oxy client — the bare `oxy`
+      // singleton in server.ts is unauthenticated and is reserved for
+      // validating INCOMING request tokens (`oxy.auth()`), so a bulk resolve on
+      // it returns nothing.
       const uniqueSenderIds = [...new Set(pending.map((d) => d.senderOxyUserId))];
       const senders = new Map<string, User>();
       try {
-        const resolved = await oxy.getUsersByIds(uniqueSenderIds);
+        const resolved = await getServiceOxyClient().getUsersByIds(uniqueSenderIds);
         for (const sender of resolved) {
           if (sender?.id) senders.set(sender.id, sender);
         }

@@ -20,10 +20,14 @@ vi.mock('../../services/FederationJobScheduler', () => ({
   federationJobScheduler: {},
 }));
 
-vi.mock('../../../server', () => ({
-  oxy: {
+// `workers.ts` resolves the sender through `getServiceOxyClient()` (the
+// service-authed client), not the bare server `oxy` singleton. Mock that helper
+// so the delivery worker sees a controllable user lookup without pulling in the
+// real server entry point.
+vi.mock('../../utils/oxyHelpers', () => ({
+  getServiceOxyClient: () => ({
     getUserById: mocks.getUserById,
-  },
+  }),
 }));
 
 import { processInboxJob, processDeliveryJob } from '../../queue/workers';

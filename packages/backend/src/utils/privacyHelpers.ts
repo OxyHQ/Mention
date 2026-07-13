@@ -1,4 +1,4 @@
-import { oxy } from '../../server';
+import { getServiceOxyClient } from './oxyHelpers';
 import { logger } from './logger';
 
 /**
@@ -208,7 +208,12 @@ export function extractFollowersIds(followersRes: unknown): string[] {
  */
 export async function getFollowingIdSet(viewerId: string, client?: OxyClient): Promise<Set<string>> {
   try {
-    const c = client || oxy;
+    // A per-request, viewer-scoped `client` is preferred. When absent, fall back
+    // to the service-authed Oxy client — NOT the bare `oxy` singleton in
+    // server.ts (unauthenticated, reserved for validating incoming request
+    // tokens), which would resolve an empty following list and wrongly deny
+    // access to private/followers-only content.
+    const c = client || getServiceOxyClient();
     const followingRes = await c.getUserFollowing(viewerId);
     return new Set(extractFollowingIds(followingRes));
   } catch (error) {
