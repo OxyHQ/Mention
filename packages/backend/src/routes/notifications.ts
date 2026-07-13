@@ -11,10 +11,16 @@ import { resolveAvatarUrl } from '../utils/mediaResolver';
 import { logger } from '../utils/logger';
 import { postHydrationService } from '../services/PostHydrationService';
 import { createScopedOxyClient } from '../utils/oxyHelpers';
+import { apiRateLimiter } from '../middleware/rateLimiter';
 import type { HydratedPost } from '@mention/shared-types';
 import type { User } from '@oxyhq/core';
 
 const router = express.Router();
+
+// Rate-limit every notification endpoint (200 req/min, keyed by user with IP
+// fallback). Covers the GET list/DB-access handlers flagged by CodeQL
+// (js/missing-rate-limiting) plus unread-count, mark-read, and push-token.
+router.use(apiRateLimiter);
 
 /**
  * Minimal read-surface of an actor profile consumed by `toPopulatedActor`.
