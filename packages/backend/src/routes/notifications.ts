@@ -11,10 +11,16 @@ import { resolveAvatarUrl } from '../utils/mediaResolver';
 import { logger } from '../utils/logger';
 import { postHydrationService } from '../services/PostHydrationService';
 import { createScopedOxyClient } from '../utils/oxyHelpers';
+import { apiRateLimiter } from '../middleware/rateLimiter';
 import type { HydratedPost } from '@mention/shared-types';
 import type { User } from '@oxyhq/core';
 
 const router = express.Router();
+
+// Rate-limit every notification endpoint (200 req/min, keyed by user with IP
+// fallback). Covers the GET list/DB-access handlers flagged by CodeQL
+// (js/missing-rate-limiting) plus unread-count, mark-read, and push-token.
+router.use(apiRateLimiter);
 
 /**
  * Minimal read-surface of an actor profile consumed by `toPopulatedActor`.
@@ -178,6 +184,33 @@ router.get("/", async (req: AuthRequest, res: Response) => {
       }
     }
 
+    // For reaction/reply notifications, attach a CHEAP text preview so the feed
+    // rows can show which post was acted upon. Projected read of `content.text`
+    // ONLY — no `PostHydrationService`, no boost/quote/thread embeds — so this
+    // stays O(1) per notification. Reuses the same `postPreviewMap`.
+    const PREVIEW_TYPES = new Set(['like', 'reply', 'mention', 'boost', 'quote']);
+    const previewEntityIds = notificationsRaw
+      .filter((n) => n && PREVIEW_TYPES.has(n.type)
+        && (n.entityType === 'post' || n.entityType === 'reply') && n.entityId)
+      .map((n) => resolveEntityId(n.entityId))
+      .filter(Boolean);
+
+    if (previewEntityIds.length > 0) {
+      try {
+        const previewDocs = await Post.find(
+          { _id: { $in: previewEntityIds } },
+          { 'content.text': 1 },
+        ).lean();
+        for (const p of previewDocs) {
+          const text = typeof p?.content?.text === 'string' ? p.content.text.trim() : '';
+          postPreviewMap.set(String(p._id), text.length > 200 ? `${text.slice(0, 200)}…` : text);
+        }
+      } catch (e) {
+        // Non-fatal; proceed without previews if the projected query fails.
+        logger.warn('[Notifications] Failed to build reaction previews:', e);
+      }
+    }
+
     // Check if there are more results
     const hasMore = notificationsRaw.length > limit;
     const notificationsToReturn = hasMore ? notificationsRaw.slice(0, limit) : notificationsRaw;
@@ -185,7 +218,10 @@ router.get("/", async (req: AuthRequest, res: Response) => {
     const notifications = notificationsToReturn.map((n) => {
       const actor = profilesMap.get(n.actorId);
       const entIdStr = resolveEntityId(n.entityId);
-      const preview = (n.type === 'post' && n.entityType === 'post') ? postPreviewMap.get(entIdStr) : undefined;
+      // `preview` now covers post + like/reply/mention/boost/quote (any type
+      // whose entityId resolved a cheap text preview above). The full hydrated
+      // `post` embed stays gated to `type:'post'`.
+      const preview = postPreviewMap.get(entIdStr);
       const embeddedPost = (n.type === 'post' && n.entityType === 'post') ? postMap.get(entIdStr) : undefined;
       return {
         ...n,

@@ -11,6 +11,7 @@ import {
 import { usePathname, useRouter, type Href } from "expo-router";
 import { useIsScreenNotMobile, useIsSideBarExpanded } from "@/hooks/useOptimizedMediaQuery";
 import { useTranslation } from "react-i18next";
+import { useUnreadCount } from "@/hooks/useUnreadCount";
 import { SideBarItem } from "./SideBarItem";
 import { Avatar } from '@oxyhq/bloom/avatar';
 
@@ -61,6 +62,7 @@ export function SideBar({ asDrawer = false, onNavigate }: SideBarProps) {
     const { user, signIn } = useAuth();
     const theme = useTheme();
     const avatarUri = user?.avatar;
+    const unreadCount = useUnreadCount();
 
     // Every sidebar destination is a TAB ROOT (home, the current user's own
     // profile, explore, notifications, live rooms, insights, saved, feeds,
@@ -203,6 +205,7 @@ export function SideBar({ asDrawer = false, onNavigate }: SideBarProps) {
                             isActive={pathname === route}
                             isExpanded={showExpanded}
                             onPress={onPress || (asDrawer && route ? () => handleNavPress(route) : undefined)}
+                            badgeCount={route === '/notifications' ? unreadCount : undefined}
                         />
                     ))}
 

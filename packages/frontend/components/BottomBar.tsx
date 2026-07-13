@@ -9,6 +9,8 @@ import { useTheme } from '@oxyhq/bloom/theme';
 import { useHaptics } from '@oxyhq/bloom/hooks';
 import { useHomeRefresh } from '@/context/HomeRefreshContext';
 import { useBottomBarHidden } from '@/context/BottomBarVisibilityContext';
+import { useUnreadCount } from '@/hooks/useUnreadCount';
+import { UnreadBadge } from '@/components/notifications/UnreadBadge';
 import { cn } from '@/lib/utils';
 import { useTranslation } from 'react-i18next';
 import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
@@ -79,6 +81,7 @@ export const BottomBar = () => {
     const haptic = useHaptics();
     const { triggerHomeRefresh } = useHomeRefresh();
     const { t } = useTranslation();
+    const unreadCount = useUnreadCount();
     // Shared auto-hide signal (0 = visible, 1 = hidden). The FAB reads the same
     // value so it slides away in lock-step with this bar. Pinned to 0 on /videos
     // (the provider disables auto-hide there).
@@ -244,9 +247,17 @@ export const BottomBar = () => {
             onPress: handlePressNotifications,
             label: t('bottomBar.notifications'),
             isActive: pathname === '/notifications',
-            icon: pathname === '/notifications'
-                ? <BellActive size={ICON_SIZE} className="text-primary" />
-                : <Bell size={ICON_SIZE} className="text-muted-foreground" />,
+            icon: (
+                <View>
+                    {pathname === '/notifications'
+                        ? <BellActive size={ICON_SIZE} className="text-primary" />
+                        : <Bell size={ICON_SIZE} className="text-muted-foreground" />}
+                    <UnreadBadge
+                        count={unreadCount}
+                        accessibilityLabel={t('notification.badge', { count: unreadCount, defaultValue: '{{count}} unread notifications' })}
+                    />
+                </View>
+            ),
         },
         {
             onPress: handlePressProfile,
@@ -257,7 +268,7 @@ export const BottomBar = () => {
         },
     ], [
         handleHomePress, handlePressVideos, handlePressCompose, handlePressNotifications,
-        handlePressProfile, handleLongPressProfile, t, pathname, user?.avatar,
+        handlePressProfile, handleLongPressProfile, t, pathname, user?.avatar, unreadCount,
     ]);
 
     const innerContent = (

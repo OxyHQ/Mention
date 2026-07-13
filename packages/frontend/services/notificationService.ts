@@ -1,11 +1,18 @@
 import { authenticatedClient } from '../utils/api';
 import { createScopedLogger } from '@/lib/logger';
-import { Notification } from '@mention/shared-types';
+import type { TRawNotification } from '@/types/validation';
 
 const logger = createScopedLogger('NotificationService');
 
-interface NotificationsResponse {
-    notifications: Notification[];
+/**
+ * Shape of the paginated `/notifications` response. `notifications` carries the
+ * RAW API notification shape (`_id`/`read`/`actorId`…), which is what every
+ * consumer re-validates via `ZRawNotification` and what the realtime reducers
+ * patch — NOT the aspirational `@mention/shared-types` `Notification` model
+ * (`id`/`isRead`/`status`), which this endpoint does not emit.
+ */
+export interface NotificationsResponse {
+    notifications: TRawNotification[];
     unreadCount: number;
     hasMore: boolean;
     nextCursor?: string;

@@ -1,7 +1,9 @@
 import React, { useCallback } from 'react';
 import { View, Text, Platform, Pressable, type ViewStyle, type TextStyle } from 'react-native';
 import { useRouter, type Href } from 'expo-router';
+import { useTranslation } from 'react-i18next';
 import { useTheme } from '@oxyhq/bloom/theme';
+import { UnreadBadge } from '@/components/notifications/UnreadBadge';
 import { cn } from '@/lib/utils';
 
 const WEB_BG_TRANSITION: ViewStyle | undefined = Platform.OS === 'web'
@@ -30,6 +32,7 @@ export const SideBarItem = React.memo(function SideBarItem({
     href,
     isExpanded = false,
     onPress,
+    badgeCount,
 }: {
     isActive: boolean;
     icon: React.ReactNode;
@@ -37,8 +40,11 @@ export const SideBarItem = React.memo(function SideBarItem({
     href?: Href;
     isExpanded?: boolean;
     onPress?: () => void;
+    /** When set, overlays an unread pill/dot on the icon (e.g. notifications). */
+    badgeCount?: number;
 }) {
     const router = useRouter();
+    const { t } = useTranslation();
     const { colors } = useTheme();
     const [isHovered, setIsHovered] = React.useState(false);
 
@@ -98,6 +104,13 @@ export const SideBarItem = React.memo(function SideBarItem({
                     style={WEB_COLOR_TRANSITION_VIEW}
                 >
                     {themedIcon}
+                    {typeof badgeCount === 'number' ? (
+                        <UnreadBadge
+                            count={badgeCount}
+                            dot={!isExpanded}
+                            accessibilityLabel={t('notification.badge', { count: badgeCount, defaultValue: '{{count}} unread notifications' })}
+                        />
+                    ) : null}
                 </View>
                 {isExpanded && (
                     <Text
