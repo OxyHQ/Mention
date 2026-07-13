@@ -30,6 +30,9 @@ StarterPackSchema.index({ useCount: -1, createdAt: -1 });
  * find the packs that curate a batch of feed authors. `memberOxyUserIds` is the
  * only array field in the compound (a compound index may have at most one), so the
  * `$in` on the members is index-served and `useCount` filters within it.
+ *
+ * NOTE: `autoIndex`/`autoCreate` are OFF in production — this index is created by
+ * migration `0005-starter-pack-member-index`, not on model load.
  */
 StarterPackSchema.index({ memberOxyUserIds: 1, useCount: -1 });
 
