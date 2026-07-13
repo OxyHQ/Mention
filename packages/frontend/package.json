@@ -129,7 +129,7 @@
     "tailwindcss": "4.3.2",
     "tailwindcss-animate": "^1.0.7",
     "zod": "^4.4.3",
-    "zustand": "^5.0.12"
+    "zustand": "^5.0.14"
   },
   "devDependencies": {
     "@babel/plugin-transform-modules-commonjs": "^7.28.6",
