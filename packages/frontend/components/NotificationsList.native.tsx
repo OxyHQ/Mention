@@ -5,11 +5,11 @@ import type { FlashListRef } from '@shopify/flash-list';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { Loading } from '@oxyhq/bloom/loading';
 import { useLayoutScroll } from '@/context/LayoutScrollContext';
-import type { GroupedNotification } from '@/utils/groupNotifications';
+import type { NotificationListItem } from '@/utils/groupNotifications';
 
 export interface NotificationsListProps {
-    items: GroupedNotification[];
-    renderRow: (item: GroupedNotification) => React.ReactElement;
+    items: NotificationListItem[];
+    renderRow: (item: NotificationListItem) => React.ReactElement;
     header: React.ReactElement | null;
     emptyState: React.ReactElement;
     /** Re-keys the list when the active tab changes (mirrors the previous `key`). */
@@ -42,7 +42,7 @@ export function NotificationsList({
     isFetchingMore,
 }: NotificationsListProps) {
     const theme = useTheme();
-    const listRef = useRef<FlashListRef<GroupedNotification> | null>(null);
+    const listRef = useRef<FlashListRef<NotificationListItem> | null>(null);
     const unregisterScrollableRef = useRef<(() => void) | null>(null);
     const { handleScroll, scrollEventThrottle, registerScrollable } = useLayoutScroll();
 
@@ -53,7 +53,7 @@ export function NotificationsList({
         }
     }, []);
 
-    const assignListRef = useCallback((node: FlashListRef<GroupedNotification> | null) => {
+    const assignListRef = useCallback((node: FlashListRef<NotificationListItem> | null) => {
         listRef.current = node;
         clearScrollableRegistration();
         if (node) {
@@ -77,9 +77,14 @@ export function NotificationsList({
         }
     }, [handleScroll]);
 
-    const renderItem = useCallback(({ item }: { item: GroupedNotification }) => renderRow(item), [renderRow]);
-    const getItemKey = useCallback((item: GroupedNotification) => item.key, []);
-    const getItemType = useCallback((item: GroupedNotification) => item.type, []);
+    const renderItem = useCallback(({ item }: { item: NotificationListItem }) => renderRow(item), [renderRow]);
+    const getItemKey = useCallback((item: NotificationListItem) => item.key, []);
+    // Distinct recycling pool per row shape: section headers recycle among
+    // themselves; notification rows recycle by their notification type.
+    const getItemType = useCallback(
+        (item: NotificationListItem) => (item.kind === 'header' ? 'header' : item.type),
+        [],
+    );
 
     const handleEndReached = useCallback(() => {
         if (hasMore && onEndReached) {

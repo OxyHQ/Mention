@@ -6,6 +6,18 @@ import { cn } from '@/lib/utils';
 interface Tab {
     id: string;
     label: string;
+    /**
+     * Optional unread tally rendered as a small muted number beside the label.
+     * Omitted (or `0`) renders nothing, so existing callers are unaffected.
+     */
+    count?: number;
+}
+
+// Above this, the count renders as "99+" so a large tally can't stretch the tab.
+const MAX_DISPLAYED_COUNT = 99;
+
+function formatCount(count: number): string {
+    return count > MAX_DISPLAYED_COUNT ? `${MAX_DISPLAYED_COUNT}+` : String(count);
 }
 
 interface AnimatedTabBarProps {
@@ -95,49 +107,63 @@ const AnimatedTabBar: React.FC<AnimatedTabBarProps> = ({
         };
     });
 
-    const tabItems = tabs.map((tab) => (
-        <TouchableOpacity
-            key={tab.id}
-            className="items-center py-2.5 px-3 min-w-[60px]"
-            onPress={() => onTabPress(tab.id)}
-            accessibilityRole="tab"
-            accessibilityLabel={tab.label}
-            accessibilityState={{ selected: activeTabId === tab.id }}
-            onLayout={(event) => {
-                const { x, width } = event.nativeEvent.layout;
-                if (!tabLayouts.current[tab.id]) {
-                    tabLayouts.current[tab.id] = { x, width, textWidth: 0 };
-                } else {
-                    tabLayouts.current[tab.id].x = x;
-                    tabLayouts.current[tab.id].width = width;
-                }
-                if (tab.id === activeTabId && tabLayouts.current[tab.id].textWidth > 0) {
-                    setLayoutReady(prev => !prev);
-                }
-            }}
-        >
-            <Text
-                className={cn(
-                    "text-[15px] font-medium text-muted-foreground",
-                    activeTabId === tab.id && "font-bold text-primary"
-                )}
-                numberOfLines={1}
+    const tabItems = tabs.map((tab) => {
+        const count = tab.count ?? 0;
+        const showCount = count > 0;
+        return (
+            <TouchableOpacity
+                key={tab.id}
+                className="items-center py-2.5 px-3 min-w-[60px]"
+                onPress={() => onTabPress(tab.id)}
+                accessibilityRole="tab"
+                accessibilityLabel={showCount ? `${tab.label}, ${count}` : tab.label}
+                accessibilityState={{ selected: activeTabId === tab.id }}
                 onLayout={(event) => {
-                    const { width: textWidth } = event.nativeEvent.layout;
+                    const { x, width } = event.nativeEvent.layout;
                     if (!tabLayouts.current[tab.id]) {
-                        tabLayouts.current[tab.id] = { x: 0, width: 0, textWidth };
+                        tabLayouts.current[tab.id] = { x, width, textWidth: 0 };
                     } else {
-                        tabLayouts.current[tab.id].textWidth = textWidth;
+                        tabLayouts.current[tab.id].x = x;
+                        tabLayouts.current[tab.id].width = width;
                     }
-                    if (tab.id === activeTabId && tabLayouts.current[tab.id].width > 0 && tabLayouts.current[tab.id].x >= 0) {
+                    if (tab.id === activeTabId && tabLayouts.current[tab.id].textWidth > 0) {
                         setLayoutReady(prev => !prev);
                     }
                 }}
             >
-                {tab.label}
-            </Text>
-        </TouchableOpacity>
-    ));
+                {/* Label + optional count sit on one line. The indicator tracks the
+                    LABEL's measured width only (the `onLayout` below), so adding a
+                    count never stretches the underline. */}
+                <View className="flex-row items-center">
+                    <Text
+                        className={cn(
+                            "text-[15px] font-medium text-muted-foreground",
+                            activeTabId === tab.id && "font-bold text-primary"
+                        )}
+                        numberOfLines={1}
+                        onLayout={(event) => {
+                            const { width: textWidth } = event.nativeEvent.layout;
+                            if (!tabLayouts.current[tab.id]) {
+                                tabLayouts.current[tab.id] = { x: 0, width: 0, textWidth };
+                            } else {
+                                tabLayouts.current[tab.id].textWidth = textWidth;
+                            }
+                            if (tab.id === activeTabId && tabLayouts.current[tab.id].width > 0 && tabLayouts.current[tab.id].x >= 0) {
+                                setLayoutReady(prev => !prev);
+                            }
+                        }}
+                    >
+                        {tab.label}
+                    </Text>
+                    {showCount ? (
+                        <Text className="text-muted-foreground ml-1 text-[11px] font-semibold" numberOfLines={1}>
+                            {formatCount(count)}
+                        </Text>
+                    ) : null}
+                </View>
+            </TouchableOpacity>
+        );
+    });
 
     return (
         <View
