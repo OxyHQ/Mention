@@ -3,7 +3,7 @@ import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
 import Poke from '../models/Poke';
 import { createNotification } from '../utils/notificationUtils';
 import { logger } from '../utils/logger';
-import { oxy } from '../../server';
+import { getServiceOxyClient } from '../utils/oxyHelpers';
 import type { User } from '@oxyhq/core';
 
 const router = Router();
@@ -14,7 +14,7 @@ async function resolveUsers(ids: string[]): Promise<Map<string, User>> {
   if (ids.length === 0) return map;
   try {
     // Single batched round-trip instead of one getUserById per id.
-    const users = await oxy.getUsersByIds(ids);
+    const users = await getServiceOxyClient().getUsersByIds(ids);
     for (const user of users) {
       if (user?.id) map.set(user.id, user);
     }
@@ -119,6 +119,7 @@ router.get('/suggested', async (req: AuthRequest, res: Response) => {
     // poke history — only the poke state for the suggestion candidates is
     // needed, and an unbounded `Poke.find({ pokerId })` scans every poke the
     // caller has ever sent.
+    const oxy = getServiceOxyClient();
     const [followersResult, followingResult] = await Promise.all([
       oxy.getUserFollowers(userId).catch(() => []),
       oxy.getUserFollowing(userId).catch(() => []),

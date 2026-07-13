@@ -1,5 +1,6 @@
 import { registrableApex } from '@oxyhq/core';
 import { logger } from '../../utils/logger';
+import { getServiceOxyClient } from '../../utils/oxyHelpers';
 
 export const FEDERATION_DOMAIN = process.env.FEDERATION_DOMAIN || 'mention.earth';
 export const ACTOR_DOMAIN = process.env.ACTOR_DOMAIN || FEDERATION_DOMAIN;
@@ -173,7 +174,10 @@ export function extractActorUriFromActivityId(activityId: string): string | null
  * Returns the user object or null.
  */
 export async function resolveOxyUser(username: string): Promise<any> {
-  const { oxy } = require('../../../server.js');
+  // Service-authed Oxy client — the bare `oxy` singleton in server.ts is
+  // unauthenticated and reserved for validating incoming request tokens
+  // (`oxy.auth()`), so resolving a profile on it returns nothing.
+  const oxy = getServiceOxyClient();
   try {
     return await oxy.getProfileByUsername(username);
   } catch (err) {

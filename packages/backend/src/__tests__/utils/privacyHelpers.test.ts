@@ -1,7 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('../../../server', () => ({
-  oxy: {},
+// `privacyHelpers` resolves the following-list fallback through
+// `getServiceOxyClient()` (the service-authed client), not the bare server `oxy`
+// singleton. Stub it so the module loads in isolation; the tests below always
+// pass an explicit viewer-scoped client, so the fallback is never exercised.
+vi.mock('../../utils/oxyHelpers', () => ({
+  getServiceOxyClient: () => ({
+    getUserFollowing: vi.fn().mockResolvedValue([]),
+    getUserFollowers: vi.fn().mockResolvedValue([]),
+    getBlockedUsers: vi.fn().mockResolvedValue([]),
+    getRestrictedUsers: vi.fn().mockResolvedValue([]),
+  }),
 }));
 
 vi.mock('../../utils/logger', () => ({

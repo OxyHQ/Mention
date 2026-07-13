@@ -4,13 +4,12 @@ import mongoose from 'mongoose';
 import Notification, { INotification } from "../models/Notification";
 import Post from "../models/Post";
 import { Server } from 'socket.io';
-import { oxy } from '../../server';
 import PushToken from '../models/PushToken';
 import { sendPushToUser } from '../utils/push';
 import { resolveAvatarUrl } from '../utils/mediaResolver';
 import { logger } from '../utils/logger';
 import { postHydrationService } from '../services/PostHydrationService';
-import { createScopedOxyClient } from '../utils/oxyHelpers';
+import { createScopedOxyClient, getServiceOxyClient } from '../utils/oxyHelpers';
 import { apiRateLimiter } from '../middleware/rateLimiter';
 import type { HydratedPost } from '@mention/shared-types';
 import type { User } from '@oxyhq/core';
@@ -132,7 +131,7 @@ router.get("/", async (req: AuthRequest, res: Response) => {
     const realActorIds = uniqueActorIds.filter((id) => id !== 'system');
     if (realActorIds.length > 0) {
       try {
-        const profiles = await oxy.getUsersByIds(realActorIds);
+        const profiles = await getServiceOxyClient().getUsersByIds(realActorIds);
         for (const profile of profiles) {
           if (profile?.id) profilesMap.set(profile.id, profile);
         }

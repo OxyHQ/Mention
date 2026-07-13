@@ -1,5 +1,5 @@
 import Notification from '../models/Notification';
-import { oxy } from '../../server';
+import { getServiceOxyClient } from './oxyHelpers';
 import { formatPushForNotification, sendPushToUser } from './push';
 import { logger } from './logger';
 import type { PostAuthorshipEntry } from '@mention/shared-types';
@@ -15,8 +15,9 @@ export interface CreateNotificationData {
 
 /**
  * Minimal actor shape consumed when building a real-time notification payload.
- * Sourced either from `oxy.getUserById` (Oxy user) or a synthetic 'system'
- * actor. `name` may be a plain string or the structured Oxy `{ full }` form.
+ * Sourced either from the service Oxy client's `getUserById` (Oxy user) or a
+ * synthetic 'system' actor. `name` may be a plain string or the structured Oxy
+ * `{ full }` form.
  */
 interface NotificationActor {
   id?: string;
@@ -64,7 +65,7 @@ export const createNotification = async (
       let actor: NotificationActor | null = null;
       try {
         if (data.actorId && data.actorId !== 'system') {
-          const oxyActor = await oxy.getUserById(data.actorId);
+          const oxyActor = await getServiceOxyClient().getUserById(data.actorId);
           actor = {
             id: oxyActor.id,
             username: oxyActor.username,

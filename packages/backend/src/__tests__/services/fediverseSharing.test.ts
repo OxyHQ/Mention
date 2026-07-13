@@ -9,13 +9,14 @@ const mocks = vi.hoisted(() => ({
   isNotFoundError: vi.fn(),
 }));
 
-// `fediverseSharing.ts` reaches `oxy` via a dynamic `import('../../server')`
-// inside each function (mirrors the late `require` behind `resolveOxyUser` in
-// `connectors/activitypub/constants.ts`) so it never forces the whole server
-// entry point into the module graph. `vi.mock` intercepts by resolved path,
-// so mocking here reaches that same dynamic import.
-vi.mock('../../../server', () => ({
-  oxy: { getUserById: mocks.getUserById, getProfileByUsername: mocks.getProfileByUsername },
+// `fediverseSharing.ts` resolves Oxy through `getServiceOxyClient()` (the
+// service-authed client), NOT the bare server `oxy` singleton. Mock that helper
+// to control the user/profile lookups the consent reads depend on.
+vi.mock('../../utils/oxyHelpers', () => ({
+  getServiceOxyClient: () => ({
+    getUserById: mocks.getUserById,
+    getProfileByUsername: mocks.getProfileByUsername,
+  }),
 }));
 
 vi.mock('@oxyhq/core', () => ({

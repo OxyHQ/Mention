@@ -2,6 +2,7 @@ import { isNotFoundError } from '@oxyhq/core';
 import { getRedisClient } from '../utils/redis';
 import { withRedisFallback, ensureRedisConnected } from '../utils/redisHelpers';
 import { logger } from '../utils/logger';
+import { getServiceOxyClient } from '../utils/oxyHelpers';
 
 /**
  * Read chokepoint for a user's fediverse-sharing consent flag.
@@ -11,7 +12,7 @@ import { logger } from '../utils/logger';
  * handling, and outbound delivery all gate through {@link isFediverseSharingEnabled}
  * / {@link isFediverseSharingEnabledFromUser} / {@link getFediverseSharingStateByUsername}
  * / {@link getFediverseSharingStateById} rather than calling
- * `oxy.getUserById`/`oxy.getProfileByUsername` directly, so the consent
+ * `getUserById`/`getProfileByUsername` directly, so the consent
  * semantics (absent ⇒ enabled) and the caching strategy live in exactly one
  * place.
  *
@@ -20,15 +21,15 @@ import { logger } from '../utils/logger';
  *  - Uses the shared {@link getRedisClient} singleton — never opens a new socket.
  *  - When Redis is unavailable every operation degrades to a no-op via
  *    {@link withRedisFallback}: reads just re-resolve from Oxy each time.
- *  - `oxy` is reached via a late dynamic `import()` inside the functions below
- *    (same rationale as the late `require` behind `resolveOxyUser` in
- *    `connectors/activitypub/constants.ts`) rather than a static top-level
- *    import, so this module never forces the whole server entry point into
- *    the import graph of its callers at load time.
+ *  - Oxy is reached via {@link getServiceOxyClient} — the service-authed
+ *    client, NOT the bare `oxy` singleton in server.ts (which is unauthenticated
+ *    and reserved for validating incoming request tokens, so a resolve on it
+ *    returns nothing). The client is obtained inside each function rather than
+ *    bound at module scope so callers never depend on its construction order.
  *  - Oxy lookup failures fail OPEN — an outage must never look like every
  *    user disabled fediverse sharing. The failed lookup is never cached, so
  *    the next read retries against Oxy instead of sticking at "enabled".
- *  - Every `oxy.getUserById` / `oxy.getProfileByUsername` call in this module
+ *  - Every `getUserById` / `getProfileByUsername` call in this module
  *    passes `{ cache: false }`. Those SDK methods cache their result
  *    in-process for 5 minutes; without the override, that cache sits as an
  *    UNDOCUMENTED third layer underneath Mention's own Redis cache — a fresh
@@ -120,13 +121,7 @@ export async function isFediverseSharingEnabled(
     if (cached === '0') return false;
   }
 
-  // Dynamic `import()` (not a static top-level import) defers module
-  // resolution past server.ts's own init order — the same reason
-  // `resolveOxyUser` in `connectors/activitypub/constants.ts` reaches `oxy`
-  // late, since this module is pulled in by route/connector modules server.ts
-  // wires up before `oxy` is constructed. Unlike a CJS `require()`, a dynamic
-  // `import()` is intercepted by `vi.mock` and keeps `oxy`'s real type.
-  const { oxy } = await import('../../server');
+  const oxy = getServiceOxyClient();
   let user: FediverseSharingUserView;
   try {
     user = await oxy.getUserById(oxyUserId, { cache: false });
@@ -187,7 +182,7 @@ export function isFediverseSharingEnabledFromUser(
  * {@link isFediverseSharingEnabledFromUser}.
  */
 export async function getFediverseSharingStateByUsername(username: string): Promise<FediverseSharingState> {
-  const { oxy } = await import('../../server');
+  const oxy = getServiceOxyClient();
   let user: FediverseSharingUserView;
   try {
     user = await oxy.getProfileByUsername(username, { cache: false });
@@ -224,7 +219,7 @@ export async function getFediverseSharingStateByUsername(username: string): Prom
  * guard needs the split.
  */
 export async function getFediverseSharingStateById(oxyUserId: string): Promise<FediverseSharingState> {
-  const { oxy } = await import('../../server');
+  const oxy = getServiceOxyClient();
   let user: FediverseSharingUserView;
   try {
     user = await oxy.getUserById(oxyUserId, { cache: false });

@@ -3,7 +3,7 @@ import { HydratedDocument } from 'mongoose';
 import PushToken from '../models/PushToken';
 import Post from '../models/Post';
 import { INotification } from '../models/Notification';
-import { oxy } from '../../server';
+import { getServiceOxyClient } from './oxyHelpers';
 import { logger } from './logger';
 
 let firebaseInitialized = false;
@@ -107,7 +107,7 @@ export async function formatPushForNotification(n: HydratedDocument<INotificatio
   let actorName = 'Someone';
   try {
     if (n.actorId && n.actorId !== 'system') {
-      const actor = await oxy.getUserById(n.actorId);
+      const actor = await getServiceOxyClient().getUserById(n.actorId);
       actorName = actor?.name.displayName ?? actorName;
     } else if (n.actorId === 'system') {
       actorName = 'System';

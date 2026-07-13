@@ -28,7 +28,7 @@ import { activityPubConnector } from '../connectors/activitypub/ActivityPubConne
 import { federationJobScheduler } from '../services/FederationJobScheduler';
 import { runSharingCleanup } from '../connectors/activitypub/sharingCleanup.service';
 import { processMediaMetadataEnrichJob } from '../services/mediaMetadataEnrichJob';
-import { oxy } from '../../server';
+import { getServiceOxyClient } from '../utils/oxyHelpers';
 
 /**
  * BullMQ consumers (workers) for the federation queues.
@@ -92,12 +92,11 @@ export async function processInboxJob(job: Job<InboxJobData>): Promise<void> {
 export async function processDeliveryJob(job: Job<DeliveryJobData>): Promise<void> {
   const { activityJson, targetInbox, senderOxyUserId } = job.data;
 
-  // The sender's username is needed to load the signing key. `oxy` is the
-  // service OxyServices singleton exported from server.ts. The workers module is
-  // only loaded via `require('./src/queue/workers')` at server bootstrap (after
-  // `oxy` and the services are constructed), so these static imports are safe —
-  // the bindings are always live by the time a job runs.
-  const user = await oxy.getUserById(senderOxyUserId);
+  // The sender's username is needed to load the signing key. Uses the
+  // service-authed Oxy client — the bare `oxy` singleton in server.ts is
+  // unauthenticated and reserved for validating incoming request tokens
+  // (`oxy.auth()`), so resolving a user on it returns nothing.
+  const user = await getServiceOxyClient().getUserById(senderOxyUserId);
   if (!user?.username) {
     logger.warn(
       `[FedDeliver] sender ${senderOxyUserId} not found — dropping delivery to ${targetInbox}`,

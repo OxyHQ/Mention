@@ -1,5 +1,5 @@
 import React, { useCallback, useContext, useMemo, useState } from 'react';
-import { View, Pressable, StyleSheet } from 'react-native';
+import { View, Pressable, StyleSheet, Text } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -9,17 +9,21 @@ import { Avatar } from '@oxyhq/bloom/avatar';
 import { Button } from '@oxyhq/bloom/button';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { show as toast } from '@oxyhq/bloom/toast';
+import { queryKeys as sdkQueryKeys } from '@oxyhq/services';
+import { getNormalizedUserHandle } from '@oxyhq/core';
+import type { User } from '@oxyhq/core';
 import type { PostUser } from '@mention/shared-types';
 
 import { ThemedText } from '../ThemedText';
 import UserName from '../UserName';
 import { LinkifiedText } from '../common/LinkifiedText';
+import { RemoteActorBadge } from '@/components/Fediverse/FediverseBadge';
 import CollabAcceptSheet from '@/components/Compose/CollabAcceptSheet';
 import { getDescriptor, type TranslateFn } from './notificationDescriptors';
+import { useUserById } from '@/hooks/useCachedUser';
 import type { GroupedNotification } from '@/utils/groupNotifications';
 import { POST_ITEM_SPACING } from '@/styles/shared';
 import { formatRelativeTimeLocalized } from '@/utils/dateUtils';
-import { displayNameOrHandle } from '@/utils/displayName';
 import { confirmDialog } from '@/utils/alerts';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
 import { feedService } from '@/services/feedService';
@@ -38,6 +42,10 @@ const AVATAR_GAP = POST_ITEM_SPACING.AVATAR_GAP;
 const HPAD = POST_ITEM_SPACING.HPAD;
 const VPAD = POST_ITEM_SPACING.VPAD;
 
+// Byline row gap between name/handle and the trailing "· time" — mirrors
+// PostHeader's `ROW_GAP` so a notification reads like a feed post byline.
+const ROW_GAP = 8;
+
 const BADGE_SIZE = 20;
 const BADGE_ICON_SIZE = 12;
 // The action badge FILL is themed (`theme.colors[colorToken]`); this white glyph
@@ -53,24 +61,77 @@ const COLLAPSED_STRIP_LIMIT = 3;
 const OXY_ID_PATTERN = /^[a-f0-9]{24}$/i;
 
 /**
- * Resolve an actor to a human label WITHOUT ever surfacing a raw Oxy id
- * (ghost-handle rule). `groupNotifications` falls back `name = actorId` when no
- * display name resolved, so treat an id-like or empty name as "no name" and drop
- * to `@handle`, then to a neutral "Someone".
+ * An actor resolved for display: the raw grouped actor merged with its cached
+ * Oxy `User` (when warm). Splits the identity into a ghost-guarded `displayName`
+ * and a normalized `handle` so the byline can render the name bold and the
+ * `@handle` muted, exactly like the feed's `PostHeader`.
  */
-function resolveActorDisplay(actor: GroupedActor | undefined, t: TranslateFn): string {
-  const someone = t('notification.someone', { defaultValue: 'Someone' });
-  if (!actor) return someone;
-  const rawName = actor.name?.trim();
-  const isIdLike = !rawName || rawName === actor.id || OXY_ID_PATTERN.test(rawName);
-  const handleFallback = actor.username ? `@${actor.username}` : someone;
-  return displayNameOrHandle(isIdLike ? undefined : rawName, handleFallback);
+interface ResolvedActor {
+  id: string;
+  /** Ghost-guarded display name — never a raw 24-hex id. `undefined` when none. */
+  displayName?: string;
+  /** Raw Oxy username (for the collab `PostUser` shape). */
+  username?: string;
+  /** Normalized handle (no leading `@`) for profile routing + the muted line. */
+  handle?: string;
+  avatar?: string | null;
+  verified: boolean;
+  isFederated: boolean;
 }
 
-/** Build the "Alice, Bob and 3 more" actor clause for grouped titles. */
-function buildActorString(actors: GroupedActor[], totalActors: number, t: TranslateFn): string {
-  const names = actors.map((a) => resolveActorDisplay(a, t));
+/**
+ * Drop id-like display names (ghost-handle rule): `groupNotifications` falls back
+ * `name = actorId` when no display name resolved, so an id-like or empty name
+ * means "no name" — the byline then falls to `@handle`, never the raw id.
+ */
+function ghostGuardedName(rawName: string | undefined | null, actorId: string | undefined): string | undefined {
+  const name = rawName?.trim();
+  if (!name) return undefined;
+  if (OXY_ID_PATTERN.test(name)) return undefined;
+  if (actorId && name === actorId) return undefined;
+  return name;
+}
+
+/** Normalized profile handle (local `username`, federated `username@instance`). */
+function normalizedHandle(username: string | undefined | null, cached: User | undefined): string | undefined {
+  const handle = getNormalizedUserHandle({
+    username: username ?? null,
+    instance: cached?.instance ?? null,
+    isFederated: cached?.isFederated ?? null,
+    federation: cached?.federation ?? null,
+  });
+  return handle ?? undefined;
+}
+
+/**
+ * Merge a raw grouped actor with its cached Oxy `User` (when present). Cached
+ * fields win — restoring the proven fallback the old row had via the prewarmed
+ * user cache — with the raw actor as the floor.
+ */
+function mergeActor(actor: GroupedActor | undefined, cached: User | undefined): ResolvedActor {
+  const username = cached?.username ?? actor?.username;
+  return {
+    id: actor?.id ?? cached?.id ?? '',
+    displayName: ghostGuardedName(cached?.name?.displayName ?? actor?.name, actor?.id),
+    username,
+    handle: normalizedHandle(username, cached),
+    avatar: cached?.avatar ?? actor?.avatar ?? undefined,
+    verified: cached?.verified === true,
+    isFederated: cached?.isFederated === true,
+  };
+}
+
+/** Human label for an actor: display name, else `@handle`, else neutral "Someone". */
+function actorLabel(actor: ResolvedActor, someone: string): string {
+  if (actor.displayName) return actor.displayName;
+  if (actor.handle) return `@${actor.handle}`;
+  return someone;
+}
+
+/** Build the "Alice, Bob and 3 more" actor clause for grouped bylines. */
+function buildActorString(actors: ResolvedActor[], totalActors: number, t: TranslateFn): string {
   const someone = t('notification.someone', { defaultValue: 'Someone' });
+  const names = actors.map((a) => actorLabel(a, someone));
   const first = names[0] ?? someone;
   const second = names[1] ?? someone;
   const remaining = totalActors - names.length;
@@ -113,7 +174,7 @@ const NotificationPreview: React.FC<{ text: string }> = ({ text }) => (
 );
 
 /** Collapsed stacked-avatar strip (up to 3 + "+N") for grouped rows. */
-const AvatarStrip: React.FC<{ actors: GroupedActor[]; totalActors: number }> = ({ actors, totalActors }) => {
+const AvatarStrip: React.FC<{ actors: ResolvedActor[]; totalActors: number }> = ({ actors, totalActors }) => {
   const shown = actors.slice(0, COLLAPSED_STRIP_LIMIT);
   const extra = totalActors - shown.length;
   return (
@@ -158,11 +219,36 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({ item, onMa
   const primaryActor = item.actors[0];
   const hasUnread = item.hasUnread;
   const isGroup = item.isGroup;
+  const isWelcome = item.type === 'welcome';
   const isCollabInvite = item.type === 'collab_invite';
   const postId = String(item.leadNotification.entityId ?? '');
+  const someone = t('notification.someone', { defaultValue: 'Someone' });
 
   const [expanded, setExpanded] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
+
+  // Resolve the PRIMARY actor from the Oxy user cache reactively (the screen
+  // prewarms it via `prewarmUsersByIds`). Cached fields are merged over the raw
+  // `actors[0]`, so names + real avatars appear even when the backend's
+  // `actorId_populated` is empty. Gate on a real Oxy id (same 24-hex gate the
+  // prewarm uses) so a non-Oxy id (e.g. the "unknown" floor) never fires a stray
+  // per-row `getUserById` on a cache miss.
+  const primaryOxyId = primaryActor?.id && OXY_ID_PATTERN.test(primaryActor.id) ? primaryActor.id : undefined;
+  const cachedPrimary = useUserById(primaryOxyId);
+  const resolvedPrimary = useMemo(() => mergeActor(primaryActor, cachedPrimary), [primaryActor, cachedPrimary]);
+
+  // Grouped strip / expanded list: best-effort resolve each id from the SAME
+  // prewarmed cache (non-reactive read; re-runs when the reactive primary lands,
+  // which coincides with the bulk cache write).
+  const resolvedActors = useMemo(
+    () =>
+      item.actors.map((actor, index) =>
+        index === 0
+          ? resolvedPrimary
+          : mergeActor(actor, queryClient.getQueryData<User>(sdkQueryKeys.users.detail(actor.id))),
+      ),
+    [item.actors, resolvedPrimary, queryClient],
+  );
 
   // Collab invites carry no backend preview — fetch the invited post's text via
   // React Query (replaces the old useEffect + useState load).
@@ -174,15 +260,24 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({ item, onMa
   });
 
   const badgeColor = theme.colors[descriptor.colorToken];
-  const primaryDisplay = useMemo(() => resolveActorDisplay(primaryActor, t), [primaryActor, t]);
   const timeLabel = formatRelativeTimeLocalized(item.createdAt, t);
+  const actionText = descriptor.actionPhrase(t);
 
-  const title = useMemo(() => {
-    if (isGroup && descriptor.buildGroupTitle) {
-      return descriptor.buildGroupTitle(t, buildActorString(item.actors, item.totalActors, t));
-    }
-    return descriptor.buildTitle(t, primaryDisplay);
-  }, [isGroup, descriptor, item.actors, item.totalActors, primaryDisplay, t]);
+  // The bold byline name: grouped -> "María and 3 others"; welcome -> the welcome
+  // title; single -> the resolved display name (or @handle floor).
+  const bylineName = useMemo(() => {
+    if (isWelcome) return t('notification.welcome.title');
+    if (isGroup) return buildActorString(resolvedActors, item.totalActors, t);
+    return actorLabel(resolvedPrimary, someone);
+  }, [isWelcome, isGroup, resolvedActors, item.totalActors, resolvedPrimary, someone, t]);
+
+  // Only a single, non-welcome actor with a real display name gets the muted
+  // trailing "@handle" + verified/federated affixes (post-byline treatment).
+  const isSingleActor = !isGroup && !isWelcome;
+  const hasDisplayName = isSingleActor && !!resolvedPrimary.displayName;
+  const showHandleLine = hasDisplayName && !!resolvedPrimary.handle;
+
+  const accessibilityLabel = isWelcome ? `${bylineName}. ${actionText}` : `${bylineName} ${actionText}`;
 
   const previewText = useMemo(() => {
     if (!descriptor.hasPreview) return undefined;
@@ -200,10 +295,10 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({ item, onMa
     markRead();
     if (item.entityType === 'post' || item.entityType === 'reply') {
       router.push(`/p/${item.entityId}`);
-    } else if (item.entityType === 'profile' && primaryActor?.username) {
-      router.push(`/@${primaryActor.username}`);
+    } else if (item.entityType === 'profile' && resolvedPrimary.handle) {
+      router.push(`/@${resolvedPrimary.handle}`);
     }
-  }, [markRead, item.entityType, item.entityId, primaryActor?.username, router]);
+  }, [markRead, item.entityType, item.entityId, resolvedPrimary.handle, router]);
 
   const handleLongPress = useCallback(async () => {
     const confirmed = await confirmDialog({
@@ -215,16 +310,16 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({ item, onMa
     if (confirmed) onMarkAsRead(item.notificationIds);
   }, [t, onMarkAsRead, item.notificationIds]);
 
-  const openActorProfile = useCallback((actor: GroupedActor) => {
-    if (actor.username) router.push(`/@${actor.username}`);
+  const openActorProfile = useCallback((actor: ResolvedActor) => {
+    if (actor.handle) router.push(`/@${actor.handle}`);
   }, [router]);
 
   const inviter = useMemo<PostUser>(() => ({
-    id: primaryActor?.id ?? '',
-    username: primaryActor?.username,
-    name: { displayName: primaryDisplay },
-    avatar: primaryActor?.avatar ?? null,
-  }), [primaryActor?.id, primaryActor?.username, primaryActor?.avatar, primaryDisplay]);
+    id: resolvedPrimary.id,
+    username: resolvedPrimary.username,
+    name: { displayName: resolvedPrimary.displayName ?? bylineName },
+    avatar: resolvedPrimary.avatar ?? null,
+  }), [resolvedPrimary, bylineName]);
 
   const runAccept = useCallback(async () => {
     if (!postId) return;
@@ -273,7 +368,7 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({ item, onMa
 
   const toggleExpanded = useCallback(() => setExpanded((v) => !v), []);
 
-  const showStrip = isGroup && item.actors.length > 1 && !expanded;
+  const showStrip = isGroup && resolvedActors.length > 1 && !expanded;
 
   return (
     <PressableScale
@@ -281,27 +376,53 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({ item, onMa
       style={styles.container}
       onPress={handlePress}
       onLongPress={handleLongPress}
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel}
     >
       <View style={styles.avatarColumn}>
-        <Avatar source={primaryActor?.avatar} size={AVATAR_SIZE} />
+        <Avatar source={resolvedPrimary.avatar} size={AVATAR_SIZE} />
         <View className="border-background" style={[styles.actionBadge, { backgroundColor: badgeColor }]}>
           <Ionicons name={descriptor.icon} size={BADGE_ICON_SIZE} color={BADGE_GLYPH_COLOR} />
         </View>
       </View>
 
       <View style={styles.content}>
-        {showStrip ? <AvatarStrip actors={item.actors} totalActors={item.totalActors} /> : null}
+        {showStrip ? <AvatarStrip actors={resolvedActors} totalActors={item.totalActors} /> : null}
 
-        <ThemedText
-          className={cn(hasUnread ? 'text-foreground' : 'text-muted-foreground')}
-          style={[styles.title, hasUnread && styles.titleUnread]}
-          numberOfLines={3}
-        >
-          {title}
-          <ThemedText className="text-muted-foreground" style={styles.time}>
-            {`  · ${timeLabel}`}
+        {/* Byline: bold name + muted @handle + "· time", mirroring PostHeader. */}
+        <View className="flex-row items-end" style={{ gap: ROW_GAP }}>
+          <View className="flex-row items-end flex-shrink" style={styles.bylineName}>
+            <UserName
+              name={bylineName}
+              verified={isSingleActor && resolvedPrimary.verified}
+              style={{ container: styles.nameContainer, name: styles.nameText }}
+            />
+            {showHandleLine ? (
+              <Text
+                className="text-muted-foreground"
+                style={styles.handle}
+                numberOfLines={1}
+                ellipsizeMode="tail"
+              >
+                {` @${resolvedPrimary.handle}`}
+              </Text>
+            ) : null}
+            {isSingleActor && resolvedPrimary.isFederated ? (
+              <RemoteActorBadge size={13} className="text-muted-foreground" containerClassName="self-center ml-1" />
+            ) : null}
+          </View>
+          {timeLabel ? (
+            <Text className="text-muted-foreground web:whitespace-nowrap" style={styles.time}>
+              {'·'} {timeLabel}
+            </Text>
+          ) : null}
+        </View>
+
+        {actionText ? (
+          <ThemedText className="text-muted-foreground" style={styles.action} numberOfLines={2}>
+            {actionText}
           </ThemedText>
-        </ThemedText>
+        ) : null}
 
         {previewText ? <NotificationPreview text={previewText} /> : null}
 
@@ -309,7 +430,7 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({ item, onMa
           <View style={styles.expandBlock}>
             {expanded ? (
               <View style={styles.actorList}>
-                {item.actors.map((actor) => (
+                {resolvedActors.map((actor) => (
                   <Pressable
                     key={actor.id}
                     onPress={() => openActorProfile(actor)}
@@ -317,7 +438,7 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({ item, onMa
                     accessibilityRole="button"
                   >
                     <Avatar source={actor.avatar} size={STACK_AVATAR_SIZE} />
-                    <UserName name={resolveActorDisplay(actor, t)} variant="small" style={{ name: styles.actorListName }} />
+                    <UserName name={actorLabel(actor, someone)} variant="small" style={{ name: styles.actorListName }} />
                   </Pressable>
                 ))}
               </View>
@@ -376,17 +497,30 @@ const styles = StyleSheet.create({
     flex: 1,
     gap: 2,
   },
-  title: {
+  bylineName: {
+    minWidth: 0,
+  },
+  nameContainer: {
+    flexShrink: 0,
+  },
+  nameText: {
     fontSize: 15,
     lineHeight: 20,
   },
-  titleUnread: {
-    fontWeight: '600',
+  handle: {
+    fontSize: 15,
+    lineHeight: 20,
+    flexShrink: 10,
+    minWidth: 0,
   },
   time: {
     fontSize: 15,
     lineHeight: 20,
-    fontWeight: '400',
+    flexShrink: 0,
+  },
+  action: {
+    fontSize: 15,
+    lineHeight: 20,
   },
   preview: {
     fontSize: 14,
