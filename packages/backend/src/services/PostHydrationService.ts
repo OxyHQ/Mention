@@ -527,6 +527,10 @@ export class PostHydrationService {
     );
 
     const postIds = Array.from(graph.keys());
+    // Every post row actually fetched into the graph (initial posts + collected
+    // references). Used by `attachNestedContext` to tell a GENUINELY-MISSING boost
+    // original (never fetched → not here) from one dropped by an ACL check.
+    const collectedPostIds = new Set(postIds);
     const postsForHydration = Array.from(graph.values());
 
     // Run independent hydration steps in parallel to minimize waterfall latency.
@@ -587,7 +591,14 @@ export class PostHydrationService {
       const summary = summaryMap.get(postId);
       if (!summary) continue;
 
-      const hydrated = this.attachNestedContext(post, summary, summaryMap, viewerContext);
+      const hydrated = this.attachNestedContext(
+        post,
+        summary,
+        summaryMap,
+        viewerContext,
+        collectedPostIds,
+        options.publicReferencesOnly === true,
+      );
       if (hydrated) {
         hydratedResults.push(hydrated);
       }
@@ -1758,26 +1769,41 @@ export class PostHydrationService {
     summary: HydratedPostSummary,
     summaryMap: Map<string, HydratedPostSummary>,
     viewerContext: ViewerContext,
+    collectedPostIds: Set<string>,
+    publicReferencesOnly: boolean,
   ): HydratedPost | null {
-    const postId = summary.id;
     const boostOf = post?.boostOf ? String(post.boostOf) : undefined;
     const quoteOf = post?.quoteOf ? String(post.quoteOf) : undefined;
 
-    let originalPost: HydratedPostSummary | null = null;
-    if (boostOf) {
-      originalPost = summaryMap.get(boostOf) ?? null;
-    } else if (quoteOf) {
-      originalPost = summaryMap.get(quoteOf) ?? null;
-    }
-
     const quotedPost = quoteOf ? summaryMap.get(quoteOf) ?? null : null;
     const boostOriginal = boostOf ? summaryMap.get(boostOf) ?? null : null;
-    const boostContext: HydratedBoostContext | null = boostOf && boostOriginal
-      ? {
-          originalPost: boostOriginal,
-          actor: summary.user,
-        }
-      : null;
+
+    let originalPost: HydratedPostSummary | null = null;
+    if (boostOf) {
+      originalPost = boostOriginal;
+    } else if (quoteOf) {
+      originalPost = quotedPost;
+    }
+
+    let boostContext: HydratedBoostContext | null = null;
+    if (boostOf) {
+      if (boostOriginal) {
+        boostContext = { originalPost: boostOriginal, actor: summary.user };
+      } else if (!publicReferencesOnly && !collectedPostIds.has(boostOf)) {
+        // The boosted original was force-collected but no post row came back — it
+        // is genuinely GONE (deleted, or a never-imported federated original).
+        // A boost has an empty body, so instead of a blank card we surface an
+        // `unavailable` marker for the client to render a placeholder. This is
+        // deliberately distinct from an original that WAS collected but whose
+        // summary was dropped by an ACL/visibility check for this viewer (id IS in
+        // `collectedPostIds`) — that stays `boost: null` so a private post's
+        // existence is never revealed. On public-broadcast surfaces
+        // (`publicReferencesOnly`) a filtered-out original is indistinguishable
+        // from a gone one at the query layer, so we stay conservative and keep
+        // `boost: null` there too.
+        boostContext = { originalPost: null, actor: summary.user, unavailable: true };
+      }
+    }
 
     const context = this.buildContext(post);
 
