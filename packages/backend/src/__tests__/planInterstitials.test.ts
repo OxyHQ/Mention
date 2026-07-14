@@ -24,6 +24,9 @@ const DENSE_FOLLOWING = INTERSTITIALS.denseMinFollowing + 1;
 
 const FULL_PAGE = 30;
 
+const VIEWER_ID = 'viewer-1';
+const SUBJECT_ID = 'author-1';
+
 describe('planInterstitials', () => {
   describe('descriptor allowlist', () => {
     it('plans slots for every allowed descriptor', () => {
@@ -39,7 +42,9 @@ describe('planInterstitials', () => {
     });
 
     it('plans nothing for a descriptor outside the allowlist', () => {
-      for (const descriptor of ['saved', 'videos', 'hashtag|cats', 'author|user-1']) {
+      // The author feed is absent here on purpose: it is not on the home
+      // allowlist, but it carries its own card via the profile path below.
+      for (const descriptor of ['saved', 'videos', 'hashtag|cats', 'list|list-1', 'topic|space']) {
         expect(
           planInterstitials({
             descriptor,
@@ -51,6 +56,30 @@ describe('planInterstitials', () => {
       }
     });
 
+    it('never plans a similarAccounts card on a non-author feed', () => {
+      const descriptors = [
+        ...INTERSTITIALS.allowedDescriptors,
+        'saved',
+        'videos',
+        'hashtag|cats',
+        'custom|feed-1',
+      ];
+
+      for (const descriptor of descriptors) {
+        for (const followingCount of [COLD_FOLLOWING, WARM_FOLLOWING, DENSE_FOLLOWING]) {
+          const slots = planInterstitials({
+            descriptor,
+            slices: makeSlices(FULL_PAGE),
+            followingCount,
+            isFirstPage: true,
+            currentUserId: VIEWER_ID,
+          });
+          expect(slots.every((slot) => slot.kind !== 'similarAccounts')).toBe(true);
+          expect(slots.every((slot) => slot.subjectId === undefined)).toBe(true);
+        }
+      }
+    });
+
     it('matches on the BASE descriptor, ignoring a parameter suffix', () => {
       const slots = planInterstitials({
         descriptor: 'explore|trending',
@@ -59,6 +88,124 @@ describe('planInterstitials', () => {
         isFirstPage: true,
       });
       expect(slots.length).toBeGreaterThan(0);
+    });
+  });
+
+  describe('profile (author) feed', () => {
+    const [PROFILE_POSITION] = INTERSTITIALS.profile.positions.firstPage;
+
+    it('carries one similarAccounts card about the profile being read', () => {
+      const slots = planInterstitials({
+        descriptor: `author|${SUBJECT_ID}`,
+        slices: makeSlices(FULL_PAGE),
+        followingCount: WARM_FOLLOWING,
+        isFirstPage: true,
+        currentUserId: VIEWER_ID,
+      });
+
+      expect(slots).toEqual([
+        {
+          key: `int:similarAccounts:slice-${PROFILE_POSITION}`,
+          kind: 'similarAccounts',
+          afterSliceKey: `slice-${PROFILE_POSITION}`,
+          subjectId: SUBJECT_ID,
+        },
+      ]);
+    });
+
+    it('plans nothing on the viewer OWN profile', () => {
+      expect(
+        planInterstitials({
+          descriptor: `author|${VIEWER_ID}`,
+          slices: makeSlices(FULL_PAGE),
+          followingCount: WARM_FOLLOWING,
+          isFirstPage: true,
+          currentUserId: VIEWER_ID,
+        }),
+      ).toEqual([]);
+    });
+
+    it('carries the card on every author filter variant', () => {
+      for (const filter of ['posts', 'replies', 'media', 'likes']) {
+        const slots = planInterstitials({
+          descriptor: `author|${SUBJECT_ID}|${filter}`,
+          slices: makeSlices(FULL_PAGE),
+          followingCount: WARM_FOLLOWING,
+          isFirstPage: true,
+          currentUserId: VIEWER_ID,
+        });
+        expect(slots).toHaveLength(1);
+        expect(slots[0].subjectId).toBe(SUBJECT_ID);
+      }
+    });
+
+    it('drops the card on the viewer own profile whatever the filter', () => {
+      for (const filter of ['posts', 'replies', 'media', 'likes']) {
+        expect(
+          planInterstitials({
+            descriptor: `author|${VIEWER_ID}|${filter}`,
+            slices: makeSlices(FULL_PAGE),
+            followingCount: WARM_FOLLOWING,
+            isFirstPage: true,
+            currentUserId: VIEWER_ID,
+          }),
+        ).toEqual([]);
+      }
+    });
+
+    it('ignores the graph temperature — the card is about the subject, not the viewer', () => {
+      const forTemperature = (followingCount: number) =>
+        planInterstitials({
+          descriptor: `author|${SUBJECT_ID}`,
+          slices: makeSlices(FULL_PAGE),
+          followingCount,
+          isFirstPage: true,
+          currentUserId: VIEWER_ID,
+        });
+
+      expect(forTemperature(COLD_FOLLOWING)).toEqual(forTemperature(DENSE_FOLLOWING));
+      expect(forTemperature(WARM_FOLLOWING)).toEqual(forTemperature(DENSE_FOLLOWING));
+    });
+
+    it('plans nothing when the page never reaches the configured position', () => {
+      expect(
+        planInterstitials({
+          descriptor: `author|${SUBJECT_ID}`,
+          slices: makeSlices(PROFILE_POSITION),
+          followingCount: WARM_FOLLOWING,
+          isFirstPage: true,
+          currentUserId: VIEWER_ID,
+        }),
+      ).toEqual([]);
+    });
+
+    it('follows the configured nextPage positions on a paginated page', () => {
+      const slots = planInterstitials({
+        descriptor: `author|${SUBJECT_ID}`,
+        slices: makeSlices(FULL_PAGE),
+        followingCount: WARM_FOLLOWING,
+        isFirstPage: false,
+        cursor: 'cursor-page-2',
+        currentUserId: VIEWER_ID,
+      });
+
+      const positions: readonly number[] = INTERSTITIALS.profile.positions.nextPage;
+      expect(slots.map((slot) => slot.afterSliceKey)).toEqual(
+        positions.map((position) => `slice-${position}`),
+      );
+      expect(slots.every((slot) => slot.kind === 'similarAccounts')).toBe(true);
+    });
+
+    it('plans nothing for an author descriptor with no subject', () => {
+      expect(
+        planInterstitials({
+          descriptor: 'author|',
+          slices: makeSlices(FULL_PAGE),
+          followingCount: WARM_FOLLOWING,
+          isFirstPage: true,
+          currentUserId: VIEWER_ID,
+        }),
+      ).toEqual([]);
     });
   });
 
@@ -209,6 +356,22 @@ describe('planInterstitials', () => {
         }),
       ).toEqual([]);
     });
+  });
+
+  it('leaves the home surfaces untouched when the viewer id is supplied', () => {
+    for (const descriptor of INTERSTITIALS.allowedDescriptors) {
+      for (const followingCount of [COLD_FOLLOWING, WARM_FOLLOWING, DENSE_FOLLOWING]) {
+        const params = {
+          descriptor,
+          slices: makeSlices(FULL_PAGE),
+          followingCount,
+          isFirstPage: true,
+        };
+        expect(planInterstitials({ ...params, currentUserId: VIEWER_ID })).toEqual(
+          planInterstitials(params),
+        );
+      }
+    }
   });
 
   it('is deterministic — the same request always plans the same slots', () => {

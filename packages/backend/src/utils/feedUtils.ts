@@ -65,7 +65,7 @@ export async function fetchWithRecencyFallback<T>(
  * Handles string, number, and Express ParsedQs types
  */
 export function validateAndNormalizeLimit(
-  requestedLimit: string | number | any | undefined,
+  requestedLimit: unknown,
   defaultLimit: number = FEED_CONSTANTS.DEFAULT_LIMIT
 ): number {
   // Handle Express ParsedQs and other types

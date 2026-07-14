@@ -5,7 +5,26 @@
  * Replaces the loose FeedType string union.
  */
 
-export type AuthorFeedFilter = 'posts' | 'replies' | 'media' | 'likes';
+/**
+ * The tabs a profile feed can be sliced by. Each maps 1:1 to a tab on the
+ * profile screen, so every one of them must resolve to an author feed —
+ * `author|<oxyUserId>|<filter>`.
+ */
+export type AuthorFeedFilter = 'posts' | 'replies' | 'media' | 'likes' | 'boosts';
+
+/** {@link AuthorFeedFilter} as a runtime list, in profile-tab order. */
+export const AUTHOR_FEED_FILTERS: readonly AuthorFeedFilter[] = [
+  'posts',
+  'replies',
+  'media',
+  'likes',
+  'boosts',
+];
+
+/** Narrow an arbitrary string to an {@link AuthorFeedFilter}. */
+export function isAuthorFeedFilter(value: string | undefined): value is AuthorFeedFilter {
+  return value !== undefined && (AUTHOR_FEED_FILTERS as readonly string[]).includes(value);
+}
 
 export type FeedDescriptor =
   | 'following'

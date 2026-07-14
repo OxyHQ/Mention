@@ -60,6 +60,12 @@ vi.mock('../models/Post', () => ({
   },
 }));
 
+// No settings row = a PUBLIC profile, so the author feed's visibility gate lets
+// every viewer through and the golden ids stay the ones parity was proven on.
+vi.mock('../models/UserSettings', () => ({
+  default: { findOne: vi.fn(() => ({ lean: () => Promise.resolve(null) })) },
+}));
+
 vi.mock('../services/FeedRankingService', () => ({
   feedRankingService: {
     rankPosts: vi.fn(async (posts: Array<Record<string, unknown>>) => {

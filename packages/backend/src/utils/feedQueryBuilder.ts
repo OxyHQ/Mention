@@ -8,7 +8,6 @@ import { FeedType, PostType, PostVisibility, MtnConfig } from '@mention/shared-t
 import mongoose from 'mongoose';
 import { ContentLabel } from '../models/ContentLabel';
 import { parseFeedCursor } from './feedUtils';
-import { ChronoCursor } from '../mtn/feed/CursorBuilder';
 
 export interface FeedQueryOptions {
   type: FeedType;
@@ -520,53 +519,5 @@ export class FeedQueryBuilder {
     return query;
   }
   
-  /**
-   * Build query for User Profile feed
-   */
-  static buildUserProfileQuery(
-    userId: string,
-    type: FeedType = 'posts',
-    cursor?: string,
-  ): Record<string, unknown> {
-    const query: Record<string, unknown> = {
-      oxyUserId: userId,
-      visibility: PostVisibility.PUBLIC,
-      status: 'published',
-    };
-
-    // Filter by content type
-    if (type === 'posts') {
-      query.parentPostId = null;
-    } else if (type === 'replies') {
-      query.parentPostId = { $ne: null };
-    } else if (type === 'media') {
-      query.$and = [
-        { $or: [
-          { type: { $in: [PostType.IMAGE, PostType.VIDEO] } },
-          { 'content.media.0': { $exists: true } },
-          { 'content.images.0': { $exists: true } },
-          { 'content.attachments.0': { $exists: true } },
-          { 'content.files.0': { $exists: true } },
-          { 'media.0': { $exists: true } }
-        ] },
-        { $or: [{ parentPostId: null }, { parentPostId: { $exists: false } }] },
-        { $or: [{ boostOf: null }, { boostOf: { $exists: false } }] }
-      ];
-    } else if (type === 'boosts') {
-      query.boostOf = { $ne: null };
-    }
-
-    // Apply a chronological keyset cursor that matches the `createdAt: -1` sort
-    // used by `getUserProfileFeed`. A bare `_id < cursor` filter (the old
-    // behavior) silently dropped federated posts whose `createdAt` is OLD but
-    // whose import-time `_id` is LARGE than the cursor anchor — they fell on the
-    // wrong side of the `_id` boundary relative to their `createdAt` position.
-    // `ChronoCursor.applyToQuery` emits a compound `createdAt`/`_id` keyset for
-    // `<ts>:<id>` cursors and falls back to `_id < id` for legacy bare-ObjectId
-    // cursors (backward compatible with in-flight clients).
-    ChronoCursor.applyToQuery(query, cursor);
-
-    return query;
-  }
 }
 

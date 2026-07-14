@@ -340,7 +340,9 @@ export interface RenderFeedRowDeps {
     /**
      * Descriptor of the feed this row belongs to. Threaded into `PostItem` so a
      * tap that opens the post detail reports a `click` interaction attributed to
-     * the originating feed. Absent for non-feed renders (e.g. embedded lists).
+     * the originating feed, and into `FeedInterstitial` so a recommendation card's
+     * events are attributed to the feed it interrupted. Absent for non-feed
+     * renders (e.g. embedded lists), which report nothing.
      */
     feedDescriptor?: string;
 }
@@ -379,7 +381,13 @@ const ShowThreadLink: React.FC<{ sliceKey: string; onPress: () => void }> = ({ s
  */
 export function renderFeedRow(row: FeedRow, { router, threadLineColor, feedDescriptor }: RenderFeedRowDeps): React.ReactElement | null {
     if (row.kind === 'interstitial') {
-        return <FeedInterstitial slot={row.slot} ordinal={row.ordinal} />;
+        return (
+            <FeedInterstitial
+                slot={row.slot}
+                ordinal={row.ordinal}
+                feedDescriptor={feedDescriptor}
+            />
+        );
     }
 
     const post = row.item;

@@ -1,5 +1,6 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import { View } from 'react-native';
+import { router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import {
   ProfileCard,
@@ -16,6 +17,11 @@ import {
   selectInterstitialWindow,
   shouldRenderInterstitial,
 } from './interstitialLayout';
+import {
+  useInterstitialReporter,
+  type InterstitialCardProps,
+  type ReportInterstitialEvent,
+} from './interstitialTelemetry';
 import { useIsScreenNotMobile } from '@/hooks/useOptimizedMediaQuery';
 
 /**
@@ -29,11 +35,16 @@ import { useIsScreenNotMobile } from '@/hooks/useOptimizedMediaQuery';
  * into it, so the second card in a scroll session never shows the first card's
  * faces.
  */
-export function SuggestedUsersInterstitial({ ordinal }: { ordinal: number }) {
+export function SuggestedUsersInterstitial({
+  ordinal,
+  slotKey,
+  feedDescriptor,
+}: InterstitialCardProps) {
   const { t } = useTranslation();
   const isDesktop = useIsScreenNotMobile();
   const { recommendations, isLoading } = useRecommendations();
   const [dismissed, setDismissed] = useState<ReadonlySet<string>>(() => new Set());
+  const report = useInterstitialReporter({ feedDescriptor, slotKey, kind: 'suggestedUsers' });
 
   const limits = resolveInterstitialLimits('suggestedUsers', isDesktop);
 
@@ -42,24 +53,30 @@ export function SuggestedUsersInterstitial({ ordinal }: { ordinal: number }) {
     [recommendations, ordinal, limits, dismissed],
   );
 
-  const handleDismiss = useCallback((id: string) => {
-    setDismissed((prev) => {
-      const next = new Set(prev);
-      next.add(id);
-      return next;
-    });
-  }, []);
+  const handleDismiss = useCallback(
+    (id: string, position: number) => {
+      report('dismiss', position);
+      setDismissed((prev) => {
+        const next = new Set(prev);
+        next.add(id);
+        return next;
+      });
+    },
+    [report],
+  );
 
   const renderItem = useCallback(
-    (profile: ProfileData, { isCarousel, isLast }: InterstitialItemContext) => (
+    (profile: ProfileData, { isCarousel, isLast, position }: InterstitialItemContext) => (
       <SuggestedUserItem
         profile={profile}
         isCarousel={isCarousel}
         isLast={isLast}
+        position={position}
+        report={report}
         onDismiss={handleDismiss}
       />
     ),
-    [handleDismiss],
+    [report, handleDismiss],
   );
 
   const renderSkeleton = useCallback(() => <ProfileCardSkeleton showFollowButton />, []);
@@ -76,6 +93,7 @@ export function SuggestedUsersInterstitial({ ordinal }: { ordinal: number }) {
       limits={limits}
       isLoading={isLoading}
       renderSkeleton={renderSkeleton}
+      report={report}
     />
   );
 }
@@ -88,7 +106,10 @@ interface SuggestedUserItemProps {
   profile: ProfileData;
   isCarousel: boolean;
   isLast: boolean;
-  onDismiss: (id: string) => void;
+  /** 0-based index within the band — the `position` every item event carries. */
+  position: number;
+  report: ReportInterstitialEvent;
+  onDismiss: (id: string, position: number) => void;
 }
 
 /**
@@ -97,7 +118,14 @@ interface SuggestedUserItemProps {
  * card surface; in the vertical list it stays the flush, feed-consistent row it
  * is everywhere else.
  */
-function SuggestedUserItem({ profile, isCarousel, isLast, onDismiss }: SuggestedUserItemProps) {
+function SuggestedUserItem({
+  profile,
+  isCarousel,
+  isLast,
+  position,
+  report,
+  onDismiss,
+}: SuggestedUserItemProps) {
   const { t } = useTranslation();
 
   // Same degradation ladder the row itself renders: display name, else @handle,
@@ -128,11 +156,26 @@ function SuggestedUserItem({ profile, isCarousel, isLast, onDismiss }: Suggested
   const row = (
     <ProfileCard
       profile={cardData}
+      // Reports the tap, then does exactly what the row does by default. Only
+      // wired when there IS somewhere to go: a handle-less (degraded) profile is
+      // not pressable, and must not become so just because we want the signal.
+      onPress={
+        handle.length > 0
+          ? () => {
+              report('click', position);
+              router.push(`/@${handle}`);
+            }
+          : undefined
+      }
       showFollowButton
+      onFollowChange={(isFollowing) => {
+        // An unfollow is not a follow — the band measures accounts GAINED.
+        if (isFollowing) report('follow', position);
+      }}
       showDivider={!isCarousel && !isLast}
       accessory={
         <DismissButton
-          onPress={() => onDismiss(profile.id)}
+          onPress={() => onDismiss(profile.id, position)}
           accessibilityLabel={dismissLabel}
         />
       }

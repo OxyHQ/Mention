@@ -1179,7 +1179,20 @@
       "ranking": "Clasificación"
     },
     "subscribe": "Suscribirse",
-    "subscribed": "Suscrito"
+    "subscribed": "Suscrito",
+    "subscribeError": "No se pudo actualizar tu suscripción",
+    "loadError": "No se pudo cargar el feed",
+    "subscriberCount_one": "{{count}} suscriptor",
+    "subscriberCount_other": "{{count}} suscriptores",
+    "detail": {
+      "tabs": {
+        "recent": "Reciente",
+        "profiles": "Perfiles",
+        "topics": "Temas",
+        "reviews": "Reseñas"
+      },
+      "reviewPlaceholder": "Cuenta qué te parece este feed (opcional)"
+    }
   },
   "connections": {
     "tabs": {
@@ -1547,6 +1560,10 @@
         "dismiss": "Descartar {{name}}",
         "followAll": "Seguir a todos",
         "followingAll": "Siguiendo a todos"
+      },
+      "similarAccounts": {
+        "title": "Cuentas similares",
+        "dismiss": "Descartar {{name}}"
       }
     }
   },

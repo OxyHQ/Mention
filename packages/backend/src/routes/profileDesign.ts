@@ -87,7 +87,8 @@ router.get('/:userId', async (req: AuthRequest, res: Response) => {
     // Calculate post-related counts in parallel. All three are scoped to the
     // user's published public content and leverage existing indexes (oxyUserId,
     // type, parentPostId, boostOf), so there is no N+1.
-    // - postsCount: top-level posts (not replies) — matches getUserProfileFeed.
+    // - postsCount: top-level posts (not replies) — matches the author feed's
+    //   `posts` filter (`author|<oxyUserId>`).
     //   `parentPostId: null` matches null OR a missing field in MongoDB.
     // - boostsCount: documents authored as boosts (type=boost, boostOf set).
     // - repliesCount: the inverse of postsCount — posts that ARE replies.

@@ -19,10 +19,12 @@ import { FeedGeneratorFeed } from '../feed/feeds/FeedGeneratorFeed';
 import type { FeedAPI } from '../feed/FeedAPI';
 import { FeedTuner } from '../feed/FeedTuner';
 import { planInterstitials } from '../feed/interstitials/planInterstitials';
+import { parseInterstitialEvent, recordInterstitialEvent } from '../feed/interstitials/interstitialTelemetry';
 import { FeedResponseBuilder } from '../../utils/FeedResponseBuilder';
 import { queryString } from '../../utils/queryParams';
 import { UserPrivacyManager } from '../UserPrivacyManager';
 import { trackFeedInteraction } from '../feed/FeedInteractionTracker';
+import { federatedProfileSync } from '../../connectors/federatedProfileSync';
 import { logger } from '../../utils/logger';
 import { oxy as oxyClient } from '../../../server';
 import { extractFollowingIds } from '../../utils/privacyHelpers';
@@ -165,6 +167,30 @@ function resolveLegacyFeed(descriptor: FeedDescriptor): FeedAPI | null {
  * never read each other's entries for an overlapping descriptor name.
  */
 const ANON_FEED_CACHE_NAMESPACE = 'mtn';
+
+/**
+ * An author feed served EMPTY on its FIRST page is how a federated profile gets
+ * discovered: nobody has imported that actor's posts yet. Hand the author to the
+ * federation layer, which syncs their outbox in the background and tells us
+ * whether to report the page as `pending` (client shows a loading state and
+ * refetches shortly, instead of rendering a permanently empty profile).
+ *
+ * Nothing here blocks on remote I/O — `syncOnProfileView` awaits one indexed
+ * lookup and detaches the network work. A later page (`cursor` present) is a
+ * genuine end-of-feed, and a page WITH items needs no sync.
+ */
+async function resolveAuthorFeedPending(
+  descriptor: FeedDescriptor,
+  cursor: string | undefined,
+  response: SlicedFeedResponse,
+): Promise<boolean> {
+  if (cursor || response.items.length > 0) return false;
+  const { source, params } = parseFeedDescriptor(descriptor);
+  if (source !== 'author') return false;
+  const authorId = params[0];
+  if (!authorId) return false;
+  return federatedProfileSync.syncOnProfileView(authorId);
+}
 
 function parseVideoFeedFilters(
   descriptor: FeedDescriptor,
@@ -357,6 +383,15 @@ class MtnFeedController {
         syncFlattenedItemsWithSlices(response);
       }
 
+      // A profile feed with nothing in it may be a federated author nobody has
+      // imported yet — hand it to the federation layer (background sync) and
+      // report `pending` so the client polls rather than showing an empty
+      // profile. No-op for every other descriptor and for pages that have items.
+      const pending = await resolveAuthorFeedPending(descriptor, cursor, response);
+      if (pending) {
+        response.pending = true;
+      }
+
       // Plan this page's recommendation-card placements. Pure, synchronous, and
       // I/O-free (it reads the already-truncated slices and the follow count the
       // context loaded anyway), so the feed never waits on recommendation data —
@@ -379,13 +414,19 @@ class MtnFeedController {
           followingCount: context.followingIds?.length ?? 0,
           isFirstPage: !cursor,
           cursor,
+          // The viewer, so the profile card is dropped on their own profile.
+          currentUserId,
         });
       }
 
       // Persist the freshly built anonymous page (fail-soft; no-op for
       // authenticated requests). Written after the tuner pipeline so the cached
       // value is identical to what a live build returns.
-      if (anonCacheKey) {
+      //
+      // A `pending` page is NEVER cached: it is a transient "posts are still
+      // importing" answer, and serving it from cache for the TTL would pin the
+      // client in a poll loop against a profile whose posts have already landed.
+      if (anonCacheKey && !response.pending) {
         await anonFeedCache.write(anonCacheKey, response);
       }
 
@@ -524,6 +565,46 @@ class MtnFeedController {
     } catch (error) {
       logger.error('[MtnFeedController] recordInteraction error', error);
       res.status(500).json({ success: false, error: 'Failed to record interaction' });
+    }
+  }
+
+  /**
+   * POST /api/feed/mtn/interstitial-events
+   *
+   * What a viewer did with a recommendation CARD (impression / click / follow /
+   * subscribe / use / dismiss / see-more).
+   *
+   * Deliberately NOT `recordInteraction` above: that route requires a `postUri`
+   * and feeds POST ranking through `trackFeedInteraction`, so card engagement
+   * sent there would corrupt author/topic affinity with engagement that never
+   * touched a post. Card events land as low-cardinality counters and nothing
+   * else — no ranking signal, no per-row documents.
+   *
+   * Synchronous: recording is an in-process counter increment, so telemetry can
+   * never add latency or an I/O failure mode to the feed.
+   */
+  recordInterstitialEvent(req: AuthRequest, res: Response): void {
+    try {
+      // Same optional-auth contract as `recordInteraction`: the route runs under
+      // `optionalAuth`, and a 401 here would spam anonymous feeds with failed
+      // requests. Cards are only ever planned for authenticated viewers, so an
+      // anonymous report has nothing to measure — no-op with a 200.
+      if (!req.user?.id) {
+        res.json({ success: true });
+        return;
+      }
+
+      const parsed = parseInterstitialEvent(req.body);
+      if (!parsed.ok) {
+        res.status(400).json({ success: false, error: parsed.error });
+        return;
+      }
+
+      recordInterstitialEvent(parsed.input);
+      res.json({ success: true });
+    } catch (error) {
+      logger.error('[MtnFeedController] recordInterstitialEvent error', error);
+      res.status(500).json({ success: false, error: 'Failed to record interstitial event' });
     }
   }
 }

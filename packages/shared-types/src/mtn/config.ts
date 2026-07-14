@@ -462,6 +462,20 @@ export const MtnConfig = {
        * cursor, never random — the same page must always plan the same slots).
        */
       densePageInterval: 2,
+      /**
+       * The PROFILE (author) feed carries exactly one card: accounts similar to
+       * the profile being read. It is deliberately outside the graph-temperature
+       * model above — that model asks "how much bootstrapping does this VIEWER
+       * need", whereas this card is about the SUBJECT of the feed, and is just as
+       * useful to a viewer who already follows a thousand people.
+       *
+       * The server drops it on your own profile (there is nobody "similar to you"
+       * worth suggesting to you).
+       */
+      profile: {
+        /** 0-based slice indices to anchor after, per page. */
+        positions: { firstPage: [5], nextPage: [] },
+      },
     },
 
     /**

@@ -958,7 +958,20 @@
       }
     },
     "subscribe": "Iscriviti",
-    "subscribed": "Iscritto"
+    "subscribed": "Iscritto",
+    "subscribeError": "Impossibile aggiornare l'iscrizione",
+    "loadError": "Impossibile caricare il feed",
+    "subscriberCount_one": "{{count}} iscritto",
+    "subscriberCount_other": "{{count}} iscritti",
+    "detail": {
+      "tabs": {
+        "recent": "Recenti",
+        "profiles": "Profili",
+        "topics": "Argomenti",
+        "reviews": "Recensioni"
+      },
+      "reviewPlaceholder": "Racconta cosa pensi di questo feed (facoltativo)"
+    }
   },
   "connections": {
     "tabs": {
@@ -1327,6 +1340,10 @@
         "dismiss": "Ignora {{name}}",
         "followAll": "Segui tutti",
         "followingAll": "Segui già tutti"
+      },
+      "similarAccounts": {
+        "title": "Account simili",
+        "dismiss": "Ignora {{name}}"
       }
     }
   },

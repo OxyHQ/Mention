@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { FeedType } from '@mention/shared-types';
+import { FeedType, type FeedInterstitialEventInput } from '@mention/shared-types';
 import { feedService } from '@/services/feedService';
 import { createScopedLogger } from '@/lib/logger';
 import { FeedFilters } from './feedUtils';
@@ -333,4 +333,41 @@ export function reportFeedInteraction(
     feedService.sendFeedInteraction({ feedDescriptor, postUri, event }).catch((error) => {
         logger.debug('Interaction report failed', { event, error });
     });
+}
+
+/**
+ * Emit what a viewer did with a RECOMMENDATION CARD (impression/click/follow/
+ * subscribe/use/dismiss/seeMore).
+ *
+ * Deliberately NOT routed through {@link reportFeedInteraction}: that path
+ * requires a `postUri` and feeds post ranking, so a card event sent through it
+ * would credit author/topic affinity with engagement that never touched a post.
+ * Card events go to their own endpoint, where they land as counters.
+ *
+ * Fire-and-forget and FAIL-SILENT — a telemetry write must never break a render
+ * or surface an error to the reader. It is called from press handlers and from
+ * the impression Effect, so BOTH ways the transport can fail are handled: a
+ * rejected promise (the network write, which `sendInterstitialEvent` already
+ * swallows and debug-logs) and a synchronous throw before any promise exists,
+ * which `.catch()` cannot see. Neither is silent — both are debug-logged, so a
+ * blind spot in the card metrics stays diagnosable.
+ */
+export function reportInterstitialEvent(input: FeedInterstitialEventInput): void {
+    // No descriptor (a card rendered outside a real feed) or no slot key: the
+    // event could not be attributed to anything, so there is nothing to report.
+    if (!input.feedDescriptor || !input.slotKey) return;
+
+    const swallow = (error: unknown): void => {
+        logger.debug('Interstitial event report failed', {
+            event: input.event,
+            kind: input.kind,
+            error,
+        });
+    };
+
+    try {
+        feedService.sendInterstitialEvent(input).catch(swallow);
+    } catch (error) {
+        swallow(error);
+    }
 }

@@ -67,6 +67,9 @@ const MAX_ITEMS: Record<FeedInterstitialKind, Record<InterstitialBreakpoint, num
   suggestedUsers: { desktop: 5, mobile: 8 },
   suggestedFeeds: { desktop: 3, mobile: 6 },
   suggestedStarterPacks: { desktop: 3, mobile: 6 },
+  // Similar accounts are the same profile row as "who to follow", from a pool the
+  // subject's own graph bounds — so it shares that band's shape.
+  similarAccounts: { desktop: 5, mobile: 8 },
 };
 
 /** Placeholders shown while the suggestions load — as many as will be seen. */

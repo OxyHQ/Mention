@@ -1,16 +1,17 @@
 import { create } from 'zustand';
-import { entityFollowService } from '@/services/entityFollowService';
+import { entityFollowService, type EntityFollowType } from '@/services/entityFollowService';
+import { logger } from '@/lib/logger';
 
 interface EntityFollowState {
   following: Record<string, boolean>;  // key: "type:id"
   loading: Record<string, boolean>;
 
-  fetchStatus: (entityType: string, entityId: string) => Promise<void>;
-  toggleFollow: (entityType: string, entityId: string) => Promise<void>;
-  setStatus: (entityType: string, entityId: string, isFollowing: boolean) => void;
+  fetchStatus: (entityType: EntityFollowType, entityId: string) => Promise<void>;
+  toggleFollow: (entityType: EntityFollowType, entityId: string) => Promise<void>;
+  setStatus: (entityType: EntityFollowType, entityId: string, isFollowing: boolean) => void;
 }
 
-const key = (type: string, id: string) => `${type}:${id}`;
+const key = (type: EntityFollowType, id: string) => `${type}:${id}`;
 
 export const useEntityFollowStore = create<EntityFollowState>((set, get) => ({
   following: {},
@@ -23,7 +24,8 @@ export const useEntityFollowStore = create<EntityFollowState>((set, get) => ({
     try {
       const isFollowing = await entityFollowService.getStatus(entityType, entityId);
       set((s) => ({ following: { ...s.following, [k]: isFollowing }, loading: { ...s.loading, [k]: false } }));
-    } catch {
+    } catch (error) {
+      logger.warn('Failed to load entity follow status', { error, entityType, entityId });
       set((s) => ({ loading: { ...s.loading, [k]: false } }));
     }
   },
@@ -39,7 +41,8 @@ export const useEntityFollowStore = create<EntityFollowState>((set, get) => ({
         await entityFollowService.follow(entityType, entityId);
       }
       set((s) => ({ loading: { ...s.loading, [k]: false } }));
-    } catch {
+    } catch (error) {
+      logger.warn('Failed to toggle entity follow', { error, entityType, entityId });
       set((s) => ({ following: { ...s.following, [k]: current }, loading: { ...s.loading, [k]: false } }));
     }
   },

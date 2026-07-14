@@ -5,7 +5,6 @@ import { mtnFeedController } from '../mtn/controllers/feed.controller';
 import { feedPreferencesController } from '../mtn/controllers/feedPreferences.controller';
 import { feedModulesController } from '../mtn/controllers/feedModules.controller';
 import { feedRateLimiter, feedIPRateLimiter, feedThrottle } from '../middleware/security';
-import { cachePublicProfile } from '../middleware/cacheControl';
 
 const router = Router();
 
@@ -22,6 +21,10 @@ if (process.env.NODE_ENV === 'production') {
 router.get('/mtn', mtnFeedController.getFeed.bind(mtnFeedController));
 router.get('/mtn/peek', mtnFeedController.peekLatest.bind(mtnFeedController));
 router.post('/mtn/interactions', mtnFeedController.recordInteraction.bind(mtnFeedController));
+// Recommendation-card telemetry. Kept OFF `/mtn/interactions` on purpose: that
+// route feeds post ranking and requires a `postUri`, which a card event has not
+// got — see `MtnFeedController.recordInterstitialEvent`.
+router.post('/mtn/interstitial-events', mtnFeedController.recordInterstitialEvent.bind(mtnFeedController));
 
 // ────────────────────────────────────────────────────────────
 // Custom-feed builder module catalog (read-only)
@@ -44,7 +47,6 @@ router.put('/tuning', requireAuth, feedPreferencesController.updateTuning.bind(f
 // Replies
 // ────────────────────────────────────────────────────────────
 router.get('/replies/:parentId', feedController.getRepliesFeed.bind(feedController));
-router.get('/replies', feedController.getRepliesFeed.bind(feedController));
 
 // ────────────────────────────────────────────────────────────
 // Thread continuation spine (author's self-thread, root → c1 → c2 …)
@@ -53,8 +55,10 @@ router.get('/thread-continuations/:rootId', feedController.getThreadContinuation
 
 // ────────────────────────────────────────────────────────────
 // User profile feed routes
+//
+// The profile feed itself is served by the MTN engine (`/feed/mtn?descriptor=
+// author|<oxyUserId>|<tab>`) — there is no separate profile-feed endpoint.
 // ────────────────────────────────────────────────────────────
-router.get('/user/:userId', cachePublicProfile, feedController.getUserProfileFeed.bind(feedController));
 router.get('/user/:userId/pinned', feedController.getPinnedPost.bind(feedController));
 router.get('/item/:id', feedController.getFeedItemById.bind(feedController));
 
@@ -64,9 +68,5 @@ router.get('/item/:id', feedController.getFeedItemById.bind(feedController));
 router.post('/reply', feedController.createReply.bind(feedController));
 router.post('/boost', feedController.createBoost.bind(feedController));
 router.delete('/:postId/boost', feedController.unboostItem.bind(feedController));
-router.post('/like', feedController.likeItem.bind(feedController));
-router.post('/unlike', feedController.unlikeItem.bind(feedController));
-router.post('/:postId/save', feedController.saveItem.bind(feedController));
-router.delete('/:postId/save', feedController.unsaveItem.bind(feedController));
 
 export default router; 

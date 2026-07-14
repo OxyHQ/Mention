@@ -1303,7 +1303,20 @@
       "ranking": "Ranking"
     },
     "subscribe": "Subscribe",
-    "subscribed": "Subscribed"
+    "subscribed": "Subscribed",
+    "subscribeError": "Couldn't update your subscription",
+    "loadError": "Failed to load feed",
+    "subscriberCount_one": "{{count}} subscriber",
+    "subscriberCount_other": "{{count}} subscribers",
+    "detail": {
+      "tabs": {
+        "recent": "Recent",
+        "profiles": "Profiles",
+        "topics": "Topics",
+        "reviews": "Reviews"
+      },
+      "reviewPlaceholder": "Share what you think about this feed (optional)"
+    }
   },
   "connections": {
     "tabs": {
@@ -1531,6 +1544,10 @@
         "dismiss": "Dismiss {{name}}",
         "followAll": "Follow all",
         "followingAll": "Following all"
+      },
+      "similarAccounts": {
+        "title": "Similar accounts",
+        "dismiss": "Dismiss {{name}}"
       }
     }
   },

@@ -12,10 +12,16 @@
  * `MtnConfig.feed.interstitials` — this file contains no tuning constants.
  */
 
-import { MtnConfig } from '@mention/shared-types';
+import { MtnConfig, isValidFeedDescriptor, parseFeedDescriptor } from '@mention/shared-types';
 import type { FeedInterstitialKind, FeedInterstitialSlot, FeedPostSlice } from '@mention/shared-types';
 
 const INTERSTITIALS = MtnConfig.feed.interstitials;
+
+/**
+ * The one kind the PROFILE (author) feed carries: accounts similar to the profile
+ * being read.
+ */
+const PROFILE_KIND: FeedInterstitialKind = 'similarAccounts';
 
 /**
  * How dense the viewer's follow graph is. Drives both the positions and the
@@ -36,6 +42,12 @@ export interface PlanInterstitialsParams {
   isFirstPage: boolean;
   /** The request's cursor, used as the deterministic rotation/cadence seed. */
   cursor?: string;
+  /**
+   * The VIEWER's Oxy id. Passed rather than inferred: the profile card must be
+   * dropped when the viewer is reading their own profile, and the planner cannot
+   * know that from the descriptor alone.
+   */
+  currentUserId?: string;
 }
 
 /**
@@ -50,6 +62,57 @@ function baseDescriptor(descriptor: string): string {
 function isAllowedDescriptor(descriptor: string): boolean {
   const base = baseDescriptor(descriptor);
   return INTERSTITIALS.allowedDescriptors.some((allowed) => allowed === base);
+}
+
+/**
+ * The SUBJECT of an author feed — the profile whose posts are being read —
+ * or `undefined` when the descriptor is not an author feed at all.
+ *
+ * The descriptor is parsed through the shared parser (`author|<oxyUserId>`,
+ * `author|<oxyUserId>|<filter>`) rather than hand-split, so every author variant
+ * (posts / replies / media / likes) resolves to the same subject.
+ */
+function authorSubjectId(descriptor: string): string | undefined {
+  if (!isValidFeedDescriptor(descriptor)) return undefined;
+
+  const { source, params } = parseFeedDescriptor(descriptor);
+  if (source !== 'author') return undefined;
+
+  const subjectId = params[0]?.trim();
+  return subjectId ? subjectId : undefined;
+}
+
+/**
+ * The profile feed's card placements: one `similarAccounts` card, anchored at the
+ * configured slice index for this page.
+ *
+ * This surface is deliberately OUTSIDE the graph-temperature model below. That
+ * model asks how much bootstrapping the VIEWER needs; this card is about the
+ * feed's SUBJECT ("who else is like this account"), which is just as useful to a
+ * viewer who already follows a thousand people.
+ */
+function planProfileInterstitials(
+  subjectId: string,
+  slices: FeedPostSlice[],
+  isFirstPage: boolean,
+): FeedInterstitialSlot[] {
+  const positions: readonly number[] = INTERSTITIALS.profile.positions[isFirstPage ? 'firstPage' : 'nextPage'];
+
+  const slots: FeedInterstitialSlot[] = [];
+  for (const index of [...positions].sort((a, b) => a - b)) {
+    // A page shorter than the configured position simply yields no card there.
+    const afterSliceKey = slices[index]?._sliceKey;
+    if (!afterSliceKey) continue;
+
+    slots.push({
+      key: `int:${PROFILE_KIND}:${afterSliceKey}`,
+      kind: PROFILE_KIND,
+      afterSliceKey,
+      subjectId,
+    });
+  }
+
+  return slots;
 }
 
 function classifyGraph(followingCount: number): GraphTemperature {
@@ -106,15 +169,28 @@ function passesCadenceGate(temperature: GraphTemperature, page: number): boolean
 /**
  * Plan this page's recommendation-card placements.
  *
+ * Two independent surfaces carry cards:
+ *   - the AUTHOR (profile) feed gets one `similarAccounts` card about the profile
+ *     being read — dropped on the viewer's own profile, where there is nobody
+ *     "similar to you" worth suggesting to you;
+ *   - the home surfaces (`allowedDescriptors`) get the graph-temperature mix.
+ *
  * Returns `[]` — no cards — whenever the feed isn't a card-carrying surface, the
  * cadence gate closes, or the page is too short to reach any configured position.
  * The caller only invokes this for AUTHENTICATED viewers: an anonymous page is
  * cached verbatim and must never carry anything personalized.
  */
 export function planInterstitials(params: PlanInterstitialsParams): FeedInterstitialSlot[] {
-  const { descriptor, slices, followingCount, isFirstPage, cursor } = params;
+  const { descriptor, slices, followingCount, isFirstPage, cursor, currentUserId } = params;
 
   if (slices.length === 0) return [];
+
+  const subjectId = authorSubjectId(descriptor);
+  if (subjectId) {
+    if (subjectId === currentUserId) return [];
+    return planProfileInterstitials(subjectId, slices, isFirstPage);
+  }
+
   if (!isAllowedDescriptor(descriptor)) return [];
 
   const temperature = classifyGraph(followingCount);

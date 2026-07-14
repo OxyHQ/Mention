@@ -2,11 +2,17 @@ import React, { memo } from 'react';
 import { TouchableOpacity, Text, StyleSheet, Platform } from 'react-native';
 import { SpinnerIcon } from '@oxyhq/bloom/loading';
 import { useFollowEntity } from '@/hooks/useFollowEntity';
+import type { EntityFollowType } from '@/services/entityFollowService';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { useTranslation } from 'react-i18next';
 
 interface EntityFollowButtonProps {
-  entityType: string;
+  /**
+   * Only the entity kinds `/entity-follows` actually serves. A custom feed is
+   * not one of them — subscribe to a feed with `FeedSubscribeButton`, which
+   * writes the `FeedLike` row the rest of the app reads.
+   */
+  entityType: EntityFollowType;
   entityId: string;
   label?: string;
   followingLabel?: string;

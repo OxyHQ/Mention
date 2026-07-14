@@ -29,9 +29,9 @@ export interface FeedResponseOptions {
 
 export class FeedResponseBuilder {
   /**
-   * Flatten feed slices into the backward-compatible `items` array. Use this
-   * any time a post-fetch tuner mutates `slices` so legacy clients never see
-   * stale posts that were removed from the canonical sliced response.
+   * Flatten feed slices into the flat `items` array every sliced response also
+   * carries. Use this any time a post-fetch tuner mutates `slices`, so `items`
+   * never keeps a post that was removed from the sliced response.
    */
   static flattenSlicesToItems(slices: FeedPostSlice[]): HydratedPost[] {
     const items: HydratedPost[] = [];
@@ -120,53 +120,9 @@ export class FeedResponseBuilder {
   }
 
   /**
-   * Build response for saved posts with special handling
-   */
-  static async buildSavedPostsResponse(
-    posts: RawFeedPost[],
-    limit: number,
-    previousCursor?: string,
-    transformPosts?: (posts: RawFeedPost[], currentUserId?: string) => Promise<HydratedPost[]>,
-    currentUserId?: string
-  ): Promise<FeedResponse> {
-    // For saved posts, mark all posts as saved after transformation
-    const response = await this.buildResponse({
-      posts,
-      limit,
-      previousCursor,
-      transformPosts: async (postsToTransform, userId) => {
-        const transformed = transformPosts
-          ? await transformPosts(postsToTransform, userId)
-          : (postsToTransform as unknown as HydratedPost[]);
-
-        // Mark all posts as saved. `isSaved` is a client-facing runtime flag the
-        // saved-feed adds on top of the hydrated shape, so it's written through a
-        // narrow saved-state view rather than widening HydratedPost.
-        transformed.forEach((post) => {
-          const savedState = post as Omit<HydratedPost, 'metadata'> & {
-            isSaved?: boolean;
-            metadata?: { isSaved?: boolean };
-          };
-          savedState.isSaved = true;
-          if (savedState.metadata) {
-            savedState.metadata.isSaved = true;
-          } else {
-            savedState.metadata = { isSaved: true };
-          }
-        });
-
-        return transformed;
-      },
-      currentUserId,
-      validateSize: true
-    });
-
-    return response;
-  }
-
-  /**
    * Build sliced feed response from hydrated slices.
-   * Populates both `slices` (for new clients) and `items` (backward compat).
+   * Populates `slices` (the thread-grouped representation) and the flat `items`
+   * mirror every client's flat-render path reads.
    */
   static buildSlicedResponse(options: {
     slices: FeedPostSlice[];
@@ -182,7 +138,6 @@ export class FeedResponseBuilder {
     const hasMore = options.hasMore ?? slices.length > limit;
     const slicesToReturn = slices;
 
-    // Flatten slices into items for backward compatibility
     const items = FeedResponseBuilder.flattenSlicesToItems(slicesToReturn);
 
     // Calculate cursor from last slice's anchor post (first post in the slice)

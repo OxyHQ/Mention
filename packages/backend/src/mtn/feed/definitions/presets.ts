@@ -380,7 +380,15 @@ export const savedDefinition: FeedDefinition = {
   },
 };
 
-/** Author feed — a single author's posts/replies/media (chronological) or likes (ordered). */
+/**
+ * Author feed (the profile feed) — a single author's posts/replies/media/boosts
+ * (chronological) or likes (ordered).
+ *
+ * `hydrateMaxDepth: 1` on every variant is load-bearing: a boost has an
+ * intentionally empty body and renders from its embedded `boostOf` original,
+ * which only depth 1 hydrates. Boosts appear on BOTH the posts tab (they are
+ * top-level posts) and the boosts tab, and a liked post may itself be a boost.
+ */
 export function authorDefinition(authorId: string, filter: AuthorFeedFilter): FeedDefinition {
   const isLikes = filter === 'likes';
   const filters: ModuleRef[] = filter === 'media' ? [enabled('mediaOnly')] : [];
