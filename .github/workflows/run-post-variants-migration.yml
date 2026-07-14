@@ -2,14 +2,18 @@ name: Run post-variants migration
 
 # One-shot migration onto the multilingual content model. Manual only.
 #
-# It runs in TWO PHASES, and the order matters. The new code reads
-# `content.variants` ONLY — there is no `content.text` fallback, by design — so a
-# post without variants renders blank:
+# It runs as an ECS one-shot task, NOT on the runner: MONGODB_URI resolves to a
+# private VPC address, so the database is reachable only from inside AWS. A
+# GitHub runner cannot see it (it times out on connect), and that is by design.
+#
+# TWO PHASES, and the order is what keeps posts from rendering blank. The new code
+# reads `content.variants` ONLY — there is no `content.text` fallback, deliberately
+# — so a post without variants has no body:
 #
 #   1. phase=expand    with the OLD code still live. Posts gain their variants;
 #                      `content.text` stays put and nothing breaks.
 #   2. deploy          the new code.
-#   3. phase=expand    AGAIN. This is the step people skip, and it is the one that
+#   3. phase=expand    AGAIN. This is the step people skip, and the one that
 #                      matters: posts created during the deploy window were written
 #                      by the old code and have no variants yet.
 #   4. phase=contract  the old fields go.
@@ -37,27 +41,98 @@ concurrency:
   group: post-variants-migration
   cancel-in-progress: false
 
+env:
+  AWS_REGION: us-west-2
+  CLUSTER: oxy-cluster
+  SERVICE: mention
+
+permissions:
+  id-token: write
+  contents: read
+
 jobs:
   migrate:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 90
     steps:
-      - uses: actions/checkout@v4
-
-      - uses: oven-sh/setup-bun@v2
+      - uses: aws-actions/configure-aws-credentials@v4
         with:
-          bun-version: latest
+          role-to-assume: arn:aws:iam::237343248947:role/oxy-github-deploy
+          aws-region: ${{ env.AWS_REGION }}
 
-      - name: Install dependencies
-        run: bun install --frozen-lockfile
-
-      - name: Build
-        run: bun run build
-
-      - name: Run migration (phase=${{ inputs.phase }}, dry_run=${{ inputs.dry_run }})
+      - name: Run the migration as an ECS one-shot task
         env:
-          MONGODB_URI: ${{ secrets.MONGODB_URI }}
-          NODE_ENV: production
           PHASE: ${{ inputs.phase }}
           DRY_RUN: ${{ inputs.dry_run }}
-        run: bun packages/backend/dist/src/scripts/migratePostContentVariants.js
+        run: |
+          set -euo pipefail
+
+          # Take the task definition and the network config from the LIVE service,
+          # so the one-shot runs with the same image, secrets, subnets and security
+          # groups the backend already runs with. Nothing is hardcoded, and nothing
+          # drifts when the service is redeployed.
+          SERVICE_JSON=$(aws ecs describe-services \
+            --cluster "$CLUSTER" --services "$SERVICE" \
+            --query 'services[0]' --output json)
+
+          TASK_DEF=$(echo "$SERVICE_JSON" | jq -r '.taskDefinition')
+          SUBNETS=$(echo "$SERVICE_JSON" | jq -r '.networkConfiguration.awsvpcConfiguration.subnets | join(",")')
+          SEC_GROUPS=$(echo "$SERVICE_JSON" | jq -r '.networkConfiguration.awsvpcConfiguration.securityGroups | join(",")')
+          CONTAINER=$(aws ecs describe-task-definition --task-definition "$TASK_DEF" \
+            --query 'taskDefinition.containerDefinitions[0].name' --output text)
+
+          echo "task-definition: $TASK_DEF"
+          echo "container:       $CONTAINER"
+
+          OVERRIDES=$(jq -nc \
+            --arg name "$CONTAINER" \
+            --arg phase "$PHASE" \
+            --arg dry "$DRY_RUN" \
+            '{containerOverrides:[{
+               name: $name,
+               command: ["bun","packages/backend/dist/src/scripts/migratePostContentVariants.js"],
+               environment: [
+                 {name:"PHASE", value:$phase},
+                 {name:"DRY_RUN", value:$dry}
+               ]
+             }]}')
+
+          TASK_ARN=$(aws ecs run-task \
+            --cluster "$CLUSTER" \
+            --task-definition "$TASK_DEF" \
+            --launch-type FARGATE \
+            --network-configuration "awsvpcConfiguration={subnets=[$SUBNETS],securityGroups=[$SEC_GROUPS],assignPublicIp=DISABLED}" \
+            --overrides "$OVERRIDES" \
+            --started-by "gh-migration-${PHASE}" \
+            --query 'tasks[0].taskArn' --output text)
+
+          echo "task: $TASK_ARN"
+          echo "Waiting for the task to stop…"
+          aws ecs wait tasks-stopped --cluster "$CLUSTER" --tasks "$TASK_ARN"
+
+          # The log stream is <prefix>/<container>/<task-id>, and the prefix comes
+          # from the task definition's awslogs configuration.
+          TASK_ID="${TASK_ARN##*/}"
+          LOG_JSON=$(aws ecs describe-task-definition --task-definition "$TASK_DEF" \
+            --query 'taskDefinition.containerDefinitions[0].logConfiguration.options' --output json)
+          LOG_GROUP=$(echo "$LOG_JSON" | jq -r '."awslogs-group"')
+          LOG_PREFIX=$(echo "$LOG_JSON" | jq -r '."awslogs-stream-prefix"')
+
+          echo "──────── migration output ────────"
+          aws logs get-log-events \
+            --log-group-name "$LOG_GROUP" \
+            --log-stream-name "$LOG_PREFIX/$CONTAINER/$TASK_ID" \
+            --start-from-head \
+            --query 'events[].message' --output text || echo "(no logs retrieved)"
+          echo "──────────────────────────────────"
+
+          EXIT_CODE=$(aws ecs describe-tasks --cluster "$CLUSTER" --tasks "$TASK_ARN" \
+            --query 'tasks[0].containers[0].exitCode' --output text)
+          REASON=$(aws ecs describe-tasks --cluster "$CLUSTER" --tasks "$TASK_ARN" \
+            --query 'tasks[0].stoppedReason' --output text)
+
+          echo "exit code: $EXIT_CODE  (stopped reason: $REASON)"
+          if [ "$EXIT_CODE" != "0" ]; then
+            echo "::error::Migration task exited with $EXIT_CODE"
+            exit 1
+          fi
