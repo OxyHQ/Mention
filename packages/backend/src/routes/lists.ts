@@ -7,8 +7,22 @@ import { feedController } from '../controllers/feed.controller';
 import { endorsementSignalService } from '../services/EndorsementSignalService';
 import { logger } from '../utils/logger';
 import { queryInt, queryString } from '../utils/queryParams';
+import { feedIPRateLimiter, feedRateLimiter } from '../middleware/security';
 
 const router = express.Router();
+
+/**
+ * A list's timeline is a FEED — the same shape and the same cost as a page of
+ * `/feed/mtn` — so it earns the same per-endpoint limiters the feed routes use,
+ * on top of the app-wide limiter in `server.ts`. The global one bounds abuse of
+ * the API as a whole; these bound abuse of the expensive DB reads specifically.
+ *
+ * Production-gated, mirroring `feed.routes.ts`: the limiters are Redis-backed
+ * and a dev machine has no Redis.
+ */
+const timelineRateLimiters = process.env.NODE_ENV === 'production'
+  ? [feedIPRateLimiter, feedRateLimiter]
+  : [];
 
 /** List timeline page size (`GET /lists/:id/timeline`). */
 const DEFAULT_TIMELINE_PAGE_SIZE = 20;
@@ -188,7 +202,7 @@ router.delete('/:id/members', async (req: AuthRequest, res: Response) => {
 });
 
 // Timeline of a list (chronological posts from members)
-router.get('/:id/timeline', async (req: AuthRequest, res: Response) => {
+router.get('/:id/timeline', ...timelineRateLimiters, async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?.id;
     const cursor = queryString(req.query.cursor);
