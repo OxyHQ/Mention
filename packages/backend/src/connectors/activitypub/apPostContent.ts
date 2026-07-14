@@ -4,8 +4,8 @@ import {
   type MediaItem,
   type PostContentVariant,
 } from '@mention/shared-types';
-import { normalizeInlineText, normalizeMultilineText } from '@oxyhq/core';
-import { htmlToPlainText } from '../../utils/federation/htmlToPlainText';
+import { normalizeMultilineText } from '@oxyhq/core';
+import { htmlToInlineLabel, htmlToPlainText } from '../../utils/federation/htmlToPlainText';
 import { normalizePostHashtags } from '../../utils/textProcessing';
 import { materializeFederatedMedia, type ExtractedMediaAttachment } from '../shared/federatedMedia';
 import { extractApHashtags, extractApMedia } from './helpers';
@@ -238,21 +238,22 @@ function buildApAuthorVariants(
  * Two things the raw field cannot be trusted for:
  *  1. It is HTML on some servers (the AP spec types it as a natural-language
  *     HTML string, and Mastodon's own CW is plain text only by convention), so
- *     it goes through {@link htmlToPlainText} exactly like the body — otherwise
- *     raw tags reach the CW label in the UI.
- *  2. It arrives with the remote markup's whitespace. A CW label is ONE LINE, so
- *     it is finished with `normalizeInlineText`: an embedded newline would be
- *     rendered verbatim by the client (`white-space: pre-wrap`) and break the
- *     label's layout.
+ *     the tags must be stripped exactly like the body's — otherwise raw markup
+ *     reaches the CW label in the UI.
+ *  2. It arrives with the remote markup's whitespace. A CW label is ONE LINE: an
+ *     embedded newline would be rendered verbatim by the client
+ *     (`white-space: pre-wrap`) and break the label's layout.
+ *
+ * Both are {@link htmlToInlineLabel}, which is deliberately NOT inlined here: the
+ * one-shot backfill re-normalizes the labels the OLD ingest stored raw, and it has
+ * to reproduce this function exactly. Sharing the rule is what makes that true by
+ * construction rather than by review.
  *
  * Returns `undefined` for a missing / non-string / whitespace-only summary,
  * which is what the empty-note guard and the `Update` unset path both key on.
  */
 export function extractApSummary(object: Record<string, unknown> | null | undefined): string | undefined {
-  const raw = object?.summary;
-  if (typeof raw !== 'string') return undefined;
-  const summary = normalizeInlineText(htmlToPlainText(raw));
-  return summary.length > 0 ? summary : undefined;
+  return htmlToInlineLabel(object?.summary);
 }
 
 /**

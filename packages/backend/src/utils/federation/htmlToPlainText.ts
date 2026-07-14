@@ -1,5 +1,5 @@
 import { decode as decodeEntities } from 'he';
-import { normalizeMultilineText } from '@oxyhq/core';
+import { normalizeInlineText, normalizeMultilineText } from '@oxyhq/core';
 
 /**
  * Convert ActivityPub HTML content to plain text for storage.
@@ -42,4 +42,30 @@ export function htmlToPlainText(html: string): string {
 
   // Normalize the whitespace the source markup left behind (see above).
   return normalizeMultilineText(text);
+}
+
+/**
+ * THE rule for a remote ONE-LINE LABEL that arrives as markup — today the
+ * ActivityPub `summary` (the content warning).
+ *
+ * A CW is a single line: {@link htmlToPlainText} strips the tags and decodes the
+ * entities, then the canonical inline normalizer collapses what is left onto one
+ * line. Both steps are needed and both are load-bearing — a Mastodon summary
+ * arrives as `<p>…</p>` on some servers and as bare text on others.
+ *
+ * Lives here, below the connector, because TWO callers must produce byte-identical
+ * output from the same input: the ingest ({@link extractApSummary}) and the
+ * one-shot backfill that re-normalizes the labels stored by the OLD ingest, which
+ * persisted the summary raw — HTML included. A backfill that applied only half of
+ * this rule would leave `<p>…</p>` sitting in the database forever.
+ *
+ * Returns undefined when nothing is left, which is what "no content warning" is:
+ * the field must be ABSENT, never an empty string.
+ *
+ * Idempotent — running it over an already-clean label is a no-op.
+ */
+export function htmlToInlineLabel(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined;
+  const label = normalizeInlineText(htmlToPlainText(value));
+  return label.length > 0 ? label : undefined;
 }

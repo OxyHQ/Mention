@@ -27,6 +27,7 @@ import {
   FEED_CONSTANTS
 } from '../utils/feedUtils';
 import { mergeHashtags } from '../utils/textProcessing';
+import { normalizeMediaItems } from '../utils/mediaInput';
 import { queryString } from '../utils/queryParams';
 import { buildAuthorship } from '../utils/postAuthorship';
 import { validatePublicShareTarget } from '../utils/postAccessControl';
@@ -165,6 +166,16 @@ class FeedController {
   // is only `{ syraPodcastId }` (input), so we drop it here and re-attach the
   // server-denormalized show below; everything else carries over.
   const replyContent: PostContent = typeof content === 'string' ? { text: content } : { ...(content ?? { text: '' }), podcast: undefined };
+
+      // A reply carries composer media, so it is a write boundary like
+      // `POST /posts`: the client's items go through the SAME normalizer
+      // (whitelisted fields, canonical alt text, length cap). This path persists
+      // the document itself — and signs it onto the author's MTN hash chain —
+      // so an un-normalized `alt` accepted here would be immutable.
+      if (Array.isArray(replyContent.media)) {
+        replyContent.media = normalizeMediaItems(replyContent.media);
+      }
+
       const currentUserId = req.user?.id;
 
       if (!currentUserId) {
