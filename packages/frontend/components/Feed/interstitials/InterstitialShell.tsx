@@ -15,6 +15,7 @@ import {
   INTERSTITIAL_SNAP_INTERVAL,
   type InterstitialLimits,
 } from './interstitialLayout';
+import { useInterstitialImpression, type ReportInterstitialEvent } from './interstitialTelemetry';
 
 /**
  * The frame every recommendation band shares.
@@ -41,6 +42,8 @@ export interface InterstitialItemContext {
   isCarousel: boolean;
   /** Last item in the band — a row can drop its trailing divider. */
   isLast: boolean;
+  /** 0-based index within the band — the `position` on every item-level event. */
+  position: number;
 }
 
 interface InterstitialShellProps<TItem> {
@@ -56,6 +59,13 @@ interface InterstitialShellProps<TItem> {
   isLoading?: boolean;
   /** ONE placeholder item; the shell repeats it `limits.skeletonItems` times. */
   renderSkeleton?: () => React.ReactElement;
+  /**
+   * The band's bound reporter. The shell owns the two CARD-level events — the
+   * impression (it renders the element visibility is measured on) and "See more"
+   * (it renders both ways out of the band) — so no band can forget them; the
+   * bands themselves report only what happens to an individual suggestion.
+   */
+  report: ReportInterstitialEvent;
 }
 
 export function InterstitialShell<TItem>({
@@ -67,21 +77,27 @@ export function InterstitialShell<TItem>({
   limits,
   isLoading = false,
   renderSkeleton,
+  report,
 }: InterstitialShellProps<TItem>) {
   const { t } = useTranslation();
   const isDesktop = useIsScreenNotMobile();
 
   const handleSeeMore = useCallback(() => {
+    report('seeMore');
     router.push(seeMoreHref);
-  }, [seeMoreHref]);
+  }, [report, seeMoreHref]);
 
   const seeMoreLabel = t('feed.interstitial.seeMore');
 
   const skeletonKeys = Array.from({ length: limits.skeletonItems }, (_, index) => index);
   const showSkeleton = isLoading && renderSkeleton !== undefined;
 
+  // A band still on placeholders has not been seen — it has nothing to show yet,
+  // and it may still collapse to nothing once its suggestions land.
+  const impressionRef = useInterstitialImpression(report, !isLoading && items.length > 0);
+
   return (
-    <View className="bg-secondary border-border w-full border-b">
+    <View ref={impressionRef} className="bg-secondary border-border w-full border-b">
       <View className="flex-row items-center justify-between px-3 pb-2 pt-3">
         <ThemedText className="text-base font-bold" numberOfLines={1}>
           {title}
@@ -107,7 +123,11 @@ export function InterstitialShell<TItem>({
               ))
             : items.map((item, index) => (
                 <View key={keyExtractor(item)}>
-                  {renderItem(item, { isCarousel: false, isLast: index === items.length - 1 })}
+                  {renderItem(item, {
+                    isCarousel: false,
+                    isLast: index === items.length - 1,
+                    position: index,
+                  })}
                 </View>
               ))}
         </View>
@@ -132,7 +152,11 @@ export function InterstitialShell<TItem>({
           className="pb-3">
           {items.map((item, index) => (
             <View key={keyExtractor(item)} style={styles.card}>
-              {renderItem(item, { isCarousel: true, isLast: index === items.length - 1 })}
+              {renderItem(item, {
+                isCarousel: true,
+                isLast: index === items.length - 1,
+                position: index,
+              })}
             </View>
           ))}
           <SeeMoreCard label={seeMoreLabel} onPress={handleSeeMore} />

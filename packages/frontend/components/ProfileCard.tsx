@@ -61,6 +61,13 @@ interface ProfileCardProps {
    * the viewer cannot call private APIs, so callers never need those guards.
    */
   showFollowButton?: boolean;
+  /**
+   * Called when the viewer follows or unfollows from this row's follow button.
+   * The button owns the follow state (and the surfaces that show it own nothing),
+   * so this is the only way a caller can learn the row was acted on — used by the
+   * feed recommendation bands to report the follow.
+   */
+  onFollowChange?: (isFollowing: boolean) => void;
   /** Extra muted line under the handle (e.g. a poke's relative time). */
   meta?: ReactNode;
   /** Trailing control rendered after the follow button (e.g. dismiss, poke). */
@@ -73,6 +80,7 @@ export function ProfileCard({
   profile,
   onPress,
   showFollowButton = false,
+  onFollowChange,
   meta,
   accessory,
   showDivider = true,
@@ -165,7 +173,9 @@ export function ProfileCard({
           ) : null}
         </View>
       </TouchableOpacity>
-      {showFollowButton && <FollowButton userId={profile.id} size="small" />}
+      {showFollowButton && (
+        <FollowButton userId={profile.id} size="small" onFollowChange={onFollowChange} />
+      )}
       {accessory}
     </View>
   );

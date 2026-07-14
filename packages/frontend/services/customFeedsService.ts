@@ -4,6 +4,7 @@ import type {
   CustomFeed,
   CustomFeedListResponse,
   FeedResponse,
+  PostUser,
   UpdateCustomFeedRequest,
 } from '@mention/shared-types';
 import { logger } from '@/lib/logger';
@@ -33,6 +34,23 @@ export interface MarketplaceListResponse extends CustomFeedListResponse {
   items: MarketplaceFeed[];
 }
 
+/**
+ * A `CustomFeed` as returned by `GET /feeds/:id`, which additionally resolves the
+ * owner and the member accounts. Both are the canonical Oxy user shape (Oxy owns
+ * identity), so the display name lives at `name.displayName` — never a flat
+ * `displayName` field.
+ *
+ * `isLiked` / `likeCount` carry the viewer's subscription and the feed's
+ * subscriber tally: a subscription IS a `FeedLike` row (`POST /feeds/:id/like`),
+ * the same records the marketplace reads.
+ */
+export type CustomFeedDetail = CustomFeed & {
+  owner?: PostUser | null;
+  members?: PostUser[];
+  memberAvatars?: string[];
+  topicCount?: number;
+};
+
 /** A type alias, not an interface: the HTTP client's `params` takes a `Record`. */
 type MarketplaceParams = {
   category?: string;
@@ -48,11 +66,31 @@ type MarketplaceParams = {
   excludeSubscribed?: boolean;
 };
 
-interface FeedReviewsResponse {
-  reviews: unknown[];
+/**
+ * One review as returned by `GET /feeds/:id/reviews`. The reviewer is the
+ * canonical Oxy user (display name at `name.displayName`), resolved server-side
+ * through the same batched summary cache post hydration uses.
+ */
+export interface CustomFeedReview {
+  id: string;
+  _id?: string;
+  rating: number;
+  reviewText?: string;
+  createdAt?: string;
+  reviewer?: PostUser;
+}
+
+export interface FeedReviewsResponse {
+  reviews: CustomFeedReview[];
   total: number;
   page: number;
   totalPages: number;
+}
+
+/** One marketplace category and how many public feeds sit in it. */
+export interface FeedCategoryCount {
+  category: string;
+  count: number;
 }
 
 interface FeedLikeResponse {
@@ -88,9 +126,9 @@ class CustomFeedsService {
     });
   }
 
-  async get(id: string): Promise<CustomFeed> {
+  async get(id: string): Promise<CustomFeedDetail> {
     return run('get', async () => {
-      const res = await authenticatedClient.get<CustomFeed>(`/feeds/${id}`);
+      const res = await authenticatedClient.get<CustomFeedDetail>(`/feeds/${id}`);
       return res.data;
     });
   }
@@ -158,9 +196,9 @@ class CustomFeedsService {
     });
   }
 
-  async getMarketplaceCategories(): Promise<{ categories: Array<{ category: string; count: number }> }> {
+  async getMarketplaceCategories(): Promise<{ categories: FeedCategoryCount[] }> {
     return run('getMarketplaceCategories', async () => {
-      const res = await authenticatedClient.get<{ categories: Array<{ category: string; count: number }> }>('/feeds/marketplace/categories');
+      const res = await authenticatedClient.get<{ categories: FeedCategoryCount[] }>('/feeds/marketplace/categories');
       return res.data;
     });
   }

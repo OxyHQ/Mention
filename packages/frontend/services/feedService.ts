@@ -1,4 +1,7 @@
 import {
+  AuthorFeedFilter,
+  buildFeedDescriptor,
+  isAuthorFeedFilter,
   FeedRequest,
   FeedResponse,
   SlicedFeedResponse,
@@ -8,11 +11,10 @@ import {
   CreateThreadRequest,
   LikeRequest,
   UnlikeRequest,
-  FeedType,
   FeedDescriptor,
-  isValidFeedDescriptor,
   HydratedPost,
   UpdatePostRequest,
+  FeedInterstitialEventInput,
 } from '@mention/shared-types';
 
 // Feed responses may include slices for thread grouping, and recommendation-card
@@ -290,23 +292,19 @@ class FeedService {
   }
 
   /**
-   * Get user profile feed
+   * Get a user's profile feed — one tab of it.
+   *
+   * Served by the MTN engine like every other feed: the profile tab is just the
+   * author descriptor `author|<oxyUserId>|<tab>`. An unrecognized tab degrades
+   * to the default `posts` filter, matching the backend's own descriptor
+   * resolution.
    */
   async getUserFeed(userId: string, request: FeedRequest): Promise<FeedServiceResponse> {
-    const params: Record<string, unknown> = {};
-
-    if (request.cursor) params.cursor = request.cursor;
-    if (request.limit) params.limit = request.limit;
-    if (request.type) params.type = request.type;
-    if (request.filters) {
-      Object.entries(request.filters).forEach(([key, value]) => {
-        if (value !== undefined) {
-          params[`filters[${key}]`] = value;
-        }
-      });
-    }
-
-    return await makeViewerAwarePublicRead<FeedServiceResponse>(`/feed/user/${userId}`, { params });
+    const filter: AuthorFeedFilter = isAuthorFeedFilter(request.type) ? request.type : 'posts';
+    return await this.getMtnFeed(buildFeedDescriptor('author', userId, filter), {
+      cursor: request.cursor,
+      limit: request.limit,
+    });
   }
 
   /**
@@ -639,8 +637,11 @@ class FeedService {
 
     // Dedup in-flight. Keyed on the viewer's auth state so an authenticated fetch
     // never shares an in-flight promise with an anonymous one for the same
-    // descriptor — the two return different content and must resolve independently.
-    const cacheKey = `mtn|${authDedupeMarker()}|${descriptor}|${options?.cursor || 'initial'}`;
+    // descriptor — the two return different content and must resolve
+    // independently — and on the page size, so a caller asking for a different
+    // number of items never inherits another caller's page (the profile media
+    // grid and the profile feed request the same descriptor at different limits).
+    const cacheKey = `mtn|${authDedupeMarker()}|${descriptor}|${options?.cursor || 'initial'}|${options?.limit ?? 'default'}`;
 
     // In-flight sharing is ONLY safe for signal-less requests. A request that
     // carries an AbortSignal is owned by a single caller whose lifecycle controls
@@ -709,6 +710,28 @@ class FeedService {
       // feed-ranking signal is observable in diagnostics.
       logger.debug('Failed to send feed interaction', {
         event: data.event,
+        ...normalizeApiError(error),
+      });
+    }
+  }
+
+  /**
+   * Report what a viewer did with a recommendation card.
+   *
+   * A SEPARATE route from `sendFeedInteraction` on purpose: that one carries a
+   * `postUri` and feeds post ranking, so a card event sent through it would
+   * credit author/topic affinity with engagement that never touched a post.
+   * Card events are counters about the CARDS, and nothing else reads them.
+   */
+  async sendInterstitialEvent(data: FeedInterstitialEventInput): Promise<void> {
+    try {
+      await authenticatedClient.post('/feed/mtn/interstitial-events', data);
+    } catch (error) {
+      // Same contract as feed interactions: a lost telemetry write must never
+      // reach the user, but it stays visible in diagnostics.
+      logger.debug('Failed to send interstitial event', {
+        event: data.event,
+        kind: data.kind,
         ...normalizeApiError(error),
       });
     }

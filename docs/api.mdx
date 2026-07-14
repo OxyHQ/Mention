@@ -87,10 +87,10 @@ The server splits routers into a **public** group (no auth wall, individual rout
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | `/feed/mtn` | Fetch a feed page. Query: `descriptor`, `cursor`, `limit`. Returns `SlicedFeedResponse`. |
+| | ↳ profile feed | `descriptor=author\|<oxyUserId>\|<tab>`, where `<tab>` is `posts` (default) / `replies` / `media` / `likes` / `boosts`. An empty first page for a federated author sets `pending: true` while their outbox is imported in the background — the client shows a loading state and refetches. |
 | GET | `/feed/mtn/peek` | Peek the latest item without consuming a cursor — drives the "new posts" pill. |
 | POST | `/feed/mtn/interactions` | Record impressions / interactions for ranking signal. |
 | GET | `/feed/replies/:parentId` | Replies feed for a post. |
-| GET | `/feed/user/:userId` | Author feed (with public-profile caching). |
 | GET | `/feed/user/:userId/pinned` | Pinned post for a user. |
 | GET | `/feed/item/:id` | Single hydrated feed item by ID. |
 | POST | `/feed/reply` | Create a reply. |

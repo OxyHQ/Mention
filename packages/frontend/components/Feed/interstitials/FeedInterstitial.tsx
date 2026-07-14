@@ -1,5 +1,6 @@
 import React from 'react';
 import type { FeedInterstitialSlot } from '@mention/shared-types';
+import { SimilarAccountsInterstitial } from './SimilarAccountsInterstitial';
 import { SuggestedFeedsInterstitial } from './SuggestedFeedsInterstitial';
 import { SuggestedStarterPacksInterstitial } from './SuggestedStarterPacksInterstitial';
 import { SuggestedUsersInterstitial } from './SuggestedUsersInterstitial';
@@ -13,6 +14,12 @@ interface FeedInterstitialProps {
    * two "who to follow" cards is not shown the same accounts twice.
    */
   ordinal: number;
+  /**
+   * The descriptor of the feed this card sits in. Every event the card reports is
+   * attributed to it, so a card's performance can be read per feed. Absent when a
+   * card is rendered outside a real feed — nothing is reported then.
+   */
+  feedDescriptor?: string;
 }
 
 /**
@@ -27,13 +34,41 @@ interface FeedInterstitialProps {
 export default function FeedInterstitial({
   slot,
   ordinal,
+  feedDescriptor,
 }: FeedInterstitialProps): React.ReactElement | null {
   switch (slot.kind) {
     case 'suggestedUsers':
-      return <SuggestedUsersInterstitial ordinal={ordinal} />;
+      return (
+        <SuggestedUsersInterstitial
+          ordinal={ordinal}
+          slotKey={slot.key}
+          feedDescriptor={feedDescriptor}
+        />
+      );
     case 'suggestedFeeds':
-      return <SuggestedFeedsInterstitial ordinal={ordinal} />;
+      return (
+        <SuggestedFeedsInterstitial
+          ordinal={ordinal}
+          slotKey={slot.key}
+          feedDescriptor={feedDescriptor}
+        />
+      );
     case 'suggestedStarterPacks':
-      return <SuggestedStarterPacksInterstitial ordinal={ordinal} />;
+      return (
+        <SuggestedStarterPacksInterstitial
+          ordinal={ordinal}
+          slotKey={slot.key}
+          feedDescriptor={feedDescriptor}
+        />
+      );
+    case 'similarAccounts':
+      return (
+        <SimilarAccountsInterstitial
+          ordinal={ordinal}
+          slotKey={slot.key}
+          feedDescriptor={feedDescriptor}
+          subjectId={slot.subjectId}
+        />
+      );
   }
 }

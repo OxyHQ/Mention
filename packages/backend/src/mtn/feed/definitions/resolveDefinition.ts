@@ -11,8 +11,8 @@
  * branches resolve synchronously.
  */
 
-import { parseFeedDescriptor } from '@mention/shared-types';
-import type { FeedDescriptor, AuthorFeedFilter } from '@mention/shared-types';
+import { isAuthorFeedFilter, parseFeedDescriptor } from '@mention/shared-types';
+import type { FeedDescriptor } from '@mention/shared-types';
 import type { FeedDefinition } from '../engine/types';
 import { loadCustomFeedDefinition } from './customFeedDefinition';
 import {
@@ -31,8 +31,6 @@ import {
   topicDefinition,
   listDefinition,
 } from './presets';
-
-const AUTHOR_FILTERS: readonly AuthorFeedFilter[] = ['posts', 'replies', 'media', 'likes'];
 
 /** Viewer context needed to resolve viewer-scoped descriptors (custom feeds). */
 export interface ResolveDefinitionContext {
@@ -69,9 +67,9 @@ export async function resolveDefinition(
     case 'author': {
       const authorId = params[0];
       if (!authorId) return null;
-      const filter = AUTHOR_FILTERS.includes(params[1] as AuthorFeedFilter)
-        ? (params[1] as AuthorFeedFilter)
-        : 'posts';
+      // An unknown/absent filter degrades to the default profile tab rather than
+      // 404ing, so a stale client can never break a profile.
+      const filter = isAuthorFeedFilter(params[1]) ? params[1] : 'posts';
       return authorDefinition(authorId, filter);
     }
     case 'hashtag': {

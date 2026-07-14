@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
+import React, { useState, useCallback, useMemo, useRef } from 'react';
 import {
   View,
   Text,
@@ -12,6 +12,7 @@ import {
   KeyboardAvoidingView,
   Pressable,
 } from 'react-native';
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { SpinnerIcon } from '@oxyhq/bloom/loading';
 import { ThemedView } from '@/components/ThemedView';
 import { useLocalSearchParams, router } from 'expo-router';
@@ -19,9 +20,9 @@ import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { useSafeBack } from '@/hooks/useSafeBack';
-import { customFeedsService } from '@/services/customFeedsService';
+import { customFeedsService, type CustomFeedDetail } from '@/services/customFeedsService';
 import { useFeedPreferences } from '@/hooks/useFeedPreferences';
-import { useAuth } from '@oxyhq/services';
+import { useAuth, FollowButton } from '@oxyhq/services';
 import Feed from '@/components/Feed/Feed';
 import { Ionicons } from '@expo/vector-icons';
 import { ComposeIcon } from '@/assets/icons/compose-icon';
@@ -34,18 +35,26 @@ import { show as toast } from '@oxyhq/bloom/toast';
 import AnimatedTabBar from '@/components/common/AnimatedTabBar';
 import BottomSheet, { type BottomSheetRef } from '@oxyhq/bloom/bottom-sheet';
 import { useTranslation } from 'react-i18next';
-import { FollowButton } from '@oxyhq/services';
-import { EntityFollowButton } from '@/components/EntityFollowButton';
+import { FeedSubscribeButton } from '@/components/FeedSubscribeButton';
 import { getNormalizedUserHandle } from '@oxyhq/core';
+import type { PostUser } from '@mention/shared-types';
+import { displayNameOrHandle } from '@/utils/displayName';
+import { WEB_BASE_URL } from '@/config';
 import { logger } from '@/lib/logger';
 
 type FeedTab = 'recent' | 'profiles' | 'topics' | 'reviews';
 
-interface MemberProfile {
-  id: string;
-  username: string;
-  displayName: string;
-  avatar?: string;
+/** Reviews per page in the reviews tab. */
+const REVIEWS_PAGE_SIZE = 20;
+
+/** The owner/member identity the feed routes embed: the canonical Oxy user. */
+type FeedProfile = PostUser;
+
+/** `@handle` for a feed's owner/member, or an empty string when it has none. */
+function profileHandle(profile: FeedProfile | null | undefined): string {
+  if (!profile) return '';
+  const handle = getNormalizedUserHandle(profile);
+  return handle ? `@${handle}` : '';
 }
 
 const TABS_CONFIG = [
@@ -58,25 +67,26 @@ const TABS_CONFIG = [
 // Compact header bar matching Bluesky's ProfileFeedHeader
 const FeedHeaderBar = React.memo(function FeedHeaderBar({
   feed,
-  feedId,
-  likeCount,
-  isLiked,
+  subscriberCount,
+  isSubscribed,
+  isSubscribing,
+  onToggleSubscribe,
   isPinned,
   onTogglePin,
   onOpenInfo,
 }: {
-  feed: { title: string; avatar?: string; owner?: { username?: string; displayName?: string } };
-  feedId: string;
-  likeCount: number;
-  isLiked: boolean;
+  feed: CustomFeedDetail;
+  subscriberCount: number;
+  isSubscribed: boolean;
+  isSubscribing: boolean;
+  onToggleSubscribe: () => void;
   isPinned: boolean;
   onTogglePin: () => void;
   onOpenInfo: () => void;
 }) {
   const theme = useTheme();
   const safeBack = useSafeBack();
-  const creatorHandleValue = getNormalizedUserHandle({ username: feed.owner?.username });
-  const creatorHandle = creatorHandleValue ? `@${creatorHandleValue}` : '';
+  const creatorHandle = profileHandle(feed.owner);
 
   return (
     <View
@@ -96,7 +106,7 @@ const FeedHeaderBar = React.memo(function FeedHeaderBar({
         {({ pressed }) => (
           <>
             <View style={[headerStyles.pressHighlight, pressed && { opacity: 1 }]} className="bg-secondary" />
-            <Avatar source={feed.avatar} size={36} />
+            <Avatar source={feed.coverImage} size={36} />
             <View className="flex-1">
               <Text className="text-[15px] font-bold leading-snug text-foreground" numberOfLines={2}>
                 {feed.title}
@@ -108,13 +118,9 @@ const FeedHeaderBar = React.memo(function FeedHeaderBar({
                   </Text>
                 ) : null}
                 <View className="flex-row items-center" style={{ gap: 2 }}>
-                  <Ionicons
-                    name="heart"
-                    size={12}
-                    color={isLiked ? theme.colors.primary : theme.colors.textSecondary}
-                  />
+                  <Ionicons name="people-outline" size={12} color={theme.colors.textSecondary} />
                   <Text className="text-sm leading-snug text-muted-foreground" numberOfLines={1}>
-                    {formatCompactNumber(likeCount)}
+                    {formatCompactNumber(subscriberCount)}
                   </Text>
                 </View>
               </View>
@@ -124,7 +130,13 @@ const FeedHeaderBar = React.memo(function FeedHeaderBar({
         )}
       </Pressable>
 
-      <EntityFollowButton entityType="feed" entityId={feedId} label="Subscribe" followingLabel="Subscribed" size="sm" />
+      {/* Subscribing to a feed IS liking it: one `FeedLike` row, the same
+          subscription the marketplace and the saved-feeds list read. */}
+      <FeedSubscribeButton
+        isSubscribed={isSubscribed}
+        isSubscribing={isSubscribing}
+        onPress={onToggleSubscribe}
+      />
 
       <IconButton variant="icon" onPress={onTogglePin}>
         <Ionicons
@@ -140,38 +152,38 @@ const FeedHeaderBar = React.memo(function FeedHeaderBar({
 // Feed info bottom sheet content matching Bluesky's DialogInner
 const FeedInfoContent = React.memo(function FeedInfoContent({
   feed,
-  likeCount,
-  isLiked,
-  isTogglingLike,
+  subscriberCount,
+  isSubscribed,
+  isSubscribing,
   isPinned,
   isOwner,
-  onToggleLike,
+  onToggleSubscribe,
   onTogglePin,
   onEdit,
   onShare,
   onClose,
 }: {
-  feed: { title: string; avatar?: string; description?: string; owner?: { username?: string; displayName?: string } };
-  likeCount: number;
-  isLiked: boolean;
-  isTogglingLike: boolean;
+  feed: CustomFeedDetail;
+  subscriberCount: number;
+  isSubscribed: boolean;
+  isSubscribing: boolean;
   isPinned: boolean;
   isOwner: boolean;
-  onToggleLike: () => void;
+  onToggleSubscribe: () => void;
   onTogglePin: () => void;
   onEdit: () => void;
   onShare: () => void;
   onClose: () => void;
 }) {
   const theme = useTheme();
-  const creatorHandleValue = getNormalizedUserHandle({ username: feed.owner?.username });
-  const creatorHandle = creatorHandleValue ? `@${creatorHandleValue}` : '';
+  const { t } = useTranslation();
+  const creatorHandle = profileHandle(feed.owner);
 
   return (
     <View className="gap-4 px-5 pb-8 pt-2">
       {/* Avatar + title + share */}
       <View className="flex-row items-center gap-3.5">
-        <Avatar source={feed.avatar} size={48} />
+        <Avatar source={feed.coverImage} size={48} />
         <View className="flex-1 gap-0.5">
           <Text className="text-2xl font-bold leading-tight text-foreground" numberOfLines={2}>
             {feed.title}
@@ -180,9 +192,7 @@ const FeedInfoContent = React.memo(function FeedInfoContent({
             <TouchableOpacity
               onPress={() => {
                 onClose();
-                if (creatorHandleValue) {
-                  router.push(`/@${creatorHandleValue}`);
-                }
+                router.push(`/${creatorHandle}`);
               }}
               activeOpacity={0.7}
             >
@@ -205,10 +215,10 @@ const FeedInfoContent = React.memo(function FeedInfoContent({
         </Text>
       ) : null}
 
-      {/* Like count */}
-      {likeCount > 0 ? (
+      {/* Subscriber tally — the same `FeedLike` records the subscribe pill writes. */}
+      {subscriberCount > 0 ? (
         <Text className="text-sm text-muted-foreground">
-          Liked by {formatCompactNumber(likeCount)} {likeCount === 1 ? 'user' : 'users'}
+          {t('feeds.subscriberCount', { count: subscriberCount })}
         </Text>
       ) : null}
 
@@ -217,18 +227,26 @@ const FeedInfoContent = React.memo(function FeedInfoContent({
         <TouchableOpacity
           className="flex-1 h-10 rounded-lg flex-row items-center justify-center gap-1.5"
           style={{ backgroundColor: theme.colors.backgroundSecondary || theme.colors.border + '40' }}
-          onPress={onToggleLike}
-          disabled={isTogglingLike}
+          onPress={onToggleSubscribe}
+          disabled={isSubscribing}
           activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityState={{ selected: isSubscribed, busy: isSubscribing }}
         >
-          <Ionicons
-            name={isLiked ? 'heart' : 'heart-outline'}
-            size={18}
-            color={isLiked ? theme.colors.primary : theme.colors.text}
-          />
-          <Text className="text-[15px] font-medium text-foreground">
-            {isLiked ? 'Unlike' : 'Like'}
-          </Text>
+          {isSubscribing ? (
+            <SpinnerIcon size={16} className="text-foreground" />
+          ) : (
+            <>
+              <Ionicons
+                name={isSubscribed ? 'checkmark' : 'add'}
+                size={18}
+                color={isSubscribed ? theme.colors.primary : theme.colors.text}
+              />
+              <Text className="text-[15px] font-medium text-foreground">
+                {isSubscribed ? t('feeds.subscribed') : t('feeds.subscribe')}
+              </Text>
+            </>
+          )}
         </TouchableOpacity>
         <TouchableOpacity
           className="flex-1 h-10 rounded-lg flex-row items-center justify-center gap-1.5"
@@ -289,7 +307,7 @@ const FeedInfoContent = React.memo(function FeedInfoContent({
 });
 
 // Profiles tab
-const ProfilesTab = React.memo(function ProfilesTab({ members }: { members: MemberProfile[] }) {
+const ProfilesTab = React.memo(function ProfilesTab({ members }: { members: FeedProfile[] }) {
   const theme = useTheme();
 
   if (members.length === 0) {
@@ -303,30 +321,38 @@ const ProfilesTab = React.memo(function ProfilesTab({ members }: { members: Memb
 
   return (
     <ScrollView contentContainerStyle={styles.profilesList}>
-      {members.map((m) => (
-        <TouchableOpacity
-          key={m.id}
-          className="flex-row items-center gap-3 py-3"
-          onPress={() => {
-            const handle = getNormalizedUserHandle({ username: m.username });
-            if (handle) {
-              router.push(`/@${handle}`);
-            }
-          }}
-          activeOpacity={0.7}
-        >
-          <Avatar source={m.avatar} size={44} />
-          <View className="flex-1 gap-0.5">
-            <Text className="text-[15px] font-semibold text-foreground" numberOfLines={1}>
-              {m.username}
-            </Text>
-            <Text className="text-sm text-muted-foreground" numberOfLines={1}>
-              {m.displayName}
-            </Text>
-          </View>
-          <FollowButton userId={m.id} />
-        </TouchableOpacity>
-      ))}
+      {members.map((member) => {
+        // Oxy owns identity: the display name lives at `name.displayName` and
+        // falls back to the handle. An unresolved member has no handle at all
+        // (the ghost-handle rule), so it gets no profile link.
+        const handle = profileHandle(member);
+        const name = displayNameOrHandle(member.name?.displayName, handle);
+
+        return (
+          <TouchableOpacity
+            key={member.id}
+            className="flex-row items-center gap-3 py-3"
+            onPress={() => {
+              if (handle) router.push(`/${handle}`);
+            }}
+            disabled={!handle}
+            activeOpacity={0.7}
+          >
+            <Avatar source={member.avatar ?? undefined} size={44} />
+            <View className="flex-1 gap-0.5">
+              <Text className="text-[15px] font-semibold text-foreground" numberOfLines={1}>
+                {name}
+              </Text>
+              {handle ? (
+                <Text className="text-sm text-muted-foreground" numberOfLines={1}>
+                  {handle}
+                </Text>
+              ) : null}
+            </View>
+            <FollowButton userId={member.id} />
+          </TouchableOpacity>
+        );
+      })}
     </ScrollView>
   );
 });
@@ -458,61 +484,58 @@ const WriteReviewModal = React.memo(function WriteReviewModal({
 // Reviews tab
 const ReviewsTab = React.memo(function ReviewsTab({ feedId }: { feedId: string }) {
   const theme = useTheme();
-  const [reviews, setReviews] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [modalVisible, setModalVisible] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
-  const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
-  const [loadingMore, setLoadingMore] = useState(false);
 
-  const loadReviews = useCallback(
-    async (pageNum: number, replace: boolean) => {
-      if (replace) setLoading(true);
-      else setLoadingMore(true);
-      try {
-        const res = await customFeedsService.getReviews(feedId, { page: pageNum, limit: 20 });
-        const items = res.reviews || [];
-        setReviews((prev) => (replace ? items : [...prev, ...items]));
-        setPage(pageNum);
-        setTotalPages(res.totalPages || 1);
-      } catch {
-        // silently fail — empty state handles it
-      } finally {
-        setLoading(false);
-        setLoadingMore(false);
-      }
-    },
-    [feedId],
+  const reviewsQueryKey = useMemo(() => ['customFeedReviews', feedId] as const, [feedId]);
+
+  const reviewsQuery = useInfiniteQuery({
+    queryKey: reviewsQueryKey,
+    queryFn: ({ pageParam }) =>
+      customFeedsService.getReviews(feedId, { page: pageParam, limit: REVIEWS_PAGE_SIZE }),
+    initialPageParam: 1,
+    getNextPageParam: (lastPage) =>
+      lastPage.page < lastPage.totalPages ? lastPage.page + 1 : undefined,
+  });
+
+  const reviews = useMemo(
+    () => reviewsQuery.data?.pages.flatMap((page) => page.reviews) ?? [],
+    [reviewsQuery.data],
   );
 
-  useEffect(() => {
-    loadReviews(1, true);
-  }, [loadReviews]);
+  const submitReview = useMutation({
+    mutationFn: (input: { rating: number; reviewText: string }) =>
+      customFeedsService.submitReview(feedId, {
+        rating: input.rating,
+        reviewText: input.reviewText.trim() || undefined,
+      }),
+    onSuccess: () => {
+      setModalVisible(false);
+      toast('Review submitted', { type: 'success' });
+      void queryClient.invalidateQueries({ queryKey: reviewsQueryKey });
+    },
+    onError: (error) => {
+      logger.warn('Failed to submit feed review', { error, feedId });
+      toast('Failed to submit review', { type: 'error' });
+    },
+  });
 
-  const handleLoadMore = useCallback(() => {
-    if (loadingMore || loading || page >= totalPages) return;
-    loadReviews(page + 1, false);
-  }, [loadingMore, loading, page, totalPages, loadReviews]);
+  const { mutate: mutateReview, isPending: isSubmitting } = submitReview;
+  const { fetchNextPage, hasNextPage, isFetchingNextPage } = reviewsQuery;
 
   const handleSubmitReview = useCallback(
-    async (rating: number, reviewText: string) => {
-      setSubmitting(true);
-      try {
-        await customFeedsService.submitReview(feedId, { rating, reviewText: reviewText.trim() || undefined });
-        setModalVisible(false);
-        toast('Review submitted', { type: 'success' });
-        loadReviews(1, true);
-      } catch {
-        toast('Failed to submit review', { type: 'error' });
-      } finally {
-        setSubmitting(false);
-      }
+    (rating: number, reviewText: string) => {
+      mutateReview({ rating, reviewText });
     },
-    [feedId, loadReviews],
+    [mutateReview],
   );
 
-  if (loading) {
+  const handleLoadMore = useCallback(() => {
+    if (isFetchingNextPage || !hasNextPage) return;
+    void fetchNextPage();
+  }, [isFetchingNextPage, hasNextPage, fetchNextPage]);
+
+  if (reviewsQuery.isPending) {
     return (
       <View className="p-10 items-center justify-center gap-3">
         <SpinnerIcon size={28} className="text-primary" />
@@ -541,9 +564,14 @@ const ReviewsTab = React.memo(function ReviewsTab({ feedId }: { feedId: string }
         </View>
       ) : (
         reviews.map((review) => {
-          const reviewId = String(review._id || review.id);
-          const reviewerName = review.reviewer?.displayName ?? 'Anonymous';
-          const reviewerAvatar = review.reviewer?.avatar;
+          const reviewId = review.id || String(review._id);
+          // Oxy owns identity: the reviewer's name is `name.displayName`, and an
+          // unresolved reviewer degrades to their handle before "Anonymous".
+          const reviewerHandle = profileHandle(review.reviewer);
+          const reviewerName = displayNameOrHandle(
+            review.reviewer?.name?.displayName,
+            reviewerHandle || 'Anonymous',
+          );
           const date = review.createdAt
             ? new Date(review.createdAt).toLocaleDateString(undefined, {
                 month: 'short',
@@ -558,7 +586,7 @@ const ReviewsTab = React.memo(function ReviewsTab({ feedId }: { feedId: string }
               style={[reviewStyles.reviewCard, { borderBottomColor: theme.colors.border }]}
             >
               <View className="flex-row items-start gap-2.5">
-                <Avatar source={reviewerAvatar} size={36} />
+                <Avatar source={review.reviewer?.avatar ?? undefined} size={36} />
                 <View className="flex-1 gap-[3px]">
                   <Text className="text-[15px] font-semibold text-foreground" numberOfLines={1}>
                     {reviewerName}
@@ -583,14 +611,14 @@ const ReviewsTab = React.memo(function ReviewsTab({ feedId }: { feedId: string }
         })
       )}
 
-      {page < totalPages && (
+      {hasNextPage && (
         <TouchableOpacity
           className="py-5 items-center justify-center"
           onPress={handleLoadMore}
-          disabled={loadingMore}
+          disabled={isFetchingNextPage}
           activeOpacity={0.7}
         >
-          {loadingMore ? (
+          {isFetchingNextPage ? (
             <SpinnerIcon size={20} className="text-primary" />
           ) : (
             <Text className="text-sm font-semibold text-primary">
@@ -604,7 +632,7 @@ const ReviewsTab = React.memo(function ReviewsTab({ feedId }: { feedId: string }
         visible={modalVisible}
         onClose={() => setModalVisible(false)}
         onSubmit={handleSubmitReview}
-        submitting={submitting}
+        submitting={isSubmitting}
       />
     </View>
   );
@@ -615,21 +643,37 @@ export default function CustomFeedTimelineScreen() {
   const { t } = useTranslation();
   const safeBack = useSafeBack();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { user } = useAuth();
+  const feedId = typeof id === 'string' ? id : '';
+  const { user, isAuthenticated } = useAuth();
+  const queryClient = useQueryClient();
   const { isPinned: isFeedPinned, pin, unpin } = useFeedPreferences();
-  const [feed, setFeed] = useState<any | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [isLiked, setIsLiked] = useState(false);
-  const [likeCount, setLikeCount] = useState(0);
-  const [isTogglingLike, setIsTogglingLike] = useState(false);
   const [activeTab, setActiveTab] = useState<FeedTab>('recent');
 
-  const pinKey = `custom:${id}`;
+  // The viewer identity is part of the key: `isLiked` is per-viewer, so a feed
+  // fetched while a cold-boot SSO restore is still in flight must not keep
+  // showing its anonymous "not subscribed" snapshot once the session lands.
+  const authKey = isAuthenticated && user?.id ? user.id : 'anon';
+  const feedQueryKey = useMemo(() => ['customFeed', feedId, authKey] as const, [feedId, authKey]);
+
+  const feedQuery = useQuery({
+    queryKey: feedQueryKey,
+    queryFn: () => customFeedsService.get(feedId),
+    enabled: feedId.length > 0,
+  });
+
+  const feed = feedQuery.data ?? null;
+
+  // The subscription state the WHOLE app reads: a `FeedLike` row (`isLiked`) and
+  // the feed's subscriber tally (`likeCount`). Derived from the query cache, so
+  // the header pill and the info sheet can never disagree.
+  const isSubscribed = feed?.isLiked ?? false;
+  const subscriberCount = feed?.likeCount ?? 0;
+
+  const pinKey = `custom:${feedId}`;
   const isPinned = isFeedPinned(pinKey);
   const isOwner = Boolean(feed?.ownerOxyUserId && user?.id && feed.ownerOxyUserId === user.id);
 
-  const TABS = TABS_CONFIG.map(tab => ({ id: tab.id, label: t(tab.labelKey) }));
+  const TABS = useMemo(() => TABS_CONFIG.map((tab) => ({ id: tab.id, label: t(tab.labelKey) })), [t]);
 
   const infoSheetRef = useRef<BottomSheetRef>(null);
 
@@ -643,64 +687,62 @@ export default function CustomFeedTimelineScreen() {
 
   const onTogglePin = useCallback(() => {
     if (isFeedPinned(pinKey)) unpin(pinKey);
-    else pin({ key: pinKey, descriptor: `custom|${id}` });
-  }, [id, pinKey, isFeedPinned, pin, unpin]);
+    else pin({ key: pinKey, descriptor: `custom|${feedId}` });
+  }, [feedId, pinKey, isFeedPinned, pin, unpin]);
 
   const onEdit = useCallback(() => {
-    router.push(`/feeds/${id}/edit`);
-  }, [id]);
+    router.push(`/feeds/${feedId}/edit`);
+  }, [feedId]);
 
-  const loadFeed = useCallback(async (signal?: { cancelled: boolean }) => {
-    const cancelled = () => signal?.cancelled === true;
-    try {
-      const f = await customFeedsService.get(String(id));
-      if (cancelled()) return;
-      setFeed(f);
-      setLikeCount(f.likeCount || 0);
-      setIsLiked(f.isLiked || false);
-    } catch {
-      if (!cancelled()) setError('Failed to load feed');
-    } finally {
-      if (!cancelled()) setLoading(false);
-    }
-  }, [id]);
-
-  useEffect(() => {
-    const signal = { cancelled: false };
-    loadFeed(signal);
-    return () => { signal.cancelled = true; };
-  }, [loadFeed]);
-
-  const onToggleLike = useCallback(async () => {
-    if (isTogglingLike) return;
-    setIsTogglingLike(true);
-    const prevLiked = isLiked;
-    const prevCount = likeCount;
-    const newLiked = !prevLiked;
-    setIsLiked(newLiked);
-    setLikeCount(newLiked ? prevCount + 1 : Math.max(0, prevCount - 1));
-    try {
-      const result = newLiked
-        ? await customFeedsService.likeFeed(String(id))
-        : await customFeedsService.unlikeFeed(String(id));
-      if (result.success) {
-        setIsLiked(result.liked);
-        setLikeCount(result.likeCount);
-      } else {
-        setIsLiked(prevLiked);
-        setLikeCount(prevCount);
+  /**
+   * Subscribe / unsubscribe. `POST|DELETE /feeds/:id/like` is the ONE
+   * custom-feed subscription endpoint — it writes the `FeedLike` row and moves
+   * `CustomFeed.subscriberCount`, which is what the marketplace, the saved-feeds
+   * list and this screen all read back.
+   */
+  const subscription = useMutation({
+    mutationFn: (nextSubscribed: boolean) =>
+      nextSubscribed ? customFeedsService.likeFeed(feedId) : customFeedsService.unlikeFeed(feedId),
+    onMutate: async (nextSubscribed) => {
+      await queryClient.cancelQueries({ queryKey: feedQueryKey });
+      const previous = queryClient.getQueryData<CustomFeedDetail>(feedQueryKey);
+      queryClient.setQueryData<CustomFeedDetail>(feedQueryKey, (current) =>
+        current
+          ? {
+              ...current,
+              isLiked: nextSubscribed,
+              likeCount: Math.max(0, (current.likeCount ?? 0) + (nextSubscribed ? 1 : -1)),
+            }
+          : current,
+      );
+      return { previous };
+    },
+    onSuccess: (result) => {
+      // The server is authoritative — it also settles the idempotent cases
+      // (subscribing to a feed the viewer already subscribed to).
+      queryClient.setQueryData<CustomFeedDetail>(feedQueryKey, (current) =>
+        current ? { ...current, isLiked: result.liked, likeCount: result.likeCount } : current,
+      );
+    },
+    onError: (error, _nextSubscribed, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(feedQueryKey, context.previous);
       }
-    } catch {
-      setIsLiked(prevLiked);
-      setLikeCount(prevCount);
-    } finally {
-      setIsTogglingLike(false);
-    }
-  }, [id, isLiked, likeCount, isTogglingLike]);
+      logger.warn('Failed to update feed subscription', { error, feedId });
+      toast(t('feeds.subscribeError'), { type: 'error' });
+    },
+  });
+
+  const { mutate: mutateSubscription, isPending: isSubscribing } = subscription;
+
+  const onToggleSubscribe = useCallback(() => {
+    if (isSubscribing) return;
+    mutateSubscription(!isSubscribed);
+  }, [isSubscribing, isSubscribed, mutateSubscription]);
 
   const onShare = useCallback(async () => {
     if (!feed) return;
-    const url = `https://mention.earth/feeds/${id}`;
+    const url = `${WEB_BASE_URL}/feeds/${feedId}`;
     try {
       await Share.share({
         message: `Check out "${feed.title}" on Mention!\n\n${url}`,
@@ -708,30 +750,35 @@ export default function CustomFeedTimelineScreen() {
         title: `${feed.title} on Mention`,
       });
     } catch (error) {
-      logger.warn('Failed to share feed', { error, feedId: id });
+      logger.warn('Failed to share feed', { error, feedId });
     }
-  }, [feed, id]);
+  }, [feed, feedId]);
 
   const handleTabPress = useCallback((tabId: string) => {
     setActiveTab(tabId as FeedTab);
   }, []);
 
-  const members: MemberProfile[] = feed?.members || [];
-  const keywords: string[] = feed?.keywords || [];
+  const members: FeedProfile[] = feed?.members ?? [];
+  const keywords: string[] = feed?.keywords ?? [];
 
   const tabBar = useMemo(() => (
     <AnimatedTabBar
       tabs={TABS}
       activeTabId={activeTab}
       onTabPress={handleTabPress}
-      instanceId={`feed-detail-${id}`}
+      instanceId={`feed-detail-${feedId}`}
     />
-  ), [activeTab, handleTabPress, id]);
+  ), [TABS, activeTab, handleTabPress, feedId]);
 
   const listHeader = useMemo(() => {
     if (!feed) return null;
     return <View>{tabBar}</View>;
   }, [feed, tabBar]);
+
+  // A missing route param can never resolve to a feed — surface it as the same
+  // failure the user would get from a dead feed id rather than spinning forever.
+  const hasError = feedQuery.isError || feedId.length === 0;
+  const isLoading = feedQuery.isPending && !hasError;
 
   return (
     <ThemedView className="flex-1 relative flex-col">
@@ -739,9 +786,10 @@ export default function CustomFeedTimelineScreen() {
       {feed ? (
         <FeedHeaderBar
           feed={feed}
-          feedId={String(id)}
-          likeCount={likeCount}
-          isLiked={isLiked}
+          subscriberCount={subscriberCount}
+          isSubscribed={isSubscribed}
+          isSubscribing={isSubscribing}
+          onToggleSubscribe={onToggleSubscribe}
           isPinned={isPinned}
           onTogglePin={onTogglePin}
           onOpenInfo={openInfoSheet}
@@ -760,13 +808,15 @@ export default function CustomFeedTimelineScreen() {
         </View>
       )}
 
-      {error ? (
+      {hasError ? (
         <View className="flex-1 items-center justify-center">
-          <Text style={{ color: theme.colors.error || theme.colors.textSecondary }}>{error}</Text>
+          <Text style={{ color: theme.colors.error || theme.colors.textSecondary }}>
+            {t('feeds.loadError')}
+          </Text>
         </View>
-      ) : loading ? (
+      ) : isLoading ? (
         <View className="flex-1 items-center justify-center">
-          <Text className="text-muted-foreground">Loading...</Text>
+          <SpinnerIcon size={24} className="text-primary" />
         </View>
       ) : activeTab === 'recent' ? (
         // `recent` is the ONLY feed tab and it is the virtualized, scroll-owning
@@ -776,18 +826,18 @@ export default function CustomFeedTimelineScreen() {
         // `/feeds/:id/timeline` the home custom tabs use), so definition-based
         // feeds render here too. The other tabs (profiles/topics/reviews) render
         // NON-feed content inside their own <ScrollView>.
-        <Feed type="custom" filters={{ customFeedId: String(id) }} listHeaderComponent={listHeader} />
+        <Feed type="custom" filters={{ customFeedId: feedId }} listHeaderComponent={listHeader} />
       ) : (
         <ScrollView stickyHeaderIndices={[0]}>
           {tabBar}
           {activeTab === 'profiles' && <ProfilesTab members={members} />}
           {activeTab === 'topics' && <TopicsTab keywords={keywords} />}
-          {activeTab === 'reviews' && <ReviewsTab feedId={String(id)} />}
+          {activeTab === 'reviews' && <ReviewsTab feedId={feedId} />}
         </ScrollView>
       )}
 
       {/* FAB that rides the BottomBar's show/hide (web mobile). */}
-      {!loading && !error && (
+      {!isLoading && !hasError && (
         <BottomBarAwareFab
           onPress={() => router.push('/compose')}
           icon={<ComposeIcon size={22} className="text-primary-foreground" />}
@@ -803,12 +853,12 @@ export default function CustomFeedTimelineScreen() {
         >
           <FeedInfoContent
             feed={feed}
-            likeCount={likeCount}
-            isLiked={isLiked}
-            isTogglingLike={isTogglingLike}
+            subscriberCount={subscriberCount}
+            isSubscribed={isSubscribed}
+            isSubscribing={isSubscribing}
             isPinned={isPinned}
             isOwner={isOwner}
-            onToggleLike={onToggleLike}
+            onToggleSubscribe={onToggleSubscribe}
             onTogglePin={onTogglePin}
             onEdit={onEdit}
             onShare={onShare}

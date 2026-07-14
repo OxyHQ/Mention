@@ -5,4 +5,3 @@ export { filterByLanguage } from './filterByLanguage';
 export { filterSensitiveContent } from './filterSensitiveContent';
 export { filterMuteWords } from './filterMuteWords';
 export { filterHiddenPosts } from './filterHiddenPosts';
-export { injectBreakpoints } from './injectBreakpoints';

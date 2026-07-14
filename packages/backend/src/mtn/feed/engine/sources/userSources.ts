@@ -5,7 +5,7 @@
  */
 
 import mongoose from 'mongoose';
-import { PostType, PostVisibility } from '@mention/shared-types';
+import { isAuthorFeedFilter, PostType, PostVisibility } from '@mention/shared-types';
 import { Post } from '../../../../models/Post';
 import UserSettings from '../../../../models/UserSettings';
 import { ProfileVisibility, requiresAccessCheck } from '../../../../utils/privacyHelpers';
@@ -99,14 +99,27 @@ function buildAuthoredQuery(authorId: string, filter: AuthorFeedFilter, cursor?:
 
   switch (filter) {
     case 'posts':
+      // Boosts are top-level posts, so they surface on the main tab too — the
+      // definition hydrates at depth 1 so the boosted original renders.
       query.parentPostId = null;
       break;
     case 'replies':
       query.parentPostId = { $ne: null };
       break;
+    case 'boosts':
+      query.boostOf = { $ne: null };
+      break;
     case 'media':
+      // The three media shapes `mediaOnlyFilter.keep` recognizes, so the query
+      // and the in-memory predicate agree on what "has media" means.
       query.$and = [
-        { $or: [{ type: { $in: [PostType.IMAGE, PostType.VIDEO] } }, { 'content.media.0': { $exists: true } }] },
+        {
+          $or: [
+            { type: { $in: [PostType.IMAGE, PostType.VIDEO] } },
+            { 'content.media.0': { $exists: true } },
+            { 'content.attachments': { $elemMatch: { type: 'media' } } },
+          ],
+        },
         { $or: [{ parentPostId: null }, { parentPostId: { $exists: false } }] },
         { $or: [{ boostOf: null }, { boostOf: { $exists: false } }] },
       ];
@@ -119,7 +132,16 @@ function buildAuthoredQuery(authorId: string, filter: AuthorFeedFilter, cursor?:
   return query;
 }
 
-async function canViewAuthorLikes(ctx: FeedEngineContext, authorId: string): Promise<boolean> {
+/**
+ * Whether the viewer may see the profile's feed at all.
+ *
+ * A private / followers-only profile is gated on the viewer following it — the
+ * same check the profile screen enforces, applied here so it holds for EVERY
+ * tab (posts, replies, media, boosts, likes) rather than the posts themselves
+ * leaking through their own `visibility: public` flag. Returning `false` yields
+ * an empty feed, which is exactly what a viewer without access must see.
+ */
+async function canViewAuthorFeed(ctx: FeedEngineContext, authorId: string): Promise<boolean> {
   if (ctx.currentUserId === authorId) return true;
   const settings = await UserSettings.findOne(
     { oxyUserId: authorId },
@@ -151,7 +173,6 @@ function buildVisibleLikedPostMatch(ctx: FeedEngineContext): Record<string, unkn
 /** The viewer's liked posts, in like order, for the ORDERED Author-likes feed. */
 async function gatherAuthorLikes(authorId: string, ctx: FeedEngineContext): Promise<CandidatePost[]> {
   const pageLimit = ctx.pageLimit ?? 30;
-  if (!(await canViewAuthorLikes(ctx, authorId))) return [];
 
   const Like = (await import('../../../../models/Like')).default;
   const likes = await Like.find({ userId: authorId, value: 1 })
@@ -185,8 +206,8 @@ async function gatherAuthorLikes(authorId: string, ctx: FeedEngineContext): Prom
 }
 
 /**
- * `authored`: a single author's posts/replies/media (chronological) or likes
- * (ordered). Wraps `AuthorFeed`. Params `{ authorId, filter }`.
+ * `authored`: a single author's posts/replies/media/boosts (chronological) or
+ * likes (ordered) — the profile feed. Params `{ authorId, filter }`.
  */
 export const authoredSource: SourceModule = {
   id: 'authored',
@@ -195,16 +216,26 @@ export const authoredSource: SourceModule = {
   gather: async (ctx, params, cap) => {
     const authorId = typeof params.authorId === 'string' ? params.authorId : '';
     if (!authorId) return [];
-    const filter = (typeof params.filter === 'string' ? params.filter : 'posts') as AuthorFeedFilter;
+    const filterParam = typeof params.filter === 'string' ? params.filter : undefined;
+    const filter: AuthorFeedFilter = isAuthorFeedFilter(filterParam) ? filterParam : 'posts';
+
+    if (!(await canViewAuthorFeed(ctx, authorId))) return [];
 
     if (filter === 'likes') {
       return gatherAuthorLikes(authorId, ctx);
     }
 
     const query = buildAuthoredQuery(authorId, filter, ctx.cursor);
+    // Sorted by `createdAt` — NOT `_id` — to match the chronological keyset
+    // `ChronoCursor` writes into the query (and the engine's own re-sort). A
+    // federated post's import-time `_id` bears no relation to its remote
+    // `createdAt`, so an `_id` sort here silently drops backfilled posts that
+    // fall on the wrong side of the cursor's `createdAt` boundary. `_id` is the
+    // tiebreaker, mirroring the cursor's compound comparison. Backed by
+    // `{ 'authorship.oxyUserId': 1, 'authorship.status': 1, createdAt: -1 }`.
     return (await Post.find(query)
       .select(FEED_FIELDS)
-      .sort({ _id: -1 })
+      .sort({ createdAt: -1, _id: -1 })
       .limit(cap)
       .maxTimeMS(5000)
       .lean()) as unknown as CandidatePost[];

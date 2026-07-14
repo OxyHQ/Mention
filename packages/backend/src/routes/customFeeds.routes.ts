@@ -15,6 +15,7 @@ import { getServiceOxyClient } from '../utils/oxyHelpers';
 import type { CachedUserSummary } from '../services/userSummaryCache';
 import type { PostUser } from '@mention/shared-types';
 import { logger } from '../utils/logger';
+import { queryInt, queryString } from '../utils/queryParams';
 
 const router = Router();
 
@@ -24,6 +25,10 @@ const router = Router();
  * stays predictable no matter how many feeds one account has liked.
  */
 const MAX_EXCLUDED_SUBSCRIBED_FEEDS = 500;
+
+/** Page size for the paginated custom-feed listings (marketplace, reviews, members). */
+const DEFAULT_FEED_PAGE_SIZE = 20;
+const MAX_FEED_PAGE_SIZE = 100;
 
 /**
  * The public owner/member/reviewer profile this route embeds — the canonical Oxy
@@ -102,7 +107,10 @@ router.post('/', async (req: AuthRequest, res: Response) => {
 router.get('/', async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?.id;
-    const { mine, publicOnly, search, userId: queryUserId } = req.query;
+    const { mine, publicOnly, search } = req.query;
+    // The owner filter is a Mongo query value, so it has to be a real string:
+    // `?userId[$ne]=<viewer>` would otherwise reach the query as an operator.
+    const queryUserId = queryString(req.query.userId);
     const q: Record<string, unknown> = {};
 
     if (queryUserId) {
@@ -233,10 +241,10 @@ router.get('/marketplace/categories', async (req: AuthRequest, res: Response) =>
 router.get('/marketplace', async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?.id;
-    const { category, search, sortBy = 'trending', page: pageParam = '1', limit: limitParam = '20' } = req.query;
+    const { category, search, sortBy = 'trending' } = req.query;
 
-    const page = Math.max(1, parseInt(String(pageParam), 10) || 1);
-    const limit = Math.min(Math.max(1, parseInt(String(limitParam), 10) || 20), 100);
+    const page = Math.max(1, queryInt(req.query.page) || 1);
+    const limit = Math.min(Math.max(1, queryInt(req.query.limit) || DEFAULT_FEED_PAGE_SIZE), MAX_FEED_PAGE_SIZE);
     const skip = (page - 1) * limit;
 
     const q: Record<string, unknown> = { isPublic: true };
@@ -477,8 +485,8 @@ router.delete('/:id/members', validateObjectId('id'), validateBody(schemas.manag
 router.get('/:id/timeline', validateObjectId('id'), async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?.id;
-    const limit = Math.min(Math.max(parseInt(String(req.query.limit || 20)), 1), 100); // Clamp 1-100
-    const cursor = typeof req.query.cursor === 'string' ? req.query.cursor.trim() : undefined;
+    const limit = Math.min(Math.max(queryInt(req.query.limit) || DEFAULT_FEED_PAGE_SIZE, 1), MAX_FEED_PAGE_SIZE);
+    const cursor = queryString(req.query.cursor)?.trim();
 
     const feed = await CustomFeed.findById(req.params.id).lean();
     if (!feed) return res.status(404).json({ error: 'Feed not found' });
@@ -596,9 +604,8 @@ router.delete('/:id/like', validateObjectId('id'), async (req: AuthRequest, res:
 // Get reviews for a feed
 router.get('/:id/reviews', validateObjectId('id'), async (req: AuthRequest, res: Response) => {
   try {
-    const { page: pageParam = '1', limit: limitParam = '20' } = req.query;
-    const page = Math.max(1, parseInt(String(pageParam), 10) || 1);
-    const limit = Math.min(Math.max(1, parseInt(String(limitParam), 10) || 20), 100);
+    const page = Math.max(1, queryInt(req.query.page) || 1);
+    const limit = Math.min(Math.max(1, queryInt(req.query.limit) || DEFAULT_FEED_PAGE_SIZE), MAX_FEED_PAGE_SIZE);
     const skip = (page - 1) * limit;
 
     const feedId = new mongoose.Types.ObjectId(String(req.params.id));

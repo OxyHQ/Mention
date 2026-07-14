@@ -4,6 +4,15 @@ import type { RequestHandler } from "express";
 import { Request, Response } from "express";
 import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
 import { RedisStore } from "./rateLimitStore";
+import { queryString } from "../utils/queryParams";
+
+/**
+ * Feed types whose ranking work is expensive enough to throttle. A tampered
+ * `?type[]=for_you` narrows to `undefined` here, so it can never masquerade as a
+ * cheap feed type to dodge the throttle — it is treated as an absent type, the
+ * same value the feed controller itself resolves it to.
+ */
+const EXPENSIVE_FEED_TYPES: readonly string[] = ['for_you', 'explore'];
 
 // Realistic thresholds for global slow-down. The shared global rate limiter is
 // owned by @oxyhq/core/server; this file only contains app-specific throttles.
@@ -133,8 +142,8 @@ export const feedThrottle: RequestHandler = slowDown({
   windowMs: 60 * 1000, // 1 minute
   delayAfter: (req: Request) => {
     // Throttle expensive operations (For You feed, Explore feed)
-    const feedType = (req.query.type as string) || '';
-    if (feedType === 'for_you' || feedType === 'explore') {
+    const feedType = queryString(req.query.type) || '';
+    if (EXPENSIVE_FEED_TYPES.includes(feedType)) {
       const authReq = req as AuthRequest;
       return authReq.user?.id ? 20 : 10; // Lower limit for expensive operations
     }
@@ -143,7 +152,7 @@ export const feedThrottle: RequestHandler = slowDown({
   delayMs: () => 1000, // Add 1 second delay per request above limit
   keyGenerator: (req: Request) => {
     const authReq = req as AuthRequest;
-    const feedType = (req.query.type as string) || 'mixed';
+    const feedType = queryString(req.query.type) || 'mixed';
     if (authReq.user?.id) {
       return `user:${authReq.user.id}:${feedType}`;
     }
@@ -152,8 +161,8 @@ export const feedThrottle: RequestHandler = slowDown({
   },
   skip: (req: Request) => {
     // Don't throttle simple feed types
-    const feedType = (req.query.type as string) || '';
-    return !['for_you', 'explore'].includes(feedType);
+    const feedType = queryString(req.query.type) || '';
+    return !EXPENSIVE_FEED_TYPES.includes(feedType);
   }
 });
 

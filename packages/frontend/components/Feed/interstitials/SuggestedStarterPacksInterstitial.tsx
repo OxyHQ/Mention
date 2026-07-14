@@ -22,6 +22,11 @@ import {
   selectInterstitialWindow,
   shouldRenderInterstitial,
 } from './interstitialLayout';
+import {
+  useInterstitialReporter,
+  type InterstitialCardProps,
+  type ReportInterstitialEvent,
+} from './interstitialTelemetry';
 import { useIsScreenNotMobile } from '@/hooks/useOptimizedMediaQuery';
 
 /**
@@ -34,11 +39,20 @@ import { useIsScreenNotMobile } from '@/hooks/useOptimizedMediaQuery';
  * cold-boot request would go out anonymous and suggest packs the viewer has
  * already followed through.
  */
-export function SuggestedStarterPacksInterstitial({ ordinal }: { ordinal: number }) {
+export function SuggestedStarterPacksInterstitial({
+  ordinal,
+  slotKey,
+  feedDescriptor,
+}: InterstitialCardProps) {
   const { t } = useTranslation();
   const isDesktop = useIsScreenNotMobile();
   const { user, canUsePrivateApi, isPrivateApiPending } = useAuth();
   const [dismissed, setDismissed] = useState<ReadonlySet<string>>(() => new Set());
+  const report = useInterstitialReporter({
+    feedDescriptor,
+    slotKey,
+    kind: 'suggestedStarterPacks',
+  });
 
   const limits = resolveInterstitialLimits('suggestedStarterPacks', isDesktop);
 
@@ -73,31 +87,41 @@ export function SuggestedStarterPacksInterstitial({ ordinal }: { ordinal: number
     [query.data, ordinal, limits, dismissed],
   );
 
-  const handleDismiss = useCallback((id: string) => {
-    setDismissed((prev) => {
-      const next = new Set(prev);
-      next.add(id);
-      return next;
-    });
-  }, []);
+  const handleDismiss = useCallback(
+    (id: string, position: number) => {
+      report('dismiss', position);
+      setDismissed((prev) => {
+        const next = new Set(prev);
+        next.add(id);
+        return next;
+      });
+    },
+    [report],
+  );
 
   const handleBulkFollow = useCallback(
-    (packId: string) => {
+    (packId: string, position: number) => {
+      // The pack was USED — the viewer followed its way into a graph. Reported
+      // alongside the usage write, not in place of it: the write ranks the pack
+      // for everyone else, this measures the card that offered it.
+      report('use', position);
       recordUse.mutate(packId);
     },
-    [recordUse],
+    [report, recordUse],
   );
 
   const renderItem = useCallback(
-    (pack: StarterPackSummary, { isCarousel }: InterstitialItemContext) => (
+    (pack: StarterPackSummary, { isCarousel, position }: InterstitialItemContext) => (
       <SuggestedStarterPackItem
         pack={pack}
         isCarousel={isCarousel}
+        position={position}
+        report={report}
         onBulkFollow={handleBulkFollow}
         onDismiss={handleDismiss}
       />
     ),
-    [handleBulkFollow, handleDismiss],
+    [report, handleBulkFollow, handleDismiss],
   );
 
   const renderSkeleton = useCallback(
@@ -124,6 +148,7 @@ export function SuggestedStarterPacksInterstitial({ ordinal }: { ordinal: number
       limits={limits}
       isLoading={isLoading}
       renderSkeleton={renderSkeleton}
+      report={report}
     />
   );
 }
@@ -135,8 +160,11 @@ function starterPackId(pack: StarterPackSummary): string {
 interface SuggestedStarterPackItemProps {
   pack: StarterPackSummary;
   isCarousel: boolean;
-  onBulkFollow: (packId: string) => void;
-  onDismiss: (id: string) => void;
+  /** 0-based index within the band — the `position` every item event carries. */
+  position: number;
+  report: ReportInterstitialEvent;
+  onBulkFollow: (packId: string, position: number) => void;
+  onDismiss: (id: string, position: number) => void;
 }
 
 /**
@@ -151,6 +179,8 @@ interface SuggestedStarterPackItemProps {
 function SuggestedStarterPackItem({
   pack,
   isCarousel,
+  position,
+  report,
   onBulkFollow,
   onDismiss,
 }: SuggestedStarterPackItemProps) {
@@ -176,12 +206,15 @@ function SuggestedStarterPackItem({
       <View>
         <StarterPackCard
           pack={cardData}
-          onPress={() => router.push(`/starter-packs/${id}`)}
+          onPress={() => {
+            report('click', position);
+            router.push(`/starter-packs/${id}`);
+          }}
           noDescription={isCarousel}
         />
         <DismissButton
           overlay
-          onPress={() => onDismiss(id)}
+          onPress={() => onDismiss(id, position)}
           accessibilityLabel={t('feed.interstitial.starterPacks.dismiss', { name: pack.name })}
         />
       </View>
@@ -190,7 +223,7 @@ function SuggestedStarterPackItem({
         size="small"
         followAllLabel={t('feed.interstitial.starterPacks.followAll')}
         followedAllLabel={t('feed.interstitial.starterPacks.followingAll')}
-        onBulkFollow={() => onBulkFollow(id)}
+        onBulkFollow={() => onBulkFollow(id, position)}
       />
     </View>
   );

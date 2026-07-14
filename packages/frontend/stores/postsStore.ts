@@ -476,6 +476,10 @@ export const usePostsStore = create<PostsStoreState>()(
         // Prime the React Query actor cache (works web + native, no SQLite)
         precacheActorsFromPosts(items);
 
+        // While a federated profile's outbox is still syncing, each poll returns
+        // `pending` with no posts. Those polls must not wipe what is on screen.
+        const keepCachedFeed = isPendingEmptyInitialLoad && Boolean(dbGetFeedMeta(feedKey)?.lastUpdated);
+
         if (request.cursor) {
           // Append mode
           dbAppendFeedItems(feedKey, items, {
@@ -483,7 +487,7 @@ export const usePostsStore = create<PostsStoreState>()(
             nextCursor: response.nextCursor,
             totalCount: items.length,
           });
-        } else if (isPendingEmptyInitialLoad && dbGetFeedMeta(feedKey)?.lastUpdated) {
+        } else if (keepCachedFeed) {
           // Keep the visible cached profile feed while the backend finishes
           // federated outbox sync. Replacing it with [] causes cold-boot profile
           // feeds to appear wiped until the next successful poll.
@@ -505,9 +509,15 @@ export const usePostsStore = create<PostsStoreState>()(
               isLoading: false,
               error: null,
               lastUpdated: Date.now(),
+              // The poll that keeps the cached POSTS must keep the cached CARDS
+              // too: an empty pending response carries no slots, so overwriting
+              // here made the profile's suggestion card blink out from under the
+              // posts that deliberately stayed.
               interstitials: request.cursor
                 ? [...(s.feedUI[feedKey]?.interstitials ?? []), ...(response.interstitials ?? [])]
-                : response.interstitials,
+                : keepCachedFeed
+                  ? s.feedUI[feedKey]?.interstitials
+                  : response.interstitials,
             },
           },
         }));

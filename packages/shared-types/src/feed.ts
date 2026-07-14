@@ -24,15 +24,6 @@ export type FeedType = 'posts' | 'media' | 'replies' | 'likes' | 'boosts' | 'mix
 
 export type PostAction = 'reply' | 'boost' | 'like' | 'share';
 
-// Feed data structures
-export interface FeedItem {
-  id: string;
-  type: 'post' | 'reply' | 'boost';
-  data: HydratedPost | Reply | FeedBoost;
-  createdAt: string;
-  updatedAt: string;
-}
-
 export interface FeedResponse {
   items: HydratedPost[];
   hasMore: boolean;
@@ -65,14 +56,6 @@ export interface FeedFilters {
   dateTo?: string;
 }
 
-export interface FeedStats {
-  totalPosts: number;
-  totalReplies: number;
-  totalBoosts: number;
-  totalLikes: number;
-  averageEngagement: number;
-}
-
 // API request types
 export interface CreateReplyRequest {
   postId: string;
@@ -100,12 +83,6 @@ export interface UnlikeRequest {
   type: 'post' | 'reply' | 'boost';
 }
 
-export interface ShareRequest {
-  postId: string;
-  type: 'post' | 'reply' | 'boost';
-  platform?: 'twitter' | 'facebook' | 'linkedin' | 'copy';
-}
-
 // Thread slicing types for grouped feed rendering
 
 export interface FeedSliceItem {
@@ -129,11 +106,18 @@ export interface FeedPostSlice {
 
 // Feed interstitials — recommendation cards spliced between post slices
 
-/** The three kinds of recommendation card the feed can carry. */
+/**
+ * The kinds of recommendation card the feed can carry.
+ *
+ * `similarAccounts` is the PROFILE-feed card ("accounts similar to the profile
+ * you are viewing"). It is the only kind driven by the feed's SUBJECT rather
+ * than the viewer's own graph, and it is the only one that carries `subjectId`.
+ */
 export type FeedInterstitialKind =
   | 'suggestedUsers'
   | 'suggestedFeeds'
-  | 'suggestedStarterPacks';
+  | 'suggestedStarterPacks'
+  | 'similarAccounts';
 
 /**
  * A recommendation card's PLACEMENT, not its content. The server decides which
@@ -156,11 +140,53 @@ export interface FeedInterstitialSlot {
    * (blocked authors). A slot whose anchor slice is absent is discarded.
    */
   afterSliceKey: string;
+  /**
+   * The profile the suggestions are ABOUT — set only for `similarAccounts`, where
+   * the card answers "who is like the account whose feed you're reading". Never
+   * the viewer: the server drops the card on your own profile.
+   */
+  subjectId?: string;
+}
+
+/**
+ * What a viewer did with a recommendation card. Reported to
+ * `POST /feed/mtn/interstitial-events`, NOT to the post-interaction route: that
+ * one requires a `postUri` and feeds post ranking, so card events would corrupt
+ * author/topic affinity with engagement that never touched a post.
+ *
+ * These land as low-cardinality COUNTERS, never per-row documents — the point is
+ * "are people following anyone from the feed", not who followed whom.
+ */
+export type FeedInterstitialEventName =
+  | 'impression'
+  | 'click'
+  | 'follow'
+  | 'subscribe'
+  | 'use'
+  | 'dismiss'
+  | 'seeMore';
+
+export interface FeedInterstitialEventInput {
+  feedDescriptor: string;
+  slotKey: string;
+  kind: FeedInterstitialKind;
+  event: FeedInterstitialEventName;
+  /** Zero-based index of the item within the card. Absent for card-level events. */
+  position?: number;
 }
 
 export interface SlicedFeedResponse {
   slices: FeedPostSlice[];
-  items: HydratedPost[]; // backward compat: flattened slices
+  /**
+   * The flat post list. NOT a legacy mirror of `slices` — it is LOAD-BEARING and
+   * is the SOLE representation for every feed that returns no slices at all:
+   * saved posts, the author-likes feed, and the anonymous For You / Videos /
+   * Media fallbacks (`FeedEngine.finalizeOrdered` / `runPopularFallback` emit
+   * `slices: []`). The client's flat-items branch in `buildFeedRows` is their
+   * live render path. Sliced feeds populate BOTH, so any tuner that mutates
+   * `slices` must re-flatten into `items` (`FeedResponseBuilder`).
+   */
+  items: HydratedPost[];
   hasMore: boolean;
   nextCursor?: string;
   totalCount: number;

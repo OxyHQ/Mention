@@ -43,6 +43,13 @@ const anonCache = vi.hoisted(() => ({
 }));
 vi.mock('../services/anonFeedCache', () => ({ anonFeedCache: anonCache }));
 
+// Federated sync-on-view: the side effect an empty author feed triggers. Defaults
+// to "nothing to sync" so unrelated tests are unaffected.
+const syncOnProfileView = vi.hoisted(() => vi.fn(async (): Promise<boolean> => false));
+vi.mock('../connectors/federatedProfileSync', () => ({
+  federatedProfileSync: { syncOnProfileView },
+}));
+
 import { mtnFeedController } from '../mtn/controllers/feed.controller';
 
 interface MockRes {
@@ -89,6 +96,92 @@ describe('MtnFeedController.getFeed → engine', () => {
     const res = makeRes();
     await mtnFeedController.getFeed(req, res as never);
     expect(res.statusCode).toBe(400);
+  });
+});
+
+describe('MtnFeedController.getFeed → federated profile sync-on-view', () => {
+  /** Make the engine return an empty page (the discovery trigger). */
+  function engineReturnsEmpty(): void {
+    engineRun.mockResolvedValueOnce({
+      slices: [], items: [], hasMore: false, nextCursor: undefined, totalCount: 0,
+    });
+  }
+
+  it('syncs the author and marks the page pending when a profile feed comes back empty', async () => {
+    engineReturnsEmpty();
+    syncOnProfileView.mockResolvedValueOnce(true);
+    const req = { query: { descriptor: 'author|fed1' }, user: { id: 'viewer1' } } as never;
+    const res = makeRes();
+
+    await mtnFeedController.getFeed(req, res as never);
+
+    expect(syncOnProfileView).toHaveBeenCalledWith('fed1');
+    const body = res.body as { data: { pending?: boolean } };
+    expect(body.data.pending).toBe(true);
+  });
+
+  it('passes the author id through for a tab-scoped descriptor', async () => {
+    engineReturnsEmpty();
+    const req = { query: { descriptor: 'author|fed1|media' }, user: { id: 'viewer1' } } as never;
+    const res = makeRes();
+
+    await mtnFeedController.getFeed(req, res as never);
+
+    expect(syncOnProfileView).toHaveBeenCalledWith('fed1');
+  });
+
+  it('leaves the page un-pending when the author has nothing left to sync', async () => {
+    engineReturnsEmpty();
+    syncOnProfileView.mockResolvedValueOnce(false);
+    const req = { query: { descriptor: 'author|local1' }, user: { id: 'viewer1' } } as never;
+    const res = makeRes();
+
+    await mtnFeedController.getFeed(req, res as never);
+
+    const body = res.body as { data: { pending?: boolean } };
+    expect(body.data.pending).toBeUndefined();
+  });
+
+  it('does not sync when the profile feed already has posts', async () => {
+    const req = { query: { descriptor: 'author|fed1' }, user: { id: 'viewer1' } } as never;
+    const res = makeRes();
+
+    await mtnFeedController.getFeed(req, res as never);
+
+    expect(syncOnProfileView).not.toHaveBeenCalled();
+  });
+
+  it('does not sync on a later page — an empty page 2 is just the end of the feed', async () => {
+    engineReturnsEmpty();
+    const req = { query: { descriptor: 'author|fed1', cursor: '123:abc' }, user: { id: 'viewer1' } } as never;
+    const res = makeRes();
+
+    await mtnFeedController.getFeed(req, res as never);
+
+    expect(syncOnProfileView).not.toHaveBeenCalled();
+  });
+
+  it('does not sync for a non-author descriptor', async () => {
+    engineReturnsEmpty();
+    const req = { query: { descriptor: 'for_you' }, user: { id: 'viewer1' } } as never;
+    const res = makeRes();
+
+    await mtnFeedController.getFeed(req, res as never);
+
+    expect(syncOnProfileView).not.toHaveBeenCalled();
+  });
+
+  it('never caches a pending page for anonymous viewers', async () => {
+    engineReturnsEmpty();
+    syncOnProfileView.mockResolvedValueOnce(true);
+    const req = { query: { descriptor: 'author|fed1' }, user: undefined } as never;
+    const res = makeRes();
+
+    await mtnFeedController.getFeed(req, res as never);
+
+    // Caching it would pin every anonymous viewer to the "still importing"
+    // answer for the whole TTL, long after the posts have landed.
+    expect(anonCache.write).not.toHaveBeenCalled();
   });
 });
 

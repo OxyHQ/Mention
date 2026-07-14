@@ -9,12 +9,16 @@ import { PostVisibility } from '@mention/shared-types';
  */
 
 const findCalls: Array<Record<string, unknown>> = [];
+const sortCalls: Array<Record<string, unknown>> = [];
 let findRouter: (match: Record<string, unknown>) => unknown[] = () => [];
 
 function chainable(result: unknown[]) {
   const chain = {
     select: () => chain,
-    sort: () => chain,
+    sort: (spec: Record<string, unknown>) => {
+      sortCalls.push(spec);
+      return chain;
+    },
     limit: () => chain,
     maxTimeMS: () => chain,
     lean: () => Promise.resolve(result),
@@ -29,6 +33,21 @@ vi.mock('../models/Post', () => ({
       return chainable(findRouter(match));
     }),
     aggregate: vi.fn(() => ({ option: () => Promise.resolve([]) })),
+  },
+}));
+
+/**
+ * Profile visibility drives the author feed's access gate. Default: a public
+ * profile (no settings row); individual tests override to exercise the gate.
+ */
+let profileVisibility: string | undefined;
+vi.mock('../models/UserSettings', () => ({
+  default: {
+    findOne: vi.fn(() => ({
+      lean: () => Promise.resolve(
+        profileVisibility ? { privacy: { profileVisibility } } : null,
+      ),
+    })),
   },
 }));
 
@@ -53,6 +72,7 @@ import {
   savedSource,
   mutualsSource,
 } from '../mtn/feed/engine/sources/userSources';
+import { ChronoCursor } from '../mtn/feed/CursorBuilder';
 import type { FeedEngineContext } from '../mtn/feed/engine/types';
 
 const oid = (n: number) => new mongoose.Types.ObjectId(`5f${n.toString().padStart(22, '0')}`);
@@ -62,8 +82,10 @@ function makePost(n: number, extra: Record<string, unknown> = {}) {
 
 beforeEach(() => {
   findCalls.length = 0;
+  sortCalls.length = 0;
   findRouter = () => [];
   bookmarkDocs.length = 0;
+  profileVisibility = undefined;
   vi.clearAllMocks();
 });
 
@@ -155,6 +177,123 @@ describe('authored source', () => {
     expect(match).toMatchObject({
       authorship: { $elemMatch: { oxyUserId: 'a6', status: 'accepted' } },
       parentPostId: null,
+    });
+  });
+
+  it('boosts filter queries the author\'s boosts', async () => {
+    findRouter = () => [makePost(7, { boostOf: oid(1) })];
+    await authoredSource.gather({ currentUserId: 'viewer' }, { authorId: 'a7', filter: 'boosts' }, 31);
+    const match = findCalls[0];
+    expect(match).toMatchObject({
+      authorship: { $elemMatch: { oxyUserId: 'a7', status: 'accepted' } },
+      boostOf: { $ne: null },
+    });
+  });
+
+  it('media filter matches every media shape the mediaOnly predicate accepts', async () => {
+    findRouter = () => [];
+    await authoredSource.gather({ currentUserId: 'viewer' }, { authorId: 'a8', filter: 'media' }, 31);
+    const and = findCalls[0].$and as Array<Record<string, unknown>>;
+    const mediaOr = (and[0].$or as Array<Record<string, unknown>>).map((c) => Object.keys(c)[0]);
+    expect(mediaOr).toEqual(['type', 'content.media.0', 'content.attachments']);
+  });
+
+  /**
+   * Regression: "a boost disappears from the profile feed".
+   *
+   * A federated boost/note is imported with `createdAt = <remote published>`
+   * while its `_id` is generated at IMPORT time, so an OLD post can carry a
+   * LARGE `_id`. Paginate a `createdAt`-ordered feed with an `_id` boundary (or
+   * order an `_id`-sorted fetch behind a `createdAt` boundary) and those posts
+   * fall on the wrong side of the page edge and are skipped forever. The sort
+   * axis and the cursor axis MUST be the same one.
+   */
+  describe('cursor/sort axis (federated posts must not fall off the page edge)', () => {
+    it('sorts by createdAt, not _id', async () => {
+      findRouter = () => [makePost(9)];
+      await authoredSource.gather({ currentUserId: 'viewer' }, { authorId: 'a9', filter: 'posts' }, 31);
+      expect(sortCalls[0]).toEqual({ createdAt: -1, _id: -1 });
+    });
+
+    it('pages with a compound createdAt keyset, not a bare _id boundary', async () => {
+      findRouter = () => [];
+      const anchor = makePost(9);
+      const cursor = ChronoCursor.build(String(anchor._id), anchor.createdAt);
+
+      await authoredSource.gather(
+        { currentUserId: 'viewer', cursor },
+        { authorId: 'a9', filter: 'posts' },
+        31,
+      );
+
+      const match = findCalls[0];
+      expect(match._id).toBeUndefined();
+      expect(match.$or).toEqual([
+        { createdAt: { $lt: anchor.createdAt } },
+        { createdAt: anchor.createdAt, _id: { $lt: anchor._id } },
+      ]);
+    });
+  });
+
+  it('an unknown filter degrades to posts rather than erroring', async () => {
+    findRouter = () => [makePost(10)];
+    await authoredSource.gather({ currentUserId: 'viewer' }, { authorId: 'a10', filter: 'bogus' }, 31);
+    expect(findCalls[0]).toMatchObject({ parentPostId: null });
+  });
+
+  describe('profile visibility gate', () => {
+    it('returns [] without querying when a non-follower views a private profile', async () => {
+      profileVisibility = 'private';
+      findRouter = () => [makePost(11)];
+      const posts = await authoredSource.gather(
+        { currentUserId: 'viewer', followingIds: ['someone-else'] },
+        { authorId: 'a11', filter: 'posts' },
+        31,
+      );
+      expect(posts).toEqual([]);
+      expect(findCalls).toHaveLength(0);
+    });
+
+    it('returns [] for an anonymous viewer on a followers-only profile', async () => {
+      profileVisibility = 'followers_only';
+      findRouter = () => [makePost(12)];
+      const posts = await authoredSource.gather({}, { authorId: 'a12', filter: 'posts' }, 31);
+      expect(posts).toEqual([]);
+      expect(findCalls).toHaveLength(0);
+    });
+
+    it('serves a private profile to a follower', async () => {
+      profileVisibility = 'private';
+      findRouter = () => [makePost(13)];
+      const posts = await authoredSource.gather(
+        { currentUserId: 'viewer', followingIds: ['a13'] },
+        { authorId: 'a13', filter: 'posts' },
+        31,
+      );
+      expect(posts.map((p) => String(p._id))).toEqual([oid(13).toString()]);
+    });
+
+    it('serves a private profile to its owner', async () => {
+      profileVisibility = 'private';
+      findRouter = () => [makePost(14)];
+      const posts = await authoredSource.gather(
+        { currentUserId: 'a14' },
+        { authorId: 'a14', filter: 'posts' },
+        31,
+      );
+      expect(posts.map((p) => String(p._id))).toEqual([oid(14).toString()]);
+    });
+
+    it('gates the media tab too, not just likes', async () => {
+      profileVisibility = 'private';
+      findRouter = () => [makePost(15)];
+      const posts = await authoredSource.gather(
+        { currentUserId: 'viewer', followingIds: [] },
+        { authorId: 'a15', filter: 'media' },
+        31,
+      );
+      expect(posts).toEqual([]);
+      expect(findCalls).toHaveLength(0);
     });
   });
 });

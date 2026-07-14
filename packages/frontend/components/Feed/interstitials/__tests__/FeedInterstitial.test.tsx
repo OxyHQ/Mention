@@ -2,19 +2,25 @@ import React from 'react';
 import { ScrollView, TouchableOpacity } from 'react-native';
 import TestRenderer, { act, type ReactTestInstance } from 'react-test-renderer';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import type { FeedInterstitialKind, FeedInterstitialSlot } from '@mention/shared-types';
+import type {
+  FeedInterstitialEventInput,
+  FeedInterstitialKind,
+  FeedInterstitialSlot,
+} from '@mention/shared-types';
+import type { User } from '@oxyhq/core';
 import type { ProfileData } from '@/lib/recommendations';
 import type { MarketplaceFeed } from '@/services/customFeedsService';
 import type { StarterPackSummary } from '@/services/starterPacksService';
 import enMessages from '@/locales/en.json';
 
 import FeedInterstitial from '../FeedInterstitial';
+import { SimilarAccountsInterstitial } from '../SimilarAccountsInterstitial';
 import { SuggestedFeedsInterstitial } from '../SuggestedFeedsInterstitial';
 import { SuggestedStarterPacksInterstitial } from '../SuggestedStarterPacksInterstitial';
 import { SuggestedUsersInterstitial } from '../SuggestedUsersInterstitial';
 
 /**
- * Render tests for the three feed recommendation bands.
+ * Render + telemetry tests for the four feed recommendation bands.
  *
  * The contract every band shares — and the one the pure-layout tests
  * (`interstitialLayout.test.ts`) can only prove half of — is that a band with
@@ -22,12 +28,17 @@ import { SuggestedUsersInterstitial } from '../SuggestedUsersInterstitial';
  * a stray border. These tests drive the real components through the real
  * `InterstitialShell` and assert on the rendered tree.
  *
+ * The second contract is that the bands are MEASURED: every card reports what
+ * the viewer did with it, to the card endpoint and never to the post-interaction
+ * one. That is asserted at the `feedService` boundary, where the two routes are
+ * two different methods.
+ *
  * Mocks stop at the module boundary the band talks to: the data hooks/services
  * that fetch suggestions, the responsive hook that decides the layout, and the
  * SDK packages (`@oxyhq/services`, `@oxyhq/bloom`) that ship untranspiled TS
  * source. Everything from the interstitial down to the `ProfileCard` /
- * `FeedCard` / `StarterPackCard` rows — including the dismiss buttons and the
- * carousel — is the real component under test.
+ * `FeedCard` / `StarterPackCard` rows — including the real telemetry module,
+ * the dismiss buttons and the carousel — is the component under test.
  */
 
 // ── Module boundaries ───────────────────────────────────────────────────────
@@ -63,11 +74,19 @@ jest.mock('expo-router', () => ({
   useRouter: () => ({ push: jest.fn() }),
 }));
 
+/** The similar-accounts band resolves its suggestions through the SDK client. */
+const mockGetSimilarProfiles = jest.fn();
+const mockGetUsersByIds = jest.fn();
+
 /** The band asks for the viewer + private-API readiness; nothing else. */
 const mockAuth = {
   user: { id: 'viewer-1' },
   canUsePrivateApi: true,
   isPrivateApiPending: false,
+  oxyServices: {
+    getSimilarProfiles: (...args: unknown[]) => mockGetSimilarProfiles(...args),
+    getUsersByIds: (...args: unknown[]) => mockGetUsersByIds(...args),
+  },
 };
 
 interface FollowButtonProps {
@@ -77,19 +96,47 @@ interface FollowButtonProps {
   userId?: string;
   followAllLabel?: string;
   onBulkFollow?: () => void;
+  onFollowChange?: (isFollowing: boolean) => void;
 }
 
+/** The accessible name of the single-user follow control in the mocked SDK. */
+const FOLLOW_LABEL = 'Follow';
+
 jest.mock('@oxyhq/services', () => {
-  const { Text, TouchableOpacity, View } =
+  const { Text, TouchableOpacity } =
     jest.requireActual<typeof import('react-native')>('react-native');
   return {
     useAuth: () => mockAuth,
+    // The real cache keys, ported: the bands' profile precaching writes through
+    // them, so a stub object would throw the moment a band primed the cache.
+    queryKeys: {
+      users: {
+        detail: (id: string) => ['users', 'detail', id],
+        details: () => ['users', 'detail'],
+      },
+    },
     // Faithful to the two modes the real button has, including the one behavior
     // the starter-pack band depends on: in multi-user mode with nobody left to
     // follow it renders NOTHING, so a pack the viewer already followed through
-    // shows no dead call-to-action.
-    FollowButton: ({ userIds, followAllLabel, onBulkFollow }: FollowButtonProps) => {
-      if (userIds === undefined) return <View testID="follow-button" />;
+    // shows no dead call-to-action. Both modes report through their callback —
+    // the button owns the follow state, so that callback is the only way a band
+    // can learn a suggestion was acted on.
+    FollowButton: ({
+      userIds,
+      followAllLabel,
+      onBulkFollow,
+      onFollowChange,
+    }: FollowButtonProps) => {
+      if (userIds === undefined) {
+        return (
+          <TouchableOpacity
+            accessibilityRole="button"
+            accessibilityLabel={FOLLOW_LABEL}
+            onPress={() => onFollowChange?.(true)}>
+            <Text>{FOLLOW_LABEL}</Text>
+          </TouchableOpacity>
+        );
+      }
       if (userIds.length === 0) return null;
       return (
         <TouchableOpacity
@@ -101,6 +148,39 @@ jest.mock('@oxyhq/services', () => {
       );
     },
   };
+});
+
+/**
+ * The telemetry transport. The REAL `utils/feedTelemetry` runs on top of it, so
+ * these two spies are exactly the two routes the app can reach: card events must
+ * land on `sendInterstitialEvent` and NEVER on `sendFeedInteraction`, which
+ * carries a `postUri` and feeds post ranking.
+ */
+const mockSendInterstitialEvent = jest.fn();
+const mockSendFeedInteraction = jest.fn();
+jest.mock('@/services/feedService', () => ({
+  feedService: {
+    sendInterstitialEvent: (...args: unknown[]) => mockSendInterstitialEvent(...args),
+    sendFeedInteraction: (...args: unknown[]) => mockSendFeedInteraction(...args),
+  },
+}));
+
+/** The subject of the similar-accounts band, read from the shared actor cache. */
+let mockSubject: User | undefined;
+jest.mock('@/hooks/useCachedUser', () => ({
+  useUserById: () => mockSubject,
+}));
+
+/**
+ * The app's singleton actor cache, which the bands prime with the profiles they
+ * fetch. Swapped for a throwaway client: priming the REAL one arms its
+ * 30-minute garbage-collection timer, which outlives the test run and holds
+ * jest's worker open.
+ */
+jest.mock('@/lib/queryClient', () => {
+  const { QueryClient } =
+    jest.requireActual<typeof import('@tanstack/react-query')>('@tanstack/react-query');
+  return { queryClient: new QueryClient({ defaultOptions: { queries: { gcTime: 0 } } }) };
 });
 
 /**
@@ -221,6 +301,16 @@ jest.mock('@/services/starterPacksService', () => ({
 
 // ── Fixtures ────────────────────────────────────────────────────────────────
 
+/** The slot the bands under test were planned for, and the feed they sit in. */
+const SLOT_KEY = 'slot-1';
+const FEED_DESCRIPTOR = 'for_you';
+
+/** What the dispatcher hands a band about the slot it occupies. */
+const inFeed = { slotKey: SLOT_KEY, feedDescriptor: FEED_DESCRIPTOR };
+
+/** The profile a similar-accounts band is ABOUT. */
+const SUBJECT_ID = 'subject-1';
+
 /** `count` suggested accounts: Person 1, Person 2, … (`u1`, `u2`, …). */
 function users(count: number): ProfileData[] {
   return Array.from({ length: count }, (_, index) => ({
@@ -243,6 +333,17 @@ function feeds(count: number): MarketplaceFeed[] {
     topicCount: 2,
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
+  }));
+}
+
+/** `count` accounts similar to the subject: Similar 1, … (`s1`, `s2`, …). */
+function similarAccounts(count: number): User[] {
+  return Array.from({ length: count }, (_, index) => ({
+    id: `s${index + 1}`,
+    publicKey: `key-${index + 1}`,
+    username: `similar${index + 1}`,
+    name: { displayName: `Similar ${index + 1}` },
+    avatar: `avatar-${index + 1}`,
   }));
 }
 
@@ -365,6 +466,16 @@ function seeMoreLinks(renderer: TestRenderer.ReactTestRenderer): ReactTestInstan
   );
 }
 
+/**
+ * The pressable "See more" control — the header link on desktop, the trailing
+ * carousel card on mobile. (`seeMoreLinks` matches the rendered host node, which
+ * carries the accessible role but not the press handler.)
+ */
+function seeMoreButtons(renderer: TestRenderer.ReactTestRenderer): ReactTestInstance[] {
+  const label = mockTranslate('feed.interstitial.seeMore');
+  return pressables(renderer).filter((node) => node.props.accessibilityLabel === label);
+}
+
 /** `FeedSubscribeButton` is the only control in a band reporting selected + busy. */
 function isSubscribeState(value: unknown): boolean {
   return (
@@ -388,6 +499,26 @@ function followAllButtons(renderer: TestRenderer.ReactTestRenderer): ReactTestIn
   return pressables(renderer).filter((node) => node.props.accessibilityLabel === label);
 }
 
+/** The per-account follow buttons, in render order (one per profile row). */
+function followButtons(renderer: TestRenderer.ReactTestRenderer): ReactTestInstance[] {
+  return pressables(renderer).filter((node) => node.props.accessibilityLabel === FOLLOW_LABEL);
+}
+
+/**
+ * The pressable region of a profile row — the account itself, as opposed to the
+ * follow/dismiss controls beside it. It is the only control in a band whose
+ * accessible role is a button and which carries no accessible name of its own.
+ */
+function profileRowPressables(
+  renderer: TestRenderer.ReactTestRenderer,
+): ReactTestInstance[] {
+  return pressables(renderer).filter(
+    (node) =>
+      node.props.accessibilityRole === 'button' &&
+      node.props.accessibilityLabel === undefined,
+  );
+}
+
 function press(node: ReactTestInstance): void {
   const onPress: unknown = node.props.onPress;
   if (typeof onPress !== 'function') throw new Error('node has no onPress');
@@ -396,10 +527,16 @@ function press(node: ReactTestInstance): void {
   });
 }
 
+/** Every card event the bands reported, in order. */
+function reportedEvents(): FeedInterstitialEventInput[] {
+  return mockSendInterstitialEvent.mock.calls.map(([input]) => input as FeedInterstitialEventInput);
+}
+
 const TITLES: Record<FeedInterstitialKind, string> = {
   suggestedUsers: 'Who to follow',
   suggestedFeeds: 'Suggested feeds',
   suggestedStarterPacks: 'Starter packs for you',
+  similarAccounts: 'Similar accounts',
 };
 
 beforeEach(() => {
@@ -410,6 +547,11 @@ beforeEach(() => {
   mockLikeFeed.mockReset().mockResolvedValue({ liked: true });
   mockListStarterPacks.mockReset().mockResolvedValue({ items: [], total: 0 });
   mockUseStarterPack.mockReset().mockResolvedValue({ ok: true });
+  mockGetSimilarProfiles.mockReset().mockResolvedValue([]);
+  mockGetUsersByIds.mockReset().mockResolvedValue([]);
+  mockSendInterstitialEvent.mockReset().mockResolvedValue(undefined);
+  mockSendFeedInteraction.mockReset().mockResolvedValue(undefined);
+  mockSubject = undefined;
 });
 
 afterEach(() => {
@@ -427,7 +569,7 @@ describe('SuggestedUsersInterstitial', () => {
   it('renders NOTHING — no header, no border — when there are no recommendations', async () => {
     mockRecommendations = [];
 
-    const renderer = await renderBand(<SuggestedUsersInterstitial ordinal={0} />);
+    const renderer = await renderBand(<SuggestedUsersInterstitial {...inFeed} ordinal={0} />);
 
     expect(renderer.toJSON()).toBeNull();
   });
@@ -435,7 +577,7 @@ describe('SuggestedUsersInterstitial', () => {
   it('renders nothing below the desktop minimum of 3', async () => {
     mockRecommendations = users(2);
 
-    const renderer = await renderBand(<SuggestedUsersInterstitial ordinal={0} />);
+    const renderer = await renderBand(<SuggestedUsersInterstitial {...inFeed} ordinal={0} />);
 
     expect(renderer.toJSON()).toBeNull();
   });
@@ -444,11 +586,11 @@ describe('SuggestedUsersInterstitial', () => {
     mockIsDesktop = false;
     mockRecommendations = users(3);
 
-    const mobile = await renderBand(<SuggestedUsersInterstitial ordinal={0} />);
+    const mobile = await renderBand(<SuggestedUsersInterstitial {...inFeed} ordinal={0} />);
     expect(mobile.toJSON()).toBeNull();
 
     mockIsDesktop = true;
-    const desktop = await renderBand(<SuggestedUsersInterstitial ordinal={0} />);
+    const desktop = await renderBand(<SuggestedUsersInterstitial {...inFeed} ordinal={0} />);
     expect(renderedText(desktop)).toContain(TITLES.suggestedUsers);
   });
 
@@ -456,7 +598,7 @@ describe('SuggestedUsersInterstitial', () => {
     mockRecommendations = [];
     mockRecommendationsLoading = true;
 
-    const renderer = await renderBand(<SuggestedUsersInterstitial ordinal={0} />);
+    const renderer = await renderBand(<SuggestedUsersInterstitial {...inFeed} ordinal={0} />);
 
     // The header stands on skeletons — the suggestions almost always arrive, and
     // popping the band in afterwards would shift the feed under the reader.
@@ -470,7 +612,7 @@ describe('SuggestedUsersInterstitial', () => {
   it('renders the header and every suggested account once it has enough', async () => {
     mockRecommendations = users(3);
 
-    const renderer = await renderBand(<SuggestedUsersInterstitial ordinal={0} />);
+    const renderer = await renderBand(<SuggestedUsersInterstitial {...inFeed} ordinal={0} />);
     const text = renderedText(renderer);
 
     expect(text).toContain(TITLES.suggestedUsers);
@@ -483,13 +625,13 @@ describe('SuggestedUsersInterstitial', () => {
   it('caps the band at maxItems and offsets the next band past them', async () => {
     mockRecommendations = users(12);
 
-    const first = await renderBand(<SuggestedUsersInterstitial ordinal={0} />);
+    const first = await renderBand(<SuggestedUsersInterstitial {...inFeed} ordinal={0} />);
     // Desktop shows 5; the 6th account belongs to the next band.
     expect(dismissButtonCount(first)).toBe(5);
     expect(renderedText(first)).toContain('Person 5');
     expect(renderedText(first)).not.toContain('Person 6');
 
-    const second = await renderBand(<SuggestedUsersInterstitial ordinal={1} />);
+    const second = await renderBand(<SuggestedUsersInterstitial {...inFeed} ordinal={1} />);
     expect(renderedText(second)).toContain('Person 6');
     expect(renderedText(second)).not.toContain('Person 5');
   });
@@ -498,7 +640,7 @@ describe('SuggestedUsersInterstitial', () => {
     mockIsDesktop = true;
     mockRecommendations = users(5);
 
-    const renderer = await renderBand(<SuggestedUsersInterstitial ordinal={0} />);
+    const renderer = await renderBand(<SuggestedUsersInterstitial {...inFeed} ordinal={0} />);
 
     expect(horizontalScrollers(renderer)).toHaveLength(0);
     expect(seeMoreLinks(renderer)).toHaveLength(1);
@@ -509,7 +651,7 @@ describe('SuggestedUsersInterstitial', () => {
     mockIsDesktop = false;
     mockRecommendations = users(5);
 
-    const renderer = await renderBand(<SuggestedUsersInterstitial ordinal={0} />);
+    const renderer = await renderBand(<SuggestedUsersInterstitial {...inFeed} ordinal={0} />);
 
     const carousels = horizontalScrollers(renderer);
     expect(carousels).toHaveLength(1);
@@ -523,7 +665,7 @@ describe('SuggestedUsersInterstitial', () => {
   it('removes a dismissed account from the band', async () => {
     mockRecommendations = users(4);
 
-    const renderer = await renderBand(<SuggestedUsersInterstitial ordinal={0} />);
+    const renderer = await renderBand(<SuggestedUsersInterstitial {...inFeed} ordinal={0} />);
     expect(renderedText(renderer)).toContain('Person 2');
 
     press(dismissButton(renderer, 'Person 2'));
@@ -539,7 +681,7 @@ describe('SuggestedUsersInterstitial', () => {
   it('backfills a dismissal from further down the pool instead of shrinking the band', async () => {
     mockRecommendations = users(12);
 
-    const renderer = await renderBand(<SuggestedUsersInterstitial ordinal={0} />);
+    const renderer = await renderBand(<SuggestedUsersInterstitial {...inFeed} ordinal={0} />);
     expect(renderedText(renderer)).not.toContain('Person 6');
 
     press(dismissButton(renderer, 'Person 2'));
@@ -554,7 +696,7 @@ describe('SuggestedUsersInterstitial', () => {
   it('disappears entirely once dismissals drain it below the minimum', async () => {
     mockRecommendations = users(4);
 
-    const renderer = await renderBand(<SuggestedUsersInterstitial ordinal={0} />);
+    const renderer = await renderBand(<SuggestedUsersInterstitial {...inFeed} ordinal={0} />);
 
     press(dismissButton(renderer, 'Person 1'));
     // 3 left — still at the desktop minimum, so the band stands.
@@ -571,7 +713,7 @@ describe('SuggestedUsersInterstitial', () => {
     mockIsDesktop = false;
     mockRecommendations = users(4);
 
-    const renderer = await renderBand(<SuggestedUsersInterstitial ordinal={0} />);
+    const renderer = await renderBand(<SuggestedUsersInterstitial {...inFeed} ordinal={0} />);
     expect(horizontalScrollers(renderer)).toHaveLength(1);
     expect(dismissButtonCount(renderer)).toBe(4);
 
@@ -588,7 +730,7 @@ describe('SuggestedFeedsInterstitial', () => {
   it('renders nothing when the marketplace comes back empty', async () => {
     mockGetMarketplace.mockResolvedValue({ items: [], total: 0 });
 
-    const renderer = await renderBand(<SuggestedFeedsInterstitial ordinal={0} />);
+    const renderer = await renderBand(<SuggestedFeedsInterstitial {...inFeed} ordinal={0} />);
 
     expect(renderer.toJSON()).toBeNull();
   });
@@ -596,7 +738,7 @@ describe('SuggestedFeedsInterstitial', () => {
   it('renders nothing below the minimum', async () => {
     mockGetMarketplace.mockResolvedValue({ items: feeds(2), total: 2 });
 
-    const renderer = await renderBand(<SuggestedFeedsInterstitial ordinal={0} />);
+    const renderer = await renderBand(<SuggestedFeedsInterstitial {...inFeed} ordinal={0} />);
 
     expect(renderer.toJSON()).toBeNull();
   });
@@ -604,7 +746,7 @@ describe('SuggestedFeedsInterstitial', () => {
   it('renders the header and every suggested feed once it has enough', async () => {
     mockGetMarketplace.mockResolvedValue({ items: feeds(3), total: 3 });
 
-    const renderer = await renderBand(<SuggestedFeedsInterstitial ordinal={0} />);
+    const renderer = await renderBand(<SuggestedFeedsInterstitial {...inFeed} ordinal={0} />);
     const text = renderedText(renderer);
 
     expect(text).toContain(TITLES.suggestedFeeds);
@@ -617,7 +759,7 @@ describe('SuggestedFeedsInterstitial', () => {
   it('asks the marketplace to exclude what the viewer already subscribes to', async () => {
     mockGetMarketplace.mockResolvedValue({ items: feeds(3), total: 3 });
 
-    await renderBand(<SuggestedFeedsInterstitial ordinal={0} />);
+    await renderBand(<SuggestedFeedsInterstitial {...inFeed} ordinal={0} />);
 
     expect(mockGetMarketplace).toHaveBeenCalledWith(
       expect.objectContaining({ excludeSubscribed: true }),
@@ -628,12 +770,12 @@ describe('SuggestedFeedsInterstitial', () => {
     mockGetMarketplace.mockResolvedValue({ items: feeds(6), total: 6 });
 
     mockIsDesktop = true;
-    const desktop = await renderBand(<SuggestedFeedsInterstitial ordinal={0} />);
+    const desktop = await renderBand(<SuggestedFeedsInterstitial {...inFeed} ordinal={0} />);
     expect(horizontalScrollers(desktop)).toHaveLength(0);
     expect(seeMoreLinks(desktop)).toHaveLength(1);
 
     mockIsDesktop = false;
-    const mobile = await renderBand(<SuggestedFeedsInterstitial ordinal={0} />);
+    const mobile = await renderBand(<SuggestedFeedsInterstitial {...inFeed} ordinal={0} />);
     expect(horizontalScrollers(mobile)).toHaveLength(1);
     expect(seeMoreLinks(mobile)).toHaveLength(0);
   });
@@ -641,7 +783,7 @@ describe('SuggestedFeedsInterstitial', () => {
   it('removes a dismissed feed, and closes the band once too few are left', async () => {
     mockGetMarketplace.mockResolvedValue({ items: feeds(4), total: 4 });
 
-    const renderer = await renderBand(<SuggestedFeedsInterstitial ordinal={0} />);
+    const renderer = await renderBand(<SuggestedFeedsInterstitial {...inFeed} ordinal={0} />);
     // Desktop shows 3 of the 4 available feeds.
     expect(dismissButtonCount(renderer)).toBe(3);
     expect(renderedText(renderer)).not.toContain('Feed 4');
@@ -664,7 +806,7 @@ describe('SuggestedFeedsInterstitial', () => {
   it('subscribes to the feed the viewer pressed — and only that one', async () => {
     mockGetMarketplace.mockResolvedValue({ items: feeds(3), total: 3 });
 
-    const renderer = await renderBand(<SuggestedFeedsInterstitial ordinal={0} />);
+    const renderer = await renderBand(<SuggestedFeedsInterstitial {...inFeed} ordinal={0} />);
     const buttons = subscribeButtons(renderer);
     expect(buttons).toHaveLength(3);
     expect(renderedText(renderer).filter((text) => text === 'Subscribe')).toHaveLength(3);
@@ -691,7 +833,7 @@ describe('SuggestedFeedsInterstitial', () => {
     mockAuth.isPrivateApiPending = false;
 
     try {
-      const renderer = await renderBand(<SuggestedFeedsInterstitial ordinal={0} />);
+      const renderer = await renderBand(<SuggestedFeedsInterstitial {...inFeed} ordinal={0} />);
 
       expect(renderer.toJSON()).toBeNull();
       expect(mockGetMarketplace).not.toHaveBeenCalled();
@@ -708,7 +850,7 @@ describe('SuggestedStarterPacksInterstitial', () => {
   it('renders nothing when there are no packs to suggest', async () => {
     mockListStarterPacks.mockResolvedValue({ items: [], total: 0 });
 
-    const renderer = await renderBand(<SuggestedStarterPacksInterstitial ordinal={0} />);
+    const renderer = await renderBand(<SuggestedStarterPacksInterstitial {...inFeed} ordinal={0} />);
 
     expect(renderer.toJSON()).toBeNull();
   });
@@ -716,7 +858,7 @@ describe('SuggestedStarterPacksInterstitial', () => {
   it('renders nothing below the minimum', async () => {
     mockListStarterPacks.mockResolvedValue({ items: packs(2), total: 2 });
 
-    const renderer = await renderBand(<SuggestedStarterPacksInterstitial ordinal={0} />);
+    const renderer = await renderBand(<SuggestedStarterPacksInterstitial {...inFeed} ordinal={0} />);
 
     expect(renderer.toJSON()).toBeNull();
   });
@@ -724,7 +866,7 @@ describe('SuggestedStarterPacksInterstitial', () => {
   it('renders the header and every suggested pack once it has enough', async () => {
     mockListStarterPacks.mockResolvedValue({ items: packs(3), total: 3 });
 
-    const renderer = await renderBand(<SuggestedStarterPacksInterstitial ordinal={0} />);
+    const renderer = await renderBand(<SuggestedStarterPacksInterstitial {...inFeed} ordinal={0} />);
     const text = renderedText(renderer);
 
     expect(text).toContain(TITLES.suggestedStarterPacks);
@@ -737,7 +879,7 @@ describe('SuggestedStarterPacksInterstitial', () => {
   it('asks the API to exclude packs the viewer already used', async () => {
     mockListStarterPacks.mockResolvedValue({ items: packs(3), total: 3 });
 
-    await renderBand(<SuggestedStarterPacksInterstitial ordinal={0} />);
+    await renderBand(<SuggestedStarterPacksInterstitial {...inFeed} ordinal={0} />);
 
     expect(mockListStarterPacks).toHaveBeenCalledWith(
       expect.objectContaining({ excludeUsed: true }),
@@ -747,7 +889,7 @@ describe('SuggestedStarterPacksInterstitial', () => {
   it('records the pack as used when the viewer follows all of its members', async () => {
     mockListStarterPacks.mockResolvedValue({ items: packs(3), total: 3 });
 
-    const renderer = await renderBand(<SuggestedStarterPacksInterstitial ordinal={0} />);
+    const renderer = await renderBand(<SuggestedStarterPacksInterstitial {...inFeed} ordinal={0} />);
     const buttons = followAllButtons(renderer);
     expect(buttons).toHaveLength(3);
 
@@ -765,7 +907,7 @@ describe('SuggestedStarterPacksInterstitial', () => {
       total: 3,
     });
 
-    const renderer = await renderBand(<SuggestedStarterPacksInterstitial ordinal={0} />);
+    const renderer = await renderBand(<SuggestedStarterPacksInterstitial {...inFeed} ordinal={0} />);
 
     // The packs still render — but with no dead call-to-action under them.
     expect(renderedText(renderer)).toContain('Pack 1');
@@ -776,12 +918,12 @@ describe('SuggestedStarterPacksInterstitial', () => {
     mockListStarterPacks.mockResolvedValue({ items: packs(6), total: 6 });
 
     mockIsDesktop = true;
-    const desktop = await renderBand(<SuggestedStarterPacksInterstitial ordinal={0} />);
+    const desktop = await renderBand(<SuggestedStarterPacksInterstitial {...inFeed} ordinal={0} />);
     expect(horizontalScrollers(desktop)).toHaveLength(0);
     expect(seeMoreLinks(desktop)).toHaveLength(1);
 
     mockIsDesktop = false;
-    const mobile = await renderBand(<SuggestedStarterPacksInterstitial ordinal={0} />);
+    const mobile = await renderBand(<SuggestedStarterPacksInterstitial {...inFeed} ordinal={0} />);
     expect(horizontalScrollers(mobile)).toHaveLength(1);
     expect(seeMoreLinks(mobile)).toHaveLength(0);
   });
@@ -789,7 +931,7 @@ describe('SuggestedStarterPacksInterstitial', () => {
   it('removes a dismissed pack, and closes the band once too few are left', async () => {
     mockListStarterPacks.mockResolvedValue({ items: packs(4), total: 4 });
 
-    const renderer = await renderBand(<SuggestedStarterPacksInterstitial ordinal={0} />);
+    const renderer = await renderBand(<SuggestedStarterPacksInterstitial {...inFeed} ordinal={0} />);
     // Desktop shows 3 of the 4 available packs.
     expect(dismissButtonCount(renderer)).toBe(3);
     expect(renderedText(renderer)).not.toContain('Pack 4');
@@ -809,17 +951,124 @@ describe('SuggestedStarterPacksInterstitial', () => {
   });
 });
 
+// ── Similar accounts ────────────────────────────────────────────────────────
+
+describe('SimilarAccountsInterstitial', () => {
+  it('renders nothing when the subject has no similar accounts', async () => {
+    mockGetSimilarProfiles.mockResolvedValue([]);
+
+    const renderer = await renderBand(
+      <SimilarAccountsInterstitial {...inFeed} ordinal={0} subjectId={SUBJECT_ID} />,
+    );
+
+    expect(renderer.toJSON()).toBeNull();
+  });
+
+  it('renders nothing below the minimum', async () => {
+    mockGetSimilarProfiles.mockResolvedValue(similarAccounts(2));
+
+    const renderer = await renderBand(
+      <SimilarAccountsInterstitial {...inFeed} ordinal={0} subjectId={SUBJECT_ID} />,
+    );
+
+    expect(renderer.toJSON()).toBeNull();
+  });
+
+  it('renders nothing — and asks for nobody — with no subject to be similar to', async () => {
+    mockGetSimilarProfiles.mockResolvedValue(similarAccounts(5));
+
+    const renderer = await renderBand(
+      <SimilarAccountsInterstitial {...inFeed} ordinal={0} subjectId={undefined} />,
+    );
+
+    // A card with no subject must not guess one (e.g. fall back to the viewer's
+    // own recommendations): without a subject there is nothing to be similar to.
+    expect(renderer.toJSON()).toBeNull();
+    expect(mockGetSimilarProfiles).not.toHaveBeenCalled();
+  });
+
+  it("renders the header and the SUBJECT's similar accounts", async () => {
+    mockGetSimilarProfiles.mockResolvedValue(similarAccounts(3));
+
+    const renderer = await renderBand(
+      <SimilarAccountsInterstitial {...inFeed} ordinal={0} subjectId={SUBJECT_ID} />,
+    );
+    const text = renderedText(renderer);
+
+    expect(mockGetSimilarProfiles).toHaveBeenCalledWith(SUBJECT_ID);
+    expect(text).toContain(TITLES.similarAccounts);
+    expect(text).toContain('Similar 1');
+    expect(text).toContain('Similar 2');
+    expect(text).toContain('Similar 3');
+    expect(dismissButtonCount(renderer)).toBe(3);
+  });
+
+  it('never suggests the subject as similar to itself', async () => {
+    mockGetSimilarProfiles.mockResolvedValue([
+      ...similarAccounts(3),
+      { id: SUBJECT_ID, publicKey: 'k', username: 'subject', name: { displayName: 'The Subject' } },
+    ]);
+
+    const renderer = await renderBand(
+      <SimilarAccountsInterstitial {...inFeed} ordinal={0} subjectId={SUBJECT_ID} />,
+    );
+
+    expect(renderedText(renderer)).not.toContain('The Subject');
+    expect(dismissButtonCount(renderer)).toBe(3);
+  });
+
+  it('renders a vertical list on desktop and a horizontal carousel on mobile', async () => {
+    mockGetSimilarProfiles.mockResolvedValue(similarAccounts(6));
+
+    mockIsDesktop = true;
+    const desktop = await renderBand(
+      <SimilarAccountsInterstitial {...inFeed} ordinal={0} subjectId={SUBJECT_ID} />,
+    );
+    expect(horizontalScrollers(desktop)).toHaveLength(0);
+    expect(seeMoreLinks(desktop)).toHaveLength(1);
+
+    mockIsDesktop = false;
+    const mobile = await renderBand(
+      <SimilarAccountsInterstitial {...inFeed} ordinal={0} subjectId={SUBJECT_ID} />,
+    );
+    expect(horizontalScrollers(mobile)).toHaveLength(1);
+    expect(seeMoreLinks(mobile)).toHaveLength(0);
+  });
+
+  it('removes a dismissed account, and closes the band once too few are left', async () => {
+    mockGetSimilarProfiles.mockResolvedValue(similarAccounts(4));
+
+    const renderer = await renderBand(
+      <SimilarAccountsInterstitial {...inFeed} ordinal={0} subjectId={SUBJECT_ID} />,
+    );
+    expect(dismissButtonCount(renderer)).toBe(4);
+
+    press(dismissButton(renderer, 'Similar 2'));
+
+    const text = renderedText(renderer);
+    expect(text).not.toContain('Similar 2');
+    expect(text).toContain('Similar 1');
+    expect(dismissButtonCount(renderer)).toBe(3);
+
+    press(dismissButton(renderer, 'Similar 1'));
+
+    // 2 left, below the desktop minimum of 3: the band disappears entirely.
+    expect(renderer.toJSON()).toBeNull();
+  });
+});
+
 // ── Dispatch ────────────────────────────────────────────────────────────────
 
 describe('FeedInterstitial', () => {
-  function slot(kind: FeedInterstitialKind): FeedInterstitialSlot {
-    return { key: `slot-${kind}`, kind, afterSliceKey: 'slice-1' };
+  function slot(kind: FeedInterstitialKind, subjectId?: string): FeedInterstitialSlot {
+    return { key: `slot-${kind}`, kind, afterSliceKey: 'slice-1', subjectId };
   }
 
   beforeEach(() => {
     mockRecommendations = users(5);
     mockGetMarketplace.mockResolvedValue({ items: feeds(5), total: 5 });
     mockListStarterPacks.mockResolvedValue({ items: packs(5), total: 5 });
+    mockGetSimilarProfiles.mockResolvedValue(similarAccounts(5));
   });
 
   it('dispatches suggestedUsers to the who-to-follow band', async () => {
@@ -854,6 +1103,20 @@ describe('FeedInterstitial', () => {
     expect(text).not.toContain(TITLES.suggestedFeeds);
   });
 
+  it('dispatches similarAccounts to the similar-accounts band, with the slot subject', async () => {
+    const renderer = await renderBand(
+      <FeedInterstitial slot={slot('similarAccounts', SUBJECT_ID)} ordinal={0} />,
+    );
+    const text = renderedText(renderer);
+
+    expect(mockGetSimilarProfiles).toHaveBeenCalledWith(SUBJECT_ID);
+    expect(text).toContain(TITLES.similarAccounts);
+    expect(text).toContain('Similar 1');
+    expect(text).not.toContain(TITLES.suggestedUsers);
+    expect(text).not.toContain(TITLES.suggestedFeeds);
+    expect(text).not.toContain(TITLES.suggestedStarterPacks);
+  });
+
   it('passes the ordinal through, so a second band of the same kind shows different accounts', async () => {
     mockRecommendations = users(12);
 
@@ -863,5 +1126,252 @@ describe('FeedInterstitial', () => {
     expect(renderedText(first)).toContain('Person 1');
     expect(renderedText(second)).not.toContain('Person 1');
     expect(renderedText(second)).toContain('Person 6');
+  });
+
+  it('threads the feed descriptor into the card, so its events name the feed it interrupted', async () => {
+    const renderer = await renderBand(
+      <FeedInterstitial
+        slot={slot('suggestedUsers')}
+        ordinal={0}
+        feedDescriptor="author|profile-9"
+      />,
+    );
+
+    press(dismissButton(renderer, 'Person 1'));
+
+    expect(reportedEvents()).toEqual([
+      expect.objectContaining({
+        feedDescriptor: 'author|profile-9',
+        slotKey: 'slot-suggestedUsers',
+        kind: 'suggestedUsers',
+        event: 'dismiss',
+      }),
+    ]);
+  });
+
+  it('reports nothing for a card rendered outside a feed (no descriptor to attribute to)', async () => {
+    const renderer = await renderBand(<FeedInterstitial slot={slot('suggestedUsers')} ordinal={0} />);
+
+    press(dismissButton(renderer, 'Person 1'));
+
+    expect(mockSendInterstitialEvent).not.toHaveBeenCalled();
+  });
+});
+
+// ── Telemetry ───────────────────────────────────────────────────────────────
+
+/**
+ * Longer than the delay after which a mounted, populated band counts as seen
+ * (`IMPRESSION_MOUNTED_DELAY_MS`), so the impression has certainly been reported
+ * — or certainly has not.
+ */
+const PAST_IMPRESSION_DELAY_MS = 700;
+
+/** Let the "this card has been seen" delay elapse. */
+async function elapseImpressionDelay(): Promise<void> {
+  await act(async () => {
+    await new Promise<void>((resolve) => {
+      setTimeout(resolve, PAST_IMPRESSION_DELAY_MS);
+    });
+  });
+}
+
+describe('interstitial telemetry', () => {
+  it('does not count an impression on mere mount — only once the card has been seen', async () => {
+    mockRecommendations = users(5);
+
+    const renderer = await renderBand(<SuggestedUsersInterstitial {...inFeed} ordinal={0} />);
+    expect(renderedText(renderer)).toContain(TITLES.suggestedUsers);
+
+    // Mounted and painted, but not yet seen: reporting here would make every
+    // card below the fold an impression and the click-through rate meaningless.
+    expect(mockSendInterstitialEvent).not.toHaveBeenCalled();
+
+    await elapseImpressionDelay();
+
+    expect(reportedEvents()).toEqual([
+      {
+        feedDescriptor: FEED_DESCRIPTOR,
+        slotKey: SLOT_KEY,
+        kind: 'suggestedUsers',
+        event: 'impression',
+        position: undefined,
+      },
+    ]);
+  });
+
+  it('counts an impression at most ONCE per mounted card', async () => {
+    mockRecommendations = users(5);
+
+    const renderer = await renderBand(<SuggestedUsersInterstitial {...inFeed} ordinal={0} />);
+    await elapseImpressionDelay();
+
+    // Re-render the band (a dismissal): the card was seen once, not twice.
+    press(dismissButton(renderer, 'Person 2'));
+    await elapseImpressionDelay();
+
+    const impressions = reportedEvents().filter((event) => event.event === 'impression');
+    expect(impressions).toHaveLength(1);
+  });
+
+  it('counts no impression for a band the reader never saw — it was unmounted first', async () => {
+    mockRecommendations = users(5);
+
+    const renderer = await renderBand(<SuggestedUsersInterstitial {...inFeed} ordinal={0} />);
+    act(() => {
+      renderer.unmount();
+    });
+
+    await elapseImpressionDelay();
+
+    expect(mockSendInterstitialEvent).not.toHaveBeenCalled();
+  });
+
+  it('counts no impression while the band is still on placeholders', async () => {
+    mockRecommendations = [];
+    mockRecommendationsLoading = true;
+
+    const renderer = await renderBand(<SuggestedUsersInterstitial {...inFeed} ordinal={0} />);
+    expect(renderedText(renderer)).toContain(TITLES.suggestedUsers);
+
+    await elapseImpressionDelay();
+
+    // The band is standing on skeletons and may yet collapse to nothing: there
+    // are no suggestions on screen, so nothing has been seen.
+    expect(mockSendInterstitialEvent).not.toHaveBeenCalled();
+  });
+
+  it('reports a click on the account the reader tapped, with its position in the card', async () => {
+    mockRecommendations = users(5);
+
+    const renderer = await renderBand(<SuggestedUsersInterstitial {...inFeed} ordinal={0} />);
+
+    // The THIRD row: a handler that captured the wrong index would report 0 or 4.
+    press(profileRowPressables(renderer)[2]);
+
+    expect(reportedEvents()).toEqual([
+      {
+        feedDescriptor: FEED_DESCRIPTOR,
+        slotKey: SLOT_KEY,
+        kind: 'suggestedUsers',
+        event: 'click',
+        position: 2,
+      },
+    ]);
+  });
+
+  it('reports a follow — and not an unfollow — from the row it happened on', async () => {
+    mockRecommendations = users(5);
+
+    const renderer = await renderBand(<SuggestedUsersInterstitial {...inFeed} ordinal={0} />);
+
+    press(followButtons(renderer)[1]);
+
+    expect(reportedEvents()).toEqual([
+      expect.objectContaining({ kind: 'suggestedUsers', event: 'follow', position: 1 }),
+    ]);
+  });
+
+  it('reports a dismissal, and a "see more" with no position (the card, not an item)', async () => {
+    mockRecommendations = users(5);
+
+    const renderer = await renderBand(<SuggestedUsersInterstitial {...inFeed} ordinal={0} />);
+
+    press(dismissButton(renderer, 'Person 2'));
+    press(seeMoreButtons(renderer)[0]);
+
+    expect(reportedEvents()).toEqual([
+      expect.objectContaining({ event: 'dismiss', position: 1 }),
+      { feedDescriptor: FEED_DESCRIPTOR, slotKey: SLOT_KEY, kind: 'suggestedUsers', event: 'seeMore', position: undefined },
+    ]);
+  });
+
+  it('reports a feed subscription — once it actually succeeded — as the feeds card', async () => {
+    mockGetMarketplace.mockResolvedValue({ items: feeds(3), total: 3 });
+
+    const renderer = await renderBand(<SuggestedFeedsInterstitial {...inFeed} ordinal={0} />);
+    press(subscribeButtons(renderer)[1]);
+    await flush();
+
+    expect(reportedEvents()).toEqual([
+      expect.objectContaining({ kind: 'suggestedFeeds', event: 'subscribe', position: 1 }),
+    ]);
+  });
+
+  it('reports nothing when a subscription fails — a failed subscribe is not a subscribe', async () => {
+    mockGetMarketplace.mockResolvedValue({ items: feeds(3), total: 3 });
+    mockLikeFeed.mockRejectedValue(new Error('nope'));
+
+    const renderer = await renderBand(<SuggestedFeedsInterstitial {...inFeed} ordinal={0} />);
+    press(subscribeButtons(renderer)[1]);
+    await flush();
+
+    expect(reportedEvents().some((event) => event.event === 'subscribe')).toBe(false);
+  });
+
+  it('reports a starter pack as USED when the reader follows all of its members', async () => {
+    mockListStarterPacks.mockResolvedValue({ items: packs(3), total: 3 });
+
+    const renderer = await renderBand(<SuggestedStarterPacksInterstitial {...inFeed} ordinal={0} />);
+    press(followAllButtons(renderer)[2]);
+    await flush();
+
+    expect(reportedEvents()).toEqual([
+      expect.objectContaining({ kind: 'suggestedStarterPacks', event: 'use', position: 2 }),
+    ]);
+  });
+
+  it('reports the similar-accounts card under its own kind', async () => {
+    mockGetSimilarProfiles.mockResolvedValue(similarAccounts(5));
+
+    const renderer = await renderBand(
+      <SimilarAccountsInterstitial {...inFeed} ordinal={0} subjectId={SUBJECT_ID} />,
+    );
+
+    press(followButtons(renderer)[0]);
+    press(dismissButton(renderer, 'Similar 2'));
+
+    expect(reportedEvents()).toEqual([
+      expect.objectContaining({ kind: 'similarAccounts', event: 'follow', position: 0 }),
+      expect.objectContaining({ kind: 'similarAccounts', event: 'dismiss', position: 1 }),
+    ]);
+  });
+
+  it('never reports a card event through the POST-interaction route', async () => {
+    mockRecommendations = users(5);
+
+    const renderer = await renderBand(<SuggestedUsersInterstitial {...inFeed} ordinal={0} />);
+    await elapseImpressionDelay();
+    press(profileRowPressables(renderer)[0]);
+    press(followButtons(renderer)[0]);
+    press(dismissButton(renderer, 'Person 2'));
+    press(seeMoreButtons(renderer)[0]);
+
+    // `/feed/mtn/interactions` requires a postUri and feeds POST ranking: a card
+    // event sent there would credit author/topic affinity with engagement that
+    // never touched a post.
+    expect(mockSendFeedInteraction).not.toHaveBeenCalled();
+    expect(mockSendInterstitialEvent.mock.calls.length).toBeGreaterThan(0);
+  });
+
+  it('keeps rendering — and stays interactive — when the telemetry write fails', async () => {
+    mockRecommendations = users(5);
+    // Both halves of a broken transport: a rejected promise AND a synchronous
+    // throw. Neither may reach the reader.
+    mockSendInterstitialEvent.mockImplementation(() => {
+      throw new Error('telemetry is down');
+    });
+
+    const renderer = await renderBand(<SuggestedUsersInterstitial {...inFeed} ordinal={0} />);
+    await elapseImpressionDelay();
+
+    expect(renderedText(renderer)).toContain('Person 1');
+
+    // The dismissal still happens: the band's own behavior does not depend on
+    // the telemetry write that accompanies it.
+    press(dismissButton(renderer, 'Person 2'));
+
+    expect(renderedText(renderer)).not.toContain('Person 2');
+    expect(renderedText(renderer)).toContain(TITLES.suggestedUsers);
   });
 });
