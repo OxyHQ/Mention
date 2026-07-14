@@ -55,6 +55,36 @@ describe('buildSettingsResponseForViewer', () => {
     expect(buildSettingsResponseForViewer(doc, 'user-1', 'user-1')).toBe(doc);
   });
 
+  it('suppresses profile design data for cross-user settings responses without profile access', () => {
+    const result = buildSettingsResponseForViewer(
+      {
+        oxyUserId: 'target-user',
+        appearance: { themeMode: 'system', primaryColor: '#00f' },
+        profileHeaderImage: 'private-banner-file',
+        profileCustomization: {
+          coverPhotoEnabled: true,
+          minimalistMode: false,
+        },
+        privacy: {
+          profileVisibility: 'private',
+          showSensitiveContent: true,
+          hiddenWords: ['private'],
+        },
+      },
+      'target-user',
+      'viewer-user',
+      { canViewProfileDesign: false },
+    );
+
+    expect(result).toEqual({
+      oxyUserId: 'target-user',
+      appearance: undefined,
+      profileHeaderImage: undefined,
+      profileCustomization: undefined,
+      privacy: { profileVisibility: 'private' },
+    });
+  });
+
   it('redacts private preferences from cross-user settings responses', () => {
     const result = buildSettingsResponseForViewer(
       {
