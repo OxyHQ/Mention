@@ -14,6 +14,7 @@ let findRouter: (match: Record<string, unknown>) => unknown[] = () => [];
 let likeAggregateResult: Array<Record<string, unknown>> = [];
 let entityFollowDistinct: string[] = [];
 let starterPackDoc: Record<string, unknown> | null = null;
+let userSettingsRows: Array<{ oxyUserId: string; privacy?: { profileVisibility?: string } }> = [];
 
 function chainable(result: unknown[]) {
   const chain = {
@@ -54,6 +55,13 @@ vi.mock('../models/StarterPack', () => ({
   },
 }));
 
+vi.mock('../models/UserSettings', () => ({
+  default: {
+    findOne: vi.fn(() => ({ lean: () => Promise.resolve(null) })),
+    find: vi.fn(() => ({ lean: () => Promise.resolve(userSettingsRows) })),
+  },
+}));
+
 import { mutualsSource } from '../mtn/feed/engine/sources/userSources';
 import {
   friendsEngagedSource,
@@ -79,6 +87,7 @@ beforeEach(() => {
   likeAggregateResult = [];
   entityFollowDistinct = [];
   starterPackDoc = null;
+  userSettingsRows = [];
   vi.clearAllMocks();
 });
 
@@ -250,14 +259,28 @@ describe('onThisDay source', () => {
 });
 
 describe('friendsOfFriends source', () => {
-  it('queries ctx.fofIds with PUBLIC-only visibility', async () => {
+  it('queries profile-visible ctx.fofIds with PUBLIC-only visibility', async () => {
+    userSettingsRows = [
+      { oxyUserId: 'x2', privacy: { profileVisibility: 'private' } },
+      { oxyUserId: 'x3', privacy: { profileVisibility: 'followers_only' } },
+    ];
     findRouter = () => [makePost(12)];
-    const ctx: FeedEngineContext = { currentUserId: 'viewer', fofIds: ['x1', 'x2'] };
+    const ctx: FeedEngineContext = { currentUserId: 'viewer', followingIds: ['x3'], fofIds: ['x1', 'x2', 'x3'] };
     const posts = await friendsOfFriendsSource.gather(ctx, {}, 30);
     expect(posts.map((p) => String(p._id))).toEqual([oid(12).toString()]);
     const match = findCalls[0];
-    expect(match.oxyUserId).toEqual({ $in: ['x1', 'x2'] });
+    expect(match.oxyUserId).toEqual({ $in: ['x1', 'x3'] });
     expect(match.visibility).toBe(PostVisibility.PUBLIC);
+  });
+
+  it('returns [] when all FoF author profiles deny access', async () => {
+    userSettingsRows = [
+      { oxyUserId: 'x1', privacy: { profileVisibility: 'private' } },
+      { oxyUserId: 'x2', privacy: { profileVisibility: 'followers_only' } },
+    ];
+    const posts = await friendsOfFriendsSource.gather({ currentUserId: 'viewer', fofIds: ['x1', 'x2'] }, {}, 30);
+    expect(posts).toEqual([]);
+    expect(findCalls).toHaveLength(0);
   });
 
   it('returns [] when ctx.fofIds is empty', async () => {
