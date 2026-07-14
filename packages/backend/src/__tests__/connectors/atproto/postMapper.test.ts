@@ -122,6 +122,33 @@ describe('mapPostViewToNormalizedPost', () => {
     expect(post?.media).toEqual([{ id: 'https://cdn/full.jpg', type: 'image', remoteUrl: 'https://cdn/full.jpg', alt: 'a' }]);
   });
 
+  it('normalizes the whitespace of the post body, keeping the author’s paragraphs', () => {
+    // Bluesky text is third-party text and used to be stored with zero trimming.
+    // The author's blank line survives; the trailing spaces and the extra blank
+    // lines do not (the client renders them verbatim).
+    const post = mapPostViewToNormalizedPost(postView('ws', '  uno   \r\n\r\n\r\n\r\n  dos  '), DID);
+    expect(post?.text).toBe('uno\n\ndos');
+  });
+
+  it('normalizes image alt text to a single line', () => {
+    const post = mapPostViewToNormalizedPost(
+      postView('alt', 'con imagen', {
+        embed: {
+          $type: 'app.bsky.embed.images#view',
+          images: [
+            { fullsize: 'https://cdn/full.jpg', alt: '  un gato\n  en una caja  ' },
+            { fullsize: 'https://cdn/blank.jpg', alt: '   \n  ' },
+          ],
+        },
+      }),
+      DID,
+    );
+
+    expect(post?.media?.[0].alt).toBe('un gato en una caja');
+    // A whitespace-only alt is not alt text: the field is omitted.
+    expect(post?.media?.[1].alt).toBeUndefined();
+  });
+
   it('extracts video playlist media from a video embed view', () => {
     const post = mapPostViewToNormalizedPost(
       postView('vid', 'a video', {

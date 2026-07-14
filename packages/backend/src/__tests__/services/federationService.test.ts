@@ -525,6 +525,56 @@ describe('federationService.fetchRemoteActor', () => {
     expect(mocks.userSettingsUpdateOne).not.toHaveBeenCalled();
   });
 
+  it('normalizes the whitespace of every remote text field on the actor', async () => {
+    // Remote actor text arrives with the whitespace of the remote server's
+    // markup. The display name is the worst of them: it crosses the identity
+    // bridge into Oxy, is cached in Redis, and ships on every post DTO — so a
+    // newline in it would be rendered verbatim across the whole app.
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url === 'https://remote.example/users/carol') {
+        return jsonResponse({
+          id: 'https://remote.example/users/carol',
+          type: 'Person',
+          preferredUsername: '  carol\n ',
+          name: '  Carol\n  Danvers  ',
+          summary: '<p>\n      Primera línea\n    </p>\n    <p>\n      Segunda línea\n    </p>',
+          inbox: 'https://remote.example/users/carol/inbox',
+          attachment: [
+            { type: 'PropertyValue', name: '  Sitio\n  web  ', value: '  <a href="https://carol.example">carol.example</a>\n  ' },
+            { type: 'PropertyValue', name: '   \n ', value: 'dropped: the label is only whitespace' },
+          ],
+        });
+      }
+
+      throw new Error(`unexpected global fetch ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await federationService.fetchRemoteActor('https://remote.example/users/carol');
+
+    expect(mocks.findOneAndUpdate).toHaveBeenCalledWith(
+      { uri: 'https://remote.example/users/carol' },
+      expect.objectContaining({
+        $set: expect.objectContaining({
+          username: 'carol',
+          // The bio is a body: the author's paragraph break survives, the
+          // markup's indentation and blank line do not.
+          summary: 'Primera línea\n\nSegunda línea',
+          fields: [
+            { name: 'Sitio web', value: '<a href="https://carol.example">carol.example</a>', verifiedAt: undefined },
+          ],
+        }),
+      }),
+      expect.anything(),
+    );
+    // The display name that crosses into Oxy is collapsed to a single line.
+    expect(mocks.makeServiceRequest).toHaveBeenCalledWith(
+      'PUT',
+      '/users/resolve',
+      expect.objectContaining({ displayName: 'Carol Danvers' }),
+    );
+  });
+
   it('skips actors on the Oxy identity apex without fetching, creating a FederatedActor, or resolving an Oxy user', async () => {
     // Oxy publishes every local user as `acct:<user>@oxy.so` via the DID layer,
     // so an actor on our own identity apex must never be treated as a remote

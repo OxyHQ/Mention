@@ -1,6 +1,6 @@
 import mongoose from 'mongoose';
 import type { MediaItem } from '@mention/shared-types';
-import type { ServiceAssetMetadata } from '@oxyhq/core';
+import { normalizeInlineText, type ServiceAssetMetadata } from '@oxyhq/core';
 import { getServiceOxyClient } from '../utils/oxyHelpers';
 import { logger } from '../utils/logger';
 import type { ApAttachment } from '../connectors/activitypub/apMedia';
@@ -22,6 +22,24 @@ function positiveNumber(value: unknown): number | undefined {
   return value > 0 ? value : undefined;
 }
 
+/**
+ * Normalize an `alt` value at every entry point it can reach a media item.
+ *
+ * Alt text is a ONE-LINE label, and on a federated item it is third-party text:
+ * it carries whatever whitespace the remote markup held. Clients render text
+ * faithfully (React Native Web maps `Text` to `white-space: pre-wrap`), so an
+ * embedded newline or a run of spaces would be visible, hence the canonical
+ * inline normalizer rather than a bare `.trim()`.
+ *
+ * Returns undefined for a missing / non-string / whitespace-only value so the
+ * caller omits the field instead of storing a blank one.
+ */
+function normalizeAlt(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined;
+  const alt = normalizeInlineText(value);
+  return alt.length > 0 ? alt : undefined;
+}
+
 /** Copy persisted intrinsic fields from a raw Mongo/hydration object. */
 export function readPersistedMediaFields(raw: Record<string, unknown>): Partial<MediaItem> {
   const out: Partial<MediaItem> = {};
@@ -40,7 +58,8 @@ export function readPersistedMediaFields(raw: Record<string, unknown>): Partial<
   if (raw.orientation === 'portrait' || raw.orientation === 'landscape' || raw.orientation === 'square') {
     out.orientation = raw.orientation;
   }
-  if (typeof raw.alt === 'string' && raw.alt.trim().length > 0) out.alt = raw.alt.trim();
+  const alt = normalizeAlt(raw.alt);
+  if (alt) out.alt = alt;
   if (typeof raw.mime === 'string' && raw.mime.trim().length > 0) out.mime = raw.mime.trim();
   if (typeof raw.remoteUrl === 'string' && raw.remoteUrl.trim().length > 0) out.remoteUrl = raw.remoteUrl.trim();
   if (raw.cachedFromFederation === true) out.cachedFromFederation = true;
@@ -59,7 +78,8 @@ export function mergeMediaItem(existing: MediaItem, patch: Partial<MediaItem>): 
   if (patch.mime !== undefined) merged.mime = patch.mime;
   if (patch.remoteUrl !== undefined) merged.remoteUrl = patch.remoteUrl;
   if (patch.cachedFromFederation !== undefined) merged.cachedFromFederation = patch.cachedFromFederation;
-  if (patch.alt !== undefined && patch.alt.trim().length > 0) merged.alt = patch.alt.trim();
+  const alt = normalizeAlt(patch.alt);
+  if (alt) merged.alt = alt;
   return merged;
 }
 
@@ -90,9 +110,9 @@ export function patchFromApAttachment(attachment: ApAttachment): Partial<MediaIt
     if (Number.isFinite(parsed) && parsed > 0) patch.durationSec = parsed;
   }
 
-  if (typeof attachment.name === 'string' && attachment.name.trim().length > 0) {
-    patch.alt = attachment.name.trim();
-  }
+  // AP `attachment.name` is the alt text of a federated attachment.
+  const alt = normalizeAlt(attachment.name);
+  if (alt) patch.alt = alt;
 
   if (patch.width && patch.height && patch.orientation === undefined) {
     const ratio = patch.height / patch.width;

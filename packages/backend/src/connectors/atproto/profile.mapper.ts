@@ -1,3 +1,4 @@
+import { normalizeInlineText, normalizeMultilineText } from '@oxyhq/core';
 import { logger } from '../../utils/logger';
 import FederatedActor, { IFederatedActor } from '../../models/FederatedActor';
 import { resolveOxyExternalUser } from '../identity';
@@ -52,6 +53,12 @@ export function mapProfileToNormalizedActor(profile: AtprotoProfileView): Normal
   if (!did || !handle) return null;
 
   const { domain, federatedUsername } = splitHandle(handle);
+  // Bluesky text is third-party text: it carries whatever whitespace the author
+  // (or their client) typed, and our clients render it faithfully
+  // (`white-space: pre-wrap`). The display name is ONE LINE — a newline in it is
+  // never meaningful — while the bio is a BODY whose paragraphs must survive.
+  const displayName = typeof profile.displayName === 'string' ? normalizeInlineText(profile.displayName) : '';
+  const bio = typeof profile.description === 'string' ? normalizeMultilineText(profile.description) : '';
   return {
     network: 'atproto',
     externalId: did,
@@ -60,10 +67,10 @@ export function mapProfileToNormalizedActor(profile: AtprotoProfileView): Normal
     // domain. These are what the shared identity bridge sends to oxy-api.
     federatedUsername,
     instanceDomain: domain,
-    displayName: profile.displayName || undefined,
+    displayName: displayName || undefined,
     avatarUrl: profile.avatar || undefined,
     bannerUrl: profile.banner || undefined,
-    bio: profile.description || undefined,
+    bio: bio || undefined,
     followersCount: typeof profile.followersCount === 'number' ? profile.followersCount : undefined,
     followingCount: typeof profile.followsCount === 'number' ? profile.followsCount : undefined,
     postsCount: typeof profile.postsCount === 'number' ? profile.postsCount : undefined,
@@ -94,7 +101,10 @@ export async function upsertAtprotoActor(actor: NormalizedExternalActor): Promis
           username,
           domain,
           acct: actor.handle,
-          summary: actor.bio ?? '',
+          // Normalized again (idempotent) rather than trusted: this function is
+          // exported and does not require its caller to have gone through
+          // `mapProfileToNormalizedActor`.
+          summary: normalizeMultilineText(actor.bio ?? ''),
           avatarUrl: actor.avatarUrl,
           headerUrl: actor.bannerUrl,
           type: 'Person',

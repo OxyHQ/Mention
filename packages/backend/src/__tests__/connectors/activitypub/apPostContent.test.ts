@@ -29,6 +29,7 @@ import {
   buildFederatedNoteContent,
   buildFederatedNoteContentForEdit,
   extractApContentHtml,
+  extractApSummary,
 } from '../../../connectors/activitypub/apPostContent';
 
 beforeEach(() => {
@@ -59,7 +60,63 @@ describe('extractApContentHtml', () => {
   });
 });
 
+/**
+ * The AP `summary` becomes `federation.spoilerText` — the content-warning label.
+ * It used to be stored raw: the code checked `.trim().length > 0` but persisted
+ * the UNTRIMMED value, and never ran it through the HTML converter, so a server
+ * that sends an HTML summary (the AP spec types it as an HTML string) leaked raw
+ * tags into the CW label.
+ */
+describe('extractApSummary', () => {
+  it('strips HTML from a summary', () => {
+    expect(extractApSummary({ summary: '<p>CW: spoilers</p>' })).toBe('CW: spoilers');
+  });
+
+  it('collapses the whitespace of a pretty-printed HTML summary to one line', () => {
+    expect(extractApSummary({ summary: '<p>\n      CW: spoilers\n    </p>' })).toBe('CW: spoilers');
+  });
+
+  it('collapses an embedded newline — a CW label is one line', () => {
+    expect(extractApSummary({ summary: '  CW:\n\n  spoilers  ' })).toBe('CW: spoilers');
+  });
+
+  it('decodes entities in a summary', () => {
+    expect(extractApSummary({ summary: 'caf&eacute; &amp; t&eacute;' })).toBe('café & té');
+  });
+
+  it('returns undefined for a missing, non-string, or whitespace-only summary', () => {
+    expect(extractApSummary({})).toBeUndefined();
+    expect(extractApSummary({ summary: '   \n  ' })).toBeUndefined();
+    expect(extractApSummary({ summary: '<p>\n  \n</p>' })).toBeUndefined();
+    expect(extractApSummary({ summary: 42 })).toBeUndefined();
+    expect(extractApSummary(null)).toBeUndefined();
+  });
+});
+
 describe('buildFederatedNoteContent', () => {
+  it('normalizes the whitespace of a pretty-printed remote body', async () => {
+    // The bug this whole change exists for: the indented markup a remote server
+    // emits left a blank line and an indent in the stored body, which the client
+    // renders verbatim (`white-space: pre-wrap`).
+    const built = await buildFederatedNoteContent(
+      { content: '<p>\n      Primer párrafo\n    </p>\n    <p>\n      Segundo párrafo\n    </p>' },
+      'owner-1',
+      {},
+    );
+    if (built.skip) throw new Error('expected content');
+    expect(built.text).toBe('Primer párrafo\n\nSegundo párrafo');
+  });
+
+  it('stores the content warning trimmed and stripped of HTML', async () => {
+    const built = await buildFederatedNoteContent(
+      { content: '<p>body</p>', summary: '<p>\n      CW: spoilers\n    </p>', sensitive: true },
+      'owner-1',
+      {},
+    );
+    if (built.skip) throw new Error('expected content');
+    expect(built.summary).toBe('CW: spoilers');
+  });
+
   it('keeps a content-warning-only post and surfaces the summary as spoilerText', async () => {
     const built = await buildFederatedNoteContent(
       { content: '', summary: 'CW: spoilers ahead', sensitive: true },

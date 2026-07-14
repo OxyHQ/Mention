@@ -77,13 +77,22 @@ export interface IFederatedActor extends Document {
   updatedAt: Date;
 }
 
+/**
+ * Every text field on this model is REMOTE text, so each one carries `trim`.
+ * That is defense in depth ONLY: Mongoose's `trim` strips the ends of the string
+ * and does nothing to the whitespace INSIDE it, which is where the damage is (a
+ * newline in a display name, a blank line in a bio). The real normalization
+ * happens at ingest — `actor.service.ts` and `profile.mapper.ts` run every one
+ * of these values through the canonical `normalizeInlineText` /
+ * `normalizeMultilineText` from `@oxyhq/core` before they ever reach the model.
+ */
 const FederatedActorSchema = new Schema<IFederatedActor>({
   protocol: { type: String, enum: ['activitypub', 'atproto'], default: 'activitypub', index: true },
-  uri: { type: String, required: true, unique: true, index: true },
-  username: { type: String, required: true },
-  domain: { type: String, required: true, index: true },
-  acct: { type: String, required: true, unique: true, index: true },
-  summary: { type: String },
+  uri: { type: String, required: true, unique: true, index: true, trim: true },
+  username: { type: String, required: true, trim: true },
+  domain: { type: String, required: true, index: true, trim: true },
+  acct: { type: String, required: true, unique: true, index: true, trim: true },
+  summary: { type: String, trim: true },
   avatarUrl: { type: String },
   headerUrl: { type: String },
   inboxUrl: { type: String },
@@ -99,8 +108,8 @@ const FederatedActorSchema = new Schema<IFederatedActor>({
   memorial: { type: Boolean, default: false },
   suspended: { type: Boolean, default: false },
   fields: [{
-    name: { type: String },
-    value: { type: String },
+    name: { type: String, trim: true },
+    value: { type: String, trim: true },
     verifiedAt: { type: Date },
   }],
   featuredUrl: { type: String },
