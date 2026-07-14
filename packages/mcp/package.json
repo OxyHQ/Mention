@@ -7,7 +7,7 @@
   "dependencies": {
     "@mention/shared-types": "file:../shared-types",
     "@modelcontextprotocol/sdk": "^1.27.1",
-    "@oxyhq/core": "^10.1.2",
+    "@oxyhq/core": "^10.2.0",
     "zod": "^4.4.3"
   },
   "scripts": {
