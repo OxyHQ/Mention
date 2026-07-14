@@ -461,7 +461,7 @@ export class InboxProcessingService {
       logger.debug(`Skipping empty federated Create from ${actorUri} (${object.id}): ${built.reason}`);
       return;
     }
-    const { text, media, attachments, hashtags, summary, sensitive } = built;
+    const { media, attachments, hashtags, summary, sensitive, variants } = built;
 
     // Preserve the ORIGINAL publish date so a federated post reflects when it
     // was authored remotely, not when our inbox happened to receive it. The Note
@@ -504,7 +504,9 @@ export class InboxProcessingService {
       parentPostId: threadLink?.parentPostId ?? null,
       threadId: threadLink?.threadId ?? null,
       content: {
-        text,
+        // The body lives ONLY in the variants — a `contentMap` is one body PER
+        // LANGUAGE, not a fallback for one. `variants[0]` is the primary.
+        variants: variants.length > 0 ? variants : undefined,
         media: media.length > 0 ? media : undefined,
         attachments: attachments.length > 0 ? attachments : undefined,
       },
@@ -748,7 +750,6 @@ export class InboxProcessingService {
         : PostType.TEXT;
 
       const setOps: Record<string, unknown> = {
-        'content.text': built.text,
         hashtags: built.hashtags,
         type: derivedType,
         'federation.sensitive': built.sensitive,
@@ -763,6 +764,14 @@ export class InboxProcessingService {
       else unsetOps['content.attachments'] = '';
       if (built.summary !== undefined) setOps['federation.spoilerText'] = built.summary;
       else unsetOps['federation.spoilerText'] = '';
+
+      // The body. Variants are REPLACED wholesale by the edit, never merged.
+      // Three consequences, all intended: the new body lands, a language the
+      // author dropped from the edit disappears with it, and any machine
+      // translation cached against the OLD body is discarded — a translation of
+      // text that no longer exists is worse than no translation.
+      if (built.variants.length > 0) setOps['content.variants'] = built.variants;
+      else unsetOps['content.variants'] = '';
 
       const update: Record<string, unknown> = { $set: setOps };
       if (Object.keys(unsetOps).length > 0) update.$unset = unsetOps;

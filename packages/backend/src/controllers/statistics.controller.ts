@@ -2,6 +2,7 @@ import { Response } from "express";
 import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
 import { getBaseLanguage, getPrimaryLanguage } from '@oxyhq/core';
 import { PostType, PostVisibility } from '@mention/shared-types';
+import { resolveVariant } from '../services/postVariants';
 import Post from "../models/Post";
 import UserSettings from "../models/UserSettings";
 import { logger } from '../utils/logger';
@@ -632,7 +633,8 @@ export const getWeeklySummary = async (req: AuthRequest, res: Response) => {
         engagement: (p.stats?.likesCount || 0) + (p.stats?.commentsCount || 0) + (p.stats?.boostsCount || 0),
         views: p.stats?.viewsCount || 0,
         type: p.type || 'text',
-        contentSnippet: (p.content?.text || '').slice(0, 80),
+        // The primary rendition — an analytics snippet shows the author's own words.
+        contentSnippet: resolveVariant(p.content).text.slice(0, 80),
       }))
       .sort((a, b) => b.engagement - a.engagement)[0];
 

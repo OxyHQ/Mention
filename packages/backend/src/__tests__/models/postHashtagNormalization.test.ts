@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { Post } from '../../models/Post';
 import { mergeHashtags, normalizePostHashtags } from '../../utils/textProcessing';
-import { PostType, PostVisibility } from '@mention/shared-types';
+import { PostType, PostVisibility, type StoredPostContent } from '@mention/shared-types';
 
 /**
  * Integration coverage for the centralized hashtag-normalization layer
@@ -12,13 +12,21 @@ import { PostType, PostVisibility } from '@mention/shared-types';
  * createThread, updatePost, replies, boosts, single federated ingest) runs it
  * immediately before persistence. These tests instantiate real Post documents
  * and trigger validation (the same step `save()` runs) without touching a
- * database — proving the hook cleans `content.text` and populates `hashtags`
+ * database — proving the hook cleans the post's body and populates `hashtags`
  * regardless of which path set the fields.
+ *
+ * The body lives in `content.variants[0]` (the primary rendition) — storage is
+ * normalized, so there is no second copy of it to clean.
  *
  * The raw federated BATCH path (`Post.collection.insertMany`) bypasses Mongoose
  * middleware and instead calls `normalizePostHashtags` directly; that contract
  * is covered by the final block here and by the pure-function unit tests.
  */
+
+/** The stored content of a single-language post: one primary author rendition. */
+function contentWith(text: string): StoredPostContent {
+  return { variants: [{ tag: 'en', source: 'author', text }], media: [] };
+}
 
 /**
  * Run the document through the same async validation step `save()` performs.
@@ -26,7 +34,7 @@ import { PostType, PostVisibility } from '@mention/shared-types';
  * async `validate()`/`save()` flow — NOT on the synchronous `validateSync()` —
  * so we await `validate()` to exercise the real persistence path. Schema-level
  * validation errors are irrelevant to this suite, so they are swallowed; we only
- * assert on the normalized `content.text` and `hashtags` the hook produced.
+ * assert on the normalized primary body and the `hashtags` the hook produced.
  */
 async function normalizeViaSchema(doc: InstanceType<typeof Post>): Promise<{ content: string; hashtags: string[] }> {
   try {
@@ -35,7 +43,7 @@ async function normalizeViaSchema(doc: InstanceType<typeof Post>): Promise<{ con
     // Minimal test documents may miss unrelated required fields; ignore — the
     // normalization hook has already run by the time validation collects errors.
   }
-  return { content: doc.content?.text ?? '', hashtags: doc.hashtags ?? [] };
+  return { content: doc.content?.variants?.[0]?.text ?? '', hashtags: doc.hashtags ?? [] };
 }
 
 describe('Post schema — centralized hashtag normalization hook', () => {
@@ -46,7 +54,7 @@ describe('Post schema — centralized hashtag normalization hook', () => {
         oxyUserId: 'user_1',
         type: PostType.TEXT,
         visibility: PostVisibility.PUBLIC,
-        content: { text, media: [] },
+        content: contentWith(text),
         // PostCreationService receives hashtags pre-merged by the controller.
         hashtags: mergeHashtags(text, []),
       });
@@ -60,7 +68,7 @@ describe('Post schema — centralized hashtag normalization hook', () => {
       const text = 'Today we improved #Mention and the feed feels much better.';
       const post = new Post({
         oxyUserId: 'user_1',
-        content: { text, media: [] },
+        content: contentWith(text),
         hashtags: mergeHashtags(text, []),
       });
 
@@ -73,7 +81,7 @@ describe('Post schema — centralized hashtag normalization hook', () => {
       const text = '#startup #social #tech #ai #growth';
       const post = new Post({
         oxyUserId: 'user_1',
-        content: { text, media: [] },
+        content: contentWith(text),
         hashtags: mergeHashtags(text, []),
       });
 
@@ -86,7 +94,7 @@ describe('Post schema — centralized hashtag normalization hook', () => {
       const text = 'A clean post with no inline tags';
       const post = new Post({
         oxyUserId: 'user_1',
-        content: { text, media: [] },
+        content: contentWith(text),
         hashtags: mergeHashtags(text, ['Climate', 'Policy']),
       });
 
@@ -102,7 +110,7 @@ describe('Post schema — centralized hashtag normalization hook', () => {
       const reply = new Post({
         oxyUserId: 'user_2',
         type: PostType.TEXT,
-        content: { text, media: [] },
+        content: contentWith(text),
         parentPostId: 'parent_1',
         threadId: 'parent_1',
         hashtags: mergeHashtags(text, []),
@@ -119,7 +127,7 @@ describe('Post schema — centralized hashtag normalization hook', () => {
         oxyUserId: 'user_3',
         type: PostType.BOOST,
         boostOf: 'orig_1',
-        content: { text, media: [] },
+        content: contentWith(text),
         hashtags: mergeHashtags(text, []),
       });
 
@@ -129,19 +137,21 @@ describe('Post schema — centralized hashtag normalization hook', () => {
     });
   });
 
-  describe('updatePost path (mutate content.text then re-validate)', () => {
-    it('re-cleans content and re-derives hashtags when text changes', async () => {
+  describe('updatePost path (rewrite the primary rendition then re-validate)', () => {
+    it('re-cleans the body and re-derives hashtags when the text changes', async () => {
       const post = new Post({
         oxyUserId: 'user_4',
-        content: { text: 'Original clean post #hello', media: [] },
+        content: contentWith('Original clean post #hello'),
         hashtags: mergeHashtags('Original clean post #hello', []),
       });
       await normalizeViaSchema(post);
       expect(post.hashtags).toEqual(['hello']);
 
-      // Simulate an edit that introduces a spammy block.
+      // Simulate an edit that introduces a spammy block. The edit path rewrites the
+      // primary RENDITION — there is no separate body to keep in sync.
       const newText = 'Edited post about launch #news #launch #product #growth #ai';
-      post.content.text = newText;
+      post.content.variants = [{ tag: 'en', source: 'author', text: newText }];
+      post.markModified('content.variants');
       post.hashtags = mergeHashtags(newText, post.hashtags);
 
       const result = await normalizeViaSchema(post);
@@ -153,13 +163,13 @@ describe('Post schema — centralized hashtag normalization hook', () => {
       const text = 'Launch news #news #launch #product #growth #ai';
       const post = new Post({
         oxyUserId: 'user_4',
-        content: { text, media: [] },
+        content: contentWith(text),
         hashtags: mergeHashtags(text, []),
       });
       const first = await normalizeViaSchema(post);
       expect(first.content).toBe('Launch news #news');
 
-      // A subsequent unrelated save (e.g. stats bump) must not re-process text.
+      // A subsequent unrelated save (e.g. stats bump) must not re-process the body.
       post.isNew = false;
       const second = await normalizeViaSchema(post);
       expect(second.content).toBe('Launch news #news');
@@ -175,7 +185,7 @@ describe('Post schema — centralized hashtag normalization hook', () => {
 
       const post = new Post({
         oxyUserId: 'fed_user',
-        content: { text, media: [] },
+        content: contentWith(text),
         hashtags: mergeHashtags(text, apTags),
       });
       const viaHook = await normalizeViaSchema(post);

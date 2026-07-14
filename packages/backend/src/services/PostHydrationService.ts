@@ -25,8 +25,14 @@ import {
   getViewerEntry,
   normalizeAuthorship,
 } from '../utils/postAuthorship';
+import {
+  readerVariants,
+  resolveVariant,
+  resolveViewerTag,
+  type ResolvedVariant,
+} from './postVariants';
 
-import { PostContent, PostMetadata } from '@mention/shared-types';
+import { PostContentVariant, PostMetadata, StoredPostContent } from '@mention/shared-types';
 
 /**
  * A raw post plain-object as returned by `.lean()` or `.toObject()`.
@@ -37,7 +43,8 @@ interface RawPost {
   id?: string;
   oxyUserId?: string;
   authorship?: PostAuthorshipEntry[];
-  content?: Partial<PostContent>;
+  /** The post's STORED content: renditions (`variants[0]` is the primary) + the shared media/article. */
+  content?: Partial<StoredPostContent>;
   metadata?: Partial<PostMetadata>;
   /** AP federation metadata (federated posts only); `spoilerText` is the CW label. */
   federation?: PostFederationData;
@@ -99,6 +106,21 @@ interface HydrationOptions {
    * (the feed always threads both) so the graph is applied atomically.
    */
   viewerGraph?: { followingIds: string[]; followerIds: string[] };
+  /**
+   * The language preference carried by the REQUEST — an explicit `?lang=` the
+   * reader picked, then `Accept-Language` — most-preferred first, from
+   * {@link requestLanguageCandidates}. It leads the variant-resolution ladder;
+   * the viewer's Oxy account locales follow. A caller with no request context
+   * (the OG renderer, MCP, a socket broadcast) omits it and gets the post's
+   * primary language, which is what those surfaces should show.
+   */
+  requestLanguages?: string[];
+  /**
+   * The viewer's Oxy account locales, when the caller already resolved them (the
+   * feed does, in `loadViewerFeedContext`). Absent → {@link buildViewerContext}
+   * reads them from the Redis-cached identity itself.
+   */
+  viewerLanguages?: string[];
 }
 
 interface HydratedGraphNode {
@@ -108,6 +130,14 @@ interface HydratedGraphNode {
 
 interface ViewerContext {
   viewerId?: string;
+  /**
+   * The viewer's ordered language preference — the request's tags (explicit
+   * `?lang`, then `Accept-Language`) followed by the Oxy account locales. This is
+   * the ladder `resolveViewerTag` walks to pick which localized rendition of each
+   * post to serve. Empty for an anonymous reader with no header (a crawler), which
+   * resolves every post to its primary language.
+   */
+  languageCandidates: string[];
   privacyPreferences: {
     hideLikeCounts: boolean;
     hideShareCounts: boolean;
@@ -564,6 +594,12 @@ export class PostHydrationService {
     const collectedPostIds = new Set(postIds);
     const postsForHydration = Array.from(graph.values());
 
+    // Resolve each post's localized rendition for THIS viewer, once. Everything
+    // downstream — the body, the media (with its localized alt), the article, and
+    // the link previews extracted from the text — reads the resolved rendition, so
+    // a reader never sees one language's text beside another language's images.
+    const resolvedMap = this.buildResolvedVariantMap(postsForHydration, viewerContext);
+
     // Run independent hydration steps in parallel to minimize waterfall latency.
     // Dependency chain: aggregateRecentReplierIds → buildUserMap → buildReplierAvatarsFromUserMap
     // Everything else is independent and can run concurrently.
@@ -585,7 +621,7 @@ export class PostHydrationService {
       this.buildPollMap(postsForHydration),
       this.buildAuthorPrivacyMap(postsForHydration, viewerContext),
       options.includeLinkMetadata !== false
-        ? this.buildLinkPreviewMap(postsForHydration)
+        ? this.buildLinkPreviewMap(postsForHydration, resolvedMap)
         : Promise.resolve(new Map<string, PostLinkPreview[]>()),
       this.buildOrphanFederatedAuthorMap(postsForHydration),
     ]);
@@ -605,6 +641,7 @@ export class PostHydrationService {
           authorPrivacyMap,
           recentReplierMap,
           orphanAuthorMap,
+          resolvedMap,
         })
       )
     );
@@ -713,9 +750,44 @@ export class PostHydrationService {
     return result;
   }
 
+  /**
+   * The viewer's ordered language preference: the request's tags first (an
+   * explicit `?lang`, then `Accept-Language`), then the viewer's Oxy account
+   * locales — which the feed already resolved and threads in, and which every
+   * other caller reads here from the Redis-cached identity (the same batched
+   * lookup hydration uses for authors, so it costs no Oxy round trip on a hit).
+   * Fail-soft: an unresolvable viewer simply contributes no account locales.
+   */
+  private async buildLanguageCandidates(
+    viewerId: string | undefined,
+    options: HydrationOptions | undefined,
+  ): Promise<string[]> {
+    const candidates = [...(options?.requestLanguages ?? [])];
+
+    let accountLanguages = options?.viewerLanguages;
+    if (accountLanguages === undefined && viewerId) {
+      try {
+        const summaries = await resolveUserSummaries([viewerId]);
+        accountLanguages = summaries.get(viewerId)?.languages ?? [];
+      } catch (error) {
+        logger.warn('[PostHydration] Failed to resolve viewer languages', error);
+        accountLanguages = [];
+      }
+    }
+
+    for (const tag of accountLanguages ?? []) {
+      if (!candidates.includes(tag)) {
+        candidates.push(tag);
+      }
+    }
+
+    return candidates;
+  }
+
   private async buildViewerContext(posts: object[], viewerId?: string, options?: HydrationOptions): Promise<ExtendedViewerContext> {
     const context: ExtendedViewerContext = {
       viewerId,
+      languageCandidates: await this.buildLanguageCandidates(viewerId, options),
       privacyPreferences: { ...DEFAULT_PRIVACY },
       blockedIds: new Set<string>(),
       restrictedIds: new Set<string>(),
@@ -934,7 +1006,7 @@ export class PostHydrationService {
 
       try {
         const fetched = await Post.find(referenceQuery)
-          .select('-metadata.likedBy -metadata.savedBy -translations')
+          .select('-metadata.likedBy -metadata.savedBy')
           .lean();
 
         currentLevel = fetched.map((post) => ({
@@ -1142,9 +1214,33 @@ export class PostHydrationService {
   }
 
   /**
+   * Resolve, for every post in the graph, the ONE localized rendition this viewer
+   * is served — walking the ladder (explicit `?lang` → `Accept-Language` → the
+   * viewer's Oxy account locales → the post's primary) and applying variant
+   * inheritance. Pure and synchronous: {@link resolveViewerTag} and
+   * {@link resolveVariant} read only the post's own content.
+   */
+  private buildResolvedVariantMap(
+    nodes: HydratedGraphNode[],
+    viewerContext: ViewerContext,
+  ): Map<string, ResolvedVariant> {
+    const resolvedMap = new Map<string, ResolvedVariant>();
+    for (const { post } of nodes) {
+      const postId = this.resolveId(post);
+      if (!postId) continue;
+      const content: StoredPostContent = post?.content ?? {};
+      const tag = resolveViewerTag(viewerContext.languageCandidates, content);
+      resolvedMap.set(postId, resolveVariant(content, tag));
+    }
+    return resolvedMap;
+  }
+
+  /**
    * Build the per-post link-preview map for a batch of posts. Each post maps to
    * its resolved previews IN TEXT ORDER, capped at `MAX_POST_LINK_PREVIEWS` by
-   * {@link extractUrls} — a post with several links renders a card per link.
+   * {@link extractUrls} — a post with several links renders a card per link. The
+   * URLs are read from the RESOLVED body, so a reader served the Spanish variant
+   * gets the cards for the links that variant actually contains.
    *
    * Link previews are resolved through the Oxy ecosystem link-preview service
    * ({@link OxyServices.getLinkPreviews}) instead of being scraped locally. Oxy
@@ -1165,7 +1261,10 @@ export class PostHydrationService {
    * top-level posts carry previewable text; nested boosts/quotes have no preview
    * of their own.
    */
-  private async buildLinkPreviewMap(nodes: HydratedGraphNode[]): Promise<Map<string, PostLinkPreview[]>> {
+  private async buildLinkPreviewMap(
+    nodes: HydratedGraphNode[],
+    resolvedMap: Map<string, ResolvedVariant>,
+  ): Promise<Map<string, PostLinkPreview[]>> {
     const previewMap = new Map<string, PostLinkPreview[]>();
 
     const postToUrls = new Map<string, string[]>(); // postId -> [url] (text order)
@@ -1175,7 +1274,7 @@ export class PostHydrationService {
       const postId = this.resolveId(post);
       if (!postId) continue;
 
-      const text = post?.content?.text;
+      const text = resolvedMap.get(postId)?.text;
       if (!text || typeof text !== 'string') continue;
 
       const urls = extractUrls(text);
@@ -1411,8 +1510,9 @@ export class PostHydrationService {
     authorPrivacyMap: Map<string, typeof DEFAULT_PRIVACY>;
     recentReplierMap?: Map<string, string[]>;
     orphanAuthorMap: Map<string, PostUser>;
+    resolvedMap: Map<string, ResolvedVariant>;
   }): Promise<HydratedPostSummary | null> {
-    const { post, viewerContext, pollMap, userMap, mentionCache, linkPreviewMap, authorPrivacyMap, recentReplierMap, orphanAuthorMap } = params;
+    const { post, viewerContext, pollMap, userMap, mentionCache, linkPreviewMap, authorPrivacyMap, recentReplierMap, orphanAuthorMap, resolvedMap } = params;
 
     const postId = this.resolveId(post);
     if (!postId) return null;
@@ -1500,8 +1600,21 @@ export class PostHydrationService {
       };
     });
 
-    const content = this.buildContent(post, pollMap, params.viewerContext);
-    const attachments = this.buildAttachments(post, pollMap);
+    const baseContent: StoredPostContent = post?.content ?? {};
+    const resolved = resolvedMap.get(postId) ?? resolveVariant(baseContent);
+    const extendedContext = viewerContext as ExtendedViewerContext;
+    const postMentions: string[] = Array.isArray(post.mentions) && post.mentions.length > 0
+      ? post.mentions.filter((mention): mention is string => typeof mention === 'string')
+      : [];
+    const inlineVariants = await this.buildInlineVariants(
+      baseContent,
+      resolved.tag,
+      postMentions,
+      mentionCache,
+      extendedContext.includeFullArticleBody !== false,
+    );
+    const content = this.buildContent(post, pollMap, viewerContext, resolved, inlineVariants);
+    const attachments = this.buildAttachments(post, pollMap, resolved);
     const linkPreviews = linkPreviewMap.get(postId) ?? [];
     const viewerState = this.buildViewerState(postId, authorId, viewerContext, authorship);
     const permissions = this.buildPermissions(post, authorId, viewerContext, authorship);
@@ -1535,16 +1648,14 @@ export class PostHydrationService {
     };
 
     // Always replace mentions in text if they exist, regardless of includeFullMetadata
-    // This ensures mentions are always displayed correctly
-    let finalText = typeof content?.text === 'string' ? content.text : '';
-    const postMentions: string[] = Array.isArray(post.mentions) && post.mentions.length > 0 ? (post.mentions as string[]) : [];
-    if (postMentions.length > 0 && finalText.includes('[mention:')) {
-      finalText = await this.replaceMentionPlaceholders(
-        finalText,
-        postMentions,
-        mentionCache,
-      );
-    }
+    // This ensures mentions are always displayed correctly. Runs on the RESOLVED
+    // body (`content.text` is already this reader's language), so a localized
+    // rendition never leaks a raw `[mention:<id>]` placeholder.
+    const finalText = await this.resolveMentionText(
+      typeof content?.text === 'string' ? content.text : '',
+      postMentions,
+      mentionCache,
+    );
 
     if (content) {
       content.text = finalText;
@@ -1603,29 +1714,114 @@ export class PostHydrationService {
     return items;
   }
 
-  private buildContent(post: RawPost, pollMap: Map<string, Record<string, unknown>>, viewerContext?: ViewerContext): Record<string, unknown> {
-    const baseContent = post?.content ?? {};
+  /**
+   * The text a reader actually sees: mention placeholders (`[mention:<id>]`)
+   * replaced with the mentioned user's canonical handle. Runs on the RESOLVED
+   * body and on every inline variant, so a language switch never exposes a raw
+   * placeholder.
+   */
+  private async resolveMentionText(
+    text: string,
+    postMentions: string[],
+    mentionCache: Map<string, PostUser>,
+  ): Promise<string> {
+    if (postMentions.length === 0 || !text.includes('[mention:')) {
+      return text;
+    }
+    return this.replaceMentionPlaceholders(text, postMentions, mentionCache);
+  }
 
-    const normalizedMedia = this.normalizeMediaItems(baseContent.media);
+  /**
+   * The renditions shipped INLINE on the DTO so a reader can switch language with
+   * no round trip: every AUTHOR variant, plus the machine translation for the
+   * language being served when one is cached ({@link readerVariants}).
+   *
+   * Emitted ONLY when there is more than one: a monolingual post's single variant
+   * IS `content.text`, and shipping it again would duplicate every body in every
+   * feed payload. Each variant carries an ALREADY-RESOLVED rendition — its media
+   * appears only when that variant overrides it (a replaced set, or the shared set
+   * with the variant's localized `alt` merged in), so the client swaps in what it
+   * is handed and never re-implements the inheritance rule.
+   */
+  private async buildInlineVariants(
+    content: StoredPostContent,
+    servedTag: string | undefined,
+    postMentions: string[],
+    mentionCache: Map<string, PostUser>,
+    includeFullArticleBody: boolean,
+  ): Promise<PostContentVariant[] | undefined> {
+    const switchable = readerVariants(content, servedTag);
+    if (switchable.length < 2) return undefined;
+
+    const inline: PostContentVariant[] = [];
+    for (const variant of switchable) {
+      const rendition = resolveVariant(content, variant.tag);
+      const overridesMedia = variant.media !== undefined || variant.alt !== undefined;
+      const normalizedMedia = overridesMedia ? this.normalizeMediaItems(rendition.media) : undefined;
+      const article = variant.article && rendition.article;
+
+      inline.push({
+        ...(variant.tag ? { tag: variant.tag } : {}),
+        source: variant.source,
+        text: await this.resolveMentionText(variant.text, postMentions, mentionCache),
+        ...(normalizedMedia && normalizedMedia.length > 0
+          ? { media: resolveMediaItems(normalizedMedia) }
+          : {}),
+        ...(article
+          ? {
+              article: {
+                title: article.title,
+                excerpt: article.excerpt,
+                ...(includeFullArticleBody && article.body ? { body: article.body } : {}),
+              },
+            }
+          : {}),
+        ...(variant.createdAt ? { createdAt: variant.createdAt } : {}),
+      });
+    }
+    return inline;
+  }
+
+  private buildContent(
+    post: RawPost,
+    pollMap: Map<string, Record<string, unknown>>,
+    viewerContext: ViewerContext | undefined,
+    resolved: ResolvedVariant,
+    inlineVariants: PostContentVariant[] | undefined,
+  ): Record<string, unknown> {
+    const baseContent: StoredPostContent = post?.content ?? {};
+
+    // The media the RESOLVED rendition shows: the shared set with this language's
+    // alt descriptions merged in, or the set the variant replaced it with.
+    const normalizedMedia = this.normalizeMediaItems(resolved.media);
     const media = normalizedMedia ? resolveMediaItems(normalizedMedia) : undefined;
 
     const pollId = baseContent.pollId;
     const poll = pollId ? pollMap.get(String(pollId)) : undefined;
+    const article = resolved.article;
 
     return {
-      text: typeof baseContent.text === 'string' ? baseContent.text : '',
+      // Already resolved for THIS reader — every renderer that reads `content.text`
+      // (video captions, notification previews, quote cards, the share sheet, SEO,
+      // the server-rendered OG, MCP) shows the right language without knowing this
+      // feature exists. It is not stored anywhere: the body lives only on the
+      // variant this resolved to.
+      text: resolved.text,
+      // The tag actually served — what the UI shows as "Showing in Spanish".
+      textLang: resolved.tag,
+      variants: inlineVariants,
       media,
       poll,
       pollId: pollId ? String(pollId) : undefined,
       // For feed, only include article metadata, not full body (saves bandwidth)
-      article: baseContent.article
+      article: article
         ? {
-            articleId: baseContent.article.articleId,
-            title: baseContent.article.title,
-            excerpt: baseContent.article.excerpt,
+            articleId: article.articleId,
+            title: article.title,
+            excerpt: article.excerpt,
             // Only include body if explicitly requested (e.g., for detail view)
-            ...((viewerContext as ExtendedViewerContext)?.includeFullArticleBody && baseContent.article.body
-              ? { body: baseContent.article.body }
+            ...((viewerContext as ExtendedViewerContext)?.includeFullArticleBody && article.body
+              ? { body: article.body }
               : {}),
           }
         : undefined,
@@ -1637,11 +1833,17 @@ export class PostHydrationService {
     };
   }
 
-  private buildAttachments(post: RawPost, pollMap: Map<string, Record<string, unknown>>): PostAttachmentBundle {
+  private buildAttachments(
+    post: RawPost,
+    pollMap: Map<string, Record<string, unknown>>,
+    resolved: ResolvedVariant,
+  ): PostAttachmentBundle {
     const content = post?.content ?? {};
     const attachments: PostAttachmentBundle = {};
 
-    const normalizedMedia = this.normalizeMediaItems(content.media);
+    // The attachment bundle renders the SAME rendition as `content` — a reader
+    // served the Spanish body must get the Spanish alt text on the same images.
+    const normalizedMedia = this.normalizeMediaItems(resolved.media);
     if (normalizedMedia && normalizedMedia.length > 0) {
       attachments.media = resolveMediaItems(normalizedMedia);
     }
@@ -1656,12 +1858,12 @@ export class PostHydrationService {
       attachments.poll = content.poll;
     }
 
-    if (content.article) {
+    if (resolved.article) {
       attachments.article = {
-        articleId: content.article.articleId,
-        title: content.article.title,
-        body: content.article.body,
-        excerpt: content.article.excerpt,
+        articleId: resolved.article.articleId,
+        title: resolved.article.title,
+        body: resolved.article.body,
+        excerpt: resolved.article.excerpt,
       };
     }
 

@@ -413,7 +413,7 @@ export const linksSource: SourceModule = {
     const match: Record<string, unknown> = {
       visibility: PostVisibility.PUBLIC,
       status: 'published',
-      $and: [{ $or: [{ 'content.sources.url': hostRegex }, { 'content.text': hostRegex }] }],
+      $and: [{ $or: [{ 'content.sources.url': hostRegex }, { 'content.variants.text': hostRegex }] }],
     };
     return fetchChrono(match, ctx.cursor, cap);
   },

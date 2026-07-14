@@ -1,5 +1,13 @@
 import { MentionData } from '@/components/MentionTextInput';
-import type { CreatePostRequest, CreateThreadPostRequest, GeoJSONPoint, PostSourceLink, ReplyPermission } from '@mention/shared-types';
+import type {
+  CreatePostRequest,
+  CreateThreadPostRequest,
+  GeoJSONPoint,
+  PostContentVariant,
+  PostSourceLink,
+  ReplyPermission,
+  UpdatePostRequest,
+} from '@mention/shared-types';
 import { buildAttachmentsPayload } from './attachmentsUtils';
 import {
   ComposerMediaItem,
@@ -48,6 +56,13 @@ interface BuildMainPostParams {
   /** When set, links the new post as a quote of this post id. */
   quotedPostId?: string;
   collaboratorIds?: string[];
+  /**
+   * The author renditions of this post, PRIMARY FIRST — order is what names the
+   * primary. `null` when the author declared no language, which keeps a
+   * single-language post's payload exactly what it has always been and leaves the
+   * language to server-side detection.
+   */
+  variantContent?: PostContentVariant[] | null;
 }
 
 export const buildMainPost = (params: BuildMainPostParams): CreatePostRequest => {
@@ -75,6 +90,7 @@ export const buildMainPost = (params: BuildMainPostParams): CreatePostRequest =>
     isSensitive,
     quotedPostId,
     collaboratorIds,
+    variantContent,
   } = params;
 
   const hasPoll = pollOptions.length > 0 && pollOptions.some(opt => opt.trim().length > 0);
@@ -100,6 +116,7 @@ export const buildMainPost = (params: BuildMainPostParams): CreatePostRequest =>
   return {
     content: {
       text: postContent.trim(),
+      ...(variantContent ? { variants: variantContent } : {}),
       media: mediaIds.map(m => ({
         id: m.id,
         type: m.type,
@@ -158,7 +175,46 @@ export const buildMainPost = (params: BuildMainPostParams): CreatePostRequest =>
   };
 };
 
-export const buildThreadPost = (item: ThreadItem): CreateThreadPostRequest => {
+interface BuildEditPostParams {
+  postContent: string;
+  mediaIds: ComposerMediaItem[];
+  mentions: string[];
+  hashtags: string[];
+  collaboratorIds?: string[];
+  variantContent?: PostContentVariant[] | null;
+}
+
+/**
+ * The payload of an EDIT.
+ *
+ * Editing does not go through {@link buildMainPost} — an edit may only touch the
+ * body, the media and the collaborators, so it sends `UpdatePostRequest`, not a
+ * whole post. It still has to carry the renditions: without them, editing a
+ * multilingual post would silently strip every language but the primary.
+ */
+export const buildEditPost = (params: BuildEditPostParams): UpdatePostRequest => {
+  const { postContent, mediaIds, mentions, hashtags, collaboratorIds, variantContent } = params;
+
+  return {
+    content: {
+      text: postContent,
+      ...(variantContent ? { variants: variantContent } : {}),
+      media: mediaIds.map(m => ({
+        id: m.id,
+        type: m.type,
+        ...(m.type === 'image' && m.alt?.trim() ? { alt: m.alt.trim() } : {}),
+      })),
+    },
+    hashtags,
+    mentions,
+    ...(collaboratorIds && collaboratorIds.length > 0 ? { collaboratorIds } : {}),
+  };
+};
+
+export const buildThreadPost = (
+  item: ThreadItem,
+  variantContent?: PostContentVariant[] | null,
+): CreateThreadPostRequest => {
   const threadHasPoll = item.pollOptions.length > 0 && item.pollOptions.some(opt => opt.trim().length > 0);
   const threadHasLocation = Boolean(item.location);
   const threadHasArticle = Boolean(item.article && (item.article.title?.trim() || item.article.body?.trim()));
@@ -201,6 +257,7 @@ export const buildThreadPost = (item: ThreadItem): CreateThreadPostRequest => {
   return {
     content: {
       text: item.text.trim(),
+      ...(variantContent ? { variants: variantContent } : {}),
       media: item.mediaIds.map(m => ({
         id: m.id,
         type: m.type,

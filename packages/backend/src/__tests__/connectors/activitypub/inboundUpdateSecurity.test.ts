@@ -175,8 +175,11 @@ describe('handleUpdate — NoSQL-injection safety + ownership scope', () => {
       'federation.activityId': EDITED_NOTE_ID,
       'federation.actorUri': ACTOR_URI,
     });
-    // Body recovered from the contentMap variant (empty top-level content).
-    expect(update.$set['content.text']).toBe('texto editado');
+    // Body recovered from the contentMap variant (empty top-level content) and
+    // stored in its only home — the renditions.
+    expect(update.$set['content.variants']).toEqual([
+      { tag: 'es', source: 'author', text: 'texto editado' },
+    ]);
   });
 
   it('scopes the update to the sending actor so a replayed activityId cannot overwrite another actor’s post', async () => {

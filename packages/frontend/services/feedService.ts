@@ -503,6 +503,20 @@ class FeedService {
   }
 
   /**
+   * Translate a body the author is still writing, for a language tab in the
+   * composer. There is no post yet, so this takes the text itself rather than an
+   * id — and it PREFILLS an editable draft: what gets published is always what
+   * the author approved, never a machine translation nobody read.
+   */
+  async translateDraft(text: string, targetLanguage: string): Promise<string> {
+    const response = await authenticatedClient.post<{ translatedText: string }>(
+      '/posts/translate-draft',
+      { text, targetLanguage },
+    );
+    return response.data.translatedText;
+  }
+
+  /**
    * Get post by ID
    */
   async getPostById(postId: string): Promise<HydratedPost> {

@@ -27,6 +27,8 @@
  */
 
 import mongoose from 'mongoose';
+import type { PostContent } from '@mention/shared-types';
+import { resolveVariant } from '../services/postVariants';
 import { Post } from '../models/Post';
 import { baselineContentClassifier, BASELINE_CLASSIFIER_VERSION } from '../services/BaselineContentClassifier';
 import { logger } from '../utils/logger';
@@ -45,7 +47,7 @@ export interface BackfillPostLanguagesResult {
 /** Minimal projected shape the classifier needs. */
 interface PostLanguageRow {
   _id: mongoose.Types.ObjectId;
-  content?: { text?: string };
+  content: PostContent;
   hashtags?: string[];
   federation?: { sensitive?: boolean } | null;
 }
@@ -95,7 +97,7 @@ export async function backfillPostLanguages(
 
     const page = await Post.find(pageFilter, {
       _id: 1,
-      'content.text': 1,
+      'content.variants': 1,
       hashtags: 1,
       federation: 1,
     })
@@ -109,7 +111,10 @@ export async function backfillPostLanguages(
       scanned += 1;
       try {
         const signals = baselineContentClassifier.classify({
-          text: post.content?.text,
+          // The PRIMARY rendition — the author's own words. Detecting a language
+          // from a machine translation would just re-derive the language we asked
+          // the translator for.
+          text: resolveVariant(post.content).text,
           hashtags: post.hashtags,
           sensitive: post.federation?.sensitive,
           isFederated: post.federation != null,

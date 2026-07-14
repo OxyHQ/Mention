@@ -11,7 +11,8 @@ import {
   USER_AGENT,
   actorUrl,
 } from './constants';
-import { PostVisibility, type MediaItem } from '@mention/shared-types';
+import { PostVisibility, canonicalizeLanguageTag, type MediaItem, type PostContent } from '@mention/shared-types';
+import { authorVariants, resolveVariant } from '../../services/postVariants';
 import { enqueueDelivery } from '../../queue/producers';
 import { isFediverseSharingEnabled } from '../../services/fediverseSharing';
 import { actorService } from './actor.service';
@@ -86,6 +87,55 @@ function buildNoteAttachment(item: MediaItem | undefined | null): Record<string,
   // Alt text → AP `name` (accessibility description), when the author provided one.
   if (item?.alt) attachment.name = item.alt;
   return attachment;
+}
+
+/**
+ * The post fields the Note builder reads. A lean `Post` document satisfies it —
+ * every caller (push delivery, the outbox page, the per-post dereference route)
+ * already has one, so nothing re-fetches.
+ */
+export interface NoteSourcePost {
+  _id: unknown;
+  content: PostContent;
+  hashtags?: string[];
+  mentions?: string[];
+  createdAt: string | Date;
+}
+
+/**
+ * Build the AP `contentMap`: BCP-47 tag → localized body, PRIMARY KEY FIRST.
+ *
+ * The primary key is inserted before the rest are walked, so it leads the map
+ * unconditionally — the ordering is what Mastodon derives the status language
+ * from, and it must not depend on the shape of the data. Its value is the
+ * RESOLVED primary body, the same string that goes out as `content`, so the two
+ * can never disagree.
+ *
+ * Only AUTHOR variants are emitted. A machine translation is derived content: it
+ * is not the author's writing and it does not federate.
+ *
+ * Returns `undefined` when the post declares no language — an UNTAGGED primary
+ * variant (a body too short to detect, a remote Note that declared none) has no
+ * key to sit under, and an empty map is not a legal AS2 `contentMap`. Such a post
+ * federates with a body and no language claim, which is the honest thing: we
+ * would otherwise be inventing a language for text nobody could identify.
+ */
+function buildNoteContentMap(
+  post: NoteSourcePost,
+  primaryTag: string | undefined,
+  primaryBody: string,
+): Record<string, string> | undefined {
+  const contentMap: Record<string, string> = {};
+
+  if (primaryTag) contentMap[primaryTag] = primaryBody;
+
+  for (const variant of authorVariants(post.content)) {
+    const tag = canonicalizeLanguageTag(variant.tag);
+    if (tag === null || tag in contentMap) continue;
+    contentMap[tag] = variant.text;
+  }
+
+  return Object.keys(contentMap).length > 0 ? contentMap : undefined;
 }
 
 async function readResponsePreview(response: NodeJS.ReadableStream): Promise<string> {
@@ -281,21 +331,37 @@ export class FollowService {
    *
    * The SINGLE Note builder shared by push delivery (`federateNewPost`), the
    * outbox page, and the per-post dereference route so every surface Mastodon
-   * reads carries the same fidelity: canonical post URL, hashtag `tag`s, and
-   * media `attachment`s (built via the canonical media chokepoint, fail-soft).
+   * reads carries the same fidelity: canonical post URL, hashtag `tag`s, media
+   * `attachment`s (built via the canonical media chokepoint, fail-soft), and the
+   * post's language.
+   *
+   * LANGUAGE — `content` + `contentMap` + `language`:
+   *
+   * A Mastodon-compatible status carries ONE body. `content` is the primary
+   * body; `contentMap` is a map of BCP-47 tag → localized body, which Mastodon
+   * only reads as a FALLBACK when `content` is missing (`status_parser.rb`). So a
+   * multilingual Mention post federates as its PRIMARY body plus the full map —
+   * never as two rendered bodies.
+   *
+   * The map's KEY ORDER is load-bearing: Mastodon takes the status's language
+   * from `contentMap.keys.first`. The primary tag is therefore emitted first, or
+   * the status is labelled with the wrong language. Emitting a SINGLE-key map for
+   * a monolingual post is not redundant — it is the only way Mastodon learns the
+   * language at all.
+   *
+   * The body is RESOLVED from the post's primary variant here, at read time.
+   * There is no stored copy of it to read instead: AP's single `content` slot is
+   * a wire format, not a reason to denormalize storage.
+   *
+   * Media is a single AP `attachment` set, so it is the PRIMARY rendition's media
+   * (the shared set, or that variant's override, with its alt text already
+   * localized by the resolver). A non-primary variant's media override is
+   * internal to Mention — there is nowhere in AS2 to put a second attachment set.
    */
-  buildCreateNoteActivity(
-    post: {
-      _id: any;
-      content: { text?: string; media?: MediaItem[] };
-      hashtags?: string[];
-      mentions?: string[];
-      createdAt: string | Date;
-    },
-    username: string,
-  ): Record<string, unknown> {
+  buildCreateNoteActivity(post: NoteSourcePost, username: string): Record<string, unknown> {
     const actor = actorUrl(username);
-    const noteId = `${actor}/posts/${post._id}`;
+    const postId = String(post._id);
+    const noteId = `${actor}/posts/${postId}`;
     // Emit a canonical ISO 8601 `published` regardless of whether the caller
     // passed a Mongoose `Date` (outbox/dereference) or an ISO string (push).
     const published = post.createdAt instanceof Date ? post.createdAt.toISOString() : post.createdAt;
@@ -311,11 +377,19 @@ export class FollowService {
       }
     }
 
-    const attachments = Array.isArray(post.content?.media)
-      ? post.content.media
+    // The primary rendition: its body, its media (shared or overridden, alt
+    // localized) and the tag it is written in — all from the one resolver.
+    const primary = resolveVariant(post.content);
+
+    const attachments = Array.isArray(primary.media)
+      ? primary.media
           .map(buildNoteAttachment)
           .filter((a): a is Record<string, unknown> => a !== undefined)
       : [];
+
+    const primaryBody = primary.text;
+    const language = canonicalizeLanguageTag(primary.tag) ?? undefined;
+    const contentMap = buildNoteContentMap(post, language, primaryBody);
 
     return {
       '@context': AP_CONTEXT,
@@ -329,8 +403,10 @@ export class FollowService {
         id: noteId,
         type: 'Note',
         attributedTo: actor,
-        url: `https://${FEDERATION_DOMAIN}/@${username}/posts/${post._id}`,
-        content: post.content.text || '',
+        url: `https://${FEDERATION_DOMAIN}/@${username}/posts/${postId}`,
+        content: primaryBody,
+        contentMap,
+        language,
         published,
         to: ['https://www.w3.org/ns/activitystreams#Public'],
         cc: [`${actor}/followers`],
@@ -344,7 +420,7 @@ export class FollowService {
    * Federate a newly created local post to all remote followers.
    */
   async federateNewPost(
-    post: { _id: any; content: { text?: string; media?: MediaItem[] }; hashtags?: string[]; mentions?: string[]; visibility: string; createdAt: string },
+    post: NoteSourcePost & { visibility: string },
     senderOxyUserId: string,
     senderUsername: string,
   ): Promise<void> {

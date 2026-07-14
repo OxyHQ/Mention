@@ -227,3 +227,144 @@ describe('buildFederatedNoteContentForEdit', () => {
     expect(edited.hashtags).toEqual(created.hashtags);
   });
 });
+
+describe('multilingual ingest — a contentMap is one body PER LANGUAGE, not a fallback', () => {
+  it('persists EVERY localized body of a bilingual status as an author variant, primary first', async () => {
+    // Mastodon's own multilingual posts look exactly like this: a top-level
+    // `content` + `language` naming the primary, and a `contentMap` carrying one
+    // body per language. The old extraction collapsed the map to a single string
+    // and threw the other body away.
+    const built = await buildFederatedNoteContent(
+      {
+        content: '<p>hola mundo</p>',
+        language: 'es',
+        contentMap: { es: '<p>hola mundo</p>', en: '<p>hello world</p>' },
+      },
+      'owner-1',
+      {},
+    );
+    if (built.skip) throw new Error('expected content');
+
+    // `variants[0]` IS the primary — there is no stored `content.text` for it to
+    // mirror. `built.text` is the extraction's primary body (what the empty-note
+    // guard and the classifier read), and it is the same string by construction.
+    expect(built.variants).toEqual([
+      { tag: 'es', source: 'author', text: 'hola mundo' },
+      { tag: 'en', source: 'author', text: 'hello world' },
+    ]);
+    expect(built.text).toBe('hola mundo');
+  });
+
+  it('leads with the primary even when the contentMap declares it second', async () => {
+    const built = await buildFederatedNoteContent(
+      {
+        content: '<p>hello</p>',
+        language: 'en',
+        contentMap: { es: '<p>hola</p>', en: '<p>hello</p>' },
+      },
+      'owner-1',
+      {},
+    );
+    if (built.skip) throw new Error('expected content');
+
+    expect(built.variants.map((variant) => variant.tag)).toEqual(['en', 'es']);
+  });
+
+  it('caps the author variants at 3 — a hostile origin cannot grow a post without bound', async () => {
+    const built = await buildFederatedNoteContent(
+      {
+        content: '<p>one</p>',
+        language: 'en',
+        contentMap: {
+          en: '<p>one</p>',
+          es: '<p>uno</p>',
+          fr: '<p>un</p>',
+          de: '<p>eins</p>',
+          it: '<p>uno (it)</p>',
+        },
+      },
+      'owner-1',
+      {},
+    );
+    if (built.skip) throw new Error('expected content');
+
+    expect(built.variants).toHaveLength(3);
+    expect(built.variants.map((variant) => variant.tag)).toEqual(['en', 'es', 'fr']);
+  });
+
+  it('stores the single declared language of a monolingual note as its primary variant', async () => {
+    const built = await buildFederatedNoteContent({ content: '<p>hello</p>', language: 'en' }, 'owner-1', {});
+    if (built.skip) throw new Error('expected content');
+
+    expect(built.variants).toEqual([{ tag: 'en', source: 'author', text: 'hello' }]);
+  });
+
+  it('strips HTML and normalizes hashtags in a NON-primary body too — never stores raw markup', async () => {
+    const built = await buildFederatedNoteContent(
+      {
+        content: '<p>hello</p>',
+        language: 'en',
+        contentMap: { en: '<p>hello</p>', es: '<p>hola\n     mundo</p>' },
+      },
+      'owner-1',
+      {},
+    );
+    if (built.skip) throw new Error('expected content');
+
+    expect(built.variants[1]).toEqual({ tag: 'es', source: 'author', text: 'hola\nmundo' });
+  });
+
+  it('rejects an invalid BCP-47 contentMap key rather than storing an unusable tag', async () => {
+    const built = await buildFederatedNoteContent(
+      {
+        content: '<p>hello</p>',
+        language: 'en',
+        contentMap: { en: '<p>hello</p>', 'not a language': '<p>garbage</p>' },
+      },
+      'owner-1',
+      {},
+    );
+    if (built.skip) throw new Error('expected content');
+
+    expect(built.variants.map((variant) => variant.tag)).toEqual(['en']);
+  });
+
+  it('stores an UNTAGGED primary variant when the origin declared no language', async () => {
+    // The common case for non-Mastodon AP servers (Lemmy, PeerTube, bots): no
+    // `language`, no `contentMap`. The body is still the post and must be kept.
+    // Inventing a tag from a detector's guess would federate that lie onward.
+    const built = await buildFederatedNoteContent({ content: '<p>hello</p>' }, 'owner-1', {});
+    if (built.skip) throw new Error('expected content');
+
+    expect(built.variants).toEqual([{ source: 'author', text: 'hello' }]);
+    expect(built.variants[0].tag).toBeUndefined();
+  });
+
+  it('stores NO variant for a note with no body at all (media-only)', async () => {
+    h.materializeFederatedMedia.mockResolvedValue({
+      media: [{ id: 'file-1', type: 'image' }],
+      attachments: [],
+    });
+    const built = await buildFederatedNoteContent(
+      { content: '', attachment: [{ type: 'Document', url: 'https://x/y.png', mediaType: 'image/png' }] },
+      'owner-1',
+      {},
+    );
+    if (built.skip) throw new Error('expected content');
+
+    // No rendition, in any language — not an empty-string one.
+    expect(built.variants).toEqual([]);
+    expect(built.media).toHaveLength(1);
+  });
+
+  it('canonicalizes a regional tag (`pt-br` → `pt-BR`) — no raw string enters the model', async () => {
+    const built = await buildFederatedNoteContent(
+      { content: '<p>ola</p>', language: 'pt-br' },
+      'owner-1',
+      {},
+    );
+    if (built.skip) throw new Error('expected content');
+
+    expect(built.variants[0].tag).toBe('pt-BR');
+  });
+});

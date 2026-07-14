@@ -122,13 +122,14 @@ function buildEmptyFederatedFilter(actorUri: string | undefined): Record<string,
     'content.poll': null,
     'content.pollId': null,
     pollId: null,
-    // Empty text AND empty media AND empty attachments.
+    // No rendition AND empty media AND empty attachments. The body lives only in
+    // `content.variants`, so "empty text" is "no variant carrying a body".
     $and: [
       {
         $or: [
-          { 'content.text': { $exists: false } },
-          { 'content.text': null },
-          { 'content.text': { $regex: /^\s*$/ } },
+          { 'content.variants': { $exists: false } },
+          { 'content.variants': { $size: 0 } },
+          { 'content.variants.text': { $not: { $regex: /\S/ } } },
         ],
       },
       {
@@ -230,7 +231,9 @@ async function reingestEmptyFederatedPosts(): Promise<void> {
           : PostType.TEXT;
 
         const setOps: Record<string, unknown> = {
-          'content.text': built.text,
+          // The re-ingested body, in its only home. Replaces every rendition:
+          // this post was blank, so there is nothing to preserve.
+          'content.variants': built.variants,
           type: derivedType,
           hashtags: built.hashtags,
           'metadata.isSensitive': built.sensitive,

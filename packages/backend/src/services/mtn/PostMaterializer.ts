@@ -27,7 +27,7 @@
  *    The READ side turns each bare `sha256` back into a servable native MediaItem
  *    with the REVERSE content-address lookup `getServiceAssetMetadataBySha256`
  *    (core 5.2.0, `POST /assets/service/by-sha256`) — the inverse of the FORWARD
- *    `fileId → sha256` lookup the write side uses. {@link resolveEmbedToMedia}
+ *    `fileId → sha256` lookup the write side uses. {@link resolveRecordFileIds}
  *    maps each resolvable blob to `{ id: <resolved Oxy fileId>, type, alt? }`, so
  *    the materialized post's `content.media` renders through the EXISTING
  *    `getFileDownloadUrl` CDN path EXACTLY like a normal fileId post. FAIL-SOFT: a
@@ -60,6 +60,8 @@ import {
   mentionTombstoneRecordSchema,
   mentionBookmarkRecordSchema,
   MtnUri,
+  canonicalizeLanguageTag,
+  toBaseLanguage,
   type MentionPostRecord,
   type MentionLikeRecord,
   type MentionRepostRecord,
@@ -67,6 +69,7 @@ import {
   type MentionBookmarkRecord,
   type MtnMediaEmbed,
   type MediaItem,
+  type PostContentVariant,
 } from '@mention/shared-types';
 import { PostType, PostVisibility } from '@mention/shared-types';
 import { Post, POST_CLASSIFICATION_PENDING } from '../../models/Post';
@@ -91,84 +94,176 @@ export type ProjectResult =
   | { ok: false; reason: string };
 
 /**
- * Resolve a record `embed` (content-addressed blob refs) to native
- * `content.media` MediaItems by REVERSE content-address lookup.
+ * Reverse-resolve EVERY content address a post record references — the shared
+ * `embed`, each variant's media override, and the blob keys of each variant's
+ * localized `alt` map — into live Oxy file ids, in ONE batched lookup however
+ * many languages the record carries.
  *
- * Each `embed.items[].blob.sha256` is batch-resolved through the service-scoped
- * SDK's `getServiceAssetMetadataBySha256` (core 5.2.0, `POST
+ * The lookup is `getServiceAssetMetadataBySha256` (core 5.2.0, `POST
  * /assets/service/by-sha256`) — the inverse of the write side's forward
- * `fileId → sha256` lookup. Every blob that resolves to a LIVE (`status:'active'`)
- * asset becomes a `MediaItem` whose `id` is the resolved Oxy `fileId` and whose
- * `type` is the lexicon `mediaType` (the two enums are identical), preserving the
- * embed's order and `alt` text. The materialized post's `content.media` then
- * renders through the EXISTING `getFileDownloadUrl`/`mediaResolver` CDN path
- * exactly like a normal fileId post — no new render path, no fake URL.
+ * `fileId → sha256`. Each resolved blob becomes a `MediaItem` whose `id` is the
+ * Oxy fileId, so a materialized post renders through the EXISTING
+ * `getFileDownloadUrl`/`mediaResolver` CDN path exactly like a native fileId
+ * post — no new render path, no fake URL.
  *
- * FAIL-SOFT — NEVER THROWS:
- *  - No embed / empty items → `[]` (the caller then leaves `content.media`
- *    untouched, preserving any existing fileId media).
- *  - A `sha256` with no live asset in our S3 (unknown/trashed — the upstream
- *    omits these from the batch) is simply DROPPED, never placeholdered with a
- *    guessed URL. A record whose blobs are not yet mirrored yields fewer/zero
- *    items rather than failing.
- *  - Any lookup error (e.g. a `files:read`-scope 403 on the federation
- *    credential) is logged and yields `[]`, so a media-resolution failure can
- *    never abort projection.
+ * Only `active` assets are renderable; a `trash`ed one is treated as
+ * unresolvable rather than linked to a dead file. FAIL-SOFT — NEVER THROWS: a
+ * blob with no live asset here (unknown/trashed — the upstream omits it from the
+ * batch) is DROPPED, and any lookup error (e.g. a `files:read`-scope 403 on the
+ * federation credential) yields an empty index. Every downstream resolution then
+ * degrades to "no media" and projection continues; the caller skips the empty
+ * write, so an existing post's media survives (zero-regression guard).
  */
-async function resolveEmbedToMedia(embed: MtnMediaEmbed | undefined): Promise<MediaItem[]> {
-  if (!embed || !Array.isArray(embed.items) || embed.items.length === 0) {
-    return [];
+async function resolveRecordFileIds(record: MentionPostRecord): Promise<Map<string, string>> {
+  const sha256s = new Set<string>();
+
+  const collectEmbed = (embed: MtnMediaEmbed | undefined): void => {
+    if (!embed || !Array.isArray(embed.items)) return;
+    for (const item of embed.items) {
+      const sha256 = item.blob?.sha256;
+      if (typeof sha256 === 'string' && sha256.length > 0) sha256s.add(sha256);
+    }
+  };
+
+  collectEmbed(record.embed);
+  for (const variant of record.variants ?? []) {
+    collectEmbed(variant.embed);
+    for (const sha256 of Object.keys(variant.alt ?? {})) {
+      if (sha256.length > 0) sha256s.add(sha256);
+    }
   }
 
-  // Collect the distinct content addresses to resolve (preserve item order for
-  // the output; the lookup itself is order-independent and deduped).
-  const sha256s = Array.from(
-    new Set(
-      embed.items
-        .map((item) => item.blob?.sha256)
-        .filter((sha): sha is string => typeof sha === 'string' && sha.length > 0),
-    ),
-  );
-  if (sha256s.length === 0) {
-    return [];
-  }
+  if (sha256s.size === 0) return new Map();
 
   try {
-    const metadata = await getServiceOxyClient().getServiceAssetMetadataBySha256(sha256s);
-    // sha256 → live fileId. Only `active` assets are renderable; a `trash` asset
-    // is dropped (treated as unresolvable) rather than linked to a dead file.
-    const fileIdBySha = new Map<string, string>();
+    const metadata = await getServiceOxyClient().getServiceAssetMetadataBySha256([...sha256s]);
+    const fileIdBySha256 = new Map<string, string>();
     for (const entry of metadata) {
       if (entry.status === 'active' && typeof entry.id === 'string' && entry.id.length > 0) {
-        fileIdBySha.set(entry.sha256, entry.id);
+        fileIdBySha256.set(entry.sha256, entry.id);
       }
     }
-
-    const media: MediaItem[] = [];
-    for (const item of embed.items) {
-      // Bind `blob` explicitly so it is provably defined at the `mediaType`
-      // access below (optional chaining alone would not narrow `item.blob`).
-      const blob = item.blob;
-      if (!blob || typeof blob.sha256 !== 'string' || blob.sha256.length === 0) continue;
-      const fileId = fileIdBySha.get(blob.sha256);
-      // Unresolvable blob (not in our S3 / trashed): drop it — no fake URL.
-      if (!fileId) continue;
-      const resolved: MediaItem = { id: fileId, type: blob.mediaType };
-      if (typeof item.alt === 'string' && item.alt.length > 0) {
-        resolved.alt = item.alt;
-      }
-      media.push(resolved);
-    }
-    return media;
+    return fileIdBySha256;
   } catch (error) {
-    // Best-effort: a failed reverse lookup must never abort projection. Leave the
-    // post's existing media untouched (the caller skips the empty write).
-    logger.warn('PostMaterializer: resolveEmbedToMedia failed; projecting without record media', {
-      sha256Count: sha256s.length,
+    // Best-effort: a failed reverse lookup must never abort projection.
+    logger.warn('PostMaterializer: content-address lookup failed; projecting without record media', {
+      sha256Count: sha256s.size,
       error: error instanceof Error ? error.message : String(error),
     });
-    return [];
+    return new Map();
   }
+}
+
+/**
+ * Project a record's body back onto native `content.variants` — the post's ONLY
+ * body storage. Every variant on the chain is authored by definition (a machine
+ * translation is never signed), so they all materialize as `source:'author'`.
+ *
+ * TWO SHAPES, one output:
+ *  - A MULTILINGUAL record carries `variants[]`, each with its own tag.
+ *  - A MONOLINGUAL record carries none — its single body is the record's primary
+ *    `text`, tagged by `langs[0]`. Emitting a one-entry `variants` array on the
+ *    wire would just be a second copy of `text`, so the writer omits it and this
+ *    reader reconstitutes it. That is also the DEGRADATION path: a record written
+ *    by a reader that never heard of `variants` still materializes a complete,
+ *    correctly-tagged post from `text` + `langs` alone.
+ *
+ * The body may end up UNTAGGED (no `langs`, or an unusable one). That is a real
+ * state, not a failure: the post is text nobody could assign a language to.
+ *
+ * The `alt` map is re-keyed from blob `sha256` (what the chain speaks) back to
+ * the Oxy media id (what the renderer speaks); an entry whose blob is not
+ * mirrored here is dropped rather than left pointing at a key no renderer can
+ * match. `alt` and `media` are mutually exclusive by the content model, so a
+ * (malformed) record carrying both keeps the media override and drops the alt
+ * map — never two sources of truth for one alt text.
+ *
+ * A variant whose media override resolves to NOTHING (its blobs are not mirrored
+ * here yet) is materialized WITHOUT a media set, so it inherits the shared one.
+ * Inheriting the post's real images beats rendering a variant with none.
+ */
+function buildVariantsFromRecord(
+  record: MentionPostRecord,
+  fileIdBySha256: Map<string, string>,
+  createdAt: Date,
+): PostContentVariant[] {
+  const variants: PostContentVariant[] = [];
+  const createdAtIso = createdAt.toISOString();
+
+  // Monolingual record: rebuild the single primary rendition from `text`+`langs`.
+  if (!record.variants || record.variants.length === 0) {
+    const text = typeof record.text === 'string' ? record.text : '';
+    // An empty body has no rendition at all (a boost) — not an empty one.
+    if (text.length === 0) return [];
+    const primary: PostContentVariant = { source: 'author', text, createdAt: createdAtIso };
+    const tag = canonicalizeLanguageTag(record.langs?.[0]);
+    if (tag !== null) primary.tag = tag;
+    return [primary];
+  }
+
+  for (const source of record.variants) {
+    const tag = canonicalizeLanguageTag(source.tag);
+    if (tag === null || typeof source.text !== 'string') continue;
+
+    const variant: PostContentVariant = {
+      tag,
+      source: 'author',
+      text: source.text,
+      createdAt: createdAtIso,
+    };
+
+    const media = resolveEmbedItemsToMedia(source.embed, fileIdBySha256);
+    if (media.length > 0) {
+      variant.media = media;
+    } else if (source.alt) {
+      const alt: Record<string, string> = {};
+      for (const [sha256, text] of Object.entries(source.alt)) {
+        if (typeof text !== 'string' || text.length === 0) continue;
+        const fileId = fileIdBySha256.get(sha256);
+        if (!fileId) continue;
+        alt[fileId] = text;
+      }
+      if (Object.keys(alt).length > 0) variant.alt = alt;
+    }
+
+    if (source.article) {
+      const article: NonNullable<PostContentVariant['article']> = {};
+      if (source.article.title) article.title = source.article.title;
+      if (source.article.body) article.body = source.article.body;
+      if (source.article.excerpt) article.excerpt = source.article.excerpt;
+      if (Object.keys(article).length > 0) variant.article = article;
+    }
+
+    variants.push(variant);
+  }
+
+  return variants;
+}
+
+/**
+ * The synchronous core of the blob → MediaItem mapping, shared by the shared
+ * embed and every variant override (the network lookup already happened once, in
+ * {@link resolveRecordFileIds}).
+ */
+function resolveEmbedItemsToMedia(
+  embed: MtnMediaEmbed | undefined,
+  fileIdBySha256: Map<string, string>,
+): MediaItem[] {
+  if (!embed || !Array.isArray(embed.items) || embed.items.length === 0) return [];
+
+  const media: MediaItem[] = [];
+  for (const item of embed.items) {
+    const blob = item.blob;
+    if (!blob || typeof blob.sha256 !== 'string' || blob.sha256.length === 0) continue;
+    const fileId = fileIdBySha256.get(blob.sha256);
+    if (!fileId) continue;
+    const resolved: MediaItem = { id: fileId, type: blob.mediaType };
+    if (typeof item.alt === 'string' && item.alt.length > 0) {
+      resolved.alt = item.alt;
+    }
+    media.push(resolved);
+  }
+  return media;
 }
 
 /**
@@ -246,7 +341,7 @@ function buildClassificationFields(record: MentionPostRecord): Record<string, un
  * Project an `app.mention.feed.post` record into a `Post` row, upserted by
  * `_id = rkey`. Only the fields the record OWNS are `$set` (text/reply/tags/…).
  * `content.media` is written ONLY when the record's content-addressed `embed`
- * RESOLVES to ≥1 live MediaItem ({@link resolveEmbedToMedia}); an empty
+ * RESOLVES to ≥1 live MediaItem ({@link resolveEmbedItemsToMedia}); an empty
  * resolution leaves the field untouched, so an existing post's fileId media
  * survives re-projection (zero-regression guard).
  */
@@ -272,25 +367,37 @@ async function projectPost(
     oxyUserId,
     authorship: buildAuthorship(oxyUserId, []),
     type: PostType.TEXT,
-    'content.text': record.text ?? '',
     hashtags: tags,
     parentPostId,
     threadId,
     createdAt,
   };
 
-  if (record.langs?.[0]) {
-    set.language = record.langs[0];
+  // The top-level AP `post.language` is a BASE subtag (the classifier's alphabet),
+  // while the record's `langs` are BCP-47 (`es-ES`). Normalize rather than storing
+  // a regional tag in a field the ranking layer reads as a base code.
+  const primaryBase = toBaseLanguage(record.langs?.[0]);
+  if (primaryBase !== null) {
+    set.language = primaryBase;
   }
+
+  // ONE content-address lookup for the whole record: the shared embed, every
+  // variant's media override, and the blob keys of every variant's `alt` map.
+  const fileIdBySha256 = await resolveRecordFileIds(record);
 
   // `content.media`: reverse-resolve the content-addressed blob embed to native
   // fileId MediaItems. Only set the path when ≥1 blob resolved — an empty result
   // (no embed, or blobs not yet in our S3) is intentionally OMITTED so the upsert
   // never clobbers an existing post's fileId media to empty.
-  const media = await resolveEmbedToMedia(record.embed);
+  const media = resolveEmbedItemsToMedia(record.embed, fileIdBySha256);
   if (media.length > 0) {
     set['content.media'] = media;
   }
+
+  // The body — `content.variants` is its only home, and `variants[0]` is the
+  // primary. Always written (even empty, for a bodiless record) so a re-projection
+  // can never leave a stale rendition of a body the chain has since changed.
+  set['content.variants'] = buildVariantsFromRecord(record, fileIdBySha256, createdAt);
 
   // `content.sources`: map the record's source links to the native shape.
   if (Array.isArray(record.sources) && record.sources.length > 0) {
@@ -351,6 +458,10 @@ async function projectLike(
  * Project an `app.mention.feed.repost` record into a `type: 'boost'` Post row
  * (upsert by `_id = rkey`). A boost has an INTENTIONALLY EMPTY content body and
  * relies on `boostOf` for hydration (see the boost-hydration gotcha).
+ *
+ * "Empty body" now means NO RENDITION — an empty `content.variants`, not a
+ * rendition whose text happens to be `''`. A boost has nothing to say in any
+ * language, so there is nothing to tag.
  */
 async function projectRepost(
   rkey: string,
@@ -369,7 +480,7 @@ async function projectRepost(
         authorship: buildAuthorship(oxyUserId, []),
         type: PostType.BOOST,
         boostOf,
-        'content.text': '',
+        'content.variants': [],
         createdAt,
       },
       $setOnInsert: { visibility: PostVisibility.PUBLIC, status: 'published' },

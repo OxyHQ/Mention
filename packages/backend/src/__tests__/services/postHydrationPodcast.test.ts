@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { PostAttachmentBundle, PostContent, PostPodcastContent } from '@mention/shared-types';
+import { resolveVariant } from '../../services/postVariants';
 
 /**
  * Unit test for the podcast branch of {@link PostHydrationService.buildAttachments}:
@@ -11,6 +12,10 @@ import type { PostAttachmentBundle, PostContent, PostPodcastContent } from '@men
  * interface (no `as any`). It performs no DB / network I/O for the podcast
  * branch, so the model + client imports are stubbed only so the service module
  * imports cleanly (mirrors the mention-hydration test harness).
+ *
+ * It takes the reader's RESOLVED language rendition (media + article), because the
+ * attachment bundle must render the same rendition as `content` — hydration
+ * resolves it once per post and threads it into both.
  */
 
 // `server.ts` constructs a live OxyServices client at import time; stub it.
@@ -41,11 +46,17 @@ interface AttachmentBuilder {
   buildAttachments(
     post: { content?: Partial<PostContent> },
     pollMap: Map<string, Record<string, unknown>>,
+    resolved: ReturnType<typeof resolveVariant>,
   ): PostAttachmentBundle;
 }
 
 function asBuilder(service: PostHydrationService): AttachmentBuilder {
   return service as unknown as AttachmentBuilder;
+}
+
+/** Build the bundle the way hydration does: on the reader's resolved rendition. */
+function buildBundle(service: PostHydrationService, content: PostContent): PostAttachmentBundle {
+  return asBuilder(service).buildAttachments({ content }, new Map(), resolveVariant(content));
 }
 
 describe('PostHydrationService.buildAttachments — podcast', () => {
@@ -64,13 +75,13 @@ describe('PostHydrationService.buildAttachments — podcast', () => {
       showUrl: 'https://syra.fm/podcasts/show-123',
     };
 
-    const attachments = asBuilder(service).buildAttachments({ content: { podcast } }, new Map());
+    const attachments = buildBundle(service, { podcast });
 
     expect(attachments.podcast).toEqual(podcast);
   });
 
   it('omits podcast from the bundle when the post has no podcast', () => {
-    const attachments = asBuilder(service).buildAttachments({ content: { text: 'hello' } }, new Map());
+    const attachments = buildBundle(service, { text: 'hello' });
 
     expect(attachments.podcast).toBeUndefined();
   });

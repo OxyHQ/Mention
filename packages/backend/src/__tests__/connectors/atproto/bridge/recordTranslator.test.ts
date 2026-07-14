@@ -86,6 +86,26 @@ describe('translatePostRecord', () => {
     });
   });
 
+  it('emits the PRIMARY body of a multilingual post — an app.bsky.feed.post has ONE body + langs', () => {
+    // Bluesky's post lexicon has no `contentMap` equivalent: one `text`, plus the
+    // `langs` codes. So a multilingual MTN record bridges as its primary body and
+    // the full language set — never as two bodies, and never as a concatenation.
+    const record: MentionPostRecord = {
+      text: 'hola mundo',
+      createdAt: '2026-06-30T00:00:00.000Z',
+      langs: ['es', 'en'],
+      variants: [
+        { tag: 'es-ES', text: 'hola mundo' },
+        { tag: 'en-US', text: 'hello world' },
+      ],
+    };
+
+    const out = translatePostRecord(record);
+    expect(out.text).toBe('hola mundo');
+    expect(out.langs).toEqual(['es', 'en']);
+    expect(out).not.toHaveProperty('variants');
+  });
+
   it('maps facets (mention/link/hashtag) to app.bsky.richtext.facet', () => {
     const record: MentionPostRecord = {
       text: 'hi @x #tag http://e.com',

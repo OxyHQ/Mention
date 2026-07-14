@@ -35,7 +35,7 @@ export const keywordsSource: SourceModule = {
       const regexes = keywords.map((k) => new RegExp(k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'));
       conditions.push({
         $or: [
-          { 'content.text': { $in: regexes } },
+          { 'content.variants.text': { $in: regexes } },
           { hashtags: { $in: keywords.map((k) => k.toLowerCase()) } },
         ],
       });

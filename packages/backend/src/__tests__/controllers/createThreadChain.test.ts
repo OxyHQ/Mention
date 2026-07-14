@@ -67,6 +67,22 @@ type ThreadPostDoc = {
   threadId?: string;
 };
 
+/**
+ * The request the controller actually receives from Express. `query` +
+ * `acceptsLanguages` are what the language ladder reads to pick which localized
+ * rendition of the created posts to hydrate (`requestLanguageCandidates`); this
+ * reader declares none, so hydration serves each post's primary language.
+ */
+function buildRequest(body: Record<string, unknown>) {
+  return {
+    user: { id: 'author_1' },
+    query: {},
+    acceptsLanguages: () => [] as string[],
+    headers: {},
+    body,
+  };
+}
+
 function buildResponse() {
   const payload: { value?: { posts: ThreadPostDoc[] }; status?: number } = {};
   const res = {
@@ -94,17 +110,14 @@ describe('createThread — sequential chain linkage', () => {
   });
 
   it('chains each continuation post to the immediately-previous post with a shared root threadId', async () => {
-    const req = {
-      user: { id: 'author_1' },
-      body: {
-        mode: 'thread',
-        posts: [
-          { content: { text: 'Root post' } },
-          { content: { text: 'Continuation 1' } },
-          { content: { text: 'Continuation 2' } },
-        ],
-      },
-    };
+    const req = buildRequest({
+      mode: 'thread',
+      posts: [
+        { content: { text: 'Root post' } },
+        { content: { text: 'Continuation 1' } },
+        { content: { text: 'Continuation 2' } },
+      ],
+    });
 
     const { res, payload } = buildResponse();
     await createThread(req as never, res as never);
@@ -133,13 +146,10 @@ describe('createThread — sequential chain linkage', () => {
   });
 
   it('leaves a single-post thread-mode call unlinked (no threadId on the lone root)', async () => {
-    const req = {
-      user: { id: 'author_1' },
-      body: {
-        mode: 'thread',
-        posts: [{ content: { text: 'Solo post' } }],
-      },
-    };
+    const req = buildRequest({
+      mode: 'thread',
+      posts: [{ content: { text: 'Solo post' } }],
+    });
 
     const { res, payload } = buildResponse();
     await createThread(req as never, res as never);
@@ -154,16 +164,13 @@ describe('createThread — sequential chain linkage', () => {
   });
 
   it('does not link beast-mode posts (each post is independent)', async () => {
-    const req = {
-      user: { id: 'author_1' },
-      body: {
-        mode: 'beast',
-        posts: [
-          { content: { text: 'Independent 1' } },
-          { content: { text: 'Independent 2' } },
-        ],
-      },
-    };
+    const req = buildRequest({
+      mode: 'beast',
+      posts: [
+        { content: { text: 'Independent 1' } },
+        { content: { text: 'Independent 2' } },
+      ],
+    });
 
     const { res, payload } = buildResponse();
     await createThread(req as never, res as never);

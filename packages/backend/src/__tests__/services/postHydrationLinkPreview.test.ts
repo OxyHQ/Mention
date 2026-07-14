@@ -94,7 +94,9 @@ function postRow(text: string = `look at this ${POST_URL}`) {
     _id: POST_ID,
     oxyUserId: AUTHOR_OXY_ID,
     type: 'post',
-    content: { text },
+    // Stored content is normalized: the body lives on the primary rendition, and
+    // the URLs previewed are the ones in the rendition the reader is served.
+    content: { variants: [{ tag: 'en', source: 'author', text }] },
     stats: { likesCount: 0, boostsCount: 0, commentsCount: 0, downvotesCount: 0, viewsCount: 0 },
     metadata: { createdAt: new Date('2024-01-01T00:00:00Z') },
     createdAt: new Date('2024-01-01T00:00:00Z'),

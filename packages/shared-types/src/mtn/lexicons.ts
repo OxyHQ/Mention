@@ -198,7 +198,51 @@ export const mtnFacetSchema: z.ZodType<MtnFacet> = z.object({
  * declared languages, tags, cited sources, an optional location, and the
  * authoring timestamp.
  */
+/**
+ * One AUTHOR-WRITTEN localized rendition, as signed onto the chain.
+ *
+ * Machine translations are NEVER signed: they are derived content, and putting
+ * them in the author's record would attribute to them words they did not write.
+ * The chain carries only what the human authored — which is also what makes it
+ * able to reproduce the post in full: text, localized alt text, an alternate
+ * media embed, and localized long-form.
+ */
+export interface MentionPostVariant {
+  /**
+   * Canonical BCP-47 tag (`es-ES`). Absent when the post has no resolvable
+   * language — we do not invent one, because an invented tag would be signed.
+   */
+  tag?: string;
+  text: string;
+  /** Localized alt text for the SHARED embed, keyed by blob ref. */
+  alt?: Record<string, string>;
+  /** Replaces the embed for this language (different images per language). */
+  embed?: MtnMediaEmbed;
+  article?: { title?: string; body?: string; excerpt?: string };
+}
+
+export const mentionPostVariantSchema: z.ZodType<MentionPostVariant> = z.object({
+  tag: z.string().min(1).optional(),
+  text: z.string(),
+  alt: z.record(z.string(), z.string()).optional(),
+  embed: mtnMediaEmbedSchema.optional(),
+  article: z
+    .object({
+      title: z.string().optional(),
+      body: z.string().optional(),
+      excerpt: z.string().optional(),
+    })
+    .optional(),
+});
+
 export interface MentionPostRecord {
+  /**
+   * The PRIMARY body. Stays required even on a multilingual post: a reader on an
+   * older schema drops the unknown `variants` key (the schema is a plain
+   * `z.object`, so unknown keys are stripped, not rejected) and still
+   * materializes a complete, correct post from this field. That graceful
+   * degradation is what keeps the hash chain verifiable across versions.
+   */
   text: string;
   facets?: MtnFacet[];
   embed?: MtnMediaEmbed;
@@ -207,6 +251,8 @@ export interface MentionPostRecord {
   tags?: string[];
   sources?: MtnSourceLink[];
   location?: MtnGeoPoint;
+  /** Author-written localized renditions, primary first. Never machine output. */
+  variants?: MentionPostVariant[];
   createdAt: string;
 }
 
@@ -219,6 +265,7 @@ export const mentionPostRecordSchema: z.ZodType<MentionPostRecord> = z.object({
   tags: z.array(z.string()).optional(),
   sources: z.array(mtnSourceLinkSchema).optional(),
   location: mtnGeoPointSchema.optional(),
+  variants: z.array(mentionPostVariantSchema).optional(),
   createdAt: z.string().min(1),
 });
 

@@ -35,6 +35,8 @@
  */
 
 import mongoose from 'mongoose';
+import type { PostContent } from '@mention/shared-types';
+import { resolveVariant } from '../services/postVariants';
 import { Post } from '../models/Post';
 import { FederatedActor } from '../models/FederatedActor';
 import { BASELINE_CLASSIFIER_VERSION } from '../services/BaselineContentClassifier';
@@ -58,7 +60,7 @@ export interface BackfillPostClassificationScoresResult {
 /** Minimal projected shape the score recompute needs. */
 interface PostScoreRow {
   _id: mongoose.Types.ObjectId;
-  content?: { text?: string };
+  content: PostContent;
   hashtags?: string[];
   federation?: { actorUri?: string } | null;
   postClassification?: { hashtagsNorm?: string[] };
@@ -145,7 +147,7 @@ export async function backfillPostClassificationScores(
 
     const page = await Post.find(pageFilter, {
       _id: 1,
-      'content.text': 1,
+      'content.variants': 1,
       hashtags: 1,
       'federation.actorUri': 1,
       'postClassification.hashtagsNorm': 1,
@@ -171,7 +173,7 @@ export async function backfillPostClassificationScores(
         const hashtagCount = post.postClassification?.hashtagsNorm?.length ?? post.hashtags?.length ?? 0;
 
         const scores = toClassificationScores(
-          computeDeterministicScores(post.content?.text ?? '', hashtagCount, {
+          computeDeterministicScores(resolveVariant(post.content).text, hashtagCount, {
             actorType: actorContext?.type,
             instanceDomain: actorContext?.domain,
             isFederated,

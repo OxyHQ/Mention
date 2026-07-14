@@ -7,60 +7,61 @@ import { normalizeApiError } from '@/utils/apiError';
 
 interface UseMediaPickerProps {
   showBottomSheet?: (screenOrConfig: RouteName | { screen: RouteName; props?: Record<string, unknown> }) => void;
-  setMediaIds: (updater: (prev: ComposerMediaItem[]) => ComposerMediaItem[]) => void;
   t: (key: string) => string;
 }
 
-export const useMediaPicker = ({
-  showBottomSheet,
-  setMediaIds,
-  t,
-}: UseMediaPickerProps) => {
-  const openMediaPicker = useCallback(() => {
-    showBottomSheet?.({
-      screen: 'FileManagement',
-      props: {
-        selectMode: true,
-        multiSelect: true,
-        disabledMimeTypes: ['audio/', 'application/pdf'],
-        afterSelect: 'back',
-        onSelect: async (file: FileMetadata) => {
-          const isImage = file?.contentType?.startsWith?.('image/');
-          const isVideo = file?.contentType?.startsWith?.('video/');
-          if (!isImage && !isVideo) {
-            toast(t('Please select an image or video file'), { type: 'error' });
-            return;
-          }
-          try {
-            const resolvedType = toComposerMediaType(isImage ? 'image' : 'video', file?.contentType);
-            const mediaItem: ComposerMediaItem = { id: file.id, type: resolvedType };
-            setMediaIds(prev => prev.some(m => m.id === file.id) ? prev : [...prev, mediaItem]);
-            toast(t(isImage ? 'Image attached' : 'Video attached'), { type: 'success' });
-          } catch (e: unknown) {
-            toast(normalizeApiError(e).message || t('Failed to attach media'), { type: 'error' });
-          }
+/**
+ * Opens the Oxy file manager and hands the chosen images/videos to whoever asked
+ * for them.
+ *
+ * The destination is passed at OPEN time rather than baked into the hook: the
+ * composer now has more than one media set — the shared one, and the media a
+ * language chooses to show instead — and they must not both live behind one
+ * hard-wired setter.
+ */
+export const useMediaPicker = ({ showBottomSheet, t }: UseMediaPickerProps) => {
+  const openMediaPicker = useCallback(
+    (onAdd: (media: ComposerMediaItem[]) => void) => {
+      showBottomSheet?.({
+        screen: 'FileManagement',
+        props: {
+          selectMode: true,
+          multiSelect: true,
+          disabledMimeTypes: ['audio/', 'application/pdf'],
+          afterSelect: 'back',
+          onSelect: async (file: FileMetadata) => {
+            const isImage = file?.contentType?.startsWith?.('image/');
+            const isVideo = file?.contentType?.startsWith?.('video/');
+            if (!isImage && !isVideo) {
+              toast(t('Please select an image or video file'), { type: 'error' });
+              return;
+            }
+            try {
+              const resolvedType = toComposerMediaType(isImage ? 'image' : 'video', file?.contentType);
+              onAdd([{ id: file.id, type: resolvedType }]);
+              toast(t(isImage ? 'Image attached' : 'Video attached'), { type: 'success' });
+            } catch (e: unknown) {
+              toast(normalizeApiError(e).message || t('Failed to attach media'), { type: 'error' });
+            }
+          },
+          onConfirmSelection: async (files: FileMetadata[]) => {
+            const validFiles = (files || []).filter(f => {
+              const contentType = f?.contentType || '';
+              return contentType.startsWith('image/') || contentType.startsWith('video/');
+            });
+            if (validFiles.length !== (files || []).length) {
+              toast(t('Please select only image or video files'), { type: 'error' });
+            }
+            onAdd(validFiles.map(f => ({
+              id: f.id,
+              type: toComposerMediaType(f.contentType?.startsWith('image/') ? 'image' : 'video', f.contentType),
+            })));
+          },
         },
-        onConfirmSelection: async (files: FileMetadata[]) => {
-          const validFiles = (files || []).filter(f => {
-            const contentType = f?.contentType || '';
-            return contentType.startsWith('image/') || contentType.startsWith('video/');
-          });
-          if (validFiles.length !== (files || []).length) {
-            toast(t('Please select only image or video files'), { type: 'error' });
-          }
-          const mediaItems = validFiles.map(f => ({
-            id: f.id,
-            type: toComposerMediaType(f.contentType?.startsWith('image/') ? 'image' : 'video', f.contentType)
-          }));
-          setMediaIds(prev => {
-            const existingIds = new Set(prev.map(m => m.id));
-            const newItems = mediaItems.filter(m => !existingIds.has(m.id));
-            return [...prev, ...newItems];
-          });
-        }
-      }
-    });
-  }, [showBottomSheet, setMediaIds, t]);
+      });
+    },
+    [showBottomSheet, t],
+  );
 
   return {
     openMediaPicker,

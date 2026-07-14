@@ -32,7 +32,8 @@
  *   bun packages/backend/dist/src/scripts/evalFeedQuality.js --languages en,es --sample 300
  */
 
-import type { PostClassification } from '@mention/shared-types';
+import type { PostClassification, PostContent } from '@mention/shared-types';
+import { resolveVariant } from '../services/postVariants';
 import type { FeedTuning } from '@mention/shared-types';
 import { getBaseLanguage } from '@oxyhq/core';
 import { explainRanking } from '../mtn/feed/RankingExplainer';
@@ -173,8 +174,8 @@ function readStringArray(value: unknown): string[] {
 }
 
 function readText(post: CandidatePost): string {
-  const content = field<{ text?: unknown }>(post, 'content');
-  return typeof content?.text === 'string' ? content.text : '';
+  const content = field<PostContent>(post, 'content');
+  return content ? resolveVariant(content).text : '';
 }
 
 function readClassificationLanguages(post: CandidatePost): string[] {

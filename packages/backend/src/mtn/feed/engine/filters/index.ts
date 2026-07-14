@@ -6,12 +6,13 @@
  */
 
 import { PostType, MtnConfig } from '@mention/shared-types';
-import type { ForYouFeedTuning } from '@mention/shared-types';
+import type { ForYouFeedTuning, PostContent } from '@mention/shared-types';
 import { isSensitivePost, DISCOVERY_SAFE_MATCH } from '../../feedSafety';
 import { detectLowEffort } from '../../../../services/contentClassification/lowEffort';
 import { detectBotShape } from '../../../../services/contentClassification/botSignals';
 import { readTrustedScores } from '../../../../services/contentClassification/trustedScores';
 import { SPAM_QUALITY_CONFIG, visibleText } from '../../../../services/contentClassification/spamQuality';
+import { resolveVariant } from '../../../../services/postVariants';
 import { feedModuleRegistry, FeedModuleRegistry } from '../FeedModuleRegistry';
 import type { CandidatePost, FeedEngineContext, FilterModule } from '../types';
 
@@ -63,17 +64,15 @@ function hasAltText(post: CandidatePost): boolean {
 /** HTTP(S) URL token — global so `.match()` collects every hit. */
 const TEXT_URL_PATTERN = /https?:\/\/[^\s]+/gi;
 
-/** All URLs cited in `content.sources` or inlined in `content.text`. */
+/** All URLs cited in `content.sources` or inlined in the post's primary body. */
 function contentUrls(post: CandidatePost): string[] {
-  const content = field<{ text?: string; sources?: Array<{ url?: string }> }>(post, 'content');
+  const content = field<PostContent>(post, 'content');
   const urls: string[] = [];
   if (Array.isArray(content?.sources)) {
     for (const source of content.sources) if (typeof source?.url === 'string' && source.url) urls.push(source.url);
   }
-  if (typeof content?.text === 'string') {
-    const matches = content.text.match(TEXT_URL_PATTERN);
-    if (matches) urls.push(...matches);
-  }
+  const matches = contentText(post).match(TEXT_URL_PATTERN);
+  if (matches) urls.push(...matches);
   return urls;
 }
 
@@ -115,10 +114,31 @@ function isFederated(post: CandidatePost): boolean {
   return federation !== undefined && federation !== null;
 }
 
-/** The candidate's raw text body, or `''` when absent. */
+/**
+ * The candidate's PRIMARY body, or `''` when it has none. The body lives in
+ * `content.variants`; the primary rendition is what the author actually wrote,
+ * and it is what every text SIGNAL (length, link count, low-effort/bot shape) is
+ * computed from — scoring a machine translation would score our own output.
+ */
 function contentText(post: CandidatePost): string {
-  const content = field<{ text?: string }>(post, 'content');
-  return typeof content?.text === 'string' ? content.text : '';
+  const content = field<PostContent>(post, 'content');
+  return content ? resolveVariant(content).text : '';
+}
+
+/**
+ * EVERY rendition's body — author-written and machine-translated alike.
+ *
+ * This is what a SAFETY filter reads. A muted word has to hide the post whichever
+ * language the reader is served it in; matching only the primary would let the
+ * exact rendition a reader sees slip through the filter that exists to hide it.
+ */
+function allVariantTexts(post: CandidatePost): string[] {
+  const content = field<PostContent>(post, 'content');
+  const variants = content?.variants;
+  if (!Array.isArray(variants) || variants.length === 0) return [];
+  return variants
+    .map((variant) => variant?.text)
+    .filter((text): text is string => typeof text === 'string' && text.length > 0);
 }
 
 /** Length of the candidate's text body. */
@@ -142,14 +162,14 @@ function classificationTopics(post: CandidatePost): string[] {
 /** Whether the candidate text or hashtags contain any of the given words (case-insensitive, word-boundary for text). */
 function matchesAnyWord(post: CandidatePost, words: string[]): boolean {
   if (words.length === 0) return false;
-  const content = field<{ text?: string }>(post, 'content');
-  const text = typeof content?.text === 'string' ? content.text : '';
+  const texts = allVariantTexts(post);
   const hashtags = (field<string[]>(post, 'hashtags') ?? []).map((h) => h.toLowerCase());
   for (const word of words) {
     const lower = word.toLowerCase();
     if (hashtags.includes(lower.replace(/^#/, ''))) return true;
     const escaped = lower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    if (new RegExp(`(^|\\W)${escaped}(\\W|$)`, 'i').test(text)) return true;
+    const pattern = new RegExp(`(^|\\W)${escaped}(\\W|$)`, 'i');
+    if (texts.some((text) => pattern.test(text))) return true;
   }
   return false;
 }

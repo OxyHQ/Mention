@@ -98,8 +98,11 @@ function makeCandidate(spec: FixtureSpec): EvalCandidate {
     oxyUserId: `author-${spec.n}`,
     createdAt: spec.createdAt,
     content: spec.hasImage
-      ? { text: spec.text, media: [{ type: 'image', id: 'img-1' }] }
-      : { text: spec.text },
+      ? {
+          variants: [{ source: 'author', text: spec.text }],
+          media: [{ type: 'image', id: 'img-1' }],
+        }
+      : { variants: [{ source: 'author', text: spec.text }] },
     stats: spec.stats ?? { likesCount: 0, commentsCount: 0, boostsCount: 0, federatedBoostsCount: 0 },
     hashtags: [],
     ...(spec.federated ? { federation: { actorUri: `https://${spec.domain}/users/u${spec.n}` } } : {}),

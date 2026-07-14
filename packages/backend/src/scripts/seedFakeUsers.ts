@@ -134,7 +134,6 @@ function makePostDoc(userId: string, text: string, type: string, createdAt: Date
       likedBy: [] as string[],
       savedBy: [],
     },
-    translations: [],
     createdAt,
     updatedAt: createdAt,
     ...extra,

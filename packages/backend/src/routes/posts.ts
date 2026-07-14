@@ -25,6 +25,7 @@ import {
   getPostLikes,
   getPostBoosts,
   translatePost,
+  translateDraft,
   acceptCollabInvite,
   declineCollabInvite,
   stopCollabSharing,
@@ -53,6 +54,9 @@ router.get('/scheduled', getScheduledPosts);
 router.get('/saved', getSavedPosts);
 router.get('/bookmarks/folders', getBookmarkFolders);
 router.patch('/bookmarks/:id/folder', moveBookmarkToFolder);
+// Composer AI pre-fill: translate a draft body that has no post yet. Must stay
+// ahead of the `/:id`-parameterized routes.
+router.post('/translate-draft', translateDraft);
 
 // Routes with specific paths (must be before parameterized routes)
 router.get('/:id/likes', getPostLikes);

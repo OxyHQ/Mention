@@ -32,6 +32,9 @@ export * from './analytics';
 // Feed types
 export * from './feed';
 
+// Language tags for multilingual post content (BCP-47 content tags, base-subtag matching)
+export * from './language';
+
 // External media embed preferences
 export * from './externalEmbeds';
 
