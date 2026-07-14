@@ -82,18 +82,22 @@ const h = vi.hoisted(() => {
   // in the process is not worth the convenience of trusting them.
   const UNSAFE_PATH_SEGMENTS = new Set(['__proto__', 'constructor', 'prototype']);
 
+  const safeKey = (segment: string): string => {
+    if (UNSAFE_PATH_SEGMENTS.has(segment)) {
+      throw new Error(`Refusing to walk unsafe path segment: ${segment}`);
+    }
+    return segment;
+  };
+
   const writePath = (doc: Record<string, unknown>, path: string, value: unknown): void => {
     const segments = path.split('.');
-    if (segments.some((segment) => UNSAFE_PATH_SEGMENTS.has(segment))) {
-      throw new Error(`Refusing to write unsafe path: ${path}`);
-    }
     let cursor = doc;
     for (let i = 0; i < segments.length - 1; i++) {
-      const key = segments[i];
+      const key = safeKey(segments[i]);
       if (typeof cursor[key] !== 'object' || cursor[key] === null) cursor[key] = {};
       cursor = cursor[key] as Record<string, unknown>;
     }
-    cursor[segments[segments.length - 1]] = value;
+    cursor[safeKey(segments[segments.length - 1])] = value;
   };
 
   const deletePath = (doc: Record<string, unknown>, path: string): void => {
