@@ -29,8 +29,28 @@
  * `_id` cursor with `bulkWrite` (never loads the collection into memory), and it
  * only writes the documents whose values ACTUALLY change.
  *
- * Runnable as a Fargate one-shot post-deploy:
- *   node dist/scripts/normalizeFederatedText.js
+ * DRY RUN
+ * -------
+ * This rewrites the body of hundreds of thousands of production posts, so run it
+ * dry FIRST. `DRY_RUN=true` scans the same documents and computes the same
+ * updates, but performs NO `bulkWrite`. It reports how many documents WOULD
+ * change (not how many were seen), the per-field breakdown, and a bounded sample
+ * of the real before/after values. The sample is JSON-quoted deliberately: this
+ * backfill is ENTIRELY about whitespace, and a diff that prints `\n` and leading
+ * spaces as themselves shows nothing at all.
+ *
+ * Same `DRY_RUN=true` convention as the sibling backfills in this directory and
+ * as oxy-api's `normalize-user-text-fields.ts`.
+ *
+ * Run — as a Fargate one-shot against the deployed backend image (command
+ * overridden), or locally with the same env:
+ *   DRY_RUN=true bun packages/backend/dist/src/scripts/normalizeFederatedText.js   # preview, writes nothing
+ *   bun packages/backend/dist/src/scripts/normalizeFederatedText.js                # apply
+ *
+ * Env:
+ *   MONGODB_URI   the cluster (injected by ECS from SSM)
+ *   NODE_ENV      selects the database (`mention-<NODE_ENV>`)
+ *   DRY_RUN=true  plan only, no writes
  */
 
 import mongoose from 'mongoose';
@@ -44,6 +64,9 @@ const PAGE_SIZE = 500;
 
 /** Updates flushed per `bulkWrite` chunk. */
 const BULK_CHUNK_SIZE = 500;
+
+/** How many changed documents a dry run reports in full, per collection. */
+const DRY_RUN_SAMPLE_SIZE = 20;
 
 /** Matches the posts that carry remote text: everything with AP/atproto metadata. */
 const FEDERATED_POST_FILTER: Record<string, unknown> = { federation: { $ne: null } };
@@ -69,14 +92,14 @@ export interface FederatedActorRow {
   fields?: unknown;
 }
 
-/** Per-field tally of how many post values this run actually rewrote. */
+/** Per-field tally of how many post values this run rewrote (or would rewrite). */
 export interface PostCounts {
   text: number;
   spoilerText: number;
   mediaAlt: number;
 }
 
-/** Per-field tally of how many actor values this run actually rewrote. */
+/** Per-field tally of how many actor values this run rewrote (or would rewrite). */
 export interface ActorCounts {
   username: number;
   summary: number;
@@ -94,6 +117,44 @@ export interface DocumentUpdate {
   set: Record<string, unknown>;
   unset: Record<string, ''>;
 }
+
+/** One field a run would rewrite, rendered for the dry-run report. */
+export interface FieldChange {
+  /** The dotted path being written, e.g. `content.media.0.alt`. */
+  path: string;
+  /** The stored value, JSON-quoted so its whitespace is visible. */
+  before: string;
+  /** The normalized value, JSON-quoted — or `(unset)` when the field is removed. */
+  after: string;
+}
+
+/** One sampled document in the dry-run report. */
+export interface DocumentSample {
+  id: string;
+  changes: FieldChange[];
+}
+
+/** What one collection's pass did (or, dry, would do). */
+export interface CollectionResult<TCounts> {
+  scanned: number;
+  /** Documents whose stored text differs from its normalized form. */
+  changed: number;
+  /** Documents actually rewritten. Always 0 on a dry run. */
+  written: number;
+  /** Which FIELDS were dirty, across the changed documents. */
+  counts: TCounts;
+  /** A bounded before/after sample. Only collected on a dry run. */
+  samples: DocumentSample[];
+}
+
+export interface NormalizationSummary {
+  dryRun: boolean;
+  posts: CollectionResult<PostCounts>;
+  actors: CollectionResult<ActorCounts>;
+}
+
+/** Shown in place of the new value for a field the run would REMOVE. */
+const UNSET_MARKER = '(unset)';
 
 function emptyUpdate(): DocumentUpdate {
   return { set: {}, unset: {} };
@@ -216,24 +277,92 @@ export function buildActorUpdate(actor: FederatedActorRow): { update: DocumentUp
 }
 
 /**
+ * Read the value a dotted update path points at in the ORIGINAL document, so the
+ * dry run can put what is on disk next to what it would become. A numeric
+ * segment indexes into an array (`content.media.0.alt`, `fields.1.name`).
+ */
+function readPath(document: unknown, path: string): unknown {
+  let current: unknown = document;
+  for (const segment of path.split('.')) {
+    if (current === null || typeof current !== 'object') return undefined;
+    if (Array.isArray(current)) {
+      const index = Number(segment);
+      if (!Number.isInteger(index)) return undefined;
+      current = current[index];
+      continue;
+    }
+    current = (current as Record<string, unknown>)[segment];
+  }
+  return current;
+}
+
+/** JSON-quote a stored value so its newlines and padding are actually visible. */
+function renderValue(value: unknown): string {
+  const rendered = JSON.stringify(value);
+  return rendered === undefined ? 'undefined' : rendered;
+}
+
+/**
+ * Render one document's staged update as before/after pairs — the dry run's whole
+ * point. Both sides are JSON-quoted: the difference between `"Hola"` and
+ * `"\n      Hola"` is exactly what this backfill exists to remove, and it is
+ * invisible in an unquoted diff.
+ */
+export function describeChanges(document: unknown, update: DocumentUpdate): FieldChange[] {
+  const changes: FieldChange[] = [];
+  for (const [path, value] of Object.entries(update.set)) {
+    changes.push({ path, before: renderValue(readPath(document, path)), after: renderValue(value) });
+  }
+  for (const path of Object.keys(update.unset)) {
+    changes.push({ path, before: renderValue(readPath(document, path)), after: UNSET_MARKER });
+  }
+  return changes;
+}
+
+/** Print the sampled before/after pairs a dry run collected. */
+function logSamples(kind: string, samples: DocumentSample[]): void {
+  if (samples.length === 0) return;
+  logger.info(
+    `[normalizeFederatedText] DRY RUN sample — ${samples.length} ${kind}(s), values JSON-quoted so whitespace is visible:`,
+  );
+  for (const sample of samples) {
+    for (const change of sample.changes) {
+      logger.info(
+        `[normalizeFederatedText]   ${kind} ${sample.id} ${change.path}: ${change.before} -> ${change.after}`,
+      );
+    }
+  }
+}
+
+/**
  * Normalize the remote text on every federated post.
  *
  * Pages by ascending `_id` over a filter that only matches on `federation`,
  * which this script never mutates — so the scanned set is stable for the run.
  */
-async function normalizePosts(counts: PostCounts): Promise<{ scanned: number; updated: number }> {
+async function normalizePosts(dryRun: boolean): Promise<CollectionResult<PostCounts>> {
   const total = await Post.countDocuments(FEDERATED_POST_FILTER);
   logger.info(`[normalizeFederatedText] ${total} federated posts to scan`);
 
+  const counts: PostCounts = { text: 0, spoilerText: 0, mediaAlt: 0 };
+  const samples: DocumentSample[] = [];
   let scanned = 0;
-  let updated = 0;
+  let changed = 0;
+  let written = 0;
   let lastId: mongoose.Types.ObjectId | null = null;
   let pendingOps: mongoose.AnyBulkWriteOperation<typeof Post>[] = [];
 
+  // A dry run builds every operation exactly as a real one does — it just never
+  // hands them to Mongo. That is the whole guarantee: what it reports is what a
+  // real run would write, computed by the same code.
   const flush = async (): Promise<void> => {
     if (pendingOps.length === 0) return;
+    if (dryRun) {
+      pendingOps = [];
+      return;
+    }
     const result = await Post.bulkWrite(pendingOps, { ordered: false });
-    updated += result.modifiedCount;
+    written += result.modifiedCount;
     pendingOps = [];
   };
 
@@ -256,9 +385,13 @@ async function normalizePosts(counts: PostCounts): Promise<{ scanned: number; up
     for (const post of page) {
       const { update, counts: postCounts } = buildPostUpdate(post);
       if (!hasChanges(update)) continue;
+      changed += 1;
       counts.text += postCounts.text;
       counts.spoilerText += postCounts.spoilerText;
       counts.mediaAlt += postCounts.mediaAlt;
+      if (dryRun && samples.length < DRY_RUN_SAMPLE_SIZE) {
+        samples.push({ id: post._id.toString(), changes: describeChanges(post, update) });
+      }
       pendingOps.push({
         updateOne: {
           filter: { _id: post._id },
@@ -270,27 +403,36 @@ async function normalizePosts(counts: PostCounts): Promise<{ scanned: number; up
 
     scanned += page.length;
     lastId = page[page.length - 1]._id;
-    logger.info(`[normalizeFederatedText] posts: scanned ${scanned}/${total}, rewritten ${updated + pendingOps.length}`);
+    logger.info(
+      `[normalizeFederatedText] posts: scanned ${scanned}/${total}, ${dryRun ? 'would rewrite' : 'rewriting'} ${changed}`,
+    );
   }
 
   await flush();
-  return { scanned, updated };
+  return { scanned, changed, written, counts, samples };
 }
 
 /** Normalize the remote text on every federated actor (both protocols). */
-async function normalizeActors(counts: ActorCounts): Promise<{ scanned: number; updated: number }> {
+async function normalizeActors(dryRun: boolean): Promise<CollectionResult<ActorCounts>> {
   const total = await FederatedActor.countDocuments({});
   logger.info(`[normalizeFederatedText] ${total} federated actors to scan`);
 
+  const counts: ActorCounts = { username: 0, summary: 0, fields: 0 };
+  const samples: DocumentSample[] = [];
   let scanned = 0;
-  let updated = 0;
+  let changed = 0;
+  let written = 0;
   let lastId: mongoose.Types.ObjectId | null = null;
   let pendingOps: mongoose.AnyBulkWriteOperation<typeof FederatedActor>[] = [];
 
   const flush = async (): Promise<void> => {
     if (pendingOps.length === 0) return;
+    if (dryRun) {
+      pendingOps = [];
+      return;
+    }
     const result = await FederatedActor.bulkWrite(pendingOps, { ordered: false });
-    updated += result.modifiedCount;
+    written += result.modifiedCount;
     pendingOps = [];
   };
 
@@ -314,9 +456,13 @@ async function normalizeActors(counts: ActorCounts): Promise<{ scanned: number; 
     for (const actor of page) {
       const { update, counts: actorCounts } = buildActorUpdate(actor);
       if (!hasChanges(update)) continue;
+      changed += 1;
       counts.username += actorCounts.username;
       counts.summary += actorCounts.summary;
       counts.fields += actorCounts.fields;
+      if (dryRun && samples.length < DRY_RUN_SAMPLE_SIZE) {
+        samples.push({ id: actor._id.toString(), changes: describeChanges(actor, update) });
+      }
       pendingOps.push({
         updateOne: {
           filter: { _id: actor._id },
@@ -328,36 +474,57 @@ async function normalizeActors(counts: ActorCounts): Promise<{ scanned: number; 
 
     scanned += page.length;
     lastId = page[page.length - 1]._id;
-    logger.info(`[normalizeFederatedText] actors: scanned ${scanned}/${total}, rewritten ${updated + pendingOps.length}`);
+    logger.info(
+      `[normalizeFederatedText] actors: scanned ${scanned}/${total}, ${dryRun ? 'would rewrite' : 'rewriting'} ${changed}`,
+    );
   }
 
   await flush();
-  return { scanned, updated };
+  return { scanned, changed, written, counts, samples };
+}
+
+/**
+ * Scan both collections, normalize (or, dry, plan) and report. Split from the
+ * entry point below so it can be driven without a MongoDB connection.
+ */
+export async function normalizeStoredText(dryRun: boolean): Promise<NormalizationSummary> {
+  const startedAt = Date.now();
+
+  const posts = await normalizePosts(dryRun);
+  logSamples('post', posts.samples);
+
+  const actors = await normalizeActors(dryRun);
+  logSamples('actor', actors.samples);
+
+  const elapsedSeconds = Math.round((Date.now() - startedAt) / 1000);
+  const describeWrites = (result: CollectionResult<unknown>): string =>
+    dryRun
+      ? `${result.changed} would be rewritten`
+      : `${result.written} rewritten (${result.changed} changed)`;
+
+  logger.info(
+    `[normalizeFederatedText] done in ${elapsedSeconds}s${dryRun ? ' — DRY RUN, nothing was written' : ''}: `
+    + `posts scanned ${posts.scanned}, ${describeWrites(posts)} `
+    + `(text ${posts.counts.text}, spoilerText ${posts.counts.spoilerText}, media alt ${posts.counts.mediaAlt}); `
+    + `actors scanned ${actors.scanned}, ${describeWrites(actors)} `
+    + `(username ${actors.counts.username}, summary ${actors.counts.summary}, fields ${actors.counts.fields})`,
+  );
+
+  return { dryRun, posts, actors };
 }
 
 async function normalizeFederatedText(): Promise<void> {
-  const startedAt = Date.now();
+  const dryRun = process.env.DRY_RUN === 'true';
   const mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/mention';
   const dbName = `mention-${process.env.NODE_ENV || 'development'}`;
 
   try {
     await mongoose.connect(mongoUri, { dbName });
-    logger.info(`[normalizeFederatedText] connected to MongoDB (${dbName})`);
-
-    const postCounts: PostCounts = { text: 0, spoilerText: 0, mediaAlt: 0 };
-    const actorCounts: ActorCounts = { username: 0, summary: 0, fields: 0 };
-
-    const posts = await normalizePosts(postCounts);
-    const actors = await normalizeActors(actorCounts);
-
-    const elapsedSeconds = Math.round((Date.now() - startedAt) / 1000);
     logger.info(
-      `[normalizeFederatedText] done in ${elapsedSeconds}s: `
-      + `posts scanned ${posts.scanned}, rewritten ${posts.updated} `
-      + `(text ${postCounts.text}, spoilerText ${postCounts.spoilerText}, media alt ${postCounts.mediaAlt}); `
-      + `actors scanned ${actors.scanned}, rewritten ${actors.updated} `
-      + `(username ${actorCounts.username}, summary ${actorCounts.summary}, fields ${actorCounts.fields})`,
+      `[normalizeFederatedText] connected to MongoDB (${dbName})${dryRun ? ' — DRY RUN, no writes will be performed' : ''}`,
     );
+
+    await normalizeStoredText(dryRun);
 
     await mongoose.disconnect();
   } catch (error) {

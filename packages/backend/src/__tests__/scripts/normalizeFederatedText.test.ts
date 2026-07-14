@@ -1,31 +1,139 @@
 import mongoose from 'mongoose';
-import { describe, expect, it } from 'vitest';
-import {
-  buildActorUpdate,
-  buildPostUpdate,
-} from '../../scripts/normalizeFederatedText';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
  * The one-shot backfill that cleans the remote text ALREADY stored in Mongo.
  *
- * Only the pure update-builders are exercised — they hold every rule that
- * matters: which helper each field gets, that an emptied optional label is
- * UNSET rather than blanked, that a required field is never emptied, and that a
- * document with nothing to fix produces no write at all (the idempotency the
- * batch loop relies on to avoid rewriting hundreds of thousands of clean posts).
+ * Two layers are covered:
+ *
+ *  - The pure update-builders, which hold every rule that matters: which helper
+ *    each field gets, that an emptied optional label is UNSET rather than
+ *    blanked, that a required field is never emptied, and that a document with
+ *    nothing to fix produces no write at all (the idempotency the batch loop
+ *    relies on to avoid rewriting hundreds of thousands of clean posts).
+ *
+ *  - The scan itself, over canned `Post` / `FederatedActor` model mocks that
+ *    honour the script's ascending-`_id` cursor. This is what proves the DRY RUN
+ *    is real: it must issue NO `bulkWrite` at all, while still reporting exactly
+ *    the documents a real run would rewrite.
  */
+
+/** A canned row as the models hand it to the script (`.lean()` output). */
+interface StoredRow {
+  _id: mongoose.Types.ObjectId;
+  content?: { text?: unknown; media?: unknown };
+  federation?: { spoilerText?: unknown };
+  username?: unknown;
+  summary?: unknown;
+  fields?: unknown;
+}
+
+/** The bulk op the script builds for one dirty document. */
+interface BulkOp {
+  updateOne: {
+    filter: { _id: mongoose.Types.ObjectId };
+    update: { $set?: Record<string, unknown>; $unset?: Record<string, ''> };
+  };
+}
+
+/** The `find(...).sort(...).limit(...).lean()` chain the script calls. */
+interface FindChain {
+  sort: () => FindChain;
+  limit: (value: number) => FindChain;
+  lean: () => Promise<StoredRow[]>;
+}
+
+const h = vi.hoisted(() => {
+  const state: {
+    posts: StoredRow[];
+    actors: StoredRow[];
+    postOps: BulkOp[];
+    actorOps: BulkOp[];
+  } = { posts: [], actors: [], postOps: [], actorOps: [] };
+
+  /**
+   * Serve one page the way the real cursor does: ascending `_id`, everything
+   * strictly after the cursor, capped at the page size. Honouring `$gt` is what
+   * lets the script's `for(;;)` loop terminate — a mock that ignored it would
+   * hand back the same page forever.
+   */
+  const page = (rows: StoredRow[], filter: Record<string, unknown>, limit: number): StoredRow[] => {
+    const cursor = (filter._id as { $gt?: mongoose.Types.ObjectId } | undefined)?.$gt;
+    const after = cursor ? cursor.toString() : null;
+    return [...rows]
+      .sort((a, b) => a._id.toString().localeCompare(b._id.toString()))
+      .filter((row) => after === null || row._id.toString() > after)
+      .slice(0, limit);
+  };
+
+  const makeFind = (rows: () => StoredRow[]) =>
+    vi.fn((filter: Record<string, unknown>) => {
+      let limit = Number.MAX_SAFE_INTEGER;
+      const chain: FindChain = {
+        sort: () => chain,
+        limit: (value: number) => {
+          limit = value;
+          return chain;
+        },
+        lean: async () => page(rows(), filter, limit),
+      };
+      return chain;
+    });
+
+  return {
+    state,
+    postCount: vi.fn(async () => state.posts.length),
+    actorCount: vi.fn(async () => state.actors.length),
+    postFind: makeFind(() => state.posts),
+    actorFind: makeFind(() => state.actors),
+    postBulkWrite: vi.fn(async (ops: BulkOp[]) => {
+      state.postOps.push(...ops);
+      return { modifiedCount: ops.length };
+    }),
+    actorBulkWrite: vi.fn(async (ops: BulkOp[]) => {
+      state.actorOps.push(...ops);
+      return { modifiedCount: ops.length };
+    }),
+  };
+});
+
+vi.mock('../../models/Post', () => ({
+  Post: { countDocuments: h.postCount, find: h.postFind, bulkWrite: h.postBulkWrite },
+}));
+
+vi.mock('../../models/FederatedActor', () => ({
+  default: { countDocuments: h.actorCount, find: h.actorFind, bulkWrite: h.actorBulkWrite },
+}));
+
+vi.mock('../../utils/logger', () => ({
+  logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
+}));
+
+import {
+  buildActorUpdate,
+  buildPostUpdate,
+  describeChanges,
+  normalizeStoredText,
+} from '../../scripts/normalizeFederatedText';
 
 /** The `_id` of the row under test — the builders only echo it into the filter. */
 const OID = new mongoose.Types.ObjectId('000000000000000000000001');
+
+const oid = (suffix: string): mongoose.Types.ObjectId =>
+  new mongoose.Types.ObjectId(`00000000000000000000000${suffix}`);
+
+/** The body of a pretty-printed remote post: padded, with a padded blank line. */
+const DIRTY_TEXT = '  uno   \n   \n   \n  dos  ';
+const CLEAN_TEXT = 'uno\n\ndos';
 
 describe('buildPostUpdate', () => {
   it('normalizes the body as multiline, keeping the author’s paragraph break', () => {
     const { update, counts } = buildPostUpdate({
       _id: OID,
-      content: { text: '  uno   \n   \n   \n  dos  ' },
+      content: { text: DIRTY_TEXT },
     });
 
-    expect(update.set['content.text']).toBe('uno\n\ndos');
+    expect(update.set['content.text']).toBe(CLEAN_TEXT);
     expect(update.unset).toEqual({});
     expect(counts.text).toBe(1);
   });
@@ -76,7 +184,7 @@ describe('buildPostUpdate', () => {
   it('produces NO write for an already-clean post (idempotent)', () => {
     const clean = {
       _id: OID,
-      content: { text: 'uno\n\ndos', media: [{ id: 'a', type: 'image', alt: 'un gato' }] },
+      content: { text: CLEAN_TEXT, media: [{ id: 'a', type: 'image', alt: 'un gato' }] },
       federation: { spoilerText: 'CW: spoilers' },
     };
     const { update } = buildPostUpdate(clean);
@@ -141,5 +249,199 @@ describe('buildActorUpdate', () => {
     });
     expect(update.set).toEqual({});
     expect(update.unset).toEqual({});
+  });
+});
+
+describe('describeChanges', () => {
+  it('quotes both sides so the whitespace being removed is actually visible', () => {
+    const post = { _id: OID, content: { text: DIRTY_TEXT } };
+    const { update } = buildPostUpdate(post);
+
+    expect(describeChanges(post, update)).toEqual([
+      {
+        path: 'content.text',
+        before: '"  uno   \\n   \\n   \\n  dos  "',
+        after: '"uno\\n\\ndos"',
+      },
+    ]);
+  });
+
+  it('reads a value out of an array by index and reports a removal as (unset)', () => {
+    const post = {
+      _id: OID,
+      content: { media: [{ id: 'a', type: 'image', alt: 'un gato' }, { id: 'b', alt: ' \n ' }] },
+    };
+    const { update } = buildPostUpdate(post);
+
+    expect(describeChanges(post, update)).toEqual([
+      { path: 'content.media.1.alt', before: '" \\n "', after: '(unset)' },
+    ]);
+  });
+});
+
+/** Two dirty posts and one already-clean post — the shape a real run scans. */
+function seedPosts(): void {
+  h.state.posts = [
+    // Dirty: a padded, pretty-printed body.
+    { _id: oid('1'), content: { text: DIRTY_TEXT }, federation: { spoilerText: 'CW: spoilers' } },
+    // Dirty: a padded content warning plus a padded alt on the second media item.
+    {
+      _id: oid('2'),
+      content: {
+        text: CLEAN_TEXT,
+        media: [
+          { id: 'a', type: 'image', alt: 'un gato' },
+          { id: 'b', type: 'image', alt: '  un perro\n ' },
+        ],
+      },
+      federation: { spoilerText: '  CW:\n  spoilers  ' },
+    },
+    // Clean: must produce no write on either a dry or a real run.
+    { _id: oid('3'), content: { text: CLEAN_TEXT }, federation: { spoilerText: 'CW: spoilers' } },
+  ];
+}
+
+/** One dirty actor and one already-clean actor. */
+function seedActors(): void {
+  h.state.actors = [
+    { _id: oid('4'), username: '  alice\n ', summary: '  hola   \n  \n  \n  adiós ' },
+    { _id: oid('5'), username: 'bob', summary: 'hola\n\nadiós' },
+  ];
+}
+
+beforeEach(() => {
+  h.state.posts = [];
+  h.state.actors = [];
+  h.state.postOps = [];
+  h.state.actorOps = [];
+  h.postBulkWrite.mockClear();
+  h.actorBulkWrite.mockClear();
+  h.postFind.mockClear();
+  h.actorFind.mockClear();
+});
+
+describe('normalizeStoredText — DRY RUN', () => {
+  it('performs NO write at all', async () => {
+    seedPosts();
+    seedActors();
+
+    await normalizeStoredText(true);
+
+    expect(h.postBulkWrite).not.toHaveBeenCalled();
+    expect(h.actorBulkWrite).not.toHaveBeenCalled();
+    expect(h.state.postOps).toHaveLength(0);
+    expect(h.state.actorOps).toHaveLength(0);
+  });
+
+  it('reports the documents that WOULD change — not the ones it merely scanned', async () => {
+    seedPosts();
+    seedActors();
+
+    const summary = await normalizeStoredText(true);
+
+    expect(summary.dryRun).toBe(true);
+
+    // 3 posts seen, only 2 of them dirty; nothing written.
+    expect(summary.posts.scanned).toBe(3);
+    expect(summary.posts.changed).toBe(2);
+    expect(summary.posts.written).toBe(0);
+    // The per-field breakdown counts VALUES, so the second post contributes both
+    // its content warning and its one dirty media alt.
+    expect(summary.posts.counts).toEqual({ text: 1, spoilerText: 1, mediaAlt: 1 });
+
+    // 2 actors seen, 1 dirty (username + bio).
+    expect(summary.actors.scanned).toBe(2);
+    expect(summary.actors.changed).toBe(1);
+    expect(summary.actors.written).toBe(0);
+    expect(summary.actors.counts).toEqual({ username: 1, summary: 1, fields: 0 });
+  });
+
+  it('samples the real before/after values, whitespace visible', async () => {
+    seedPosts();
+    seedActors();
+
+    const summary = await normalizeStoredText(true);
+
+    expect(summary.posts.samples).toHaveLength(2);
+    expect(summary.posts.samples[0]).toEqual({
+      id: oid('1').toString(),
+      changes: [
+        {
+          path: 'content.text',
+          before: '"  uno   \\n   \\n   \\n  dos  "',
+          after: '"uno\\n\\ndos"',
+        },
+      ],
+    });
+    expect(summary.posts.samples[1].changes).toEqual([
+      { path: 'federation.spoilerText', before: '"  CW:\\n  spoilers  "', after: '"CW: spoilers"' },
+      { path: 'content.media.1.alt', before: '"  un perro\\n "', after: '"un perro"' },
+    ]);
+
+    expect(summary.actors.samples).toHaveLength(1);
+    expect(summary.actors.samples[0].changes).toEqual([
+      { path: 'username', before: '"  alice\\n "', after: '"alice"' },
+      { path: 'summary', before: '"  hola   \\n  \\n  \\n  adiós "', after: '"hola\\n\\nadiós"' },
+    ]);
+  });
+
+  it('finds nothing to change on a second (already-normalized) run', async () => {
+    h.state.posts = [{ _id: oid('1'), content: { text: CLEAN_TEXT } }];
+    h.state.actors = [{ _id: oid('4'), username: 'alice', summary: 'hola\n\nadiós' }];
+
+    const summary = await normalizeStoredText(true);
+
+    expect(summary.posts.scanned).toBe(1);
+    expect(summary.posts.changed).toBe(0);
+    expect(summary.actors.changed).toBe(0);
+    expect(summary.posts.samples).toEqual([]);
+  });
+});
+
+describe('normalizeStoredText — real run', () => {
+  it('writes exactly the dirty documents, and the dry-run plan matches what it wrote', async () => {
+    seedPosts();
+    seedActors();
+
+    const planned = await normalizeStoredText(true);
+
+    seedPosts();
+    seedActors();
+    const applied = await normalizeStoredText(false);
+
+    // What the dry run said would change is what the real run actually wrote.
+    expect(applied.posts.written).toBe(planned.posts.changed);
+    expect(applied.actors.written).toBe(planned.actors.changed);
+    expect(applied.dryRun).toBe(false);
+
+    // Only the two dirty posts are touched — the clean one gets no op at all.
+    expect(h.state.postOps).toHaveLength(2);
+    expect(h.state.postOps.map((op) => op.updateOne.filter._id.toString())).toEqual([
+      oid('1').toString(),
+      oid('2').toString(),
+    ]);
+    expect(h.state.postOps[1].updateOne.update.$set).toEqual({
+      'federation.spoilerText': 'CW: spoilers',
+      'content.media.1.alt': 'un perro',
+    });
+
+    expect(h.state.actorOps).toHaveLength(1);
+    expect(h.state.actorOps[0].updateOne.filter._id.toString()).toBe(oid('4').toString());
+    expect(h.state.actorOps[0].updateOne.update.$set).toEqual({
+      username: 'alice',
+      summary: 'hola\n\nadiós',
+    });
+  });
+
+  it('unsets an alt that normalizes to nothing rather than blanking it', async () => {
+    h.state.posts = [
+      { _id: oid('1'), content: { text: CLEAN_TEXT, media: [{ id: 'a', alt: '  \n ' }] } },
+    ];
+
+    await normalizeStoredText(false);
+
+    expect(h.state.postOps).toHaveLength(1);
+    expect(h.state.postOps[0].updateOne.update.$unset).toEqual({ 'content.media.0.alt': '' });
+    expect(h.state.postOps[0].updateOne.update.$set).toBeUndefined();
   });
 });
