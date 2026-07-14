@@ -1,8 +1,21 @@
 import { Router, Request, Response } from 'express';
 import { topicService } from '../services/TopicService';
 import { TopicType } from '@mention/shared-types';
+import { queryInt, queryString } from '../utils/queryParams';
 
 const router = Router();
+
+/** Topic listing page size (`GET /topics`). */
+const DEFAULT_TOPIC_LIMIT = 20;
+const MAX_TOPIC_LIMIT = 100;
+
+/** Autocomplete page size (`GET /topics/search`). */
+const DEFAULT_TOPIC_SEARCH_LIMIT = 10;
+const MAX_TOPIC_SEARCH_LIMIT = 50;
+
+function toTopicType(raw: string): TopicType | undefined {
+  return Object.values(TopicType).find((topicType) => topicType === raw);
+}
 
 /**
  * GET /api/topics
@@ -10,13 +23,16 @@ const router = Router();
  */
 router.get('/', async (req: Request, res: Response) => {
   try {
-    const type = req.query.type as TopicType | undefined;
-    const query = req.query.q as string | undefined;
-    const locale = req.query.locale as string | undefined;
-    const limit = Math.min(parseInt(req.query.limit as string) || 20, 100);
-    const offset = Math.max(parseInt(req.query.offset as string) || 0, 0);
+    // A type the caller actually sent but that is not a TopicType is still a 400;
+    // an absent (or tampered, which reads as absent) type means "no type filter".
+    const rawType = queryString(req.query.type);
+    const type = rawType === undefined ? undefined : toTopicType(rawType);
+    const query = queryString(req.query.q);
+    const locale = queryString(req.query.locale);
+    const limit = Math.min(queryInt(req.query.limit) || DEFAULT_TOPIC_LIMIT, MAX_TOPIC_LIMIT);
+    const offset = Math.max(queryInt(req.query.offset) || 0, 0);
 
-    if (type && !Object.values(TopicType).includes(type)) {
+    if (rawType !== undefined && type === undefined) {
       return res.status(400).json({ error: `Invalid type. Must be one of: ${Object.values(TopicType).join(', ')}` });
     }
 
@@ -33,7 +49,7 @@ router.get('/', async (req: Request, res: Response) => {
  */
 router.get('/categories', async (req: Request, res: Response) => {
   try {
-    const locale = req.query.locale as string | undefined;
+    const locale = queryString(req.query.locale);
     const categories = await topicService.getCategories(locale);
     res.json({ topics: categories });
   } catch (error) {
@@ -47,12 +63,12 @@ router.get('/categories', async (req: Request, res: Response) => {
  */
 router.get('/search', async (req: Request, res: Response) => {
   try {
-    const query = req.query.q as string;
+    const query = queryString(req.query.q);
     if (!query || query.trim().length === 0) {
       return res.json({ topics: [] });
     }
 
-    const limit = Math.min(parseInt(req.query.limit as string) || 10, 50);
+    const limit = Math.min(queryInt(req.query.limit) || DEFAULT_TOPIC_SEARCH_LIMIT, MAX_TOPIC_SEARCH_LIMIT);
     const topics = await topicService.search(query, limit);
     res.json({ topics });
   } catch (error) {

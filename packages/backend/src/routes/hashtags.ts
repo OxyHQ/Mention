@@ -2,6 +2,7 @@ import express, { Request, Response } from "express";
 import Post from "../models/Post";
 import { logger } from "../utils/logger";
 import { escapeRegex } from "../utils/textProcessing";
+import { queryInt, queryString } from "../utils/queryParams";
 
 const router = express.Router();
 
@@ -10,6 +11,14 @@ const HASHTAG_SEARCH_LIMIT = 5;
 
 /** Upper bound on the raw query we turn into a regex. */
 const HASHTAG_QUERY_MAX_LENGTH = 64;
+
+/** Trending hashtags per page — also the cap, so `?limit` can only narrow it. */
+const TRENDING_HASHTAG_LIMIT = 10;
+
+/** Trailing window for trending counts when `?days` is absent. */
+const DEFAULT_TRENDING_WINDOW_DAYS = 7;
+
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 export interface HashtagSearchResult {
   tag: string;
@@ -46,10 +55,15 @@ function parseSearchQuery(value: unknown): string | null {
 // Get all hashtags
 router.get("/", async (req: Request, res: Response) => {
   try {
-  // default to 10 and enforce a maximum of 10 results from the backend
-  const limit = Math.max(1, Math.min(parseInt((req.query.limit as string) || '10', 10), 10));
-    const days = parseInt((req.query.days as string) || '7', 10);
-    const since = isNaN(days) ? undefined : new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+    // Default to TRENDING_HASHTAG_LIMIT and enforce it as the maximum. An
+    // unparseable `?limit` used to reach the aggregation as `$limit: NaN` (a 500).
+    const limit = Math.max(1, Math.min(queryInt(req.query.limit) || TRENDING_HASHTAG_LIMIT, TRENDING_HASHTAG_LIMIT));
+
+    // An unparseable `?days` keeps its long-standing meaning of "no time window"
+    // (all-time counts); only an absent one falls back to the default window.
+    const rawDays = queryString(req.query.days) ?? String(DEFAULT_TRENDING_WINDOW_DAYS);
+    const days = Number.parseInt(rawDays, 10);
+    const since = Number.isNaN(days) ? undefined : new Date(Date.now() - days * MS_PER_DAY);
 
     const match: Record<string, unknown> = {
       visibility: 'public',

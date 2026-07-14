@@ -10,11 +10,16 @@ import { resolveAvatarUrl } from '../utils/mediaResolver';
 import { logger } from '../utils/logger';
 import { postHydrationService } from '../services/PostHydrationService';
 import { createScopedOxyClient, getServiceOxyClient } from '../utils/oxyHelpers';
+import { queryInt, queryString } from '../utils/queryParams';
 import { apiRateLimiter } from '../middleware/rateLimiter';
 import type { HydratedPost } from '@mention/shared-types';
 import type { User } from '@oxyhq/core';
 
 const router = express.Router();
+
+/** Notification list page size (`GET /notifications`). */
+const DEFAULT_NOTIFICATIONS_PAGE_SIZE = 20;
+const MAX_NOTIFICATIONS_PAGE_SIZE = 50;
 
 // Rate-limit every notification endpoint (200 req/min, keyed by user with IP
 // fallback). Covers the GET list/DB-access handlers flagged by CodeQL
@@ -75,8 +80,8 @@ router.get("/", async (req: AuthRequest, res: Response) => {
     }
 
     // Use cursor-based pagination for better performance at scale
-    const cursor = req.query.cursor as string | undefined;
-    const limit = Math.min(Math.max(parseInt(String(req.query.limit || 20), 10), 1), 50); // Clamp between 1-50
+    const cursor = queryString(req.query.cursor);
+    const limit = Math.min(Math.max(queryInt(req.query.limit) || DEFAULT_NOTIFICATIONS_PAGE_SIZE, 1), MAX_NOTIFICATIONS_PAGE_SIZE);
 
     // Build query with cursor support
     const query: { recipientId: string; _id?: { $lt: mongoose.Types.ObjectId } } = { recipientId: userId };

@@ -7,8 +7,13 @@ import { createScopedOxyClient } from '../utils/oxyHelpers';
 import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
 import { config } from '../config';
 import { oxy as oxyClient } from '../../server';
+import { queryInt } from '../utils/queryParams';
 
 const router = express.Router();
+
+/** Search result page size. */
+const DEFAULT_SEARCH_LIMIT = 20;
+const MAX_SEARCH_LIMIT = 100;
 
 // Helper to escape regex special characters (prevent ReDoS)
 const escapeRegex = (str: string): string => {
@@ -102,7 +107,6 @@ router.get("/", async (req: AuthRequest, res: Response) => {
       mediaType,
       hasMedia,
       language,
-      limit = "20",
       cursor
     } = req.query;
 
@@ -239,7 +243,7 @@ router.get("/", async (req: AuthRequest, res: Response) => {
       }
 
       // Validate and normalize limit (max 100)
-      const limitNum = Math.min(Math.max(parseInt(limit as string, 10) || 20, 1), 100);
+      const limitNum = Math.min(Math.max(queryInt(req.query.limit) || DEFAULT_SEARCH_LIMIT, 1), MAX_SEARCH_LIMIT);
 
       // Execute query with lean() for read-only performance
       const posts = await Post.find(filter)

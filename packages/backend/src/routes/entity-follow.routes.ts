@@ -1,16 +1,21 @@
 import { Router, Response } from 'express';
-import { EntityFollow } from '../models/EntityFollow';
+import { EntityFollow, ENTITY_FOLLOW_TYPES, type EntityFollowType } from '../models/EntityFollow';
 import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
 import { logger } from '../utils/logger';
 import { listSubscriptionService, LIST_ENTITY_TYPE } from '../services/ListSubscriptionService';
+import { queryInt, queryString } from '../utils/queryParams';
 
 const router = Router();
 
-const VALID_ENTITY_TYPES = ['hashtag', 'feed', 'list', 'topic'] as const;
+const DEFAULT_FOLLOW_PAGE_SIZE = 20;
+const MAX_FOLLOW_PAGE_SIZE = 50;
 
-function isValidEntityType(type: string): type is (typeof VALID_ENTITY_TYPES)[number] {
-  return (VALID_ENTITY_TYPES as readonly string[]).includes(type);
+function isValidEntityType(type: string): type is EntityFollowType {
+  return (ENTITY_FOLLOW_TYPES as readonly string[]).includes(type);
 }
+
+const clampFollowPageSize = (limit: number | undefined): number =>
+  Math.min(Math.max(limit || DEFAULT_FOLLOW_PAGE_SIZE, 1), MAX_FOLLOW_PAGE_SIZE);
 
 /**
  * Follow an entity
@@ -30,7 +35,7 @@ router.post('/', async (req: AuthRequest, res: Response) => {
     }
 
     if (!isValidEntityType(entityType)) {
-      return res.status(400).json({ message: `entityType must be one of: ${VALID_ENTITY_TYPES.join(', ')}` });
+      return res.status(400).json({ message: `entityType must be one of: ${ENTITY_FOLLOW_TYPES.join(', ')}` });
     }
 
     const follow = new EntityFollow({ userId, entityType, entityId });
@@ -75,7 +80,7 @@ router.delete('/', async (req: AuthRequest, res: Response) => {
     }
 
     if (!isValidEntityType(entityType)) {
-      return res.status(400).json({ message: `entityType must be one of: ${VALID_ENTITY_TYPES.join(', ')}` });
+      return res.status(400).json({ message: `entityType must be one of: ${ENTITY_FOLLOW_TYPES.join(', ')}` });
     }
 
     const result = await EntityFollow.findOneAndDelete({ userId, entityType, entityId });
@@ -112,15 +117,17 @@ router.get('/status', async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ message: 'Unauthorized' });
     }
 
-    const entityType = req.query.entityType as string;
-    const entityId = req.query.entityId as string;
+    // Both are Mongo query values below, so they must be real strings — an
+    // `?entityId[$ne]=x` object would otherwise reach `findOne` as an operator.
+    const entityType = queryString(req.query.entityType);
+    const entityId = queryString(req.query.entityId);
 
     if (!entityType || !entityId) {
       return res.status(400).json({ message: 'entityType and entityId query params are required' });
     }
 
     if (!isValidEntityType(entityType)) {
-      return res.status(400).json({ message: `entityType must be one of: ${VALID_ENTITY_TYPES.join(', ')}` });
+      return res.status(400).json({ message: `entityType must be one of: ${ENTITY_FOLLOW_TYPES.join(', ')}` });
     }
 
     const follow = await EntityFollow.findOne({ userId, entityType, entityId });
@@ -146,12 +153,12 @@ router.get('/', async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ message: 'Unauthorized' });
     }
 
-    const type = req.query.type as string | undefined;
-    const limit = Math.min(Math.max(parseInt(String(req.query.limit || 20), 10), 1), 50);
-    const cursor = req.query.cursor as string | undefined;
+    const type = queryString(req.query.type);
+    const limit = clampFollowPageSize(queryInt(req.query.limit));
+    const cursor = queryString(req.query.cursor);
 
     if (type && !isValidEntityType(type)) {
-      return res.status(400).json({ message: `type must be one of: ${VALID_ENTITY_TYPES.join(', ')}` });
+      return res.status(400).json({ message: `type must be one of: ${ENTITY_FOLLOW_TYPES.join(', ')}` });
     }
 
     const query: any = { userId };
@@ -196,11 +203,11 @@ router.get('/:entityType/:entityId/followers', async (req: AuthRequest, res: Res
     const entityId = req.params.entityId as string;
 
     if (!isValidEntityType(entityType)) {
-      return res.status(400).json({ message: `entityType must be one of: ${VALID_ENTITY_TYPES.join(', ')}` });
+      return res.status(400).json({ message: `entityType must be one of: ${ENTITY_FOLLOW_TYPES.join(', ')}` });
     }
 
-    const limit = Math.min(Math.max(parseInt(String(req.query.limit || 20), 10), 1), 50);
-    const cursor = req.query.cursor as string | undefined;
+    const limit = clampFollowPageSize(queryInt(req.query.limit));
+    const cursor = queryString(req.query.cursor);
 
     const query: any = { entityType, entityId };
     if (cursor) {

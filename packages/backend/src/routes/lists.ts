@@ -6,8 +6,13 @@ import mongoose from 'mongoose';
 import { feedController } from '../controllers/feed.controller';
 import { endorsementSignalService } from '../services/EndorsementSignalService';
 import { logger } from '../utils/logger';
+import { queryInt, queryString } from '../utils/queryParams';
 
 const router = express.Router();
+
+/** List timeline page size (`GET /lists/:id/timeline`). */
+const DEFAULT_TIMELINE_PAGE_SIZE = 20;
+const MAX_TIMELINE_PAGE_SIZE = 100;
 
 /**
  * Fire-and-forget endorsement re-sync for a list whose membership changed.
@@ -186,17 +191,20 @@ router.delete('/:id/members', async (req: AuthRequest, res: Response) => {
 router.get('/:id/timeline', async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?.id;
-    const { cursor, limit = 20 } = req.query;
+    const cursor = queryString(req.query.cursor);
+    // Bounded positive integer: the page's last row is read by index below, so a
+    // NaN / zero / negative limit would index outside the page.
+    const limit = Math.min(Math.max(queryInt(req.query.limit) || DEFAULT_TIMELINE_PAGE_SIZE, 1), MAX_TIMELINE_PAGE_SIZE);
     const list = await AccountList.findById(req.params.id).lean();
     if (!list) return res.status(404).json({ error: 'List not found' });
     if (!list.isPublic && list.ownerOxyUserId !== userId) return res.status(403).json({ error: 'Not allowed' });
 
     const q: Record<string, unknown> = { oxyUserId: { $in: list.memberOxyUserIds || [] }, visibility: 'public' };
-    if (cursor) q._id = { $lt: new mongoose.Types.ObjectId(String(cursor)) };
-    const docs = await Post.find(q).sort({ createdAt: -1 }).limit(Number(limit) + 1).lean();
-    const hasMore = docs.length > Number(limit);
-    const toReturn = hasMore ? docs.slice(0, Number(limit)) : docs;
-    const nextCursor = hasMore ? String(docs[Number(limit) - 1]._id) : undefined;
+    if (cursor) q._id = { $lt: new mongoose.Types.ObjectId(cursor) };
+    const docs = await Post.find(q).sort({ createdAt: -1 }).limit(limit + 1).lean();
+    const hasMore = docs.length > limit;
+    const toReturn = hasMore ? docs.slice(0, limit) : docs;
+    const nextCursor = hasMore ? String(docs[limit - 1]._id) : undefined;
     const transformed = await feedController.transformPostsWithProfiles(toReturn, userId);
     // Date lives on the hydrated post's `metadata` (HydratedPost has no top-level
     // `date`); the previous `p.date` read was always undefined under the loose cast.

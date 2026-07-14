@@ -4,6 +4,10 @@ import Post from "../models/Post";
 import { getDateRange } from "./utils/dateUtils";
 import { normalizeHashtag } from "../utils/textProcessing";
 import { logger } from '../utils/logger';
+import { queryString } from '../utils/queryParams';
+
+/** Analytics bucket reported when the caller declares no `?period`. */
+const DEFAULT_ANALYTICS_PERIOD = 'weekly';
 
 /**
  * Truncate `now` to the start of the given analytics period bucket so the
@@ -35,8 +39,17 @@ function startOfPeriodBucket(period: string, now: Date): Date {
 
 export const getAnalytics = async (req: Request, res: Response) => {
   try {
-    const { userID, period = "weekly" } = req.query;
-    const { startDate, endDate } = getDateRange(period as string);
+    // `userID` and `period` are Mongo query VALUES below. Narrowing them to real
+    // strings is what keeps `?userID[$ne]=x` from reaching the query as an
+    // operator object; an absent `userID` would drop out of the filter entirely
+    // and match every user's rows, so it is required rather than defaulted.
+    const userID = queryString(req.query.userID);
+    const period = queryString(req.query.period) ?? DEFAULT_ANALYTICS_PERIOD;
+    if (!userID) {
+      return res.status(400).json({ message: "userID is required" });
+    }
+
+    const { startDate, endDate } = getDateRange(period);
 
     const analytics = await Analytics.find({
       userID,
@@ -113,8 +126,7 @@ export const updateAnalytics = async (req: Request, res: Response) => {
 export const getHashtagStats = async (req: Request, res: Response) => {
   try {
     const { hashtag } = req.params;
-    const { period } = req.query;
-    const { startDate, endDate } = getDateRange(period as string);
+    const { startDate, endDate } = getDateRange(queryString(req.query.period) ?? DEFAULT_ANALYTICS_PERIOD);
 
     // Match the canonical lowercase `hashtags` array (backed by the
     // `{ hashtags: 1, ..., createdAt: -1 }` index) instead of an unanchored
@@ -157,9 +169,14 @@ export const getHashtagStats = async (req: Request, res: Response) => {
 
 export const getTopPosts = async (req: Request, res: Response) => {
   try {
-    const { userID, period = "weekly" } = req.query;
-    const { startDate, endDate } = getDateRange(period as string);
-    
+    const userID = queryString(req.query.userID);
+    const period = queryString(req.query.period) ?? DEFAULT_ANALYTICS_PERIOD;
+    if (!userID) {
+      return res.status(400).json({ message: "userID is required" });
+    }
+
+    const { startDate, endDate } = getDateRange(period);
+
     const topPosts = await Post.aggregate([
       { $match: { userID, created_at: { $gte: startDate, $lte: endDate } } },
       { $project: {
@@ -190,11 +207,8 @@ export const getTopPosts = async (req: Request, res: Response) => {
   }
 };
 
-export const getFollowerDetails = async (req: Request, res: Response) => {
+export const getFollowerDetails = async (_req: Request, res: Response) => {
   try {
-    const { userID, period = "weekly" } = req.query;
-    const { startDate, endDate } = getDateRange(period as string);
-    
     res.json({ totalFollowers: 0, newFollowers: 0, activeFollowers: 0 });
   } catch (error) {
     logger.error('Error fetching follower details:', error);

@@ -17,3 +17,35 @@
 export function queryString(value: unknown): string | undefined {
   return typeof value === 'string' ? value : undefined;
 }
+
+/**
+ * The parameter parsed as a base-10 integer, or `undefined` if it was absent,
+ * tampered with, or not a number.
+ *
+ * Callers pick their own default and bounds, so this deliberately does not clamp:
+ * `queryInt(req.query.limit) || DEFAULT_PAGE_SIZE` reads the same as the
+ * `parseInt(...) || DEFAULT_PAGE_SIZE` it replaces, down to `0` falling back to
+ * the default.
+ */
+export function queryInt(value: unknown): number | undefined {
+  const raw = queryString(value);
+  if (raw === undefined) return undefined;
+  const parsed = Number.parseInt(raw, 10);
+  return Number.isNaN(parsed) ? undefined : parsed;
+}
+
+/**
+ * The parameter's NESTED value (`?filters[parentPostId]=x`), or `undefined` when
+ * it is absent or arrived as some other shape.
+ *
+ * Unlike the readers above, an object here is the legitimate shape rather than
+ * the tampered one — but a caller that reaches into `.parentPostId` still has to
+ * know it did not get a string or an array first.
+ */
+export function queryRecord(value: unknown): Record<string, unknown> | undefined {
+  return isQueryRecord(value) ? value : undefined;
+}
+
+function isQueryRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}

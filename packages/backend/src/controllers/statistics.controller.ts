@@ -10,6 +10,7 @@ import { oxy as oxyClient } from '../../server';
 import { userPreferenceService } from '../services/UserPreferenceService';
 import { recordDedupedView } from '../services/feedViewCounter';
 import { validateRequired } from '../utils/apiHelpers';
+import { queryInt } from '../utils/queryParams';
 import { checkFollowAccess, requiresAccessCheck, ProfileVisibility } from '../utils/privacyHelpers';
 
 /**
@@ -18,12 +19,15 @@ import { checkFollowAccess, requiresAccessCheck, ProfileVisibility } from '../ut
  */
 const DEFAULT_SUMMARY_LANGUAGE = 'en';
 
+/** Trailing window the statistics endpoints report on when `?days` is absent. */
+const DEFAULT_STATS_WINDOW_DAYS = 30;
+
 interface DateRange {
   startDate: Date;
   endDate: Date;
 }
 
-function getDateRange(days: number = 30): DateRange {
+function getDateRange(days: number = DEFAULT_STATS_WINDOW_DAYS): DateRange {
   const endDate = new Date();
   const startDate = new Date();
   startDate.setDate(startDate.getDate() - days);
@@ -41,8 +45,7 @@ export const getUserStatistics = async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ message: 'Unauthorized' });
     }
 
-    const { days = 30 } = req.query;
-    const daysNum = parseInt(days as string, 10) || 30;
+    const daysNum = queryInt(req.query.days) || DEFAULT_STATS_WINDOW_DAYS;
     const { startDate, endDate } = getDateRange(daysNum);
 
     // Get all posts by user in date range
@@ -175,8 +178,8 @@ export const getUserActivity = async (req: AuthRequest, res: Response) => {
 
     // Clamp the requested window to a sane range. Default 365 (a full year of the
     // heatmap); min 30, max 366.
-    const rawDays = parseInt(req.query.days as string, 10);
-    const days = Number.isFinite(rawDays) ? Math.min(366, Math.max(30, rawDays)) : 365;
+    const rawDays = queryInt(req.query.days);
+    const days = rawDays === undefined ? 365 : Math.min(366, Math.max(30, rawDays));
 
     // Respect the target user's profile visibility — mirrors the public
     // profile-design stats. For a private / followers-only profile the viewer
@@ -390,8 +393,7 @@ export const getFollowerChanges = async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ message: 'Unauthorized' });
     }
 
-    const { days = 30 } = req.query;
-    const daysNum = parseInt(days as string, 10) || 30;
+    const daysNum = queryInt(req.query.days) || DEFAULT_STATS_WINDOW_DAYS;
     const { startDate, endDate } = getDateRange(daysNum);
 
     // Note: Follower tracking would need to be implemented separately
@@ -443,8 +445,7 @@ export const getEngagementRatios = async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ message: 'Unauthorized' });
     }
 
-    const { days = 30 } = req.query;
-    const daysNum = parseInt(days as string, 10) || 30;
+    const daysNum = queryInt(req.query.days) || DEFAULT_STATS_WINDOW_DAYS;
     const { startDate, endDate } = getDateRange(daysNum);
 
     const posts = await Post.find({

@@ -3,8 +3,13 @@ import mongoose from 'mongoose';
 import Report, { ReportedType, ReportCategory, ReportStatus } from '../models/Report.model';
 import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
 import { logger } from '../utils/logger';
+import { queryInt } from '../utils/queryParams';
 
 const router = Router();
+
+/** Report list page size (`GET /reports`). */
+const DEFAULT_REPORTS_PAGE_SIZE = 20;
+const MAX_REPORTS_PAGE_SIZE = 100;
 
 /**
  * Create a report
@@ -114,7 +119,7 @@ router.get('/', async (req: AuthRequest, res: Response) => {
 
     // Optional: Add admin check here if needed
     // For now, return reports created by the current user
-    const { status, reportedType, limit = '20', cursor } = req.query;
+    const { status, reportedType, cursor } = req.query;
 
     const query: any = { reporter: userId };
 
@@ -139,7 +144,7 @@ router.get('/', async (req: AuthRequest, res: Response) => {
       query._id = { $lt: new mongoose.Types.ObjectId(cursor) };
     }
 
-    const limitNum = Math.min(Math.max(parseInt(limit as string, 10) || 20, 1), 100);
+    const limitNum = Math.min(Math.max(queryInt(req.query.limit) || DEFAULT_REPORTS_PAGE_SIZE, 1), MAX_REPORTS_PAGE_SIZE);
 
     const reports = await Report.find(query)
       .sort({ createdAt: -1 })

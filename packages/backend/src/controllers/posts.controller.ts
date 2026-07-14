@@ -18,6 +18,7 @@ import { postHydrationService, resolveUserSummaries, degradedActorSummary } from
 import { config } from '../config';
 import { mergeHashtags, escapeRegex } from '../utils/textProcessing';
 import { createScopedOxyClient } from '../utils/oxyHelpers';
+import { queryInt, queryString } from '../utils/queryParams';
 import { warmLinkPreviewForText } from '../utils/linkPreviewWarm';
 import { aliaChat } from '../utils/alia';
 import { validatePublicShareTarget } from '../utils/postAccessControl';
@@ -54,6 +55,15 @@ const MAX_AREA_POSTS = config.posts.maxAreaPosts;
 const DEFAULT_LIKES_LIMIT = config.posts.defaultLikesLimit;
 const MAX_TEXT_LENGTH = config.posts.maxTextLength;
 const MAX_ALT_TEXT_LENGTH = config.posts.maxAltTextLength;
+
+/**
+ * Page size for the engagement lists (`GET /posts/:id/likes` and `.../boosts`).
+ * Both handlers read the page's last row by index (`rows[limit - 1]`), so the
+ * limit has to be a bounded positive integer: an absent, zero, or negative limit
+ * would index outside the page and throw on the missing document.
+ */
+const clampLikesLimit = (limit: number | undefined): number =>
+  Math.min(Math.max(limit || DEFAULT_LIKES_LIMIT, 1), MAX_PAGE_SIZE);
 
 /**
  * Resolve the canonical Oxy {@link PostUser} for an engagement-list entry
@@ -1149,8 +1159,8 @@ export const createThread = async (req: AuthRequest, res: Response) => {
 // Get all posts
 export const getPosts = async (req: AuthRequest, res: Response) => {
   try {
-    const page = parseInt(req.query.page as string) || 1;
-    const limit = Math.min(parseInt(req.query.limit as string) || DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE);
+    const page = queryInt(req.query.page) || 1;
+    const limit = Math.min(queryInt(req.query.limit) || DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE);
     const currentUserId = req.user?.id;
 
     const posts = await Post.find({ visibility: 'public', status: 'published' })
@@ -1893,11 +1903,11 @@ export const getSavedPosts = async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ message: 'Unauthorized' });
     }
 
-    const page = parseInt(req.query.page as string) || 1;
-    const limit = Math.min(parseInt(req.query.limit as string) || DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE);
-    const searchQuery = req.query.search as string;
+    const page = queryInt(req.query.page) || 1;
+    const limit = Math.min(queryInt(req.query.limit) || DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE);
+    const searchQuery = queryString(req.query.search);
 
-    const folderFilter = req.query.folder as string | undefined;
+    const folderFilter = queryString(req.query.folder);
 
     // Get saved post IDs for the user, optionally filtered by folder
     const bookmarkQuery: Record<string, unknown> = { userId };
@@ -2021,8 +2031,8 @@ export function buildPostsByHashtagFilter(
 export const getPostsByHashtag = async (req: AuthRequest, res: Response) => {
   try {
     const hashtag = String(req.params.hashtag);
-    const cursor = req.query.cursor as string | undefined;
-    const limit = Math.min(parseInt(req.query.limit as string) || DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE);
+    const cursor = queryString(req.query.cursor);
+    const limit = Math.min(queryInt(req.query.limit) || DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE);
 
     const filter = buildPostsByHashtagFilter(hashtag, cursor);
 
@@ -2088,8 +2098,8 @@ export function buildPostsByTopicFilter(
 export const getPostsByTopic = async (req: AuthRequest, res: Response) => {
   try {
     const topicName = String(req.params.topic);
-    const cursor = req.query.cursor as string | undefined;
-    const limit = Math.min(parseInt(req.query.limit as string) || DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE);
+    const cursor = queryString(req.query.cursor);
+    const limit = Math.min(queryInt(req.query.limit) || DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE);
 
     const filter = buildPostsByTopicFilter(topicName, cursor);
 
@@ -2172,18 +2182,23 @@ export const getScheduledPosts = async (req: AuthRequest, res: Response) => {
 // Get nearby posts based on location
 export const getNearbyPosts = async (req: AuthRequest, res: Response) => {
   try {
-    const { lat, lng, radius = DEFAULT_NEARBY_RADIUS_METERS, locationType = 'content' } = req.query;
-    
+    const lat = queryString(req.query.lat);
+    const lng = queryString(req.query.lng);
+    const locationType = queryString(req.query.locationType) ?? 'content';
+
     if (!lat || !lng) {
       return res.status(400).json({ message: 'Latitude and longitude are required' });
     }
 
-    const latitude = parseFloat(lat as string);
-    const longitude = parseFloat(lng as string);
-    const radiusMeters = parseInt(radius as string);
+    const rawRadius = queryString(req.query.radius);
+    const latitude = Number.parseFloat(lat);
+    const longitude = Number.parseFloat(lng);
+    const radiusMeters = rawRadius === undefined
+      ? DEFAULT_NEARBY_RADIUS_METERS
+      : Number.parseInt(rawRadius, 10);
     const locationField = locationType === 'post' ? 'location' : 'content.location';
 
-    if (isNaN(latitude) || isNaN(longitude) || isNaN(radiusMeters)) {
+    if (Number.isNaN(latitude) || Number.isNaN(longitude) || Number.isNaN(radiusMeters)) {
       return res.status(400).json({ message: 'Invalid latitude, longitude, or radius' });
     }
 
@@ -2232,21 +2247,25 @@ export const getNearbyPosts = async (req: AuthRequest, res: Response) => {
 // Get posts within a bounding box area
 export const getPostsInArea = async (req: AuthRequest, res: Response) => {
   try {
-    const { north, south, east, west, locationType = 'content' } = req.query;
-    
+    const north = queryString(req.query.north);
+    const south = queryString(req.query.south);
+    const east = queryString(req.query.east);
+    const west = queryString(req.query.west);
+    const locationType = queryString(req.query.locationType) ?? 'content';
+
     if (!north || !south || !east || !west) {
-      return res.status(400).json({ 
-        message: 'Bounding box coordinates (north, south, east, west) are required' 
+      return res.status(400).json({
+        message: 'Bounding box coordinates (north, south, east, west) are required'
       });
     }
 
-    const northLat = parseFloat(north as string);
-    const southLat = parseFloat(south as string);
-    const eastLng = parseFloat(east as string);
-    const westLng = parseFloat(west as string);
+    const northLat = Number.parseFloat(north);
+    const southLat = Number.parseFloat(south);
+    const eastLng = Number.parseFloat(east);
+    const westLng = Number.parseFloat(west);
     const locationField = locationType === 'post' ? 'location' : 'content.location';
 
-    if (isNaN(northLat) || isNaN(southLat) || isNaN(eastLng) || isNaN(westLng)) {
+    if (Number.isNaN(northLat) || Number.isNaN(southLat) || Number.isNaN(eastLng) || Number.isNaN(westLng)) {
       return res.status(400).json({ message: 'Invalid bounding box coordinates' });
     }
 
@@ -2295,7 +2314,8 @@ export const getPostsInArea = async (req: AuthRequest, res: Response) => {
 export const getPostLikes = async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
-    const { limit = DEFAULT_LIKES_LIMIT, cursor } = req.query as Record<string, string | undefined>;
+    const cursor = queryString(req.query.cursor);
+    const limit = clampLikesLimit(queryInt(req.query.limit));
 
     if (!id) {
       return res.status(400).json({ message: 'Post ID is required' });
@@ -2308,12 +2328,12 @@ export const getPostLikes = async (req: AuthRequest, res: Response) => {
 
     const likes = await Like.find(query)
       .sort({ _id: -1 })
-      .limit(Number(limit) + 1)
+      .limit(limit + 1)
       .lean();
 
-    const hasMore = likes.length > Number(limit);
-    const likesToReturn = hasMore ? likes.slice(0, Number(limit)) : likes;
-    const nextCursor = hasMore ? likes[Number(limit) - 1]._id.toString() : undefined;
+    const hasMore = likes.length > limit;
+    const likesToReturn = hasMore ? likes.slice(0, limit) : likes;
+    const nextCursor = hasMore ? likes[limit - 1]._id.toString() : undefined;
 
     // Get unique user IDs, then resolve actor summaries through the same shared
     // resolver PostHydrationService uses (canonical `name.displayName`, batched
@@ -2338,7 +2358,8 @@ export const getPostLikes = async (req: AuthRequest, res: Response) => {
 export const getPostBoosts = async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
-    const { limit = DEFAULT_LIKES_LIMIT, cursor } = req.query as Record<string, string | undefined>;
+    const cursor = queryString(req.query.cursor);
+    const limit = clampLikesLimit(queryInt(req.query.limit));
 
     if (!id) {
       return res.status(400).json({ message: 'Post ID is required' });
@@ -2351,13 +2372,13 @@ export const getPostBoosts = async (req: AuthRequest, res: Response) => {
 
     const boosts = await Post.find(query)
       .sort({ _id: -1 })
-      .limit(Number(limit) + 1)
+      .limit(limit + 1)
       .select('oxyUserId createdAt')
       .lean();
 
-    const hasMore = boosts.length > Number(limit);
-    const boostsToReturn = hasMore ? boosts.slice(0, Number(limit)) : boosts;
-    const nextCursor = hasMore ? boosts[Number(limit) - 1]._id.toString() : undefined;
+    const hasMore = boosts.length > limit;
+    const boostsToReturn = hasMore ? boosts.slice(0, limit) : boosts;
+    const nextCursor = hasMore ? boosts[limit - 1]._id.toString() : undefined;
 
     // Get unique user IDs, then resolve actor summaries through the same shared
     // resolver PostHydrationService uses (canonical `name.displayName`, batched
@@ -2380,17 +2401,21 @@ export const getPostBoosts = async (req: AuthRequest, res: Response) => {
 
 export const getNearbyPostsBothLocations = async (req: AuthRequest, res: Response) => {
   try {
-    const { lat, lng, radius = 10000 } = req.query; // radius in meters, default 10km
-    
+    const lat = queryString(req.query.lat);
+    const lng = queryString(req.query.lng);
+    const rawRadius = queryString(req.query.radius);
+
     if (!lat || !lng) {
       return res.status(400).json({ message: 'Latitude and longitude are required' });
     }
 
-    const latitude = parseFloat(lat as string);
-    const longitude = parseFloat(lng as string);
-    const radiusMeters = parseInt(radius as string);
+    const latitude = Number.parseFloat(lat);
+    const longitude = Number.parseFloat(lng);
+    const radiusMeters = rawRadius === undefined
+      ? DEFAULT_NEARBY_RADIUS_METERS
+      : Number.parseInt(rawRadius, 10);
 
-    if (isNaN(latitude) || isNaN(longitude) || isNaN(radiusMeters)) {
+    if (Number.isNaN(latitude) || Number.isNaN(longitude) || Number.isNaN(radiusMeters)) {
       return res.status(400).json({ message: 'Invalid latitude, longitude, or radius' });
     }
 

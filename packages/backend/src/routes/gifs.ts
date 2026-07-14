@@ -20,8 +20,12 @@ import { signGifMediaUrl, unwrapGifMediaUrl } from '../services/gifLibrary/gifMe
 import { getServiceOxyClient } from '../utils/oxyHelpers';
 import type { IGif } from '../models/Gif';
 import { logger } from '../utils/logger';
+import { queryInt, queryString } from '../utils/queryParams';
 
 const router = express.Router();
+
+/** GIF page size requested from Klipy when the caller declares none. */
+const DEFAULT_GIF_PAGE_SIZE = 20;
 
 /**
  * Clean, client-facing GIF DTO. The backend owns the Klipy contract and never
@@ -172,18 +176,18 @@ async function buildMergedPayload(
 // Search GIFs — local-first, Klipy top-up, import what's new.
 router.get("/search", async (req: AuthRequest, res: Response) => {
   try {
-    const { q, page = '1', per_page = '20' } = req.query;
+    const q = queryString(req.query.q);
     const customerId = req.user?.id || 'anonymous';
 
-    if (!q || typeof q !== 'string') {
+    if (!q) {
       return res.status(400).json({
         success: false,
         message: 'Search query (q) is required',
       });
     }
 
-    const pageNum = parseInt(page as string, 10) || 1;
-    const perPage = parseInt(per_page as string, 10) || 20;
+    const pageNum = queryInt(req.query.page) || 1;
+    const perPage = queryInt(req.query.per_page) || DEFAULT_GIF_PAGE_SIZE;
 
     // Local text-search hits lead the FIRST page only (later pages are pure Klipy
     // pagination — re-prepending the same local hits on every page would dup them).
@@ -214,11 +218,10 @@ router.get("/search", async (req: AuthRequest, res: Response) => {
 // Trending GIFs — owned trending first, Klipy top-up, import what's new.
 router.get("/trending", async (req: AuthRequest, res: Response) => {
   try {
-    const { page = '1', per_page = '20' } = req.query;
     const customerId = req.user?.id || 'anonymous';
 
-    const pageNum = parseInt(page as string, 10) || 1;
-    const perPage = parseInt(per_page as string, 10) || 20;
+    const pageNum = queryInt(req.query.page) || 1;
+    const perPage = queryInt(req.query.per_page) || DEFAULT_GIF_PAGE_SIZE;
 
     const localHits = pageNum === 1 ? await getLocalTrending(GIF_LOCAL_HITS_LIMIT) : [];
 
