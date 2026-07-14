@@ -16,6 +16,7 @@ import { Icon } from '@/lib/icons';
 import { EmptyState } from '@/components/common/EmptyState';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
 import ConfirmBottomSheet from '@/components/common/ConfirmBottomSheet';
+import { getErrorMessage } from '@/utils/apiError';
 import { createScopedLogger } from '@/lib/logger';
 import {
     muteWordsService,
@@ -27,15 +28,6 @@ import {
 const hiddenWordsLogger = createScopedLogger('HiddenWords');
 
 const MUTE_WORDS_QUERY_KEY = ['mute-words'] as const;
-
-/** Pull a human-readable message off an axios-style error without `as any`. */
-function getErrorMessage(error: unknown, fallback: string): string {
-    if (error && typeof error === 'object' && 'response' in error) {
-        const response = (error as { response?: { data?: { error?: string; message?: string } } }).response;
-        return response?.data?.error || response?.data?.message || fallback;
-    }
-    return fallback;
-}
 
 export default function HiddenWordsScreen() {
     const { t } = useTranslation();

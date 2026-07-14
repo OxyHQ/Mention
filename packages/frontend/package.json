@@ -53,7 +53,6 @@
     "@oxyhq/core": "^10.2.0",
     "@oxyhq/expo-oxy-identity": "^0.1.0",
     "@oxyhq/services": "^20.0.0",
-    "@radix-ui/react-icons": "^1.3.2",
     "@react-native-async-storage/async-storage": "^2.2.0",
     "@react-native-community/netinfo": "^12.0.1",
     "@shopify/flash-list": "2.3.2",

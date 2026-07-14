@@ -69,7 +69,7 @@ export function StarterPacksTab() {
       id: String(item._id || item.id),
       name: item.name || 'Untitled Pack',
       description: item.description,
-      creator: item.creator || item.owner,
+      creator: item.creator,
       memberCount,
       useCount: item.useCount || 0,
       memberAvatars: item.memberAvatars ?? [],

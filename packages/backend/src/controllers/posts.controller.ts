@@ -2202,7 +2202,6 @@ export const getDrafts = async (req: AuthRequest, res: Response) => {
       status: 'draft'
     })
       .sort({ created_at: -1 })
-      .populate('userID', 'username name avatar verified')
       .lean();
 
     res.json(drafts);
@@ -2225,7 +2224,6 @@ export const getScheduledPosts = async (req: AuthRequest, res: Response) => {
       status: 'scheduled'
     })
       .sort({ scheduledFor: 1 })
-      .populate('userID', 'username name avatar verified')
       .lean();
 
     res.json(scheduledPosts);
