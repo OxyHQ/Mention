@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
-import { FeedType, FeedPostSlice, FeedRequest, HydratedPost } from '@mention/shared-types';
+import { FeedInterstitialSlot, FeedType, FeedPostSlice, FeedRequest, HydratedPost } from '@mention/shared-types';
 import { usePostsStore, useFeedSelector, useUserFeedSelector } from '@/stores/postsStore';
 import { feedService } from '@/services/feedService';
 import { FeedFilters, getItemKey, deduplicateItems, buildFeedScrollKey } from '@/utils/feedUtils';
@@ -77,6 +77,12 @@ export interface UseFeedStateOptions {
 export interface UseFeedStateReturn {
     items: HydratedPost[];
     slices?: FeedPostSlice[];
+    /**
+     * Recommendation-card placements accumulated across the loaded pages —
+     * concatenated on `loadMore`, replaced on `fetchInitial`/`refresh`, exactly
+     * like `slices`. Placements only; the cards fetch their own content.
+     */
+    interstitials?: FeedInterstitialSlot[];
     hasMore: boolean;
     isLoading: boolean;
     error: string | null;
@@ -169,18 +175,21 @@ export function useFeedState({
     // Local state for scoped feeds
     const [localItems, setLocalItems] = useState<HydratedPost[]>(() => seed?.items ?? []);
     const [localSlices, setLocalSlices] = useState<FeedPostSlice[] | undefined>(() => seed?.slices);
+    const [localInterstitials, setLocalInterstitials] = useState<FeedInterstitialSlot[] | undefined>(() => seed?.interstitials);
     const [localHasMore, setLocalHasMore] = useState<boolean>(() => seed ? seed.hasMore : true);
     const [localNextCursor, setLocalNextCursor] = useState<string | undefined>(() => seed?.nextCursor);
     const [localLoading, setLocalLoading] = useState<boolean>(false);
     const [localError, setLocalError] = useState<string | null>(null);
 
-    // Latest local items/slices, mirrored into refs so the new-post broadcast
-    // listener can read current state without re-subscribing on every change and
-    // without depending on possibly-stale closure values.
+    // Latest local items/slices/interstitials, mirrored into refs so the new-post
+    // broadcast listener can read current state without re-subscribing on every
+    // change and without depending on possibly-stale closure values.
     const localItemsRef = useRef(localItems);
     localItemsRef.current = localItems;
     const localSlicesRef = useRef(localSlices);
     localSlicesRef.current = localSlices;
+    const localInterstitialsRef = useRef(localInterstitials);
+    localInterstitialsRef.current = localInterstitials;
 
     // Federated outbox-sync polling state. `pending` is surfaced to consumers so
     // the UI can show a "loading posts…" state; the scheduler refetches a bounded
@@ -294,6 +303,9 @@ export function useFeedState({
                 setFeedMemoryCache(feedScrollKey, {
                     items: [item, ...existingItems],
                     slices: nextSlices,
+                    // The new post prepends its own slice; the existing card
+                    // placements are anchored by slice key, so they survive intact.
+                    interstitials: existing?.interstitials ?? localInterstitialsRef.current,
                     hasMore: existing?.hasMore ?? localHasMore,
                     nextCursor: existing?.nextCursor ?? localNextCursor,
                 });
@@ -552,9 +564,11 @@ export function useFeedState({
                     // ordering in local state; this only upserts the post objects.
                     cachePosts(uniqueItems);
                     const initialSlices = resp.slices || undefined;
+                    const initialInterstitials = resp.interstitials || undefined;
                     const initialHasMore = !!resp.hasMore;
                     setLocalItems(uniqueItems);
                     setLocalSlices(initialSlices);
+                    setLocalInterstitials(initialInterstitials);
                     setLocalHasMore(initialHasMore);
                     setLocalNextCursor(resp.nextCursor);
                     // A fresh fetch overwrites any retained slice so the cache
@@ -562,6 +576,7 @@ export function useFeedState({
                     retainMemoryCache({
                         items: uniqueItems,
                         slices: initialSlices,
+                        interstitials: initialInterstitials,
                         hasMore: initialHasMore,
                         nextCursor: resp.nextCursor,
                     });
@@ -680,9 +695,11 @@ export function useFeedState({
                 // Seed the shared post cache for instant post-detail open (see fetchInitial).
                 cachePosts(uniqueItems);
                 const refreshedSlices = resp.slices || undefined;
+                const refreshedInterstitials = resp.interstitials || undefined;
                 const refreshedHasMore = !!resp.hasMore;
                 setLocalItems(uniqueItems);
                 setLocalSlices(refreshedSlices);
+                setLocalInterstitials(refreshedInterstitials);
                 setLocalHasMore(refreshedHasMore);
                 setLocalNextCursor(resp.nextCursor);
                 // A refresh rebuilds the feed from page 1, so overwrite the
@@ -690,6 +707,7 @@ export function useFeedState({
                 retainMemoryCache({
                     items: uniqueItems,
                     slices: refreshedSlices,
+                    interstitials: refreshedInterstitials,
                     hasMore: refreshedHasMore,
                     nextCursor: resp.nextCursor,
                 });
@@ -779,6 +797,7 @@ export function useFeedState({
                 const cursorAdvanced = !!nextCursor && nextCursor !== prevCursor;
                 const mergedHasMore = !!resp.hasMore && cursorAdvanced;
                 const newSlices = resp.slices;
+                const newInterstitials = resp.interstitials;
 
                 // Compute the merged set up-front against the current state
                 // (closure values), so both the React state update and the cache
@@ -793,10 +812,19 @@ export function useFeedState({
                 const mergedSlices = newSlices && newSlices.length > 0
                     ? (localSlices ? [...localSlices, ...newSlices] : newSlices)
                     : localSlices;
+                // Card placements accumulate with the pages that carry them: each
+                // page's slots anchor to slices of THAT page, so appending is enough
+                // to keep every card at its position in the accumulated feed.
+                const mergedInterstitials = newInterstitials && newInterstitials.length > 0
+                    ? (localInterstitials ? [...localInterstitials, ...newInterstitials] : newInterstitials)
+                    : localInterstitials;
 
                 setLocalItems(mergedItems);
                 if (mergedSlices !== localSlices) {
                     setLocalSlices(mergedSlices);
+                }
+                if (mergedInterstitials !== localInterstitials) {
+                    setLocalInterstitials(mergedInterstitials);
                 }
                 setLocalHasMore(mergedHasMore);
                 setLocalNextCursor(nextCursor);
@@ -806,6 +834,7 @@ export function useFeedState({
                 retainMemoryCache({
                     items: mergedItems,
                     slices: mergedSlices,
+                    interstitials: mergedInterstitials,
                     hasMore: mergedHasMore,
                     nextCursor,
                 });
@@ -843,6 +872,7 @@ export function useFeedState({
         localNextCursor,
         localItems,
         localSlices,
+        localInterstitials,
         type,
         effectiveType,
         userId,
@@ -900,6 +930,7 @@ export function useFeedState({
                 clearFeedMemoryCache(feedScrollKey);
                 setLocalItems([]);
                 setLocalSlices(undefined);
+                setLocalInterstitials(undefined);
                 setLocalHasMore(true);
                 setLocalNextCursor(undefined);
             } else if (userId) {
@@ -937,6 +968,11 @@ export function useFeedState({
     const isViewerCacheTrusted = showOnlySaved || previousIdentityRef.current === currentViewerIdentity;
     const items = isViewerCacheTrusted ? (useMemoryFeed ? localItems : globalFeed?.items || []) : [];
     const slices = isViewerCacheTrusted ? (useMemoryFeed ? localSlices : globalFeed?.slices) : undefined;
+    // Card placements are viewer-specific (the server only emits them for an
+    // authenticated viewer), so they follow the same trust gate as the items.
+    const interstitials = isViewerCacheTrusted
+        ? (useMemoryFeed ? localInterstitials : globalFeed?.interstitials)
+        : undefined;
     const hasMore = useMemoryFeed ? localHasMore : !!globalFeed?.hasMore;
     const isLoading = !isViewerCacheTrusted || (useMemoryFeed ? localLoading : !!globalFeed?.isLoading);
     const error = useMemoryFeed ? localError : globalFeed?.error || null;
@@ -945,6 +981,7 @@ export function useFeedState({
     return {
         items,
         slices,
+        interstitials,
         hasMore,
         isLoading,
         error,

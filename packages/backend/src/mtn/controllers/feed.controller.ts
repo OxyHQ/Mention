@@ -18,7 +18,9 @@ import { resolveDiscoveryGateBucket } from '../feed/discoveryGateExperiment';
 import { FeedGeneratorFeed } from '../feed/feeds/FeedGeneratorFeed';
 import type { FeedAPI } from '../feed/FeedAPI';
 import { FeedTuner } from '../feed/FeedTuner';
+import { planInterstitials } from '../feed/interstitials/planInterstitials';
 import { FeedResponseBuilder } from '../../utils/FeedResponseBuilder';
+import { queryString } from '../../utils/queryParams';
 import { UserPrivacyManager } from '../UserPrivacyManager';
 import { trackFeedInteraction } from '../feed/FeedInteractionTracker';
 import { logger } from '../../utils/logger';
@@ -195,16 +197,21 @@ class MtnFeedController {
    */
   async getFeed(req: AuthRequest, res: Response): Promise<void> {
     try {
-      const descriptorParam = req.query.descriptor as string;
+      // Read query params through `queryString`, never through a cast: a tampered
+      // `?cursor[]=a&cursor[]=b` arrives as an ARRAY, and the interstitial planner
+      // hashes the cursor character by character — an array there is an unhandled
+      // TypeError, i.e. a 500 from a crafted URL.
+      const descriptorParam = queryString(req.query.descriptor);
       if (!descriptorParam || !isValidFeedDescriptor(descriptorParam)) {
         res.status(400).json({ success: false, error: 'Invalid or missing feed descriptor' });
         return;
       }
 
-      const descriptor = descriptorParam as FeedDescriptor;
-      const cursor = req.query.cursor as string | undefined;
+      // `isValidFeedDescriptor` is a type guard, so this is already a FeedDescriptor.
+      const descriptor: FeedDescriptor = descriptorParam;
+      const cursor = queryString(req.query.cursor);
       const limit = Math.min(
-        Math.max(parseInt(req.query.limit as string, 10) || MtnConfig.feed.defaultLimit, 1),
+        Math.max(parseInt(queryString(req.query.limit) ?? '', 10) || MtnConfig.feed.defaultLimit, 1),
         MtnConfig.feed.maxLimit
       );
       const videoFilters = parseVideoFeedFilters(descriptor, req.query);
@@ -350,6 +357,31 @@ class MtnFeedController {
         syncFlattenedItemsWithSlices(response);
       }
 
+      // Plan this page's recommendation-card placements. Pure, synchronous, and
+      // I/O-free (it reads the already-truncated slices and the follow count the
+      // context loaded anyway), so the feed never waits on recommendation data —
+      // the client fetches each card's contents lazily. Planned LAST, after the
+      // tuner has settled the final slice list, so a slot can only ever anchor to
+      // a slice that actually shipped.
+      //
+      // Slots live at the TOP LEVEL of the response and NEVER inside
+      // `slices[].items` — that array is flattened into `items[]`, which must stay
+      // strictly posts for every existing client.
+      //
+      // Authenticated viewers only: slots are personalized (they key off the
+      // viewer's graph), and an anonymous page is shared via `anonFeedCache`.
+      if (currentUserId) {
+        response.interstitials = planInterstitials({
+          descriptor,
+          slices: response.slices,
+          // An unresolved follow list reads as an empty graph — the coldest
+          // temperature, which is the right default: it bootstraps discovery.
+          followingCount: context.followingIds?.length ?? 0,
+          isFirstPage: !cursor,
+          cursor,
+        });
+      }
+
       // Persist the freshly built anonymous page (fail-soft; no-op for
       // authenticated requests). Written after the tuner pipeline so the cached
       // value is identical to what a live build returns.
@@ -374,13 +406,14 @@ class MtnFeedController {
    */
   async peekLatest(req: AuthRequest, res: Response): Promise<void> {
     try {
-      const descriptorParam = req.query.descriptor as string;
+      // Same boundary narrowing as getFeed: a query param can arrive as an array.
+      const descriptorParam = queryString(req.query.descriptor);
       if (!descriptorParam || !isValidFeedDescriptor(descriptorParam)) {
         res.status(400).json({ success: false, error: 'Invalid or missing feed descriptor' });
         return;
       }
 
-      const descriptor = descriptorParam as FeedDescriptor;
+      const descriptor: FeedDescriptor = descriptorParam;
       const currentUserId = req.user?.id;
 
       const privacyState = currentUserId

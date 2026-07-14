@@ -1301,7 +1301,9 @@
       "recency": "Recency",
       "source": "Sources",
       "ranking": "Ranking"
-    }
+    },
+    "subscribe": "Subscribe",
+    "subscribed": "Subscribed"
   },
   "connections": {
     "tabs": {
@@ -1510,6 +1512,25 @@
       "minQuality": {
         "label": "Minimum quality",
         "description": "Hide discovery posts whose classified quality is below your threshold. Off by default."
+      }
+    },
+    "interstitial": {
+      "seeMore": "See more",
+      "dismissHint": "Removes this suggestion until you refresh",
+      "users": {
+        "title": "Who to follow",
+        "dismiss": "Dismiss {{name}}"
+      },
+      "feeds": {
+        "title": "Suggested feeds",
+        "dismiss": "Dismiss {{name}}",
+        "subscribeError": "Couldn't subscribe to this feed"
+      },
+      "starterPacks": {
+        "title": "Starter packs for you",
+        "dismiss": "Dismiss {{name}}",
+        "followAll": "Follow all",
+        "followingAll": "Following all"
       }
     }
   },

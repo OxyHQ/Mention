@@ -956,7 +956,9 @@
         "label": "Niente bot",
         "description": "Scarta i mirror RSS/bridge e i bot di notizie solo con link."
       }
-    }
+    },
+    "subscribe": "Iscriviti",
+    "subscribed": "Iscritto"
   },
   "connections": {
     "tabs": {
@@ -1306,6 +1308,25 @@
       "minQuality": {
         "label": "Qualità minima",
         "description": "Nascondi i post di scoperta la cui qualità classificata è sotto la tua soglia. Disattivato per impostazione predefinita."
+      }
+    },
+    "interstitial": {
+      "seeMore": "Vedi altro",
+      "dismissHint": "Nasconde questo suggerimento fino al prossimo aggiornamento",
+      "users": {
+        "title": "Chi seguire",
+        "dismiss": "Ignora {{name}}"
+      },
+      "feeds": {
+        "title": "Feed suggeriti",
+        "dismiss": "Ignora {{name}}",
+        "subscribeError": "Impossibile iscriversi a questo feed"
+      },
+      "starterPacks": {
+        "title": "Starter pack per te",
+        "dismiss": "Ignora {{name}}",
+        "followAll": "Segui tutti",
+        "followingAll": "Segui già tutti"
       }
     }
   },

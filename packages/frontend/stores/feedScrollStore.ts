@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { FeedPostSlice, HydratedPost } from '@mention/shared-types';
+import { FeedInterstitialSlot, FeedPostSlice, HydratedPost } from '@mention/shared-types';
 
 /**
  * Session-scoped memory-mode retention store + local new-post bridge.
@@ -25,6 +25,12 @@ import { FeedPostSlice, HydratedPost } from '@mention/shared-types';
 export interface FeedMemoryCacheEntry {
     items: HydratedPost[];
     slices?: FeedPostSlice[];
+    /**
+     * Recommendation-card placements accumulated across the loaded pages. Retained
+     * with the items so a warm-started feed shows the same cards in the same places
+     * it had before the unmount.
+     */
+    interstitials?: FeedInterstitialSlot[];
     hasMore: boolean;
     nextCursor?: string;
 }

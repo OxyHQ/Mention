@@ -127,6 +127,37 @@ export interface FeedPostSlice {
   reason?: FeedSliceReason;
 }
 
+// Feed interstitials — recommendation cards spliced between post slices
+
+/** The three kinds of recommendation card the feed can carry. */
+export type FeedInterstitialKind =
+  | 'suggestedUsers'
+  | 'suggestedFeeds'
+  | 'suggestedStarterPacks';
+
+/**
+ * A recommendation card's PLACEMENT, not its content. The server decides which
+ * kind of card goes where (a synchronous, I/O-free computation off the viewer's
+ * follow-graph density); the client lazily fetches what goes inside it from the
+ * dedicated, already-cached recommendation endpoints. A feed response therefore
+ * never blocks on recommendation data.
+ *
+ * Slots live at the TOP LEVEL of the response, never inside `slices[].items` —
+ * that array is flattened into `items[]` (`FeedResponseBuilder`) and must stay
+ * strictly posts for every existing client.
+ */
+export interface FeedInterstitialSlot {
+  /** Stable row key. Survives re-renders; changes when the feed is refreshed. */
+  key: string;
+  kind: FeedInterstitialKind;
+  /**
+   * The slot renders directly AFTER the slice with this key. Anchored by slice
+   * key rather than index because the client drops slices of its own accord
+   * (blocked authors). A slot whose anchor slice is absent is discarded.
+   */
+  afterSliceKey: string;
+}
+
 export interface SlicedFeedResponse {
   slices: FeedPostSlice[];
   items: HydratedPost[]; // backward compat: flattened slices
@@ -139,4 +170,10 @@ export interface SlicedFeedResponse {
    * Clients should show a brief loading state and refetch shortly after.
    */
   pending?: boolean;
+  /**
+   * Recommendation-card placements for THIS page. Only ever present for
+   * authenticated viewers on the descriptors in
+   * `MtnConfig.feed.interstitials.allowedDescriptors`.
+   */
+  interstitials?: FeedInterstitialSlot[];
 }

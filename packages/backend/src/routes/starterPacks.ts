@@ -206,6 +206,7 @@ router.post('/', async (req: AuthRequest, res: Response) => {
 //   - mine=true       → the authenticated viewer's own packs (empty when anon)
 //   - userId=<oxyId>  → a specific owner's packs (a profile's "Starter Packs" tab)
 //   - neither         → public discovery (all packs, most-used first)
+// Discovery additionally accepts `excludeUsed=true` (see below).
 // The write routes below enforce auth internally.
 router.get('/', async (req: AuthRequest, res: Response) => {
   try {
@@ -225,6 +226,15 @@ router.get('/', async (req: AuthRequest, res: Response) => {
       // A specific profile's packs (foreign-profile tab passes `userId`).
       q.ownerOxyUserId = ownerId;
       ownerScoped = true;
+    } else if (viewerId && String(req.query.excludeUsed) === 'true') {
+      // Discovery for a recommendation surface (the feed interstitial): never
+      // suggest a pack the viewer already owns or has already used. Both filters
+      // are equality-negations on fields the discovery sort index
+      // (`useCount:-1, createdAt:-1`) doesn't cover, so the index still serves
+      // the ordering and these only reject rows. Anonymous viewers have used
+      // nothing, so the param is ignored for them.
+      q.ownerOxyUserId = { $ne: viewerId };
+      q.usedByOxyUserIds = { $ne: viewerId };
     }
     if (search) {
       const escaped = escapeRegex(search);

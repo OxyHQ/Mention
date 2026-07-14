@@ -5,6 +5,8 @@
  * All ranking weights, cache TTLs, feed params in one place.
  */
 
+import type { FeedInterstitialKind } from '../feed';
+
 export const MtnConfig = {
   // --- Ranking weights ---
   ranking: {
@@ -414,6 +416,53 @@ export const MtnConfig = {
     trendingWindowMs: 24 * 60 * 60 * 1000, // 24 hours
     /** Minimum score difference to distinguish cursor position */
     scoreEpsilon: 0.001,
+
+    /**
+     * FEED INTERSTITIALS — the recommendation cards (suggested users / custom
+     * feeds / starter packs) spliced between post slices while the viewer
+     * scrolls.
+     *
+     * The server picks the KIND and the POSITION; the client fetches the
+     * CONTENT lazily from the dedicated recommendation endpoints. Planning a
+     * slot is therefore pure arithmetic over data the feed request already has
+     * (`followingIds.length`) and costs the feed response zero extra I/O.
+     *
+     * The mix adapts to how dense the viewer's follow graph is, because what a
+     * user needs changes with it: someone who follows almost nobody gets
+     * starter packs first (one tap follows many people at once), while someone
+     * who already follows hundreds mostly wants individual accounts, less
+     * often.
+     */
+    interstitials: {
+      /** Feed descriptors allowed to carry cards. Any other feed gets none. */
+      allowedDescriptors: ['for_you', 'following', 'explore'],
+      /** Below this many follows the graph is COLD — bootstrap it aggressively. */
+      coldMaxFollowing: 20,
+      /** Above this many follows the graph is DENSE — nudge sparingly. */
+      denseMinFollowing: 150,
+      /**
+       * 0-based slice indices a card is anchored AFTER. A cold viewer sees one
+       * early (slice 3) so discovery starts before they bounce; everyone else
+       * gets the first card deep enough (slice 8) that the feed still reads as
+       * a feed. A page shorter than the requested index simply yields no card.
+       */
+      positions: {
+        cold: { firstPage: [3, 20], nextPage: [12] },
+        warm: { firstPage: [8], nextPage: [12] },
+        dense: { firstPage: [8], nextPage: [12] },
+      },
+      /** Rotation order of card kinds, cycled per slot, per graph temperature. */
+      rotation: {
+        cold: ['suggestedStarterPacks', 'suggestedUsers', 'suggestedFeeds'] satisfies FeedInterstitialKind[],
+        warm: ['suggestedUsers', 'suggestedFeeds', 'suggestedStarterPacks'] satisfies FeedInterstitialKind[],
+        dense: ['suggestedUsers', 'suggestedUsers', 'suggestedFeeds'] satisfies FeedInterstitialKind[],
+      },
+      /**
+       * Dense graphs only get a card every Nth page (deterministic off the
+       * cursor, never random — the same page must always plan the same slots).
+       */
+      densePageInterval: 2,
+    },
 
     /**
      * MULTI-SOURCE candidate generation for the AUTHENTICATED For You feed.

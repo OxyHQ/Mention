@@ -1177,7 +1177,9 @@
       "recency": "Actualidad",
       "source": "Fuentes",
       "ranking": "Clasificación"
-    }
+    },
+    "subscribe": "Suscribirse",
+    "subscribed": "Suscrito"
   },
   "connections": {
     "tabs": {
@@ -1526,6 +1528,25 @@
       "minQuality": {
         "label": "Calidad mínima",
         "description": "Oculta publicaciones de descubrimiento cuya calidad clasificada esté por debajo de tu umbral. Desactivado por defecto."
+      }
+    },
+    "interstitial": {
+      "seeMore": "Ver más",
+      "dismissHint": "Oculta esta sugerencia hasta que actualices",
+      "users": {
+        "title": "A quién seguir",
+        "dismiss": "Descartar {{name}}"
+      },
+      "feeds": {
+        "title": "Feeds sugeridos",
+        "dismiss": "Descartar {{name}}",
+        "subscribeError": "No se pudo suscribir a este feed"
+      },
+      "starterPacks": {
+        "title": "Starter packs para ti",
+        "dismiss": "Descartar {{name}}",
+        "followAll": "Seguir a todos",
+        "followingAll": "Siguiendo a todos"
       }
     }
   },

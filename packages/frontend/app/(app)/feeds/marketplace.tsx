@@ -25,7 +25,7 @@ import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { useTheme } from '@oxyhq/bloom/theme';
-import { customFeedsService } from '@/services/customFeedsService';
+import { customFeedsService, type MarketplaceFeed } from '@/services/customFeedsService';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { show as toast } from '@oxyhq/bloom/toast';
 import { useTranslation } from 'react-i18next';
@@ -34,23 +34,13 @@ import { formatCompactNumber } from '@/utils/formatNumber';
 import StarRating from '@/components/StarRating';
 import { cn } from '@/lib/utils';
 import { FeedCard, FeedCardSkeleton, type FeedCardData } from '@/components/FeedCard';
+import { FeedSubscribeButton } from '@/components/FeedSubscribeButton';
 import { LoadMoreSentinel } from '@/components/common/LoadMoreSentinel';
-import type { CustomFeed, CustomFeedListResponse } from '@mention/shared-types';
+import type { CustomFeedListResponse } from '@mention/shared-types';
 
 const PAGE_LIMIT = 20;
 
 const IS_WEB = Platform.OS === 'web';
-
-/**
- * A `CustomFeed` as returned by the `/feeds/marketplace` endpoint, which
- * enriches each item with a resolved owner summary, member avatar URLs, and a
- * derived topic count (see `customFeeds.routes.ts` normalization).
- */
-type MarketplaceFeed = CustomFeed & {
-  owner?: { username?: string; displayName?: string; avatar?: string };
-  memberAvatars?: string[];
-  topicCount?: number;
-};
 
 type SortBy = 'trending' | 'top_rated' | 'newest';
 
@@ -61,45 +51,6 @@ const SORT_OPTIONS_CONFIG: { id: SortBy; labelKey: string }[] = [
 ];
 
 const ALL_CATEGORY = 'All';
-
-/**
- * Subscribe button rendered in the FeedCard headerRight slot.
- */
-const SubscribeButton = React.memo(function SubscribeButton({
-  isSubscribed,
-  isSubscribing,
-  onPress,
-}: {
-  isSubscribed: boolean;
-  isSubscribing: boolean;
-  onPress: () => void;
-}) {
-  const theme = useTheme();
-  return (
-    <TouchableOpacity
-      style={[
-        styles.subscribeBtn,
-        isSubscribed
-          ? { borderColor: theme.colors.border, backgroundColor: 'transparent' }
-          : { backgroundColor: theme.colors.primary },
-      ]}
-      onPress={onPress}
-      disabled={isSubscribing}
-      activeOpacity={0.7}>
-      {isSubscribing ? (
-        <SpinnerIcon size={16} className={isSubscribed ? "text-foreground" : "text-primary-foreground"} />
-      ) : (
-        <Text
-          className={cn(
-            'text-[13px] font-bold',
-            isSubscribed ? 'text-foreground' : 'text-white',
-          )}>
-          {isSubscribed ? 'Subscribed' : 'Subscribe'}
-        </Text>
-      )}
-    </TouchableOpacity>
-  );
-});
 
 /**
  * Marketplace feed item — wraps the shared FeedCard with
@@ -150,7 +101,7 @@ const MarketplaceFeedCard = React.memo(function MarketplaceFeedCard({
         showDescription
         showLikes={false}
         headerRight={
-          <SubscribeButton
+          <FeedSubscribeButton
             isSubscribed={item.isLiked || false}
             isSubscribing={isSubscribing}
             onPress={handleSubscribe}
@@ -593,16 +544,6 @@ const styles = StyleSheet.create({
     height: 2,
     borderTopLeftRadius: 4,
     borderTopRightRadius: 4,
-  },
-  subscribeBtn: {
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: 20,
-    minWidth: 88,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: 'transparent',
   },
 });
 
