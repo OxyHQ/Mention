@@ -1,5 +1,6 @@
 import admin from 'firebase-admin';
 import { HydratedDocument } from 'mongoose';
+import { normalizeInlineText } from '@oxyhq/core';
 import PushToken from '../models/PushToken';
 import Post from '../models/Post';
 import { INotification } from '../models/Notification';
@@ -36,11 +37,19 @@ export type PushPayload = {
   data?: Record<string, string>;
 };
 
-// Helper to safely create a concise single-line preview
-function buildPreview(text: string, limit: number = 200): string {
-  const trimmed = (text || '').replace(/\s+/g, ' ').trim();
-  if (!trimmed) return '';
-  return trimmed.length > limit ? `${trimmed.slice(0, limit)}…` : trimmed;
+/**
+ * Build the concise single-line preview of a post body for a push notification.
+ *
+ * The whitespace collapse is the canonical `normalizeInlineText` — a push body is
+ * a ONE-LINE label, and the post text feeding it can be a federated body carrying
+ * the remote markup's newlines and indentation. Truncation and the ellipsis are
+ * NOT part of normalization: they are this surface's own product rule (a push
+ * body has a length budget), so they stay here.
+ */
+export function buildPreview(text: string, limit: number = 200): string {
+  const preview = normalizeInlineText(text || '');
+  if (!preview) return '';
+  return preview.length > limit ? `${preview.slice(0, limit)}…` : preview;
 }
 
 function chunk<T>(arr: T[], size: number): T[][] {

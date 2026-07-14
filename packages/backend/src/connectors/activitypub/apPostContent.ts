@@ -1,4 +1,5 @@
 import type { MediaItem } from '@mention/shared-types';
+import { normalizeInlineText, normalizeMultilineText } from '@oxyhq/core';
 import { htmlToPlainText } from '../../utils/federation/htmlToPlainText';
 import { normalizePostHashtags } from '../../utils/textProcessing';
 import { materializeFederatedMedia, type ExtractedMediaAttachment } from '../shared/federatedMedia';
@@ -94,6 +95,30 @@ export function extractApContentHtml(object: Record<string, unknown> | null | un
 }
 
 /**
+ * Extract the AP `summary` — the content warning we store as
+ * `federation.spoilerText` — as normalized plain text.
+ *
+ * Two things the raw field cannot be trusted for:
+ *  1. It is HTML on some servers (the AP spec types it as a natural-language
+ *     HTML string, and Mastodon's own CW is plain text only by convention), so
+ *     it goes through {@link htmlToPlainText} exactly like the body — otherwise
+ *     raw tags reach the CW label in the UI.
+ *  2. It arrives with the remote markup's whitespace. A CW label is ONE LINE, so
+ *     it is finished with `normalizeInlineText`: an embedded newline would be
+ *     rendered verbatim by the client (`white-space: pre-wrap`) and break the
+ *     label's layout.
+ *
+ * Returns `undefined` for a missing / non-string / whitespace-only summary,
+ * which is what the empty-note guard and the `Update` unset path both key on.
+ */
+export function extractApSummary(object: Record<string, unknown> | null | undefined): string | undefined {
+  const raw = object?.summary;
+  if (typeof raw !== 'string') return undefined;
+  const summary = normalizeInlineText(htmlToPlainText(raw));
+  return summary.length > 0 ? summary : undefined;
+}
+
+/**
  * Assemble the storable fields of a federated Note from its AP object WITHOUT
  * the empty-note guard: `contentMap`-aware body extraction, hashtag
  * normalization, media materialization, the all-hashtag "don't blank" restore,
@@ -126,16 +151,20 @@ async function assembleFederatedNoteContent(
     { activityId: ctx.activityId, actorUri: ctx.actorUri },
   );
 
-  const summary =
-    typeof object.summary === 'string' && object.summary.trim().length > 0 ? object.summary : undefined;
+  const summary = extractApSummary(object);
   const sensitive = object.sensitive === true;
 
   // Normalization strips a spammy leading hashtag block to empty. When the post
   // was NOTHING but that block (empty normalized text) yet the original body had
   // visible text and there is no media, keep the raw hashtag text visible rather
   // than blanking an all-hashtag post.
-  let text = normalizedText;
-  if (text.trim().length === 0 && rawText.trim().length > 0 && media.length === 0) {
+  //
+  // `normalizePostHashtags` removes the block but NOT the line breaks around it,
+  // so a body that opened with one is left starting with blank lines — which the
+  // client renders verbatim. Re-normalizing the result closes that gap; the
+  // helper is idempotent, so it is a no-op for a body the removal did not touch.
+  let text = normalizeMultilineText(normalizedText);
+  if (text.length === 0 && rawText.length > 0 && media.length === 0) {
     text = rawText;
   }
 

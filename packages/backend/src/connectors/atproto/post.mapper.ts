@@ -1,4 +1,5 @@
 import { PostVisibility } from '@mention/shared-types';
+import { normalizeInlineText, normalizeMultilineText } from '@oxyhq/core';
 import { logger } from '../../utils/logger';
 import { Post } from '../../models/Post';
 import { getPostCreator } from '../../services/serviceRegistry';
@@ -160,11 +161,14 @@ function extractMediaFromEmbed(embed: AtprotoEmbedView | undefined): NormalizedE
         for (const image of view.images ?? []) {
           const url = image?.fullsize || image?.thumb;
           if (typeof url === 'string' && url) {
+            // Alt text is a one-line label authored on a remote client: collapse
+            // the whitespace it arrived with (the client renders it verbatim).
+            const alt = typeof image.alt === 'string' ? normalizeInlineText(image.alt) : '';
             out.push({
               id: url,
               type: 'image',
               remoteUrl: url,
-              alt: typeof image.alt === 'string' ? image.alt : undefined,
+              alt: alt || undefined,
               ...patchFromAspectRatio(image.aspectRatio),
             });
           }
@@ -229,7 +233,9 @@ export function mapPostViewToNormalizedPost(
     inReplyTo,
     sensitive: hasAdultLabel(record),
     authorOxyUserId: undefined,
-    text: typeof record.text === 'string' ? record.text : '',
+    // The post body is third-party text: the author's line breaks are meaningful
+    // and survive, but the surrounding whitespace noise is normalized away.
+    text: typeof record.text === 'string' ? normalizeMultilineText(record.text) : '',
     media: media.length > 0 ? media : undefined,
     hashtags: extractHashtags(record),
     language: langs[0],

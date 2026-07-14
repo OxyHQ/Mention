@@ -55,11 +55,34 @@ describe('MediaMetadataService helpers', () => {
     expect(patch.aspectRatio).toBeCloseTo(720 / 1280);
   });
 
+  it('patchFromApAttachment normalizes alt text to a single line', () => {
+    // A federated `attachment.name` is remote text: it carries the whitespace of
+    // the remote markup, and a `.trim()` alone leaves the newline INSIDE it —
+    // which the client renders verbatim (`white-space: pre-wrap`).
+    const patch = patchFromApAttachment({ name: '  Un gato\n  en una caja  ' });
+    expect(patch.alt).toBe('Un gato en una caja');
+  });
+
+  it('patchFromApAttachment omits a whitespace-only alt', () => {
+    expect(patchFromApAttachment({ name: '  \n  ' }).alt).toBeUndefined();
+  });
+
+  it('readPersistedMediaFields normalizes a stored multi-line alt', () => {
+    expect(readPersistedMediaFields({ alt: 'linea\n\nuno' }).alt).toBe('linea uno');
+  });
+
   it('mergeMediaItem preserves author alt when patch omits it', () => {
     const base: MediaItem = { id: 'abc', type: 'image', alt: 'keep me' };
     const merged = mergeMediaItem(base, { width: 100, height: 200 });
     expect(merged.alt).toBe('keep me');
     expect(merged.width).toBe(100);
+  });
+
+  it('mergeMediaItem normalizes the alt it takes from a patch', () => {
+    const base: MediaItem = { id: 'abc', type: 'image', alt: 'old' };
+    expect(mergeMediaItem(base, { alt: '  nueva\n  descripción ' }).alt).toBe('nueva descripción');
+    // A whitespace-only patch alt does not overwrite a real one.
+    expect(mergeMediaItem(base, { alt: '   ' }).alt).toBe('old');
   });
 });
 

@@ -9,6 +9,7 @@ import {
 } from './constants';
 import { htmlToPlainText } from '../../utils/federation/htmlToPlainText';
 import { decode as decodeEntities } from 'he';
+import { normalizeInlineText } from '@oxyhq/core';
 import { fetchUpstreamSingleHop } from '../../utils/safeUpstreamFetch';
 import {
   signedFetch,
@@ -54,6 +55,23 @@ function actorPublicKeyIsSelfConsistent(actor: Record<string, any>): boolean {
   if (owner && owner !== actor.id) return false;
 
   return true;
+}
+
+/**
+ * Read a single-line string field off a remote actor as normalized text.
+ *
+ * `preferredUsername`, `name` and the PropertyValue `name`/`value` pairs are
+ * third-party text: they arrive with whatever whitespace the remote server's
+ * markup happened to carry, and our clients render text faithfully (React Native
+ * Web maps `Text` to `white-space: pre-wrap`), so an embedded newline or a run
+ * of spaces would be VISIBLE in the UI. These values are conceptually one line,
+ * so every whitespace run collapses to a single space.
+ *
+ * A remote can put anything in a JSON field, so a non-string collapses to `''`
+ * and the caller applies its own fallback.
+ */
+function inlineActorField(value: unknown): string {
+  return typeof value === 'string' ? normalizeInlineText(value) : '';
 }
 
 function acctMatchesActorHost(acct: string | undefined, actorHost: string): acct is string {
@@ -197,7 +215,7 @@ export class ActorService {
       }
 
       const actorHost = new URL(actor.id).hostname.toLowerCase();
-      const username = actor.preferredUsername || actor.name || 'unknown';
+      const username = inlineActorField(actor.preferredUsername) || inlineActorField(actor.name) || 'unknown';
       const actorWebfinger = typeof actor.webfinger === 'string'
         ? normalizeFederatedAcct(actor.webfinger)
         : undefined;
@@ -210,7 +228,7 @@ export class ActorService {
       const acct = verifiedAcctHint
         || verifiedActorWebfinger
         || normalizeFederatedAcct(`${username}@${actorHost}`)
-        || `${String(username).toLowerCase()}@${actorHost}`;
+        || `${username.toLowerCase()}@${actorHost}`;
       const domain = domainFromAcct(acct) || actorHost;
       // Re-check against the RESOLVED host/acct (post-redirect / WebFinger), which
       // can differ from the originally-requested URI host the early-return guard
@@ -229,25 +247,38 @@ export class ActorService {
         this.fetchCollectionCount(actor.outbox),
       ]);
 
-      // Extract profile fields (PropertyValue attachments)
+      // Extract profile fields (PropertyValue attachments). Sanitize BEFORE
+      // normalizing: the canonical normalizer collapses whitespace, it never
+      // strips markup — so the sanitizer must run first, on the raw value.
       const fields: { name: string; value: string; verifiedAt?: Date }[] = [];
       if (Array.isArray(actor.attachment)) {
         for (const att of actor.attachment) {
-          if (att?.type === 'PropertyValue' && att.name && att.value) {
-            fields.push({
-              name: att.name,
-              value: sanitizeHtml(att.value, {
-                allowedTags: ['a', 'span'],
-                allowedAttributes: { a: ['href', 'rel'] },
-              }),
-              verifiedAt: att.verifiedAt ? new Date(att.verifiedAt) : undefined,
-            });
-          }
+          if (att?.type !== 'PropertyValue') continue;
+          const fieldName = inlineActorField(att.name);
+          const fieldValue = typeof att.value === 'string'
+            ? normalizeInlineText(sanitizeHtml(att.value, {
+              allowedTags: ['a', 'span'],
+              allowedAttributes: { a: ['href', 'rel'] },
+            }))
+            : '';
+          if (!fieldName || !fieldValue) continue;
+          fields.push({
+            name: fieldName,
+            value: fieldValue,
+            verifiedAt: att.verifiedAt ? new Date(att.verifiedAt) : undefined,
+          });
         }
       }
 
       const avatarUrl = firstStringUrl(actor.icon);
       const headerUrl = firstStringUrl(actor.image);
+      // `summary` is the actor's bio — a BODY, so its line breaks are the
+      // author's and must survive; `htmlToPlainText` normalizes it as multiline.
+      const summary = typeof actor.summary === 'string' ? htmlToPlainText(actor.summary) : '';
+      // The display name is one line. Entity-decode FIRST (an encoded `&#10;` or
+      // `&nbsp;` only becomes whitespace once decoded), THEN collapse.
+      const rawDisplayName = typeof actor.name === 'string' ? actor.name : '';
+      const displayName = normalizeInlineText(decodeEntities(rawDisplayName)) || username;
 
       const update: Partial<IFederatedActor> = {
         protocol: 'activitypub',
@@ -255,7 +286,7 @@ export class ActorService {
         username,
         domain,
         acct,
-        summary: actor.summary ? htmlToPlainText(actor.summary) : '',
+        summary,
         avatarUrl,
         headerUrl,
         inboxUrl: actor.inbox,
@@ -303,10 +334,10 @@ export class ActorService {
             // `domain` is its instance host — both already verified above.
             federatedUsername: acct,
             instanceDomain: domain,
-            displayName: decodeEntities(actor.name || username),
+            displayName,
             avatarUrl,
             bannerUrl: headerUrl,
-            bio: actor.summary ? htmlToPlainText(actor.summary) : undefined,
+            bio: summary || undefined,
             followersCount,
             followingCount,
             postsCount,

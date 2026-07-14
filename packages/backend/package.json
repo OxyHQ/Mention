@@ -23,7 +23,7 @@
     "@mention/shared-types": "file:../shared-types",
     "@napi-rs/image": "^1.12.0",
     "@oxyhq/contracts": "^0.14.0",
-    "@oxyhq/core": "^10.0.0",
+    "@oxyhq/core": "^10.1.2",
     "@oxyhq/protocol": "^0.1.5",
     "@socket.io/redis-adapter": "^8.3.0",
     "@syra.fm/sdk": "^0.7.0",

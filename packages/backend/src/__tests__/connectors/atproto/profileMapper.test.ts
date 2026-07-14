@@ -75,6 +75,25 @@ describe('mapProfileToNormalizedActor', () => {
     });
   });
 
+  it('normalizes the display name to one line and the bio as a body', () => {
+    // Bluesky profile text used to be stored with zero trimming. A display name
+    // is one line (every break collapses); a bio is a body (the author's own
+    // blank line survives, the noise around it does not).
+    const actor = mapProfileToNormalizedActor({
+      ...PROFILE,
+      displayName: '  Alice\n  Cooper  ',
+      description: '  línea uno   \r\n \r\n \r\n  línea dos  ',
+    });
+    expect(actor?.displayName).toBe('Alice Cooper');
+    expect(actor?.bio).toBe('línea uno\n\nlínea dos');
+  });
+
+  it('omits a whitespace-only display name and bio rather than storing blanks', () => {
+    const actor = mapProfileToNormalizedActor({ ...PROFILE, displayName: '   \n ', description: '  \n\n ' });
+    expect(actor?.displayName).toBeUndefined();
+    expect(actor?.bio).toBeUndefined();
+  });
+
   it('derives the instance domain from a bare custom-domain handle', () => {
     const actor = mapProfileToNormalizedActor({ ...PROFILE, handle: 'example.com' });
     expect(actor?.federatedUsername).toBe('example.com@example.com');
