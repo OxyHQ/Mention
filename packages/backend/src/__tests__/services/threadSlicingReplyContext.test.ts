@@ -183,3 +183,30 @@ describe('ThreadSlicingService thread children visibility', () => {
     });
   });
 });
+
+describe('ThreadSlicingService reply parent visibility', () => {
+  it('fetches reply-context parents only when public and published', async () => {
+    postFind.mockImplementation(() => []);
+    resolveUserSummaries.mockResolvedValue(new Map<string, CachedUserSummary>());
+
+    const reply = {
+      _id: REPLY_ID,
+      oxyUserId: REPLY_AUTHOR_ID,
+      parentPostId: PARENT_ID,
+      content: { text: 'a reply' },
+    };
+
+    await threadSlicingService.sliceFeed([reply], {
+      enableThreadGrouping: false,
+      enableReplyContext: true,
+      maxSliceSize: 3,
+    });
+
+    expect(postFind).toHaveBeenCalledTimes(1);
+    expect(postFind.mock.calls[0][0]).toMatchObject({
+      _id: { $in: [PARENT_ID] },
+      visibility: PostVisibility.PUBLIC,
+      status: 'published',
+    });
+  });
+});

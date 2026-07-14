@@ -520,4 +520,3 @@ export class FeedQueryBuilder {
   }
   
 }
-
