@@ -72,7 +72,7 @@ export default function StarterPacksScreen() {
           id: String(p._id || p.id),
           name: p.name || 'Untitled Pack',
           description: p.description,
-          creator: p.creator || p.owner,
+          creator: p.creator,
           memberCount,
           useCount: p.useCount || 0,
           memberAvatars: p.memberAvatars ?? [],

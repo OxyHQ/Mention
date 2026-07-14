@@ -16,6 +16,7 @@ import { useSafeBack } from '@/hooks/useSafeBack';
 import { useProfileData } from '@/hooks/useProfileData';
 import { displayNameOrHandle } from '@/utils/displayName';
 import { api } from '@/utils/api';
+import { getErrorMessage } from '@/utils/apiError';
 import { createScopedLogger } from '@/lib/logger';
 
 const logger = createScopedLogger('McpOAuthAuthorize');
@@ -87,14 +88,6 @@ function buildErrorRedirect(redirectUri: string, errorCode: string, state?: stri
   } catch {
     return null;
   }
-}
-
-function getErrorMessage(error: unknown, fallback: string): string {
-  if (error && typeof error === 'object' && 'response' in error) {
-    const response = (error as { response?: { data?: { error?: string; message?: string } } }).response;
-    return response?.data?.error || response?.data?.message || fallback;
-  }
-  return fallback;
 }
 
 function ConsentBody({ params }: { params: Required<Pick<McpAuthorizeParams, 'client_id' | 'redirect_uri'>> & McpAuthorizeParams }) {

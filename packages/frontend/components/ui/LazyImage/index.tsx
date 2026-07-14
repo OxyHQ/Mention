@@ -17,7 +17,7 @@ import {
   ImageLoadEventData,
   ImageErrorEventData,
 } from 'react-native';
-import { flattenStyleArray } from '@/utils/theme';
+import { flattenStyleArray } from '@/styles/shared';
 
 export interface LazyImageProps extends Omit<ImageProps, 'source' | 'style'> {
   /** Image source URI or require() number */

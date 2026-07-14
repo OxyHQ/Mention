@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { storeData, getData, removeData } from '@/utils/storage';
+import { Storage } from '@/utils/storage';
 import { createScopedLogger } from '@/lib/logger';
 import type { DraftVariants } from '@/utils/composeVariants';
 
@@ -54,7 +54,7 @@ export const useDrafts = () => {
   const loadDrafts = useCallback(async () => {
     try {
       setIsLoading(true);
-      const storedDrafts = await getData<Draft[]>(DRAFTS_STORAGE_KEY);
+      const storedDrafts = await Storage.get<Draft[]>(DRAFTS_STORAGE_KEY);
       if (storedDrafts && Array.isArray(storedDrafts)) {
         // Sort by updatedAt descending
         const sorted = storedDrafts.sort((a, b) => b.updatedAt - a.updatedAt);
@@ -73,7 +73,7 @@ export const useDrafts = () => {
   // Save drafts to storage
   const saveDrafts = useCallback(async (newDrafts: Draft[]) => {
     try {
-      await storeData(DRAFTS_STORAGE_KEY, newDrafts);
+      await Storage.set(DRAFTS_STORAGE_KEY, newDrafts);
       setDrafts(newDrafts);
     } catch (error) {
       logger.error('Error saving drafts', { error });
@@ -121,7 +121,7 @@ export const useDrafts = () => {
     try {
       logger.debug(`deleteDraft called with draftId: ${draftId}`);
       // Read latest drafts from storage to avoid stale state
-      const storedDrafts = await getData<Draft[]>(DRAFTS_STORAGE_KEY);
+      const storedDrafts = await Storage.get<Draft[]>(DRAFTS_STORAGE_KEY);
       logger.debug(`Stored drafts: ${storedDrafts?.length || 0}`);
       const currentDrafts = storedDrafts && Array.isArray(storedDrafts) ? storedDrafts : [];
 
@@ -150,7 +150,7 @@ export const useDrafts = () => {
   // Clear all drafts
   const clearAllDrafts = useCallback(async () => {
     try {
-      await removeData(DRAFTS_STORAGE_KEY);
+      await Storage.remove(DRAFTS_STORAGE_KEY);
       setDrafts([]);
     } catch (error) {
       logger.error('Error clearing drafts', { error });

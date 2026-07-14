@@ -9,7 +9,7 @@ import { useTheme } from '@oxyhq/bloom/theme';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { useTranslation } from 'react-i18next';
 import i18n from 'i18next';
-import { storeData, getData } from '@/utils/storage';
+import { Storage } from '@/utils/storage';
 import { SettingsListGroup, SettingsListItem } from '@oxyhq/bloom/settings-list';
 import { RowIcon } from '@/components/settings/RowIcon';
 import { Toggle } from '@/components/Toggle';
@@ -40,7 +40,7 @@ export default function LanguageSettingsScreen() {
 
     const loadLanguage = useCallback(async () => {
         try {
-            const savedLanguage = await getData<string>(LANGUAGE_STORAGE_KEY);
+            const savedLanguage = await Storage.get<string>(LANGUAGE_STORAGE_KEY);
             const language = savedLanguage || i18n.language || 'en-US';
             setCurrentLanguage(language);
         } catch (error) {
@@ -55,7 +55,7 @@ export default function LanguageSettingsScreen() {
         try {
             setSaving(true);
             setCurrentLanguage(languageCode);
-            await storeData(LANGUAGE_STORAGE_KEY, languageCode);
+            await Storage.set(LANGUAGE_STORAGE_KEY, languageCode);
             await i18n.changeLanguage(languageCode);
         } catch (error) {
             logger.error('Error changing language', { error });
