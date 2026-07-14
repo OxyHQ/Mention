@@ -78,7 +78,6 @@ async function backfillFederatedThreadLinks(): Promise<void> {
 
     if (totalCount === 0) {
       logger.info('[backfillFederatedThreadLinks] nothing to do');
-      await mongoose.disconnect();
       return;
     }
 
@@ -158,16 +157,27 @@ async function backfillFederatedThreadLinks(): Promise<void> {
       `[backfillFederatedThreadLinks] done${DRY_RUN ? ' (DRY_RUN — no writes)' : ''}: scanned ${scanned}, linked ${linked}, unresolved ${unresolved}, malformed ${malformed} (${elapsedSeconds}s)`,
     );
 
-    await mongoose.disconnect();
   } catch (error) {
     logger.error('[backfillFederatedThreadLinks] failed', error);
-    await mongoose.disconnect();
-    process.exit(1);
+    throw error;
+  } finally {
+    await mongoose.disconnect().catch((disconnectError) => {
+      logger.warn('[backfillFederatedThreadLinks] error during mongoose.disconnect()', disconnectError);
+    });
   }
 }
 
 if (require.main === module) {
-  backfillFederatedThreadLinks();
+  // Exit deterministically: imported singletons (the Redis client and BullMQ
+  // handles pulled in through the outbox service) keep the event loop alive, so
+  // the Fargate one-shot would sit RUNNING forever after the work completed.
+  // Mirrors recomputeFederatedEngagement.
+  backfillFederatedThreadLinks()
+    .then(() => process.exit(0))
+    .catch((error) => {
+      logger.error('[backfillFederatedThreadLinks] unhandled failure', error);
+      process.exit(1);
+    });
 }
 
 export default backfillFederatedThreadLinks;
