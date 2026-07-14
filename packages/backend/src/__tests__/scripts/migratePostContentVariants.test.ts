@@ -75,8 +75,18 @@ const h = vi.hoisted(() => {
     return cursor;
   };
 
+  // A dotted path walker that assigns as it descends is the classic
+  // prototype-pollution shape: a segment named `__proto__` would reach up and
+  // mutate Object.prototype for the whole test run. The paths here come from the
+  // migration's own update documents, but a fixture that can poison every object
+  // in the process is not worth the convenience of trusting them.
+  const UNSAFE_PATH_SEGMENTS = new Set(['__proto__', 'constructor', 'prototype']);
+
   const writePath = (doc: Record<string, unknown>, path: string, value: unknown): void => {
     const segments = path.split('.');
+    if (segments.some((segment) => UNSAFE_PATH_SEGMENTS.has(segment))) {
+      throw new Error(`Refusing to write unsafe path: ${path}`);
+    }
     let cursor = doc;
     for (let i = 0; i < segments.length - 1; i++) {
       const key = segments[i];

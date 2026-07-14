@@ -34,8 +34,22 @@ import { Threadgate } from '../models/Threadgate';
 import { Postgate } from '../models/Postgate';
 import { createPostUri } from '@mention/shared-types';
 import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
+import { translationRateLimiter } from '../middleware/security';
 
 const router = Router();
+
+/**
+ * The AI-translation routes carry their own limiter on top of the app-wide one in
+ * `server.ts`. They are the only routes here where a cheap request buys expensive
+ * work — an Alia inference — and translation is free to every user, so nothing
+ * else bounds the spend.
+ *
+ * Production-gated, mirroring `feed.routes.ts`: the limiter is Redis-backed and a
+ * dev machine has no Redis.
+ */
+const translationRateLimiters = process.env.NODE_ENV === 'production'
+  ? [translationRateLimiter]
+  : [];
 
 // Public routes
 router.get('/', getPosts);
@@ -56,7 +70,12 @@ router.get('/bookmarks/folders', getBookmarkFolders);
 router.patch('/bookmarks/:id/folder', moveBookmarkToFolder);
 // Composer AI pre-fill: translate a draft body that has no post yet. Must stay
 // ahead of the `/:id`-parameterized routes.
-router.post('/translate-draft', translateDraft);
+//
+// Rate-limited on its own, unlike everything else here: this is the one route
+// where a cheap request buys an EXPENSIVE one. It takes arbitrary text, so
+// unlike `/:id/translate` it cannot be cached — every call is an Alia inference,
+// and translation is free to every user, so nothing else bounds the spend.
+router.post('/translate-draft', ...translationRateLimiters, translateDraft);
 
 // Routes with specific paths (must be before parameterized routes)
 router.get('/:id/likes', getPostLikes);
@@ -76,7 +95,7 @@ router.post('/:id/like', likePost);
 router.delete('/:id/like', unlikePost);
 router.post('/:id/save', savePost);
 router.delete('/:id/save', unsavePost);
-router.post('/:id/translate', translatePost);
+router.post('/:id/translate', ...translationRateLimiters, translatePost);
 
 // Threadgate routes (reply controls)
 router.put('/:id/threadgate', async (req: AuthRequest, res: Response) => {
