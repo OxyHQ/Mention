@@ -2,6 +2,7 @@ import express, { Request, Response } from 'express';
 import { IncomingMessage } from 'node:http';
 import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 import { logger } from '../utils/logger';
+import { assertSafePublicUrl } from '../utils/ssrfGuard';
 import { RedisStore } from '../middleware/rateLimitStore';
 import {
   SsrfRejection,
@@ -424,8 +425,9 @@ function shouldNegativeCacheClientError(status: number, hasRequestSpecificUpstre
  * through our origin so the browser sees same-origin (CORS-safe), cacheable,
  * range-seekable bytes instead of hot-linking third-party CDNs.
  *
- * SECURITY: every upstream request — including hop 0 and each redirect hop — is
- * validated by `assertSafePublicUrl` inside `fetchUpstreamFollowingRedirects`
+ * SECURITY: the initial URL is validated before cache state is touched, then
+ * every upstream request — including hop 0 and each redirect hop — is validated
+ * again by `assertSafePublicUrl` inside `fetchUpstreamFollowingRedirects`
  * (BEFORE any socket is opened) and the TCP connection is pinned to the validated
  * IP. A blocked target surfaces as an `SsrfRejection` and maps to 403.
  */
@@ -433,6 +435,18 @@ router.get('/proxy', mediaProxyRateLimiter, async (req: Request, res: Response):
   const rawUrl = req.query.url;
   if (typeof rawUrl !== 'string' || rawUrl.length === 0) {
     res.status(HTTP_STATUS.BAD_REQUEST).json({ error: 'Missing required "url" query parameter' });
+    return;
+  }
+
+  // Validate before any cache lookup/write. The upstream fetch repeats this
+  // check immediately before opening a socket (and for every redirect hop), but
+  // the cache path can mutate DB state first when enabled. Keep this precheck so
+  // malformed or blocked unauthenticated inputs cannot pollute cache rows or
+  // enqueue background work.
+  const initialGuard = await assertSafePublicUrl(rawUrl);
+  if (!initialGuard.ok) {
+    logger.warn('[MediaProxy] Rejected initial URL', { reason: initialGuard.reason });
+    res.status(HTTP_STATUS.FORBIDDEN).json({ error: 'URL not permitted' });
     return;
   }
 

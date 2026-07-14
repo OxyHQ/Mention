@@ -21,10 +21,23 @@ vi.mock('../../middleware/rateLimitStore', () => ({
   },
 }));
 
-/** Keep the media cache front inert so the tests hit the remote-stream path. */
+const mediaCache = vi.hoisted(() => ({
+  enabled: false,
+  lookupCacheRow: vi.fn().mockResolvedValue(null),
+  bumpAccess: vi.fn().mockResolvedValue(undefined),
+  recordAccessAndMaybeEnqueue: vi.fn().mockResolvedValue(true),
+}));
+
+/** Keep the media cache front inert by default so tests hit the remote-stream path. */
 vi.mock('../../services/mediaCache/oxyMediaStore', () => ({
-  isMediaCacheEnabled: () => false,
+  isMediaCacheEnabled: () => mediaCache.enabled,
   resolveOxyDownloadUrl: vi.fn(),
+}));
+
+vi.mock('../../services/mediaCache/cacheStore', () => ({
+  lookupCacheRow: (...args: unknown[]) => mediaCache.lookupCacheRow(...args),
+  bumpAccess: (...args: unknown[]) => mediaCache.bumpAccess(...args),
+  recordAccessAndMaybeEnqueue: (...args: unknown[]) => mediaCache.recordAccessAndMaybeEnqueue(...args),
 }));
 
 /**
@@ -82,9 +95,26 @@ const REMOTE = 'https://remote.example/media/cat.jpg';
 
 describe('GET /media/proxy — upstream status mapping', () => {
   beforeEach(() => {
+    mediaCache.enabled = false;
     fetchUpstreamFollowingRedirects.mockReset();
+    mediaCache.lookupCacheRow.mockReset().mockResolvedValue(null);
+    mediaCache.bumpAccess.mockReset().mockResolvedValue(undefined);
+    mediaCache.recordAccessAndMaybeEnqueue.mockReset().mockResolvedValue(true);
     isNegativelyCached.mockReset().mockResolvedValue(false);
     markNegativelyCached.mockReset().mockResolvedValue(undefined);
+  });
+
+  it('rejects unsafe URLs before cache lookup or enqueue when media cache is enabled', async () => {
+    mediaCache.enabled = true;
+
+    const res = await request(app).get('/media/proxy').query({ url: 'http://127.0.0.1:22/internal' });
+
+    expect(res.status).toBe(403);
+    expect(mediaCache.lookupCacheRow).not.toHaveBeenCalled();
+    expect(mediaCache.recordAccessAndMaybeEnqueue).not.toHaveBeenCalled();
+    expect(mediaCache.bumpAccess).not.toHaveBeenCalled();
+    expect(isNegativelyCached).not.toHaveBeenCalled();
+    expect(fetchUpstreamFollowingRedirects).not.toHaveBeenCalled();
   });
 
   it('maps an upstream 403 to our 404 (not 502) and negative-caches it', async () => {
