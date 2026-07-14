@@ -37,7 +37,7 @@ import {
   buildRepostRecord,
   buildTombstoneRecord,
   buildBookmarkRecord,
-  resolvePostMediaEmbed,
+  resolvePostRecordEmbeds,
   type ReplyContext,
 } from './mentionRecordBuilders';
 
@@ -86,15 +86,17 @@ export async function emitPostCreated(
   if (!isLocalAuthored(post)) return;
   const authorOxyUserId = post.oxyUserId;
   await isolate('emitPostCreated', async () => {
-    // Resolve the post's media to content-addressed blob refs (fileId → sha256).
-    // Fail-soft inside the resolver: a lookup error yields no embed (the record
-    // is still emitted, just without media), so this never blocks the record.
-    const embed = await resolvePostMediaEmbed(post);
+    // Resolve every media item the post references — the shared set and each
+    // author variant's override — to content-addressed blob refs (fileId →
+    // sha256), in one batched lookup. Fail-soft inside the resolver: a lookup
+    // error yields no embeds (the record is still emitted, just without media),
+    // so this never blocks the record.
+    const embeds = await resolvePostRecordEmbeds(post);
     await signAndAppend(
       authorOxyUserId,
       MENTION_POST_COLLECTION,
       String(post._id),
-      toRecordPayload(buildPostRecord(post, { ...options, embed })),
+      toRecordPayload(buildPostRecord(post, { ...options, embeds })),
     );
   });
 }

@@ -25,6 +25,7 @@ import {
   getPostLikes,
   getPostBoosts,
   translatePost,
+  translateDraft,
   acceptCollabInvite,
   declineCollabInvite,
   stopCollabSharing,
@@ -33,8 +34,32 @@ import { Threadgate } from '../models/Threadgate';
 import { Postgate } from '../models/Postgate';
 import { createPostUri } from '@mention/shared-types';
 import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
+import { postWriteRateLimiter, translationRateLimiter } from '../middleware/security';
 
 const router = Router();
+
+/**
+ * The AI-translation routes carry their own limiter on top of the app-wide one in
+ * `server.ts`. They are the only routes here where a cheap request buys expensive
+ * work — an Alia inference — and translation is free to every user, so nothing
+ * else bounds the spend.
+ *
+ * Production-gated, mirroring `feed.routes.ts`: the limiter is Redis-backed and a
+ * dev machine has no Redis.
+ */
+const translationRateLimiters = process.env.NODE_ENV === 'production'
+  ? [translationRateLimiter]
+  : [];
+
+/**
+ * Creating or editing a post is the network's main spam surface: it fans out to
+ * followers, federates, and gets signed onto a chain. Bounded generously — a human
+ * composing normally never comes close, and a long thread still fits — because it
+ * exists to stop a loop, not to police enthusiasm.
+ */
+const postWriteRateLimiters = process.env.NODE_ENV === 'production'
+  ? [postWriteRateLimiter]
+  : [];
 
 // Public routes
 router.get('/', getPosts);
@@ -46,13 +71,21 @@ router.get('/nearby-all', getNearbyPostsBothLocations);
 router.get('/location-stats', getLocationStats);
 
 // Protected routes - specific routes first (must be before parameterized routes)
-router.post('/', createPost);
-router.post('/thread', createThread);
+router.post('/', ...postWriteRateLimiters, createPost);
+router.post('/thread', ...postWriteRateLimiters, createThread);
 router.get('/drafts', getDrafts);
 router.get('/scheduled', getScheduledPosts);
 router.get('/saved', getSavedPosts);
 router.get('/bookmarks/folders', getBookmarkFolders);
 router.patch('/bookmarks/:id/folder', moveBookmarkToFolder);
+// Composer AI pre-fill: translate a draft body that has no post yet. Must stay
+// ahead of the `/:id`-parameterized routes.
+//
+// Rate-limited on its own, unlike everything else here: this is the one route
+// where a cheap request buys an EXPENSIVE one. It takes arbitrary text, so
+// unlike `/:id/translate` it cannot be cached — every call is an Alia inference,
+// and translation is free to every user, so nothing else bounds the spend.
+router.post('/translate-draft', ...translationRateLimiters, translateDraft);
 
 // Routes with specific paths (must be before parameterized routes)
 router.get('/:id/likes', getPostLikes);
@@ -65,14 +98,14 @@ router.get('/:id', getPostById);
 router.post('/:id/collaborators/accept', acceptCollabInvite);
 router.post('/:id/collaborators/decline', declineCollabInvite);
 router.post('/:id/collaborators/stop-sharing', stopCollabSharing);
-router.put('/:id', updatePost);
+router.put('/:id', ...postWriteRateLimiters, updatePost);
 router.patch('/:id/settings', updatePostSettings);
 router.delete('/:id', deletePost);
 router.post('/:id/like', likePost);
 router.delete('/:id/like', unlikePost);
 router.post('/:id/save', savePost);
 router.delete('/:id/save', unsavePost);
-router.post('/:id/translate', translatePost);
+router.post('/:id/translate', ...translationRateLimiters, translatePost);
 
 // Threadgate routes (reply controls)
 router.put('/:id/threadgate', async (req: AuthRequest, res: Response) => {

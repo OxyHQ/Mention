@@ -1,5 +1,6 @@
 import express, { Request, Response } from "express";
 import Post from "../models/Post";
+import { resolveVariant } from "../services/postVariants";
 import { logger } from "../utils/logger";
 import { escapeRegex } from "../utils/textProcessing";
 import { queryInt, queryString } from "../utils/queryParams";
@@ -138,17 +139,22 @@ router.get("/", async (req: Request, res: Response) => {
       const fallbackSince = since && since > fallbackFloor ? since : fallbackFloor;
       const textMatch: Record<string, unknown> = {
         visibility: 'public',
-        'content.text': { $exists: true, $ne: '' },
+        // A post with at least one rendition. The body lives only in the
+        // variants, so "has text" is "has a variant".
+        'content.variants.0': { $exists: true },
         createdAt: { $gte: fallbackSince },
       };
       const posts = await Post.find(textMatch)
-        .select({ 'content.text': 1, createdAt: 1 })
+        .select({ 'content.variants': 1, createdAt: 1 })
         .sort({ createdAt: -1 })
         .limit(FALLBACK_SCAN_LIMIT)
         .lean();
       const counts: Record<string, { c: number; latest: Date }> = {};
       for (const p of posts) {
-        const text: string = p?.content?.text || '';
+        // Scan the PRIMARY rendition: an author writing the same post in two
+        // languages uses the same hashtags in both, so counting every variant
+        // would double-count the tag for a bilingual post.
+        const text: string = resolveVariant(p.content).text;
         // `IPost.createdAt` is declared as a string but mongoose stores a Date;
         // normalize to a Date for comparison/sorting.
         const createdAt = new Date(p.createdAt);

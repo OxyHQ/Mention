@@ -12,6 +12,11 @@ import {
   createMediaAttachmentKey,
 } from '@/utils/composeUtils';
 import type { PodcastAttachmentData } from './usePodcastManager';
+import {
+  hasVariantWork,
+  serializeVariants,
+  type ComposeVariantsState,
+} from '@/utils/composeVariants';
 
 interface DraftManagerProps {
   saveDraft: (draft: any) => Promise<string>;
@@ -33,6 +38,12 @@ interface DraftManagerProps {
     mentions: MentionData[];
     postingMode: 'thread' | 'beast';
     threadItems: any[];
+    /**
+     * The draft's persisted variant buffer, exactly as it came out of storage.
+     * Unknown by design — an old draft has none, and the composer's tolerant
+     * reader is the single place that decides what a stored blob means.
+     */
+    languages: unknown;
   }) => void;
 }
 
@@ -60,6 +71,7 @@ export const useDraftManager = ({
     attachmentOrder: string[];
     scheduledAt: Date | null;
     currentDraftId: string | null;
+    variants: ComposeVariantsState;
   }) => {
     const shouldShowPollCreator = refs.showPollCreator ||
       (refs.pollOptions.length > 0 && refs.pollOptions.some(opt => opt.trim().length > 0));
@@ -67,6 +79,7 @@ export const useDraftManager = ({
     return {
       id: refs.currentDraftId || undefined,
       postContent: refs.postContent,
+      languages: serializeVariants(refs.variants),
       mediaIds: refs.mediaIds.map(m => ({ id: m.id, type: m.type })),
       pollOptions: refs.pollOptions || [],
       pollTitle: refs.pollTitle || '',
@@ -131,8 +144,10 @@ export const useDraftManager = ({
     podcast: PodcastAttachmentData | null;
     sources: any[];
     threadItems: any[];
+    variants: ComposeVariantsState;
   }) => {
-    return refs.postContent.trim().length > 0 ||
+    return hasVariantWork(refs.variants) ||
+      refs.postContent.trim().length > 0 ||
       refs.mediaIds.length > 0 ||
       (refs.pollOptions.length > 0 && refs.pollOptions.some(opt => opt.trim().length > 0)) ||
       refs.location ||
@@ -288,6 +303,7 @@ export const useDraftManager = ({
       mentions: mentionsData,
       postingMode: draft.postingMode || 'thread',
       threadItems: threadItemsData,
+      languages: draft.languages,
     });
 
     setCurrentDraftId(draft.id);

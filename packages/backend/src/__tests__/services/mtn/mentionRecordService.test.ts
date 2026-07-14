@@ -253,7 +253,7 @@ describe('MentionRecordEmitter dual-write gate', () => {
       _id: 'local-post-1',
       oxyUserId: SUBJECT_OXY_ID,
       federation: undefined,
-      content: { text: 'native post', sources: [], media: [] },
+      content: { variants: [{ source: 'author', text: 'native post' }], sources: [], media: [] },
       hashtags: ['mtn'],
       language: 'en',
       createdAt: new Date().toISOString(),

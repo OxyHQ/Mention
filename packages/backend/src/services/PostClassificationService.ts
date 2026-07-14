@@ -1,11 +1,12 @@
 import { z } from 'zod';
 import type { AnyBulkWriteOperation, Types } from 'mongoose';
 import { Post, type IPost } from '../models/Post';
-import type { PostClassificationScores } from '@mention/shared-types';
+import type { PostClassificationScores, PostContent } from '@mention/shared-types';
 import { aliaJSON, isAliaEnabled } from '../utils/alia';
 import { logger } from '../utils/logger';
 import { config } from '../config';
 import { topicService } from './TopicService';
+import { resolveVariant } from './postVariants';
 import type { ClassificationTopicRef } from '@mention/shared-types';
 
 /**
@@ -90,7 +91,7 @@ type ClassificationResult = z.infer<typeof PostClassificationResultSchema>;
 /** Minimal projection of a post pulled into the classification queue. */
 interface QueueDoc {
   _id: Types.ObjectId;
-  content?: { text?: string };
+  content: PostContent;
   postClassification?: { attempts?: number };
 }
 
@@ -186,10 +187,10 @@ class PostClassificationService {
     await Post.updateMany(
       {
         'postClassification.status': 'pending',
-        $or: [
-          { 'content.text': { $exists: false } },
-          { 'content.text': '' },
-        ],
+        // No rendition at all = nothing to infer from (a boost, a media-only
+        // post). The body lives only in the variants, so "no text" is "no
+        // variant".
+        'content.variants.0': { $exists: false },
       },
       {
         $set: {
@@ -208,11 +209,11 @@ class PostClassificationService {
   private async classifyBatch(): Promise<void> {
     const posts = await Post.find({
       ...UNCLASSIFIED_FILTER,
-      'content.text': { $exists: true, $ne: '' },
+      'content.variants.0': { $exists: true },
       status: 'published',
       boostOf: { $exists: false },
     })
-      .select({ 'content.text': 1, createdAt: 1, 'postClassification.attempts': 1 })
+      .select({ 'content.variants': 1, createdAt: 1, 'postClassification.attempts': 1 })
       .sort({ createdAt: 1 })
       .limit(this.BATCH_SIZE)
       .lean<QueueDoc[]>();
@@ -221,9 +222,12 @@ class PostClassificationService {
 
     logger.info(`[PostClassification] Classifying batch of ${posts.length} posts`);
 
+    // Classify the PRIMARY rendition — what the author actually wrote. A machine
+    // translation is derived from it and would only feed the classifier its own
+    // output back; a second author language says the same thing twice.
     const payload = posts.map((post, index) => ({
       postIndex: index,
-      text: (post.content?.text ?? '').slice(0, this.MAX_TEXT_LENGTH),
+      text: resolveVariant(post.content).text.slice(0, this.MAX_TEXT_LENGTH),
     }));
 
     let results: ClassificationResult[];

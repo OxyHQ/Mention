@@ -1,4 +1,9 @@
-import type { MediaItem } from '@mention/shared-types';
+import {
+  MAX_AUTHOR_VARIANTS,
+  canonicalizeLanguageTag,
+  type MediaItem,
+  type PostContentVariant,
+} from '@mention/shared-types';
 import { normalizeInlineText, normalizeMultilineText } from '@oxyhq/core';
 import { htmlToPlainText } from '../../utils/federation/htmlToPlainText';
 import { normalizePostHashtags } from '../../utils/textProcessing';
@@ -24,6 +29,12 @@ import { extractApLanguage, getApContentMap } from './apLanguage';
  * This module centralizes the extraction so all three paths share one code path:
  * the `contentMap` fallback, the hashtag normalization, media materialization,
  * and the single empty-note guard.
+ *
+ * It also owns the MULTILINGUAL extraction: a `contentMap` is not a fallback
+ * source for one body, it is one body PER LANGUAGE. Every entry is persisted as
+ * an author variant ({@link BuiltFederatedNoteContent.variants}) with the primary
+ * one first, so a bilingual remote status keeps both bodies instead of having all
+ * but one silently discarded.
  */
 
 /** Extraction inputs shared by every federated ingest site. */
@@ -35,7 +46,15 @@ export interface BuildFederatedNoteContentContext {
 /** A federated Note that resolved to storable content. */
 export interface BuiltFederatedNoteContent {
   skip?: false;
-  /** Plain-text body (hashtag-normalized), possibly empty when a CW-only post. */
+  /**
+   * The PRIMARY body, plain-text and hashtag-normalized. Possibly empty (a
+   * media-only or CW-only note).
+   *
+   * This is an EXTRACTION result, not a storage field — there is no stored
+   * `content.text` any more. It exists because the empty-note guard and the
+   * Stage-A classifier both need the primary body, and both run before the post
+   * is written. What gets STORED is {@link BuiltFederatedNoteContent.variants}.
+   */
   text: string;
   /** Materialized media (remote media dropped/rewritten by the cache layer). */
   media: MediaItem[];
@@ -47,6 +66,16 @@ export interface BuiltFederatedNoteContent {
   summary: string | undefined;
   /** AP `sensitive` flag, normalized to a strict boolean. */
   sensitive: boolean;
+  /**
+   * Every AUTHOR-written localized body the origin published — the post's ONLY
+   * body storage. `variants[0]` is the primary.
+   *
+   * Empty ONLY when the note has no body at all (media-only / CW-only): a body
+   * with no resolvable language still gets a variant, just an UNTAGGED one. A
+   * great many federated Notes declare no `language` and no `contentMap`, and
+   * inventing a tag for them from a detector's guess would federate a lie.
+   */
+  variants: PostContentVariant[];
 }
 
 /** A federated Note that carries nothing storable and must be skipped. */
@@ -95,6 +124,114 @@ export function extractApContentHtml(object: Record<string, unknown> | null | un
 }
 
 /**
+ * The canonical BCP-47 tag of the body {@link extractApContentHtml} selected, or
+ * `undefined` when the origin declared no language at all.
+ *
+ * Resolution mirrors the body selection so the tag and the text can never
+ * disagree:
+ *  1. the object's declared top-level `language`;
+ *  2. the `contentMap` key whose value IS the selected body;
+ *  3. the single `contentMap` key, when there is exactly one.
+ *
+ * A tag that is not structurally valid BCP-47 is REJECTED (never stored): an
+ * invalid tag is worse than no tag — it would ride out to the fediverse on the
+ * next boost and get the status rejected wholesale.
+ */
+function resolveApPrimaryTag(
+  object: Record<string, unknown>,
+  primaryHtml: string,
+): string | undefined {
+  const declared = canonicalizeLanguageTag(object.language);
+  if (declared !== null) return declared;
+
+  const contentMap = getApContentMap(object);
+  if (!contentMap) return undefined;
+
+  for (const [key, value] of Object.entries(contentMap)) {
+    if (value !== primaryHtml) continue;
+    const tag = canonicalizeLanguageTag(key);
+    if (tag !== null) return tag;
+  }
+
+  const keys = Object.keys(contentMap);
+  if (keys.length === 1) return canonicalizeLanguageTag(keys[0]) ?? undefined;
+
+  return undefined;
+}
+
+/**
+ * Turn one remote HTML body into the plain text we store: HTML stripped, spammy
+ * hashtag blocks removed, whitespace normalized — the SAME treatment the primary
+ * body gets, so a localized variant is never stored as raw markup.
+ *
+ * The all-hashtag restore is preserved: when normalization empties a body that
+ * DID carry visible text and the note has no media, the raw text is kept rather
+ * than blanking the rendition.
+ */
+function normalizeRemoteBody(html: string, hasMedia: boolean): string {
+  const rawText = htmlToPlainText(html);
+  const { content } = normalizePostHashtags(rawText);
+  const text = normalizeMultilineText(content);
+  if (text.length === 0 && rawText.length > 0 && !hasMedia) return rawText;
+  return text;
+}
+
+/**
+ * Every AUTHOR-written localized body the origin published — the post's ONLY
+ * body storage. `variants[0]` is the primary.
+ *
+ * A bilingual Mastodon status carries one body per language in `contentMap`; the
+ * old extraction collapsed that map to a single string and threw the rest away
+ * (the language CODES survived through `extractApLanguages` — only the text was
+ * lost). Each entry becomes a `source:'author'` variant, so the reader sees the
+ * body the author actually wrote in their own language rather than a machine
+ * translation of the other one.
+ *
+ * The primary is seeded first from the ALREADY-NORMALIZED primary body, then the
+ * remaining map entries follow in the order the origin declared them. Capped at
+ * {@link MAX_AUTHOR_VARIANTS} — the same ceiling the composer, the classifier and
+ * the lexicon use — so a hostile origin cannot grow a post without bound.
+ *
+ * The primary variant is UNTAGGED when the origin declared no language. That is
+ * the common case, not an edge: most non-Mastodon AP servers send neither
+ * `language` nor `contentMap`. The body must still be stored (it is the post),
+ * and the honest way to store it is without a tag — minting one from a
+ * detector's best guess would stamp a wrong language on the post and then
+ * federate that lie onward in `contentMap`/`language`.
+ *
+ * An empty body yields NO variant at all: a media-only or CW-only note has no
+ * rendition, the same way a boost has none. An empty NON-primary body is dropped
+ * for the same reason.
+ */
+function buildApAuthorVariants(
+  object: Record<string, unknown>,
+  primaryTag: string | undefined,
+  primaryText: string,
+  hasMedia: boolean,
+): PostContentVariant[] {
+  if (primaryText.length === 0) return [];
+
+  const primary: PostContentVariant = { source: 'author', text: primaryText };
+  if (primaryTag) primary.tag = primaryTag;
+  const variants: PostContentVariant[] = [primary];
+
+  const contentMap = getApContentMap(object);
+  if (contentMap) {
+    for (const [key, value] of Object.entries(contentMap)) {
+      if (variants.length >= MAX_AUTHOR_VARIANTS) break;
+      if (typeof value !== 'string') continue;
+      const tag = canonicalizeLanguageTag(key);
+      if (tag === null || variants.some((variant) => variant.tag === tag)) continue;
+      const text = normalizeRemoteBody(value, hasMedia);
+      if (text.length === 0) continue;
+      variants.push({ tag, source: 'author', text });
+    }
+  }
+
+  return variants;
+}
+
+/**
  * Extract the AP `summary` — the content warning we store as
  * `federation.spoilerText` — as normalized plain text.
  *
@@ -136,7 +273,8 @@ async function assembleFederatedNoteContent(
   ownerOxyUserId: string | null | undefined,
   ctx: BuildFederatedNoteContentContext,
 ): Promise<BuiltFederatedNoteContent> {
-  const rawText = htmlToPlainText(extractApContentHtml(object));
+  const primaryHtml = extractApContentHtml(object);
+  const rawText = htmlToPlainText(primaryHtml);
 
   // Run the centralized hashtag normalizer on every path so an all-hashtag post
   // is stored identically regardless of how it was ingested. `extractApHashtags`
@@ -168,7 +306,13 @@ async function assembleFederatedNoteContent(
     text = rawText;
   }
 
-  return { text, media, attachments, hashtags, summary, sensitive };
+  // The localized bodies — the post's only body storage. `text` is handed in as
+  // the primary rendition, so the body the guard/classifier see and the body
+  // stored in `variants[0]` are the same string by construction.
+  const primaryTag = resolveApPrimaryTag(object, primaryHtml);
+  const variants = buildApAuthorVariants(object, primaryTag, text, media.length > 0);
+
+  return { text, media, attachments, hashtags, summary, sensitive, variants };
 }
 
 /**

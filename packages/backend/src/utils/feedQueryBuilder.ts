@@ -244,7 +244,7 @@ export class FeedQueryBuilder {
       if (kws.length) {
         const regexes = kws.map((k: string) => new RegExp(k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'));
         const keywordConditions = [
-          { 'content.text': { $in: regexes } },
+          { 'content.variants.text': { $in: regexes } },
           { hashtags: { $in: kws.map((k: string) => k.toLowerCase()) } }
         ];
         
@@ -279,7 +279,7 @@ export class FeedQueryBuilder {
       const searchQuery = String(filters.searchQuery).trim();
       if (searchQuery) {
         const escapedQuery = searchQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        query['content.text'] = {
+        query['content.variants.text'] = {
           $regex: escapedQuery,
           $options: 'i'
         };

@@ -197,7 +197,6 @@ function makePostDoc(userId: string, text: string, createdAt: Date) {
       likedBy: [] as string[],
       savedBy: [] as string[],
     },
-    translations: [],
     seedTag: SEED_TAG,
     createdAt,
     updatedAt: createdAt,

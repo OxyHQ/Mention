@@ -14,7 +14,9 @@
  * script cleans them.
  *
  * What it normalizes (the same helper the ingest path now uses for each field):
- *   - `Post.content.text`          — MULTILINE (the author's paragraphs survive)
+ *   - `Post.content.variants[].text` — MULTILINE (the author's paragraphs survive).
+ *                                    EVERY rendition, not just the primary: each
+ *                                    one is remote text and each one is rendered.
  *   - `Post.federation.spoilerText`— INLINE (a CW label is one line; unset when
  *                                    it normalizes to empty)
  *   - `Post.content.media[].alt`   — INLINE (unset when it normalizes to empty)
@@ -75,7 +77,7 @@ const FEDERATED_POST_FILTER: Record<string, unknown> = { federation: { $ne: null
 export interface FederatedPostRow {
   _id: mongoose.Types.ObjectId;
   content?: {
-    text?: unknown;
+    variants?: unknown;
     media?: unknown;
   };
   federation?: {
@@ -194,15 +196,21 @@ export function buildPostUpdate(post: FederatedPostRow): { update: DocumentUpdat
   const update = emptyUpdate();
   const counts: PostCounts = { text: 0, spoilerText: 0, mediaAlt: 0 };
 
-  const text = post.content?.text;
-  if (typeof text === 'string') {
-    const normalized = normalizeMultilineText(text);
-    if (normalized !== text) {
-      // The body always stays a string (`content.text` defaults to `''`): an
-      // empty body is legitimate on a CW-only or media-only federated post.
-      update.set['content.text'] = normalized;
+  // Each rendition is addressed by INDEX, so the untouched fields of a variant
+  // (its tag, source, alt map, media override) are never re-serialized and cannot
+  // be lost. The body always stays a string — an empty rendition is not written
+  // back as one, it simply never existed.
+  const variants = post.content?.variants;
+  if (Array.isArray(variants)) {
+    variants.forEach((variant, index) => {
+      if (typeof variant !== 'object' || variant === null) return;
+      const text = (variant as { text?: unknown }).text;
+      if (typeof text !== 'string') return;
+      const normalized = normalizeMultilineText(text);
+      if (normalized === text) return;
+      update.set[`content.variants.${index}.text`] = normalized;
       counts.text += 1;
-    }
+    });
   }
 
   if (stageOptionalInline(update, 'federation.spoilerText', post.federation?.spoilerText)) {
@@ -372,7 +380,7 @@ async function normalizePosts(dryRun: boolean): Promise<CollectionResult<PostCou
 
     const page = await Post.find(pageFilter, {
       _id: 1,
-      'content.text': 1,
+      'content.variants': 1,
       'content.media': 1,
       'federation.spoilerText': 1,
     })

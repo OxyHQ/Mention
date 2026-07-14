@@ -115,9 +115,15 @@ describe('links source', () => {
     const or = and[0].$or as Array<Record<string, unknown>>;
     const keys = or.map((clause) => Object.keys(clause)[0]);
     expect(keys).toContain('content.sources.url');
-    expect(keys).toContain('content.text');
-    const textClause = or.find((c) => 'content.text' in c) as { 'content.text': RegExp };
-    expect('read https://www.nytimes.com/2026/story here').toMatch(textClause['content.text']);
+    // The body lives in the renditions, so the inline-link clause matches the
+    // multikey `content.variants.text` — ANY rendition citing the domain counts.
+    expect(keys).toContain('content.variants.text');
+    const textClause = or.find((c) => 'content.variants.text' in c) as {
+      'content.variants.text': RegExp;
+    };
+    expect('read https://www.nytimes.com/2026/story here').toMatch(
+      textClause['content.variants.text'],
+    );
   });
 
   it('returns [] with no domain', async () => {

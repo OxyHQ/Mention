@@ -165,18 +165,140 @@ export interface PostPodcastInput {
   syraPodcastId: string;
 }
 
+/**
+ * Where a localized rendition came from.
+ *
+ * The distinction is load-bearing, not decorative: only `author` variants
+ * declare the post's languages (classification, ranking, federation) and only
+ * they are signed onto the author's MTN chain. A machine translation is DERIVED
+ * content — signing it into the author's record would attribute to them words
+ * they never wrote.
+ */
+export type PostVariantSource = 'author' | 'machine';
+
+/**
+ * ONE localized rendition of a post.
+ *
+ * **A variant INHERITS everything it does not override.** That is the whole rule:
+ *
+ * - `media` absent → the variant shows `content.media` (the same images). It may
+ *   still localize their descriptions through `alt`.
+ * - `media` present → it REPLACES the media set outright (a different infographic
+ *   per language). Each {@link MediaItem} already carries its own `alt`, so the
+ *   `alt` map is meaningless here — the two are mutually exclusive, and supplying
+ *   both is rejected at the boundary. Two sources of truth for one alt text is
+ *   exactly the ambiguity this forbids.
+ * - `article` absent → the variant shows `content.article`.
+ *
+ * `tag` is a canonical BCP-47 tag (`es-ES`); it is never a bare string from a
+ * client — see `canonicalizeLanguageTag`.
+ */
+export interface PostContentVariant {
+  /**
+   * Canonical BCP-47 tag (`es-ES`).
+   *
+   * ABSENT when the post has no resolvable language — a body too short to detect
+   * ("ok", "+1", a bare URL), or a federated Note that declares none. That is a
+   * real state and the schema says so rather than inventing a tag: minting one
+   * from a detector's best guess would stamp a wrong language on the post and
+   * then federate that lie in `contentMap` / `language`. At most ONE variant may
+   * be untagged, and it is the primary.
+   */
+  tag?: string;
+  source: PostVariantSource;
+  text: string;
+  /** Localized alt text for the SHARED media set, keyed by media id. */
+  alt?: Record<string, string>;
+  /** Replaces the media set for this language entirely. */
+  media?: MediaItem[];
+  /** Localized long-form. `articleId` is NOT duplicated — it is the same entity. */
+  article?: Pick<PostArticleContent, 'title' | 'body' | 'excerpt'>;
+  createdAt?: string;
+}
+
+/**
+ * A post's content AS STORED.
+ *
+ * The renditions are the only home for text: there is no top-level `text`
+ * field, because every variant necessarily has its own body, so a body at the
+ * top would necessarily be a copy of one of them. `media` and `article`, by
+ * contrast, are genuinely SHARED — most posts have one media set that every
+ * language uses — so they live once, at the top, and a variant overrides them
+ * only when it actually differs. Pushing them into every variant would not
+ * remove duplication; it would create it.
+ *
+ * **`variants[0]` is the primary.** It is the rendition that federates, that is
+ * signed onto the chain, and that a reader falls back to. There is no separate
+ * `primaryTag` field: that would just be a copy of `variants[0].tag`. Read it
+ * through the resolver, never by indexing the array by hand.
+ *
+ * `poll`, `location` and `sources` are deliberately NOT per-variant: they are
+ * facts about the post, not about a language (a poll especially — its votes must
+ * aggregate; two polls would split the count).
+ */
+export interface StoredPostContent {
+  variants?: PostContentVariant[];
+  media?: MediaItem[];
+  article?: PostArticleContent;
+  poll?: PollData;
+  pollId?: string;
+  location?: GeoJSONPoint;
+  sources?: PostSourceLink[];
+  event?: PostEventContent;
+  room?: PostRoomContent;
+  podcast?: PostPodcastContent;
+  attachments?: PostAttachmentDescriptor[];
+}
+
+/**
+ * A post's content AS SERVED to a client — the RESOLVED view of
+ * {@link StoredPostContent} for one particular reader.
+ *
+ * This is deliberately a different shape from what is stored. The server picks
+ * the variant that fits the viewer and flattens it into `text` / `media` /
+ * `article`, so every renderer keeps reading `content.text` and is simply
+ * correct — the feed, the post detail, video captions, notification previews,
+ * quote cards, share sheets, OG cards and MCP all get the right language without
+ * knowing this feature exists. Resolving on the client instead would mean
+ * teaching each of them the same lesson, and the one that forgot would silently
+ * show the wrong language.
+ *
+ * A client also SENDS this shape when composing: `text` is then the primary
+ * body, and the server turns it into the primary variant. That is an API
+ * convenience, not storage — nothing keeps a second copy of the body on disk.
+ */
 export interface PostContent {
+  /** The body, already resolved for this reader (or the primary body on write). */
   text?: string;
-  media?: MediaItem[]; // Media items for images and videos
+  /**
+   * The renditions the reader can actually switch to: every AUTHOR variant, plus
+   * the machine translation for their own language when one already exists.
+   * `source` says which is which — there is no second list.
+   *
+   * Deliberately NOT a catalogue of every cached translation. Which languages
+   * happen to sit in the machine cache is the SERVER's business: a client asks
+   * "translate this to German" and the server decides whether that costs a
+   * cache read or an inference call. Publishing the cache's contents would leak
+   * an implementation detail into the API and invite clients to treat the cache
+   * as the menu of what's possible — when in fact any language is.
+   */
+  variants?: PostContentVariant[];
+  /** Media, with this reader's localized alt text already merged in. */
+  media?: MediaItem[];
   poll?: PollData; // Populated poll data for display
   pollId?: string; // Reference to poll document
   location?: GeoJSONPoint; // Location shared by user as part of post content
   sources?: PostSourceLink[]; // External sources cited within the post content
-  article?: PostArticleContent; // Optional article content authored with the post
+  article?: PostArticleContent; // Long-form, resolved for this reader
   event?: PostEventContent; // Optional event content
   room?: PostRoomContent; // Optional room content
   podcast?: PostPodcastContent; // Optional Syra podcast show attached to the post
   attachments?: PostAttachmentDescriptor[]; // Ordered attachments for rendering (media, poll, article, event, etc.)
+  /**
+   * The tag actually served in `text` — what the UI shows as "Showing in
+   * Spanish". Absent when the post has no resolvable language.
+   */
+  textLang?: string;
 }
 
 /**

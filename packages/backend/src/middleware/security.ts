@@ -132,6 +132,71 @@ export const feedIPRateLimiter = rateLimit({
   legacyHeaders: false,
 });
 
+/**
+ * Rate limiter for the AI translation endpoints.
+ *
+ * These are the only routes where a cheap request buys EXPENSIVE work: a call can
+ * trigger an Alia inference, and translation is free to every user, so nothing
+ * else bounds the spend. `POST /posts/:id/translate` is cached per post+language,
+ * so a determined caller is bounded by the number of posts — but
+ * `POST /posts/translate-draft` takes arbitrary text and therefore CANNOT be
+ * cached: every call is an inference. That is the endpoint this exists for.
+ *
+ * Deliberately tighter than the feed limiters: translating is a deliberate human
+ * action, not something a scrolling client does dozens of times a minute.
+ */
+const translationStore = new RedisStore({
+  prefix: 'rate-limit:translate:',
+  windowMs: 60 * 1000,
+});
+export const translationRateLimiter = rateLimit({
+  store: translationStore,
+  windowMs: 60 * 1000,
+  max: 20,
+  keyGenerator: (req: Request) => {
+    const authReq = req as AuthRequest;
+    if (authReq.user?.id) {
+      return `user:${authReq.user.id}`;
+    }
+    const ip = req.ip || req.socket.remoteAddress || 'unknown';
+    return ipKeyGenerator(ip);
+  },
+  message: 'Too many translation requests. Please slow down.',
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+/**
+ * Rate limiter for the routes that CREATE or EDIT a post.
+ *
+ * A post write is the network's main spam surface — it fans out to followers,
+ * federates, and gets signed onto a chain — so it earns a bound of its own on top
+ * of the app-wide limiter. Deliberately generous: a human composing normally never
+ * comes close, a thread of many posts still fits, and the MCP/API clients that
+ * post on a user's behalf keep working. It exists to stop a loop, not to police
+ * enthusiasm.
+ */
+const postWriteStore = new RedisStore({
+  prefix: 'rate-limit:post-write:',
+  windowMs: 60 * 1000,
+});
+export const postWriteRateLimiter = rateLimit({
+  store: postWriteStore,
+  windowMs: 60 * 1000,
+  max: 60,
+  keyGenerator: (req: Request) => {
+    const authReq = req as AuthRequest;
+    if (authReq.user?.id) {
+      return `user:${authReq.user.id}`;
+    }
+    const ip = req.ip || req.socket.remoteAddress || 'unknown';
+    return ipKeyGenerator(ip);
+  },
+  message: 'Too many posts in a short time. Please slow down.',
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 // Request throttling for expensive feed operations (For You feed with ranking)
 const feedThrottleStore = new RedisStore({ 
   prefix: 'rate-limit:feed-throttle:',

@@ -195,7 +195,8 @@ describe('projectRecord — post', () => {
     expect(doc).toBeDefined();
     expect(doc?.oxyUserId).toBe(SUBJECT_OXY_ID);
     expect(doc?.type).toBe('text');
-    expect((doc?.content as { text: string }).text).toBe(postRecord.text);
+    // The body lives in the variants — `variants[0]` is the primary rendition.
+    expect((doc?.content as { variants: Array<{ text: string }> }).variants[0].text).toBe(postRecord.text);
     expect(doc?.hashtags).toEqual(['mtn', 'protocol']);
     expect(doc?.parentPostId).toBeNull();
     expect(doc?.threadId).toBeNull();
@@ -285,9 +286,12 @@ describe('projectRecord — post', () => {
     expect(result.ok).toBe(true);
 
     const doc = h.posts.get(POST_RKEY);
-    const content = doc?.content as { text: string; media: Array<{ id: string; type: string }> };
-    // Text was updated from the record…
-    expect(content.text).toBe(postRecord.text);
+    const content = doc?.content as {
+      variants: Array<{ text: string }>;
+      media: Array<{ id: string; type: string }>;
+    };
+    // The body was updated from the record…
+    expect(content.variants[0].text).toBe(postRecord.text);
     // …but the fileId media survives (the materializer never writes content.media).
     expect(content.media).toEqual([{ id: 'file-abc', type: 'image' }]);
   });
@@ -320,8 +324,11 @@ describe('projectRecord — post', () => {
     expect(oxyMock.getServiceAssetMetadataBySha256).toHaveBeenCalledWith(['sha-img', 'sha-vid']);
 
     const doc = h.posts.get(POST_RKEY);
-    const content = doc?.content as { text: string; media: Array<{ id: string; type: string; alt?: string }> };
-    expect(content.text).toBe(postRecord.text);
+    const content = doc?.content as {
+      variants: Array<{ text: string }>;
+      media: Array<{ id: string; type: string; alt?: string }>;
+    };
+    expect(content.variants[0].text).toBe(postRecord.text);
     // Each blob became a fileId MediaItem (id = resolved fileId, type = mediaType),
     // order + alt preserved.
     expect(content.media).toEqual([
@@ -376,8 +383,8 @@ describe('projectRecord — post', () => {
     expect(result).toEqual({ ok: true, kind: 'post', id: POST_RKEY });
 
     const doc = h.posts.get(POST_RKEY);
-    const content = doc?.content as { text: string; media?: unknown };
-    expect(content.text).toBe(postRecord.text);
+    const content = doc?.content as { variants: Array<{ text: string }>; media?: unknown };
+    expect(content.variants[0].text).toBe(postRecord.text);
     // Lookup failed → no media materialized, no throw.
     expect(content.media).toBeUndefined();
   });
@@ -405,8 +412,11 @@ describe('projectRecord — post', () => {
     expect(result.ok).toBe(true);
 
     const doc = h.posts.get(POST_RKEY);
-    const content = doc?.content as { text: string; media: Array<{ id: string; type: string }> };
-    expect(content.text).toBe(postRecord.text);
+    const content = doc?.content as {
+      variants: Array<{ text: string }>;
+      media: Array<{ id: string; type: string }>;
+    };
+    expect(content.variants[0].text).toBe(postRecord.text);
     // Existing fileId media preserved (resolver returned nothing → no write).
     expect(content.media).toEqual([{ id: 'file-existing', type: 'image' }]);
   });
@@ -458,7 +468,8 @@ describe('projectRecord — repost', () => {
     expect(doc?.type).toBe('boost');
     expect(doc?.boostOf).toBe(LIKED_POST_ID);
     expect(doc?.oxyUserId).toBe(SUBJECT_OXY_ID);
-    expect((doc?.content as { text: string }).text).toBe('');
+    // No rendition at all — a boost has nothing to say in any language.
+    expect((doc?.content as { variants: unknown[] }).variants).toEqual([]);
   });
 });
 
@@ -534,5 +545,88 @@ describe('projectRecord — tombstone', () => {
       envelope(MENTION_TOMBSTONE_COLLECTION, '650000000000000000000096', tombstone),
     );
     expect(result.ok).toBe(true);
+  });
+});
+
+describe('projectRecord — multilingual post (variants)', () => {
+  const createdAtIso = '2024-01-02T03:04:05.000Z';
+
+  it('materializes the record variants as AUTHOR variants', async () => {
+    const record = {
+      text: 'hola mundo',
+      createdAt: createdAtIso,
+      langs: ['es-ES', 'en-US'],
+      variants: [
+        { tag: 'es-ES', text: 'hola mundo' },
+        { tag: 'en-US', text: 'hello world' },
+      ],
+    };
+
+    const result = await projectRecord(envelope(MENTION_POST_COLLECTION, POST_RKEY, record));
+    expect(result).toEqual({ ok: true, kind: 'post', id: POST_RKEY });
+
+    const doc = h.posts.get(POST_RKEY);
+    const content = doc?.content as { variants: Array<{ tag?: string; source: string; text: string }> };
+    // Everything on the chain is author-written — a machine translation is never
+    // signed, so there is nothing else it could be. `variants[0]` is the primary.
+    expect(content.variants).toEqual([
+      { tag: 'es-ES', source: 'author', text: 'hola mundo', createdAt: createdAtIso },
+      { tag: 'en-US', source: 'author', text: 'hello world', createdAt: createdAtIso },
+    ]);
+    // The top-level AP `language` is the BASE subtag — the alphabet the ranking
+    // layer reads — even though the record's `langs` are regional.
+    expect(doc?.language).toBe('es');
+  });
+
+  it('re-keys a variant alt map from blob sha256 back to the live Oxy file id', async () => {
+    oxyMock.getServiceAssetMetadataBySha256.mockResolvedValue([
+      { sha256: 'sha-img', id: 'file-img', mime: 'image/png', size: 10, status: 'active' },
+    ]);
+    const record = {
+      text: 'hola',
+      createdAt: createdAtIso,
+      langs: ['es'],
+      embed: { type: 'media', items: [{ blob: { sha256: 'sha-img', mediaType: 'image' }, alt: 'un gato' }] },
+      variants: [
+        { tag: 'es', text: 'hola' },
+        { tag: 'en', text: 'hi', alt: { 'sha-img': 'a cat' } },
+      ],
+    };
+
+    await projectRecord(envelope(MENTION_POST_COLLECTION, POST_RKEY, record));
+
+    const content = h.posts.get(POST_RKEY)?.content as {
+      media: Array<{ id: string; alt?: string }>;
+      variants: Array<{ tag: string; alt?: Record<string, string> }>;
+    };
+    // ONE batched reverse lookup covers the shared embed AND the variant alt keys.
+    expect(oxyMock.getServiceAssetMetadataBySha256).toHaveBeenCalledTimes(1);
+    expect(content.media).toEqual([{ id: 'file-img', type: 'image', alt: 'un gato' }]);
+    expect(content.variants[1].alt).toEqual({ 'file-img': 'a cat' });
+  });
+
+  it('rebuilds the single rendition of a MONOLINGUAL record from `text` + `langs`', async () => {
+    // The writer omits a one-entry `variants` array (it would just duplicate
+    // `text`), so the reader reconstitutes it. This is also the DEGRADATION path:
+    // a record written by a reader that never heard of `variants` still
+    // materializes a complete, correctly-tagged post.
+    const record = { text: 'hola', createdAt: createdAtIso, langs: ['es-ES'] };
+
+    await projectRecord(envelope(MENTION_POST_COLLECTION, POST_RKEY, record));
+
+    const content = h.posts.get(POST_RKEY)?.content as { variants: Array<{ tag?: string; text: string }> };
+    expect(content.variants).toEqual([
+      { tag: 'es-ES', source: 'author', text: 'hola', createdAt: createdAtIso },
+    ]);
+  });
+
+  it('materializes an UNTAGGED rendition when the record declares no language', async () => {
+    const record = { text: '+1', createdAt: createdAtIso };
+
+    await projectRecord(envelope(MENTION_POST_COLLECTION, POST_RKEY, record));
+
+    const content = h.posts.get(POST_RKEY)?.content as { variants: Array<{ tag?: string; text: string }> };
+    expect(content.variants).toEqual([{ source: 'author', text: '+1', createdAt: createdAtIso }]);
+    expect(content.variants[0].tag).toBeUndefined();
   });
 });

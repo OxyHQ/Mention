@@ -43,9 +43,9 @@ describe('hasImage / hasGif / hasPoll / hasLink filters', () => {
   });
   it('hasLink keeps posts with links', () => {
     const keep = keepOf('hasLink');
-    expect(keep(post({ content: { text: 'see https://x.com' } }), {}, {})).toBe(true);
+    expect(keep(post({ content: { variants: [{ source: 'author', text: 'see https://x.com' }] } }), {}, {})).toBe(true);
     expect(keep(post({ content: { sources: [{ url: 'https://y.com' }] } }), {}, {})).toBe(true);
-    expect(keep(post({ content: { text: 'no links here' } }), {}, {})).toBe(false);
+    expect(keep(post({ content: { variants: [{ source: 'author', text: 'no links here' }] } }), {}, {})).toBe(false);
   });
 });
 
@@ -62,13 +62,13 @@ describe('minEngagement filter', () => {
 describe('maxLength / minLength filters', () => {
   it('maxLength drops long posts', () => {
     const keep = keepOf('maxLength');
-    expect(keep(post({ content: { text: 'hello' } }), {}, { maxLength: 10 })).toBe(true);
-    expect(keep(post({ content: { text: 'this text is way too long' } }), {}, { maxLength: 10 })).toBe(false);
+    expect(keep(post({ content: { variants: [{ source: 'author', text: 'hello' }] } }), {}, { maxLength: 10 })).toBe(true);
+    expect(keep(post({ content: { variants: [{ source: 'author', text: 'this text is way too long' }] } }), {}, { maxLength: 10 })).toBe(false);
   });
   it('minLength drops short posts', () => {
     const keep = keepOf('minLength');
-    expect(keep(post({ content: { text: 'a decent length post' } }), {}, { minLength: 10 })).toBe(true);
-    expect(keep(post({ content: { text: 'hi' } }), {}, { minLength: 10 })).toBe(false);
+    expect(keep(post({ content: { variants: [{ source: 'author', text: 'a decent length post' }] } }), {}, { minLength: 10 })).toBe(true);
+    expect(keep(post({ content: { variants: [{ source: 'author', text: 'hi' }] } }), {}, { minLength: 10 })).toBe(false);
   });
 });
 
@@ -124,8 +124,8 @@ describe('domain + instance allow/deny filters', () => {
   it('domainDenylist drops posts linking to a denied domain', () => {
     const keep = keepOf('domainDenylist');
     const params = { domains: ['spam.com'] };
-    expect(keep(post({ content: { text: 'x https://spam.com/y' } }), {}, params)).toBe(false);
-    expect(keep(post({ content: { text: 'x https://ok.com/y' } }), {}, params)).toBe(true);
+    expect(keep(post({ content: { variants: [{ source: 'author', text: 'x https://spam.com/y' }] } }), {}, params)).toBe(false);
+    expect(keep(post({ content: { variants: [{ source: 'author', text: 'x https://ok.com/y' }] } }), {}, params)).toBe(true);
   });
   it('instanceDenylist drops posts from a denied instance', () => {
     const keep = keepOf('instanceDenylist');

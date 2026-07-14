@@ -12,7 +12,7 @@
  * each connector and in the registry, never here.
  */
 
-import type { MediaItem } from '@mention/shared-types';
+import type { PostContent } from '@mention/shared-types';
 
 /** Supported external networks. */
 export type NetworkId = 'activitypub' | 'atproto';
@@ -106,12 +106,21 @@ export interface FetchPostsResult {
   cursor?: string;
 }
 
-/** Minimal local-post shape a `post.create` event carries to outbound delivery. */
+/**
+ * Local-post shape a `post.create` event carries to outbound delivery.
+ *
+ * `content` is the canonical {@link PostContent}, not a trimmed-down copy: a
+ * connector needs the post's localized variants and `primaryTag` to declare the
+ * post's language on the wire (ActivityPub `contentMap`, atproto `langs`), and a
+ * narrowed structural type here silently DROPS them at the seam.
+ */
 export interface LocalPostEventPayload {
   _id: unknown;
-  content: { text?: string; media?: MediaItem[] };
+  content: PostContent;
   hashtags?: string[];
   mentions?: string[];
+  /** The classifier's resolved primary language — the fallback when the author declared no `primaryTag`. */
+  language?: string;
   visibility: string;
   createdAt: string;
 }

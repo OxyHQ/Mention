@@ -38,8 +38,6 @@ export default function SubscribeScreen() {
 
             {/* Features */}
             <SettingsListGroup title={t('subscribe.featuresTitle')}>
-                <SettingsListItem icon={<RowIcon name="language" />} title={t('subscribe.translateFeature')} showChevron={false} />
-                <SettingsListItem icon={<RowIcon name="globe" />} title={t('subscribe.autoTranslateFeature')} showChevron={false} />
                 <SettingsListItem icon={<RowIcon name="sparkles" />} title={t('subscribe.aiFeatures')} showChevron={false} />
                 <SettingsListItem icon={<RowIcon name="shield-checkmark" />} title={t('subscribe.verifiedBadge')} showChevron={false} />
             </SettingsListGroup>

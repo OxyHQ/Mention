@@ -1,4 +1,3 @@
-import type { MediaItem } from '@mention/shared-types';
 import type { IFederatedActor } from '../../models/FederatedActor';
 import type {
   NetworkConnector,
@@ -12,7 +11,7 @@ import type {
 import { resolveOxyExternalUser } from '../identity';
 import { isAbsoluteHttpUrl } from '../shared/url';
 import { actorService } from './actor.service';
-import { followService } from './follow.service';
+import { followService, type NoteSourcePost } from './follow.service';
 import { outboxSyncService } from './outbox.service';
 import { inboxProcessingService } from './inbox.service';
 import { FEDERATION_ENABLED, isBlockedDomain } from './constants';
@@ -255,21 +254,12 @@ class ActivityPubConnector implements NetworkConnector {
     return followService.deliverToFollowers(activity, senderOxyUserId, senderUsername);
   }
 
-  buildCreateNoteActivity(
-    post: {
-      _id: any;
-      content: { text?: string; media?: MediaItem[] };
-      hashtags?: string[];
-      mentions?: string[];
-      createdAt: string | Date;
-    },
-    username: string,
-  ): Record<string, unknown> {
+  buildCreateNoteActivity(post: NoteSourcePost, username: string): Record<string, unknown> {
     return followService.buildCreateNoteActivity(post, username);
   }
 
   federateNewPost(
-    post: { _id: any; content: { text?: string; media?: MediaItem[] }; hashtags?: string[]; mentions?: string[]; visibility: string; createdAt: string },
+    post: NoteSourcePost & { visibility: string },
     senderOxyUserId: string,
     senderUsername: string,
   ): Promise<void> {

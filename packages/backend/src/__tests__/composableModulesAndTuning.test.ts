@@ -8,6 +8,8 @@ import {
   noBotsFilter,
   lowEffortGateFilter,
   nativeEngagementFilter,
+  customMuteWordsFilter,
+  keywordDenylistFilter,
 } from '../mtn/feed/engine/filters';
 import type { CandidatePost, FeedEngineContext } from '../mtn/feed/engine/types';
 import { BASELINE_CLASSIFIER_VERSION } from '../services/BaselineContentClassifier';
@@ -73,20 +75,20 @@ describe('noLowEffort filter', () => {
     noLowEffortFilter.keep!(p, EMPTY_CTX, params);
 
   it('drops custom-emoji shortcode-only and Unicode-emoji-only posts', () => {
-    expect(keep(post({ content: { text: ':oyaki::oyaki: :blobcat:' } }))).toBe(false);
-    expect(keep(post({ content: { text: '🔥🔥🚀✨' } }))).toBe(false);
+    expect(keep(post({ content: { variants: [{ source: 'author', text: ':oyaki::oyaki: :blobcat:' }] } }))).toBe(false);
+    expect(keep(post({ content: { variants: [{ source: 'author', text: '🔥🔥🚀✨' }] } }))).toBe(false);
   });
 
   it('keeps a low-effort post that carries media (media rescues it)', () => {
-    expect(keep(post({ content: { text: '🔥🔥', media: [{ id: 'm', type: 'image' }] } }))).toBe(true);
+    expect(keep(post({ content: { variants: [{ source: 'author', text: '🔥🔥' }], media: [{ id: 'm', type: 'image' }] } }))).toBe(true);
   });
 
   it('keeps real prose', () => {
-    expect(keep(post({ content: { text: 'A perfectly ordinary sentence with real words behind it.' } }))).toBe(true);
+    expect(keep(post({ content: { variants: [{ source: 'author', text: 'A perfectly ordinary sentence with real words behind it.' }] } }))).toBe(true);
   });
 
   it('optionally drops emoji-HEAVY posts via maxEmojiRatio (and only then)', () => {
-    const emojiHeavy = post({ content: { text: 'this is real text 🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥' } });
+    const emojiHeavy = post({ content: { variants: [{ source: 'author', text: 'this is real text 🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥' }] } });
     // Without the ratio param the post has enough real text → kept.
     expect(keep(emojiHeavy)).toBe(true);
     // With a 0.5 ratio cap the emoji share exceeds it → dropped.
@@ -98,8 +100,8 @@ describe('noLowEffort filter', () => {
 
 describe('linkCount filter', () => {
   const keep = (p: CandidatePost, params: Record<string, unknown>) => linkCountFilter.keep!(p, EMPTY_CTX, params);
-  const oneLink = post({ content: { text: 'see https://a.example' } });
-  const twoLinks = post({ content: { text: 'https://a.example and https://b.example' } });
+  const oneLink = post({ content: { variants: [{ source: 'author', text: 'see https://a.example' }] } });
+  const twoLinks = post({ content: { variants: [{ source: 'author', text: 'https://a.example and https://b.example' }] } });
 
   it('enforces a minimum link count', () => {
     expect(keep(oneLink, { minLinks: 2 })).toBe(false);
@@ -123,7 +125,7 @@ describe('noBots filter', () => {
 
   it('drops an RSS/bridge mirror actor (federated instance host)', () => {
     const mirror = post({
-      content: { text: 'Some headline here' },
+      content: { variants: [{ source: 'author', text: 'Some headline here' }] },
       federation: { actorUri: 'https://rss-mstdn.example/users/feed' },
     });
     expect(keep(mirror)).toBe(false);
@@ -131,7 +133,7 @@ describe('noBots filter', () => {
 
   it('drops a link-only news bot by TEXT SHAPE even without actor metadata', () => {
     const newsBot = post({
-      content: { text: 'https://news.example/article-123' },
+      content: { variants: [{ source: 'author', text: 'https://news.example/article-123' }] },
       hashtags: ['news', 'ゲーム', 'tech', 'update'],
     });
     expect(keep(newsBot)).toBe(false);
@@ -139,7 +141,7 @@ describe('noBots filter', () => {
 
   it('keeps a normal human post that merely embeds a link', () => {
     const human = post({
-      content: { text: 'Really enjoyed this piece on deep-sea exploration, worth a read: https://blog.example/post' },
+      content: { variants: [{ source: 'author', text: 'Really enjoyed this piece on deep-sea exploration, worth a read: https://blog.example/post' }] },
       federation: { actorUri: 'https://mastodon.social/users/alice' },
     });
     expect(keep(human)).toBe(true);
@@ -155,7 +157,7 @@ function tuning(forYou: FeedTuning['forYou']): FeedEngineContext {
 }
 
 describe('For You gate reads EFFECTIVE per-viewer params', () => {
-  const emojiOnly = post({ content: { text: '🔥🔥🚀✨' } });
+  const emojiOnly = post({ content: { variants: [{ source: 'author', text: '🔥🔥🚀✨' }] } });
 
   it('fail-soft: with NO tuning the config-default gate applies (emoji-only rejected)', () => {
     expect(lowEffortGateFilter.keep!(emojiOnly, EMPTY_CTX, GATE_PARAMS)).toBe(false);
@@ -226,5 +228,82 @@ describe('validateForYouTuning', () => {
     expect(validateForYouTuning({ minQuality: { minQuality: 2 } }).valid).toBe(false);
     expect(validateForYouTuning({ nativeEngagement: { minNativeEngagement: -1 } }).valid).toBe(false);
     expect(validateForYouTuning('nope').valid).toBe(false);
+  });
+});
+
+// ─── muted words / keyword denylist across RENDITIONS ────────────────────────
+
+/**
+ * A post's body lives in `content.variants` — one rendition per language. These
+ * two filters are SAFETY filters: a muted word has to hide the post whichever
+ * language the reader is served it in. Matching only the primary rendition would
+ * let the exact body a reader sees slip straight past the filter that exists to
+ * hide it — and the reader would never know, because the filter would report
+ * having run.
+ *
+ * There is nothing type-checked about any of this (the filters read a lean
+ * candidate), so without these tests "matches nothing" is indistinguishable from
+ * "nothing to match".
+ */
+describe('customMuteWords / keywordDenylist — every rendition, not just the primary', () => {
+  const muted = (p: CandidatePost, words: string[]) =>
+    customMuteWordsFilter.keep!(p, EMPTY_CTX, { words });
+  const denied = (p: CandidatePost, keywords: string[]) =>
+    keywordDenylistFilter.keep!(p, EMPTY_CTX, { keywords });
+
+  const bilingual = post({
+    content: {
+      variants: [
+        { tag: 'es', source: 'author', text: 'una peli sobre naves espaciales' },
+        { tag: 'en', source: 'author', text: 'a movie about spoilers and spaceships' },
+      ],
+    },
+  });
+
+  it('mutes on a word that appears ONLY in a non-primary rendition', () => {
+    // An English reader is served the English body. If the filter only read the
+    // Spanish primary, the muted word would render in their feed.
+    expect(muted(bilingual, ['spoilers'])).toBe(false);
+  });
+
+  it('mutes on a word in the primary rendition', () => {
+    expect(muted(bilingual, ['naves'])).toBe(false);
+  });
+
+  it('mutes on a word that only a MACHINE translation carries', () => {
+    // The reader may be served the machine rendition, so it is as visible as any
+    // other and must be filtered the same way.
+    const translated = post({
+      content: {
+        variants: [
+          { tag: 'es', source: 'author', text: 'una peli' },
+          { tag: 'en', source: 'machine', text: 'a movie with spoilers' },
+        ],
+      },
+    });
+    expect(muted(translated, ['spoilers'])).toBe(false);
+  });
+
+  it('keeps a post whose renditions contain none of the muted words', () => {
+    expect(muted(bilingual, ['politics'])).toBe(true);
+  });
+
+  it('keeps a post with no rendition at all (a boost has no body to match)', () => {
+    expect(muted(post({ content: { variants: [] } }), ['spoilers'])).toBe(true);
+  });
+
+  it('keywordDenylist reads every rendition too', () => {
+    expect(denied(bilingual, ['spoilers'])).toBe(false);
+    expect(denied(bilingual, ['politics'])).toBe(true);
+  });
+
+  it('still matches hashtags, and matches on a word boundary rather than a substring', () => {
+    const tagged = post({
+      content: { variants: [{ tag: 'en', source: 'author', text: 'the spoilerific finale' }] },
+      hashtags: ['cinema'],
+    });
+    expect(muted(tagged, ['cinema'])).toBe(false);
+    // `spoiler` must NOT match inside `spoilerific`.
+    expect(muted(tagged, ['spoiler'])).toBe(true);
   });
 });

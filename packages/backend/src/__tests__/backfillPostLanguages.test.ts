@@ -15,7 +15,7 @@ import mongoose from 'mongoose';
 
 interface StoredPost {
   _id: mongoose.Types.ObjectId;
-  content?: { text?: string };
+  content?: { variants?: Array<{ source: string; text: string; tag?: string }> };
   hashtags?: string[];
   federation?: { sensitive?: boolean } | null;
   postClassification?: { languages?: string[]; version?: number };
@@ -93,7 +93,7 @@ describe('backfillPostLanguages', () => {
     h.state.posts = [
       {
         _id: id,
-        content: { text: 'Hola, ¿cómo estás hoy amigo?' },
+        content: { variants: [{ source: 'author', text: 'Hola, ¿cómo estás hoy amigo?' }] },
         postClassification: { version: 1 },
       },
     ];
@@ -115,7 +115,7 @@ describe('backfillPostLanguages', () => {
     h.state.posts = [
       {
         _id: new mongoose.Types.ObjectId(),
-        content: { text: 'This is a clearly English sentence for detection.' },
+        content: { variants: [{ source: 'author', text: 'This is a clearly English sentence for detection.' }] },
         postClassification: { version: 1 },
       },
     ];
@@ -131,7 +131,7 @@ describe('backfillPostLanguages', () => {
     h.state.posts = [
       {
         _id: new mongoose.Types.ObjectId(),
-        content: { text: 'hi' }, // too short to detect
+        content: { variants: [{ source: 'author', text: 'hi' }] }, // too short to detect
         postClassification: { version: 1 },
       },
     ];

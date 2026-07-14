@@ -21,7 +21,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 /** A canned row as the models hand it to the script (`.lean()` output). */
 interface StoredRow {
   _id: mongoose.Types.ObjectId;
-  content?: { text?: unknown; media?: unknown };
+  content?: { variants?: unknown; media?: unknown };
   federation?: { spoilerText?: unknown };
   username?: unknown;
   summary?: unknown;
@@ -130,10 +130,10 @@ describe('buildPostUpdate', () => {
   it('normalizes the body as multiline, keeping the author’s paragraph break', () => {
     const { update, counts } = buildPostUpdate({
       _id: OID,
-      content: { text: DIRTY_TEXT },
+      content: { variants: [{ source: 'author', text: DIRTY_TEXT }] },
     });
 
-    expect(update.set['content.text']).toBe(CLEAN_TEXT);
+    expect(update.set['content.variants.0.text']).toBe(CLEAN_TEXT);
     expect(update.unset).toEqual({});
     expect(counts.text).toBe(1);
   });
@@ -184,7 +184,10 @@ describe('buildPostUpdate', () => {
   it('produces NO write for an already-clean post (idempotent)', () => {
     const clean = {
       _id: OID,
-      content: { text: CLEAN_TEXT, media: [{ id: 'a', type: 'image', alt: 'un gato' }] },
+      content: {
+        variants: [{ source: 'author', text: CLEAN_TEXT }],
+        media: [{ id: 'a', type: 'image', alt: 'un gato' }],
+      },
       federation: { spoilerText: 'CW: spoilers' },
     };
     const { update } = buildPostUpdate(clean);
@@ -196,7 +199,7 @@ describe('buildPostUpdate', () => {
     // The script normalizes whitespace; it does not repair a corrupt schema.
     const { update } = buildPostUpdate({
       _id: OID,
-      content: { text: 42, media: 'not-an-array' },
+      content: { variants: [{ source: 'author', text: 42 }], media: 'not-an-array' },
       federation: { spoilerText: { nested: true } },
     });
     expect(update.set).toEqual({});
@@ -254,12 +257,12 @@ describe('buildActorUpdate', () => {
 
 describe('describeChanges', () => {
   it('quotes both sides so the whitespace being removed is actually visible', () => {
-    const post = { _id: OID, content: { text: DIRTY_TEXT } };
+    const post = { _id: OID, content: { variants: [{ source: 'author', text: DIRTY_TEXT }] } };
     const { update } = buildPostUpdate(post);
 
     expect(describeChanges(post, update)).toEqual([
       {
-        path: 'content.text',
+        path: 'content.variants.0.text',
         before: '"  uno   \\n   \\n   \\n  dos  "',
         after: '"uno\\n\\ndos"',
       },
@@ -283,12 +286,12 @@ describe('describeChanges', () => {
 function seedPosts(): void {
   h.state.posts = [
     // Dirty: a padded, pretty-printed body.
-    { _id: oid('1'), content: { text: DIRTY_TEXT }, federation: { spoilerText: 'CW: spoilers' } },
+    { _id: oid('1'), content: { variants: [{ source: 'author', text: DIRTY_TEXT }] }, federation: { spoilerText: 'CW: spoilers' } },
     // Dirty: a padded content warning plus a padded alt on the second media item.
     {
       _id: oid('2'),
       content: {
-        text: CLEAN_TEXT,
+        variants: [{ source: 'author', text: CLEAN_TEXT }],
         media: [
           { id: 'a', type: 'image', alt: 'un gato' },
           { id: 'b', type: 'image', alt: '  un perro\n ' },
@@ -297,7 +300,7 @@ function seedPosts(): void {
       federation: { spoilerText: '  CW:\n  spoilers  ' },
     },
     // Clean: must produce no write on either a dry or a real run.
-    { _id: oid('3'), content: { text: CLEAN_TEXT }, federation: { spoilerText: 'CW: spoilers' } },
+    { _id: oid('3'), content: { variants: [{ source: 'author', text: CLEAN_TEXT }] }, federation: { spoilerText: 'CW: spoilers' } },
   ];
 }
 
@@ -367,7 +370,7 @@ describe('normalizeStoredText — DRY RUN', () => {
       id: oid('1').toString(),
       changes: [
         {
-          path: 'content.text',
+          path: 'content.variants.0.text',
           before: '"  uno   \\n   \\n   \\n  dos  "',
           after: '"uno\\n\\ndos"',
         },
@@ -386,7 +389,7 @@ describe('normalizeStoredText — DRY RUN', () => {
   });
 
   it('finds nothing to change on a second (already-normalized) run', async () => {
-    h.state.posts = [{ _id: oid('1'), content: { text: CLEAN_TEXT } }];
+    h.state.posts = [{ _id: oid('1'), content: { variants: [{ source: 'author', text: CLEAN_TEXT }] } }];
     h.state.actors = [{ _id: oid('4'), username: 'alice', summary: 'hola\n\nadiós' }];
 
     const summary = await normalizeStoredText(true);
@@ -435,7 +438,13 @@ describe('normalizeStoredText — real run', () => {
 
   it('unsets an alt that normalizes to nothing rather than blanking it', async () => {
     h.state.posts = [
-      { _id: oid('1'), content: { text: CLEAN_TEXT, media: [{ id: 'a', alt: '  \n ' }] } },
+      {
+        _id: oid('1'),
+        content: {
+          variants: [{ source: 'author', text: CLEAN_TEXT }],
+          media: [{ id: 'a', alt: '  \n ' }],
+        },
+      },
     ];
 
     await normalizeStoredText(false);

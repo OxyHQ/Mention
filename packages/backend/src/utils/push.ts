@@ -2,6 +2,7 @@ import admin from 'firebase-admin';
 import { HydratedDocument } from 'mongoose';
 import { normalizeInlineText } from '@oxyhq/core';
 import PushToken from '../models/PushToken';
+import { resolveVariant } from '../services/postVariants';
 import Post from '../models/Post';
 import { INotification } from '../models/Notification';
 import { getServiceOxyClient } from './oxyHelpers';
@@ -140,9 +141,10 @@ export async function formatPushForNotification(n: HydratedDocument<INotificatio
   // For post notifications, try to include a short preview in the push body
   try {
     if (n.type === 'post' && n.entityType === 'post' && n.entityId) {
-      const post = await Post.findById(n.entityId, { 'content.text': 1 }).lean();
+      const post = await Post.findById(n.entityId, { 'content.variants': 1 }).lean();
       if (post) {
-        const text: string = post?.content?.text || '';
+        // The primary rendition — a push has no viewer language context.
+        const text: string = resolveVariant(post.content).text;
         preview = buildPreview(text, 200);
         if (preview) {
           f = { title: 'New post', body: `${actorName} posted: ${preview}` };

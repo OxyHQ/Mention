@@ -2,6 +2,7 @@ import express, { Response } from "express";
 import { type OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
 import mongoose from 'mongoose';
 import Notification, { INotification } from "../models/Notification";
+import { resolveVariant } from "../services/postVariants";
 import Post from "../models/Post";
 import { Server } from 'socket.io';
 import PushToken from '../models/PushToken';
@@ -169,8 +170,9 @@ router.get("/", async (req: AuthRequest, res: Response) => {
 
         // Build preview map
         for (const p of posts) {
-          const text: string = p?.content?.text || '';
-          const trimmed = typeof text === 'string' ? text.trim() : '';
+          // The primary rendition — a notification preview has no viewer language
+          // context to resolve against, so it shows what the author wrote.
+          const trimmed = resolveVariant(p.content).text.trim();
           const truncated = trimmed.length > 200 ? `${trimmed.slice(0, 200)}…` : trimmed;
           postPreviewMap.set(String(p._id), truncated);
         }
@@ -203,10 +205,12 @@ router.get("/", async (req: AuthRequest, res: Response) => {
       try {
         const previewDocs = await Post.find(
           { _id: { $in: previewEntityIds } },
-          { 'content.text': 1 },
+          { 'content.variants': 1 },
         ).lean();
         for (const p of previewDocs) {
-          const text = typeof p?.content?.text === 'string' ? p.content.text.trim() : '';
+          // The primary rendition. A notification preview has no viewer language
+          // context to resolve against, so it shows what the author wrote.
+          const text = resolveVariant(p.content).text.trim();
           postPreviewMap.set(String(p._id), text.length > 200 ? `${text.slice(0, 200)}…` : text);
         }
       } catch (e) {

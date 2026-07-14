@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useContext, useState, useRef, lazy, Suspense } from 'react';
+import React, { useCallback, useMemo, useContext, useState, lazy, Suspense } from 'react';
 import { StyleSheet, View, Pressable, TouchableOpacity, Text, GestureResponderEvent } from 'react-native';
 import { useRouter, usePathname } from 'expo-router';
 import {
@@ -15,6 +15,7 @@ import {
 import { usePostSelector } from '../../stores/postsStore';
 import PostHeader, { HEADER_CONTENT_GAP, POST_CONTEXT_ROW_HEIGHT } from '../Post/PostHeader';
 import PostContentText from '../Post/PostContentText';
+import PostLanguageChip from '../Post/PostLanguageChip';
 import ContentWarning from '../Post/ContentWarning';
 import PostActions from '../Post/PostActions';
 import PostLocation from '../Post/PostLocation';
@@ -24,7 +25,6 @@ const PostSourcesSheet = lazy(() => import('@/components/Post/PostSourcesSheet')
 const PostArticleModal = lazy(() => import('@/components/Post/PostArticleModal'));
 const PostInsightsSheet = lazy(() => import('@/components/Post/PostInsightsSheet'));
 const EngagementListSheet = lazy(() => import('@/components/Post/EngagementListSheet'));
-import { useAuth } from '@oxyhq/services';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
 import { useLiveRoom } from '@/context/LiveRoomContext';
 import { Ionicons } from '@expo/vector-icons';
@@ -40,13 +40,11 @@ import { usePostShare } from '@/hooks/usePostShare';
 import { usePostActions } from '@/hooks/usePostActions';
 import { PinIcon } from '@/assets/icons/pin-icon';
 import { BoostIcon } from '@/assets/icons/boost-icon';
-import { api } from '@/utils/api';
+import { usePostLanguage } from '@/hooks/usePostLanguage';
 import { THREAD_LINE_WIDTH, THREAD_LINE_BORDER_RADIUS, THREAD_LINE_Z_INDEX } from '@/components/Compose/composeLayout';
 import { POST_ITEM_SPACING } from '@/styles/shared';
 import { SubtleHover } from '@oxyhq/bloom/subtle-hover';
-import { useAutoTranslateStore } from '@/stores/autoTranslateStore';
 import { useThreadHoverStore } from '@/stores/threadHoverStore';
-import { show as toast } from '@oxyhq/bloom/toast';
 import { getNormalizedUserHandle } from '@oxyhq/core';
 import { reportFeedInteraction } from '@/utils/feedTelemetry';
 import { formatFullTimestamp } from '@/utils/dateUtils';
@@ -59,6 +57,9 @@ type PostEntity = HydratedPost & {
 
 /** Stable identity for the "no link previews" case (see `linkPreviews` below). */
 const EMPTY_LINK_PREVIEWS: PostLinkPreview[] = [];
+
+/** Stable identity for a post whose content failed to hydrate (see `content` below). */
+const EMPTY_CONTENT: PostContent = {};
 
 interface PostItemProps {
     post: PostEntity;
@@ -147,20 +148,13 @@ const PostItem: React.FC<PostItemProps> = ({
     isThread = false,
     onOpen,
 }) => {
-    const { user: authUser } = useAuth();
-    const isPremium = (authUser as { premium?: { isPremium?: boolean } } | null)?.premium?.isPremium ?? false;
     const theme = useTheme();
-    const { t, i18n } = useTranslation();
+    const { t } = useTranslation();
     const router = useRouter();
     const pathname = usePathname();
     const bottomSheet = useContext(BottomSheetContext);
     const { joinLiveRoom } = useLiveRoom();
     const [isArticleModalVisible, setIsArticleModalVisible] = useState(false);
-    const [translatedText, setTranslatedText] = useState<string | null>(null);
-    const [isTranslating, setIsTranslating] = useState(false);
-    const autoTranslateEnabled = useAutoTranslateStore((s) => s.enabled);
-    const autoTranslateAttempted = useRef(false);
-    const hasManuallyDismissed = useRef(false);
 
     const postId = post?.id;
     // Reactive read of the cached post (compiler-safe `useSyncExternalStore`
@@ -174,7 +168,7 @@ const PostItem: React.FC<PostItemProps> = ({
 
     const metadata = viewPost?.metadata ?? {};
     const permissions = viewPost?.permissions ?? {};
-    const content: PostContent = viewPost?.content ?? {};
+    const content: PostContent = viewPost?.content ?? EMPTY_CONTENT;
     const attachmentsBundle: PostAttachmentBundle = viewPost?.attachments ?? {};
     // Module-level EMPTY fallback: a fresh `[]` each render would give the
     // memoized PostAttachmentsRow a new array identity every time and defeat its
@@ -377,62 +371,19 @@ const PostItem: React.FC<PostItemProps> = ({
         }
     }, [onReply, router, viewPostId]);
 
-    const fetchTranslation = useCallback(async (force = false) => {
-        if (!viewPostId || isTranslating) return;
-        setIsTranslating(true);
-        try {
-            const { data } = await api.post<{ translatedText: string }>(
-                `/posts/${viewPostId}/translate`,
-                { targetLanguage: i18n.language, force },
-            );
-            if (data.translatedText) {
-                setTranslatedText(data.translatedText);
-            } else {
-                toast(t('translation.failed'), { type: 'error' });
-            }
-        } catch (err: unknown) {
-            const status = (err as { response?: { status?: number } })?.response?.status;
-            if (status === 429) {
-                toast(t('translation.rateLimited'), { type: 'error' });
-            } else {
-                toast(t('translation.failed'), { type: 'error' });
-            }
-        } finally {
-            setIsTranslating(false);
-        }
-    }, [viewPostId, isTranslating, i18n.language, t]);
-
-    const handleTranslate = useCallback(() => {
-        if (!isPremium) {
-            router.push('/subscribe');
-            return;
-        }
-        if (translatedText) {
-            hasManuallyDismissed.current = true;
-            setTranslatedText(null);
-            return;
-        }
-        // If user previously dismissed, force a fresh translation (bypass cache)
-        fetchTranslation(hasManuallyDismissed.current);
-    }, [isPremium, translatedText, fetchTranslation, router]);
-
-    // Auto-translate: compute during render, fire once via ref guard
-    if (
-        isPremium &&
-        autoTranslateEnabled &&
-        content.text &&
-        viewPostId &&
-        !translatedText &&
-        !isTranslating &&
-        !autoTranslateAttempted.current
-    ) {
-        const postLang = (metadata.language || 'en').split('-')[0].toLowerCase();
-        const userLang = (i18n.language || 'en').split('-')[0].toLowerCase();
-        if (postLang !== userLang) {
-            autoTranslateAttempted.current = true;
-            queueMicrotask(() => fetchTranslation());
-        }
-    }
+    // Reading this post in another language. The server already resolved ONE body
+    // for this viewer, so everything here is the reader deliberately overruling
+    // that choice: `displayText` overrides the body, and it is `null` whenever the
+    // server's own resolution is what's on screen.
+    const {
+        options: languageOptions,
+        activeTag: activeLanguageTag,
+        displayText: languageDisplayText,
+        isTranslating,
+        isTranslated,
+        selectLanguage,
+        toggleReaderTranslation,
+    } = usePostLanguage(content, viewPostId, metadata.language);
 
     const closeSourcesSheet = useCallback(() => {
         bottomSheet.setBottomSheetContent(null);
@@ -829,7 +780,15 @@ const PostItem: React.FC<PostItemProps> = ({
                         paddingHorizontal={isNested ? 0 : HPAD}
                     >
                         {spoilerText ? <ContentWarning text={spoilerText} /> : null}
-                        {content.text ? <PostContentText content={content} postId={viewPostId} translatedText={translatedText} linkPreviewUrls={linkPreviewUrls} /> : null}
+                        {content.text ? <PostContentText content={content} postId={viewPostId} overrideText={languageDisplayText} linkPreviewUrls={linkPreviewUrls} /> : null}
+                        {content.text ? (
+                            <PostLanguageChip
+                                options={languageOptions}
+                                activeTag={activeLanguageTag}
+                                isTranslating={isTranslating}
+                                onSelect={selectLanguage}
+                            />
+                        ) : null}
                     </PostHeader>
 
                     {hasBelowHeaderBlocks && (
@@ -907,10 +866,9 @@ const PostItem: React.FC<PostItemProps> = ({
                             onSave={handleSave}
                             onShare={handleShare}
                             postId={viewPostId}
-                            onTranslate={!isDetailMain && content.text ? handleTranslate : undefined}
-                            isTranslated={Boolean(translatedText)}
+                            onTranslate={!isDetailMain && content.text ? toggleReaderTranslation : undefined}
+                            isTranslated={isTranslated}
                             isTranslating={isTranslating}
-                            isPremium={isPremium}
                             onInsightsPress={isOwner ? handleInsightsPress : undefined}
                             detail={isDetailMain}
                             timestampLabel={fullTimestamp}

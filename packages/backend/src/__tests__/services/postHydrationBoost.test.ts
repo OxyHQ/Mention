@@ -138,7 +138,8 @@ function boostRow() {
     authorship: [{ oxyUserId: BOOSTER_OXY_ID, role: 'owner', status: 'accepted' }],
     type: 'boost',
     boostOf: ORIGINAL_ID,
-    content: { text: '' },
+    // A boost has no body of its own, so it carries no rendition at all.
+    content: {},
     stats: { likesCount: 0, boostsCount: 1, commentsCount: 0, downvotesCount: 0, viewsCount: 0 },
     metadata: { createdAt: new Date('2024-01-01T00:00:00Z') },
     createdAt: new Date('2024-01-01T00:00:00Z'),
@@ -155,7 +156,7 @@ function originalRow() {
     oxyUserId: ORIGINAL_AUTHOR_OXY_ID,
     authorship: [{ oxyUserId: ORIGINAL_AUTHOR_OXY_ID, role: 'owner', status: 'accepted' }],
     type: 'post',
-    content: { text: 'the original note body' },
+    content: { variants: [{ tag: 'en', source: 'author', text: 'the original note body' }] },
     stats: { likesCount: 5, boostsCount: 2, commentsCount: 1, downvotesCount: 0, viewsCount: 9 },
     metadata: { createdAt: new Date('2023-12-31T00:00:00Z') },
     createdAt: new Date('2023-12-31T00:00:00Z'),
@@ -246,7 +247,7 @@ describe('PostHydrationService — boost original embedding is deterministic', (
           ...originalRow(),
           visibility: 'private',
           status: 'draft',
-          content: { text: 'private draft secret' },
+          content: { variants: [{ tag: 'en', source: 'author', text: 'private draft secret' }] },
         }];
       }
       return [];

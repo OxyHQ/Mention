@@ -656,7 +656,7 @@ export class OutboxSyncService {
           logger.debug(`[FedSync] skipping empty outbox note ${activityId}: ${built.reason}`);
           continue;
         }
-        const { text, media, attachments, hashtags, summary, sensitive } = built;
+        const { text, media, attachments, hashtags, summary, sensitive, variants } = built;
 
         // AP-derived language so federated posts carry their REAL language
         // instead of the schema default 'en'. `extractApLanguage` is the declared
@@ -700,7 +700,13 @@ export class OutboxSyncService {
           },
           type: media.length > 0 ? (media.some((m) => m.type === 'video') ? 'video' : 'image') : 'text',
           content: {
-            text,
+            // The body, and its ONLY home (`contentMap` → author variants,
+            // `variants[0]` primary). This insert path is RAW
+            // (`Post.collection.insertMany`): it bypasses Mongoose middleware AND
+            // schema defaults, so anything not written here is simply not
+            // persisted — which is precisely why a hook-maintained `content.text`
+            // mirror could not survive on this path, and why there is none.
+            variants: variants.length > 0 ? variants : undefined,
             media: media.length > 0 ? media : undefined,
             attachments: attachments.length > 0 ? attachments : undefined,
           },
@@ -1203,7 +1209,7 @@ export class OutboxSyncService {
       logger.debug(`[FedSync] skipping empty boosted/ancestor note ${objectUri}: ${built.reason}`);
       return null;
     }
-    const { text, media, attachments, hashtags, summary, sensitive } = built;
+    const { media, attachments, hashtags, summary, sensitive, variants } = built;
 
     // When this note is itself a reply, link it into its thread (resolving /
     // backfilling its OWN parent chain up to the root). The depth budget is
@@ -1224,7 +1230,8 @@ export class OutboxSyncService {
         parentPostId: threadLink?.parentPostId ?? null,
         threadId: threadLink?.threadId ?? null,
         content: {
-          text,
+          // The body, and its ONLY home (`variants[0]` is the primary).
+          variants: variants.length > 0 ? variants : undefined,
           media: media.length > 0 ? media : undefined,
           attachments: attachments.length > 0 ? attachments : undefined,
         },

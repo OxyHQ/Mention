@@ -59,6 +59,7 @@ import { useKeyboardVisibility } from '@/hooks/useKeyboardVisibility';
 const DraftsSheet = lazy(() => import('@/components/Compose/DraftsSheet'));
 const GifPickerSheet = lazy(() => import('@/components/Compose/GifPickerSheet'));
 const AltTextSheet = lazy(() => import('@/components/Compose/AltTextSheet'));
+const LanguagePickerSheet = lazy(() => import('@/components/Compose/LanguagePickerSheet'));
 const EmojiPickerSheet = lazy(() => import('@/components/Compose/EmojiPickerSheet'));
 const SourcesSheet = lazy(() => import('@/components/Compose/SourcesSheet'));
 const ScheduleSheet = lazy(() => import('@/components/Compose/ScheduleSheet'));
@@ -103,10 +104,12 @@ import {
 } from '@/components/Compose';
 import InteractionSettingsPills from '@/components/Compose/InteractionSettingsPills';
 import ComposeThreadItem from '@/components/Compose/ComposeThreadItem';
+import LanguageTabs from '@/components/Compose/LanguageTabs';
+import VariantEditor from '@/components/Compose/VariantEditor';
 import PostItem from '@/components/Feed/PostItem';
 import { buildAttachmentsPayload } from '@/utils/attachmentsUtils';
 import { formatScheduledLabel, addMinutes } from '@/utils/dateUtils';
-import { buildMainPost, buildThreadPost, shouldIncludeThreadItem } from '@/utils/postBuilder';
+import { buildEditPost, buildMainPost, buildThreadPost, shouldIncludeThreadItem } from '@/utils/postBuilder';
 import {
   ComposerMediaItem,
   toComposerMediaType,
@@ -135,6 +138,20 @@ import {
 } from '@/utils/composeIntent';
 import { consumePendingShareMedia } from '@/utils/pendingShareMedia';
 import { api } from '@/utils/api';
+import { useComposeVariants } from '@/hooks/useComposeVariants';
+import {
+  MAIN_ITEM_ID,
+  allTags,
+  buildVariantContent,
+  canAddLanguage,
+  findVariantMissingText,
+  getVariantItem,
+  hasVariantWork,
+  primaryTextFromPost,
+  serializeVariants,
+  type ComposeVariantArticle,
+} from '@/utils/composeVariants';
+import { contentLanguageForLocale, describeContentLanguage } from '@/constants/contentLanguages';
 import type { ThreadItem } from '@/hooks/useThreadManager';
 import { useQuoteManager } from '@/hooks/useQuoteManager';
 import QuoteCard from '@/components/Compose/QuoteCard';
@@ -156,12 +173,13 @@ const ComposeScreenBody = () => {
   const discardControl = useDialogControl();
   const clearAllControl = useDialogControl();
   const intentConflictControl = useDialogControl();
+  const translateOverwriteControl = useDialogControl();
   const { user, showBottomSheet, oxyServices, isAuthenticated } = useAuth();
   const isScreenNotMobile = useIsScreenNotMobile();
   const keyboardVisible = useKeyboardVisibility();
   const bottomBarVisible = isAuthenticated && !isScreenNotMobile && !keyboardVisible;
   const { createPost, createThread, createReply } = usePostsStore();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const rawParams = useLocalSearchParams() as ComposeIntentRawParams;
   // Parse once per route entry. Re-running on every param tick would re-apply
   // setters and clobber user edits, so we lock to the first non-empty snapshot.
@@ -306,6 +324,33 @@ const ComposeScreenBody = () => {
   const hasRoomContent = useMemo(() => roomHasContent(), [roomHasContent]);
   const hasPodcastContent = useMemo(() => podcastHasContent(), [podcastHasContent]);
 
+  // Multilingual buffer. The composer OPENS on the app's locale — a preference,
+  // not a declaration — so this default never reaches the wire on its own; only
+  // a language the author actually picked does (`hasDeclaredLanguages`).
+  const defaultPrimaryTag = useMemo(() => contentLanguageForLocale(i18n.language), [i18n.language]);
+  const {
+    variants,
+    setActiveTag,
+    addLanguage,
+    removeLanguage,
+    renameLanguage,
+    setPrimaryLanguage,
+    setVariantText,
+    setVariantMediaAlt,
+    appendVariantMedia,
+    removeVariantMedia,
+    inheritVariantMedia,
+    setVariantArticle,
+    removeVariantItem,
+    loadVariantsFromDraft,
+    loadVariantsFromPost,
+    resetVariants,
+  } = useComposeVariants(defaultPrimaryTag);
+  const activeTag = variants.activeTag;
+  const isPrimaryTab = activeTag === variants.primaryTag;
+  const languageTags = useMemo(() => allTags(variants), [variants]);
+  const [translatingItemId, setTranslatingItemId] = useState<string | null>(null);
+
   // Remaining local state
   const [postContent, setPostContent] = useState('');
   const [mentions, setMentions] = useState<MentionData[]>([]);
@@ -373,6 +418,7 @@ const ComposeScreenBody = () => {
       setMentions(draft.mentions);
       setPostingMode(draft.postingMode);
       loadThreadsFromDraft(draft.threadItems);
+      loadVariantsFromDraft(draft.languages);
     },
   });
   const {
@@ -396,13 +442,21 @@ const ComposeScreenBody = () => {
   });
   const { canPostContent, hasInvalidSources: invalidSources, isPostButtonEnabled } = validation;
 
-  // Media picker
-  const mediaPicker = useMediaPicker({
-    showBottomSheet,
-    setMediaIds,
-    t,
-  });
-  const { openMediaPicker } = mediaPicker;
+  // Media picker. The destination is chosen per call: the shared media set, or
+  // the media a non-primary language shows instead of it.
+  const { openMediaPicker } = useMediaPicker({ showBottomSheet, t });
+
+  const addSharedMedia = useCallback((media: ComposerMediaItem[]) => {
+    setMediaIds((prev) => {
+      const existing = new Set(prev.map((item) => item.id));
+      return [...prev, ...media.filter((item) => !existing.has(item.id))];
+    });
+  }, [setMediaIds]);
+
+  const openSharedMediaPicker = useCallback(
+    () => openMediaPicker(addSharedMedia),
+    [openMediaPicker, addSharedMedia],
+  );
 
   // URL utilities
   const urlUtils = useUrlUtils();
@@ -728,8 +782,12 @@ const ComposeScreenBody = () => {
       try {
         const post = await feedService.getPostById(editPostId);
         if (cancelled) return;
-        // Pre-populate compose fields from existing post
-        setPostContent(post?.content?.text || '');
+        // Pre-populate compose fields from existing post. `content.text` on a
+        // hydrated post is the body RESOLVED for the viewer's language, which for
+        // a bilingual author can be the wrong one of their own bodies — the
+        // primary rendition is the authoritative source.
+        setPostContent(primaryTextFromPost(post?.content));
+        loadVariantsFromPost(post?.content, MAIN_ITEM_ID);
         const media = post?.content?.media;
         if (media && media.length > 0) {
           setMediaIds(media.map((m): ComposerMediaItem => ({
@@ -801,11 +859,36 @@ const ComposeScreenBody = () => {
       return;
     }
 
+    // A rendition's body does not inherit — the reader is served it verbatim — so
+    // a language that overrides images or alt but has no text would publish a
+    // blank post for everyone reading in it. Say so instead of dropping the work.
+    const primaryTexts: Record<string, string> = { [MAIN_ITEM_ID]: postContent };
+    for (const item of threadItems) {
+      primaryTexts[item.id] = item.text;
+    }
+    const untranslated = findVariantMissingText(variants, primaryTexts);
+    if (untranslated) {
+      toast(
+        t('compose.languages.missingText', {
+          defaultValue: 'Write the post in {{language}}, or remove that language.',
+          language: describeContentLanguage(untranslated).nativeName,
+        }),
+        { type: 'error' },
+      );
+      return;
+    }
+
     setIsPosting(true);
     try {
       // Prepare all posts (main + thread items)
       const allPosts: CreatePostRequest[] = [];
       const formattedSources = sanitizeSourcesForSubmit(sources);
+      const mainVariantContent = buildVariantContent(
+        variants,
+        MAIN_ITEM_ID,
+        postContent,
+        mediaIds.map((media) => media.id),
+      );
 
       // Build main post. If the quote fetch succeeded we forward the id so
       // the backend links the new post as a quote; when only the fallback URL
@@ -835,13 +918,18 @@ const ComposeScreenBody = () => {
         isSensitive,
         quotedPostId: quotedPost?.id,
         collaboratorIds: collaborators.length > 0 ? collaborators.map((c) => c.id) : undefined,
+        variantContent: mainVariantContent,
       });
       allPosts.push(mainPost);
 
-      // Add thread items if any
+      // Add thread items if any. Each item is its own post, so it carries its own
+      // renditions — the buffer is keyed by (item × language).
       threadItems.forEach(item => {
         if (shouldIncludeThreadItem(item)) {
-          const threadPost = buildThreadPost(item);
+          const threadPost = buildThreadPost(
+            item,
+            buildVariantContent(variants, item.id, item.text, item.mediaIds.map((media) => media.id)),
+          );
           allPosts.push(threadPost);
         }
       });
@@ -855,23 +943,18 @@ const ComposeScreenBody = () => {
           hashtags: mainPost.hashtags || [],
         });
       } else if (isEditMode && editPostId) {
-        // Edit mode: update existing post
-        const editData = {
-          content: {
-            text: postContent,
-            media: mediaIds.map(m => ({
-              id: m.id,
-              type: m.type,
-              ...(m.type === 'image' && m.alt?.trim() ? { alt: m.alt.trim() } : {}),
-            })),
-          },
-          hashtags: mainPost.hashtags || [],
+        // Edit mode: update existing post. An edit is an `UpdatePostRequest`, not
+        // a whole post, so it has its own builder — which carries the renditions
+        // too, or editing a multilingual post would strip every language but the
+        // primary.
+        await feedService.editPost(editPostId, buildEditPost({
+          postContent,
+          mediaIds,
           mentions: mainPost.mentions || [],
-          ...(collaborators.length > 0
-            ? { collaboratorIds: collaborators.map((c) => c.id) }
-            : {}),
-        };
-        await feedService.editPost(editPostId, editData);
+          hashtags: mainPost.hashtags || [],
+          collaboratorIds: collaborators.map((c) => c.id),
+          variantContent: mainVariantContent,
+        }));
       } else if (allPosts.length === 1) {
         await createPost(allPosts[0]);
       } else {
@@ -941,7 +1024,7 @@ const ComposeScreenBody = () => {
   // Debounced auto-save - trigger when any content changes
   useEffect(() => {
     // Don't auto-save on initial mount
-    if (!postContent && mediaIds.length === 0 && pollOptions.length === 0 && !location && threadItems.length === 0) {
+    if (!postContent && mediaIds.length === 0 && pollOptions.length === 0 && !location && threadItems.length === 0 && !hasVariantWork(variants)) {
       return;
     }
 
@@ -968,6 +1051,7 @@ const ComposeScreenBody = () => {
         attachmentOrder,
         scheduledAt,
         currentDraftId,
+        variants,
       });
     }, 2000);
 
@@ -977,7 +1061,7 @@ const ComposeScreenBody = () => {
         clearTimeout(autoSaveTimeoutRef.current);
       }
     };
-  }, [postContent, mediaIds, pollOptions, pollTitle, showPollCreator, location, sources, threadItems, mentions, postingMode, attachmentOrder, scheduledAt, article, podcast, currentDraftId, autoSaveDraft, autoSaveTimeoutRef]);
+  }, [postContent, mediaIds, pollOptions, pollTitle, showPollCreator, location, sources, threadItems, mentions, postingMode, attachmentOrder, scheduledAt, article, podcast, currentDraftId, variants, autoSaveDraft, autoSaveTimeoutRef]);
 
   // back navigation
 
@@ -1076,7 +1160,9 @@ const ComposeScreenBody = () => {
 
   const handleThreadRemove = useCallback((threadId: string) => {
     removeThread(threadId);
-  }, [removeThread]);
+    // The item is gone, so its renditions in every language go with it.
+    removeVariantItem(threadId);
+  }, [removeThread, removeVariantItem]);
 
   const handleThreadGifPress = useCallback((threadId: string) => {
     bottomSheet.setBottomSheetContent(
@@ -1098,19 +1184,56 @@ const ComposeScreenBody = () => {
     bottomSheet.openBottomSheet(true);
   }, [bottomSheet, addThreadMedia, t]);
 
-  const openThreadAltTextSheet = useCallback((threadId: string, mediaItem: ComposerMediaItem) => {
+  /**
+   * Alt text for an image in the SHARED media set.
+   *
+   * When the post carries more than one author language the sheet edits them all
+   * at once: a blind reader served the Spanish body must get the Spanish
+   * description of that same image. The primary language's alt rides on the media
+   * item itself; every other language's goes into `variant.alt[mediaId]`.
+   */
+  const openSharedAltTextSheet = useCallback((itemId: string, mediaItem: ComposerMediaItem) => {
+    const primaryTag = variants.primaryTag;
+    const savePrimaryAlt = (alt: string) => {
+      if (itemId === MAIN_ITEM_ID) {
+        setMediaAlt(mediaItem.id, alt);
+      } else {
+        setThreadMediaAlt(itemId, mediaItem.id, alt);
+      }
+    };
+    const readAlt = (tag: string) => {
+      if (tag === primaryTag) return mediaItem.alt ?? '';
+      const variantItem = getVariantItem(variants, tag, itemId);
+      return variantItem.media.mode === 'inherit' ? variantItem.media.alt[mediaItem.id] ?? '' : '';
+    };
+
     bottomSheet.setBottomSheetContent(
       <Suspense fallback={null}>
         <AltTextSheet
           imageUrl={oxyServices.getFileDownloadUrl(mediaItem.id)}
-          initialAlt={mediaItem.alt ?? ''}
+          languageTags={allTags(variants)}
+          initialTag={activeTag}
+          getAlt={readAlt}
           onClose={() => bottomSheet.openBottomSheet(false)}
-          onSave={(alt: string) => setThreadMediaAlt(threadId, mediaItem.id, alt)}
+          onSave={(altByTag: Record<string, string>) => {
+            for (const [tag, alt] of Object.entries(altByTag)) {
+              if (tag === primaryTag) {
+                savePrimaryAlt(alt);
+              } else {
+                setVariantMediaAlt(tag, itemId, mediaItem.id, alt);
+              }
+            }
+          }}
         />
       </Suspense>
     );
     bottomSheet.openBottomSheet(true);
-  }, [bottomSheet, oxyServices, setThreadMediaAlt]);
+  }, [bottomSheet, oxyServices, variants, activeTag, setMediaAlt, setThreadMediaAlt, setVariantMediaAlt]);
+
+  const openThreadAltTextSheet = useCallback(
+    (threadId: string, mediaItem: ComposerMediaItem) => openSharedAltTextSheet(threadId, mediaItem),
+    [openSharedAltTextSheet],
+  );
 
   const handleThreadEmojiPress = useCallback((threadId: string) => {
     bottomSheet.setBottomSheetContent(
@@ -1274,12 +1397,14 @@ const ComposeScreenBody = () => {
 
   const [isReplySettingsOpen, setIsReplySettingsOpen] = useState(false);
 
-  // Character count for the currently focused item
+  // Character count for the focused item IN THE LANGUAGE being edited — a limit
+  // applies to the body a reader actually sees, and that is one body per language.
   const focusedCharCount = useMemo(() => {
-    if (focusedItemId === 'main') return postContent.length;
+    if (!isPrimaryTab) return getVariantItem(variants, activeTag, focusedItemId).text.length;
+    if (focusedItemId === MAIN_ITEM_ID) return postContent.length;
     const item = threadItems.find(t => t.id === focusedItemId);
     return item ? item.text.length : 0;
-  }, [focusedItemId, postContent, threadItems]);
+  }, [isPrimaryTab, variants, activeTag, focusedItemId, postContent, threadItems]);
 
   // Wrapper for openScheduleSheet to pass ScheduleSheet component
   const handleSchedulePress = useCallback(() => {
@@ -1308,19 +1433,34 @@ const ComposeScreenBody = () => {
     bottomSheet.openBottomSheet(true);
   }, [bottomSheet, t]);
 
-  const openAltTextSheet = useCallback((mediaItem: ComposerMediaItem) => {
+  const openAltTextSheet = useCallback(
+    (mediaItem: ComposerMediaItem) => openSharedAltTextSheet(MAIN_ITEM_ID, mediaItem),
+    [openSharedAltTextSheet],
+  );
+
+  /**
+   * Alt text for an image a language shows INSTEAD of the shared set. It has one
+   * language by construction — the description belongs to the image, not to a
+   * per-language map, which is why a rendition can never carry both.
+   */
+  const openOwnAltTextSheet = useCallback((itemId: string, mediaItem: ComposerMediaItem) => {
+    const tag = activeTag;
     bottomSheet.setBottomSheetContent(
       <Suspense fallback={null}>
         <AltTextSheet
           imageUrl={oxyServices.getFileDownloadUrl(mediaItem.id)}
-          initialAlt={mediaItem.alt ?? ''}
+          languageTags={[tag]}
+          initialTag={tag}
+          getAlt={() => mediaItem.alt ?? ''}
           onClose={() => bottomSheet.openBottomSheet(false)}
-          onSave={(alt: string) => setMediaAlt(mediaItem.id, alt)}
+          onSave={(altByTag: Record<string, string>) =>
+            setVariantMediaAlt(tag, itemId, mediaItem.id, altByTag[tag] ?? '')
+          }
         />
       </Suspense>
     );
     bottomSheet.openBottomSheet(true);
-  }, [bottomSheet, oxyServices, setMediaAlt]);
+  }, [bottomSheet, oxyServices, activeTag, setVariantMediaAlt]);
 
   const handleMainEmojiPress = useCallback(() => {
     bottomSheet.setBottomSheetContent(
@@ -1335,6 +1475,163 @@ const ComposeScreenBody = () => {
     );
     bottomSheet.openBottomSheet(true);
   }, [bottomSheet]);
+
+  // ── Languages ─────────────────────────────────────────────────────────────
+
+  /**
+   * The language picker. With no `currentTag` it ADDS a language; on an existing
+   * tab it changes that tab's language — re-tagging a rendition in place, so the
+   * author's work survives — and offers to remove it.
+   */
+  const openLanguagePicker = useCallback((currentTag?: string) => {
+    const isPrimary = currentTag === variants.primaryTag;
+    bottomSheet.setBottomSheetContent(
+      <Suspense fallback={null}>
+        <LanguagePickerSheet
+          usedTags={allTags(variants)}
+          currentTag={currentTag}
+          onSelect={(tag: string) => {
+            if (currentTag === undefined) {
+              addLanguage(tag);
+            } else if (isPrimary) {
+              setPrimaryLanguage(tag);
+            } else {
+              renameLanguage(currentTag, tag);
+            }
+          }}
+          onRemove={currentTag !== undefined && !isPrimary ? () => removeLanguage(currentTag) : undefined}
+          onClose={() => bottomSheet.openBottomSheet(false)}
+        />
+      </Suspense>
+    );
+    bottomSheet.openBottomSheet(true);
+  }, [bottomSheet, variants, addLanguage, removeLanguage, renameLanguage, setPrimaryLanguage]);
+
+  const handleAddLanguage = useCallback(() => openLanguagePicker(), [openLanguagePicker]);
+  const handleEditLanguage = useCallback(
+    (tag: string) => openLanguagePicker(tag),
+    [openLanguagePicker],
+  );
+
+  /** The body of one composer item in the PRIMARY language — what a variant translates. */
+  const primaryTextForItem = useCallback((itemId: string) => {
+    if (itemId === MAIN_ITEM_ID) return postContent;
+    return threadItems.find((item) => item.id === itemId)?.text ?? '';
+  }, [postContent, threadItems]);
+
+  const translateInto = useCallback(async (itemId: string, tag: string) => {
+    const source = primaryTextForItem(itemId).trim();
+    if (source.length === 0) return;
+
+    setTranslatingItemId(itemId);
+    try {
+      const translated = await feedService.translateDraft(source, tag);
+      setVariantText(tag, itemId, translated);
+      toast(
+        t('compose.languages.translated', {
+          defaultValue: 'Translated — review it before you post',
+        }),
+        { type: 'success' },
+      );
+    } catch (error) {
+      const { reason, normalized } = classifyApiError(error);
+      logger.error('Failed to translate compose draft', {
+        reason,
+        status: normalized.status,
+        code: normalized.code,
+        tag,
+      });
+      toast(
+        reason === 'rateLimited'
+          ? t('translation.rateLimited')
+          : t('compose.languages.translateFailed', { defaultValue: "Couldn't translate this draft" }),
+        { type: 'error' },
+      );
+    } finally {
+      setTranslatingItemId(null);
+    }
+  }, [primaryTextForItem, setVariantText, t]);
+
+  // The tab being translated, held while the overwrite dialog is open. A machine
+  // translation must never silently replace something the author already wrote.
+  const pendingTranslationRef = useRef<{ itemId: string; tag: string } | null>(null);
+
+  const handleTranslateVariant = useCallback((itemId: string) => {
+    if (translatingItemId !== null) return;
+    const target = { itemId, tag: activeTag };
+    if (getVariantItem(variants, activeTag, itemId).text.trim().length > 0) {
+      pendingTranslationRef.current = target;
+      translateOverwriteControl.open();
+      return;
+    }
+    void translateInto(itemId, activeTag);
+  }, [translatingItemId, activeTag, variants, translateOverwriteControl, translateInto]);
+
+  const confirmTranslateOverwrite = useCallback(() => {
+    const target = pendingTranslationRef.current;
+    pendingTranslationRef.current = null;
+    if (target) void translateInto(target.itemId, target.tag);
+  }, [translateInto]);
+
+  const handleVariantTextChange = useCallback(
+    (itemId: string, text: string) => setVariantText(activeTag, itemId, text),
+    [activeTag, setVariantText],
+  );
+
+  const handleVariantFocus = useCallback((itemId: string) => setFocusedItemId(itemId), []);
+
+  const handleVariantSharedAltPress = useCallback(
+    (itemId: string, mediaItem: ComposerMediaItem) => openSharedAltTextSheet(itemId, mediaItem),
+    [openSharedAltTextSheet],
+  );
+
+  const handleVariantOwnAltPress = useCallback(
+    (itemId: string, mediaItem: ComposerMediaItem) => openOwnAltTextSheet(itemId, mediaItem),
+    [openOwnAltTextSheet],
+  );
+
+  const handlePickVariantMedia = useCallback((itemId: string) => {
+    openMediaPicker((media) => appendVariantMedia(activeTag, itemId, media));
+  }, [openMediaPicker, appendVariantMedia, activeTag]);
+
+  const handleRemoveVariantMedia = useCallback(
+    (itemId: string, mediaId: string) => removeVariantMedia(activeTag, itemId, mediaId),
+    [activeTag, removeVariantMedia],
+  );
+
+  const handleUseSharedMedia = useCallback(
+    (itemId: string) => inheritVariantMedia(activeTag, itemId),
+    [activeTag, inheritVariantMedia],
+  );
+
+  // Localized long-form. The article is the SAME entity — only its title and body
+  // are written again in this language, never a second `articleId`.
+  const [variantArticleItemId, setVariantArticleItemId] = useState<string | null>(null);
+  const [variantArticleTitle, setVariantArticleTitle] = useState('');
+  const [variantArticleBody, setVariantArticleBody] = useState('');
+
+  const openVariantArticleEditor = useCallback((itemId: string) => {
+    const article = getVariantItem(variants, activeTag, itemId).article;
+    setVariantArticleTitle(article?.title ?? '');
+    setVariantArticleBody(article?.body ?? '');
+    setVariantArticleItemId(itemId);
+  }, [variants, activeTag]);
+
+  const closeVariantArticleEditor = useCallback(() => setVariantArticleItemId(null), []);
+
+  const saveVariantArticle = useCallback(() => {
+    if (!variantArticleItemId) return;
+    const title = variantArticleTitle.trim();
+    const body = variantArticleBody.trim();
+    const article: ComposeVariantArticle | null = title || body ? { title, body } : null;
+    setVariantArticle(activeTag, variantArticleItemId, article);
+    setVariantArticleItemId(null);
+  }, [variantArticleItemId, variantArticleTitle, variantArticleBody, activeTag, setVariantArticle]);
+
+  const resetVariantArticle = useCallback(
+    (itemId: string) => setVariantArticle(activeTag, itemId, null),
+    [activeTag, setVariantArticle],
+  );
 
   const handleMainRoomPress = useCallback(() => {
     bottomSheet.setBottomSheetContent(
@@ -1488,7 +1785,8 @@ const ComposeScreenBody = () => {
                     location !== null ||
                     hasArticleContent ||
                     hasEventContent ||
-                    hasPodcastContent;
+                    hasPodcastContent ||
+                    hasVariantWork(variants);
                   if (hasContent && !isEditMode) {
                     discardControl.open();
                   } else {
@@ -1594,8 +1892,23 @@ const ComposeScreenBody = () => {
             )}
 
             <View style={styles.threadContainer}>
+              {/* Language tabs. They govern the WHOLE composer: switching tab
+                  switches the main post and every thread item to that language. */}
+              <LanguageTabs
+                primaryTag={variants.primaryTag}
+                variantTags={variants.variantTags}
+                activeTag={activeTag}
+                canAdd={canAddLanguage(variants)}
+                onSelect={setActiveTag}
+                onEdit={handleEditLanguage}
+                onAdd={handleAddLanguage}
+                disabled={isPosting}
+              />
+
+              {isPrimaryTab ? (
+                <>
               {/* Main composer */}
-              <View style={[styles.postContainer, focusedItemId !== 'main' && threadItems.length > 0 && styles.unfocusedItem]}>
+              <View style={[styles.postContainer, focusedItemId !== MAIN_ITEM_ID && threadItems.length > 0 && styles.unfocusedItem]}>
                 {/* Connector line below main avatar */}
                 <View style={[styles.itemConnectorLine, { left: TIMELINE_LINE_OFFSET, backgroundColor: `${theme.colors.primary}30` }]} />
                 <View style={styles.composerWithTimeline}>
@@ -1874,7 +2187,7 @@ const ComposeScreenBody = () => {
                   <View style={styles.toolbarWrapper}>
                     <ComposeToolbar
                       contentPaddingLeft={BOTTOM_LEFT_PAD}
-                      onMediaPress={openMediaPicker}
+                      onMediaPress={openSharedMediaPicker}
                       onPollPress={focusPollCreator}
                       onLocationPress={requestLocation}
                       onGifPress={handleMainGifPress}
@@ -2054,6 +2367,66 @@ const ComposeScreenBody = () => {
                   </View>
                 </View>
               </TouchableOpacity>
+                </>
+              ) : (
+                /* A non-primary language. A rendition overrides only what a
+                   language changes — body, image descriptions, images, article.
+                   The poll, location, sources, schedule and reply settings belong
+                   to the post, so the primary tab keeps them. */
+                <>
+                  <VariantEditor
+                    itemId={MAIN_ITEM_ID}
+                    tag={activeTag}
+                    item={getVariantItem(variants, activeTag, MAIN_ITEM_ID)}
+                    primaryText={postContent}
+                    sharedMedia={mediaIds}
+                    hasArticle={hasArticleContent}
+                    userAvatar={user?.avatar ?? undefined}
+                    userVerified={Boolean(user?.verified)}
+                    isFocused={focusedItemId === MAIN_ITEM_ID || threadItems.length === 0}
+                    isPosting={isPosting}
+                    isTranslating={translatingItemId === MAIN_ITEM_ID}
+                    getFileDownloadUrl={getFileDownloadUrl}
+                    onTextChange={handleVariantTextChange}
+                    onFocus={handleVariantFocus}
+                    onTranslate={handleTranslateVariant}
+                    onSharedAltPress={handleVariantSharedAltPress}
+                    onOwnAltPress={handleVariantOwnAltPress}
+                    onPickOwnMedia={handlePickVariantMedia}
+                    onRemoveOwnMedia={handleRemoveVariantMedia}
+                    onUseSharedMedia={handleUseSharedMedia}
+                    onArticlePress={openVariantArticleEditor}
+                    onArticleReset={resetVariantArticle}
+                  />
+                  {threadItems.map((item) => (
+                    <VariantEditor
+                      key={`variant-${activeTag}-${item.id}`}
+                      itemId={item.id}
+                      tag={activeTag}
+                      item={getVariantItem(variants, activeTag, item.id)}
+                      primaryText={item.text}
+                      sharedMedia={item.mediaIds}
+                      hasArticle={Boolean(item.article && (item.article.title?.trim() || item.article.body?.trim()))}
+                      userAvatar={user?.avatar ?? undefined}
+                      userVerified={Boolean(user?.verified)}
+                      isFocused={focusedItemId === item.id}
+                      isPosting={isPosting}
+                      isTranslating={translatingItemId === item.id}
+                      getFileDownloadUrl={getFileDownloadUrl}
+                      onTextChange={handleVariantTextChange}
+                      onFocus={handleVariantFocus}
+                      onTranslate={handleTranslateVariant}
+                      onSharedAltPress={handleVariantSharedAltPress}
+                      onOwnAltPress={handleVariantOwnAltPress}
+                      onPickOwnMedia={handlePickVariantMedia}
+                      onRemoveOwnMedia={handleRemoveVariantMedia}
+                      onUseSharedMedia={handleUseSharedMedia}
+                      onArticlePress={openVariantArticleEditor}
+                      onArticleReset={resetVariantArticle}
+                    />
+                  ))}
+                </>
+              )}
             </View>
             </ScrollView>
 
@@ -2167,6 +2540,16 @@ const ComposeScreenBody = () => {
           onClose={closeThreadArticleEditor}
           onSave={saveThreadArticle}
         />
+        {/* The article in a non-primary language: the same article, written again. */}
+        <ArticleEditor
+          visible={Boolean(variantArticleItemId)}
+          title={variantArticleTitle}
+          body={variantArticleBody}
+          onTitleChange={setVariantArticleTitle}
+          onBodyChange={setVariantArticleBody}
+          onClose={closeVariantArticleEditor}
+          onSave={saveVariantArticle}
+        />
         <EventEditor
           visible={Boolean(editingThreadEventId)}
           name={threadEventDraftName}
@@ -2222,6 +2605,7 @@ const ComposeScreenBody = () => {
                   scheduledAt: scheduledAt ? scheduledAt.toISOString() : null,
                   article,
                   podcast,
+                  languages: serializeVariants(variants),
                 });
                 safeBack();
               },
@@ -2263,12 +2647,36 @@ const ComposeScreenBody = () => {
                 clearAttachmentOrder();
                 setMentions([]);
                 clearSchedule({ silent: true });
+                resetVariants();
                 toast(t('common.cleared'), { type: 'success' });
               },
             },
             {
               label: t('common.cancel', 'Cancel'),
               color: 'cancel',
+            },
+          ]}
+        />
+
+        {/* Machine translation over an author's own words — always ask first. */}
+        <Dialog
+          control={translateOverwriteControl}
+          title={t('compose.languages.overwriteTitle', { defaultValue: 'Replace what you wrote?' })}
+          description={t('compose.languages.overwriteDescription', {
+            defaultValue: 'This tab already has text. Translating replaces it with an editable machine translation.',
+          })}
+          actions={[
+            {
+              label: t('compose.languages.overwriteConfirm', { defaultValue: 'Translate' }),
+              color: 'destructive',
+              onPress: confirmTranslateOverwrite,
+            },
+            {
+              label: t('common.cancel', 'Cancel'),
+              color: 'cancel',
+              onPress: () => {
+                pendingTranslationRef.current = null;
+              },
             },
           ]}
         />

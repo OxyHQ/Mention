@@ -8,7 +8,16 @@ import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
 import mongoose from 'mongoose';
 import { createNotification, createMentionNotifications, createBatchNotifications, createPostAuthorNotifications } from '../utils/notificationUtils';
 import PostSubscription from '../models/PostSubscription';
-import { PostVisibility, PostAttachmentDescriptor, PostAttachmentType, PostContent, PostUser } from '@mention/shared-types';
+import {
+  PostVisibility,
+  PostAttachmentDescriptor,
+  PostAttachmentType,
+  PostContent,
+  StoredPostContent,
+  PostContentVariant,
+  PostUser,
+  toBaseLanguages,
+} from '@mention/shared-types';
 import { userPreferenceService, readInteractionSurface } from '../services/UserPreferenceService';
 import { affinityEventService } from '../services/AffinityEventService';
 import { postCreationService } from '../services/PostCreationService';
@@ -19,8 +28,11 @@ import { config } from '../config';
 import { mergeHashtags, escapeRegex } from '../utils/textProcessing';
 import { createScopedOxyClient } from '../utils/oxyHelpers';
 import { queryInt, queryString } from '../utils/queryParams';
+import { requestLanguageCandidates } from '../utils/viewerLanguage';
+import { normalizeMediaItems, type NormalizedMediaItem } from '../utils/mediaInput';
 import { warmLinkPreviewForText } from '../utils/linkPreviewWarm';
-import { aliaChat } from '../utils/alia';
+import { authorVariants, buildPrimaryVariant, resolveVariant, validateAuthorVariants } from '../services/postVariants';
+import { postTranslationService, TranslationRequestError } from '../services/PostTranslationService';
 import { validatePublicShareTarget } from '../utils/postAccessControl';
 import { sanitizePodcast, resolvePodcastContent } from '../utils/syraPodcast';
 import {
@@ -54,7 +66,6 @@ const MAX_NEARBY_POSTS = config.posts.maxNearbyPosts;
 const MAX_AREA_POSTS = config.posts.maxAreaPosts;
 const DEFAULT_LIKES_LIMIT = config.posts.defaultLikesLimit;
 const MAX_TEXT_LENGTH = config.posts.maxTextLength;
-const MAX_ALT_TEXT_LENGTH = config.posts.maxAltTextLength;
 
 /**
  * Page size for the engagement lists (`GET /posts/:id/likes` and `.../boosts`).
@@ -189,82 +200,6 @@ type RawAttachmentInput =
       attachmentType?: string;
       kind?: string;
     };
-
-interface NormalizedMediaItem {
-  id: string;
-  type: 'image' | 'video' | 'gif';
-  mime?: string;
-  /** Accessibility description (alt text) for the image; trimmed + length-capped. */
-  alt?: string;
-}
-
-/** Untrusted media entry shape accepted from the request body before normalization. */
-interface RawMediaInput {
-  id?: unknown;
-  fileId?: unknown;
-  _id?: unknown;
-  mediaId?: unknown;
-  type?: unknown;
-  mediaType?: unknown;
-  mime?: unknown;
-  contentType?: unknown;
-  alt?: unknown;
-}
-
-const normalizeMediaItems = (arr: unknown): NormalizedMediaItem[] => {
-  if (!Array.isArray(arr)) return [];
-
-  const seen = new Set<string>();
-  const normalized: NormalizedMediaItem[] = [];
-
-  arr.forEach((item: unknown) => {
-    if (!item) return;
-
-    if (typeof item === 'string') {
-      const id = item.trim();
-      if (!id || seen.has(id)) return;
-      seen.add(id);
-      normalized.push({ id, type: 'image' });
-      return;
-    }
-
-    if (typeof item === 'object') {
-      const obj = item as RawMediaInput;
-      const rawId = obj.id || obj.fileId || obj._id || obj.mediaId;
-      if (!rawId) return;
-      const id = String(rawId);
-      if (!id || seen.has(id)) return;
-
-      const rawType = (obj.type || obj.mediaType || '').toString().toLowerCase();
-      const mimeValue = obj.mime || obj.contentType;
-      const rawMime = mimeValue ? mimeValue.toString().toLowerCase() : '';
-
-      let resolvedType: 'image' | 'video' | 'gif';
-      if (rawType === 'video' || rawMime.startsWith('video/')) {
-        resolvedType = 'video';
-      } else if (rawType === 'gif' || rawMime.includes('gif')) {
-        resolvedType = 'gif';
-      } else {
-        resolvedType = 'image';
-      }
-
-      // Accessibility description (alt text). Explicitly whitelisted, trimmed, and
-      // length-capped — never spread from the raw body. Empty/whitespace-only
-      // values are dropped so the field stays absent rather than an empty string.
-      const altRaw = typeof obj.alt === 'string' ? obj.alt.trim().slice(0, MAX_ALT_TEXT_LENGTH) : '';
-
-      seen.add(id);
-      normalized.push({
-        id,
-        type: resolvedType,
-        ...(mimeValue ? { mime: String(mimeValue) } : {}),
-        ...(altRaw ? { alt: altRaw } : {})
-      });
-    }
-  });
-
-  return normalized;
-};
 
 const ATTACHMENT_TYPES: PostAttachmentType[] = ['media', 'poll', 'article', 'event', 'room', 'location', 'sources', 'podcast'];
 
@@ -443,12 +378,26 @@ export const createPost = async (req: AuthRequest, res: Response) => {
     const { content, hashtags, mentions, quoted_post_id, boost_of, in_reply_to_status_id, parentPostId, threadId, contentLocation, postLocation, replyPermission, reviewReplies, quotesDisabled, status: incomingStatus, scheduledFor, collaboratorIds, collaboratorHandles } = req.body;
 
     // Support both new content structure and legacy text/media structure
-    const text = content?.text || req.body.text;
     const media = content?.media || content?.images || req.body.media; // Support both new media field and legacy images
     const video = content?.video;
     const poll = content?.poll;
     const contentLocationData = content?.location || contentLocation;
 
+    // The shared media set is resolved first: a language variant may localize the
+    // alt text of these images, so validation needs to know which ids exist.
+    const normalizedMedia = normalizeMediaItems(media);
+
+    // Author language variants, in the order the composer sent them — the FIRST is
+    // the primary. A composer that never opened the language UI sends none, and the
+    // plain `content.text` below becomes the primary rendition (tagged with what the
+    // classifier detects, never with the client's UI locale).
+    const variantResult = validateAuthorVariants(content?.variants, normalizedMedia.map((item) => item.id));
+    if (!variantResult.ok) {
+      return res.status(400).json({ message: variantResult.error });
+    }
+    const authorLanguageVariants = variantResult.variants;
+
+    const text = authorLanguageVariants[0]?.text ?? content?.text ?? req.body.text;
 
     // Validate text length
     if (text && typeof text === 'string' && text.length > MAX_TEXT_LENGTH) {
@@ -540,12 +489,13 @@ export const createPost = async (req: AuthRequest, res: Response) => {
       }
     }
 
-    const normalizedMedia = normalizeMediaItems(media);
-
-    // Build complete content object
+    // Build complete content object. `text` is the API's convenience shape for a
+    // single-language post; `PostCreationService` turns it into the primary variant
+    // (nothing stores a second copy of the body).
     const postContent: PostContent = {
       text: text || '',
-      media: normalizedMedia
+      media: normalizedMedia,
+      ...(authorLanguageVariants.length > 0 ? { variants: authorLanguageVariants } : {}),
     };
 
     // Add video to media array if provided
@@ -789,11 +739,12 @@ export const createPost = async (req: AuthRequest, res: Response) => {
       }
     }
 
-    await warmLinkPreviewForText(post.content?.text);
+    await warmLinkPreviewForText(resolveVariant(post.content).text);
 
     const [hydratedPost] = await postHydrationService.hydratePosts([post.toObject()], {
       viewerId: userId,
       oxyClient: createScopedOxyClient(req),
+      requestLanguages: requestLanguageCandidates(req),
       maxDepth: 1,
       includeLinkMetadata: true,
     });
@@ -822,6 +773,7 @@ export const acceptCollabInvite = async (req: AuthRequest, res: Response) => {
     const [hydratedPost] = await postHydrationService.hydratePosts([post.toObject()], {
       viewerId: userId,
       oxyClient: createScopedOxyClient(req),
+      requestLanguages: requestLanguageCandidates(req),
       maxDepth: 1,
       includeLinkMetadata: true,
     });
@@ -860,6 +812,7 @@ export const stopCollabSharing = async (req: AuthRequest, res: Response) => {
     const [hydratedPost] = await postHydrationService.hydratePosts([post.toObject()], {
       viewerId: userId,
       oxyClient: createScopedOxyClient(req),
+      requestLanguages: requestLanguageCandidates(req),
       maxDepth: 1,
       includeLinkMetadata: true,
     });
@@ -908,7 +861,7 @@ export const createThread = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ message: 'Posts array is required and cannot be empty' });
     }
 
-    const createdPostObjects: Array<{ content?: { text?: string } }> = [];
+    const createdPostObjects: Array<{ content?: StoredPostContent }> = [];
     let mainPostId: string | null = null;
     let previousPostId: string | null = null;
 
@@ -1116,11 +1069,14 @@ export const createThread = async (req: AuthRequest, res: Response) => {
       createdPostObjects.push(post.toObject());
     }
 
-    await Promise.all(createdPostObjects.map((p) => warmLinkPreviewForText(p.content?.text)));
+    await Promise.all(
+      createdPostObjects.map((p) => warmLinkPreviewForText(resolveVariant(p.content ?? {}).text)),
+    );
 
     const createdPosts = await postHydrationService.hydratePosts(createdPostObjects, {
       viewerId: userId,
       oxyClient: createScopedOxyClient(req),
+      requestLanguages: requestLanguageCandidates(req),
       maxDepth: 1,
       includeLinkMetadata: true,
     });
@@ -1172,6 +1128,7 @@ export const getPosts = async (req: AuthRequest, res: Response) => {
     const hydratedPosts = await postHydrationService.hydratePosts(posts, {
       viewerId: currentUserId,
       oxyClient: createScopedOxyClient(req),
+      requestLanguages: requestLanguageCandidates(req),
       maxDepth: 1,
       includeLinkMetadata: true,
     });
@@ -1202,6 +1159,7 @@ export const getPostById = async (req: AuthRequest, res: Response) => {
     const hydrated = await postHydrationService.hydratePosts([post], {
       viewerId: currentUserId,
       oxyClient: createScopedOxyClient(req),
+      requestLanguages: requestLanguageCandidates(req),
       maxDepth: 2,
       includeLinkMetadata: true,
     });
@@ -1216,6 +1174,44 @@ export const getPostById = async (req: AuthRequest, res: Response) => {
     logger.error('Error fetching post', error);
     res.status(500).json({ message: 'Error fetching post' });
   }
+};
+
+/**
+ * The renditions a post carries after an edit.
+ *
+ * Three cases, and the machine translations survive NONE of them — they translate
+ * a body that no longer exists:
+ *  - the edit supplies an author variant set → it replaces the old one outright
+ *    (the composer's language tabs are the whole truth);
+ *  - the post is multilingual and only its body changed → the new body lands on the
+ *    PRIMARY variant and the other declared languages are left exactly as the author
+ *    wrote them (a Spanish edit must not silently rewrite the English rendition);
+ *  - the post is single-language → the primary is rebuilt from the new body, re-tagged
+ *    with what the classifier just detected, so an edit that changes the language of
+ *    the post is actually allowed to change the language of the post.
+ */
+const rewriteEditedVariants = (params: {
+  authorLanguageVariants?: PostContentVariant[];
+  existingAuthorVariants: PostContentVariant[];
+  text?: string;
+  detectedPrimary?: string;
+}): PostContentVariant[] => {
+  const { authorLanguageVariants, existingAuthorVariants, text, detectedPrimary } = params;
+
+  if (authorLanguageVariants !== undefined) {
+    return authorLanguageVariants;
+  }
+
+  const newText = text ?? '';
+
+  if (existingAuthorVariants.length > 1) {
+    return existingAuthorVariants.map((variant, index) =>
+      index === 0 ? { ...variant, text: newText } : variant,
+    );
+  }
+
+  const primary = buildPrimaryVariant(newText, detectedPrimary);
+  return primary ? [primary] : [];
 };
 
 // Update post
@@ -1240,36 +1236,81 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
 
     // Support both flat body fields and nested content object from frontend
     const contentObj = req.body.content;
-    const text = contentObj?.text ?? req.body.text;
     const media = contentObj?.media ?? req.body.media;
     const { hashtags, mentions, contentLocation, postLocation, sources } = req.body;
 
-    // Save old text to edit history before modifying
-    if (text !== undefined && post.content.text !== text) {
+    // The media set the variants localize: the incoming one when this edit
+    // replaces it, otherwise the set already on the post.
+    const normalizedMedia = media !== undefined ? normalizeMediaItems(media) : undefined;
+    const sharedMediaIds = (normalizedMedia ?? post.content.media ?? []).map((item) => String(item.id));
+
+    let authorLanguageVariants: PostContentVariant[] | undefined;
+    if (contentObj?.variants !== undefined) {
+      const variantResult = validateAuthorVariants(contentObj.variants, sharedMediaIds);
+      if (!variantResult.ok) {
+        return res.status(400).json({ message: variantResult.error });
+      }
+      authorLanguageVariants = variantResult.variants;
+    }
+
+    const existingAuthorVariants = authorVariants(post.content);
+    const currentText = existingAuthorVariants[0]?.text;
+
+    // The new primary body: the first author variant's when this edit supplies
+    // variants, otherwise the plain text field (the API's single-language shape).
+    const text = authorLanguageVariants !== undefined
+      ? (authorLanguageVariants[0]?.text ?? '')
+      : (contentObj?.text ?? req.body.text);
+
+    if (text !== undefined && typeof text === 'string' && text.length > MAX_TEXT_LENGTH) {
+      return res.status(400).json({ message: `Post text exceeds maximum length of ${MAX_TEXT_LENGTH} characters` });
+    }
+
+    const textChanged = text !== undefined && currentText !== text;
+
+    // Save the old primary body to edit history before modifying
+    if (textChanged) {
       if (!post.editHistory) {
         post.editHistory = [];
       }
-      if (post.content.text) {
-        post.editHistory.push(post.content.text);
+      if (currentText) {
+        post.editHistory.push(currentText);
       }
       post.isEdited = true;
     }
 
-    if (text !== undefined) {
-      post.content.text = text;
-      // Re-extract hashtags when text changes
+    if (textChanged) {
+      // Re-extract hashtags when the body changes
       post.hashtags = mergeHashtags(text || '', hashtags || post.hashtags);
-      // Re-classify the post for its new text. The deterministic Stage-A
+    }
+
+    if (normalizedMedia !== undefined) {
+      post.content.media = normalizedMedia;
+      post.markModified('content.media');
+    }
+
+    if (authorLanguageVariants !== undefined || textChanged) {
+      // Re-classify the post for its new content. The deterministic Stage-A
       // classifier is pure/synchronous, so it refreshes the canonical
-      // `postClassification.topics` slug list (plus language/region/scores/
+      // `postClassification.topics` slug list (plus languages/region/scores/
       // sensitive) inline; stale Stage-B `topicRefs` from the old text are
       // cleared and `status` is reset to `pending` so the AI batch re-refines
       // this post on its next cycle (a no-op when the AI batch is disabled —
       // the refreshed Stage-A slugs remain the canonical list).
+      //
+      // Only a real DECLARATION is fed back in: the variant set this edit supplies,
+      // or the one already on the post when it holds several languages (nothing but
+      // a declaration produces more than one). A post with a single, DERIVED
+      // rendition declares nothing, so detection re-runs on the new body — otherwise
+      // a post rewritten from Spanish into English would stay pinned to `es`, since
+      // the classifier trusts a declaration over the detector.
+      const declaredVariants = authorLanguageVariants
+        ?? (existingAuthorVariants.length > 1 ? existingAuthorVariants : []);
+
       const signals = baselineContentClassifier.classify({
-        text: post.content.text,
+        text: text ?? currentText,
         hashtags: post.hashtags,
-        language: post.language,
+        languages: toBaseLanguages(declaredVariants.map((variant) => variant.tag)),
         sensitive: post.federation?.sensitive ?? post.metadata?.isSensitive,
         isFederated: post.federation != null,
       });
@@ -1295,11 +1336,17 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
         post.language = primaryLanguage;
       }
       post.markModified('postClassification');
-    }
-    if (media !== undefined) {
-      const normalizedMedia = normalizeMediaItems(media);
-      post.content.media = normalizedMedia;
-      post.markModified('content.media');
+
+      // Rewrite the renditions. Every branch drops the machine translations: they
+      // translate a body that no longer exists, and serving one would show a reader
+      // the post as it used to be.
+      post.content.variants = rewriteEditedVariants({
+        authorLanguageVariants,
+        existingAuthorVariants,
+        text,
+        detectedPrimary: primaryLanguage,
+      });
+      post.markModified('content.variants');
     }
 
     // Handle content location updates (user's shared location)
@@ -1439,7 +1486,11 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
     // hand-build a `user` object here (that would leak the raw oxyUserId as the
     // display name and break the profile-identity contract). If hydration fails
     // for this just-saved, owner-scoped post, treat it as a server-side error.
-    const hydrated = await postHydrationService.hydratePosts([post.toObject()], { viewerId: userId, oxyClient: createScopedOxyClient(req) });
+    const hydrated = await postHydrationService.hydratePosts([post.toObject()], {
+      viewerId: userId,
+      oxyClient: createScopedOxyClient(req),
+      requestLanguages: requestLanguageCandidates(req),
+    });
     if (hydrated.length === 0) {
       logger.error('Failed to hydrate edited post', { postId: String(post._id), userId });
       return res.status(500).json({ message: 'Error updating post' });
@@ -1930,10 +1981,12 @@ export const getSavedPosts = async (req: AuthRequest, res: Response) => {
     if (searchQuery && searchQuery.trim()) {
       const trimmedQuery = searchQuery.trim();
       logger.debug(`Applying search filter: "${trimmedQuery}"`);
-      // Use MongoDB $regex for partial text matching (case-insensitive)
-      // Escape special regex characters but allow partial matching
+      // Use MongoDB $regex for partial text matching (case-insensitive).
+      // Escape special regex characters but allow partial matching. The bodies live
+      // in the (multikey) renditions, so this matches a saved post by ANY language
+      // the author wrote it in.
       const escapedQuery = trimmedQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      postQuery['content.text'] = {
+      postQuery['content.variants.text'] = {
         $regex: escapedQuery,
         $options: 'i' // case-insensitive
       };
@@ -1950,6 +2003,7 @@ export const getSavedPosts = async (req: AuthRequest, res: Response) => {
     const hydratedPosts = await postHydrationService.hydratePosts(posts, {
       viewerId: userId,
       oxyClient: createScopedOxyClient(req),
+      requestLanguages: requestLanguageCandidates(req),
       maxDepth: 1,
       includeLinkMetadata: true,
     });
@@ -2050,6 +2104,7 @@ export const getPostsByHashtag = async (req: AuthRequest, res: Response) => {
     const hydratedPosts = await postHydrationService.hydratePosts(postsToReturn, {
       viewerId: req.user?.id,
       oxyClient: createScopedOxyClient(req),
+      requestLanguages: requestLanguageCandidates(req),
       maxDepth: 1,
       includeLinkMetadata: true,
     });
@@ -2117,6 +2172,7 @@ export const getPostsByTopic = async (req: AuthRequest, res: Response) => {
     const hydratedPosts = await postHydrationService.hydratePosts(postsToReturn, {
       viewerId: req.user?.id,
       oxyClient: createScopedOxyClient(req),
+      requestLanguages: requestLanguageCandidates(req),
       maxDepth: 1,
       includeLinkMetadata: true,
     });
@@ -2227,6 +2283,7 @@ export const getNearbyPosts = async (req: AuthRequest, res: Response) => {
     const hydratedPosts = await postHydrationService.hydratePosts(posts, {
       viewerId: req.user?.id,
       oxyClient: createScopedOxyClient(req),
+      requestLanguages: requestLanguageCandidates(req),
       maxDepth: 1,
       includeLinkMetadata: false,
     });
@@ -2293,6 +2350,7 @@ export const getPostsInArea = async (req: AuthRequest, res: Response) => {
     const hydratedPosts = await postHydrationService.hydratePosts(posts, {
       viewerId: req.user?.id,
       oxyClient: createScopedOxyClient(req),
+      requestLanguages: requestLanguageCandidates(req),
       maxDepth: 1,
       includeLinkMetadata: false,
     });
@@ -2456,6 +2514,7 @@ export const getNearbyPostsBothLocations = async (req: AuthRequest, res: Respons
     const hydratedPosts = await postHydrationService.hydratePosts(posts, {
       viewerId: currentUserId,
       oxyClient: createScopedOxyClient(req),
+      requestLanguages: requestLanguageCandidates(req),
       maxDepth: 1,
       includeLinkMetadata: true,
     });
@@ -2526,43 +2585,56 @@ export const getLocationStats = async (req: AuthRequest, res: Response) => {
   }
 };
 
-// ── Translate post ──
+// ── Translate ──
 
-const SUPPORTED_LANGUAGES: Record<string, string> = {
-  'en': 'English',
-  'en-US': 'English',
-  'es': 'Spanish',
-  'es-ES': 'Spanish',
-  'it': 'Italian',
-  'it-IT': 'Italian',
-  'fr': 'French',
-  'fr-FR': 'French',
-  'pt': 'Portuguese',
-  'pt-BR': 'Portuguese',
-  'de': 'German',
-  'de-DE': 'German',
-  'ca': 'Catalan',
-  'ca-ES': 'Catalan',
+/**
+ * Map a failed translation onto a response. A {@link TranslationRequestError} is
+ * the caller's fault and carries its own status; everything else is an Alia
+ * outage, whose upstream status is parsed out of the thrown error so a rate limit
+ * or a provider outage is not reported to the client as our own 500.
+ */
+const respondTranslationError = (res: Response, error: unknown, context: string): void => {
+  if (error instanceof TranslationRequestError) {
+    res.status(error.status).json({ message: error.message });
+    return;
+  }
+
+  const errorMessage = error instanceof Error ? error.message : '';
+  const statusMatch = errorMessage.match(/Alia API error (\d+)/);
+  const aliaStatus = statusMatch ? parseInt(statusMatch[1], 10) : 0;
+
+  if (aliaStatus === 429) {
+    logger.warn(`${context}: rate limited`, error);
+    res.status(429).json({ message: 'Too many requests. Please try again later.' });
+  } else if (aliaStatus === 503 || aliaStatus === 502) {
+    logger.warn(`${context}: translation service unavailable`, error);
+    res.status(503).json({ message: 'Translation service temporarily unavailable.' });
+  } else if (aliaStatus === 402) {
+    logger.warn(`${context}: translation credits issue`, error);
+    res.status(502).json({ message: 'Translation service unavailable.' });
+  } else {
+    logger.error(`${context}: translation failed`, error);
+    res.status(500).json({ message: 'Translation failed' });
+  }
 };
 
+/**
+ * Translate a post on demand and cache the result ON the post, as a
+ * `source: 'machine'` language variant — the same array the author's own variants
+ * live in, so the next reader whose language ladder lands on it is served straight
+ * from hydration. Any language is allowed (the machine cache is uncapped), and an
+ * AUTHOR variant for the requested language short-circuits the model entirely.
+ *
+ * Visibility is enforced through hydration (the single ACL authority): a post this
+ * viewer cannot see is a 404, exactly as it is on the read path.
+ */
 export const translatePost = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
     const { targetLanguage, force } = req.body;
 
-    if (!targetLanguage || typeof targetLanguage !== 'string') {
-      res.status(400).json({ message: 'targetLanguage is required' });
-      return;
-    }
-
-    const languageName = SUPPORTED_LANGUAGES[targetLanguage];
-    if (!languageName) {
-      res.status(400).json({ message: `Unsupported language: ${targetLanguage}` });
-      return;
-    }
-
     const post = await Post.findById(id)
-      .select('_id oxyUserId authorship content.text translations visibility status federation createdAt')
+      .select('_id oxyUserId authorship content visibility status federation createdAt')
       .lean();
     if (!post) {
       res.status(404).json({ message: 'Post not found' });
@@ -2572,6 +2644,7 @@ export const translatePost = async (req: AuthRequest, res: Response): Promise<vo
     const visiblePosts = await postHydrationService.hydratePosts([post], {
       viewerId: req.user?.id,
       oxyClient: createScopedOxyClient(req),
+      requestLanguages: requestLanguageCandidates(req),
       maxDepth: 0,
       includeLinkMetadata: false,
       includeFullArticleBody: false,
@@ -2582,81 +2655,50 @@ export const translatePost = async (req: AuthRequest, res: Response): Promise<vo
       return;
     }
 
-    const text = post.content?.text;
-    if (!text || typeof text !== 'string' || text.trim().length === 0) {
-      res.status(404).json({ message: 'Post has no text content to translate' });
-      return;
-    }
-
-    // Check cache (skip when force retranslating)
-    if (!force) {
-      const cached = post.translations?.find((t) => t.language === targetLanguage);
-      if (cached) {
-        res.json({ translatedText: cached.text, cached: true });
-        return;
-      }
-    }
-
-    const truncatedText = text.slice(0, MAX_TEXT_LENGTH);
-    const translatedText = await aliaChat(
-      [
-        {
-          role: 'system',
-          content: 'You are a strict translation engine. You receive text wrapped in <text> tags. Output ONLY the translation — no explanations, no commentary, no extra text. Preserve all formatting, mentions, hashtags, and line breaks exactly.',
-        },
-        {
-          role: 'user',
-          content: `Translate the following to ${languageName}:\n<text>\n${truncatedText}\n</text>`,
-        },
-      ],
-      { model: 'alia-lite', temperature: 0.1, maxTokens: Math.max(truncatedText.length * 3, 256) },
+    const content: StoredPostContent = post.content ?? {};
+    const translated = await postTranslationService.translatePost(
+      String(post._id),
+      content,
+      targetLanguage,
+      { force: force === true },
     );
 
-    const trimmed = translatedText.trim();
-    if (!trimmed) {
-      res.status(500).json({ message: 'Translation returned empty result' });
+    res.json({
+      translatedText: translated.text,
+      tag: translated.tag,
+      cached: translated.cached,
+    });
+  } catch (error) {
+    respondTranslationError(res, error, 'translatePost');
+  }
+};
+
+/**
+ * Translate a DRAFT body the composer is holding — there is no post yet, so
+ * nothing is persisted. The result pre-fills a language tab as an editable draft;
+ * what the author approves is what gets saved, as an AUTHOR variant.
+ */
+export const translateDraft = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      res.status(401).json({ message: 'Unauthorized' });
       return;
     }
 
-    // Save translation to cache — replace existing entry for this language if force retranslating
-    if (force) {
-      Post.updateOne(
-        { _id: id },
-        {
-          $pull: { translations: { language: targetLanguage } },
-        },
-      ).then(() =>
-        Post.updateOne(
-          { _id: id },
-          { $push: { translations: { language: targetLanguage, text: trimmed, translatedAt: new Date() } } },
-        ),
-      ).catch((err) => logger.error('Error caching translation', err));
-    } else {
-      Post.updateOne(
-        { _id: id },
-        { $push: { translations: { language: targetLanguage, text: trimmed, translatedAt: new Date() } } },
-      ).catch((err) => logger.error('Error caching translation', err));
+    const { text, targetLanguage } = req.body;
+    if (typeof text !== 'string') {
+      res.status(400).json({ message: 'text is required' });
+      return;
+    }
+    if (text.length > MAX_TEXT_LENGTH) {
+      res.status(400).json({ message: `Post text exceeds maximum length of ${MAX_TEXT_LENGTH} characters` });
+      return;
     }
 
-    res.json({ translatedText: trimmed, cached: false });
+    const translated = await postTranslationService.translateDraft(text, targetLanguage);
+    res.json({ translatedText: translated.text, tag: translated.tag });
   } catch (error) {
-    // Parse Alia API error status from the thrown error message
-    const errorMessage = error instanceof Error ? error.message : '';
-    const statusMatch = errorMessage.match(/Alia API error (\d+)/);
-    const aliaStatus = statusMatch ? parseInt(statusMatch[1], 10) : 0;
-
-    if (aliaStatus === 429) {
-      logger.warn('Translation rate limited', error);
-      res.status(429).json({ message: 'Too many requests. Please try again later.' });
-    } else if (aliaStatus === 503 || aliaStatus === 502) {
-      logger.warn('Translation service unavailable', error);
-      res.status(503).json({ message: 'Translation service temporarily unavailable.' });
-    } else if (aliaStatus === 402) {
-      logger.warn('Translation credits issue', error);
-      res.status(502).json({ message: 'Translation service unavailable.' });
-    } else {
-      logger.error('Error translating post', error);
-      res.status(500).json({ message: 'Translation failed' });
-    }
+    respondTranslationError(res, error, 'translateDraft');
   }
 };

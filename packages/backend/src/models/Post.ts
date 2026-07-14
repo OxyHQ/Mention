@@ -2,13 +2,14 @@ import mongoose, { Document, Schema } from "mongoose";
 import {
   PostType,
   PostVisibility,
-  PostContent,
+  StoredPostContent,
   PostStats,
   PostMetadata,
   PostClassification,
   PostAuthorshipEntry,
   PostAuthorRole,
   PostAuthorStatus,
+  PostVariantSource,
 } from '@mention/shared-types';
 import { normalizePostHashtags } from '../utils/textProcessing';
 
@@ -28,7 +29,14 @@ export interface IPost extends Document {
   authorship?: PostAuthorshipEntry[];
   federation?: PostFederationData; // AP metadata (only for federated posts)
   type: PostType;
-  content: PostContent;
+  /**
+   * NORMALIZED content: `variants[]` is the ONLY home for the post's text, and
+   * `variants[0]` is the primary. There is no stored `text` — what the API serves
+   * as `content.text` is the primary (or the reader's language) RESOLVED at read
+   * time by `resolveVariant`. Media and the article stay shared at the top; a
+   * variant overrides them only when it genuinely differs.
+   */
+  content: StoredPostContent;
   visibility: PostVisibility;
   isEdited: boolean;
   editHistory?: string[];
@@ -63,10 +71,103 @@ export interface IPost extends Document {
   // Defaults to a `pending` status on creation so the async classification batch
   // job picks it up; the AI provider/model is never stored here.
   postClassification?: PostClassification;
-  translations?: Array<{ language: string; text: string; translatedAt: Date }>;
   createdAt: string;
   updatedAt: string;
 }
+
+/**
+ * A media entry as persisted on a post: an object carrying at least `id` and a
+ * media `type`, plus optional metadata resolved server-side. Shared by the post's
+ * media set and by a language variant's media OVERRIDE, so both are validated
+ * identically.
+ */
+function isValidMediaItem(item: unknown): boolean {
+  if (typeof item !== 'object' || item === null) return false;
+  const media = item as Record<string, unknown>;
+  if (typeof media.id !== 'string') return false;
+  if (media.type !== 'image' && media.type !== 'video' && media.type !== 'gif') return false;
+
+  const numericFields = ['width', 'height', 'durationSec', 'sizeBytes', 'aspectRatio'] as const;
+  for (const field of numericFields) {
+    const value = media[field];
+    if (value !== undefined && value !== null) {
+      if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) {
+        return false;
+      }
+    }
+  }
+
+  if (
+    media.orientation !== undefined
+    && media.orientation !== 'portrait'
+    && media.orientation !== 'landscape'
+    && media.orientation !== 'square'
+  ) {
+    return false;
+  }
+
+  return true;
+}
+
+const MEDIA_ITEM_MESSAGE = 'Media must be MediaItem objects with id and type fields';
+
+/**
+ * ONE localized rendition of the post — author-written or machine-translated.
+ *
+ * The language field is `tag`, deliberately NOT `language`: MongoDB reads a field
+ * literally named `language` inside an indexed document as the text index's
+ * stemmer override and REJECTS unsupported codes with error 17262 (the trap this
+ * schema already dodges on the top-level `language` field via
+ * `language_override: 'textSearchLanguage'`). `variants.text` is likewise kept OUT
+ * of the text index — full-text search stays on the primary body.
+ */
+const PostContentVariantSchema = new Schema({
+  // ABSENT when the post has no resolvable language — a body too short to detect
+  // ("ok", "+1", a bare URL), or a federated Note that declares none. Deliberately
+  // NOT required: minting a tag from a detector's best guess would stamp a wrong
+  // language on the post and then federate that guess as a declaration
+  // (`contentMap` / `language`). At most one variant is untagged, and it is the
+  // primary.
+  tag: { type: String },
+  source: {
+    type: String,
+    enum: ['author', 'machine'] satisfies PostVariantSource[],
+    required: true,
+  },
+  text: { type: String, default: '' },
+  // Localized alt text for the SHARED media set, keyed by media id. Mutually
+  // exclusive with `media` (a replaced set carries its own alt) — enforced at the
+  // write boundary by `validateAuthorVariants`.
+  alt: {
+    type: Schema.Types.Mixed,
+    default: undefined,
+    validate: {
+      validator: (value: unknown) => {
+        if (value === undefined || value === null) return true;
+        if (typeof value !== 'object' || Array.isArray(value)) return false;
+        return Object.values(value as Record<string, unknown>).every((entry) => typeof entry === 'string');
+      },
+      message: 'Variant alt must map media ids to text descriptions',
+    },
+  },
+  // Replaces the media set for this language entirely (a different infographic
+  // per language). Absent → the variant shows the post's shared media.
+  media: {
+    type: [Schema.Types.Mixed],
+    default: undefined,
+    validate: {
+      validator: (items: unknown[]) => items.every(isValidMediaItem),
+      message: MEDIA_ITEM_MESSAGE,
+    },
+  },
+  // Localized long-form. `articleId` is NOT duplicated — it is the same entity.
+  article: {
+    title: { type: String, trim: true, maxlength: 280 },
+    body: { type: String },
+    excerpt: { type: String, trim: true },
+  },
+  createdAt: { type: String },
+}, { _id: false });
 
 const AttachmentSchema = new Schema({
   type: {
@@ -90,36 +191,25 @@ const AttachmentSchema = new Schema({
 }, { _id: false });
 
 const PostContentSchema = new Schema({
-  text: { type: String, default: '' },
+  // Every localized rendition, author-written and machine-translated alike — the
+  // ONLY home for the post's text. `variants[0]` is the PRIMARY (the hook keeps
+  // the author's own renditions ahead of the machine translations, in order), and
+  // it is what federates, what is signed onto the chain, and what a reader without
+  // a matching language falls back to. There is deliberately no `text` mirror:
+  // ActivityPub's `content`, the MTN record's `text` and the OG card are READ
+  // paths that resolve the primary with one call, and a mirror would silently
+  // drift on the one write path that skips Mongoose middleware (the federated
+  // outbox backfill's `collection.insertMany`).
+  variants: {
+    type: [PostContentVariantSchema],
+    default: undefined,
+  },
   media: [{
     // MediaItem objects with id and type
     type: Schema.Types.Mixed,
     validate: {
-      validator: function(item: any) {
-        if (typeof item === 'object' && item !== null) {
-          if (typeof item.id !== 'string') return false;
-          if (item.type !== 'image' && item.type !== 'video' && item.type !== 'gif') return false;
-          const numericFields = ['width', 'height', 'durationSec', 'sizeBytes', 'aspectRatio'] as const;
-          for (const field of numericFields) {
-            if (item[field] !== undefined && item[field] !== null) {
-              if (typeof item[field] !== 'number' || !Number.isFinite(item[field]) || item[field] <= 0) {
-                return false;
-              }
-            }
-          }
-          if (
-            item.orientation !== undefined
-            && item.orientation !== 'portrait'
-            && item.orientation !== 'landscape'
-            && item.orientation !== 'square'
-          ) {
-            return false;
-          }
-          return true;
-        }
-        return false;
-      },
-      message: 'Media must be MediaItem objects with id and type fields'
+      validator: isValidMediaItem,
+      message: MEDIA_ITEM_MESSAGE,
     }
   }],
   attachments: {
@@ -527,12 +617,6 @@ const PostSchema = new Schema<IPost>({
     type: PostClassificationSchema,
     default: () => ({ status: POST_CLASSIFICATION_PENDING }),
   },
-  translations: [{
-    language: { type: String, required: true },
-    text: { type: String, required: true },
-    translatedAt: { type: Date, default: Date.now },
-    _id: false,
-  }],
 }, {
   timestamps: {
     createdAt: 'createdAt',
@@ -542,12 +626,32 @@ const PostSchema = new Schema<IPost>({
   toJSON: { virtuals: true }
 });
 
-// Centralized hashtag normalization — the single enforcement point for every
+/**
+ * Order the renditions so `variants[0]` is the PRIMARY: the author's own
+ * renditions first (in the order the author gave them), the machine translations
+ * after. Everything downstream — federation, the signed record, the reader
+ * fallback — reads the primary by position, so the position has to be true no
+ * matter which writer produced the array.
+ */
+function orderContentVariants(post: IPost): void {
+  const variants = post.content?.variants;
+  if (!variants || variants.length < 2) return;
+
+  const authors = variants.filter((variant) => variant.source === 'author');
+  const machines = variants.filter((variant) => variant.source === 'machine');
+  if (machines.length === 0) return;
+
+  post.content.variants = [...authors, ...machines];
+}
+
+// Centralized content normalization — the single enforcement point for every
 // document-based post write (createPost, createThread, updatePost, replies,
-// boosts, single federated ingest). Runs immediately before persistence so the
-// visible `content.text` is cleaned of spammy 4+ consecutive hashtag blocks and
-// the `hashtags` field always holds the full, canonical (lowercase, no `#`,
-// deduped, order-preserved) set of detected tags.
+// boosts, single federated ingest). Runs immediately before persistence so:
+//   - `variants[0]` is the primary rendition (`orderContentVariants`), and
+//   - EVERY author-written rendition is cleaned of spammy 4+ consecutive hashtag
+//     blocks — whichever language a reader gets served — while `hashtags` holds
+//     the full, canonical (lowercase, no `#`, deduped, order-preserved) set of
+//     tags detected in the PRIMARY body.
 //
 // Caller-supplied tags are already present on `this.hashtags` (callers merge
 // them via `mergeHashtags`), so they are passed back through as `userProvided`
@@ -558,14 +662,30 @@ const PostSchema = new Schema<IPost>({
 // Idempotent: re-running over already-cleaned text and canonical hashtags is a
 // no-op, so repeated saves of the same document never strip more content.
 PostSchema.pre('validate', function() {
-  if (!this.isModified('content.text') && !this.isModified('hashtags') && !this.isNew) {
+  const touchesContent = this.isNew
+    || this.isModified('content.variants')
+    || this.isModified('hashtags');
+  if (!touchesContent) {
     return;
   }
-  const { content, hashtags } = normalizePostHashtags(this.content?.text, this.hashtags);
-  if (this.content) {
-    this.content.text = content;
+
+  orderContentVariants(this);
+
+  const variants = this.content?.variants ?? [];
+  const primary = variants[0];
+
+  const { content, hashtags } = normalizePostHashtags(primary?.text, this.hashtags);
+  if (primary) {
+    primary.text = content;
   }
   this.hashtags = hashtags;
+
+  // A machine translation is produced FROM the already-cleaned primary body, so
+  // only the author's own renditions can carry a spammy block of their own.
+  for (const variant of variants.slice(1)) {
+    if (variant.source !== 'author') continue;
+    variant.text = normalizePostHashtags(variant.text).content;
+  }
 });
 
 // Pre-save hook to clean up empty location objects and sync authorship → oxyUserId
@@ -664,10 +784,11 @@ PostSchema.index(
   { name: 'for_you_language_idx' }
 );
 
-// Saved posts with text search: optimizes saved posts queries with content.text regex search
-// Compound index helps when filtering by _id (from savedPostIds) and searching content.text
+// Saved posts with text search: optimizes saved posts queries with a regex over
+// the post's bodies. Compound index helps when filtering by _id (from
+// savedPostIds) and searching the (multikey) variant bodies.
 PostSchema.index(
-  { _id: 1, 'content.text': 1 },
+  { _id: 1, 'content.variants.text': 1 },
   { name: 'saved_posts_text_idx' }
 );
 
@@ -692,27 +813,28 @@ PostSchema.index(
   { name: 'thread_slicing_idx' }
 );
 
-// Full-text search index over post content.
+// Full-text search index over post content — now over the MULTIKEY variant
+// bodies, so a bilingual post is findable by ANY language the author wrote it in
+// (the old index covered only the single stored body).
 //
-// `language_override` intentionally points at the field `textSearchLanguage`,
-// which NO document has. By default MongoDB's text index treats a per-document
-// field literally named `language` as the stemmer language override. Since
-// multi-language classification, the document's top-level `language` field is the
-// ActivityPub content language and now holds arbitrary detected ISO codes
-// (ar/no/pl/…). MongoDB only supports a fixed set of stemmer languages and
-// REJECTS unsupported codes with error 17262 ("language override unsupported"),
-// which broke ingest AND the corpus backfill of every non-English post. Pointing
-// the override at a non-existent field makes MongoDB always fall back to
-// `default_language: english` for stemming (English stemming preserved) and
-// ignore the content-language field entirely — freeing `language` for AP use.
-// This MUST stay in sync with the live prod index `content.text_text`.
+// The variant's language field is named `tag`, NOT `language`, and that is
+// load-bearing here: MongoDB treats a field literally named `language` INSIDE an
+// indexed document as the per-document stemmer override, and REJECTS the write
+// with error 17262 ("language override unsupported") for any code outside its
+// fixed stemmer set (ar/no/pl/…) — which is exactly the set of codes a content
+// language holds. `language_override` additionally points at `textSearchLanguage`,
+// a field NO document has, so MongoDB always falls back to
+// `default_language: english` for stemming.
+//
+// Replaces the retired `content.text_text` index; the old one must be dropped in
+// prod (the content migration does it) or both will be built.
 PostSchema.index(
-  { 'content.text': 'text' },
+  { 'content.variants.text': 'text' },
   {
     default_language: 'english',
     language_override: 'textSearchLanguage',
-    name: 'content.text_text',
-    weights: { 'content.text': 1 },
+    name: 'content.variants.text_text',
+    weights: { 'content.variants.text': 1 },
   }
 );
 

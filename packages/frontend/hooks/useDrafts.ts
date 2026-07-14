@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { storeData, getData, removeData } from '@/utils/storage';
 import { createScopedLogger } from '@/lib/logger';
+import type { DraftVariants } from '@/utils/composeVariants';
 
 const logger = createScopedLogger('useDrafts');
 
@@ -29,6 +30,16 @@ export interface Draft {
   }>;
   mentions: Array<{ userId: string; handle: string; name: string }>;
   postingMode: 'thread' | 'beast';
+  /**
+   * The post's declared languages and their author renditions, keyed by composer
+   * item so a thread keeps a body per (item × language).
+   *
+   * Optional because drafts are stored raw and unversioned: a draft saved before
+   * this feature existed has no `languages` key and must still open. The reader
+   * (`deserializeVariants`) tolerates anything, so an old — or corrupt — draft
+   * degrades to a single-language buffer instead of being lost.
+   */
+  languages?: DraftVariants;
   createdAt: number;
   updatedAt: number;
 }

@@ -1,5 +1,12 @@
 import { Post, IPost, PostFederationData, POST_CLASSIFICATION_PENDING } from '../models/Post';
-import { PostType, PostVisibility, PostContent, MediaItem } from '@mention/shared-types';
+import {
+  PostType,
+  PostVisibility,
+  PostContent,
+  PostContentVariant,
+  MediaItem,
+  StoredPostContent,
+} from '@mention/shared-types';
 import {
   createNotification,
   createMentionNotifications,
@@ -19,6 +26,12 @@ import { getOwnerId, hasPendingCollabInvites } from '../utils/postAuthorship';
 import { mediaMetadataService } from './MediaMetadataService';
 import { enqueueMediaMetadataEnrich } from './mediaMetadataEnrichJob';
 import { warmLinkPreviewForTextDetached } from '../utils/linkPreviewWarm';
+import {
+  applyDetectedPrimaryTag,
+  authorVariants,
+  buildPrimaryVariant,
+  declaredBaseLanguages,
+} from './postVariants';
 
 export interface CreatePostParams {
   oxyUserId: string | null;
@@ -96,15 +109,32 @@ class PostCreationService {
    * throw is caught + logged at warn and the post is still saved with the default
    * `pending` subdoc untouched.
    */
-  private applyBaselineClassification(postData: Record<string, unknown>, params: CreatePostParams): void {
+  private applyBaselineClassification(
+    postData: Record<string, unknown>,
+    params: CreatePostParams,
+    primaryText: string,
+  ): void {
     try {
       const isFederated = params.federation != null;
       const metadataSensitive = (params.metadata as { isSensitive?: boolean } | undefined)?.isSensitive;
+      // What the post DECLARES: the federated ingest paths pass `params.languages`
+      // (AP `language` + every `contentMap` key); a native post declares the base
+      // subtags of the author's own language variants (primary first). Either way
+      // the classifier prefers a declared set over tinyld detection — a bilingual
+      // post reaches BOTH audiences without the detector having to guess.
+      //
+      // An author who declared NOTHING contributes no languages here, so detection
+      // runs on the body and stays free to revise itself on a later edit. Never
+      // infer a language from the client's UI locale: the classifier trusts a
+      // declaration over the detector, so an English-locale app writing Spanish
+      // would stamp `en` on Spanish posts and the feed would serve them to the
+      // wrong language audience, network-wide and silently.
+      const declaredLanguages = params.languages ?? declaredBaseLanguages(params.content);
       const signals = baselineContentClassifier.classify({
-        text: params.content.text,
+        text: primaryText,
         hashtags: params.hashtags,
         language: params.language,
-        languages: params.languages,
+        languages: declaredLanguages,
         sensitive: params.federation?.sensitive ?? metadataSensitive,
         isFederated,
         instanceDomain: params.instanceDomain,
@@ -198,6 +228,49 @@ class PostCreationService {
    * Pass `skipNotifications`, `skipSocketEmit`, or `skipFederationDelivery`
    * to suppress individual stages (e.g. for incoming federated posts).
    */
+  /**
+   * Turn the content a CALLER supplies (the API shape: a plain `text` body, or an
+   * explicit set of author variants) into the content we STORE (renditions only —
+   * `variants[0]` is the primary and the sole home of the body).
+   *
+   * When the author declared variants, those ARE the renditions. Otherwise the
+   * single body becomes the primary variant, tagged with whatever language was
+   * resolved for the post — the author's declaration if they made one, else the
+   * classifier's detection (a bare base code: the region is unknown and inventing
+   * one would federate a guess). A post whose language nothing could resolve keeps
+   * an untagged primary; a post with no body at all (a boost) keeps no variant.
+   */
+  private buildStoredContent(
+    content: PostContent,
+    inputVariants: PostContentVariant[],
+    primaryLanguage: string | undefined,
+  ): StoredPostContent {
+    const primary = buildPrimaryVariant(content.text, primaryLanguage);
+    const variants = inputVariants.length > 0
+      ? applyDetectedPrimaryTag(inputVariants, primaryLanguage)
+      : (primary ? [primary] : []);
+
+    // An explicit whitelist, not a spread of the request shape: `text` (and the
+    // hydration-only `textLang`) must NOT reach storage — they are the API's view
+    // of the body, and the body lives on the rendition. The post-level facts below
+    // are deliberately not per-language: a poll's votes must aggregate (two polls
+    // would split the count), and a location or a citation is a fact about the
+    // post, not about a language.
+    return {
+      ...(variants.length > 0 ? { variants } : {}),
+      media: content.media,
+      article: content.article,
+      poll: content.poll,
+      pollId: content.pollId,
+      location: content.location,
+      sources: content.sources,
+      event: content.event,
+      room: content.room,
+      podcast: content.podcast,
+      attachments: content.attachments,
+    };
+  }
+
   async create(params: CreatePostParams): Promise<IPost> {
     const isScheduled = params.status === 'scheduled';
 
@@ -206,6 +279,11 @@ class PostCreationService {
       const enrichedMedia = await mediaMetadataService.enrichFromOxy(content.media as MediaItem[]);
       content = { ...content, media: enrichedMedia };
     }
+
+    // The post's primary body, whichever shape the caller used: the first author
+    // variant when the author declared languages, else the plain `text` field.
+    const inputVariants = authorVariants(content);
+    const primaryText = inputVariants[0]?.text ?? content.text ?? '';
 
     // Defense-in-depth against blank federated posts. `buildFederatedNoteContent`
     // is the PRIMARY guard on the ingest paths, but the outbox backfill inserts
@@ -216,7 +294,7 @@ class PostCreationService {
     // ghost. Native (non-federated) posts are unaffected — this only guards the
     // federated branch.
     if (params.federation != null) {
-      const hasText = typeof content.text === 'string' && content.text.trim().length > 0;
+      const hasText = primaryText.trim().length > 0;
       const hasMedia = Array.isArray(content.media) && content.media.length > 0;
       const hasAttachments = Array.isArray(content.attachments) && content.attachments.length > 0;
       const hasPoll = content.poll != null || (typeof content.pollId === 'string' && content.pollId.length > 0);
@@ -231,7 +309,6 @@ class PostCreationService {
 
     const postData: Record<string, unknown> = {
       type: derivePostType({ ...params, content }),
-      content,
       visibility: params.visibility ?? PostVisibility.PUBLIC,
       hashtags: params.hashtags ?? [],
       mentions: params.mentions ?? [],
@@ -284,7 +361,12 @@ class PostCreationService {
 
     // Stage-A deterministic classification (native + single-federated paths).
     // Best-effort: keeps `status: 'pending'` so the AI batch still enriches it.
-    this.applyBaselineClassification(postData, params);
+    // It runs BEFORE the content is built because the language it resolves is what
+    // tags the primary variant when the author declared none.
+    this.applyBaselineClassification(postData, params, primaryText);
+
+    const primaryLanguage = typeof postData.language === 'string' ? postData.language : undefined;
+    postData.content = this.buildStoredContent(content, inputVariants, primaryLanguage);
 
     const post = new Post(postData);
     await post.save();
@@ -328,13 +410,13 @@ class PostCreationService {
 
     if (isScheduled || params.skipNotifications) {
       if (isPublished) {
-        warmLinkPreviewForTextDetached(content.text);
+        warmLinkPreviewForTextDetached(primaryText);
       }
       return post;
     }
 
     if (isPublished) {
-      warmLinkPreviewForTextDetached(content.text);
+      warmLinkPreviewForTextDetached(primaryText);
     }
 
     await this.runPostSideEffects(post, {

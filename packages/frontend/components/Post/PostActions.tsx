@@ -52,7 +52,6 @@ interface Props {
   onTranslate?: () => void;
   isTranslated?: boolean;
   isTranslating?: boolean;
-  isPremium?: boolean;
   postId?: string;
   /**
    * Focused post-detail variant: a full-width spread-out action bar with inline
@@ -84,7 +83,6 @@ const PostActions: React.FC<Props> = ({
   onTranslate,
   isTranslated,
   isTranslating,
-  isPremium,
   detail = false,
   timestampLabel,
   hasMediaBlock = false,
@@ -395,21 +393,11 @@ const PostActions: React.FC<Props> = ({
             {isTranslating ? (
               <SpinnerIcon size={16} className="text-muted-foreground" />
             ) : (
-              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <Ionicons
-                  name={isTranslated ? 'language' : 'language-outline'}
-                  size={ICON_SIZE}
-                  color={isTranslated ? theme.colors.primary : theme.colors.textSecondary}
-                />
-                {!isPremium && (
-                  <Ionicons
-                    name="lock-closed"
-                    size={ICON_SIZE * 0.5}
-                    color={theme.colors.textSecondary}
-                    style={{ marginLeft: -4, marginTop: -6 }}
-                  />
-                )}
-              </View>
+              <Ionicons
+                name={isTranslated ? 'language' : 'language-outline'}
+                size={ICON_SIZE}
+                color={isTranslated ? theme.colors.primary : theme.colors.textSecondary}
+              />
             )}
           </PressableScale>
         )}

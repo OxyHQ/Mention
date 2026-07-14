@@ -11,7 +11,13 @@ interface Props {
   content?: string | PostContent;
   postId?: string;
   previewChars?: number;
-  translatedText?: string | null;
+  /**
+   * A body the READER chose over the one the server resolved — another author
+   * rendition of this post, or a machine translation of it. `null` (the norm)
+   * renders `content.text`, which hydration has already localized for this
+   * viewer. This component never picks a language itself.
+   */
+  overrideText?: string | null;
   /**
    * URLs the post renders as preview cards. A trailing URL in the body is
    * trimmed when it matches ANY of them — the card already shows the link, so
@@ -25,15 +31,15 @@ const TRAILING_URL_RE = /\s*(https?:\/\/[^\s]+|www\.[^\s]+)\s*$/;
 /** In-feed truncation thresholds (chars) per the `postTextExpand` preference. */
 const PREVIEW_CHARS = { default: 280, more: 600, muchMore: 1200, all: Infinity } as const;
 
-const PostContentText: React.FC<Props> = ({ content, postId, previewChars, translatedText, linkPreviewUrls }) => {
+const PostContentText: React.FC<Props> = ({ content, postId, previewChars, overrideText, linkPreviewUrls }) => {
   const router = useRouter();
   const pathname = usePathname();
   const { t } = useTranslation();
   const postTextExpand = useAppearanceStore((s) => s.mySettings?.appearance?.postTextExpand) ?? 'default';
   const postReadMoreAction = useAppearanceStore((s) => s.mySettings?.appearance?.postReadMoreAction) ?? 'openPost';
   const effectivePreviewChars = previewChars ?? PREVIEW_CHARS[postTextExpand];
-  const originalText = typeof content === 'string' ? content : content?.text || '';
-  const rawText = translatedText || originalText;
+  const resolvedText = typeof content === 'string' ? content : content?.text || '';
+  const rawText = overrideText || resolvedText;
 
   const textContent = linkPreviewUrls && linkPreviewUrls.length > 0
     ? rawText.replace(TRAILING_URL_RE, (match: string, url: string) => linkPreviewUrls.includes(url) ? '' : match)

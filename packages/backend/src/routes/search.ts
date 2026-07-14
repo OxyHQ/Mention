@@ -125,7 +125,7 @@ router.get("/", async (req: AuthRequest, res: Response) => {
       if (operators.textQuery) {
         const escapedQuery = escapeRegex(operators.textQuery);
         filter.$or = [
-          { 'content.text': { $regex: escapedQuery, $options: 'i' } },
+          { 'content.variants.text': { $regex: escapedQuery, $options: 'i' } },
           { hashtags: { $regex: escapedQuery, $options: 'i' } }
         ];
       }
@@ -212,14 +212,14 @@ router.get("/", async (req: AuthRequest, res: Response) => {
 
       // has:links operator - match URLs in post text
       if (operators.hasLinks) {
-        const linkCondition = { 'content.text': { $regex: 'https?://', $options: 'i' } };
+        const linkCondition = { 'content.variants.text': { $regex: 'https?://', $options: 'i' } };
         if (filter.$or) {
           // Combine with existing text search using $and
           const andClauses = Array.isArray(filter.$and) ? filter.$and : [];
           andClauses.push(linkCondition);
           filter.$and = andClauses;
         } else {
-          filter['content.text'] = { $regex: 'https?://', $options: 'i' };
+          filter['content.variants.text'] = { $regex: 'https?://', $options: 'i' };
         }
       }
 

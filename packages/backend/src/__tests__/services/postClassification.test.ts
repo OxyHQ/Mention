@@ -20,6 +20,9 @@ vi.mock('../../config', () => ({
   config: {
     classification: { enabled: true },
     alia: { apiUrl: 'http://alia.test', apiKey: 'test-key', model: 'alia-v1', timeoutMs: 30_000 },
+    // The service resolves each post's primary rendition through `postVariants`,
+    // which reads these caps at module scope.
+    posts: { maxTextLength: 5000, maxAltTextLength: 1000 },
   },
 }));
 
@@ -33,7 +36,7 @@ vi.mock('../../utils/alia', () => ({
 // --- Mock the Post model with a chainable find() query builder. ---
 interface MockPostDoc {
   _id: string;
-  content: { text: string };
+  content: { variants: [{ source: 'author', text: string }] };
   createdAt: Date;
   postClassification?: { attempts?: number };
 }
@@ -94,7 +97,12 @@ vi.mock('../../services/TopicService', () => ({
 import { postClassificationService } from '../../services/PostClassificationService';
 
 function post(id: string, text: string, attempts = 0): MockPostDoc {
-  return { _id: id, content: { text }, createdAt: new Date(), postClassification: { attempts } };
+  return {
+    _id: id,
+    content: { variants: [{ source: 'author', text }] },
+    createdAt: new Date(),
+    postClassification: { attempts },
+  };
 }
 
 /** Pull the $set payload the service wrote for a given post id. */
@@ -597,5 +605,95 @@ describe('PostClassificationService — failure and retry behavior', () => {
 
     expect(aliaJSON).not.toHaveBeenCalled();
     expect(bulkWrite).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * THE BATCH SELECTOR — the silent failure this suite exists to prevent.
+ *
+ * The body moved out of `content.text` and into `content.variants[]`. Mongo query
+ * keys are strings, so NOTHING here is type-checked: a filter still keyed on the
+ * old field compiles, runs, and matches ZERO documents. Stage-B classification
+ * would simply stop network-wide — no error, no exception, no failing test, and
+ * nothing to page anyone. "Selected nothing" and "nothing to select" are
+ * indistinguishable without an assertion on the query itself.
+ */
+describe('PostClassificationService — the batch selector reads the body’s REAL home', () => {
+  it('selects posts by the existence of a rendition, never by the retired content.text', async () => {
+    findResult.docs = [post('p-sel', 'A perfectly ordinary sentence to classify.')];
+    aliaJSON.mockResolvedValue([
+      {
+        postIndex: 0,
+        topics: ['general'],
+        sentiment: 'neutral',
+        intent: 'personal_update',
+        scores: { toxicity: 0, constructiveness: 0.2, spam: 0, quality: 0.4, controversy: 0, negativity: 0 },
+        confidence: 0.7,
+      },
+    ]);
+
+    await postClassificationService.processQueue();
+
+    const filters = find.mock.calls.map((call) => call[0] as Record<string, unknown>);
+    const batchFilter = filters.find((f) => 'status' in f);
+    expect(batchFilter).toBeDefined();
+
+    // The post must be selected because it HAS a rendition…
+    expect(batchFilter).toMatchObject({ 'content.variants.0': { $exists: true } });
+    // …and never by a field that no longer exists on any document.
+    expect(JSON.stringify(batchFilter)).not.toContain('content.text');
+
+    // And the batch actually produced work — the guard against a filter that is
+    // syntactically fine but semantically matches nothing.
+    expect(bulkWrite).toHaveBeenCalled();
+    expect(classificationFor('p-sel').status).toBe('classified');
+  });
+
+  it('sends the PRIMARY rendition’s body to the classifier', async () => {
+    // Classifying a machine translation would feed the classifier our own output;
+    // a second author language would say the same thing twice.
+    findResult.docs = [
+      {
+        _id: 'p-multi',
+        content: {
+          variants: [
+            { source: 'author', text: 'el cuerpo primario que hay que clasificar' },
+            { source: 'machine', text: 'the machine translation that must NOT be classified' },
+          ],
+        },
+        createdAt: new Date(),
+        postClassification: { attempts: 0 },
+      } as never,
+    ];
+    aliaJSON.mockResolvedValue([
+      {
+        postIndex: 0,
+        topics: ['general'],
+        sentiment: 'neutral',
+        intent: 'personal_update',
+        scores: { toxicity: 0, constructiveness: 0.2, spam: 0, quality: 0.4, controversy: 0, negativity: 0 },
+        confidence: 0.7,
+      },
+    ]);
+
+    await postClassificationService.processQueue();
+
+    // The batch is serialized into the user message of the Alia prompt.
+    const sent = JSON.stringify(aliaJSON.mock.calls[0][0]);
+    expect(sent).toContain('el cuerpo primario que hay que clasificar');
+    expect(sent).not.toContain('must NOT be classified');
+  });
+
+  it('retires a post with NO rendition (a boost) instead of leaving it in the queue forever', async () => {
+    findResult.docs = [];
+
+    await postClassificationService.processQueue();
+
+    // `markEmptyPosts` must key on the absence of a rendition — keyed on the old
+    // field it would match every post in the collection and mark them all
+    // classified with neutral defaults, quietly destroying the queue.
+    const [emptyFilter] = updateMany.mock.calls[0] as [Record<string, unknown>];
+    expect(emptyFilter).toMatchObject({ 'content.variants.0': { $exists: false } });
+    expect(JSON.stringify(emptyFilter)).not.toContain('content.text');
   });
 });
