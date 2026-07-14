@@ -31,6 +31,7 @@ const SIGNED_FETCH_TIMEOUT_MS = 10000;
 const SIGNED_FETCH_MAX_REDIRECTS = 3;
 const REDIRECT_STATUS_CODES: ReadonlySet<number> = new Set([301, 302, 303, 307, 308]);
 const MAX_ACTIVITYPUB_REDIRECTS = SIGNED_FETCH_MAX_REDIRECTS;
+export const SIGNED_FETCH_MAX_ACTIVITYPUB_JSON_BYTES = 5 * 1024 * 1024;
 
 export function asRecord(value: unknown): Record<string, any> | null {
   return value && typeof value === 'object' && !Array.isArray(value)
@@ -134,8 +135,9 @@ function requestInitHeaders(init: RequestInit): Record<string, string> {
  * standard `Response` surface (`.ok`, `.status`, `.statusText`, `.headers.get()`,
  * `.json()`, `.text()`) unchanged.
  *
- * The body is buffered eagerly. This is acceptable here because every signed
- * federation fetch reads a single (bounded) ActivityPub JSON document — actor,
+ * The body is buffered eagerly with a strict byte cap. This is acceptable here
+ * because every signed federation fetch reads a single bounded ActivityPub JSON
+ * document — actor,
  * outbox/page collection, or a Note/Article — never a large media stream (media
  * goes through `/media/proxy`, which streams the `IncomingMessage` directly).
  * Redirect responses carry no body of interest, so their stream is destroyed.
@@ -161,11 +163,27 @@ async function singleHopToResponse(result: SingleHopResult): Promise<Response> {
     return new Response(null, { status: result.status, headers });
   }
 
-  const chunks: Buffer[] = [];
-  for await (const chunk of result.response) {
-    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+  const contentLength = headers.get('content-length');
+  if (contentLength) {
+    const declaredLength = Number(contentLength);
+    if (Number.isFinite(declaredLength) && declaredLength > SIGNED_FETCH_MAX_ACTIVITYPUB_JSON_BYTES) {
+      result.response.destroy();
+      throw new Error(`ActivityPub response exceeded ${SIGNED_FETCH_MAX_ACTIVITYPUB_JSON_BYTES} bytes`);
+    }
   }
-  return new Response(Buffer.concat(chunks), { status: result.status, headers });
+
+  const chunks: Buffer[] = [];
+  let totalBytes = 0;
+  for await (const chunk of result.response) {
+    const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+    totalBytes += buffer.length;
+    if (totalBytes > SIGNED_FETCH_MAX_ACTIVITYPUB_JSON_BYTES) {
+      result.response.destroy();
+      throw new Error(`ActivityPub response exceeded ${SIGNED_FETCH_MAX_ACTIVITYPUB_JSON_BYTES} bytes`);
+    }
+    chunks.push(buffer);
+  }
+  return new Response(Buffer.concat(chunks, totalBytes), { status: result.status, headers });
 }
 
 /**
