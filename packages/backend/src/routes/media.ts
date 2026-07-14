@@ -1,8 +1,9 @@
 import express, { Request, Response } from 'express';
 import { IncomingMessage } from 'node:http';
-import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
+import rateLimit from 'express-rate-limit';
 import { logger } from '../utils/logger';
 import { RedisStore } from '../middleware/rateLimitStore';
+import { hashedIpKey } from '../utils/ipKey';
 import {
   SsrfRejection,
   UpstreamResult,
@@ -137,10 +138,10 @@ const mediaProxyRateLimiter = rateLimit({
   store: mediaProxyStore,
   windowMs: RATE_LIMIT_WINDOW_MS,
   max: RATE_LIMIT_MAX,
-  // This route is unauthenticated, so key strictly by IP. ipKeyGenerator
-  // normalizes IPv6 into a /64 subnet so a single client cannot evade the
-  // limit by rotating addresses within its prefix (matches security.ts).
-  keyGenerator: (req: Request) => ipKeyGenerator(req.ip || req.socket.remoteAddress || 'unknown'),
+  // This route is unauthenticated, so key strictly by IP. hashedIpKey
+  // normalizes the IPv6 subnet before HMAC-hashing so a single client cannot
+  // evade the limit by rotating within its prefix, and no raw IP hits Redis.
+  keyGenerator: (req: Request) => hashedIpKey(req),
   message: { error: 'Too many media proxy requests. Please slow down.' },
   standardHeaders: true,
   legacyHeaders: false,
@@ -159,7 +160,7 @@ const mediaPosterRateLimiter = rateLimit({
   store: mediaPosterStore,
   windowMs: RATE_LIMIT_WINDOW_MS,
   max: POSTER_RATE_LIMIT_MAX,
-  keyGenerator: (req: Request) => ipKeyGenerator(req.ip || req.socket.remoteAddress || 'unknown'),
+  keyGenerator: (req: Request) => hashedIpKey(req),
   message: { error: 'Too many media poster requests. Please slow down.' },
   standardHeaders: true,
   legacyHeaders: false,
@@ -177,7 +178,7 @@ const gifMediaRateLimiter = rateLimit({
   store: gifMediaStore,
   windowMs: RATE_LIMIT_WINDOW_MS,
   max: GIF_RATE_LIMIT_MAX,
-  keyGenerator: (req: Request) => ipKeyGenerator(req.ip || req.socket.remoteAddress || 'unknown'),
+  keyGenerator: (req: Request) => hashedIpKey(req),
   message: { error: 'Too many GIF media requests. Please slow down.' },
   standardHeaders: true,
   legacyHeaders: false,

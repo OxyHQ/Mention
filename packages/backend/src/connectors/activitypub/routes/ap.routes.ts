@@ -22,6 +22,7 @@ import {
 } from '../constants';
 import rateLimit from 'express-rate-limit';
 import { RedisStore } from '../../../middleware/rateLimitStore';
+import { hashedIpKey } from '../../../utils/ipKey';
 import { enqueueInboxActivity } from '../../../queue/producers';
 import { resolveAvatarUrl, resolveMediaRef } from '../../../utils/mediaResolver';
 import { isFediverseSharingEnabledFromUser, getFediverseSharingStateByUsername } from '../../../services/fediverseSharing';
@@ -36,7 +37,9 @@ const apRateLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Too Many Requests' },
-  // Default keyGenerator uses req.ip, which is what we want
+  // AP endpoints are anonymous (remote servers), so key by an HMAC of the
+  // IPv6-subnet-normalized IP — the raw address must never reach a Redis key.
+  keyGenerator: (req: Request) => hashedIpKey(req),
 });
 router.use(apRateLimiter);
 

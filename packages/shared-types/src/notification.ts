@@ -142,8 +142,6 @@ export interface SecurityNotification extends Notification {
     event: 'login' | 'password_change' | 'email_change' | 'suspicious_activity';
     deviceInfo?: {
       deviceType: string;
-      location: string;
-      ipAddress: string;
     };
   };
 }

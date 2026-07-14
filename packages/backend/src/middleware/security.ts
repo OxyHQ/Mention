@@ -1,10 +1,11 @@
-import rateLimit, { ipKeyGenerator } from "express-rate-limit";
+import rateLimit from "express-rate-limit";
 import slowDown from "express-slow-down";
 import type { RequestHandler } from "express";
 import { Request, Response } from "express";
 import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
 import { RedisStore } from "./rateLimitStore";
 import { queryString } from "../utils/queryParams";
+import { hashedIpKey } from "../utils/ipKey";
 
 /**
  * Feed types whose ranking work is expensive enough to throttle. A tampered
@@ -33,11 +34,9 @@ function generateRateLimitKey(req: Request, prefix: string): string {
   if (authReq.user?.id) {
     return `${prefix}:user:${authReq.user.id}`;
   }
-  // Extract IP and use ipKeyGenerator helper for proper IPv6 handling
-  const ip = req.ip || req.socket.remoteAddress || 'unknown';
-  // ipKeyGenerator takes the IP string and properly handles IPv6 subnets
-  const ipKey = ipKeyGenerator(ip);
-  return `${prefix}:${ipKey}`;
+  // Anonymous callers key by an HMAC of the (IPv6-subnet-normalized) IP so the
+  // raw address never lands in a Redis key name.
+  return `${prefix}:${hashedIpKey(req)}`;
 }
 
 /**
@@ -106,8 +105,7 @@ export const feedRateLimiter = rateLimit({
     if (authReq.user?.id) {
       return `user:${authReq.user.id}`;
     }
-    const ip = req.ip || req.socket.remoteAddress || 'unknown';
-    return ipKeyGenerator(ip);
+    return hashedIpKey(req);
   },
   message: "Too many feed requests. Please slow down.",
   standardHeaders: true,
@@ -123,10 +121,7 @@ export const feedIPRateLimiter = rateLimit({
   store: feedIPStore,
   windowMs: 1000, // 1 second
   max: 10, // 10 requests per second per IP
-  keyGenerator: (req: Request) => {
-    const ip = req.ip || req.socket.remoteAddress || 'unknown';
-    return ipKeyGenerator(ip);
-  },
+  keyGenerator: (req: Request) => hashedIpKey(req),
   message: "Too many requests from this IP. Please slow down.",
   standardHeaders: true,
   legacyHeaders: false,
@@ -158,8 +153,7 @@ export const translationRateLimiter = rateLimit({
     if (authReq.user?.id) {
       return `user:${authReq.user.id}`;
     }
-    const ip = req.ip || req.socket.remoteAddress || 'unknown';
-    return ipKeyGenerator(ip);
+    return hashedIpKey(req);
   },
   message: 'Too many translation requests. Please slow down.',
   standardHeaders: true,
@@ -189,8 +183,7 @@ export const postWriteRateLimiter = rateLimit({
     if (authReq.user?.id) {
       return `user:${authReq.user.id}`;
     }
-    const ip = req.ip || req.socket.remoteAddress || 'unknown';
-    return ipKeyGenerator(ip);
+    return hashedIpKey(req);
   },
   message: 'Too many posts in a short time. Please slow down.',
   standardHeaders: true,
@@ -221,8 +214,7 @@ export const feedThrottle: RequestHandler = slowDown({
     if (authReq.user?.id) {
       return `user:${authReq.user.id}:${feedType}`;
     }
-    const ip = req.ip || req.socket.remoteAddress || 'unknown';
-    return `${ipKeyGenerator(ip)}:${feedType}`;
+    return `${hashedIpKey(req)}:${feedType}`;
   },
   skip: (req: Request) => {
     // Don't throttle simple feed types

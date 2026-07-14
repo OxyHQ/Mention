@@ -1,8 +1,9 @@
-import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
+import rateLimit from 'express-rate-limit';
 import { Request, Response, NextFunction } from 'express';
 import { RedisStore } from './rateLimitStore';
 import { logger } from '../utils/logger';
 import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
+import { hashedIpKey } from '../utils/ipKey';
 
 /**
  * Rate limiter configuration for feed endpoints
@@ -35,19 +36,17 @@ const authenticatedFeedLimiter = rateLimit({
     error: 'Too Many Requests',
     message: `Rate limit exceeded. Please try again later.`,
   },
-  // Custom key generator to use user ID for authenticated users
-  // Use ipKeyGenerator helper for proper IPv6 handling
+  // User ID for authenticated users; hashed IP key for anonymous callers.
   keyGenerator: (req: AuthRequest) => {
     if (req.user?.id) {
       return `user:${req.user.id}`;
     }
-    // Extract IP and use ipKeyGenerator helper for proper IPv6 handling
-    const ip = req.ip || req.socket.remoteAddress || 'unknown';
-    return ipKeyGenerator(ip);
+    return hashedIpKey(req);
   },
   // Custom handler for rate limit exceeded
   handler: (req: AuthRequest, res: Response) => {
-    const identifier = req.user?.id || req.ip || req.socket.remoteAddress || 'unknown';
+    // Never log a raw IP: anonymous callers are identified by their hashed key.
+    const identifier = req.user?.id || hashedIpKey(req);
     logger.warn('Feed rate limit exceeded', {
       identifier,
       authenticated: !!req.user?.id,
@@ -70,13 +69,10 @@ const anonymousFeedLimiter = rateLimit({
     error: 'Too Many Requests',
     message: `Rate limit exceeded. Please try again later.`,
   },
-  // Use ipKeyGenerator helper for proper IPv6 handling
-  keyGenerator: (req: AuthRequest) => {
-    const ip = req.ip || req.socket.remoteAddress || 'unknown';
-    return ipKeyGenerator(ip);
-  },
+  keyGenerator: (req: AuthRequest) => hashedIpKey(req),
   handler: (req: AuthRequest, res: Response) => {
-    const identifier = req.ip || req.socket.remoteAddress || 'unknown';
+    // Hashed key only — the raw IP must never reach the logs.
+    const identifier = hashedIpKey(req);
     logger.warn('Feed rate limit exceeded (anonymous)', {
       identifier,
     });
@@ -116,8 +112,6 @@ export const apiRateLimiter = rateLimit({
     if (req.user?.id) {
       return `user:${req.user.id}`;
     }
-    // Extract IP and use ipKeyGenerator helper for proper IPv6 handling
-    const ip = req.ip || req.socket.remoteAddress || 'unknown';
-    return ipKeyGenerator(ip);
+    return hashedIpKey(req);
   },
 });
