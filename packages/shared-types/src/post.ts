@@ -23,13 +23,13 @@ export enum PostVisibility {
 /**
  * Oxy asset IMAGE variant names that the central asset service actually
  * generates (`packages/api/src/services/variantService.ts` `imageVariants`):
- * `w128` / `thumb`(256) / `w320` / `w640` / `w1280` / `w2048` — all named for
- * their pixel width except the legacy `thumb` (also 256px, predates the
- * width-naming convention). `small`/`medium`/`large`/`original`/`avatar` do
- * NOT exist server-side and 404 on the CDN (`avatar` was the w128 variant's
+ * `w96` / `w128` / `thumb`(256) / `w320` / `w640` / `w1280` / `w2048` — all
+ * named for their pixel width except the legacy `thumb` (also 256px,
+ * predates the width-naming convention). `small`/`medium`/`large`/`original`/
+ * `avatar` do NOT exist server-side and 404 on the CDN (`avatar` was `w128`'s
  * name for its first few hours before being renamed to match convention —
- * it's a generic small-image size, not avatar-specific, so other small-image
- * contexts can reach for it too).
+ * these are generic small-image sizes, not avatar-specific, so other
+ * small-image contexts can reach for them too).
  *
  * These are the SINGLE source of truth for which variant each render context
  * requests, shared by the backend resolver (`utils/mediaResolver.ts`) and the
@@ -41,15 +41,17 @@ export enum PostVisibility {
  * enough for a retina render of those small surfaces, but far lighter than the
  * `w640`/`w1280`/`w2048` variants reserved for wider displays / the lightbox.
  *
- * Avatars render small and circular, so the AVATAR context maps to the dedicated
- * 128px square `w128` crop — lighter still than `thumb` (~68% fewer bytes for a
- * typical source). Video posters are a DIFFERENT context: they fill the (up to
- * ~320px wide) media card as a rectangle, so they keep the 256px `thumb` crop via
- * VIDEO_POSTER rather than being shrunk to the 128px square.
+ * Avatars render small and circular, so the AVATAR context maps to the
+ * dedicated 96px square `w96` crop — most avatars across the app render
+ * ≤40px (post headers ~36px, notifications, facepiles), so `w96` covers
+ * those comfortably even at 3x DPR while staying lighter than the 128px
+ * crop it replaced. Video posters are a DIFFERENT context: they fill the (up
+ * to ~320px wide) media card as a rectangle, so they keep the 256px `thumb`
+ * crop via VIDEO_POSTER rather than being shrunk to a small square.
  */
 export const MEDIA_VARIANT_THUMB = 'w320';
 export const MEDIA_VARIANT_FULL = 'w2048';
-export const MEDIA_VARIANT_AVATAR = 'w128';
+export const MEDIA_VARIANT_AVATAR = 'w96';
 export const MEDIA_VARIANT_VIDEO_POSTER = 'thumb';
 
 export interface MediaItem {
