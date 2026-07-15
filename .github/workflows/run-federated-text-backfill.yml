@@ -1,0 +1,186 @@
+name: Run federated-text normalization backfill
+
+# One-shot backfill that normalizes the whitespace of already-stored third-party
+# text — federated post bodies, content warnings, media alt, and FederatedActor
+# fields. The ingest paths and the write boundary already normalize new writes
+# (PR #395 / #401); this cleans the rows written before that shipped. Manual only.
+#
+# WHY IT IS SHAPED LIKE THIS (same two constraints as the post-variants migration
+# this is modelled on):
+#
+# 1. The database is on a PRIVATE VPC address, unreachable from a GitHub runner,
+#    so the script has to run as an ECS task INSIDE the VPC ("Fargate one-shot").
+#
+# 2. It runs the CURRENTLY DEPLOYED code — the backfill script is already on
+#    `main` and in the live image — so there is no expand/contract ordering to
+#    respect. It reuses the live service's task definition (same secrets, role,
+#    subnets, security groups) and only overrides the command, touching nothing
+#    the service runs. Building from `ref` is kept so a fix can be tried from a
+#    branch before it merges.
+#
+# The backfill is idempotent and only writes the documents that actually change,
+# so a second run over clean data is a no-op. Signed MTN records are immutable and
+# are NOT touched — this fixes the Mongo rows, which is what every reader sees.
+#
+# ALWAYS run dry FIRST (`dry_run=true`, the default): it scans the same documents,
+# computes the same updates, prints scanned-vs-would-change counts, a per-field
+# breakdown, and a whitespace-visible before/after sample — and writes nothing.
+# Read the plan, then re-run with dry_run=false.
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 'Branch or SHA to build the backfill image from'
+        required: true
+        type: string
+        default: 'main'
+      dry_run:
+        description: 'Report what WOULD change, write nothing'
+        required: true
+        type: boolean
+        default: true
+
+concurrency:
+  # Never let two backfills touch the collection at once.
+  group: normalize-federated-text
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: us-west-2
+  APP: mention
+  CLUSTER: oxy-cluster
+  SERVICE: mention
+  DOCKERFILE: packages/backend/Dockerfile
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  backfill:
+    # Same arch as the deployed image — the service runs linux/arm64.
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+
+      - name: Configure AWS credentials (OIDC, no stored keys)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::237343248947:role/oxy-github-deploy
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to ECR
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push the backfill image (its own tag; never `latest`)
+        id: image
+        env:
+          ECR_REGISTRY: ${{ steps.ecr.outputs.registry }}
+        run: |
+          set -euo pipefail
+          TAG="backfill-normtext-$(git rev-parse --short HEAD)"
+          IMG="$ECR_REGISTRY/oxy/$APP:$TAG"
+          docker build -f "$DOCKERFILE" -t "$IMG" .
+          docker push "$IMG"
+          echo "image=$IMG" >> "$GITHUB_OUTPUT"
+          echo "Built $IMG"
+
+      - name: Run the backfill as an ECS one-shot task
+        env:
+          IMAGE: ${{ steps.image.outputs.image }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          set -euo pipefail
+
+          # Take the task definition and network config from the LIVE service, so
+          # the one-shot runs with the same secrets, roles, subnets and security
+          # groups the backend already runs with. Nothing is hardcoded, and nothing
+          # drifts when the service is redeployed.
+          SERVICE_JSON=$(aws ecs describe-services \
+            --cluster "$CLUSTER" --services "$SERVICE" \
+            --query 'services[0]' --output json)
+
+          LIVE_TASK_DEF=$(echo "$SERVICE_JSON" | jq -r '.taskDefinition')
+          SUBNETS=$(echo "$SERVICE_JSON" | jq -r '.networkConfiguration.awsvpcConfiguration.subnets | join(",")')
+          SEC_GROUPS=$(echo "$SERVICE_JSON" | jq -r '.networkConfiguration.awsvpcConfiguration.securityGroups | join(",")')
+          # Mirror the service's public-IP setting: the cluster's subnets are
+          # public with NO NAT gateway, so a task without a public IP cannot
+          # even pull its image from ECR.
+          ASSIGN_IP=$(echo "$SERVICE_JSON" | jq -r '.networkConfiguration.awsvpcConfiguration.assignPublicIp')
+
+          echo "live task definition: $LIVE_TASK_DEF"
+
+          # A throwaway revision that differs from the live one ONLY by the image.
+          # The service keeps running its own revision; this one exists so the task
+          # can run a branch image without touching the live service.
+          aws ecs describe-task-definition --task-definition "$LIVE_TASK_DEF" \
+            --query 'taskDefinition' --output json > live-taskdef.json
+
+          CONTAINER=$(jq -r '.containerDefinitions[0].name' live-taskdef.json)
+
+          jq --arg img "$IMAGE" '
+            .containerDefinitions[0].image = $img
+            | del(.taskDefinitionArn, .revision, .status, .requiresAttributes,
+                  .compatibilities, .registeredAt, .registeredBy, .deregisteredAt)
+          ' live-taskdef.json > backfill-taskdef.json
+
+          BACKFILL_TASK_DEF=$(aws ecs register-task-definition \
+            --cli-input-json file://backfill-taskdef.json \
+            --query 'taskDefinition.taskDefinitionArn' --output text)
+
+          echo "backfill task definition: $BACKFILL_TASK_DEF"
+
+          OVERRIDES=$(jq -nc \
+            --arg name "$CONTAINER" \
+            --arg dry "$DRY_RUN" \
+            '{containerOverrides:[{
+               name: $name,
+               command: ["bun","packages/backend/dist/src/scripts/normalizeFederatedText.js"],
+               environment: [
+                 {name:"DRY_RUN", value:$dry}
+               ]
+             }]}')
+
+          TASK_ARN=$(aws ecs run-task \
+            --cluster "$CLUSTER" \
+            --task-definition "$BACKFILL_TASK_DEF" \
+            --launch-type FARGATE \
+            --network-configuration "awsvpcConfiguration={subnets=[$SUBNETS],securityGroups=[$SEC_GROUPS],assignPublicIp=$ASSIGN_IP}" \
+            --overrides "$OVERRIDES" \
+            --started-by "gh-backfill-normtext" \
+            --query 'tasks[0].taskArn' --output text)
+
+          echo "task: $TASK_ARN"
+          echo "Waiting for the task to stop…"
+          aws ecs wait tasks-stopped --cluster "$CLUSTER" --tasks "$TASK_ARN"
+
+          TASK_ID="${TASK_ARN##*/}"
+          LOG_OPTS=$(jq -r '.containerDefinitions[0].logConfiguration.options' live-taskdef.json)
+          LOG_GROUP=$(echo "$LOG_OPTS" | jq -r '."awslogs-group"')
+          LOG_PREFIX=$(echo "$LOG_OPTS" | jq -r '."awslogs-stream-prefix"')
+
+          echo "──────── backfill output ────────"
+          aws logs get-log-events \
+            --log-group-name "$LOG_GROUP" \
+            --log-stream-name "$LOG_PREFIX/$CONTAINER/$TASK_ID" \
+            --start-from-head \
+            --query 'events[].message' --output text || echo "(no logs retrieved)"
+          echo "─────────────────────────────────"
+
+          EXIT_CODE=$(aws ecs describe-tasks --cluster "$CLUSTER" --tasks "$TASK_ARN" \
+            --query 'tasks[0].containers[0].exitCode' --output text)
+          REASON=$(aws ecs describe-tasks --cluster "$CLUSTER" --tasks "$TASK_ARN" \
+            --query 'tasks[0].stoppedReason' --output text)
+
+          echo "exit code: $EXIT_CODE  (stopped reason: $REASON)"
+
+          # A backfill whose result you cannot see is a backfill you have not run.
+          if [ "$EXIT_CODE" != "0" ]; then
+            echo "::error::Backfill task exited with $EXIT_CODE"
+            exit 1
+          fi
