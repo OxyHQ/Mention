@@ -32,7 +32,7 @@
     "express-slow-down": "^3.1.0",
     "firebase-admin": "^13.7.0",
     "he": "^1.2.0",
-    "helmet": "^8.1.0",
+    "helmet": "^8.3.0",
     "ioredis": "5.11.1",
     "jsonwebtoken": "^9.0.3",
     "mongoose": "^8.17.0",
