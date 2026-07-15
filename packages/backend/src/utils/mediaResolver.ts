@@ -82,6 +82,21 @@ function getPublicBase(): string {
 }
 
 /**
+ * The Oxy CDN host (e.g. `cloud.oxy.so`). A federated avatar Oxy has already
+ * mirrored resolves to a final `cloud.oxy.so/<id>` URL (not a bare file id), so
+ * we still need to attach the avatar variant to it rather than serving the
+ * no-variant original or double-proxying our own CDN. Defensive like the rest of
+ * this module: returns `undefined` on any failure instead of throwing.
+ */
+function getCloudHost(): string | undefined {
+  try {
+    return new URL(getServiceOxyClient().getCloudURL()).host.toLowerCase();
+  } catch {
+    return undefined;
+  }
+}
+
+/**
  * The set of hostnames we consider "ours" — media already served from these is
  * returned verbatim instead of being wrapped behind the proxy. Includes the
  * backend public origin and the Oxy API origin (CDN/stream endpoints).
@@ -167,8 +182,13 @@ export function resolveMediaRef(ref: string | null | undefined): ResolvedMedia {
 /**
  * Resolve an avatar reference to a FINAL URL. For an Oxy file id this is the
  * small square `thumb` (256px) crop — avatars are rendered tiny and circular, so
- * the square crop is correct (unlike post media, which uses wider variants). For
- * federated/proxied avatars it is the proxied URL. Returns `undefined` when the
+ * the square crop is correct (unlike post media, which uses wider variants).
+ *
+ * For an absolute URL already on the Oxy CDN host (`cloud.oxy.so`) — the shape a
+ * federated avatar takes once Oxy has mirrored it at resolve/hydration time — the
+ * avatar variant is attached directly to the URL rather than serving the
+ * no-variant original or needlessly double-proxying our own CDN. For a genuinely
+ * external/federated CDN it is the proxied URL. Returns `undefined` when the
  * reference is empty so callers can omit the field.
  */
 export function resolveAvatarUrl(ref?: string | null): string | undefined {
@@ -177,6 +197,25 @@ export function resolveAvatarUrl(ref?: string | null): string | undefined {
   }
   try {
     if (isAbsoluteHttpUrl(ref)) {
+      let host: string | undefined;
+      try {
+        host = new URL(ref).host.toLowerCase();
+      } catch {
+        // Malformed absolute URL — return it untouched rather than proxying garbage.
+        return ref;
+      }
+      if (host && host === getCloudHost()) {
+        // Federated avatar Oxy already mirrored to its CDN: attach the avatar
+        // variant to the existing URL (idempotent via `set`) instead of serving
+        // the no-variant original or proxying our own CDN through /media/proxy.
+        try {
+          const url = new URL(ref);
+          url.searchParams.set('variant', MEDIA_VARIANT_AVATAR);
+          return url.toString();
+        } catch {
+          return ref;
+        }
+      }
       // Defer to the shared resolver for own-origin passthrough / proxy wrapping.
       const resolved = resolveMediaRef(ref);
       return (resolved.thumbUrl || resolved.url) || undefined;
