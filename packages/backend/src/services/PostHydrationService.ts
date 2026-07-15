@@ -1,4 +1,4 @@
-import { FeedPostSlice, FeedSliceItem, HydratedPost, HydratedPostSummary, HydratedBoostContext, HydratedAuthor, PostUser, PostAttachmentBundle, PostEngagementSummary, PostLinkPreview, PostPermissions, PostViewerState, PostVisibility, PostAuthorshipEntry } from '@mention/shared-types';
+import { FeedPostSlice, FeedSliceItem, HydratedPost, HydratedPostSummary, HydratedBoostContext, HydratedAuthor, PostUser, PostAttachmentBundle, PostEngagementSummary, PostLinkPreview, PostPermissions, PostViewerState, PostVisibility, PostAuthorshipEntry, MEDIA_VARIANT_THUMB } from '@mention/shared-types';
 import mongoose from 'mongoose';
 import { Post, type PostFederationData } from '../models/Post';
 import Poll from '../models/Poll';
@@ -10,7 +10,7 @@ import { oxy as defaultOxyClient } from '../../server';
 import { getServiceOxyClient } from '../utils/oxyHelpers';
 import { extractUrls } from '../utils/extractUrls';
 import { getBlockedUserIds, getRestrictedUserIds, extractFollowingIds, extractFollowersIds, OxyClient } from '../utils/privacyHelpers';
-import { resolveMediaItems } from '../utils/mediaResolver';
+import { resolveMediaItems, attachCdnVariant } from '../utils/mediaResolver';
 import { logger } from '../utils/logger';
 import { readPersistedMediaFields } from './MediaMetadataService';
 import type { User as OxyUser } from '@oxyhq/core';
@@ -1246,8 +1246,10 @@ export class PostHydrationService {
    * ({@link OxyServices.getLinkPreviews}) instead of being scraped locally. Oxy
    * owns BOTH resolution and privacy-preserving image hosting: the `image` /
    * `favicon` on every returned preview is an absolute Oxy-hosted
-   * (`cloud.oxy.so`) URL, so it is passed through to the post DTO unchanged —
-   * never re-proxied via `/media/proxy`.
+   * (`cloud.oxy.so`) URL — never re-proxied via `/media/proxy`, but sized down
+   * via {@link attachCdnVariant} (the `MEDIA_VARIANT_THUMB`/`w320` context,
+   * matching the link-preview card's rendered width) instead of serving the
+   * no-variant original for what renders as a small card cover image.
    *
    * This stays safe on the `/feed/*` response path: the batch call is a fast
    * cached read (mirroring the {@link OxyServices.getUsersByIds} author-batch
@@ -1318,8 +1320,9 @@ export class PostHydrationService {
         url: preview.url,
         title: preview.title || undefined,
         description: preview.description || undefined,
-        // Already an absolute Oxy-hosted `cloud.oxy.so` URL — render directly.
-        image: preview.image || undefined,
+        // Already an absolute Oxy-hosted `cloud.oxy.so` URL — attach the
+        // thumb-context variant instead of serving the no-variant original.
+        image: preview.image ? attachCdnVariant(preview.image, MEDIA_VARIANT_THUMB) : undefined,
         siteName: preview.siteName || undefined,
       });
     }
