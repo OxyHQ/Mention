@@ -50,7 +50,7 @@ export const BannerSection: React.FC = () => {
   }, [updateMySettings]);
 
   return (
-    <View className="px-5 py-4 gap-3">
+    <View className="px-5 py-3 gap-3">
       <View className="flex-row items-center gap-3">
         <Icon name="image-outline" size={22} color={colors.text} />
         <Text className="text-[16px] text-foreground">

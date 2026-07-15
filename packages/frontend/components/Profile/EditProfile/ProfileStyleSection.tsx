@@ -20,8 +20,8 @@ interface StyleOption {
 }
 
 /**
- * Profile layout picker (default vs. minimalist) — extracted from the old
- * `settings/profile-customization.tsx`, unchanged in behavior. Self-contained:
+ * Profile layout picker (default vs. minimalist) — extracted from the original
+ * profile customization screen, unchanged in behavior. Self-contained:
  * reads/writes `useAppearanceStore` directly.
  */
 export const ProfileStyleSection: React.FC = () => {

@@ -226,9 +226,10 @@ export const ProfileContent = memo(function ProfileContent({
         />
       )}
 
-      {/* Profile media — SONG branch (or the owner "add" entry) sits here, right
-          after the stats. The PODCAST branch renders as a card at the bottom of
-          the header instead (Threads-style), so it is skipped here. */}
+      {/* Profile media — SONG branch renders here, right after the stats, when
+          pinned (nothing renders when empty; management now lives on the Edit
+          Profile screen). The PODCAST branch renders as a card at the bottom
+          of the header instead (Threads-style), so it is skipped here. */}
       {(!isPrivate || isOwnProfile) && design.profileMedia?.type !== 'podcast' && (
         <ProfileMedia media={design.profileMedia ?? null} isOwnProfile={isOwnProfile} />
       )}

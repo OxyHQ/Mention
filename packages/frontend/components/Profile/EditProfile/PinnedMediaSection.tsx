@@ -41,10 +41,7 @@ export const PinnedMediaSection: React.FC = () => {
           accessibilityRole="button"
           accessibilityLabel={t('profile.media.add')}
         >
-          <View
-            className="rounded-full bg-secondary items-center justify-center"
-            style={{ width: 32, height: 32 }}
-          >
+          <View className="w-8 h-8 rounded-full bg-secondary items-center justify-center">
             <PlusLarge_Stroke2_Corner0_Rounded size="sm" fill={colors.primary} />
           </View>
           <Text className="text-primary text-[15px]">{t('profile.media.add')}</Text>

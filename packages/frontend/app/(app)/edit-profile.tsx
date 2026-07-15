@@ -1,8 +1,8 @@
 import React, { useMemo } from 'react';
-import { ScrollView } from 'react-native';
+import { ScrollView, Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useAuth, OxyAuthPrompt } from '@oxyhq/services';
-import { useBloomTheme, PREMIUM_COLOR_NAMES, type AppColorName } from '@oxyhq/bloom/theme';
+import { useBloomTheme, useTheme, PREMIUM_COLOR_NAMES, type AppColorName } from '@oxyhq/bloom/theme';
 import { SettingsListDivider, SettingsListGroup, SettingsListItem } from '@oxyhq/bloom/settings-list';
 import { ThemedView } from '@/components/ThemedView';
 import { Header } from '@/components/Header';
@@ -11,6 +11,7 @@ import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { RowIcon } from '@/components/settings/RowIcon';
 import { ColorSwatchPicker } from '@/components/settings/ColorSwatchPicker';
+import { Icon } from '@/lib/icons';
 import { useAppColorSave } from '@/hooks/useAppColorSave';
 import { BannerSection } from '@/components/Profile/EditProfile/BannerSection';
 import { ProfileStyleSection } from '@/components/Profile/EditProfile/ProfileStyleSection';
@@ -21,6 +22,7 @@ export default function EditProfileScreen() {
   const safeBack = useSafeBack();
   const { isAuthenticated, showBottomSheet, user: authUser } = useAuth();
   const { colorPreset: appColor } = useBloomTheme();
+  const { colors } = useTheme();
   const { saveColor } = useAppColorSave();
 
   const normalizedUsername = authUser?.username?.toLowerCase();
@@ -56,8 +58,8 @@ export default function EditProfileScreen() {
           disableSticky
         />
         <OxyAuthPrompt
-          label={t('settings.profileCustomization.signInRequired', { defaultValue: 'Sign in to customize your profile' })}
-          description={t('settings.profileCustomization.signInRequiredDesc', { defaultValue: 'Choose your profile layout and accent color.' })}
+          label={t('settings.editProfile.signInRequired')}
+          description={t('settings.editProfile.signInRequiredDesc')}
         />
       </ThemedView>
     );
@@ -86,7 +88,13 @@ export default function EditProfileScreen() {
         <SettingsListDivider />
         <ProfileStyleSection />
         <SettingsListDivider />
-        <ColorSwatchPicker value={appColor} onChange={saveColor} extraColors={unlockedPremiumColors} />
+        <View className="px-5 py-3 gap-3">
+          <View className="flex-row items-center gap-3">
+            <Icon name="color-palette" size={22} color={colors.text} />
+            <Text className="text-[16px] text-foreground">{t('settings.accentColor', 'Accent color')}</Text>
+          </View>
+          <ColorSwatchPicker value={appColor} onChange={saveColor} extraColors={unlockedPremiumColors} />
+        </View>
         <SettingsListDivider />
         <PinnedMediaSection />
         <SettingsListDivider />
