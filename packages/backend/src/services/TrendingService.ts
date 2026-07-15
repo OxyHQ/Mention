@@ -1,6 +1,7 @@
 import { Post } from '../models/Post';
 import Trending, { TrendingType, ITrending, TRENDING_TTL_SECONDS } from '../models/Trending';
-import { PostVisibility, TopicType } from '@mention/shared-types';
+import { PostVisibility } from '@mention/shared-types';
+import { TopicType } from '@oxyhq/core';
 import TrendBatch from '../models/TrendBatch';
 import { logger } from '../utils/logger';
 import { getRedisClient } from '../utils/redis';

@@ -1,5 +1,6 @@
-import { TopicType } from '@mention/shared-types';
-import type { TopicData, ClassificationTopicRef } from '@mention/shared-types';
+import { TopicType } from '@oxyhq/core';
+import type { TopicData, TopicTranslation } from '@oxyhq/core';
+import type { ClassificationTopicRef } from '@mention/shared-types';
 import TopicStats from '../models/TopicStats';
 import { logger } from '../utils/logger';
 import { aliaJSON, isAliaEnabled } from '../utils/alia';
@@ -59,7 +60,7 @@ class TopicService {
 
     try {
       const oxy = getServiceOxyClient();
-      const topics: TopicData[] = await (oxy as any).resolveTopicNames(names);
+      const topics = await oxy.resolveTopicNames(names);
       return new Map(topics.map(t => [t.name, t]));
     } catch (error) {
       logger.error('[TopicService] Failed to resolve topic names via Oxy API:', error);
@@ -111,7 +112,7 @@ class TopicService {
   async getCategories(locale?: string): Promise<TopicData[]> {
     try {
       const oxy = getServiceOxyClient();
-      return await (oxy as any).getTopicCategories(locale);
+      return await oxy.getTopicCategories(locale);
     } catch (error) {
       logger.error('[TopicService] Failed to get categories via Oxy API:', error);
       return [];
@@ -121,7 +122,7 @@ class TopicService {
   async search(query: string, limit: number = 10): Promise<TopicData[]> {
     try {
       const oxy = getServiceOxyClient();
-      return await (oxy as any).searchTopics(query, limit);
+      return await oxy.searchTopics(query, limit);
     } catch (error) {
       logger.error('[TopicService] Failed to search topics via Oxy API:', error);
       return [];
@@ -137,7 +138,7 @@ class TopicService {
   }): Promise<{ topics: TopicData[]; total: number }> {
     try {
       const oxy = getServiceOxyClient();
-      return await (oxy as any).listTopics({
+      return await oxy.listTopics({
         type: options.type,
         q: options.query,
         limit: options.limit,
@@ -153,7 +154,7 @@ class TopicService {
   async getBySlug(slug: string): Promise<TopicData | null> {
     try {
       const oxy = getServiceOxyClient();
-      return await (oxy as any).getTopicBySlug(slug);
+      return await oxy.getTopicBySlug(slug);
     } catch (error) {
       logger.error('[TopicService] Failed to get topic via Oxy API:', error);
       return null;
@@ -280,11 +281,11 @@ Return ONLY valid JSON.`;
       if (topStats.length === 0) return 0;
 
       const oxy = getServiceOxyClient();
-      const { topics: allTopics } = await (oxy as any).listTopics({ limit: 100 });
-      const unenriched = (allTopics as TopicData[]).filter(
+      const { topics: allTopics } = await oxy.listTopics({ limit: 100 });
+      const unenriched = allTopics.filter(
         t => topStats.some(s => s.topicId === t._id)
           && (!t.description || t.description === '')
-          && t.type !== 'category',
+          && t.type !== TopicType.CATEGORY,
       ).slice(0, limit);
 
       if (unenriched.length === 0) return 0;
@@ -310,14 +311,14 @@ Return ONLY valid JSON.`;
 
       for (const enrichment of enrichments) {
         try {
-          const updateData: Record<string, unknown> = {
+          const updateData: { description?: string; translations?: Record<string, TopicTranslation> } = {
             description: enrichment.description,
           };
           if (enrichment.translations) {
             updateData.translations = enrichment.translations;
           }
 
-          await (oxy as any).updateTopicMetadata(enrichment.name.toLowerCase(), updateData);
+          await oxy.updateTopicMetadata(enrichment.name.toLowerCase(), updateData);
           enrichedCount++;
         } catch (err) {
           logger.warn(`[TopicService] Failed to update topic "${enrichment.name}" via Oxy:`, err);

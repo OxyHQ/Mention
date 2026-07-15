@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { TopicType } from '@mention/shared-types';
+import { TopicType } from '@oxyhq/core';
 
 /**
  * Unit coverage for {@link TopicService.resolveTopicRefs} — the single place that
