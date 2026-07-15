@@ -1,4 +1,4 @@
-import type { LiveConfig, LiveTheme, UserEntity } from '@syra.fm/sdk';
+import type { LiveConfig, LiveTheme, RoomsServiceInstance, UserEntity } from '@syra.fm/sdk';
 import { createRoomsService } from '@syra.fm/sdk';
 import type { ComponentType } from 'react';
 import type { ViewStyle } from 'react-native';
@@ -30,7 +30,7 @@ const syraLinkedClient = oxyServices.createLinkedClient({ baseURL: SYRA_API_URL 
  * stores) and screens can reuse it without re-instantiating a client. React
  * components can equivalently read `useLiveConfig().roomsService`.
  */
-export const roomsService = createRoomsService(syraLinkedClient);
+export const roomsService: RoomsServiceInstance = createRoomsService(syraLinkedClient);
 
 /**
  * A user currently live in a Syra room. `userId` is the Oxy user id (the same id

@@ -1,4 +1,5 @@
 import { oxyServices } from '@/lib/oxyServices';
+import type { LinkedHttpClient } from '@oxyhq/core';
 import axios from 'axios';
 import { API_URL } from '@/config';
 import i18n from '@/lib/i18n';
@@ -53,7 +54,7 @@ function getHttpStatus(error: unknown): number | undefined {
 }
 
 const mentionApiClient = oxyServices.createLinkedClient({ baseURL: API_URL });
-const linkedClient = mentionApiClient.client;
+const linkedClient: LinkedHttpClient['client'] = mentionApiClient.client;
 type LinkedRequestConfig = NonNullable<Parameters<typeof linkedClient.get>[1]>;
 type LinkedDeleteConfig = NonNullable<Parameters<typeof linkedClient.delete>[1]>;
 
