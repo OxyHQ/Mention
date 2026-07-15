@@ -3,6 +3,7 @@ import {
   MEDIA_VARIANT_THUMB,
   MEDIA_VARIANT_FULL,
   MEDIA_VARIANT_AVATAR,
+  MEDIA_VARIANT_VIDEO_POSTER,
 } from '@mention/shared-types';
 import { config } from '../config';
 import { getServiceOxyClient } from './oxyHelpers';
@@ -24,8 +25,8 @@ import { logger } from './logger';
  *        sees same-origin, cacheable, range-seekable bytes.
  *  - anything else → treated as an Oxy file id and turned into a CDN/stream URL
  *    via the SDK's synchronous `getFileDownloadUrl` (pure URL construction, no
- *    network), with image variants for image thumbnails/fullscreen and the
- *    native `thumb` variant for video posters.
+ *    network), with image variants for image thumbnails/fullscreen, the dedicated
+ *    128px `avatar` crop for avatars, and the 256px `thumb` crop for video posters.
  *
  * This module NEVER throws: on any failure it degrades to the safest passthrough
  * (`{ url: ref }` or `undefined`).
@@ -57,18 +58,23 @@ export interface ResolvedMedia {
  * Oxy asset IMAGE variant taxonomy lives in `@mention/shared-types`
  * (`MEDIA_VARIANT_*`) as the single source of truth shared with the frontend.
  * The asset service (`packages/api/src/services/variantService.ts`
- * `imageVariants`) generates only `thumb`(256) / `w320` / `w640` / `w1280` /
- * `w2048`; `small`/`medium`/`large`/`original` 404 on the CDN. Verified live
- * scale: `thumb`~2.6KB, `w320`~4KB, `w2048`~25.2KB, raw original ~77KB. Each
- * render context maps to a real, existing variant instead of the 256px thumb or
- * the raw original.
+ * `imageVariants`) generates only `avatar`(128) / `thumb`(256) / `w320` / `w640`
+ * / `w1280` / `w2048`; `small`/`medium`/`large`/`original` 404 on the CDN.
+ * Verified live scale: `avatar`~4.1KB, `thumb`~13KB (for the same source),
+ * `w320`~4KB, `w2048`~25.2KB, raw original ~77KB. Each render context maps to a
+ * real, existing variant instead of the raw original.
  *
  *  - thumbnail (post media card / profile grid) → {@link MEDIA_VARIANT_THUMB}.
  *    Both surfaces are ≤320px wide, so this resolves to the lighter `w320`
  *    variant rather than a wider one — big enough for a retina render of those
  *    small cards/cells without paying for the wider variants.
  *  - fullscreen lightbox (upgrade on open)      → {@link MEDIA_VARIANT_FULL}.
- *  - avatars (small, square crop)               → {@link MEDIA_VARIANT_AVATAR}.
+ *  - avatars (small, circular crop)             → {@link MEDIA_VARIANT_AVATAR}.
+ *    The dedicated 128px square `avatar` crop — ~68% lighter than the old 256px
+ *    `thumb` for a typical source.
+ *  - video posters (feed media rectangle)       → {@link MEDIA_VARIANT_VIDEO_POSTER}.
+ *    Kept on the 256px `thumb` crop: a poster fills the media card, so it must
+ *    not be shrunk to the 128px avatar square.
  */
 
 /** Backend route that proxies remote media through our own origin. */
@@ -181,8 +187,9 @@ export function resolveMediaRef(ref: string | null | undefined): ResolvedMedia {
 
 /**
  * Resolve an avatar reference to a FINAL URL. For an Oxy file id this is the
- * small square `thumb` (256px) crop — avatars are rendered tiny and circular, so
- * the square crop is correct (unlike post media, which uses wider variants).
+ * dedicated 128px square `avatar` crop — avatars are rendered tiny and circular,
+ * so the small square crop is correct (unlike post media, which uses wider
+ * variants) and far lighter than the old 256px `thumb`.
  *
  * For an absolute URL already on the Oxy CDN host (`cloud.oxy.so`) — the shape a
  * federated avatar takes once Oxy has mirrored it at resolve/hydration time — the
@@ -248,7 +255,7 @@ export function resolveMediaItems(items: MediaItem[] | undefined | null): MediaI
 
       if (item.type === 'video' && !isAbsoluteHttpUrl(item.id)) {
         try {
-          const posterUrl = getServiceOxyClient().getFileDownloadUrl(item.id, MEDIA_VARIANT_AVATAR);
+          const posterUrl = getServiceOxyClient().getFileDownloadUrl(item.id, MEDIA_VARIANT_VIDEO_POSTER);
           // Adaptive-bitrate HLS master playlist. NOT guaranteed to exist yet
           // (background transcode is fire-and-forget on upload) — the frontend
           // player MUST fall back to `url` (the raw original) on a playback

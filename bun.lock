@@ -6,7 +6,7 @@
       "name": "mention",
       "dependencies": {
         "@lottiefiles/dotlottie-react": "^0.19.5",
-        "@oxyhq/bloom": "^0.30.3",
+        "@oxyhq/bloom": "^0.30.8",
         "@oxyhq/contracts": "^0.14.0",
         "@oxyhq/core": "^10.2.0",
         "@oxyhq/expo-oxy-identity": "^0.1.0",
@@ -81,7 +81,7 @@
         "@livekit/react-native": "^2.11.1",
         "@livekit/react-native-expo-plugin": "^1.0.2",
         "@livekit/react-native-webrtc": "^144.1.1",
-        "@oxyhq/bloom": "^0.30.3",
+        "@oxyhq/bloom": "^0.30.8",
         "@oxyhq/core": "^10.2.0",
         "@oxyhq/expo-oxy-identity": "^0.1.0",
         "@oxyhq/services": "^20.0.0",
@@ -208,7 +208,7 @@
     },
   },
   "overrides": {
-    "@oxyhq/bloom": "^0.30.3",
+    "@oxyhq/bloom": "^0.30.8",
     "@oxyhq/core": "^10.2.0",
     "@oxyhq/services": "^20.0.0",
     "@react-native-async-storage/async-storage": "2.2.0",
@@ -702,7 +702,7 @@
 
     "@oxc-project/types": ["@oxc-project/types@0.137.0", "", {}, "sha512-WT+Gb24i8hmvo85AIv2oEYouEXkRlKAlT9WaCa3TfLgNCN+GhrJOGZuIlMouAh38Qe4QOx26eUOVsq70qXrywA=="],
 
-    "@oxyhq/bloom": ["@oxyhq/bloom@0.30.3", "", { "dependencies": { "@tanstack/react-virtual": "^3.14.3", "nanoid": "^5.1.5", "react-native-css": "3.0.7", "react-remove-scroll-bar": "^2.3.8" }, "peerDependencies": { "expo": "*", "expo-font": "*", "expo-haptics": "*", "expo-router": ">=3.0.0", "nativewind": ">=5.0.0", "react": ">=18.0.0", "react-dom": ">=18.0.0", "react-native": ">=0.73.0", "react-native-gesture-handler": ">=2.0.0", "react-native-reanimated": ">=3.0.0", "react-native-safe-area-context": ">=5.0.0", "react-native-svg": ">=13.0.0", "sonner": ">=2.0.0", "sonner-native": ">=0.17.0" }, "optionalPeers": ["expo", "expo-font", "expo-haptics", "expo-router", "nativewind", "react-dom", "react-native-svg", "sonner", "sonner-native"] }, "sha512-9F9H98lnIZ+zasXOROogLDoAioxguoKaczZLac30lXzQxNmJy4LpfAPb6HbJXdGThW3rS9HayY/IIkLy/v7BJA=="],
+    "@oxyhq/bloom": ["@oxyhq/bloom@0.30.8", "", { "dependencies": { "@tanstack/react-virtual": "^3.14.3", "nanoid": "^5.1.5", "react-native-css": "3.0.7", "react-remove-scroll-bar": "^2.3.8" }, "peerDependencies": { "expo": "*", "expo-font": "*", "expo-haptics": "*", "expo-router": ">=3.0.0", "nativewind": ">=5.0.0", "react": ">=18.0.0", "react-dom": ">=18.0.0", "react-native": ">=0.73.0", "react-native-gesture-handler": ">=2.0.0", "react-native-reanimated": ">=3.0.0", "react-native-safe-area-context": ">=5.0.0", "react-native-svg": ">=13.0.0", "sonner": ">=2.0.0", "sonner-native": ">=0.17.0" }, "optionalPeers": ["expo", "expo-font", "expo-haptics", "expo-router", "nativewind", "react-dom", "react-native-svg", "sonner", "sonner-native"] }, "sha512-+0LJhWefPicQV7GzmU/QZYd+5vvygsyOLJQR0tlPDCfXWemLu4EsnN1VrI8QjsqDJ2fBEFh5MEYT5Ici4KbGWA=="],
 
     "@oxyhq/contracts": ["@oxyhq/contracts@0.14.0", "", { "dependencies": { "zod": "^3.25.64" } }, "sha512-oQps/7+yHTUWRYY4ENu7nilQbINN7277lWTc0HmprPW45wcDo86sfU8kQElpbLCoEHBTyXptJfOjvWpbBiTV8Q=="],
 
@@ -3274,6 +3274,8 @@
 
     "@mention/mcp/@types/node": ["@types/node@25.9.4", "", { "dependencies": { "undici-types": ">=7.24.0 <7.24.7" } }, "sha512-dszCsrKb5U7ZsVZBWiHFklTloVl0mSEnWH/iZXfZUlI4rzCUnsvGmgqfuVRHL54ugE7/wRuxEIXRa2iMZ+BG6g=="],
 
+    "@mention/shared-types/@oxyhq/contracts": ["@oxyhq/contracts@0.14.1", "", { "dependencies": { "zod": "^3.25.64" } }, "sha512-d82VWCR4+OEzrQkENjCg/f/ZdlG2m/04/0Fp/v6HMC7r8Gxa6m6LdrZLQbOtemZ5kojg7H5ZbZ9Tk3q+qLyi1Q=="],
+
     "@mention/shared-types/@types/node": ["@types/node@25.9.4", "", { "dependencies": { "undici-types": ">=7.24.0 <7.24.7" } }, "sha512-dszCsrKb5U7ZsVZBWiHFklTloVl0mSEnWH/iZXfZUlI4rzCUnsvGmgqfuVRHL54ugE7/wRuxEIXRa2iMZ+BG6g=="],
 
     "@modelcontextprotocol/sdk/ajv": ["ajv@8.20.0", "", { "dependencies": { "fast-deep-equal": "^3.1.3", "fast-uri": "^3.0.1", "json-schema-traverse": "^1.0.0", "require-from-string": "^2.0.2" } }, "sha512-Thbli+OlOj+iMPYFBVBfJ3OmCAnaSyNn4M1vz9T6Gka5Jt9ba/HIR56joy65tY6kx/FCF5VXNB819Y7/GUrBGA=="],
@@ -3789,6 +3791,8 @@
     "@mention/mcp/@mention/shared-types/@oxyhq/contracts": ["@oxyhq/contracts@0.14.1", "", { "dependencies": { "zod": "^3.25.64" } }, "sha512-d82VWCR4+OEzrQkENjCg/f/ZdlG2m/04/0Fp/v6HMC7r8Gxa6m6LdrZLQbOtemZ5kojg7H5ZbZ9Tk3q+qLyi1Q=="],
 
     "@mention/mcp/@types/node/undici-types": ["undici-types@7.24.6", "", {}, "sha512-WRNW+sJgj5OBN4/0JpHFqtqzhpbnV0GuB+OozA9gCL7a993SmU+1JBZCzLNxYsbMfIeDL+lTsphD5jN5N+n0zg=="],
+
+    "@mention/shared-types/@oxyhq/contracts/zod": ["zod@3.25.76", "", {}, "sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ=="],
 
     "@mention/shared-types/@types/node/undici-types": ["undici-types@7.24.6", "", {}, "sha512-WRNW+sJgj5OBN4/0JpHFqtqzhpbnV0GuB+OozA9gCL7a993SmU+1JBZCzLNxYsbMfIeDL+lTsphD5jN5N+n0zg=="],
 

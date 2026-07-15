@@ -23,8 +23,8 @@ export enum PostVisibility {
 /**
  * Oxy asset IMAGE variant names that the central asset service actually
  * generates (`packages/api/src/services/variantService.ts` `imageVariants`):
- * `thumb`(256) / `w320` / `w640` / `w1280` / `w2048`. `small`/`medium`/`large`/
- * `original` do NOT exist server-side and 404 on the CDN.
+ * `avatar`(128) / `thumb`(256) / `w320` / `w640` / `w1280` / `w2048`.
+ * `small`/`medium`/`large`/`original` do NOT exist server-side and 404 on the CDN.
  *
  * These are the SINGLE source of truth for which variant each render context
  * requests, shared by the backend resolver (`utils/mediaResolver.ts`) and the
@@ -35,10 +35,17 @@ export enum PostVisibility {
  * (~190px cells) are both ≤320px, so the THUMB context maps to `w320` — large
  * enough for a retina render of those small surfaces, but far lighter than the
  * `w640`/`w1280`/`w2048` variants reserved for wider displays / the lightbox.
+ *
+ * Avatars render small and circular, so the AVATAR context maps to the dedicated
+ * 128px square `avatar` crop — lighter still than `thumb` (~68% fewer bytes for a
+ * typical source). Video posters are a DIFFERENT context: they fill the (up to
+ * ~320px wide) media card as a rectangle, so they keep the 256px `thumb` crop via
+ * VIDEO_POSTER rather than being shrunk to the 128px avatar square.
  */
 export const MEDIA_VARIANT_THUMB = 'w320';
 export const MEDIA_VARIANT_FULL = 'w2048';
-export const MEDIA_VARIANT_AVATAR = 'thumb';
+export const MEDIA_VARIANT_AVATAR = 'avatar';
+export const MEDIA_VARIANT_VIDEO_POSTER = 'thumb';
 
 export interface MediaItem {
   id: string;
