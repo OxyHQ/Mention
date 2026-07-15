@@ -27,13 +27,13 @@ function toListCardData(list: MentionList): ListCardData {
     id: String(list._id || list.id),
     uri: `list:${list._id || list.id}`,
     name: list.title || 'Untitled List',
-    description: typeof list.description === 'string' ? list.description : undefined,
+    description: list.description,
     avatar: typeof list.avatar === 'string' ? list.avatar : undefined,
     creator: owner
       ? {
           username: owner.username || '',
           displayName: owner.displayName,
-          avatar: typeof owner.avatar === 'string' ? owner.avatar : undefined,
+          avatar: owner.avatar,
         }
       : undefined,
     purpose: list.purpose === 'modlist' ? 'modlist' : 'curatelist',

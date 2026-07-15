@@ -26,7 +26,7 @@ import { logger } from './logger';
  *  - anything else → treated as an Oxy file id and turned into a CDN/stream URL
  *    via the SDK's synchronous `getFileDownloadUrl` (pure URL construction, no
  *    network), with image variants for image thumbnails/fullscreen, the dedicated
- *    128px `avatar` crop for avatars, and the 256px `thumb` crop for video posters.
+ *    96px `w96` crop for avatars, and the 256px `thumb` crop for video posters.
  *
  * This module NEVER throws: on any failure it degrades to the safest passthrough
  * (`{ url: ref }` or `undefined`).
@@ -58,11 +58,10 @@ export interface ResolvedMedia {
  * Oxy asset IMAGE variant taxonomy lives in `@mention/shared-types`
  * (`MEDIA_VARIANT_*`) as the single source of truth shared with the frontend.
  * The asset service (`packages/api/src/services/variantService.ts`
- * `imageVariants`) generates only `avatar`(128) / `thumb`(256) / `w320` / `w640`
- * / `w1280` / `w2048`; `small`/`medium`/`large`/`original` 404 on the CDN.
- * Verified live scale: `avatar`~4.1KB, `thumb`~13KB (for the same source),
- * `w320`~4KB, `w2048`~25.2KB, raw original ~77KB. Each render context maps to a
- * real, existing variant instead of the raw original.
+ * `imageVariants`) generates only `w96` / `w128` / `thumb`(256) / `w320` /
+ * `w640` / `w1280` / `w2048`; `small`/`medium`/`large`/`original`/`avatar` 404
+ * on the CDN. Each render context maps to a real, existing variant instead of
+ * the raw original.
  *
  *  - thumbnail (post media card / profile grid) → {@link MEDIA_VARIANT_THUMB}.
  *    Both surfaces are ≤320px wide, so this resolves to the lighter `w320`
@@ -70,11 +69,11 @@ export interface ResolvedMedia {
  *    small cards/cells without paying for the wider variants.
  *  - fullscreen lightbox (upgrade on open)      → {@link MEDIA_VARIANT_FULL}.
  *  - avatars (small, circular crop)             → {@link MEDIA_VARIANT_AVATAR}.
- *    The dedicated 128px square `avatar` crop — ~68% lighter than the old 256px
- *    `thumb` for a typical source.
+ *    The dedicated 96px square `w96` crop — most avatars across the app
+ *    render ≤40px, comfortably covered even at 3x DPR.
  *  - video posters (feed media rectangle)       → {@link MEDIA_VARIANT_VIDEO_POSTER}.
- *    Kept on the 256px `thumb` crop: a poster fills the media card, so it must
- *    not be shrunk to the 128px avatar square.
+ *    Kept on the 256px `thumb` crop: a poster fills the media card, so it
+ *    must not be shrunk to a small square.
  */
 
 /** Backend route that proxies remote media through our own origin. */
@@ -210,9 +209,9 @@ export function resolveMediaRef(ref: string | null | undefined): ResolvedMedia {
 
 /**
  * Resolve an avatar reference to a FINAL URL. For an Oxy file id this is the
- * dedicated 128px square `avatar` crop — avatars are rendered tiny and circular,
+ * dedicated 96px square `w96` crop — avatars are rendered tiny and circular,
  * so the small square crop is correct (unlike post media, which uses wider
- * variants) and far lighter than the old 256px `thumb`.
+ * variants) and far lighter than the 256px `thumb`.
  *
  * For an absolute URL already on the Oxy CDN host (`cloud.oxy.so`) — the shape a
  * federated avatar takes once Oxy has mirrored it at resolve/hydration time — the

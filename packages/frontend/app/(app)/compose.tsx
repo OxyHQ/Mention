@@ -1920,7 +1920,7 @@ const ComposeScreenBody = () => {
                       handle: user?.username || '',
                       verified: Boolean(user?.verified)
                     }}
-                    avatarSource={user?.avatar ?? undefined}
+                    avatarSource={user?.avatar}
                     avatarVariant={MEDIA_VARIANT_AVATAR}
                     avatarSize={AVATAR_SIZE}
                     onPressUser={() => { }}

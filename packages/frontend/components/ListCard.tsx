@@ -28,7 +28,7 @@ export interface ListCardData {
     creator?: {
         username: string;
         displayName?: string;
-        avatar?: string;
+        avatar?: string | null;
     };
     purpose?: 'curatelist' | 'modlist';
     itemCount?: number;
@@ -81,7 +81,7 @@ export function ListCard({
             style={isRow ? undefined : { borderWidth: StyleSheet.hairlineWidth }}>
             <View className="flex-row items-center gap-3">
                 <Avatar
-                    source={list.avatar || undefined}
+                    source={list.avatar}
                     size={40}
                     variant={MEDIA_VARIANT_AVATAR}
                 />

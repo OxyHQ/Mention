@@ -251,35 +251,27 @@ const PostItem: React.FC<PostItemProps> = ({
         ? content.attachments
         : undefined;
 
-    // Avatar source resolution is federation-aware and delegated to Bloom's
-    // Avatar (via the app-wide ImageResolver). FEDERATED/remote actors carry a
-    // remote http(s) avatar URL — passed straight through; the `variant` is
-    // ignored for absolute URLs. LOCAL actors carry an Oxy file id — passed as
-    // `source` with `variant={MEDIA_VARIANT_AVATAR}` so Bloom's resolver fetches
-    // the lightweight 128px avatar rendition. We no longer pre-resolve the file
-    // id with `useImageUrl`.
-    //
-    // The backend emits the canonical Oxy `User` shape: `avatar` is a bare Oxy
-    // file id for local actors and an absolute remote URL for federated actors.
-    // We branch on `isFederated` and on whether the value is already an absolute
-    // URL so Bloom's resolver only gets a `variant` for local file ids.
-    const rawAvatar = viewPost?.user?.avatar;
-    const isRemoteAvatar =
-        typeof rawAvatar === 'string' &&
-        (viewPost?.user?.isFederated === true ||
-            rawAvatar.startsWith('http://') ||
-            rawAvatar.startsWith('https://'));
-    // Federated avatars are mirrored into Oxy at resolve/hydration time and arrive
-    // as file ids or cloud.oxy.so URLs — same path as local users. No client proxy.
-    const avatarSource = typeof rawAvatar === 'string' ? rawAvatar : undefined;
-    const avatarVariant = isRemoteAvatar ? undefined : MEDIA_VARIANT_AVATAR;
+    // Avatar source resolution is delegated to Bloom's Avatar (via the
+    // app-wide ImageResolver). The backend emits the canonical Oxy `User`
+    // shape: `avatar` is EITHER a bare Oxy file id OR an absolute URL — for
+    // BOTH local and federated actors alike (both are mirrored into the same
+    // Oxy storage, so there's no federation-based distinction to make here).
+    // We always pass `variant={MEDIA_VARIANT_AVATAR}` unconditionally: Bloom's
+    // Avatar ignores `variant` entirely when `source` turns out to be an
+    // already-absolute URL (rendered straight through) and only applies it
+    // when resolving a bare Oxy file id, so there's nothing for this
+    // component to detect or branch on. We no longer pre-resolve the file id
+    // with `useImageUrl`.
+    const avatarSource = viewPost?.user?.avatar;
+    const avatarVariant = MEDIA_VARIANT_AVATAR;
 
-    // Preload only when the avatar is already an absolute URL (remote/federated).
-    // Local file ids are resolved+cached by Bloom's resolver, and media items are
-    // referenced by id and resolved inside PostAttachmentsRow.
+    // Preload only makes sense when the avatar is already an absolute URL —
+    // a bare file id needs async resolution first, handled internally by
+    // Bloom's resolver/cache. Media items are referenced by id and resolved
+    // inside PostAttachmentsRow.
     const imageUrls = useMemo(
-        () => (isRemoteAvatar && avatarSource ? [avatarSource] : []),
-        [isRemoteAvatar, avatarSource],
+        () => (avatarSource && (avatarSource.startsWith('http://') || avatarSource.startsWith('https://')) ? [avatarSource] : []),
+        [avatarSource],
     );
 
     useImagePreload(imageUrls, true);

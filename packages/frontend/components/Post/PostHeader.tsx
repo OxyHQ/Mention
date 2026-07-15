@@ -70,13 +70,14 @@ interface PostHeaderProps {
    */
   contextTop?: React.ReactNode;
   /**
-   * Avatar image source passed straight to Bloom's {@link Avatar}. Accepts a full
-   * http(s) URL (federated/remote actor avatar — rendered directly) OR a bare Oxy
-   * file id for a LOCAL actor — Bloom's `ImageResolver` resolves the file id with
-   * {@link avatarVariant}. The federated-vs-local branch is owned by the caller
-   * (it picks the URL or the file id); Bloom disambiguates URL vs file id again.
+   * Avatar image source passed straight to Bloom's {@link Avatar}, which
+   * accepts this exact shape natively — a bare Oxy file id (resolved with
+   * {@link avatarVariant}), an absolute http(s) URL (rendered directly,
+   * `avatarVariant` ignored), or `null`/`undefined` (no author avatar yet).
+   * No branching or coercion needed here: pass `user.avatar` straight
+   * through, for local and federated authors alike.
    */
-  avatarSource?: string;
+  avatarSource?: string | null;
   /**
    * Rendition variant for `avatarSource` when it is a bare file id (local actor).
    * Ignored by Bloom when `avatarSource` is already a full URL.
