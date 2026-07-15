@@ -5,6 +5,7 @@ import { router } from 'expo-router';
 import { ThemedText } from './ThemedText';
 import { Avatar } from '@oxyhq/bloom/avatar';
 import { AvatarGroup, type AvatarGroupItem } from '@oxyhq/bloom/avatar-group';
+import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types';
 import * as Skeleton from '@oxyhq/bloom/skeleton';
 import { formatCompactNumber } from '@/utils/formatNumber';
 
@@ -113,6 +114,7 @@ export function FeedCard({
                 <Avatar
                     source={feed.avatar || feed.creator?.avatar}
                     size={36}
+                    variant={MEDIA_VARIANT_AVATAR}
                     shape="squircle"
                 />
 
@@ -134,7 +136,7 @@ export function FeedCard({
 
                 {/* Right side: avatar cluster or custom slot */}
                 {avatarItems.length > 0 ? (
-                    <AvatarGroup items={avatarItems} size={28} max={3} />
+                    <AvatarGroup items={avatarItems} size={28} max={3} variant={MEDIA_VARIANT_AVATAR} />
                 ) : headerRight ? (
                     <View>{headerRight}</View>
                 ) : null}

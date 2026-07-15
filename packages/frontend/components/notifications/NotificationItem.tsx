@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Ionicons } from '@expo/vector-icons';
 import { Avatar } from '@oxyhq/bloom/avatar';
+import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types';
 import { Button } from '@oxyhq/bloom/button';
 import { SubtleHover } from '@oxyhq/bloom/subtle-hover';
 import { useTheme } from '@oxyhq/bloom/theme';
@@ -215,7 +216,7 @@ const AvatarStrip: React.FC<{ actors: ResolvedActor[]; totalActors: number }> = 
           style={{ zIndex: shown.length - index }}
         >
           <View className="border-2 border-background rounded-full">
-            <Avatar source={actor.avatar} size={STACK_AVATAR_SIZE} />
+            <Avatar source={actor.avatar} size={STACK_AVATAR_SIZE} variant={MEDIA_VARIANT_AVATAR} />
           </View>
         </View>
       ))}
@@ -491,7 +492,7 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({ item, onMa
         <View className="flex-row items-start justify-between">
           {/* Avatar column: avatar + themed action-badge overlay. */}
           <View className="relative mr-3">
-            <Avatar source={resolvedPrimary.avatar} size={AVATAR_SIZE} />
+            <Avatar source={resolvedPrimary.avatar} size={AVATAR_SIZE} variant={MEDIA_VARIANT_AVATAR} />
             <View
               className="absolute -bottom-0.5 -right-0.5 w-5 h-5 rounded-full border-2 border-background items-center justify-center"
               style={{ backgroundColor: badgeColor }}
@@ -553,7 +554,7 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({ item, onMa
                         className="flex-row items-center gap-2"
                         accessibilityRole="button"
                       >
-                        <Avatar source={actor.avatar} size={STACK_AVATAR_SIZE} />
+                        <Avatar source={actor.avatar} size={STACK_AVATAR_SIZE} variant={MEDIA_VARIANT_AVATAR} />
                         <UserName name={actorLabel(actor, someone)} variant="small" />
                       </Pressable>
                     ))}

@@ -4,6 +4,7 @@ import { Avatar } from '@oxyhq/bloom/avatar';
 import { Loading } from '@oxyhq/bloom/loading';
 import { useTranslation } from 'react-i18next';
 import type { HydratedPost, HydratedPostSummary } from '@mention/shared-types';
+import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types';
 import { getNormalizedUserHandle } from '@oxyhq/core';
 
 import { CloseIcon } from '@/assets/icons/close-icon';
@@ -45,14 +46,15 @@ const QuoteCard: React.FC<QuoteCardProps> = ({ post, loading, onDismiss }) => {
   // Federation-aware avatar source for Bloom's Avatar (via the app-wide
   // ImageResolver): a FEDERATED/remote actor carries an absolute http(s) URL
   // (rendered directly; variant ignored); a LOCAL actor carries an Oxy file id
-  // (resolved with `variant="thumb"`). Bloom disambiguates URL vs file id, so we
-  // pass the raw value through and only steer the variant.
+  // (resolved with `variant={MEDIA_VARIANT_AVATAR}` — the 128px crop). Bloom
+  // disambiguates URL vs file id, so we pass the raw value through and only steer
+  // the variant.
   const avatar = useMemo(() => {
     const raw = post?.user?.avatar;
     if (typeof raw !== 'string' || !raw) return { source: undefined, variant: undefined };
     const isRemote =
       post?.user?.isFederated === true || raw.startsWith('http://') || raw.startsWith('https://');
-    return { source: raw, variant: isRemote ? undefined : 'thumb' };
+    return { source: raw, variant: isRemote ? undefined : MEDIA_VARIANT_AVATAR };
   }, [post]);
 
   if (loading) {

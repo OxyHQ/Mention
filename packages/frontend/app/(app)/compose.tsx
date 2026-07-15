@@ -36,6 +36,7 @@ import { show as toast } from '@oxyhq/bloom/toast';
 import { usePostsStore } from '@/stores/postsStore';
 import { feedService } from '@/services/feedService';
 import type { CreatePostRequest, HydratedPost } from '@mention/shared-types';
+import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types';
 import { useTheme } from '@oxyhq/bloom/theme';
 import MentionTextInput, { MentionData, MentionTextInputHandle } from '@/components/MentionTextInput';
 import SEO from '@/components/SEO';
@@ -1920,7 +1921,7 @@ const ComposeScreenBody = () => {
                       verified: Boolean(user?.verified)
                     }}
                     avatarSource={user?.avatar ?? undefined}
-                    avatarVariant="thumb"
+                    avatarVariant={MEDIA_VARIANT_AVATAR}
                     avatarSize={AVATAR_SIZE}
                     onPressUser={() => { }}
                     onPressAvatar={() => { }}
@@ -2354,6 +2355,7 @@ const ComposeScreenBody = () => {
                     <Avatar
                       source={user?.avatar}
                       size={40}
+                      variant={MEDIA_VARIANT_AVATAR}
                       verified={Boolean(user?.verified)}
                       style={avatarMarginStyle}
                     />

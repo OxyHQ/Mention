@@ -12,6 +12,7 @@ import { Loading } from '@oxyhq/bloom/loading';
 import { cn } from "@/lib/utils";
 import { useAuth } from "@oxyhq/services";
 import { Avatar } from '@oxyhq/bloom/avatar';
+import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types';
 import { logger } from '@/lib/logger';
 import { displayNameOrHandle } from '@/utils/displayName';
 
@@ -134,6 +135,7 @@ const MentionPicker: React.FC<MentionPickerProps> = ({
                             <Avatar
                                 source={item.avatar}
                                 size={40}
+                                variant={MEDIA_VARIANT_AVATAR}
                             />
                             <View style={styles.userInfo}>
                                 <View style={styles.userNameRow}>

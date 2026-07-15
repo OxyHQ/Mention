@@ -5,6 +5,7 @@ import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { ThemedText } from './ThemedText';
 import { Avatar } from '@oxyhq/bloom/avatar';
+import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types';
 import { cn } from '@/lib/utils';
 
 /**
@@ -82,6 +83,7 @@ export function ListCard({
                 <Avatar
                     source={list.avatar || undefined}
                     size={40}
+                    variant={MEDIA_VARIANT_AVATAR}
                 />
                 <View className="flex-1 gap-1">
                     <ThemedText

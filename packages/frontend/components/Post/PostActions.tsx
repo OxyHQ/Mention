@@ -8,6 +8,7 @@ import { ShareIcon } from '@/assets/icons/share-icon';
 import { Bookmark, BookmarkActive } from '@/assets/icons/bookmark-icon';
 import { AnalyticsIcon } from '@/assets/icons/analytics-icon';
 import { Avatar } from '@oxyhq/bloom/avatar';
+import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types';
 
 import { useTheme } from '@oxyhq/bloom/theme';
 import { useHaptics } from '@oxyhq/bloom/hooks';
@@ -437,7 +438,7 @@ const PostActions: React.FC<Props> = ({
                     { zIndex: 3 - i },
                   ]}
                 >
-                  <Avatar source={avatarId} size={MINI_AVATAR} />
+                  <Avatar source={avatarId} size={MINI_AVATAR} variant={MEDIA_VARIANT_AVATAR} />
                 </View>
               ))}
             </View>

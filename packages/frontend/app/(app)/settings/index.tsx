@@ -11,6 +11,7 @@ import { useRouter } from "expo-router";
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { useProfileData } from "@/hooks/useProfileData";
 import { Avatar } from '@oxyhq/bloom/avatar';
+import { MEDIA_VARIANT_VIDEO_POSTER } from '@mention/shared-types';
 import { Button } from "@/components/ui/Button";
 import { SettingsListGroup, SettingsListItem } from '@oxyhq/bloom/settings-list';
 import { Loading } from '@oxyhq/bloom/loading';
@@ -125,6 +126,7 @@ export default function SettingsScreen() {
                         <Avatar
                             source={currentUserProfile.avatar}
                             size={80}
+                            variant={MEDIA_VARIANT_VIDEO_POSTER}
                         />
                         <Text className="text-2xl font-bold text-foreground mt-2" numberOfLines={1}>
                             {currentUserProfile.design.displayName}

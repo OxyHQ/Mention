@@ -7,6 +7,7 @@ import {
   Image,
 } from 'react-native';
 import { Avatar } from '@oxyhq/bloom/avatar';
+import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types';
 import PostArticlePreview from '@/components/Post/PostArticlePreview';
 import PostAttachmentEvent from '@/components/Post/Attachments/PostAttachmentEvent';
 import RoomCard from '@/components/RoomCard';
@@ -180,6 +181,7 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(({
             <Avatar
               source={userAvatar}
               size={40}
+              variant={MEDIA_VARIANT_AVATAR}
               verified={userVerified}
               style={avatarStyle}
             />

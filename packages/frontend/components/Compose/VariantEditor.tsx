@@ -1,6 +1,7 @@
 import React, { memo, useCallback } from 'react';
 import { Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Avatar } from '@oxyhq/bloom/avatar';
+import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types';
 import { Loading } from '@oxyhq/bloom/loading';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { useTranslation } from 'react-i18next';
@@ -105,7 +106,7 @@ const VariantEditor = memo(function VariantEditor({
   return (
     <View style={[styles.container, !isFocused && styles.unfocused]}>
       <View style={styles.headerRow}>
-        <Avatar source={userAvatar} size={AVATAR_SIZE} verified={userVerified} style={styles.avatar} />
+        <Avatar source={userAvatar} size={AVATAR_SIZE} variant={MEDIA_VARIANT_AVATAR} verified={userVerified} style={styles.avatar} />
         <View style={styles.column}>
           <MentionTextInput
             className="text-foreground"

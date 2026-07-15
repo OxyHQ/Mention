@@ -3,6 +3,7 @@ import { View, Text, TextInput, TouchableOpacity, ScrollView, Platform, type Tex
 import { useLocalSearchParams, router } from 'expo-router';
 import { SpinnerIcon } from '@oxyhq/bloom/loading';
 import { Avatar } from '@oxyhq/bloom/avatar';
+import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types';
 import { Button } from '@oxyhq/bloom/button';
 import { Item } from '@oxyhq/bloom/item';
 import { SearchInput } from '@oxyhq/bloom/search-input';
@@ -337,7 +338,7 @@ export default function EditStarterPackScreen() {
               return (
                 <View key={u.id} className={cn(index < results.length - 1 && 'border-b border-border')}>
                   <Item
-                    leading={<Avatar source={u.avatar} name={u.name.displayName} size={40} />}
+                    leading={<Avatar source={u.avatar} name={u.name.displayName} size={40} variant={MEDIA_VARIANT_AVATAR} />}
                     title={u.name.displayName}
                     subtitle={`@${u.username}`}
                     onPress={blockedByCap || already || busy ? undefined : () => addMember(u)}
@@ -400,7 +401,7 @@ export default function EditStarterPackScreen() {
               return (
                 <View key={m.id} className={cn(index < members.length - 1 && 'border-b border-border')}>
                   <Item
-                    leading={<Avatar source={m.avatar} name={m.name.displayName} size={40} />}
+                    leading={<Avatar source={m.avatar} name={m.name.displayName} size={40} variant={MEDIA_VARIANT_AVATAR} />}
                     title={m.name.displayName}
                     subtitle={`@${m.username}`}
                     trailing={

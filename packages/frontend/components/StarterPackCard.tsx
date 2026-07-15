@@ -4,6 +4,7 @@ import { PressableScale } from '@oxyhq/bloom/pressable-scale';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { AvatarGroup, type AvatarGroupItem } from '@oxyhq/bloom/avatar-group';
+import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types';
 import { useAuth } from '@oxyhq/services';
 import { router } from 'expo-router';
 import { ThemedText } from './ThemedText';
@@ -103,6 +104,7 @@ export function StarterPackCard({ pack, onPress, noDescription }: StarterPackCar
         <AvatarGroup
           items={avatarItems}
           size={32}
+          variant={MEDIA_VARIANT_AVATAR}
           max={MAX_ROW_AVATARS}
           total={pack.totalMembers ?? pack.memberCount}
           ringColor={theme.colors.card}

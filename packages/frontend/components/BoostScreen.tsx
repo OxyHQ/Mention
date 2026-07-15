@@ -14,6 +14,7 @@ import {
 import { show as toast } from '@oxyhq/bloom/toast';
 import { Dialog, useDialogControl } from '@oxyhq/bloom/dialog';
 import { Avatar } from '@oxyhq/bloom/avatar';
+import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types';
 
 import UserName from "./UserName";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -149,7 +150,7 @@ const BoostScreen: React.FC = () => {
                 {/* Original Post */}
                 <View className="py-4 border-b border-border mb-4">
                     <View className="flex-row items-center mb-2">
-                        <Avatar source={originalPost.user.avatar ?? undefined} size={32} style={{ marginRight: 8 }} />
+                        <Avatar source={originalPost.user.avatar ?? undefined} size={32} variant={MEDIA_VARIANT_AVATAR} style={{ marginRight: 8 }} />
                         <View className="flex-1">
                             <UserName
                                 name={originalPost.user.name?.displayName}
@@ -169,6 +170,7 @@ const BoostScreen: React.FC = () => {
                         <Avatar
                             source={user?.avatar}
                             size={48}
+                            variant={MEDIA_VARIANT_AVATAR}
                             style={{ marginRight: 12 }}
                         />
                         <View className="justify-center">

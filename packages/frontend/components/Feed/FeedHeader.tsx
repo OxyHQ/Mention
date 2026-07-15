@@ -4,6 +4,7 @@ import { useAuth } from '@oxyhq/services';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Avatar } from '@oxyhq/bloom/avatar';
+import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types';
 import { ThemedText } from '@/components/ThemedText';
 import { useTheme } from '@oxyhq/bloom/theme';
 
@@ -69,6 +70,7 @@ export const FeedHeader = memo<FeedHeaderProps>(
                 <Avatar
                     source={user.avatar || undefined}
                     size={32}
+                    variant={MEDIA_VARIANT_AVATAR}
                 />
                 <View style={styles.textRow}>
                     <ThemedText

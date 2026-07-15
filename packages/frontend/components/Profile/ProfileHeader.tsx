@@ -9,6 +9,7 @@ import { useTheme } from '@oxyhq/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import { ZoomableAvatar } from '@/components/ZoomableAvatar';
 import { LiveAvatar } from '@/components/ui/LiveAvatar';
+import { MEDIA_VARIANT_VIDEO_POSTER } from '@mention/shared-types';
 import { useLiveUsers } from '@/hooks/useLiveUsers';
 import { useLayoutScroll } from '@/context/LayoutScrollContext';
 import { AnalyticsIcon } from '@/assets/icons/analytics-icon';
@@ -89,7 +90,7 @@ export const ProfileHeaderDefault = memo(function ProfileHeaderDefault({
             className="border-[3px] border-background bg-secondary rounded-full"
             style={liveAvatarCollapseStyle}
           >
-            <LiveAvatar userId={profileId} source={avatarUri ?? undefined} size={90} />
+            <LiveAvatar userId={profileId} source={avatarUri ?? undefined} size={90} variant={MEDIA_VARIANT_VIDEO_POSTER} />
           </Animated.View>
         ) : (
           <ZoomableAvatar
@@ -209,7 +210,7 @@ export const ProfileHeaderMinimalist = memo(function ProfileHeaderMinimalist({
       <View className="relative">
         {isProfileLive ? (
           <View className="border-[3px] border-background bg-secondary rounded-full">
-            <LiveAvatar userId={profileId} source={avatarUri ?? undefined} size={70} />
+            <LiveAvatar userId={profileId} source={avatarUri ?? undefined} size={70} variant={MEDIA_VARIANT_VIDEO_POSTER} />
           </View>
         ) : (
           <ZoomableAvatar

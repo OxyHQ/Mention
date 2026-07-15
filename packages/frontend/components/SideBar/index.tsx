@@ -14,6 +14,7 @@ import { useTranslation } from "react-i18next";
 import { useUnreadCount } from "@/hooks/useUnreadCount";
 import { SideBarItem } from "./SideBarItem";
 import { Avatar } from '@oxyhq/bloom/avatar';
+import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types';
 
 import { Home, HomeActive } from "@/assets/icons/home-icon";
 import { Bookmark, BookmarkActive } from "@/assets/icons/bookmark-icon";
@@ -110,8 +111,8 @@ export function SideBar({ asDrawer = false, onNavigate }: SideBarProps) {
         },
         ...(user ? [{
             title: t("sidebar.profile"),
-            icon: <Avatar source={avatarUri} size={24} />,
-            iconActive: <Avatar source={avatarUri} size={24} />,
+            icon: <Avatar source={avatarUri} size={24} variant={MEDIA_VARIANT_AVATAR} />,
+            iconActive: <Avatar source={avatarUri} size={24} variant={MEDIA_VARIANT_AVATAR} />,
             onPress: () => {
                 if (profileHandle) {
                     handleNavPress(`/@${profileHandle}`);

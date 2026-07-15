@@ -17,6 +17,7 @@ import { statisticsService, UserStatistics } from '@/services/statisticsService'
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@oxyhq/services';
 import { Avatar } from '@oxyhq/bloom/avatar';
+import { MEDIA_VARIANT_VIDEO_POSTER } from '@mention/shared-types';
 import StatCard from '@/components/insights/StatCard';
 import { formatCompactNumber } from '@/utils/formatNumber';
 import { logger } from '@/lib/logger';
@@ -328,6 +329,7 @@ const WeeklyRecapScreen: React.FC = () => {
                     <Avatar
                         source={avatarUri}
                         size={72}
+                        variant={MEDIA_VARIANT_VIDEO_POSTER}
                     />
                     <Text className="text-2xl font-bold mt-4 mb-2 text-foreground" style={{ letterSpacing: -0.3 }}>
                         {t('insights.weeklyRecap.pageTitle')}

@@ -3,6 +3,7 @@ import { View, Text, TextInput, TouchableOpacity, ScrollView, Platform, type Tex
 import { useLocalSearchParams } from 'expo-router';
 import { SpinnerIcon } from '@oxyhq/bloom/loading';
 import { Avatar } from '@oxyhq/bloom/avatar';
+import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types';
 import { show as toast } from '@oxyhq/bloom/toast';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { Ionicons } from '@expo/vector-icons';
@@ -251,7 +252,7 @@ export default function EditListMembersScreen() {
                   disabled={already || busy}
                   activeOpacity={0.7}
                 >
-                  <Avatar source={u.avatar} size={36} />
+                  <Avatar source={u.avatar} size={36} variant={MEDIA_VARIANT_AVATAR} />
                   <View className="flex-1">
                     <Text className="text-foreground font-medium" numberOfLines={1}>@{u.username}</Text>
                     <Text className="text-muted-foreground text-xs" numberOfLines={1}>{u.name.displayName}</Text>
@@ -288,7 +289,7 @@ export default function EditListMembersScreen() {
               const busy = pendingIds.has(m.id);
               return (
                 <View key={m.id} className="flex-row items-center gap-3 px-3 py-2.5 border-b border-border">
-                  <Avatar source={m.avatar} size={36} />
+                  <Avatar source={m.avatar} size={36} variant={MEDIA_VARIANT_AVATAR} />
                   <View className="flex-1">
                     <Text className="text-foreground font-medium" numberOfLines={1}>@{m.username}</Text>
                     <Text className="text-muted-foreground text-xs" numberOfLines={1}>{m.name.displayName}</Text>

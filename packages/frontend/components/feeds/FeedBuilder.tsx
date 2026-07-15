@@ -3,6 +3,7 @@ import { View, Text, TextInput, TouchableOpacity, ScrollView, Platform, StyleShe
 import { Loading } from '@oxyhq/bloom/loading';
 import { Ionicons } from '@expo/vector-icons';
 import { Avatar } from '@oxyhq/bloom/avatar';
+import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types';
 import { SettingsListGroup, SettingsListItem } from '@oxyhq/bloom/settings-list';
 import { show as toast } from '@oxyhq/bloom/toast';
 import { useTranslation } from 'react-i18next';
@@ -184,7 +185,7 @@ const AccountPicker = ({
 
       {selected.map((u) => (
         <View key={u.id} className="flex-row items-center gap-3">
-          <Avatar source={u.avatar ?? undefined} size={36} />
+          <Avatar source={u.avatar ?? undefined} size={36} variant={MEDIA_VARIANT_AVATAR} />
           <View className="flex-1">
             <Text className="text-[15px] font-semibold text-foreground" numberOfLines={1}>{accountName(u)}</Text>
             <Text className="text-[13px] text-muted-foreground" numberOfLines={1}>@{u.username}</Text>
@@ -209,7 +210,7 @@ const AccountPicker = ({
 
       {results.map((u) => (
         <TouchableOpacity key={u.id} className="flex-row items-center gap-3 py-1.5" onPress={() => add(u)} activeOpacity={0.7}>
-          <Avatar source={u.avatar ?? undefined} size={36} />
+          <Avatar source={u.avatar ?? undefined} size={36} variant={MEDIA_VARIANT_AVATAR} />
           <View className="flex-1">
             <Text className="text-[15px] font-semibold text-foreground" numberOfLines={1}>{accountName(u)}</Text>
             <Text className="text-[13px] text-muted-foreground" numberOfLines={1}>@{u.username}</Text>

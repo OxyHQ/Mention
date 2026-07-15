@@ -10,6 +10,7 @@ import { useTheme } from '@oxyhq/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import { searchService } from '@/services/searchService';
 import { Avatar } from '@oxyhq/bloom/avatar';
+import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types';
 import { SettingsListGroup, SettingsListItem } from '@oxyhq/bloom/settings-list';
 import { Icon } from '@/lib/icons';
 import { useFocusEffect } from 'expo-router';
@@ -388,7 +389,7 @@ export default function BlockedUsersScreen() {
                             return (
                                 <SettingsListItem
                                     key={userId}
-                                    icon={<Avatar source={user.avatar} size={36} />}
+                                    icon={<Avatar source={user.avatar} size={36} variant={MEDIA_VARIANT_AVATAR} />}
                                     title={user.name.displayName}
                                     description={`@${handle}`}
                                     onPress={() => !isBlocking && handleBlock(user)}
@@ -439,7 +440,7 @@ export default function BlockedUsersScreen() {
                             return (
                                 <SettingsListItem
                                     key={userId}
-                                    icon={<Avatar source={user.avatar} size={40} />}
+                                    icon={<Avatar source={user.avatar} size={40} variant={MEDIA_VARIANT_AVATAR} />}
                                     title={user.name.displayName}
                                     description={`@${handle}`}
                                     showChevron={false}
