@@ -22,6 +22,7 @@ import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { Avatar } from '@oxyhq/bloom/avatar';
+import { MEDIA_VARIANT_VIDEO_POSTER } from '@mention/shared-types';
 import { ProfileCard, ProfileCardSkeletonList } from '@/components/ProfileCard';
 
 import Feed from '@/components/Feed/Feed';
@@ -149,6 +150,7 @@ export default function ListDetailScreen() {
         <Avatar
           source={list?.avatar || undefined}
           size={58}
+          variant={MEDIA_VARIANT_VIDEO_POSTER}
           style={{ borderRadius: 12 }}
         />
         <View className="flex-1 justify-center">

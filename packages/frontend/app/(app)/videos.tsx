@@ -18,6 +18,7 @@ import { feedService } from '@/services/feedService';
 import { proxyExternalUrl, videoPosterUrl } from '@/utils/imageUrlCache';
 import { SpinnerIcon } from '@oxyhq/bloom/loading';
 import { Avatar } from '@oxyhq/bloom/avatar';
+import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types';
 import SEO from '@/components/SEO';
 import { EmptyState } from '@/components/common/EmptyState';
 import { Video } from '@/assets/icons/video-icon';
@@ -717,6 +718,7 @@ const VideoItem = memo<VideoItemProps>(({
                                 <Avatar
                                     source={item.user?.avatar ?? undefined}
                                     size={40}
+                                    variant={MEDIA_VARIANT_AVATAR}
                                     verified={item.user?.verified || false}
                                     style={styles.userAvatar}
                                 />

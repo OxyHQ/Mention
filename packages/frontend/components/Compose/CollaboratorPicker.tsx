@@ -3,6 +3,7 @@ import { View, Text, TextInput, TouchableOpacity, StyleSheet, FlatList } from 'r
 import { Loading } from '@oxyhq/bloom/loading';
 import { useAuth } from '@oxyhq/services';
 import { Avatar } from '@oxyhq/bloom/avatar';
+import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
 import { logger } from '@/lib/logger';
@@ -91,7 +92,7 @@ const CollaboratorPicker: React.FC<CollaboratorPickerProps> = ({ selected, onCha
         <View className="flex-row flex-wrap gap-2 mb-2">
           {selected.map((collab) => (
             <View key={collab.id} className="flex-row items-center bg-surface border border-border rounded-full pl-1 pr-2 py-1 gap-1">
-              <Avatar source={collab.avatar} size={24} />
+              <Avatar source={collab.avatar} size={24} variant={MEDIA_VARIANT_AVATAR} />
               <Text className="text-foreground text-sm" numberOfLines={1}>
                 {displayNameOrHandle(collab.displayName, `@${collab.username}`)}
               </Text>
@@ -150,7 +151,7 @@ const CollaboratorPicker: React.FC<CollaboratorPickerProps> = ({ selected, onCha
                   }
                   renderItem={({ item }) => (
                     <TouchableOpacity className="flex-row items-center px-3 py-2 gap-3" onPress={() => addUser(item)}>
-                      <Avatar source={item.avatar} size={32} />
+                      <Avatar source={item.avatar} size={32} variant={MEDIA_VARIANT_AVATAR} />
                       <View className="flex-1">
                         <Text className="text-foreground text-[15px] font-medium">
                           {displayNameOrHandle(item.displayName, item.username)}

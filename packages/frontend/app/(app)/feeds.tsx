@@ -20,6 +20,7 @@ import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';
 import { BottomBarAwareFab } from '@/components/BottomBarAwareFab';
 import { Avatar } from '@oxyhq/bloom/avatar';
+import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types';
 
 import SEO from '@/components/SEO';
 
@@ -155,7 +156,7 @@ const FeedRow = ({
         accessibilityRole="button"
         accessibilityLabel={item.title || 'Untitled Feed'}
       >
-        <Avatar source={item.avatar || undefined} size={36} />
+        <Avatar source={item.avatar || undefined} size={36} variant={MEDIA_VARIANT_AVATAR} />
         <View className="flex-1 gap-0.5">
           <Text className="text-[15px] font-semibold text-foreground" numberOfLines={1}>
             {item.title || 'Untitled Feed'}

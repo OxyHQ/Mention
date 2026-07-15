@@ -12,6 +12,7 @@ import { AgentIcon } from '@/assets/icons/agent-icon';
 import { AutomatedIcon } from '@/assets/icons/automated-icon';
 import { displayNameOrHandle } from '@/utils/displayName';
 import { getUserPlaceholderColor } from '@/utils/userPlaceholderColor';
+import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types';
 import { cn } from '@/lib/utils';
 
 /**
@@ -130,7 +131,7 @@ export function ProfileCard({
         <Avatar
           source={profile.avatar || undefined}
           size={40}
-          variant="thumb"
+          variant={MEDIA_VARIANT_AVATAR}
           verified={profile.verified}
           placeholderColor={getUserPlaceholderColor(profile)}
         />

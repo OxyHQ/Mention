@@ -3,6 +3,7 @@ import { Pressable, Text } from 'react-native';
 import { router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { AvatarGroup, type AvatarGroupItem } from '@oxyhq/bloom/avatar-group';
+import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types';
 import { useMutualFollowers } from '@/hooks/useMutualFollowers';
 import { displayNameOrHandle } from '@/utils/displayName';
 
@@ -76,7 +77,7 @@ export const FollowedByRow = memo(function FollowedByRow({ profileId, username }
       accessibilityRole="button"
       accessibilityLabel={label}
     >
-      <AvatarGroup items={avatarItems} size={20} max={3} total={total} variant="thumb" />
+      <AvatarGroup items={avatarItems} size={20} max={3} total={total} variant={MEDIA_VARIANT_AVATAR} />
       <Text className="text-muted-foreground text-[15px] shrink" numberOfLines={1}>
         {label}
       </Text>

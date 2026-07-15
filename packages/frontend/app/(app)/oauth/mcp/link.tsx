@@ -7,6 +7,7 @@ import { useTheme } from '@oxyhq/bloom/theme';
 import { useAuth, OxyAuthPrompt } from '@oxyhq/services';
 import { getNormalizedUserHandle } from '@oxyhq/core';
 import { Avatar } from '@oxyhq/bloom/avatar';
+import { MEDIA_VARIANT_VIDEO_POSTER } from '@mention/shared-types';
 import { ThemedView } from '@/components/ThemedView';
 import { Header } from '@/components/Header';
 import { IconButton, Button } from '@/components/ui/Button';
@@ -144,7 +145,7 @@ function LinkBody({ token }: { token: string }) {
     >
       <View className="items-center gap-3">
         {currentUserProfile ? (
-          <Avatar source={currentUserProfile.avatar} size={72} />
+          <Avatar source={currentUserProfile.avatar} size={72} variant={MEDIA_VARIANT_VIDEO_POSTER} />
         ) : (
           <View
             className="w-[72px] h-[72px] rounded-full items-center justify-center"

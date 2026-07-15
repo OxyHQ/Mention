@@ -7,6 +7,7 @@ import { useTheme } from '@oxyhq/bloom/theme';
 import { useAuth, OxyAuthPrompt } from '@oxyhq/services';
 import { getNormalizedUserHandle } from '@oxyhq/core';
 import { Avatar } from '@oxyhq/bloom/avatar';
+import { MEDIA_VARIANT_VIDEO_POSTER } from '@mention/shared-types';
 import { ThemedView } from '@/components/ThemedView';
 import { Header } from '@/components/Header';
 import { IconButton, Button } from '@/components/ui/Button';
@@ -167,7 +168,7 @@ function ConsentBody({ params }: { params: Required<Pick<McpAuthorizeParams, 'cl
       <View className="items-center gap-4">
         <View className="flex-row items-center gap-3">
           {currentUserProfile ? (
-            <Avatar source={currentUserProfile.avatar} size={56} />
+            <Avatar source={currentUserProfile.avatar} size={56} variant={MEDIA_VARIANT_VIDEO_POSTER} />
           ) : (
             <View
               className="w-14 h-14 rounded-full items-center justify-center"

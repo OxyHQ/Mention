@@ -45,6 +45,7 @@ import { useHapticsStore } from '@/stores/hapticsStore';
 import { oxyServices } from '@/lib/oxyServices';
 import { queryClient } from '@/lib/queryClient';
 import { getCachedFileDownloadUrlSync } from '@/utils/imageUrlCache';
+import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types';
 import { AppInitializer } from '@/lib/appInitializer';
 import { logger } from '@/lib/logger';
 import { useShareIntentRouter } from '@/lib/shareIntent';
@@ -62,9 +63,18 @@ if (Platform.OS !== 'web') {
 }
 
 // Resolve file IDs → download URLs for Bloom's useImageResolver(). Honors the
-// rendition `variant` Bloom forwards, defaulting to 'thumb' so small avatars stay light.
+// rendition `variant` a caller forwards. This resolver is AVATAR-ONLY in practice
+// — its only consumers are Bloom's <Avatar>/<AvatarGroup> and <ZoomableAvatar>
+// (post media, banners and link previews resolve through their own dedicated
+// getFileDownloadUrl paths). When a caller omits `variant`, default to the 128px
+// square `avatar` crop (MEDIA_VARIANT_AVATAR) so bare-id avatars stay light.
+// Larger avatars (profile header, settings) request an explicit heavier variant
+// at their call site rather than relying on this default, so they are never
+// shrunk here. NOTE: Bloom's <Avatar> supplies its own `variant` default, so most
+// small avatars must ALSO pass an explicit variant={MEDIA_VARIANT_AVATAR} — this
+// default only covers direct useImageResolver callers that omit it.
 function resolveImageSource(fileId: string, variant?: string): string | undefined {
-  const url = getCachedFileDownloadUrlSync(oxyServices, fileId, variant ?? 'thumb');
+  const url = getCachedFileDownloadUrlSync(oxyServices, fileId, variant ?? MEDIA_VARIANT_AVATAR);
   return url && url.startsWith('http') ? url : undefined;
 }
 

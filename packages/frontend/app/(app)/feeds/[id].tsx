@@ -28,6 +28,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { ComposeIcon } from '@/assets/icons/compose-icon';
 import { BottomBarAwareFab } from '@/components/BottomBarAwareFab';
 import { Avatar } from '@oxyhq/bloom/avatar';
+import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types';
 
 import { formatCompactNumber } from '@/utils/formatNumber';
 import StarRating from '@/components/StarRating';
@@ -106,7 +107,7 @@ const FeedHeaderBar = React.memo(function FeedHeaderBar({
         {({ pressed }) => (
           <>
             <View style={[headerStyles.pressHighlight, pressed && { opacity: 1 }]} className="bg-secondary" />
-            <Avatar source={feed.coverImage} size={36} />
+            <Avatar source={feed.coverImage} size={36} variant={MEDIA_VARIANT_AVATAR} />
             <View className="flex-1">
               <Text className="text-[15px] font-bold leading-snug text-foreground" numberOfLines={2}>
                 {feed.title}
@@ -183,7 +184,7 @@ const FeedInfoContent = React.memo(function FeedInfoContent({
     <View className="gap-4 px-5 pb-8 pt-2">
       {/* Avatar + title + share */}
       <View className="flex-row items-center gap-3.5">
-        <Avatar source={feed.coverImage} size={48} />
+        <Avatar source={feed.coverImage} size={48} variant={MEDIA_VARIANT_AVATAR} />
         <View className="flex-1 gap-0.5">
           <Text className="text-2xl font-bold leading-tight text-foreground" numberOfLines={2}>
             {feed.title}
@@ -338,7 +339,7 @@ const ProfilesTab = React.memo(function ProfilesTab({ members }: { members: Feed
             disabled={!handle}
             activeOpacity={0.7}
           >
-            <Avatar source={member.avatar ?? undefined} size={44} />
+            <Avatar source={member.avatar ?? undefined} size={44} variant={MEDIA_VARIANT_AVATAR} />
             <View className="flex-1 gap-0.5">
               <Text className="text-[15px] font-semibold text-foreground" numberOfLines={1}>
                 {name}
@@ -586,7 +587,7 @@ const ReviewsTab = React.memo(function ReviewsTab({ feedId }: { feedId: string }
               style={[reviewStyles.reviewCard, { borderBottomColor: theme.colors.border }]}
             >
               <View className="flex-row items-start gap-2.5">
-                <Avatar source={review.reviewer?.avatar ?? undefined} size={36} />
+                <Avatar source={review.reviewer?.avatar ?? undefined} size={36} variant={MEDIA_VARIANT_AVATAR} />
                 <View className="flex-1 gap-[3px]">
                   <Text className="text-[15px] font-semibold text-foreground" numberOfLines={1}>
                     {reviewerName}

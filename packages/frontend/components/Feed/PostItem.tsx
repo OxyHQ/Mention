@@ -11,6 +11,7 @@ import {
     PostEngagementSummary,
     PostLinkPreview,
     PostRoomContent,
+    MEDIA_VARIANT_AVATAR,
 } from '@mention/shared-types';
 import { usePostSelector } from '../../stores/postsStore';
 import PostHeader, { HEADER_CONTENT_GAP, POST_CONTEXT_ROW_HEIGHT } from '../Post/PostHeader';
@@ -254,8 +255,9 @@ const PostItem: React.FC<PostItemProps> = ({
     // Avatar (via the app-wide ImageResolver). FEDERATED/remote actors carry a
     // remote http(s) avatar URL — passed straight through; the `variant` is
     // ignored for absolute URLs. LOCAL actors carry an Oxy file id — passed as
-    // `source` with `variant="thumb"` so Bloom's resolver fetches the thumb
-    // rendition. We no longer pre-resolve the file id with `useImageUrl`.
+    // `source` with `variant={MEDIA_VARIANT_AVATAR}` so Bloom's resolver fetches
+    // the lightweight 128px avatar rendition. We no longer pre-resolve the file
+    // id with `useImageUrl`.
     //
     // The backend emits the canonical Oxy `User` shape: `avatar` is a bare Oxy
     // file id for local actors and an absolute remote URL for federated actors.
@@ -270,7 +272,7 @@ const PostItem: React.FC<PostItemProps> = ({
     // Federated avatars are mirrored into Oxy at resolve/hydration time and arrive
     // as file ids or cloud.oxy.so URLs — same path as local users. No client proxy.
     const avatarSource = typeof rawAvatar === 'string' ? rawAvatar : undefined;
-    const avatarVariant = isRemoteAvatar ? undefined : 'thumb';
+    const avatarVariant = isRemoteAvatar ? undefined : MEDIA_VARIANT_AVATAR;
 
     // Preload only when the avatar is already an absolute URL (remote/federated).
     // Local file ids are resolved+cached by Bloom's resolver, and media items are

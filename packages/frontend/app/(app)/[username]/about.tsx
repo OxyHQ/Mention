@@ -4,6 +4,7 @@ import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { Avatar } from '@oxyhq/bloom/avatar';
+import { MEDIA_VARIANT_VIDEO_POSTER } from '@mention/shared-types';
 import { Link, useLocalSearchParams } from 'expo-router';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import React, { useMemo } from 'react';
@@ -141,6 +142,7 @@ function AccountInfoContent({ profileData, profileLoading }: AccountInfoContentP
             <Avatar
               source={profileData.design.avatar || profileData.avatar}
               size={56}
+              variant={MEDIA_VARIANT_VIDEO_POSTER}
               verified={profileData.verified}
             />
           </View>

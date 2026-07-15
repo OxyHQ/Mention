@@ -13,6 +13,7 @@ import { usePostActivity } from '@/hooks/usePostActivity';
 import { formatCompactNumber } from '@/utils/formatNumber';
 import { Portal } from '@oxyhq/bloom/portal';
 import { Avatar } from '@oxyhq/bloom/avatar';
+import { MEDIA_VARIANT_VIDEO_POSTER } from '@mention/shared-types';
 import UserName from '@/components/UserName';
 import { RemoteActorBadge } from '@/components/Fediverse/FediverseBadge';
 import { useFederatedFollowSync } from '@/components/Profile/hooks/useFederatedFollowSync';
@@ -363,6 +364,7 @@ function CardContent({
           <Avatar
             source={profile.design.avatar || profile.avatar}
             size={64}
+            variant={MEDIA_VARIANT_VIDEO_POSTER}
             verified={profile.verified}
           />
         </View>

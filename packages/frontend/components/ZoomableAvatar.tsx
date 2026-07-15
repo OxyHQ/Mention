@@ -33,6 +33,7 @@ import { useTheme } from '@oxyhq/bloom/theme';
 import { useImageResolver } from '@oxyhq/bloom/image-resolver';
 import { useAuth } from '@oxyhq/services';
 import { useImageUrl } from '@/hooks/useImageUrl';
+import { MEDIA_VARIANT_VIDEO_POSTER } from '@mention/shared-types';
 import DefaultAvatar from '@/assets/images/default-avatar.jpg';
 import { Portal } from '@oxyhq/bloom/portal';
 
@@ -117,8 +118,14 @@ export const ZoomableAvatar: React.FC<ZoomableAvatarProps> = ({
   // (old profile-design data) and is resolved asynchronously via useImageUrl
   // (instant on cache hit, async on miss).
   const fileIdSource = typeof source === 'string' && !source.startsWith('http') ? source : undefined;
-  const providerResolvedUrl = fileIdSource ? imageResolver?.(fileIdSource) : undefined;
-  const resolvedUrl = useImageUrl(errored ? undefined : fileIdSource, 'thumb', oxyServices);
+  // ZoomableAvatar renders LARGE profile avatars (70–90px) and taps zoom to a
+  // ~400px fullscreen image, so it needs the 256px square crop (VIDEO_POSTER),
+  // NOT the 128px `avatar` crop small avatars use. Pass the variant explicitly to
+  // both resolution paths so it never inherits the resolver's small-avatar default.
+  const providerResolvedUrl = fileIdSource
+    ? imageResolver?.(fileIdSource, MEDIA_VARIANT_VIDEO_POSTER)
+    : undefined;
+  const resolvedUrl = useImageUrl(errored ? undefined : fileIdSource, MEDIA_VARIANT_VIDEO_POSTER, oxyServices);
 
   const resolvedSource = useMemo(() => {
     if (!source || errored) return undefined;

@@ -48,6 +48,7 @@ import { ExternalLinkIcon } from '@/assets/icons/external-link-icon';
 
 // Components
 import { Avatar } from '@oxyhq/bloom/avatar';
+import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types';
 import UserName from './UserName';
 import AnimatedTabBar from './common/AnimatedTabBar';
 import { BottomBarAwareFab } from '@/components/BottomBarAwareFab';
@@ -760,6 +761,7 @@ const MentionProfileContent: React.FC<MentionProfileContentProps> = ({
                                 <Avatar
                                     source={avatarUri}
                                     size={32}
+                                    variant={MEDIA_VARIANT_AVATAR}
                                 />
                                 <View style={{ flex: 1, minWidth: 0 }}>
                                     <UserName
