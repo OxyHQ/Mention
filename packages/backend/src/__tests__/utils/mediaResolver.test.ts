@@ -14,6 +14,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const PUBLIC_BASE = 'https://api.mention.earth';
 const OXY_BASE = 'https://api.oxy.so';
+const CLOUD_BASE = 'https://cloud.oxy.so';
 
 // Pin the backend public origin deterministically. The real `config` reads
 // `MENTION_PUBLIC_API_URL` once at module load, so mocking the module avoids any
@@ -28,9 +29,10 @@ const getFileDownloadUrl = vi.fn((fileId: string, variant?: string) => {
   return `${OXY_BASE}/assets/${encodeURIComponent(fileId)}/stream${qs}`;
 });
 const getBaseURL = vi.fn(() => OXY_BASE);
+const getCloudURL = vi.fn(() => CLOUD_BASE);
 
 vi.mock('../../utils/oxyHelpers', () => ({
-  getServiceOxyClient: () => ({ getFileDownloadUrl, getBaseURL }),
+  getServiceOxyClient: () => ({ getFileDownloadUrl, getBaseURL, getCloudURL }),
 }));
 
 import { resolveMediaRef, resolveAvatarUrl, resolveMediaItems } from '../../utils/mediaResolver';
@@ -109,6 +111,28 @@ describe('resolveAvatarUrl', () => {
     expect(resolveAvatarUrl(external)).toBe(
       `${PUBLIC_BASE}/media/proxy?url=${encodeURIComponent(external)}`,
     );
+  });
+
+  it('proxies a genuinely-external federated avatar host (regression guard)', () => {
+    // A truly-remote federated CDN must still be wrapped behind /media/proxy,
+    // NOT treated as an Oxy CDN URL.
+    const external = 'https://files.mastodon.social/accounts/avatars/original.png';
+    expect(resolveAvatarUrl(external)).toBe(
+      `${PUBLIC_BASE}/media/proxy?url=${encodeURIComponent(external)}`,
+    );
+  });
+
+  it('attaches the avatar variant to an already-mirrored Oxy CDN url', () => {
+    // A federated avatar Oxy mirrored to its CDN arrives as a final
+    // cloud.oxy.so/<id> URL. It must get the avatar variant appended, NOT be
+    // served as the no-variant original or double-proxied through /media/proxy.
+    const mirrored = `${CLOUD_BASE}/abc123`;
+    expect(resolveAvatarUrl(mirrored)).toBe(`${CLOUD_BASE}/abc123?variant=thumb`);
+  });
+
+  it('is idempotent when the mirrored Oxy CDN url already carries a variant', () => {
+    const mirrored = `${CLOUD_BASE}/abc123?variant=w320`;
+    expect(resolveAvatarUrl(mirrored)).toBe(`${CLOUD_BASE}/abc123?variant=thumb`);
   });
 
   it('returns undefined for an empty ref', () => {
