@@ -3,13 +3,15 @@ import { ScrollView, Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useAuth, OxyAuthPrompt } from '@oxyhq/services';
 import { useBloomTheme, useTheme, PREMIUM_COLOR_NAMES, type AppColorName } from '@oxyhq/bloom/theme';
-import { SettingsListDivider, SettingsListGroup, SettingsListItem } from '@oxyhq/bloom/settings-list';
+import { SettingsListDivider } from '@oxyhq/bloom/settings-list';
+import { Avatar } from '@oxyhq/bloom/avatar';
+import { Loading } from '@oxyhq/bloom/loading';
 import { ThemedView } from '@/components/ThemedView';
 import { Header } from '@/components/Header';
-import { IconButton } from '@/components/ui/Button';
+import { Button, IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { useSafeBack } from '@/hooks/useSafeBack';
-import { RowIcon } from '@/components/settings/RowIcon';
+import { useProfileData } from '@/hooks/useProfileData';
 import { ColorSwatchPicker } from '@/components/settings/ColorSwatchPicker';
 import { Icon } from '@/lib/icons';
 import { useAppColorSave } from '@/hooks/useAppColorSave';
@@ -21,6 +23,7 @@ export default function EditProfileScreen() {
   const { t } = useTranslation();
   const safeBack = useSafeBack();
   const { isAuthenticated, showBottomSheet, user: authUser } = useAuth();
+  const { data: currentUserProfile } = useProfileData(authUser?.username);
   const { colorPreset: appColor } = useBloomTheme();
   const { colors } = useTheme();
   const { saveColor } = useAppColorSave();
@@ -84,6 +87,31 @@ export default function EditProfileScreen() {
         contentContainerClassName="py-4"
         showsVerticalScrollIndicator={false}
       >
+        {currentUserProfile ? (
+          <View className="items-center py-4 gap-1">
+            <Avatar source={currentUserProfile.avatar} size={80} />
+            <Text className="text-2xl font-bold text-foreground mt-2" numberOfLines={1}>
+              {currentUserProfile.design.displayName}
+            </Text>
+            <Text className="text-base text-muted-foreground" numberOfLines={1}>
+              @{currentUserProfile.username}
+            </Text>
+            <View className="mt-3">
+              <Button
+                variant="secondary"
+                size="small"
+                onPress={() => showBottomSheet?.('ManageAccount')}
+              >
+                {t('settings.account.manageAccount', { defaultValue: 'Manage account' })}
+              </Button>
+            </View>
+          </View>
+        ) : (
+          <View className="items-center py-4">
+            <Loading />
+          </View>
+        )}
+        <SettingsListDivider />
         <BannerSection />
         <SettingsListDivider />
         <ProfileStyleSection />
@@ -97,15 +125,6 @@ export default function EditProfileScreen() {
         </View>
         <SettingsListDivider />
         <PinnedMediaSection />
-        <SettingsListDivider />
-        <SettingsListGroup>
-          <SettingsListItem
-            icon={<RowIcon name="person-circle-outline" />}
-            title={t('settings.editProfile.oxyAccount')}
-            description={t('settings.editProfile.oxyAccountDesc')}
-            onPress={() => showBottomSheet?.('ManageAccount')}
-          />
-        </SettingsListGroup>
       </ScrollView>
     </ThemedView>
   );
