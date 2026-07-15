@@ -72,6 +72,15 @@ export interface GalleryImage {
    * shown as a caption at the bottom of the fullscreen viewer for the active image.
    */
   alt?: string;
+  /**
+   * Known aspect ratio (width / height) from the server media metadata, when
+   * available. `uri` is the large lightbox variant, a different cache key than
+   * the thumbnail's own uri in the shared aspect-ratio cache — passing the
+   * already-known ratio here lets `open()` fit the box correctly on the FIRST
+   * frame instead of starting at `DEFAULT_ASPECT_RATIO` and snapping once an
+   * `Image.getSize` probe resolves mid-animation.
+   */
+  aspectRatio?: number;
 }
 
 export interface ZoomableImageGalleryHandle {
@@ -308,16 +317,25 @@ const ZoomableImageGalleryInner = React.forwardRef<ZoomableImageGalleryHandle, Z
       if (isOpen || nextImages.length === 0) return;
       const safeIndex = Math.min(Math.max(index, 0), nextImages.length - 1);
       const target = nextImages[safeIndex];
-      const ratio = getAspectRatio(target.uri) ?? DEFAULT_ASPECT_RATIO;
+      const knownRatio = target.aspectRatio ?? getAspectRatio(target.uri);
+      const ratio = knownRatio ?? DEFAULT_ASPECT_RATIO;
 
       setImages(nextImages);
       setActiveIndexBoth(safeIndex);
       setOpenRatio(ratio);
-      setPageRatios({ [safeIndex]: ratio });
+      // Seed every page whose ratio is already known (server metadata or a
+      // previously-cached probe) so swiping never hits the same snap — only a
+      // genuinely-unknown image falls through to `ensureRatio`'s async probe.
+      const initialRatios: Record<number, number> = {};
+      nextImages.forEach((img, i) => {
+        const r = img.aspectRatio ?? getAspectRatio(img.uri);
+        if (r !== undefined) initialRatios[i] = r;
+      });
+      setPageRatios(initialRatios);
       pendingIndexRef.current = safeIndex;
 
-      // Resolve the opening ratio if it was not yet cached, then re-fit.
-      if (getAspectRatio(target.uri) === undefined) {
+      // Resolve the opening ratio if it was not yet known, then re-fit.
+      if (knownRatio === undefined) {
         void fetchAspectRatio(target.uri).then((resolved) => {
           setOpenRatio(resolved);
           setPageRatios((prev) => ({ ...prev, [safeIndex]: resolved }));

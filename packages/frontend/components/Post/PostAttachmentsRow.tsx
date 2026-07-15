@@ -17,6 +17,7 @@ import { PodcastCard } from '@/components/Podcast/PodcastCard';
 import { MEDIA_CARD_HEIGHT } from '@/utils/composeUtils';
 import { getCachedFileDownloadUrlSync, videoPosterUrl } from '@/utils/imageUrlCache';
 import { useImagePreload } from '@/hooks/useImagePreload';
+import { readMediaAspectRatio } from '@/utils/mediaTypes';
 import {
   ZoomableImageGallery,
   type ZoomableImageGalleryHandle,
@@ -403,7 +404,7 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
   const galleryImages = useMemo<GalleryImage[]>(
     () => mediaItems
       .filter((item): item is Extract<typeof item, { type: 'image' }> => item.type === 'image')
-      .map(item => ({ uri: item.fullSrc, alt: item.alt })),
+      .map(item => ({ uri: item.fullSrc, alt: item.alt, aspectRatio: readMediaAspectRatio(item) })),
     [mediaItems]
   );
 
