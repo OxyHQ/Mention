@@ -23,8 +23,13 @@ export enum PostVisibility {
 /**
  * Oxy asset IMAGE variant names that the central asset service actually
  * generates (`packages/api/src/services/variantService.ts` `imageVariants`):
- * `avatar`(128) / `thumb`(256) / `w320` / `w640` / `w1280` / `w2048`.
- * `small`/`medium`/`large`/`original` do NOT exist server-side and 404 on the CDN.
+ * `w128` / `thumb`(256) / `w320` / `w640` / `w1280` / `w2048` — all named for
+ * their pixel width except the legacy `thumb` (also 256px, predates the
+ * width-naming convention). `small`/`medium`/`large`/`original`/`avatar` do
+ * NOT exist server-side and 404 on the CDN (`avatar` was the w128 variant's
+ * name for its first few hours before being renamed to match convention —
+ * it's a generic small-image size, not avatar-specific, so other small-image
+ * contexts can reach for it too).
  *
  * These are the SINGLE source of truth for which variant each render context
  * requests, shared by the backend resolver (`utils/mediaResolver.ts`) and the
@@ -37,14 +42,14 @@ export enum PostVisibility {
  * `w640`/`w1280`/`w2048` variants reserved for wider displays / the lightbox.
  *
  * Avatars render small and circular, so the AVATAR context maps to the dedicated
- * 128px square `avatar` crop — lighter still than `thumb` (~68% fewer bytes for a
+ * 128px square `w128` crop — lighter still than `thumb` (~68% fewer bytes for a
  * typical source). Video posters are a DIFFERENT context: they fill the (up to
  * ~320px wide) media card as a rectangle, so they keep the 256px `thumb` crop via
- * VIDEO_POSTER rather than being shrunk to the 128px avatar square.
+ * VIDEO_POSTER rather than being shrunk to the 128px square.
  */
 export const MEDIA_VARIANT_THUMB = 'w320';
 export const MEDIA_VARIANT_FULL = 'w2048';
-export const MEDIA_VARIANT_AVATAR = 'avatar';
+export const MEDIA_VARIANT_AVATAR = 'w128';
 export const MEDIA_VARIANT_VIDEO_POSTER = 'thumb';
 
 export interface MediaItem {
