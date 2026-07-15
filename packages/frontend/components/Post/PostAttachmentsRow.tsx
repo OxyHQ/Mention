@@ -16,6 +16,7 @@ import { useRouter } from 'expo-router';
 import { PodcastCard } from '@/components/Podcast/PodcastCard';
 import { MEDIA_CARD_HEIGHT } from '@/utils/composeUtils';
 import { getCachedFileDownloadUrlSync, videoPosterUrl } from '@/utils/imageUrlCache';
+import { useImagePreload } from '@/hooks/useImagePreload';
 import {
   ZoomableImageGallery,
   type ZoomableImageGalleryHandle,
@@ -405,6 +406,12 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
       .map(item => ({ uri: item.fullSrc, alt: item.alt })),
     [mediaItems]
   );
+
+  // Prefetch the lightbox's large variant as soon as the row renders — rows only
+  // mount within the feed virtualizer's viewport window, same gating PostItem
+  // already relies on to preload author avatars — so tapping a thumbnail opens
+  // against a warm image cache instead of a cold fetch.
+  useImagePreload(useMemo(() => galleryImages.map(image => image.uri), [galleryImages]));
 
   const imageIndexByMediaId = useMemo<Map<string, number>>(() => {
     const map = new Map<string, number>();
