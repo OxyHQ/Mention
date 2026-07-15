@@ -119,6 +119,10 @@ jobs:
           LIVE_TASK_DEF=$(echo "$SERVICE_JSON" | jq -r '.taskDefinition')
           SUBNETS=$(echo "$SERVICE_JSON" | jq -r '.networkConfiguration.awsvpcConfiguration.subnets | join(",")')
           SEC_GROUPS=$(echo "$SERVICE_JSON" | jq -r '.networkConfiguration.awsvpcConfiguration.securityGroups | join(",")')
+          # Mirror the service's public-IP setting: the cluster's subnets are
+          # public with NO NAT gateway, so a task without a public IP cannot
+          # even pull its image from ECR.
+          ASSIGN_IP=$(echo "$SERVICE_JSON" | jq -r '.networkConfiguration.awsvpcConfiguration.assignPublicIp')
 
           echo "live task definition: $LIVE_TASK_DEF"
 
@@ -159,7 +163,7 @@ jobs:
             --cluster "$CLUSTER" \
             --task-definition "$MIGRATION_TASK_DEF" \
             --launch-type FARGATE \
-            --network-configuration "awsvpcConfiguration={subnets=[$SUBNETS],securityGroups=[$SEC_GROUPS],assignPublicIp=DISABLED}" \
+            --network-configuration "awsvpcConfiguration={subnets=[$SUBNETS],securityGroups=[$SEC_GROUPS],assignPublicIp=$ASSIGN_IP}" \
             --overrides "$OVERRIDES" \
             --started-by "gh-migration-$PHASE" \
             --query 'tasks[0].taskArn' --output text)
