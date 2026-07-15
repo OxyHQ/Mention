@@ -126,6 +126,29 @@ function getOwnHosts(): Set<string> {
   return hosts;
 }
 
+/**
+ * Attach `variant` to `url` if it's hosted on our own Oxy CDN
+ * (`cloud.oxy.so`) — idempotent (`set`, not `append`, so a pre-existing
+ * `variant` param is overwritten rather than duplicated). Returns `url`
+ * unchanged for any other host or if it isn't a parseable absolute URL.
+ * Never throws. Shared by every caller that has an already-final Oxy CDN URL
+ * (not a bare file id) and needs to size it down instead of serving the
+ * no-variant original — {@link resolveAvatarUrl} and Oxy-hosted link-preview
+ * images.
+ */
+export function attachCdnVariant(url: string, variant: string): string {
+  try {
+    const parsed = new URL(url);
+    if (parsed.host.toLowerCase() !== getCloudHost()) {
+      return url;
+    }
+    parsed.searchParams.set('variant', variant);
+    return parsed.toString();
+  } catch {
+    return url;
+  }
+}
+
 /** True when `ref` is an absolute `http(s)` URL. */
 function isAbsoluteHttpUrl(ref: string): boolean {
   return /^https?:\/\//i.test(ref);
@@ -213,15 +236,9 @@ export function resolveAvatarUrl(ref?: string | null): string | undefined {
       }
       if (host && host === getCloudHost()) {
         // Federated avatar Oxy already mirrored to its CDN: attach the avatar
-        // variant to the existing URL (idempotent via `set`) instead of serving
-        // the no-variant original or proxying our own CDN through /media/proxy.
-        try {
-          const url = new URL(ref);
-          url.searchParams.set('variant', MEDIA_VARIANT_AVATAR);
-          return url.toString();
-        } catch {
-          return ref;
-        }
+        // variant to the existing URL instead of serving the no-variant
+        // original or proxying our own CDN through /media/proxy.
+        return attachCdnVariant(ref, MEDIA_VARIANT_AVATAR);
       }
       // Defer to the shared resolver for own-origin passthrough / proxy wrapping.
       const resolved = resolveMediaRef(ref);

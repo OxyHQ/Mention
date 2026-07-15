@@ -6,11 +6,13 @@ import type { LinkPreview } from '@oxyhq/contracts';
  * Verifies that `PostHydrationService` sources link previews from the Oxy
  * ecosystem link-preview service (`oxyServices.getLinkPreviews`) and maps the
  * `'resolved'` {@link LinkPreview}s onto the post DTO's `linkPreviews` array, in
- * text order — passing the Oxy-hosted (`cloud.oxy.so`) `image` through UNCHANGED
- * (never re-proxied). A `'pending'`/`'empty'`/missing preview is skipped (the URL
- * re-resolves on a later render, mirroring the previous warm-on-miss UX) without
- * disturbing the order of the resolved ones, and a preview-service failure never
- * fails feed hydration.
+ * text order — sizing the Oxy-hosted (`cloud.oxy.so`) `image` down to the
+ * `w320` (`MEDIA_VARIANT_THUMB`) context via `attachCdnVariant` instead of
+ * serving the no-variant original (never re-proxied, still Oxy-hosted). A
+ * `'pending'`/`'empty'`/missing preview is skipped (the URL re-resolves on a
+ * later render, mirroring the previous warm-on-miss UX) without disturbing
+ * the order of the resolved ones, and a preview-service failure never fails
+ * feed hydration.
  */
 
 const POST_ID = '650000000000000000000010';
@@ -34,7 +36,7 @@ vi.mock('../../../server', () => ({
 }));
 
 vi.mock('../../utils/oxyHelpers', () => ({
-  getServiceOxyClient: () => ({ getUsersByIds, getLinkPreviews }),
+  getServiceOxyClient: () => ({ getUsersByIds, getLinkPreviews, getCloudURL: () => 'https://cloud.oxy.so' }),
 }));
 
 vi.mock('../../utils/privacyHelpers', () => ({
@@ -134,20 +136,24 @@ describe('PostHydrationService — link previews sourced from Oxy', () => {
       status: 'resolved',
       title,
       description: `${title} description`,
-      image: 'https://cloud.oxy.so/file123?variant=thumb',
+      // No variant on the source — proves the service attaches one, not just
+      // preserves a pre-existing param.
+      image: 'https://cloud.oxy.so/file123',
       siteName: 'Example',
       favicon: 'https://cloud.oxy.so/favicon456',
       resolvedAt: new Date().toISOString(),
     };
   }
 
-  it('maps a resolved Oxy LinkPreview onto the post, passing the cloud.oxy.so image through unchanged', async () => {
+  it('maps a resolved Oxy LinkPreview onto the post, sizing the cloud.oxy.so image to the thumb (w320) variant', async () => {
     const resolved: LinkPreview = {
       url: 'https://example.com/some-article?canonical=1',
       status: 'resolved',
       title: 'Some Article',
       description: 'A description',
-      image: 'https://cloud.oxy.so/file123?variant=thumb',
+      // Already carries an unrelated variant — proves the service OVERWRITES
+      // it (idempotent `set`) rather than appending a duplicate param.
+      image: 'https://cloud.oxy.so/file123?variant=w2048',
       siteName: 'Example',
       favicon: 'https://cloud.oxy.so/favicon456',
       resolvedAt: new Date().toISOString(),
@@ -165,11 +171,30 @@ describe('PostHydrationService — link previews sourced from Oxy', () => {
         url: resolved.url,
         title: 'Some Article',
         description: 'A description',
-        // Oxy-hosted image is rendered directly, never re-proxied.
-        image: 'https://cloud.oxy.so/file123?variant=thumb',
+        // Oxy-hosted image is never re-proxied, but sized to w320 instead of
+        // serving the no-variant original (or an unrelated variant).
+        image: 'https://cloud.oxy.so/file123?variant=w320',
         siteName: 'Example',
       },
     ]);
+  });
+
+  it('leaves a non-Oxy-hosted image untouched (never attaches our variant to a third-party host)', async () => {
+    const resolved: LinkPreview = {
+      url: 'https://example.com/some-article?canonical=1',
+      status: 'resolved',
+      title: 'External image',
+      description: 'A description',
+      image: 'https://images.example.com/og-image.png',
+      siteName: 'Example',
+      favicon: undefined,
+      resolvedAt: new Date().toISOString(),
+    };
+    getLinkPreviews.mockResolvedValue({ [POST_URL]: resolved });
+
+    const hydrated = await hydrate();
+
+    expect(hydrated.linkPreviews?.[0]?.image).toBe('https://images.example.com/og-image.png');
   });
 
   it('maps every resolved preview of a multi-link post, in text order', async () => {
