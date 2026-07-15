@@ -737,7 +737,7 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
         return null;
       })}
     </ScrollView>
-    {galleryImages.length > 0 && <ZoomableImageGallery ref={galleryRef} measureThumb={measureThumb} cornerRadius={MEDIA_CARD_RADIUS} />}
+    {galleryImages.length > 0 && <ZoomableImageGallery ref={galleryRef} measureThumb={measureThumb} cornerRadius={MEDIA_CARD_RADIUS} indicatorVariant="dots" />}
     </>
   );
 }, (prevProps, nextProps) => {

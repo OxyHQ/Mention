@@ -24,7 +24,6 @@ export interface ListCardData {
     uri: string;
     name: string;
     description?: string;
-    avatar?: string | null;
     creator?: {
         username: string;
         displayName?: string;
@@ -81,7 +80,6 @@ export function ListCard({
             style={isRow ? undefined : { borderWidth: StyleSheet.hairlineWidth }}>
             <View className="flex-row items-center gap-3">
                 <Avatar
-                    source={list.avatar}
                     size={40}
                     variant={MEDIA_VARIANT_AVATAR}
                 />

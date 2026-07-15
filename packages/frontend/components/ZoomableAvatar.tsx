@@ -36,6 +36,18 @@ import { useImageUrl } from '@/hooks/useImageUrl';
 import { MEDIA_VARIANT_VIDEO_POSTER } from '@mention/shared-types';
 import DefaultAvatar from '@/assets/images/default-avatar.jpg';
 import { Portal } from '@oxyhq/bloom/portal';
+import {
+  OPEN_SPRING,
+  CLOSE_SPRING,
+  SNAP_BACK_SPRING,
+  OPEN_DURATION_WEB,
+  CLOSE_DURATION_WEB,
+  OPACITY_DURATION,
+  MAX_DRAG_FRACTION,
+  SCALE_DRAG_FRACTION,
+  MIN_DRAG_SCALE,
+  DISMISS_FRACTION,
+} from '@oxyhq/bloom/zoomable-image-gallery';
 
 const AnimatedBlurView = Animated.createAnimatedComponent(BlurView);
 const AnimatedImage = Animated.createAnimatedComponent(Image);
@@ -218,7 +230,7 @@ export const ZoomableAvatar: React.FC<ZoomableAvatarProps> = ({
         if (Platform.OS === 'web') {
           // Web: use timing with easing
           requestAnimationFrame(() => {
-            const duration = 300;
+            const duration = OPEN_DURATION_WEB;
             const easing = Easing.out(Easing.cubic);
             scale.value = withTiming(zoomScale, { duration, easing });
             translateX.value = withTiming(0, { duration, easing });
@@ -229,15 +241,10 @@ export const ZoomableAvatar: React.FC<ZoomableAvatarProps> = ({
           // Native: use spring animations on UI thread for best performance
           // Reduced delay for immediate response
           setTimeout(() => {
-            const springConfig = {
-              damping: 18,
-              stiffness: 400,
-              mass: 0.4,
-            };
-            scale.value = withSpring(zoomScale, springConfig);
-            translateX.value = withSpring(0, springConfig);
-            translateY.value = withSpring(0, springConfig);
-            opacity.value = withTiming(1, { duration: 200 });
+            scale.value = withSpring(zoomScale, OPEN_SPRING);
+            translateX.value = withSpring(0, OPEN_SPRING);
+            translateY.value = withSpring(0, OPEN_SPRING);
+            opacity.value = withTiming(1, { duration: OPACITY_DURATION });
           }, 0);
         }
       };
@@ -259,7 +266,7 @@ export const ZoomableAvatar: React.FC<ZoomableAvatarProps> = ({
     // Animate back to original position with smooth, coordinated animations
     if (Platform.OS === 'web') {
       // Web: use timing with easing
-      const duration = 280;
+      const duration = CLOSE_DURATION_WEB;
       const easing = Easing.in(Easing.cubic);
       scale.value = withTiming(1, { duration, easing });
       translateX.value = withTiming(originX.value, { duration, easing });
@@ -275,16 +282,11 @@ export const ZoomableAvatar: React.FC<ZoomableAvatarProps> = ({
       }, duration + 20);
     } else {
       // Native: use optimized spring for smooth, fast animations
-      const springConfig = {
-        damping: 22,
-        stiffness: 450,
-        mass: 0.35,
-      };
-      scale.value = withSpring(1, springConfig);
-      translateX.value = withSpring(originX.value, springConfig);
-      translateY.value = withSpring(originY.value, springConfig);
-      opacity.value = withTiming(0, { duration: 200 });
-      
+      scale.value = withSpring(1, CLOSE_SPRING);
+      translateX.value = withSpring(originX.value, CLOSE_SPRING);
+      translateY.value = withSpring(originY.value, CLOSE_SPRING);
+      opacity.value = withTiming(0, { duration: OPACITY_DURATION });
+
       // Spring animations complete faster with higher stiffness
       setTimeout(() => {
         setIsZoomed(false);
@@ -292,7 +294,7 @@ export const ZoomableAvatar: React.FC<ZoomableAvatarProps> = ({
         translateX.value = 0;
         translateY.value = 0;
         opacity.value = 0;
-      }, 280);
+      }, CLOSE_DURATION_WEB);
     }
   }, []);
 
@@ -320,19 +322,19 @@ export const ZoomableAvatar: React.FC<ZoomableAvatarProps> = ({
           const dragDistance = Math.sqrt(
             event.translationX ** 2 + event.translationY ** 2
           );
-          const maxDrag = SCREEN_HEIGHT * 0.3;
+          const maxDrag = SCREEN_HEIGHT * MAX_DRAG_FRACTION;
           const opacityValue = Math.max(0, 1 - dragDistance / maxDrag);
           opacity.value = opacityValue;
 
           // Scale down slightly when dragging
-          const scaleReduction = Math.max(0.5, 1 - dragDistance / (SCREEN_HEIGHT * 0.5));
+          const scaleReduction = Math.max(MIN_DRAG_SCALE, 1 - dragDistance / (SCREEN_HEIGHT * SCALE_DRAG_FRACTION));
           scale.value = startScale.value * scaleReduction;
         })
         .onEnd((event) => {
           const dragDistance = Math.sqrt(
             event.translationX ** 2 + event.translationY ** 2
           );
-          const dismissThreshold = SCREEN_HEIGHT * 0.15;
+          const dismissThreshold = SCREEN_HEIGHT * DISMISS_FRACTION;
 
           if (dragDistance > dismissThreshold) {
             // Dragged far enough — dismiss
@@ -340,11 +342,10 @@ export const ZoomableAvatar: React.FC<ZoomableAvatarProps> = ({
           } else {
             // Snap back to center (stay zoomed)
             const zoomScale = MAX_ZOOM_SIZE / size;
-            const springConfig = { damping: 20, stiffness: 400, mass: 0.4 };
-            scale.value = withSpring(zoomScale, springConfig);
-            translateX.value = withSpring(0, springConfig);
-            translateY.value = withSpring(0, springConfig);
-            opacity.value = withTiming(1, { duration: 200 });
+            scale.value = withSpring(zoomScale, SNAP_BACK_SPRING);
+            translateX.value = withSpring(0, SNAP_BACK_SPRING);
+            translateY.value = withSpring(0, SNAP_BACK_SPRING);
+            opacity.value = withTiming(1, { duration: OPACITY_DURATION });
           }
         }),
     [handleDismiss, isZoomed, SCREEN_HEIGHT, MAX_ZOOM_SIZE, size]

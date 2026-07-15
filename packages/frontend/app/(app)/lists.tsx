@@ -28,7 +28,6 @@ function toListCardData(list: MentionList): ListCardData {
     uri: `list:${list._id || list.id}`,
     name: list.title || 'Untitled List',
     description: list.description,
-    avatar: typeof list.avatar === 'string' ? list.avatar : undefined,
     creator: owner
       ? {
           username: owner.username || '',
