@@ -219,7 +219,7 @@ export default function SettingsScreen() {
                     <SettingsListItem
                         icon={<RowIcon name="color-palette-outline" />}
                         title={t('settings.preferences.appearance')}
-                        description={t('settings.preferences.appearanceDesc', { defaultValue: 'Theme, colors, display' })}
+                        description={t('settings.preferences.appearanceDesc', { defaultValue: 'Theme, text, display' })}
                         onPress={() => router.push('/settings/appearance')}
                     />
                     <SettingsListItem
@@ -250,12 +250,6 @@ export default function SettingsScreen() {
 
                 {isAuthenticated && (
                     <SettingsListGroup>
-                        <SettingsListItem
-                            icon={<RowIcon name="person-outline" />}
-                            title={t('settings.preferences.profileCustomization')}
-                            description={t('settings.preferences.profileCustomizationDesc', { defaultValue: 'Layout, profile color' })}
-                            onPress={() => router.push('/settings/profile-customization')}
-                        />
                         <SettingsListItem
                             icon={<RowIcon name="heart-outline" />}
                             title={t('settings.preferences.interests', { defaultValue: 'Your interests' })}
