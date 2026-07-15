@@ -43,20 +43,6 @@ const QuoteCard: React.FC<QuoteCardProps> = ({ post, loading, onDismiss }) => {
 
   const userHandle = useMemo(() => getNormalizedUserHandle(post?.user) ?? '', [post]);
 
-  // Federation-aware avatar source for Bloom's Avatar (via the app-wide
-  // ImageResolver): a FEDERATED/remote actor carries an absolute http(s) URL
-  // (rendered directly; variant ignored); a LOCAL actor carries an Oxy file id
-  // (resolved with `variant={MEDIA_VARIANT_AVATAR}` — the 128px crop). Bloom
-  // disambiguates URL vs file id, so we pass the raw value through and only steer
-  // the variant.
-  const avatar = useMemo(() => {
-    const raw = post?.user?.avatar;
-    if (typeof raw !== 'string' || !raw) return { source: undefined, variant: undefined };
-    const isRemote =
-      post?.user?.isFederated === true || raw.startsWith('http://') || raw.startsWith('https://');
-    return { source: raw, variant: isRemote ? undefined : MEDIA_VARIANT_AVATAR };
-  }, [post]);
-
   if (loading) {
     return (
       <View
@@ -79,7 +65,11 @@ const QuoteCard: React.FC<QuoteCardProps> = ({ post, loading, onDismiss }) => {
   return (
     <View className="border-border bg-secondary relative rounded-2xl border px-4 py-3">
       <View className="flex-row items-start">
-        <Avatar source={avatar.source} variant={avatar.variant} size={28} style={{ marginRight: 10 }} />
+        {/* `avatar` is a bare Oxy file id OR an absolute URL, for local and
+            federated authors alike — Bloom's Avatar accepts both shapes
+            (and `null`) directly and ignores `variant` for an absolute URL,
+            so nothing needs branching or coercing here. */}
+        <Avatar source={post?.user?.avatar} variant={MEDIA_VARIANT_AVATAR} size={28} style={{ marginRight: 10 }} />
         <View className="flex-1 pr-6">
           <View className="flex-row items-center">
             {userName ? (
