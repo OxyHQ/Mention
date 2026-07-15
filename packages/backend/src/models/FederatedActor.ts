@@ -78,21 +78,38 @@ export interface IFederatedActor extends Document {
 }
 
 /**
- * Every text field on this model is REMOTE text, so each one carries `trim`.
- * That is defense in depth ONLY: Mongoose's `trim` strips the ends of the string
- * and does nothing to the whitespace INSIDE it, which is where the damage is (a
- * newline in a display name, a blank line in a bio). The real normalization
- * happens at ingest — `actor.service.ts` and `profile.mapper.ts` run every one
- * of these values through the canonical `normalizeInlineText` /
- * `normalizeMultilineText` from `@oxyhq/core` before they ever reach the model.
+ * THE SCHEMA DOES NOT NORMALIZE TEXT. Every text field here is REMOTE text, and
+ * the invariant "what is stored is already canonical" is owned by the INGEST
+ * paths, in exactly one place per field:
+ *
+ *   - `connectors/activitypub/actor.service.ts` — strips the HTML of `summary`
+ *     and the profile fields, entity-decodes the display name, then applies
+ *     `normalizeMultilineText` / `normalizeInlineText` from `@oxyhq/core`.
+ *   - `connectors/atproto/profile.mapper.ts` — the same rules for a Bluesky
+ *     profile.
+ *   - `connectors/federatedProfileSync.ts` — the minimal fallback row written when
+ *     the remote actor cannot be fetched.
+ *
+ * These fields USED to carry Mongoose's `trim`, which was worse than nothing: it
+ * strips the ENDS of a string and does nothing to the whitespace INSIDE it — the
+ * newline in a display name, the blank line in a bio — which is the entire bug.
+ * A writer that saw `trim: true` on the schema and assumed the model had it
+ * covered would ship exactly that bug. Half an invariant, enforced in a second
+ * place, is a trap; it is gone.
+ *
+ * The model cannot own this anyway: the ingest has to strip markup and decode
+ * entities BEFORE normalizing (an encoded `&#10;` is only whitespace once
+ * decoded), so a setter here could never be the whole rule — only a duplicate of
+ * its tail. A NEW WRITER MUST NORMALIZE ITS OWN VALUES. Legacy rows are cleaned
+ * by `scripts/normalizeFederatedText.ts`.
  */
 const FederatedActorSchema = new Schema<IFederatedActor>({
   protocol: { type: String, enum: ['activitypub', 'atproto'], default: 'activitypub', index: true },
-  uri: { type: String, required: true, unique: true, index: true, trim: true },
-  username: { type: String, required: true, trim: true },
-  domain: { type: String, required: true, index: true, trim: true },
-  acct: { type: String, required: true, unique: true, index: true, trim: true },
-  summary: { type: String, trim: true },
+  uri: { type: String, required: true, unique: true, index: true },
+  username: { type: String, required: true },
+  domain: { type: String, required: true, index: true },
+  acct: { type: String, required: true, unique: true, index: true },
+  summary: { type: String },
   avatarUrl: { type: String },
   headerUrl: { type: String },
   inboxUrl: { type: String },
@@ -108,8 +125,8 @@ const FederatedActorSchema = new Schema<IFederatedActor>({
   memorial: { type: Boolean, default: false },
   suspended: { type: Boolean, default: false },
   fields: [{
-    name: { type: String, trim: true },
-    value: { type: String, trim: true },
+    name: { type: String },
+    value: { type: String },
     verifiedAt: { type: Date },
   }],
   featuredUrl: { type: String },

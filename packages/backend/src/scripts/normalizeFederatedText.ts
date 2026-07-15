@@ -1,31 +1,51 @@
 /**
- * One-shot backfill: normalize the whitespace of every piece of REMOTE text
- * already stored in Mongo.
+ * One-shot backfill: normalize the whitespace of the text already stored in
+ * Mongo — every piece of REMOTE text, plus the media `alt` of native posts.
  *
  * Third-party text used to be persisted exactly as the remote server sent it —
  * indentation, embedded newlines and all. That is invisible in HTML (whitespace
  * collapses at render time) but NOT in our clients: React Native Web renders
  * `Text` with `white-space: pre-wrap`, so a pretty-printed remote body
  * (`<p>\n      Hola\n    </p>`) showed up as a blank line plus a six-space
- * indent. The ingest paths now run every remote value through the canonical
- * `normalizeInlineText` / `normalizeMultilineText` from `@oxyhq/core`, but rows
- * written before that fix stay dirty forever — nothing rewrites a stored post,
- * and an actor is only rewritten if the remote profile happens to change. This
- * script cleans them.
+ * indent. Alt text written by our OWN composer had the same problem for the same
+ * reason: it was stored verbatim. The ingest and write paths now run every value
+ * through the canonical rule that owns its field, but rows written before that
+ * fix stay dirty forever — nothing rewrites a stored post, and an actor is only
+ * rewritten if the remote profile happens to change. This script cleans them.
  *
- * What it normalizes (the same helper the ingest path now uses for each field):
+ * What it normalizes (in every case by calling the SAME function the ingest /
+ * write path calls — never a second copy of the rule):
  *   - `Post.content.variants[].text` — MULTILINE (the author's paragraphs survive).
  *                                    EVERY rendition, not just the primary: each
  *                                    one is remote text and each one is rendered.
- *   - `Post.federation.spoilerText`— INLINE (a CW label is one line; unset when
- *                                    it normalizes to empty)
- *   - `Post.content.media[].alt`   — INLINE (unset when it normalizes to empty)
+ *                                    FEDERATED posts only.
+ *   - `Post.federation.spoilerText`— `htmlToInlineLabel`, the ingest's own summary
+ *                                    rule. NOT a bare inline collapse: the ingest
+ *                                    that wrote these rows stored the AP `summary`
+ *                                    RAW, so a stored CW can still contain
+ *                                    `<p>…</p>`, and stripping the markup is half
+ *                                    of what the current ingest does. Unset when it
+ *                                    normalizes to empty. FEDERATED posts only.
+ *   - `Post.content.media[].alt`   — `normalizeAlt`, the canonical alt rule, on
+ *                                    NATIVE AND FEDERATED posts alike (unset when
+ *                                    it normalizes to empty). A native alt is not
+ *                                    the author's prose — it is a one-line label,
+ *                                    and until the write boundary enforced the rule
+ *                                    the composer's value was stored verbatim.
  *   - `FederatedActor.username`    — INLINE
  *   - `FederatedActor.summary`     — MULTILINE (a bio is a body)
  *   - `FederatedActor.fields[].name` / `.value` — INLINE
  *
- * Only FEDERATED posts (`federation != null`) are touched: native post bodies
- * are the local author's own text and are not ours to rewrite.
+ * Post BODIES are rewritten only on FEDERATED posts: a native body is the local
+ * author's own text and is not ours to touch. Media `alt` is the one field this
+ * script normalizes on native rows too.
+ *
+ * WHAT IT CANNOT FIX: a native post is also dual-written as a SIGNED record on the
+ * author's MTN hash chain, and a signed record is immutable. Rows whose alt was
+ * signed before the write boundary was fixed keep that raw alt on-chain forever;
+ * this script cleans the Mongo row that every read path actually serves. There is
+ * no backfill for the chain, and there must not be one — rewriting a signed record
+ * would break the chain it belongs to.
  *
  * Idempotent (a second run writes nothing), batched through a stable ascending
  * `_id` cursor with `bulkWrite` (never loads the collection into memory), and it
@@ -59,6 +79,8 @@ import mongoose from 'mongoose';
 import { normalizeInlineText, normalizeMultilineText } from '@oxyhq/core';
 import { Post } from '../models/Post';
 import FederatedActor from '../models/FederatedActor';
+import { normalizeAlt } from '../services/MediaMetadataService';
+import { htmlToInlineLabel } from '../utils/federation/htmlToPlainText';
 import { logger } from '../utils/logger';
 
 /** Documents scanned per page (stable `_id` cursor pagination). */
@@ -70,8 +92,13 @@ const BULK_CHUNK_SIZE = 500;
 /** How many changed documents a dry run reports in full, per collection. */
 const DRY_RUN_SAMPLE_SIZE = 20;
 
-/** Matches the posts that carry remote text: everything with AP/atproto metadata. */
-const FEDERATED_POST_FILTER: Record<string, unknown> = { federation: { $ne: null } };
+/**
+ * EVERY post is scanned, native and federated alike: media `alt` is dirty on both
+ * (see the header). What a row is decides which of its fields are eligible, not
+ * whether it is looked at — {@link buildPostUpdate} keys that off `federation`,
+ * which is why the subdocument is projected rather than a single field of it.
+ */
+const POST_SCAN_FILTER: Record<string, unknown> = {};
 
 /** The fields this script reads off a post (nothing else is loaded). */
 export interface FederatedPostRow {
@@ -80,9 +107,10 @@ export interface FederatedPostRow {
     variants?: unknown;
     media?: unknown;
   };
+  /** Present ⇒ the post came from a remote network. Absent/null ⇒ native. */
   federation?: {
     spoilerText?: unknown;
-  };
+  } | null;
 }
 
 /** The fields this script reads off a federated actor. */
@@ -175,15 +203,23 @@ function toUpdateDocument(update: DocumentUpdate): Record<string, unknown> {
 }
 
 /**
- * Stage an OPTIONAL inline label: rewritten when it changes, unset when it
- * normalizes to nothing. A non-string stored value is left untouched — this
- * script normalizes whitespace, it does not repair a corrupt schema.
+ * Stage an OPTIONAL label: rewritten when it changes, unset when it normalizes to
+ * nothing. `normalize` is the rule that OWNS the field — the very function its
+ * write path calls — so what this script produces is what a fresh write would.
+ *
+ * A non-string stored value is left untouched (the rules all return `undefined`
+ * for one): this script normalizes text, it does not repair a corrupt schema.
  */
-function stageOptionalInline(update: DocumentUpdate, path: string, value: unknown): boolean {
+function stageOptionalLabel(
+  update: DocumentUpdate,
+  path: string,
+  value: unknown,
+  normalize: (value: unknown) => string | undefined,
+): boolean {
   if (typeof value !== 'string') return false;
-  const normalized = normalizeInlineText(value);
+  const normalized = normalize(value);
   if (normalized === value) return false;
-  if (normalized.length === 0) {
+  if (normalized === undefined) {
     update.unset[path] = '';
   } else {
     update.set[path] = normalized;
@@ -191,17 +227,19 @@ function stageOptionalInline(update: DocumentUpdate, path: string, value: unknow
   return true;
 }
 
-/** Collect every normalization needed by a single federated post. */
+/** Collect every normalization needed by a single post. */
 export function buildPostUpdate(post: FederatedPostRow): { update: DocumentUpdate; counts: PostCounts } {
   const update = emptyUpdate();
   const counts: PostCounts = { text: 0, spoilerText: 0, mediaAlt: 0 };
+  const isFederated = post.federation !== undefined && post.federation !== null;
 
-  // Each rendition is addressed by INDEX, so the untouched fields of a variant
-  // (its tag, source, alt map, media override) are never re-serialized and cannot
-  // be lost. The body always stays a string — an empty rendition is not written
-  // back as one, it simply never existed.
+  // A BODY is only rewritten on a federated post — a native body is the local
+  // author's own text. Each rendition is addressed by INDEX, so the untouched
+  // fields of a variant (its tag, source, alt map, media override) are never
+  // re-serialized and cannot be lost. The body always stays a string — an empty
+  // rendition is not written back as one, it simply never existed.
   const variants = post.content?.variants;
-  if (Array.isArray(variants)) {
+  if (isFederated && Array.isArray(variants)) {
     variants.forEach((variant, index) => {
       if (typeof variant !== 'object' || variant === null) return;
       const text = (variant as { text?: unknown }).text;
@@ -213,10 +251,17 @@ export function buildPostUpdate(post: FederatedPostRow): { update: DocumentUpdat
     });
   }
 
-  if (stageOptionalInline(update, 'federation.spoilerText', post.federation?.spoilerText)) {
+  // The CW goes through the INGEST'S OWN summary rule, markup strip included: the
+  // ingest that wrote these rows stored the AP `summary` raw, so a stored label
+  // can still be `<p>CW</p>`, and a bare whitespace collapse would leave the tags
+  // in the database forever.
+  if (stageOptionalLabel(update, 'federation.spoilerText', post.federation?.spoilerText, htmlToInlineLabel)) {
     counts.spoilerText += 1;
   }
 
+  // Media `alt` is normalized on NATIVE posts too: it is a one-line label, not the
+  // author's prose, and the composer's value used to be stored verbatim.
+  //
   // `content.media` is a Mixed array, so each item is addressed by index rather
   // than rewriting the whole array — the untouched fields of an item (id, type,
   // dimensions, cache flags) are never re-serialized and cannot be lost.
@@ -225,7 +270,7 @@ export function buildPostUpdate(post: FederatedPostRow): { update: DocumentUpdat
     media.forEach((item, index) => {
       if (typeof item !== 'object' || item === null) return;
       const alt = (item as { alt?: unknown }).alt;
-      if (stageOptionalInline(update, `content.media.${index}.alt`, alt)) {
+      if (stageOptionalLabel(update, `content.media.${index}.alt`, alt, normalizeAlt)) {
         counts.mediaAlt += 1;
       }
     });
@@ -343,14 +388,15 @@ function logSamples(kind: string, samples: DocumentSample[]): void {
 }
 
 /**
- * Normalize the remote text on every federated post.
+ * Normalize the stored text on every post.
  *
- * Pages by ascending `_id` over a filter that only matches on `federation`,
- * which this script never mutates — so the scanned set is stable for the run.
+ * Pages by ascending `_id`; the scan matches every document and this script
+ * mutates none of the fields it pages on, so the scanned set is stable for the
+ * run.
  */
 async function normalizePosts(dryRun: boolean): Promise<CollectionResult<PostCounts>> {
-  const total = await Post.countDocuments(FEDERATED_POST_FILTER);
-  logger.info(`[normalizeFederatedText] ${total} federated posts to scan`);
+  const total = await Post.countDocuments(POST_SCAN_FILTER);
+  logger.info(`[normalizeFederatedText] ${total} posts to scan`);
 
   const counts: PostCounts = { text: 0, spoilerText: 0, mediaAlt: 0 };
   const samples: DocumentSample[] = [];
@@ -375,14 +421,17 @@ async function normalizePosts(dryRun: boolean): Promise<CollectionResult<PostCou
   };
 
   for (;;) {
-    const pageFilter: Record<string, unknown> = { ...FEDERATED_POST_FILTER };
+    const pageFilter: Record<string, unknown> = { ...POST_SCAN_FILTER };
     if (lastId) pageFilter._id = { $gt: lastId };
 
+    // `federation` is projected whole (it is a 6-field subdocument) so its mere
+    // PRESENCE can be read: that is what tells a native row from a federated one,
+    // and projecting `federation.spoilerText` alone could not.
     const page = await Post.find(pageFilter, {
       _id: 1,
       'content.variants': 1,
       'content.media': 1,
-      'federation.spoilerText': 1,
+      federation: 1,
     })
       .sort({ _id: 1 })
       .limit(PAGE_SIZE)

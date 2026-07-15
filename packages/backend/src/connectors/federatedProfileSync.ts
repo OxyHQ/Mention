@@ -20,7 +20,7 @@
  * a loading state and refetches shortly, instead of rendering an empty profile.
  */
 
-import type { User } from '@oxyhq/core';
+import { normalizeInlineText, type User } from '@oxyhq/core';
 import { Post } from '../models/Post';
 import FederatedActor, { IFederatedActor } from '../models/FederatedActor';
 import { logger } from '../utils/logger';
@@ -177,7 +177,11 @@ class FederatedProfileSync {
             // with a guessed outbox so the sync can still attempt Mastodon-style
             // layouts; the enqueued background refresh will correct it later.
             const domain = new URL(actorUri).hostname;
-            const username = (acctHint || '').split('@')[0] || 'unknown';
+            // The handle hint is remote text, and this row is written straight to
+            // Mongo: the schema normalizes NOTHING (see `models/FederatedActor.ts`),
+            // so this writer applies the canonical rule itself — a padded hint must
+            // not become a padded username in a unique index.
+            const username = normalizeInlineText((acctHint || '').split('@')[0]) || 'unknown';
             const acct = `${username}@${domain}`;
             const fallbackOutboxUrl = `${actorUri}${actorUri.endsWith('/') ? '' : '/'}outbox`;
             logger.info(`[FedSync] fetchRemoteActor failed for ${actorUri}; creating minimal FederatedActor with fallback outboxUrl=${fallbackOutboxUrl}`);

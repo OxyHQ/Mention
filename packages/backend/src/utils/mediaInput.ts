@@ -1,4 +1,5 @@
 import { config } from '../config';
+import { normalizeAlt } from '../services/MediaMetadataService';
 
 /**
  * A media entry accepted from a request body, normalized to the persisted shape.
@@ -10,8 +11,27 @@ export interface NormalizedMediaItem {
   id: string;
   type: 'image' | 'video' | 'gif';
   mime?: string;
-  /** Accessibility description (alt text) for the image; trimmed + length-capped. */
+  /** Accessibility description (alt text) for the image; normalized + length-capped. */
   alt?: string;
+}
+
+/**
+ * Client-supplied alt text, at the write boundary: the canonical alt rule
+ * ({@link normalizeAlt} — the SAME one the federated ingest paths apply), then the
+ * product length cap.
+ *
+ * The cap runs last and its cut can leave a dangling space, so the rule runs
+ * again over the truncated value; it is idempotent, so a value that was already
+ * short is untouched.
+ *
+ * This is where the invariant lives for everything a Mention client writes. It
+ * cannot be deferred to the read path: a native post's media is signed onto the
+ * author's MTN hash chain at creation, and a signed record is immutable.
+ */
+export function normalizeAltInput(value: unknown): string | undefined {
+  const alt = normalizeAlt(value);
+  if (alt === undefined || alt.length <= config.posts.maxAltTextLength) return alt;
+  return normalizeAlt(alt.slice(0, config.posts.maxAltTextLength));
 }
 
 /** Untrusted media entry shape accepted from the request body before normalization. */
@@ -73,17 +93,17 @@ export function normalizeMediaItems(arr: unknown): NormalizedMediaItem[] {
         resolvedType = 'image';
       }
 
-      // Accessibility description (alt text). Explicitly whitelisted, trimmed, and
-      // length-capped — never spread from the raw body. Empty/whitespace-only
+      // Accessibility description (alt text). Explicitly whitelisted, normalized,
+      // and length-capped — never spread from the raw body. Empty/whitespace-only
       // values are dropped so the field stays absent rather than an empty string.
-      const altRaw = typeof obj.alt === 'string' ? obj.alt.trim().slice(0, config.posts.maxAltTextLength) : '';
+      const alt = normalizeAltInput(obj.alt);
 
       seen.add(id);
       normalized.push({
         id,
         type: resolvedType,
         ...(mimeValue ? { mime: String(mimeValue) } : {}),
-        ...(altRaw ? { alt: altRaw } : {}),
+        ...(alt ? { alt } : {}),
       });
     }
   });

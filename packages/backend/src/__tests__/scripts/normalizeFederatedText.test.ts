@@ -109,12 +109,20 @@ vi.mock('../../utils/logger', () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
 }));
 
+// The invariant test below drives the REAL ingest extractor. Only its media
+// materialization (network + S3) is mocked away; the text rules are the real ones.
+vi.mock('../../connectors/shared/federatedMedia', () => ({
+  materializeFederatedMedia: vi.fn(async (media: unknown[], attachments: unknown[]) => ({ media, attachments })),
+}));
+
 import {
   buildActorUpdate,
   buildPostUpdate,
   describeChanges,
   normalizeStoredText,
 } from '../../scripts/normalizeFederatedText';
+import { extractApSummary } from '../../connectors/activitypub/apPostContent';
+import { normalizeAlt } from '../../services/MediaMetadataService';
 
 /** The `_id` of the row under test — the builders only echo it into the filter. */
 const OID = new mongoose.Types.ObjectId('000000000000000000000001');
@@ -131,11 +139,29 @@ describe('buildPostUpdate', () => {
     const { update, counts } = buildPostUpdate({
       _id: OID,
       content: { variants: [{ source: 'author', text: DIRTY_TEXT }] },
+      // A federated post with no content warning: `federation` is PRESENT, which
+      // is what makes the body eligible.
+      federation: {},
     });
 
     expect(update.set['content.variants.0.text']).toBe(CLEAN_TEXT);
     expect(update.unset).toEqual({});
     expect(counts.text).toBe(1);
+  });
+
+  it('never rewrites the body of a NATIVE post — that text is the local author’s', () => {
+    // The scan covers every post now (native alt is dirty too), so what a row IS
+    // has to decide which of its fields are eligible.
+    const { update, counts } = buildPostUpdate({
+      _id: OID,
+      content: {
+        variants: [{ source: 'author', text: DIRTY_TEXT }],
+        media: [{ id: 'a', type: 'image', alt: '  un gato\n  en una caja ' }],
+      },
+    });
+
+    expect(update.set).toEqual({ 'content.media.0.alt': 'un gato en una caja' });
+    expect(counts).toEqual({ text: 0, spoilerText: 0, mediaAlt: 1 });
   });
 
   it('normalizes the content warning as inline text', () => {
@@ -145,6 +171,19 @@ describe('buildPostUpdate', () => {
     });
 
     expect(update.set['federation.spoilerText']).toBe('CW: spoilers');
+    expect(counts.spoilerText).toBe(1);
+  });
+
+  it('STRIPS THE MARKUP of a content warning the old ingest stored raw', () => {
+    // The ingest that wrote these rows persisted the AP `summary` verbatim, and a
+    // Mastodon summary arrives as HTML on plenty of servers. A backfill that only
+    // collapsed whitespace would leave `<p>…</p>` in the database forever.
+    const { update, counts } = buildPostUpdate({
+      _id: OID,
+      federation: { spoilerText: '<p>\n  Spoilers de <strong>la peli</strong>\n</p>' },
+    });
+
+    expect(update.set['federation.spoilerText']).toBe('Spoilers de la peli');
     expect(counts.spoilerText).toBe(1);
   });
 
@@ -207,6 +246,72 @@ describe('buildPostUpdate', () => {
   });
 });
 
+/**
+ * THE invariant this backfill lives or dies by: for the same input, it must produce
+ * exactly what the INGEST would produce today. Anything less and it "cleans" a row
+ * into a state no fresh write could ever reach — a second, divergent rule.
+ *
+ * It is not asserted against hardcoded strings but against the ingest functions
+ * themselves, so the two can never drift apart without this failing.
+ */
+describe('the backfill reproduces the ingest', () => {
+  /** Raw values as the OLD ingest stored them: HTML, padding, entities, empties. */
+  const STORED_SUMMARIES = [
+    '<p>Spoilers</p>',
+    '<p>\n  Spoilers de <strong>la peli</strong>\n</p>',
+    'CW:\n  spoilers',
+    'A &amp; B',
+    '<p>a</p><p>b</p>',
+    'ya limpio',
+    '   ',
+    '',
+  ];
+
+  it.each(STORED_SUMMARIES)('spoilerText: %j lands on exactly what the ingest extracts', (stored) => {
+    // What the ingest would write for this value if the Note arrived again today.
+    const ingested = extractApSummary({ summary: stored });
+
+    const { update } = buildPostUpdate({ _id: OID, federation: { spoilerText: stored } });
+
+    if (ingested === stored) {
+      // Already what the ingest produces: the backfill must not write at all.
+      expect(update.set['federation.spoilerText']).toBeUndefined();
+      expect(update.unset['federation.spoilerText']).toBeUndefined();
+      return;
+    }
+    if (ingested === undefined) {
+      // The ingest would omit the field, so the stored one must DISAPPEAR — a CW is
+      // read as "present ⇒ show it", and a blank label would render as an empty CW.
+      expect(update.unset['federation.spoilerText']).toBe('');
+      expect(update.set['federation.spoilerText']).toBeUndefined();
+      return;
+    }
+    expect(update.set['federation.spoilerText']).toBe(ingested);
+  });
+
+  const STORED_ALTS = ['  un gato\n  en una caja ', 'ya limpio', ' \n ', 'a  b'];
+
+  it.each(STORED_ALTS)('media alt: %j lands on exactly what the alt rule produces', (stored) => {
+    const canonical = normalizeAlt(stored);
+
+    const { update } = buildPostUpdate({
+      _id: OID,
+      content: { media: [{ id: 'a', type: 'image', alt: stored }] },
+    });
+
+    if (canonical === stored) {
+      expect(update.set['content.media.0.alt']).toBeUndefined();
+      expect(update.unset['content.media.0.alt']).toBeUndefined();
+      return;
+    }
+    if (canonical === undefined) {
+      expect(update.unset['content.media.0.alt']).toBe('');
+      return;
+    }
+    expect(update.set['content.media.0.alt']).toBe(canonical);
+  });
+});
+
 describe('buildActorUpdate', () => {
   it('normalizes the username inline and the bio as a body', () => {
     const { update, counts } = buildActorUpdate({
@@ -257,7 +362,11 @@ describe('buildActorUpdate', () => {
 
 describe('describeChanges', () => {
   it('quotes both sides so the whitespace being removed is actually visible', () => {
-    const post = { _id: OID, content: { variants: [{ source: 'author', text: DIRTY_TEXT }] } };
+    const post = {
+      _id: OID,
+      content: { variants: [{ source: 'author', text: DIRTY_TEXT }] },
+      federation: {},
+    };
     const { update } = buildPostUpdate(post);
 
     expect(describeChanges(post, update)).toEqual([
@@ -433,6 +542,30 @@ describe('normalizeStoredText — real run', () => {
     expect(h.state.actorOps[0].updateOne.update.$set).toEqual({
       username: 'alice',
       summary: 'hola\n\nadiós',
+    });
+  });
+
+  it('cleans the media alt of a NATIVE post while leaving its body alone', async () => {
+    // Native rows are the reason the scan is no longer filtered on `federation`:
+    // the composer's alt was stored verbatim, and the same raw value was signed
+    // onto the author's MTN chain, where nothing can ever fix it. The Mongo row —
+    // the one every read path actually serves — is what this cleans.
+    h.state.posts = [
+      {
+        _id: oid('1'),
+        content: {
+          variants: [{ source: 'author', text: DIRTY_TEXT }],
+          media: [{ id: 'a', type: 'image', alt: '  un gato\n  en una caja ' }],
+        },
+      },
+    ];
+
+    const summary = await normalizeStoredText(false);
+
+    expect(summary.posts.counts).toEqual({ text: 0, spoilerText: 0, mediaAlt: 1 });
+    expect(h.state.postOps).toHaveLength(1);
+    expect(h.state.postOps[0].updateOne.update.$set).toEqual({
+      'content.media.0.alt': 'un gato en una caja',
     });
   });
 

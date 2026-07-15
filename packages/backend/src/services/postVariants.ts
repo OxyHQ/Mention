@@ -9,7 +9,7 @@ import {
   type StoredPostContent,
 } from '@mention/shared-types';
 import { config } from '../config';
-import { normalizeMediaItems } from '../utils/mediaInput';
+import { normalizeAltInput, normalizeMediaItems } from '../utils/mediaInput';
 
 /**
  * Multilingual post content: the ONE place that knows how a localized rendition
@@ -378,9 +378,11 @@ function normalizeAltMap(
     if (typeof value !== 'string') {
       return { ok: false, error: `Language variant ${tag} has a non-text alt description` };
     }
-    const trimmed = value.trim().slice(0, config.posts.maxAltTextLength);
-    if (trimmed.length > 0) {
-      alt[mediaId] = trimmed;
+    // A localized description is alt text like any other: same rule, same cap as
+    // the `alt` on a media item ({@link normalizeAltInput}).
+    const normalized = normalizeAltInput(value);
+    if (normalized !== undefined) {
+      alt[mediaId] = normalized;
     }
   }
   return { ok: true, alt };

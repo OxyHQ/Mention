@@ -1,7 +1,8 @@
 import { PostVisibility } from '@mention/shared-types';
-import { normalizeInlineText, normalizeMultilineText } from '@oxyhq/core';
+import { normalizeMultilineText } from '@oxyhq/core';
 import { logger } from '../../utils/logger';
 import { Post } from '../../models/Post';
+import { normalizeAlt } from '../../services/MediaMetadataService';
 import { getPostCreator } from '../../services/serviceRegistry';
 import { materializeFederatedMedia, type ExtractedMediaAttachment } from '../shared/federatedMedia';
 import type { MediaItem } from '@mention/shared-types';
@@ -161,14 +162,14 @@ function extractMediaFromEmbed(embed: AtprotoEmbedView | undefined): NormalizedE
         for (const image of view.images ?? []) {
           const url = image?.fullsize || image?.thumb;
           if (typeof url === 'string' && url) {
-            // Alt text is a one-line label authored on a remote client: collapse
-            // the whitespace it arrived with (the client renders it verbatim).
-            const alt = typeof image.alt === 'string' ? normalizeInlineText(image.alt) : '';
+            // Alt text is a one-line label authored on a remote client, so it gets
+            // the SAME canonical rule as every other alt in the system (native
+            // writes, AP attachments): whitespace-only becomes absent, never `''`.
             out.push({
               id: url,
               type: 'image',
               remoteUrl: url,
-              alt: alt || undefined,
+              alt: normalizeAlt(image.alt),
               ...patchFromAspectRatio(image.aspectRatio),
             });
           }

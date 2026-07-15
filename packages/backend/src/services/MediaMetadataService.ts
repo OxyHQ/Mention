@@ -23,24 +23,39 @@ function positiveNumber(value: unknown): number | undefined {
 }
 
 /**
- * Normalize an `alt` value at every entry point it can reach a media item.
+ * THE alt-text rule. Every path that can put an `alt` on a media item runs a
+ * value through this and nothing else: the native write boundary
+ * (`utils/mediaInput.ts`, which caps the length on top), the ActivityPub ingest
+ * ({@link patchFromApAttachment}), the atproto ingest (`connectors/atproto/post.mapper.ts`)
+ * and the one-shot backfill that cleans legacy rows.
  *
- * Alt text is a ONE-LINE label, and on a federated item it is third-party text:
- * it carries whatever whitespace the remote markup held. Clients render text
- * faithfully (React Native Web maps `Text` to `white-space: pre-wrap`), so an
- * embedded newline or a run of spaces would be visible, hence the canonical
- * inline normalizer rather than a bare `.trim()`.
+ * Alt text is a ONE-LINE label carrying whatever whitespace its author's client
+ * (ours or a remote one) happened to send. Clients render text faithfully (React
+ * Native Web maps `Text` to `white-space: pre-wrap`), so an embedded newline or a
+ * run of spaces would be visible, hence the canonical inline normalizer rather
+ * than a bare `.trim()`.
+ *
+ * It has to hold at the WRITE boundary, not just on the way out: a native post's
+ * media is signed onto the author's MTN hash chain (`mentionRecordBuilders`), and
+ * a signed record is immutable — an un-normalized alt persisted there can never
+ * be repaired, by this or any other backfill.
  *
  * Returns undefined for a missing / non-string / whitespace-only value so the
  * caller omits the field instead of storing a blank one.
  */
-function normalizeAlt(value: unknown): string | undefined {
+export function normalizeAlt(value: unknown): string | undefined {
   if (typeof value !== 'string') return undefined;
   const alt = normalizeInlineText(value);
   return alt.length > 0 ? alt : undefined;
 }
 
-/** Copy persisted intrinsic fields from a raw Mongo/hydration object. */
+/**
+ * Copy persisted intrinsic fields from a raw Mongo/hydration object.
+ *
+ * The {@link normalizeAlt} call below is a READ BACKSTOP for legacy rows written
+ * before the write boundary enforced the rule — NOT where the invariant lives.
+ * Everything stored from now on is already normalized (see {@link normalizeAlt}).
+ */
 export function readPersistedMediaFields(raw: Record<string, unknown>): Partial<MediaItem> {
   const out: Partial<MediaItem> = {};
   const width = positiveInt(raw.width);
