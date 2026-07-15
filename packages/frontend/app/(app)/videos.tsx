@@ -282,9 +282,15 @@ const ActiveVideoSurface = memo<ActiveVideoSurfaceProps>(({
     const [duration, setDuration] = useState(initialDurationSec ?? 0);
     const [isScrubbing, setIsScrubbing] = useState(false);
 
-    useEffect(() => {
+    // Reset the poster-failed flag when the poster source changes. Adjusted during
+    // render via a previous-value tracker rather than in an effect, so a new poster
+    // never flashes the stale icon fallback for a frame. See React "You Might Not
+    // Need an Effect".
+    const [prevPosterUrl, setPrevPosterUrl] = useState(posterUrl);
+    if (prevPosterUrl !== posterUrl) {
+        setPrevPosterUrl(posterUrl);
         setPosterFailed(false);
-    }, [posterUrl]);
+    }
 
     const handlePosterError = useCallback(() => setPosterFailed(true), []);
 
@@ -350,12 +356,15 @@ const ActiveVideoSurface = memo<ActiveVideoSurfaceProps>(({
     // When this surface stops being the active index, drop any viewer pause
     // override so re-activating it (scrolling back) autoplays from the top rather
     // than staying paused. A neighbour preloads but never plays, so the override
-    // is meaningless off-screen.
-    useEffect(() => {
+    // is meaningless off-screen. Adjusted during render via a previous-value tracker
+    // instead of an effect. See React "You Might Not Need an Effect".
+    const [prevIsActive, setPrevIsActive] = useState(isActive);
+    if (prevIsActive !== isActive) {
+        setPrevIsActive(isActive);
         if (!isActive) {
             setUserPaused(false);
         }
-    }, [isActive]);
+    }
 
     // Drive playback from the active/focused gate AND the viewer's tap override.
     // The active surface plays from the top when it first activates; a tap-resume
@@ -924,12 +933,13 @@ export default function VideosScreen() {
 
     // If the viewer signs out while on Following, fall back to For You. Gated on
     // `isAuthResolved` so the undetermined cold-boot window (where the session is
-    // about to restore) doesn't yank a Following viewer back to For You.
-    useEffect(() => {
-        if (isAuthResolved && !isAuthenticated && activeFeed === 'following') {
-            setActiveFeed('videos');
-        }
-    }, [isAuthResolved, isAuthenticated, activeFeed]);
+    // about to restore) doesn't yank a Following viewer back to For You. Adjusted
+    // during render rather than in an effect — this converges in one pass (the
+    // condition is false once `activeFeed` flips) and avoids a throwaway Following
+    // fetch from the load effect below. See React "You Might Not Need an Effect".
+    if (isAuthResolved && !isAuthenticated && activeFeed === 'following') {
+        setActiveFeed('videos');
+    }
     // Frozen at cold load: the target post + media index are read once so later
     // param changes never re-trigger the initial load or re-order the reel.
     const targetParamsRef = useRef<{ postId?: string; mediaIndex?: number } | null>(null);

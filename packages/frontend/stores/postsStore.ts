@@ -158,6 +158,19 @@ const transformToUIItem = (raw: HydratedPost | HydratedPostSummary | any, option
     typeof item === 'string' ? item : item?.id
   ).filter(Boolean) ?? [];
 
+  // Extra/legacy fields carried on raw wire payloads but absent from the hydrated
+  // DTOs; read them through a narrow view (same pattern as isRenderableBoost — no
+  // `as any`).
+  const rawExtra = raw as {
+    originalMediaIds?: string[];
+    allMediaIds?: string[];
+    mediaIds?: string[];
+    originalPost?: HydratedPost | HydratedPostSummary;
+    original?: HydratedPost | HydratedPostSummary;
+    quotedPost?: HydratedPost | HydratedPostSummary;
+    quoted?: HydratedPost | HydratedPostSummary;
+  };
+
   const base: FeedItem = {
     ...(raw as HydratedPost),
     id,
@@ -183,8 +196,8 @@ const transformToUIItem = (raw: HydratedPost | HydratedPostSummary | any, option
     isSaved: viewerState.isSaved,
     isBoosted: viewerState.isBoosted,
     mediaIds,
-    originalMediaIds: (raw as any)?.originalMediaIds ?? undefined,
-    allMediaIds: (raw as any)?.allMediaIds ?? (raw as any)?.mediaIds ?? mediaIds,
+    originalMediaIds: rawExtra.originalMediaIds ?? undefined,
+    allMediaIds: rawExtra.allMediaIds ?? rawExtra.mediaIds ?? mediaIds,
     original: null,
     quoted: null,
     boost: raw?.boost
@@ -198,11 +211,11 @@ const transformToUIItem = (raw: HydratedPost | HydratedPostSummary | any, option
   } as FeedItem;
 
   if (!options.skipRelated) {
-    const originalSource = raw?.originalPost ?? (raw as any)?.original;
+    const originalSource = rawExtra.originalPost ?? rawExtra.original;
     if (originalSource) {
       base.original = transformToUIItem(originalSource, { skipRelated: true });
     }
-    const quotedSource = raw?.quotedPost ?? (raw as any)?.quoted;
+    const quotedSource = rawExtra.quotedPost ?? rawExtra.quoted;
     if (quotedSource) {
       base.quoted = transformToUIItem(quotedSource, { skipRelated: true });
     }

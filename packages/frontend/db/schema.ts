@@ -18,6 +18,7 @@ import type {
   PostFeedContext,
   FeedPostSlice,
 } from '@mention/shared-types';
+import { PostVisibility } from '@mention/shared-types';
 import type { LinkMetadata } from '@/stores/linksStore';
 
 // ── Table names ──────────────────────────────────────────────────
@@ -130,6 +131,16 @@ function safeJsonStringify(value: unknown): string | null {
   }
 }
 
+/**
+ * Coerce a stored visibility string back into the {@link PostVisibility} enum,
+ * defaulting to public for any unrecognized value.
+ */
+function toPostVisibility(value: string): PostVisibility {
+  return value === PostVisibility.PRIVATE || value === PostVisibility.FOLLOWERS_ONLY
+    ? value
+    : PostVisibility.PUBLIC;
+}
+
 // ── Post conversions ─────────────────────────────────────────────
 
 /**
@@ -219,10 +230,10 @@ export function rowToFeedItem(row: PostRow): FeedItem {
   };
 
   const metadata: PostMetadataState = {
-    visibility: row.visibility as any,
+    visibility: toPostVisibility(row.visibility),
     createdAt: row.created_at,
     updatedAt: row.updated_at || row.created_at,
-  } as any;
+  };
 
   const mediaIds = attachments.media?.map((item: any) =>
     typeof item === 'string' ? item : item?.id
