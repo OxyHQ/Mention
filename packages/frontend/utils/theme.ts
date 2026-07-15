@@ -62,9 +62,14 @@ export function convertShadowToBoxShadow(
 
 /**
  * Theme Utilities
- *
+ * 
  * Core theme utility functions that work with theme objects.
- * For style constants (spacing, typography, etc.), use @/styles/index.ts.
- * Style helpers (flattenStyleArray, getThemedShadow, getThemedBorder) live in
- * @/styles/shared — import them directly from there.
+ * For style constants (spacing, typography, etc.), use @/styles/index.ts
  */
+
+/**
+ * Re-exports from @/styles/shared for backward compatibility
+ * These functions work with Theme objects but are defined in styles/shared
+ * to avoid circular dependencies.
+ */
+export { flattenStyleArray, getThemedShadow, getThemedBorder } from '@/styles/shared';

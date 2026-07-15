@@ -155,19 +155,3 @@ export function classifyApiError(error: unknown): { reason: ApiErrorReason; norm
   }
   return { reason, normalized };
 }
-
-/**
- * Pull a human-readable message off an axios-style error's response body,
- * falling back to `fallback` when the value isn't a response-bearing error or
- * carries no server-provided `error`/`message`. Unlike {@link normalizeApiError},
- * this deliberately never surfaces a raw `Error.message` — a non-response error
- * (plain `Error`, network failure, thrown string) yields `fallback` — so it is
- * safe to show directly in mutation UI without leaking transport internals.
- */
-export function getErrorMessage(error: unknown, fallback: string): string {
-  if (error && typeof error === 'object' && 'response' in error) {
-    const response = (error as { response?: { data?: { error?: string; message?: string } } }).response;
-    return response?.data?.error || response?.data?.message || fallback;
-  }
-  return fallback;
-}

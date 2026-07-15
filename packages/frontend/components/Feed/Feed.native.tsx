@@ -14,7 +14,7 @@ import { ErrorBoundary } from '@oxyhq/bloom/error-boundary';
 import { useAuth } from '@oxyhq/services';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { useLayoutScroll, type ScrollEvent } from '@/context/LayoutScrollContext';
-import { flattenStyleArray } from '@/styles/shared';
+import { flattenStyleArray } from '@/utils/theme';
 import { useRouter, useIsFocused } from 'expo-router';
 import { useScrollRestoration } from '@oxyhq/bloom/scroll';
 import { useTranslation } from 'react-i18next';

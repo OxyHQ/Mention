@@ -1,20 +1,22 @@
-import React, { useCallback, useMemo } from 'react';
-import { TouchableOpacity, View } from 'react-native';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+    Dimensions,
+    FlatList,
+    TouchableOpacity,
+    View,
+} from 'react-native';
 import { Image } from 'expo-image';
 import { Spinner } from '@/components/ui/Spinner';
 import { useRouter } from 'expo-router';
+import { useAuth } from '@oxyhq/services';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '@oxyhq/bloom/theme';
-import { usePostsStore } from '@/stores/postsStore';
+import { usePostsStore, useUserFeedSelector } from '@/stores/postsStore';
 import { Ionicons } from '@expo/vector-icons';
 import { EmptyState } from '@/components/common/EmptyState';
 import { isDbAvailable } from '@/db';
-import type { FeedItem } from '@/db';
-import type { HydratedPostSummary, MediaItem } from '@mention/shared-types';
 import VideoPosterCell from '@/components/common/VideoPosterCell';
 import { isVideoMediaRef } from '@/utils/mediaTypes';
-import { useProfileMediaFeed } from './useProfileMediaFeed';
-import { ProfileGridList, type ProfileGridEntry } from './ProfileGridList';
 
 interface MediaGridProps {
     userId?: string;
@@ -22,101 +24,157 @@ interface MediaGridProps {
     isOwnProfile?: boolean;
 }
 
-interface MediaGridEntry extends ProfileGridEntry {
+interface MediaGridEntry {
+    postId: string;
     uri: string;
     isVideo: boolean;
     isCarousel: boolean;
+    mediaIndex: number;
 }
 
+const NUM_COLUMNS = 3;
+const GAP = 1; // instagram-like tight spacing
+const H_PADDING = 0;
 const CAROUSEL_ICON_SIZE = 12;
+const PROFILE_MEDIA_FEED_LIMIT = 50;
+const PROFILE_POSTS_FEED_LIMIT = 60;
 const INITIAL_RENDER_COUNT = 18;
 const WINDOW_SIZE = 7;
 
-/**
- * Fields the raw feed row can carry beyond the hydrated DTO contract (the feed
- * transform spreads the raw API row). Read defensively — all optional — for the
- * post-level video hint and the native SQLite by-id media fallback.
- */
-interface RawPostExtras {
-    type?: string;
-    originalPostId?: string;
-    boostOf?: string;
-    quoteOf?: string;
-}
-
-// Grid image thumbnail from the server-resolved media object (`thumbUrl`,
-// fallback `url`).
-const resolveImageUri = (ref: MediaItem): string | undefined => ref.thumbUrl || ref.url || undefined;
-
-// Static video poster from the server-resolved media object (`posterUrl`,
-// fallback `thumbUrl`). Undefined → icon placeholder; a 404/error from the URL
-// is handled by the cell's own image-error fallback.
-const resolveVideoPosterUri = (ref: MediaItem): string | undefined => ref.posterUrl || ref.thumbUrl || undefined;
-
 const MediaGrid: React.FC<MediaGridProps> = ({ userId, isPrivate, isOwnProfile }) => {
+    const { user } = useAuth();
+    const viewerId = user?.id;
     const router = useRouter();
     const theme = useTheme();
     const { t } = useTranslation();
+    const { fetchUserFeed } = usePostsStore();
     const getPostFromDb = usePostsStore((s) => s.getPostFromDb);
-    const { mediaFeed, postsFeed, items } = useProfileMediaFeed({ userId, isPrivate, isOwnProfile });
+    const mediaFeed = useUserFeedSelector(userId || '', 'media');
+    const postsFeed = useUserFeedSelector(userId || '', 'posts');
+    // Non-scrollable grid inside parent ScrollView; pull-to-refresh handled by parent
+    const [containerWidth, setContainerWidth] = useState<number>(Dimensions.get('window').width);
+    const itemSize = useMemo(() => {
+        const totalGap = GAP * (NUM_COLUMNS - 1) + H_PADDING * 2;
+        return Math.floor((containerWidth - totalGap) / NUM_COLUMNS);
+    }, [containerWidth]);
+
+    useEffect(() => {
+        if (!userId || (isPrivate && !isOwnProfile)) return;
+
+        fetchUserFeed(userId, { type: 'media', limit: PROFILE_MEDIA_FEED_LIMIT });
+        // `viewerId` is in the deps so the feed refetches when the viewer's auth
+        // session resolves on cold boot — visibility of follower/owner-gated
+        // media depends on who is asking, and the request would otherwise run
+        // once while anonymous and never refresh.
+    }, [userId, viewerId, fetchUserFeed, isPrivate, isOwnProfile]);
+
+    // Fallback: if media feed finished and is empty, attempt to load posts feed for media extraction
+    useEffect(() => {
+        if (!userId || (isPrivate && !isOwnProfile)) return;
+
+        const isLoaded = !!mediaFeed && !mediaFeed.isLoading;
+        const isEmpty = (mediaFeed?.items?.length || 0) === 0;
+        const postsLoaded = !!postsFeed;
+
+        if (isLoaded && isEmpty && !postsLoaded) {
+            fetchUserFeed(userId, { type: 'posts', limit: PROFILE_POSTS_FEED_LIMIT });
+        }
+    }, [userId, viewerId, mediaFeed, mediaFeed?.isLoading, mediaFeed?.items?.length, postsFeed, fetchUserFeed, isPrivate, isOwnProfile]);
+
+    // Grid image thumbnail from the server-resolved media object (`thumbUrl`,
+    // fallback `url`).
+    const resolveImageUri = useCallback(
+        (ref?: string | { thumbUrl?: string; url?: string }): string | undefined => {
+            if (!ref || typeof ref === 'string') return undefined;
+            return ref.thumbUrl || ref.url || undefined;
+        },
+        []
+    );
+
+    // Static video poster from the server-resolved media object (`posterUrl`,
+    // fallback `thumbUrl`). Undefined → icon placeholder; a 404/error from the URL
+    // is handled by the cell's own image-error fallback.
+    const resolveVideoPosterUri = useCallback(
+        (ref?: string | { posterUrl?: string; thumbUrl?: string }): string | undefined => {
+            if (!ref || typeof ref === 'string') return undefined;
+            return ref.posterUrl || ref.thumbUrl || undefined;
+        },
+        []
+    );
 
     const mediaItems = useMemo<MediaGridEntry[]>(() => {
         const out: MediaGridEntry[] = [];
+        const items = (mediaFeed?.items?.length ? mediaFeed.items : (postsFeed?.items || [])) as any[];
 
-        const pushUris = (targetId: string, sources: MediaItem[], postType?: string) => {
+        // A `content.media` entry is a media object carrying the server-resolved
+        // final URLs (`url`/`thumbUrl`/`posterUrl`); a bare id/url string is also
+        // tolerated for the dedup/video-detection key.
+        type MediaRef = string | { id?: string; url?: string; thumbUrl?: string; posterUrl?: string };
+
+        const pickIdOrUrl = (x: any): string | undefined => {
+            if (!x) return undefined;
+            if (typeof x === 'string') return x;
+            return x.id || x.url || undefined;
+        };
+
+        const pushUris = (targetId: string, sources: (MediaRef | undefined)[], postType?: string, mediaTypes?: (string | undefined)[]) => {
+            const collected = sources.filter(Boolean) as MediaRef[];
             const seen = new Set<string>();
 
-            sources.forEach((ref, idx) => {
+            collected.forEach((ref, idx) => {
                 // Dedup/video-detection key is the raw id/url; resolution reads the
                 // object's server URLs first (handled inside the resolvers).
-                const key = ref.id || ref.url;
+                const key = pickIdOrUrl(ref);
                 if (!key) return;
-                const isVideo = isVideoMediaRef(key, { postType, mediaType: ref.type });
+                const isVideo = isVideoMediaRef(key, { postType, mediaType: mediaTypes?.[idx] });
 
+                // For videos the cell renders a static poster; an empty/unresolvable
+                // poster still produces a placeholder cell, so a video entry is always
+                // valid. Images require a resolvable uri.
                 if (seen.has(key)) return;
                 seen.add(key);
 
                 if (isVideo) {
-                    // For videos the cell renders a static poster; an empty/unresolvable
-                    // poster still produces a placeholder cell, so a video entry is
-                    // always valid.
                     const posterUri = resolveVideoPosterUri(ref);
-                    out.push({ postId: targetId, uri: posterUri ?? '', isVideo: true, isCarousel: sources.length > 1, mediaIndex: idx });
+                    const isCarousel = collected.length > 1;
+                    out.push({ postId: targetId, uri: posterUri ?? '', isVideo: true, isCarousel, mediaIndex: idx });
                     return;
                 }
 
                 const uri = resolveImageUri(ref);
-                if (!uri) return; // Images require a resolvable uri.
-                out.push({ postId: targetId, uri, isVideo: false, isCarousel: sources.length > 1, mediaIndex: idx });
+                if (!uri) return;
+                const isCarousel = collected.length > 1;
+                out.push({ postId: targetId, uri, isVideo: false, isCarousel, mediaIndex: idx });
             });
         };
 
-        const extractFrom = (post: HydratedPostSummary & Partial<RawPostExtras>, targetId: string) => {
+        const extractFrom = (post: any, targetId: string) => {
+            const postType = post?.type;
             // The server-resolved `content.media` objects carry the final URLs
             // (url/thumbUrl/posterUrl) — the single source for grid thumbnails.
-            const media = post.content?.media;
-            if (!Array.isArray(media) || media.length === 0) return;
-            pushUris(targetId, media, post.type);
+            const mediaArray: any[] = Array.isArray(post?.content?.media) ? post.content.media : [];
+            if (!mediaArray.length) return;
+            const mediaTypes = mediaArray.map((m: any) => (typeof m === 'object' && m.type) ? m.type : undefined);
+            pushUris(targetId, mediaArray, postType, mediaTypes);
         };
 
-        for (const rawPost of items) {
-            const p: FeedItem & Partial<RawPostExtras> = rawPost;
+        for (const p of items) {
             extractFrom(p, String(p.id));
 
-            const ownMedia = p.content?.media;
-            if (Array.isArray(ownMedia) && ownMedia.length > 0) continue;
+            const hasOwnMedia = Array.isArray(p?.content?.media) && p.content.media.length > 0;
+            if (hasOwnMedia) continue;
 
             // Boosted/quoted media: the transformed feed item already carries the
             // related post objects (`original` / `quoted` / `boost.originalPost`).
             // Use those first — they work on web (no SQLite). On native we can also
             // fall back to the SQLite cache when the embedded object is absent.
-            const embeddedOriginal = p.original ?? p.quoted ?? p.boost?.originalPost ?? null;
+            const embeddedOriginal = p?.original ?? p?.quoted ?? p?.boost?.originalPost ?? null;
             if (embeddedOriginal) {
                 extractFrom(embeddedOriginal, String(p.id));
                 continue;
             }
 
-            const origId = p.originalPostId || p.boostOf || p.quoteOf;
+            const origId = p?.originalPostId || p?.boostOf || p?.quoteOf;
             if (origId && isDbAvailable()) {
                 const orig = getPostFromDb(String(origId));
                 if (orig) extractFrom(orig, String(p.id));
@@ -124,9 +182,19 @@ const MediaGrid: React.FC<MediaGridProps> = ({ userId, isPrivate, isOwnProfile }
         }
 
         return out;
-    }, [items, getPostFromDb]);
+    }, [mediaFeed?.items, postsFeed?.items, resolveImageUri, resolveVideoPosterUri, getPostFromDb]);
 
-    const renderCell = useCallback((item: MediaGridEntry, itemSize: number) => {
+    const gridItemStyle = useMemo(() => ({
+        width: itemSize,
+        height: itemSize,
+    }), [itemSize]);
+
+    const imageStyle = useMemo(() => ({
+        width: '100%' as const,
+        height: '100%' as const,
+    }), []);
+
+    const renderItem = useCallback(({ item }: { item: MediaGridEntry }) => {
         const handlePress = () => {
             if (item.isVideo) {
                 router.push(`/videos?postId=${item.postId}`);
@@ -136,7 +204,11 @@ const MediaGrid: React.FC<MediaGridProps> = ({ userId, isPrivate, isOwnProfile }
         };
 
         return (
-            <TouchableOpacity activeOpacity={0.8} style={{ width: itemSize, height: itemSize }} onPress={handlePress}>
+            <TouchableOpacity
+                activeOpacity={0.8}
+                style={gridItemStyle}
+                onPress={handlePress}
+            >
                 {item.isVideo ? (
                     <VideoPosterCell
                         posterUri={item.uri || undefined}
@@ -148,7 +220,7 @@ const MediaGrid: React.FC<MediaGridProps> = ({ userId, isPrivate, isOwnProfile }
                     <Image
                         source={{ uri: item.uri }}
                         className="bg-secondary"
-                        style={{ width: '100%', height: '100%' }}
+                        style={imageStyle}
                         contentFit="cover"
                         transition={150}
                         cachePolicy="memory-disk"
@@ -164,7 +236,17 @@ const MediaGrid: React.FC<MediaGridProps> = ({ userId, isPrivate, isOwnProfile }
                 )}
             </TouchableOpacity>
         );
-    }, [router, theme.colors.textSecondary]);
+    }, [itemSize, router, gridItemStyle, imageStyle, theme.colors.textSecondary]);
+
+    const keyExtractor = useCallback((it: MediaGridEntry, index: number) => `${it.postId}:${it.mediaIndex ?? index}`, []);
+
+    const getItemLayout = useCallback((_: ArrayLike<MediaGridEntry> | null | undefined, index: number) => {
+        const size = itemSize;
+        const row = Math.floor(index / NUM_COLUMNS);
+        const length = size;
+        const offset = row * (size + GAP);
+        return { length, offset, index };
+    }, [itemSize]);
 
     // Loading state first; if no items yet and feeds are still loading, show spinner
     const isLoading = (!mediaFeed && !postsFeed) || mediaFeed?.isLoading || postsFeed?.isLoading;
@@ -191,13 +273,23 @@ const MediaGrid: React.FC<MediaGridProps> = ({ userId, isPrivate, isOwnProfile }
     }
 
     return (
-        <ProfileGridList
-            data={mediaItems}
-            renderCell={renderCell}
-            containerClassName="bg-background"
-            initialNumToRender={INITIAL_RENDER_COUNT}
-            windowSize={WINDOW_SIZE}
-        />
+        <View className="bg-background" onLayout={(e) => setContainerWidth(e.nativeEvent.layout.width)}>
+            <FlatList
+                data={mediaItems}
+                keyExtractor={keyExtractor}
+                renderItem={renderItem}
+                numColumns={NUM_COLUMNS}
+                columnWrapperStyle={{ gap: GAP }}
+                contentContainerStyle={{ gap: GAP, paddingHorizontal: H_PADDING }}
+                showsVerticalScrollIndicator={false}
+                scrollEnabled={false}
+                nestedScrollEnabled={false}
+                removeClippedSubviews
+                initialNumToRender={INITIAL_RENDER_COUNT}
+                windowSize={WINDOW_SIZE}
+                getItemLayout={getItemLayout}
+            />
+        </View>
     );
 };
 

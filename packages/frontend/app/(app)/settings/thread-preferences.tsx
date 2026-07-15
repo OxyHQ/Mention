@@ -8,7 +8,7 @@ import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { Toggle } from '@/components/Toggle';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { useTranslation } from 'react-i18next';
-import { Storage } from '@/utils/storage';
+import { storeData } from '@/utils/storage';
 import { SettingsListGroup } from '@oxyhq/bloom/settings-list';
 import { STORAGE_KEYS } from '@/lib/constants';
 import { Icon, type IconName } from '@/lib/icons';
@@ -35,7 +35,7 @@ export default function ThreadPreferencesScreen() {
 
     const onVoteStyleChange = useCallback(async (value: VoteStyle) => {
         setVoteStyle(value);
-        await Storage.set(STORAGE_KEYS.VOTE_STYLE, value);
+        await storeData(STORAGE_KEYS.VOTE_STYLE, value);
     }, []);
 
     return (

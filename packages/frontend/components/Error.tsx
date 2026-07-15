@@ -5,7 +5,7 @@ import { useTheme } from '@oxyhq/bloom/theme';
 import { Loading } from '@oxyhq/bloom/loading';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { flattenStyleArray } from '@/styles/shared';
+import { flattenStyleArray } from '@/utils/theme';
 
 interface ErrorProps {
   title?: string;

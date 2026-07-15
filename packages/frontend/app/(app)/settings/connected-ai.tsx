@@ -17,7 +17,6 @@ import { useSafeBack } from '@/hooks/useSafeBack';
 import { confirmDialog } from '@/utils/alerts';
 import { formatRelativeTimeLocalized } from '@/utils/dateUtils';
 import { api } from '@/utils/api';
-import { getErrorMessage } from '@/utils/apiError';
 import { createScopedLogger } from '@/lib/logger';
 
 const logger = createScopedLogger('ConnectedAiSettings');
@@ -70,6 +69,15 @@ function connectionTitle(connection: McpConnection): string {
 function bundleSummary(handles: string[] | undefined): string | undefined {
   if (!handles || handles.length <= 1) return undefined;
   return handles.map((h) => `@${h.replace(/^@+/, '')}`).join(', ');
+}
+
+/** Pull a human-readable message off an axios-style error without `as any`. */
+function getErrorMessage(error: unknown, fallback: string): string {
+  if (error && typeof error === 'object' && 'response' in error) {
+    const response = (error as { response?: { data?: { error?: string; message?: string } } }).response;
+    return response?.data?.error || response?.data?.message || fallback;
+  }
+  return fallback;
 }
 
 export default function ConnectedAiScreen() {

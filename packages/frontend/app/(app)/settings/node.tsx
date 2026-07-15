@@ -14,8 +14,16 @@ import { Icon, type IconName } from '@/lib/icons';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { confirmDialog } from '@/utils/alerts';
 import { formatRelativeTimeLocalized } from '@/utils/dateUtils';
-import { getErrorMessage } from '@/utils/apiError';
 import { useMentionNode, type MentionNode } from '@/hooks/useMentionNode';
+
+/** Pull a human-readable message off an axios-style mutation error without `as any`. */
+function getNodeErrorMessage(error: unknown, fallback: string): string {
+  if (error && typeof error === 'object' && 'response' in error) {
+    const response = (error as { response?: { data?: { error?: string; message?: string } } }).response;
+    return response?.data?.error || response?.data?.message || fallback;
+  }
+  return fallback;
+}
 
 /** Inline notice shown when a node mutation (create vault / disconnect) fails. */
 function ActionError({ message }: { message: string }) {
@@ -261,7 +269,7 @@ export default function MentionNodeScreen() {
 
             {disconnectError ? (
               <ActionError
-                message={getErrorMessage(
+                message={getNodeErrorMessage(
                   disconnectError,
                   t('settings.node.disconnect.error', {
                     defaultValue: "Couldn't disconnect your node. Please try again.",
@@ -311,7 +319,7 @@ export default function MentionNodeScreen() {
 
             {createVaultError ? (
               <ActionError
-                message={getErrorMessage(
+                message={getNodeErrorMessage(
                   createVaultError,
                   t('settings.node.create.error', {
                     defaultValue: "Couldn't create your managed vault. Please try again.",

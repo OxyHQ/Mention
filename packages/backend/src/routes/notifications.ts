@@ -273,33 +273,6 @@ router.get("/", async (req: AuthRequest, res: Response) => {
 // realtime notification to any recipient with an attacker-chosen
 // type/entityId (a phishing/harassment vector).
 
-/**
- * Enrich a single notification with its actor profile the SAME way the GET list
- * handler does. `actorId` holds an Oxy user id (`type: String`), NOT a Mongoose
- * ref, so `.populate('actorId')` is a silent no-op — the actor must be resolved
- * through Oxy instead. Returns a plain object with `actorId_populated` attached
- * (matching the GET list DTO); on a lookup failure the notification is returned
- * unenriched so the read-state write is never blocked.
- */
-const enrichNotificationActor = async (notification: INotification) => {
-  const actorId = notification.actorId;
-  let actor: ActorProfile | undefined;
-  if (actorId === 'system') {
-    actor = SYSTEM_ACTOR;
-  } else if (actorId) {
-    try {
-      const [profile] = await getServiceOxyClient().getUsersByIds([actorId]);
-      if (profile?.id) actor = profile;
-    } catch (e) {
-      logger.warn('[Notifications] Failed to resolve actor profile:', e);
-    }
-  }
-  return {
-    ...notification.toObject(),
-    actorId_populated: actor ? toPopulatedActor(actor, actorId) : undefined,
-  };
-};
-
 // Mark notification as read
 // Shared handler to mark notification as read
 const markAsReadHandler = async (req: AuthRequest, res: Response) => {
@@ -313,18 +286,16 @@ const markAsReadHandler = async (req: AuthRequest, res: Response) => {
       { _id: req.params.id, recipientId: userId },
       { read: true },
       { new: true }
-    );
+    ).populate('actorId', 'username name avatar');
 
     if (!notification) {
       return res.status(404).json({ message: "Notification not found" });
     }
 
-    const enriched = await enrichNotificationActor(notification);
-
     const io = req.app.get('notificationsNamespace') as Server;
-    io.to(`user:${userId}`).emit('notificationUpdated', enriched);
+    io.to(`user:${userId}`).emit('notificationUpdated', notification);
 
-    res.json({ message: "Notification marked as read", notification: enriched });
+    res.json({ message: "Notification marked as read", notification });
   } catch (error) {
     res.status(500).json({ message: "Error updating notification" });
   }
@@ -382,16 +353,14 @@ router.patch('/:id/archive', async (req: AuthRequest, res: Response) => {
       { _id: req.params.id, recipientId: userId },
       { read: true },
       { new: true }
-    );
+    ).populate('actorId', 'username name avatar');
 
     if (!notification) return res.status(404).json({ message: 'Notification not found' });
-
-    const enriched = await enrichNotificationActor(notification);
 
     const io = req.app.get('notificationsNamespace') as Server;
     io.to(`user:${userId}`).emit('notificationArchived', notification._id);
 
-    res.json({ message: 'Notification archived', notification: enriched });
+    res.json({ message: 'Notification archived', notification });
   } catch (error) {
     res.status(500).json({ message: 'Error archiving notification' });
   }

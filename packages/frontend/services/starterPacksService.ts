@@ -33,8 +33,9 @@ export interface StarterPackSummary {
   /** Hydrated members (identity + avatar URL) returned by the detail endpoint. */
   members?: StarterPackMember[];
   useCount?: number;
-  /** Resolved owner summary. */
+  /** Resolved owner summary (`creator` is the canonical field; `owner` is a legacy alias). */
   creator?: StarterPackCreator;
+  owner?: StarterPackCreator;
   createdAt?: string;
   updatedAt?: string;
   [key: string]: unknown;

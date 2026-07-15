@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Storage } from '@/utils/storage';
+import { getData } from '@/utils/storage';
 import { STORAGE_KEYS } from '@/lib/constants';
 
 export type VoteStyle = 'heart' | 'pill';
@@ -13,7 +13,7 @@ export function useVoteStyle(): VoteStyle {
         let mounted = true;
 
         async function load() {
-            const saved = await Storage.get<VoteStyle>(STORAGE_KEYS.VOTE_STYLE);
+            const saved = await getData<VoteStyle>(STORAGE_KEYS.VOTE_STYLE);
             if (!mounted) return;
             if (saved === 'heart' || saved === 'pill') {
                 setVoteStyle(saved);
