@@ -551,7 +551,7 @@ function computeToxicity(features: TextFeatures): number {
  * ranking, not classification).
  */
 export function computeDeterministicScores(
-  text: string,
+  text: string | null | undefined,
   hashtagCount: number,
   context?: ScoreContext,
 ): DeterministicScores {

@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import Poll, { IPoll } from '../models/Poll';
+import Poll, { IPoll, IPollOption } from '../models/Poll';
 import Post from '../models/Post';
 import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
 import { createError } from '../utils/error';
@@ -98,10 +98,10 @@ class PollsController {
           success: true,
           data: poll
         });
-      } catch (error: any) {
+      } catch (error: unknown) {
         logger.error('[Polls] Error creating poll:', error);
         // Provide more detailed error information
-        if (error.name === 'ValidationError') {
+        if (error instanceof mongoose.Error.ValidationError) {
           return res.status(400).json({
             error: 'Validation Error',
             message: error.message,
@@ -182,7 +182,7 @@ class PollsController {
       }
 
       // Find the option
-      const option = poll.options.find(opt => (opt as any)._id.toString() === optionId);
+      const option = poll.options.find(opt => opt._id.toString() === optionId);
       if (!option) {
         return res.status(404).json({
           error: 'Not found',
@@ -261,10 +261,13 @@ class PollsController {
   private sanitizePollResponse(poll: IPoll) {
     const pollObj = poll.toObject ? poll.toObject() : { ...poll };
     if (pollObj.isAnonymous && pollObj.options) {
-      pollObj.options = pollObj.options.map((opt: any) => ({
-        ...opt,
-        votes: opt.votes ? opt.votes.length : 0, // Replace voter IDs with count
-      }));
+      return {
+        ...pollObj,
+        options: pollObj.options.map((opt: IPollOption) => ({
+          ...opt,
+          votes: opt.votes ? opt.votes.length : 0, // Replace voter IDs with count
+        })),
+      };
     }
     return pollObj;
   }

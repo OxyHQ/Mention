@@ -26,14 +26,15 @@ export class HashtagsController {
             return res.json({
                 data: hashtags.map(hashtag => hashtag.name)
             });
-        } catch (error: any) {
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : String(error);
             logger.error('[HashtagsController] Error in searchHashtags:', {
-                error: error.message,
-                stack: error.stack
+                error: message,
+                stack: error instanceof Error ? error.stack : undefined
             });
             return res.status(500).json({
                 error: 'Server error',
-                message: `Error searching hashtags: ${error.message}`
+                message: `Error searching hashtags: ${message}`
             });
         }
     }

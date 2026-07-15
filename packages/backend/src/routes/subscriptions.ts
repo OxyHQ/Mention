@@ -36,8 +36,8 @@ router.post('/:authorId', async (req: AuthRequest, res: Response) => {
       { upsert: true }
     );
     return res.json({ subscribed: true });
-  } catch (error: any) {
-    if (error?.code === 11000) {
+  } catch (error: unknown) {
+    if (error && typeof error === 'object' && 'code' in error && error.code === 11000) {
       return res.json({ subscribed: true });
     }
     logger.error('[Subscriptions] Error subscribing to author:', { userId: req.user?.id, authorId: req.params.authorId, error });

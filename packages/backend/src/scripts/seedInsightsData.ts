@@ -10,6 +10,7 @@
 
 import mongoose from 'mongoose';
 import { Post } from '../models/Post';
+import { logger } from '../utils/logger';
 
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/mention-development';
 
@@ -59,7 +60,7 @@ function randomDate(daysAgo: number): Date {
 async function seedInsightsData() {
   try {
     await mongoose.connect(MONGODB_URI);
-    console.log('Connected to MongoDB');
+    logger.info('Connected to MongoDB');
 
     // Determine user ID
     let userId = process.argv[2];
@@ -69,18 +70,18 @@ async function seedInsightsData() {
         .lean();
       if (existingPost?.oxyUserId) {
         userId = existingPost.oxyUserId;
-        console.log(`Using existing user: ${userId}`);
+        logger.info(`Using existing user: ${userId}`);
       } else {
         userId = 'seed-user-001';
-        console.log(`No existing users found, using default: ${userId}`);
+        logger.info(`No existing users found, using default: ${userId}`);
       }
     } else {
-      console.log(`Using provided user: ${userId}`);
+      logger.info(`Using provided user: ${userId}`);
     }
 
     // Clean up previous seed data for this user
     const deleted = await Post.deleteMany({ oxyUserId: userId });
-    console.log(`Cleaned up ${deleted.deletedCount} existing posts for user ${userId}`);
+    logger.info(`Cleaned up ${deleted.deletedCount} existing posts for user ${userId}`);
 
     // Create 30 posts spread across the last 90 days with varied stats
     const posts = [];
@@ -120,29 +121,29 @@ async function seedInsightsData() {
     }
 
     const result = await Post.insertMany(posts);
-    console.log(`Created ${result.length} fake posts for user ${userId}`);
+    logger.info(`Created ${result.length} fake posts for user ${userId}`);
 
     // Print summary
     const totalViews = posts.reduce((s, p) => s + p.stats.viewsCount, 0);
     const totalLikes = posts.reduce((s, p) => s + p.stats.likesCount, 0);
     const totalReplies = posts.reduce((s, p) => s + p.stats.commentsCount, 0);
     const totalBoosts = posts.reduce((s, p) => s + p.stats.boostsCount, 0);
-    console.log(`\nStats summary:`);
-    console.log(`  Views: ${totalViews}`);
-    console.log(`  Likes: ${totalLikes}`);
-    console.log(`  Replies: ${totalReplies}`);
-    console.log(`  Boosts: ${totalBoosts}`);
+    logger.info(`\nStats summary:`);
+    logger.info(`  Views: ${totalViews}`);
+    logger.info(`  Likes: ${totalLikes}`);
+    logger.info(`  Replies: ${totalReplies}`);
+    logger.info(`  Boosts: ${totalBoosts}`);
     const typeCounts = posts.reduce((acc, p) => { acc[p.type] = (acc[p.type] || 0) + 1; return acc; }, {} as Record<string, number>);
-    console.log(`  Post types: ${JSON.stringify(typeCounts)}`);
+    logger.info(`  Post types: ${JSON.stringify(typeCounts)}`);
 
     // Print date range
     const dates = posts.map(p => p.createdAt).sort((a, b) => a.getTime() - b.getTime());
-    console.log(`  Date range: ${dates[0].toISOString().split('T')[0]} to ${dates[dates.length - 1].toISOString().split('T')[0]}`);
+    logger.info(`  Date range: ${dates[0].toISOString().split('T')[0]} to ${dates[dates.length - 1].toISOString().split('T')[0]}`);
 
     await mongoose.disconnect();
-    console.log('\nDone! Seed data created successfully.');
+    logger.info('\nDone! Seed data created successfully.');
   } catch (error) {
-    console.error('Seed failed:', error);
+    logger.error('Seed failed:', error);
     await mongoose.disconnect();
     process.exit(1);
   }

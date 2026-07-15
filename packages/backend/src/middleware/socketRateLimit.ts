@@ -77,16 +77,16 @@ export function createSocketRateLimiter() {
    * Wrap a socket event handler with rate limiting.
    * Returns a function that can be used as the event callback.
    */
-  const wrap = <T extends (...args: any[]) => any>(
+  const wrap = <A extends unknown[]>(
     socket: { id: string },
     eventName: string,
-    handler: T,
-  ): ((...args: Parameters<T>) => ReturnType<T> | undefined) => {
-    return (...args: Parameters<T>) => {
+    handler: (...args: A) => unknown,
+  ): ((...args: A) => void) => {
+    return (...args: A): void => {
       if (!isAllowed(socket.id, eventName)) {
-        return undefined;
+        return;
       }
-      return handler(...args);
+      handler(...args);
     };
   };
 

@@ -40,7 +40,8 @@ describe('computeDeterministicScores — bounds & shape', () => {
 
   it('treats empty / undefined text without throwing', () => {
     expect(() => computeDeterministicScores('', 0)).not.toThrow();
-    // @ts-expect-error — defensive: callers always pass a string, but guard anyway.
+    // Defensive: the signature tolerates null/undefined (coalesced to ''), so
+    // this guards the runtime path without a type suppression.
     expect(() => computeDeterministicScores(undefined, 0)).not.toThrow();
   });
 });

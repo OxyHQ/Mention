@@ -27,6 +27,7 @@
  */
 
 import mongoose from 'mongoose';
+import { logger } from '../utils/logger';
 
 /**
  * The Mention backend connects with `mongoose.connect(uri, { dbName })` where
@@ -235,8 +236,8 @@ async function main(): Promise<void> {
     throw new Error('Failed to acquire database handles from connections');
   }
 
-  console.log(`Mention posts DB: ${MONGO_HOST_URI} (db: ${MENTION_DB_NAME})`);
-  console.log(`Oxy users DB:     ${OXY_DB_URI}`);
+  logger.info(`Mention posts DB: ${MONGO_HOST_URI} (db: ${MENTION_DB_NAME})`);
+  logger.info(`Oxy users DB:     ${OXY_DB_URI}`);
 
   const postsCol = mentionDb.collection('posts');
   const usersCol = oxyDb.collection('users');
@@ -244,13 +245,13 @@ async function main(): Promise<void> {
   // ── Idempotency: remove anything from a previous run of THIS seed ──
   const removedPosts = await postsCol.deleteMany({ seedTag: SEED_TAG });
   const removedUsers = await usersCol.deleteMany({ seedTag: SEED_TAG });
-  console.log(`Cleaned previous seed: ${removedPosts.deletedCount} posts, ${removedUsers.deletedCount} users`);
+  logger.info(`Cleaned previous seed: ${removedPosts.deletedCount} posts, ${removedUsers.deletedCount} users`);
 
   // ── Seed Oxy-shaped users (author identities) ──
   const userDocs = SEED_USERS.map(makeOxyUserDoc);
   await usersCol.insertMany(userDocs);
   const userIds = userDocs.map((u) => u._id.toString());
-  console.log(`Inserted ${userDocs.length} Oxy users into oxy-dev`);
+  logger.info(`Inserted ${userDocs.length} Oxy users into oxy-dev`);
 
   // ── Seed root posts with widely varying text length ──
   const postDocs = [];
@@ -262,22 +263,22 @@ async function main(): Promise<void> {
     postDocs.push(makePostDoc(authorId, text, createdAt));
   }
   await postsCol.insertMany(postDocs);
-  console.log(`Inserted ${postDocs.length} root posts into ${MENTION_DB_NAME}`);
+  logger.info(`Inserted ${postDocs.length} root posts into ${MENTION_DB_NAME}`);
 
   // ── Summary ──
   const totalSeedPosts = await postsCol.countDocuments({ seedTag: SEED_TAG });
   const totalPosts = await postsCol.countDocuments({});
-  console.log('\n--- Summary ---');
-  console.log(`Seeded users:        ${userDocs.length}`);
-  console.log(`Seeded posts:        ${totalSeedPosts}`);
-  console.log(`Total posts in DB:   ${totalPosts}`);
+  logger.info('\n--- Summary ---');
+  logger.info(`Seeded users:        ${userDocs.length}`);
+  logger.info(`Seeded posts:        ${totalSeedPosts}`);
+  logger.info(`Total posts in DB:   ${totalPosts}`);
 
   await mentionConn.close();
   await oxyConn.close();
-  console.log('\nDone.');
+  logger.info('\nDone.');
 }
 
 main().catch((err) => {
-  console.error('Seed failed:', err);
+  logger.error('Seed failed:', err);
   process.exit(1);
 });

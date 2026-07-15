@@ -185,7 +185,7 @@ export async function resolveOxyUser(username: string): Promise<any> {
     try {
       const response = await oxy.searchProfiles(username);
       const results = Array.isArray(response) ? response : response?.data;
-      return results?.find?.((u: any) =>
+      return results?.find?.((u: { username?: string }) =>
         u.username?.toLowerCase() === username.toLowerCase()
       ) || null;
     } catch (searchErr) {

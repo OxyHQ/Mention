@@ -19,13 +19,15 @@ export class FeedGeneratorFeed implements FeedAPI {
   }
 
   async peekLatest(_context: FeedContext): Promise<HydratedPost | undefined> {
-    // TODO: Implement once feed generator infrastructure is built
+    // Stub: third-party feed-generator infrastructure (FeedGenerator model +
+    // remote algorithm dereferencing) is not built yet, so this returns nothing.
     logger.info('[FeedGeneratorFeed] peekLatest not yet implemented', { uri: this.generatorUri });
     return undefined;
   }
 
   async fetch(_options: FeedFetchOptions, _context: FeedContext): Promise<FeedAPIResponse> {
-    // TODO: Look up FeedGenerator model, call its algorithm endpoint, hydrate results
+    // Stub: until the FeedGenerator model + algorithm-endpoint dereferencing land,
+    // a `feedgen|uri` descriptor resolves to an empty page instead of erroring.
     logger.info('[FeedGeneratorFeed] fetch not yet implemented', { uri: this.generatorUri });
     return {
       slices: [],

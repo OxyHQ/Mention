@@ -1,6 +1,6 @@
 import { Router, Response } from 'express';
 import mongoose from 'mongoose';
-import Report, { ReportedType, ReportCategory, ReportStatus } from '../models/Report.model';
+import Report, { ReportedType, ReportCategory, ReportStatus, type IReport } from '../models/Report.model';
 import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
 import { logger } from '../utils/logger';
 import { queryInt } from '../utils/queryParams';
@@ -121,7 +121,7 @@ router.get('/', async (req: AuthRequest, res: Response) => {
     // For now, return reports created by the current user
     const { status, reportedType, cursor } = req.query;
 
-    const query: any = { reporter: userId };
+    const query: mongoose.FilterQuery<IReport> = { reporter: userId };
 
     // Filter by status
     if (status && typeof status === 'string') {

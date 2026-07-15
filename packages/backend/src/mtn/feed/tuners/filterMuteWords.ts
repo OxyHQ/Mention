@@ -30,7 +30,7 @@ export function filterMuteWords(slices: FeedPostSlice[], ctx: TunerContext): Fee
     if (contentPatterns.some((re) => re.test(text))) return false;
 
     // Check hashtags
-    const hashtags: string[] = (anchorPost.metadata as any)?.hashtags || [];
+    const hashtags: string[] = anchorPost.metadata.hashtags || [];
     if (hashtags.some((tag) => tagValues.has(tag.toLowerCase()))) return false;
 
     return true;

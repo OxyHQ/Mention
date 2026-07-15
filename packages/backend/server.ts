@@ -519,7 +519,7 @@ notificationsNamespace.on("connection", (socket: AuthenticatedSocket) => {
     logger.error("Notifications socket error", error);
   });
 
-  socket.on("markNotificationRead", socketRateLimiter.wrap(socket, 'markNotificationRead', async ({ notificationId }) => {
+  socket.on("markNotificationRead", socketRateLimiter.wrap(socket, 'markNotificationRead', async ({ notificationId }: { notificationId?: string }) => {
     try {
       if (!socket.user?.id) return;
       const notification = await Notification.findOneAndUpdate(

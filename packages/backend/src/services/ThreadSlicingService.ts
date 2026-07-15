@@ -11,6 +11,7 @@ import {
   FeedPostSlice,
   FeedSliceItem,
   FeedSliceReason,
+  HydratedPost,
   MtnConfig,
   PostUser,
   PostVisibility,
@@ -27,13 +28,14 @@ export interface ThreadSlicingOptions {
 }
 
 interface RawPost {
-  _id: any;
+  // Feed candidates come from several ranked sources with differently-typed ids
+  // (ObjectId, string, or an opaque `{ toString() }`); only `getPostId` reads it.
+  _id: unknown;
   id?: string;
   oxyUserId?: string;
   parentPostId?: string;
   threadId?: string;
   createdAt?: string | Date;
-  [key: string]: any;
 }
 
 const DEFAULT_OPTIONS: ThreadSlicingOptions = {
@@ -323,7 +325,7 @@ class ThreadSlicingService {
 }
 
 function getPostId(post: RawPost): string {
-  return post.id || post._id?.toString() || '';
+  return post.id || (post._id != null ? String(post._id) : '');
 }
 
 /**
@@ -354,7 +356,9 @@ function buildSlice(
   reason?: FeedSliceReason
 ): FeedPostSlice {
   const rawItems: FeedSliceItem[] = posts.map((post) => ({
-    post: post as any, // will be hydrated later
+    // Raw lean doc placeholder: PostHydrationService.hydrateSlices replaces this
+    // with the real HydratedPost (it reads the raw fields back via RawPost).
+    post: post as unknown as HydratedPost,
     isThreadParent: false,
     isThreadChild: false,
     isThreadLastChild: false,

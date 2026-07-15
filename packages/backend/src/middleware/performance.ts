@@ -22,9 +22,9 @@ export function performanceMiddleware(req: Request, res: Response, next: NextFun
   const path = req.path;
   const method = req.method;
 
-  // Override res.end to capture response time
-  const originalEnd = res.end.bind(res);
-  res.end = function(chunk?: any, encoding?: any, cb?: () => void): Response {
+  // Capture response time once the response is fully sent — the idiomatic Express
+  // hook, so no res.end monkeypatch (and its untyped signature) is needed.
+  res.on('finish', () => {
     const responseTime = Date.now() - startTime;
     const statusCode = res.statusCode;
 
@@ -53,10 +53,7 @@ export function performanceMiddleware(req: Request, res: Response, next: NextFun
     if (metrics.length > MAX_METRICS) {
       metrics.shift();
     }
-
-    // Call original end
-    return originalEnd(chunk, encoding, cb);
-  };
+  });
 
   next();
 }

@@ -80,12 +80,16 @@ export async function connectToDatabase(): Promise<typeof mongoose> {
       retryCount = 0; // Reset retry count on successful connection
       logger.info("Connected to MongoDB successfully");
       return mongoose;
-    } catch (error: any) {
+    } catch (error: unknown) {
       retryCount++;
-      
+
       // Provide helpful error diagnostics
-      const errorCode = error?.code || error?.syscall || '';
-      const errorMessage = error?.message || error?.toString() || 'Unknown error';
+      const errorCode = error instanceof Error && 'code' in error && error.code
+        ? String(error.code)
+        : error instanceof Error && 'syscall' in error && error.syscall
+          ? String(error.syscall)
+          : '';
+      const errorMessage = error instanceof Error ? error.message : String(error ?? 'Unknown error');
       
       if (retryCount < MAX_RETRIES) {
         const delay = getRetryDelay(retryCount - 1);

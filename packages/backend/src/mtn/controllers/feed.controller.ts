@@ -355,13 +355,12 @@ class MtnFeedController {
 
       // Filter out posts from blocked/muted users
       if (privacyState && privacyState.excludedUserIds.size > 0) {
-        response.items = response.items.filter((item: any) => {
-          const authorId = item.author?.id || item.oxyUserId;
+        response.items = response.items.filter((item) => {
+          const authorId = item.user?.id;
           return !authorId || !privacyState.excludedUserIds.has(authorId);
         });
-        response.slices = response.slices.filter((slice: any) => {
-          const anchorPost = slice.items?.[0]?.post ?? slice.items?.[0];
-          const anchorAuthor = anchorPost?.author?.id || anchorPost?.oxyUserId;
+        response.slices = response.slices.filter((slice) => {
+          const anchorAuthor = slice.items?.[0]?.post?.user?.id;
           return !anchorAuthor || !privacyState.excludedUserIds.has(anchorAuthor);
         });
         syncFlattenedItemsWithSlices(response);

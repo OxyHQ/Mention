@@ -1,5 +1,6 @@
 import { Router, Response } from 'express';
-import { EntityFollow, ENTITY_FOLLOW_TYPES, type EntityFollowType } from '../models/EntityFollow';
+import { FilterQuery } from 'mongoose';
+import { EntityFollow, ENTITY_FOLLOW_TYPES, type EntityFollowType, type IEntityFollow } from '../models/EntityFollow';
 import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
 import { logger } from '../utils/logger';
 import { listSubscriptionService, LIST_ENTITY_TYPE } from '../services/ListSubscriptionService';
@@ -50,8 +51,8 @@ router.post('/', async (req: AuthRequest, res: Response) => {
     logger.debug(`User ${userId} followed ${entityType}:${entityId}`);
 
     res.status(201).json({ follow });
-  } catch (error: any) {
-    if (error?.code === 11000) {
+  } catch (error: unknown) {
+    if (error && typeof error === 'object' && 'code' in error && error.code === 11000) {
       return res.status(409).json({ message: 'Already following this entity' });
     }
     logger.error('Error creating entity follow:', { userId: req.user?.id, error });
@@ -161,7 +162,7 @@ router.get('/', async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ message: `type must be one of: ${ENTITY_FOLLOW_TYPES.join(', ')}` });
     }
 
-    const query: any = { userId };
+    const query: FilterQuery<IEntityFollow> = { userId };
     if (type) {
       query.entityType = type;
     }
@@ -209,7 +210,7 @@ router.get('/:entityType/:entityId/followers', async (req: AuthRequest, res: Res
     const limit = clampFollowPageSize(queryInt(req.query.limit));
     const cursor = queryString(req.query.cursor);
 
-    const query: any = { entityType, entityId };
+    const query: FilterQuery<IEntityFollow> = { entityType, entityId };
     if (cursor) {
       query._id = { $lt: cursor };
     }

@@ -177,14 +177,14 @@ const AttachmentSchema = new Schema({
   },
   id: {
     type: String,
-    required: function(this: any) {
+    required: function(this: { type?: string }) {
       return this.type === 'media';
     }
   },
   mediaType: {
     type: String,
     enum: ['image', 'video', 'gif'],
-    required: function(this: any) {
+    required: function(this: { type?: string }) {
       return this.type === 'media';
     }
   }
@@ -220,10 +220,10 @@ const PostContentSchema = new Schema({
   location: {
     type: { 
       type: String, 
-      enum: ['Point'], 
-      required: function(this: any) {
+      enum: ['Point'],
+      required: function(this: { coordinates?: number[] }) {
         // Require type only if coordinates are provided
-        return this.coordinates && this.coordinates.length > 0;
+        return (this.coordinates?.length ?? 0) > 0;
       }
     },
     coordinates: {
@@ -583,10 +583,10 @@ const PostSchema = new Schema<IPost>({
   location: {
     type: { 
       type: String, 
-      enum: ['Point'], 
-      required: function(this: any) {
+      enum: ['Point'],
+      required: function(this: { coordinates?: number[] }) {
         // Require type only if coordinates are provided in this location object
-        return this.coordinates && this.coordinates.length > 0;
+        return (this.coordinates?.length ?? 0) > 0;
       }
     },
     coordinates: {

@@ -2,6 +2,7 @@ import mongoose, { Document, Schema } from "mongoose";
 import { IPost } from './Post';
 
 export interface IPollOption extends Document {
+  _id: mongoose.Types.ObjectId;
   text: string;
   votes: string[]; // User IDs who voted for this option
 }
@@ -30,9 +31,12 @@ const PollSchema = new Schema<IPoll>({
     type: Schema.Types.Mixed, // Use Mixed type to allow both ObjectId and String
     required: true,
     validate: {
-      validator: function(v: any) {
+      validator: function(v: unknown) {
         // Allow both ObjectId and strings that start with 'temp_'
-        return mongoose.Types.ObjectId.isValid(v) || (typeof v === 'string' && v.startsWith('temp_'));
+        if (typeof v === 'string') {
+          return mongoose.Types.ObjectId.isValid(v) || v.startsWith('temp_');
+        }
+        return v instanceof mongoose.Types.ObjectId;
       },
       message: props => `${props.value} is not a valid ObjectId or temporary ID!`
     }

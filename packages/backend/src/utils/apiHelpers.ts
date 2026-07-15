@@ -47,7 +47,7 @@ export function sendSuccessResponse<T>(
 /**
  * Validates required parameter
  */
-export function validateRequired(param: any, paramName: string): string | null {
+export function validateRequired(param: unknown, paramName: string): string | null {
   if (!param) {
     return `Missing ${paramName} parameter`;
   }

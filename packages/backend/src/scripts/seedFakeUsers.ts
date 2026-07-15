@@ -7,6 +7,7 @@
  */
 
 import mongoose from 'mongoose';
+import { logger } from '../utils/logger';
 
 const OXY_DB_URI = 'mongodb://localhost:27017/oxy-dev';
 const MENTION_DB_URI = 'mongodb://localhost:27017/mention-development';
@@ -95,7 +96,7 @@ function pickRandom<T>(arr: T[], count: number): T[] {
   return shuffled.slice(0, Math.min(count, arr.length));
 }
 
-function makePostDoc(userId: string, text: string, type: string, createdAt: Date, extra: Record<string, any> = {}) {
+function makePostDoc(userId: string, text: string, type: string, createdAt: Date, extra: Record<string, unknown> = {}) {
   return {
     _id: new mongoose.Types.ObjectId(),
     oxyUserId: userId,
@@ -143,7 +144,7 @@ function makePostDoc(userId: string, text: string, type: string, createdAt: Date
 async function main() {
   const oxyConn = await mongoose.createConnection(OXY_DB_URI).asPromise();
   const mentionConn = await mongoose.createConnection(MENTION_DB_URI).asPromise();
-  console.log('Connected to both databases');
+  logger.info('Connected to both databases');
 
   const usersCol = oxyConn.db!.collection('users');
   const followsCol = oxyConn.db!.collection('follows');
@@ -162,14 +163,14 @@ async function main() {
     await likesCol.deleteMany({}).catch(() => {});
     await bookmarksCol.deleteMany({}).catch(() => {});
     await followsCol.deleteMany({ $or: [{ followerId: NATE_USER_ID }, { followingId: NATE_USER_ID }] }).catch(() => {});
-    console.log(`Cleaned up ${existingIds.length} seed users + related data`);
+    logger.info(`Cleaned up ${existingIds.length} seed users + related data`);
   } else {
     // Still clean nate's seeded posts
     await postsCol.deleteMany({ oxyUserId: NATE_USER_ID });
   }
 
   // ── Create users ────────────────────────────────────────────
-  console.log('\nCreating users...');
+  logger.info('\nCreating users...');
   const createdUserIds: string[] = [];
 
   for (const u of FAKE_USERS) {
@@ -207,12 +208,12 @@ async function main() {
     });
 
     createdUserIds.push(userId.toString());
-    console.log(`  @${u.username} (${u.first} ${u.last})`);
+    logger.info(`  @${u.username} (${u.first} ${u.last})`);
   }
 
   // ── Create follow relationships ─────────────────────────────
   // All fake users follow nate, nate follows all fake users
-  const followDocs: any[] = [];
+  const followDocs: Record<string, unknown>[] = [];
   for (const id of createdUserIds) {
     followDocs.push(
       { followerId: id, followingId: NATE_USER_ID, createdAt: randomDate(90), updatedAt: new Date() },
@@ -235,12 +236,12 @@ async function main() {
       $set: { '_count.followers': createdUserIds.length, '_count.following': createdUserIds.length },
     },
   );
-  console.log(`\nCreated ${followDocs.length} follow relationships`);
+  logger.info(`\nCreated ${followDocs.length} follow relationships`);
 
   // ── Create posts ────────────────────────────────────────────
-  console.log('\nCreating posts...');
+  logger.info('\nCreating posts...');
   const allUserIds = [NATE_USER_ID, ...createdUserIds];
-  const allPosts: any[] = [];
+  const allPosts: ReturnType<typeof makePostDoc>[] = [];
 
   // Nate's posts (spread over 90 days, some high-performing)
   for (let i = 0; i < 25; i++) {
@@ -272,11 +273,11 @@ async function main() {
 
   // Insert all root posts first
   await postsCol.insertMany(allPosts);
-  console.log(`  ${allPosts.length} root posts`);
+  logger.info(`  ${allPosts.length} root posts`);
 
   // ── Create real likes ───────────────────────────────────────
-  console.log('\nCreating likes...');
-  const likeDocs: any[] = [];
+  logger.info('\nCreating likes...');
+  const likeDocs: Record<string, unknown>[] = [];
   for (const post of allPosts) {
     const likerCount = rand(1, 10);
     const likers = pickRandom(allUserIds.filter(id => id !== post.oxyUserId), likerCount);
@@ -294,11 +295,11 @@ async function main() {
     post.metadata.likedBy = likers;
   }
   await likesCol.insertMany(likeDocs, { ordered: false }).catch(() => {});
-  console.log(`  ${likeDocs.length} likes`);
+  logger.info(`  ${likeDocs.length} likes`);
 
   // ── Create real replies (as posts with parentPostId) ────────
-  console.log('Creating replies...');
-  const replyDocs: any[] = [];
+  logger.info('Creating replies...');
+  const replyDocs: ReturnType<typeof makePostDoc>[] = [];
   for (const post of allPosts) {
     // ~60% of posts get replies
     if (Math.random() > 0.6) continue;
@@ -319,11 +320,11 @@ async function main() {
   if (replyDocs.length > 0) {
     await postsCol.insertMany(replyDocs);
   }
-  console.log(`  ${replyDocs.length} replies`);
+  logger.info(`  ${replyDocs.length} replies`);
 
   // ── Create real boosts (posts with boostOf) ─────────────────
-  console.log('Creating boosts...');
-  const boostDocs: any[] = [];
+  logger.info('Creating boosts...');
+  const boostDocs: ReturnType<typeof makePostDoc>[] = [];
   for (const post of allPosts) {
     // ~30% of posts get boosted
     if (Math.random() > 0.3) continue;
@@ -344,11 +345,11 @@ async function main() {
   if (boostDocs.length > 0) {
     await postsCol.insertMany(boostDocs);
   }
-  console.log(`  ${boostDocs.length} boosts`);
+  logger.info(`  ${boostDocs.length} boosts`);
 
   // ── Create real bookmarks ───────────────────────────────────
-  console.log('Creating bookmarks...');
-  const bookmarkDocs: any[] = [];
+  logger.info('Creating bookmarks...');
+  const bookmarkDocs: Record<string, unknown>[] = [];
   // Nate bookmarks some posts
   const nateFavs = pickRandom(allPosts.filter(p => p.oxyUserId !== NATE_USER_ID), rand(5, 12));
   for (const post of nateFavs) {
@@ -378,10 +379,10 @@ async function main() {
   if (bookmarkDocs.length > 0) {
     await bookmarksCol.insertMany(bookmarkDocs, { ordered: false }).catch(() => {});
   }
-  console.log(`  ${bookmarkDocs.length} bookmarks`);
+  logger.info(`  ${bookmarkDocs.length} bookmarks`);
 
   // ── Update post stats to match real data ────────────────────
-  console.log('\nSyncing post stats...');
+  logger.info('\nSyncing post stats...');
   const bulkOps = allPosts.map(post => ({
     updateOne: {
       filter: { _id: post._id },
@@ -402,22 +403,22 @@ async function main() {
   const totalLikes = await likesCol.countDocuments();
   const totalBookmarks = await bookmarksCol.countDocuments();
 
-  console.log('\n--- Summary ---');
-  console.log(`Users created: ${FAKE_USERS.length}`);
-  console.log(`Root posts: ${allPosts.length}`);
-  console.log(`Replies: ${replyDocs.length}`);
-  console.log(`Boosts: ${boostDocs.length}`);
-  console.log(`Total posts in DB: ${totalPosts}`);
-  console.log(`Likes: ${totalLikes}`);
-  console.log(`Bookmarks: ${totalBookmarks}`);
-  console.log(`Follow relationships: ${followDocs.length}`);
+  logger.info('\n--- Summary ---');
+  logger.info(`Users created: ${FAKE_USERS.length}`);
+  logger.info(`Root posts: ${allPosts.length}`);
+  logger.info(`Replies: ${replyDocs.length}`);
+  logger.info(`Boosts: ${boostDocs.length}`);
+  logger.info(`Total posts in DB: ${totalPosts}`);
+  logger.info(`Likes: ${totalLikes}`);
+  logger.info(`Bookmarks: ${totalBookmarks}`);
+  logger.info(`Follow relationships: ${followDocs.length}`);
 
   await oxyConn.close();
   await mentionConn.close();
-  console.log('\nDone!');
+  logger.info('\nDone!');
 }
 
 main().catch(err => {
-  console.error('Seed failed:', err);
+  logger.error('Seed failed:', err);
   process.exit(1);
 });
