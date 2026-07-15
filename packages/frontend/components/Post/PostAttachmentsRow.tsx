@@ -14,17 +14,18 @@ import {
 } from '@mention/shared-types';
 import { useRouter } from 'expo-router';
 import { PodcastCard } from '@/components/Podcast/PodcastCard';
-import { MEDIA_CARD_HEIGHT } from '@/utils/composeUtils';
+import { MEDIA_CARD_HEIGHT, MEDIA_CARD_RADIUS } from '@/utils/composeUtils';
 import { getCachedFileDownloadUrlSync, videoPosterUrl } from '@/utils/imageUrlCache';
-import { useImagePreload } from '@/hooks/useImagePreload';
+import { useImagePreload } from '@oxyhq/bloom/hooks';
 import { readMediaAspectRatio } from '@/utils/mediaTypes';
 import {
   ZoomableImageGallery,
   type ZoomableImageGalleryHandle,
   type GalleryImage,
-} from '@/components/ZoomableImageGallery';
-import type { MeasuredRect, RegisterThumbHost } from '@/components/Post/Attachments/PostAttachmentMedia';
-import type { MeasureThumb } from '@/components/ZoomableImageGallery';
+  type MeasureThumb,
+  type MeasuredRect,
+} from '@oxyhq/bloom/zoomable-image-gallery';
+import type { RegisterThumbHost } from '@/components/Post/Attachments/PostAttachmentMedia';
 import {
   PostAttachmentArticle,
   PostAttachmentLink,
@@ -736,7 +737,7 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
         return null;
       })}
     </ScrollView>
-    {galleryImages.length > 0 && <ZoomableImageGallery ref={galleryRef} measureThumb={measureThumb} />}
+    {galleryImages.length > 0 && <ZoomableImageGallery ref={galleryRef} measureThumb={measureThumb} cornerRadius={MEDIA_CARD_RADIUS} />}
     </>
   );
 }, (prevProps, nextProps) => {

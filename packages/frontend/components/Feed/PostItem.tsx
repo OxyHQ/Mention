@@ -32,7 +32,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { cn } from '@/lib/utils';
 import { useTranslation } from 'react-i18next';
-import { useImagePreload } from '@/hooks/useImagePreload';
+import { useImagePreload } from '@oxyhq/bloom/hooks';
 import { usePostLike } from '@/hooks/usePostLike';
 import { usePostVote } from '@/hooks/usePostVote';
 import { usePostSave } from '@/hooks/usePostSave';

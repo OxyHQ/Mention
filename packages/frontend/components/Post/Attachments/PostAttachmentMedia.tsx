@@ -13,16 +13,9 @@ import {
   hasAspectRatio,
   setAspectRatio as setAspectRatioInCache,
   DEFAULT_ASPECT_RATIO,
-} from '@/utils/imageAspectRatioCache';
+} from '@oxyhq/bloom/image-aspect-ratio-cache';
 import { readMediaAspectRatio } from '@/utils/mediaTypes';
-
-/** Screen-space rectangle of a tapped thumbnail, used to seed the zoom origin. */
-export interface MeasuredRect {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-}
+import type { MeasuredRect } from '@oxyhq/bloom/zoomable-image-gallery';
 
 /**
  * Registers (or clears, on unmount) the measurable host node of an image
