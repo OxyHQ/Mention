@@ -428,6 +428,8 @@
   "settings.profileCustomization.profileColor": "Profile color",
   "settings.profileCustomization.profileColorHint": "This color is used across the app and on your profile. Visitors will see this color when viewing your profile.",
   "settings.profileCustomization.info": "These settings control how your profile appears to visitors. Style and color changes are visible to everyone who views your profile.",
+  "settings.editProfile.oxyAccount": "Oxy account",
+  "settings.editProfile.oxyAccountDesc": "Name, bio, avatar, and security",
   "settings.preferences.notifications": "Notifications",
   "settings.preferences.notificationsDesc": "Control app notifications.",
   "settings.preferences.darkMode": "Dark mode",

@@ -433,6 +433,8 @@
   "settings.profileCustomization.profileColor": "Color de perfil",
   "settings.profileCustomization.profileColorHint": "Este color se usa en toda la app y en tu perfil. Los visitantes verán este color al visitar tu perfil.",
   "settings.profileCustomization.info": "Estas configuraciones controlan cómo aparece tu perfil para los visitantes. Los cambios de estilo y color son visibles para todos los que visiten tu perfil.",
+  "settings.editProfile.oxyAccount": "Cuenta de Oxy",
+  "settings.editProfile.oxyAccountDesc": "Nombre, biografía, avatar y seguridad",
   "settings.preferences.notifications": "Notificaciones",
   "settings.preferences.notificationsDesc": "Controla las notificaciones de la app.",
   "settings.preferences.darkMode": "Modo oscuro",

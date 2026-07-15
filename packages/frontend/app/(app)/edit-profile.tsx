@@ -1,0 +1,104 @@
+import React, { useMemo } from 'react';
+import { ScrollView } from 'react-native';
+import { useTranslation } from 'react-i18next';
+import { useAuth, OxyAuthPrompt } from '@oxyhq/services';
+import { useBloomTheme, PREMIUM_COLOR_NAMES, type AppColorName } from '@oxyhq/bloom/theme';
+import { SettingsListDivider, SettingsListGroup, SettingsListItem } from '@oxyhq/bloom/settings-list';
+import { ThemedView } from '@/components/ThemedView';
+import { Header } from '@/components/Header';
+import { IconButton } from '@/components/ui/Button';
+import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
+import { useSafeBack } from '@/hooks/useSafeBack';
+import { RowIcon } from '@/components/settings/RowIcon';
+import { ColorSwatchPicker } from '@/components/settings/ColorSwatchPicker';
+import { useAppColorSave } from '@/hooks/useAppColorSave';
+import { BannerSection } from '@/components/Profile/EditProfile/BannerSection';
+import { ProfileStyleSection } from '@/components/Profile/EditProfile/ProfileStyleSection';
+import { PinnedMediaSection } from '@/components/Profile/EditProfile/PinnedMediaSection';
+
+export default function EditProfileScreen() {
+  const { t } = useTranslation();
+  const safeBack = useSafeBack();
+  const { isAuthenticated, showBottomSheet, user: authUser } = useAuth();
+  const { colorPreset: appColor } = useBloomTheme();
+  const { saveColor } = useAppColorSave();
+
+  const normalizedUsername = authUser?.username?.toLowerCase();
+  const authUserRecord = authUser as { premium?: { isPremium?: boolean } } | null;
+  const isPremium = authUserRecord?.premium?.isPremium ?? false;
+  const isOxyUser = normalizedUsername === 'oxy';
+  const isFaircoinUser = normalizedUsername === 'faircoin';
+
+  // Reproduces `appearance.tsx`'s premium-color-unlock logic verbatim: full
+  // premium palette for premium users, else only the colors tied to a
+  // username-gated preset (@oxy unlocks "oxy", @faircoin unlocks "faircoin").
+  const unlockedPremiumColors = useMemo<readonly AppColorName[] | undefined>(() => {
+    if (isPremium) return PREMIUM_COLOR_NAMES;
+    const unlocked: AppColorName[] = [];
+    if (isOxyUser) unlocked.push('oxy');
+    if (isFaircoinUser) unlocked.push('faircoin');
+    return unlocked.length > 0 ? unlocked : undefined;
+  }, [isPremium, isOxyUser, isFaircoinUser]);
+
+  if (!isAuthenticated) {
+    return (
+      <ThemedView className="flex-1">
+        <Header
+          options={{
+            title: t('profile.editProfile'),
+            leftComponents: [
+              <IconButton variant="icon" key="back" onPress={() => safeBack()}>
+                <BackArrowIcon size={20} className="text-foreground" />
+              </IconButton>,
+            ],
+          }}
+          hideBottomBorder
+          disableSticky
+        />
+        <OxyAuthPrompt
+          label={t('settings.profileCustomization.signInRequired', { defaultValue: 'Sign in to customize your profile' })}
+          description={t('settings.profileCustomization.signInRequiredDesc', { defaultValue: 'Choose your profile layout and accent color.' })}
+        />
+      </ThemedView>
+    );
+  }
+
+  return (
+    <ThemedView className="flex-1">
+      <Header
+        options={{
+          title: t('profile.editProfile'),
+          leftComponents: [
+            <IconButton variant="icon" key="back" onPress={() => safeBack()}>
+              <BackArrowIcon size={20} className="text-foreground" />
+            </IconButton>,
+          ],
+        }}
+        hideBottomBorder
+        disableSticky
+      />
+      <ScrollView
+        className="flex-1"
+        contentContainerClassName="py-4"
+        showsVerticalScrollIndicator={false}
+      >
+        <BannerSection />
+        <SettingsListDivider />
+        <ProfileStyleSection />
+        <SettingsListDivider />
+        <ColorSwatchPicker value={appColor} onChange={saveColor} extraColors={unlockedPremiumColors} />
+        <SettingsListDivider />
+        <PinnedMediaSection />
+        <SettingsListDivider />
+        <SettingsListGroup>
+          <SettingsListItem
+            icon={<RowIcon name="person-circle-outline" />}
+            title={t('settings.editProfile.oxyAccount')}
+            description={t('settings.editProfile.oxyAccountDesc')}
+            onPress={() => showBottomSheet?.('ManageAccount')}
+          />
+        </SettingsListGroup>
+      </ScrollView>
+    </ThemedView>
+  );
+}
