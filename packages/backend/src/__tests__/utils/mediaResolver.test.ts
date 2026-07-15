@@ -100,10 +100,11 @@ describe('resolveMediaRef', () => {
 });
 
 describe('resolveAvatarUrl', () => {
-  it('returns the square thumb crop for an Oxy file id', () => {
-    // Avatars stay on the small square `thumb` crop (not the wider w320 used for
-    // post media), since they render tiny and circular.
-    expect(resolveAvatarUrl('avatar1')).toBe(`${OXY_BASE}/assets/avatar1/stream?variant=thumb`);
+  it('returns the dedicated avatar crop for an Oxy file id', () => {
+    // Avatars use the dedicated 128px square `avatar` crop (not the wider w320
+    // used for post media, nor the 256px `thumb`), since they render tiny and
+    // circular.
+    expect(resolveAvatarUrl('avatar1')).toBe(`${OXY_BASE}/assets/avatar1/stream?variant=avatar`);
   });
 
   it('returns the proxy url for an external avatar', () => {
@@ -127,12 +128,12 @@ describe('resolveAvatarUrl', () => {
     // cloud.oxy.so/<id> URL. It must get the avatar variant appended, NOT be
     // served as the no-variant original or double-proxied through /media/proxy.
     const mirrored = `${CLOUD_BASE}/abc123`;
-    expect(resolveAvatarUrl(mirrored)).toBe(`${CLOUD_BASE}/abc123?variant=thumb`);
+    expect(resolveAvatarUrl(mirrored)).toBe(`${CLOUD_BASE}/abc123?variant=avatar`);
   });
 
   it('is idempotent when the mirrored Oxy CDN url already carries a variant', () => {
     const mirrored = `${CLOUD_BASE}/abc123?variant=w320`;
-    expect(resolveAvatarUrl(mirrored)).toBe(`${CLOUD_BASE}/abc123?variant=thumb`);
+    expect(resolveAvatarUrl(mirrored)).toBe(`${CLOUD_BASE}/abc123?variant=avatar`);
   });
 
   it('returns undefined for an empty ref', () => {
