@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { getData, storeData } from '@/utils/storage';
+import { Storage } from '@/utils/storage';
 import { STORAGE_KEYS } from '@/lib/constants';
 import type { IconName } from '@/lib/icons';
 
@@ -38,19 +38,19 @@ export const useThreadPreferencesStore = create<ThreadPreferencesState>((set, ge
 
     setTreeView: (value: boolean) => {
         set({ treeView: value });
-        storeData(STORAGE_KEYS.THREAD_TREE_VIEW, value);
+        Storage.set(STORAGE_KEYS.THREAD_TREE_VIEW, value);
     },
 
     setSortOrder: (value: SortOrder) => {
         set({ sortOrder: value });
-        storeData(STORAGE_KEYS.THREAD_SORT, value);
+        Storage.set(STORAGE_KEYS.THREAD_SORT, value);
     },
 
     load: async () => {
         if (get().loaded) return;
         const [savedTree, savedSort] = await Promise.all([
-            getData<boolean>(STORAGE_KEYS.THREAD_TREE_VIEW),
-            getData<SortOrder>(STORAGE_KEYS.THREAD_SORT),
+            Storage.get<boolean>(STORAGE_KEYS.THREAD_TREE_VIEW),
+            Storage.get<SortOrder>(STORAGE_KEYS.THREAD_SORT),
         ]);
         set({
             treeView: typeof savedTree === 'boolean' ? savedTree : DEFAULTS.treeView,

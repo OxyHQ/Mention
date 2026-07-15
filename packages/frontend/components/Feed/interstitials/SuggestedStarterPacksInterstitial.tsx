@@ -194,7 +194,7 @@ function SuggestedStarterPackItem({
     id,
     name: pack.name,
     description: pack.description,
-    creator: pack.creator ?? pack.owner,
+    creator: pack.creator,
     memberCount,
     useCount: pack.useCount ?? 0,
     memberAvatars: pack.memberAvatars ?? [],

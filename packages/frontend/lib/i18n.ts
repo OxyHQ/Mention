@@ -11,7 +11,7 @@ import esES from '@/locales/es.json';
 import itIT from '@/locales/it.json';
 
 import { DEFAULT_LANGUAGE, STORAGE_KEYS } from './constants';
-import { getData } from '@/utils/storage';
+import { Storage } from '@/utils/storage';
 import { logger } from '@/lib/logger';
 
 const i18nResources = {
@@ -32,7 +32,7 @@ export interface I18nConfig {
  */
 export async function loadSavedLanguage(): Promise<string> {
   try {
-    const savedLanguage = await getData<string>(STORAGE_KEYS.LANGUAGE_PREFERENCE);
+    const savedLanguage = await Storage.get<string>(STORAGE_KEYS.LANGUAGE_PREFERENCE);
     return savedLanguage || DEFAULT_LANGUAGE;
   } catch (error) {
     logger.error('Failed to load saved language', { error });

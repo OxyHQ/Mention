@@ -3,7 +3,7 @@ import { Platform } from 'react-native';
 import Constants from 'expo-constants';
 import { useAuth } from '@oxyhq/services';
 import { authenticatedClient } from '@/utils/api';
-import { getData } from '@/utils/storage';
+import { Storage } from '@/utils/storage';
 import { getDevicePushToken } from '@/utils/notifications';
 import i18next from 'i18next';
 import { logger } from '@/lib/logger';
@@ -24,7 +24,7 @@ export const RegisterPushToken: React.FC = () => {
             }
             // Honor persisted preference to avoid re-registering until re-enabled
             const storageKey = `pref:${user?.id || 'global'}:notificationsEnabled`;
-            const enabledPref = await getData<boolean>(storageKey);
+            const enabledPref = await Storage.get<boolean>(storageKey);
             if (enabledPref === false) {
                 return;
             }

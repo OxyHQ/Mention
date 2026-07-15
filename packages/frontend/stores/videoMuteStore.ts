@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { Platform } from 'react-native';
 import { logger } from '@/lib/logger';
-import { storeData, getData } from '../utils/storage';
+import { Storage } from '../utils/storage';
 
 const VIDEO_MUTE_STORAGE_KEY = 'pref:global:videoMuted';
 
@@ -26,19 +26,19 @@ export const useVideoMuteStore = create<VideoMuteStore>((set, get) => ({
 
   setMuted: async (muted: boolean) => {
     set({ isMuted: muted });
-    await storeData(VIDEO_MUTE_STORAGE_KEY, muted);
+    await Storage.set(VIDEO_MUTE_STORAGE_KEY, muted);
   },
 
   toggleMuted: async () => {
     const newMutedState = !get().isMuted;
     set({ isMuted: newMutedState });
-    await storeData(VIDEO_MUTE_STORAGE_KEY, newMutedState);
+    await Storage.set(VIDEO_MUTE_STORAGE_KEY, newMutedState);
   },
 
   loadMutedState: async () => {
     set({ isLoading: true });
     try {
-      const savedMuted = await getData<boolean>(VIDEO_MUTE_STORAGE_KEY);
+      const savedMuted = await Storage.get<boolean>(VIDEO_MUTE_STORAGE_KEY);
       // If no saved value, use platform-specific default
       const muted = savedMuted !== null ? savedMuted : getDefaultMutedState();
       set({ isMuted: muted, isLoading: false });

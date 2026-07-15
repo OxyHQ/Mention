@@ -270,7 +270,7 @@ const ProfileStarterPacks = memo(function ProfileStarterPacks({
             id: String(pack._id || pack.id),
             name: (pack.name as string) || 'Untitled Pack',
             description: pack.description as string | undefined,
-            creator: (pack.creator || pack.owner) as StarterPackCardData['creator'],
+            creator: pack.creator as StarterPackCardData['creator'],
             memberCount: memberIds.length,
             useCount: (pack.useCount as number) || 0,
             memberAvatars: (pack.memberAvatars || []) as string[],
