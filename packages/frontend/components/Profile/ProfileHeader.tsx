@@ -21,7 +21,6 @@ import { LAYOUT } from './types';
 import type {
   ProfileHeaderDefaultProps,
   ProfileHeaderMinimalistProps,
-  ShowBottomSheetFn,
   UserNameComponent,
 } from './types';
 
@@ -48,7 +47,6 @@ export const ProfileHeaderDefault = memo(function ProfileHeaderDefault({
   isFollowPending: initialIsFollowPending,
   UserNameComponent,
   FollowButtonComponent,
-  showBottomSheet,
 }: ProfileHeaderDefaultProps) {
   const theme = useTheme();
   const { t } = useTranslation();
@@ -118,7 +116,7 @@ export const ProfileHeaderDefault = memo(function ProfileHeaderDefault({
           <View className="flex-row items-center gap-3">
             <TouchableOpacity
               className="border border-border bg-background rounded-full px-6 py-2"
-              onPress={() => showBottomSheet?.('ManageAccount')}
+              onPress={() => router.push('/edit-profile')}
               accessibilityRole="button"
               accessibilityLabel={t('profile.editProfile')}
             >
@@ -250,7 +248,6 @@ export const ProfileActions = memo(function ProfileActions({
   profileUsername,
   profileId,
   FollowButtonComponent,
-  showBottomSheet,
 }: {
   isOwnProfile: boolean;
   isFederated?: boolean;
@@ -259,7 +256,6 @@ export const ProfileActions = memo(function ProfileActions({
   profileUsername?: string;
   profileId?: string;
   FollowButtonComponent: React.ComponentType<{ userId: string }>;
-  showBottomSheet?: ShowBottomSheetFn;
 }) {
   const theme = useTheme();
   const { t } = useTranslation();
@@ -300,7 +296,7 @@ export const ProfileActions = memo(function ProfileActions({
     <View className="flex-row items-center gap-3">
       <TouchableOpacity
         className="border border-border bg-background rounded-full px-6 py-2"
-        onPress={() => showBottomSheet?.('ManageAccount')}
+        onPress={() => router.push('/edit-profile')}
         accessibilityRole="button"
         accessibilityLabel={t('profile.editProfile')}
       >

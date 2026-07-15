@@ -125,7 +125,7 @@ const MentionProfileContent: React.FC<MentionProfileContentProps> = ({
     profileData,
     loading,
 }) => {
-    const { user: currentUser, oxyServices, showBottomSheet } = useAuth();
+    const { user: currentUser, oxyServices } = useAuth();
     const theme = useTheme();
     const { t } = useTranslation();
     const insets = useSafeAreaInsets();
@@ -807,7 +807,6 @@ const MentionProfileContent: React.FC<MentionProfileContentProps> = ({
                                         followerCount={followerCount}
                                         username={username}
                                         FollowButtonComponent={FollowButtonComponent}
-                                        showBottomSheet={showBottomSheet}
                                         onPostsPress={handlePostsPress}
                                         onBoostsPress={handleBoostsPress}
                                         onRepliesPress={handleRepliesPress}
@@ -890,7 +889,6 @@ const MentionProfileContent: React.FC<MentionProfileContentProps> = ({
                                         followerCount={followerCount}
                                         username={username}
                                         FollowButtonComponent={FollowButtonComponent}
-                                        showBottomSheet={showBottomSheet}
                                         onPostsPress={handlePostsPress}
                                         onBoostsPress={handleBoostsPress}
                                         onRepliesPress={handleRepliesPress}

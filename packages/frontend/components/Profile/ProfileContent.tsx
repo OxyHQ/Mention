@@ -42,7 +42,6 @@ export const ProfileContent = memo(function ProfileContent({
   followerCount,
   username,
   FollowButtonComponent,
-  showBottomSheet,
   onPostsPress,
   onBoostsPress,
   onRepliesPress,
@@ -116,7 +115,6 @@ export const ProfileContent = memo(function ProfileContent({
 
           UserNameComponent={UserName}
           FollowButtonComponent={FollowButtonComponent}
-          showBottomSheet={showBottomSheet}
         />
       )}
 
@@ -132,7 +130,6 @@ export const ProfileContent = memo(function ProfileContent({
             profileId={profileData.id}
 
             FollowButtonComponent={FollowButtonComponent}
-            showBottomSheet={showBottomSheet}
           />
         </View>
       )}

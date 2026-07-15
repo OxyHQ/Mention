@@ -73,7 +73,6 @@ export interface ProfileHeaderDefaultProps extends ProfileHeaderBaseProps {
   isFollowing?: boolean;
   isFollowPending?: boolean;
   FollowButtonComponent: FollowButtonComponent;
-  showBottomSheet?: ShowBottomSheetFn;
 }
 
 // Profile stats props
@@ -154,7 +153,6 @@ export interface ProfileContentProps {
   followerCount: number;
   username: string;
   FollowButtonComponent: FollowButtonComponent;
-  showBottomSheet?: ShowBottomSheetFn;
   onPostsPress: () => void;
   onBoostsPress: () => void;
   onRepliesPress: () => void;
