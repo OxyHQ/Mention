@@ -19,7 +19,7 @@ export function enrichMissingAvatars(
   queryClient: QueryClient,
 ): Promise<void> {
   const missingIds = users
-    .filter((u) => !u.avatar || (typeof u.avatar === 'string' && !u.avatar.startsWith('http')))
+    .filter((u) => !u.avatar || !u.avatar.startsWith('http'))
     .map((u) => u.id)
     .filter((id) => id.length > 0);
   if (missingIds.length === 0) return Promise.resolve();
