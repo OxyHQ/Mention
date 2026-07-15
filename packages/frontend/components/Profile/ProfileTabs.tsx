@@ -346,7 +346,6 @@ const ProfileLists = memo(function ProfileLists({
             uri: (l.uri as string) || `list:${listId}`,
             name: (l.title as string) || 'Untitled List',
             description: l.description as string | undefined,
-            avatar: l.avatar as string | undefined,
             creator: owner
               ? {
                   username: owner.username || '',

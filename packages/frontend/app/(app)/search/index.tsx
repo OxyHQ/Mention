@@ -206,7 +206,6 @@ function toListCardData(list: SearchListResult): ListCardData | null {
         uri: list.uri || `list:${id}`,
         name: list.name || list.title || "Untitled List",
         description: list.description,
-        avatar: list.avatar,
         creator: owner
             ? {
                 username: owner.username || owner.handle || "",
