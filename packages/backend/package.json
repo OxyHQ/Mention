@@ -18,8 +18,8 @@
   },
   "dependencies": {
     "@mention/shared-types": "file:../shared-types",
-    "@oxyhq/contracts": "^0.14.0",
-    "@oxyhq/core": "^11.0.0",
+    "@oxyhq/contracts": "^0.15.0",
+    "@oxyhq/core": "^12.1.1",
     "@oxyhq/protocol": "^0.1.5",
     "@socket.io/redis-adapter": "^8.3.0",
     "@syra.fm/sdk": "^0.7.0",
