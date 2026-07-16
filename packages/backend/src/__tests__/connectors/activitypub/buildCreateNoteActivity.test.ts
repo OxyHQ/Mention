@@ -297,3 +297,103 @@ describe('buildCreateNoteActivity — the PRIMARY rendition is what federates', 
     ]);
   });
 });
+
+describe('buildCreateNoteActivity — sensitive flag', () => {
+  it('emits sensitive:true when the author flagged the post sensitive', () => {
+    const { note } = noteFor({
+      _id: 'p1',
+      content: body('behind a warning'),
+      createdAt: ISO,
+      metadata: { isSensitive: true },
+    });
+
+    expect(note.sensitive).toBe(true);
+    // Boolean-only toggle → never a `summary` (there is no CW text to carry).
+    expect(note.summary).toBeUndefined();
+  });
+
+  it('emits sensitive:false for a normal post (no metadata, or the flag unset)', () => {
+    const { note } = noteFor({ _id: 'p1', content: body('safe'), createdAt: ISO });
+    expect(note.sensitive).toBe(false);
+
+    const { note: explicit } = noteFor({
+      _id: 'p2',
+      content: body('safe'),
+      createdAt: ISO,
+      metadata: { isSensitive: false },
+    });
+    expect(explicit.sensitive).toBe(false);
+  });
+});
+
+describe('buildCreateNoteActivity — media width/height', () => {
+  it('emits width and height on an attachment when both are present on the item', () => {
+    const { note } = noteFor({
+      _id: 'p1',
+      content: { ...body('sized'), media: [{ id: 'file-abc', type: 'image', width: 1200, height: 800 }] },
+      createdAt: ISO,
+    });
+
+    expect(note.attachment).toEqual([
+      { type: 'Document', mediaType: 'image/jpeg', url: 'https://cloud.oxy.so/file-abc', width: 1200, height: 800 },
+    ]);
+  });
+
+  it('omits the width/height keys entirely when the item carries no dimensions', () => {
+    const { note } = noteFor({
+      _id: 'p1',
+      content: { ...body('unsized'), media: [{ id: 'file-abc', type: 'image' }] },
+      createdAt: ISO,
+    });
+
+    const [attachment] = note.attachment as Array<Record<string, unknown>>;
+    expect(attachment).not.toHaveProperty('width');
+    expect(attachment).not.toHaveProperty('height');
+    expect(attachment).toEqual({
+      type: 'Document',
+      mediaType: 'image/jpeg',
+      url: 'https://cloud.oxy.so/file-abc',
+    });
+  });
+
+  it('emits only the present dimension and never a zero placeholder', () => {
+    const { note } = noteFor({
+      _id: 'p1',
+      content: { ...body('half sized'), media: [{ id: 'file-abc', type: 'image', width: 640, height: 0 }] },
+      createdAt: ISO,
+    });
+
+    expect(note.attachment).toEqual([
+      { type: 'Document', mediaType: 'image/jpeg', url: 'https://cloud.oxy.so/file-abc', width: 640 },
+    ]);
+  });
+});
+
+describe('buildCreateNoteActivity — source plaintext', () => {
+  it('carries the RAW primary body as source (text/plain), NOT the HTML content', () => {
+    const { note } = noteFor({ _id: 'p1', content: body('line one\nline two'), createdAt: ISO });
+
+    // `content` is HTML (the newline became a <br>); `source.content` is the
+    // author's raw plaintext, so an edit-fetching client recovers the original.
+    expect(note.content).toBe('<p>line one<br>line two</p>');
+    expect(note.source).toEqual({ content: 'line one\nline two', mediaType: 'text/plain' });
+  });
+
+  it('omits source for an empty body (a boost)', () => {
+    const { note } = noteFor({ _id: 'p1', content: { variants: [] }, createdAt: ISO });
+    expect(note.source).toBeUndefined();
+  });
+});
+
+describe('buildUpdateNoteActivity — inherits sensitive + source from the Note', () => {
+  it('the embedded Update object carries the same sensitive flag and raw source body', () => {
+    const activity = followService.buildUpdateNoteActivity(
+      { _id: 'p1', content: body('edited body'), createdAt: ISO, metadata: { isSensitive: true } },
+      'alice',
+    );
+    const note = activity.object as Record<string, unknown>;
+
+    expect(note.sensitive).toBe(true);
+    expect(note.source).toEqual({ content: 'edited body', mediaType: 'text/plain' });
+  });
+});
