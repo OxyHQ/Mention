@@ -150,6 +150,7 @@
   "notification.recommendation.activity": "Activo en tu red: {{actorName}}",
   "notification.post": "{{actorName}} publicó una nueva actualización",
   "collab.inviteCollaborators": "Invitar colaboradores",
+  "collab.viewCollaborators": "Ver colaboradores",
   "collab.searchPlaceholder": "Buscar personas para colaborar",
   "collab.noResults": "No se encontraron usuarios",
   "collab.and": " y ",

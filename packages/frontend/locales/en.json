@@ -129,6 +129,7 @@
   "notification.group.showAll": "Show all",
   "notification.group.showLess": "Show less",
   "collab.inviteCollaborators": "Invite collaborators",
+  "collab.viewCollaborators": "View collaborators",
   "collab.searchPlaceholder": "Search people to collaborate with",
   "collab.noResults": "No users found",
   "collab.and": " and ",
