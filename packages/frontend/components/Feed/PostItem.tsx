@@ -335,6 +335,14 @@ const PostItem: React.FC<PostItemProps> = ({
         }
     }, [router, authorHandle]);
 
+    // Per-author profile link for the collaborative byline (owner + each
+    // collaborator). Uses the same `/@handle` route as the single-author header.
+    const goToAuthor = useCallback((handle: string) => {
+        if (handle) {
+            router.push(`/@${handle}`);
+        }
+    }, [router]);
+
     // "Reposted by X" row → the BOOSTER's profile. Stop propagation so it doesn't
     // also trigger the outer container press (which opens the ORIGINAL post detail).
     const goToReposter = useCallback((event?: GestureResponderEvent) => {
@@ -770,6 +778,7 @@ const PostItem: React.FC<PostItemProps> = ({
                         authorUserId={viewPost.user.id || undefined}
                         onPressUser={goToUser}
                         onPressAvatar={goToUser}
+                        onPressAuthor={goToAuthor}
                         onPressMenu={openMenu}
                         paddingHorizontal={isNested ? 0 : HPAD}
                     >
