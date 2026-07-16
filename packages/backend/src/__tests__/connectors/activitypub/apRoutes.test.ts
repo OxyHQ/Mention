@@ -31,8 +31,9 @@ const mocks = vi.hoisted(() => ({
   postFindOne: vi.fn(),
   resolveAvatarUrl: vi.fn(),
   resolveMediaRef: vi.fn(),
-  followFind: vi.fn(),
-  followCountDocuments: vi.fn(),
+  getServiceOxyClient: vi.fn(),
+  getUserFollowers: vi.fn(),
+  getUserFollowing: vi.fn(),
 }));
 
 vi.mock('express-rate-limit', () => ({
@@ -77,11 +78,8 @@ vi.mock('../../../models/UserSettings', () => ({
   default: { findOne: (...args: unknown[]) => mocks.userSettingsFindOne(...args) },
 }));
 
-vi.mock('../../../models/FederatedFollow', () => ({
-  default: {
-    countDocuments: (...args: unknown[]) => mocks.followCountDocuments(...args),
-    find: (...args: unknown[]) => mocks.followFind(...args),
-  },
+vi.mock('../../../utils/oxyHelpers', () => ({
+  getServiceOxyClient: (...args: unknown[]) => mocks.getServiceOxyClient(...args),
 }));
 
 import apRoutes from '../../../connectors/activitypub/routes/ap.routes';
@@ -99,7 +97,13 @@ beforeEach(() => {
   });
   mocks.resolveAvatarUrl.mockReturnValue(undefined);
   mocks.userSettingsFindOne.mockReturnValue({ lean: async () => null });
-  mocks.followCountDocuments.mockResolvedValue(0);
+  // The follow collections read the Oxy follow graph through the service client.
+  mocks.getServiceOxyClient.mockReturnValue({
+    getUserFollowers: mocks.getUserFollowers,
+    getUserFollowing: mocks.getUserFollowing,
+  });
+  mocks.getUserFollowers.mockResolvedValue({ followers: [], total: 0, hasMore: false });
+  mocks.getUserFollowing.mockResolvedValue({ following: [], total: 0, hasMore: false });
   // Default: not a reply (or unresolvable parent) — the dereference route serves
   // the Note with no `inReplyTo`. Individual tests override for a reply post.
   mocks.resolveReplyContext.mockResolvedValue(null);
@@ -310,120 +314,172 @@ describe('GET /ap/users/:username/collections/featured — pinned posts', () => 
   });
 });
 
-describe('GET /ap/users/:username/followers — paginated collection', () => {
+describe('GET /ap/users/:username/followers — Oxy follow graph (local + federated)', () => {
   beforeEach(() => {
-    mocks.resolveOxyUser.mockResolvedValue({ _id: 'u1' });
+    // The resolved profile carries the TRUE Oxy follow count as `_count`.
+    mocks.resolveOxyUser.mockResolvedValue({ _id: 'u1', _count: { followers: 3, following: 0 } });
   });
 
-  it('summary advertises totalItems AND a first page link so remotes can enumerate members', async () => {
-    mocks.followCountDocuments.mockResolvedValue(3);
-
+  it('summary advertises the true Oxy count as totalItems + a first page link, without hitting the graph list', async () => {
     const res = await request(app).get('/ap/users/alice/followers').set('Accept', AP_ACCEPT).expect(200);
 
     expect(res.body.type).toBe('OrderedCollection');
     expect(res.body.id).toBe('https://mention.earth/ap/users/alice/followers');
+    // totalItems is the Oxy `_count.followers` (local + bridged federated edges),
+    // NOT the old FederatedFollow-only remote count.
     expect(res.body.totalItems).toBe(3);
     expect(res.body.first).toBe('https://mention.earth/ap/users/alice/followers?page=true');
-    // The summary must not enumerate rows — that is the page's job.
-    expect(mocks.followFind).not.toHaveBeenCalled();
+    // The summary uses the already-resolved `_count`, so it never lists members.
+    expect(mocks.getUserFollowers).not.toHaveBeenCalled();
   });
 
-  it('page enumerates the remote actor URIs and emits a `next` cursor when overflowing', async () => {
-    mocks.followCountDocuments.mockResolvedValue(42);
-    // Overfetch: the handler asks for PAGE_SIZE + 1 (21). Return 21 so it detects
-    // a further page, trims to 20, and keys `next` on the 20th row.
-    const rows = Array.from({ length: 21 }, (_, i) => ({
-      _id: `f${i}`,
-      remoteActorUri: `https://remote.example/users/u${i}`,
-      createdAt: new Date(Date.UTC(2020, 0, 1, 0, 0, i)).toISOString(),
-    }));
-    const findSpy = vi.fn().mockReturnValue({
-      sort: () => ({ limit: () => ({ lean: async () => rows }) }),
+  it('summary falls back to a graph list total when the resolved profile omits `_count`', async () => {
+    mocks.resolveOxyUser.mockResolvedValue({ _id: 'u1' }); // no `_count` (rare resolution fallback)
+    mocks.getUserFollowers.mockResolvedValue({ followers: [], total: 9, hasMore: false });
+
+    const res = await request(app).get('/ap/users/alice/followers').set('Accept', AP_ACCEPT).expect(200);
+
+    // A minimal (limit 1) graph call resolves the authoritative total.
+    expect(mocks.getUserFollowers).toHaveBeenCalledWith('u1', { limit: 1, offset: 0 });
+    expect(res.body.totalItems).toBe(9);
+  });
+
+  it('page maps a MIX of local + federated followers to the right actor URIs, totalItems from the Oxy count', async () => {
+    mocks.resolveOxyUser.mockResolvedValue({ _id: 'u1', _count: { followers: 42 } });
+    mocks.getUserFollowers.mockResolvedValue({
+      followers: [
+        // Local Mention user → our own minted actor URL.
+        { id: 'a', username: 'bob', type: 'local' },
+        // Federated user → the remote actorUri from the Oxy `federation` field.
+        {
+          id: 'b',
+          username: 'carol@remote.example',
+          type: 'federated',
+          isFederated: true,
+          federation: { actorUri: 'https://remote.example/users/carol' },
+        },
+      ],
+      total: 42,
+      hasMore: true,
     });
-    mocks.followFind.mockImplementation((query: unknown) => findSpy(query));
 
     const res = await request(app)
       .get('/ap/users/alice/followers?page=true')
       .set('Accept', AP_ACCEPT)
       .expect(200);
 
-    // The query filters on inbound accepted edges for the resolved user.
-    const query = findSpy.mock.calls[0][0] as Record<string, unknown>;
-    expect(query).toMatchObject({ localUserId: 'u1', direction: 'inbound', status: 'accepted' });
-
+    // First page pulls FOLLOW_PAGE_SIZE (20) at offset 0 from the Oxy graph.
+    expect(mocks.getUserFollowers).toHaveBeenCalledWith('u1', { limit: 20, offset: 0 });
     expect(res.body.type).toBe('OrderedCollectionPage');
     expect(res.body.partOf).toBe('https://mention.earth/ap/users/alice/followers');
     expect(res.body.totalItems).toBe(42);
-    // Only the window (20) is enumerated, as BARE remote actor URI strings.
-    expect(res.body.orderedItems).toHaveLength(20);
-    expect(res.body.orderedItems[0]).toBe('https://remote.example/users/u0');
-    expect(res.body.orderedItems[19]).toBe('https://remote.example/users/u19');
-    // `next` is a same-collection page cursor keyed on the last row of the window.
-    expect(typeof res.body.next).toBe('string');
-    expect(res.body.next).toContain('/ap/users/alice/followers?page=true&cursor=');
-    const cursorValue = decodeURIComponent(new URL(res.body.next).searchParams.get('cursor') ?? '');
-    expect(cursorValue).toBe(`${Date.UTC(2020, 0, 1, 0, 0, 19)}:f19`);
+    // Local → https://<domain>/ap/users/<username>; federated → remote actorUri.
+    expect(res.body.orderedItems).toEqual([
+      'https://mention.earth/ap/users/bob',
+      'https://remote.example/users/carol',
+    ]);
+    // `hasMore` from the Oxy list drives an offset-based `next`.
+    expect(res.body.next).toBe('https://mention.earth/ap/users/alice/followers?page=true&offset=20');
   });
 
-  it('page has no `next` when the window is not overflowed', async () => {
-    mocks.followCountDocuments.mockResolvedValue(2);
-    const rows = [
-      { _id: 'f1', remoteActorUri: 'https://remote.example/users/a', createdAt: new Date(Date.UTC(2020, 0, 1)).toISOString() },
-      { _id: 'f2', remoteActorUri: 'https://remote.example/users/b', createdAt: new Date(Date.UTC(2020, 0, 2)).toISOString() },
-    ];
-    mocks.followFind.mockReturnValue({ sort: () => ({ limit: () => ({ lean: async () => rows }) }) });
+  it('follows an `offset` param into the graph query and self-references the page id, no `next` when the graph reports no more', async () => {
+    mocks.getUserFollowers.mockResolvedValue({
+      followers: [{ id: 'c', username: 'dave', type: 'local' }],
+      total: 21,
+      hasMore: false,
+    });
+
+    const res = await request(app)
+      .get('/ap/users/alice/followers?page=true&offset=20')
+      .set('Accept', AP_ACCEPT)
+      .expect(200);
+
+    expect(mocks.getUserFollowers).toHaveBeenCalledWith('u1', { limit: 20, offset: 20 });
+    expect(res.body.id).toBe('https://mention.earth/ap/users/alice/followers?page=true&offset=20');
+    expect(res.body.orderedItems).toEqual(['https://mention.earth/ap/users/dave']);
+    expect(res.body.next).toBeUndefined();
+  });
+
+  it('skips members that cannot be mapped to an actor URI (never emits a raw id)', async () => {
+    mocks.getUserFollowers.mockResolvedValue({
+      followers: [
+        { id: 'a', username: 'bob', type: 'local' },
+        // Federated but no known actorUri → unmappable, skipped.
+        { id: 'b', username: 'ghost@remote.example', type: 'federated', isFederated: true },
+        // Local but no username → unmappable, skipped.
+        { id: 'c', type: 'local' },
+      ],
+      total: 3,
+      hasMore: false,
+    });
 
     const res = await request(app).get('/ap/users/alice/followers?page=true').set('Accept', AP_ACCEPT).expect(200);
 
-    expect(res.body.orderedItems).toEqual([
-      'https://remote.example/users/a',
-      'https://remote.example/users/b',
-    ]);
+    expect(res.body.orderedItems).toEqual(['https://mention.earth/ap/users/bob']);
+  });
+
+  it('fails soft: an Oxy graph outage on the page yields an empty page (no 500), totalItems from `_count`', async () => {
+    mocks.resolveOxyUser.mockResolvedValue({ _id: 'u1', _count: { followers: 5 } });
+    mocks.getUserFollowers.mockRejectedValue(new Error('oxy down'));
+
+    const res = await request(app).get('/ap/users/alice/followers?page=true').set('Accept', AP_ACCEPT).expect(200);
+
+    expect(res.body.type).toBe('OrderedCollectionPage');
+    expect(res.body.orderedItems).toEqual([]);
+    expect(res.body.totalItems).toBe(5);
     expect(res.body.next).toBeUndefined();
   });
 
   it('404s an unknown user', async () => {
     mocks.resolveOxyUser.mockResolvedValue(null);
     await request(app).get('/ap/users/ghost/followers').set('Accept', AP_ACCEPT).expect(404);
-    expect(mocks.followFind).not.toHaveBeenCalled();
+    expect(mocks.getUserFollowers).not.toHaveBeenCalled();
   });
 });
 
-describe('GET /ap/users/:username/following — paginated collection', () => {
+describe('GET /ap/users/:username/following — Oxy follow graph (local + federated)', () => {
   beforeEach(() => {
-    mocks.resolveOxyUser.mockResolvedValue({ _id: 'u1' });
+    mocks.resolveOxyUser.mockResolvedValue({ _id: 'u1', _count: { followers: 0, following: 5 } });
   });
 
-  it('summary advertises a first page link + totalItems', async () => {
-    mocks.followCountDocuments.mockResolvedValue(5);
-
+  it('summary advertises the true Oxy following count + a first page link', async () => {
     const res = await request(app).get('/ap/users/alice/following').set('Accept', AP_ACCEPT).expect(200);
 
     expect(res.body.type).toBe('OrderedCollection');
     expect(res.body.first).toBe('https://mention.earth/ap/users/alice/following?page=true');
     expect(res.body.totalItems).toBe(5);
+    expect(mocks.getUserFollowing).not.toHaveBeenCalled();
   });
 
-  it('page enumerates the OUTBOUND target actor URIs', async () => {
-    mocks.followCountDocuments.mockResolvedValue(1);
-    const rows = [
-      { _id: 'f1', remoteActorUri: 'https://remote.example/users/z', createdAt: new Date(Date.UTC(2021, 5, 1)).toISOString() },
-    ];
-    const findSpy = vi.fn().mockReturnValue({
-      sort: () => ({ limit: () => ({ lean: async () => rows }) }),
+  it('page maps the OUTBOUND graph members (local + federated) to actor URIs', async () => {
+    mocks.getUserFollowing.mockResolvedValue({
+      following: [
+        { id: 'x', username: 'erin', type: 'local' },
+        {
+          id: 'y',
+          username: 'frank@remote.example',
+          type: 'federated',
+          isFederated: true,
+          federation: { actorUri: 'https://remote.example/users/frank' },
+        },
+      ],
+      total: 2,
+      hasMore: false,
     });
-    mocks.followFind.mockImplementation((query: unknown) => findSpy(query));
 
     const res = await request(app)
       .get('/ap/users/alice/following?page=true')
       .set('Accept', AP_ACCEPT)
       .expect(200);
 
-    const query = findSpy.mock.calls[0][0] as Record<string, unknown>;
-    expect(query).toMatchObject({ localUserId: 'u1', direction: 'outbound', status: 'accepted' });
+    expect(mocks.getUserFollowing).toHaveBeenCalledWith('u1', { limit: 20, offset: 0 });
     expect(res.body.type).toBe('OrderedCollectionPage');
     expect(res.body.partOf).toBe('https://mention.earth/ap/users/alice/following');
-    expect(res.body.orderedItems).toEqual(['https://remote.example/users/z']);
+    expect(res.body.totalItems).toBe(2);
+    expect(res.body.orderedItems).toEqual([
+      'https://mention.earth/ap/users/erin',
+      'https://remote.example/users/frank',
+    ]);
     expect(res.body.next).toBeUndefined();
   });
 });

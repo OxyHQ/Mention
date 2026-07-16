@@ -45,7 +45,9 @@ const mocks = vi.hoisted(() => ({
   postFind: vi.fn(),
   postCountDocuments: vi.fn(),
   postFindOne: vi.fn(),
-  followedCountDocuments: vi.fn(),
+  getServiceOxyClient: vi.fn(),
+  getUserFollowers: vi.fn(),
+  getUserFollowing: vi.fn(),
   resolveAvatarUrl: vi.fn(),
   resolveMediaRef: vi.fn(),
   verifyHttpSignature: vi.fn(),
@@ -104,8 +106,8 @@ vi.mock('../../../models/UserSettings', () => ({
   default: { findOne: (...args: unknown[]) => mocks.userSettingsFindOne(...args) },
 }));
 
-vi.mock('../../../models/FederatedFollow', () => ({
-  default: { countDocuments: (...args: unknown[]) => mocks.followedCountDocuments(...args) },
+vi.mock('../../../utils/oxyHelpers', () => ({
+  getServiceOxyClient: (...args: unknown[]) => mocks.getServiceOxyClient(...args),
 }));
 
 vi.mock('../../../utils/redis', () => ({
@@ -130,6 +132,8 @@ const RESOLVED_USER = {
   avatar: null,
   bio: '',
   createdAt: '2020-01-01T00:00:00.000Z',
+  // The follow-collection summary reads the true count from the resolved profile.
+  _count: { followers: 0, following: 0 },
 };
 
 beforeEach(() => {
@@ -145,7 +149,13 @@ beforeEach(() => {
   mocks.postCountDocuments.mockResolvedValue(0);
   mocks.postFind.mockReturnValue({ sort: () => ({ limit: () => ({ lean: async () => [] }) }) });
   mocks.postFindOne.mockReturnValue({ lean: async () => ({ _id: VALID_ID, content: { text: 'hi' } }) });
-  mocks.followedCountDocuments.mockResolvedValue(0);
+  // The follow collections read the Oxy follow graph through the service client.
+  mocks.getServiceOxyClient.mockReturnValue({
+    getUserFollowers: mocks.getUserFollowers,
+    getUserFollowing: mocks.getUserFollowing,
+  });
+  mocks.getUserFollowers.mockResolvedValue({ followers: [], total: 0, hasMore: false });
+  mocks.getUserFollowing.mockResolvedValue({ following: [], total: 0, hasMore: false });
   mocks.buildCreateNoteActivity.mockReturnValue({
     '@context': ['https://www.w3.org/ns/activitystreams'],
     type: 'Create',
