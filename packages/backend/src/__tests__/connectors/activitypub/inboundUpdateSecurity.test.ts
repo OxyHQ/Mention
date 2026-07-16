@@ -159,10 +159,11 @@ describe('handleUpdate — NoSQL-injection safety + ownership scope', () => {
   it('recovers a contentMap-only edit and scopes both queries to the sending actor', async () => {
     await inboxProcessingService.processInboxActivity(updateActivity(), ACTOR_URI);
 
-    // The lookup is scoped by BOTH the activity id and the sending actor.
+    // The lookup is scoped by BOTH the activity id and the sending actor (and reads
+    // the fields the edit needs: owner id, prior mentions, and reply-ness).
     expect(mocks.postFindOne).toHaveBeenCalledWith(
       { 'federation.activityId': EDITED_NOTE_ID, 'federation.actorUri': ACTOR_URI },
-      { oxyUserId: 1 },
+      { oxyUserId: 1, mentions: 1, parentPostId: 1 },
     );
 
     expect(mocks.postUpdateOne).toHaveBeenCalledTimes(1);

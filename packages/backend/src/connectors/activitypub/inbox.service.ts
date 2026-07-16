@@ -28,6 +28,8 @@ import {
   resolvePostIdFromObjectUri,
 } from './helpers';
 import { buildFederatedNoteContent, buildFederatedNoteContentForEdit } from './apPostContent';
+import { applyMentionPlaceholders, resolveInboundMentions } from './apMentions';
+import { normalizeMentionIds } from '../../utils/textProcessing';
 import { getRemoteHost } from '../shared/url';
 import { parseInboundActivity, parseNote, primaryApType } from './apSchemas';
 import type { z } from 'zod';
@@ -225,6 +227,49 @@ export class InboxProcessingService {
       const message = err instanceof Error ? err.message : String(err);
       logger.warn(
         `[Federation] ${type} notification failed for post ${postId} from actor ${actorOxyUserId}: ${message}`,
+      );
+    }
+  }
+
+  /**
+   * Best-effort: notify LOCAL users @mentioned by an inbound federated post,
+   * mirroring the NATIVE compose/reply path (`createMentionNotifications` — the
+   * SAME util `posts.controller` and `PostCreationService` call) so a Mastodon
+   * mention of a Mention user reaches their notifications exactly like a native one.
+   *
+   * `localMentionIds` are already narrowed to LOCAL users (federated mentions are
+   * stored on the post for rendering but have no Mention inbox to notify). Each is
+   * gated on THAT user's own fediverse-sharing consent: a mention is inbound
+   * engagement directed at the mentioned user, so a user with sharing off does not
+   * receive fediverse-originated mention notifications — the same rule the inbound
+   * Follow/reply/Like/Announce paths apply to their target. Fails OPEN per user on
+   * an Oxy outage, like every other consent read on this inbound path.
+   *
+   * `actorOxyUserId` is the post AUTHOR (who did the mentioning); `entityId` is the
+   * mentioning post. NEVER throws — a notification failure must not fail (and thus
+   * retry) the inbox activity. Lazy import for the same load-time-cycle reason as
+   * the sibling notify helpers.
+   */
+  private async notifyLocalMentionedUsers(
+    localMentionIds: string[],
+    actorOxyUserId: string,
+    entityId: string,
+    entityType: 'post' | 'reply',
+  ): Promise<void> {
+    try {
+      const consented = (
+        await Promise.all(
+          localMentionIds.map(async (id) => ((await isFediverseSharingEnabled(id)) ? id : null)),
+        )
+      ).filter((id): id is string => id !== null);
+      if (consented.length === 0) return;
+
+      const { createMentionNotifications } = await import('../../utils/notificationUtils');
+      await createMentionNotifications(consented, entityId, actorOxyUserId, entityType);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      logger.warn(
+        `[Federation] mention notification failed for post ${entityId} from actor ${actorOxyUserId}: ${message}`,
       );
     }
   }
@@ -574,12 +619,22 @@ export class InboxProcessingService {
     const actor = await actorService.getOrFetchActor(actorUri);
     const authorOxyUserId = requireActorOxyUserId(actor, actorUri, `Create ${object.id}`);
 
+    // Resolve the Note's @mentions BEFORE building the body: each `Mention` tag's
+    // actor URI is resolved (and synced/created) to a federated or local Oxy user
+    // id, then the matching in-content anchor is rewritten to Mention's internal
+    // `[mention:<oxyUserId>]` placeholder so hydration renders it as a real link
+    // (`@user@domain`) instead of dead `@user` text. Batched — each distinct actor
+    // is resolved once. Runs after the dedup gate above, so a redelivered Create
+    // never repeats the resolution.
+    const mentionResult = await resolveInboundMentions(object);
+    const noteObject = applyMentionPlaceholders(object, mentionResult.anchorMap);
+
     // Extract the body (with contentMap fallback), normalize hashtags, and
     // materialize media through the shared builder — the SAME path the outbox
     // backfill and boost/ancestor import use. A Note that carries nothing
     // storable (no text, no surviving media, no content-warning) is dropped
     // instead of persisted as a blank post.
-    const built = await buildFederatedNoteContent(object, authorOxyUserId, {
+    const built = await buildFederatedNoteContent(noteObject, authorOxyUserId, {
       activityId: object.id,
       actorUri,
     });
@@ -638,6 +693,10 @@ export class InboxProcessingService {
       },
       visibility: mapApVisibility(object.to, object.cc),
       hashtags,
+      // Resolved @mention Oxy user ids (federated + local) — the SAME allowlist the
+      // native path stores, keyed by the `[mention:<id>]` placeholders now in the
+      // body, so hydration renders each as a real profile link.
+      mentions: mentionResult.ids,
       // AP-derived language so Mastodon/Pleroma posts carry their REAL language
       // (and feed the Stage-A classifier) instead of defaulting to 'en'. The
       // singular `language` sets the top-level `post.language` (primary); the full
@@ -671,6 +730,19 @@ export class InboxProcessingService {
         'reply',
         String(createdPost._id),
         'reply',
+      );
+    }
+
+    // Notify LOCAL @mentioned users exactly like a native mention. Only reached on
+    // a genuinely-new Create (the dedup gate returns early on a redelivery), so a
+    // redelivered Create never re-notifies. Federated mentions are stored on the
+    // post but not notified (no Mention inbox).
+    if (mentionResult.localIds.length > 0) {
+      await this.notifyLocalMentionedUsers(
+        mentionResult.localIds,
+        authorOxyUserId,
+        String(createdPost._id),
+        threadLink?.parentPostId ? 'reply' : 'post',
       );
     }
 
@@ -886,10 +958,20 @@ export class InboxProcessingService {
         'federation.actorUri': actorUri,
       };
 
-      const existingPost = await Post.findOne(editFilter, { oxyUserId: 1 }).lean<
-        { oxyUserId?: string | null } | null
+      const existingPost = await Post.findOne(editFilter, {
+        oxyUserId: 1,
+        mentions: 1,
+        parentPostId: 1,
+      }).lean<
+        { _id: mongoose.Types.ObjectId; oxyUserId?: string | null; mentions?: unknown; parentPostId?: string | null } | null
       >();
       const ownerOxyUserId = existingPost?.oxyUserId ?? (await actorService.getOrFetchActor(actorUri))?.oxyUserId ?? null;
+
+      // Re-resolve the edited Note's @mentions the SAME way as fresh ingest so an
+      // edit's mentions stay correct: each `Mention` tag → federated/local Oxy user
+      // id, the in-content anchors rewritten to `[mention:<id>]` placeholders.
+      const mentionResult = await resolveInboundMentions(object);
+      const noteObject = applyMentionPlaceholders(object, mentionResult.anchorMap);
 
       // Extract the edited body through the SAME shared logic as fresh ingest —
       // contentMap fallback, hashtag normalization, media materialization, and
@@ -898,7 +980,7 @@ export class InboxProcessingService {
       // Create: NO empty-note guard here — an Update applies its consistently
       // extracted fields (set when present, unset when the edit removed them),
       // never skips/deletes.
-      const built = await buildFederatedNoteContentForEdit(object, ownerOxyUserId, {
+      const built = await buildFederatedNoteContentForEdit(noteObject, ownerOxyUserId, {
         activityId: objectActivityId,
         actorUri,
       });
@@ -931,10 +1013,32 @@ export class InboxProcessingService {
       if (built.variants.length > 0) setOps['content.variants'] = built.variants;
       else unsetOps['content.variants'] = '';
 
+      // The edit's mention allowlist REPLACES the old one wholesale, mirroring the
+      // body: dropping a mention from the text drops it from `mentions` too, so the
+      // stored ids always match the `[mention:<id>]` placeholders now in the body.
+      setOps.mentions = mentionResult.ids;
+
       const update: Record<string, unknown> = { $set: setOps };
       if (Object.keys(unsetOps).length > 0) update.$unset = unsetOps;
       await Post.updateOne(editFilter, update);
       logger.debug(`Updated federated post: ${objectActivityId}`);
+
+      // Notify only NEWLY-added local mentions (diff against the post's prior
+      // mentions), so a redelivered/unchanged Update never re-notifies while an
+      // edit that adds a mention still reaches that user. Only meaningful when the
+      // post already exists locally and has a resolved author.
+      if (existingPost && ownerOxyUserId && mentionResult.localIds.length > 0) {
+        const priorMentionIds = new Set(normalizeMentionIds(existingPost.mentions));
+        const newLocalIds = mentionResult.localIds.filter((id) => !priorMentionIds.has(id));
+        if (newLocalIds.length > 0) {
+          await this.notifyLocalMentionedUsers(
+            newLocalIds,
+            ownerOxyUserId,
+            String(existingPost._id),
+            existingPost.parentPostId ? 'reply' : 'post',
+          );
+        }
+      }
     } else if (object.type === 'Person' || object.type === 'Service' || object.type === 'Application') {
       // Profile update — re-fetch the actor to get updated data
       await actorService.fetchRemoteActor(actorUri);

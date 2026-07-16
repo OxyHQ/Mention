@@ -11,7 +11,7 @@ import type {
 import { resolveOxyExternalUser } from '../identity';
 import { isAbsoluteHttpUrl } from '../shared/url';
 import { actorService } from './actor.service';
-import { followService, type NoteSourcePost, type NoteReplyContext, type NoteMentionContext, type NotePollContext } from './follow.service';
+import { followService, type NoteSourcePost, type NoteReplyContext, type NoteMentionContext, type NotePollContext, type NoteQuoteContext } from './follow.service';
 import { outboxSyncService } from './outbox.service';
 import { inboxProcessingService } from './inbox.service';
 import { FEDERATION_ENABLED, isBlockedDomain } from './constants';
@@ -291,8 +291,9 @@ class ActivityPubConnector implements NetworkConnector {
     reply?: NoteReplyContext,
     mentions?: NoteMentionContext,
     poll?: NotePollContext,
+    quote?: NoteQuoteContext,
   ): Record<string, unknown> {
-    return followService.buildCreateNoteActivity(post, username, reply, mentions, poll);
+    return followService.buildCreateNoteActivity(post, username, reply, mentions, poll, quote);
   }
 
   /**
@@ -342,6 +343,26 @@ class ActivityPubConnector implements NetworkConnector {
    */
   resolvePollContextByPost(posts: NoteSourcePost[]): Promise<Map<string, NotePollContext>> {
     return followService.resolvePollContextByPost(posts);
+  }
+
+  /**
+   * Resolve a single post's quote reference (the quoted object's canonical AP id →
+   * the FEP-044f/FEP-e232 quote fields + Link tag) for a PULL surface (the per-post
+   * dereference route). Null when the post is not a quote or the quoted post is
+   * unresolvable. The push path resolves this internally in
+   * {@link FollowService.federateNewPost}.
+   */
+  resolveQuoteContext(post: NoteSourcePost): Promise<NoteQuoteContext | null> {
+    return followService.resolveQuoteContext(post);
+  }
+
+  /**
+   * Batch-resolve quote references for MANY posts (the outbox page / featured
+   * collection), deduping the unique quoted post ids. Keyed by post id; a
+   * non-quote post is absent from the map.
+   */
+  resolveQuoteContextByPost(posts: NoteSourcePost[]): Promise<Map<string, NoteQuoteContext>> {
+    return followService.resolveQuoteContextByPost(posts);
   }
 
   federateNewPost(

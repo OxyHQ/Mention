@@ -58,10 +58,25 @@ export const AP_CONTEXT = [
   // emits and reads. Without the declaration a JSON-LD consumer drops it. The
   // `Question`/`oneOf`/`anyOf`/`endTime`/`closed` poll terms are all AS2 core, so
   // they need no extra declaration here.
+  //
+  // Quote-post interop (FEP-044f / FEP-e232). A quote post carries the quoted
+  // object's canonical AP id under FOUR terms so the widest set of servers
+  // renders the inline quote: `quote` (FEP-044f, Mastodon 4.4+), `quoteUri`
+  // (Fedibird), `_misskey_quote` (Misskey) and `quoteUrl` (Pleroma/Akkoma). Each
+  // is typed `@id` (an IRI, not a literal); the `misskey`/`fedibird` namespaces
+  // and the AS2 `Link` type back the FEP-e232 `Link` quote tag. Without these
+  // declarations a strict JSON-LD consumer DROPS the quote fields.
   {
     sensitive: 'as:sensitive',
     toot: 'http://joinmastodon.org/ns#',
     votersCount: 'toot:votersCount',
+    misskey: 'https://misskey-hub.net/ns#',
+    fedibird: 'http://fedibird.com/ns#',
+    quote: { '@id': 'https://w3id.org/fep/044f#quote', '@type': '@id' },
+    quoteUri: { '@id': 'fedibird:quoteUri', '@type': '@id' },
+    quoteUrl: { '@id': 'as:quoteUrl', '@type': '@id' },
+    _misskey_quote: { '@id': 'misskey:_misskey_quote', '@type': '@id' },
+    Link: 'as:Link',
   },
 ];
 

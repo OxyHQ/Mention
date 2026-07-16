@@ -45,6 +45,8 @@ const mocks = vi.hoisted(() => ({
   resolveMentionContextByPost: vi.fn(),
   resolvePollContext: vi.fn(),
   resolvePollContextByPost: vi.fn(),
+  resolveQuoteContext: vi.fn(),
+  resolveQuoteContextByPost: vi.fn(),
   userSettingsFindOne: vi.fn(),
   postFind: vi.fn(),
   postCountDocuments: vi.fn(),
@@ -75,6 +77,8 @@ vi.mock('../../../connectors/activitypub/ActivityPubConnector', () => ({
     resolveMentionContextByPost: (...args: unknown[]) => mocks.resolveMentionContextByPost(...args),
     resolvePollContext: (...args: unknown[]) => mocks.resolvePollContext(...args),
     resolvePollContextByPost: (...args: unknown[]) => mocks.resolvePollContextByPost(...args),
+    resolveQuoteContext: (...args: unknown[]) => mocks.resolveQuoteContext(...args),
+    resolveQuoteContextByPost: (...args: unknown[]) => mocks.resolveQuoteContextByPost(...args),
     fetchPublicKey: vi.fn(),
     processInboxActivity: vi.fn().mockResolvedValue(undefined),
   },
@@ -180,6 +184,9 @@ beforeEach(() => {
   // plain Notes.
   mocks.resolvePollContext.mockResolvedValue(null);
   mocks.resolvePollContextByPost.mockResolvedValue(new Map());
+  // The gate tests serve non-quote posts — default to "no quote".
+  mocks.resolveQuoteContext.mockResolvedValue(null);
+  mocks.resolveQuoteContextByPost.mockResolvedValue(new Map());
   mocks.verifyHttpSignature.mockResolvedValue({
     verified: true,
     actorUri: 'https://remote.example/users/bob',

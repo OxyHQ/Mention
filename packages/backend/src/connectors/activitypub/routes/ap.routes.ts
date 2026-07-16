@@ -316,6 +316,10 @@ router.get('/users/:username/outbox', async (req: Request, res: Response) => {
     // Poll posts serialize as `Question`; batch-resolve their tallies for the whole
     // page in one Poll read (non-poll posts are absent → plain Note).
     const pollContexts = await activityPubConnector.resolvePollContextByPost(pagePosts);
+    // Quote posts carry the quoted object's canonical AP id (FEP-044f quote fields
+    // + FEP-e232 Link tag); batch-resolve the whole page's quote references, deduped
+    // (non-quote posts are absent → plain Note).
+    const quoteContexts = await activityPubConnector.resolveQuoteContextByPost(pagePosts);
     const items = pagePosts.map((post) =>
       activityPubConnector.buildCreateNoteActivity(
         post,
@@ -323,6 +327,7 @@ router.get('/users/:username/outbox', async (req: Request, res: Response) => {
         undefined,
         mentionContexts.get(String(post._id)),
         pollContexts.get(String(post._id)),
+        quoteContexts.get(String(post._id)),
       ),
     );
 
@@ -409,6 +414,7 @@ router.get('/users/:username/collections/featured', async (req: Request, res: Re
     // them).
     const mentionContexts = await activityPubConnector.resolveMentionContextByPost(pinnedPosts);
     const pollContexts = await activityPubConnector.resolvePollContextByPost(pinnedPosts);
+    const quoteContexts = await activityPubConnector.resolveQuoteContextByPost(pinnedPosts);
     const items = pinnedPosts.map(
       (post) =>
         activityPubConnector.buildCreateNoteActivity(
@@ -417,6 +423,7 @@ router.get('/users/:username/collections/featured', async (req: Request, res: Re
           undefined,
           mentionContexts.get(String(post._id)),
           pollContexts.get(String(post._id)),
+          quoteContexts.get(String(post._id)),
         ).object as Record<string, unknown>,
     );
 
@@ -500,6 +507,11 @@ router.get('/users/:username/posts/:id', async (req: Request, res: Response) => 
     // null for a non-poll post, which serves a plain Note.
     const pollContext = await activityPubConnector.resolvePollContext(post);
 
+    // A quote post carries the quoted object's canonical AP id (FEP-044f quote
+    // fields + FEP-e232 Link tag); null for a non-quote post or an unresolvable
+    // quoted post, which serves the Note without quote fields.
+    const quoteContext = await activityPubConnector.resolveQuoteContext(post);
+
     // Build via the shared Note path, then unwrap the Create envelope: a
     // dereferenced Note/Question is the `object`, carrying its own top-level
     // `@context`.
@@ -509,6 +521,7 @@ router.get('/users/:username/posts/:id', async (req: Request, res: Response) => 
       replyContext ?? undefined,
       mentionContext ?? undefined,
       pollContext ?? undefined,
+      quoteContext ?? undefined,
     );
     const note = activity.object as Record<string, unknown>;
 
