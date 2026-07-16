@@ -93,6 +93,12 @@ interface PostHeaderProps {
   placeholderColor?: string;
   onPressUser?: () => void;
   onPressAvatar?: () => void;
+  /**
+   * Collaborative posts only (owner + ≥1 accepted collaborator): tapping the
+   * avatar — which represents the group — opens the collaborators list instead of
+   * a single profile. Ignored for solo posts, which keep {@link onPressAvatar}.
+   */
+  onPressCollaborators?: () => void;
   onPressMenu?: () => void;
   onPressAuthor?: (handle: string) => void;
 }
@@ -120,6 +126,7 @@ const PostHeader: React.FC<PostHeaderProps> = ({
   placeholderColor,
   onPressUser,
   onPressAvatar,
+  onPressCollaborators,
   onPressMenu,
   onPressAuthor,
 }) => {
@@ -165,7 +172,9 @@ const PostHeader: React.FC<PostHeaderProps> = ({
             variant={avatarVariant}
             size={avatarSize}
             placeholderColor={placeholderColor}
-            onPress={onPressAvatar}
+            // A collab post's avatar represents the group, so it opens the
+            // collaborators list; a solo post keeps its single-author behavior.
+            onPress={isCollabHeader && onPressCollaborators ? onPressCollaborators : onPressAvatar}
             style={{ marginTop: headerTopOffset, marginRight: 12 }}
           />
         </ProfileHoverCard>
