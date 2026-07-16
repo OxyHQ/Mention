@@ -12,6 +12,8 @@ import type {
 function actingOxyUserId(event: LocalNetworkEvent): string {
   switch (event.kind) {
     case 'post.create':
+    case 'post.boost':
+    case 'post.unboost':
       return event.actorOxyUserId;
     case 'follow.add':
     case 'follow.remove':

@@ -15,11 +15,13 @@ import {
   actorUrl,
   inboxUrl,
   outboxUrl,
+  featuredUrl,
   followersUrl,
   followingUrl,
   sharedInboxUrl,
   resolveOxyUser,
 } from '../constants';
+import { ChronoCursor } from '../../../mtn/feed/CursorBuilder';
 import rateLimit from 'express-rate-limit';
 import { RedisStore } from '../../../middleware/rateLimitStore';
 import { hashedIpKey } from '../../../utils/ipKey';
@@ -249,6 +251,7 @@ router.get('/users/:username', async (req: Request, res: Response) => {
       url: `https://${FEDERATION_DOMAIN}/@${username}`,
       inbox: inboxUrl(username),
       outbox: outboxUrl(username),
+      featured: featuredUrl(username),
       followers: followersUrl(username),
       following: followingUrl(username),
       endpoints: { sharedInbox: sharedInboxUrl() },
@@ -406,35 +409,132 @@ router.get('/users/:username/outbox', async (req: Request, res: Response) => {
       });
     }
 
-    // Return paginated items
-    const limit = 20;
-    const posts = await Post.find({
+    // Return paginated items. Keyset pagination by (createdAt, _id) — the same
+    // ChronoCursor axis the native feeds use — so EVERY post is reachable by
+    // walking `next`. Previously the page returned only the first 20 items with
+    // no `next`, silently stranding every post beyond the first page from any AP
+    // consumer that paginates (e.g. a 42-post outbox exposed only 20). Overfetch
+    // one extra row to detect whether a further page exists without a second
+    // count query.
+    const PAGE_SIZE = 20;
+    const cursor = typeof req.query.cursor === 'string' ? req.query.cursor : undefined;
+
+    const pageMatch: Record<string, unknown> = {
       oxyUserId: userId,
       visibility: 'public',
       status: 'published',
       parentPostId: null,
-    })
-      .sort({ createdAt: -1 })
-      .limit(limit)
+    };
+    ChronoCursor.applyToQuery(pageMatch, cursor);
+
+    const overfetched = await Post.find(pageMatch)
+      .sort({ createdAt: -1, _id: -1 })
+      .limit(PAGE_SIZE + 1)
       .lean();
+
+    const hasNext = overfetched.length > PAGE_SIZE;
+    const pagePosts = hasNext ? overfetched.slice(0, PAGE_SIZE) : overfetched;
 
     // Reuse the SINGLE Note builder that push delivery uses, so outbox backfill
     // (Mastodon ≥4.4 imports up to 20 items on discovery) carries the same
     // fidelity as pushed posts: canonical url, hashtag `tag`s, and media
     // `attachment`s. One implementation for both paths.
-    const items = posts.map((post) => activityPubConnector.buildCreateNoteActivity(post, username));
+    const items = pagePosts.map((post) => activityPubConnector.buildCreateNoteActivity(post, username));
 
-    res.set('Content-Type', AP_CONTENT_TYPE);
-    return res.json({
+    const pageId = cursor
+      ? `${outboxUrl(username)}?page=true&cursor=${encodeURIComponent(cursor)}`
+      : `${outboxUrl(username)}?page=true`;
+
+    const pageResponse: Record<string, unknown> = {
       '@context': AP_CONTEXT,
-      id: `${outboxUrl(username)}?page=true`,
+      id: pageId,
       type: 'OrderedCollectionPage',
       partOf: outboxUrl(username),
       totalItems: totalPosts,
       orderedItems: items,
-    });
+    };
+
+    if (hasNext) {
+      const lastPost = pagePosts[pagePosts.length - 1];
+      const nextCursor = ChronoCursor.build(String(lastPost._id), lastPost.createdAt);
+      pageResponse.next = `${outboxUrl(username)}?page=true&cursor=${encodeURIComponent(nextCursor)}`;
+    }
+
+    res.set('Content-Type', AP_CONTENT_TYPE);
+    return res.json(pageResponse);
   } catch (err) {
     logger.error('Outbox endpoint error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * GET /ap/users/:username/collections/featured — Featured collection (pinned posts)
+ *
+ * Mastodon does NOT backfill a freshly-discovered remote account's timeline from
+ * the `outbox`; on profile view it fetches this `featured` collection (advertised
+ * on the actor) and renders those PINNED posts. Without it a discovered Mention
+ * profile shows avatar/banner/post-count but ZERO posts. This is the fix.
+ *
+ * Returns a NON-paginated `OrderedCollection` whose `orderedItems` are the user's
+ * pinned posts as bare AP `Note` objects (NOT `Create` activities) — reusing the
+ * SAME Note builder as the outbox/push/dereference paths (unwrapping the `Create`
+ * envelope), so featured Notes carry identical fidelity. Ownership + visibility
+ * exactly mirror the outbox filter (public + published + top-level, owned by the
+ * named user), plus `metadata.isPinned`; newest-first. Same fediverse-sharing
+ * consent gate + 404-when-off behavior as the sibling AP surfaces.
+ */
+router.get('/users/:username/collections/featured', async (req: Request, res: Response) => {
+  if (!FEDERATION_ENABLED) return res.status(404).json({ error: 'Federation disabled' });
+
+  const username = getUsername(req);
+
+  try {
+    const user = await resolveOxyUser(username);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    // Sharing OFF must be indistinguishable from a nonexistent user — same
+    // 404 body, no separate error code.
+    if (!isFediverseSharingEnabledFromUser(user)) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const userId = user._id || user.id;
+
+    // Only PUBLIC + PUBLISHED top-level pinned posts are exposed — identical
+    // ownership/visibility filter to the outbox, narrowed to pinned. Mastodon
+    // caps featured display at ~5, but we serve all pinned posts newest-first;
+    // FEATURED_LIMIT is a defensive upper bound.
+    const FEATURED_LIMIT = 20;
+    const pinnedPosts = await Post.find({
+      oxyUserId: userId,
+      'metadata.isPinned': true,
+      visibility: 'public',
+      status: 'published',
+      parentPostId: null,
+    })
+      .sort({ createdAt: -1, _id: -1 })
+      .limit(FEATURED_LIMIT)
+      .lean();
+
+    // Build via the shared Note path, then unwrap the Create envelope: a featured
+    // collection contains bare Note OBJECTS, carrying no per-item `@context` (the
+    // collection's top-level `@context` covers them).
+    const items = pinnedPosts.map(
+      (post) => activityPubConnector.buildCreateNoteActivity(post, username).object as Record<string, unknown>,
+    );
+
+    res.set('Content-Type', AP_CONTENT_TYPE);
+    res.set('Cache-Control', 'max-age=300');
+    return res.json({
+      '@context': AP_CONTEXT,
+      id: featuredUrl(username),
+      type: 'OrderedCollection',
+      totalItems: items.length,
+      orderedItems: items,
+    });
+  } catch (err) {
+    logger.error('Featured collection endpoint error:', err);
     return res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -489,9 +589,15 @@ router.get('/users/:username/posts/:id', async (req: Request, res: Response) => 
     }).lean();
     if (!post) return res.status(404).json({ error: 'Post not found' });
 
+    // When the dereferenced post is a REPLY, carry `inReplyTo` + the parent-author
+    // `Mention` so a remote server that pulls this Note by URL threads it. Resolved
+    // here (the builder stays pure); fail-soft — a non-reply or unresolvable parent
+    // yields null, so the Note is served without `inReplyTo` rather than erroring.
+    const replyContext = await activityPubConnector.resolveReplyContext(post);
+
     // Build via the shared Note path, then unwrap the Create envelope: a
     // dereferenced Note is the `object`, carrying its own top-level `@context`.
-    const activity = activityPubConnector.buildCreateNoteActivity(post, username);
+    const activity = activityPubConnector.buildCreateNoteActivity(post, username, replyContext ?? undefined);
     const note = activity.object as Record<string, unknown>;
 
     res.set('Content-Type', AP_CONTENT_TYPE);
@@ -503,13 +609,38 @@ router.get('/users/:username/posts/:id', async (req: Request, res: Response) => 
   }
 });
 
+/** Page size for the paginated followers/following collections (mirrors the outbox). */
+const FOLLOW_PAGE_SIZE = 20;
+
 /**
- * GET /ap/users/:username/followers — Followers collection
+ * Serve a user's followers OR following as a paginated ActivityPub
+ * `OrderedCollection` — the two surfaces differ only by follow `direction`
+ * (`inbound` = followers, `outbound` = following) and the collection URL builder,
+ * so they share this one handler.
+ *
+ * The summary (no `?page=true`) advertises `totalItems` AND a `first` page link,
+ * so a remote instance (e.g. mastodon.social) can actually ENUMERATE the members
+ * — previously the collection exposed only `totalItems`, so the list rendered
+ * empty even when federated edges existed. The paged branch returns an
+ * `OrderedCollectionPage` whose `orderedItems` are the remote actor URIs
+ * (strings), keyset-paginated by (createdAt, _id) via the SAME ChronoCursor axis
+ * the outbox uses, so every member is reachable by walking `next`.
+ *
+ * Source is `FederatedFollow` (accepted edges in the given direction), the SAME
+ * rows the `totalItems` count is derived from — so the count and the enumerated
+ * list stay consistent. Keeps the identical fediverse-sharing consent gate +
+ * 404-when-off behavior as the sibling AP surfaces.
  */
-router.get('/users/:username/followers', async (req: Request, res: Response) => {
+async function serveFollowCollection(
+  req: Request,
+  res: Response,
+  direction: 'inbound' | 'outbound',
+  collectionUrl: (username: string) => string,
+): Promise<Response> {
   if (!FEDERATION_ENABLED) return res.status(404).json({ error: 'Federation disabled' });
 
   const username = getUsername(req);
+  const page = req.query.page === 'true';
 
   try {
     const user = await resolveOxyUser(username);
@@ -522,63 +653,78 @@ router.get('/users/:username/followers', async (req: Request, res: Response) => 
     }
 
     const userId = String(user._id || user.id);
+    const baseMatch = { localUserId: userId, direction, status: 'accepted' as const };
 
-    const count = await FederatedFollow.countDocuments({
-      localUserId: userId,
-      direction: 'inbound',
-      status: 'accepted',
-    });
+    const count = await FederatedFollow.countDocuments(baseMatch);
 
-    res.set('Content-Type', AP_CONTENT_TYPE);
-    return res.json({
-      '@context': AP_CONTEXT,
-      id: followersUrl(username),
-      type: 'OrderedCollection',
-      totalItems: count,
-    });
-  } catch (err) {
-    logger.error('Followers endpoint error:', err);
-    return res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
-/**
- * GET /ap/users/:username/following — Following collection
- */
-router.get('/users/:username/following', async (req: Request, res: Response) => {
-  if (!FEDERATION_ENABLED) return res.status(404).json({ error: 'Federation disabled' });
-
-  const username = getUsername(req);
-
-  try {
-    const user = await resolveOxyUser(username);
-    if (!user) return res.status(404).json({ error: 'User not found' });
-
-    // Sharing OFF must be indistinguishable from a nonexistent user — same
-    // 404 body, no separate error code.
-    if (!isFediverseSharingEnabledFromUser(user)) {
-      return res.status(404).json({ error: 'User not found' });
+    if (!page) {
+      res.set('Content-Type', AP_CONTENT_TYPE);
+      return res.json({
+        '@context': AP_CONTEXT,
+        id: collectionUrl(username),
+        type: 'OrderedCollection',
+        totalItems: count,
+        first: `${collectionUrl(username)}?page=true`,
+      });
     }
 
-    const userId = String(user._id || user.id);
+    // Keyset pagination by (createdAt, _id) — overfetch one row to detect a
+    // further page without a second count query.
+    const cursor = typeof req.query.cursor === 'string' ? req.query.cursor : undefined;
+    const pageMatch: Record<string, unknown> = { ...baseMatch };
+    ChronoCursor.applyToQuery(pageMatch, cursor);
 
-    const count = await FederatedFollow.countDocuments({
-      localUserId: userId,
-      direction: 'outbound',
-      status: 'accepted',
-    });
+    const overfetched = await FederatedFollow.find(pageMatch)
+      .sort({ createdAt: -1, _id: -1 })
+      .limit(FOLLOW_PAGE_SIZE + 1)
+      .lean();
+
+    const hasNext = overfetched.length > FOLLOW_PAGE_SIZE;
+    const pageRows = hasNext ? overfetched.slice(0, FOLLOW_PAGE_SIZE) : overfetched;
+
+    // A follower/following collection enumerates the REMOTE actor URIs (the AP
+    // ids) — bare strings, per the ActivityPub spec's actor collections.
+    const orderedItems = pageRows.map((row) => row.remoteActorUri);
+
+    const pageId = cursor
+      ? `${collectionUrl(username)}?page=true&cursor=${encodeURIComponent(cursor)}`
+      : `${collectionUrl(username)}?page=true`;
+
+    const pageResponse: Record<string, unknown> = {
+      '@context': AP_CONTEXT,
+      id: pageId,
+      type: 'OrderedCollectionPage',
+      partOf: collectionUrl(username),
+      totalItems: count,
+      orderedItems,
+    };
+
+    if (hasNext) {
+      const lastRow = pageRows[pageRows.length - 1];
+      const nextCursor = ChronoCursor.build(String(lastRow._id), lastRow.createdAt);
+      pageResponse.next = `${collectionUrl(username)}?page=true&cursor=${encodeURIComponent(nextCursor)}`;
+    }
 
     res.set('Content-Type', AP_CONTENT_TYPE);
-    return res.json({
-      '@context': AP_CONTEXT,
-      id: followingUrl(username),
-      type: 'OrderedCollection',
-      totalItems: count,
-    });
+    return res.json(pageResponse);
   } catch (err) {
-    logger.error('Following endpoint error:', err);
+    logger.error('Follow collection endpoint error:', err);
     return res.status(500).json({ error: 'Internal server error' });
   }
-});
+}
+
+/**
+ * GET /ap/users/:username/followers — Followers collection (inbound accepted edges).
+ */
+router.get('/users/:username/followers', (req: Request, res: Response) =>
+  serveFollowCollection(req, res, 'inbound', followersUrl),
+);
+
+/**
+ * GET /ap/users/:username/following — Following collection (outbound accepted edges).
+ */
+router.get('/users/:username/following', (req: Request, res: Response) =>
+  serveFollowCollection(req, res, 'outbound', followingUrl),
+);
 
 export default router;

@@ -2,6 +2,7 @@ import { logger } from '../../utils/logger';
 import FederatedActor, { IFederatedActor } from '../../models/FederatedActor';
 import FederatedFollow from '../../models/FederatedFollow';
 import FederationDeliveryQueue from '../../models/FederationDeliveryQueue';
+import { Post } from '../../models/Post';
 import { signRequest, getPublicKey } from './crypto';
 import {
   FEDERATION_DOMAIN,
@@ -15,6 +16,8 @@ import { PostVisibility, canonicalizeLanguageTag, type MediaItem, type PostConte
 import { authorVariants, resolveVariant } from '../../services/postVariants';
 import { enqueueDelivery } from '../../queue/producers';
 import { isFediverseSharingEnabled } from '../../services/fediverseSharing';
+import { getServiceOxyClient } from '../../utils/oxyHelpers';
+import type { LocalBoostEventPayload } from '../types';
 import { actorService } from './actor.service';
 import { fetchUpstreamSingleHop } from '../../utils/safeUpstreamFetch';
 import { assertSafePublicUrl } from '../../utils/ssrfGuard';
@@ -23,6 +26,31 @@ import { isAbsoluteHttpUrl } from '../shared/url';
 
 const DELIVER_ACTIVITY_TIMEOUT_MS = 15000;
 const DELIVERY_RESPONSE_PREVIEW_MAX_BYTES = 1024;
+
+/** The ActivityStreams public collection — the `to` addressee of a public activity. */
+const AP_PUBLIC = 'https://www.w3.org/ns/activitystreams#Public';
+
+/**
+ * The canonical AP object id of a boosted/replied/liked ORIGINAL post, plus the
+ * original author's remote inbox and actor URI when the original is federated.
+ *
+ * `objectUri` is what an `Announce`/`Undo(Announce)` (and later a reply's
+ * `inReplyTo`, a Like's `object`) points at. `authorInbox` is an EXPLICIT
+ * delivery target unioned into the follower set so the original author's
+ * instance learns about the interaction; it is undefined for a local original
+ * (that author is us — reached through their own followers, never a remote POST).
+ */
+interface FederationTarget {
+  objectUri: string;
+  authorActorUri?: string;
+  authorInbox?: string;
+  /**
+   * The author's fediverse acct (`user@domain`) — the source of a reply's
+   * `Mention` tag `name` (`@<acct>`). For a federated original it is the stored
+   * `FederatedActor.acct`; for a local original it is `<username>@<domain>`.
+   */
+  authorAcct?: string;
+}
 
 /**
  * MIME derivation for an ActivityPub media `attachment`. Extension-first (for the
@@ -100,6 +128,36 @@ export interface NoteSourcePost {
   hashtags?: string[];
   mentions?: string[];
   createdAt: string | Date;
+  /**
+   * Set when the post is a boost. A boost has an intentionally empty body and
+   * MUST federate as an `Announce`, never as a blank `Create(Note)` — the
+   * federation entry point ({@link FollowService.federateNewPost}) reads this to
+   * re-route the post to the Announce path.
+   */
+  boostOf?: string | null;
+  /**
+   * The local Post `_id` of the parent when this post is a REPLY. Drives the
+   * Note's `inReplyTo` + parent-author `Mention` addressing: the federation
+   * caller resolves the parent's canonical AP object uri + author via
+   * {@link FollowService.resolveReplyContext} and passes it into the pure Note
+   * builder. Absent for a top-level post.
+   */
+  parentPostId?: string | null;
+}
+
+/**
+ * The reply addressing a Note carries when the post is a reply: the parent's
+ * canonical AP object id (the Note's `inReplyTo`) plus, when the parent author is
+ * resolvable, a `Mention` tag (href = author actor uri, name = `@user@domain`)
+ * that Mastodon uses to thread the reply AND notify the author. Resolved by the
+ * async federation caller (a DB lookup) and passed into the PURE Note builder so
+ * {@link FollowService.buildCreateNoteActivity} never touches the database.
+ */
+export interface NoteReplyContext {
+  /** Canonical AP object id of the parent post — the Note's `inReplyTo`. */
+  inReplyTo: string;
+  /** Parent-author addressing for the `Mention` tag + `cc` (present when resolvable). */
+  mention?: { href: string; name: string };
 }
 
 /**
@@ -263,13 +321,38 @@ export class FollowService {
   }
 
   /**
-   * Deliver an activity to all remote followers of a local user.
-   * Groups deliveries by shared inbox for efficiency.
+   * Resolve a remote AP actor's delivery inbox (shared inbox preferred) from the
+   * stored `FederatedActor` row — the SAME source the follower fan-out below and
+   * the inbound ingest side read, so an inbox unioned in via `extraInboxes`
+   * dedupes cleanly against the follower set. Returns undefined when the actor is
+   * unknown locally or carries no inbox (e.g. an atproto-only actor).
+   *
+   * General-purpose by design: the standalone inbox resolver for a caller that
+   * holds only an actor uri (e.g. a Like target's author in Part 3).
+   * {@link resolveFederationTarget} does its OWN single actor read instead, because
+   * it needs the acct (`user@domain`) off the same row for a reply's `Mention`
+   * name, and a shared string-only helper would force a second query for it.
+   */
+  async resolveActorInbox(actorUri: string | undefined): Promise<string | undefined> {
+    if (!actorUri) return undefined;
+    const actor = await FederatedActor.findOne({ uri: actorUri }).lean();
+    if (!actor) return undefined;
+    return actor.sharedInboxUrl ?? actor.inboxUrl ?? undefined;
+  }
+
+  /**
+   * Deliver an activity to all remote followers of a local user, plus any
+   * EXPLICIT remote inboxes passed in `options.extraInboxes` (e.g. the boosted
+   * original's author inbox, a reply parent's author inbox). Deliveries are
+   * grouped by shared inbox so an instance is never POSTed the same activity
+   * twice — an explicit inbox that coincides with a follower's shared inbox is
+   * delivered exactly once.
    */
   async deliverToFollowers(
     activity: Record<string, unknown>,
     senderOxyUserId: string,
     senderUsername: string,
+    options: { extraInboxes?: string[] } = {},
   ): Promise<void> {
     const follows = await FederatedFollow.find({
       localUserId: senderOxyUserId,
@@ -277,16 +360,24 @@ export class FollowService {
       status: 'accepted',
     }).lean();
 
-    if (follows.length === 0) return;
-
     const actorUris = follows.map((f) => f.remoteActorUri);
-    const actors = await FederatedActor.find({ uri: { $in: actorUris } }).lean();
+    const actors = actorUris.length > 0
+      ? await FederatedActor.find({ uri: { $in: actorUris } }).lean()
+      : [];
 
-    // Group by shared inbox to avoid duplicate deliveries.
+    // Group by shared inbox to avoid duplicate deliveries. Follower inboxes
+    // first, then the explicit targets — the shared `seen` set dedupes an
+    // explicit inbox that an instance already receives as a follower.
     const seen = new Set<string>();
     const inboxes: string[] = [];
     for (const actor of actors) {
       const inbox = actor.sharedInboxUrl || actor.inboxUrl;
+      if (inbox && !seen.has(inbox)) {
+        seen.add(inbox);
+        inboxes.push(inbox);
+      }
+    }
+    for (const inbox of options.extraInboxes ?? []) {
       if (inbox && !seen.has(inbox)) {
         seen.add(inbox);
         inboxes.push(inbox);
@@ -358,7 +449,11 @@ export class FollowService {
    * localized by the resolver). A non-primary variant's media override is
    * internal to Mention — there is nowhere in AS2 to put a second attachment set.
    */
-  buildCreateNoteActivity(post: NoteSourcePost, username: string): Record<string, unknown> {
+  buildCreateNoteActivity(
+    post: NoteSourcePost,
+    username: string,
+    reply?: NoteReplyContext,
+  ): Record<string, unknown> {
     const actor = actorUrl(username);
     const postId = String(post._id);
     const noteId = `${actor}/posts/${postId}`;
@@ -376,6 +471,13 @@ export class FollowService {
         });
       }
     }
+    // A reply addressed at the parent author: the `Mention` tag is what makes
+    // Mastodon thread the reply under the parent and notify its author. `href`
+    // (the actor uri) is the authoritative resolution key; `name` (`@user@domain`)
+    // is the human-readable handle.
+    if (reply?.mention) {
+      tags.push({ type: 'Mention', href: reply.mention.href, name: reply.mention.name });
+    }
 
     // The primary rendition: its body, its media (shared or overridden, alt
     // localized) and the tag it is written in — all from the one resolver.
@@ -391,25 +493,35 @@ export class FollowService {
     const language = canonicalizeLanguageTag(primary.tag) ?? undefined;
     const contentMap = buildNoteContentMap(post, language, primaryBody);
 
+    // The public collection stays in `to`; the mentioned parent author joins the
+    // followers collection in `cc` so a public reply is delivered/attributed to
+    // them (mirrors how the boost path cc's the boosted author). Same set on the
+    // Create envelope and the embedded Note.
+    const cc = [`${actor}/followers`];
+    if (reply?.mention) cc.push(reply.mention.href);
+
     return {
       '@context': AP_CONTEXT,
       id: `${noteId}/activity`,
       type: 'Create',
       actor,
       published,
-      to: ['https://www.w3.org/ns/activitystreams#Public'],
-      cc: [`${actor}/followers`],
+      to: [AP_PUBLIC],
+      cc,
       object: {
         id: noteId,
         type: 'Note',
         attributedTo: actor,
+        // Only present on a reply — undefined is dropped by JSON serialization,
+        // so a top-level Note carries no `inReplyTo`.
+        inReplyTo: reply?.inReplyTo,
         url: `https://${FEDERATION_DOMAIN}/@${username}/posts/${postId}`,
         content: primaryBody,
         contentMap,
         language,
         published,
-        to: ['https://www.w3.org/ns/activitystreams#Public'],
-        cc: [`${actor}/followers`],
+        to: [AP_PUBLIC],
+        cc,
         tag: tags.length > 0 ? tags : undefined,
         attachment: attachments.length > 0 ? attachments : undefined,
       },
@@ -430,13 +542,294 @@ export class FollowService {
     // duplicate check protects any other caller that might reach
     // `federateNewPost` directly, bypassing the registry.
     if (!(await isFediverseSharingEnabled(senderOxyUserId))) return;
+
+    // A boost carries an intentionally EMPTY body. It must NEVER federate as a
+    // `Create(Note)` — that would push a blank status to every remote follower.
+    // Route it to the `Announce` path instead. (A QUOTE post has a real body AND
+    // a `quoteOf`, no `boostOf`, so it correctly falls through to the Create path
+    // below and federates as a normal Note.)
+    if (post.boostOf) {
+      await this.federateBoost(
+        { _id: post._id, boostOf: String(post.boostOf), createdAt: post.createdAt },
+        senderOxyUserId,
+        senderUsername,
+      );
+      return;
+    }
+
     if (post.visibility !== PostVisibility.PUBLIC) return;
 
     try {
-      const activity = this.buildCreateNoteActivity(post, senderUsername);
-      await this.deliverToFollowers(activity, senderOxyUserId, senderUsername);
+      // A reply carries `inReplyTo` + a parent-author `Mention`, and is ALSO
+      // delivered to the parent author's inbox (federated parent only) so their
+      // instance threads + notifies it. Fail-soft: an unresolvable parent yields
+      // `null`, so the Note federates as a normal post (no `inReplyTo`) rather
+      // than being dropped.
+      const reply = await this.resolveReplyDelivery(post);
+      const activity = this.buildCreateNoteActivity(post, senderUsername, reply?.context);
+      await this.deliverToFollowers(activity, senderOxyUserId, senderUsername, {
+        extraInboxes: reply?.parentAuthorInbox ? [reply.parentAuthorInbox] : [],
+      });
     } catch (err) {
       logger.error('Failed to federate new post:', err);
+    }
+  }
+
+  /**
+   * Build the reply `Mention` (`href` = parent author actor uri, `name` =
+   * `@<acct>`) from a resolved {@link FederationTarget}. Shared by the push and
+   * pull surfaces so the tag is identical everywhere. The mention is omitted when
+   * the author cannot be resolved to both an actor uri and an acct — the Note
+   * still carries `inReplyTo`, which is enough for threading.
+   */
+  private buildReplyContextFromTarget(target: FederationTarget): NoteReplyContext {
+    const mention =
+      target.authorActorUri && target.authorAcct
+        ? { href: target.authorActorUri, name: `@${target.authorAcct}` }
+        : undefined;
+    return { inReplyTo: target.objectUri, mention };
+  }
+
+  /**
+   * Resolve a post's reply addressing for the PULL surfaces (the per-post
+   * dereference route serving a Note without delivering it): the `inReplyTo` +
+   * parent-author `Mention`. Returns null when the post is not a reply OR the
+   * parent cannot be resolved. Fail-soft — any error resolves to null (the Note
+   * is served without `inReplyTo` rather than 500ing), so a caller never needs
+   * its own try/catch.
+   */
+  async resolveReplyContext(post: NoteSourcePost): Promise<NoteReplyContext | null> {
+    const parentId = post.parentPostId ? String(post.parentPostId) : undefined;
+    if (!parentId) return null;
+    try {
+      const target = await this.resolveFederationTarget(parentId);
+      if (!target) return null;
+      return this.buildReplyContextFromTarget(target);
+    } catch (err) {
+      logger.warn(`[FedDeliver] failed to resolve reply context for parent ${parentId}:`, err);
+      return null;
+    }
+  }
+
+  /**
+   * Resolve a post's reply addressing for the PUSH path — the reply Note's
+   * {@link NoteReplyContext} PLUS the parent author's remote inbox to union into
+   * delivery. The inbox is set only for a FEDERATED parent (a local parent's
+   * author is one of us, reached through their own followers, never a remote
+   * POST), so a reply to a local post adds no bogus extra inbox. Fail-soft: not a
+   * reply or unresolvable parent → null (federates as a normal post).
+   */
+  private async resolveReplyDelivery(
+    post: NoteSourcePost,
+  ): Promise<{ context: NoteReplyContext; parentAuthorInbox?: string } | null> {
+    const parentId = post.parentPostId ? String(post.parentPostId) : undefined;
+    if (!parentId) return null;
+    try {
+      const target = await this.resolveFederationTarget(parentId);
+      if (!target) return null;
+      return {
+        context: this.buildReplyContextFromTarget(target),
+        parentAuthorInbox: target.authorInbox,
+      };
+    } catch (err) {
+      logger.warn(`[FedDeliver] failed to resolve reply delivery for parent ${parentId}:`, err);
+      return null;
+    }
+  }
+
+  /**
+   * Resolve the canonical ActivityPub object id of a boosted/replied/liked
+   * ORIGINAL post (plus, for a federated original, its author's remote inbox).
+   *
+   *  - FEDERATED original → the remote `federation.activityId` IS its canonical
+   *    AP id; the author's inbox is resolved from the stored `FederatedActor`.
+   *  - LOCAL original → we mint our own note URI
+   *    `https://<domain>/ap/users/<owner-username>/posts/<postId>` (the exact id
+   *    `buildCreateNoteActivity` / the outbox / the per-post dereference route
+   *    advertise), so a remote server can dereference it. The owner username is
+   *    resolved server-side from the authoritative `oxyUserId`; there is no
+   *    remote inbox (the author is local).
+   *
+   * Returns null when the original is missing or its author cannot be resolved.
+   */
+  private async resolveFederationTarget(originalPostId: string): Promise<FederationTarget | null> {
+    const original = await Post.findById(originalPostId).select('oxyUserId federation').lean();
+    if (!original) return null;
+
+    const activityId = original.federation?.activityId;
+    if (activityId) {
+      const authorActorUri = original.federation?.actorUri;
+      // ONE actor read yields both the delivery inbox and the acct (`user@domain`)
+      // a reply's `Mention` name is built from — the same `FederatedActor` row
+      // `resolveActorInbox` reads. (`resolveActorInbox` remains the standalone
+      // inbox resolver for callers that have only an actor uri.)
+      const actor = authorActorUri
+        ? await FederatedActor.findOne({ uri: authorActorUri }).lean()
+        : null;
+      return {
+        objectUri: activityId,
+        authorActorUri,
+        authorInbox: actor?.sharedInboxUrl ?? actor?.inboxUrl ?? undefined,
+        authorAcct: actor?.acct ?? undefined,
+      };
+    }
+
+    const ownerId = original.oxyUserId ? String(original.oxyUserId) : undefined;
+    if (!ownerId) return null;
+    let ownerUsername: string | undefined;
+    try {
+      const owner = await getServiceOxyClient().getUserById(ownerId);
+      ownerUsername = owner.username?.trim() || undefined;
+    } catch (err) {
+      logger.warn(`[FedDeliver] failed to resolve original author username for post ${originalPostId}:`, err);
+      return null;
+    }
+    if (!ownerUsername) return null;
+
+    const authorActorUri = actorUrl(ownerUsername);
+    return {
+      objectUri: `${authorActorUri}/posts/${originalPostId}`,
+      authorActorUri,
+      authorAcct: `${ownerUsername}@${FEDERATION_DOMAIN}`,
+    };
+  }
+
+  /**
+   * Build an `Announce` (boost) activity for a local booster of `objectUri`.
+   * Addressed to the public collection, `cc`'d to the booster's followers and
+   * (when known) the original author's actor URI. The activity id is minted
+   * deterministically from the boost's local `_id` so `Undo(Announce)` can
+   * reference the same id without persisting it.
+   */
+  buildAnnounceActivity(
+    boosterUsername: string,
+    boostId: string,
+    objectUri: string,
+    originalAuthorActorUri: string | undefined,
+    published: string | Date,
+  ): Record<string, unknown> {
+    const actor = actorUrl(boosterUsername);
+    const cc = [`${actor}/followers`];
+    if (originalAuthorActorUri) cc.push(originalAuthorActorUri);
+    return {
+      '@context': AP_CONTEXT,
+      id: `${actor}/boosts/${boostId}`,
+      type: 'Announce',
+      actor,
+      object: objectUri,
+      published: published instanceof Date ? published.toISOString() : published,
+      to: [AP_PUBLIC],
+      cc,
+    };
+  }
+
+  /**
+   * Build the matching `Undo(Announce)` for an unboost. The embedded `Announce`
+   * re-mints the SAME id + addressing `buildAnnounceActivity` emitted so remote
+   * servers can retract the exact boost.
+   */
+  buildUndoAnnounceActivity(
+    boosterUsername: string,
+    boostId: string,
+    objectUri: string,
+    originalAuthorActorUri: string | undefined,
+  ): Record<string, unknown> {
+    const actor = actorUrl(boosterUsername);
+    const cc = [`${actor}/followers`];
+    if (originalAuthorActorUri) cc.push(originalAuthorActorUri);
+    const announceId = `${actor}/boosts/${boostId}`;
+    return {
+      '@context': AP_CONTEXT,
+      id: `${announceId}/undo`,
+      type: 'Undo',
+      actor,
+      to: [AP_PUBLIC],
+      cc,
+      object: {
+        id: announceId,
+        type: 'Announce',
+        actor,
+        object: objectUri,
+        to: [AP_PUBLIC],
+        cc,
+      },
+    };
+  }
+
+  /**
+   * Federate a local user's boost as an `Announce`. Delivered to the booster's
+   * remote followers AND — when the boosted original is federated — the original
+   * author's inbox (so their instance records the boost), deduped by the shared
+   * addressing helper. Boosts of purely-local content still reach the booster's
+   * remote followers so their Mastodon timeline shows the boost.
+   *
+   * Gated identically to {@link federateNewPost}: local booster, sharing on.
+   * Best-effort — a failure never surfaces to the caller.
+   */
+  async federateBoost(
+    boost: LocalBoostEventPayload,
+    boosterOxyUserId: string,
+    boosterUsername: string,
+  ): Promise<void> {
+    if (!FEDERATION_ENABLED) return;
+    if (!(await isFediverseSharingEnabled(boosterOxyUserId))) return;
+    const boostOf = boost.boostOf ? String(boost.boostOf) : undefined;
+    if (!boostOf) return;
+
+    try {
+      const target = await this.resolveFederationTarget(boostOf);
+      if (!target) {
+        logger.warn(`[FedDeliver] cannot federate boost ${String(boost._id)}: unresolved original ${boostOf}`);
+        return;
+      }
+      const activity = this.buildAnnounceActivity(
+        boosterUsername,
+        String(boost._id),
+        target.objectUri,
+        target.authorActorUri,
+        boost.createdAt,
+      );
+      await this.deliverToFollowers(activity, boosterOxyUserId, boosterUsername, {
+        extraInboxes: target.authorInbox ? [target.authorInbox] : [],
+      });
+    } catch (err) {
+      logger.error('Failed to federate boost:', err);
+    }
+  }
+
+  /**
+   * Federate an unboost as an `Undo(Announce)`. Same addressing as
+   * {@link federateBoost}. The caller must invoke this with the boost's data
+   * still available (before or right after deleting the local boost row); the
+   * ORIGINAL post is untouched by an unboost, so target resolution still works.
+   */
+  async federateUndoBoost(
+    boost: LocalBoostEventPayload,
+    boosterOxyUserId: string,
+    boosterUsername: string,
+  ): Promise<void> {
+    if (!FEDERATION_ENABLED) return;
+    if (!(await isFediverseSharingEnabled(boosterOxyUserId))) return;
+    const boostOf = boost.boostOf ? String(boost.boostOf) : undefined;
+    if (!boostOf) return;
+
+    try {
+      const target = await this.resolveFederationTarget(boostOf);
+      if (!target) {
+        logger.warn(`[FedDeliver] cannot federate unboost ${String(boost._id)}: unresolved original ${boostOf}`);
+        return;
+      }
+      const activity = this.buildUndoAnnounceActivity(
+        boosterUsername,
+        String(boost._id),
+        target.objectUri,
+        target.authorActorUri,
+      );
+      await this.deliverToFollowers(activity, boosterOxyUserId, boosterUsername, {
+        extraInboxes: target.authorInbox ? [target.authorInbox] : [],
+      });
+    } catch (err) {
+      logger.error('Failed to federate unboost:', err);
     }
   }
 

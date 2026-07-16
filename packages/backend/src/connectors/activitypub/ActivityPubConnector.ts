@@ -11,7 +11,7 @@ import type {
 import { resolveOxyExternalUser } from '../identity';
 import { isAbsoluteHttpUrl } from '../shared/url';
 import { actorService } from './actor.service';
-import { followService, type NoteSourcePost } from './follow.service';
+import { followService, type NoteSourcePost, type NoteReplyContext } from './follow.service';
 import { outboxSyncService } from './outbox.service';
 import { inboxProcessingService } from './inbox.service';
 import { FEDERATION_ENABLED, isBlockedDomain } from './constants';
@@ -121,6 +121,14 @@ class ActivityPubConnector implements NetworkConnector {
     switch (event.kind) {
       case 'post.create':
         await followService.federateNewPost(event.post, event.actorOxyUserId, event.actorUsername);
+        break;
+      case 'post.boost':
+        // A boost federates as an Announce of the original's canonical AP id,
+        // delivered to the booster's followers + (federated original) its author.
+        await followService.federateBoost(event.boost, event.actorOxyUserId, event.actorUsername);
+        break;
+      case 'post.unboost':
+        await followService.federateUndoBoost(event.boost, event.actorOxyUserId, event.actorUsername);
         break;
       case 'follow.add':
         // Sends a Follow activity + records the outbound FederatedFollow. The
@@ -254,8 +262,23 @@ class ActivityPubConnector implements NetworkConnector {
     return followService.deliverToFollowers(activity, senderOxyUserId, senderUsername);
   }
 
-  buildCreateNoteActivity(post: NoteSourcePost, username: string): Record<string, unknown> {
-    return followService.buildCreateNoteActivity(post, username);
+  buildCreateNoteActivity(
+    post: NoteSourcePost,
+    username: string,
+    reply?: NoteReplyContext,
+  ): Record<string, unknown> {
+    return followService.buildCreateNoteActivity(post, username, reply);
+  }
+
+  /**
+   * Resolve a post's reply addressing (`inReplyTo` + parent-author `Mention`) for
+   * a PULL surface (the per-post dereference route). Null when the post is not a
+   * reply or the parent is unresolvable (fail-soft). The push path resolves this
+   * internally in {@link FollowService.federateNewPost}, unioning the parent
+   * author's inbox into delivery.
+   */
+  resolveReplyContext(post: NoteSourcePost): Promise<NoteReplyContext | null> {
+    return followService.resolveReplyContext(post);
   }
 
   federateNewPost(

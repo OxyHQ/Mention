@@ -123,6 +123,35 @@ export interface LocalPostEventPayload {
   language?: string;
   visibility: string;
   createdAt: string;
+  /**
+   * The boosted original's local Post `_id` when this post is a boost
+   * (`type: 'boost'`). A boost carries an intentionally EMPTY body and MUST NOT
+   * federate as a `Create(Note)` — the connector re-routes it to an `Announce`.
+   * Preserving it through the seam is what lets `POST /posts` `boost_of` avoid
+   * emitting a blank Create.
+   */
+  boostOf?: string | null;
+  /**
+   * The parent's local Post `_id` when this post is a REPLY. The connector emits
+   * the Note with `inReplyTo` (the parent's canonical AP object id) + a
+   * parent-author `Mention`, and unions the parent author's inbox into delivery so
+   * a reply to a remote post threads and notifies its author. Preserving it through
+   * the seam is what lets the `/feed/reply` path federate replies. Absent for a
+   * top-level post.
+   */
+  parentPostId?: string | null;
+}
+
+/**
+ * The minimal boost shape a `post.boost` / `post.unboost` event carries to
+ * outbound delivery. A boost has no body of its own; the connector federates it
+ * as an `Announce` (or `Undo(Announce)`) of the original post's canonical AP id,
+ * resolved from `boostOf`. `createdAt` stamps the activity's `published`.
+ */
+export interface LocalBoostEventPayload {
+  _id: unknown;
+  boostOf: string;
+  createdAt: string | Date;
 }
 
 /**
@@ -135,6 +164,18 @@ export type LocalNetworkEvent =
   | {
       kind: 'post.create';
       post: LocalPostEventPayload;
+      actorOxyUserId: string;
+      actorUsername: string;
+    }
+  | {
+      kind: 'post.boost';
+      boost: LocalBoostEventPayload;
+      actorOxyUserId: string;
+      actorUsername: string;
+    }
+  | {
+      kind: 'post.unboost';
+      boost: LocalBoostEventPayload;
       actorOxyUserId: string;
       actorUsername: string;
     }

@@ -34,6 +34,13 @@ export interface PostFederator {
       mentions?: string[];
       visibility: string;
       createdAt: string;
+      // A boost carries an empty body; the connector re-routes it to an Announce
+      // rather than a blank Create(Note). Threaded through so the seam preserves it.
+      boostOf?: string | null;
+      // A reply carries the parent's Post id; the connector emits `inReplyTo` + a
+      // parent-author Mention and delivers to the parent author's inbox. Threaded
+      // through so the seam preserves it (the `POST /posts` reply path).
+      parentPostId?: string | null;
     },
     senderOxyUserId: string,
     senderUsername: string,
