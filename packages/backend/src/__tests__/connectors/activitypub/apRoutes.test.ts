@@ -25,6 +25,8 @@ const mocks = vi.hoisted(() => ({
   getPublicKey: vi.fn(),
   buildCreateNoteActivity: vi.fn(),
   resolveReplyContext: vi.fn(),
+  resolveMentionContext: vi.fn(),
+  resolveMentionContextByPost: vi.fn(),
   userSettingsFindOne: vi.fn(),
   postFind: vi.fn(),
   postCountDocuments: vi.fn(),
@@ -46,6 +48,8 @@ vi.mock('../../../connectors/activitypub/ActivityPubConnector', () => ({
   activityPubConnector: {
     buildCreateNoteActivity: (...args: unknown[]) => mocks.buildCreateNoteActivity(...args),
     resolveReplyContext: (...args: unknown[]) => mocks.resolveReplyContext(...args),
+    resolveMentionContext: (...args: unknown[]) => mocks.resolveMentionContext(...args),
+    resolveMentionContextByPost: (...args: unknown[]) => mocks.resolveMentionContextByPost(...args),
     fetchPublicKey: vi.fn(),
     processInboxActivity: vi.fn(),
   },
@@ -107,6 +111,10 @@ beforeEach(() => {
   // Default: not a reply (or unresolvable parent) — the dereference route serves
   // the Note with no `inReplyTo`. Individual tests override for a reply post.
   mocks.resolveReplyContext.mockResolvedValue(null);
+  // Default: no @mentions resolve — the outbox/featured batch resolver returns an
+  // empty map and the single-post dereference resolver returns null.
+  mocks.resolveMentionContext.mockResolvedValue(null);
+  mocks.resolveMentionContextByPost.mockResolvedValue(new Map());
 });
 
 describe('GET /ap/users/:username — actor image (banner)', () => {
@@ -173,7 +181,9 @@ describe('GET /ap/users/:username/outbox?page=true — reuses buildCreateNoteAct
       .expect(200);
 
     expect(mocks.buildCreateNoteActivity).toHaveBeenCalledTimes(2);
-    expect(mocks.buildCreateNoteActivity).toHaveBeenNthCalledWith(1, posts[0], 'alice');
+    // The outbox passes NO reply context and the per-post mention context (undefined
+    // here — the batch resolver returned an empty map) as the 3rd/4th args.
+    expect(mocks.buildCreateNoteActivity).toHaveBeenNthCalledWith(1, posts[0], 'alice', undefined, undefined);
     expect(res.body.type).toBe('OrderedCollectionPage');
     expect(res.body.orderedItems).toEqual([
       { type: 'Create', object: { id: 'https://mention.earth/ap/users/alice/posts/p1' } },
@@ -537,7 +547,9 @@ describe('GET /ap/users/:username/posts/:id — dereference', () => {
     // The route resolves the reply addressing from the served post and threads it
     // into the pure Note builder as the third argument.
     expect(mocks.resolveReplyContext).toHaveBeenCalledWith(replyDoc);
-    expect(mocks.buildCreateNoteActivity).toHaveBeenCalledWith(replyDoc, 'alice', replyContext);
+    // The dereference route threads the resolved reply context + (null →) undefined
+    // mention context into the Note builder.
+    expect(mocks.buildCreateNoteActivity).toHaveBeenCalledWith(replyDoc, 'alice', replyContext, undefined);
   });
 
   it('404s a malformed post id without touching the database', async () => {

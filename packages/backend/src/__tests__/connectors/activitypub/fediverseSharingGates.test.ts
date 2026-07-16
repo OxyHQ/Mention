@@ -41,6 +41,8 @@ const mocks = vi.hoisted(() => ({
   getPublicKey: vi.fn(),
   buildCreateNoteActivity: vi.fn(),
   resolveReplyContext: vi.fn(),
+  resolveMentionContext: vi.fn(),
+  resolveMentionContextByPost: vi.fn(),
   userSettingsFindOne: vi.fn(),
   postFind: vi.fn(),
   postCountDocuments: vi.fn(),
@@ -67,6 +69,8 @@ vi.mock('../../../connectors/activitypub/ActivityPubConnector', () => ({
   activityPubConnector: {
     buildCreateNoteActivity: (...args: unknown[]) => mocks.buildCreateNoteActivity(...args),
     resolveReplyContext: (...args: unknown[]) => mocks.resolveReplyContext(...args),
+    resolveMentionContext: (...args: unknown[]) => mocks.resolveMentionContext(...args),
+    resolveMentionContextByPost: (...args: unknown[]) => mocks.resolveMentionContextByPost(...args),
     fetchPublicKey: vi.fn(),
     processInboxActivity: vi.fn().mockResolvedValue(undefined),
   },
@@ -164,6 +168,10 @@ beforeEach(() => {
   // The dereference route resolves reply addressing before building the Note; the
   // gate tests serve a non-reply post, so default to "no reply context".
   mocks.resolveReplyContext.mockResolvedValue(null);
+  // The dereference/outbox/featured routes also resolve @mention addressing; the
+  // gate tests mention nobody, so default to "no mentions".
+  mocks.resolveMentionContext.mockResolvedValue(null);
+  mocks.resolveMentionContextByPost.mockResolvedValue(new Map());
   mocks.verifyHttpSignature.mockResolvedValue({
     verified: true,
     actorUri: 'https://remote.example/users/bob',

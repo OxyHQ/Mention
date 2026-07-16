@@ -309,9 +309,13 @@ router.get('/users/:username/outbox', async (req: Request, res: Response) => {
 
     // Reuse the SINGLE Note builder that push delivery uses, so outbox backfill
     // (Mastodon ≥4.4 imports up to 20 items on discovery) carries the same
-    // fidelity as pushed posts: canonical url, hashtag `tag`s, and media
-    // `attachment`s. One implementation for both paths.
-    const items = pagePosts.map((post) => activityPubConnector.buildCreateNoteActivity(post, username));
+    // fidelity as pushed posts: canonical url, hashtag `tag`s, media `attachment`s,
+    // AND resolved @mention anchors/tags (never a raw `[mention:<id>]` placeholder).
+    // Mentions are batch-resolved for the whole page in two reads.
+    const mentionContexts = await activityPubConnector.resolveMentionContextByPost(pagePosts);
+    const items = pagePosts.map((post) =>
+      activityPubConnector.buildCreateNoteActivity(post, username, undefined, mentionContexts.get(String(post._id))),
+    );
 
     const pageId = cursor
       ? `${outboxUrl(username)}?page=true&cursor=${encodeURIComponent(cursor)}`
@@ -389,11 +393,16 @@ router.get('/users/:username/collections/featured', async (req: Request, res: Re
       .limit(FEATURED_LIMIT)
       .lean();
 
-    // Build via the shared Note path, then unwrap the Create envelope: a featured
-    // collection contains bare Note OBJECTS, carrying no per-item `@context` (the
-    // collection's top-level `@context` covers them).
+    // Build via the shared Note path (batch-resolving @mentions for the whole
+    // collection so no pinned Note leaks a `[mention:<id>]` placeholder), then
+    // unwrap the Create envelope: a featured collection contains bare Note OBJECTS,
+    // carrying no per-item `@context` (the collection's top-level `@context` covers
+    // them).
+    const mentionContexts = await activityPubConnector.resolveMentionContextByPost(pinnedPosts);
     const items = pinnedPosts.map(
-      (post) => activityPubConnector.buildCreateNoteActivity(post, username).object as Record<string, unknown>,
+      (post) =>
+        activityPubConnector.buildCreateNoteActivity(post, username, undefined, mentionContexts.get(String(post._id)))
+          .object as Record<string, unknown>,
     );
 
     res.set('Content-Type', AP_CONTENT_TYPE);
@@ -467,9 +476,19 @@ router.get('/users/:username/posts/:id', async (req: Request, res: Response) => 
     // yields null, so the Note is served without `inReplyTo` rather than erroring.
     const replyContext = await activityPubConnector.resolveReplyContext(post);
 
+    // Resolve the post's @mentions so a pulled Note carries mention anchors + tags
+    // (never a raw `[mention:<id>]` placeholder). Fail-soft — null when it mentions
+    // nobody; the linkifier still strips any stray placeholder from the body.
+    const mentionContext = await activityPubConnector.resolveMentionContext(post);
+
     // Build via the shared Note path, then unwrap the Create envelope: a
     // dereferenced Note is the `object`, carrying its own top-level `@context`.
-    const activity = activityPubConnector.buildCreateNoteActivity(post, username, replyContext ?? undefined);
+    const activity = activityPubConnector.buildCreateNoteActivity(
+      post,
+      username,
+      replyContext ?? undefined,
+      mentionContext ?? undefined,
+    );
     const note = activity.object as Record<string, unknown>;
 
     res.set('Content-Type', AP_CONTENT_TYPE);

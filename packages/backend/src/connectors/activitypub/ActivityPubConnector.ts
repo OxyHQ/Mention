@@ -11,7 +11,7 @@ import type {
 import { resolveOxyExternalUser } from '../identity';
 import { isAbsoluteHttpUrl } from '../shared/url';
 import { actorService } from './actor.service';
-import { followService, type NoteSourcePost, type NoteReplyContext } from './follow.service';
+import { followService, type NoteSourcePost, type NoteReplyContext, type NoteMentionContext } from './follow.service';
 import { outboxSyncService } from './outbox.service';
 import { inboxProcessingService } from './inbox.service';
 import { FEDERATION_ENABLED, isBlockedDomain } from './constants';
@@ -289,8 +289,9 @@ class ActivityPubConnector implements NetworkConnector {
     post: NoteSourcePost,
     username: string,
     reply?: NoteReplyContext,
+    mentions?: NoteMentionContext,
   ): Record<string, unknown> {
-    return followService.buildCreateNoteActivity(post, username, reply);
+    return followService.buildCreateNoteActivity(post, username, reply, mentions);
   }
 
   /**
@@ -302,6 +303,26 @@ class ActivityPubConnector implements NetworkConnector {
    */
   resolveReplyContext(post: NoteSourcePost): Promise<NoteReplyContext | null> {
     return followService.resolveReplyContext(post);
+  }
+
+  /**
+   * Resolve a single post's @mention addressing (mention anchors + `Mention` tags
+   * + remote `cc`) for a PULL surface (the per-post dereference route). Null when
+   * the post mentions nobody or nothing resolves. The push path resolves this
+   * internally in {@link FollowService.federateNewPost}, unioning mentioned remote
+   * users' inboxes into delivery.
+   */
+  resolveMentionContext(post: NoteSourcePost): Promise<NoteMentionContext | null> {
+    return followService.resolveMentionContext(post);
+  }
+
+  /**
+   * Batch-resolve @mention addressing for MANY posts by one author (the outbox
+   * page / featured collection) in the same two batched reads a single post costs.
+   * Keyed by post id; a post that mentions nobody is absent from the map.
+   */
+  resolveMentionContextByPost(posts: NoteSourcePost[]): Promise<Map<string, NoteMentionContext>> {
+    return followService.resolveMentionContextByPost(posts);
   }
 
   federateNewPost(

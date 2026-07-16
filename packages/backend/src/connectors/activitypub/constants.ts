@@ -75,6 +75,15 @@ export function actorUrl(username: string): string {
   return `https://${ACTOR_DOMAIN}/ap/users/${username}`;
 }
 
+/**
+ * Canonical href for a hashtag — the SINGLE shape shared by the Note's `Hashtag`
+ * `tag` entries and the body linkifier, so a `#tag` in the text and its
+ * machine-readable tag point at the same URL. Mirrors Mastodon's `/tags/:name`.
+ */
+export function hashtagUrl(tag: string): string {
+  return `https://${FEDERATION_DOMAIN}/hashtag/${encodeURIComponent(tag)}`;
+}
+
 export function inboxUrl(username: string): string {
   return `https://${FEDERATION_DOMAIN}/ap/users/${username}/inbox`;
 }
