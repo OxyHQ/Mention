@@ -313,8 +313,17 @@ router.get('/users/:username/outbox', async (req: Request, res: Response) => {
     // AND resolved @mention anchors/tags (never a raw `[mention:<id>]` placeholder).
     // Mentions are batch-resolved for the whole page in two reads.
     const mentionContexts = await activityPubConnector.resolveMentionContextByPost(pagePosts);
+    // Poll posts serialize as `Question`; batch-resolve their tallies for the whole
+    // page in one Poll read (non-poll posts are absent → plain Note).
+    const pollContexts = await activityPubConnector.resolvePollContextByPost(pagePosts);
     const items = pagePosts.map((post) =>
-      activityPubConnector.buildCreateNoteActivity(post, username, undefined, mentionContexts.get(String(post._id))),
+      activityPubConnector.buildCreateNoteActivity(
+        post,
+        username,
+        undefined,
+        mentionContexts.get(String(post._id)),
+        pollContexts.get(String(post._id)),
+      ),
     );
 
     const pageId = cursor
@@ -399,10 +408,16 @@ router.get('/users/:username/collections/featured', async (req: Request, res: Re
     // carrying no per-item `@context` (the collection's top-level `@context` covers
     // them).
     const mentionContexts = await activityPubConnector.resolveMentionContextByPost(pinnedPosts);
+    const pollContexts = await activityPubConnector.resolvePollContextByPost(pinnedPosts);
     const items = pinnedPosts.map(
       (post) =>
-        activityPubConnector.buildCreateNoteActivity(post, username, undefined, mentionContexts.get(String(post._id)))
-          .object as Record<string, unknown>,
+        activityPubConnector.buildCreateNoteActivity(
+          post,
+          username,
+          undefined,
+          mentionContexts.get(String(post._id)),
+          pollContexts.get(String(post._id)),
+        ).object as Record<string, unknown>,
     );
 
     res.set('Content-Type', AP_CONTENT_TYPE);
@@ -481,13 +496,19 @@ router.get('/users/:username/posts/:id', async (req: Request, res: Response) => 
     // nobody; the linkifier still strips any stray placeholder from the body.
     const mentionContext = await activityPubConnector.resolveMentionContext(post);
 
+    // A poll post is dereferenced as a `Question` (options + current tallies);
+    // null for a non-poll post, which serves a plain Note.
+    const pollContext = await activityPubConnector.resolvePollContext(post);
+
     // Build via the shared Note path, then unwrap the Create envelope: a
-    // dereferenced Note is the `object`, carrying its own top-level `@context`.
+    // dereferenced Note/Question is the `object`, carrying its own top-level
+    // `@context`.
     const activity = activityPubConnector.buildCreateNoteActivity(
       post,
       username,
       replyContext ?? undefined,
       mentionContext ?? undefined,
+      pollContext ?? undefined,
     );
     const note = activity.object as Record<string, unknown>;
 

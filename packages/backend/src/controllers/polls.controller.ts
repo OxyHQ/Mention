@@ -4,6 +4,7 @@ import Post from '../models/Post';
 import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
 import { createError } from '../utils/error';
 import { logger } from '../utils/logger';
+import { pollVoteService } from '../services/PollVoteService';
 import mongoose from 'mongoose';
 
 class PollsController {
@@ -165,90 +166,23 @@ class PollsController {
         });
       }
 
-      const poll = await Poll.findById(id);
-      if (!poll) {
-        return res.status(404).json({
-          error: 'Not found',
-          message: 'Poll not found'
-        });
+      // Record the vote through the shared service (the SAME atomic dedup path the
+      // inbound ActivityPub poll-vote handler uses), then map its result to HTTP.
+      const result = await pollVoteService.recordVoteByOptionId(id, optionId, userId);
+      if (result.ok) {
+        return res.json({ success: true, data: this.sanitizePollResponse(result.poll) });
       }
 
-      // Check if poll has ended
-      if (new Date() > poll.endsAt) {
-        return res.status(400).json({
-          error: 'Invalid request',
-          message: 'This poll has ended'
-        });
+      switch (result.reason) {
+        case 'poll_not_found':
+          return res.status(404).json({ error: 'Not found', message: 'Poll not found' });
+        case 'poll_ended':
+          return res.status(400).json({ error: 'Invalid request', message: 'This poll has ended' });
+        case 'option_not_found':
+          return res.status(404).json({ error: 'Not found', message: 'Option not found' });
+        case 'already_voted':
+          return res.status(400).json({ error: 'Invalid request', message: 'You have already voted in this poll' });
       }
-
-      // Find the option
-      const option = poll.options.find(opt => opt._id.toString() === optionId);
-      if (!option) {
-        return res.status(404).json({
-          error: 'Not found',
-          message: 'Option not found'
-        });
-      }
-
-      // Use atomic findOneAndUpdate to prevent race conditions (double-vote)
-      if (!poll.isMultipleChoice) {
-        // Atomically check no vote exists and add vote in one operation
-        const updated = await Poll.findOneAndUpdate(
-          {
-            _id: id,
-            'options._id': optionId,
-            'options.votes': { $ne: userId } // Only if user hasn't voted on ANY option
-          },
-          {
-            $push: { 'options.$.votes': userId }
-          },
-          { new: true }
-        );
-
-        if (!updated) {
-          // Check if user already voted (vs option not found)
-          const hasVoted = poll.options.some(opt =>
-            opt.votes.some(vote => vote.toString() === userId)
-          );
-          if (hasVoted) {
-            return res.status(400).json({
-              error: 'Invalid request',
-              message: 'You have already voted in this poll'
-            });
-          }
-          return res.status(404).json({
-            error: 'Not found',
-            message: 'Option not found'
-          });
-        }
-
-        return res.json({ success: true, data: this.sanitizePollResponse(updated) });
-      }
-
-      // Multiple choice: atomically add vote to specific option if not already voted on it
-      const updated = await Poll.findOneAndUpdate(
-        {
-          _id: id,
-          'options._id': optionId,
-          'options': { $not: { $elemMatch: { _id: optionId, votes: userId } } }
-        },
-        {
-          $push: { 'options.$.votes': userId }
-        },
-        { new: true }
-      );
-
-      if (!updated) {
-        return res.status(400).json({
-          error: 'Invalid request',
-          message: 'You have already voted for this option'
-        });
-      }
-
-      res.json({
-        success: true,
-        data: this.sanitizePollResponse(updated)
-      });
     } catch (error) {
       logger.error('[Polls] Error voting in poll:', error);
       next(createError(500, 'Error voting in poll'));

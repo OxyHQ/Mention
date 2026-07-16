@@ -52,7 +52,17 @@ export const AP_CONTEXT = [
   // (`as` → `https://www.w3.org/ns/activitystreams#`), so this maps the Note's
   // `sensitive` boolean to `as:sensitive` — the exact term Mastodon defines for
   // it. Without the term declaration a JSON-LD consumer drops `sensitive`.
-  { sensitive: 'as:sensitive' },
+  //
+  // `toot` is Mastodon's extension namespace; `votersCount` (the total unique
+  // voters on a poll `Question`) is `toot:votersCount` — the exact term Mastodon
+  // emits and reads. Without the declaration a JSON-LD consumer drops it. The
+  // `Question`/`oneOf`/`anyOf`/`endTime`/`closed` poll terms are all AS2 core, so
+  // they need no extra declaration here.
+  {
+    sensitive: 'as:sensitive',
+    toot: 'http://joinmastodon.org/ns#',
+    votersCount: 'toot:votersCount',
+  },
 ];
 
 export const AP_CONTENT_TYPE = 'application/activity+json';

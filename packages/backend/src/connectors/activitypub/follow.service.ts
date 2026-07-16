@@ -4,6 +4,7 @@ import FederatedFollow from '../../models/FederatedFollow';
 import FederationDeliveryQueue from '../../models/FederationDeliveryQueue';
 import UserSettings from '../../models/UserSettings';
 import { Post } from '../../models/Post';
+import Poll from '../../models/Poll';
 import { signRequest, getPublicKey } from './crypto';
 import {
   FEDERATION_DOMAIN,
@@ -212,6 +213,93 @@ export interface NoteMentionContext {
   tags: Array<{ type: 'Mention'; href: string; name: string }>;
   cc: string[];
   inboxes: string[];
+}
+
+/**
+ * The resolved poll a post carries, in the shape the AP `Question` needs — the
+ * DB-read side ({@link FollowService.resolvePollContext}) yields this, and the
+ * PURE Note/Question builder consumes it so {@link FollowService.buildCreateNoteActivity}
+ * never touches the database. A poll post federates as a `Question` instead of a
+ * `Note`; everything else about the object (attributedTo/content/url/tag/media/…)
+ * is identical and shared.
+ *
+ *  - `multiple` picks `anyOf` (multiple-choice) vs `oneOf` (single-choice);
+ *  - `options` are the poll choices with each choice's current vote count;
+ *  - `endTime` is the poll deadline; `closed` says whether it has already passed
+ *    (Mastodon emits `closed` only once ended, `endTime` while still open);
+ *  - `votersCount` is the number of UNIQUE voters (a multiple-choice voter who
+ *    picked several options counts once).
+ */
+export interface NotePollContext {
+  multiple: boolean;
+  options: Array<{ name: string; votes: number }>;
+  endTime: Date;
+  closed: boolean;
+  votersCount: number;
+}
+
+/** The Poll fields {@link buildPollContext} reads from a lean `Poll` document. */
+interface PollContextSource {
+  _id: unknown;
+  options: Array<{ text: string; votes?: string[] }>;
+  endsAt: Date;
+  isMultipleChoice?: boolean;
+}
+
+/**
+ * Derive a {@link NotePollContext} from a lean `Poll` document. Pure. Per-option
+ * vote counts come straight off each option's `votes` set; `votersCount` is the
+ * UNION of voter ids across every option (so a multiple-choice voter is counted
+ * once), and `closed` is computed against the current time.
+ */
+function buildPollContext(poll: PollContextSource): NotePollContext {
+  const voters = new Set<string>();
+  const options = poll.options.map((option) => {
+    let votes = 0;
+    if (Array.isArray(option.votes)) {
+      for (const voter of option.votes) {
+        if (!voter) continue;
+        votes += 1;
+        voters.add(String(voter));
+      }
+    }
+    return { name: option.text, votes };
+  });
+
+  const endTime = poll.endsAt instanceof Date ? poll.endsAt : new Date(poll.endsAt);
+  return {
+    multiple: poll.isMultipleChoice === true,
+    options,
+    endTime,
+    closed: Date.now() > endTime.getTime(),
+    votersCount: voters.size,
+  };
+}
+
+/**
+ * Turn an already-assembled AP content object (a `Note`) into a Mastodon-compatible
+ * `Question` (poll), IN PLACE: flip `type`, add the option set (`oneOf`
+ * single-choice / `anyOf` multiple-choice, each option a `Note` whose
+ * `replies.totalItems` is its vote count), the deadline (`endTime` while open,
+ * `closed` once ended), and `votersCount`. Every other field
+ * (attributedTo/content/url/tag/attachment/…) is INHERITED unchanged from the
+ * shared Note assembly, so Note and Question never duplicate object-building.
+ */
+function applyPollFields(object: Record<string, unknown>, poll: NotePollContext): void {
+  object.type = 'Question';
+  const optionNotes = poll.options.map((option) => ({
+    type: 'Note',
+    name: option.name,
+    replies: { type: 'Collection', totalItems: option.votes },
+  }));
+  if (poll.multiple) object.anyOf = optionNotes;
+  else object.oneOf = optionNotes;
+
+  const deadline = poll.endTime.toISOString();
+  if (poll.closed) object.closed = deadline;
+  else object.endTime = deadline;
+
+  object.votersCount = poll.votersCount;
 }
 
 /**
@@ -546,6 +634,7 @@ export class FollowService {
     username: string,
     reply?: NoteReplyContext,
     mentions?: NoteMentionContext,
+    poll?: NotePollContext,
   ): Record<string, unknown> {
     const actor = actorUrl(username);
     const postId = String(post._id);
@@ -627,6 +716,34 @@ export class FollowService {
       for (const href of mentions.cc) pushCc(href);
     }
 
+    // The shared content object. A plain post serializes it as a `Note`; a poll
+    // post reuses this EXACT object and only adds the poll structure + flips
+    // `type` to `Question` (see {@link applyPollFields}), so Note and Question
+    // never duplicate the attributedTo/content/url/tag/attachment assembly.
+    const object: Record<string, unknown> = {
+      id: noteId,
+      type: 'Note',
+      attributedTo: actor,
+      // Only present on a reply — undefined is dropped by JSON serialization,
+      // so a top-level Note carries no `inReplyTo`.
+      inReplyTo: reply?.inReplyTo,
+      url: `https://${FEDERATION_DOMAIN}/@${username}/posts/${postId}`,
+      sensitive,
+      content: primaryContent,
+      contentMap,
+      // Raw plaintext body, omitted (undefined dropped by JSON serialization)
+      // when the post has no body.
+      source,
+      language,
+      published,
+      to: [AP_PUBLIC],
+      cc,
+      tag: tags.length > 0 ? tags : undefined,
+      attachment: attachments.length > 0 ? attachments : undefined,
+    };
+
+    if (poll) applyPollFields(object, poll);
+
     return {
       '@context': AP_CONTEXT,
       id: `${noteId}/activity`,
@@ -635,27 +752,7 @@ export class FollowService {
       published,
       to: [AP_PUBLIC],
       cc,
-      object: {
-        id: noteId,
-        type: 'Note',
-        attributedTo: actor,
-        // Only present on a reply — undefined is dropped by JSON serialization,
-        // so a top-level Note carries no `inReplyTo`.
-        inReplyTo: reply?.inReplyTo,
-        url: `https://${FEDERATION_DOMAIN}/@${username}/posts/${postId}`,
-        sensitive,
-        content: primaryContent,
-        contentMap,
-        // Raw plaintext body, omitted (undefined dropped by JSON serialization)
-        // when the post has no body.
-        source,
-        language,
-        published,
-        to: [AP_PUBLIC],
-        cc,
-        tag: tags.length > 0 ? tags : undefined,
-        attachment: attachments.length > 0 ? attachments : undefined,
-      },
+      object,
     };
   }
 
@@ -702,7 +799,10 @@ export class FollowService {
       // their instance receives + notifies the post. `null` when the post mentions
       // nobody; the linkifier still strips any stray placeholder.
       const mentions = await this.resolveMentionContext(post);
-      const activity = this.buildCreateNoteActivity(post, senderUsername, reply?.context, mentions ?? undefined);
+      // A poll post federates as a `Question` (options + current tallies); a
+      // non-poll post resolves to null and federates as a plain Note.
+      const poll = await this.resolvePollContext(post);
+      const activity = this.buildCreateNoteActivity(post, senderUsername, reply?.context, mentions ?? undefined, poll ?? undefined);
       await this.deliverToFollowers(activity, senderOxyUserId, senderUsername, {
         extraInboxes: [
           ...(reply?.parentAuthorInbox ? [reply.parentAuthorInbox] : []),
@@ -905,6 +1005,70 @@ export class FollowService {
     const entries = await this.resolveMentionEntries(ids);
     const context = buildNoteMentionContext(ids, entries);
     return context.links.size > 0 ? context : null;
+  }
+
+  /**
+   * Resolve a single post's {@link NotePollContext} — the push-delivery and
+   * per-post dereference entry point. A poll post links to its `Poll` document by
+   * `content.pollId`; this reads that document and derives the AP `Question`
+   * fields (options + per-option vote counts, deadline, unique voters). Returns
+   * null when the post carries no poll or the poll document is gone (the post then
+   * federates as a plain Note). Fail-soft: a read error is logged and resolves to
+   * null rather than breaking delivery.
+   */
+  async resolvePollContext(post: NoteSourcePost): Promise<NotePollContext | null> {
+    const pollId = post.content?.pollId;
+    if (!pollId) return null;
+    try {
+      const poll = await Poll.findById(pollId)
+        .select('options endsAt isMultipleChoice')
+        .lean<PollContextSource | null>();
+      return poll ? buildPollContext(poll) : null;
+    } catch (err) {
+      logger.warn(`[FedDeliver] failed to resolve poll context for post ${String(post._id)}:`, err);
+      return null;
+    }
+  }
+
+  /**
+   * Batch-resolve the {@link NotePollContext} for MANY posts (the outbox page /
+   * featured collection) in ONE `Poll` read — the union of every post's `pollId`
+   * is fetched at once, then each post that has one is keyed to its context. A
+   * post without a poll (or whose poll is gone) is absent from the map; the Note
+   * builder then serializes it as a plain Note. Fail-soft: a read error logs and
+   * yields an empty map.
+   */
+  async resolvePollContextByPost(posts: NoteSourcePost[]): Promise<Map<string, NotePollContext>> {
+    const result = new Map<string, NotePollContext>();
+    const pollIdToPostIds = new Map<string, string[]>();
+
+    for (const post of posts) {
+      const pollId = post.content?.pollId;
+      if (!pollId) continue;
+      const key = String(pollId);
+      const bucket = pollIdToPostIds.get(key);
+      if (bucket) bucket.push(String(post._id));
+      else pollIdToPostIds.set(key, [String(post._id)]);
+    }
+    if (pollIdToPostIds.size === 0) return result;
+
+    try {
+      const polls = await Poll.find({ _id: { $in: [...pollIdToPostIds.keys()] } })
+        .select('options endsAt isMultipleChoice')
+        .lean<PollContextSource[]>();
+      for (const poll of polls) {
+        const postIds = pollIdToPostIds.get(String(poll._id));
+        if (!postIds) continue;
+        const context = buildPollContext(poll);
+        for (const postId of postIds) result.set(postId, context);
+      }
+    } catch (err) {
+      logger.warn('[FedDeliver] batch poll-context resolution failed', {
+        count: pollIdToPostIds.size,
+        reason: err instanceof Error ? err.message : 'unknown',
+      });
+    }
+    return result;
   }
 
   /**
@@ -1163,8 +1327,9 @@ export class FollowService {
     username: string,
     reply?: NoteReplyContext,
     mentions?: NoteMentionContext,
+    poll?: NotePollContext,
   ): Record<string, unknown> {
-    const created = this.buildCreateNoteActivity(post, username, reply, mentions);
+    const created = this.buildCreateNoteActivity(post, username, reply, mentions, poll);
     const note = created.object as Record<string, unknown>;
 
     const now = new Date();
@@ -1209,7 +1374,9 @@ export class FollowService {
     try {
       const reply = await this.resolveReplyDelivery(post);
       const mentions = await this.resolveMentionContext(post);
-      const activity = this.buildUpdateNoteActivity(post, editorUsername, reply?.context, mentions ?? undefined);
+      // Re-federate a poll post as an Update(Question) carrying its CURRENT tallies.
+      const poll = await this.resolvePollContext(post);
+      const activity = this.buildUpdateNoteActivity(post, editorUsername, reply?.context, mentions ?? undefined, poll ?? undefined);
       await this.deliverToFollowers(activity, editorOxyUserId, editorUsername, {
         extraInboxes: [
           ...(reply?.parentAuthorInbox ? [reply.parentAuthorInbox] : []),

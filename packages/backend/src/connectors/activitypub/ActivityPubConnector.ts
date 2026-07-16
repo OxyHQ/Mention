@@ -11,7 +11,7 @@ import type {
 import { resolveOxyExternalUser } from '../identity';
 import { isAbsoluteHttpUrl } from '../shared/url';
 import { actorService } from './actor.service';
-import { followService, type NoteSourcePost, type NoteReplyContext, type NoteMentionContext } from './follow.service';
+import { followService, type NoteSourcePost, type NoteReplyContext, type NoteMentionContext, type NotePollContext } from './follow.service';
 import { outboxSyncService } from './outbox.service';
 import { inboxProcessingService } from './inbox.service';
 import { FEDERATION_ENABLED, isBlockedDomain } from './constants';
@@ -290,8 +290,9 @@ class ActivityPubConnector implements NetworkConnector {
     username: string,
     reply?: NoteReplyContext,
     mentions?: NoteMentionContext,
+    poll?: NotePollContext,
   ): Record<string, unknown> {
-    return followService.buildCreateNoteActivity(post, username, reply, mentions);
+    return followService.buildCreateNoteActivity(post, username, reply, mentions, poll);
   }
 
   /**
@@ -323,6 +324,24 @@ class ActivityPubConnector implements NetworkConnector {
    */
   resolveMentionContextByPost(posts: NoteSourcePost[]): Promise<Map<string, NoteMentionContext>> {
     return followService.resolveMentionContextByPost(posts);
+  }
+
+  /**
+   * Resolve a single post's poll addressing (the AP `Question` fields) for a PULL
+   * surface (the per-post dereference route). Null when the post is not a poll.
+   * The push path resolves this internally in {@link FollowService.federateNewPost}.
+   */
+  resolvePollContext(post: NoteSourcePost): Promise<NotePollContext | null> {
+    return followService.resolvePollContext(post);
+  }
+
+  /**
+   * Batch-resolve poll addressing for MANY posts (the outbox page / featured
+   * collection) in ONE Poll read. Keyed by post id; a non-poll post is absent
+   * from the map.
+   */
+  resolvePollContextByPost(posts: NoteSourcePost[]): Promise<Map<string, NotePollContext>> {
+    return followService.resolvePollContextByPost(posts);
   }
 
   federateNewPost(
