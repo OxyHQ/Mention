@@ -18,6 +18,13 @@ interface LanguagePickerSheetProps {
   currentTag?: string;
   /** Offered only when an existing NON-PRIMARY tab is being edited. */
   onRemove?: () => void;
+  /** Overrides the remove button's label (e.g. "Use automatic" in settings). */
+  removeLabel?: string;
+  /**
+   * Promotes this NON-PRIMARY language to the post's primary. Offered next to
+   * Remove when an existing secondary tab is being edited.
+   */
+  onMakeMain?: () => void;
   onSelect: (tag: string) => void;
   onClose: () => void;
 }
@@ -32,6 +39,8 @@ const LanguagePickerSheet = memo(function LanguagePickerSheet({
   usedTags,
   currentTag,
   onRemove,
+  removeLabel,
+  onMakeMain,
   onSelect,
   onClose,
 }: LanguagePickerSheetProps) {
@@ -62,6 +71,11 @@ const LanguagePickerSheet = memo(function LanguagePickerSheet({
     onRemove?.();
     onClose();
   }, [onRemove, onClose]);
+
+  const handleMakeMain = useCallback(() => {
+    onMakeMain?.();
+    onClose();
+  }, [onMakeMain, onClose]);
 
   const renderItem = useCallback(
     ({ item }: { item: ContentLanguage }) => {
@@ -126,16 +140,31 @@ const LanguagePickerSheet = memo(function LanguagePickerSheet({
         }
       />
 
-      {onRemove ? (
-        <TouchableOpacity
-          onPress={handleRemove}
-          className="flex-row items-center justify-center py-3 rounded-full mt-2 mx-4 border border-border"
-          activeOpacity={0.85}
-        >
-          <Text className="text-sm font-semibold" style={{ color: theme.colors.error }}>
-            {t('compose.languages.remove', { defaultValue: 'Remove this language' })}
-          </Text>
-        </TouchableOpacity>
+      {onMakeMain || onRemove ? (
+        <View className="mt-2 mx-4 gap-2">
+          {onMakeMain ? (
+            <TouchableOpacity
+              onPress={handleMakeMain}
+              className="flex-row items-center justify-center py-3 rounded-full border border-border"
+              activeOpacity={0.85}
+            >
+              <Text className="text-sm font-semibold text-primary">
+                {t('compose.languages.makeMain', { defaultValue: 'Make main language' })}
+              </Text>
+            </TouchableOpacity>
+          ) : null}
+          {onRemove ? (
+            <TouchableOpacity
+              onPress={handleRemove}
+              className="flex-row items-center justify-center py-3 rounded-full border border-border"
+              activeOpacity={0.85}
+            >
+              <Text className="text-sm font-semibold" style={{ color: theme.colors.error }}>
+                {removeLabel ?? t('compose.languages.remove', { defaultValue: 'Remove this language' })}
+              </Text>
+            </TouchableOpacity>
+          ) : null}
+        </View>
       ) : null}
     </View>
   );

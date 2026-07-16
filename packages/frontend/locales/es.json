@@ -498,6 +498,10 @@
   "fediverse.sheet.cancel": "Cancelar",
   "fediverse.settings.title": "Compartir en el fediverso",
   "fediverse.settings.description": "Comparte tu perfil y tus publicaciones en el fediverso",
+  "fediverse.settings.preferredLanguage.title": "Idioma principal",
+  "fediverse.settings.preferredLanguage.description": "El idioma principal en el que escribes tus publicaciones. Será la versión principal que se muestra en el fediverso; déjalo en automático para detectarlo en cada publicación.",
+  "fediverse.settings.preferredLanguage.automatic": "Automático",
+  "fediverse.settings.preferredLanguage.clear": "Usar automático",
   "fediverse.settings.share": "Compartir en el fediverso",
   "fediverse.settings.whatIs": "¿Qué es el fediverso?",
   "fediverse.settings.disableConfirm.title": "¿Desactivar el compartir en el fediverso?",
@@ -1587,5 +1591,6 @@
   },
   "user": {
     "unknown": "Usuario desconocido"
-  }
+  },
+  "compose.languages.makeMain": "Establecer como idioma principal"
 }

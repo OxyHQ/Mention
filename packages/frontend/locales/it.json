@@ -465,6 +465,10 @@
   "fediverse.sheet.cancel": "Annulla",
   "fediverse.settings.title": "Condivisione nel fediverso",
   "fediverse.settings.description": "Condividi il tuo profilo e i tuoi post nel fediverso",
+  "fediverse.settings.preferredLanguage.title": "Lingua principale",
+  "fediverse.settings.preferredLanguage.description": "La lingua principale in cui scrivi i tuoi post. Diventa la versione principale mostrata nel fediverso; lasciala in automatico per rilevarla per ogni post.",
+  "fediverse.settings.preferredLanguage.automatic": "Automatico",
+  "fediverse.settings.preferredLanguage.clear": "Usa automatico",
   "fediverse.settings.share": "Condividi nel fediverso",
   "fediverse.settings.whatIs": "Cos'è il fediverso?",
   "fediverse.settings.disableConfirm.title": "Disattivare la condivisione nel fediverso?",
@@ -1367,5 +1371,6 @@
   },
   "user": {
     "unknown": "Utente sconosciuto"
-  }
+  },
+  "compose.languages.makeMain": "Imposta come lingua principale"
 }

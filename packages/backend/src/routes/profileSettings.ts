@@ -11,7 +11,7 @@ import { ensureProfileMediaPublic } from '../utils/oxyHelpers';
 import { sendErrorResponse, sendSuccessResponse, validateRequired } from '../utils/apiHelpers';
 import { getRequiredOxyUserId as getAuthenticatedUserId } from '@oxyhq/core/server';
 import { type TrackSummary, type PodcastSummary } from '@syra.fm/sdk';
-import { EXTERNAL_EMBED_SOURCES, type EmbedPlayerSource } from '@mention/shared-types';
+import { EXTERNAL_EMBED_SOURCES, type EmbedPlayerSource, canonicalizeLanguageTag } from '@mention/shared-types';
 import { syraClient } from '../utils/syraPodcast';
 import { federateAsResolvedActor } from '../connectors/outboundFederation';
 import { logger } from '../utils/logger';
@@ -78,7 +78,7 @@ router.get('/settings/:userId', async (req: AuthRequest, res: Response) => {
 router.put('/settings', async (req: AuthRequest, res: Response) => {
   try {
     const oxyUserId = getAuthenticatedUserId(req);
-    const { appearance, profileHeaderImage, privacy, profileCustomization, profileMedia, interests, feedSettings, notificationPreferences, externalEmbeds } = req.body || {};
+    const { appearance, profileHeaderImage, privacy, profileCustomization, profileMedia, interests, feedSettings, notificationPreferences, externalEmbeds, fediversePreferredLanguage } = req.body || {};
 
     const update: Record<string, any> = {};
     const unset: Record<string, ''> = {};
@@ -338,6 +338,28 @@ router.put('/settings', async (req: AuthRequest, res: Response) => {
         } else if (value === null) {
           unset[`externalEmbeds.${source}`] = '';
         }
+      }
+    }
+
+    // Global default "primary" post language (Mention-owned; NOT an Oxy identity
+    // field). Seeds the composer's default primary variant client-side; a post's
+    // actual primary is still per-post `content.variants[0]`. Canonicalized to a
+    // BCP-47 tag on write via the shared language module — an invalid /
+    // uncanonicalizable value is REJECTED (400) rather than stored as garbage.
+    // `null` or an empty/whitespace-only string clears the preference (the client
+    // then falls back to its own device/account-locale heuristic).
+    if (fediversePreferredLanguage !== undefined) {
+      if (
+        fediversePreferredLanguage === null
+        || (typeof fediversePreferredLanguage === 'string' && fediversePreferredLanguage.trim() === '')
+      ) {
+        unset.fediversePreferredLanguage = '';
+      } else {
+        const canonical = canonicalizeLanguageTag(fediversePreferredLanguage);
+        if (canonical === null) {
+          return sendErrorResponse(res, 400, 'Bad Request', 'fediversePreferredLanguage must be a valid BCP-47 language tag');
+        }
+        update.fediversePreferredLanguage = canonical;
       }
     }
 

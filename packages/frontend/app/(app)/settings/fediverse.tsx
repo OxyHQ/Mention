@@ -12,7 +12,11 @@ import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { RowIcon } from '@/components/settings/RowIcon';
 import { showFediverseInfo } from '@/components/Fediverse/FediverseInfoDialog';
+import LanguagePickerSheet from '@/components/Compose/LanguagePickerSheet';
+import { BottomSheetContext } from '@/context/BottomSheetContext';
 import { useSafeBack } from '@/hooks/useSafeBack';
+import { useFediversePreferredLanguage } from '@/hooks/useFediversePreferredLanguage';
+import { describeContentLanguage } from '@/constants/contentLanguages';
 import { confirmDialog } from '@/utils/alerts';
 import { api } from '@/utils/api';
 import { WEB_BASE_URL } from '@/config';
@@ -29,9 +33,46 @@ const logger = createScopedLogger('FediverseSettings');
 function FediverseSharingBody() {
   const { t } = useTranslation();
   const { user, oxyServices } = useAuth();
+  const bottomSheet = React.useContext(BottomSheetContext);
+  const { preferredLanguage, updatePreferredLanguage } = useFediversePreferredLanguage();
 
   const [sharing, setSharing] = useState<boolean>(user?.fediverseSharing !== false);
   const [pending, setPending] = useState(false);
+
+  const preferredLabel = preferredLanguage
+    ? describeContentLanguage(preferredLanguage).nativeName
+    : t('fediverse.settings.preferredLanguage.automatic', { defaultValue: 'Automatic' });
+
+  const applyPreferred = useCallback(
+    async (tag: string | null) => {
+      try {
+        await updatePreferredLanguage(tag);
+      } catch (error) {
+        logger.error('Failed to update fediverse preferred language', { error });
+        toast(
+          t('fediverse.settings.updateFailed', {
+            defaultValue: "Couldn't update fediverse sharing. Please try again.",
+          }),
+          { type: 'error' },
+        );
+      }
+    },
+    [updatePreferredLanguage, t],
+  );
+
+  const openPreferredLanguagePicker = useCallback(() => {
+    bottomSheet.setBottomSheetContent(
+      <LanguagePickerSheet
+        usedTags={[]}
+        currentTag={preferredLanguage ?? undefined}
+        removeLabel={t('fediverse.settings.preferredLanguage.clear', { defaultValue: 'Use automatic' })}
+        onRemove={preferredLanguage ? () => { void applyPreferred(null); } : undefined}
+        onSelect={(tag: string) => { void applyPreferred(tag); }}
+        onClose={() => bottomSheet.openBottomSheet(false)}
+      />,
+    );
+    bottomSheet.openBottomSheet(true);
+  }, [bottomSheet, preferredLanguage, applyPreferred, t]);
 
   const federatedHandle = user?.username
     ? `@${user.username}@${new URL(WEB_BASE_URL).host}`
@@ -112,6 +153,20 @@ function FediverseSharingBody() {
           rightElement={
             <Switch value={sharing} onValueChange={onToggle} disabled={pending} />
           }
+        />
+      </SettingsListGroup>
+
+      <SettingsListGroup
+        footer={t('fediverse.settings.preferredLanguage.description', {
+          defaultValue:
+            'The main language your posts are written in. It becomes the primary version shown across the fediverse; leave it automatic to let it be detected per post.',
+        })}
+      >
+        <SettingsListItem
+          icon={<RowIcon name="language-outline" />}
+          title={t('fediverse.settings.preferredLanguage.title', { defaultValue: 'Preferred language' })}
+          description={preferredLabel}
+          onPress={openPreferredLanguagePicker}
         />
       </SettingsListGroup>
 

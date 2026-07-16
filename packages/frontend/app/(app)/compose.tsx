@@ -149,10 +149,13 @@ import {
   getVariantItem,
   hasVariantWork,
   primaryTextFromPost,
+  promoteVariantToPrimary,
   serializeVariants,
   type ComposeVariantArticle,
+  type PromotablePrimary,
 } from '@/utils/composeVariants';
 import { contentLanguageForLocale, describeContentLanguage } from '@/constants/contentLanguages';
+import { useFediversePreferredLanguage } from '@/hooks/useFediversePreferredLanguage';
 import type { ThreadItem } from '@/hooks/useThreadManager';
 import { useQuoteManager } from '@/hooks/useQuoteManager';
 import QuoteCard from '@/components/Compose/QuoteCard';
@@ -231,6 +234,7 @@ const ComposeScreenBody = () => {
   const { sources, setSources, addSource, updateSourceField, removeSource: removeSourceEntry, getSanitizedSources, hasInvalidSources } = sourcesManager;
   const {
     threadItems,
+    setThreadItems,
     addThread,
     removeThread,
     updateThreadText,
@@ -325,10 +329,18 @@ const ComposeScreenBody = () => {
   const hasRoomContent = useMemo(() => roomHasContent(), [roomHasContent]);
   const hasPodcastContent = useMemo(() => podcastHasContent(), [podcastHasContent]);
 
-  // Multilingual buffer. The composer OPENS on the app's locale — a preference,
-  // not a declaration — so this default never reaches the wire on its own; only
-  // a language the author actually picked does (`hasDeclaredLanguages`).
-  const defaultPrimaryTag = useMemo(() => contentLanguageForLocale(i18n.language), [i18n.language]);
+  // The author's saved default primary language, applied to fresh composes below.
+  const { preferredLanguage } = useFediversePreferredLanguage();
+
+  // Multilingual buffer. The composer OPENS on the author's saved preferred
+  // language when set, otherwise the app's UI locale. The UI locale is a
+  // preference, not a declaration, so that default never reaches the wire on its
+  // own (`hasDeclaredLanguages`); an explicit preferred language IS a declaration
+  // and is seeded as chosen below.
+  const defaultPrimaryTag = useMemo(
+    () => contentLanguageForLocale(preferredLanguage ?? i18n.language),
+    [preferredLanguage, i18n.language],
+  );
   const {
     variants,
     setActiveTag,
@@ -336,6 +348,7 @@ const ComposeScreenBody = () => {
     removeLanguage,
     renameLanguage,
     setPrimaryLanguage,
+    promoteLanguage,
     setVariantText,
     setVariantMediaAlt,
     appendVariantMedia,
@@ -351,6 +364,32 @@ const ComposeScreenBody = () => {
   const isPrimaryTab = activeTag === variants.primaryTag;
   const languageTags = useMemo(() => allTags(variants), [variants]);
   const [translatingItemId, setTranslatingItemId] = useState<string | null>(null);
+
+  // Seed a fresh compose from the author's saved preferred language, ONCE. An
+  // explicit preference is a real declaration, so it is marked chosen (it reaches
+  // the wire even for a single-language post). Edit/reply carry the post's own
+  // language, and a composer the author already touched (declared a language,
+  // added a variant, or wrote variant work) is left untouched — only a pristine
+  // composer is seeded, and only when a preference is actually set.
+  const preferredSeededRef = useRef(false);
+  useEffect(() => {
+    if (preferredSeededRef.current) return;
+    if (editPostId || replyToPostId) {
+      preferredSeededRef.current = true;
+      return;
+    }
+    if (preferredLanguage === undefined) return; // Still resolving.
+    if (preferredLanguage === null) {
+      preferredSeededRef.current = true; // No preference — keep the locale default undeclared.
+      return;
+    }
+    if (variants.primaryChosen || variants.variantTags.length > 0 || hasVariantWork(variants)) {
+      preferredSeededRef.current = true;
+      return;
+    }
+    setPrimaryLanguage(contentLanguageForLocale(preferredLanguage));
+    preferredSeededRef.current = true;
+  }, [preferredLanguage, editPostId, replyToPostId, variants, setPrimaryLanguage]);
 
   // Remaining local state
   const [postContent, setPostContent] = useState('');
@@ -1480,12 +1519,50 @@ const ComposeScreenBody = () => {
   // ── Languages ─────────────────────────────────────────────────────────────
 
   /**
+   * Promote a secondary language to the post's primary. The primary's content
+   * lives in the composer's own state (`postContent`/`mediaIds`/`article` and each
+   * thread item), so the buffer swap is paired with writing the promoted rendition
+   * back into that state — after which `variants[0]` federates as the promoted
+   * language.
+   */
+  const promoteToPrimary = useCallback((tag: string) => {
+    if (tag === variants.primaryTag) return;
+    const oldPrimaryByItem: Record<string, PromotablePrimary> = {
+      [MAIN_ITEM_ID]: { text: postContent, media: mediaIds, article },
+    };
+    for (const item of threadItems) {
+      oldPrimaryByItem[item.id] = { text: item.text, media: item.mediaIds, article: item.article };
+    }
+
+    const { state: nextState, primaryByItem } = promoteVariantToPrimary(variants, tag, oldPrimaryByItem);
+    if (nextState === variants) return; // Not a current author variant — nothing to promote.
+
+    const main = primaryByItem[MAIN_ITEM_ID];
+    if (main) {
+      setPostContent(main.text);
+      setMediaIds(main.media);
+      setArticle(main.article);
+    }
+    setThreadItems((prev) =>
+      prev.map((item) => {
+        const next = primaryByItem[item.id];
+        return next ? { ...item, text: next.text, mediaIds: next.media, article: next.article } : item;
+      }),
+    );
+    // The reducer recomputes the same swap from the same inputs; the buffer and the
+    // composer's primary state land on one consistent promotion.
+    promoteLanguage(tag, oldPrimaryByItem);
+  }, [variants, postContent, mediaIds, article, threadItems, setPostContent, setMediaIds, setArticle, setThreadItems, promoteLanguage]);
+
+  /**
    * The language picker. With no `currentTag` it ADDS a language; on an existing
    * tab it changes that tab's language — re-tagging a rendition in place, so the
-   * author's work survives — and offers to remove it.
+   * author's work survives — and, for a non-primary tab, offers to make it the
+   * main language or remove it.
    */
   const openLanguagePicker = useCallback((currentTag?: string) => {
     const isPrimary = currentTag === variants.primaryTag;
+    const isSecondaryTab = currentTag !== undefined && !isPrimary;
     bottomSheet.setBottomSheetContent(
       <Suspense fallback={null}>
         <LanguagePickerSheet
@@ -1500,13 +1577,14 @@ const ComposeScreenBody = () => {
               renameLanguage(currentTag, tag);
             }
           }}
-          onRemove={currentTag !== undefined && !isPrimary ? () => removeLanguage(currentTag) : undefined}
+          onMakeMain={isSecondaryTab ? () => promoteToPrimary(currentTag) : undefined}
+          onRemove={isSecondaryTab ? () => removeLanguage(currentTag) : undefined}
           onClose={() => bottomSheet.openBottomSheet(false)}
         />
       </Suspense>
     );
     bottomSheet.openBottomSheet(true);
-  }, [bottomSheet, variants, addLanguage, removeLanguage, renameLanguage, setPrimaryLanguage]);
+  }, [bottomSheet, variants, addLanguage, removeLanguage, renameLanguage, setPrimaryLanguage, promoteToPrimary]);
 
   const handleAddLanguage = useCallback(() => openLanguagePicker(), [openLanguagePicker]);
   const handleEditLanguage = useCallback(

@@ -8,6 +8,7 @@ import {
   variantsStateFromPost,
   type ComposeVariantArticle,
   type ComposeVariantsState,
+  type PromotablePrimary,
 } from '@/utils/composeVariants';
 
 /**
@@ -31,6 +32,11 @@ export const useComposeVariants = (defaultPrimaryTag: string) => {
     [],
   );
   const setPrimaryLanguage = useCallback((tag: string) => dispatch({ type: 'set-primary-language', tag }), []);
+  const promoteLanguage = useCallback(
+    (tag: string, oldPrimaryByItem: Record<string, PromotablePrimary>) =>
+      dispatch({ type: 'promote-to-primary', tag, oldPrimaryByItem }),
+    [],
+  );
 
   const setVariantText = useCallback(
     (tag: string, itemId: string, text: string) => dispatch({ type: 'set-text', tag, itemId, text }),
@@ -99,6 +105,7 @@ export const useComposeVariants = (defaultPrimaryTag: string) => {
       removeLanguage,
       renameLanguage,
       setPrimaryLanguage,
+      promoteLanguage,
       setVariantText,
       setVariantMediaAlt,
       appendVariantMedia,
@@ -118,6 +125,7 @@ export const useComposeVariants = (defaultPrimaryTag: string) => {
       removeLanguage,
       renameLanguage,
       setPrimaryLanguage,
+      promoteLanguage,
       setVariantText,
       setVariantMediaAlt,
       appendVariantMedia,
