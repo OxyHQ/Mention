@@ -539,6 +539,7 @@
   "common.goBack": "Torna indietro",
   "notification.post": "{{actorName}} ha pubblicato un nuovo aggiornamento",
   "collab.inviteCollaborators": "Invita collaboratori",
+  "collab.viewCollaborators": "Visualizza collaboratori",
   "collab.searchPlaceholder": "Cerca persone con cui collaborare",
   "collab.noResults": "Nessun utente trovato",
   "collab.and": " e ",

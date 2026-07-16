@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import { Text, View, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LiveAvatar } from '@/components/ui/LiveAvatar';
+import { AvatarGroup, type AvatarGroupItem } from '@oxyhq/bloom/avatar-group';
 
 import UserName from '../UserName';
 import { ProfileHoverCard } from '../ProfileHoverCard';
@@ -10,6 +11,7 @@ import { useTranslation } from 'react-i18next';
 import { RemoteActorBadge } from '@/components/Fediverse/FediverseBadge';
 import { BoostIcon } from '@/assets/icons/boost-icon';
 import { formatTimeAgo } from '@/utils/dateUtils';
+import { displayNameOrHandle } from '@/utils/displayName';
 import type { HydratedAuthor } from '@mention/shared-types';
 import { getNormalizedUserHandle } from '@oxyhq/core';
 
@@ -155,6 +157,25 @@ const PostHeader: React.FC<PostHeaderProps> = ({
   const isCollabHeader = headerAuthors.length > 1;
   const hasDisplayName = !isCollabHeader && !!user.displayName?.trim();
 
+  // Collaborative posts render a single cluster of every author's avatar in the
+  // slot a solo post's avatar occupies. Each member's `avatar` (a bare Oxy file
+  // id OR an absolute federated URL) is routed straight into Bloom's `Avatar`
+  // source via the group's `uri` — the SAME ImageResolver plumbing the solo
+  // avatar uses (variant applied at the group level). `displayName`/`username`
+  // drive accessibility only. Empty for solo posts (the cluster is not rendered).
+  const collabAvatars = useMemo<AvatarGroupItem[]>(
+    () =>
+      isCollabHeader
+        ? (authors ?? []).map((a) => ({
+            id: a.id,
+            uri: a.avatar,
+            displayName: displayNameOrHandle(a.name?.displayName, getNormalizedUserHandle(a) ?? ''),
+            username: a.username,
+          }))
+        : [],
+    [authors, isCollabHeader],
+  );
+
   // `contextTop` rows are the first children of the flex-1 content column, so the
   // name row is pushed down by each fixed-height context row plus the column gap.
   // Offset the avatar + ⋯ menu by the same amount so they keep aligning with the
@@ -165,19 +186,39 @@ const PostHeader: React.FC<PostHeaderProps> = ({
   return (
     <View style={{ paddingHorizontal }}>
       <View className="flex-row items-start justify-between">
-        <ProfileHoverCard username={user.handle}>
-          <LiveAvatar
-            userId={authorUserId}
-            source={avatarSource}
-            variant={avatarVariant}
-            size={avatarSize}
-            placeholderColor={placeholderColor}
-            // A collab post's avatar represents the group, so it opens the
-            // collaborators list; a solo post keeps its single-author behavior.
-            onPress={isCollabHeader && onPressCollaborators ? onPressCollaborators : onPressAvatar}
+        {isCollabHeader ? (
+          // The collab avatar represents the whole group: a magnetic bubble
+          // cluster of every author's avatar that opens the collaborators list
+          // on tap (the sheet lists each @username). `size` is the cluster box
+          // diameter, matched to the solo avatar so the layout never shifts.
+          <TouchableOpacity
+            accessibilityRole="button"
+            accessibilityLabel={t('collab.viewCollaborators', { defaultValue: 'View collaborators' })}
+            disabled={!onPressCollaborators}
+            onPress={onPressCollaborators}
             style={{ marginTop: headerTopOffset, marginRight: 12 }}
-          />
-        </ProfileHoverCard>
+          >
+            <AvatarGroup
+              layout="cluster"
+              items={collabAvatars}
+              size={avatarSize}
+              variant={avatarVariant}
+              max={20}
+            />
+          </TouchableOpacity>
+        ) : (
+          <ProfileHoverCard username={user.handle}>
+            <LiveAvatar
+              userId={authorUserId}
+              source={avatarSource}
+              variant={avatarVariant}
+              size={avatarSize}
+              placeholderColor={placeholderColor}
+              onPress={onPressAvatar}
+              style={{ marginTop: headerTopOffset, marginRight: 12 }}
+            />
+          </ProfileHoverCard>
+        )}
         <View className="flex-1" style={{ gap: HEADER_CONTENT_GAP }}>
           {contextTop}
           <View className="flex-row items-end" style={{ gap: ROW_GAP }}>
