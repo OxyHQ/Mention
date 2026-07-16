@@ -182,7 +182,7 @@ const ComposeScreenBody = () => {
   const isScreenNotMobile = useIsScreenNotMobile();
   const keyboardVisible = useKeyboardVisibility();
   const bottomBarVisible = isAuthenticated && !isScreenNotMobile && !keyboardVisible;
-  const { createPost, createThread, createReply } = usePostsStore();
+  const { createPost, createThread, createReply, cachePosts } = usePostsStore();
   const { t, i18n } = useTranslation();
   const rawParams = useLocalSearchParams() as ComposeIntentRawParams;
   // Parse once per route entry. Re-running on every param tick would re-apply
@@ -987,7 +987,7 @@ const ComposeScreenBody = () => {
         // a whole post, so it has its own builder — which carries the renditions
         // too, or editing a multilingual post would strip every language but the
         // primary.
-        await feedService.editPost(editPostId, buildEditPost({
+        const updatedPost = await feedService.editPost(editPostId, buildEditPost({
           postContent,
           mediaIds,
           mentions: mainPost.mentions || [],
@@ -995,6 +995,11 @@ const ComposeScreenBody = () => {
           collaboratorIds: collaborators.map((c) => c.id),
           variantContent: mainVariantContent,
         }));
+        // Propagate the edited post to the shared post cache so the feed, profile
+        // and detail reflect the change immediately (the same store every new post
+        // flows through) — without this the edit is invisible until a manual
+        // refresh, since the detail only revalidates on its original mount.
+        cachePosts([updatedPost]);
       } else if (allPosts.length === 1) {
         await createPost(allPosts[0]);
       } else {

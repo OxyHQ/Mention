@@ -564,6 +564,8 @@
   "collab.acceptedToast": "Ora sei un collaboratore su questo post",
   "collab.acceptFailed": "Impossibile accettare l'invito",
   "collab.declineFailed": "Impossibile rifiutare l'invito",
+  "collab.youAccepted": "Hai accettato",
+  "collab.youDeclined": "Hai rifiutato",
   "collab.collaboratorsTitle": "Collaboratori",
   "notifications": {
     "tabs": {

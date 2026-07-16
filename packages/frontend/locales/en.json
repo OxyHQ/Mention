@@ -154,6 +154,8 @@
   "collab.acceptedToast": "You're now a collaborator on this post",
   "collab.acceptFailed": "Failed to accept invite",
   "collab.declineFailed": "Failed to decline invite",
+  "collab.youAccepted": "You accepted",
+  "collab.youDeclined": "You declined",
   "collab.collaboratorsTitle": "Collaborators",
   "notification.mark_all_read": "Mark all as read",
   "notification.mark_read": "Mark as read",
