@@ -155,10 +155,36 @@ export interface LocalBoostEventPayload {
 }
 
 /**
+ * The minimal shape a `post.delete` event carries. A local post's canonical AP
+ * object id is minted deterministically from the deleter's username + this `_id`
+ * (`https://<domain>/ap/users/<username>/posts/<_id>`), so the connector needs
+ * nothing more to emit a `Delete(Tombstone)`. The post row is already gone by the
+ * time this fires — the id is captured BEFORE deletion.
+ */
+export interface LocalDeleteEventPayload {
+  _id: unknown;
+}
+
+/**
+ * The shape a `post.like` / `post.unlike` event carries to outbound delivery.
+ * A federated-post like federates as a `Like` (or `Undo(Like)`) whose `object` is
+ * the liked original's remote `federation.activityId`, resolved from `postId`, and
+ * delivered ONLY to that origin author's inbox (never fanned out to followers).
+ * The AP activity id is minted deterministically from the native Like doc's `_id`
+ * so the `Undo` re-mints the same id without persisting it.
+ */
+export interface LocalLikeEventPayload {
+  /** The native `Like` document `_id` — the deterministic AP Like activity id. */
+  _id: unknown;
+  /** The liked post's local `_id` — resolved to its canonical AP object id + author inbox. */
+  postId: string;
+}
+
+/**
  * A local domain event handed to connectors for outbound delivery. Discriminated
- * by `kind`; starts with `post.create` (a new local post to federate) and the
- * follow lifecycle, and grows as more outbound flows (likes, reposts, deletes)
- * are wired.
+ * by `kind`: post lifecycle (`post.create` / `post.update` / `post.delete`),
+ * engagement (`post.boost` / `post.unboost` / `post.like` / `post.unlike`), actor
+ * profile changes (`actor.update`), and the follow lifecycle.
  */
 export type LocalNetworkEvent =
   | {
@@ -176,6 +202,42 @@ export type LocalNetworkEvent =
   | {
       kind: 'post.unboost';
       boost: LocalBoostEventPayload;
+      actorOxyUserId: string;
+      actorUsername: string;
+    }
+  | {
+      kind: 'post.update';
+      post: LocalPostEventPayload;
+      actorOxyUserId: string;
+      actorUsername: string;
+    }
+  | {
+      kind: 'post.delete';
+      post: LocalDeleteEventPayload;
+      actorOxyUserId: string;
+      actorUsername: string;
+    }
+  | {
+      kind: 'post.like';
+      like: LocalLikeEventPayload;
+      actorOxyUserId: string;
+      actorUsername: string;
+    }
+  | {
+      kind: 'post.unlike';
+      like: LocalLikeEventPayload;
+      actorOxyUserId: string;
+      actorUsername: string;
+    }
+  | {
+      /**
+       * A local user changed an actor-visible profile field OWNED by Mention (e.g.
+       * the `profileHeaderImage` banner). The connector rebroadcasts the FULL actor
+       * document as an `Update(Person)` to remote followers so Mastodon refreshes.
+       * Oxy-owned fields (displayName/avatar/bio) are NOT hooked here — they change
+       * in Oxy, which has no signal into Mention (see `federateActorUpdate`).
+       */
+      kind: 'actor.update';
       actorOxyUserId: string;
       actorUsername: string;
     }

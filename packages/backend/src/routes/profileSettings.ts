@@ -13,6 +13,7 @@ import { getRequiredOxyUserId as getAuthenticatedUserId } from '@oxyhq/core/serv
 import { type TrackSummary, type PodcastSummary } from '@syra.fm/sdk';
 import { EXTERNAL_EMBED_SOURCES, type EmbedPlayerSource } from '@mention/shared-types';
 import { syraClient } from '../utils/syraPodcast';
+import { federateAsResolvedActor } from '../connectors/outboundFederation';
 import { logger } from '../utils/logger';
 
 const router = Router();
@@ -85,6 +86,10 @@ router.put('/settings', async (req: AuthRequest, res: Response) => {
     // we can promote it to public AFTER the settings persist — profile banners
     // are public-facing media that an anonymous <img> must be able to load.
     let newBannerFileId: string | undefined;
+    // Whether this request changed the profile banner (set OR cleared). The banner
+    // is a Mention-owned ActivityPub actor field (`image`), so a change must
+    // rebroadcast the actor to remote followers (see below).
+    let bannerChanged = false;
 
     // Dot-notation, same safe pattern as `profileCustomization`/`externalEmbeds` below:
     // each field is set at its own leaf path, so a partial `appearance` payload (e.g. the
@@ -118,8 +123,10 @@ router.put('/settings', async (req: AuthRequest, res: Response) => {
       } else {
         unset.profileHeaderImage = '';
       }
+      bannerChanged = true;
     } else if (profileHeaderImage === null) {
       unset.profileHeaderImage = '';
+      bannerChanged = true;
     }
     
     if (profileCustomization) {
@@ -359,6 +366,22 @@ router.put('/settings', async (req: AuthRequest, res: Response) => {
     // throws and never blocks the settings update.
     if (newBannerFileId) {
       await ensureProfileMediaPublic(req.accessToken, newBannerFileId);
+    }
+
+    // Outbound federation: the banner is a Mention-owned ActivityPub actor field
+    // (`image`), so changing it (set or cleared) rebroadcasts the FULL actor
+    // document as an Update(Person) to remote followers, prompting Mastodon to
+    // refresh the cached profile. Fire-and-forget through the connector seam (which
+    // applies the fediverseSharing gate); never blocks the settings response. NOTE:
+    // Oxy-owned actor fields (displayName / avatar / bio) have NO Mention-side write
+    // to hook here — propagating those needs a separate Oxy→Mention signal or a
+    // periodic actor re-broadcast (documented follow-up).
+    if (bannerChanged) {
+      federateAsResolvedActor(oxyUserId, 'actor update', (username) => ({
+        kind: 'actor.update',
+        actorOxyUserId: oxyUserId,
+        actorUsername: username,
+      }));
     }
 
     return sendSuccessResponse(res, 200, doc);

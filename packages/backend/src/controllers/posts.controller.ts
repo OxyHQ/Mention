@@ -46,6 +46,7 @@ import {
 } from '../services/mtn/MentionRecordEmitter';
 import { postCollaborationService, CollabValidationError, CollabStateError } from '../services/PostCollaborationService';
 import { resolveMcpAutoAcceptIds } from '../mcp/utils/resolveMcpAutoAcceptIds';
+import { federateAsResolvedActor } from '../connectors/outboundFederation';
 
 // Constants from centralized config
 const MAX_SOURCES = config.posts.maxSources;
@@ -1481,6 +1482,35 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
       await emitPostCreated(post);
     }
 
+    // Outbound federation: an edit re-federates the Note as an ActivityPub
+    // Update (carrying an `updated` timestamp — how Mastodon marks an edit),
+    // reusing the shared Note builder so a reply's `inReplyTo` + parent Mention
+    // survive. Local + published + public non-boost only; the same gates as
+    // creation. Username resolved server-side from the authoritative oxyUserId.
+    if (
+      post.federation == null &&
+      post.oxyUserId &&
+      !post.boostOf &&
+      post.visibility === PostVisibility.PUBLIC &&
+      (post.status ?? 'published') === 'published'
+    ) {
+      const editorOxyUserId = String(post.oxyUserId);
+      federateAsResolvedActor(editorOxyUserId, 'post update', (username) => ({
+        kind: 'post.update',
+        post: {
+          _id: post._id,
+          content: post.content,
+          hashtags: post.hashtags,
+          mentions: post.mentions,
+          visibility: post.visibility,
+          createdAt: new Date(post.createdAt).toISOString(),
+          parentPostId: post.parentPostId ? String(post.parentPostId) : null,
+        },
+        actorOxyUserId: editorOxyUserId,
+        actorUsername: username,
+      }));
+    }
+
     // Hydrate the updated post for consistent frontend response shape.
     // PostHydrationService is the single source of truth for post DTOs; we do NOT
     // hand-build a `user` object here (that would leak the raw oxyUserId as the
@@ -1605,6 +1635,27 @@ export const deletePost = async (req: AuthRequest, res: Response) => {
       });
     }
 
+    // Outbound federation: broadcast a Delete(Tombstone) so remote followers'
+    // Mastodon removes the post. The row is already gone, but its data (id +
+    // author) is captured above from the deleted doc; the canonical Note id is
+    // minted from the resolved username + post id. Local + published + public
+    // only — an unpublished/private post was never federated. Username resolved
+    // server-side from the authoritative oxyUserId.
+    if (
+      post.federation == null &&
+      post.oxyUserId &&
+      post.visibility === PostVisibility.PUBLIC &&
+      (post.status ?? 'published') === 'published'
+    ) {
+      const deleterOxyUserId = String(post.oxyUserId);
+      federateAsResolvedActor(deleterOxyUserId, 'post delete', (username) => ({
+        kind: 'post.delete',
+        post: { _id: postId },
+        actorOxyUserId: deleterOxyUserId,
+        actorUsername: username,
+      }));
+    }
+
     // Cascading cleanup — best-effort, don't fail the request
     try {
       await Promise.allSettled([
@@ -1636,6 +1687,30 @@ export const deletePost = async (req: AuthRequest, res: Response) => {
     logger.error('Error deleting post', error);
     res.status(500).json({ message: 'Error deleting post' });
   }
+};
+
+/**
+ * Fire-and-forget outbound federation of a like change: a `Like` (kind
+ * `post.like`) or `Undo(Like)` (kind `post.unlike`) sent ONLY to the origin
+ * author's inbox when the liked post is federated (the connector no-ops a local
+ * post). `likeDocId` is the native `Like` doc `_id` — the deterministic AP Like
+ * id so an Undo re-mints the exact id. Callers gate on the liked post being
+ * federated to avoid resolving a target for the common local-post case; the
+ * connector re-checks. Only upvotes (value 1) are AP likes — a downvote is a
+ * Mention-only concept and must never reach here.
+ */
+const federateLikeChange = (
+  kind: 'post.like' | 'post.unlike',
+  likeDocId: string,
+  likedPostId: string,
+  likerOxyUserId: string,
+): void => {
+  federateAsResolvedActor(likerOxyUserId, kind, (username) => ({
+    kind,
+    like: { _id: likeDocId, postId: likedPostId },
+    actorOxyUserId: likerOxyUserId,
+    actorUsername: username,
+  }));
 };
 
 // Clamp vote counts to zero and persist corrections if needed
@@ -1691,9 +1766,13 @@ export const likePost = async (req: AuthRequest, res: Response) => {
         { value, ...(surface ? { source: surface } : {}) },
         { new: true }
       );
+      // The effective Like doc id — the deterministic AP Like id. `findOneAndUpdate`
+      // keeps the same `_id`; only the rare raced-recreate path mints a new one.
+      let effectiveLikeId = updated ? String(updated._id) : '';
       if (!updated) {
         // Document was deleted between findOne and findOneAndUpdate — create fresh
-        await Like.create({ userId, postId, value, source: surface });
+        const recreated = await Like.create({ userId, postId, value, source: surface });
+        effectiveLikeId = String(recreated._id);
       }
 
       const statsUpdate = value === 1
@@ -1703,6 +1782,14 @@ export const likePost = async (req: AuthRequest, res: Response) => {
       const updatedPost = await Post.findByIdAndUpdate(postId, statsUpdate, { new: true }).lean();
 
       const { likesCount, downvotesCount } = await clampVoteCounts(postId, updatedPost);
+
+      // Outbound federation: switching TO an upvote sends a Like to a federated
+      // post's origin author; switching AWAY from an upvote (to a downvote)
+      // retracts it with Undo(Like). A downvote itself is Mention-only and never
+      // federates. Local-post likes are a no-op inside the connector.
+      if (updatedPost?.federation?.activityId) {
+        federateLikeChange(value === 1 ? 'post.like' : 'post.unlike', effectiveLikeId, postId, userId);
+      }
 
       // Best-effort preference learning — detached so it never adds latency to
       // the vote response.
@@ -1747,6 +1834,13 @@ export const likePost = async (req: AuthRequest, res: Response) => {
         void affinityEventService
           .record({ fromUserId: userId, toUserId: authorId, type: 'like', eventId: `like:${String(createdLike._id)}` })
           .catch(() => undefined);
+      }
+
+      // Outbound federation: a like of a FEDERATED post notifies its origin
+      // author with a Like delivered to their inbox only. Local-post likes are a
+      // no-op inside the connector (the author is notified natively).
+      if (likedPost?.federation?.activityId) {
+        federateLikeChange('post.like', String(createdLike._id), postId, userId);
       }
     }
 
@@ -1827,6 +1921,14 @@ export const unlikePost = async (req: AuthRequest, res: Response) => {
         tombstoneRkey: String(existingLike._id),
         subjectUri: likeRecordUri(userId, String(existingLike._id)),
       });
+    }
+
+    // Outbound federation: removing an upvote on a FEDERATED post retracts the
+    // Like at its origin with an Undo(Like) re-minting the same deterministic id
+    // from the (now-deleted) Like doc. A removed downvote never federated, so it
+    // has nothing to retract. Local-post unlikes are a no-op inside the connector.
+    if (voteValue === 1 && updatedPost?.federation?.activityId) {
+      federateLikeChange('post.unlike', String(existingLike._id), postId, userId);
     }
 
     const { likesCount, downvotesCount } = await clampVoteCounts(postId, updatedPost);

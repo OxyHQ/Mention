@@ -14,6 +14,11 @@ function actingOxyUserId(event: LocalNetworkEvent): string {
     case 'post.create':
     case 'post.boost':
     case 'post.unboost':
+    case 'post.update':
+    case 'post.delete':
+    case 'post.like':
+    case 'post.unlike':
+    case 'actor.update':
       return event.actorOxyUserId;
     case 'follow.add':
     case 'follow.remove':

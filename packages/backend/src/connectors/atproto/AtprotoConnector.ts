@@ -90,10 +90,16 @@ class AtprotoConnector implements NetworkConnector {
       case 'post.create':
       case 'post.boost':
       case 'post.unboost':
-        // Mention does NOT publish posts / reposts INTO a foreign atproto PDS.
-        // The C4 bridge is BE-DISCOVERED (the user's repo is hosted here and read
-        // via `bridge/`); foreign-PDS publishing is the documented outbound
-        // product seam (`AtprotoBridgeOutboundSeam`), not wired. No-op.
+      case 'post.update':
+      case 'post.delete':
+      case 'post.like':
+      case 'post.unlike':
+      case 'actor.update':
+        // Mention does NOT publish posts / reposts / edits / deletes / likes /
+        // actor changes INTO a foreign atproto PDS. The C4 bridge is BE-DISCOVERED
+        // (the user's repo is hosted here and read via `bridge/`); foreign-PDS
+        // publishing is the documented outbound product seam
+        // (`AtprotoBridgeOutboundSeam`), not wired. No-op.
         return;
       case 'follow.add':
         await this.followActor(event.localOxyUserId, event.targetActorUri);
