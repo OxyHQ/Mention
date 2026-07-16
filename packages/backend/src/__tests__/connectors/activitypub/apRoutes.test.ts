@@ -29,6 +29,8 @@ const mocks = vi.hoisted(() => ({
   resolveMentionContextByPost: vi.fn(),
   resolvePollContext: vi.fn(),
   resolvePollContextByPost: vi.fn(),
+  resolveQuoteContext: vi.fn(),
+  resolveQuoteContextByPost: vi.fn(),
   userSettingsFindOne: vi.fn(),
   postFind: vi.fn(),
   postCountDocuments: vi.fn(),
@@ -54,6 +56,8 @@ vi.mock('../../../connectors/activitypub/ActivityPubConnector', () => ({
     resolveMentionContextByPost: (...args: unknown[]) => mocks.resolveMentionContextByPost(...args),
     resolvePollContext: (...args: unknown[]) => mocks.resolvePollContext(...args),
     resolvePollContextByPost: (...args: unknown[]) => mocks.resolvePollContextByPost(...args),
+    resolveQuoteContext: (...args: unknown[]) => mocks.resolveQuoteContext(...args),
+    resolveQuoteContextByPost: (...args: unknown[]) => mocks.resolveQuoteContextByPost(...args),
     fetchPublicKey: vi.fn(),
     processInboxActivity: vi.fn(),
   },
@@ -123,6 +127,10 @@ beforeEach(() => {
   // the single-post dereference resolver returns null (serves a plain Note).
   mocks.resolvePollContext.mockResolvedValue(null);
   mocks.resolvePollContextByPost.mockResolvedValue(new Map());
+  // Default: no post is a quote — the batch resolver returns an empty map and the
+  // single-post dereference resolver returns null (serves a Note with no quote).
+  mocks.resolveQuoteContext.mockResolvedValue(null);
+  mocks.resolveQuoteContextByPost.mockResolvedValue(new Map());
 });
 
 describe('GET /ap/users/:username — actor image (banner)', () => {
@@ -189,9 +197,10 @@ describe('GET /ap/users/:username/outbox?page=true — reuses buildCreateNoteAct
       .expect(200);
 
     expect(mocks.buildCreateNoteActivity).toHaveBeenCalledTimes(2);
-    // The outbox passes NO reply context and the per-post mention + poll contexts
-    // (both undefined here — the batch resolvers returned empty maps) as args 3-5.
-    expect(mocks.buildCreateNoteActivity).toHaveBeenNthCalledWith(1, posts[0], 'alice', undefined, undefined, undefined);
+    // The outbox passes NO reply context and the per-post mention + poll + quote
+    // contexts (all undefined here — the batch resolvers returned empty maps) as
+    // args 3-6.
+    expect(mocks.buildCreateNoteActivity).toHaveBeenNthCalledWith(1, posts[0], 'alice', undefined, undefined, undefined, undefined);
     expect(res.body.type).toBe('OrderedCollectionPage');
     expect(res.body.orderedItems).toEqual([
       { type: 'Create', object: { id: 'https://mention.earth/ap/users/alice/posts/p1' } },
@@ -228,9 +237,36 @@ describe('GET /ap/users/:username/outbox?page=true — reuses buildCreateNoteAct
       .set('Accept', AP_ACCEPT)
       .expect(200);
 
-    // The batch-resolved poll context is passed as the 5th arg for its post.
-    expect(mocks.buildCreateNoteActivity).toHaveBeenCalledWith(posts[0], 'alice', undefined, undefined, pollContext);
+    // The batch-resolved poll context is passed as the 5th arg for its post (the
+    // 6th quote arg is undefined — no quote resolved for this post).
+    expect(mocks.buildCreateNoteActivity).toHaveBeenCalledWith(posts[0], 'alice', undefined, undefined, pollContext, undefined);
     expect(res.body.orderedItems).toEqual([{ type: 'Create', object: { type: 'Question' } }]);
+  });
+
+  it('threads the resolved quote context into the builder as the 6th arg for a quote post', async () => {
+    mocks.resolveOxyUser.mockResolvedValue({ _id: 'u1' });
+    mocks.postCountDocuments.mockResolvedValue(1);
+    const posts = [{ _id: 'quote-post' }];
+    mocks.postFind.mockReturnValue({
+      sort: () => ({ limit: () => ({ lean: async () => posts }) }),
+    });
+    const quoteContext = { uri: 'https://remote.example/users/bob/statuses/99' };
+    mocks.resolveQuoteContextByPost.mockResolvedValue(new Map([['quote-post', quoteContext]]));
+    mocks.buildCreateNoteActivity.mockImplementation(
+      (post: { _id: string }) => ({ type: 'Create', object: { id: `x/${post._id}` } }),
+    );
+
+    await request(app).get('/ap/users/alice/outbox?page=true').set('Accept', AP_ACCEPT).expect(200);
+
+    // The batch-resolved quote context is passed as the 6th arg for its post.
+    expect(mocks.buildCreateNoteActivity).toHaveBeenCalledWith(
+      posts[0],
+      'alice',
+      undefined,
+      undefined,
+      undefined,
+      quoteContext,
+    );
   });
 });
 
@@ -588,8 +624,29 @@ describe('GET /ap/users/:username/posts/:id — dereference', () => {
     // into the pure Note builder as the third argument.
     expect(mocks.resolveReplyContext).toHaveBeenCalledWith(replyDoc);
     // The dereference route threads the resolved reply context + (null →) undefined
-    // mention + poll contexts into the Note builder.
-    expect(mocks.buildCreateNoteActivity).toHaveBeenCalledWith(replyDoc, 'alice', replyContext, undefined, undefined);
+    // mention + poll + quote contexts into the Note builder.
+    expect(mocks.buildCreateNoteActivity).toHaveBeenCalledWith(replyDoc, 'alice', replyContext, undefined, undefined, undefined);
+  });
+
+  it('passes the resolved quote context into the Note builder for a quote post', async () => {
+    const quoteDoc = { _id: VALID_ID, content: { text: 'quoting this' }, quoteOf: 'quoted-1' };
+    mocks.postFindOne.mockReturnValue({ lean: async () => quoteDoc });
+    const quoteContext = { uri: 'https://remote.example/users/bob/statuses/99' };
+    mocks.resolveQuoteContext.mockResolvedValue(quoteContext);
+
+    await request(app).get(`/ap/users/alice/posts/${VALID_ID}`).set('Accept', AP_ACCEPT).expect(200);
+
+    // The route resolves the quote reference from the served post and threads it
+    // into the pure Note builder as the sixth argument.
+    expect(mocks.resolveQuoteContext).toHaveBeenCalledWith(quoteDoc);
+    expect(mocks.buildCreateNoteActivity).toHaveBeenCalledWith(
+      quoteDoc,
+      'alice',
+      undefined,
+      undefined,
+      undefined,
+      quoteContext,
+    );
   });
 
   it('404s a malformed post id without touching the database', async () => {

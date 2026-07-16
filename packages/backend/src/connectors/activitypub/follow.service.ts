@@ -164,6 +164,16 @@ export interface NoteSourcePost {
    * builder. Absent for a top-level post.
    */
   parentPostId?: string | null;
+  /**
+   * The local Post `_id` of the QUOTED post when this post is a quote. A quote
+   * post is a normal Note (its own commentary in `content`) PLUS a reference to
+   * the quoted object: the federation caller resolves the quoted post's canonical
+   * AP object uri via {@link FollowService.resolveQuoteContext} and passes it into
+   * the pure Note builder, which emits the FEP-044f/FEP-e232 quote fields. Absent
+   * for a non-quote post. (A pure boost carries `boostOf`, never `quoteOf`, and
+   * federates as an `Announce` — never as a quote.)
+   */
+  quoteOf?: string | null;
 }
 
 /**
@@ -236,6 +246,20 @@ export interface NotePollContext {
   endTime: Date;
   closed: boolean;
   votersCount: number;
+}
+
+/**
+ * The quote reference a Note carries when the post quotes another post: the
+ * quoted object's canonical AP object id. Resolved by the async federation caller
+ * (a DB lookup reusing {@link FollowService.resolveFederationTarget}) and passed
+ * into the PURE Note builder so {@link FollowService.buildCreateNoteActivity}
+ * never touches the database. The one `uri` feeds every emitted quote surface —
+ * the modern `quote`/`quoteUri` (FEP-044f / Mastodon 4.4+), the legacy
+ * `_misskey_quote`/`quoteUrl`, and the FEP-e232 `Link` quote tag.
+ */
+export interface NoteQuoteContext {
+  /** Canonical AP object id of the quoted post — the value of every quote field. */
+  uri: string;
 }
 
 /** The Poll fields {@link buildPollContext} reads from a lean `Poll` document. */
@@ -635,6 +659,7 @@ export class FollowService {
     reply?: NoteReplyContext,
     mentions?: NoteMentionContext,
     poll?: NotePollContext,
+    quote?: NoteQuoteContext,
   ): Record<string, unknown> {
     const actor = actorUrl(username);
     const postId = String(post._id);
@@ -662,6 +687,19 @@ export class FollowService {
     if (reply?.mention) pushMentionTag(reply.mention.href, reply.mention.name);
     if (mentions) {
       for (const tag of mentions.tags) pushMentionTag(tag.href, tag.name);
+    }
+    // FEP-e232 quote `Link` tag: a machine-readable pointer to the quoted object
+    // (`mediaType: application/activity+json`) so a quote-aware server (Mastodon
+    // 4.4+/Misskey) renders the inline quote. Emitted only for a real quote post —
+    // a boost never reaches this Create builder.
+    if (quote) {
+      tags.push({
+        type: 'Link',
+        mediaType: AP_CONTENT_TYPE,
+        href: quote.uri,
+        name: `RE: ${quote.uri}`,
+        rel: 'https://misskey-hub.net/ns#_misskey_quote',
+      });
     }
 
     // The primary rendition: its body, its media (shared or overridden, alt
@@ -727,6 +765,17 @@ export class FollowService {
       // Only present on a reply — undefined is dropped by JSON serialization,
       // so a top-level Note carries no `inReplyTo`.
       inReplyTo: reply?.inReplyTo,
+      // Quote reference — the quoted object's canonical AP id under both the
+      // modern (`quote`/`quoteUri`, FEP-044f / Mastodon 4.4+) and legacy
+      // (`_misskey_quote`/`quoteUrl`, Misskey/Pleroma) terms so a quote-aware
+      // server renders the inline quote. Structured fields ONLY — the quoted URL
+      // is deliberately NOT appended to `content` (that would double-render). All
+      // undefined (dropped by JSON) for a non-quote post; the matching FEP-e232
+      // `Link` tag is added to `tag` above.
+      quote: quote?.uri,
+      quoteUri: quote?.uri,
+      quoteUrl: quote?.uri,
+      _misskey_quote: quote?.uri,
       url: `https://${FEDERATION_DOMAIN}/@${username}/posts/${postId}`,
       sensitive,
       content: primaryContent,
@@ -802,7 +851,11 @@ export class FollowService {
       // A poll post federates as a `Question` (options + current tallies); a
       // non-poll post resolves to null and federates as a plain Note.
       const poll = await this.resolvePollContext(post);
-      const activity = this.buildCreateNoteActivity(post, senderUsername, reply?.context, mentions ?? undefined, poll ?? undefined);
+      // A quote post carries the quoted object's canonical AP id in the quote
+      // fields (+ FEP-e232 Link tag); a non-quote post resolves to null. Fail-soft:
+      // an unresolvable quoted post federates the commentary without quote fields.
+      const quote = await this.resolveQuoteContext(post);
+      const activity = this.buildCreateNoteActivity(post, senderUsername, reply?.context, mentions ?? undefined, poll ?? undefined, quote ?? undefined);
       await this.deliverToFollowers(activity, senderOxyUserId, senderUsername, {
         extraInboxes: [
           ...(reply?.parentAuthorInbox ? [reply.parentAuthorInbox] : []),
@@ -1072,6 +1125,68 @@ export class FollowService {
   }
 
   /**
+   * Resolve a single post's {@link NoteQuoteContext} — the push-delivery, edit
+   * and per-post dereference entry point. A quote post links to the quoted post by
+   * `quoteOf`; this reuses {@link resolveFederationTarget} to turn that local id
+   * into the quoted object's canonical AP object uri (a federated quoted post →
+   * its remote `federation.activityId`; a local quoted post → its minted
+   * `/ap/users/<owner>/posts/<id>` uri). Returns null when the post is not a quote
+   * OR the quoted post is unresolvable — the post then federates as a normal Note
+   * carrying its own commentary, just without the quote fields. Fail-soft: any
+   * error is logged and resolves to null rather than breaking delivery.
+   */
+  async resolveQuoteContext(post: NoteSourcePost): Promise<NoteQuoteContext | null> {
+    const quoteId = post.quoteOf ? String(post.quoteOf) : undefined;
+    if (!quoteId) return null;
+    try {
+      const target = await this.resolveFederationTarget(quoteId);
+      return target ? { uri: target.objectUri } : null;
+    } catch (err) {
+      logger.warn(`[FedDeliver] failed to resolve quote context for quoted post ${quoteId}:`, err);
+      return null;
+    }
+  }
+
+  /**
+   * Batch-resolve the {@link NoteQuoteContext} for MANY posts (the outbox page /
+   * featured collection). The unique set of quoted post ids is resolved once each —
+   * reusing {@link resolveFederationTarget}, in parallel and deduped so two posts
+   * quoting the same original share one resolution — then each quote post is keyed
+   * to its context. A non-quote post (or one whose quoted post is unresolvable) is
+   * absent from the map; the Note builder then serializes it without quote fields.
+   * Fail-soft per quoted post: a resolution error logs and yields no entry.
+   */
+  async resolveQuoteContextByPost(posts: NoteSourcePost[]): Promise<Map<string, NoteQuoteContext>> {
+    const result = new Map<string, NoteQuoteContext>();
+    const quoteIdToPostIds = new Map<string, string[]>();
+
+    for (const post of posts) {
+      const quoteId = post.quoteOf ? String(post.quoteOf) : undefined;
+      if (!quoteId) continue;
+      const postId = String(post._id);
+      const bucket = quoteIdToPostIds.get(quoteId);
+      if (bucket) bucket.push(postId);
+      else quoteIdToPostIds.set(quoteId, [postId]);
+    }
+    if (quoteIdToPostIds.size === 0) return result;
+
+    await Promise.all(
+      [...quoteIdToPostIds.entries()].map(async ([quoteId, postIds]) => {
+        let target: FederationTarget | null = null;
+        try {
+          target = await this.resolveFederationTarget(quoteId);
+        } catch (err) {
+          logger.warn(`[FedDeliver] failed to resolve quote context for quoted post ${quoteId}:`, err);
+          return;
+        }
+        if (!target) return;
+        for (const postId of postIds) result.set(postId, { uri: target.objectUri });
+      }),
+    );
+    return result;
+  }
+
+  /**
    * Resolve the canonical ActivityPub object id of a boosted/replied/liked
    * ORIGINAL post (plus, for a federated original, its author's remote inbox).
    *
@@ -1328,8 +1443,9 @@ export class FollowService {
     reply?: NoteReplyContext,
     mentions?: NoteMentionContext,
     poll?: NotePollContext,
+    quote?: NoteQuoteContext,
   ): Record<string, unknown> {
-    const created = this.buildCreateNoteActivity(post, username, reply, mentions, poll);
+    const created = this.buildCreateNoteActivity(post, username, reply, mentions, poll, quote);
     const note = created.object as Record<string, unknown>;
 
     const now = new Date();
@@ -1376,7 +1492,9 @@ export class FollowService {
       const mentions = await this.resolveMentionContext(post);
       // Re-federate a poll post as an Update(Question) carrying its CURRENT tallies.
       const poll = await this.resolvePollContext(post);
-      const activity = this.buildUpdateNoteActivity(post, editorUsername, reply?.context, mentions ?? undefined, poll ?? undefined);
+      // A quote post re-federates its quote reference; a non-quote post → null.
+      const quote = await this.resolveQuoteContext(post);
+      const activity = this.buildUpdateNoteActivity(post, editorUsername, reply?.context, mentions ?? undefined, poll ?? undefined, quote ?? undefined);
       await this.deliverToFollowers(activity, editorOxyUserId, editorUsername, {
         extraInboxes: [
           ...(reply?.parentAuthorInbox ? [reply.parentAuthorInbox] : []),
