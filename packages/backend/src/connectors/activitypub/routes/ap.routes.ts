@@ -5,7 +5,8 @@ import { activityPubConnector } from '../ActivityPubConnector';
 import { verifyHttpSignature, getPublicKey } from '../crypto';
 import { Post } from '../../../models/Post';
 import UserSettings from '../../../models/UserSettings';
-import FederatedFollow from '../../../models/FederatedFollow';
+import { getServiceOxyClient } from '../../../utils/oxyHelpers';
+import type { User } from '@oxyhq/core';
 import {
   FEDERATION_DOMAIN,
   FEDERATION_ENABLED,
@@ -484,28 +485,95 @@ router.get('/users/:username/posts/:id', async (req: Request, res: Response) => 
 const FOLLOW_PAGE_SIZE = 20;
 
 /**
+ * Map a follow-graph member (an Oxy `User`) to its ActivityPub actor URI:
+ *  - a LOCAL Oxy/Mention user → our own minted actor URL
+ *    (`https://<domain>/ap/users/<username>`);
+ *  - a FEDERATED user (`type: 'federated'` / `isFederated`) → the remote actor URI
+ *    the Oxy follow graph already stores on `federation.actorUri`.
+ *
+ * Returns null when the member cannot be mapped (a federated row with no known
+ * actor URI, or a local row with no username) so the caller SKIPS it — the
+ * collection never emits a raw oxyUserId as an actor id (ghost-handle rule).
+ */
+function memberActorUri(user: User): string | null {
+  const isFederated = user.type === 'federated' || user.isFederated === true;
+  if (isFederated) {
+    const uri = user.federation?.actorUri;
+    return typeof uri === 'string' && uri.length > 0 ? uri : null;
+  }
+  const { username } = user;
+  return typeof username === 'string' && username.length > 0 ? actorUrl(username) : null;
+}
+
+/**
+ * Parse a non-negative page offset from the request query. The Oxy follow-graph
+ * list endpoint is offset/limit paginated (unlike the keyset-cursor outbox), so
+ * the follow collections page by `offset`. A missing/invalid/negative value
+ * resolves to 0 (the first page).
+ */
+function parseFollowOffset(raw: unknown): number {
+  const value = typeof raw === 'string' ? Number.parseInt(raw, 10) : Number.NaN;
+  return Number.isFinite(value) && value > 0 ? value : 0;
+}
+
+/**
+ * Fetch one page of a user's follow graph (followers OR following) from the Oxy
+ * API — the AUTHORITATIVE follow graph, which contains BOTH local Mention edges
+ * AND the federated edges that `handleIncomingFollow` bridges into it. Returns
+ * the hydrated member `User`s (each carrying `username` + federation status, so
+ * no N+1 per-id resolution is needed), the true `total`, and `hasMore`.
+ */
+async function fetchFollowPage(
+  userId: string,
+  direction: 'followers' | 'following',
+  offset: number,
+  limit: number,
+): Promise<{ members: User[]; total: number; hasMore: boolean }> {
+  const oxy = getServiceOxyClient();
+  if (direction === 'followers') {
+    const result = await oxy.getUserFollowers(userId, { limit, offset });
+    return {
+      members: Array.isArray(result.followers) ? result.followers : [],
+      total: typeof result.total === 'number' ? result.total : 0,
+      hasMore: result.hasMore === true,
+    };
+  }
+  const result = await oxy.getUserFollowing(userId, { limit, offset });
+  return {
+    members: Array.isArray(result.following) ? result.following : [],
+    total: typeof result.total === 'number' ? result.total : 0,
+    hasMore: result.hasMore === true,
+  };
+}
+
+/**
  * Serve a user's followers OR following as a paginated ActivityPub
  * `OrderedCollection` — the two surfaces differ only by follow `direction`
- * (`inbound` = followers, `outbound` = following) and the collection URL builder,
- * so they share this one handler.
+ * (`followers` / `following`) and the collection URL builder, so they share this
+ * one handler.
  *
- * The summary (no `?page=true`) advertises `totalItems` AND a `first` page link,
- * so a remote instance (e.g. mastodon.social) can actually ENUMERATE the members
- * — previously the collection exposed only `totalItems`, so the list rendered
- * empty even when federated edges existed. The paged branch returns an
- * `OrderedCollectionPage` whose `orderedItems` are the remote actor URIs
- * (strings), keyset-paginated by (createdAt, _id) via the SAME ChronoCursor axis
- * the outbox uses, so every member is reachable by walking `next`.
+ * A Mention user IS a fediverse actor, so the authoritative source is the OXY
+ * FOLLOW GRAPH — which already contains BOTH local Mention edges AND the
+ * federated edges bridged in by `handleIncomingFollow`. (The old source,
+ * `FederatedFollow`, listed only remote fediverse actors, so `totalItems` and the
+ * enumerated members omitted every LOCAL follower/followee.)
  *
- * Source is `FederatedFollow` (accepted edges in the given direction), the SAME
- * rows the `totalItems` count is derived from — so the count and the enumerated
- * list stay consistent. Keeps the identical fediverse-sharing consent gate +
- * 404-when-off behavior as the sibling AP surfaces.
+ * The summary (no `?page=true`) advertises the TRUE Oxy follow count as
+ * `totalItems` AND a `first` page link so a remote instance can ENUMERATE
+ * members. The paged branch returns an `OrderedCollectionPage` whose
+ * `orderedItems` are each edge mapped to its actor URI (local → our minted actor
+ * URL, federated → the remote `federation.actorUri`), offset-paginated to match
+ * the Oxy list endpoint so every member is reachable by walking `next`.
+ *
+ * Fail-soft: an Oxy graph outage on the paged branch degrades to an empty page
+ * against the best-known total rather than 500-ing the whole collection. Keeps
+ * the identical fediverse-sharing consent gate + 404-when-off behavior as the
+ * sibling AP surfaces.
  */
 async function serveFollowCollection(
   req: Request,
   res: Response,
-  direction: 'inbound' | 'outbound',
+  direction: 'followers' | 'following',
   collectionUrl: (username: string) => string,
 ): Promise<Response> {
   if (!FEDERATION_ENABLED) return res.status(404).json({ error: 'Federation disabled' });
@@ -524,41 +592,68 @@ async function serveFollowCollection(
     }
 
     const userId = String(user._id || user.id);
-    const baseMatch = { localUserId: userId, direction, status: 'accepted' as const };
 
-    const count = await FederatedFollow.countDocuments(baseMatch);
+    // TRUE follow count — the resolved Oxy profile already carries `_count`
+    // (derived from the same `Follow` graph the on-site profile shows: local +
+    // bridged federated edges). Read it defensively since `resolveOxyUser` is
+    // loosely typed.
+    const rawCount: unknown = direction === 'followers' ? user._count?.followers : user._count?.following;
+    const profileTotal = typeof rawCount === 'number' ? rawCount : undefined;
 
     if (!page) {
+      // Prefer the profile `_count`; only when it is absent (the rare
+      // `searchProfiles` resolution fallback) fetch the authoritative total from a
+      // minimal graph list call. Fail-soft to 0 — never 500 the summary.
+      let totalItems = profileTotal ?? 0;
+      if (profileTotal === undefined) {
+        try {
+          totalItems = (await fetchFollowPage(userId, direction, 0, 1)).total;
+        } catch (err) {
+          logger.warn('[Federation] follow-collection summary total lookup failed', {
+            username, direction, error: err,
+          });
+        }
+      }
+
       res.set('Content-Type', AP_CONTENT_TYPE);
       return res.json({
         '@context': AP_CONTEXT,
         id: collectionUrl(username),
         type: 'OrderedCollection',
-        totalItems: count,
+        totalItems,
         first: `${collectionUrl(username)}?page=true`,
       });
     }
 
-    // Keyset pagination by (createdAt, _id) — overfetch one row to detect a
-    // further page without a second count query.
-    const cursor = typeof req.query.cursor === 'string' ? req.query.cursor : undefined;
-    const pageMatch: Record<string, unknown> = { ...baseMatch };
-    ChronoCursor.applyToQuery(pageMatch, cursor);
+    // Paged branch: offset pagination over the Oxy follow graph.
+    const offset = parseFollowOffset(req.query.offset);
 
-    const overfetched = await FederatedFollow.find(pageMatch)
-      .sort({ createdAt: -1, _id: -1 })
-      .limit(FOLLOW_PAGE_SIZE + 1)
-      .lean();
+    let members: User[] = [];
+    let total = profileTotal ?? 0;
+    let hasMore = false;
+    try {
+      const pageResult = await fetchFollowPage(userId, direction, offset, FOLLOW_PAGE_SIZE);
+      members = pageResult.members;
+      total = pageResult.total;
+      hasMore = pageResult.hasMore;
+    } catch (err) {
+      // Fail-soft: never 500 the whole collection on an Oxy graph hiccup — serve
+      // an empty page against the best-known total (the profile `_count`) rather
+      // than crashing. A remote instance retries the page; the advertised total
+      // stays correct.
+      logger.warn('[Federation] follow-collection Oxy graph list failed, serving empty page', {
+        username, direction, offset, error: err,
+      });
+    }
 
-    const hasNext = overfetched.length > FOLLOW_PAGE_SIZE;
-    const pageRows = hasNext ? overfetched.slice(0, FOLLOW_PAGE_SIZE) : overfetched;
+    // Map each member to its AP actor URI (local → our actor URL, federated → the
+    // remote actorUri). Unmappable members are skipped (never emit a raw id).
+    const orderedItems = members
+      .map(memberActorUri)
+      .filter((uri): uri is string => uri !== null);
 
-    // A follower/following collection enumerates the REMOTE actor URIs (the AP
-    // ids) — bare strings, per the ActivityPub spec's actor collections.
-    const orderedItems = pageRows.map((row) => row.remoteActorUri);
-
-    const pageId = cursor
-      ? `${collectionUrl(username)}?page=true&cursor=${encodeURIComponent(cursor)}`
+    const pageId = offset > 0
+      ? `${collectionUrl(username)}?page=true&offset=${offset}`
       : `${collectionUrl(username)}?page=true`;
 
     const pageResponse: Record<string, unknown> = {
@@ -566,14 +661,12 @@ async function serveFollowCollection(
       id: pageId,
       type: 'OrderedCollectionPage',
       partOf: collectionUrl(username),
-      totalItems: count,
+      totalItems: total,
       orderedItems,
     };
 
-    if (hasNext) {
-      const lastRow = pageRows[pageRows.length - 1];
-      const nextCursor = ChronoCursor.build(String(lastRow._id), lastRow.createdAt);
-      pageResponse.next = `${collectionUrl(username)}?page=true&cursor=${encodeURIComponent(nextCursor)}`;
+    if (hasMore) {
+      pageResponse.next = `${collectionUrl(username)}?page=true&offset=${offset + FOLLOW_PAGE_SIZE}`;
     }
 
     res.set('Content-Type', AP_CONTENT_TYPE);
@@ -585,17 +678,17 @@ async function serveFollowCollection(
 }
 
 /**
- * GET /ap/users/:username/followers — Followers collection (inbound accepted edges).
+ * GET /ap/users/:username/followers — Followers collection (Oxy follow graph: local + federated).
  */
 router.get('/users/:username/followers', (req: Request, res: Response) =>
-  serveFollowCollection(req, res, 'inbound', followersUrl),
+  serveFollowCollection(req, res, 'followers', followersUrl),
 );
 
 /**
- * GET /ap/users/:username/following — Following collection (outbound accepted edges).
+ * GET /ap/users/:username/following — Following collection (Oxy follow graph: local + federated).
  */
 router.get('/users/:username/following', (req: Request, res: Response) =>
-  serveFollowCollection(req, res, 'outbound', followingUrl),
+  serveFollowCollection(req, res, 'following', followingUrl),
 );
 
 export default router;
