@@ -497,7 +497,11 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({ item, onMa
               className="absolute -bottom-0.5 -right-0.5 w-5 h-5 rounded-full border-2 border-background items-center justify-center"
               style={{ backgroundColor: badgeColor }}
             >
-              <Ionicons name={descriptor.icon} size={BADGE_ICON_SIZE} color={BADGE_GLYPH_COLOR} />
+              {descriptor.iconComponent ? (
+                <descriptor.iconComponent size={BADGE_ICON_SIZE} color={BADGE_GLYPH_COLOR} />
+              ) : (
+                <Ionicons name={descriptor.icon} size={BADGE_ICON_SIZE} color={BADGE_GLYPH_COLOR} />
+              )}
             </View>
           </View>
 

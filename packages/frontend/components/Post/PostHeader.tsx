@@ -12,7 +12,6 @@ import { BoostIcon } from '@/assets/icons/boost-icon';
 import { formatTimeAgo } from '@/utils/dateUtils';
 import type { HydratedAuthor } from '@mention/shared-types';
 import { getNormalizedUserHandle } from '@oxyhq/core';
-import { displayNameOrHandle } from '@/utils/displayName';
 
 // Inline indicator icons (boost/reply) are subtler than the action-bar glyphs.
 const INDICATOR_ICON_SIZE = 14;
@@ -99,20 +98,10 @@ interface PostHeaderProps {
 }
 
 interface HeaderAuthor {
-  displayName?: string;
+  /** First name shown in the collaborative byline (never a raw id). */
+  firstName: string;
+  /** Normalized handle used to link to this author's profile. */
   handle: string;
-  verified?: boolean;
-}
-
-function formatCollabAuthorLine(authors: HeaderAuthor[], t: (key: string, opts?: Record<string, unknown>) => string): string {
-  const names = authors.map((a) => displayNameOrHandle(a.displayName, a.handle ? `@${a.handle}` : ''));
-  if (names.length <= 1) return names[0] ?? '';
-  if (names.length === 2) {
-    return t('collab.twoAuthors', { defaultValue: '{{a}} and {{b}}', a: names[0], b: names[1] });
-  }
-  const last = names[names.length - 1];
-  const rest = names.slice(0, -1).join(', ');
-  return t('collab.manyAuthors', { defaultValue: '{{rest}} and {{last}}', rest, last });
 }
 
 const PostHeader: React.FC<PostHeaderProps> = ({
@@ -138,21 +127,25 @@ const PostHeader: React.FC<PostHeaderProps> = ({
   const { t } = useTranslation();
 
   const timeLabel = useMemo(() => formatTimeAgo(date || ''), [date]);
-  // Adapt the canonical Oxy `User` collaborator shape (`name.displayName` +
-  // normalized handle) into the header's flat presentational view-model. Falls
-  // back to the single `user` prop when there are no collab authors.
-  const headerAuthors: HeaderAuthor[] = authors && authors.length > 0
-    ? authors.map((a) => ({
-        displayName: a.name?.displayName,
-        handle: getNormalizedUserHandle(a) ?? '',
-        verified: a.verified,
-      }))
-    : [{ displayName: user.displayName, handle: user.handle, verified: user.verified }];
-  const isCollabHeader = headerAuthors.length > 1;
-  const collabLine = useMemo(
-    () => (isCollabHeader ? formatCollabAuthorLine(headerAuthors, t) : ''),
-    [headerAuthors, isCollabHeader, t],
+  // Collaborative posts (owner + accepted collaborators) render each author's
+  // FIRST name as its own tappable link to that author's profile. Reduce the
+  // canonical Oxy `User` collaborators to a first-name + normalized-handle view
+  // model; a solo post keeps the single-author identity line below.
+  const headerAuthors: HeaderAuthor[] = useMemo(
+    () =>
+      (authors ?? []).map((a) => {
+        const handle = getNormalizedUserHandle(a) ?? '';
+        // First name only: the structured `name.first`, else the first token of
+        // the display name, else the normalized `@handle` (never a raw id).
+        const firstName =
+          a.name?.first?.trim() ||
+          a.name?.displayName?.trim()?.split(/\s+/)?.[0] ||
+          (handle ? `@${handle}` : '');
+        return { firstName, handle };
+      }),
+    [authors],
   );
+  const isCollabHeader = headerAuthors.length > 1;
   const hasDisplayName = !isCollabHeader && !!user.displayName?.trim();
 
   // `contextTop` rows are the first children of the flex-1 content column, so the
@@ -190,9 +183,27 @@ const PostHeader: React.FC<PostHeaderProps> = ({
                   className="text-foreground text-[15px] font-semibold leading-tight"
                   style={{ flexShrink: 1, minWidth: 0 }}
                   numberOfLines={2}
-                  onPress={onPressUser}
                 >
-                  {collabLine}
+                  {headerAuthors.map((a, i) => {
+                    const isLast = i === headerAuthors.length - 1;
+                    const separator = i === 0 ? '' : isLast ? t('collab.and', { defaultValue: ' and ' }) : ', ';
+                    // Each first name links to that author's own profile; falls
+                    // back to plain text when the author has no resolvable handle.
+                    const goToProfile =
+                      a.handle && onPressAuthor ? () => onPressAuthor(a.handle) : undefined;
+                    return (
+                      <React.Fragment key={`${a.handle || 'author'}-${i}`}>
+                        {separator}
+                        <Text
+                          onPress={goToProfile}
+                          accessibilityRole={goToProfile ? 'link' : undefined}
+                          accessibilityLabel={goToProfile ? a.firstName : undefined}
+                        >
+                          {a.firstName}
+                        </Text>
+                      </React.Fragment>
+                    );
+                  })}
                 </Text>
               ) : (
                 <>

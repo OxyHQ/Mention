@@ -15,6 +15,7 @@ import {
   HydratedPost,
   UpdatePostRequest,
   FeedInterstitialEventInput,
+  PostUser,
 } from '@mention/shared-types';
 
 // Feed responses may include slices for thread grouping, and recommendation-card
@@ -95,7 +96,11 @@ interface FeedDataEnvelope {
 }
 
 interface PostEngagementUsersResponse {
-  users: Array<{ id: string; displayName?: string; handle: string; avatar?: string; verified: boolean }>;
+  // The engagement endpoints (`GET /posts/:id/likes` and `.../boosts`) return the
+  // canonical Oxy `PostUser` per liker/booster (same shape as `post.user`) —
+  // `username` + structured `name.displayName`, NOT a flat `{ displayName, handle }`.
+  // The renderer derives the `@handle` via `getNormalizedUserHandle`.
+  users: PostUser[];
   hasMore: boolean;
   nextCursor?: string;
   totalCount: number;

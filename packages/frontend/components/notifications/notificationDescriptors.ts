@@ -1,8 +1,21 @@
-import type { ComponentProps } from 'react';
+import type { ComponentProps, ComponentType } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 import type { Theme } from '@oxyhq/bloom/theme';
 
+import { GroupAddIcon } from '@/assets/icons/group-add-icon';
+import { DiversityIcon } from '@/assets/icons/diversity-icon';
+import { HeartIconActive } from '@/assets/icons/heart-icon';
+import { CommentIcon } from '@/assets/icons/comment-icon';
+import { BoostIcon } from '@/assets/icons/boost-icon';
+
 export type IoniconName = ComponentProps<typeof Ionicons>['name'];
+
+/**
+ * A custom badge glyph component (e.g. a Material Symbols SVG). Receives the
+ * SAME `size`/`color` the Ionicon badge glyph does, so it drops into the badge
+ * render site interchangeably with `<Ionicons>`.
+ */
+export type BadgeIconComponent = ComponentType<{ size: number; color: string }>;
 
 /** A Bloom theme color token — resolved at render time as `theme.colors[token]`. */
 export type ColorToken = keyof Theme['colors'];
@@ -22,8 +35,19 @@ export type TranslateFn = (key: string, options?: Record<string, unknown>) => st
  * repeating the actor already shown in the byline.
  */
 export interface NotificationDescriptor {
-  /** Ionicon shown inside the small action badge overlaid on the avatar. */
+  /**
+   * Ionicon shown inside the small action badge overlaid on the avatar. When
+   * {@link iconComponent} is set it takes precedence, but a sensible Ionicon is
+   * kept here as the semantic fallback.
+   */
   icon: IoniconName;
+  /**
+   * Optional custom badge glyph (a Material Symbols SVG component). When present
+   * it renders instead of the {@link icon} Ionicon, receiving the SAME badge
+   * `size`/`color` — so a type can opt into a bespoke glyph without a separate
+   * render path.
+   */
+  iconComponent?: BadgeIconComponent;
   /** Semantic color token for the action badge fill. */
   colorToken: ColorToken;
   /** Whether this type has an associated post whose text is previewed inline. */
@@ -56,18 +80,21 @@ const DEFAULT_DESCRIPTOR: NotificationDescriptor = {
 const DESCRIPTORS: Record<string, NotificationDescriptor> = {
   like: {
     icon: 'heart',
+    iconComponent: HeartIconActive,
     colorToken: 'success',
     hasPreview: true,
     actionPhrase: (t) => t('notification.action.like', { defaultValue: 'liked your post' }),
   },
   boost: {
     icon: 'repeat',
+    iconComponent: BoostIcon,
     colorToken: 'success',
     hasPreview: true,
     actionPhrase: (t) => t('notification.action.boost', { defaultValue: 'boosted your post' }),
   },
   reply: {
     icon: 'chatbubble',
+    iconComponent: CommentIcon,
     colorToken: 'warning',
     hasPreview: true,
     actionPhrase: (t) => t('notification.action.reply', { defaultValue: 'replied to your post' }),
@@ -86,6 +113,7 @@ const DESCRIPTORS: Record<string, NotificationDescriptor> = {
   },
   follow: {
     icon: 'person-add',
+    iconComponent: GroupAddIcon,
     colorToken: 'primary',
     hasPreview: false,
     actionPhrase: (t) => t('notification.action.follow', { defaultValue: 'started following you' }),
@@ -104,6 +132,7 @@ const DESCRIPTORS: Record<string, NotificationDescriptor> = {
   },
   collab_invite: {
     icon: 'people',
+    iconComponent: DiversityIcon,
     colorToken: 'primary',
     hasPreview: true,
     actionPhrase: (t) =>

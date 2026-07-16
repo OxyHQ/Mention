@@ -11,16 +11,7 @@ import { useRouter } from 'expo-router';
 import { EmptyState } from '@/components/common/EmptyState';
 import { logger } from '@/lib/logger';
 import { getNormalizedUserHandle } from '@oxyhq/core';
-
-interface User {
-  id: string;
-  displayName?: string;
-  handle: string;
-  avatar?: string;
-  verified: boolean;
-  isFederated?: boolean;
-  instance?: string;
-}
+import type { PostUser } from '@mention/shared-types';
 
 /** Placeholder rows painted while the first page of engagers loads. */
 const SKELETON_ROW_COUNT = 8;
@@ -33,7 +24,7 @@ interface EngagementListSheetProps {
 
 const EngagementListSheet: React.FC<EngagementListSheetProps> = ({ postId, type, onClose }) => {
   const router = useRouter();
-  const [users, setUsers] = useState<User[]>([]);
+  const [users, setUsers] = useState<PostUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [hasMore, setHasMore] = useState(false);
   const [nextCursor, setNextCursor] = useState<string | undefined>();
@@ -75,28 +66,25 @@ const EngagementListSheet: React.FC<EngagementListSheetProps> = ({ postId, type,
     }
   }, [hasMore, nextCursor, loadingMore, loadUsers]);
 
-  const handleUserPress = useCallback((user: User) => {
+  const handleUserPress = useCallback((user: PostUser) => {
     onClose();
-    const profileHandle = getNormalizedUserHandle({
-      handle: user.handle,
-      isFederated: user.isFederated,
-      instance: user.instance,
-    });
+    const profileHandle = getNormalizedUserHandle(user);
     if (profileHandle) {
       router.push(`/@${profileHandle}`);
     }
   }, [onClose, router]);
 
-  const renderUser = useCallback(({ item }: { item: User }) => (
+  const renderUser = useCallback(({ item }: { item: PostUser }) => (
     <ProfileCard
       profile={{
         id: item.id,
-        handle: item.handle,
-        name: { displayName: item.displayName },
+        username: item.username,
+        name: item.name,
         avatar: item.avatar,
         verified: item.verified,
         isFederated: item.isFederated,
         instance: item.instance,
+        federation: item.federation,
       }}
       showFollowButton
       onPress={() => handleUserPress(item)}
