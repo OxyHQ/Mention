@@ -26,6 +26,7 @@ const PostSourcesSheet = lazy(() => import('@/components/Post/PostSourcesSheet')
 const PostArticleModal = lazy(() => import('@/components/Post/PostArticleModal'));
 const PostInsightsSheet = lazy(() => import('@/components/Post/PostInsightsSheet'));
 const EngagementListSheet = lazy(() => import('@/components/Post/EngagementListSheet'));
+const CollaboratorsSheet = lazy(() => import('@/components/Post/CollaboratorsSheet'));
 import { BottomSheetContext } from '@/context/BottomSheetContext';
 import { useLiveRoom } from '@/context/LiveRoomContext';
 import { Ionicons } from '@expo/vector-icons';
@@ -445,6 +446,26 @@ const PostItem: React.FC<PostItemProps> = ({
         bottomSheet.openBottomSheet(true);
     }, [bottomSheet, viewPostId]);
 
+    // Owner + accepted collaborators, already hydrated on the post. A post is
+    // collaborative when it carries more than one author.
+    const collaborators = viewPost?.authors;
+    const isCollab = (collaborators?.length ?? 0) > 1;
+
+    // Open the collaborators list — the byline shows first names only, so this is
+    // where the full @usernames live. Content is already on the post (no fetch).
+    const openCollaboratorsSheet = useCallback(() => {
+        if (!collaborators || collaborators.length <= 1) return;
+        bottomSheet.setBottomSheetContent(
+            <Suspense fallback={null}>
+                <CollaboratorsSheet
+                    authors={collaborators}
+                    onClose={() => bottomSheet.openBottomSheet(false)}
+                />
+            </Suspense>
+        );
+        bottomSheet.openBottomSheet(true);
+    }, [bottomSheet, collaborators]);
+
     const roomId = roomContent?.roomId;
     const handleRoomPress = useCallback(() => {
         if (roomId) joinLiveRoom(roomId);
@@ -778,6 +799,7 @@ const PostItem: React.FC<PostItemProps> = ({
                         authorUserId={viewPost.user.id || undefined}
                         onPressUser={goToUser}
                         onPressAvatar={goToUser}
+                        onPressCollaborators={isCollab ? openCollaboratorsSheet : undefined}
                         onPressAuthor={goToAuthor}
                         onPressMenu={openMenu}
                         paddingHorizontal={isNested ? 0 : HPAD}
