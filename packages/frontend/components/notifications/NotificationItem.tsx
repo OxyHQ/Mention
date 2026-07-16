@@ -29,6 +29,7 @@ import { POST_ITEM_SPACING } from '@/styles/shared';
 import { formatRelativeTimeLocalized } from '@/utils/dateUtils';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
 import { feedService } from '@/services/feedService';
+import { usePostsStore } from '@/stores/postsStore';
 import { queryKeys } from '@/hooks/useOptimizedQuery';
 import { cn } from '@/lib/utils';
 import { createScopedLogger } from '@/lib/logger';
@@ -275,6 +276,11 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({ item, onMa
   const theme = useTheme();
   const queryClient = useQueryClient();
   const bottomSheet = useContext(BottomSheetContext);
+  // Shared post cache (SQLite/memory) that every feed + the post detail read from.
+  // Accepting/declining an invite mutates the post's authorship, so the updated
+  // post must be propagated here — updating only the React Query post-detail cache
+  // leaves the timeline/profile rendering the pre-collaboration copy.
+  const cachePosts = usePostsStore((s) => s.cachePosts);
 
   const descriptor = getDescriptor(item.type);
   const primaryActor = item.actors[0];
@@ -319,6 +325,20 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({ item, onMa
     enabled: isCollabInvite && !!postId,
     staleTime: 60_000,
   });
+
+  // Whether THIS viewer's invite is still actionable, read from the invited post's
+  // authoritative `viewerState` (derived server-side from the post's authorship —
+  // the single source of truth). While the post is loading, or once the viewer no
+  // longer has view access (a declined private post), none of these are true and
+  // the row shows no actionable UI. Accept/decline update the post cache below, so
+  // these flip reactively without a manual refresh.
+  const collabViewerState = collabPost?.viewerState;
+  const collabInvitePending = collabViewerState?.collabInvitePending === true;
+  const collabAccepted = collabViewerState?.isCollaborator === true;
+  // The viewer holds a collaborator entry that is neither pending nor accepted →
+  // they responded by declining the invite.
+  const collabDeclined =
+    collabViewerState?.viewerRole === 'collaborator' && !collabInvitePending && !collabAccepted;
 
   const badgeColor = theme.colors[descriptor.colorToken];
   const timeLabel = formatRelativeTimeLocalized(item.createdAt, t);
@@ -430,7 +450,14 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({ item, onMa
     setActionLoading(true);
     try {
       const result = await feedService.acceptCollabInvite(postId);
-      if (result.post) queryClient.setQueryData(queryKeys.post(postId), result.post);
+      if (result.post) {
+        // Flip this row's own source of truth (drives the resolved state) AND
+        // propagate the newly-accepted co-authorship to every feed + the post
+        // detail via the shared posts store, so the collaboration shows
+        // everywhere without a manual refresh.
+        queryClient.setQueryData(queryKeys.post(postId), result.post);
+        cachePosts([result.post]);
+      }
       onMarkAsRead(item.notificationIds);
       bottomSheet.openBottomSheet(false);
       toast(t('collab.acceptedToast', { defaultValue: "You're now a collaborator on this post" }), { type: 'success' });
@@ -440,13 +467,20 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({ item, onMa
     } finally {
       setActionLoading(false);
     }
-  }, [postId, queryClient, onMarkAsRead, item.notificationIds, bottomSheet, t]);
+  }, [postId, queryClient, cachePosts, onMarkAsRead, item.notificationIds, bottomSheet, t]);
 
   const runDecline = useCallback(async () => {
     if (!postId) return;
     setActionLoading(true);
     try {
-      await feedService.declineCollabInvite(postId);
+      const result = await feedService.declineCollabInvite(postId);
+      if (result.post) {
+        // Flip this row to the resolved state and reflect the declined status on
+        // any cached copy of the post (private posts return no post here, in which
+        // case the actionable UI is simply dropped — the viewer lost view access).
+        queryClient.setQueryData(queryKeys.post(postId), result.post);
+        cachePosts([result.post]);
+      }
       onMarkAsRead(item.notificationIds);
       bottomSheet.openBottomSheet(false);
     } catch (error) {
@@ -455,7 +489,7 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({ item, onMa
     } finally {
       setActionLoading(false);
     }
-  }, [postId, onMarkAsRead, item.notificationIds, bottomSheet, t]);
+  }, [postId, queryClient, cachePosts, onMarkAsRead, item.notificationIds, bottomSheet, t]);
 
   const openAcceptSheet = useCallback(() => {
     bottomSheet.setBottomSheetContent(
@@ -574,7 +608,10 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({ item, onMa
               </View>
             ) : null}
 
-            {isCollabInvite ? (
+            {/* Accept/Decline are shown ONLY while the invite is genuinely pending.
+                Once the viewer has responded, the row shows a resolved label
+                instead — so a handled invite is never actionable again. */}
+            {isCollabInvite && collabInvitePending ? (
               <View className="flex-row gap-2 mt-2">
                 <Button className="flex-1" onPress={openAcceptSheet} disabled={actionLoading}>
                   {t('collab.accept', { defaultValue: 'Accept' })}
@@ -582,6 +619,24 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({ item, onMa
                 <Button variant="secondary" className="flex-1" onPress={runDecline} disabled={actionLoading}>
                   {t('collab.decline', { defaultValue: 'Decline' })}
                 </Button>
+              </View>
+            ) : null}
+
+            {isCollabInvite && collabAccepted ? (
+              <View className="flex-row items-center gap-1.5 mt-1">
+                <Ionicons name="checkmark-circle" size={16} color={theme.colors.success} />
+                <Text className="text-muted-foreground text-[15px] leading-5">
+                  {t('collab.youAccepted', { defaultValue: 'You accepted' })}
+                </Text>
+              </View>
+            ) : null}
+
+            {isCollabInvite && collabDeclined ? (
+              <View className="flex-row items-center gap-1.5 mt-1">
+                <Ionicons name="close-circle" size={16} color={theme.colors.textSecondary} />
+                <Text className="text-muted-foreground text-[15px] leading-5">
+                  {t('collab.youDeclined', { defaultValue: 'You declined' })}
+                </Text>
               </View>
             ) : null}
           </View>

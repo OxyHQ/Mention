@@ -583,9 +583,11 @@ class FeedService {
     return { success: true, post: response?.data?.post ?? null };
   }
 
-  async declineCollabInvite(postId: string): Promise<{ success: boolean }> {
-    await authenticatedClient.post(`/posts/${postId}/collaborators/decline`);
-    return { success: true };
+  async declineCollabInvite(postId: string): Promise<{ success: boolean; post: HydratedPost | null }> {
+    const response = await authenticatedClient.post<{ success?: boolean; post?: HydratedPost }>(
+      `/posts/${postId}/collaborators/decline`,
+    );
+    return { success: true, post: response?.data?.post ?? null };
   }
 
   async stopCollabSharing(postId: string): Promise<{ success: boolean; post: HydratedPost | null }> {

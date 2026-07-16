@@ -221,6 +221,21 @@ describe('PostCollaborationService', () => {
       await expect(postCollaborationService.accept('post-1', 'stranger')).rejects.toBeInstanceOf(CollabStateError);
       expect(federateNewPost).not.toHaveBeenCalled();
     });
+
+    it('marks the accepting user accepted on the returned post (co-authorship contract)', async () => {
+      // The controller hydrates and returns THIS post; the client reads the
+      // resulting `authors[]`/`viewerState.isCollaborator` to show the new
+      // collaboration everywhere. Guard that accept actually flips the entry.
+      const post = fakePost({ authorship: buildAuthorship('owner-1', ['c-1']) });
+      (Post.findById as unknown as ReturnType<typeof vi.fn>).mockResolvedValueOnce(post);
+
+      const result = await postCollaborationService.accept('post-1', 'c-1');
+
+      expect(result.authorship?.find((e) => e.oxyUserId === 'c-1')).toMatchObject({
+        role: 'collaborator',
+        status: 'accepted',
+      });
+    });
   });
 
   describe('decline — deferred federation gate', () => {
@@ -235,6 +250,20 @@ describe('PostCollaborationService', () => {
       await postCollaborationService.decline('post-1', 'c-1');
 
       expect(federateNewPost).toHaveBeenCalledTimes(1);
+    });
+
+    it('marks the declining user declined on the returned post, leaving others pending', async () => {
+      // The controller hydrates and returns THIS post so the client can flip the
+      // invite row from actionable buttons to a resolved "You declined" state.
+      const post = fakePost({ authorship: buildAuthorship('owner-1', ['c-1', 'c-2']) });
+      (Post.findById as unknown as ReturnType<typeof vi.fn>).mockResolvedValueOnce(post);
+
+      const result = await postCollaborationService.decline('post-1', 'c-1');
+
+      expect(result.authorship?.find((e) => e.oxyUserId === 'c-1')?.status).toBe('declined');
+      expect(result.authorship?.find((e) => e.oxyUserId === 'c-2')?.status).toBe('pending');
+      // Another invite is still pending, so the deferred federation must NOT fire.
+      expect(federateNewPost).not.toHaveBeenCalled();
     });
   });
 });

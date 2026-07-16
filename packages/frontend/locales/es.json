@@ -175,6 +175,8 @@
   "collab.acceptedToast": "Ahora eres colaborador en esta publicación",
   "collab.acceptFailed": "No se pudo aceptar la invitación",
   "collab.declineFailed": "No se pudo rechazar la invitación",
+  "collab.youAccepted": "Aceptaste",
+  "collab.youDeclined": "Rechazaste",
   "collab.collaboratorsTitle": "Colaboradores",
   "notification.mark_all_read": "Marcar todo como leído",
   "notification.mark_read": "Marcar como leído",

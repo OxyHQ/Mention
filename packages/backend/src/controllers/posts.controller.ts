@@ -793,8 +793,20 @@ export const declineCollabInvite = async (req: AuthRequest, res: Response) => {
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ message: 'Unauthorized' });
 
-    await postCollaborationService.decline(String(req.params.id), userId);
-    return res.status(200).json({ success: true });
+    const post = await postCollaborationService.decline(String(req.params.id), userId);
+    // Return the fully-hydrated post (same as accept/stop-sharing) so the client
+    // can update its cached copy: the viewer's authorship entry is now `declined`,
+    // which flips the invite notification from actionable buttons to a resolved
+    // state. For a private/followers-only post the decliner loses view access, so
+    // hydration yields no post and the client simply drops the actionable UI.
+    const [hydratedPost] = await postHydrationService.hydratePosts([post.toObject()], {
+      viewerId: userId,
+      oxyClient: createScopedOxyClient(req),
+      requestLanguages: requestLanguageCandidates(req),
+      maxDepth: 1,
+      includeLinkMetadata: true,
+    });
+    return res.status(200).json({ success: true, post: hydratedPost ?? null });
   } catch (error) {
     if (error instanceof CollabStateError) {
       return res.status(400).json({ message: error.message });
