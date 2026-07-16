@@ -165,6 +165,37 @@ export function extractMentionIds(text: string): string[] {
 }
 
 /**
+ * Normalize a post's declared `mentions` field into a deduped list of mentioned
+ * Oxy user ids — the SINGLE coercion both the hydration renderer
+ * ({@link PostHydrationService.replaceMentionPlaceholders}) and the federation
+ * Note builder read.
+ *
+ * The stored value is USUALLY a `string[]` of ids, but legacy rows and
+ * loosely-typed call sites can hold objects (`{ id }` / `{ _id }`). This coerces
+ * both shapes to the canonical id strings the `[mention:<id>]` placeholder is
+ * keyed by, trims them, and drops empties — so neither reader re-implements the
+ * (previously duplicated, subtly divergent) parsing.
+ */
+export function normalizeMentionIds(mentions: unknown): string[] {
+  if (!Array.isArray(mentions)) return [];
+  const ids = new Set<string>();
+  for (const raw of mentions) {
+    let id = '';
+    if (typeof raw === 'string') {
+      id = raw;
+    } else if (raw && typeof raw === 'object') {
+      const obj = raw as Record<string, unknown>;
+      id = String(obj.id ?? obj._id ?? '');
+    } else if (raw !== null && raw !== undefined) {
+      id = String(raw);
+    }
+    const trimmed = id.trim();
+    if (trimmed) ids.add(trimmed);
+  }
+  return [...ids];
+}
+
+/**
  * Escape special regex characters in a string for safe use in RegExp constructor.
  */
 export function escapeRegex(str: string): string {

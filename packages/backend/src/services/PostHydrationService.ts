@@ -25,6 +25,7 @@ import {
   getViewerEntry,
   normalizeAuthorship,
 } from '../utils/postAuthorship';
+import { normalizeMentionIds } from '../utils/textProcessing';
 import {
   readerVariants,
   resolveVariant,
@@ -2089,24 +2090,11 @@ export class PostHydrationService {
       return text;
     }
 
-    // Normalize the current post's declared mention IDs. The per-request
-    // cache is intentionally shared across a hydration batch, so replacement
-    // must be scoped to this per-post allowlist rather than every cached user.
-    const declaredMentionIds = new Set<string>();
-    for (const mentionIdRaw of mentions) {
-      let mentionId: string;
-      if (typeof mentionIdRaw === 'string') {
-        mentionId = mentionIdRaw;
-      } else if (mentionIdRaw && typeof mentionIdRaw === 'object') {
-        const raw = mentionIdRaw as Record<string, unknown>;
-        mentionId = String(raw?.id || raw?._id || raw || '');
-      } else {
-        mentionId = String(mentionIdRaw || '');
-      }
-      if (mentionId) {
-        declaredMentionIds.add(mentionId);
-      }
-    }
+    // Normalize the current post's declared mention IDs via the shared coercion
+    // (the SAME parsing the federation Note builder uses). The per-request cache is
+    // intentionally shared across a hydration batch, so replacement must be scoped
+    // to this per-post allowlist rather than every cached user.
+    const declaredMentionIds = new Set<string>(normalizeMentionIds(mentions));
 
     // Collect declared mention placeholders present in the text but not yet in
     // the per-request cache. Only placeholders that actually appear are worth

@@ -9,6 +9,7 @@ import {
   resolveOxyUser,
 } from './constants';
 import { PostType } from '@mention/shared-types';
+import type { PostAuthorshipEntry } from '@mention/shared-types';
 import { extractApLanguage, extractApLanguages } from './apLanguage';
 import { getPostCreator } from '../../services/serviceRegistry';
 import { isFediverseSharingEnabled, isFediverseSharingEnabledFromUser } from '../../services/fediverseSharing';
@@ -170,6 +171,61 @@ export class InboxProcessingService {
     ).lean<{ oxyUserId?: string | null; federation?: unknown } | null>();
     if (!post || post.federation != null || !post.oxyUserId) return true;
     return isFediverseSharingEnabled(post.oxyUserId);
+  }
+
+  /**
+   * Best-effort: notify the LOCAL owner (+ accepted collaborators) of `postId`
+   * about a NEW inbound federated engagement, mirroring the NATIVE
+   * like/boost/reply notification (`createPostAuthorNotifications` — the SAME
+   * util the local `posts.controller` like path and `PostCreationService`
+   * reply/boost path call) so a Mastodon like/boost/reply on a Mention post
+   * reaches the owner's notifications exactly like the local equivalent.
+   *
+   * No-op when the post is gone or REMOTE-owned/mirrored (`federation != null`):
+   * a mirrored post's "owner" is a federated actor with no Mention inbox, so the
+   * only meaningful recipient is a real local author. Consent and actor
+   * resolution are already enforced by every caller (this only ever runs after
+   * the engagement was recorded against a sharing-enabled local target by a
+   * resolved actor); self-notification is prevented by `createNotification`.
+   *
+   * NEVER throws — a notification failure must not fail (and thus retry) the
+   * inbox activity, mirroring {@link handleIncomingFollow}'s fail-soft notify.
+   * Uses the same lazy import as the follow path to avoid the load-time cycle
+   * (`notificationUtils` reaches the `server` singleton, and this connectors
+   * module is itself pulled in by `server`).
+   *
+   * `postId` is the post whose owner is notified (a like/boost target, or a
+   * reply's PARENT); `entityId` is what the notification points AT (the target
+   * post for like/boost, the new reply post for reply) — mirroring the native
+   * shapes exactly.
+   */
+  private async notifyLocalPostOwnerOfEngagement(
+    postId: string,
+    actorOxyUserId: string,
+    type: 'like' | 'boost' | 'reply',
+    entityId: string,
+    entityType: 'post' | 'reply',
+  ): Promise<void> {
+    try {
+      const post = await Post.findOne(
+        { _id: postId },
+        { authorship: 1, federation: 1 },
+      ).lean<{ authorship?: PostAuthorshipEntry[]; federation?: unknown } | null>();
+      if (!post || post.federation != null) return;
+
+      const { createPostAuthorNotifications } = await import('../../utils/notificationUtils');
+      await createPostAuthorNotifications(post.authorship, {
+        actorId: actorOxyUserId,
+        type,
+        entityId,
+        entityType,
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      logger.warn(
+        `[Federation] ${type} notification failed for post ${postId} from actor ${actorOxyUserId}: ${message}`,
+      );
+    }
   }
 
   private async handleIncomingFollow(activity: Record<string, any>, actorUri: string): Promise<void> {
@@ -491,7 +547,7 @@ export class InboxProcessingService {
       return;
     }
 
-    await getPostCreator().create({
+    const createdPost = await getPostCreator().create({
       oxyUserId: authorOxyUserId,
       federation: {
         activityId: object.id,
@@ -530,6 +586,23 @@ export class InboxProcessingService {
       skipFederationDelivery: true,
       ...(originalCreatedAt ? { createdAt: originalCreatedAt, updatedAt: originalCreatedAt } : {}),
     });
+
+    // A federated reply to a LOCAL post notifies the parent owner exactly like a
+    // native reply (`type:'reply'`, entityId = the new reply post). Only reached
+    // when this Create is genuinely new — the `federation.activityId` dedup above
+    // returns early on a redelivery, so a redelivery never re-notifies.
+    // `threadLink` is set only for replies, and the parent owner's sharing
+    // consent was already enforced above; the helper skips a mirrored remote
+    // parent (a federated author has no Mention inbox).
+    if (threadLink?.parentPostId) {
+      await this.notifyLocalPostOwnerOfEngagement(
+        threadLink.parentPostId,
+        authorOxyUserId,
+        'reply',
+        String(createdPost._id),
+        'reply',
+      );
+    }
 
     logger.debug(`Stored federated post from ${actorUri}: ${object.id}`);
   }
@@ -589,6 +662,11 @@ export class InboxProcessingService {
 
     await Post.updateOne({ _id: postId }, { $inc: { 'stats.likesCount': 1 } });
     logger.debug(`[Federation] recorded Like from ${actorUri} on ${postId}`);
+
+    // Notify the local owner exactly like a native like. Only reached after a
+    // NEW Like doc was inserted — a redelivered Like returns on the duplicate-key
+    // path above, so a redelivery never re-notifies.
+    await this.notifyLocalPostOwnerOfEngagement(postId, likerOxyUserId, 'like', postId, 'post');
   }
 
   /**
@@ -631,6 +709,16 @@ export class InboxProcessingService {
     const created = await outboxSyncService.importAnnounce(activity, announcedUri, boosterOxyUserId);
     if (created) {
       logger.debug(`Imported boost from ${actorUri} of ${announcedUri}`);
+
+      // Notify the local owner exactly like a native boost. Only reached when a
+      // NEW boost Post was created (`importAnnounce` returns false on a
+      // redelivered Announce), so a redelivery never re-notifies. `announcedPostId`
+      // is the pre-resolved LOCAL post id; when null the boosted object is remote
+      // (no local owner to notify), and the helper additionally skips mirrored
+      // remote posts.
+      if (announcedPostId) {
+        await this.notifyLocalPostOwnerOfEngagement(announcedPostId, boosterOxyUserId, 'boost', announcedPostId, 'post');
+      }
     }
   }
 

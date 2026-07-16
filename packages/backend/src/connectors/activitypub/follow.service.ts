@@ -12,6 +12,7 @@ import {
   AP_CONTENT_TYPE,
   USER_AGENT,
   actorUrl,
+  hashtagUrl,
   resolveOxyUser,
 } from './constants';
 import { buildLocalActorObject, type ActorUserView } from './actorObject';
@@ -25,7 +26,9 @@ import { actorService } from './actor.service';
 import { fetchUpstreamSingleHop } from '../../utils/safeUpstreamFetch';
 import { assertSafePublicUrl } from '../../utils/ssrfGuard';
 import { resolveMediaRef } from '../../utils/mediaResolver';
-import { plainTextToApHtml } from '../../utils/federation/plainTextToApHtml';
+import { linkifyApHtml, type ApMentionLink, type LinkifyApHtmlOptions } from '../../utils/federation/linkifyApHtml';
+import { normalizeHashtag, normalizeMentionIds } from '../../utils/textProcessing';
+import { getNormalizedUserHandle, type User as OxyUser } from '@oxyhq/core';
 import { isAbsoluteHttpUrl } from '../shared/url';
 
 const DELIVER_ACTIVITY_TIMEOUT_MS = 15000;
@@ -165,6 +168,72 @@ export interface NoteReplyContext {
 }
 
 /**
+ * One resolved @mention of the post's declared `mentions` ids. `href` (a local
+ * minted actor URL or a remote actor URI) is the authoritative resolution key for
+ * both the body anchor and the `Mention` tag; `handle` (no leading `@`) is the
+ * human-readable label. `isRemote` marks a federated mention (added to `cc`), and
+ * `inbox` is its remote delivery inbox when known (unioned into delivery so the
+ * mentioned user's instance receives + notifies the post).
+ */
+interface ResolvedMentionEntry {
+  href: string;
+  handle: string;
+  isRemote: boolean;
+  inbox?: string;
+}
+
+/**
+ * The mention addressing a Note carries: everything resolved from the post's
+ * declared `mentions` (Oxy user ids → `[mention:<id>]` placeholders in the body).
+ * Resolved by the async federation caller (a batched `FederatedActor` read + one
+ * bulk Oxy lookup) and passed into the PURE Note builder so
+ * {@link FollowService.buildCreateNoteActivity} never touches the database.
+ *
+ *  - `links` feeds the linkifier: `[mention:<id>]` → a Mastodon mention anchor;
+ *  - `tags` are the Note's `Mention` `tag` entries (one per resolved mention);
+ *  - `cc` are the REMOTE mentioned actors' hrefs (added to the Note's `cc`);
+ *  - `inboxes` are the remote delivery inboxes unioned into the follower fan-out.
+ */
+export interface NoteMentionContext {
+  links: Map<string, ApMentionLink>;
+  tags: Array<{ type: 'Mention'; href: string; name: string }>;
+  cc: string[];
+  inboxes: string[];
+}
+
+/**
+ * Assemble a per-post {@link NoteMentionContext} from the post's own declared
+ * mention ids and the shared, batch-resolved id → {@link ResolvedMentionEntry}
+ * map. Pure. Deduped by actor `href` so a user mentioned twice (or a mention that
+ * coincides with the reply parent — deduped again in the Note builder) yields a
+ * single `Mention` tag / `cc` / inbox. `links` maps EVERY declared+resolved id
+ * (the linkifier keys on id, so both occurrences of a repeated mention linkify).
+ */
+function buildNoteMentionContext(
+  ids: string[],
+  entries: ReadonlyMap<string, ResolvedMentionEntry>,
+): NoteMentionContext {
+  const links = new Map<string, ApMentionLink>();
+  const tags: Array<{ type: 'Mention'; href: string; name: string }> = [];
+  const cc: string[] = [];
+  const inboxes: string[] = [];
+  const seenHref = new Set<string>();
+
+  for (const id of ids) {
+    const entry = entries.get(id);
+    if (!entry) continue;
+    if (!links.has(id)) links.set(id, { href: entry.href, handle: entry.handle });
+    if (seenHref.has(entry.href)) continue;
+    seenHref.add(entry.href);
+    tags.push({ type: 'Mention', href: entry.href, name: `@${entry.handle}` });
+    if (entry.isRemote) cc.push(entry.href);
+    if (entry.inbox) inboxes.push(entry.inbox);
+  }
+
+  return { links, tags, cc, inboxes };
+}
+
+/**
  * Build the AP `contentMap`: BCP-47 tag → localized body, PRIMARY KEY FIRST.
  *
  * The primary key is inserted before the rest are walked, so it leads the map
@@ -174,10 +243,12 @@ export interface NoteReplyContext {
  * out as `content`, so the two can never disagree byte-for-byte.
  *
  * Every value is AP `content` HTML: each author variant's plain-text body is run
- * through {@link plainTextToApHtml} so a localized body's blank lines and line
- * breaks survive rendering exactly like the primary. Only AUTHOR variants are
- * emitted — a machine translation is derived content: it is not the author's
- * writing and it does not federate.
+ * through {@link linkifyApHtml} (the SAME transform as the primary body) so a
+ * localized body's blank lines/line breaks survive rendering AND its @mentions,
+ * #hashtags and URLs linkify — and, critically, no localized variant ever ships an
+ * internal `[mention:<id>]` placeholder. Only AUTHOR variants are emitted — a
+ * machine translation is derived content: it is not the author's writing and it
+ * does not federate.
  *
  * Returns `undefined` when the post declares no language — an UNTAGGED primary
  * variant (a body too short to detect, a remote Note that declared none) has no
@@ -189,6 +260,7 @@ function buildNoteContentMap(
   post: NoteSourcePost,
   primaryTag: string | undefined,
   primaryContent: string,
+  linkifyOptions: LinkifyApHtmlOptions,
 ): Record<string, string> | undefined {
   const contentMap: Record<string, string> = {};
 
@@ -197,7 +269,7 @@ function buildNoteContentMap(
   for (const variant of authorVariants(post.content)) {
     const tag = canonicalizeLanguageTag(variant.tag);
     if (tag === null || tag in contentMap) continue;
-    contentMap[tag] = plainTextToApHtml(variant.text);
+    contentMap[tag] = linkifyApHtml(variant.text, linkifyOptions);
   }
 
   return Object.keys(contentMap).length > 0 ? contentMap : undefined;
@@ -460,6 +532,7 @@ export class FollowService {
     post: NoteSourcePost,
     username: string,
     reply?: NoteReplyContext,
+    mentions?: NoteMentionContext,
   ): Record<string, unknown> {
     const actor = actorUrl(username);
     const postId = String(post._id);
@@ -471,19 +544,22 @@ export class FollowService {
     const tags: Array<Record<string, string>> = [];
     if (post.hashtags) {
       for (const tag of post.hashtags) {
-        tags.push({
-          type: 'Hashtag',
-          href: `https://${FEDERATION_DOMAIN}/hashtag/${encodeURIComponent(tag)}`,
-          name: `#${tag}`,
-        });
+        tags.push({ type: 'Hashtag', href: hashtagUrl(tag), name: `#${tag}` });
       }
     }
-    // A reply addressed at the parent author: the `Mention` tag is what makes
-    // Mastodon thread the reply under the parent and notify its author. `href`
-    // (the actor uri) is the authoritative resolution key; `name` (`@user@domain`)
-    // is the human-readable handle.
-    if (reply?.mention) {
-      tags.push({ type: 'Mention', href: reply.mention.href, name: reply.mention.name });
+    // `Mention` tags: the reply-parent author (threads + notifies) PLUS every
+    // @mentioned user. `href` (the actor uri) is the authoritative resolution key;
+    // `name` (`@user` / `@user@domain`) is the human-readable handle. Deduped by
+    // href so a parent author who is ALSO @mentioned yields a single tag.
+    const seenMentionHref = new Set<string>();
+    const pushMentionTag = (href: string, name: string): void => {
+      if (!href || seenMentionHref.has(href)) return;
+      seenMentionHref.add(href);
+      tags.push({ type: 'Mention', href, name });
+    };
+    if (reply?.mention) pushMentionTag(reply.mention.href, reply.mention.name);
+    if (mentions) {
+      for (const tag of mentions.tags) pushMentionTag(tag.href, tag.name);
     }
 
     // The primary rendition: its body, its media (shared or overridden, alt
@@ -496,21 +572,35 @@ export class FollowService {
           .filter((a): a is Record<string, unknown> => a !== undefined)
       : [];
 
-    // AP `content` is HTML: convert the resolved plain-text primary body ONCE and
+    // AP `content` is HTML: linkify the resolved plain-text primary body ONCE
+    // (@mentions/#hashtags/URLs → anchors, internal placeholders resolved) and
     // thread the result through both `content` and the primary `contentMap` key so
     // they stay byte-for-byte identical (Mastodon reads `content` and only falls
-    // back to `contentMap`, but the two must never disagree). This preserves the
-    // author's blank lines and line breaks, which HTML would otherwise collapse.
-    const primaryContent = plainTextToApHtml(primary.text);
+    // back to `contentMap`, but the two must never disagree). Both go through the
+    // SAME linkify options so every rendition resolves mentions identically.
+    const linkifyOptions: LinkifyApHtmlOptions = {
+      mentions: mentions?.links,
+      hashtagHref: (tag) => hashtagUrl(normalizeHashtag(tag)),
+    };
+    const primaryContent = linkifyApHtml(primary.text, linkifyOptions);
     const language = canonicalizeLanguageTag(primary.tag) ?? undefined;
-    const contentMap = buildNoteContentMap(post, language, primaryContent);
+    const contentMap = buildNoteContentMap(post, language, primaryContent, linkifyOptions);
 
-    // The public collection stays in `to`; the mentioned parent author joins the
-    // followers collection in `cc` so a public reply is delivered/attributed to
-    // them (mirrors how the boost path cc's the boosted author). Same set on the
-    // Create envelope and the embedded Note.
+    // The public collection stays in `to`; the mentioned parent author + every
+    // REMOTE @mentioned actor join the followers collection in `cc` so a public
+    // reply/mention is delivered/attributed to them (mirrors how the boost path
+    // cc's the boosted author). Deduped, same set on the Create envelope + Note.
     const cc = [`${actor}/followers`];
-    if (reply?.mention) cc.push(reply.mention.href);
+    const seenCc = new Set(cc);
+    const pushCc = (href: string): void => {
+      if (!href || seenCc.has(href)) return;
+      seenCc.add(href);
+      cc.push(href);
+    };
+    if (reply?.mention) pushCc(reply.mention.href);
+    if (mentions) {
+      for (const href of mentions.cc) pushCc(href);
+    }
 
     return {
       '@context': AP_CONTEXT,
@@ -578,9 +668,17 @@ export class FollowService {
       // `null`, so the Note federates as a normal post (no `inReplyTo`) rather
       // than being dropped.
       const reply = await this.resolveReplyDelivery(post);
-      const activity = this.buildCreateNoteActivity(post, senderUsername, reply?.context);
+      // The post's @mentions: resolved to mention anchors + `Mention` tags, and —
+      // for REMOTE mentioned users — their inboxes are unioned into delivery so
+      // their instance receives + notifies the post. `null` when the post mentions
+      // nobody; the linkifier still strips any stray placeholder.
+      const mentions = await this.resolveMentionContext(post);
+      const activity = this.buildCreateNoteActivity(post, senderUsername, reply?.context, mentions ?? undefined);
       await this.deliverToFollowers(activity, senderOxyUserId, senderUsername, {
-        extraInboxes: reply?.parentAuthorInbox ? [reply.parentAuthorInbox] : [],
+        extraInboxes: [
+          ...(reply?.parentAuthorInbox ? [reply.parentAuthorInbox] : []),
+          ...(mentions?.inboxes ?? []),
+        ],
       });
     } catch (err) {
       logger.error('Failed to federate new post:', err);
@@ -647,6 +745,137 @@ export class FollowService {
       logger.warn(`[FedDeliver] failed to resolve reply delivery for parent ${parentId}:`, err);
       return null;
     }
+  }
+
+  /**
+   * Resolve a set of mentioned Oxy user ids to their per-mention addressing
+   * ({@link ResolvedMentionEntry}) in AT MOST two batched reads — no N+1 per
+   * mention:
+   *
+   *  1. ONE {@link FederatedActor} query resolves every FEDERATED mention at once,
+   *     yielding its actor URI (`href`), `acct` (`user@domain` handle) AND the
+   *     delivery inbox from the same row.
+   *  2. The remaining ids are LOCAL Oxy users (or a federated user whose actor row
+   *     is momentarily missing); ONE bulk `getUsersByIds` resolves their canonical
+   *     handle. A local user → our minted actor URL + bare `username`; a federated
+   *     user with a known `federation.actorUri` → that URI + `user@domain` (no
+   *     inbox, so tag/cc only).
+   *
+   * Fail-soft: an unresolvable id is simply absent from the map (the linkifier
+   * then DROPS its placeholder — never leaks `[mention:<id>]`). A degraded Oxy
+   * user (empty handle) is treated as unresolved. Best-effort — a lookup error is
+   * logged and yields no entries for that batch rather than throwing.
+   */
+  private async resolveMentionEntries(ids: string[]): Promise<Map<string, ResolvedMentionEntry>> {
+    const entries = new Map<string, ResolvedMentionEntry>();
+    const unique = [...new Set(ids)];
+    if (unique.length === 0) return entries;
+
+    // 1. Federated mentions — one read gives href (actor uri), handle (acct) and
+    //    the delivery inbox.
+    let federatedActors: Array<
+      Pick<IFederatedActor, 'oxyUserId' | 'uri' | 'acct' | 'sharedInboxUrl' | 'inboxUrl'>
+    > = [];
+    try {
+      federatedActors = await FederatedActor.find({ oxyUserId: { $in: unique } })
+        .select('oxyUserId uri acct sharedInboxUrl inboxUrl')
+        .lean<Array<Pick<IFederatedActor, 'oxyUserId' | 'uri' | 'acct' | 'sharedInboxUrl' | 'inboxUrl'>>>();
+    } catch (err) {
+      logger.warn('[FedDeliver] mention federated-actor lookup failed', {
+        count: unique.length,
+        reason: err instanceof Error ? err.message : 'unknown',
+      });
+    }
+
+    const federatedIds = new Set<string>();
+    for (const actor of federatedActors) {
+      const id = actor.oxyUserId ? String(actor.oxyUserId) : '';
+      if (!id || !actor.uri || !actor.acct) continue;
+      federatedIds.add(id);
+      entries.set(id, {
+        href: actor.uri,
+        handle: actor.acct,
+        isRemote: true,
+        inbox: actor.sharedInboxUrl ?? actor.inboxUrl ?? undefined,
+      });
+    }
+
+    // 2. The rest are local (or federated-without-a-row) — one bulk Oxy lookup.
+    const localIds = unique.filter((id) => !federatedIds.has(id));
+    if (localIds.length === 0) return entries;
+
+    let users: OxyUser[] = [];
+    try {
+      users = await getServiceOxyClient().getUsersByIds(localIds);
+    } catch (err) {
+      logger.warn('[FedDeliver] mention Oxy user lookup failed', {
+        count: localIds.length,
+        reason: err instanceof Error ? err.message : 'unknown',
+      });
+      return entries;
+    }
+
+    for (const user of users) {
+      const id = String(user.id ?? '');
+      if (!id) continue;
+      // Canonical handle: `username` (local) or `username@domain` (federated). An
+      // empty handle is a degraded/unresolved user — drop it, never emit a ghost.
+      const handle = getNormalizedUserHandle(user);
+      if (!handle) continue;
+      const isRemote = user.type === 'federated' || user.isFederated === true;
+      const href = isRemote
+        ? (typeof user.federation?.actorUri === 'string' && user.federation.actorUri.length > 0
+            ? user.federation.actorUri
+            : undefined)
+        : actorUrl(handle);
+      if (!href) continue; // federated user with no resolvable actor uri → drop.
+      entries.set(id, { href, handle, isRemote });
+    }
+
+    return entries;
+  }
+
+  /**
+   * Batch-resolve the {@link NoteMentionContext} for MANY posts by the same author
+   * (the outbox page / featured collection) in the SAME two batched reads a single
+   * post costs — the union of every post's declared mention ids is resolved once,
+   * then each post's context is assembled from the shared id → entry map. A post
+   * that mentions nobody (or whose mentions all fail to resolve) is absent from the
+   * returned map; the Note builder then simply linkifies without a mention context.
+   */
+  async resolveMentionContextByPost(posts: NoteSourcePost[]): Promise<Map<string, NoteMentionContext>> {
+    const result = new Map<string, NoteMentionContext>();
+    const perPostIds = new Map<string, string[]>();
+    const allIds: string[] = [];
+
+    for (const post of posts) {
+      const ids = normalizeMentionIds(post.mentions);
+      if (ids.length === 0) continue;
+      perPostIds.set(String(post._id), ids);
+      allIds.push(...ids);
+    }
+    if (allIds.length === 0) return result;
+
+    const entries = await this.resolveMentionEntries(allIds);
+    for (const [postId, ids] of perPostIds) {
+      const context = buildNoteMentionContext(ids, entries);
+      if (context.links.size > 0) result.set(postId, context);
+    }
+    return result;
+  }
+
+  /**
+   * Resolve a single post's {@link NoteMentionContext} — the push-delivery and
+   * per-post dereference entry point. Returns null when the post mentions nobody
+   * or nothing resolves (the linkifier still strips any stray placeholder). Never
+   * throws — {@link resolveMentionEntries} is fail-soft.
+   */
+  async resolveMentionContext(post: NoteSourcePost): Promise<NoteMentionContext | null> {
+    const ids = normalizeMentionIds(post.mentions);
+    if (ids.length === 0) return null;
+    const entries = await this.resolveMentionEntries(ids);
+    const context = buildNoteMentionContext(ids, entries);
+    return context.links.size > 0 ? context : null;
   }
 
   /**
@@ -904,8 +1133,9 @@ export class FollowService {
     post: NoteSourcePost,
     username: string,
     reply?: NoteReplyContext,
+    mentions?: NoteMentionContext,
   ): Record<string, unknown> {
-    const created = this.buildCreateNoteActivity(post, username, reply);
+    const created = this.buildCreateNoteActivity(post, username, reply, mentions);
     const note = created.object as Record<string, unknown>;
 
     const now = new Date();
@@ -949,9 +1179,13 @@ export class FollowService {
 
     try {
       const reply = await this.resolveReplyDelivery(post);
-      const activity = this.buildUpdateNoteActivity(post, editorUsername, reply?.context);
+      const mentions = await this.resolveMentionContext(post);
+      const activity = this.buildUpdateNoteActivity(post, editorUsername, reply?.context, mentions ?? undefined);
       await this.deliverToFollowers(activity, editorOxyUserId, editorUsername, {
-        extraInboxes: reply?.parentAuthorInbox ? [reply.parentAuthorInbox] : [],
+        extraInboxes: [
+          ...(reply?.parentAuthorInbox ? [reply.parentAuthorInbox] : []),
+          ...(mentions?.inboxes ?? []),
+        ],
       });
     } catch (err) {
       logger.error('Failed to federate post update:', err);
