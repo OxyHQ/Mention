@@ -26,7 +26,7 @@ import rateLimit from 'express-rate-limit';
 import { RedisStore } from '../../../middleware/rateLimitStore';
 import { hashedIpKey } from '../../../utils/ipKey';
 import { enqueueInboxActivity } from '../../../queue/producers';
-import { resolveAvatarUrl, resolveMediaRef } from '../../../utils/mediaResolver';
+import { buildLocalActorObject, type ActorUserView } from '../actorObject';
 import { isFediverseSharingEnabledFromUser, getFediverseSharingStateByUsername } from '../../../services/fediverseSharing';
 
 const router = Router();
@@ -56,118 +56,6 @@ function wantsActivityPub(req: Request): boolean {
 function getUsername(req: Request): string {
   const val = req.params.username;
   return typeof val === 'string' ? val : Array.isArray(val) ? val[0] : String(val);
-}
-
-/** Fields of the resolved Oxy user the actor document reads. */
-interface ActorUserView {
-  _id?: string | null;
-  id?: string | null;
-  name?: { displayName?: string | null } | null;
-  bio?: string | null;
-  avatar?: string | null;
-  createdAt?: string | null;
-}
-
-/** Map common image extensions to a MIME type for an actor image `mediaType`. */
-const IMAGE_MEDIA_TYPE_BY_EXT: Record<string, string> = {
-  png: 'image/png',
-  jpg: 'image/jpeg',
-  jpeg: 'image/jpeg',
-  gif: 'image/gif',
-  webp: 'image/webp',
-  avif: 'image/avif',
-};
-
-/** True when `value` is an absolute `http(s)` URL. */
-function isAbsoluteHttpUrl(value: string): boolean {
-  try {
-    return /^https?:$/i.test(new URL(value).protocol);
-  } catch {
-    return false;
-  }
-}
-
-/**
- * Build an ActivityPub `Image` object from an already-absolute URL, deriving
- * `mediaType` from the URL extension when recognizable (a bare `Image` with a
- * `url` is spec-valid, so an unknown extension simply omits `mediaType` rather
- * than asserting a wrong one). Shared by the actor `icon` (avatar) and `image`
- * (profile banner) builders.
- */
-function apImageObject(url: string): { type: 'Image'; url: string; mediaType?: string } {
-  let extension: string | undefined;
-  try {
-    extension = new URL(url).pathname.split('.').pop()?.toLowerCase();
-  } catch {
-    extension = url.split('?')[0]?.split('.').pop()?.toLowerCase();
-  }
-  const mediaType = extension ? IMAGE_MEDIA_TYPE_BY_EXT[extension] : undefined;
-  return mediaType ? { type: 'Image', url, mediaType } : { type: 'Image', url };
-}
-
-/**
- * Build the actor `icon` (avatar) object for ActivityPub.
- *
- * The avatar reference stored on the Oxy user may be a raw Oxy file id (e.g.
- * `69b80c09a08af16d4b871195`) or an absolute URL. ActivityPub consumers such as
- * Mastodon validate that `icon.url` is an absolute URL and REJECT the entire
- * actor document when it is not — so a raw file id here makes the account
- * undiscoverable. We therefore resolve the reference through the same
- * server-authoritative `resolveAvatarUrl` mechanism the rest of the API uses
- * (Oxy file id → absolute Oxy asset stream URL; external URL → proxied through
- * our own origin), and only emit `icon` when that yields a real absolute URL.
- *
- * Derives `mediaType` from the resolved URL extension when recognizable;
- * otherwise the `mediaType` is omitted rather than asserting a wrong type (a
- * bare `Image` with `url` is spec-valid).
- *
- * Returns undefined when there is no avatar or no absolute URL can be produced —
- * Mastodon is fine with an avatar-less actor, but a non-absolute url breaks it.
- */
-function buildActorIcon(avatar: string | null | undefined): { type: 'Image'; url: string; mediaType?: string } | undefined {
-  if (!avatar) return undefined;
-
-  // Resolve a raw Oxy file id (or external URL) to a final, absolute URL. If the
-  // reference was already an absolute http(s) URL, `resolveAvatarUrl` returns an
-  // absolute URL too (verbatim for our own origins, proxied for external CDNs).
-  const resolved = resolveAvatarUrl(avatar);
-
-  // Guard the absolute-URL invariant: if resolution failed or degraded to a
-  // non-absolute passthrough (e.g. an unresolvable id), OMIT `icon` entirely
-  // rather than emit a value that would make Mastodon reject the actor.
-  if (!resolved || !isAbsoluteHttpUrl(resolved)) {
-    logger.warn(`[Federation] Omitting actor icon — avatar did not resolve to an absolute URL (ref: ${avatar})`);
-    return undefined;
-  }
-
-  return apImageObject(resolved);
-}
-
-/**
- * Build the actor `image` (profile banner/header) object for ActivityPub.
- *
- * Mastodon renders the AP `image` property as the profile HEADER banner — a
- * Mention user's banner is otherwise invisible across the fediverse. The banner
- * reference lives in Mention's own `UserSettings.profileHeaderImage` (a raw Oxy
- * file id or an absolute URL), the same field the profile-design endpoint reads
- * and `mirrorFederatedBanner` writes for the inbound direction. It is resolved
- * through the canonical media chokepoint (`resolveMediaRef`) to a final absolute
- * URL — an Oxy file id → CDN URL, an external URL → proxied through our origin —
- * mirroring {@link buildActorIcon}'s absolute-URL invariant.
- *
- * Returns undefined when there is no banner or none can be resolved to an
- * absolute URL, so callers omit the field cleanly.
- */
-function buildActorImage(banner: string | null | undefined): { type: 'Image'; url: string; mediaType?: string } | undefined {
-  if (!banner) return undefined;
-
-  const resolved = resolveMediaRef(banner).url;
-  if (!resolved || !isAbsoluteHttpUrl(resolved)) {
-    logger.warn(`[Federation] Omitting actor image — banner did not resolve to an absolute URL (ref: ${banner})`);
-    return undefined;
-  }
-
-  return apImageObject(resolved);
 }
 
 /**
@@ -241,39 +129,22 @@ router.get('/users/:username', async (req: Request, res: Response) => {
     // if the API somehow omitted it, so `name` is never empty.
     const displayName = user.name?.displayName || username;
 
-    const actorObject: Record<string, unknown> = {
-      '@context': AP_CONTEXT,
-      id: actorUrl(username),
-      type: 'Person',
-      preferredUsername: username,
-      name: displayName,
-      summary: user.bio || '',
-      url: `https://${FEDERATION_DOMAIN}/@${username}`,
-      inbox: inboxUrl(username),
-      outbox: outboxUrl(username),
-      featured: featuredUrl(username),
-      followers: followersUrl(username),
-      following: followingUrl(username),
-      endpoints: { sharedInbox: sharedInboxUrl() },
-      discoverable: true,
-      manuallyApprovesFollowers: false,
-      icon: buildActorIcon(user.avatar),
-      image: buildActorImage(settings?.profileHeaderImage),
-      publicKey: {
-        id: publicKey.keyId,
-        owner: actorUrl(username),
-        publicKeyPem: publicKey.publicKeyPem,
-      },
-    };
-
-    // `published` (account creation date) is advertised when the API provides it.
-    if (user.createdAt) {
-      actorObject.published = new Date(user.createdAt).toISOString();
-    }
+    // ONE actor builder — shared with the outbound `Update(Person)` broadcast — so
+    // a fetched actor and a pushed actor Update never drift. The route owns the
+    // top-level JSON-LD `@context` (the builder omits it).
+    const actorObject = buildLocalActorObject({
+      username,
+      displayName,
+      bio: user.bio,
+      avatar: user.avatar,
+      profileHeaderImage: settings?.profileHeaderImage,
+      publicKey,
+      createdAt: user.createdAt,
+    });
 
     res.set('Content-Type', AP_CONTENT_TYPE);
     res.set('Cache-Control', 'max-age=1800');
-    return res.json(actorObject);
+    return res.json({ '@context': AP_CONTEXT, ...actorObject });
   } catch (err) {
     logger.error('Actor endpoint error:', err);
     return res.status(500).json({ error: 'Internal server error' });

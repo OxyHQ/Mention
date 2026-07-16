@@ -130,6 +130,29 @@ class ActivityPubConnector implements NetworkConnector {
       case 'post.unboost':
         await followService.federateUndoBoost(event.boost, event.actorOxyUserId, event.actorUsername);
         break;
+      case 'post.update':
+        // An edit re-federates the Note as an Update (with an `updated` stamp),
+        // preserving the reply enrichment via the shared Note builder.
+        await followService.federateUpdate(event.post, event.actorOxyUserId, event.actorUsername);
+        break;
+      case 'post.delete':
+        // A deletion broadcasts a Delete(Tombstone) of the post's canonical AP id
+        // to the deleter's followers.
+        await followService.federateDelete(event.post, event.actorOxyUserId, event.actorUsername);
+        break;
+      case 'post.like':
+        // A like of a FEDERATED post sends a Like to the origin author's inbox
+        // only (never fanned out to the liker's followers). Local-post likes no-op.
+        await followService.federateLike(event.like, event.actorOxyUserId, event.actorUsername);
+        break;
+      case 'post.unlike':
+        await followService.federateUndoLike(event.like, event.actorOxyUserId, event.actorUsername);
+        break;
+      case 'actor.update':
+        // A Mention-owned profile change (e.g. the banner) rebroadcasts the full
+        // actor document as an Update(Person) to remote followers.
+        await followService.federateActorUpdate(event.actorOxyUserId, event.actorUsername);
+        break;
       case 'follow.add':
         // Sends a Follow activity + records the outbound FederatedFollow. The
         // `{ success, pending }` it returns is surfaced by the route via the

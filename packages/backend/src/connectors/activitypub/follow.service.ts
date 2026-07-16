@@ -2,6 +2,7 @@ import { logger } from '../../utils/logger';
 import FederatedActor, { IFederatedActor } from '../../models/FederatedActor';
 import FederatedFollow from '../../models/FederatedFollow';
 import FederationDeliveryQueue from '../../models/FederationDeliveryQueue';
+import UserSettings from '../../models/UserSettings';
 import { Post } from '../../models/Post';
 import { signRequest, getPublicKey } from './crypto';
 import {
@@ -11,7 +12,9 @@ import {
   AP_CONTENT_TYPE,
   USER_AGENT,
   actorUrl,
+  resolveOxyUser,
 } from './constants';
+import { buildLocalActorObject, type ActorUserView } from './actorObject';
 import { PostVisibility, canonicalizeLanguageTag, type MediaItem, type PostContent } from '@mention/shared-types';
 import { authorVariants, resolveVariant } from '../../services/postVariants';
 import { enqueueDelivery } from '../../queue/producers';
@@ -830,6 +833,274 @@ export class FollowService {
       });
     } catch (err) {
       logger.error('Failed to federate unboost:', err);
+    }
+  }
+
+  /**
+   * Build a `Delete(Tombstone)` for a deleted local post. `object` is a minimal
+   * `Tombstone` carrying only the deleted Note's canonical AP id — the exact id
+   * `buildCreateNoteActivity` / the outbox / the dereference route advertised, so a
+   * remote server matches it to the status it holds and removes it. Addressed to
+   * the public collection, `cc`'d to the deleter's followers.
+   */
+  buildDeleteActivity(username: string, postId: string): Record<string, unknown> {
+    const actor = actorUrl(username);
+    const noteId = `${actor}/posts/${postId}`;
+    return {
+      '@context': AP_CONTEXT,
+      id: `${noteId}/delete`,
+      type: 'Delete',
+      actor,
+      to: [AP_PUBLIC],
+      cc: [`${actor}/followers`],
+      object: {
+        id: noteId,
+        type: 'Tombstone',
+      },
+    };
+  }
+
+  /**
+   * Federate a local post deletion as a `Delete(Tombstone)` to the deleter's
+   * remote followers. The post row is already gone — the caller captures the id
+   * BEFORE deletion — but the canonical Note id is minted purely from the
+   * username + post id, so nothing needs the row. Gated identically to
+   * {@link federateNewPost}; best-effort.
+   */
+  async federateDelete(
+    post: { _id: unknown },
+    deleterOxyUserId: string,
+    deleterUsername: string,
+  ): Promise<void> {
+    if (!FEDERATION_ENABLED) return;
+    if (!(await isFediverseSharingEnabled(deleterOxyUserId))) return;
+
+    try {
+      const activity = this.buildDeleteActivity(deleterUsername, String(post._id));
+      await this.deliverToFollowers(activity, deleterOxyUserId, deleterUsername);
+    } catch (err) {
+      logger.error('Failed to federate post delete:', err);
+    }
+  }
+
+  /**
+   * Build an `Update(Note)` for an edited local post. The embedded object is the
+   * SAME Note {@link buildCreateNoteActivity} builds (canonical body, hashtags,
+   * media, and — for a reply — `inReplyTo` + the parent-author `Mention`) PLUS an
+   * `updated` timestamp, which is how Mastodon marks a status as edited. The
+   * envelope mirrors the Note's `to`/`cc` so the edit reaches the same audience as
+   * the original.
+   */
+  buildUpdateNoteActivity(
+    post: NoteSourcePost,
+    username: string,
+    reply?: NoteReplyContext,
+  ): Record<string, unknown> {
+    const created = this.buildCreateNoteActivity(post, username, reply);
+    const note = created.object as Record<string, unknown>;
+
+    const now = new Date();
+    const updated = now.toISOString();
+    const noteId = String(note.id);
+    const actor = actorUrl(username);
+
+    return {
+      '@context': AP_CONTEXT,
+      // Mastodon-style edit activity id: the note id with a monotonically-unique
+      // `#updates/<ts>` fragment so repeated edits never collide.
+      id: `${noteId}#updates/${now.getTime()}`,
+      type: 'Update',
+      actor,
+      updated,
+      to: note.to,
+      cc: note.cc,
+      object: {
+        ...note,
+        updated,
+      },
+    };
+  }
+
+  /**
+   * Federate an edit of a local public post as an `Update(Note)` to the editor's
+   * remote followers (and, for a reply to a FEDERATED parent, that parent author's
+   * inbox — mirroring the reply Create path). A boost never carries an editable
+   * body, so it is skipped. Gated identically to {@link federateNewPost};
+   * best-effort.
+   */
+  async federateUpdate(
+    post: NoteSourcePost & { visibility: string },
+    editorOxyUserId: string,
+    editorUsername: string,
+  ): Promise<void> {
+    if (!FEDERATION_ENABLED) return;
+    if (!(await isFediverseSharingEnabled(editorOxyUserId))) return;
+    if (post.boostOf) return;
+    if (post.visibility !== PostVisibility.PUBLIC) return;
+
+    try {
+      const reply = await this.resolveReplyDelivery(post);
+      const activity = this.buildUpdateNoteActivity(post, editorUsername, reply?.context);
+      await this.deliverToFollowers(activity, editorOxyUserId, editorUsername, {
+        extraInboxes: reply?.parentAuthorInbox ? [reply.parentAuthorInbox] : [],
+      });
+    } catch (err) {
+      logger.error('Failed to federate post update:', err);
+    }
+  }
+
+  /**
+   * Build a `Like` of a remote object. `object` is the liked original's canonical
+   * AP id (its remote `federation.activityId`). The activity id is minted
+   * deterministically from the native Like doc's id so the matching
+   * {@link buildUndoLikeActivity} re-mints it without persisting anything. A Like
+   * is addressed ONLY at the origin author's inbox (no `to`/`cc` broadcast).
+   */
+  buildLikeActivity(likerUsername: string, likeId: string, objectUri: string): Record<string, unknown> {
+    const actor = actorUrl(likerUsername);
+    return {
+      '@context': AP_CONTEXT,
+      id: `${actor}/likes/${likeId}`,
+      type: 'Like',
+      actor,
+      object: objectUri,
+    };
+  }
+
+  /** Build the matching `Undo(Like)` — re-mints the SAME Like id + object. */
+  buildUndoLikeActivity(likerUsername: string, likeId: string, objectUri: string): Record<string, unknown> {
+    const actor = actorUrl(likerUsername);
+    const likeActivityId = `${actor}/likes/${likeId}`;
+    return {
+      '@context': AP_CONTEXT,
+      id: `${likeActivityId}/undo`,
+      type: 'Undo',
+      actor,
+      object: {
+        id: likeActivityId,
+        type: 'Like',
+        actor,
+        object: objectUri,
+      },
+    };
+  }
+
+  /**
+   * Federate a like of a FEDERATED post as a `Like` delivered ONLY to that post's
+   * origin author inbox (a like is never broadcast to the liker's own followers —
+   * Mastodon does not fan out likes). Local-post likes are a no-op: a local author
+   * is notified natively (the `Like` doc), never via ActivityPub, and
+   * {@link resolveFederationTarget} yields no remote inbox for them. Gated
+   * identically to {@link federateNewPost}; best-effort.
+   */
+  async federateLike(
+    like: { _id: unknown; postId: string },
+    likerOxyUserId: string,
+    likerUsername: string,
+  ): Promise<void> {
+    if (!FEDERATION_ENABLED) return;
+    if (!(await isFediverseSharingEnabled(likerOxyUserId))) return;
+
+    try {
+      const target = await this.resolveFederationTarget(String(like.postId));
+      // A remote author inbox exists ONLY for a federated original — its absence
+      // means the liked post is local (or its actor is unresolved), so there is
+      // nothing to notify over ActivityPub.
+      if (!target?.authorInbox) return;
+      const activity = this.buildLikeActivity(likerUsername, String(like._id), target.objectUri);
+      await this.queueDelivery(activity, target.authorInbox, likerOxyUserId);
+    } catch (err) {
+      logger.error('Failed to federate like:', err);
+    }
+  }
+
+  /**
+   * Federate an unlike of a FEDERATED post as an `Undo(Like)` to the origin author
+   * inbox. The native Like doc is deleted before/around this call, but its id is
+   * passed in so the Undo re-mints the exact Like id {@link federateLike} sent.
+   * Local-post unlikes are a no-op. Gated identically; best-effort.
+   */
+  async federateUndoLike(
+    like: { _id: unknown; postId: string },
+    likerOxyUserId: string,
+    likerUsername: string,
+  ): Promise<void> {
+    if (!FEDERATION_ENABLED) return;
+    if (!(await isFediverseSharingEnabled(likerOxyUserId))) return;
+
+    try {
+      const target = await this.resolveFederationTarget(String(like.postId));
+      if (!target?.authorInbox) return;
+      const activity = this.buildUndoLikeActivity(likerUsername, String(like._id), target.objectUri);
+      await this.queueDelivery(activity, target.authorInbox, likerOxyUserId);
+    } catch (err) {
+      logger.error('Failed to federate undo like:', err);
+    }
+  }
+
+  /**
+   * Federate an actor profile change as an `Update(Person)` broadcast to the
+   * user's remote followers so Mastodon refreshes the cached actor. Rebuilds the
+   * FULL actor document through the SAME {@link buildLocalActorObject} the GET
+   * actor route serves, then wraps it in an `Update` — no field diffing, because
+   * Mastodon re-reads the whole actor on any actor `Update`.
+   *
+   * IMPORTANT boundary — only MENTION-OWNED actor fields have a write hook that
+   * reaches here (today: the `profileHeaderImage` banner via `profileSettings.ts`).
+   * The `name`/`icon`/`summary` (displayName / avatar / bio) are owned by the Oxy
+   * API and change WITHOUT any Mention-side write, so an Oxy-side edit does not
+   * trigger this broadcast. Propagating those needs a separate Oxy→Mention signal
+   * (a webhook) or a periodic actor re-broadcast — see the task report. This
+   * broadcast still emits the CURRENT Oxy values, so any Mention-owned change also
+   * carries whatever the latest Oxy fields are.
+   *
+   * Gated identically to {@link federateNewPost}; best-effort.
+   */
+  async federateActorUpdate(actorOxyUserId: string, username: string): Promise<void> {
+    if (!FEDERATION_ENABLED) return;
+    if (!(await isFediverseSharingEnabled(actorOxyUserId))) return;
+
+    try {
+      const user = (await resolveOxyUser(username)) as ActorUserView | null;
+      if (!user) {
+        logger.warn(`[FedDeliver] cannot federate actor update for ${username}: user not resolvable`);
+        return;
+      }
+
+      const publicKey = await getPublicKey(username);
+      const settings = await UserSettings.findOne({ oxyUserId: actorOxyUserId }, { profileHeaderImage: 1 })
+        .lean<{ profileHeaderImage?: string } | null>();
+
+      // Canonical display name is owned by the Oxy API; fall back to the handle
+      // when absent (never recompose from name parts).
+      const displayName = user.name?.displayName || username;
+
+      const actorObject = buildLocalActorObject({
+        username,
+        displayName,
+        bio: user.bio,
+        avatar: user.avatar,
+        profileHeaderImage: settings?.profileHeaderImage,
+        publicKey,
+        createdAt: user.createdAt,
+      });
+
+      const actor = actorUrl(username);
+      const now = new Date();
+      const activity: Record<string, unknown> = {
+        '@context': AP_CONTEXT,
+        id: `${actor}#updates/${now.getTime()}`,
+        type: 'Update',
+        actor,
+        updated: now.toISOString(),
+        to: [AP_PUBLIC],
+        cc: [`${actor}/followers`],
+        object: actorObject,
+      };
+
+      await this.deliverToFollowers(activity, actorOxyUserId, username);
+    } catch (err) {
+      logger.error('Failed to federate actor update:', err);
     }
   }
 
