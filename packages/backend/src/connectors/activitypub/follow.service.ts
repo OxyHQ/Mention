@@ -25,6 +25,7 @@ import { actorService } from './actor.service';
 import { fetchUpstreamSingleHop } from '../../utils/safeUpstreamFetch';
 import { assertSafePublicUrl } from '../../utils/ssrfGuard';
 import { resolveMediaRef } from '../../utils/mediaResolver';
+import { plainTextToApHtml } from '../../utils/federation/plainTextToApHtml';
 import { isAbsoluteHttpUrl } from '../shared/url';
 
 const DELIVER_ACTIVITY_TIMEOUT_MS = 15000;
@@ -169,11 +170,14 @@ export interface NoteReplyContext {
  * The primary key is inserted before the rest are walked, so it leads the map
  * unconditionally — the ordering is what Mastodon derives the status language
  * from, and it must not depend on the shape of the data. Its value is the
- * RESOLVED primary body, the same string that goes out as `content`, so the two
- * can never disagree.
+ * already-converted primary body (`primaryContent`), the exact string that goes
+ * out as `content`, so the two can never disagree byte-for-byte.
  *
- * Only AUTHOR variants are emitted. A machine translation is derived content: it
- * is not the author's writing and it does not federate.
+ * Every value is AP `content` HTML: each author variant's plain-text body is run
+ * through {@link plainTextToApHtml} so a localized body's blank lines and line
+ * breaks survive rendering exactly like the primary. Only AUTHOR variants are
+ * emitted — a machine translation is derived content: it is not the author's
+ * writing and it does not federate.
  *
  * Returns `undefined` when the post declares no language — an UNTAGGED primary
  * variant (a body too short to detect, a remote Note that declared none) has no
@@ -184,16 +188,16 @@ export interface NoteReplyContext {
 function buildNoteContentMap(
   post: NoteSourcePost,
   primaryTag: string | undefined,
-  primaryBody: string,
+  primaryContent: string,
 ): Record<string, string> | undefined {
   const contentMap: Record<string, string> = {};
 
-  if (primaryTag) contentMap[primaryTag] = primaryBody;
+  if (primaryTag) contentMap[primaryTag] = primaryContent;
 
   for (const variant of authorVariants(post.content)) {
     const tag = canonicalizeLanguageTag(variant.tag);
     if (tag === null || tag in contentMap) continue;
-    contentMap[tag] = variant.text;
+    contentMap[tag] = plainTextToApHtml(variant.text);
   }
 
   return Object.keys(contentMap).length > 0 ? contentMap : undefined;
@@ -492,9 +496,14 @@ export class FollowService {
           .filter((a): a is Record<string, unknown> => a !== undefined)
       : [];
 
-    const primaryBody = primary.text;
+    // AP `content` is HTML: convert the resolved plain-text primary body ONCE and
+    // thread the result through both `content` and the primary `contentMap` key so
+    // they stay byte-for-byte identical (Mastodon reads `content` and only falls
+    // back to `contentMap`, but the two must never disagree). This preserves the
+    // author's blank lines and line breaks, which HTML would otherwise collapse.
+    const primaryContent = plainTextToApHtml(primary.text);
     const language = canonicalizeLanguageTag(primary.tag) ?? undefined;
-    const contentMap = buildNoteContentMap(post, language, primaryBody);
+    const contentMap = buildNoteContentMap(post, language, primaryContent);
 
     // The public collection stays in `to`; the mentioned parent author joins the
     // followers collection in `cc` so a public reply is delivered/attributed to
@@ -519,7 +528,7 @@ export class FollowService {
         // so a top-level Note carries no `inReplyTo`.
         inReplyTo: reply?.inReplyTo,
         url: `https://${FEDERATION_DOMAIN}/@${username}/posts/${postId}`,
-        content: primaryBody,
+        content: primaryContent,
         contentMap,
         language,
         published,

@@ -66,7 +66,8 @@ describe('buildCreateNoteActivity — canonical url + hashtag tags', () => {
     expect(activity.id).toBe('https://mention.earth/ap/users/alice/posts/post123/activity');
     expect(note.id).toBe('https://mention.earth/ap/users/alice/posts/post123');
     expect(note.url).toBe('https://mention.earth/@alice/posts/post123');
-    expect(note.content).toBe('hello world');
+    // AP `content` is HTML — a single-line body is one `<p>`, no `<br>`.
+    expect(note.content).toBe('<p>hello world</p>');
 
     expect(note.tag).toEqual([
       { type: 'Hashtag', href: 'https://mention.earth/hashtag/news', name: '#news' },
@@ -111,10 +112,13 @@ describe('buildCreateNoteActivity — language + contentMap', () => {
     // body) but takes the status LANGUAGE from `contentMap.keys.first`. So the
     // key order is not cosmetic: put the primary anywhere but first and the
     // status is labelled with the wrong language.
-    expect(note.content).toBe('hola mundo');
+    expect(note.content).toBe('<p>hola mundo</p>');
     expect(Object.keys(note.contentMap as Record<string, string>)).toEqual(['es-ES', 'en-US']);
-    expect(note.contentMap).toEqual({ 'es-ES': 'hola mundo', 'en-US': 'hello world' });
+    // Every contentMap value is AP HTML — the localized bodies are wrapped too.
+    expect(note.contentMap).toEqual({ 'es-ES': '<p>hola mundo</p>', 'en-US': '<p>hello world</p>' });
     expect(note.language).toBe('es-ES');
+    // `content` and the primary contentMap key are the SAME string byte-for-byte.
+    expect((note.contentMap as Record<string, string>)['es-ES']).toBe(note.content);
   });
 
   it('NEVER federates a machine translation — only author variants reach the wire', () => {
@@ -129,14 +133,14 @@ describe('buildCreateNoteActivity — language + contentMap', () => {
       createdAt: ISO,
     });
 
-    expect(note.contentMap).toEqual({ es: 'hola' });
-    expect(note.content).toBe('hola');
+    expect(note.contentMap).toEqual({ es: '<p>hola</p>' });
+    expect(note.content).toBe('<p>hola</p>');
   });
 
   it('emits a single-key contentMap for a monolingual post — the only way Mastodon learns the language', () => {
     const { note } = noteFor({ _id: 'p1', content: body('just english', 'en'), createdAt: ISO });
 
-    expect(note.contentMap).toEqual({ en: 'just english' });
+    expect(note.contentMap).toEqual({ en: '<p>just english</p>' });
     expect(note.language).toBe('en');
   });
 
@@ -147,7 +151,7 @@ describe('buildCreateNoteActivity — language + contentMap', () => {
     // Mastodon would then display as fact.
     const { note } = noteFor({ _id: 'p1', content: body('+1'), createdAt: ISO });
 
-    expect(note.content).toBe('+1');
+    expect(note.content).toBe('<p>+1</p>');
     expect(note.contentMap).toBeUndefined();
     expect(note.language).toBeUndefined();
   });
@@ -174,8 +178,39 @@ describe('buildCreateNoteActivity — language + contentMap', () => {
 
     // An invalid BCP-47 key gets a Mastodon status rejected wholesale, so it
     // never reaches the wire.
-    expect(note.contentMap).toEqual({ 'es-ES': 'hola' });
+    expect(note.contentMap).toEqual({ 'es-ES': '<p>hola</p>' });
     expect(note.language).toBe('es-ES');
+  });
+});
+
+describe('buildCreateNoteActivity — plain-text body → AP HTML content', () => {
+  it('wraps blank-line-separated paragraphs in <p> so Mastodon preserves them (regression)', () => {
+    // The bug: raw `\n\n` is insignificant whitespace in HTML, so Mastodon
+    // collapsed the author's blank lines and the paragraphs ran together.
+    const { note } = noteFor({
+      _id: 'p1',
+      content: body('hola mundo.\n\nAhora otra cosa.\n\nPorque sí.', 'es'),
+      createdAt: ISO,
+    });
+
+    expect(note.content).toBe('<p>hola mundo.</p><p>Ahora otra cosa.</p><p>Porque sí.</p>');
+    // The single contentMap value is the same HTML, byte-for-byte.
+    expect((note.contentMap as Record<string, string>).es).toBe(note.content);
+  });
+
+  it('converts a single newline inside a paragraph to <br>', () => {
+    const { note } = noteFor({ _id: 'p1', content: body('line one\nline two'), createdAt: ISO });
+    expect(note.content).toBe('<p>line one<br>line two</p>');
+  });
+
+  it('HTML-escapes < & > in the body so they never mis-render as markup', () => {
+    const { note } = noteFor({ _id: 'p1', content: body('a < b && c > d'), createdAt: ISO });
+    expect(note.content).toBe('<p>a &lt; b &amp;&amp; c &gt; d</p>');
+  });
+
+  it('keeps an empty-bodied post (a boost) empty — no stray tags', () => {
+    const { note } = noteFor({ _id: 'p1', content: { variants: [] }, createdAt: ISO });
+    expect(note.content).toBe('');
   });
 });
 
