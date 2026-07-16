@@ -40,6 +40,7 @@ const mocks = vi.hoisted(() => ({
   getFediverseSharingStateByUsername: vi.fn(),
   getPublicKey: vi.fn(),
   buildCreateNoteActivity: vi.fn(),
+  resolveReplyContext: vi.fn(),
   userSettingsFindOne: vi.fn(),
   postFind: vi.fn(),
   postCountDocuments: vi.fn(),
@@ -63,6 +64,7 @@ vi.mock('../../../queue/producers', () => ({
 vi.mock('../../../connectors/activitypub/ActivityPubConnector', () => ({
   activityPubConnector: {
     buildCreateNoteActivity: (...args: unknown[]) => mocks.buildCreateNoteActivity(...args),
+    resolveReplyContext: (...args: unknown[]) => mocks.resolveReplyContext(...args),
     fetchPublicKey: vi.fn(),
     processInboxActivity: vi.fn().mockResolvedValue(undefined),
   },
@@ -149,6 +151,9 @@ beforeEach(() => {
     type: 'Create',
     object: { id: `https://mention.earth/ap/users/alice/posts/${VALID_ID}`, type: 'Note' },
   });
+  // The dereference route resolves reply addressing before building the Note; the
+  // gate tests serve a non-reply post, so default to "no reply context".
+  mocks.resolveReplyContext.mockResolvedValue(null);
   mocks.verifyHttpSignature.mockResolvedValue({
     verified: true,
     actorUri: 'https://remote.example/users/bob',
@@ -262,6 +267,27 @@ describe('fediverseSharing gates — user-scoped AP/discovery surfaces', () => {
       mocks.isFediverseSharingEnabledFromUser.mockReturnValue(false);
       const res = await request(apApp).get('/ap/users/alice/outbox').set('Accept', AP_ACCEPT).expect(404);
       expect(res.body).toEqual(NOT_FOUND_BODY);
+    });
+  });
+
+  describe('GET /ap/users/:username/collections/featured', () => {
+    it('200s when sharing is enabled', async () => {
+      mocks.isFediverseSharingEnabledFromUser.mockReturnValue(true);
+      const res = await request(apApp)
+        .get('/ap/users/alice/collections/featured')
+        .set('Accept', AP_ACCEPT)
+        .expect(200);
+      expect(res.body.type).toBe('OrderedCollection');
+    });
+
+    it('404s with the unknown-user body when sharing is disabled, without querying posts', async () => {
+      mocks.isFediverseSharingEnabledFromUser.mockReturnValue(false);
+      const res = await request(apApp)
+        .get('/ap/users/alice/collections/featured')
+        .set('Accept', AP_ACCEPT)
+        .expect(404);
+      expect(res.body).toEqual(NOT_FOUND_BODY);
+      expect(mocks.postFind).not.toHaveBeenCalled();
     });
   });
 

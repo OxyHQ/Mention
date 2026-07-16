@@ -32,7 +32,9 @@ import { queryString } from '../utils/queryParams';
 import { buildAuthorship } from '../utils/postAuthorship';
 import { validatePublicShareTarget } from '../utils/postAccessControl';
 import { baselineContentClassifier } from '../services/BaselineContentClassifier';
-import { createScopedOxyClient } from '../utils/oxyHelpers';
+import { createScopedOxyClient, getServiceOxyClient } from '../utils/oxyHelpers';
+import { connectorRegistry } from '../connectors';
+import type { LocalNetworkEvent } from '../connectors/types';
 import {
   emitPostCreated,
   emitRepostCreated,
@@ -153,6 +155,84 @@ class FeedController {
       const authorId = post.oxyUserId == null ? '' : String(post.oxyUserId);
       return !blockedAndMutedIds.includes(authorId);
     });
+  }
+
+  /**
+   * Fire-and-forget outbound federation for a local interaction, through the
+   * connector seam (which applies the per-user `fediverseSharing` gate; the
+   * connector re-checks it too).
+   *
+   * The acting user's username is resolved SERVER-SIDE from the authoritative
+   * `oxyUserId`: the Oxy auth middleware runs without `loadUser`, so
+   * `req.user.username` is never populated and must not be trusted. Once resolved,
+   * `buildEvent(username)` produces the concrete `LocalNetworkEvent`. Never blocks
+   * or fails the HTTP response — a resolve miss is logged and skipped, any error
+   * is caught.
+   */
+  private federateAsResolvedActor(
+    actorOxyUserId: string,
+    context: string,
+    buildEvent: (username: string) => LocalNetworkEvent,
+  ): void {
+    void (async () => {
+      const user = await getServiceOxyClient().getUserById(actorOxyUserId);
+      const username = user.username?.trim();
+      if (!username) {
+        logger.warn(`[Feed] skipping ${context} federation for ${actorOxyUserId}: no resolvable username`);
+        return;
+      }
+      await connectorRegistry.deliver(buildEvent(username));
+    })().catch((err) => {
+      logger.error(`[Feed] failed to federate ${context}`, err);
+    });
+  }
+
+  /**
+   * Federate a local boost / unboost outbound as an ActivityPub
+   * `Announce` / `Undo(Announce)`. The boosted ORIGINAL post is untouched by an
+   * unboost, so target resolution works from `boostOf` in both directions.
+   */
+  private federateBoostChange(
+    kind: 'post.boost' | 'post.unboost',
+    boost: { _id: unknown; boostOf: string; createdAt: string | Date },
+    boosterOxyUserId: string,
+  ): void {
+    this.federateAsResolvedActor(boosterOxyUserId, kind, (username) => ({
+      kind,
+      boost: { _id: boost._id, boostOf: boost.boostOf, createdAt: boost.createdAt },
+      actorOxyUserId: boosterOxyUserId,
+      actorUsername: username,
+    }));
+  }
+
+  /**
+   * Federate a local reply (the `POST /feed/reply` path) outbound as an
+   * ActivityPub `Create(Note)` through the SAME `post.create` seam
+   * `PostCreationService` uses — so the connector applies the reply enrichment
+   * (`inReplyTo` + parent-author `Mention`, delivery to the parent author's inbox
+   * for a federated parent) and the sharing/visibility gates identically to the
+   * `POST /posts` reply path. Passing `parentPostId` is what routes it to the
+   * reply-addressing branch of `federateNewPost`. A pending-review (private) reply
+   * carries `visibility: private`, so the connector skips it.
+   */
+  private federateReply(reply: IPost, replierOxyUserId: string): void {
+    // `createdAt` is a Mongoose timestamp (a Date at runtime, though typed as
+    // string on IPost); normalize to a canonical ISO 8601 string for the wire.
+    const createdAt = new Date(reply.createdAt).toISOString();
+    this.federateAsResolvedActor(replierOxyUserId, 'reply', (username) => ({
+      kind: 'post.create',
+      post: {
+        _id: reply._id,
+        content: reply.content,
+        hashtags: reply.hashtags,
+        mentions: reply.mentions,
+        visibility: reply.visibility,
+        createdAt,
+        parentPostId: reply.parentPostId ? String(reply.parentPostId) : null,
+      },
+      actorOxyUserId: replierOxyUserId,
+      actorUsername: username,
+    }));
   }
 
   /**
@@ -367,6 +447,14 @@ class FeedController {
         $inc: { 'stats.commentsCount': 1 }
       }, { maxTimeMS: FEED_CONSTANTS.QUERY_TIMEOUT_MS });
 
+      // Outbound federation: deliver the reply as a Create(Note) with `inReplyTo`
+      // + a parent-author Mention to the replier's remote followers AND (when the
+      // parent is federated) the parent author's inbox — through the SAME seam the
+      // `POST /posts` reply path uses. Native reply only (this endpoint never
+      // creates federated posts); gated on sharing + public visibility inside the
+      // connector. Fire-and-forget — never blocks the reply response.
+      this.federateReply(reply, currentUserId);
+
       // Hydrate the created reply at maxDepth 1 so the response + socket payload
       // carry the author summary and engagement shape (and, when the reply is a
       // quote, the embedded quoted card) — matching the feed/detail DTO instead
@@ -460,6 +548,17 @@ class FeedController {
       // MTN dual-write: a boost emits an `app.mention.feed.repost` record whose
       // subject is the boosted original's MTN URI. Best-effort, never blocks.
       await emitRepostCreated(boost, String(originalPostId), originalPost?.oxyUserId?.toString?.());
+
+      // Outbound federation: announce the boost to the booster's remote
+      // followers (and, if the original is federated, its author's instance).
+      // Local booster only — a native boost has `federation == null`.
+      if (boost.federation == null) {
+        this.federateBoostChange(
+          'post.boost',
+          { _id: boost._id, boostOf: String(originalPostId), createdAt: boost.createdAt },
+          currentUserId,
+        );
+      }
 
       // Affinity graph: the booster expresses affinity toward the boosted post's
       // author. Fire-and-forget — buffering must never block or fail the boost.
@@ -556,6 +655,18 @@ class FeedController {
           tombstoneRkey: String(boost._id),
           subjectUri: repostRecordUri(boost.oxyUserId, String(boost._id)),
         });
+      }
+
+      // Outbound federation: retract the boost with an Undo(Announce). The boost
+      // row is already deleted, but the returned doc still carries what we need
+      // and the boosted ORIGINAL is untouched, so target resolution still works.
+      // Local booster only.
+      if (boost.federation == null && boost.boostOf) {
+        this.federateBoostChange(
+          'post.unboost',
+          { _id: boost._id, boostOf: String(boost.boostOf), createdAt: boost.createdAt },
+          currentUserId,
+        );
       }
 
       // Update original post boost count and get the updated count

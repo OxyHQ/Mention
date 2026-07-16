@@ -83,6 +83,19 @@ export function outboxUrl(username: string): string {
   return `https://${FEDERATION_DOMAIN}/ap/users/${username}/outbox`;
 }
 
+/**
+ * The actor's `featured` collection (pinned posts). Mastodon reads this URL from
+ * the actor's `featured` property and fetches it on profile view — it is the ONLY
+ * way a freshly-discovered account's posts populate its profile Posts tab
+ * (Mastodon never backfills a remote timeline from the regular `outbox`). The
+ * exact path only needs to be self-consistent with what the actor advertises;
+ * this mirrors Mastodon's own `/collections/featured` convention under our
+ * existing `/ap/users/:username` namespace.
+ */
+export function featuredUrl(username: string): string {
+  return `https://${FEDERATION_DOMAIN}/ap/users/${username}/collections/featured`;
+}
+
 export function followersUrl(username: string): string {
   return `https://${FEDERATION_DOMAIN}/ap/users/${username}/followers`;
 }

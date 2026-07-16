@@ -455,26 +455,53 @@ class PostCreationService {
     // publish moment, not the (earlier) scheduling moment.
     await this.emitMtnRecord(post);
 
-    // Resolve the owner's username so federation can build the actor. Deferred
-    // (skipped) while any collaborator invite is still pending, mirroring
-    // create(); the eventual accept() federates the post.
-    let senderUsername: string | undefined;
-    if (ownerId && !hasPendingInvites) {
-      try {
-        const owner = await getServiceOxyClient().getUserById(ownerId);
-        senderUsername = owner.username;
-      } catch (error) {
-        logger.warn('PostCreationService: failed to resolve owner username for scheduled publish', error);
-      }
-    }
-
+    // The federation username is resolved inside runPostSideEffects from the
+    // authoritative owner id (and only when the post will actually federate) —
+    // the SAME server-side path the immediate create uses — so there is no
+    // separate resolution here. Federation stays deferred while any collaborator
+    // invite is still pending (`skipFederation`), mirroring create(); the
+    // eventual accept() federates the post.
     await this.runPostSideEffects(post, {
       oxyUserId: ownerId,
-      senderUsername,
       skipFederation: hasPendingInvites,
     });
 
     return post;
+  }
+
+  /**
+   * Resolve the username outbound ActivityPub federation needs to build the local
+   * actor for a post's author.
+   *
+   * The federation decision must NOT depend on the request-scoped `req.user`
+   * carrying a `username`: the Oxy auth middleware guards every `POST /posts` path
+   * WITHOUT `loadUser:true`, so `req.user` is only `{ id }` and any caller-supplied
+   * `senderUsername` is effectively always absent on the immediate create path.
+   * The authoritative identity is the owner's `oxyUserId`, so when no non-empty
+   * username was supplied we resolve it server-side through the service Oxy client
+   * — the exact mechanism the scheduled-publish path previously used inline.
+   *
+   * Prefers a caller-supplied non-empty username (a cheap fast path that also
+   * preserves callers/tests that pass one), otherwise makes ONE (SDK-cached)
+   * lookup. Invoked only after the other federation gates pass, so the lookup
+   * never runs for a post that would not federate anyway. Fail-soft: a resolve
+   * miss returns undefined and federation is simply skipped (logged), never
+   * throwing into the publish pipeline.
+   */
+  private async resolveFederationUsername(
+    oxyUserId: string,
+    provided: string | undefined,
+  ): Promise<string | undefined> {
+    const supplied = provided?.trim();
+    if (supplied) return supplied;
+    try {
+      const owner = await getServiceOxyClient().getUserById(oxyUserId);
+      const resolved = owner.username?.trim();
+      return resolved ? resolved : undefined;
+    } catch (error) {
+      logger.warn('PostCreationService: failed to resolve federation username from oxyUserId', error);
+      return undefined;
+    }
   }
 
   /**
@@ -645,15 +672,22 @@ class PostCreationService {
 
     // Federation is published-only: a draft never fans out even if a username is
     // resolvable, and the collab-pending gate is honored via `ctx.skipFederation`.
-    if (!ctx.skipFederation && isPublished && oxyUserId && ctx.senderUsername) {
-      try {
-        // Late-bound accessor avoids a circular import with the connector registry.
-        await getPostFederator().federateNewPost(post, oxyUserId, ctx.senderUsername);
-        post.metadata = { ...(post.metadata ?? {}), federationDelivered: true };
-        post.markModified('metadata');
-        await post.save();
-      } catch (fedError) {
-        logger.error('PostCreationService: failed to federate post', fedError);
+    // The federation username is resolved server-side from the authoritative owner
+    // id (only after these gates pass), so the fan-out no longer depends on the
+    // SDK having populated `req.user.username` — which it never does, because the
+    // auth middleware runs without `loadUser:true` on every `POST /posts` path.
+    if (!ctx.skipFederation && isPublished && oxyUserId) {
+      const federationUsername = await this.resolveFederationUsername(oxyUserId, ctx.senderUsername);
+      if (federationUsername) {
+        try {
+          // Late-bound accessor avoids a circular import with the connector registry.
+          await getPostFederator().federateNewPost(post, oxyUserId, federationUsername);
+          post.metadata = { ...(post.metadata ?? {}), federationDelivered: true };
+          post.markModified('metadata');
+          await post.save();
+        } catch (fedError) {
+          logger.error('PostCreationService: failed to federate post', fedError);
+        }
       }
     }
   }
