@@ -78,6 +78,21 @@ export function isAtUri(subject: string): boolean {
 }
 
 /**
+ * The atproto DID authority of an AT-URI, whether the URI is bare
+ * (`at://did:plc:.../app.bsky.feed.post/<rkey>`) or embedded in a larger URL
+ * (Bridgy Fed wraps it as `https://bsky.brid.gy/convert/ap/at://<did>/...`).
+ *
+ * Returns the DID only when the authority is a supported atproto DID; a handle
+ * authority (`at://alice.bsky.social/...`) is deliberately rejected, because
+ * callers need a STABLE did to derive a deterministic bridged actor URI. Returns
+ * undefined when no `at://<did>` appears in the input.
+ */
+export function didFromAtUri(value: string): string | undefined {
+  const did = value.match(/at:\/\/(did:(?:plc|web):[^/\s?#]+)/i)?.[1];
+  return did && ANY_DID_RE.test(did) ? did : undefined;
+}
+
+/**
  * True when `subject` looks like an atproto handle (a bare DNS name with no `@`
  * and no URL scheme). `*.bsky.social` and any other registrable domain qualify.
  */
