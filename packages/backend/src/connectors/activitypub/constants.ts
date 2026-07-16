@@ -48,6 +48,11 @@ const FEDERATION_BLOCKED_DOMAINS = new Set(
 export const AP_CONTEXT = [
   'https://www.w3.org/ns/activitystreams',
   'https://w3id.org/security/v1',
+  // The AS2 core context above defines the `as:` prefix
+  // (`as` → `https://www.w3.org/ns/activitystreams#`), so this maps the Note's
+  // `sensitive` boolean to `as:sensitive` — the exact term Mastodon defines for
+  // it. Without the term declaration a JSON-LD consumer drops `sensitive`.
+  { sensitive: 'as:sensitive' },
 ];
 
 export const AP_CONTENT_TYPE = 'application/activity+json';

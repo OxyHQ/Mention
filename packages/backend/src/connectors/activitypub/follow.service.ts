@@ -121,6 +121,11 @@ function buildNoteAttachment(item: MediaItem | undefined | null): Record<string,
   const attachment: Record<string, unknown> = { type: 'Document', mediaType, url };
   // Alt text → AP `name` (accessibility description), when the author provided one.
   if (item?.alt) attachment.name = item.alt;
+  // Intrinsic pixel dimensions (persisted at ingest) — Mastodon uses them for
+  // aspect-ratio/layout. Emit each only when it is a real positive dimension;
+  // never advertise a `null`/`0` placeholder.
+  if (typeof item?.width === 'number' && item.width > 0) attachment.width = item.width;
+  if (typeof item?.height === 'number' && item.height > 0) attachment.height = item.height;
   return attachment;
 }
 
@@ -135,6 +140,14 @@ export interface NoteSourcePost {
   hashtags?: string[];
   mentions?: string[];
   createdAt: string | Date;
+  /**
+   * Post-level flags read at Note-build time. Only `isSensitive` (the author's
+   * CW/NSFW compose toggle) is federated — it becomes the Note's `sensitive`
+   * boolean so Mastodon blurs the media / hides the body behind a
+   * content-warning click. Absent/undefined ⇒ not sensitive. The toggle is
+   * boolean-only (there is no CW TEXT), so no `summary` is emitted.
+   */
+  metadata?: { isSensitive?: boolean } | null;
   /**
    * Set when the post is a boost. A boost has an intentionally empty body and
    * MUST federate as an `Announce`, never as a blank `Create(Note)` — the
@@ -586,6 +599,18 @@ export class FollowService {
     const language = canonicalizeLanguageTag(primary.tag) ?? undefined;
     const contentMap = buildNoteContentMap(post, language, primaryContent, linkifyOptions);
 
+    // The author's sensitive/NSFW flag → AP `sensitive` so a compatible instance
+    // blurs the media / hides the body behind a content-warning click. Boolean
+    // only: there is no CW TEXT to emit as `summary`.
+    const sensitive = post.metadata?.isSensitive === true;
+    // AP `source`: the RAW plaintext primary body (the same value linkified into
+    // `content` above). Now that `content` is HTML, Mastodon uses `source.content`
+    // for edit-fetch fidelity. Omitted for an empty body (e.g. a boost — which
+    // never reaches this Create path anyway).
+    const source = primary.text
+      ? { content: primary.text, mediaType: 'text/plain' }
+      : undefined;
+
     // The public collection stays in `to`; the mentioned parent author + every
     // REMOTE @mentioned actor join the followers collection in `cc` so a public
     // reply/mention is delivered/attributed to them (mirrors how the boost path
@@ -618,8 +643,12 @@ export class FollowService {
         // so a top-level Note carries no `inReplyTo`.
         inReplyTo: reply?.inReplyTo,
         url: `https://${FEDERATION_DOMAIN}/@${username}/posts/${postId}`,
+        sensitive,
         content: primaryContent,
         contentMap,
+        // Raw plaintext body, omitted (undefined dropped by JSON serialization)
+        // when the post has no body.
+        source,
         language,
         published,
         to: [AP_PUBLIC],
