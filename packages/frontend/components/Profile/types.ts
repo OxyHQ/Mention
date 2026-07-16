@@ -24,6 +24,8 @@ export interface ProfileScreenProps {
 export interface FollowButtonProps {
   userId: string;
   size?: 'small' | 'medium' | 'large';
+  /** Seeds the button so a followed user renders "Following" on mount (no flash). */
+  initiallyFollowing?: boolean;
 }
 
 export type FollowButtonComponent = React.ComponentType<FollowButtonProps>;

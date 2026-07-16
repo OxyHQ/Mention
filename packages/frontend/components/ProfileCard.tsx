@@ -6,6 +6,7 @@ import { FollowButton } from '@oxyhq/services';
 import { Avatar } from '@oxyhq/bloom/avatar';
 import * as Skeleton from '@oxyhq/bloom/skeleton';
 import { getNormalizedUserHandle } from '@oxyhq/core';
+import { useViewerFollowingSet } from '@/hooks/useViewerFollowing';
 import { ThemedText } from './ThemedText';
 import { RemoteActorBadge } from '@/components/Fediverse/FediverseBadge';
 import { AgentIcon } from '@/assets/icons/agent-icon';
@@ -63,6 +64,15 @@ interface ProfileCardProps {
    */
   showFollowButton?: boolean;
   /**
+   * Seeds the follow button's initial state so a user the viewer already follows
+   * renders "Following" on mount instead of flashing "Follow" until the status
+   * fetch resolves. When omitted, it is derived from the viewer's cached
+   * following set ({@link useViewerFollowingSet}), so every list surface gets the
+   * seed for free; pass an explicit value only when the row already carries the
+   * relationship from its own DTO.
+   */
+  initiallyFollowing?: boolean;
+  /**
    * Called when the viewer follows or unfollows from this row's follow button.
    * The button owns the follow state (and the surfaces that show it own nothing),
    * so this is the only way a caller can learn the row was acted on — used by the
@@ -81,6 +91,7 @@ export function ProfileCard({
   profile,
   onPress,
   showFollowButton = false,
+  initiallyFollowing,
   onFollowChange,
   meta,
   accessory,
@@ -88,6 +99,7 @@ export function ProfileCard({
 }: ProfileCardProps) {
   const router = useRouter();
   const { t } = useTranslation();
+  const followingSet = useViewerFollowingSet();
 
   // A federated profile's canonical handle carries its instance (`user@domain`),
   // so the row never needs a separate "globe + instance" line. An unresolved
@@ -175,7 +187,12 @@ export function ProfileCard({
         </View>
       </TouchableOpacity>
       {showFollowButton && (
-        <FollowButton userId={profile.id} size="small" onFollowChange={onFollowChange} />
+        <FollowButton
+          userId={profile.id}
+          size="small"
+          initiallyFollowing={initiallyFollowing ?? followingSet.has(profile.id)}
+          onFollowChange={onFollowChange}
+        />
       )}
       {accessory}
     </View>
