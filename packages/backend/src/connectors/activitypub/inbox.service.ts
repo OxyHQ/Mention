@@ -12,6 +12,7 @@ import { PostType } from '@mention/shared-types';
 import type { PostAuthorshipEntry } from '@mention/shared-types';
 import { extractApLanguage, extractApLanguages } from './apLanguage';
 import { getPostCreator } from '../../services/serviceRegistry';
+import { pollVoteService } from '../../services/PollVoteService';
 import { isFediverseSharingEnabled, isFediverseSharingEnabledFromUser } from '../../services/fediverseSharing';
 import { actorService } from './actor.service';
 import { requireActorOxyUserId } from '../shared/ActorResolutionPendingError';
@@ -459,6 +460,68 @@ export class InboxProcessingService {
     logger.debug(`[Federation] undo Announce from ${actorUri} (boost ${String(boost._id)})`);
   }
 
+  /**
+   * Handle an inbound Create whose Note is actually a POLL VOTE.
+   *
+   * Mastodon delivers a vote as a `Create` wrapping a `Note` that carries the
+   * chosen option's TEXT in `name`, an `inReplyTo` pointing at the poll's
+   * `Question` (our poll post's canonical AP id), and NO content — addressed to
+   * the poll owner. This detects that shape and records the vote against the
+   * local `Poll` through the SAME shared, atomic, idempotent path a local vote
+   * uses ({@link pollVoteService}), so a redelivered/duplicate vote never
+   * double-counts, a vote after close is rejected, and single-vs-multiple-choice
+   * is honored.
+   *
+   * Returns `true` when the Create was a vote on one of OUR polls (whether or not
+   * it was ultimately recorded — an unresolved voter, a sharing-off owner, a
+   * closed poll, or an unknown option all still "consume" it so it never falls
+   * through to the reply/post path). Returns `false` when it is not a poll vote
+   * (missing `name`/`inReplyTo`, has real content, or the referenced post is not
+   * a local poll), leaving {@link handleCreate} to process it as a normal
+   * reply/post. Fail-soft is inherited from the shared helpers; nothing throws.
+   */
+  private async handlePollVote(object: Record<string, any>, actorUri: string): Promise<boolean> {
+    // Shape gate — cheap checks first, no DB until the shape is a plausible vote.
+    const name = typeof object.name === 'string' ? object.name.trim() : '';
+    if (!name) return false;
+    const inReplyToUri = extractInReplyToUri(object.inReplyTo);
+    if (!inReplyToUri) return false;
+    // A vote carries no body; a Note WITH content on a poll is a normal reply.
+    const content = typeof object.content === 'string' ? object.content.trim() : '';
+    if (content.length > 0) return false;
+
+    // The `inReplyTo` must resolve to a LOCAL post that actually carries a poll.
+    const postId = await resolvePostIdFromObjectUri(inReplyToUri);
+    if (!postId) return false;
+    const post = await Post.findOne({ _id: postId }, { 'content.pollId': 1 })
+      .lean<{ content?: { pollId?: string } } | null>();
+    const pollId = post?.content?.pollId;
+    if (!pollId) return false; // reply to a non-poll post → let the normal path handle it
+
+    // Unambiguously a vote on our poll from here — consume it regardless of outcome.
+
+    // The poll owner may have turned fediverse sharing off — drop it silently.
+    if (!(await this.isLocalPostOwnerSharingEnabled(postId))) {
+      logger.debug(`[Federation] dropping poll vote from ${actorUri} on ${postId} — poll owner has sharing disabled`);
+      return true;
+    }
+
+    // Resolve the remote voter to a native Oxy user (syncs the actor, like handleLike).
+    const voterOxyUserId = await actorService.resolveActorOxyUserId(actorUri);
+    if (!voterOxyUserId) {
+      logger.info(`[Federation] skipping poll vote from ${actorUri} on ${postId}: unresolved actor`);
+      return true;
+    }
+
+    const result = await pollVoteService.recordVoteByOptionText(String(pollId), name, voterOxyUserId);
+    if (result.ok) {
+      logger.debug(`[Federation] recorded poll vote from ${actorUri} on ${postId} (option="${name}")`);
+    } else {
+      logger.debug(`[Federation] poll vote from ${actorUri} on ${postId} not recorded (${result.reason})`);
+    }
+    return true;
+  }
+
   private async handleCreate(activity: Record<string, any>, actorUri: string): Promise<void> {
     const object = activity.object;
     if (!object || typeof object !== 'object') return;
@@ -474,6 +537,13 @@ export class InboxProcessingService {
       );
       return;
     }
+
+    // A remote poll VOTE arrives as a Create(Note) — chosen option in `name`,
+    // `inReplyTo` = our poll's Question id, no content — and must be recorded
+    // against the Poll BEFORE the follower gate below: a voter need not follow us.
+    // Returns true only when this WAS a vote on one of our polls (handled + stop);
+    // a genuine reply/post returns false and flows through unchanged.
+    if (await this.handlePollVote(object, actorUri)) return;
 
     // Only process if the actor is followed by at least one local user
     const hasFollower = await FederatedFollow.exists({

@@ -43,6 +43,8 @@ const mocks = vi.hoisted(() => ({
   resolveReplyContext: vi.fn(),
   resolveMentionContext: vi.fn(),
   resolveMentionContextByPost: vi.fn(),
+  resolvePollContext: vi.fn(),
+  resolvePollContextByPost: vi.fn(),
   userSettingsFindOne: vi.fn(),
   postFind: vi.fn(),
   postCountDocuments: vi.fn(),
@@ -71,6 +73,8 @@ vi.mock('../../../connectors/activitypub/ActivityPubConnector', () => ({
     resolveReplyContext: (...args: unknown[]) => mocks.resolveReplyContext(...args),
     resolveMentionContext: (...args: unknown[]) => mocks.resolveMentionContext(...args),
     resolveMentionContextByPost: (...args: unknown[]) => mocks.resolveMentionContextByPost(...args),
+    resolvePollContext: (...args: unknown[]) => mocks.resolvePollContext(...args),
+    resolvePollContextByPost: (...args: unknown[]) => mocks.resolvePollContextByPost(...args),
     fetchPublicKey: vi.fn(),
     processInboxActivity: vi.fn().mockResolvedValue(undefined),
   },
@@ -172,6 +176,10 @@ beforeEach(() => {
   // gate tests mention nobody, so default to "no mentions".
   mocks.resolveMentionContext.mockResolvedValue(null);
   mocks.resolveMentionContextByPost.mockResolvedValue(new Map());
+  // The gate tests serve non-poll posts — default to "no poll" so the routes build
+  // plain Notes.
+  mocks.resolvePollContext.mockResolvedValue(null);
+  mocks.resolvePollContextByPost.mockResolvedValue(new Map());
   mocks.verifyHttpSignature.mockResolvedValue({
     verified: true,
     actorUri: 'https://remote.example/users/bob',

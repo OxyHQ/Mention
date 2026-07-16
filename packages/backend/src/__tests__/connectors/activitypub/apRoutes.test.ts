@@ -27,6 +27,8 @@ const mocks = vi.hoisted(() => ({
   resolveReplyContext: vi.fn(),
   resolveMentionContext: vi.fn(),
   resolveMentionContextByPost: vi.fn(),
+  resolvePollContext: vi.fn(),
+  resolvePollContextByPost: vi.fn(),
   userSettingsFindOne: vi.fn(),
   postFind: vi.fn(),
   postCountDocuments: vi.fn(),
@@ -50,6 +52,8 @@ vi.mock('../../../connectors/activitypub/ActivityPubConnector', () => ({
     resolveReplyContext: (...args: unknown[]) => mocks.resolveReplyContext(...args),
     resolveMentionContext: (...args: unknown[]) => mocks.resolveMentionContext(...args),
     resolveMentionContextByPost: (...args: unknown[]) => mocks.resolveMentionContextByPost(...args),
+    resolvePollContext: (...args: unknown[]) => mocks.resolvePollContext(...args),
+    resolvePollContextByPost: (...args: unknown[]) => mocks.resolvePollContextByPost(...args),
     fetchPublicKey: vi.fn(),
     processInboxActivity: vi.fn(),
   },
@@ -115,6 +119,10 @@ beforeEach(() => {
   // empty map and the single-post dereference resolver returns null.
   mocks.resolveMentionContext.mockResolvedValue(null);
   mocks.resolveMentionContextByPost.mockResolvedValue(new Map());
+  // Default: no post carries a poll — the batch resolver returns an empty map and
+  // the single-post dereference resolver returns null (serves a plain Note).
+  mocks.resolvePollContext.mockResolvedValue(null);
+  mocks.resolvePollContextByPost.mockResolvedValue(new Map());
 });
 
 describe('GET /ap/users/:username — actor image (banner)', () => {
@@ -181,9 +189,9 @@ describe('GET /ap/users/:username/outbox?page=true — reuses buildCreateNoteAct
       .expect(200);
 
     expect(mocks.buildCreateNoteActivity).toHaveBeenCalledTimes(2);
-    // The outbox passes NO reply context and the per-post mention context (undefined
-    // here — the batch resolver returned an empty map) as the 3rd/4th args.
-    expect(mocks.buildCreateNoteActivity).toHaveBeenNthCalledWith(1, posts[0], 'alice', undefined, undefined);
+    // The outbox passes NO reply context and the per-post mention + poll contexts
+    // (both undefined here — the batch resolvers returned empty maps) as args 3-5.
+    expect(mocks.buildCreateNoteActivity).toHaveBeenNthCalledWith(1, posts[0], 'alice', undefined, undefined, undefined);
     expect(res.body.type).toBe('OrderedCollectionPage');
     expect(res.body.orderedItems).toEqual([
       { type: 'Create', object: { id: 'https://mention.earth/ap/users/alice/posts/p1' } },
@@ -191,6 +199,38 @@ describe('GET /ap/users/:username/outbox?page=true — reuses buildCreateNoteAct
     ]);
     // A page that does not overfetch past the window has no further page.
     expect(res.body.next).toBeUndefined();
+  });
+
+  it('threads the resolved poll context into the builder so a poll post serializes as a Question', async () => {
+    mocks.resolveOxyUser.mockResolvedValue({ _id: 'u1' });
+    mocks.postCountDocuments.mockResolvedValue(1);
+    const posts = [{ _id: 'poll-post' }];
+    mocks.postFind.mockReturnValue({
+      sort: () => ({ limit: () => ({ lean: async () => posts }) }),
+    });
+    const pollContext = {
+      multiple: false,
+      options: [{ name: 'A', votes: 1 }],
+      endTime: new Date('2099-01-01T00:00:00.000Z'),
+      closed: false,
+      votersCount: 1,
+    };
+    mocks.resolvePollContextByPost.mockResolvedValue(new Map([['poll-post', pollContext]]));
+    mocks.buildCreateNoteActivity.mockImplementation(
+      (_post: unknown, _username: unknown, _reply: unknown, _mentions: unknown, poll: unknown) => ({
+        type: 'Create',
+        object: poll ? { type: 'Question' } : { type: 'Note' },
+      }),
+    );
+
+    const res = await request(app)
+      .get('/ap/users/alice/outbox?page=true')
+      .set('Accept', AP_ACCEPT)
+      .expect(200);
+
+    // The batch-resolved poll context is passed as the 5th arg for its post.
+    expect(mocks.buildCreateNoteActivity).toHaveBeenCalledWith(posts[0], 'alice', undefined, undefined, pollContext);
+    expect(res.body.orderedItems).toEqual([{ type: 'Create', object: { type: 'Question' } }]);
   });
 });
 
@@ -548,8 +588,8 @@ describe('GET /ap/users/:username/posts/:id — dereference', () => {
     // into the pure Note builder as the third argument.
     expect(mocks.resolveReplyContext).toHaveBeenCalledWith(replyDoc);
     // The dereference route threads the resolved reply context + (null →) undefined
-    // mention context into the Note builder.
-    expect(mocks.buildCreateNoteActivity).toHaveBeenCalledWith(replyDoc, 'alice', replyContext, undefined);
+    // mention + poll contexts into the Note builder.
+    expect(mocks.buildCreateNoteActivity).toHaveBeenCalledWith(replyDoc, 'alice', replyContext, undefined, undefined);
   });
 
   it('404s a malformed post id without touching the database', async () => {
