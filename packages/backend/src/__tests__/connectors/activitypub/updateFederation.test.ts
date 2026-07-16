@@ -145,7 +145,8 @@ describe('federateUpdate — top-level edit', () => {
 
     const note = deliveredNote();
     expect(note.type).toBe('Note');
-    expect(note.content).toBe('edited body');
+    // AP `content` is HTML — the plain-text body is wrapped in a paragraph.
+    expect(note.content).toBe('<p>edited body</p>');
     expect(note.inReplyTo).toBeUndefined();
     // The Note carries the SAME `updated` marker as the envelope.
     expect(note.updated).toBe(activity.updated);

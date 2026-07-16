@@ -158,7 +158,8 @@ describe('federateNewPost — reply to a FEDERATED parent', () => {
     const note = deliveredNote();
     expect(note.type).toBe('Note');
     expect(note.inReplyTo).toBe('https://remote.example/users/bob/statuses/9');
-    expect(note.content).toBe('threaded response');
+    // AP `content` is HTML — the plain-text body is wrapped in a paragraph.
+    expect(note.content).toBe('<p>threaded response</p>');
 
     // The Mention tag threads + notifies the remote author (href resolves it;
     // name is the human-readable @user@domain from the stored acct).
