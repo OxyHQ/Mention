@@ -530,6 +530,10 @@
   "fediverse.sheet.cancel": "Cancel",
   "fediverse.settings.title": "Fediverse sharing",
   "fediverse.settings.description": "Share your profile and posts across the fediverse",
+  "fediverse.settings.preferredLanguage.title": "Preferred language",
+  "fediverse.settings.preferredLanguage.description": "The main language your posts are written in. It becomes the primary version shown across the fediverse; leave it automatic to let it be detected per post.",
+  "fediverse.settings.preferredLanguage.automatic": "Automatic",
+  "fediverse.settings.preferredLanguage.clear": "Use automatic",
   "fediverse.settings.share": "Share to the fediverse",
   "fediverse.settings.whatIs": "What is the fediverse?",
   "fediverse.settings.disableConfirm.title": "Turn off fediverse sharing?",
@@ -1571,5 +1575,6 @@
   },
   "user": {
     "unknown": "Unknown user"
-  }
+  },
+  "compose.languages.makeMain": "Make main language"
 }

@@ -156,6 +156,15 @@ export interface UserSettingsData {
    * `@mention/shared-types` (`ExternalEmbedsSettings`).
    */
   externalEmbeds?: ExternalEmbedsSettings;
+  /**
+   * The user's global default "primary" post language — a canonical BCP-47 tag
+   * (`en`, `es-ES`, `pt-BR`). Mention-owned (NOT an Oxy identity field): it seeds
+   * the composer's default primary language variant client-side. A post's actual
+   * primary variant is still `content.variants[0]` per-post; this is only the
+   * default the composer starts from. Absent ⇒ the client falls back to its own
+   * heuristic (device/account locale). Validated + canonicalized on write.
+   */
+  fediversePreferredLanguage?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -309,6 +318,7 @@ const UserSettingsSchema = new Schema<IUserSettings>({
   feedTuning: { type: FeedTuningSchema },
   notificationPreferences: { type: NotificationPreferencesSchema },
   externalEmbeds: { type: ExternalEmbedsSchema },
+  fediversePreferredLanguage: { type: String, default: undefined },
 }, { timestamps: true, versionKey: false });
 
 export const UserSettings = mongoose.model<IUserSettings>('UserSettings', UserSettingsSchema);

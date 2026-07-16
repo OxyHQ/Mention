@@ -64,6 +64,13 @@ export interface UserSettingsResponse {
     feedSettings?: FeedSettings;
     notificationPreferences?: NotificationPreferences;
     externalEmbeds?: ExternalEmbedsSettings;
+    /**
+     * The author's default PRIMARY content language (canonical BCP-47), applied
+     * as `content.variants[0]` — the rendition that federates and is the post's
+     * "face". Absent ⇒ no global preference; the composer opens on the UI locale
+     * and leaves detection to the server.
+     */
+    fediversePreferredLanguage?: string;
     createdAt?: string;
     updatedAt?: string;
 }

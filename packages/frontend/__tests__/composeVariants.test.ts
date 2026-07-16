@@ -9,11 +9,13 @@ import {
   getVariantItem,
   hasVariantWork,
   primaryTextFromPost,
+  promoteVariantToPrimary,
   serializeVariants,
   variantsReducer,
   variantsStateFromPost,
   type ComposeVariantsAction,
   type ComposeVariantsState,
+  type PromotablePrimary,
 } from '@/utils/composeVariants';
 import { buildEditPost, buildMainPost, buildThreadPost } from '@/utils/postBuilder';
 import type { ThreadItem } from '@/hooks/useThreadManager';
@@ -411,6 +413,111 @@ describe('drafts', () => {
       media: { mode: 'inherit', alt: {} },
       article: null,
     });
+  });
+});
+
+describe('promoting a secondary language to primary', () => {
+  const primary = (text: string, media: ComposerMediaItem[] = [], article: PromotablePrimary['article'] = null): PromotablePrimary => ({
+    text,
+    media,
+    article,
+  });
+
+  it('makes the promoted language the post’s face and demotes the old primary to a variant', () => {
+    const state = run(
+      createVariantsState(ES),
+      { type: 'add-language', tag: EN },
+      { type: 'set-text', tag: EN, itemId: MAIN_ITEM_ID, text: 'Hello world' },
+    );
+
+    const outcome = promoteVariantToPrimary(state, EN, { [MAIN_ITEM_ID]: primary('Hola mundo') });
+
+    expect(outcome.state.primaryTag).toBe(EN);
+    expect(outcome.state.variantTags).toEqual([ES]);
+    expect(outcome.state.primaryChosen).toBe(true);
+    expect(outcome.state.activeTag).toBe(EN);
+    // The promoted rendition is what the composer writes back as its primary state.
+    expect(outcome.primaryByItem[MAIN_ITEM_ID]).toEqual({ text: 'Hello world', media: [], article: null });
+
+    // `variants[0]` is now the promoted language; the old primary survives as a variant.
+    const payload = buildVariantContent(outcome.state, MAIN_ITEM_ID, outcome.primaryByItem[MAIN_ITEM_ID].text, []);
+    expect(payload).toEqual([
+      { tag: EN, source: 'author', text: 'Hello world' },
+      { tag: ES, source: 'author', text: 'Hola mundo' },
+    ]);
+  });
+
+  it('carries the promotion through the reducer action too', () => {
+    const state = run(
+      createVariantsState(ES),
+      { type: 'add-language', tag: EN },
+      { type: 'set-text', tag: EN, itemId: MAIN_ITEM_ID, text: 'Hello' },
+      { type: 'promote-to-primary', tag: EN, oldPrimaryByItem: { [MAIN_ITEM_ID]: primary('Hola') } },
+    );
+
+    expect(state.primaryTag).toBe(EN);
+    expect(state.variantTags).toEqual([ES]);
+    expect(getVariantItem(state, ES, MAIN_ITEM_ID).text).toBe('Hola');
+  });
+
+  it('promotes a language with its OWN images: they become the shared set, the old images are pinned, and inheritors keep the old ones', () => {
+    const state = run(
+      createVariantsState(ES),
+      { type: 'add-language', tag: EN },
+      { type: 'set-text', tag: EN, itemId: MAIN_ITEM_ID, text: 'Hello' },
+      { type: 'append-media', tag: EN, itemId: MAIN_ITEM_ID, media: [image('img-en', 'English chart')] },
+      { type: 'add-language', tag: 'fr' },
+      { type: 'set-media-alt', tag: 'fr', itemId: MAIN_ITEM_ID, mediaId: 'img-1', alt: 'Un graphique' },
+    );
+
+    const outcome = promoteVariantToPrimary(state, EN, {
+      [MAIN_ITEM_ID]: primary('Hola', [image('img-1', 'Un gráfico')]),
+    });
+
+    // The promoted language's own images become the composer's shared set.
+    expect(outcome.primaryByItem[MAIN_ITEM_ID].media).toEqual([image('img-en', 'English chart')]);
+    // The old primary is pinned to the images it showed (as an override variant).
+    expect(getVariantItem(outcome.state, ES, MAIN_ITEM_ID).media).toEqual({
+      mode: 'override',
+      media: [image('img-1', 'Un gráfico')],
+    });
+    // French inherited the OLD shared images; it keeps them (with its own alt), not the new ones.
+    expect(getVariantItem(outcome.state, 'fr', MAIN_ITEM_ID).media).toEqual({
+      mode: 'override',
+      media: [image('img-1', 'Un graphique')],
+    });
+  });
+
+  it('swaps localized alt when the shared images are unchanged', () => {
+    const state = run(
+      createVariantsState(ES),
+      { type: 'add-language', tag: EN },
+      { type: 'set-text', tag: EN, itemId: MAIN_ITEM_ID, text: 'Hello' },
+      { type: 'set-media-alt', tag: EN, itemId: MAIN_ITEM_ID, mediaId: 'img-1', alt: 'The English chart' },
+    );
+
+    const outcome = promoteVariantToPrimary(state, EN, {
+      [MAIN_ITEM_ID]: primary('Hola', [image('img-1', 'El gráfico español')]),
+    });
+
+    // The new primary keeps the shared image but now carries the promoted language's alt.
+    expect(outcome.primaryByItem[MAIN_ITEM_ID].media).toEqual([image('img-1', 'The English chart')]);
+    // The old primary's alt is preserved as its localized inherit map.
+    expect(getVariantItem(outcome.state, ES, MAIN_ITEM_ID).media).toEqual({
+      mode: 'inherit',
+      alt: { 'img-1': 'El gráfico español' },
+    });
+  });
+
+  it('is a no-op — same state reference — when the tag is not a current author variant', () => {
+    const state = run(
+      createVariantsState(ES),
+      { type: 'add-language', tag: EN },
+    );
+
+    expect(promoteVariantToPrimary(state, 'de', {}).state).toBe(state);
+    // The current primary is not a promotable variant either.
+    expect(promoteVariantToPrimary(state, ES, {}).state).toBe(state);
   });
 });
 

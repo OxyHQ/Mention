@@ -181,6 +181,12 @@ export type ComposeVariantsAction =
   /** Re-tags a rendition IN PLACE — the author's work in that tab survives. */
   | { type: 'rename-language'; from: string; to: string }
   | { type: 'set-primary-language'; tag: string }
+  /**
+   * Promotes a secondary language to primary. The old primary moves into the
+   * author variants; because the primary's content lives in the composer's own
+   * state (not this buffer), the outgoing primary's per-item content is handed in.
+   */
+  | { type: 'promote-to-primary'; tag: string; oldPrimaryByItem: Record<string, PromotablePrimary> }
   | { type: 'set-text'; tag: string; itemId: string; text: string }
   /** Writes the alt of ONE image, into whichever arm the rendition is in. */
   | { type: 'set-media-alt'; tag: string; itemId: string; mediaId: string; alt: string }
@@ -267,6 +273,9 @@ export function variantsReducer(
       };
     }
 
+    case 'promote-to-primary':
+      return promoteVariantToPrimary(state, action.tag, action.oldPrimaryByItem).state;
+
     case 'set-text':
       return withItem(state, action.tag, action.itemId, (item) => ({ ...item, text: action.text }));
 
@@ -343,6 +352,159 @@ export function variantsReducer(
     case 'reset':
       return createVariantsState(action.primaryTag);
   }
+}
+
+// ── Promotion ────────────────────────────────────────────────────────────────
+
+/**
+ * The primary rendition of ONE composer item as it lives in the composer's own
+ * state (`postContent`/`mediaIds`/`article`, or a thread item's fields). The
+ * primary is not held in this buffer, so promoting a variant to primary must be
+ * handed the outgoing primary's content per item.
+ */
+export interface PromotablePrimary {
+  text: string;
+  media: ComposerMediaItem[];
+  article: ComposeVariantArticle | null;
+}
+
+/**
+ * Promoting a variant returns the new buffer PLUS the content to write back into
+ * the composer's own primary state, per item. Only items the promoted language
+ * actually rendered appear in `primaryByItem`: an item that language never
+ * translated keeps its primary body and inherits, exactly as before the promote.
+ */
+export interface PromotionOutcome {
+  state: ComposeVariantsState;
+  primaryByItem: Record<string, PromotablePrimary>;
+}
+
+/** The alt descriptions carried on a media set, as an inherit variant's map. */
+function sharedAltMap(media: readonly ComposerMediaItem[]): Record<string, string> {
+  const alt: Record<string, string> = {};
+  for (const item of media) {
+    const value = item.alt?.trim();
+    if (value) alt[item.id] = value;
+  }
+  return alt;
+}
+
+/** The shared images re-based to carry only `localized` alt (the old alt is dropped). */
+function withLocalizedAlt(
+  media: readonly ComposerMediaItem[],
+  localized: Record<string, string>,
+): ComposerMediaItem[] {
+  return media.map((item) => {
+    const alt = localized[item.id]?.trim();
+    return alt ? { id: item.id, type: item.type, alt } : { id: item.id, type: item.type };
+  });
+}
+
+/** The promoted variant, resolved to the concrete primary content it becomes. */
+function resolvePromotedPrimary(
+  variant: ComposeVariantItem,
+  oldPrimary: PromotablePrimary,
+): PromotablePrimary {
+  const media =
+    variant.media.mode === 'override'
+      ? variant.media.media
+      : withLocalizedAlt(oldPrimary.media, variant.media.alt);
+  return { text: variant.text, media, article: variant.article ?? oldPrimary.article };
+}
+
+/** The outgoing primary, captured as the variant it becomes. */
+function demotePrimary(
+  oldPrimary: PromotablePrimary,
+  promoted: ComposeVariantItem,
+): ComposeVariantItem {
+  const media: ComposeVariantMedia =
+    promoted.media.mode === 'override'
+      ? { mode: 'override', media: oldPrimary.media }
+      : { mode: 'inherit', alt: sharedAltMap(oldPrimary.media) };
+  return {
+    text: oldPrimary.text,
+    media,
+    article: promoted.article !== null ? oldPrimary.article : null,
+  };
+}
+
+/**
+ * Another author language, re-based when the shared media/article it INHERITS is
+ * about to change under it (the promoted language overrode it). A variant that
+ * already overrode is untouched — it never depended on the shared set.
+ */
+function rebaseInheritingVariant(
+  other: ComposeVariantItem,
+  oldPrimary: PromotablePrimary,
+  promoted: ComposeVariantItem,
+): ComposeVariantItem {
+  const media: ComposeVariantMedia =
+    promoted.media.mode === 'override' && other.media.mode === 'inherit'
+      ? { mode: 'override', media: withLocalizedAlt(oldPrimary.media, other.media.alt) }
+      : other.media;
+  const article =
+    promoted.article !== null && other.article === null ? oldPrimary.article : other.article;
+  return { ...other, media, article };
+}
+
+/**
+ * Promote a secondary language to primary.
+ *
+ * The old primary moves into the author variants, taking the promoted tab's slot,
+ * and every language keeps rendering exactly what it did: the promoted one becomes
+ * the post's face (`variants[0]`), the old primary becomes one rendition among the
+ * rest, and any language that was inheriting a media/article set that just changed
+ * is pinned to the old one. Returns the SAME state reference unchanged when the tag
+ * is not a current author variant, so callers can detect the no-op by identity.
+ */
+export function promoteVariantToPrimary(
+  state: ComposeVariantsState,
+  tag: string,
+  oldPrimaryByItem: Record<string, PromotablePrimary>,
+): PromotionOutcome {
+  const promotedTag = canonicalizeLanguageTag(tag);
+  if (promotedTag === null || !state.variantTags.includes(promotedTag)) {
+    return { state, primaryByItem: {} };
+  }
+
+  const oldPrimaryTag = state.primaryTag;
+  const promotedEntries = state.entries[promotedTag] ?? {};
+
+  const primaryByItem: Record<string, PromotablePrimary> = {};
+  const demotedEntries: Record<string, ComposeVariantItem> = {};
+  for (const [itemId, variant] of Object.entries(promotedEntries)) {
+    const oldPrimary = oldPrimaryByItem[itemId];
+    if (!oldPrimary || !hasVariantContent(variant)) continue;
+    primaryByItem[itemId] = resolvePromotedPrimary(variant, oldPrimary);
+    demotedEntries[itemId] = demotePrimary(oldPrimary, variant);
+  }
+
+  const entries: ComposeVariantsState['entries'] = {};
+  for (const [entryTag, items] of Object.entries(state.entries)) {
+    if (entryTag === promotedTag) continue; // Becomes the primary; its content moves out.
+    const rebased: Record<string, ComposeVariantItem> = {};
+    for (const [itemId, item] of Object.entries(items)) {
+      const promoted = promotedEntries[itemId];
+      const oldPrimary = oldPrimaryByItem[itemId];
+      rebased[itemId] =
+        promoted && oldPrimary && hasVariantContent(promoted)
+          ? rebaseInheritingVariant(item, oldPrimary, promoted)
+          : item;
+    }
+    entries[entryTag] = rebased;
+  }
+  entries[oldPrimaryTag] = demotedEntries;
+
+  return {
+    state: {
+      primaryTag: promotedTag,
+      variantTags: state.variantTags.map((t) => (t === promotedTag ? oldPrimaryTag : t)),
+      activeTag: promotedTag,
+      entries,
+      primaryChosen: true,
+    },
+    primaryByItem,
+  };
 }
 
 // ── Payload ─────────────────────────────────────────────────────────────────
