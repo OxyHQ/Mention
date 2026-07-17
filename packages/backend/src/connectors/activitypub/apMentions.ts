@@ -5,6 +5,7 @@ import { getApContentMap } from './apLanguage';
 import { primaryApType } from './apSchemas';
 import { bridgedMentionAnchorHrefs } from './bridgy';
 import { isBlockedDomain, resolveOxyUser } from './constants';
+import { runWithTimeout } from './helpers';
 
 /**
  * INBOUND @mention ingestion for federated ActivityPub Notes.
@@ -63,6 +64,14 @@ export interface ResolvedInboundMentions {
    * tag resolved (the common no-mention case), which makes the rewrite a no-op.
    */
   anchorMap: Map<string, string>;
+}
+
+/** A mentioned actor resolved to its Oxy user id and locality. */
+export interface MentionActorResolution {
+  /** The mentioned actor's Oxy user id (federated OR local). */
+  oxyUserId: string;
+  /** True when the actor is a LOCAL Mention user — the only notification target. */
+  isLocal: boolean;
 }
 
 /** Matches a whole `<a …>…</a>` anchor, capturing its `href`. Anchors never nest. */
@@ -191,7 +200,7 @@ const lookupExistingRemoteActorOxyId: RemoteMentionResolver = async (href) => {
 async function resolveMentionOxyId(
   href: string,
   resolveRemote: RemoteMentionResolver,
-): Promise<{ oxyUserId: string; isLocal: boolean } | null> {
+): Promise<MentionActorResolution | null> {
   let host: string;
   try {
     host = new URL(href).hostname.toLowerCase();
@@ -212,18 +221,29 @@ async function resolveMentionOxyId(
 }
 
 /**
- * Shared engine behind {@link resolveInboundMentions} and
- * {@link resolveInboundMentionsExisting}: extract the `Mention` tags, resolve each
- * DISTINCT actor href AT MOST once (no N+1), and build the id/localId sets plus the
- * candidate-anchor map. Fail-soft per mention (a tag that fails to resolve is
- * simply absent, leaving its anchor as bare text). The ONLY behavioural difference
- * between the two public callers is `resolveRemote` — whether an unknown remote
- * actor is fetched-and-created or looked up read-only — so both cover the exact
- * same set of anchor href forms.
+ * Resolve ONE extracted `Mention` tag to its mentioned actor, or `null` when it
+ * cannot be resolved (leaving its anchor as bare text). This is the single seam
+ * {@link buildResolvedInboundMentions} varies across its callers: the live inbox
+ * path resolves through {@link resolveMentionOxyId} with the fetch-and-create
+ * remote resolver, the one-shot repair path resolves lookup-only, and the batched
+ * outbox path resolves from a precomputed map with NO further I/O.
+ */
+type MentionTagResolver = (tag: InboundMentionTag) => Promise<MentionActorResolution | null>;
+
+/**
+ * Shared engine behind {@link resolveInboundMentions},
+ * {@link resolveInboundMentionsExisting} and {@link resolveInboundMentionsForNotes}:
+ * extract the `Mention` tags, resolve each DISTINCT actor href AT MOST once (no
+ * N+1), and build the id/localId sets plus the candidate-anchor map. Fail-soft per
+ * mention (a tag that fails to resolve is simply absent, leaving its anchor as bare
+ * text). The ONLY behavioural difference between the callers is `resolveTag` —
+ * whether an unknown remote actor is fetched-and-created, looked up read-only, or
+ * read from a precomputed batch map — so all cover the exact same set of anchor
+ * href forms.
  */
 async function buildResolvedInboundMentions(
   object: Record<string, unknown>,
-  resolveRemote: RemoteMentionResolver,
+  resolveTag: MentionTagResolver,
 ): Promise<ResolvedInboundMentions> {
   const tags = extractMentionTags(object);
   if (tags.length === 0) return { ids: [], localIds: [], anchorMap: new Map() };
@@ -241,7 +261,7 @@ async function buildResolvedInboundMentions(
   await Promise.all(
     [...byHref.values()].map(async (tag) => {
       try {
-        const resolved = await resolveMentionOxyId(tag.href, resolveRemote);
+        const resolved = await resolveTag(tag);
         if (!resolved) return;
         ids.add(resolved.oxyUserId);
         if (resolved.isLocal) localIds.add(resolved.oxyUserId);
@@ -281,7 +301,9 @@ async function buildResolvedInboundMentions(
 export async function resolveInboundMentions(
   object: Record<string, unknown>,
 ): Promise<ResolvedInboundMentions> {
-  return buildResolvedInboundMentions(object, fetchOrCreateRemoteActorOxyId);
+  return buildResolvedInboundMentions(object, (tag) =>
+    resolveMentionOxyId(tag.href, fetchOrCreateRemoteActorOxyId),
+  );
 }
 
 /**
@@ -298,7 +320,91 @@ export async function resolveInboundMentions(
 export async function resolveInboundMentionsExisting(
   object: Record<string, unknown>,
 ): Promise<ResolvedInboundMentions> {
-  return buildResolvedInboundMentions(object, lookupExistingRemoteActorOxyId);
+  return buildResolvedInboundMentions(object, (tag) =>
+    resolveMentionOxyId(tag.href, lookupExistingRemoteActorOxyId),
+  );
+}
+
+/** Tuning for {@link resolveInboundMentionsForNotes}'s bounded remote fan-out. */
+export interface BatchMentionResolveOptions {
+  /** Max distinct mention actors resolved in parallel per batch. */
+  concurrency: number;
+  /**
+   * Per-actor wall-clock budget. A remote actor fetch that exceeds it resolves to
+   * "unresolved" (its anchor stays bare text) rather than stalling the batch.
+   */
+  perActorTimeoutMs: number;
+}
+
+/**
+ * Batched, BOUNDED variant of {@link resolveInboundMentions} for the outbox
+ * backfill path, which imports a whole PAGE of Notes in one pass. Returns each
+ * note's {@link ResolvedInboundMentions}, keyed by the input object reference.
+ *
+ * The outbox path must resolve the UNION of the page's @mentions without either
+ * (a) re-resolving an actor several notes mention, or (b) fanning out one
+ * UNBOUNDED remote actor fetch per mention across the page — the exact failure
+ * mode that once hung a Bluesky re-ingest. So every DISTINCT mention actor across
+ * all notes is resolved AT MOST once, in batches of `concurrency`, each remote
+ * resolution capped by `perActorTimeoutMs`; a slow/dead/throwing actor yields
+ * `null` and its anchor stays bare text instead of stalling or aborting the page.
+ *
+ * Like {@link resolveInboundMentions} (and unlike the repair path), a first-seen
+ * mentioned actor IS fetched-and-created so its mention links. The per-note
+ * placeholder/id assembly then runs against the shared resolution map with NO
+ * further I/O, reusing the identical anchor-matching logic as the single-note
+ * paths via {@link buildResolvedInboundMentions}.
+ */
+export async function resolveInboundMentionsForNotes(
+  objects: ReadonlyArray<Record<string, unknown>>,
+  options: BatchMentionResolveOptions,
+): Promise<Map<Record<string, unknown>, ResolvedInboundMentions>> {
+  const byNote = new Map<Record<string, unknown>, ResolvedInboundMentions>();
+  if (objects.length === 0) return byNote;
+
+  // 1. Union of DISTINCT mention actor hrefs across every note in the page.
+  const distinctHrefs = new Set<string>();
+  for (const object of objects) {
+    for (const tag of extractMentionTags(object)) distinctHrefs.add(tag.href);
+  }
+
+  // 2. Resolve each distinct href AT MOST once (fetch-and-create) in bounded
+  //    batches, each capped by the per-actor timeout. A timeout, a null, or a
+  //    thrown error leaves the href unresolved — never aborts the batch.
+  const resolutions = new Map<string, MentionActorResolution>();
+  const hrefs = [...distinctHrefs];
+  const concurrency = Math.max(1, options.concurrency);
+  for (let i = 0; i < hrefs.length; i += concurrency) {
+    const batch = hrefs.slice(i, i + concurrency);
+    const resolved = await Promise.all(
+      batch.map((href) =>
+        runWithTimeout(
+          resolveMentionOxyId(href, fetchOrCreateRemoteActorOxyId),
+          options.perActorTimeoutMs,
+        ).catch((err) => {
+          const message = err instanceof Error ? err.message : String(err);
+          logger.warn(`[Federation] failed to resolve outbox mention ${href}: ${message}`);
+          return null;
+        }),
+      ),
+    );
+    for (let j = 0; j < batch.length; j++) {
+      const value = resolved[j];
+      if (value) resolutions.set(batch[j], value);
+    }
+  }
+
+  // 3. Assemble each note's placeholders/ids from the shared map — NO I/O, same
+  //    anchor-matching engine as the single-note paths.
+  for (const object of objects) {
+    byNote.set(
+      object,
+      await buildResolvedInboundMentions(object, (tag) =>
+        Promise.resolve(resolutions.get(tag.href) ?? null),
+      ),
+    );
+  }
+  return byNote;
 }
 
 /**
