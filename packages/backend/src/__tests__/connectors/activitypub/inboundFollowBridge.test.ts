@@ -21,7 +21,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
  * `InboxProcessingService` runs against mocked models / crypto / oxy client, so the
  * production dispatch path is exercised. `resolveOxyUser` is overridden on the real
  * `constants` module (it otherwise `require()`s the whole server), and
- * `followService.sendAccept` is spied so call order can be asserted.
+ * `deliveryService.sendAccept` is spied so call order can be asserted.
  */
 
 const mocks = vi.hoisted(() => ({
@@ -168,7 +168,7 @@ vi.mock('../../../connectors/activitypub/constants', async (importOriginal) => {
   return { ...actual, resolveOxyUser: mocks.resolveOxyUser };
 });
 
-import { followService } from '../../../connectors/activitypub/follow.service';
+import { deliveryService } from '../../../connectors/activitypub/delivery.service';
 import { inboxProcessingService } from '../../../connectors/activitypub/inbox.service';
 import { ActorResolutionPendingError } from '../../../connectors/shared/ActorResolutionPendingError';
 
@@ -212,7 +212,7 @@ function undoFollowActivity() {
   };
 }
 
-const sendAcceptSpy = vi.spyOn(followService, 'sendAccept');
+const sendAcceptSpy = vi.spyOn(deliveryService, 'sendAccept');
 
 beforeEach(() => {
   vi.clearAllMocks();

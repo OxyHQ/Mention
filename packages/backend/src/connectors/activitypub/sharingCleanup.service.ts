@@ -1,7 +1,7 @@
 import { logger } from '../../utils/logger';
 import FederatedActor from '../../models/FederatedActor';
 import FederatedFollow from '../../models/FederatedFollow';
-import { followService } from './follow.service';
+import { deliveryService } from './delivery.service';
 import { getServiceOxyClient } from '../../utils/oxyHelpers';
 import { AP_CONTEXT } from '@oxyhq/federation';
 import { actorUrl } from './constants';
@@ -49,7 +49,7 @@ export interface SharingCleanupResult {
  *         survive. `isFediverseSharingEnabled`'s normal fail-open semantics
  *         stay correct everywhere else on this module — only this guard
  *         needs the split.
- *  1. `followService.deliverToFollowers` reads the inbound `FederatedFollow`
+ *  1. `deliveryService.deliverToFollowers` reads the inbound `FederatedFollow`
  *     rows itself to resolve delivery inboxes — it MUST run before those rows
  *     are touched, or the Delete goes to nobody. Re-sending it on a retry is
  *     harmless: Delete(actor) is idempotent for a remote server (an actor
@@ -109,7 +109,7 @@ export async function runSharingCleanup(
     object: actor,
   };
 
-  await followService.deliverToFollowers(deleteActivity, oxyUserId, username);
+  await deliveryService.deliverToFollowers(deleteActivity, oxyUserId, username);
 
   const actorUris = inboundFollows.map((f) => f.remoteActorUri);
   const remoteActors = await FederatedActor.find({ uri: { $in: actorUris } })

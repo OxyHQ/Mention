@@ -18,8 +18,8 @@ const mocks = vi.hoisted(() => ({
   getFediverseSharingStateById: vi.fn(),
 }));
 
-vi.mock('../../../connectors/activitypub/follow.service', () => ({
-  followService: { deliverToFollowers: mocks.deliverToFollowers },
+vi.mock('../../../connectors/activitypub/delivery.service', () => ({
+  deliveryService: { deliverToFollowers: mocks.deliverToFollowers },
 }));
 
 vi.mock('../../../services/fediverseSharing', () => ({

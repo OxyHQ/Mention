@@ -34,10 +34,14 @@ vi.mock('@oxyhq/core/server', () => ({
 
 vi.mock('../../connectors/activitypub/constants', () => ({
   FEDERATION_ENABLED: true,
-  // `actorObject.ts` / `actor.service.ts` bind the shared engine at module load, so
-  // they read these from constants when this module graph is imported.
+  // `actorObject.ts` / `actor.service.ts` / `delivery.service.ts` bind the shared
+  // engine at module load, so they read these from constants when this module graph
+  // is imported (connectors.routes → sharingCleanup.service → delivery.service).
   isBlockedDomain: () => false,
   FEDERATION_DOMAIN: 'mention.earth',
+  AP_CONTENT_TYPE: 'application/activity+json',
+  USER_AGENT: 'Mention/mention.earth (ActivityPub)',
+  resolveOxyUser: vi.fn(),
   federationUrls: {
     actor: (u: string) => `https://mention.earth/ap/users/${u}`,
     inbox: (u: string) => `https://mention.earth/ap/users/${u}/inbox`,

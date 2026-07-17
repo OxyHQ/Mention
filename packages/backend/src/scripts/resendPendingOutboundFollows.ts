@@ -8,7 +8,7 @@
  * lingers pending and the remote never learns we want to follow.
  *
  * For each pending outbound follow this resolves the local user's CURRENT Oxy
- * username and calls `followService.sendFollow`, which re-upserts the row to
+ * username and calls `deliveryService.sendFollow`, which re-upserts the row to
  * pending and re-queues the Follow activity for delivery (dedupe-safe, so a
  * follow that IS already known to the remote is harmless to resend).
  *
@@ -18,7 +18,7 @@
 
 import mongoose from 'mongoose';
 import FederatedFollow from '../models/FederatedFollow';
-import { followService } from '../connectors/activitypub/follow.service';
+import { deliveryService } from '../connectors/activitypub/delivery.service';
 import { FEDERATION_ENABLED } from '../connectors/activitypub/constants';
 import { getServiceOxyClient } from '../utils/oxyHelpers';
 import { logger } from '../utils/logger';
@@ -82,7 +82,7 @@ async function resendPendingOutboundFollows(): Promise<void> {
           continue;
         }
 
-        await followService.sendFollow(follow.localUserId, username, follow.remoteActorUri);
+        await deliveryService.sendFollow(follow.localUserId, username, follow.remoteActorUri);
         resent += 1;
       } catch (err) {
         failed += 1;

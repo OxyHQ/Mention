@@ -79,7 +79,7 @@ vi.mock('../../../utils/mediaResolver', () => ({
 vi.mock('../../../services/fediverseSharing', () => ({ isFediverseSharingEnabled }));
 vi.mock('../../../utils/oxyHelpers', () => ({ getServiceOxyClient: () => ({ getUserById }) }));
 
-import { followService } from '../../../connectors/activitypub/follow.service';
+import { deliveryService } from '../../../connectors/activitypub/delivery.service';
 
 const ALICE_ACTOR = 'https://mention.earth/ap/users/alice';
 const ALICE_FOLLOWERS = `${ALICE_ACTOR}/followers`;
@@ -118,7 +118,7 @@ describe('federateActorUpdate — Update(Person)', () => {
     followFindLean.mockResolvedValue([{ remoteActorUri: 'https://foo.example/users/x' }]);
     actorFindLean.mockResolvedValue([{ sharedInboxUrl: 'https://foo.example/inbox' }]);
 
-    await followService.federateActorUpdate('owner', 'alice');
+    await deliveryService.federateActorUpdate('owner', 'alice');
 
     const activity = deliveredActivity();
     expect(activity.type).toBe('Update');
@@ -144,7 +144,7 @@ describe('federateActorUpdate — Update(Person)', () => {
   it('skips entirely when sharing is disabled', async () => {
     isFediverseSharingEnabled.mockResolvedValue(false);
 
-    await followService.federateActorUpdate('owner', 'alice');
+    await deliveryService.federateActorUpdate('owner', 'alice');
 
     expect(resolveOxyUser).not.toHaveBeenCalled();
     expect(enqueueDelivery).not.toHaveBeenCalled();
@@ -155,7 +155,7 @@ describe('federateActorUpdate — Update(Person)', () => {
     followFindLean.mockResolvedValue([{ remoteActorUri: 'https://foo.example/users/x' }]);
     actorFindLean.mockResolvedValue([{ sharedInboxUrl: 'https://foo.example/inbox' }]);
 
-    await followService.federateActorUpdate('owner', 'alice');
+    await deliveryService.federateActorUpdate('owner', 'alice');
 
     expect(enqueueDelivery).not.toHaveBeenCalled();
   });

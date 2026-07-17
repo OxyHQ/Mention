@@ -12,6 +12,7 @@ import type { IFederatedActor } from '../../models/FederatedActor';
 import { resolveOxyExternalUser } from '../identity';
 import { isAbsoluteHttpUrl } from '../shared/url';
 import { actorService } from './actor.service';
+import { deliveryService } from './delivery.service';
 import { followService, type NoteSourcePost, type NoteReplyContext, type NoteMentionContext, type NotePollContext, type NoteQuoteContext } from './follow.service';
 import { outboxSyncService } from './outbox.service';
 import { inboxProcessingService } from './inbox.service';
@@ -152,16 +153,16 @@ class ActivityPubConnector implements NetworkConnector<PostContent> {
       case 'actor.update':
         // A Mention-owned profile change (e.g. the banner) rebroadcasts the full
         // actor document as an Update(Person) to remote followers.
-        await followService.federateActorUpdate(event.actorOxyUserId, event.actorUsername);
+        await deliveryService.federateActorUpdate(event.actorOxyUserId, event.actorUsername);
         break;
       case 'follow.add':
         // Sends a Follow activity + records the outbound FederatedFollow. The
         // `{ success, pending }` it returns is surfaced by the route via the
         // actor's `manuallyApprovesFollowers` flag (route reads it post-deliver).
-        await followService.sendFollow(event.localOxyUserId, event.localUsername, event.targetActorUri);
+        await deliveryService.sendFollow(event.localOxyUserId, event.localUsername, event.targetActorUri);
         break;
       case 'follow.remove':
-        await followService.sendUndoFollow(event.localOxyUserId, event.localUsername, event.targetActorUri);
+        await deliveryService.sendUndoFollow(event.localOxyUserId, event.localUsername, event.targetActorUri);
         break;
       default: {
         const exhaustive: never = event;
@@ -267,7 +268,7 @@ class ActivityPubConnector implements NetworkConnector<PostContent> {
     senderOxyUserId: string,
     senderUsername: string,
   ): Promise<boolean> {
-    return followService.deliverActivity(activity, targetInbox, senderOxyUserId, senderUsername);
+    return deliveryService.deliverActivity(activity, targetInbox, senderOxyUserId, senderUsername);
   }
 
   queueDelivery(
@@ -275,7 +276,7 @@ class ActivityPubConnector implements NetworkConnector<PostContent> {
     targetInbox: string,
     senderOxyUserId: string,
   ): Promise<void> {
-    return followService.queueDelivery(activity, targetInbox, senderOxyUserId);
+    return deliveryService.queueDelivery(activity, targetInbox, senderOxyUserId);
   }
 
   deliverToFollowers(
@@ -283,7 +284,7 @@ class ActivityPubConnector implements NetworkConnector<PostContent> {
     senderOxyUserId: string,
     senderUsername: string,
   ): Promise<void> {
-    return followService.deliverToFollowers(activity, senderOxyUserId, senderUsername);
+    return deliveryService.deliverToFollowers(activity, senderOxyUserId, senderUsername);
   }
 
   buildCreateNoteActivity(
@@ -379,7 +380,7 @@ class ActivityPubConnector implements NetworkConnector<PostContent> {
     localUsername: string,
     remoteActorUri: string,
   ): Promise<{ success: boolean; pending: boolean }> {
-    return followService.sendFollow(localOxyUserId, localUsername, remoteActorUri);
+    return deliveryService.sendFollow(localOxyUserId, localUsername, remoteActorUri);
   }
 
   sendUndoFollow(
@@ -387,7 +388,7 @@ class ActivityPubConnector implements NetworkConnector<PostContent> {
     localUsername: string,
     remoteActorUri: string,
   ): Promise<boolean> {
-    return followService.sendUndoFollow(localOxyUserId, localUsername, remoteActorUri);
+    return deliveryService.sendUndoFollow(localOxyUserId, localUsername, remoteActorUri);
   }
 
   sendAccept(
@@ -396,7 +397,7 @@ class ActivityPubConnector implements NetworkConnector<PostContent> {
     followActivityId: string,
     remoteActorUri: string,
   ): Promise<void> {
-    return followService.sendAccept(localOxyUserId, localUsername, followActivityId, remoteActorUri);
+    return deliveryService.sendAccept(localOxyUserId, localUsername, followActivityId, remoteActorUri);
   }
 
   // ============================================================

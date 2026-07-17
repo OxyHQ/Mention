@@ -17,7 +17,7 @@ import { isFediverseSharingEnabled, isFediverseSharingEnabledFromUser } from '..
 import { actorService } from './actor.service';
 import { requireActorOxyUserId } from '../shared/ActorResolutionPendingError';
 import { outboxSyncService } from './outbox.service';
-import { followService } from './follow.service';
+import { deliveryService } from './delivery.service';
 import { getServiceOxyClient } from '../../utils/oxyHelpers';
 import {
   extractAnnouncedObjectUri,
@@ -337,7 +337,7 @@ export class InboxProcessingService {
     );
 
     // Send Accept back so the remote server knows the follow succeeded
-    await followService.sendAccept(localUserId, username, activity.id, actorUri);
+    await deliveryService.sendAccept(localUserId, username, activity.id, actorUri);
 
     // Fail-soft: the Oxy edge is already committed, so a notification failure must
     // never fail (and thus retry) the follow. `createNotification` dedupes and
