@@ -8,7 +8,8 @@ import {
 } from './constants';
 import { PostVisibility } from '@mention/shared-types';
 import { extractApLanguage, extractApLanguages } from './apLanguage';
-import { buildFederatedNoteContent } from './apPostContent';
+import { buildFederatedNoteContent, buildFederatedNoteVariants } from './apPostContent';
+import { normalizeMentionIds } from '../../utils/textProcessing';
 import { getPostCreator } from '../../services/serviceRegistry';
 import { baselineContentClassifier } from '../../services/BaselineContentClassifier';
 import {
@@ -46,6 +47,7 @@ import {
 } from './apSchemas';
 import {
   applyMentionPlaceholders,
+  extractMentionTags,
   resolveInboundMentionsForNotes,
   type ResolvedInboundMentions,
 } from './apMentions';
@@ -71,6 +73,14 @@ const OUTBOX_ACTOR_RESOLVE_TIMEOUT_MS = 20 * 1000; // 20 seconds
  * parallelized in small batches rather than run strictly sequentially.
  */
 const OUTBOX_BOOST_IMPORT_CONCURRENCY = 4;
+
+/**
+ * Bounded concurrency for the existing-post @mention SELF-HEAL writes. Each heal is
+ * a single `updateOne` (no network fetch — the note is already in hand and its
+ * mentions were resolved in the same shared bounded pass as the new notes), so a
+ * small parallel batch keeps the write burst bounded without serializing.
+ */
+const OUTBOX_MENTION_HEAL_CONCURRENCY = 5;
 
 /**
  * Hard cap on how many untrusted outbox items a single page pass may inspect.
@@ -146,6 +156,12 @@ export interface OutboxSyncResult {
   newPostCount?: number;
   existingCount?: number;
   importedBoostCount?: number;
+  /**
+   * Existing posts whose bare-text @mentions were re-resolved and rewritten from
+   * the in-hand outbox notes this run (organic self-heal of pre-mention-fix
+   * imports). Zero on every page that carries no such posts.
+   */
+  healedMentionCount?: number;
   pagesFetched?: number;
   reachedEnd?: boolean;
   nextCursor?: {
@@ -550,15 +566,30 @@ export class OutboxSyncService {
         (c): c is Extract<OutboxCandidate, { kind: 'announce' }> => c.kind === 'announce',
       );
 
-      // Bulk dedup: single query instead of N queries
+      // Bulk dedup: single query instead of N queries. Also carries the fields the
+      // @mention self-heal below needs — the stored `mentions` allowlist and
+      // whether the post has media — so an existing post whose mentions were never
+      // resolved (imported before the outbox mention fix) can be repaired from the
+      // in-hand note without any extra query or fetch.
       const allActivityIds = candidates.map(c => c.activityId);
       const existingPosts = await Post.find(
         { 'federation.activityId': { $in: allActivityIds } },
-        { 'federation.activityId': 1 },
+        { 'federation.activityId': 1, mentions: 1, 'content.media': 1 },
       ).lean();
       const existingIds = new Set(
         existingPosts.map(p => (p.federation as { activityId?: string } | undefined)?.activityId),
       );
+      // activityId → the stored post's mention state, keyed for the self-heal pass.
+      const existingMentionStateByActivityId = new Map<string, { mentions: string[]; hasMedia: boolean }>();
+      for (const p of existingPosts) {
+        const activityId = (p.federation as { activityId?: string } | undefined)?.activityId;
+        if (!activityId) continue;
+        const media = (p as { content?: { media?: unknown[] } }).content?.media;
+        existingMentionStateByActivityId.set(activityId, {
+          mentions: normalizeMentionIds((p as { mentions?: unknown }).mentions),
+          hasMedia: Array.isArray(media) && media.length > 0,
+        });
+      }
 
       // Resolve actor URIs → Oxy User IDs (note authors only; announce authors
       // are always the outbox owner, resolved via actor.oxyUserId below).
@@ -603,22 +634,55 @@ export class OutboxSyncService {
 
       logger.debug(`[FedSync] ${candidates.length} candidates (${noteCandidates.length} notes, ${announceCandidates.length} announces), ${existingIds.size} already exist, actorOxyMap has ${actorOxyMap.size} entries`);
 
-      // Resolve the @mentions of every NEW note in this page ONCE, with bounded
-      // remote fan-out. Each DISTINCT mentioned actor across the page is
-      // fetched-and-created at most once, in capped-concurrency batches with a
-      // per-actor timeout (the SAME bounds this file already applies to note-author
-      // resolution), so a page carrying many first-seen mentions can never trigger
-      // the unbounded/serial actor fetch that once hung a re-ingest. Already-imported
-      // (deduped) notes are excluded so a re-sync never re-resolves. Consumed per
-      // note in the build loop below to rewrite each mention anchor into a
-      // `[mention:<id>]` placeholder BEFORE the body is derived and to set the
-      // post's `mentions` allowlist — mirroring the inbox Create path, which this
-      // raw `insertMany` cannot inherit because it bypasses that code path.
+      // NEW notes to import (not deduped) — their mentions are resolved for the
+      // build loop below to rewrite each anchor into a `[mention:<id>]` placeholder
+      // BEFORE the body is derived and to set the post's `mentions` allowlist,
+      // mirroring the inbox Create path (the raw `insertMany` bypasses that path).
       const pendingNoteCandidates = noteCandidates.filter(
         (c) => !existingIds.has(c.activityId),
       );
+
+      // SELF-HEAL candidates: notes that match an EXISTING post whose stored body
+      // still shows its @mentions as bare `@name` text. Such posts were imported
+      // before the outbox path resolved mentions, so their anchors were never
+      // rewritten — and the dedup pass above would otherwise skip them forever
+      // (they are never re-inserted). The outbox page just fetched carries each
+      // note's `Mention` tags, so those posts can be repaired with ZERO extra fetch.
+      // A post qualifies only when the in-hand note carries >=1 DISTINCT `Mention`
+      // tag AND the stored `mentions` allowlist is shorter than that (empty/short =>
+      // never fully resolved); an already-resolved post is never a candidate.
+      const mentionHealCandidates: Array<{
+        note: Record<string, unknown>;
+        activityId: string;
+        storedMentions: string[];
+        hasMedia: boolean;
+      }> = [];
+      for (const c of noteCandidates) {
+        if (!existingIds.has(c.activityId)) continue;
+        const stored = existingMentionStateByActivityId.get(c.activityId);
+        if (!stored) continue;
+        const distinctMentionHrefs = new Set(extractMentionTags(c.note).map((t) => t.href));
+        if (distinctMentionHrefs.size === 0) continue;
+        if (stored.mentions.length >= distinctMentionHrefs.size) continue;
+        mentionHealCandidates.push({
+          note: c.note,
+          activityId: c.activityId,
+          storedMentions: stored.mentions,
+          hasMedia: stored.hasMedia,
+        });
+      }
+
+      // Resolve the @mentions of the NEW notes AND the heal notes in ONE bounded
+      // pass. Each DISTINCT mentioned actor across the whole page is
+      // fetched-and-created at most once, in capped-concurrency batches with a
+      // per-actor timeout (the SAME bounds this file applies to note-author
+      // resolution), so a page carrying many first-seen mentions can never trigger
+      // the unbounded/serial actor fetch that once hung a re-ingest — and an actor
+      // mentioned by both a new and a healed note is fetched only once. The result
+      // map is keyed by the input note object reference and consumed with NO further
+      // I/O by both the build loop and the self-heal pass below.
       const mentionsByNote = await resolveInboundMentionsForNotes(
-        pendingNoteCandidates.map((c) => c.note),
+        [...pendingNoteCandidates.map((c) => c.note), ...mentionHealCandidates.map((h) => h.note)],
         {
           concurrency: OUTBOX_ACTOR_RESOLVE_CONCURRENCY,
           perActorTimeoutMs: OUTBOX_ACTOR_RESOLVE_TIMEOUT_MS,
@@ -846,6 +910,11 @@ export class OutboxSyncService {
         }
       }
 
+      // Organic self-heal: repair EXISTING posts whose @mentions were never
+      // resolved, using the in-hand notes (no extra fetch, mentions already
+      // resolved in the shared bounded pass above). Idempotent + fail-soft.
+      const healedMentionCount = await this.healExistingMentions(mentionHealCandidates, mentionsByNote);
+
       // Import boosts (Announce) attributed to the outbox owner. Each announce
       // ensures the boosted Note exists locally, then creates a boost Post that
       // mirrors native reposts (type=boost, boostOf=<local note _id>) with the
@@ -868,7 +937,7 @@ export class OutboxSyncService {
       }
 
       const synced = existingIds.size + newDocs.length + importedBoosts;
-      logger.debug(`Synced ${newDocs.length} new outbox posts and ${importedBoosts} boosts for ${actor.acct} (${existingIds.size} already existed)`);
+      logger.debug(`Synced ${newDocs.length} new outbox posts and ${importedBoosts} boosts for ${actor.acct} (${existingIds.size} already existed, ${healedMentionCount} mention self-heals)`);
       return {
         syncedCount: synced,
         shouldStampCooldown: !paginationFailed,
@@ -877,6 +946,7 @@ export class OutboxSyncService {
         newPostCount: newDocs.length,
         existingCount: existingIds.size,
         importedBoostCount: importedBoosts,
+        healedMentionCount,
         pagesFetched,
         reachedEnd,
         nextCursor,
@@ -885,6 +955,86 @@ export class OutboxSyncService {
       logger.warn(`Failed to sync outbox posts from ${actor.outboxUrl}:`, err);
       return { syncedCount: 0, shouldStampCooldown: false, reason: 'exception' };
     }
+  }
+
+  /**
+   * Organic self-heal of the @mentions of EXISTING federated posts whose stored
+   * body still shows its mentions as bare `@name` text — posts imported before the
+   * outbox path resolved mentions, which the dedup pass never re-inserts (so they
+   * would keep dead-text mentions forever). The in-hand outbox notes already carry
+   * the `Mention` tags, so each post is repaired with NO extra fetch beyond the
+   * bounded, shared mention resolution already performed for the page.
+   *
+   * Bounded batch of `updateOne`s. Idempotent + fail-soft: a note whose mentions
+   * did not resolve, or whose resolution adds nothing the stored allowlist already
+   * has, is a no-op — an already-resolved post is never rewritten. Historical posts
+   * are NEITHER re-notified NOR re-federated: this is a pure content-heal.
+   *
+   * @returns the number of posts actually rewritten this run.
+   */
+  private async healExistingMentions(
+    healCandidates: Array<{
+      note: Record<string, unknown>;
+      activityId: string;
+      storedMentions: string[];
+      hasMedia: boolean;
+    }>,
+    mentionsByNote: Map<Record<string, unknown>, ResolvedInboundMentions>,
+  ): Promise<number> {
+    if (healCandidates.length === 0) return 0;
+
+    let healed = 0;
+    for (let i = 0; i < healCandidates.length; i += OUTBOX_MENTION_HEAL_CONCURRENCY) {
+      const batch = healCandidates.slice(i, i + OUTBOX_MENTION_HEAL_CONCURRENCY);
+      const results = await Promise.all(
+        batch.map((candidate) => this.healOnePostMentions(candidate, mentionsByNote)),
+      );
+      healed += results.filter(Boolean).length;
+    }
+    return healed;
+  }
+
+  /**
+   * Repair ONE existing post's @mentions from its in-hand note. Returns true only
+   * when the post was actually rewritten. Guards on "unresolved" so a post whose
+   * mentions are already resolved is never touched (see {@link healExistingMentions}).
+   */
+  private async healOnePostMentions(
+    candidate: {
+      note: Record<string, unknown>;
+      activityId: string;
+      storedMentions: string[];
+      hasMedia: boolean;
+    },
+    mentionsByNote: Map<Record<string, unknown>, ResolvedInboundMentions>,
+  ): Promise<boolean> {
+    const resolved = mentionsByNote.get(candidate.note);
+    // Resolve miss (or the note carried no resolvable mention): leave the post as-is.
+    if (!resolved || resolved.ids.length === 0) return false;
+
+    // Only rewrite when the resolution ADDS a mention the stored allowlist lacks —
+    // a genuine improvement. When every resolved id is already stored (e.g. the
+    // remaining anchors point at now-unresolvable actors), the post is left
+    // untouched, so a partially-healed post is never rewritten on every re-sync.
+    const storedSet = new Set(candidate.storedMentions);
+    if (resolved.ids.every((id) => storedSet.has(id))) return false;
+
+    // Rewrite the in-hand note's mention anchors to `[mention:<id>]` placeholders,
+    // then re-derive ONLY the body variants (NO media I/O — the stored media state
+    // is reused via `hasMedia`) and `$set` them alongside the mention allowlist,
+    // keeping the stored body and `mentions` in lockstep exactly like the inbox
+    // Update path — without re-materializing media or re-fetching anything.
+    const noteObject = applyMentionPlaceholders(candidate.note, resolved.anchorMap);
+    const variants = buildFederatedNoteVariants(noteObject, candidate.hasMedia);
+    // A note that re-derives to an empty body (media-only / CW-only) must never
+    // blank an existing post's body — leave it untouched.
+    if (variants.length === 0) return false;
+
+    const result = await Post.updateOne(
+      { 'federation.activityId': candidate.activityId },
+      { $set: { 'content.variants': variants, mentions: resolved.ids } },
+    );
+    return ((result as { modifiedCount?: number }).modifiedCount ?? 0) > 0;
   }
 
   /**
