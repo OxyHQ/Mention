@@ -2,7 +2,8 @@ import { Router, Request, Response } from 'express';
 import { isValidObjectId } from 'mongoose';
 import { logger } from '../../../utils/logger';
 import { activityPubConnector } from '../ActivityPubConnector';
-import { verifyHttpSignature, getPublicKey } from '../crypto';
+import { getPublicKey } from '../crypto';
+import { verifyHttpSignature } from '@oxyhq/federation';
 import { Post } from '../../../models/Post';
 import UserSettings from '../../../models/UserSettings';
 import { getServiceOxyClient } from '../../../utils/oxyHelpers';
@@ -197,6 +198,13 @@ async function handleInbox(req: Request, res: Response): Promise<Response> {
         body: req.rawBody ?? req.body,
       },
       (keyId) => activityPubConnector.fetchPublicKey(keyId),
+      // The apex (mention.earth) is CF-proxied → ALB → backend, which rewrites the
+      // origin Host to api.mention.earth while Mastodon signs over mention.earth
+      // (forwarded in X-Forwarded-Host). Reconstruct the signed `host` line from it.
+      {
+        trustForwardedHost: true,
+        onDebug: (message, detail) => logger.debug(message, detail),
+      },
     );
 
     if (!verified || !actorUri) {

@@ -1,7 +1,19 @@
-import crypto from 'crypto';
 import { logger } from '../../utils/logger';
-import { AP_CONTENT_TYPE, FEDERATION_DOMAIN } from './constants';
+import { FEDERATION_DOMAIN } from './constants';
 import { getServiceOxyClient } from '../../utils/oxyHelpers';
+
+/**
+ * Mention's federation KEYS ADAPTER.
+ *
+ * The pure HTTP-signature crypto (`signRequest` / `verifyHttpSignature`, incl.
+ * the X-Forwarded-Host host reconstruction) now lives in `@oxyhq/federation` —
+ * a byte-identical, app-agnostic extraction. This file is what stays app-side:
+ * the two adapters that bind Mention's private-key CUSTODY to that engine.
+ * `getPublicKey` and `signViaOxy` both call oxy-api (`GET /federation/public-key`
+ * / `POST /federation/sign`); the private key never enters Mention. Callers pass
+ * `signViaOxy` as the engine's injected signer and `getPublicKey` for the
+ * instance/actor keyId.
+ */
 
 /**
  * Public-key material for an actor, as advertised in its ActivityPub `publicKey`
@@ -203,191 +215,4 @@ export async function signViaOxy(keyId: string, signingString: string): Promise<
   }
 
   return response.signature;
-}
-
-/**
- * Build the HTTP Signature header per draft-cavage-http-signatures-12 and sign it
- * via Oxy (the private key never leaves Oxy).
- *
- * The spec-correct signing string is composed locally: (request-target), host,
- * date, and — for body-bearing requests — digest and content-type. The composed
- * string is sent to Oxy's `/federation/sign`, and the resulting signature is
- * assembled into the `Signature:` header.
- *
- * Returns the headers to attach to the outbound request (Host, Date, optional
- * Digest, and Signature). Content-Type is set by the deliverer's fetch.
- */
-export async function signRequest(
-  keyId: string,
-  method: string,
-  url: string,
-  body?: string,
-): Promise<Record<string, string>> {
-  const parsedUrl = new URL(url);
-  const date = new Date().toUTCString();
-  const headers: Record<string, string> = {
-    Host: parsedUrl.host,
-    Date: date,
-  };
-
-  const signedHeaderNames = ['(request-target)', 'host', 'date'];
-  const signingParts = [
-    `(request-target): ${method.toLowerCase()} ${parsedUrl.pathname}${parsedUrl.search}`,
-    `host: ${parsedUrl.host}`,
-    `date: ${date}`,
-  ];
-
-  if (body) {
-    const digest = crypto.createHash('sha256').update(body).digest('base64');
-    headers['Digest'] = `SHA-256=${digest}`;
-    signedHeaderNames.push('digest');
-    signingParts.push(`digest: SHA-256=${digest}`);
-    // Include content-type in signature (required by some servers like Threads)
-    signedHeaderNames.push('content-type');
-    signingParts.push(`content-type: ${AP_CONTENT_TYPE}`);
-  }
-
-  const signingString = signingParts.join('\n');
-  const signature = await signViaOxy(keyId, signingString);
-
-  headers['Signature'] = [
-    `keyId="${keyId}"`,
-    'algorithm="rsa-sha256"',
-    `headers="${signedHeaderNames.join(' ')}"`,
-    `signature="${signature}"`,
-  ].join(',');
-
-  return headers;
-}
-
-/**
- * Parse the Signature header from an incoming request.
- */
-function parseSignatureHeader(signatureHeader: string): {
-  keyId: string;
-  algorithm: string;
-  headers: string[];
-  signature: string;
-} | null {
-  const params: Record<string, string> = {};
-  const regex = /(\w+)="([^"]*)"/g;
-  let match: RegExpExecArray | null;
-  while ((match = regex.exec(signatureHeader)) !== null) {
-    params[match[1]] = match[2];
-  }
-
-  if (!params.keyId || !params.signature) return null;
-
-  return {
-    keyId: params.keyId,
-    algorithm: params.algorithm || 'rsa-sha256',
-    headers: (params.headers || 'date').split(' '),
-    signature: params.signature,
-  };
-}
-
-/**
- * Verify the HTTP signature on an incoming request.
- * Returns the actor URI (key owner) if valid, null otherwise.
- */
-interface VerifyHttpRequest {
-  method: string;
-  path: string;
-  headers: Record<string, string | string[] | undefined>;
-  body?: unknown;
-}
-
-interface VerifyHttpResult {
-  verified: boolean;
-  actorUri?: string;
-  reason?: string;
-}
-
-type FetchPublicKey = (keyId: string) => Promise<{ publicKeyPem: string; actorUri: string } | null>;
-
-export async function verifyHttpSignature(
-  req: VerifyHttpRequest,
-  fetchPublicKey: FetchPublicKey,
-): Promise<VerifyHttpResult> {
-  const signatureHeader = req.headers['signature'] as string | undefined;
-  if (!signatureHeader) return { verified: false, reason: 'missing-signature' };
-
-  const parsed = parseSignatureHeader(signatureHeader);
-  if (!parsed) return { verified: false, reason: 'invalid-signature-header' };
-
-  const keyData = await fetchPublicKey(parsed.keyId);
-  if (!keyData) {
-    logger.debug(`Failed to fetch public key for keyId: ${parsed.keyId}`);
-    return { verified: false, reason: 'key-fetch-failed' };
-  }
-
-  const lowerHeaders = Object.fromEntries(
-    Object.entries(req.headers).map(([k, v]) => [k.toLowerCase(), v])
-  );
-
-  // Enforce Date skew (+/- 10 minutes) if present
-  const dateHeader = lowerHeaders['date'];
-  if (dateHeader) {
-    const dateVal = Array.isArray(dateHeader) ? dateHeader[0] : dateHeader;
-    const parsedDate = Date.parse(dateVal || '');
-    if (!Number.isNaN(parsedDate)) {
-      const skew = Math.abs(Date.now() - parsedDate);
-      if (skew > 10 * 60 * 1000) {
-        return { verified: false, reason: 'date-skew' };
-      }
-    }
-  }
-
-  // If Digest header is required in signature but missing/invalid, fail early
-  if (parsed.headers.includes('digest')) {
-    const digestHeader = lowerHeaders['digest'];
-    const bodyString = typeof req.body === 'string' ? req.body : req.body ? JSON.stringify(req.body) : '';
-    if (!digestHeader) {
-      return { verified: false, reason: 'missing-digest' };
-    }
-    const expectedDigest = `SHA-256=${crypto.createHash('sha256').update(bodyString).digest('base64')}`;
-    const digestVal = Array.isArray(digestHeader) ? digestHeader[0] : digestHeader;
-    if (digestVal !== expectedDigest) {
-      return { verified: false, reason: 'digest-mismatch' };
-    }
-  }
-
-  const signingParts = parsed.headers.map((header) => {
-    const name = header.toLowerCase();
-    if (name === '(request-target)') {
-      return `(request-target): ${req.method.toLowerCase()} ${req.path}`;
-    }
-    // Reconstruct the `host` line from `x-forwarded-host` when present. Our edge
-    // (the Cloudflare Pages worker) rewrites the origin Host to
-    // api.mention.earth and forwards the ORIGINAL host the sender signed over
-    // (mention.earth) in X-Forwarded-Host; a proxy chain may append a
-    // comma-separated list, whose FIRST token is the client-facing host. This
-    // grants a forger nothing: the signature cryptographically binds whatever
-    // host value the sender signed, so a bogus X-Forwarded-Host simply fails
-    // verification. Falls back to `host` when the header is absent (direct
-    // delivery), preserving the pre-proxy behavior.
-    if (name === 'host') {
-      const forwarded = lowerHeaders['x-forwarded-host'];
-      const forwardedValue = Array.isArray(forwarded) ? forwarded[0] : forwarded;
-      const firstToken = forwardedValue?.split(',')[0]?.trim();
-      if (firstToken) {
-        return `host: ${firstToken}`;
-      }
-    }
-    const value = lowerHeaders[name];
-    return `${name}: ${Array.isArray(value) ? value[0] : value}`;
-  });
-
-  const signingString = signingParts.join('\n');
-  const verifier = crypto.createVerify('sha256');
-  verifier.update(signingString);
-  verifier.end();
-
-  try {
-    const isValid = verifier.verify(keyData.publicKeyPem, parsed.signature, 'base64');
-    return { verified: isValid, actorUri: isValid ? keyData.actorUri : undefined, reason: isValid ? undefined : 'verify-failed' };
-  } catch (err) {
-    logger.debug('HTTP signature verification failed:', err);
-    return { verified: false, reason: err instanceof Error ? err.message : 'verify-exception' };
-  }
 }
