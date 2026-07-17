@@ -32,12 +32,13 @@ export const PLC_DIRECTORY = process.env.ATPROTO_PLC_DIRECTORY || 'plc.directory
 export const BSKY_APP_ORIGIN = 'https://bsky.app';
 
 /**
- * The Bluesky network's canonical host, used as the federated instance domain for
- * an APEX custom handle — a 2-label domain like `gothamist.com` whose first label
- * cannot be stripped without leaving a bare TLD (`com`). A regular handle derives
- * its instance from its parent domain (`alice.bsky.social` → `bsky.social`); an
- * apex handle has none, so it keys to the network host and renders cleanly as
- * `@gothamist.com@bsky.social` instead of the doubled `@gothamist.com@gothamist.com`.
+ * The Bluesky network's canonical host. It is the federated instance domain for
+ * EVERY atproto actor: a Bluesky handle is a whole DNS name that identifies the
+ * account (`alice.bsky.social`, the apex `gothamist.com`, the multi-label custom
+ * domain `mayor.nyc.gov`), and the account lives on the Bluesky network in every
+ * case. So the full handle is the username and this is always the instance domain,
+ * rendering `@mayor.nyc.gov@bsky.social` — never a bogus instance derived from the
+ * handle's own parent domain (the old bug rendered `@mayor.nyc.gov@nyc.gov`).
  */
 export const BSKY_NETWORK_DOMAIN = 'bsky.social';
 
