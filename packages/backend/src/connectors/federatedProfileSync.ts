@@ -118,9 +118,21 @@ class FederatedProfileSync {
           if (cachedActor.uri) {
             const connector = connectorRegistry.connectorFor(cachedActor.uri);
             if (connector) {
-              await connector.fetchPosts(cachedActor.uri, { limit: OUTBOX_SYNC_LIMIT });
+              try {
+                await connector.fetchPosts(cachedActor.uri, { limit: OUTBOX_SYNC_LIMIT });
+              } catch (fetchErr) {
+                // A failed backfill is still a COMPLETED sync attempt: stamp it
+                // below so the pending check can clear instead of polling forever.
+                const message = fetchErr instanceof Error ? fetchErr.message : String(fetchErr);
+                logger.warn(`[FedSync] atproto backfill failed for ${cachedActor.acct}: ${message}`);
+              }
             }
           }
+          // Stamp the post-backfill time so `shouldReportPending` can clear. The
+          // atproto path never touches the ActivityPub outbox code that normally
+          // stamps `lastOutboxSyncAt`, so without this an atproto profile with an
+          // empty local feed would report `pending:true` on EVERY view forever.
+          await this.stampPostBackfill(cachedActor._id);
           return;
         }
 
@@ -291,6 +303,26 @@ class FederatedProfileSync {
     })();
   }
 
+  /**
+   * Stamp `lastOutboxSyncAt = now` on a federated actor after a post backfill.
+   *
+   * The field name is ActivityPub-flavoured, but `shouldReportPending` reads it
+   * as the single "when did we last try to import this actor's posts" signal for
+   * BOTH protocols. The atproto backfill (`fetchPosts`) never touches the AP
+   * outbox code that stamps it, so this is the atproto path's stamp point. An
+   * empty import is still a COMPLETED sync, so the caller stamps regardless of
+   * how many posts were imported. Fail-soft: a stamp failure only costs one more
+   * poll, never the detached task.
+   */
+  private async stampPostBackfill(actorId: IFederatedActor['_id']): Promise<void> {
+    try {
+      await FederatedActor.updateOne({ _id: actorId }, { $set: { lastOutboxSyncAt: new Date() } });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      logger.warn(`[FedSync] failed to stamp post backfill for actor ${String(actorId)}: ${message}`);
+    }
+  }
+
   private shouldRefreshActorBeforeOutboxSync(actor: IFederatedActor): boolean {
     if (!actor.outboxUrl) return true;
     const fetchedAt = actor.lastFetchedAt?.getTime();
@@ -312,6 +344,13 @@ class FederatedProfileSync {
    * the empty profile instead of spinning.
    */
   private shouldReportPending(actor: IFederatedActor): boolean {
+    // An atproto actor with zero upstream posts has nothing to import, so it
+    // must never poll. Short-circuit the common empty case on the VERY first
+    // view — before the background backfill has stamped `lastOutboxSyncAt` — so
+    // a zero-post Bluesky profile renders empty immediately instead of spinning.
+    // (`postsCount` is populated from the Bluesky profile on actor upsert.)
+    if (actor.protocol === 'atproto' && (actor.postsCount ?? 0) === 0) return false;
+
     const outboxStatus = this.currentOutboxBackfillStatus(actor);
     if (outboxStatus === 'unavailable' || outboxStatus === 'complete') return false;
     if (outboxStatus === 'pending') return true;

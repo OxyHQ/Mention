@@ -48,7 +48,15 @@ vi.mock('../../connectors/activitypub/ActivityPubConnector', () => ({
 
 vi.mock('../../connectors/activitypub/constants', () => ({ FEDERATION_ENABLED: true }));
 vi.mock('../../connectors/atproto/constants', () => ({ ATPROTO_ENABLED: false }));
-vi.mock('../../connectors/index', () => ({ connectorRegistry: { connectorFor: () => undefined } }));
+
+/** atproto backfill: the connector the registry hands back for an atproto URI. */
+const atprotoFetchPosts = vi.fn(async () => ({ posts: [] as unknown[] }));
+const connectorFor = vi.fn<(uri: string) => { fetchPosts: typeof atprotoFetchPosts } | undefined>(
+  () => undefined,
+);
+vi.mock('../../connectors/index', () => ({
+  connectorRegistry: { connectorFor: (...a: unknown[]) => connectorFor(...(a as [string])) },
+}));
 
 const getUserById = vi.fn(async () => ({ id: 'local1', type: 'user', username: 'local' }));
 vi.mock('../../utils/oxyHelpers', () => ({
@@ -70,6 +78,20 @@ function federatedActor(overrides: Record<string, unknown> = {}) {
   };
 }
 
+/** A cached atproto (Bluesky) actor row: no AP outbox, keyed by DID. */
+function atprotoActor(overrides: Record<string, unknown> = {}) {
+  return {
+    _id: 'atactor1',
+    protocol: 'atproto',
+    uri: 'did:plc:abc123',
+    acct: 'someone.bsky.social',
+    oxyUserId: 'at1',
+    postsCount: 0,
+    lastFetchedAt: new Date(),
+    ...overrides,
+  };
+}
+
 function mockActorLookup(actor: unknown) {
   actorFindOne.mockReturnValue({ lean: () => Promise.resolve(actor) });
 }
@@ -78,6 +100,8 @@ beforeEach(() => {
   vi.clearAllMocks();
   releaseOutboxSync = undefined;
   fetchRemoteActor.mockResolvedValue(null);
+  connectorFor.mockReturnValue(undefined);
+  atprotoFetchPosts.mockResolvedValue({ posts: [] });
 });
 
 describe('federatedProfileSync.syncOnProfileView', () => {
@@ -154,5 +178,46 @@ describe('federatedProfileSync.syncOnProfileView', () => {
     actorFindOne.mockReturnValue({ lean: () => Promise.reject(new Error('mongo down')) });
 
     await expect(federatedProfileSync.syncOnProfileView('fed1')).resolves.toBe(false);
+  });
+
+  it('does NOT report pending for an atproto actor with zero upstream posts', async () => {
+    // A Bluesky account with genuinely 0 posts has nothing to import — reporting
+    // pending would make the client poll "Loading posts…" forever.
+    mockActorLookup(atprotoActor({ postsCount: 0 }));
+
+    const pending = await federatedProfileSync.syncOnProfileView('at1');
+
+    expect(pending).toBe(false);
+    // The AP outbox path must never run for an atproto actor.
+    expect(syncOutboxPostsDetailed).not.toHaveBeenCalled();
+  });
+
+  it('reports pending for an atproto actor with posts and no prior sync, then stamps the backfill', async () => {
+    connectorFor.mockReturnValue({ fetchPosts: atprotoFetchPosts });
+    mockActorLookup(atprotoActor({ postsCount: 5 }));
+
+    const pending = await federatedProfileSync.syncOnProfileView('at1');
+    expect(pending).toBe(true);
+
+    // The background task pulls the author feed, then stamps lastOutboxSyncAt so
+    // the next poll can clear — the stamp lands AFTER the import writes posts.
+    await vi.waitFor(() =>
+      expect(atprotoFetchPosts).toHaveBeenCalledWith('did:plc:abc123', { limit: 20 }),
+    );
+    await vi.waitFor(() =>
+      expect(actorUpdateOne).toHaveBeenCalledWith(
+        { _id: 'atactor1' },
+        { $set: { lastOutboxSyncAt: expect.any(Date) } },
+      ),
+    );
+    expect(syncOutboxPostsDetailed).not.toHaveBeenCalled();
+  });
+
+  it('clears pending for an atproto actor once the backfill has been stamped', async () => {
+    // postsCount > 0 skips the zero-post short-circuit; a recent stamp inside the
+    // cooldown window is what terminates the poll after the background import.
+    mockActorLookup(atprotoActor({ postsCount: 5, lastOutboxSyncAt: new Date() }));
+
+    await expect(federatedProfileSync.syncOnProfileView('at1')).resolves.toBe(false);
   });
 });
