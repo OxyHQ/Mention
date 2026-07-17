@@ -5,6 +5,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
 import { router, useLocalSearchParams } from "expo-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useAuth } from "@oxyhq/services";
 import { getNormalizedUserHandle } from "@oxyhq/core";
 import { useSafeBack } from "@/hooks/useSafeBack";
 import { ThemedView } from "@/components/ThemedView";
@@ -73,8 +74,10 @@ function isSearchTab(value: string): value is SearchTab {
 /** Debounce before a keystroke turns into a request. */
 const SEARCH_DEBOUNCE_MS = 500;
 
-/** Cap on the in-memory `${tab}-${query}` result cache. */
-const MAX_CACHE_SIZE = 50;
+/** How long a fetched result set stays fresh before React Query would refetch it. */
+const SEARCH_STALE_TIME = 5 * 60 * 1000;
+/** How long an unused result set is retained in the React Query cache. */
+const SEARCH_GC_TIME = 30 * 60 * 1000;
 
 /** Placeholder rows painted while the people tab searches. */
 const SKELETON_ROW_COUNT = 8;
@@ -107,11 +110,40 @@ type SearchRow =
     | { kind: "hashtag"; key: string; hashtag: SearchHashtagResult }
     | { kind: "list"; key: string; list: SearchListResult };
 
-/** Drop the oldest entries once the result cache outgrows its cap. */
-function pruneCache(cache: Record<string, LocalSearchResults>): Record<string, LocalSearchResults> {
-    const entries = Object.entries(cache);
-    if (entries.length <= MAX_CACHE_SIZE) return cache;
-    return Object.fromEntries(entries.slice(-MAX_CACHE_SIZE));
+/** Per-category fetchers, one for each single-category tab. */
+const RESULT_FETCHERS = {
+    posts: (query: string) => searchService.searchPosts(query),
+    users: (query: string) => searchService.searchUsers(query),
+    feeds: (query: string) => searchService.searchFeeds(query),
+    hashtags: (query: string) => searchService.searchHashtags(query),
+    lists: (query: string) => searchService.searchLists(query),
+    saved: (query: string) => searchService.searchSaved(query),
+} satisfies Record<ResultTab, (query: string) => Promise<LocalSearchResults[ResultTab]>>;
+
+/**
+ * Fetch one tab's results — the `queryFn` behind the search query.
+ *
+ * The "all" tab fans out over every source via `searchAll`, whose `allSettled`
+ * keeps the "one flaky source degrades that section, a total failure errors"
+ * semantics; a single-category tab fetches only its own source. Every underlying
+ * request carries the SDK's per-request timeout (5s on the linked client, 15s on
+ * the public client), so a hanging source REJECTS rather than stalling the
+ * screen — which is what lets React Query settle loading deterministically.
+ */
+async function fetchSearchResults(tab: SearchTab, query: string): Promise<LocalSearchResults> {
+    if (tab === "all") {
+        const all = await searchService.searchAll(query);
+        return {
+            posts: all.posts ?? [],
+            users: all.users ?? [],
+            feeds: all.feeds ?? [],
+            hashtags: all.hashtags ?? [],
+            lists: all.lists ?? [],
+            saved: all.saved ?? [],
+        };
+    }
+    const data = await RESULT_FETCHERS[tab](query);
+    return { ...EMPTY_RESULTS, [tab]: data };
 }
 
 function toProfileCardData(user: SearchUserResult): ProfileCardData | null {
@@ -226,32 +258,30 @@ export default function SearchIndex() {
     const params = useLocalSearchParams();
     const urlQuery = (params.q as string) || "";
 
-    const [query, setQuery] = useState(urlQuery);
-    const [activeTab, setActiveTab] = useState<SearchTab>("all");
-    const [loading, setLoading] = useState(false);
-    const [searchFailed, setSearchFailed] = useState(false);
-    const [results, setResults] = useState<LocalSearchResults>(EMPTY_RESULTS);
+    // Keyed into the search query so a cold-boot search re-runs once the session
+    // lands: several sources are auth-gated and 401 (→ empty) while anonymous.
+    const { isAuthenticated } = useAuth();
 
-    // The result cache is never rendered directly — keeping it in a ref (instead
-    // of state) avoids a re-render per cache write and the state→ref sync effect
-    // it used to need.
-    const resultsCacheRef = useRef<Record<string, LocalSearchResults>>({});
-    // Monotonic token so a slow response from an abandoned query can never
-    // overwrite the results of a newer one.
-    const requestIdRef = useRef(0);
-    // Cache keys with a request already in flight. An explicit submit (or a tab
-    // press) searches immediately while the debounce timer for the same keystroke
-    // is still pending — without this guard both would fire the same request.
-    const inFlightRef = useRef<Set<string>>(new Set());
+    const [query, setQuery] = useState(urlQuery);
+    // `query` drives the input box; `debouncedQuery` drives the actual request
+    // (and the React Query key). A keystroke schedules the debounce below; an
+    // explicit submit / tab press / recent tap commits it instantly.
+    const [debouncedQuery, setDebouncedQuery] = useState(urlQuery);
+    const [activeTab, setActiveTab] = useState<SearchTab>("all");
+
+    // Pending debounce timer, set and cleared INSIDE event handlers — never an
+    // Effect — so a burst of keystrokes collapses to exactly one search.
+    const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const searchInputRef = useRef<TextInput>(null);
 
     // A `/search?q=…` deep link can change while this screen stays mounted.
-    // Adjusting state during render (instead of an Effect) keeps the input in
-    // lockstep with the URL without an extra render pass.
+    // Adjusting state during render (instead of an Effect) keeps the input AND the
+    // search in lockstep with the URL without an extra render pass.
     const [syncedUrlQuery, setSyncedUrlQuery] = useState(urlQuery);
     if (urlQuery !== syncedUrlQuery) {
         setSyncedUrlQuery(urlQuery);
         setQuery(urlQuery);
+        setDebouncedQuery(urlQuery);
     }
 
     // --- Search history (Storage-backed, cached by React Query) ---
@@ -316,156 +346,117 @@ export default function SearchIndex() {
     // entirely on the Oxy people search. A miss is a quiet `null` — no extra row.
     const externalActor = useExternalActorResolve(query);
 
-    const writeCache = useCallback((key: string, value: LocalSearchResults) => {
-        resultsCacheRef.current = pruneCache({ ...resultsCacheRef.current, [key]: value });
-    }, []);
+    const trimmedDebounced = debouncedQuery.trim();
 
-    const performSearch = useCallback(
-        async (rawQuery: string, tab: SearchTab) => {
-            const searchQuery = rawQuery.trim();
-            if (!searchQuery) return;
-
-            const cacheKey = `${tab}-${searchQuery}`;
-            const cached = resultsCacheRef.current[cacheKey];
-            if (cached) {
-                requestIdRef.current += 1;
-                setResults(cached);
-                setSearchFailed(false);
-                setLoading(false);
-                return;
-            }
-
-            // A single-category tab can be served from the "all" results already
-            // in the cache — no request needed.
-            if (tab !== "all") {
-                const allCached = resultsCacheRef.current[`all-${searchQuery}`];
-                if (allCached) {
-                    const tabResults: LocalSearchResults = { ...EMPTY_RESULTS, [tab]: allCached[tab] };
-                    writeCache(cacheKey, tabResults);
-                    requestIdRef.current += 1;
-                    setResults(tabResults);
-                    setSearchFailed(false);
-                    setLoading(false);
-                    return;
-                }
-            }
-
-            if (inFlightRef.current.has(cacheKey)) return;
-
-            const requestId = (requestIdRef.current += 1);
-            const isStale = () => requestId !== requestIdRef.current;
-
-            inFlightRef.current.add(cacheKey);
-            setLoading(true);
-            setSearchFailed(false);
-            try {
-                let newResults: LocalSearchResults;
-
-                if (tab === "all") {
-                    const allResults = await searchService.searchAll(searchQuery);
-                    newResults = {
-                        posts: allResults.posts || [],
-                        users: allResults.users || [],
-                        feeds: allResults.feeds || [],
-                        hashtags: allResults.hashtags || [],
-                        lists: allResults.lists || [],
-                        saved: allResults.saved || [],
-                    };
-
-                    writeCache(cacheKey, newResults);
-                    // Pre-populate the single-category caches from the same payload.
-                    for (const resultTab of RESULT_TABS) {
-                        const tabCacheKey = `${resultTab}-${searchQuery}`;
-                        if (!resultsCacheRef.current[tabCacheKey]) {
-                            writeCache(tabCacheKey, { ...EMPTY_RESULTS, [resultTab]: newResults[resultTab] });
-                        }
-                    }
-                } else {
-                    const fetchMap = {
-                        posts: () => searchService.searchPosts(searchQuery),
-                        users: () => searchService.searchUsers(searchQuery),
-                        feeds: () => searchService.searchFeeds(searchQuery),
-                        hashtags: () => searchService.searchHashtags(searchQuery),
-                        lists: () => searchService.searchLists(searchQuery),
-                        saved: () => searchService.searchSaved(searchQuery),
-                    } satisfies Record<ResultTab, () => Promise<LocalSearchResults[ResultTab]>>;
-
-                    const data = await fetchMap[tab]();
-                    newResults = { ...EMPTY_RESULTS, [tab]: data };
-                    writeCache(cacheKey, newResults);
-                }
-
-                if (isStale()) return;
-                setResults(newResults);
-            } catch (error) {
-                logger.warn("Search failed", { error, tab });
-                if (isStale()) return;
-                setResults(EMPTY_RESULTS);
-                setSearchFailed(true);
-            } finally {
-                inFlightRef.current.delete(cacheKey);
-                if (!isStale()) setLoading(false);
-            }
+    // The ONE data owner for search results. React Query owns dedup, staleness,
+    // caching, cancellation and the whole in-flight lifecycle — the hand-rolled
+    // loading / requestId / inFlight / stale-guard machine (and the bug where the
+    // `finally` only cleared loading when NOT stale, so an interleave could pin it
+    // true forever) is gone.
+    const {
+        data: results = EMPTY_RESULTS,
+        isPending,
+        isFetching,
+        isError: searchFailed,
+        refetch: refetchSearch,
+    } = useQuery<LocalSearchResults>({
+        queryKey: ["search", activeTab, trimmedDebounced, isAuthenticated],
+        queryFn: () => fetchSearchResults(activeTab, trimmedDebounced),
+        enabled: trimmedDebounced.length > 0,
+        staleTime: SEARCH_STALE_TIME,
+        gcTime: SEARCH_GC_TIME,
+        // Fail fast to the error state (with a manual Retry) rather than stacking
+        // React Query retries on top of the transport's own bounded retry+timeout.
+        retry: false,
+        // A single-category tab already covered by a prior "all" search is served
+        // from that cached payload — derived straight from the query cache, no
+        // extra request. `undefined` (the "all" tab, or "all" never searched) lets
+        // the query fetch its own source normally.
+        initialData: (): LocalSearchResults | undefined => {
+            if (activeTab === "all") return undefined;
+            const all = queryClient.getQueryData<LocalSearchResults>([
+                "search",
+                "all",
+                trimmedDebounced,
+                isAuthenticated,
+            ]);
+            return all ? { ...EMPTY_RESULTS, [activeTab]: all[activeTab] } : undefined;
         },
-        [writeCache],
-    );
+    });
 
-    // Debounced search. Subscribing a changing input to a timer is the idiomatic
-    // place for an Effect; an explicit submit bypasses it via `handleSubmit`.
-    useEffect(() => {
-        const searchQuery = query.trim();
-        if (!searchQuery) return;
-        const timeoutId = setTimeout(() => {
-            void performSearch(searchQuery, activeTab);
-        }, SEARCH_DEBOUNCE_MS);
-        return () => clearTimeout(timeoutId);
-    }, [query, activeTab, performSearch]);
+    // Loading spans BOTH the debounce wait and the fetch: while the box holds a
+    // query the results don't yet reflect, the query sits disabled with no data
+    // (`isPending`); the first fetch keeps `isPending`; a retry/refetch shows as
+    // `isFetching`. Every source request times out, so both settle deterministically
+    // — loading can never stick the way the old stale-guard could.
+    const loading = isPending || isFetching;
 
-    const resetResults = useCallback(() => {
-        requestIdRef.current += 1;
-        setResults(EMPTY_RESULTS);
-        setSearchFailed(false);
-        setLoading(false);
+    const clearDebounce = useCallback(() => {
+        if (debounceTimerRef.current) {
+            clearTimeout(debounceTimerRef.current);
+            debounceTimerRef.current = null;
+        }
     }, []);
+
+    // Commit a query to the search NOW: cancel any pending debounce and feed the
+    // value straight into the query key. Used by submit / tab press / recent tap.
+    const commitQuery = useCallback(
+        (term: string) => {
+            clearDebounce();
+            setDebouncedQuery(term.trim());
+        },
+        [clearDebounce],
+    );
 
     const handleQueryChange = useCallback(
         (text: string) => {
             setQuery(text);
-            // Clearing the box returns the screen to its idle state immediately —
-            // no stale results, no lingering error, no spinner.
-            if (!text.trim()) resetResults();
+            clearDebounce();
+            const trimmed = text.trim();
+            // Clearing the box returns the screen to its idle state at once (the
+            // query goes disabled); any other keystroke schedules the debounce that
+            // will feed the query key. The timer is set/cleared here, in the event
+            // handler — the correct place for a debounce, never an Effect.
+            if (!trimmed) {
+                setDebouncedQuery("");
+                return;
+            }
+            debounceTimerRef.current = setTimeout(() => {
+                debounceTimerRef.current = null;
+                setDebouncedQuery(trimmed);
+            }, SEARCH_DEBOUNCE_MS);
         },
-        [resetResults],
+        [clearDebounce],
     );
 
     const clearSearch = useCallback(() => {
         setQuery("");
-        resetResults();
+        commitQuery("");
         searchInputRef.current?.focus();
-    }, [resetResults]);
+    }, [commitQuery]);
 
     const handleSubmit = useCallback(() => {
         const searchQuery = query.trim();
         if (!searchQuery) return;
         commitToHistory(searchQuery);
-        void performSearch(searchQuery, activeTab);
-    }, [query, activeTab, commitToHistory, performSearch]);
+        commitQuery(searchQuery);
+    }, [query, commitToHistory, commitQuery]);
 
     const retrySearch = useCallback(() => {
-        void performSearch(query, activeTab);
-    }, [performSearch, query, activeTab]);
+        void refetchSearch();
+    }, [refetchSearch]);
 
     // Switching tabs searches straight away instead of waiting out the debounce —
     // a tab whose results are already cached (every tab is, right after an "all"
-    // search) swaps in with no request at all.
+    // search) swaps in with no request at all. Committing the current query also
+    // flushes a still-pending debounce so a mid-typing tab press isn't delayed.
     const handleTabPress = useCallback(
         (id: string) => {
             if (!isSearchTab(id)) return;
             setActiveTab(id);
-            const searchQuery = query.trim();
-            if (searchQuery) void performSearch(searchQuery, id);
+            if (query.trim()) commitQuery(query);
         },
-        [query, performSearch],
+        [query, commitQuery],
     );
 
     // --- Idle-state handlers ---
@@ -473,9 +464,9 @@ export default function SearchIndex() {
         (term: string) => {
             setQuery(term);
             commitToHistory(term);
-            void performSearch(term, activeTab);
+            commitQuery(term);
         },
-        [commitToHistory, performSearch, activeTab],
+        [commitToHistory, commitQuery],
     );
 
     const handleRemoveRecent = useCallback(
@@ -490,11 +481,16 @@ export default function SearchIndex() {
         setSearchHistory([]);
     }, [setSearchHistory]);
 
-    const handleOperatorPress = useCallback((operator: string) => {
-        const [prefix] = operator.split(":");
-        setQuery(`${prefix}:`);
-        searchInputRef.current?.focus();
-    }, []);
+    const handleOperatorPress = useCallback(
+        (operator: string) => {
+            const [prefix] = operator.split(":");
+            // Route through the same debounce path a keystroke takes, so seeding the
+            // box with an operator prefix still kicks off a search.
+            handleQueryChange(`${prefix}:`);
+            searchInputRef.current?.focus();
+        },
+        [handleQueryChange],
+    );
 
     // --- Result handlers (opening a result commits the query to history) ---
     const handleOpenProfile = useCallback(
@@ -841,6 +837,21 @@ export default function SearchIndex() {
     const renderListEmpty = () => {
         if (isIdle) return null;
 
+        // Loading is checked before the error state so a retry/refetch shows the
+        // spinner rather than lingering on the error card.
+        if (loading) {
+            // The people tab paints the row it is about to show; the other tabs mix
+            // result kinds (or show posts), so they keep the neutral spinner.
+            if (activeTab === "users") {
+                return <ProfileCardSkeletonList count={SKELETON_ROW_COUNT} showFollowButton />;
+            }
+            return (
+                <View className="items-center justify-center py-20">
+                    <Loading className="text-primary" size="large" />
+                </View>
+            );
+        }
+
         if (searchFailed) {
             return (
                 <Error
@@ -852,19 +863,6 @@ export default function SearchIndex() {
                     onRetry={retrySearch}
                     hideBackButton
                 />
-            );
-        }
-
-        if (loading) {
-            // The people tab paints the row it is about to show; the other tabs mix
-            // result kinds (or show posts), so they keep the neutral spinner.
-            if (activeTab === "users") {
-                return <ProfileCardSkeletonList count={SKELETON_ROW_COUNT} showFollowButton />;
-            }
-            return (
-                <View className="items-center justify-center py-20">
-                    <Loading className="text-primary" size="large" />
-                </View>
             );
         }
 
