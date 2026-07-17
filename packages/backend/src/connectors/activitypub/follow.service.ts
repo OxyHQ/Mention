@@ -6,11 +6,10 @@ import UserSettings from '../../models/UserSettings';
 import { Post } from '../../models/Post';
 import Poll from '../../models/Poll';
 import { getPublicKey, signViaOxy } from './crypto';
-import { signRequest } from '@oxyhq/federation';
+import { AP_CONTEXT, signRequest } from '@oxyhq/federation';
 import {
   FEDERATION_DOMAIN,
   FEDERATION_ENABLED,
-  AP_CONTEXT,
   AP_CONTENT_TYPE,
   USER_AGENT,
   actorUrl,

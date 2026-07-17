@@ -45,6 +45,13 @@ vi.mock('../../../utils/oxyHelpers', () => ({
 
 vi.mock('../../../connectors/activitypub/constants', () => ({
   actorUrl: (username: string) => `https://mention.earth/ap/users/${username}`,
+}));
+
+// `AP_CONTEXT` now lives in the shared engine; the service imports it directly.
+// Mock the engine's copy to the simplified 2-element context so the Delete(actor)
+// activity assertion below stays readable (the full term-declaration object is
+// exercised by the engine's own golden test).
+vi.mock('@oxyhq/federation', () => ({
   AP_CONTEXT: ['https://www.w3.org/ns/activitystreams', 'https://w3id.org/security/v1'],
 }));
 

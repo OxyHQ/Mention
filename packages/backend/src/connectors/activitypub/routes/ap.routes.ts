@@ -3,7 +3,7 @@ import { isValidObjectId } from 'mongoose';
 import { logger } from '../../../utils/logger';
 import { activityPubConnector } from '../ActivityPubConnector';
 import { getPublicKey } from '../crypto';
-import { verifyHttpSignature } from '@oxyhq/federation';
+import { AP_CONTEXT, verifyHttpSignature } from '@oxyhq/federation';
 import { Post } from '../../../models/Post';
 import UserSettings from '../../../models/UserSettings';
 import { getServiceOxyClient } from '../../../utils/oxyHelpers';
@@ -11,7 +11,6 @@ import type { User } from '@oxyhq/core';
 import {
   FEDERATION_DOMAIN,
   FEDERATION_ENABLED,
-  AP_CONTEXT,
   AP_CONTENT_TYPE,
   isActivityPubAccept,
   actorUrl,
