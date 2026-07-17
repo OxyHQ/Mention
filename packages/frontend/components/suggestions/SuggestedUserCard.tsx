@@ -12,6 +12,7 @@ interface SuggestedUserData {
   name: { displayName: string; first?: string; last?: string; full?: string };
   avatar?: string;
   bio?: string;
+  verified?: boolean;
   isFederated?: boolean;
   isAgent?: boolean;
   isAutomated?: boolean;
@@ -46,6 +47,7 @@ export const SuggestedUserCard = memo(function SuggestedUserCard({
     name: user.name,
     avatar: user.avatar || cachedUser?.avatar,
     color: cachedUser?.color,
+    verified: user.verified,
     description: user.bio,
     isFederated: user.isFederated,
     isAgent: user.isAgent,

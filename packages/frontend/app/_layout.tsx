@@ -18,6 +18,13 @@ suppressRnwTextNodeWarning();
 import { initLiveKit } from '@/lib/livekit';
 initLiveKit();
 
+// WEB-only: recover from a stale lazy-route chunk 404'ing after a deploy by
+// reloading once onto the fresh bundle (loop-guarded via sessionStorage).
+// Platform-split — chunkReload.native.ts is a no-op. Registered at module scope
+// so the listeners are live before any route lazily imports its chunk.
+import { registerChunkErrorRecovery } from '@/lib/chunkReload';
+registerChunkErrorRecovery();
+
 import NetInfo from '@react-native-community/netinfo';
 import { focusManager, onlineManager } from '@tanstack/react-query';
 import { Redirect, Slot, Stack, useRouter, useSegments } from "expo-router";
