@@ -1,4 +1,4 @@
-import type { IFederatedActor } from '../../models/FederatedActor';
+import type { PostContent } from '@mention/shared-types';
 import type {
   NetworkConnector,
   NetworkId,
@@ -7,7 +7,8 @@ import type {
   ReceiveContext,
   FetchPostsOptions,
   FetchPostsResult,
-} from '../types';
+} from '@oxyhq/federation';
+import type { IFederatedActor } from '../../models/FederatedActor';
 import { resolveOxyExternalUser } from '../identity';
 import { isAbsoluteHttpUrl } from '../shared/url';
 import { actorService } from './actor.service';
@@ -52,7 +53,7 @@ export {
  *
  * The private key never leaves Oxy; protocol specifics live in the sub-services.
  */
-class ActivityPubConnector implements NetworkConnector {
+class ActivityPubConnector implements NetworkConnector<PostContent> {
   readonly id: NetworkId = 'activitypub';
 
   get enabled(): boolean {
@@ -117,7 +118,7 @@ class ActivityPubConnector implements NetworkConnector {
   }
 
   /** Deliver a local domain event outbound to the fediverse. */
-  async deliver(event: LocalNetworkEvent): Promise<void> {
+  async deliver(event: LocalNetworkEvent<PostContent>): Promise<void> {
     switch (event.kind) {
       case 'post.create':
         await followService.federateNewPost(event.post, event.actorOxyUserId, event.actorUsername);

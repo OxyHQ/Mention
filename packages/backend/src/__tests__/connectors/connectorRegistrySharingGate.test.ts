@@ -31,10 +31,11 @@ vi.mock('../../services/fediverseSharing', () => ({
 }));
 
 import { ConnectorRegistry } from '../../connectors/ConnectorRegistry';
-import type { NetworkConnector, NetworkId, LocalPostEventPayload } from '../../connectors/types';
+import type { PostContent } from '@mention/shared-types';
+import type { NetworkConnector, NetworkId, LocalPostEventPayload } from '@oxyhq/federation';
 
 /** A minimal fake connector with an overridable, spy-able `deliver`. */
-function makeConnector(id: NetworkId, deliver: NetworkConnector['deliver'], enabled = true): NetworkConnector {
+function makeConnector(id: NetworkId, deliver: NetworkConnector<PostContent>['deliver'], enabled = true): NetworkConnector<PostContent> {
   return {
     id,
     enabled,
@@ -48,7 +49,7 @@ function makeConnector(id: NetworkId, deliver: NetworkConnector['deliver'], enab
   };
 }
 
-const POST: LocalPostEventPayload = {
+const POST: LocalPostEventPayload<PostContent> = {
   _id: 'p1',
   content: { text: 'hello' },
   visibility: 'public',

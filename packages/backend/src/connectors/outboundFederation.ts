@@ -1,7 +1,8 @@
+import type { PostContent } from '@mention/shared-types';
+import type { LocalNetworkEvent } from '@oxyhq/federation';
 import { logger } from '../utils/logger';
 import { getServiceOxyClient } from '../utils/oxyHelpers';
 import { connectorRegistry } from './index';
-import type { LocalNetworkEvent } from './types';
 
 /**
  * Fire-and-forget outbound federation for a local interaction, through the
@@ -22,7 +23,7 @@ import type { LocalNetworkEvent } from './types';
 export function federateAsResolvedActor(
   actorOxyUserId: string,
   context: string,
-  buildEvent: (username: string) => LocalNetworkEvent,
+  buildEvent: (username: string) => LocalNetworkEvent<PostContent>,
 ): void {
   void (async () => {
     const user = await getServiceOxyClient().getUserById(actorOxyUserId);

@@ -42,7 +42,7 @@ import {
   reportFederatedActorGone,
   resolveOxyExternalUser,
 } from '../../connectors/identity';
-import type { NormalizedExternalActor } from '../../connectors/types';
+import type { NormalizedExternalActor } from '@oxyhq/federation';
 
 /** Build an HTTP-style rejection carrying the flat `.status` shape `getErrorStatus` reads. */
 function httpError(status: number, message = `HTTP ${status}`): Error {

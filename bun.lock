@@ -29,6 +29,7 @@
         "@mention/shared-types": "file:../shared-types",
         "@oxyhq/contracts": "^0.16.0",
         "@oxyhq/core": "^12.4.1",
+        "@oxyhq/federation": "^0.1.0",
         "@oxyhq/protocol": "^0.1.5",
         "@socket.io/redis-adapter": "^8.3.0",
         "@syra.fm/sdk": "^0.7.0",
@@ -711,6 +712,8 @@
     "@oxyhq/core": ["@oxyhq/core@12.4.1", "", { "dependencies": { "@noble/ciphers": "^1.3.0", "@noble/hashes": "^1.8.0", "@oxyhq/contracts": "^0.16.0", "@oxyhq/protocol": "^0.1.5", "bip39": "^3.1.0", "buffer": "^6.0.3", "elliptic": "^6.6.1", "invariant": "^2.2.4", "jwt-decode": "^4.0.0", "socket.io-client": "^4.8.1", "tldts": "^7.4.8", "zod": "^3.25.64" }, "peerDependencies": { "@react-native-async-storage/async-storage": "*", "expo-crypto": "*", "expo-secure-store": "*", "express": "^4.0.0", "express-rate-limit": "^7.0.0" }, "optionalPeers": ["@react-native-async-storage/async-storage", "expo-crypto", "expo-secure-store", "express"] }, "sha512-w9KzJ2Nh2Q4nVdlmR603nhLXE6r9c2ItGOlnLjFTi1iijFn2OjKnd13/6DquyN9rDdhCpiJ+lI5Bf5mEXbpKQQ=="],
 
     "@oxyhq/expo-oxy-identity": ["@oxyhq/expo-oxy-identity@0.1.0", "", { "peerDependencies": { "expo": ">=51.0.0", "expo-modules-core": "*", "react": ">=18.0.0", "react-native": ">=0.74.0" } }, "sha512-erMlS8dF1BIggOuu44impWjZDns8yjuQzRIvYnIjMzpD+Flc7V6HtufhzGTDEvmEYV/utZEiwo213IfGM5Uiyw=="],
+
+    "@oxyhq/federation": ["@oxyhq/federation@0.1.0", "", { "peerDependencies": { "express": "^4.18.0 || ^5.0.0" }, "optionalPeers": ["express"] }, "sha512-zurrip1PSczRr9P/ZoHXJg98kwrwkMxEhf+QjnvhUTId0AUH3FGmcqJCPzwONT5dH76iH+7YyVWXdjuZP7NsTw=="],
 
     "@oxyhq/protocol": ["@oxyhq/protocol@0.1.5", "", { "dependencies": { "@oxyhq/contracts": "^0.13.2", "elliptic": "^6.6.1", "zod": "^3.25.64" }, "peerDependencies": { "@react-native-async-storage/async-storage": "*", "expo-crypto": "*", "expo-modules-core": "*", "expo-secure-store": "*", "express": "^4.18.0 || ^5.0.0" }, "optionalPeers": ["@react-native-async-storage/async-storage", "expo-crypto", "expo-secure-store", "express"] }, "sha512-iHrHLg1qnkjlcj2dES5sT/4zA5wmVU0PcvhpTIT+acTD6Oqip1EibiM6x1fYDMouAHoK+C4OKmHJ45Usg9nDrw=="],
 

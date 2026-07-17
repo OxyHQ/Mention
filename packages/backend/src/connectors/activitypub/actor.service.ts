@@ -19,7 +19,7 @@ import {
 } from './helpers';
 import { readBoundedResponseBody } from '../shared/httpBody';
 import { reportFederatedActorGone, resolveOxyExternalUser } from '../identity';
-import type { NormalizedExternalActor } from '../types';
+import type { NormalizedExternalActor } from '@oxyhq/federation';
 
 /**
  * Minimum interval between background actor refreshes for the same actor.

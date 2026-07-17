@@ -2,7 +2,7 @@ import { Router, Response } from 'express';
 import { z } from 'zod';
 import { getRequiredOxyUserId, type OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
 import type { User as OxyUser } from '@oxyhq/core';
-import { PostVisibility } from '@mention/shared-types';
+import { PostVisibility, type PostContent } from '@mention/shared-types';
 import { logger } from '../utils/logger';
 import { activityPubConnector, isPermanentlyUnavailableOutboxReason } from './activitypub/ActivityPubConnector';
 import FederatedActor from '../models/FederatedActor';
@@ -14,7 +14,7 @@ import { normalizeFederatedAcct } from './activitypub/helpers';
 import { isAbsoluteHttpUrl } from './shared/url';
 import { connectorRegistry } from './index';
 import { classifyQuery } from './resolve';
-import type { NetworkConnector } from './types';
+import type { NetworkConnector } from '@oxyhq/federation';
 import { postHydrationService } from '../services/PostHydrationService';
 import { createScopedOxyClient, getServiceOxyClient } from '../utils/oxyHelpers';
 import { apiRateLimiter } from '../middleware/rateLimiter';
@@ -138,7 +138,7 @@ function resolveUserOr401(req: AuthRequest, res: Response): string | null {
  * `FederatedActor.protocol` (authoritative once an actor is known), falling back
  * to shape-based `matches` (an http URI → ActivityPub, a DID → atproto).
  */
-async function resolveTargetConnector(target: string): Promise<NetworkConnector | undefined> {
+async function resolveTargetConnector(target: string): Promise<NetworkConnector<PostContent> | undefined> {
   const stored = await FederatedActor.findOne({ uri: target }).select('protocol').lean();
   if (stored?.protocol) {
     const byProtocol = connectorRegistry.list().find((connector) => connector.id === stored.protocol);

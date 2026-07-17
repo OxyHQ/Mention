@@ -8,7 +8,7 @@ import { getPostCreator } from '../../services/serviceRegistry';
 import { mapWithConcurrency } from '../../utils/concurrency';
 import { materializeFederatedMedia, type ExtractedMediaAttachment } from '../shared/federatedMedia';
 import type { MediaItem } from '@mention/shared-types';
-import type { NormalizedExternalActor, NormalizedExternalMedia, NormalizedExternalPost } from '../types';
+import type { NormalizedExternalActor, NormalizedExternalMedia, NormalizedExternalPost } from '@oxyhq/federation';
 import { xrpcGet } from './xrpcClient';
 import { fetchAndUpsertAtprotoProfile } from './profile.mapper';
 import { BSKY_APP_ORIGIN, POST_COLLECTION, PUBLIC_APPVIEW } from './constants';

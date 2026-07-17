@@ -2,7 +2,7 @@ import { normalizeInlineText, normalizeMultilineText } from '@oxyhq/core';
 import { logger } from '../../utils/logger';
 import FederatedActor, { IFederatedActor } from '../../models/FederatedActor';
 import { resolveOxyExternalUser } from '../identity';
-import type { NormalizedExternalActor } from '../types';
+import type { NormalizedExternalActor } from '@oxyhq/federation';
 import { xrpcGet } from './xrpcClient';
 import { BSKY_NETWORK_DOMAIN, PUBLIC_APPVIEW } from './constants';
 
