@@ -45,6 +45,12 @@ export const BSKY_NETWORK_DOMAIN = 'bsky.social';
 /** The atproto record collection that holds a feed post. */
 export const POST_COLLECTION = 'app.bsky.feed.post';
 
+/** The atproto record collection that holds a starter pack. */
+export const STARTER_PACK_COLLECTION = 'app.bsky.graph.starterpack';
+
+/** The atproto record collection that holds a feed generator declaration. */
+export const FEED_GENERATOR_COLLECTION = 'app.bsky.feed.generator';
+
 /**
  * A `did:plc:` identifier: the literal prefix followed by 24 base32-sortable
  * characters (lowercase `a-z` + digits `2-7`).

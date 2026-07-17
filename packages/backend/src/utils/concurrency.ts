@@ -1,13 +1,15 @@
 /**
- * A minimal, dependency-free bounded-concurrency map shared by the one-shot
- * repair sweeps (`reingestBlueskyPosts`, `pruneGoneFederatedActors`).
+ * A minimal, dependency-free bounded-concurrency map.
  *
  * WHY
- *   Those sweeps are almost entirely I/O-bound — each item does a remote signed
- *   fetch plus oxy-api media/archive round-trips, so processing one item at a
- *   time leaves the CPU idle waiting on the network. Overlapping a small pool of
- *   items recovers roughly an order of magnitude of wall-clock time while keeping
- *   the load on the remote/oxy-api endpoints bounded.
+ *   Shared by the I/O-bound one-shot repair sweeps (`reingestBlueskyPosts`,
+ *   `pruneGoneFederatedActors`, `syncBlueskyStarterPacks`) AND the runtime atproto
+ *   connector's starter-pack member resolution. Each item does a remote fetch plus
+ *   oxy-api round-trips, so processing one item at a time leaves the CPU idle
+ *   waiting on the network. Overlapping a small pool recovers roughly an order of
+ *   magnitude of wall-clock time while keeping the load on the remote / oxy-api
+ *   endpoints bounded (oxy-api's service endpoints are per-IP rate-limited, and
+ *   Mention's federation traffic egresses from one NAT IP).
  */
 
 /** Default in-flight pool size — conservative so a sweep never hammers oxy-api. */

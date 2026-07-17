@@ -103,7 +103,7 @@ import { signedFetch } from '../connectors/activitypub/helpers';
 import { AP_CONTENT_TYPE } from '../connectors/activitypub/constants';
 import { refetchAtprotoPostForRepair } from '../connectors/atproto/post.mapper';
 import { fetchAndUpsertAtprotoProfile, splitHandle } from '../connectors/atproto/profile.mapper';
-import { mapWithConcurrency, DEFAULT_CONCURRENCY, MAX_CONCURRENCY } from './mapWithConcurrency';
+import { mapWithConcurrency, DEFAULT_CONCURRENCY, MAX_CONCURRENCY } from '../utils/concurrency';
 
 /** Posts scanned per page (stable `_id` cursor pagination). */
 const PAGE_SIZE = 500;

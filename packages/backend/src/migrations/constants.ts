@@ -49,3 +49,14 @@ export const MIGRATION_NOTIFICATION_TTL_INDEX = '0004-notification-ttl-index';
  * See {@link ./0005-starter-pack-member-index}.
  */
 export const MIGRATION_STARTER_PACK_MEMBER_INDEX = '0005-starter-pack-member-index';
+
+/**
+ * One-shot creation of the indexes backing the Bluesky (atproto) profile-graph
+ * import: the SPARSE UNIQUE `{ 'source.uri': 1 }` dedup index on `starterpacks`
+ * (one Mention pack per mirrored remote pack) and the `externalfeeds` collection's
+ * unique `{ uri: 1 }` + owner-lookup `{ ownerOxyUserId: 1, createdAt: -1 }` indexes.
+ * `autoIndex`/`autoCreate` are OFF in production, so the schema-declared indexes are
+ * created here — without the sparse-unique index, re-sync would DUPLICATE mirrored
+ * packs. See {@link ./0006-federated-starter-pack-source-index}.
+ */
+export const MIGRATION_FEDERATED_STARTER_PACK_SOURCE_INDEX = '0006-federated-starter-pack-source-index';

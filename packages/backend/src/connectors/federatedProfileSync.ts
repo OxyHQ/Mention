@@ -32,6 +32,7 @@ import {
   shouldForceUntrackedOutboxSync,
 } from './activitypub/outboxSyncCooldown';
 import { ATPROTO_ENABLED } from './atproto/constants';
+import { syncAtprotoProfileGraph } from './atproto/profileGraph';
 import { connectorRegistry } from './index';
 
 /**
@@ -126,6 +127,21 @@ class FederatedProfileSync {
                 const message = fetchErr instanceof Error ? fetchErr.message : String(fetchErr);
                 logger.warn(`[FedSync] atproto backfill failed for ${cachedActor.acct}: ${message}`);
               }
+            }
+
+            // Discover the actor's starter packs + external feed references the
+            // SAME way posts are discovered — on profile view, best-effort and
+            // DETACHED so it never delays or fails the (already-detached) post
+            // backfill or its cooldown stamp below. Gated on a resolved Oxy owner
+            // (no orphan): a re-resolved atproto actor carries `oxyUserId`; when it
+            // does not yet, the next view (after the backfill stamps it) picks it up.
+            if (ATPROTO_ENABLED && cachedActor.oxyUserId) {
+              const graphDid = cachedActor.uri;
+              const graphOwner = cachedActor.oxyUserId;
+              void syncAtprotoProfileGraph(graphDid, graphOwner).catch((err) => {
+                const message = err instanceof Error ? err.message : String(err);
+                logger.warn(`[FedSync] atproto graph sync failed for ${cachedActor.acct}: ${message}`);
+              });
             }
           }
           // Stamp the post-backfill time so `shouldReportPending` can clear. The
