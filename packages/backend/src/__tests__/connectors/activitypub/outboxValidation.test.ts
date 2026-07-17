@@ -21,7 +21,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   getPublicKey: vi.fn(),
-  signRequest: vi.fn(),
+  signViaOxy: vi.fn(),
   actorFind: vi.fn(),
   actorFindOne: vi.fn(),
   findOneAndUpdate: vi.fn(),
@@ -41,9 +41,13 @@ const mocks = vi.hoisted(() => ({
   assertSafePublicUrl: vi.fn(),
 }));
 
+// `signedFetch` (helpers.ts) is built from @oxyhq/federation's createSignedFetch,
+// which signs via Mention's injected `signViaOxy` (crypto.ts) and derives the
+// instance keyId from `getPublicKey('instance')`. The package's real signRequest
+// composes the Signature header; only the private-key custody is stubbed here.
 vi.mock('../../../connectors/activitypub/crypto', () => ({
   getPublicKey: mocks.getPublicKey,
-  signRequest: mocks.signRequest,
+  signViaOxy: mocks.signViaOxy,
 }));
 
 // `signedFetch` performs its GET via the IP-pinned `fetchUpstreamSingleHop`
@@ -175,11 +179,7 @@ beforeEach(() => {
     keyId: 'https://mention.earth/ap/users/instance#main-key',
     publicKeyPem: 'public',
   });
-  mocks.signRequest.mockResolvedValue({
-    Host: 'mastodon.social',
-    Date: 'Thu, 18 Jun 2026 00:00:00 GMT',
-    Signature: 'signature',
-  });
+  mocks.signViaOxy.mockResolvedValue('c2lnbmF0dXJl'); // base64 stub signature
   mocks.findOneAndUpdate.mockImplementation(async (_query, update) => ({ _id: 'actor_1', ...update.$set }));
   mocks.updateOne.mockResolvedValue({ modifiedCount: 1 });
   mocks.actorFind.mockReturnValue({ lean: vi.fn().mockResolvedValue([]) });

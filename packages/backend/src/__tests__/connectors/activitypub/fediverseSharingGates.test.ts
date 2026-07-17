@@ -85,9 +85,16 @@ vi.mock('../../../connectors/activitypub/ActivityPubConnector', () => ({
 }));
 
 vi.mock('../../../connectors/activitypub/crypto', () => ({
-  verifyHttpSignature: (...args: unknown[]) => mocks.verifyHttpSignature(...args),
   getPublicKey: (...args: unknown[]) => mocks.getPublicKey(...args),
 }));
+
+// The pure HTTP-signature crypto now lives in @oxyhq/federation; the inbox route
+// (ap.routes.ts) imports verifyHttpSignature from there. Keep the rest of the
+// package (connector types, signRequest) real and stub only the verify seam.
+vi.mock('@oxyhq/federation', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@oxyhq/federation')>();
+  return { ...actual, verifyHttpSignature: (...args: unknown[]) => mocks.verifyHttpSignature(...args) };
+});
 
 vi.mock('../../../connectors/activitypub/constants', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../../connectors/activitypub/constants')>();

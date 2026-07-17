@@ -5,7 +5,8 @@ import FederationDeliveryQueue from '../../models/FederationDeliveryQueue';
 import UserSettings from '../../models/UserSettings';
 import { Post } from '../../models/Post';
 import Poll from '../../models/Poll';
-import { signRequest, getPublicKey } from './crypto';
+import { getPublicKey, signViaOxy } from './crypto';
+import { signRequest } from '@oxyhq/federation';
 import {
   FEDERATION_DOMAIN,
   FEDERATION_ENABLED,
@@ -448,7 +449,7 @@ export class FollowService {
     try {
       const { keyId } = await getPublicKey(senderUsername);
       const body = JSON.stringify(activity);
-      const sigHeaders = await signRequest(keyId, 'POST', targetInbox, body);
+      const sigHeaders = await signRequest(signViaOxy, keyId, 'POST', targetInbox, body);
 
       const allHeaders: Record<string, string> = {
         'Content-Type': AP_CONTENT_TYPE,

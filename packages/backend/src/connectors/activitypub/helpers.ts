@@ -1,7 +1,8 @@
 import mongoose from 'mongoose';
 import { logger } from '../../utils/logger';
 import { Post } from '../../models/Post';
-import { signRequest, getPublicKey } from './crypto';
+import { createSignedFetch, type SignedFetch } from '@oxyhq/federation/node';
+import { getPublicKey, signViaOxy } from './crypto';
 import {
   AP_CONTENT_TYPE,
   USER_AGENT,
@@ -26,11 +27,9 @@ import { isAbsoluteHttpUrl } from '../shared/url';
  * `connectors/shared/url.ts` respectively.
  */
 
-const SIGNED_FETCH_TIMEOUT_MS = 10000;
-/** Bounded redirect budget for signed AP GETs; each hop is re-validated and re-signed. */
-const SIGNED_FETCH_MAX_REDIRECTS = 3;
+/** Bounded redirect budget for the stricter boost-import fetch; each hop re-validated. */
+const MAX_ACTIVITYPUB_REDIRECTS = 3;
 const REDIRECT_STATUS_CODES: ReadonlySet<number> = new Set([301, 302, 303, 307, 308]);
-const MAX_ACTIVITYPUB_REDIRECTS = SIGNED_FETCH_MAX_REDIRECTS;
 
 export function asRecord(value: unknown): Record<string, any> | null {
   return value && typeof value === 'object' && !Array.isArray(value)
@@ -121,13 +120,6 @@ export function domainFromAcct(acct: string): string | undefined {
   return acct.substring(atIndex + 1).toLowerCase();
 }
 
-function requestInitHeaders(init: RequestInit): Record<string, string> {
-  if (!init.headers) return {};
-  if (init.headers instanceof Headers) return Object.fromEntries(init.headers.entries());
-  if (Array.isArray(init.headers)) return Object.fromEntries(init.headers);
-  return init.headers as Record<string, string>;
-}
-
 /**
  * Adapt the Node `IncomingMessage` stream returned by {@link fetchUpstreamSingleHop}
  * into a WHATWG `Response`, so every `signedFetch` caller keeps using the
@@ -168,92 +160,54 @@ async function singleHopToResponse(result: SingleHopResult): Promise<Response> {
   return new Response(Buffer.concat(chunks), { status: result.status, headers });
 }
 
+/** Resolve the Oxy-managed instance actor's keyId used to sign outbound AP GETs. */
+async function getInstanceKeyId(): Promise<string> {
+  const { keyId } = await getPublicKey('instance');
+  return keyId;
+}
+
+// Built lazily on first use so the adapters (`signViaOxy`, `USER_AGENT`) are read
+// at call time — NOT at module import — matching the original `signedFetch`'s
+// call-time evaluation (a module never reads federation credentials just to load).
+let signedFetchImpl: SignedFetch | null = null;
+function getSignedFetch(): SignedFetch {
+  if (!signedFetchImpl) {
+    signedFetchImpl = createSignedFetch({
+      sign: signViaOxy,
+      getInstanceKeyId,
+      fetchSingleHop: (url, init) =>
+        fetchUpstreamSingleHop(url, {
+          headers: init.headers,
+          signal: init.signal,
+          headersTimeoutMs: init.headersTimeoutMs,
+        }).then(singleHopToResponse),
+      userAgent: USER_AGENT,
+      logger: {
+        info: (message) => logger.info(message),
+        warn: (message) => logger.warn(message),
+      },
+    });
+  }
+  return signedFetchImpl;
+}
+
 /**
  * Sign a GET request using the instance actor key pair (managed by Oxy) and
  * perform it under the SSRF-safe contract.
  *
- * The connection is routed through {@link fetchUpstreamSingleHop}, which
+ * The signing + per-hop re-signing redirect policy lives in `@oxyhq/federation`
+ * (`createSignedFetch`); Mention supplies the private-key custody (`signViaOxy`,
+ * which calls oxy-api — the key never enters Mention), the instance keyId, and
+ * the SSRF-safe single-hop transport ({@link fetchUpstreamSingleHop}, which
  * validates the URL AND pins the TCP connection to the validated IP via a custom
- * DNS `lookup` — DNS is NOT re-resolved at connect time. This closes the
- * DNS-rebind TOCTOU window that a plain "validate-then-`fetch`" sequence leaves
- * open: a hostname could resolve to a public IP during an `assertSafePublicUrl`
- * check, then re-resolve to an internal IP when the global `fetch` connects.
- *
- * Redirects are followed manually (bounded by {@link SIGNED_FETCH_MAX_REDIRECTS}),
- * re-validating AND re-signing each hop — an HTTP signature is bound to the
- * `(request-target)`/`host` of a specific URL, so the signature must be
- * recomputed for the redirect target. When the caller passes
- * `init.redirect === 'manual'`, the redirect `Response` is returned directly so
- * the caller can apply its own stricter redirect policy (see
- * {@link fetchVerifiedAnnouncedNote}).
- *
- * Signed for servers that enforce authorized fetch (e.g., Threads). On a 5xx the
- * request is retried unsigned (same SSRF-safe path) as a fallback for public
- * resources.
+ * DNS `lookup` — DNS is NOT re-resolved at connect time, closing the DNS-rebind
+ * TOCTOU window). The engine re-validates AND re-signs each redirect hop, honours
+ * `init.redirect === 'manual'` (returning the redirect for a stricter per-hop
+ * policy — see {@link fetchVerifiedAnnouncedNote}), and retries unsigned on a 5xx
+ * for public resources.
  */
-export async function signedFetch(url: string, accept: string, init: RequestInit = {}): Promise<Response> {
-  const acceptHeader = `${accept}, application/ld+json; profile="https://www.w3.org/ns/activitystreams"`;
-  const { keyId } = await getPublicKey('instance');
-  const extraHeaders = requestInitHeaders(init);
-  const manualRedirect = init.redirect === 'manual';
-
-  const fetchOnce = async (targetUrl: string, signed: boolean): Promise<Response> => {
-    const sigHeaders = signed ? await signRequest(keyId, 'GET', targetUrl) : {};
-    const result = await fetchUpstreamSingleHop(targetUrl, {
-      headers: {
-        Accept: acceptHeader,
-        'User-Agent': USER_AGENT,
-        ...sigHeaders,
-        ...extraHeaders,
-      },
-      signal: init.signal ?? AbortSignal.timeout(SIGNED_FETCH_TIMEOUT_MS),
-      headersTimeoutMs: SIGNED_FETCH_TIMEOUT_MS,
-    });
-    return singleHopToResponse(result);
-  };
-
-  const fetchFollowingRedirects = async (initialUrl: string, signed: boolean): Promise<Response> => {
-    let currentUrl = initialUrl;
-    for (let hop = 0; hop <= SIGNED_FETCH_MAX_REDIRECTS; hop++) {
-      const res = await fetchOnce(currentUrl, signed);
-      if (!REDIRECT_STATUS_CODES.has(res.status)) {
-        return res;
-      }
-      // The caller asked to handle redirects itself (stricter per-hop policy).
-      if (manualRedirect) {
-        return res;
-      }
-      const location = res.headers.get('location');
-      if (hop === SIGNED_FETCH_MAX_REDIRECTS || !location) {
-        return res;
-      }
-      currentUrl = new URL(location, currentUrl).toString();
-    }
-    throw new Error('redirect loop exhausted');
-  };
-
-  const res = await fetchFollowingRedirects(url, true);
-
-  // If the remote server returns a 5xx (e.g. it can't resolve our keyId to verify
-  // the signature), retry without the signature as a fallback for public resources.
-  if (res.status >= 500) {
-    logger.info(`[FedSync] signedFetch got ${res.status} for ${url}, retrying unsigned`);
-    return fetchFollowingRedirects(url, false);
-  }
-
-  // A 401/403 on a signed request means the remote rejected OUR signature
-  // (e.g. it could not resolve/verify our keyId, or our instance key pair is
-  // missing/invalid because the service token could not be acquired). Without a
-  // log this silently yields zero results — surface it so the failure mode is
-  // observable in production. The caller still receives the response and decides
-  // how to proceed; we do not change control flow here.
-  if (res.status === 401 || res.status === 403) {
-    logger.warn(
-      `[FedSync] signedFetch got ${res.status} ${res.statusText} for ${url} — remote rejected our HTTP signature (check instance key pair / service token); returning the failed response so no posts are imported from this source`,
-    );
-  }
-
-  return res;
+export function signedFetch(url: string, accept: string, init: RequestInit = {}): Promise<Response> {
+  return getSignedFetch()(url, accept, init);
 }
 
 function sameOrigin(left: string, right: string): boolean {
