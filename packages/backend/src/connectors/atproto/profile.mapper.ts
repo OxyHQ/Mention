@@ -39,8 +39,12 @@ export interface AtprotoProfileView {
  * The federated Oxy username is `<handle>@<instance-domain>`
  * (`alice.bsky.social@bsky.social`, `gothamist.com@bsky.social`) — the exact form
  * oxy-api's `PUT /users/resolve` binds (username domain must equal `domain`).
+ *
+ * Exported so the reingest repair script can DETECT the pre-fix doubled-handle bug
+ * (a stored `FederatedActor.domain` that no longer equals `splitHandle(acct).domain`)
+ * without re-fetching the profile, using the SAME derivation the upsert path uses.
  */
-function splitHandle(handle: string): { username: string; domain: string; federatedUsername: string } {
+export function splitHandle(handle: string): { username: string; domain: string; federatedUsername: string } {
   const dot = handle.indexOf('.');
   // Strip the first label only if the remainder is still a multi-label domain.
   const parent = dot > 0 ? handle.slice(dot + 1) : handle;
