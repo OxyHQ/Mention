@@ -51,12 +51,20 @@ export const MIGRATION_NOTIFICATION_TTL_INDEX = '0004-notification-ttl-index';
 export const MIGRATION_STARTER_PACK_MEMBER_INDEX = '0005-starter-pack-member-index';
 
 /**
- * One-shot creation of the indexes backing the Bluesky (atproto) profile-graph
- * import: the SPARSE UNIQUE `{ 'source.uri': 1 }` dedup index on `starterpacks`
- * (one Mention pack per mirrored remote pack) and the `externalfeeds` collection's
- * unique `{ uri: 1 }` + owner-lookup `{ ownerOxyUserId: 1, createdAt: -1 }` indexes.
- * `autoIndex`/`autoCreate` are OFF in production, so the schema-declared indexes are
- * created here — without the sparse-unique index, re-sync would DUPLICATE mirrored
- * packs. See {@link ./0006-federated-starter-pack-source-index}.
+ * One-shot creation of the SPARSE UNIQUE `{ 'source.uri': 1 }` dedup index on
+ * `starterpacks` (one Mention pack per mirrored remote pack) for the Bluesky
+ * (atproto) profile-graph import. `autoIndex`/`autoCreate` are OFF in production, so
+ * the schema-declared index is created here — without it, re-sync would DUPLICATE
+ * mirrored packs. See {@link ./0006-federated-starter-pack-source-index}.
  */
 export const MIGRATION_FEDERATED_STARTER_PACK_SOURCE_INDEX = '0006-federated-starter-pack-source-index';
+
+/**
+ * One-shot creation of the native `FeedGenerator` indexes: UNIQUE `{ uri: 1 }` (the
+ * dedup key for a mirrored Bluesky feed generator) + `{ createdBy: 1 }` (the
+ * per-owner listing on the profile Feeds surface). `autoIndex`/`autoCreate` are OFF
+ * in production, so the schema-declared indexes are created here — without the
+ * unique index, re-syncing an actor's feeds would DUPLICATE them on every profile
+ * view. See {@link ./0007-feed-generator-index}.
+ */
+export const MIGRATION_FEED_GENERATOR_INDEX = '0007-feed-generator-index';

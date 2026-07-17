@@ -5,6 +5,7 @@ import { Post } from '../../models/Post';
 import FederatedActor from '../../models/FederatedActor';
 import { normalizeAlt } from '../../services/MediaMetadataService';
 import { getPostCreator } from '../../services/serviceRegistry';
+import { mapWithConcurrency } from '../../utils/concurrency';
 import { materializeFederatedMedia, type ExtractedMediaAttachment } from '../shared/federatedMedia';
 import type { MediaItem } from '@mention/shared-types';
 import type { NormalizedExternalActor, NormalizedExternalMedia, NormalizedExternalPost } from '../types';
@@ -82,7 +83,12 @@ interface AtprotoEmbedView {
   media?: AtprotoEmbedView;
   record?: AtprotoEmbedRecordView;
 }
-interface AtprotoPostView {
+/**
+ * A hydrated `app.bsky.feed.post` view. `getAuthorFeed`, `getFeed`, and `getPosts`
+ * all return this identical shape, so it is the input the native-post import path
+ * ({@link importPostViews}) consumes.
+ */
+export interface AtprotoPostView {
   uri?: string;
   cid?: string;
   author?: { did?: string; handle?: string };
@@ -688,4 +694,161 @@ export async function refetchAtprotoPostForRepair(
   const post: NormalizedExternalPost = { ...mapped, authorOxyUserId: ownerOxyUserId };
   const links = await resolveThreadAndQuoteLinks(post.inReplyTo, post.quotedUri);
   return { kind: 'ok', post, links };
+}
+
+/** How many distinct post authors to resolve to Oxy users in parallel. */
+const FEED_AUTHOR_CONCURRENCY = 6;
+
+/** The `app.bsky.feed.getFeed` response — the same hydrated shape `getAuthorFeed` returns. */
+interface AtprotoGetFeedResponse {
+  feed?: AtprotoFeedItem[];
+  cursor?: string;
+}
+
+/**
+ * Fetch one page of a Bluesky FEED GENERATOR's output (`app.bsky.feed.getFeed`)
+ * from the public AppView. Returns the hydrated `PostView`s in the generator's
+ * ranking ORDER plus the paging cursor.
+ *
+ * `getFeed` returns the identical hydrated `PostView` shape `getAuthorFeed` does,
+ * so its posts feed straight into {@link importPostViews} → the same native-post
+ * import path the author-feed backfill uses. Unlike an author feed, a generator
+ * mixes many authors and its items carry the algorithm's ranking, so the `.post`
+ * of every item is kept in order (a `reason`/repost item still resolves to the
+ * post's REAL author, which is what gets imported). Fail-soft: a fetch error
+ * yields an empty page, never throws.
+ */
+export async function getFeed(
+  feedUri: string,
+  opts: { limit?: number; cursor?: string } = {},
+): Promise<{ posts: AtprotoPostView[]; cursor?: string }> {
+  let response: AtprotoGetFeedResponse;
+  try {
+    response = await xrpcGet<AtprotoGetFeedResponse>(PUBLIC_APPVIEW, 'app.bsky.feed.getFeed', {
+      feed: feedUri,
+      limit: opts.limit ?? 30,
+      cursor: opts.cursor,
+    });
+  } catch (err) {
+    logger.debug(`[atproto] getFeed failed for ${feedUri}`, err);
+    return { posts: [] };
+  }
+
+  const items = Array.isArray(response?.feed) ? response.feed : [];
+  const posts: AtprotoPostView[] = [];
+  for (const item of items) {
+    if (item?.post) posts.push(item.post);
+  }
+  return { posts, cursor: response?.cursor };
+}
+
+/** A resolved post author: the federated Oxy user + the instance domain to stamp on the post. */
+interface ResolvedAuthor {
+  oxyUserId: string;
+  instanceDomain: string;
+}
+
+/**
+ * Resolve each DISTINCT post-author DID to its federated Oxy user (mints it if new)
+ * through the shared atproto profile path, with bounded concurrency. Returns a
+ * `did → {oxyUserId, instanceDomain}` map; DIDs that fail to resolve to an Oxy user
+ * are absent (fail-soft — a post whose author we can't mint is dropped, no orphan).
+ */
+async function resolveFeedAuthors(dids: readonly string[]): Promise<Map<string, ResolvedAuthor>> {
+  const map = new Map<string, ResolvedAuthor>();
+  if (dids.length === 0) return map;
+
+  const settled = await mapWithConcurrency(dids, FEED_AUTHOR_CONCURRENCY, async (did) => {
+    const actor = await fetchAndUpsertAtprotoProfile(did);
+    return actor?.oxyUserId
+      ? { did, oxyUserId: String(actor.oxyUserId), instanceDomain: actor.instanceDomain }
+      : undefined;
+  });
+
+  for (const result of settled) {
+    if (result.status === 'fulfilled' && result.value) {
+      const { did, oxyUserId, instanceDomain } = result.value;
+      map.set(did, { oxyUserId, instanceDomain });
+    }
+  }
+  return map;
+}
+
+/**
+ * Import a batch of hydrated `PostView`s (from a feed generator's {@link getFeed})
+ * as native `Post` rows, and return the AT-URIs that map to a local post — in INPUT
+ * ORDER — so the caller can load + hydrate them preserving the generator's ranking.
+ *
+ * This is the MULTI-AUTHOR sibling of {@link importAuthorFeed}: a generator feed
+ * mixes many authors, so each post's author is independently resolved/minted to its
+ * federated Oxy user (deduped, bounded). Everything else reuses the exact same path
+ * as the author-feed backfill — {@link mapPostViewToNormalizedPost} (author validated
+ * against its own DID), the batched mention resolution, media materialization,
+ * AT-URI dedup, and {@link createPostFromNormalized}. Best-effort + fail-soft: an
+ * unresolvable author or unmappable view is skipped, a duplicate is a no-op, and
+ * nothing throws. A returned URI whose creation genuinely failed simply won't have a
+ * local `Post` for the caller to load — it drops out of the page rather than
+ * appearing blank.
+ */
+export async function importPostViews(postViews: ReadonlyArray<AtprotoPostView | undefined>): Promise<string[]> {
+  // Keep only real feed-post views that carry both an AT-URI and an author DID, in
+  // the generator's order.
+  const candidates: Array<{ uri: string; did: string; view: AtprotoPostView }> = [];
+  for (const view of postViews) {
+    const uri = typeof view?.uri === 'string' ? view.uri : '';
+    const did = typeof view?.author?.did === 'string' ? view.author.did : '';
+    if (!uri || !did) continue;
+    const parsed = parseAtUri(uri);
+    if (!parsed || parsed.collection !== POST_COLLECTION) continue;
+    candidates.push({ uri, did, view: view as AtprotoPostView });
+  }
+  if (candidates.length === 0) return [];
+
+  // Resolve each distinct author to its federated Oxy user (no orphan posts) and
+  // pre-resolve every mentioned DID across the batch, both bounded + fail-soft.
+  const authorMap = await resolveFeedAuthors([...new Set(candidates.map((c) => c.did))]);
+  const mentionDids = new Set<string>();
+  for (const candidate of candidates) {
+    for (const mentionedDid of extractMentionDids(candidate.view.record)) mentionDids.add(mentionedDid);
+  }
+  const mentionMap = await resolveMentionDids(mentionDids);
+
+  // Map each view to a normalized post (author validated against its own DID).
+  const mapped: Array<{ uri: string; post: NormalizedExternalPost; owner: string; did: string; instanceDomain: string }> = [];
+  for (const candidate of candidates) {
+    const author = authorMap.get(candidate.did);
+    if (!author) continue; // unresolved author → skip (no orphan)
+    const normalized = mapPostViewToNormalizedPost(candidate.view, candidate.did, mentionMap);
+    if (!normalized) continue;
+    mapped.push({
+      uri: candidate.uri,
+      post: { ...normalized, authorOxyUserId: author.oxyUserId },
+      owner: author.oxyUserId,
+      did: candidate.did,
+      instanceDomain: author.instanceDomain,
+    });
+  }
+  if (mapped.length === 0) return [];
+
+  // Dedup against AT-URIs already imported (the unique sparse `federation.activityId`
+  // index is the backstop for concurrent races), then create the new ones. Every
+  // mapped URI is returned in order — a pre-existing / freshly-created / dup-raced
+  // post all have a local `Post`; only a genuine creation failure has none, and the
+  // caller's load naturally drops it.
+  const atUris = mapped.map((entry) => entry.uri);
+  const existingDocs = await Post.find({ 'federation.activityId': { $in: atUris } })
+    .select('federation.activityId')
+    .lean();
+  const seen = new Set<string>();
+  for (const doc of existingDocs) {
+    const id = (doc as { federation?: { activityId?: string } }).federation?.activityId;
+    if (id) seen.add(id);
+  }
+
+  for (const entry of mapped) {
+    if (!seen.has(entry.uri)) {
+      await createPostFromNormalized(entry.post, entry.owner, entry.did, entry.instanceDomain);
+    }
+  }
+  return atUris;
 }

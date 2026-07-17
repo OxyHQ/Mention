@@ -1,6 +1,7 @@
 import { Router, type Response } from 'express';
 import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
 import CustomFeed from '../models/CustomFeed';
+import { FeedGenerator } from '../models/FeedGenerator';
 import FeedReview from '../models/FeedReview';
 import mongoose from 'mongoose';
 import { validateBody, validateObjectId, schemas } from '../middleware/validate';
@@ -332,6 +333,53 @@ router.get('/marketplace', async (req: AuthRequest, res: Response) => {
   } catch (error) {
     logger.error('[CustomFeeds] Marketplace list error:', { error, query: req.query });
     res.status(500).json({ error: 'Failed to load marketplace' });
+  }
+});
+
+/**
+ * List a user's FEED GENERATORS — third-party/algorithmic feeds keyed on `createdBy`.
+ *
+ * Today these are Bluesky feed generators mirrored into native `FeedGenerator` rows
+ * (`source.network === 'atproto'`). Each is served by the feed engine via the
+ * `feedgen|<uri>` descriptor returned as `descriptor` — opening one imports the
+ * remote algorithm's output as NATIVE posts. This is the per-owner "native feeds
+ * list keyed on createdBy" that surfaces a federated profile's synced Bluesky feeds
+ * on its Feeds tab, alongside the account's native custom feeds. They are read-only
+ * (owned upstream — the `source` subdoc marks them federated), so there is no write
+ * route to guard here. Declared BEFORE `/:id` so `generators` never matches the
+ * ObjectId param route.
+ */
+router.get('/generators', async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    const queryUserId = queryString(req.query.userId);
+    const ownerId = queryUserId || (String(req.query.mine) === 'true' ? userId : undefined);
+    if (!ownerId) {
+      return res.status(400).json({ error: 'A userId or mine=true is required' });
+    }
+
+    const items = await FeedGenerator.find({ createdBy: ownerId, 'source.network': 'atproto' })
+      .sort({ likeCount: -1, updatedAt: -1 })
+      .limit(MAX_FEED_PAGE_SIZE)
+      .lean();
+
+    const owner = (await resolveUserProfiles([ownerId])).get(ownerId);
+
+    const normalizedItems = items.map((item) => ({
+      id: String(item._id),
+      uri: item.uri,
+      descriptor: `feedgen|${item.uri}`,
+      title: item.name,
+      description: item.description,
+      avatar: item.avatar,
+      likeCount: item.likeCount || 0,
+      owner,
+    }));
+
+    res.json({ items: normalizedItems, total: normalizedItems.length });
+  } catch (error) {
+    logger.error('[CustomFeeds] List feed generators error:', { userId: req.user?.id, error, query: req.query });
+    res.status(500).json({ error: 'Failed to list feed generators' });
   }
 });
 

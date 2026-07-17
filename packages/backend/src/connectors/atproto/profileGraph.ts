@@ -3,8 +3,9 @@ import { syncActorStarterPacks } from './starterpack.mapper';
 import { syncActorFeeds } from './feedgen.mapper';
 
 /**
- * Sync an atproto actor's PROFILE GRAPH extras — its starter packs (functional
- * mirror) and its feed-generator references (read-only) — in one call.
+ * Sync an atproto actor's PROFILE GRAPH extras — its starter packs and its feed
+ * generators, both mirrored into native Mention records (`StarterPack` /
+ * `FeedGenerator`) — in one call.
  *
  * This is the single entry point shared by the live sync-on-view path
  * (`federatedProfileSync`) and the one-shot backfill (`syncBlueskyStarterPacks`),
@@ -27,6 +28,6 @@ export async function syncAtprotoProfileGraph(did: string, ownerOxyUserId: strin
   }
   if (feeds.status === 'rejected') {
     const message = feeds.reason instanceof Error ? feeds.reason.message : String(feeds.reason);
-    logger.warn(`[atproto] feed-reference sync threw for ${did}: ${message}`);
+    logger.warn(`[atproto] feed-generator sync threw for ${did}: ${message}`);
   }
 }

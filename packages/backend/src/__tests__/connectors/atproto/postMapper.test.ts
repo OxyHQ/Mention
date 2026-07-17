@@ -50,6 +50,7 @@ vi.mock('../../../connectors/shared/federatedMedia', () => ({
 
 import {
   importAuthorFeed,
+  importPostViews,
   mapPostViewToNormalizedPost,
 } from '../../../connectors/atproto/post.mapper';
 import type { NormalizedExternalActor } from '../../../connectors/types';
@@ -450,5 +451,87 @@ describe('importAuthorFeed', () => {
         content: expect.objectContaining({ text: 'hi [mention:oxy-bob]!' }),
       }),
     );
+  });
+});
+
+/**
+ * The MULTI-AUTHOR import path used by a feed generator's `getFeed` output. Unlike
+ * `importAuthorFeed` (single actor), each post's author is resolved independently to
+ * its federated Oxy user, and the returned AT-URIs preserve the generator's ranking.
+ */
+function makeActor(did: string, handle: string, oxyUserId: string): NormalizedExternalActor {
+  return {
+    network: 'atproto',
+    externalId: did,
+    handle,
+    federatedUsername: `${handle}@bsky.social`,
+    instanceDomain: 'bsky.social',
+    oxyUserId,
+  };
+}
+
+/** A feed PostView authored by an arbitrary DID (a generator mixes authors). */
+function viewBy(authorDid: string, handle: string, rkey: string, text: string): Record<string, unknown> {
+  return {
+    uri: `at://${authorDid}/app.bsky.feed.post/${rkey}`,
+    cid: 'cid',
+    author: { did: authorDid, handle },
+    record: { $type: 'app.bsky.feed.post', text, createdAt: '2024-01-01T00:00:00.000Z' },
+    indexedAt: '2024-01-01T00:00:00.000Z',
+  };
+}
+
+describe('importPostViews', () => {
+  const DID1 = 'did:plc:author1000000000000000';
+  const DID2 = 'did:plc:author2000000000000000';
+  const uri1 = `at://${DID1}/app.bsky.feed.post/p1`;
+  const uri2 = `at://${DID2}/app.bsky.feed.post/p2`;
+  const uri3 = `at://${DID1}/app.bsky.feed.post/p3`;
+
+  it('resolves each distinct author, imports the new posts, and returns local URIs in ranking order', async () => {
+    mocks.fetchProfile.mockImplementation(async (actor: string) => {
+      if (actor === DID1) return makeActor(DID1, 'a1.bsky.social', 'oxy-a1');
+      if (actor === DID2) return makeActor(DID2, 'a2.bsky.social', 'oxy-a2');
+      return null;
+    });
+    // `uri3` was already imported → the dedup query returns it → not re-created, but
+    // still returned in order (it has a local Post).
+    mocks.postFind.mockReturnValue({
+      select: () => ({ lean: async () => [{ federation: { activityId: uri3 } }] }),
+    });
+
+    const uris = await importPostViews([
+      viewBy(DID1, 'a1.bsky.social', 'p1', 'from a1'),
+      viewBy(DID2, 'a2.bsky.social', 'p2', 'from a2'),
+      viewBy(DID1, 'a1.bsky.social', 'p3', 'also a1'),
+    ]);
+
+    // Every mapped URI returned in the generator's ranking (input) order.
+    expect(uris).toEqual([uri1, uri2, uri3]);
+    // Each DISTINCT author resolved once (deduped set).
+    expect(mocks.fetchProfile).toHaveBeenCalledTimes(2);
+    // Only the two NEW posts are created (uri3 was deduped), each stamped with ITS
+    // OWN author's Oxy user — proving per-post ownership, not a single actor.
+    expect(mocks.create).toHaveBeenCalledTimes(2);
+    expect(mocks.create.mock.calls.map((call) => call[0].oxyUserId)).toEqual(['oxy-a1', 'oxy-a2']);
+    expect(mocks.create.mock.calls[0][0].federation.activityId).toBe(uri1);
+    expect(mocks.create.mock.calls[1][0].federation.activityId).toBe(uri2);
+  });
+
+  it('skips a post whose author cannot be resolved to an Oxy user (no orphan)', async () => {
+    const GOOD = 'did:plc:good0000000000000000000';
+    const BAD = 'did:plc:bad00000000000000000000';
+    mocks.fetchProfile.mockImplementation(async (actor: string) =>
+      actor === GOOD ? makeActor(GOOD, 'g.bsky.social', 'oxy-good') : null,
+    );
+
+    const uris = await importPostViews([
+      viewBy(GOOD, 'g.bsky.social', 'g', 'ok'),
+      viewBy(BAD, 'b.bsky.social', 'b', 'orphan'),
+    ]);
+
+    expect(uris).toEqual([`at://${GOOD}/app.bsky.feed.post/g`]);
+    expect(mocks.create).toHaveBeenCalledTimes(1);
+    expect(mocks.create.mock.calls[0][0].oxyUserId).toBe('oxy-good');
   });
 });

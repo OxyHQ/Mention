@@ -1,35 +1,44 @@
 import { normalizeInlineText, normalizeMultilineText } from '@oxyhq/core';
 import { logger } from '../../utils/logger';
-import ExternalFeed from '../../models/ExternalFeed';
+import { FeedGenerator } from '../../models/FeedGenerator';
 import { xrpcGet } from './xrpcClient';
-import { BSKY_APP_ORIGIN, FEED_GENERATOR_COLLECTION, PUBLIC_APPVIEW } from './constants';
+import { FEED_GENERATOR_COLLECTION, PUBLIC_APPVIEW } from './constants';
 
 /**
  * Mirrors a Bluesky actor's FEED GENERATORS (`app.bsky.feed.generator`) into
- * Mention's `ExternalFeed` collection as READ-ONLY references.
+ * Mention's NATIVE `FeedGenerator` collection.
  *
  * A Bluesky feed is a remote algorithmic SERVICE (`view.did` is a `did:web:` host
- * that runs the ranking) — Mention CANNOT execute it, so this deliberately does
- * NOT build a runnable Mention feed (`CustomFeed`/`FeedGenerator`). It stores only
- * display metadata + a `webUrl` deep link so a synced profile can surface "feeds
- * created by this user" as reference cards that open on Bluesky. Deduped on the
- * feed's AT-URI; re-sync refreshes metadata in place.
+ * that runs the ranking) — Mention cannot execute that algorithm, but it CAN pull
+ * its output live and import the results as native posts. So a mirrored generator
+ * is a first-class Mention feed the engine serves via the `feedgen|<uri>`
+ * descriptor (see `mtn/feed/feeds/FeedGeneratorFeed.ts`), NOT a read-only reference
+ * card. It is keyed on the generator's AT-URI (`uri`) and marked atproto-backed
+ * (`algorithm:'atproto'` + a `source` subdoc), so re-sync refreshes metadata in
+ * place (one row per remote feed) and the feed engine knows to dereference the
+ * remote feed for content. Owned by the resolved federated Oxy user (`createdBy`)
+ * so a profile "feeds" surface can list them by owner.
  */
 
-/** Max feed references mirrored per actor in one sync (a single AppView page). */
+/** Max feed generators mirrored per actor in one sync (a single AppView page). */
 const MAX_FEEDS_PER_ACTOR = 50;
+
+/** `FeedGenerator.name` schema cap — clamp a long remote name so validation never fails. */
+const MAX_NAME_LENGTH = 64;
+
+/** `FeedGenerator.description` schema cap. */
+const MAX_DESCRIPTION_LENGTH = 300;
 
 /** A `generatorView` from `app.bsky.feed.getActorFeeds` (only the read fields). */
 interface AtprotoGeneratorView {
   /** The feed generator's AT-URI (`at://<creatorDid>/app.bsky.feed.generator/<rkey>`). */
   uri?: string;
-  /** The DID of the remote service that RUNS the algorithm (never executed here). */
+  /** The DID of the remote service that RUNS the algorithm (`did:web:…`). */
   did?: string;
   displayName?: string;
   description?: string;
   avatar?: string;
   likeCount?: number;
-  creator?: { did?: string; handle?: string };
 }
 
 interface AtprotoGetActorFeedsResponse {
@@ -37,15 +46,16 @@ interface AtprotoGetActorFeedsResponse {
   cursor?: string;
 }
 
-/** A feed generator reduced to the read-only reference fields Mention stores. */
-export interface NormalizedExternalFeed {
+/** A feed generator reduced to the fields Mention persists on a `FeedGenerator`. */
+export interface NormalizedAtprotoFeedGenerator {
+  /** The generator's canonical AT-URI (the dedup key + the feed-engine descriptor id). */
   uri: string;
+  /** The DID of the remote service that RUNS the algorithm. */
   serviceDid: string;
   name: string;
   description?: string;
   avatar?: string;
   likeCount: number;
-  webUrl: string;
 }
 
 /** Parse `at://<authority>/<collection>/<rkey>` into its parts. Pure. */
@@ -56,26 +66,26 @@ function parseAtUri(uri: string): { authority: string; collection: string; rkey:
 }
 
 /**
- * Map a `getActorFeeds` generator view to a read-only external feed reference.
- * Returns null for anything that is not a feed generator AT-URI or is missing the
- * service DID / a display name. Pure.
+ * Map a `getActorFeeds` generator view to the normalized FeedGenerator fields.
+ * Returns null for anything that is not a feed-generator AT-URI or is missing the
+ * service DID / a display name. The name + description are clamped to the schema
+ * caps so an over-long remote value can never fail persistence validation. Pure.
  */
-export function mapGeneratorToExternalFeed(view: AtprotoGeneratorView | undefined): NormalizedExternalFeed | null {
+export function mapGeneratorView(view: AtprotoGeneratorView | undefined): NormalizedAtprotoFeedGenerator | null {
   if (!view) return null;
   const uri = typeof view.uri === 'string' ? view.uri : '';
   const parsed = parseAtUri(uri);
   if (!parsed || parsed.collection !== FEED_GENERATOR_COLLECTION) return null;
 
   const serviceDid = typeof view.did === 'string' ? view.did : '';
-  const name = typeof view.displayName === 'string' ? normalizeInlineText(view.displayName) : '';
+  const name = typeof view.displayName === 'string'
+    ? normalizeInlineText(view.displayName).slice(0, MAX_NAME_LENGTH)
+    : '';
   if (!serviceDid || !name) return null;
 
-  const description = typeof view.description === 'string' ? normalizeMultilineText(view.description) : '';
-  // Prefer the creator's handle for a human-friendly deep link; fall back to the
-  // AT-URI authority (the creator DID) which bsky.app also resolves.
-  const creatorRef =
-    (typeof view.creator?.handle === 'string' && view.creator.handle) || parsed.authority;
-  const webUrl = `${BSKY_APP_ORIGIN}/profile/${creatorRef}/feed/${parsed.rkey}`;
+  const description = typeof view.description === 'string'
+    ? normalizeMultilineText(view.description).slice(0, MAX_DESCRIPTION_LENGTH)
+    : '';
 
   return {
     uri,
@@ -84,15 +94,19 @@ export function mapGeneratorToExternalFeed(view: AtprotoGeneratorView | undefine
     description: description || undefined,
     avatar: typeof view.avatar === 'string' && view.avatar ? view.avatar : undefined,
     likeCount: typeof view.likeCount === 'number' ? view.likeCount : 0,
-    webUrl,
   };
 }
 
 /**
- * Sync an atproto actor's feed generators into `ExternalFeed` as read-only
- * references. `ownerOxyUserId` is the ALREADY-RESOLVED Oxy user who created the
- * feeds. Best-effort + bounded (a single capped AppView page); returns the number
- * of references upserted; never throws.
+ * Sync an atproto actor's feed generators into Mention's `FeedGenerator` collection.
+ *
+ * `did` is the actor's DID; `ownerOxyUserId` is the ALREADY-RESOLVED Oxy user the
+ * generators are owned by (the no-orphan invariant — the caller resolves the profile
+ * first). Each generator is upserted on its AT-URI (idempotent — re-sync updates
+ * metadata in place, never duplicates; the unique `uri` index is the backstop for a
+ * concurrent race) and marked atproto-backed so the feed engine dereferences the
+ * remote feed for content. Best-effort + bounded (a single capped AppView page);
+ * returns the number of generators upserted; never throws.
  */
 export async function syncActorFeeds(did: string, ownerOxyUserId: string): Promise<number> {
   if (!ownerOxyUserId) {
@@ -114,33 +128,33 @@ export async function syncActorFeeds(did: string, ownerOxyUserId: string): Promi
   const views = Array.isArray(response?.feeds) ? response.feeds.slice(0, MAX_FEEDS_PER_ACTOR) : [];
   let upserted = 0;
   for (const view of views) {
-    const feed = mapGeneratorToExternalFeed(view);
-    if (!feed) continue;
+    const generator = mapGeneratorView(view);
+    if (!generator) continue;
     try {
-      await ExternalFeed.findOneAndUpdate(
-        { uri: feed.uri },
+      await FeedGenerator.findOneAndUpdate(
+        { uri: generator.uri },
         {
           $set: {
-            network: 'atproto',
-            ownerOxyUserId,
-            serviceDid: feed.serviceDid,
-            name: feed.name,
-            description: feed.description,
-            avatar: feed.avatar,
-            likeCount: feed.likeCount,
-            webUrl: feed.webUrl,
-            syncedAt: new Date(),
+            name: generator.name,
+            description: generator.description,
+            avatar: generator.avatar,
+            // `algorithm` is a required human-readable marker; `source.network`
+            // is the authoritative "atproto-backed" flag the feed engine reads.
+            algorithm: 'atproto',
+            createdBy: ownerOxyUserId,
+            likeCount: generator.likeCount,
+            source: { network: 'atproto', serviceDid: generator.serviceDid, syncedAt: new Date() },
           },
         },
         { upsert: true },
       );
       upserted += 1;
     } catch (err) {
-      // A concurrent sync racing the same feed to an E11000 is benign; log + skip.
-      logger.warn(`[atproto] failed to upsert external feed ${feed.uri}`, err);
+      // A concurrent sync racing the same generator to an E11000 is benign; log + skip.
+      logger.warn(`[atproto] failed to upsert feed generator ${generator.uri}`, err);
     }
   }
 
-  if (upserted > 0) logger.info(`[atproto] mirrored ${upserted} external feed references for ${did}`);
+  if (upserted > 0) logger.info(`[atproto] mirrored ${upserted} feed generators for ${did}`);
   return upserted;
 }

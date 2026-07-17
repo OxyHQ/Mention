@@ -172,6 +172,14 @@ interface ProfileFeedItem {
   memberAvatars?: string[];
   owner?: { username: string; displayName?: string; avatar?: string };
   likeCount?: number;
+  /** The feed generator's own avatar (only set on feed-generator items). */
+  avatar?: string;
+  /**
+   * The MTN descriptor (`feedgen|<uri>`) for a FEED GENERATOR item — a synced
+   * Bluesky feed. When present, the card opens through the feed engine (native
+   * posts) instead of the CustomFeed detail screen.
+   */
+  descriptor?: string;
 }
 
 const ProfileFeeds = memo(function ProfileFeeds({
@@ -190,17 +198,36 @@ const ProfileFeeds = memo(function ProfileFeeds({
   const { data: feeds = [], isPending: loading } = useQuery<ProfileFeedItem[]>({
     queryKey: ['profileFeeds', profileId, isOwnProfile],
     enabled: Boolean(profileId),
-    queryFn: async () => {
-      try {
-        const params = isOwnProfile
-          ? { mine: true }
-          : { userId: profileId };
-        const res = await customFeedsService.list(params);
-        return res.items || [];
-      } catch (e) {
-        logger.warn('Failed to load profile feeds');
-        return [];
-      }
+    queryFn: async (): Promise<ProfileFeedItem[]> => {
+      const params = isOwnProfile ? { mine: true } : { userId: profileId };
+      // Custom feeds (native user curations) AND feed generators (synced Bluesky
+      // feeds, keyed on createdBy) both surface on the Feeds tab — a federated
+      // profile has only generators, a native profile only custom feeds. Each half
+      // fails soft so one outage never blanks the other.
+      const [custom, generators] = await Promise.all([
+        customFeedsService.list(params).catch(() => {
+          logger.warn('Failed to load profile custom feeds');
+          return { items: [] };
+        }),
+        customFeedsService.listGenerators(params).catch(() => {
+          logger.warn('Failed to load profile feed generators');
+          return { items: [] };
+        }),
+      ]);
+      const generatorItems: ProfileFeedItem[] = (generators.items || []).map((gen) => ({
+        id: gen.id,
+        descriptor: gen.descriptor,
+        title: gen.title,
+        description: gen.description,
+        avatar: gen.avatar,
+        likeCount: gen.likeCount,
+        // Only attach a creator byline when the owner resolved to a real handle
+        // (the ghost-handle rule — an unresolved owner shows no @handle line).
+        owner: gen.owner && gen.owner.username
+          ? { username: gen.owner.username, displayName: gen.owner.name?.displayName, avatar: gen.owner.avatar ?? undefined }
+          : undefined,
+      }));
+      return [...(custom.items || []), ...generatorItems];
     },
   });
 
@@ -225,21 +252,32 @@ const ProfileFeeds = memo(function ProfileFeeds({
 
   return (
     <View className="p-4 gap-3">
-      {feeds.map((feed) => (
-        <FeedCard
-          key={feed.id || feed._id}
-          feed={{
-            id: String(feed.id || feed._id),
-            displayName: feed.title || 'Untitled',
-            description: feed.description,
-            memberCount: feed.memberCount ?? (feed.memberOxyUserIds || []).length,
-            topicCount: feed.topicCount ?? (feed.keywords || []).length,
-            memberAvatars: feed.memberAvatars || [],
-            creator: feed.owner,
-            likeCount: feed.likeCount,
-          }}
-        />
-      ))}
+      {feeds.map((feed) => {
+        // A feed generator (synced Bluesky feed) opens through the MTN engine via
+        // its descriptor; a native custom feed uses FeedCard's default `/feeds/:id`.
+        const descriptor = feed.descriptor;
+        return (
+          <FeedCard
+            key={feed.id || feed._id}
+            onPress={
+              descriptor
+                ? () => router.push({ pathname: '/feeds/view', params: { descriptor, title: feed.title ?? '' } })
+                : undefined
+            }
+            feed={{
+              id: String(feed.id || feed._id),
+              displayName: feed.title || 'Untitled',
+              description: feed.description,
+              avatar: feed.avatar,
+              memberCount: feed.memberCount ?? (feed.memberOxyUserIds || []).length,
+              topicCount: feed.topicCount ?? (feed.keywords || []).length,
+              memberAvatars: feed.memberAvatars || [],
+              creator: feed.owner,
+              likeCount: feed.likeCount,
+            }}
+          />
+        );
+      })}
     </View>
   );
 });
