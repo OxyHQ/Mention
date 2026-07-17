@@ -64,6 +64,24 @@ const router = express.Router();
 
 const MAX_MEMBERS = 150;
 
+/**
+ * A pack MIRRORED from an external network (`source` set) is owned UPSTREAM and
+ * read-only through Mention's write API: its name + membership are re-synced in
+ * place on every profile view, so a local edit would be silently overwritten on
+ * the next sync. Every mutation route rejects it BEFORE the ownership check — a
+ * federated pack is never editable regardless of who asks (its owner is a
+ * federated Oxy user with no session, so the ownership check already blocks local
+ * users; this is defence-in-depth and a clearer 403 that states the real reason).
+ * Following the pack's members (`POST /:id/use`) stays allowed — that is a viewer
+ * action that never mutates the pack.
+ */
+const FEDERATED_PACK_READONLY_MESSAGE =
+  'This starter pack is mirrored from an external network and is read-only';
+
+function isFederatedPack(pack: Pick<IStarterPack, 'source'>): boolean {
+  return Boolean(pack.source);
+}
+
 /** Number of member avatars surfaced per pack in the list response. */
 const LIST_AVATAR_LIMIT = 8;
 
@@ -280,6 +298,7 @@ router.put('/:id', async (req: AuthRequest, res: Response) => {
     if (!userId) return res.status(401).json({ error: 'Authentication required' });
     const pack = await StarterPack.findById(req.params.id);
     if (!pack) return res.status(404).json({ error: 'Starter pack not found' });
+    if (isFederatedPack(pack)) return res.status(403).json({ error: FEDERATED_PACK_READONLY_MESSAGE });
     if (pack.ownerOxyUserId !== userId) return res.status(403).json({ error: 'Not allowed' });
 
     const { name, description, memberOxyUserIds } = req.body || {};
@@ -310,6 +329,7 @@ router.delete('/:id', async (req: AuthRequest, res: Response) => {
     if (!userId) return res.status(401).json({ error: 'Authentication required' });
     const pack = await StarterPack.findById(req.params.id);
     if (!pack) return res.status(404).json({ error: 'Starter pack not found' });
+    if (isFederatedPack(pack)) return res.status(403).json({ error: FEDERATED_PACK_READONLY_MESSAGE });
     if (pack.ownerOxyUserId !== userId) return res.status(403).json({ error: 'Not allowed' });
     // Capture members BEFORE delete so we can retract their endorsements.
     const ownerId = pack.ownerOxyUserId;
@@ -334,6 +354,7 @@ router.post('/:id/members', async (req: AuthRequest, res: Response) => {
     const { userIds } = req.body || {};
     const pack = await StarterPack.findById(req.params.id);
     if (!pack) return res.status(404).json({ error: 'Starter pack not found' });
+    if (isFederatedPack(pack)) return res.status(403).json({ error: FEDERATED_PACK_READONLY_MESSAGE });
     if (pack.ownerOxyUserId !== userId) return res.status(403).json({ error: 'Not allowed' });
 
     const previousMemberIds = [...(pack.memberOxyUserIds || [])];
@@ -357,6 +378,7 @@ router.delete('/:id/members', async (req: AuthRequest, res: Response) => {
     const { userIds } = req.body || {};
     const pack = await StarterPack.findById(req.params.id);
     if (!pack) return res.status(404).json({ error: 'Starter pack not found' });
+    if (isFederatedPack(pack)) return res.status(403).json({ error: FEDERATED_PACK_READONLY_MESSAGE });
     if (pack.ownerOxyUserId !== userId) return res.status(403).json({ error: 'Not allowed' });
 
     const previousMemberIds = [...(pack.memberOxyUserIds || [])];

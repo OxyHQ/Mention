@@ -4,12 +4,13 @@ import {
   mapWithConcurrency,
   DEFAULT_CONCURRENCY,
   MAX_CONCURRENCY,
-} from '../../scripts/mapWithConcurrency';
+} from '../../utils/concurrency';
 
 /**
- * The bounded-concurrency pool that both one-shot repair sweeps
- * (`reingestBlueskyPosts`, `pruneGoneFederatedActors`) run their per-page work
- * through. The properties that matter for a live prod sweep:
+ * The shared bounded-concurrency pool that the one-shot repair sweeps
+ * (`reingestBlueskyPosts`, `pruneGoneFederatedActors`, `syncBlueskyStarterPacks`)
+ * and the runtime atproto starter-pack member resolution run their work through.
+ * The properties that matter for a live prod sweep:
  *
  *  - it never runs more than `concurrency` workers at once (that cap is the only
  *    thing keeping the sweep from hammering oxy-api / the remote servers);

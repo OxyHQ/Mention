@@ -77,7 +77,7 @@ import { actorService } from '../connectors/activitypub/actor.service';
 import { signedFetch } from '../connectors/activitypub/helpers';
 import { AP_CONTENT_TYPE } from '../connectors/activitypub/constants';
 import { logger } from '../utils/logger';
-import { mapWithConcurrency, DEFAULT_CONCURRENCY, MAX_CONCURRENCY } from './mapWithConcurrency';
+import { mapWithConcurrency, DEFAULT_CONCURRENCY, MAX_CONCURRENCY } from '../utils/concurrency';
 
 /** Actors scanned per page (stable `_id` cursor pagination). */
 const PAGE_SIZE = 500;
