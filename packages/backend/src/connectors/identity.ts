@@ -175,6 +175,108 @@ export async function reportFederatedActorGone(oxyUserId: string): Promise<Repor
 }
 
 /**
+ * oxy-api service route that HARD-DELETES a federated actor's Oxy identity — the
+ * irreversible teardown counterpart of the (reversible) archive
+ * {@link reportFederatedActorGone} performs. Same service auth (scope
+ * `federation:write`) and same `getServiceOxyClient().makeServiceRequest`
+ * transport as every other identity bridge (`/users/resolve`, `/federation/follow`,
+ * `/federation/actor-gone`). Only the `purgeGoneFederatedActors` one-shot calls it,
+ * after re-confirming the remote actor is STILL 410 Gone.
+ */
+const ACTOR_DELETE_PATH = '/federation/actor-delete';
+
+/** The `{ data }`-unwrapped body oxy-api returns for a 200 `POST /federation/actor-delete`. */
+interface ActorDeleteResponse {
+  oxyUserId: string;
+  /** Whether an Oxy `User` actually existed and was deleted (false ⇒ idempotent no-op). */
+  deleted: boolean;
+  /** Follow edges removed on the Oxy side (both directions, counts repaired). */
+  followEdgesRemoved: number;
+}
+
+/**
+ * Outcome discriminant of {@link deleteFederatedActorIdentity}. NEVER thrown — the
+ * one-shot purge sweep is fail-soft, so the transient/retryable case is surfaced as
+ * a value (`'failed'`) rather than an exception. Mirrors {@link ReportActorGoneOutcome}.
+ *
+ *  - `deleted` — oxy-api hard-deleted a live Oxy identity (+ its follow edges/blocks).
+ *  - `absent`  — the identity was already gone (200 with `deleted:false`, idempotent).
+ *                Like `deleted`, this CONFIRMS the Oxy side is clean — the purge may
+ *                safely drop the `FederatedActor` anchor.
+ *  - `skipped` — nothing to delete, or oxy-api returned a PERMANENT client error
+ *                (400 bad body / 403 missing scope / 409 target not `type:'federated'`).
+ *                Non-retryable — logged and swallowed. The identity is NOT confirmed
+ *                gone, so the caller must KEEP the `FederatedActor` anchor.
+ *  - `failed`  — a genuinely transient failure (5xx, 408/429, network). Retryable: the
+ *                caller must KEEP the `FederatedActor` anchor so a later run finishes.
+ */
+export type DeleteActorIdentityOutcome = 'deleted' | 'absent' | 'skipped' | 'failed';
+
+/**
+ * Ask oxy-api to HARD-DELETE the Oxy identity a permanently-gone federated actor
+ * maps to — the Oxy `User` plus all its Follow edges (both directions, counts
+ * repaired), Blocks, and caches. Irreversible on the Oxy side; the caller
+ * ({@link ../scripts/purgeGoneFederatedActors}) only invokes it after re-verifying
+ * the remote actor still returns 410 Gone.
+ *
+ * Mirrors {@link reportFederatedActorGone} EXACTLY: the service-authed
+ * `getServiceOxyClient().makeServiceRequest('POST', '/federation/actor-delete', …)`
+ * under scope `federation:write`, `{ data }`-unwrapped to {@link ActorDeleteResponse}.
+ *
+ * Error policy (see {@link DeleteActorIdentityOutcome}): PERMANENT 4xx responses
+ * (400/403/409 — all non-retryable per the contract) are logged and swallowed to
+ * `'skipped'`; only genuinely transient failures (5xx, 408/429, network) surface as
+ * `'failed'`. This function NEVER throws — a sweep over thousands of actors is never
+ * aborted by one dead actor, and a `'skipped'`/`'failed'` tells the caller to keep
+ * the `FederatedActor` row as a retry anchor (so a surviving Oxy user is never
+ * orphaned without a record to reconcile it).
+ */
+export async function deleteFederatedActorIdentity(oxyUserId: string): Promise<DeleteActorIdentityOutcome> {
+  const id = oxyUserId.trim();
+  if (!id) return 'skipped';
+
+  try {
+    const data = await getServiceOxyClient().makeServiceRequest<ActorDeleteResponse>(
+      'POST',
+      ACTOR_DELETE_PATH,
+      { oxyUserId: id },
+    );
+    const deleted = data?.deleted === true;
+    logger.info(
+      `[Federation] oxy-api ${deleted ? 'hard-deleted' : 'found no'} identity for gone actor ${id}`,
+      { followEdgesRemoved: data?.followEdgesRemoved ?? 0 },
+    );
+    return deleted ? 'deleted' : 'absent';
+  } catch (error) {
+    const httpStatus = getErrorStatus(error);
+    const reason = getErrorMessage(error);
+
+    // Permanent client errors (400 bad body, 403 missing scope, 409 target not
+    // `type:'federated'`) are non-retryable per the contract. 408 and 429 are
+    // excluded — those are transient and fall through to `'failed'`.
+    if (
+      httpStatus !== undefined &&
+      httpStatus >= 400 &&
+      httpStatus < 500 &&
+      httpStatus !== 408 &&
+      httpStatus !== 429
+    ) {
+      logger.warn(`[Federation] actor-delete for ${id} rejected (HTTP ${httpStatus}, permanent)`, { reason });
+      return 'skipped';
+    }
+
+    // Everything else — 5xx, 408/429, a network failure, or an unclassifiable
+    // transport error — is transient. Surface as `'failed'` so the caller keeps the
+    // actor's `FederatedActor` anchor and a later pass finishes the Oxy delete.
+    logger.warn(`[Federation] actor-delete for ${id} failed transiently; leaving for retry`, {
+      status: httpStatus,
+      reason,
+    });
+    return 'failed';
+  }
+}
+
+/**
  * Mirror a federated actor's remote banner into a durable, PUBLIC Oxy asset, then
  * store its file id in Mention's per-user `UserSettings.profileHeaderImage` (the
  * same field a LOCAL user's banner uses, read back by the profile-design
