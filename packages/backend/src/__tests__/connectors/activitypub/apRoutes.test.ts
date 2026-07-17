@@ -23,6 +23,7 @@ const VALID_ID = '507f1f77bcf86cd799439011';
 const mocks = vi.hoisted(() => ({
   resolveOxyUser: vi.fn(),
   getPublicKey: vi.fn(),
+  fetchPublicKey: vi.fn(),
   buildCreateNoteActivity: vi.fn(),
   resolveReplyContext: vi.fn(),
   resolveMentionContext: vi.fn(),
@@ -68,6 +69,20 @@ vi.mock('../../../connectors/activitypub/crypto', () => ({
   getPublicKey: (...args: unknown[]) => mocks.getPublicKey(...args),
 }));
 
+// The actor GET (banner) + follow-collection routes now live in the shared engine
+// (bound in `engine.routes.ts`); mock actor.service to control the inbox key
+// resolver + short-circuit its heavy load chain (the inbox is not tested here).
+vi.mock('../../../connectors/activitypub/actor.service', () => ({
+  actorService: {
+    fetchPublicKey: (...args: unknown[]) => mocks.fetchPublicKey(...args),
+    getOrFetchActor: vi.fn(),
+    fetchRemoteActor: vi.fn(),
+    refreshActorInBackground: vi.fn(),
+    resolveActorOxyUserId: vi.fn(),
+    resolveWebFinger: vi.fn(),
+  },
+}));
+
 vi.mock('../../../connectors/activitypub/constants', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../../connectors/activitypub/constants')>();
   return { ...actual, resolveOxyUser: (...args: unknown[]) => mocks.resolveOxyUser(...args) };
@@ -95,10 +110,14 @@ vi.mock('../../../utils/oxyHelpers', () => ({
 }));
 
 import apRoutes from '../../../connectors/activitypub/routes/ap.routes';
+import { actorRouter } from '../../../connectors/activitypub/routes/engine.routes';
 import { AP_CONTEXT } from '@oxyhq/federation';
 
 const app = express();
 app.use(express.json());
+// The engine router (actor GET, followers/following) + Mention's content router
+// (outbox/featured/dereference) on the SAME `/ap` prefix, as in `server.ts`.
+app.use('/ap', actorRouter);
 app.use('/ap', apRoutes);
 
 beforeEach(() => {

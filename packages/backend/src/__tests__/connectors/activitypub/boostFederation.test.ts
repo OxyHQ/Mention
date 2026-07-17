@@ -78,6 +78,7 @@ vi.mock('../../../services/fediverseSharing', () => ({ isFediverseSharingEnabled
 vi.mock('../../../utils/oxyHelpers', () => ({ getServiceOxyClient: () => ({ getUserById }) }));
 
 import { followService } from '../../../connectors/activitypub/follow.service';
+import { deliveryService } from '../../../connectors/activitypub/delivery.service';
 
 const ISO = '2024-05-06T07:08:09.000Z';
 const ALICE_ACTOR = 'https://mention.earth/ap/users/alice';
@@ -110,7 +111,7 @@ describe('deliverToFollowers — addressing extension', () => {
     followFindLean.mockResolvedValue([{ remoteActorUri: 'https://foo.example/users/f' }]);
     actorFindLean.mockResolvedValue([{ sharedInboxUrl: 'https://foo.example/inbox' }]);
 
-    await followService.deliverToFollowers({ type: 'X' }, 'sender', 'alice', {
+    await deliveryService.deliverToFollowers({ type: 'X' }, 'sender', 'alice', {
       extraInboxes: ['https://bar.example/inbox'],
     });
 
@@ -124,7 +125,7 @@ describe('deliverToFollowers — addressing extension', () => {
     followFindLean.mockResolvedValue([{ remoteActorUri: 'https://shared.example/users/f' }]);
     actorFindLean.mockResolvedValue([{ sharedInboxUrl: 'https://shared.example/inbox' }]);
 
-    await followService.deliverToFollowers({ type: 'X' }, 'sender', 'alice', {
+    await deliveryService.deliverToFollowers({ type: 'X' }, 'sender', 'alice', {
       extraInboxes: ['https://shared.example/inbox'],
     });
 
@@ -135,7 +136,7 @@ describe('deliverToFollowers — addressing extension', () => {
   it('delivers to an explicit inbox even when the sender has zero followers', async () => {
     followFindLean.mockResolvedValue([]);
 
-    await followService.deliverToFollowers({ type: 'X' }, 'sender', 'alice', {
+    await deliveryService.deliverToFollowers({ type: 'X' }, 'sender', 'alice', {
       extraInboxes: ['https://only.example/inbox'],
     });
 
