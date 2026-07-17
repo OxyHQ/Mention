@@ -438,3 +438,36 @@ export async function buildFederatedNoteContentForEdit(
 ): Promise<BuiltFederatedNoteContent> {
   return assembleFederatedNoteContent(object, ownerOxyUserId, ctx);
 }
+
+/**
+ * Re-derive ONLY the localized author variants of a federated Note — the exact
+ * same text pipeline {@link assembleFederatedNoteContent} runs (hashtag-anchor
+ * rewrite, `contentMap` fallback, hashtag normalization, the all-hashtag "don't
+ * blank" restore, per-language variant assembly) but with **no media I/O**.
+ *
+ * This is the outbox @mention SELF-HEAL seam: a post imported before the outbox
+ * path resolved mentions kept its `@name` anchors as bare text, and the dedup pass
+ * never re-inserts it. The caller has the original Note in hand (already fetched by
+ * the outbox sync), applies the mention placeholders to it, then re-derives the
+ * body here to `$set content.variants` — WITHOUT re-materializing media (which
+ * would issue an extra remote fetch). The stored media state is reused via
+ * `hasMedia`, which only feeds the all-hashtag restore. Pure / no network fetch.
+ *
+ * Returns an EMPTY array for a note with no storable body (media-only / CW-only);
+ * the caller must never blank an existing post's body on an empty result.
+ */
+export function buildFederatedNoteVariants(
+  object: Record<string, unknown>,
+  hasMedia: boolean,
+): PostContentVariant[] {
+  const source = rewriteHashtagAnchorsInObject(object);
+  const primaryHtml = extractApContentHtml(source);
+  const rawText = htmlToPlainText(primaryHtml);
+  const { content: normalizedText } = normalizePostHashtags(rawText, extractApHashtags(object));
+  let text = normalizeMultilineText(normalizedText);
+  if (text.length === 0 && rawText.length > 0 && !hasMedia) {
+    text = rawText;
+  }
+  const primaryTag = resolveApPrimaryTag(source, primaryHtml);
+  return buildApAuthorVariants(source, primaryTag, text, hasMedia);
+}
