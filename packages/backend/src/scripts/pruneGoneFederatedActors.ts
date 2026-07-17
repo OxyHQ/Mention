@@ -47,6 +47,11 @@
  *   --limit N          cap the number of actors processed (a canary budget).
  *   --actor <uri>      restrict to one actor by its stored `FederatedActor.uri`.
  *   --all              scan every non-atproto actor, not just `postsCount: 0`.
+ *   --concurrency N    how many actors to probe in parallel (default 8, clamped to
+ *                      32). The sweep is I/O-bound (signed actor re-fetch + the
+ *                      oxy-api actor-gone round-trip), so a small pool overlaps the
+ *                      network waits for ~8-10x wall-clock. Keep it conservative to
+ *                      avoid hammering oxy-api's actor-gone endpoint.
  *
  * Idempotent + forward-only: batched by a stable ASCENDING `_id` cursor; a
  * tombstoned actor re-fetched on a second run 410s again and re-applies the same
@@ -72,6 +77,7 @@ import { actorService } from '../connectors/activitypub/actor.service';
 import { signedFetch } from '../connectors/activitypub/helpers';
 import { AP_CONTENT_TYPE } from '../connectors/activitypub/constants';
 import { logger } from '../utils/logger';
+import { mapWithConcurrency, DEFAULT_CONCURRENCY, MAX_CONCURRENCY } from './mapWithConcurrency';
 
 /** Actors scanned per page (stable `_id` cursor pagination). */
 const PAGE_SIZE = 500;
@@ -93,6 +99,7 @@ interface Flags {
   limit?: number;
   actor?: string;
   all: boolean;
+  concurrency: number;
 }
 
 /** The lean `FederatedActor` fields the sweep reads. */
@@ -137,7 +144,18 @@ function parseFlags(argv: string[]): Flags {
   }
 
   const actor = readFlagValue(argv, '--actor')?.trim() || undefined;
-  return { dryRun, limit, actor, all };
+
+  const rawConcurrency = readFlagValue(argv, '--concurrency');
+  let concurrency = DEFAULT_CONCURRENCY;
+  if (rawConcurrency !== undefined) {
+    const parsed = Number.parseInt(rawConcurrency, 10);
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+      throw new Error(`--concurrency must be a positive integer (got "${rawConcurrency}")`);
+    }
+    concurrency = Math.min(parsed, MAX_CONCURRENCY);
+  }
+
+  return { dryRun, limit, actor, all, concurrency };
 }
 
 // --- per-actor probe ---------------------------------------------------------
@@ -243,7 +261,7 @@ async function pruneGoneFederatedActors(): Promise<void> {
     const scope = flags.actor ? `actor ${flags.actor}` : flags.all ? 'all' : 'postsCount:0';
     logger.info(
       `[pruneGoneFederatedActors] connected — mode: ${flags.dryRun ? 'DRY-RUN' : 'LIVE'}, ` +
-        `scope: ${scope}` +
+        `scope: ${scope}, concurrency: ${flags.concurrency}` +
         `${flags.limit !== undefined ? `, limit: ${flags.limit}` : ''}`,
     );
 
@@ -266,17 +284,31 @@ async function pruneGoneFederatedActors(): Promise<void> {
         .lean<ActorRow[]>();
       if (page.length === 0) break;
 
-      for (const actor of page) {
+      // The page is already sliced to at most the remaining budget (`pageLimit`), so
+      // probing the WHOLE page in a bounded pool can never overshoot `--limit`. Each
+      // actor's work stays wrapped in its per-actor hard timeout, so one hung remote
+      // still cannot stall the pool beyond `ACTOR_PROBE_TIMEOUT_MS`.
+      const settledResults = await mapWithConcurrency(page, flags.concurrency, (actor) =>
+        withActorTimeout(processActor(actor, flags), ACTOR_PROBE_TIMEOUT_MS),
+      );
+
+      // Tally sequentially in `_id` order AFTER the pool drains: every counter and
+      // the shared budget are mutated exactly once per actor on a single call
+      // stack, so no concurrent update can race or double-count.
+      for (let i = 0; i < page.length; i++) {
+        const actor = page[i];
         counters.scanned += 1;
         if (remaining !== undefined) remaining -= 1;
 
+        const settled = settledResults[i];
         let outcome: ScanOutcome;
-        try {
-          outcome = await withActorTimeout(processActor(actor, flags), ACTOR_PROBE_TIMEOUT_MS);
-        } catch (err) {
+        if (settled.status === 'fulfilled') {
+          outcome = settled.value;
+        } else {
           // One bad actor never aborts the sweep; treat it as transient so a later
           // run can still reconcile it. A timeout is the defence-in-depth guard
           // against an unbounded await hanging the whole run.
+          const err = settled.reason;
           if (err instanceof ActorProbeTimeoutError) {
             logger.warn(
               `[pruneGoneFederatedActors] actor ${actor.uri} probe timed out after ${ACTOR_PROBE_TIMEOUT_MS}ms — skipping`,

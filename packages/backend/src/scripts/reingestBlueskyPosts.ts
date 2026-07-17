@@ -68,6 +68,11 @@
  *   --path atproto|bridgy|all   which ingest path(s) to repair (default: all).
  *   --actor <uri>          restrict to one actor (AP actor URI for bridgy, or the
  *                          `did:` for atproto), matched on `federation.actorUri`.
+ *   --concurrency N        how many posts to repair in parallel (default 8, clamped
+ *                          to 32). The sweep is I/O-bound (signed fetch + oxy-api
+ *                          media round-trips), so a small pool overlaps the network
+ *                          waits for ~8-10x wall-clock. Keep it conservative to
+ *                          avoid hammering oxy-api's media-cache endpoints.
  *
  * Idempotent + forward-only: batched by a stable ASCENDING `_id` cursor; a repaired
  * post re-maps to the same fields on a second run (no change ⇒ no write), so
@@ -98,6 +103,7 @@ import { signedFetch } from '../connectors/activitypub/helpers';
 import { AP_CONTENT_TYPE } from '../connectors/activitypub/constants';
 import { refetchAtprotoPostForRepair } from '../connectors/atproto/post.mapper';
 import { fetchAndUpsertAtprotoProfile, splitHandle } from '../connectors/atproto/profile.mapper';
+import { mapWithConcurrency, DEFAULT_CONCURRENCY, MAX_CONCURRENCY } from './mapWithConcurrency';
 
 /** Posts scanned per page (stable `_id` cursor pagination). */
 const PAGE_SIZE = 500;
@@ -131,6 +137,7 @@ interface Flags {
   limit?: number;
   path: RepairPath;
   actor?: string;
+  concurrency: number;
 }
 
 /** The lean Post fields the repair reads for both paths. */
@@ -229,7 +236,18 @@ function parseFlags(argv: string[]): Flags {
   }
 
   const actor = readFlagValue(argv, '--actor')?.trim() || undefined;
-  return { dryRun, limit, path: rawPath, actor };
+
+  const rawConcurrency = readFlagValue(argv, '--concurrency');
+  let concurrency = DEFAULT_CONCURRENCY;
+  if (rawConcurrency !== undefined) {
+    const parsed = Number.parseInt(rawConcurrency, 10);
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+      throw new Error(`--concurrency must be a positive integer (got "${rawConcurrency}")`);
+    }
+    concurrency = Math.min(parsed, MAX_CONCURRENCY);
+  }
+
+  return { dryRun, limit, path: rawPath, actor, concurrency };
 }
 
 // --- pure diff helpers -------------------------------------------------------
@@ -629,7 +647,19 @@ async function scanPath(
       .lean<StoredPostRow[]>();
     if (page.length === 0) break;
 
-    for (const post of page) {
+    // The page is already sliced to at most the remaining budget (`pageLimit`), so
+    // repairing the WHOLE page in a bounded pool can never overshoot `--limit`.
+    // Each post's work stays wrapped in its per-post hard timeout, so one hung
+    // remote still cannot stall the pool beyond `REPAIR_TIMEOUT_MS`.
+    const settledResults = await mapWithConcurrency(page, flags.concurrency, (post) =>
+      withRepairTimeout(repair(post, flags), REPAIR_TIMEOUT_MS),
+    );
+
+    // Tally sequentially in `_id` order AFTER the pool drains: every counter,
+    // the shared budget, and the DID set are mutated exactly once per post on a
+    // single call stack, so no concurrent update can race or double-count.
+    for (let i = 0; i < page.length; i++) {
+      const post = page[i];
       counters.scanned += 1;
       if (budget.remaining !== undefined) budget.remaining -= 1;
 
@@ -637,13 +667,15 @@ async function scanPath(
         atprotoDids.add(post.federation.actorUri);
       }
 
+      const settled = settledResults[i];
       let outcome: RepairOutcome;
-      try {
-        outcome = await withRepairTimeout(repair(post, flags), REPAIR_TIMEOUT_MS);
-      } catch (err) {
+      if (settled.status === 'fulfilled') {
+        outcome = settled.value;
+      } else {
         // One bad post never aborts the run; treat it as a transient failure so a
         // later run can still recover it. A timeout is the defence-in-depth guard
         // against an unbounded await hanging the whole sweep.
+        const err = settled.reason;
         if (err instanceof RepairTimeoutError) {
           logger.warn(
             `[reingestBlueskyPosts] ${path} post ${String(post._id)} repair timed out after ${REPAIR_TIMEOUT_MS}ms — skipping`,
@@ -700,7 +732,7 @@ async function reingestBlueskyPosts(): Promise<void> {
     await mongoose.connect(mongoUri, { dbName });
     logger.info(
       `[reingestBlueskyPosts] connected to MongoDB (${dbName}) — mode: ${flags.dryRun ? 'DRY-RUN' : 'LIVE'}, ` +
-        `path: ${flags.path}${flags.limit !== undefined ? `, limit: ${flags.limit}` : ''}`,
+        `path: ${flags.path}, concurrency: ${flags.concurrency}${flags.limit !== undefined ? `, limit: ${flags.limit}` : ''}`,
     );
 
     if (flags.path === 'bridgy' || flags.path === 'all') {
