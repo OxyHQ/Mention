@@ -175,10 +175,13 @@ export const ZoomableAvatar: React.FC<ZoomableAvatarProps> = ({
         }
         
         if (imageUri && (imageUri.startsWith('http') || imageUri.startsWith('https'))) {
+          // Capture the narrowed URI in a const so it stays `string` inside the
+          // Promise closure (a `let` widens back to `string | undefined` there).
+          const remoteUri = imageUri;
           // Remote image - use React Native's Image.getSize
           const { width, height } = await new Promise<{ width: number; height: number }>((resolve, reject) => {
             RNImage.getSize(
-              imageUri!,
+              remoteUri,
               (width, height) => resolve({ width, height }),
               reject
             );

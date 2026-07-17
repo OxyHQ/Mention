@@ -580,11 +580,11 @@ class SocketService {
 
     // Queue updates for batching
     const feedType = type as FeedType;
-    if (!this.feedUpdateQueue.has(feedType)) {
-      this.feedUpdateQueue.set(feedType, []);
+    const existingQueue = this.feedUpdateQueue.get(feedType);
+    const queue = existingQueue ?? [];
+    if (!existingQueue) {
+      this.feedUpdateQueue.set(feedType, queue);
     }
-    
-    const queue = this.feedUpdateQueue.get(feedType)!;
     queue.push(...postsArray);
     
     // Clear existing timer
@@ -625,10 +625,10 @@ class SocketService {
       // When a feed is loading, the fetch response will include the posts, so we don't need
       // socket updates to add them again (which would cause duplicates)
       if (feedUI.isLoading) {
-        // Keep posts in queue - they'll be processed after loading completes
-        // But limit queue size to prevent memory issues
-        const currentQueue = this.feedUpdateQueue.get(feedType)!;
-        if (currentQueue.length > this.MAX_BATCH_SIZE * 2) {
+        // Keep posts in queue - they'll be processed after loading completes.
+        // `posts` is this feed type's queued array (the forEach value), so it is
+        // the current queue — cap its size to prevent memory issues.
+        if (posts.length > this.MAX_BATCH_SIZE * 2) {
           this.feedUpdateQueue.set(feedType, posts.slice(-this.MAX_BATCH_SIZE)); // Keep last MAX_BATCH_SIZE items
         }
         return;
@@ -685,11 +685,11 @@ class SocketService {
    * Queue engagement update for batching
    */
   private queueEngagementUpdate(postId: string, type: 'like' | 'unlike' | 'boost' | 'unboost' | 'save' | 'unsave' | 'reply', data: EngagementEventData) {
-    if (!this.engagementUpdateQueue.has(postId)) {
-      this.engagementUpdateQueue.set(postId, []);
+    const existingQueue = this.engagementUpdateQueue.get(postId);
+    const queue = existingQueue ?? [];
+    if (!existingQueue) {
+      this.engagementUpdateQueue.set(postId, queue);
     }
-
-    const queue = this.engagementUpdateQueue.get(postId)!;
 
     // Limit queue size to prevent memory issues
     if (queue.length >= this.MAX_ENGAGEMENT_BATCH_SIZE) {

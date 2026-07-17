@@ -46,7 +46,7 @@ export const ProfileMeta = memo(function ProfileMeta({
         </View>
       )}
 
-      {hasJoinDate && (
+      {createdAt && (
         <TouchableOpacity
           className="flex-row items-center gap-1"
           onPress={() => {
@@ -59,7 +59,7 @@ export const ProfileMeta = memo(function ProfileMeta({
         >
           <CalendarIcon size={16} className="text-muted-foreground" />
           <Text className="text-muted-foreground text-[15px]">
-            {t('profile.joined')} {formatJoinDate(createdAt!)}
+            {t('profile.joined')} {formatJoinDate(createdAt)}
           </Text>
           <ChevronRightIcon size={16} className="text-muted-foreground" />
         </TouchableOpacity>

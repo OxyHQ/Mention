@@ -67,14 +67,14 @@ const BoostScreen: React.FC = () => {
     const canBoost = !isOverLimit && !isSubmitting;
 
     const handleBoost = async () => {
-        if (!canBoost || !user || !originalPost) return;
+        if (!canBoost || !user || !originalPost || !postId) return;
 
         setIsSubmitting(true);
 
         try {
             // Create boost request
             const boostRequest: CreateBoostRequest = {
-                originalPostId: postId!,
+                originalPostId: postId,
                 content: content.trim() ? { text: content.trim() } : undefined,
                 mentions: [],
                 hashtags: []
