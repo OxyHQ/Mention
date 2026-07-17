@@ -80,7 +80,7 @@ const ACTOR: NormalizedExternalActor = {
   network: 'atproto',
   externalId: DID,
   handle: 'alice.bsky.social',
-  federatedUsername: 'alice.bsky.social@bsky.social',
+  federatedUsername: 'alice@bsky.social',
   instanceDomain: 'bsky.social',
   oxyUserId: 'oxy-alice',
 };

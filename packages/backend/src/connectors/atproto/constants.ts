@@ -34,11 +34,13 @@ export const BSKY_APP_ORIGIN = 'https://bsky.app';
 /**
  * The Bluesky network's canonical host. It is the federated instance domain for
  * EVERY atproto actor: a Bluesky handle is a whole DNS name that identifies the
- * account (`alice.bsky.social`, the apex `gothamist.com`, the multi-label custom
+ * account (`skylee1.bsky.social`, the apex `gothamist.com`, the multi-label custom
  * domain `mayor.nyc.gov`), and the account lives on the Bluesky network in every
- * case. So the full handle is the username and this is always the instance domain,
- * rendering `@mayor.nyc.gov@bsky.social` — never a bogus instance derived from the
- * handle's own parent domain (the old bug rendered `@mayor.nyc.gov@nyc.gov`).
+ * case — so this is always the instance domain. A DEFAULT Bluesky handle drops its
+ * now-redundant `.bsky.social` suffix from the username (rendering `@skylee1@bsky.social`,
+ * not the doubled `@skylee1.bsky.social@bsky.social`); a CUSTOM domain keeps its whole
+ * handle as the username (`@mayor.nyc.gov@bsky.social`). Never a bogus instance derived
+ * from the handle's own parent domain (the old bug rendered `@mayor.nyc.gov@nyc.gov`).
  */
 export const BSKY_NETWORK_DOMAIN = 'bsky.social';
 
