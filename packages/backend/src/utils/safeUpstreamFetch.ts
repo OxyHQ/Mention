@@ -3,7 +3,7 @@ import https from 'node:https';
 import type { LookupAddress, LookupAllOptions, LookupOneOptions } from 'node:dns';
 import type { LookupFunction } from 'node:net';
 import { URL } from 'node:url';
-import { assertSafePublicUrl } from './ssrfGuard';
+import { assertSafePublicUrl, SsrfRejection, UpstreamError } from '@oxyhq/core/server';
 
 /**
  * Shared SSRF-safe upstream HTTP fetch primitives.
@@ -48,22 +48,6 @@ export const PROXY_USER_AGENT = 'MentionMediaProxy/1.0 (+https://mention.earth)'
 
 /** HTTP status codes that indicate a redirect we should follow. */
 const REDIRECT_STATUS_CODES: ReadonlySet<number> = new Set([301, 302, 303, 307, 308]);
-
-/** Marker error for a blocked SSRF target (maps to 403 at the route layer). */
-export class SsrfRejection extends Error {
-  constructor(reason: string) {
-    super(reason);
-    this.name = 'SsrfRejection';
-  }
-}
-
-/** Marker error for a generic upstream failure (maps to 502 at the route layer). */
-export class UpstreamError extends Error {
-  constructor(reason: string) {
-    super(reason);
-    this.name = 'UpstreamError';
-  }
-}
 
 /** Optional per-request conditional/range headers forwarded to the upstream. */
 export interface UpstreamRequestExtras {

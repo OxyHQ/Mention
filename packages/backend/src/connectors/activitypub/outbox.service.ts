@@ -17,7 +17,7 @@ import {
 } from '../../services/contentClassification/spamQuality';
 import type { PostClassificationScores } from '@mention/shared-types';
 import { POST_CLASSIFICATION_PENDING } from '../../models/Post';
-import { assertSafePublicUrl } from '../../utils/ssrfGuard';
+import { assertSafePublicUrl } from '@oxyhq/core/server';
 import { actorService } from './actor.service';
 import {
   asRecord,

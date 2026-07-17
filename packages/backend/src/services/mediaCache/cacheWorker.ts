@@ -8,8 +8,8 @@ import type { IncomingMessage } from 'node:http';
 
 import FederatedMediaCache from '../../models/FederatedMediaCache';
 import { logger } from '../../utils/logger';
+import { SsrfRejection } from '@oxyhq/core/server';
 import {
-  SsrfRejection,
   fetchUpstreamFollowingRedirects,
   contentTypeFamily,
 } from '../../utils/safeUpstreamFetch';

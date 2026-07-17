@@ -62,7 +62,10 @@ vi.mock('../../../models/Post', () => ({
 }));
 vi.mock('../../../models/UserSettings', () => ({ default: {} }));
 vi.mock('../../../utils/safeUpstreamFetch', () => ({ fetchUpstreamSingleHop: vi.fn() }));
-vi.mock('../../../utils/ssrfGuard', () => ({ assertSafePublicUrl: vi.fn().mockResolvedValue({ ok: true }) }));
+vi.mock('@oxyhq/core/server', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@oxyhq/core/server')>()),
+  assertSafePublicUrl: vi.fn().mockResolvedValue({ ok: true }),
+}));
 vi.mock('../../../utils/mediaResolver', () => ({
   resolveMediaRef: (ref: string) => ({ url: `https://cloud.oxy.so/${ref}` }),
   resolveAvatarUrl: (ref: string) => `https://cloud.oxy.so/${ref}`,
