@@ -210,7 +210,7 @@ app.use(healthRoutes);
 const CSP_CONNECT_SRC = [
   "'self'", "blob:", "data:",
   "https://api.mention.earth", "wss://api.mention.earth", // Mention API + socket.io
-  "https://api.oxy.so",                                   // Oxy SDK (auth/profiles)
+  "https://api.oxy.so", "wss://api.oxy.so",               // Oxy SDK (auth/profiles/socket.io)
   "https://cloud.oxy.so",                                 // canonical media
   "https://api.syra.fm", "wss://api.syra.fm",             // Syra live rooms
   "https://livekit.oxy.so", "wss://livekit.oxy.so",       // LiveKit signaling
