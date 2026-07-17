@@ -1,5 +1,5 @@
 import React, { type ReactNode } from 'react';
-import { View, TouchableOpacity } from 'react-native';
+import { View, TouchableOpacity, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { FollowButton } from '@oxyhq/services';
@@ -7,13 +7,29 @@ import { Avatar } from '@oxyhq/bloom/avatar';
 import * as Skeleton from '@oxyhq/bloom/skeleton';
 import { getNormalizedUserHandle } from '@oxyhq/core';
 import { ThemedText } from './ThemedText';
-import { RemoteActorBadge } from '@/components/Fediverse/FediverseBadge';
-import { AgentIcon } from '@/assets/icons/agent-icon';
-import { AutomatedIcon } from '@/assets/icons/automated-icon';
-import { displayNameOrHandle } from '@/utils/displayName';
+import UserName from './UserName';
 import { getUserPlaceholderColor } from '@/utils/userPlaceholderColor';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types';
 import { cn } from '@/lib/utils';
+
+/**
+ * The identity line is the shared {@link UserName} — display name plus the
+ * verified / federated / agent / automated markers, rendered exactly as every
+ * other user surface renders them — typed to this row's own scale (text-base
+ * semibold name, text-sm muted `@handle`). Defined at module scope so the
+ * memoized `UserName` keeps a stable `style` reference across renders.
+ */
+const IDENTITY_TEXT_STYLES = StyleSheet.create({
+  name: { fontSize: 16, fontWeight: '600', lineHeight: 20 },
+  handle: { fontSize: 14, lineHeight: 18 },
+  column: { gap: 2 },
+});
+
+const IDENTITY_STYLE = {
+  name: IDENTITY_TEXT_STYLES.name,
+  handle: IDENTITY_TEXT_STYLES.handle,
+  container: IDENTITY_TEXT_STYLES.column,
+};
 
 /**
  * ProfileCard — THE user row.
@@ -106,15 +122,14 @@ export function ProfileCard({
   // pressable (no `/@<id>` links).
   const handle = getNormalizedUserHandle(profile) ?? '';
   const displayName = profile.name?.displayName?.trim();
-  const hasName = Boolean(displayName);
-  // A real display name is the bold primary with the muted @handle below; with no
-  // display name the @handle becomes the bold primary, shown ONCE.
-  const showHandleLine = hasName && handle.length > 0;
   const canPress = Boolean(onPress) || handle.length > 0;
-  const primaryLabel = displayNameOrHandle(
-    displayName,
-    handle ? `@${handle}` : t('user.unknown', { defaultValue: 'Unknown user' }),
-  );
+  // `UserName` owns the "display name else @handle, shown once" rule and the
+  // handle line beneath it. Hand it the degraded "Unknown user" label ONLY when
+  // there is neither a name nor a handle, so an unresolved profile never leaks
+  // its raw id as a handle.
+  const nameLabel =
+    displayName ??
+    (handle.length > 0 ? undefined : t('user.unknown', { defaultValue: 'Unknown user' }));
 
   const handlePress = () => {
     if (onPress) {
@@ -123,8 +138,6 @@ export function ProfileCard({
       router.push(`/@${handle}`);
     }
   };
-
-  const federatedBadge = profile.isFederated ? <RemoteActorBadge size={13} /> : null;
 
   return (
     <View
@@ -146,28 +159,18 @@ export function ProfileCard({
           placeholderColor={getUserPlaceholderColor(profile)}
         />
         <View className="flex-1 gap-0.5">
-          <View className="flex-row items-center gap-1">
-            <ThemedText
-              className="shrink text-base font-semibold leading-5"
-              numberOfLines={1}>
-              {primaryLabel}
-            </ThemedText>
-            {/* The fediverse marker always sits next to the line carrying the
-                handle — which is the primary line when there is no display name. */}
-            {!showHandleLine && federatedBadge}
-            {profile.isAgent && <AgentIcon size={14} className="text-muted-foreground" />}
-            {profile.isAutomated && <AutomatedIcon size={14} className="text-muted-foreground" />}
-          </View>
-          {showHandleLine && (
-            <View className="flex-row items-center gap-1">
-              <ThemedText
-                className="shrink text-sm leading-[18px] text-muted-foreground"
-                numberOfLines={1}>
-                @{handle}
-              </ThemedText>
-              {federatedBadge}
-            </View>
-          )}
+          {/* Identity line via the shared UserName: the name + verified /
+              federated / agent / automated markers and the muted @handle line,
+              consistent with every other user surface. */}
+          <UserName
+            name={nameLabel}
+            handle={handle || undefined}
+            verified={profile.verified}
+            isFederated={profile.isFederated}
+            isAgent={profile.isAgent}
+            isAutomated={profile.isAutomated}
+            style={IDENTITY_STYLE}
+          />
           {meta ? (
             <ThemedText
               className="text-sm leading-[18px] text-muted-foreground"
