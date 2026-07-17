@@ -116,6 +116,7 @@ return {
             meta: {
                 viewport: "width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no",
                 themeColor: "#4F46E5",
+                mobileWebAppCapable: "yes",
                 appleMobileWebAppCapable: "yes",
                 appleMobileWebAppStatusBarStyle: "default",
                 appleMobileWebAppTitle: "Mention",
