@@ -1,5 +1,6 @@
-import React, { useEffect, useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { View, Text, TouchableOpacity, ScrollView } from 'react-native';
+import { useQuery } from '@tanstack/react-query';
 import { Loading } from '@oxyhq/bloom/loading';
 import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';
@@ -29,50 +30,63 @@ export default function InterestsSettingsScreen() {
     const { t } = useTranslation();
     const safeBack = useSafeBack();
     const { colors } = useTheme();
-    const { canUsePrivateApi, isPrivateApiPending } = useAuth();
+    const { user, canUsePrivateApi, isPrivateApiPending } = useAuth();
     const mySettings = useAppearanceStore((state) => state.mySettings);
     const loadMySettings = useAppearanceStore((state) => state.loadMySettings);
-    const [loading, setLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
-    const [interests, setInterests] = useState<string[]>([]);
-    const [availableInterests, setAvailableInterests] = useState<Array<{ name: string; displayName: string }>>([]);
+
+    // The interest categories are served by an auth-gated endpoint, so the query
+    // is keyed on the viewer identity and gated on `canUsePrivateApi` (matching
+    // the sibling authed settings screens). `getCategories` resolves to `[]` on
+    // failure rather than throwing, so the query always settles — the spinner can
+    // never hang, and an error simply surfaces the empty state.
+    const categoriesQuery = useQuery({
+        queryKey: ['interests', 'categories', user?.id],
+        queryFn: () => topicService.getCategories(),
+        enabled: canUsePrivateApi,
+        staleTime: 5 * 60 * 1000,
+    });
+
+    // Drive the Zustand `loadMySettings` action declaratively through React Query
+    // (no data-fetching effect, no fire-and-forget `void`). The action swallows its
+    // own errors, so this query settles regardless of outcome — the spinner clears
+    // on success AND on failure, rather than waiting forever for `mySettings` to
+    // become truthy (the old permanent-spinner bug).
+    const mySettingsQuery = useQuery({
+        queryKey: ['appearance', 'mySettings', user?.id],
+        queryFn: async () => {
+            await loadMySettings(true);
+            return useAppearanceStore.getState().mySettings ?? null;
+        },
+        enabled: canUsePrivateApi,
+    });
+
+    const availableInterests = useMemo(
+        () => (categoriesQuery.data ?? []).map((c) => ({ name: c.slug, displayName: c.displayName })),
+        [categoriesQuery.data]
+    );
 
     const preselectedInterests = useMemo(
         () => mySettings?.interests?.tags || [],
         [mySettings?.interests?.tags]
     );
 
-    useEffect(() => {
-        // Wait out the token-pending SSO window; keep the initial `loading`
-        // spinner up rather than firing private reads that would 401.
-        if (isPrivateApiPending) {
-            return;
-        }
-        if (!canUsePrivateApi) {
-            setLoading(false);
-            return;
-        }
-        void loadMySettings(true);
+    // Loading is derived from the two queries' fetch state (never from data
+    // presence). Both `getCategories` and `loadMySettings` resolve to an
+    // empty/degraded result instead of throwing, so `isLoading` always returns to
+    // `false` — the error path ends the spinner and shows the empty state.
+    const isLoading = categoriesQuery.isLoading || mySettingsQuery.isLoading;
 
-        let cancelled = false;
-        topicService.getCategories().then(categories => {
-            if (cancelled) return;
-            setAvailableInterests(categories.map(c => ({ name: c.slug, displayName: c.displayName })));
-        }).catch((error) => {
-            if (cancelled) return;
-            logger.error('Failed to load interest categories', { error });
-            setAvailableInterests([]);
-        });
-
-        return () => { cancelled = true; };
-    }, [canUsePrivateApi, isPrivateApiPending, loadMySettings]);
-
-    useEffect(() => {
-        if (mySettings) {
-            setInterests(preselectedInterests);
-            setLoading(false);
-        }
-    }, [mySettings, preselectedInterests]);
+    // Seed the locally-editable selection from the loaded settings, re-syncing
+    // whenever the persisted tags change (React's "adjust state during render"
+    // pattern — no effect). `preselectedInterests` only changes reference when the
+    // stored `interests.tags` array does, so this fires once per real update.
+    const [interests, setInterests] = useState<string[]>(preselectedInterests);
+    const [syncedInterests, setSyncedInterests] = useState<string[]>(preselectedInterests);
+    if (syncedInterests !== preselectedInterests) {
+        setSyncedInterests(preselectedInterests);
+        setInterests(preselectedInterests);
+    }
 
     const saveInterests = useMemo(() => {
         return debounce(async (...args: unknown[]) => {
@@ -162,7 +176,7 @@ export default function InterestsSettingsScreen() {
         );
     }
 
-    if (loading) {
+    if (isLoading) {
         return (
             <ThemedView className="flex-1">
                 <Header

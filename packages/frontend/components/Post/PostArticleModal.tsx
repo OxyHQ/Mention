@@ -97,12 +97,12 @@ const PostArticleModal: React.FC<PostArticleModalProps> = ({
 
   // Fetch article data when modal becomes visible and articleId is provided
   useEffect(() => {
-    if (!visible || !needsFetch) return;
+    if (!visible || !needsFetch || !articleId) return;
 
     let isMounted = true;
     setIsLoading(true);
     setLoadError(null);
-    articleService.getArticle(articleId!)
+    articleService.getArticle(articleId)
       .then((article) => {
         if (!isMounted) return;
         setFetchedTitle(article.title || title);
