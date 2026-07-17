@@ -1,3 +1,4 @@
+import { getErrorMessage, getErrorStatus } from '@oxyhq/core';
 import { logger } from '../utils/logger';
 import { getServiceOxyClient } from '../utils/oxyHelpers';
 import UserSettings from '../models/UserSettings';
@@ -78,6 +79,98 @@ export async function resolveOxyExternalUser(
   } catch (resolveErr) {
     logger.warn(`Failed to resolve Oxy user for ${actor.externalId}:`, resolveErr);
     return null;
+  }
+}
+
+/**
+ * oxy-api service route this bridge posts to when a remote actor is permanently
+ * gone. Same service auth (scope `federation:write`) and same
+ * `getServiceOxyClient().makeServiceRequest` transport as the inbound-follow
+ * bridge (`inbox.service.ts` `bridgeFollowEdge` → `POST /federation/follow`).
+ */
+const ACTOR_GONE_PATH = '/federation/actor-gone';
+
+/** The `{ data }`-unwrapped body oxy-api returns for a 200 `POST /federation/actor-gone`. */
+interface ActorGoneResponse {
+  oxyUserId: string;
+  accountStatus: 'archived';
+  alreadyArchived: boolean;
+}
+
+/**
+ * Outcome discriminant of {@link reportFederatedActorGone}. NEVER thrown — both
+ * callers (the live 410 tombstone in `actor.service.ts` and the one-shot
+ * `pruneGoneFederatedActors` sweep) are fail-soft, so the transient/retryable
+ * case is surfaced as a value (`'failed'`) rather than an exception a sweep would
+ * have to catch to keep going.
+ *
+ *  - `archived` — Oxy archived a previously-active identity (removed from search).
+ *  - `already`  — the identity was already archived (idempotent no-op, still 200).
+ *  - `skipped`  — nothing to report, or oxy-api returned a PERMANENT client error
+ *                 (400 bad body / 403 missing scope / 404 no such user / 409 target
+ *                 not `type:'federated'`). Non-retryable — logged and swallowed.
+ *  - `failed`   — a genuinely transient failure (5xx, 408/429, network, or an
+ *                 unclassifiable transport error). Retryable: the caller may leave
+ *                 the actor for a later pass.
+ */
+export type ReportActorGoneOutcome = 'archived' | 'already' | 'skipped' | 'failed';
+
+/**
+ * Teardown counterpart of {@link resolveOxyExternalUser}: tell oxy-api that a
+ * federated actor is permanently gone so it archives the linked Oxy identity
+ * (`accountStatus:'archived'`, removing it from search). Idempotent on the Oxy
+ * side — a repeat call returns 200 with `alreadyArchived:true`.
+ *
+ * Mirrors the follow-bridge's exact client/auth pattern: the service-authed
+ * `getServiceOxyClient().makeServiceRequest('POST', '/federation/actor-gone', …)`
+ * under scope `federation:write`. `makeServiceRequest` unwraps the API's `{ data }`
+ * envelope, so the resolved value is the inner {@link ActorGoneResponse}.
+ *
+ * Error policy (see {@link ReportActorGoneOutcome}): PERMANENT 4xx responses
+ * (400/403/404/409 — all non-retryable per the contract) are logged and swallowed
+ * to `'skipped'` so a bulk sweep is never aborted by one dead actor; only
+ * genuinely transient failures (5xx, 408/429, network) surface as `'failed'` for
+ * the caller to retry. This function never throws.
+ */
+export async function reportFederatedActorGone(oxyUserId: string): Promise<ReportActorGoneOutcome> {
+  const id = oxyUserId.trim();
+  if (!id) return 'skipped';
+
+  try {
+    const data = await getServiceOxyClient().makeServiceRequest<ActorGoneResponse>(
+      'POST',
+      ACTOR_GONE_PATH,
+      { oxyUserId: id },
+    );
+    const alreadyArchived = data?.alreadyArchived === true;
+    logger.info(`[Federation] oxy-api archived gone actor ${id}`, { alreadyArchived });
+    return alreadyArchived ? 'already' : 'archived';
+  } catch (error) {
+    const httpStatus = getErrorStatus(error);
+    const reason = getErrorMessage(error);
+
+    // Permanent client errors (400 bad body, 403 missing scope, 404 no such user,
+    // 409 target not `type:'federated'`) are non-retryable per the contract. 408
+    // and 429 are excluded — those are transient and fall through to `'failed'`.
+    if (
+      httpStatus !== undefined &&
+      httpStatus >= 400 &&
+      httpStatus < 500 &&
+      httpStatus !== 408 &&
+      httpStatus !== 429
+    ) {
+      logger.warn(`[Federation] actor-gone report for ${id} rejected (HTTP ${httpStatus}, permanent)`, { reason });
+      return 'skipped';
+    }
+
+    // Everything else — 5xx, 408/429, a network failure, or an unclassifiable
+    // transport error — is transient. Surface as `'failed'` so the caller can
+    // leave the actor for a later pass instead of permanently skipping it.
+    logger.warn(`[Federation] actor-gone report for ${id} failed transiently; leaving for retry`, {
+      status: httpStatus,
+      reason,
+    });
+    return 'failed';
   }
 }
 

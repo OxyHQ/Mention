@@ -37,8 +37,13 @@ vi.mock('../../models/UserSettings', () => ({
   },
 }));
 
-import { resolveOxyExternalUser } from '../../connectors/identity';
+import { reportFederatedActorGone, resolveOxyExternalUser } from '../../connectors/identity';
 import type { NormalizedExternalActor } from '../../connectors/types';
+
+/** Build an HTTP-style rejection carrying the flat `.status` shape `getErrorStatus` reads. */
+function httpError(status: number, message = `HTTP ${status}`): Error {
+  return Object.assign(new Error(message), { status });
+}
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -183,5 +188,65 @@ describe('resolveOxyExternalUser', () => {
 
     expect(mocks.persistRemoteMedia).not.toHaveBeenCalled();
     expect(mocks.userSettingsUpdateOne).not.toHaveBeenCalled();
+  });
+});
+
+describe('reportFederatedActorGone', () => {
+  it('posts to /federation/actor-gone with the oxyUserId and returns "archived"', async () => {
+    mocks.makeServiceRequest.mockResolvedValue({
+      oxyUserId: '6981c9178fcdefaf81988ffb',
+      accountStatus: 'archived',
+      alreadyArchived: false,
+    });
+
+    const outcome = await reportFederatedActorGone('6981c9178fcdefaf81988ffb');
+
+    expect(outcome).toBe('archived');
+    expect(mocks.makeServiceRequest).toHaveBeenCalledWith('POST', '/federation/actor-gone', {
+      oxyUserId: '6981c9178fcdefaf81988ffb',
+    });
+  });
+
+  it('returns "already" when Oxy reports the identity was already archived (idempotent 200)', async () => {
+    mocks.makeServiceRequest.mockResolvedValue({
+      oxyUserId: '6981c9178fcdefaf81988ffb',
+      accountStatus: 'archived',
+      alreadyArchived: true,
+    });
+
+    expect(await reportFederatedActorGone('6981c9178fcdefaf81988ffb')).toBe('already');
+  });
+
+  it('returns "skipped" without any network call for an empty id', async () => {
+    expect(await reportFederatedActorGone('   ')).toBe('skipped');
+    expect(mocks.makeServiceRequest).not.toHaveBeenCalled();
+  });
+
+  it.each([400, 403, 404, 409])(
+    'log-and-swallows the permanent %i to "skipped" (non-retryable)',
+    async (status) => {
+      mocks.makeServiceRequest.mockRejectedValue(httpError(status));
+      expect(await reportFederatedActorGone('6981c9178fcdefaf81988ffb')).toBe('skipped');
+    },
+  );
+
+  it.each([500, 502, 503])('surfaces the transient %i as "failed" (retryable)', async (status) => {
+    mocks.makeServiceRequest.mockRejectedValue(httpError(status));
+    expect(await reportFederatedActorGone('6981c9178fcdefaf81988ffb')).toBe('failed');
+  });
+
+  it.each([408, 429])('treats the retryable 4xx %i as "failed", not permanent', async (status) => {
+    mocks.makeServiceRequest.mockRejectedValue(httpError(status));
+    expect(await reportFederatedActorGone('6981c9178fcdefaf81988ffb')).toBe('failed');
+  });
+
+  it('treats a statusless network error as transient "failed"', async () => {
+    mocks.makeServiceRequest.mockRejectedValue(new Error('socket hang up'));
+    expect(await reportFederatedActorGone('6981c9178fcdefaf81988ffb')).toBe('failed');
+  });
+
+  it('never throws — a permanent rejection resolves to a discriminant instead', async () => {
+    mocks.makeServiceRequest.mockRejectedValue(httpError(409));
+    await expect(reportFederatedActorGone('6981c9178fcdefaf81988ffb')).resolves.toBe('skipped');
   });
 });
