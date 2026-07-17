@@ -33,33 +33,50 @@ export interface AtprotoProfileView {
  * domain (`bsky.social`): a Bluesky handle is a whole DNS name that identifies the
  * account, not a `local@host` address, and the account lives on the Bluesky
  * network regardless of how many labels the handle has or whether it is a custom
- * domain. The username is the FULL handle in every case:
- *   - `alice.bsky.social` → username `alice.bsky.social`, instance `bsky.social`.
- *   - `gothamist.com`      → username `gothamist.com`,      instance `bsky.social`.
- *   - `mayor.nyc.gov`      → username `mayor.nyc.gov`,      instance `bsky.social`.
+ * domain.
  *
- * Deriving the instance from the handle's own parent domain was the bug: a
- * multi-label custom domain (`mayor.nyc.gov`) produced the bogus instance
+ * The username is the DEFAULT-Bluesky-handle base: because the instance domain is
+ * already `bsky.social`, the `.bsky.social` suffix on a default handle is
+ * redundant, so it is stripped from the username to avoid the doubled
+ * `@skylee1.bsky.social@bsky.social`. A CUSTOM domain handle is not a
+ * `.bsky.social` handle, so its whole handle stays the username:
+ *   - `skylee1.bsky.social` → username `skylee1`,       instance `bsky.social`.
+ *   - `gothamist.com`       → username `gothamist.com`,  instance `bsky.social`.
+ *   - `mayor.nyc.gov`       → username `mayor.nyc.gov`,  instance `bsky.social`.
+ *   - `jay.bsky.team`       → username `jay.bsky.team`,  instance `bsky.social`
+ *                             (`.bsky.team` is NOT `.bsky.social` — kept).
+ *
+ * Deriving the instance from the handle's own parent domain was the ORIGINAL bug:
+ * a multi-label custom domain (`mayor.nyc.gov`) produced the bogus instance
  * `nyc.gov`, rendering `@mayor.nyc.gov@nyc.gov` instead of the correct
- * `@mayor.nyc.gov@bsky.social` (apex handles like `gothamist.com` only avoided it
- * by accident, because the bare TLD `com` has no dot).
+ * `@mayor.nyc.gov@bsky.social`. That is now fixed (instance is always
+ * `bsky.social`); the `.bsky.social` strip is the follow-up that also drops the
+ * redundant suffix on default handles.
  *
- * The federated Oxy username is `<handle>@bsky.social`
- * (`alice.bsky.social@bsky.social`, `mayor.nyc.gov@bsky.social`) — the exact form
- * oxy-api's `PUT /users/resolve` binds (username domain must equal `domain`).
+ * The federated Oxy username is `<username>@bsky.social`
+ * (`skylee1@bsky.social`, `mayor.nyc.gov@bsky.social`) — the exact form oxy-api's
+ * `PUT /users/resolve` binds (username domain must equal `domain`).
  *
- * Exported so the re-derive repair script can DETECT a stored actor whose
- * `FederatedActor.domain` no longer equals `splitHandle(acct).domain` without
- * re-fetching the profile, using the SAME derivation the upsert path uses.
+ * Exported so the re-derive repair scripts can DETECT a stored actor whose
+ * re-derived `federatedUsername` no longer equals `${stored.username}@${stored.domain}`
+ * without re-fetching the profile — a stored `.bsky.social` actor keeps the same
+ * `domain` (`bsky.social`) but its `username` changes, so the scripts must compare
+ * the full `local@domain`, not the domain alone.
  */
 export function splitHandle(handle: string): { username: string; domain: string; federatedUsername: string } {
-  // The instance domain for every atproto actor is the Bluesky network host and the
-  // whole handle is the username — a handle is a DNS name identifying the account,
-  // so it has no separable per-instance host to derive from its parent domain.
+  // For a default Bluesky handle (`<username>.bsky.social`) the `.bsky.social`
+  // suffix is redundant once the instance domain is already `bsky.social`, so the
+  // username is the handle with that suffix stripped. A custom domain handle is not
+  // a `.bsky.social` handle, so its whole handle stays the username. Guard the
+  // degenerate `handle === 'bsky.social'` (stripping would leave an empty username)
+  // by keeping the full handle in that case.
+  const suffix = `.${BSKY_NETWORK_DOMAIN}`;
+  const username =
+    handle !== BSKY_NETWORK_DOMAIN && handle.endsWith(suffix) ? handle.slice(0, -suffix.length) : handle;
   return {
-    username: handle,
+    username,
     domain: BSKY_NETWORK_DOMAIN,
-    federatedUsername: `${handle}@${BSKY_NETWORK_DOMAIN}`,
+    federatedUsername: `${username}@${BSKY_NETWORK_DOMAIN}`,
   };
 }
 

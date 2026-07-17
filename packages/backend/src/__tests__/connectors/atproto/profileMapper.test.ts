@@ -63,9 +63,10 @@ describe('mapProfileToNormalizedActor', () => {
       network: 'atproto',
       externalId: DID,
       handle: 'alice.bsky.social',
-      // The canonical `local@domain` Oxy username + the handle's parent domain —
-      // exactly what oxy-api's `PUT /users/resolve` binds for an atproto actor.
-      federatedUsername: 'alice.bsky.social@bsky.social',
+      // The canonical `local@domain` Oxy username: a default Bluesky handle drops its
+      // redundant `.bsky.social` suffix (`alice.bsky.social` → `alice`) — the exact
+      // value oxy-api's `PUT /users/resolve` binds for an atproto actor.
+      federatedUsername: 'alice@bsky.social',
       instanceDomain: 'bsky.social',
       displayName: 'Alice',
       avatarUrl: PROFILE.avatar,
@@ -96,30 +97,38 @@ describe('mapProfileToNormalizedActor', () => {
     expect(actor?.bio).toBeUndefined();
   });
 
-  // Every atproto handle — a normal `.bsky.social` handle, an apex custom domain,
-  // and a multi-label custom domain — keys to the Bluesky network host, with the
-  // FULL handle as the username. Deriving the instance from the handle's own parent
-  // domain was the bug: `mayor.nyc.gov` rendered `@mayor.nyc.gov@nyc.gov` instead of
-  // `@mayor.nyc.gov@bsky.social` (apex handles only escaped it because a bare TLD
-  // like `com` has no dot).
+  // Every atproto handle keys to the Bluesky network host. A DEFAULT Bluesky handle
+  // drops its redundant `.bsky.social` suffix from the username (so it renders
+  // `@skylee1@bsky.social`, not the doubled `@skylee1.bsky.social@bsky.social`); a
+  // CUSTOM domain keeps its whole handle as the username (`.bsky.team`/`.app`/apex
+  // are NOT `.bsky.social`, so they are kept in full). The `handle` field always
+  // preserves the actor's real atproto handle. Deriving the instance from the
+  // handle's own parent domain was the original bug: `mayor.nyc.gov` rendered
+  // `@mayor.nyc.gov@nyc.gov` instead of `@mayor.nyc.gov@bsky.social`.
   it.each([
-    'alice.bsky.social',
-    'carnage4life.bsky.social',
-    'gothamist.com',
-    'mayor.nyc.gov',
-    'jay.bsky.team',
-  ])('keys handle %s to the Bluesky network host with the full handle as username', (handle) => {
+    { handle: 'skylee1.bsky.social', username: 'skylee1', rendered: 'skylee1@bsky.social' },
+    { handle: 'carnage4life.bsky.social', username: 'carnage4life', rendered: 'carnage4life@bsky.social' },
+    { handle: 'gothamist.com', username: 'gothamist.com', rendered: 'gothamist.com@bsky.social' },
+    { handle: 'mayor.nyc.gov', username: 'mayor.nyc.gov', rendered: 'mayor.nyc.gov@bsky.social' },
+    { handle: 'jay.bsky.team', username: 'jay.bsky.team', rendered: 'jay.bsky.team@bsky.social' },
+    { handle: 'bsky.app', username: 'bsky.app', rendered: 'bsky.app@bsky.social' },
+  ])('keys handle $handle to $rendered on the Bluesky network host', ({ handle, username, rendered: expected }) => {
     const actor = mapProfileToNormalizedActor({ ...PROFILE, handle });
+    // The `handle` field always preserves the real atproto handle (full DNS name).
     expect(actor?.handle).toBe(handle);
     expect(actor?.instanceDomain).toBe('bsky.social');
-    expect(actor?.federatedUsername).toBe(`${handle}@bsky.social`);
+    // `federatedUsername` carries the stored `local@domain` — the exact rendered
+    // handle, with a default handle's `.bsky.social` suffix already stripped.
+    expect(actor?.federatedUsername).toBe(expected);
 
+    // Rendering from the stored username + instance domain (the shape hydration
+    // reads off the Oxy user) reproduces the same handle.
     const rendered = getNormalizedUserHandle({
-      username: actor?.handle,
+      username,
       isFederated: true,
       federation: { domain: actor?.instanceDomain },
     });
-    expect(rendered).toBe(`${handle}@bsky.social`);
+    expect(rendered).toBe(expected);
     // The pre-fix doubled/bogus instance must never re-appear.
     expect(rendered).not.toBe(`${handle}@${handle}`);
   });
@@ -131,19 +140,32 @@ describe('mapProfileToNormalizedActor', () => {
 });
 
 describe('splitHandle', () => {
-  // The instance domain for an atproto actor is ALWAYS the Bluesky network domain,
-  // and the whole handle is the username — regardless of label count or custom
-  // domain. These are the exact prod actors the old parent-stripping mis-derived.
+  // The instance domain for an atproto actor is ALWAYS the Bluesky network domain.
+  // A DEFAULT Bluesky handle drops its redundant `.bsky.social` suffix from the
+  // username; a CUSTOM domain (apex, `.bsky.team`, `.app`, or multi-label) keeps its
+  // whole handle. These are the exact prod actors the old derivations mis-rendered.
   it.each([
-    { handle: 'alice.bsky.social', domain: 'bsky.social' },
-    { handle: 'mayor.nyc.gov', domain: 'bsky.social' },
-    { handle: 'jay.bsky.team', domain: 'bsky.social' },
-    { handle: 'gothamist.com', domain: 'bsky.social' },
-  ])('derives $handle → instance $domain with the full handle as username', ({ handle, domain }) => {
+    { handle: 'skylee1.bsky.social', username: 'skylee1' },
+    { handle: 'carnage4life.bsky.social', username: 'carnage4life' },
+    { handle: 'mayor.nyc.gov', username: 'mayor.nyc.gov' },
+    { handle: 'gothamist.com', username: 'gothamist.com' },
+    { handle: 'jay.bsky.team', username: 'jay.bsky.team' },
+    { handle: 'bsky.app', username: 'bsky.app' },
+  ])('derives $handle → username $username on the Bluesky network host', ({ handle, username }) => {
     expect(splitHandle(handle)).toEqual({
-      username: handle,
-      domain,
-      federatedUsername: `${handle}@${domain}`,
+      username,
+      domain: 'bsky.social',
+      federatedUsername: `${username}@bsky.social`,
+    });
+  });
+
+  // Guard the degenerate case: the bare network domain would strip to an empty
+  // username, so it is kept whole.
+  it('keeps the bare network domain whole rather than stripping to an empty username', () => {
+    expect(splitHandle('bsky.social')).toEqual({
+      username: 'bsky.social',
+      domain: 'bsky.social',
+      federatedUsername: 'bsky.social@bsky.social',
     });
   });
 });
@@ -175,7 +197,7 @@ describe('fetchAndUpsertAtprotoProfile', () => {
     expect(mocks.resolveOxyExternalUser).toHaveBeenCalledWith(
       expect.objectContaining({
         externalId: DID,
-        federatedUsername: 'alice.bsky.social@bsky.social',
+        federatedUsername: 'alice@bsky.social',
         instanceDomain: 'bsky.social',
         avatarUrl: PROFILE.avatar,
         bannerUrl: PROFILE.banner,

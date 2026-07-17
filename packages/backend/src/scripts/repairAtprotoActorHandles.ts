@@ -1,26 +1,34 @@
 /**
- * One-shot REPAIR of stored atproto (Bluesky) actor handles that carry a bogus
- * federated instance domain.
+ * One-shot REPAIR of stored atproto (Bluesky) actor handles whose rendered
+ * `local@domain` no longer matches the current `splitHandle` derivation.
  *
  * WHY
- *   `splitHandle` (`connectors/atproto/profile.mapper.ts`) used to derive an actor's
- *   instance domain by stripping the first label off its handle — which is wrong for
- *   the atproto connector, where the instance domain is ALWAYS the Bluesky network
- *   host (`bsky.social`) and the whole handle is the username. A multi-label custom
- *   domain handle mis-derived its instance:
- *     - `mayor.nyc.gov`  → parent `nyc.gov` → stored domain `nyc.gov`   (WRONG)
- *     - `jay.bsky.team`  → parent `bsky.team` → stored domain `bsky.team` (WRONG)
- *     - `ronbronson.com` → parent `com`     → stored domain `com`       (WRONG)
- *   so the actor rendered as `@mayor.nyc.gov@nyc.gov` instead of the correct
- *   `@mayor.nyc.gov@bsky.social`. (Apex handles like `gothamist.com` happened to be
- *   correct only because a bare TLD has no dot to strip.) The ingest path is now
- *   fixed, but rows written before the fix keep their bogus `domain`/`acct` binding
- *   — this script re-derives and repairs them in place.
+ *   Two `splitHandle` (`connectors/atproto/profile.mapper.ts`) changes each left
+ *   stale rows behind:
+ *     1. It used to derive an actor's instance domain by stripping the first label
+ *        off its handle — wrong for the atproto connector, where the instance domain
+ *        is ALWAYS the Bluesky network host (`bsky.social`). A multi-label custom
+ *        domain handle mis-derived its instance:
+ *          - `mayor.nyc.gov`  → parent `nyc.gov`  → stored domain `nyc.gov`  (WRONG)
+ *          - `jay.bsky.team`  → parent `bsky.team` → stored domain `bsky.team` (WRONG)
+ *          - `ronbronson.com` → parent `com`      → stored domain `com`      (WRONG)
+ *        so the actor rendered as `@mayor.nyc.gov@nyc.gov` instead of the correct
+ *        `@mayor.nyc.gov@bsky.social`. (Apex handles like `gothamist.com` happened to
+ *        be correct only because a bare TLD has no dot to strip.)
+ *     2. It now also strips the redundant `.bsky.social` suffix from a DEFAULT handle
+ *        (the instance domain is already `bsky.social`), so `skylee1.bsky.social`
+ *        renders `@skylee1@bsky.social`, not the doubled `@skylee1.bsky.social@bsky.social`.
+ *        These rows keep their `domain` (`bsky.social`) but the `username` shortens.
+ *   The ingest path is now fixed, but rows written before each fix keep their stale
+ *   `username`/`domain`/`acct` binding — this script re-derives and repairs them in
+ *   place.
  *
  * WHAT IT DOES — per `FederatedActor` row with `protocol:'atproto'`:
  *   1. Cheaply detects whether the row needs repair WITHOUT any network I/O:
- *      `splitHandle(acct).domain !== stored.domain`. An already-correct actor is a
- *      no-op (logged `unchanged`, no fetch).
+ *      `splitHandle(acct).federatedUsername !== ${stored.username}@${stored.domain}`.
+ *      Comparing the domain ALONE would MISS a `.bsky.social` actor, whose domain is
+ *      unchanged while its username shortens. An already-correct actor is a no-op
+ *      (logged `unchanged`, no fetch).
  *   2. When it differs, repairs it by re-running the SAME sanctioned upsert the
  *      ingest path uses — `fetchAndUpsertAtprotoProfile(did)` — which recomputes the
  *      handle through the FIXED `splitHandle` AND updates BOTH sides consistently
@@ -43,8 +51,9 @@
  *                scanned in a stable ascending `_id` order so a limited run is
  *                deterministic.
  *
- * Idempotent + re-runnable: a repaired actor re-derives to the SAME domain on a
- * second run (`splitHandle(acct).domain === stored.domain`), so it is then a no-op.
+ * Idempotent + re-runnable: a repaired actor re-derives to the SAME `local@domain`
+ * on a second run (`splitHandle(acct).federatedUsername === ${stored.username}@${stored.domain}`),
+ * so it is then a no-op.
  *
  * RUN AS A FARGATE ONE-SHOT (post-deploy, in-VPC):
  *   bun packages/backend/dist/src/scripts/repairAtprotoActorHandles.js --dry-run
@@ -154,11 +163,13 @@ function withActorTimeout<T>(work: Promise<T>, ms: number): Promise<T> {
 }
 
 /**
- * Repair one actor when its stored `domain` no longer matches the re-derived one.
- * Detection is a pure, network-free comparison; the actual repair re-runs the shared
- * profile upsert so the `FederatedActor` and the linked Oxy user stay consistent
- * through one code path. Fails soft: any error (or the per-actor timeout) is caught
- * by the caller and counted `failed` — the loop is never aborted.
+ * Repair one actor when its stored `${username}@${domain}` no longer matches the
+ * re-derived `splitHandle(acct).federatedUsername`. Detection is a pure, network-free
+ * comparison of the full `local@domain` (not the domain alone — a `.bsky.social`
+ * actor shortens only its username); the actual repair re-runs the shared profile
+ * upsert so the `FederatedActor` and the linked Oxy user stay consistent through one
+ * code path. Fails soft: any error (or the per-actor timeout) is caught by the caller
+ * and counted `failed` — the loop is never aborted.
  */
 async function repairActor(actor: ActorRow, flags: Flags): Promise<RepairOutcome> {
   if (!actor.acct) {
@@ -167,7 +178,7 @@ async function repairActor(actor: ActorRow, flags: Flags): Promise<RepairOutcome
   }
 
   const expected = splitHandle(actor.acct);
-  if (expected.domain === actor.domain) {
+  if (expected.federatedUsername === `${actor.username}@${actor.domain}`) {
     return 'unchanged';
   }
 

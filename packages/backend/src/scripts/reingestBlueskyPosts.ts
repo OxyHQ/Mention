@@ -33,9 +33,11 @@
  *      `post.mapper` (`refetchAtprotoPostForRepair`), folding in the #439 fixes:
  *      `#link`/`#mention` facet resolution (UTF-8 byte-indexed), reply threading
  *      (`parentPostId`/`threadId`), and quote posts (`quoteOf`). The actor
- *      HANDLE fix (`splitHandle`: apex `gothamist.com` → `@gothamist.com@bsky.social`,
- *      not doubled) lives on the `FederatedActor` doc, so it is repaired ONCE per
- *      distinct actor (deduped), not per post.
+ *      HANDLE fix (`splitHandle`: a default handle drops its redundant suffix,
+ *      `skylee1.bsky.social` → `@skylee1@bsky.social`, while a custom domain keeps
+ *      its whole handle, `gothamist.com` → `@gothamist.com@bsky.social`) lives on
+ *      the `FederatedActor` doc, so it is repaired ONCE per distinct actor
+ *      (deduped), not per post.
  *
  * HOW EACH PATH RE-FETCHES + RE-MAPS + DIFFS
  *   Both paths re-derive the SAME storable fields fresh ingest would produce, then
@@ -516,12 +518,15 @@ async function repairAtprotoPost(post: StoredPostRow, flags: Flags): Promise<Rep
 // --- actor handle repair (atproto only, deduped per distinct DID) ------------
 
 /**
- * Repair the doubled-handle bug on each distinct atproto actor referenced by the
+ * Repair the handle-rendering bugs on each distinct atproto actor referenced by the
  * scanned posts. The `splitHandle` fix lives on the `FederatedActor` doc, so this
- * runs ONCE per DID (deduped), never per post. Detection is a pure comparison of
- * the stored `domain` against `splitHandle(acct).domain`; the actual repair re-runs
- * the shared profile upsert (`fetchAndUpsertAtprotoProfile`), which re-derives the
- * handle AND re-resolves the Oxy user with the corrected `local@domain` username.
+ * runs ONCE per DID (deduped), never per post. Detection is a pure comparison of the
+ * stored `${username}@${domain}` against the re-derived `splitHandle(acct).federatedUsername`
+ * — comparing the domain ALONE would miss a `.bsky.social` actor, whose domain stays
+ * `bsky.social` while its username shortens (`skylee1.bsky.social` → `skylee1`). The
+ * actual repair re-runs the shared profile upsert (`fetchAndUpsertAtprotoProfile`),
+ * which re-derives the handle AND re-resolves the Oxy user with the corrected
+ * `local@domain` username.
  */
 async function repairActorHandles(
   dids: ReadonlySet<string>,
@@ -539,7 +544,7 @@ async function repairActorHandles(
     }
 
     const expected = splitHandle(actor.acct);
-    if (expected.domain === actor.domain) {
+    if (expected.federatedUsername === `${actor.username}@${actor.domain}`) {
       counters.unchanged += 1;
       continue;
     }

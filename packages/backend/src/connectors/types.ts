@@ -33,9 +33,11 @@ export interface NormalizedExternalActor {
    * The canonical `local@domain` username this actor is stored under in Oxy — the
    * exact value passed to `PUT /users/resolve`. Each connector derives it for its
    * own protocol so the shared identity bridge never has to guess: AP uses the
-   * acct (`user@domain`); atproto synthesizes `<handle>@<instance-domain>` (e.g.
-   * `alice.bsky.social@bsky.social`). It MUST equal `instanceDomain` after the
-   * `@` so oxy-api's username↔domain binding holds.
+   * acct (`user@domain`); atproto synthesizes `<username>@<instance-domain>`, where
+   * a default Bluesky handle drops the redundant `.bsky.social` suffix
+   * (`skylee1.bsky.social` → `skylee1@bsky.social`) and a custom domain keeps its
+   * whole handle (`mayor.nyc.gov` → `mayor.nyc.gov@bsky.social`). It MUST equal
+   * `instanceDomain` after the `@` so oxy-api's username↔domain binding holds.
    */
   federatedUsername: string;
   /**
