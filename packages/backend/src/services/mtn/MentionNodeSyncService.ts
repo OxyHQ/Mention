@@ -132,7 +132,9 @@ const nodeFetch: NodeFetch = async (url, init) => {
   const result = await safeFetch(url, {
     method: init.method,
     ...(init.headers ? { headers: init.headers } : {}),
-    ...(init.body ? { body: init.body } : {}),
+    // `safeFetch` takes `string | Buffer`; the protocol transport hands us the
+    // raw request bytes as a `Uint8Array`, so wrap them in a `Buffer`.
+    ...(init.body ? { body: Buffer.from(init.body) } : {}),
     headersTimeoutMs: init.headersTimeoutMs,
     maxRedirects: init.maxRedirects,
   });

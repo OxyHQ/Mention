@@ -138,13 +138,13 @@ export function useProfileData(username?: string): {
   // Driven by React Query so it dedupes and avoids a manual effect. The
   // appearance store caches the result for synchronous reads elsewhere.
   //
-  // `viewerId` is part of the query key because the appearance payload carries
-  // viewer-dependent fields (`followsYou`, and privacy-gated visibility). On
-  // cold boot the viewer's session resolves ~5s after mount, so without the
-  // viewer in the key these fields would stay frozen at their anonymous value.
-  // The profile/federated queries above stay viewer-independent, so public
-  // profile viewing is unaffected; only the relationship-aware appearance data
-  // refetches when the viewer identity lands.
+  // `viewerId` is part of the query key because the appearance payload is
+  // privacy-gated: a private / followers-only profile returns full design data
+  // only to a follower and minimal data otherwise, so the same owner resolves to
+  // different payloads per viewer. On cold boot the viewer's session resolves
+  // ~5s after mount, so without the viewer in the key the gated data would stay
+  // frozen at its anonymous value. The profile/federated queries above stay
+  // viewer-independent, so public profile viewing is unaffected.
   const userId = profile?.id ?? '';
   const loadForUser = useAppearanceStore((state) => state.loadForUser);
   const appearanceQuery = useQuery<UserAppearance | null>({
@@ -187,7 +187,11 @@ export function useProfileData(username?: string): {
       postsCount: appearance?.postsCount,
       boostsCount: appearance?.boostsCount,
       repliesCount: appearance?.repliesCount,
-      followsYou: appearance?.followsYou,
+      // "Follows you" now rides the Oxy profile fetch: `relationship` is populated
+      // on authenticated single-profile fetches (absent for anon/self/bulk), so
+      // `undefined` means "unknown", not "does not follow". No extra call and no
+      // Mention-side computation — Oxy owns the follow graph.
+      followsYou: profile.relationship?.followsYou,
       isFederated: profile.isFederated || profile.type === 'federated',
       actorUri:
         (typeof profile.actorUri === 'string' ? profile.actorUri : undefined) ??

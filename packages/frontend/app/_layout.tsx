@@ -45,6 +45,7 @@ import { Provider as PortalProvider, Outlet as PortalOutlet } from '@oxyhq/bloom
 
 // Hooks
 import { useServerAppearanceSync } from '@/hooks/useServerAppearanceSync';
+import { useAccountThemeSync } from '@/hooks/useAccountTheme';
 import { useSeedViewerFollowStatuses } from '@/hooks/useViewerFollowing';
 import { useHydrateExternalEmbeds } from '@/stores/externalEmbedsStore';
 import { useHapticsStore } from '@/stores/hapticsStore';
@@ -221,6 +222,9 @@ function AuthRouter() {
   const segments = useSegments();
 
   useServerAppearanceSync();
+  // Drives Bloom from the viewer's portable Oxy account theme when the local
+  // source is `account` (rides the cold-boot payload — no extra fetch).
+  useAccountThemeSync();
   useHydrateExternalEmbeds();
 
   // Seed the shared follow store from the viewer's following graph so every
