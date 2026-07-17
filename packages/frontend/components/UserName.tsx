@@ -9,7 +9,7 @@ import { AgentIcon } from '@/assets/icons/agent-icon';
 import { AutomatedIcon } from '@/assets/icons/automated-icon';
 import type { UserNameProps } from '@/components/Profile/types';
 
-const UserName: React.FC<UserNameProps> = ({ name, handle, verified, isFederated, isAgent, isAutomated, unifiedColors, onPress, variant = 'default', style, trailingBadge, handleTrailing }) => {
+const UserName: React.FC<UserNameProps> = ({ name, handle, verified, isFederated, isAgent, isAutomated, unifiedColors, onPress, copyableHandle, variant = 'default', style, trailingBadge, handleTrailing }) => {
     const theme = useTheme();
     const nameStyle = [styles.name, variant === 'small' && styles.nameSmall, style?.name];
 
@@ -67,7 +67,7 @@ const UserName: React.FC<UserNameProps> = ({ name, handle, verified, isFederated
                     className="gap-2"
                     style={[styles.handleTrailingRow, handleMarginBottom != null ? { marginBottom: handleMarginBottom } : null]}
                 >
-                    {isFederated ? (
+                    {isFederated && copyableHandle ? (
                         <TouchableOpacity activeOpacity={0.7} onPress={handleCopyHandle} style={styles.handleShrink}>
                             {handleText}
                         </TouchableOpacity>
@@ -77,7 +77,7 @@ const UserName: React.FC<UserNameProps> = ({ name, handle, verified, isFederated
                     {handleTrailing}
                 </View>
             );
-        } else if (isFederated) {
+        } else if (isFederated && copyableHandle) {
             handleLineNode = (
                 <TouchableOpacity activeOpacity={0.7} onPress={handleCopyHandle}>
                     <Text className="text-muted-foreground" style={[styles.handle, style?.handle]} numberOfLines={1} ellipsizeMode="tail">
