@@ -159,6 +159,48 @@ describe('resolveApAttachment', () => {
     });
   });
 
+  describe('Bridgy Fed AP-type fallback (no mediaType, extensionless getBlob URL)', () => {
+    const GETBLOB =
+      'https://morel.us-east.host.bsky.network/xrpc/com.atproto.sync.getBlob?did=did:plc:abc123&cid=bafyxyz';
+
+    it('classifies a type:Image attachment with no mediaType/extension as image', () => {
+      const att: ApAttachment = { type: 'Image', width: 1000, height: 750, url: GETBLOB };
+      expect(resolveApAttachment(att)).toEqual({ href: GETBLOB, type: 'image' });
+    });
+
+    it('classifies a type:Video attachment with no mediaType/extension as video', () => {
+      const att: ApAttachment = { type: 'Video', url: GETBLOB };
+      expect(resolveApAttachment(att)).toEqual({ href: GETBLOB, type: 'video' });
+    });
+
+    it('classifies a MIME-less type:Audio attachment as video (no dedicated audio media kind)', () => {
+      const att: ApAttachment = { type: 'Audio', url: GETBLOB };
+      expect(resolveApAttachment(att)).toEqual({ href: GETBLOB, type: 'video' });
+    });
+
+    it('classifies a MIME-less Document with image dimensions as image', () => {
+      const att: ApAttachment = { type: 'Document', width: 800, height: 600, url: GETBLOB };
+      expect(resolveApAttachment(att)).toEqual({ href: GETBLOB, type: 'image' });
+    });
+
+    it('does not classify a MIME-less Document that carries a duration (not clearly an image)', () => {
+      const att: ApAttachment = { type: 'Document', duration: 30, url: GETBLOB };
+      expect(resolveApAttachment(att)).toBeNull();
+    });
+
+    it('respects an explicit non-media MIME over the AP type (MIME-first preserved)', () => {
+      // `type` says Image but the server explicitly declared a PDF MIME — the MIME
+      // wins, so the attachment is skipped rather than mis-stored as an image.
+      const att: ApAttachment = { type: 'Image', mediaType: 'application/pdf', url: 'https://example/file' };
+      expect(resolveApAttachment(att)).toBeNull();
+    });
+
+    it('still resolves a declared image MIME normally (Mastodon path unchanged)', () => {
+      const att: ApAttachment = { type: 'Document', mediaType: 'image/jpeg', url: 'https://m.example/x.jpg' };
+      expect(resolveApAttachment(att)).toEqual({ href: 'https://m.example/x.jpg', type: 'image' });
+    });
+  });
+
   describe('malformed / empty entries', () => {
     it('returns null for null/undefined attachment', () => {
       expect(resolveApAttachment(null)).toBeNull();
@@ -276,6 +318,22 @@ describe('extractApMediaFromNote', () => {
         { type: 'media', id: 'https://example/720.mp4', mediaType: 'video' },
       ],
     });
+  });
+
+  it('recovers a Bridgy Fed image attachment (no mediaType, extensionless getBlob URL)', () => {
+    const GETBLOB = 'https://cdn.bsky.network/xrpc/com.atproto.sync.getBlob?did=did:plc:z&cid=b';
+    const note = {
+      attachment: [{ type: 'Image', width: 1200, height: 800, url: GETBLOB }],
+    };
+    const out = extractApMediaFromNote(note);
+    expect(out.media[0]).toMatchObject({
+      id: GETBLOB,
+      type: 'image',
+      width: 1200,
+      height: 800,
+      orientation: 'landscape',
+    });
+    expect(out.attachments).toEqual([{ type: 'media', id: GETBLOB, mediaType: 'image' }]);
   });
 
   it('matches the legacy Mastodon string behavior with no regression', () => {

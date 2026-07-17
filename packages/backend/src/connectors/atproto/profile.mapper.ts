@@ -4,7 +4,7 @@ import FederatedActor, { IFederatedActor } from '../../models/FederatedActor';
 import { resolveOxyExternalUser } from '../identity';
 import type { NormalizedExternalActor } from '../types';
 import { xrpcGet } from './xrpcClient';
-import { PUBLIC_APPVIEW } from './constants';
+import { BSKY_NETWORK_DOMAIN, PUBLIC_APPVIEW } from './constants';
 
 /**
  * Maps an `app.bsky.actor.getProfile` response into a network-neutral actor,
@@ -32,17 +32,19 @@ export interface AtprotoProfileView {
  * A Bluesky handle is a bare DNS name. Its instance domain is the handle minus
  * its first label — but ONLY when that leaves a real ≥2-label domain:
  *   - `alice.bsky.social` (3 labels) → instance `bsky.social`.
- *   - `example.com` (a 2-label apex custom domain) is its OWN instance — stripping
- *     would leave the bare TLD `com`, so the full handle stays the domain.
+ *   - `gothamist.com` (a 2-label apex custom domain) has no strippable parent —
+ *     stripping would leave the bare TLD `com`, and using the handle itself as the
+ *     domain renders the doubled `@gothamist.com@gothamist.com`. It keys to the
+ *     Bluesky network host instead (`bsky.social`), rendering `@gothamist.com@bsky.social`.
  * The federated Oxy username is `<handle>@<instance-domain>`
- * (`alice.bsky.social@bsky.social`, `example.com@example.com`) — the exact form
+ * (`alice.bsky.social@bsky.social`, `gothamist.com@bsky.social`) — the exact form
  * oxy-api's `PUT /users/resolve` binds (username domain must equal `domain`).
  */
 function splitHandle(handle: string): { username: string; domain: string; federatedUsername: string } {
   const dot = handle.indexOf('.');
   // Strip the first label only if the remainder is still a multi-label domain.
   const parent = dot > 0 ? handle.slice(dot + 1) : handle;
-  const domain = parent.includes('.') ? parent : handle;
+  const domain = parent.includes('.') ? parent : BSKY_NETWORK_DOMAIN;
   return { username: handle, domain, federatedUsername: `${handle}@${domain}` };
 }
 

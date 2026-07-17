@@ -2,6 +2,7 @@ import { logger } from '../../utils/logger';
 import { actorService } from './actor.service';
 import { getApContentMap } from './apLanguage';
 import { primaryApType } from './apSchemas';
+import { bridgedMentionAnchorHrefs } from './bridgy';
 import { isBlockedDomain, resolveOxyUser } from './constants';
 
 /**
@@ -201,12 +202,18 @@ export async function resolveInboundMentions(
         if (!resolved) return;
         ids.add(resolved.oxyUserId);
         if (resolved.isLocal) localIds.add(resolved.oxyUserId);
-        // Map BOTH candidate anchor hrefs (actor URI + reconstructed profile URL)
-        // to this id so the content anchor matches regardless of which form the
-        // origin server used.
+        // Map every candidate anchor href to this id so the content anchor
+        // matches regardless of which form the origin server used: the actor URI
+        // (Pleroma / our own posts), the reconstructed `https://<domain>/@<user>`
+        // profile URL (Mastodon/Misskey), and — for a bridged Bluesky mention —
+        // the `https://bsky.app/profile/<did|handle>` web-profile forms Bridgy Fed
+        // uses in-content.
         anchorMap.set(normalizeActorHref(tag.href), resolved.oxyUserId);
         const profileHref = reconstructProfileHref(tag.name);
         if (profileHref) anchorMap.set(normalizeActorHref(profileHref), resolved.oxyUserId);
+        for (const bridged of bridgedMentionAnchorHrefs(tag)) {
+          anchorMap.set(normalizeActorHref(bridged), resolved.oxyUserId);
+        }
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         logger.warn(`[Federation] failed to resolve inbound mention ${tag.href}: ${message}`);

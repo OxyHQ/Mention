@@ -16,6 +16,8 @@ const mocks = vi.hoisted(() => ({
   postFind: vi.fn(),
   create: vi.fn(),
   materialize: vi.fn(),
+  federatedActorFindOne: vi.fn(),
+  fetchProfile: vi.fn(),
 }));
 
 vi.mock('../../../connectors/atproto/xrpcClient', () => ({ xrpcGet: mocks.xrpcGet }));
@@ -23,6 +25,16 @@ vi.mock('../../../connectors/atproto/xrpcClient', () => ({ xrpcGet: mocks.xrpcGe
 vi.mock('../../../models/Post', () => ({
   POST_CLASSIFICATION_PENDING: 'pending',
   Post: { find: mocks.postFind },
+}));
+
+vi.mock('../../../models/FederatedActor', () => ({
+  default: { findOne: mocks.federatedActorFindOne },
+}));
+
+// Mention resolution goes through the atproto profile path; mocked so the mapper's
+// mention/quote/reply resolution never reaches the heavy identity chain.
+vi.mock('../../../connectors/atproto/profile.mapper', () => ({
+  fetchAndUpsertAtprotoProfile: mocks.fetchProfile,
 }));
 
 vi.mock('../../../services/serviceRegistry', () => ({
@@ -78,6 +90,8 @@ beforeEach(() => {
   mocks.postFind.mockReturnValue({ select: () => ({ lean: async () => [] }) });
   mocks.create.mockResolvedValue({ _id: 'created1' });
   mocks.materialize.mockImplementation(async (media: unknown, attachments: unknown) => ({ media, attachments }));
+  mocks.federatedActorFindOne.mockReturnValue({ select: () => ({ lean: async () => null }) });
+  mocks.fetchProfile.mockResolvedValue(null);
 });
 
 describe('mapPostViewToNormalizedPost', () => {
@@ -159,6 +173,125 @@ describe('mapPostViewToNormalizedPost', () => {
     expect(post?.media).toEqual([{ id: 'https://cdn/playlist.m3u8', type: 'video', remoteUrl: 'https://cdn/playlist.m3u8' }]);
   });
 
+  it('replaces a #link facet display text with the full URL (byte-indexed)', () => {
+    // Bluesky stores the truncated display URL in `text` but the FULL url in the
+    // facet feature — the Gothamist bug. The facet byte range covers the display.
+    const text = 'Read gothamist.com/news/lo…'; // '…' is a 3-byte UTF-8 char
+    const byteEnd = Buffer.byteLength(text, 'utf8');
+    const post = mapPostViewToNormalizedPost(
+      postView('lnk', text, {
+        record: {
+          facets: [
+            {
+              index: { byteStart: 5, byteEnd },
+              features: [{ $type: 'app.bsky.richtext.facet#link', uri: 'https://gothamist.com/news/long-article' }],
+            },
+          ],
+        },
+      }),
+      DID,
+    );
+    expect(post?.text).toBe('Read https://gothamist.com/news/long-article');
+  });
+
+  it('handles multiple #link facets with a multibyte emoji before them', () => {
+    // '👋' is 4 UTF-8 bytes: a JS-string (UTF-16) index would mis-target the facet.
+    const text = '👋 foo.co and bar.co';
+    const post = mapPostViewToNormalizedPost(
+      postView('multi', text, {
+        record: {
+          facets: [
+            {
+              index: { byteStart: 5, byteEnd: 11 }, // 'foo.co'
+              features: [{ $type: 'app.bsky.richtext.facet#link', uri: 'https://foo.co/full' }],
+            },
+            {
+              index: { byteStart: 16, byteEnd: 22 }, // 'bar.co'
+              features: [{ $type: 'app.bsky.richtext.facet#link', uri: 'https://bar.co/full' }],
+            },
+          ],
+        },
+      }),
+      DID,
+    );
+    expect(post?.text).toBe('👋 https://foo.co/full and https://bar.co/full');
+  });
+
+  it('replaces a resolved #mention facet with a [mention:<id>] placeholder and collects it', () => {
+    const MENTION_DID = 'did:plc:bob00000000000000000000';
+    const post = mapPostViewToNormalizedPost(
+      postView('mp', 'hi @bob.bsky.social!', {
+        record: {
+          facets: [
+            {
+              index: { byteStart: 3, byteEnd: 19 }, // '@bob.bsky.social'
+              features: [{ $type: 'app.bsky.richtext.facet#mention', did: MENTION_DID }],
+            },
+          ],
+        },
+      }),
+      DID,
+      new Map([[MENTION_DID, 'oxy-bob']]),
+    );
+    expect(post?.text).toBe('hi [mention:oxy-bob]!');
+    expect(post?.mentions).toEqual(['oxy-bob']);
+  });
+
+  it('leaves an unresolved #mention as bare @handle text (no placeholder, no mentions)', () => {
+    const post = mapPostViewToNormalizedPost(
+      postView('um', 'hi @ghost.bsky.social!', {
+        record: {
+          facets: [
+            {
+              index: { byteStart: 3, byteEnd: 21 }, // '@ghost.bsky.social'
+              features: [{ $type: 'app.bsky.richtext.facet#mention', did: 'did:plc:ghost0000000000000000000' }],
+            },
+          ],
+        },
+      }),
+      DID,
+      new Map(), // nothing resolved
+    );
+    expect(post?.text).toBe('hi @ghost.bsky.social!');
+    expect(post?.mentions).toBeUndefined();
+  });
+
+  it('maps an embedded record#view quote to quotedUri', () => {
+    const QUOTED_URI = 'at://did:plc:q/app.bsky.feed.post/qk';
+    const post = mapPostViewToNormalizedPost(
+      postView('q', 'nice', {
+        embed: {
+          $type: 'app.bsky.embed.record#view',
+          record: { $type: 'app.bsky.embed.record#viewRecord', uri: QUOTED_URI },
+        },
+      }),
+      DID,
+    );
+    expect(post?.quotedUri).toBe(QUOTED_URI);
+  });
+
+  it('maps a recordWithMedia#view quote to quotedUri and keeps the media', () => {
+    const QUOTED_URI = 'at://did:plc:q/app.bsky.feed.post/qk';
+    const post = mapPostViewToNormalizedPost(
+      postView('qm', 'nice pic', {
+        embed: {
+          $type: 'app.bsky.embed.recordWithMedia#view',
+          record: {
+            $type: 'app.bsky.embed.record#view',
+            record: { $type: 'app.bsky.embed.record#viewRecord', uri: QUOTED_URI },
+          },
+          media: {
+            $type: 'app.bsky.embed.images#view',
+            images: [{ fullsize: 'https://cdn/q.jpg', alt: 'pic' }],
+          },
+        },
+      }),
+      DID,
+    );
+    expect(post?.quotedUri).toBe(QUOTED_URI);
+    expect(post?.media).toEqual([{ id: 'https://cdn/q.jpg', type: 'image', remoteUrl: 'https://cdn/q.jpg', alt: 'pic' }]);
+  });
+
   it('rejects a non-feed-post record, a wrong author, and a non-AT-URI', () => {
     // Wrong collection (a like, not a post).
     expect(
@@ -227,5 +360,95 @@ describe('importAuthorFeed', () => {
     expect(result.posts).toEqual([]);
     expect(mocks.xrpcGet).not.toHaveBeenCalled();
     expect(mocks.create).not.toHaveBeenCalled();
+  });
+
+  it('stamps parentPostId + threadId when the reply parent is imported locally', async () => {
+    const PARENT_URI = 'at://did:plc:parent/app.bsky.feed.post/root';
+    mocks.xrpcGet.mockResolvedValue({
+      feed: [{ post: postView('reply', 'a reply', { record: { reply: { parent: { uri: PARENT_URI } } } }) }],
+    });
+    // The dedup query selects only the activityId; the thread/quote resolver
+    // selects `_id threadId federation.activityId` — branch on that to return the
+    // parent for the resolver but nothing for the dedup.
+    mocks.postFind.mockImplementation(() => ({
+      select: (fields: string) => ({
+        lean: async () =>
+          fields === 'federation.activityId'
+            ? []
+            : [{ _id: 'parent1', threadId: 'root1', federation: { activityId: PARENT_URI } }],
+      }),
+    }));
+
+    await importAuthorFeed(ACTOR);
+
+    expect(mocks.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        federation: expect.objectContaining({ inReplyTo: PARENT_URI }),
+        parentPostId: 'parent1',
+        threadId: 'root1',
+      }),
+    );
+  });
+
+  it('resolves an embedded quote to a local quoteOf when the quoted post is imported', async () => {
+    const QUOTED_URI = 'at://did:plc:quoted/app.bsky.feed.post/qkey';
+    mocks.xrpcGet.mockResolvedValue({
+      feed: [
+        {
+          post: postView('quoter', 'check this', {
+            embed: {
+              $type: 'app.bsky.embed.record#view',
+              record: { $type: 'app.bsky.embed.record#viewRecord', uri: QUOTED_URI },
+            },
+          }),
+        },
+      ],
+    });
+    mocks.postFind.mockImplementation(() => ({
+      select: (fields: string) => ({
+        lean: async () =>
+          fields === 'federation.activityId' ? [] : [{ _id: 'quoted1', federation: { activityId: QUOTED_URI } }],
+      }),
+    }));
+
+    await importAuthorFeed(ACTOR);
+
+    expect(mocks.create).toHaveBeenCalledWith(expect.objectContaining({ quoteOf: 'quoted1' }));
+  });
+
+  it('resolves a mention facet (via the synced FederatedActor) into a placeholder + post.mentions', async () => {
+    const MENTION_DID = 'did:plc:mentioned00000000000000';
+    mocks.xrpcGet.mockResolvedValue({
+      feed: [
+        {
+          post: postView('m', 'hi @bob.bsky.social!', {
+            record: {
+              facets: [
+                {
+                  index: { byteStart: 3, byteEnd: 19 },
+                  features: [{ $type: 'app.bsky.richtext.facet#mention', did: MENTION_DID }],
+                },
+              ],
+            },
+          }),
+        },
+      ],
+    });
+    // The mentioned DID is already a synced actor → resolved from the cache (no
+    // network fetch through `fetchAndUpsertAtprotoProfile`).
+    mocks.federatedActorFindOne.mockReturnValue({
+      select: () => ({ lean: async () => ({ oxyUserId: 'oxy-bob' }) }),
+    });
+
+    await importAuthorFeed(ACTOR);
+
+    expect(mocks.federatedActorFindOne).toHaveBeenCalledWith({ uri: MENTION_DID });
+    expect(mocks.fetchProfile).not.toHaveBeenCalled();
+    expect(mocks.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        mentions: ['oxy-bob'],
+        content: expect.objectContaining({ text: 'hi [mention:oxy-bob]!' }),
+      }),
+    );
   });
 });

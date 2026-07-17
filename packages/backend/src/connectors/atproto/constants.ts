@@ -31,6 +31,16 @@ export const PLC_DIRECTORY = process.env.ATPROTO_PLC_DIRECTORY || 'plc.directory
 /** Bluesky's web app origin — the canonical web URL for a post / profile. */
 export const BSKY_APP_ORIGIN = 'https://bsky.app';
 
+/**
+ * The Bluesky network's canonical host, used as the federated instance domain for
+ * an APEX custom handle — a 2-label domain like `gothamist.com` whose first label
+ * cannot be stripped without leaving a bare TLD (`com`). A regular handle derives
+ * its instance from its parent domain (`alice.bsky.social` → `bsky.social`); an
+ * apex handle has none, so it keys to the network host and renders cleanly as
+ * `@gothamist.com@bsky.social` instead of the doubled `@gothamist.com@gothamist.com`.
+ */
+export const BSKY_NETWORK_DOMAIN = 'bsky.social';
+
 /** The atproto record collection that holds a feed post. */
 export const POST_COLLECTION = 'app.bsky.feed.post';
 
@@ -75,6 +85,21 @@ export function isDid(subject: string): boolean {
 /** True when `subject` is an AT-URI. */
 export function isAtUri(subject: string): boolean {
   return AT_URI_RE.test(subject);
+}
+
+/**
+ * The atproto DID authority of an AT-URI, whether the URI is bare
+ * (`at://did:plc:.../app.bsky.feed.post/<rkey>`) or embedded in a larger URL
+ * (Bridgy Fed wraps it as `https://bsky.brid.gy/convert/ap/at://<did>/...`).
+ *
+ * Returns the DID only when the authority is a supported atproto DID; a handle
+ * authority (`at://alice.bsky.social/...`) is deliberately rejected, because
+ * callers need a STABLE did to derive a deterministic bridged actor URI. Returns
+ * undefined when no `at://<did>` appears in the input.
+ */
+export function didFromAtUri(value: string): string | undefined {
+  const did = value.match(/at:\/\/(did:(?:plc|web):[^/\s?#]+)/i)?.[1];
+  return did && ANY_DID_RE.test(did) ? did : undefined;
 }
 
 /**
