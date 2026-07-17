@@ -1,41 +1,23 @@
 import { useEffect } from 'react';
-import { useBloomTheme, hexToAppColorName, type ThemeMode } from '@oxyhq/bloom/theme';
 import { useAppearanceStore } from '@/store/appearanceStore';
 import { useAuth } from '@oxyhq/services';
 
-const VALID_THEME_MODES: ReadonlySet<ThemeMode> = new Set<ThemeMode>([
-  'light',
-  'dark',
-  'system',
-  'adaptive',
-]);
-
-function isValidThemeMode(value: string | undefined): value is ThemeMode {
-  return typeof value === 'string' && VALID_THEME_MODES.has(value as ThemeMode);
-}
-
+/**
+ * Loads the viewer's Mention appearance settings (post-text length, read-more
+ * behavior, bio collapse, profile customization) into the appearance store once
+ * the session can reach the private API.
+ *
+ * The active Bloom theme (color mode + preset) is NOT driven from here: it is
+ * owned by `useAccountThemeSync`, which applies the portable Oxy account theme
+ * (`user.themePreference`) when the local source is `account`, and otherwise
+ * leaves Bloom on its own persisted (app-default) value.
+ */
 export function useServerAppearanceSync(): void {
   const { canUsePrivateApi } = useAuth();
-  const mySettings = useAppearanceStore((state) => state.mySettings);
   const loadMySettings = useAppearanceStore((state) => state.loadMySettings);
-  const { setMode, setColorPreset } = useBloomTheme();
 
   useEffect(() => {
     if (!canUsePrivateApi) return;
     void loadMySettings(true);
   }, [canUsePrivateApi, loadMySettings]);
-
-  useEffect(() => {
-    if (!canUsePrivateApi) return;
-    const appearance = mySettings?.appearance;
-    if (!appearance) return;
-
-    if (isValidThemeMode(appearance.themeMode)) {
-      setMode(appearance.themeMode);
-    }
-
-    if (appearance.primaryColor && appearance.primaryColor.length > 0) {
-      setColorPreset(hexToAppColorName(appearance.primaryColor));
-    }
-  }, [canUsePrivateApi, mySettings, setMode, setColorPreset]);
 }

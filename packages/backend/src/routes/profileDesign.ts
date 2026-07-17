@@ -21,7 +21,6 @@ interface PublicProfileDesignResponse {
   postsCount?: number;
   boostsCount?: number;
   repliesCount?: number;
-  followsYou?: boolean;
   appearance?: {
     primaryColor?: string;
   };
@@ -116,16 +115,6 @@ router.get('/:userId', async (req: AuthRequest, res: Response) => {
     response.postsCount = postsCount;
     response.boostsCount = boostsCount;
     response.repliesCount = repliesCount;
-
-    // Check if profile user follows the viewer (for "Follows you" badge)
-    if (currentUserId && currentUserId !== userId) {
-      try {
-        const followsViewer = await checkFollowAccess(userId, currentUserId);
-        response.followsYou = followsViewer;
-      } catch {
-        response.followsYou = false;
-      }
-    }
 
     // Include privacy info in response
     if (doc?.privacy?.profileVisibility) {

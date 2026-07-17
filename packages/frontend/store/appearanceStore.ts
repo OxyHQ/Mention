@@ -100,7 +100,6 @@ export interface UserAppearance {
    * means the user has not set one.
    */
   profileMedia?: ProfileMedia | null;
-  followsYou?: boolean;
   privacy?: {
     profileVisibility?: 'public' | 'private' | 'followers_only';
   };

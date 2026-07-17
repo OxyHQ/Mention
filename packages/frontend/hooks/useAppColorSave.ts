@@ -4,26 +4,39 @@ import { APP_COLOR_PRESETS, useBloomTheme, type AppColorName } from '@oxyhq/bloo
 import { logger } from '@/lib/logger';
 import { queryClient } from '@/lib/queryClient';
 import { useAppearanceStore } from '@/store/appearanceStore';
+import { useThemeSourceStore } from '@/store/themeSourceStore';
 
 /**
- * Hook that centralizes the three-step color save sequence:
- * 1. Update Bloom theme for immediate effect
- * 2. Save color name to Oxy core (shared across ecosystem)
- * 3. Save hex to Mention backend (for backward compat / profile design)
+ * Hook that centralizes the color save sequence:
+ * 1. Update Bloom theme for immediate effect.
+ * 2. Save the color name to the Oxy user as the profile accent (`color`), plus —
+ *    when the theme source is `account` — the portable account theme
+ *    (`themePreference.colorPreset`) in the SAME profile write, so the preset
+ *    rides other Oxy apps and survives the next cold boot (otherwise the theme
+ *    bridge would reapply the previous account color).
+ * 3. Save the hex to the Mention backend (for backward compat / profile design).
  */
 export function useAppColorSave() {
   const { oxyServices } = useAuth();
-  const { setColorPreset } = useBloomTheme();
+  const { mode, setColorPreset } = useBloomTheme();
   const updateMySettings = useAppearanceStore((state) => state.updateMySettings);
+  const source = useThemeSourceStore((state) => state.source);
   const [saving, setSaving] = useState(false);
 
   const saveColor = useCallback(async (name: AppColorName) => {
     setSaving(true);
     setColorPreset(name);
     const hex = APP_COLOR_PRESETS[name].hex;
+    const profileUpdate: Parameters<typeof oxyServices.updateProfile>[0] = { color: name };
+    if (source === 'account') {
+      profileUpdate.themePreference = {
+        mode: mode === 'light' || mode === 'dark' ? mode : 'system',
+        colorPreset: name,
+      };
+    }
     try {
       await Promise.all([
-        oxyServices.updateProfile({ color: name }),
+        oxyServices.updateProfile(profileUpdate),
         updateMySettings({
           appearance: { primaryColor: hex },
         }),
@@ -41,7 +54,7 @@ export function useAppColorSave() {
     } finally {
       setSaving(false);
     }
-  }, [oxyServices, setColorPreset, updateMySettings]);
+  }, [oxyServices, setColorPreset, updateMySettings, source, mode]);
 
   return { saveColor, saving };
 }

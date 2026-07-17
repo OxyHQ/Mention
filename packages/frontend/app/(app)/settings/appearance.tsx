@@ -10,15 +10,19 @@ import { useTheme, useBloomTheme } from '@oxyhq/bloom/theme';
 import { Loading } from '@oxyhq/bloom/loading';
 import { useTranslation } from 'react-i18next';
 import { SegmentedControl, SegmentedControlItem, SegmentedControlItemText } from '@oxyhq/bloom/segmented-control';
-import { SettingsListDivider } from '@oxyhq/bloom/settings-list';
+import { SettingsListDivider, SettingsListGroup, SettingsListItem } from '@oxyhq/bloom/settings-list';
 import { Icon } from '@/lib/icons';
+import { Toggle } from '@/components/Toggle';
+import { RowIcon } from '@/components/settings/RowIcon';
+import { useThemeControls } from '@/hooks/useAccountTheme';
 
 type ThemeMode = 'system' | 'light' | 'dark';
 
 export default function AppearanceSettingsScreen() {
   const mySettings = useAppearanceStore((state) => state.mySettings);
   const updateMySettings = useAppearanceStore((state) => state.updateMySettings);
-  const { mode: bloomMode, setMode } = useBloomTheme();
+  const { mode: bloomMode } = useBloomTheme();
+  const { source, changeThemeSource, changeThemeMode } = useThemeControls();
   const safeBack = useSafeBack();
   const { colors } = useTheme();
   const { t } = useTranslation();
@@ -32,31 +36,30 @@ export default function AppearanceSettingsScreen() {
   const [settingsSaving, setSettingsSaving] = useState(false);
 
   const saveSettings = useCallback(async (updates: {
-    themeMode?: ThemeMode;
     postTextExpand?: PostTextExpand;
     postReadMoreAction?: PostReadMoreAction;
     collapseLongBio?: boolean;
   }) => {
     setSettingsSaving(true);
-    const mode = updates.themeMode ?? themeMode;
     const expand = updates.postTextExpand ?? postTextExpand;
     const readMoreAction = updates.postReadMoreAction ?? postReadMoreAction;
     const collapseBio = updates.collapseLongBio ?? collapseLongBio;
     await updateMySettings({
       appearance: {
-        themeMode: mode,
         postTextExpand: expand,
         postReadMoreAction: readMoreAction,
         collapseLongBio: collapseBio,
       },
     });
     setSettingsSaving(false);
-  }, [themeMode, postTextExpand, postReadMoreAction, collapseLongBio, updateMySettings]);
+  }, [postTextExpand, postReadMoreAction, collapseLongBio, updateMySettings]);
 
+  // Color mode is owned by the theme bridge: it updates Bloom immediately and,
+  // when the theme source is `account`, writes back to the Oxy account theme.
   const onThemeModeChange = useCallback((mode: ThemeMode) => {
-    setMode(mode);
-    void saveSettings({ themeMode: mode });
-  }, [saveSettings, setMode]);
+    setSettingsSaving(true);
+    void changeThemeMode(mode).finally(() => setSettingsSaving(false));
+  }, [changeThemeMode]);
 
   const onPostTextExpandChange = useCallback((value: PostTextExpand) => {
     void saveSettings({ postTextExpand: value });
@@ -95,6 +98,29 @@ export default function AppearanceSettingsScreen() {
         contentContainerClassName="py-4"
         showsVerticalScrollIndicator={false}
       >
+        {/* Theme source: portable account theme vs. a device-local app theme */}
+        <SettingsListGroup
+          footer={t(
+            'settings.theme.source.footer',
+            'When on, your color mode and accent are saved to your Oxy account and shared across Oxy apps. When off, this device keeps its own theme.',
+          )}
+        >
+          <SettingsListItem
+            icon={<RowIcon name="cloud-outline" />}
+            title={t('settings.theme.source.useAccount', 'Sync theme with account')}
+            description={t('settings.theme.source.useAccountDesc', 'Use your Oxy account theme on this device')}
+            showChevron={false}
+            rightElement={
+              <Toggle
+                value={source === 'account'}
+                onValueChange={(on) => changeThemeSource(on ? 'account' : 'app')}
+              />
+            }
+          />
+        </SettingsListGroup>
+
+        <SettingsListDivider />
+
         {/* Color mode */}
         <View className="px-5 py-3 gap-3">
           <View className="flex-row items-center gap-3">
