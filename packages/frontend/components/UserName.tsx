@@ -9,7 +9,7 @@ import { AgentIcon } from '@/assets/icons/agent-icon';
 import { AutomatedIcon } from '@/assets/icons/automated-icon';
 import type { UserNameProps } from '@/components/Profile/types';
 
-const UserName: React.FC<UserNameProps> = ({ name, handle, verified, isFederated, isAgent, isAutomated, unifiedColors, onPress, variant = 'default', style, trailingBadge }) => {
+const UserName: React.FC<UserNameProps> = ({ name, handle, verified, isFederated, isAgent, isAutomated, unifiedColors, onPress, variant = 'default', style, trailingBadge, handleTrailing }) => {
     const theme = useTheme();
     const nameStyle = [styles.name, variant === 'small' && styles.nameSmall, style?.name];
 
@@ -40,6 +40,60 @@ const UserName: React.FC<UserNameProps> = ({ name, handle, verified, isFederated
     const primaryText = hasName ? name : (handle ? `@${handle}` : undefined);
     const showHandleLine = hasName && !!handle;
 
+    // Handle line: the muted `@handle`, optionally with a passive inline element
+    // (e.g. a "Follows you" tag) rendered to its right on the SAME line. When a
+    // trailing element is present the handle is wrapped in a row and the caller's
+    // bottom margin is relocated onto that row so the tag stays vertically
+    // centered with the handle text; the handle itself shrinks first so it stays
+    // primary. With no trailing element the original single-Text path is kept
+    // byte-for-byte, so every other caller is unaffected.
+    let handleLineNode: React.ReactNode = null;
+    if (showHandleLine) {
+        if (handleTrailing != null) {
+            const flatHandle = StyleSheet.flatten([styles.handle, style?.handle]) as TextStyle;
+            const { marginBottom: handleMarginBottom, ...handleTextStyle } = flatHandle;
+            const handleText = (
+                <Text
+                    className="text-muted-foreground"
+                    style={[handleTextStyle, styles.handleShrink]}
+                    numberOfLines={1}
+                    ellipsizeMode="tail"
+                >
+                    @{handle}
+                </Text>
+            );
+            handleLineNode = (
+                <View
+                    className="gap-2"
+                    style={[styles.handleTrailingRow, handleMarginBottom != null ? { marginBottom: handleMarginBottom } : null]}
+                >
+                    {isFederated ? (
+                        <TouchableOpacity activeOpacity={0.7} onPress={handleCopyHandle} style={styles.handleShrink}>
+                            {handleText}
+                        </TouchableOpacity>
+                    ) : (
+                        handleText
+                    )}
+                    {handleTrailing}
+                </View>
+            );
+        } else if (isFederated) {
+            handleLineNode = (
+                <TouchableOpacity activeOpacity={0.7} onPress={handleCopyHandle}>
+                    <Text className="text-muted-foreground" style={[styles.handle, style?.handle]} numberOfLines={1} ellipsizeMode="tail">
+                        @{handle}
+                    </Text>
+                </TouchableOpacity>
+            );
+        } else {
+            handleLineNode = (
+                <Text className="text-muted-foreground" style={[styles.handle, style?.handle]} numberOfLines={1} ellipsizeMode="tail">
+                    @{handle}
+                </Text>
+            );
+        }
+    }
+
     const inner = (
         <>
             <View className="gap-1" style={styles.nameRow}>
@@ -62,19 +116,7 @@ const UserName: React.FC<UserNameProps> = ({ name, handle, verified, isFederated
                 )}
                 {trailingBadge}
             </View>
-            {showHandleLine ? (
-                isFederated ? (
-                    <TouchableOpacity activeOpacity={0.7} onPress={handleCopyHandle}>
-                        <Text className="text-muted-foreground" style={[styles.handle, style?.handle]} numberOfLines={1} ellipsizeMode="tail">
-                            @{handle}
-                        </Text>
-                    </TouchableOpacity>
-                ) : (
-                    <Text className="text-muted-foreground" style={[styles.handle, style?.handle]} numberOfLines={1} ellipsizeMode="tail">
-                        @{handle}
-                    </Text>
-                )
-            ) : null}
+            {handleLineNode}
         </>
     );
 
@@ -122,6 +164,17 @@ const styles = StyleSheet.create({
     handle: {
         fontSize: 15,
         lineHeight: 20,
+    },
+    // Row that holds the `@handle` plus an inline trailing tag; the handle keeps
+    // the flexible space and shrinks first so the tag never pushes it offscreen.
+    handleTrailingRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        minWidth: 0,
+    },
+    handleShrink: {
+        flexShrink: 1,
+        minWidth: 0,
     },
 });
 

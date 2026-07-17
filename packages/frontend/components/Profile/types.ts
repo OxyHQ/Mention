@@ -46,8 +46,10 @@ export interface UserNameProps {
   };
   unifiedColors?: boolean;
   onPress?: () => void;
-  /** Extra element rendered inline after the verified/federated/agent icons. */
+  /** Extra element rendered inline after the verified/federated/agent icons (name line). */
   trailingBadge?: React.ReactNode;
+  /** Passive element rendered inline to the right of the `@handle` on the handle line (e.g. a "Follows you" tag). */
+  handleTrailing?: React.ReactNode;
 }
 
 export type UserNameComponent = React.ComponentType<UserNameProps>;
