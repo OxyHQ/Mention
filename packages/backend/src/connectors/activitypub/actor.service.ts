@@ -18,7 +18,7 @@ import {
   domainFromAcct,
 } from './helpers';
 import { readBoundedResponseBody } from '../shared/httpBody';
-import { resolveOxyExternalUser } from '../identity';
+import { reportFederatedActorGone, resolveOxyExternalUser } from '../identity';
 import type { NormalizedExternalActor } from '../types';
 
 /**
@@ -166,6 +166,19 @@ export class ActorService {
       // Use signed fetch for servers that enforce authorized fetch (e.g., Threads)
       let res = await signedFetch(actorUri, AP_CONTENT_TYPE);
       if (!res.ok) {
+        // A definitive 410 Gone is authoritative: the actor was permanently
+        // DELETED upstream (Mastodon serves 410 for a deleted account). Tombstone
+        // it and stop — do NOT fall through to the WebFinger fallback below, which
+        // exists to recover from a STALE/wrong URI on a transient failure, not to
+        // second-guess a permanent removal. Only 410 does this; every other
+        // non-ok status keeps the unchanged fallback behavior. `actorUri` here is
+        // still the originally-requested (stored) URI — reassignment to a resolved
+        // URI only happens on a successful WebFinger fetch below.
+        if (res.status === 410) {
+          logger.info(`[FedSync] fetchRemoteActor 410 Gone for ${actorUri} — tombstoning actor`);
+          await this.tombstoneGoneActor(actorUri);
+          return null;
+        }
         const body = await res.text().catch(() => '');
         logger.info(`[FedSync] fetchRemoteActor HTTP ${res.status} ${res.statusText} for ${actorUri} body=${body.slice(0, 500)}`);
 
@@ -185,6 +198,16 @@ export class ActorService {
             if (res.ok) {
               actorUri = resolved;
             } else {
+              // A 410 on the WebFinger-RESOLVED URI is just as definitive as one
+              // on the direct URI — the account is gone at its canonical location.
+              // Tombstone against the stored `actorUri` (the row is keyed by the
+              // originally-requested URI, which is NOT reassigned on this failure
+              // branch), then stop.
+              if (res.status === 410) {
+                logger.info(`[FedSync] fetchRemoteActor 410 Gone for resolved ${resolved} — tombstoning actor ${actorUri}`);
+                await this.tombstoneGoneActor(actorUri);
+                return null;
+              }
               const body2 = await res.text().catch(() => '');
               logger.info(`[FedSync] fetchRemoteActor HTTP ${res.status} for resolved ${resolved} body=${body2.slice(0, 500)}`);
               return null;
@@ -356,6 +379,54 @@ export class ActorService {
     } catch (err) {
       logger.warn(`Failed to fetch remote actor ${actorUri}:`, err);
       return null;
+    }
+  }
+
+  /**
+   * Tombstone a remote actor that returned a definitive 410 Gone. Marks the stored
+   * `FederatedActor` as `suspended` (the schema's existing gone flag — a suspended
+   * actor is already excluded from active surfaces, and it carries the exact
+   * "no longer reachable upstream" meaning we need; a parallel `gone` field would
+   * be redundant) and, when the actor links to an Oxy identity, asks oxy-api to
+   * archive it via {@link reportFederatedActorGone} so it drops out of search.
+   *
+   * The `FederatedActor` document is NEVER deleted — posts, boosts and MTN records
+   * may still reference the actor (see the model doc); this is a tombstone, not a
+   * purge.
+   *
+   * Best-effort and fail-soft: a 410 is authoritative, but neither the Mongo write
+   * nor the Oxy archive call is allowed to throw out of the caller — a failure here
+   * only logs. Idempotent: re-running on an already-suspended actor re-sets the
+   * same flag and re-reports (oxy-api's actor-gone is itself idempotent). Shared by
+   * the live fetch path ({@link fetchRemoteActor}) and the one-shot
+   * `pruneGoneFederatedActors` sweep so there is exactly ONE tombstone
+   * implementation.
+   *
+   * @param actorUri - the stored `FederatedActor.uri` to tombstone. When no row
+   *   matches (a 410 for an actor we never tracked) this is a logged no-op — we do
+   *   not upsert a suspended row for an actor that isn't in our index.
+   */
+  async tombstoneGoneActor(actorUri: string): Promise<void> {
+    try {
+      const actor = await FederatedActor.findOneAndUpdate(
+        { uri: actorUri },
+        { $set: { suspended: true } },
+        { returnDocument: 'after', projection: { oxyUserId: 1 } },
+      ).lean<Pick<IFederatedActor, 'oxyUserId'>>();
+
+      if (!actor) {
+        logger.info(`[FedSync] 410 Gone for ${actorUri} — no stored actor row to tombstone`);
+        return;
+      }
+
+      logger.info(`[FedSync] tombstoned gone actor ${actorUri} (suspended)`);
+
+      if (actor.oxyUserId) {
+        const outcome = await reportFederatedActorGone(actor.oxyUserId);
+        logger.info(`[FedSync] actor-gone report for ${actorUri} (oxyUserId ${actor.oxyUserId}) → ${outcome}`);
+      }
+    } catch (err) {
+      logger.warn(`[FedSync] failed to tombstone gone actor ${actorUri}:`, err);
     }
   }
 
