@@ -1,4 +1,5 @@
 import { logger } from '../../utils/logger';
+import FederatedActor from '../../models/FederatedActor';
 import { actorService } from './actor.service';
 import { getApContentMap } from './apLanguage';
 import { primaryApType } from './apSchemas';
@@ -142,17 +143,54 @@ export function extractMentionTags(object: Record<string, unknown>): InboundMent
 }
 
 /**
+ * Resolve a mentioned actor URI that is NOT one of our own/blocked domains — i.e.
+ * a genuine REMOTE actor — to its stored Oxy user id, or `null` when it cannot be
+ * resolved. The two mention paths differ ONLY here: the live inbox path
+ * fetches-and-creates the actor when unknown; the repair path looks it up without
+ * any network fetch or create.
+ */
+type RemoteMentionResolver = (href: string) => Promise<string | null>;
+
+/**
+ * Live-path remote resolver: resolve — and SYNC/CREATE if new — the remote actor
+ * through {@link ActorService.getOrFetchActor}. Used only by the inbox ingest path,
+ * where discovering a first-seen mentioned actor is desired.
+ */
+const fetchOrCreateRemoteActorOxyId: RemoteMentionResolver = async (href) => {
+  const actor = await actorService.getOrFetchActor(href);
+  return actor?.oxyUserId ? String(actor.oxyUserId) : null;
+};
+
+/**
+ * Repair-path remote resolver: resolve the remote actor against ALREADY-STORED
+ * `FederatedActor` rows ONLY (keyed by its URI, exactly as `getOrFetchActor` keys
+ * its own lookup). NEVER performs a network fetch and NEVER creates a row — an
+ * actor with no stored row (or a stored row not yet linked to an Oxy user)
+ * resolves to `null`, so the caller SKIPS it. That is what keeps a bulk one-shot
+ * repair from minting 0-post ghost federated actors for every account a legacy
+ * post happened to mention (including deleted/spam accounts that now 410 Gone).
+ */
+const lookupExistingRemoteActorOxyId: RemoteMentionResolver = async (href) => {
+  const actor = await FederatedActor.findOne({ uri: href }, { oxyUserId: 1 }).lean<{
+    oxyUserId?: string;
+  } | null>();
+  return actor?.oxyUserId ? String(actor.oxyUserId) : null;
+};
+
+/**
  * Resolve one mentioned actor URI to its Oxy user id.
  *
  * An href on one of our own domains (or the Oxy identity apex) is a LOCAL user:
  * resolve it through Oxy by username — NEVER fetch it as a remote actor (that path
  * rejects own/blocked domains). Any other href is a genuine remote actor, resolved
- * (and synced/created if new) through {@link ActorService.getOrFetchActor}. Returns
- * `null` when the actor cannot be resolved to an Oxy user, so the caller leaves the
- * anchor as bare text rather than minting a broken link.
+ * through the supplied {@link RemoteMentionResolver} — fetch-and-create for the
+ * live inbox path, lookup-only for the repair path. Returns `null` when the actor
+ * cannot be resolved to an Oxy user, so the caller leaves the anchor as bare text
+ * rather than minting a broken link.
  */
 async function resolveMentionOxyId(
   href: string,
+  resolveRemote: RemoteMentionResolver,
 ): Promise<{ oxyUserId: string; isLocal: boolean } | null> {
   let host: string;
   try {
@@ -169,18 +207,23 @@ async function resolveMentionOxyId(
     return oxyUserId ? { oxyUserId, isLocal: true } : null;
   }
 
-  const actor = await actorService.getOrFetchActor(href);
-  return actor?.oxyUserId ? { oxyUserId: String(actor.oxyUserId), isLocal: false } : null;
+  const oxyUserId = await resolveRemote(href);
+  return oxyUserId ? { oxyUserId, isLocal: false } : null;
 }
 
 /**
- * Resolve every `Mention` tag on an inbound Note to its Oxy user id, batched (each
- * distinct actor href is resolved AT MOST once — no N+1). Fail-soft per mention: a
- * tag that fails to resolve is simply absent from the result, leaving its anchor as
- * bare text. Returns empty maps/arrays when the Note carries no `Mention` tags.
+ * Shared engine behind {@link resolveInboundMentions} and
+ * {@link resolveInboundMentionsExisting}: extract the `Mention` tags, resolve each
+ * DISTINCT actor href AT MOST once (no N+1), and build the id/localId sets plus the
+ * candidate-anchor map. Fail-soft per mention (a tag that fails to resolve is
+ * simply absent, leaving its anchor as bare text). The ONLY behavioural difference
+ * between the two public callers is `resolveRemote` — whether an unknown remote
+ * actor is fetched-and-created or looked up read-only — so both cover the exact
+ * same set of anchor href forms.
  */
-export async function resolveInboundMentions(
+async function buildResolvedInboundMentions(
   object: Record<string, unknown>,
+  resolveRemote: RemoteMentionResolver,
 ): Promise<ResolvedInboundMentions> {
   const tags = extractMentionTags(object);
   if (tags.length === 0) return { ids: [], localIds: [], anchorMap: new Map() };
@@ -198,7 +241,7 @@ export async function resolveInboundMentions(
   await Promise.all(
     [...byHref.values()].map(async (tag) => {
       try {
-        const resolved = await resolveMentionOxyId(tag.href);
+        const resolved = await resolveMentionOxyId(tag.href, resolveRemote);
         if (!resolved) return;
         ids.add(resolved.oxyUserId);
         if (resolved.isLocal) localIds.add(resolved.oxyUserId);
@@ -222,6 +265,40 @@ export async function resolveInboundMentions(
   );
 
   return { ids: [...ids], localIds: [...localIds], anchorMap };
+}
+
+/**
+ * Resolve every `Mention` tag on an inbound Note to its Oxy user id, batched (each
+ * distinct actor href is resolved AT MOST once — no N+1). Fail-soft per mention: a
+ * tag that fails to resolve is simply absent from the result, leaving its anchor as
+ * bare text. Returns empty maps/arrays when the Note carries no `Mention` tags.
+ *
+ * This is the LIVE inbox path: an unknown remote actor is fetched-and-synced (a
+ * `FederatedActor` row is created) so a first-seen mention still links. For the
+ * one-shot repair use {@link resolveInboundMentionsExisting}, which never fetches
+ * or creates an actor.
+ */
+export async function resolveInboundMentions(
+  object: Record<string, unknown>,
+): Promise<ResolvedInboundMentions> {
+  return buildResolvedInboundMentions(object, fetchOrCreateRemoteActorOxyId);
+}
+
+/**
+ * Lookup-only variant of {@link resolveInboundMentions} for the one-shot repair
+ * path: resolve each mention against ALREADY-KNOWN identities only — local Oxy
+ * users and EXISTING `FederatedActor` rows — and NEVER fetch or create a remote
+ * actor. A mentioned actor that is not already stored is SKIPPED (its anchor is
+ * left as raw text), which is strictly better than minting a 0-post ghost
+ * federated actor for every account a legacy post happened to mention (deleted or
+ * spam Mastodon accounts that now 410 Gone included). Same
+ * {@link ResolvedInboundMentions} shape and same anchor-form coverage as the live
+ * path — the create-vs-lookup choice is the only difference.
+ */
+export async function resolveInboundMentionsExisting(
+  object: Record<string, unknown>,
+): Promise<ResolvedInboundMentions> {
+  return buildResolvedInboundMentions(object, lookupExistingRemoteActorOxyId);
 }
 
 /**

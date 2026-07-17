@@ -15,13 +15,17 @@
  *   1. brid.gy ActivityPub path (`--path bridgy`) — posts whose `federation`
  *      object URL is on `bsky.brid.gy` (Bridgy Fed bridges Bluesky into the
  *      fediverse over ActivityPub). Re-fetches the source AP object with a signed
- *      GET and rebuilds body / media / hashtags / mentions through the EXACT fresh
- *      path the inbox `Update` uses — `resolveInboundMentions` +
- *      `applyMentionPlaceholders` + `buildFederatedNoteContentForEdit`. That folds
- *      in the #439 fixes: `rewriteHashtagAnchors` (brid.gy `#tag` anchors),
- *      `apMentions` (`bsky.app/profile` anchor → `[mention:<id>]`), and
+ *      GET and rebuilds body / media / hashtags / mentions through the fresh inbox
+ *      mapping — `resolveInboundMentionsExisting` (the LOOKUP-ONLY, never-create
+ *      mention resolver — see below) + `applyMentionPlaceholders` +
+ *      `buildFederatedNoteContentForEdit`. That folds in the #439 fixes:
+ *      `rewriteHashtagAnchors` (brid.gy `#tag` anchors), `apMentions`
+ *      (`bsky.app/profile` anchor → `[mention:<id>]`), and
  *      `apMedia.classifyFromApType` (recovers images the old MIME/extension check
- *      dropped).
+ *      dropped). Unlike the live inbox path (`resolveInboundMentions`), the repair
+ *      resolves mentions against ALREADY-STORED actors only: it never fetches or
+ *      mints a `FederatedActor`, so a bulk sweep can never pollute the federated
+ *      index with 0-post ghost users for every mentioned account.
  *
  *   2. direct atproto path (`--path atproto`) — posts whose `federation.activityId`
  *      is a bare `at://` URI (the read/discovery connector). Re-fetches the post's
@@ -52,13 +56,13 @@
  *
  * FLAGS (plain argv):
  *   --dry-run              log what WOULD change; write nothing to Mongo (neither
- *                          Post docs nor the FederatedActor handle repair). NOTE:
- *                          re-mapping still resolves the posts' referenced mentioned
- *                          actors through the shared connector path exactly as a
- *                          live re-map would (this is inseparable from reusing the
- *                          connector mapping), which can lazily sync a not-yet-known
- *                          MENTIONED actor. The scanned posts themselves are never
- *                          modified in dry-run.
+ *                          Post docs nor the FederatedActor handle repair). Mention
+ *                          resolution during the re-map is LOOKUP-ONLY
+ *                          (`resolveInboundMentionsExisting`): it matches each
+ *                          mentioned actor against already-stored identities and
+ *                          never fetches or creates a `FederatedActor`, so a repair
+ *                          run mints NO new actor rows in either mode. The scanned
+ *                          posts themselves are never modified in dry-run.
  *   --limit N              cap the number of posts processed (a canary budget,
  *                          shared across both paths).
  *   --path atproto|bridgy|all   which ingest path(s) to repair (default: all).
@@ -89,7 +93,7 @@ import { logger } from '../utils/logger';
 import { normalizePostHashtags } from '../utils/textProcessing';
 import type { ExtractedMediaAttachment } from '../connectors/shared/federatedMedia';
 import { buildFederatedNoteContentForEdit } from '../connectors/activitypub/apPostContent';
-import { applyMentionPlaceholders, resolveInboundMentions } from '../connectors/activitypub/apMentions';
+import { applyMentionPlaceholders, resolveInboundMentionsExisting } from '../connectors/activitypub/apMentions';
 import { signedFetch } from '../connectors/activitypub/helpers';
 import { AP_CONTENT_TYPE } from '../connectors/activitypub/constants';
 import { refetchAtprotoPostForRepair } from '../connectors/atproto/post.mapper';
@@ -97,6 +101,15 @@ import { fetchAndUpsertAtprotoProfile, splitHandle } from '../connectors/atproto
 
 /** Posts scanned per page (stable `_id` cursor pagination). */
 const PAGE_SIZE = 500;
+
+/**
+ * Hard per-post wall-clock cap on a single post's repair. Defence-in-depth: every
+ * network await a repair issues (brid.gy `signedFetch`, the atproto AppView fetch,
+ * a mention lookup) is individually bounded, but a race against this timer
+ * guarantees ONE slow/unresponsive remote can never freeze the whole sweep. A
+ * timed-out post is counted `fetch-failed` and skipped; a later run recovers it.
+ */
+const REPAIR_TIMEOUT_MS = 45_000;
 
 /** HTTP statuses that mean the remote object is permanently gone. */
 const GONE_STATUS_CODES = new Set([404, 410]);
@@ -350,9 +363,12 @@ async function repairBridgyPost(post: StoredPostRow, flags: Flags): Promise<Repa
   if (fetched.kind === 'error') return 'fetch-failed';
   if (fetched.kind === 'gone') return 'gone'; // content-bearing — leave, never delete
 
-  // Fresh ingest recipe (identical to inbox `Update`): resolve mentions, splice the
-  // `[mention:<id>]` placeholders into the body, then extract the storable fields.
-  const mentionResult = await resolveInboundMentions(fetched.object);
+  // Fresh ingest recipe: resolve mentions, splice the `[mention:<id>]` placeholders
+  // into the body, then extract the storable fields. Mentions are resolved
+  // LOOKUP-ONLY (`resolveInboundMentionsExisting`) — a repair must never fetch or
+  // MINT a federated actor for a mentioned account, so an unknown mention is left
+  // as raw text rather than polluting the federated index with a ghost user.
+  const mentionResult = await resolveInboundMentionsExisting(fetched.object);
   const noteObject = applyMentionPlaceholders(fetched.object, mentionResult.anchorMap);
   const built = await buildFederatedNoteContentForEdit(noteObject, post.oxyUserId ?? null, {
     activityId: post.federation?.activityId,
@@ -552,6 +568,32 @@ interface Budget {
   remaining: number | undefined;
 }
 
+/** Distinct rejection raised by {@link withRepairTimeout} when a post exceeds the cap. */
+class RepairTimeoutError extends Error {
+  constructor(ms: number) {
+    super(`repair exceeded ${ms}ms hard timeout`);
+    this.name = 'RepairTimeoutError';
+  }
+}
+
+/**
+ * Race one post's repair against a hard timeout so a single hung remote can never
+ * freeze the batch. The timer is ALWAYS cleared when the repair settles (win or
+ * lose the race), so no timer is leaked. Losing the race is safe: a repair writes
+ * its `Post.updateOne` only as the LAST step after every await resolves, so a
+ * genuinely-hung repair never reaches the write — the post is simply left untouched
+ * for a later run, exactly like any other `fetch-failed`.
+ */
+function withRepairTimeout<T>(work: Promise<T>, ms: number): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new RepairTimeoutError(ms)), ms);
+  });
+  return Promise.race([work, timeout]).finally(() => {
+    if (timer) clearTimeout(timer);
+  });
+}
+
 /**
  * Scan one path with a stable ascending `_id` cursor and repair each post. Forward-
  * only: a repair only ever changes fields the filter does not select on, so no post
@@ -597,11 +639,19 @@ async function scanPath(
 
       let outcome: RepairOutcome;
       try {
-        outcome = await repair(post, flags);
+        outcome = await withRepairTimeout(repair(post, flags), REPAIR_TIMEOUT_MS);
       } catch (err) {
-        // One bad post never aborts the run; treat it as a transient failure.
-        const message = err instanceof Error ? err.message : String(err);
-        logger.warn(`[reingestBlueskyPosts] ${path} post ${String(post._id)} repair threw: ${message}`);
+        // One bad post never aborts the run; treat it as a transient failure so a
+        // later run can still recover it. A timeout is the defence-in-depth guard
+        // against an unbounded await hanging the whole sweep.
+        if (err instanceof RepairTimeoutError) {
+          logger.warn(
+            `[reingestBlueskyPosts] ${path} post ${String(post._id)} repair timed out after ${REPAIR_TIMEOUT_MS}ms — skipping`,
+          );
+        } else {
+          const message = err instanceof Error ? err.message : String(err);
+          logger.warn(`[reingestBlueskyPosts] ${path} post ${String(post._id)} repair threw: ${message}`);
+        }
         outcome = 'fetch-failed';
       }
 

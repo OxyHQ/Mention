@@ -19,6 +19,7 @@ const mocks = vi.hoisted(() => ({
   getOrFetchActor: vi.fn(),
   isBlockedDomain: vi.fn(() => false),
   resolveOxyUser: vi.fn(),
+  findExistingActor: vi.fn(),
 }));
 
 vi.mock('../../../connectors/activitypub/actor.service', () => ({
@@ -28,11 +29,18 @@ vi.mock('../../../connectors/activitypub/constants', () => ({
   isBlockedDomain: mocks.isBlockedDomain,
   resolveOxyUser: mocks.resolveOxyUser,
 }));
+vi.mock('../../../models/FederatedActor', () => ({
+  default: { findOne: mocks.findExistingActor },
+}));
 vi.mock('../../../utils/logger', () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
 }));
 
-import { applyMentionPlaceholders, resolveInboundMentions } from '../../../connectors/activitypub/apMentions';
+import {
+  applyMentionPlaceholders,
+  resolveInboundMentions,
+  resolveInboundMentionsExisting,
+} from '../../../connectors/activitypub/apMentions';
 
 const DID = 'did:plc:reu7q3altx5gsonhu5nxcfp6';
 const HANDLE = 'alice.bsky.social';
@@ -41,6 +49,7 @@ const BRIDGED_OXY_ID = 'oxy_bridged_alice';
 
 beforeEach(() => {
   mocks.getOrFetchActor.mockReset();
+  mocks.findExistingActor.mockReset();
   mocks.isBlockedDomain.mockReturnValue(false);
 });
 
@@ -81,5 +90,51 @@ describe('inbound brid.gy @mention resolution', () => {
     const resolved = await resolveInboundMentions(object);
     const rewritten = applyMentionPlaceholders(object, resolved.anchorMap);
     expect(rewritten.content).toBe('<p>[mention:oxy_bob]</p>');
+  });
+});
+
+/**
+ * Lookup-only mention resolution — the ghost-safe path the one-shot repair uses.
+ * A repair must NEVER fetch or create a `FederatedActor`: it resolves each mention
+ * against already-stored actors only, and leaves an unknown mention as raw text
+ * rather than minting a 0-post ghost user.
+ */
+describe('lookup-only inbound @mention resolution (repair path)', () => {
+  it('resolves an already-stored federated actor without fetching/creating one', async () => {
+    mocks.findExistingActor.mockReturnValue({
+      lean: () => Promise.resolve({ oxyUserId: 'oxy_bob' }),
+    });
+    const object = {
+      content: '<p><a href="https://mastodon.social/@bob" class="u-url mention">@bob</a></p>',
+      tag: [{ type: 'Mention', href: 'https://mastodon.social/users/bob', name: '@bob@mastodon.social' }],
+    };
+
+    const resolved = await resolveInboundMentionsExisting(object);
+    expect(resolved.ids).toContain('oxy_bob');
+    expect(mocks.getOrFetchActor).not.toHaveBeenCalled();
+    expect(mocks.findExistingActor).toHaveBeenCalledWith(
+      { uri: 'https://mastodon.social/users/bob' },
+      { oxyUserId: 1 },
+    );
+
+    const rewritten = applyMentionPlaceholders(object, resolved.anchorMap);
+    expect(rewritten.content).toBe('<p>[mention:oxy_bob]</p>');
+  });
+
+  it('skips an unknown actor: leaves the raw anchor and never fetches/creates one', async () => {
+    mocks.findExistingActor.mockReturnValue({ lean: () => Promise.resolve(null) });
+    const content = `<p>hi <a href="https://bsky.app/profile/${HANDLE}">@${HANDLE}</a></p>`;
+    const object = {
+      content,
+      tag: [{ type: 'Mention', href: BRIDGY_ACTOR, name: `@${HANDLE}@bsky.brid.gy` }],
+    };
+
+    const resolved = await resolveInboundMentionsExisting(object);
+    expect(resolved.ids).toEqual([]);
+    expect(resolved.anchorMap.size).toBe(0);
+    expect(mocks.getOrFetchActor).not.toHaveBeenCalled();
+
+    const rewritten = applyMentionPlaceholders(object, resolved.anchorMap);
+    expect(rewritten.content).toBe(content);
   });
 });
