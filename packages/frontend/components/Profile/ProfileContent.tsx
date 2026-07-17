@@ -153,6 +153,7 @@ export const ProfileContent = memo(function ProfileContent({
             handle={profileData.username}
             verified={profileData.verified}
             isFederated={profileData.isFederated}
+            copyableHandle
             variant="default"
             style={userNameStyle}
             trailingBadge={fediverseBadge}

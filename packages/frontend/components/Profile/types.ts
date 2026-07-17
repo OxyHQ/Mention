@@ -46,6 +46,12 @@ export interface UserNameProps {
   };
   unifiedColors?: boolean;
   onPress?: () => void;
+  /**
+   * Opt-in tap-to-copy for the `@handle`. Default off so the handle stays plain
+   * text inside navigable parents (e.g. who-to-follow cards), letting the parent
+   * receive the tap and navigate. Only the profile header enables it.
+   */
+  copyableHandle?: boolean;
   /** Extra element rendered inline after the verified/federated/agent icons (name line). */
   trailingBadge?: React.ReactNode;
   /** Passive element rendered inline to the right of the `@handle` on the handle line (e.g. a "Follows you" tag). */
