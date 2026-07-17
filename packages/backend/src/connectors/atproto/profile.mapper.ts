@@ -29,27 +29,38 @@ export interface AtprotoProfileView {
  * Split an atproto handle (a DNS name) into its display username, instance
  * domain, and the canonical `local@domain` username Oxy stores it under.
  *
- * A Bluesky handle is a bare DNS name. Its instance domain is the handle minus
- * its first label — but ONLY when that leaves a real ≥2-label domain:
- *   - `alice.bsky.social` (3 labels) → instance `bsky.social`.
- *   - `gothamist.com` (a 2-label apex custom domain) has no strippable parent —
- *     stripping would leave the bare TLD `com`, and using the handle itself as the
- *     domain renders the doubled `@gothamist.com@gothamist.com`. It keys to the
- *     Bluesky network host instead (`bsky.social`), rendering `@gothamist.com@bsky.social`.
- * The federated Oxy username is `<handle>@<instance-domain>`
- * (`alice.bsky.social@bsky.social`, `gothamist.com@bsky.social`) — the exact form
+ * For the atproto connector the instance domain is ALWAYS the Bluesky network
+ * domain (`bsky.social`): a Bluesky handle is a whole DNS name that identifies the
+ * account, not a `local@host` address, and the account lives on the Bluesky
+ * network regardless of how many labels the handle has or whether it is a custom
+ * domain. The username is the FULL handle in every case:
+ *   - `alice.bsky.social` → username `alice.bsky.social`, instance `bsky.social`.
+ *   - `gothamist.com`      → username `gothamist.com`,      instance `bsky.social`.
+ *   - `mayor.nyc.gov`      → username `mayor.nyc.gov`,      instance `bsky.social`.
+ *
+ * Deriving the instance from the handle's own parent domain was the bug: a
+ * multi-label custom domain (`mayor.nyc.gov`) produced the bogus instance
+ * `nyc.gov`, rendering `@mayor.nyc.gov@nyc.gov` instead of the correct
+ * `@mayor.nyc.gov@bsky.social` (apex handles like `gothamist.com` only avoided it
+ * by accident, because the bare TLD `com` has no dot).
+ *
+ * The federated Oxy username is `<handle>@bsky.social`
+ * (`alice.bsky.social@bsky.social`, `mayor.nyc.gov@bsky.social`) — the exact form
  * oxy-api's `PUT /users/resolve` binds (username domain must equal `domain`).
  *
- * Exported so the reingest repair script can DETECT the pre-fix doubled-handle bug
- * (a stored `FederatedActor.domain` that no longer equals `splitHandle(acct).domain`)
- * without re-fetching the profile, using the SAME derivation the upsert path uses.
+ * Exported so the re-derive repair script can DETECT a stored actor whose
+ * `FederatedActor.domain` no longer equals `splitHandle(acct).domain` without
+ * re-fetching the profile, using the SAME derivation the upsert path uses.
  */
 export function splitHandle(handle: string): { username: string; domain: string; federatedUsername: string } {
-  const dot = handle.indexOf('.');
-  // Strip the first label only if the remainder is still a multi-label domain.
-  const parent = dot > 0 ? handle.slice(dot + 1) : handle;
-  const domain = parent.includes('.') ? parent : BSKY_NETWORK_DOMAIN;
-  return { username: handle, domain, federatedUsername: `${handle}@${domain}` };
+  // The instance domain for every atproto actor is the Bluesky network host and the
+  // whole handle is the username — a handle is a DNS name identifying the account,
+  // so it has no separable per-instance host to derive from its parent domain.
+  return {
+    username: handle,
+    domain: BSKY_NETWORK_DOMAIN,
+    federatedUsername: `${handle}@${BSKY_NETWORK_DOMAIN}`,
+  };
 }
 
 /** Map a getProfile response to the network-neutral actor shape (pure). */
@@ -69,8 +80,9 @@ export function mapProfileToNormalizedActor(profile: AtprotoProfileView): Normal
     network: 'atproto',
     externalId: did,
     handle,
-    // A DID carries no host, so the Oxy identity is keyed on the handle's parent
-    // domain. These are what the shared identity bridge sends to oxy-api.
+    // A DID carries no host and a handle is a whole DNS name, so an atproto actor's
+    // Oxy identity is keyed on the Bluesky network domain (`bsky.social`). These are
+    // what the shared identity bridge sends to oxy-api.
     federatedUsername,
     instanceDomain: domain,
     displayName: displayName || undefined,

@@ -32,6 +32,7 @@ vi.mock('../../../connectors/identity', () => ({
 import {
   fetchAndUpsertAtprotoProfile,
   mapProfileToNormalizedActor,
+  splitHandle,
 } from '../../../connectors/atproto/profile.mapper';
 
 const DID = 'did:plc:ewvi7nxzyoun6zhxrhs64oiz';
@@ -95,40 +96,55 @@ describe('mapProfileToNormalizedActor', () => {
     expect(actor?.bio).toBeUndefined();
   });
 
-  it('keys an apex custom-domain handle to the Bluesky network host (no doubled domain)', () => {
-    // A 2-label apex handle (`gothamist.com`) has no strippable parent domain.
-    // Using the handle itself as the instance rendered the doubled
-    // `@gothamist.com@gothamist.com`; it now keys to the network host so
-    // `getNormalizedUserHandle` renders the clean `@gothamist.com@bsky.social`.
-    const actor = mapProfileToNormalizedActor({ ...PROFILE, handle: 'gothamist.com' });
-    expect(actor?.federatedUsername).toBe('gothamist.com@bsky.social');
+  // Every atproto handle — a normal `.bsky.social` handle, an apex custom domain,
+  // and a multi-label custom domain — keys to the Bluesky network host, with the
+  // FULL handle as the username. Deriving the instance from the handle's own parent
+  // domain was the bug: `mayor.nyc.gov` rendered `@mayor.nyc.gov@nyc.gov` instead of
+  // `@mayor.nyc.gov@bsky.social` (apex handles only escaped it because a bare TLD
+  // like `com` has no dot).
+  it.each([
+    'alice.bsky.social',
+    'carnage4life.bsky.social',
+    'gothamist.com',
+    'mayor.nyc.gov',
+    'jay.bsky.team',
+  ])('keys handle %s to the Bluesky network host with the full handle as username', (handle) => {
+    const actor = mapProfileToNormalizedActor({ ...PROFILE, handle });
+    expect(actor?.handle).toBe(handle);
     expect(actor?.instanceDomain).toBe('bsky.social');
+    expect(actor?.federatedUsername).toBe(`${handle}@bsky.social`);
 
     const rendered = getNormalizedUserHandle({
       username: actor?.handle,
       isFederated: true,
       federation: { domain: actor?.instanceDomain },
     });
-    expect(rendered).toBe('gothamist.com@bsky.social');
-    expect(rendered).not.toBe('gothamist.com@gothamist.com');
-  });
-
-  it('leaves a normal `.bsky.social` handle rendering unchanged', () => {
-    const actor = mapProfileToNormalizedActor({ ...PROFILE, handle: 'georgemonbiot.bsky.social' });
-    expect(actor?.federatedUsername).toBe('georgemonbiot.bsky.social@bsky.social');
-    expect(actor?.instanceDomain).toBe('bsky.social');
-
-    const rendered = getNormalizedUserHandle({
-      username: actor?.handle,
-      isFederated: true,
-      federation: { domain: actor?.instanceDomain },
-    });
-    expect(rendered).toBe('georgemonbiot.bsky.social@bsky.social');
+    expect(rendered).toBe(`${handle}@bsky.social`);
+    // The pre-fix doubled/bogus instance must never re-appear.
+    expect(rendered).not.toBe(`${handle}@${handle}`);
   });
 
   it('returns null when did or handle is missing', () => {
     expect(mapProfileToNormalizedActor({ handle: 'a.b' })).toBeNull();
     expect(mapProfileToNormalizedActor({ did: DID })).toBeNull();
+  });
+});
+
+describe('splitHandle', () => {
+  // The instance domain for an atproto actor is ALWAYS the Bluesky network domain,
+  // and the whole handle is the username — regardless of label count or custom
+  // domain. These are the exact prod actors the old parent-stripping mis-derived.
+  it.each([
+    { handle: 'alice.bsky.social', domain: 'bsky.social' },
+    { handle: 'mayor.nyc.gov', domain: 'bsky.social' },
+    { handle: 'jay.bsky.team', domain: 'bsky.social' },
+    { handle: 'gothamist.com', domain: 'bsky.social' },
+  ])('derives $handle → instance $domain with the full handle as username', ({ handle, domain }) => {
+    expect(splitHandle(handle)).toEqual({
+      username: handle,
+      domain,
+      federatedUsername: `${handle}@${domain}`,
+    });
   });
 });
 
