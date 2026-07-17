@@ -686,6 +686,8 @@
   },
   "insights": {
     "posts": "Posts",
+    "signInRequired": "Sign in to see your insights",
+    "signInRequiredDesc": "Your posts, views, and engagement stats will appear here once you sign in.",
     "period": {
       "7days": "7 Days",
       "30days": "30 Days",

@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
     View,
     Text,
@@ -9,6 +9,7 @@ import {
     type ViewStyle,
     type TextStyle
 } from 'react-native';
+import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import { Loading } from '@oxyhq/bloom/loading';
 import { SafeAreaView } from '@/lib/SafeAreaViewInterop';
 import { router } from 'expo-router';
@@ -16,9 +17,9 @@ import { useSafeBack } from '@/hooks/useSafeBack';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme, type Theme } from '@oxyhq/bloom/theme';
 import { ThemedView } from '@/components/ThemedView';
-import { statisticsService, UserStatistics, EngagementRatios } from '@/services/statisticsService';
+import { statisticsService } from '@/services/statisticsService';
 import { useTranslation } from 'react-i18next';
-import { useAuth } from '@oxyhq/services';
+import { useAuth, OxyAuthPrompt } from '@oxyhq/services';
 import { usePostsStore } from '@/stores/postsStore';
 import PostItem from '@/components/Feed/PostItem';
 import { HydratedPost } from '@mention/shared-types';
@@ -121,70 +122,53 @@ const PeriodSelector: React.FC<PeriodSelectorProps> = ({ selected, onSelect, the
 const InsightsScreen: React.FC = () => {
     const { t } = useTranslation();
     const theme = useTheme();
-    const { user } = useAuth();
+    const { user, canUsePrivateApi, isPrivateApiPending } = useAuth();
     const safeBack = useSafeBack();
 
-    const [loading, setLoading] = useState(true);
     const [selectedPeriod, setSelectedPeriod] = useState(30);
     const [activeTab, setActiveTab] = useState<'overview' | 'engagement'>('overview');
-    const [cache, setCache] = useState<Record<number, { stats: UserStatistics; engagement: EngagementRatios; topPosts: HydratedPost[] }>>({});
 
     const { getPostById } = usePostsStore();
 
-    const stats = cache[selectedPeriod]?.stats ?? null;
-    const engagementRatios = cache[selectedPeriod]?.engagement ?? null;
-    const topPostsData = cache[selectedPeriod]?.topPosts ?? [];
-
-    const loadPeriod = useCallback(async (period: number) => {
-        if (!user) return;
-
-        try {
-            const [statsData, engagementData] = await Promise.all([
-                statisticsService.getUserStatistics(period),
-                statisticsService.getEngagementRatios(period)
+    // Stats + engagement + hydrated top posts for the selected period. Keyed on
+    // the auth identity AND period so it fires only once the session lands,
+    // auto-re-runs when `user?.id` arrives after SSO restore, and refetches per
+    // period. `keepPreviousData` keeps the previous period on screen while a new
+    // one loads, matching the original background-prefetch smoothness. Gated on
+    // `canUsePrivateApi` since /statistics/* are private endpoints.
+    const { data, isLoading } = useQuery({
+        queryKey: ['insights', user?.id, selectedPeriod],
+        queryFn: async () => {
+            const [stats, engagement] = await Promise.all([
+                statisticsService.getUserStatistics(selectedPeriod),
+                statisticsService.getEngagementRatios(selectedPeriod)
             ]);
 
             let topPosts: HydratedPost[] = [];
-            if (statsData.topPosts && statsData.topPosts.length > 0) {
-                try {
-                    const postsPromises = statsData.topPosts.slice(0, 5).map(async (postInfo) => {
-                        try {
-                            return await getPostById(postInfo.postId);
-                        } catch (error: unknown) {
+            if (stats.topPosts && stats.topPosts.length > 0) {
+                const posts = await Promise.all(
+                    stats.topPosts.slice(0, 5).map((postInfo) =>
+                        getPostById(postInfo.postId).catch((error: unknown) => {
                             const status = (error as { response?: { status?: number } })?.response?.status;
                             if (status !== 404) {
                                 logger.error(`Error loading post ${postInfo.postId}`, { error });
                             }
                             return null;
-                        }
-                    });
-                    const posts = await Promise.all(postsPromises);
-                    topPosts = posts.filter((p): p is HydratedPost => p !== null);
-                } catch (error) {
-                    logger.error('Error loading top posts', { error });
-                }
+                        })
+                    )
+                );
+                topPosts = posts.filter((p): p is HydratedPost => p !== null);
             }
 
-            setCache(prev => ({ ...prev, [period]: { stats: statsData, engagement: engagementData, topPosts } }));
-        } catch (error) {
-            logger.error('Error loading statistics', { error });
-        }
-    }, [user, getPostById]);
+            return { stats, engagement, topPosts };
+        },
+        enabled: canUsePrivateApi,
+        placeholderData: keepPreviousData,
+    });
 
-    useEffect(() => {
-        if (!user) return;
-
-        const loadAll = async () => {
-            setLoading(true);
-            // Load selected period first, then others in background
-            await loadPeriod(30);
-            setLoading(false);
-            // Pre-fetch remaining periods
-            Promise.all([loadPeriod(7), loadPeriod(90)]);
-        };
-
-        loadAll();
-    }, [user, loadPeriod]);
+    const stats = data?.stats ?? null;
+    const engagementRatios = data?.engagement ?? null;
+    const topPostsData = data?.topPosts ?? [];
 
     const handlePeriodChange = useCallback((val: number) => {
         if (val !== selectedPeriod) setSelectedPeriod(val);
@@ -442,10 +426,15 @@ const InsightsScreen: React.FC = () => {
                         />
                     </View>
 
-                    {loading ? (
+                    {isPrivateApiPending || isLoading ? (
                         <View className="flex-1 justify-center items-center">
                             <Loading className="text-primary" size="large" />
                         </View>
+                    ) : !canUsePrivateApi ? (
+                        <OxyAuthPrompt
+                            label={t('insights.signInRequired', { defaultValue: 'Sign in to see your insights' })}
+                            description={t('insights.signInRequiredDesc', { defaultValue: 'Your posts, views, and engagement stats will appear here once you sign in.' })}
+                        />
                     ) : (
                         activeTab === 'overview' ? renderOverviewTab() : renderEngagementTab()
                     )}

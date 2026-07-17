@@ -1,9 +1,10 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React from 'react';
 import {
     View,
     Text,
     ScrollView,
 } from 'react-native';
+import { useQuery } from '@tanstack/react-query';
 import { Loading } from '@oxyhq/bloom/loading';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSafeBack } from '@/hooks/useSafeBack';
@@ -15,7 +16,7 @@ import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { statisticsService, UserStatistics } from '@/services/statisticsService';
 import { useTranslation } from 'react-i18next';
-import { useAuth } from '@oxyhq/services';
+import { useAuth, OxyAuthPrompt } from '@oxyhq/services';
 import { Avatar } from '@oxyhq/bloom/avatar';
 import { MEDIA_VARIANT_VIDEO_POSTER } from '@mention/shared-types';
 import StatCard from '@/components/insights/StatCard';
@@ -37,13 +38,8 @@ const WeeklyRecapScreen: React.FC = () => {
     const { t } = useTranslation();
     const theme = useTheme();
     const insets = useSafeAreaInsets();
-    const { user } = useAuth();
+    const { user, canUsePrivateApi, isPrivateApiPending } = useAuth();
     const safeBack = useSafeBack();
-
-    const [loading, setLoading] = useState(true);
-    const [data, setData] = useState<WeeklyRecapData | null>(null);
-    const [summary, setSummary] = useState<string | null>(null);
-    const [summaryLoading, setSummaryLoading] = useState(true);
 
     const getWeekDates = (weekOffset: number = 0) => {
         const today = new Date();
@@ -119,12 +115,13 @@ const WeeklyRecapScreen: React.FC = () => {
         return `${startMonth} ${startDay} - ${endMonth} ${endDay}`;
     };
 
-    const loadWeeklyRecap = useCallback(async () => {
-        if (!user) return;
-
-        try {
-            setLoading(true);
-
+    // Weekly recap = 14 days of stats split into current/previous week + an
+    // AI summary. Keyed on the auth identity so it fires only once the session
+    // lands and auto-re-runs when `user?.id` arrives after SSO restore. Gated on
+    // `canUsePrivateApi` since /statistics/* are private endpoints.
+    const { data: result, isLoading } = useQuery({
+        queryKey: ['weekly-recap', user?.id],
+        queryFn: async () => {
             // Fetch statistics for both weeks
             // Fetch 14 days total, then split into current week (last 7) and previous week (first 7)
             const [combinedStats, followerChanges, summaryResult] = await Promise.all([
@@ -132,9 +129,6 @@ const WeeklyRecapScreen: React.FC = () => {
                 statisticsService.getFollowerChanges(14).catch(() => null),
                 statisticsService.getWeeklySummary().catch(() => ({ summary: null })),
             ]);
-
-            setSummary(summaryResult.summary);
-            setSummaryLoading(false);
 
             // Split daily breakdown into current and previous weeks
             const dailyBreakdown = combinedStats.dailyBreakdown || [];
@@ -196,45 +190,45 @@ const WeeklyRecapScreen: React.FC = () => {
                 previousFollowers = previousWeekChanges.reduce((sum, change) => sum + Math.max(0, change.change), 0);
             }
 
-            setData({
+            const recap: WeeklyRecapData = {
                 currentWeek: currentWeekStats,
                 previousWeek: previousWeekStats,
                 newFollowers,
                 previousFollowers
-            });
-        } catch (error) {
-            logger.error('Error loading weekly recap', { error });
-        } finally {
-            setLoading(false);
-        }
-    }, [user]);
+            };
 
-    useEffect(() => {
-        loadWeeklyRecap();
-    }, [loadWeeklyRecap]);
+            return { recap, summary: summaryResult.summary };
+        },
+        enabled: canUsePrivateApi,
+    });
 
+    const data = result?.recap ?? null;
+    const summary = result?.summary ?? null;
 
+    const renderHeader = () => (
+        <View style={{ paddingTop: insets.top }}>
+            <Header
+                options={{
+                    title: t('insights.weeklyRecap.title'),
+                    leftComponents: [
+                        <IconButton variant="icon"
+                            key="back"
+                            onPress={() => safeBack()}
+                        >
+                            <BackArrowIcon size={20} className="text-foreground" />
+                        </IconButton>,
+                    ],
+                }}
+                hideBottomBorder={true}
+                disableSticky={true}
+            />
+        </View>
+    );
 
-    if (loading) {
+    if (isPrivateApiPending || isLoading) {
         return (
             <ThemedView className="flex-1">
-                <View style={{ paddingTop: insets.top }}>
-                    <Header
-                        options={{
-                            title: t('insights.weeklyRecap.title'),
-                            leftComponents: [
-                                <IconButton variant="icon"
-                                    key="back"
-                                    onPress={() => safeBack()}
-                                >
-                                    <BackArrowIcon size={20} className="text-foreground" />
-                                </IconButton>,
-                            ],
-                        }}
-                        hideBottomBorder={true}
-                        disableSticky={true}
-                    />
-                </View>
+                {renderHeader()}
                 <View className="flex-1 items-center justify-center">
                     <Loading className="text-primary" size="large" />
                 </View>
@@ -242,26 +236,22 @@ const WeeklyRecapScreen: React.FC = () => {
         );
     }
 
+    if (!canUsePrivateApi) {
+        return (
+            <ThemedView className="flex-1">
+                {renderHeader()}
+                <OxyAuthPrompt
+                    label={t('insights.signInRequired', { defaultValue: 'Sign in to see your insights' })}
+                    description={t('insights.signInRequiredDesc', { defaultValue: 'Your posts, views, and engagement stats will appear here once you sign in.' })}
+                />
+            </ThemedView>
+        );
+    }
+
     if (!data) {
         return (
             <ThemedView className="flex-1">
-                <View style={{ paddingTop: insets.top }}>
-                    <Header
-                        options={{
-                            title: t('insights.weeklyRecap.title'),
-                            leftComponents: [
-                                <IconButton variant="icon"
-                                    key="back"
-                                    onPress={() => safeBack()}
-                                >
-                                    <BackArrowIcon size={20} className="text-foreground" />
-                                </IconButton>,
-                            ],
-                        }}
-                        hideBottomBorder={true}
-                        disableSticky={true}
-                    />
-                </View>
+                {renderHeader()}
                 <View className="flex-1 items-center justify-center p-6">
                     <AnalyticsIcon size={64} color={theme.colors.text + '60'} />
                     <Text className="text-base mt-3 text-muted-foreground">
@@ -334,16 +324,9 @@ const WeeklyRecapScreen: React.FC = () => {
                     <Text className="text-2xl font-bold mt-4 mb-2 text-foreground" style={{ letterSpacing: -0.3 }}>
                         {t('insights.weeklyRecap.pageTitle')}
                     </Text>
-                    {summaryLoading ? (
-                        <View className="gap-2 px-5 w-full items-center mt-1">
-                            <View className="h-3 rounded bg-muted-foreground/20 w-4/5" />
-                            <View className="h-3 rounded bg-muted-foreground/20 w-3/5" />
-                        </View>
-                    ) : (
-                        <Text className="text-sm text-center px-5 leading-5 text-muted-foreground">
-                            {summary || dateRange}
-                        </Text>
-                    )}
+                    <Text className="text-sm text-center px-5 leading-5 text-muted-foreground">
+                        {summary || dateRange}
+                    </Text>
                 </View>
 
                 {/* Stats Cards - Full Width, Stacked */}
