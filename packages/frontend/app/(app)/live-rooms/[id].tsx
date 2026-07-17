@@ -243,7 +243,7 @@ const RoomDetailScreen = () => {
         title={room?.title ?? t('agora.room')}
         description={room?.description || 'Join this room'}
       />
-      <SafeAreaView className="flex-1 bg-background">
+      <SafeAreaView className="flex-1 bg-background" edges={['top']}>
         <Header
           options={{
             title: room ? '' : t('agora.room'),

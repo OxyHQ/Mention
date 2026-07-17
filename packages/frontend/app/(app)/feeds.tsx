@@ -359,7 +359,7 @@ const FeedsScreen: React.FC = () => {
   return (
     <>
       <SEO title={t('seo.feeds.title')} description={t('seo.feeds.description')} />
-      <SafeAreaView className="flex-1 bg-background relative flex-col">
+      <SafeAreaView className="flex-1 bg-background relative flex-col" edges={['top']}>
         <Header
           options={{
             title: t('Feeds'),

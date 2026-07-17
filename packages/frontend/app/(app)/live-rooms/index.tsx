@@ -187,7 +187,7 @@ const LiveRoomsScreen = () => {
   return (
     <>
       <SEO title="Live Rooms" description="Join live audio conversations" />
-      <SafeAreaView className="flex-1 bg-background">
+      <SafeAreaView className="flex-1 bg-background" edges={['top']}>
         <Header
           options={{
             title: t('agora.title'),
