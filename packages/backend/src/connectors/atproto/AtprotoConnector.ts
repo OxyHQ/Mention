@@ -1,6 +1,4 @@
-import { logger } from '../../utils/logger';
-import FederatedFollow from '../../models/FederatedFollow';
-import { resolveOxyExternalUser } from '../identity';
+import type { PostContent } from '@mention/shared-types';
 import type {
   FetchPostsOptions,
   FetchPostsResult,
@@ -9,7 +7,10 @@ import type {
   NetworkId,
   NormalizedExternalActor,
   ReceiveContext,
-} from '../types';
+} from '@oxyhq/federation';
+import { logger } from '../../utils/logger';
+import FederatedFollow from '../../models/FederatedFollow';
+import { resolveOxyExternalUser } from '../identity';
 import {
   ATPROTO_ENABLED,
   isAtUri,
@@ -37,7 +38,7 @@ import { importAuthorFeed } from './post.mapper';
  * NEVER uses `@atproto/api`; every network read goes through the SSRF-safe XRPC
  * client.
  */
-class AtprotoConnector implements NetworkConnector {
+class AtprotoConnector implements NetworkConnector<PostContent> {
   readonly id: NetworkId = 'atproto';
 
   get enabled(): boolean {
@@ -85,7 +86,7 @@ class AtprotoConnector implements NetworkConnector {
   }
 
   /** Deliver a local domain event. */
-  async deliver(event: LocalNetworkEvent): Promise<void> {
+  async deliver(event: LocalNetworkEvent<PostContent>): Promise<void> {
     switch (event.kind) {
       case 'post.create':
       case 'post.boost':

@@ -1,5 +1,6 @@
+import type { PostContent } from '@mention/shared-types';
+import type { NetworkConnector } from '@oxyhq/federation';
 import { registerPostFederator } from '../services/serviceRegistry';
-import type { NetworkConnector } from './types';
 import { ConnectorRegistry } from './ConnectorRegistry';
 import { activityPubConnector } from './activitypub/ActivityPubConnector';
 import { FEDERATION_ENABLED } from './activitypub/constants';
@@ -29,7 +30,7 @@ import { ATPROTO_ENABLED } from './atproto/constants';
  * a fediverse `@user@host` acct is claimed by it, and the atproto connector
  * claims the remaining shapes (bare handles / DIDs / AT-URIs).
  */
-const connectors: NetworkConnector[] = [];
+const connectors: NetworkConnector<PostContent>[] = [];
 
 if (FEDERATION_ENABLED) {
   connectors.push(activityPubConnector);

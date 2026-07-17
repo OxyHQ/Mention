@@ -22,7 +22,7 @@ import { authorVariants, resolveVariant } from '../../services/postVariants';
 import { enqueueDelivery } from '../../queue/producers';
 import { isFediverseSharingEnabled } from '../../services/fediverseSharing';
 import { getServiceOxyClient } from '../../utils/oxyHelpers';
-import type { LocalBoostEventPayload } from '../types';
+import type { LocalBoostEventPayload } from '@oxyhq/federation';
 import { actorService } from './actor.service';
 import { fetchUpstreamSingleHop } from '../../utils/safeUpstreamFetch';
 import { assertSafePublicUrl } from '../../utils/ssrfGuard';

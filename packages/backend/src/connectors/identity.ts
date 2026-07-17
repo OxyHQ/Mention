@@ -5,7 +5,7 @@ import UserSettings from '../models/UserSettings';
 import { invalidate as invalidateUserSummaryCache } from '../services/userSummaryCache';
 import { persistRemoteMediaForFederatedOwnerDetailed } from '../services/mediaCache/cacheWorker';
 import { isAbsoluteHttpUrl, getRemoteHost } from './shared/url';
-import type { NormalizedExternalActor } from './types';
+import type { NormalizedExternalActor } from '@oxyhq/federation';
 
 /**
  * Network-neutral identity bridge: resolve a normalized external actor to its

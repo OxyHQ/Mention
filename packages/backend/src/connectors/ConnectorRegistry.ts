@@ -1,15 +1,16 @@
-import { logger } from '../utils/logger';
-import { isFediverseSharingEnabled } from '../services/fediverseSharing';
-import type { PostFederator } from '../services/serviceRegistry';
+import type { PostContent } from '@mention/shared-types';
 import type {
   NetworkConnector,
   NormalizedExternalActor,
   LocalNetworkEvent,
   LocalPostEventPayload,
-} from './types';
+} from '@oxyhq/federation';
+import { logger } from '../utils/logger';
+import { isFediverseSharingEnabled } from '../services/fediverseSharing';
+import type { PostFederator } from '../services/serviceRegistry';
 
 /** The Oxy user whose `fediverseSharing` consent gates a given outbound event. */
-function actingOxyUserId(event: LocalNetworkEvent): string {
+function actingOxyUserId(event: LocalNetworkEvent<PostContent>): string {
   switch (event.kind) {
     case 'post.create':
     case 'post.boost':
@@ -46,14 +47,14 @@ function actingOxyUserId(event: LocalNetworkEvent): string {
  * later phase).
  */
 export class ConnectorRegistry implements PostFederator {
-  private readonly connectors: NetworkConnector[];
+  private readonly connectors: NetworkConnector<PostContent>[];
 
-  constructor(connectors: NetworkConnector[]) {
+  constructor(connectors: NetworkConnector<PostContent>[]) {
     this.connectors = connectors.filter((c) => c.enabled);
   }
 
   /** The enabled connectors managed by this registry. */
-  list(): readonly NetworkConnector[] {
+  list(): readonly NetworkConnector<PostContent>[] {
     return this.connectors;
   }
 
@@ -72,7 +73,7 @@ export class ConnectorRegistry implements PostFederator {
    * outbound federation is best-effort. Each rejected connector is logged with
    * its id; the method resolves once every connector has been attempted.
    */
-  async deliver(event: LocalNetworkEvent): Promise<void> {
+  async deliver(event: LocalNetworkEvent<PostContent>): Promise<void> {
     const actorOxyUserId = actingOxyUserId(event);
     if (!(await isFediverseSharingEnabled(actorOxyUserId))) {
       logger.debug(`[Connectors] sharing off for ${actorOxyUserId} — skipping federation`);
@@ -101,7 +102,7 @@ export class ConnectorRegistry implements PostFederator {
    * depends on via `serviceRegistry`.
    */
   async federateNewPost(
-    post: LocalPostEventPayload,
+    post: LocalPostEventPayload<PostContent>,
     senderOxyUserId: string,
     senderUsername: string,
   ): Promise<void> {
@@ -114,7 +115,7 @@ export class ConnectorRegistry implements PostFederator {
   }
 
   /** The connector that owns `subject` (a handle / URI / DID), if any. */
-  connectorFor(subject: string): NetworkConnector | undefined {
+  connectorFor(subject: string): NetworkConnector<PostContent> | undefined {
     return this.connectors.find((connector) => connector.matches(subject));
   }
 
