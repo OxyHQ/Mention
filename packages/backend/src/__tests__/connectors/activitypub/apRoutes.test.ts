@@ -95,7 +95,7 @@ vi.mock('../../../utils/oxyHelpers', () => ({
 }));
 
 import apRoutes from '../../../connectors/activitypub/routes/ap.routes';
-import { AP_CONTEXT } from '../../../connectors/activitypub/constants';
+import { AP_CONTEXT } from '@oxyhq/federation';
 
 const app = express();
 app.use(express.json());

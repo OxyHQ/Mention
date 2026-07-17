@@ -3,7 +3,8 @@ import FederatedActor from '../../models/FederatedActor';
 import FederatedFollow from '../../models/FederatedFollow';
 import { followService } from './follow.service';
 import { getServiceOxyClient } from '../../utils/oxyHelpers';
-import { actorUrl, AP_CONTEXT } from './constants';
+import { AP_CONTEXT } from '@oxyhq/federation';
+import { actorUrl } from './constants';
 import { getFediverseSharingStateById } from '../../services/fediverseSharing';
 
 /**

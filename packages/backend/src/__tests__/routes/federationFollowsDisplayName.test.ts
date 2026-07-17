@@ -28,7 +28,22 @@ vi.mock('@oxyhq/core/server', () => ({
   getRequiredOxyUserId: () => 'local-user-1',
 }));
 
-vi.mock('../../connectors/activitypub/constants', () => ({ FEDERATION_ENABLED: true }));
+vi.mock('../../connectors/activitypub/constants', () => ({
+  FEDERATION_ENABLED: true,
+  // `actorObject.ts` / `actor.service.ts` bind the shared engine at module load, so
+  // they read these from constants when this module graph is imported.
+  isBlockedDomain: () => false,
+  FEDERATION_DOMAIN: 'mention.earth',
+  federationUrls: {
+    actor: (u: string) => `https://mention.earth/ap/users/${u}`,
+    inbox: (u: string) => `https://mention.earth/ap/users/${u}/inbox`,
+    outbox: (u: string) => `https://mention.earth/ap/users/${u}/outbox`,
+    featured: (u: string) => `https://mention.earth/ap/users/${u}/collections/featured`,
+    followers: (u: string) => `https://mention.earth/ap/users/${u}/followers`,
+    following: (u: string) => `https://mention.earth/ap/users/${u}/following`,
+    sharedInbox: () => 'https://mention.earth/ap/inbox',
+  },
+}));
 vi.mock('../../connectors/atproto/constants', () => ({ ATPROTO_ENABLED: false }));
 
 // The connector registry + resolve classifier pull the full connector graph;

@@ -128,7 +128,7 @@ import MentionRepoHead from '../models/MentionRepoHead';
 import MentionSignedRecord from '../models/MentionSignedRecord';
 import MentionNodeIngestWitness from '../models/MentionNodeIngestWitness';
 import { deleteFederatedActorIdentity } from '../connectors/identity';
-import type { DeleteActorIdentityOutcome } from '../connectors/identity';
+import type { DeleteActorIdentityOutcome } from '@oxyhq/federation/node';
 import { signedFetch } from '../connectors/activitypub/helpers';
 import { AP_CONTENT_TYPE } from '../connectors/activitypub/constants';
 import { logger } from '../utils/logger';

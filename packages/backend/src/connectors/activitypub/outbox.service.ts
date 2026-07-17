@@ -1,10 +1,10 @@
 import { logger } from '../../utils/logger';
 import FederatedActor, { IFederatedActor } from '../../models/FederatedActor';
 import { Post } from '../../models/Post';
+import { extractActorUriFromActivityId } from '@oxyhq/federation';
 import {
   FEDERATION_MAX_CONTENT_LENGTH,
   AP_CONTENT_TYPE,
-  extractActorUriFromActivityId,
 } from './constants';
 import { PostVisibility } from '@mention/shared-types';
 import { extractApLanguage, extractApLanguages } from './apLanguage';
