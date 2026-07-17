@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { createInboundDispatcher } from '@oxyhq/federation/node';
 import { logger } from '../../utils/logger';
 import FederatedActor from '../../models/FederatedActor';
 import FederatedFollow from '../../models/FederatedFollow';
@@ -53,60 +54,39 @@ function summarizeZodError(error: z.ZodError): string {
 }
 
 /**
- * Processing of inbound ActivityPub activities (Follow / Undo / Create / Delete
- * / Like / Announce / Accept / Reject / Update) delivered to a local user's
- * inbox.
+ * The CONTENT handlers for inbound ActivityPub activities (Create / Delete / Like
+ * / Announce / Update, and a non-follow Undo) delivered to a local user's inbox.
  *
- * Extracted verbatim from the former monolithic FederationService — same behavior,
- * same dispatch. Depends on ActorService (actor resolution + actor→Oxy id),
- * OutboxSyncService (boost import + post backfill on follow-accept), FollowService
- * (Accept delivery), the shared low-level helpers, and the registered PostCreator.
- * None of those import this module, so the direct imports are cycle-free.
+ * The protocol DISPATCH + the follow lifecycle (Follow / Accept / Undo(Follow) /
+ * Reject) now live in `@oxyhq/federation`'s inbound dispatcher (`inboundDispatcher`,
+ * wired at the bottom of this module) — it validates the untrusted activity, bridges
+ * the Oxy follow edge (via the identity adapter → {@link bridgeFollowEdge}), and
+ * hands every CONTENT verb to {@link InboxProcessingService.onContentActivity}. This
+ * class owns only the content: post ingest, engagement, and the fan-out of native
+ * notifications. Depends on ActorService (actor resolution + actor→Oxy id),
+ * OutboxSyncService (boost import), the shared low-level helpers, and the registered
+ * PostCreator. None of those import this module, so the direct imports are cycle-free.
  */
 export class InboxProcessingService {
   /**
-   * Process an incoming activity from a remote server.
+   * Process one already-actor-verified inbound activity by delegating to the shared
+   * engine dispatcher. Kept as an instance method so the BullMQ worker + the
+   * connector facade keep calling `inboxProcessingService.processInboxActivity`.
    */
-  async processInboxActivity(
-    activity: Record<string, any>,
-    verifiedActorUri: string,
-  ): Promise<void> {
-    // Inbound JSON arrives from arbitrary, UNTRUSTED remote servers. Validate
-    // the whole activity against the zod inbound schema BEFORE any handler reads
-    // it via raw property access. The parse helper never throws, so a malformed
-    // or hostile payload is rejected cleanly here rather than crashing or being
-    // partially processed downstream.
-    const parsed = parseInboundActivity(activity);
-    if (!parsed.ok) {
-      // Drop invalid activities (match the existing fast-ack inbox semantics: no
-      // throw, no retry-loop). Surface enough context to diagnose the source
-      // without trusting/dumping the raw payload.
-      const rawType =
-        typeof activity?.type === 'string'
-          ? activity.type
-          : Array.isArray(activity?.type)
-            ? activity.type.join(',')
-            : 'unknown';
-      const rawId = typeof activity?.id === 'string' ? activity.id : 'unknown';
-      logger.warn(
-        `[Federation] dropping invalid inbound activity from ${verifiedActorUri} (type=${rawType}, id=${rawId}): ${summarizeZodError(parsed.error)}`,
-      );
-      return;
-    }
+  processInboxActivity(activity: Record<string, any>, verifiedActorUri: string): Promise<void> {
+    return inboundDispatcher.processInboxActivity(activity, verifiedActorUri);
+  }
 
-    // The schema permits `type` to be a single string OR an array (some servers
-    // send an array); normalize to the primary string for dispatch. The handlers
-    // continue to read the RAW activity so the original-publish-date mapping and
-    // all other side effects stay byte-for-byte identical to the prior behavior.
-    const type = primaryApType(parsed.data.type);
-
+  /**
+   * Handle a CONTENT activity the engine does not own — Create / Delete / Like /
+   * Announce / Update, and a non-follow Undo (Undo(Like) / Undo(Announce)). The
+   * engine has already verified the actor + validated the activity; this re-reads
+   * the primary type and routes to the matching content handler, so the handlers'
+   * side effects stay byte-for-byte identical to the prior single-dispatch path.
+   */
+  async onContentActivity(activity: Record<string, any>, verifiedActorUri: string): Promise<void> {
+    const type = primaryApType(activity.type);
     switch (type) {
-      case 'Follow':
-        await this.handleIncomingFollow(activity, verifiedActorUri);
-        break;
-      case 'Undo':
-        await this.handleUndo(activity, verifiedActorUri);
-        break;
       case 'Create':
         await this.handleCreate(activity, verifiedActorUri);
         break;
@@ -119,37 +99,31 @@ export class InboxProcessingService {
       case 'Announce':
         await this.handleAnnounce(activity, verifiedActorUri);
         break;
-      case 'Accept':
-        await this.handleAccept(activity, verifiedActorUri);
-        break;
-      case 'Reject':
-        await this.handleReject(activity, verifiedActorUri);
-        break;
       case 'Update':
         await this.handleUpdate(activity, verifiedActorUri);
         break;
+      case 'Undo':
+        await this.handleUndoContent(activity.object, verifiedActorUri);
+        break;
       default:
-        logger.debug(`Unhandled activity type: ${type}`);
+        logger.debug(`Unhandled content activity type: ${type}`);
     }
   }
 
   /**
-   * Bridge a federated follow edge into the Oxy follow graph via oxy-api's
-   * service route `POST /federation/follow`. Idempotent on both sides: `follow`
-   * is a no-op when the edge already exists and `unfollow` when it does not.
-   * Throws on transport/HTTP failure so the BullMQ inbox job retries — the whole
-   * inbound-follow (and Undo) sequence is retry-safe, so re-running converges.
+   * Dispatch the content half of an inbound `Undo` — the engine routes a non-follow
+   * Undo here (an Undo(Follow) is handled by the engine itself). A `Like` teardown
+   * deletes the native `Like` doc; an `Announce` teardown deletes the native boost
+   * `Post`. Both are ungated (an Undo is teardown, not new engagement) — see the
+   * handler doc comments.
    */
-  private async bridgeFollowEdge(
-    followerUserId: string,
-    targetUserId: string,
-    action: 'follow' | 'unfollow',
-  ): Promise<void> {
-    await getServiceOxyClient().makeServiceRequest('POST', '/federation/follow', {
-      followerUserId,
-      targetUserId,
-      action,
-    });
+  private async handleUndoContent(object: any, actorUri: string): Promise<void> {
+    const objectType = typeof object === 'string' ? null : object?.type;
+    if (objectType === 'Like') {
+      await this.handleUndoLike(object, actorUri);
+    } else if (objectType === 'Announce') {
+      await this.handleUndoAnnounce(object, actorUri);
+    }
   }
 
   /**
@@ -272,147 +246,6 @@ export class InboxProcessingService {
       logger.warn(
         `[Federation] mention notification failed for post ${entityId} from actor ${actorOxyUserId}: ${message}`,
       );
-    }
-  }
-
-  private async handleIncomingFollow(activity: Record<string, any>, actorUri: string): Promise<void> {
-    const targetActorUri = typeof activity.object === 'string' ? activity.object : activity.object?.id;
-    if (!targetActorUri || typeof targetActorUri !== 'string') return;
-
-    // Extract username from our actor URL
-    const match = targetActorUri.match(/\/ap\/users\/([^/]+)$/);
-    if (!match) return;
-    const username = match[1];
-
-    // Resolve the Oxy user to get a real user ID
-    const user = await resolveOxyUser(username);
-    if (!user) {
-      logger.warn(`Incoming follow for unknown user ${username} from ${actorUri}`);
-      return;
-    }
-    const localUserId = String(user._id || user.id);
-
-    // The target user may have turned fediverse sharing off — drop the Follow
-    // silently (no bridge, no Accept, no Reject). A Reject is unverifiable
-    // against a 404'd actor and would reveal the account exists, so this must
-    // look identical to a Follow sent to an unknown user. Gated here, BEFORE
-    // the follower actor is fetched/resolved, so an OFF user never triggers any
-    // of the bridge/Accept/notification side effects below.
-    if (!isFediverseSharingEnabledFromUser(user)) {
-      logger.debug(`[Federation] inbound follow for ${username} dropped — sharing off`);
-      return;
-    }
-
-    // Resolve the follower actor and REQUIRE its Oxy user id: a fediverse
-    // follower must become a real Oxy edge, never a Mention-only ghost. When the
-    // actor is missing or not yet resolved to an Oxy user (Oxy was unreachable
-    // when it was fetched), `requireActorOxyUserId` throws
-    // `ActorResolutionPendingError` so the BullMQ inbox job retries with backoff
-    // and bridges the follow on a later attempt — mirroring `handleCreate`.
-    const actor = await actorService.getOrFetchActor(actorUri);
-    const followerOxyUserId = requireActorOxyUserId(actor, actorUri, `Follow ${activity.id}`);
-
-    // A self-follow (the follower resolves to the same local user) is meaningless
-    // in the Oxy graph — skip before touching any state or delivering an Accept.
-    if (followerOxyUserId === localUserId) {
-      logger.debug(`[Federation] ignoring self-follow from ${actorUri} to ${username}`);
-      return;
-    }
-
-    // Create the Oxy follow edge BEFORE sending Accept so a retry never spams
-    // Accepts: the bridge is idempotent (safe to re-run), but an Accept delivered
-    // before the edge was committed could be re-sent on every retry. On failure
-    // the bridge throws, failing the job so the whole sequence retries.
-    await this.bridgeFollowEdge(followerOxyUserId, localUserId, 'follow');
-
-    await FederatedFollow.findOneAndUpdate(
-      { localUserId, remoteActorUri: actorUri, direction: 'inbound' },
-      {
-        $set: {
-          status: 'accepted',
-          activityId: activity.id,
-        },
-      },
-      { upsert: true, returnDocument: 'after' },
-    );
-
-    // Send Accept back so the remote server knows the follow succeeded
-    await deliveryService.sendAccept(localUserId, username, activity.id, actorUri);
-
-    // Fail-soft: the Oxy edge is already committed, so a notification failure must
-    // never fail (and thus retry) the follow. `createNotification` dedupes and
-    // emits realtime/push; wrap defensively and surface failures at warn only.
-    //
-    // Imported lazily: `notificationUtils` imports the `oxy` singleton from
-    // `../../server`, and this connectors module is itself pulled in by `server`.
-    // A top-level import would form a load-time cycle that leaves connector
-    // singletons undefined at registry construction — the same reason
-    // `resolveOxyUser` reaches the server lazily.
-    try {
-      const { createNotification } = await import('../../utils/notificationUtils');
-      await createNotification({
-        recipientId: localUserId,
-        actorId: followerOxyUserId,
-        type: 'follow',
-        entityId: followerOxyUserId,
-        entityType: 'profile',
-      });
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      logger.warn(`[Federation] follow notification failed for ${localUserId} from ${actorUri}: ${message}`);
-    }
-
-    logger.info(`Accepted follow from ${actorUri} to ${username}`);
-  }
-
-  private async handleUndo(activity: Record<string, any>, actorUri: string): Promise<void> {
-    const object = activity.object;
-    if (!object) return;
-
-    const objectType = typeof object === 'string' ? null : object.type;
-    if (objectType === 'Follow') {
-      const targetActorUri = typeof object.object === 'string' ? object.object : object.object?.id;
-      const match = targetActorUri?.match(/\/ap\/users\/([^/]+)$/);
-      const filter: Record<string, unknown> = {
-        remoteActorUri: actorUri,
-        direction: 'inbound',
-      };
-      if (match) {
-        const user = await resolveOxyUser(match[1]);
-        if (user) filter.localUserId = String(user._id || user.id);
-      }
-
-      // Idempotency: locate the follow row FIRST. Absent → this Undo was already
-      // processed (a redelivery), so there is nothing to tear down — return.
-      const follow = await FederatedFollow.findOne(filter)
-        .lean<{ _id: mongoose.Types.ObjectId; localUserId: string } | null>();
-      if (!follow) {
-        logger.debug(`Undo follow from ${actorUri}: no matching row (already processed)`);
-        return;
-      }
-
-      // Remove the Oxy follow edge BEFORE deleting the local row, so a transient
-      // bridge failure retries with the row still present. The edge can only
-      // exist when the follower actor resolved to an Oxy user; without an
-      // `oxyUserId` no edge was ever created, so there is nothing to remove.
-      // THROW on transient bridge failure (job retry); the bridge is idempotent.
-      //
-      // Accepted residual race: if this Undo runs while the original Follow job
-      // is still retrying, that later Follow attempt can re-create a ghost edge.
-      // Both operations are individually convergent; we do not add cross-job
-      // locking for this rare window.
-      const actorRecord = await FederatedActor.findOne({ uri: actorUri })
-        .lean<{ oxyUserId?: string } | null>();
-      if (actorRecord?.oxyUserId) {
-        await this.bridgeFollowEdge(actorRecord.oxyUserId, follow.localUserId, 'unfollow');
-      }
-
-      await FederatedFollow.deleteOne({ _id: follow._id });
-      logger.debug(`Undo follow from ${actorUri}`);
-    } else if (objectType === 'Like') {
-      await this.handleUndoLike(object, actorUri);
-    } else if (objectType === 'Announce') {
-      await this.handleUndoAnnounce(object, actorUri);
     }
   }
 
@@ -876,68 +709,6 @@ export class InboxProcessingService {
     }
   }
 
-  private async handleAccept(activity: Record<string, any>, actorUri: string): Promise<void> {
-    const object = activity.object;
-    if (!object) return;
-
-    let updated = false;
-
-    if (typeof object === 'string') {
-      // Remote sent Accept with a string reference (the Follow activity ID)
-      const filter: Record<string, unknown> = {
-        remoteActorUri: actorUri,
-        direction: 'outbound',
-        status: 'pending',
-      };
-      // Try matching by activityId first, fall back to any pending follow
-      let result = await FederatedFollow.updateOne({ ...filter, activityId: object }, { $set: { status: 'accepted' } });
-      if ((result?.modifiedCount ?? 0) === 0) {
-        result = await FederatedFollow.updateOne(filter, { $set: { status: 'accepted' } });
-      }
-      updated = (result?.modifiedCount ?? 0) > 0;
-    } else if (object.type === 'Follow') {
-      const followActivityId = object.id;
-      const filter: Record<string, unknown> = {
-        remoteActorUri: actorUri,
-        direction: 'outbound',
-        status: 'pending',
-      };
-      if (followActivityId) filter.activityId = followActivityId;
-      const result = await FederatedFollow.updateOne(filter, { $set: { status: 'accepted' } });
-      updated = (result?.modifiedCount ?? 0) > 0;
-    }
-
-    if (updated) {
-      logger.debug(`Follow accepted by ${actorUri}`);
-      // Fire-and-forget: backfill the newly followed actor's recent posts
-      const actor = await FederatedActor.findOne({ uri: actorUri }).lean();
-      if (actor) {
-        outboxSyncService.syncOutboxPosts(actor, 20).catch(err => {
-          const message = err instanceof Error ? err.message : String(err);
-          logger.warn(`Failed to sync outbox after accept from ${actorUri}: ${message}`);
-        });
-      }
-    }
-  }
-
-  private async handleReject(activity: Record<string, any>, actorUri: string): Promise<void> {
-    const object = activity.object;
-    if (!object) return;
-
-    const objectType = typeof object === 'string' ? null : object.type;
-    if (objectType === 'Follow') {
-      const followActivityId = typeof object === 'object' ? object.id : undefined;
-      const filter: Record<string, unknown> = {
-        remoteActorUri: actorUri,
-        direction: 'outbound',
-        status: 'pending',
-      };
-      if (followActivityId) filter.activityId = followActivityId;
-      await FederatedFollow.updateOne(filter, { $set: { status: 'rejected' } });
-      logger.debug(`Follow rejected by ${actorUri}`);
-    }
-  }
-
   private async handleUpdate(activity: Record<string, any>, actorUri: string): Promise<void> {
     const object = activity.object;
     if (!object || typeof object !== 'object') return;
@@ -1061,3 +832,139 @@ export class InboxProcessingService {
 
 export const inboxProcessingService = new InboxProcessingService();
 export default inboxProcessingService;
+
+/**
+ * Bridge a federated follow edge into the Oxy follow graph via oxy-api's service
+ * route `POST /federation/follow`. Idempotent on both sides: `follow` is a no-op
+ * when the edge already exists and `unfollow` when it does not. Throws on
+ * transport/HTTP failure so the BullMQ inbox job retries — the whole inbound-follow
+ * (and Undo) sequence is retry-safe, so re-running converges. The engine's identity
+ * adapter calls this for both directions.
+ */
+async function bridgeFollowEdge(
+  followerUserId: string,
+  targetUserId: string,
+  action: 'follow' | 'unfollow',
+): Promise<void> {
+  await getServiceOxyClient().makeServiceRequest('POST', '/federation/follow', {
+    followerUserId,
+    targetUserId,
+    action,
+  });
+}
+
+/**
+ * The shared inbound dispatcher. The engine validates the untrusted activity, owns
+ * the follow protocol (Follow / Accept / Undo(Follow) / Reject — bridging the Oxy
+ * edge via the identity adapter, recording the AP-side follow row via the store
+ * adapter, sending the Accept via the delivery service), and hands every content
+ * verb to Mention's {@link InboxProcessingService.onContentActivity}. Everything
+ * app-specific is wired here.
+ */
+const inboundDispatcher = createInboundDispatcher({
+  // Validate the untrusted activity against Mention's zod inbound schema, then
+  // normalize the primary type (some servers send `type` as an array). The engine
+  // owns the drop-with-warn behaviour; this only reports the verdict + summary.
+  validateActivity: (activity) => {
+    const parsed = parseInboundActivity(activity);
+    if (!parsed.ok) return { ok: false, summary: summarizeZodError(parsed.error) };
+    // The schema permits `type` as a single string OR an array; normalize to the
+    // primary string. A validated activity always yields one, but guard for the
+    // type — an empty/absent primary type is an activity we cannot dispatch.
+    const type = primaryApType(parsed.data.type);
+    if (!type) return { ok: false, summary: 'missing activity type' };
+    return { ok: true, type };
+  },
+  identity: {
+    // `resolveOxyUser` reaches the `server` singleton lazily (load-time cycle),
+    // hence the wrapper rather than a bare reference.
+    resolveUserByUsername: (username) => resolveOxyUser(username),
+    bridgeFollow: (followerOxyUserId, localUserId) => bridgeFollowEdge(followerOxyUserId, localUserId, 'follow'),
+    bridgeUnfollow: (followerOxyUserId, localUserId) => bridgeFollowEdge(followerOxyUserId, localUserId, 'unfollow'),
+  },
+  consent: { isSharingEnabledFromUser: (user) => isFediverseSharingEnabledFromUser(user) },
+  actorResolver: { getOrFetchActor: (actorUri) => actorService.getOrFetchActor(actorUri) },
+  follows: {
+    upsertInboundAccepted: async (localUserId, remoteActorUri, activityId) => {
+      await FederatedFollow.findOneAndUpdate(
+        { localUserId, remoteActorUri, direction: 'inbound' },
+        { $set: { status: 'accepted', activityId } },
+        { upsert: true, returnDocument: 'after' },
+      );
+    },
+    findInboundFollow: (remoteActorUri, localUserId) => {
+      const filter: Record<string, unknown> = { remoteActorUri, direction: 'inbound' };
+      if (localUserId) filter.localUserId = localUserId;
+      return FederatedFollow.findOne(filter).lean<{ _id: unknown; localUserId: string } | null>();
+    },
+    deleteFollowById: async (id) => {
+      await FederatedFollow.deleteOne({ _id: id });
+    },
+    findActorOxyUserId: async (uri) => {
+      const actor = await FederatedActor.findOne({ uri }).lean<{ oxyUserId?: string } | null>();
+      return actor?.oxyUserId ?? null;
+    },
+    // Accept (string ref / Follow object): match the outbound-pending row by its
+    // activity id, or ANY pending row for this actor. Two methods so the engine
+    // reproduces the exact original fallback (string ref tries id THEN any-pending;
+    // a Follow object with an id tries id ONLY).
+    markOutboundAcceptedByActivityId: async (remoteActorUri, activityId) => {
+      const result = await FederatedFollow.updateOne(
+        { remoteActorUri, direction: 'outbound', status: 'pending', activityId },
+        { $set: { status: 'accepted' } },
+      );
+      return (result?.modifiedCount ?? 0) > 0;
+    },
+    markOutboundAcceptedAnyPending: async (remoteActorUri) => {
+      const result = await FederatedFollow.updateOne(
+        { remoteActorUri, direction: 'outbound', status: 'pending' },
+        { $set: { status: 'accepted' } },
+      );
+      return (result?.modifiedCount ?? 0) > 0;
+    },
+    markOutboundRejected: async (remoteActorUri, activityId) => {
+      const filter: Record<string, unknown> = { remoteActorUri, direction: 'outbound', status: 'pending' };
+      if (activityId) filter.activityId = activityId;
+      await FederatedFollow.updateOne(filter, { $set: { status: 'rejected' } });
+    },
+  },
+  delivery: {
+    sendAccept: (localOxyUserId, localUsername, followActivityId, remoteActorUri) =>
+      deliveryService.sendAccept(localOxyUserId, localUsername, followActivityId, remoteActorUri),
+  },
+  // Fail-soft: the Oxy edge is already committed, so a notification failure must
+  // never fail (and thus retry) the follow. Imported lazily — `notificationUtils`
+  // reaches the `server` singleton, and this module is itself pulled in by `server`.
+  onInboundFollowAccepted: async (localUserId, followerOxyUserId, actorUri) => {
+    try {
+      const { createNotification } = await import('../../utils/notificationUtils');
+      await createNotification({
+        recipientId: localUserId,
+        actorId: followerOxyUserId,
+        type: 'follow',
+        entityId: followerOxyUserId,
+        entityType: 'profile',
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      logger.warn(`[Federation] follow notification failed for ${localUserId} from ${actorUri}: ${message}`);
+    }
+  },
+  // Fire-and-forget: backfill the newly-followed actor's recent posts after Accept.
+  onOutboundFollowAccepted: async (actorUri) => {
+    const actor = await FederatedActor.findOne({ uri: actorUri }).lean();
+    if (actor) {
+      outboxSyncService.syncOutboxPosts(actor, 20).catch((err) => {
+        const message = err instanceof Error ? err.message : String(err);
+        logger.warn(`Failed to sync outbox after accept from ${actorUri}: ${message}`);
+      });
+    }
+  },
+  onContentActivity: (activity, verifiedActorUri) =>
+    inboxProcessingService.onContentActivity(activity, verifiedActorUri),
+  logger: {
+    debug: (message) => logger.debug(message),
+    info: (message) => logger.info(message),
+    warn: (message, detail) => (detail === undefined ? logger.warn(message) : logger.warn(message, detail)),
+  },
+});

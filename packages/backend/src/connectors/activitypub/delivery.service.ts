@@ -59,7 +59,9 @@ export const deliveryService: DeliveryService = createDeliveryService<IFederated
     }).then((result) => ({ response: result.response, status: result.status })),
   assertSafeInboxUrl: (url) => assertSafePublicUrl(url),
   transport: {
-    enqueueDelivery,
+    // Wrapped so `enqueueDelivery` is read at CALL time, not module init (a
+    // delivery producer is a runtime dependency, never touched just to load).
+    enqueueDelivery: (job) => enqueueDelivery(job),
     fallbackQueue: {
       create: (job) => FederationDeliveryQueue.create(job),
       insertMany: (jobs) => FederationDeliveryQueue.insertMany(jobs, { ordered: false }),

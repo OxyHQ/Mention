@@ -170,7 +170,9 @@ vi.mock('../../../connectors/activitypub/constants', async (importOriginal) => {
 
 import { deliveryService } from '../../../connectors/activitypub/delivery.service';
 import { inboxProcessingService } from '../../../connectors/activitypub/inbox.service';
-import { ActorResolutionPendingError } from '../../../connectors/shared/ActorResolutionPendingError';
+// The follow-protocol dispatch (incl. the deferral throw) is owned by the engine,
+// so the follow path now throws the ENGINE's ActorResolutionPendingError.
+import { ActorResolutionPendingError } from '@oxyhq/federation/node';
 
 const actorUri = 'https://mastodon.social/users/bob';
 const localActorUri = 'https://mention.earth/ap/users/alice';

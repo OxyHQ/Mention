@@ -82,8 +82,12 @@ import { bearerLooksLikeMcpToken, createOptionalMcpAuth, createRequireMcpOrOxyAu
 // the PostFederator (the seam PostCreationService.create uses), replacing the
 // deleted FederationService facade's old import side-effect.
 import './src/connectors';
-import webfingerRoutes from './src/connectors/activitypub/routes/wellKnown.routes';
-import federationRoutes from './src/connectors/activitypub/routes/ap.routes';
+import {
+  webfingerRouter,
+  actorRouter,
+  apRateLimiter,
+} from './src/connectors/activitypub/routes/engine.routes';
+import federationContentRoutes from './src/connectors/activitypub/routes/ap.routes';
 import federationApiRoutes from './src/connectors/connectors.routes';
 // atproto BE-DISCOVERED bridge (Phase C4) — exposes a local user's MTN content to
 // the atproto network via the public XRPC read surface. Gated by
@@ -938,7 +942,7 @@ app.get('/metrics', (req, res) => {
 });
 
 // --- Federation routes (ActivityPub protocol — must be public, before auth) ---
-app.use('/.well-known', webfingerRoutes);
+app.use('/.well-known', webfingerRouter);
 
 // NodeInfo — required for fediverse instance discovery
 app.get('/.well-known/nodeinfo', (req, res) => {
@@ -979,7 +983,14 @@ app.get('/nodeinfo/2.0', async (req, res) => {
   });
 });
 
-app.use('/ap', federationRoutes);
+// AP namespace — rate-limit once, then the shared engine router (actor GET, inbox
+// POST, followers/following) and Mention's content router (outbox/featured/post
+// dereference) on the SAME `/ap` prefix. All BEFORE `apexFrontendProxy` so the AP
+// endpoint paths serve 200 directly and are never 301/302-redirected (a redirect
+// kills Mastodon's inbox POST deliveries).
+app.use('/ap', apRateLimiter);
+app.use('/ap', actorRouter);
+app.use('/ap', federationContentRoutes);
 
 // --- atproto BE-DISCOVERED bridge (Phase C4 — public, before auth) ---
 // The XRPC read surface (`com.atproto.repo.*` / `com.atproto.sync.*`) + the
