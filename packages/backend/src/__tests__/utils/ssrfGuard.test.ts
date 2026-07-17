@@ -1,5 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
+// The SSRF guard now lives ONCE in `@oxyhq/core/server` (Mention's duplicate
+// `utils/ssrfGuard.ts` was deleted and every call site converged onto core).
+// This suite is Mention's regression proof that the guard Mention consumes from
+// core still blocks the private/reserved/metadata ranges and ambiguous hosts.
+//
 // Mock the DNS resolver so hostname-resolution cases are deterministic and
 // never touch the network. Literal-IP and syntax checks below do not hit DNS.
 const lookupMock = vi.fn();
@@ -7,7 +12,7 @@ vi.mock('node:dns/promises', () => ({
   lookup: (...args: unknown[]) => lookupMock(...args),
 }));
 
-import { assertSafePublicUrl, isBlockedIp } from '../../utils/ssrfGuard';
+import { assertSafePublicUrl, isBlockedIp } from '@oxyhq/core/server';
 
 beforeEach(() => {
   lookupMock.mockReset();

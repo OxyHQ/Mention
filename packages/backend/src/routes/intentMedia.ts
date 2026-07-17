@@ -9,8 +9,8 @@ import { RedisStore } from '../middleware/rateLimitStore';
 import { hashedIpKey } from '../utils/ipKey';
 import { getServiceOxyClient, uploadServiceUserMedia } from '../utils/oxyHelpers';
 import type { OxyAuthRequestWithMcp } from '../mcp/middleware/mcpAuth';
+import { SsrfRejection } from '@oxyhq/core/server';
 import {
-  SsrfRejection,
   UpstreamResult,
   contentTypeFamily,
   fetchUpstreamFollowingRedirects,

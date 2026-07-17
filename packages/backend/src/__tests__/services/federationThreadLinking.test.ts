@@ -254,7 +254,8 @@ vi.mock('../../models/FederatedFollow', () => ({
   default: { exists: h.followExists },
 }));
 
-vi.mock('../../utils/ssrfGuard', () => ({
+vi.mock('@oxyhq/core/server', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@oxyhq/core/server')>()),
   assertSafePublicUrl: h.assertSafePublicUrl,
 }));
 

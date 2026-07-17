@@ -25,7 +25,10 @@ vi.mock('../../../models/FederatedActor', () => ({ default: {} }));
 vi.mock('../../../models/FederatedFollow', () => ({ default: {} }));
 vi.mock('../../../models/FederationDeliveryQueue', () => ({ default: {} }));
 vi.mock('../../../utils/safeUpstreamFetch', () => ({ fetchUpstreamSingleHop: vi.fn() }));
-vi.mock('../../../utils/ssrfGuard', () => ({ assertSafePublicUrl: vi.fn() }));
+vi.mock('@oxyhq/core/server', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@oxyhq/core/server')>()),
+  assertSafePublicUrl: vi.fn(),
+}));
 vi.mock('../../../utils/mediaResolver', () => ({
   resolveMediaRef: (ref: string) => ({ url: `https://cloud.oxy.so/${ref}` }),
 }));

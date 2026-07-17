@@ -25,7 +25,7 @@ import { getServiceOxyClient } from '../../utils/oxyHelpers';
 import type { LocalBoostEventPayload } from '@oxyhq/federation';
 import { actorService } from './actor.service';
 import { fetchUpstreamSingleHop } from '../../utils/safeUpstreamFetch';
-import { assertSafePublicUrl } from '../../utils/ssrfGuard';
+import { assertSafePublicUrl } from '@oxyhq/core/server';
 import { resolveMediaRef } from '../../utils/mediaResolver';
 import { linkifyApHtml, type ApMentionLink, type LinkifyApHtmlOptions } from '../../utils/federation/linkifyApHtml';
 import { normalizeHashtag, normalizeMentionIds } from '../../utils/textProcessing';

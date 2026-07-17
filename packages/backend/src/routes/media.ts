@@ -4,8 +4,8 @@ import rateLimit from 'express-rate-limit';
 import { logger } from '../utils/logger';
 import { RedisStore } from '../middleware/rateLimitStore';
 import { hashedIpKey } from '../utils/ipKey';
+import { SsrfRejection } from '@oxyhq/core/server';
 import {
-  SsrfRejection,
   UpstreamResult,
   contentTypeFamily,
   fetchUpstreamFollowingRedirects,

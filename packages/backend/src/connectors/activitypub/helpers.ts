@@ -10,7 +10,7 @@ import {
 import { PostVisibility, type MediaItem } from '@mention/shared-types';
 import { extractApMediaFromNote, type ApMediaType } from './apMedia';
 import { normalizeHashtag } from '../../utils/textProcessing';
-import { assertSafePublicUrl } from '../../utils/ssrfGuard';
+import { assertSafePublicUrl } from '@oxyhq/core/server';
 import { fetchUpstreamSingleHop, type SingleHopResult } from '../../utils/safeUpstreamFetch';
 import { isAbsoluteHttpUrl } from '../shared/url';
 
