@@ -622,3 +622,70 @@ export async function importAuthorFeed(
 
   return { posts: imported, cursor: feed?.cursor };
 }
+
+/** The `app.bsky.feed.getPosts` response — only the field this connector reads. */
+interface AtprotoGetPostsResponse {
+  posts?: AtprotoPostView[];
+}
+
+/** Resolved local thread + quote links for a single re-fetched atproto post. */
+export interface AtprotoRepairLinks {
+  parentPostId?: string;
+  threadId?: string;
+  quoteOf?: string;
+}
+
+/** Outcome of re-fetching a single stored atproto post for in-place repair. */
+export type AtprotoRepairFetch =
+  | { kind: 'ok'; post: NormalizedExternalPost; links: AtprotoRepairLinks }
+  | { kind: 'gone' }
+  | { kind: 'error' };
+
+/**
+ * Re-fetch a single already-stored atproto post by its AT-URI and re-run the
+ * CURRENT mapping, so a caller (the reingest repair script) can update the stored
+ * `Post` in place through the SAME facet/quote/thread logic fresh ingest uses.
+ *
+ * `app.bsky.feed.getPosts` returns the identical hydrated `PostView` shape
+ * `getAuthorFeed` does, so {@link mapPostViewToNormalizedPost} produces byte-for-byte
+ * the same body (`#link` display text expanded to the full URL, resolved
+ * `#mention`s spliced to `[mention:<oxyUserId>]`), hashtags, langs, sensitivity,
+ * `inReplyTo` and quoted AT-URI as a live import. Mentioned DIDs are resolved
+ * through the same batched, fail-soft path, and the reply / quote AT-URIs are
+ * resolved to LOCAL thread + quote links exactly like {@link createPostFromNormalized}.
+ *
+ * The fetch is classified so the caller can distinguish a post that no longer
+ * exists upstream (`gone` — the AppView returned no view for the URI, or the view
+ * no longer maps to `expectedAuthorDid`) from a transient failure (`error` — leave
+ * the stored post untouched for a later re-run).
+ */
+export async function refetchAtprotoPostForRepair(
+  atUri: string,
+  expectedAuthorDid: string,
+  ownerOxyUserId: string,
+): Promise<AtprotoRepairFetch> {
+  let response: AtprotoGetPostsResponse;
+  try {
+    response = await xrpcGet<AtprotoGetPostsResponse>(PUBLIC_APPVIEW, 'app.bsky.feed.getPosts', { uris: atUri });
+  } catch (err) {
+    logger.warn(`[atproto] getPosts failed for repair of ${atUri}`, err);
+    return { kind: 'error' };
+  }
+
+  // The AppView echoes the requested URI; a deleted / blocked / unresolvable post
+  // is silently omitted, so an absent view is a permanently-gone post.
+  const postView = Array.isArray(response.posts)
+    ? response.posts.find((view) => view?.uri === atUri)
+    : undefined;
+  if (!postView) return { kind: 'gone' };
+
+  const mentionMap = await resolveMentionDids(new Set(extractMentionDids(postView.record)));
+  const mapped = mapPostViewToNormalizedPost(postView, expectedAuthorDid, mentionMap);
+  // A view that no longer maps (author reassigned the handle, record type changed)
+  // is treated as gone rather than silently repaired against the wrong author.
+  if (!mapped) return { kind: 'gone' };
+
+  const post: NormalizedExternalPost = { ...mapped, authorOxyUserId: ownerOxyUserId };
+  const links = await resolveThreadAndQuoteLinks(post.inReplyTo, post.quotedUri);
+  return { kind: 'ok', post, links };
+}
