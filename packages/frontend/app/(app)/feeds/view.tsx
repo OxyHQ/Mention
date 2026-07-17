@@ -15,12 +15,15 @@ import { PanelStickyHeader } from '@/components/shell/PanelChrome';
 import { PRESET_FEEDS, type FeedType } from '@mention/shared-types';
 
 /**
- * Read-only viewer for a built-in preset feed. The feeds catalog
- * (`app/(app)/feeds.tsx`) links here with the preset's `descriptor` + resolved
- * `title` so a viewer can OPEN a preset feed without having to pin it first.
- * Custom feeds have their own detail screen (`feeds/[id].tsx`); this route only
- * renders preset descriptors, resolving each against the shared `PRESET_FEEDS`
- * catalog (single source of truth for the label + auth requirement).
+ * Read-only viewer for a descriptor-addressed feed that has no dedicated detail
+ * screen. Two kinds open here:
+ *  - a built-in PRESET feed — the feeds catalog (`app/(app)/feeds.tsx`) links here
+ *    with the preset's `descriptor` + resolved `title` so a viewer can OPEN it
+ *    without pinning; each resolves against the shared `PRESET_FEEDS` catalog.
+ *  - a FEED GENERATOR (`feedgen|<uri>`) — a synced Bluesky feed surfaced on a
+ *    profile's Feeds tab; opening it runs the remote algorithm through the MTN
+ *    engine and renders its output as native posts.
+ * Native custom feeds keep their own detail screen (`feeds/[id].tsx`).
  *
  * `<Feed>` is the single scroll owner here — the same window-virtualizer web
  * path the home screen uses — so there is no second top-level virtualizer.
@@ -31,13 +34,17 @@ export default function PresetFeedViewScreen() {
     const { t } = useTranslation();
     const { canUsePrivateApi, isPrivateApiPending } = useAuth();
 
+    // A feed-generator descriptor (`feedgen|<uri>`) is served straight through the
+    // MTN engine — it is not a preset and never viewer-gated (a public algorithm).
+    const isFeedGenerator = typeof descriptor === 'string' && descriptor.startsWith('feedgen|');
+
     // Resolve the preset from the shared catalog to get its label + auth flag.
     // Every remaining preset descriptor (for_you / following / trending /
     // explore / mutuals / friends_popular) is a plain, non-parametrized token
     // that is also a valid `FeedType`, so it maps straight onto `<Feed type>`.
     const preset = useMemo(
-        () => PRESET_FEEDS.find((p) => p.descriptor === descriptor),
-        [descriptor],
+        () => (isFeedGenerator ? undefined : PRESET_FEEDS.find((p) => p.descriptor === descriptor)),
+        [descriptor, isFeedGenerator],
     );
 
     const headerTitle = title || (preset ? t(preset.labelKey) : t('feeds.untitled', { defaultValue: 'Feed' }));
@@ -48,6 +55,11 @@ export default function PresetFeedViewScreen() {
     const gated = Boolean(preset?.requiresAuth) && !canUsePrivateApi;
 
     const renderBody = () => {
+        // A feed generator carries its content path in the descriptor itself, so it
+        // renders straight through the engine (no preset lookup, no auth gate).
+        if (isFeedGenerator) {
+            return <Feed type={descriptor as FeedType} />;
+        }
         if (!preset) {
             return (
                 <EmptyState

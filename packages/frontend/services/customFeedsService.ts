@@ -93,6 +93,30 @@ export interface FeedCategoryCount {
   count: number;
 }
 
+/**
+ * A FEED GENERATOR as returned by `GET /feeds/generators` — a third-party /
+ * algorithmic feed (today a Bluesky feed mirrored into a native `FeedGenerator`).
+ * It is opened through the MTN feed engine via its `descriptor` (`feedgen|<uri>`),
+ * NOT the CustomFeed detail screen, and imports the remote algorithm's output as
+ * native posts. Read-only + owned upstream.
+ */
+export interface FeedGeneratorItem {
+  id: string;
+  uri: string;
+  /** The MTN feed descriptor that opens this generator: `feedgen|<uri>`. */
+  descriptor: string;
+  title: string;
+  description?: string;
+  avatar?: string;
+  likeCount: number;
+  owner?: PostUser | null;
+}
+
+export interface FeedGeneratorListResponse {
+  items: FeedGeneratorItem[];
+  total: number;
+}
+
 interface FeedLikeResponse {
   success: boolean;
   liked: boolean;
@@ -129,6 +153,19 @@ class CustomFeedsService {
   async get(id: string): Promise<CustomFeedDetail> {
     return run('get', async () => {
       const res = await authenticatedClient.get<CustomFeedDetail>(`/feeds/${id}`);
+      return res.data;
+    });
+  }
+
+  /**
+   * List a user's FEED GENERATORS — third-party/algorithmic feeds keyed on the
+   * owner (`createdBy`). Today these are synced Bluesky feeds, so a federated
+   * profile's mirrored feeds surface on its Feeds tab alongside native custom feeds.
+   * Each carries a `descriptor` (`feedgen|<uri>`) to open it through the MTN engine.
+   */
+  async listGenerators(params?: { userId?: string; mine?: boolean }): Promise<FeedGeneratorListResponse> {
+    return run('listGenerators', async () => {
+      const res = await authenticatedClient.get<FeedGeneratorListResponse>('/feeds/generators', { params: { ...params } });
       return res.data;
     });
   }

@@ -19,6 +19,7 @@ import { migrationTrendingTtlIndex } from './0003-trending-ttl-index';
 import { migrationNotificationTtlIndex } from './0004-notification-ttl-index';
 import { migrationStarterPackMemberIndex } from './0005-starter-pack-member-index';
 import { migrationFederatedStarterPackSourceIndex } from './0006-federated-starter-pack-source-index';
+import { migrationFeedGeneratorIndex } from './0007-feed-generator-index';
 
 export interface Migration {
   /** Stable, unique migration id recorded in the migrations collection. */
@@ -40,6 +41,7 @@ const MIGRATIONS: readonly Migration[] = [
   migrationNotificationTtlIndex,
   migrationStarterPackMemberIndex,
   migrationFederatedStarterPackSourceIndex,
+  migrationFeedGeneratorIndex,
 ];
 
 /**

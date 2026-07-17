@@ -1,7 +1,7 @@
 /**
  * One-shot backfill: mirror existing atproto actors' PROFILE GRAPH extras — their
- * starter packs (`app.bsky.graph.starterpack`, functional import) and their feed
- * generators (`app.bsky.feed.generator`, read-only references) — into Mention.
+ * starter packs (`app.bsky.graph.starterpack`) and their feed generators
+ * (`app.bsky.feed.generator`), both into native Mention records — into Mention.
  *
  * WHY
  *   Starter-pack + feed sync is discovered on profile view (the same lifecycle as
@@ -10,16 +10,16 @@
  *   someone views their profile again. This sweep catches those actors up.
  *
  *   Despite the starter-pack-focused name, it runs the SAME orchestrator the live
- *   path does (`syncAtprotoProfileGraph`), so it also refreshes each actor's
- *   external feed references — the two are always discovered together.
+ *   path does (`syncAtprotoProfileGraph`), so it also refreshes each actor's feed
+ *   generators — the two are always discovered together.
  *
  * WHAT IT DOES
  *   Iterates every atproto `FederatedActor` that already carries a resolved
  *   `oxyUserId` (the no-orphan invariant — a pack/feed must be owned by a real Oxy
  *   user) and calls `syncAtprotoProfileGraph(actor.uri, actor.oxyUserId)`. That
- *   upserts each pack on `source.uri` (idempotent — re-running never duplicates)
- *   and each feed reference on its AT-URI, minting any not-yet-seen member accounts
- *   through the shared federated-identity path.
+ *   upserts each pack on `source.uri` and each feed generator on its AT-URI
+ *   (idempotent — re-running never duplicates), minting any not-yet-seen member
+ *   accounts through the shared federated-identity path.
  *
  * FLAGS (plain argv):
  *   --dry-run          enumerate the atproto actors that WOULD be synced (respecting
