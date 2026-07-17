@@ -44,6 +44,11 @@ import {
   parseInboundActivity,
   parseNote,
 } from './apSchemas';
+import {
+  applyMentionPlaceholders,
+  resolveInboundMentionsForNotes,
+  type ResolvedInboundMentions,
+} from './apMentions';
 
 /**
  * Bounded concurrency for resolving unknown actor URIs during outbox backfill.
@@ -598,6 +603,31 @@ export class OutboxSyncService {
 
       logger.debug(`[FedSync] ${candidates.length} candidates (${noteCandidates.length} notes, ${announceCandidates.length} announces), ${existingIds.size} already exist, actorOxyMap has ${actorOxyMap.size} entries`);
 
+      // Resolve the @mentions of every NEW note in this page ONCE, with bounded
+      // remote fan-out. Each DISTINCT mentioned actor across the page is
+      // fetched-and-created at most once, in capped-concurrency batches with a
+      // per-actor timeout (the SAME bounds this file already applies to note-author
+      // resolution), so a page carrying many first-seen mentions can never trigger
+      // the unbounded/serial actor fetch that once hung a re-ingest. Already-imported
+      // (deduped) notes are excluded so a re-sync never re-resolves. Consumed per
+      // note in the build loop below to rewrite each mention anchor into a
+      // `[mention:<id>]` placeholder BEFORE the body is derived and to set the
+      // post's `mentions` allowlist — mirroring the inbox Create path, which this
+      // raw `insertMany` cannot inherit because it bypasses that code path.
+      const pendingNoteCandidates = noteCandidates.filter(
+        (c) => !existingIds.has(c.activityId),
+      );
+      const mentionsByNote = await resolveInboundMentionsForNotes(
+        pendingNoteCandidates.map((c) => c.note),
+        {
+          concurrency: OUTBOX_ACTOR_RESOLVE_CONCURRENCY,
+          perActorTimeoutMs: OUTBOX_ACTOR_RESOLVE_TIMEOUT_MS,
+        },
+      );
+      // Shared no-mention default for a note the map has no entry for (never
+      // mutated; `applyMentionPlaceholders` treats an empty anchor map as a no-op).
+      const emptyMentions: ResolvedInboundMentions = { ids: [], localIds: [], anchorMap: new Map() };
+
       // Build documents for batch insert. Raw insert docs (bypass Mongoose) — a
       // loose record shape since they are assembled field-by-field below and
       // inserted via `Post.collection.insertMany`.
@@ -642,13 +672,22 @@ export class OutboxSyncService {
           continue;
         }
 
+        // Rewrite this note's @mention anchors to internal `[mention:<id>]`
+        // placeholders using the shared page-level resolution, so hydration renders
+        // each mention as a real profile link instead of dead `@user` text. Must
+        // run BEFORE the builder derives the body (the raw `insertMany` bypasses
+        // Mongoose, so there is no later hook to do it). `applyMentionPlaceholders`
+        // returns the note unchanged when it has no resolved mentions (zero cost).
+        const mentionResult = mentionsByNote.get(note) ?? emptyMentions;
+        const noteObject = applyMentionPlaceholders(note, mentionResult.anchorMap);
+
         // Build the storable body via the shared builder: contentMap fallback,
         // the SAME hashtag normalization the inbox path runs (fixes the ingest
         // asymmetry), media materialization, and the empty-note guard. The raw
         // `insertMany` below bypasses Mongoose middleware, so the builder is the
         // single place that normalization/guarding happens for this path. A Note
         // that carries nothing storable is skipped rather than inserted blank.
-        const built = await buildFederatedNoteContent(note, resolvedOxyUserId, {
+        const built = await buildFederatedNoteContent(noteObject, resolvedOxyUserId, {
           activityId,
           actorUri: actorUri ?? undefined,
         });
@@ -712,6 +751,11 @@ export class OutboxSyncService {
           },
           visibility: mapApVisibility(note.to, note.cc),
           hashtags,
+          // Resolved @mention Oxy user ids (federated + local) — the SAME allowlist
+          // the inbox path stores, keyed by the `[mention:<id>]` placeholders now in
+          // the body so hydration renders each as a real profile link. Set
+          // explicitly because the raw `insertMany` bypasses the schema default.
+          ...(mentionResult.ids.length > 0 ? { mentions: mentionResult.ids } : {}),
           ...(primaryLanguage ? { language: primaryLanguage } : {}),
           status: 'published',
           // Engagement counters start at 0 and only ever move in lockstep with
