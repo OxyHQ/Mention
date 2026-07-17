@@ -48,7 +48,7 @@ export const ProfileContent = memo(function ProfileContent({
   onLayout,
 }: ProfileContentProps) {
   const { t } = useTranslation();
-  const { user } = useAuth();
+  const { user, isAuthenticated } = useAuth();
   const design = profileData.design;
   const minimalistMode = design.minimalistMode;
   // Own, non-federated profile opted into fediverse sharing (absent flag ⇒ on):
@@ -56,6 +56,17 @@ export const ProfileContent = memo(function ProfileContent({
   const fediverseBadge =
     isOwnProfile && !profileData.isFederated && user?.fediverseSharing !== false ? (
       <FediverseSharingBadge size={20} />
+    ) : undefined;
+  // Passive "Follows you" tag rendered inline to the right of the @handle when
+  // this profile follows the viewer. Requires an authenticated viewer (a signed-
+  // out visitor has no "you") and is never shown on the viewer's own profile.
+  const followsYouTag =
+    !isOwnProfile && isAuthenticated && profileData.followsYou ? (
+      <View className="bg-secondary px-1.5 py-0.5 rounded">
+        <Text className="text-muted-foreground text-xs font-medium" numberOfLines={1}>
+          {t('profile.followsYou', { defaultValue: 'Follows you' })}
+        </Text>
+      </View>
     ) : undefined;
   const profileHandle = getNormalizedUserHandle({
     username: profileData.username || username,
@@ -145,17 +156,13 @@ export const ProfileContent = memo(function ProfileContent({
             variant="default"
             style={userNameStyle}
             trailingBadge={fediverseBadge}
+            handleTrailing={followsYouTag}
           />
-          <View className="flex-row items-center gap-2 flex-wrap">
-            {isPrivate && <PrivateBadge privacySettings={profileData.privacy} />}
-            {!isOwnProfile && profileData.followsYou && (
-              <View className="bg-secondary px-1.5 py-0.5 rounded">
-                <Text className="text-muted-foreground text-xs font-medium">
-                  {t('profile.followsYou', { defaultValue: 'Follows you' })}
-                </Text>
-              </View>
-            )}
-          </View>
+          {isPrivate && (
+            <View className="flex-row items-center gap-2 flex-wrap">
+              <PrivateBadge privacySettings={profileData.privacy} />
+            </View>
+          )}
         </View>
       )}
 
