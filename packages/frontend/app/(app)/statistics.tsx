@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useState } from 'react';
 import {
     View,
     Text,
@@ -8,6 +8,7 @@ import {
     Dimensions,
     Platform,
 } from 'react-native';
+import { useQuery } from '@tanstack/react-query';
 import { Loading } from '@oxyhq/bloom/loading';
 import { SafeAreaView } from '@/lib/SafeAreaViewInterop';
 import { Ionicons } from '@expo/vector-icons';
@@ -15,9 +16,9 @@ import { useTheme } from '@oxyhq/bloom/theme';
 import { ThemedView } from '@/components/ThemedView';
 import { Header } from '@/components/Header';
 import { PanelStickyHeader } from '@/components/shell/PanelChrome';
-import { statisticsService, UserStatistics, EngagementRatios } from '@/services/statisticsService';
+import { statisticsService } from '@/services/statisticsService';
 import { useTranslation } from 'react-i18next';
-import { useAuth } from '@oxyhq/services';
+import { useAuth, OxyAuthPrompt } from '@oxyhq/services';
 import { usePostsStore } from '@/stores/postsStore';
 import PostItem from '@/components/Feed/PostItem';
 import { HydratedPost } from '@mention/shared-types';
@@ -37,61 +38,46 @@ const PERIOD_OPTIONS = [
 const InsightsScreen: React.FC = () => {
     const { t } = useTranslation();
     const theme = useTheme();
-    const { user } = useAuth();
+    const { user, canUsePrivateApi, isPrivateApiPending } = useAuth();
 
-    const [loading, setLoading] = useState(true);
-    const [stats, setStats] = useState<UserStatistics | null>(null);
-    const [engagementRatios, setEngagementRatios] = useState<EngagementRatios | null>(null);
     const [selectedPeriod, setSelectedPeriod] = useState(30);
     const [activeTab, setActiveTab] = useState<'overview' | 'engagement'>('overview');
-    const [topPostsData, setTopPostsData] = useState<HydratedPost[]>([]);
-    const [loadingTopPosts, setLoadingTopPosts] = useState(false);
 
     const { getPostById } = usePostsStore();
 
-    const loadStatistics = useCallback(async () => {
-        if (!user) return;
-
-        try {
-            setLoading(true);
-            const [statsData, engagementData] = await Promise.all([
+    // Overview + engagement metrics for the selected period. Keyed on the auth
+    // identity so it fires only once the session lands and auto-re-runs when
+    // `user?.id` arrives after SSO restore (fixes the cold-boot miss). Gated on
+    // `canUsePrivateApi` since /statistics/* are private endpoints.
+    const { data: statistics, isLoading } = useQuery({
+        queryKey: ['statistics', user?.id, selectedPeriod],
+        queryFn: async () => {
+            const [stats, engagementRatios] = await Promise.all([
                 statisticsService.getUserStatistics(selectedPeriod),
                 statisticsService.getEngagementRatios(selectedPeriod)
             ]);
-            setStats(statsData);
-            setEngagementRatios(engagementData);
+            return { stats, engagementRatios };
+        },
+        enabled: canUsePrivateApi,
+    });
 
-            // Load top posts data
-            if (statsData.topPosts && statsData.topPosts.length > 0) {
-                setLoadingTopPosts(true);
-                try {
-                    const postsPromises = statsData.topPosts.slice(0, 5).map(async (postInfo) => {
-                        try {
-                            return await getPostById(postInfo.postId);
-                        } catch (error) {
-                            return null;
-                        }
-                    });
-                    const posts = await Promise.all(postsPromises);
-                    setTopPostsData(posts.filter((p): p is HydratedPost => p !== null));
-                } catch (error) {
-                    // Silently ignore top posts loading errors
-                } finally {
-                    setLoadingTopPosts(false);
-                }
-            } else {
-                setTopPostsData([]);
-            }
-        } catch (error) {
-            // Silently ignore statistics loading errors
-        } finally {
-            setLoading(false);
-        }
-    }, [selectedPeriod, user, getPostById]);
+    const stats = statistics?.stats ?? null;
+    const engagementRatios = statistics?.engagementRatios ?? null;
 
-    useEffect(() => {
-        loadStatistics();
-    }, [loadStatistics]);
+    const topPostIds = stats?.topPosts?.slice(0, 5).map((p) => p.postId) ?? [];
+
+    // Top-post hydration is a dependent query (needs the ids from `statistics`),
+    // preserving the original per-section loading spinner.
+    const { data: topPostsData = [], isLoading: loadingTopPosts } = useQuery({
+        queryKey: ['statistics-top-posts', user?.id, topPostIds],
+        queryFn: async () => {
+            const posts = await Promise.all(
+                topPostIds.map((postId) => getPostById(postId).catch(() => null))
+            );
+            return posts.filter((p): p is HydratedPost => p !== null);
+        },
+        enabled: canUsePrivateApi && topPostIds.length > 0,
+    });
 
 
     const renderOverviewTab = () => {
@@ -572,10 +558,15 @@ const InsightsScreen: React.FC = () => {
                 {/* Content. WEB renders in normal document flow (no page-level
                     scroll container — the body is the scroller, matching
                     Home/Profile). NATIVE keeps a ScrollView as the screen scroller. */}
-                {loading ? (
+                {isPrivateApiPending || isLoading ? (
                     <View className="flex-1 items-center justify-center py-24">
                         <Loading className="text-primary" size="large" />
                     </View>
+                ) : !canUsePrivateApi ? (
+                    <OxyAuthPrompt
+                        label={t('insights.signInRequired', { defaultValue: 'Sign in to see your insights' })}
+                        description={t('insights.signInRequiredDesc', { defaultValue: 'Your posts, views, and engagement stats will appear here once you sign in.' })}
+                    />
                 ) : IS_WEB ? (
                     <View className="p-3">
                         {activeTab === 'overview' ? renderOverviewTab() : renderEngagementTab()}
