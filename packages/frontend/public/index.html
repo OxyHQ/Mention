@@ -6,6 +6,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
 
     <!--
+      Standard PWA capability meta. Chrome deprecates the legacy
+      `apple-mobile-web-app-capable` (injected at runtime by `components/PwaHead.tsx`)
+      and asks for this standard companion. Baking it into the static shell keeps it
+      present from first parse, before the runtime apple-meta injection.
+    -->
+    <meta name="mobile-web-app-capable" content="yes" />
+
+    <!--
       Resource hints for the two cross-origin hosts the first screen hits before
       any JS-driven fetch can resolve DNS/TLS on its own:
         - the Mention API   (feed JSON + federated media proxy)
