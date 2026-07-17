@@ -6,7 +6,6 @@ import { FollowButton } from '@oxyhq/services';
 import { Avatar } from '@oxyhq/bloom/avatar';
 import * as Skeleton from '@oxyhq/bloom/skeleton';
 import { getNormalizedUserHandle } from '@oxyhq/core';
-import { useViewerFollowingSet } from '@/hooks/useViewerFollowing';
 import { ThemedText } from './ThemedText';
 import { RemoteActorBadge } from '@/components/Fediverse/FediverseBadge';
 import { AgentIcon } from '@/assets/icons/agent-icon';
@@ -66,10 +65,10 @@ interface ProfileCardProps {
   /**
    * Seeds the follow button's initial state so a user the viewer already follows
    * renders "Following" on mount instead of flashing "Follow" until the status
-   * fetch resolves. When omitted, it is derived from the viewer's cached
-   * following set ({@link useViewerFollowingSet}), so every list surface gets the
-   * seed for free; pass an explicit value only when the row already carries the
-   * relationship from its own DTO.
+   * fetch resolves. Pass an explicit value only when the row already carries the
+   * relationship from its own DTO — when omitted, the app-root follow-store seed
+   * ({@link useSeedViewerFollowStatuses}) already covers every followed user, so
+   * list surfaces get the seed for free.
    */
   initiallyFollowing?: boolean;
   /**
@@ -99,7 +98,6 @@ export function ProfileCard({
 }: ProfileCardProps) {
   const router = useRouter();
   const { t } = useTranslation();
-  const followingSet = useViewerFollowingSet();
 
   // A federated profile's canonical handle carries its instance (`user@domain`),
   // so the row never needs a separate "globe + instance" line. An unresolved
@@ -190,7 +188,7 @@ export function ProfileCard({
         <FollowButton
           userId={profile.id}
           size="small"
-          initiallyFollowing={initiallyFollowing ?? followingSet.has(profile.id)}
+          initiallyFollowing={initiallyFollowing}
           onFollowChange={onFollowChange}
         />
       )}
