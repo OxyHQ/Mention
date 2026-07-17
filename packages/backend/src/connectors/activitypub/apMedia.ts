@@ -107,6 +107,46 @@ function classify(resolved: ResolvedUrl): ApMediaType | null {
 }
 
 /**
+ * Classify an attachment from its AP `type` discriminator — the LAST-RESORT
+ * signal used only when neither the MIME type nor a file extension resolves.
+ *
+ * Bridgy Fed (brid.gy) bridges Bluesky media as
+ * `{ type:'Image'|'Video', width, height, url:'https://…bsky.network/xrpc/com.atproto.sync.getBlob?did=…&cid=…' }`:
+ * NO `mediaType`, and the `getBlob` URL carries no extension, so the AP object
+ * `type` is the only remaining evidence of the medium. Mastodon/Pleroma always
+ * send a MIME, so their MIME-first path never reaches this.
+ */
+function classifyFromApType(attachment: ApAttachment): ApMediaType | null {
+  const apType = typeof attachment.type === 'string' ? attachment.type : undefined;
+  switch (apType) {
+    case 'Image':
+      return 'image';
+    case 'Video':
+      return 'video';
+    case 'Audio':
+      // The Post media model has no dedicated audio kind; an audio attachment is
+      // stored as a video item so it stays playable through the video pipeline
+      // rather than being dropped.
+      return 'video';
+    case 'Document':
+      // A generic `Document` with no MIME is only treated as an image when it
+      // carries still-image dimensions and no playback duration (a duration would
+      // imply audio/video, which cannot be assumed from `Document` alone).
+      return isImageIshDocument(attachment) ? 'image' : null;
+    default:
+      return null;
+  }
+}
+
+/** True when a MIME-less `Document` looks like a still image: has pixel dimensions and no duration. */
+function isImageIshDocument(attachment: ApAttachment): boolean {
+  const hasDuration = attachment.duration !== undefined && attachment.duration !== null;
+  const width = typeof attachment.width === 'number' ? attachment.width : 0;
+  const height = typeof attachment.height === 'number' ? attachment.height : 0;
+  return !hasDuration && (width > 0 || height > 0);
+}
+
+/**
  * Rank a video candidate for "most broadly playable":
  *  0 — progressive `video/mp4` (best `expo-video`/web `<video>` compatibility)
  *  1 — any other `video/*` (webm, quicktime, etc.)
@@ -179,6 +219,17 @@ export function resolveApAttachment(
   // Otherwise take the first valid image.
   if (images.length > 0) {
     return { href: images[0].href, type: 'image' };
+  }
+
+  // Nothing classified by MIME or extension. When NO MIME was declared at all —
+  // the Bridgy Fed shape (`type:'Image'`/`'Video'`, extensionless getBlob URL, no
+  // `mediaType`) — fall back to the AP `type` discriminator. A candidate that DID
+  // declare a MIME we don't recognize (e.g. `application/pdf`) is a deliberate
+  // non-media type and stays skipped, so Mastodon's MIME-first path is preserved.
+  const undeclared = resolved.find((r) => normalizeMime(r.mimeType).length === 0);
+  if (undeclared) {
+    const apType = classifyFromApType(attachment);
+    if (apType) return { href: undeclared.href, type: apType };
   }
 
   return null;

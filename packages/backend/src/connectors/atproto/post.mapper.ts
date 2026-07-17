@@ -2,12 +2,14 @@ import { PostVisibility } from '@mention/shared-types';
 import { normalizeMultilineText } from '@oxyhq/core';
 import { logger } from '../../utils/logger';
 import { Post } from '../../models/Post';
+import FederatedActor from '../../models/FederatedActor';
 import { normalizeAlt } from '../../services/MediaMetadataService';
 import { getPostCreator } from '../../services/serviceRegistry';
 import { materializeFederatedMedia, type ExtractedMediaAttachment } from '../shared/federatedMedia';
 import type { MediaItem } from '@mention/shared-types';
 import type { NormalizedExternalActor, NormalizedExternalMedia, NormalizedExternalPost } from '../types';
 import { xrpcGet } from './xrpcClient';
+import { fetchAndUpsertAtprotoProfile } from './profile.mapper';
 import { BSKY_APP_ORIGIN, POST_COLLECTION, PUBLIC_APPVIEW } from './constants';
 
 /**
@@ -31,7 +33,13 @@ interface AtprotoFacetFeature {
   uri?: string;
   did?: string;
 }
+/** Byte (UTF-8) offsets into the record `text` a facet annotates. */
+interface AtprotoFacetIndex {
+  byteStart?: number;
+  byteEnd?: number;
+}
 interface AtprotoFacet {
+  index?: AtprotoFacetIndex;
   features?: AtprotoFacetFeature[];
 }
 interface AtprotoReplyRef {
@@ -54,6 +62,17 @@ interface AtprotoEmbedImage {
   alt?: string;
   aspectRatio?: { width: number; height: number };
 }
+/**
+ * A hydrated record embed view. Self-referential so it covers both nesting levels:
+ * a top-level `app.bsky.embed.record#view` whose `.record` is the quoted
+ * `#viewRecord` (carrying its `uri`), and the `app.bsky.embed.recordWithMedia#view`
+ * whose `.record` is a nested `#view` whose `.record` is that `#viewRecord`.
+ */
+interface AtprotoEmbedRecordView {
+  $type?: string;
+  uri?: string;
+  record?: AtprotoEmbedRecordView;
+}
 interface AtprotoEmbedView {
   $type?: string;
   images?: AtprotoEmbedImage[];
@@ -61,6 +80,7 @@ interface AtprotoEmbedView {
   thumbnail?: string;
   aspectRatio?: { width: number; height: number };
   media?: AtprotoEmbedView;
+  record?: AtprotoEmbedRecordView;
 }
 interface AtprotoPostView {
   uri?: string;
@@ -111,6 +131,116 @@ function extractHashtags(record: AtprotoPostRecord): string[] {
     }
   }
   return Array.from(tags);
+}
+
+/** Every atproto DID referenced by a record's richtext `#mention` facets. Pure. */
+function extractMentionDids(record: AtprotoPostRecord | undefined): string[] {
+  if (!record) return [];
+  const dids: string[] = [];
+  for (const facet of record.facets ?? []) {
+    for (const feature of facet.features ?? []) {
+      if (feature?.$type === 'app.bsky.richtext.facet#mention' && typeof feature.did === 'string' && feature.did) {
+        dids.push(feature.did);
+      }
+    }
+  }
+  return dids;
+}
+
+/** A single byte-range text replacement derived from a richtext facet. */
+interface FacetReplacement {
+  byteStart: number;
+  byteEnd: number;
+  replacement: string;
+}
+
+/**
+ * Build the byte-range text replacements + resolved mention ids for a record's
+ * richtext facets:
+ *   - `#link`: replace the (truncated) display text with the feature's FULL `uri`
+ *     — this is what surfaces `gothamist.com/news/long-arti…` as the real URL so
+ *     the link is never broken and the link-preview pipeline can unfurl it.
+ *   - `#mention`: replace the `@handle` display text with the internal
+ *     `[mention:<oxyUserId>]` placeholder when the DID resolved (from `mentionMap`);
+ *     when it did not, emit no op so the bare `@handle` text is left in place.
+ *   - `#tag`: left untouched — the `#tag` text renders as-is and the normalized
+ *     tag set comes from {@link extractHashtags}.
+ * Pure.
+ */
+function buildFacetReplacements(
+  record: AtprotoPostRecord,
+  mentionMap: ReadonlyMap<string, string>,
+): { ops: FacetReplacement[]; mentionIds: string[] } {
+  const ops: FacetReplacement[] = [];
+  const mentionIds = new Set<string>();
+  for (const facet of record.facets ?? []) {
+    const byteStart = facet.index?.byteStart;
+    const byteEnd = facet.index?.byteEnd;
+    if (typeof byteStart !== 'number' || typeof byteEnd !== 'number') continue;
+    for (const feature of facet.features ?? []) {
+      if (feature?.$type === 'app.bsky.richtext.facet#link' && typeof feature.uri === 'string' && feature.uri) {
+        ops.push({ byteStart, byteEnd, replacement: feature.uri });
+        break; // one replacement per facet byte range
+      }
+      if (feature?.$type === 'app.bsky.richtext.facet#mention' && typeof feature.did === 'string' && feature.did) {
+        const oxyUserId = mentionMap.get(feature.did);
+        if (oxyUserId) {
+          ops.push({ byteStart, byteEnd, replacement: `[mention:${oxyUserId}]` });
+          mentionIds.add(oxyUserId);
+        }
+        break;
+      }
+    }
+  }
+  return { ops, mentionIds: [...mentionIds] };
+}
+
+/**
+ * Apply byte-range replacements to `text`. atproto facet indices are UTF-8 BYTE
+ * offsets (not JS UTF-16 string indices), so the splice runs over a UTF-8 byte
+ * buffer and decodes back — multibyte text (emoji, accents) before a facet does
+ * not shift its target. Replacements are applied in DESCENDING `byteStart` order
+ * so an earlier splice never shifts a later (leftward) range; overlapping or
+ * out-of-range facets are skipped. Pure.
+ */
+function applyFacetReplacements(text: string, ops: FacetReplacement[]): string {
+  if (ops.length === 0) return text;
+  const buffer = Buffer.from(text, 'utf8');
+  const ordered = ops
+    .filter((op) => op.byteStart >= 0 && op.byteStart < op.byteEnd && op.byteEnd <= buffer.length)
+    .sort((a, b) => b.byteStart - a.byteStart);
+
+  let out = buffer;
+  // The start of the nearest already-applied range to the right; a facet that
+  // ends past it overlaps and is skipped (facets never legally overlap).
+  let nextStart = buffer.length;
+  for (const op of ordered) {
+    if (op.byteEnd > nextStart) continue;
+    out = Buffer.concat([out.subarray(0, op.byteStart), Buffer.from(op.replacement, 'utf8'), out.subarray(op.byteEnd)]);
+    nextStart = op.byteStart;
+  }
+  return out.toString('utf8');
+}
+
+/**
+ * The quoted post's AT-URI from a hydrated record embed
+ * (`app.bsky.embed.record#view`, or the record half of
+ * `app.bsky.embed.recordWithMedia#view`) — but ONLY when the quoted record is a
+ * real, viewable feed post (`#viewRecord` of `app.bsky.feed.post`). A blocked /
+ * detached / not-found / feed-generator / list embed yields no quote. Pure.
+ */
+function extractQuotedUri(embed: AtprotoEmbedView | undefined): string | undefined {
+  const recordView =
+    embed?.$type === 'app.bsky.embed.record#view'
+      ? embed.record
+      : embed?.$type === 'app.bsky.embed.recordWithMedia#view'
+        ? embed.record?.record
+        : undefined;
+  if (recordView?.$type === 'app.bsky.embed.record#viewRecord' && typeof recordView.uri === 'string') {
+    const parsed = parseAtUri(recordView.uri);
+    if (parsed && parsed.collection === POST_COLLECTION) return recordView.uri;
+  }
+  return undefined;
 }
 
 /** Normalize `record.langs` to ISO 639-1 primary subtags (deduped, capped at 3). */
@@ -208,6 +338,7 @@ function extractMediaFromEmbed(embed: AtprotoEmbedView | undefined): NormalizedE
 export function mapPostViewToNormalizedPost(
   postView: AtprotoPostView | undefined,
   expectedAuthorDid: string,
+  mentionMap: ReadonlyMap<string, string> = new Map(),
 ): NormalizedExternalPost | null {
   if (!postView || typeof postView.uri !== 'string') return null;
   const parsed = parseAtUri(postView.uri);
@@ -225,6 +356,17 @@ export function mapPostViewToNormalizedPost(
   const langs = normalizeLangs(record.langs);
   const media = extractMediaFromEmbed(postView.embed);
   const inReplyTo = typeof record.reply?.parent?.uri === 'string' ? record.reply.parent.uri : undefined;
+  const quotedUri = extractQuotedUri(postView.embed);
+
+  // Rewrite richtext facets over the RAW body FIRST, then normalize whitespace:
+  // the facet indices are byte offsets into `record.text`, so they must be applied
+  // before normalization shifts the bytes. `#link` display text becomes the full
+  // URL; resolved `#mention`s become `[mention:<oxyUserId>]` placeholders.
+  const rawText = typeof record.text === 'string' ? record.text : '';
+  const { ops, mentionIds } = buildFacetReplacements(record, mentionMap);
+  // The post body is third-party text: the author's line breaks are meaningful and
+  // survive, but the surrounding whitespace noise is normalized away.
+  const text = normalizeMultilineText(applyFacetReplacements(rawText, ops));
 
   return {
     network: 'atproto',
@@ -232,13 +374,13 @@ export function mapPostViewToNormalizedPost(
     actorUri: did,
     url,
     inReplyTo,
+    quotedUri,
     sensitive: hasAdultLabel(record),
     authorOxyUserId: undefined,
-    // The post body is third-party text: the author's line breaks are meaningful
-    // and survive, but the surrounding whitespace noise is normalized away.
-    text: typeof record.text === 'string' ? normalizeMultilineText(record.text) : '',
+    text,
     media: media.length > 0 ? media : undefined,
     hashtags: extractHashtags(record),
+    mentions: mentionIds.length > 0 ? mentionIds : undefined,
     language: langs[0],
     languages: langs.length > 0 ? langs : undefined,
     createdAt: parseCreatedAt(record.createdAt),
@@ -248,6 +390,82 @@ export function mapPostViewToNormalizedPost(
 /** True for a MongoDB duplicate-key (E11000) error — a concurrent import race. */
 function isDuplicateKeyError(err: unknown): boolean {
   return Boolean(err && typeof err === 'object' && (err as { code?: number }).code === 11000);
+}
+
+/**
+ * Resolve a mentioned atproto DID to its Oxy user id. Prefers an already-synced
+ * `FederatedActor` (no network round trip); otherwise resolves + mints the actor
+ * through the shared atproto profile path (`fetchAndUpsertAtprotoProfile`). Returns
+ * undefined (fail-soft) when the DID cannot be resolved to an Oxy user — the caller
+ * then leaves the bare `@handle` display text rather than minting a broken link.
+ */
+async function resolveAtprotoMentionOxyId(did: string): Promise<string | undefined> {
+  try {
+    const existing = await FederatedActor.findOne({ uri: did })
+      .select('oxyUserId')
+      .lean<{ oxyUserId?: string } | null>();
+    if (existing?.oxyUserId) return String(existing.oxyUserId);
+  } catch (err) {
+    logger.warn(`[atproto] mention actor lookup failed for ${did}`, err);
+  }
+  const actor = await fetchAndUpsertAtprotoProfile(did);
+  return actor?.oxyUserId ? String(actor.oxyUserId) : undefined;
+}
+
+/**
+ * Batch-resolve every mentioned DID in an author feed to its Oxy user id (deduped,
+ * parallel, fail-soft). The returned map feeds the pure mapper so it can splice
+ * `[mention:<oxyUserId>]` placeholders in the same byte pass as `#link` facets.
+ * Unresolvable DIDs are simply absent from the map.
+ */
+async function resolveMentionDids(dids: Set<string>): Promise<Map<string, string>> {
+  const map = new Map<string, string>();
+  if (dids.size === 0) return map;
+  await Promise.all(
+    [...dids].map(async (did) => {
+      const oxyUserId = await resolveAtprotoMentionOxyId(did);
+      if (oxyUserId) map.set(did, oxyUserId);
+    }),
+  );
+  return map;
+}
+
+/**
+ * Resolve a federated atproto post's `inReplyTo` / quoted AT-URIs to LOCAL thread +
+ * quote links by matching each against an imported post's `federation.activityId`.
+ * Mirrors the ActivityPub inbox reply rule (`threadId = parent.threadId ??
+ * parent._id`). Best-effort: a parent / quoted post not yet imported is left
+ * unlinked (a later re-ingest resolves it once that post exists locally).
+ */
+async function resolveThreadAndQuoteLinks(
+  inReplyTo: string | undefined,
+  quotedUri: string | undefined,
+): Promise<{ parentPostId?: string; threadId?: string; quoteOf?: string }> {
+  const uris = [inReplyTo, quotedUri].filter((uri): uri is string => typeof uri === 'string' && uri.length > 0);
+  if (uris.length === 0) return {};
+
+  const docs = await Post.find({ 'federation.activityId': { $in: uris } })
+    .select('_id threadId federation.activityId')
+    .lean<Array<{ _id: unknown; threadId?: string; federation?: { activityId?: string } }>>();
+  const byUri = new Map<string, { _id: unknown; threadId?: string }>();
+  for (const doc of docs) {
+    const uri = doc.federation?.activityId;
+    if (uri) byUri.set(uri, doc);
+  }
+
+  const links: { parentPostId?: string; threadId?: string; quoteOf?: string } = {};
+  if (inReplyTo) {
+    const parent = byUri.get(inReplyTo);
+    if (parent) {
+      links.parentPostId = String(parent._id);
+      links.threadId = parent.threadId ? String(parent.threadId) : String(parent._id);
+    }
+  }
+  if (quotedUri) {
+    const quoted = byUri.get(quotedUri);
+    if (quoted) links.quoteOf = String(quoted._id);
+  }
+  return links;
 }
 
 /**
@@ -283,6 +501,10 @@ async function createPostFromNormalized(
     actorUri: did,
   });
 
+  // Resolve reply-parent + quoted AT-URIs to local thread/quote links (best-effort;
+  // a not-yet-imported parent/quote is left unlinked).
+  const links = await resolveThreadAndQuoteLinks(post.inReplyTo, post.quotedUri);
+
   try {
     await getPostCreator().create({
       oxyUserId: ownerOxyUserId,
@@ -293,6 +515,9 @@ async function createPostFromNormalized(
         url: post.url,
         sensitive: post.sensitive ?? false,
       },
+      parentPostId: links.parentPostId ?? null,
+      threadId: links.threadId ?? null,
+      quoteOf: links.quoteOf ?? null,
       content: {
         text: post.text,
         media: materialized.media.length > 0 ? materialized.media : undefined,
@@ -300,6 +525,9 @@ async function createPostFromNormalized(
       },
       visibility: PostVisibility.PUBLIC,
       hashtags: post.hashtags,
+      // Resolved @mention Oxy user ids, keyed by the `[mention:<id>]` placeholders
+      // now in the body, so hydration renders each as a real profile link.
+      mentions: post.mentions,
       language: post.language,
       languages: post.languages,
       instanceDomain,
@@ -353,10 +581,21 @@ export async function importAuthorFeed(
   }
 
   const items = Array.isArray(feed?.feed) ? feed.feed : [];
+
+  // Pre-resolve every mentioned DID across the batch (deduped, fail-soft) so the
+  // pure mapper can splice `[mention:<oxyUserId>]` placeholders in the same byte
+  // pass as `#link` facets. Reposts are skipped here exactly as in the map loop.
+  const mentionDids = new Set<string>();
+  for (const item of items) {
+    if (item?.reason) continue;
+    for (const mentionedDid of extractMentionDids(item.post?.record)) mentionDids.add(mentionedDid);
+  }
+  const mentionMap = await resolveMentionDids(mentionDids);
+
   const normalized: NormalizedExternalPost[] = [];
   for (const item of items) {
     if (item?.reason) continue; // skip reposts in C2
-    const mapped = mapPostViewToNormalizedPost(item.post, did);
+    const mapped = mapPostViewToNormalizedPost(item.post, did, mentionMap);
     if (mapped) normalized.push({ ...mapped, authorOxyUserId: ownerOxyUserId });
   }
 

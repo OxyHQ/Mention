@@ -451,6 +451,57 @@ export function extractInReplyToUri(inReplyTo: unknown): string | undefined {
 }
 
 /**
+ * Extract the canonical AP object URI of the post a Note QUOTES, or `undefined`
+ * when it quotes nothing.
+ *
+ * A quote is advertised across several interoperating terms — the SAME set the
+ * outbound Note builder emits ({@link FollowService.buildCreateNoteActivity}): the
+ * modern `quote`/`quoteUri` (FEP-044f / Mastodon 4.4+), the legacy
+ * `_misskey_quote`/`quoteUrl` (Misskey/Pleroma/Akkoma), and the FEP-e232 `Link`
+ * quote tag (`rel: …#_misskey_quote` and/or `mediaType: application/activity+json`).
+ * Bridgy Fed publishes a bridged Bluesky quote through these same fields, pointing
+ * at the quoted post's wrapped brid.gy object URL
+ * (`https://bsky.brid.gy/convert/ap/at://…`).
+ *
+ * The structured fields win over the tag; each candidate is normalized through
+ * {@link activityPubLinkUrl} (string / `{id}` / `{href}`) and must be an absolute
+ * http(s) URL. Pure / no I/O — the caller resolves the URI to a local Post via
+ * {@link resolvePostIdFromObjectUri}.
+ */
+export function extractApQuoteUri(object: Record<string, unknown>): string | undefined {
+  for (const key of ['quote', 'quoteUri', 'quoteUrl', '_misskey_quote'] as const) {
+    const uri = activityPubLinkUrl(object[key]);
+    if (uri) return uri;
+  }
+
+  const tags = object.tag;
+  if (Array.isArray(tags)) {
+    for (const entry of tags) {
+      if (!entry || typeof entry !== 'object') continue;
+      const record = entry as { type?: unknown; rel?: unknown; mediaType?: unknown; href?: unknown };
+      const isLink =
+        record.type === 'Link' || (Array.isArray(record.type) && record.type.includes('Link'));
+      if (!isLink) continue;
+
+      const rel = Array.isArray(record.rel)
+        ? record.rel.join(' ')
+        : typeof record.rel === 'string'
+          ? record.rel
+          : '';
+      const isQuoteRel = rel.includes('_misskey_quote');
+      const isApLink =
+        typeof record.mediaType === 'string' && record.mediaType.toLowerCase().includes('activity+json');
+      if (!isQuoteRel && !isApLink) continue;
+
+      const href = typeof record.href === 'string' ? record.href.trim() : '';
+      if (href && isAbsoluteHttpUrl(href)) return href;
+    }
+  }
+
+  return undefined;
+}
+
+/**
  * Extract media attachments from an AP Note object.
  * Returns media items and attachment descriptors for the Post model.
  *

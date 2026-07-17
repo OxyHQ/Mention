@@ -89,6 +89,18 @@ export interface NormalizedExternalPost {
   text: string;
   media?: NormalizedExternalMedia[];
   hashtags?: string[];
+  /**
+   * Resolved @mention Oxy user ids — the stored `mentions` allowlist, keyed by the
+   * `[mention:<id>]` placeholders the connector rewrote into {@link text}.
+   */
+  mentions?: string[];
+  /**
+   * The quoted post's external URI (an atproto `at://` URI / an AP quote uri) when
+   * this post quotes another. Resolved to a local `quoteOf` Post id at import time
+   * by matching an imported post's `federation.activityId`; left unresolved (no
+   * quote link) when the quoted post is not imported locally.
+   */
+  quotedUri?: string;
   language?: string;
   languages?: string[];
   createdAt?: Date;

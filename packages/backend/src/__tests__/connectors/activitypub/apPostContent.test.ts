@@ -30,6 +30,7 @@ import {
   buildFederatedNoteContentForEdit,
   extractApContentHtml,
   extractApSummary,
+  rewriteHashtagAnchors,
 } from '../../../connectors/activitypub/apPostContent';
 
 beforeEach(() => {
@@ -93,7 +94,47 @@ describe('extractApSummary', () => {
   });
 });
 
+describe('rewriteHashtagAnchors', () => {
+  it('rewrites a Bridgy Fed hashtag anchor (plain-text child, bsky.app search href) to #tag', () => {
+    const html =
+      '<p>Climate news <a class="hashtag" rel="tag" href="https://bsky.app/search?q=%23ClimateCrisis">#ClimateCrisis</a></p>';
+    expect(rewriteHashtagAnchors(html)).toBe('<p>Climate news #ClimateCrisis</p>');
+  });
+
+  it('rewrites a Mastodon hashtag anchor (inner span) to #tag — unchanged from prior behavior', () => {
+    const html = '<a href="https://mastodon.social/tags/art" class="mention hashtag" rel="tag">#<span>art</span></a>';
+    expect(rewriteHashtagAnchors(html)).toBe('#art');
+  });
+
+  it('leaves a non-hashtag link untouched', () => {
+    const html = '<a href="https://example.com/page">example.com/page</a>';
+    expect(rewriteHashtagAnchors(html)).toBe(html);
+  });
+
+  it('leaves a mention anchor untouched', () => {
+    const html = '<a href="https://m.example/@alice" class="u-url mention">@alice</a>';
+    expect(rewriteHashtagAnchors(html)).toBe(html);
+  });
+
+  it('is a no-op for content with no anchors', () => {
+    expect(rewriteHashtagAnchors('<p>plain text</p>')).toBe('<p>plain text</p>');
+  });
+});
+
 describe('buildFederatedNoteContent', () => {
+  it('stores a Bridgy Fed hashtag as visible #tag text (not the bsky.app search URL) and in hashtags[]', async () => {
+    const note = {
+      content:
+        '<p>Climate news <a class="hashtag" rel="tag" href="https://bsky.app/search?q=%23ClimateCrisis">#ClimateCrisis</a></p>',
+      tag: [{ type: 'Hashtag', name: '#ClimateCrisis', href: 'https://bsky.app/search?q=%23ClimateCrisis' }],
+    };
+    const built = await buildFederatedNoteContent(note, 'owner-1', {});
+    if (built.skip) throw new Error('expected content');
+    expect(built.text).toBe('Climate news #ClimateCrisis');
+    expect(built.text).not.toContain('bsky.app/search');
+    expect(built.hashtags).toContain('climatecrisis');
+  });
+
   it('normalizes the whitespace of a pretty-printed remote body', async () => {
     // The bug this whole change exists for: the indented markup a remote server
     // emits left a blank line and an indent in the stored body, which the client

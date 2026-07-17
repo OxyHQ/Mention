@@ -31,6 +31,16 @@ export const PLC_DIRECTORY = process.env.ATPROTO_PLC_DIRECTORY || 'plc.directory
 /** Bluesky's web app origin — the canonical web URL for a post / profile. */
 export const BSKY_APP_ORIGIN = 'https://bsky.app';
 
+/**
+ * The Bluesky network's canonical host, used as the federated instance domain for
+ * an APEX custom handle — a 2-label domain like `gothamist.com` whose first label
+ * cannot be stripped without leaving a bare TLD (`com`). A regular handle derives
+ * its instance from its parent domain (`alice.bsky.social` → `bsky.social`); an
+ * apex handle has none, so it keys to the network host and renders cleanly as
+ * `@gothamist.com@bsky.social` instead of the doubled `@gothamist.com@gothamist.com`.
+ */
+export const BSKY_NETWORK_DOMAIN = 'bsky.social';
+
 /** The atproto record collection that holds a feed post. */
 export const POST_COLLECTION = 'app.bsky.feed.post';
 

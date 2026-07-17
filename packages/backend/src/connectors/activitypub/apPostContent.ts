@@ -85,6 +85,74 @@ export interface SkippedFederatedNoteContent {
 }
 
 /**
+ * Any `<a …>…</a>` anchor, capturing its attribute string and inner HTML
+ * separately. Anchors do not nest in AP content HTML, so the non-greedy `.*?`
+ * (dotall) inner match is safe.
+ */
+const AP_ANCHOR_REGEX = /<a\b([^>]*)>(.*?)<\/a>/gis;
+
+/**
+ * Marks an anchor as a HASHTAG link: Mastodon emits `class="mention hashtag"`
+ * with `rel="tag"`; Bridgy Fed emits `class="hashtag"` with `rel="tag"`. Either
+ * attribute signals a hashtag anchor.
+ */
+const HASHTAG_ANCHOR_ATTR_REGEX = /\bclass="[^"]*\bhashtag\b[^"]*"|\brel="[^"]*\btag\b[^"]*"/i;
+
+/**
+ * Rewrite hashtag anchors to their visible `#name` text BEFORE the generic
+ * {@link htmlToPlainText} runs.
+ *
+ * Mastodon wraps the tag text in an inner `<span>`
+ * (`<a … class="mention hashtag" rel="tag">#<span>tag</span></a>`), so
+ * `htmlToPlainText`'s link-to-URL rule (which only matches anchors with a
+ * text-only child) already leaves it as `#tag`. Bridgy Fed uses a PLAIN-TEXT
+ * child with a `bsky.app/search` href
+ * (`<a class="hashtag" rel="tag" href="https://bsky.app/search?q=%23Tag">#Tag</a>`),
+ * which that same rule turns into the raw search URL — wrecking the body. This
+ * collapses both shapes to the anchor's visible text (tags stripped), so the
+ * `#tag` survives regardless of origin. Non-hashtag anchors (mentions, plain
+ * links) are left untouched for the downstream converter. Pure.
+ */
+export function rewriteHashtagAnchors(html: string): string {
+  if (!html || !html.includes('<a')) return html;
+  return html.replace(AP_ANCHOR_REGEX, (match, attrs: string, inner: string) => {
+    if (!HASHTAG_ANCHOR_ATTR_REGEX.test(attrs)) return match;
+    const text = inner.replace(/<[^>]+>/g, '').trim();
+    return text.length > 0 ? text : match;
+  });
+}
+
+/**
+ * Return a shallow copy of an AP object whose HTML bodies (`content` and every
+ * `contentMap` variant) have had their hashtag anchors rewritten to the visible
+ * `#name` text. Mirrors {@link applyMentionPlaceholders}: the original object is
+ * never mutated, both the primary body and its `contentMap` counterpart are
+ * rewritten with the SAME rule so they stay consistent for the language
+ * extractor, and the object is returned unchanged (zero cost) when no anchors are
+ * present.
+ */
+function rewriteHashtagAnchorsInObject(object: Record<string, unknown>): Record<string, unknown> {
+  const content = object.content;
+  const contentMap = getApContentMap(object);
+  const contentHasAnchor = typeof content === 'string' && content.includes('<a');
+  const mapHasAnchor =
+    contentMap !== undefined &&
+    Object.values(contentMap).some((value) => typeof value === 'string' && value.includes('<a'));
+  if (!contentHasAnchor && !mapHasAnchor) return object;
+
+  const rewritten: Record<string, unknown> = { ...object };
+  if (typeof content === 'string') rewritten.content = rewriteHashtagAnchors(content);
+  if (contentMap) {
+    const rewrittenMap: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(contentMap)) {
+      rewrittenMap[key] = typeof value === 'string' ? rewriteHashtagAnchors(value) : value;
+    }
+    rewritten.contentMap = rewrittenMap;
+  }
+  return rewritten;
+}
+
+/**
  * Extract the HTML content body from an AP object, falling back to a
  * `contentMap` localized variant when the top-level `content` is empty.
  *
@@ -274,7 +342,14 @@ async function assembleFederatedNoteContent(
   ownerOxyUserId: string | null | undefined,
   ctx: BuildFederatedNoteContentContext,
 ): Promise<BuiltFederatedNoteContent> {
-  const primaryHtml = extractApContentHtml(object);
+  // Rewrite hashtag anchors to their visible `#name` text before ANY body
+  // extraction, so a Bridgy Fed hashtag anchor is not turned into its raw
+  // `bsky.app/search?q=%23Tag` href by the generic HTML→text converter. Applies
+  // to `content` and every `contentMap` variant; every reader below (primary
+  // body, author variants, primary-tag resolution) sees the rewritten bodies.
+  const source = rewriteHashtagAnchorsInObject(object);
+
+  const primaryHtml = extractApContentHtml(source);
   const rawText = htmlToPlainText(primaryHtml);
 
   // Run the centralized hashtag normalizer on every path so an all-hashtag post
@@ -309,9 +384,10 @@ async function assembleFederatedNoteContent(
 
   // The localized bodies — the post's only body storage. `text` is handed in as
   // the primary rendition, so the body the guard/classifier see and the body
-  // stored in `variants[0]` are the same string by construction.
-  const primaryTag = resolveApPrimaryTag(object, primaryHtml);
-  const variants = buildApAuthorVariants(object, primaryTag, text, media.length > 0);
+  // stored in `variants[0]` are the same string by construction. Both read from
+  // `source` so `contentMap` values match the rewritten `primaryHtml`.
+  const primaryTag = resolveApPrimaryTag(source, primaryHtml);
+  const variants = buildApAuthorVariants(source, primaryTag, text, media.length > 0);
 
   return { text, media, attachments, hashtags, summary, sensitive, variants };
 }

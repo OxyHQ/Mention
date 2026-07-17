@@ -21,6 +21,7 @@ import { followService } from './follow.service';
 import { getServiceOxyClient } from '../../utils/oxyHelpers';
 import {
   extractAnnouncedObjectUri,
+  extractApQuoteUri,
   extractInReplyToUri,
   isDuplicateKeyError,
   mapApVisibility,
@@ -672,6 +673,16 @@ export class InboxProcessingService {
       return;
     }
 
+    // When this Note QUOTES another post, link it to the local quoted Post so
+    // hydration embeds the quoted original (mirrors the native quote shape). The
+    // quote URI is read from the standard AP quote surfaces (Bridgy Fed bridges a
+    // Bluesky quote through them, pointing at the quoted post's brid.gy object
+    // URL). Resolved only when the quoted post is ALREADY imported here — a
+    // not-yet-imported quoted post leaves `quoteOf` null rather than blocking the
+    // Create; it will link on a later pass once the original is ingested.
+    const quoteUri = extractApQuoteUri(object);
+    const quoteOf = quoteUri ? await resolvePostIdFromObjectUri(quoteUri) : null;
+
     const createdPost = await getPostCreator().create({
       oxyUserId: authorOxyUserId,
       federation: {
@@ -684,6 +695,7 @@ export class InboxProcessingService {
       },
       parentPostId: threadLink?.parentPostId ?? null,
       threadId: threadLink?.threadId ?? null,
+      quoteOf,
       content: {
         // The body lives ONLY in the variants — a `contentMap` is one body PER
         // LANGUAGE, not a fallback for one. `variants[0]` is the primary.
