@@ -128,7 +128,7 @@ export const ProfileContent = memo(function ProfileContent({
             currentUsername={currentUsername}
             profileUsername={profileData.username}
             profileId={profileData.id}
-
+            isFollowing={profileData.isFollowing}
             FollowButtonComponent={FollowButtonComponent}
           />
         </View>

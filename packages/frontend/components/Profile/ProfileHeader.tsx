@@ -18,7 +18,6 @@ import { PrivateBadge } from './PrivateBadge';
 import { PresenceIndicator } from '@/components/PresenceIndicator';
 import { usePoke } from './hooks/usePoke';
 import { useFederatedFollowSync } from './hooks/useFederatedFollowSync';
-import { useViewerFollowingSet } from '@/hooks/useViewerFollowing';
 import { LAYOUT } from './types';
 import type {
   FollowButtonComponent as FollowButtonComponentType,
@@ -56,10 +55,6 @@ export const ProfileHeaderDefault = memo(function ProfileHeaderDefault({
   const canPoke = !isFederated;
   const { poked, loading: pokeLoading, toggle: togglePoke } = usePoke(profileId, isOwnProfile || Boolean(isFederated));
   useFederatedFollowSync(profileId, isFederated, actorUri);
-  // Seed the follow button from the viewer's cached following set so a profile
-  // the viewer already follows renders "Following" on mount instead of flashing
-  // "Follow" until the status fetch resolves.
-  const followingSet = useViewerFollowingSet();
 
   // Normalized 0 → 1 collapse driver for the avatar shrink, derived on the UI
   // thread from the shared scroll offset (fed by both the native ScrollView and
@@ -170,9 +165,12 @@ export const ProfileHeaderDefault = memo(function ProfileHeaderDefault({
                 />
               </TouchableOpacity>
             )}
+            {/* Seed from the profile DTO's authoritative viewer relationship so
+                the button paints correctly on first render. When the DTO omits it,
+                the app-root follow-store seed covers followed users. */}
             <FollowButtonComponent
               userId={profileId}
-              initiallyFollowing={followingSet.has(profileId)}
+              initiallyFollowing={initialIsFollowing}
             />
           </View>
         ) : null}
@@ -257,6 +255,7 @@ export const ProfileActions = memo(function ProfileActions({
   currentUsername,
   profileUsername,
   profileId,
+  isFollowing,
   FollowButtonComponent,
 }: {
   isOwnProfile: boolean;
@@ -265,6 +264,7 @@ export const ProfileActions = memo(function ProfileActions({
   currentUsername?: string;
   profileUsername?: string;
   profileId?: string;
+  isFollowing?: boolean;
   FollowButtonComponent: FollowButtonComponentType;
 }) {
   const theme = useTheme();
@@ -272,7 +272,6 @@ export const ProfileActions = memo(function ProfileActions({
   const canPoke = !isFederated;
   const { poked, loading: pokeLoading, toggle: togglePoke } = usePoke(profileId, isOwnProfile || Boolean(isFederated));
   useFederatedFollowSync(profileId, isFederated, actorUri);
-  const followingSet = useViewerFollowingSet();
 
   if (!isOwnProfile || currentUsername !== profileUsername) {
     if (!profileId) return null;
@@ -300,7 +299,7 @@ export const ProfileActions = memo(function ProfileActions({
         )}
         <FollowButtonComponent
           userId={profileId}
-          initiallyFollowing={followingSet.has(profileId)}
+          initiallyFollowing={isFollowing}
         />
       </View>
     );

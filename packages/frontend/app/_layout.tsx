@@ -38,6 +38,7 @@ import { Provider as PortalProvider, Outlet as PortalOutlet } from '@oxyhq/bloom
 
 // Hooks
 import { useServerAppearanceSync } from '@/hooks/useServerAppearanceSync';
+import { useSeedViewerFollowStatuses } from '@/hooks/useViewerFollowing';
 import { useHydrateExternalEmbeds } from '@/stores/externalEmbedsStore';
 import { useHapticsStore } from '@/stores/hapticsStore';
 
@@ -214,6 +215,11 @@ function AuthRouter() {
 
   useServerAppearanceSync();
   useHydrateExternalEmbeds();
+
+  // Seed the shared follow store from the viewer's following graph so every
+  // FollowButton across the app paints the correct Follow/Following on first
+  // render — one request here replaces per-button status probes.
+  useSeedViewerFollowStatuses();
 
   // Forward OS share-sheet payloads into `/compose`. No-op on web
   // (handled by the manifest Share Target).
