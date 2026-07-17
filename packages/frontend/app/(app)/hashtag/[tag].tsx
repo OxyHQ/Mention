@@ -2,7 +2,6 @@ import React, { useMemo } from 'react';
 import { View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { useSafeBack } from '@/hooks/useSafeBack';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SafeAreaView } from '@/lib/SafeAreaViewInterop';
 import { ThemedText } from '@/components/ThemedText';
 import { Header } from '@/components/Header';
@@ -17,7 +16,6 @@ import { PanelStickyHeader } from '@/components/shell/PanelChrome';
 export default function HashtagScreen() {
     const { tag } = useLocalSearchParams<{ tag: string }>();
     const safeBack = useSafeBack();
-    const insets = useSafeAreaInsets();
     const { t } = useTranslation();
 
     const hashtag = tag?.replace(/^#/, '') || '';
@@ -26,7 +24,7 @@ export default function HashtagScreen() {
     const filters = useMemo(() => ({ hashtag }), [hashtag]);
 
     const listHeader = useMemo(() => (
-        <View className="px-4 pb-2" style={{ paddingTop: insets.top }}>
+        <View className="px-4 pb-2">
             <View className="flex-row items-center justify-between">
                 <ThemedText type="title" className="text-[28px] font-bold mb-1 font-primary flex-1">
                     {displayTag}
@@ -34,10 +32,10 @@ export default function HashtagScreen() {
                 <EntityFollowButton entityType="hashtag" entityId={hashtag} label="Subscribe" followingLabel="Subscribed" />
             </View>
         </View>
-    ), [displayTag, hashtag, insets.top]);
+    ), [displayTag, hashtag]);
 
     return (
-        <SafeAreaView className="flex-1" edges={['top', 'bottom']}>
+        <SafeAreaView className="flex-1" edges={['top']}>
             <SEO
                 title={t('seo.hashtag.title', { hashtag: displayTag, defaultValue: `${displayTag} - Mention` })}
                 description={t('seo.hashtag.description', {

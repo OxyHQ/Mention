@@ -2,7 +2,6 @@ import React, { useMemo } from 'react';
 import { View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { useSafeBack } from '@/hooks/useSafeBack';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SafeAreaView } from '@/lib/SafeAreaViewInterop';
 import { ThemedText } from '@/components/ThemedText';
 import { Header } from '@/components/Header';
@@ -20,7 +19,6 @@ export default function TrendScreen() {
         type?: string;
     }>();
     const safeBack = useSafeBack();
-    const insets = useSafeAreaInsets();
     const { t } = useTranslation();
 
     const topicName = name || '';
@@ -34,7 +32,7 @@ export default function TrendScreen() {
         : t('trend.typeTopic', { defaultValue: 'Topic' });
 
     const listHeader = useMemo(() => (
-        <View className="px-4 pb-2" style={{ paddingTop: insets.top }}>
+        <View className="px-4 pb-2">
             <ThemedText className="text-xs text-muted-foreground font-medium uppercase tracking-wide mb-1 font-primary">
                 {t('trend.trendingLabel', { defaultValue: `Trending ${typeLabel}` })}
             </ThemedText>
@@ -47,10 +45,10 @@ export default function TrendScreen() {
                 </ThemedText>
             ) : null}
         </View>
-    ), [topicName, topicDescription, typeLabel, insets.top, t]);
+    ), [topicName, topicDescription, typeLabel, t]);
 
     return (
-        <SafeAreaView className="flex-1" edges={['top', 'bottom']}>
+        <SafeAreaView className="flex-1" edges={['top']}>
             <SEO
                 title={t('seo.trend.title', { topic: topicName, defaultValue: `${topicName} - Mention` })}
                 description={t('seo.trend.description', {
