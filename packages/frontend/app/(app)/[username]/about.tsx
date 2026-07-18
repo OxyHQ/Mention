@@ -5,14 +5,18 @@ import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { Avatar } from '@oxyhq/bloom/avatar';
 import { MEDIA_VARIANT_VIDEO_POSTER } from '@mention/shared-types';
-import { Link, useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import React, { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { View, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
+import { View, ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@oxyhq/bloom/theme';
-import { Ionicons } from '@expo/vector-icons';
+import { SettingsListGroup, SettingsListItem } from '@oxyhq/bloom/settings-list';
+import UserName from '@/components/UserName';
+import { RowIcon } from '@/components/settings/RowIcon';
+import { VerifiedIcon } from '@/assets/icons/verified-icon';
+import { CalendarMonthIcon } from '@/assets/icons/calendar-month-icon';
 import { useProfileData } from '@/hooks/useProfileData';
 import type { ProfileData } from '@/hooks/useProfileData';
 import { useProfileScreenColor } from '@/hooks/useProfileScreenColor';
@@ -66,6 +70,14 @@ function AccountInfoContent({ profileData, profileLoading }: AccountInfoContentP
       year: 'numeric'
     });
   }, [profileData?.verified, profileData?.verifiedAt, profileData?.createdAt]);
+
+  // Sized to the 56px avatar header row; matches the old hand-built name/handle
+  // sizing (18px bold name, 15px muted handle) while rendering identity through
+  // the shared UserName component (same VerifiedIcon as the profile header).
+  const headerNameStyle = useMemo(() => ({
+    name: { fontSize: 18, fontWeight: '700' as const },
+    handle: { fontSize: 15 },
+  }), []);
 
   if (profileLoading) {
     return (
@@ -146,133 +158,68 @@ function AccountInfoContent({ profileData, profileLoading }: AccountInfoContentP
               verified={profileData.verified}
             />
           </View>
-          <View className="flex-1 gap-1">
-            <View className="flex-row items-center gap-1.5">
-              <ThemedText className="text-lg font-bold text-foreground">
-                {profileData.design.displayName}
-              </ThemedText>
-              {profileData.verified && (
-                <Ionicons name="checkmark-circle" size={20} color={theme.colors.primary} />
-              )}
-            </View>
-            <ThemedText className="text-[15px] text-muted-foreground">
-              @{profileData.username}
-            </ThemedText>
+          <View className="flex-1">
+            <UserName
+              name={profileData.design?.displayName ?? profileData.name?.displayName}
+              handle={profileData.username}
+              verified={profileData.verified}
+              isFederated={profileData.isFederated}
+              variant="default"
+              style={headerNameStyle}
+            />
           </View>
         </View>
 
-        {/* Account Details List */}
-        <View className="rounded-2xl overflow-hidden bg-card">
+        {/* Account Details */}
+        <SettingsListGroup title={t('Account details', { defaultValue: 'Account details' })}>
           {/* Date Joined */}
-          {profileData.createdAt && (
-            <View className="border-border" style={[styles.detailRow, styles.firstRow]}>
-              <View className="w-8 h-8 rounded-full items-center justify-center bg-secondary">
-                <Ionicons name="calendar-outline" size={18} color={theme.colors.textSecondary} />
-              </View>
-              <View className="flex-1 gap-0.5">
-                <ThemedText className="text-sm font-semibold text-foreground">
-                  {t('Date joined', { defaultValue: 'Date joined' })}
-                </ThemedText>
-                <ThemedText className="text-[13px] text-muted-foreground">
-                  {joinDate}
-                </ThemedText>
-              </View>
-            </View>
+          {joinDate && (
+            <SettingsListItem
+              icon={<CalendarMonthIcon size={20} color={theme.colors.textSecondary} />}
+              title={t('Date joined', { defaultValue: 'Date joined' })}
+              value={joinDate}
+            />
           )}
 
           {/* Account Based In */}
           {profileData.primaryLocation && (
-            <View className="border-border" style={[styles.detailRow]}>
-              <View className="w-8 h-8 rounded-full items-center justify-center bg-secondary">
-                <Ionicons name="location-outline" size={18} color={theme.colors.textSecondary} />
-              </View>
-              <View className="flex-1 gap-0.5">
-                <ThemedText className="text-sm font-semibold text-foreground">
-                  {t('Account based in', { defaultValue: 'Account based in' })}
-                </ThemedText>
-                <ThemedText className="text-[13px] text-muted-foreground">
-                  {profileData.primaryLocation}
-                </ThemedText>
-              </View>
-            </View>
+            <SettingsListItem
+              icon={<RowIcon name="location" />}
+              title={t('Account based in', { defaultValue: 'Account based in' })}
+              value={profileData.primaryLocation}
+            />
           )}
 
           {/* Verified */}
           {profileData.verified && (
-            <TouchableOpacity
-              className="border-border" style={[styles.detailRow]}
-              activeOpacity={0.7}
-            >
-              <View className="w-8 h-8 rounded-full items-center justify-center bg-secondary">
-                <Ionicons name="checkmark-circle-outline" size={18} color={theme.colors.textSecondary} />
-              </View>
-              <View className="flex-1 gap-0.5">
-                <ThemedText className="text-sm font-semibold text-foreground">
-                  {t('Verified', { defaultValue: 'Verified' })}
-                </ThemedText>
-                <ThemedText className="text-[13px] text-muted-foreground">
-                  {verifiedDate ? t('Since {date}', { date: verifiedDate, defaultValue: `Since ${verifiedDate}` }) : t('Verified account', { defaultValue: 'Verified account' })}
-                </ThemedText>
-              </View>
-              <Ionicons name="chevron-forward" size={20} color={theme.colors.textSecondary} />
-            </TouchableOpacity>
+            <SettingsListItem
+              icon={<VerifiedIcon size={20} className="text-primary" />}
+              title={t('Verified', { defaultValue: 'Verified' })}
+              value={verifiedDate
+                ? t('Since {date}', { date: verifiedDate, defaultValue: `Since ${verifiedDate}` })
+                : t('Verified account', { defaultValue: 'Verified account' })}
+            />
           )}
 
           {/* Username Changes */}
           {(profileData.usernameChangeCount ?? 0) > 0 && (
-            <View className="border-border" style={[styles.detailRow]}>
-              <View className="w-8 h-8 rounded-full items-center justify-center bg-secondary">
-                <Ionicons name="at-outline" size={18} color={theme.colors.textSecondary} />
-              </View>
-              <View className="flex-1 gap-0.5">
-                <ThemedText className="text-sm font-semibold text-foreground">
-                  {t('Username changes', { defaultValue: 'Username changes' })}
-                </ThemedText>
-                <ThemedText className="text-[13px] text-muted-foreground">
-                  {profileData.usernameChangeCount}
-                </ThemedText>
-              </View>
-            </View>
+            <SettingsListItem
+              icon={<RowIcon name="at" />}
+              title={t('Username changes', { defaultValue: 'Username changes' })}
+              value={String(profileData.usernameChangeCount)}
+            />
           )}
 
-          {/* Connected Via - could be expanded later with app store info */}
+          {/* Connected Via */}
           {profileData.connectedVia && (
-            <View style={[styles.detailRow, styles.lastRow]}>
-              <View className="w-8 h-8 rounded-full items-center justify-center bg-secondary">
-                <Ionicons name="globe-outline" size={18} color={theme.colors.textSecondary} />
-              </View>
-              <View className="flex-1 gap-0.5">
-                <ThemedText className="text-sm font-semibold text-foreground">
-                  {t('Connected via', { defaultValue: 'Connected via' })}
-                </ThemedText>
-                <ThemedText className="text-[13px] text-muted-foreground">
-                  {profileData.connectedVia}
-                </ThemedText>
-              </View>
-            </View>
+            <SettingsListItem
+              icon={<RowIcon name="globe" />}
+              title={t('Connected via', { defaultValue: 'Connected via' })}
+              value={profileData.connectedVia}
+            />
           )}
-        </View>
+        </SettingsListGroup>
       </ScrollView>
     </ThemedView>
   );
 }
-
-const styles = StyleSheet.create({
-  detailRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    gap: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-  },
-  firstRow: {
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
-  },
-  lastRow: {
-    borderBottomWidth: 0,
-    borderBottomLeftRadius: 16,
-    borderBottomRightRadius: 16,
-  },
-});
