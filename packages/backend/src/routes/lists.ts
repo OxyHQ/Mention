@@ -7,6 +7,7 @@ import { feedController } from '../controllers/feed.controller';
 import { endorsementSignalService } from '../services/EndorsementSignalService';
 import { logger } from '../utils/logger';
 import { queryInt, queryString } from '../utils/queryParams';
+import { escapeRegex } from '../utils/textProcessing';
 import { feedIPRateLimiter, feedRateLimiter } from '../middleware/security';
 
 const router = express.Router();
@@ -27,6 +28,9 @@ const timelineRateLimiters = process.env.NODE_ENV === 'production'
 /** List timeline page size (`GET /lists/:id/timeline`). */
 const DEFAULT_TIMELINE_PAGE_SIZE = 20;
 const MAX_TIMELINE_PAGE_SIZE = 100;
+
+/** Hard cap on the `GET /lists` page size — `?limit` can only narrow it. */
+const MAX_LIST_PAGE_SIZE = 100;
 
 /**
  * Fire-and-forget endorsement re-sync for a list whose membership changed.
@@ -88,7 +92,7 @@ router.post('/', async (req: AuthRequest, res: Response) => {
   }
 });
 
-// List lists (mine/public)
+// List lists (mine/public), optionally filtered by a search term.
 router.get('/', async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?.id;
@@ -97,10 +101,50 @@ router.get('/', async (req: AuthRequest, res: Response) => {
     const q: Record<string, unknown> = {};
     if (mine === 'true') q.ownerOxyUserId = userId;
     if (publicOnly === 'true') q.isPublic = true;
+    // Visibility gate: without an explicit filter the viewer sees their OWN lists
+    // plus every public list. The search term (below) narrows within that gate —
+    // it never widens it, so a non-owner still can't reach a private list.
     if (!mine && !publicOnly) q.$or = [{ ownerOxyUserId: userId }, { isPublic: true }];
-    const items = await AccountList.find(q).sort({ updatedAt: -1 }).lean<LeanAccountList[]>();
-    const serialized = items.map(serializeList);
-    res.json({ items: serialized, total: serialized.length });
+
+    // Filter by `search` (name/description, case-insensitive). Previously ignored —
+    // the search tab received every accessible list unfiltered. Regex-ESCAPED so a
+    // raw query can't be interpreted as a pattern (regex injection / backtracking).
+    const search = queryString(req.query.search)?.trim();
+    if (search) {
+      const searchRegex = new RegExp(escapeRegex(search), 'i');
+      const searchCondition = { $or: [{ title: searchRegex }, { description: searchRegex }] };
+      if (q.$or) {
+        // Combine the visibility OR with the search OR under $and so both must hold.
+        q.$and = [{ $or: q.$or }, searchCondition];
+        delete q.$or;
+      } else {
+        q.$or = searchCondition.$or;
+      }
+    }
+
+    // Opt-in pagination: `?limit` present ⇒ page (offset/limit, over-fetching one
+    // row to detect `hasMore`); absent ⇒ the historical "return every accessible
+    // list" the lists screen / add-to-list sheet depend on. `_id` breaks
+    // `updatedAt` ties so offsets never shuffle rows between pages.
+    const rawLimit = queryInt(req.query.limit);
+    const offset = Math.max(0, queryInt(req.query.offset) ?? 0);
+    let listQuery = AccountList.find(q).sort({ updatedAt: -1, _id: -1 });
+    let pageLimit: number | undefined;
+    if (rawLimit !== undefined) {
+      pageLimit = Math.min(Math.max(1, rawLimit), MAX_LIST_PAGE_SIZE);
+      listQuery = listQuery.skip(offset).limit(pageLimit + 1);
+    }
+    const fetched = await listQuery.lean<LeanAccountList[]>();
+    const hasMore = pageLimit !== undefined && fetched.length > pageLimit;
+    const page = hasMore ? fetched.slice(0, pageLimit) : fetched;
+    const serialized = page.map(serializeList);
+
+    const total = pageLimit !== undefined ? await AccountList.countDocuments(q) : serialized.length;
+    res.json({
+      items: serialized,
+      total,
+      pagination: { offset, limit: pageLimit ?? serialized.length, hasMore },
+    });
   } catch (error) {
     res.status(500).json({ error: 'Failed to list lists' });
   }

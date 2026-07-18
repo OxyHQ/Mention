@@ -120,10 +120,10 @@ type SearchPageParam = string | number | null;
 
 /**
  * One page of results for the active tab, plus the param to request the NEXT page
- * (`undefined` ⇒ this tab is exhausted). The "all" tab and the tabs whose
- * endpoints return every match in one shot (feeds, hashtags, lists) always yield a
- * single terminal page; the paginated tabs — posts (cursor), users (offset),
- * saved (page) — yield a `nextPageParam` until their source runs out.
+ * (`undefined` ⇒ this tab is exhausted). The "all" tab yields a single terminal
+ * page (a one-shot fan-out overview); every single-category tab paginates until
+ * its source runs out — posts by an opaque cursor, users/feeds/hashtags/lists by
+ * an offset, saved by a page number.
  */
 interface SearchResultsPage {
     results: LocalSearchResults;
@@ -175,12 +175,21 @@ async function fetchSearchPage(
             const { posts, hasMore, nextPage } = await searchService.searchSavedPage(query, page);
             return { results: { ...EMPTY_RESULTS, saved: posts }, nextPageParam: hasMore ? nextPage : undefined };
         }
-        case "feeds":
-            return { results: { ...EMPTY_RESULTS, feeds: await searchService.searchFeeds(query) }, nextPageParam: undefined };
-        case "hashtags":
-            return { results: { ...EMPTY_RESULTS, hashtags: await searchService.searchHashtags(query) }, nextPageParam: undefined };
-        case "lists":
-            return { results: { ...EMPTY_RESULTS, lists: await searchService.searchLists(query) }, nextPageParam: undefined };
+        case "feeds": {
+            const offset = typeof pageParam === "number" ? pageParam : 0;
+            const { feeds, hasMore, nextOffset } = await searchService.searchFeedsPage(query, offset);
+            return { results: { ...EMPTY_RESULTS, feeds }, nextPageParam: hasMore ? nextOffset : undefined };
+        }
+        case "hashtags": {
+            const offset = typeof pageParam === "number" ? pageParam : 0;
+            const { hashtags, hasMore, nextOffset } = await searchService.searchHashtagsPage(query, offset);
+            return { results: { ...EMPTY_RESULTS, hashtags }, nextPageParam: hasMore ? nextOffset : undefined };
+        }
+        case "lists": {
+            const offset = typeof pageParam === "number" ? pageParam : 0;
+            const { lists, hasMore, nextOffset } = await searchService.searchListsPage(query, offset);
+            return { results: { ...EMPTY_RESULTS, lists }, nextPageParam: hasMore ? nextOffset : undefined };
+        }
     }
 }
 
@@ -405,7 +414,8 @@ export default function SearchIndex() {
         queryFn: ({ pageParam }) => fetchSearchPage(activeTab, trimmedDebounced, pageParam),
         initialPageParam: null as SearchPageParam,
         // Each tab reports its own "next page" token; `undefined` stops paging, so
-        // the single-shot tabs (all/feeds/hashtags/lists) settle after one page.
+        // the "all" overview settles after one page while every single-category tab
+        // pages until its source runs out.
         getNextPageParam: (lastPage) => lastPage.nextPageParam,
         enabled: trimmedDebounced.length > 0,
         staleTime: SEARCH_STALE_TIME,
@@ -700,9 +710,8 @@ export default function SearchIndex() {
     const rows = isIdle ? idleRows : resultRows;
 
     // Reaching the end of a results tab pulls its next page. The idle list and the
-    // single-shot tabs (all/feeds/hashtags/lists) report no next page, so this is a
-    // no-op there; the guard collapses overlapping end-reached events into one
-    // in-flight fetch.
+    // "all" overview report no next page, so this is a no-op there; the guard
+    // collapses overlapping end-reached events into one in-flight fetch.
     const handleEndReached = useCallback(() => {
         if (isIdle) return;
         if (hasNextPage && !isFetchingNextPage) void fetchNextPage();

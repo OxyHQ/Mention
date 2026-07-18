@@ -155,7 +155,21 @@ router.get('/', async (req: AuthRequest, res: Response) => {
       }
     }
 
-    const items = await CustomFeed.find(q).sort({ updatedAt: -1 }).lean();
+    // Opt-in pagination: with `?limit` present, page the results (offset/limit,
+    // over-fetching one row to detect `hasMore`); without it, keep the historical
+    // "return every accessible feed" behaviour the feeds screen / profile tabs
+    // rely on. `_id` breaks `updatedAt` ties so offsets never shuffle rows.
+    const rawLimit = queryInt(req.query.limit);
+    const offset = Math.max(0, queryInt(req.query.offset) ?? 0);
+    let listQuery = CustomFeed.find(q).sort({ updatedAt: -1, _id: -1 });
+    let pageLimit: number | undefined;
+    if (rawLimit !== undefined) {
+      pageLimit = Math.min(Math.max(1, rawLimit), MAX_FEED_PAGE_SIZE);
+      listQuery = listQuery.skip(offset).limit(pageLimit + 1);
+    }
+    const fetched = await listQuery.lean();
+    const hasMore = pageLimit !== undefined && fetched.length > pageLimit;
+    const items = hasMore ? fetched.slice(0, pageLimit) : fetched;
 
     // Get like counts and isLiked status for all feeds
     const feedIds = items.map((item) => item._id);
@@ -215,7 +229,14 @@ router.get('/', async (req: AuthRequest, res: Response) => {
         topicCount: (item.keywords || []).length,
       };
     });
-    res.json({ items: normalizedItems, total: normalizedItems.length });
+    // When paging, `total` is the full match count (a countDocuments) so the
+    // client can size the result set; unbounded, the page IS the whole set.
+    const total = pageLimit !== undefined ? await CustomFeed.countDocuments(q) : normalizedItems.length;
+    res.json({
+      items: normalizedItems,
+      total,
+      pagination: { offset, limit: pageLimit ?? normalizedItems.length, hasMore },
+    });
   } catch (error) {
     logger.error('[CustomFeeds] List custom feeds error:', { userId: req.user?.id, error, query: req.query });
     res.status(500).json({ error: 'Failed to list feeds' });
