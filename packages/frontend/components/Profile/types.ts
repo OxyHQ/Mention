@@ -39,6 +39,14 @@ export interface UserNameProps {
   isAgent?: boolean;
   isAutomated?: boolean;
   variant?: 'default' | 'small';
+  /**
+   * Horizontal alignment of the stacked name row + `@handle` line. `'start'`
+   * (default) keeps the left-aligned column every existing caller relies on;
+   * `'center'` centers the name row (name + verified/federated/agent badges) and
+   * the muted `@handle` beneath it for a classic centered profile header (used by
+   * the profile About screen). Opt-in so all current callers are byte-unchanged.
+   */
+  align?: 'start' | 'center';
   style?: {
     name?: StyleProp<TextStyle>;
     handle?: StyleProp<TextStyle>;

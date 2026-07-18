@@ -9,9 +9,16 @@ import { AgentIcon } from '@/assets/icons/agent-icon';
 import { AutomatedIcon } from '@/assets/icons/automated-icon';
 import type { UserNameProps } from '@/components/Profile/types';
 
-const UserName: React.FC<UserNameProps> = ({ name, handle, verified, isFederated, isAgent, isAutomated, unifiedColors, onPress, copyableHandle, variant = 'default', style, trailingBadge, handleTrailing }) => {
+const UserName: React.FC<UserNameProps> = ({ name, handle, verified, isFederated, isAgent, isAutomated, unifiedColors, onPress, copyableHandle, variant = 'default', align = 'start', style, trailingBadge, handleTrailing }) => {
     const theme = useTheme();
     const nameStyle = [styles.name, variant === 'small' && styles.nameSmall, style?.name];
+
+    // Opt-in centered layout (default `'start'` keeps every existing caller
+    // byte-unchanged): center the name row + handle line for a stacked, centered
+    // profile header. All alignment is expressed via NativeWind classes.
+    const isCentered = align === 'center';
+    const nameRowClassName = isCentered ? 'gap-1 justify-center' : 'gap-1';
+    const handleClassName = isCentered ? 'text-muted-foreground text-center' : 'text-muted-foreground';
 
     const handleCopyHandle = useCallback(async () => {
         if (!handle) return;
@@ -54,7 +61,7 @@ const UserName: React.FC<UserNameProps> = ({ name, handle, verified, isFederated
             const { marginBottom: handleMarginBottom, ...handleTextStyle } = flatHandle;
             const handleText = (
                 <Text
-                    className="text-muted-foreground"
+                    className={handleClassName}
                     style={[handleTextStyle, styles.handleShrink]}
                     numberOfLines={1}
                     ellipsizeMode="tail"
@@ -64,7 +71,7 @@ const UserName: React.FC<UserNameProps> = ({ name, handle, verified, isFederated
             );
             handleLineNode = (
                 <View
-                    className="gap-2"
+                    className={isCentered ? 'gap-2 justify-center' : 'gap-2'}
                     style={[styles.handleTrailingRow, handleMarginBottom != null ? { marginBottom: handleMarginBottom } : null]}
                 >
                     {isFederated && copyableHandle ? (
@@ -80,14 +87,14 @@ const UserName: React.FC<UserNameProps> = ({ name, handle, verified, isFederated
         } else if (isFederated && copyableHandle) {
             handleLineNode = (
                 <TouchableOpacity activeOpacity={0.7} onPress={handleCopyHandle}>
-                    <Text className="text-muted-foreground" style={[styles.handle, style?.handle]} numberOfLines={1} ellipsizeMode="tail">
+                    <Text className={handleClassName} style={[styles.handle, style?.handle]} numberOfLines={1} ellipsizeMode="tail">
                         @{handle}
                     </Text>
                 </TouchableOpacity>
             );
         } else {
             handleLineNode = (
-                <Text className="text-muted-foreground" style={[styles.handle, style?.handle]} numberOfLines={1} ellipsizeMode="tail">
+                <Text className={handleClassName} style={[styles.handle, style?.handle]} numberOfLines={1} ellipsizeMode="tail">
                     @{handle}
                 </Text>
             );
@@ -96,7 +103,7 @@ const UserName: React.FC<UserNameProps> = ({ name, handle, verified, isFederated
 
     const inner = (
         <>
-            <View className="gap-1" style={styles.nameRow}>
+            <View className={nameRowClassName} style={styles.nameRow}>
                 {primaryText != null && (
                     <Text className="text-foreground" style={nameStyle} numberOfLines={1} ellipsizeMode="tail">
                         {primaryText}
@@ -129,12 +136,12 @@ const UserName: React.FC<UserNameProps> = ({ name, handle, verified, isFederated
         // `maxWidth` is never applied twice (nested) and collapsed.
         return (
             <TouchableOpacity activeOpacity={0.7} onPress={onPress} style={style?.container}>
-                <View style={styles.container}>{inner}</View>
+                <View className={isCentered ? 'items-center' : undefined} style={styles.container}>{inner}</View>
             </TouchableOpacity>
         );
     }
 
-    return <View style={[styles.container, style?.container]}>{inner}</View>;
+    return <View className={isCentered ? 'items-center' : undefined} style={[styles.container, style?.container]}>{inner}</View>;
 };
 
 
