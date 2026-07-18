@@ -2,14 +2,16 @@
  * Prime the React Query actor cache from feed/post ingestion.
  *
  * Replaces the former SQLite user-priming pass (which wrote embedded post
- * authors into a local table — a silent no-op on web). Now it writes those user
- * objects directly into the shared React Query cache via `precacheProfileViews`,
- * so avatars and names populate on web (and native) the moment a feed response
- * arrives.
+ * authors into a local table — a silent no-op on web). Now it merge-upserts those
+ * user objects into the shared React Query cache via the SDK's
+ * `upsertCachedUsers`, so avatars and names populate on web (and native) the
+ * moment a feed response arrives — WITHOUT a sparse feed author clobbering the
+ * `createdAt`, viewer `relationship`, or `_count` an authoritative profile fetch
+ * already stored.
  */
 
+import { upsertCachedUsers, type CacheableUser } from '@oxyhq/services';
 import { queryClient } from '@/lib/queryClient';
-import { precacheProfileViews, type CacheableUser } from '@/lib/precacheProfiles';
 
 /**
  * A post-shaped record carrying embedded actor objects. Intentionally loose —
@@ -46,6 +48,6 @@ export function precacheActorsFromPosts(
   }
 
   if (users.length > 0) {
-    precacheProfileViews(queryClient, users);
+    upsertCachedUsers(queryClient, users);
   }
 }

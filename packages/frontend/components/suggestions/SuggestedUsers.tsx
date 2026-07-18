@@ -2,10 +2,9 @@ import React, { memo, useState, useMemo, useCallback } from 'react';
 import { View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
-import { useAuth } from '@oxyhq/services';
+import { useAuth, upsertCachedUsers } from '@oxyhq/services';
 import { ThemedText } from '@/components/ThemedText';
 import { queryClient } from '@/lib/queryClient';
-import { precacheProfileViews } from '@/lib/precacheProfiles';
 import { enrichMissingAvatars } from '@/utils/userEnrichment';
 import { SuggestedUserCard } from './SuggestedUserCard';
 import type { SuggestedUserData } from './SuggestedUserCard';
@@ -54,7 +53,7 @@ export const SuggestedUsers = memo(function SuggestedUsers({
       const similar: unknown = await oxyServices.getSimilarProfiles(src);
       const list: ProfileData[] = Array.isArray(similar) ? similar : [];
       if (list.length > 0) {
-        precacheProfileViews(queryClient, list);
+        upsertCachedUsers(queryClient, list);
         void enrichMissingAvatars(
           list.slice(0, maxCards),
           (ids) => oxyServices.getUsersByIds(ids),

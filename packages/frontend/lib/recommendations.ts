@@ -22,9 +22,9 @@ export type RecommendationExcludeType = 'federated' | 'agent' | 'automated';
  * canonical `name.displayName`, optional federation/automation metadata,
  * `_count`) intersected with the extra fields `formatProfileResult` actually
  * returns (`avatar`, `bio`/`description`, `verified`). The index signature keeps
- * it assignable to the cache helpers (`precacheProfileViews` /
- * `enrichMissingAvatars`) and to the surfaces' card shapes without enumerating
- * every passthrough field.
+ * it assignable to the SDK cache-upsert helper (`upsertCachedUsers`, whose
+ * `CacheableUser`) and to `enrichMissingAvatars`, and to the surfaces' card
+ * shapes, without enumerating every passthrough field.
  */
 export interface ProfileData {
   id: string;
