@@ -7,11 +7,12 @@
  *
  * Keys are sourced from the SDK's `queryKeys` — never hardcoded literals — so
  * they stay in lockstep with `useUserById` (`queryKeys.users.detail(id)`) and
- * `useUserByUsername` (`[...queryKeys.users.details(), 'username', username]`).
+ * `useUserByUsername`
+ * (`[...queryKeys.users.details(), 'username', username, 'viewer', viewerId]`).
  */
 
 import type { QueryClient } from '@tanstack/react-query';
-import { queryKeys } from '@oxyhq/services';
+import { queryKeys, useAuthStore } from '@oxyhq/services';
 
 /**
  * A user-shaped object that can be primed into the cache. Intentionally
@@ -46,13 +47,27 @@ export function precacheProfileView(qc: QueryClient, user: CacheableUser): void 
   const normalized = withId(user);
   if (!normalized) return;
 
+  // By-id identity entry (viewer-independent) — read by cards via `useUserById`.
+  // Kept FRESH so those reads are satisfied instantly without a refetch.
   qc.setQueryData(queryKeys.users.detail(normalized.id), normalized);
 
   const username = normalized.username;
   if (username) {
+    // The by-username entry is what the profile page reads via
+    // `useUserByUsername`, whose key is viewer-scoped because an authenticated
+    // single-profile fetch embeds the viewer-relative `relationship`
+    // (`followsYou`). Seed under the SAME viewer-scoped key so navigating from a
+    // list/feed still paints identity instantly — but mark it STALE (`updatedAt:
+    // 0`) so react-query still refetches to pull the viewer's `relationship`.
+    // Precached list/feed objects carry public identity only, never
+    // `relationship`, so a fresh seed would suppress the fetch and the "Follows
+    // you" tag would never appear. Reading the active viewer imperatively keeps
+    // this in lockstep with `useUserByUsername`'s `useOxy().user?.id`.
+    const viewerId = useAuthStore.getState().user?.id ?? '';
     qc.setQueryData(
-      [...queryKeys.users.details(), 'username', username.toLowerCase()],
+      [...queryKeys.users.details(), 'username', username.toLowerCase(), 'viewer', viewerId],
       normalized,
+      { updatedAt: 0 },
     );
   }
 }

@@ -122,8 +122,17 @@ export function useProfileData(username?: string): {
   const localQuery = useUserByUsername(isFederated ? null : handle || null);
 
   // Federated profiles — server-side WebFinger resolution.
+  //
+  // `viewerId` is part of the key for the same reason as the local
+  // `useUserByUsername` hook: an authenticated profile fetch embeds the
+  // viewer-relative `relationship` (`followsYou`), while an anonymous cold-boot
+  // fetch omits it. Without the viewer in the key, react-query would freeze the
+  // first anonymous copy and never refetch when the session lands ~5-25s later,
+  // so the "Follows you" tag would flash then vanish forever. Adding the viewer
+  // makes anon vs authed distinct entries AND forces a refetch when the session
+  // resolves or the account switches — identical to the local path.
   const federatedQuery = useQuery<User | null>({
-    queryKey: [...queryKeys.users.details(), 'resolve', handle],
+    queryKey: [...queryKeys.users.details(), 'resolve', handle, 'viewer', viewerId],
     queryFn: () => oxyServices.resolveProfile(handle),
     enabled: isFederated && handle.length > 0,
     staleTime: PROFILE_STALE_TIME,
