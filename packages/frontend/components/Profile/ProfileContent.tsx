@@ -62,7 +62,7 @@ export const ProfileContent = memo(function ProfileContent({
   // out visitor has no "you") and is never shown on the viewer's own profile.
   const followsYouTag =
     !isOwnProfile && isAuthenticated && profileData.followsYou ? (
-      <View className="bg-secondary px-1.5 py-0.5 rounded">
+      <View className="bg-secondary px-2 py-0.5 rounded-full">
         <Text className="text-muted-foreground text-xs font-medium" numberOfLines={1}>
           {t('profile.followsYou', { defaultValue: 'Follows you' })}
         </Text>
