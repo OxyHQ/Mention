@@ -9,6 +9,14 @@
  * they stay in lockstep with `useUserById` (`queryKeys.users.detail(id)`) and
  * `useUserByUsername`
  * (`[...queryKeys.users.details(), 'username', username, 'viewer', viewerId]`).
+ * The by-username key uses the RAW `username`, exactly as the SDK hook builds it
+ * (`username || ''`) — it does NOT lowercase — so seed and read never diverge.
+ *
+ * The by-username entry alone carries the viewer-relative `relationship`
+ * (`followsYou`), fetched by the authenticated single-profile call. Feed/list
+ * users never carry it, so priming must never DOWNGRADE a relationship-bearing
+ * entry to a relationship-less one (that is the "Follows you tag vanishes when
+ * the feed loads" bug): a seed only fills an empty/relationship-less slot.
  */
 
 import type { QueryClient } from '@tanstack/react-query';
@@ -29,6 +37,10 @@ export interface CacheableUser {
   // Mirrors the SDK `User.avatar` (`string | null`): the projected user whitelist
   // stores avatar as a nullable column, so `null` is a legitimate cache value.
   avatar?: string | null;
+  // Viewer-relative follow relationship. Present ONLY on an authenticated
+  // single-profile fetch (`getProfileByUsername`); `null` for anon/self/bulk and
+  // absent on feed/list users. `followsYou` drives the profile "Follows you" tag.
+  relationship?: { isFollowing?: boolean; followsYou?: boolean } | null;
   [key: string]: unknown;
 }
 
@@ -40,6 +52,15 @@ function withId(user: CacheableUser): (CacheableUser & { id: string }) | null {
 }
 
 /**
+ * Whether a cache entry already carries a viewer relationship — i.e. it came
+ * from an authenticated single-profile fetch, not a list/feed/bulk response.
+ * Used to avoid overwriting such an entry with a relationship-less one.
+ */
+function hasViewerRelationship(user: CacheableUser | undefined): boolean {
+  return user?.relationship != null;
+}
+
+/**
  * Prime the React Query cache for a single user under both its id key and,
  * when a username is present, its username key.
  */
@@ -47,28 +68,33 @@ export function precacheProfileView(qc: QueryClient, user: CacheableUser): void 
   const normalized = withId(user);
   if (!normalized) return;
 
-  // By-id identity entry (viewer-independent) — read by cards via `useUserById`.
-  // Kept FRESH so those reads are satisfied instantly without a refetch.
+  // By-id identity entry — read by cards via `useUserById`. Its key is NOT
+  // viewer-scoped (the SDK hook keys on `queryKeys.users.detail(id)` alone), so
+  // it never carries a viewer `relationship`; kept FRESH so those reads are
+  // satisfied instantly without a refetch.
   qc.setQueryData(queryKeys.users.detail(normalized.id), normalized);
 
   const username = normalized.username;
   if (username) {
     // The by-username entry is what the profile page reads via
-    // `useUserByUsername`, whose key is viewer-scoped because an authenticated
-    // single-profile fetch embeds the viewer-relative `relationship`
-    // (`followsYou`). Seed under the SAME viewer-scoped key so navigating from a
-    // list/feed still paints identity instantly — but mark it STALE (`updatedAt:
-    // 0`) so react-query still refetches to pull the viewer's `relationship`.
-    // Precached list/feed objects carry public identity only, never
-    // `relationship`, so a fresh seed would suppress the fetch and the "Follows
-    // you" tag would never appear. Reading the active viewer imperatively keeps
-    // this in lockstep with `useUserByUsername`'s `useOxy().user?.id`.
+    // `useUserByUsername` (`hooks/useProfileData`), whose key is viewer-scoped
+    // because an authenticated single-profile fetch embeds the viewer-relative
+    // `relationship` (`followsYou`). Build the SAME key the SDK hook reads: the
+    // RAW `username` (the hook does not lowercase) and the active viewer id read
+    // imperatively — `useAuthStore` is the same store behind the hook's
+    // `useOxy().user?.id`, so the two stay in lockstep.
     const viewerId = useAuthStore.getState().user?.id ?? '';
-    qc.setQueryData(
-      [...queryKeys.users.details(), 'username', username.toLowerCase(), 'viewer', viewerId],
-      normalized,
-      { updatedAt: 0 },
-    );
+    const usernameKey = [...queryKeys.users.details(), 'username', username, 'viewer', viewerId];
+
+    // NEVER downgrade a relationship-bearing entry. If the profile page already
+    // loaded this profile, its entry carries `relationship`; a feed/list user
+    // does not, so overwriting would strip "Follows you" (and marking it stale
+    // would force a needless refetch). Leave it untouched. Only when nothing
+    // relationship-bearing is cached do we seed identity — STALE (`updatedAt: 0`)
+    // so react-query still refetches to pull the viewer's `relationship`.
+    if (!hasViewerRelationship(qc.getQueryData<CacheableUser>(usernameKey))) {
+      qc.setQueryData(usernameKey, normalized, { updatedAt: 0 });
+    }
   }
 }
 
