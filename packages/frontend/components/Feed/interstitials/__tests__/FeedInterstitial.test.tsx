@@ -115,6 +115,11 @@ jest.mock('@oxyhq/services', () => {
         details: () => ['users', 'detail'],
       },
     },
+    // `precacheProfileView` viewer-scopes the by-username cache entry by reading
+    // the active viewer imperatively (mirrors the SDK's
+    // `useAuthStore.getState().user`), so the mock must expose it or precaching
+    // throws the moment a band primes the cache.
+    useAuthStore: { getState: () => ({ user: mockAuth.user }) },
     // Faithful to the two modes the real button has, including the one behavior
     // the starter-pack band depends on: in multi-user mode with nobody left to
     // follow it renders NOTHING, so a pack the viewer already followed through
