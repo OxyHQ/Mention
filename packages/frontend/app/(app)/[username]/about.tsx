@@ -11,7 +11,6 @@ import React, { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { View, ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useTheme } from '@oxyhq/bloom/theme';
 import { SettingsListGroup, SettingsListItem } from '@oxyhq/bloom/settings-list';
 import UserName from '@/components/UserName';
 import { RowIcon } from '@/components/settings/RowIcon';
@@ -48,7 +47,6 @@ function AccountInfoContent({ profileData, profileLoading }: AccountInfoContentP
   const insets = useSafeAreaInsets();
   const safeBack = useSafeBack();
   const { t } = useTranslation();
-  const theme = useTheme();
 
   // Format join date
   const joinDate = useMemo(() => {
@@ -71,29 +69,29 @@ function AccountInfoContent({ profileData, profileLoading }: AccountInfoContentP
     });
   }, [profileData?.verified, profileData?.verifiedAt, profileData?.createdAt]);
 
-  // Sized to the 56px avatar header row; matches the old hand-built name/handle
-  // sizing (18px bold name, 15px muted handle) while rendering identity through
-  // the shared UserName component (same VerifiedIcon as the profile header).
-  const headerNameStyle = useMemo(() => ({
-    name: { fontSize: 18, fontWeight: '700' as const },
-    handle: { fontSize: 15 },
-  }), []);
+  // Same back-nav header the sibling profile sub-screens (followers / following /
+  // connections) render: shared <Header>, non-sticky, no bottom border. Rendered
+  // once and reused across the loading / not-found / loaded states so all three
+  // share identical chrome.
+  const header = (
+    <Header
+      options={{
+        title: t('About', { defaultValue: 'About' }),
+        leftComponents: [
+          <IconButton key="back" variant="icon" onPress={() => safeBack()}>
+            <BackArrowIcon size={20} className="text-foreground" />
+          </IconButton>,
+        ],
+      }}
+      hideBottomBorder
+      disableSticky
+    />
+  );
 
   if (profileLoading) {
     return (
       <ThemedView className="flex-1" style={{ paddingTop: insets.top }}>
-        <Header
-          options={{
-            title: t('About', { defaultValue: 'About' }),
-            leftComponents: [
-              <IconButton key="back" variant="icon" onPress={() => safeBack()}>
-                <BackArrowIcon size={20} className="text-foreground" />
-              </IconButton>,
-            ],
-          }}
-          hideBottomBorder={true}
-          disableSticky={true}
-        />
+        {header}
         <View className="flex-1 items-center justify-center">
           <Loading className="text-primary" size="large" />
         </View>
@@ -104,18 +102,7 @@ function AccountInfoContent({ profileData, profileLoading }: AccountInfoContentP
   if (!profileData) {
     return (
       <ThemedView className="flex-1" style={{ paddingTop: insets.top }}>
-        <Header
-          options={{
-            title: t('About', { defaultValue: 'About' }),
-            leftComponents: [
-              <IconButton key="back" variant="icon" onPress={() => safeBack()}>
-                <BackArrowIcon size={20} className="text-foreground" />
-              </IconButton>,
-            ],
-          }}
-          hideBottomBorder={true}
-          disableSticky={true}
-        />
+        {header}
         <View className="flex-1 items-center justify-center px-6">
           <ThemedText className="text-base text-muted-foreground text-center">
             {t('profile.notFound.title', { defaultValue: 'Profile not found' })}
@@ -125,73 +112,88 @@ function AccountInfoContent({ profileData, profileLoading }: AccountInfoContentP
     );
   }
 
+  const avatarUri = profileData.design.avatar ?? profileData.avatar;
+  const hasUsernameChanges = (profileData.usernameChangeCount ?? 0) > 0;
+  const hasAccountDetails =
+    Boolean(joinDate) ||
+    Boolean(profileData.primaryLocation) ||
+    hasUsernameChanges ||
+    Boolean(profileData.connectedVia);
+
   return (
     <ThemedView className="flex-1" style={{ paddingTop: insets.top }}>
-      <Header
-        options={{
-          title: t('About', { defaultValue: 'About' }),
-          leftComponents: [
-            <IconButton
-              key="back"
-              variant="icon"
-              onPress={() => safeBack()}
-            >
-              <BackArrowIcon size={20} className="text-foreground" />
-            </IconButton>,
-          ],
-        }}
-        hideBottomBorder={true}
-        disableSticky={true}
-      />
+      {header}
 
-      <ScrollView
-        className="flex-1"
-        contentContainerStyle={{ padding: 16, paddingBottom: 20 }}
-      >
-        {/* Profile Header */}
-        <View className="flex-row items-center mb-4 gap-3 overflow-visible">
-          <View className="relative overflow-visible">
-            <Avatar
-              source={profileData.design.avatar || profileData.avatar}
-              size={56}
-              variant={MEDIA_VARIANT_VIDEO_POSTER}
-              verified={profileData.verified}
-            />
-          </View>
-          <View className="flex-1">
-            <UserName
-              name={profileData.design?.displayName ?? profileData.name?.displayName}
-              handle={profileData.username}
-              verified={profileData.verified}
-              isFederated={profileData.isFederated}
-              variant="default"
-              style={headerNameStyle}
-            />
-          </View>
+      {/* Horizontal padding lives on the identity block and the Bloom settings
+          groups (which carry their own 16px card margin), NOT on the scroller —
+          so both align to the same 16px gutter as the profile header, and the
+          settings cards are never double-inset. Vertical rhythm mirrors the
+          settings screens (the app's other SettingsListGroup surface). */}
+      <ScrollView className="flex-1" contentContainerClassName="pb-6">
+        {/* Identity header — mirrors the profile header's avatar-then-name/handle
+            vertical rhythm and typographic scale (24px display name, 15px muted
+            @handle, inline verified / federated badge via the shared UserName), so
+            it reads as the same identity surface as the profile screen. */}
+        <View className="px-4 pt-4 pb-5">
+          <Avatar source={avatarUri} size={80} variant={MEDIA_VARIANT_VIDEO_POSTER} />
+          <UserName
+            name={profileData.design.displayName ?? profileData.name?.displayName}
+            handle={profileData.username}
+            verified={profileData.verified}
+            isFederated={profileData.isFederated}
+            copyableHandle
+            variant="default"
+            // UserName exposes name/handle sizing only through this typed style
+            // object (no 24px `variant`), so the profile header itself sets the
+            // display-name scale the same way — matched here for parity.
+            style={{
+              name: { fontSize: 24, fontWeight: 'bold', marginTop: 12, marginBottom: 4 },
+              handle: { fontSize: 15 },
+            }}
+          />
         </View>
 
-        {/* Account Details */}
-        <SettingsListGroup title={t('Account details', { defaultValue: 'Account details' })}>
-          {/* Date Joined */}
-          {joinDate && (
-            <SettingsListItem
-              icon={<CalendarMonthIcon size={20} color={theme.colors.textSecondary} />}
-              title={t('Date joined', { defaultValue: 'Date joined' })}
-              value={joinDate}
-            />
-          )}
+        {/* Account details — dates, location, activity */}
+        {hasAccountDetails && (
+          <SettingsListGroup title={t('Account details', { defaultValue: 'Account details' })}>
+            {joinDate && (
+              <SettingsListItem
+                icon={<CalendarMonthIcon size={20} className="text-muted-foreground" />}
+                title={t('Date joined', { defaultValue: 'Date joined' })}
+                value={joinDate}
+              />
+            )}
 
-          {/* Account Based In */}
-          {profileData.primaryLocation && (
-            <SettingsListItem
-              icon={<RowIcon name="location" />}
-              title={t('Account based in', { defaultValue: 'Account based in' })}
-              value={profileData.primaryLocation}
-            />
-          )}
+            {profileData.primaryLocation && (
+              <SettingsListItem
+                icon={<RowIcon name="location" />}
+                title={t('Account based in', { defaultValue: 'Account based in' })}
+                value={profileData.primaryLocation}
+              />
+            )}
 
-          {/* Verified */}
-          {profileData.verified && (
+            {hasUsernameChanges && (
+              <SettingsListItem
+                icon={<RowIcon name="at" />}
+                title={t('Username changes', { defaultValue: 'Username changes' })}
+                value={String(profileData.usernameChangeCount)}
+              />
+            )}
+
+            {profileData.connectedVia && (
+              <SettingsListItem
+                icon={<RowIcon name="globe" />}
+                title={t('Connected via', { defaultValue: 'Connected via' })}
+                value={profileData.connectedVia}
+              />
+            )}
+          </SettingsListGroup>
+        )}
+
+        {/* Verification — its own section, matching the profile's emphasis on the
+            verified badge */}
+        {profileData.verified && (
+          <SettingsListGroup title={t('Verification', { defaultValue: 'Verification' })}>
             <SettingsListItem
               icon={<VerifiedIcon size={20} className="text-primary" />}
               title={t('Verified', { defaultValue: 'Verified' })}
@@ -199,26 +201,8 @@ function AccountInfoContent({ profileData, profileLoading }: AccountInfoContentP
                 ? t('Since {date}', { date: verifiedDate, defaultValue: `Since ${verifiedDate}` })
                 : t('Verified account', { defaultValue: 'Verified account' })}
             />
-          )}
-
-          {/* Username Changes */}
-          {(profileData.usernameChangeCount ?? 0) > 0 && (
-            <SettingsListItem
-              icon={<RowIcon name="at" />}
-              title={t('Username changes', { defaultValue: 'Username changes' })}
-              value={String(profileData.usernameChangeCount)}
-            />
-          )}
-
-          {/* Connected Via */}
-          {profileData.connectedVia && (
-            <SettingsListItem
-              icon={<RowIcon name="globe" />}
-              title={t('Connected via', { defaultValue: 'Connected via' })}
-              value={profileData.connectedVia}
-            />
-          )}
-        </SettingsListGroup>
+          </SettingsListGroup>
+        )}
       </ScrollView>
     </ThemedView>
   );
