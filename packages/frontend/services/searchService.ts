@@ -377,28 +377,45 @@ class SearchService {
   }
 
   // Search all - shows users above posts in "all" tab.
+  //
+  // The PUBLIC sources (users via Oxy, feeds via the public client, hashtags on
+  // the public router) run for every viewer. The AUTH-GATED sources (posts,
+  // lists, saved — all behind the authenticated API) only fire once the private
+  // API is ready: during the SSO cold-boot the viewer can be authenticated while
+  // the private API is still pending, and firing then would 401 (console noise,
+  // not a result). Those sections stay empty until the search query refetches on
+  // `canUsePrivateApi` flipping true (it is part of the search query key), then
+  // fill in. A signed-out viewer keeps them empty for good — a quiet "nothing
+  // here", never a 401 storm.
+  //
   // One flaky source must not blank the whole screen, so sources settle
   // independently: a partial failure degrades to that section being empty, and
-  // only a TOTAL failure (every source rejected) surfaces as an error.
-  async searchAll(query: string): Promise<SearchResults> {
-    const [posts, users, feeds, lists, hashtags, saved] = await Promise.allSettled([
-      this.searchPosts(query),
+  // only a TOTAL failure of the sources that actually RAN surfaces as an error.
+  async searchAll(query: string, canUsePrivateApi: boolean): Promise<SearchResults> {
+    const [users, feeds, hashtags, posts, lists, saved] = await Promise.allSettled([
       this.searchUsers(query),
       this.searchFeeds(query),
-      this.searchLists(query),
       this.searchHashtags(query),
-      this.searchSaved(query)
+      canUsePrivateApi ? this.searchPosts(query) : Promise.resolve<SearchPostResult[]>([]),
+      canUsePrivateApi ? this.searchLists(query) : Promise.resolve<SearchListResult[]>([]),
+      canUsePrivateApi ? this.searchSaved(query) : Promise.resolve<SearchPostResult[]>([]),
     ]);
 
-    const settled = [posts, users, feeds, lists, hashtags, saved];
-    const rejections = settled.filter(
+    // The gated sources short-circuit to a resolved empty page when the private
+    // API isn't ready, so exclude them from the total-failure count — otherwise a
+    // signed-out viewer with healthy public sources could never surface a real
+    // error, and a fulfilled no-op would mask one.
+    const activeSources = canUsePrivateApi
+      ? [users, feeds, hashtags, posts, lists, saved]
+      : [users, feeds, hashtags];
+    const rejections = activeSources.filter(
       (result): result is PromiseRejectedResult => result.status === 'rejected',
     );
     for (const rejection of rejections) {
       logger.warn("A search source failed", { error: rejection.reason });
     }
     const firstRejection = rejections[0];
-    if (firstRejection && rejections.length === settled.length) {
+    if (firstRejection && rejections.length === activeSources.length) {
       throw firstRejection.reason;
     }
 
