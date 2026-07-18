@@ -46,7 +46,6 @@ export const ProfileHeaderDefault = memo(function ProfileHeaderDefault({
   isFederated,
   actorUri,
   isFollowing: initialIsFollowing,
-  isFollowPending: initialIsFollowPending,
   UserNameComponent,
   FollowButtonComponent,
 }: ProfileHeaderDefaultProps) {
