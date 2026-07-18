@@ -144,10 +144,11 @@ async function fetchSearchPage(
     tab: SearchTab,
     query: string,
     pageParam: SearchPageParam,
+    canUsePrivateApi: boolean,
 ): Promise<SearchResultsPage> {
     switch (tab) {
         case "all": {
-            const all = await searchService.searchAll(query);
+            const all = await searchService.searchAll(query, canUsePrivateApi);
             return {
                 results: {
                     posts: all.posts ?? [],
@@ -161,6 +162,10 @@ async function fetchSearchPage(
             };
         }
         case "posts": {
+            // Auth-gated: `/search` 401s until the private API is ready. Don't fire
+            // early — the query is keyed on `canUsePrivateApi`, so it refetches (and
+            // this page fills in) the moment the session lands.
+            if (!canUsePrivateApi) return { results: EMPTY_RESULTS, nextPageParam: undefined };
             const cursor = typeof pageParam === "string" ? pageParam : undefined;
             const { posts, hasMore, nextCursor } = await searchService.searchPostsPage(query, cursor);
             return { results: { ...EMPTY_RESULTS, posts }, nextPageParam: hasMore ? nextCursor : undefined };
@@ -171,6 +176,8 @@ async function fetchSearchPage(
             return { results: { ...EMPTY_RESULTS, users }, nextPageParam: hasMore ? nextOffset : undefined };
         }
         case "saved": {
+            // Auth-gated (`/posts/saved`) — see the posts tab above.
+            if (!canUsePrivateApi) return { results: EMPTY_RESULTS, nextPageParam: undefined };
             const page = typeof pageParam === "number" ? pageParam : 1;
             const { posts, hasMore, nextPage } = await searchService.searchSavedPage(query, page);
             return { results: { ...EMPTY_RESULTS, saved: posts }, nextPageParam: hasMore ? nextPage : undefined };
@@ -186,6 +193,8 @@ async function fetchSearchPage(
             return { results: { ...EMPTY_RESULTS, hashtags }, nextPageParam: hasMore ? nextOffset : undefined };
         }
         case "lists": {
+            // Auth-gated (`/lists`) — see the posts tab above.
+            if (!canUsePrivateApi) return { results: EMPTY_RESULTS, nextPageParam: undefined };
             const offset = typeof pageParam === "number" ? pageParam : 0;
             const { lists, hasMore, nextOffset } = await searchService.searchListsPage(query, offset);
             return { results: { ...EMPTY_RESULTS, lists }, nextPageParam: hasMore ? nextOffset : undefined };
@@ -305,9 +314,13 @@ export default function SearchIndex() {
     const params = useLocalSearchParams();
     const urlQuery = (params.q as string) || "";
 
-    // Keyed into the search query so a cold-boot search re-runs once the session
-    // lands: several sources are auth-gated and 401 (→ empty) while anonymous.
-    const { isAuthenticated } = useAuth();
+    // The auth-gated search sources (posts, lists, saved) 401 until the PRIVATE
+    // API is ready — which lags `isAuthenticated` by 5–25s during the SSO
+    // cold-boot. `canUsePrivateApi` both GATES those fetchers (so they never fire
+    // early → no 401 noise) and is KEYED into the search query below, so the query
+    // refetches and those sections fill in the moment the session lands. A genuine
+    // signed-out viewer keeps them quietly empty and still gets people + feeds.
+    const { canUsePrivateApi } = useAuth();
 
     const [query, setQuery] = useState(urlQuery);
     // `query` drives the input box; `debouncedQuery` drives the actual request
@@ -410,8 +423,8 @@ export default function SearchIndex() {
         isError: searchFailed,
         refetch: refetchSearch,
     } = useInfiniteQuery({
-        queryKey: ["search", activeTab, trimmedDebounced, isAuthenticated],
-        queryFn: ({ pageParam }) => fetchSearchPage(activeTab, trimmedDebounced, pageParam),
+        queryKey: ["search", activeTab, trimmedDebounced, canUsePrivateApi],
+        queryFn: ({ pageParam }) => fetchSearchPage(activeTab, trimmedDebounced, pageParam, canUsePrivateApi),
         initialPageParam: null as SearchPageParam,
         // Each tab reports its own "next page" token; `undefined` stops paging, so
         // the "all" overview settles after one page while every single-category tab
