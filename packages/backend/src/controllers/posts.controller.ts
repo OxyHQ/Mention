@@ -28,6 +28,7 @@ import { config } from '../config';
 import { mergeHashtags, escapeRegex } from '../utils/textProcessing';
 import { createScopedOxyClient } from '../utils/oxyHelpers';
 import { queryInt, queryString } from '../utils/queryParams';
+import { buildTopicSlugMatch } from '../utils/postTopicMatch';
 import { requestLanguageCandidates } from '../utils/viewerLanguage';
 import { normalizeMediaItems, type NormalizedMediaItem } from '../utils/mediaInput';
 import { warmLinkPreviewForText } from '../utils/linkPreviewWarm';
@@ -2248,12 +2249,8 @@ export function buildPostsByTopicFilter(
   topicName: string,
   cursor?: string,
 ): Record<string, unknown> {
-  const normalizedTopic = topicName.toLowerCase();
   const filter: Record<string, unknown> = {
-    $or: [
-      { 'postClassification.topicRefs.name': normalizedTopic },
-      { 'postClassification.topics': normalizedTopic },
-    ],
+    ...buildTopicSlugMatch(topicName),
     status: 'published',
     visibility: PostVisibility.PUBLIC,
   };

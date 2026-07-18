@@ -80,6 +80,35 @@ function makePost(n: number, extra: Record<string, unknown> = {}) {
   return { _id: oid(n), oxyUserId: `a${n}`, createdAt: new Date(), ...extra };
 }
 
+/**
+ * Evaluate the topic `$or` a source built against a fixture post — proving the
+ * query MATCHES the right documents, not merely that its shape looks right.
+ * Mirrors how Mongo applies the two-branch clause: a post is on the topic when
+ * EITHER a `postClassification.topicRefs[].name` OR a `postClassification.topics`
+ * slug equals the queried slug. The clause is nested under `$and`.
+ */
+function matchesTopicOr(match: Record<string, unknown>, post: Record<string, unknown>): boolean {
+  const and = (match.$and as Array<Record<string, unknown>> | undefined) ?? [];
+  const orClause = and
+    .map((clause) => clause.$or)
+    .find((value): value is Array<Record<string, string>> => Array.isArray(value));
+  if (!orClause) return false;
+  const classification = post.postClassification as
+    | { topics?: string[]; topicRefs?: Array<{ name: string }> }
+    | undefined;
+  return orClause.some((branch) => {
+    const refName = branch['postClassification.topicRefs.name'];
+    if (refName !== undefined) {
+      return (classification?.topicRefs ?? []).some((ref) => ref.name === refName);
+    }
+    const slug = branch['postClassification.topics'];
+    if (slug !== undefined) {
+      return (classification?.topics ?? []).includes(slug);
+    }
+    return false;
+  });
+}
+
 beforeEach(() => {
   findCalls.length = 0;
   sortCalls.length = 0;
@@ -120,12 +149,40 @@ describe('following source', () => {
 });
 
 describe('topic source', () => {
-  it('slug variant queries postClassification.topics with the lowercased slug', async () => {
+  it('slug variant matches topicRefs.name OR the slug-only topics (lowercased, public/published)', async () => {
     findRouter = () => [makePost(3)];
     await topicSource.gather({ currentUserId: 'viewer' }, { slug: 'Art' }, 31);
     const match = findCalls[0];
-    expect(match['postClassification.topics']).toBe('art');
+    // The topic OR is nested under `$and` so a cursor `$or` cannot clobber it.
+    const and = match.$and as Array<Record<string, unknown>>;
+    expect(and[0].$or).toEqual([
+      { 'postClassification.topicRefs.name': 'art' },
+      { 'postClassification.topics': 'art' },
+    ]);
     expect(match.visibility).toBe('public');
+    expect(match.status).toBe('published');
+  });
+
+  /**
+   * Regression: "a topic trends but its page shows no posts".
+   *
+   * TrendingService counts a topic from `postClassification.topicRefs` (Stage-B
+   * canonical) OR `postClassification.topics` (Stage-A slug). The topic feed used
+   * to match ONLY `postClassification.topics`, so a post classified with a
+   * canonical `topicRefs` "tech" but no "tech" slug in `topics` was counted as
+   * trending yet never returned by the feed. The feed must now return it too.
+   */
+  it('returns a post associated via topicRefs.name only, and excludes an unrelated post', async () => {
+    const techViaRefsOnly = makePost(3, {
+      postClassification: { topics: ['news'], topicRefs: [{ name: 'tech' }] },
+    });
+    const unrelated = makePost(4, {
+      postClassification: { topics: ['sports'], topicRefs: [{ name: 'sports' }] },
+    });
+    findRouter = (match) => [techViaRefsOnly, unrelated].filter((post) => matchesTopicOr(match, post));
+
+    const posts = await topicSource.gather({ currentUserId: 'viewer' }, { slug: 'tech' }, 31);
+    expect(posts.map((p) => String(p._id))).toEqual([oid(3).toString()]);
   });
 });
 

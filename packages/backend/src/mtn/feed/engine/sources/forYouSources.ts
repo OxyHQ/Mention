@@ -12,6 +12,7 @@ import mongoose from 'mongoose';
 import { PostVisibility } from '@mention/shared-types';
 import { Post } from '../../../../models/Post';
 import { buildFollowedAuthorsMatch } from '../../../../utils/postAuthorship';
+import { buildTopicSlugMatch } from '../../../../utils/postTopicMatch';
 import { FEED_FIELDS } from '../../FeedAPI';
 import { ChronoCursor } from '../../CursorBuilder';
 import { logger } from '../../../../utils/logger';
@@ -132,11 +133,19 @@ async function gatherListTimeline(listId: string, ctx: FeedEngineContext, cap: n
     .lean<CandidatePost[]>();
 }
 
-/** CHRONOLOGICAL Topic-feed query (posts whose classification topics contain the slug). */
+/**
+ * CHRONOLOGICAL Topic-feed query. Matches the SAME post set TrendingService
+ * counts for the slug: a post is on the topic through EITHER the registry-linked
+ * `postClassification.topicRefs.name` OR the slug-only `postClassification.topics`
+ * (see {@link buildTopicSlugMatch}). Matching only `topics` here was the "topic
+ * trends but its page is empty" bug — a post classified with a canonical
+ * `topicRefs` entry but no matching slug in `topics` was counted as trending yet
+ * never returned by this feed. The topic `$or` is nested under `$and` so the
+ * cursor `$or` that {@link ChronoCursor.applyToQuery} may add cannot clobber it.
+ */
 async function gatherTopicTimeline(slug: string, ctx: FeedEngineContext, cap: number): Promise<CandidatePost[]> {
-  const normalized = slug.toLowerCase();
   const match: Record<string, unknown> = {
-    'postClassification.topics': normalized,
+    $and: [buildTopicSlugMatch(slug)],
     visibility: 'public',
     status: 'published',
   };
