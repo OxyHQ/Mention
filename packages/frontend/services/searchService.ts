@@ -83,6 +83,30 @@ export interface SearchFilters {
   limit?: number;
 }
 
+/** Page size for the paginated single-category search tabs. */
+export const SEARCH_PAGE_LIMIT = 20;
+
+/** A page of post results plus the opaque cursor to request the next page. */
+export interface SearchPostsPage {
+  posts: SearchPostResult[];
+  hasMore: boolean;
+  nextCursor?: string;
+}
+
+/** A page of user results plus the offset to request the next page. */
+export interface SearchUsersPage {
+  users: SearchUserResult[];
+  hasMore: boolean;
+  nextOffset: number;
+}
+
+/** A page of saved-post results plus the page number to request next. */
+export interface SearchSavedPage {
+  posts: SearchPostResult[];
+  hasMore: boolean;
+  nextPage: number;
+}
+
 const SEARCH_HISTORY_KEY = 'mention_search_history';
 const MAX_SEARCH_HISTORY = 10;
 
@@ -135,6 +159,28 @@ class SearchService {
     }
   }
 
+  // Paginated posts search — `/search` keyset-paginates by `_id` behind an opaque
+  // `cursor`, returning `hasMore` + the `nextCursor` for the following page. The
+  // cursor sort (`createdAt desc`) makes paging stable, so appended pages never
+  // duplicate a prior page's rows. Drives the infinite Posts tab.
+  async searchPostsPage(query: string, cursor?: string): Promise<SearchPostsPage> {
+    try {
+      const params: Record<string, string> = { query, type: "posts" };
+      if (cursor) params.cursor = cursor;
+      const res = await authenticatedClient.get<{ posts?: SearchPostResult[]; hasMore?: boolean; nextCursor?: string }>(
+        "/search",
+        { params },
+      );
+      return {
+        posts: res.data.posts ?? [],
+        hasMore: res.data.hasMore ?? false,
+        nextCursor: res.data.nextCursor,
+      };
+    } catch (error) {
+      return { posts: emptyIfSignedOut<SearchPostResult>(error, "posts"), hasMore: false };
+    }
+  }
+
   // Search users via Oxy services
   async searchUsers(query: string): Promise<SearchUserResult[]> {
     try {
@@ -148,6 +194,31 @@ class SearchService {
       // A miss on the fallback is a real failure — let it propagate.
       const exactMatch = await oxyServices.getProfileByUsername(query);
       return exactMatch ? [exactMatch] : [];
+    }
+  }
+
+  // Paginated user search — Oxy's `GET /profiles/search` offset-paginates
+  // (`{ limit, offset }` → `{ data, pagination: { offset, limit, hasMore } }`) on
+  // a stable native-first sort, so offset paging never repeats a row. Drives the
+  // infinite People tab.
+  async searchUsersPage(query: string, offset = 0): Promise<SearchUsersPage> {
+    try {
+      const { data, pagination } = await oxyServices.searchProfiles(query, {
+        limit: SEARCH_PAGE_LIMIT,
+        offset,
+      });
+      return {
+        users: Array.isArray(data) ? data : [],
+        hasMore: pagination?.hasMore ?? false,
+        nextOffset: (pagination?.offset ?? offset) + (pagination?.limit ?? SEARCH_PAGE_LIMIT),
+      };
+    } catch (error) {
+      // The exact-username fallback only makes sense for the FIRST page — a deeper
+      // page has no single match to fall back to, so its failure is real.
+      if (offset > 0) throw error;
+      logger.warn("Profile search failed, falling back to exact username lookup", { error });
+      const exactMatch = await oxyServices.getProfileByUsername(query);
+      return { users: exactMatch ? [exactMatch] : [], hasMore: false, nextOffset: SEARCH_PAGE_LIMIT };
     }
   }
 
@@ -194,6 +265,19 @@ class SearchService {
         : [];
     } catch (error) {
       return emptyIfSignedOut<SearchPostResult>(error, "saved");
+    }
+  }
+
+  // Paginated saved-posts search — `GET /posts/saved` page-paginates
+  // (`{ page, limit }` → `{ posts, hasMore }`). Drives the infinite Saved tab.
+  async searchSavedPage(query: string, page = 1): Promise<SearchSavedPage> {
+    try {
+      const response = await feedService.getSavedPosts({ page, limit: SEARCH_PAGE_LIMIT, search: query });
+      const data = response.data;
+      const posts = isRecord(data) && Array.isArray(data.posts) ? data.posts.filter(isHydratedPost) : [];
+      return { posts, hasMore: isRecord(data) ? Boolean(data.hasMore) : false, nextPage: page + 1 };
+    } catch (error) {
+      return { posts: emptyIfSignedOut<SearchPostResult>(error, "saved"), hasMore: false, nextPage: page + 1 };
     }
   }
 

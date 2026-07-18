@@ -4,7 +4,7 @@ import { SafeAreaView } from "@/lib/SafeAreaViewInterop";
 import { Ionicons } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
 import { router, useLocalSearchParams } from "expo-router";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@oxyhq/services";
 import { getNormalizedUserHandle } from "@oxyhq/core";
 import { useSafeBack } from "@/hooks/useSafeBack";
@@ -110,18 +110,28 @@ type SearchRow =
     | { kind: "hashtag"; key: string; hashtag: SearchHashtagResult }
     | { kind: "list"; key: string; list: SearchListResult };
 
-/** Per-category fetchers, one for each single-category tab. */
-const RESULT_FETCHERS = {
-    posts: (query: string) => searchService.searchPosts(query),
-    users: (query: string) => searchService.searchUsers(query),
-    feeds: (query: string) => searchService.searchFeeds(query),
-    hashtags: (query: string) => searchService.searchHashtags(query),
-    lists: (query: string) => searchService.searchLists(query),
-    saved: (query: string) => searchService.searchSaved(query),
-} satisfies Record<ResultTab, (query: string) => Promise<LocalSearchResults[ResultTab]>>;
+/**
+ * A page cursor for the active tab's infinite query. Its meaning depends on the
+ * tab — an opaque post cursor (string), a user offset or saved-posts page number
+ * (number), or `null` for the first page — but the query key pins the tab, so
+ * only one interpretation is ever live at a time.
+ */
+type SearchPageParam = string | number | null;
 
 /**
- * Fetch one tab's results — the `queryFn` behind the search query.
+ * One page of results for the active tab, plus the param to request the NEXT page
+ * (`undefined` ⇒ this tab is exhausted). The "all" tab and the tabs whose
+ * endpoints return every match in one shot (feeds, hashtags, lists) always yield a
+ * single terminal page; the paginated tabs — posts (cursor), users (offset),
+ * saved (page) — yield a `nextPageParam` until their source runs out.
+ */
+interface SearchResultsPage {
+    results: LocalSearchResults;
+    nextPageParam: SearchPageParam | undefined;
+}
+
+/**
+ * Fetch one page for a tab — the `queryFn` behind the infinite search query.
  *
  * The "all" tab fans out over every source via `searchAll`, whose `allSettled`
  * keeps the "one flaky source degrades that section, a total failure errors"
@@ -130,20 +140,48 @@ const RESULT_FETCHERS = {
  * the public client), so a hanging source REJECTS rather than stalling the
  * screen — which is what lets React Query settle loading deterministically.
  */
-async function fetchSearchResults(tab: SearchTab, query: string): Promise<LocalSearchResults> {
-    if (tab === "all") {
-        const all = await searchService.searchAll(query);
-        return {
-            posts: all.posts ?? [],
-            users: all.users ?? [],
-            feeds: all.feeds ?? [],
-            hashtags: all.hashtags ?? [],
-            lists: all.lists ?? [],
-            saved: all.saved ?? [],
-        };
+async function fetchSearchPage(
+    tab: SearchTab,
+    query: string,
+    pageParam: SearchPageParam,
+): Promise<SearchResultsPage> {
+    switch (tab) {
+        case "all": {
+            const all = await searchService.searchAll(query);
+            return {
+                results: {
+                    posts: all.posts ?? [],
+                    users: all.users ?? [],
+                    feeds: all.feeds ?? [],
+                    hashtags: all.hashtags ?? [],
+                    lists: all.lists ?? [],
+                    saved: all.saved ?? [],
+                },
+                nextPageParam: undefined,
+            };
+        }
+        case "posts": {
+            const cursor = typeof pageParam === "string" ? pageParam : undefined;
+            const { posts, hasMore, nextCursor } = await searchService.searchPostsPage(query, cursor);
+            return { results: { ...EMPTY_RESULTS, posts }, nextPageParam: hasMore ? nextCursor : undefined };
+        }
+        case "users": {
+            const offset = typeof pageParam === "number" ? pageParam : 0;
+            const { users, hasMore, nextOffset } = await searchService.searchUsersPage(query, offset);
+            return { results: { ...EMPTY_RESULTS, users }, nextPageParam: hasMore ? nextOffset : undefined };
+        }
+        case "saved": {
+            const page = typeof pageParam === "number" ? pageParam : 1;
+            const { posts, hasMore, nextPage } = await searchService.searchSavedPage(query, page);
+            return { results: { ...EMPTY_RESULTS, saved: posts }, nextPageParam: hasMore ? nextPage : undefined };
+        }
+        case "feeds":
+            return { results: { ...EMPTY_RESULTS, feeds: await searchService.searchFeeds(query) }, nextPageParam: undefined };
+        case "hashtags":
+            return { results: { ...EMPTY_RESULTS, hashtags: await searchService.searchHashtags(query) }, nextPageParam: undefined };
+        case "lists":
+            return { results: { ...EMPTY_RESULTS, lists: await searchService.searchLists(query) }, nextPageParam: undefined };
     }
-    const data = await RESULT_FETCHERS[tab](query);
-    return { ...EMPTY_RESULTS, [tab]: data };
 }
 
 function toProfileCardData(user: SearchUserResult): ProfileCardData | null {
@@ -354,42 +392,58 @@ export default function SearchIndex() {
     // `finally` only cleared loading when NOT stale, so an interleave could pin it
     // true forever) is gone.
     const {
-        data: results = EMPTY_RESULTS,
+        data: searchData,
         isPending,
         isFetching,
+        isFetchingNextPage,
+        hasNextPage,
+        fetchNextPage,
         isError: searchFailed,
         refetch: refetchSearch,
-    } = useQuery<LocalSearchResults>({
+    } = useInfiniteQuery({
         queryKey: ["search", activeTab, trimmedDebounced, isAuthenticated],
-        queryFn: () => fetchSearchResults(activeTab, trimmedDebounced),
+        queryFn: ({ pageParam }) => fetchSearchPage(activeTab, trimmedDebounced, pageParam),
+        initialPageParam: null as SearchPageParam,
+        // Each tab reports its own "next page" token; `undefined` stops paging, so
+        // the single-shot tabs (all/feeds/hashtags/lists) settle after one page.
+        getNextPageParam: (lastPage) => lastPage.nextPageParam,
         enabled: trimmedDebounced.length > 0,
         staleTime: SEARCH_STALE_TIME,
         gcTime: SEARCH_GC_TIME,
         // Fail fast to the error state (with a manual Retry) rather than stacking
         // React Query retries on top of the transport's own bounded retry+timeout.
         retry: false,
-        // A single-category tab already covered by a prior "all" search is served
-        // from that cached payload — derived straight from the query cache, no
-        // extra request. `undefined` (the "all" tab, or "all" never searched) lets
-        // the query fetch its own source normally.
-        initialData: (): LocalSearchResults | undefined => {
-            if (activeTab === "all") return undefined;
-            const all = queryClient.getQueryData<LocalSearchResults>([
-                "search",
-                "all",
-                trimmedDebounced,
-                isAuthenticated,
-            ]);
-            return all ? { ...EMPTY_RESULTS, [activeTab]: all[activeTab] } : undefined;
-        },
     });
 
-    // Loading spans BOTH the debounce wait and the fetch: while the box holds a
-    // query the results don't yet reflect, the query sits disabled with no data
-    // (`isPending`); the first fetch keeps `isPending`; a retry/refetch shows as
-    // `isFetching`. Every source request times out, so both settle deterministically
-    // — loading can never stick the way the old stale-guard could.
-    const loading = isPending || isFetching;
+    // Flatten every loaded page into ONE result set per category. Only the active
+    // tab's category actually grows across pages; the rest stay empty. The append
+    // is order-preserving, so the backend's native-first ordering renders exactly
+    // as returned — never re-sorted client-side — and appended pages never
+    // duplicate a prior page's rows (the cursor/offset sort is stable).
+    const results = useMemo<LocalSearchResults>(() => {
+        const pages = searchData?.pages;
+        if (!pages || pages.length === 0) return EMPTY_RESULTS;
+        return pages.reduce<LocalSearchResults>(
+            (acc, page) => ({
+                posts: acc.posts.concat(page.results.posts),
+                users: acc.users.concat(page.results.users),
+                feeds: acc.feeds.concat(page.results.feeds),
+                hashtags: acc.hashtags.concat(page.results.hashtags),
+                lists: acc.lists.concat(page.results.lists),
+                saved: acc.saved.concat(page.results.saved),
+            }),
+            EMPTY_RESULTS,
+        );
+    }, [searchData]);
+
+    // The full-screen loading state spans BOTH the debounce wait and the FIRST
+    // page fetch: while the box holds a query the results don't yet reflect, the
+    // query sits disabled with no data (`isPending`); the first fetch keeps
+    // `isPending`; a retry/refetch shows as `isFetching`. A next-page fetch is
+    // deliberately excluded — it keeps the existing rows on screen and shows the
+    // footer spinner instead. Every source request times out, so all settle
+    // deterministically — loading can never stick the way the old stale-guard could.
+    const loading = isPending || (isFetching && !isFetchingNextPage);
 
     const clearDebounce = useCallback(() => {
         if (debounceTimerRef.current) {
@@ -644,6 +698,15 @@ export default function SearchIndex() {
     }, [isIdle, loading, searchFailed, activeTab, results, externalActor, t]);
 
     const rows = isIdle ? idleRows : resultRows;
+
+    // Reaching the end of a results tab pulls its next page. The idle list and the
+    // single-shot tabs (all/feeds/hashtags/lists) report no next page, so this is a
+    // no-op there; the guard collapses overlapping end-reached events into one
+    // in-flight fetch.
+    const handleEndReached = useCallback(() => {
+        if (isIdle) return;
+        if (hasNextPage && !isFetchingNextPage) void fetchNextPage();
+    }, [isIdle, hasNextPage, isFetchingNextPage, fetchNextPage]);
 
     const renderRow = useCallback(
         ({ item }: { item: SearchRow }): React.ReactElement | null => {
@@ -945,8 +1008,17 @@ export default function SearchIndex() {
                             keyboardShouldPersistTaps="handled"
                             keyboardDismissMode="on-drag"
                             showsVerticalScrollIndicator={false}
+                            onEndReached={handleEndReached}
+                            onEndReachedThreshold={0.5}
                             ListHeaderComponent={renderListHeader()}
                             ListEmptyComponent={renderListEmpty()}
+                            ListFooterComponent={
+                                isFetchingNextPage ? (
+                                    <View className="items-center justify-center py-4">
+                                        <Loading className="text-primary" size="small" />
+                                    </View>
+                                ) : null
+                            }
                         />
                     </View>
                 </SafeAreaView>
