@@ -7,8 +7,17 @@ import { queryInt, queryString } from "../utils/queryParams";
 
 const router = express.Router();
 
-/** Max hashtag suggestions returned by either search endpoint. */
-const HASHTAG_SEARCH_LIMIT = 5;
+/** Default page size for `GET /hashtags/search` when `?limit` is absent. */
+const HASHTAG_SEARCH_DEFAULT_LIMIT = 20;
+
+/** Hard cap on the `GET /hashtags/search` page size — `?limit` can only narrow it. */
+const HASHTAG_SEARCH_MAX_LIMIT = 50;
+
+/**
+ * Suggestion cap for the LEGACY `POST /hashtags/search` (tag-names-only) response.
+ * Pinned to the historical value so pre-pagination clients see no change.
+ */
+const LEGACY_HASHTAG_SEARCH_LIMIT = 5;
 
 /** Upper bound on the raw query we turn into a regex. */
 const HASHTAG_QUERY_MAX_LENGTH = 64;
@@ -26,26 +35,41 @@ export interface HashtagSearchResult {
   count: number;
 }
 
+/** One page of hashtag matches plus whether a further page exists. */
+interface HashtagSearchPage {
+  results: HashtagSearchResult[];
+  hasMore: boolean;
+}
+
 /**
- * Matching public hashtags with the number of posts carrying each one.
+ * One page of matching public hashtags with the number of posts carrying each.
  *
  * The query is regex-ESCAPED before it reaches Mongo — a raw user string would
  * otherwise be interpreted as a pattern (regex injection / catastrophic
  * backtracking).
+ *
+ * Paging is a stable keyset: the `{ count desc, tag asc }` sort is fully
+ * deterministic (the grouped `_id` — the tag — breaks count ties), so `$skip`
+ * offsets never shuffle rows between pages. One extra row is over-fetched
+ * (`$limit: limit + 1`) purely to detect `hasMore` without a second count query.
  */
-async function searchHashtagsWithCounts(rawQuery: string): Promise<HashtagSearchResult[]> {
+async function searchHashtagsWithCounts(rawQuery: string, offset: number, limit: number): Promise<HashtagSearchPage> {
   const needle = escapeRegex(rawQuery.trim().toLowerCase().slice(0, HASHTAG_QUERY_MAX_LENGTH));
 
-  return Post.aggregate<HashtagSearchResult>([
+  const rows = await Post.aggregate<HashtagSearchResult>([
     { $match: { visibility: 'public', hashtags: { $exists: true, $ne: [] } } },
     { $unwind: '$hashtags' },
     { $project: { tag: { $toLower: '$hashtags' } } },
     { $match: { tag: { $regex: needle, $options: 'i' } } },
     { $group: { _id: '$tag', count: { $sum: 1 } } },
-    { $sort: { count: -1 } },
-    { $limit: HASHTAG_SEARCH_LIMIT },
+    { $sort: { count: -1, _id: 1 } },
+    { $skip: offset },
+    { $limit: limit + 1 },
     { $project: { _id: 0, tag: '$_id', count: 1 } }
   ]);
+
+  const hasMore = rows.length > limit;
+  return { results: hasMore ? rows.slice(0, limit) : rows, hasMore };
 }
 
 function parseSearchQuery(value: unknown): string | null {
@@ -182,7 +206,9 @@ router.get("/", async (req: Request, res: Response) => {
 });
 
 // Search hashtags — returns each matching tag WITH its post count, so a result
-// row can show "N posts" instead of a hardcoded zero.
+// row can show "N posts" instead of a hardcoded zero. Offset-paginated so the
+// search tab can load past the first page; `pagination.hasMore` drives the
+// infinite scroll, `offset`/`limit` echo the effective window.
 router.get('/search', async (req: Request, res: Response) => {
   const query = parseSearchQuery(req.query.query);
   if (!query) {
@@ -192,9 +218,15 @@ router.get('/search', async (req: Request, res: Response) => {
     });
   }
 
+  // Clamp to a bounded window: an unparseable/absent `?limit` falls back to the
+  // default; a negative/tampered `?offset` floors at 0. `$limit: offset + limit`
+  // stays sane no matter what the client sends.
+  const offset = Math.max(0, queryInt(req.query.offset) ?? 0);
+  const limit = Math.min(Math.max(1, queryInt(req.query.limit) || HASHTAG_SEARCH_DEFAULT_LIMIT), HASHTAG_SEARCH_MAX_LIMIT);
+
   try {
-    const hashtags = await searchHashtagsWithCounts(query);
-    return res.json({ hashtags });
+    const { results, hasMore } = await searchHashtagsWithCounts(query, offset, limit);
+    return res.json({ hashtags: results, pagination: { offset, limit, hasMore } });
   } catch (error) {
     logger.error('[Hashtags] Error searching hashtags:', { error, searchQuery: query });
     return res.status(500).json({
@@ -217,8 +249,8 @@ router.post('/search', async (req: Request, res: Response) => {
   }
 
   try {
-    const hashtags = await searchHashtagsWithCounts(query);
-    return res.json({ data: hashtags.map((hashtag) => hashtag.tag) });
+    const { results } = await searchHashtagsWithCounts(query, 0, LEGACY_HASHTAG_SEARCH_LIMIT);
+    return res.json({ data: results.map((hashtag) => hashtag.tag) });
   } catch (error) {
     logger.error('[Hashtags] Error in searchHashtags:', { error, searchQuery: query });
     return res.status(500).json({

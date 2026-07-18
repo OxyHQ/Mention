@@ -86,6 +86,20 @@ export interface SearchFilters {
 /** Page size for the paginated single-category search tabs. */
 export const SEARCH_PAGE_LIMIT = 20;
 
+/**
+ * Hashtag rows shown in the compact "All" overview (the multi-section fan-out),
+ * kept small so it stays a preview. The dedicated Hashtags tab pages at
+ * {@link SEARCH_PAGE_LIMIT} instead.
+ */
+const SEARCH_OVERVIEW_HASHTAG_LIMIT = 5;
+
+/** The offset-window echo every paginated Mention search endpoint returns. */
+interface SearchOffsetPagination {
+  offset: number;
+  limit: number;
+  hasMore: boolean;
+}
+
 /** A page of post results plus the opaque cursor to request the next page. */
 export interface SearchPostsPage {
   posts: SearchPostResult[];
@@ -105,6 +119,27 @@ export interface SearchSavedPage {
   posts: SearchPostResult[];
   hasMore: boolean;
   nextPage: number;
+}
+
+/** A page of feed results plus the offset to request the next page. */
+export interface SearchFeedsPage {
+  feeds: SearchFeedResult[];
+  hasMore: boolean;
+  nextOffset: number;
+}
+
+/** A page of hashtag results plus the offset to request the next page. */
+export interface SearchHashtagsPage {
+  hashtags: SearchHashtagResult[];
+  hasMore: boolean;
+  nextOffset: number;
+}
+
+/** A page of list results plus the offset to request the next page. */
+export interface SearchListsPage {
+  lists: SearchListResult[];
+  hasMore: boolean;
+  nextOffset: number;
 }
 
 const SEARCH_HISTORY_KEY = 'mention_search_history';
@@ -222,7 +257,8 @@ class SearchService {
     }
   }
 
-  // Search feeds
+  // Search feeds — the compact "All" overview (returns every public match in one
+  // shot; the paginated tab uses `searchFeedsPage`).
   async searchFeeds(query: string): Promise<SearchFeedResult[]> {
     const res = await publicClient.get<{ items?: SearchFeedResult[] }>("/feeds", {
       params: { publicOnly: true, search: query }
@@ -230,7 +266,24 @@ class SearchService {
     return res.data.items || [];
   }
 
-  // Search lists
+  // Paginated feeds search — `GET /feeds` offset-paginates once `limit` is
+  // supplied (`{ items, pagination: { offset, limit, hasMore } }`) on a stable
+  // `{ updatedAt desc, _id desc }` sort, so offset paging never repeats a row.
+  // Drives the infinite Feeds tab.
+  async searchFeedsPage(query: string, offset = 0): Promise<SearchFeedsPage> {
+    const res = await publicClient.get<{ items?: SearchFeedResult[]; pagination?: SearchOffsetPagination }>("/feeds", {
+      params: { publicOnly: true, search: query, limit: SEARCH_PAGE_LIMIT, offset },
+    });
+    const pagination = res.data.pagination;
+    return {
+      feeds: res.data.items ?? [],
+      hasMore: pagination?.hasMore ?? false,
+      nextOffset: (pagination?.offset ?? offset) + (pagination?.limit ?? SEARCH_PAGE_LIMIT),
+    };
+  }
+
+  // Search lists — the compact "All" overview (returns every accessible match in
+  // one shot; the paginated tab uses `searchListsPage`).
   async searchLists(query: string): Promise<SearchListResult[]> {
     try {
       const res = await authenticatedClient.get<{ items?: SearchListResult[] }>("/lists", {
@@ -242,13 +295,55 @@ class SearchService {
     }
   }
 
+  // Paginated lists search — `GET /lists` filters by `search` (name/description)
+  // and offset-paginates (`{ items, pagination: { offset, limit, hasMore } }`) on a
+  // stable `{ updatedAt desc, _id desc }` sort. Auth-gated: a signed-out viewer
+  // 401s → empty (this source has nothing), which is not a search failure. Drives
+  // the infinite Lists tab.
+  async searchListsPage(query: string, offset = 0): Promise<SearchListsPage> {
+    try {
+      const res = await authenticatedClient.get<{ items?: SearchListResult[]; pagination?: SearchOffsetPagination }>("/lists", {
+        params: { search: query, limit: SEARCH_PAGE_LIMIT, offset },
+      });
+      const pagination = res.data.pagination;
+      return {
+        lists: res.data.items ?? [],
+        hasMore: pagination?.hasMore ?? false,
+        nextOffset: (pagination?.offset ?? offset) + (pagination?.limit ?? SEARCH_PAGE_LIMIT),
+      };
+    } catch (error) {
+      return {
+        lists: emptyIfSignedOut<SearchListResult>(error, "lists"),
+        hasMore: false,
+        nextOffset: offset + SEARCH_PAGE_LIMIT,
+      };
+    }
+  }
+
   // Search hashtags — `GET /hashtags/search` answers with each matching tag and
   // the number of posts carrying it, so the result row can show a real count.
+  // Compact "All" overview; the paginated tab uses `searchHashtagsPage`.
   async searchHashtags(query: string): Promise<SearchHashtagResult[]> {
     const res = await authenticatedClient.get<{ hashtags?: SearchHashtagResult[] }>("/hashtags/search", {
-      params: { query }
+      params: { query, limit: SEARCH_OVERVIEW_HASHTAG_LIMIT }
     });
     return res.data.hashtags ?? [];
+  }
+
+  // Paginated hashtag search — `GET /hashtags/search` offset-paginates
+  // (`{ hashtags, pagination: { offset, limit, hasMore } }`) on a stable
+  // `{ count desc, tag asc }` sort, so offset paging never repeats a row. Drives
+  // the infinite Hashtags tab.
+  async searchHashtagsPage(query: string, offset = 0): Promise<SearchHashtagsPage> {
+    const res = await authenticatedClient.get<{ hashtags?: SearchHashtagResult[]; pagination?: SearchOffsetPagination }>("/hashtags/search", {
+      params: { query, limit: SEARCH_PAGE_LIMIT, offset },
+    });
+    const pagination = res.data.pagination;
+    return {
+      hashtags: res.data.hashtags ?? [],
+      hasMore: pagination?.hasMore ?? false,
+      nextOffset: (pagination?.offset ?? offset) + (pagination?.limit ?? SEARCH_PAGE_LIMIT),
+    };
   }
 
   // Search saved posts
