@@ -81,7 +81,6 @@ export interface ProfileHeaderDefaultProps extends ProfileHeaderBaseProps {
   isFederated?: boolean;
   actorUri?: string;
   isFollowing?: boolean;
-  isFollowPending?: boolean;
   FollowButtonComponent: FollowButtonComponent;
 }
 

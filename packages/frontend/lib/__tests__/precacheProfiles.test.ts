@@ -9,9 +9,12 @@ import { QueryClient } from '@tanstack/react-query';
  *
  * The two SDK surfaces the helper touches are ported with the EXACT key shapes
  * the real SDK uses (`@oxyhq/services` ships untranspiled TS source under jest),
- * plus a controllable active viewer. A divergence between the seed key and the
- * key `useUserByUsername` reads — e.g. re-introducing `.toLowerCase()` — would
- * fail the casing test here rather than ship silently.
+ * plus a controllable active viewer. Crucially, `queryKeys.users.byUsername`
+ * normalizes the handle (`trim().toLowerCase()`) — and the precache now builds
+ * the by-username key through that SAME helper, exactly as `useUserByUsername`
+ * does. So a mixed-case handle seeds and reads on the identical key; the
+ * key-agreement test below pins that so a regression (e.g. hardcoding the raw
+ * username again) fails here rather than shipping silently.
  */
 let mockViewerId: string | null = 'viewer-1';
 jest.mock('@oxyhq/services', () => ({
@@ -19,6 +22,12 @@ jest.mock('@oxyhq/services', () => ({
     users: {
       detail: (id: string) => ['users', 'detail', id],
       details: () => ['users', 'detail'],
+      // Mirrors the real 22.4.2 helper: the handle is normalized INSIDE the
+      // helper, so both the precache seed and `useUserByUsername` land on the
+      // lowercased key.
+      byUsername: (username: string, viewerId: string) => [
+        'users', 'detail', 'username', username.trim().toLowerCase(), 'viewer', viewerId,
+      ],
     },
   },
   useAuthStore: { getState: () => ({ user: mockViewerId === null ? null : { id: mockViewerId } }) },
@@ -31,9 +40,14 @@ function detailKey(id: string): unknown[] {
   return ['users', 'detail', id];
 }
 
-/** The viewer-scoped by-username key, exactly as the SDK's `useUserByUsername` builds it. */
+/**
+ * The viewer-scoped by-username key, exactly as the SDK's `useUserByUsername`
+ * builds it — through `queryKeys.users.byUsername`, which normalizes the handle
+ * to `trim().toLowerCase()`. Mirrored here so the tests assert against the real
+ * key the hook reads.
+ */
 function usernameKey(username: string, viewerId: string): unknown[] {
-  return ['users', 'detail', 'username', username, 'viewer', viewerId];
+  return ['users', 'detail', 'username', username.trim().toLowerCase(), 'viewer', viewerId];
 }
 
 /** An authenticated single-profile fetch: carries the viewer `relationship`. */
@@ -108,14 +122,27 @@ describe('precacheProfileView — relationship preservation', () => {
   });
 });
 
-describe('precacheProfileView — key casing matches the SDK exactly', () => {
-  it('writes the by-username entry under the RAW username, as `useUserByUsername` reads it', () => {
+describe('precacheProfileView — key agreement with useUserByUsername', () => {
+  it('seeds a mixed-case handle on the SAME normalized key the hook reads', () => {
     precacheProfileView(qc, feedUser({ username: 'AliceB' }));
 
-    // The SDK hook keys on the raw `username`, so the seed must too.
+    // 22.4.2's `queryKeys.users.byUsername` lowercases the handle inside the
+    // helper, and the precache builds the key through that exact helper — so a
+    // mixed-case seed and the hook's read resolve to the identical key.
+    // `usernameKey` mirrors that normalization, so both lookups hit the entry.
     expect(qc.getQueryData<CacheableUser>(usernameKey('AliceB', 'viewer-1'))?.id).toBe('u1');
-    // A lowercased key would be a phantom the hook never reads.
-    expect(qc.getQueryData(usernameKey('aliceb', 'viewer-1'))).toBeUndefined();
+    expect(qc.getQueryData<CacheableUser>(usernameKey('aliceb', 'viewer-1'))?.id).toBe('u1');
+
+    // Concretely: the entry lives at the LOWERCASED literal key (what the hook
+    // reads); the raw-cased literal is a phantom nobody reads. This is the exact
+    // divergence the pre-22.4.2 hardcoded key caused, now fixed by routing both
+    // through the helper.
+    expect(qc.getQueryData<CacheableUser>(
+      ['users', 'detail', 'username', 'aliceb', 'viewer', 'viewer-1'],
+    )?.id).toBe('u1');
+    expect(qc.getQueryData(
+      ['users', 'detail', 'username', 'AliceB', 'viewer', 'viewer-1'],
+    )).toBeUndefined();
   });
 
   it('scopes the seed to the active viewer, so an anon seed cannot satisfy an authed read', () => {
