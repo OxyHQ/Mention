@@ -1,13 +1,16 @@
 import type { QueryClient } from '@tanstack/react-query';
-import { queryKeys } from '@oxyhq/services';
+import { queryKeys, upsertCachedUser } from '@oxyhq/services';
 import type { User } from '@oxyhq/core';
 
 /**
  * For each user missing an avatar, fetch the full profiles in a SINGLE bulk
- * request and write them into the React Query cache (the single in-memory actor
- * cache). This avoids the classic N+1 — one HTTP request per missing user —
- * by routing the misses through `oxyServices.getUsersByIds` (chunked 100/req,
- * deduped) instead of looping `getUserById`.
+ * request and merge-upsert them into the React Query cache (the single in-memory
+ * actor cache) via the SDK's `upsertCachedUser`. This avoids the classic N+1 —
+ * one HTTP request per missing user — by routing the misses through
+ * `oxyServices.getUsersByIds` (chunked 100/req, deduped) instead of looping
+ * `getUserById`. The merge-upsert fills the avatar without stripping any field an
+ * authoritative profile fetch already stored (viewer `relationship`, `createdAt`,
+ * `_count`), and seeds the by-username entry too when a username is present.
  *
  * Fire-and-forget — callers should NOT await this if they want the UI to render
  * immediately with placeholder avatars. The full profiles fill in reactively as
@@ -28,7 +31,7 @@ export function enrichMissingAvatars(
     .then((fetched) => {
       for (const user of fetched) {
         if (user?.id) {
-          queryClient.setQueryData(queryKeys.users.detail(user.id), user);
+          upsertCachedUser(queryClient, user);
         }
       }
     })
@@ -39,11 +42,12 @@ export function enrichMissingAvatars(
 
 /**
  * Warm the React Query user cache for a set of user ids in a SINGLE bulk request,
- * skipping ids already cached. Each fetched profile is written to
- * `queryKeys.users.detail(id)` so per-row reads (e.g. a list whose rows resolve a
- * user by id) hit the warm cache instead of firing one HTTP request per row — the
- * classic N+1. Best-effort: resolves to `[]` on failure so callers degrade to
- * their own per-row resolution.
+ * skipping ids already cached at `queryKeys.users.detail(id)`. Each fetched
+ * profile is merge-upserted via the SDK's `upsertCachedUser` so per-row reads
+ * (e.g. a list whose rows resolve a user by id) hit the warm cache instead of
+ * firing one HTTP request per row — the classic N+1 — without clobbering any
+ * field an authoritative fetch already stored. Best-effort: resolves to `[]` on
+ * failure so callers degrade to their own per-row resolution.
  */
 export function prewarmUsersByIds(
   ids: readonly string[],
@@ -59,7 +63,7 @@ export function prewarmUsersByIds(
     .then((fetched) => {
       for (const user of fetched) {
         if (user?.id) {
-          queryClient.setQueryData(queryKeys.users.detail(user.id), user);
+          upsertCachedUser(queryClient, user);
         }
       }
       return fetched;

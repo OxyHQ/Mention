@@ -13,10 +13,9 @@ import { ThemedView } from '@/components/ThemedView';
 import { VirtualList } from '@oxyhq/bloom/list';
 import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import { queryClient } from '@/lib/queryClient';
-import { precacheProfileViews } from '@/lib/precacheProfiles';
 import { useTheme } from '@oxyhq/bloom/theme';
 import AnimatedTabBar from '@/components/common/AnimatedTabBar';
-import { useAuth } from '@oxyhq/services';
+import { useAuth, upsertCachedUsers } from '@oxyhq/services';
 import { Ionicons } from '@expo/vector-icons';
 import { Error as ErrorComponent } from '@/components/Error';
 import { useProfileData, type ProfileData } from '@/hooks/useProfileData';
@@ -190,7 +189,7 @@ function ConnectionsContent({
       const followersList = await oxyServices.getUserFollowers(profileData.id);
       const list = followersList.followers;
       setFollowers(list);
-      precacheProfileViews(queryClient, list);
+      upsertCachedUsers(queryClient, list);
     } catch (err) {
       // Followers are public; on an auth error show the empty state rather than
       // a scary error for logged-out visitors.
@@ -214,7 +213,7 @@ function ConnectionsContent({
       const followingList = await oxyServices.getUserFollowing(profileData.id);
       const list = followingList.following;
       setFollowing(list);
-      precacheProfileViews(queryClient, list);
+      upsertCachedUsers(queryClient, list);
     } catch (err) {
       // Following lists are public; on an auth error show the empty state rather
       // than a scary error for logged-out visitors.
@@ -279,7 +278,7 @@ function ConnectionsContent({
       try {
         const result = await oxyServices.getUserMutuals(targetId, { limit: 50 });
         const list = result.mutuals;
-        precacheProfileViews(queryClient, list);
+        upsertCachedUsers(queryClient, list);
         return list;
       } catch (err) {
         // Mutuals require a viewer; on an auth error (no usable bearer yet on
