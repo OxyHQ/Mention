@@ -120,7 +120,6 @@ export const ProfileContent = memo(function ProfileContent({
           isFederated={profileData.isFederated}
           actorUri={profileData.actorUri}
           isFollowing={profileData.isFollowing}
-          isFollowPending={profileData.isFollowPending}
           currentUsername={currentUsername}
           profileId={profileData.id}
 

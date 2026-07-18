@@ -113,6 +113,12 @@ jest.mock('@oxyhq/services', () => {
       users: {
         detail: (id: string) => ['users', 'detail', id],
         details: () => ['users', 'detail'],
+        // Mirrors the real 22.4.2 helper (normalizes the handle): the precache
+        // builds the by-username key through it, so a stub-less mock would throw
+        // the moment a band primes the cache.
+        byUsername: (username: string, viewerId: string) => [
+          'users', 'detail', 'username', username.trim().toLowerCase(), 'viewer', viewerId,
+        ],
       },
     },
     // `precacheProfileView` viewer-scopes the by-username cache entry by reading

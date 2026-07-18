@@ -5,12 +5,13 @@
  * hooks read from, so a list/search/feed response immediately satisfies later
  * `useUserById` / `useUserByUsername` reads without a network round-trip.
  *
- * Keys are sourced from the SDK's `queryKeys` — never hardcoded literals — so
- * they stay in lockstep with `useUserById` (`queryKeys.users.detail(id)`) and
- * `useUserByUsername`
- * (`[...queryKeys.users.details(), 'username', username, 'viewer', viewerId]`).
- * The by-username key uses the RAW `username`, exactly as the SDK hook builds it
- * (`username || ''`) — it does NOT lowercase — so seed and read never diverge.
+ * Keys are sourced from the SDK's `queryKeys` helpers — never hardcoded
+ * literals — so they stay in lockstep with `useUserById`
+ * (`queryKeys.users.detail(id)`) and `useUserByUsername`
+ * (`queryKeys.users.byUsername(username, viewerId)`). Building the by-username
+ * key through the same helper is what keeps seed and read in agreement: the
+ * helper normalizes the username to `trim().toLowerCase()`, so a mixed-case
+ * handle primed here lands on the exact key the hook later reads.
  *
  * The by-username entry alone carries the viewer-relative `relationship`
  * (`followsYou`), fetched by the authenticated single-profile call. Feed/list
@@ -79,12 +80,13 @@ export function precacheProfileView(qc: QueryClient, user: CacheableUser): void 
     // The by-username entry is what the profile page reads via
     // `useUserByUsername` (`hooks/useProfileData`), whose key is viewer-scoped
     // because an authenticated single-profile fetch embeds the viewer-relative
-    // `relationship` (`followsYou`). Build the SAME key the SDK hook reads: the
-    // RAW `username` (the hook does not lowercase) and the active viewer id read
+    // `relationship` (`followsYou`). Build the key through the SAME SDK helper
+    // the hook uses (`queryKeys.users.byUsername`) so the username normalization
+    // (`trim().toLowerCase()`) matches exactly; the active viewer id is read
     // imperatively — `useAuthStore` is the same store behind the hook's
     // `useOxy().user?.id`, so the two stay in lockstep.
     const viewerId = useAuthStore.getState().user?.id ?? '';
-    const usernameKey = [...queryKeys.users.details(), 'username', username, 'viewer', viewerId];
+    const usernameKey = queryKeys.users.byUsername(username, viewerId);
 
     // NEVER downgrade a relationship-bearing entry. If the profile page already
     // loaded this profile, its entry carries `relationship`; a feed/list user

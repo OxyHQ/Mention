@@ -10,6 +10,21 @@ import { displayNameOrHandle } from '@/utils/displayName';
 const PROFILE_STALE_TIME = 5 * 60 * 1000; // 5 minutes
 const PROFILE_GC_TIME = 30 * 60 * 1000; // 30 minutes
 
+/**
+ * React Query key for a federated profile resolved via WebFinger. Mention-owned
+ * — the SDK has no by-handle federated-resolve hook, so there is no
+ * `queryKeys.users.*` helper for it — but it is rooted at the SDK's
+ * `queryKeys.users.details()` so it lives in the users-cache namespace and is
+ * cleared alongside the SDK user keys. Viewer-scoped for the same reason as
+ * `useUserByUsername`: an authenticated resolve embeds the viewer-relative
+ * `relationship` (`followsYou`), so anon vs authed must be distinct entries and
+ * a landing session must force a refetch. Defined once here so this Mention-only
+ * key has a single source of truth and can never drift from its reader.
+ */
+export function federatedProfileQueryKey(handle: string, viewerId: string): readonly unknown[] {
+  return [...queryKeys.users.details(), 'resolve', handle, 'viewer', viewerId];
+}
+
 export interface ProfileDesign {
   displayName: string;
   bannerUrl?: string;
@@ -39,7 +54,6 @@ export interface ProfileData {
   isAgent?: boolean;
   isAutomated?: boolean;
   isFollowing?: boolean;
-  isFollowPending?: boolean;
   instance?: string;
   actorUri?: string;
   followersCount?: number;
@@ -132,7 +146,7 @@ export function useProfileData(username?: string): {
   // makes anon vs authed distinct entries AND forces a refetch when the session
   // resolves or the account switches — identical to the local path.
   const federatedQuery = useQuery<User | null>({
-    queryKey: [...queryKeys.users.details(), 'resolve', handle, 'viewer', viewerId],
+    queryKey: federatedProfileQueryKey(handle, viewerId),
     queryFn: () => oxyServices.resolveProfile(handle),
     enabled: isFederated && handle.length > 0,
     staleTime: PROFILE_STALE_TIME,
@@ -144,8 +158,9 @@ export function useProfileData(username?: string): {
   const isError = isFederated ? federatedQuery.isError : localQuery.isError;
 
   // Appearance/customization (privacy, cover image, post count, color overrides).
-  // Driven by React Query so it dedupes and avoids a manual effect. The
-  // appearance store caches the result for synchronous reads elsewhere.
+  // Driven by React Query so it dedupes and avoids a manual effect — React Query
+  // is the single authority for the foreign-profile design payload (the store's
+  // `loadForUser` is now a plain fetcher and holds no per-user cache).
   //
   // `viewerId` is part of the query key because the appearance payload is
   // privacy-gated: a private / followers-only profile returns full design data
@@ -158,7 +173,7 @@ export function useProfileData(username?: string): {
   const loadForUser = useAppearanceStore((state) => state.loadForUser);
   const appearanceQuery = useQuery<UserAppearance | null>({
     queryKey: ['appearance', 'user', userId, 'viewer', viewerId],
-    queryFn: () => loadForUser(userId, true),
+    queryFn: () => loadForUser(userId),
     enabled: userId.length > 0,
     staleTime: PROFILE_STALE_TIME,
     gcTime: PROFILE_GC_TIME,
@@ -201,6 +216,12 @@ export function useProfileData(username?: string): {
       // `undefined` means "unknown", not "does not follow". No extra call and no
       // Mention-side computation — Oxy owns the follow graph.
       followsYou: profile.relationship?.followsYou,
+      // Authoritative follow-button seed from the SAME authenticated fetch. The
+      // app-root `getViewerGraph` seed is capped at 5000 follows and can lag on
+      // cold boot, so a viewer who follows >5000 (or is mid-restore) would flash a
+      // wrong "Follow" without this. `undefined` ⇒ unknown; the button then falls
+      // back to the follow-store seed.
+      isFollowing: profile.relationship?.isFollowing,
       isFederated: profile.isFederated || profile.type === 'federated',
       actorUri:
         (typeof profile.actorUri === 'string' ? profile.actorUri : undefined) ??

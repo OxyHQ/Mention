@@ -121,18 +121,21 @@ export interface UserAppearanceUpdate {
 
 interface AppearanceStore {
   mySettings: UserAppearance | null;
-  byUserId: Record<string, UserAppearance>;
   loading: boolean;
   error: string | null;
   loadMySettings: (isAuthenticated: boolean) => Promise<void>;
-  loadForUser: (userId: string, forceRefresh?: boolean) => Promise<UserAppearance | null>;
+  /**
+   * Fetch a user's public profile-design payload. A plain fetcher: the caller
+   * (`useProfileData`) owns caching through React Query, which is the single
+   * authority for foreign-profile design. Returns `null` on empty/failure.
+   */
+  loadForUser: (userId: string) => Promise<UserAppearance | null>;
   updateMySettings: (partial: UserAppearanceUpdate) => Promise<UserAppearance | null>;
   reset: () => void;
 }
 
-export const useAppearanceStore = create<AppearanceStore>((set, get) => ({
+export const useAppearanceStore = create<AppearanceStore>((set) => ({
   mySettings: null,
-  byUserId: {},
   loading: false,
   error: null,
 
@@ -148,11 +151,7 @@ export const useAppearanceStore = create<AppearanceStore>((set, get) => ({
       const doc = unwrapApiData<UserAppearance>(res.data);
 
       if (doc) {
-        set((state) => ({
-          mySettings: doc,
-          byUserId: doc.oxyUserId ? { ...state.byUserId, [doc.oxyUserId]: doc } : state.byUserId,
-          loading: false,
-        }));
+        set({ mySettings: doc, loading: false });
       } else {
         set({ loading: false });
       }
@@ -166,23 +165,12 @@ export const useAppearanceStore = create<AppearanceStore>((set, get) => ({
     }
   },
 
-  async loadForUser(userId: string, forceRefresh: boolean = false) {
+  async loadForUser(userId: string) {
     if (!userId) return null;
 
     try {
-      const cached = get().byUserId[userId];
-      if (cached && !forceRefresh) return cached;
-
       const res = await publicApi.get<UserAppearance>(`profile/design/${userId}`);
-      const doc = unwrapApiData<UserAppearance>(res.data);
-
-      if (doc) {
-        set((state) => ({
-          byUserId: { ...state.byUserId, [userId]: doc },
-        }));
-      }
-
-      return doc ?? null;
+      return unwrapApiData<UserAppearance>(res.data) ?? null;
     } catch {
       return null;
     }
@@ -216,11 +204,7 @@ export const useAppearanceStore = create<AppearanceStore>((set, get) => ({
       const doc = unwrapApiData<UserAppearance>(res.data);
 
       if (doc) {
-        set((state) => ({
-          mySettings: doc,
-          byUserId: doc.oxyUserId ? { ...state.byUserId, [doc.oxyUserId]: doc } : state.byUserId,
-          loading: false,
-        }));
+        set({ mySettings: doc, loading: false });
 
         // `useProfileData` reads this same appearance payload through React Query
         // (`['appearance', 'user', <userId>, 'viewer', <viewerId>]`) to render the
@@ -246,6 +230,6 @@ export const useAppearanceStore = create<AppearanceStore>((set, get) => ({
   },
 
   reset() {
-    set({ mySettings: null, byUserId: {}, loading: false, error: null });
+    set({ mySettings: null, loading: false, error: null });
   },
 }));
