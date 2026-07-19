@@ -844,12 +844,15 @@ publicApiRouter.use("/hashtags", hashtagsRoutes);
 // POST/PUT/DELETE routes in feedRoutes require authentication
 publicApiRouter.use("/feed", optionalAuth, feedRoutes);
 
-// Public post-discovery reads (hashtag + topic pages). Mounted BEFORE the
-// required-auth `/posts` router below so anonymous browsing works; the
-// parameterized `/hashtag/:hashtag` and `/topic/:topic` are literal-prefixed, so
-// every other `/posts/*` request (writes, drafts, bookmarks, `/:id`) falls
-// through to the authenticated router. optionalAuth resolves `req.user` when a
-// token is present for viewer-conditional sensitive-content gating.
+// Public post reads (hashtag, topic, geo, list, post detail). Mounted BEFORE the
+// required-auth `/posts` router below so anonymous browsing works — logged-out
+// users, SEO, fediverse discovery. `publicPostsRouter` owns every single-segment
+// GET on `/posts` (ordered literals-first, `/:id` last) so nothing is shadowed;
+// writes and the engagement-list reads stay on the authenticated router and fall
+// through to it (publicPostsRouter has no handler for them). optionalAuth
+// resolves `req.user` when a token is present for viewer-conditional
+// sensitive-content gating; the private reads on this router (`/drafts`,
+// `/scheduled`, `/saved`) self-guard with a 401 when unauthenticated.
 publicApiRouter.use("/posts", optionalAuth, publicPostsRouter);
 
 // Public profile endpoints

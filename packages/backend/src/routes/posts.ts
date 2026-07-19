@@ -62,33 +62,50 @@ const postWriteRateLimiters = process.env.NODE_ENV === 'production'
   : [];
 
 /**
- * Public, unauthenticated post-discovery reads. Mounted on the PUBLIC API router
- * with OPTIONAL auth (see server.ts) so anonymous browsing works — the hashtag
- * and topic pages are public discovery surfaces (logged-out users, SEO,
- * fediverse discovery) exactly like explore/trending. Auth is optional, never
- * required: when a viewer token is present the controllers resolve `req.user`
- * for viewer-conditional gating (sensitive-content filtering, translation
- * language), but its absence must never 401. Kept as a SEPARATE router from the
- * authenticated `router` below, whose remaining routes legitimately require auth
- * (the whole `router` is mounted behind the required-auth wall in server.ts).
+ * Post reads mounted on the PUBLIC API router with OPTIONAL auth (see server.ts)
+ * so anonymous browsing works — logged-out users, SEO, fediverse discovery.
+ * Auth is optional, never required: when a viewer token is present the
+ * controllers resolve `req.user` for viewer-conditional gating (sensitive-content
+ * filtering, translation language), but its absence must never 401 a public read.
+ *
+ * Mounted BEFORE the authenticated `router` (below) — so the parameterized
+ * `/:id` read here would shadow any literal `/posts/<word>` route on the
+ * authenticated router (Express 5 dropped inline param-regex, so `/:id` cannot be
+ * constrained to an id shape). Every single-segment read that shares this
+ * namespace therefore lives HERE, ordered with the literals first and `/:id`
+ * last. Genuinely public reads are DB-filtered to public+published (or ACL-gated
+ * in PostHydrationService for `viewerId===undefined`); the private reads
+ * (`/drafts`, `/scheduled`, `/saved`) are NOT public — each controller
+ * self-guards (401 when `req.user` is absent) and is co-located only to keep it
+ * ahead of `/:id`.
  */
 export const publicPostsRouter = Router();
+
+// Genuinely public, anon-safe reads.
 publicPostsRouter.get('/hashtag/:hashtag', getPostsByHashtag);
 publicPostsRouter.get('/topic/:topic', getPostsByTopic);
+publicPostsRouter.get('/nearby', getNearbyPosts);
+publicPostsRouter.get('/in-area', getPostsInArea);
+publicPostsRouter.get('/nearby-all', getNearbyPostsBothLocations);
+publicPostsRouter.get('/location-stats', getLocationStats);
+publicPostsRouter.get('/', getPosts);
 
-// Post reads served by the authenticated router (mounted behind required auth).
-router.get('/', getPosts);
-router.get('/nearby', getNearbyPosts);
-router.get('/in-area', getPostsInArea);
-router.get('/nearby-all', getNearbyPostsBothLocations);
-router.get('/location-stats', getLocationStats);
+// Private single-segment reads: self-guarded (401 when unauthenticated), here
+// only so the public `/:id` below cannot shadow `/posts/drafts` etc.
+publicPostsRouter.get('/drafts', getDrafts);
+publicPostsRouter.get('/scheduled', getScheduledPosts);
+publicPostsRouter.get('/saved', getSavedPosts);
+
+// Public post detail — parameterized, MUST be registered LAST so every literal
+// read above resolves first. Anonymous viewers receive ONLY public+published
+// posts from public-profile authors; PostHydrationService returns 404 for
+// private / followers-only / unpublished / private-profile posts when the viewer
+// is anonymous.
+publicPostsRouter.get('/:id', getPostById);
 
 // Protected routes - specific routes first (must be before parameterized routes)
 router.post('/', ...postWriteRateLimiters, createPost);
 router.post('/thread', ...postWriteRateLimiters, createThread);
-router.get('/drafts', getDrafts);
-router.get('/scheduled', getScheduledPosts);
-router.get('/saved', getSavedPosts);
 router.get('/bookmarks/folders', getBookmarkFolders);
 router.patch('/bookmarks/:id/folder', moveBookmarkToFolder);
 // Composer AI pre-fill: translate a draft body that has no post yet. Must stay
@@ -100,12 +117,11 @@ router.patch('/bookmarks/:id/folder', moveBookmarkToFolder);
 // and translation is free to every user, so nothing else bounds the spend.
 router.post('/translate-draft', ...translationRateLimiters, translateDraft);
 
-// Routes with specific paths (must be before parameterized routes)
+// Engagement lists stay behind the auth wall: unlike the public reads above,
+// they do NOT gate on the parent post's visibility, so exposing them
+// anonymously would reveal who liked/boosted a private or followers-only post.
 router.get('/:id/likes', getPostLikes);
 router.get('/:id/boosts', getPostBoosts);
-
-// Public routes with parameters (must be after specific routes)
-router.get('/:id', getPostById);
 
 // Protected routes with parameters
 router.post('/:id/collaborators/accept', acceptCollabInvite);

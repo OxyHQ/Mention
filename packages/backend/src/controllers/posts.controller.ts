@@ -1163,7 +1163,14 @@ export const getPosts = async (req: AuthRequest, res: Response) => {
 export const getPostById = async (req: AuthRequest, res: Response) => {
   try {
     const currentUserId = req.user?.id;
-    const post = await Post.findById(req.params.id)
+    // This route is public (anonymous discovery), so a malformed id must 404
+    // rather than throw a CastError → 500. Post ids are Mongo ObjectIds.
+    const postId = String(req.params.id);
+    if (!mongoose.Types.ObjectId.isValid(postId)) {
+      return res.status(404).json({ message: 'Post not found' });
+    }
+
+    const post = await Post.findById(postId)
       .lean();
 
     if (!post) {
