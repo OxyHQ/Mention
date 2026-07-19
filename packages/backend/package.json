@@ -18,8 +18,8 @@
   },
   "dependencies": {
     "@mention/shared-types": "file:../shared-types",
-    "@oxyhq/contracts": "^0.16.0",
-    "@oxyhq/core": "^12.4.1",
+    "@oxyhq/contracts": "^0.17.0",
+    "@oxyhq/core": "^12.9.0",
     "@oxyhq/federation": "^0.4.0",
     "@oxyhq/protocol": "^0.1.5",
     "@socket.io/redis-adapter": "^8.3.0",
