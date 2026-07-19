@@ -33,7 +33,7 @@ function ActionRow({
 }: MenuRow & { isFirst: boolean; isLast: boolean }) {
   return (
     <TouchableOpacity
-      className="bg-surface flex-row items-center justify-between py-3 px-3.5"
+      className="bg-card flex-row items-center justify-between py-3 px-3.5"
       style={{
         borderTopLeftRadius: isFirst ? 16 : 0,
         borderTopRightRadius: isFirst ? 16 : 0,

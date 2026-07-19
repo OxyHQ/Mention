@@ -247,5 +247,5 @@ function SimilarAccountItem({
 
   if (!isCarousel) return row;
 
-  return <View className="bg-surface flex-1 justify-center overflow-hidden rounded-xl">{row}</View>;
+  return <View className="bg-card flex-1 justify-center overflow-hidden rounded-xl">{row}</View>;
 }
