@@ -15,7 +15,7 @@ import { AnalyticsIcon } from '@/assets/icons/analytics-icon';
 import { Gear } from '@/assets/icons/gear-icon';
 import { PrivateBadge } from './PrivateBadge';
 import { PresenceIndicator } from '@/components/PresenceIndicator';
-import { HeaderCircleButton } from '@/components/HeaderCircleButton';
+import { FrostedIconButton } from '@oxyhq/bloom/frosted-icon-button';
 import { usePoke } from './hooks/usePoke';
 import { useFederatedFollowSync } from './hooks/useFederatedFollowSync';
 import { LAYOUT } from './types';
@@ -123,35 +123,37 @@ export const ProfileHeaderDefault = memo(function ProfileHeaderDefault({
             >
               <Text className="text-foreground text-sm font-semibold">{t('profile.editProfile')}</Text>
             </TouchableOpacity>
-            <HeaderCircleButton
+            <FrostedIconButton
+              size="md"
               onPress={() => router.push('/insights')}
               accessibilityLabel="Analytics"
-            >
-              <AnalyticsIcon size={20} className="text-foreground" />
-            </HeaderCircleButton>
-            <HeaderCircleButton
+              icon={<AnalyticsIcon size={20} className="text-foreground" />}
+            />
+            <FrostedIconButton
+              size="md"
               onPress={() => router.push('/settings')}
               accessibilityLabel="Settings"
-            >
-              <Gear size={20} className="text-foreground" />
-            </HeaderCircleButton>
+              icon={<Gear size={20} className="text-foreground" />}
+            />
           </View>
         ) : profileId ? (
           <View className="flex-row items-center gap-3">
             {canPoke && (
-              <HeaderCircleButton
+              <FrostedIconButton
+                size="md"
                 onPress={togglePoke}
                 disabled={pokeLoading}
                 active={poked}
                 accessibilityLabel={poked ? 'Unpoke' : 'Poke'}
-              >
-                <FontAwesome5
-                  name="hand-point-right"
-                  size={18}
-                  color={poked ? theme.colors.primaryForeground : theme.colors.text}
-                  solid={poked}
-                />
-              </HeaderCircleButton>
+                icon={
+                  <FontAwesome5
+                    name="hand-point-right"
+                    size={18}
+                    color={poked ? theme.colors.primaryForeground : theme.colors.text}
+                    solid={poked}
+                  />
+                }
+              />
             )}
             {/* Seed from the profile DTO's authoritative viewer relationship so
                 the button paints correctly on first render. When the DTO omits it,
@@ -266,19 +268,21 @@ export const ProfileActions = memo(function ProfileActions({
     return (
       <View className="flex-row items-center gap-3">
         {canPoke && (
-          <HeaderCircleButton
+          <FrostedIconButton
+            size="md"
             onPress={togglePoke}
             disabled={pokeLoading}
             active={poked}
             accessibilityLabel={poked ? 'Unpoke' : 'Poke'}
-          >
-            <FontAwesome5
-              name="hand-point-right"
-              size={18}
-              color={poked ? theme.colors.primaryForeground : theme.colors.text}
-              solid={poked}
-            />
-          </HeaderCircleButton>
+            icon={
+              <FontAwesome5
+                name="hand-point-right"
+                size={18}
+                color={poked ? theme.colors.primaryForeground : theme.colors.text}
+                solid={poked}
+              />
+            }
+          />
         )}
         <FollowButtonComponent
           userId={profileId}
@@ -298,18 +302,18 @@ export const ProfileActions = memo(function ProfileActions({
       >
         <Text className="text-foreground text-sm font-semibold">{t('profile.editProfile')}</Text>
       </TouchableOpacity>
-      <HeaderCircleButton
+      <FrostedIconButton
+        size="md"
         onPress={() => router.push('/insights')}
         accessibilityLabel="Analytics"
-      >
-        <AnalyticsIcon size={20} className="text-foreground" />
-      </HeaderCircleButton>
-      <HeaderCircleButton
+        icon={<AnalyticsIcon size={20} className="text-foreground" />}
+      />
+      <FrostedIconButton
+        size="md"
         onPress={() => router.push('/settings')}
         accessibilityLabel="Settings"
-      >
-        <Gear size={20} className="text-foreground" />
-      </HeaderCircleButton>
+        icon={<Gear size={20} className="text-foreground" />}
+      />
     </View>
   );
 });
