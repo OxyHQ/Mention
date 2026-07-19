@@ -35,6 +35,13 @@ const PROFILE_AVATAR_COLLAPSE_TRANSLATE_Y = 16;
 /**
  * Default profile header with avatar on left
  */
+// Static header actions hoisted to stable module-level refs: FrostedIconButton is
+// memo'd, so fresh inline handlers/icon elements each render would defeat the memo.
+const goInsights = () => router.push('/insights');
+const goSettings = () => router.push('/settings');
+const ANALYTICS_ICON = <AnalyticsIcon size={20} className="text-foreground" />;
+const SETTINGS_ICON = <Gear size={20} className="text-foreground" />;
+
 export const ProfileHeaderDefault = memo(function ProfileHeaderDefault({
   displayName,
   username,
@@ -125,15 +132,15 @@ export const ProfileHeaderDefault = memo(function ProfileHeaderDefault({
             </TouchableOpacity>
             <FrostedIconButton
               size="md"
-              onPress={() => router.push('/insights')}
+              onPress={goInsights}
               accessibilityLabel="Analytics"
-              icon={<AnalyticsIcon size={20} className="text-foreground" />}
+              icon={ANALYTICS_ICON}
             />
             <FrostedIconButton
               size="md"
-              onPress={() => router.push('/settings')}
+              onPress={goSettings}
               accessibilityLabel="Settings"
-              icon={<Gear size={20} className="text-foreground" />}
+              icon={SETTINGS_ICON}
             />
           </View>
         ) : profileId ? (
@@ -304,15 +311,15 @@ export const ProfileActions = memo(function ProfileActions({
       </TouchableOpacity>
       <FrostedIconButton
         size="md"
-        onPress={() => router.push('/insights')}
+        onPress={goInsights}
         accessibilityLabel="Analytics"
-        icon={<AnalyticsIcon size={20} className="text-foreground" />}
+        icon={ANALYTICS_ICON}
       />
       <FrostedIconButton
         size="md"
-        onPress={() => router.push('/settings')}
+        onPress={goSettings}
         accessibilityLabel="Settings"
-        icon={<Gear size={20} className="text-foreground" />}
+        icon={SETTINGS_ICON}
       />
     </View>
   );
