@@ -1,11 +1,8 @@
 import React, { useEffect, useCallback, useMemo, useRef, useState } from 'react';
 import { View, Animated, StyleSheet, Platform } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import {
-    APP_COLOR_PRESETS,
-    type AppColorName,
-    type PersistedThemeState,
-} from '@oxyhq/bloom/theme';
+import { APP_COLOR_NAMES, type AppColorName, type PersistedThemeState } from '@oxyhq/bloom/theme';
+import { getPresetVars } from '@oxyhq/bloom/preset-vars';
 import { LogoIcon } from '@/assets/logo';
 import { Loading } from '@oxyhq/bloom/loading';
 import { BLOOM_THEME_PERSIST_KEY, BLOOM_THEME_STORAGE } from '@/lib/themePersistence';
@@ -23,9 +20,9 @@ const SPINNER_SIZE = 28;
 // i.e. BEFORE the theme context is available — so it must NOT depend on `useTheme()`
 // (which throws outside the provider). Instead it reads the SAME persisted theme key
 // that the provider writes (`BLOOM_THEME_PERSIST_KEY`) and derives a DARK gradient
-// from the active preset's hue. The logo + spinner are white, so the gradient must
-// stay dark enough for white to pop — we never use the preset's near-white light
-// `--background` here.
+// from the active preset's DARK-mode `--background` (a very dark, preset-tinted
+// surface from the colour engine). The logo + spinner are white, so we use the
+// dark-mode background — never the preset's near-white light `--background`.
 
 // Safe literal fallback when no preset can be resolved at all (missing key,
 // unparseable JSON, unknown preset, storage unavailable). Both stops are dark.
@@ -39,33 +36,22 @@ const DEFAULT_PRESET: AppColorName = 'blue';
 const DARK_STOP = '#1A1A1A';
 
 /**
- * Extract the integer hue from a raw HSL triple like `'205 87% 53%'`
- * (optionally `'205 87% 53% / 0.5'`). Returns `null` if the value can't be parsed.
- */
-function parseHue(hslTriple: string | undefined): number | null {
-    if (!hslTriple) return null;
-    const first = hslTriple.trim().split(/\s+/)[0];
-    const hue = Number.parseFloat(first);
-    return Number.isFinite(hue) ? hue : null;
-}
-
-/**
- * Build a DARK two-stop gradient from a preset. Stop 1 is a very dark shade of the
- * preset's hue (`hsl(<hue> 60% 8%)`), stop 2 is near-black, so the white logo/spinner
- * always stay clearly visible regardless of preset. Falls back to the safe literal
- * when the preset's primary hue can't be parsed.
+ * Build a DARK two-stop gradient from a preset. Stop 1 is the engine's dark-mode
+ * `--background` for the preset (a very dark, preset-tinted surface), stop 2 is
+ * near-black, so the white logo/spinner always stay clearly visible regardless of
+ * preset. Falls back to the safe literal when the preset can't be resolved.
  */
 function buildDarkGradient(presetName: AppColorName): readonly [string, string] {
-    const hue = parseHue(APP_COLOR_PRESETS[presetName]?.dark?.['--primary']);
-    if (hue === null) return FALLBACK_GRADIENT;
-    return [`hsl(${hue} 60% 8%)`, DARK_STOP];
+    const darkBackground = getPresetVars(presetName, 'dark')['--background'];
+    if (!darkBackground) return FALLBACK_GRADIENT;
+    return [darkBackground, DARK_STOP];
 }
 
 /** Validate an unknown value as a known preset name. */
 function isAppColorName(value: unknown): value is AppColorName {
     return (
         typeof value === 'string'
-        && Object.prototype.hasOwnProperty.call(APP_COLOR_PRESETS, value)
+        && APP_COLOR_NAMES.some((name) => name === value)
     );
 }
 
