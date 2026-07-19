@@ -4,7 +4,6 @@ import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import FontAwesome5 from '@expo/vector-icons/FontAwesome5';
 import Animated, { useDerivedValue, useAnimatedStyle, interpolate, Extrapolation } from 'react-native-reanimated';
-import { cn } from '@/lib/utils';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import { ZoomableAvatar } from '@/components/ZoomableAvatar';
@@ -16,6 +15,7 @@ import { AnalyticsIcon } from '@/assets/icons/analytics-icon';
 import { Gear } from '@/assets/icons/gear-icon';
 import { PrivateBadge } from './PrivateBadge';
 import { PresenceIndicator } from '@/components/PresenceIndicator';
+import { HeaderCircleButton } from '@/components/HeaderCircleButton';
 import { usePoke } from './hooks/usePoke';
 import { useFederatedFollowSync } from './hooks/useFederatedFollowSync';
 import { LAYOUT } from './types';
@@ -123,37 +123,26 @@ export const ProfileHeaderDefault = memo(function ProfileHeaderDefault({
             >
               <Text className="text-foreground text-sm font-semibold">{t('profile.editProfile')}</Text>
             </TouchableOpacity>
-            <TouchableOpacity
-              className="border border-border bg-background items-center justify-center"
-              style={{ width: 40, height: 40, borderRadius: 20 }}
+            <HeaderCircleButton
               onPress={() => router.push('/insights')}
-              accessibilityRole="button"
               accessibilityLabel="Analytics"
             >
               <AnalyticsIcon size={20} className="text-foreground" />
-            </TouchableOpacity>
-            <TouchableOpacity
-              className="border border-border bg-background items-center justify-center"
-              style={{ width: 40, height: 40, borderRadius: 20 }}
+            </HeaderCircleButton>
+            <HeaderCircleButton
               onPress={() => router.push('/settings')}
-              accessibilityRole="button"
               accessibilityLabel="Settings"
             >
               <Gear size={20} className="text-foreground" />
-            </TouchableOpacity>
+            </HeaderCircleButton>
           </View>
         ) : profileId ? (
           <View className="flex-row items-center gap-3">
             {canPoke && (
-              <TouchableOpacity
-                className={cn(
-                  'rounded-full border items-center justify-center',
-                  poked ? 'bg-primary border-primary' : 'bg-background border-border',
-                )}
-                style={{ width: 38, height: 38 }}
+              <HeaderCircleButton
                 onPress={togglePoke}
                 disabled={pokeLoading}
-                accessibilityRole="button"
+                active={poked}
                 accessibilityLabel={poked ? 'Unpoke' : 'Poke'}
               >
                 <FontAwesome5
@@ -162,7 +151,7 @@ export const ProfileHeaderDefault = memo(function ProfileHeaderDefault({
                   color={poked ? theme.colors.primaryForeground : theme.colors.text}
                   solid={poked}
                 />
-              </TouchableOpacity>
+              </HeaderCircleButton>
             )}
             {/* Seed from the profile DTO's authoritative viewer relationship so
                 the button paints correctly on first render. When the DTO omits it,
@@ -277,15 +266,10 @@ export const ProfileActions = memo(function ProfileActions({
     return (
       <View className="flex-row items-center gap-3">
         {canPoke && (
-          <TouchableOpacity
-            className={cn(
-              'rounded-full border items-center justify-center',
-              poked ? 'bg-primary border-primary' : 'bg-background border-border',
-            )}
-            style={{ width: 38, height: 38 }}
+          <HeaderCircleButton
             onPress={togglePoke}
             disabled={pokeLoading}
-            accessibilityRole="button"
+            active={poked}
             accessibilityLabel={poked ? 'Unpoke' : 'Poke'}
           >
             <FontAwesome5
@@ -294,7 +278,7 @@ export const ProfileActions = memo(function ProfileActions({
               color={poked ? theme.colors.primaryForeground : theme.colors.text}
               solid={poked}
             />
-          </TouchableOpacity>
+          </HeaderCircleButton>
         )}
         <FollowButtonComponent
           userId={profileId}
@@ -314,24 +298,18 @@ export const ProfileActions = memo(function ProfileActions({
       >
         <Text className="text-foreground text-sm font-semibold">{t('profile.editProfile')}</Text>
       </TouchableOpacity>
-      <TouchableOpacity
-        className="border border-border bg-background items-center justify-center"
-        style={{ width: 40, height: 40, borderRadius: 20 }}
+      <HeaderCircleButton
         onPress={() => router.push('/insights')}
-        accessibilityRole="button"
         accessibilityLabel="Analytics"
       >
         <AnalyticsIcon size={20} className="text-foreground" />
-      </TouchableOpacity>
-      <TouchableOpacity
-        className="border border-border bg-background items-center justify-center"
-        style={{ width: 40, height: 40, borderRadius: 20 }}
+      </HeaderCircleButton>
+      <HeaderCircleButton
         onPress={() => router.push('/settings')}
-        accessibilityRole="button"
         accessibilityLabel="Settings"
       >
         <Gear size={20} className="text-foreground" />
-      </TouchableOpacity>
+      </HeaderCircleButton>
     </View>
   );
 });
