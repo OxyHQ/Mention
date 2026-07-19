@@ -40,7 +40,7 @@ interface FeedCardProps {
 
 /** Card surface (default) vs. flush full-width feed row (result lists). */
 const OUTER_CLASS: Record<FeedCardVariant, string> = {
-    card: 'w-full p-4 gap-2 rounded-xl bg-surface',
+    card: 'w-full p-4 gap-2 rounded-xl bg-card',
     row: 'w-full px-3 py-3 gap-1 border-b border-border',
 };
 

@@ -73,7 +73,7 @@ export const PollAttachmentCard: React.FC<PollAttachmentCardProps> = ({
                     styles.card,
                     {
                         borderColor: theme.colors.border,
-                        backgroundColor: theme.colors.backgroundSecondary,
+                        backgroundColor: theme.colors.card,
                     },
                 ]}
                 activeOpacity={0.85}
