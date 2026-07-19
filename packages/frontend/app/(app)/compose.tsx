@@ -2113,7 +2113,7 @@ const ComposeScreenBody = () => {
                                 total={total}
                                 onMove={moveAttachment}
                                 onRemove={removeArticle}
-                                wrapperStyle={[styles.articleAttachmentWrapper, { borderColor: theme.colors.border, backgroundColor: theme.colors.backgroundSecondary }]}
+                                wrapperStyle={[styles.articleAttachmentWrapper, { borderColor: theme.colors.border, backgroundColor: theme.colors.card }]}
                               >
                                 <PostArticlePreview
                                   title={article.title}
@@ -2135,7 +2135,7 @@ const ComposeScreenBody = () => {
                                 total={total}
                                 onMove={moveAttachment}
                                 onRemove={removeEvent}
-                                wrapperStyle={[styles.articleAttachmentWrapper, { borderColor: theme.colors.border, backgroundColor: theme.colors.backgroundSecondary }]}
+                                wrapperStyle={[styles.articleAttachmentWrapper, { borderColor: theme.colors.border, backgroundColor: theme.colors.card }]}
                               >
                                 <PostAttachmentEvent
                                   name={event.name}
@@ -2158,7 +2158,7 @@ const ComposeScreenBody = () => {
                                 total={total}
                                 onMove={moveAttachment}
                                 onRemove={removeRoom}
-                                wrapperStyle={[styles.articleAttachmentWrapper, { borderColor: theme.colors.border, backgroundColor: theme.colors.backgroundSecondary }]}
+                                wrapperStyle={[styles.articleAttachmentWrapper, { borderColor: theme.colors.border, backgroundColor: theme.colors.card }]}
                               >
                                 <RoomCard
                                   room={{
@@ -2186,7 +2186,7 @@ const ComposeScreenBody = () => {
                                 total={total}
                                 onMove={moveAttachment}
                                 onRemove={removePodcast}
-                                wrapperStyle={[styles.articleAttachmentWrapper, { borderColor: theme.colors.border, backgroundColor: theme.colors.backgroundSecondary }]}
+                                wrapperStyle={[styles.articleAttachmentWrapper, { borderColor: theme.colors.border, backgroundColor: theme.colors.card }]}
                               >
                                 <PodcastCard
                                   variant="card"
