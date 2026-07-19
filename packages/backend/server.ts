@@ -34,7 +34,7 @@ import { Post } from "./src/models/Post";
 import Notification from "./src/models/Notification";
 
 // Routers
-import postsRouter from "./src/routes/posts";
+import postsRouter, { publicPostsRouter } from "./src/routes/posts";
 import intentMediaRoutes from "./src/routes/intentMedia";
 import healthRoutes from './src/routes/health.routes';
 import notificationsRouter from "./src/routes/notifications";
@@ -843,6 +843,14 @@ publicApiRouter.use("/hashtags", hashtagsRoutes);
 // Feed routes with optional authentication (allow unauthenticated access for GET routes)
 // POST/PUT/DELETE routes in feedRoutes require authentication
 publicApiRouter.use("/feed", optionalAuth, feedRoutes);
+
+// Public post-discovery reads (hashtag + topic pages). Mounted BEFORE the
+// required-auth `/posts` router below so anonymous browsing works; the
+// parameterized `/hashtag/:hashtag` and `/topic/:topic` are literal-prefixed, so
+// every other `/posts/*` request (writes, drafts, bookmarks, `/:id`) falls
+// through to the authenticated router. optionalAuth resolves `req.user` when a
+// token is present for viewer-conditional sensitive-content gating.
+publicApiRouter.use("/posts", optionalAuth, publicPostsRouter);
 
 // Public profile endpoints
 // GET /profile/design/:userId - public profile design data (no auth required)

@@ -61,10 +61,23 @@ const postWriteRateLimiters = process.env.NODE_ENV === 'production'
   ? [postWriteRateLimiter]
   : [];
 
-// Public routes
+/**
+ * Public, unauthenticated post-discovery reads. Mounted on the PUBLIC API router
+ * with OPTIONAL auth (see server.ts) so anonymous browsing works — the hashtag
+ * and topic pages are public discovery surfaces (logged-out users, SEO,
+ * fediverse discovery) exactly like explore/trending. Auth is optional, never
+ * required: when a viewer token is present the controllers resolve `req.user`
+ * for viewer-conditional gating (sensitive-content filtering, translation
+ * language), but its absence must never 401. Kept as a SEPARATE router from the
+ * authenticated `router` below, whose remaining routes legitimately require auth
+ * (the whole `router` is mounted behind the required-auth wall in server.ts).
+ */
+export const publicPostsRouter = Router();
+publicPostsRouter.get('/hashtag/:hashtag', getPostsByHashtag);
+publicPostsRouter.get('/topic/:topic', getPostsByTopic);
+
+// Post reads served by the authenticated router (mounted behind required auth).
 router.get('/', getPosts);
-router.get('/hashtag/:hashtag', getPostsByHashtag);
-router.get('/topic/:topic', getPostsByTopic);
 router.get('/nearby', getNearbyPosts);
 router.get('/in-area', getPostsInArea);
 router.get('/nearby-all', getNearbyPostsBothLocations);
