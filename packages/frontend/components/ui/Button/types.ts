@@ -40,11 +40,6 @@ export interface ButtonProps {
   iconSize?: number;
   customIcon?: React.ReactNode;
 
-  // Responsive support (SideBar button pattern)
-  renderText?: ({ state }: { state: 'desktop' | 'tablet' }) => React.ReactNode;
-  renderIcon?: ({ state }: { state: 'desktop' | 'tablet' }) => React.ReactNode;
-  containerStyle?: ({ state }: { state: 'desktop' | 'tablet' }) => ViewStyle;
-  
   // Accessibility
   accessibilityLabel?: string;
   accessibilityHint?: string;

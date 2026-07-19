@@ -1,49 +1,35 @@
-import { useMemo } from 'react';
-import { useMediaQuery } from 'react-responsive';
+import { useWindowDimensions } from 'react-native';
 
 /**
- * Optimized media query hook that prevents unnecessary rerenders
- * by creating stable query objects
+ * Width-based responsive breakpoints for the cases that genuinely need a JS
+ * boolean rather than a NativeWind class:
+ *
+ *  - MOUNT/UNMOUNT gates, so an off-breakpoint subtree never mounts and never
+ *    runs its effects/fetches (e.g. the right rail's recommendation fetch).
+ *  - DATA-level decisions — how many items a feed recommendation band renders
+ *    and which layout (carousel vs list) it builds; a class cannot slice an
+ *    array or swap a horizontal `ScrollView` for a vertical list.
+ *  - Numeric layout math that no utility class expresses.
+ *
+ * Pure show/hide and pure styling differences use NativeWind responsive classes
+ * (`md:`, `max-md:`, …) directly — NOT these hooks.
+ *
+ * Backed by React Native's `useWindowDimensions` (reactive on resize/rotate,
+ * cross-platform, React-Compiler-safe) — no `react-responsive` / `matchMedia`
+ * dependency.
  */
-export function useOptimizedMediaQuery(query: { minWidth?: number; maxWidth?: number; minHeight?: number; maxHeight?: number }) {
-  // Memoize the query object to prevent unnecessary rerenders
-  const stableQuery = useMemo(() => query, [
-    query.minWidth, 
-    query.maxWidth, 
-    query.minHeight, 
-    query.maxHeight
-  ]);
-  
-  return useMediaQuery(stableQuery);
+
+/** >= 500px: the sidebar/shell "not a phone" breakpoint. */
+export function useIsScreenNotMobile(): boolean {
+  return useWindowDimensions().width >= 500;
 }
 
-/**
- * Predefined optimized media query hooks for common breakpoints
- */
-export function useIsMobile() {
-  return useOptimizedMediaQuery({ maxWidth: 767 });
+/** >= 990px: wide enough to show the right rail (widgets / video replies). */
+export function useIsRightBarVisible(): boolean {
+  return useWindowDimensions().width >= 990;
 }
 
-export function useIsTablet() {
-  return useOptimizedMediaQuery({ minWidth: 768, maxWidth: 1023 });
-}
-
-export function useIsDesktop() {
-  return useOptimizedMediaQuery({ minWidth: 1024 });
-}
-
-export function useIsLargeDesktop() {
-  return useOptimizedMediaQuery({ minWidth: 1440 });
-}
-
-export function useIsRightBarVisible() {
-  return useOptimizedMediaQuery({ minWidth: 990 });
-}
-
-export function useIsScreenNotMobile() {
-  return useOptimizedMediaQuery({ minWidth: 500 });
-}
-
-export function useIsSideBarExpanded() {
-  return useOptimizedMediaQuery({ minWidth: 1300 });
+/** >= 1300px: wide enough to expand the sidebar from icons to labelled rows. */
+export function useIsSideBarExpanded(): boolean {
+  return useWindowDimensions().width >= 1300;
 }
