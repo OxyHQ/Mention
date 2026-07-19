@@ -149,7 +149,7 @@ export default function AppLayout() {
           >
             <BloomColorScope colorPreset={activeScreenColor} asChild>
               <ContentPanel
-                framed={IS_WEB && isScreenNotMobile}
+                framedFrom={500}
                 maskColor={theme.colors.background}
                 contentStyle={{ paddingBottom: mobileWebBottomInset }}
               >

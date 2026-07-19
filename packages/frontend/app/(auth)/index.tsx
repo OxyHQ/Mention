@@ -1,7 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, Platform } from 'react-native';
 import { SafeAreaView } from '@/lib/SafeAreaViewInterop';
-import { useMediaQuery } from 'react-responsive';
 import { useAuth } from '@oxyhq/services';
 import { useTranslation } from 'react-i18next';
 
@@ -11,11 +10,14 @@ import { Button } from '@/components/ui/Button';
 export default function AuthScreen() {
   const { signIn } = useAuth();
   const { t } = useTranslation();
-  const isDesktop = useMediaQuery({ minWidth: 768 });
 
-  if (isDesktop) {
-    return (
-      <View className="flex-1 flex-row bg-background">
+  // Both layouts render always; NativeWind's `md` breakpoint (768px) toggles
+  // which is displayed \u2014 the desktop split-screen at >=md, the stacked mobile
+  // layout below it. Pure class-driven responsiveness, no JS media-query hook.
+  return (
+    <>
+      {/* Desktop split-screen (>= md) */}
+      <View className="hidden md:flex flex-1 md:flex-row bg-background">
         <View className="flex-1 justify-center items-center p-12 bg-primary">
           <View className="max-w-[400px] items-start gap-4">
             <LogoIcon size={56} color="#fff" />
@@ -41,31 +43,30 @@ export default function AuthScreen() {
           </View>
         </View>
       </View>
-    );
-  }
 
-  return (
-    <SafeAreaView className="flex-1 justify-center items-center bg-background p-6">
-      <View className="flex-1 justify-center items-center gap-4">
-        <LogoIcon size={48} className="text-primary" />
-        <Text className="text-[28px] font-bold mt-2 text-foreground">
-          Mention
-        </Text>
-        <Text className="text-base text-center max-w-[280px] leading-[22px] text-muted-foreground">
-          {t('See what\u2019s happening in the world right now.')}
-        </Text>
-      </View>
-      <View className="w-full max-w-[320px] pb-8">
-        <Button
-          variant="primary"
-          size="large"
-          style={styles.signInButton}
-          onPress={() => signIn().catch(() => {})}
-        >
-          {t('Sign In with Oxy')}
-        </Button>
-      </View>
-    </SafeAreaView>
+      {/* Stacked mobile layout (< md) */}
+      <SafeAreaView className="flex md:hidden flex-1 justify-center items-center bg-background p-6">
+        <View className="flex-1 justify-center items-center gap-4">
+          <LogoIcon size={48} className="text-primary" />
+          <Text className="text-[28px] font-bold mt-2 text-foreground">
+            Mention
+          </Text>
+          <Text className="text-base text-center max-w-[280px] leading-[22px] text-muted-foreground">
+            {t('See what\u2019s happening in the world right now.')}
+          </Text>
+        </View>
+        <View className="w-full max-w-[320px] pb-8">
+          <Button
+            variant="primary"
+            size="large"
+            style={styles.signInButton}
+            onPress={() => signIn().catch(() => {})}
+          >
+            {t('Sign In with Oxy')}
+          </Button>
+        </View>
+      </SafeAreaView>
+    </>
   );
 }
 

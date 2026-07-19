@@ -6,7 +6,6 @@
  * - Primary/Secondary variants
  * - Icon buttons
  * - Link buttons (with href)
- * - Responsive variants (desktop/tablet)
  * - Accessibility
  */
 
@@ -21,7 +20,6 @@ import {
 } from 'react-native';
 import { Link, useRouter, type Href } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { useMediaQuery } from 'react-responsive';
 
 import { useTheme } from '@oxyhq/bloom/theme';
 import { useHaptics } from '@oxyhq/bloom/hooks';
@@ -74,9 +72,6 @@ const ButtonComponent: React.FC<ButtonProps> = ({
   iconPosition = 'left',
   iconSize: customIconSize,
   customIcon,
-  renderText,
-  renderIcon,
-  containerStyle,
   accessibilityLabel,
   accessibilityHint,
   hitSlop,
@@ -85,11 +80,6 @@ const ButtonComponent: React.FC<ButtonProps> = ({
   const theme = useTheme();
   const haptic = useHaptics();
   const router = useRouter();
-  const isDesktop = useMediaQuery({ minWidth: 1266 });
-
-  // Determine if this is a responsive button (SideBar pattern)
-  const isResponsive = Boolean(renderText || renderIcon || containerStyle);
-  const responsiveState = isDesktop ? 'desktop' : 'tablet';
 
   const effectiveVariant = variant;
 
@@ -215,35 +205,16 @@ const ButtonComponent: React.FC<ButtonProps> = ({
         />
       );
     }
-    if (renderIcon) {
-      return renderIcon({ state: responsiveState });
-    }
     return null;
-  }, [customIcon, icon, effectiveIconSize, effectiveVariant, theme, renderIcon, responsiveState]);
+  }, [customIcon, icon, effectiveIconSize, effectiveVariant, theme]);
 
   // Content component
   const contentElement = useMemo(() => {
-    if (isResponsive && renderText) {
-      return renderText({ state: responsiveState });
-    }
     if (children) {
       return <Text style={flattenStyleArray([textStyles, textStyle])}>{children}</Text>;
     }
     return null;
-  }, [isResponsive, renderText, responsiveState, children, textStyles, textStyle]);
-
-  // Container style for responsive buttons
-  const responsiveContainerStyle = useMemo(() => {
-    if (isResponsive && containerStyle) {
-      return containerStyle({ state: responsiveState });
-    }
-    return undefined;
-  }, [isResponsive, containerStyle, responsiveState]);
-
-  // Final combined style
-  const finalStyle = isResponsive && responsiveContainerStyle
-    ? flattenStyleArray([combinedStyles, responsiveContainerStyle])
-    : combinedStyles;
+  }, [children, textStyles, textStyle]);
 
   // Default hit slop for icon buttons
   const defaultHitSlop = effectiveVariant === 'icon'
@@ -260,32 +231,11 @@ const ButtonComponent: React.FC<ButtonProps> = ({
   );
 
   // Handle link vs button rendering
-  if (href && as === 'link' && !isResponsive) {
+  if (href && as === 'link') {
     return (
       <Link href={href} asChild>
-        <Pressable style={finalStyle}>{buttonContent}</Pressable>
+        <Pressable style={combinedStyles}>{buttonContent}</Pressable>
       </Link>
-    );
-  }
-
-  // Responsive button (SideBar pattern)
-  if (isResponsive) {
-    if (href) {
-      return (
-        <Link href={href} asChild>
-          <Pressable style={responsiveContainerStyle || finalStyle}>
-            {buttonContent}
-          </Pressable>
-        </Link>
-      );
-    }
-    return (
-      <Pressable
-        style={responsiveContainerStyle || finalStyle}
-        onPress={handlePress}
-      >
-        {buttonContent}
-      </Pressable>
     );
   }
 
@@ -295,7 +245,7 @@ const ButtonComponent: React.FC<ButtonProps> = ({
   return (
     <TouchableOpacity
       className={mergedClassName}
-      style={finalStyle}
+      style={combinedStyles}
       onPress={handlePress}
       disabled={disabled}
       activeOpacity={activeOpacity ?? (effectiveVariant === 'icon' ? 0.7 : 0.8)}
