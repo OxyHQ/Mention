@@ -20,42 +20,17 @@
 @source "../../node_modules/@oxyhq/services/lib/**/*.{js,jsx}";
 @source "../../node_modules/@oxyhq/bloom/lib/**/*.{js,jsx}";
 
+/* Colour utilities (`bg-card`, `bg-primary`, `text-muted-foreground`, …) come
+   from Bloom's imported theme.css — the single source of truth — so they are
+   NOT re-declared here. Per-app duplication is exactly what let `--color-card`
+   drift to `var(--surface)` (card === surface no longer holds: card is the
+   lightest surface). */
 @theme {
   --font-sans: Inter, sans-serif;
 
   --radius-lg: var(--radius);
   --radius-md: calc(var(--radius) - 2px);
   --radius-sm: calc(var(--radius) - 4px);
-
-  --color-border: var(--border);
-  --color-input: var(--input);
-  --color-ring: var(--ring);
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-
-  --color-primary: var(--primary);
-  --color-primary-foreground: var(--primary-foreground);
-
-  --color-secondary: var(--secondary);
-  --color-secondary-foreground: var(--secondary-foreground);
-
-  --color-destructive: var(--destructive);
-  --color-destructive-foreground: hsl(0 0% 100%);
-
-  --color-muted: var(--muted);
-  --color-muted-foreground: var(--muted-foreground);
-
-  --color-accent: var(--accent);
-  --color-accent-foreground: var(--accent-foreground);
-
-  --color-popover: var(--popover);
-  --color-popover-foreground: var(--popover-foreground);
-
-  --color-card: var(--surface);
-  --color-card-foreground: var(--surface-foreground);
-
-  --color-surface: var(--surface);
-  --color-surface-foreground: var(--surface-foreground);
 }
 
 @layer base {
