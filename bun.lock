@@ -6,7 +6,7 @@
       "name": "mention",
       "dependencies": {
         "@lottiefiles/dotlottie-react": "^0.19.9",
-        "@oxyhq/bloom": "^0.36.0",
+        "@oxyhq/bloom": "^0.37.1",
         "@oxyhq/contracts": "^0.17.0",
         "@oxyhq/core": "^12.9.0",
         "@oxyhq/protocol": "^0.1.5",
@@ -81,7 +81,7 @@
         "@livekit/react-native": "^2.11.1",
         "@livekit/react-native-expo-plugin": "^1.0.2",
         "@livekit/react-native-webrtc": "^144.1.1",
-        "@oxyhq/bloom": "^0.36.0",
+        "@oxyhq/bloom": "^0.37.1",
         "@oxyhq/core": "^12.9.0",
         "@oxyhq/services": "^22.8.0",
         "@react-native-async-storage/async-storage": "^2.2.0",
@@ -206,7 +206,7 @@
     },
   },
   "overrides": {
-    "@oxyhq/bloom": "^0.36.0",
+    "@oxyhq/bloom": "^0.37.1",
     "@oxyhq/core": "^12.9.0",
     "@oxyhq/services": "^22.8.0",
     "@react-native-async-storage/async-storage": "2.2.0",
@@ -703,7 +703,7 @@
 
     "@oxc-project/types": ["@oxc-project/types@0.137.0", "", {}, "sha512-WT+Gb24i8hmvo85AIv2oEYouEXkRlKAlT9WaCa3TfLgNCN+GhrJOGZuIlMouAh38Qe4QOx26eUOVsq70qXrywA=="],
 
-    "@oxyhq/bloom": ["@oxyhq/bloom@0.36.0", "", { "dependencies": { "@tanstack/react-virtual": "^3.14.3", "nanoid": "^5.1.5", "react-native-css": "3.0.7", "react-remove-scroll-bar": "^2.3.8" }, "peerDependencies": { "expo": "*", "expo-blur": "*", "expo-font": "*", "expo-haptics": "*", "expo-image": "*", "expo-router": ">=3.0.0", "nativewind": ">=5.0.0", "react": ">=18.0.0", "react-dom": ">=18.0.0", "react-native": ">=0.73.0", "react-native-gesture-handler": ">=2.0.0", "react-native-reanimated": ">=3.0.0", "react-native-safe-area-context": ">=5.0.0", "react-native-svg": ">=13.0.0", "sonner": ">=2.0.0", "sonner-native": ">=0.17.0" }, "optionalPeers": ["expo", "expo-font", "expo-haptics", "expo-router", "nativewind", "react-dom", "react-native-svg", "sonner", "sonner-native"] }, "sha512-bzO331NIgrw+Jn6yXGGBebGbPf8qo2zcUv5MuYqutttGwBSvGlc+gGylowWPVEjvZ+93AQo1dc2uSYKEBl1LtQ=="],
+    "@oxyhq/bloom": ["@oxyhq/bloom@0.37.1", "", { "dependencies": { "@tanstack/react-virtual": "^3.14.3", "nanoid": "^5.1.5", "react-native-css": "3.0.7", "react-remove-scroll-bar": "^2.3.8" }, "peerDependencies": { "expo": "*", "expo-blur": "*", "expo-font": "*", "expo-haptics": "*", "expo-image": "*", "expo-router": ">=3.0.0", "nativewind": ">=5.0.0", "react": ">=18.0.0", "react-dom": ">=18.0.0", "react-native": ">=0.73.0", "react-native-gesture-handler": ">=2.0.0", "react-native-reanimated": ">=3.0.0", "react-native-safe-area-context": ">=5.0.0", "react-native-svg": ">=13.0.0", "sonner": ">=2.0.0", "sonner-native": ">=0.17.0" }, "optionalPeers": ["expo", "expo-font", "expo-haptics", "expo-router", "nativewind", "react-dom", "react-native-svg", "sonner", "sonner-native"] }, "sha512-LLYLKH8NBPe9NkxUvfZN3MrmRoCXzlcCjz8mTL6qdsd9ona1fvZl48DIZBENIGvFgg4tgT+dX+YFflbPf7UFEQ=="],
 
     "@oxyhq/contracts": ["@oxyhq/contracts@0.17.0", "", { "dependencies": { "zod": "^3.25.64" } }, "sha512-/GGLe2NsULmVBlqcTYGEag2ETbh0xfWauQXr1fb4F3UjzKQJu1bW+eeTZBegYahTYHIUujGzCk28JS2vYqoMYg=="],
 
