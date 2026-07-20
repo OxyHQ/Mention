@@ -221,11 +221,11 @@ export function SideBar({ asDrawer = false, onNavigate }: SideBarProps) {
                             ]}
                         >
                             {showExpanded ? (
-                                <Text style={{ color: theme.colors.card, fontSize: 17, fontWeight: '800', textAlign: 'center' }}>
+                                <Text style={{ color: theme.colors.primaryForeground, fontSize: 17, fontWeight: '800', textAlign: 'center' }}>
                                     {t("sidebar.compose")}
                                 </Text>
                             ) : (
-                                <ComposeIcon size={26} color={theme.colors.card} />
+                                <ComposeIcon size={26} color={theme.colors.primaryForeground} />
                             )}
                         </Pressable>
                     </View>

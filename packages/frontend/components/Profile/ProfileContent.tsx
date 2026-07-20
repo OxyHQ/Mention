@@ -63,7 +63,7 @@ export const ProfileContent = memo(function ProfileContent({
   const followsYouTag =
     !isOwnProfile && isAuthenticated && profileData.followsYou ? (
       <View className="bg-secondary px-2 py-0.5 rounded-full">
-        <Text className="text-muted-foreground text-xs font-medium" numberOfLines={1}>
+        <Text className="text-secondary-foreground text-xs font-medium" numberOfLines={1}>
           {t('profile.followsYou', { defaultValue: 'Follows you' })}
         </Text>
       </View>
