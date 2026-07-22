@@ -945,11 +945,16 @@ app.get("/health", async (req, res) => {
 });
 
 // --- Metrics Endpoint ---
-// Exposes Prometheus-format metrics for monitoring systems
-import { metrics } from './src/utils/metrics';
-app.get('/metrics', (req, res) => {
+// Exposes Prometheus-format metrics for monitoring systems. Counters are the
+// Redis-aggregated FLEET-WIDE totals (every task flushes its deltas on a timer),
+// so a scrape is meaningful regardless of which task the ALB routes it to.
+// Histograms/gauges remain this task's own values. Never throws: with Redis
+// unavailable the in-memory values are served instead.
+import { metricsAggregator } from './src/services/metricsAggregator';
+app.get('/metrics', async (req, res) => {
+  const document = await metricsAggregator.renderPrometheus();
   res.set('Content-Type', 'text/plain');
-  res.send(metrics.getPrometheusFormat());
+  res.send(document);
 });
 
 // --- Federation routes (ActivityPub protocol — must be public, before auth) ---
@@ -1260,6 +1265,11 @@ const bootServer = async () => {
     logger.warn("Failed to start federation queue workers", error);
   }
 
+  // Metrics aggregation runs on EVERY task (deliberately not leader-gated): each
+  // task must push its OWN counter deltas to Redis, otherwise `/metrics` would only
+  // ever show the leader's fragment. No-op when Redis is not configured.
+  metricsAggregator.start();
+
   // Register MTN Protocol feed engine modules (sources / signals / filters)
   registerAllModules();
 
@@ -1297,6 +1307,10 @@ const gracefulShutdown = (signal: string): void => {
       } catch (error) {
         logger.error("Error shutting down federation queues", error);
       }
+
+      // Stop the metrics flusher and push this task's final window of counter
+      // deltas, so a rolling deploy never drops the last interval. Never throws.
+      await metricsAggregator.stop();
     })
     .finally(() => {
       // Stop accepting new HTTP/socket connections.

@@ -180,8 +180,8 @@ describe('A/B enforcement via ctx.discoveryGateBucket', () => {
   });
 });
 
-describe('feed_federated_share', () => {
-  it('records the federated share of the merged pool by base descriptor', async () => {
+describe('feed_pool_candidates_total', () => {
+  it('counts the merged pool by origin under the base descriptor', async () => {
     setShadow(true);
     registry.register(source('disc', [
       makePost(1, { federation: { actorUri: 'https://remote/users/a' } }),
@@ -190,7 +190,30 @@ describe('feed_federated_share', () => {
 
     await engine.run(def([{ module: 'disc', enabled: true }]), ctx(), { limit: 30 });
 
-    // pool = [#1 federated, #2 local] → share 0.5.
-    expect(metrics.getGauge(FEED_METRICS.federatedShare, { descriptor: 'for_you' })).toBeCloseTo(0.5, 5);
+    // pool = [#1 federated, #2 local] → federated share 0.5, derived from the counters.
+    const federated = metrics.getCounter(FEED_METRICS.poolCandidates, { descriptor: 'for_you', origin: 'federated' });
+    const local = metrics.getCounter(FEED_METRICS.poolCandidates, { descriptor: 'for_you', origin: 'local' });
+    expect(federated).toBe(1);
+    expect(local).toBe(1);
+    expect(federated / (federated + local)).toBeCloseTo(0.5, 5);
+  });
+
+  it('accumulates across requests so the derived share stays correct', async () => {
+    setShadow(true);
+    registry.register(source('disc', [
+      makePost(1, { federation: { actorUri: 'https://remote/users/a' } }),
+      makePost(2), // local
+      makePost(3), // local
+    ]));
+
+    const definition = def([{ module: 'disc', enabled: true }]);
+    await engine.run(definition, ctx(), { limit: 30 });
+    await engine.run(definition, ctx(), { limit: 30 });
+
+    const federated = metrics.getCounter(FEED_METRICS.poolCandidates, { descriptor: 'for_you', origin: 'federated' });
+    const local = metrics.getCounter(FEED_METRICS.poolCandidates, { descriptor: 'for_you', origin: 'local' });
+    expect(federated).toBe(2);
+    expect(local).toBe(4);
+    expect(federated / (federated + local)).toBeCloseTo(1 / 3, 5);
   });
 });

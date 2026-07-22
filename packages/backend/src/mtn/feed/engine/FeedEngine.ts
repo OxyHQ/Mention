@@ -31,7 +31,7 @@ import {
   toRankedCandidate,
 } from '../rankedCandidate';
 import { logger } from '../../../utils/logger';
-import { recordDiscoveryGated, recordFederatedShare, originForFederation } from '../feedMetrics';
+import { recordDiscoveryGated, recordPoolCandidates, originForFederation } from '../feedMetrics';
 import { feedModuleRegistry, FeedModuleRegistry } from './FeedModuleRegistry';
 import type {
   CandidatePost,
@@ -104,16 +104,17 @@ export class FeedEngine {
 
     const pool = await this.gatherPool(definition, ctx, exec, limit);
 
-    // Phase 7: record the federated share of the merged candidate pool for this
-    // feed (a gauge keyed by the base feed type). Emitted from the served `run`
-    // path only — never from the cheap `peekLatest` probe — so the share reflects
-    // real page builds. Non-empty guard avoids a spurious 0 on an empty pool.
+    // Phase 7: count the merged candidate pool by origin, keyed by the base feed
+    // type. Two COUNTERS (not a share gauge) so the federated share is derivable —
+    // and stays correct — once the fleet's per-task counters are summed. Emitted
+    // from the served `run` path only, never from the cheap `peekLatest` probe, so
+    // the numbers reflect real page builds.
     if (pool.length > 0) {
       let federatedCount = 0;
       for (const post of pool) {
         if (originForFederation(post.federation) === 'federated') federatedCount += 1;
       }
-      recordFederatedShare(definition.id, federatedCount / pool.length);
+      recordPoolCandidates(definition.id, federatedCount, pool.length - federatedCount);
     }
 
     return definition.mode === 'ranked'

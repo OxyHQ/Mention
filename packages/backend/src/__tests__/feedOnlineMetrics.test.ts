@@ -30,9 +30,9 @@ import {
   baseDescriptor,
   originForFederation,
   recordDiscoveryGated,
-  recordFederatedShare,
   recordImpression,
   recordInteractionSignal,
+  recordPoolCandidates,
   recordReport,
 } from '../mtn/feed/feedMetrics';
 import {
@@ -80,11 +80,29 @@ describe('feedMetrics helpers', () => {
     expect(metrics.getCounter(FEED_METRICS.discoveryGated, { reason: 'nativeEngagement', source: 'globalDiscovery', shadow: 'false' })).toBe(1);
   });
 
-  it('emits feed_federated_share as a per-descriptor gauge', () => {
-    recordFederatedShare('for_you', 0.42);
-    recordFederatedShare('author|123', 0.9);
-    expect(metrics.getGauge(FEED_METRICS.federatedShare, { descriptor: 'for_you' })).toBeCloseTo(0.42, 5);
-    expect(metrics.getGauge(FEED_METRICS.federatedShare, { descriptor: 'author' })).toBeCloseTo(0.9, 5);
+  it('emits feed_pool_candidates_total as additive per-origin counters', () => {
+    recordPoolCandidates('for_you', 3, 7);
+    recordPoolCandidates('author|123', 1, 1);
+
+    const federated = metrics.getCounter(FEED_METRICS.poolCandidates, { descriptor: 'for_you', origin: 'federated' });
+    const local = metrics.getCounter(FEED_METRICS.poolCandidates, { descriptor: 'for_you', origin: 'local' });
+    expect(federated).toBe(3);
+    expect(local).toBe(7);
+    // The share is DERIVED from the two counters (and stays correct when summed).
+    expect(federated / (federated + local)).toBeCloseTo(0.3, 5);
+
+    expect(metrics.getCounter(FEED_METRICS.poolCandidates, { descriptor: 'author', origin: 'federated' })).toBe(1);
+    expect(metrics.getCounter(FEED_METRICS.poolCandidates, { descriptor: 'author', origin: 'local' })).toBe(1);
+  });
+
+  it('does not emit a zero-valued origin series', () => {
+    recordPoolCandidates('for_you', 0, 5);
+    expect(metrics.getCounter(FEED_METRICS.poolCandidates, { descriptor: 'for_you', origin: 'local' })).toBe(5);
+    expect(
+      metrics
+        .getCounterSamples()
+        .some((sample) => sample.name === FEED_METRICS.poolCandidates && sample.labelSet.includes('federated')),
+    ).toBe(false);
   });
 
   it('emits impression / interaction-signal / report counters with correct labels', () => {
