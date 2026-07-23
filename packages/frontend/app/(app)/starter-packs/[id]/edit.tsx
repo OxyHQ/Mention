@@ -6,7 +6,7 @@ import { Avatar } from '@oxyhq/bloom/avatar';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types';
 import { Button } from '@oxyhq/bloom/button';
 import { Item } from '@oxyhq/bloom/item';
-import { SearchInput } from '@oxyhq/bloom/search-input';
+import { Search } from '@oxyhq/bloom/search';
 import { show as toast } from '@oxyhq/bloom/toast';
 import { useTheme } from '@oxyhq/bloom/theme';
 import {
@@ -308,7 +308,7 @@ export default function EditStarterPackScreen() {
           </Text>
         </View>
 
-        <SearchInput
+        <Search
           label="Search people"
           value={search}
           onChangeText={runSearch}
