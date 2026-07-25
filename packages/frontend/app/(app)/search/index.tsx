@@ -26,7 +26,8 @@ import { Loading } from "@oxyhq/bloom/loading";
 import { FlashList } from "@shopify/flash-list";
 import AnimatedTabBar from "@/components/common/AnimatedTabBar";
 import PostItem from "@/components/Feed/PostItem";
-import { Search } from "@/assets/icons/search-icon";
+import { Search } from "@oxyhq/bloom/search";
+import { Search as SearchIcon } from "@/assets/icons/search-icon";
 import SEO from "@/components/SEO";
 import { ProfileCard, ProfileCardSkeletonList, type ProfileCardData } from "@/components/ProfileCard";
 import { FeedCard, type FeedCardData } from "@/components/FeedCard";
@@ -915,7 +916,7 @@ export default function SearchIndex() {
             <EmptyState
                 title={t("search.startSearching", "Search Mention")}
                 subtitle={t("search.startDescription", "Find people, posts, hashtags, and more")}
-                customIcon={<Search size={48} className="text-muted-foreground" />}
+                customIcon={<SearchIcon size={48} className="text-muted-foreground" />}
             />
         ) : null;
 
@@ -957,7 +958,7 @@ export default function SearchIndex() {
             <EmptyState
                 title={t("search.noResults", "No results found")}
                 subtitle={t("search.tryDifferent", "Try searching for something else")}
-                customIcon={<Search size={48} className="text-muted-foreground" />}
+                customIcon={<SearchIcon size={48} className="text-muted-foreground" />}
             />
         );
     };
@@ -979,35 +980,16 @@ export default function SearchIndex() {
                         hideBottomBorder={true}
                     />
 
-                    <View className="mx-4 my-2 flex-row items-center rounded-3xl bg-secondary px-4 py-2">
-                        <View className="mr-2">
-                            <Search
-                                size={18}
-                                color={query.trim() ? theme.colors.primary : theme.colors.textSecondary}
-                            />
-                        </View>
-                        <TextInput
+                    <View className="mx-4 my-2">
+                        <Search
                             ref={searchInputRef}
-                            className="flex-1 py-2 text-base text-foreground"
-                            placeholder={t("search.placeholder", "Search...")}
-                            placeholderTextColor={theme.colors.textSecondary}
+                            label={t("search.placeholder", "Search...")}
                             value={query}
                             onChangeText={handleQueryChange}
                             onSubmitEditing={handleSubmit}
+                            onClearText={clearSearch}
                             autoFocus
-                            returnKeyType="search"
                         />
-                        {query.length > 0 ? (
-                            <TouchableOpacity
-                                onPress={clearSearch}
-                                className="p-1"
-                                hitSlop={8}
-                                accessibilityRole="button"
-                                accessibilityLabel={t("search.clearInput", "Clear search")}
-                            >
-                                <Ionicons name="close-circle" size={18} color={theme.colors.textSecondary} />
-                            </TouchableOpacity>
-                        ) : null}
                     </View>
 
                     <AnimatedTabBar
