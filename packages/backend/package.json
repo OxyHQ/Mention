@@ -23,7 +23,7 @@
     "@oxyhq/federation": "^0.4.0",
     "@oxyhq/protocol": "^0.1.5",
     "@socket.io/redis-adapter": "^8.3.0",
-    "@syra.fm/sdk": "^0.7.0",
+    "@syra.fm/sdk": "^0.8.0",
     "@types/compression": "^1.8.1",
     "@types/multer": "^2.2.0",
     "bullmq": "^5.80.4",
