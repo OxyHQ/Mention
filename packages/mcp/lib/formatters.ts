@@ -50,9 +50,6 @@ interface PostData {
   hashtags?: string[];
   date?: string;
   createdAt?: string;
-  isLiked?: boolean;
-  isBoosted?: boolean;
-  isSaved?: boolean;
   parentPostId?: string;
   boostOf?: string;
   quoteOf?: string;
@@ -73,6 +70,9 @@ interface PostData {
     collabInvitePending?: boolean;
     isCollaborator?: boolean;
     isOwner?: boolean;
+    isLiked?: boolean;
+    isBoosted?: boolean;
+    isSaved?: boolean;
   };
   linkPreviews?: Array<{
     url?: string;
@@ -168,9 +168,9 @@ export function formatPost(post: PostData): string {
   if (post.visibility && post.visibility !== "public") parts.push(`Visibility: ${post.visibility}`);
 
   const flags: string[] = [];
-  if (post.isLiked) flags.push("liked");
-  if (post.isBoosted) flags.push("boosted");
-  if (post.isSaved) flags.push("saved");
+  if (post.viewerState?.isLiked) flags.push("liked");
+  if (post.viewerState?.isBoosted) flags.push("boosted");
+  if (post.viewerState?.isSaved) flags.push("saved");
   if (flags.length > 0) parts.push(`You: ${flags.join(", ")}`);
 
   return parts.join("\n");
