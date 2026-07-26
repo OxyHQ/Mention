@@ -22,6 +22,7 @@ export DEPLOY_TEST_FAIL_STICKINESS=false
 export DEPLOY_TEST_HEALTH_PATH=/
 export DEPLOY_TEST_EXPECT_METRICS_ARN=false
 export DEPLOY_TEST_TASK_EXIT_CODE=0
+export DEPLOY_TEST_EXPECT_TASK_SECRET_ARN=false
 
 aws() {
   local service_json='{
@@ -105,6 +106,28 @@ aws() {
             )
         ' "$input_json" >/dev/null
         printf 'metrics:arn\n' >>"$DEPLOY_TEST_LOG"
+      fi
+      if [[ "$DEPLOY_TEST_EXPECT_TASK_SECRET_ARN" == "true" ]]; then
+        local previous_argument=""
+        local input_json=""
+        local argument
+        for argument in "$@"; do
+          if [[ "$previous_argument" == "--cli-input-json" ]]; then
+            input_json="${argument#file://}"
+            break
+          fi
+          previous_argument="$argument"
+        done
+        jq -e '
+          .containerDefinitions[]
+          | select(.name == "mention-test")
+          | .secrets[]
+          | select(
+              .name == "MENTION_MCP_JWT_SECRET" and
+              .valueFrom == "arn:aws:ssm:test:123456789012:parameter/oxy/mention-mcp/MENTION_MCP_JWT_SECRET"
+            )
+        ' "$input_json" >/dev/null
+        printf 'task-secret:arn\n' >>"$DEPLOY_TEST_LOG"
       fi
       printf '%s\n' "arn:aws:ecs:test:task-definition/mention-test:2"
       ;;
@@ -213,6 +236,7 @@ run_release() {
   local inject_internal_metrics="${6:-false}"
   local configure_target_group="${7:-true}"
   local task_exit_code="${8:-0}"
+  local inject_task_secret="${9:-false}"
   local case_directory="$test_directory/$case_name"
   local output_file="$case_directory/output.log"
   local smoke_script="$case_directory/smoke.sh"
@@ -223,9 +247,11 @@ run_release() {
   DEPLOY_TEST_HEALTH_PATH="$current_health_path"
   DEPLOY_TEST_EXPECT_METRICS_ARN="$inject_internal_metrics"
   DEPLOY_TEST_TASK_EXIT_CODE="$task_exit_code"
+  DEPLOY_TEST_EXPECT_TASK_SECRET_ARN="$inject_task_secret"
   export DEPLOY_TEST_LOG DEPLOY_TEST_FAIL_STICKINESS
   export DEPLOY_TEST_HEALTH_PATH DEPLOY_TEST_EXPECT_METRICS_ARN
   export DEPLOY_TEST_TASK_EXIT_CODE
+  export DEPLOY_TEST_EXPECT_TASK_SECRET_ARN
 
   # The generated smoke fixture expands this variable when it runs.
   # shellcheck disable=SC2016
@@ -258,6 +284,11 @@ run_release() {
   if [[ "$inject_internal_metrics" == "true" ]]; then
     release_environment+=(
       INTERNAL_METRICS_PARAMETER=/oxy/mention/INTERNAL_METRICS_TOKEN
+    )
+  fi
+  if [[ "$inject_task_secret" == "true" ]]; then
+    release_environment+=(
+      TASK_SECRET_OVERRIDES_JSON='{"MENTION_MCP_JWT_SECRET":"arn:aws:ssm:test:123456789012:parameter/oxy/mention-mcp/MENTION_MCP_JWT_SECRET"}'
     )
   fi
 
@@ -301,6 +332,17 @@ printf '%s\n' \
 diff -u \
   "$test_directory/deploy-role-compatible/expected.log" \
   "$test_directory/deploy-role-compatible/aws.log"
+
+run_release explicit-task-secret true false / false false false 0 true
+printf '%s\n' \
+  task-secret:arn \
+  'service:arn:aws:ecs:test:task-definition/mention-test:2' \
+  smoke \
+  reconcile \
+  >"$test_directory/explicit-task-secret/expected.log"
+diff -u \
+  "$test_directory/explicit-task-secret/expected.log" \
+  "$test_directory/explicit-task-secret/aws.log"
 
 run_release already-migrated-health true false /health/ready
 printf '%s\n' \

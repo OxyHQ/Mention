@@ -109,6 +109,8 @@ jobs:
         env:
           IMAGE_URI: ${{ env.ECR_REGISTRY }}/oxy/${{ env.APP }}@${{ steps.build.outputs.digest }}
           POST_DEPLOY_SMOKE_SCRIPT: .github/scripts/smoke-mcp.sh
+          TASK_SECRET_OVERRIDES_JSON: >-
+            {"MENTION_MCP_JWT_SECRET":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/mention-mcp/MENTION_MCP_JWT_SECRET"}
         # Session stickiness must be declared in oxy-infra. The deploy role has
         # no ELB mutation permissions, so this workflow cannot safely enable it.
         run: bash .github/scripts/deploy-ecs-image.sh

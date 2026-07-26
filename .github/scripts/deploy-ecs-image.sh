@@ -20,6 +20,7 @@ EXPECTED_PRE_ROLLOUT_HEALTH_CHECK_PATH="${EXPECTED_PRE_ROLLOUT_HEALTH_CHECK_PATH
 ENABLE_TARGET_STICKINESS="${ENABLE_TARGET_STICKINESS:-false}"
 TARGET_STICKINESS_SECONDS="${TARGET_STICKINESS_SECONDS:-3600}"
 INTERNAL_METRICS_PARAMETER="${INTERNAL_METRICS_PARAMETER:-}"
+TASK_SECRET_OVERRIDES_JSON="${TASK_SECRET_OVERRIDES_JSON:-}"
 AWS_ACCOUNT_ID="${AWS_ACCOUNT_ID:-}"
 AWS_PARTITION="${AWS_PARTITION:-aws}"
 POST_DEPLOY_SMOKE_SCRIPT="${POST_DEPLOY_SMOKE_SCRIPT:-}"
@@ -87,6 +88,25 @@ if [[ -n "$POST_DEPLOY_TASK_COMMAND_JSON" ]] &&
      all(.[]; type == "string" and length > 0)
    ' <<<"$POST_DEPLOY_TASK_COMMAND_JSON" >/dev/null; then
   echo "::error::POST_DEPLOY_TASK_COMMAND_JSON must be a non-empty JSON string array."
+  exit 1
+fi
+if [[ -z "$TASK_SECRET_OVERRIDES_JSON" ]]; then
+  TASK_SECRET_OVERRIDES_JSON='{}'
+fi
+if ! jq -e '
+  type == "object" and
+  length <= 20 and
+  all(
+    to_entries[];
+    (.key | type == "string" and test("^[A-Z][A-Z0-9_]{0,127}$")) and
+    (
+      .value
+      | type == "string" and
+        test("^arn:aws(-[a-z]+)?:ssm:[a-z0-9-]+:[0-9]{12}:parameter/[A-Za-z0-9_.\\-/]+$")
+    )
+  )
+' <<<"$TASK_SECRET_OVERRIDES_JSON" >/dev/null; then
+  echo "::error::TASK_SECRET_OVERRIDES_JSON must map environment variable names to complete SSM parameter ARNs."
   exit 1
 fi
 
@@ -603,6 +623,13 @@ if [[ -n "$INTERNAL_METRICS_PARAMETER" ]]; then
   fi
 fi
 
+task_secret_overrides="$(jq -c '
+  [
+    to_entries[]
+    | {name: .key, valueFrom: .value}
+  ]
+' <<<"$TASK_SECRET_OVERRIDES_JSON")"
+
 aws ecs describe-task-definition \
   --task-definition "$current_task_definition" \
   --query taskDefinition \
@@ -619,6 +646,7 @@ jq \
   --arg name "$CONTAINER_NAME" \
   --arg image "$IMAGE_URI" \
   --arg internalMetricsSecretArn "$internal_metrics_secret_arn" \
+  --argjson taskSecretOverrides "$task_secret_overrides" \
   '
     del(
       .taskDefinitionArn,
@@ -629,6 +657,7 @@ jq \
       .registeredAt,
       .registeredBy
     )
+    | ($taskSecretOverrides | map(.name)) as $taskSecretNames
     | .containerDefinitions |= map(
         if .name == $name then
           .image = $image
@@ -648,6 +677,16 @@ jq \
                 )
             else .
             end
+          | .secrets = (
+              ((.secrets // [])
+                | map(
+                    select(
+                      .name as $existingName
+                      | ($taskSecretNames | index($existingName)) == null
+                    )
+                  ))
+              + $taskSecretOverrides
+            )
         else . end
       )
   ' \
