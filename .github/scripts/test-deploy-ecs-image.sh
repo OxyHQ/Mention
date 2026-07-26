@@ -70,11 +70,34 @@ aws() {
       fi
       describe_count=$((describe_count + 1))
       printf '%s\n' "$describe_count" >"$describe_count_file"
-      if [[ "$DEPLOY_TEST_ROLLOUT_SCENARIO" == "zero-during-deploy" &&
+      if [[ "$DEPLOY_TEST_ROLLOUT_SCENARIO" == "transient-zero-deployment" &&
             "$describe_count" == "2" ]]; then
+        service_json="$(jq '
+          .services[0].deployments |= map(
+              if .taskDefinition == "arn:aws:ecs:test:task-definition/mention-test:2"
+              then
+                .rolloutState = "IN_PROGRESS"
+                | .desiredCount = 0
+                | .runningCount = 0
+              else .
+              end
+            )
+        ' <<<"$service_json")"
+      elif [[ "$DEPLOY_TEST_ROLLOUT_SCENARIO" == "zero-service-during-deploy" &&
+              "$describe_count" == "2" ]]; then
         service_json="$(jq '
           .services[0].desiredCount = 0
           | .services[0].deployments |= map(
+              if .taskDefinition == "arn:aws:ecs:test:task-definition/mention-test:2"
+              then .desiredCount = 0 | .runningCount = 0
+              else .
+              end
+            )
+        ' <<<"$service_json")"
+      elif [[ "$DEPLOY_TEST_ROLLOUT_SCENARIO" == "completed-zero-deployment" &&
+              "$describe_count" == "2" ]]; then
+        service_json="$(jq '
+          .services[0].deployments |= map(
               if .taskDefinition == "arn:aws:ecs:test:task-definition/mention-test:2"
               then .desiredCount = 0 | .runningCount = 0
               else .
@@ -343,17 +366,44 @@ if [[ -s "$test_directory/zero-desired-count/aws.log" ]]; then
   exit 1
 fi
 
-run_release zero-during-deploy false false false 0 false 1 zero-during-deploy
+run_release transient-zero-deployment true false false 0 false 1 transient-zero-deployment
+printf '%s\n' \
+  'service:arn:aws:ecs:test:task-definition/mention-test:2:desired=1' \
+  smoke \
+  reconcile \
+  >"$test_directory/transient-zero-deployment/expected.log"
+diff -u \
+  "$test_directory/transient-zero-deployment/expected.log" \
+  "$test_directory/transient-zero-deployment/aws.log"
+grep -F \
+  "has not assigned desired tasks" \
+  "$test_directory/transient-zero-deployment/output.log" \
+  >/dev/null
+
+run_release zero-service-during-deploy false false false 0 false 1 zero-service-during-deploy
 printf '%s\n' \
   'service:arn:aws:ecs:test:task-definition/mention-test:2:desired=1' \
   'service:arn:aws:ecs:test:task-definition/mention-test:1:desired=1' \
-  >"$test_directory/zero-during-deploy/expected.log"
+  >"$test_directory/zero-service-during-deploy/expected.log"
 diff -u \
-  "$test_directory/zero-during-deploy/expected.log" \
-  "$test_directory/zero-during-deploy/aws.log"
+  "$test_directory/zero-service-during-deploy/expected.log" \
+  "$test_directory/zero-service-during-deploy/aws.log"
 grep -F \
-  "refusing to accept a zero-task steady state" \
-  "$test_directory/zero-during-deploy/output.log" \
+  "service mention-test reached desiredCount=0 during the deployment rollout" \
+  "$test_directory/zero-service-during-deploy/output.log" \
+  >/dev/null
+
+run_release completed-zero-deployment false false false 0 false 1 completed-zero-deployment
+printf '%s\n' \
+  'service:arn:aws:ecs:test:task-definition/mention-test:2:desired=1' \
+  'service:arn:aws:ecs:test:task-definition/mention-test:1:desired=1' \
+  >"$test_directory/completed-zero-deployment/expected.log"
+diff -u \
+  "$test_directory/completed-zero-deployment/expected.log" \
+  "$test_directory/completed-zero-deployment/aws.log"
+grep -F \
+  "completed at desiredCount=0; refusing to accept a zero-task steady state" \
+  "$test_directory/completed-zero-deployment/output.log" \
   >/dev/null
 
 echo "Deployment script transaction tests passed."

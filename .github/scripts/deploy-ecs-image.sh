@@ -145,7 +145,7 @@ wait_for_service_rollout() {
   local label="$2"
   local elapsed=0
   local deployment_json="$service_json"
-  local deployment_state rollout_state running desired
+  local deployment_state rollout_state running desired service_desired
 
   while (( elapsed < MAX_WAIT_SECS )); do
     if ! deployment_json="$(aws ecs describe-services \
@@ -163,10 +163,12 @@ wait_for_service_rollout() {
       continue
     fi
     if ! deployment_state="$(jq -r --arg task "$task_definition" '
+      .services[0] as $service
+      |
       [
-        .services[0].deployments[]
+        $service.deployments[]
         | select(.taskDefinition == $task and .status == "PRIMARY")
-        | [.rolloutState, .runningCount, .desiredCount]
+        | [.rolloutState, .runningCount, .desiredCount, $service.desiredCount]
         | @tsv
       ][0] // empty
     ' <<<"$deployment_json")"; then
@@ -179,15 +181,25 @@ wait_for_service_rollout() {
     if [[ -z "$deployment_state" ]]; then
       echo "($elapsed s) waiting for the $label PRIMARY deployment"
     else
-      IFS=$'\t' read -r rollout_state running desired <<<"$deployment_state"
-      echo "($elapsed s) $label rolloutState=$rollout_state running=$running desired=$desired"
-      if ! [[ "$running" =~ ^[0-9]+$ && "$desired" =~ ^[0-9]+$ ]]; then
+      IFS=$'\t' read -r rollout_state running desired service_desired <<<"$deployment_state"
+      echo "($elapsed s) $label rolloutState=$rollout_state running=$running desired=$desired serviceDesired=$service_desired"
+      if ! [[ "$running" =~ ^[0-9]+$ &&
+              "$desired" =~ ^[0-9]+$ &&
+              "$service_desired" =~ ^[0-9]+$ ]]; then
         echo "::warning::ECS returned non-numeric task counts for the $label rollout; retrying."
-      elif (( desired < 1 )); then
-        echo "::error::ECS $label rollout for $APP reached desiredCount=0; refusing to accept a zero-task steady state."
+      elif (( service_desired < 1 )); then
+        echo "::error::ECS service $APP reached desiredCount=0 during the $label rollout."
         return 1
-      elif [[ "$rollout_state" == "COMPLETED" && "$running" == "$desired" ]]; then
-        return 0
+      elif [[ "$rollout_state" == "COMPLETED" ]]; then
+        if (( desired < 1 )); then
+          echo "::error::ECS $label rollout for $APP completed at desiredCount=0; refusing to accept a zero-task steady state."
+          return 1
+        fi
+        if [[ "$running" == "$desired" ]]; then
+          return 0
+        fi
+      elif (( desired < 1 )); then
+        echo "::warning::ECS has not assigned desired tasks to the $label PRIMARY deployment yet; waiting."
       fi
       if [[ "$rollout_state" == "FAILED" ]]; then
         echo "::error::ECS $label rollout for $APP failed."
