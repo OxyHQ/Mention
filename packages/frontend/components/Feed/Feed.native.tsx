@@ -28,6 +28,10 @@ import { FeedHeader } from './FeedHeader';
 import { FeedFooter } from './FeedFooter';
 import { FeedEmptyState } from './FeedEmptyState';
 import { usePrivacyControls } from '@/hooks/usePrivacyControls';
+import {
+    getFeedScrollOffset,
+    setFeedScrollOffset,
+} from '@/stores/feedScrollStore';
 import { usePanelChromeTopInset } from '@/components/shell/PanelChrome';
 import { resolveFeedDescriptor, useFeedImpressionTracker } from '@/utils/feedTelemetry';
 import {
@@ -200,11 +204,7 @@ const Feed = ((props: FeedProps) => {
     const isFocused = useIsFocused();
     const flatListRef = useRef<FlashListRef<NativeFeedRow> | null>(null);
     const unregisterScrollableRef = useRef<(() => void) | null>(null);
-    // Scroll restoration is owned by Bloom's shared primitive: it saves this
-    // feed's offset on scroll/blur and restores it on focus, keyed by the active
-    // route. No-op on native (the navigator keeps screens mounted) and for
-    // embedded feeds, which don't own scrolling — the parent ScrollView does.
-    useScrollRestoration(flatListRef, { enabled: scrollEnabled !== false });
+    // The Bloom restoration hook is registered after feed identity is resolved.
     const [refreshing, setRefreshing] = useState(false);
     const { handleScroll, scrollEventThrottle, registerScrollable } = useLayoutScroll();
 
@@ -232,6 +232,13 @@ const Feed = ((props: FeedProps) => {
         reloadKey,
         isAuthenticated,
         currentUserId: currentUser?.id,
+    });
+    // Bloom is a no-op on native today, but pass the same identity sub-key used
+    // on web so feeds hosted by one route can never share an offset if native
+    // restoration becomes active.
+    useScrollRestoration(flatListRef, {
+        enabled: scrollEnabled !== false,
+        key: feedState.feedScrollKey,
     });
 
     // Destructure stable function references from feedState to avoid re-creating
@@ -298,6 +305,37 @@ const Feed = ((props: FeedProps) => {
             ? [...auxiliaryRows, ...feedRows]
             : feedRows;
     }, [feedRows, listLeadingComponent, listStickyHeaderComponent]);
+
+    // Bloom intentionally delegates native restoration to the navigator, but a
+    // route/tab swap can genuinely unmount a feed. Restore the last feed-scoped
+    // offset once its retained rows are available; the imperative map avoids a
+    // Zustand publication on every scroll frame.
+    const restoredFeedKeyRef = useRef<string | null>(null);
+    useEffect(() => {
+        if (scrollEnabled === false || !isFocused) {
+            restoredFeedKeyRef.current = null;
+            return;
+        }
+        if (listRows.length === 0) return;
+        const key = feedState.feedScrollKey;
+        if (restoredFeedKeyRef.current === key) return;
+        restoredFeedKeyRef.current = key;
+
+        const offset = getFeedScrollOffset(key);
+        if (offset <= 0) return;
+        const frame = requestAnimationFrame(() => {
+            flatListRef.current?.scrollToOffset({
+                offset,
+                animated: false,
+            });
+        });
+        return () => cancelAnimationFrame(frame);
+    }, [
+        feedState.feedScrollKey,
+        isFocused,
+        listRows.length,
+        scrollEnabled,
+    ]);
 
     // Feed-ranking telemetry: derive the descriptor this feed reports against and
     // own an impression tracker for the session. The session resets when the
@@ -399,10 +437,17 @@ const Feed = ((props: FeedProps) => {
         // background feed must never move the shared scrollY (it isn't actually
         // being scrolled by the user).
         if (scrollEnabled === false || !isFocused) return;
+        const contentOffset = event.nativeEvent?.contentOffset;
+        const offsetY = typeof contentOffset === 'number'
+            ? contentOffset
+            : contentOffset?.y;
+        if (typeof offsetY === 'number' && Number.isFinite(offsetY)) {
+            setFeedScrollOffset(feedState.feedScrollKey, offsetY);
+        }
         if (handleScroll) {
             handleScroll(event);
         }
-    }, [handleScroll, scrollEnabled, isFocused]);
+    }, [feedState.feedScrollKey, handleScroll, scrollEnabled, isFocused]);
 
     // Memoize RefreshControl to prevent recreation on every render. When the feed
     // scrolls behind the overlay chrome, offset the pull-to-refresh spinner by the

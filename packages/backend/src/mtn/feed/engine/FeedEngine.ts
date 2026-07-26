@@ -79,9 +79,17 @@ export class FeedEngine {
   ): Promise<SlicedFeedResponse> {
     const exec: FeedExecution = definition.execution ?? {};
     const { cursor, limit } = options;
+    const parsedScoreCursor = ScoreCursor.parse(cursor);
 
     // Per-request engine context the modules read.
-    const ctx: FeedEngineContext = { ...context, cursor, pageLimit: limit };
+    const ctx: FeedEngineContext = {
+      ...context,
+      cursor,
+      pageLimit: limit,
+      // Explore is currently the only pre-scored source. Pin its time-dependent
+      // recency score on page one and carry that instant in every next cursor.
+      rankingAsOf: exec.preScored ? (parsedScoreCursor?.asOf ?? Date.now()) : undefined,
+    };
 
     // Anonymous popular fallback (For You / Videos / Media): no viewer signals,
     // so we serve the engagement-sorted popular source directly.
@@ -90,7 +98,6 @@ export class FeedEngine {
     }
 
     // Seen-post de-prioritization for ranked personalized/discovery feeds.
-    let parsedScoreCursor = ScoreCursor.parse(cursor);
     if (exec.seenPosts && ctx.currentUserId) {
       const seenPostIds = await feedSeenPostsService.getSeenPostIds(ctx.currentUserId);
       if (parsedScoreCursor?.id && !seenPostIds.includes(parsedScoreCursor.id)) {
@@ -447,7 +454,16 @@ export class FeedEngine {
       viewerId: ctx.currentUserId,
     });
 
-    const diversifiedSlices = diversifyByAuthor(rawSlices, sliceAuthorKey);
+    // A pre-scored source owns a strict score-descending keyset. Select that
+    // page's score window BEFORE visual author diversification: otherwise a
+    // lower-score slice can be pulled into the page, move the cursor below a
+    // deferred higher-score slice, and skip that slice forever.
+    // Pagination units are slices, not raw candidates: thread grouping can
+    // collapse several candidates into one slice, so candidate count would
+    // advertise a phantom next page.
+    const preScoredHasMore = exec.preScored && rawSlices.length > limit;
+    const slicesToDiversify = exec.preScored ? rawSlices.slice(0, limit) : rawSlices;
+    const diversifiedSlices = diversifyByAuthor(slicesToDiversify, sliceAuthorKey);
 
     // Phase 5: cap the discovery share of the page (For You sets
     // `maxDiscoveryShare`; every other feed leaves it unset → no-op). Runs AFTER
@@ -460,8 +476,10 @@ export class FeedEngine {
       limit,
     );
 
-    const hasMore = cappedSlices.length > limit;
-    const pageSlices = hasMore ? cappedSlices.slice(0, limit) : cappedSlices;
+    const hasMore = exec.preScored ? preScoredHasMore : cappedSlices.length > limit;
+    const pageSlices = exec.preScored
+      ? cappedSlices
+      : (hasMore ? cappedSlices.slice(0, limit) : cappedSlices);
 
     const hydratedSlices = await postHydrationService.hydrateSlices(pageSlices, {
       viewerId: ctx.currentUserId,
@@ -479,16 +497,33 @@ export class FeedEngine {
     if (pageSlices.length > 0 && hasMore) {
       let anchorScore = Infinity;
       let anchorId: string | undefined;
+      const pageAnchorIds: string[] = [];
       for (const slice of pageSlices) {
         const anchor = sliceCursorAnchor(slice);
         if (!anchor) continue;
-        if (anchor.score < anchorScore) {
+        pageAnchorIds.push(anchor.id);
+        if (
+          anchor.score < anchorScore
+          || (anchor.score === anchorScore && (anchorId === undefined || anchor.id < anchorId))
+        ) {
           anchorScore = anchor.score;
           anchorId = anchor.id;
         }
       }
       if (anchorId && anchorScore !== Infinity) {
-        sliceCursor = ScoreCursor.build(anchorScore, anchorId);
+        sliceCursor = ScoreCursor.build(
+          anchorScore,
+          anchorId,
+          ctx.rankingAsOf === undefined
+            ? undefined
+            : {
+              asOf: ctx.rankingAsOf,
+              // Keep a bounded rolling guard rather than only the cursor row.
+              // Current-page ids come first so the most recent boundary is
+              // always protected when the 100-id cap is reached.
+              excludeIds: [...pageAnchorIds, ...(parsedCursor?.excludeIds ?? [])],
+            },
+        );
         if (!didCursorAdvance(sliceCursor, cursor)) {
           logger.warn('[FeedEngine] Ranked cursor did not advance', { cursor, nextCursor: sliceCursor });
           sliceCursor = undefined;

@@ -5,8 +5,11 @@
 
 import type { DependencyList } from 'react';
 import type {
+    FeedInterstitialSlot,
+    FeedPostSlice,
     FeedType,
     FeedFilters as SharedFeedFilters,
+    HydratedPost,
 } from '@mention/shared-types';
 
 // Extended FeedFilters with additional properties used by the app
@@ -57,6 +60,90 @@ export function getItemKey(item: any): string {
     // Fallback to username or JSON stringification as last resort
     const fallback = item?.username || JSON.stringify(item);
     return String(fallback);
+}
+
+export interface FeedPageContent {
+    items?: readonly HydratedPost[];
+    slices?: readonly FeedPostSlice[];
+    interstitials?: readonly FeedInterstitialSlot[];
+}
+
+export interface MergedFeedPageContent {
+    items: HydratedPost[];
+    slices?: FeedPostSlice[];
+    interstitials?: FeedInterstitialSlot[];
+}
+
+/**
+ * Merge accumulated feed data with another page while preserving first-seen
+ * order and removing every form of page-boundary overlap.
+ *
+ * The API exposes the same feed in two representations: flat `items` and
+ * grouped `slices`. Both must be normalized because the renderer prefers
+ * slices whenever they exist. Posts are deduplicated by their canonical item
+ * id, empty slices are removed, duplicate slice/slot keys keep their first
+ * occurrence, and slots whose anchor disappeared are discarded. Boost wrappers
+ * intentionally remain distinct from their originals because feeds use that
+ * relationship as ranking/social context.
+ */
+export function mergeFeedPageContent(
+    accumulated: FeedPageContent | undefined,
+    incoming: FeedPageContent,
+): MergedFeedPageContent {
+    const items: HydratedPost[] = [];
+    const seenItemKeys = new Set<string>();
+
+    for (const item of [...(accumulated?.items ?? []), ...(incoming.items ?? [])]) {
+        const key = getItemKey(item);
+        if (!key || seenItemKeys.has(key)) continue;
+        seenItemKeys.add(key);
+        items.push(item);
+    }
+
+    const slices: FeedPostSlice[] = [];
+    const seenSliceKeys = new Set<string>();
+    const seenSlicePostKeys = new Set<string>();
+
+    for (const slice of [...(accumulated?.slices ?? []), ...(incoming.slices ?? [])]) {
+        if (!slice?._sliceKey || seenSliceKeys.has(slice._sliceKey)) continue;
+
+        const uniqueItems = slice.items.filter((sliceItem) => {
+            const key = getItemKey(sliceItem?.post);
+            if (!key || seenSlicePostKeys.has(key)) return false;
+            seenSlicePostKeys.add(key);
+            return true;
+        });
+        if (uniqueItems.length === 0) continue;
+
+        seenSliceKeys.add(slice._sliceKey);
+        slices.push(
+            uniqueItems.length === slice.items.length
+                ? slice
+                : { ...slice, items: uniqueItems },
+        );
+    }
+
+    const interstitials: FeedInterstitialSlot[] = [];
+    const seenSlotKeys = new Set<string>();
+    const validAnchors = slices.length > 0
+        ? new Set(slices.map((slice) => slice._sliceKey))
+        : new Set(items.map(getItemKey));
+
+    for (const slot of [
+        ...(accumulated?.interstitials ?? []),
+        ...(incoming.interstitials ?? []),
+    ]) {
+        if (!slot?.key || seenSlotKeys.has(slot.key)) continue;
+        if (!validAnchors.has(slot.afterSliceKey)) continue;
+        seenSlotKeys.add(slot.key);
+        interstitials.push(slot);
+    }
+
+    return {
+        items,
+        slices: slices.length > 0 ? slices : undefined,
+        interstitials: interstitials.length > 0 ? interstitials : undefined,
+    };
 }
 
 /**

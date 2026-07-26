@@ -8,7 +8,12 @@ import type {
 } from '@mention/shared-types';
 import { usePostsStore, useFeedSelector, useUserFeedSelector } from '@/stores/postsStore';
 import { feedService } from '@/services/feedService';
-import { FeedFilters, getItemKey, deduplicateItems, buildFeedScrollKey } from '@/utils/feedUtils';
+import {
+    FeedFilters,
+    getItemKey,
+    buildFeedScrollKey,
+    mergeFeedPageContent,
+} from '@/utils/feedUtils';
 import { createScopedLogger } from '@/lib/logger';
 import { useDeepCompareEffect } from './useDeepCompare';
 import { buildFeedKey, hasFeedData, isDbAvailable } from '@/db';
@@ -81,6 +86,8 @@ export interface UseFeedStateOptions {
 }
 
 export interface UseFeedStateReturn {
+    /** Stable viewer/feed identity used by cache and scroll restoration. */
+    feedScrollKey: string;
     items: HydratedPost[];
     slices?: FeedPostSlice[];
     /**
@@ -162,6 +169,9 @@ export function useFeedState({
         }),
         [type, userId, showOnlySaved, filters, isAuthenticated, currentUserId]
     );
+    const viewerIdentity = showOnlySaved
+        ? 'saved'
+        : (isAuthenticated && currentUserId ? currentUserId : 'anon');
 
     // Warm-start seed: in memory mode, if we retained this feed's slice from a
     // previous mount, hydrate local state from it synchronously so the list
@@ -220,26 +230,34 @@ export function useFeedState({
 
     // Refs for preventing duplicate calls.
     //
-    // Separate AbortControllers per operation class so concurrent operations
-    // never cancel each other:
+    // Separate AbortControllers per operation class:
     //   - primaryAbortRef: initial load (fetchInitial) AND refresh. These are
     //     mutually exclusive "load the first page" operations, so they share a
     //     controller (a new refresh should supersede an in-flight initial load).
-    //   - loadMoreAbortRef: pagination (loadMore). A pull-to-refresh during a
-    //     loadMore (or vice versa) now aborts only its own prior request, never
-    //     the other operation's in-flight fetch.
+    //   - loadMoreAbortRef: pagination (loadMore). Every first-page operation
+    //     invalidates this controller and advances the epoch below, so a late
+    //     pagination response can never append to a freshly-refreshed feed even
+    //     when its transport ignores AbortSignal.
     const isFetchingRef = useRef(false);
     const isLoadingMoreRef = useRef(false);
     const primaryAbortRef = useRef<AbortController | null>(null);
     const loadMoreAbortRef = useRef<AbortController | null>(null);
+    const paginationEpochRef = useRef(0);
     const previousReloadKeyRef = useRef<string | number | undefined>(undefined);
-    // Tracks the auth identity the currently-displayed feed was loaded under, so a
-    // change (anon→user, or user A→user B) can invalidate the stale cache before
-    // the fresh authenticated feed is fetched. `undefined` means "not yet seen".
-    const previousIdentityRef = useRef<string | undefined>(undefined);
+    // AccountSwitchReset has already proved this initial identity before the
+    // hook mounts. Any later difference is a real identity transition.
+    const previousIdentityRef = useRef(viewerIdentity);
+
+    const invalidatePagination = useCallback(() => {
+        paginationEpochRef.current += 1;
+        loadMoreAbortRef.current?.abort();
+        loadMoreAbortRef.current = null;
+        isLoadingMoreRef.current = false;
+    }, []);
 
     useEffect(() => {
         return () => {
+            paginationEpochRef.current += 1;
             if (primaryAbortRef.current) {
                 primaryAbortRef.current.abort();
             }
@@ -437,11 +455,15 @@ export function useFeedState({
 
     const fetchInitial = useCallback(
         async (forceRefresh: boolean = false) => {
-            if (isFetchingRef.current) {
+            if (isFetchingRef.current && !forceRefresh) {
                 logger.debug('Already fetching, skipping');
                 return;
             }
 
+            // A first-page read defines a new feed generation. Cancel pagination
+            // immediately and advance its epoch before any cache/network branch
+            // can complete, so a slow old page cannot append afterward.
+            invalidatePagination();
             isFetchingRef.current = true;
 
             if (primaryAbortRef.current) {
@@ -556,7 +578,12 @@ export function useFeedState({
                         );
                     }
 
-                    const uniqueItems = deduplicateItems(items, getItemKey);
+                    const normalizedPage = mergeFeedPageContent(undefined, {
+                        items,
+                        slices: resp.slices,
+                        interstitials: resp.interstitials,
+                    });
+                    const uniqueItems = normalizedPage.items;
                     if (userId && resp.pending === true && uniqueItems.length === 0 && localItemsRef.current.length > 0) {
                         applyPendingResult(true, false);
                         return;
@@ -570,8 +597,8 @@ export function useFeedState({
                     // a cold blocking fetch on open. Memory mode keeps its own
                     // ordering in local state; this only upserts the post objects.
                     cachePosts(uniqueItems);
-                    const initialSlices = resp.slices || undefined;
-                    const initialInterstitials = resp.interstitials || undefined;
+                    const initialSlices = normalizedPage.slices;
+                    const initialInterstitials = normalizedPage.interstitials;
                     const initialHasMore = !!resp.hasMore;
                     setLocalItems(uniqueItems);
                     setLocalSlices(initialSlices);
@@ -618,8 +645,10 @@ export function useFeedState({
                 // Only clear the spinner if this request still owns the primary
                 // controller; otherwise a newer request has taken over and is
                 // responsible for its own loading state.
-                if (useMemoryFeed && ownsPrimary()) setLocalLoading(false);
-                isFetchingRef.current = false;
+                if (ownsPrimary()) {
+                    if (useMemoryFeed) setLocalLoading(false);
+                    isFetchingRef.current = false;
+                }
             }
         },
         [
@@ -637,6 +666,7 @@ export function useFeedState({
             clearError,
             applyPendingResult,
             retainMemoryCache,
+            invalidatePagination,
         ]
     );
 
@@ -644,6 +674,11 @@ export function useFeedState({
     fetchInitialRef.current = fetchInitial;
 
     const refresh = useCallback(async () => {
+        // Gate onEndReached synchronously before React commits localLoading.
+        isFetchingRef.current = true;
+        // Refresh replaces the accumulated feed. Invalidate pagination before
+        // starting it so even an uncancellable, late loadMore response is stale.
+        invalidatePagination();
         if (primaryAbortRef.current) {
             primaryAbortRef.current.abort();
         }
@@ -691,7 +726,12 @@ export function useFeedState({
                     );
                 }
 
-                const uniqueItems = deduplicateItems(items, getItemKey);
+                const normalizedPage = mergeFeedPageContent(undefined, {
+                    items,
+                    slices: resp.slices,
+                    interstitials: resp.interstitials,
+                });
+                const uniqueItems = normalizedPage.items;
                 if (userId && resp.pending === true && uniqueItems.length === 0 && localItemsRef.current.length > 0) {
                     applyPendingResult(true, false);
                     return;
@@ -701,8 +741,8 @@ export function useFeedState({
                 precacheActorsFromPosts(uniqueItems);
                 // Seed the shared post cache for instant post-detail open (see fetchInitial).
                 cachePosts(uniqueItems);
-                const refreshedSlices = resp.slices || undefined;
-                const refreshedInterstitials = resp.interstitials || undefined;
+                const refreshedSlices = normalizedPage.slices;
+                const refreshedInterstitials = normalizedPage.interstitials;
                 const refreshedHasMore = !!resp.hasMore;
                 setLocalItems(uniqueItems);
                 setLocalSlices(refreshedSlices);
@@ -730,13 +770,29 @@ export function useFeedState({
                 setLocalError('Failed to refresh');
             }
         } finally {
-            if (useMemoryFeed && ownsPrimary()) setLocalLoading(false);
+            if (ownsPrimary()) {
+                if (useMemoryFeed) setLocalLoading(false);
+                isFetchingRef.current = false;
+            }
         }
-    }, [applyPendingResult, type, userId, showOnlySaved, useMemoryFeed, filters, refreshFeed, fetchUserFeed, cachePosts, clearError, retainMemoryCache]);
+    }, [
+        applyPendingResult,
+        type,
+        userId,
+        showOnlySaved,
+        useMemoryFeed,
+        filters,
+        refreshFeed,
+        fetchUserFeed,
+        cachePosts,
+        clearError,
+        retainMemoryCache,
+        invalidatePagination,
+    ]);
 
     const loadMore = useCallback(async () => {
-        if (isLoadingMoreRef.current) {
-            logger.debug('Already loading more, skipping');
+        if (isFetchingRef.current || isLoadingMoreRef.current) {
+            logger.debug('First page or pagination already loading, skipping');
             return;
         }
 
@@ -746,10 +802,13 @@ export function useFeedState({
         const controller = new AbortController();
         loadMoreAbortRef.current = controller;
         const signal = controller.signal;
+        const paginationEpoch = paginationEpochRef.current;
         // Only the operation still owning the loadMore controller may toggle the
         // shared memory-mode loading flag, so a superseded loadMore can't clear
         // the spinner of the loadMore that replaced it.
-        const ownsLoadMore = () => loadMoreAbortRef.current === controller;
+        const ownsLoadMore = () =>
+            loadMoreAbortRef.current === controller
+            && paginationEpochRef.current === paginationEpoch;
 
         isLoadingMoreRef.current = true;
 
@@ -794,37 +853,40 @@ export function useFeedState({
                     );
                 }
 
+                const incomingPage = mergeFeedPageContent(undefined, {
+                    items,
+                    slices: resp.slices,
+                    interstitials: resp.interstitials,
+                });
+
                 // Prime the React Query actor cache (web feed's only actor source)
-                precacheActorsFromPosts(items);
+                precacheActorsFromPosts(incomingPage.items);
                 // Seed the shared post cache for instant post-detail open (see fetchInitial).
-                cachePosts(items);
+                cachePosts(incomingPage.items);
 
                 const prevCursor = localNextCursor;
                 const nextCursor = resp.nextCursor;
                 const cursorAdvanced = !!nextCursor && nextCursor !== prevCursor;
                 const mergedHasMore = !!resp.hasMore && cursorAdvanced;
-                const newSlices = resp.slices;
-                const newInterstitials = resp.interstitials;
-
                 // Compute the merged set up-front against the current state
                 // (closure values), so both the React state update and the cache
                 // write use the exact same result — independent of when React
                 // commits the functional updaters. `localItems`/`localSlices`
                 // are in this callback's dependency list, so the closure is fresh.
-                const existingIds = new Set(localItems.map(getItemKey));
-                const uniqueNew = deduplicateItems(items, getItemKey).filter(
-                    (p) => !existingIds.has(getItemKey(p))
+                const mergedPage = mergeFeedPageContent(
+                    {
+                        items: localItems,
+                        slices: localSlices,
+                        interstitials: localInterstitials,
+                    },
+                    incomingPage,
                 );
-                const mergedItems = localItems.concat(uniqueNew);
-                const mergedSlices = newSlices && newSlices.length > 0
-                    ? (localSlices ? [...localSlices, ...newSlices] : newSlices)
-                    : localSlices;
+                const mergedItems = mergedPage.items;
+                const mergedSlices = mergedPage.slices;
                 // Card placements accumulate with the pages that carry them: each
                 // page's slots anchor to slices of THAT page, so appending is enough
                 // to keep every card at its position in the accumulated feed.
-                const mergedInterstitials = newInterstitials && newInterstitials.length > 0
-                    ? (localInterstitials ? [...localInterstitials, ...newInterstitials] : newInterstitials)
-                    : localInterstitials;
+                const mergedInterstitials = mergedPage.interstitials;
 
                 setLocalItems(mergedItems);
                 if (mergedSlices !== localSlices) {
@@ -868,8 +930,10 @@ export function useFeedState({
             }
         } finally {
             // Only clear the spinner if this loadMore still owns its controller.
-            if (useMemoryFeed && ownsLoadMore()) setLocalLoading(false);
-            isLoadingMoreRef.current = false;
+            if (ownsLoadMore()) {
+                if (useMemoryFeed) setLocalLoading(false);
+                isLoadingMoreRef.current = false;
+            }
         }
     }, [
         showOnlySaved,
@@ -918,19 +982,18 @@ export function useFeedState({
         // The auth identity this run represents: the authenticated user id when
         // signed in, the literal 'anon' otherwise. Saved feeds never key on the
         // viewer, so their identity is constant.
-        const identity = showOnlySaved
-            ? 'saved'
-            : (isAuthenticated && currentUserId ? currentUserId : 'anon');
+        const identity = viewerIdentity;
         const previousIdentity = previousIdentityRef.current;
-        const identitySeen = previousIdentity !== undefined;
-        const identityChanged = identitySeen && previousIdentity !== identity;
+        const identityChanged = previousIdentity !== identity;
         previousIdentityRef.current = identity;
 
-        // Feed cache keys are scoped by feed/profile, not by the viewing account.
-        // On the first concrete viewer observed after cold boot (and on later
-        // viewer switches), drop warm caches before loading so a shared device or
-        // account switch cannot render another viewer's locally cached private feed.
-        const shouldInvalidateViewerCache = !showOnlySaved && (!identitySeen || identityChanged);
+        // The initial ref is this concrete viewer, whose persisted boundary was
+        // already proved or cleared by AccountSwitchReset before descendants
+        // mounted. Deleting its keyed warm cache would turn every Back/remount
+        // into a page-1 reset.
+        // Only a real identity transition within this mounted hook invalidates
+        // displayed state; the trust gate below hides the old rows synchronously.
+        const shouldInvalidateViewerCache = !showOnlySaved && identityChanged;
         if (shouldInvalidateViewerCache) {
             seededCacheRef.current = undefined;
             if (useMemoryFeed) {
@@ -960,6 +1023,7 @@ export function useFeedState({
         showOnlySaved,
         isAuthenticated,
         currentUserId,
+        viewerIdentity,
         feedScrollKey,
         clearFeed,
         clearUserFeed,
@@ -969,10 +1033,8 @@ export function useFeedState({
     // useMemoryFeed covers both scoped (filtered) feeds and global feeds when SQLite
     // is unavailable (web without COOP/COEP). The SQLite path is only taken when
     // isDbAvailable() === true and no scoped filters are present.
-    const currentViewerIdentity = showOnlySaved
-        ? 'saved'
-        : (isAuthenticated && currentUserId ? currentUserId : 'anon');
-    const isViewerCacheTrusted = showOnlySaved || previousIdentityRef.current === currentViewerIdentity;
+    const isViewerCacheTrusted =
+        showOnlySaved || previousIdentityRef.current === viewerIdentity;
     const items = isViewerCacheTrusted ? (useMemoryFeed ? localItems : globalFeed?.items || []) : [];
     const slices = isViewerCacheTrusted ? (useMemoryFeed ? localSlices : globalFeed?.slices) : undefined;
     // Card placements are viewer-specific (the server only emits them for an
@@ -986,6 +1048,7 @@ export function useFeedState({
     const nextCursor = useMemoryFeed ? localNextCursor : globalFeed?.nextCursor;
 
     return {
+        feedScrollKey,
         items,
         slices,
         interstitials,

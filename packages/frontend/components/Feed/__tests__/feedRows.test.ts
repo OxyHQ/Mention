@@ -250,6 +250,36 @@ describe('feedRowKey', () => {
         const keys = rows.map(feedRowKey);
         expect(new Set(keys).size).toBe(keys.length);
     });
+
+    it('drops an overlapping post from a later slice and recomputes thread flags', () => {
+        const rows = build({
+            slices: [
+                threadSlice(['p1', 'p2']),
+                threadSlice(['p2', 'p3']),
+            ],
+        });
+
+        expect(layout(rows)).toEqual(['p1', 'p2', 'p3']);
+        expect(asPost(rows[2])).toMatchObject({
+            sliceKey: 'p2+p3',
+            isThreadParent: false,
+            isThreadChild: false,
+            isThreadLastChild: false,
+            threadRootId: 'p2',
+        });
+        expect(new Set(rows.map(feedRowKey)).size).toBe(rows.length);
+    });
+
+    it('keeps only one row when malformed input repeats an interstitial key', () => {
+        const duplicate = slot('suggestedUsers', 'p1');
+        const rows = build({
+            slices: [slice('p1')],
+            interstitials: [duplicate, duplicate],
+        });
+
+        expect(layout(rows)).toEqual(['p1', 'card:suggestedUsers']);
+        expect(new Set(rows.map(feedRowKey)).size).toBe(rows.length);
+    });
 });
 
 describe('feedRowType', () => {

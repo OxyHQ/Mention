@@ -455,8 +455,13 @@ function VirtualizedWebFeed(props: FeedProps) {
         return cb;
     }, [measureElement]);
 
-    // Scroll restoration against the document scroller (per-route window offset).
-    useScrollRestoration('window', { enabled: true });
+    // The route alone is not enough: Explore/profile tabs can host distinct
+    // feeds under one navigation entry. Scope the offset to the same stable
+    // viewer/feed identity that owns the retained page cache.
+    useScrollRestoration('window', {
+        enabled: true,
+        key: feedState.feedScrollKey,
+    });
 
     const header = listHeaderComponent ?? (
         <FeedHeader showComposeButton={showComposeButton} onComposePress={onComposePress} hideHeader={hideHeader} />

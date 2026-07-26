@@ -14,8 +14,9 @@ import type {
  * `<Slot />`) can restore its previously-loaded feed items when it remounts. A
  * full reload naturally clears everything.
  *
- * Scroll-offset restoration is NOT handled here — it lives in Bloom's shared
- * `@oxyhq/bloom/scroll` primitive, keyed by the active route.
+ * Web offsets live in Bloom's route-aware scroll primitive. Native normally
+ * keeps stack screens mounted, but route/tab swaps can still remount a feed, so
+ * this module also keeps a tiny imperative offset map keyed by feed identity.
  *
  * The memory cache is keyed by the feed-identity key from `buildFeedScrollKey`,
  * so each distinct feed restores independently.
@@ -47,6 +48,8 @@ interface FeedScrollStore {
     clearMemoryCache: (key: string) => void;
     clearAllMemoryCaches: () => void;
 }
+
+const nativeFeedScrollOffsets = new Map<string, number>();
 
 const useFeedScrollStore = create<FeedScrollStore>((set, get) => ({
     memoryCache: {},
@@ -94,9 +97,20 @@ export function clearFeedMemoryCache(key: string): void {
     useFeedScrollStore.getState().clearMemoryCache(key);
 }
 
-/** Drop all session-retained feed slices when the active viewer changes. */
+/** Drop all session-retained feed state when the active viewer changes. */
 export function clearAllFeedMemoryCaches(): void {
     useFeedScrollStore.getState().clearAllMemoryCaches();
+    nativeFeedScrollOffsets.clear();
+}
+
+/** Read the last native offset observed for a viewer/feed identity. */
+export function getFeedScrollOffset(key: string): number {
+    return nativeFeedScrollOffsets.get(key) ?? 0;
+}
+
+/** Save a native offset without publishing a Zustand update on every scroll. */
+export function setFeedScrollOffset(key: string, offset: number): void {
+    nativeFeedScrollOffsets.set(key, Math.max(0, offset));
 }
 
 // ── Local new-post broadcast (memory-mode feeds) ─────────────────────

@@ -87,6 +87,12 @@ export interface FeedEngineContext extends FeedContext {
   seenPostIds?: string[];
   /** The raw request cursor, forwarded so cursor-aware sources can page. */
   cursor?: string;
+  /**
+   * Stable millisecond timestamp used by pre-scored ranked sources for every
+   * page in one pagination session. The engine initializes it on page one and
+   * restores it from the versioned score cursor thereafter.
+   */
+  rankingAsOf?: number;
   /** The resolved page limit, so ordered/pre-scored sources can size their fetch. */
   pageLimit?: number;
   /**
