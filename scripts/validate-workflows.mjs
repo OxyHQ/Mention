@@ -130,6 +130,30 @@ for (const workflowName of workflowNames) {
             `${workflowName}: static hosting contract validation must run after export and before production changes`,
           );
         }
+
+        const productionSmokeIndex = source.indexOf("id: production_smoke");
+        const apexSmokeIndex = source.indexOf(
+          "Smoke test the apex after the backend rollout",
+        );
+        const rollbackIndex = source.indexOf(
+          "Roll back Cloudflare Pages after a failed production smoke",
+        );
+        if (
+          productionSmokeIndex < 0 ||
+          apexSmokeIndex < productionSmokeIndex ||
+          rollbackIndex < apexSmokeIndex
+        ) {
+          failures.push(
+            `${workflowName}: exact Pages smoke, apex convergence and rollback must remain separate and ordered`,
+          );
+        }
+        if (
+          !source.includes("steps.production_smoke.outcome == 'failure'")
+        ) {
+          failures.push(
+            `${workflowName}: an apex/backend race must not roll back a validated Pages deployment`,
+          );
+        }
       }
     }
   }

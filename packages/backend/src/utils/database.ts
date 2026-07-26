@@ -7,6 +7,17 @@ const INITIAL_RETRY_DELAY_MS = 1_000;
 
 let connectPromise: Promise<typeof mongoose> | null = null;
 
+export interface DatabaseConnectionOptions {
+  /**
+   * Per-process socket timeout. Long-running one-shot migrations may override
+   * the web runtime's tighter timeout without weakening request-serving tasks.
+   */
+  socketTimeoutMS?: number;
+  /** Keep one-shot pools small; web tasks continue to use the configured pool. */
+  maxPoolSize?: number;
+  minPoolSize?: number;
+}
+
 function retryDelay(attempt: number): number {
   return INITIAL_RETRY_DELAY_MS * 2 ** attempt;
 }
@@ -37,6 +48,7 @@ async function connectWithRetry(
   dbName: string,
   attempt: number,
   maxRetries: number,
+  options: DatabaseConnectionOptions,
 ): Promise<typeof mongoose> {
   try {
     await mongoose.connect(mongoUri, {
@@ -44,9 +56,9 @@ async function connectWithRetry(
       autoIndex: !config.runtime.isProduction,
       autoCreate: !config.runtime.isProduction,
       serverSelectionTimeoutMS: config.db.serverSelectionTimeoutMS,
-      socketTimeoutMS: config.db.socketTimeoutMS,
-      maxPoolSize: config.db.maxPoolSize,
-      minPoolSize: config.db.minPoolSize,
+      socketTimeoutMS: options.socketTimeoutMS ?? config.db.socketTimeoutMS,
+      maxPoolSize: options.maxPoolSize ?? config.db.maxPoolSize,
+      minPoolSize: options.minPoolSize ?? config.db.minPoolSize,
       maxIdleTimeMS: config.db.maxIdleTimeMS,
       readPreference: config.mongoReadPreference,
       w: 'majority',
@@ -70,7 +82,13 @@ async function connectWithRetry(
         );
       }
       await wait(delay);
-      return connectWithRetry(mongoUri, dbName, attempt + 1, maxRetries);
+      return connectWithRetry(
+        mongoUri,
+        dbName,
+        attempt + 1,
+        maxRetries,
+        options,
+      );
     }
 
     logger.error(`Failed to connect to MongoDB after ${maxRetries} attempts`, {
@@ -81,7 +99,9 @@ async function connectWithRetry(
   }
 }
 
-export async function connectToDatabase(): Promise<typeof mongoose> {
+export async function connectToDatabase(
+  options: DatabaseConnectionOptions = {},
+): Promise<typeof mongoose> {
   if (mongoose.connection.readyState === 1) {
     return mongoose;
   }
@@ -103,7 +123,13 @@ export async function connectToDatabase(): Promise<typeof mongoose> {
   const maxRetries = Number.isFinite(configuredRetries)
     ? Math.max(1, configuredRetries)
     : 5;
-  const pendingConnection = connectWithRetry(mongoUri, dbName, 1, maxRetries);
+  const pendingConnection = connectWithRetry(
+    mongoUri,
+    dbName,
+    1,
+    maxRetries,
+    options,
+  );
   connectPromise = pendingConnection;
 
   try {

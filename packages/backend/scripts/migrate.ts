@@ -8,13 +8,11 @@
  */
 
 import mongoose from 'mongoose';
-import { connectToDatabase } from '../src/utils/database';
 import { logger } from '../src/utils/logger';
-import { runMigrations } from '../src/migrations/runner';
+import { runMigrationTask } from '../src/migrations/task';
 
 async function main(): Promise<void> {
-  await connectToDatabase();
-  await runMigrations();
+  await runMigrationTask();
 }
 
 void main()

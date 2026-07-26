@@ -104,18 +104,32 @@ jobs:
           wranglerVersion: '4.81.0'
           command: pages deploy packages/frontend/dist --project-name=mention-frontend --branch=main
 
-      - name: Smoke test the exact production deployment and apex
+      - name: Smoke test the exact production deployment
+        id: production_smoke
         env:
           DEPLOYMENT_ORIGIN: ${{ steps.production.outputs.deployment-url }}
+        run: WEB_ORIGIN="$DEPLOYMENT_ORIGIN" bash .github/scripts/smoke-frontend.sh
+
+      - name: Smoke test the apex after the backend rollout
         run: |
           set -euo pipefail
-          WEB_ORIGIN="$DEPLOYMENT_ORIGIN" bash .github/scripts/smoke-frontend.sh
-          WEB_ORIGIN="https://mention.earth" bash .github/scripts/smoke-frontend.sh
+          for attempt in $(seq 1 40); do
+            if WEB_ORIGIN="https://mention.earth" bash .github/scripts/smoke-frontend.sh; then
+              exit 0
+            fi
+            if [[ "$attempt" -eq 40 ]]; then
+              echo "::error::Apex integration did not converge after 10 minutes."
+              exit 1
+            fi
+            echo "::warning::Apex still serves the previous backend contract; retrying in 15 seconds."
+            sleep 15
+          done
 
       - name: Roll back Cloudflare Pages after a failed production smoke
         if: >-
           failure() &&
           steps.production.outcome == 'success' &&
+          steps.production_smoke.outcome == 'failure' &&
           steps.previous.outputs.deployment_id != ''
         env:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

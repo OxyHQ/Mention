@@ -199,7 +199,8 @@ wait_for_service_rollout() {
   local task_definition="$1"
   local label="$2"
   local elapsed=0
-  local deployment_json deployment_state rollout_state running desired
+  local deployment_json="$service_json"
+  local deployment_state rollout_state running desired
 
   while (( elapsed < MAX_WAIT_SECS )); do
     if ! deployment_json="$(aws ecs describe-services \
@@ -240,6 +241,12 @@ wait_for_service_rollout() {
       fi
       if [[ "$rollout_state" == "FAILED" ]]; then
         echo "::error::ECS $label rollout for $APP failed."
+        echo "::group::Recent ECS service events"
+        jq -r '
+          .services[0].events[:10][]?
+          | "\(.createdAt // "unknown") \(.message // "unknown")"
+        ' <<<"$deployment_json"
+        echo "::endgroup::"
         return 1
       fi
     fi
@@ -249,7 +256,50 @@ wait_for_service_rollout() {
   done
 
   echo "::error::ECS $label rollout for $APP did not complete within ${MAX_WAIT_SECS}s."
+  echo "::group::Recent ECS service events"
+  jq -r '
+    .services[0].events[:10][]?
+    | "\(.createdAt // "unknown") \(.message // "unknown")"
+  ' <<<"$deployment_json"
+  echo "::endgroup::"
   return 1
+}
+
+print_one_shot_logs() {
+  local task_arn="$1"
+  local label="$2"
+  local task_id log_group log_stream_prefix log_stream log_json
+
+  task_id="${task_arn##*/}"
+  log_group="$(jq -r --arg name "$CONTAINER_NAME" '
+    .containerDefinitions[]
+    | select(.name == $name)
+    | .logConfiguration.options["awslogs-group"] // empty
+  ' "$rendered_task_definition_file")"
+  log_stream_prefix="$(jq -r --arg name "$CONTAINER_NAME" '
+    .containerDefinitions[]
+    | select(.name == $name)
+    | .logConfiguration.options["awslogs-stream-prefix"] // empty
+  ' "$rendered_task_definition_file")"
+
+  if [[ -z "$task_id" || -z "$log_group" || -z "$log_stream_prefix" ]]; then
+    echo "::warning::Unable to derive the CloudWatch log stream for failed $label task $task_arn."
+    return 0
+  fi
+
+  log_stream="$log_stream_prefix/$CONTAINER_NAME/$task_id"
+  if ! log_json="$(aws logs get-log-events \
+    --log-group-name "$log_group" \
+    --log-stream-name "$log_stream" \
+    --limit 200 \
+    --start-from-head)"; then
+    echo "::warning::Unable to read CloudWatch logs for failed $label task $task_arn."
+    return 0
+  fi
+
+  echo "::group::$label CloudWatch logs"
+  jq -r '.events[]?.message' <<<"$log_json"
+  echo "::endgroup::"
 }
 
 run_one_shot_command() {
@@ -298,6 +348,7 @@ run_one_shot_command() {
     .tasks[0].containers[] | select(.name == $name) | .exitCode // -1
   ' <<<"$task_json")"
   if [[ "$exit_code" != "0" ]]; then
+    print_one_shot_logs "$active_one_shot_task_arn" "$label"
     stopped_reason="$(jq -r '.tasks[0].stoppedReason // "unknown"' <<<"$task_json")"
     container_reason="$(jq -r --arg name "$CONTAINER_NAME" '
       .tasks[0].containers[] | select(.name == $name) | .reason // "unknown"

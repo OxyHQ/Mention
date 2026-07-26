@@ -21,6 +21,7 @@ export DEPLOY_TEST_LOG=""
 export DEPLOY_TEST_FAIL_STICKINESS=false
 export DEPLOY_TEST_HEALTH_PATH=/
 export DEPLOY_TEST_EXPECT_METRICS_ARN=false
+export DEPLOY_TEST_TASK_EXIT_CODE=0
 
 aws() {
   local service_json='{
@@ -71,7 +72,14 @@ aws() {
         "containerDefinitions": [{
           "name": "mention-test",
           "image": "example.invalid/mention-test:old",
-          "essential": true
+          "essential": true,
+          "logConfiguration": {
+            "logDriver": "awslogs",
+            "options": {
+              "awslogs-group": "/ecs/mention-test",
+              "awslogs-stream-prefix": "ecs"
+            }
+          }
         }]
       }'
       ;;
@@ -122,15 +130,23 @@ aws() {
       }'
       ;;
     "ecs describe-tasks")
-      printf '%s\n' '{
+      printf '{
         "failures": [],
         "tasks": [{
           "lastStatus": "STOPPED",
           "stoppedReason": "Essential container exited",
           "containers": [{
             "name": "mention-test",
-            "exitCode": 0
+            "exitCode": %s
           }]
+        }]
+      }\n' "$DEPLOY_TEST_TASK_EXIT_CODE"
+      ;;
+    "logs get-log-events")
+      printf 'tasklogs\n' >>"$DEPLOY_TEST_LOG"
+      printf '%s\n' '{
+        "events": [{
+          "message": "[migration] fixture failure"
         }]
       }'
       ;;
@@ -196,6 +212,7 @@ run_release() {
   local run_migrations="${5:-false}"
   local inject_internal_metrics="${6:-false}"
   local configure_target_group="${7:-true}"
+  local task_exit_code="${8:-0}"
   local case_directory="$test_directory/$case_name"
   local output_file="$case_directory/output.log"
   local smoke_script="$case_directory/smoke.sh"
@@ -205,8 +222,10 @@ run_release() {
   DEPLOY_TEST_FAIL_STICKINESS="$fail_stickiness"
   DEPLOY_TEST_HEALTH_PATH="$current_health_path"
   DEPLOY_TEST_EXPECT_METRICS_ARN="$inject_internal_metrics"
+  DEPLOY_TEST_TASK_EXIT_CODE="$task_exit_code"
   export DEPLOY_TEST_LOG DEPLOY_TEST_FAIL_STICKINESS
   export DEPLOY_TEST_HEALTH_PATH DEPLOY_TEST_EXPECT_METRICS_ARN
+  export DEPLOY_TEST_TASK_EXIT_CODE
 
   # The generated smoke fixture expands this variable when it runs.
   # shellcheck disable=SC2016
@@ -331,6 +350,23 @@ grep -F \
   >/dev/null
 if grep -q '^service:' "$test_directory/pre-rollout-mismatch/aws.log"; then
   echo "Pre-rollout mismatch reached update-service." >&2
+  exit 1
+fi
+
+run_release migration-failure false false / true false false 1
+printf '%s\n' \
+  reconcile \
+  tasklogs \
+  >"$test_directory/migration-failure/expected.log"
+diff -u \
+  "$test_directory/migration-failure/expected.log" \
+  "$test_directory/migration-failure/aws.log"
+grep -F \
+  "[migration] fixture failure" \
+  "$test_directory/migration-failure/output.log" \
+  >/dev/null
+if grep -q '^service:' "$test_directory/migration-failure/aws.log"; then
+  echo "Failed migration reached update-service." >&2
   exit 1
 fi
 
