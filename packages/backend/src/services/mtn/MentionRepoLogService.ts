@@ -18,7 +18,9 @@
 
 import type { SignedRecordEnvelope } from '@oxyhq/contracts';
 import type { ChainHead } from '@oxyhq/protocol';
-import MentionSignedRecord from '../../models/MentionSignedRecord';
+import MentionSignedRecord, {
+  MTN_CANONICAL_RECORD_FILTER,
+} from '../../models/MentionSignedRecord';
 import { mentionRecordStore } from './MentionRecordStore';
 import { buildUserDid } from './mentionDid';
 import { MENTION_NODE_PUBLIC_COLLECTIONS } from './mentionNodes.constants';
@@ -55,6 +57,7 @@ export async function getPublicLogSince(
     oxyUserId,
     seq: { $gt: sinceSeq },
     nsid: { $in: MENTION_NODE_PUBLIC_COLLECTIONS },
+    ...MTN_CANONICAL_RECORD_FILTER,
   })
     .sort({ seq: 1 })
     .limit(clampLimit(limit))

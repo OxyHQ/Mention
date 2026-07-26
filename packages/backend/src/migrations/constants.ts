@@ -93,9 +93,10 @@ export const MIGRATION_POST_HOT_PATH_INDEXES = '0010-post-hot-path-indexes';
 export const MIGRATION_ENGAGEMENT_OUTBOX_INDEXES = '0011-engagement-outbox-indexes';
 
 /**
- * Create the partial unique producer-event key for append-only MTN records.
- * This is a separate versioned migration so an already-applied outbox migration
- * can never leave the dispatcher active without its MTN dedupe backstop.
+ * Repair pre-index MTN forks without deleting signed envelopes, then install
+ * the sequence, repo-head and producer-event uniqueness backstops. This remains
+ * separate so an applied outbox migration can never leave the dispatcher
+ * active without MTN dedupe and canonical-chain constraints.
  */
 export const MIGRATION_MTN_EVENT_IDEMPOTENCY_INDEX =
   '0012-mtn-event-idempotency-index';

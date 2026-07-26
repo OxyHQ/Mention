@@ -26,7 +26,10 @@ import mongoose, { type ClientSession } from 'mongoose';
 import type { SignedRecordEnvelope } from '@oxyhq/contracts';
 import type { AppendOutcome, ChainHead, RecordStore } from '@oxyhq/protocol';
 import { parseUserDid } from './mentionDid';
-import MentionSignedRecord from '../../models/MentionSignedRecord';
+import MentionSignedRecord, {
+  MTN_CANONICAL_RECORD_FILTER,
+  MTN_CHAIN_STATUS,
+} from '../../models/MentionSignedRecord';
 import MentionRepoHead from '../../models/MentionRepoHead';
 import { logger } from '../../utils/logger';
 
@@ -99,10 +102,30 @@ export class MentionRecordStoreImpl implements RecordStore {
       return null;
     }
     const head = await MentionRepoHead.findOne({ oxyUserId })
+      .read('primary')
       .lean<{ seq: number; headRecordId: string; recordCount?: number } | null>();
     if (!head) {
       return null;
     }
+
+    // Never build a new append on a head that no longer resolves to the
+    // authoritative branch. Missing status is accepted for pre-0012 rows.
+    const headRecord = await MentionSignedRecord.findOne({
+      oxyUserId,
+      recordId: head.headRecordId,
+      seq: head.seq,
+      verified: true,
+      ...MTN_CANONICAL_RECORD_FILTER,
+    })
+      .read('primary')
+      .select('_id')
+      .lean<{ _id: unknown } | null>();
+    if (!headRecord) {
+      throw new Error(
+        `MentionRecordStore: inconsistent canonical head for ${oxyUserId}`,
+      );
+    }
+
     return {
       headRecordId: head.headRecordId,
       seq: head.seq,
@@ -165,6 +188,7 @@ export class MentionRecordStoreImpl implements RecordStore {
       idempotencyKey,
       verified: true,
     })
+      .read('primary')
       .select('recordId seq envelope')
       .lean<{
         recordId?: string;
@@ -174,14 +198,21 @@ export class MentionRecordStoreImpl implements RecordStore {
     if (
       !row ||
       typeof row.recordId !== 'string' ||
-      typeof row.seq !== 'number' ||
       !row.envelope
     ) {
       return null;
     }
+    const seq =
+      typeof row.seq === 'number'
+        ? row.seq
+        : row.envelope.version === 2 &&
+            typeof row.envelope.seq === 'number'
+          ? row.envelope.seq
+          : null;
+    if (seq === null) return null;
     return {
       recordId: row.recordId,
-      seq: row.seq,
+      seq,
       envelope: row.envelope,
     };
   }
@@ -221,6 +252,7 @@ export class MentionRecordStoreImpl implements RecordStore {
                 seq,
                 prev: env.prev ?? null,
                 recordId,
+                chainStatus: MTN_CHAIN_STATUS.CANONICAL,
                 ...(idempotencyKey ? { idempotencyKey } : {}),
                 // Denormalize the envelope's `collection` to the `nsid` column.
                 nsid: env.collection,
@@ -258,6 +290,7 @@ export class MentionRecordStoreImpl implements RecordStore {
       envelope: env,
       publicKey: env.publicKey,
       verified: true,
+      chainStatus: MTN_CHAIN_STATUS.CANONICAL,
       ...(idempotencyKey ? { idempotencyKey } : {}),
     });
     return { ok: true, recordId, seq: -1 };
@@ -268,7 +301,11 @@ export class MentionRecordStoreImpl implements RecordStore {
     if (!oxyUserId) {
       return [];
     }
-    const rows = await MentionSignedRecord.find({ oxyUserId, seq: { $gt: sinceSeq } })
+    const rows = await MentionSignedRecord.find({
+      oxyUserId,
+      seq: { $gt: sinceSeq },
+      ...MTN_CANONICAL_RECORD_FILTER,
+    })
       .sort({ seq: 1 })
       .limit(clampLogLimit(limit))
       .lean<Array<{ envelope: SignedRecordEnvelope }>>();
@@ -280,7 +317,11 @@ export class MentionRecordStoreImpl implements RecordStore {
     if (!oxyUserId) {
       return null;
     }
-    const row = await MentionSignedRecord.findOne({ oxyUserId, recordId })
+    const row = await MentionSignedRecord.findOne({
+      oxyUserId,
+      recordId,
+      ...MTN_CANONICAL_RECORD_FILTER,
+    })
       .select('seq')
       .lean<{ seq?: number } | null>();
     return typeof row?.seq === 'number' ? row.seq : null;
@@ -291,7 +332,13 @@ export class MentionRecordStoreImpl implements RecordStore {
     if (!oxyUserId) {
       return null;
     }
-    const row = await MentionSignedRecord.findOne({ oxyUserId, nsid: collection, rkey, verified: true })
+    const row = await MentionSignedRecord.findOne({
+      oxyUserId,
+      nsid: collection,
+      rkey,
+      verified: true,
+    })
+      .read('primary')
       .sort({ createdAt: -1 })
       .lean<{ envelope: SignedRecordEnvelope } | null>();
     return row?.envelope ?? null;
@@ -318,9 +365,17 @@ export class MentionRecordStoreImpl implements RecordStore {
     }
     const filter =
       env.version === 2
-        ? { oxyUserId: { $eq: oxyUserId }, nsid: { $eq: env.collection }, rkey: { $eq: env.rkey } }
-        : { oxyUserId: { $eq: oxyUserId }, type: { $eq: env.type } };
+        ? {
+            oxyUserId: { $eq: oxyUserId },
+            nsid: { $eq: env.collection },
+            rkey: { $eq: env.rkey },
+          }
+        : {
+            oxyUserId: { $eq: oxyUserId },
+            type: { $eq: env.type },
+          };
     const latest = await MentionSignedRecord.findOne(filter)
+      .read('primary')
       .sort({ createdAt: -1 })
       .lean<{ envelope?: { issuedAt?: number } } | null>();
     const latestIssuedAt = latest?.envelope?.issuedAt;

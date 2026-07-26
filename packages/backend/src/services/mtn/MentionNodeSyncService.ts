@@ -83,7 +83,9 @@ import {
   mentionPostRecordSchema,
 } from '@mention/shared-types';
 import MentionUserNode from '../../models/MentionUserNode';
-import MentionSignedRecord from '../../models/MentionSignedRecord';
+import MentionSignedRecord, {
+  MTN_CHAIN_STATUS,
+} from '../../models/MentionSignedRecord';
 import MentionNodeIngestWitness from '../../models/MentionNodeIngestWitness';
 import { logger } from '../../utils/logger';
 import { getHead, getPublicLogSince } from './MentionRepoLogService';
@@ -245,7 +247,13 @@ async function currentKeyValue(
   nsid: string,
   rkey: string,
 ): Promise<{ issuedAt: number; recordId: string } | null> {
-  const row = await MentionSignedRecord.findOne({ oxyUserId, nsid, rkey, verified: true })
+  const row = await MentionSignedRecord.findOne({
+    oxyUserId,
+    nsid,
+    rkey,
+    verified: true,
+  })
+    .read('primary')
     .sort({ createdAt: -1 })
     .lean<{ recordId?: string; envelope?: { issuedAt?: number } } | null>();
   if (!row || typeof row.envelope?.issuedAt !== 'number' || typeof row.recordId !== 'string') {
@@ -285,6 +293,7 @@ async function storeForkMirror(env: SignedRecordEnvelope, oxyUserId: string, rec
       envelope: env,
       publicKey: env.publicKey,
       verified: true,
+      chainStatus: MTN_CHAIN_STATUS.CONFLICT,
       // No `seq`/`prev` — intentionally off the linear chain (fork archive).
       recordId,
       nsid: env.version === 2 ? env.collection : undefined,

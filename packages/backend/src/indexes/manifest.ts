@@ -85,6 +85,12 @@ export const MTN_CHAIN_INTEGRITY_INDEXES = [
   MTN_SEQUENCE_INDEX,
 ] as const satisfies readonly IndexDescription[];
 
+export const MTN_REPO_HEAD_OWNER_INDEX = {
+  name: 'oxyUserId_1',
+  key: { oxyUserId: 1 },
+  unique: true,
+} as const satisfies IndexDescription;
+
 /**
  * One append-only MTN record per durable event and chain subject. The event id
  * is deliberately independent from the logical record key: like -> tombstone

@@ -16,6 +16,8 @@ export interface DatabaseConnectionOptions {
   /** Keep one-shot pools small; web tasks continue to use the configured pool. */
   maxPoolSize?: number;
   minPoolSize?: number;
+  /** Migrations that select canonical state must read the primary. */
+  readPreference?: mongoose.ConnectOptions['readPreference'];
 }
 
 function retryDelay(attempt: number): number {
@@ -60,7 +62,7 @@ async function connectWithRetry(
       maxPoolSize: options.maxPoolSize ?? config.db.maxPoolSize,
       minPoolSize: options.minPoolSize ?? config.db.minPoolSize,
       maxIdleTimeMS: config.db.maxIdleTimeMS,
-      readPreference: config.mongoReadPreference,
+      readPreference: options.readPreference ?? config.mongoReadPreference,
       w: 'majority',
       wtimeoutMS: 5_000,
       retryWrites: true,

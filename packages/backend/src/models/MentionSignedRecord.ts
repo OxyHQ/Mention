@@ -7,6 +7,20 @@ import {
 } from '../indexes/manifest';
 
 export const MENTION_SIGNED_RECORD_COLLECTION = 'mentionsignedrecords';
+export const MTN_CHAIN_STATUS = {
+  CANONICAL: 'canonical',
+  CONFLICT: 'conflict',
+} as const;
+export type MtnChainStatus =
+  (typeof MTN_CHAIN_STATUS)[keyof typeof MTN_CHAIN_STATUS];
+
+/**
+ * Query fragment for records that may participate in the authoritative chain.
+ * Rows written before chain-status metadata was introduced remain canonical.
+ */
+export const MTN_CANONICAL_RECORD_FILTER = {
+  chainStatus: { $ne: MTN_CHAIN_STATUS.CONFLICT },
+} as const;
 
 /**
  * MentionSignedRecord (MTN Protocol — per-subject hash chain, Workstream B / B1)
@@ -15,7 +29,10 @@ export const MENTION_SIGNED_RECORD_COLLECTION = 'mentionsignedrecords';
  * user publishes in Mention (posts / likes / reposts / tombstones / bookmarks).
  * Each row stores the FULL signed envelope verbatim plus denormalised fields for
  * indexing. Rows are never mutated or deleted — a newer record (a tombstone, an
- * edit version) simply supersedes an older one by chain order.
+ * edit version) simply supersedes an older one by chain order. The sole local
+ * metadata exception is fork classification: `chainStatus` may be set and a
+ * conflict's denormalized top-level seq/prev removed; its signed envelope and
+ * recordId remain byte-for-byte intact.
  *
  * This MIRRORS oxy-api's `SignedRecord` model, but it lives in MENTION's Mongo
  * and is keyed by `oxyUserId` (the user's Oxy account id as a STRING) instead of
@@ -39,7 +56,8 @@ export const MENTION_SIGNED_RECORD_COLLECTION = 'mentionsignedrecords';
  * v1 rows carry NONE of the chain fields; the chain indexes are PARTIAL (they
  * only cover rows where the field exists), so a unique `recordId`/`{oxyUserId,seq}`
  * index never collides over the absent v1 fields. Mention emits only v2 records,
- * but the v1-tolerant shape is kept so the model is a faithful port.
+ * but the v1-tolerant shape is kept so the model is a faithful port. Conflict
+ * archives also omit top-level seq/prev while retaining both in their envelope.
  */
 export interface IMentionSignedRecord extends Document {
   /** The subject DID the record is about (`did:web:<domain>:u:<oxyUserId>`). */
@@ -59,6 +77,14 @@ export interface IMentionSignedRecord extends Document {
   prev?: string | null;
   /** v2 only: content address (sha256 of the canonical signing input). UNIQUE. */
   recordId?: string;
+  /**
+   * Local chain-selection metadata. It is deliberately outside the signed
+   * envelope: canonical records drive head/log traversal. Conflicting forks
+   * remain eligible for per-key LWW materialization, but never linear-chain
+   * state.
+   * Missing means canonical for records written before migration 0012.
+   */
+  chainStatus?: MtnChainStatus;
   /**
    * Durable producer-event identity. Not part of the signed wire envelope and
    * not the logical rkey: it only makes at-least-once local delivery idempotent.
@@ -92,6 +118,10 @@ const MentionSignedRecordSchema = new Schema<IMentionSignedRecord>(
     seq: { type: Number },
     prev: { type: String, default: undefined },
     recordId: { type: String },
+    chainStatus: {
+      type: String,
+      enum: Object.values(MTN_CHAIN_STATUS),
+    },
     idempotencyKey: { type: String },
     nsid: { type: String },
     rkey: { type: String },

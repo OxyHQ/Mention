@@ -32,11 +32,13 @@ describe('migration task database isolation', () => {
       socketTimeoutMS: 15 * 60 * 1_000,
       minPoolSize: 0,
       maxPoolSize: 10,
+      readPreference: 'primary',
     });
     expect(MIGRATION_DATABASE_CONNECTION_OPTIONS).toEqual({
       socketTimeoutMS: 900_000,
       minPoolSize: 0,
       maxPoolSize: 10,
+      readPreference: 'primary',
     });
     expect(mocks.runMigrations).toHaveBeenCalledOnce();
   });
