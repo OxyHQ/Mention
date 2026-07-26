@@ -24,12 +24,27 @@ env:
   DEPLOY_SHA: ${{ github.event.workflow_run.head_sha }}
 
 jobs:
-  deploy:
+  scope:
     if: >-
       github.event.workflow_run.conclusion == 'success' &&
       github.event.workflow_run.event == 'push' &&
       github.event.workflow_run.head_repository.full_name == github.repository &&
       github.event.workflow_run.head_branch == 'main'
+    runs-on: ubuntu-latest
+    outputs:
+      deploy: ${{ steps.filter.outputs.deploy }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ env.DEPLOY_SHA }}
+          fetch-depth: 2
+      - name: Detect MCP deployment scope
+        id: filter
+        run: bash .github/scripts/deployment-scope.sh mcp
+
+  deploy:
+    needs: scope
+    if: needs.scope.outputs.deploy == 'true'
     runs-on: ubuntu-24.04-arm
     # Leaves enough time for both the rollout and an automatic rollback.
     timeout-minutes: 70
