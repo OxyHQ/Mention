@@ -1,7 +1,7 @@
 import rateLimit from "express-rate-limit";
 import slowDown from "express-slow-down";
 import type { RequestHandler } from "express";
-import { Request, Response } from "express";
+import { Request } from "express";
 import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
 import { RedisStore } from "./rateLimitStore";
 import { hashedIpKey } from "../utils/ipKey";
@@ -16,10 +16,9 @@ const UNAUTHENTICATED_LIMIT_PER_WINDOW = 600; // per 15 min
  * Generate a rate limit key based on user authentication status.
  * Uses user ID for authenticated users, IP address for unauthenticated users.
  *
- * Per-user keying is essential behind the ALB: many users egress through a
- * small pool of proxy IPs, so IP-only keying would force unrelated users to
- * share a single bucket and trip 429s. `optionalAuth` runs globally before the
- * limiter (see server.ts), so `req.user.id` is populated by the time this runs.
+ * Route-local limiters mounted after authentication use the user ID. The
+ * app-wide slow-down runs before route composition, so it intentionally falls
+ * back to an HMAC of the caller IP when no earlier middleware populated a user.
  */
 function generateRateLimitKey(req: Request, prefix: string): string {
   const authReq = req as AuthRequest;

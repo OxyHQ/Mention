@@ -37,6 +37,11 @@ import { Post } from '../models/Post';
 import { outboxSyncService } from '../connectors/activitypub/outbox.service';
 import { extractInReplyToUri } from '../connectors/activitypub/helpers';
 import { logger } from '../utils/logger';
+import { assertAdminMutationAllowed } from './lib/adminScriptSafety';
+import {
+  assertAdminRunComplete,
+  closeAdminScriptResources,
+} from './lib/adminScriptLifecycle';
 import {
   PostRecentReplier,
   type IPostRecentReplier,
@@ -69,10 +74,15 @@ async function backfillFederatedThreadLinks(): Promise<void> {
   const dbName = `mention-${process.env.NODE_ENV || 'development'}`;
 
   try {
+    assertAdminMutationAllowed({
+      scriptName: 'backfillFederatedThreadLinks',
+      dryRun: DRY_RUN,
+    });
     await mongoose.connect(mongoUri, { dbName });
-    logger.info(
-      `[backfillFederatedThreadLinks] connected to MongoDB (${dbName}); DRY_RUN=${DRY_RUN}, BACKFILL_ANCESTORS=${BACKFILL_ANCESTORS}`,
-    );
+    logger.info('[backfillFederatedThreadLinks] connected to MongoDB', {
+      dryRun: DRY_RUN,
+      backfillAncestors: BACKFILL_ANCESTORS,
+    });
 
     // Orphans: a federated reply (has federation.inReplyTo) that was never linked
     // (no parentPostId). The filter set only ever SHRINKS as we set parentPostId,
@@ -196,10 +206,15 @@ async function backfillFederatedThreadLinks(): Promise<void> {
       `[backfillFederatedThreadLinks] done${DRY_RUN ? ' (DRY_RUN — no writes)' : ''}: scanned ${scanned}, linked ${linked}, unresolved ${unresolved}, malformed ${malformed} (${elapsedSeconds}s)`,
     );
 
+    assertAdminRunComplete('backfillFederatedThreadLinks', {
+      unresolved,
+      malformed,
+    });
   } catch (error) {
     logger.error('[backfillFederatedThreadLinks] failed', error);
     throw error;
   } finally {
+    await closeAdminScriptResources();
     await mongoose.disconnect().catch((disconnectError) => {
       logger.warn('[backfillFederatedThreadLinks] error during mongoose.disconnect()', disconnectError);
     });

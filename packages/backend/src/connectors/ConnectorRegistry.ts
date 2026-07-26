@@ -79,8 +79,9 @@ export class ConnectorRegistry implements PostFederator {
    * Once past the gate, delivery is fanned out with `Promise.allSettled` so one
    * connector's failure (e.g. a transient ActivityPub network error) does NOT
    * abort delivery to the others and does NOT propagate back to the caller —
-   * outbound federation is best-effort. Each rejected connector is logged with
-   * its id; the method resolves once every connector has been attempted.
+   * outbound federation is best-effort. Each rejection records only bounded
+   * connector/event dimensions; the method resolves once every connector has
+   * been attempted.
    */
   private async deliverToEnabledConnectors(
     event: LocalNetworkEvent<PostContent>,
@@ -88,7 +89,7 @@ export class ConnectorRegistry implements PostFederator {
   ): Promise<unknown[]> {
     const actorOxyUserId = actingOxyUserId(event);
     if (!(await isFediverseSharingEnabled(actorOxyUserId))) {
-      logger.debug(`[Connectors] sharing off for ${actorOxyUserId} — skipping federation`);
+      logger.debug('[Connectors] sharing disabled; skipping federation');
       return [];
     }
 
@@ -105,10 +106,11 @@ export class ConnectorRegistry implements PostFederator {
     results.forEach((result, index) => {
       if (result.status === 'rejected') {
         failures.push(result.reason);
-        logger.error(
-          `[connectors] deliver(${event.kind}) failed for connector "${this.connectors[index].id}":`,
-          result.reason,
-        );
+        logger.error('[connectors] delivery failed', {
+          type: event.kind,
+          connector: this.connectors[index].id,
+          error: result.reason,
+        });
       }
     });
     return failures;

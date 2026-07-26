@@ -1,21 +1,8 @@
 import React from 'react';
 import { Platform } from 'react-native';
 import { usePathname } from 'expo-router';
+import ExpoHead from 'expo-router/head';
 import { useTranslation } from 'react-i18next';
-import { logger } from '@/lib/logger';
-
-// Only import Head on web to avoid native errors
-let Head: any = null;
-if (Platform.OS === 'web') {
-  try {
-    // Try multiple import methods for compatibility
-    const expoRouterHead = require('expo-router/head');
-    Head = expoRouterHead.Head || expoRouterHead.default || expoRouterHead;
-  } catch (e) {
-    // Head not available - will return null component
-    logger.warn('SEO: expo-router/head not available');
-  }
-}
 
 export interface SEOProps {
   title?: string;
@@ -72,12 +59,12 @@ export const SEO: React.FC<SEOProps> = ({
   const pageImage = image || 'https://mention.earth/og-image.png';
 
   // Only render on web
-  if (Platform.OS !== 'web' || !Head) {
+  if (Platform.OS !== 'web') {
     return null;
   }
 
   return (
-    <Head>
+    <ExpoHead>
       {/* Primary Meta Tags */}
       <title>{pageTitle}</title>
       <meta name="title" content={pageTitle} />
@@ -112,9 +99,8 @@ export const SEO: React.FC<SEOProps> = ({
       {/* Additional meta tags */}
       <meta name="viewport" content="width=device-width, initial-scale=1.0" />
       <link rel="canonical" href={fullUrl} />
-    </Head>
+    </ExpoHead>
   );
 };
 
 export default SEO;
-

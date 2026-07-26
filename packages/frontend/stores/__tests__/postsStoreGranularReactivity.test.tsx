@@ -1,6 +1,7 @@
 import React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
-import { PostVisibility, type FeedType } from '@mention/shared-types';
+import type { FeedType } from '@mention/shared-types/feed';
+import { PostVisibility } from '@mention/shared-types/post';
 import type { FeedItem, FeedMetaData } from '@/db';
 import {
   useFeedSelector,
@@ -13,6 +14,7 @@ const mockPosts = new Map<string, FeedItem>();
 const mockFeedIds = new Map<string, string[]>();
 const mockFeedMeta = new Map<string, FeedMetaData>();
 const mockPostReadCounts = new Map<string, number>();
+const mockPostWriteCounts = new Map<string, number>();
 const mockFeedReadCounts = new Map<string, number>();
 const mockClearAllCachedData = jest.fn(() => {
   mockPosts.clear();
@@ -28,14 +30,14 @@ const mockFeedService = {
 const mockBuildFeedKey = (type: string, userId?: string) =>
   userId ? `user:${userId}:${type}` : type;
 
-const mockResolvePostId = (post: FeedItem | { id?: string; _id?: string }) => {
-  const legacyPost = post as { id?: string; _id?: string };
-  return String(legacyPost.id ?? legacyPost._id ?? '');
-};
+const mockResolvePostId = (post: FeedItem) => post.id;
 
 const mockUpsertPost = (post: FeedItem) => {
   const id = mockResolvePostId(post);
-  if (id) mockPosts.set(id, post);
+  if (id) {
+    mockPosts.set(id, post);
+    mockPostWriteCounts.set(id, (mockPostWriteCounts.get(id) ?? 0) + 1);
+  }
 };
 
 const mockUpsertPosts = (posts: FeedItem[]) => {
@@ -237,11 +239,39 @@ describe('postsStore keyed SQLite reactivity', () => {
     mockFeedIds.clear();
     mockFeedMeta.clear();
     mockPostReadCounts.clear();
+    mockPostWriteCounts.clear();
     mockFeedReadCounts.clear();
     mockClearAllCachedData.mockClear();
     mockFeedService.getSavedPosts.mockReset();
     mockFeedService.getUserFeed.mockReset();
     mockFeedService.getPostById.mockReset();
+  });
+
+  it('persists canonical related posts once without recreating local aliases', () => {
+    const boostOriginal = makePost('boost-original');
+    const boost = makePost('boost');
+    boost.content = { text: '' };
+    boost.originalPost = boostOriginal;
+    boost.boost = {
+      actor: boost.user,
+      originalPost: boostOriginal,
+    };
+
+    const quotedPost = makePost('quoted-post');
+    const quote = makePost('quote');
+    quote.originalPost = quotedPost;
+    quote.quotedPost = quotedPost;
+
+    act(() => {
+      usePostsStore.getState().cachePosts([boost, quote]);
+    });
+
+    expect(mockPosts.get('boost')?.boost?.originalPost?.id).toBe('boost-original');
+    expect(mockPosts.get('quote')?.quotedPost?.id).toBe('quoted-post');
+    expect(mockPosts.get('boost')).not.toHaveProperty('original');
+    expect(mockPosts.get('quote')).not.toHaveProperty('quoted');
+    expect(mockPostWriteCounts.get('boost-original')).toBe(1);
+    expect(mockPostWriteCounts.get('quoted-post')).toBe(1);
   });
 
   it('updates only the changed post without re-reading either feed', () => {

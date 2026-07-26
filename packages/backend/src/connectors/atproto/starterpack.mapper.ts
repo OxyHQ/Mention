@@ -151,7 +151,7 @@ async function collectPackMemberDids(listUri: string): Promise<string[]> {
         cursor,
       });
     } catch (err) {
-      logger.debug(`[atproto] getList failed for ${listUri}`, err);
+    logger.debug('[atproto] getList failed', err);
       break;
     }
 
@@ -220,7 +220,7 @@ async function upsertMirroredPack(
   } catch (err) {
     // A concurrent sync of the same pack can race the upsert to an E11000; that is
     // benign (the other writer landed the same mirror), so it is not re-thrown.
-    logger.warn(`[atproto] failed to upsert mirrored starter pack ${ref.uri}`, err);
+    logger.warn('[atproto] failed to upsert mirrored starter pack', err);
     return false;
   }
 }
@@ -235,7 +235,7 @@ async function upsertMirroredPack(
  */
 export async function syncActorStarterPacks(did: string, ownerOxyUserId: string): Promise<number> {
   if (!ownerOxyUserId) {
-    logger.warn(`[atproto] syncActorStarterPacks called for ${did} without a resolved Oxy owner; skipping`);
+    logger.warn('[atproto] starter-pack sync skipped without a resolved Oxy owner');
     return 0;
   }
 
@@ -247,7 +247,7 @@ export async function syncActorStarterPacks(did: string, ownerOxyUserId: string)
       { actor: did, limit: MAX_STARTER_PACKS_PER_ACTOR },
     );
   } catch (err) {
-    logger.debug(`[atproto] getActorStarterPacks failed for ${did}`, err);
+    logger.debug('[atproto] getActorStarterPacks failed', err);
     return 0;
   }
 
@@ -278,8 +278,11 @@ export async function syncActorStarterPacks(did: string, ownerOxyUserId: string)
   let didsToResolve = uniqueDids;
   if (uniqueDids.length > MAX_MEMBERS_RESOLVED_PER_ACTOR) {
     logger.warn(
-      `[atproto] ${did} starter-pack members (${uniqueDids.length}) exceed the per-actor resolve cap ` +
-        `(${MAX_MEMBERS_RESOLVED_PER_ACTOR}); mirroring only the first ${MAX_MEMBERS_RESOLVED_PER_ACTOR}`,
+      '[atproto] starter-pack members exceed the per-actor resolve cap',
+      {
+        memberCount: uniqueDids.length,
+        maxMembers: MAX_MEMBERS_RESOLVED_PER_ACTOR,
+      },
     );
     didsToResolve = uniqueDids.slice(0, MAX_MEMBERS_RESOLVED_PER_ACTOR);
   }
@@ -301,6 +304,9 @@ export async function syncActorStarterPacks(did: string, ownerOxyUserId: string)
     if (ok) upserted += 1;
   }
 
-  logger.info(`[atproto] mirrored ${upserted}/${refs.length} starter packs for ${did}`);
+  logger.info('[atproto] mirrored starter packs', {
+    count: upserted,
+    total: refs.length,
+  });
   return upserted;
 }

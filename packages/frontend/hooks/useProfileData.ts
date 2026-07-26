@@ -1,12 +1,13 @@
 import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { useUserByUsername, queryKeys } from '@oxyhq/services';
+import { useUserByUsername } from '@oxyhq/services';
 import { useAuth } from '@oxyhq/services/ui/client';
 import type { User } from '@oxyhq/core';
-import { useAppearanceStore, type UserAppearance, type ProfileMedia } from '@/store/appearanceStore';
+import { useAppearanceStore, type UserAppearance, type ProfileMedia } from '@/stores/appearanceStore';
 import { APP_COLOR_PRESETS, HEX_TO_APP_COLOR } from '@oxyhq/bloom/theme';
 import type { Community } from '@/components/Profile/types';
 import { displayNameOrHandle } from '@/utils/displayName';
+import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 
 const PROFILE_STALE_TIME = 5 * 60 * 1000; // 5 minutes
 const PROFILE_GC_TIME = 30 * 60 * 1000; // 30 minutes
@@ -22,10 +23,6 @@ const PROFILE_GC_TIME = 30 * 60 * 1000; // 30 minutes
  * a landing session must force a refetch. Defined once here so this Mention-only
  * key has a single source of truth and can never drift from its reader.
  */
-export function federatedProfileQueryKey(handle: string, viewerId: string): readonly unknown[] {
-  return [...queryKeys.users.details(), 'resolve', handle, 'viewer', viewerId];
-}
-
 export interface ProfileDesign {
   displayName: string;
   bannerUrl?: string;
@@ -65,11 +62,11 @@ export interface ProfileData {
   connectedVia?: string;
   links?: User['links'];
   linksMetadata?: User['linksMetadata'];
-  fields?: Array<{
+  fields?: {
     name?: string;
     value?: string;
     verifiedAt?: string;
-  }>;
+  }[];
   communities?: Community[];
   federation?: {
     actorUri?: string;
@@ -147,7 +144,7 @@ export function useProfileData(username?: string): {
   // makes anon vs authed distinct entries AND forces a refetch when the session
   // resolves or the account switches — identical to the local path.
   const federatedQuery = useQuery<User | null>({
-    queryKey: federatedProfileQueryKey(handle, viewerId),
+    queryKey: viewerQueryKeys.federatedProfile(viewerId, handle),
     queryFn: () => oxyServices.resolveProfile(handle),
     enabled: isFederated && handle.length > 0,
     staleTime: PROFILE_STALE_TIME,
@@ -173,7 +170,7 @@ export function useProfileData(username?: string): {
   const userId = profile?.id ?? '';
   const loadForUser = useAppearanceStore((state) => state.loadForUser);
   const appearanceQuery = useQuery<UserAppearance | null>({
-    queryKey: ['appearance', 'user', userId, 'viewer', viewerId],
+    queryKey: viewerQueryKeys.appearanceForUser(viewerId, userId),
     queryFn: () => loadForUser(userId),
     enabled: userId.length > 0,
     staleTime: PROFILE_STALE_TIME,

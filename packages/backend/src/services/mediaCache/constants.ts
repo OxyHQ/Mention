@@ -1,3 +1,5 @@
+import { config } from '../../config';
+
 /**
  * Tunables for the activity-based federated media S3 cache.
  *
@@ -88,4 +90,4 @@ export const MEDIA_CACHE_EVICTION_INTERVAL_MS = 60 * SECONDS_PER_MINUTE * MS_PER
  * (and wire the real upload/delete calls in oxyMediaStore.ts) once upstream lands.
  */
 export const MEDIA_CACHE_WRITE_ENABLED =
-  process.env.FEDERATION_MEDIA_CACHE_WRITE_ENABLED === 'true';
+  config.federation.mediaCacheWriteEnabled;

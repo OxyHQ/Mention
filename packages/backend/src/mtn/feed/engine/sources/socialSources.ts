@@ -19,7 +19,7 @@ import { FEED_FIELDS } from '../../FeedAPI';
 import { ChronoCursor } from '../../CursorBuilder';
 import { DISCOVERY_SAFE_MATCH } from '../../feedSafety';
 import { logger } from '../../../../utils/logger';
-import type { CandidatePost, FeedEngineContext, SourceModule } from '../types';
+import type { CandidatePost, SourceModule } from '../types';
 
 /**
  * A "new voice" author must have at most this many recent posts to qualify as
@@ -432,7 +432,7 @@ export const newVoicesSource: SourceModule = {
   id: 'newVoices',
   kind: 'source',
   userComposable: true,
-  gather: async (ctx, _params, cap) => {
+  gather: async (_ctx, _params, cap) => {
     const windowStart = new Date(Date.now() - MtnConfig.feed.candidateSources.recencyWindowMs);
     const match: Record<string, unknown> = {
       visibility: PostVisibility.PUBLIC,
@@ -476,7 +476,7 @@ export const topRepliesSource: SourceModule = {
   id: 'topReplies',
   kind: 'source',
   userComposable: true,
-  gather: async (ctx, _params, cap) => {
+  gather: async (_ctx, _params, cap) => {
     const windowStart = new Date(Date.now() - MtnConfig.feed.candidateSources.recencyWindowMs);
     const match: Record<string, unknown> = {
       parentPostId: { $ne: null },

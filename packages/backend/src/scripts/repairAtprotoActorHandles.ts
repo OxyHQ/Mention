@@ -40,8 +40,8 @@
  *   There are only ~18 atproto actors in prod, so this scans them in one pass (no
  *   cursor batching), sequentially — the repair is one AppView fetch + one oxy-api
  *   round-trip per actor, and running them one at a time keeps the load on both
- *   trivial. Each repair is wrapped in a hard per-actor timeout so a single hung
- *   remote can never freeze the run, and one actor's failure never aborts the loop.
+ *   trivial. The AppView/Oxy clients own request deadlines, and one actor's
+ *   failure never aborts the loop.
  *
  * FLAGS (plain argv):
  *   --dry-run    log what WOULD change (stored `domain` → re-derived `domain`) and
@@ -57,7 +57,8 @@
  *
  * RUN AS A FARGATE ONE-SHOT (post-deploy, in-VPC):
  *   bun packages/backend/dist/src/scripts/repairAtprotoActorHandles.js --dry-run
- *   bun packages/backend/dist/src/scripts/repairAtprotoActorHandles.js            # live repair
+ *   CONFIRM_ADMIN_MUTATION=repairAtprotoActorHandles \
+ *     bun packages/backend/dist/src/scripts/repairAtprotoActorHandles.js
  *
  * RUN OVER THE SSM TUNNEL (prod Mongo forwarded to 127.0.0.1:47017):
  *   MONGODB_URI='mongodb://127.0.0.1:47017/?directConnection=true' \
@@ -72,15 +73,8 @@ import FederatedActor from '../models/FederatedActor';
 import { connectToDatabase } from '../utils/database';
 import { fetchAndUpsertAtprotoProfile, splitHandle } from '../connectors/atproto/profile.mapper';
 import { logger } from '../utils/logger';
-
-/**
- * Hard per-actor wall-clock cap on a single actor's repair. The upsert's network
- * awaits (the Bluesky AppView `getProfile` fetch + the oxy-api resolve round-trip)
- * are each internally bounded, but a race against this timer guarantees ONE
- * slow/unresponsive remote can never freeze the run. A timed-out actor is counted
- * `failed` and left untouched; a later run can still reconcile it.
- */
-const ACTOR_REPAIR_TIMEOUT_MS = 30_000;
+import { assertAdminMutationAllowed } from './lib/adminScriptSafety';
+import { assertAdminRunComplete } from './lib/adminScriptLifecycle';
 
 /** Per-actor repair outcome. */
 type RepairOutcome = 'repaired' | 'unchanged' | 'failed';
@@ -137,43 +131,18 @@ function parseFlags(argv: string[]): Flags {
 
 // --- per-actor repair --------------------------------------------------------
 
-/** Distinct rejection raised by {@link withActorTimeout} when a repair exceeds the cap. */
-class ActorRepairTimeoutError extends Error {
-  constructor(ms: number) {
-    super(`actor repair exceeded ${ms}ms hard timeout`);
-    this.name = 'ActorRepairTimeoutError';
-  }
-}
-
-/**
- * Race one actor's repair against a hard timeout so a single hung remote can never
- * freeze the run. The timer is ALWAYS cleared when the repair settles (win or lose
- * the race), so no timer is leaked. Losing the race is safe: the upsert either
- * completed its writes or it did not — a timed-out actor is simply reported `failed`
- * and left for a later run.
- */
-function withActorTimeout<T>(work: Promise<T>, ms: number): Promise<T> {
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  const timeout = new Promise<never>((_, reject) => {
-    timer = setTimeout(() => reject(new ActorRepairTimeoutError(ms)), ms);
-  });
-  return Promise.race([work, timeout]).finally(() => {
-    if (timer) clearTimeout(timer);
-  });
-}
-
 /**
  * Repair one actor when its stored `${username}@${domain}` no longer matches the
  * re-derived `splitHandle(acct).federatedUsername`. Detection is a pure, network-free
  * comparison of the full `local@domain` (not the domain alone — a `.bsky.social`
  * actor shortens only its username); the actual repair re-runs the shared profile
  * upsert so the `FederatedActor` and the linked Oxy user stay consistent through one
- * code path. Fails soft: any error (or the per-actor timeout) is caught by the caller
- * and counted `failed` — the loop is never aborted.
+ * code path. Fails soft: any error is caught by the caller and counted `failed` —
+ * the loop is never aborted.
  */
 async function repairActor(actor: ActorRow, flags: Flags): Promise<RepairOutcome> {
   if (!actor.acct) {
-    logger.warn(`[repairAtprotoActorHandles] actor ${actor.uri} has no acct — cannot re-derive, skipping`);
+    logger.warn('[repairAtprotoActorHandles] actor has no account handle; skipping');
     return 'failed';
   }
 
@@ -182,17 +151,16 @@ async function repairActor(actor: ActorRow, flags: Flags): Promise<RepairOutcome
     return 'unchanged';
   }
 
-  logger.info(
-    `[repairAtprotoActorHandles] ${flags.dryRun ? 'WOULD repair' : 'repairing'} actor ${actor.uri} handle: ` +
-      `${actor.username}@${actor.domain} → ${expected.federatedUsername}`,
-  );
+  logger.info('[repairAtprotoActorHandles] actor handle repair prepared', {
+    dryRun: flags.dryRun,
+  });
   if (flags.dryRun) return 'repaired';
 
-  const refreshed = await withActorTimeout(fetchAndUpsertAtprotoProfile(actor.uri), ACTOR_REPAIR_TIMEOUT_MS);
+  // The AppView/Oxy clients own their cancellable request deadlines. Do not wrap
+  // this mutating upsert in Promise.race: losing promises continue to execute.
+  const refreshed = await fetchAndUpsertAtprotoProfile(actor.uri);
   if (!refreshed) {
-    logger.warn(
-      `[repairAtprotoActorHandles] upsert for actor ${actor.uri} returned null (profile unfetchable) — left untouched`,
-    );
+    logger.warn('[repairAtprotoActorHandles] profile upsert returned no actor; left untouched');
     return 'failed';
   }
   return 'repaired';
@@ -207,6 +175,10 @@ async function repairAtprotoActorHandles(): Promise<void> {
   const counters: Counters = { scanned: 0, repaired: 0, unchanged: 0, failed: 0 };
 
   try {
+    assertAdminMutationAllowed({
+      scriptName: 'repairAtprotoActorHandles',
+      dryRun: flags.dryRun,
+    });
     await connectToDatabase();
     logger.info(
       `[repairAtprotoActorHandles] connected — mode: ${flags.dryRun ? 'DRY-RUN' : 'LIVE'}` +
@@ -231,16 +203,8 @@ async function repairAtprotoActorHandles(): Promise<void> {
       try {
         outcome = await repairActor(actor, flags);
       } catch (err) {
-        // One bad actor never aborts the run; the timeout is the defence-in-depth
-        // guard against an unbounded await hanging the whole sweep.
-        if (err instanceof ActorRepairTimeoutError) {
-          logger.warn(
-            `[repairAtprotoActorHandles] actor ${actor.uri} repair timed out after ${ACTOR_REPAIR_TIMEOUT_MS}ms — skipping`,
-          );
-        } else {
-          const message = err instanceof Error ? err.message : String(err);
-          logger.warn(`[repairAtprotoActorHandles] actor ${actor.uri} repair threw: ${message}`);
-        }
+        // One bad actor never aborts the run.
+        logger.warn('[repairAtprotoActorHandles] actor repair failed', { error: err });
         outcome = 'failed';
       }
 
@@ -264,11 +228,14 @@ async function repairAtprotoActorHandles(): Promise<void> {
         `unchanged ${counters.unchanged}, failed ${counters.failed}`,
     );
 
-    await mongoose.disconnect();
+    assertAdminRunComplete('repairAtprotoActorHandles', {
+      failed: counters.failed,
+    });
   } catch (error) {
     logger.error('[repairAtprotoActorHandles] failed', error);
+    throw error;
+  } finally {
     await mongoose.disconnect();
-    process.exit(1);
   }
 }
 

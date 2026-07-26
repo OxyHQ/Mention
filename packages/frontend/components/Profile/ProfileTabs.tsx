@@ -5,7 +5,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { useQuery } from '@tanstack/react-query';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { useTranslation } from 'react-i18next';
-import { queryKeys } from '@/hooks/useOptimizedQuery';
+import { useAuth } from '@oxyhq/services/ui/client';
 import { Spinner } from '@/components/ui/Spinner';
 import { Feed } from '@/components/Feed/index';
 import MediaGrid from './MediaGrid';
@@ -20,6 +20,7 @@ import { listsService } from '@/services/listsService';
 import type { FeedType, HydratedPost } from '@mention/shared-types';
 import type { ProfileTabsProps } from './types';
 import { logger } from '@/lib/logger';
+import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 
 const IS_WEB = Platform.OS === 'web';
 
@@ -60,6 +61,7 @@ export const ProfileTabs = memo(function ProfileTabs({
 }: ProfileTabsRuntimeProps) {
   const theme = useTheme();
   const { t } = useTranslation();
+  const { user } = useAuth();
 
   // Pinned post lives in React Query so pin/unpin can invalidate it
   // (see usePostActions) and the post re-sorts without a profile remount.
@@ -68,7 +70,7 @@ export const ProfileTabs = memo(function ProfileTabs({
   // Pin/unpin still invalidates correctly because pinning happens from the
   // posts tab, where this query is enabled.
   const pinnedPostQuery = useQuery<HydratedPost | null>({
-    queryKey: queryKeys.pinnedPost(profileId),
+    queryKey: viewerQueryKeys.pinnedPost(user?.id, profileId ?? ''),
     queryFn: () => feedService.getPinnedPost(profileId as string),
     enabled: tab === 'posts' && Boolean(profileId) && !(isPrivate && !isOwnProfile),
   });
@@ -105,6 +107,7 @@ export const ProfileTabs = memo(function ProfileTabs({
       <ProfileStarterPacks
         profileId={profileId}
         isOwnProfile={isOwnProfile}
+        viewerId={user?.id}
       />
     );
   }
@@ -115,6 +118,7 @@ export const ProfileTabs = memo(function ProfileTabs({
       <ProfileLists
         profileId={profileId}
         isOwnProfile={isOwnProfile}
+        viewerId={user?.id}
       />
     );
   }
@@ -125,6 +129,7 @@ export const ProfileTabs = memo(function ProfileTabs({
       <ProfileFeeds
         profileId={profileId}
         isOwnProfile={isOwnProfile}
+        viewerId={user?.id}
       />
     );
   }
@@ -234,9 +239,11 @@ interface ProfileFeedItem {
 const ProfileFeeds = memo(function ProfileFeeds({
   profileId,
   isOwnProfile,
+  viewerId,
 }: {
   profileId?: string;
   isOwnProfile: boolean;
+  viewerId?: string;
 }) {
   const theme = useTheme();
   const { t } = useTranslation();
@@ -245,7 +252,7 @@ const ProfileFeeds = memo(function ProfileFeeds({
   // useEffect+useState fetch, so revisiting the tab/profile reads cache instead of
   // refetching. Mirrors the pinnedPostQuery above.
   const { data: feeds = [], isPending: loading } = useQuery<ProfileFeedItem[]>({
-    queryKey: ['profileFeeds', profileId, isOwnProfile],
+    queryKey: viewerQueryKeys.profileFeeds(viewerId, profileId, isOwnProfile),
     enabled: Boolean(profileId),
     queryFn: async (): Promise<ProfileFeedItem[]> => {
       const params = isOwnProfile ? { mine: true } : { userId: profileId };
@@ -334,9 +341,11 @@ const ProfileFeeds = memo(function ProfileFeeds({
 const ProfileStarterPacks = memo(function ProfileStarterPacks({
   profileId,
   isOwnProfile,
+  viewerId,
 }: {
   profileId?: string;
   isOwnProfile: boolean;
+  viewerId?: string;
 }) {
   const theme = useTheme();
   const { t } = useTranslation();
@@ -345,7 +354,11 @@ const ProfileStarterPacks = memo(function ProfileStarterPacks({
   // useEffect+useState fetch, so revisiting the tab/profile reads cache instead of
   // refetching. Mirrors the pinnedPostQuery above.
   const { data: packs = [], isPending: loading } = useQuery<StarterPackCardData[]>({
-    queryKey: ['profileStarterPacks', profileId, isOwnProfile],
+    queryKey: viewerQueryKeys.profileStarterPacks(
+      viewerId,
+      profileId,
+      isOwnProfile,
+    ),
     enabled: Boolean(profileId),
     queryFn: async () => {
       try {
@@ -408,9 +421,11 @@ const ProfileStarterPacks = memo(function ProfileStarterPacks({
 const ProfileLists = memo(function ProfileLists({
   profileId,
   isOwnProfile,
+  viewerId,
 }: {
   profileId?: string;
   isOwnProfile: boolean;
+  viewerId?: string;
 }) {
   const theme = useTheme();
   const { t } = useTranslation();
@@ -419,7 +434,7 @@ const ProfileLists = memo(function ProfileLists({
   // useEffect+useState fetch, so revisiting the tab/profile reads cache instead of
   // refetching. Mirrors the pinnedPostQuery above.
   const { data: lists = [], isPending: loading } = useQuery<ListCardData[]>({
-    queryKey: ['profileLists', profileId, isOwnProfile],
+    queryKey: viewerQueryKeys.profileLists(viewerId, profileId, isOwnProfile),
     enabled: Boolean(profileId),
     queryFn: async () => {
       try {

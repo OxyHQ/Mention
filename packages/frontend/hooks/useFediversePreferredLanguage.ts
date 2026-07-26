@@ -17,7 +17,7 @@ const logger = createScopedLogger('useFediversePreferredLanguage');
  * `canUsePrivateApi` (the SSO cold-boot window) so they never fire a 401.
  */
 export function useFediversePreferredLanguage() {
-  const { isAuthenticated, isAuthResolved, canUsePrivateApi, isPrivateApiPending, user } = useAuth();
+  const { isAuthResolved, canUsePrivateApi, isPrivateApiPending, user } = useAuth();
   const viewerId = user?.id;
   const [preferredLanguage, setPreferredLanguage] = useState<string | null | undefined>(undefined);
   const [loading, setLoading] = useState(true);
@@ -43,10 +43,9 @@ export function useFediversePreferredLanguage() {
     } finally {
       setLoading(false);
     }
-    // `isAuthenticated` is a dependency so the per-user setting loads once the SSO
-    // session resolves on cold boot — keying on it alone would fetch while anon and
-    // never recover.
-  }, [canUsePrivateApi, isAuthResolved, isAuthenticated, isPrivateApiPending]);
+    // Auth readiness changes rebuild this callback, replacing the cold-boot
+    // anonymous window with the viewer-scoped read once the token is usable.
+  }, [canUsePrivateApi, isAuthResolved, isPrivateApiPending]);
 
   /** Writes the preference. Pass `null` to clear it (fall back to detection). */
   const updatePreferredLanguage = useCallback(
@@ -64,8 +63,7 @@ export function useFediversePreferredLanguage() {
 
   useEffect(() => {
     load();
-    // `viewerId` covers account switches; `load` re-runs the fetch when the auth
-    // session resolves (its identity changes with `isAuthenticated`).
+    // `viewerId` covers account switches; `load` covers auth-readiness changes.
   }, [load, viewerId]);
 
   return { preferredLanguage, loading, updatePreferredLanguage, reload: load };

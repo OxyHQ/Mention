@@ -38,7 +38,7 @@ const WelcomeModalGate: React.FC<WelcomeModalGateProps> = memo(({ appIsReady }) 
             setShowModal(true);
           }, 300);
         }
-      } catch (error) {
+      } catch {
         logger.warn('Failed to check welcome modal status');
       }
     }
@@ -54,7 +54,7 @@ const WelcomeModalGate: React.FC<WelcomeModalGateProps> = memo(({ appIsReady }) 
     // Mark as seen when user closes or interacts with the modal
     try {
       await AsyncStorage.setItem(WELCOME_MODAL_SEEN_KEY, 'true');
-    } catch (error) {
+    } catch {
       logger.warn('Failed to save welcome modal status');
     }
   };
@@ -74,6 +74,5 @@ const WelcomeModalGate: React.FC<WelcomeModalGateProps> = memo(({ appIsReady }) 
 WelcomeModalGate.displayName = 'WelcomeModalGate';
 
 export default WelcomeModalGate;
-
 
 

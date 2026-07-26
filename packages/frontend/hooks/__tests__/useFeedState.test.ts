@@ -10,10 +10,10 @@
  * of writing/reading from a null SQLite handle.
  */
 
+import { resolveUseMemoryFeed } from '../../utils/feedMemoryMode';
+
 // Set up globals expected by RN/Expo modules
 (globalThis as { __DEV__?: boolean }).__DEV__ = false;
-
-import { resolveUseMemoryFeed } from '../../utils/feedMemoryMode';
 
 // ── Gate unit tests ─────────────────────────────────────────────────────────
 

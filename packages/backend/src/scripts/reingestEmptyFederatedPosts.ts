@@ -24,10 +24,16 @@
  *
  * Optional `--actor <actorUri>` restricts the run to a single federated actor —
  * run it as a canary against one actor before a full sweep, e.g.:
- *   bun packages/backend/dist/src/scripts/reingestEmptyFederatedPosts.js --actor https://masto.es/users/alvizlo
+ *   bun packages/backend/dist/src/scripts/reingestEmptyFederatedPosts.js \
+ *     --dry-run --actor https://masto.es/users/alvizlo
  *
  * Runnable as a Fargate one-shot post-deploy:
- *   bun packages/backend/dist/src/scripts/reingestEmptyFederatedPosts.js
+ *   CONFIRM_ADMIN_MUTATION=reingestEmptyFederatedPosts \
+ *     bun packages/backend/dist/src/scripts/reingestEmptyFederatedPosts.js
+ *
+ * Dry-run keeps extracted remote media URLs unchanged and performs no media
+ * persistence/cache enqueue. A live run may therefore classify an attachment
+ * differently if the upstream media is permanently unavailable.
  */
 
 import mongoose from 'mongoose';
@@ -37,6 +43,15 @@ import { logger } from '../utils/logger';
 import { buildFederatedNoteContent } from '../connectors/activitypub/apPostContent';
 import { signedFetch } from '../connectors/activitypub/helpers';
 import { AP_CONTENT_TYPE } from '../connectors/activitypub/constants';
+import { assertAdminMutationAllowed } from './lib/adminScriptSafety';
+import {
+  DeletionPreflightError,
+  assertPostsSafeToDelete,
+} from './lib/adminDeletionPreflight';
+import {
+  assertAdminRunComplete,
+  closeAdminScriptResources,
+} from './lib/adminScriptLifecycle';
 
 /** Posts scanned per page (stable `_id` cursor pagination). */
 const PAGE_SIZE = 500;
@@ -72,14 +87,15 @@ async function fetchSourceObject(url: string): Promise<FetchOutcome> {
   try {
     res = await signedFetch(url, AP_CONTENT_TYPE);
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    logger.warn(`[reingestEmptyFederatedPosts] fetch error for ${url}: ${message}`);
+    logger.warn('[reingestEmptyFederatedPosts] ActivityPub fetch failed', { error: err });
     return { kind: 'error' };
   }
 
   if (GONE_STATUS_CODES.has(res.status)) return { kind: 'gone' };
   if (!res.ok) {
-    logger.warn(`[reingestEmptyFederatedPosts] fetch failed for ${url}: ${res.status} ${res.statusText}`);
+    logger.warn('[reingestEmptyFederatedPosts] ActivityPub fetch returned an error status', {
+      status: res.status,
+    });
     return { kind: 'error' };
   }
 
@@ -88,25 +104,30 @@ async function fetchSourceObject(url: string): Promise<FetchOutcome> {
     // so no `any` leaks into the caller.
     const object: unknown = await res.json();
     if (!object || typeof object !== 'object' || Array.isArray(object)) {
-      logger.warn(`[reingestEmptyFederatedPosts] fetch returned non-object for ${url}`);
+      logger.warn('[reingestEmptyFederatedPosts] ActivityPub fetch returned a non-object payload');
       return { kind: 'error' };
     }
     return { kind: 'ok', object: object as Record<string, unknown> };
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    logger.warn(`[reingestEmptyFederatedPosts] parse error for ${url}: ${message}`);
+    logger.warn('[reingestEmptyFederatedPosts] ActivityPub payload parsing failed', { error: err });
     return { kind: 'error' };
   }
 }
 
-/** Parse `--actor <uri>` / `--actor=<uri>` from argv. */
-function parseActorArg(argv: string[]): string | undefined {
+interface Flags {
+  actorUri?: string;
+  dryRun: boolean;
+}
+
+/** Parse the read-only preview and optional actor scope from argv. */
+function parseFlags(argv: string[]): Flags {
+  let actorUri: string | undefined;
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
-    if (arg === '--actor') return argv[i + 1];
-    if (arg.startsWith('--actor=')) return arg.slice('--actor='.length);
+    if (arg === '--actor') actorUri = argv[i + 1];
+    if (arg.startsWith('--actor=')) actorUri = arg.slice('--actor='.length);
   }
-  return undefined;
+  return { actorUri, dryRun: argv.includes('--dry-run') };
 }
 
 /**
@@ -156,22 +177,64 @@ async function reingestEmptyFederatedPosts(): Promise<void> {
   const startedAt = Date.now();
   const mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/mention';
   const dbName = `mention-${process.env.NODE_ENV || 'development'}`;
-  const actorUri = parseActorArg(process.argv.slice(2));
+  const flags = parseFlags(process.argv.slice(2));
 
-  const counts = { scanned: 0, recovered: 0, keptCwOnly: 0, deleted: 0, leftTransient: 0, skippedNoUrl: 0 };
+  const counts = {
+    scanned: 0,
+    recovered: 0,
+    keptCwOnly: 0,
+    deleted: 0,
+    blockedDelete: 0,
+    leftTransient: 0,
+    skippedNoUrl: 0,
+  };
+
+  const deleteIfUnreferenced = async (
+    post: EmptyFederatedPostRow,
+  ): Promise<boolean> => {
+    try {
+      await assertPostsSafeToDelete(
+        `reingestEmptyFederatedPosts:${String(post._id)}`,
+        [{
+          id: post._id,
+          uris: [
+            post.federation?.activityId,
+            post.federation?.url,
+          ].filter((value): value is string => typeof value === 'string' && value.length > 0),
+        }],
+      );
+    } catch (error) {
+      if (!(error instanceof DeletionPreflightError)) throw error;
+      counts.blockedDelete += 1;
+      logger.warn('[reingestEmptyFederatedPosts] deletion blocked by preflight', {
+        error,
+      });
+      return false;
+    }
+
+    if (!flags.dryRun) {
+      await Post.deleteOne({ _id: post._id });
+    }
+    counts.deleted += 1;
+    return true;
+  };
 
   try {
+    assertAdminMutationAllowed({
+      scriptName: 'reingestEmptyFederatedPosts',
+      dryRun: flags.dryRun,
+    });
     await mongoose.connect(mongoUri, { dbName });
-    logger.info(
-      `[reingestEmptyFederatedPosts] connected to MongoDB (${dbName})${actorUri ? ` — actor filter: ${actorUri}` : ''}`,
-    );
+    logger.info('[reingestEmptyFederatedPosts] connected to MongoDB', {
+      dryRun: flags.dryRun,
+      narrowedScope: Boolean(flags.actorUri),
+    });
 
-    const baseFilter = buildEmptyFederatedFilter(actorUri);
+    const baseFilter = buildEmptyFederatedFilter(flags.actorUri);
     const totalCount = await Post.countDocuments(baseFilter);
     logger.info(`[reingestEmptyFederatedPosts] ${totalCount} empty federated posts to scan`);
     if (totalCount === 0) {
       logger.info('[reingestEmptyFederatedPosts] nothing to do');
-      await mongoose.disconnect();
       return;
     }
 
@@ -208,20 +271,19 @@ async function reingestEmptyFederatedPosts(): Promise<void> {
         }
 
         if (outcome.kind === 'gone') {
-          await Post.deleteOne({ _id: post._id });
-          counts.deleted += 1;
+          await deleteIfUnreferenced(post);
           continue;
         }
 
         const built = await buildFederatedNoteContent(outcome.object, post.oxyUserId ?? null, {
           activityId: post.federation?.activityId,
           actorUri: post.federation?.actorUri,
+          materializeMedia: !flags.dryRun,
         });
 
         if (built.skip) {
           // Source object carries nothing storable — the blank post is unrecoverable.
-          await Post.deleteOne({ _id: post._id });
-          counts.deleted += 1;
+          await deleteIfUnreferenced(post);
           continue;
         }
 
@@ -250,7 +312,7 @@ async function reingestEmptyFederatedPosts(): Promise<void> {
 
         const update: Record<string, unknown> = { $set: setOps };
         if (Object.keys(unsetOps).length > 0) update.$unset = unsetOps;
-        await Post.updateOne({ _id: post._id }, update);
+        if (!flags.dryRun) await Post.updateOne({ _id: post._id }, update);
 
         if (hasBody) counts.recovered += 1;
         else counts.keptCwOnly += 1;
@@ -259,23 +321,36 @@ async function reingestEmptyFederatedPosts(): Promise<void> {
       lastId = page[page.length - 1]._id;
       logger.info(
         `[reingestEmptyFederatedPosts] progress: scanned ${counts.scanned}/${totalCount}, ` +
-          `recovered ${counts.recovered}, keptCwOnly ${counts.keptCwOnly}, deleted ${counts.deleted}, ` +
-          `leftTransient ${counts.leftTransient}`,
+          `${flags.dryRun ? 'wouldRecover' : 'recovered'} ${counts.recovered}, ` +
+          `keptCwOnly ${counts.keptCwOnly}, ${flags.dryRun ? 'wouldDelete' : 'deleted'} ${counts.deleted}, ` +
+          `blockedDelete ${counts.blockedDelete}, leftTransient ${counts.leftTransient}`,
       );
     }
 
     const elapsedSeconds = Math.round((Date.now() - startedAt) / 1000);
-    logger.info(
-      `[reingestEmptyFederatedPosts] done: scanned ${counts.scanned}, recovered ${counts.recovered}, ` +
-        `keptCwOnly ${counts.keptCwOnly}, deleted ${counts.deleted}, leftTransient ${counts.leftTransient}, ` +
-        `skippedNoUrl ${counts.skippedNoUrl} (${elapsedSeconds}s)`,
-    );
+    logger.info('[reingestEmptyFederatedPosts] reingest complete', {
+      dryRun: flags.dryRun,
+      durationMs: elapsedSeconds * 1_000,
+      scanned: counts.scanned,
+      recovered: counts.recovered,
+      keptContentWarningOnly: counts.keptCwOnly,
+      deleted: counts.deleted,
+      leftTransient: counts.leftTransient,
+      blockedDelete: counts.blockedDelete,
+      skippedWithoutSource: counts.skippedNoUrl,
+    });
 
-    await mongoose.disconnect();
+    assertAdminRunComplete('reingestEmptyFederatedPosts', {
+      blockedDelete: counts.blockedDelete,
+      leftTransient: counts.leftTransient,
+      skippedNoUrl: counts.skippedNoUrl,
+    });
   } catch (error) {
     logger.error('[reingestEmptyFederatedPosts] failed', error);
+    throw error;
+  } finally {
+    await closeAdminScriptResources();
     await mongoose.disconnect();
-    process.exit(1);
   }
 }
 

@@ -23,7 +23,6 @@ import type {
   FollowButtonComponent as FollowButtonComponentType,
   ProfileHeaderDefaultProps,
   ProfileHeaderMinimalistProps,
-  UserNameComponent,
 } from './types';
 
 // Shrink the 90px header avatar toward these values as the profile scrolls. The

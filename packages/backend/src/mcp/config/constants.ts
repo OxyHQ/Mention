@@ -1,3 +1,5 @@
+import { config } from '../../config';
+
 /**
  * Shared constants for the MCP OAuth module.
  *
@@ -15,9 +17,7 @@
  * client (Claude requires an exact match with no trailing slash) so token
  * audience validation and resource discovery line up.
  */
-export const MCP_RESOURCE_URL = (
-  process.env.MENTION_MCP_PUBLIC_URL || 'https://mcp.mention.earth'
-).replace(/\/+$/, '');
+export const MCP_RESOURCE_URL = config.mcp.resourceUrl;
 
 /**
  * JWT `aud` claim for every MCP access token — the resource server identifier.
@@ -31,14 +31,10 @@ export const MCP_TOKEN_AUDIENCE = MCP_RESOURCE_URL;
  * backend's own public API origin — the discovery document, authorize, and
  * token endpoints all live here.
  */
-export const MCP_ISSUER = (
-  process.env.MENTION_PUBLIC_API_URL || 'http://localhost:3000'
-).replace(/\/+$/, '');
+export const MCP_ISSUER = config.mcp.issuer;
 
 /** Frontend origin that hosts the interactive consent screen (no trailing slash). */
-export const MCP_FRONTEND_ORIGIN = (
-  process.env.MENTION_FRONTEND_ORIGIN || 'https://mention.earth'
-).replace(/\/+$/, '');
+export const MCP_FRONTEND_ORIGIN = config.mcp.frontendOrigin;
 
 /** Path on the frontend SPA that renders the MCP consent screen. */
 export const MCP_CONSENT_PATH = '/oauth/mcp/authorize';
@@ -47,22 +43,16 @@ export const MCP_CONSENT_PATH = '/oauth/mcp/authorize';
 export const MCP_LINK_PATH = '/oauth/mcp/link';
 
 /** Signed link-token lifetime for the add-account browser flow (seconds). */
-export const MCP_LINK_TOKEN_TTL_SECONDS = Number(
-  process.env.MCP_LINK_TOKEN_TTL_SECONDS || 900,
-);
+export const MCP_LINK_TOKEN_TTL_SECONDS = config.mcp.linkTokenTtlSeconds;
 
 /** Max Mention accounts per MCP connector bundle. */
-export const MCP_MAX_BUNDLE_MEMBERS = Number(process.env.MCP_MAX_BUNDLE_MEMBERS || 8);
+export const MCP_MAX_BUNDLE_MEMBERS = config.mcp.maxBundleMembers;
 
 /** Access-token lifetime in seconds (short-lived; refreshed via refresh_token). */
-export const MCP_ACCESS_TOKEN_TTL_SECONDS = Number(
-  process.env.MCP_ACCESS_TOKEN_TTL_SECONDS || 3600,
-);
+export const MCP_ACCESS_TOKEN_TTL_SECONDS = config.mcp.accessTokenTtlSeconds;
 
 /** Authorization-code lifetime in seconds (single-use, short window). */
-export const MCP_AUTH_CODE_TTL_SECONDS = Number(
-  process.env.MCP_AUTH_CODE_TTL_SECONDS || 300,
-);
+export const MCP_AUTH_CODE_TTL_SECONDS = config.mcp.authCodeTtlSeconds;
 
 /** Scopes advertised in the discovery document / accepted by the flow. */
 export const MCP_SUPPORTED_SCOPES = ['mcp:read', 'mcp:write', 'offline_access'];

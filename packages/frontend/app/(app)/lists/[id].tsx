@@ -33,6 +33,7 @@ import { useTheme } from '@oxyhq/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import { EntityFollowButton } from '@/components/EntityFollowButton';
 import { getNormalizedUserHandle, type User } from '@oxyhq/core';
+import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 
 interface ListOwner {
   _id?: string;
@@ -430,13 +431,12 @@ function ListMembers({
 }) {
   const theme = useTheme();
   const { t } = useTranslation();
-  const { oxyServices } = useAuth();
+  const { oxyServices, user } = useAuth();
 
   // The list document carries only member ids — Oxy owns the identities, so the
   // profiles are resolved in ONE bulk call and rendered through the shared row.
-  const membersKey = useMemo(() => memberIds.join(','), [memberIds]);
   const { data: members = [], isPending } = useQuery<User[]>({
-    queryKey: ['lists', listId, 'members', membersKey],
+    queryKey: viewerQueryKeys.listMembers(user?.id, listId, memberIds),
     queryFn: () => oxyServices.getUsersByIds(memberIds),
     enabled: memberIds.length > 0,
     staleTime: MEMBERS_STALE_TIME_MS,

@@ -54,4 +54,14 @@ describe('RedisStore increment hot path', () => {
     expect(mocks.ping).not.toHaveBeenCalled();
     expect(mocks.connect).not.toHaveBeenCalled();
   });
+
+  it('never returns NaN when Redis contains a malformed counter', async () => {
+    mocks.eval.mockResolvedValueOnce(['not-a-number', -1]);
+    const store = new RedisStore({ prefix: 'test:', windowMs: 60_000 });
+
+    await expect(store.increment('viewer')).resolves.toEqual({
+      totalHits: 1,
+      resetTime: undefined,
+    });
+  });
 });

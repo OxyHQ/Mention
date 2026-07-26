@@ -1,3 +1,5 @@
+import { mergeBioAndProfileLinks } from '../mergeBioAndProfileLinks';
+
 /**
  * Tests run under either jest (frontend `jest-expo` preset) or vitest (workspace
  * runner). Both provide the same describe/it/expect globals.
@@ -10,13 +12,13 @@
  * reimplementation — without importing the rest of core.
  */
 jest.mock('@oxyhq/core', () => {
-  const path = require('path');
-  const pkgRoot = path.resolve(path.dirname(require.resolve('@oxyhq/core')), '../..');
-  return require(path.join(pkgRoot, 'dist/cjs/utils/profileLinks.js'));
+  const path = jest.requireActual<typeof import('node:path')>('node:path');
+  const { createRequire } =
+    jest.requireActual<typeof import('node:module')>('node:module');
+  const localRequire = createRequire(__filename);
+  const pkgRoot = path.resolve(path.dirname(localRequire.resolve('@oxyhq/core')), '../..');
+  return localRequire(path.join(pkgRoot, 'dist/cjs/utils/profileLinks.js'));
 });
-
-// eslint-disable-next-line import/first
-import { mergeBioAndProfileLinks } from '../mergeBioAndProfileLinks';
 
 describe('mergeBioAndProfileLinks', () => {
   it('returns only the explicit links when there is no bio', () => {

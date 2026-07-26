@@ -8,6 +8,10 @@ import {
   PostContent,
   HydratedPost,
 } from '@mention/shared-types';
+import {
+  mentionTextsFromContent,
+  reconcileMentionIds,
+} from '@mention/shared-types/mentions';
 import mongoose, { FilterQuery } from 'mongoose';
 import { IPost } from '../models/Post';
 import { getRuntimeOxyClient } from '../runtime/oxyClient';
@@ -299,8 +303,12 @@ class FeedController {
         }
       }
 
-  // Create reply post
+      // Create reply post
       const mergedTags = mergeHashtags(replyContent?.text || '', hashtags);
+      const reconciledMentions = reconcileMentionIds(
+        mentionTextsFromContent(replyContent),
+        mentions,
+      );
 
       // A reply may attach a single Syra podcast show. Like createPost, the
       // client's reference is untrusted: re-resolve + denormalize the show
@@ -326,7 +334,7 @@ class FeedController {
         parentPostId: postId,
         threadId: parentPost.threadId || parentPost._id.toString(),
         hashtags: mergedTags,
-        mentions: mentions || [],
+        mentions: reconciledMentions,
         stats: {
           likesCount: 0,
           boostsCount: 0,
@@ -488,16 +496,21 @@ class FeedController {
 
       // Create boost
       const mergedTags = mergeHashtags(content?.text || '', hashtags);
+      const boostContent = content || { text: '' };
+      const reconciledMentions = reconcileMentionIds(
+        mentionTextsFromContent(boostContent),
+        mentions,
+      );
 
       const boost = new Post({
         oxyUserId: currentUserId,
         authorship: buildAuthorship(currentUserId, []),
         type: PostType.BOOST,
-        content: content || { text: '' },
+        content: boostContent,
         visibility: PostVisibility.PUBLIC,
         boostOf: originalPostId,
         hashtags: mergedTags,
-        mentions: mentions || [],
+        mentions: reconciledMentions,
         stats: {
           likesCount: 0,
           boostsCount: 0,

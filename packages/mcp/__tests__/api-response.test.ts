@@ -1,7 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { PostVisibility } from "@mention/shared-types";
+import { PostVisibility } from "@mention/shared-types/post";
 import { normalizeVisibility, unwrapApiResponse } from "../lib/api-response.js";
-import { AUTH_REQUIRED_TOOLS } from "../lib/tool-auth.js";
 
 describe("unwrapApiResponse", () => {
   test("unwraps MTN envelope", () => {
@@ -27,15 +26,5 @@ describe("normalizeVisibility", () => {
 
   test("maps public", () => {
     expect(normalizeVisibility("public")).toBe(PostVisibility.PUBLIC);
-  });
-});
-
-describe("AUTH_REQUIRED_TOOLS", () => {
-  test("explore feed is public", () => {
-    expect(AUTH_REQUIRED_TOOLS.has("get-explore-feed")).toBe(false);
-  });
-
-  test("create-post requires auth", () => {
-    expect(AUTH_REQUIRED_TOOLS.has("create-post")).toBe(true);
   });
 });

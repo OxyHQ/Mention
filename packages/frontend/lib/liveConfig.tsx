@@ -11,7 +11,8 @@ import { getCachedFileDownloadUrl, getCachedFileDownloadUrlSync } from '@/utils/
 import { Avatar } from '@oxyhq/bloom/avatar';
 import { show } from '@oxyhq/bloom/toast';
 import i18n from '@/lib/i18n';
-import { useAppearanceStore } from '@/store/appearanceStore';
+import { useAppearanceStore } from '@/stores/appearanceStore';
+import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 
 const useLiveTheme = (): LiveTheme => {
   const theme = useBloomTheme();
@@ -77,7 +78,9 @@ export const liveConfig: LiveConfig = {
   // hooks/useLiveUsers.ts) so every avatar's LIVE badge updates instantly
   // instead of waiting for the 60s background poll.
   onRoomChanged: () => {
-    queryClient.invalidateQueries({ queryKey: ['live-users'] });
+    queryClient.invalidateQueries({
+      predicate: (query) => viewerQueryKeys.isFamily(query.queryKey, 'live-users'),
+    });
   },
   httpClient: syraLinkedClient,
   socketUrl: SYRA_SOCKET_URL,

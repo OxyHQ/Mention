@@ -1,5 +1,9 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
-import { config } from '../../config';
+import {
+  config,
+  getGifMediaProxySecret,
+  getOxyServiceCredentials,
+} from '../../config';
 import { logger } from '../../utils/logger';
 
 /**
@@ -40,11 +44,9 @@ const DEFAULT_KLIPY_DOMAIN = 'klipy.com';
  * a new CDN host, without a code change.
  */
 function getAllowedKlipyDomains(): string[] {
-  const raw = process.env.KLIPY_MEDIA_HOSTS;
-  const domains = (raw ? raw.split(',') : [DEFAULT_KLIPY_DOMAIN])
-    .map((domain) => domain.trim().toLowerCase())
-    .filter((domain) => domain.length > 0);
-  return domains.length > 0 ? domains : [DEFAULT_KLIPY_DOMAIN];
+  return config.gif.allowedMediaDomains.length > 0
+    ? [...config.gif.allowedMediaDomains]
+    : [DEFAULT_KLIPY_DOMAIN];
 }
 
 /**
@@ -62,13 +64,13 @@ let cachedKey: Buffer | null | undefined;
 function resolveSigningKey(): Buffer | null {
   if (cachedKey !== undefined) return cachedKey;
 
-  const explicit = process.env.GIF_MEDIA_PROXY_SECRET;
+  const explicit = getGifMediaProxySecret();
   if (explicit && explicit.length > 0) {
     cachedKey = Buffer.from(explicit, 'utf8');
     return cachedKey;
   }
 
-  const serviceSecret = process.env.OXY_SERVICE_API_SECRET;
+  const serviceSecret = getOxyServiceCredentials().apiSecret;
   if (serviceSecret && serviceSecret.length > 0) {
     cachedKey = createHmac('sha256', serviceSecret).update(GIF_MEDIA_KEY_LABEL).digest();
     return cachedKey;

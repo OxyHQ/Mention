@@ -264,6 +264,33 @@ describe('feedRowType', () => {
         expect(feedRowType(rows[1])).toBe('threadChild');
     });
 
+    it('uses only canonical hydrated relations for boost, quote, and reply buckets', () => {
+        const original = post('original');
+        const quoted = post('quoted');
+        const boost = {
+            ...post('boost'),
+            originalPost: original,
+            boost: {
+                actor: post('booster').user,
+                originalPost: original,
+            },
+        };
+        const quote = {
+            ...post('quote'),
+            // Hydration currently exposes the quote through both fields; the
+            // specific `quotedPost` relation must win over `originalPost`.
+            originalPost: quoted,
+            quotedPost: quoted,
+        };
+        const reply = {
+            ...post('reply'),
+            parentPostId: 'parent',
+        };
+
+        const rows = build({ items: [boost, quote, reply] });
+        expect(rows.map(feedRowType)).toEqual(['boost', 'quote', 'reply']);
+    });
+
     it('gives each interstitial kind its own recycle bucket, distinct from any post bucket', () => {
         const rows = build({
             slices: [slice('p1'), slice('p2'), slice('p3')],

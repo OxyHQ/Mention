@@ -32,17 +32,14 @@ function databaseName(): string {
   return `${APP_NAME}-${config.runtime.nodeEnv}`;
 }
 
-function describeConnectionError(error: unknown): { code: string; message: string } {
+function describeConnectionError(error: unknown): { code: string } {
   const code =
     error instanceof Error && 'code' in error && error.code
       ? String(error.code)
       : error instanceof Error && 'syscall' in error && error.syscall
         ? String(error.syscall)
         : '';
-  return {
-    code,
-    message: error instanceof Error ? error.message : String(error ?? 'Unknown error'),
-  };
+  return { code };
 }
 
 async function connectWithRetry(
@@ -73,14 +70,14 @@ async function connectWithRetry(
     logger.info('Connected to MongoDB successfully');
     return mongoose;
   } catch (error: unknown) {
-    const { code, message } = describeConnectionError(error);
+    const { code } = describeConnectionError(error);
 
     if (attempt < maxRetries) {
       const delay = retryDelay(attempt - 1);
       if (attempt <= 3) {
         logger.warn(
           `MongoDB connection failed (attempt ${attempt}/${maxRetries}), retrying in ${delay}ms`,
-          { code, message },
+          { code },
         );
       }
       await wait(delay);
@@ -95,7 +92,6 @@ async function connectWithRetry(
 
     logger.error(`Failed to connect to MongoDB after ${maxRetries} attempts`, {
       code,
-      message,
     });
     throw error;
   }
@@ -117,9 +113,7 @@ export async function connectToDatabase(
   }
 
   const dbName = databaseName();
-  const sanitizedUri = mongoUri.replace(/\/\/[^:]+:[^@]+@/, '//***:***@');
-  logger.debug(`Attempting to connect to MongoDB: ${sanitizedUri.substring(0, 100)}...`);
-  logger.debug(`Using database: ${dbName}`);
+  logger.debug('Attempting to connect to MongoDB');
 
   const configuredRetries = config.db.maxRetries;
   const maxRetries = Number.isFinite(configuredRetries)
@@ -147,17 +141,4 @@ export async function connectToDatabase(
 
 export function isDatabaseConnected(): boolean {
   return mongoose.connection.readyState === 1;
-}
-
-export function getDatabaseStats() {
-  const state = mongoose.connection.readyState;
-  const states = ['disconnected', 'connected', 'connecting', 'disconnecting'];
-
-  return {
-    state: states[state] || 'unknown',
-    readyState: state,
-    host: mongoose.connection.host,
-    port: mongoose.connection.port,
-    name: mongoose.connection.name,
-  };
 }

@@ -1,7 +1,5 @@
-import { Platform } from "react-native";
+import { Alert, Platform } from "react-native";
 import { showConfirmPrompt } from "@/components/common/ConfirmPrompt";
-
-type ButtonStyle = "default" | "cancel" | "destructive";
 
 export interface ConfirmOptions {
   title: string;
@@ -29,7 +27,6 @@ export async function alertDialog(options: AlertOptions): Promise<void> {
     return;
   }
   return new Promise<void>((resolve) => {
-    const { Alert } = require("react-native");
     Alert.alert(title, message, [{ text: okText, onPress: () => resolve() }], {
       cancelable: true,
       onDismiss: () => resolve(),

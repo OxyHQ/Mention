@@ -6,14 +6,18 @@ import Post from "../models/Post";
 import { Server } from 'socket.io';
 import PushToken from '../models/PushToken';
 import { sendPushToUser } from '../utils/push';
-import { resolveAvatarUrl } from '../utils/mediaResolver';
 import { logger } from '../utils/logger';
 import { postHydrationService } from '../services/PostHydrationService';
 import { createScopedOxyClient, getServiceOxyClient } from '../utils/oxyHelpers';
 import { queryInt, queryString } from '../utils/queryParams';
 import { apiRateLimiter } from '../middleware/rateLimiter';
 import type { HydratedPost } from '@mention/shared-types';
-import type { User } from '@oxyhq/core';
+import {
+  toPopulatedActor,
+  type NotificationActorProfile as ActorProfile,
+} from '../utils/notificationActor';
+
+export { toPopulatedActor };
 
 const router = express.Router();
 
@@ -32,26 +36,6 @@ router.use(apiRateLimiter);
  * `getUsersByIds`/`getUserById` return full `User` objects (assignable to this),
  * while the synthetic `system` actor only needs these fields.
  */
-type ActorProfile = Pick<User, 'username' | 'name' | 'avatar'> & {
-  id?: string;
-  _id?: string;
-};
-
-export function toPopulatedActor(actor: ActorProfile, fallbackId: unknown) {
-  const id = String(actor?.id || actor?._id || fallbackId);
-  // Emit the canonical, required `name.displayName` (profile-identity contract).
-  // For a resolved Oxy user this is always present and composed server-side; the
-  // `|| id` floor is the never-blank last resort (the handle), NOT a name
-  // recompute. Clients render `name.displayName` directly.
-  const displayName = (actor?.name?.displayName && actor.name.displayName.trim()) || id;
-  return {
-    _id: id,
-    username: actor?.username || id,
-    name: { displayName },
-    avatar: resolveAvatarUrl(typeof actor?.avatar === 'string' ? actor.avatar : undefined),
-  };
-}
-
 const SYSTEM_ACTOR: ActorProfile = {
   id: 'system',
   username: 'system',
@@ -209,9 +193,7 @@ router.get("/", async (req: AuthRequest, res: Response) => {
         ...n,
         preview,
         post: embeddedPost,
-        actorId_populated: actor ? {
-          ...toPopulatedActor(actor, n.actorId),
-        } : undefined
+        actorId_populated: toPopulatedActor(actor, n.actorId),
       };
     });
 
@@ -270,7 +252,7 @@ const enrichNotificationActor = async (notification: INotification) => {
   }
   return {
     ...notification.toObject(),
-    actorId_populated: actor ? toPopulatedActor(actor, actorId) : undefined,
+    actorId_populated: toPopulatedActor(actor, actorId),
   };
 };
 

@@ -192,7 +192,11 @@ jobs:
                  "bun","packages/backend/dist/src/scripts/normalizeFederatedText.js"
                ],
                environment: [
-                 {name:"DRY_RUN", value:$dry}
+                 {name:"DRY_RUN", value:$dry},
+                 {
+                   name:"CONFIRM_ADMIN_MUTATION",
+                   value:"normalizeFederatedText"
+                 }
                ]
              }]}')
 

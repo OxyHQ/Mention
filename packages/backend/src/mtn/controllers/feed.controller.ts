@@ -5,7 +5,7 @@
  * Flow: parse descriptor → resolve FeedAPI → fetch → apply tuner → respond.
  */
 
-import { Request, Response } from 'express';
+import { Response } from 'express';
 import { isValidFeedDescriptor, MtnConfig, createPostUri, parseFeedDescriptor } from '@mention/shared-types';
 import type { FeedDescriptor, SlicedFeedResponse } from '@mention/shared-types';
 import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
@@ -469,12 +469,6 @@ class MtnFeedController {
       const requestOxyClient = createScopedOxyClient(req);
       const feedOxyClient = requestOxyClient
         ?? (getRuntimeOxyClient() as unknown as OxyClient);
-
-      const privacyState = currentUserId
-        ? await UserPrivacyManager.loadPrivacyState(currentUserId, {
-            oxyClient: requestOxyClient,
-          })
-        : null;
 
       let followingIds: string[] = [];
       let subscribedListMemberIds: string[] = [];

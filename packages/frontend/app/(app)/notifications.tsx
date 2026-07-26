@@ -21,9 +21,8 @@ import { validateNotifications } from '@/types/validation';
 import { normalizeApiError } from '@/utils/apiError';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { groupNotifications, GroupedNotification, NotificationListItem } from '@/utils/groupNotifications';
-import { useUnreadCount, unreadCountKey } from '@/hooks/useUnreadCount';
+import { useUnreadCount } from '@/hooks/useUnreadCount';
 import {
-    notificationsKey,
     findNotification,
     markNotificationsRead,
     markAllNotificationsRead,
@@ -31,6 +30,7 @@ import {
     bumpUnread,
     type NotificationsInfiniteData,
 } from '@/utils/notificationCache';
+import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { NotificationsList } from '@/components/NotificationsList';
 import { NotificationSkeleton } from '@/components/notifications/NotificationSkeleton';
 import { useLayoutScroll } from '@/context/LayoutScrollContext';
@@ -39,7 +39,7 @@ import { Header } from '@/components/Header';
 import { StatusBar } from 'expo-status-bar';
 import { show as toast } from '@oxyhq/bloom/toast';
 import { confirmDialog } from '@/utils/alerts';
-import SEO from '@/components/SEO';
+import { SEO } from '@/components/SEO';
 import { IconButton } from '@/components/ui/Button';
 import { Error } from '@/components/Error';
 import { EmptyState } from '@/components/common/EmptyState';
@@ -120,7 +120,7 @@ const NotificationsScreen: React.FC = () => {
         hasNextPage,
         isFetchingNextPage,
     } = useInfiniteQuery({
-        queryKey: ['notifications', user?.id],
+        queryKey: viewerQueryKeys.notifications(user?.id),
         queryFn: ({ pageParam }) => notificationService.getNotifications(pageParam),
         initialPageParam: undefined as string | undefined,
         getNextPageParam: (lastPage) => (lastPage.hasMore ? lastPage.nextCursor : undefined),
@@ -142,7 +142,10 @@ const NotificationsScreen: React.FC = () => {
     // bell badges elsewhere) — the single source of truth, kept in lockstep with
     // the list via the shared cache reducers below.
     const unreadCount = useUnreadCount();
-    const notificationsQueryKey = useMemo(() => notificationsKey(user?.id), [user?.id]);
+    const notificationsQueryKey = useMemo(
+        () => viewerQueryKeys.notifications(user?.id),
+        [user?.id],
+    );
 
     // Optimistically patch the cached list + badge in place (no invalidate/
     // refetch flicker). The server echo to `user:<id>` reconciles idempotently.
@@ -169,7 +172,9 @@ const NotificationsScreen: React.FC = () => {
             notificationLogger.error('Error marking notification as read', { error });
             toast(t('notification.mark_read_error') || 'Failed to mark notification as read', { type: 'error' });
             // Resync from the server on failure to undo the optimistic patch.
-            queryClient.invalidateQueries({ queryKey: ['notifications'] });
+            queryClient.invalidateQueries({
+                queryKey: viewerQueryKeys.notificationsRoot(user?.id),
+            });
         },
     });
 
@@ -205,7 +210,9 @@ const NotificationsScreen: React.FC = () => {
             notificationLogger.error('Error deleting notification', { error });
             toast(t('notification.delete_error', { defaultValue: 'Failed to delete notification' }), { type: 'error' });
             // Resync from the server on failure to undo the optimistic patch.
-            queryClient.invalidateQueries({ queryKey: ['notifications'] });
+            queryClient.invalidateQueries({
+                queryKey: viewerQueryKeys.notificationsRoot(user?.id),
+            });
         },
     });
 
@@ -216,7 +223,10 @@ const NotificationsScreen: React.FC = () => {
             queryClient.setQueryData<NotificationsInfiniteData>(notificationsQueryKey, (data) =>
                 data ? markAllNotificationsRead(data) : data,
             );
-            queryClient.setQueryData<number>(unreadCountKey(user?.id), 0);
+            queryClient.setQueryData<number>(
+                viewerQueryKeys.unreadNotifications(user?.id),
+                0,
+            );
         },
         onSuccess: () => {
             toast(t('notification.mark_all_read_success') || 'All notifications marked as read', { type: 'success' });
@@ -229,7 +239,9 @@ const NotificationsScreen: React.FC = () => {
                 `Failed to mark all notifications as read${statusCode ? ` (${statusCode})` : ''}: ${errorMessage}`,
                 { type: 'error' }
             );
-            queryClient.invalidateQueries({ queryKey: ['notifications'] });
+            queryClient.invalidateQueries({
+                queryKey: viewerQueryKeys.notificationsRoot(user?.id),
+            });
         },
     });
 
@@ -303,7 +315,7 @@ const NotificationsScreen: React.FC = () => {
     }, [validatedNotifications]);
 
     useQuery({
-        queryKey: ['notifications', 'actorWarm', unpopulatedActorIds],
+        queryKey: viewerQueryKeys.notificationActors(user?.id, unpopulatedActorIds),
         queryFn: () => prewarmUsersByIds(unpopulatedActorIds, (ids) => oxyServices.getUsersByIds(ids), queryClient),
         enabled: canUsePrivateApi && !!oxyServices && unpopulatedActorIds.length > 0,
         staleTime: 5 * 60 * 1000,

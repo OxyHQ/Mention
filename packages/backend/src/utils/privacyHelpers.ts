@@ -277,8 +277,8 @@ export function extractFollowersIds(followersRes: unknown): string[] {
 export async function getFollowingIdSet(viewerId: string, client?: OxyClient): Promise<Set<string>> {
   try {
     // A per-request, viewer-scoped `client` is preferred. When absent, fall back
-    // to the service-authed Oxy client — NOT the bare `oxy` singleton in
-    // server.ts (unauthenticated, reserved for validating incoming request
+    // to the service-authed Oxy client — NOT the process-wide request-auth
+    // client (unauthenticated, reserved for validating incoming request
     // tokens), which would resolve an empty following list and wrongly deny
     // access to private/followers-only content.
     const c = client || getServiceOxyClient();

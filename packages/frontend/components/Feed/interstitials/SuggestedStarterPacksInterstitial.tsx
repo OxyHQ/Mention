@@ -28,6 +28,7 @@ import {
   type ReportInterstitialEvent,
 } from './interstitialTelemetry';
 import { useIsScreenNotMobile } from '@/hooks/useOptimizedMediaQuery';
+import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 
 /**
  * Starter packs, inline in the feed — the one suggestion that fixes an empty
@@ -59,7 +60,10 @@ export function SuggestedStarterPacksInterstitial({
   const query = useQuery({
     // `excludeUsed` makes the list viewer-specific — never share it across an
     // account switch.
-    queryKey: ['feedInterstitial', 'suggestedStarterPacks', user?.id ?? 'anon'],
+    queryKey: viewerQueryKeys.feedInterstitial(
+      user?.id,
+      'suggested-starter-packs',
+    ),
     queryFn: () => starterPacksService.list({ excludeUsed: true }),
     enabled: canUsePrivateApi,
     staleTime: INTERSTITIAL_STALE_TIME_MS,

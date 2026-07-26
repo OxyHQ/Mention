@@ -16,6 +16,7 @@
  *     this way. Use {@link getMcpClientAsync} to resolve a client id against
  *     BOTH sources; the sync {@link getMcpClient} only sees static clients.
  */
+import { config } from '../../config';
 import { McpRegisteredClient } from '../models/McpRegisteredClient';
 
 export interface McpClient {
@@ -24,36 +25,16 @@ export interface McpClient {
   redirectUris: string[];
 }
 
-/** Parse a comma/newline-separated env list into trimmed, non-empty entries. */
-function parseUriList(raw: string | undefined, fallback: string[]): string[] {
-  if (!raw) return fallback;
-  const parsed = raw
-    .split(/[\s,]+/)
-    .map((uri) => uri.trim())
-    .filter((uri) => uri.length > 0);
-  return parsed.length > 0 ? parsed : fallback;
-}
-
-const CLAUDE_DEFAULT_REDIRECTS = [
-  'https://claude.ai/api/mcp/auth_callback',
-  'https://claude.com/api/mcp/auth_callback',
-];
-
-const CHATGPT_DEFAULT_REDIRECTS = [
-  'https://chatgpt.com/connector_platform_oauth_redirect',
-  'https://chat.openai.com/connector_platform_oauth_redirect',
-];
-
 const CLIENTS: Record<string, McpClient> = {
   'claude-web': {
     clientId: 'claude-web',
     label: 'Claude',
-    redirectUris: parseUriList(process.env.MCP_OAUTH_REDIRECT_URIS_CLAUDE, CLAUDE_DEFAULT_REDIRECTS),
+    redirectUris: [...config.mcp.oauthRedirectUris.claude],
   },
   chatgpt: {
     clientId: 'chatgpt',
     label: 'ChatGPT',
-    redirectUris: parseUriList(process.env.MCP_OAUTH_REDIRECT_URIS_CHATGPT, CHATGPT_DEFAULT_REDIRECTS),
+    redirectUris: [...config.mcp.oauthRedirectUris.chatGpt],
   },
 };
 

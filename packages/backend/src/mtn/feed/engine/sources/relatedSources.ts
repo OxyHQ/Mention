@@ -339,7 +339,7 @@ export const risingCreatorsSource: SourceModule = {
   id: 'risingCreators',
   kind: 'source',
   userComposable: true,
-  gather: async (ctx, _params, cap) => {
+  gather: async (_ctx, _params, cap) => {
     const windowStart = new Date(Date.now() - RISING_CREATORS_WINDOW_MS);
 
     let groups: SnapshotGroup[];

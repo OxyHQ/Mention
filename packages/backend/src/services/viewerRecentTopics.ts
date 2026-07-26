@@ -1,5 +1,6 @@
+import { config } from '../config';
 import { getRedisClient } from '../utils/redis';
-import { withRedisFallback, ensureRedisConnected } from '../utils/redisHelpers';
+import { withRedisFallback } from '../utils/redisHelpers';
 import { logger } from '../utils/logger';
 
 /**
@@ -19,7 +20,7 @@ import { logger } from '../utils/logger';
 const RECENT_TOPICS_PREFIX = 'recenttopics:v1:';
 
 /** How long a topic stays "recent". 6 hours — long enough to shape a session. */
-const RECENT_TOPICS_TTL_SECONDS = Number(process.env.VIEWER_RECENT_TOPICS_TTL_SECONDS ?? 6 * 60 * 60);
+const RECENT_TOPICS_TTL_SECONDS = config.cache.viewerRecentTopicsTtlSeconds;
 
 /** Max topics folded in from a single post, so one post can't dominate the set. */
 const MAX_TOPICS_PER_WRITE = 10;
@@ -48,8 +49,6 @@ export async function recordSeenTopics(viewerId: string, topics: string[]): Prom
   await withRedisFallback(
     redis,
     async () => {
-      const connected = await ensureRedisConnected(redis);
-      if (!connected) return;
       const key = keyFor(viewerId);
       const multi = redis.multi();
       multi.sAdd(key, normalized);
@@ -80,8 +79,6 @@ export async function getRecentTopics(viewerId: string): Promise<Set<string>> {
   return withRedisFallback(
     redis,
     async () => {
-      const connected = await ensureRedisConnected(redis);
-      if (!connected) return result;
       const members = await redis.sMembers(keyFor(viewerId));
       for (const member of members) result.add(member);
       return result;

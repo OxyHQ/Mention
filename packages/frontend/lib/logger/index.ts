@@ -1,11 +1,13 @@
 import { add } from './logDump'
 import { consoleTransport } from './transports/console'
+import { sanitizeTransportEntry } from './sanitize'
 import {
   LogContext,
   LogLevel,
   type Metadata,
   type Transport,
 } from './types'
+import { LOG_DEBUG_FILTER, LOG_LEVEL } from '@/config'
 
 const TRANSPORTS: Transport[] = __DEV__ ? [consoleTransport] : []
 
@@ -32,9 +34,9 @@ export class Logger {
 
   static create(context?: string, metadata: Record<string, unknown> = {}) {
     const logger = new Logger({
-      level: process.env.EXPO_PUBLIC_LOG_LEVEL as LogLevel,
+      level: LOG_LEVEL as LogLevel | undefined,
       context,
-      contextFilter: process.env.EXPO_PUBLIC_LOG_DEBUG || '',
+      contextFilter: LOG_DEBUG_FILTER,
       metadata,
     })
     for (const transport of TRANSPORTS) {
@@ -113,16 +115,19 @@ export class Logger {
       ...metadata,
     }
 
-    add({
-      id: String(nextEntryId++),
-      timestamp,
+    const entry = sanitizeTransportEntry({
       level,
       context: this.context,
       message,
       metadata: meta,
+      timestamp,
     })
 
-    const entry = { level, context: this.context, message, metadata: meta, timestamp }
+    add({
+      id: String(nextEntryId++),
+      ...entry,
+    })
+
     for (const transport of this.transports) {
       transport(entry)
     }

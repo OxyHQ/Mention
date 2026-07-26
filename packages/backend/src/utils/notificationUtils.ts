@@ -5,6 +5,10 @@ import { formatPushForNotification, sendPushToUser } from './push';
 import { logger } from './logger';
 import type { PostAuthorshipEntry } from '@mention/shared-types';
 import { getNotificationRecipients, normalizeAuthorship } from './postAuthorship';
+import {
+  toPopulatedActor,
+  type NotificationActorProfile,
+} from './notificationActor';
 
 export interface CreateNotificationData {
   recipientId: string;
@@ -12,20 +16,6 @@ export interface CreateNotificationData {
   type: 'like' | 'reply' | 'mention' | 'follow' | 'boost' | 'quote' | 'welcome' | 'post' | 'poke' | 'collab_invite' | 'collab_accepted' | 'collab_declined';
   entityId: string;
   entityType: 'post' | 'reply' | 'profile';
-}
-
-/**
- * Minimal actor shape consumed when building a real-time notification payload.
- * Sourced either from the service Oxy client's `getUserById` (Oxy user) or a
- * synthetic 'system' actor. `name` may be a plain string or the structured Oxy
- * `{ full }` form.
- */
-interface NotificationActor {
-  id?: string;
-  _id?: string;
-  username?: string;
-  displayName?: string;
-  avatar?: string;
 }
 
 /**
@@ -65,34 +55,20 @@ export const createNotification = async (
   // Emit real-time notification if requested with actor profile data
     const io = emitEvent ? getRuntimeSocketServer() : undefined;
     if (io) {
-      let actor: NotificationActor | null = null;
+      let actor: NotificationActorProfile | null = null;
       try {
         if (data.actorId && data.actorId !== 'system') {
           const oxyActor = await getServiceOxyClient().getUserById(data.actorId);
-          actor = {
-            id: oxyActor.id,
-            username: oxyActor.username,
-            displayName: oxyActor.name.displayName,
-            avatar: oxyActor.avatar ?? undefined,
-          };
+          actor = oxyActor;
         } else if (data.actorId === 'system') {
           actor = { id: 'system', username: 'system', displayName: 'System' };
         }
       } catch (e) {
         // ignore actor resolution failures
       }
-      const actorId = String(actor?.id || actor?._id || data.actorId);
       const payload = {
         ...notification.toObject(),
-        // Emit the canonical, required `name.displayName` (profile-identity
-        // contract). The `|| actorId` floor is the never-blank last resort
-        // (the handle), NOT a name recompute. Clients render it directly.
-        actorId_populated: actor ? {
-          _id: actorId,
-          username: actor.username || actorId,
-          name: { displayName: (actor.displayName && actor.displayName.trim()) || actorId },
-          avatar: actor.avatar
-        } : undefined
+        actorId_populated: toPopulatedActor(actor, data.actorId),
       };
       const notificationsNamespace = io.of('/notifications');
       notificationsNamespace.to(`user:${data.recipientId}`).emit('notification', payload);
@@ -106,7 +82,9 @@ export const createNotification = async (
       // ignore push failures
     }
 
-    logger.debug(`[Notifications] Notification created: ${data.type} from ${data.actorId} to ${data.recipientId}`);
+    logger.debug('[Notifications] notification created', {
+      type: data.type,
+    });
   } catch (error) {
     logger.error('[Notifications] Error creating notification:', error);
     if (throwOnPersistenceError) throw error;
@@ -149,7 +127,7 @@ export const createMentionNotifications = async (
         }, emitEvent);
       } catch (e) {
         // If notification creation fails, log and continue
-        logger.error(`[Notifications] Failed to create mention notification for user ${recipientId}:`, e);
+    logger.error('[Notifications] failed to create mention notification', e);
       }
     }
   } catch (error) {

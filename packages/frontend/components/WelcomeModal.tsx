@@ -113,7 +113,7 @@ const WelcomeModal: React.FC<WelcomeModalProps> = ({
 }) => {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
-  const { isAuthenticated, signIn } = useAuth();
+  const { signIn } = useAuth();
   const router = useRouter();
 
   // Animation values
@@ -435,7 +435,6 @@ const styles = StyleSheet.create({
 
 // Memoize component to prevent unnecessary re-renders
 export default memo(WelcomeModal);
-
 
 
 

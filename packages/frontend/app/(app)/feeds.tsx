@@ -22,7 +22,7 @@ import { BottomBarAwareFab } from '@/components/BottomBarAwareFab';
 import { Avatar } from '@oxyhq/bloom/avatar';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 
-import SEO from '@/components/SEO';
+import { SEO } from '@/components/SEO';
 
 import { customFeedsService } from '@/services/customFeedsService';
 import { useFeedPreferences } from '@/hooks/useFeedPreferences';

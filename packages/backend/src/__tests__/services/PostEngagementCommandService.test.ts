@@ -40,7 +40,9 @@ import {
   EngagementPostNotFoundError,
   materializeEngagementRelationship,
   materializeEngagementTombstone,
+  removeVoteCommand,
   savePostCommand,
+  unsavePostCommand,
   votePostCommand,
 } from '../../services/PostEngagementCommandService';
 
@@ -50,6 +52,19 @@ function resolvedQuery<T>(value: T) {
     session: vi.fn().mockReturnThis(),
     lean: vi.fn().mockResolvedValue(value),
   };
+}
+
+function deletedQuery<T>(value: T) {
+  return {
+    session: vi.fn().mockResolvedValue(value),
+  };
+}
+
+function mockPost(post: unknown, updated: unknown = post): void {
+  vi.mocked(Post.findById).mockReturnValue(resolvedQuery(post) as never);
+  vi.mocked(Post.findByIdAndUpdate).mockReturnValue(
+    resolvedQuery(updated) as never,
+  );
 }
 
 describe('PostEngagementCommandService', () => {
@@ -285,5 +300,260 @@ describe('PostEngagementCommandService', () => {
     });
     expect(Post.findByIdAndUpdate).toHaveBeenCalledTimes(1);
     expect(EngagementOutbox.updateOne).not.toHaveBeenCalled();
+  });
+
+  it('rejects a missing post and always closes the transaction session', async () => {
+    const postId = new mongoose.Types.ObjectId().toHexString();
+    vi.mocked(Post.findById).mockReturnValue(resolvedQuery(null) as never);
+
+    await expect(savePostCommand({ userId: 'viewer-a', postId }))
+      .rejects.toBeInstanceOf(EngagementPostNotFoundError);
+
+    const session = await vi.mocked(mongoose.startSession).mock.results[0]?.value;
+    expect(session?.endSession).toHaveBeenCalledOnce();
+  });
+
+  it('fails if the transaction callback completes without executing the command', async () => {
+    const endSession = vi.fn().mockResolvedValue(undefined);
+    vi.mocked(mongoose.startSession).mockResolvedValueOnce({
+      withTransaction: vi.fn().mockResolvedValue(undefined),
+      endSession,
+    } as never);
+    const postId = new mongoose.Types.ObjectId().toHexString();
+
+    await expect(savePostCommand({ userId: 'viewer-a', postId }))
+      .rejects.toThrow('Engagement transaction completed without a result');
+    expect(endSession).toHaveBeenCalledOnce();
+  });
+
+  it('does not retry ordinary errors and stops after the duplicate-key retry cap', async () => {
+    const postId = new mongoose.Types.ObjectId().toHexString();
+    mockPost({ stats: { savesCount: 0 } });
+    vi.mocked(Bookmark.updateOne).mockRejectedValueOnce(new Error('ordinary'));
+
+    await expect(savePostCommand({ userId: 'viewer-a', postId }))
+      .rejects.toThrow('ordinary');
+    expect(mongoose.startSession).toHaveBeenCalledTimes(1);
+
+    vi.clearAllMocks();
+    vi.spyOn(mongoose, 'startSession').mockResolvedValue({
+      withTransaction: vi.fn(async (operation: () => Promise<void>) => operation()),
+      endSession: vi.fn().mockResolvedValue(undefined),
+    } as never);
+    mockPost({ stats: { savesCount: 0 } });
+    vi.mocked(Bookmark.updateOne).mockRejectedValue(
+      Object.assign(new Error('duplicate'), { code: '11000' }),
+    );
+
+    await expect(savePostCommand({ userId: 'viewer-a', postId }))
+      .rejects.toThrow('duplicate');
+    expect(mongoose.startSession).toHaveBeenCalledTimes(3);
+  });
+
+  it('unsaves idempotently and emits a deterministic event only when a row existed', async () => {
+    const postId = new mongoose.Types.ObjectId().toHexString();
+    const bookmarkId = new mongoose.Types.ObjectId();
+    vi.mocked(Post.findById)
+      .mockReturnValueOnce(resolvedQuery({ stats: { savesCount: 1 } }) as never)
+      .mockReturnValueOnce(resolvedQuery({ stats: { savesCount: 0 } }) as never);
+    vi.mocked(Bookmark.findOneAndDelete)
+      .mockReturnValueOnce(deletedQuery(null) as never)
+      .mockReturnValueOnce(deletedQuery({ _id: bookmarkId }) as never);
+    vi.mocked(Post.findByIdAndUpdate).mockReturnValue(
+      resolvedQuery({ stats: { savesCount: 0 } }) as never,
+    );
+
+    await expect(unsavePostCommand({ userId: 'viewer-a', postId }))
+      .resolves.toMatchObject({ changed: false });
+    const removed = await unsavePostCommand({ userId: 'viewer-a', postId });
+
+    expect(removed).toMatchObject({
+      changed: true,
+      bookmarkId: bookmarkId.toHexString(),
+      outboxEventId: `engagement:post.unsave:${bookmarkId.toHexString()}:v2`,
+    });
+  });
+
+  it('returns an idempotent vote when the existing value already matches', async () => {
+    const postId = new mongoose.Types.ObjectId().toHexString();
+    const likeId = new mongoose.Types.ObjectId();
+    mockPost({ stats: { likesCount: 1 } });
+    vi.mocked(Like.findOne).mockReturnValue(
+      deletedQuery({ _id: likeId, value: undefined }) as never,
+    );
+
+    await expect(votePostCommand({
+      userId: 'viewer-a',
+      postId,
+      value: 1,
+    })).resolves.toMatchObject({
+      changed: false,
+      likeId: likeId.toHexString(),
+      previousValue: 1,
+      value: 1,
+    });
+    expect(Like.create).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { value: 1 as const, kind: 'post.like', source: 'api' },
+    { value: -1 as const, kind: 'post.downvote', source: undefined },
+  ])('creates a first $kind relationship with the correct counter', async ({
+    value,
+    kind,
+    source,
+  }) => {
+    const postId = new mongoose.Types.ObjectId().toHexString();
+    const likeId = new mongoose.Types.ObjectId();
+    mockPost(
+      { stats: { likesCount: 0, downvotesCount: 0 } },
+      { stats: { likesCount: value === 1 ? 1 : 0, downvotesCount: value === -1 ? 1 : 0 } },
+    );
+    vi.mocked(Like.findOne).mockReturnValue(deletedQuery(null) as never);
+    vi.mocked(Like.create).mockResolvedValue([{ _id: likeId }] as never);
+
+    const result = await votePostCommand({
+      userId: 'viewer-a',
+      postId,
+      value,
+      source,
+    });
+
+    expect(result).toMatchObject({
+      changed: true,
+      previousValue: null,
+      value,
+      outboxEventId: `engagement:${kind}:${likeId.toHexString()}:v1`,
+    });
+  });
+
+  it('removes missing, upvote and downvote rows idempotently', async () => {
+    const postId = new mongoose.Types.ObjectId().toHexString();
+    const likeId = new mongoose.Types.ObjectId();
+    vi.mocked(Post.findById).mockReturnValue(
+      resolvedQuery({ stats: { likesCount: 1, downvotesCount: 1 } }) as never,
+    );
+    vi.mocked(Post.findByIdAndUpdate).mockReturnValue(
+      resolvedQuery({ stats: { likesCount: 0, downvotesCount: 0 } }) as never,
+    );
+    vi.mocked(Like.findOneAndDelete)
+      .mockReturnValueOnce(deletedQuery(null) as never)
+      .mockReturnValueOnce(deletedQuery({ _id: likeId, value: 1, revision: 2 }) as never)
+      .mockReturnValueOnce(deletedQuery({ _id: likeId, value: -1, revision: undefined }) as never);
+
+    await expect(removeVoteCommand({ userId: 'viewer-a', postId }))
+      .resolves.toMatchObject({ changed: false, value: null });
+    await expect(removeVoteCommand({ userId: 'viewer-a', postId }))
+      .resolves.toMatchObject({
+        changed: true,
+        previousValue: 1,
+        outboxEventId: `engagement:post.unlike:${likeId.toHexString()}:v3`,
+      });
+    await expect(removeVoteCommand({ userId: 'viewer-a', postId }))
+      .resolves.toMatchObject({
+        changed: true,
+        previousValue: -1,
+        outboxEventId: `engagement:post.undownvote:${likeId.toHexString()}:v1`,
+      });
+  });
+
+  it('materializes likes with generated relationship ids and treats duplicates as no-ops', async () => {
+    const postId = new mongoose.Types.ObjectId().toHexString();
+    mockPost({ stats: { likesCount: 0 } }, { stats: { likesCount: 1 } });
+    vi.mocked(Like.updateOne)
+      .mockResolvedValueOnce({ upsertedCount: 1 } as never)
+      .mockResolvedValueOnce({ upsertedCount: 0 } as never);
+
+    await expect(materializeEngagementRelationship({
+      kind: 'like',
+      userId: 'viewer-a',
+      postId,
+    })).resolves.toEqual({ changed: true });
+    await expect(materializeEngagementRelationship({
+      kind: 'like',
+      userId: 'viewer-a',
+      postId,
+    })).resolves.toEqual({ changed: false });
+  });
+
+  it('validates materialized tombstone selectors before opening a transaction', async () => {
+    await expect(materializeEngagementTombstone({
+      kind: 'bookmark',
+      userId: 'viewer-a',
+    })).rejects.toThrow('needs a relationship or post id');
+    await expect(materializeEngagementTombstone({
+      kind: 'bookmark',
+      relationshipId: 'invalid',
+      userId: 'viewer-a',
+    })).rejects.toBeInstanceOf(EngagementPostNotFoundError);
+  });
+
+  it('handles absent and invalid tombstoned relationships without corrupting counters', async () => {
+    const relationshipId = new mongoose.Types.ObjectId().toHexString();
+    vi.mocked(Like.findOneAndDelete)
+      .mockReturnValueOnce(deletedQuery(null) as never)
+      .mockReturnValueOnce(deletedQuery({
+        _id: relationshipId,
+        postId: 'invalid',
+        value: 1,
+      }) as never);
+
+    await expect(materializeEngagementTombstone({
+      kind: 'like',
+      relationshipId,
+      userId: 'viewer-a',
+    })).resolves.toEqual({ changed: false });
+    await expect(materializeEngagementTombstone({
+      kind: 'like',
+      relationshipId,
+      userId: 'viewer-a',
+    })).rejects.toThrow('invalid post id');
+  });
+
+  it.each([
+    { value: -1, counter: 'downvotesCount' },
+    { value: undefined, counter: 'likesCount' },
+  ])('decrements the authoritative $counter for a materialized like tombstone', async ({
+    value,
+  }) => {
+    const postId = new mongoose.Types.ObjectId().toHexString();
+    const relationshipId = new mongoose.Types.ObjectId().toHexString();
+    vi.mocked(Like.findOneAndDelete).mockReturnValue(
+      deletedQuery({
+        _id: relationshipId,
+        postId: new mongoose.Types.ObjectId(postId),
+        ...(value === undefined ? {} : { value }),
+      }) as never,
+    );
+    vi.mocked(Post.findByIdAndUpdate).mockReturnValue(
+      resolvedQuery({ stats: { likesCount: 0, downvotesCount: 0 } }) as never,
+    );
+
+    await expect(materializeEngagementTombstone({
+      kind: 'like',
+      relationshipId,
+      postId,
+      userId: 'viewer-a',
+    })).resolves.toEqual({ changed: true });
+  });
+
+  it('tolerates a post deleted after a materialized relationship was removed', async () => {
+    const postId = new mongoose.Types.ObjectId().toHexString();
+    const relationshipId = new mongoose.Types.ObjectId().toHexString();
+    vi.mocked(Bookmark.findOneAndDelete).mockReturnValue(
+      deletedQuery({
+        _id: relationshipId,
+        postId: new mongoose.Types.ObjectId(postId),
+      }) as never,
+    );
+    vi.mocked(Post.findByIdAndUpdate).mockReturnValue(
+      resolvedQuery(null) as never,
+    );
+
+    await expect(materializeEngagementTombstone({
+      kind: 'bookmark',
+      relationshipId,
+      userId: 'viewer-a',
+    })).resolves.toEqual({ changed: true });
   });
 });

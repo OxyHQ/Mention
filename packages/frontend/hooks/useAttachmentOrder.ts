@@ -77,13 +77,11 @@ export const useAttachmentOrder = ({
     return keys;
   }, [showPollCreator, hasArticleContent, article, hasEventContent, event, hasRoomContent, room, hasPodcastContent, podcast, location, sources, mediaIds, linkUrls]);
 
-  // Track previous activeKeys to detect additions for stable ordering
-  const prevActiveKeysRef = useRef<Set<string>>(activeKeys);
+  // Preserve the last computed ordering between attachment changes.
   const stableOrderRef = useRef<string[]>([]);
 
   // Reconcile: preserve user ordering for known keys, append new keys at the end
   const attachmentOrder = useMemo(() => {
-    const prevKeys = prevActiveKeysRef.current;
     const prevStableOrder = stableOrderRef.current;
 
     // Start from the last known stable order (which includes user reordering)
@@ -101,7 +99,6 @@ export const useAttachmentOrder = ({
     });
 
     // Update refs for next reconciliation
-    prevActiveKeysRef.current = activeKeys;
     stableOrderRef.current = result;
 
     return result;

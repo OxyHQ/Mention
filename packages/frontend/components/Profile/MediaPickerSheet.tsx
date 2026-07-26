@@ -13,7 +13,7 @@ import { useTranslation } from 'react-i18next';
 import { Item } from '@oxyhq/bloom/item';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { show as toast } from '@oxyhq/bloom/toast';
-import { useAppearanceStore, type ProfileMedia, type UserAppearance } from '@/store/appearanceStore';
+import { useAppearanceStore, type ProfileMedia, type UserAppearance } from '@/stores/appearanceStore';
 import { useProfileSongPreview } from '@/hooks/useProfileSongPreview';
 import { useInfiniteCatalogSearch, ResultsFooter } from '@/hooks/useInfiniteCatalogSearch';
 import { createScopedLogger } from '@/lib/logger';

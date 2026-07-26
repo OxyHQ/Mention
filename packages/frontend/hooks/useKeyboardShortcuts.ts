@@ -28,6 +28,7 @@ export function useKeyboardShortcuts(): KeyboardShortcutsState {
   const [showHelpModal, setShowHelpModal] = useState(false);
   const router = useRouter();
   const { user, canUsePrivateApi, signIn } = useAuth();
+  const profileHandle = getNormalizedUserHandle(user);
   const pendingComboRef = useRef<string | null>(null);
   const comboTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -84,9 +85,8 @@ export function useKeyboardShortcuts(): KeyboardShortcutsState {
             return;
           case 'p':
             {
-              const handle = getNormalizedUserHandle(user);
-              if (handle) {
-                router.push(`/@${handle}`);
+              if (profileHandle) {
+                router.push(`/@${profileHandle}`);
               }
             }
             return;
@@ -136,7 +136,7 @@ export function useKeyboardShortcuts(): KeyboardShortcutsState {
       document.removeEventListener('keydown', handleKeyDown);
       clearCombo();
     };
-  }, [router, user?.username, clearCombo, canUsePrivateApi, signIn]);
+  }, [router, profileHandle, clearCombo, canUsePrivateApi, signIn]);
 
   return { showHelpModal, setShowHelpModal };
 }

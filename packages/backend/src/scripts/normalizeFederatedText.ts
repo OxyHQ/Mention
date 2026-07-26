@@ -67,7 +67,8 @@
  * Run — as a Fargate one-shot against the deployed backend image (command
  * overridden), or locally with the same env:
  *   DRY_RUN=true bun packages/backend/dist/src/scripts/normalizeFederatedText.js   # preview, writes nothing
- *   bun packages/backend/dist/src/scripts/normalizeFederatedText.js                # apply
+ *   CONFIRM_ADMIN_MUTATION=normalizeFederatedText \
+ *     bun packages/backend/dist/src/scripts/normalizeFederatedText.js              # reviewed apply
  *
  * Env:
  *   MONGODB_URI   the cluster (injected by ECS from SSM)
@@ -82,6 +83,7 @@ import FederatedActor from '../models/FederatedActor';
 import { normalizeAlt } from '../services/MediaMetadataService';
 import { htmlToInlineLabel } from '../utils/federation/htmlToPlainText';
 import { logger } from '../utils/logger';
+import { assertAdminMutationAllowed } from './lib/adminScriptSafety';
 
 /** Documents scanned per page (stable `_id` cursor pagination). */
 const PAGE_SIZE = 500;
@@ -380,9 +382,10 @@ function logSamples(kind: string, samples: DocumentSample[]): void {
   );
   for (const sample of samples) {
     for (const change of sample.changes) {
-      logger.info(
-        `[normalizeFederatedText]   ${kind} ${sample.id} ${change.path}: ${change.before} -> ${change.after}`,
-      );
+      logger.info('[normalizeFederatedText] sampled field change', {
+        kind,
+        field: change.path,
+      });
     }
   }
 }
@@ -554,18 +557,22 @@ export async function normalizeStoredText(dryRun: boolean): Promise<Normalizatio
   logSamples('actor', actors.samples);
 
   const elapsedSeconds = Math.round((Date.now() - startedAt) / 1000);
-  const describeWrites = (result: CollectionResult<unknown>): string =>
-    dryRun
-      ? `${result.changed} would be rewritten`
-      : `${result.written} rewritten (${result.changed} changed)`;
-
-  logger.info(
-    `[normalizeFederatedText] done in ${elapsedSeconds}s${dryRun ? ' — DRY RUN, nothing was written' : ''}: `
-    + `posts scanned ${posts.scanned}, ${describeWrites(posts)} `
-    + `(text ${posts.counts.text}, spoilerText ${posts.counts.spoilerText}, media alt ${posts.counts.mediaAlt}); `
-    + `actors scanned ${actors.scanned}, ${describeWrites(actors)} `
-    + `(username ${actors.counts.username}, summary ${actors.counts.summary}, fields ${actors.counts.fields})`,
-  );
+  logger.info('[normalizeFederatedText] normalization complete', {
+    durationMs: elapsedSeconds * 1_000,
+    dryRun,
+    postsScanned: posts.scanned,
+    postsChanged: posts.changed,
+    postsWritten: posts.written,
+    textFields: posts.counts.text,
+    spoilerTextFields: posts.counts.spoilerText,
+    mediaAltFields: posts.counts.mediaAlt,
+    actorsScanned: actors.scanned,
+    actorsChanged: actors.changed,
+    actorsWritten: actors.written,
+    usernameFields: actors.counts.username,
+    summaryFields: actors.counts.summary,
+    profileFields: actors.counts.fields,
+  });
 
   return { dryRun, posts, actors };
 }
@@ -576,10 +583,12 @@ async function normalizeFederatedText(): Promise<void> {
   const dbName = `mention-${process.env.NODE_ENV || 'development'}`;
 
   try {
+    assertAdminMutationAllowed({
+      scriptName: 'normalizeFederatedText',
+      dryRun,
+    });
     await mongoose.connect(mongoUri, { dbName });
-    logger.info(
-      `[normalizeFederatedText] connected to MongoDB (${dbName})${dryRun ? ' — DRY RUN, no writes will be performed' : ''}`,
-    );
+    logger.info('[normalizeFederatedText] connected to MongoDB', { dryRun });
 
     await normalizeStoredText(dryRun);
 

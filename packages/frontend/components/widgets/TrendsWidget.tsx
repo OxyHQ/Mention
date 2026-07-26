@@ -5,7 +5,7 @@ import { show as toast } from '@oxyhq/bloom/toast';
 import { useTranslation } from 'react-i18next';
 import { useRouter } from 'expo-router';
 import { BaseWidget } from './BaseWidget';
-import { useTrendsStore } from '@/store/trendsStore';
+import { useTrendsStore } from '@/stores/trendsStore';
 import type { Trend } from '@/interfaces/Trend';
 import { useTrendNavigation, buildTrendUrl } from '@/hooks/useTrendNavigation';
 import { useWidgetItemMenu } from '@/hooks/useWidgetItemMenu';

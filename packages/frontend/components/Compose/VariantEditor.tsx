@@ -15,6 +15,7 @@ import { describeContentLanguage } from '@/constants/contentLanguages';
 import { MEDIA_CARD_HEIGHT, MEDIA_CARD_WIDTH, type ComposerMediaItem } from '@/utils/composeUtils';
 import type { ComposeVariantItem } from '@/utils/composeVariants';
 import { AVATAR_SIZE, BOTTOM_LEFT_PAD, HPAD } from './composeLayout';
+import type { MentionData, MentionTextValue } from '@/utils/mentions';
 
 interface VariantEditorProps {
   /** `MAIN_ITEM_ID` for the main post, or the thread item's id. */
@@ -34,7 +35,8 @@ interface VariantEditorProps {
   isPosting: boolean;
   isTranslating: boolean;
   getFileDownloadUrl: (id: string) => string;
-  onTextChange: (itemId: string, text: string) => void;
+  mentions: readonly MentionData[];
+  onMentionValueChange: (itemId: string, value: MentionTextValue) => void;
   onFocus: (itemId: string) => void;
   onTranslate: (itemId: string) => void;
   /** Alt for one of the SHARED images, in this language. */
@@ -77,7 +79,8 @@ const VariantEditor = memo(function VariantEditor({
   isPosting,
   isTranslating,
   getFileDownloadUrl,
-  onTextChange,
+  mentions,
+  onMentionValueChange,
   onFocus,
   onTranslate,
   onSharedAltPress,
@@ -92,7 +95,10 @@ const VariantEditor = memo(function VariantEditor({
   const theme = useTheme();
   const language = describeContentLanguage(tag);
 
-  const handleTextChange = useCallback((text: string) => onTextChange(itemId, text), [itemId, onTextChange]);
+  const handleMentionValueChange = useCallback(
+    (value: MentionTextValue) => onMentionValueChange(itemId, value),
+    [itemId, onMentionValueChange],
+  );
   const handleFocus = useCallback(() => onFocus(itemId), [itemId, onFocus]);
   const handleTranslate = useCallback(() => onTranslate(itemId), [itemId, onTranslate]);
   const handlePickOwnMedia = useCallback(() => onPickOwnMedia(itemId), [itemId, onPickOwnMedia]);
@@ -116,7 +122,8 @@ const VariantEditor = memo(function VariantEditor({
               language: language.nativeName,
             })}
             value={item.text}
-            onChangeText={handleTextChange}
+            mentions={mentions}
+            onValueChange={handleMentionValueChange}
             onFocus={handleFocus}
             multiline
           />

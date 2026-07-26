@@ -6,8 +6,8 @@ import { describe, it, expect, vi } from 'vitest';
  * `toPopulatedActor` builds the `actorId_populated` DTO embedded on every
  * notification. Per the profile-identity contract it MUST emit a required,
  * non-blank `name.displayName` so clients render it directly with no
- * `displayName || username` recompute. The `|| id` floor is the never-blank
- * last resort (the handle), not a name recompute.
+ * `displayName || username` recompute. Unresolved actors use the canonical
+ * neutral placeholder and never copy an Oxy id into visual identity fields.
  */
 
 // `notifications.ts` imports the app server at module load; stub it so the route
@@ -41,13 +41,13 @@ describe('notifications: toPopulatedActor embedded-actor DTO', () => {
     expect((dto as Record<string, unknown>).displayName).toBeUndefined();
   });
 
-  it('falls back to the id (never blank) when displayName is missing/blank', () => {
+  it('falls back to the real username when displayName is missing/blank', () => {
     const dto = toPopulatedActor(
       { id: 'oxy-actor-2', username: 'bob', name: { displayName: '   ' } },
       'fallback-id',
     );
-    expect(dto.name.displayName).toBe('oxy-actor-2');
-    expect(dto.name.displayName.length).toBeGreaterThan(0);
+    expect(dto.username).toBe('bob');
+    expect(dto.name.displayName).toBe('bob');
   });
 
   it('uses the fallback id when the actor has no id at all', () => {
@@ -57,5 +57,28 @@ describe('notifications: toPopulatedActor embedded-actor DTO', () => {
     );
     expect(dto._id).toBe('system');
     expect(dto.name.displayName).toBe('System');
+  });
+
+  it('uses the neutral degraded identity when Oxy returns only its raw id', () => {
+    const dto = toPopulatedActor(
+      {
+        id: 'oxy-actor-3',
+        username: 'oxy-actor-3',
+        name: { displayName: 'oxy-actor-3' },
+      },
+      'oxy-actor-3',
+    );
+
+    expect(dto._id).toBe('oxy-actor-3');
+    expect(dto.username).toBe('');
+    expect(dto.name.displayName).toBe('Unknown user');
+  });
+
+  it('uses the neutral degraded identity when actor resolution misses', () => {
+    const dto = toPopulatedActor(undefined, 'oxy-missing-actor');
+
+    expect(dto._id).toBe('oxy-missing-actor');
+    expect(dto.username).toBe('');
+    expect(dto.name.displayName).toBe('Unknown user');
   });
 });

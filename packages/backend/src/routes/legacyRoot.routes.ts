@@ -29,5 +29,11 @@ export function legacyApiRootReadiness(
     .json({
       message: 'Welcome to the Mention API',
       status: ready ? 'ready' : 'not_ready',
+      capabilities: {
+        // Frontend releases can precede the backend rollout. Advertising the
+        // anonymous endpoint prevents a newer web client from POSTing RUM to an
+        // older revision where the path falls through to required auth.
+        webTelemetry: true,
+      },
     });
 }

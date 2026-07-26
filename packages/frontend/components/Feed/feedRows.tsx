@@ -21,7 +21,6 @@ import { createScopedLogger } from '@/lib/logger';
 import { getItemKey, deduplicateItems, buildReplyTree, ReplyNode } from '@/utils/feedUtils';
 import { THREAD_LINE_WIDTH, THREAD_LINE_BORDER_RADIUS, THREAD_LINE_Z_INDEX } from '@/components/Compose/composeLayout';
 import { POST_ITEM_SPACING } from '@/styles/shared';
-import { extractAuthorId } from '@/utils/postUtils';
 
 /**
  * Shared feed-row model + render helpers used by BOTH the native (FlashList)
@@ -37,23 +36,12 @@ import { extractAuthorId } from '@/utils/postUtils';
 export type FeedItem = HydratedPost | Reply | Boost;
 
 /**
- * Optional/legacy fields probed on a feed item for thread classification and
- * "my recent post to top" sorting. These are NOT all present on the hydrated
- * shape: `isLocalNew`/`date` come from optimistic local inserts, and
- * `original`/`boostOf`/`quoted`/`quoteOf`/`replyTo` are raw/legacy aliases for
- * the hydrated `originalPost`/`quotedPost`/`parentPostId` nested references.
- * Reading them through this view avoids `as any` while keeping the defensive
- * runtime checks intact.
+ * Local-only fields used for "my recent post to top" sorting. They are added by
+ * the cache/optimistic-write boundary and never appear on the API DTO.
  */
-export type FeedItemProbe = FeedItem & {
+type FeedItemProbe = FeedItem & {
     isLocalNew?: boolean;
     date?: string;
-    createdAt?: string;
-    original?: unknown;
-    boostOf?: unknown;
-    quoted?: unknown;
-    quoteOf?: unknown;
-    replyTo?: unknown;
 };
 
 // A post row: one hydrated post plus its thread state.
@@ -196,7 +184,7 @@ export function buildFeedRows({
 
                 // Privacy filter
                 if (blockedSet.size > 0) {
-                    const authorId = extractAuthorId(post);
+                    const authorId = post.user?.id;
                     if (authorId && blockedSet.has(authorId)) continue;
                 }
 
@@ -224,7 +212,7 @@ export function buildFeedRows({
     const deduped = deduplicateItems(src, getItemKey);
     const filteredByPrivacy = blockedSet.size > 0
         ? deduped.filter((item) => {
-            const authorId = extractAuthorId(item);
+            const authorId = item.user?.id;
             return authorId ? !blockedSet.has(authorId) : true;
         })
         : deduped;
@@ -277,7 +265,7 @@ export function buildFeedRows({
             const probe = item as FeedItemProbe;
             const ownerId = probe.user?.id;
             if (probe.isLocalNew || ownerId === currentUserId) {
-                const d = probe.date || probe.createdAt;
+                const d = probe.date;
                 const ts = d ? Date.parse(d) : 0;
                 if (ts && now - ts <= THRESHOLD_MS) {
                     mineNow.push({ item, ts });
@@ -327,10 +315,10 @@ export function feedRowType(row: FeedRow): string {
     if (row.nestingDepth > 0) return `nested_${row.nestingDepth}`;
     if (row.isThreadParent) return 'threadParent';
     if (row.isThreadChild) return 'threadChild';
-    const item = row.item as FeedItemProbe;
-    if (item.original || item.boostOf) return 'boost';
-    if (item.quoted || item.quoteOf) return 'quote';
-    if ((item as { parentPostId?: unknown }).parentPostId || item.replyTo) return 'reply';
+    const item = row.item;
+    if (item.boost) return 'boost';
+    if (item.quotedPost) return 'quote';
+    if (item.parentPostId) return 'reply';
     return 'post';
 }
 

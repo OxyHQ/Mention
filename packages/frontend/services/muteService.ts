@@ -38,7 +38,7 @@ class MuteService {
     try {
       const res = await authenticatedClient.get<{ isMuted?: boolean }>(`/mute/check/${userId}`);
       return res.data.isMuted || false;
-    } catch (error) {
+    } catch {
       return false;
     }
   }

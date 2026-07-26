@@ -74,20 +74,6 @@ export const EventEditor: React.FC<EventEditorProps> = ({
         setShowDatePicker(false);
     }, [eventDate, onDateChange]);
 
-    const handleTimeChange = React.useCallback((params: { date: DateType }) => {
-        if (params.date) {
-            const selectedTime = new Date(params.date.valueOf());
-            // Merge with existing date if we're just changing the time
-            const currentDateTime = eventDate;
-            const newDateTime = new Date(currentDateTime);
-            newDateTime.setHours(selectedTime.getHours());
-            newDateTime.setMinutes(selectedTime.getMinutes());
-            newDateTime.setSeconds(selectedTime.getSeconds());
-            onDateChange(newDateTime.toISOString());
-        }
-        setShowTimePicker(false);
-    }, [eventDate, onDateChange]);
-
     const formatDate = React.useMemo(() => {
         return eventDate.toLocaleDateString('default', {
             weekday: 'short',

@@ -351,7 +351,9 @@ export async function fetchVerifiedAnnouncedNote(objectUri: string): Promise<Fet
   for (let hop = 0; hop <= MAX_ACTIVITYPUB_REDIRECTS; hop++) {
     const guard = await assertSafePublicUrl(currentUrl);
     if (!guard.ok) {
-      logger.info(`[FedSync] blocked boosted object fetch ${currentUrl}: ${guard.reason}`);
+      logger.info('[FedSync] blocked boosted object fetch', {
+        result: guard.reason,
+      });
       return null;
     }
 
@@ -360,14 +362,16 @@ export async function fetchVerifiedAnnouncedNote(objectUri: string): Promise<Fet
       res = await signedFetch(currentUrl, AP_CONTENT_TYPE, { redirect: 'manual' });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      logger.info(`[FedSync] error fetching boosted object ${currentUrl}: ${message}`);
+      logger.info('[FedSync] error fetching boosted object', {
+        error: message,
+      });
       return null;
     }
 
     if (REDIRECT_STATUS_CODES.has(res.status)) {
       const location = res.headers.get('location');
       if (hop === MAX_ACTIVITYPUB_REDIRECTS || !location) {
-        logger.info(`[FedSync] boosted object ${currentUrl} redirect failed`);
+        logger.info('[FedSync] boosted object redirect failed');
         return null;
       }
       currentUrl = new URL(location, currentUrl).toString();
@@ -375,7 +379,10 @@ export async function fetchVerifiedAnnouncedNote(objectUri: string): Promise<Fet
     }
 
     if (!res.ok) {
-      logger.info(`[FedSync] failed to fetch boosted object ${currentUrl}: ${res.status} ${res.statusText}`);
+      logger.info('[FedSync] failed to fetch boosted object', {
+        status: res.status,
+        statusText: res.statusText,
+      });
       return null;
     }
 
@@ -384,7 +391,9 @@ export async function fetchVerifiedAnnouncedNote(objectUri: string): Promise<Fet
       note = await res.json() as Record<string, any>;
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      logger.info(`[FedSync] failed to parse boosted object ${currentUrl}: ${message}`);
+      logger.info('[FedSync] failed to parse boosted object', {
+        error: message,
+      });
       return null;
     }
 
@@ -392,18 +401,18 @@ export async function fetchVerifiedAnnouncedNote(objectUri: string): Promise<Fet
 
     const noteId = typeof note.id === 'string' ? note.id : undefined;
     if (!noteId || !sameOrigin(noteId, currentUrl)) {
-      logger.info(`[FedSync] boosted object ${currentUrl} id is missing or not same-origin; skipping`);
+      logger.info('[FedSync] boosted object id is missing or not same-origin; skipping');
       return null;
     }
 
     const authorUri = extractActorUri(note.attributedTo);
     if (!authorUri || !sameOrigin(authorUri, noteId)) {
-      logger.info(`[FedSync] boosted object ${noteId} attributedTo is missing or not same-origin; skipping`);
+      logger.info('[FedSync] boosted object author is missing or not same-origin; skipping');
       return null;
     }
 
     if (!isPubliclyAddressed(note.to, note.cc)) {
-      logger.info(`[FedSync] boosted object ${noteId} is not public; skipping boost import`);
+      logger.info('[FedSync] boosted object is not public; skipping boost import');
       return null;
     }
 
@@ -421,14 +430,19 @@ export async function fetchActivityPubObject(url: string): Promise<Record<string
   try {
     const res = await signedFetch(url, AP_CONTENT_TYPE);
     if (!res.ok) {
-      logger.info(`[FedSync] ActivityPub object fetch failed: ${res.status} ${res.statusText} for ${url}`);
+      logger.info('[FedSync] ActivityPub object fetch failed', {
+        status: res.status,
+        statusText: res.statusText,
+      });
       return null;
     }
     const object = await res.json();
     return asRecord(object);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    logger.info(`[FedSync] ActivityPub object fetch error for ${url}: ${message}`);
+    logger.info('[FedSync] ActivityPub object fetch error', {
+      error: message,
+    });
     return null;
   }
 }

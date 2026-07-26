@@ -8,6 +8,7 @@ import {
 } from '@mention/shared-types/mtn/presetFeeds';
 import { feedPreferencesService } from '@/services/feedPreferencesService';
 import { logger } from '@/lib/logger';
+import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 
 /**
  * The read-only default layout for anonymous viewers: the non-auth presets in
@@ -61,7 +62,10 @@ export interface UseFeedPreferences {
 export function useFeedPreferences(): UseFeedPreferences {
   const { user, canUsePrivateApi } = useAuth();
   const queryClient = useQueryClient();
-  const queryKey = useMemo(() => ['feedPreferences', user?.id ?? 'anon'] as const, [user?.id]);
+  const queryKey = useMemo(
+    () => viewerQueryKeys.feedPreferences(user?.id),
+    [user?.id],
+  );
 
   const query = useQuery<SavedFeed[]>({
     queryKey,

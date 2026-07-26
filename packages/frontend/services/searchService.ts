@@ -9,7 +9,7 @@ import type { HydratedPost } from '@mention/shared-types';
 
 const logger = createScopedLogger('SearchService');
 
-export type SearchPostResult = HydratedPost & { _id?: string };
+export type SearchPostResult = HydratedPost;
 
 export type SearchUserResult = User & {
   handle?: string;
@@ -154,7 +154,30 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function isHydratedPost(value: unknown): value is SearchPostResult {
-  return isRecord(value) && typeof value.id === 'string' && isRecord(value.content);
+  if (
+    !isRecord(value) ||
+    typeof value.id !== 'string' ||
+    !isRecord(value.content) ||
+    !isRecord(value.attachments) ||
+    !isRecord(value.user) ||
+    !Array.isArray(value.authors) ||
+    !isRecord(value.engagement) ||
+    !isRecord(value.viewerState) ||
+    !isRecord(value.permissions) ||
+    !isRecord(value.metadata)
+  ) {
+    return false;
+  }
+
+  return !(
+    'isLiked' in value ||
+    'isDownvoted' in value ||
+    'isBoosted' in value ||
+    'isSaved' in value ||
+    'handle' in value.user ||
+    'avatarUrl' in value.user ||
+    'isVerified' in value.user
+  );
 }
 
 /**

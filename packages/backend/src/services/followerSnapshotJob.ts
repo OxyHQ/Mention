@@ -20,6 +20,7 @@
  */
 
 import { PostVisibility } from '@mention/shared-types';
+import { isRedisRuntimeConfigured } from '../config';
 import { Post } from '../models/Post';
 import { AuthorFollowerSnapshot } from '../models/AuthorFollowerSnapshot';
 import { resolveUserSummaries } from './PostHydrationService';
@@ -47,7 +48,7 @@ export class FollowerSnapshotJob {
   /** Start the leader-gated periodic snapshot sweep. Idempotent; env-gated on REDIS_URL. */
   start(): void {
     if (this.isRunning) return;
-    if (!process.env.REDIS_URL) {
+    if (!isRedisRuntimeConfigured()) {
       logger.info('[FollowerSnapshotJob] REDIS_URL not set — follower snapshot job disabled (inline no-op)');
       return;
     }

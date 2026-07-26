@@ -9,6 +9,7 @@
  * MENTION_API_TIMEOUT_MS controls the per-attempt timeout (default: 10 seconds).
  */
 import { requestContext } from "./context.js";
+import { loadApiClientConfig } from "./config.js";
 
 export interface ApiError {
   status: number;
@@ -16,12 +17,11 @@ export interface ApiError {
   body: unknown;
 }
 
-const BASE_URL = (process.env.MENTION_API_URL || "https://api.mention.earth").replace(/\/+$/, "");
-export const API_REQUEST_TIMEOUT_MS = positiveInteger(
-  process.env.MENTION_API_TIMEOUT_MS,
-  10_000,
-);
+const apiClientConfig = loadApiClientConfig();
+const BASE_URL = apiClientConfig.baseUrl;
+export const API_REQUEST_TIMEOUT_MS = apiClientConfig.requestTimeoutMs;
 const RETRYABLE_GET_STATUSES = new Set([408, 500, 502, 503, 504]);
+const RETRY_BASE_DELAY_MS = 100;
 
 function resolveToken(): string {
   const ctx = requestContext.getStore();
@@ -73,6 +73,7 @@ async function request<T = unknown>(
       });
     } catch (error) {
       if (method === "GET" && attempt === 0) {
+        await waitBeforeRetry();
         continue;
       }
       throw normalizeNetworkError(error);
@@ -85,6 +86,7 @@ async function request<T = unknown>(
       RETRYABLE_GET_STATUSES.has(response.status)
     ) {
       await response.body?.cancel().catch(() => {});
+      await waitBeforeRetry();
       continue;
     }
 
@@ -145,7 +147,8 @@ async function responseToApiError(response: Response): Promise<ApiError> {
 
   let message: string;
   if (response.status === 401) {
-    message = "Authentication required. Provide your Oxy access token as a Bearer token to perform this action.";
+    message =
+      "Authentication required. Reconnect your Mention account in the MCP client and try again.";
   } else if (typeof body === "object" && body !== null && "message" in body) {
     message = String((body as Record<string, unknown>).message);
   } else if (typeof body === "object" && body !== null && "error" in body) {
@@ -178,9 +181,11 @@ function isApiError(error: unknown): error is ApiError {
   );
 }
 
-function positiveInteger(raw: string | undefined, fallback: number): number {
-  const parsed = Number.parseInt(raw || "", 10);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+async function waitBeforeRetry(): Promise<void> {
+  const jitteredDelay = Math.round(
+    RETRY_BASE_DELAY_MS * (0.5 + Math.random()),
+  );
+  await new Promise<void>((resolve) => setTimeout(resolve, jitteredDelay));
 }
 
 export const api = {

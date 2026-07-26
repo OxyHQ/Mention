@@ -719,6 +719,24 @@ export interface PostUser {
   badges?: string[];
 }
 
+/**
+ * Owner-only source used to prefill the post editor.
+ *
+ * Unlike a hydrated post, `content.text` and every author variant retain raw
+ * `[mention:<id>]` placeholders. `mentionUsers` carries canonical Oxy identity
+ * for display when it resolves; an id can remain in `mentions` without a user
+ * entry during an identity-service outage, preserving the stable reference
+ * without inventing a handle.
+ */
+export interface PostEditSource {
+  id: string;
+  content: PostContent;
+  mentions: string[];
+  mentionUsers: PostUser[];
+  authorship?: PostAuthorshipEntry[];
+  parentPostId?: string;
+}
+
 export interface HydratedAuthor extends PostUser {
   role: PostAuthorRole;
   status: PostAuthorStatus;

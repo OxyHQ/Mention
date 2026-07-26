@@ -21,7 +21,6 @@ import { Bookmark, BookmarkActive } from "@/assets/icons/bookmark-icon";
 import { Gear, GearActive } from "@/assets/icons/gear-icon";
 import { Search, SearchActive } from "@/assets/icons/search-icon";
 import { ComposeIcon } from "@/assets/icons/compose-icon";
-import { confirmDialog } from "@/utils/alerts";
 import { List, ListActive } from "@/assets/icons/list-icon";
 import { Video, VideoActive } from "@/assets/icons/video-icon";
 import { Hashtag, HashtagActive } from "@/assets/icons/hashtag-icon";
@@ -103,7 +102,7 @@ export function SideBar({ asDrawer = false, onNavigate }: SideBarProps) {
         handleNavPress('/settings');
     }, [handleNavPress]);
 
-    const sideBarData = useMemo<Array<{ title: string; icon: React.ReactNode; iconActive: React.ReactNode; route?: Href; onPress?: () => void }>>(() => [
+    const sideBarData = useMemo<{ title: string; icon: React.ReactNode; iconActive: React.ReactNode; route?: Href; onPress?: () => void }[]>(() => [
         {
             title: t("sidebar.home"),
             icon: <Home />,

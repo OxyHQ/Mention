@@ -1,8 +1,12 @@
 import { OxyServices } from '@oxyhq/core';
 import type { OxyClient } from './privacyHelpers';
+import {
+  config,
+  getOxyServiceCredentials,
+} from '../config';
 import { logger } from './logger';
 
-const OXY_BASE_URL = process.env.OXY_API_URL || 'https://api.oxy.so';
+const OXY_BASE_URL = config.oxyApiUrl;
 const OXY_VIEWER_GRAPH_PATH = '/users/me/graph';
 const OXY_RESTRICTED_USERS_PATH = '/privacy/restricted';
 
@@ -53,12 +57,10 @@ export function createScopedOxyClient(req: ScopedOxyRequest): OxyClient | undefi
 const serviceClient: OxyServices = (() => {
   const client = new OxyServices({ baseURL: OXY_BASE_URL });
 
-  const apiKey = process.env.OXY_SERVICE_API_KEY;
-  const apiSecret = process.env.OXY_SERVICE_API_SECRET;
+  const { apiKey, apiSecret, token } = getOxyServiceCredentials();
   if (apiKey && apiSecret) {
     client.configureServiceAuth(apiKey, apiSecret);
   } else {
-    const token = process.env.OXY_SERVICE_TOKEN;
     if (token) {
       client.setTokens(token);
     } else {
@@ -260,6 +262,5 @@ export async function ensureProfileMediaPublic(
  * credential identifiers and secret storage locations out of repository docs.
  */
 export function getMentionOxyClientId(): string | undefined {
-  const value = process.env.MENTION_OXY_CLIENT_ID?.trim();
-  return value && value.length > 0 ? value : undefined;
+  return config.identity.mentionOxyClientId;
 }

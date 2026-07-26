@@ -1,130 +1,85 @@
 ---
 title: Mention
-description: A cross-platform social network with first-class ActivityPub federation.
+description: Current entry point for Mention's architecture, API, federation, and operations.
 order: 0
 ---
 
 # Mention
 
-Mention is a modern social network built for the open web. It runs on iOS, Android, and the browser from a single Expo / React Native codebase, and federates over ActivityPub so every Mention account is reachable from Mastodon, Threads, and any other compatible instance at `@username@mention.earth`.
+Mention is a cross-platform social application with four Bun workspaces:
 
-<Badge variant="success">App</Badge> <Badge>Expo / RN / Web</Badge> <Badge>Fediverse</Badge>
+| Workspace | Responsibility |
+| --- | --- |
+| `@mention/frontend` | Expo 56 app for iOS, Android, and web |
+| `@mention/backend` | HTTP API, Socket.IO, jobs, feeds, and federation |
+| `@mention/shared-types` | Shared TypeScript request and response contracts |
+| `@mention/mcp` | Authenticated remote MCP tools and local transports |
 
-## What it is
+The frontend uses React Native 0.85, React 19, Expo Router, Bloom,
+NativeWind/Tailwind, TanStack Query, Zustand, Socket.IO, and lazy-loaded
+Syra/LiveKit room support. The backend uses Express 5, Mongoose 8, MongoDB,
+Valkey-compatible Redis clients, BullMQ, Socket.IO, Zod, and Prometheus
+instrumentation.
 
-A two-package product wired together in a Bun monorepo:
+## Data ownership
 
-- **`@mention/frontend`** — Expo Router app (iOS, Android, Web) built on React Native 0.84 + React 19, NativeWind + Tailwind 4, TanStack Query, and Zustand.
-- **`@mention/backend`** — Express 5 + Mongoose 9 API with Redis, Socket.io, the MTN feed engine, ActivityPub federation, push notifications, and S3-backed media.
+- **Oxy** is authoritative for users, authentication, profile identity, blocks,
+  restrictions, and the social graph.
+- **Mention MongoDB** is authoritative for posts, feeds, engagement,
+  notifications, Mention mutes, federation records, and MCP connection data.
+- **MTN** appends verifiable signed records for eligible local writes. It does
+  not replace the application's MongoDB read model.
+- **External connectors** isolate ActivityPub and optional AT Protocol behavior
+  from post creation and feed code.
 
-Identity and account management are delegated to the Oxy platform via `@oxyhq/core` and `@oxyhq/services`, so a Mention user is also an Oxy user. Federated remote actors are stored as shadow Oxy users (`type: 'federated'`) and linked to local posts by `oxyUserId`.
+`PostHydrationService` is the single backend authority for post DTOs. It emits
+the canonical Oxy user shape rather than an app-specific identity adapter.
 
-## Architecture at a glance
+## Request flow
 
-```
-packages/
-  frontend/        @mention/frontend     Expo 55 / RN 0.84 / React 19 / Expo Router
-  backend/         @mention/backend      Express 5 / Mongoose 9 / Redis / Socket.io
-  shared-types/    @mention/shared-types Shared TypeScript types (Post, Feed, Federation, ...)
-  agora/           @mention/agora        Live audio/video rooms app (LiveKit)
-  agora-shared/    @mention/agora-shared Shared Agora hooks + components
-  mcp/             @mention/mcp          Model Context Protocol server for Claude
-```
-
-The frontend pulls types from `@mention/shared-types` and talks to the backend over REST + Socket.io. The backend writes posts, feeds, notifications, follows, and federation state into MongoDB; uses Redis for rate-limiting, Socket.io adapter, and caches; and uses Oxy as the user store.
-
-## Install
-
-Prerequisites: Bun 1.x, MongoDB, Redis (optional for dev), and Expo CLI for native builds.
-
-```sh
-git clone https://github.com/OxyHQ/Mention.git
-cd Mention
-bun install
-```
-
-`postinstall` builds `@mention/shared-types` so the rest of the workspace can type-check.
-
-## Quick start
-
-Run everything in dev mode:
-
-```sh
-bun run dev
+```text
+Expo app ── REST / Socket.IO ──> Mention backend ──> MongoDB
+                                     │   │
+                                     │   ├──> Valkey: cache, queues, locks, pub/sub
+                                     │   └──> Oxy: identity and graph
+                                     │
+Fediverse servers ── ActivityPub ────┤
+MCP clients ── OAuth + HTTP ──> separate MCP service ──> backend API
 ```
 
-Or run pieces individually:
+## Production surfaces
 
-```sh
-bun run dev:frontend    # Expo dev server (press w / i / a for web / iOS / Android)
-bun run dev:backend     # Express server, watch mode
-bun run dev:agora       # Agora app (LiveKit rooms)
-bun run dev:mcp         # MCP server (stdio)
-bun run dev:mcp:http    # MCP HTTP server (local prod-like transport)
-```
+| Surface | Purpose |
+| --- | --- |
+| `api.mention.earth` | API backend on AWS ECS |
+| `mention.earth` | Federation endpoints, OG pages, and proxy to the static web app |
+| `mcp.mention.earth` | Separate MCP ECS service |
+| `mention-frontend.pages.dev` | Static Expo web origin |
 
-Claude connector docs: [`packages/mcp/README.md`](../packages/mcp/README.md).
+The apex and API host reach the same backend. Protocol routers are mounted
+before the apex proxy, so signed ActivityPub requests are handled directly.
+AWS is the only application runtime deployment target.
 
-Build the apps:
+## Health and observability
 
-```sh
-bun run build:shared-types
-bun run build:frontend       # Expo web export to packages/frontend/dist
-bun run build:backend        # TypeScript compile to packages/backend/dist
-```
+- `/health/live` is process liveness.
+- `/health/ready` requires startup, schema migrations, and MongoDB.
+- Redis/Valkey is reported as degraded without making HTTP readiness fail.
+- `/internal/metrics` is protected by a service token and network restriction.
+- `/telemetry/web` accepts bounded Core Web Vitals and browser runtime events.
 
-## Core concepts
+Request metrics and structured logs use route templates and bounded labels.
+Tokens, private content, request bodies, raw query values, and user IDs do not
+belong in metric labels.
 
-### Posts
+## Read next
 
-Every post is a `Post` document with a `PostType` (`text`, `image`, `video`, `poll`, `repost`, `quote`) and a `PostVisibility` (`public`, `followers_only`, `private`). Content lives in a structured `PostContent` blob that carries text plus typed attachments — `media`, `poll`, `article`, `event`, `room`, `location`, `sources` — and an ordered `attachments` descriptor for renderers.
+- [Architecture](/developers/docs/mention/architecture)
+- [API](/developers/docs/mention/api)
+- [Compatibility retirement](./COMPATIBILITY_RETIREMENT.md)
+- [Fediverse](/developers/docs/mention/fediverse)
+- [User mentions](/developers/docs/mention/mentions)
+- [MCP server](../packages/mcp/README.md)
+- [Production deployment](./AWS_DEPLOYMENT.md)
 
-Threads are stitched through `parentPostId` + `threadId`. Reposts and quotes are first-class via `repostOf` / `quoteOf`. Reply permissions are a `ReplyPermission[]` (`anyone`, `followers`, `following`, `mentioned`, `nobody`) and authors can opt into review-before-publish for replies.
-
-Mentions are stored canonically as `@[displayName](oxyUserId)` and rendered as `@displayName`. The backend extracts the user IDs into `Post.mentions` for cheap lookups and notifications.
-
-### Feeds (MTN)
-
-All feed sources implement a single `FeedAPI` interface in `packages/backend/src/mtn/`. Each feed has a `descriptor`, can `peekLatest` (for the "new posts" pill) and `fetch({ cursor, limit })` a page:
-
-| Feed | What it does |
-|------|--------------|
-| `ForYouFeed` | Personalised ranked feed driven by `UserBehavior`. |
-| `FollowingFeed` | Reverse-chronological posts from accounts the viewer follows. |
-| `AuthorFeed` | All posts by a single user. |
-| `HashtagFeed` | Posts tagged with a specific hashtag. |
-| `ExploreFeed` | Trending content across the instance. |
-| `CustomFeed` | User-defined feeds with stored filters. |
-| `FeedGeneratorFeed` | Algorithmic feeds registered as `FeedGenerator` documents. |
-| `ListFeed` | Posts from a curated `List` of users. |
-| `SavedFeed` | The viewer's saved posts. |
-
-Each `FeedAPI` runs its output through a chain of `FeedTuner`s — `deduplicateSlices`, `filterByLanguage`, `filterHiddenPosts`, `filterMuteWords`, `filterSensitiveContent`, `injectBreakpoints`, `removeReplies`, `removeReposts`. Tuners are pure functions over slices, composable per-feed and per-viewer.
-
-Ranking explanations are surfaced via `RankingExplainer` so users can see why a post was ranked. Impressions and interactions are recorded by `FeedInteractionTracker` and feed back into `UserBehavior` for future ranking.
-
-### Federation
-
-Mention is an ActivityPub server. Each local user gets an actor at `@username@mention.earth` with an RSA keypair stored in `ActorKeyPair`. Remote actors are cached in `FederatedActor` (with a `oxyUserId` link to their shadow Oxy user). Follow graphs in either direction live in `FederatedFollow`.
-
-Outbound activities are signed with HTTP Signatures and retried through `FederationDeliveryQueue`. When a local user follows a remote actor, `syncOutboxPosts` backfills the last 20 posts so the new follower immediately sees content. The shared inbox only accepts `Create` activities from actors with at least one local follower, which keeps junk out.
-
-The fediverse-facing surface lives under `/.well-known/webfinger` and `/ap/...`; the frontend-facing surface lives under `/federation/...`. See [Fediverse](/developers/docs/mention/fediverse) for the full endpoint table and instance-specific notes.
-
-### Real time
-
-Socket.io drives live notifications, post stat updates ("12 new likes"), typing indicators in chat, and the live audio/video rooms in the Agora package. The backend uses `@socket.io/redis-adapter` so Socket.io scales horizontally behind Redis pub/sub.
-
-### Identity
-
-There is no Mention auth; identity is Oxy. The frontend wraps the app in `OxyProvider` from `@oxyhq/services` and uses `useOxy()` for the current user and access tokens. The backend verifies bearer tokens through `@oxyhq/core` and reads / writes user data via its `OxyServices` mixins.
-
-## Where to go next
-
-- [Architecture](/developers/docs/mention/architecture) — package layout, data flow, deployment topology.
-- [Fediverse](/developers/docs/mention/fediverse) — ActivityPub support, endpoints, sync, instance notes.
-- [API](/developers/docs/mention/api) — the REST surface the frontend talks to.
-
-## License
-
-`@mention/frontend` is MIT licensed. `@mention/backend` is AGPL licensed. See `LICENSE` in the repo for details.
+For local setup and commands, use the repository [README](../README.md).

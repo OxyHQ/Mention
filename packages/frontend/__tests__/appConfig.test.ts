@@ -2,7 +2,7 @@ type ExpoConfigResult = {
   expo: {
     android?: {
       intentFilters?: {
-        data?: ({ host?: string } | false)[];
+        data?: ({ scheme?: string; host?: string; port?: string } | false)[];
       }[];
     };
     web?: {
@@ -13,9 +13,10 @@ type ExpoConfigResult = {
   };
 };
 
-const buildConfig = require('../app.config.js') as (config: object) => ExpoConfigResult;
+const buildConfig = jest.requireActual('../app.config.js') as (config: object) => ExpoConfigResult;
 
 const originalPublicEnv = process.env.EXPO_PUBLIC_ENV;
+const originalDevHost = process.env.EXPO_PUBLIC_DEV_HOST;
 
 afterEach(() => {
   if (originalPublicEnv === undefined) {
@@ -23,13 +24,17 @@ afterEach(() => {
   } else {
     process.env.EXPO_PUBLIC_ENV = originalPublicEnv;
   }
+  if (originalDevHost === undefined) {
+    delete process.env.EXPO_PUBLIC_DEV_HOST;
+  } else {
+    process.env.EXPO_PUBLIC_DEV_HOST = originalDevHost;
+  }
 });
 
-function intentHosts(result: ExpoConfigResult): string[] {
+function intentEntries(result: ExpoConfigResult): { scheme?: string; host?: string; port?: string }[] {
   return (result.expo.android?.intentFilters ?? [])
     .flatMap((filter) => filter.data ?? [])
-    .filter((entry): entry is { host?: string } => Boolean(entry))
-    .map((entry) => entry.host ?? '');
+    .filter((entry): entry is { scheme?: string; host?: string; port?: string } => Boolean(entry));
 }
 
 describe('app config environment matrix', () => {
@@ -37,16 +42,43 @@ describe('app config environment matrix', () => {
     'does not ship local Android intent hosts in %s',
     (environment) => {
       process.env.EXPO_PUBLIC_ENV = environment;
+      process.env.EXPO_PUBLIC_DEV_HOST = '192.168.86.44';
       const result = buildConfig({});
+      const hosts = intentEntries(result).map((entry) => entry.host ?? '');
 
-      expect(intentHosts(result).some((host) => host.includes('localhost'))).toBe(false);
-      expect(intentHosts(result).some((host) => host.startsWith('192.168.'))).toBe(false);
+      expect(hosts.some((host) => host.includes('localhost'))).toBe(false);
+      expect(hosts.some((host) => host.startsWith('192.168.'))).toBe(false);
     },
   );
 
   it('keeps local intent hosts in development', () => {
     process.env.EXPO_PUBLIC_ENV = 'development';
-    expect(intentHosts(buildConfig({}))).toContain('localhost:3001');
+    expect(intentEntries(buildConfig({}))).toContainEqual({
+      scheme: 'http',
+      host: 'localhost',
+      port: '3001',
+    });
+  });
+
+  it('adds only an explicitly configured development host', () => {
+    process.env.EXPO_PUBLIC_ENV = 'development';
+    process.env.EXPO_PUBLIC_DEV_HOST = '192.168.86.44';
+
+    expect(intentEntries(buildConfig({}))).toEqual(
+      expect.arrayContaining([
+        { scheme: 'http', host: '192.168.86.44', port: '3000' },
+        { scheme: 'http', host: '192.168.86.44', port: '3001' },
+      ]),
+    );
+  });
+
+  it('rejects a development host containing a scheme or port', () => {
+    process.env.EXPO_PUBLIC_ENV = 'development';
+    process.env.EXPO_PUBLIC_DEV_HOST = 'http://localhost:3000';
+
+    expect(() => buildConfig({})).toThrow(
+      'Invalid EXPO_PUBLIC_DEV_HOST. Provide a hostname or IP without a scheme or port.',
+    );
   });
 
   it('allows browser zoom', () => {

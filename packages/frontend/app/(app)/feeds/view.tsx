@@ -9,7 +9,7 @@ import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@oxyhq/services/ui/client';
 import Feed from '@/components/Feed/Feed';
-import SEO from '@/components/SEO';
+import { SEO } from '@/components/SEO';
 import { EmptyState } from '@/components/common/EmptyState';
 import { PanelStickyHeader } from '@/components/shell/PanelChrome';
 import { PRESET_FEEDS } from '@mention/shared-types/mtn/presetFeeds';

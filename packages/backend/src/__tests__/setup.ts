@@ -51,6 +51,8 @@ vi.mock('../utils/redis', () => ({
     set: vi.fn(),
     del: vi.fn(),
   }),
+  closeRedisConnection: vi.fn(async () => undefined),
+  reportRedisConnectionFailure: vi.fn(),
 }));
 
 // --- Logger (suppress output during tests) ---

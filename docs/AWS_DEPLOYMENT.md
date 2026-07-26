@@ -29,8 +29,9 @@ proxied to the static Cloudflare Pages origin.
 5. Post-deploy smoke tests cover readiness, the anonymous feed, federation
    endpoints, static assets and MCP authentication.
 6. The backend runs engagement reconciliation. A failed rollout, smoke test or
-   reconciliation restores the previous task definition and target-group
-   configuration.
+   reconciliation restores the previous task definition. Target-group health
+   checks and stickiness are infrastructure-owned and are not mutated by an
+   application release.
 
 Cloudflare Pages first receives an immutable preview deployment. The exact
 preview URL is smoke-tested before the same assets are promoted to production;

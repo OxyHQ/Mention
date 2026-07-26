@@ -10,7 +10,7 @@
  * It is a STRICT no-op for the API host (`api.mention.earth`): a non-apex request
  * calls `next()` untouched, so every existing API route behaves exactly as before.
  *
- * Mount order (see server.ts): it runs AFTER the federation routers (`/ap`,
+ * Mount order (see app.ts): it runs AFTER the federation routers (`/ap`,
  * `/.well-known`, `/xrpc`, `/nodeinfo`, `/media`) and the OG web-shell (`/@…`,
  * `/p/…`) — those must keep serving their own content on the apex host too — but
  * BEFORE the API routers, so apex SPA routes whose prefixes collide with API
@@ -25,6 +25,7 @@
 import http, { type IncomingMessage } from 'http';
 import https from 'https';
 import type { Request, Response, NextFunction } from 'express';
+import { config } from '../config';
 import { logger } from '../utils/logger';
 
 /**
@@ -32,7 +33,7 @@ import { logger } from '../utils/logger';
  * config the OG web-shell renderer uses, so the public web origin is defined in one
  * place. Only the bare hostname (no scheme / port) is compared.
  */
-const APEX_HOST = extractHost(process.env.MENTION_WEB_ORIGIN || 'https://mention.earth');
+const APEX_HOST = extractHost(config.web.origin);
 
 /**
  * Static frontend CDN the SPA + its assets are proxied from (CloudFlare Pages).
@@ -40,7 +41,7 @@ const APEX_HOST = extractHost(process.env.MENTION_WEB_ORIGIN || 'https://mention
  * from — so the CDN origin is configured in exactly one place. Trailing slash is
  * stripped so it concatenates cleanly with `req.originalUrl` (which starts `/`).
  */
-const FRONTEND_CDN_ORIGIN = (process.env.WEB_SHELL_ORIGIN || 'https://mention-frontend.pages.dev').replace(/\/+$/, '');
+const FRONTEND_CDN_ORIGIN = config.web.shellOrigin;
 
 /** Hard timeout for a single upstream proxy fetch. The apex must never hang on a slow CDN. */
 const PROXY_FETCH_TIMEOUT_MS = 8000;
@@ -205,7 +206,7 @@ async function proxyToFrontend(req: Request, res: Response): Promise<void> {
       MAX_PROXY_REDIRECTS,
     );
   } catch (error) {
-    logger.warn(`[apexProxy] Upstream fetch failed for ${req.originalUrl}`, error);
+    logger.warn('[apexProxy] upstream fetch failed', error);
     if (res.headersSent) {
       res.end();
       return;
@@ -279,7 +280,7 @@ async function proxyToFrontend(req: Request, res: Response): Promise<void> {
   // On an upstream stream error mid-flight the partially-sent response cannot be
   // recovered — tear it down rather than hang.
   upstream.on('error', (error) => {
-    logger.warn(`[apexProxy] Upstream stream error for ${req.originalUrl}`, error);
+    logger.warn('[apexProxy] upstream stream error', error);
     res.destroy();
   });
 

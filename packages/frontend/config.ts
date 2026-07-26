@@ -1,4 +1,22 @@
 // Base URLs (prod first → env → fallback)
+export const IS_DEVELOPMENT = process.env.NODE_ENV === 'development';
+
+export type RuntimeLogLevel = 'debug' | 'info' | 'log' | 'warn' | 'error';
+const VALID_LOG_LEVELS: readonly RuntimeLogLevel[] = [
+  'debug',
+  'info',
+  'log',
+  'warn',
+  'error',
+];
+const configuredLogLevel = process.env.EXPO_PUBLIC_LOG_LEVEL;
+export const LOG_LEVEL: RuntimeLogLevel | undefined =
+  configuredLogLevel &&
+  VALID_LOG_LEVELS.includes(configuredLogLevel as RuntimeLogLevel)
+    ? (configuredLogLevel as RuntimeLogLevel)
+    : undefined;
+export const LOG_DEBUG_FILTER = process.env.EXPO_PUBLIC_LOG_DEBUG ?? '';
+
 export const API_URL =
   process.env.NODE_ENV === 'production'
     ? 'https://api.mention.earth'

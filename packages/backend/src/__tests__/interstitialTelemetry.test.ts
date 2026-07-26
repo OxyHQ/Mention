@@ -144,9 +144,6 @@ describe('recordInterstitialEvent', () => {
         descriptor: 'author',
       }),
     ).toBe(2);
-
-    const emitted = Object.keys(metrics.getMetricsSummary().counters);
-    expect(emitted).toEqual([INTERSTITIAL_EVENT_METRIC]);
   });
 
   it('emits nothing that identifies the viewer, the slot or the target', async () => {

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import mongoose from 'mongoose';
 
 /**
@@ -118,6 +118,7 @@ vi.spyOn(mongoose, 'disconnect').mockResolvedValue(undefined as never);
 import backfillMtnRecords from '../../scripts/backfill-mtn-records';
 
 beforeEach(() => {
+  vi.stubEnv('CONFIRM_ADMIN_MUTATION', 'backfillMtnRecords');
   h.state.signingEnabled = true;
   h.state.posts = [];
   h.state.existingRecordRkeys = new Set();
@@ -129,6 +130,10 @@ beforeEach(() => {
   h.recordExists.mockClear();
   h.isSigningEnabled.mockClear();
   h.emitPostCreated.mockClear();
+});
+
+afterEach(() => {
+  vi.unstubAllEnvs();
 });
 
 describe('backfillMtnRecords', () => {

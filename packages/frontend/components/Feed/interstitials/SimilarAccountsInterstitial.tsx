@@ -28,6 +28,7 @@ import {
   type ReportInterstitialEvent,
 } from './interstitialTelemetry';
 import { useIsScreenNotMobile } from '@/hooks/useOptimizedMediaQuery';
+import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 
 /**
  * "Accounts similar to the one whose feed you are reading" — the profile-feed
@@ -61,7 +62,7 @@ export function SimilarAccountsInterstitial({
   // fetched — this band costs no extra request, and whichever surface asks first
   // pays for both.
   const query = useQuery<User[]>({
-    queryKey: ['similarProfiles', subjectId ?? '', user?.id ?? 'anon'],
+    queryKey: viewerQueryKeys.similarProfiles(user?.id, subjectId),
     queryFn: async () => {
       if (!subjectId) return [];
       const similar = await oxyServices.getSimilarProfiles(subjectId);

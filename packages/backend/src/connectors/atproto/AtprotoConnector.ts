@@ -31,12 +31,10 @@ import { importAuthorFeed } from './post.mapper';
  *
  * Outbound is intentionally minimal: `deliver({kind:'follow.add'})` records a
  * LOCAL subscription (no Follow is written to the atproto network) and triggers a
- * post backfill; `post.create` is a no-op. The C4 bridge (`bridge/`) makes a
- * local user discoverable/readable FROM atproto (be-discovered via did:web) — it
- * does NOT publish posts INTO a foreign PDS (that is the documented outbound
- * product seam, `AtprotoBridgeOutboundSeam` in `bridge/index.ts`). The connector
- * NEVER uses `@atproto/api`; every network read goes through the SSRF-safe XRPC
- * client.
+ * post backfill; `post.create` is a no-op. The read-only bridge routes make a
+ * local user discoverable/readable FROM atproto (via did:web); Mention does not
+ * publish posts into a foreign PDS. The connector never uses `@atproto/api`;
+ * every network read goes through the SSRF-safe XRPC client.
  */
 class AtprotoConnector implements NetworkConnector<PostContent> {
   readonly id: NetworkId = 'atproto';
@@ -78,7 +76,7 @@ class AtprotoConnector implements NetworkConnector<PostContent> {
     const actor = await fetchAndUpsertAtprotoProfile(externalId);
     if (!actor) return { posts: [] };
     if (!actor.oxyUserId) {
-      logger.warn(`[atproto] fetchPosts: ${externalId} has no resolved Oxy user; skipping backfill`);
+      logger.warn('[atproto] fetchPosts skipped backfill without a resolved Oxy user');
       return { posts: [] };
     }
     const { posts, cursor } = await importAuthorFeed(actor, { limit: opts.limit, cursor: opts.cursor });
@@ -96,11 +94,9 @@ class AtprotoConnector implements NetworkConnector<PostContent> {
       case 'post.like':
       case 'post.unlike':
       case 'actor.update':
-        // Mention does NOT publish posts / reposts / edits / deletes / likes /
-        // actor changes INTO a foreign atproto PDS. The C4 bridge is BE-DISCOVERED
-        // (the user's repo is hosted here and read via `bridge/`); foreign-PDS
-        // publishing is the documented outbound product seam
-        // (`AtprotoBridgeOutboundSeam`), not wired. No-op.
+        // Mention does not publish posts, reposts, edits, deletes, likes, or
+        // actor changes into a foreign atproto PDS. Its local repository is
+        // exposed read-only through the bridge routes. No-op.
         return;
       case 'follow.add':
         await this.followActor(event.localOxyUserId, event.targetActorUri);
@@ -147,7 +143,7 @@ class AtprotoConnector implements NetworkConnector<PostContent> {
     // Backfill the followed actor's recent posts in the background.
     if (actor?.oxyUserId) {
       void importAuthorFeed(actor, { limit: 20 }).catch((err) => {
-        logger.warn(`[atproto] follow backfill failed for ${canonicalDid}`, err);
+      logger.warn('[atproto] follow backfill failed', err);
       });
     }
   }

@@ -19,8 +19,8 @@ import { OxyAuthPrompt, useAuth } from '@oxyhq/services/ui/client';
 import type { User } from '@oxyhq/core';
 import { queryClient } from '@/lib/queryClient';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
-import ConfirmBottomSheet from '@/components/common/ConfirmBottomSheet';
-import MessageBottomSheet from '@/components/common/MessageBottomSheet';
+import { ConfirmBottomSheet } from '@/components/common/ConfirmBottomSheet';
+import { MessageBottomSheet } from '@/components/common/MessageBottomSheet';
 import { EmptyState } from '@/components/common/EmptyState';
 import { createScopedLogger } from '@/lib/logger';
 import { usePrivacyStore } from '@/stores/privacyStore';
@@ -46,7 +46,6 @@ export default function BlockedUsersScreen() {
     const {
         user: currentUser,
         oxyServices,
-        isAuthenticated,
         isAuthResolved,
         canUsePrivateApi,
         isPrivateApiPending,
@@ -79,7 +78,7 @@ export default function BlockedUsersScreen() {
             blockedLogger.debug('Loading blocked users...');
             const blockedUsersList = await oxyServices.getBlockedUsers();
             blockedLogger.debug('Oxy response received', { count: blockedUsersList?.length });
-            const userIds = (blockedUsersList as unknown as Array<Record<string, unknown>>)
+            const userIds = (blockedUsersList as unknown as Record<string, unknown>[])
                 .map((user) => {
                     const blockedId = user.blockedId as string | { _id?: string } | undefined;
                     if (blockedId) {

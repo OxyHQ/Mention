@@ -17,7 +17,7 @@ import { AvatarGroup, type AvatarGroupItem } from '@oxyhq/bloom/avatar-group';
 import { MEDIA_VARIANT_VIDEO_POSTER } from '@mention/shared-types/post';
 import { ProfileCard } from '@/components/ProfileCard';
 
-import SEO from '@/components/SEO';
+import { SEO } from '@/components/SEO';
 import { formatCompactNumber } from '@/utils/formatNumber';
 import { displayNameOrHandle } from '@/utils/displayName';
 import { logger } from '@/lib/logger';

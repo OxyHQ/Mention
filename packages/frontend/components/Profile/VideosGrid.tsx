@@ -36,11 +36,6 @@ interface VideoGridEntry extends ProfileGridEntry {
     posterUri?: string;
 }
 
-/** Post-level video hint the raw feed row may carry beyond the hydrated DTO. */
-interface RawPostExtras {
-    type?: string;
-}
-
 const VideosGrid: React.FC<VideosGridProps> = ({
     userId,
     isPrivate,
@@ -82,16 +77,15 @@ const VideosGrid: React.FC<VideosGridProps> = ({
     const videoItems = useMemo<VideoGridEntry[]>(() => {
         const out: VideoGridEntry[] = [];
 
-        const extractFrom = (post: HydratedPostSummary & Partial<RawPostExtras>, targetId: string) => {
+        const extractFrom = (post: HydratedPostSummary, targetId: string) => {
             const media = post.content?.media;
             if (!Array.isArray(media) || media.length === 0) return;
 
-            const postType = post.type;
             const seen = new Set<string>();
             media.forEach((ref, idx) => {
                 const key = ref.id || ref.url;
                 if (!key) return;
-                if (!isVideoMediaRef(key, { postType, mediaType: ref.type })) return; // Only include videos
+                if (!isVideoMediaRef(key, { mediaType: ref.type })) return; // Only include videos
                 if (seen.has(key)) return;
                 seen.add(key);
                 out.push({ postId: targetId, posterUri: resolvePosterUri(ref), mediaIndex: idx });

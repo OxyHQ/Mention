@@ -272,7 +272,7 @@ export class ContentAffinityService {
     try {
       return await UserBehavior.findOne({ oxyUserId: viewerId }).lean<IUserBehavior>();
     } catch (error) {
-      logger.warn(`[ContentAffinity] behavior load failed for ${viewerId}:`, error);
+      logger.warn('[ContentAffinity] behavior load failed', error);
       return null;
     }
   }
@@ -432,7 +432,7 @@ export class ContentAffinityService {
         result.set(authorId, { weight, reasons: new Set(['topic']) });
       }
     } catch (error) {
-      logger.warn(`[ContentAffinity] topic affinity failed for ${viewerId}:`, error);
+      logger.warn('[ContentAffinity] topic affinity failed', error);
       return new Map();
     }
     return result;
@@ -616,7 +616,7 @@ export class ContentAffinityService {
         result.set(authorId, { weight, reasons: new Set(['hashtag']) });
       }
     } catch (error) {
-      logger.warn(`[ContentAffinity] hashtag affinity failed for ${viewerId}:`, error);
+      logger.warn('[ContentAffinity] hashtag affinity failed', error);
       return new Map();
     }
     return result;
@@ -719,7 +719,7 @@ export class ContentAffinityService {
         }))
         .filter((l) => l.postId.length > 0);
     } catch (error) {
-      logger.warn(`[ContentAffinity] liked-post collection failed for ${viewerId}:`, error);
+      logger.warn('[ContentAffinity] liked-post collection failed', error);
       return [];
     }
   }
@@ -766,7 +766,10 @@ export class ContentAffinityService {
       }
       return targets;
     } catch (error) {
-      logger.warn(`[ContentAffinity] ${kind} target collection failed for ${viewerId}:`, error);
+      logger.warn('[ContentAffinity] target collection failed', {
+        type: kind,
+        error,
+      });
       return [];
     }
   }

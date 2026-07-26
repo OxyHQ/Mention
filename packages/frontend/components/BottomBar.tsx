@@ -1,5 +1,8 @@
 import { View, Pressable, Platform, LayoutChangeEvent, StyleSheet, type ViewStyle } from 'react-native';
-import { Home, HomeActive, Video, VideoActive, ComposeIcon, ComposeIIconActive, BellActive, Bell } from '@/assets/icons';
+import { Home, HomeActive } from '@/assets/icons/home-icon';
+import { Video, VideoActive } from '@/assets/icons/video-icon';
+import { ComposeIcon, ComposeIIconActive } from '@/assets/icons/compose-icon';
+import { Bell, BellActive } from '@/assets/icons/bell-icon';
 import { useRouter, usePathname, type Href } from 'expo-router';
 import React, { useCallback, useMemo, useRef } from 'react';
 import { Avatar } from '@oxyhq/bloom/avatar';
@@ -115,7 +118,7 @@ export const BottomBar = () => {
                 SPRING_CONFIG,
             );
         }
-    }, [activeIndex]);
+    }, [activeIndex, indicatorX, tabWidth]);
 
     // Animate indicator when active tab changes (computed during render)
     if (prevActiveIndexRef.current !== activeIndex) {

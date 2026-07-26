@@ -5,6 +5,7 @@ import {
     RefreshControl,
     Platform,
     ScrollView,
+    type ViewToken,
     type ScrollViewProps,
     type ViewStyle,
 } from 'react-native';
@@ -29,7 +30,6 @@ import { FeedEmptyState } from './FeedEmptyState';
 import { usePrivacyControls } from '@/hooks/usePrivacyControls';
 import { usePanelChromeTopInset } from '@/components/shell/PanelChrome';
 import { resolveFeedDescriptor, useFeedImpressionTracker } from '@/utils/feedTelemetry';
-import type { ViewToken } from 'react-native';
 import {
     type FeedRow,
     buildFeedRows,

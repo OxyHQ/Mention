@@ -1,6 +1,5 @@
 import { getRedisClient } from '../utils/redis';
-import { logger } from '../utils/logger';
-import { withRedisFallback, ensureRedisConnected } from '../utils/redisHelpers';
+import { withRedisFallback } from '../utils/redisHelpers';
 
 /**
  * FeedSeenPostsService - Tracks seen post IDs per user session in Redis
@@ -86,13 +85,6 @@ export class FeedSeenPostsService {
     return withRedisFallback(
       this.redis,
       async () => {
-        const connected = await ensureRedisConnected(this.redis);
-        if (!connected) {
-          // Fallback to in-memory cache
-          const memoryPosts = this.getMemoryEntry(userId);
-          return Array.from(memoryPosts);
-        }
-
         const key = this.getKey(userId);
         const members = await this.redis.zRange(key, 0, -1);
         return members || [];
@@ -111,11 +103,6 @@ export class FeedSeenPostsService {
     return withRedisFallback(
       this.redis,
       async () => {
-        const connected = await ensureRedisConnected(this.redis);
-        if (!connected) {
-          return false; // If Redis unavailable, assume not seen (per-request fallback)
-        }
-
         const key = this.getKey(userId);
         const score = await this.redis.zScore(key, postId);
         return score !== null;
@@ -157,12 +144,6 @@ export class FeedSeenPostsService {
     await withRedisFallback(
       this.redis,
       async () => {
-        const connected = await ensureRedisConnected(this.redis);
-        if (!connected) {
-          // Redis unavailable - in-memory cache already updated above
-          return;
-        }
-
         const key = this.getKey(userId);
 
         // Batch add all post IDs to Sorted Set with timestamp scores (LRU ordering)
@@ -202,11 +183,6 @@ export class FeedSeenPostsService {
     await withRedisFallback(
       this.redis,
       async () => {
-        const connected = await ensureRedisConnected(this.redis);
-        if (!connected) {
-          return;
-        }
-
         const key = this.getKey(userId);
         await this.redis.del(key);
       },
@@ -222,13 +198,6 @@ export class FeedSeenPostsService {
     return withRedisFallback(
       this.redis,
       async () => {
-        const connected = await ensureRedisConnected(this.redis);
-        if (!connected) {
-          // Fallback to in-memory cache
-          const memoryPosts = this.getMemoryEntry(userId);
-          return memoryPosts.size;
-        }
-
         const key = this.getKey(userId);
         const count = await this.redis.zCard(key);
         return count || 0;
@@ -240,4 +209,3 @@ export class FeedSeenPostsService {
 }
 
 export const feedSeenPostsService = new FeedSeenPostsService();
-

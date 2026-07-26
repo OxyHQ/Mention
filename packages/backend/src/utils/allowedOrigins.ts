@@ -7,16 +7,16 @@
  * even if an attacker spoofs the Origin header.
  */
 
-const isProduction = process.env.NODE_ENV === 'production';
+import { config } from '../config';
 
-const FRONTEND_URL = process.env.FRONTEND_URL || 'https://mention.earth';
+const isProduction = config.runtime.isProduction;
+const FRONTEND_URL = config.frontendUrl ?? 'https://mention.earth';
 
 /**
  * Production origins that are always allowed regardless of environment.
  */
 const PRODUCTION_ORIGINS: readonly string[] = [
   FRONTEND_URL,
-  'https://agora.mention.earth',
 ];
 
 /**

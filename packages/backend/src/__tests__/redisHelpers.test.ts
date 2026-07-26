@@ -1,7 +1,6 @@
 import type { RedisClientType } from 'redis';
 import { describe, expect, it, vi } from 'vitest';
 import {
-  ensureRedisConnected,
   isRedisConnectionError,
   withRedisFallback,
 } from '../utils/redisHelpers';
@@ -17,12 +16,14 @@ function redisClient(overrides: Record<string, unknown>): RedisClientType {
 }
 
 describe('redis hot-path fallback', () => {
-  it('uses the ready-state signal without PINGing or reconnecting', async () => {
+  it('runs a ready operation without PINGing or reconnecting', async () => {
     const ping = vi.fn();
     const connect = vi.fn();
+    const operation = vi.fn().mockResolvedValue('result');
     const client = redisClient({ isReady: true, isOpen: true, ping, connect });
 
-    await expect(ensureRedisConnected(client)).resolves.toBe(true);
+    await expect(withRedisFallback(client, operation, 'fallback')).resolves.toBe('result');
+    expect(operation).toHaveBeenCalledOnce();
     expect(ping).not.toHaveBeenCalled();
     expect(connect).not.toHaveBeenCalled();
   });

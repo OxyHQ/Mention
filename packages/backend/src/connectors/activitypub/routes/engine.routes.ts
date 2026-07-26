@@ -53,7 +53,7 @@ const WEBFINGER_CACHE_TTL = 3600;
 
 /**
  * Rate-limit the AP protocol endpoints (300 req/min per IP — abuse/DDoS guard).
- * Mounted ONCE at `/ap` in `server.ts`, before both the engine actor router and
+ * Mounted ONCE at `/ap` in `app.ts`, before both the engine actor router and
  * the content router, so every `/ap/*` request is counted exactly once. AP
  * endpoints are anonymous (remote servers), so key by an HMAC of the
  * IPv6-subnet-normalized IP — the raw address must never reach a Redis key.

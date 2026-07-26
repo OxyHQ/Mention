@@ -7,7 +7,7 @@ import {
   type AppColorName,
   type ThemeMode,
 } from '@oxyhq/bloom/theme';
-import { useThemeSourceStore, type ThemeSource } from '@/store/themeSourceStore';
+import { useThemeSourceStore, type ThemeSource } from '@/stores/themeSourceStore';
 
 /**
  * The portable account theme value that rides the Oxy user DTO

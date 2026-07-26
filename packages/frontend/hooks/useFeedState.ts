@@ -732,7 +732,7 @@ export function useFeedState({
         } finally {
             if (useMemoryFeed && ownsPrimary()) setLocalLoading(false);
         }
-    }, [type, userId, showOnlySaved, useMemoryFeed, filters, refreshFeed, fetchUserFeed, cachePosts, clearError, retainMemoryCache]);
+    }, [applyPendingResult, type, userId, showOnlySaved, useMemoryFeed, filters, refreshFeed, fetchUserFeed, cachePosts, clearError, retainMemoryCache]);
 
     const loadMore = useCallback(async () => {
         if (isLoadingMoreRef.current) {

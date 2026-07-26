@@ -122,6 +122,15 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
     }
   });
 
+  const scheduleHideControls = useCallback(() => {
+    if (hideControlsTimer.current) {
+      clearTimeout(hideControlsTimer.current);
+    }
+    hideControlsTimer.current = setTimeout(() => {
+      setShowControls(false);
+    }, CONTROLS_HIDE_DELAY);
+  }, []);
+
   // Sync mute state from global store (GIFs stay force-muted regardless).
   useEffect(() => {
     if (player) {
@@ -174,7 +183,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
       statusSub.remove();
       sourceLoadSub.remove();
     };
-  }, [player, isSeeking, reportAspectRatio]);
+  }, [isSeeking, player, reportAspectRatio, scheduleHideControls]);
 
   // Web only: report this player's viewport position to the active-video
   // coordinator via an IntersectionObserver (threshold 0.5), exactly like
@@ -240,16 +249,6 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
       }
     };
   }, [player, autoPlay, effectiveActive]);
-
-  // Controls auto-hide
-  const scheduleHideControls = useCallback(() => {
-    if (hideControlsTimer.current) {
-      clearTimeout(hideControlsTimer.current);
-    }
-    hideControlsTimer.current = setTimeout(() => {
-      setShowControls(false);
-    }, CONTROLS_HIDE_DELAY);
-  }, []);
 
   useEffect(() => {
     return () => {

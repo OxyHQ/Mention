@@ -1,5 +1,5 @@
 import React from 'react';
-import { Path, Rect } from 'react-native-svg';
+import { Rect } from 'react-native-svg';
 import { IconSvg } from '@/assets/icons/IconSvg';
 interface PollIconProps {
     size?: number;
@@ -21,4 +21,4 @@ export const PollIcon: React.FC<PollIconProps> = ({
     );
 };
 
-export default PollIcon; 
+export default PollIcon;

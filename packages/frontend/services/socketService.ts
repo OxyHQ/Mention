@@ -5,7 +5,7 @@ import { AppState, type AppStateStatus } from 'react-native';
 import { io, Socket } from 'socket.io-client';
 import { usePostsStore } from '../stores/postsStore';
 import type { FeedItem } from '@/db';
-import { useTrendsStore } from '@/store/trendsStore';
+import { useTrendsStore } from '@/stores/trendsStore';
 import { useLiveRoomsStore } from '@/stores/liveRoomsStore';
 import {
   SOCKET_EVENT_TRENDS_UPDATED,
@@ -170,7 +170,7 @@ class SocketService {
         this.socket = null;
       }
 
-      this.socket = io(API_URL_SOCKET || process.env.EXPO_PUBLIC_BACKEND_URL || 'http://localhost:3000', {
+      this.socket = io(API_URL_SOCKET, {
         transports: ['websocket', 'polling'],
         auth: { token, userId },
         autoConnect: true,
@@ -768,7 +768,7 @@ class SocketService {
               };
             });
             break;
-            
+
           case 'unlike':
             store.updatePostEverywhere(postId, (prev) => {
               const actorId = data.actorId || data.userId;
@@ -801,7 +801,7 @@ class SocketService {
               };
             });
             break;
-            
+
           case 'boost':
             store.updatePostEverywhere(postId, (prev) => {
               const actorId = data.actorId || data.userId;
@@ -871,15 +871,22 @@ class SocketService {
             break;
             
           case 'save':
-            // Only update if it's not our own action (optimistic update already handled it)
-            if (data.userId !== viewerId) {
-              store.updatePostEverywhere(postId, (prev) => ({ ...prev, isSaved: true }));
+            // Saved state is viewer-private. Never let another actor's event
+            // change this viewer's flag; only reconcile our own missed echo.
+            if (data.userId === viewerId) {
+              store.updatePostEverywhere(postId, (prev) => ({
+                ...prev,
+                viewerState: { ...prev.viewerState, isSaved: true },
+              }));
             }
             break;
-            
+
           case 'unsave':
-            if (data.userId !== viewerId) {
-              store.updatePostEverywhere(postId, (prev) => ({ ...prev, isSaved: false }));
+            if (data.userId === viewerId) {
+              store.updatePostEverywhere(postId, (prev) => ({
+                ...prev,
+                viewerState: { ...prev.viewerState, isSaved: false },
+              }));
             }
             break;
             

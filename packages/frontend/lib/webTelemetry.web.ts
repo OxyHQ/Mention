@@ -33,11 +33,14 @@ type TelemetryEvent =
     };
 
 const ENDPOINT = `${API_URL.replace(/\/+$/, '')}/telemetry/web`;
+const CAPABILITIES_ENDPOINT = `${API_URL.replace(/\/+$/, '')}/`;
 const MAX_QUEUE_SIZE = 40;
 const MAX_RUNTIME_EVENTS_PER_KIND = 5;
 const FLUSH_DELAY_MS = 1_000;
 
 let initialized = false;
+let telemetryEnabled = false;
+let cachedCapability: boolean | undefined;
 let flushTimer: ReturnType<typeof setTimeout> | undefined;
 let queue: TelemetryEvent[] = [];
 const runtimeCounts = new Map<RuntimeKind, number>();
@@ -82,6 +85,7 @@ function scheduleFlush(): void {
 }
 
 function enqueue(event: TelemetryEvent): void {
+  if (!telemetryEnabled) return;
   if (queue.length >= MAX_QUEUE_SIZE) queue.shift();
   queue.push(event);
   if (queue.length >= 10) {
@@ -109,7 +113,10 @@ function flush(useBeacon: boolean): void {
 
   void fetch(ENDPOINT, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    // Keep the request CORS-safelisted so a low-value telemetry batch never
+    // adds an OPTIONS round-trip. The backend's bounded text parser validates
+    // and parses this exact payload shape.
+    headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
     body: payload,
     keepalive: true,
     credentials: 'omit',
@@ -137,6 +144,9 @@ export function recordWebNavigation(pathname: string): void {
 export function initializeWebTelemetry(): () => void {
   if (initialized) return () => undefined;
   initialized = true;
+  let active = true;
+  let listenersAttached = false;
+  const probeController = new AbortController();
 
   const onError = (event: Event): void => {
     recordRuntime(
@@ -149,48 +159,101 @@ export function initializeWebTelemetry(): () => void {
   };
   const onPageHide = (): void => flush(true);
 
-  window.addEventListener('error', onError, true);
-  window.addEventListener('unhandledrejection', onUnhandledRejection);
-  window.addEventListener('pagehide', onPageHide);
-  recordRuntime('load', 'ok');
+  const attachTelemetry = (): void => {
+    if (!active || listenersAttached) return;
+    telemetryEnabled = true;
+    listenersAttached = true;
+    window.addEventListener('error', onError, true);
+    window.addEventListener('unhandledrejection', onUnhandledRejection);
+    window.addEventListener('pagehide', onPageHide);
+    recordRuntime('load', 'ok');
 
-  void import('web-vitals')
-    .then(({ onCLS, onINP, onLCP }) => {
-      const report = (metric: {
-        name: VitalName;
-        value: number;
-        rating: VitalRating;
-        navigationType?: string;
-      }): void => {
-        enqueue({
-          type: 'vital',
-          name: metric.name,
-          value: metric.value,
-          rating: metric.rating,
-          navigation: normalizeNavigation(metric.navigationType),
-          route: routeBucket(),
-        });
+    void import('web-vitals')
+      .then(({ onCLS, onINP, onLCP }) => {
+        if (!active) return;
+        const report = (metric: {
+          name: VitalName;
+          value: number;
+          rating: VitalRating;
+          navigationType?: string;
+        }): void => {
+          if (!active) return;
+          enqueue({
+            type: 'vital',
+            name: metric.name,
+            value: metric.value,
+            rating: metric.rating,
+            navigation: normalizeNavigation(metric.navigationType),
+            route: routeBucket(),
+          });
+        };
+        onCLS(report);
+        onINP(report);
+        onLCP(report);
+      })
+      .catch(() => {
+        if (active) recordRuntime('resource-error', 'error');
+      });
+  };
+
+  const probeCapabilities = async (): Promise<void> => {
+    if (cachedCapability !== undefined) {
+      if (cachedCapability) attachTelemetry();
+      return;
+    }
+
+    try {
+      const response = await fetch(CAPABILITIES_ENDPOINT, {
+        method: 'GET',
+        headers: { Accept: 'application/json' },
+        credentials: 'omit',
+        signal: probeController.signal,
+      });
+      if (!response.ok) {
+        cachedCapability = false;
+        return;
+      }
+      const payload = await response.json() as {
+        capabilities?: { webTelemetry?: unknown };
       };
-      onCLS(report);
-      onINP(report);
-      onLCP(report);
-    })
-    .catch(() => {
-      recordRuntime('resource-error', 'error');
-    });
+      cachedCapability = payload.capabilities?.webTelemetry === true;
+      if (cachedCapability) attachTelemetry();
+    } catch {
+      if (!probeController.signal.aborted) cachedCapability = false;
+    }
+  };
+
+  void probeCapabilities();
 
   return () => {
-    window.removeEventListener('error', onError, true);
-    window.removeEventListener('unhandledrejection', onUnhandledRejection);
-    window.removeEventListener('pagehide', onPageHide);
+    active = false;
+    probeController.abort();
+    if (listenersAttached) {
+      window.removeEventListener('error', onError, true);
+      window.removeEventListener('unhandledrejection', onUnhandledRejection);
+      window.removeEventListener('pagehide', onPageHide);
+    }
     if (flushTimer) clearTimeout(flushTimer);
     flushTimer = undefined;
-    flush(true);
+    if (telemetryEnabled) flush(true);
+    queue = [];
+    runtimeCounts.clear();
+    telemetryEnabled = false;
     initialized = false;
   };
 }
 
 export const __webTelemetryForTests = {
+  capabilitiesEndpoint: CAPABILITIES_ENDPOINT,
   normalizeNavigation,
+  reset: () => {
+    if (flushTimer) clearTimeout(flushTimer);
+    flushTimer = undefined;
+    queue = [];
+    runtimeCounts.clear();
+    cachedCapability = undefined;
+    telemetryEnabled = false;
+    initialized = false;
+  },
   routeBucket,
 };

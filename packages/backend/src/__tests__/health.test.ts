@@ -102,6 +102,9 @@ describe('health routes', () => {
     expect(ready.body).toEqual({
       message: 'Welcome to the Mention API',
       status: 'ready',
+      capabilities: {
+        webTelemetry: true,
+      },
     });
     expect(ready.headers['cache-control']).toBe('no-store');
   });

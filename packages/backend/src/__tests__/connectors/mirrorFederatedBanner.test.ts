@@ -81,8 +81,11 @@ describe('mirrorFederatedBanner', () => {
     expect(result).toEqual({ ok: false, permanent: false });
     expect(mocks.userSettingsUpdateOne).not.toHaveBeenCalled();
     expect(mocks.loggerWarn).toHaveBeenCalledWith(
-      'Failed to mirror banner for https://mastodon.social/users/bob',
+      'Failed to mirror federated actor banner',
       expect.objectContaining({ reason: 'upstream-error', remoteHost: 'files.mastodon.social' }),
+    );
+    expect(JSON.stringify(mocks.loggerWarn.mock.calls)).not.toContain(
+      'https://mastodon.social/users/bob',
     );
   });
 
@@ -117,7 +120,7 @@ describe('mirrorFederatedBanner', () => {
     expect(result).toEqual({ ok: false, permanent: false });
     expect(mocks.userSettingsUpdateOne).not.toHaveBeenCalled();
     expect(mocks.loggerWarn).toHaveBeenCalledWith(
-      'Failed to mirror banner for https://mastodon.social/users/erin',
+      'Failed to mirror federated actor banner',
       expect.objectContaining({ error: expect.any(Error), remoteHost: 'files.mastodon.social' }),
     );
   });
@@ -137,7 +140,7 @@ describe('mirrorFederatedBanner', () => {
 
     expect(result).toEqual({ ok: false, permanent: false });
     expect(mocks.loggerWarn).toHaveBeenCalledWith(
-      'Failed to mirror banner for https://mastodon.social/users/frank',
+      'Failed to mirror federated actor banner',
       expect.objectContaining({ error: expect.any(Error), remoteHost: 'files.mastodon.social' }),
     );
   });

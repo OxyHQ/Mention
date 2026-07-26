@@ -1,7 +1,7 @@
 import { api } from '@/utils/api';
 import { getLiveRooms } from '@/lib/syraApi';
 import { useLiveRoomsStore } from '../liveRoomsStore';
-import { useTrendsStore } from '@/store/trendsStore';
+import { useTrendsStore } from '@/stores/trendsStore';
 
 const mockRemoveItem = jest.fn(
   (_key: string) => Promise.resolve(),
@@ -80,10 +80,10 @@ describe('viewer-owned polling stores', () => {
 
   it('discards A trends after reset and clears unowned hide state', async () => {
     const pendingA = deferred<{
-      data: { trending: Array<{ _id: string; name: string }> };
+      data: { trending: { _id: string; name: string }[] };
     }>();
     const pendingB = deferred<{
-      data: { trending: Array<{ _id: string; name: string }> };
+      data: { trending: { _id: string; name: string }[] };
     }>();
     mockApiGet
       .mockReturnValueOnce(pendingA.promise)

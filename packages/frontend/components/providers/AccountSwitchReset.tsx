@@ -7,13 +7,13 @@ import React, {
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@oxyhq/services/ui/client';
 import { useBloomTheme } from '@oxyhq/bloom/theme';
-import { useAppearanceStore } from '@/store/appearanceStore';
+import { useAppearanceStore } from '@/stores/appearanceStore';
 import { usePostsStore } from '@/stores/postsStore';
 import { usePrivacyStore } from '@/stores/privacyStore';
 import { useEntityFollowStore } from '@/stores/entityFollowStore';
 import { useExternalEmbedsStore } from '@/stores/externalEmbedsStore';
 import { useLiveRoomsStore } from '@/stores/liveRoomsStore';
-import { useTrendsStore } from '@/store/trendsStore';
+import { useTrendsStore } from '@/stores/trendsStore';
 import { clearAllFeedMemoryCaches } from '@/stores/feedScrollStore';
 import { setFeedViewerRequestScope } from '@/services/feedService';
 import { searchService } from '@/services/searchService';

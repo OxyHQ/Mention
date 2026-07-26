@@ -7,7 +7,7 @@ import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { starterPacksService, type StarterPackSummary } from '@/services/starterPacksService';
 import { router, useFocusEffect } from 'expo-router';
 import { useSafeBack } from '@/hooks/useSafeBack';
-import SEO from '@/components/SEO';
+import { SEO } from '@/components/SEO';
 import { StarterPackCard, StarterPackCardSkeleton, type StarterPackCardData } from '@/components/StarterPackCard';
 import { useTranslation } from 'react-i18next';
 import { logger } from '@/lib/logger';

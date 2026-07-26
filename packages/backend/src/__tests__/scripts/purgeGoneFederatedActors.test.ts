@@ -122,6 +122,9 @@ const h = vi.hoisted(() => {
     post,
     oxyDelete,
     signedFetch,
+    assertActorSafeToDelete: vi.fn(async () => undefined),
+    assertPostsSafeToDelete: vi.fn(async () => undefined),
+    closeAdminScriptResources: vi.fn(async () => undefined),
     like: makeSimple('Like'),
     bookmark: makeSimple('Bookmark'),
     federatedFollow: makeSimple('FederatedFollow'),
@@ -146,6 +149,15 @@ vi.mock('../../utils/logger', () => ({
 vi.mock('../../connectors/activitypub/helpers', () => ({ signedFetch: h.signedFetch }));
 vi.mock('../../connectors/activitypub/constants', () => ({ AP_CONTENT_TYPE: 'application/activity+json' }));
 vi.mock('../../connectors/identity', () => ({ deleteFederatedActorIdentity: h.oxyDelete }));
+vi.mock('../../scripts/lib/adminDeletionPreflight', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../scripts/lib/adminDeletionPreflight')>()),
+  assertActorSafeToDelete: h.assertActorSafeToDelete,
+  assertPostsSafeToDelete: h.assertPostsSafeToDelete,
+}));
+vi.mock('../../scripts/lib/adminScriptLifecycle', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../scripts/lib/adminScriptLifecycle')>()),
+  closeAdminScriptResources: h.closeAdminScriptResources,
+}));
 
 vi.mock('../../models/FederatedActor', () => ({ default: h.federatedActor }));
 vi.mock('../../models/Post', () => ({ Post: h.post }));
@@ -170,6 +182,7 @@ vi.mock('mongoose', async () => {
 });
 
 import purgeGoneFederatedActors from '../../scripts/purgeGoneFederatedActors';
+import { DeletionPreflightError } from '../../scripts/lib/adminDeletionPreflight';
 
 const originalArgv = process.argv;
 
@@ -200,6 +213,7 @@ function expectOrder(callLog: string[], labels: string[]): void {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.stubEnv('CONFIRM_ADMIN_MUTATION', 'purgeGoneFederatedActors');
   h.callLog.length = 0;
   h.state.actors = [];
   h.state.authoredPosts = [];
@@ -213,6 +227,7 @@ beforeEach(() => {
 
 afterEach(() => {
   process.argv = originalArgv;
+  vi.unstubAllEnvs();
   vi.restoreAllMocks();
 });
 
@@ -276,7 +291,7 @@ describe('purgeGoneFederatedActors', () => {
     h.state.actors = [makeActor('X')];
     h.state.signed = { status: 404, ok: false, statusText: 'Not Found' };
 
-    await run();
+    await expect(run()).rejects.toThrow('unverified=1');
 
     expect(h.callLog).toEqual([]);
     expect(h.oxyDelete).not.toHaveBeenCalled();
@@ -288,7 +303,7 @@ describe('purgeGoneFederatedActors', () => {
     h.state.actors = [makeActor('X')];
     h.state.signed = { status: 0, ok: false, statusText: '', throwErr: new Error('socket hang up') };
 
-    await run();
+    await expect(run()).rejects.toThrow('unverified=1');
 
     expect(h.callLog).toEqual([]);
     expect(h.oxyDelete).not.toHaveBeenCalled();
@@ -298,7 +313,7 @@ describe('purgeGoneFederatedActors', () => {
     h.state.actors = [makeActor('X')];
     h.state.oxyOutcome = 'failed';
 
-    await run();
+    await expect(run()).rejects.toThrow('partial=1');
 
     // Mention refs were removed and the Oxy delete was attempted...
     expect(h.oxyDelete).toHaveBeenCalledTimes(1);
@@ -313,7 +328,7 @@ describe('purgeGoneFederatedActors', () => {
     h.state.actors = [makeActor('X')];
     h.state.oxyOutcome = 'skipped';
 
-    await run();
+    await expect(run()).rejects.toThrow('partial=1');
 
     expect(h.oxyDelete).toHaveBeenCalledTimes(1);
     expect(h.federatedActor.deleteOne).not.toHaveBeenCalled();
@@ -348,5 +363,18 @@ describe('purgeGoneFederatedActors', () => {
     expect(h.oxyDelete).not.toHaveBeenCalled();
     expect(h.callLog).toContain('FederatedFollow');
     expect(h.callLog[h.callLog.length - 1]).toBe('FederatedActor.deleteOne');
+  });
+
+  it('fails closed before the first destructive write when preflight finds an uncascaded reference', async () => {
+    h.state.actors = [makeActor('X')];
+    h.assertActorSafeToDelete.mockRejectedValueOnce(
+      new DeletionPreflightError('test', ['AccountList owner/member']),
+    );
+
+    await expect(run()).rejects.toThrow('blocked=1');
+
+    expect(h.callLog).toEqual([]);
+    expect(h.oxyDelete).not.toHaveBeenCalled();
+    expect(h.federatedActor.deleteOne).not.toHaveBeenCalled();
   });
 });

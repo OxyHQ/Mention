@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { getRedisClient } from '../../utils/redis';
-import { withRedisFallback, ensureRedisConnected } from '../../utils/redisHelpers';
+import { withRedisFallback } from '../../utils/redisHelpers';
 import { logger } from '../../utils/logger';
 
 /**
@@ -65,8 +65,6 @@ export async function isNegativelyCached(remoteUrl: string): Promise<boolean> {
   return withRedisFallback(
     redis,
     async () => {
-      const connected = await ensureRedisConnected(redis);
-      if (!connected) return false;
       const hit = await redis.exists(keyFor(remoteUrl));
       return hit === 1;
     },
@@ -86,8 +84,6 @@ export async function markNegativelyCached(remoteUrl: string, kind: NegativeCach
   await withRedisFallback(
     redis,
     async () => {
-      const connected = await ensureRedisConnected(redis);
-      if (!connected) return;
       // Value is a marker only; the key's existence is the signal. setEx applies
       // the TTL atomically so a crash can't leave a permanent negative entry.
       await redis.setEx(keyFor(remoteUrl), ttlSeconds, kind);

@@ -1,248 +1,186 @@
 ---
 title: Architecture
-description: How the Mention monorepo is laid out — frontend, backend, shared types, and the data flow between them.
+description: Runtime boundaries, data ownership, lifecycle, and deployment topology.
 order: 1
 ---
 
 # Architecture
 
-Mention is a Bun-workspaces monorepo with two flagship packages — `@mention/frontend` (Expo) and `@mention/backend` (Node) — plus shared types, an MCP server, and a live-rooms app. Everything ships from one repo so type changes propagate atomically and feature work spans both sides without the friction of separate releases.
+Mention is a Bun monorepo whose runtime boundaries match its four workspaces.
+Shared contracts can change atomically, but each runtime has a separate entry
+point and production artifact.
 
-## Repository layout
+## Workspace boundaries
 
-```
-packages/
-  frontend/        @mention/frontend     Expo 55 / RN 0.84 / React 19 / Expo Router
-  backend/         @mention/backend      Express 5 / Mongoose 9 / Redis / Socket.io
-  shared-types/    @mention/shared-types Post, Feed, Federation, Notification types
-  agora/           @mention/agora        Live audio/video rooms (LiveKit) Expo app
-  agora-shared/    @mention/agora-shared Shared Agora hooks and components
-  mcp/             @mention/mcp          Model Context Protocol server for Claude
-```
-
-### Build order
-
-```
-shared-types  ->  backend
-              ->  frontend
-              ->  mcp
+```text
+packages/shared-types ───────────────┐
+        │                            │
+        ├──> packages/backend <──────┼── packages/mcp
+        │           │                │
+        └──> packages/frontend ──────┘
 ```
 
-`shared-types` is built on `postinstall` so the rest of the workspace can type-check immediately after `bun install`. `bun run build` runs `shared-types` -> `backend` -> `mcp` in sequence; `bun run build:frontend` does the Expo web export separately.
+| Workspace | Boundary |
+| --- | --- |
+| `frontend` | Presentation, navigation, viewer-scoped cache, local persistence |
+| `backend` | Domain commands and queries, HTTP, sockets, workers, integrations |
+| `shared-types` | Portable contracts; no runtime application state |
+| `mcp` | MCP protocol, OAuth resource validation, sessions, and backend calls |
 
-## Frontend (`@mention/frontend`)
+`bun run build` builds shared types before the backend and MCP. The web export
+is separate because it produces a static Expo artifact.
 
-Expo Router app that targets iOS, Android, and the web from one source tree.
+## Frontend
 
-### Tech stack
+The Expo 56 app targets native and web from Expo Router routes. TanStack Query
+owns remote server state, while Zustand stores local UI state. Viewer-private
+query keys include the viewer identity; account transitions cancel in-flight
+work, remove the previous private cache, clear persisted identity state, and
+disconnect the previous socket.
 
-- **Expo 55** with Expo Router for file-based routing
-- **React Native 0.84** + **React 19**
-- **NativeWind 5** on **Tailwind CSS 4.2** for styling
-- **TanStack Query 5** for server state, caching, and offline persistence
-- **Zustand** for local UI state
-- **Socket.io-client** for real-time updates
-- **LiveKit** for audio/video rooms
-- **`@oxyhq/services`** for identity, account center, and bottom-sheet flows
-- **`@oxyhq/bloom`** for shared design-system primitives
+Long feeds use virtualized lists and bounded pagination. Native and web database
+implementations are split so the browser does not import the native SQLite
+runtime. Audio, video, composition-heavy code, and non-initial routes are
+loaded at their feature boundary rather than the root provider.
 
-### Directory layout (`packages/frontend/`)
+The web build emits browser telemetry through `/telemetry/web`. The payload is
+bounded and contains normalized routes, Core Web Vitals, navigation events, and
+runtime/load failures.
 
-```
-app/                         Expo Router routes (file-based)
-  (app)/                     Authenticated stack — feeds, profiles, compose, settings, etc.
-    [username]/              User profile, followers, following
-    p/[id]/                  Post details, replies, quotes
-    feeds/                   Feeds index + custom feed viewer
-    hashtag/                 Hashtag pages
-    notifications/, chat.tsx, ai/, search/, settings/, ...
-  (auth)/                    Onboarding and sign-in flow
-  _layout.tsx                Root layout: OxyProvider, QueryClient, theming
-components/                  UI components (FeedCard, Compose, MentionTextInput, ...)
-hooks/                       useFeed, useNotifications, useCustomFeeds, ...
-services/                    Backend client wrappers (custom feeds, fediverse, ...)
-features/                    Feature modules (compose, notifications, ...)
-context/                     React context providers
-store/                       Zustand stores
-locales/                     i18n translations
-```
+## Backend composition
 
-### Data flow
+The backend is assembled from explicit runtime services rather than importing
+state from the server entry point:
 
-```
-UI component
-   |
-   v
-useQuery / useMutation hook (TanStack Query)
-   |
-   v
-services/<feature>.ts  ->  fetch() to @mention/backend
-   |
-   v
-On success: writes to React Query cache; UI re-renders from derived state.
-On real-time event: Socket.io invalidates affected queries.
+```text
+configuration
+    │
+    ├──> Mongo supervisor and schema state
+    ├──> Redis state, cache, queues, locks, and pub/sub
+    ├──> Express application and route dependencies
+    ├──> Socket.IO and distributed presence
+    └──> schedulers, workers, connectors, and MTN services
 ```
 
-There is no Redux. TanStack Query owns server state with persistence + offline mode; Zustand owns purely local UI state (compose drafts, modal stacks, etc.). `useEffect` is avoided whenever derived state, event handlers, or React Query suffices.
+Configuration is parsed with Zod during startup. Feature-specific variables
+become required only when that feature is enabled. Request handling uses one
+central Mongo connection; handlers do not reconnect per request.
 
-### Identity
+Public and authenticated routers are separate. Authentication accepts an Oxy
+access token or an eligible MCP JWT. Public reads may use optional identity for
+viewer state, while mutations enforce identity.
 
-`OxyProvider` from `@oxyhq/services` wraps the app at `app/_layout.tsx`. `useOxy()` hands components the current user, access token, and a fully-typed `OxyServices` client for direct Oxy reads. The backend bearer token is the Oxy access token.
+`PostHydrationService` is the only authority for post response DTOs. It performs
+bulk user resolution, bounded fallback work, and viewer-aware hydration without
+letting controllers build competing post shapes.
 
-## Backend (`@mention/backend`)
+## Feed engine
 
-Express 5 + Mongoose 9 API with Socket.io, Redis, and a custom feed engine.
+The MTN feed engine is under `packages/backend/src/mtn/feed`. A validated
+descriptor selects a registered source and preset. The engine then applies
+viewer context, filters, ranking signals, pagination, and hydration.
 
-### Tech stack
+Supported descriptor families include:
 
-- **Bun** runtime in dev (`bun --watch`) and production
-- **Express 5** with `helmet`, `compression`, `cors`, `express-rate-limit`, `express-slow-down`, `express-validator`
-- **Mongoose 9** on MongoDB
-- **Redis 5** — `rate-limit-redis`, `@socket.io/redis-adapter`
-- **Socket.io** for real-time
-- **`@oxyhq/core`** for Oxy user lookups + auth middleware
-- **AWS S3** for media via `@aws-sdk/client-s3`
-- **Firebase Admin** for FCM push notifications
-- **LiveKit Server SDK** for room credentials
-- **OpenAI / `ai` SDK** for the Alia assistant
-- **Pino** for structured logging
+- `following`, `for_you`, `explore`, `videos`, `media`, `saved`, and `trending`
+- `mutuals`, `friends_popular`, and `friends_of_friends`
+- `author|<oxyUserId>|<tab>`
+- `hashtag|...`, `topic|...`, `list|...`, `custom|...`, and `feedgen|...`
 
-### Directory layout (`packages/backend/src/`)
+The request-scoped viewer context resolves graph membership, language settings,
+blocks, restrictions, and Mention mutes once. Excluded authors are removed
+before pagination. Chronological cursors use `(createdAt, _id)` where that is
+the feed's declared sort axis.
 
-```
-controllers/                 Request -> response orchestration
-middleware/                  Auth, rate-limit, validation, error handling
-models/                      Mongoose schemas (Post, Notification, FederatedActor, ...)
-routes/                      Express routers (posts, follows, notifications, federation, ...)
-mtn/                         MTN feed engine
-  feed/
-    FeedAPI.ts               Common feed interface
-    FeedAPIRegistry.ts       Registry of feed implementations
-    FeedTuner.ts             Tuner composition
-    CursorBuilder.ts         Score + chrono cursor primitives
-    RankingExplainer.ts      "Why this post" explanations
-    FeedInteractionTracker.ts
-    feeds/                   ForYou, Following, Author, Hashtag, Explore, Custom,
-                             FeedGenerator, List, Saved
-    tuners/                  deduplicate, filterByLanguage, filterHiddenPosts,
-                             filterMuteWords, filterSensitiveContent,
-                             injectBreakpoints, removeReplies, removeReposts
-  UserPrivacyManager.ts      Visibility + blocking + muting resolution
-services/                    FederationService, FederationJobScheduler, ...
-sockets/                     Socket.io event handlers
-utils/                       Notification helpers, federation crypto, ...
-scripts/                     Migration scripts
-```
+## MTN signed records
 
-### Models (selection)
+The signed-record layer lives under `packages/backend/src/services/mtn`:
 
-`Post`, `Like`, `Bookmark`, `Notification`, `Follow`, `Block`, `Mute`, `MuteWord`, `Hashtag`, `Poll`, `Postgate`, `Threadgate`, `Restrict`, `Report.model`, `Trending`, `TrendBatch`, `TopicStats`, `Article`, `Series`, `Room`, `Recording`, `List`, `AccountList`, `StarterPack`, `CustomFeed`, `FeedGenerator`, `FeedInteraction`, `FeedReview`, `FeedLike`, `EntityFollow`, `PostSubscription`, `ContentLabel`, `Labeler`, `UserBehavior`, `UserSettings`, `House`, `PushToken`, `Poke`, `ActorKeyPair`, `FederatedActor`, `FederatedFollow`, `FederationDeliveryQueue`.
+- `MentionRecordService` signs and appends eligible local records.
+- `MentionRecordStore` persists the chain and repository head.
+- `PostMaterializer` projects verified records into the application post model
+  idempotently.
+- Node registry, sync, and scheduling support user-operated Mention nodes.
 
-42 models total — the schema captures the breadth of a real social network (content, social graph, moderation, ranking, federation).
+MongoDB remains authoritative for application reads. Record append is
+best-effort and isolated from the native write result. Protocol verification
+uses Oxy verification methods for self-issued records and configured Mention
+keys for custodial records.
 
-### Request lifecycle
+## External networks
 
-```
-Express request
-   |
-   v
-helmet + compression + cors + body parsing
-   |
-   v
-Rate limiters (Redis-backed)
-   |
-   v
-Auth middleware  -> verifies Oxy bearer token via @oxyhq/core
-   |                     (sets req.user with oxyUserId)
-   v
-Route handler  ->  Mongoose read/write  ->  shared-types DTO  ->  JSON
-   |
-   v
-On state change: emit Socket.io event + create Notification + (optional) federate.
-```
+External behavior is behind `packages/backend/src/connectors`. The registry
+contains only enabled connectors and fans out with `Promise.allSettled`, so one
+network cannot abort another or the native post write.
 
-### Federation pipeline
+- ActivityPub is enabled unless `FEDERATION_ENABLED=false`.
+- AT Protocol discovery/read support is optional through `ATPROTO_ENABLED`.
+- The AT Protocol bridge remains independently gated by
+  `ATPROTO_BRIDGE_ENABLED`.
 
-```
-Inbox POST /ap/inbox
-   |
-   v
-Verify HTTP signature against cached FederatedActor public key
-   |
-   v
-Reject if actor has no local followers (anti-spam)
-   |
-   v
-Persist Create as a local Post with oxyUserId = actor's shadow Oxy user
-   |
-   v
-Fan out to followers via real-time + push notifications.
+Post creation depends on the registry's narrow federation interface, not a
+network implementation. Protocol DTOs at the connector boundary do not depend
+on Mongoose.
 
-Outbox local post created
-   |
-   v
-FederationDeliveryQueue.enqueue(activity, inboxes)
-   |
-   v
-FederationJobScheduler picks up batch, signs each request, POSTs.
-   |
-   v
-On failure, retry with exponential backoff up to FEDERATION_DELIVERY_RETRIES.
+## Storage and degradation
+
+| Dependency | Use | Failure behavior |
+| --- | --- | --- |
+| MongoDB | Authoritative application data and schema version | Readiness fails |
+| Valkey/Redis | Cache, queues, rate limits, locks, Socket.IO adapter, presence | HTTP degrades quickly |
+| Oxy | Identity, settings, graph, service-backed media | Endpoint-specific degraded behavior |
+| Object storage | Canonical and cached media | Media operation fails or falls back |
+
+Redis health is tracked locally with a shared connection attempt and circuit
+breaking. Normal operations do not issue a `PING`. A process never assumes
+singleton leadership when it cannot acquire the distributed lock.
+
+## Process lifecycle
+
+Startup runs in this order:
+
+1. Validate configuration.
+2. Connect MongoDB with bounded retry.
+3. Run migrations outside production, or verify the deployed schema in
+   production.
+4. Initialize Redis-backed optional capabilities.
+5. Register sockets, workers, outbox processing, and leader-gated jobs.
+6. Start HTTP and mark readiness true.
+
+Shutdown first marks readiness false and stops accepting HTTP. It then stops
+schedulers and workers and closes Socket.IO, pub/sub, Redis, and MongoDB in
+parallel. A hard ten-second deadline prevents a stuck deployment drain.
+
+## Local topology
+
+`docker-compose.yml` reproduces the transactional data requirements:
+
+```text
+mongo ──healthy──> mongo-init ──completed──┐
+valkey ─────────────healthy────────────────┼──> migrate ──completed──> backend
 ```
 
-## Shared types (`@mention/shared-types`)
+MongoDB runs as a single-node replica set so transactions behave like
+production. The migration container and backend use the same locally built
+backend image. MongoDB and Valkey expose loopback-only ports and persist to
+named volumes.
 
-Single source of truth for cross-package contracts:
+## Production topology
 
-| File | What it covers |
-|------|----------------|
-| `post.ts` | `Post`, `PostContent`, `PostStats`, `HydratedPost`, `CreatePostRequest`, ... |
-| `feed.ts` | `FeedDescriptor`, `FeedPostSlice`, `SlicedFeedResponse`, ranking primitives |
-| `customFeed.ts` | `CustomFeed`, builder DSL |
-| `federation.ts` | ActivityPub-facing actor + activity types |
-| `notification.ts` | `Notification`, `NotificationType`, push payloads |
-| `interaction.ts` | Likes, bookmarks, reposts, reactions |
-| `list.ts` | `List`, `StarterPack` |
-| `media.ts` | Media descriptors |
-| `profile.ts` | User profile projections used by the feed |
-| `topic.ts` | Trending topics |
-| `common.ts` | `GeoJSONPoint`, pagination cursors, error shapes |
-| `mtn/` | Internal feed-engine descriptor types (also used by `@mention/mcp`) |
+```text
+                     ┌── api.mention.earth ──┐
+Internet ── ALB/CF ──┤                       ├── ECS mention :3000
+                     └── mention.earth ──────┘        │
+                                                      └── static web origin
 
-Frontend imports these directly. Backend uses them at the boundary (request validators, response DTOs) so the wire format stays in lockstep with the client.
+MCP client ── ALB ── mcp.mention.earth ── ECS mention-mcp :3100
+```
 
-## Live rooms
+The backend handles federation and OG routes before proxying remaining apex
+GET/HEAD requests to the static Expo origin. Hashed assets receive immutable
+caching; HTML revalidates. A hashed asset URL that resolves to HTML is rejected
+as a non-cacheable 404.
 
-Live rooms use the shared `@syra.fm/sdk` engine and load only when a user enters
-or joins a room. The backend mints LiveKit credentials; feed rows do not import
-the room runtime.
-
-## MCP (`@mention/mcp`)
-
-Remote MCP server at **https://mcp.mention.earth** for Claude Web and other MCP clients.
-
-- **Protocol** runs in ECS `mention-mcp`; **OAuth AS + bundle API** run in the main backend (`packages/backend/src/mcp/`).
-- Claude connects once per URL; **multiple Mention accounts** use server-side bundles (`link-account` → browser `/oauth/mcp/link` → `switch-account`).
-- Tool handlers proxy to `api.mention.earth`. OAuth consent on `mention.earth`; revoke in Settings → Connected AI.
-- Dual auth on bundle/post routes: MCP access JWT (`aud` = `https://mcp.mention.earth`) **or** Oxy session (`createRequireMcpOrOxyAuth`).
-
-Full guide: [`packages/mcp/README.md`](../packages/mcp/README.md). Agent gotchas: [`AGENTS.md`](../AGENTS.md) § MCP.
-
-## Deployment
-
-- **Backend** — AWS ECS service `mention` serves the API, federation endpoints, OG shells and the whole apex proxy. ActivityPub endpoint paths are handled directly and never redirected.
-- **Frontend (web)** — the Expo export is promoted preview-first to Cloudflare Pages; the backend proxies the apex web plane to that static origin.
-- **MCP** — the independent AWS ECS service `mention-mcp` serves `mcp.mention.earth`.
-- **Frontend (native)** — EAS Build for Android (APK + Play) and iOS. Scripts: `bun run build:apk`, `bun run build:android`, `bun run build:ios`.
-- **MongoDB** — managed cluster; production migrations run once from the release image before the web rollout.
-- **Redis** — managed instance for rate-limiting and the Socket.io adapter.
-- **S3** — single bucket for user-uploaded media, fronted by signed URLs.
-
-See `docs/AWS_DEPLOYMENT.md` for the release transaction and rollback rules.
-
-## Local development checklist
-
-1. Copy `.env.example` to `packages/backend/.env` and fill in `MONGODB_URI`, `OXY_API_URL`, S3 keys, Firebase admin keys, and (optionally) `FEDERATION_DOMAIN`.
-2. `bun install` from the repo root.
-3. `bun run dev` to start everything, or run packages individually.
-4. For federation testing, expose the backend via Cloudflare Tunnel and point `FEDERATION_DOMAIN` at the tunnel hostname (the tunnel URL changes per session unless named).
+Deploy workflows run only after successful CI on `main`. Images are addressed
+by commit SHA/digest. Production migrations run once before rollout, and the
+same artifact is used for migrations and the service.

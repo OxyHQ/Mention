@@ -76,7 +76,7 @@ export async function runSharingCleanup(
   const sharingState = await getFediverseSharingStateById(oxyUserId);
   if (sharingState === 'enabled') {
     logger.info(
-      `[SharingCleanup] sharing is enabled for ${oxyUserId} — skipping stale cleanup job`,
+      '[SharingCleanup] sharing is enabled; skipping stale cleanup job',
     );
     return { deletesSent: 0, followersRemoved: 0 };
   }
@@ -144,9 +144,9 @@ export async function runSharingCleanup(
       deletableIds.push(follow._id);
     } catch (err) {
       bridgeFailures += 1;
-      logger.warn(
-        `[SharingCleanup] bridge-unfollow failed for follower ${followerOxyUserId} of ${oxyUserId}:`,
-        err,
+    logger.warn(
+      '[SharingCleanup] bridge-unfollow failed',
+      err,
       );
     }
   }

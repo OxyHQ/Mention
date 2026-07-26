@@ -3,7 +3,7 @@ import request from 'supertest';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { OxyServices } from '@oxyhq/core';
 
-process.env.MENTION_MCP_JWT_SECRET = 'test-mcp-secret';
+process.env.MENTION_MCP_JWT_SECRET = 'test-mcp-secret-that-is-at-least-32-bytes';
 process.env.MENTION_PUBLIC_API_URL = 'https://api.mention.earth';
 process.env.MENTION_MCP_PUBLIC_URL = 'https://mcp.mention.earth';
 

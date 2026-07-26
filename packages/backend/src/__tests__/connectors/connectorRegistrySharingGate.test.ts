@@ -70,7 +70,10 @@ describe('ConnectorRegistry.federateNewPost (post.create) — sharing gate', () 
 
     expect(mocks.isFediverseSharingEnabled).toHaveBeenCalledWith('u1');
     expect(deliver).not.toHaveBeenCalled();
-    expect(mocks.loggerDebug).toHaveBeenCalledWith(expect.stringContaining('u1'));
+    expect(mocks.loggerDebug).toHaveBeenCalledWith(
+      '[Connectors] sharing disabled; skipping federation',
+    );
+    expect(JSON.stringify(mocks.loggerDebug.mock.calls)).not.toContain('u1');
   });
 
   it('calls the connector when sharing is on for the acting user', async () => {

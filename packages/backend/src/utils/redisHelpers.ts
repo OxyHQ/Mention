@@ -1,5 +1,6 @@
 import { RedisClientType } from 'redis';
 import { logger } from './logger';
+import { reportRedisConnectionFailure } from './redis';
 
 /** Read common fields of an unknown error without assuming its shape. */
 function errorFields(error: unknown): { code?: string; message?: string; name?: string } {
@@ -57,77 +58,9 @@ export function isRedisConnectionError(error: unknown): boolean {
 }
 
 /**
- * Return whether the shared Redis client is ready for an operation.
- *
- * Request hot paths must not PING, connect, or wait for reconnect here: doing so
- * adds a network round-trip (or a two-second stall during an outage) before
- * every cache/rate-limit command. The Redis singleton owns its connection
- * lifecycle. A readiness race is handled by {@link withRedisFallback}, which
- * catches connection errors from the actual operation.
- *
- * `timeoutMs` remains in the signature for backwards compatibility with callers
- * that used to configure the old wait loop.
- */
-export async function ensureRedisConnected(
-  client: RedisClientType,
-  _timeoutMs: number = 2000,
-): Promise<boolean> {
-  return client.isReady;
-}
-
-/**
- * Verify Redis connection with detailed diagnostics
- * Returns diagnostic information about the connection state
- */
-export async function verifyRedisConnectionWithDiagnostics(client: RedisClientType): Promise<{
-  connected: boolean;
-  ready: boolean;
-  ping: boolean;
-  error?: string;
-}> {
-  try {
-    const connected = client.isOpen;
-    const ready = client.isReady;
-    let ping = false;
-    let error: string | undefined;
-
-    if (ready) {
-      try {
-        await Promise.race([
-          client.ping(),
-          new Promise((_, reject) => 
-            setTimeout(() => reject(new Error('Ping timeout')), 2000)
-          )
-        ]);
-        ping = true;
-      } catch (pingError: unknown) {
-        error = `Ping failed: ${errorFields(pingError).message ?? 'unknown error'}`;
-      }
-    } else if (connected) {
-      error = 'Client connected but not ready';
-    } else {
-      error = 'Client not connected';
-    }
-
-    return {
-      connected,
-      ready,
-      ping,
-      error
-    };
-  } catch (error: unknown) {
-    return {
-      connected: false,
-      ready: false,
-      ping: false,
-      error: errorFields(error).message ?? 'unknown error'
-    };
-  }
-}
-
-/**
- * Execute a Redis operation with automatic connection handling and graceful degradation
- * Returns the result or a fallback value if Redis is unavailable
+ * Execute a Redis operation only when the shared client is already ready.
+ * Connection and recovery belong to the singleton supervisor; hot paths never
+ * PING, call connect, or wait for a cooldown.
  */
 export async function withRedisFallback<T>(
   client: RedisClientType,
@@ -135,14 +68,15 @@ export async function withRedisFallback<T>(
   fallback: T,
   operationName?: string
 ): Promise<T> {
+  if (!client.isReady) {
+    return fallback;
+  }
+
   try {
-    const connected = await ensureRedisConnected(client);
-    if (!connected) {
-      return fallback;
-    }
     return await operation();
   } catch (error: unknown) {
     if (isRedisConnectionError(error)) {
+      reportRedisConnectionFailure(client, error);
       if (operationName) {
         logger.debug(`Redis unavailable for ${operationName}, using fallback`);
       }

@@ -27,17 +27,17 @@ import {
     type UserSettingsResponse,
 } from '@/hooks/usePrivacySettings';
 import { queryClient } from '@/lib/queryClient';
-import { recommendationFiltersQueryKey } from '@/hooks/useRecommendations';
+import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { OxyAuthPrompt, useAuth } from '@oxyhq/services/ui/client';
 
-const FILTER_TOGGLES: Array<{
+const FILTER_TOGGLES: {
     icon: IconName;
     titleKey: string;
     descKey: string;
     titleDefault: string;
     descDefault: string;
     filterKey: keyof RecommendationFilters;
-}> = [
+}[] = [
     {
         icon: 'globe-outline',
         titleKey: 'settings.privacy.showFediverse',
@@ -114,7 +114,7 @@ export default function PrivacySettingsScreen() {
         // (explore tab, widget, suggestions) reactively — no manual invalidation.
         if (viewerId) {
             queryClient.setQueryData(
-                recommendationFiltersQueryKey(viewerId),
+                viewerQueryKeys.recommendationFilters(viewerId),
                 updated,
             );
         }

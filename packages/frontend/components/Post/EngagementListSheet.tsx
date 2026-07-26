@@ -48,7 +48,7 @@ const EngagementListSheet: React.FC<EngagementListSheetProps> = ({ postId, type,
 
       setHasMore(result.hasMore);
       setNextCursor(result.nextCursor);
-    } catch (error) {
+      } catch {
       logger.error(`Error loading ${type}`);
     } finally {
       setLoading(false);

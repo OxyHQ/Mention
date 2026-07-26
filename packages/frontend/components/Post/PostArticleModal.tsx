@@ -20,12 +20,11 @@ import Animated, {
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@oxyhq/bloom/theme';
-import { cn } from '@/lib/utils';
 import { useTranslation } from 'react-i18next';
 import { CloseIcon } from '@/assets/icons/close-icon';
 import { IconButton } from '@/components/ui/Button';
 import { articleService } from '@/services/articleService';
-import LinkifiedText from '@/components/common/LinkifiedText';
+import { LinkifiedText } from '@/components/common/LinkifiedText';
 import { Portal } from '@oxyhq/bloom/portal';
 import { logger } from '@/lib/logger';
 
@@ -404,4 +403,3 @@ const styles = StyleSheet.create({
     flex: 1,
   },
 });
-

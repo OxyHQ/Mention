@@ -13,7 +13,7 @@ import { ThemedView } from '@/components/ThemedView';
 import { VirtualList } from '@oxyhq/bloom/list';
 import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import { queryClient } from '@/lib/queryClient';
-import { useTheme } from '@oxyhq/bloom/theme';
+import { BloomColorScope, useTheme } from '@oxyhq/bloom/theme';
 import AnimatedTabBar from '@/components/common/AnimatedTabBar';
 import { upsertCachedUsers } from '@oxyhq/services';
 import { useAuth } from '@oxyhq/services/ui/client';
@@ -21,12 +21,12 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { Error as ErrorComponent } from '@/components/Error';
 import { useProfileData, type ProfileData } from '@/hooks/useProfileData';
 import { useProfileScreenColor } from '@/hooks/useProfileScreenColor';
-import { BloomColorScope } from '@oxyhq/bloom/theme';
 import { logger } from '@/lib/logger';
 import { useRecommendations } from '@/hooks/useRecommendations';
 import { type ProfileData as RecommendedProfile } from '@/lib/recommendations';
 import { isAuthError } from '@/utils/authErrors';
 import { getNormalizedUserHandle } from '@oxyhq/core';
+import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 
 type TabType = 'followers' | 'following' | 'who-may-know' | 'in-common';
 
@@ -272,7 +272,7 @@ function ConnectionsContent({
   // during the cold-boot session transition, and the endpoint soft-fails to an
   // empty list (own profile / signed out / no mutuals) rather than throwing.
   const inCommonQuery = useQuery<ConnectionUser[]>({
-    queryKey: ['connections', 'mutuals', profileData?.id ?? '', user?.id ?? 'anon'],
+    queryKey: viewerQueryKeys.connectionsMutuals(user?.id, profileData?.id),
     queryFn: async () => {
       const targetId = profileData?.id;
       if (!targetId) return [];
@@ -368,7 +368,7 @@ function ConnectionsContent({
             text: inviteMessage,
             url: 'https://mention.earth',
           });
-        } catch (e) {
+        } catch {
           // User cancelled or error
         }
       } else if (navigator.clipboard) {

@@ -34,8 +34,8 @@
  *
  * RUN AS A FARGATE ONE-SHOT (post-deploy, in-VPC):
  *   ATPROTO_ENABLED=true bun packages/backend/dist/src/scripts/syncBlueskyStarterPacks.js --dry-run
- *   ATPROTO_ENABLED=true bun packages/backend/dist/src/scripts/syncBlueskyStarterPacks.js --limit 50
- *   ATPROTO_ENABLED=true bun packages/backend/dist/src/scripts/syncBlueskyStarterPacks.js   # full sweep
+ *   ATPROTO_ENABLED=true CONFIRM_ADMIN_MUTATION=syncBlueskyStarterPacks \
+ *     bun packages/backend/dist/src/scripts/syncBlueskyStarterPacks.js --limit 50
  *
  * RUN OVER THE SSM TUNNEL (prod Mongo forwarded to 127.0.0.1:47017):
  *   MONGODB_URI='mongodb://127.0.0.1:47017/?directConnection=true' NODE_ENV=production \
@@ -48,16 +48,11 @@ import FederatedActor from '../models/FederatedActor';
 import { ATPROTO_ENABLED } from '../connectors/atproto/constants';
 import { syncAtprotoProfileGraph } from '../connectors/atproto/profileGraph';
 import { mapWithConcurrency, DEFAULT_CONCURRENCY, MAX_CONCURRENCY } from '../utils/concurrency';
+import { assertAdminMutationAllowed } from './lib/adminScriptSafety';
+import { assertAdminRunComplete } from './lib/adminScriptLifecycle';
 
 /** Actors scanned per page (stable `_id` cursor pagination). */
 const PAGE_SIZE = 500;
-
-/**
- * Hard per-actor wall-clock cap. Every network call inside the graph sync is
- * individually bounded by the XRPC client, but this guarantees one slow actor can
- * never freeze the sweep — a timed-out actor is counted `failed` and skipped.
- */
-const ACTOR_TIMEOUT_MS = 120_000;
 
 interface Flags {
   dryRun: boolean;
@@ -121,28 +116,6 @@ function parseFlags(argv: string[]): Flags {
   return { dryRun, limit, actor, concurrency };
 }
 
-/** Distinct rejection raised by {@link withActorTimeout} when an actor exceeds the cap. */
-class ActorTimeoutError extends Error {
-  constructor(ms: number) {
-    super(`actor sync exceeded ${ms}ms hard timeout`);
-    this.name = 'ActorTimeoutError';
-  }
-}
-
-/**
- * Race one actor's sync against a hard timeout so a single hung remote can never
- * freeze the batch. The timer is ALWAYS cleared when the sync settles.
- */
-function withActorTimeout<T>(work: Promise<T>, ms: number): Promise<T> {
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  const timeout = new Promise<never>((_, reject) => {
-    timer = setTimeout(() => reject(new ActorTimeoutError(ms)), ms);
-  });
-  return Promise.race([work, timeout]).finally(() => {
-    if (timer) clearTimeout(timer);
-  });
-}
-
 /** Build the Mongo filter: atproto actors with a resolved Oxy owner (+ optional single-actor scope). */
 function buildFilter(actor: string | undefined): Record<string, unknown> {
   const filter: Record<string, unknown> = {
@@ -170,14 +143,20 @@ async function syncBlueskyStarterPacks(): Promise<void> {
   let remaining = flags.limit;
 
   try {
+    assertAdminMutationAllowed({
+      scriptName: 'syncBlueskyStarterPacks',
+      dryRun: flags.dryRun,
+    });
     await mongoose.connect(mongoUri, { dbName });
     const baseFilter = buildFilter(flags.actor);
     const total = await FederatedActor.countDocuments(baseFilter);
-    logger.info(
-      `[syncBlueskyStarterPacks] connected to MongoDB (${dbName}) — mode: ${flags.dryRun ? 'DRY-RUN' : 'LIVE'}, ` +
-        `concurrency: ${flags.concurrency}${flags.limit !== undefined ? `, limit: ${flags.limit}` : ''}; ` +
-        `${total} atproto actor(s) with a resolved Oxy owner${flags.actor ? ` (actor ${flags.actor})` : ''}`,
-    );
+    logger.info('[syncBlueskyStarterPacks] connected to MongoDB', {
+      dryRun: flags.dryRun,
+      concurrency: flags.concurrency,
+      limit: flags.limit,
+      count: total,
+      narrowedScope: Boolean(flags.actor),
+    });
 
     let lastId: mongoose.Types.ObjectId | null = null;
     for (;;) {
@@ -196,22 +175,21 @@ async function syncBlueskyStarterPacks(): Promise<void> {
       if (flags.dryRun) {
         // A dry-run only reports the SCOPE (which actors would be synced) — it runs
         // no AppView reads, mints no members, and writes nothing.
-        for (const actor of page) {
+        for (const _actor of page) {
           counters.scanned += 1;
           if (remaining !== undefined) remaining -= 1;
-          logger.info(
-            `[syncBlueskyStarterPacks] WOULD sync graph for ${actor.acct ?? actor.uri} (oxyUserId=${actor.oxyUserId})`,
-          );
+          logger.info('[syncBlueskyStarterPacks] actor graph would be synchronized');
         }
       } else {
         const settled = await mapWithConcurrency(page, flags.concurrency, (actor) => {
           const owner = actor.oxyUserId;
           if (!owner) return Promise.resolve(false);
-          return withActorTimeout(syncAtprotoProfileGraph(actor.uri, owner), ACTOR_TIMEOUT_MS).then(() => true);
+          // The XRPC/Oxy clients own their request deadlines. Await the mutating
+          // graph sync so it cannot continue after a non-cancelling timeout race.
+          return syncAtprotoProfileGraph(actor.uri, owner).then(() => true);
         });
 
         for (let i = 0; i < page.length; i++) {
-          const actor = page[i];
           counters.scanned += 1;
           if (remaining !== undefined) remaining -= 1;
           const result = settled[i];
@@ -219,8 +197,9 @@ async function syncBlueskyStarterPacks(): Promise<void> {
             counters.synced += 1;
           } else if (result.status === 'rejected') {
             const err = result.reason;
-            const message = err instanceof Error ? err.message : String(err);
-            logger.warn(`[syncBlueskyStarterPacks] sync failed for ${actor.acct ?? actor.uri}: ${message}`);
+            logger.warn('[syncBlueskyStarterPacks] actor graph synchronization failed', {
+              error: err,
+            });
             counters.failed += 1;
           }
         }
@@ -238,11 +217,14 @@ async function syncBlueskyStarterPacks(): Promise<void> {
         `scanned ${counters.scanned}, synced ${counters.synced}, failed ${counters.failed}`,
     );
 
-    await mongoose.disconnect();
+    assertAdminRunComplete('syncBlueskyStarterPacks', {
+      failed: counters.failed,
+    });
   } catch (error) {
     logger.error('[syncBlueskyStarterPacks] failed', error);
+    throw error;
+  } finally {
     await mongoose.disconnect();
-    process.exit(1);
   }
 }
 

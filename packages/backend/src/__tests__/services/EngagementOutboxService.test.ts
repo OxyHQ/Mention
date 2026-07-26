@@ -76,6 +76,31 @@ describe('EngagementOutboxService', () => {
       .toBe(engagementOutboxEventId('post.like', 'like-1', 3));
     expect(engagementOutboxEventId('post.like', 'like-1', 4))
       .not.toBe(engagementOutboxEventId('post.like', 'like-1', 3));
+    expect(engagementOutboxEventId('post.like', 'like-1', 0))
+      .toBe('engagement:post.like:like-1:v1');
+    expect(engagementOutboxEventId('post.like', 'like-1', Number.NaN))
+      .toBe('engagement:post.like:like-1:v1');
+  });
+
+  it('uses bounded claim defaults when optional claim inputs are omitted', async () => {
+    vi.mocked(EngagementOutbox.findOneAndUpdate).mockReturnValue(
+      claimQuery(null) as never,
+    );
+
+    await expect(claimEngagementOutboxEvent({
+      leaseOwner: 'worker-defaults',
+    })).resolves.toBeNull();
+
+    expect(EngagementOutbox.findOneAndUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({ $or: expect.any(Array) }),
+      expect.objectContaining({
+        $set: expect.objectContaining({
+          leaseOwner: 'worker-defaults',
+          leaseUntil: expect.any(Date),
+        }),
+      }),
+      { new: true, sort: { createdAt: 1 } },
+    );
   });
 
   it('sets a hard expiry when enqueueing a durable event', async () => {
@@ -602,5 +627,154 @@ describe('EngagementOutboxService', () => {
         $set: expect.objectContaining({ leaseUntil: expect.any(Date) }),
       }),
     );
+  });
+
+  it('counts an ordering deferral whose lease was already lost', async () => {
+    const now = new Date();
+    const event = {
+      _id: 'engagement:post.downvote:like-1:v2',
+      kind: 'post.downvote' as const,
+      revision: 2,
+      payload: {
+        actorOxyUserId: 'viewer-a',
+        postId: 'post-1',
+        relationshipId: 'like-1',
+      },
+      attempts: 1,
+      availableAt: now,
+      leaseOwner: 'worker-a',
+      leaseUntil: new Date(now.getTime() + 30_000),
+      expiresAt: new Date(now.getTime() + 60_000),
+      createdAt: now,
+    };
+    vi.mocked(EngagementOutbox.findOneAndUpdate).mockReturnValueOnce(
+      claimQuery(event) as never,
+    );
+    vi.mocked(EngagementOutbox.exists).mockResolvedValueOnce(
+      { _id: 'earlier' } as never,
+    );
+    vi.mocked(EngagementOutbox.updateOne).mockResolvedValueOnce(
+      { modifiedCount: 0 } as never,
+    );
+
+    await expect(dispatchEngagementOutbox({
+      leaseOwner: 'worker-a',
+      batchSize: 1,
+      handler: vi.fn(),
+    })).resolves.toEqual({ processed: 0, failed: 1 });
+  });
+
+  it('counts completion ownership loss after a successful delivery', async () => {
+    const now = new Date();
+    const event = {
+      _id: 'engagement:post.save:bookmark-1:v1',
+      kind: 'post.save' as const,
+      revision: 1,
+      payload: {
+        actorOxyUserId: 'viewer-a',
+        postId: 'post-1',
+        relationshipId: 'bookmark-1',
+      },
+      attempts: 1,
+      availableAt: now,
+      leaseOwner: 'worker-a',
+      leaseUntil: new Date(now.getTime() + 30_000),
+      expiresAt: new Date(now.getTime() + 60_000),
+      createdAt: now,
+    };
+    vi.mocked(EngagementOutbox.findOneAndUpdate).mockReturnValueOnce(
+      claimQuery(event) as never,
+    );
+    vi.mocked(EngagementOutbox.updateOne).mockResolvedValueOnce(
+      { modifiedCount: 0 } as never,
+    );
+
+    await expect(dispatchEngagementOutbox({
+      leaseOwner: 'worker-a',
+      batchSize: 1,
+      handler: vi.fn().mockResolvedValue(undefined),
+    })).resolves.toEqual({ processed: 0, failed: 1 });
+  });
+
+  it('keeps a non-Error delivery failure failed when release ownership is lost', async () => {
+    const now = new Date();
+    const event = {
+      _id: 'engagement:post.unsave:bookmark-1:v2',
+      kind: 'post.unsave' as const,
+      revision: 2,
+      payload: {
+        actorOxyUserId: 'viewer-a',
+        postId: 'post-1',
+        relationshipId: 'bookmark-1',
+      },
+      attempts: 2,
+      availableAt: now,
+      leaseOwner: 'worker-a',
+      leaseUntil: new Date(now.getTime() + 30_000),
+      expiresAt: new Date(now.getTime() + 60_000),
+      createdAt: now,
+    };
+    vi.mocked(EngagementOutbox.findOneAndUpdate).mockReturnValueOnce(
+      claimQuery(event) as never,
+    );
+    vi.mocked(EngagementOutbox.updateOne).mockResolvedValueOnce(
+      { modifiedCount: 0 } as never,
+    );
+
+    await expect(dispatchEngagementOutbox({
+      leaseOwner: 'worker-a',
+      batchSize: 1,
+      handler: vi.fn().mockRejectedValue('string failure'),
+    })).resolves.toEqual({ processed: 0, failed: 1 });
+  });
+
+  it('contains a renewal exception and never completes the stale claim', async () => {
+    vi.useFakeTimers();
+    const now = new Date('2026-07-26T12:00:00.000Z');
+    vi.setSystemTime(now);
+    const event = {
+      _id: 'engagement:post.like:like-1:v1',
+      kind: 'post.like' as const,
+      revision: 1,
+      payload: {
+        actorOxyUserId: 'viewer-a',
+        postId: 'post-1',
+        relationshipId: 'like-1',
+      },
+      attempts: 1,
+      availableAt: now,
+      leaseOwner: 'worker-a',
+      leaseUntil: new Date(now.getTime() + 1_000),
+      expiresAt: new Date(now.getTime() + 60_000),
+      createdAt: now,
+    };
+    vi.mocked(EngagementOutbox.findOneAndUpdate).mockReturnValueOnce(
+      claimQuery(event) as never,
+    );
+    vi.mocked(EngagementOutbox.updateOne).mockRejectedValueOnce('renewal failed');
+    let finishHandler!: () => void;
+    const handlerBlock = new Promise<void>((resolve) => {
+      finishHandler = resolve;
+    });
+    let markHandlerStarted!: () => void;
+    const handlerStarted = new Promise<void>((resolve) => {
+      markHandlerStarted = resolve;
+    });
+
+    const dispatching = dispatchEngagementOutbox({
+      leaseOwner: 'worker-a',
+      leaseMs: 1_000,
+      batchSize: 1,
+      handler: vi.fn(async () => {
+        markHandlerStarted();
+        await handlerBlock;
+      }),
+    });
+    await handlerStarted;
+    await vi.advanceTimersByTimeAsync(334);
+    finishHandler();
+
+    await expect(dispatching).resolves.toEqual({ processed: 0, failed: 1 });
+    expect(EngagementOutbox.updateOne).toHaveBeenCalledTimes(1);
   });
 });

@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { useAppearanceStore } from '@/store/appearanceStore';
+import { useAppearanceStore } from '@/stores/appearanceStore';
 import { useAuth } from '@oxyhq/services/ui/client';
 
 /**

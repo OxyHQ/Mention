@@ -93,13 +93,13 @@ export async function processDeliveryJob(job: Job<DeliveryJobData>): Promise<voi
   const { activityJson, targetInbox, senderOxyUserId } = job.data;
 
   // The sender's username is needed to load the signing key. Uses the
-  // service-authed Oxy client — the bare `oxy` singleton in server.ts is
+  // service-authed Oxy client — the process-wide request-auth client is
   // unauthenticated and reserved for validating incoming request tokens
   // (`oxy.auth()`), so resolving a user on it returns nothing.
   const user = await getServiceOxyClient().getUserById(senderOxyUserId);
   if (!user?.username) {
     logger.warn(
-      `[FedDeliver] sender ${senderOxyUserId} not found — dropping delivery to ${targetInbox}`,
+      '[FedDeliver] sender not found; dropping delivery',
     );
     throw new UnrecoverableError('Sender user not found');
   }
@@ -230,8 +230,11 @@ export function startWorkers(): void {
 
   for (const worker of [inboxWorker, deliveryWorker, periodicWorker, sharingCleanupWorker, mediaMetadataEnrichWorker]) {
     worker.on('failed', (job, err) => {
-      const jobId = job?.id ?? 'unknown';
-      logger.warn(`[Queue] job ${worker.name}:${jobId} failed: ${err.message}`);
+      logger.warn('[Queue] job failed', {
+        worker: worker.name,
+        error: err,
+        hasJob: Boolean(job),
+      });
     });
     worker.on('error', (err) => {
       logger.error(`[Queue] worker ${worker.name} error`, err);

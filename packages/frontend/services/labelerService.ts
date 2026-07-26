@@ -91,7 +91,7 @@ class LabelerService {
     return res.data;
   }
 
-  async updatePreferences(labelActions: Array<{ labelerId: string; labelSlug: string; action: string }>): Promise<{ success: boolean }> {
+  async updatePreferences(labelActions: { labelerId: string; labelSlug: string; action: string }[]): Promise<{ success: boolean }> {
     const res = await authenticatedClient.put<{ success: boolean }>('/labelers/preferences', { labelActions });
     return res.data;
   }

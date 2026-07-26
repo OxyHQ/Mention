@@ -120,8 +120,10 @@ packages/apk-builder/outputs/*.aab
 *.jks
 keystore.base64.txt
 
-# Infrastructure secrets
-infrastructure/livekit/.env
+# Infrastructure secrets, including local files retained from retired stacks
+infrastructure/**/.env
+infrastructure/**/.env.*
+!infrastructure/**/.env.example
 
 # Firebase credentials
 google-services.json

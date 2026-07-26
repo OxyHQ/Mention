@@ -323,7 +323,7 @@ export async function getCachedFileDownloadUrl(
       const ttl = expiresIn ? expiresIn * 1000 : undefined;
       imageUrlCache.set(fileId, url, variant, ttl);
       return url;
-    } catch (error) {
+    } catch {
       // Fall through to sync method
     }
   }
@@ -372,4 +372,3 @@ export function getCachedFileDownloadUrlSync(
   imageUrlCache.set(fileId, url, variant, ttl);
   return url;
 }
-

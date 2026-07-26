@@ -12,8 +12,9 @@
  *
  * Idempotent (a feed with a stored `definition` is removed from the selection
  * filter, so the ascending `_id` cursor never revisits it and a re-run only fills
- * gaps), batched via a stable ascending `_id` page cursor, and fail-soft (a single
- * feed's mapping failure is logged at warn and skipped — never aborts the run).
+ * gaps), batched via a stable ascending `_id` page cursor, and item-isolated (a
+ * single feed's mapping failure is logged and processing continues, but the
+ * completed run exits non-zero so a partial migration cannot look successful).
  * Supports `--dry-run` (report what it would migrate, write nothing).
  *
  * Runnable as a Fargate one-shot post-deploy:
@@ -25,6 +26,11 @@ import mongoose from 'mongoose';
 import CustomFeed from '../models/CustomFeed';
 import { legacyCustomFeedToDefinition } from '../mtn/feed/definitions/legacyCustomFeed';
 import { logger } from '../utils/logger';
+import {
+  assertAdminRunComplete,
+  closeAdminScriptResources,
+} from './lib/adminScriptLifecycle';
+import { assertAdminMutationAllowed } from './lib/adminScriptSafety';
 
 /** Feeds scanned per page (stable ascending `_id` cursor pagination). */
 const DEFAULT_PAGE_SIZE = 500;
@@ -35,6 +41,7 @@ const BULK_CHUNK_SIZE = 500;
 export interface BackfillCustomFeedDefinitionsResult {
   scanned: number;
   updated: number;
+  failed: number;
 }
 
 /** Minimal projected shape the mapper needs. */
@@ -66,6 +73,7 @@ export async function backfillCustomFeedDefinitions(
 
   let scanned = 0;
   let updated = 0;
+  let failed = 0;
   let lastId: mongoose.Types.ObjectId | null = null;
   let pendingOps: mongoose.AnyBulkWriteOperation<typeof CustomFeed>[] = [];
 
@@ -118,6 +126,7 @@ export async function backfillCustomFeedDefinitions(
           await flush();
         }
       } catch (error) {
+        failed += 1;
         logger.warn('[backfillCustomFeedDefinitions] mapping failed for feed; skipping', {
           id: String(feed._id),
           reason: error instanceof Error ? error.message : 'unknown',
@@ -126,12 +135,14 @@ export async function backfillCustomFeedDefinitions(
     }
 
     lastId = page[page.length - 1]._id;
-    logger.info(`[backfillCustomFeedDefinitions] progress: scanned ${scanned}, updated ${updated}`);
+    logger.info(
+      `[backfillCustomFeedDefinitions] progress: scanned ${scanned}, updated ${updated}, failed ${failed}`,
+    );
   }
 
   await flush();
 
-  return { scanned, updated };
+  return { scanned, updated, failed };
 }
 
 async function main(): Promise<void> {
@@ -141,24 +152,39 @@ async function main(): Promise<void> {
   const dryRun = process.argv.includes('--dry-run');
 
   try {
+    assertAdminMutationAllowed({
+      scriptName: 'backfillCustomFeedDefinitions',
+      dryRun,
+    });
     await mongoose.connect(mongoUri, { dbName });
-    logger.info(`[backfillCustomFeedDefinitions] connected to MongoDB (${dbName}); DRY_RUN=${dryRun}`);
+    logger.info('[backfillCustomFeedDefinitions] connected to MongoDB', { dryRun });
 
     const result = await backfillCustomFeedDefinitions({ dryRun });
 
     const elapsedSeconds = Math.round((Date.now() - startedAt) / 1000);
     logger.info(
-      `[backfillCustomFeedDefinitions] done${dryRun ? ' (DRY_RUN — no writes)' : ''}: scanned ${result.scanned}, updated ${result.updated} (${elapsedSeconds}s)`,
+      `[backfillCustomFeedDefinitions] done${dryRun ? ' (DRY_RUN — no writes)' : ''}: scanned ${result.scanned}, updated ${result.updated}, failed ${result.failed} (${elapsedSeconds}s)`,
     );
 
-    await mongoose.disconnect();
+    assertAdminRunComplete('backfillCustomFeedDefinitions', {
+      failed: result.failed,
+    });
   } catch (error) {
     logger.error('[backfillCustomFeedDefinitions] failed', error);
-    await mongoose.disconnect();
-    process.exit(1);
+    throw error;
+  } finally {
+    await closeAdminScriptResources();
+    await mongoose.disconnect().catch((disconnectError) => {
+      logger.warn('[backfillCustomFeedDefinitions] error during mongoose.disconnect()', disconnectError);
+    });
   }
 }
 
 if (require.main === module) {
-  main();
+  main()
+    .then(() => process.exit(0))
+    .catch((error) => {
+      logger.error('[backfillCustomFeedDefinitions] unhandled failure', error);
+      process.exit(1);
+    });
 }

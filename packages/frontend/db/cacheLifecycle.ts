@@ -84,7 +84,7 @@ function replaceViewerOwner(db: SQLiteDb, viewerId: string): void {
  * Claim all post/feed persistence for one resolved auth identity.
  *
  * A missing owner is intentionally treated as untrusted. That covers both
- * pre-v4 databases and interrupted/corrupt metadata writes: no legacy row may
+ * pre-v5 databases and interrupted/corrupt metadata writes: no legacy row may
  * be painted before the current viewer has been established.
  *
  * This function is synchronous so AccountSwitchReset can call it from a layout

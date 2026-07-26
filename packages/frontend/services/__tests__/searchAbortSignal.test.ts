@@ -1,3 +1,7 @@
+import type { HydratedPost } from '@mention/shared-types';
+import { PostVisibility } from '@mention/shared-types/post';
+import { searchService } from '../searchService';
+
 const mockAuthGet = jest.fn();
 const mockPublicGet = jest.fn();
 const mockSearchProfiles = jest.fn();
@@ -45,7 +49,48 @@ jest.mock('@/lib/logger', () => ({
   }),
 }));
 
-import { searchService } from '../searchService';
+const canonicalSearchPost: HydratedPost = {
+  id: 'post-search-1',
+  content: { text: 'canonical result' },
+  attachments: {},
+  user: {
+    id: 'author-1',
+    username: 'alice',
+    name: { displayName: 'Alice' },
+  },
+  authors: [{
+    id: 'author-1',
+    username: 'alice',
+    name: { displayName: 'Alice' },
+    role: 'owner',
+    status: 'accepted',
+  }],
+  engagement: {
+    likes: 1,
+    downvotes: 0,
+    boosts: 0,
+    replies: 0,
+  },
+  viewerState: {
+    isOwner: false,
+    isCollaborator: false,
+    isLiked: true,
+    isDownvoted: false,
+    isBoosted: false,
+    isSaved: false,
+  },
+  permissions: {
+    canReply: true,
+    canDelete: false,
+    canPin: false,
+    canViewSources: false,
+  },
+  metadata: {
+    visibility: PostVisibility.PUBLIC,
+    createdAt: '2026-07-26T00:00:00.000Z',
+    updatedAt: '2026-07-26T00:00:00.000Z',
+  },
+};
 
 describe('search AbortSignal propagation', () => {
   beforeEach(() => {
@@ -126,5 +171,35 @@ describe('search AbortSignal propagation', () => {
     expect(mockGetSavedPosts).toHaveBeenCalledWith(
       expect.objectContaining({ page: 2, signal }),
     );
+  });
+
+  it('returns search posts on the canonical hydrated contract', async () => {
+    mockAuthGet.mockResolvedValueOnce({
+      data: { posts: [canonicalSearchPost], hasMore: false },
+    });
+
+    const page = await searchService.searchPostsPage('canonical');
+
+    expect(page.posts).toEqual([canonicalSearchPost]);
+    expect(page.posts[0]?.viewerState.isLiked).toBe(true);
+    expect(page.posts[0]).not.toHaveProperty('_id');
+    expect(page.posts[0]).not.toHaveProperty('isLiked');
+    expect(page.posts[0]?.user).not.toHaveProperty('handle');
+  });
+
+  it('does not admit partial legacy saved-post rows into search results', async () => {
+    mockGetSavedPosts.mockResolvedValueOnce({
+      success: true,
+      data: {
+        posts: [{
+          id: 'legacy-post',
+          content: { text: 'missing canonical state' },
+          isSaved: true,
+        }],
+        hasMore: false,
+      },
+    });
+
+    await expect(searchService.searchSaved('legacy')).resolves.toEqual([]);
   });
 });

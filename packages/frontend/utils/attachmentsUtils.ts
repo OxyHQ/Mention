@@ -1,4 +1,4 @@
-import { PostAttachmentDescriptor } from "@mention/shared-types";
+import type { PostAttachmentDescriptor } from "@mention/shared-types/post";
 import { ComposerMediaItem } from "./composeUtils";
 
 export const buildAttachmentsPayload = (

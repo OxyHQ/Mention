@@ -99,7 +99,7 @@ describe('ConnectorRegistry.federateNewPost', () => {
     }
   });
 
-  it('logs each rejected connector with its id, not silently swallowing', async () => {
+  it('logs a rejected connector with bounded operational dimensions', async () => {
     const reason = new Error('boom');
     const registry = new ConnectorRegistry([
       makeConnector('activitypub', vi.fn().mockRejectedValue(reason)),
@@ -110,8 +110,12 @@ describe('ConnectorRegistry.federateNewPost', () => {
 
     expect(mocks.loggerError).toHaveBeenCalledTimes(1);
     expect(mocks.loggerError).toHaveBeenCalledWith(
-      expect.stringContaining('"activitypub"'),
-      reason,
+      '[connectors] delivery failed',
+      {
+        connector: 'activitypub',
+        error: reason,
+        type: 'post.create',
+      },
     );
   });
 

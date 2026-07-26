@@ -8,8 +8,8 @@ import { describe, expect, it, vi } from 'vitest';
  * public, published posts so topic discovery cannot expose followers-only or
  * private content.
  *
- * The controller pulls in the server bootstrap; stub it (and the OxyServices
- * client it constructs) so importing the controller stays pure/no-network.
+ * Stub the controller's runtime socket seam so importing it stays
+ * pure/no-network.
  */
 vi.mock('../../runtime/socketServer', () => ({
   getRuntimeSocketServer: () => undefined,

@@ -32,7 +32,7 @@ import { useTheme } from '@oxyhq/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import { statisticsService } from '@/services/statisticsService';
 import { feedService } from '@/services/feedService';
-import SEO from '@/components/SEO';
+import { SEO } from '@/components/SEO';
 
 type PostDetailEntity = HydratedPost | Reply | Boost;
 
@@ -79,7 +79,7 @@ const PostDetailScreen: React.FC = () => {
     // paints immediately and revalidates in the background (stale-while-revalidate).
     const [loading, setLoading] = useState(() => !cachedPost);
     const [error, setError] = useState<string | null>(null);
-    const [repliesReloadKey, setRepliesReloadKey] = useState(0);
+    const [repliesReloadKey] = useState(0);
 
     // The TAIL of the OP's self-thread — the last continuation (cN). Undefined for
     // a non-thread post (no continuation spine).

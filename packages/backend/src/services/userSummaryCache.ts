@@ -1,4 +1,5 @@
 import type { PostUser } from '@mention/shared-types';
+import { config } from '../config';
 import { getRedisClient } from '../utils/redis';
 import { withRedisFallback } from '../utils/redisHelpers';
 import { logger } from '../utils/logger';
@@ -45,7 +46,7 @@ const USER_SUMMARY_PREFIX = 'usersummary:v4:';
  * ten minutes keeps the feed fresh while still absorbing the burst of repeated
  * lookups within a browsing session. Tunable via env without a redeploy.
  */
-const SUMMARY_TTL_SECONDS = Number(process.env.USER_SUMMARY_CACHE_TTL_SECONDS ?? 10 * 60);
+const SUMMARY_TTL_SECONDS = config.cache.userSummaryTtlSeconds;
 
 /**
  * The cached value: the raw canonical Oxy {@link PostUser} plus the RANKING-side

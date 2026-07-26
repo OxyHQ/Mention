@@ -283,6 +283,38 @@ describe('the payload', () => {
     expect(post.content.text).toBe('Hola mundo');
   });
 
+  it('emits mention ids only while a placeholder remains in an author rendition', () => {
+    const state = run(
+      createVariantsState(ES),
+      { type: 'add-language', tag: EN },
+      {
+        type: 'set-text',
+        tag: EN,
+        itemId: MAIN_ITEM_ID,
+        text: 'Hello [mention:bob-id]',
+      },
+    );
+
+    const post = buildMainPost({
+      ...mainPostParams,
+      postContent: 'Hola [mention:alice-id]',
+      mentions: [
+        { userId: 'orphan-id', username: 'orphan', displayName: 'Orphan' },
+        { userId: 'bob-id', username: 'bob', displayName: 'Bob' },
+        { userId: 'alice-id', username: 'alice', displayName: 'Alice' },
+      ],
+      mediaIds: [],
+      variantContent: buildVariantContent(
+        state,
+        MAIN_ITEM_ID,
+        'Hola [mention:alice-id]',
+        [],
+      ),
+    });
+
+    expect(post.mentions).toEqual(['alice-id', 'bob-id']);
+  });
+
   it('carries every author rendition, PRIMARY FIRST, when EDITING', () => {
     const state = run(
       createVariantsState(ES),

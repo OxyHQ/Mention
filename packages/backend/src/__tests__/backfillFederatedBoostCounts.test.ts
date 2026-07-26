@@ -130,4 +130,14 @@ describe('backfillFederatedBoostCounts', () => {
     expect(h.bulkWrite).not.toHaveBeenCalled();
     expect(h.state.posts[0].stats?.federatedBoostsCount).toBeUndefined();
   });
+
+  it('reports count failures instead of silently completing a partial scan', async () => {
+    h.state.posts = [{ _id: new mongoose.Types.ObjectId() }];
+    h.countDocuments.mockRejectedValueOnce(new Error('count unavailable'));
+
+    const result = await backfillFederatedBoostCounts({ batchSize: 100 });
+
+    expect(result).toEqual({ scanned: 1, updated: 0, failed: 1 });
+    expect(h.bulkWrite).not.toHaveBeenCalled();
+  });
 });

@@ -1,4 +1,4 @@
-import { Server as SocketIOServer } from 'socket.io';
+import { getRuntimeSocketServer } from '../runtime/socketServer';
 
 /**
  * Main-namespace (default) broadcast event names.
@@ -17,28 +17,12 @@ export interface TrendsUpdatedPayload {
   calculatedAt?: string;
 }
 
-let io: SocketIOServer | null = null;
-
-export const initializeIO = (socketIO: SocketIOServer) => {
-  io = socketIO;
-};
-
-export const getIO = () => {
-  return io;
-};
-
-export const closeIO = () => {
-  if (io) {
-    io.close();
-    io = null;
-  }
-};
-
 /**
  * Broadcast a lightweight trends-updated signal on the main namespace.
- * Null-guarded: a no-op when `io` is uninitialized (tests/scripts).
+ * The runtime seam is the single Socket.IO owner. It stays a no-op in
+ * tests/scripts that intentionally do not bind a server.
  */
 export const emitTrendsUpdated = (calculatedAt: string): void => {
   const payload: TrendsUpdatedPayload = { calculatedAt };
-  io?.emit(SOCKET_EVENTS.TRENDS_UPDATED, payload);
+  getRuntimeSocketServer()?.emit(SOCKET_EVENTS.TRENDS_UPDATED, payload);
 };

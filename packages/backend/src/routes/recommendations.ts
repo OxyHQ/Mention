@@ -3,8 +3,6 @@ import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
 import {
   recommendationService,
   decodeRecommendationCursor,
-  MAX_RECOMMENDATION_LIMIT,
-  DEFAULT_RECOMMENDATION_LIMIT,
   MAX_RECOMMENDATION_OFFSET,
 } from '../services/RecommendationService';
 import type { RecommendationExcludeType } from '../services/OxyRankingClient';

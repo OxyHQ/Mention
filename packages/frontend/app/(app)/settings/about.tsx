@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, ScrollView, Platform } from 'react-native';
+import { View, Text, ScrollView } from 'react-native';
 import { show as toast } from '@oxyhq/bloom/toast';
 import { useRouter } from 'expo-router';
 import Constants from 'expo-constants';
@@ -14,6 +14,7 @@ import { useAuth } from '@oxyhq/services/ui/client';
 import { SettingsListGroup, SettingsListItem } from '@oxyhq/bloom/settings-list';
 import { RowIcon } from '@/components/settings/RowIcon';
 import { confirmDialog, alertDialog } from '@/utils/alerts';
+import { API_URL } from '@/config';
 
 export default function AboutScreen() {
     const { t } = useTranslation();
@@ -44,7 +45,7 @@ export default function AboutScreen() {
         Constants.expoConfig?.extra?.oxySDKVersion ||
         'Unknown';
 
-    const apiUrl = process.env.EXPO_PUBLIC_API_URL || process.env.API_URL || 'Not set';
+    const apiUrl = API_URL;
 
     const handleClearCache = async () => {
         const confirmed = await confirmDialog({

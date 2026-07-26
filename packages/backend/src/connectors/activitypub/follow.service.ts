@@ -592,6 +592,7 @@ export class FollowService {
     post: NoteSourcePost & { visibility: string },
     senderOxyUserId: string,
     senderUsername: string,
+    options: { throwOnError?: boolean } = {},
   ): Promise<void> {
     if (!FEDERATION_ENABLED) return;
     // Defensive: the `ConnectorRegistry` outbound seam already gates every
@@ -644,6 +645,7 @@ export class FollowService {
       });
     } catch (err) {
       logger.error('Failed to federate new post:', err);
+      if (options.throwOnError) throw err;
     }
   }
 
@@ -678,7 +680,7 @@ export class FollowService {
       if (!target) return null;
       return this.buildReplyContextFromTarget(target);
     } catch (err) {
-      logger.warn(`[FedDeliver] failed to resolve reply context for parent ${parentId}:`, err);
+      logger.warn('[FedDeliver] failed to resolve reply context', err);
       return null;
     }
   }
@@ -704,7 +706,7 @@ export class FollowService {
         parentAuthorInbox: target.authorInbox,
       };
     } catch (err) {
-      logger.warn(`[FedDeliver] failed to resolve reply delivery for parent ${parentId}:`, err);
+      logger.warn('[FedDeliver] failed to resolve reply delivery', err);
       return null;
     }
   }
@@ -858,7 +860,7 @@ export class FollowService {
         .lean<PollContextSource | null>();
       return poll ? buildPollContext(poll) : null;
     } catch (err) {
-      logger.warn(`[FedDeliver] failed to resolve poll context for post ${String(post._id)}:`, err);
+      logger.warn('[FedDeliver] failed to resolve poll context', err);
       return null;
     }
   }
@@ -922,7 +924,7 @@ export class FollowService {
       const target = await this.resolveFederationTarget(quoteId);
       return target ? { uri: target.objectUri } : null;
     } catch (err) {
-      logger.warn(`[FedDeliver] failed to resolve quote context for quoted post ${quoteId}:`, err);
+      logger.warn('[FedDeliver] failed to resolve quote context', err);
       return null;
     }
   }
@@ -956,7 +958,7 @@ export class FollowService {
         try {
           target = await this.resolveFederationTarget(quoteId);
         } catch (err) {
-          logger.warn(`[FedDeliver] failed to resolve quote context for quoted post ${quoteId}:`, err);
+          logger.warn('[FedDeliver] failed to resolve quote context', err);
           return;
         }
         if (!target) return;
@@ -1010,7 +1012,7 @@ export class FollowService {
       const owner = await getServiceOxyClient().getUserById(ownerId);
       ownerUsername = owner.username?.trim() || undefined;
     } catch (err) {
-      logger.warn(`[FedDeliver] failed to resolve original author username for post ${originalPostId}:`, err);
+      logger.warn('[FedDeliver] failed to resolve original author', err);
       return null;
     }
     if (!ownerUsername) return null;
@@ -1108,7 +1110,7 @@ export class FollowService {
     try {
       const target = await this.resolveFederationTarget(boostOf);
       if (!target) {
-        logger.warn(`[FedDeliver] cannot federate boost ${String(boost._id)}: unresolved original ${boostOf}`);
+        logger.warn('[FedDeliver] cannot federate boost with unresolved original');
         return;
       }
       const activity = this.buildAnnounceActivity(
@@ -1145,7 +1147,7 @@ export class FollowService {
     try {
       const target = await this.resolveFederationTarget(boostOf);
       if (!target) {
-        logger.warn(`[FedDeliver] cannot federate unboost ${String(boost._id)}: unresolved original ${boostOf}`);
+        logger.warn('[FedDeliver] cannot federate unboost with unresolved original');
         return;
       }
       const activity = this.buildUndoAnnounceActivity(
@@ -1261,6 +1263,7 @@ export class FollowService {
     post: NoteSourcePost & { visibility: string },
     editorOxyUserId: string,
     editorUsername: string,
+    options: { throwOnError?: boolean } = {},
   ): Promise<void> {
     if (!FEDERATION_ENABLED) return;
     if (!(await isFediverseSharingEnabled(editorOxyUserId))) return;
@@ -1283,6 +1286,7 @@ export class FollowService {
       });
     } catch (err) {
       logger.error('Failed to federate post update:', err);
+      if (options.throwOnError) throw err;
     }
   }
 

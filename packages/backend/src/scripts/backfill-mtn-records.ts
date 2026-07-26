@@ -45,9 +45,14 @@ import MentionSignedRecord from '../models/MentionSignedRecord';
 import { MENTION_POST_COLLECTION } from '@mention/shared-types';
 import { connectToDatabase } from '../utils/database';
 import { logger } from '../utils/logger';
+import { assertAdminMutationAllowed } from './lib/adminScriptSafety';
 import { isMentionRecordSigningEnabled } from '../services/mtn/mentionRecordEnv';
 import { emitPostCreated } from '../services/mtn/MentionRecordEmitter';
 import type { ReplyContext } from '../services/mtn/mentionRecordBuilders';
+import {
+  assertAdminRunComplete,
+  closeAdminScriptResources,
+} from './lib/adminScriptLifecycle';
 
 /** Posts scanned per page (stable `createdAt`/`_id` cursor pagination). */
 const PAGE_SIZE = 500;
@@ -104,6 +109,10 @@ async function findPostIdsWithRecord(postIds: string[]): Promise<Set<string>> {
 async function backfillMtnRecords(): Promise<void> {
   const startedAt = Date.now();
 
+  assertAdminMutationAllowed({
+    scriptName: 'backfillMtnRecords',
+    dryRun: DRY_RUN,
+  });
   await connectToDatabase();
   logger.info(`[backfill-mtn-records] connected to MongoDB; DRY_RUN=${DRY_RUN}`);
 
@@ -221,20 +230,27 @@ async function backfillMtnRecords(): Promise<void> {
       `scanned ${scanned}, ${DRY_RUN ? 'would emit' : 'emitted'} ${emitted}, ` +
       `skipped (existing) ${skippedExisting}, failed ${failed} (${elapsedSeconds}s)`,
   );
+
+  assertAdminRunComplete('backfillMtnRecords', { failed });
 }
 
 async function run(): Promise<void> {
+  let exitCode = 0;
   try {
     await backfillMtnRecords();
-    await mongoose.disconnect();
-    // Exit explicitly: imported model/service modules may hold open handles
-    // (Redis/BullMQ singletons) that would otherwise keep the process alive.
-    process.exit(0);
   } catch (error) {
     logger.error('[backfill-mtn-records] failed', error);
-    await mongoose.disconnect().catch(() => undefined);
-    process.exit(1);
+    exitCode = 1;
+  } finally {
+    await closeAdminScriptResources().catch((error) => {
+      logger.error('[backfill-mtn-records] resource cleanup failed', error);
+      exitCode = 1;
+    });
+    await mongoose.disconnect().catch(() => {
+      exitCode = 1;
+    });
   }
+  process.exit(exitCode);
 }
 
 if (require.main === module) {

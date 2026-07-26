@@ -109,7 +109,7 @@ function FediverseSharingBody() {
       }
       setPending(false);
     },
-    [oxyServices],
+    [oxyServices, t],
   );
 
   const onToggle = useCallback(

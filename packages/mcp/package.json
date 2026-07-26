@@ -2,6 +2,7 @@
   "name": "@mention/mcp",
   "version": "1.0.0",
   "description": "MCP server for Mention social platform",
+  "license": "MIT",
   "private": true,
   "type": "module",
   "main": "dist/server-http.js",
@@ -20,6 +21,8 @@
     "dev:http": "bun --watch server-http.ts",
     "build": "tsc",
     "typecheck": "tsc --noEmit",
+    "lint": "tsc --noEmit",
+    "clean": "rm -rf dist",
     "test": "bun test"
   },
   "devDependencies": {

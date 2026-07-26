@@ -1,8 +1,8 @@
-import { config } from '../config';
+import { config, getAliaApiKey } from '../config';
 import { logger } from './logger';
 
 /** Whether Alia AI features are available (API key is configured). */
-export const isAliaEnabled = (): boolean => Boolean(config.alia.apiKey);
+export const isAliaEnabled = (): boolean => Boolean(getAliaApiKey());
 
 interface AliaChatMessage {
   role: 'system' | 'user' | 'assistant';
@@ -34,7 +34,8 @@ export async function aliaChat(
 ): Promise<string> {
   const { model = config.alia.model, temperature, maxTokens } = options;
 
-  if (!config.alia.apiKey) {
+  const apiKey = getAliaApiKey();
+  if (!apiKey) {
     throw new Error('ALIA_API_KEY environment variable is not set');
   }
 
@@ -54,7 +55,7 @@ export async function aliaChat(
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${config.alia.apiKey}`,
+        Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify(body),
       signal: controller.signal,

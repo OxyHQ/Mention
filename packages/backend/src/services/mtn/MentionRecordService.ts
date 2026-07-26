@@ -13,8 +13,8 @@
  *     `rkey`, `issuer: MENTION_DID`),
  *  5. CUSTODIALLY sign it with `MENTION_PRIVATE_KEY` (web/server path — native
  *     client co-signing is a later seam),
- *  6. compute the `recordId` and `verifyAndAppend` it via the engine with the
- *     Mention store + resolver injected.
+ *  6. `verifyAndAppend` it via the engine with the Mention store + resolver
+ *     injected (the engine returns the canonical `recordId`).
  *
  * On a `chain_conflict` / `bad_seq` (a concurrent writer took this `seq`) it
  * re-reads the head and retries up to {@link MAX_APPEND_ATTEMPTS} times.
@@ -29,7 +29,6 @@
 
 import {
   signEnvelope,
-  computeRecordId,
   verifyAndAppend,
   type SignedRecordSigningFields,
   type RejectionReason,
@@ -206,7 +205,6 @@ export async function signAndAppend(
       };
 
       const envelope = await signEnvelope(fields, privateKey);
-      const recordId = await computeRecordId(fields);
       const appendStore = idempotencyKey
         ? mentionRecordStore.withIdempotencyKey(idempotencyKey)
         : mentionRecordStore;

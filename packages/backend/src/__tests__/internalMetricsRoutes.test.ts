@@ -41,6 +41,28 @@ describe('internal metrics route', () => {
     expect(response.text).not.toContain('user_id');
   });
 
+  it('bounds transitional payload labels instead of exporting free-form values', async () => {
+    metrics.incrementCounter('legacy_post_payload_total', 1, {
+      variant: 'content-images',
+    });
+    metrics.incrementCounter('legacy_post_payload_total', 1, {
+      variant: 'untrusted-free-form-value',
+    });
+
+    const response = await request(app)
+      .get('/internal/metrics')
+      .set('authorization', 'Bearer test-metrics-secret')
+      .expect(200);
+
+    expect(response.text).toContain(
+      'legacy_post_payload_total{variant="content-images"} 1',
+    );
+    expect(response.text).toContain(
+      'legacy_post_payload_total{variant="other"} 1',
+    );
+    expect(response.text).not.toContain('untrusted-free-form-value');
+  });
+
   it('rejects a public source even when the token is valid', async () => {
     await request(app)
       .get('/internal/metrics')

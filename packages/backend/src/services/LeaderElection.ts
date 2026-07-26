@@ -107,15 +107,16 @@ export class LeaderElection {
 
     // Without a distributed lease singleton work must fail closed. The retry
     // loop stays alive so schedulers recover automatically with Redis.
-    const redisAvailable = await this.isRedisAvailable();
-    if (!redisAvailable) {
+    const redisReadyAtBoot = getRedisClient().isReady;
+    if (!redisReadyAtBoot) {
       logger.warn(
-        `[LeaderElection] Redis unavailable at boot — singleton schedulers are paused ` +
-          `until a distributed lease can be acquired (instance=${this.instanceId})`,
+        '[LeaderElection] Redis unavailable at boot — singleton schedulers are paused '
+          + 'until a distributed lease can be acquired',
       );
-    } else {
-      await this.tick();
     }
+    // The lease command itself is the availability probe. Avoid a redundant
+    // PING round-trip before SET NX; a failed command is handled by tick().
+    await this.tick();
 
     // stop() may have run while Redis or the initial tick was in flight.
     if (!this.started) return;
@@ -215,7 +216,7 @@ export class LeaderElection {
         if (!stillOwner) {
           // We lost the lock unexpectedly — step down and stop schedulers.
           logger.warn(
-            `[LeaderElection] Lost leadership (renewal found a different owner) (instance=${this.instanceId})`,
+            '[LeaderElection] Lost leadership because lease renewal found a different owner',
           );
           this.isLeader = false;
           await this.invokeOnLose();
@@ -259,7 +260,7 @@ export class LeaderElection {
       return;
     }
     this.isLeader = true;
-    logger.info(`[LeaderElection] Acquired scheduler leadership (instance=${this.instanceId})`);
+    logger.info('[LeaderElection] Acquired scheduler leadership');
     await this.invokeOnAcquire();
   }
 
@@ -273,7 +274,7 @@ export class LeaderElection {
   }
 
   private async invokeOnLose(): Promise<void> {
-    logger.info(`[LeaderElection] Lost leadership — stopping schedulers (instance=${this.instanceId})`);
+    logger.info('[LeaderElection] Lost leadership — stopping schedulers');
     if (!this.onLose) return;
     try {
       await this.onLose();
@@ -283,18 +284,6 @@ export class LeaderElection {
   }
 
   // --- Redis primitives ---------------------------------------------------
-
-  /** Verify Redis is connected and responsive. */
-  private async isRedisAvailable(): Promise<boolean> {
-    try {
-      const client = getRedisClient();
-      if (!client.isReady) return false;
-      await client.ping();
-      return true;
-    } catch {
-      return false;
-    }
-  }
 
   /** `SET key instanceId NX PX TTL` → true if we won the lock. */
   private async acquireLock(): Promise<boolean> {

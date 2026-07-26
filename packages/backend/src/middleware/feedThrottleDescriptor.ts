@@ -14,23 +14,14 @@ const EXPENSIVE_FEED_SOURCES: ReadonlySet<FeedDescriptorSource> = new Set([
 /**
  * Resolve the canonical source used by the MTN feed controller.
  *
- * The current API sends `descriptor`; `type` is accepted only as a legacy
- * fallback when no descriptor parameter was supplied. If descriptor is present
- * but malformed, never consult `type`: the controller will reject that request,
- * and the throttle must not classify it using a conflicting attacker-controlled
- * parameter.
+ * The controller accepts only `descriptor`, so the throttle derives cost from
+ * that same validated contract. A separate query parameter must never influence
+ * rate classification for a request the controller itself will reject.
  */
 export function getValidatedFeedSource(req: Pick<Request, 'query'>): FeedDescriptorSource | undefined {
-  if (Object.prototype.hasOwnProperty.call(req.query, 'descriptor')) {
-    const descriptor = queryString(req.query.descriptor);
-    return descriptor && isValidFeedDescriptor(descriptor)
-      ? parseFeedDescriptor(descriptor).source
-      : undefined;
-  }
-
-  const legacyType = queryString(req.query.type);
-  return legacyType && isValidFeedDescriptor(legacyType)
-    ? parseFeedDescriptor(legacyType).source
+  const descriptor = queryString(req.query.descriptor);
+  return descriptor && isValidFeedDescriptor(descriptor)
+    ? parseFeedDescriptor(descriptor).source
     : undefined;
 }
 

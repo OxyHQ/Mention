@@ -1,3 +1,5 @@
+import { config } from '../../config';
+
 /**
  * Tunables for the native GIF library (full import, local-first search).
  *
@@ -18,7 +20,7 @@ const MS_PER_SECOND = 1000;
  * documented safety-valve; the client must keep its old upload path in that case,
  * which is out of scope since the default is on).
  */
-export const GIF_LIBRARY_WRITE_ENABLED = process.env.GIF_LIBRARY_WRITE_ENABLED !== 'false';
+export const GIF_LIBRARY_WRITE_ENABLED = config.gif.libraryWriteEnabled;
 
 /**
  * Content-type forced on every GIF mp4 we upload. Klipy occasionally serves mp4

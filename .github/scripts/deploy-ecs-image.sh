@@ -15,10 +15,6 @@ CONTAINER_NAME="${CONTAINER_NAME:-$APP}"
 MAX_WAIT_SECS="${MAX_WAIT_SECS:-1200}"
 POLL_INTERVAL="${POLL_INTERVAL:-15}"
 RUN_MIGRATIONS="${RUN_MIGRATIONS:-false}"
-HEALTH_CHECK_PATH="${HEALTH_CHECK_PATH:-}"
-EXPECTED_PRE_ROLLOUT_HEALTH_CHECK_PATH="${EXPECTED_PRE_ROLLOUT_HEALTH_CHECK_PATH:-}"
-ENABLE_TARGET_STICKINESS="${ENABLE_TARGET_STICKINESS:-false}"
-TARGET_STICKINESS_SECONDS="${TARGET_STICKINESS_SECONDS:-3600}"
 INTERNAL_METRICS_PARAMETER="${INTERNAL_METRICS_PARAMETER:-}"
 TASK_SECRET_OVERRIDES_JSON="${TASK_SECRET_OVERRIDES_JSON:-}"
 AWS_ACCOUNT_ID="${AWS_ACCOUNT_ID:-}"
@@ -26,7 +22,6 @@ AWS_PARTITION="${AWS_PARTITION:-aws}"
 POST_DEPLOY_SMOKE_SCRIPT="${POST_DEPLOY_SMOKE_SCRIPT:-}"
 POST_DEPLOY_TASK_COMMAND_JSON="${POST_DEPLOY_TASK_COMMAND_JSON:-}"
 DEPLOY_HEAD_GUARD_SCRIPT="${DEPLOY_HEAD_GUARD_SCRIPT:-.github/scripts/require-current-main.sh}"
-CAN_STOP_ONE_SHOT_TASKS="${CAN_STOP_ONE_SHOT_TASKS:-false}"
 
 if ! [[ "$MAX_WAIT_SECS" =~ ^[0-9]+$ ]] || (( MAX_WAIT_SECS < 1 )); then
   echo "::error::MAX_WAIT_SECS must be a positive integer."
@@ -38,39 +33,6 @@ if ! [[ "$POLL_INTERVAL" =~ ^[0-9]+$ ]] || (( POLL_INTERVAL < 1 )); then
 fi
 if [[ "$RUN_MIGRATIONS" != "true" && "$RUN_MIGRATIONS" != "false" ]]; then
   echo "::error::RUN_MIGRATIONS must be either 'true' or 'false'."
-  exit 1
-fi
-if [[ "$ENABLE_TARGET_STICKINESS" != "true" &&
-      "$ENABLE_TARGET_STICKINESS" != "false" ]]; then
-  echo "::error::ENABLE_TARGET_STICKINESS must be either 'true' or 'false'."
-  exit 1
-fi
-if [[ "$CAN_STOP_ONE_SHOT_TASKS" != "true" &&
-      "$CAN_STOP_ONE_SHOT_TASKS" != "false" ]]; then
-  echo "::error::CAN_STOP_ONE_SHOT_TASKS must be either 'true' or 'false'."
-  exit 1
-fi
-validate_health_check_path() {
-  local variable_name="$1"
-  local path="$2"
-
-  if [[ -n "$path" ]] &&
-     { [[ "$path" != /* ]] ||
-       [[ "${#path}" -gt 1024 ]] ||
-       [[ "$path" =~ [[:space:][:cntrl:]] ]]; }; then
-    echo "::error::$variable_name must be a slash-prefixed URI path without whitespace or control characters (maximum 1024 characters)."
-    return 1
-  fi
-}
-
-validate_health_check_path "HEALTH_CHECK_PATH" "$HEALTH_CHECK_PATH"
-validate_health_check_path \
-  "EXPECTED_PRE_ROLLOUT_HEALTH_CHECK_PATH" \
-  "$EXPECTED_PRE_ROLLOUT_HEALTH_CHECK_PATH"
-if [[ "$ENABLE_TARGET_STICKINESS" == "true" ]] &&
-   { ! [[ "$TARGET_STICKINESS_SECONDS" =~ ^[0-9]+$ ]] ||
-     (( TARGET_STICKINESS_SECONDS < 1 || TARGET_STICKINESS_SECONDS > 604800 )); }; then
-  echo "::error::TARGET_STICKINESS_SECONDS must be an integer between 1 and 604800."
   exit 1
 fi
 if [[ -n "$POST_DEPLOY_SMOKE_SCRIPT" && ! -f "$POST_DEPLOY_SMOKE_SCRIPT" ]]; then
@@ -134,32 +96,11 @@ rendered_task_definition_file="$(mktemp)"
 active_one_shot_task_arn=""
 active_one_shot_task_stopped=true
 active_one_shot_label=""
-release_succeeded=false
-target_group_configuration_dirty=false
-declare -a target_group_arns=()
-declare -A previous_health_check_paths=()
-declare -A previous_stickiness_enabled=()
-declare -A previous_stickiness_types=()
-declare -A previous_stickiness_durations=()
 
 cleanup() {
   if [[ "$active_one_shot_task_stopped" != "true" &&
         -n "$active_one_shot_task_arn" ]]; then
-    if [[ "$CAN_STOP_ONE_SHOT_TASKS" == "true" ]]; then
-      echo "::warning::Stopping unfinished $active_one_shot_label task $active_one_shot_task_arn."
-      aws ecs stop-task \
-        --cluster "$CLUSTER" \
-        --task "$active_one_shot_task_arn" \
-        --reason "Deployment workflow ended before one-shot task completion" \
-        >/dev/null 2>&1 || true
-    else
-      echo "::warning::Unfinished $active_one_shot_label task $active_one_shot_task_arn may still be running; the deploy role cannot call ecs:StopTask."
-    fi
-  fi
-  if [[ "$release_succeeded" != "true" &&
-        "$target_group_configuration_dirty" == "true" ]]; then
-    echo "::warning::Restoring target-group configuration during deployment cleanup."
-    restore_target_group_configuration >/dev/null 2>&1 || true
+    echo "::warning::Unfinished $active_one_shot_label task $active_one_shot_task_arn may still be running; the deploy role cannot call ecs:StopTask."
   fi
   rm -f "$task_definition_file" "$rendered_task_definition_file"
 }
@@ -188,30 +129,7 @@ wait_for_task_stop() {
     elapsed=$((elapsed + POLL_INTERVAL))
   done
 
-  if [[ "$CAN_STOP_ONE_SHOT_TASKS" != "true" ]]; then
-    echo "::error::$label task did not stop within ${max_wait_secs}s. The deploy role cannot call ecs:StopTask; task $task_arn may still be running."
-    return 1
-  fi
-
-  echo "::error::$label task did not stop within ${max_wait_secs}s; stopping it before failing."
-  aws ecs stop-task \
-    --cluster "$CLUSTER" \
-    --task "$task_arn" \
-    --reason "$label exceeded deployment timeout" \
-    >/dev/null || true
-
-  elapsed=0
-  while (( elapsed < 120 )); do
-    last_status="$(aws ecs describe-tasks \
-      --cluster "$CLUSTER" \
-      --tasks "$task_arn" \
-      --query 'tasks[0].lastStatus' \
-      --output text)"
-    [[ "$last_status" == "STOPPED" ]] && return 1
-    sleep 5
-    elapsed=$((elapsed + 5))
-  done
-  echo "::error::$label task is still running after the stop request."
+  echo "::error::$label task did not stop within ${max_wait_secs}s. The deploy role cannot call ecs:StopTask; task $task_arn may still be running."
   return 1
 }
 
@@ -397,210 +315,6 @@ rollback_service() {
   wait_for_service_rollout "$current_task_definition" "rollback"
 }
 
-prevalidate_target_group_configuration() {
-  local target_group target_group_json target_group_count
-  local health_check_protocol health_check_enabled health_check_path
-  local load_balancer_arn load_balancer_json load_balancer_count
-  local attributes_json attribute_value
-  declare -A seen_target_groups=()
-
-  if [[ -z "$HEALTH_CHECK_PATH" &&
-        -z "$EXPECTED_PRE_ROLLOUT_HEALTH_CHECK_PATH" &&
-        "$ENABLE_TARGET_STICKINESS" != "true" ]]; then
-    return 0
-  fi
-
-  while IFS= read -r target_group; do
-    [[ -z "$target_group" || -n "${seen_target_groups[$target_group]:-}" ]] &&
-      continue
-    seen_target_groups["$target_group"]=true
-    target_group_arns+=("$target_group")
-  done < <(jq -r '.services[0].loadBalancers[]?.targetGroupArn // empty' <<<"$service_json")
-
-  if (( ${#target_group_arns[@]} == 0 )); then
-    echo "::error::ECS service $APP has no target group to configure."
-    return 1
-  fi
-
-  for target_group in "${target_group_arns[@]}"; do
-    if ! target_group_json="$(aws elbv2 describe-target-groups \
-      --target-group-arns "$target_group")"; then
-      echo "::error::Unable to inspect target group $target_group."
-      return 1
-    fi
-    target_group_count="$(jq '.TargetGroups | length' <<<"$target_group_json")"
-    if [[ "$target_group_count" != "1" ]]; then
-      echo "::error::Expected exactly one target group for $target_group; found $target_group_count."
-      return 1
-    fi
-
-    if [[ -n "$HEALTH_CHECK_PATH" ||
-          -n "$EXPECTED_PRE_ROLLOUT_HEALTH_CHECK_PATH" ]]; then
-      health_check_protocol="$(jq -r '.TargetGroups[0].HealthCheckProtocol // empty' <<<"$target_group_json")"
-      health_check_enabled="$(jq -r '.TargetGroups[0].HealthCheckEnabled // false' <<<"$target_group_json")"
-      health_check_path="$(jq -r '.TargetGroups[0].HealthCheckPath // empty' <<<"$target_group_json")"
-      if [[ "$health_check_protocol" != "HTTP" &&
-            "$health_check_protocol" != "HTTPS" ]]; then
-        echo "::error::Target group $target_group does not use HTTP(S) health checks."
-        return 1
-      fi
-      if [[ "$health_check_enabled" != "true" || -z "$health_check_path" ]]; then
-        echo "::error::Target group $target_group has no enabled health-check path to preserve."
-        return 1
-      fi
-      previous_health_check_paths["$target_group"]="$health_check_path"
-      if [[ -n "$EXPECTED_PRE_ROLLOUT_HEALTH_CHECK_PATH" &&
-            "$health_check_path" != "$EXPECTED_PRE_ROLLOUT_HEALTH_CHECK_PATH" &&
-            "$health_check_path" != "$HEALTH_CHECK_PATH" ]]; then
-        echo "::error::Target group $target_group uses pre-rollout health-check path $health_check_path; expected legacy path $EXPECTED_PRE_ROLLOUT_HEALTH_CHECK_PATH or final path $HEALTH_CHECK_PATH. Refusing to run migrations or update the service."
-        return 1
-      fi
-    fi
-
-    if [[ "$ENABLE_TARGET_STICKINESS" == "true" ]]; then
-      if [[ "$(jq '.TargetGroups[0].LoadBalancerArns | length' <<<"$target_group_json")" == "0" ]]; then
-        echo "::error::Target group $target_group is not attached to a load balancer."
-        return 1
-      fi
-      while IFS= read -r load_balancer_arn; do
-        [[ -z "$load_balancer_arn" ]] && continue
-        if ! load_balancer_json="$(aws elbv2 describe-load-balancers \
-          --load-balancer-arns "$load_balancer_arn")"; then
-          echo "::error::Unable to inspect load balancer for $target_group."
-          return 1
-        fi
-        load_balancer_count="$(jq '.LoadBalancers | length' <<<"$load_balancer_json")"
-        if [[ "$load_balancer_count" != "1" ||
-              "$(jq -r '.LoadBalancers[0].Type // empty' <<<"$load_balancer_json")" != "application" ]]; then
-          echo "::error::lb_cookie stickiness requires an application load balancer for $target_group."
-          return 1
-        fi
-      done < <(jq -r '.TargetGroups[0].LoadBalancerArns[]' <<<"$target_group_json")
-
-      if ! attributes_json="$(aws elbv2 describe-target-group-attributes \
-        --target-group-arn "$target_group")"; then
-        echo "::error::Unable to inspect attributes for target group $target_group."
-        return 1
-      fi
-      attribute_value="$(jq -r '.Attributes[] | select(.Key == "stickiness.enabled") | .Value' <<<"$attributes_json")"
-      if [[ -z "$attribute_value" ]]; then
-        echo "::error::Target group $target_group does not expose stickiness.enabled."
-        return 1
-      fi
-      previous_stickiness_enabled["$target_group"]="$attribute_value"
-
-      attribute_value="$(jq -r '.Attributes[] | select(.Key == "stickiness.type") | .Value' <<<"$attributes_json")"
-      if [[ -z "$attribute_value" ]]; then
-        echo "::error::Target group $target_group does not expose stickiness.type."
-        return 1
-      fi
-      previous_stickiness_types["$target_group"]="$attribute_value"
-
-      attribute_value="$(jq -r '.Attributes[] | select(.Key == "stickiness.lb_cookie.duration_seconds") | .Value' <<<"$attributes_json")"
-      if [[ -z "$attribute_value" ]]; then
-        echo "::error::Target group $target_group does not expose lb_cookie duration."
-        return 1
-      fi
-      previous_stickiness_durations["$target_group"]="$attribute_value"
-    fi
-  done
-
-  echo "Prevalidated ${#target_group_arns[@]} target group(s) and captured their previous configuration."
-}
-
-restore_target_group_configuration() {
-  local target_group
-  local restore_failed=false
-
-  if [[ "$target_group_configuration_dirty" != "true" ]]; then
-    return 0
-  fi
-
-  for target_group in "${target_group_arns[@]}"; do
-    if [[ "$ENABLE_TARGET_STICKINESS" == "true" ]]; then
-      if ! aws elbv2 modify-target-group-attributes \
-        --target-group-arn "$target_group" \
-        --attributes \
-          Key=stickiness.enabled,Value="${previous_stickiness_enabled[$target_group]}" \
-          Key=stickiness.type,Value="${previous_stickiness_types[$target_group]}" \
-          Key=stickiness.lb_cookie.duration_seconds,Value="${previous_stickiness_durations[$target_group]}" \
-        >/dev/null; then
-        echo "::error::Failed to restore stickiness attributes for $target_group."
-        restore_failed=true
-      fi
-    fi
-    if [[ -n "$HEALTH_CHECK_PATH" ]]; then
-      if ! aws elbv2 modify-target-group \
-        --target-group-arn "$target_group" \
-        --health-check-path "${previous_health_check_paths[$target_group]}" \
-        >/dev/null; then
-        echo "::error::Failed to restore the health-check path for $target_group."
-        restore_failed=true
-      fi
-    fi
-  done
-
-  if [[ "$restore_failed" == "true" ]]; then
-    return 1
-  fi
-  target_group_configuration_dirty=false
-  echo "Restored the previous target-group configuration."
-}
-
-apply_target_group_configuration() {
-  local target_group
-
-  for target_group in "${target_group_arns[@]}"; do
-    if [[ -n "$HEALTH_CHECK_PATH" &&
-          "${previous_health_check_paths[$target_group]}" != "$HEALTH_CHECK_PATH" ]]; then
-      target_group_configuration_dirty=true
-      if ! aws elbv2 modify-target-group \
-        --target-group-arn "$target_group" \
-        --health-check-path "$HEALTH_CHECK_PATH" \
-        >/dev/null; then
-        echo "::error::Failed to configure the health-check path for $target_group."
-        return 1
-      fi
-      echo "Configured $target_group health check path as $HEALTH_CHECK_PATH"
-    fi
-
-    if [[ "$ENABLE_TARGET_STICKINESS" == "true" ]] &&
-       { [[ "${previous_stickiness_enabled[$target_group]}" != "true" ]] ||
-         [[ "${previous_stickiness_types[$target_group]}" != "lb_cookie" ]] ||
-         [[ "${previous_stickiness_durations[$target_group]}" != "$TARGET_STICKINESS_SECONDS" ]]; }; then
-      target_group_configuration_dirty=true
-      if ! aws elbv2 modify-target-group-attributes \
-        --target-group-arn "$target_group" \
-        --attributes \
-          Key=stickiness.enabled,Value=true \
-          Key=stickiness.type,Value=lb_cookie \
-          Key=stickiness.lb_cookie.duration_seconds,Value="$TARGET_STICKINESS_SECONDS" \
-        >/dev/null; then
-        echo "::error::Failed to configure stickiness for $target_group."
-        return 1
-      fi
-      echo "Enabled load-balancer stickiness on $target_group"
-    fi
-  done
-}
-
-rollback_release() {
-  local rollback_failed=false
-
-  if ! restore_target_group_configuration; then
-    echo "::error::Target-group restoration failed; manual intervention is required."
-    rollback_failed=true
-  fi
-  if ! rollback_service; then
-    echo "::error::Service rollback failed; manual intervention is required."
-    rollback_failed=true
-  fi
-
-  [[ "$rollback_failed" == "false" ]]
-}
-
-prevalidate_target_group_configuration
-
 internal_metrics_secret_arn=""
 if [[ -n "$INTERNAL_METRICS_PARAMETER" ]]; then
   if [[ "$INTERNAL_METRICS_PARAMETER" == arn:* ]]; then
@@ -750,7 +464,7 @@ if ! aws ecs update-service \
   }' \
   >/dev/null; then
   echo "::error::ECS rejected the service update; restoring the previous task definition defensively."
-  if ! rollback_release; then
+  if ! rollback_service; then
     echo "::error::The defensive rollback also failed; manual intervention is required."
   fi
   exit 1
@@ -759,7 +473,7 @@ fi
 echo "Deploying immutable image $IMAGE_URI with task definition $new_task_definition"
 
 if ! wait_for_service_rollout "$new_task_definition" "deployment"; then
-  if ! rollback_release; then
+  if ! rollback_service; then
     echo "::error::Deployment and explicit rollback both failed; manual intervention is required."
   fi
   exit 1
@@ -770,7 +484,7 @@ if [[ -n "$POST_DEPLOY_SMOKE_SCRIPT" ]]; then
   echo "Running post-deploy smoke checks with $POST_DEPLOY_SMOKE_SCRIPT"
   if ! bash "$POST_DEPLOY_SMOKE_SCRIPT"; then
     echo "::error::Post-deploy smoke checks failed."
-    if rollback_release; then
+    if rollback_service; then
       echo "::warning::Rollback completed after smoke failure."
     else
       echo "::error::Rollback also failed; manual intervention is required."
@@ -779,27 +493,16 @@ if [[ -n "$POST_DEPLOY_SMOKE_SCRIPT" ]]; then
   fi
 fi
 
-if ! apply_target_group_configuration; then
-  echo "::error::Target-group configuration failed after rollout."
-  if rollback_release; then
-    echo "::warning::Target groups and ECS service were restored after the configuration failure."
-  else
-    echo "::error::Target-group configuration rollback was incomplete; manual intervention is required."
-  fi
-  exit 1
-fi
-
 if [[ -n "$POST_DEPLOY_TASK_COMMAND_JSON" ]]; then
   if ! run_one_shot_command \
     "Post-deploy reconciliation" \
     "$POST_DEPLOY_TASK_COMMAND_JSON"; then
     echo "::error::Post-deploy reconciliation failed."
-    if ! rollback_release; then
+    if ! rollback_service; then
       echo "::error::Reconciliation and rollback both failed; manual intervention is required."
     fi
     exit 1
   fi
 fi
 
-release_succeeded=true
 echo "Deployed $APP at $new_task_definition"

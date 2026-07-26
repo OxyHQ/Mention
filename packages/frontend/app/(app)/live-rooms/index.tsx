@@ -10,7 +10,7 @@ import { Header } from '@/components/Header';
 import { EmptyState } from '@/components/common/EmptyState';
 import { RoomsListSkeleton } from '@/components/rooms/RoomsListSkeleton';
 import RoomCard from '@/components/RoomCard';
-import SEO from '@/components/SEO';
+import { SEO } from '@/components/SEO';
 
 import { useTheme } from '@oxyhq/bloom/theme';
 import { useRoomUsers } from '@/hooks/useRoomUsers';
@@ -20,7 +20,7 @@ import { logger } from '@/lib/logger';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
 import { useTranslation } from 'react-i18next';
 import { LIVE_INDICATOR_COLOR, LIVE_INDICATOR_FOREGROUND_COLOR } from '@/styles/colors';
-import CreateRoomSheet from '@/components/rooms/CreateRoomSheet';
+import { CreateRoomSheet } from '@/components/rooms/CreateRoomSheet';
 
 const SectionHeader = ({
   icon,

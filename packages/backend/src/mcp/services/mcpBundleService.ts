@@ -1,7 +1,8 @@
 import crypto from 'crypto';
+import { getMcpJwtSecret } from '../../config';
 import { McpConnection, type IMcpConnection } from '../models/McpConnection';
 import { getRedisClient } from '../../utils/redis';
-import { withRedisFallback, ensureRedisConnected } from '../../utils/redisHelpers';
+import { withRedisFallback } from '../../utils/redisHelpers';
 import { logger } from '../../utils/logger';
 import { MCP_LINK_TOKEN_TTL_SECONDS } from '../config/constants';
 
@@ -22,14 +23,6 @@ function activeKey(bundleId: string): string {
 
 function linkUsedKey(token: string): string {
   return `${LINK_USED_PREFIX}${crypto.createHash('sha256').update(token).digest('hex')}`;
-}
-
-function getSecret(): string {
-  const secret = process.env.MENTION_MCP_JWT_SECRET;
-  if (!secret || secret.length === 0) {
-    throw new Error('MENTION_MCP_JWT_SECRET is not configured');
-  }
-  return secret;
 }
 
 /** Lazy backfill for connections created before bundles shipped. */
@@ -64,8 +57,6 @@ export async function setActiveAccount(bundleId: string, oxyUserId: string): Pro
     redisOk = await withRedisFallback(
       redis,
       async () => {
-        const connected = await ensureRedisConnected(redis);
-        if (!connected) return false;
         await redis.set(activeKey(bundleId), oxyUserId);
         return true;
       },
@@ -106,8 +97,6 @@ export async function getActiveAccount(
   const fromRedis = await withRedisFallback(
     redis,
     async () => {
-      const connected = await ensureRedisConnected(redis);
-      if (!connected) return null;
       const value = await redis.get(activeKey(bundleId));
       return value && value.length > 0 ? value : null;
     },
@@ -189,7 +178,7 @@ export interface LinkTokenPayload {
 export function signLinkToken(bundleId: string, clientId: string): string {
   const exp = Math.floor(Date.now() / 1000) + MCP_LINK_TOKEN_TTL_SECONDS;
   const payload = `${bundleId}:${clientId}:${exp}`;
-  const sig = crypto.createHmac('sha256', getSecret()).update(payload).digest('base64url');
+  const sig = crypto.createHmac('sha256', getMcpJwtSecret()).update(payload).digest('base64url');
   const encoded = Buffer.from(JSON.stringify({ bundleId, clientId, exp, sig } satisfies LinkTokenPayload)).toString(
     'base64url',
   );
@@ -206,7 +195,7 @@ export function verifyLinkToken(token: string): { bundleId: string; clientId: st
       return null;
     }
     const payload = `${parsed.bundleId}:${parsed.clientId}:${parsed.exp}`;
-    const expected = crypto.createHmac('sha256', getSecret()).update(payload).digest('base64url');
+    const expected = crypto.createHmac('sha256', getMcpJwtSecret()).update(payload).digest('base64url');
     const a = Buffer.from(expected);
     const b = Buffer.from(parsed.sig);
     if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
@@ -227,8 +216,6 @@ export async function consumeLinkToken(token: string): Promise<boolean> {
   return withRedisFallback(
     redis,
     async () => {
-      const connected = await ensureRedisConnected(redis);
-      if (!connected) return false;
       const result = await redis.set(linkUsedKey(token), '1', { NX: true, EX: MCP_LINK_TOKEN_TTL_SECONDS });
       return result === 'OK';
     },

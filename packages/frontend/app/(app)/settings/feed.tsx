@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
-import { View, Text, Pressable, ScrollView } from 'react-native';
+import { View, Text, ScrollView } from 'react-native';
 import { confirmDialog } from '@/utils/alerts';
 import { Loading } from '@oxyhq/bloom/loading';
 import { Header } from '@/components/Header';
@@ -234,7 +234,7 @@ export default function FeedSettingsScreen() {
       >
         {/* Presets */}
         <SettingsListGroup title={t('settings.feed.presets.title')}>
-          {(Object.keys(PRESETS) as Array<keyof typeof PRESETS>).map((key) => (
+          {(Object.keys(PRESETS) as (keyof typeof PRESETS)[]).map((key) => (
             <SettingsListItem
               key={key}
               title={PRESETS[key].name}

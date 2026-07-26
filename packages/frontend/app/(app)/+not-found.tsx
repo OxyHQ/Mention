@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
-import SEO from '@/components/SEO';
+import { SEO } from '@/components/SEO';
 
 export default function NotFoundScreen() {
   const { t } = useTranslation();

@@ -10,12 +10,10 @@ import { ATPROTO_ENABLED } from './atproto/constants';
 /**
  * Network-connector bootstrap.
  *
- * Reads the env gates, instantiates the enabled connectors, builds the registry,
- * and registers it as the `PostFederator` (the seam `PostCreationService.create`
- * already uses via `serviceRegistry`). This REPLACES the old import side-effect
- * that registered the deleted `FederationService` facade — so `server.ts` only
- * needs `import './src/connectors'` at bootstrap and `PostCreationService` itself
- * does not change.
+ * Reads the validated feature gates and builds the registry. Runtime bootstrap
+ * explicitly calls {@link initConnectors} to register it as the
+ * `PostFederator` seam used by `PostCreationService`; importing route modules
+ * alone never mutates the service registry.
  *
  * The registry is always registered (even with zero enabled connectors) so
  * `getPostFederator()` never throws; `federateNewPost` simply becomes a no-op
@@ -42,14 +40,17 @@ if (ATPROTO_ENABLED) {
 
 export const connectorRegistry = new ConnectorRegistry(connectors);
 
-registerPostFederator(connectorRegistry);
+let initialized = false;
 
 /**
- * Idempotent explicit entry point. Importing this module already performs the
- * registration above (side-effect, mirroring the prior FederationService
- * pattern); calling this returns the registry for callers that prefer an
- * explicit bootstrap step.
+ * Explicit, idempotent runtime bootstrap. Keeping registration here makes the
+ * lifecycle visible and prevents tests or pure route composition from changing
+ * global service state merely by importing a module.
  */
 export function initConnectors(): ConnectorRegistry {
+  if (!initialized) {
+    registerPostFederator(connectorRegistry);
+    initialized = true;
+  }
   return connectorRegistry;
 }

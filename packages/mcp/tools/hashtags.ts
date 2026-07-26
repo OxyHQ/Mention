@@ -1,7 +1,6 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { api, formatApiError } from "../lib/api-client.js";
-import { withAuthGuard } from "../lib/auth-guard.js";
 import { fetchMtnFeed } from "../lib/mtn-feed.js";
 import { formatFeed } from "../lib/formatters.js";
 

@@ -19,10 +19,9 @@ import { formatRelativeTimeLocalized } from '@/utils/dateUtils';
 import { api } from '@/utils/api';
 import { getErrorMessage } from '@/utils/apiError';
 import { createScopedLogger } from '@/lib/logger';
+import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 
 const logger = createScopedLogger('ConnectedAiSettings');
-
-const MCP_CONNECTIONS_QUERY_KEY = ['mcp-connections'] as const;
 
 interface McpConnection {
   id: string;
@@ -100,7 +99,7 @@ export default function ConnectedAiScreen() {
     isError,
     refetch,
   } = useQuery<McpConnection[]>({
-    queryKey: [...MCP_CONNECTIONS_QUERY_KEY, user?.id],
+    queryKey: viewerQueryKeys.connectedAi(user?.id),
     queryFn: async () => {
       const response = await api.get<McpConnectionsResponse>('/mcp/connections');
       const rows = response.data?.connections;
@@ -114,7 +113,9 @@ export default function ConnectedAiScreen() {
       await api.delete(`/mcp/connections/${connectionId}`);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: MCP_CONNECTIONS_QUERY_KEY });
+      queryClient.invalidateQueries({
+        queryKey: viewerQueryKeys.connectedAi(user?.id),
+      });
       toast(t('mcp.connections.revoked', { defaultValue: 'Access revoked' }), { type: 'success' });
     },
     onError: (error) => {

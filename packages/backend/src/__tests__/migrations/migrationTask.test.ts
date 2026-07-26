@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   connectToDatabase: vi.fn(),
+  assertMongoTransactionalTopology: vi.fn(),
   runMigrations: vi.fn(),
 }));
 
@@ -13,6 +14,10 @@ vi.mock('../../migrations/runner', () => ({
   runMigrations: mocks.runMigrations,
 }));
 
+vi.mock('../../utils/mongoTopology', () => ({
+  assertMongoTransactionalTopology: mocks.assertMongoTransactionalTopology,
+}));
+
 import {
   MIGRATION_DATABASE_CONNECTION_OPTIONS,
   runMigrationTask,
@@ -21,6 +26,7 @@ import {
 describe('migration task database isolation', () => {
   beforeEach(() => {
     mocks.connectToDatabase.mockReset().mockResolvedValue(undefined);
+    mocks.assertMongoTransactionalTopology.mockReset().mockResolvedValue('replica_set');
     mocks.runMigrations.mockReset().mockResolvedValue(undefined);
   });
 
@@ -40,13 +46,28 @@ describe('migration task database isolation', () => {
       maxPoolSize: 10,
       readPreference: 'primary',
     });
+    expect(mocks.assertMongoTransactionalTopology).toHaveBeenCalledOnce();
     expect(mocks.runMigrations).toHaveBeenCalledOnce();
+    expect(mocks.connectToDatabase.mock.invocationCallOrder[0])
+      .toBeLessThan(mocks.assertMongoTransactionalTopology.mock.invocationCallOrder[0]);
+    expect(mocks.assertMongoTransactionalTopology.mock.invocationCallOrder[0])
+      .toBeLessThan(mocks.runMigrations.mock.invocationCallOrder[0]);
   });
 
   it('does not run schema changes when the database connection fails', async () => {
     mocks.connectToDatabase.mockRejectedValueOnce(new Error('offline'));
 
     await expect(runMigrationTask()).rejects.toThrow('offline');
+    expect(mocks.assertMongoTransactionalTopology).not.toHaveBeenCalled();
+    expect(mocks.runMigrations).not.toHaveBeenCalled();
+  });
+
+  it('does not run schema changes when the topology is standalone', async () => {
+    mocks.assertMongoTransactionalTopology.mockRejectedValueOnce(
+      new Error('MongoDB standalone topology detected'),
+    );
+
+    await expect(runMigrationTask()).rejects.toThrow('standalone topology');
     expect(mocks.runMigrations).not.toHaveBeenCalled();
   });
 });

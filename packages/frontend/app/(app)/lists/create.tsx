@@ -66,7 +66,7 @@ export default function CreateListScreen() {
         memberOxyUserIds: members.map((m) => m.id),
       });
       router.replace('/lists');
-    } catch (e) {
+    } catch {
       logger.error('Create list failed');
     } finally {
       setSaving(false);

@@ -20,12 +20,12 @@ describe('feed throttle descriptor classification', () => {
     expect(isExpensiveFeedRequest(request({ descriptor: 'author|user-123|posts' }))).toBe(false);
   });
 
-  it('supports legacy type only when descriptor is absent', () => {
-    expect(getValidatedFeedSource(request({ type: 'for_you' }))).toBe('for_you');
-    expect(isExpensiveFeedRequest(request({ type: 'for_you' }))).toBe(true);
+  it('ignores retired type parameters that the feed controller does not accept', () => {
+    expect(getValidatedFeedSource(request({ type: 'for_you' }))).toBeUndefined();
+    expect(isExpensiveFeedRequest(request({ type: 'for_you' }))).toBe(false);
   });
 
-  it('does not let malformed descriptor fall through to a conflicting type', () => {
+  it('does not let malformed descriptor fall through to a conflicting parameter', () => {
     const malformed = request({
       descriptor: ['following'],
       type: 'for_you',

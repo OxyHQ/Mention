@@ -56,11 +56,6 @@ const RECOMMENDATIONS_STALE_TIME_MS = 5 * 60_000;
  * so the derived `excludeTypesCsv` — and therefore the recommendations cache key
  * — updates reactively without a manual invalidation.
  */
-export const recommendationFiltersQueryKey = (viewerId: string) => [
-  ...viewerQueryKeys.all(viewerId),
-  'recommendationFilters',
-] as const;
-
 export interface UseRecommendationsOptions {
   /** Skip fetching while false (e.g. an inactive tab). Defaults to true. */
   enabled?: boolean;
@@ -120,7 +115,7 @@ function useRecommendationParams(opts?: UseRecommendationsOptions): Recommendati
   // Sibling query for the persisted filters — read once, kept forever fresh; the
   // settings screen primes it on change so the derived CSV stays in lockstep.
   const filtersQuery = useQuery({
-    queryKey: recommendationFiltersQueryKey(viewerId),
+    queryKey: viewerQueryKeys.recommendationFilters(viewerId),
     queryFn: () => getRecommendationFilters(viewerId),
     staleTime: Infinity,
   });
@@ -162,7 +157,7 @@ export function useRecommendations(opts?: UseRecommendationsOptions): UseRecomme
     useRecommendationParams(opts);
 
   const query = useQuery<ProfileData[]>({
-    queryKey: ['recommendations', viewerId, excludeTypesCsv],
+    queryKey: viewerQueryKeys.recommendations(viewerId, excludeTypesCsv),
     queryFn: () =>
       loadRecommendationsPage(getUsersByIds, excludeTypes, RECOMMENDATIONS_SINGLE_PAGE_SIZE).then(
         (page) => page.recommendations,
@@ -214,7 +209,7 @@ export function useInfiniteRecommendations(
     useRecommendationParams(opts);
 
   const query = useInfiniteQuery({
-    queryKey: ['recommendations', 'infinite', viewerId, excludeTypesCsv],
+    queryKey: viewerQueryKeys.infiniteRecommendations(viewerId, excludeTypesCsv),
     queryFn: ({ pageParam }) =>
       loadRecommendationsPage(
         getUsersByIds,

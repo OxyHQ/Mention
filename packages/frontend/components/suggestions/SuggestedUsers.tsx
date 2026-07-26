@@ -12,6 +12,7 @@ import type { SuggestedUserData } from './SuggestedUserCard';
 import { logger } from '@/lib/logger';
 import { type ProfileData } from '@/lib/recommendations';
 import { useRecommendations } from '@/hooks/useRecommendations';
+import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 
 interface SuggestedUsersProps {
   visible?: boolean;
@@ -44,7 +45,7 @@ export const SuggestedUsers = memo(function SuggestedUsers({
   // it. Keyed on the source + viewer so it stays deduped/cached and reloads when
   // the session lands. Falls back to shared recommendations on error (below).
   const similarQuery = useQuery<ProfileData[]>({
-    queryKey: ['similarProfiles', sourceUserId ?? '', user?.id ?? 'anon'],
+    queryKey: viewerQueryKeys.similarProfiles(user?.id, sourceUserId),
     queryFn: async () => {
       const src = sourceUserId;
       if (!src) return [];

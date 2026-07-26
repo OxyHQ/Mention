@@ -17,7 +17,6 @@ module.exports = function (api) {
           alias: { '@': './' },
           extensions: ['.ts', '.tsx', '.js', '.jsx', '.json', '.svg'],
         }],
-        '@babel/plugin-syntax-dynamic-import',
         '@babel/plugin-transform-export-namespace-from',
         // must be LAST
         'react-native-worklets/plugin',

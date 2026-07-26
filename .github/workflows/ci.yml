@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [main, master]
+    branches: [main]
   pull_request:
-    branches: [main, master]
+    branches: [main]
 
 permissions:
   contents: read
@@ -49,12 +49,21 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # Bun's coverage reporter only accounts for loaded modules and does not
+          # expose a branch-threshold gate. Keep these suites complete rather than
+          # publishing a misleading shared-types/MCP percentage.
+          - package: shared-types
+            command: bun run --cwd packages/shared-types test
+            coverage: false
           - package: backend
-            command: bun run --cwd packages/backend test
+            command: bun run --cwd packages/backend test:coverage -- --coverage.reportsDirectory="$RUNNER_TEMP/backend-coverage"
+            coverage: true
           - package: frontend
-            command: bun run --cwd packages/frontend test
+            command: bun run --cwd packages/frontend test:coverage -- --coverageDirectory="$RUNNER_TEMP/frontend-coverage"
+            coverage: true
           - package: mcp
             command: bun run --cwd packages/mcp test
+            coverage: false
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
@@ -70,6 +79,14 @@ jobs:
         run: bun run build:shared-types
       - name: Run complete package test suite
         run: ${{ matrix.command }}
+      - name: Upload coverage summary
+        if: always() && matrix.coverage
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: mention-${{ matrix.package }}-coverage-${{ github.sha }}
+          path: ${{ runner.temp }}/${{ matrix.package }}-coverage/coverage-summary.json
+          if-no-files-found: error
+          retention-days: 14
 
   frontend-bundle:
     name: Frontend bundle budget

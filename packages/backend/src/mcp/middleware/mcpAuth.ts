@@ -150,7 +150,7 @@ function attachMcpIdentity(
  * pass through untouched. Never rejects the request.
  */
 export function createOptionalMcpAuth(): RequestHandler {
-  return async (req: Request, res: Response, next: NextFunction) => {
+  return async (req: Request, _res: Response, next: NextFunction) => {
     const token = extractBearer(req);
     if (!token || !looksLikeMcpToken(token)) {
       next();

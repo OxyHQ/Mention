@@ -31,24 +31,26 @@ import {
   declineCollabInvite,
   stopCollabSharing,
 } from '../controllers/posts.controller';
+import { getPostEditSource } from '../controllers/postEditSource.controller';
 import { Threadgate } from '../models/Threadgate';
 import { Postgate } from '../models/Postgate';
 import { createPostUri } from '@mention/shared-types';
 import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
+import { config } from '../config';
 import { postWriteRateLimiter, translationRateLimiter } from '../middleware/security';
 
 const router = Router();
 
 /**
  * The AI-translation routes carry their own limiter on top of the app-wide one in
- * `server.ts`. They are the only routes here where a cheap request buys expensive
+ * `app.ts`. They are the only routes here where a cheap request buys expensive
  * work — an Alia inference — and translation is free to every user, so nothing
  * else bounds the spend.
  *
  * Production-gated, mirroring `feed.routes.ts`: the limiter is Redis-backed and a
  * dev machine has no Redis.
  */
-const translationRateLimiters = process.env.NODE_ENV === 'production'
+const translationRateLimiters = config.runtime.isProduction
   ? [translationRateLimiter]
   : [];
 
@@ -58,12 +60,12 @@ const translationRateLimiters = process.env.NODE_ENV === 'production'
  * composing normally never comes close, and a long thread still fits — because it
  * exists to stop a loop, not to police enthusiasm.
  */
-const postWriteRateLimiters = process.env.NODE_ENV === 'production'
+const postWriteRateLimiters = config.runtime.isProduction
   ? [postWriteRateLimiter]
   : [];
 
 /**
- * Post reads mounted on the PUBLIC API router with OPTIONAL auth (see server.ts)
+ * Post reads mounted on the PUBLIC API group with OPTIONAL auth (see appRoutes.ts)
  * so anonymous browsing works — logged-out users, SEO, fediverse discovery.
  * Auth is optional, never required: when a viewer token is present the
  * controllers resolve `req.user` for viewer-conditional gating (sensitive-content
@@ -118,6 +120,11 @@ router.patch('/bookmarks/:id/folder', moveBookmarkToFolder);
 // unlike `/:id/translate` it cannot be cached — every call is an Alia inference,
 // and translation is free to every user, so nothing else bounds the spend.
 router.post('/translate-draft', ...translationRateLimiters, translateDraft);
+
+// Owner-only raw source for the composer. Hydrated reads cannot be used for an
+// edit because their mention placeholders and reader-language choice are already
+// resolved for display.
+router.get('/:id/edit-source', getPostEditSource);
 
 // Engagement lists stay behind the auth wall: unlike the public reads above,
 // they do NOT gate on the parent post's visibility, so exposing them

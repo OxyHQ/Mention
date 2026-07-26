@@ -148,7 +148,7 @@ jest.mock('@oxyhq/bloom/avatar', () => {
 /** The info sheet is closed until presented, so it contributes no controls. */
 jest.mock('@oxyhq/bloom/bottom-sheet', () => ({
   __esModule: true,
-  default: () => null,
+  BottomSheet: () => null,
 }));
 
 jest.mock('@/components/Feed/Feed', () => {

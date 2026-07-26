@@ -15,7 +15,7 @@ import { useSafeBack } from '@/hooks/useSafeBack';
 import { Icon } from '@/lib/icons';
 import { EmptyState } from '@/components/common/EmptyState';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
-import ConfirmBottomSheet from '@/components/common/ConfirmBottomSheet';
+import { ConfirmBottomSheet } from '@/components/common/ConfirmBottomSheet';
 import { getErrorMessage } from '@/utils/apiError';
 import { createScopedLogger } from '@/lib/logger';
 import {
@@ -24,10 +24,9 @@ import {
     muteWordDisplayValue,
     type SerializedMuteWord,
 } from '@/services/muteWordsService';
+import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 
 const hiddenWordsLogger = createScopedLogger('HiddenWords');
-
-const MUTE_WORDS_QUERY_KEY = ['mute-words'] as const;
 
 export default function HiddenWordsScreen() {
     const { t } = useTranslation();
@@ -53,7 +52,7 @@ export default function HiddenWordsScreen() {
         isError,
         refetch,
     } = useQuery<SerializedMuteWord[]>({
-        queryKey: [...MUTE_WORDS_QUERY_KEY, user?.id],
+        queryKey: viewerQueryKeys.muteWords(user?.id),
         queryFn: () => muteWordsService.list(),
         enabled: canUsePrivateApi,
     });
@@ -64,14 +63,18 @@ export default function HiddenWordsScreen() {
     // We still invalidate the ['feed'] key to cover any React-Query feed
     // consumers and prime a refetch on next navigation.
     const invalidateFeed = () => {
-        queryClient.invalidateQueries({ queryKey: ['feed'] });
+        queryClient.invalidateQueries({
+            queryKey: viewerQueryKeys.feedsRoot(user?.id),
+        });
     };
 
     const addMutation = useMutation<SerializedMuteWord, unknown, string>({
         mutationFn: (rawInput: string) => muteWordsService.create(rawInput),
         onSuccess: () => {
             setInput('');
-            queryClient.invalidateQueries({ queryKey: MUTE_WORDS_QUERY_KEY });
+            queryClient.invalidateQueries({
+                queryKey: viewerQueryKeys.muteWords(user?.id),
+            });
             invalidateFeed();
             toast(t('settings.privacy.wordMuted', { defaultValue: 'Word muted' }), { type: 'success' });
         },
@@ -86,7 +89,9 @@ export default function HiddenWordsScreen() {
     const removeMutation = useMutation<void, unknown, string>({
         mutationFn: (id: string) => muteWordsService.remove(id),
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: MUTE_WORDS_QUERY_KEY });
+            queryClient.invalidateQueries({
+                queryKey: viewerQueryKeys.muteWords(user?.id),
+            });
             invalidateFeed();
             toast(t('settings.privacy.wordUnmuted', { defaultValue: 'Word unmuted' }), { type: 'success' });
         },

@@ -1,5 +1,5 @@
 import { PassThrough } from 'node:stream';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
  * Thread-linking tests for federated reply import.
@@ -401,6 +401,10 @@ beforeEach(() => {
   );
 });
 
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
+
 describe('inbox handleCreate — reply linking', () => {
   it('links parentPostId + threadId when the parent is already local', async () => {
     // Pre-existing local (imported federated) parent, a thread root (threadId unset).
@@ -588,6 +592,8 @@ describe('outbox backfill — bounded ancestor backfill', () => {
 
 describe('reconciliation script — backfillFederatedThreadLinks', () => {
   it('links an already-imported orphan (inReplyTo set, parentPostId null)', async () => {
+    vi.stubEnv('CONFIRM_ADMIN_MUTATION', 'backfillFederatedThreadLinks');
+
     const parentUri = `${ACTOR_URI}/statuses/700`;
     // Local parent (thread root) + an orphaned reply pointing at it.
     h.store.push({

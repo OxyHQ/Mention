@@ -5,7 +5,7 @@
 
 import { StyleSheet, ViewStyle, TextStyle, ImageStyle, StyleProp } from 'react-native';
 import type { Theme } from '@oxyhq/bloom/theme';
-import { SPACING, COMPONENT_SPACING } from './spacing';
+import { COMPONENT_SPACING } from './spacing';
 
 /**
  * Flatten an array of styles into a single style object
@@ -343,7 +343,7 @@ export const COMMON_STYLES = StyleSheet.create({
  * Utility function for better style composition
  */
 export function combineStyles<T extends ViewStyle | TextStyle | ImageStyle>(
-  ...styles: Array<T | undefined | null | false>
+  ...styles: (T | undefined | null | false)[]
 ): T {
   return flattenStyleArray(styles) as T;
 }
@@ -362,4 +362,3 @@ export type BorderRadius = typeof BORDER_RADIUS[keyof typeof BORDER_RADIUS];
 export type BorderWidth = typeof BORDER_WIDTH[keyof typeof BORDER_WIDTH];
 export type Opacity = typeof OPACITY[keyof typeof OPACITY];
 export type Elevation = typeof ELEVATION[keyof typeof ELEVATION];
-

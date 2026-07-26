@@ -257,11 +257,11 @@ export async function runMigrations(): Promise<void> {
 
       const existing = await migrations.findOne({ _id: migration.id });
       if (existing) {
-        logger.info(`[migration] ${migration.id} already applied — skipping`);
+        logger.info('[migration] already applied; skipping');
         continue;
       }
 
-      logger.info(`[migration] ${migration.id} applying...`);
+      logger.info('[migration] applying');
       const migrationRun = migration.run(db, migrationContext);
       try {
         await Promise.race([
@@ -279,18 +279,18 @@ export async function runMigrations(): Promise<void> {
         await migrationRun.catch((settleError) => {
           if (settleError !== error) {
             logger.warn(
-              `[migration] ${migration.id} settled with a second error after abort`,
+              '[migration] settled with a second error after abort',
               settleError,
             );
           }
         });
-        logger.error(`[migration] ${migration.id} failed`, error);
+        logger.error('[migration] failed', error);
         throw error;
       }
 
       await assertLease();
       await migrations.insertOne({ _id: migration.id, appliedAt: new Date() });
-      logger.info(`[migration] ${migration.id} applied`);
+      logger.info('[migration] applied');
     }
   } finally {
     clearInterval(renewal);

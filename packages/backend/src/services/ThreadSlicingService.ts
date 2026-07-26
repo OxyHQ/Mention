@@ -89,7 +89,7 @@ class ThreadSlicingService {
         }
       }
     }
-    for (const [parentId, parent] of parentPostMap.entries()) {
+    for (const parentId of parentPostMap.keys()) {
       if (!postById.has(parentId)) {
         additionalPostIds.push(parentId);
       }

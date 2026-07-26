@@ -21,10 +21,10 @@ import { Avatar } from '@oxyhq/bloom/avatar';
 import { MEDIA_VARIANT_VIDEO_POSTER } from '@mention/shared-types/post';
 import StatCard from '@/components/insights/StatCard';
 import { formatCompactNumber } from '@/utils/formatNumber';
-import { logger } from '@/lib/logger';
 import { ArticleIcon } from '@/assets/icons/article-icon';
 import { CommentIcon } from '@/assets/icons/comment-icon';
 import { AnalyticsIcon } from '@/assets/icons/analytics-icon';
+import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 
 
 interface WeeklyRecapData {
@@ -120,7 +120,7 @@ const WeeklyRecapScreen: React.FC = () => {
     // lands and auto-re-runs when `user?.id` arrives after SSO restore. Gated on
     // `canUsePrivateApi` since /statistics/* are private endpoints.
     const { data: result, isLoading } = useQuery({
-        queryKey: ['weekly-recap', user?.id],
+        queryKey: viewerQueryKeys.weeklyRecap(user?.id),
         queryFn: async () => {
             // Fetch statistics for both weeks
             // Fetch 14 days total, then split into current week (last 7) and previous week (first 7)

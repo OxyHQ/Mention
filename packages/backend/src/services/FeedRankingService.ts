@@ -6,7 +6,7 @@ import { logger } from '../utils/logger';
 import { metrics } from '../utils/metrics';
 import { explainRanking } from '../mtn/feed/RankingExplainer';
 import type { SignalCombiner } from './ranking/signals/types';
-import { resolveCombiner } from './ranking/combiner';
+import { productCombiner } from './ranking/combiner';
 import { RANKING_SIGNALS, newGroupProducts } from './ranking/signals/registry';
 import {
   buildBehaviorSets,
@@ -58,9 +58,7 @@ export class FeedRankingService {
   // Weight configuration sourced from MtnConfig (single source of truth).
   private readonly R = MtnConfig.ranking;
 
-  // The combiner strategy that folds the per-signal contributions into a score.
-  // Selected once by `MtnConfig.ranking.combiner` ('product' today).
-  private readonly combiner: SignalCombiner = resolveCombiner(MtnConfig.ranking.combiner);
+  private readonly combiner: SignalCombiner = productCombiner;
 
   /**
    * Resolve per-author summary maps for the unique authors of a candidate post
@@ -471,7 +469,7 @@ export class FeedRankingService {
     let followingIds = context.followingIds;
     if (userId && !followingIds) {
       try {
-        // Service-authed Oxy client — the bare `oxy` singleton in server.ts is
+        // Service-authed Oxy client — the process-wide request-auth client is
         // unauthenticated and reserved for validating incoming request tokens
         // (`oxy.auth()`), so resolving the following list on it returns nothing.
         const followingRes = await getServiceOxyClient().getUserFollowing(userId);

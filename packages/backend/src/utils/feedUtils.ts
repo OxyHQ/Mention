@@ -4,7 +4,6 @@
  */
 
 import mongoose from 'mongoose';
-import { FeedFilters } from '@mention/shared-types';
 import { logger } from './logger';
 
 /**
@@ -88,40 +87,6 @@ export function validateAndNormalizeLimit(
     Math.max(parsedLimit, FEED_CONSTANTS.MIN_LIMIT),
     FEED_CONSTANTS.MAX_LIMIT
   );
-}
-
-/**
- * Parse feed filters from request query parameters
- * Handles both JSON string and object formats, as well as filters[] prefix format
- */
-export function parseFeedFilters(reqQuery: Record<string, unknown>): Record<string, unknown> {
-  let filters: Record<string, unknown> | undefined = reqQuery.filters as Record<string, unknown> | undefined;
-
-  // Parse filters if it's a string
-  if (typeof filters === 'string') {
-    try {
-      filters = JSON.parse(filters) as Record<string, unknown>;
-    } catch (e) {
-      logger.warn('Failed to parse filters JSON', e);
-      filters = {} as Record<string, unknown>;
-    }
-  }
-
-  // If filters is not an object, try to parse from query params with filters[] prefix
-  if (!filters || typeof filters !== 'object' || Array.isArray(filters)) {
-    filters = {} as Record<string, unknown>;
-    // Extract all query params that start with 'filters['
-    Object.keys(reqQuery).forEach(key => {
-      if (key.startsWith('filters[') && key.endsWith(']')) {
-        const filterKey = key.slice(8, -1); // Remove 'filters[' and ']'
-        if (filters) {
-          filters[filterKey] = reqQuery[key];
-        }
-      }
-    });
-  }
-
-  return filters || {};
 }
 
 /**
@@ -219,13 +184,3 @@ export function validateResultSize<T>(
     throw new Error(`Query result size exceeds maximum allowed size of ${maxSize}`);
   }
 }
-
-/**
- * Apply query optimizations (timeout, result size validation)
- */
-export function applyQueryOptimizations<T extends { maxTimeMS(ms: number): T }>(query: T): T {
-  // Add query timeout
-  query.maxTimeMS(FEED_CONSTANTS.QUERY_TIMEOUT_MS);
-  return query;
-}
-

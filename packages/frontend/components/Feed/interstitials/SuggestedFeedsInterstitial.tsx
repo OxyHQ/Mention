@@ -27,6 +27,7 @@ import {
   type ReportInterstitialEvent,
 } from './interstitialTelemetry';
 import { useIsScreenNotMobile } from '@/hooks/useOptimizedMediaQuery';
+import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 
 /**
  * Custom feeds the viewer does not already read, inline in the feed.
@@ -54,7 +55,7 @@ export function SuggestedFeedsInterstitial({
   const query = useQuery({
     // Keyed on the viewer: `excludeSubscribed` makes this list viewer-specific,
     // so it must never be shared across an account switch.
-    queryKey: ['feedInterstitial', 'suggestedFeeds', user?.id ?? 'anon'],
+    queryKey: viewerQueryKeys.feedInterstitial(user?.id, 'suggested-feeds'),
     queryFn: () =>
       customFeedsService.getMarketplace({
         excludeSubscribed: true,

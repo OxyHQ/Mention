@@ -1,14 +1,13 @@
-import React, { useEffect, useState } from "react";
+import React, { type ReactNode, useEffect, useState } from "react";
 import {
     StyleSheet,
     View,
     Text,
+    Pressable,
     ViewStyle,
     Platform,
 } from "react-native"
-import { Pressable } from "react-native"
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { ReactNode } from "react"
 import { useTheme } from '@oxyhq/bloom/theme';
 import { useSafeBack } from "@/hooks/useSafeBack";
 import { cn } from "@/lib/utils";

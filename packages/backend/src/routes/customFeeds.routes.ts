@@ -244,7 +244,7 @@ router.get('/', async (req: AuthRequest, res: Response) => {
 });
 
 // Marketplace: get feeds by category counts
-router.get('/marketplace/categories', async (req: AuthRequest, res: Response) => {
+router.get('/marketplace/categories', async (_req: AuthRequest, res: Response) => {
   try {
     const results = await CustomFeed.aggregate<{ _id: string; count: number }>([
       { $match: { isPublic: true, category: { $exists: true, $ne: null } } },

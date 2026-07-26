@@ -9,7 +9,7 @@ import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { useTranslation } from 'react-i18next';
 import Feed from '@/components/Feed/Feed';
-import SEO from '@/components/SEO';
+import { SEO } from '@/components/SEO';
 import { EntityFollowButton } from '@/components/EntityFollowButton';
 import { PanelStickyHeader } from '@/components/shell/PanelChrome';
 

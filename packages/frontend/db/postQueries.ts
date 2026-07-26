@@ -46,11 +46,11 @@ const UPSERT_POST_SQL = `
 /**
  * Insert or replace a single post.
  */
-export function upsertPost(post: FeedItem | any): void {
-  if (!post?.id && !post?._id) return;
+export function upsertPost(post: FeedItem): void {
+  if (!post.id) return;
 
   if (!isDbAvailable()) {
-    memUpsertPost(post as FeedItem);
+    memUpsertPost(post);
     return;
   }
 
@@ -74,11 +74,11 @@ export function upsertPost(post: FeedItem | any): void {
 /**
  * Batch insert/replace posts in a single transaction.
  */
-export function upsertPosts(posts: (FeedItem | any)[]): void {
+export function upsertPosts(posts: FeedItem[]): void {
   if (!posts || posts.length === 0) return;
 
   if (!isDbAvailable()) {
-    memUpsertPosts(posts as FeedItem[]);
+    memUpsertPosts(posts);
     return;
   }
 
@@ -87,7 +87,7 @@ export function upsertPosts(posts: (FeedItem | any)[]): void {
   try {
     db.execSync('BEGIN TRANSACTION');
     for (const post of posts) {
-      if (!post?.id && !post?._id) continue;
+      if (!post.id) continue;
       const row = postToRow(post);
       if (!row.id) continue;
 
@@ -153,7 +153,8 @@ export function getPostsByIds(ids: string[]): Record<string, FeedItem> {
       ...chunk
     );
     for (const row of rows) {
-      result[row.id] = rowToFeedItem(row);
+      const item = rowToFeedItem(row);
+      if (item) result[row.id] = item;
     }
   }
 
@@ -268,6 +269,10 @@ export function updatePost(
       return null;
     }
     const current = rowToFeedItem(row);
+    if (!current) {
+      db.execSync('ROLLBACK');
+      return null;
+    }
     const updated = updater(current);
     if (!updated) {
       db.execSync('ROLLBACK');
@@ -287,7 +292,7 @@ export function updatePost(
     );
     db.execSync('COMMIT');
     return updated;
-  } catch (e) {
+  } catch {
     try { db.execSync('ROLLBACK'); } catch {}
     return null;
   }

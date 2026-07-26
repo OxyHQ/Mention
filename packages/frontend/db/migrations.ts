@@ -19,7 +19,7 @@ const logger = createScopedLogger('Schema');
  * Schema version. Bump this whenever the table definitions below change —
  * the next `getDb()` will drop the old cache and recreate it cleanly.
  */
-const SCHEMA_VERSION = 4;
+const SCHEMA_VERSION = 6;
 
 /**
  * Create the full schema from scratch. Idempotent (IF NOT EXISTS).

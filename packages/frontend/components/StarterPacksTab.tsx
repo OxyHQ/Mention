@@ -17,6 +17,11 @@ export function StarterPacksTab() {
   const [packs, setPacks] = useState<StarterPackSummary[]>([]);
 
   const fetchPacks = useCallback(async () => {
+    if (!user?.id) {
+      setPacks([]);
+      setLoading(false);
+      return;
+    }
     try {
       setLoading(true);
       const res = await starterPacksService.list();

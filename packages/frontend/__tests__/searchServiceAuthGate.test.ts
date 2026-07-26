@@ -16,6 +16,14 @@
  * which underlying request each source makes, and whether it fired at all.
  */
 
+import type { HydratedPost } from '@mention/shared-types';
+import { PostVisibility } from '@mention/shared-types/post';
+
+import {
+  getSearchHistoryStorageKey,
+  searchService,
+} from '@/services/searchService';
+
 const mockAuthGet = jest.fn();
 const mockPublicGet = jest.fn();
 const mockSearchProfiles = jest.fn();
@@ -64,10 +72,50 @@ jest.mock('@/lib/logger', () => ({
   }),
 }));
 
-import {
-  getSearchHistoryStorageKey,
-  searchService,
-} from '@/services/searchService';
+function hydratedPost(id: string): HydratedPost {
+  return {
+    id,
+    content: { text: id },
+    attachments: {},
+    user: {
+      id: 'author-1',
+      username: 'alice',
+      name: { displayName: 'Alice' },
+    },
+    authors: [{
+      id: 'author-1',
+      username: 'alice',
+      name: { displayName: 'Alice' },
+      role: 'owner',
+      status: 'accepted',
+    }],
+    engagement: {
+      likes: 0,
+      downvotes: 0,
+      boosts: 0,
+      replies: 0,
+    },
+    viewerState: {
+      isOwner: false,
+      isCollaborator: false,
+      isLiked: false,
+      isDownvoted: false,
+      isBoosted: false,
+      isSaved: id === 's1',
+    },
+    permissions: {
+      canReply: true,
+      canDelete: false,
+      canPin: false,
+      canViewSources: false,
+    },
+    metadata: {
+      visibility: PostVisibility.PUBLIC,
+      createdAt: '2026-07-26T00:00:00.000Z',
+      updatedAt: '2026-07-26T00:00:00.000Z',
+    },
+  };
+}
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -75,7 +123,7 @@ beforeEach(() => {
   mockAuthGet.mockImplementation((url: string) => {
     switch (url) {
       case '/search':
-        return Promise.resolve({ data: { posts: [{ id: 'p1', content: {} }] } });
+        return Promise.resolve({ data: { posts: [hydratedPost('p1')] } });
       case '/lists':
         return Promise.resolve({ data: { items: [{ id: 'l1', name: 'List One' }] } });
       case '/hashtags/search':
@@ -95,7 +143,10 @@ beforeEach(() => {
     pagination: { offset: 0, limit: 20, hasMore: false },
   });
 
-  mockGetSavedPosts.mockResolvedValue({ success: true, data: { posts: [{ id: 's1', content: {} }] } });
+  mockGetSavedPosts.mockResolvedValue({
+    success: true,
+    data: { posts: [hydratedPost('s1')] },
+  });
   mockStorageGet.mockResolvedValue([]);
   mockStorageSet.mockResolvedValue(undefined);
   mockStorageRemove.mockResolvedValue(undefined);

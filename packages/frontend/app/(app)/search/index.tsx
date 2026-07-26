@@ -28,7 +28,7 @@ import AnimatedTabBar from "@/components/common/AnimatedTabBar";
 import PostItem from "@/components/Feed/PostItem";
 import { Search } from "@oxyhq/bloom/search";
 import { Search as SearchIcon } from "@/assets/icons/search-icon";
-import SEO from "@/components/SEO";
+import { SEO } from "@/components/SEO";
 import { ProfileCard, ProfileCardSkeletonList, type ProfileCardData } from "@/components/ProfileCard";
 import { FeedCard, type FeedCardData } from "@/components/FeedCard";
 import { ListCard, type ListCardData } from "@/components/ListCard";
@@ -38,7 +38,7 @@ import type { ExternalActorResolution } from "@/services/feedService";
 import { EmptyState } from "@/components/common/EmptyState";
 import { Error } from "@/components/Error";
 import { TrendItemRow } from "@/components/trending/TrendItemRow";
-import { useTrendsStore } from "@/store/trendsStore";
+import { useTrendsStore } from "@/stores/trendsStore";
 import { useTrendNavigation } from "@/hooks/useTrendNavigation";
 import type { Trend } from "@/interfaces/Trend";
 import { formatCompactNumber } from "@/utils/formatNumber";
@@ -734,7 +734,7 @@ export default function SearchIndex() {
         pushSection(
             isAll || activeTab === "saved",
             t("search.sections.saved", "Saved"),
-            results.saved.map((post): SearchRow => ({ kind: "post", key: `saved-${post.id || post._id}`, post })),
+            results.saved.map((post): SearchRow => ({ kind: "post", key: `saved-${post.id}`, post })),
         );
 
         return rows;

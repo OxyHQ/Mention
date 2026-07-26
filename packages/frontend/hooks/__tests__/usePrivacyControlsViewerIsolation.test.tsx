@@ -57,8 +57,8 @@ describe('usePrivacyControls viewer isolation', () => {
   });
 
   it('discards A privacy lists when they resolve after B', async () => {
-    const blockedA = deferred<Array<{ blockedId: string }>>();
-    const blockedB = deferred<Array<{ blockedId: string }>>();
+    const blockedA = deferred<{ blockedId: string }[]>();
+    const blockedB = deferred<{ blockedId: string }[]>();
     mockGetBlockedUsers
       .mockReturnValueOnce(blockedA.promise)
       .mockReturnValueOnce(blockedB.promise);

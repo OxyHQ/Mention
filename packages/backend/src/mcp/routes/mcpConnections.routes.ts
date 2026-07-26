@@ -1,10 +1,10 @@
 import { Router, Response } from 'express';
 import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
-import { getNormalizedUserHandle } from '@oxyhq/core';
 import { McpConnection } from '../models/McpConnection';
 import { revokeJti } from '../services/mcpRevocationService';
 import { getServiceOxyClient } from '../../utils/oxyHelpers';
 import { logger } from '../../utils/logger';
+import { toMcpUserSummary } from '../utils/mcpUserSummary';
 
 /**
  * Connection-management API for the signed-in user: list the MCP clients they
@@ -28,9 +28,11 @@ async function hydrateHandles(
     for (const user of users) {
       const id = user.id;
       if (!id) continue;
-      const handle = getNormalizedUserHandle(user) ?? user.username ?? id;
-      const displayName = user.name?.displayName?.trim() || handle;
-      map.set(id, { handle, displayName });
+      const summary = toMcpUserSummary(id, user);
+      map.set(id, {
+        handle: summary.handle,
+        displayName: summary.displayName,
+      });
     }
   } catch (error) {
     logger.warn('[McpConnections] Failed to hydrate user handles', {
@@ -40,7 +42,11 @@ async function hydrateHandles(
 
   for (const id of unique) {
     if (!map.has(id)) {
-      map.set(id, { handle: id, displayName: 'Unknown user' });
+      const fallback = toMcpUserSummary(id);
+      map.set(id, {
+        handle: fallback.handle,
+        displayName: fallback.displayName,
+      });
     }
   }
   return map;
@@ -72,9 +78,9 @@ router.get('/', async (req: AuthRequest, res: Response) => {
     for (const member of bundleMembers) {
       if (!member.bundleId) continue;
       const entry = handleMap.get(member.oxyUserId);
-      const handle = entry?.handle ?? member.oxyUserId;
+      const handle = entry?.handle ?? '';
       const list = bundleHandles.get(member.bundleId) ?? [];
-      if (!list.includes(handle)) {
+      if (handle && !list.includes(handle)) {
         list.push(handle);
       }
       bundleHandles.set(member.bundleId, list);
@@ -91,8 +97,8 @@ router.get('/', async (req: AuthRequest, res: Response) => {
         scopes: c.scopes,
         bundleId: c.bundleId ?? null,
         isBundlePrimary: c.isBundlePrimary === true,
-        handle: profile?.handle ?? c.oxyUserId,
-        displayName: profile?.displayName ?? c.oxyUserId,
+        handle: profile?.handle ?? '',
+        displayName: profile?.displayName ?? 'Unknown user',
         bundleHandles: handlesInBundle,
         createdAt: c.createdAt,
         lastUsedAt: c.lastUsedAt,

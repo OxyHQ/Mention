@@ -3,13 +3,13 @@ import TestRenderer, { act } from 'react-test-renderer';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@oxyhq/services/ui/client';
 import { useBloomTheme } from '@oxyhq/bloom/theme';
-import { useAppearanceStore } from '@/store/appearanceStore';
+import { useAppearanceStore } from '@/stores/appearanceStore';
 import { usePostsStore } from '@/stores/postsStore';
 import { usePrivacyStore } from '@/stores/privacyStore';
 import { useEntityFollowStore } from '@/stores/entityFollowStore';
 import { useExternalEmbedsStore } from '@/stores/externalEmbedsStore';
 import { useLiveRoomsStore } from '@/stores/liveRoomsStore';
-import { useTrendsStore } from '@/store/trendsStore';
+import { useTrendsStore } from '@/stores/trendsStore';
 import { clearAllFeedMemoryCaches } from '@/stores/feedScrollStore';
 import { setFeedViewerRequestScope } from '@/services/feedService';
 import { searchService } from '@/services/searchService';
@@ -46,7 +46,7 @@ jest.mock('@oxyhq/bloom/theme', () => ({
   useBloomTheme: jest.fn(),
 }));
 
-jest.mock('@/store/appearanceStore', () => ({
+jest.mock('@/stores/appearanceStore', () => ({
   useAppearanceStore: jest.fn(),
 }));
 
@@ -80,7 +80,7 @@ jest.mock('@/stores/liveRoomsStore', () => ({
   },
 }));
 
-jest.mock('@/store/trendsStore', () => ({
+jest.mock('@/stores/trendsStore', () => ({
   useTrendsStore: {
     getState: jest.fn(),
   },
@@ -253,6 +253,7 @@ describe('AccountSwitchReset identity boundary', () => {
     expect(mockQueryClientClear).toHaveBeenCalledTimes(1);
     expect(mockResetPosts).toHaveBeenCalledTimes(1);
     expect(mockSetFeedViewerRequestScope).toHaveBeenLastCalledWith('viewer-b');
+    expect(mockDisconnectSocket).toHaveBeenCalledTimes(1);
 
     const clearOrder = mockQueryClientClear.mock.invocationCallOrder[0];
     const viewerBRenderCall = mockChildRender.mock.calls.findIndex(

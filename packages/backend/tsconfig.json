@@ -28,6 +28,8 @@
     "noEmit": false,
     "rootDir": "./",
     "outDir": "dist",
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
 
     // Resolve the workspace dependency to shared-types SOURCE during type-check
     // so backend changes see un-built type updates immediately.

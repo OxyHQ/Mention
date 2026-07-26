@@ -1,4 +1,4 @@
-import { PostVisibility } from "@mention/shared-types";
+import { PostVisibility } from "@mention/shared-types/post";
 
 /** Unwrap `{ success, data }` MTN/API envelopes. */
 export function unwrapApiResponse<T = Record<string, unknown>>(raw: unknown): T {

@@ -279,7 +279,7 @@ git commit -m "feat(backend): add postReadMoreAction + collapseLongBio appearanc
 ### Task 2: Frontend — `appearanceStore` type additions
 
 **Files:**
-- Modify: `packages/frontend/store/appearanceStore.ts:27-32`
+- Modify: `packages/frontend/stores/appearanceStore.ts:27-32`
 
 **Interfaces:**
 - Consumes: none (pure type addition).
@@ -287,7 +287,7 @@ git commit -m "feat(backend): add postReadMoreAction + collapseLongBio appearanc
 
 - [ ] **Step 1: Add the type and field**
 
-In `packages/frontend/store/appearanceStore.ts`, right after the existing `PostTextExpand` type (line 27) and inside `AppearanceSettings` (lines 29-32):
+In `packages/frontend/stores/appearanceStore.ts`, right after the existing `PostTextExpand` type (line 27) and inside `AppearanceSettings` (lines 29-32):
 
 ```ts
 export type PostTextExpand = 'default' | 'more' | 'muchMore' | 'all';
@@ -314,7 +314,7 @@ Expected: no output (no errors referencing this file)
 - [ ] **Step 3: Commit**
 
 ```bash
-git add packages/frontend/store/appearanceStore.ts
+git add packages/frontend/stores/appearanceStore.ts
 git commit -m "feat(frontend): add postReadMoreAction + collapseLongBio to appearance store types"
 ```
 

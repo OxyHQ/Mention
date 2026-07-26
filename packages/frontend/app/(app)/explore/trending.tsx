@@ -9,10 +9,11 @@ import { useTranslation } from 'react-i18next';
 import { trendingService, type TrendingTopic, type TrendingDay } from '@/services/trendingService';
 import { TrendItemRow } from '@/components/trending/TrendItemRow';
 import { useTrendNavigation } from '@/hooks/useTrendNavigation';
-import { useTrendsStore } from '@/store/trendsStore';
+import { useTrendsStore } from '@/stores/trendsStore';
 import type { Trend } from '@/interfaces/Trend';
 import { SPACING } from '@/styles/spacing';
 import { FONT_SIZES } from '@/styles/typography';
+import { publicQueryKeys } from '@/lib/viewerQueryKeys';
 
 /**
  * Explore › Trending (route `/explore/trending`).
@@ -109,7 +110,7 @@ export default function ExploreTrendingScreen() {
 
   // Paginated trending history (past days).
   const historyQuery = useInfiniteQuery({
-    queryKey: ['trending', 'history'],
+    queryKey: publicQueryKeys.trendingHistory(),
     queryFn: ({ pageParam }) => trendingService.getTrendingHistory(pageParam, HISTORY_PAGE_SIZE),
     initialPageParam: 1,
     getNextPageParam: (lastPage) =>

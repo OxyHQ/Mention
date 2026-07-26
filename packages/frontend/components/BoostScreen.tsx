@@ -15,13 +15,15 @@ import { show as toast } from '@oxyhq/bloom/toast';
 import { Dialog, useDialogControl } from '@oxyhq/bloom/dialog';
 import { Avatar } from '@oxyhq/bloom/avatar';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
+import type { CreateBoostRequest } from '@mention/shared-types/feed';
+import type { FeedItem } from '@/db';
+import PostContentText from '@/components/Post/PostContentText';
 
 import UserName from "./UserName";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "@oxyhq/services/ui/client";
 import { getNormalizedUserHandle } from "@oxyhq/core";
 import { usePostsStore } from "../stores/postsStore";
-import { CreateBoostRequest } from "@mention/shared-types";
 import { useTheme } from '@oxyhq/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import { logger } from '@/lib/logger';
@@ -29,7 +31,7 @@ import { logger } from '@/lib/logger';
 const MAX_CHARACTERS = 280;
 
 const BoostScreen: React.FC = () => {
-    const { user, oxyServices } = useAuth();
+    const { user } = useAuth();
     const { id: postId } = useLocalSearchParams<{ id: string }>();
     const insets = useSafeAreaInsets();
     const theme = useTheme();
@@ -39,7 +41,7 @@ const BoostScreen: React.FC = () => {
     const [content, setContent] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
     const discardControl = useDialogControl();
-    const [originalPost, setOriginalPost] = useState<any>(null);
+    const [originalPost, setOriginalPost] = useState<FeedItem | null>(null);
     const textInputRef = useRef<TextInput>(null);
 
     const { getPostById, createBoost } = usePostsStore();
@@ -55,7 +57,7 @@ const BoostScreen: React.FC = () => {
                     const fetched = await getPostById(String(postId));
                     setOriginalPost(fetched);
                 }
-            } catch (e) {
+            } catch {
                 logger.error('Failed to load original post for boost');
             }
         };
@@ -88,7 +90,7 @@ const BoostScreen: React.FC = () => {
 
             // Show success feedback
             toast('Post boosted successfully!', { type: 'success' });
-        } catch (error) {
+        } catch {
             logger.error('Error boosting');
             toast('Failed to boost. Please try again.', { type: 'error' });
         } finally {
@@ -161,7 +163,7 @@ const BoostScreen: React.FC = () => {
                             />
                         </View>
                     </View>
-                    <Text className="text-foreground text-[15px]" style={{ lineHeight: 20 }}>{originalPost.content}</Text>
+                    <PostContentText content={originalPost.content} postId={originalPost.id} />
                 </View>
 
                 {/* Boost Input */}

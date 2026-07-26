@@ -11,11 +11,11 @@
  * without pulling in SQLite, Zustand, or the network layer.
  */
 
+import { buildFeedScrollKey, FeedFilters } from '../feedUtils';
+
 // jest-expo's Babel config does not support TS type assertions in expression
 // position, so we use Object.assign to set __DEV__ without a cast.
 Object.assign(globalThis, { __DEV__: false });
-
-import { buildFeedScrollKey, FeedFilters } from '../feedUtils';
 
 describe('buildFeedScrollKey', () => {
     it('produces the same key for identical inputs', () => {

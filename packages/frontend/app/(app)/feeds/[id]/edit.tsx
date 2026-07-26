@@ -13,6 +13,7 @@ import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { customFeedsService } from '@/services/customFeedsService';
 import { FeedBuilder } from '@/components/feeds/FeedBuilder';
+import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 
 /**
  * Edit an existing custom feed (owner only). Loads the feed, re-verifies
@@ -27,7 +28,7 @@ export default function EditFeedScreen() {
   const { user, isAuthResolved, canUsePrivateApi } = useAuth();
 
   const { data: feed, isLoading } = useQuery({
-    queryKey: ['customFeed', feedId, user?.id],
+    queryKey: viewerQueryKeys.customFeed(user?.id, feedId),
     enabled: Boolean(feedId) && canUsePrivateApi,
     queryFn: () => customFeedsService.get(feedId),
   });

@@ -16,7 +16,7 @@ const SPA_SHELL =
   '<body><div id="root"></div><script src="/_expo/static/js/web/entry.js" defer></script></body></html>';
 
 /**
- * Build an app that mirrors server.ts's relevant mount order: the host-gated root
+ * Build an app that mirrors app.ts's relevant mount order: the host-gated root
  * welcome route, then the apex proxy, then stub API routes. The stub API routes let
  * us prove that on the apex host a colliding path (`/feed`) is proxied to the SPA
  * rather than hitting the API, while on the API host it hits the API.
@@ -25,7 +25,7 @@ function makeApp() {
   const app = express();
   app.set('trust proxy', 1);
 
-  // Root welcome, host-gated exactly like server.ts.
+  // Root welcome, host-gated exactly like app.ts.
   app.get('', (req, res, next) => {
     if (isApexHost(req)) return next();
     res.json({ who: 'api-welcome' });

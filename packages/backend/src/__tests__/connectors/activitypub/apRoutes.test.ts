@@ -116,7 +116,7 @@ import { AP_CONTEXT } from '@oxyhq/federation';
 const app = express();
 app.use(express.json());
 // The engine router (actor GET, followers/following) + Mention's content router
-// (outbox/featured/dereference) on the SAME `/ap` prefix, as in `server.ts`.
+// (outbox/featured/dereference) on the SAME `/ap` prefix, as in `app.ts`.
 app.use('/ap', actorRouter);
 app.use('/ap', apRoutes);
 

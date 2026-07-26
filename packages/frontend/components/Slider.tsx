@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
@@ -44,7 +44,7 @@ export const Slider: React.FC<SliderProps> = ({
       const percentage = (value - minimumValue) / range;
       translateX.value = Math.max(0, Math.min(width, percentage * width));
     }
-  }, [value, width, minimumValue, maximumValue]);
+  }, [isDragging.value, maximumValue, minimumValue, translateX, value, width]);
 
   const gesture = useMemo(() => {
     return Gesture.Pan()

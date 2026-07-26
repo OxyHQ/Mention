@@ -1,6 +1,5 @@
-import { Router, Request, Response } from 'express';
+import { Router, Response } from 'express';
 import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
-import { getNormalizedUserHandle } from '@oxyhq/core';
 import { McpConnection } from '../models/McpConnection';
 import {
   listBundleMembers,
@@ -17,28 +16,16 @@ import { getServiceOxyClient } from '../../utils/oxyHelpers';
 import { stripMentionHandle } from '../../utils/resolveLocalMentionHandles';
 import type { OxyAuthRequestWithMcp } from '../middleware/mcpAuth';
 import { logger } from '../../utils/logger';
+import { toMcpUserSummary, type McpUserSummary } from '../utils/mcpUserSummary';
 
 const router = Router();
 
-async function hydrateUserSummary(oxyUserId: string): Promise<{
-  oxyUserId: string;
-  username: string;
-  handle: string;
-  displayName: string;
-}> {
+async function hydrateUserSummary(oxyUserId: string): Promise<McpUserSummary> {
   try {
     const user = await getServiceOxyClient().getUserById(oxyUserId, { cache: false });
-    const username = typeof user.username === 'string' ? user.username : oxyUserId;
-    const handle = getNormalizedUserHandle(user) ?? username;
-    const displayName = user.name?.displayName?.trim() || handle;
-    return { oxyUserId, username, handle, displayName };
+    return toMcpUserSummary(oxyUserId, user);
   } catch {
-    return {
-      oxyUserId,
-      username: oxyUserId,
-      handle: oxyUserId,
-      displayName: 'Unknown user',
-    };
+    return toMcpUserSummary(oxyUserId);
   }
 }
 
@@ -62,8 +49,8 @@ router.get('/accounts', async (req: AuthRequest, res: Response) => {
 
     const accounts = members.map((member, index) => ({
       oxyUserId: member.oxyUserId,
-      handle: summaries[index]?.handle ?? member.oxyUserId,
-      displayName: summaries[index]?.displayName ?? member.oxyUserId,
+      handle: summaries[index]?.handle ?? '',
+      displayName: summaries[index]?.displayName ?? 'Unknown user',
       isPrimary: member.isBundlePrimary === true,
       isActive: member.oxyUserId === mcp.activeUserId,
     }));

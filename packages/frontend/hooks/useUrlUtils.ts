@@ -46,12 +46,12 @@ export const useUrlUtils = () => {
    * @returns Sanitized sources array
    */
   const sanitizeSourcesForSubmit = useCallback((
-    list: Array<{ id: string; title: string; url: string }> | undefined
-  ): Array<{ url: string; title?: string }> => {
+    list: { id: string; title: string; url: string }[] | undefined
+  ): { url: string; title?: string }[] => {
     if (!Array.isArray(list) || list.length === 0) return [];
 
     const MAX_SOURCES = 5;
-    const normalized: Array<{ url: string; title?: string }> = [];
+    const normalized: { url: string; title?: string }[] = [];
 
     list.forEach((item) => {
       const normalizedUrl = normalizeUrl(item.url);

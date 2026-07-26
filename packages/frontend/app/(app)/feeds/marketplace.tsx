@@ -37,6 +37,7 @@ import { FeedCard, FeedCardSkeleton, type FeedCardData } from '@/components/Feed
 import { FeedSubscribeButton } from '@/components/FeedSubscribeButton';
 import { LoadMoreSentinel } from '@/components/common/LoadMoreSentinel';
 import type { CustomFeedListResponse } from '@mention/shared-types';
+import { publicQueryKeys, viewerQueryKeys } from '@/lib/viewerQueryKeys';
 
 const PAGE_LIMIT = 20;
 
@@ -139,7 +140,7 @@ export default function FeedMarketplaceScreen() {
   const { t } = useTranslation();
   const safeBack = useSafeBack();
   const queryClient = useQueryClient();
-  const { isAuthenticated, user } = useAuth();
+  const { user } = useAuth();
 
   const [activeCategory, setActiveCategory] = useState<string>(ALL_CATEGORY);
   const [sortBy, setSortBy] = useState<SortBy>('trending');
@@ -167,11 +168,13 @@ export default function FeedMarketplaceScreen() {
   // Include the viewer identity in the key so the per-viewer `isLiked`
   // (subscribed) flags refetch when a slow SSO cold-boot session lands, rather
   // than sticking to the anonymous snapshot for the whole staleTime window.
-  const authKey = isAuthenticated && user?.id ? user.id : 'anon';
-
   const marketplaceKey = useMemo(
-    () => ['marketplace', sortBy, activeCategory, debouncedSearch, authKey] as const,
-    [sortBy, activeCategory, debouncedSearch, authKey],
+    () => viewerQueryKeys.customFeedMarketplace(user?.id, {
+      sortBy,
+      category: activeCategory,
+      search: debouncedSearch,
+    }),
+    [sortBy, activeCategory, debouncedSearch, user?.id],
   );
 
   const feedsQuery = useInfiniteQuery({
@@ -234,7 +237,7 @@ export default function FeedMarketplaceScreen() {
   // Categories rarely change — cache for 10 minutes and share across revisits.
   // Public (not viewer-specific) data, so keyed without the viewer identity.
   const categoriesQuery = useQuery({
-    queryKey: ['marketplaceCategories'],
+    queryKey: publicQueryKeys.marketplaceCategories(),
     queryFn: () => customFeedsService.getMarketplaceCategories(),
     staleTime: 10 * 60 * 1000,
   });

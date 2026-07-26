@@ -15,7 +15,6 @@
 
 import { getRedisClient } from '../utils/redis';
 import { logger } from '../utils/logger';
-import { config } from '../config';
 import {
   oxyRankingClient,
   type OxyRankingClient,
@@ -301,7 +300,7 @@ export class RecommendationService {
       return buildBoostsFromCandidates(candidates);
     } catch (error) {
       logger.warn(
-        `[RecommendationService] content-affinity boosts failed for ${viewerId}; proceeding with none:`,
+        '[RecommendationService] content-affinity boosts failed; proceeding with none',
         error,
       );
       return [];

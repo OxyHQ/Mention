@@ -12,9 +12,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
  * other module imports) so ONLY the dedup logic runs — no DB, no network.
  */
 
-const { getOrFetchActor, fetchRemoteActor } = vi.hoisted(() => ({
+const { getOrFetchActor, fetchRemoteActor, findFederatedActor } = vi.hoisted(() => ({
   getOrFetchActor: vi.fn(),
   fetchRemoteActor: vi.fn(),
+  findFederatedActor: vi.fn(),
 }));
 
 vi.mock('../../connectors/activitypub/actor.service', () => ({
@@ -30,6 +31,11 @@ vi.mock('../../connectors/activitypub/helpers', () => ({
 }));
 vi.mock('../../connectors/activitypub/constants', () => ({ AP_CONTENT_TYPE: 'application/activity+json' }));
 vi.mock('../../models/Post', () => ({ Post: {} }));
+vi.mock('../../models/FederatedActor', () => ({
+  default: {
+    findOne: findFederatedActor,
+  },
+}));
 vi.mock('@oxyhq/core/server', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@oxyhq/core/server')>()),
   assertSafePublicUrl: vi.fn(),
@@ -50,6 +56,7 @@ describe('backfillFederatedPostAuthors — resolveAuthorOxyUserId in-flight dedu
   beforeEach(() => {
     getOrFetchActor.mockReset();
     fetchRemoteActor.mockReset();
+    findFederatedActor.mockReset();
   });
 
   it('collapses two CONCURRENT resolves of the same actor onto ONE getOrFetchActor', async () => {
@@ -83,5 +90,18 @@ describe('backfillFederatedPostAuthors — resolveAuthorOxyUserId in-flight dedu
     expect(secondPass).toBe('oxy-gargron');
     // The second (sequential) call is served from actorOxyCache.
     expect(getOrFetchActor).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps dry-run resolution lookup-only', async () => {
+    const uri = 'https://example.social/users/read-only';
+    findFederatedActor.mockReturnValueOnce({
+      lean: vi.fn().mockResolvedValue({ oxyUserId: 'oxy-existing' }),
+    });
+
+    await expect(resolveAuthorOxyUserId(uri, false)).resolves.toBe('oxy-existing');
+
+    expect(findFederatedActor).toHaveBeenCalledWith({ uri }, { oxyUserId: 1 });
+    expect(getOrFetchActor).not.toHaveBeenCalled();
+    expect(fetchRemoteActor).not.toHaveBeenCalled();
   });
 });

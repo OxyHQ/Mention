@@ -1,4 +1,4 @@
-import express, { Request, Response } from "express";
+import express, { Response } from "express";
 import mongoose from "mongoose";
 import Post from "../models/Post";
 import { logger } from '../utils/logger';
@@ -16,6 +16,33 @@ const router = express.Router();
 /** Search result page size. */
 const DEFAULT_SEARCH_LIMIT = 20;
 const MAX_SEARCH_LIMIT = 100;
+const SEARCH_HYDRATION_PROJECTION = [
+  '_id',
+  'oxyUserId',
+  'authorship',
+  'content',
+  'metadata',
+  'federation',
+  'postClassification.languages',
+  'stats',
+  'boostOf',
+  'quoteOf',
+  'originalPostId',
+  'parentPostId',
+  'threadId',
+  'replyPermission',
+  'reviewReplies',
+  'quotesDisabled',
+  'hashtags',
+  'mentions',
+  'tags',
+  'visibility',
+  'status',
+  'language',
+  'createdAt',
+  'updatedAt',
+  'date',
+].join(' ');
 
 /**
  * Parse search operators from query string.
@@ -134,7 +161,12 @@ router.get("/", async (req: AuthRequest, res: Response) => {
           const profile = await getRuntimeOxyClient().getProfileByUsername(operators.from);
           const profileId = profile?.id;
           if (profileId) {
-            filter.oxyUserId = String(profileId);
+            filter.authorship = {
+              $elemMatch: {
+                oxyUserId: String(profileId),
+                status: 'accepted',
+              },
+            };
           } else {
             // Username not found - return empty results
             res.json({ posts: [], hasMore: false });
@@ -252,6 +284,7 @@ router.get("/", async (req: AuthRequest, res: Response) => {
 
       // Execute query with lean() for read-only performance
       const posts = await Post.find(filter)
+        .select(SEARCH_HYDRATION_PROJECTION)
         .sort({ createdAt: -1, _id: -1 })
         .limit(limitNum + 1) // Fetch one extra to check if there are more
         .maxTimeMS(config.search.maxTimeMS)

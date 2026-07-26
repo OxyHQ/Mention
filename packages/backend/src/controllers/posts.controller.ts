@@ -1,4 +1,4 @@
-import { Request, Response } from 'express';
+import { Response } from 'express';
 import { Post, POST_CLASSIFICATION_PENDING } from '../models/Post';
 import { baselineContentClassifier } from '../services/BaselineContentClassifier';
 import Poll from '../models/Poll';
@@ -6,7 +6,7 @@ import Like from '../models/Like';
 import Bookmark from '../models/Bookmark';
 import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
 import mongoose from 'mongoose';
-import { createNotification, createMentionNotifications, createBatchNotifications } from '../utils/notificationUtils';
+import { createMentionNotifications } from '../utils/notificationUtils';
 import PostSubscription from '../models/PostSubscription';
 import {
   PostVisibility,
@@ -18,14 +18,19 @@ import {
   PostUser,
   toBaseLanguages,
 } from '@mention/shared-types';
+import {
+  mentionTextsFromContent,
+  reconcileMentionIds,
+} from '@mention/shared-types/mentions';
 import { userPreferenceService, readInteractionSurface } from '../services/UserPreferenceService';
 import { affinityEventService } from '../services/AffinityEventService';
 import { postCreationService } from '../services/PostCreationService';
 import ArticleModel, { IArticle } from '../models/Article';
 import { logger } from '../utils/logger';
+import { metrics } from '../utils/metrics';
 import { postHydrationService, resolveUserSummaries, degradedActorSummary } from '../services/PostHydrationService';
 import { config } from '../config';
-import { mergeHashtags, escapeRegex } from '../utils/textProcessing';
+import { mergeHashtags } from '../utils/textProcessing';
 import { createScopedOxyClient } from '../utils/oxyHelpers';
 import { queryInt, queryString } from '../utils/queryParams';
 import { buildTopicSlugMatch } from '../utils/postTopicMatch';
@@ -389,8 +394,23 @@ export const createPost = async (req: AuthRequest, res: Response) => {
 
     const { content, hashtags, mentions, quoted_post_id, boost_of, in_reply_to_status_id, parentPostId, threadId, contentLocation, postLocation, replyPermission, reviewReplies, quotesDisabled, status: incomingStatus, scheduledFor, collaboratorIds, collaboratorHandles } = req.body;
 
-    // Support both new content structure and legacy text/media structure
-    const media = content?.media || content?.images || req.body.media; // Support both new media field and legacy images
+    // Transitional request aliases are measured with a bounded label so their
+    // retirement is evidence-based. They never become part of the stored DTO.
+    if (!content?.media && content?.images) {
+      metrics.incrementCounter('legacy_post_payload_total', 1, {
+        variant: 'content-images',
+      });
+    } else if (!content?.media && !content?.images && req.body.media) {
+      metrics.incrementCounter('legacy_post_payload_total', 1, {
+        variant: 'top-level-media',
+      });
+    }
+    if (content?.text == null && req.body.text != null) {
+      metrics.incrementCounter('legacy_post_payload_total', 1, {
+        variant: 'top-level-text',
+      });
+    }
+    const media = content?.media || content?.images || req.body.media;
     const video = content?.video;
     const poll = content?.poll;
     const contentLocationData = content?.location || contentLocation;
@@ -445,6 +465,9 @@ export const createPost = async (req: AuthRequest, res: Response) => {
       }
       // Handle legacy format: { latitude: number, longitude: number, address?: string }
       else if (typeof contentLocationData.latitude === 'number' && typeof contentLocationData.longitude === 'number') {
+        metrics.incrementCounter('legacy_post_payload_total', 1, {
+          variant: 'content-location-object',
+        });
         longitude = contentLocationData.longitude;
         latitude = contentLocationData.latitude;
         address = contentLocationData.address;
@@ -479,6 +502,9 @@ export const createPost = async (req: AuthRequest, res: Response) => {
       }
       // Handle legacy format: { latitude: number, longitude: number, address?: string }
       else if (typeof postLocation.latitude === 'number' && typeof postLocation.longitude === 'number') {
+        metrics.incrementCounter('legacy_post_payload_total', 1, {
+          variant: 'post-location-object',
+        });
         longitude = postLocation.longitude;
         latitude = postLocation.latitude;
         address = postLocation.address;
@@ -877,9 +903,11 @@ export const createThread = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ message: 'Collaborators are not supported on threads' });
     }
 
-    logger.debug('Creating thread with body', JSON.stringify(req.body, null, 2));
-
     const { mode, posts } = req.body;
+    logger.debug('Creating thread', {
+      mode,
+      postCount: Array.isArray(posts) ? posts.length : 0,
+    });
 
     if (!Array.isArray(posts) || posts.length === 0) {
       return res.status(400).json({ message: 'Posts array is required and cannot be empty' });
@@ -1063,11 +1091,13 @@ export const createThread = async (req: AuthRequest, res: Response) => {
         }
       }
 
-      // Mentions per post in thread
+      // Mentions per post in thread. Read the reconciled persisted allowlist,
+      // never the raw request metadata: an orphan id must not notify anyone.
       try {
-        if (mentions && mentions.length > 0) {
+        const persistedMentions = Array.isArray(post.mentions) ? post.mentions : [];
+        if (persistedMentions.length > 0) {
           await createMentionNotifications(
-            mentions,
+            persistedMentions,
             post._id.toString(),
             userId,
             'post'
@@ -1481,7 +1511,10 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
     post.markModified('content.attachments');
 
     if (hashtags !== undefined) post.hashtags = mergeHashtags('', hashtags || []);
-    if (mentions !== undefined) post.mentions = mentions || [];
+    post.mentions = reconcileMentionIds(
+      mentionTextsFromContent(post.content),
+      mentions !== undefined ? mentions : post.mentions,
+    );
 
     const collaboratorIds = await postCollaborationService.resolveCollaboratorRefs(
       userId,
@@ -1737,7 +1770,10 @@ export const likePost = async (req: AuthRequest, res: Response) => {
     const value: 1 | -1 = req.body?.value === -1 ? -1 : 1;
     const surface = readInteractionSurface(req.body);
 
-    logger.debug(`Vote request received: userId=${userId}, postId=${postId}, value=${value}`);
+    logger.debug('Vote request received', {
+      value,
+      surface,
+    });
     const result = await votePostCommand({ userId, postId, value, source: surface });
 
     if (result.changed && result.likeId && value === 1) {
@@ -1820,7 +1856,7 @@ export const savePost = async (req: AuthRequest, res: Response) => {
     const postId = req.params.id as string;
     const surface = readInteractionSurface(req.body);
 
-    logger.debug(`Save request received: userId=${userId}, postId=${postId}`);
+    logger.debug('Save request received', { surface });
     const result = await savePostCommand({ userId, postId });
 
     // Learn only from the relationship transition, not an idempotent retry.
@@ -1902,7 +1938,9 @@ export const getSavedPosts = async (req: AuthRequest, res: Response) => {
     // Add search filter if provided
     if (searchQuery && searchQuery.trim()) {
       const trimmedQuery = searchQuery.trim();
-      logger.debug(`Applying search filter: "${trimmedQuery}"`);
+      logger.debug('Applying saved-post search filter', {
+        queryLength: trimmedQuery.length,
+      });
       // Use MongoDB $regex for partial text matching (case-insensitive).
       // Escape special regex characters but allow partial matching. The bodies live
       // in the (multikey) renditions, so this matches a saved post by ANY language
@@ -1912,7 +1950,10 @@ export const getSavedPosts = async (req: AuthRequest, res: Response) => {
         $regex: escapedQuery,
         $options: 'i' // case-insensitive
       };
-      logger.debug('Final query', JSON.stringify(postQuery, null, 2));
+      logger.debug('Built saved-post query', {
+        savedPostCount: postIds.length,
+        hasSearchFilter: true,
+      });
     }
 
     // Get the actual posts
@@ -2474,7 +2515,7 @@ export const getNearbyPostsBothLocations = async (req: AuthRequest, res: Respons
 };
 
 // Get location statistics for analytics
-export const getLocationStats = async (req: AuthRequest, res: Response) => {
+export const getLocationStats = async (_req: AuthRequest, res: Response) => {
   try {
     // Count posts with content locations (user shared)
     const contentLocationCount = await Post.countDocuments({

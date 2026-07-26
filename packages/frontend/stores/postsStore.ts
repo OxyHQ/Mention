@@ -12,8 +12,6 @@ import type {
   FeedType,
   HydratedPost,
   HydratedPostSummary,
-  PostAttachmentBundle,
-  PostEngagementSummary,
   FeedInterstitialSlot,
   FeedPostSlice,
 } from '@mention/shared-types';
@@ -43,6 +41,7 @@ import {
   clearAllCachedData as dbClearAllCachedData,
 } from '@/db';
 import type { FeedItem, FeedMetaData } from '@/db';
+import { toFeedItem } from '@/db/feedItem';
 import { precacheActorsFromPosts } from '@/lib/precacheActorsFromPosts';
 import type { FeedFilters } from '@/utils/feedUtils';
 
@@ -50,178 +49,47 @@ const logger = createScopedLogger('PostsStore');
 
 // ── Shared helpers ───────────────────────────────────────────────
 
-const normalizeId = (item: any): string => {
-  if (!item) return '';
-  if (item.id != null) return String(item.id);
-  if (item._id != null) {
-    const _id = item._id;
-    return typeof _id === 'object' && typeof _id.toString === 'function'
-      ? _id.toString()
-      : String(_id);
-  }
-  if (item._id_str != null) return String(item._id_str);
-  if (item.postId != null) return String(item.postId);
-  if (item.post?.id != null) return String(item.post.id);
-  if (item.post?._id != null) {
-    const _id = item.post._id;
-    return typeof _id === 'object' && typeof _id.toString === 'function'
-      ? _id.toString()
-      : String(_id);
-  }
-  return '';
-};
-
 const isValidId = (id: string): boolean =>
   id !== '' && id !== 'undefined' && id !== 'null';
 
 /**
  * Whether a post is a "blank boost" risk-free to cache: it is renderable on its
  * own. A `type:'boost'` post carries an intentionally empty body and is only
- * renderable through its embedded original (`boost.originalPost` / `original`).
+ * renderable through its embedded `boost.originalPost`.
  * Any post that is NOT a boost is always renderable here (its own body/media is
  * its content). Used by `cachePosts` so an under-hydrated boost (original lost)
  * can never overwrite an already-hydrated cached boost.
  */
 const isRenderableBoost = (item: FeedItem): boolean => {
-  // `type`/`boostOf` are not on the hydrated `FeedItem` shape but appear on raw/
-  // legacy payloads; read them through a narrow view (no `as any`).
-  const probe = item as FeedItem & { type?: string; boostOf?: unknown };
-  const isBoost = probe.type === 'boost' || Boolean(item?.boost) || Boolean(probe.boostOf);
-  if (!isBoost) return true;
-  return Boolean(item?.boost?.originalPost?.id || item?.original?.id);
+  if (!item.boost) return true;
+  return Boolean(item.boost.originalPost?.id);
 };
 
-type TransformOptions = { skipRelated?: boolean };
-
-const transformToUIItem = (raw: HydratedPost | HydratedPostSummary | any, options: TransformOptions = {}): FeedItem => {
-  if (!raw) return raw;
-
-  const id = normalizeId(raw);
-
-  const viewerState = {
-    isOwner: raw?.viewerState?.isOwner ?? false,
-    isCollaborator: raw?.viewerState?.isCollaborator ?? false,
-    collabInvitePending: raw?.viewerState?.collabInvitePending,
-    viewerRole: raw?.viewerState?.viewerRole,
-    isLiked: raw?.viewerState?.isLiked ?? raw?.isLiked ?? false,
-    isDownvoted: raw?.viewerState?.isDownvoted ?? raw?.isDownvoted ?? false,
-    isBoosted: raw?.viewerState?.isBoosted ?? raw?.isBoosted ?? false,
-    isSaved: raw?.viewerState?.isSaved ?? raw?.isSaved ?? false,
-  };
-
-  const permissions = raw?.permissions ?? {
-    canReply: true,
-    canDelete: false,
-    canPin: false,
-    canViewSources: Boolean(raw?.attachments?.sources?.length || raw?.content?.sources?.length),
-    canEdit: false,
-  };
-
-  const engagement: PostEngagementSummary = {
-    likes: raw?.engagement?.likes !== undefined ? raw.engagement.likes : raw?.stats?.likesCount ?? 0,
-    downvotes: raw?.engagement?.downvotes !== undefined ? raw.engagement.downvotes : raw?.stats?.downvotesCount ?? 0,
-    boosts: raw?.engagement?.boosts !== undefined ? raw.engagement.boosts : raw?.stats?.boostsCount ?? 0,
-    replies: raw?.engagement?.replies !== undefined ? raw.engagement.replies : raw?.stats?.commentsCount ?? 0,
-    saves: raw?.engagement?.saves ?? null,
-    views: raw?.engagement?.views ?? null,
-    impressions: raw?.engagement?.impressions ?? null,
-  };
-
-  const attachments: PostAttachmentBundle = raw?.attachments ?? {
-    media: raw?.content?.media,
-    poll: raw?.content?.poll,
-    article: raw?.content?.article,
-    sources: raw?.content?.sources,
-    location: raw?.content?.location,
-    event: raw?.content?.event,
-    room: raw?.content?.room,
-  };
-
-  const user = raw?.user ?? {};
-  const authors = Array.isArray(raw?.authors) && raw.authors.length > 0
-    ? raw.authors
-    : [{
-        ...user,
-        id: user.id || '',
-        handle: user.handle || '',
-        role: 'owner' as const,
-        status: 'accepted' as const,
-      }];
-
-  const metadata = {
-    ...raw?.metadata,
-    createdAt: raw?.metadata?.createdAt || raw?.createdAt || raw?.date || new Date().toISOString(),
-    updatedAt: raw?.metadata?.updatedAt || raw?.updatedAt || raw?.metadata?.createdAt || raw?.createdAt || new Date().toISOString(),
-  };
-
-  const mediaIds = attachments.media?.map((item: any) =>
-    typeof item === 'string' ? item : item?.id
-  ).filter(Boolean) ?? [];
-
-  // Extra/legacy fields carried on raw wire payloads but absent from the hydrated
-  // DTOs; read them through a narrow view (same pattern as isRenderableBoost — no
-  // `as any`).
-  const rawExtra = raw as {
-    originalMediaIds?: string[];
-    allMediaIds?: string[];
-    mediaIds?: string[];
-    originalPost?: HydratedPost | HydratedPostSummary;
-    original?: HydratedPost | HydratedPostSummary;
-    quotedPost?: HydratedPost | HydratedPostSummary;
-    quoted?: HydratedPost | HydratedPostSummary;
-  };
-
-  const base: FeedItem = {
-    ...(raw as HydratedPost),
-    id,
-    content: raw?.content ?? { text: '' },
-    viewerState,
-    permissions,
-    engagement,
-    attachments,
-    metadata,
-    linkPreviews: Array.isArray(raw?.linkPreviews) ? raw.linkPreviews : [],
-    user: {
-      ...user,
-      avatar: user.avatarUrl ?? user.avatar,
-      handle: user.handle || '',
-      badges: user.badges,
-      isVerified: user.isVerified,
-      id: user.id || '',
-    },
-    authors,
-    date: metadata.createdAt,
-    isLiked: viewerState.isLiked,
-    isDownvoted: viewerState.isDownvoted,
-    isSaved: viewerState.isSaved,
-    isBoosted: viewerState.isBoosted,
-    mediaIds,
-    originalMediaIds: rawExtra.originalMediaIds ?? undefined,
-    allMediaIds: rawExtra.allMediaIds ?? rawExtra.mediaIds ?? mediaIds,
-    original: null,
-    quoted: null,
-    boost: raw?.boost
-      ? {
-          ...raw.boost,
-          originalPost: raw.boost.originalPost
-            ? transformToUIItem(raw.boost.originalPost, { skipRelated: true })
-            : null,
-        }
-      : null,
-  } as FeedItem;
-
-  if (!options.skipRelated) {
-    const originalSource = rawExtra.originalPost ?? rawExtra.original;
-    if (originalSource) {
-      base.original = transformToUIItem(originalSource, { skipRelated: true });
+/**
+ * Return each canonical embedded relation once. Hydration intentionally exposes
+ * `originalPost` alongside the more specific quote/boost relation, so an id map
+ * prevents duplicate cache writes while retaining the explicit public fields.
+ */
+const getRelatedPosts = (item: FeedItem): FeedItem[] => {
+  const relatedById = new Map<string, FeedItem>();
+  const add = (related: FeedItem | null | undefined) => {
+    if (related?.id && isValidId(related.id)) {
+      relatedById.set(related.id, related);
     }
-    const quotedSource = rawExtra.quotedPost ?? rawExtra.quoted;
-    if (quotedSource) {
-      base.quoted = transformToUIItem(quotedSource, { skipRelated: true });
+  };
+
+  add(item.boost?.originalPost);
+  add(item.quotedPost);
+  add(item.originalPost);
+  return [...relatedById.values()];
+};
+
+const persistRelatedPosts = (items: readonly FeedItem[]): void => {
+  for (const item of items) {
+    for (const related of getRelatedPosts(item)) {
+      dbUpsertPost(related);
     }
   }
-
-  return base;
 };
 
 // ── Request tracking ─────────────────────────────────────────────
@@ -250,8 +118,6 @@ const syncVoteStateFromServer = (
   if (serverLikesCount !== undefined) {
     get().updatePostEverywhere(postId, (prev) => ({
       ...prev,
-      isLiked: serverLiked,
-      isDownvoted: serverDownvoted,
       viewerState: { ...prev.viewerState, isLiked: serverLiked, isDownvoted: serverDownvoted },
       engagement: {
         ...prev.engagement,
@@ -312,7 +178,7 @@ interface PostsStoreState {
   downvotePost: (request: { postId: string; type: string }) => Promise<void>;
   savePost: (request: { postId: string }, source?: string) => Promise<void>;
   unsavePost: (request: { postId: string }) => Promise<void>;
-  getPostById: (postId: string) => Promise<any>;
+  getPostById: (postId: string) => Promise<FeedItem | null>;
   // Always fetch a single post from the network and upsert it into the shared
   // cache (stale-while-revalidate). Unlike `getPostById`, this does NOT short-
   // circuit on a cache hit — it refreshes engagement/viewer state for an
@@ -464,8 +330,7 @@ const collectWrittenPostIds = (items: FeedItem[]): string[] => {
   const ids: string[] = [];
   for (const item of items) {
     if (isValidId(item.id)) ids.push(item.id);
-    if (item.original?.id && isValidId(item.original.id)) ids.push(item.original.id);
-    if (item.quoted?.id && isValidId(item.quoted.id)) ids.push(item.quoted.id);
+    for (const related of getRelatedPosts(item)) ids.push(related.id);
   }
   return ids;
 };
@@ -540,7 +405,7 @@ export const usePostsStore = create<PostsStoreState>()(
         if (!latest || latest.abortController !== abortController) return;
 
         // Transform items
-        const items = response.items?.map((item) => transformToUIItem(item)) || [];
+        const items = response.items?.map((item) => toFeedItem(item)) || [];
 
         // Prime the React Query actor cache (works web + native, no SQLite)
         precacheActorsFromPosts(items);
@@ -554,11 +419,7 @@ export const usePostsStore = create<PostsStoreState>()(
           filters: request.filters,
         });
 
-        // Also persist related posts
-        for (const item of items) {
-          if (item.original?.id) dbUpsertPost(item.original);
-          if (item.quoted?.id) dbUpsertPost(item.quoted);
-        }
+        persistRelatedPosts(items);
 
         notifyPostChanges(collectWrittenPostIds(items));
         notifyFeedChanges([feedKey]);
@@ -629,7 +490,7 @@ export const usePostsStore = create<PostsStoreState>()(
         ) {
           return { pending: false };
         }
-        const items = response.items?.map((item) => transformToUIItem(item)) || [];
+        const items = response.items?.map((item) => toFeedItem(item)) || [];
         const isPendingEmptyInitialLoad = !request.cursor && response.pending === true && items.length === 0;
 
         // Prime the React Query actor cache (works web + native, no SQLite)
@@ -730,7 +591,7 @@ export const usePostsStore = create<PostsStoreState>()(
           abortController.signal.aborted ||
           !isCurrentViewerStateEpoch(operationEpoch)
         ) return;
-        let processedPosts = response.data.posts?.map((post) => transformToUIItem({ ...post, isSaved: true })) || [];
+        const processedPosts = response.data.posts?.map((post) => toFeedItem(post)) || [];
 
         // Prime the React Query actor cache (works web + native, no SQLite)
         precacheActorsFromPosts(processedPosts);
@@ -792,7 +653,7 @@ export const usePostsStore = create<PostsStoreState>()(
           abortController.signal.aborted ||
           !isCurrentViewerStateEpoch(operationEpoch)
         ) return;
-        const items = response.items?.map((item) => transformToUIItem(item)) || [];
+        const items = response.items?.map((item) => toFeedItem(item)) || [];
 
         // Prime the React Query actor cache (works web + native, no SQLite)
         precacheActorsFromPosts(items);
@@ -804,11 +665,7 @@ export const usePostsStore = create<PostsStoreState>()(
           lastUpdated: Date.now(),
         });
 
-        // Persist related posts
-        for (const item of items) {
-          if (item.original?.id) dbUpsertPost(item.original);
-          if (item.quoted?.id) dbUpsertPost(item.quoted);
-        }
+        persistRelatedPosts(items);
 
         notifyPostChanges(collectWrittenPostIds(items));
         notifyFeedChanges([feedKey]);
@@ -879,7 +736,7 @@ export const usePostsStore = create<PostsStoreState>()(
           !isCurrentViewerStateEpoch(operationEpoch)
         ) return;
 
-        const items = response.items?.map((item) => transformToUIItem(item)) || [];
+        const items = response.items?.map((item) => toFeedItem(item)) || [];
 
         // Prime the React Query actor cache (works web + native, no SQLite)
         precacheActorsFromPosts(items);
@@ -891,11 +748,7 @@ export const usePostsStore = create<PostsStoreState>()(
           totalCount: items.length,
         });
 
-        // Persist related posts
-        for (const item of items) {
-          if (item.original?.id) dbUpsertPost(item.original);
-          if (item.quoted?.id) dbUpsertPost(item.quoted);
-        }
+        persistRelatedPosts(items);
 
         notifyPostChanges(collectWrittenPostIds(items));
         notifyFeedChanges([feedKey]);
@@ -945,10 +798,10 @@ export const usePostsStore = create<PostsStoreState>()(
 
         const rawPost = response.post;
         if (!rawPost) { set({ isLoading: false }); return null; }
-        if (rawPost.metadata.status === 'scheduled') { set({ isLoading: false }); return transformToUIItem(rawPost); }
+        if (rawPost.metadata.status === 'scheduled') { set({ isLoading: false }); return toFeedItem(rawPost); }
 
         const newPost: FeedItem = {
-          ...transformToUIItem(rawPost),
+          ...toFeedItem(rawPost),
           engagement: { replies: 0, boosts: 0, likes: 0, downvotes: 0, saves: 0, views: null, impressions: null },
           isLocalNew: true,
         };
@@ -996,8 +849,8 @@ export const usePostsStore = create<PostsStoreState>()(
         if (!isCurrentViewerStateEpoch(operationEpoch)) return [];
         if (!response.success || !response.posts) { set({ isLoading: false }); return []; }
 
-        const newPosts: FeedItem[] = response.posts.map((post: any) => ({
-          ...transformToUIItem(post),
+        const newPosts: FeedItem[] = response.posts.map((post) => ({
+          ...toFeedItem(post),
           engagement: { replies: 0, boosts: 0, likes: 0, downvotes: 0, saves: 0, views: null, impressions: null },
           isLocalNew: true,
         }));
@@ -1123,7 +976,6 @@ export const usePostsStore = create<PostsStoreState>()(
           previousPost = { ...currentPost };
           get().updatePostEverywhere(postId, (prev) => ({
             ...prev,
-            isBoosted: true,
             viewerState: { ...prev.viewerState, isBoosted: true },
             engagement: { ...prev.engagement, boosts: (prev.engagement.boosts ?? 0) + 1 },
           }));
@@ -1157,7 +1009,6 @@ export const usePostsStore = create<PostsStoreState>()(
           previousPost = { ...currentPost };
           get().updatePostEverywhere(postId, (prev) => ({
             ...prev,
-            isBoosted: false,
             viewerState: { ...prev.viewerState, isBoosted: false },
             engagement: { ...prev.engagement, boosts: Math.max(0, (prev.engagement.boosts ?? 0) - 1) },
           }));
@@ -1193,10 +1044,9 @@ export const usePostsStore = create<PostsStoreState>()(
         const currentPost = dbGetPostById(postId);
         if (currentPost) {
           previousPost = { ...currentPost };
-          if (!currentPost.isLiked) {
+          if (!currentPost.viewerState.isLiked) {
             get().updatePostEverywhere(postId, (prev) => ({
               ...prev,
-              isLiked: true,
               viewerState: { ...prev.viewerState, isLiked: true },
               engagement: { ...prev.engagement, likes: (prev.engagement.likes ?? 0) + 1 },
             }));
@@ -1238,10 +1088,9 @@ export const usePostsStore = create<PostsStoreState>()(
         const currentPost = dbGetPostById(postId);
         if (currentPost) {
           previousPost = { ...currentPost };
-          if (currentPost.isLiked) {
+          if (currentPost.viewerState.isLiked) {
             get().updatePostEverywhere(postId, (prev) => ({
               ...prev,
-              isLiked: false,
               viewerState: { ...prev.viewerState, isLiked: false },
               engagement: { ...prev.engagement, likes: Math.max(0, (prev.engagement.likes ?? 0) - 1) },
             }));
@@ -1283,12 +1132,10 @@ export const usePostsStore = create<PostsStoreState>()(
         const currentPost = dbGetPostById(postId);
         if (currentPost) {
           previousPost = { ...currentPost };
-          if (!currentPost.isDownvoted) {
-            const wasLiked = currentPost.isLiked;
+          if (!currentPost.viewerState.isDownvoted) {
+            const wasLiked = currentPost.viewerState.isLiked;
             get().updatePostEverywhere(postId, (prev) => ({
               ...prev,
-              isLiked: false,
-              isDownvoted: true,
               viewerState: { ...prev.viewerState, isLiked: false, isDownvoted: true },
               engagement: {
                 ...prev.engagement,
@@ -1334,10 +1181,9 @@ export const usePostsStore = create<PostsStoreState>()(
         const currentPost = dbGetPostById(postId);
         if (currentPost) {
           previousPost = { ...currentPost };
-          if (!currentPost.isSaved) {
+          if (!currentPost.viewerState.isSaved) {
             get().updatePostEverywhere(postId, (prev) => ({
               ...prev,
-              isSaved: true,
               viewerState: { ...prev.viewerState, isSaved: true },
               engagement: {
                 ...prev.engagement,
@@ -1383,10 +1229,9 @@ export const usePostsStore = create<PostsStoreState>()(
         const currentPost = dbGetPostById(postId);
         if (currentPost) {
           previousPost = { ...currentPost };
-          if (currentPost.isSaved) {
+          if (currentPost.viewerState.isSaved) {
             get().updatePostEverywhere(postId, (prev) => ({
               ...prev,
-              isSaved: false,
               viewerState: { ...prev.viewerState, isSaved: false },
               engagement: {
                 ...prev.engagement,
@@ -1442,10 +1287,9 @@ export const usePostsStore = create<PostsStoreState>()(
           abortController.signal.aborted ||
           !isCurrentViewerStateEpoch(operationEpoch)
         ) return null;
-        const item = transformToUIItem(response);
+        const item = toFeedItem(response);
         dbUpsertPost(item);
-        if (item.original?.id) dbUpsertPost(item.original);
-        if (item.quoted?.id) dbUpsertPost(item.quoted);
+        persistRelatedPosts([item]);
         notifyPostChanges(collectWrittenPostIds([item]));
         return item;
       } catch (error) {
@@ -1484,11 +1328,10 @@ export const usePostsStore = create<PostsStoreState>()(
           abortController.signal.aborted ||
           !isCurrentViewerStateEpoch(operationEpoch)
         ) return null;
-        const item = transformToUIItem(response);
+        const item = toFeedItem(response);
         if (!isValidId(item.id)) return null;
         dbUpsertPost(item);
-        if (item.original?.id) dbUpsertPost(item.original);
-        if (item.quoted?.id) dbUpsertPost(item.quoted);
+        persistRelatedPosts([item]);
         notifyPostChanges(collectWrittenPostIds([item]));
         return item;
       } catch (error) {
@@ -1511,13 +1354,13 @@ export const usePostsStore = create<PostsStoreState>()(
     // Seed the shared post cache from the memory-mode feed path. Transforms raw
     // feed items into the canonical UI shape (so the detail screen reads the same
     // shape the SQLite path produces) and upserts them — plus any embedded
-    // original/quoted posts — without writing feed_items, so memory mode's own
+    // related posts — without writing feed_items, so memory mode's own
     // ordering in local React state is untouched.
     cachePosts: (posts: (HydratedPost | HydratedPostSummary)[]) => {
       if (!posts || posts.length === 0) return;
 
       const transformed = posts
-        .map((p) => transformToUIItem(p))
+        .map((p) => toFeedItem(p))
         .filter((p) => isValidId(p.id))
         // Defense-in-depth: a `type:'boost'` post has an empty body and is only
         // renderable via its embedded original. If an incoming copy lost that
@@ -1536,10 +1379,7 @@ export const usePostsStore = create<PostsStoreState>()(
       if (transformed.length === 0) return;
 
       dbUpsertPosts(transformed);
-      for (const item of transformed) {
-        if (item.original?.id) dbUpsertPost(item.original);
-        if (item.quoted?.id) dbUpsertPost(item.quoted);
-      }
+      persistRelatedPosts(transformed);
       notifyPostChanges(collectWrittenPostIds(transformed));
     },
 
@@ -1616,7 +1456,7 @@ export const usePostsStore = create<PostsStoreState>()(
       if (!posts || posts.length === 0) return;
 
       const feedKey = buildFeedKey(feedType);
-      const transformed = posts.map((p) => transformToUIItem(p));
+      const transformed = posts.map((p) => toFeedItem(p));
       dbUpsertPosts(transformed);
 
       for (const post of transformed) {

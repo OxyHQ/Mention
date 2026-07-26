@@ -1,5 +1,8 @@
-import { useState, useCallback, useRef, useEffect } from 'react';
-import { MentionData } from '@/components/MentionTextInput';
+import { useState, useCallback, useRef } from 'react';
+import {
+  reconcileMentionData,
+  type MentionData,
+} from '@/utils/mentions';
 import { logger } from '@/lib/logger';
 import {
   ComposerMediaItem,
@@ -14,7 +17,10 @@ import {
 import type { PodcastAttachmentData } from './usePodcastManager';
 import {
   hasVariantWork,
+  draftVariantTextsForItem,
+  MAIN_ITEM_ID,
   serializeVariants,
+  variantTextsForItem,
   type ComposeVariantsState,
 } from '@/utils/composeVariants';
 
@@ -75,11 +81,19 @@ export const useDraftManager = ({
   }) => {
     const shouldShowPollCreator = refs.showPollCreator ||
       (refs.pollOptions.length > 0 && refs.pollOptions.some(opt => opt.trim().length > 0));
+    const languages = serializeVariants(refs.variants);
+    const mainMentions = reconcileMentionData(
+      [
+        refs.postContent,
+        ...variantTextsForItem(refs.variants, MAIN_ITEM_ID),
+      ],
+      refs.mentions,
+    );
 
     return {
       id: refs.currentDraftId || undefined,
       postContent: refs.postContent,
-      languages: serializeVariants(refs.variants),
+      languages,
       mediaIds: refs.mediaIds.map(m => ({ id: m.id, type: m.type })),
       pollOptions: refs.pollOptions || [],
       pollTitle: refs.pollTitle || '',
@@ -118,13 +132,16 @@ export const useDraftManager = ({
           longitude: item.location.longitude,
           address: item.location.address,
         } : null,
-        mentions: item.mentions.map((m: MentionData) => ({
+        mentions: reconcileMentionData(
+          [item.text, ...variantTextsForItem(refs.variants, item.id)],
+          item.mentions,
+        ).map((m: MentionData) => ({
           userId: m.userId,
           handle: m.username,
           name: m.displayName,
         })),
       })),
-      mentions: refs.mentions.map(m => ({
+      mentions: mainMentions.map(m => ({
         userId: m.userId,
         handle: m.username,
         name: m.displayName,
@@ -267,11 +284,19 @@ export const useDraftManager = ({
       }
     });
 
-    const mentionsData = (draft.mentions || []).map((m: any) => ({
+    const postContent = typeof draft.postContent === 'string' ? draft.postContent : '';
+    const mentionCandidates = (draft.mentions || []).map((m: any) => ({
       userId: m.userId,
       username: m.handle,
       displayName: m.name,
     }));
+    const mentionsData = reconcileMentionData(
+      [
+        postContent,
+        ...draftVariantTextsForItem(draft.languages, MAIN_ITEM_ID),
+      ],
+      mentionCandidates,
+    );
 
     const threadItemsData = (draft.threadItems || []).map((item: any) => ({
       ...item,
@@ -279,15 +304,21 @@ export const useDraftManager = ({
         id: m.id || m,
         type: toComposerMediaType(m.type, m.mime || m.contentType),
       })).filter((m: any) => m.id),
-      mentions: (item.mentions || []).map((m: any) => ({
-        userId: m.userId,
-        username: m.handle,
-        displayName: m.name,
-      })),
+      mentions: reconcileMentionData(
+        [
+          typeof item.text === 'string' ? item.text : '',
+          ...draftVariantTextsForItem(draft.languages, String(item.id ?? '')),
+        ],
+        (item.mentions || []).map((m: any) => ({
+          userId: m.userId,
+          username: m.handle,
+          displayName: m.name,
+        })),
+      ),
     }));
 
     onDraftLoad({
-      postContent: draft.postContent || '',
+      postContent,
       mediaIds: mediaIdsData,
       pollOptions: pollOpts,
       pollTitle: draft.pollTitle || '',

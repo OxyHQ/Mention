@@ -17,35 +17,37 @@
  * domain list). Legit remote actors (mastodon.social, threads.net, …) are never
  * matched.
  *
- * It is idempotent and re-runnable (after a clean run nothing matches), pages by
- * a stable ascending `_id` cursor, and prints a scanned/deleted summary plus any
- * `FederatedFollow` rows that still point at a deleted actor URI (those follow
- * relationships reference our own users and likely need manual care — this
- * script does NOT touch them).
+ * It is idempotent and re-runnable (after a clean run nothing matches) and pages
+ * by a stable ascending `_id` cursor. Before deleting each row, a fail-closed
+ * preflight proves there are no known Mention references by actor URI or linked
+ * Oxy user id. Referenced rows are never deleted.
  *
  * Supports `DRY_RUN=1` (or `true`) to report what WOULD be deleted without
  * mutating anything.
  *
  * Runnable as a Fargate one-shot post-deploy:
  *   DRY_RUN=1 node dist/scripts/purgeOwnDomainFederatedActors.js   # preview
- *   node dist/scripts/purgeOwnDomainFederatedActors.js             # delete
+ *   CONFIRM_ADMIN_MUTATION=purgeOwnDomainFederatedActors \
+ *     node dist/scripts/purgeOwnDomainFederatedActors.js           # reviewed delete
  */
 
 import mongoose from 'mongoose';
 import FederatedActor from '../models/FederatedActor';
-import FederatedFollow from '../models/FederatedFollow';
 import { connectToDatabase } from '../utils/database';
 import { isBlockedDomain } from '../connectors/activitypub/constants';
 import { logger } from '../utils/logger';
+import { assertAdminMutationAllowed } from './lib/adminScriptSafety';
+import { assertActorSafeToDelete } from './lib/adminDeletionPreflight';
+import {
+  assertAdminRunComplete,
+  closeAdminScriptResources,
+} from './lib/adminScriptLifecycle';
 
 /** Actors scanned per page (stable `_id` cursor pagination). */
 const PAGE_SIZE = 500;
 
 /** Deletes flushed per `deleteMany` chunk. */
 const DELETE_CHUNK_SIZE = 500;
-
-/** Sample of orphaned-follow URIs to print in the summary. */
-const REFERENCED_SAMPLE_LIMIT = 25;
 
 const DRY_RUN = ['1', 'true', 'yes'].includes((process.env.DRY_RUN || '').trim().toLowerCase());
 
@@ -54,6 +56,7 @@ interface FederatedActorRow {
   uri: string;
   acct: string;
   domain: string;
+  oxyUserId?: string;
 }
 
 /** Hostname of a stored actor URI, lowercased; null when the URI is malformed. */
@@ -79,6 +82,10 @@ async function purgeOwnDomainFederatedActors(): Promise<void> {
   const startedAt = Date.now();
 
   try {
+    assertAdminMutationAllowed({
+      scriptName: 'purgeOwnDomainFederatedActors',
+      dryRun: DRY_RUN,
+    });
     await connectToDatabase();
     logger.info(
       `[purgeOwnDomainFederatedActors] connected to MongoDB${DRY_RUN ? ' — DRY_RUN (no writes)' : ''}`,
@@ -89,7 +96,6 @@ async function purgeOwnDomainFederatedActors(): Promise<void> {
     let deleted = 0;
     let lastId: mongoose.Types.ObjectId | null = null;
     let pendingIds: mongoose.Types.ObjectId[] = [];
-    const deletedUris: string[] = [];
 
     const flush = async (): Promise<void> => {
       if (pendingIds.length === 0) return;
@@ -104,7 +110,10 @@ async function purgeOwnDomainFederatedActors(): Promise<void> {
       const pageFilter: Record<string, unknown> = {};
       if (lastId) pageFilter._id = { $gt: lastId };
 
-      const page = await FederatedActor.find(pageFilter, { _id: 1, uri: 1, acct: 1, domain: 1 })
+      const page = await FederatedActor.find(
+        pageFilter,
+        { _id: 1, uri: 1, acct: 1, domain: 1, oxyUserId: 1 },
+      )
         .sort({ _id: 1 })
         .limit(PAGE_SIZE)
         .lean<FederatedActorRow[]>();
@@ -114,11 +123,14 @@ async function purgeOwnDomainFederatedActors(): Promise<void> {
       for (const row of page) {
         if (isOwnDomainActor(row)) {
           matched += 1;
-          deletedUris.push(row.uri);
-          pendingIds.push(row._id);
-          logger.info(
-            `[purgeOwnDomainFederatedActors] ${DRY_RUN ? 'would delete' : 'deleting'} actor acct=${row.acct} domain=${row.domain} uri=${row.uri}`,
+          await assertActorSafeToDelete(
+            `purgeOwnDomainFederatedActors:${row.acct}`,
+            { oxyUserId: row.oxyUserId, actorUri: row.uri },
           );
+          pendingIds.push(row._id);
+    logger.info('[purgeOwnDomainFederatedActors] matched actor processed', {
+      dryRun: DRY_RUN,
+    });
           if (pendingIds.length >= DELETE_CHUNK_SIZE) {
             await flush();
           }
@@ -131,45 +143,30 @@ async function purgeOwnDomainFederatedActors(): Promise<void> {
 
     await flush();
 
-    // Report follow relationships that still reference a removed actor URI.
-    // These point at our own users and likely need manual care; this script
-    // intentionally does not delete them.
-    let referencedFollows = 0;
-    if (deletedUris.length > 0) {
-      referencedFollows = await FederatedFollow.countDocuments({ remoteActorUri: { $in: deletedUris } });
-      if (referencedFollows > 0) {
-        const sample = await FederatedFollow.find(
-          { remoteActorUri: { $in: deletedUris } },
-          { remoteActorUri: 1, localUserId: 1, direction: 1, status: 1 },
-        )
-          .limit(REFERENCED_SAMPLE_LIMIT)
-          .lean();
-        logger.warn(
-          `[purgeOwnDomainFederatedActors] ${referencedFollows} FederatedFollow row(s) still reference a removed actor URI — review manually (not deleted by this script)`,
-        );
-        for (const follow of sample) {
-          logger.warn(
-            `[purgeOwnDomainFederatedActors]   follow localUserId=${follow.localUserId} ${follow.direction}/${follow.status} → ${follow.remoteActorUri}`,
-          );
-        }
-      }
-    }
-
     const elapsedSeconds = Math.round((Date.now() - startedAt) / 1000);
     logger.info(
-      `[purgeOwnDomainFederatedActors] done${DRY_RUN ? ' (DRY_RUN)' : ''}: scanned ${scanned}, matched ${matched}, deleted ${DRY_RUN ? 0 : deleted}, referencing follows ${referencedFollows} (${elapsedSeconds}s)`,
+      `[purgeOwnDomainFederatedActors] done${DRY_RUN ? ' (DRY_RUN)' : ''}: scanned ${scanned}, matched ${matched}, deleted ${DRY_RUN ? 0 : deleted} (${elapsedSeconds}s)`,
     );
 
-    await mongoose.disconnect();
+    assertAdminRunComplete('purgeOwnDomainFederatedActors', {
+      deleteMismatch: DRY_RUN ? 0 : Math.max(0, matched - deleted),
+    });
   } catch (error) {
     logger.error('[purgeOwnDomainFederatedActors] failed', error);
+    throw error;
+  } finally {
+    await closeAdminScriptResources();
     await mongoose.disconnect();
-    process.exit(1);
   }
 }
 
 if (require.main === module) {
-  purgeOwnDomainFederatedActors();
+  purgeOwnDomainFederatedActors()
+    .then(() => process.exit(0))
+    .catch((error) => {
+      logger.error('[purgeOwnDomainFederatedActors] unhandled failure', error);
+      process.exit(1);
+    });
 }
 
 export default purgeOwnDomainFederatedActors;

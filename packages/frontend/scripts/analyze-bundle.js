@@ -1,6 +1,5 @@
 #!/usr/bin/env bun
-/* global __dirname, process, console, Buffer */
-
+/* global __dirname, Buffer */
 const fs = require("node:fs");
 const path = require("node:path");
 const zlib = require("node:zlib");

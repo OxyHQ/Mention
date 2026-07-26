@@ -54,22 +54,17 @@ import { getServiceOxyClient } from '../utils/oxyHelpers';
 import { resolveVariant } from '../services/postVariants';
 import { PostVisibility } from '@mention/shared-types';
 import { logger } from '../utils/logger';
+import { assertAdminMutationAllowed } from './lib/adminScriptSafety';
+import {
+  assertAdminRunComplete,
+  closeAdminScriptResources,
+} from './lib/adminScriptLifecycle';
 
 /** Default delay between deliveries (ms) — throttles the blast to avoid tripping mastodon.social rate limits. */
 const DEFAULT_DELAY_MS = 2000;
 
 /** Default safety cap on how many posts a single run may scan/update. */
 const DEFAULT_MAX = 500;
-
-/**
- * Grace period to let the awaited-but-detached delivery/enqueue work flush before
- * the process disconnects and exits. `federateUpdate` awaits its follower enqueue,
- * so a short settle is plenty; mirrors the other one-shot federation scripts.
- */
-const DELIVERY_SETTLE_MS = 5000;
-
-/** Characters of the primary body echoed in dry-run / per-post log lines. */
-const SNIPPET_MAX_CHARS = 80;
 
 /** The lean Post shape delivery needs — structurally satisfies `federateUpdate`. */
 type BackfillablePost = NoteSourcePost & { visibility: string };
@@ -105,18 +100,6 @@ function primaryBodyOf(post: BackfillablePost): string {
  */
 function hasMeaningfulLineBreak(post: BackfillablePost): boolean {
   return primaryBodyOf(post).includes('\n');
-}
-
-/** One-line body preview (whitespace collapsed, truncated) for logging. */
-function snippetOf(post: BackfillablePost): string {
-  const collapsed = primaryBodyOf(post).replace(/\s+/g, ' ').trim();
-  return collapsed.length > SNIPPET_MAX_CHARS ? `${collapsed.slice(0, SNIPPET_MAX_CHARS)}…` : collapsed;
-}
-
-/** ISO timestamp for logging, tolerant of a Date or string `createdAt`. */
-function formatCreatedAt(createdAt: string | Date): string {
-  const date = createdAt instanceof Date ? createdAt : new Date(createdAt);
-  return Number.isNaN(date.getTime()) ? String(createdAt) : date.toISOString();
 }
 
 /**
@@ -183,8 +166,12 @@ async function backfillFederatedPostHtml(): Promise<void> {
   const mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/mention';
   const dbName = `mention-${process.env.NODE_ENV || 'development'}`;
 
+  assertAdminMutationAllowed({
+    scriptName: 'backfillFederatedPostHtml',
+    dryRun,
+  });
   await mongoose.connect(mongoUri, { dbName });
-  logger.info(`[backfillFederatedPostHtml] connected to MongoDB (${dbName})`);
+  logger.info('[backfillFederatedPostHtml] connected to MongoDB');
 
   try {
     // Resolve the owner username SERVER-SIDE from the authoritative oxyUserId (the
@@ -193,7 +180,7 @@ async function backfillFederatedPostHtml(): Promise<void> {
     const owner = await getServiceOxyClient().getUserById(targetUserId);
     const username = owner.username?.trim();
     if (!username) {
-      throw new Error(`no resolvable Oxy username for user ${targetUserId}; cannot federate`);
+      throw new Error('Target user has no resolvable Oxy username; cannot federate');
     }
 
     // Respect the owner's fediverse-sharing consent — never blast when sharing is
@@ -201,9 +188,7 @@ async function backfillFederatedPostHtml(): Promise<void> {
     // run is a clear no-op instead of silently dropping every post.)
     const sharingEnabled = await isFediverseSharingEnabled(targetUserId);
     if (!sharingEnabled) {
-      throw new Error(
-        `fediverseSharing is OFF for ${targetUserId} (@${username}); refusing to update posts`,
-      );
+      throw new Error('Fediverse sharing is disabled for the target user');
     }
 
     // Follower inboxes (reporting only). Zero remote inboxes → genuinely nothing to
@@ -211,7 +196,7 @@ async function backfillFederatedPostHtml(): Promise<void> {
     const { followerCount, inboxes } = await resolveFollowerInboxes(targetUserId);
     if (inboxes.length === 0) {
       logger.warn(
-        `[backfillFederatedPostHtml] @${username} (${targetUserId}) has no remote follower inboxes; nothing to update. Done.`,
+        '[backfillFederatedPostHtml] target has no remote follower inboxes; nothing to update',
       );
       return;
     }
@@ -252,11 +237,7 @@ async function backfillFederatedPostHtml(): Promise<void> {
 
     // Header.
     logger.info('[backfillFederatedPostHtml] ===== HTML re-render (Update) plan =====');
-    logger.info(`[backfillFederatedPostHtml] target user:       ${targetUserId} (@${username})`);
     logger.info(`[backfillFederatedPostHtml] remote followers:  ${followerCount} (${inboxes.length} distinct inboxes)`);
-    for (const inbox of inboxes) {
-      logger.info(`[backfillFederatedPostHtml]   inbox: ${inbox}`);
-    }
     logger.info(`[backfillFederatedPostHtml] mode:              ${dryRun ? 'DRY-RUN (sending nothing)' : 'LIVE (delivering)'}`);
     logger.info(`[backfillFederatedPostHtml] delay between:     ${delayMs}ms`);
     logger.info(`[backfillFederatedPostHtml] cap:               ${maxPosts}`);
@@ -271,15 +252,13 @@ async function backfillFederatedPostHtml(): Promise<void> {
 
     for (let i = 0; i < posts.length; i++) {
       const post = posts[i];
-      const postId = String(post._id);
-      const position = `${i + 1}/${posts.length}`;
-      const createdAt = formatCreatedAt(post.createdAt);
-      const snippet = snippetOf(post);
+      const progress = { position: i + 1, total: posts.length };
 
       if (dryRun) {
-        logger.info(
-          `[backfillFederatedPostHtml] [${position}] WOULD update post ${postId} (createdAt=${createdAt}) → ${inboxes.length} inbox(es) | "${snippet}"`,
-        );
+        logger.info('[backfillFederatedPostHtml] post would be updated', {
+          ...progress,
+          inboxes: inboxes.length,
+        });
         continue;
       }
 
@@ -288,28 +267,27 @@ async function backfillFederatedPostHtml(): Promise<void> {
         // `buildUpdateNoteActivity` (with the corrected HTML body) and delivers via
         // `deliverToFollowers`. It re-gates on FEDERATION_ENABLED + sharing +
         // non-boost + PUBLIC internally, so behavior is identical to a real edit.
-        await followService.federateUpdate(post, targetUserId, username);
-        updated += 1;
-        logger.info(
-          `[backfillFederatedPostHtml] [${position}] updated post ${postId} (createdAt=${createdAt}) | "${snippet}"`,
+        await followService.federateUpdate(
+          post,
+          targetUserId,
+          username,
+          { throwOnError: true },
         );
+        updated += 1;
+        logger.info('[backfillFederatedPostHtml] post updated', progress);
       } catch (err) {
         // Count and CONTINUE — one bad post never aborts the whole run.
         failed += 1;
-        const message = err instanceof Error ? err.message : String(err);
-        logger.warn(`[backfillFederatedPostHtml] [${position}] FAILED post ${postId}: ${message}`);
+        logger.warn('[backfillFederatedPostHtml] post update failed', {
+          ...progress,
+          error: err,
+        });
       }
 
       // Throttle between deliveries (never after the last).
       if (i < posts.length - 1) {
         await sleep(delayMs);
       }
-    }
-
-    if (!dryRun && updated > 0) {
-      // Let the awaited-but-detached follower enqueue/delivery work flush before
-      // tearing down the connection.
-      await sleep(DELIVERY_SETTLE_MS);
     }
 
     const elapsedSeconds = Math.round((Date.now() - startedAt) / 1000);
@@ -325,8 +303,13 @@ async function backfillFederatedPostHtml(): Promise<void> {
           `excluded ${excludedNoLineBreak} (no line break), skipped ${cappedSkipped} by cap ` +
           `of ${totalMatched} matched (${elapsedSeconds}s).`,
       );
+      assertAdminRunComplete('backfillFederatedPostHtml', {
+        failed,
+        cappedSkipped,
+      });
     }
   } finally {
+    await closeAdminScriptResources();
     await mongoose.disconnect();
   }
 }

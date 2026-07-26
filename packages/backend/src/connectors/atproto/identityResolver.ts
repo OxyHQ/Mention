@@ -46,7 +46,7 @@ export async function resolveHandleToDid(handle: string): Promise<string | null>
     const res = await xrpcGet<{ did?: string }>(PUBLIC_APPVIEW, 'com.atproto.identity.resolveHandle', { handle });
     if (res?.did && ANY_DID_RE.test(res.did)) return res.did;
   } catch (err) {
-    logger.debug(`[atproto] resolveHandle AppView failed for ${handle}`, err);
+    logger.debug('[atproto] resolveHandle AppView failed', err);
   }
 
   // 2. HTTPS well-known on the handle's own domain (SSRF-safe).
@@ -54,7 +54,7 @@ export async function resolveHandleToDid(handle: string): Promise<string | null>
     const did = await safeGetText(`https://${handle}/.well-known/atproto-did`);
     if (ANY_DID_RE.test(did)) return did;
   } catch (err) {
-    logger.debug(`[atproto] .well-known/atproto-did failed for ${handle}`, err);
+    logger.debug('[atproto] well-known DID lookup failed', err);
   }
 
   // 3. DNS TXT `_atproto.<handle>` — value is `did=<did>`.
@@ -66,7 +66,7 @@ export async function resolveHandleToDid(handle: string): Promise<string | null>
       if (match && ANY_DID_RE.test(match[1])) return match[1];
     }
   } catch (err) {
-    logger.debug(`[atproto] _atproto DNS TXT failed for ${handle}`, err);
+    logger.debug('[atproto] DNS TXT lookup failed', err);
   }
 
   return null;
@@ -106,9 +106,9 @@ export async function resolveDidDocument(did: string): Promise<AtprotoDidDocumen
     }
   } catch (err) {
     if (err instanceof XrpcError) {
-      logger.debug(`[atproto] DID document resolution failed for ${did}: ${err.message}`);
+      logger.debug('[atproto] DID document resolution failed', err);
     } else {
-      logger.debug(`[atproto] DID document resolution error for ${did}`, err);
+      logger.debug('[atproto] DID document resolution error', err);
     }
   }
   return null;

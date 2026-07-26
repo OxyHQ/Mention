@@ -14,22 +14,26 @@ import { upsertCachedUsers, type CacheableUser } from '@oxyhq/services';
 import { queryClient } from '@/lib/queryClient';
 
 /**
- * A post-shaped record carrying embedded actor objects. Intentionally loose —
- * feed responses, hydrated posts, and transformed UI items all satisfy it — so
- * we read the actor fields defensively rather than coupling to one post type.
+ * A post-shaped record carrying actors from the canonical hydration contract.
+ * The input remains runtime-defensive because this function sits at an API/cache
+ * ingestion boundary, but it does not accept alternate identity or relation
+ * field names.
  */
 interface PostWithActors {
   user?: CacheableUser;
-  original?: { user?: CacheableUser } | null;
-  quoted?: { user?: CacheableUser } | null;
-  boostedBy?: CacheableUser;
-  boost?: { actor?: CacheableUser } | null;
+  originalPost?: { user?: CacheableUser } | null;
+  quotedPost?: { user?: CacheableUser } | null;
+  boost?: {
+    actor?: CacheableUser;
+    originalPost?: { user?: CacheableUser } | null;
+  } | null;
 }
 
 /**
  * Extract every embedded actor from a batch of posts and prime React Query.
- * Mirrors the original SQLite priming surface: post author, original/quoted
- * authors, booster, and boost actor.
+ * Extract the post author, the one embedded related-post author, and the boost
+ * actor. Hydration may expose the same related post through `originalPost` and
+ * the more specific quote/boost field, so precedence avoids duplicate upserts.
  */
 export function precacheActorsFromPosts(
   posts: readonly unknown[] | null | undefined,
@@ -40,10 +44,10 @@ export function precacheActorsFromPosts(
   for (const raw of posts) {
     if (!raw || typeof raw !== 'object') continue;
     const p = raw as PostWithActors;
-    if (p.user && (p.user.id || p.user._id)) users.push(p.user);
-    if (p.original?.user) users.push(p.original.user);
-    if (p.quoted?.user) users.push(p.quoted.user);
-    if (p.boostedBy) users.push(p.boostedBy);
+    if (p.user?.id) users.push(p.user);
+    const relatedPost =
+      p.boost?.originalPost ?? p.quotedPost ?? p.originalPost;
+    if (relatedPost?.user) users.push(relatedPost.user);
     if (p.boost?.actor) users.push(p.boost.actor);
   }
 

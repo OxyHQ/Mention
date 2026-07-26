@@ -1,5 +1,5 @@
 import React from 'react';
-import { Path, Line, Polygon } from 'react-native-svg';
+import { Path } from 'react-native-svg';
 import { IconSvg } from '@/assets/icons/IconSvg';
 import { ViewStyle } from 'react-native';
 export const HeartIcon = ({ color = 'currentColor', size = 26, style, className }: { color?: string; size?: number; style?: ViewStyle; className?: string }) => {

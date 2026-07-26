@@ -1,6 +1,8 @@
 import { useQuery } from '@tanstack/react-query';
 import type { ActivityHeatmapDay } from '@oxyhq/bloom/activity-heatmap';
 import { api } from '@/utils/api';
+import { useAuth } from '@oxyhq/services/ui/client';
+import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 
 const ACTIVITY_STALE_TIME = 5 * 60 * 1000; // 5 minutes
 const ACTIVITY_DAYS = 365;
@@ -19,8 +21,9 @@ const ACTIVITY_DAYS = 365;
  * loading, when disabled, or on error — it never surfaces a throw to callers.
  */
 export function usePostActivity(userId?: string): ActivityHeatmapDay[] {
+  const { user } = useAuth();
   const query = useQuery<ActivityHeatmapDay[]>({
-    queryKey: ['postActivity', userId],
+    queryKey: viewerQueryKeys.postActivity(user?.id, userId),
     queryFn: async () => {
       const response = await api.get<{ activity: ActivityHeatmapDay[] }>(
         `/statistics/user/${userId}/activity`,

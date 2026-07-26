@@ -278,8 +278,7 @@ async function buildResolvedInboundMentions(
           anchorMap.set(normalizeActorHref(bridged), resolved.oxyUserId);
         }
       } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        logger.warn(`[Federation] failed to resolve inbound mention ${tag.href}: ${message}`);
+        logger.warn('[Federation] failed to resolve inbound mention', { error: err });
       }
     }),
   );
@@ -382,8 +381,7 @@ export async function resolveInboundMentionsForNotes(
           resolveMentionOxyId(href, fetchOrCreateRemoteActorOxyId),
           options.perActorTimeoutMs,
         ).catch((err) => {
-          const message = err instanceof Error ? err.message : String(err);
-          logger.warn(`[Federation] failed to resolve outbox mention ${href}: ${message}`);
+          logger.warn('[Federation] failed to resolve outbox mention', { error: err });
           return null;
         }),
       ),

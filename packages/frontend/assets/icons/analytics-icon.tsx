@@ -1,5 +1,5 @@
 import React from 'react';
-import { Path, Line, Polygon, Rect } from 'react-native-svg';
+import { Rect } from 'react-native-svg';
 import { IconSvg } from '@/assets/icons/IconSvg';
 import { ViewStyle } from 'react-native';
 export const AnalyticsIcon = ({ color = 'currentColor', size = 26, style, className }: { color?: string; size?: number; style?: ViewStyle; className?: string }) => {

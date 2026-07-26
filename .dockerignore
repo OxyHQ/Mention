@@ -5,6 +5,29 @@ dist
 .github
 *.md
 infrastructure/
+package-lock.json
+**/coverage/
+**/*.tsbuildinfo
+**/.claude/
+
+# Never send local secrets or platform credentials to a Docker builder. Keep
+# examples available to developers without allowing their populated variants
+# into image layers or remote build caches.
+**/.env*
+!**/.env.example
+**/.npmrc
+**/.aws/
+**/.ssh/
+**/credentials/
+**/*credentials*.json
+**/*service-account*.json
+**/google-services.json
+**/*.pem
+**/*.key
+**/*.p8
+**/*.p12
+**/*.jks
+**/*.keystore
 
 # Keep only the frontend manifest needed to validate the full workspace
 # lockfile. Bun's official workspace filters exclude its dependency graph.

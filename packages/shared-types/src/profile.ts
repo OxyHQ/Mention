@@ -2,10 +2,6 @@
  * Profile-related types shared across Mention frontend and backend
  */
 
-import {
-  Timestamps
-} from './common';
-
 export enum ProfileVisibility {
   PUBLIC = 'public',
   PRIVATE = 'private',

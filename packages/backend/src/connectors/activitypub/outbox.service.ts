@@ -38,7 +38,6 @@ import {
   resolvePostIdFromObjectUri,
 } from './helpers';
 import { isAbsoluteHttpUrl, getRemoteHost } from '../shared/url';
-import { materializeFederatedMedia } from '../shared/federatedMedia';
 import { buildAuthorship } from '../../utils/postAuthorship';
 import {
   parseOrderedCollection,
@@ -347,7 +346,9 @@ export class OutboxSyncService {
         },
       },
     );
-    logger.info(`[FedSync] marked outbox unavailable for ${actor.acct}; reason=${reason ?? 'unknown'}`);
+    logger.info('[FedSync] marked outbox unavailable', {
+      result: reason ?? 'unknown',
+    });
   }
 
   async syncOutboxPostsDetailed(
@@ -380,7 +381,10 @@ export class OutboxSyncService {
       // Fetch the outbox collection (signed for authorized-fetch servers)
       const res = await signedFetch(outboxUrl, AP_CONTENT_TYPE);
       if (!res.ok) {
-        logger.info(`[FedSync] outbox fetch failed: ${res.status} ${res.statusText} for ${outboxUrl}`);
+        logger.info('[FedSync] outbox fetch failed', {
+          status: res.status,
+          statusText: res.statusText,
+        });
         return { syncedCount: 0, shouldStampCooldown: false, reason: `outbox-http-${res.status}` };
       }
 
@@ -395,14 +399,20 @@ export class OutboxSyncService {
       const collectionParse = parseOrderedCollection(rawCollection);
       if (!collectionParse.ok) {
         logger.warn(
-          `[FedSync] outbox collection failed validation for ${actor.acct} (${outboxUrl}); aborting sync: ${collectionParse.error.message}`,
+          '[FedSync] outbox collection failed validation; aborting sync',
+          { error: collectionParse.error.message },
         );
         return { syncedCount: 0, shouldStampCooldown: false, reason: 'invalid-collection' };
       }
       // Keep reading raw fields below so every existing field access (including
       // `.loose()` passthrough extensions) behaves identically to before.
       const collection = rawCollection as Record<string, any>;
-      logger.debug(`[FedSync] outbox collection type=${collection.type} totalItems=${collection.totalItems} hasOrderedItems=${!!collection.orderedItems} hasFirst=${!!collection.first}`);
+      logger.debug('[FedSync] parsed outbox collection', {
+        type: collection.type,
+        totalItems: collection.totalItems,
+        hasOrderedItems: Boolean(collection.orderedItems),
+        hasFirst: Boolean(collection.first),
+      });
       const remoteTotalItems = typeof collection.totalItems === 'number' ? collection.totalItems : undefined;
 
       const candidates: OutboxCandidate[] = [];
@@ -447,14 +457,14 @@ export class OutboxSyncService {
 
       const fetchAndProcessPage = async (pageUrl: string, startItemOffset: number): Promise<void> => {
         if (!isSameOriginHttpUrl(pageUrl, outboxUrl)) {
-          logger.info(`[FedSync] rejected cross-origin outbox page for ${actor.acct}: ${pageUrl}`);
+          logger.info('[FedSync] rejected cross-origin outbox page');
           paginationFailed = true;
           nextCursor = undefined;
           return;
         }
 
         if (visitedPageUrls.has(pageUrl)) {
-          logger.info(`[FedSync] outbox pagination loop detected for ${actor.acct} at ${pageUrl}`);
+          logger.info('[FedSync] outbox pagination loop detected');
           paginationFailed = true;
           nextCursor = undefined;
           return;
@@ -469,7 +479,9 @@ export class OutboxSyncService {
         try {
           const pageRes = await signedFetch(pageUrl, AP_CONTENT_TYPE);
           if (!pageRes.ok) {
-            logger.info(`[FedSync] outbox page fetch failed: ${pageRes.status} for ${pageUrl}`);
+            logger.info('[FedSync] outbox page fetch failed', {
+              status: pageRes.status,
+            });
             paginationFailed = true;
             nextCursor = undefined;
             return;
@@ -485,7 +497,8 @@ export class OutboxSyncService {
           const pageParse = parseOrderedCollectionPage(rawPage);
           if (!pageParse.ok) {
             logger.warn(
-              `[FedSync] outbox page failed validation for ${actor.acct} at ${pageUrl}; stopping pagination: ${pageParse.error.message}`,
+              '[FedSync] outbox page failed validation; stopping pagination',
+              { error: pageParse.error.message },
             );
             paginationFailed = true;
             nextCursor = undefined;
@@ -495,7 +508,9 @@ export class OutboxSyncService {
           const pageData = rawPage as Record<string, any>;
           await processPage(pageData, pageUrl, startItemOffset);
         } catch (pageErr) {
-          logger.debug(`[FedSync] outbox pagination error: ${pageErr}`);
+          logger.debug('[FedSync] outbox pagination error', {
+            error: pageErr,
+          });
           paginationFailed = true;
           nextCursor = undefined;
         }
@@ -535,10 +550,13 @@ export class OutboxSyncService {
         }
       }
 
-      logger.debug(`[FedSync] collected ${candidates.length} candidates across ${pagesFetched} fetched pages for ${actor.acct}`);
+      logger.debug('[FedSync] collected outbox candidates', {
+        candidateCount: candidates.length,
+        pagesFetched,
+      });
 
       if (candidates.length === 0) {
-        logger.debug(`[FedSync] no candidate notes found for ${actor.acct}`);
+        logger.debug('[FedSync] no candidate notes found');
         const hasInlineItems = inlineItems.length > 0;
         const hasFirstPage = Boolean(collection.first || collection.next);
         const nonEmptyButNotInspectable = !options.startPageUrl
@@ -634,7 +652,13 @@ export class OutboxSyncService {
         }
       }
 
-      logger.debug(`[FedSync] ${candidates.length} candidates (${noteCandidates.length} notes, ${announceCandidates.length} announces), ${existingIds.size} already exist, actorOxyMap has ${actorOxyMap.size} entries`);
+      logger.debug('[FedSync] classified outbox candidates', {
+        candidateCount: candidates.length,
+        noteCount: noteCandidates.length,
+        announceCount: announceCandidates.length,
+        existingCount: existingIds.size,
+        actorResolutionCount: actorOxyMap.size,
+      });
 
       // NEW notes to import (not deduped) — their mentions are resolved for the
       // build loop below to rewrite each anchor into a `[mention:<id>]` placeholder
@@ -739,7 +763,7 @@ export class OutboxSyncService {
         const resolvedOxyUserId = actorOxyMap.get(actorUri);
         if (!resolvedOxyUserId) {
           logger.info(
-            `[FedSync] skipping outbox note ${activityId}: author ${actorUri} not yet resolved to an Oxy user (no orphan)`,
+            '[FedSync] skipped outbox note whose author is unresolved',
           );
           continue;
         }
@@ -764,7 +788,9 @@ export class OutboxSyncService {
           actorUri: actorUri ?? undefined,
         });
         if (built.skip) {
-          logger.debug(`[FedSync] skipping empty outbox note ${activityId}: ${built.reason}`);
+          logger.debug('[FedSync] skipped empty outbox note', {
+            result: built.reason,
+          });
           continue;
         }
         const { text, media, attachments, hashtags, summary, sensitive, variants } = built;
@@ -896,10 +922,16 @@ export class OutboxSyncService {
               : [];
           const unexpectedErrors = writeErrors.filter((e) => e.err?.code !== 11000);
           if (unexpectedErrors.length > 0) {
-            logger.warn(`[FedSync] insertMany unexpected errors: ${unexpectedErrors.map((e) => e.err?.errmsg).join('; ')}`);
+            logger.warn('[FedSync] insertMany encountered unexpected errors', {
+              count: unexpectedErrors.length,
+              errors: unexpectedErrors.map((entry) => entry.err?.errmsg),
+            });
           }
           if (writeErrors.length > 0 && writeErrors.length < newDocs.length) {
-            logger.debug(`[FedSync] insertMany partial: ${writeErrors.length} errors, ${newDocs.length - writeErrors.length} inserted`);
+            logger.debug('[FedSync] insertMany partially succeeded', {
+              errorCount: writeErrors.length,
+              insertedCount: newDocs.length - writeErrors.length,
+            });
           } else if (writeErrors.length === 0) {
             throw err;
           }
@@ -938,7 +970,9 @@ export class OutboxSyncService {
           }
         } catch (linkErr) {
           const message = linkErr instanceof Error ? linkErr.message : String(linkErr);
-          logger.warn(`[FedSync] failed to link federated reply ${activityId} into its thread: ${message}`);
+          logger.warn('[FedSync] failed to link federated reply into its thread', {
+            error: message,
+          });
         }
       }
 
@@ -969,7 +1003,12 @@ export class OutboxSyncService {
       }
 
       const synced = existingIds.size + newDocs.length + importedBoosts;
-      logger.debug(`Synced ${newDocs.length} new outbox posts and ${importedBoosts} boosts for ${actor.acct} (${existingIds.size} already existed, ${healedMentionCount} mention self-heals)`);
+      logger.debug('[FedSync] completed outbox sync', {
+        insertedCount: newDocs.length,
+        importedBoostCount: importedBoosts,
+        existingCount: existingIds.size,
+        healedMentionCount,
+      });
       return {
         syncedCount: synced,
         shouldStampCooldown: !paginationFailed,
@@ -984,7 +1023,7 @@ export class OutboxSyncService {
         nextCursor,
       };
     } catch (err) {
-      logger.warn(`Failed to sync outbox posts from ${actor.outboxUrl}:`, err);
+      logger.warn('[FedSync] failed to sync outbox posts', err);
       return { syncedCount: 0, shouldStampCooldown: false, reason: 'exception' };
     }
   }
@@ -1104,7 +1143,11 @@ export class OutboxSyncService {
       const activityValid = parseInboundActivity(activity).ok || parseNote(activity).ok;
       if (!activityValid) {
         logger.debug(
-          `[FedSync] skipping malformed outbox item ${index} for ${(activity as { id?: unknown }).id ?? '<no id>'} — failed activity/note validation`,
+          '[FedSync] skipped malformed outbox item',
+          {
+            itemIndex: index,
+            result: 'activity-or-note-validation-failed',
+          },
         );
         continue;
       }
@@ -1129,7 +1172,8 @@ export class OutboxSyncService {
       // malformed note is skipped, never trusted.
       if (!parseNote(note).ok) {
         logger.debug(
-          `[FedSync] skipping malformed outbox note ${(note as { id?: unknown }).id ?? '<no id>'} — failed note validation`,
+          '[FedSync] skipped malformed outbox note',
+          { result: 'note-validation-failed' },
         );
         continue;
       }
@@ -1202,7 +1246,7 @@ export class OutboxSyncService {
     // A boost must be backed by a real, listable user. Without a resolved
     // booster we neither create a record nor move the counter.
     if (!boosterOxyUserId) {
-      logger.info(`[FedSync] skipping boost for announce ${announceId}: unresolved booster`);
+      logger.info('[FedSync] skipped boost from unresolved actor');
       return false;
     }
 
@@ -1216,13 +1260,13 @@ export class OutboxSyncService {
     const originalPostId = (await resolvePostIdFromObjectUri(announcedUri))
       ?? (await this.ensureFederatedNote(announcedUri));
     if (!originalPostId) {
-      logger.info(`[FedSync] could not resolve boosted object ${announcedUri} for announce ${announceId}; skipping boost`);
+      logger.info('[FedSync] skipped boost whose object could not be resolved');
       return false;
     }
 
     const originalPost = await Post.findById(originalPostId, { visibility: 1, status: 1 }).lean();
     if (!originalPost || originalPost.status !== 'published' || originalPost.visibility !== PostVisibility.PUBLIC) {
-      logger.info(`[FedSync] skipping announce ${announceId}: boosted object ${announcedUri} is not public/published`);
+      logger.info('[FedSync] skipped non-public or unpublished boost');
       return false;
     }
 
@@ -1255,7 +1299,9 @@ export class OutboxSyncService {
       // boost — treat as already-imported, not a failure.
       if (isDuplicateKeyError(err)) return false;
       const message = err instanceof Error ? err.message : String(err);
-      logger.warn(`[FedSync] failed to create boost for announce ${announceId}: ${message}`);
+      logger.warn('[FedSync] failed to create boost', {
+        error: message,
+      });
       return false;
     }
 
@@ -1322,7 +1368,8 @@ export class OutboxSyncService {
       if (!allowBackfill) return null;
       if (depth >= MAX_ANCESTOR_DEPTH) {
         logger.warn(
-          `[FedSync] ancestor backfill depth cap (${MAX_ANCESTOR_DEPTH}) reached at ${inReplyToUri}; leaving reply unlinked`,
+          '[FedSync] ancestor backfill depth cap reached; leaving reply unlinked',
+          { maxDepth: MAX_ANCESTOR_DEPTH },
         );
         return null;
       }
@@ -1377,7 +1424,9 @@ export class OutboxSyncService {
 
     const objectGuard = await assertSafePublicUrl(objectUri);
     if (!objectGuard.ok) {
-      logger.info(`[FedSync] rejected unsafe boosted object URL ${objectUri}: ${objectGuard.reason}`);
+      logger.info('[FedSync] rejected unsafe boosted object URL', {
+        result: objectGuard.reason,
+      });
       return null;
     }
 
@@ -1387,13 +1436,15 @@ export class OutboxSyncService {
     const { note } = fetched;
 
     if (!note || (note.type !== 'Note' && note.type !== 'Article')) {
-      logger.info(`[FedSync] boosted object ${objectUri} is not a Note/Article (type=${note?.type}); skipping`);
+      logger.info('[FedSync] skipped unsupported boosted object', {
+        type: note?.type,
+      });
       return null;
     }
 
     const rawContent = typeof note.content === 'string' ? note.content : '';
     if (rawContent.length > FEDERATION_MAX_CONTENT_LENGTH) {
-      logger.info(`[FedSync] boosted object ${objectUri} exceeds max content length; skipping`);
+      logger.info('[FedSync] skipped oversized boosted object');
       return null;
     }
 
@@ -1406,14 +1457,14 @@ export class OutboxSyncService {
     // (outbox import, ancestor backfill), so it skips rather than throwing.
     const authorUri = extractActorUri(note.attributedTo);
     if (!authorUri) {
-      logger.info(`[FedSync] boosted/ancestor object ${objectUri} has no attributable author; skipping (no orphan)`);
+      logger.info('[FedSync] skipped boosted object without an attributable author');
       return null;
     }
     const authorActor = await actorService.getOrFetchActor(authorUri);
     const authorOxyUserId = authorActor?.oxyUserId;
     if (!authorOxyUserId) {
       logger.info(
-        `[FedSync] author ${authorUri} for ${objectUri} not yet resolved to an Oxy user; skipping (no orphan)`,
+        '[FedSync] skipped boosted object whose author is unresolved',
       );
       return null;
     }
@@ -1432,7 +1483,9 @@ export class OutboxSyncService {
       actorUri: authorUri ?? undefined,
     });
     if (built.skip) {
-      logger.debug(`[FedSync] skipping empty boosted/ancestor note ${objectUri}: ${built.reason}`);
+      logger.debug('[FedSync] skipped empty boosted object', {
+        result: built.reason,
+      });
       return null;
     }
     const { media, attachments, hashtags, summary, sensitive, variants } = built;
@@ -1488,7 +1541,9 @@ export class OutboxSyncService {
         return raced ? String(raced._id) : null;
       }
       const message = err instanceof Error ? err.message : String(err);
-      logger.warn(`[FedSync] failed to store boosted note ${objectUri}: ${message}`);
+      logger.warn('[FedSync] failed to store boosted note', {
+        error: message,
+      });
       return null;
     }
   }

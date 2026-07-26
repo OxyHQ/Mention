@@ -22,6 +22,11 @@
       "import": "./dist/post.js",
       "require": "./dist/post.js"
     },
+    "./mentions": {
+      "types": "./dist/mentions.d.ts",
+      "import": "./dist/mentions.js",
+      "require": "./dist/mentions.js"
+    },
     "./feed": {
       "types": "./dist/feed.d.ts",
       "import": "./dist/feed.js",
@@ -87,8 +92,8 @@
     "build": "tsc",
     "dev": "tsc --watch",
     "clean": "rm -rf dist",
-    "lint": "eslint src --ext .ts",
-    "test": "echo \"No tests specified\" && exit 0",
+    "lint": "tsc --noEmit --noUnusedLocals --noUnusedParameters",
+    "test": "bun test",
     "prepublishOnly": "bun run build"
   },
   "keywords": [
@@ -98,7 +103,7 @@
     "mention"
   ],
   "author": "Mention Team",
-  "license": "UNLICENSED",
+  "license": "MIT",
   "dependencies": {
     "@oxyhq/contracts": "^0.17.0",
     "zod": "^4.4.3"

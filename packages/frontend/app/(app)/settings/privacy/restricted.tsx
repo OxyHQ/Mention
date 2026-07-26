@@ -19,8 +19,8 @@ import { OxyAuthPrompt, useAuth } from '@oxyhq/services/ui/client';
 import type { User } from '@oxyhq/core';
 import { queryClient } from '@/lib/queryClient';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
-import ConfirmBottomSheet from '@/components/common/ConfirmBottomSheet';
-import MessageBottomSheet from '@/components/common/MessageBottomSheet';
+import { ConfirmBottomSheet } from '@/components/common/ConfirmBottomSheet';
+import { MessageBottomSheet } from '@/components/common/MessageBottomSheet';
 import { EmptyState } from '@/components/common/EmptyState';
 import { createScopedLogger } from '@/lib/logger';
 import { usePrivacyStore } from '@/stores/privacyStore';
@@ -45,7 +45,6 @@ export default function RestrictedUsersScreen() {
     const safeBack = useSafeBack();
     const {
         user: currentUser,
-        isAuthenticated,
         isAuthResolved,
         canUsePrivateApi,
         isPrivateApiPending,
@@ -81,7 +80,7 @@ export default function RestrictedUsersScreen() {
             restrictedLogger.debug('Loading restricted users...');
             const restrictedUsersList = await oxyServices.getRestrictedUsers();
             restrictedLogger.debug('Oxy response', { count: restrictedUsersList?.length });
-            let userIds = (restrictedUsersList as unknown as Array<Record<string, unknown>>)
+            let userIds = (restrictedUsersList as unknown as Record<string, unknown>[])
                 .map((user) => {
                     const restrictedId = user.restrictedId as string | { _id?: string } | undefined;
                     if (restrictedId) {

@@ -23,7 +23,7 @@ interface MetricDefinition {
   buckets?: readonly number[];
 }
 
-const DEFINITIONS: Record<string, MetricDefinition> = {
+const DEFINITIONS = {
   feed_discovery_gated_total: {
     kind: 'counter',
     help: 'Feed discovery candidates rejected by the discovery gate',
@@ -74,6 +74,11 @@ const DEFINITIONS: Record<string, MetricDefinition> = {
     help: 'HTTP requests by normalized route and result',
     labelNames: ['method', 'route', 'status'],
   },
+  legacy_post_payload_total: {
+    kind: 'counter',
+    help: 'Bounded use of transitional post-create request aliases',
+    labelNames: ['variant'],
+  },
   web_vital_lcp_ms: {
     kind: 'histogram',
     help: 'Real-user Largest Contentful Paint in milliseconds',
@@ -97,7 +102,9 @@ const DEFINITIONS: Record<string, MetricDefinition> = {
     help: 'Bounded browser load, navigation and runtime error events',
     labelNames: ['kind', 'route', 'result'],
   },
-};
+} as const satisfies Record<string, MetricDefinition>;
+
+type MetricName = keyof typeof DEFINITIONS;
 
 const ALLOWED_DESCRIPTORS = new Set([
   'following',
@@ -121,8 +128,14 @@ const ALLOWED_DESCRIPTORS = new Set([
 const ALLOWED_ORIGINS = new Set(['local', 'federated']);
 const ALLOWED_SIGNALS = new Set(['view', 'skip']);
 const ALLOWED_SHADOW = new Set(['true', 'false']);
+const ALLOWED_LEGACY_POST_VARIANTS = new Set([
+  'content-images',
+  'top-level-media',
+  'top-level-text',
+  'content-location-object',
+  'post-location-object',
+]);
 const MAX_SERIES_PER_METRIC = 256;
-const METRIC_NAME_PATTERN = /^[a-zA-Z_:][a-zA-Z0-9_:]*$/;
 const LABEL_VALUE_PATTERN = /^[a-zA-Z0-9_.:-]{1,64}$/;
 const HISTOGRAM_BUCKETS_MS = [5, 10, 25, 50, 100, 250, 500, 1_000, 2_500, 5_000];
 
@@ -165,6 +178,9 @@ function boundedLabelValue(label: string, rawValue: string): string {
   if (label === 'shadow') {
     return ALLOWED_SHADOW.has(value) ? value : 'false';
   }
+  if (label === 'variant') {
+    return ALLOWED_LEGACY_POST_VARIANTS.has(value) ? value : 'other';
+  }
   return LABEL_VALUE_PATTERN.test(value) ? value : 'other';
 }
 
@@ -176,7 +192,6 @@ class MetricsCollector {
   private readonly series = new Map<string, Set<string>>();
   private readonly counterValues = new Map<string, number>();
   private readonly gaugeValues = new Map<string, number>();
-  private readonly histogramValues = new Map<string, number[]>();
 
   constructor() {
     collectDefaultMetrics({
@@ -185,18 +200,12 @@ class MetricsCollector {
     });
   }
 
-  recordLatency(metricName: string, durationMs: number, labels?: MetricLabels): void {
+  recordLatency(metricName: MetricName, durationMs: number, labels?: MetricLabels): void {
     if (!Number.isFinite(durationMs) || durationMs < 0) return;
     const definition = this.definitionFor(metricName, 'histogram');
     const normalized = this.normalizeLabels(metricName, definition, labels);
     const histogram = this.collectorFor(metricName, definition) as Histogram<string>;
     histogram.observe(normalized, durationMs);
-
-    const key = summaryKey(metricName, normalized);
-    const samples = this.histogramValues.get(key) ?? [];
-    samples.push(durationMs);
-    if (samples.length > 1_000) samples.shift();
-    this.histogramValues.set(key, samples);
 
     if (durationMs > 1_000) {
       logger.warn('Slow operation detected', {
@@ -207,7 +216,7 @@ class MetricsCollector {
     }
   }
 
-  incrementCounter(metricName: string, value = 1, labels?: MetricLabels): void {
+  incrementCounter(metricName: MetricName, value = 1, labels?: MetricLabels): void {
     if (!Number.isFinite(value) || value < 0) return;
     const definition = this.definitionFor(metricName, 'counter');
     const normalized = this.normalizeLabels(metricName, definition, labels);
@@ -218,7 +227,7 @@ class MetricsCollector {
     this.counterValues.set(key, (this.counterValues.get(key) ?? 0) + value);
   }
 
-  setGauge(metricName: string, value: number, labels?: MetricLabels): void {
+  setGauge(metricName: MetricName, value: number, labels?: MetricLabels): void {
     if (!Number.isFinite(value)) return;
     const definition = this.definitionFor(metricName, 'gauge');
     const normalized = this.normalizeLabels(metricName, definition, labels);
@@ -227,23 +236,15 @@ class MetricsCollector {
     this.gaugeValues.set(summaryKey(metricName, normalized), value);
   }
 
-  getPercentile(metricName: string, percentile: number, labels?: MetricLabels): number {
-    const definition = this.definitionFor(metricName, 'histogram');
-    const normalized = this.normalizeLabels(metricName, definition, labels, false);
-    const samples = this.histogramValues.get(summaryKey(metricName, normalized));
-    if (!samples?.length) return 0;
-    const sorted = [...samples].sort((a, b) => a - b);
-    const index = Math.max(0, Math.ceil((percentile / 100) * sorted.length) - 1);
-    return sorted[index] ?? 0;
-  }
-
-  getCounter(metricName: string, labels?: MetricLabels): number {
+  /** Test-only synchronous view of a bounded counter series. */
+  getCounter(metricName: MetricName, labels?: MetricLabels): number {
     const definition = this.definitionFor(metricName, 'counter');
     const normalized = this.normalizeLabels(metricName, definition, labels, false);
     return this.counterValues.get(summaryKey(metricName, normalized)) ?? 0;
   }
 
-  getGauge(metricName: string, labels?: MetricLabels): number {
+  /** Test-only synchronous view of a bounded gauge series. */
+  getGauge(metricName: MetricName, labels?: MetricLabels): number {
     const definition = this.definitionFor(metricName, 'gauge');
     const normalized = this.normalizeLabels(metricName, definition, labels, false);
     return this.gaugeValues.get(summaryKey(metricName, normalized)) ?? 0;
@@ -253,67 +254,31 @@ class MetricsCollector {
     return this.registry.metrics();
   }
 
-  getMetricsSummary(): {
-    histograms: Record<string, { p50: number; p95: number; p99: number; avg: number; count: number }>;
-    counters: Record<string, number>;
-    gauges: Record<string, number>;
-  } {
-    const histograms: Record<
-      string,
-      { p50: number; p95: number; p99: number; avg: number; count: number }
-    > = {};
-    for (const [key, values] of this.histogramValues) {
-      const metricName = key.split('{')[0];
-      const sorted = [...values].sort((a, b) => a - b);
-      const percentile = (fraction: number) =>
-        sorted[Math.max(0, Math.ceil(sorted.length * fraction) - 1)] ?? 0;
-      histograms[metricName] = {
-        p50: percentile(0.5),
-        p95: percentile(0.95),
-        p99: percentile(0.99),
-        avg: values.reduce((sum, value) => sum + value, 0) / values.length,
-        count: values.length,
-      };
-    }
-
-    return {
-      histograms,
-      counters: this.collapseSummary(this.counterValues),
-      gauges: this.collapseSummary(this.gaugeValues),
-    };
-  }
-
   reset(): void {
     this.registry.resetMetrics();
     this.counterValues.clear();
     this.gaugeValues.clear();
-    this.histogramValues.clear();
     this.series.clear();
   }
 
-  private collapseSummary(values: Map<string, number>): Record<string, number> {
-    const output: Record<string, number> = {};
-    for (const [key, value] of values) {
-      output[key.split('{')[0]] = value;
+  private definitionFor(
+    metricName: MetricName,
+    expectedKind: MetricKind,
+  ): MetricDefinition {
+    const definition = DEFINITIONS[metricName] as MetricDefinition | undefined;
+    if (!definition) {
+      throw new Error(`Unknown metric: ${String(metricName)}`);
     }
-    return output;
-  }
-
-  private definitionFor(metricName: string, fallbackKind: MetricKind): MetricDefinition {
-    if (!METRIC_NAME_PATTERN.test(metricName)) {
-      throw new Error(`Invalid metric name: ${metricName}`);
+    if (definition.kind !== expectedKind) {
+      throw new Error(
+        `Metric ${metricName} is a ${definition.kind}, not a ${expectedKind}`,
+      );
     }
-    return (
-      DEFINITIONS[metricName] ?? {
-        kind: fallbackKind,
-        help: metricName,
-        labelNames: [],
-      }
-    );
+    return definition;
   }
 
   private normalizeLabels(
-    metricName: string,
+    metricName: MetricName,
     definition: MetricDefinition,
     labels?: MetricLabels,
     registerSeries = true,
@@ -327,7 +292,12 @@ class MetricsCollector {
 
     const key = seriesKey(normalized);
     const knownSeries = this.series.get(metricName) ?? new Set<string>();
-    if (!knownSeries.has(key) && knownSeries.size >= MAX_SERIES_PER_METRIC) {
+    // Reserve the final slot for the collapsed `other` series. Otherwise the
+    // first overflow could create a 257th series before later values converge.
+    if (
+      !knownSeries.has(key) &&
+      knownSeries.size >= MAX_SERIES_PER_METRIC - 1
+    ) {
       for (const label of definition.labelNames) normalized[label] = 'other';
     }
     knownSeries.add(seriesKey(normalized));
@@ -335,7 +305,7 @@ class MetricsCollector {
     return normalized;
   }
 
-  private collectorFor(metricName: string, definition: MetricDefinition): PromMetric {
+  private collectorFor(metricName: MetricName, definition: MetricDefinition): PromMetric {
     const existing = this.collectors.get(metricName);
     if (existing) return existing;
 
@@ -362,29 +332,3 @@ class MetricsCollector {
 }
 
 export const metrics = new MetricsCollector();
-
-export async function measureDuration<T>(
-  metricName: string,
-  operation: () => Promise<T>,
-  labels?: MetricLabels,
-): Promise<T> {
-  const start = Date.now();
-  try {
-    return await operation();
-  } finally {
-    metrics.recordLatency(metricName, Date.now() - start, labels);
-  }
-}
-
-export function measureDurationSync<T>(
-  metricName: string,
-  operation: () => T,
-  labels?: MetricLabels,
-): T {
-  const start = Date.now();
-  try {
-    return operation();
-  } finally {
-    metrics.recordLatency(metricName, Date.now() - start, labels);
-  }
-}

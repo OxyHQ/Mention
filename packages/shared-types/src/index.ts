@@ -14,6 +14,9 @@ export * from './profile';
 // Post types
 export * from './post';
 
+// Canonical mention placeholder parsing and reconciliation
+export * from './mentions';
+
 // Interaction types
 export * from './interaction';
 

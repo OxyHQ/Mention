@@ -21,9 +21,13 @@ module.exports = function(_config) {
       `Invalid EXPO_PUBLIC_ENV "${APP_ENV}". Expected one of: ${VALID_APP_ENVS.join(', ')}`,
     )
   }
-  const IS_TESTFLIGHT = APP_ENV === 'testflight'
-  const IS_PRODUCTION = APP_ENV === 'production'
   const IS_DEV = APP_ENV === 'development'
+  const DEV_HOST = process.env.EXPO_PUBLIC_DEV_HOST?.trim()
+  if (DEV_HOST && !/^[a-zA-Z0-9.-]+$/.test(DEV_HOST)) {
+    throw new Error(
+      'Invalid EXPO_PUBLIC_DEV_HOST. Provide a hostname or IP without a scheme or port.',
+    )
+  }
 
   /**
    * App variant — lets a development build sit next to the production app on the
@@ -91,15 +95,18 @@ return {
                             },
                             IS_DEV && {
                                 scheme: 'http',
-                                host: 'localhost:3001',
+                                host: 'localhost',
+                                port: '3001',
                             },
-                            IS_DEV && {
+                            IS_DEV && DEV_HOST && {
                                 scheme: 'http',
-                                host: '192.168.86.44:3001',
+                                host: DEV_HOST,
+                                port: '3001',
                             },
-                            IS_DEV && {
+                            IS_DEV && DEV_HOST && {
                                 scheme: 'http',
-                                host: '192.168.86.44:3000',
+                                host: DEV_HOST,
+                                port: '3000',
                             },
                             {
                                 scheme: 'https',
@@ -107,9 +114,10 @@ return {
                             },
                             IS_DEV && {
                                 scheme: 'http',
-                                host: 'localhost:3000',
+                                host: 'localhost',
+                                port: '3000',
                             },
-                        ],
+                        ].filter(Boolean),
                         category: ['BROWSABLE', 'DEFAULT'],
                     },
             ],
@@ -201,14 +209,6 @@ return {
                         }
                     }
                 ],
-                [
-                    "expo-camera",
-                    {
-                        cameraPermission: "Allow $(PRODUCT_NAME) to access your camera",
-                        microphonePermission: "Allow $(PRODUCT_NAME) to access your microphone",
-                        recordAudioAndroid: true
-                    }
-                ],
                 "expo-image-picker",
                 "expo-video",
                 "expo-audio",
@@ -265,13 +265,6 @@ return {
                     "expo-notifications",
                     {
                         color: "#ffffff"
-                    }
-                ]);
-                // Add expo-contacts plugin for native platforms only
-                base.push([
-                    "expo-contacts",
-                    {
-                        contactsPermission: "Allow $(PRODUCT_NAME) to access your contacts."
                     }
                 ]);
                 // LiveKit WebRTC plugin for audio spaces

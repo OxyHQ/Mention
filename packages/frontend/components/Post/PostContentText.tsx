@@ -1,9 +1,9 @@
 import React from 'react';
 import { StyleSheet, Text } from 'react-native';
-import LinkifiedText from '../common/LinkifiedText';
+import { LinkifiedText } from '../common/LinkifiedText';
 import { useRouter, usePathname } from 'expo-router';
 import type { PostContent } from '@mention/shared-types';
-import { useAppearanceStore } from '@/store/appearanceStore';
+import { useAppearanceStore } from '@/stores/appearanceStore';
 import { useExpandableText } from '@/hooks/useExpandableText';
 import { useTranslation } from 'react-i18next';
 

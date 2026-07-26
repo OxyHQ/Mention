@@ -1,5 +1,6 @@
+import { config } from '../config';
 import { getRedisClient } from '../utils/redis';
-import { withRedisFallback, ensureRedisConnected } from '../utils/redisHelpers';
+import { withRedisFallback } from '../utils/redisHelpers';
 import { logger } from '../utils/logger';
 
 /**
@@ -24,7 +25,7 @@ import { logger } from '../utils/logger';
 const DWELL_PREFIX = 'dwell:v1:';
 
 /** TTL for a post's dwell aggregate. Rolling window of relevance; 7 days. */
-const DWELL_TTL_SECONDS = Number(process.env.DWELL_AGGREGATE_TTL_SECONDS ?? 7 * 24 * 60 * 60);
+const DWELL_TTL_SECONDS = config.cache.dwellAggregateTtlSeconds;
 
 /**
  * Upper bound on a single dwell sample (ms). Client telemetry is untrusted, so a
@@ -52,8 +53,6 @@ export async function recordDwell(postId: string, durationMs: number): Promise<v
   await withRedisFallback(
     redis,
     async () => {
-      const connected = await ensureRedisConnected(redis);
-      if (!connected) return;
       const key = keyFor(postId);
       const multi = redis.multi();
       multi.hIncrByFloat(key, 'sum', sample);
@@ -86,9 +85,6 @@ export async function getDwellAverages(postIds: string[]): Promise<Map<string, n
   return withRedisFallback(
     redis,
     async () => {
-      const connected = await ensureRedisConnected(redis);
-      if (!connected) return result;
-
       // node-redis queues these on one connection in the same tick (pipelined).
       const rows = await Promise.all(postIds.map((id) => redis.hGetAll(keyFor(id))));
       rows.forEach((row, index) => {

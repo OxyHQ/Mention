@@ -4,7 +4,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
  * Logic self-audit for LeaderElection. We model a single shared Redis key in a
  * plain JS object and back getRedisClient() with a fake that implements the
  * exact subset of node-redis used by LeaderElection: set (NX/PX), eval (the
- * renew + release Lua scripts), ping, and isReady. Two independent
+ * renew + release Lua scripts), and isReady. Two independent
  * LeaderElection instances then contend for the same fake key, proving the
  * cross-task semantics deterministically.
  */
@@ -26,11 +26,6 @@ class FakeRedis {
       return false;
     }
     return true;
-  }
-
-  async ping(): Promise<string> {
-    if (!this.isReady) throw new Error('not ready');
-    return 'PONG';
   }
 
   async set(

@@ -2,6 +2,7 @@ import {
   connectToDatabase,
   type DatabaseConnectionOptions,
 } from '../utils/database';
+import { assertMongoTransactionalTopology } from '../utils/mongoTopology';
 import { runMigrations } from './runner';
 
 /**
@@ -19,5 +20,6 @@ export const MIGRATION_DATABASE_CONNECTION_OPTIONS = Object.freeze({
 
 export async function runMigrationTask(): Promise<void> {
   await connectToDatabase(MIGRATION_DATABASE_CONNECTION_OPTIONS);
+  await assertMongoTransactionalTopology();
   await runMigrations();
 }

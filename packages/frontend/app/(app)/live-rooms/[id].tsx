@@ -13,7 +13,7 @@ import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { Avatar } from '@oxyhq/bloom/avatar';
 import { Loading } from '@oxyhq/bloom/loading';
 import { EmptyState } from '@/components/common/EmptyState';
-import SEO from '@/components/SEO';
+import { SEO } from '@/components/SEO';
 
 import { useTheme } from '@oxyhq/bloom/theme';
 import { useRoomUsers, getDisplayName, getAvatarUrl } from '@/hooks/useRoomUsers';

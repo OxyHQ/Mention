@@ -18,10 +18,11 @@ import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { EmptyState } from '@/components/common/EmptyState';
 import { Error as ErrorComponent } from '@/components/Error';
 import { SuggestedUsers } from '@/components/suggestions/SuggestedUsers';
-import SEO from '@/components/SEO';
+import { SEO } from '@/components/SEO';
 import { ProfileCard } from '@/components/ProfileCard';
 import { pokeService, type PokeUser } from '@/services/pokeService';
 import { formatRelativeTimeLocalized } from '@/utils/dateUtils';
+import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 
 const SENT_PREVIEW_COUNT = 3;
 const SUGGESTED_PREVIEW_COUNT = 5;
@@ -42,7 +43,7 @@ export default function PokesScreen() {
         error: errorReceived,
         refetch: refetchReceived,
     } = useQuery({
-        queryKey: ['pokes', 'received', user?.id],
+        queryKey: viewerQueryKeys.pokes(user?.id, 'received'),
         queryFn: () => pokeService.getReceivedPokes(),
         enabled: canUsePrivateApi,
     });
@@ -52,7 +53,7 @@ export default function PokesScreen() {
         isLoading: loadingSent,
         refetch: refetchSent,
     } = useQuery({
-        queryKey: ['pokes', 'sent', user?.id],
+        queryKey: viewerQueryKeys.pokes(user?.id, 'sent'),
         queryFn: () => pokeService.getSentPokes(),
         enabled: canUsePrivateApi,
     });
@@ -62,15 +63,15 @@ export default function PokesScreen() {
         isLoading: loadingSuggested,
         refetch: refetchSuggested,
     } = useQuery({
-        queryKey: ['pokes', 'suggested', user?.id],
+        queryKey: viewerQueryKeys.pokes(user?.id, 'suggested'),
         queryFn: () => pokeService.getSuggested(),
         enabled: canUsePrivateApi,
     });
 
     const invalidatePokeQueries = useCallback(() => {
-        queryClient.invalidateQueries({ queryKey: ['pokes', 'received'] });
-        queryClient.invalidateQueries({ queryKey: ['pokes', 'sent'] });
-    }, [queryClient]);
+        queryClient.invalidateQueries({ queryKey: viewerQueryKeys.pokes(user?.id, 'received') });
+        queryClient.invalidateQueries({ queryKey: viewerQueryKeys.pokes(user?.id, 'sent') });
+    }, [queryClient, user?.id]);
 
     const pokeMutation = useMutation({
         mutationFn: (userId: string) => pokeService.poke(userId),

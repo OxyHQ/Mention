@@ -1,25 +1,10 @@
 import { type Metadata, type Serializable } from './types'
+import { sanitizeLogMetadata } from './sanitize'
 
 export function prepareMetadata(
   metadata: Metadata,
 ): Record<string, Serializable> {
-  const result: Record<string, Serializable> = {}
-  for (const key of Object.keys(metadata)) {
-    let value = metadata[key]
-    if (value instanceof Error) {
-      value = value.toString()
-    }
-    if (
-      typeof value === 'object' &&
-      value !== null &&
-      Object.keys(value).length === 0 &&
-      value.constructor === Object
-    ) {
-      continue
-    }
-    result[key] = value as Serializable
-  }
-  return result
+  return sanitizeLogMetadata(metadata) as Record<string, Serializable>
 }
 
 export function formatTime(timestamp: number): string {

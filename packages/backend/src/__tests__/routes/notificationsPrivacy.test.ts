@@ -159,3 +159,33 @@ describe('GET /notifications post privacy', () => {
     expect(JSON.stringify(response.body)).not.toContain(RAW_PRIVATE_TEXT);
   });
 });
+
+describe('GET /notifications degraded actor identity', () => {
+  it('uses a neutral actor when the Oxy bulk lookup misses', async () => {
+    mocks.getUsersByIds.mockResolvedValue([]);
+    mocks.hydratePosts.mockResolvedValue([]);
+
+    const response = await request(makeApp()).get('/').expect(200);
+    const actor = response.body.notifications[0].actorId_populated;
+
+    expect(actor).toMatchObject({
+      _id: 'actor-1',
+      username: '',
+      name: { displayName: 'Unknown user' },
+    });
+  });
+
+  it('uses a neutral actor when Oxy is unavailable', async () => {
+    mocks.getUsersByIds.mockRejectedValue(new Error('oxy unavailable'));
+    mocks.hydratePosts.mockResolvedValue([]);
+
+    const response = await request(makeApp()).get('/').expect(200);
+    const actor = response.body.notifications[0].actorId_populated;
+
+    expect(actor).toMatchObject({
+      _id: 'actor-1',
+      username: '',
+      name: { displayName: 'Unknown user' },
+    });
+  });
+});

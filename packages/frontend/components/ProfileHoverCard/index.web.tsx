@@ -339,8 +339,6 @@ function CardContent({
   hide: () => void;
   onPressProfile: () => void;
 }) {
-  const theme = useTheme();
-
   // Bridge an Oxy follow of a federated actor to the ActivityPub layer, the same
   // way the full profile screen does — so following from the hover card actually
   // sends the remote Follow (not just a local Oxy edge).

@@ -167,7 +167,10 @@ export class EndorsementSignalService {
       await this.signalsClient.pushEndorsements(edges);
       await this.markSent(source, sourceId);
     } catch (error) {
-      logger.warn(`[EndorsementSignal] sync failed for ${source}:${sourceId}; left pending:`, error);
+      logger.warn('[EndorsementSignal] sync failed; left pending', {
+        type: source,
+        error,
+      });
       await this.markFailed(source, sourceId, error);
     }
   }
@@ -202,7 +205,10 @@ export class EndorsementSignalService {
       await this.signalsClient.pushEndorsements(edges);
       await this.markSent(source, sourceId);
     } catch (error) {
-      logger.warn(`[EndorsementSignal] membership sync failed for ${source}:${sourceId}; left pending:`, error);
+      logger.warn('[EndorsementSignal] membership sync failed; left pending', {
+        type: source,
+        error,
+      });
       await this.markFailed(source, sourceId, error);
     }
   }
@@ -235,10 +241,16 @@ export class EndorsementSignalService {
     try {
       await this.signalsClient.pushEndorsements(edges);
     } catch (error) {
-      logger.warn(`[EndorsementSignal] removal push failed for ${source}:${sourceId} (best-effort):`, error);
+      logger.warn('[EndorsementSignal] removal push failed', {
+        type: source,
+        error,
+      });
     } finally {
       await EndorsementOutbox.deleteOne({ source, sourceId }).catch((err) => {
-        logger.warn(`[EndorsementSignal] failed to clear outbox row for ${source}:${sourceId}:`, err);
+        logger.warn('[EndorsementSignal] failed to clear outbox row', {
+          type: source,
+          error: err,
+        });
       });
     }
   }

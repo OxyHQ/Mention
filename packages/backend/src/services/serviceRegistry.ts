@@ -12,11 +12,11 @@ import type { CreatePostParams } from './PostCreationService';
  * notes/boosts. Importing one from the other directly would form a CommonJS load
  * cycle (the second module loads while the first is still partially initialized).
  *
- * Instead, each side registers its singleton here at module load, and the other
- * resolves it lazily at call time via the typed accessors below. This pays the
- * cost once (a property read) instead of `require()`-resolving a module on every
- * federation job, and keeps the dependency contract explicit and typed with no
- * `any`.
+ * Instead, each side registers its runtime instance here and the other resolves
+ * it lazily through the typed accessors below. Post creation is registered by
+ * its service module; connector registration is an explicit bootstrap step.
+ * This pays the cost once (a property read) instead of `require()`-resolving a
+ * module on every federation job, and keeps the contract typed with no `any`.
  */
 
 /** The subset of `PostCreationService` a connector depends on. */
@@ -62,8 +62,8 @@ export function registerPostFederator(instance: PostFederator): void {
 
 /**
  * Resolve the registered post-creation singleton. Throws if accessed before
- * `PostCreationService` has been loaded — a programming error, since both
- * services are loaded at server bootstrap before any federation job runs.
+ * `PostCreationService` has been loaded — a programming error, since application
+ * composition loads both services before any federation job runs.
  */
 export function getPostCreator(): PostCreator {
   if (!postCreator) {
@@ -74,9 +74,8 @@ export function getPostCreator(): PostCreator {
 
 /**
  * Resolve the registered federation singleton. Throws if accessed before the
- * connector registry has been loaded — a programming error, since the connectors
- * bootstrap (`import './src/connectors'`) runs at server startup before any post
- * is created.
+ * connector registry has been initialized — a programming error, since runtime
+ * bootstrap registers it before any post can be created.
  */
 export function getPostFederator(): PostFederator {
   if (!postFederator) {

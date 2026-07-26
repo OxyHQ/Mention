@@ -8,7 +8,10 @@ import {
   StoredPostContent,
 } from '@mention/shared-types';
 import {
-  createNotification,
+  mentionTextsFromContent,
+  reconcileMentionIds,
+} from '@mention/shared-types/mentions';
+import {
   createMentionNotifications,
   createBatchNotifications,
   createPostAuthorNotifications,
@@ -313,7 +316,9 @@ class PostCreationService {
       type: derivePostType({ ...params, content }),
       visibility: params.visibility ?? PostVisibility.PUBLIC,
       hashtags: params.hashtags ?? [],
-      mentions: params.mentions ?? [],
+      // Filled from the finalized stored bodies below. Incoming metadata alone
+      // must never create a notification recipient.
+      mentions: [],
       quoteOf: params.quoteOf ?? null,
       boostOf: params.boostOf ?? null,
       parentPostId: params.parentPostId ?? null,
@@ -369,7 +374,12 @@ class PostCreationService {
     this.applyBaselineClassification(postData, params, primaryText);
 
     const primaryLanguage = typeof postData.language === 'string' ? postData.language : undefined;
-    postData.content = this.buildStoredContent(content, inputVariants, primaryLanguage);
+    const storedContent = this.buildStoredContent(content, inputVariants, primaryLanguage);
+    postData.content = storedContent;
+    postData.mentions = reconcileMentionIds(
+      mentionTextsFromContent(storedContent),
+      params.mentions,
+    );
 
     const post = new Post(postData);
     await post.save();

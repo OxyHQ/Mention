@@ -124,6 +124,19 @@ for (const workflowName of workflowNames) {
             `${workflowName}: the immutable MCP task definition must explicitly inject its JWT signing secret`,
           );
         }
+        if (
+          workflowName === "deploy-aws.yml" &&
+          (
+            !source.includes("TASK_SECRET_OVERRIDES_JSON") ||
+            !source.includes(
+              "parameter/oxy/mention/MENTION_MCP_JWT_SECRET",
+            )
+          )
+        ) {
+          failures.push(
+            `${workflowName}: the immutable backend task definition must explicitly inject its MCP JWT verification secret`,
+          );
+        }
       }
 
       if (workflowName === "deploy-frontends.yml") {

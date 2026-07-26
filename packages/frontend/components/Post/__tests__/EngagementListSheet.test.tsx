@@ -2,6 +2,7 @@ import React from 'react';
 import { Text } from 'react-native';
 import TestRenderer, { act } from 'react-test-renderer';
 import type { PostUser } from '@mention/shared-types';
+import EngagementListSheet from '../EngagementListSheet';
 
 /**
  * Regression harness for the "likes/boosts list shows every engager as
@@ -95,9 +96,7 @@ jest.mock('@/components/ProfileCard', () => {
   };
 });
 
-const mockCapturedProfiles: Array<Record<string, unknown>> = [];
-
-import EngagementListSheet from '../EngagementListSheet';
+const mockCapturedProfiles: Record<string, unknown>[] = [];
 
 /** A federated booster with NO display name — must render its @user@domain handle. */
 const federatedEngager: PostUser = {

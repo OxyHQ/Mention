@@ -24,6 +24,7 @@ import PostItem from '@/components/Feed/PostItem';
 import type { HydratedPost } from '@mention/shared-types';
 import { formatCompactNumber } from '@/utils/formatNumber';
 import { FONT_FAMILIES } from '@/styles/typography';
+import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 
 const IS_WEB = Platform.OS === 'web';
 
@@ -50,7 +51,7 @@ const InsightsScreen: React.FC = () => {
     // `user?.id` arrives after SSO restore (fixes the cold-boot miss). Gated on
     // `canUsePrivateApi` since /statistics/* are private endpoints.
     const { data: statistics, isLoading } = useQuery({
-        queryKey: ['statistics', user?.id, selectedPeriod],
+        queryKey: viewerQueryKeys.statistics(user?.id, selectedPeriod),
         queryFn: async () => {
             const [stats, engagementRatios] = await Promise.all([
                 statisticsService.getUserStatistics(selectedPeriod),
@@ -69,7 +70,7 @@ const InsightsScreen: React.FC = () => {
     // Top-post hydration is a dependent query (needs the ids from `statistics`),
     // preserving the original per-section loading spinner.
     const { data: topPostsData = [], isLoading: loadingTopPosts } = useQuery({
-        queryKey: ['statistics-top-posts', user?.id, topPostIds],
+        queryKey: viewerQueryKeys.statisticsTopPosts(user?.id, topPostIds),
         queryFn: async () => {
             const posts = await Promise.all(
                 topPostIds.map((postId) => getPostById(postId).catch(() => null))
@@ -990,61 +991,6 @@ const styles = StyleSheet.create({
     },
     totalLabel: {
         fontSize: 12,
-        fontWeight: '500',
-        fontFamily: FONT_FAMILIES.primary,
-    },
-    // Legacy styles (kept for compatibility)
-    section: {
-        marginBottom: 24,
-    },
-    sectionTitle: {
-        fontSize: 18,
-        fontWeight: '600',
-        marginBottom: 8,
-        fontFamily: FONT_FAMILIES.primary,
-    },
-    engagementContainer: {
-        alignItems: 'center',
-        paddingVertical: 16,
-    },
-    engagementValue: {
-        fontSize: 36,
-        fontWeight: '700',
-        fontFamily: FONT_FAMILIES.primary,
-    },
-    engagementLabel: {
-        fontSize: 14,
-        marginTop: 4,
-        fontFamily: FONT_FAMILIES.primary,
-    },
-    postItem: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        padding: 12,
-        borderRadius: 8,
-        marginBottom: 8,
-    },
-    postRank: {
-        width: 32,
-        alignItems: 'center',
-    },
-    rankNumber: {
-        fontSize: 14,
-        fontWeight: '600',
-        fontFamily: FONT_FAMILIES.primary,
-    },
-    postStats: {
-        flex: 1,
-        flexDirection: 'row',
-        marginLeft: 12,
-    },
-    postStatRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        marginRight: 16,
-    },
-    postStatText: {
-        fontSize: 14,
         fontWeight: '500',
         fontFamily: FONT_FAMILIES.primary,
     },

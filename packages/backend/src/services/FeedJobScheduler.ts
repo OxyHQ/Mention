@@ -224,7 +224,7 @@ export class FeedJobScheduler {
       const updatePromises = activeUsers.slice(0, 50).map(({ userId }) =>
         userPreferenceService.batchUpdatePreferences(userId)
           .catch(error => {
-            logger.warn(`Failed to update preferences for user ${userId}:`, error);
+            logger.warn('Failed to update user preferences', error);
           })
       );
 
@@ -243,7 +243,7 @@ export class FeedJobScheduler {
     try {
       await userPreferenceService.batchUpdatePreferences(userId);
     } catch (error) {
-      logger.error(`Error updating preferences for user ${userId}:`, error);
+      logger.error('Error updating user preferences', error);
     }
   }
 

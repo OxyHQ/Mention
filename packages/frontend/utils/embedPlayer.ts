@@ -12,8 +12,7 @@
  *    the single source of truth shared with the backend settings whitelist.
  */
 
-import { Platform } from 'react-native';
-import { Dimensions } from 'react-native';
+import { Dimensions, Platform } from 'react-native';
 import type { EmbedPlayerSource, EmbedPlayerType, ExternalEmbedPref } from '@mention/shared-types';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');

@@ -39,7 +39,7 @@ export const RegisterPushToken: React.FC = () => {
                     locale: i18next.language,
                 });
                 lastTokenRef.current = token.token;
-            } catch (e) {
+            } catch {
                 logger.warn('Failed to register push token');
             }
         };

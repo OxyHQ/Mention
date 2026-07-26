@@ -11,8 +11,8 @@ import mongoose from 'mongoose';
  * own continuations (those are rendered as the connected spine on the client). For
  * any other parent the query is the single-parent match, unchanged.
  *
- * The controller pulls in the server bootstrap + hydration/Oxy layers; stub those so
- * the test stays pure and never touches a DB or the network. `Post.findById`/
+ * The controller pulls in hydration/Oxy layers; stub those so the test stays
+ * pure and never touches a DB or the network. `Post.findById`/
  * `Post.find` are spied so we can assert on the EXACT Mongo query the controller
  * builds.
  */

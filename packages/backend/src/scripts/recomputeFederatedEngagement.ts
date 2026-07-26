@@ -19,6 +19,7 @@
  * posts were corrected and the total absolute drift removed.
  *
  * Runnable as a Fargate one-shot post-deploy:
+ *   node dist/scripts/recomputeFederatedEngagement.js --dry-run
  *   node dist/scripts/recomputeFederatedEngagement.js
  */
 
@@ -26,6 +27,7 @@ import mongoose from 'mongoose';
 import { Post } from '../models/Post';
 import Like from '../models/Like';
 import { logger } from '../utils/logger';
+import { assertAdminMutationAllowed } from './lib/adminScriptSafety';
 
 /** Posts scanned per page (stable `_id` cursor pagination). */
 const PAGE_SIZE = 500;
@@ -67,10 +69,15 @@ async function recomputeFederatedEngagement(): Promise<void> {
   const startedAt = Date.now();
   const mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/mention';
   const dbName = `mention-${process.env.NODE_ENV || 'development'}`;
+  const dryRun = process.argv.includes('--dry-run');
 
   try {
+    assertAdminMutationAllowed({
+      scriptName: 'recomputeFederatedEngagement',
+      dryRun,
+    });
     await mongoose.connect(mongoUri, { dbName });
-    logger.info(`[recomputeFederatedEngagement] connected to MongoDB (${dbName})`);
+    logger.info('[recomputeFederatedEngagement] connected to MongoDB', { dryRun });
 
     const totalCount = await Post.countDocuments({
       'federation.activityId': { $exists: true, $ne: null },
@@ -84,6 +91,7 @@ async function recomputeFederatedEngagement(): Promise<void> {
     }
 
     let scanned = 0;
+    let changed = 0;
     let updated = 0;
     let totalDriftCorrected = 0;
     let lastId: mongoose.Types.ObjectId | null = null;
@@ -91,6 +99,10 @@ async function recomputeFederatedEngagement(): Promise<void> {
 
     const flush = async (): Promise<void> => {
       if (pendingOps.length === 0) return;
+      if (dryRun) {
+        pendingOps = [];
+        return;
+      }
       const result = await Post.bulkWrite(pendingOps, { ordered: false });
       updated += result.modifiedCount;
       pendingOps = [];
@@ -127,6 +139,7 @@ async function recomputeFederatedEngagement(): Promise<void> {
           Math.abs(current.commentsCount - real.commentsCount);
 
         if (drift > 0) {
+          changed += 1;
           totalDriftCorrected += drift;
           pendingOps.push({
             updateOne: {
@@ -150,7 +163,9 @@ async function recomputeFederatedEngagement(): Promise<void> {
       scanned += page.length;
       lastId = page[page.length - 1]._id;
       logger.info(
-        `[recomputeFederatedEngagement] progress: scanned ${scanned}/${totalCount}, corrected ${updated}, drift removed ${totalDriftCorrected}`,
+        `[recomputeFederatedEngagement] progress: scanned ${scanned}/${totalCount}, ` +
+          `${dryRun ? 'would-correct' : 'corrected'} ${dryRun ? changed : updated}, ` +
+          `drift ${dryRun ? 'found' : 'removed'} ${totalDriftCorrected}`,
       );
     }
 
@@ -158,7 +173,9 @@ async function recomputeFederatedEngagement(): Promise<void> {
 
     const elapsedSeconds = Math.round((Date.now() - startedAt) / 1000);
     logger.info(
-      `[recomputeFederatedEngagement] done: scanned ${scanned}, corrected ${updated} posts, total drift removed ${totalDriftCorrected} (${elapsedSeconds}s)`,
+      `[recomputeFederatedEngagement] done (${dryRun ? 'DRY-RUN' : 'LIVE'}): scanned ${scanned}, ` +
+        `${dryRun ? 'would-correct' : 'corrected'} ${dryRun ? changed : updated} posts, ` +
+        `total drift ${dryRun ? 'found' : 'removed'} ${totalDriftCorrected} (${elapsedSeconds}s)`,
     );
 
     await mongoose.disconnect();

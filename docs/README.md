@@ -1,82 +1,22 @@
-# Mention Documentation
+# Mention documentation
 
-Welcome to the Mention project documentation.
+Current reference documentation:
 
-## Documentation Index
+- [Overview](./index.mdx)
+- [Architecture](./architecture.mdx)
+- [API](./api.mdx)
+- [Compatibility retirement](./COMPATIBILITY_RETIREMENT.md)
+- [Fediverse](./fediverse.mdx)
+- [User mentions](./mentions.md)
+- [Compose intent URLs](./compose-intent.mdx)
+- [Theming](./THEMING.md)
+- [Production deployment](./AWS_DEPLOYMENT.md)
+- [MCP server](../packages/mcp/README.md)
 
-### Core Features
+Start with the repository [README](../README.md) for installation and local
+commands. Package-specific operational details live in the corresponding
+package README.
 
-- **[Mention System Overview](./MENTION_SYSTEM_README.md)**
-  Complete guide to the Instagram-style user mention system, including architecture, components, usage, and backend integration.
-
-- **[Mention Format Specification](./MENTION_FORMAT_FINAL.md)**
-  Final format specification explaining the three-stage transformation (composer → storage → display) for mentions.
-
-- **[Mention Implementation](./MENTION_IMPLEMENTATION_FINAL.md)**
-  Detailed implementation guide for the mention system with code examples and component structure.
-
-- **[Notifications System](./MENTION_NOTIFICATIONS.md)**
-  Comprehensive guide to the notification system, including types, delivery mechanisms, and user interactions.
-
-### Visual Design
-
-- **[Visual Guide](./MENTION_VISUAL_GUIDE.md)**
-  Visual design guide with UI/UX specifications and design patterns.
-
-### Theming System
-
-- **[Theming Guide](./THEMING_REFACTOR_SUMMARY.md)**
-  Complete theming system documentation including implementation details, color schemes, and best practices.
-
-- **[Theme Quick Reference](./THEME_QUICK_REFERENCE.md)**
-  Quick reference guide for developers working with the theming system.
-
-- **[Theming Troubleshooting](./THEMING_TROUBLESHOOTING.md)**
-  Common theming issues and their solutions, debugging tips, and FAQs.
-
-### Compose Feature
-
-- **[Compose Refactoring](./COMPOSE_REFACTORING.md)**
-  Architecture overview, components guide, and documentation for the compose screen modular architecture.
-
-### Federation
-
-- **[Federation (ActivityPub)](../packages/backend/README.md#federation-activitypub--fediverse)**
-  ActivityPub/Fediverse federation setup, endpoints, environment variables, and deployment requirements.
-
-### MCP (Claude / AI connectors)
-
-- **[MCP Server](../packages/mcp/README.md)**
-  Remote Model Context Protocol server at `https://mcp.mention.earth`: Claude Web setup, OAuth, multi-account bundles (`link-account` / `switch-account`), tool catalog, backend routes, AWS deployment, and production checklist.
-
-### Performance & Deployment
-
-- **[Performance Optimizations](./PERFORMANCE_OPTIMIZATIONS.md)**
-  Performance best practices including memoization, React Query, Zustand selectors, FlashList, and monitoring guidelines.
-
-- **[Production deployment](./AWS_DEPLOYMENT.md)**
-  CI-gated AWS/ECS releases for the backend and MCP, plus preview-first Cloudflare Pages promotion for the web export.
-
-## Quick Navigation
-
-### For Developers
-- New to the project? Start with [Mention System Overview](./MENTION_SYSTEM_README.md)
-- Working on theming? Check [Theme Quick Reference](./THEME_QUICK_REFERENCE.md)
-- Need to deploy? See [Production deployment](./AWS_DEPLOYMENT.md)
-- Connecting Claude to Mention? See [MCP Server](../packages/mcp/README.md)
-
-### For Contributors
-- [Theming Guide](./THEMING_REFACTOR_SUMMARY.md) - Complete theming implementation
-- [Performance Optimizations](./PERFORMANCE_OPTIMIZATIONS.md) - Performance best practices
-- [Compose Refactoring](./COMPOSE_REFACTORING.md) - Compose screen architecture
-
-### For Designers
-- [Visual Guide](./MENTION_VISUAL_GUIDE.md) - UI/UX specifications
-- [Mention Format Specification](./MENTION_FORMAT_FINAL.md) - Display format details
-
-## Related Documentation
-
-- [Main README](../README.md) - Project overview and getting started guide
-- [Backend README](../packages/backend/README.md) - API documentation
-- [MCP README](../packages/mcp/README.md) - Claude connector and OAuth
-- [Frontend README](../packages/frontend/README.md) - Frontend package documentation
+Documents under `docs/superpowers/specs` and `docs/superpowers/plans` record
+design decisions and implementation plans. They are historical context, not a
+replacement for the current reference above or for `AGENTS.md`.

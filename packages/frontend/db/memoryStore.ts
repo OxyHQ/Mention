@@ -34,15 +34,7 @@ const feedMeta = new Map<string, FeedMetaData>();
 // ── Id helpers ───────────────────────────────────────────────────
 
 function resolveId(post: FeedItem | null | undefined): string {
-  if (!post) return '';
-  if (post.id) return String(post.id);
-  const legacyId = (post as { _id?: { toString(): string } | string })._id;
-  if (legacyId) {
-    return typeof legacyId === 'object' && typeof legacyId.toString === 'function'
-      ? legacyId.toString()
-      : String(legacyId);
-  }
-  return '';
+  return post?.id ?? '';
 }
 
 // ── Post operations ──────────────────────────────────────────────

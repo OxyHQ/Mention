@@ -9,7 +9,8 @@ import {
 } from '@mention/shared-types/post';
 import type { GroupedNotification } from '@/utils/groupNotifications';
 import type { TRawNotification } from '@/types/validation';
-import { queryKeys } from '@/hooks/useOptimizedQuery';
+import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
+import { NotificationItem } from '../NotificationItem';
 
 /**
  * The collaboration-invite notification row.
@@ -28,6 +29,11 @@ import { queryKeys } from '@/hooks/useOptimizedQuery';
 
 const POST_ID = 'post-1';
 const NOTIF_ID = 'notif-1';
+const VIEWER_ID = 'viewer-1';
+
+jest.mock('@oxyhq/services/ui/client', () => ({
+  useAuth: () => ({ user: { id: 'viewer-1' } }),
+}));
 
 // ── Module boundaries ───────────────────────────────────────────────────────
 
@@ -166,10 +172,6 @@ jest.mock('@/lib/logger', () => ({
   createScopedLogger: () => ({ error: jest.fn(), warn: jest.fn(), info: jest.fn(), debug: jest.fn() }),
 }));
 
-// The mocks above are hoisted, so the component below loads with every boundary
-// already swapped for its double.
-import { NotificationItem } from '../NotificationItem';
-
 // ── Fixtures ────────────────────────────────────────────────────────────────
 
 function viewerState(overrides: Partial<PostViewerState>): PostViewerState {
@@ -267,7 +269,10 @@ async function renderRow(state: PostViewerState): Promise<{
   });
   // Seed the post-detail query the row reads. With the row's 60s staleTime the
   // seeded (fresh) data is served synchronously and `getPostById` is never hit.
-  queryClient.setQueryData(queryKeys.post(POST_ID), collabPost(state));
+  queryClient.setQueryData(
+    viewerQueryKeys.post(VIEWER_ID, POST_ID),
+    collabPost(state),
+  );
 
   let renderer!: TestRenderer.ReactTestRenderer;
   await act(async () => {

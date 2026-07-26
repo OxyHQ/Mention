@@ -34,6 +34,7 @@ import {
   normalizeAuthorship,
 } from '../utils/postAuthorship';
 import { normalizeMentionIds } from '../utils/textProcessing';
+import { degradedActorSummary } from '../utils/degradedActorSummary';
 import {
   readerVariants,
   resolveVariant,
@@ -230,25 +231,9 @@ function toCachedUser(userId: string, userData: OxyUser): CachedUserSummary {
   };
 }
 
-/**
- * The clearly-degraded user emitted when an author cannot be resolved from Oxy
- * (a transient bulk + per-id fetch failure). It carries an EMPTY `username` and
- * a neutral `name.displayName: 'Unknown user'` ON PURPOSE: every renderer derives
- * the `@handle` line and the `/@handle` profile link from a non-empty username
- * (via `getNormalizedUserHandle`), so a momentarily-unresolvable author shows a
- * neutral "Unknown user" with no tappable handle rather than rendering its raw
- * Oxy id as a fake username (the ghost-handle bug). This user is NEVER written to
- * the Redis user-summary cache (see {@link resolveUserSummaries}), so the next
- * hydration re-resolves the real user and the DTO self-heals.
- */
-export function degradedActorSummary(userId: string): PostUser {
-  return {
-    id: userId,
-    username: '',
-    name: { displayName: 'Unknown user' },
-    avatar: null,
-  };
-}
+// Preserve the existing public import path while keeping the placeholder in a
+// dependency-light module that non-hydration surfaces can safely reuse.
+export { degradedActorSummary };
 
 /** A minimal, safe cached value used when an author cannot be resolved from Oxy. */
 function fallbackSummary(userId: string): CachedUserSummary {
@@ -936,7 +921,6 @@ export class PostHydrationService {
         post,
         summary,
         summaryMap,
-        viewerContext,
         collectedPostIds,
         options.publicReferencesOnly === true,
       );
@@ -1843,7 +1827,7 @@ export class PostHydrationService {
     const content = this.buildContent(post, pollMap, viewerContext, resolved, inlineVariants);
     const attachments = this.buildAttachments(post, pollMap, resolved);
     const linkPreviews = linkPreviewMap.get(postId) ?? [];
-    const viewerState = this.buildViewerState(postId, authorId, viewerContext, authorship);
+    const viewerState = this.buildViewerState(postId, viewerContext, authorship);
     const permissions = this.buildPermissions(post, authorId, viewerContext, authorship);
     const authorPrivacy = authorPrivacyMap.get(authorId) ?? { ...DEFAULT_PRIVACY };
     const replierAvatars = recentReplierMap?.get(postId);
@@ -2141,7 +2125,6 @@ export class PostHydrationService {
 
   private buildViewerState(
     postId: string,
-    authorId: string,
     viewerContext: ViewerContext,
     authorship: PostAuthorshipEntry[],
   ): PostViewerState {
@@ -2243,7 +2226,6 @@ export class PostHydrationService {
     post: RawPost,
     summary: HydratedPostSummary,
     summaryMap: Map<string, HydratedPostSummary>,
-    viewerContext: ViewerContext,
     collectedPostIds: Set<string>,
     publicReferencesOnly: boolean,
   ): HydratedPost | null {

@@ -32,12 +32,14 @@
  * window but it is also safe to run after (it only touches legacy `content.space`
  * documents):
  *   DRY_RUN=1 node dist/scripts/migrate-space-to-room.js   # preview
- *   node dist/scripts/migrate-space-to-room.js             # migrate
+ *   CONFIRM_ADMIN_MUTATION=migrateSpaceToRoom \
+ *     node dist/scripts/migrate-space-to-room.js           # reviewed migration
  */
 
 import mongoose from 'mongoose';
 import { connectToDatabase } from '../utils/database';
 import { logger } from '../utils/logger';
+import { assertAdminMutationAllowed } from './lib/adminScriptSafety';
 
 /** Posts scanned per page (stable `_id` cursor pagination). */
 const PAGE_SIZE = 500;
@@ -139,6 +141,10 @@ async function migrateSpaceToRoom(): Promise<void> {
   const startedAt = Date.now();
 
   try {
+    assertAdminMutationAllowed({
+      scriptName: 'migrateSpaceToRoom',
+      dryRun: DRY_RUN,
+    });
     await connectToDatabase();
     logger.info(
       `[migrate-space-to-room] connected to MongoDB${DRY_RUN ? ' — DRY_RUN (no writes)' : ''}`,
@@ -234,7 +240,12 @@ async function migrateSpaceToRoom(): Promise<void> {
 }
 
 if (require.main === module) {
-  migrateSpaceToRoom();
+  migrateSpaceToRoom()
+    .then(() => process.exit(0))
+    .catch((error) => {
+      logger.error('[migrate-space-to-room] unhandled failure', error);
+      process.exit(1);
+    });
 }
 
 export default migrateSpaceToRoom;

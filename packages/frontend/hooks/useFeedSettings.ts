@@ -39,7 +39,7 @@ export const DEFAULT_FEED_SETTINGS: FeedSettings = {
  * Hook to load and update current user's feed settings
  */
 export function useFeedSettings() {
-  const { isAuthenticated, isAuthResolved, canUsePrivateApi, isPrivateApiPending, user } = useAuth();
+  const { isAuthResolved, canUsePrivateApi, isPrivateApiPending, user } = useAuth();
   const viewerId = user?.id;
   const [settings, setSettings] = useState<FeedSettings | null>(null);
   const [loading, setLoading] = useState(true);
@@ -89,12 +89,9 @@ export function useFeedSettings() {
     } finally {
       setLoading(false);
     }
-    // `isAuthenticated` is a dependency so the per-user feed settings load when
-    // the auth session resolves on cold boot; the driving effect re-runs when
-    // this callback's identity changes. The settings are scoped to the
-    // signed-in user, so the anonymous-window fetch must be replaced once the
-    // session lands.
-  }, [canUsePrivateApi, isAuthResolved, isAuthenticated, isPrivateApiPending]);
+    // Auth readiness changes rebuild this callback, replacing the cold-boot
+    // anonymous window with the viewer-scoped read once the token is usable.
+  }, [canUsePrivateApi, isAuthResolved, isPrivateApiPending]);
 
   const updateSettings = useCallback(async (updates: Partial<FeedSettings>): Promise<void> => {
     if (!canUsePrivateApi) {
@@ -143,8 +140,6 @@ export function useFeedSettings() {
     reloadSettings: loadSettings,
   };
 }
-
-
 
 
 

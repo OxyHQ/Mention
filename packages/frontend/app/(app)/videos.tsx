@@ -19,13 +19,13 @@ import { proxyExternalUrl, videoPosterUrl } from '@/utils/imageUrlCache';
 import { SpinnerIcon } from '@oxyhq/bloom/loading';
 import { Avatar } from '@oxyhq/bloom/avatar';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
-import SEO from '@/components/SEO';
+import { SEO } from '@/components/SEO';
 import { EmptyState } from '@/components/common/EmptyState';
 import { Video } from '@/assets/icons/video-icon';
 import { formatCompactNumber } from '@/utils/formatNumber';
 import { getNormalizedUserHandle } from '@oxyhq/core';
 import { cn } from '@/lib/utils';
-import type { PostUser } from '@mention/shared-types';
+import type { HydratedPost } from '@mention/shared-types';
 import { readMediaDurationSec } from '@/utils/mediaTypes';
 import { LinkifiedText } from '@/components/common/LinkifiedText';
 import { useIsRightBarVisible } from '@/hooks/useOptimizedMediaQuery';
@@ -143,29 +143,7 @@ interface MediaRef {
     aspectRatio?: number;
 }
 
-interface RawPost {
-    id?: string;
-    _id?: string;
-    user?: VideoPost['user'];
-    content?: { text?: string; media?: MediaRef[] };
-    videoUrl?: string;
-    stats?: VideoPost['stats'];
-    isLiked?: boolean;
-    isBoosted?: boolean;
-    isSaved?: boolean;
-    createdAt?: string;
-}
-
-interface VideoPost {
-    id: string;
-    // The already-hydrated author DTO — the canonical Oxy `User` shape
-    // (`name.displayName`, `avatar` file id, `username`, `verified`). Read straight
-    // off the backend contract — never a re-invented parallel shape.
-    user?: PostUser;
-    content: {
-        text?: string;
-        media?: MediaRef[];
-    };
+interface VideoPost extends HydratedPost {
     videoUrl: string;
     // The raw (non-HLS) original URL, always playable. `videoUrl` prefers the
     // adaptive HLS stream when present; `ActiveVideoSurface` retries with this
@@ -174,15 +152,6 @@ interface VideoPost {
     posterUrl?: string;
     /** Persisted duration from content.media[] (seconds); seeds scrubber before player metadata loads. */
     durationSec?: number;
-    stats: {
-        likesCount: number;
-        boostsCount: number;
-        commentsCount: number;
-        viewsCount: number;
-    };
-    isLiked?: boolean;
-    isBoosted?: boolean;
-    isSaved?: boolean;
     createdAt: string;
 }
 
@@ -643,10 +612,10 @@ const VideoItem = memo<VideoItemProps>(({
 
     // Like-only handler for the double-tap gesture — never unlikes.
     const handleDoubleTapLike = useCallback(() => {
-        if (!item.isLiked) {
+        if (!item.viewerState.isLiked) {
             onLike(item.id, false);
         }
-    }, [item.id, item.isLiked, onLike]);
+    }, [item.id, item.viewerState.isLiked, onLike]);
 
     const canRenderPlayer = isNear && !videoError && item.videoUrl.length > 0;
     // Actions + follow always overlay the video, on every breakpoint — desktop
@@ -673,7 +642,7 @@ const VideoItem = memo<VideoItemProps>(({
                     onError={handleError}
                     t={t}
                     theme={theme}
-                    isLiked={item.isLiked || false}
+                    isLiked={item.viewerState.isLiked}
                     onLikePost={handleDoubleTapLike}
                 />
             ) : (
@@ -773,25 +742,25 @@ const VideoItem = memo<VideoItemProps>(({
                 {showOnVideoActions && (
                     <View style={styles.rightActions} pointerEvents="box-none">
                         <ActionButton
-                            icon={item.isLiked ? 'heart' : 'heart-outline'}
-                            count={item.stats?.likesCount || 0}
-                            isActive={item.isLiked}
+                            icon={item.viewerState.isLiked ? 'heart' : 'heart-outline'}
+                            count={item.engagement.likes ?? 0}
+                            isActive={item.viewerState.isLiked}
                             activeColor={LIKE_ACTIVE_COLOR}
-                            onPress={() => onLike(item.id, item.isLiked || false)}
+                            onPress={() => onLike(item.id, item.viewerState.isLiked)}
                             formatCompactNumber={formatCompactNumber}
                         />
                         <ActionButton
                             icon="chatbubble-outline"
-                            count={item.stats?.commentsCount || 0}
+                            count={item.engagement.replies ?? 0}
                             onPress={() => onComment(item.id)}
                             formatCompactNumber={formatCompactNumber}
                         />
                         <ActionButton
-                            icon={item.isBoosted ? 'repeat' : 'repeat-outline'}
-                            count={item.stats?.boostsCount || 0}
-                            isActive={item.isBoosted}
+                            icon={item.viewerState.isBoosted ? 'repeat' : 'repeat-outline'}
+                            count={item.engagement.boosts ?? 0}
+                            isActive={item.viewerState.isBoosted}
                             activeColor={BOOST_ACTIVE_COLOR}
-                            onPress={() => onBoost(item.id, item.isBoosted || false)}
+                            onPress={() => onBoost(item.id, item.viewerState.isBoosted)}
                             formatCompactNumber={formatCompactNumber}
                         />
                         <ActionButton
@@ -804,7 +773,7 @@ const VideoItem = memo<VideoItemProps>(({
                         <View style={styles.viewCount} pointerEvents="none">
                             <Ionicons name="eye-outline" size={26} color="white" style={styles.actionIcon} />
                             <Text style={styles.actionCount}>
-                                {formatCompactNumber(item.stats?.viewsCount || 0)}
+                                {formatCompactNumber(item.engagement.views ?? 0)}
                             </Text>
                         </View>
                     </View>
@@ -994,10 +963,11 @@ export default function VideosScreen() {
         return videoPosterUrl(raw, oxyServices);
     }, [oxyServices]);
 
-    // Build a VideoPost from a raw post, selecting the requested video. Posts
-    // that merely CONTAIN a video qualify (multi-video, or a video among images).
-    const toVideoPost = useCallback((post: RawPost, preferredMediaIndex?: number): VideoPost | null => {
-        const media = post?.content?.media || [];
+    // Build a VideoPost from a canonical hydrated post, selecting the requested
+    // video. Posts that merely CONTAIN a video qualify (multi-video, or a video
+    // among images).
+    const toVideoPost = useCallback((post: HydratedPost, preferredMediaIndex?: number): VideoPost | null => {
+        const media: MediaRef[] = post.content.media ?? post.attachments.media ?? [];
         if (media.length === 0) return null;
 
         let selected: MediaRef | undefined;
@@ -1017,16 +987,9 @@ export default function VideosScreen() {
         const rawFallback = resolveFallbackVideoUrl(selected);
         const fallbackVideoUrl = rawFallback && rawFallback !== videoUrl ? rawFallback : undefined;
 
-        const id = post?.id || post?._id;
-        if (!id) return null;
-
         return {
             ...post,
-            id: String(id),
-            user: post.user,
-            content: post.content || {},
-            stats: post.stats || { likesCount: 0, boostsCount: 0, commentsCount: 0, viewsCount: 0 },
-            createdAt: post.createdAt || '',
+            createdAt: post.metadata.createdAt,
             videoUrl,
             fallbackVideoUrl,
             posterUrl: resolvePosterUrl(selected),
@@ -1034,7 +997,7 @@ export default function VideosScreen() {
         };
     }, [resolveVideoUrl, resolveFallbackVideoUrl, resolvePosterUrl]);
 
-    const filterVideoPosts = useCallback((allPosts: RawPost[]): VideoPost[] => {
+    const filterVideoPosts = useCallback((allPosts: HydratedPost[]): VideoPost[] => {
         const out: VideoPost[] = [];
         for (const post of allPosts) {
             const vp = toVideoPost(post);
@@ -1072,7 +1035,7 @@ export default function VideosScreen() {
 
             // The `following` descriptor returns all post types; both paths run
             // through filterVideoPosts so only video posts reach the reel.
-            const videoPosts = filterVideoPosts((response.items || []) as unknown as RawPost[]);
+            const videoPosts = filterVideoPosts(response.items ?? []);
             const newPosts = videoPosts.filter(p => !shownIdsRef.current.has(p.id));
 
             if (newPosts.length > 0) {
@@ -1302,7 +1265,17 @@ export default function VideosScreen() {
             }
             setPosts(prev => prev.map(p =>
                 p.id === postId
-                    ? { ...p, isLiked: !isLiked, stats: { ...p.stats, likesCount: isLiked ? p.stats.likesCount - 1 : p.stats.likesCount + 1 } }
+                    ? {
+                        ...p,
+                        viewerState: { ...p.viewerState, isLiked: !isLiked },
+                        engagement: {
+                            ...p.engagement,
+                            likes: Math.max(
+                                0,
+                                (p.engagement.likes ?? 0) + (isLiked ? -1 : 1),
+                            ),
+                        },
+                    }
                     : p
             ));
         } catch {
@@ -1313,7 +1286,13 @@ export default function VideosScreen() {
     const handleCommentPosted = useCallback((postId: string) => {
         setPosts(prev => prev.map(p =>
             p.id === postId
-                ? { ...p, stats: { ...p.stats, commentsCount: p.stats.commentsCount + 1 } }
+                ? {
+                    ...p,
+                    engagement: {
+                        ...p.engagement,
+                        replies: (p.engagement.replies ?? 0) + 1,
+                    },
+                }
                 : p
         ));
     }, []);
@@ -1345,7 +1324,17 @@ export default function VideosScreen() {
             }
             setPosts(prev => prev.map(p =>
                 p.id === postId
-                    ? { ...p, isBoosted: !isBoosted, stats: { ...p.stats, boostsCount: isBoosted ? p.stats.boostsCount - 1 : p.stats.boostsCount + 1 } }
+                    ? {
+                        ...p,
+                        viewerState: { ...p.viewerState, isBoosted: !isBoosted },
+                        engagement: {
+                            ...p.engagement,
+                            boosts: Math.max(
+                                0,
+                                (p.engagement.boosts ?? 0) + (isBoosted ? -1 : 1),
+                            ),
+                        },
+                    }
                     : p
             ));
         } catch {

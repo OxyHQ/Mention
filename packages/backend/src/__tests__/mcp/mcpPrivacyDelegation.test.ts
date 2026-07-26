@@ -2,7 +2,7 @@ import express from 'express';
 import request from 'supertest';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-process.env.MENTION_MCP_JWT_SECRET = 'test-mcp-privacy-secret';
+process.env.MENTION_MCP_JWT_SECRET = 'test-mcp-privacy-secret-that-is-at-least-32-bytes';
 process.env.MENTION_MCP_PUBLIC_URL = 'https://mcp.mention.earth';
 
 const mocks = vi.hoisted(() => ({

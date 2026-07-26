@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
-  isRedisConnected: vi.fn(),
+  redisReady: true,
+  ping: vi.fn(),
   lPush: vi.fn(),
   lTrim: vi.fn(),
   multiLRange: vi.fn(),
@@ -27,8 +28,9 @@ function makeMulti() {
 }
 
 vi.mock('../../utils/redis', () => ({
-  isRedisConnected: () => mocks.isRedisConnected(),
   getRedisClient: () => ({
+    isReady: mocks.redisReady,
+    ping: mocks.ping,
     lPush: mocks.lPush,
     lTrim: mocks.lTrim,
     multi: () => makeMulti(),
@@ -50,7 +52,7 @@ function makeService() {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mocks.isRedisConnected.mockResolvedValue(true);
+  mocks.redisReady = true;
   mocks.lPush.mockResolvedValue(1);
   mocks.lTrim.mockResolvedValue('OK');
   mocks.multiExec.mockResolvedValue([[], 'OK']);
@@ -72,6 +74,7 @@ describe('AffinityEventService.record', () => {
 
     // Buffer capped to [0, MAX-1] on every push.
     expect(mocks.lTrim).toHaveBeenCalledWith(AFFINITY_BUFFER_KEY, 0, AFFINITY_BUFFER_MAX_LEN - 1);
+    expect(mocks.ping).not.toHaveBeenCalled();
   });
 
   it('skips self-interactions (from === to) without touching Redis', async () => {
@@ -79,7 +82,7 @@ describe('AffinityEventService.record', () => {
     const ok = await service.record({ fromUserId: 'a', toUserId: 'a', type: 'like' });
 
     expect(ok).toBe(false);
-    expect(mocks.isRedisConnected).not.toHaveBeenCalled();
+    expect(mocks.ping).not.toHaveBeenCalled();
     expect(mocks.lPush).not.toHaveBeenCalled();
   });
 
@@ -90,12 +93,13 @@ describe('AffinityEventService.record', () => {
     expect(mocks.lPush).not.toHaveBeenCalled();
   });
 
-  it('no-ops when Redis is not connected', async () => {
-    mocks.isRedisConnected.mockResolvedValue(false);
+  it('no-ops when Redis is not ready without pinging it', async () => {
+    mocks.redisReady = false;
     const service = makeService();
     const ok = await service.record({ fromUserId: 'a', toUserId: 'b', type: 'like' });
 
     expect(ok).toBe(false);
+    expect(mocks.ping).not.toHaveBeenCalled();
     expect(mocks.lPush).not.toHaveBeenCalled();
   });
 
@@ -128,6 +132,7 @@ describe('AffinityEventService.drainOnce', () => {
     const events = mocks.pushEvents.mock.calls[0][0];
     expect(events).toHaveLength(2);
     expect(events[0]).toMatchObject({ fromUserId: 'a', toUserId: 'b', type: 'like' });
+    expect(mocks.ping).not.toHaveBeenCalled();
   });
 
   it('returns 0 and never calls pushEvents when the buffer is empty', async () => {
@@ -138,11 +143,12 @@ describe('AffinityEventService.drainOnce', () => {
     expect(mocks.pushEvents).not.toHaveBeenCalled();
   });
 
-  it('no-ops when Redis is not connected', async () => {
-    mocks.isRedisConnected.mockResolvedValue(false);
+  it('no-ops when Redis is not ready without pinging it', async () => {
+    mocks.redisReady = false;
     const service = makeService();
 
     expect(await service.drainOnce()).toBe(0);
+    expect(mocks.ping).not.toHaveBeenCalled();
     expect(mocks.multiExec).not.toHaveBeenCalled();
     expect(mocks.pushEvents).not.toHaveBeenCalled();
   });

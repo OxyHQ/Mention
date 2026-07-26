@@ -17,40 +17,115 @@ export const ZActor = z.object({
 // derive the handle via `getNormalizedUserHandle`, and resolve `avatar` (a bare
 // Oxy file id OR absolute remote URL) through Bloom's ImageResolver. No flat
 // `displayName` / `handle` / `avatarUrl` shims.
-export const ZEmbeddedUser = z.object({
-  id: z.string().optional(),
+const embeddedUserShape = {
+  id: z.string(),
   username: z.string().optional(),
-  name: z.object({ displayName: z.string().optional() }).partial().optional(),
+  name: z.object({ displayName: z.string().optional() }).passthrough(),
   avatar: z.string().nullable().optional(),
   verified: z.boolean().optional(),
   isFederated: z.boolean().optional(),
   instance: z.string().optional(),
-  federation: z.object({ domain: z.string().optional() }).partial().optional(),
-});
+  federation: z.object({ domain: z.string().optional() }).passthrough().optional(),
+  badges: z.array(z.string()).optional(),
+};
 
-// Embedded post object shape (loose to be resilient)
-export const ZEmbeddedPost = z.object({
-  id: z.string(),
-  user: ZEmbeddedUser,
-  content: z
-    .union([
-      z.object({ text: z.string().optional() }).passthrough(),
-      z.string(),
-    ])
-    .optional(),
-  date: z.any().optional(),
-  engagement: z
-    .object({
-      replies: z.number().optional(),
-      boosts: z.number().optional(),
-      likes: z.number().optional(),
-    })
-    .optional(),
-  isLiked: z.boolean().optional(),
-  isBoosted: z.boolean().optional(),
-  isSaved: z.boolean().optional(),
-  isThread: z.boolean().optional(),
-});
+export const ZEmbeddedUser = z
+  .object(embeddedUserShape)
+  .passthrough()
+  .superRefine((user, context) => {
+    for (const field of ['handle', 'avatarUrl', 'isVerified'] as const) {
+      if (field in user) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `Legacy identity field "${field}" is not allowed`,
+          path: [field],
+        });
+      }
+    }
+  });
+
+const ZEmbeddedAuthor = z
+  .object({
+    ...embeddedUserShape,
+    role: z.enum(['owner', 'collaborator']),
+    status: z.enum(['pending', 'accepted', 'declined', 'stopped']),
+  })
+  .passthrough()
+  .superRefine((author, context) => {
+    for (const field of ['handle', 'avatarUrl', 'isVerified'] as const) {
+      if (field in author) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `Legacy identity field "${field}" is not allowed`,
+          path: [field],
+        });
+      }
+    }
+  });
+
+// Embedded posts are hydrated by PostHydrationService. Keep the validator
+// aligned with that canonical contract so old identity/viewer shims cannot
+// silently re-enter through notifications.
+export const ZEmbeddedPost = z
+  .object({
+    id: z.string(),
+    user: ZEmbeddedUser,
+    authors: z.array(ZEmbeddedAuthor),
+    content: z.object({ text: z.string().optional() }).passthrough(),
+    attachments: z.object({}).passthrough(),
+    linkPreviews: z.array(z.object({ url: z.string() }).passthrough()).optional(),
+    engagement: z
+      .object({
+        replies: z.number().nullable(),
+        boosts: z.number().nullable(),
+        likes: z.number().nullable(),
+        downvotes: z.number().nullable(),
+        saves: z.number().nullable().optional(),
+        views: z.number().nullable().optional(),
+        impressions: z.number().nullable().optional(),
+      })
+      .passthrough(),
+    viewerState: z
+      .object({
+        isOwner: z.boolean(),
+        isCollaborator: z.boolean(),
+        isLiked: z.boolean(),
+        isDownvoted: z.boolean(),
+        isBoosted: z.boolean(),
+        isSaved: z.boolean(),
+        collabInvitePending: z.boolean().optional(),
+        viewerRole: z.enum(['owner', 'collaborator']).optional(),
+      })
+      .passthrough(),
+    permissions: z
+      .object({
+        canReply: z.boolean(),
+        canDelete: z.boolean(),
+        canPin: z.boolean(),
+        canViewSources: z.boolean(),
+      })
+      .passthrough(),
+    metadata: z
+      .object({
+        visibility: z.string(),
+        createdAt: z.string(),
+        updatedAt: z.string(),
+      })
+      .passthrough(),
+    parentPostId: z.string().optional(),
+  })
+  .passthrough()
+  .superRefine((post, context) => {
+    for (const field of ['isLiked', 'isDownvoted', 'isBoosted', 'isSaved'] as const) {
+      if (field in post) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `Legacy viewer field "${field}" is not allowed`,
+          path: [field],
+        });
+      }
+    }
+  });
 
 // Raw notification as received from API
 export const ZRawNotification = z
@@ -73,7 +148,7 @@ export const ZRawNotification = z
 export type TEmbeddedPost = z.infer<typeof ZEmbeddedPost>;
 export type TRawNotification = z.infer<typeof ZRawNotification>;
 
-export const validateNotifications = (items: any[]): TRawNotification[] => {
+export const validateNotifications = (items: unknown): TRawNotification[] => {
   if (!Array.isArray(items)) return [];
   const valid: TRawNotification[] = [];
   for (const it of items) {

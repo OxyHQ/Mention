@@ -6,6 +6,7 @@ import { decodeSearchCursor } from '../../utils/searchCursor';
 
 const mocks = vi.hoisted(() => ({
   find: vi.fn(),
+  select: vi.fn(),
   sort: vi.fn(),
   limit: vi.fn(),
   maxTimeMS: vi.fn(),
@@ -55,12 +56,14 @@ function post(id: string, createdAt: string, type = 'post') {
 beforeEach(() => {
   vi.clearAllMocks();
   const chain = {
+    select: mocks.select,
     sort: mocks.sort,
     limit: mocks.limit,
     maxTimeMS: mocks.maxTimeMS,
     lean: mocks.lean,
   };
   mocks.find.mockReturnValue(chain);
+  mocks.select.mockReturnValue(chain);
   mocks.sort.mockReturnValue(chain);
   mocks.limit.mockReturnValue(chain);
   mocks.maxTimeMS.mockReturnValue(chain);
@@ -86,6 +89,7 @@ describe('GET /search post search', () => {
     const filter = mocks.find.mock.calls[0][0] as Record<string, unknown>;
     expect(filter.$or).toBeUndefined();
     expect(mocks.sort).toHaveBeenCalledWith({ createdAt: -1, _id: -1 });
+    expect(mocks.select).toHaveBeenCalledWith(expect.stringContaining('content'));
     expect(mocks.maxTimeMS).toHaveBeenCalledWith(3_000);
     expect(mocks.hydratePosts).toHaveBeenCalledWith([boost], {
       viewerId: 'viewer-1',
@@ -156,5 +160,28 @@ describe('GET /search post search', () => {
       hasLinks: true,
     });
     expect(JSON.stringify(filter)).not.toContain('$regex');
+  });
+
+  it('matches from: against accepted authorship entries', async () => {
+    mocks.getProfileByUsername.mockResolvedValue({ id: 'resolved-author' });
+
+    await request(app)
+      .get('/search')
+      .query({ query: 'from:alice', type: 'posts' })
+      .expect(200);
+
+    expect(mocks.getProfileByUsername).toHaveBeenCalledWith('alice');
+    const filter = mocks.find.mock.calls[0][0] as Record<string, unknown>;
+    expect(filter).toMatchObject({
+      visibility: 'public',
+      status: 'published',
+      authorship: {
+        $elemMatch: {
+          oxyUserId: 'resolved-author',
+          status: 'accepted',
+        },
+      },
+    });
+    expect(filter).not.toHaveProperty('oxyUserId');
   });
 });

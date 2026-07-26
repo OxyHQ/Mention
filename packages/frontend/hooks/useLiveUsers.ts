@@ -1,6 +1,8 @@
 import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { getLiveUsers } from '@/lib/syraApi';
+import { useAuth } from '@oxyhq/services/ui/client';
+import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 
 export interface LiveUsersState {
   /** Whether the given Oxy user id is currently live in a Syra room. */
@@ -17,8 +19,9 @@ export interface LiveUsersState {
  * (no avatar shows a live badge), so live presence never breaks a feed or profile.
  */
 export function useLiveUsers(): LiveUsersState {
+  const { user } = useAuth();
   const { data } = useQuery({
-    queryKey: ['live-users'],
+    queryKey: viewerQueryKeys.liveUsers(user?.id),
     queryFn: getLiveUsers,
     staleTime: 30_000,
     refetchInterval: 60_000,

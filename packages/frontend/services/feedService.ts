@@ -17,6 +17,7 @@ import type {
   HydratedPost,
   UpdatePostRequest,
   FeedInterstitialEventInput,
+  PostEditSource,
   PostUser,
 } from '@mention/shared-types';
 
@@ -436,22 +437,21 @@ class FeedService {
   /**
    * Create a thread of posts
    */
-  async createThread(request: CreateThreadRequest): Promise<{ success: boolean; posts: unknown[] }> {
-    const response = await authenticatedClient.post('/posts/thread', request);
+  async createThread(request: CreateThreadRequest): Promise<{ success: boolean; posts: HydratedPost[] }> {
+    const response = await authenticatedClient.post<{
+      success?: boolean;
+      posts?: HydratedPost[];
+    }>('/posts/thread', request);
     const data = response?.data;
 
-    if (data && typeof data === 'object' && data !== null && 'posts' in data) {
+    if (data && typeof data === 'object' && Array.isArray(data.posts)) {
       return {
-        success: typeof (data as Record<string, unknown>).success === 'boolean'
-          ? (data as Record<string, boolean>).success
-          : true,
-        posts: Array.isArray((data as Record<string, unknown>).posts)
-          ? (data as Record<string, unknown[]>).posts
-          : []
+        success: typeof data.success === 'boolean' ? data.success : true,
+        posts: data.posts,
       };
     }
 
-    return { success: true, posts: Array.isArray(data) ? data : [] };
+    return { success: true, posts: [] };
   }
 
   /**
@@ -575,6 +575,19 @@ class FeedService {
    */
   async editPost(postId: string, data: UpdatePostRequest): Promise<HydratedPost> {
     const response = await authenticatedClient.put<HydratedPost>(`/posts/${postId}`, data);
+    return response.data;
+  }
+
+  /**
+   * Fetch the owner's persisted author source for editing. A hydrated post is
+   * unsuitable here because its mention ids have already become display links
+   * and its body may be selected for the viewer's language.
+   */
+  async getPostEditSource(postId: string, signal?: AbortSignal): Promise<PostEditSource> {
+    const response = await authenticatedClient.get<PostEditSource>(
+      `/posts/${postId}/edit-source`,
+      { signal },
+    );
     return response.data;
   }
 

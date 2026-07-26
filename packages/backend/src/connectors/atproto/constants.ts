@@ -1,3 +1,5 @@
+import { config } from '../../config';
+
 /**
  * AT Protocol (Bluesky) connector constants.
  *
@@ -13,20 +15,20 @@
  * `FEDERATION_ENABLED` gate for ActivityPub but defaulting closed because the
  * read/discovery path is still being rolled out.
  */
-export const ATPROTO_ENABLED = process.env.ATPROTO_ENABLED === 'true';
+export const ATPROTO_ENABLED = config.atproto.enabled;
 
 /**
  * Bluesky's public AppView host. Read XRPC queries (`app.bsky.actor.getProfile`,
  * `app.bsky.feed.getAuthorFeed`, `com.atproto.identity.resolveHandle`) hit this
  * fixed, trusted host. Overridable for a self-hosted AppView.
  */
-export const PUBLIC_APPVIEW = process.env.ATPROTO_APPVIEW || 'public.api.bsky.app';
+export const PUBLIC_APPVIEW = config.atproto.appViewHost;
 
 /**
  * The PLC directory host that serves `did:plc:` DID documents
  * (`https://plc.directory/<did>`). Overridable for a mirror.
  */
-export const PLC_DIRECTORY = process.env.ATPROTO_PLC_DIRECTORY || 'plc.directory';
+export const PLC_DIRECTORY = config.atproto.plcDirectoryHost;
 
 /** Bluesky's web app origin — the canonical web URL for a post / profile. */
 export const BSKY_APP_ORIGIN = 'https://bsky.app';

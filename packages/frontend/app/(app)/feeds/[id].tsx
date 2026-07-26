@@ -34,7 +34,7 @@ import { formatCompactNumber } from '@/utils/formatNumber';
 import StarRating from '@/components/StarRating';
 import { show as toast } from '@oxyhq/bloom/toast';
 import AnimatedTabBar from '@/components/common/AnimatedTabBar';
-import BottomSheet, { type BottomSheetRef } from '@oxyhq/bloom/bottom-sheet';
+import { BottomSheet, type BottomSheetRef } from '@oxyhq/bloom/bottom-sheet';
 import { useTranslation } from 'react-i18next';
 import { FeedSubscribeButton } from '@/components/FeedSubscribeButton';
 import { getNormalizedUserHandle } from '@oxyhq/core';
@@ -42,6 +42,7 @@ import type { PostUser } from '@mention/shared-types';
 import { displayNameOrHandle } from '@/utils/displayName';
 import { WEB_BASE_URL } from '@/config';
 import { logger } from '@/lib/logger';
+import { publicQueryKeys, viewerQueryKeys } from '@/lib/viewerQueryKeys';
 
 type FeedTab = 'recent' | 'profiles' | 'topics' | 'reviews';
 
@@ -488,7 +489,10 @@ const ReviewsTab = React.memo(function ReviewsTab({ feedId }: { feedId: string }
   const queryClient = useQueryClient();
   const [modalVisible, setModalVisible] = useState(false);
 
-  const reviewsQueryKey = useMemo(() => ['customFeedReviews', feedId] as const, [feedId]);
+  const reviewsQueryKey = useMemo(
+    () => publicQueryKeys.customFeedReviews(feedId),
+    [feedId],
+  );
 
   const reviewsQuery = useInfiniteQuery({
     queryKey: reviewsQueryKey,
@@ -645,7 +649,7 @@ export default function CustomFeedTimelineScreen() {
   const safeBack = useSafeBack();
   const { id } = useLocalSearchParams<{ id: string }>();
   const feedId = typeof id === 'string' ? id : '';
-  const { user, isAuthenticated } = useAuth();
+  const { user } = useAuth();
   const queryClient = useQueryClient();
   const { isPinned: isFeedPinned, pin, unpin } = useFeedPreferences();
   const [activeTab, setActiveTab] = useState<FeedTab>('recent');
@@ -653,8 +657,10 @@ export default function CustomFeedTimelineScreen() {
   // The viewer identity is part of the key: `isLiked` is per-viewer, so a feed
   // fetched while a cold-boot SSO restore is still in flight must not keep
   // showing its anonymous "not subscribed" snapshot once the session lands.
-  const authKey = isAuthenticated && user?.id ? user.id : 'anon';
-  const feedQueryKey = useMemo(() => ['customFeed', feedId, authKey] as const, [feedId, authKey]);
+  const feedQueryKey = useMemo(
+    () => viewerQueryKeys.customFeed(user?.id, feedId),
+    [feedId, user?.id],
+  );
 
   const feedQuery = useQuery({
     queryKey: feedQueryKey,

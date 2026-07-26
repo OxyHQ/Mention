@@ -6,8 +6,8 @@ import { config } from '../config';
  *
  * Domain modules resolve the client here instead of importing the server
  * entrypoint. The lazy fallback keeps isolated scripts and unit tests usable
- * without booting Express; server.ts registers the process-owned instance
- * during bootstrap.
+ * without booting Express; runtimeApp.ts registers the process-owned instance
+ * while composing production dependencies.
  */
 let runtimeOxyClient: OxyServices | undefined;
 

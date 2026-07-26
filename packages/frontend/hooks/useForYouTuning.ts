@@ -4,6 +4,7 @@ import { useAuth } from '@oxyhq/services/ui/client';
 import type { ForYouFeedTuning } from '@mention/shared-types';
 import { feedTuningService } from '@/services/feedTuningService';
 import { logger } from '@/lib/logger';
+import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 
 export interface UseForYouTuning {
   /** The viewer's stored For You tuning (empty ⇒ config-default gate). */
@@ -27,7 +28,10 @@ export interface UseForYouTuning {
 export function useForYouTuning(): UseForYouTuning {
   const { user, canUsePrivateApi } = useAuth();
   const queryClient = useQueryClient();
-  const queryKey = useMemo(() => ['feedTuning', user?.id ?? 'anon'] as const, [user?.id]);
+  const queryKey = useMemo(
+    () => viewerQueryKeys.feedTuning(user?.id),
+    [user?.id],
+  );
 
   const query = useQuery<ForYouFeedTuning>({
     queryKey,

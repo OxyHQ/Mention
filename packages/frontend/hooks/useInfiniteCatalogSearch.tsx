@@ -3,6 +3,8 @@ import { ActivityIndicator, View } from 'react-native';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { api } from '@/utils/api';
+import { useAuth } from '@oxyhq/services/ui/client';
+import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 
 const SEARCH_DEBOUNCE_MS = 350;
 
@@ -81,6 +83,7 @@ export function useInfiniteCatalogSearch<T>(
   query: string,
   opts?: { enabled?: boolean },
 ): InfiniteCatalogSearch<T> {
+  const { user } = useAuth();
   const [debouncedQuery, setDebouncedQuery] = useState('');
 
   // Debounce the raw input into the query key (the only effect here — React
@@ -91,7 +94,11 @@ export function useInfiniteCatalogSearch<T>(
   }, [query]);
 
   const search = useInfiniteQuery({
-    queryKey: ['profile-media-search', type, debouncedQuery],
+    queryKey: viewerQueryKeys.profileMediaSearch(
+      user?.id,
+      type,
+      debouncedQuery,
+    ),
     queryFn: ({ pageParam }) => fetchCatalogPage<T>(type, debouncedQuery, pageParam),
     initialPageParam: 0,
     getNextPageParam: (last) => (last.hasMore ? last.nextOffset : undefined),
@@ -104,11 +111,14 @@ export function useInfiniteCatalogSearch<T>(
     [search.data],
   );
 
+  const fetchNextPage = search.fetchNextPage;
+  const hasNextPage = search.hasNextPage;
+  const isFetchingNextPage = search.isFetchingNextPage;
   const loadMore = useCallback(() => {
-    if (search.hasNextPage && !search.isFetchingNextPage) {
-      void search.fetchNextPage();
+    if (hasNextPage && !isFetchingNextPage) {
+      void fetchNextPage();
     }
-  }, [search.hasNextPage, search.isFetchingNextPage, search.fetchNextPage]);
+  }, [fetchNextPage, hasNextPage, isFetchingNextPage]);
 
   return {
     results,

@@ -8,17 +8,15 @@
  * expo-sqlite and its WASM runtime never enter the browser dependency graph.
  */
 
-import { Platform } from 'react-native';
+import * as SQLite from 'expo-sqlite';
 import { createScopedLogger } from '@/lib/logger';
+import { runMigrations } from './migrations';
 
 const logger = createScopedLogger('Database');
 
 const DB_NAME = 'mention.db';
 
-/**
- * Minimal type for the SQLite database interface.
- * Avoids importing expo-sqlite at module level (would crash on web).
- */
+/** Minimal database surface used by the cache layer. */
 export interface SQLiteDb {
   execSync(sql: string): void;
   runSync(sql: string, ...params: any[]): { changes: number; lastInsertRowId: number };
@@ -27,36 +25,21 @@ export interface SQLiteDb {
   closeSync(): void;
 }
 
-// Lazy-loaded SQLite module — only imported on native or when web supports it
-let SQLiteModule: typeof import('expo-sqlite') | null = null;
-let db: SQLiteDb | null = null;
+let db: SQLite.SQLiteDatabase | null = null;
 let initialized = false;
-let _isAvailable: boolean | null = null;
+let sqliteAvailable = true;
 
 /**
- * Check if SQLite is available on this platform.
- * On native (iOS/Android): always true.
- * On web: true only if SharedArrayBuffer is available (requires COOP/COEP headers).
+ * Native builds include SQLite. A failed initialization marks it unavailable
+ * for the rest of the process so cache callers degrade without repeated work.
  */
 export function isDbAvailable(): boolean {
-  if (_isAvailable !== null) return _isAvailable;
-
-  if (Platform.OS !== 'web') {
-    _isAvailable = true;
-    return true;
-  }
-
-  // Web: check for SharedArrayBuffer support
-  _isAvailable = typeof SharedArrayBuffer !== 'undefined';
-  if (!_isAvailable) {
-    logger.debug('SQLite unavailable on web (SharedArrayBuffer not supported) — using network-only mode');
-  }
-  return _isAvailable;
+  return sqliteAvailable;
 }
 
 /**
  * Get the singleton database instance.
- * Returns null if SQLite is not available (web without COOP/COEP).
+ * Returns null after a native SQLite initialization failure.
  * Initializes on first call with PRAGMA settings and migrations.
  */
 export function getDb(): SQLiteDb | null {
@@ -64,12 +47,8 @@ export function getDb(): SQLiteDb | null {
   if (db && initialized) return db;
 
   try {
-    if (!SQLiteModule) {
-      SQLiteModule = require('expo-sqlite');
-    }
-
     if (!db) {
-      db = SQLiteModule!.openDatabaseSync(DB_NAME);
+      db = SQLite.openDatabaseSync(DB_NAME);
       logger.debug('Database opened');
     }
 
@@ -88,7 +67,6 @@ export function getDb(): SQLiteDb | null {
       db.execSync('PRAGMA temp_store = MEMORY');
 
       // Run schema migrations
-      const { runMigrations } = require('./migrations');
       runMigrations(db);
 
       initialized = true;
@@ -98,7 +76,7 @@ export function getDb(): SQLiteDb | null {
     return db;
   } catch (e) {
     logger.error('Failed to initialize SQLite', { error: e });
-    _isAvailable = false;
+    sqliteAvailable = false;
     db = null;
     initialized = false;
     return null;
@@ -130,8 +108,7 @@ export function resetDb(): void {
   if (!isDbAvailable()) return;
   closeDb();
   try {
-    if (!SQLiteModule) SQLiteModule = require('expo-sqlite');
-    SQLiteModule!.deleteDatabaseSync(DB_NAME);
+    SQLite.deleteDatabaseSync(DB_NAME);
     logger.debug('Database deleted');
   } catch (e) {
     logger.error('Error deleting database', { error: e });

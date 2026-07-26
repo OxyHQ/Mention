@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, type LayoutChangeEvent } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useTranslation } from 'react-i18next';
 import UserName from '@/components/UserName';
-import LinkifiedText from '@/components/common/LinkifiedText';
+import { LinkifiedText } from '@/components/common/LinkifiedText';
 import {
   ProfileHeaderDefault,
   ProfileHeaderMinimalist,
@@ -22,7 +22,7 @@ import { getNormalizedUserHandle } from '@oxyhq/core';
 import { useAuth } from '@oxyhq/services/ui/client';
 import { FediverseSharingBadge } from '@/components/Fediverse/FediverseBadge';
 import { mergeBioAndProfileLinks } from '@/utils/mergeBioAndProfileLinks';
-import { useAppearanceStore } from '@/store/appearanceStore';
+import { useAppearanceStore } from '@/stores/appearanceStore';
 import { useExpandableText } from '@/hooks/useExpandableText';
 
 /** Profile bio collapse threshold (chars) — fixed, not user-configurable; only the on/off toggle is (`collapseLongBio`). */

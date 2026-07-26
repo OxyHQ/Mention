@@ -122,7 +122,8 @@ Claude Web  →  mcp.mention.earth (ECS mention-mcp)  →  api.mention.earth (EC
 
 ### Search, lists, notifications, polls, hashtags, profile
 
-See `packages/mcp/tools/*.ts`. Most write/personalized reads require auth per `lib/tool-auth.ts`.
+See `packages/mcp/tools/*.ts`. Most write and personalized reads require auth
+through `lib/auth-guard.ts`.
 
 **Session note:** Claude must complete OAuth before `initialize` (POST requires Bearer). Some tools are callable without extra per-tool auth once the session is open, but the connector itself always needs OAuth first.
 

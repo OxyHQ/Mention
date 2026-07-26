@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { feedService, type ExternalActorResolution } from '@/services/feedService';
 import { looksLikeRemoteHandle } from '@/utils/externalActor';
+import { publicQueryKeys } from '@/lib/viewerQueryKeys';
 
 /** Debounce window before a remote-handle query hits `GET /federation/resolve`. */
 const RESOLVE_DEBOUNCE_MS = 400;
@@ -39,7 +40,7 @@ export function useExternalActorResolve(rawQuery: string): ExternalActorResoluti
   const isRemoteQuery = useMemo(() => looksLikeRemoteHandle(debounced), [debounced]);
 
   const { data } = useQuery<ExternalActorResolution | null>({
-    queryKey: ['federation', 'resolve', debounced],
+    queryKey: publicQueryKeys.externalActorResolve(debounced),
     queryFn: () => feedService.resolveExternalActor(debounced),
     enabled: isRemoteQuery,
     staleTime: RESOLVE_STALE_TIME,
