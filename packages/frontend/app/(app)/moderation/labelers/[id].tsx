@@ -18,7 +18,7 @@ import { useLocalSearchParams } from 'expo-router';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { show as toast } from '@oxyhq/bloom/toast';
 import { useTranslation } from 'react-i18next';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { labelerService } from '@/services/labelerService';
 import { SEVERITY_COLORS, Severity, LabelActionType } from '@/components/LabelBadge';
 import { cn } from '@/lib/utils';

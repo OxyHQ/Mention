@@ -26,8 +26,9 @@ import { UserPrivacyManager } from '../UserPrivacyManager';
 import { trackFeedInteraction } from '../feed/FeedInteractionTracker';
 import { federatedProfileSync } from '../../connectors/federatedProfileSync';
 import { logger } from '../../utils/logger';
-import { oxy as oxyClient } from '../../../server';
-import { extractFollowingIds } from '../../utils/privacyHelpers';
+import { getRuntimeOxyClient } from '../../runtime/oxyClient';
+import { extractFollowingIds, type OxyClient } from '../../utils/privacyHelpers';
+import { createScopedOxyClient } from '../../utils/oxyHelpers';
 import FederatedFollow from '../../models/FederatedFollow';
 import FederatedActor from '../../models/FederatedActor';
 import { MuteWord } from '../../models/MuteWord';
@@ -96,7 +97,7 @@ async function getFederatedMutualIds(localUserId: string): Promise<string[]> {
 async function computeMutualIds(currentUserId: string): Promise<string[]> {
   let oxyMutualIds: string[] = [];
   try {
-    const ids = await oxyClient.getMutualUserIds({ limit: MAX_MUTUAL_IDS });
+    const ids = await getRuntimeOxyClient().getMutualUserIds({ limit: MAX_MUTUAL_IDS });
     oxyMutualIds = ids.filter((id) => id.length > 0);
   } catch (error) {
     logger.warn('[MtnFeedController] Failed to load Oxy mutual ids', error);
@@ -138,6 +139,7 @@ function supportsFollowsOfFollows(client: unknown): client is FollowsOfFollowsCa
  * and self).
  */
 async function computeFriendsOfFriendsIds(): Promise<string[]> {
+  const oxyClient = getRuntimeOxyClient();
   if (!supportsFollowsOfFollows(oxyClient)) return [];
   try {
     const ids = await oxyClient.getFollowsOfFollowsIds({ limit: MAX_FOF_IDS });
@@ -282,6 +284,12 @@ class MtnFeedController {
       // Each branch already soft-fails to a safe default, so one failure can't
       // break the feed.
       const feedSource = parseFeedDescriptor(descriptor).source;
+      const requestOxyClient = createScopedOxyClient(req);
+      // Viewer-private endpoints (blocks/restrictions) must use ONLY the
+      // authenticated request client. Graph reads retain the existing singleton
+      // fallback so feeds still degrade as they did when no bearer is available.
+      const feedOxyClient = requestOxyClient
+        ?? (getRuntimeOxyClient() as unknown as OxyClient);
 
       // The Mutuals feed ALWAYS needs the viewer's mutual-follow id set; For You
       // needs it too, but ONLY when the `socialProof` signal is active (Phase 5) —
@@ -302,9 +310,11 @@ class MtnFeedController {
 
       const [privacyState, context, mutualIds, fofIds] = await Promise.all([
         currentUserId
-          ? UserPrivacyManager.loadPrivacyState(currentUserId)
+          ? UserPrivacyManager.loadPrivacyState(currentUserId, {
+              oxyClient: requestOxyClient,
+            })
           : Promise.resolve(null),
-        loadViewerFeedContext(currentUserId, oxyClient),
+        loadViewerFeedContext(currentUserId, feedOxyClient),
         // `computeMutualIds` soft-fails each branch to `[]`, so a lookup failure
         // never breaks the feed.
         needsMutuals && currentUserId
@@ -315,6 +325,7 @@ class MtnFeedController {
           : Promise.resolve<string[] | null>(null),
       ]);
 
+      context.privacyOxyClient = requestOxyClient;
       if (videoFilters) {
         context.videoFilters = videoFilters;
       }
@@ -455,16 +466,21 @@ class MtnFeedController {
 
       const descriptor: FeedDescriptor = descriptorParam;
       const currentUserId = req.user?.id;
+      const requestOxyClient = createScopedOxyClient(req);
+      const feedOxyClient = requestOxyClient
+        ?? (getRuntimeOxyClient() as unknown as OxyClient);
 
       const privacyState = currentUserId
-        ? await UserPrivacyManager.loadPrivacyState(currentUserId)
+        ? await UserPrivacyManager.loadPrivacyState(currentUserId, {
+            oxyClient: requestOxyClient,
+          })
         : null;
 
       let followingIds: string[] = [];
       let subscribedListMemberIds: string[] = [];
       if (currentUserId) {
         try {
-          const followingRes = await oxyClient.getUserFollowing(currentUserId);
+          const followingRes = await feedOxyClient.getUserFollowing(currentUserId);
           followingIds = extractFollowingIds(followingRes);
         } catch (error) {
           logger.warn('[MtnFeedController] Failed to load following list', error);
@@ -487,7 +503,8 @@ class MtnFeedController {
         currentUserId,
         followingIds,
         subscribedListMemberIds,
-        oxyClient,
+        oxyClient: feedOxyClient,
+        privacyOxyClient: requestOxyClient,
       };
 
       if (currentUserId && parseFeedDescriptor(descriptor).source === 'mutuals') {

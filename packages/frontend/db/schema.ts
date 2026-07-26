@@ -18,7 +18,7 @@ import type {
   PostFeedContext,
   FeedPostSlice,
 } from '@mention/shared-types';
-import { PostVisibility } from '@mention/shared-types';
+import { PostVisibility } from '@mention/shared-types/post';
 import type { LinkMetadata } from '@/stores/linksStore';
 
 // ── Table names ──────────────────────────────────────────────────

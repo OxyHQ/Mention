@@ -2,12 +2,14 @@
   "name": "@mention/mcp",
   "version": "1.0.0",
   "description": "MCP server for Mention social platform",
+  "private": true,
   "type": "module",
-  "main": "server.ts",
+  "main": "dist/server-http.js",
   "dependencies": {
-    "@mention/shared-types": "file:../shared-types",
+    "@mention/shared-types": "workspace:*",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@oxyhq/core": "^12.9.0",
+    "jsonwebtoken": "^9.0.3",
     "zod": "^4.4.3"
   },
   "scripts": {
@@ -21,6 +23,7 @@
     "test": "bun test"
   },
   "devDependencies": {
+    "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^25.9.5",
     "typescript": "^5.9.3"
   }

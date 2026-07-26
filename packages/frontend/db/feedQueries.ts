@@ -20,6 +20,7 @@ import {
   memRemoveFeedItem,
   memAddFeedItemAtStart,
   memRemovePostFromAllFeeds,
+  memGetFeedKeysForPost,
   memClearFeed,
 } from './memoryStore';
 import { createScopedLogger } from '@/lib/logger';
@@ -433,6 +434,29 @@ export function removePostFromAllFeeds(postId: string): void {
   const db = getDb();
   if (!db) return;
   db.runSync('DELETE FROM feed_items WHERE post_id = ?', postId);
+}
+
+/**
+ * Get the feed keys whose ordering would change if `postId` were removed.
+ *
+ * The SQLite schema has `idx_feed_items_post_id`, so this is a bounded indexed
+ * lookup over the feeds that actually contain the post rather than a scan of
+ * every cached feed.
+ */
+export function getFeedKeysForPost(postId: string): string[] {
+  if (!postId) return [];
+
+  if (!isDbAvailable()) {
+    return memGetFeedKeysForPost(postId);
+  }
+
+  const db = getDb();
+  if (!db) return [];
+  const rows = db.getAllSync<{ feed_key: string }>(
+    'SELECT feed_key FROM feed_items WHERE post_id = ?',
+    postId
+  );
+  return rows.map((row) => row.feed_key);
 }
 
 // ── Clear operations ─────────────────────────────────────────────

@@ -171,6 +171,32 @@ class ActivityPubConnector implements NetworkConnector<PostContent> {
     }
   }
 
+  /**
+   * Delivery boundary for durable callers. Existing outbound callers retain
+   * the best-effort {@link deliver} semantics; engagement events use strict
+   * FollowService variants so a queue failure reaches the Mongo outbox.
+   */
+  async deliverDurably(event: LocalNetworkEvent<PostContent>): Promise<void> {
+    switch (event.kind) {
+      case 'post.like':
+        await followService.federateLikeStrict(
+          event.like,
+          event.actorOxyUserId,
+          event.actorUsername,
+        );
+        return;
+      case 'post.unlike':
+        await followService.federateUndoLikeStrict(
+          event.like,
+          event.actorOxyUserId,
+          event.actorUsername,
+        );
+        return;
+      default:
+        await this.deliver(event);
+    }
+  }
+
   /** Process an inbound, already-verified ActivityPub activity. */
   async receive(payload: unknown, ctx: ReceiveContext): Promise<void> {
     await inboxProcessingService.processInboxActivity(

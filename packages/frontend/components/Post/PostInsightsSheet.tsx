@@ -6,7 +6,7 @@ import {
     ScrollView,
 } from 'react-native';
 import { Loading } from '@oxyhq/bloom/loading';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';

@@ -15,6 +15,7 @@ import {
 } from '../utils/notificationUtils';
 import PostSubscription from '../models/PostSubscription';
 import { logger } from '../utils/logger';
+import { getRuntimeSocketServer } from '../runtime/socketServer';
 import { getPostFederator, registerPostCreator } from './serviceRegistry';
 import { baselineContentClassifier } from './BaselineContentClassifier';
 import { postHydrationService } from './PostHydrationService';
@@ -32,6 +33,7 @@ import {
   buildPrimaryVariant,
   declaredBaseLanguages,
 } from './postVariants';
+import { recordRecentReplierForPost } from './PostRecentReplierService';
 
 export interface CreatePostParams {
   oxyUserId: string | null;
@@ -327,6 +329,7 @@ class PostCreationService {
         commentsCount: 0,
         viewsCount: 0,
         sharesCount: 0,
+        savesCount: 0,
       },
     };
 
@@ -370,6 +373,7 @@ class PostCreationService {
 
     const post = new Post(postData);
     await post.save();
+    await recordRecentReplierForPost(post);
 
     const savedMedia = post.content?.media;
     if (Array.isArray(savedMedia) && mediaMetadataService.needsOxyRetry(savedMedia as MediaItem[])) {
@@ -443,6 +447,7 @@ class PostCreationService {
   async publishScheduledPost(post: IPost): Promise<IPost> {
     post.status = 'published';
     await post.save();
+    await recordRecentReplierForPost(post);
 
     const ownerId = getOwnerId(post.authorship ?? []) ?? null;
     const hasPendingInvites = hasPendingCollabInvites(post.authorship ?? []);
@@ -634,7 +639,7 @@ class PostCreationService {
     const shouldEmitGlobally = post.visibility === 'public' && isPublished;
     if (!ctx.skipSocketEmit && shouldEmitGlobally) {
       try {
-        const io = global.io;
+        const io = getRuntimeSocketServer();
         if (io) {
           // Emit the canonical hydrated DTO (author summary, resolved
           // name.displayName, engagement shape, and embedded boosted original)

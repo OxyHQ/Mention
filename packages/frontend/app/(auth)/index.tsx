@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, Platform } from 'react-native';
 import { SafeAreaView } from '@/lib/SafeAreaViewInterop';
-import { useAuth } from '@oxyhq/services';
+import { useAuth } from '@oxyhq/services/ui/client';
 import { useTranslation } from 'react-i18next';
 
 import { LogoIcon } from '@/assets/logo';

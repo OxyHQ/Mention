@@ -18,9 +18,8 @@ import { resolveVariant } from '../../services/postVariants';
  * resolves it once per post and threads it into both.
  */
 
-// `server.ts` constructs a live OxyServices client at import time; stub it.
-vi.mock('../../../server', () => ({
-  oxy: { getUserById: vi.fn() },
+vi.mock('../../runtime/oxyClient', () => ({
+  getRuntimeOxyClient: () => ({ getUserById: vi.fn() }),
 }));
 
 // The bulk service-token client used elsewhere in the service.

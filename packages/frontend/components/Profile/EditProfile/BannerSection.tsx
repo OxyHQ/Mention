@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { Image } from 'expo-image';
 import { useTranslation } from 'react-i18next';
-import { useAuth } from '@oxyhq/services';
+import { useAuth } from '@oxyhq/services/ui/client';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { Icon } from '@/lib/icons';
 import { useAppearanceStore } from '@/store/appearanceStore';

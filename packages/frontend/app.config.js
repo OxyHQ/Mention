@@ -14,9 +14,16 @@ module.exports = function(_config) {
    */
   const PLATFORM = process.env.EAS_BUILD_PLATFORM
 
-  const IS_TESTFLIGHT = process.env.EXPO_PUBLIC_ENV === 'testflight'
-  const IS_PRODUCTION = process.env.EXPO_PUBLIC_ENV === 'production'
-  const IS_DEV = !IS_TESTFLIGHT || !IS_PRODUCTION
+  const APP_ENV = process.env.EXPO_PUBLIC_ENV ?? 'development'
+  const VALID_APP_ENVS = ['development', 'testflight', 'production']
+  if (!VALID_APP_ENVS.includes(APP_ENV)) {
+    throw new Error(
+      `Invalid EXPO_PUBLIC_ENV "${APP_ENV}". Expected one of: ${VALID_APP_ENVS.join(', ')}`,
+    )
+  }
+  const IS_TESTFLIGHT = APP_ENV === 'testflight'
+  const IS_PRODUCTION = APP_ENV === 'production'
+  const IS_DEV = APP_ENV === 'development'
 
   /**
    * App variant — lets a development build sit next to the production app on the
@@ -114,7 +121,7 @@ return {
             favicon: "./assets/images/favicon.png",
             manifest: "./public/manifest.json",
             meta: {
-                viewport: "width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no",
+                viewport: "width=device-width, initial-scale=1.0",
                 themeColor: "#4F46E5",
                 appleMobileWebAppCapable: "yes",
                 appleMobileWebAppStatusBarStyle: "default",

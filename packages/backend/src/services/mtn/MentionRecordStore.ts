@@ -35,6 +35,12 @@ export const DEFAULT_LOG_LIMIT = 100;
 /** Hard ceiling so a single log call can never scan an unbounded slice. */
 const MAX_LOG_LIMIT = 500;
 
+export interface StoredIdempotentRecord {
+  recordId: string;
+  seq: number;
+  envelope: SignedRecordEnvelope;
+}
+
 function clampLogLimit(limit: number): number {
   return Math.max(1, Math.min(Math.trunc(limit) || DEFAULT_LOG_LIMIT, MAX_LOG_LIMIT));
 }
@@ -113,7 +119,79 @@ export class MentionRecordStoreImpl implements RecordStore {
    * concurrent write that already took this `seq` — is surfaced as
    * `chain_conflict` so the caller re-reads the head and retries.
    */
-  async append(subject: string, env: SignedRecordEnvelope, recordId: string): Promise<AppendOutcome> {
+  async append(
+    subject: string,
+    env: SignedRecordEnvelope,
+    recordId: string,
+  ): Promise<AppendOutcome> {
+    return this.appendRecord(subject, env, recordId);
+  }
+
+  /**
+   * Scope only the append operation to a durable producer event. The protocol
+   * engine still reads the same head/frontiers; its eventual append stores the
+   * event key atomically with the signed record and head advance.
+   */
+  withIdempotencyKey(idempotencyKey: string): RecordStore {
+    return {
+      getHead: (subject) => this.getHead(subject),
+      append: (subject, env, recordId) =>
+        this.appendRecord(subject, env, recordId, idempotencyKey),
+      getLogSince: (subject, sinceSeq, limit) =>
+        this.getLogSince(subject, sinceSeq, limit),
+      resolveCursorSeq: (subject, recordId) =>
+        this.resolveCursorSeq(subject, recordId),
+      materializeCurrent: (subject, collection, rkey) =>
+        this.materializeCurrent(subject, collection, rkey),
+      latestIssuedAtForKey: (subject, env) =>
+        this.latestIssuedAtForKey(subject, env),
+    };
+  }
+
+  /**
+   * Resolve the append previously committed for one durable producer event.
+   * The caller verifies its collection/rkey/issuedAt identity before accepting
+   * it, so accidental key reuse fails closed.
+   */
+  async findByIdempotencyKey(
+    subject: string,
+    idempotencyKey: string,
+  ): Promise<StoredIdempotentRecord | null> {
+    const oxyUserId = parseUserDid(subject);
+    if (!oxyUserId) return null;
+
+    const row = await MentionSignedRecord.findOne({
+      oxyUserId,
+      idempotencyKey,
+      verified: true,
+    })
+      .select('recordId seq envelope')
+      .lean<{
+        recordId?: string;
+        seq?: number;
+        envelope?: SignedRecordEnvelope;
+      } | null>();
+    if (
+      !row ||
+      typeof row.recordId !== 'string' ||
+      typeof row.seq !== 'number' ||
+      !row.envelope
+    ) {
+      return null;
+    }
+    return {
+      recordId: row.recordId,
+      seq: row.seq,
+      envelope: row.envelope,
+    };
+  }
+
+  private async appendRecord(
+    subject: string,
+    env: SignedRecordEnvelope,
+    recordId: string,
+    idempotencyKey?: string,
+  ): Promise<AppendOutcome> {
     const oxyUserId = parseUserDid(subject);
     if (!oxyUserId) {
       // The subject DID does not belong to a user — there is no Mention chain to
@@ -143,6 +221,7 @@ export class MentionRecordStoreImpl implements RecordStore {
                 seq,
                 prev: env.prev ?? null,
                 recordId,
+                ...(idempotencyKey ? { idempotencyKey } : {}),
                 // Denormalize the envelope's `collection` to the `nsid` column.
                 nsid: env.collection,
                 rkey: env.rkey,
@@ -179,6 +258,7 @@ export class MentionRecordStoreImpl implements RecordStore {
       envelope: env,
       publicKey: env.publicKey,
       verified: true,
+      ...(idempotencyKey ? { idempotencyKey } : {}),
     });
     return { ok: true, recordId, seq: -1 };
   }

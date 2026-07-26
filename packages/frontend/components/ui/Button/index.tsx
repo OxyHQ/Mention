@@ -19,7 +19,7 @@ import {
   Pressable,
 } from 'react-native';
 import { Link, useRouter, type Href } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 
 import { useTheme } from '@oxyhq/bloom/theme';
 import { useHaptics } from '@oxyhq/bloom/hooks';

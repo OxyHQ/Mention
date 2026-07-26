@@ -4,6 +4,7 @@ import { createNotification } from '../utils/notificationUtils';
 import { getServiceOxyClient } from '../utils/oxyHelpers';
 import { postHydrationService } from './PostHydrationService';
 import { logger } from '../utils/logger';
+import { getRuntimeSocketServer } from '../runtime/socketServer';
 import {
   buildAuthorship,
   buildCollaboratorEntry,
@@ -250,7 +251,7 @@ class PostCollaborationService {
 
   private async emitPostUpdate(post: IPost): Promise<void> {
     try {
-      const io = global.io;
+      const io = getRuntimeSocketServer();
       if (!io) return;
       const [hydratedPost] = await postHydrationService.hydratePosts([post.toObject()], {
         viewerId: undefined,

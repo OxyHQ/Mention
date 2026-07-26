@@ -1,6 +1,6 @@
 import express from 'express';
 import request from 'supertest';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { OxyAuthRequest } from '@oxyhq/core/server';
 
 process.env.MENTION_MCP_JWT_SECRET = 'test-mcp-secret';
@@ -25,7 +25,17 @@ import {
   bearerLooksLikeMcpToken,
   createOptionalMcpAuth,
 } from '../../mcp/middleware/mcpAuth';
+import { resolveBundleContext } from '../../mcp/services/mcpBundleService';
 import { signAccessToken } from '../../mcp/services/mcpTokenService';
+
+const mockResolveBundleContext = vi.mocked(resolveBundleContext);
+const bundleContext = {
+  bundleId: 'bundle-test',
+  primaryUserId: 'mcp-user-1',
+  activeUserId: 'mcp-user-1',
+  clientId: 'claude-web',
+  jti: 'jti-public-router',
+};
 
 /** Mirrors production optionalAuth after the MCP pass (oxy stub always fails). */
 function productionOptionalAuthWithoutOxy(
@@ -80,6 +90,10 @@ describe('MCP JWT on public API router', () => {
     jti: 'jti-public-router',
   });
 
+  beforeEach(() => {
+    mockResolveBundleContext.mockResolvedValue(bundleContext);
+  });
+
   it('rejects boost on public router when optional MCP auth is not mounted', async () => {
     const app = buildPublicRouterApp({ mountOptionalMcpAuth: false });
     const res = await request(app)
@@ -108,5 +122,18 @@ describe('MCP JWT on public API router', () => {
       .set('Authorization', `Bearer ${token}`);
     expect(res.status).toBe(200);
     expect(res.body.userId).toBe('mcp-user-1');
+  });
+
+  it('fails closed when the durable MCP connection is missing or revoked', async () => {
+    mockResolveBundleContext.mockResolvedValueOnce(null);
+    const app = buildPublicRouterApp({ mountOptionalMcpAuth: true });
+
+    const res = await request(app)
+      .post('/feed/boost')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ originalPostId: 'post-1' });
+
+    expect(res.status).toBe(401);
+    expect(res.body.error).toBe('Authentication required');
   });
 });

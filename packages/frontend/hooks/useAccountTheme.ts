@@ -1,5 +1,5 @@
 import { useCallback, useEffect } from 'react';
-import { useAuth } from '@oxyhq/services';
+import { useAuth } from '@oxyhq/services/ui/client';
 import type { User } from '@oxyhq/core';
 import {
   useBloomTheme,

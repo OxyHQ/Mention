@@ -1,7 +1,7 @@
 import React, { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { show as toast } from '@oxyhq/bloom/toast';
-import { FollowButton, useAuth } from '@oxyhq/services';
+import { FollowButton, useAuth } from '@oxyhq/services/ui/client';
 
 import { Button } from '@/components/ui/Button';
 import { feedService, type ExternalActorResolution } from '@/services/feedService';

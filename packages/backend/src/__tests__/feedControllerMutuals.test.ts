@@ -19,11 +19,20 @@ vi.mock('../mtn/feed/engine/FeedEngine', () => ({
 }));
 
 const getMutualUserIds = vi.fn(async () => ['oxymutual']);
-vi.mock('../../server', () => ({
-  oxy: {
+vi.mock('../runtime/oxyClient', () => ({
+  getRuntimeOxyClient: () => ({
     getUserFollowing: vi.fn(async () => ({ data: [] })),
     getMutualUserIds: (...a: unknown[]) => getMutualUserIds(...(a as [])),
-  },
+  }),
+}));
+vi.mock('../runtime/oxyClient', () => ({
+  getRuntimeOxyClient: () => ({
+    getBlockedUsers: vi.fn(async () => []),
+    getRestrictedUsers: vi.fn(async () => []),
+    getUserFollowing: vi.fn(async () => ({ data: [] })),
+    getUserFollowers: vi.fn(async () => ({ data: [] })),
+    getMutualUserIds: (...a: unknown[]) => getMutualUserIds(...(a as [])),
+  }),
 }));
 
 vi.mock('../mtn/UserPrivacyManager', () => ({

@@ -5,7 +5,7 @@ process.on('unhandledRejection', (reason: unknown, promise: Promise<unknown>) =>
   const message = reason instanceof Error ? reason.stack || reason.message : String(reason);
   console.error(`Unhandled promise rejection: ${message}`);
   // In production, exit to let the process manager restart cleanly
-  if (process.env.NODE_ENV === 'production') {
+  if (config.runtime.isProduction) {
     process.exit(1);
   }
 });
@@ -21,33 +21,56 @@ import express from "express";
 import http from "http";
 import mongoose from "mongoose";
 import compression from "compression";
-import { connectToDatabase, isDatabaseConnected } from "./src/utils/database";
-import { Server as SocketIOServer, Socket, Namespace } from "socket.io";
+import { hostname } from 'os';
+import { connectToDatabase } from "./src/utils/database";
+import { Server as SocketIOServer, Namespace } from "socket.io";
 import { logger } from "./src/utils/logger";
+import { config, validateEnvironment } from './src/config';
 import { isAllowedOrigin } from "./src/utils/allowedOrigins";
 import type { OxyAuthRequest as AuthRequest } from "@oxyhq/core/server";
-import { runMigrations } from "./src/migrations/runner";
+import { assertMigrationsApplied, runMigrations } from "./src/migrations/runner";
 import { leaderElection } from "./src/services/LeaderElection";
+import {
+  markMigrationsComplete,
+  markRuntimeNotReady,
+  markRuntimeReady,
+  markRuntimeShuttingDown,
+} from './src/utils/runtimeHealth';
+import {
+  closeRedisConnection,
+  createRedisPubSub,
+  getRedisClient,
+} from './src/utils/redis';
+import { DistributedPresenceService } from './src/services/DistributedPresenceService';
+import {
+  registerSocketPresence,
+  type AuthenticatedPresenceSocket as AuthenticatedSocket,
+} from './src/services/SocketPresenceLifecycle';
+import { engagementOutboxDispatcher } from './src/services/EngagementOutboxDispatcher';
 
 // Models
-import { Post } from "./src/models/Post";
 import Notification from "./src/models/Notification";
 
 // Routers
 import postsRouter, { publicPostsRouter } from "./src/routes/posts";
 import intentMediaRoutes from "./src/routes/intentMedia";
 import healthRoutes from './src/routes/health.routes';
+import { legacyApiRootReadiness } from './src/routes/legacyRoot.routes';
 import notificationsRouter from "./src/routes/notifications";
 import listsRoutes from "./src/routes/lists";
 import hashtagsRoutes from "./src/routes/hashtags";
 import searchRoutes from "./src/routes/search";
-import analyticsRoutes from "./src/routes/analytics.routes";
 import feedRoutes from './src/routes/feed.routes';
 import pollsRoutes from './src/routes/polls';
 import customFeedsRoutes from './src/routes/customFeeds.routes';
 import labelerRoutes from './src/routes/labeler.routes';
 import statisticsRoutes, { publicStatisticsRouter } from './src/routes/statistics.routes';
 import { OxyServices } from '@oxyhq/core';
+import { setRuntimeOxyClient } from './src/runtime/oxyClient';
+import {
+  clearRuntimeSocketServer,
+  setRuntimeSocketServer,
+} from './src/runtime/socketServer';
 import profileSettingsRoutes from './src/routes/profileSettings';
 import profileDesignRoutes from './src/routes/profileDesign';
 import profileMediaRoutes from './src/routes/profileMedia';
@@ -66,7 +89,13 @@ import mediaRoutes from './src/routes/media';
 import recommendationsRoutes from './src/routes/recommendations';
 import mtnNodesRoutes from './src/routes/mtn-nodes.routes';
 import webShellRoutes from './src/routes/webShell.routes';
-import { apexFrontendProxy, isApexHost } from './src/middleware/apexFrontendProxy';
+import internalMetricsRoutes from './src/routes/internalMetrics.routes';
+import webTelemetryRoutes from './src/routes/webTelemetry.routes';
+import {
+  apexFrontendProxy,
+  isApexHost,
+  isApexWebPlaneRequest,
+} from './src/middleware/apexFrontendProxy';
 
 // MCP OAuth (Model Context Protocol client authorization). Public discovery +
 // authorize/token endpoints are mounted before the auth router; the dual-auth
@@ -102,7 +131,7 @@ import { createOxyRateLimit } from '@oxyhq/core/server';
 import { RedisStore } from "./src/middleware/rateLimitStore";
 import { bruteForceProtection } from "./src/middleware/security";
 import { feedRateLimiter } from "./src/middleware/rateLimiter";
-import { performanceMiddleware } from "./src/middleware/performance";
+import { requestObservability } from './src/middleware/requestObservability';
 
 import helmet from 'helmet';
 
@@ -110,8 +139,10 @@ const app = express();
 
 // Trust only one level of proxy (load balancer) for proper IP handling
 app.set('trust proxy', 1);
+app.use(requestObservability);
 
-export const oxy = new OxyServices({ baseURL: process.env.OXY_API_URL || 'https://api.oxy.so' });
+export const oxy = new OxyServices({ baseURL: config.oxyApiUrl });
+setRuntimeOxyClient(oxy);
 
 // --- Create Redis Store for Rate Limiting ---
 const redisStore = new RedisStore({ 
@@ -175,8 +206,8 @@ app.use((req, res, next) => {
   const origin = req.headers.origin;
   if (origin && isAllowedOrigin(origin)) {
     res.setHeader("Access-Control-Allow-Origin", origin);
-  } else if (process.env.FRONTEND_URL) {
-    res.setHeader("Access-Control-Allow-Origin", process.env.FRONTEND_URL);
+  } else if (config.frontendUrl) {
+    res.setHeader("Access-Control-Allow-Origin", config.frontendUrl);
   }
   // In production, don't set Access-Control-Allow-Origin for unknown origins (no wildcard fallback)
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, PATCH, OPTIONS");
@@ -185,6 +216,7 @@ app.use((req, res, next) => {
   // Set no-cache only for API routes, not for federation/AP/atproto-bridge
   // endpoints which set their own Cache-Control.
   if (
+    !isApexHost(req) &&
     !req.path.startsWith('/ap/') &&
     !req.path.startsWith('/.well-known/') &&
     !req.path.startsWith('/xrpc/') &&
@@ -202,6 +234,7 @@ app.use((req, res, next) => {
 
 // Basic liveness/readiness endpoints
 app.use(healthRoutes);
+app.use(internalMetricsRoutes);
 
 // Security headers. This backend serves BOTH the JSON API (api.mention.earth) AND the
 // web-app HTML at the apex (mention.earth, via apexFrontendProxy + webShell.routes), so
@@ -282,12 +315,18 @@ app.use(express.json({
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
 // Global rate limiting — must be applied early
-app.use(rateLimiter);
-app.use(bruteForceProtection);
+app.use((req, res, next) => {
+  if (isApexWebPlaneRequest(req)) return next();
+  return rateLimiter(req, res, next);
+});
+app.use((req, res, next) => {
+  if (isApexWebPlaneRequest(req)) return next();
+  return bruteForceProtection(req, res, next);
+});
+app.use(webTelemetryRoutes);
 
 // Performance monitoring — registered before routes so it wraps res.end and
 // observes every downstream route's response time.
-app.use(performanceMiddleware);
 
 // Middleware to parse nested query parameters (e.g., filters[authors]=user1,user2)
 app.use((req, res, next) => {
@@ -309,27 +348,15 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use(async (req, res, next) => {
-  // Try to ensure database connection, but don't block requests if it fails
-  try {
-    await connectToDatabase();
-  } catch (error) {
-    // Database unavailable - log once but allow request to continue
-    // Individual operations will handle database errors gracefully
-    logger.debug("MongoDB connection unavailable for request");
-  }
-  next();
-});
-
 // --- Sockets ---
 const server = http.createServer(app);
 
-interface AuthenticatedSocket extends Socket {
-  user?: { id: string; [key: string]: unknown };
-}
-
 // Presence tracking - Map of userId to Set of socket IDs (user can have multiple connections)
 const onlineUsers = new Map<string, Set<string>>();
+const distributedPresence = new DistributedPresenceService(
+  getRedisClient,
+  `${hostname()}:${process.pid}`,
+);
 
 // Helper to check if user is online
 const isUserOnline = (userId: string): boolean => {
@@ -362,7 +389,11 @@ const presenceCleanupInterval = setInterval(() => {
     // Remove user entry if no valid sockets remain
     if (sockets.size === 0) {
       onlineUsers.delete(userId);
-      broadcastPresence(io, userId, false);
+      void distributedPresence.markOffline(userId).then(async () => {
+        if (!await distributedPresence.isOnline(userId, false)) {
+          broadcastPresence(io, userId, false);
+        }
+      });
       cleanedUsers++;
     }
   }
@@ -373,16 +404,15 @@ const presenceCleanupInterval = setInterval(() => {
 // Never keep the event loop (or a test run) alive solely for this housekeeping timer.
 presenceCleanupInterval.unref?.();
 
+const presenceHeartbeatInterval = setInterval(() => {
+  void distributedPresence.heartbeat(onlineUsers.keys());
+}, 30_000);
+presenceHeartbeatInterval.unref?.();
+
 type DisconnectReason =
   | "server disconnect" | "client disconnect" | "transport close" | "transport error" | "ping timeout" | "parse error" | "forced close" | "forced server close" | "server shutting down" | "client namespace disconnect" | "server namespace disconnect" | "unknown transport";
 
-interface SocketError extends Error { description?: string; context?: unknown; }
-
-import { config, validateEnvironment } from './src/config';
 import { createSocketRateLimiter } from './src/middleware/socketRateLimit';
-
-// Validate environment on startup
-validateEnvironment();
 
 // Shared socket rate limiter instance
 const socketRateLimiter = createSocketRateLimiter();
@@ -425,15 +455,18 @@ const io = new SocketIOServer(server, {
     zlibDeflateOptions: { chunkSize: SOCKET_CONFIG.CHUNK_SIZE, windowBits: SOCKET_CONFIG.WINDOW_BITS, level: SOCKET_CONFIG.COMPRESSION_LEVEL },
   },
 });
+setRuntimeSocketServer(io);
+
+let socketRedisClients: ReturnType<typeof createRedisPubSub> | null = null;
 
 // Setup Redis adapter for Socket.IO horizontal scaling
 // Note: @socket.io/redis-adapter v8+ supports node-redis
 async function setupRedisAdapter(): Promise<void> {
   try {
-    const { createRedisPubSub } = require('./src/utils/redis');
     const { createAdapter } = require('@socket.io/redis-adapter');
     const { ensureRedisConnected } = require('./src/utils/redisHelpers');
     const { publisher, subscriber } = createRedisPubSub();
+    socketRedisClients = { publisher, subscriber };
 
     // Connect both clients with timeout to avoid hanging
     await Promise.race([
@@ -463,6 +496,14 @@ async function setupRedisAdapter(): Promise<void> {
     io.adapter(createAdapter(publisher, subscriber));
     logger.info('Socket.IO Redis adapter configured for horizontal scaling');
   } catch (error: unknown) {
+    if (socketRedisClients) {
+      const { publisher, subscriber } = socketRedisClients;
+      await Promise.allSettled([
+        publisher.isOpen ? publisher.quit() : Promise.resolve(),
+        subscriber.isOpen ? subscriber.quit() : Promise.resolve(),
+      ]);
+      socketRedisClients = null;
+    }
     // If Redis is unavailable, continue without adapter (single-instance mode)
     const { isRedisConnectionError } = require('./src/utils/redisHelpers');
     const errorMessage = error instanceof Error ? error.message : String(error);
@@ -560,6 +601,36 @@ notificationsNamespace.on("connection", (socket: AuthenticatedSocket) => {
   });
 });
 
+function registerContentRoomHandlers(socket: AuthenticatedSocket): void {
+  socket.on("joinPost", socketRateLimiter.wrap(socket, 'joinPost', (postId: string) => {
+    if (!postId || typeof postId !== 'string') return;
+    socket.join(`post:${postId}`);
+  }));
+
+  socket.on("leavePost", socketRateLimiter.wrap(socket, 'leavePost', (postId: string) => {
+    if (!postId || typeof postId !== 'string') return;
+    socket.leave(`post:${postId}`);
+  }));
+
+  socket.on("joinFeed", socketRateLimiter.wrap(socket, 'joinFeed', (data: { feedType?: string }) => {
+    const feedType = data?.feedType;
+    if (feedType && typeof feedType === 'string') {
+      socket.join(`feed:${feedType}`);
+    }
+    const selfId = socket.user?.id;
+    if (selfId) socket.join(`feed:user:${selfId}`);
+  }));
+
+  socket.on("leaveFeed", socketRateLimiter.wrap(socket, 'leaveFeed', (data: { feedType?: string }) => {
+    const feedType = data?.feedType;
+    if (feedType && typeof feedType === 'string') {
+      socket.leave(`feed:${feedType}`);
+    }
+    const selfId = socket.user?.id;
+    if (selfId) socket.leave(`feed:user:${selfId}`);
+  }));
+}
+
 // Configure postsNamespace events
 postsNamespace.on("connection", (socket: AuthenticatedSocket) => {
   logger.info(`Client connected to posts namespace from ip: ${socket.handshake.address}`);
@@ -573,46 +644,7 @@ postsNamespace.on("connection", (socket: AuthenticatedSocket) => {
   socket.on("error", (error: Error) => {
     logger.error("Posts socket error", error);
   });
-
-  socket.on("joinPost", socketRateLimiter.wrap(socket, 'joinPost', (postId: string) => {
-    if (!postId || typeof postId !== 'string') return;
-    const room = `post:${postId}`;
-    socket.join(room);
-    logger.debug(`Client ${socket.id} joined post room: ${room}`);
-  }));
-
-  socket.on("leavePost", socketRateLimiter.wrap(socket, 'leavePost', (postId: string) => {
-    if (!postId || typeof postId !== 'string') return;
-    const room = `post:${postId}`;
-    socket.leave(room);
-    logger.debug(`Client ${socket.id} left post room: ${room}`);
-  }));
-
-  // Join feed room for real-time updates (posts namespace). The user-scoped room
-  // is ALWAYS derived from the authenticated socket identity — never a
-  // client-supplied id — so a client can only ever join its OWN feed room.
-  socket.on("joinFeed", socketRateLimiter.wrap(socket, 'joinFeed', (data: { feedType?: string }) => {
-    const feedType = data?.feedType;
-    if (feedType && typeof feedType === 'string') {
-      socket.join(`feed:${feedType}`);
-    }
-    const selfId = socket.user?.id;
-    if (selfId) {
-      socket.join(`feed:user:${selfId}`);
-    }
-  }));
-
-  // Leave feed room (posts namespace)
-  socket.on("leaveFeed", socketRateLimiter.wrap(socket, 'leaveFeed', (data: { feedType?: string }) => {
-    const feedType = data?.feedType;
-    if (feedType && typeof feedType === 'string') {
-      socket.leave(`feed:${feedType}`);
-    }
-    const selfId = socket.user?.id;
-    if (selfId) {
-      socket.leave(`feed:user:${selfId}`);
-    }
-  }));
+  registerContentRoomHandlers(socket);
 
   socket.on("disconnect", (reason: DisconnectReason) => {
     socketRateLimiter.cleanup(socket.id);
@@ -632,24 +664,21 @@ postsNamespace.on("connection", (socket: AuthenticatedSocket) => {
 io.on("connection", (socket: AuthenticatedSocket) => {
   logger.info(`Client connected from ip: ${socket.handshake.address}`);
 
-  // Track user presence
-  const userId = socket.user?.id;
-  if (userId) {
-    const wasOnline = isUserOnline(userId);
-    if (!onlineUsers.has(userId)) {
-      onlineUsers.set(userId, new Set());
-    }
-    onlineUsers.get(userId)!.add(socket.id);
-
-    // Join user-specific room for targeted events
-    socket.join(`user:${userId}`);
-
-    // Broadcast online status if user just came online (first connection)
-    if (!wasOnline) {
-      broadcastPresence(io, userId, true);
-      logger.debug(`User ${userId} is now online`);
-    }
-  }
+  // registerSocketPresence installs disconnect cleanup synchronously before its
+  // first Redis await. Do not await it here: every other socket listener must
+  // also be attached in the same connection turn.
+  void registerSocketPresence(socket, {
+    onlineUsers,
+    distributedPresence,
+    broadcastPresence: (presenceUserId, online) => {
+      broadcastPresence(io, presenceUserId, online);
+      logger.debug(`User ${presenceUserId} is now ${online ? 'online' : 'offline'}`);
+    },
+  }).catch((error) => {
+    logger.warn('Failed to initialize socket presence', {
+      reason: error instanceof Error ? error.message : String(error),
+    });
+  });
 
   // Enhanced error handling
   socket.on("error", (error: Error) => {
@@ -659,24 +688,11 @@ io.on("connection", (socket: AuthenticatedSocket) => {
       socket.disconnect();
     }
   });
+  registerContentRoomHandlers(socket);
 
   socket.on("disconnect", (reason: DisconnectReason, description?: unknown) => {
     socketRateLimiter.cleanup(socket.id);
     logger.debug(`Client disconnected: ${reason}${description ? ` - ${String(description)}` : ""}`);
-
-    // Track user presence on disconnect
-    if (userId) {
-      const userSockets = onlineUsers.get(userId);
-      if (userSockets) {
-        userSockets.delete(socket.id);
-        // If user has no more connections, they're offline
-        if (userSockets.size === 0) {
-          onlineUsers.delete(userId);
-          broadcastPresence(io, userId, false);
-          logger.debug(`User ${userId} is now offline`);
-        }
-      }
-    }
 
     // Handle specific disconnect reasons
     if (reason === "server disconnect") {
@@ -704,58 +720,13 @@ io.on("connection", (socket: AuthenticatedSocket) => {
     logger.error("Failed to reconnect");
   });
 
-  socket.on("joinPost", socketRateLimiter.wrap(socket, 'joinPost', (postId: string) => {
-    if (!postId || typeof postId !== 'string') return;
-    const room = `post:${postId}`;
-    socket.join(room);
-    logger.debug(`Client ${socket.id} joined room: ${room}`);
-  }));
-
-  socket.on("leavePost", socketRateLimiter.wrap(socket, 'leavePost', (postId: string) => {
-    if (!postId || typeof postId !== 'string') return;
-    const room = `post:${postId}`;
-    socket.leave(room);
-    logger.debug(`Client ${socket.id} left room: ${room}`);
-  }));
-
-  // Join feed room for real-time updates. The user-scoped room is ALWAYS derived
-  // from the authenticated socket identity — never a client-supplied id — so a
-  // client can only ever join its OWN feed room.
-  socket.on("joinFeed", socketRateLimiter.wrap(socket, 'joinFeed', (data: { feedType?: string }) => {
-    const feedType = data?.feedType;
-    if (feedType && typeof feedType === 'string') {
-      const room = `feed:${feedType}`;
-      socket.join(room);
-      logger.debug(`Client ${socket.id} joined feed room: ${room}`);
-    }
-    const selfId = socket.user?.id;
-    if (selfId) {
-      const userRoom = `feed:user:${selfId}`;
-      socket.join(userRoom);
-      logger.debug(`Client ${socket.id} joined user feed room: ${userRoom}`);
-    }
-  }));
-
-  // Leave feed room
-  socket.on("leaveFeed", socketRateLimiter.wrap(socket, 'leaveFeed', (data: { feedType?: string }) => {
-    const feedType = data?.feedType;
-    if (feedType && typeof feedType === 'string') {
-      const room = `feed:${feedType}`;
-      socket.leave(room);
-      logger.debug(`Client ${socket.id} left feed room: ${room}`);
-    }
-    const selfId = socket.user?.id;
-    if (selfId) {
-      const userRoom = `feed:user:${selfId}`;
-      socket.leave(userRoom);
-      logger.debug(`Client ${socket.id} left user feed room: ${userRoom}`);
-    }
-  }));
-
   // Get online status of a single user
-  socket.on("getPresence", socketRateLimiter.wrap(socket, 'getPresence', (targetUserId: string, callback?: (data: { online: boolean }) => void) => {
+  socket.on("getPresence", socketRateLimiter.wrap(socket, 'getPresence', async (targetUserId: string, callback?: (data: { online: boolean }) => void) => {
     if (!targetUserId || typeof targetUserId !== 'string') return;
-    const online = isUserOnline(targetUserId);
+    const online = await distributedPresence.isOnline(
+      targetUserId,
+      isUserOnline(targetUserId),
+    );
     if (typeof callback === 'function') {
       callback({ online });
     } else {
@@ -764,15 +735,10 @@ io.on("connection", (socket: AuthenticatedSocket) => {
   }));
 
   // Get online status of multiple users
-  socket.on("getPresenceBulk", socketRateLimiter.wrap(socket, 'getPresenceBulk', (userIds: string[], callback?: (data: Record<string, boolean>) => void) => {
-    const result: Record<string, boolean> = {};
-    if (Array.isArray(userIds)) {
-      // Cap bulk queries to prevent abuse
-      const safeIds = userIds.slice(0, 100);
-      safeIds.forEach(id => {
-        if (typeof id === 'string') result[id] = isUserOnline(id);
-      });
-    }
+  socket.on("getPresenceBulk", socketRateLimiter.wrap(socket, 'getPresenceBulk', async (userIds: string[], callback?: (data: Record<string, boolean>) => void) => {
+    const result = Array.isArray(userIds)
+      ? await distributedPresence.getBulk(userIds, isUserOnline)
+      : {};
     if (typeof callback === 'function') {
       callback(result);
     } else {
@@ -781,10 +747,14 @@ io.on("connection", (socket: AuthenticatedSocket) => {
   }));
 
   // Subscribe to a user's presence changes
-  socket.on("subscribePresence", socketRateLimiter.wrap(socket, 'subscribePresence', (targetUserId: string) => {
+  socket.on("subscribePresence", socketRateLimiter.wrap(socket, 'subscribePresence', async (targetUserId: string) => {
     if (!targetUserId || typeof targetUserId !== 'string') return;
     socket.join(`presence:${targetUserId}`);
-    socket.emit('user:presence', { userId: targetUserId, online: isUserOnline(targetUserId) });
+    const online = await distributedPresence.isOnline(
+      targetUserId,
+      isUserOnline(targetUserId),
+    );
+    socket.emit('user:presence', { userId: targetUserId, online });
   }));
 
   // Unsubscribe from a user's presence changes
@@ -794,36 +764,8 @@ io.on("connection", (socket: AuthenticatedSocket) => {
   }));
 });
 
-// Enhanced error handling for namespaces
-[notificationsNamespace, postsNamespace].forEach(
-  (namespace: Namespace) => {
-    namespace.on("connection_error", (error: Error) => {
-      logger.error(`Namespace ${namespace.name} connection error`, error);
-    });
-
-    namespace.on("connect_error", (error: SocketError) => {
-      logger.error(`${namespace.name}: Connect error`, error);
-      // Log detailed error info
-      if (error.description) {
-        logger.error("Error description", error.description);
-      }
-      if (error.context) {
-        logger.error("Error context", error.context);
-      }
-    });
-
-    namespace.on("connect_timeout", () => {
-      logger.warn(`${namespace.name}: Connect timeout`);
-    });
-  }
-);
-
 // --- Expose namespaces for use in routes ---
 app.set("io", io);
-// Expose io globally for utility modules that emit without direct access to
-// req/app. Typed via the `declare global { var io }` augmentation in
-// src/types/global.d.ts, so no cast is needed.
-global.io = io;
 app.set("notificationsNamespace", notificationsNamespace);
 app.set("postsNamespace", postsNamespace);
 
@@ -878,7 +820,6 @@ authenticatedApiRouter.use("/posts/intent-media", intentMediaRoutes);
 authenticatedApiRouter.use("/posts", postsRouter); // All post routes require authentication
 authenticatedApiRouter.use("/lists", listsRoutes);
 authenticatedApiRouter.use("/notifications", notificationsRouter);
-authenticatedApiRouter.use("/analytics", analyticsRoutes);
 authenticatedApiRouter.use("/statistics", statisticsRoutes);
 authenticatedApiRouter.use("/search", searchRoutes);
 authenticatedApiRouter.use("/labelers", labelerRoutes); // Composable moderation labels
@@ -904,53 +845,13 @@ authenticatedApiRouter.use("/mcp/bundles", mcpBundlesRoutes);
 // --- Root API Welcome Route ---
 // On the API host `/` is the API root; on the frontend apex `/` is the SPA
 // homepage, so defer to the apex frontend proxy (mounted below) for apex hosts.
-app.get("", async (req, res, next) => {
-  if (isApexHost(req)) {
-    return next();
-  }
-  try {
-    const postsCount = await Post.countDocuments();
-    res.json({ message: "Welcome to the API", posts: postsCount });
-  } catch (error) {
-    logger.error("Error fetching stats for root route", error);
-    res.status(500).json({ message: "Error fetching stats" });
-  }
-});
+app.get("/", legacyApiRootReadiness);
 
 // --- Health Check Endpoint ---
 // Minimal health check for load balancers — no internal details exposed
-app.get("/health", async (req, res) => {
-  try {
-    const { isDatabaseConnected } = require("./src/utils/database");
-    const { isRedisConnected } = require("./src/utils/redis");
-
-    const [dbConnected, redisConnected] = await Promise.all([
-      isDatabaseConnected(),
-      isRedisConnected(),
-    ]);
-
-    const status = dbConnected && redisConnected ? "healthy" : "degraded";
-    const statusCode = status === "healthy" ? 200 : 503;
-    res.status(statusCode).json({
-      status,
-      timestamp: new Date().toISOString(),
-    });
-  } catch (error) {
-    logger.error("Health check failed:", error);
-    res.status(503).json({
-      status: "unhealthy",
-      timestamp: new Date().toISOString(),
-    });
-  }
-});
 
 // --- Metrics Endpoint ---
 // Exposes Prometheus-format metrics for monitoring systems
-import { metrics } from './src/utils/metrics';
-app.get('/metrics', (req, res) => {
-  res.set('Content-Type', 'text/plain');
-  res.send(metrics.getPrometheusFormat());
-});
 
 // --- Federation routes (ActivityPub protocol — must be public, before auth) ---
 app.use('/.well-known', webfingerRouter);
@@ -961,7 +862,7 @@ app.get('/.well-known/nodeinfo', (req, res) => {
     links: [
       {
         rel: 'http://nodeinfo.diaspora.software/ns/schema/2.0',
-        href: `https://${process.env.FEDERATION_DOMAIN || 'mention.earth'}/nodeinfo/2.0`,
+        href: `https://${config.federationDomain}/nodeinfo/2.0`,
       },
     ],
   });
@@ -1081,23 +982,14 @@ db.once("open", () => {
 
   // Load models
   require("./src/models/Post");
-  require("./src/models/Block");
   require("./src/models/UserBehavior"); // Load UserBehavior model
-
-  // Background schedulers (cron-style jobs) must run on EXACTLY ONE backend
-  // task to avoid double-running when scaled to 2+ ECS tasks. They are gated
-  // behind Redis leader election: only the elected leader starts them, and a
-  // task that loses leadership stops them. See startSchedulers()/stopSchedulers().
-  void leaderElection.start(startSchedulers, stopSchedulers).catch((error) => {
-    logger.error("Leader election failed to start", error);
-  });
 });
 
 /**
  * Start all in-process schedulers. Invoked by LeaderElection ONLY on the task
- * that holds the scheduler leadership lock (or in the Redis-unavailable
- * degraded fallback). Each service logs its own startup status. Failures are
- * isolated so one scheduler failing to start does not block the others.
+ * that holds the scheduler leadership lock. Redis failure pauses all singleton
+ * schedulers; the HTTP API may degrade, but no task self-elects without a
+ * lease. Each service logs its own startup status.
  */
 function startSchedulers(): void {
   // Feed job scheduler
@@ -1222,26 +1114,21 @@ function stopSchedulers(): void {
 }
 
 // --- Server Listen ---
-const PORT = Number(process.env.PORT) || 3000;
+const PORT = config.runtime.port;
 const bootServer = async () => {
-  // Try to connect to database, but don't crash if it fails
-  let databaseConnected = false;
-  try {
-    await connectToDatabase();
-    databaseConnected = true;
-  } catch (error: unknown) {
-    // Database connection failed, but allow server to start anyway
-    // Operations will fail gracefully when database is unavailable
-    logger.warn("MongoDB connection unavailable - server will start but database operations will fail");
-  }
+  validateEnvironment();
+  markRuntimeNotReady('booting');
+  await connectToDatabase();
 
-  // Run pending data migrations before accepting traffic. Only when the
-  // database is connected — otherwise migrations are deferred to a boot with a
-  // live connection. A migration failure must abort boot rather than serve
-  // traffic against half-migrated data.
-  if (databaseConnected) {
+  // Production migrations run as a deployment one-shot with the exact image
+  // that will be rolled out. Web tasks never mutate schema during a scale-out;
+  // they only refuse readiness until that one-shot has completed.
+  if (config.runtime.isProduction) {
+    await assertMigrationsApplied();
+  } else {
     await runMigrations();
   }
+  markMigrationsComplete();
 
   // Setup Redis adapter before accepting connections to ensure
   // cross-instance broadcasts work from the first connection
@@ -1263,62 +1150,124 @@ const bootServer = async () => {
   // Register MTN Protocol feed engine modules (sources / signals / filters)
   registerAllModules();
 
+  // Mongo-leased workers may run on every task: claims are atomic and do not
+  // depend on Redis leadership, so committed engagement effects keep draining
+  // even while Redis is degraded.
+  engagementOutboxDispatcher.start();
+
+  // Singleton jobs start only after the schema is ready. Leader election fails
+  // closed when Redis is unavailable, while the HTTP API can remain degraded.
+  await leaderElection.start(startSchedulers, stopSchedulers);
+
   // Start server after all async setup is complete
   server.listen(PORT, '0.0.0.0', () => {
+    markRuntimeReady();
     logger.info(`Server running at http://localhost:${PORT}`);
-    if (!isDatabaseConnected()) {
-      logger.warn("Server started without database connection - some features may be unavailable");
-    }
   });
 };
 
 // --- Graceful Shutdown ---
 // ECS sends SIGTERM on task stop (and again SIGKILL after the stop timeout).
-// On shutdown we release the scheduler leadership lock so another task can pick
-// up the schedulers almost immediately, then stop accepting new connections.
+// Readiness is cleared and HTTP stops accepting immediately. Producers and
+// workers then drain while Mongo/Redis are still available, and the scheduler
+// leadership lock is released only after singleton schedulers have stopped.
 let isShuttingDown = false;
 const gracefulShutdown = (signal: string): void => {
   if (isShuttingDown) return;
   isShuttingDown = true;
-  logger.info(`Received ${signal} — shutting down gracefully`);
+  markRuntimeShuttingDown();
+  logger.info(`Received ${signal} - shutting down gracefully`);
 
-  // Release the scheduler lock + stop schedulers first so failover is fast.
-  // leaderElection.stop() is safe to call even if this task was never leader.
-  // Then close the BullMQ workers + queue connections so no jobs are processed
-  // mid-shutdown and Redis connections drain cleanly. Both are best-effort and
-  // must not block the server from closing.
-  void leaderElection
-    .stop()
-    .catch((error) => logger.error("Error stopping leader election", error))
-    .then(async () => {
+  // Stop accepting HTTP immediately. All dependency cleanup then runs
+  // concurrently under a hard deadline.
+  const httpClosed = new Promise<void>((resolve) => {
+    if (!server.listening) {
+      resolve();
+      return;
+    }
+    server.close((error) => {
+      if (error) logger.warn('HTTP server close reported an error', error);
+      resolve();
+    });
+  });
+
+  const hardTimeout = setTimeout(() => {
+    logger.warn('Shutdown timed out - forcing open connections closed');
+    server.closeAllConnections?.();
+    process.exit(1);
+  }, 10_000);
+  hardTimeout.unref();
+
+  void (async () => {
+    clearInterval(presenceCleanupInterval);
+    clearInterval(presenceHeartbeatInterval);
+
+    const presenceShutdown = async (): Promise<void> => {
+      await Promise.allSettled(
+        [...onlineUsers.keys()].map((userId) => distributedPresence.markOffline(userId)),
+      );
+      onlineUsers.clear();
+    };
+
+    const queueShutdown = async (): Promise<void> => {
       try {
         const { shutdownQueues } = require("./src/queue/workers");
         await shutdownQueues();
       } catch (error) {
         logger.error("Error shutting down federation queues", error);
       }
-    })
-    .finally(() => {
-      // Stop accepting new HTTP/socket connections.
-      server.close(() => {
-        logger.info("HTTP server closed — exiting");
-        process.exit(0);
-      });
+    };
 
-      // Hard cap: if connections don't drain in time, force exit so ECS doesn't
-      // have to SIGKILL us.
-      setTimeout(() => {
-        logger.warn("Shutdown timed out — forcing exit");
-        process.exit(0);
-      }, 10_000).unref();
+    const socketShutdown = new Promise<void>((resolve) => {
+      io.close(() => {
+        clearRuntimeSocketServer(io);
+        resolve();
+      });
     });
+
+    const pubSubShutdown = async (): Promise<void> => {
+      if (!socketRedisClients) return;
+      const { publisher, subscriber } = socketRedisClients;
+      socketRedisClients = null;
+      await Promise.allSettled([
+        publisher.isOpen ? publisher.quit() : Promise.resolve(),
+        subscriber.isOpen ? subscriber.quit() : Promise.resolve(),
+      ]);
+    };
+
+    await presenceShutdown();
+    // Stop every producer/worker while Redis and Mongo are still available.
+    // LeaderElection releases its owner-checked lock only after onLose has
+    // stopped singleton schedulers.
+    await Promise.allSettled([
+      leaderElection.stop(),
+      engagementOutboxDispatcher.stop(),
+      queueShutdown(),
+    ]);
+
+    await Promise.allSettled([
+      httpClosed,
+      socketShutdown,
+      pubSubShutdown(),
+      closeRedisConnection(),
+      mongoose.disconnect(),
+    ]);
+
+    clearTimeout(hardTimeout);
+    logger.info('HTTP, sockets, queues, Redis, and MongoDB closed');
+    process.exit(0);
+  })();
 };
 
 process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
 process.on("SIGINT", () => gracefulShutdown("SIGINT"));
 
 if (require.main === module) {
-  void bootServer();
+  void bootServer().catch((error) => {
+    markRuntimeNotReady('boot_failed');
+    logger.error('Backend boot failed', error);
+    process.exit(1);
+  });
 }
 
 export { io, notificationsNamespace };

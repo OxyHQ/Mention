@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef } from 'react';
 import { MentionData } from '@/components/MentionTextInput';
 import { createScopedLogger } from '@/lib/logger';
-import {
+import type {
   GeoJSONPoint,
   CreatePostRequest,
   CreateThreadPostRequest,

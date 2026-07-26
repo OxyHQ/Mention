@@ -1,14 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, FlatList } from 'react-native';
 import { Loading } from '@oxyhq/bloom/loading';
-import { useAuth } from '@oxyhq/services';
+import { useAuth } from '@oxyhq/services/ui/client';
 import { Avatar } from '@oxyhq/bloom/avatar';
-import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types';
+import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import { useTranslation } from 'react-i18next';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { logger } from '@/lib/logger';
 import { displayNameOrHandle } from '@/utils/displayName';
-import { MAX_POST_COLLABORATORS } from '@mention/shared-types';
+import { MAX_POST_COLLABORATORS } from '@mention/shared-types/post';
 
 export interface CollaboratorUser {
   id: string;

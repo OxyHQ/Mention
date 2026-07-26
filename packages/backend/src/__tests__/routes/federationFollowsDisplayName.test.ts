@@ -22,7 +22,7 @@ const { followFind, actorFind, getUsersByIds } = vi.hoisted(() => ({
 // transitively (ActivityPub + atproto connectors, PostHydrationService); stub the
 // heavy/circular deps so it can be imported in isolation — same pattern as
 // profileDesign.test.ts.
-vi.mock('../../../server', () => ({ oxy: {} }));
+vi.mock('../../runtime/oxyClient', () => ({ getRuntimeOxyClient: () => ({}) }));
 
 vi.mock('@oxyhq/core/server', () => ({
   getRequiredOxyUserId: () => 'local-user-1',

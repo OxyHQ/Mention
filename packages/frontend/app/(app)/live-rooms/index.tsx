@@ -1,12 +1,11 @@
-import React, { useEffect, useState, useCallback, useContext, lazy, Suspense } from 'react';
+import React, { useEffect, useState, useCallback, useContext } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, RefreshControl, Platform } from 'react-native';
 import { SafeAreaView } from '@/lib/SafeAreaViewInterop';
 import { router } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
-import { useAuth } from '@oxyhq/services';
+import Ionicons from '@expo/vector-icons/Ionicons';
+import { useAuth } from '@oxyhq/services/ui/client';
 
 import { ThemedText } from '@/components/ThemedText';
-import { LiveRoomsIcon } from '@syra.fm/sdk';
 import { Header } from '@/components/Header';
 import { EmptyState } from '@/components/common/EmptyState';
 import { RoomsListSkeleton } from '@/components/rooms/RoomsListSkeleton';
@@ -16,14 +15,12 @@ import SEO from '@/components/SEO';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { useRoomUsers } from '@/hooks/useRoomUsers';
 import { useLiveRoom } from '@/context/LiveRoomContext';
-import { roomsService } from '@/lib/liveConfig';
-import type { Room } from '@syra.fm/sdk';
+import { roomsService, type Room } from '@/lib/syraApi';
 import { logger } from '@/lib/logger';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
 import { useTranslation } from 'react-i18next';
 import { LIVE_INDICATOR_COLOR, LIVE_INDICATOR_FOREGROUND_COLOR } from '@/styles/colors';
-
-const CreateRoomSheet = lazy(() => import('@/components/rooms/CreateRoomSheet'));
+import CreateRoomSheet from '@/components/rooms/CreateRoomSheet';
 
 const SectionHeader = ({
   icon,
@@ -88,21 +85,14 @@ const LiveRoomsScreen = () => {
 
   const openCreateSheet = useCallback(() => {
     bottomSheet.setBottomSheetContent(
-      <Suspense fallback={null}>
-        <CreateRoomSheet
-          onClose={() => bottomSheet.openBottomSheet(false)}
-          mode="standalone"
-          onRoomCreated={(room) => {
-            if (!room.scheduledStart) {
-              joinLiveRoom(room._id);
-            }
-            loadRooms();
-          }}
-        />
-      </Suspense>
+      <CreateRoomSheet
+        onClose={() => bottomSheet.openBottomSheet(false)}
+        mode="standalone"
+        onRoomCreated={loadRooms}
+      />
     );
     bottomSheet.openBottomSheet(true);
-  }, [bottomSheet, joinLiveRoom, loadRooms]);
+  }, [bottomSheet, loadRooms]);
 
   // Resolve all host IDs to user profiles
   const allHostIds = [...liveRooms, ...scheduledRooms].map((r) => r.host).filter(Boolean);
@@ -132,7 +122,7 @@ const LiveRoomsScreen = () => {
     <EmptyState
       title="No rooms available"
       subtitle="Create a room to start a live audio conversation or schedule one for later"
-      customIcon={<LiveRoomsIcon size={48} color={theme.colors.textSecondary} />}
+      customIcon={<Ionicons name="radio-outline" size={48} color={theme.colors.textSecondary} />}
       action={{
         label: t('agora.createRoom'),
         onPress: openCreateSheet,
@@ -149,7 +139,7 @@ const LiveRoomsScreen = () => {
                 className="w-9 h-9 items-center justify-center rounded-full"
                 style={{ backgroundColor: LIVE_INDICATOR_COLOR }}
               >
-                <LiveRoomsIcon size={18} color={LIVE_INDICATOR_FOREGROUND_COLOR} />
+                <Ionicons name="radio" size={18} color={LIVE_INDICATOR_FOREGROUND_COLOR} />
               </View>
             }
             title={t('agora.liveNow')}

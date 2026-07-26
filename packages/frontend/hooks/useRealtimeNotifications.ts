@@ -1,7 +1,7 @@
 import { useEffect, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { createScopedLogger } from '@/lib/logger';
-import { useAuth } from '@oxyhq/services';
+import { useAuth } from '@oxyhq/services/ui/client';
 import { io, Socket } from 'socket.io-client';
 import { API_URL_SOCKET } from '../config';
 import { ZRawNotification } from '../types/validation';

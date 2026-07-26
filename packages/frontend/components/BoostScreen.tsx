@@ -1,4 +1,4 @@
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { useLocalSearchParams } from "expo-router";
 import { useSafeBack } from "@/hooks/useSafeBack";
 import React, { useState, useRef, useEffect } from "react";
@@ -14,11 +14,11 @@ import {
 import { show as toast } from '@oxyhq/bloom/toast';
 import { Dialog, useDialogControl } from '@oxyhq/bloom/dialog';
 import { Avatar } from '@oxyhq/bloom/avatar';
-import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types';
+import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 
 import UserName from "./UserName";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useAuth } from "@oxyhq/services";
+import { useAuth } from "@oxyhq/services/ui/client";
 import { getNormalizedUserHandle } from "@oxyhq/core";
 import { usePostsStore } from "../stores/postsStore";
 import { CreateBoostRequest } from "@mention/shared-types";

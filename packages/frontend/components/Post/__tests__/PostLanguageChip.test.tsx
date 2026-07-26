@@ -33,9 +33,9 @@ jest.mock('@oxyhq/bloom/loading', () => {
   return { SpinnerIcon: () => <View testID="spinner" /> };
 });
 
-jest.mock('@expo/vector-icons', () => {
+jest.mock('@expo/vector-icons/Ionicons', () => {
   const { View } = jest.requireActual<typeof import('react-native')>('react-native');
-  return { Ionicons: () => <View testID="icon" /> };
+  return { __esModule: true, default: () => <View testID="icon" /> };
 });
 
 /**

@@ -40,9 +40,9 @@ export const QUERY_CLIENT_CONFIG = {
       networkMode: 'online', // Only refetch when online
     },
     mutations: {
-      // Mutation retry - only once for failed mutations
-      retry: 1,
-      retryDelay: 1000,
+      // A lost response does not prove a write failed. Retrying a POST can
+      // duplicate reviews, analytics and other non-idempotent actions.
+      retry: false,
       
       // Optimistic updates enabled by default (implement per mutation)
       // This provides instant UI feedback
@@ -55,4 +55,3 @@ export const QUERY_CLIENT_CONFIG = {
   // Mutation cache configuration  
   mutationCache: undefined, // Use default cache
 } as const;
-

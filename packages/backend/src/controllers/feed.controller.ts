@@ -1,7 +1,5 @@
 import { Response } from 'express';
 import { Post, POST_CLASSIFICATION_PENDING } from '../models/Post';
-import Block from '../models/Block';
-import Mute from '../models/Mute';
 import {
   CreateReplyRequest,
   CreateBoostRequest,
@@ -12,8 +10,8 @@ import {
 } from '@mention/shared-types';
 import mongoose, { FilterQuery } from 'mongoose';
 import { IPost } from '../models/Post';
-import { io } from '../../server';
-import { oxy as oxyClient } from '../../server';
+import { getRuntimeOxyClient } from '../runtime/oxyClient';
+import { getRuntimeSocketServer } from '../runtime/socketServer';
 import { userPreferenceService, readInteractionSurface } from '../services/UserPreferenceService';
 import { affinityEventService } from '../services/AffinityEventService';
 import { postHydrationService } from '../services/PostHydrationService';
@@ -41,6 +39,8 @@ import {
   repostRecordUri,
 } from '../services/mtn/MentionRecordEmitter';
 import { sanitizePodcast, resolvePodcastContent } from '../utils/syraPodcast';
+import { recordRecentReplierForPost } from '../services/PostRecentReplierService';
+import { UserPrivacyManager } from '../mtn/UserPrivacyManager';
 
 /**
  * Hard cap on how many posts of an author's self-thread continuation spine the
@@ -120,24 +120,16 @@ class FeedController {
    * @param userId - Current user ID
    * @returns Array of user IDs to filter out
    */
-  private async getBlockedAndMutedUserIds(userId?: string): Promise<string[]> {
+  private async getBlockedAndMutedUserIds(
+    userId?: string,
+    oxyClient?: OxyClient,
+  ): Promise<string[]> {
     if (!userId) return [];
 
-    try {
-      const [blockedUsers, mutedUsers] = await Promise.all([
-        Block.find({ userId }).select('blockedId').lean(),
-        Mute.find({ userId }).select('mutedId').lean()
-      ]);
-
-      const blockedIds = blockedUsers.map(b => b.blockedId);
-      const mutedIds = mutedUsers.map(m => m.mutedId);
-
-      // Combine and deduplicate
-      return [...new Set([...blockedIds, ...mutedIds])];
-    } catch (error) {
-      logger.warn('[Feed] Failed to fetch blocked/muted users', error);
-      return [];
-    }
+    const privacyState = await UserPrivacyManager.loadPrivacyState(userId, {
+      oxyClient,
+    });
+    return Array.from(privacyState.excludedUserIds);
   }
 
   /**
@@ -150,9 +142,10 @@ class FeedController {
   private filterBlockedAndMutedPosts<T extends { oxyUserId?: unknown }>(posts: T[], blockedAndMutedIds: string[]): T[] {
     if (blockedAndMutedIds.length === 0) return posts;
 
+    const excludedIds = new Set(blockedAndMutedIds);
     return posts.filter(post => {
       const authorId = post.oxyUserId == null ? '' : String(post.oxyUserId);
-      return !blockedAndMutedIds.includes(authorId);
+      return !excludedIds.has(authorId);
     });
   }
 
@@ -264,7 +257,7 @@ class FeedController {
                 switch (perm) {
                   case 'followers': {
                     if (!parentAuthorId) break;
-                    const authorFollowers = await oxyClient.getUserFollowers(parentAuthorId);
+                    const authorFollowers = await getRuntimeOxyClient().getUserFollowers(parentAuthorId);
                     canReply = authorFollowers?.followers?.some((f: FollowerRef) => {
                       const followerId = typeof f === 'string' ? f : (f.id || f._id);
                       return followerId === currentUserId || String(followerId) === String(currentUserId);
@@ -274,7 +267,7 @@ class FeedController {
                   case 'following': {
                     if (!parentAuthorId) break;
                     try {
-                      const authorFollowing = await oxyClient.getUserFollowing(parentAuthorId);
+                      const authorFollowing = await getRuntimeOxyClient().getUserFollowing(parentAuthorId);
                       const followingIds = extractFollowingIds(authorFollowing);
                       canReply = followingIds.includes(currentUserId);
                     } catch (error) {
@@ -339,7 +332,8 @@ class FeedController {
           boostsCount: 0,
           commentsCount: 0,
           viewsCount: 0,
-          sharesCount: 0
+          sharesCount: 0,
+          savesCount: 0,
         }
       });
 
@@ -376,6 +370,7 @@ class FeedController {
       }
 
       await reply.save();
+      await recordRecentReplierForPost(reply);
 
       // MTN dual-write: a reply emits an `app.mention.feed.post` record with the
       // thread position (reply.root / reply.parent). The direct parent is
@@ -436,7 +431,7 @@ class FeedController {
       });
 
       // Emit real-time update to post room only (not all clients)
-      io.to(`post:${postId}`).emit('post:replied', {
+      getRuntimeSocketServer()?.to(`post:${postId}`).emit('post:replied', {
         postId,
         reply: hydratedReply,
         timestamp: new Date().toISOString()
@@ -508,7 +503,8 @@ class FeedController {
           boostsCount: 0,
           commentsCount: 0,
           viewsCount: 0,
-          sharesCount: 0
+          sharesCount: 0,
+          savesCount: 0,
         }
       });
 
@@ -564,7 +560,7 @@ class FeedController {
       });
 
       // Emit real-time update to post room only (not all clients)
-      io.to(`post:${originalPostId}`).emit('post:boosted', {
+      getRuntimeSocketServer()?.to(`post:${originalPostId}`).emit('post:boosted', {
         originalPostId,
         postId: originalPostId,
         boost: hydratedBoost,
@@ -647,7 +643,7 @@ class FeedController {
 
       // Emit real-time update to post room only (not all clients)
       const boostOriginalId = boost.boostOf ? String(boost.boostOf) : '';
-      io.to(`post:${boostOriginalId}`).emit('post:unboosted', {
+      getRuntimeSocketServer()?.to(`post:${boostOriginalId}`).emit('post:unboosted', {
         originalPostId: boost.boostOf,
         postId: boost.boostOf,
         boostId: boost._id,
@@ -792,10 +788,14 @@ class FeedController {
 
       const hasMore = posts.length > limit;
       const slicedPosts = hasMore ? posts.slice(0, limit) : posts;
+      const requestOxyClient = createScopedOxyClient(req);
 
       let filteredPosts = slicedPosts;
       if (currentUserId) {
-        const blockedAndMutedIds = await this.getBlockedAndMutedUserIds(currentUserId);
+        const blockedAndMutedIds = await this.getBlockedAndMutedUserIds(
+          currentUserId,
+          requestOxyClient,
+        );
         filteredPosts = this.filterBlockedAndMutedPosts(slicedPosts, blockedAndMutedIds);
       }
 
@@ -805,7 +805,7 @@ class FeedController {
       // performance, so hydrate directly here.
       const hydratedReplies = await postHydrationService.hydratePosts(filteredPosts, {
         viewerId: currentUserId,
-        oxyClient: createScopedOxyClient(req),
+        oxyClient: requestOxyClient,
         maxDepth: 1,
         includeLinkMetadata: true,
       });

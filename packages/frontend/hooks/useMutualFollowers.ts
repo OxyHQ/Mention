@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { useAuth } from '@oxyhq/services';
+import { useAuth } from '@oxyhq/services/ui/client';
 import type { User } from '@oxyhq/core';
 import { isAuthError } from '@/utils/authErrors';
 import { logger } from '@/lib/logger';

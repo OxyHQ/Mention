@@ -3,11 +3,12 @@ import { View, Text, TextInput, TouchableOpacity, ScrollView, Platform, type Tex
 import { useLocalSearchParams } from 'expo-router';
 import { SpinnerIcon } from '@oxyhq/bloom/loading';
 import { Avatar } from '@oxyhq/bloom/avatar';
-import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types';
+import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import { show as toast } from '@oxyhq/bloom/toast';
 import { useTheme } from '@oxyhq/bloom/theme';
-import { Ionicons } from '@expo/vector-icons';
-import { queryKeys, useAuth } from '@oxyhq/services';
+import Ionicons from '@expo/vector-icons/Ionicons';
+import { queryKeys } from '@oxyhq/services';
+import { useAuth } from '@oxyhq/services/ui/client';
 import { useTranslation } from 'react-i18next';
 
 import { ThemedView } from '@/components/ThemedView';

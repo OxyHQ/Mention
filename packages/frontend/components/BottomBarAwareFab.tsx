@@ -4,7 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { useAnimatedStyle } from 'react-native-reanimated';
 
 import { Fab } from '@oxyhq/bloom/fab';
-import { useAuth } from '@oxyhq/services';
+import { useAuth } from '@oxyhq/services/ui/client';
 
 import { BOTTOM_BAR_RESERVED_SPACE } from '@/components/BottomBar';
 import { useBottomBarHidden } from '@/context/BottomBarVisibilityContext';

@@ -2,7 +2,11 @@ import React from 'react';
 import { Text, TouchableOpacity } from 'react-native';
 import TestRenderer, { act, type ReactTestInstance } from 'react-test-renderer';
 import { QueryClient, QueryClientProvider, notifyManager } from '@tanstack/react-query';
-import { PostVisibility, type HydratedPost, type PostViewerState } from '@mention/shared-types';
+import {
+  PostVisibility,
+  type HydratedPost,
+  type PostViewerState,
+} from '@mention/shared-types/post';
 import type { GroupedNotification } from '@/utils/groupNotifications';
 import type { TRawNotification } from '@/types/validation';
 import { queryKeys } from '@/hooks/useOptimizedQuery';
@@ -234,6 +238,20 @@ function collabInviteItem(): GroupedNotification {
 
 notifyManager.setScheduler((callback) => callback());
 
+const mountedRenderers: TestRenderer.ReactTestRenderer[] = [];
+const queryClients: QueryClient[] = [];
+
+afterEach(async () => {
+  await act(async () => {
+    for (const renderer of mountedRenderers.splice(0)) {
+      renderer.unmount();
+    }
+  });
+  for (const queryClient of queryClients.splice(0)) {
+    queryClient.clear();
+  }
+});
+
 async function flush(): Promise<void> {
   await act(async () => {
     await new Promise((resolve) => setTimeout(resolve, 0));
@@ -259,6 +277,8 @@ async function renderRow(state: PostViewerState): Promise<{
       </QueryClientProvider>,
     );
   });
+  mountedRenderers.push(renderer);
+  queryClients.push(queryClient);
   await flush();
   return { renderer, queryClient };
 }

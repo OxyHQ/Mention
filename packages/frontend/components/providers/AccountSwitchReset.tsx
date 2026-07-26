@@ -1,35 +1,152 @@
-import { useEffect, useRef } from 'react';
-import { useAuth } from '@oxyhq/services';
+import React, {
+  useCallback,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { useAuth } from '@oxyhq/services/ui/client';
 import { useBloomTheme } from '@oxyhq/bloom/theme';
 import { useAppearanceStore } from '@/store/appearanceStore';
+import { usePostsStore } from '@/stores/postsStore';
+import { usePrivacyStore } from '@/stores/privacyStore';
+import { useEntityFollowStore } from '@/stores/entityFollowStore';
+import { useExternalEmbedsStore } from '@/stores/externalEmbedsStore';
+import { useLiveRoomsStore } from '@/stores/liveRoomsStore';
+import { useTrendsStore } from '@/store/trendsStore';
+import { clearAllFeedMemoryCaches } from '@/stores/feedScrollStore';
+import { setFeedViewerRequestScope } from '@/services/feedService';
+import { searchService } from '@/services/searchService';
+import { socketService } from '@/services/socketService';
+import { liveRoomRuntimeController } from '@/context/LiveRoomContext';
+import { claimViewerCache } from '@/db';
+import { viewerCacheId } from '@/lib/viewerQueryKeys';
+import { resetRecommendationFiltersViewer } from '@/lib/recommendationFilters';
+import { resetCurrentUserPrivacySettingsCache } from '@/hooks/usePrivacySettings';
 
 /**
- * Clears the previous account's scoped UI state (appearance + Bloom theme)
- * when the active account SWITCHES.
+ * Identity boundary for every account-dependent frontend cache.
  *
  * Replaces the SDK's removed per-button `onBeforeSessionChange` hook — and
  * covers more: it fires for every switch path (sidebar ProfileButton, the
  * unified account dialog, remote-driven switches over the device socket),
- * not just one button. The prev-id ref distinguishes a genuine switch
- * (`prev && next && prev !== next`) from the cold-boot restore (`null → user`)
- * and sign-out (`user → null`), so the user's persisted appearance survives
- * app starts.
+ * not just one button.
+ *
+ * During cold-boot auth restoration, A → logout and direct A → B transitions,
+ * descendants stay unmounted. The layout effect first proves that persisted
+ * post/feed data belongs to the resolved identity (or wipes it), then clears
+ * process-local private state before descendants can mount.
  */
-export function AccountSwitchReset() {
-  const { user } = useAuth();
+export function AccountSwitchReset({
+  children,
+}: {
+  children?: React.ReactNode;
+}) {
+  const { user, isAuthenticated, isAuthResolved } = useAuth();
+  const queryClient = useQueryClient();
   const { resetTheme } = useBloomTheme();
-  const resetAppearance = useAppearanceStore((state) => state.reset);
-  const prevUserIdRef = useRef<string | null>(null);
+  const resetAppearance = useAppearanceStore(
+    (state) => state.resetViewerState,
+  );
+  const prevViewerIdRef = useRef<string | null>(null);
 
-  const userId = user?.id ?? null;
-  useEffect(() => {
-    const prev = prevUserIdRef.current;
-    prevUserIdRef.current = userId;
-    if (prev && userId && prev !== userId) {
-      resetAppearance();
-      resetTheme();
+  const userId = user?.id?.trim() || null;
+  const viewerId = !isAuthResolved
+    ? null
+    : isAuthenticated
+      ? (userId ? viewerCacheId(userId) : null)
+      : viewerCacheId(null);
+  const [readyViewerId, setReadyViewerId] = useState<string | null>(null);
+
+  const clearRuntimeState = useCallback((
+    previousViewerId: string | null | undefined,
+    clearCachedData: boolean,
+  ) => {
+    // Stop the old identity's event stream before invalidating its state.
+    socketService.disconnect();
+    liveRoomRuntimeController.resetViewerState();
+
+    // `clear()` destroys active queries/mutations and removes every cache key,
+    // including legacy keys that predate the viewer-key factory.
+    queryClient.clear();
+    usePostsStore
+      .getState()
+      .resetViewerState({ clearCachedData });
+    usePrivacyStore.getState().reset();
+    useEntityFollowStore.getState().reset();
+    useExternalEmbedsStore
+      .getState()
+      .resetViewerState(previousViewerId ?? undefined);
+    useLiveRoomsStore.getState().resetViewerState();
+    useTrendsStore.getState().resetViewerState();
+    clearAllFeedMemoryCaches();
+
+    resetAppearance();
+    resetTheme();
+
+    if (previousViewerId) {
+      resetRecommendationFiltersViewer(previousViewerId);
+      resetCurrentUserPrivacySettingsCache(previousViewerId);
+      void searchService.clearSearchHistory(previousViewerId);
     }
-  }, [userId, resetAppearance, resetTheme]);
+  }, [
+    queryClient,
+    resetAppearance,
+    resetTheme,
+  ]);
 
-  return null;
+  useLayoutEffect(() => {
+    if (!viewerId) {
+      setFeedViewerRequestScope(null);
+      const previousViewerId = prevViewerIdRef.current;
+      if (previousViewerId) {
+        clearRuntimeState(
+          previousViewerId === viewerCacheId(null)
+            ? undefined
+            : previousViewerId,
+          true,
+        );
+        prevViewerIdRef.current = null;
+      }
+      if (readyViewerId !== null) setReadyViewerId(null);
+      return;
+    }
+
+    const prev = prevViewerIdRef.current;
+    // Advance request ownership before the new viewer can render. This drops
+    // shared promises from the previous identity even if their transport did
+    // not expose cancellation.
+    setFeedViewerRequestScope(viewerId);
+    const cacheClaim = claimViewerCache(viewerId);
+    if (!cacheClaim.trusted) {
+      if (readyViewerId !== null) setReadyViewerId(null);
+      return;
+    }
+    const identityChanged = prev !== null && prev !== viewerId;
+
+    if (identityChanged || cacheClaim.reset) {
+      // claimViewerCache already replaced persistence atomically. Reset only
+      // process-local posts state here so its selector invalidation cannot
+      // delete the new viewer-owner marker again.
+      const previousPrivateViewerId: string | undefined =
+        prev && prev !== viewerCacheId(null)
+          ? prev
+          : cacheClaim.previousViewerId &&
+              cacheClaim.previousViewerId !== viewerCacheId(null)
+            ? cacheClaim.previousViewerId
+            : undefined;
+      clearRuntimeState(previousPrivateViewerId, false);
+    }
+
+    prevViewerIdRef.current = viewerId;
+    if (readyViewerId !== viewerId) {
+      setReadyViewerId(viewerId);
+    }
+  }, [
+    viewerId,
+    readyViewerId,
+    clearRuntimeState,
+  ]);
+
+  return viewerId && readyViewerId === viewerId ? <>{children}</> : null;
 }

@@ -99,6 +99,17 @@ import { LeaderElection } from '../../services/LeaderElection';
 
 const LOCK_KEY = 'mention:scheduler:leader';
 
+function deferred(): {
+  promise: Promise<void>;
+  resolve: () => void;
+} {
+  let resolve!: () => void;
+  const promise = new Promise<void>((resolvePromise) => {
+    resolve = resolvePromise;
+  });
+  return { promise, resolve };
+}
+
 describe('LeaderElection', () => {
   beforeEach(() => {
     fakeRedis.isReady = true;
@@ -108,6 +119,7 @@ describe('LeaderElection', () => {
 
   afterEach(() => {
     vi.useRealTimers();
+    vi.restoreAllMocks();
   });
 
   it('a single task acquires leadership and runs schedulers', async () => {
@@ -193,19 +205,127 @@ describe('LeaderElection', () => {
     await b.stop();
   });
 
-  it('runs schedulers in degraded fallback when Redis is unavailable at boot', async () => {
+  it('stops singleton schedulers before releasing the leader lock', async () => {
+    const onLoseStarted = deferred();
+    const allowOnLose = deferred();
+    const node = new LeaderElection();
+    const onLose = vi.fn(async () => {
+      onLoseStarted.resolve();
+      await allowOnLose.promise;
+    });
+
+    await node.start(vi.fn(), onLose);
+    const stopping = node.stop();
+    await onLoseStarted.promise;
+
+    expect(node.leader).toBe(false);
+    expect(fakeRedis.currentOwner(LOCK_KEY)).toBe(node.id);
+
+    allowOnLose.resolve();
+    await stopping;
+
+    expect(onLose).toHaveBeenCalledTimes(1);
+    expect(fakeRedis.currentOwner(LOCK_KEY)).toBeUndefined();
+  });
+
+  it('waits for an acquiring tick and never becomes leader after shutdown starts', async () => {
+    fakeRedis.isReady = false;
+    const onAcquire = vi.fn();
+    const onLose = vi.fn();
+    const node = new LeaderElection();
+    await node.start(onAcquire, onLose);
+
+    fakeRedis.isReady = true;
+    const setStarted = deferred();
+    const allowSet = deferred();
+    const originalSet = fakeRedis.set.bind(fakeRedis);
+    const setSpy = vi.spyOn(fakeRedis, 'set').mockImplementation(
+      async (key, value, options) => {
+        setStarted.resolve();
+        await allowSet.promise;
+        return originalSet(key, value, options);
+      },
+    );
+
+    const tick = (node as unknown as { tick: () => Promise<void> }).tick();
+    await setStarted.promise;
+    let stopFinished = false;
+    const stopping = node.stop().then(() => {
+      stopFinished = true;
+    });
+    await Promise.resolve();
+
+    expect(stopFinished).toBe(false);
+
+    allowSet.resolve();
+    await Promise.all([tick, stopping]);
+
+    expect(node.leader).toBe(false);
+    expect(onAcquire).not.toHaveBeenCalled();
+    expect(onLose).not.toHaveBeenCalled();
+    expect(fakeRedis.currentOwner(LOCK_KEY)).toBeUndefined();
+
+    const callsAfterStop = setSpy.mock.calls.length;
+    await (node as unknown as { tick: () => Promise<void> }).tick();
+    expect(setSpy).toHaveBeenCalledTimes(callsAfterStop);
+  });
+
+  it('does not reacquire after shutdown starts during a lost-leadership callback', async () => {
+    const onAcquire = vi.fn();
+    const onLoseStarted = deferred();
+    const allowOnLose = deferred();
+    const node = new LeaderElection();
+    const onLose = vi.fn(async () => {
+      onLoseStarted.resolve();
+      await allowOnLose.promise;
+    });
+
+    await node.start(onAcquire, onLose);
+    fakeRedis.forceExpire(LOCK_KEY);
+
+    const tick = (node as unknown as { tick: () => Promise<void> }).tick();
+    await onLoseStarted.promise;
+    const stopping = node.stop();
+    allowOnLose.resolve();
+    await Promise.all([tick, stopping]);
+
+    expect(onAcquire).toHaveBeenCalledTimes(1);
+    expect(onLose).toHaveBeenCalledTimes(1);
+    expect(node.leader).toBe(false);
+    expect(fakeRedis.currentOwner(LOCK_KEY)).toBeUndefined();
+  });
+
+  it('fails closed and acquires normally after Redis recovers', async () => {
     fakeRedis.isReady = false;
     const onAcquire = vi.fn();
     const node = new LeaderElection();
 
     await node.start(onAcquire, vi.fn());
 
-    // Must NOT leave schedulers off — degraded fallback runs them.
+    expect(node.leader).toBe(false);
+    expect(onAcquire).not.toHaveBeenCalled();
+
+    fakeRedis.isReady = true;
+    await (node as unknown as { tick: () => Promise<void> }).tick();
     expect(node.leader).toBe(true);
     expect(onAcquire).toHaveBeenCalledTimes(1);
 
     await node.stop();
+  });
+
+  it('steps down immediately when Redis cannot verify a renewal', async () => {
+    const onLose = vi.fn();
+    const node = new LeaderElection();
+    await node.start(vi.fn(), onLose);
+    expect(node.leader).toBe(true);
+
+    fakeRedis.isReady = false;
+    await (node as unknown as { tick: () => Promise<void> }).tick();
+
+    expect(node.leader).toBe(false);
+    expect(onLose).toHaveBeenCalledTimes(1);
     fakeRedis.isReady = true;
+    await node.stop();
   });
 
   it('a leader that loses the lock to another owner steps down and stops schedulers', async () => {

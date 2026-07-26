@@ -11,10 +11,8 @@ import { describe, expect, it, vi } from 'vitest';
  * The controller pulls in the server bootstrap; stub it (and the OxyServices
  * client it constructs) so importing the controller stays pure/no-network.
  */
-vi.mock('../../../server', () => ({
-  oxy: {},
-  io: { of: () => ({ emit: vi.fn() }) },
-  notificationsNamespace: { emit: vi.fn() },
+vi.mock('../../runtime/socketServer', () => ({
+  getRuntimeSocketServer: () => undefined,
 }));
 
 import { buildPostsByHashtagFilter, buildPostsByTopicFilter } from '../../controllers/posts.controller';

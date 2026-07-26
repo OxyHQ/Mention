@@ -16,6 +16,7 @@ import {
   getSavedPosts,
   getBookmarkFolders,
   moveBookmarkToFolder,
+  moveBookmarkToFolderByPostId,
   getDrafts,
   getScheduledPosts,
   getNearbyPosts,
@@ -107,6 +108,7 @@ publicPostsRouter.get('/:id', getPostById);
 router.post('/', ...postWriteRateLimiters, createPost);
 router.post('/thread', ...postWriteRateLimiters, createThread);
 router.get('/bookmarks/folders', getBookmarkFolders);
+router.patch('/bookmarks/by-post/:postId/folder', moveBookmarkToFolderByPostId);
 router.patch('/bookmarks/:id/folder', moveBookmarkToFolder);
 // Composer AI pre-fill: translate a draft body that has no post yet. Must stay
 // ahead of the `/:id`-parameterized routes.

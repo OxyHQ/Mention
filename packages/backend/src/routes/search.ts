@@ -6,19 +6,16 @@ import { postHydrationService } from '../services/PostHydrationService';
 import { createScopedOxyClient } from '../utils/oxyHelpers';
 import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
 import { config } from '../config';
-import { oxy as oxyClient } from '../../server';
+import { getRuntimeOxyClient } from '../runtime/oxyClient';
 import { queryInt } from '../utils/queryParams';
+import { PostVisibility } from '@mention/shared-types';
+import { decodeSearchCursor, encodeSearchCursor } from '../utils/searchCursor';
 
 const router = express.Router();
 
 /** Search result page size. */
 const DEFAULT_SEARCH_LIMIT = 20;
 const MAX_SEARCH_LIMIT = 100;
-
-// Helper to escape regex special characters (prevent ReDoS)
-const escapeRegex = (str: string): string => {
-  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-};
 
 /**
  * Parse search operators from query string.
@@ -119,15 +116,14 @@ router.get("/", async (req: AuthRequest, res: Response) => {
       const operators = parseSearchOperators(rawQuery);
 
       // Build query with filters
-      const filter: Record<string, unknown> = {};
+      const filter: Record<string, unknown> = {
+        visibility: PostVisibility.PUBLIC,
+        status: 'published',
+      };
 
-      // Text search with escaped regex (prevent ReDoS)
+      // Use the Post text index instead of scanning every variant with a regex.
       if (operators.textQuery) {
-        const escapedQuery = escapeRegex(operators.textQuery);
-        filter.$or = [
-          { 'content.variants.text': { $regex: escapedQuery, $options: 'i' } },
-          { hashtags: { $regex: escapedQuery, $options: 'i' } }
-        ];
+        filter.$text = { $search: operators.textQuery };
       }
 
       // --- Operator-based filters ---
@@ -135,7 +131,7 @@ router.get("/", async (req: AuthRequest, res: Response) => {
       // from:username - resolve username to oxyUserId
       if (operators.from) {
         try {
-          const profile = await oxyClient.getProfileByUsername(operators.from);
+          const profile = await getRuntimeOxyClient().getProfileByUsername(operators.from);
           const profileId = profile?.id;
           if (profileId) {
             filter.oxyUserId = String(profileId);
@@ -212,15 +208,7 @@ router.get("/", async (req: AuthRequest, res: Response) => {
 
       // has:links operator - match URLs in post text
       if (operators.hasLinks) {
-        const linkCondition = { 'content.variants.text': { $regex: 'https?://', $options: 'i' } };
-        if (filter.$or) {
-          // Combine with existing text search using $and
-          const andClauses = Array.isArray(filter.$and) ? filter.$and : [];
-          andClauses.push(linkCondition);
-          filter.$and = andClauses;
-        } else {
-          filter['content.variants.text'] = { $regex: 'https?://', $options: 'i' };
-        }
+        filter.hasLinks = true;
       }
 
       if (mediaType && typeof mediaType === 'string') {
@@ -238,8 +226,25 @@ router.get("/", async (req: AuthRequest, res: Response) => {
       }
 
       // Cursor-based pagination
-      if (cursor && typeof cursor === 'string' && mongoose.Types.ObjectId.isValid(cursor)) {
-        filter._id = { $lt: new mongoose.Types.ObjectId(cursor) };
+      if (cursor !== undefined) {
+        const decodedCursor = typeof cursor === 'string'
+          ? decodeSearchCursor(cursor)
+          : undefined;
+        if (!decodedCursor) {
+          return res.status(400).json({ message: 'Invalid search cursor' });
+        }
+
+        const cursorClause = {
+          $or: [
+            { createdAt: { $lt: decodedCursor.createdAt } },
+            {
+              createdAt: decodedCursor.createdAt,
+              _id: { $lt: new mongoose.Types.ObjectId(decodedCursor.id) },
+            },
+          ],
+        };
+        const andClauses = Array.isArray(filter.$and) ? filter.$and : [];
+        filter.$and = [...andClauses, cursorClause];
       }
 
       // Validate and normalize limit (max 100)
@@ -247,8 +252,9 @@ router.get("/", async (req: AuthRequest, res: Response) => {
 
       // Execute query with lean() for read-only performance
       const posts = await Post.find(filter)
-        .sort({ createdAt: -1 })
+        .sort({ createdAt: -1, _id: -1 })
         .limit(limitNum + 1) // Fetch one extra to check if there are more
+        .maxTimeMS(config.search.maxTimeMS)
         .lean();
 
       // Check if there are more results
@@ -257,7 +263,10 @@ router.get("/", async (req: AuthRequest, res: Response) => {
 
       // Calculate next cursor
       const nextCursor = hasMoreResults && postsToReturn.length > 0
-        ? postsToReturn[postsToReturn.length - 1]._id.toString()
+        ? encodeSearchCursor(
+          postsToReturn[postsToReturn.length - 1].createdAt,
+          postsToReturn[postsToReturn.length - 1]._id.toString(),
+        )
         : undefined;
 
       // Hydrate posts with viewer-scoped state and embedded quoted/boost
@@ -278,10 +287,11 @@ router.get("/", async (req: AuthRequest, res: Response) => {
 
     res.json(results);
   } catch (error) {
-    logger.error('Search error:', { userId: req.user?.id, error, query: req.query });
+    logger.error('Search request failed', {
+      errorName: error instanceof Error ? error.name : 'UnknownError',
+    });
     res.status(500).json({
-      message: "Error performing search",
-      error: error instanceof Error ? error.message : "Unknown error"
+      message: "Error performing search"
     });
   }
 });

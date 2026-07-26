@@ -1,12 +1,9 @@
 import React, { memo } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { Image } from 'expo-image';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '@oxyhq/bloom/theme';
-import {
-  MusicNote_Stroke2_Corner0_Rounded,
-  Pencil_Stroke2_Corner0_Rounded,
-} from '@oxyhq/bloom/icons';
 import type { ProfileSongMedia } from '@/store/appearanceStore';
 import { useProfileSongPreview } from '@/hooks/useProfileSongPreview';
 import { SongPreviewButton } from './SongPreviewButton';
@@ -57,7 +54,7 @@ export const ProfileSong = memo(function ProfileSong({ song, isOwnProfile, onEdi
             className="rounded-md bg-secondary items-center justify-center"
             style={{ width: 32, height: 32 }}
           >
-            <MusicNote_Stroke2_Corner0_Rounded size="sm" fill={colors.textSecondary} />
+            <Ionicons name="musical-note-outline" size={16} color={colors.textSecondary} />
           </View>
         )}
         <Text className="text-foreground text-[15px] shrink" numberOfLines={1}>
@@ -74,7 +71,7 @@ export const ProfileSong = memo(function ProfileSong({ song, isOwnProfile, onEdi
           hitSlop={8}
           className="p-1"
         >
-          <Pencil_Stroke2_Corner0_Rounded size="sm" fill={colors.textSecondary} />
+          <Ionicons name="pencil-outline" size={16} color={colors.textSecondary} />
         </Pressable>
       )}
     </View>

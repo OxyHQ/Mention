@@ -6,11 +6,63 @@ import type { ProfileData } from '@/hooks/useProfileData';
  * Centralized type definitions following industry standards
  */
 
-import type { useAuth } from '@oxyhq/services';
+import type { useAuth } from '@oxyhq/services/ui/client';
 
 // Tab configuration
 export const TAB_NAMES = ['posts', 'replies', 'media', 'videos', 'likes', 'boosts', 'feeds', 'starter_packs', 'lists'] as const;
 export type ProfileTab = typeof TAB_NAMES[number];
+
+/** Tabs backed by the post Feed and therefore owned by its virtualized list. */
+export const VIRTUALIZED_PROFILE_FEED_TABS = [
+  'posts',
+  'replies',
+  'likes',
+  'boosts',
+] as const satisfies readonly ProfileTab[];
+
+export function isVirtualizedProfileFeedTab(
+  tab: ProfileTab,
+): tab is (typeof VIRTUALIZED_PROFILE_FEED_TABS)[number] {
+  return (VIRTUALIZED_PROFILE_FEED_TABS as readonly ProfileTab[]).includes(tab);
+}
+
+export function shouldFeedOwnProfileScroll(input: {
+  tab: ProfileTab;
+  isWeb: boolean;
+  isPrivate: boolean;
+  isOwnProfile: boolean;
+}): boolean {
+  return (
+    !input.isWeb &&
+    isVirtualizedProfileFeedTab(input.tab) &&
+    !(input.isPrivate && !input.isOwnProfile)
+  );
+}
+
+/** Grid tabs whose rows can be bounded by the native viewport. */
+export const VIRTUALIZED_PROFILE_GRID_TABS = [
+  'media',
+  'videos',
+] as const satisfies readonly ProfileTab[];
+
+export function isVirtualizedProfileGridTab(
+  tab: ProfileTab,
+): tab is (typeof VIRTUALIZED_PROFILE_GRID_TABS)[number] {
+  return (VIRTUALIZED_PROFILE_GRID_TABS as readonly ProfileTab[]).includes(tab);
+}
+
+export function shouldGridOwnProfileScroll(input: {
+  tab: ProfileTab;
+  isWeb: boolean;
+  isPrivate: boolean;
+  isOwnProfile: boolean;
+}): boolean {
+  return (
+    !input.isWeb &&
+    isVirtualizedProfileGridTab(input.tab) &&
+    !(input.isPrivate && !input.isOwnProfile)
+  );
+}
 
 // Bottom sheet open helper from useAuth().showBottomSheet
 export type ShowBottomSheetFn = NonNullable<ReturnType<typeof useAuth>['showBottomSheet']>;
@@ -152,11 +204,6 @@ export interface ProfileTabsProps {
 // Private badge props
 export interface PrivateBadgeProps {
   privacySettings?: ProfileData['privacy'];
-}
-
-// Skeleton props
-export interface ProfileSkeletonProps {
-  // No props needed, uses theme internally
 }
 
 // Profile content (main info section) props

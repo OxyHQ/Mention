@@ -44,7 +44,9 @@ The server splits routers into a **public** group (no auth wall, individual rout
 
 | Mount | Group | Notes |
 |-------|-------|-------|
-| `/health` | public | Liveness + Mongo + Redis status. |
+| `/health/live` | public | Process liveness; returns 200 while HTTP can respond. |
+| `/health/ready` | public | Readiness; returns 200 only after startup, migrations, and Mongo are ready. |
+| `/internal/metrics` | service-only | Prometheus metrics behind a service bearer token and network restriction. |
 | `/.well-known` | public | WebFinger. |
 | `/ap` | public | ActivityPub protocol surface (inbox, outbox, actor). |
 | `/hashtags` | public | Hashtag metadata, trending counts. |
@@ -59,7 +61,6 @@ The server splits routers into a **public** group (no auth wall, individual rout
 | `/posts` | authenticated | Post CRUD, likes, saves, reposts. |
 | `/lists` | authenticated | User-curated lists of accounts. |
 | `/notifications` | authenticated | Notifications + FCM push tokens. |
-| `/analytics` | authenticated | Engagement analytics. |
 | `/statistics` | authenticated | Aggregated stats. |
 | `/search` | authenticated | Search users, posts, hashtags. |
 | `/feeds` | authenticated | User-created custom feeds. |
@@ -186,15 +187,27 @@ Clients send `feed:subscribe` / `feed:unsubscribe` to control which feeds the se
 ## Health
 
 ```
-GET /health
+GET /health/live
 {
-  "status": "healthy",
-  "version": "1.0.0",
-  "uptime": 1000,
-  "mongoStatus": "connected",
-  "redisStatus": "connected"
+  "status": "alive"
 }
 ```
+
+```
+GET /health/ready
+{
+  "status": "ready",
+  "phase": "ready",
+  "dependencies": {
+    "mongo": "ready",
+    "migrations": "ready",
+    "redis": "ready"
+  }
+}
+```
+
+Redis degradation is reported but does not block HTTP readiness. Mongo,
+incomplete migrations, startup, and shutdown all produce `503`.
 
 ## Errors
 

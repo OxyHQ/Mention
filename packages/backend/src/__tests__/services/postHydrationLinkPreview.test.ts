@@ -27,12 +27,12 @@ const { getUserById, getUsersByIds, getLinkPreviews, cacheStore } = vi.hoisted((
   cacheStore: new Map<string, CachedUserSummary>(),
 }));
 
-vi.mock('../../../server', () => ({
-  oxy: {
+vi.mock('../../runtime/oxyClient', () => ({
+  getRuntimeOxyClient: () => ({
     getUserById,
     getUserFollowing: vi.fn(async () => []),
     getUserFollowers: vi.fn(async () => []),
-  },
+  }),
 }));
 
 vi.mock('../../utils/oxyHelpers', () => ({

@@ -6,7 +6,7 @@
  *
  * @example
  * ```tsx
- * import { useAuth } from '@oxyhq/services';
+ * import { useAuth } from '@oxyhq/services/ui/client';
  *
  * function MyComponent() {
  *   const { user, isAuthenticated, isLoading } = useAuth();

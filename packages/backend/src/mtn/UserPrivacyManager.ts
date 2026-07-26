@@ -1,45 +1,91 @@
 /**
  * UserPrivacyManager
  *
- * Single source of truth for blocked users, muted users, and hidden posts.
- * Replaces scattered privacy logic across feed controller, hydration service, and preference service.
+ * Single source of truth for viewer-level author exclusions.
+ *
+ * Oxy owns blocks/restrictions. Mention owns only mutes, so request paths must
+ * pass their authenticated, request-scoped Oxy client instead of consulting
+ * stale duplicate Block/Restrict collections.
  */
 
-import Block from '../models/Block';
 import Mute from '../models/Mute';
+import {
+  getBlockedUserIds,
+  getRestrictedUserIds,
+  type OxyClient,
+} from '../utils/privacyHelpers';
 import { logger } from '../utils/logger';
 
 export interface PrivacyState {
   blockedUserIds: Set<string>;
   mutedUserIds: Set<string>;
-  /** Combined blocked + muted for quick filtering */
+  restrictedUserIds: Set<string>;
+  /** Combined blocked + muted (+ restricted when requested) for quick filtering. */
   excludedUserIds: Set<string>;
+}
+
+export interface LoadPrivacyStateOptions {
+  /**
+   * Authenticated per-request Oxy client. It is required for viewer-owned
+   * privacy reads; a missing context fails closed rather than guessing that the
+   * account has no blocks or restrictions.
+   */
+  oxyClient?: OxyClient;
+  /** Recommendations exclude restricted users; feeds only need block + mute. */
+  includeRestricted?: boolean;
+}
+
+function validId(value: unknown): value is string {
+  return typeof value === 'string' && value.length > 0;
 }
 
 export class UserPrivacyManager {
   /**
-   * Load the privacy state for a user in a single batch.
+   * Load privacy relations concurrently from their authoritative stores.
+   *
+   * A Mongo mute read failure must not discard successfully resolved Oxy
+   * blocks. Oxy privacy failures propagate because returning a partial set can
+   * disclose an excluded author.
    */
-  static async loadPrivacyState(userId: string): Promise<PrivacyState> {
-    try {
-      const [blocks, mutes] = await Promise.all([
-        Block.find({ userId }).select('blockedId').lean(),
-        Mute.find({ userId }).select('mutedId').lean(),
-      ]);
+  static async loadPrivacyState(
+    userId: string,
+    options: LoadPrivacyStateOptions = {},
+  ): Promise<PrivacyState> {
+    const mutedUsersPromise = Mute.find(
+      { userId },
+      { mutedId: 1, _id: 0 },
+    )
+      .lean()
+      .catch((error): Array<{ mutedId?: string }> => {
+        logger.warn('[UserPrivacyManager] Failed to load Mention mutes', error);
+        return [];
+      });
 
-      const blockedUserIds = new Set<string>(blocks.map((b) => b.blockedId));
-      const mutedUserIds = new Set<string>(mutes.map((m) => m.mutedId));
-      const excludedUserIds = new Set<string>([...blockedUserIds, ...mutedUserIds]);
+    const [blockedIds, mutedUsers, restrictedIds] = await Promise.all([
+      getBlockedUserIds(options.oxyClient),
+      mutedUsersPromise,
+      options.includeRestricted
+        ? getRestrictedUserIds(options.oxyClient)
+        : Promise.resolve<string[]>([]),
+    ]);
 
-      return { blockedUserIds, mutedUserIds, excludedUserIds };
-    } catch (error) {
-      logger.error('[UserPrivacyManager] Failed to load privacy state', error);
-      return {
-        blockedUserIds: new Set(),
-        mutedUserIds: new Set(),
-        excludedUserIds: new Set(),
-      };
-    }
+    const blockedUserIds = new Set(blockedIds.filter(validId));
+    const mutedUserIds = new Set(
+      mutedUsers.map((mute) => mute.mutedId).filter(validId),
+    );
+    const restrictedUserIds = new Set(restrictedIds.filter(validId));
+    const excludedUserIds = new Set<string>([
+      ...blockedUserIds,
+      ...mutedUserIds,
+      ...restrictedUserIds,
+    ]);
+
+    return {
+      blockedUserIds,
+      mutedUserIds,
+      restrictedUserIds,
+      excludedUserIds,
+    };
   }
 
   /**

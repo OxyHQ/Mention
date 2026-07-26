@@ -149,10 +149,10 @@ describe('recordInterstitialEvent', () => {
     expect(emitted).toEqual([INTERSTITIAL_EVENT_METRIC]);
   });
 
-  it('emits nothing that identifies the viewer, the slot or the target', () => {
+  it('emits nothing that identifies the viewer, the slot or the target', async () => {
     recordInterstitialEvent({ ...VALID_BODY, slotKey: 'int:suggestedUsers:slice-8', position: 4 });
 
-    const exported = metrics.getPrometheusFormat();
+    const exported = await metrics.getPrometheusFormat();
     expect(exported).toContain(INTERSTITIAL_EVENT_METRIC);
     expect(exported).not.toContain('slice-8');
     expect(exported).not.toContain('position');

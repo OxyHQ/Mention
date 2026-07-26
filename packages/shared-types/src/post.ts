@@ -577,6 +577,8 @@ export interface PostStats {
   commentsCount: number;
   viewsCount: number;
   sharesCount: number;
+  /** Number of authoritative Bookmark rows for this post. */
+  savesCount: number;
 }
 
 export interface PostMetadata {
@@ -588,17 +590,12 @@ export interface PostMetadata {
    */
   spoilerText?: string;
   isPinned?: boolean;
-  isBookmarked?: boolean;
-  isLiked?: boolean;
   isBoosted?: boolean;
   isCommented?: boolean;
   isFollowingAuthor?: boolean;
   authorBlocked?: boolean;
   authorMuted?: boolean;
   hideEngagementCounts?: boolean;
-  // Track user interactions
-  likedBy?: string[]; // Array of user IDs who liked this post
-  savedBy?: string[]; // Array of user IDs who saved this post
   // Collaborative post federation lifecycle flags
   /** Set when a post with pending collab invites defers its fediverse delivery. Cleared once federation runs. */
   collabFederationDeferred?: boolean;

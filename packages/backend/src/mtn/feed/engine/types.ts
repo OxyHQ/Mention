@@ -12,6 +12,7 @@
 import type { HydratedPost, PostClassification, SlicedFeedResponse } from '@mention/shared-types';
 import type { FeedContext } from '../FeedAPI';
 import type { FeedSafetyPostShape } from '../feedSafety';
+import type { OxyClient } from '../../../utils/privacyHelpers';
 
 /**
  * A lean candidate post as returned by a source before hydration (a lean Post
@@ -64,6 +65,12 @@ export type DiscoveryGateBucket = 'gate-on' | 'gate-off';
  * (viewer mutuals, resolved seen-post ids, the raw cursor, and the page limit).
  */
 export interface FeedEngineContext extends FeedContext {
+  /**
+   * Authenticated request-scoped client for viewer-private Oxy endpoints.
+   * Deliberately separate from `oxyClient`, which may be a service/runtime
+   * fallback suitable for graph reads but not blocks/restrictions.
+   */
+  privacyOxyClient?: OxyClient;
   /** Viewer's mutual-follow author ids. Populated only for definitions that use the `mutuals` source. */
   mutualIds?: string[];
   /**

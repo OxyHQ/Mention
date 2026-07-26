@@ -17,8 +17,8 @@ const mocks = vi.hoisted(() => ({
   postCreate: vi.fn(),
   postInsertMany: vi.fn(),
   postExists: vi.fn(),
-  likeCreate: vi.fn(),
-  likeFindOneAndDelete: vi.fn(),
+  materializeEngagementRelationship: vi.fn(),
+  materializeEngagementTombstone: vi.fn(),
   getServiceOxyClient: vi.fn(),
   makeServiceRequest: vi.fn(),
   persistRemoteMedia: vi.fn(),
@@ -79,11 +79,11 @@ vi.mock('../../models/Post', () => ({
   },
 }));
 
-vi.mock('../../models/Like', () => ({
-  default: {
-    create: mocks.likeCreate,
-    findOneAndDelete: mocks.likeFindOneAndDelete,
-  },
+vi.mock('../../services/PostEngagementCommandService', () => ({
+  materializeEngagementRelationship: (...args: unknown[]) =>
+    mocks.materializeEngagementRelationship(...args),
+  materializeEngagementTombstone: (...args: unknown[]) =>
+    mocks.materializeEngagementTombstone(...args),
 }));
 
 vi.mock('../../models/UserSettings', () => ({
@@ -189,10 +189,8 @@ beforeEach(() => {
   mocks.postExists.mockResolvedValue(null);
   mocks.followExists.mockResolvedValue({ _id: 'follow_1' });
   mocks.assertSafePublicUrl.mockResolvedValue({ ok: true, ip: '93.184.216.34', family: 4 });
-  mocks.likeCreate.mockResolvedValue({ _id: 'like_1' });
-  mocks.likeFindOneAndDelete.mockReturnValue({
-    lean: vi.fn().mockResolvedValue(null),
-  });
+  mocks.materializeEngagementRelationship.mockResolvedValue({ changed: true });
+  mocks.materializeEngagementTombstone.mockResolvedValue({ changed: false });
   mocks.persistRemoteMedia.mockResolvedValue({ ok: false, permanent: false });
   mocks.recordAccess.mockResolvedValue(undefined);
   mocks.postCreatorCreate.mockResolvedValue({ _id: 'created_post_1' });
@@ -798,11 +796,14 @@ describe('federationService.processInboxActivity → handleLike', () => {
       actorUri,
     );
 
-    expect(mocks.likeCreate).toHaveBeenCalledWith({ userId: 'oxy_bob', postId: 'local_post_1', value: 1 });
-    expect(mocks.postUpdateOne).toHaveBeenCalledWith(
-      { _id: 'local_post_1' },
-      { $inc: { 'stats.likesCount': 1 } },
-    );
+    expect(mocks.materializeEngagementRelationship).toHaveBeenCalledWith({
+      kind: 'like',
+      userId: 'oxy_bob',
+      postId: 'local_post_1',
+    });
+    // Relationship + counter are now one transactional command; the inbox
+    // handler must not perform a second direct counter write.
+    expect(mocks.postUpdateOne).not.toHaveBeenCalled();
   });
 
   it('is a no-op when the booster cannot be resolved to an Oxy user', async () => {
@@ -814,20 +815,25 @@ describe('federationService.processInboxActivity → handleLike', () => {
       actorUri,
     );
 
-    expect(mocks.likeCreate).not.toHaveBeenCalled();
+    expect(mocks.materializeEngagementRelationship).not.toHaveBeenCalled();
     expect(mocks.postUpdateOne).not.toHaveBeenCalled();
   });
 
-  it('does not move the counter when a redelivered Like hits the unique index', async () => {
+  it('does not move the counter when the transactional command reports a redelivered Like', async () => {
     stubResolvedActor('oxy_bob');
     stubResolvedPost('local_post_1');
-    mocks.likeCreate.mockRejectedValueOnce(Object.assign(new Error('dup'), { code: 11000 }));
+    mocks.materializeEngagementRelationship.mockResolvedValueOnce({ changed: false });
 
     await federationService.processInboxActivity(
       { type: 'Like', actor: actorUri, object: objectUri },
       actorUri,
     );
 
+    expect(mocks.materializeEngagementRelationship).toHaveBeenCalledWith({
+      kind: 'like',
+      userId: 'oxy_bob',
+      postId: 'local_post_1',
+    });
     expect(mocks.postUpdateOne).not.toHaveBeenCalled();
   });
 });
@@ -839,34 +845,36 @@ describe('federationService.processInboxActivity → handleUndoLike', () => {
   it('deletes the Like and decrements the counter when a record existed', async () => {
     stubResolvedActor('oxy_bob');
     stubResolvedPost('local_post_1');
-    mocks.likeFindOneAndDelete.mockReturnValue({
-      lean: vi.fn().mockResolvedValue({ _id: 'like_1' }),
-    });
+    mocks.materializeEngagementTombstone.mockResolvedValueOnce({ changed: true });
 
     await federationService.processInboxActivity(
       { type: 'Undo', actor: actorUri, object: { type: 'Like', object: objectUri } },
       actorUri,
     );
 
-    expect(mocks.likeFindOneAndDelete).toHaveBeenCalledWith({ userId: 'oxy_bob', postId: 'local_post_1', value: 1 });
-    expect(mocks.postUpdateOne).toHaveBeenCalledWith(
-      { _id: 'local_post_1', 'stats.likesCount': { $gt: 0 } },
-      { $inc: { 'stats.likesCount': -1 } },
-    );
+    expect(mocks.materializeEngagementTombstone).toHaveBeenCalledWith({
+      kind: 'like',
+      userId: 'oxy_bob',
+      postId: 'local_post_1',
+    });
+    expect(mocks.postUpdateOne).not.toHaveBeenCalled();
   });
 
   it('does not decrement when no Like record was deleted', async () => {
     stubResolvedActor('oxy_bob');
     stubResolvedPost('local_post_1');
-    mocks.likeFindOneAndDelete.mockReturnValue({
-      lean: vi.fn().mockResolvedValue(null),
-    });
+    mocks.materializeEngagementTombstone.mockResolvedValueOnce({ changed: false });
 
     await federationService.processInboxActivity(
       { type: 'Undo', actor: actorUri, object: { type: 'Like', object: objectUri } },
       actorUri,
     );
 
+    expect(mocks.materializeEngagementTombstone).toHaveBeenCalledWith({
+      kind: 'like',
+      userId: 'oxy_bob',
+      postId: 'local_post_1',
+    });
     expect(mocks.postUpdateOne).not.toHaveBeenCalled();
   });
 });
@@ -985,7 +993,18 @@ describe('federationService.processInboxActivity → handleUndoAnnounce', () => 
       actorUri,
     );
 
-    expect(mocks.postDeleteOne).toHaveBeenCalledWith({ _id: 'boost_1' });
+    expect(mocks.postFindOne).toHaveBeenCalledWith(
+      {
+        'federation.activityId': announceId,
+        'federation.actorUri': actorUri,
+        type: 'boost',
+      },
+      { _id: 1, boostOf: 1 },
+    );
+    expect(mocks.postDeleteOne).toHaveBeenCalledWith({
+      _id: 'boost_1',
+      'federation.actorUri': actorUri,
+    });
     // Native boost counter — decrement guarded against underflow.
     expect(mocks.postUpdateOne).toHaveBeenCalledWith(
       { _id: 'local_post_2', 'stats.boostsCount': { $gt: 0 } },
@@ -1012,6 +1031,92 @@ describe('federationService.processInboxActivity → handleUndoAnnounce', () => 
 
     expect(mocks.postDeleteOne).not.toHaveBeenCalled();
     expect(mocks.postUpdateOne).not.toHaveBeenCalled();
+  });
+
+  it('cannot retract another actor boost by replaying its public Announce id', async () => {
+    const attackerUri = 'https://evil.example/users/mallory';
+    mocks.postFindOne.mockImplementation((filter: Record<string, unknown>) => ({
+      lean: vi.fn().mockResolvedValue(
+        filter['federation.actorUri'] === actorUri
+          ? { _id: 'boost_1', boostOf: 'local_post_2' }
+          : null,
+      ),
+    }));
+
+    await federationService.processInboxActivity(
+      {
+        type: 'Undo',
+        actor: actorUri,
+        object: { type: 'Announce', id: announceId, object: announcedUri },
+      },
+      attackerUri,
+    );
+
+    expect(mocks.postFindOne).toHaveBeenCalledWith(
+      {
+        'federation.activityId': announceId,
+        'federation.actorUri': attackerUri,
+        type: 'boost',
+      },
+      { _id: 1, boostOf: 1 },
+    );
+    expect(mocks.postDeleteOne).not.toHaveBeenCalled();
+    expect(mocks.postUpdateOne).not.toHaveBeenCalled();
+  });
+});
+
+describe('federationService.processInboxActivity → handleDelete', () => {
+  const ownerUri = 'https://mastodon.social/users/alice';
+  const attackerUri = 'https://evil.example/users/mallory';
+  const objectId = `${ownerUri}/statuses/500`;
+
+  it('authorizes Delete against the verified actor URI stored on the post', async () => {
+    mocks.postFindOne.mockImplementation((filter: Record<string, unknown>) => ({
+      lean: vi.fn().mockResolvedValue(
+        filter['federation.actorUri'] === ownerUri ? { _id: 'post_500' } : null,
+      ),
+    }));
+
+    await federationService.processInboxActivity(
+      {
+        id: `${attackerUri}/delete/500`,
+        type: 'Delete',
+        // Deliberately lie in JSON; the second argument is the verified signer.
+        actor: ownerUri,
+        object: objectId,
+      },
+      attackerUri,
+    );
+
+    expect(mocks.postFindOne).toHaveBeenCalledWith(
+      {
+        'federation.activityId': objectId,
+        'federation.actorUri': attackerUri,
+      },
+      { _id: 1 },
+    );
+    expect(mocks.postDeleteOne).not.toHaveBeenCalled();
+  });
+
+  it('deletes only when the verified signer owns the stored post', async () => {
+    mocks.postFindOne.mockReturnValue({
+      lean: vi.fn().mockResolvedValue({ _id: 'post_500' }),
+    });
+
+    await federationService.processInboxActivity(
+      {
+        id: `${ownerUri}/delete/500`,
+        type: 'Delete',
+        actor: ownerUri,
+        object: objectId,
+      },
+      ownerUri,
+    );
+
+    expect(mocks.postDeleteOne).toHaveBeenCalledWith({
+      _id: 'post_500',
+      'federation.actorUri': ownerUri,
+    });
   });
 });
 

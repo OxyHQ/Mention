@@ -54,6 +54,7 @@ import { buildFollowedAuthorsMatch } from '../../../utils/postAuthorship';
 import { FEED_FIELDS } from '../FeedAPI';
 import { engagementScoreExpr } from '../engine/sources/discoverySources';
 import type { CandidatePost as EngineCandidatePost } from '../engine/types';
+import type { OxyClient } from '../../../utils/privacyHelpers';
 
 /** Minimal viewer-behavior shape this module reads (a lean UserBehavior doc). */
 export interface CandidateUserBehavior {
@@ -80,6 +81,8 @@ export interface GatherForYouCandidatesParams {
   viewerRegion?: string;
   /** Post ids already seen this session — excluded from every source. */
   seenPostIds: string[];
+  /** Authenticated request-scoped Oxy client for affinity privacy/ACL reads. */
+  oxyClient?: OxyClient;
   /** Injectable for testing; defaults to the shared singleton. */
   contentAffinityService?: Pick<ContentAffinityService, 'getContentCandidates'>;
 }
@@ -178,6 +181,7 @@ async function resolveAffinityAuthorIds(
     const service = params.contentAffinityService ?? sharedContentAffinityService;
     const affinity = await service.getContentCandidates(params.viewerId, {
       limit: cfg.maxAffinityCandidates,
+      oxyClient: params.oxyClient,
     });
     for (const c of affinity) {
       if (c.userId && c.userId !== params.viewerId && !followingSet.has(c.userId)) {

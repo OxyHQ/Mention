@@ -2,7 +2,7 @@ import React, { useState, useCallback } from 'react';
 import { View, StyleSheet, Platform, RefreshControl, ScrollView, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from '@/lib/SafeAreaViewInterop';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useAuth } from '@oxyhq/services';
+import { useAuth } from '@oxyhq/services/ui/client';
 import { useTranslation } from 'react-i18next';
 import FontAwesome5 from '@expo/vector-icons/FontAwesome5';
 import { Loading } from '@oxyhq/bloom/loading';

@@ -1,7 +1,7 @@
 import { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { show as toast } from '@oxyhq/bloom/toast';
-import { useAuth } from '@oxyhq/services';
+import { useAuth } from '@oxyhq/services/ui/client';
 import { pokeService } from '@/services/pokeService';
 import { normalizeApiError } from '@/utils/apiError';
 import { useDeferredToggle } from './useDeferredToggle';

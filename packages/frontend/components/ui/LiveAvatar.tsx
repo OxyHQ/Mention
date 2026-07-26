@@ -2,7 +2,7 @@ import React, { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Avatar, type AvatarProps } from '@oxyhq/bloom/avatar';
 import { useLiveUsers } from '@/hooks/useLiveUsers';
-import { useLiveRoom } from '@/context/LiveRoomContext';
+import { router } from 'expo-router';
 
 export interface LiveAvatarProps extends AvatarProps {
   /**
@@ -24,18 +24,20 @@ export interface LiveAvatarProps extends AvatarProps {
 export function LiveAvatar({ userId, onPress, live, liveLabel, ...rest }: LiveAvatarProps) {
   const { t } = useTranslation();
   const { isLive, roomIdFor } = useLiveUsers();
-  const { joinLiveRoom } = useLiveRoom();
 
   const userIsLive = live ?? isLive(userId);
   const roomId = roomIdFor(userId);
 
   const handlePress = useCallback(() => {
     if (userIsLive && roomId) {
-      joinLiveRoom(roomId);
+      router.push({
+        pathname: '/live-rooms/live/[id]',
+        params: { id: roomId },
+      });
       return;
     }
     onPress?.();
-  }, [userIsLive, roomId, joinLiveRoom, onPress]);
+  }, [userIsLive, roomId, onPress]);
 
   const pressable = (userIsLive && Boolean(roomId)) || Boolean(onPress);
 

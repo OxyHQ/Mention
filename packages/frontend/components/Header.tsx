@@ -7,7 +7,7 @@ import {
     Platform,
 } from "react-native"
 import { Pressable } from "react-native"
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { ReactNode } from "react"
 import { useTheme } from '@oxyhq/bloom/theme';
 import { useSafeBack } from "@/hooks/useSafeBack";

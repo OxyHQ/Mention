@@ -54,18 +54,15 @@ Welcome to the Mention project documentation.
 - **[Performance Optimizations](./PERFORMANCE_OPTIMIZATIONS.md)**
   Performance best practices including memoization, React Query, Zustand selectors, FlashList, and monitoring guidelines.
 
-- **[DigitalOcean Deployment](./DIGITALOCEAN_DEPLOYMENT.md)**
-  Production deployment guide for DigitalOcean App Platform, including build configuration, environment variables, and troubleshooting.
-
-- **[Vercel Deployment](./VERCEL_DEPLOYMENT.md)**
-  Complete guide for deploying the Mention monorepo to Vercel, including frontend and backend configurations.
+- **[Production deployment](./AWS_DEPLOYMENT.md)**
+  CI-gated AWS/ECS releases for the backend and MCP, plus preview-first Cloudflare Pages promotion for the web export.
 
 ## Quick Navigation
 
 ### For Developers
 - New to the project? Start with [Mention System Overview](./MENTION_SYSTEM_README.md)
 - Working on theming? Check [Theme Quick Reference](./THEME_QUICK_REFERENCE.md)
-- Need to deploy? See [DigitalOcean Deployment](./DIGITALOCEAN_DEPLOYMENT.md) or [Vercel Deployment](./VERCEL_DEPLOYMENT.md)
+- Need to deploy? See [Production deployment](./AWS_DEPLOYMENT.md)
 - Connecting Claude to Mention? See [MCP Server](../packages/mcp/README.md)
 
 ### For Contributors

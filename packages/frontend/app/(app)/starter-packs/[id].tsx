@@ -10,11 +10,11 @@ import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { starterPacksService } from '@/services/starterPacksService';
 import { useTheme } from '@oxyhq/bloom/theme';
-import { useAuth, FollowButton } from '@oxyhq/services';
+import { useAuth, FollowButton } from '@oxyhq/services/ui/client';
 import { useHaptics } from '@oxyhq/bloom/hooks';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { AvatarGroup, type AvatarGroupItem } from '@oxyhq/bloom/avatar-group';
-import { MEDIA_VARIANT_VIDEO_POSTER } from '@mention/shared-types';
+import { MEDIA_VARIANT_VIDEO_POSTER } from '@mention/shared-types/post';
 import { ProfileCard } from '@/components/ProfileCard';
 
 import SEO from '@/components/SEO';

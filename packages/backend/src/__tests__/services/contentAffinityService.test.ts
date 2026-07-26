@@ -8,9 +8,7 @@ const mocks = vi.hoisted(() => ({
   userBehaviorFindOne: vi.fn(),
   userSettingsFind: vi.fn(),
   getFollowingIdSet: vi.fn(),
-  blockFind: vi.fn(),
-  muteFind: vi.fn(),
-  restrictFind: vi.fn(),
+  loadPrivacyState: vi.fn(),
   getRedisClient: vi.fn(),
   redisGet: vi.fn(),
   redisSet: vi.fn(),
@@ -21,9 +19,9 @@ vi.mock('../../models/Post', () => ({ Post: { find: mocks.postFind, aggregate: m
 vi.mock('../../models/EntityFollow', () => ({ EntityFollow: { find: mocks.entityFollowFind } }));
 vi.mock('../../models/UserBehavior', () => ({ default: { findOne: mocks.userBehaviorFindOne } }));
 vi.mock('../../models/UserSettings', () => ({ default: { find: mocks.userSettingsFind } }));
-vi.mock('../../models/Block', () => ({ default: { find: mocks.blockFind } }));
-vi.mock('../../models/Mute', () => ({ default: { find: mocks.muteFind } }));
-vi.mock('../../models/Restrict', () => ({ default: { find: mocks.restrictFind } }));
+vi.mock('../../mtn/UserPrivacyManager', () => ({
+  UserPrivacyManager: { loadPrivacyState: mocks.loadPrivacyState },
+}));
 
 vi.mock('../../utils/redis', () => ({
   getRedisClient: mocks.getRedisClient,
@@ -63,9 +61,12 @@ function leanFindOne(doc: unknown) {
 
 /** Default: empty exclusion relations. */
 function emptyExclusions(): void {
-  mocks.blockFind.mockImplementation(leanQuery([]));
-  mocks.muteFind.mockImplementation(leanQuery([]));
-  mocks.restrictFind.mockImplementation(leanQuery([]));
+  mocks.loadPrivacyState.mockResolvedValue({
+    blockedUserIds: new Set(),
+    mutedUserIds: new Set(),
+    restrictedUserIds: new Set(),
+    excludedUserIds: new Set(),
+  });
 }
 
 /** Default: no signals at all (empty everything). */
@@ -252,9 +253,12 @@ describe('ContentAffinityService.getContentCandidates', () => {
   });
 
   it('excludes self and blocked/muted/restricted users', async () => {
-    mocks.blockFind.mockImplementation(leanQuery([{ blockedId: 'blocked_1' }]));
-    mocks.muteFind.mockImplementation(leanQuery([{ mutedId: 'muted_1' }]));
-    mocks.restrictFind.mockImplementation(leanQuery([{ restrictedId: 'restricted_1' }]));
+    mocks.loadPrivacyState.mockResolvedValue({
+      blockedUserIds: new Set(['blocked_1']),
+      mutedUserIds: new Set(['muted_1']),
+      restrictedUserIds: new Set(['restricted_1']),
+      excludedUserIds: new Set(['blocked_1', 'muted_1', 'restricted_1']),
+    });
     mocks.entityFollowFind.mockImplementation(leanQuery([{ entityId: 'rust' }]));
     mocks.postAggregate.mockResolvedValue([
       { _id: 'blocked_1', matchedTags: [['rust']], postCount: 1 },
@@ -265,10 +269,17 @@ describe('ContentAffinityService.getContentCandidates', () => {
     ]);
 
     const service = makeService();
-    const result = await service.getContentCandidates('viewer_1');
+    const scopedOxyClient = { request: 'client' };
+    const result = await service.getContentCandidates('viewer_1', {
+      oxyClient: scopedOxyClient as never,
+    });
 
     const ids = result.map((c) => c.userId);
     expect(ids).toEqual(['good']);
+    expect(mocks.loadPrivacyState).toHaveBeenCalledWith('viewer_1', {
+      oxyClient: scopedOxyClient,
+      includeRestricted: true,
+    });
   });
 
   it('filters private and followers-only profile candidates unless the viewer follows them', async () => {
@@ -289,11 +300,14 @@ describe('ContentAffinityService.getContentCandidates', () => {
     );
 
     const service = makeService();
-    const result = await service.getContentCandidates('viewer_1');
+    const scopedOxyClient = { request: 'client' };
+    const result = await service.getContentCandidates('viewer_1', {
+      oxyClient: scopedOxyClient as never,
+    });
 
     expect(result.map((c) => c.userId).sort()).toEqual(['followed_private_author', 'public_author']);
     expect(mocks.getFollowingIdSet).toHaveBeenCalledTimes(1);
-    expect(mocks.getFollowingIdSet).toHaveBeenCalledWith('viewer_1');
+    expect(mocks.getFollowingIdSet).toHaveBeenCalledWith('viewer_1', scopedOxyClient);
   });
 
   it('batches profile ACL follow checks across all protected candidates', async () => {
@@ -317,7 +331,7 @@ describe('ContentAffinityService.getContentCandidates', () => {
 
     expect(result.map((c) => c.userId)).toEqual(['private_author_7']);
     expect(mocks.getFollowingIdSet).toHaveBeenCalledTimes(1);
-    expect(mocks.getFollowingIdSet).toHaveBeenCalledWith('viewer_1');
+    expect(mocks.getFollowingIdSet).toHaveBeenCalledWith('viewer_1', undefined);
   });
 
   it('resolves engagement authors only from published public target posts', async () => {

@@ -1,7 +1,7 @@
 import React, { useEffect, useState, memo, Suspense, lazy } from 'react';
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useAuth } from '@oxyhq/services';
+import { useAuth } from '@oxyhq/services/ui/client';
 import { logger } from '@/lib/logger';
 
 // Lazy load WelcomeModal - only loads when needed (web + unauthenticated + first time)

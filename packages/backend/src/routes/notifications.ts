@@ -2,7 +2,6 @@ import express, { Response } from "express";
 import { type OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
 import mongoose from 'mongoose';
 import Notification, { INotification } from "../models/Notification";
-import { resolveVariant } from "../services/postVariants";
 import Post from "../models/Post";
 import { Server } from 'socket.io';
 import PushToken from '../models/PushToken';
@@ -21,6 +20,7 @@ const router = express.Router();
 /** Notification list page size (`GET /notifications`). */
 const DEFAULT_NOTIFICATIONS_PAGE_SIZE = 20;
 const MAX_NOTIFICATIONS_PAGE_SIZE = 50;
+const POST_PREVIEW_TYPES = new Set(['like', 'reply', 'mention', 'boost', 'quote']);
 
 // Rate-limit every notification endpoint (200 req/min, keyed by user with IP
 // fallback). Covers the GET list/DB-access handlers flagged by CodeQL
@@ -150,72 +150,46 @@ router.get("/", async (req: AuthRequest, res: Response) => {
     const resolveEntityId = (ent: LeanNotification['entityId']): string =>
       ent ? String(ent) : '';
 
-    // For 'post' notifications, fetch post docs to provide a short preview and full post data
-    const postEntityIds = notificationsRaw
-      .filter((n) => n && n.type === 'post' && n.entityType === 'post' && n.entityId)
-      .map((n) => resolveEntityId(n.entityId))
-      .filter(Boolean);
+    // Resolve every post referenced by a notification through the SAME
+    // viewer-aware hydration/ACL path used by feeds and post detail. Never build
+    // a preview from the raw Mongo row: that would reveal content from a newly
+    // blocked/restricted author, private profile, followers-only post, draft, or
+    // other row that hydration correctly removes for this viewer.
+    const referencedPostIds = Array.from(new Set(
+      notificationsRaw
+        .filter((n) => n && n.entityId && (
+          (n.type === 'post' && n.entityType === 'post') ||
+          (POST_PREVIEW_TYPES.has(n.type) && (n.entityType === 'post' || n.entityType === 'reply'))
+        ))
+        .map((n) => resolveEntityId(n.entityId))
+        .filter(Boolean),
+    ));
 
     const postPreviewMap = new Map<string, string>();
     const postMap = new Map<string, HydratedPost>();
-    if (postEntityIds.length > 0) {
-      try {
-        // Fetch full lean docs (no field projection): `hydratePosts` reads
-        // `boostOf`/`quoteOf` (nested embeds), `parentPostId`/`threadId`/`type`
-        // (thread + type flags) and `visibility`/`status` (publication controls).
-        // A narrow projection silently drops these, rendering quote/boost cards
-        // blank and mis-flagging replies. This mirrors the single-notification
-        // realtime path above and every other `hydratePosts` call site.
-        const posts = await Post.find({ _id: { $in: postEntityIds } }).lean();
+    if (referencedPostIds.length > 0) {
+      // Fetch full lean docs (no field projection): `hydratePosts` reads
+      // `boostOf`/`quoteOf` (nested embeds), `parentPostId`/`threadId`/`type`
+      // (thread + type flags) and `visibility`/`status` (publication controls).
+      const posts = await Post.find({ _id: { $in: referencedPostIds } }).lean();
 
-        // Build preview map
-        for (const p of posts) {
-          // The primary rendition — a notification preview has no viewer language
-          // context to resolve against, so it shows what the author wrote.
-          const trimmed = resolveVariant(p.content).text.trim();
-          const truncated = trimmed.length > 200 ? `${trimmed.slice(0, 200)}…` : trimmed;
-          postPreviewMap.set(String(p._id), truncated);
-        }
+      // Deliberately let hydration/privacy failures reach the outer handler.
+      // Returning a partially enriched page would otherwise make a transient
+      // privacy-authority outage indistinguishable from authorization success.
+      const hydratedPosts = await postHydrationService.hydratePosts(posts, {
+        viewerId: userId,
+        oxyClient: createScopedOxyClient(req),
+        maxDepth: 1,
+        includeLinkMetadata: true,
+      });
 
-        const hydratedPosts = await postHydrationService.hydratePosts(posts, {
-          viewerId: userId,
-          oxyClient: createScopedOxyClient(req),
-          maxDepth: 1,
-          includeLinkMetadata: true,
-        });
-        hydratedPosts.forEach((post) => postMap.set(post.id, post));
-      } catch (e) {
-        // Non-fatal; proceed without post embedding if query fails
-        logger.warn('[Notifications] Failed to embed posts for notifications:', e);
-      }
-    }
-
-    // For reaction/reply notifications, attach a CHEAP text preview so the feed
-    // rows can show which post was acted upon. Projected read of `content.text`
-    // ONLY — no `PostHydrationService`, no boost/quote/thread embeds — so this
-    // stays O(1) per notification. Reuses the same `postPreviewMap`.
-    const PREVIEW_TYPES = new Set(['like', 'reply', 'mention', 'boost', 'quote']);
-    const previewEntityIds = notificationsRaw
-      .filter((n) => n && PREVIEW_TYPES.has(n.type)
-        && (n.entityType === 'post' || n.entityType === 'reply') && n.entityId)
-      .map((n) => resolveEntityId(n.entityId))
-      .filter(Boolean);
-
-    if (previewEntityIds.length > 0) {
-      try {
-        const previewDocs = await Post.find(
-          { _id: { $in: previewEntityIds } },
-          { 'content.variants': 1 },
-        ).lean();
-        for (const p of previewDocs) {
-          // The primary rendition. A notification preview has no viewer language
-          // context to resolve against, so it shows what the author wrote.
-          const text = resolveVariant(p.content).text.trim();
-          postPreviewMap.set(String(p._id), text.length > 200 ? `${text.slice(0, 200)}…` : text);
-        }
-      } catch (e) {
-        // Non-fatal; proceed without previews if the projected query fails.
-        logger.warn('[Notifications] Failed to build reaction previews:', e);
+      for (const post of hydratedPosts) {
+        postMap.set(post.id, post);
+        const text = post.content.text?.trim() ?? '';
+        postPreviewMap.set(
+          post.id,
+          text.length > 200 ? `${text.slice(0, 200)}…` : text,
+        );
       }
     }
 

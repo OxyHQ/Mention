@@ -11,16 +11,20 @@ import { authenticatedClient } from '@/utils/api';
 import { Toggle } from '@/components/Toggle';
 import { SettingsListGroup, SettingsListItem } from '@oxyhq/bloom/settings-list';
 import { RowIcon } from '@/components/settings/RowIcon';
-import { updatePrivacySettingsCache, type UserSettingsResponse } from '@/hooks/usePrivacySettings';
+import {
+    createPrivacySettingsCacheLease,
+    updatePrivacySettingsCache,
+    type UserSettingsResponse,
+} from '@/hooks/usePrivacySettings';
 import { createScopedLogger } from '@/lib/logger';
-import { OxyAuthPrompt, useAuth } from '@oxyhq/services';
+import { OxyAuthPrompt, useAuth } from '@oxyhq/services/ui/client';
 
 const hideCountsLogger = createScopedLogger('HideCounts');
 
 export default function HideCountsScreen() {
     const { t } = useTranslation();
     const safeBack = useSafeBack();
-    const { canUsePrivateApi, isPrivateApiPending } = useAuth();
+    const { canUsePrivateApi, isPrivateApiPending, user } = useAuth();
     const [hideLikeCounts, setHideLikeCounts] = useState(false);
     const [hideShareCounts, setHideShareCounts] = useState(false);
     const [hideReplyCounts, setHideReplyCounts] = useState(false);
@@ -56,6 +60,7 @@ export default function HideCountsScreen() {
     };
 
     const updateSetting = async (field: 'hideLikeCounts' | 'hideShareCounts' | 'hideReplyCounts' | 'hideSaveCounts', value: boolean) => {
+        const cacheLease = createPrivacySettingsCacheLease(user?.id);
         try {
             let currentPrivacy = {};
             try {
@@ -73,7 +78,7 @@ export default function HideCountsScreen() {
                 privacy: updatedPrivacy,
             });
 
-            await updatePrivacySettingsCache(updatedPrivacy);
+            await updatePrivacySettingsCache(updatedPrivacy, cacheLease);
         } catch (error) {
             hideCountsLogger.error('Error updating setting', { error });
             if (field === 'hideLikeCounts') setHideLikeCounts(!value);
@@ -84,6 +89,7 @@ export default function HideCountsScreen() {
     };
 
     const updateAllSettings = async (value: boolean) => {
+        const cacheLease = createPrivacySettingsCacheLease(user?.id);
         try {
             let currentPrivacy = {};
             try {
@@ -109,7 +115,7 @@ export default function HideCountsScreen() {
             setHideReplyCounts(value);
             setHideSaveCounts(value);
 
-            await updatePrivacySettingsCache(updatedPrivacy);
+            await updatePrivacySettingsCache(updatedPrivacy, cacheLease);
         } catch (error) {
             hideCountsLogger.error('Error updating all settings', { error });
         }

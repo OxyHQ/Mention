@@ -170,7 +170,7 @@ async function fetchProfileOg(handle: string): Promise<OgData | null> {
       signal: controller.signal,
     });
     if (!response.ok) return null;
-    const json: { data?: OxyProfileData } = await response.json();
+    const json = (await response.json()) as { data?: OxyProfileData };
     return mapProfileOg(json?.data);
   } catch (error) {
     logger.debug('[webShell] Profile OG fetch failed', error);

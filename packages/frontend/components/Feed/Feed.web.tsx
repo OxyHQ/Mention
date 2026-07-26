@@ -1,9 +1,9 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, memo } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useWindowVirtualizer } from '@tanstack/react-virtual';
-import { FeedType } from '@mention/shared-types';
+import type { FeedType } from '@mention/shared-types';
 import { ErrorBoundary } from '@oxyhq/bloom/error-boundary';
-import { useAuth } from '@oxyhq/services';
+import { useAuth } from '@oxyhq/services/ui/client';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { useRouter } from 'expo-router';
 import { useScrollRestoration } from '@oxyhq/bloom/scroll';
@@ -40,6 +40,8 @@ interface FeedProps {
     style?: React.ComponentProps<typeof View>['style'];
     contentContainerStyle?: React.ComponentProps<typeof View>['style'];
     listHeaderComponent?: React.ReactElement | null;
+    listStickyHeaderComponent?: React.ReactElement | null;
+    listLeadingComponent?: React.ReactElement | null;
     threaded?: boolean;
     threadPostId?: string;
 }
@@ -194,7 +196,16 @@ function useWebFeed(props: Required<Pick<FeedProps, 'type' | 'showOnlySaved'>> &
  */
 function EmbeddedWebFeed(props: FeedProps) {
     const merged = { ...DEFAULT_FEED_PROPS, ...props };
-    const { hideHeader, showComposeButton, onComposePress, listHeaderComponent, type, showOnlySaved } = merged;
+    const {
+        hideHeader,
+        showComposeButton,
+        onComposePress,
+        listHeaderComponent,
+        listStickyHeaderComponent,
+        listLeadingComponent,
+        type,
+        showOnlySaved,
+    } = merged;
     const theme = useTheme();
     const router = useRouter();
     const { feedRows, feedState, handleRetry } = useWebFeed(merged);
@@ -206,6 +217,8 @@ function EmbeddedWebFeed(props: FeedProps) {
     return (
         <View className="bg-background" style={[{ minHeight: 0 }, merged.style]}>
             {header}
+            {listStickyHeaderComponent}
+            {listLeadingComponent}
             {feedRows.length === 0 ? (
                 <FeedEmptyState
                     isLoading={feedState.isLoading}
@@ -240,7 +253,19 @@ function EmbeddedWebFeed(props: FeedProps) {
  */
 function VirtualizedWebFeed(props: FeedProps) {
     const merged = { ...DEFAULT_FEED_PROPS, ...props };
-    const { hideHeader, showComposeButton, onComposePress, listHeaderComponent, type, showOnlySaved, userId, filters, reloadKey } = merged;
+    const {
+        hideHeader,
+        showComposeButton,
+        onComposePress,
+        listHeaderComponent,
+        listStickyHeaderComponent,
+        listLeadingComponent,
+        type,
+        showOnlySaved,
+        userId,
+        filters,
+        reloadKey,
+    } = merged;
     const { t } = useTranslation();
     const theme = useTheme();
     const router = useRouter();
@@ -453,6 +478,8 @@ function VirtualizedWebFeed(props: FeedProps) {
         >
             <View className="bg-background" style={merged.style}>
                 {header}
+                {listStickyHeaderComponent}
+                {listLeadingComponent}
 
                 {count === 0 ? (
                     <FeedEmptyState
@@ -543,7 +570,9 @@ const arePropsEqual = (prevProps: FeedProps, nextProps: FeedProps): boolean => {
         prevProps.scrollEnabled !== nextProps.scrollEnabled ||
         prevProps.threaded !== nextProps.threaded ||
         prevProps.threadPostId !== nextProps.threadPostId ||
-        prevProps.listHeaderComponent !== nextProps.listHeaderComponent
+        prevProps.listHeaderComponent !== nextProps.listHeaderComponent ||
+        prevProps.listStickyHeaderComponent !== nextProps.listStickyHeaderComponent ||
+        prevProps.listLeadingComponent !== nextProps.listLeadingComponent
     ) {
         return false;
     }

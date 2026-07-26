@@ -28,8 +28,8 @@ export function TrendsWidget({ variant = 'card', divider }: TrendsWidgetProps) {
   const openWidgetMenu = useWidgetItemMenu();
 
   useEffect(() => {
-    startPolling();
-    return () => stopPolling();
+    const subscriptionId = startPolling();
+    return () => stopPolling(subscriptionId);
   }, [startPolling, stopPolling]);
 
   const { navigateToTrend } = useTrendNavigation();

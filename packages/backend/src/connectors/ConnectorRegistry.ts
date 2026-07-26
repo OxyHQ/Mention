@@ -9,6 +9,15 @@ import { logger } from '../utils/logger';
 import { isFediverseSharingEnabled } from '../services/fediverseSharing';
 import type { PostFederator } from '../services/serviceRegistry';
 
+/**
+ * Optional capability implemented by connectors whose normal `deliver` path is
+ * intentionally best-effort internally. Durable workers select this boundary
+ * so persistence/enqueue failures remain observable.
+ */
+type DurableNetworkConnector = NetworkConnector<PostContent> & {
+  deliverDurably?: (event: LocalNetworkEvent<PostContent>) => Promise<void>;
+};
+
 /** The Oxy user whose `fediverseSharing` consent gates a given outbound event. */
 function actingOxyUserId(event: LocalNetworkEvent<PostContent>): string {
   switch (event.kind) {
@@ -73,24 +82,53 @@ export class ConnectorRegistry implements PostFederator {
    * outbound federation is best-effort. Each rejected connector is logged with
    * its id; the method resolves once every connector has been attempted.
    */
-  async deliver(event: LocalNetworkEvent<PostContent>): Promise<void> {
+  private async deliverToEnabledConnectors(
+    event: LocalNetworkEvent<PostContent>,
+    durable: boolean,
+  ): Promise<unknown[]> {
     const actorOxyUserId = actingOxyUserId(event);
     if (!(await isFediverseSharingEnabled(actorOxyUserId))) {
       logger.debug(`[Connectors] sharing off for ${actorOxyUserId} — skipping federation`);
-      return;
+      return [];
     }
 
     const results = await Promise.allSettled(
-      this.connectors.map((connector) => connector.deliver(event)),
+      this.connectors.map((connector) => {
+        const durableConnector = connector as DurableNetworkConnector;
+        if (durable && durableConnector.deliverDurably) {
+          return durableConnector.deliverDurably(event);
+        }
+        return connector.deliver(event);
+      }),
     );
+    const failures: unknown[] = [];
     results.forEach((result, index) => {
       if (result.status === 'rejected') {
+        failures.push(result.reason);
         logger.error(
           `[connectors] deliver(${event.kind}) failed for connector "${this.connectors[index].id}":`,
           result.reason,
         );
       }
     });
+    return failures;
+  }
+
+  async deliver(event: LocalNetworkEvent<PostContent>): Promise<void> {
+    await this.deliverToEnabledConnectors(event, false);
+  }
+
+  /**
+   * Durable-outbox variant. Every connector is still attempted, but any
+   * rejection is surfaced after fan-out so the event can be retried.
+   */
+  async deliverStrict(event: LocalNetworkEvent<PostContent>): Promise<void> {
+    const failures = await this.deliverToEnabledConnectors(event, true);
+    if (failures.length > 0) {
+      const error = new Error(`Connector delivery failed for ${event.kind}`);
+      (error as Error & { failures: unknown[] }).failures = failures;
+      throw error;
+    }
   }
 
   /**

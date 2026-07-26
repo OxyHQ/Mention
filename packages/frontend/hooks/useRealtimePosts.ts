@@ -1,15 +1,17 @@
 import { useEffect } from 'react';
 import { socketService } from '@/services/socketService';
-import { useAuth } from '@oxyhq/services';
+import { useAuth, useOxy } from '@oxyhq/services/ui/client';
 
-// Lightweight hook to ensure socket connection when authenticated
+// The bridge using this hook is the sole owner of the posts socket lease.
 export default function useRealtimePosts() {
-	const { isAuthenticated, isReady, user, oxyServices } = useAuth();
+	const { canUsePrivateApi, user, oxyServices } = useAuth();
+	const { activeSessionId } = useOxy();
 
 	useEffect(() => {
-		if (!isAuthenticated || !isReady || !user?.id) return;
+		if (!canUsePrivateApi || !user?.id) return;
 		const token = oxyServices?.getAccessToken() ?? undefined;
 		if (!token) return;
 		socketService.connect(user.id, token);
-	}, [isAuthenticated, isReady, user?.id, oxyServices]);
+		return () => socketService.disconnect();
+	}, [activeSessionId, canUsePrivateApi, user?.id, oxyServices]);
 }

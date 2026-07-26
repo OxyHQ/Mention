@@ -13,7 +13,7 @@ import { SettingsListGroup, SettingsListItem } from '@oxyhq/bloom/settings-list'
 import { RowIcon } from '@/components/settings/RowIcon';
 import { logger } from '@/lib/logger';
 import type { UserSettingsResponse } from '@/hooks/usePrivacySettings';
-import { OxyAuthPrompt, useAuth } from '@oxyhq/services';
+import { OxyAuthPrompt, useAuth } from '@oxyhq/services/ui/client';
 
 export default function TagsMentionsScreen() {
     const { t } = useTranslation();

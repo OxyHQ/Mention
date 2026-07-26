@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { authenticatedClient, isUnauthorizedError, isNotFoundError } from '@/utils/api';
-import { useAuth } from '@oxyhq/services';
+import { useAuth } from '@oxyhq/services/ui/client';
 import type { UserSettingsResponse } from '@/hooks/usePrivacySettings';
 
 export interface FeedSettings {

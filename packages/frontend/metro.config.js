@@ -4,6 +4,11 @@ const path = require('path');
 
 const projectRoot = __dirname;
 const monorepoRoot = path.resolve(projectRoot, '../..');
+const exactModuleAliases = new Map([
+  ['@expo/vector-icons', path.join(projectRoot, 'shims/expo-vector-icons.ts')],
+  ['@oxyhq/bloom', path.join(projectRoot, 'shims/oxy-bloom.ts')],
+]);
+const bloomFontDataShim = path.join(projectRoot, 'shims/bloom-font-data.web.ts');
 
 const config = getDefaultConfig(projectRoot);
 
@@ -51,6 +56,32 @@ config.resolver = {
   unstable_enableSymlinks: true,
   // Enable package.json "exports" field resolution (required by @oxyhq/bloom subpath exports)
   unstable_enablePackageExports: true,
+  // Oxy's published UI still imports the `@expo/vector-icons` barrel even
+  // though it only renders Ionicons and MaterialCommunityIcons. The barrel
+  // eagerly registers every glyph map/font family in web and adds megabytes of
+  // unused assets. Mention itself imports icon-family subpaths directly; only
+  // the exact legacy barrel request is narrowed here.
+  resolveRequest: (context, moduleName, platform) => {
+    // Bloom publishes its web fonts as base64 strings in font-data.web.js.
+    // Keeping those bytes in the entry graph inflates every initial JS download,
+    // even though the browser already has an efficient, cacheable font pipeline.
+    // Limit the override to Bloom's own relative import on web so no unrelated
+    // module can accidentally resolve to the shim.
+    const isBloomFontDataRequest =
+      platform === 'web' &&
+      (moduleName === './font-data.web' || moduleName === './font-data.web.js') &&
+      /[\\/]@oxyhq[\\/]bloom[\\/].*[\\/]fonts[\\/]apply-font-faces\.web\.(?:js|ts)$/.test(
+        context.originModulePath ?? '',
+      );
+
+    return context.resolveRequest(
+      context,
+      isBloomFontDataRequest
+        ? bloomFontDataShim
+        : exactModuleAliases.get(moduleName) ?? moduleName,
+      platform,
+    );
+  },
   sourceExts: [...config.resolver.sourceExts, 'ts', 'tsx'],
   // Bloom 0.3.3 imports `.woff2` files directly from JS for its bundled font system
   // (BlomusModernus, Inter Variable, Geist Mono). When Metro bundles for web

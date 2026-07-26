@@ -6,7 +6,7 @@ import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { usePostsStore } from '@/stores/postsStore';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { EmptyState } from '@/components/common/EmptyState';
 import { isDbAvailable } from '@/db';
 import type { FeedItem } from '@/db';
@@ -20,6 +20,12 @@ interface MediaGridProps {
     userId?: string;
     isPrivate?: boolean;
     isOwnProfile?: boolean;
+    ownsScroll?: boolean;
+    listHeaderComponent?: React.ReactElement | null;
+    listStickyHeaderComponent?: React.ReactElement | null;
+    contentContainerStyle?: React.ComponentProps<typeof View>['style'];
+    onScroll?: React.ComponentProps<typeof ProfileGridList<MediaGridEntry>>['onScroll'];
+    scrollRef?: React.ComponentProps<typeof ProfileGridList<MediaGridEntry>>['scrollRef'];
 }
 
 interface MediaGridEntry extends ProfileGridEntry {
@@ -53,12 +59,27 @@ const resolveImageUri = (ref: MediaItem): string | undefined => ref.thumbUrl || 
 // is handled by the cell's own image-error fallback.
 const resolveVideoPosterUri = (ref: MediaItem): string | undefined => ref.posterUrl || ref.thumbUrl || undefined;
 
-const MediaGrid: React.FC<MediaGridProps> = ({ userId, isPrivate, isOwnProfile }) => {
+const MediaGrid: React.FC<MediaGridProps> = ({
+    userId,
+    isPrivate,
+    isOwnProfile,
+    ownsScroll,
+    listHeaderComponent,
+    listStickyHeaderComponent,
+    contentContainerStyle,
+    onScroll,
+    scrollRef,
+}) => {
     const router = useRouter();
     const theme = useTheme();
     const { t } = useTranslation();
     const getPostFromDb = usePostsStore((s) => s.getPostFromDb);
-    const { mediaFeed, postsFeed, items } = useProfileMediaFeed({ userId, isPrivate, isOwnProfile });
+    const {
+        mediaFeed,
+        postsFeed,
+        items,
+        loadMore,
+    } = useProfileMediaFeed({ userId, isPrivate, isOwnProfile });
 
     const mediaItems = useMemo<MediaGridEntry[]>(() => {
         const out: MediaGridEntry[] = [];
@@ -168,16 +189,14 @@ const MediaGrid: React.FC<MediaGridProps> = ({ userId, isPrivate, isOwnProfile }
 
     // Loading state first; if no items yet and feeds are still loading, show spinner
     const isLoading = (!mediaFeed && !postsFeed) || mediaFeed?.isLoading || postsFeed?.isLoading;
-    if (isLoading && mediaItems.length === 0) {
-        return (
+    const emptyContent = isLoading && mediaItems.length === 0
+        ? (
             <View className="items-center justify-center p-8">
                 <Spinner />
             </View>
-        );
-    }
-
-    if (!isLoading && mediaItems.length === 0) {
-        return (
+        )
+        : !isLoading && mediaItems.length === 0
+            ? (
             <EmptyState
                 title={t('profile.media.empty.title', { defaultValue: 'No media posts yet' })}
                 subtitle={t('profile.media.empty.subtitle', { defaultValue: 'Photos and videos you share will appear here.' })}
@@ -187,7 +206,11 @@ const MediaGrid: React.FC<MediaGridProps> = ({ userId, isPrivate, isOwnProfile }
                 }}
                 containerStyle={{ flex: 1 }}
             />
-        );
+            )
+            : null;
+
+    if (!ownsScroll && emptyContent) {
+        return emptyContent;
     }
 
     return (
@@ -197,6 +220,14 @@ const MediaGrid: React.FC<MediaGridProps> = ({ userId, isPrivate, isOwnProfile }
             containerClassName="bg-background"
             initialNumToRender={INITIAL_RENDER_COUNT}
             windowSize={WINDOW_SIZE}
+            ownsScroll={ownsScroll}
+            listHeaderComponent={listHeaderComponent}
+            listStickyHeaderComponent={listStickyHeaderComponent}
+            emptyComponent={emptyContent}
+            contentContainerStyle={contentContainerStyle}
+            onScroll={onScroll}
+            scrollRef={scrollRef}
+            onEndReached={loadMore}
         />
     );
 };

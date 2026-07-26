@@ -4,7 +4,7 @@ import { SpinnerIcon } from '@oxyhq/bloom/loading';
 import { ActivityHeatmap } from '@oxyhq/bloom/activity-heatmap';
 import { useRouter } from 'expo-router';
 import { flip, offset, shift, size, useFloating } from '@floating-ui/react-dom';
-import { FollowButton } from '@oxyhq/services';
+import { FollowButton } from '@oxyhq/services/ui/client';
 import { getNormalizedUserHandle } from '@oxyhq/core';
 
 import { useTheme } from '@oxyhq/bloom/theme';
@@ -13,7 +13,7 @@ import { usePostActivity } from '@/hooks/usePostActivity';
 import { formatCompactNumber } from '@/utils/formatNumber';
 import { Portal } from '@oxyhq/bloom/portal';
 import { Avatar } from '@oxyhq/bloom/avatar';
-import { MEDIA_VARIANT_VIDEO_POSTER } from '@mention/shared-types';
+import { MEDIA_VARIANT_VIDEO_POSTER } from '@mention/shared-types/post';
 import UserName from '@/components/UserName';
 import { RemoteActorBadge } from '@/components/Fediverse/FediverseBadge';
 import { useFederatedFollowSync } from '@/components/Profile/hooks/useFederatedFollowSync';

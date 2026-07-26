@@ -18,10 +18,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
  * constructor so the assigned `_id` and passed-through linkage are observable,
  * and stub the DB-touching `save()` so no DB/network is needed.
  */
-vi.mock('../../../server', () => ({
-  oxy: {},
-  io: { of: () => ({ emit: vi.fn() }) },
-  notificationsNamespace: { emit: vi.fn() },
+vi.mock('../../runtime/socketServer', () => ({
+  getRuntimeSocketServer: () => undefined,
 }));
 
 vi.mock('../../services/PostHydrationService', () => ({

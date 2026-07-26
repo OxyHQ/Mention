@@ -1,5 +1,4 @@
 import { create } from 'zustand';
-import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { api } from '@/utils/api';
 import { Trend } from '@/interfaces/Trend';
@@ -36,9 +35,10 @@ interface TrendsStore {
   error: string | null;
   hiddenTrendIds: string[];
   fetchTrends: (opts?: { silent?: boolean }) => Promise<void>;
-  startPolling: () => void;
-  stopPolling: () => void;
+  startPolling: () => number;
+  stopPolling: (subscriptionId: number) => void;
   hideTrend: (id: string) => void;
+  resetViewerState: () => void;
 }
 
 function momentumToDirection(momentum: number): 'up' | 'down' | 'flat' {
@@ -48,13 +48,14 @@ function momentumToDirection(momentum: number): 'up' | 'down' | 'flat' {
 }
 
 let pollHandle: ReturnType<typeof setInterval> | null = null;
-// Ref count of mounted consumers. The shared interval runs while at least one
-// consumer is mounted and is cleared when the last one unmounts, so polling no
-// longer leaks for the whole session.
-let pollSubscribers = 0;
+let viewerEpoch = 0;
+const LEGACY_STORAGE_KEY = 'trends-hidden';
+// Lease IDs keep delayed cleanup from an old identity from touching a new
+// viewer's subscriber count after resetViewerState().
+const pollSubscriptions = new Set<number>();
+let nextPollSubscriptionId = 1;
 
 export const useTrendsStore = create<TrendsStore>()(
-  persist(
     (set, get) => ({
       trends: [],
       summary: '',
@@ -64,10 +65,12 @@ export const useTrendsStore = create<TrendsStore>()(
       hiddenTrendIds: [],
 
       fetchTrends: async (opts?: { silent?: boolean }) => {
+        const operationEpoch = viewerEpoch;
         const silent = !!opts?.silent;
         if (!silent) set({ isLoading: true, error: null });
         try {
           const response = await api.get<TrendsApiResponse>('/trending', { limit: 10 });
+          if (operationEpoch !== viewerEpoch) return;
           const items: TrendApiItem[] = response.data.trending || [];
           const next = items.map((item) => ({
             id: item._id || item.name,
@@ -104,14 +107,17 @@ export const useTrendsStore = create<TrendsStore>()(
             set({ isLoading: false, hasFetched: true });
           }
         } catch (error: unknown) {
+          if (operationEpoch !== viewerEpoch) return;
           const message = error instanceof Error ? error.message : 'Failed to fetch trends';
           if (!silent) set({ error: message, isLoading: false });
         }
       },
 
       startPolling: () => {
-        pollSubscribers += 1;
-        if (pollHandle) return;
+        const subscriptionId = nextPollSubscriptionId;
+        nextPollSubscriptionId += 1;
+        pollSubscriptions.add(subscriptionId);
+        if (pollHandle) return subscriptionId;
         void get().fetchTrends();
         pollHandle = setInterval(() => {
           void get().fetchTrends({ silent: true });
@@ -119,11 +125,12 @@ export const useTrendsStore = create<TrendsStore>()(
         // Non-Node runtimes (RN/web) return a numeric handle with no unref — the
         // optional chain no-ops there; on Node it keeps the loop from staying alive.
         pollHandle.unref?.();
+        return subscriptionId;
       },
 
-      stopPolling: () => {
-        if (pollSubscribers > 0) pollSubscribers -= 1;
-        if (pollSubscribers > 0 || !pollHandle) return;
+      stopPolling: (subscriptionId) => {
+        pollSubscriptions.delete(subscriptionId);
+        if (pollSubscriptions.size > 0 || !pollHandle) return;
         clearInterval(pollHandle);
         pollHandle = null;
       },
@@ -134,12 +141,25 @@ export const useTrendsStore = create<TrendsStore>()(
         if (hiddenTrendIds.includes(id)) return;
         set({ hiddenTrendIds: [...hiddenTrendIds, id] });
       },
+
+      resetViewerState: () => {
+        viewerEpoch += 1;
+        pollSubscriptions.clear();
+        if (pollHandle) {
+          clearInterval(pollHandle);
+          pollHandle = null;
+        }
+        set({
+          trends: [],
+          summary: '',
+          isLoading: false,
+          hasFetched: false,
+          error: null,
+          hiddenTrendIds: [],
+        });
+        // v1 persisted hide choices globally. Remove the unowned value instead
+        // of letting a second account inherit it.
+        void AsyncStorage.removeItem(LEGACY_STORAGE_KEY).catch(() => {});
+      },
     }),
-    {
-      name: 'trends-hidden',
-      storage: createJSONStorage(() => AsyncStorage),
-      // Only persist the user's hide preferences — never the volatile trends list.
-      partialize: (state) => ({ hiddenTrendIds: state.hiddenTrendIds }),
-    },
-  ),
 );

@@ -86,6 +86,13 @@ function getErrorStatus(error: unknown): number | undefined {
   return typeof status === 'number' ? status : undefined;
 }
 
+function getErrorCode(error: unknown): string | undefined {
+  const rawCode = readProp(error, 'code');
+  return typeof rawCode === 'string' && rawCode.length <= 64
+    ? rawCode
+    : undefined;
+}
+
 function isAuthContextError(error: unknown): boolean {
   if (!error) return false;
   const status = getErrorStatus(error);
@@ -98,6 +105,58 @@ function isAuthContextError(error: unknown): boolean {
   const rawMessage = readProp(error, 'message');
   const message = typeof rawMessage === 'string' ? rawMessage.toLowerCase() : '';
   return message.includes('authorization header') || message.includes('unauthorized');
+}
+
+/**
+ * An authenticated viewer privacy read was rejected upstream. Callers must
+ * propagate this error: treating it as an empty relation set can disclose
+ * blocked/restricted accounts.
+ */
+export class OxyPrivacyAuthorizationError extends Error {
+  readonly status?: number;
+  readonly code?: string;
+  readonly listType: 'blocked' | 'restricted';
+
+  constructor(
+    listType: 'blocked' | 'restricted',
+    upstreamError: unknown,
+  ) {
+    super(`Oxy rejected the delegated ${listType} privacy context`);
+    this.name = 'OxyPrivacyAuthorizationError';
+    this.status = getErrorStatus(upstreamError);
+    this.code = getErrorCode(upstreamError);
+    this.listType = listType;
+  }
+}
+
+export function isOxyPrivacyAuthorizationError(
+  error: unknown,
+): error is OxyPrivacyAuthorizationError {
+  return error instanceof OxyPrivacyAuthorizationError;
+}
+
+/**
+ * Oxy could not provide an authoritative privacy list. Authenticated request
+ * paths must fail closed instead of treating an outage or malformed response as
+ * proof that the viewer has no blocks/restrictions.
+ */
+export class OxyPrivacyUnavailableError extends Error {
+  readonly listType: 'blocked' | 'restricted';
+  readonly status?: number;
+  readonly code?: string;
+  readonly network: boolean;
+
+  constructor(
+    listType: 'blocked' | 'restricted',
+    upstreamError: unknown,
+  ) {
+    super(`Oxy could not resolve the delegated ${listType} privacy context`);
+    this.name = 'OxyPrivacyUnavailableError';
+    this.listType = listType;
+    this.status = getErrorStatus(upstreamError);
+    this.code = getErrorCode(upstreamError);
+    this.network = isNetworkError(upstreamError);
+  }
 }
 
 /**
@@ -117,21 +176,22 @@ async function getUserIdsFromPrivacyList(
       .filter((id): id is string => Boolean(id));
   } catch (error) {
     if (isAuthContextError(error)) {
-      logger.debug(`[PostHydration] Skipping ${listType} users: authenticated Oxy privacy context unavailable`, {
+      logger.warn(`[OxyPrivacy] Rejecting request because ${listType} privacy authorization failed`, {
         status: getErrorStatus(error),
-        code: typeof (error as { code?: unknown })?.code === 'string' ? (error as { code: string }).code : undefined,
+        code: getErrorCode(error),
       });
-      return [];
+      throw new OxyPrivacyAuthorizationError(listType, error);
     }
 
-    // Network errors are transient and handled gracefully (returning empty array)
-    // Log them at WARN level to reduce noise, other errors at ERROR level
-    if (isNetworkError(error)) {
-      logger.warn(`Network error getting ${listType} users (handled gracefully):`, error);
-    } else {
-      logger.error(`Error getting ${listType} users:`, error);
-    }
-    return []; // On error, return empty array
+    // Never log the upstream error object: HTTP client errors can contain the
+    // request headers (including bearer credentials). The bounded fields below
+    // are enough for operations while keeping private requests fail-closed.
+    logger.warn(`[OxyPrivacy] Rejecting request because ${listType} privacy resolution failed`, {
+      status: getErrorStatus(error),
+      code: getErrorCode(error),
+      network: isNetworkError(error),
+    });
+    throw new OxyPrivacyUnavailableError(listType, error);
   }
 }
 
@@ -140,7 +200,11 @@ async function getUserIdsFromPrivacyList(
  * @param client - OxyServices instance (per-request, with auth token set)
  */
 export async function getBlockedUserIds(client?: OxyClient): Promise<string[]> {
-  if (!client) return [];
+  if (!client) {
+    throw new OxyPrivacyUnavailableError('blocked', {
+      code: 'MISSING_PRIVACY_CLIENT',
+    });
+  }
   return getUserIdsFromPrivacyList(() => client.getBlockedUsers(), 'blocked');
 }
 
@@ -149,7 +213,11 @@ export async function getBlockedUserIds(client?: OxyClient): Promise<string[]> {
  * @param client - OxyServices instance (per-request, with auth token set)
  */
 export async function getRestrictedUserIds(client?: OxyClient): Promise<string[]> {
-  if (!client) return [];
+  if (!client) {
+    throw new OxyPrivacyUnavailableError('restricted', {
+      code: 'MISSING_PRIVACY_CLIENT',
+    });
+  }
   return getUserIdsFromPrivacyList(() => client.getRestrictedUsers(), 'restricted');
 }
 

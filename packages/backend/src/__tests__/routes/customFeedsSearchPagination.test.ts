@@ -32,7 +32,10 @@ vi.mock('../../services/PostHydrationService', () => ({
   resolveUserSummaries: vi.fn().mockResolvedValue(new Map()),
   degradedActorSummary: (oxyUserId: string) => ({ id: oxyUserId, username: '', name: { displayName: 'Unknown user' } }),
 }));
-vi.mock('../../utils/oxyHelpers', () => ({ getServiceOxyClient: vi.fn() }));
+vi.mock('../../utils/oxyHelpers', () => ({
+  createScopedOxyClient: vi.fn(),
+  getServiceOxyClient: vi.fn(),
+}));
 vi.mock('../../mtn/feed/definitions/customFeedDefinition', () => ({ buildCustomFeedDefinition: vi.fn() }));
 vi.mock('../../mtn/feed/feedContext', () => ({ loadViewerFeedContext: vi.fn() }));
 vi.mock('../../mtn/feed/engine/FeedEngine', () => ({ feedEngine: { run: vi.fn() } }));

@@ -176,11 +176,14 @@ Implemented in `packages/backend/src/mcp/`.
 | Variable | Default | Purpose |
 |----------|---------|---------|
 | `MENTION_API_URL` | `https://api.mention.earth` | Mention REST API |
+| `MENTION_API_TIMEOUT_MS` | `10000` | Per-attempt Mention API timeout; GET retries once |
 | `MENTION_MCP_PUBLIC_URL` | `https://mcp.mention.earth` | Public MCP URL (JWT `aud`) |
 | `MENTION_OAUTH_AS_URL` | `https://api.mention.earth` | OAuth AS origin |
 | `MCP_PORT` | `3100` | HTTP listen port |
 | `MENTION_MCP_JWT_SECRET` | (required) | Must match backend secret |
 | `MCP_ALLOWED_ORIGINS` | Claude defaults | Extra CORS origins |
+| `MCP_MAX_REQUEST_BODY_BYTES` | `1048576` | Maximum JSON request body retained in memory |
+| `MCP_MAX_SESSIONS` | `1000` | Per-task cap for active HTTP/SSE sessions |
 
 ### Backend (`mention` ECS)
 

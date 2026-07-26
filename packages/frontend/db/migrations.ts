@@ -19,7 +19,7 @@ const logger = createScopedLogger('Schema');
  * Schema version. Bump this whenever the table definitions below change —
  * the next `getDb()` will drop the old cache and recreate it cleanly.
  */
-const SCHEMA_VERSION = 3;
+const SCHEMA_VERSION = 4;
 
 /**
  * Create the full schema from scratch. Idempotent (IF NOT EXISTS).
@@ -99,6 +99,16 @@ function createSchema(db: SQLite.SQLiteDatabase): void {
       error TEXT,
       fetched_at INTEGER NOT NULL,
       ttl_ms INTEGER DEFAULT 1800000
+    )
+  `);
+
+  // Viewer ownership for every persisted post/feed row. The identity boundary
+  // claims this cache before any descendant can render; a different (or
+  // missing, legacy) owner causes the cache to be wiped first.
+  db.execSync(`
+    CREATE TABLE IF NOT EXISTS cache_metadata (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL
     )
   `);
 

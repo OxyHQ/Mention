@@ -132,7 +132,10 @@ interface AppearanceStore {
   loadForUser: (userId: string) => Promise<UserAppearance | null>;
   updateMySettings: (partial: UserAppearanceUpdate) => Promise<UserAppearance | null>;
   reset: () => void;
+  resetViewerState: () => void;
 }
+
+let viewerEpoch = 0;
 
 export const useAppearanceStore = create<AppearanceStore>((set) => ({
   mySettings: null,
@@ -144,10 +147,12 @@ export const useAppearanceStore = create<AppearanceStore>((set) => ({
       return;
     }
 
+    const operationEpoch = viewerEpoch;
     try {
       set({ loading: true, error: null });
 
       const res = await api.get<UserAppearance>('profile/settings/me');
+      if (operationEpoch !== viewerEpoch) return;
       const doc = unwrapApiData<UserAppearance>(res.data);
 
       if (doc) {
@@ -156,6 +161,7 @@ export const useAppearanceStore = create<AppearanceStore>((set) => ({
         set({ loading: false });
       }
     } catch (e: unknown) {
+      if (operationEpoch !== viewerEpoch) return;
       if (isUnauthorizedError(e)) {
         set({ loading: false, error: null });
         return;
@@ -177,6 +183,7 @@ export const useAppearanceStore = create<AppearanceStore>((set) => ({
   },
 
   async updateMySettings(partial: UserAppearanceUpdate) {
+    const operationEpoch = viewerEpoch;
     try {
       set({ loading: true, error: null });
 
@@ -201,6 +208,7 @@ export const useAppearanceStore = create<AppearanceStore>((set) => ({
       };
 
       const res = await api.put<UserAppearance>('profile/settings', payload);
+      if (operationEpoch !== viewerEpoch) return null;
       const doc = unwrapApiData<UserAppearance>(res.data);
 
       if (doc) {
@@ -223,6 +231,7 @@ export const useAppearanceStore = create<AppearanceStore>((set) => ({
       set({ loading: false });
       return null;
     } catch (e: unknown) {
+      if (operationEpoch !== viewerEpoch) return null;
       const message = e instanceof Error ? e.message : 'Failed to update settings';
       set({ loading: false, error: message });
       return null;
@@ -230,6 +239,12 @@ export const useAppearanceStore = create<AppearanceStore>((set) => ({
   },
 
   reset() {
+    viewerEpoch += 1;
+    set({ mySettings: null, loading: false, error: null });
+  },
+
+  resetViewerState() {
+    viewerEpoch += 1;
     set({ mySettings: null, loading: false, error: null });
   },
 }));

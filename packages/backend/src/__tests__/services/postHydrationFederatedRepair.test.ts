@@ -22,12 +22,12 @@ const { federatedActorFind, getUsersByIds, getUserById } = vi.hoisted(() => ({
 
 // PostHydrationService touches these at module load — stub them so importing the
 // module never starts the server, hits the network, or opens Redis/Mongo.
-vi.mock('../../../server', () => ({
-  oxy: {
+vi.mock('../../runtime/oxyClient', () => ({
+  getRuntimeOxyClient: () => ({
     getUserById: (...args: unknown[]) => getUserById(...args),
     getUserFollowing: vi.fn(async () => []),
     getUserFollowers: vi.fn(async () => []),
-  },
+  }),
 }));
 vi.mock('../../utils/oxyHelpers', () => ({
   getServiceOxyClient: () => ({

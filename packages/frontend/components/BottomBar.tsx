@@ -3,9 +3,9 @@ import { Home, HomeActive, Video, VideoActive, ComposeIcon, ComposeIIconActive, 
 import { useRouter, usePathname, type Href } from 'expo-router';
 import React, { useCallback, useMemo, useRef } from 'react';
 import { Avatar } from '@oxyhq/bloom/avatar';
-import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types';
+import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 
-import { useAuth } from '@oxyhq/services';
+import { useAuth } from '@oxyhq/services/ui/client';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { useHaptics } from '@oxyhq/bloom/hooks';
 import { useHomeRefresh } from '@/context/HomeRefreshContext';

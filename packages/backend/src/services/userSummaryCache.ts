@@ -1,6 +1,6 @@
 import type { PostUser } from '@mention/shared-types';
 import { getRedisClient } from '../utils/redis';
-import { withRedisFallback, ensureRedisConnected } from '../utils/redisHelpers';
+import { withRedisFallback } from '../utils/redisHelpers';
 import { logger } from '../utils/logger';
 
 /**
@@ -148,9 +148,6 @@ export async function mget(userIds: string[]): Promise<Map<string, CachedUserSum
   return withRedisFallback(
     redis,
     async () => {
-      const connected = await ensureRedisConnected(redis);
-      if (!connected) return result;
-
       const keys = userIds.map(keyFor);
       const values = await redis.mGet(keys);
 
@@ -197,9 +194,6 @@ export async function mset(entries: Map<string, CachedUserSummary>): Promise<voi
   await withRedisFallback(
     redis,
     async () => {
-      const connected = await ensureRedisConnected(redis);
-      if (!connected) return;
-
       const pipeline = redis.multi();
       for (const [userId, value] of entries) {
         pipeline.setEx(keyFor(userId), SUMMARY_TTL_SECONDS, JSON.stringify(value));
@@ -231,8 +225,6 @@ export async function invalidate(userIds: string[]): Promise<void> {
   await withRedisFallback(
     redis,
     async () => {
-      const connected = await ensureRedisConnected(redis);
-      if (!connected) return;
       await redis.del(userIds.map(keyFor));
     },
     undefined,

@@ -2,8 +2,13 @@ import { useRef, useCallback, useEffect, useMemo } from 'react';
 import { Platform } from 'react-native';
 import { useLayoutScroll, extractOffsetY, type ScrollEvent } from '@/context/LayoutScrollContext';
 import { usePostsStore } from '@/stores/postsStore';
+import { getFeedMeta } from '@/db/feedQueries';
 import type { FeedType } from '@mention/shared-types';
-import { LAYOUT, type ProfileTab } from '../types';
+import {
+  isVirtualizedProfileGridTab,
+  LAYOUT,
+  type ProfileTab,
+} from '../types';
 
 interface UseProfileScrollOptions {
   profileId?: string;
@@ -26,6 +31,7 @@ export function useProfileScroll({ profileId, currentTab }: UseProfileScrollOpti
     scrollY,
     createAnimatedScrollHandler,
     registerScrollable,
+    scrollToOffset,
     setScrollY,
   } = useLayoutScroll();
 
@@ -53,7 +59,6 @@ export function useProfileScroll({ profileId, currentTab }: UseProfileScrollOpti
     getUserSliceRef.current = (userId: string, type: FeedType) => {
       const feedKey = `user:${userId}:${type}`;
       const ui = usePostsStore.getState().feedUI[feedKey];
-      const { getFeedMeta } = require('@/db');
       const meta = getFeedMeta(feedKey);
       return {
         hasMore: meta?.hasMore ?? true,
@@ -103,14 +108,21 @@ export function useProfileScroll({ profileId, currentTab }: UseProfileScrollOpti
     if (!pid || loadingMoreRef.current || !fetchUserFeedRef.current || !getUserSliceRef.current) {
       return;
     }
-    const slice = getUserSliceRef.current(pid, tab as FeedType);
+    // Native media/video grids own pagination through FlashList.onEndReached.
+    // Running the profile's generic scroll detector too would issue a duplicate
+    // request, and `videos` is backed by the author `media` feed rather than a
+    // separate videos descriptor.
+    if (Platform.OS !== 'web' && isVirtualizedProfileGridTab(tab)) return;
+
+    const feedTab = tab === 'videos' ? 'media' : tab;
+    const slice = getUserSliceRef.current(pid, feedTab as FeedType);
     if (slice && slice.hasMore && !slice.isLoading) {
       loadingMoreRef.current = true;
       const fetchUserFeed = fetchUserFeedRef.current;
       void (async () => {
         try {
           await fetchUserFeed(pid, {
-            type: tab as FeedType,
+            type: feedTab as FeedType,
             cursor: slice.nextCursor,
             limit: LAYOUT.FEED_LIMIT,
           });
@@ -164,21 +176,13 @@ export function useProfileScroll({ profileId, currentTab }: UseProfileScrollOpti
     };
   }, [scrollY, maybeLoadMore]);
 
-  // Scroll to specific position. WEB: the document is the scroller (the profile
-  // renders in normal flow, no inner ScrollView), so drive the window. NATIVE:
-  // the inner Animated.ScrollView owns the scroll.
+  // The active owner may be the profile ScrollView (non-feed tabs), Feed's
+  // FlashList (virtualized tabs), or the web document. LayoutScrollContext
+  // already tracks that owner, so the same stat-button action works in all
+  // three modes.
   const scrollToContent = useCallback((offset: number) => {
-    if (Platform.OS === 'web') {
-      if (typeof window !== 'undefined') {
-        window.scrollTo({ top: offset, behavior: 'smooth' });
-      }
-      return;
-    }
-    scrollRef.current?.scrollTo?.({
-      y: offset,
-      animated: true,
-    });
-  }, []);
+    scrollToOffset(offset);
+  }, [scrollToOffset]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -195,4 +199,3 @@ export function useProfileScroll({ profileId, currentTab }: UseProfileScrollOpti
     scrollToContent,
   };
 }
-

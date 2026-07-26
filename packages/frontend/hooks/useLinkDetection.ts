@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useAuth } from '@oxyhq/services';
-import { MAX_POST_LINK_PREVIEWS } from '@mention/shared-types';
+import { useAuth } from '@oxyhq/services/ui/client';
+import { MAX_POST_LINK_PREVIEWS } from '@mention/shared-types/post';
 import { LinkMetadata } from '../stores/linksStore';
 import { useLinksStore } from '../stores/linksStore';
 import { extractUrls } from '@/utils/extractUrls';
@@ -134,4 +134,3 @@ export const useLinkDetection = (text: string) => {
     error,
   };
 };
-

@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Loading } from '@oxyhq/bloom/loading';
 import { pollService, type PollData, type PollOption } from '@/services/pollService';
-import { useAuth } from '@oxyhq/services';
+import { useAuth } from '@oxyhq/services/ui/client';
 import { cn } from '@/lib/utils';
 
 interface PollCardProps {

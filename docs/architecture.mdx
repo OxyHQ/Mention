@@ -206,15 +206,16 @@ Single source of truth for cross-package contracts:
 | `media.ts` | Media descriptors |
 | `profile.ts` | User profile projections used by the feed |
 | `topic.ts` | Trending topics |
-| `analytics.ts` | Impression + engagement events |
 | `common.ts` | `GeoJSONPoint`, pagination cursors, error shapes |
 | `mtn/` | Internal feed-engine descriptor types (also used by `@mention/mcp`) |
 
 Frontend imports these directly. Backend uses them at the boundary (request validators, response DTOs) so the wire format stays in lockstep with the client.
 
-## Agora (`@mention/agora` + `@mention/agora-shared`)
+## Live rooms
 
-A separate Expo app for live audio and video rooms, built on LiveKit. It shares hooks and components with the main frontend via `@mention/agora-shared` so room state, participant lists, and controls behave identically across surfaces. The backend mints LiveKit JWTs through `livekit-server-sdk` and brokers room metadata.
+Live rooms use the shared `@syra.fm/sdk` engine and load only when a user enters
+or joins a room. The backend mints LiveKit credentials; feed rows do not import
+the room runtime.
 
 ## MCP (`@mention/mcp`)
 
@@ -229,12 +230,15 @@ Full guide: [`packages/mcp/README.md`](../packages/mcp/README.md). Agent gotchas
 
 ## Deployment
 
-- **Backend** — production runs on DigitalOcean App Platform (single deployment for the API + federation endpoints) with Cloudflare in front. Cloudflare redirect rules route `/.well-known/*` and `/ap/*` on `mention.earth` to the backend service so the federation surface stays distinct from the static web app. See `docs/DIGITALOCEAN_DEPLOYMENT.md`.
-- **Frontend (web)** — Expo web export deployed to Vercel. See `docs/VERCEL_DEPLOYMENT.md`.
+- **Backend** — AWS ECS service `mention` serves the API, federation endpoints, OG shells and the whole apex proxy. ActivityPub endpoint paths are handled directly and never redirected.
+- **Frontend (web)** — the Expo export is promoted preview-first to Cloudflare Pages; the backend proxies the apex web plane to that static origin.
+- **MCP** — the independent AWS ECS service `mention-mcp` serves `mcp.mention.earth`.
 - **Frontend (native)** — EAS Build for Android (APK + Play) and iOS. Scripts: `bun run build:apk`, `bun run build:android`, `bun run build:ios`.
-- **MongoDB** — managed cluster; indexes provisioned via `bun run migrate`.
+- **MongoDB** — managed cluster; production migrations run once from the release image before the web rollout.
 - **Redis** — managed instance for rate-limiting and the Socket.io adapter.
 - **S3** — single bucket for user-uploaded media, fronted by signed URLs.
+
+See `docs/AWS_DEPLOYMENT.md` for the release transaction and rollback rules.
 
 ## Local development checklist
 

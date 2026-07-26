@@ -138,8 +138,9 @@ export interface RankablePost {
     commentsCount: number;
     viewsCount: number;
     sharesCount: number;
+    savesCount: number;
   }>;
-  metadata?: { savedBy?: unknown[]; isSensitive?: boolean | null };
+  metadata?: { isSensitive?: boolean | null };
   federation?: { sensitive?: boolean | null };
   // Partial: lean feed projections may carry only a subset of classification
   // fields (e.g. candidate sources select `sensitive`/`topics` only). Every

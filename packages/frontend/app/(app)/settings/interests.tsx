@@ -16,7 +16,7 @@ import { SettingsListGroup } from '@oxyhq/bloom/settings-list';
 import { Icon } from '@/lib/icons';
 import { cn } from '@/lib/utils';
 import { logger } from '@/lib/logger';
-import { useAuth, OxyAuthPrompt } from '@oxyhq/services';
+import { useAuth, OxyAuthPrompt } from '@oxyhq/services/ui/client';
 
 function debounce<T extends (...args: unknown[]) => unknown>(func: T, wait: number): T {
     let timeout: ReturnType<typeof setTimeout> | null = null;

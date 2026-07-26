@@ -11,17 +11,17 @@ import {
 import { useQuery } from '@tanstack/react-query';
 import { Loading } from '@oxyhq/bloom/loading';
 import { SafeAreaView } from '@/lib/SafeAreaViewInterop';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { ThemedView } from '@/components/ThemedView';
 import { Header } from '@/components/Header';
 import { PanelStickyHeader } from '@/components/shell/PanelChrome';
 import { statisticsService } from '@/services/statisticsService';
 import { useTranslation } from 'react-i18next';
-import { useAuth, OxyAuthPrompt } from '@oxyhq/services';
+import { useAuth, OxyAuthPrompt } from '@oxyhq/services/ui/client';
 import { usePostsStore } from '@/stores/postsStore';
 import PostItem from '@/components/Feed/PostItem';
-import { HydratedPost } from '@mention/shared-types';
+import type { HydratedPost } from '@mention/shared-types';
 import { formatCompactNumber } from '@/utils/formatNumber';
 import { FONT_FAMILIES } from '@/styles/typography';
 
@@ -1051,4 +1051,3 @@ const styles = StyleSheet.create({
 });
 
 export default InsightsScreen;
-

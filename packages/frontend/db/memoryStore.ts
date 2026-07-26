@@ -18,8 +18,8 @@
  *   - `feed_items`: Map<feedKey, string[]>  (ordered list of post ids)
  *   - `feed_meta`:  Map<feedKey, FeedMetaData>
  *
- * Reactivity is unchanged: `postsStore` still bumps `dataVersion` after every
- * write, which re-runs the `useMemo`-wrapped selector reads.
+ * Reactivity is owned by `postsStore`, which publishes keyed post/feed
+ * notifications after each write. This module remains persistence only.
  */
 
 import type { FeedItem } from './schema';
@@ -209,10 +209,39 @@ export function memRemovePostFromAllFeeds(postId: string): void {
   }
 }
 
+/**
+ * Return only the feeds that currently contain a post.
+ *
+ * `postsStore` uses this before a global delete so it can notify the exact feed
+ * selectors whose ordering changed instead of invalidating every feed snapshot.
+ */
+export function memGetFeedKeysForPost(postId: string): string[] {
+  if (!postId) return [];
+  const keys: string[] = [];
+  for (const [feedKey, ids] of feedItems) {
+    if (ids.includes(postId)) keys.push(feedKey);
+  }
+  return keys;
+}
+
 // ── Clear operations ─────────────────────────────────────────────
 
 export function memClearFeed(feedKey: string): void {
   if (!feedKey) return;
   feedItems.delete(feedKey);
   feedMeta.delete(feedKey);
+}
+
+/**
+ * Drop every viewer-dependent row from the web fallback.
+ *
+ * This mirrors deleting the native SQLite cache at an identity boundary. The
+ * three maps must be cleared together: retaining `posts` after clearing only
+ * feed ordering would still expose viewerState fields from the previous account
+ * through post-detail lookups.
+ */
+export function memClearAll(): void {
+  posts.clear();
+  feedItems.clear();
+  feedMeta.clear();
 }

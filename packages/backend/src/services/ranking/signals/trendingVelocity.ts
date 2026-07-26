@@ -37,7 +37,7 @@ export function trendingBoost(post: RankablePost): number {
       boosts: stats.boostsCount,
       federatedBoosts: stats.federatedBoostsCount,
       comments: stats.commentsCount,
-      saves: Array.isArray(post.metadata?.savedBy) ? post.metadata.savedBy.length : 0,
+      saves: stats.savesCount ?? 0,
       shares: stats.sharesCount,
     },
     R.engagement,

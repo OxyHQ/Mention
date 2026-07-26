@@ -1,13 +1,9 @@
 import React, { memo, useCallback } from 'react';
 import { Pressable, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 import { Image } from 'expo-image';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '@oxyhq/bloom/theme';
-import {
-  Pencil_Stroke2_Corner0_Rounded,
-  SpeakerVolumeFull_Stroke2_Corner0_Rounded,
-  SquareArrowTopRight_Stroke2_Corner0_Rounded,
-} from '@oxyhq/bloom/icons';
 import { cn } from '@/lib/utils';
 import { openExternalLink } from '@/utils/openExternalLink';
 
@@ -106,7 +102,7 @@ export const PodcastCard = memo(function PodcastCard({
             className="rounded-xl bg-background items-center justify-center"
             style={{ width: 56, height: 56 }}
           >
-            <SpeakerVolumeFull_Stroke2_Corner0_Rounded size="lg" fill={colors.textSecondary} />
+            <Ionicons name="mic-outline" size={24} color={colors.textSecondary} />
           </View>
         )}
 
@@ -125,10 +121,10 @@ export const PodcastCard = memo(function PodcastCard({
             hitSlop={8}
             className="p-1"
           >
-            <Pencil_Stroke2_Corner0_Rounded size="sm" fill={colors.textSecondary} />
+            <Ionicons name="pencil-outline" size={16} color={colors.textSecondary} />
           </Pressable>
         ) : (
-          <SquareArrowTopRight_Stroke2_Corner0_Rounded size="sm" fill={colors.textSecondary} />
+          <Ionicons name="open-outline" size={16} color={colors.textSecondary} />
         )}
       </Pressable>
     );
@@ -158,7 +154,7 @@ export const PodcastCard = memo(function PodcastCard({
           className="rounded-xl bg-background items-center justify-center"
           style={{ width: 56, height: 56 }}
         >
-          <SpeakerVolumeFull_Stroke2_Corner0_Rounded size="lg" fill={colors.textSecondary} />
+          <Ionicons name="mic-outline" size={24} color={colors.textSecondary} />
         </View>
       )}
       <View className="flex-1 shrink">

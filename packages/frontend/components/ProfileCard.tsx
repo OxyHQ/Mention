@@ -2,14 +2,14 @@ import React, { type ReactNode } from 'react';
 import { View, TouchableOpacity, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import { FollowButton } from '@oxyhq/services';
+import { FollowButton } from '@oxyhq/services/ui/client';
 import { Avatar } from '@oxyhq/bloom/avatar';
 import * as Skeleton from '@oxyhq/bloom/skeleton';
 import { getNormalizedUserHandle } from '@oxyhq/core';
 import { ThemedText } from './ThemedText';
 import UserName from './UserName';
 import { getUserPlaceholderColor } from '@/utils/userPlaceholderColor';
-import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types';
+import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import { cn } from '@/lib/utils';
 
 /**

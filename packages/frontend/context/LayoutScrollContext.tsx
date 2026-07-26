@@ -55,6 +55,10 @@ type LayoutScrollContextValue = {
      * Scroll the registered scrollable back to the top.
      */
     scrollToTop: () => void;
+    /**
+     * Scroll the registered native owner (or the web document) to an offset.
+     */
+    scrollToOffset: (offset: number, animated?: boolean) => void;
 };
 
 const LayoutScrollContext = createContext<LayoutScrollContextValue | null>(null);
@@ -174,22 +178,30 @@ export function LayoutScrollProvider({
         };
     }, []);
 
-    const scrollToTop = useCallback(() => {
-        // WEB: scroll the document back to the top — the body is the scroller.
+    const scrollToOffset = useCallback((offset: number, animated = true) => {
+        const boundedOffset = Math.max(0, offset);
+        // WEB: scroll the document — the body is the scroller.
         if (IS_WEB) {
             if (typeof window !== 'undefined') {
-                window.scrollTo({ top: 0, behavior: 'smooth' });
+                window.scrollTo({
+                    top: boundedOffset,
+                    behavior: animated ? 'smooth' : 'auto',
+                });
             }
             return;
         }
         const scroller = scrollableRef.current;
         if (!scroller) return;
         if (typeof scroller.scrollToOffset === 'function') {
-            scroller.scrollToOffset({ offset: 0, animated: true });
+            scroller.scrollToOffset({ offset: boundedOffset, animated });
         } else if (typeof scroller.scrollTo === 'function') {
-            scroller.scrollTo({ y: 0, animated: true });
+            scroller.scrollTo({ y: boundedOffset, animated });
         }
     }, []);
+
+    const scrollToTop = useCallback(() => {
+        scrollToOffset(0);
+    }, [scrollToOffset]);
 
     const value = useMemo<LayoutScrollContextValue>(() => ({
         scrollY,
@@ -200,7 +212,8 @@ export function LayoutScrollProvider({
         setScrollY,
         registerScrollable,
         scrollToTop,
-    }), [createAnimatedScrollHandler, handleScroll, registerScrollable, scrollEventThrottle, scrollToTop, scrollY, scrollPosition, setScrollY]);
+        scrollToOffset,
+    }), [createAnimatedScrollHandler, handleScroll, registerScrollable, scrollEventThrottle, scrollToOffset, scrollToTop, scrollY, scrollPosition, setScrollY]);
 
     return (
         <LayoutScrollContext.Provider value={value}>

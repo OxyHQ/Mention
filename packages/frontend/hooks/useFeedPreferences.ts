@@ -1,7 +1,11 @@
 import { useCallback, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useAuth } from '@oxyhq/services';
-import { PRESET_FEEDS, type FeedDescriptor, type SavedFeed } from '@mention/shared-types';
+import { useAuth } from '@oxyhq/services/ui/client';
+import { type FeedDescriptor } from '@mention/shared-types/mtn/feedDescriptor';
+import {
+  PRESET_FEEDS,
+  type SavedFeed,
+} from '@mention/shared-types/mtn/presetFeeds';
 import { feedPreferencesService } from '@/services/feedPreferencesService';
 import { logger } from '@/lib/logger';
 

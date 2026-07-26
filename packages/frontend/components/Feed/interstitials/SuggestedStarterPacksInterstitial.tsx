@@ -3,7 +3,7 @@ import { View } from 'react-native';
 import { router } from 'expo-router';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { FollowButton, useAuth } from '@oxyhq/services';
+import { FollowButton, useAuth } from '@oxyhq/services/ui/client';
 import {
   StarterPackCard,
   StarterPackCardSkeleton,

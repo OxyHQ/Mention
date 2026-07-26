@@ -5,8 +5,11 @@ import { Switch } from '@oxyhq/bloom/switch';
 import { Admonition } from '@oxyhq/bloom/admonition';
 import { SettingsListGroup, SettingsListItem } from '@oxyhq/bloom/settings-list';
 import { useTranslation } from 'react-i18next';
-import { OxyAuthPrompt, useAuth } from '@oxyhq/services';
-import { EXTERNAL_EMBED_SOURCES, externalEmbedLabels } from '@mention/shared-types';
+import { OxyAuthPrompt, useAuth } from '@oxyhq/services/ui/client';
+import {
+  EXTERNAL_EMBED_SOURCES,
+  externalEmbedLabels,
+} from '@mention/shared-types/externalEmbeds';
 import { ThemedView } from '@/components/ThemedView';
 import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';

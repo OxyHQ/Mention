@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { Text, View, TouchableOpacity } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { LiveAvatar } from '@/components/ui/LiveAvatar';
 import { AvatarGroup, type AvatarGroupItem } from '@oxyhq/bloom/avatar-group';
 

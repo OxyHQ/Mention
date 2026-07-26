@@ -12,7 +12,7 @@ import { describe, it, expect, vi } from 'vitest';
 
 // `notifications.ts` imports the app server at module load; stub it so the route
 // module (and the pure serializer under test) can be imported in isolation.
-vi.mock('../../../server', () => ({ oxy: {} }));
+vi.mock('../../runtime/oxyClient', () => ({ getRuntimeOxyClient: () => ({}) }));
 // `toPopulatedActor` resolves the avatar via the media resolver; keep it pure so
 // the test exercises the name contract without touching the Oxy media client.
 vi.mock('../../utils/mediaResolver', () => ({

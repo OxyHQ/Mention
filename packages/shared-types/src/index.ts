@@ -26,9 +26,6 @@ export * from './notification';
 // List types
 export * from './list';
 
-// Analytics types
-export * from './analytics';
-
 // Feed types
 export * from './feed';
 

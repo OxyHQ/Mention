@@ -4,7 +4,11 @@ import request from 'supertest';
 import https from 'https';
 import { Readable } from 'stream';
 
-import { apexFrontendProxy, isApexHost } from '../middleware/apexFrontendProxy';
+import {
+  apexFrontendProxy,
+  isApexHost,
+  isApexWebPlaneRequest,
+} from '../middleware/apexFrontendProxy';
 
 /** SPA shell the mocked frontend CDN returns for any proxied request. */
 const SPA_SHELL =
@@ -101,6 +105,9 @@ describe('apexFrontendProxy (host-aware reverse-proxy)', () => {
 
     expect(res.status).toBe(200);
     expect(res.headers['content-type']).toContain('text/html');
+    expect(res.headers['cache-control']).toBe('no-cache');
+    expect(res.headers.pragma).toBeUndefined();
+    expect(res.headers.expires).toBeUndefined();
     expect(res.text).toContain('id="root"');
     expect(res.body.who).toBeUndefined();
     expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -128,16 +135,52 @@ describe('apexFrontendProxy (host-aware reverse-proxy)', () => {
     expect(String(fetchMock.mock.calls[0][0])).toBe('https://mention-frontend.pages.dev/feed');
   });
 
-  it('passes the CDN content-type and cache-control through (so CF can edge-cache)', async () => {
-    stubCdn({ contentType: 'application/javascript', cacheControl: 'public, max-age=31536000, immutable' });
+  it('forces immutable caching for content-hashed Expo assets', async () => {
+    stubCdn({ contentType: 'application/javascript', cacheControl: 'public, max-age=0, must-revalidate' });
 
     const res = await request(makeApp())
-      .get('/_expo/static/js/web/entry-abc123.js')
+      .get('/_expo/static/js/web/entry-abc12345.js')
       .set('X-Forwarded-Host', APEX);
 
     expect(res.status).toBe(200);
     expect(res.headers['content-type']).toContain('application/javascript');
     expect(res.headers['cache-control']).toBe('public, max-age=31536000, immutable');
+  });
+
+  it('forces immutable caching for content-hashed public font assets', async () => {
+    stubCdn({ contentType: 'font/woff2', cacheControl: 'public, max-age=0, must-revalidate' });
+
+    const res = await request(makeApp())
+      .get('/fonts/BlomusModernus-Regular-19002cade532.woff2')
+      .set('X-Forwarded-Host', APEX);
+
+    expect(res.status).toBe(200);
+    expect(res.headers['content-type']).toContain('font/woff2');
+    expect(res.headers['cache-control']).toBe('public, max-age=31536000, immutable');
+  });
+
+  it('returns a non-cacheable 404 when the SPA fallback appears at a static asset URL', async () => {
+    stubCdn({ contentType: 'text/html; charset=utf-8' });
+
+    const res = await request(makeApp())
+      .get('/_expo/static/js/web/missing-deadbeef.js')
+      .set('X-Forwarded-Host', APEX);
+
+    expect(res.status).toBe(404);
+    expect(res.headers['cache-control']).toBe('no-store');
+    expect(res.text).toBe('');
+  });
+
+  it('returns a non-cacheable 404 when the SPA fallback appears at a hashed font URL', async () => {
+    stubCdn({ contentType: 'text/html; charset=utf-8' });
+
+    const res = await request(makeApp())
+      .get('/fonts/BlomusModernus-Regular-19002cade532.woff2')
+      .set('X-Forwarded-Host', APEX);
+
+    expect(res.status).toBe(404);
+    expect(res.headers['cache-control']).toBe('no-store');
+    expect(res.text).toBe('');
   });
 
   it('does NOT proxy the API host — `/feed/item/:id` still hits the API', async () => {
@@ -204,6 +247,54 @@ describe('apexFrontendProxy (host-aware reverse-proxy)', () => {
     it('ignores a :port suffix when matching', () => {
       const req = { headers: { 'x-forwarded-host': 'mention.earth:443' }, hostname: '' } as unknown as express.Request;
       expect(isApexHost(req)).toBe(true);
+    });
+  });
+
+  describe('isApexWebPlaneRequest', () => {
+    function makeRequest(
+      path: string,
+      options: { host?: string; method?: string; accept?: string } = {},
+    ): express.Request {
+      const headers: Record<string, string> = {
+        'x-forwarded-host': options.host ?? APEX,
+      };
+      if (options.accept) headers.accept = options.accept;
+      return {
+        headers,
+        hostname: options.host ?? APEX,
+        method: options.method ?? 'GET',
+        path,
+        header(name: string) {
+          return headers[name.toLowerCase()];
+        },
+      } as unknown as express.Request;
+    }
+
+    it('exempts only browser GET/HEAD traffic on the apex', () => {
+      expect(isApexWebPlaneRequest(makeRequest('/explore'))).toBe(true);
+      expect(isApexWebPlaneRequest(makeRequest('/_expo/static/js/web/entry-deadbeef.js'))).toBe(true);
+      expect(isApexWebPlaneRequest(makeRequest('/explore', { method: 'HEAD' }))).toBe(true);
+      expect(isApexWebPlaneRequest(makeRequest('/explore', { method: 'POST' }))).toBe(false);
+      expect(isApexWebPlaneRequest(makeRequest('/explore', { host: API }))).toBe(false);
+    });
+
+    it('keeps federation, discovery, XRPC and media on the API limiter', () => {
+      expect(isApexWebPlaneRequest(makeRequest('/ap/users/alice'))).toBe(false);
+      expect(isApexWebPlaneRequest(makeRequest('/.well-known/webfinger'))).toBe(false);
+      expect(isApexWebPlaneRequest(makeRequest('/xrpc/app.bsky.actor.getProfile'))).toBe(false);
+      expect(isApexWebPlaneRequest(makeRequest('/media/proxy'))).toBe(false);
+      expect(
+        isApexWebPlaneRequest(
+          makeRequest('/@alice', { accept: 'application/activity+json' }),
+        ),
+      ).toBe(false);
+      expect(
+        isApexWebPlaneRequest(
+          makeRequest('/@alice', {
+            accept: 'application/ld+json; profile="https://www.w3.org/ns/activitystreams"',
+          }),
+        ),
+      ).toBe(false);
     });
   });
 });

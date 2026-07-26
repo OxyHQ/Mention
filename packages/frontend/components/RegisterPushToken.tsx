@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { Platform } from 'react-native';
 import Constants from 'expo-constants';
-import { useAuth } from '@oxyhq/services';
+import { useAuth } from '@oxyhq/services/ui/client';
 import { authenticatedClient } from '@/utils/api';
 import { Storage } from '@/utils/storage';
 import { getDevicePushToken } from '@/utils/notifications';

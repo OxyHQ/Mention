@@ -1,4 +1,5 @@
 #!/usr/bin/env bun
+/* global __dirname, console */
 
 const { execSync } = require('child_process');
 const fs = require('fs');

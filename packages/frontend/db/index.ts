@@ -7,6 +7,11 @@
 // Core
 export type { SQLiteDb } from './database';
 export { getDb, closeDb, resetDb, isDbAvailable } from './database';
+export {
+  claimViewerCache,
+  clearAllCachedData,
+  type ViewerCacheClaim,
+} from './cacheLifecycle';
 
 // Schema types & conversions
 export type {
@@ -53,6 +58,7 @@ export {
   updateFeedMeta,
   removeFeedItem,
   addFeedItemAtStart,
+  getFeedKeysForPost,
   removePostFromAllFeeds,
   clearFeed,
   clearAllFeeds,

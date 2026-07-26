@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { useAuth, useSeedFollowStatuses } from '@oxyhq/services';
+import { useSeedFollowStatuses } from '@oxyhq/services';
+import { useAuth } from '@oxyhq/services/ui/client';
 
 /** The viewer's following graph stays fresh for 2 minutes — matches the SDK's own
  *  `getViewerGraph()` cache TTL, so this query and the SDK cache expire together. */

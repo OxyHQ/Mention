@@ -14,19 +14,23 @@
     "ios": "expo run:ios",
     "web": "expo start --web",
     "build": "expo export --platform web --output-dir dist",
+    "build:analyze": "expo export --platform web --output-dir dist --source-maps external",
     "build:apk": "eas build --platform android --profile apk --local",
     "build:apk:cloud": "eas build --platform android --profile apk",
     "build:android": "eas build --platform android --profile production",
     "build:ios": "eas build --platform ios --profile production",
     "build:preview": "eas build --platform android --profile preview",
-    "test": "jest --watchAll=false",
+    "test": "node ../../node_modules/jest/bin/jest.js --watchAll=false --runInBand",
     "typecheck": "node ./scripts/typecheck.mjs",
     "lint": "expo lint",
     "clean": "rm -rf dist .expo",
     "analyze-bundle": "bun ./scripts/analyze-bundle.js"
   },
   "jest": {
-    "preset": "jest-expo"
+    "preset": "jest-expo",
+    "moduleNameMapper": {
+      "^@oxyhq/services/ui/client$": "<rootDir>/../../node_modules/@oxyhq/services/lib/commonjs/ui/client.js"
+    }
   },
   "expo": {
     "install": {
@@ -49,6 +53,7 @@
     "@livekit/react-native": "^2.11.1",
     "@livekit/react-native-expo-plugin": "^1.0.2",
     "@livekit/react-native-webrtc": "^144.1.1",
+    "@mention/shared-types": "workspace:*",
     "@oxyhq/bloom": "^0.50.2",
     "@oxyhq/core": "^12.10.4",
     "@oxyhq/services": "^22.12.3",
@@ -125,6 +130,7 @@
     "tailwind-merge": "^3.6.0",
     "tailwindcss": "4.3.2",
     "tailwindcss-animate": "^1.0.7",
+    "web-vitals": "^6.0.0",
     "zod": "^4.4.3",
     "zustand": "^5.0.14"
   },

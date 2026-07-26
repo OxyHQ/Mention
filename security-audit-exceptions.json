@@ -1,0 +1,12 @@
+{
+  "exceptions": [
+    {
+      "advisory": "GHSA-mh99-v99m-4gvg",
+      "package": "brace-expansion",
+      "scope": "frontend build tooling only",
+      "reason": "Expo, Jest and ESLint still resolve the legacy CommonJS API. Forcing brace-expansion 5 across those dependency contracts is a breaking transitive override.",
+      "compensation": "No server request path or shipped application bundle invokes glob expansion; CI passes only repository-owned paths and patterns.",
+      "expires": "2026-10-31"
+    }
+  ]
+}

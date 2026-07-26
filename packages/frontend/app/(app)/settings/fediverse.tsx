@@ -4,7 +4,7 @@ import { Loading } from '@oxyhq/bloom/loading';
 import { Switch } from '@oxyhq/bloom/switch';
 import { show as toast } from '@oxyhq/bloom/toast';
 import { SettingsListGroup, SettingsListItem } from '@oxyhq/bloom/settings-list';
-import { OxyAuthPrompt, useAuth } from '@oxyhq/services';
+import { OxyAuthPrompt, useAuth } from '@oxyhq/services/ui/client';
 import { useTranslation } from 'react-i18next';
 import { ThemedView } from '@/components/ThemedView';
 import { Header } from '@/components/Header';

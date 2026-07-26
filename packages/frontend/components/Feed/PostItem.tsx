@@ -1,7 +1,7 @@
 import React, { useCallback, useMemo, useContext, useState, lazy, Suspense } from 'react';
 import { StyleSheet, View, Pressable, TouchableOpacity, Text, GestureResponderEvent } from 'react-native';
 import { useRouter, usePathname } from 'expo-router';
-import {
+import type {
     HydratedPost,
     HydratedPostSummary,
     PostUser,
@@ -11,8 +11,10 @@ import {
     PostEngagementSummary,
     PostLinkPreview,
     PostRoomContent,
+} from '@mention/shared-types/post';
+import {
     MEDIA_VARIANT_AVATAR,
-} from '@mention/shared-types';
+} from '@mention/shared-types/post';
 import { usePostSelector } from '../../stores/postsStore';
 import PostHeader, { HEADER_CONTENT_GAP, POST_CONTEXT_ROW_HEIGHT } from '../Post/PostHeader';
 import PostContentText from '../Post/PostContentText';
@@ -28,8 +30,7 @@ const PostInsightsSheet = lazy(() => import('@/components/Post/PostInsightsSheet
 const EngagementListSheet = lazy(() => import('@/components/Post/EngagementListSheet'));
 const CollaboratorsSheet = lazy(() => import('@/components/Post/CollaboratorsSheet'));
 import { BottomSheetContext } from '@/context/BottomSheetContext';
-import { useLiveRoom } from '@/context/LiveRoomContext';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { cn } from '@/lib/utils';
 import { useTranslation } from 'react-i18next';
@@ -155,7 +156,6 @@ const PostItem: React.FC<PostItemProps> = ({
     const router = useRouter();
     const pathname = usePathname();
     const bottomSheet = useContext(BottomSheetContext);
-    const { joinLiveRoom } = useLiveRoom();
     const [isArticleModalVisible, setIsArticleModalVisible] = useState(false);
 
     const postId = post?.id;
@@ -468,8 +468,12 @@ const PostItem: React.FC<PostItemProps> = ({
 
     const roomId = roomContent?.roomId;
     const handleRoomPress = useCallback(() => {
-        if (roomId) joinLiveRoom(roomId);
-    }, [joinLiveRoom, roomId]);
+        if (!roomId) return;
+        router.push({
+            pathname: '/live-rooms/live/[id]',
+            params: { id: roomId },
+        });
+    }, [roomId, router]);
 
     const postActions = usePostActions({
         viewPost,

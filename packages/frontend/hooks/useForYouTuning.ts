@@ -1,6 +1,6 @@
 import { useCallback, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useAuth } from '@oxyhq/services';
+import { useAuth } from '@oxyhq/services/ui/client';
 import type { ForYouFeedTuning } from '@mention/shared-types';
 import { feedTuningService } from '@/services/feedTuningService';
 import { logger } from '@/lib/logger';

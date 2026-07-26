@@ -106,7 +106,7 @@ jest.mock('@oxyhq/bloom/toast', () => ({
   show: (...args: unknown[]) => mockToast(...args),
 }));
 
-jest.mock('@oxyhq/services', () => {
+jest.mock('@oxyhq/services/ui/client', () => {
   const { View: RNView } = jest.requireActual<typeof import('react-native')>('react-native');
   return {
     useAuth: () => ({ user: { id: VIEWER_ID }, isAuthenticated: true }),

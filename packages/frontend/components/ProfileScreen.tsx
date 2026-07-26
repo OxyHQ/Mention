@@ -12,19 +12,17 @@ import {
 import { show as toast } from '@oxyhq/bloom/toast';
 import { router, useLocalSearchParams, type Href } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
-import { useTheme } from '@oxyhq/bloom/theme';
+import Ionicons from '@expo/vector-icons/Ionicons';
+import { BloomColorScope, useTheme } from '@oxyhq/bloom/theme';
 import { useTranslation } from 'react-i18next';
-import { useAuth, useFollow } from '@oxyhq/services';
-import * as OxyServicesNS from '@oxyhq/services';
+import { FollowButton as OxyFollowButton, useAuth, useFollow } from '@oxyhq/services/ui/client';
 import { useProfileData, type ProfileData } from '@/hooks/useProfileData';
 import { useProfileScreenColor } from '@/hooks/useProfileScreenColor';
-import { BloomColorScope } from '@oxyhq/bloom/theme';
 import { usePostsStore } from '@/stores/postsStore';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
 import { muteService } from '@/services/muteService';
 import { reportService } from '@/services/reportService';
-import ReportModal from '@/components/report/ReportModal';
+import { ReportModal } from '@/components/report/ReportModal';
 import { AddToListSheet } from '@/components/Lists/AddToListSheet';
 import { AddToStarterPackSheet } from '@/components/AddToStarterPackSheet';
 import { confirmDialog } from '@/utils/alerts';
@@ -38,7 +36,6 @@ import { getNormalizedUserHandle } from '@oxyhq/core';
 import { usePanelStickyTopInset, usePanelStickyTabsTopInset, PANEL_HEADER_HEIGHT } from '@/components/shell/PanelChrome';
 
 // Icons
-import { Search } from '@/assets/icons/search-icon';
 import { Bell, BellActive } from '@/assets/icons/bell-icon';
 import { ShareIcon } from '@/assets/icons/share-icon';
 import { ComposeIcon } from '@/assets/icons/compose-icon';
@@ -48,12 +45,12 @@ import { ExternalLinkIcon } from '@/assets/icons/external-link-icon';
 
 // Components
 import { Avatar } from '@oxyhq/bloom/avatar';
-import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types';
+import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import UserName from './UserName';
 import AnimatedTabBar from './common/AnimatedTabBar';
 import { BottomBarAwareFab } from '@/components/BottomBarAwareFab';
 import { IconButton } from '@/components/ui/Button';
-import SEO from '@/components/SEO';
+import { SEO } from '@/components/SEO';
 
 // Profile components
 import {
@@ -64,9 +61,10 @@ import {
     useProfileScroll,
     LAYOUT,
     TAB_NAMES,
+    shouldFeedOwnProfileScroll,
+    shouldGridOwnProfileScroll,
     type ProfileScreenProps,
     type ProfileTab,
-    type FollowButtonComponent,
 } from './Profile';
 import { SuggestedUsers } from './suggestions/SuggestedUsers';
 
@@ -139,10 +137,6 @@ const MentionProfileContent: React.FC<MentionProfileContentProps> = ({
     // to the viewport top instead of leaving a stray gutter band.
     const panelStickyTopInset = usePanelStickyTopInset();
     const panelStickyTabsTopInset = usePanelStickyTabsTopInset();
-
-    // Component references
-    const FollowButtonComponent = (OxyServicesNS as { FollowButton?: FollowButtonComponent })
-        .FollowButton as FollowButtonComponent;
 
     // Active tab — use local state so tab switching doesn't trigger router navigation.
     // Initialize from the route prop, then manage locally.
@@ -243,6 +237,21 @@ const MentionProfileContent: React.FC<MentionProfileContentProps> = ({
         ],
         [t]
     );
+    const activeProfileTab = TAB_NAMES[activeTab] || 'posts';
+    const nativeFeedOwnsScroll = shouldFeedOwnProfileScroll({
+        tab: activeProfileTab,
+        isWeb: IS_WEB,
+        isPrivate,
+        isOwnProfile,
+    });
+    const nativeGridOwnsScroll = shouldGridOwnProfileScroll({
+        tab: activeProfileTab,
+        isWeb: IS_WEB,
+        isPrivate,
+        isOwnProfile,
+    });
+    const nativeListOwnsScroll =
+        nativeFeedOwnsScroll || nativeGridOwnsScroll;
 
     // Clear cached feed data for private profiles
     useEffect(() => {
@@ -310,7 +319,7 @@ const MentionProfileContent: React.FC<MentionProfileContentProps> = ({
                     defaultValue: `${profileData.design.displayName} on Mention`,
                 }),
             });
-        } catch (error) {
+        } catch {
             logger.error('Error sharing profile');
         }
     }, [profileData, profileHandle, t]);
@@ -539,6 +548,64 @@ const MentionProfileContent: React.FC<MentionProfileContentProps> = ({
             },
         }),
         [insets.top, minimalistMode, headerOverlayRight]
+    );
+
+    const profileSummary = useMemo(() => {
+        if (!profileData) return null;
+        return (
+            <View>
+                <ProfileContent
+                    profileData={profileData}
+                    avatarUri={avatarUri}
+                    isOwnProfile={isOwnProfile}
+                    isPrivate={isPrivate}
+                    currentUsername={currentUser?.username}
+                    followingCount={followingCount}
+                    followerCount={followerCount}
+                    username={username}
+                    FollowButtonComponent={OxyFollowButton}
+                    onPostsPress={handlePostsPress}
+                    onBoostsPress={handleBoostsPress}
+                    onRepliesPress={handleRepliesPress}
+                    onLayout={setProfileContentHeight}
+                />
+                {!isOwnProfile && (
+                    <SuggestedUsers
+                        visible={justFollowed}
+                        sourceUserId={profileData.id}
+                    />
+                )}
+            </View>
+        );
+    }, [
+        avatarUri,
+        currentUser?.username,
+        followerCount,
+        followingCount,
+        handleBoostsPress,
+        handlePostsPress,
+        handleRepliesPress,
+        isOwnProfile,
+        isPrivate,
+        justFollowed,
+        profileData,
+        username,
+    ]);
+
+    const profileTabBar = useMemo(
+        () => (
+            <AnimatedTabBar
+                tabs={tabs.map((tabLabel, i) => ({
+                    id: String(i),
+                    label: tabLabel,
+                }))}
+                activeTabId={String(activeTab)}
+                onTabPress={(id) => onTabPress(parseInt(id))}
+                scrollEnabled
+                instanceId={username || 'default'}
+            />
+        ),
+        [activeTab, onTabPress, tabs, username],
     );
 
     return (
@@ -782,10 +849,14 @@ const MentionProfileContent: React.FC<MentionProfileContentProps> = ({
 
                         {/* Main scroll content.
 
-                            NATIVE: an inner `Animated.ScrollView` owns the scroll;
-                            its `onScroll` feeds the shared `scrollY` (animations +
-                            infinite scroll) and `stickyHeaderIndices={[1]}` pins the
-                            tab bar. Unchanged.
+                            NATIVE FEED TABS: Feed's FlashList owns the scroll and
+                            receives profile info as `ListHeaderComponent` and
+                            tabs as a separate sticky data row, keeping post rows
+                            virtualized without pinning the whole summary.
+                            NATIVE GRID TABS: ProfileGridList's FlashList owns the
+                            scroll with the same header/sticky-tab row contract.
+                            The existing Animated.ScrollView remains the sole
+                            owner only for the bounded card tabs.
 
                             WEB: the DOCUMENT scrolls (no inner ScrollView — that
                             would break the document-scroll model the home/explore
@@ -798,29 +869,7 @@ const MentionProfileContent: React.FC<MentionProfileContentProps> = ({
                         {IS_WEB ? (
                             <View style={[{ zIndex: 3 }, themedStyles.scrollView, themedStyles.contentContainer]}>
                                 {/* Profile info + suggestions */}
-                                <View>
-                                    <ProfileContent
-                                        profileData={profileData}
-                                        avatarUri={avatarUri}
-                                        isOwnProfile={isOwnProfile}
-                                        isPrivate={isPrivate}
-                                        currentUsername={currentUser?.username}
-                                        followingCount={followingCount}
-                                        followerCount={followerCount}
-                                        username={username}
-                                        FollowButtonComponent={FollowButtonComponent}
-                                        onPostsPress={handlePostsPress}
-                                        onBoostsPress={handleBoostsPress}
-                                        onRepliesPress={handleRepliesPress}
-                                        onLayout={setProfileContentHeight}
-                                    />
-                                    {!isOwnProfile && (
-                                        <SuggestedUsers
-                                            visible={justFollowed}
-                                            sourceUserId={profileData.id}
-                                        />
-                                    )}
-                                </View>
+                                {profileSummary}
 
                                 {/* Tabs — sticky in the SECOND tier, pinned flush
                                     BELOW the header chrome band (`web:sticky` +
@@ -846,23 +895,43 @@ const MentionProfileContent: React.FC<MentionProfileContentProps> = ({
                                     from showing through, and the pinned tab bar paints
                                     over the lower-z banner that sits behind it. */}
                                 <View className="web:sticky web:z-[5]" style={panelStickyTabsTopInset}>
-                                    <AnimatedTabBar
-                                        tabs={tabs.map((tabLabel, i) => ({ id: String(i), label: tabLabel }))}
-                                        activeTabId={String(activeTab)}
-                                        onTabPress={(id) => onTabPress(parseInt(id))}
-                                        scrollEnabled={true}
-                                        instanceId={username || 'default'}
-                                    />
+                                    {profileTabBar}
                                 </View>
 
                                 {/* Tab content */}
                                 <ProfileTabs
-                                    tab={TAB_NAMES[activeTab] || 'posts'}
+                                    tab={activeProfileTab}
                                     profileId={profileData?.id}
                                     isPrivate={isPrivate}
                                     isOwnProfile={isOwnProfile}
                                     isFederated={isFederated}
                                     actorUri={profileData?.actorUri}
+                                />
+                            </View>
+                        ) : nativeListOwnsScroll ? (
+                            <View
+                                style={[
+                                    {
+                                        zIndex: 3,
+                                        flex: 1,
+                                        minHeight: 0,
+                                    },
+                                    themedStyles.scrollView,
+                                ]}
+                            >
+                                <ProfileTabs
+                                    tab={activeProfileTab}
+                                    profileId={profileData.id}
+                                    isPrivate={isPrivate}
+                                    isOwnProfile={isOwnProfile}
+                                    isFederated={isFederated}
+                                    actorUri={profileData.actorUri}
+                                    listOwnsScroll
+                                    listHeaderComponent={profileSummary}
+                                    listStickyHeaderComponent={profileTabBar}
+                                    listContentContainerStyle={themedStyles.contentContainer}
+                                    listOnScroll={nativeGridOwnsScroll ? onScroll : undefined}
+                                    listScrollRef={nativeGridOwnsScroll ? assignScrollRef : undefined}
                                 />
                             </View>
                         ) : (
@@ -880,43 +949,15 @@ const MentionProfileContent: React.FC<MentionProfileContentProps> = ({
                                 decelerationRate="normal"
                             >
                                 {/* Profile info + suggestions wrapper (keeps stickyHeaderIndices stable) */}
-                                <View>
-                                    <ProfileContent
-                                        profileData={profileData}
-                                        avatarUri={avatarUri}
-                                        isOwnProfile={isOwnProfile}
-                                        isPrivate={isPrivate}
-                                        currentUsername={currentUser?.username}
-                                        followingCount={followingCount}
-                                        followerCount={followerCount}
-                                        username={username}
-                                        FollowButtonComponent={FollowButtonComponent}
-                                        onPostsPress={handlePostsPress}
-                                        onBoostsPress={handleBoostsPress}
-                                        onRepliesPress={handleRepliesPress}
-                                        onLayout={setProfileContentHeight}
-                                    />
-                                    {!isOwnProfile && (
-                                        <SuggestedUsers
-                                            visible={justFollowed}
-                                            sourceUserId={profileData.id}
-                                        />
-                                    )}
-                                </View>
+                                {profileSummary}
 
                                 {/* Tabs */}
-                                <AnimatedTabBar
-                                    tabs={tabs.map((tabLabel, i) => ({ id: String(i), label: tabLabel }))}
-                                    activeTabId={String(activeTab)}
-                                    onTabPress={(id) => onTabPress(parseInt(id))}
-                                    scrollEnabled={true}
-                                    instanceId={username || 'default'}
-                                />
+                                {profileTabBar}
 
                                 {/* Tab content */}
                                 <ProfileTabs
-                                    tab={TAB_NAMES[activeTab] || 'posts'}
-                                    profileId={profileData?.id}
+                                    tab={activeProfileTab}
+                                    profileId={profileData.id}
                                     isPrivate={isPrivate}
                                     isOwnProfile={isOwnProfile}
                                     isFederated={isFederated}

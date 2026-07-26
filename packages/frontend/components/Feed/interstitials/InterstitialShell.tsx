@@ -2,7 +2,7 @@ import React, { useCallback } from 'react';
 import { Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { router, type Href } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { PressableScale } from '@oxyhq/bloom/pressable-scale';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { ThemedText } from '@/components/ThemedText';

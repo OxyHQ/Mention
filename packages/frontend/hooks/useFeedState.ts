@@ -1,5 +1,11 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
-import { FeedInterstitialSlot, FeedType, FeedPostSlice, FeedRequest, HydratedPost } from '@mention/shared-types';
+import type {
+    FeedInterstitialSlot,
+    FeedType,
+    FeedPostSlice,
+    FeedRequest,
+    HydratedPost,
+} from '@mention/shared-types';
 import { usePostsStore, useFeedSelector, useUserFeedSelector } from '@/stores/postsStore';
 import { feedService } from '@/services/feedService';
 import { FeedFilters, getItemKey, deduplicateItems, buildFeedScrollKey } from '@/utils/feedUtils';
@@ -121,16 +127,17 @@ export function useFeedState({
     isAuthenticated,
     currentUserId,
 }: UseFeedStateOptions): UseFeedStateReturn {
-    const {
-        fetchFeed,
-        fetchUserFeed,
-        refreshFeed,
-        loadMoreFeed,
-        cachePosts,
-        clearFeed,
-        clearUserFeed,
-        clearError: clearGlobalError,
-    } = usePostsStore();
+    // Actions are stable for the lifetime of the Zustand store. Subscribe to
+    // them individually so a keyed post revision does not re-render every
+    // mounted feed hook merely because it previously selected the whole store.
+    const fetchFeed = usePostsStore((state) => state.fetchFeed);
+    const fetchUserFeed = usePostsStore((state) => state.fetchUserFeed);
+    const refreshFeed = usePostsStore((state) => state.refreshFeed);
+    const loadMoreFeed = usePostsStore((state) => state.loadMoreFeed);
+    const cachePosts = usePostsStore((state) => state.cachePosts);
+    const clearFeed = usePostsStore((state) => state.clearFeed);
+    const clearUserFeed = usePostsStore((state) => state.clearUserFeed);
+    const clearGlobalError = usePostsStore((state) => state.clearError);
 
     // useMemoryFeed is true when:
     //   1. useScoped is set (filtered/scoped feed — always uses local state), OR
@@ -527,7 +534,7 @@ export function useFeedState({
                     const feedReq: FeedRequest = { type, limit: 20, filters };
                     const resp = await withRetry(
                         () => userId
-                            ? feedService.getUserFeed(userId, feedReq)
+                            ? feedService.getUserFeed(userId, feedReq, { signal })
                             : feedService.getFeed({ type, limit: 20, filters }, { signal }),
                         {
                             signal,
@@ -662,7 +669,7 @@ export function useFeedState({
                 const feedReq: FeedRequest = { type, limit: 20, filters };
                 const resp = await withRetry(
                     () => userId
-                        ? feedService.getUserFeed(userId, feedReq)
+                        ? feedService.getUserFeed(userId, feedReq, { signal })
                         : feedService.getFeed({ type, limit: 20, filters }, { signal }),
                     {
                         signal,
@@ -764,7 +771,7 @@ export function useFeedState({
                 const feedReq: FeedRequest = { type, limit: 20, cursor: localNextCursor, filters };
                 const resp = await withRetry(
                     () => userId
-                        ? feedService.getUserFeed(userId, feedReq)
+                        ? feedService.getUserFeed(userId, feedReq, { signal })
                         : feedService.getFeed({ type, limit: 20, cursor: localNextCursor, filters }, { signal }),
                     {
                         signal,

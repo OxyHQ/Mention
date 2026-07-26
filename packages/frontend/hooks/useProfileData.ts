@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { useAuth, useUserByUsername, queryKeys } from '@oxyhq/services';
+import { useUserByUsername, queryKeys } from '@oxyhq/services';
+import { useAuth } from '@oxyhq/services/ui/client';
 import type { User } from '@oxyhq/core';
 import { useAppearanceStore, type UserAppearance, type ProfileMedia } from '@/store/appearanceStore';
 import { APP_COLOR_PRESETS, HEX_TO_APP_COLOR } from '@oxyhq/bloom/theme';

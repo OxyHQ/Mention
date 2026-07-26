@@ -9,9 +9,11 @@ interface EntityFollowState {
   fetchStatus: (entityType: EntityFollowType, entityId: string) => Promise<void>;
   toggleFollow: (entityType: EntityFollowType, entityId: string) => Promise<void>;
   setStatus: (entityType: EntityFollowType, entityId: string, isFollowing: boolean) => void;
+  reset: () => void;
 }
 
 const key = (type: EntityFollowType, id: string) => `${type}:${id}`;
+let viewerEpoch = 0;
 
 export const useEntityFollowStore = create<EntityFollowState>((set, get) => ({
   following: {},
@@ -20,11 +22,14 @@ export const useEntityFollowStore = create<EntityFollowState>((set, get) => ({
   fetchStatus: async (entityType, entityId) => {
     const k = key(entityType, entityId);
     if (get().loading[k] || k in get().following) return;
+    const operationEpoch = viewerEpoch;
     set((s) => ({ loading: { ...s.loading, [k]: true } }));
     try {
       const isFollowing = await entityFollowService.getStatus(entityType, entityId);
+      if (operationEpoch !== viewerEpoch) return;
       set((s) => ({ following: { ...s.following, [k]: isFollowing }, loading: { ...s.loading, [k]: false } }));
     } catch (error) {
+      if (operationEpoch !== viewerEpoch) return;
       logger.warn('Failed to load entity follow status', { error, entityType, entityId });
       set((s) => ({ loading: { ...s.loading, [k]: false } }));
     }
@@ -33,6 +38,7 @@ export const useEntityFollowStore = create<EntityFollowState>((set, get) => ({
   toggleFollow: async (entityType, entityId) => {
     const k = key(entityType, entityId);
     const current = get().following[k] ?? false;
+    const operationEpoch = viewerEpoch;
     set((s) => ({ following: { ...s.following, [k]: !current }, loading: { ...s.loading, [k]: true } }));
     try {
       if (current) {
@@ -40,8 +46,10 @@ export const useEntityFollowStore = create<EntityFollowState>((set, get) => ({
       } else {
         await entityFollowService.follow(entityType, entityId);
       }
+      if (operationEpoch !== viewerEpoch) return;
       set((s) => ({ loading: { ...s.loading, [k]: false } }));
     } catch (error) {
+      if (operationEpoch !== viewerEpoch) return;
       logger.warn('Failed to toggle entity follow', { error, entityType, entityId });
       set((s) => ({ following: { ...s.following, [k]: current }, loading: { ...s.loading, [k]: false } }));
     }
@@ -50,5 +58,10 @@ export const useEntityFollowStore = create<EntityFollowState>((set, get) => ({
   setStatus: (entityType, entityId, isFollowing) => {
     const k = key(entityType, entityId);
     set((s) => ({ following: { ...s.following, [k]: isFollowing } }));
+  },
+
+  reset: () => {
+    viewerEpoch += 1;
+    set({ following: {}, loading: {} });
   },
 }));

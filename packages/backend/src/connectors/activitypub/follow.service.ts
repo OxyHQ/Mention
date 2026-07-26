@@ -1335,20 +1335,33 @@ export class FollowService {
     likerOxyUserId: string,
     likerUsername: string,
   ): Promise<void> {
-    if (!FEDERATION_ENABLED) return;
-    if (!(await isFediverseSharingEnabled(likerOxyUserId))) return;
-
     try {
-      const target = await this.resolveFederationTarget(String(like.postId));
-      // A remote author inbox exists ONLY for a federated original — its absence
-      // means the liked post is local (or its actor is unresolved), so there is
-      // nothing to notify over ActivityPub.
-      if (!target?.authorInbox) return;
-      const activity = this.buildLikeActivity(likerUsername, String(like._id), target.objectUri);
-      await deliveryService.queueDelivery(activity, target.authorInbox, likerOxyUserId);
+      await this.federateLikeStrict(like, likerOxyUserId, likerUsername);
     } catch (err) {
       logger.error('Failed to federate like:', err);
     }
+  }
+
+  /**
+   * Durable-outbox variant of {@link federateLike}. Unlike the public
+   * best-effort method, this surfaces target-resolution and queue failures so
+   * the caller can release its lease and retry the event.
+   */
+  async federateLikeStrict(
+    like: { _id: unknown; postId: string },
+    likerOxyUserId: string,
+    likerUsername: string,
+  ): Promise<void> {
+    if (!FEDERATION_ENABLED) return;
+    if (!(await isFediverseSharingEnabled(likerOxyUserId))) return;
+
+    const target = await this.resolveFederationTarget(String(like.postId));
+    // A remote author inbox exists ONLY for a federated original — its absence
+    // means the liked post is local (or its actor is unresolved), so there is
+    // nothing to notify over ActivityPub.
+    if (!target?.authorInbox) return;
+    const activity = this.buildLikeActivity(likerUsername, String(like._id), target.objectUri);
+    await deliveryService.queueDelivery(activity, target.authorInbox, likerOxyUserId);
   }
 
   /**
@@ -1362,17 +1375,29 @@ export class FollowService {
     likerOxyUserId: string,
     likerUsername: string,
   ): Promise<void> {
-    if (!FEDERATION_ENABLED) return;
-    if (!(await isFediverseSharingEnabled(likerOxyUserId))) return;
-
     try {
-      const target = await this.resolveFederationTarget(String(like.postId));
-      if (!target?.authorInbox) return;
-      const activity = this.buildUndoLikeActivity(likerUsername, String(like._id), target.objectUri);
-      await deliveryService.queueDelivery(activity, target.authorInbox, likerOxyUserId);
+      await this.federateUndoLikeStrict(like, likerOxyUserId, likerUsername);
     } catch (err) {
       logger.error('Failed to federate undo like:', err);
     }
+  }
+
+  /**
+   * Durable-outbox variant of {@link federateUndoLike}. Queue failures reject
+   * rather than being reduced to a log entry.
+   */
+  async federateUndoLikeStrict(
+    like: { _id: unknown; postId: string },
+    likerOxyUserId: string,
+    likerUsername: string,
+  ): Promise<void> {
+    if (!FEDERATION_ENABLED) return;
+    if (!(await isFediverseSharingEnabled(likerOxyUserId))) return;
+
+    const target = await this.resolveFederationTarget(String(like.postId));
+    if (!target?.authorInbox) return;
+    const activity = this.buildUndoLikeActivity(likerUsername, String(like._id), target.objectUri);
+    await deliveryService.queueDelivery(activity, target.authorInbox, likerOxyUserId);
   }
 
 }

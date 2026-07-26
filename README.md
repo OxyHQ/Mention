@@ -107,9 +107,9 @@ bun run dev:mcp:http
 
 #### Frontend Development
 The frontend is an Expo React Native app that can run on:
-- **Web**: `bun run web` (or `bun run dev:frontend` then press 'w')
-- **iOS**: `bun run ios` (requires macOS and Xcode)
-- **Android**: `bun run android` (requires Android Studio)
+- **Web**: `bun run --cwd packages/frontend web` (or `bun run dev:frontend` then press `w`)
+- **iOS**: `bun run --cwd packages/frontend ios` (requires macOS and Xcode)
+- **Android**: `bun run --cwd packages/frontend android` (requires Android Studio)
 
 #### Backend Development
 The backend runs on the development server with hot reload:
@@ -135,27 +135,26 @@ bun run dev:backend
 - `bun install` — Install dependencies for all packages
 
 ### Frontend (`@mention/frontend`)
-- `npm start` — Start Expo development server
-- `npm run android` — Run on Android device/emulator
-- `npm run ios` — Run on iOS simulator
-- `npm run web` — Run in web browser
-- `npm run build-web` — Build static web output
-- `npm run lint` — Lint codebase
-- `npm run clean` — Clean build artifacts
+- `bun run --cwd packages/frontend start` — Start Expo development server
+- `bun run --cwd packages/frontend android` — Run on Android device/emulator
+- `bun run --cwd packages/frontend ios` — Run on iOS simulator
+- `bun run --cwd packages/frontend web` — Run in web browser
+- `bun run --cwd packages/frontend build` — Build static web output
+- `bun run --cwd packages/frontend lint` — Lint codebase
+- `bun run --cwd packages/frontend clean` — Clean build artifacts
 
 ### Backend (`@mention/backend`)
-- `npm run dev` — Start development server with hot reload
-- `npm run build` — Build the project
-- `npm run start` — Start production server
-- `npm run lint` — Lint codebase
-- `npm run clean` — Clean build artifacts
-- `npm run migrate` — Run database migrations
-- `npm run migrate:dev` — Run database migrations in development
+- `bun run --cwd packages/backend dev` — Start development server with hot reload
+- `bun run --cwd packages/backend build` — Build the project
+- `bun run --cwd packages/backend start` — Start production server
+- `bun run --cwd packages/backend test` — Run backend tests from the package root
+- `bun run --cwd packages/backend clean` — Clean build artifacts
+- `bun run --cwd packages/backend migrate` — Run database migrations outside production
 
 ### Shared Types (`@mention/shared-types`)
-- `npm run build` — Build TypeScript types
-- `npm run dev` — Watch and rebuild types
-- `npm run clean` — Clean build artifacts
+- `bun run --cwd packages/shared-types build` — Build TypeScript types
+- `bun run --cwd packages/shared-types dev` — Watch and rebuild types
+- `bun run --cwd packages/shared-types clean` — Clean build artifacts
 
 ## Documentation
 
@@ -175,8 +174,7 @@ All project documentation is available in the [`docs/`](./docs/) folder:
 - [Performance Optimizations](./docs/PERFORMANCE_OPTIMIZATIONS.md) - Performance best practices
 - [Federation (ActivityPub)](./packages/backend/README.md#federation-activitypub--fediverse) - Fediverse federation setup, endpoints, and sync
 - [MCP / Claude connector](./packages/mcp/README.md) - Remote MCP server, OAuth, multi-account bundles, deployment
-- [DigitalOcean Deployment](./docs/DIGITALOCEAN_DEPLOYMENT.md) - Production deployment guide for DigitalOcean App Platform
-- [Vercel Deployment](./docs/VERCEL_DEPLOYMENT.md) - Deployment guide for Vercel
+- [Production deployment](./docs/AWS_DEPLOYMENT.md) - CI-gated AWS/ECS and Cloudflare Pages release flow
 
 ### API Documentation
 
@@ -192,7 +190,7 @@ Contributions are welcome! Please open issues or pull requests for bug fixes, fe
 1. Fork the repository
 2. Create a feature branch
 3. Make your changes
-4. Run tests and linting: `npm run test && npm run lint`
+4. Run tests and linting: `bun run test && bun run lint`
 5. Submit a pull request
 
 ## License

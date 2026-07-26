@@ -5,6 +5,11 @@ export interface ILike extends Document {
   postId: mongoose.Types.ObjectId;
   value: 1 | -1;
   /**
+   * Monotonic relationship revision used to derive deterministic outbox ids.
+   * Legacy rows start at zero and receive revision 1 on their next transition.
+   */
+  revision: number;
+  /**
    * Originating feed surface (feed-descriptor string, e.g. `videos`, `for_you`,
    * `author|<id>`) the like happened on. Persisted for SURFACE-AWARE
    * recommendation attribution: a like from the reels surface contributes weakly
@@ -19,6 +24,7 @@ const LikeSchema: Schema = new Schema(
     userId: { type: String, required: true },
     postId: { type: mongoose.Types.ObjectId, ref: "Post", required: true },
     value: { type: Number, enum: [1, -1], default: 1 },
+    revision: { type: Number, min: 1, default: 1 },
     source: { type: String },
   },
   { timestamps: true }

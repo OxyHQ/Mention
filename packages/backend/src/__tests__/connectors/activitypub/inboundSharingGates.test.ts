@@ -45,8 +45,8 @@ const mocks = vi.hoisted(() => ({
   postExists: vi.fn(),
   postUpdateOne: vi.fn(),
   postDeleteOne: vi.fn(),
-  likeCreate: vi.fn(),
-  likeFindOneAndDelete: vi.fn(),
+  materializeEngagementRelationship: vi.fn(),
+  materializeEngagementTombstone: vi.fn(),
   postCreatorCreate: vi.fn(),
   ensureFederatedReplyLink: vi.fn(),
   importAnnounce: vi.fn(),
@@ -97,11 +97,11 @@ vi.mock('../../../models/Post', () => ({
   },
 }));
 
-vi.mock('../../../models/Like', () => ({
-  default: {
-    create: mocks.likeCreate,
-    findOneAndDelete: mocks.likeFindOneAndDelete,
-  },
+vi.mock('../../../services/PostEngagementCommandService', () => ({
+  materializeEngagementRelationship: (...args: unknown[]) =>
+    mocks.materializeEngagementRelationship(...args),
+  materializeEngagementTombstone: (...args: unknown[]) =>
+    mocks.materializeEngagementTombstone(...args),
 }));
 
 vi.mock('../../../models/UserSettings', () => ({
@@ -180,8 +180,8 @@ beforeEach(() => {
   mocks.postExists.mockResolvedValue(null);
   mocks.postUpdateOne.mockResolvedValue({ modifiedCount: 1 });
   mocks.postDeleteOne.mockResolvedValue({ deletedCount: 1 });
-  mocks.likeCreate.mockResolvedValue({ _id: 'like_1' });
-  mocks.likeFindOneAndDelete.mockReturnValue({ lean: vi.fn().mockResolvedValue({ _id: 'like_1' }) });
+  mocks.materializeEngagementRelationship.mockResolvedValue({ changed: true });
+  mocks.materializeEngagementTombstone.mockResolvedValue({ changed: true });
   mocks.postCreatorCreate.mockResolvedValue({ _id: 'created_post_1' });
   mocks.ensureFederatedReplyLink.mockResolvedValue({ parentPostId: TARGET_POST_ID, threadId: TARGET_POST_ID });
   mocks.importAnnounce.mockResolvedValue(true);
@@ -252,11 +252,12 @@ describe('handleLike (gated) / handleUndoLike (ungated teardown) — target owne
     await inboxProcessingService.processInboxActivity(likeActivity(), ACTOR_URI);
 
     expect(mocks.isFediverseSharingEnabled).toHaveBeenCalledWith(OWNER_OXY_ID);
-    expect(mocks.likeCreate).toHaveBeenCalledWith({ userId: BOOSTER_OXY_ID, postId: TARGET_POST_ID, value: 1 });
-    expect(mocks.postUpdateOne).toHaveBeenCalledWith(
-      { _id: TARGET_POST_ID },
-      { $inc: { 'stats.likesCount': 1 } },
-    );
+    expect(mocks.materializeEngagementRelationship).toHaveBeenCalledWith({
+      kind: 'like',
+      userId: BOOSTER_OXY_ID,
+      postId: TARGET_POST_ID,
+    });
+    expect(mocks.postUpdateOne).not.toHaveBeenCalled();
   });
 
   it('handleLike: no Like row, no counter move, no actor resolution when the owner has sharing disabled', async () => {
@@ -264,7 +265,7 @@ describe('handleLike (gated) / handleUndoLike (ungated teardown) — target owne
 
     await inboxProcessingService.processInboxActivity(likeActivity(), ACTOR_URI);
 
-    expect(mocks.likeCreate).not.toHaveBeenCalled();
+    expect(mocks.materializeEngagementRelationship).not.toHaveBeenCalled();
     expect(mocks.postUpdateOne).not.toHaveBeenCalled();
     expect(mocks.actorFindOne).not.toHaveBeenCalled();
   });
@@ -272,15 +273,12 @@ describe('handleLike (gated) / handleUndoLike (ungated teardown) — target owne
   it('handleUndoLike: removes the like and decrements the counter as today when enabled', async () => {
     await inboxProcessingService.processInboxActivity(undoLikeActivity(), ACTOR_URI);
 
-    expect(mocks.likeFindOneAndDelete).toHaveBeenCalledWith({
+    expect(mocks.materializeEngagementTombstone).toHaveBeenCalledWith({
+      kind: 'like',
       userId: BOOSTER_OXY_ID,
       postId: TARGET_POST_ID,
-      value: 1,
     });
-    expect(mocks.postUpdateOne).toHaveBeenCalledWith(
-      { _id: TARGET_POST_ID, 'stats.likesCount': { $gt: 0 } },
-      { $inc: { 'stats.likesCount': -1 } },
-    );
+    expect(mocks.postUpdateOne).not.toHaveBeenCalled();
   });
 
   it('handleUndoLike: still processes the undo (row removed, counter decremented) when the owner has sharing disabled — teardown must converge', async () => {
@@ -288,15 +286,12 @@ describe('handleLike (gated) / handleUndoLike (ungated teardown) — target owne
 
     await inboxProcessingService.processInboxActivity(undoLikeActivity(), ACTOR_URI);
 
-    expect(mocks.likeFindOneAndDelete).toHaveBeenCalledWith({
+    expect(mocks.materializeEngagementTombstone).toHaveBeenCalledWith({
+      kind: 'like',
       userId: BOOSTER_OXY_ID,
       postId: TARGET_POST_ID,
-      value: 1,
     });
-    expect(mocks.postUpdateOne).toHaveBeenCalledWith(
-      { _id: TARGET_POST_ID, 'stats.likesCount': { $gt: 0 } },
-      { $inc: { 'stats.likesCount': -1 } },
-    );
+    expect(mocks.postUpdateOne).not.toHaveBeenCalled();
     // The sharing flag is never even consulted for an Undo.
     expect(mocks.isFediverseSharingEnabled).not.toHaveBeenCalled();
   });
@@ -308,7 +303,11 @@ describe('handleLike (gated) / handleUndoLike (ungated teardown) — target owne
     await inboxProcessingService.processInboxActivity(likeActivity(), ACTOR_URI);
 
     expect(mocks.isFediverseSharingEnabled).not.toHaveBeenCalled();
-    expect(mocks.likeCreate).toHaveBeenCalledTimes(1);
+    expect(mocks.materializeEngagementRelationship).toHaveBeenCalledWith({
+      kind: 'like',
+      userId: BOOSTER_OXY_ID,
+      postId: TARGET_POST_ID,
+    });
   });
 });
 
@@ -352,7 +351,10 @@ describe('handleAnnounce (gated) / handleUndoAnnounce (ungated teardown) — tar
 
     await inboxProcessingService.processInboxActivity(undoAnnounceActivity(), ACTOR_URI);
 
-    expect(mocks.postDeleteOne).toHaveBeenCalledWith({ _id: 'boost_1' });
+    expect(mocks.postDeleteOne).toHaveBeenCalledWith({
+      _id: 'boost_1',
+      'federation.actorUri': ACTOR_URI,
+    });
     expect(mocks.postUpdateOne).toHaveBeenCalledWith(
       { _id: TARGET_POST_ID, 'stats.boostsCount': { $gt: 0 } },
       { $inc: { 'stats.boostsCount': -1 } },
@@ -365,7 +367,10 @@ describe('handleAnnounce (gated) / handleUndoAnnounce (ungated teardown) — tar
 
     await inboxProcessingService.processInboxActivity(undoAnnounceActivity(), ACTOR_URI);
 
-    expect(mocks.postDeleteOne).toHaveBeenCalledWith({ _id: 'boost_1' });
+    expect(mocks.postDeleteOne).toHaveBeenCalledWith({
+      _id: 'boost_1',
+      'federation.actorUri': ACTOR_URI,
+    });
     expect(mocks.postUpdateOne).toHaveBeenCalledWith(
       { _id: TARGET_POST_ID, 'stats.boostsCount': { $gt: 0 } },
       { $inc: { 'stats.boostsCount': -1 } },

@@ -14,7 +14,7 @@ import { useTranslation } from "react-i18next";
 import { useUnreadCount } from "@/hooks/useUnreadCount";
 import { SideBarItem } from "./SideBarItem";
 import { Avatar } from '@oxyhq/bloom/avatar';
-import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types';
+import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 
 import { Home, HomeActive } from "@/assets/icons/home-icon";
 import { Bookmark, BookmarkActive } from "@/assets/icons/bookmark-icon";
@@ -28,8 +28,9 @@ import { Hashtag, HashtagActive } from "@/assets/icons/hashtag-icon";
 import { AnalyticsIcon, AnalyticsIconActive } from "@/assets/icons/analytics-icon";
 import { useTheme } from '@oxyhq/bloom/theme';
 import { Bell, BellActive } from '@/assets/icons/bell-icon';
-import { SyraIcon, SyraIconActive } from '@syra.fm/sdk';
-import { useAuth, ProfileButton } from '@oxyhq/services';
+import Ionicons from '@expo/vector-icons/Ionicons';
+import { ProfileButton } from '@oxyhq/services';
+import { useAuth } from '@oxyhq/services/ui/client';
 import { getNormalizedUserHandle } from '@oxyhq/core';
 import { asViewStyle, type WebViewStyle } from '@/types/webStyles';
 
@@ -133,8 +134,8 @@ export function SideBar({ asDrawer = false, onNavigate }: SideBarProps) {
         },
         {
             title: t("sidebar.liveRooms"),
-            icon: <SyraIcon />,
-            iconActive: <SyraIconActive />,
+            icon: <Ionicons name="radio-outline" size={24} color={theme.colors.text} />,
+            iconActive: <Ionicons name="radio" size={24} color={theme.colors.primary} />,
             route: '/live-rooms',
         },
         {
@@ -173,7 +174,7 @@ export function SideBar({ asDrawer = false, onNavigate }: SideBarProps) {
             iconActive: <GearActive />,
             route: '/settings',
         },
-    ], [t, user, avatarUri, profileHandle, handleNavPress]);
+    ], [t, user, avatarUri, profileHandle, handleNavPress, theme.colors.primary, theme.colors.text]);
 
     const pathname = usePathname();
     const isSideBarVisible = useIsScreenNotMobile();

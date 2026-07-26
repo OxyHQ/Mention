@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo } from 'react';
 import { View, Text, SectionList, type SectionListData } from 'react-native';
 import { SpinnerIcon } from '@oxyhq/bloom/loading';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
@@ -98,8 +98,8 @@ export default function ExploreTrendingScreen() {
   const stopPolling = useTrendsStore((state) => state.stopPolling);
 
   useEffect(() => {
-    startPolling();
-    return () => stopPolling();
+    const subscriptionId = startPolling();
+    return () => stopPolling(subscriptionId);
   }, [startPolling, stopPolling]);
 
   const visibleTrends = useMemo(

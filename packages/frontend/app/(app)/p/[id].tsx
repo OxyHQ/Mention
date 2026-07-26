@@ -8,7 +8,7 @@ import {
 import { Loading } from '@oxyhq/bloom/loading';
 import { useLocalSearchParams, router } from 'expo-router';
 import { useSafeBack } from '@/hooks/useSafeBack';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import PostItem from '@/components/Feed/PostItem';
 import Feed from '@/components/Feed/Feed';
@@ -17,9 +17,13 @@ import { useThreadPreferences, SORT_TO_API } from '@/hooks/useThreadPreferences'
 import { usePostsStore, usePostSelector } from '@/stores/postsStore';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
 import ReplyPreferencesSheet from '@/components/ReplyPreferencesSheet';
-import { FeedType } from '@mention/shared-types';
-import { HydratedPost, Reply, FeedBoost as Boost } from '@mention/shared-types';
-import { useAuth } from '@oxyhq/services';
+import type {
+  FeedType,
+  HydratedPost,
+  Reply,
+  FeedBoost as Boost,
+} from '@mention/shared-types';
+import { useAuth } from '@oxyhq/services/ui/client';
 import { ThemedView } from '@/components/ThemedView';
 import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';

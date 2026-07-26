@@ -17,9 +17,15 @@
 import { useEffect } from 'react';
 import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useAuth } from '@oxyhq/services';
+import { useAuth } from '@oxyhq/services/ui/client';
 import { authenticatedClient } from '@/utils/api';
 import { createScopedLogger } from '@/lib/logger';
+import {
+  viewerCacheId,
+  viewerStorageKey,
+  type ViewerId,
+} from '@/lib/viewerQueryKeys';
+import { createKeyedAsyncQueue } from '@/lib/keyedAsyncQueue';
 import type {
   EmbedPlayerSource,
   ExternalEmbedPref,
@@ -29,12 +35,16 @@ import type { UserSettingsResponse } from '@/hooks/usePrivacySettings';
 
 const logger = createScopedLogger('externalEmbedsStore');
 
-const CACHE_KEY = '@mention_external_embeds';
+const CACHE_KEY = '@mention_external_embeds:v2';
+const LEGACY_CACHE_KEY = '@mention_external_embeds';
 
-// `hydrate` fires twice across the auth transition (`canFetch` false→true). The
-// AsyncStorage cache only seeds the initial state, so read it at most once; the
-// authoritative server fetch still runs when `canFetch` becomes true.
-let cacheRead = false;
+let cacheReadForViewer: string | null = null;
+let activeViewerId = viewerCacheId(null);
+let hydrationGeneration = 0;
+const enqueueExternalEmbedsStorage = createKeyedAsyncQueue();
+
+const cacheKeyForViewer = (viewerId: ViewerId) =>
+  viewerStorageKey(CACHE_KEY, viewerId);
 
 interface ExternalEmbedsState {
   prefs: ExternalEmbedsSettings;
@@ -44,7 +54,7 @@ interface ExternalEmbedsState {
    * Load cached prefs, then — when `canFetch` — overlay the authoritative
    * server value. Safe to call repeatedly; the latest server value wins.
    */
-  hydrate: (canFetch: boolean) => Promise<void>;
+  hydrate: (canFetch: boolean, viewerId?: ViewerId) => Promise<void>;
   /** Optimistically persist a single provider's preference (with rollback). */
   setPref: (source: EmbedPlayerSource, value: ExternalEmbedPref) => Promise<void>;
   /**
@@ -53,19 +63,43 @@ interface ExternalEmbedsState {
    * one PUT per provider.
    */
   setManyPrefs: (patch: ExternalEmbedsSettings) => Promise<void>;
+  /** Clear synchronous state and invalidate all old-viewer async work. */
+  resetViewerState: (viewerId?: ViewerId) => void;
 }
 
 export const useExternalEmbedsStore = create<ExternalEmbedsState>((set, get) => ({
   prefs: {},
   hydrated: false,
 
-  async hydrate(canFetch: boolean) {
+  async hydrate(canFetch: boolean, viewerId?: ViewerId) {
+    const normalizedViewerId = viewerCacheId(viewerId);
+    activeViewerId = normalizedViewerId;
+    const generation = ++hydrationGeneration;
+    const storageKey = cacheKeyForViewer(viewerId);
+
+    // The unscoped v1 key could contain another account's settings. Never read
+    // it; remove it opportunistically during the v2 hydration.
+    void AsyncStorage.removeItem(LEGACY_CACHE_KEY).catch(() => {});
+
     // 1. Cache first — fast, offline-safe, and correct for anonymous viewers.
-    //    Guarded so the duplicate hydrate on the auth transition doesn't re-read.
-    if (!cacheRead) {
-      cacheRead = true;
+    //    Guarded per viewer so A's one-time read never suppresses B's.
+    if (cacheReadForViewer !== normalizedViewerId) {
+      cacheReadForViewer = normalizedViewerId;
       try {
-        const cached = await AsyncStorage.getItem(CACHE_KEY);
+        const cached = await enqueueExternalEmbedsStorage(
+          normalizedViewerId,
+          async () => {
+            if (
+              generation !== hydrationGeneration ||
+              activeViewerId !== normalizedViewerId
+            ) return null;
+            return AsyncStorage.getItem(storageKey);
+          },
+        );
+        if (
+          generation !== hydrationGeneration ||
+          activeViewerId !== normalizedViewerId
+        ) return;
         if (cached) {
           set({ prefs: JSON.parse(cached) as ExternalEmbedsSettings });
         }
@@ -76,17 +110,38 @@ export const useExternalEmbedsStore = create<ExternalEmbedsState>((set, get) => 
 
     // 2. Server is authoritative — but only reachable once the private API is up.
     if (!canFetch) {
-      set({ hydrated: true });
+      if (
+        generation === hydrationGeneration &&
+        activeViewerId === normalizedViewerId
+      ) {
+        set({ hydrated: true });
+      }
       return;
     }
 
     try {
       const response = await authenticatedClient.get<UserSettingsResponse>('/profile/settings/me');
+      if (
+        generation !== hydrationGeneration ||
+        activeViewerId !== normalizedViewerId
+      ) return;
       const serverPrefs = response.data?.externalEmbeds;
       if (serverPrefs) {
         set({ prefs: serverPrefs, hydrated: true });
         try {
-          await AsyncStorage.setItem(CACHE_KEY, JSON.stringify(serverPrefs));
+          await enqueueExternalEmbedsStorage(
+            normalizedViewerId,
+            async () => {
+              if (
+                generation !== hydrationGeneration ||
+                activeViewerId !== normalizedViewerId
+              ) return;
+              await AsyncStorage.setItem(
+                storageKey,
+                JSON.stringify(serverPrefs),
+              );
+            },
+          );
         } catch (error) {
           logger.debug('Failed to cache external-embed prefs', { error });
         }
@@ -104,20 +159,51 @@ export const useExternalEmbedsStore = create<ExternalEmbedsState>((set, get) => 
   },
 
   async setManyPrefs(patch: ExternalEmbedsSettings) {
+    const generation = hydrationGeneration;
+    const viewerId = activeViewerId;
+    const storageKey = cacheKeyForViewer(viewerId);
     const previous = get().prefs;
     const next: ExternalEmbedsSettings = { ...previous, ...patch };
     set({ prefs: next });
 
     try {
       await authenticatedClient.put('/profile/settings', { externalEmbeds: patch });
+      if (
+        generation !== hydrationGeneration ||
+        activeViewerId !== viewerId
+      ) return;
       // Best-effort cache write — it doesn't gate the mutation, so don't await it.
-      void AsyncStorage.setItem(CACHE_KEY, JSON.stringify(next)).catch((error) => {
-        logger.debug('Failed to cache external-embed prefs', { error });
-      });
+      void enqueueExternalEmbedsStorage(viewerId, async () => {
+        if (
+          generation !== hydrationGeneration ||
+          activeViewerId !== viewerId
+        ) return;
+        await AsyncStorage.setItem(storageKey, JSON.stringify(next));
+      }).catch((error) => {
+          logger.debug('Failed to cache external-embed prefs', { error });
+        });
     } catch (error) {
+      if (
+        generation !== hydrationGeneration ||
+        activeViewerId !== viewerId
+      ) return;
       logger.error('Failed to persist external-embed prefs', { error });
       set({ prefs: previous });
     }
+  },
+
+  resetViewerState(viewerId?: ViewerId) {
+    hydrationGeneration += 1;
+    cacheReadForViewer = null;
+    activeViewerId = viewerCacheId(null);
+    set({ prefs: {}, hydrated: false });
+    const normalizedViewerId = viewerCacheId(viewerId);
+    void enqueueExternalEmbedsStorage(
+      normalizedViewerId,
+      () => AsyncStorage.removeItem(cacheKeyForViewer(viewerId)),
+    ).catch((error) => {
+        logger.debug('Failed to remove external-embed cache', { error });
+      });
   },
 }));
 
@@ -136,11 +222,12 @@ export function useEmbedPref(source: EmbedPlayerSource): ExternalEmbedPref | und
  * for anonymous viewers.
  */
 export function useHydrateExternalEmbeds(): void {
-  const { canUsePrivateApi, isAuthResolved } = useAuth();
+  const { canUsePrivateApi, isAuthResolved, user } = useAuth();
   const hydrate = useExternalEmbedsStore((state) => state.hydrate);
+  const viewerId = user?.id;
 
   useEffect(() => {
     if (!isAuthResolved) return;
-    void hydrate(canUsePrivateApi);
-  }, [isAuthResolved, canUsePrivateApi, hydrate]);
+    void hydrate(canUsePrivateApi, viewerId);
+  }, [isAuthResolved, canUsePrivateApi, viewerId, hydrate]);
 }

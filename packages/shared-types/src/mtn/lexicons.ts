@@ -24,7 +24,7 @@
  * MTN — they are intentionally absent here.
  */
 
-import { z } from 'zod';
+import * as z from 'zod';
 import type { LexiconRecord } from '@oxyhq/contracts';
 
 /* -------------------------------------------------------------------------- */

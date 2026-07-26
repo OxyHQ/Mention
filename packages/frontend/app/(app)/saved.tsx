@@ -1,184 +1,293 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { Platform, StyleSheet, TextInput, View, TouchableOpacity, ScrollView, Text, Modal, Pressable } from 'react-native';
+import React, {
+    useCallback,
+    useEffect,
+    useMemo,
+    useState,
+} from 'react';
+import {
+    Modal,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
+} from 'react-native';
+import {
+    useInfiniteQuery,
+    useMutation,
+    useQuery,
+    useQueryClient,
+} from '@tanstack/react-query';
 import { Loading } from '@oxyhq/bloom/loading';
-import { SafeAreaView } from '@/lib/SafeAreaViewInterop';
+import { useTheme } from '@oxyhq/bloom/theme';
+import { useAuth } from '@oxyhq/services/ui/client';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { StatusBar } from 'expo-status-bar';
-import { Ionicons } from '@expo/vector-icons';
-import PostItem from '@/components/Feed/PostItem';
+import { useTranslation } from 'react-i18next';
+import { SafeAreaView } from '@/lib/SafeAreaViewInterop';
 import { ThemedView } from '@/components/ThemedView';
 import { Header } from '@/components/Header';
-import { useTheme } from '@oxyhq/bloom/theme';
-import { useTranslation } from 'react-i18next';
 import { Search } from '@/assets/icons/search-icon';
 import { Bookmark } from '@/assets/icons/bookmark-icon';
-import { useAuth } from '@oxyhq/services';
-import { authenticatedClient } from '@/utils/api';
-import SEO from '@/components/SEO';
+import { SEO } from '@/components/SEO';
 import { EmptyState } from '@/components/common/EmptyState';
-import { logger } from '@/lib/logger';
 import { PanelStickyHeader } from '@/components/shell/PanelChrome';
+import {
+    feedService,
+    type SavedPostsPage,
+} from '@/services/feedService';
+import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
+import { logger } from '@/lib/logger';
+import SavedPostsList, {
+    type SavedPost,
+} from '@/components/saved/SavedPostsList';
+import { usePostsStore } from '@/stores/postsStore';
 
-const IS_WEB = Platform.OS === 'web';
+const PAGE_SIZE = 30;
+const SEARCH_DEBOUNCE_MS = 400;
 
-type SavedPost = React.ComponentProps<typeof PostItem>['post'];
+function flattenSavedPages(pages: SavedPostsPage[] | undefined): SavedPost[] {
+    if (!pages) return [];
+
+    // Page-number pagination can overlap when a bookmark changes while the user
+    // scrolls. Preserve first-seen order while keeping one mounted row per post.
+    const seen = new Set<string>();
+    const posts: SavedPost[] = [];
+    for (const page of pages) {
+        for (const post of page.posts) {
+            if (seen.has(post.id)) continue;
+            seen.add(post.id);
+            posts.push(post);
+        }
+    }
+    return posts;
+}
 
 const SavedPostsScreen: React.FC = () => {
     const theme = useTheme();
     const { t } = useTranslation();
-    const { isAuthenticated, user } = useAuth();
+    const {
+        canUsePrivateApi,
+        isPrivateApiPending,
+        user,
+    } = useAuth();
+    const queryClient = useQueryClient();
+    const cachePosts = usePostsStore((state) => state.cachePosts);
     const viewerId = user?.id;
-    const [searchQuery, setSearchQuery] = useState('');
-    const [posts, setPosts] = useState<SavedPost[]>([]);
-    const [loading, setLoading] = useState(false);
-    const [page, setPage] = useState(1);
 
-    // Folder state
-    const [folders, setFolders] = useState<string[]>([]);
+    const [searchQuery, setSearchQuery] = useState('');
+    const [debouncedSearch, setDebouncedSearch] = useState('');
     const [selectedFolder, setSelectedFolder] = useState<string | null>(null);
+    const [localFolders, setLocalFolders] = useState<string[]>([]);
     const [showNewFolderModal, setShowNewFolderModal] = useState(false);
     const [newFolderName, setNewFolderName] = useState('');
     const [movingPostId, setMovingPostId] = useState<string | null>(null);
     const [showMoveModal, setShowMoveModal] = useState(false);
 
-    // Fetch folders
-    const fetchFolders = useCallback(async () => {
-        try {
-            const response = await authenticatedClient.get<{ folders?: string[] }>('/posts/bookmarks/folders');
-            setFolders(response.data?.folders || []);
-        } catch (error) {
-            logger.error('Error fetching bookmark folders', { error });
-        }
-    }, []);
-
-    // Bookmarks and saved posts are strictly per-viewer (anonymous has none),
-    // so both effects gate on `isAuthenticated` and key on `viewerId`. Without
-    // this they fired once during the anonymous cold-boot window and never
-    // reloaded after the session restored ~5s later.
     useEffect(() => {
-        if (!isAuthenticated) {
-            setFolders([]);
-            return;
-        }
-        fetchFolders();
-    }, [isAuthenticated, viewerId, fetchFolders]);
+        const timeout = setTimeout(
+            () => setDebouncedSearch(searchQuery.trim()),
+            searchQuery.trim() ? SEARCH_DEBOUNCE_MS : 0,
+        );
+        return () => clearTimeout(timeout);
+    }, [searchQuery]);
 
-    // Fetch the saved-posts list for the current search + folder. Extracted so
-    // both the list effect and the "move to folder" flow can trigger the same
-    // refetch.
-    const fetchSavedPosts = useCallback(async () => {
-        setLoading(true);
-        try {
-            const params: { page: number; limit: number; search?: string; folder?: string } = {
-                page: 1,
-                limit: 50,
-            };
-            if (searchQuery.trim()) {
-                params.search = searchQuery.trim();
-            }
-            if (selectedFolder) {
-                params.folder = selectedFolder;
-            }
-            const response = await authenticatedClient.get<{ posts?: SavedPost[] }>('/posts/saved', { params });
-            setPosts(response.data?.posts || []);
-            setPage(1);
-        } catch (error) {
-            logger.error('Error fetching saved posts', { error });
-        } finally {
-            setLoading(false);
-        }
-    }, [searchQuery, selectedFolder]);
-
-    // Fetch saved posts
+    // A local-only folder chip belongs to the current account. AccountSwitchReset
+    // clears server query data; this resets the one small piece of draft UI state.
     useEffect(() => {
-        if (!isAuthenticated) {
-            setPosts([]);
-            setLoading(false);
-            return;
+        setLocalFolders([]);
+        setSelectedFolder(null);
+        setMovingPostId(null);
+        setShowMoveModal(false);
+    }, [viewerId]);
+
+    const foldersQuery = useQuery({
+        queryKey: viewerQueryKeys.bookmarkFolders(viewerId),
+        queryFn: ({ signal }) => feedService.getBookmarkFolders(signal),
+        enabled: canUsePrivateApi && Boolean(viewerId),
+        staleTime: 30_000,
+        retry: false,
+    });
+
+    const folders = useMemo(
+        () => Array.from(new Set([...(foldersQuery.data ?? []), ...localFolders])),
+        [foldersQuery.data, localFolders],
+    );
+
+    const savedPostsQuery = useInfiniteQuery({
+        queryKey: viewerQueryKeys.savedPosts(
+            viewerId,
+            debouncedSearch,
+            selectedFolder,
+        ),
+        queryFn: async ({ pageParam, signal }) => {
+            const response = await feedService.getSavedPosts({
+                page: pageParam,
+                limit: PAGE_SIZE,
+                search: debouncedSearch || undefined,
+                folder: selectedFolder ?? undefined,
+                signal,
+            });
+            return response.data;
+        },
+        initialPageParam: 1,
+        getNextPageParam: (lastPage) => (
+            lastPage.hasMore ? lastPage.page + 1 : undefined
+        ),
+        enabled: canUsePrivateApi && Boolean(viewerId),
+        staleTime: 15_000,
+        retry: false,
+    });
+    const {
+        data: savedPostsData,
+        fetchNextPage,
+        hasNextPage,
+        isError: savedPostsFailed,
+        isFetchingNextPage,
+        isPending: savedPostsPending,
+        refetch: refetchSavedPosts,
+    } = savedPostsQuery;
+
+    const posts = useMemo(
+        () => flattenSavedPages(savedPostsData?.pages),
+        [savedPostsData?.pages],
+    );
+
+    // React Query owns saved-list pagination, while PostItem subscribes to the
+    // shared post store for granular engagement updates. Seed that store from
+    // every fetched page so save/unsave can update the mounted row immediately.
+    useEffect(() => {
+        if (posts.length > 0) {
+            cachePosts(posts);
         }
+    }, [cachePosts, posts]);
 
-        const timeoutId = setTimeout(fetchSavedPosts, searchQuery.trim() ? 500 : 0);
-        return () => clearTimeout(timeoutId);
-    }, [isAuthenticated, viewerId, searchQuery, fetchSavedPosts]);
+    const moveBookmarkMutation = useMutation({
+        mutationFn: ({ postId, folder }: {
+            postId: string;
+            folder: string | null;
+        }) => feedService.moveBookmarkToFolder(postId, folder),
+        retry: false,
+        onSuccess: async () => {
+            await Promise.all([
+                queryClient.invalidateQueries({
+                    queryKey: viewerQueryKeys.savedPostsRoot(viewerId),
+                }),
+                queryClient.invalidateQueries({
+                    queryKey: viewerQueryKeys.bookmarkFolders(viewerId),
+                }),
+            ]);
+        },
+        onError: (error) => {
+            logger.error('Error moving bookmark', { error });
+        },
+        onSettled: () => {
+            setShowMoveModal(false);
+            setMovingPostId(null);
+        },
+    });
+    const {
+        isPending: isMovingBookmark,
+        mutate: moveBookmark,
+    } = moveBookmarkMutation;
 
-    const handleCreateFolder = async () => {
+    const handleCreateFolder = useCallback(() => {
         const name = newFolderName.trim();
         if (!name) return;
-        if (!folders.includes(name)) {
-            setFolders(prev => [...prev, name]);
-        }
+        setLocalFolders((current) => (
+            current.includes(name) ? current : [...current, name]
+        ));
         setNewFolderName('');
         setShowNewFolderModal(false);
         setSelectedFolder(name);
-    };
+    }, [newFolderName]);
 
-    const handleMoveToFolder = async (folder: string | null) => {
-        if (!movingPostId) return;
-        try {
-            await authenticatedClient.patch(`/posts/bookmarks/${movingPostId}/folder`, { folder });
-            // Refresh the folder list and the saved-posts list: a post moved out
-            // of the active folder must drop off the current view immediately.
-            fetchFolders();
-            fetchSavedPosts();
-        } catch (error) {
-            logger.error('Error moving bookmark', { error });
-        }
-        setShowMoveModal(false);
-        setMovingPostId(null);
-    };
+    const handleMoveToFolder = useCallback((folder: string | null) => {
+        if (!movingPostId || isMovingBookmark) return;
+        moveBookmark({
+            postId: movingPostId,
+            folder,
+        });
+    }, [isMovingBookmark, moveBookmark, movingPostId]);
 
-    const handleLongPress = (postId: string) => {
+    const handleLongPress = useCallback((postId: string) => {
         setMovingPostId(postId);
         setShowMoveModal(true);
-    };
+    }, []);
 
-    // Search bar + folder chips + the saved-posts list. This whole block scrolls
-    // as the page content — it participates in the shared LAYOUT scroll (the
-    // document on web, the screen's ScrollView on native) instead of owning a
-    // nested `flex-1` scroller. Matches how the other list screens (notifications,
-    // feeds/[id], lists/[id]) let their sub-chrome scroll with the content.
-    const body = (
-        <>
+    const handleEndReached = useCallback(() => {
+        if (
+            hasNextPage &&
+            !isFetchingNextPage
+        ) {
+            void fetchNextPage();
+        }
+    }, [
+        fetchNextPage,
+        hasNextPage,
+        isFetchingNextPage,
+    ]);
+
+    const listHeader = useMemo(() => (
+        <View>
             <View className="flex-row items-center px-4 py-2 mx-4 my-2 rounded-3xl bg-secondary">
                 <View className="mr-2">
-                    <Search
-                        size={20}
-                        className="text-muted-foreground"
-                    />
+                    <Search size={20} className="text-muted-foreground" />
                 </View>
                 <TextInput
                     className="flex-1 text-base py-2 text-foreground"
-                    placeholder={t("search.placeholder", "Search saved posts...")}
+                    placeholder={t('search.placeholder', 'Search saved posts...')}
                     placeholderTextColor={theme.colors.textSecondary}
                     value={searchQuery}
                     onChangeText={setSearchQuery}
+                    accessibilityLabel={t('search.placeholder', 'Search saved posts...')}
                 />
                 {searchQuery.length > 0 && (
-                    <TouchableOpacity onPress={() => setSearchQuery("")}>
-                        <Ionicons name="close-circle" size={20} color={theme.colors.textSecondary} />
+                    <TouchableOpacity
+                        onPress={() => setSearchQuery('')}
+                        accessibilityRole="button"
+                        accessibilityLabel={t('common.clear', 'Clear search')}
+                    >
+                        <Ionicons
+                            name="close-circle"
+                            size={20}
+                            color={theme.colors.textSecondary}
+                        />
                     </TouchableOpacity>
                 )}
             </View>
 
-            {/* Folder chips */}
             <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
                 style={styles.folderScrollContainer}
                 contentContainerStyle={styles.folderScrollContent}
+                keyboardShouldPersistTaps="handled"
             >
                 <TouchableOpacity
                     style={[
                         styles.folderChip,
                         {
-                            backgroundColor: selectedFolder === null ? theme.colors.primary : theme.colors.backgroundSecondary,
-                            borderColor: selectedFolder === null ? theme.colors.primary : theme.colors.border,
+                            backgroundColor: selectedFolder === null
+                                ? theme.colors.primary
+                                : theme.colors.backgroundSecondary,
+                            borderColor: selectedFolder === null
+                                ? theme.colors.primary
+                                : theme.colors.border,
                         },
                     ]}
                     onPress={() => setSelectedFolder(null)}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: selectedFolder === null }}
                 >
                     <Text
                         className="text-sm font-medium"
-                        style={{ color: selectedFolder === null ? '#fff' : theme.colors.text }}
+                        style={{
+                            color: selectedFolder === null
+                                ? '#fff'
+                                : theme.colors.text,
+                        }}
                     >
                         {t('saved.allBookmarks', 'All')}
                     </Text>
@@ -190,15 +299,25 @@ const SavedPostsScreen: React.FC = () => {
                         style={[
                             styles.folderChip,
                             {
-                                backgroundColor: selectedFolder === folder ? theme.colors.primary : theme.colors.backgroundSecondary,
-                                borderColor: selectedFolder === folder ? theme.colors.primary : theme.colors.border,
+                                backgroundColor: selectedFolder === folder
+                                    ? theme.colors.primary
+                                    : theme.colors.backgroundSecondary,
+                                borderColor: selectedFolder === folder
+                                    ? theme.colors.primary
+                                    : theme.colors.border,
                             },
                         ]}
                         onPress={() => setSelectedFolder(folder)}
+                        accessibilityRole="button"
+                        accessibilityState={{ selected: selectedFolder === folder }}
                     >
                         <Text
                             className="text-sm font-medium"
-                            style={{ color: selectedFolder === folder ? '#fff' : theme.colors.text }}
+                            style={{
+                                color: selectedFolder === folder
+                                    ? '#fff'
+                                    : theme.colors.text,
+                            }}
                         >
                             {folder}
                         </Text>
@@ -206,8 +325,16 @@ const SavedPostsScreen: React.FC = () => {
                 ))}
 
                 <TouchableOpacity
-                    style={[styles.folderChip, { borderColor: theme.colors.border, backgroundColor: 'transparent' }]}
+                    style={[
+                        styles.folderChip,
+                        {
+                            borderColor: theme.colors.border,
+                            backgroundColor: 'transparent',
+                        },
+                    ]}
                     onPress={() => setShowNewFolderModal(true)}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('saved.newFolder', 'New folder')}
                 >
                     <Ionicons name="add" size={16} color={theme.colors.primary} />
                     <Text className="text-sm font-medium text-primary">
@@ -215,37 +342,76 @@ const SavedPostsScreen: React.FC = () => {
                     </Text>
                 </TouchableOpacity>
             </ScrollView>
+        </View>
+    ), [
+        folders,
+        searchQuery,
+        selectedFolder,
+        t,
+        theme.colors.backgroundSecondary,
+        theme.colors.border,
+        theme.colors.primary,
+        theme.colors.text,
+        theme.colors.textSecondary,
+    ]);
 
-            {loading && (
+    const listEmpty = useMemo(() => {
+        const initialLoading = isPrivateApiPending || (
+            canUsePrivateApi && savedPostsPending
+        );
+        if (initialLoading) {
+            return (
                 <View className="items-center justify-center pt-[60px]">
                     <Loading className="text-primary" size="large" />
                 </View>
-            )}
+            );
+        }
 
-            {!loading && posts.length === 0 && (
+        if (savedPostsFailed) {
+            return (
                 <EmptyState
-                    title={searchQuery.trim()
-                        ? t("search.noResults", "No results found")
-                        : t("search.startSearching", "No saved posts yet")}
-                    customIcon={searchQuery.trim()
-                        ? <Search size={48} className="text-muted-foreground" />
-                        : <Bookmark size={48} className="text-muted-foreground" />
-                    }
+                    error={{
+                        title: t('common.error', 'Something went wrong'),
+                        message: t(
+                            'saved.loadError',
+                            'Saved posts could not be loaded.',
+                        ),
+                        onRetry: async () => {
+                            await refetchSavedPosts();
+                        },
+                    }}
+                    icon={{ name: 'cloud-offline-outline' }}
                     containerStyle={{ paddingTop: 60 }}
                 />
-            )}
+            );
+        }
 
-            {!loading && posts.length > 0 && posts.map((post) => (
-                <Pressable
-                    key={post.id}
-                    onLongPress={() => handleLongPress(post.id)}
-                    delayLongPress={500}
-                >
-                    <PostItem post={post} />
-                </Pressable>
-            ))}
-        </>
-    );
+        return (
+            <EmptyState
+                title={debouncedSearch
+                    ? t('search.noResults', 'No results found')
+                    : t('search.startSearching', 'No saved posts yet')}
+                customIcon={debouncedSearch
+                    ? <Search size={48} className="text-muted-foreground" />
+                    : <Bookmark size={48} className="text-muted-foreground" />}
+                containerStyle={{ paddingTop: 60 }}
+            />
+        );
+    }, [
+        canUsePrivateApi,
+        debouncedSearch,
+        isPrivateApiPending,
+        refetchSavedPosts,
+        savedPostsFailed,
+        savedPostsPending,
+        t,
+    ]);
+
+    const listFooter = isFetchingNextPage ? (
+        <View className="items-center justify-center py-4">
+            <Loading className="text-primary" size="small" />
+        </View>
+    ) : <View style={styles.listFooterSpace} />;
 
     return (
         <>
@@ -253,20 +419,9 @@ const SavedPostsScreen: React.FC = () => {
                 title={t('seo.saved.title')}
                 description={t('seo.saved.description')}
             />
-            {/* SafeAreaView (top) + PanelStickyHeader own the panel/safe-area insets
-                — the same chrome the home, notifications and hashtag screens use — so
-                the header pins correctly inside the rounded panel on desktop web,
-                collapses its gutter at mobile/full-bleed width, and reserves the
-                status-bar inset on native. No hand-rolled `paddingTop: insets.top`. */}
-            <SafeAreaView className="flex-1 bg-background" edges={["top"]}>
+            <SafeAreaView className="flex-1 bg-background" edges={['top']}>
                 <ThemedView className="flex-1">
-                    <StatusBar style={theme.isDark ? "light" : "dark"} />
-
-                    {/* Title header pinned inside the rounded panel via
-                        PanelStickyHeader. The saved-posts list is document-scroll on
-                        web, so the header must pin at PANEL_TOP_INSET (not top:0,
-                        where the bleed mask would clip it). `disableSticky` hands
-                        sticky ownership to PanelStickyHeader. */}
+                    <StatusBar style={theme.isDark ? 'light' : 'dark'} />
                     <PanelStickyHeader level={0}>
                         <Header
                             options={{
@@ -277,21 +432,19 @@ const SavedPostsScreen: React.FC = () => {
                         />
                     </PanelStickyHeader>
 
-                    {/* The body participates in the shared layout scroll: on web it
-                        flows in the document (the body is the scroller — no inner
-                        scroll container), on native the screen owns a single
-                        ScrollView. Mirrors the home/profile scroll ownership. */}
-                    {IS_WEB ? (
-                        <View>{body}</View>
-                    ) : (
-                        <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
-                            {body}
-                        </ScrollView>
-                    )}
+                    <SavedPostsList
+                        posts={posts}
+                        header={listHeader}
+                        empty={listEmpty}
+                        footer={listFooter}
+                        hasNextPage={Boolean(hasNextPage)}
+                        onEndReached={handleEndReached}
+                        onLongPress={handleLongPress}
+                        backgroundColor={theme.colors.background}
+                    />
                 </ThemedView>
             </SafeAreaView>
 
-            {/* New Folder Modal */}
             <Modal visible={showNewFolderModal} transparent animationType="fade">
                 <View style={styles.modalOverlay}>
                     <View className="w-full max-w-[360px] rounded-2xl p-5 bg-card">
@@ -310,22 +463,28 @@ const SavedPostsScreen: React.FC = () => {
                         <View className="flex-row justify-end gap-2">
                             <TouchableOpacity
                                 className="px-4 py-2.5 rounded-[10px] items-center bg-secondary"
-                                onPress={() => { setShowNewFolderModal(false); setNewFolderName(''); }}
+                                onPress={() => {
+                                    setShowNewFolderModal(false);
+                                    setNewFolderName('');
+                                }}
                             >
-                                <Text className="text-foreground">{t('common.cancel', 'Cancel')}</Text>
+                                <Text className="text-foreground">
+                                    {t('common.cancel', 'Cancel')}
+                                </Text>
                             </TouchableOpacity>
                             <TouchableOpacity
                                 className="px-4 py-2.5 rounded-[10px] items-center bg-primary"
                                 onPress={handleCreateFolder}
                             >
-                                <Text className="text-white">{t('common.create', 'Create')}</Text>
+                                <Text className="text-white">
+                                    {t('common.create', 'Create')}
+                                </Text>
                             </TouchableOpacity>
                         </View>
                     </View>
                 </View>
             </Modal>
 
-            {/* Move to Folder Modal */}
             <Modal visible={showMoveModal} transparent animationType="fade">
                 <View style={styles.modalOverlay}>
                     <View className="w-full max-w-[360px] rounded-2xl p-5 bg-card">
@@ -333,8 +492,12 @@ const SavedPostsScreen: React.FC = () => {
                             {t('saved.moveToFolder', 'Move to Folder')}
                         </Text>
                         <TouchableOpacity
-                            style={[styles.moveOption, { borderColor: theme.colors.border }]}
+                            style={[
+                                styles.moveOption,
+                                { borderColor: theme.colors.border },
+                            ]}
                             onPress={() => handleMoveToFolder(null)}
+                            disabled={isMovingBookmark}
                         >
                             <Text className="text-foreground">
                                 {t('saved.allBookmarks', 'All Bookmarks')}
@@ -343,17 +506,27 @@ const SavedPostsScreen: React.FC = () => {
                         {folders.map((folder) => (
                             <TouchableOpacity
                                 key={folder}
-                                style={[styles.moveOption, { borderColor: theme.colors.border }]}
+                                style={[
+                                    styles.moveOption,
+                                    { borderColor: theme.colors.border },
+                                ]}
                                 onPress={() => handleMoveToFolder(folder)}
+                                disabled={isMovingBookmark}
                             >
                                 <Text className="text-foreground">{folder}</Text>
                             </TouchableOpacity>
                         ))}
                         <TouchableOpacity
                             className="px-4 py-2.5 rounded-[10px] items-center mt-3 bg-secondary"
-                            onPress={() => { setShowMoveModal(false); setMovingPostId(null); }}
+                            onPress={() => {
+                                setShowMoveModal(false);
+                                setMovingPostId(null);
+                            }}
+                            disabled={isMovingBookmark}
                         >
-                            <Text className="text-foreground">{t('common.cancel', 'Cancel')}</Text>
+                            <Text className="text-foreground">
+                                {t('common.cancel', 'Cancel')}
+                            </Text>
                         </TouchableOpacity>
                     </View>
                 </View>
@@ -380,6 +553,9 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         gap: 4,
+    },
+    listFooterSpace: {
+        height: 24,
     },
     modalOverlay: {
         flex: 1,

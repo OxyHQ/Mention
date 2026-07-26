@@ -3,7 +3,8 @@ import { View } from 'react-native';
 import { router, type Href } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { useAuth, upsertCachedUsers } from '@oxyhq/services';
+import { upsertCachedUsers } from '@oxyhq/services';
+import { useAuth } from '@oxyhq/services/ui/client';
 import { getNormalizedUserHandle, type User } from '@oxyhq/core';
 import {
   ProfileCard,

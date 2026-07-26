@@ -1,6 +1,6 @@
 import React, { memo, useCallback } from 'react';
 import { Pressable } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 
 import { useTheme } from '@oxyhq/bloom/theme';
 import { useUserById } from '@/hooks/useCachedUser';

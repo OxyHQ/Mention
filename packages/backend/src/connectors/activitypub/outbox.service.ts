@@ -10,6 +10,7 @@ import { PostVisibility } from '@mention/shared-types';
 import { extractApLanguage, extractApLanguages } from './apLanguage';
 import { buildFederatedNoteContent, buildFederatedNoteVariants } from './apPostContent';
 import { normalizeMentionIds } from '../../utils/textProcessing';
+import { postTextHasHttpLink } from '../../utils/postSearchMetadata';
 import { getPostCreator } from '../../services/serviceRegistry';
 import { baselineContentClassifier } from '../../services/BaselineContentClassifier';
 import {
@@ -51,6 +52,7 @@ import {
   resolveInboundMentionsForNotes,
   type ResolvedInboundMentions,
 } from './apMentions';
+import { recordRecentReplierForPost } from '../../services/PostRecentReplierService';
 
 /**
  * Bounded concurrency for resolving unknown actor URIs during outbox backfill.
@@ -701,7 +703,13 @@ export class OutboxSyncService {
       // same batch resolve against the now-inserted parents). Captured separately
       // from `newDocs` to avoid casting the loose insert-doc shape back to read
       // its federation fields.
-      const repliesToLink: Array<{ activityId: string; inReplyToUri: string }> = [];
+      const repliesToLink: Array<{
+        activityId: string;
+        inReplyToUri: string;
+        oxyUserId: string;
+        visibility: PostVisibility;
+        published?: Date;
+      }> = [];
       for (const { note, activity, activityId } of noteCandidates) {
         if (existingIds.has(activityId)) continue;
 
@@ -789,6 +797,7 @@ export class OutboxSyncService {
         // primary (`languages[0]`, normalized to ISO 639-1), falling back to the
         // raw declared primary when the classifier resolved none.
         const primaryLanguage = baseline.languages[0] ?? apLanguage;
+        const visibility = mapApVisibility(note.to, note.cc);
 
         newDocs.push({
           oxyUserId: resolvedOxyUserId,
@@ -813,7 +822,8 @@ export class OutboxSyncService {
             media: media.length > 0 ? media : undefined,
             attachments: attachments.length > 0 ? attachments : undefined,
           },
-          visibility: mapApVisibility(note.to, note.cc),
+          hasLinks: postTextHasHttpLink(variants),
+          visibility,
           hashtags,
           // Resolved @mention Oxy user ids (federated + local) — the SAME allowlist
           // the inbox path stores, keyed by the `[mention:<id>]` placeholders now in
@@ -833,6 +843,7 @@ export class OutboxSyncService {
             commentsCount: 0,
             viewsCount: 0,
             sharesCount: 0,
+            savesCount: 0,
           },
           metadata: {
             isSensitive: sensitive,
@@ -846,7 +857,13 @@ export class OutboxSyncService {
         });
 
         if (inReplyToUri) {
-          repliesToLink.push({ activityId, inReplyToUri });
+          repliesToLink.push({
+            activityId,
+            inReplyToUri,
+            oxyUserId: resolvedOxyUserId,
+            visibility,
+            published,
+          });
         }
       }
 
@@ -896,14 +913,29 @@ export class OutboxSyncService {
       // thread ROOT via each post's stored `federation.inReplyTo`, so every reply
       // in the chain shares the same `threadId` regardless of intra-batch insert
       // order — identical to the native reply rule.
-      for (const { activityId, inReplyToUri } of repliesToLink) {
+      for (const {
+        activityId,
+        inReplyToUri,
+        oxyUserId,
+        visibility,
+        published,
+      } of repliesToLink) {
         try {
           const link = await this.resolveThreadLink(inReplyToUri, 0, true);
           if (!link) continue;
-          await Post.updateOne(
+          const linked = await Post.updateOne(
             { 'federation.activityId': activityId },
             { $set: { parentPostId: link.parentPostId, threadId: link.threadId } },
           );
+          if (linked.matchedCount > 0) {
+            await recordRecentReplierForPost({
+              parentPostId: link.parentPostId,
+              oxyUserId,
+              visibility,
+              status: 'published',
+              createdAt: published,
+            });
+          }
         } catch (linkErr) {
           const message = linkErr instanceof Error ? linkErr.message : String(linkErr);
           logger.warn(`[FedSync] failed to link federated reply ${activityId} into its thread: ${message}`);

@@ -127,7 +127,6 @@ const h = vi.hoisted(() => {
     federatedFollow: makeSimple('FederatedFollow'),
     entityFollow: makeSimple('EntityFollow'),
     notification: makeSimple('Notification'),
-    block: makeSimple('Block'),
     userSettings: makeSimple('UserSettings'),
     userBehavior: makeSimple('UserBehavior'),
     userFeedPreference: makeSimple('UserFeedPreference'),
@@ -155,7 +154,6 @@ vi.mock('../../models/Bookmark', () => ({ default: h.bookmark }));
 vi.mock('../../models/FederatedFollow', () => ({ default: h.federatedFollow }));
 vi.mock('../../models/EntityFollow', () => ({ EntityFollow: h.entityFollow }));
 vi.mock('../../models/Notification', () => ({ default: h.notification }));
-vi.mock('../../models/Block', () => ({ default: h.block }));
 vi.mock('../../models/UserSettings', () => ({ default: h.userSettings }));
 vi.mock('../../models/UserBehavior', () => ({ default: h.userBehavior }));
 vi.mock('../../models/UserFeedPreference', () => ({ default: h.userFeedPreference }));
@@ -226,14 +224,13 @@ describe('purgeGoneFederatedActors', () => {
 
     await run();
 
-    // Step 1 (posts) → 2 (mentions) → 4 (follows) → 5-7 → 8 → 9 (oxy) → 10 (anchor).
+    // Step 1 (posts) → 2 (mentions) → 4 (follows) → 5-7 → 8 (oxy) → 9 (anchor).
     expectOrder(h.callLog, [
       'Bookmark',
       'Post.updateMany',
       'FederatedFollow',
       'EntityFollow',
       'Notification',
-      'Block',
       'UserSettings',
       'MentionNodeIngestWitness',
       'oxy-delete',

@@ -640,10 +640,7 @@ export class FeedRankingService {
 
     // Record ranking metrics
     const rankingDuration = Date.now() - rankingStartTime;
-    metrics.recordLatency('feed_ranking_duration_ms', rankingDuration, {
-      post_count: posts.length.toString(),
-      user_id: userId || 'anonymous'
-    });
+    metrics.recordLatency('feed_ranking_duration_ms', rankingDuration);
     metrics.setGauge('feed_ranking_posts_processed', posts.length);
 
     // Return ranked posts with scores attached

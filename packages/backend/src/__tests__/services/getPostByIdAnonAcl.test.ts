@@ -24,12 +24,12 @@ const { getUsersByIds, cacheStore, postFind, postFindOne, userSettingsFind } = v
   userSettingsFind: vi.fn(),
 }));
 
-vi.mock('../../../server', () => ({
-  oxy: {
+vi.mock('../../runtime/oxyClient', () => ({
+  getRuntimeOxyClient: () => ({
     getUserById: vi.fn(),
     getUserFollowing: vi.fn(async () => []),
     getUserFollowers: vi.fn(async () => []),
-  },
+  }),
 }));
 
 vi.mock('../../utils/oxyHelpers', () => ({

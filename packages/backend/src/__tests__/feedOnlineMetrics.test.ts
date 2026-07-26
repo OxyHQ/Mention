@@ -65,6 +65,7 @@ describe('feedMetrics helpers', () => {
     expect(baseDescriptor('hashtag|cats')).toBe('hashtag');
     expect(baseDescriptor(undefined)).toBe('unknown');
     expect(baseDescriptor('')).toBe('unknown');
+    expect(baseDescriptor('attacker-controlled|value')).toBe('unknown');
   });
 
   it('derives origin from the presence of a federation subdoc', () => {

@@ -1,5 +1,6 @@
 import Notification from '../models/Notification';
 import { getServiceOxyClient } from './oxyHelpers';
+import { getRuntimeSocketServer } from '../runtime/socketServer';
 import { formatPushForNotification, sendPushToUser } from './push';
 import { logger } from './logger';
 import type { PostAuthorshipEntry } from '@mention/shared-types';
@@ -33,7 +34,8 @@ interface NotificationActor {
  */
 export const createNotification = async (
   data: CreateNotificationData,
-  emitEvent: boolean = true
+  emitEvent: boolean = true,
+  throwOnPersistenceError: boolean = false,
 ): Promise<void> => {
   try {
     // Check if notification already exists to prevent duplicates
@@ -61,7 +63,8 @@ export const createNotification = async (
     await notification.save();
 
   // Emit real-time notification if requested with actor profile data
-    if (emitEvent && global.io) {
+    const io = emitEvent ? getRuntimeSocketServer() : undefined;
+    if (io) {
       let actor: NotificationActor | null = null;
       try {
         if (data.actorId && data.actorId !== 'system') {
@@ -91,7 +94,7 @@ export const createNotification = async (
           avatar: actor.avatar
         } : undefined
       };
-      const notificationsNamespace = global.io.of('/notifications');
+      const notificationsNamespace = io.of('/notifications');
       notificationsNamespace.to(`user:${data.recipientId}`).emit('notification', payload);
     }
 
@@ -106,7 +109,7 @@ export const createNotification = async (
     logger.debug(`[Notifications] Notification created: ${data.type} from ${data.actorId} to ${data.recipientId}`);
   } catch (error) {
     logger.error('[Notifications] Error creating notification:', error);
-    // Don't throw error to avoid breaking the main flow
+    if (throwOnPersistenceError) throw error;
   }
 };
 
@@ -201,5 +204,23 @@ export const createPostAuthorNotifications = async (
     recipients
       .filter((recipientId) => recipientId !== data.actorId)
       .map((recipientId) => createNotification({ ...data, recipientId })),
+  );
+};
+
+/** Durable-worker variant: persistence failures reject for outbox retry. */
+export const createPostAuthorNotificationsStrict = async (
+  authorship: PostAuthorshipEntry[] | undefined,
+  data: Omit<CreateNotificationData, 'recipientId'>,
+): Promise<void> => {
+  const recipients = getNotificationRecipients(normalizeAuthorship(authorship));
+  await Promise.all(
+    recipients
+      .filter((recipientId) => recipientId !== data.actorId)
+      .map((recipientId) =>
+        createNotification(
+          { ...data, recipientId },
+          true,
+          true,
+        )),
   );
 };

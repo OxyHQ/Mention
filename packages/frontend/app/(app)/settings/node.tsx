@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { Loading } from '@oxyhq/bloom/loading';
 import { SettingsListGroup, SettingsListItem } from '@oxyhq/bloom/settings-list';
 import { useTheme } from '@oxyhq/bloom/theme';
-import { useAuth, OxyAuthPrompt } from '@oxyhq/services';
+import { useAuth, OxyAuthPrompt } from '@oxyhq/services/ui/client';
 import { ThemedView } from '@/components/ThemedView';
 import { Header } from '@/components/Header';
 import { IconButton, Button } from '@/components/ui/Button';

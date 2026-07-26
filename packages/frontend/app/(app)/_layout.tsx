@@ -2,7 +2,7 @@ import React from "react";
 import { Platform, View } from "react-native";
 import { Slot, Stack, usePathname } from "expo-router";
 
-import { useAuth } from '@oxyhq/services';
+import { useAuth } from '@oxyhq/services/ui/client';
 import { ContentPanel } from '@oxyhq/bloom/content-panel';
 
 import { BottomBar, BOTTOM_BAR_RESERVED_SPACE } from "@/components/BottomBar";

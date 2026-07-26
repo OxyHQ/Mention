@@ -9,6 +9,7 @@ import {
 } from '../services/RecommendationService';
 import type { RecommendationExcludeType } from '../services/OxyRankingClient';
 import { logger } from '../utils/logger';
+import { createScopedOxyClient } from '../utils/oxyHelpers';
 
 const router = express.Router();
 
@@ -81,6 +82,7 @@ router.get('/', async (req: AuthRequest, res: Response) => {
 
     const result = await recommendationService.getRecommendations({
       viewerId,
+      oxyClient: createScopedOxyClient(req),
       limit,
       offset,
       excludeTypes,

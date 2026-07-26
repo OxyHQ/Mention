@@ -4,7 +4,6 @@ import { logger } from '../../utils/logger';
 import FederatedActor from '../../models/FederatedActor';
 import FederatedFollow from '../../models/FederatedFollow';
 import { Post } from '../../models/Post';
-import Like from '../../models/Like';
 import {
   FEDERATION_MAX_CONTENT_LENGTH,
   resolveOxyUser,
@@ -24,7 +23,6 @@ import {
   extractAnnouncedObjectUri,
   extractApQuoteUri,
   extractInReplyToUri,
-  isDuplicateKeyError,
   mapApVisibility,
   parseApPublished,
   resolvePostIdFromObjectUri,
@@ -35,6 +33,10 @@ import { normalizeMentionIds } from '../../utils/textProcessing';
 import { getRemoteHost } from '../shared/url';
 import { parseInboundActivity, parseNote, primaryApType } from './apSchemas';
 import type { z } from 'zod';
+import {
+  materializeEngagementRelationship,
+  materializeEngagementTombstone,
+} from '../../services/PostEngagementCommandService';
 
 /**
  * Compact, log-safe summary of a `ZodError` — the first few issues rendered as
@@ -273,13 +275,12 @@ export class InboxProcessingService {
     const likerOxyUserId = await actorService.resolveActorOxyUserId(actorUri);
     if (!likerOxyUserId) return;
 
-    const deleted = await Like.findOneAndDelete({ userId: likerOxyUserId, postId, value: 1 }).lean();
-    if (!deleted) return;
-
-    await Post.updateOne(
-      { _id: postId, 'stats.likesCount': { $gt: 0 } },
-      { $inc: { 'stats.likesCount': -1 } },
-    );
+    const { changed } = await materializeEngagementTombstone({
+      kind: 'like',
+      userId: likerOxyUserId,
+      postId,
+    });
+    if (!changed) return;
     logger.debug(`[Federation] undo Like from ${actorUri} on ${postId}`);
   }
 
@@ -300,12 +301,19 @@ export class InboxProcessingService {
     const announceId = typeof announceObject.id === 'string' ? announceObject.id : undefined;
     const announcedUri = extractAnnouncedObjectUri(announceObject.object);
 
-    // Prefer the precise Announce-id match. Fall back to (boostOf, author) when
-    // the Undo omits the original Announce id but carries the announced object.
+    // Prefer the precise Announce-id match, but always scope it to the actor
+    // whose HTTP signature was verified. Announce ids are public, so matching
+    // only by id would let one remote actor retract another actor's boost.
+    // Fall back to (boostOf, author, actorUri) when the Undo omits the original
+    // Announce id but carries the announced object.
     let boost: { _id: mongoose.Types.ObjectId; boostOf?: string } | null = null;
     if (announceId) {
       boost = await Post.findOne(
-        { 'federation.activityId': announceId, type: 'boost' },
+        {
+          'federation.activityId': announceId,
+          'federation.actorUri': actorUri,
+          type: 'boost',
+        },
         { _id: 1, boostOf: 1 },
       ).lean<{ _id: mongoose.Types.ObjectId; boostOf?: string } | null>();
     }
@@ -314,7 +322,12 @@ export class InboxProcessingService {
       const boosterOxyUserId = await actorService.resolveActorOxyUserId(actorUri);
       if (originalPostId && boosterOxyUserId) {
         boost = await Post.findOne(
-          { boostOf: originalPostId, oxyUserId: boosterOxyUserId, type: 'boost' },
+          {
+            boostOf: originalPostId,
+            oxyUserId: boosterOxyUserId,
+            'federation.actorUri': actorUri,
+            type: 'boost',
+          },
           { _id: 1, boostOf: 1 },
         ).lean<{ _id: mongoose.Types.ObjectId; boostOf?: string } | null>();
       }
@@ -322,7 +335,13 @@ export class InboxProcessingService {
 
     if (!boost?.boostOf) return;
 
-    await Post.deleteOne({ _id: boost._id });
+    // Keep the ownership predicate on the destructive write as a final
+    // fail-closed guard against a concurrent mutation between lookup/delete.
+    const deleted = await Post.deleteOne({
+      _id: boost._id,
+      'federation.actorUri': actorUri,
+    });
+    if (deleted.deletedCount !== 1) return;
     await Post.updateOne(
       { _id: boost.boostOf, 'stats.boostsCount': { $gt: 0 } },
       { $inc: { 'stats.boostsCount': -1 } },
@@ -598,15 +617,22 @@ export class InboxProcessingService {
     const objectId = typeof activity.object === 'string' ? activity.object : activity.object?.id;
     if (!objectId) return;
 
-    const post = await Post.findOne({ 'federation.activityId': objectId, federation: { $ne: null } }).lean();
+    // The object id is public and remote-controlled. Authorize directly against
+    // the actor URI stamped when the post was ingested, using the actor whose
+    // HTTP signature was verified rather than trusting activity.actor or a
+    // best-effort actor-cache lookup.
+    const ownershipFilter = {
+      'federation.activityId': objectId,
+      'federation.actorUri': actorUri,
+    };
+    const post = await Post.findOne(ownershipFilter, { _id: 1 }).lean();
     if (!post) return;
-    // Verify the deleting actor owns this post via Oxy user ID
-    const actorRecord = await FederatedActor.findOne({ uri: actorUri }).lean();
-    if (actorRecord && post.oxyUserId && actorRecord.oxyUserId !== post.oxyUserId) {
-      logger.warn(`Delete rejected: actor ${actorUri} does not own post ${objectId}`);
-      return;
-    }
-    await Post.deleteOne({ _id: post._id });
+
+    const deleted = await Post.deleteOne({
+      _id: post._id,
+      'federation.actorUri': actorUri,
+    });
+    if (deleted.deletedCount !== 1) return;
     logger.debug(`Deleted federated post: ${objectId}`);
   }
 
@@ -636,18 +662,12 @@ export class InboxProcessingService {
       return;
     }
 
-    // Idempotent insert: a duplicate key means this actor already liked the post
-    // (redelivered activity) — do not move the counter again.
-    try {
-      await Like.create({ userId: likerOxyUserId, postId, value: 1 });
-    } catch (err) {
-      if (isDuplicateKeyError(err)) return;
-      const message = err instanceof Error ? err.message : String(err);
-      logger.warn(`[Federation] failed to record Like from ${actorUri} on ${postId}: ${message}`);
-      return;
-    }
-
-    await Post.updateOne({ _id: postId }, { $inc: { 'stats.likesCount': 1 } });
+    const { changed } = await materializeEngagementRelationship({
+      kind: 'like',
+      userId: likerOxyUserId,
+      postId,
+    });
+    if (!changed) return;
     logger.debug(`[Federation] recorded Like from ${actorUri} on ${postId}`);
 
     // Notify the local owner exactly like a native like. Only reached after a
@@ -693,7 +713,13 @@ export class InboxProcessingService {
 
     // importAnnounce creates the native boost Post (deduped by Announce id) and
     // increments stats.boostsCount in lockstep only when a new boost is created.
-    const created = await outboxSyncService.importAnnounce(activity, announcedUri, boosterOxyUserId);
+    // Persist the verified signer as the boost owner. The JSON-level
+    // `activity.actor` is untrusted and may deliberately name another actor.
+    const created = await outboxSyncService.importAnnounce(
+      { ...activity, actor: actorUri },
+      announcedUri,
+      boosterOxyUserId,
+    );
     if (created) {
       logger.debug(`Imported boost from ${actorUri} of ${announcedUri}`);
 

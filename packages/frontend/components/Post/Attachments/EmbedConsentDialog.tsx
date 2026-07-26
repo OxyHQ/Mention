@@ -9,7 +9,7 @@ import {
   externalEmbedLabels,
   type EmbedPlayerSource,
   type ExternalEmbedsSettings,
-} from '@mention/shared-types';
+} from '@mention/shared-types/externalEmbeds';
 import { useExternalEmbedsStore } from '@/stores/externalEmbedsStore';
 
 interface EmbedConsentDialogProps {

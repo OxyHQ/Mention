@@ -31,9 +31,9 @@ import {
 } from 'react-native-gesture-handler';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { useImageResolver } from '@oxyhq/bloom/image-resolver';
-import { useAuth } from '@oxyhq/services';
+import { useAuth } from '@oxyhq/services/ui/client';
 import { useImageUrl } from '@/hooks/useImageUrl';
-import { MEDIA_VARIANT_VIDEO_POSTER } from '@mention/shared-types';
+import { MEDIA_VARIANT_VIDEO_POSTER } from '@mention/shared-types/post';
 import DefaultAvatar from '@/assets/images/default-avatar.jpg';
 import { Portal } from '@oxyhq/bloom/portal';
 import {

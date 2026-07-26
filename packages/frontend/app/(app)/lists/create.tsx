@@ -4,7 +4,7 @@ import { ThemedView } from '@/components/ThemedView';
 import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
-import { useAuth } from '@oxyhq/services';
+import { useAuth } from '@oxyhq/services/ui/client';
 import { listsService } from '@/services/listsService';
 import { router } from 'expo-router';
 import { useSafeBack } from '@/hooks/useSafeBack';

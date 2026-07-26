@@ -10,6 +10,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({
   getOrFetchActor: vi.fn(),
   syncOutboxPostsDetailed: vi.fn(),
+  federateLike: vi.fn(),
+  federateLikeStrict: vi.fn(),
+  federateUndoLike: vi.fn(),
+  federateUndoLikeStrict: vi.fn(),
 }));
 
 vi.mock('../../../connectors/activitypub/actor.service', () => ({
@@ -34,7 +38,12 @@ vi.mock('../../../connectors/activitypub/outbox.service', () => ({
 }));
 
 vi.mock('../../../connectors/activitypub/follow.service', () => ({
-  followService: {},
+  followService: {
+    federateLike: mocks.federateLike,
+    federateLikeStrict: mocks.federateLikeStrict,
+    federateUndoLike: mocks.federateUndoLike,
+    federateUndoLikeStrict: mocks.federateUndoLikeStrict,
+  },
 }));
 
 vi.mock('../../../connectors/activitypub/inbox.service', () => ({
@@ -90,5 +99,55 @@ describe('ActivityPubConnector.fetchPosts', () => {
 
     expect(result).toEqual({ posts: [] });
     expect(mocks.syncOutboxPostsDetailed).not.toHaveBeenCalled();
+  });
+});
+
+describe('ActivityPubConnector durable delivery boundary', () => {
+  const likeEvent = {
+    kind: 'post.like' as const,
+    like: { _id: 'like-1', postId: 'post-1' },
+    actorOxyUserId: 'viewer-1',
+    actorUsername: 'alice',
+  };
+
+  it('keeps ordinary delivery on the best-effort FollowService method', async () => {
+    await activityPubConnector.deliver(likeEvent);
+
+    expect(mocks.federateLike).toHaveBeenCalledWith(
+      likeEvent.like,
+      'viewer-1',
+      'alice',
+    );
+    expect(mocks.federateLikeStrict).not.toHaveBeenCalled();
+  });
+
+  it('uses the strict FollowService method and propagates its rejection', async () => {
+    mocks.federateLikeStrict.mockRejectedValueOnce(
+      new Error('delivery queue unavailable'),
+    );
+
+    await expect(
+      activityPubConnector.deliverDurably(likeEvent),
+    ).rejects.toThrow('delivery queue unavailable');
+
+    expect(mocks.federateLikeStrict).toHaveBeenCalledWith(
+      likeEvent.like,
+      'viewer-1',
+      'alice',
+    );
+    expect(mocks.federateLike).not.toHaveBeenCalled();
+  });
+
+  it('uses the strict Undo method for durable unlikes', async () => {
+    const unlikeEvent = { ...likeEvent, kind: 'post.unlike' as const };
+
+    await activityPubConnector.deliverDurably(unlikeEvent);
+
+    expect(mocks.federateUndoLikeStrict).toHaveBeenCalledWith(
+      unlikeEvent.like,
+      'viewer-1',
+      'alice',
+    );
+    expect(mocks.federateUndoLike).not.toHaveBeenCalled();
   });
 });

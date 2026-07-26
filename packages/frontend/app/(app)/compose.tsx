@@ -12,10 +12,10 @@ import {
   Modal,
 } from 'react-native';
 import { Loading } from '@oxyhq/bloom/loading';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { logger } from '@/lib/logger';
 import { classifyApiError, normalizeApiError, type ApiErrorReason } from '@/utils/apiError';
-import { OxyAuthPrompt, useAuth } from '@oxyhq/services';
+import { OxyAuthPrompt, useAuth } from '@oxyhq/services/ui/client';
 import type { FileMetadata } from '@oxyhq/core';
 import { StatusBar } from 'expo-status-bar';
 import * as ExpoLocation from 'expo-location';
@@ -36,7 +36,7 @@ import { show as toast } from '@oxyhq/bloom/toast';
 import { usePostsStore } from '@/stores/postsStore';
 import { feedService } from '@/services/feedService';
 import type { CreatePostRequest, HydratedPost } from '@mention/shared-types';
-import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types';
+import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import { useTheme } from '@oxyhq/bloom/theme';
 import MentionTextInput, { MentionData, MentionTextInputHandle } from '@/components/MentionTextInput';
 import SEO from '@/components/SEO';
@@ -64,7 +64,6 @@ const LanguagePickerSheet = lazy(() => import('@/components/Compose/LanguagePick
 const EmojiPickerSheet = lazy(() => import('@/components/Compose/EmojiPickerSheet'));
 const SourcesSheet = lazy(() => import('@/components/Compose/SourcesSheet'));
 const ScheduleSheet = lazy(() => import('@/components/Compose/ScheduleSheet'));
-const CreateRoomSheet = lazy(() => import('@/components/rooms/CreateRoomSheet'));
 const PodcastPickerSheet = lazy(() => import('@/components/Compose/PodcastPickerSheet'));
 // Import types separately (not lazy loaded)
 import type { ReplyPermission } from '@/components/Compose/ReplySettingsSheet';
@@ -93,6 +92,7 @@ import { useMultiRefSync } from '@/hooks/useRefSync';
 import { useUrlUtils } from '@/hooks/useUrlUtils';
 import { useSourcesSheet } from '@/hooks/useSourcesSheet';
 import { useLinkDetection } from '@/hooks/useLinkDetection';
+import CreateRoomSheet from '@/components/rooms/CreateRoomSheet';
 import { LinkPreviewCard } from '@oxyhq/bloom/link-preview';
 import {
   PollCreator,
@@ -1335,21 +1335,19 @@ const ComposeScreenBody = () => {
 
   const handleThreadRoomPress = useCallback((threadId: string) => {
     bottomSheet.setBottomSheetContent(
-      <Suspense fallback={null}>
-        <CreateRoomSheet
-          onClose={() => bottomSheet.openBottomSheet(false)}
-          mode="embed"
-          onRoomCreated={(createdRoom) => {
-            setThreadRoom(threadId, {
-              roomId: createdRoom._id,
-              title: createdRoom.title,
-              status: createdRoom.status,
-              topic: createdRoom.topic ?? undefined,
-              host: createdRoom.host ?? undefined,
-            });
-          }}
-        />
-      </Suspense>
+      <CreateRoomSheet
+        onClose={() => bottomSheet.openBottomSheet(false)}
+        mode="embed"
+        onRoomCreated={(createdRoom) => {
+          setThreadRoom(threadId, {
+            roomId: createdRoom._id,
+            title: createdRoom.title,
+            status: createdRoom.status,
+            topic: createdRoom.topic ?? undefined,
+            host: createdRoom.host ?? undefined,
+          });
+        }}
+      />
     );
     bottomSheet.openBottomSheet(true);
   }, [bottomSheet, setThreadRoom]);
@@ -1719,21 +1717,19 @@ const ComposeScreenBody = () => {
 
   const handleMainRoomPress = useCallback(() => {
     bottomSheet.setBottomSheetContent(
-      <Suspense fallback={null}>
-        <CreateRoomSheet
-          onClose={() => bottomSheet.openBottomSheet(false)}
-          mode="embed"
-          onRoomCreated={(createdRoom) => {
-            attachRoom({
-              roomId: createdRoom._id,
-              title: createdRoom.title,
-              status: createdRoom.status,
-              topic: createdRoom.topic ?? undefined,
-              host: createdRoom.host ?? undefined,
-            });
-          }}
-        />
-      </Suspense>
+      <CreateRoomSheet
+        onClose={() => bottomSheet.openBottomSheet(false)}
+        mode="embed"
+        onRoomCreated={(createdRoom) => {
+          attachRoom({
+            roomId: createdRoom._id,
+            title: createdRoom.title,
+            status: createdRoom.status,
+            topic: createdRoom.topic ?? undefined,
+            host: createdRoom.host ?? undefined,
+          });
+        }}
+      />
     );
     bottomSheet.openBottomSheet(true);
   }, [bottomSheet, attachRoom]);

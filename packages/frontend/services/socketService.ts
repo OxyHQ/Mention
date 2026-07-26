@@ -1,6 +1,6 @@
 import { API_URL_SOCKET } from '@/config';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { FeedType, HydratedPost } from '@mention/shared-types';
+import type { FeedType } from '@mention/shared-types';
 import { AppState, type AppStateStatus } from 'react-native';
 import { io, Socket } from 'socket.io-client';
 import { usePostsStore } from '../stores/postsStore';
@@ -14,6 +14,11 @@ import {
 } from '@/constants/realtimeEvents';
 import { createScopedLogger } from '@/lib/logger';
 import { wasRecent, type EchoAction } from './echoGuard';
+import {
+  engagementQueueStorageKey,
+  parseEngagementQueue,
+  serializeEngagementQueue,
+} from './engagementQueuePersistence';
 
 const logger = createScopedLogger('SocketService');
 
@@ -51,23 +56,16 @@ class SocketService {
   private socket: Socket | null = null;
   private isConnected = false;
   private reconnectAttempts = 0;
-  private maxReconnectAttempts = 10; // Increased from 5
-  private baseReconnectDelay = 1000; // Base delay in ms
-  private maxReconnectDelay = 30000; // Maximum delay: 30 seconds
+  private readonly maxReconnectAttempts = Number.POSITIVE_INFINITY;
+  private readonly baseReconnectDelay = 1000;
   private currentUserId?: string;
+  private currentToken?: string;
   private appStateSubscription: { remove: () => void } | null = null;
   // recentActions handled by echoGuard
   private feedUpdateQueue: Map<string, FeedItem[]> = new Map(); // Queue for batched feed updates
   private feedUpdateTimer: ReturnType<typeof setTimeout> | null = null;
   private readonly FEED_UPDATE_DEBOUNCE_MS = 500; // Batch updates every 500ms
   private readonly MAX_BATCH_SIZE = 50; // Maximum items per batch
-  private connectionHealthCheckInterval: ReturnType<typeof setInterval> | null = null;
-  private lastPongTime: number = 0;
-  private consecutiveHealthFailures: number = 0;
-  private readonly MAX_HEALTH_FAILURES = 3; // Require 3 consecutive failures before disconnecting
-  private healthCheckDisconnect: boolean = false; // Track if disconnect was triggered by health check
-  private isHealthCheckPaused: boolean = false;
-
   // Subscription to flush queued feed updates when loading completes
   private feedLoadingUnsubscribe: (() => void) | null = null;
   // Queue for engagement updates to batch rapid changes
@@ -76,14 +74,35 @@ class SocketService {
   private readonly ENGAGEMENT_UPDATE_DEBOUNCE_MS = 200; // Batch engagement updates every 200ms
   private readonly MAX_ENGAGEMENT_BATCH_SIZE = 100; // Maximum engagement updates per post
   private engagementPersistTimer: ReturnType<typeof setTimeout> | null = null;
-  private readonly ENGAGEMENT_PERSIST_KEY = 'mention-engagement-queue';
-  private readonly ENGAGEMENT_PERSIST_DEBOUNCE_MS = 500;
+  private readonly LEGACY_ENGAGEMENT_PERSIST_KEY = 'mention-engagement-queue';
+  private readonly ENGAGEMENT_PERSIST_DEBOUNCE_MS = 50;
   // Debounce timer for coalescing live-rooms update signals (participant churn)
   private liveRoomsRefetchTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor() {
     this.setupEventListeners();
   }
+
+  private readonly handleManagerReconnectAttempt = (attempt: number) => {
+    this.reconnectAttempts = attempt;
+  };
+
+  private readonly handleManagerReconnect = () => {
+    this.reconnectAttempts = 0;
+  };
+
+  private readonly handleManagerReconnectFailed = () => {
+    this.isConnected = false;
+    const manager = this.socket?.io;
+    if (!manager || !this.currentUserId) return;
+
+    // Defensive recovery for a manager created with stale/overridden finite
+    // options. The Manager remains the sole retry owner; no app timer or second
+    // Socket is created.
+    manager.reconnection(true);
+    manager.reconnectionAttempts(Number.POSITIVE_INFINITY);
+    manager.open();
+  };
 
   /**
    * Normalize post ID from various formats
@@ -115,19 +134,34 @@ class SocketService {
   /**
    * Connect to the backend socket server
    */
-  connect(userId?: string, token?: string): void {
-    // If switching users, fully tear down existing session
-    if (userId && this.currentUserId && userId !== this.currentUserId) {
-      logger.info('User changed, resetting socket session');
+  connect(userId: string, token: string): void {
+    const credentialsChanged =
+      this.currentUserId !== undefined &&
+      (userId !== this.currentUserId || token !== this.currentToken);
+
+    // The socket identity is the complete {viewerId, token} pair. A token
+    // rotation must replace the Manager too, otherwise a later reconnect would
+    // keep presenting the expired token captured at construction time.
+    if (credentialsChanged) {
+      logger.info('Socket credentials changed, resetting session');
       this.disconnect();
     }
 
-    if (this.socket?.connected) {
+    // `active` means Socket.IO is either connected or already running its own
+    // reconnection loop. Never replace it with a second manager for the same
+    // authenticated identity.
+    if (
+      this.socket &&
+      userId === this.currentUserId &&
+      token === this.currentToken &&
+      this.socket.active
+    ) {
       return;
     }
 
     try {
-      if (userId) this.currentUserId = userId;
+      this.currentUserId = userId;
+      this.currentToken = token;
       // Connect to the backend socket server
       // Clean up any existing disconnected/failed socket before creating a new one
       if (this.socket) {
@@ -143,6 +177,7 @@ class SocketService {
         reconnection: true,
         reconnectionAttempts: this.maxReconnectAttempts,
         reconnectionDelay: this.baseReconnectDelay,
+        reconnectionDelayMax: 30000,
       });
 
       this.setupSocketEventListeners();
@@ -207,13 +242,8 @@ class SocketService {
       this.removeSocketEventListeners();
       this.socket.disconnect();
       this.socket = null;
-      this.isConnected = false;
     }
-    // Clean up AppState listener
-    if (this.appStateSubscription) {
-      this.appStateSubscription.remove();
-      this.appStateSubscription = null;
-    }
+    this.isConnected = false;
     // Process any pending feed updates before disconnecting
     if (this.feedUpdateTimer) {
       clearTimeout(this.feedUpdateTimer);
@@ -247,8 +277,16 @@ class SocketService {
     // Clear all listener maps
     this.presenceListeners.clear();
 
-    // Stop health monitoring
-    this.stopHealthMonitoring();
+    this.currentUserId = undefined;
+    this.currentToken = undefined;
+    this.reconnectAttempts = 0;
+  }
+
+  /** Final teardown for tests or a host that unloads the singleton entirely. */
+  dispose(): void {
+    this.disconnect();
+    this.appStateSubscription?.remove();
+    this.appStateSubscription = null;
   }
   
   /**
@@ -293,11 +331,7 @@ class SocketService {
 
     this.socket.off('connect');
     this.socket.off('disconnect');
-    this.socket.off('pong');
     this.socket.off('connect_error');
-    this.socket.off('reconnect');
-    this.socket.off('reconnect_error');
-    this.socket.off('reconnect_failed');
     this.socket.off('feed:updated');
     this.socket.off('post:liked');
     this.socket.off('post:unliked');
@@ -310,6 +344,9 @@ class SocketService {
     this.socket.off('user:presenceBulk');
     this.socket.off(SOCKET_EVENT_TRENDS_UPDATED);
     this.socket.off(SOCKET_EVENT_ROOMS_LIVE_UPDATED);
+    this.socket.io.off('reconnect_attempt', this.handleManagerReconnectAttempt);
+    this.socket.io.off('reconnect', this.handleManagerReconnect);
+    this.socket.io.off('reconnect_failed', this.handleManagerReconnectFailed);
   }
 
   /**
@@ -320,14 +357,7 @@ class SocketService {
 
     this.socket.on('connect', () => {
       this.isConnected = true;
-      // Only reset reconnect attempts if this wasn't a health-check-triggered reconnect
-      if (!this.healthCheckDisconnect) {
-        this.reconnectAttempts = 0;
-      }
-      this.healthCheckDisconnect = false;
-      this.lastPongTime = Date.now();
-      this.consecutiveHealthFailures = 0;
-      this.startHealthMonitoring();
+      this.reconnectAttempts = 0;
       this.loadPersistedEngagementQueue();
 
       // Join feed rooms for real-time updates
@@ -338,38 +368,17 @@ class SocketService {
 
     this.socket.on('disconnect', () => {
       this.isConnected = false;
-      this.stopHealthMonitoring();
-    });
-    
-    // Handle pong for health monitoring (custom event from server if available)
-    this.socket.on('pong', () => {
-      this.lastPongTime = Date.now();
     });
 
-    // Also listen to Socket.IO's transport-level pong for health monitoring
-    // This fires automatically as part of Socket.IO's built-in heartbeat
-    if (this.socket.io?.engine) {
-      this.socket.io.engine.on('pong', () => {
-        this.lastPongTime = Date.now();
-      });
-    }
-
-    this.socket.on('connect_error', () => {
-      this.handleReconnect();
-    });
-
-    this.socket.on('reconnect', () => {
-      this.isConnected = true;
-      this.reconnectAttempts = 0;
-    });
-
-    this.socket.on('reconnect_error', () => {
-      this.handleReconnect();
-    });
-
-    this.socket.on('reconnect_failed', () => {
+    this.socket.on('connect_error', (error) => {
       this.isConnected = false;
+      logger.warn('Socket connection failed', { error });
     });
+
+    // Reconnection has exactly one owner: Socket.IO's Manager.
+    this.socket.io.on('reconnect_attempt', this.handleManagerReconnectAttempt);
+    this.socket.io.on('reconnect', this.handleManagerReconnect);
+    this.socket.io.on('reconnect_failed', this.handleManagerReconnectFailed);
 
     // Feed update events
     this.socket.on('feed:updated', (data) => {
@@ -453,108 +462,20 @@ class SocketService {
     // Handle app state changes (React Native)
     const handleAppStateChange = (nextAppState: AppStateStatus) => {
       if (nextAppState === 'active') {
-        this.resumeHealthCheck();
         // App came to foreground - reconnect if needed
-        if (!this.isConnected && this.socket && !this.socket.connected) {
+        if (
+          !this.isConnected
+          && this.socket
+          && !this.socket.connected
+          && !this.socket.active
+        ) {
           logger.info('App resumed, reconnecting...');
           this.socket.connect();
         }
-      } else if (nextAppState === 'background' || nextAppState === 'inactive') {
-        this.pauseHealthCheck();
       }
     };
 
     this.appStateSubscription = AppState.addEventListener('change', handleAppStateChange);
-  }
-
-  /**
-   * Calculate exponential backoff delay with jitter
-   */
-  private calculateReconnectDelay(attempt: number): number {
-    // Exponential backoff: baseDelay * 2^attempt
-    const exponentialDelay = this.baseReconnectDelay * Math.pow(2, attempt);
-    // Add jitter (random 0-25% of delay) to prevent thundering herd
-    const jitter = Math.random() * 0.25 * exponentialDelay;
-    // Cap at maximum delay
-    return Math.min(exponentialDelay + jitter, this.maxReconnectDelay);
-  }
-
-  /**
-   * Handle reconnection logic with exponential backoff
-   */
-  private handleReconnect(): void {
-    if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-      logger.warn('Max reconnect attempts reached');
-      return;
-    }
-
-    this.reconnectAttempts++;
-    const delay = this.calculateReconnectDelay(this.reconnectAttempts);
-
-    setTimeout(() => {
-      if (!this.socket || this.socket.connected) return;
-      logger.info(`Reconnecting (attempt ${this.reconnectAttempts})...`);
-      this.socket.connect();
-    }, delay);
-  }
-  
-  /**
-   * Start connection health monitoring
-   * Uses Socket.IO's built-in transport-level ping/pong via the socket's
-   * `active` state rather than custom events (which servers may not handle).
-   * Requires multiple consecutive failures before triggering a reconnect
-   * to avoid false positives causing reconnection loops.
-   */
-  private startHealthMonitoring(): void {
-    if (this.connectionHealthCheckInterval) {
-      clearInterval(this.connectionHealthCheckInterval);
-    }
-
-    this.consecutiveHealthFailures = 0;
-
-    this.connectionHealthCheckInterval = setInterval(() => {
-      if (!this.socket?.connected || this.isHealthCheckPaused) {
-        return;
-      }
-
-      const timeSinceLastPong = Date.now() - this.lastPongTime;
-      // If no pong received in 60 seconds, count as a failure
-      if (timeSinceLastPong > 60000 && this.lastPongTime > 0) {
-        this.consecutiveHealthFailures++;
-
-        if (this.consecutiveHealthFailures >= this.MAX_HEALTH_FAILURES) {
-          logger.warn(`Connection unhealthy after ${this.MAX_HEALTH_FAILURES} consecutive failures, reconnecting...`);
-          this.healthCheckDisconnect = true;
-          this.stopHealthMonitoring();
-          this.socket.disconnect();
-          this.handleReconnect();
-        }
-      } else {
-        // Connection is healthy, reset failure counter
-        this.consecutiveHealthFailures = 0;
-      }
-    }, 30000) as unknown as ReturnType<typeof setInterval>;
-  }
-  
-  /**
-   * Stop connection health monitoring
-   */
-  private stopHealthMonitoring(): void {
-    if (this.connectionHealthCheckInterval) {
-      clearInterval(this.connectionHealthCheckInterval);
-      this.connectionHealthCheckInterval = null;
-    }
-  }
-
-  private pauseHealthCheck(): void {
-    this.isHealthCheckPaused = true;
-    this.consecutiveHealthFailures = 0;
-  }
-
-  private resumeHealthCheck(): void {
-    this.isHealthCheckPaused = false;
-    this.lastPongTime = Date.now();
-    this.consecutiveHealthFailures = 0;
   }
 
   /**
@@ -713,14 +634,28 @@ class SocketService {
   }
 
   private persistEngagementQueue(): void {
+    const viewerId = this.currentUserId;
+    if (!viewerId) return;
+
     if (this.engagementPersistTimer) clearTimeout(this.engagementPersistTimer);
+    const storageKey = engagementQueueStorageKey(viewerId);
     this.engagementPersistTimer = setTimeout(async () => {
+      this.engagementPersistTimer = null;
+      if (this.currentUserId !== viewerId) return;
+
       try {
         const serializable: Record<string, EngagementUpdate[]> = {};
         for (const [key, value] of this.engagementUpdateQueue) {
           serializable[key] = value;
         }
-        await AsyncStorage.setItem(this.ENGAGEMENT_PERSIST_KEY, JSON.stringify(serializable));
+        if (Object.keys(serializable).length === 0) {
+          await AsyncStorage.removeItem(storageKey);
+          return;
+        }
+        await AsyncStorage.setItem(
+          storageKey,
+          serializeEngagementQueue(viewerId, serializable),
+        );
       } catch (e) {
         logger.debug('Failed to persist engagement queue', { error: e });
       }
@@ -728,17 +663,38 @@ class SocketService {
   }
 
   private async loadPersistedEngagementQueue(): Promise<void> {
+    const viewerId = this.currentUserId;
+    if (!viewerId) return;
+    const storageKey = engagementQueueStorageKey(viewerId);
+
     try {
-      const raw = await AsyncStorage.getItem(this.ENGAGEMENT_PERSIST_KEY);
+      // v1 had no owner metadata. It is unsafe to replay under any identity.
+      void AsyncStorage.removeItem(this.LEGACY_ENGAGEMENT_PERSIST_KEY).catch(() => {});
+
+      const raw = await AsyncStorage.getItem(storageKey);
       if (!raw) return;
-      const parsed = JSON.parse(raw) as Record<string, EngagementUpdate[]>;
+      if (this.currentUserId !== viewerId) {
+        await AsyncStorage.removeItem(storageKey);
+        return;
+      }
+
+      const parsed = parseEngagementQueue<EngagementUpdate>(raw, viewerId);
+      if (!parsed) {
+        await AsyncStorage.removeItem(storageKey);
+        return;
+      }
       for (const [postId, updates] of Object.entries(parsed)) {
         if (Array.isArray(updates) && updates.length > 0) {
           this.engagementUpdateQueue.set(postId, updates);
         }
       }
+      if (this.currentUserId !== viewerId) {
+        this.engagementUpdateQueue.clear();
+        await AsyncStorage.removeItem(storageKey);
+        return;
+      }
       this.processEngagementQueue();
-      await AsyncStorage.removeItem(this.ENGAGEMENT_PERSIST_KEY);
+      await AsyncStorage.removeItem(storageKey);
     } catch (e) {
       logger.debug('Failed to load persisted engagement queue', { error: e });
     }
@@ -750,6 +706,11 @@ class SocketService {
   private processEngagementQueue() {
     if (this.engagementUpdateQueue.size === 0) return;
 
+    const viewerId = this.currentUserId;
+    if (!viewerId) {
+      this.engagementUpdateQueue.clear();
+      return;
+    }
     const store = usePostsStore.getState();
 
     // Process each post's queued updates
@@ -776,7 +737,7 @@ class SocketService {
           case 'like':
             store.updatePostEverywhere(postId, (prev) => {
               const actorId = data.actorId || data.userId;
-              const isOurAction = actorId === this.currentUserId;
+              const isOurAction = actorId === viewerId;
               const currentLikes = prev.engagement?.likes ?? 0;
 
               // Use server count if available, otherwise increment
@@ -811,7 +772,7 @@ class SocketService {
           case 'unlike':
             store.updatePostEverywhere(postId, (prev) => {
               const actorId = data.actorId || data.userId;
-              const isOurAction = actorId === this.currentUserId;
+              const isOurAction = actorId === viewerId;
               const currentLikes = prev.engagement?.likes ?? 0;
 
               const newCount = data.likesCount ?? Math.max(0, currentLikes - 1);
@@ -844,7 +805,7 @@ class SocketService {
           case 'boost':
             store.updatePostEverywhere(postId, (prev) => {
               const actorId = data.actorId || data.userId;
-              const isOurAction = actorId === this.currentUserId;
+              const isOurAction = actorId === viewerId;
 
               // Use server count if available, otherwise increment
               const currentBoosts = prev.engagement?.boosts ?? 0;
@@ -879,7 +840,7 @@ class SocketService {
           case 'unboost':
             store.updatePostEverywhere(postId, (prev) => {
               const actorId = data.actorId || data.userId;
-              const isOurAction = actorId === this.currentUserId;
+              const isOurAction = actorId === viewerId;
 
               const currentBoosts = prev.engagement?.boosts ?? 0;
               const newCount = data.boostsCount ?? Math.max(0, currentBoosts - 1);
@@ -911,13 +872,13 @@ class SocketService {
             
           case 'save':
             // Only update if it's not our own action (optimistic update already handled it)
-            if (data.userId !== this.currentUserId) {
+            if (data.userId !== viewerId) {
               store.updatePostEverywhere(postId, (prev) => ({ ...prev, isSaved: true }));
             }
             break;
             
           case 'unsave':
-            if (data.userId !== this.currentUserId) {
+            if (data.userId !== viewerId) {
               store.updatePostEverywhere(postId, (prev) => ({ ...prev, isSaved: false }));
             }
             break;
@@ -937,7 +898,11 @@ class SocketService {
 
     // Clear timer
     this.engagementUpdateTimer = null;
-    AsyncStorage.removeItem(this.ENGAGEMENT_PERSIST_KEY).catch(() => {});
+    if (this.engagementPersistTimer) {
+      clearTimeout(this.engagementPersistTimer);
+      this.engagementPersistTimer = null;
+    }
+    AsyncStorage.removeItem(engagementQueueStorageKey(viewerId)).catch(() => {});
   }
 
   /**

@@ -22,13 +22,13 @@ import { useTheme } from '@oxyhq/bloom/theme';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { customFeedsService, type CustomFeedDetail } from '@/services/customFeedsService';
 import { useFeedPreferences } from '@/hooks/useFeedPreferences';
-import { useAuth, FollowButton } from '@oxyhq/services';
+import { useAuth, FollowButton } from '@oxyhq/services/ui/client';
 import Feed from '@/components/Feed/Feed';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { ComposeIcon } from '@/assets/icons/compose-icon';
 import { BottomBarAwareFab } from '@/components/BottomBarAwareFab';
 import { Avatar } from '@oxyhq/bloom/avatar';
-import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types';
+import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 
 import { formatCompactNumber } from '@/utils/formatNumber';
 import StarRating from '@/components/StarRating';

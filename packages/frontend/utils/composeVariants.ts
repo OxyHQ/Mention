@@ -1,10 +1,12 @@
 import {
   canonicalizeLanguageTag,
   MAX_AUTHOR_VARIANTS,
-  type MediaItem,
-  type PostContent,
-  type PostContentVariant,
-} from '@mention/shared-types';
+} from '@mention/shared-types/language';
+import type {
+  MediaItem,
+  PostContent,
+  PostContentVariant,
+} from '@mention/shared-types/post';
 import { toComposerMediaType, type ComposerMediaItem, type ComposerMediaType } from './composeUtils';
 
 /**

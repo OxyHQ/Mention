@@ -73,13 +73,19 @@ import {
 } from '@mention/shared-types';
 import { PostType, PostVisibility } from '@mention/shared-types';
 import { Post, POST_CLASSIFICATION_PENDING } from '../../models/Post';
-import Like from '../../models/Like';
-import Bookmark from '../../models/Bookmark';
 import { logger } from '../../utils/logger';
 import { getServiceOxyClient } from '../../utils/oxyHelpers';
 import { parseUserDid } from './mentionDid';
 import { baselineContentClassifier } from '../BaselineContentClassifier';
 import { buildAuthorship } from '../../utils/postAuthorship';
+import {
+  recordRecentReplierForPost,
+  repairRecentRepliersAfterPostDelete,
+} from '../PostRecentReplierService';
+import {
+  materializeEngagementRelationship,
+  materializeEngagementTombstone,
+} from '../PostEngagementCommandService';
 
 /** The kind of native row a successful projection produced/removed. */
 export type ProjectedKind = 'post' | 'like' | 'repost' | 'tombstone' | 'bookmark';
@@ -414,7 +420,7 @@ async function projectPost(
     };
   }
 
-  await Post.findByIdAndUpdate(
+  const projectedPost = await Post.findByIdAndUpdate(
     rkey,
     {
       $set: set,
@@ -429,6 +435,9 @@ async function projectPost(
   const classificationFields = buildClassificationFields(record);
   if (Object.keys(classificationFields).length > 0) {
     await Post.findByIdAndUpdate(rkey, { $set: classificationFields });
+  }
+  if (record.reply && projectedPost) {
+    await recordRecentReplierForPost(projectedPost);
   }
 
   return { ok: true, kind: 'post', id: rkey };
@@ -445,11 +454,12 @@ async function projectLike(
   const postId = toObjectId(likedRkey);
   if (!postId) return { ok: false, reason: 'invalid_like_post_id' };
 
-  await Like.findByIdAndUpdate(
-    rkey,
-    { $set: { userId, postId, value: 1 } },
-    { upsert: true, new: true, setDefaultsOnInsert: true },
-  );
+  await materializeEngagementRelationship({
+    kind: 'like',
+    relationshipId: rkey,
+    userId,
+    postId: postId.toHexString(),
+  });
 
   return { ok: true, kind: 'like', id: rkey };
 }
@@ -502,11 +512,12 @@ async function projectBookmark(
   const postId = toObjectId(bookmarkedRkey);
   if (!postId) return { ok: false, reason: 'invalid_bookmark_post_id' };
 
-  await Bookmark.findByIdAndUpdate(
-    rkey,
-    { $set: { userId, postId } },
-    { upsert: true, new: true, setDefaultsOnInsert: true },
-  );
+  await materializeEngagementRelationship({
+    kind: 'bookmark',
+    relationshipId: rkey,
+    userId,
+    postId: postId.toHexString(),
+  });
 
   return { ok: true, kind: 'bookmark', id: rkey };
 }
@@ -519,7 +530,10 @@ async function projectBookmark(
  * COLLECTION selects which model to delete from. Idempotent: removing an
  * already-removed row is a no-op (still `ok`).
  */
-async function projectTombstone(record: MentionTombstoneRecord): Promise<ProjectResult> {
+async function projectTombstone(
+  record: MentionTombstoneRecord,
+  ownerOxyUserId: string,
+): Promise<ProjectResult> {
   if (!MtnUri.isValid(record.subject)) {
     return { ok: false, reason: 'unresolvable_tombstone_subject' };
   }
@@ -531,19 +545,44 @@ async function projectTombstone(record: MentionTombstoneRecord): Promise<Project
   }
 
   const rkey = subject.rkey;
+  if (subject.identity !== ownerOxyUserId) {
+    return { ok: false, reason: 'tombstone_subject_owner_mismatch' };
+  }
+  if (!toObjectId(rkey)) {
+    return { ok: false, reason: 'invalid_tombstone_record_id' };
+  }
 
   switch (subject.collection) {
     case MENTION_POST_COLLECTION:
-    case MENTION_REPOST_COLLECTION:
+    case MENTION_REPOST_COLLECTION: {
       // A post or boost: delete the Post by id (mirrors delete-post's hard
-      // delete). Idempotent — a missing row deletes nothing.
-      await Post.findByIdAndDelete(rkey);
+      // delete). The owner predicate prevents a valid chain for account A from
+      // deleting account B's post by guessing its rkey.
+      const deleted = await Post.findOneAndDelete({
+        _id: rkey,
+        oxyUserId: ownerOxyUserId,
+      });
+      if (deleted) {
+        await repairRecentRepliersAfterPostDelete({
+          postId: rkey,
+          parentPostId: deleted.parentPostId,
+        });
+      }
       return { ok: true, kind: 'tombstone', id: rkey };
+    }
     case MENTION_LIKE_COLLECTION:
-      await Like.findByIdAndDelete(rkey);
+      await materializeEngagementTombstone({
+        kind: 'like',
+        relationshipId: rkey,
+        userId: ownerOxyUserId,
+      });
       return { ok: true, kind: 'tombstone', id: rkey };
     case MENTION_BOOKMARK_COLLECTION:
-      await Bookmark.findByIdAndDelete(rkey);
+      await materializeEngagementTombstone({
+        kind: 'bookmark',
+        relationshipId: rkey,
+        userId: ownerOxyUserId,
+      });
       return { ok: true, kind: 'tombstone', id: rkey };
     default:
       return { ok: false, reason: 'unsupported_tombstone_subject_collection' };
@@ -596,7 +635,7 @@ export async function projectRecord(envelope: SignedRecordEnvelope): Promise<Pro
       case MENTION_TOMBSTONE_COLLECTION: {
         const parsed = mentionTombstoneRecordSchema.safeParse(record);
         if (!parsed.success) return { ok: false, reason: 'invalid_record' };
-        return await projectTombstone(parsed.data);
+        return await projectTombstone(parsed.data, oxyUserId);
       }
       case MENTION_BOOKMARK_COLLECTION: {
         const parsed = mentionBookmarkRecordSchema.safeParse(record);

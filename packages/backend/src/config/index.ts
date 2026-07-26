@@ -1,55 +1,135 @@
+import * as z from 'zod';
 import { logger } from '../utils/logger';
 
+const positiveInt = (fallback: number) =>
+  z.coerce.number().int().positive().default(fallback);
+
+const nonNegativeInt = (fallback: number) =>
+  z.coerce.number().int().nonnegative().default(fallback);
+
+const booleanFromEnv = (fallback: boolean) =>
+  z
+    .enum(['true', 'false'])
+    .default(String(fallback) as 'true' | 'false')
+    .transform((value) => value === 'true');
+
 /**
- * Centralized configuration with environment variable validation.
- * All magic numbers and timeouts are defined here.
+ * Environment parsing happens once. Invalid numeric values fail immediately
+ * instead of silently becoming NaN and leaking into timeouts, pools or limits.
+ * Secrets stay out of the exported reader-facing configuration object.
  */
+const environmentSchema = z.object({
+  NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
+  PORT: z.coerce.number().int().min(1).max(65_535).default(3_000),
+  MONGODB_URI: z.string().min(1).optional(),
+  MONGODB_READ_PREFERENCE: z
+    .enum(['primary', 'primaryPreferred', 'secondary', 'secondaryPreferred', 'nearest'])
+    .optional(),
+  MONGODB_SOCKET_TIMEOUT_MS: positiveInt(45_000),
+  MONGODB_SERVER_SELECTION_TIMEOUT_MS: positiveInt(20_000),
+  MONGODB_MAX_RETRIES: positiveInt(5),
+  MONGODB_MAX_POOL_SIZE: positiveInt(100),
+  MONGODB_MIN_POOL_SIZE: nonNegativeInt(10),
+  MONGODB_MAX_IDLE_TIME_MS: positiveInt(60_000),
+  MONGODB_HEARTBEAT_FREQUENCY_MS: positiveInt(10_000),
+  CACHE_USER_TTL: positiveInt(300),
+  CACHE_POST_TTL: positiveInt(120),
+  CACHE_FEED_TTL: positiveInt(900),
+  CACHE_FOLLOW_TTL: positiveInt(600),
+  MENTION_PUBLIC_API_URL: z.string().url().optional(),
+  FRONTEND_URL: z.string().url().optional(),
+  OXY_API_URL: z.string().url().default('https://api.oxy.so'),
+  FEDERATION_DOMAIN: z.string().min(1).default('mention.earth'),
+  ALIA_API_URL: z.string().url().default('https://api.alia.onl'),
+  ALIA_API_KEY: z.string().default(''),
+  SYRA_API_URL: z.string().url().default('https://api.syra.fm'),
+  POST_CLASSIFICATION_ENABLED: booleanFromEnv(false),
+  INTERNAL_METRICS_ENABLED: booleanFromEnv(false),
+  INTERNAL_METRICS_TOKEN: z.string().min(32).optional(),
+  METRICS_ALLOWED_IPS: z.string().default(''),
+}).superRefine((environment, context) => {
+  if (environment.MONGODB_MIN_POOL_SIZE > environment.MONGODB_MAX_POOL_SIZE) {
+    context.addIssue({
+      code: 'custom',
+      path: ['MONGODB_MIN_POOL_SIZE'],
+      message: 'must not exceed MONGODB_MAX_POOL_SIZE',
+    });
+  }
+  if (environment.INTERNAL_METRICS_ENABLED && !environment.INTERNAL_METRICS_TOKEN) {
+    context.addIssue({
+      code: 'custom',
+      path: ['INTERNAL_METRICS_TOKEN'],
+      message: 'is required when INTERNAL_METRICS_ENABLED=true',
+    });
+  }
+});
+
+const parsedEnvironment = environmentSchema.safeParse(process.env);
+if (!parsedEnvironment.success) {
+  const message = z.prettifyError(parsedEnvironment.error);
+  throw new Error(`Invalid Mention runtime configuration:\n${message}`);
+}
+
+const environment = parsedEnvironment.data;
+const withoutTrailingSlash = (value: string): string => value.replace(/\/+$/, '');
+
 export const config = {
-  /**
-   * The backend's own public origin (no trailing slash). Used to build FINAL,
-   * self-hosted media URLs (e.g. `/media/proxy`, `/media/poster`) that the
-   * frontend renders directly.
-   *
-   * No existing config points at the backend's public origin: `FEDERATION_DOMAIN`
-   * is the FRONTEND apex (`mention.earth`) and `OXY_API_URL` is the Oxy API
-   * origin — so this is a dedicated variable. MUST be set to
-   * `https://api.mention.earth` on the ECS task; otherwise prod would emit
-   * localhost proxy URLs.
-   */
-  publicApiUrl: (process.env.MENTION_PUBLIC_API_URL || 'http://localhost:3000').replace(/\/+$/, ''),
+  runtime: {
+    nodeEnv: environment.NODE_ENV,
+    port: environment.PORT,
+    isProduction: environment.NODE_ENV === 'production',
+  },
+  mongoUri: environment.MONGODB_URI,
+  mongoReadPreference:
+    environment.MONGODB_READ_PREFERENCE ??
+    (environment.NODE_ENV === 'production' ? 'secondaryPreferred' : 'primary'),
+  frontendUrl: environment.FRONTEND_URL,
+  oxyApiUrl: withoutTrailingSlash(environment.OXY_API_URL),
+  federationDomain: environment.FEDERATION_DOMAIN,
+  publicApiUrl: withoutTrailingSlash(
+    environment.MENTION_PUBLIC_API_URL ?? 'http://localhost:3000',
+  ),
+  internalMetrics: {
+    enabled: environment.INTERNAL_METRICS_ENABLED,
+    token: environment.INTERNAL_METRICS_TOKEN,
+    allowedIps: environment.METRICS_ALLOWED_IPS
+      .split(',')
+      .map((value) => value.trim().replace(/^::ffff:/, ''))
+      .filter(Boolean),
+  },
   cache: {
-    userTTL: parseInt(process.env.CACHE_USER_TTL || '300', 10),        // 5 min
-    postTTL: parseInt(process.env.CACHE_POST_TTL || '120', 10),        // 2 min
-    feedTTL: parseInt(process.env.CACHE_FEED_TTL || '900', 10),        // 15 min
-    followTTL: parseInt(process.env.CACHE_FOLLOW_TTL || '600', 10),    // 10 min
-    l1MaxEntries: 1000,
-    l1TTL: 60,  // 1 min in-memory
+    userTTL: environment.CACHE_USER_TTL,
+    postTTL: environment.CACHE_POST_TTL,
+    feedTTL: environment.CACHE_FEED_TTL,
+    followTTL: environment.CACHE_FOLLOW_TTL,
+    l1MaxEntries: 1_000,
+    l1TTL: 60,
   },
   rateLimit: {
-    authenticated: { max: 1000, windowMs: 15 * 60 * 1000 },
-    unauthenticated: { max: 100, windowMs: 15 * 60 * 1000 },
+    authenticated: { max: 1_000, windowMs: 15 * 60 * 1_000 },
+    unauthenticated: { max: 100, windowMs: 15 * 60 * 1_000 },
   },
   socket: {
-    pingTimeout: 60000,
-    pingInterval: 20000,
-    upgradeTimeout: 30000,
-    connectTimeout: 45000,
-    maxBufferSize: 1e6, // 1MB - prevents DoS via oversized socket payloads
-    compressionThreshold: 1024,
+    pingTimeout: 60_000,
+    pingInterval: 20_000,
+    upgradeTimeout: 30_000,
+    connectTimeout: 45_000,
+    maxBufferSize: 1e6,
+    compressionThreshold: 1_024,
   },
   db: {
-    socketTimeoutMS: parseInt(process.env.MONGODB_SOCKET_TIMEOUT_MS || '45000', 10),
-    serverSelectionTimeoutMS: parseInt(process.env.MONGODB_SERVER_SELECTION_TIMEOUT_MS || '20000', 10),
-    maxRetries: parseInt(process.env.MONGODB_MAX_RETRIES || '5', 10),
-    maxPoolSize: parseInt(process.env.MONGODB_MAX_POOL_SIZE || '100', 10),
-    minPoolSize: parseInt(process.env.MONGODB_MIN_POOL_SIZE || '10', 10),
-    maxIdleTimeMS: parseInt(process.env.MONGODB_MAX_IDLE_TIME_MS || '60000', 10),
-    heartbeatFrequencyMS: parseInt(process.env.MONGODB_HEARTBEAT_FREQUENCY_MS || '10000', 10),
+    socketTimeoutMS: environment.MONGODB_SOCKET_TIMEOUT_MS,
+    serverSelectionTimeoutMS: environment.MONGODB_SERVER_SELECTION_TIMEOUT_MS,
+    maxRetries: environment.MONGODB_MAX_RETRIES,
+    maxPoolSize: environment.MONGODB_MAX_POOL_SIZE,
+    minPoolSize: environment.MONGODB_MIN_POOL_SIZE,
+    maxIdleTimeMS: environment.MONGODB_MAX_IDLE_TIME_MS,
+    heartbeatFrequencyMS: environment.MONGODB_HEARTBEAT_FREQUENCY_MS,
   },
   feed: {
     defaultLimit: 20,
     maxLimit: 100,
-    queryTimeoutMs: 15000,
+    queryTimeoutMs: 15_000,
     slowQueryThresholdMs: 100,
     rankedCandidateMultiplier: 2,
     scoreEpsilon: 0.001,
@@ -66,59 +146,46 @@ export const config = {
     maxEventDescriptionLength: 500,
     defaultPageSize: 20,
     maxPageSize: 100,
-    defaultNearbyRadiusMeters: 10000,
+    defaultNearbyRadiusMeters: 10_000,
     maxNearbyPosts: 50,
     maxAreaPosts: 100,
     defaultLikesLimit: 50,
     maxHashtagLength: 100,
     maxHashtagsPerPost: 30,
-    maxTextLength: 25000, // Maximum post text length (characters)
-    maxAltTextLength: 2000, // Maximum per-image accessibility (alt) text length (characters)
+    maxTextLength: 25_000,
+    maxAltTextLength: 2_000,
   },
   search: {
     maxDateRangeDays: 365,
+    maxTimeMS: 3_000,
   },
   alia: {
-    apiUrl: process.env.ALIA_API_URL || 'https://api.alia.onl',
-    apiKey: process.env.ALIA_API_KEY || '',
+    apiUrl: withoutTrailingSlash(environment.ALIA_API_URL),
+    apiKey: environment.ALIA_API_KEY,
     model: 'alia-v1',
     timeoutMs: 30_000,
   },
-  /**
-   * Syra public catalog API. Used to verify + denormalize a user's pinned
-   * "profile media" (a song or podcast show) server-side (via `@syra.fm/sdk`)
-   * and to proxy catalog search for the media picker. Public reads only — no auth.
-   */
   syra: {
-    apiUrl: (process.env.SYRA_API_URL || 'https://api.syra.fm').replace(/\/+$/, ''),
+    apiUrl: withoutTrailingSlash(environment.SYRA_API_URL),
   },
-  /**
-   * AI-powered post classification (topics, sentiment, intent, quality/safety
-   * signals). Provider/model selection lives INSIDE Alia (the Oxy multi-provider
-   * AI gateway) — never stored on the post. Disabled by default; the service
-   * also no-ops when Alia itself is not configured.
-   */
   classification: {
-    enabled: process.env.POST_CLASSIFICATION_ENABLED === 'true',
+    enabled: environment.POST_CLASSIFICATION_ENABLED,
   },
 } as const;
 
-// Validate critical environment variables at startup
 export function validateEnvironment(): void {
-  const required = ['MONGODB_URI'];
-  const missing = required.filter((key) => !process.env[key]);
+  const missing: string[] = [];
+  if (!config.mongoUri) missing.push('MONGODB_URI');
+  if (config.runtime.isProduction && !config.frontendUrl) missing.push('FRONTEND_URL');
+  if (config.runtime.isProduction && !environment.MENTION_PUBLIC_API_URL) {
+    missing.push('MENTION_PUBLIC_API_URL');
+  }
 
   if (missing.length > 0) {
-    logger.warn(`Missing environment variables: ${missing.join(', ')}. Some features may not work.`);
+    throw new Error(`Missing required runtime configuration: ${missing.join(', ')}`);
   }
 
-  if (!process.env.ALIA_API_KEY) {
-    logger.warn('ALIA_API_KEY not set — AI features (topic extraction, translation, summaries) will be disabled');
-  }
-
-  if (process.env.NODE_ENV === 'production') {
-    if (!process.env.FRONTEND_URL) {
-      logger.warn('FRONTEND_URL not set in production - CORS may be restrictive');
-    }
+  if (!config.alia.apiKey) {
+    logger.warn('ALIA_API_KEY is not set; AI features are disabled');
   }
 }

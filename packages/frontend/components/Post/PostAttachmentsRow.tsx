@@ -1,22 +1,23 @@
 import React, { useRef, useMemo, useCallback, useEffect } from 'react';
 import { ScrollView, StyleSheet, GestureResponderEvent, Dimensions, Platform, View, ViewStyle } from 'react-native';
-import { useAuth } from '@oxyhq/services';
-import {
-  GeoJSONPoint,
+import { useAuth } from '@oxyhq/services/ui/client';
+import type {
   HydratedPostSummary,
   PollData,
   PostAttachmentDescriptor,
   PostLinkPreview,
   PostPodcastContent,
   PostSourceLink,
+} from '@mention/shared-types/post';
+import type { GeoJSONPoint } from '@mention/shared-types/common';
+import {
   MEDIA_VARIANT_THUMB,
   MEDIA_VARIANT_FULL,
-} from '@mention/shared-types';
+} from '@mention/shared-types/post';
 import { useRouter } from 'expo-router';
 import { PodcastCard } from '@/components/Podcast/PodcastCard';
 import { MEDIA_CARD_HEIGHT, MEDIA_CARD_RADIUS } from '@/utils/composeUtils';
 import { getCachedFileDownloadUrlSync, videoPosterUrl } from '@/utils/imageUrlCache';
-import { useImagePreload } from '@oxyhq/bloom/hooks';
 import { readMediaAspectRatio } from '@/utils/mediaTypes';
 import {
   ZoomableImageGallery,
@@ -408,12 +409,6 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
       .map(item => ({ uri: item.fullSrc, alt: item.alt, aspectRatio: readMediaAspectRatio(item) })),
     [mediaItems]
   );
-
-  // Prefetch the lightbox's large variant as soon as the row renders — rows only
-  // mount within the feed virtualizer's viewport window, same gating PostItem
-  // already relies on to preload author avatars — so tapping a thumbnail opens
-  // against a warm image cache instead of a cold fetch.
-  useImagePreload(useMemo(() => galleryImages.map(image => image.uri), [galleryImages]));
 
   const imageIndexByMediaId = useMemo<Map<string, number>>(() => {
     const map = new Map<string, number>();

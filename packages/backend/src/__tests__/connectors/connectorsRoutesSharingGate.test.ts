@@ -26,7 +26,9 @@ const { isFediverseSharingEnabled, connectorFor, deliver, getUserById } = vi.hoi
 // Same isolation strategy as `federationFollowsDisplayName.test.ts`: the route
 // module transitively imports the server entrypoint and the full connector
 // registry graph — stub the heavy/circular deps so it loads standalone.
-vi.mock('../../../server', () => ({ oxy: { getUserById } }));
+vi.mock('../../runtime/oxyClient', () => ({
+  getRuntimeOxyClient: () => ({ getUserById }),
+}));
 
 vi.mock('@oxyhq/core/server', () => ({
   getRequiredOxyUserId: () => 'local-user-1',

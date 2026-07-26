@@ -1,9 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
-  blockFind: vi.fn(),
-  muteFind: vi.fn(),
-  restrictFind: vi.fn(),
+  loadPrivacyState: vi.fn(),
   getRedisClient: vi.fn(),
   redisGet: vi.fn(),
   redisSet: vi.fn(),
@@ -12,9 +10,9 @@ const mocks = vi.hoisted(() => ({
   getContentCandidates: vi.fn(),
 }));
 
-vi.mock('../../models/Block', () => ({ default: { find: mocks.blockFind } }));
-vi.mock('../../models/Mute', () => ({ default: { find: mocks.muteFind } }));
-vi.mock('../../models/Restrict', () => ({ default: { find: mocks.restrictFind } }));
+vi.mock('../../mtn/UserPrivacyManager', () => ({
+  UserPrivacyManager: { loadPrivacyState: mocks.loadPrivacyState },
+}));
 
 vi.mock('../../utils/redis', () => ({
   getRedisClient: mocks.getRedisClient,
@@ -47,11 +45,6 @@ import {
   MAX_RECOMMENDATION_OFFSET,
 } from '../../services/RecommendationService';
 
-/** Build a lean-find mock that returns `rows` from `.lean()`. */
-function leanFind(rows: unknown[]) {
-  return vi.fn().mockReturnValue({ lean: vi.fn().mockResolvedValue(rows) });
-}
-
 const rankingClient = { rank: mocks.rank };
 const affinityService = { getContentCandidates: mocks.getContentCandidates };
 
@@ -72,25 +65,35 @@ beforeEach(() => {
   mocks.rank.mockResolvedValue({ profiles: [], rawCount: 0 });
   // No content candidates by default → no boosts.
   mocks.getContentCandidates.mockResolvedValue([]);
+  mocks.loadPrivacyState.mockResolvedValue({
+    blockedUserIds: new Set(),
+    mutedUserIds: new Set(),
+    restrictedUserIds: new Set(),
+    excludedUserIds: new Set(),
+  });
 });
 
 describe('RecommendationService.resolveExcludeIds', () => {
-  it('unions blocked + muted + restricted ids and always includes self', async () => {
-    mocks.blockFind.mockImplementation(leanFind([{ blockedId: 'b1' }, { blockedId: 'b2' }]));
-    mocks.muteFind.mockImplementation(leanFind([{ mutedId: 'm1' }, { mutedId: 'b1' }]));
-    mocks.restrictFind.mockImplementation(leanFind([{ restrictedId: 'r1' }]));
+  it('uses centralized Oxy-authoritative privacy state and always includes self', async () => {
+    mocks.loadPrivacyState.mockResolvedValue({
+      blockedUserIds: new Set(['b1', 'b2']),
+      mutedUserIds: new Set(['m1', 'b1']),
+      restrictedUserIds: new Set(['r1']),
+      excludedUserIds: new Set(['b1', 'b2', 'm1', 'r1']),
+    });
+    const scopedOxyClient = { request: 'client' };
 
     const service = makeService();
-    const ids = await service.resolveExcludeIds('self_1');
+    const ids = await service.resolveExcludeIds('self_1', scopedOxyClient as never);
 
     expect(new Set(ids)).toEqual(new Set(['self_1', 'b1', 'b2', 'm1', 'r1']));
+    expect(mocks.loadPrivacyState).toHaveBeenCalledWith('self_1', {
+      oxyClient: scopedOxyClient,
+      includeRestricted: true,
+    });
   });
 
-  it('degrades to just self when relation lookups throw', async () => {
-    mocks.blockFind.mockImplementation(() => { throw new Error('db down'); });
-    mocks.muteFind.mockImplementation(leanFind([]));
-    mocks.restrictFind.mockImplementation(leanFind([]));
-
+  it('keeps self as the exclusion floor when no relation is available', async () => {
     const service = makeService();
     const ids = await service.resolveExcludeIds('self_1');
     expect(ids).toEqual(['self_1']);
@@ -99,9 +102,12 @@ describe('RecommendationService.resolveExcludeIds', () => {
 
 describe('RecommendationService.getRecommendations', () => {
   it('passes the resolved excludeIds + viewerId to the ranking client (authed path)', async () => {
-    mocks.blockFind.mockImplementation(leanFind([{ blockedId: 'b1' }]));
-    mocks.muteFind.mockImplementation(leanFind([]));
-    mocks.restrictFind.mockImplementation(leanFind([]));
+    mocks.loadPrivacyState.mockResolvedValue({
+      blockedUserIds: new Set(['b1']),
+      mutedUserIds: new Set(),
+      restrictedUserIds: new Set(),
+      excludedUserIds: new Set(['b1']),
+    });
     mocks.rank.mockResolvedValue({
       profiles: [
         { id: 'r1', name: { displayName: 'Rec One' }, mutualCount: 0, verified: false, isFederated: false, isAgent: false, isAutomated: false, _count: { followers: 0, following: 0 } },
@@ -110,7 +116,13 @@ describe('RecommendationService.getRecommendations', () => {
     });
 
     const service = makeService();
-    const result = await service.getRecommendations({ viewerId: 'self_1', limit: 5, excludeTypes: ['agent'] });
+    const scopedOxyClient = { request: 'client' };
+    const result = await service.getRecommendations({
+      viewerId: 'self_1',
+      oxyClient: scopedOxyClient as never,
+      limit: 5,
+      excludeTypes: ['agent'],
+    });
 
     expect(mocks.rank).toHaveBeenCalledTimes(1);
     const opts = mocks.rank.mock.calls[0][0];
@@ -118,6 +130,10 @@ describe('RecommendationService.getRecommendations', () => {
     expect(opts.limit).toBe(5);
     expect(opts.excludeTypes).toEqual(['agent']);
     expect(new Set(opts.excludeIds)).toEqual(new Set(['self_1', 'b1']));
+    expect(mocks.loadPrivacyState).toHaveBeenCalledWith('self_1', {
+      oxyClient: scopedOxyClient,
+      includeRestricted: true,
+    });
     // Hydrated DTO preserves canonical displayName.
     expect(result.recommendations[0].name.displayName).toBe('Rec One');
   });
@@ -126,7 +142,7 @@ describe('RecommendationService.getRecommendations', () => {
     const service = makeService();
     await service.getRecommendations({ limit: 10 });
 
-    expect(mocks.blockFind).not.toHaveBeenCalled();
+    expect(mocks.loadPrivacyState).not.toHaveBeenCalled();
     const opts = mocks.rank.mock.calls[0][0];
     expect(opts.viewerId).toBeUndefined();
     expect(opts.excludeIds).toBeUndefined();
@@ -162,6 +178,93 @@ describe('RecommendationService.getRecommendations', () => {
     expect(mocks.rank).not.toHaveBeenCalled();
   });
 
+  it('re-filters a cached page against the viewer current privacy exclusions', async () => {
+    mocks.loadPrivacyState.mockResolvedValue({
+      blockedUserIds: new Set(['blocked-now']),
+      mutedUserIds: new Set(['muted-now']),
+      restrictedUserIds: new Set(['restricted-now']),
+      excludedUserIds: new Set(['blocked-now', 'muted-now', 'restricted-now']),
+    });
+    const cachedResult = {
+      recommendations: [
+        { id: 'self_1', name: { displayName: 'Self' }, mutualCount: 0, verified: false, isFederated: false, isAgent: false, isAutomated: false, _count: { followers: 0, following: 0 } },
+        { id: 'blocked-now', name: { displayName: 'Blocked' }, mutualCount: 0, verified: false, isFederated: false, isAgent: false, isAutomated: false, _count: { followers: 0, following: 0 } },
+        { id: 'muted-now', name: { displayName: 'Muted' }, mutualCount: 0, verified: false, isFederated: false, isAgent: false, isAutomated: false, _count: { followers: 0, following: 0 } },
+        { id: 'restricted-now', name: { displayName: 'Restricted' }, mutualCount: 0, verified: false, isFederated: false, isAgent: false, isAutomated: false, _count: { followers: 0, following: 0 } },
+        { id: 'safe', name: { displayName: 'Safe' }, mutualCount: 0, verified: false, isFederated: false, isAgent: false, isAutomated: false, _count: { followers: 0, following: 0 } },
+      ],
+      nextCursor: 'MTA',
+      nextOffset: 10,
+      hasMore: true,
+    };
+    mocks.redisGet.mockResolvedValue(JSON.stringify(cachedResult));
+    mocks.getRedisClient.mockReturnValue({ isReady: true, get: mocks.redisGet, set: mocks.redisSet });
+
+    const service = makeService();
+    const result = await service.getRecommendations({
+      viewerId: 'self_1',
+      oxyClient: { request: 'client' } as never,
+      limit: 10,
+    });
+
+    expect(result.recommendations.map((profile) => profile.id)).toEqual(['safe']);
+    // Filtering must not strand pagination behind a page whose stale entries
+    // were removed.
+    expect(result.nextCursor).toBe(cachedResult.nextCursor);
+    expect(result.nextOffset).toBe(cachedResult.nextOffset);
+    expect(result.hasMore).toBe(true);
+    expect(mocks.loadPrivacyState).toHaveBeenCalledTimes(1);
+    expect(mocks.rank).not.toHaveBeenCalled();
+  });
+
+  it('does not return a cached page when current privacy exclusions cannot be resolved', async () => {
+    mocks.loadPrivacyState.mockRejectedValue(new Error('privacy unavailable'));
+    mocks.redisGet.mockResolvedValue(JSON.stringify({
+      recommendations: [
+        { id: 'stale', name: { displayName: 'Stale' }, mutualCount: 0, verified: false, isFederated: false, isAgent: false, isAutomated: false, _count: { followers: 0, following: 0 } },
+      ],
+      nextCursor: null,
+      nextOffset: null,
+      hasMore: false,
+    }));
+    mocks.getRedisClient.mockReturnValue({ isReady: true, get: mocks.redisGet, set: mocks.redisSet });
+
+    const service = makeService();
+
+    await expect(service.getRecommendations({
+      viewerId: 'self_1',
+      oxyClient: { request: 'client' } as never,
+      limit: 10,
+    })).rejects.toThrow('privacy unavailable');
+    expect(mocks.rank).not.toHaveBeenCalled();
+  });
+
+  it('defensively filters excluded profiles returned by the ranking service', async () => {
+    mocks.loadPrivacyState.mockResolvedValue({
+      blockedUserIds: new Set(['blocked']),
+      mutedUserIds: new Set(),
+      restrictedUserIds: new Set(),
+      excludedUserIds: new Set(['blocked']),
+    });
+    mocks.rank.mockResolvedValue({
+      profiles: [
+        { id: 'self_1', name: { displayName: 'Self' }, mutualCount: 0, verified: false, isFederated: false, isAgent: false, isAutomated: false, _count: { followers: 0, following: 0 } },
+        { id: 'blocked', name: { displayName: 'Blocked' }, mutualCount: 0, verified: false, isFederated: false, isAgent: false, isAutomated: false, _count: { followers: 0, following: 0 } },
+        { id: 'safe', name: { displayName: 'Safe' }, mutualCount: 0, verified: false, isFederated: false, isAgent: false, isAutomated: false, _count: { followers: 0, following: 0 } },
+      ],
+      rawCount: 3,
+    });
+
+    const service = makeService();
+    const result = await service.getRecommendations({
+      viewerId: 'self_1',
+      oxyClient: { request: 'client' } as never,
+      limit: 10,
+    });
+
+    expect(result.recommendations.map((profile) => profile.id)).toEqual(['safe']);
+  });
+
   it('writes the full result (with pagination metadata) to cache on a miss', async () => {
     mocks.redisGet.mockResolvedValue(null);
     mocks.redisSet.mockResolvedValue('OK');
@@ -195,12 +298,6 @@ describe('RecommendationService.getRecommendations', () => {
 });
 
 describe('RecommendationService pagination', () => {
-  beforeEach(() => {
-    mocks.blockFind.mockImplementation(leanFind([]));
-    mocks.muteFind.mockImplementation(leanFind([]));
-    mocks.restrictFind.mockImplementation(leanFind([]));
-  });
-
   /** Build N minimal ranked profiles. */
   function profiles(n: number) {
     return Array.from({ length: n }, (_unused, i) => ({
@@ -313,12 +410,6 @@ describe('recommendation cursor codec', () => {
 });
 
 describe('RecommendationService content-affinity boosts', () => {
-  beforeEach(() => {
-    mocks.blockFind.mockImplementation(leanFind([]));
-    mocks.muteFind.mockImplementation(leanFind([]));
-    mocks.restrictFind.mockImplementation(leanFind([]));
-  });
-
   it('passes computed content candidates to the ranking client as boosts', async () => {
     mocks.getContentCandidates.mockResolvedValue([
       { userId: 'top', weight: 10, reasons: ['engagement'] },
@@ -327,9 +418,16 @@ describe('RecommendationService content-affinity boosts', () => {
     ]);
 
     const service = makeService();
-    await service.getRecommendations({ viewerId: 'self_1', limit: 10 });
+    const scopedOxyClient = { request: 'client' };
+    await service.getRecommendations({
+      viewerId: 'self_1',
+      oxyClient: scopedOxyClient as never,
+      limit: 10,
+    });
 
-    expect(mocks.getContentCandidates).toHaveBeenCalledWith('self_1');
+    expect(mocks.getContentCandidates).toHaveBeenCalledWith('self_1', {
+      oxyClient: scopedOxyClient,
+    });
     const opts = mocks.rank.mock.calls[0][0];
     expect(Array.isArray(opts.boosts)).toBe(true);
     expect(opts.boosts.length).toBeGreaterThan(0);

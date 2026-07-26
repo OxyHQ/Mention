@@ -10,9 +10,9 @@ import {
 } from "react-native";
 import { Loading } from '@oxyhq/bloom/loading';
 import { cn } from "@/lib/utils";
-import { useAuth } from "@oxyhq/services";
+import { useAuth } from "@oxyhq/services/ui/client";
 import { Avatar } from '@oxyhq/bloom/avatar';
-import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types';
+import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import { logger } from '@/lib/logger';
 import { displayNameOrHandle } from '@/utils/displayName';
 

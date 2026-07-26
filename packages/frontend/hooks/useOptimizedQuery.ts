@@ -2,7 +2,7 @@
  * Query Hooks & Cache Key Utilities
  *
  * useOptimizedQuery / useOptimizedMutation are thin wrappers around React Query
- * that set sensible defaults (5-min staleTime, 1 retry for mutations).
+ * that set sensible defaults (5-min staleTime, no implicit mutation retry).
  * The primary value of this module is the `queryKeys` factory and the
  * `useQueryInvalidation` helper which enforce consistent cache keys.
  */
@@ -32,7 +32,7 @@ export function useOptimizedMutation<TData = unknown, TError = Error, TVariables
 ) {
   return useMutation<TData, TError, TVariables, TContext>({
     ...options,
-    retry: options.retry ?? 1,
+    retry: options.retry ?? false,
   });
 }
 
@@ -94,4 +94,3 @@ export function useQueryInvalidation() {
     },
   };
 }
-

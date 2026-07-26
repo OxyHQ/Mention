@@ -18,7 +18,7 @@ import {
   keepPreviousData,
   type InfiniteData,
 } from '@tanstack/react-query';
-import { useAuth } from '@oxyhq/services';
+import { useAuth } from '@oxyhq/services/ui/client';
 import { SpinnerIcon } from '@oxyhq/bloom/loading';
 import { ThemedView } from '@/components/ThemedView';
 import { Header } from '@/components/Header';
@@ -29,7 +29,7 @@ import { customFeedsService, type MarketplaceFeed } from '@/services/customFeeds
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { show as toast } from '@oxyhq/bloom/toast';
 import { useTranslation } from 'react-i18next';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { formatCompactNumber } from '@/utils/formatNumber';
 import StarRating from '@/components/StarRating';
 import { cn } from '@/lib/utils';

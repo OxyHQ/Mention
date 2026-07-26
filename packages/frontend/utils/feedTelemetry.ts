@@ -1,5 +1,8 @@
 import { useEffect, useRef } from 'react';
-import { FeedType, type FeedInterstitialEventInput } from '@mention/shared-types';
+import type {
+    FeedType,
+    FeedInterstitialEventInput,
+} from '@mention/shared-types';
 import { feedService } from '@/services/feedService';
 import { createScopedLogger } from '@/lib/logger';
 import { FeedFilters } from './feedUtils';

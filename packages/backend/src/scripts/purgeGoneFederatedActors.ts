@@ -50,17 +50,16 @@
  *        directions (inbound + outbound) key the remote side by uri.
  *     5. `EntityFollow` (`userId:X`).
  *     6. `Notification` (`recipientId:X` OR `actorId:X`).
- *     7. `Block` (`userId:X` OR `blockedId:X`).
- *     8. Defensive local-only rows a federated actor should never have but is
+ *     7. Defensive local-only rows a federated actor should never have but is
  *        purged if present, each keyed on `oxyUserId:X`: `UserSettings`,
  *        `UserBehavior`, `UserFeedPreference`, `AuthorFollowerSnapshot`,
  *        `ActorKeyPair`, `MentionUserNode`, `MentionRepoHead`,
  *        `MentionSignedRecord`, `MentionNodeIngestWitness`.
- *     9. Oxy identity: `deleteFederatedActorIdentity(X)` → oxy-api hard-deletes the
+ *     8. Oxy identity: `deleteFederatedActorIdentity(X)` → oxy-api hard-deletes the
  *        Oxy `User` + its follow edges (both directions, counts repaired) + blocks
  *        + caches. Only when this returns `deleted`/`absent` (identity CONFIRMED
  *        gone) do we continue.
- *    10. `FederatedActor.deleteOne({ _id })` — the anchor, dropped LAST.
+ *     9. `FederatedActor.deleteOne({ _id })` — the anchor, dropped LAST.
  *
  * ORDERING GUARANTEE (why no Oxy user is ever orphaned on partial failure)
  *   Two invariants, in tension, resolved by the exact order above:
@@ -117,7 +116,6 @@ import Bookmark from '../models/Bookmark';
 import FederatedFollow from '../models/FederatedFollow';
 import { EntityFollow } from '../models/EntityFollow';
 import Notification from '../models/Notification';
-import Block from '../models/Block';
 import UserSettings from '../models/UserSettings';
 import UserBehavior from '../models/UserBehavior';
 import UserFeedPreference from '../models/UserFeedPreference';
@@ -182,7 +180,6 @@ interface CollectionCounts {
   federatedFollows: number;
   entityFollows: number;
   notifications: number;
-  blocks: number;
   userSettings: number;
   userBehavior: number;
   userFeedPreference: number;
@@ -206,7 +203,6 @@ const COLLECTION_KEYS: readonly (keyof CollectionCounts)[] = [
   'federatedFollows',
   'entityFollows',
   'notifications',
-  'blocks',
   'userSettings',
   'userBehavior',
   'userFeedPreference',
@@ -417,7 +413,7 @@ async function purgeConfirmedGone(actor: ActorRow, flags: Flags): Promise<ActorP
   const counts = emptyCounts();
   const oxyUserId = actor.oxyUserId?.trim();
 
-  // Steps 1-3, 5-8 are all keyed on the owner id X — only meaningful when the row
+  // Steps 1-3, 5-7 are all keyed on the owner id X — only meaningful when the row
   // links to one. A suspended federated actor should always have an `oxyUserId`,
   // but a legacy row without one is still purgeable (uri-keyed refs + the anchor).
   if (oxyUserId) {
@@ -440,12 +436,8 @@ async function purgeConfirmedGone(actor: ActorRow, flags: Flags): Promise<ActorP
       { $or: [{ recipientId: oxyUserId }, { actorId: oxyUserId }] },
       flags.dryRun,
     ); // 6
-    counts.blocks = await countOrDelete(
-      Block,
-      { $or: [{ userId: oxyUserId }, { blockedId: oxyUserId }] },
-      flags.dryRun,
-    ); // 7
-    // 8. Defensive local-only rows, each keyed on oxyUserId.
+    // 7. Defensive local-only rows, each keyed on oxyUserId. Blocks are not
+    // duplicated here: Oxy owns them and deletes them with the identity below.
     counts.userSettings = await countOrDelete(UserSettings, { oxyUserId }, flags.dryRun);
     counts.userBehavior = await countOrDelete(UserBehavior, { oxyUserId }, flags.dryRun);
     counts.userFeedPreference = await countOrDelete(UserFeedPreference, { oxyUserId }, flags.dryRun);
@@ -463,7 +455,7 @@ async function purgeConfirmedGone(actor: ActorRow, flags: Flags): Promise<ActorP
     return { outcome: 'purged', oxy: 'dry-run', counts };
   }
 
-  // 9. Oxy identity — the LAST irreversible reference before the anchor. A row
+  // 8. Oxy identity — the LAST irreversible reference before the anchor. A row
   // without an owner id has no Oxy identity to delete (treated as confirmed-gone).
   const oxy: OxyDisposition = oxyUserId ? await deleteFederatedActorIdentity(oxyUserId) : 'no-user';
   const oxyConfirmedGone = oxy === 'deleted' || oxy === 'absent' || oxy === 'no-user';
@@ -478,7 +470,7 @@ async function purgeConfirmedGone(actor: ActorRow, flags: Flags): Promise<ActorP
     return { outcome: 'partial', oxy, counts };
   }
 
-  // 10. Drop the anchor LAST — only now that the Oxy identity is confirmed gone.
+  // 9. Drop the anchor LAST — only now that the Oxy identity is confirmed gone.
   const anchor = await FederatedActor.deleteOne({ _id: actor._id });
   counts.federatedActor = anchor.deletedCount;
   return { outcome: 'purged', oxy, counts };

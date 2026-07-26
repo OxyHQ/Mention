@@ -3,6 +3,7 @@ import { authenticatedClient, isUnauthorizedError, publicClient } from "@/utils/
 import { oxyServices } from "@/lib/oxyServices";
 import { feedService } from "./feedService";
 import { Storage } from "@/utils/storage";
+import { viewerStorageKey, type ViewerId } from "@/lib/viewerQueryKeys";
 import type { User } from '@oxyhq/core';
 import type { HydratedPost } from '@mention/shared-types';
 
@@ -145,6 +146,9 @@ export interface SearchListsPage {
 const SEARCH_HISTORY_KEY = 'mention_search_history';
 const MAX_SEARCH_HISTORY = 10;
 
+export const getSearchHistoryStorageKey = (viewerId: ViewerId): string =>
+  viewerStorageKey(SEARCH_HISTORY_KEY, viewerId);
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
 }
@@ -183,10 +187,14 @@ function emptyIfSignedOut<T>(error: unknown, source: string): T[] {
 
 class SearchService {
   // Search posts - query is passed raw to backend which parses operators
-  async searchPosts(query: string): Promise<SearchPostResult[]> {
+  async searchPosts(
+    query: string,
+    signal?: AbortSignal,
+  ): Promise<SearchPostResult[]> {
     try {
       const res = await authenticatedClient.get<{ posts?: SearchPostResult[] }>("/search", {
-        params: { query, type: "posts" }
+        params: { query, type: "posts" },
+        signal,
       });
       return res.data.posts || [];
     } catch (error) {
@@ -198,13 +206,17 @@ class SearchService {
   // `cursor`, returning `hasMore` + the `nextCursor` for the following page. The
   // cursor sort (`createdAt desc`) makes paging stable, so appended pages never
   // duplicate a prior page's rows. Drives the infinite Posts tab.
-  async searchPostsPage(query: string, cursor?: string): Promise<SearchPostsPage> {
+  async searchPostsPage(
+    query: string,
+    cursor?: string,
+    signal?: AbortSignal,
+  ): Promise<SearchPostsPage> {
     try {
       const params: Record<string, string> = { query, type: "posts" };
       if (cursor) params.cursor = cursor;
       const res = await authenticatedClient.get<{ posts?: SearchPostResult[]; hasMore?: boolean; nextCursor?: string }>(
         "/search",
-        { params },
+        { params, signal },
       );
       return {
         posts: res.data.posts ?? [],
@@ -259,9 +271,13 @@ class SearchService {
 
   // Search feeds — the compact "All" overview (returns every public match in one
   // shot; the paginated tab uses `searchFeedsPage`).
-  async searchFeeds(query: string): Promise<SearchFeedResult[]> {
+  async searchFeeds(
+    query: string,
+    signal?: AbortSignal,
+  ): Promise<SearchFeedResult[]> {
     const res = await publicClient.get<{ items?: SearchFeedResult[] }>("/feeds", {
-      params: { publicOnly: true, search: query }
+      params: { publicOnly: true, search: query },
+      signal,
     });
     return res.data.items || [];
   }
@@ -270,9 +286,14 @@ class SearchService {
   // supplied (`{ items, pagination: { offset, limit, hasMore } }`) on a stable
   // `{ updatedAt desc, _id desc }` sort, so offset paging never repeats a row.
   // Drives the infinite Feeds tab.
-  async searchFeedsPage(query: string, offset = 0): Promise<SearchFeedsPage> {
+  async searchFeedsPage(
+    query: string,
+    offset = 0,
+    signal?: AbortSignal,
+  ): Promise<SearchFeedsPage> {
     const res = await publicClient.get<{ items?: SearchFeedResult[]; pagination?: SearchOffsetPagination }>("/feeds", {
       params: { publicOnly: true, search: query, limit: SEARCH_PAGE_LIMIT, offset },
+      signal,
     });
     const pagination = res.data.pagination;
     return {
@@ -284,10 +305,14 @@ class SearchService {
 
   // Search lists — the compact "All" overview (returns every accessible match in
   // one shot; the paginated tab uses `searchListsPage`).
-  async searchLists(query: string): Promise<SearchListResult[]> {
+  async searchLists(
+    query: string,
+    signal?: AbortSignal,
+  ): Promise<SearchListResult[]> {
     try {
       const res = await authenticatedClient.get<{ items?: SearchListResult[] }>("/lists", {
-        params: { search: query }
+        params: { search: query },
+        signal,
       });
       return res.data.items || [];
     } catch (error) {
@@ -300,10 +325,15 @@ class SearchService {
   // stable `{ updatedAt desc, _id desc }` sort. Auth-gated: a signed-out viewer
   // 401s → empty (this source has nothing), which is not a search failure. Drives
   // the infinite Lists tab.
-  async searchListsPage(query: string, offset = 0): Promise<SearchListsPage> {
+  async searchListsPage(
+    query: string,
+    offset = 0,
+    signal?: AbortSignal,
+  ): Promise<SearchListsPage> {
     try {
       const res = await authenticatedClient.get<{ items?: SearchListResult[]; pagination?: SearchOffsetPagination }>("/lists", {
         params: { search: query, limit: SEARCH_PAGE_LIMIT, offset },
+        signal,
       });
       const pagination = res.data.pagination;
       return {
@@ -323,9 +353,13 @@ class SearchService {
   // Search hashtags — `GET /hashtags/search` answers with each matching tag and
   // the number of posts carrying it, so the result row can show a real count.
   // Compact "All" overview; the paginated tab uses `searchHashtagsPage`.
-  async searchHashtags(query: string): Promise<SearchHashtagResult[]> {
+  async searchHashtags(
+    query: string,
+    signal?: AbortSignal,
+  ): Promise<SearchHashtagResult[]> {
     const res = await authenticatedClient.get<{ hashtags?: SearchHashtagResult[] }>("/hashtags/search", {
-      params: { query, limit: SEARCH_OVERVIEW_HASHTAG_LIMIT }
+      params: { query, limit: SEARCH_OVERVIEW_HASHTAG_LIMIT },
+      signal,
     });
     return res.data.hashtags ?? [];
   }
@@ -334,9 +368,14 @@ class SearchService {
   // (`{ hashtags, pagination: { offset, limit, hasMore } }`) on a stable
   // `{ count desc, tag asc }` sort, so offset paging never repeats a row. Drives
   // the infinite Hashtags tab.
-  async searchHashtagsPage(query: string, offset = 0): Promise<SearchHashtagsPage> {
+  async searchHashtagsPage(
+    query: string,
+    offset = 0,
+    signal?: AbortSignal,
+  ): Promise<SearchHashtagsPage> {
     const res = await authenticatedClient.get<{ hashtags?: SearchHashtagResult[]; pagination?: SearchOffsetPagination }>("/hashtags/search", {
       params: { query, limit: SEARCH_PAGE_LIMIT, offset },
+      signal,
     });
     const pagination = res.data.pagination;
     return {
@@ -347,12 +386,16 @@ class SearchService {
   }
 
   // Search saved posts
-  async searchSaved(query: string): Promise<SearchPostResult[]> {
+  async searchSaved(
+    query: string,
+    signal?: AbortSignal,
+  ): Promise<SearchPostResult[]> {
     try {
       const response = await feedService.getSavedPosts({
         page: 1,
         limit: 20,
-        search: query
+        search: query,
+        signal,
       });
       const data = response.data;
       return isRecord(data) && Array.isArray(data.posts)
@@ -365,9 +408,18 @@ class SearchService {
 
   // Paginated saved-posts search — `GET /posts/saved` page-paginates
   // (`{ page, limit }` → `{ posts, hasMore }`). Drives the infinite Saved tab.
-  async searchSavedPage(query: string, page = 1): Promise<SearchSavedPage> {
+  async searchSavedPage(
+    query: string,
+    page = 1,
+    signal?: AbortSignal,
+  ): Promise<SearchSavedPage> {
     try {
-      const response = await feedService.getSavedPosts({ page, limit: SEARCH_PAGE_LIMIT, search: query });
+      const response = await feedService.getSavedPosts({
+        page,
+        limit: SEARCH_PAGE_LIMIT,
+        search: query,
+        signal,
+      });
       const data = response.data;
       const posts = isRecord(data) && Array.isArray(data.posts) ? data.posts.filter(isHydratedPost) : [];
       return { posts, hasMore: isRecord(data) ? Boolean(data.hasMore) : false, nextPage: page + 1 };
@@ -391,14 +443,18 @@ class SearchService {
   // One flaky source must not blank the whole screen, so sources settle
   // independently: a partial failure degrades to that section being empty, and
   // only a TOTAL failure of the sources that actually RAN surfaces as an error.
-  async searchAll(query: string, canUsePrivateApi: boolean): Promise<SearchResults> {
+  async searchAll(
+    query: string,
+    canUsePrivateApi: boolean,
+    signal?: AbortSignal,
+  ): Promise<SearchResults> {
     const [users, feeds, hashtags, posts, lists, saved] = await Promise.allSettled([
       this.searchUsers(query),
-      this.searchFeeds(query),
-      this.searchHashtags(query),
-      canUsePrivateApi ? this.searchPosts(query) : Promise.resolve<SearchPostResult[]>([]),
-      canUsePrivateApi ? this.searchLists(query) : Promise.resolve<SearchListResult[]>([]),
-      canUsePrivateApi ? this.searchSaved(query) : Promise.resolve<SearchPostResult[]>([]),
+      this.searchFeeds(query, signal),
+      this.searchHashtags(query, signal),
+      canUsePrivateApi ? this.searchPosts(query, signal) : Promise.resolve<SearchPostResult[]>([]),
+      canUsePrivateApi ? this.searchLists(query, signal) : Promise.resolve<SearchListResult[]>([]),
+      canUsePrivateApi ? this.searchSaved(query, signal) : Promise.resolve<SearchPostResult[]>([]),
     ]);
 
     // The gated sources short-circuit to a resolved empty page when the private
@@ -456,35 +512,35 @@ class SearchService {
 
   // --- Search history ---
 
-  async getSearchHistory(): Promise<string[]> {
-    const history = await Storage.get<string[]>(SEARCH_HISTORY_KEY);
+  async getSearchHistory(viewerId?: ViewerId): Promise<string[]> {
+    const history = await Storage.get<string[]>(getSearchHistoryStorageKey(viewerId));
     return history || [];
   }
 
-  async addToSearchHistory(query: string): Promise<string[]> {
+  async addToSearchHistory(query: string, viewerId?: ViewerId): Promise<string[]> {
     const trimmed = query.trim();
-    if (!trimmed) return this.getSearchHistory();
+    if (!trimmed) return this.getSearchHistory(viewerId);
 
-    let history = await this.getSearchHistory();
+    let history = await this.getSearchHistory(viewerId);
     // Remove duplicate if exists
     history = history.filter(item => item !== trimmed);
     // Add to front
     history.unshift(trimmed);
     // Keep only last N
     history = history.slice(0, MAX_SEARCH_HISTORY);
-    await Storage.set(SEARCH_HISTORY_KEY, history);
+    await Storage.set(getSearchHistoryStorageKey(viewerId), history);
     return history;
   }
 
-  async removeFromSearchHistory(query: string): Promise<string[]> {
-    let history = await this.getSearchHistory();
+  async removeFromSearchHistory(query: string, viewerId?: ViewerId): Promise<string[]> {
+    let history = await this.getSearchHistory(viewerId);
     history = history.filter(item => item !== query);
-    await Storage.set(SEARCH_HISTORY_KEY, history);
+    await Storage.set(getSearchHistoryStorageKey(viewerId), history);
     return history;
   }
 
-  async clearSearchHistory(): Promise<void> {
-    await Storage.remove(SEARCH_HISTORY_KEY);
+  async clearSearchHistory(viewerId?: ViewerId): Promise<void> {
+    await Storage.remove(getSearchHistoryStorageKey(viewerId));
   }
 }
 

@@ -120,7 +120,11 @@ The tunnel hostname changes on every run unless you provision a named tunnel. Fo
 
 ## Deployment requirements
 
-In production the federation domain (`mention.earth`) is **not** the same as the web app's domain. The `/.well-known/*` and `/ap/*` paths must route to the backend service rather than the static frontend. This is done with Cloudflare redirect rules; see `docs/DIGITALOCEAN_DEPLOYMENT.md` for the exact configuration.
+In production the backend serves the entire `mention.earth` apex. Federation
+paths (`/.well-known/*`, `/ap/*`, host-meta and nodeinfo) are mounted before the
+web proxy and must return directly from the backend. Never add a redirect for an
+ActivityPub endpoint: signed inbox deliveries are not safely replayed across a
+redirect. See `docs/AWS_DEPLOYMENT.md`.
 
 ## Key files
 

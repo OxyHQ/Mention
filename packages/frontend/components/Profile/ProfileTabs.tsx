@@ -1,7 +1,7 @@
 import React, { memo } from 'react';
 import { View, Text, Platform } from 'react-native';
 import { router } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { useQuery } from '@tanstack/react-query';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { useTranslation } from 'react-i18next';
@@ -10,7 +10,7 @@ import { Spinner } from '@/components/ui/Spinner';
 import { Feed } from '@/components/Feed/index';
 import MediaGrid from './MediaGrid';
 import VideosGrid from './VideosGrid';
-import { FeedCard, type FeedCardData } from '@/components/FeedCard';
+import { FeedCard } from '@/components/FeedCard';
 import { StarterPackCard, StarterPackCardSkeleton, type StarterPackCardData } from '@/components/StarterPackCard';
 import { feedService } from '@/services/feedService';
 import { customFeedsService } from '@/services/customFeedsService';
@@ -25,6 +25,21 @@ const IS_WEB = Platform.OS === 'web';
 
 const PinnedPostItem = React.lazy(() => import('@/components/Feed/PostItem'));
 
+interface ProfileTabsRuntimeProps extends ProfileTabsProps {
+  /**
+   * Native post and grid tabs hand their profile summary to the owning
+   * FlashList as its normal header and the tab selector as a separate sticky
+   * data row. This removes the parent ScrollView + non-scrolling-list
+   * composition without pinning the entire profile summary.
+   */
+  listHeaderComponent?: React.ReactElement | null;
+  listStickyHeaderComponent?: React.ReactElement | null;
+  listOwnsScroll?: boolean;
+  listContentContainerStyle?: React.ComponentProps<typeof View>['style'];
+  listOnScroll?: React.ComponentProps<typeof MediaGrid>['onScroll'];
+  listScrollRef?: React.ComponentProps<typeof MediaGrid>['scrollRef'];
+}
+
 /**
  * Profile tab content switcher
  * Renders appropriate content based on selected tab.
@@ -36,7 +51,13 @@ export const ProfileTabs = memo(function ProfileTabs({
   isPrivate,
   isOwnProfile,
   actorUri,
-}: ProfileTabsProps) {
+  listHeaderComponent,
+  listStickyHeaderComponent,
+  listOwnsScroll = false,
+  listContentContainerStyle,
+  listOnScroll,
+  listScrollRef,
+}: ProfileTabsRuntimeProps) {
   const theme = useTheme();
   const { t } = useTranslation();
 
@@ -115,6 +136,12 @@ export const ProfileTabs = memo(function ProfileTabs({
         userId={profileId}
         isPrivate={isPrivate}
         isOwnProfile={isOwnProfile}
+        ownsScroll={listOwnsScroll}
+        listHeaderComponent={listHeaderComponent}
+        listStickyHeaderComponent={listStickyHeaderComponent}
+        contentContainerStyle={listContentContainerStyle}
+        onScroll={listOnScroll}
+        scrollRef={listScrollRef}
       />
     );
   }
@@ -126,29 +153,51 @@ export const ProfileTabs = memo(function ProfileTabs({
         userId={profileId}
         isPrivate={isPrivate}
         isOwnProfile={isOwnProfile}
+        ownsScroll={listOwnsScroll}
+        listHeaderComponent={listHeaderComponent}
+        listStickyHeaderComponent={listStickyHeaderComponent}
+        contentContainerStyle={listContentContainerStyle}
+        onScroll={listOnScroll}
+        scrollRef={listScrollRef}
       />
     );
   }
 
   // Unified feed for posts, replies, likes, boosts — works for both native and federated.
   //
-  // WEB: the profile page scrolls the DOCUMENT (no inner ScrollView — see the
-  // `IS_WEB` branch in ProfileScreen), so the Feed runs its virtualized,
-  // scroll-owning path. `scrollEnabled` is left at its default (true): the
-  // window virtualizer measures its wrapper's offset under the sticky
-  // banner/tabs (via `scrollMargin`) and keeps the mounted-row count bounded
-  // while the body scrolls. NATIVE: the profile's inner Animated.ScrollView owns
-  // the scroll, so the feed must NOT scroll itself — pass `scrollEnabled={false}`
-  // there so FlashList composes inside the parent scroller (renders via the
-  // non-scrolling component). The pinned post stays above the feed either way.
+  // WEB keeps document virtualization and the existing sticky profile chrome.
+  // NATIVE hands profile summary + tabs + pinned post to the Feed's FlashList
+  // header, so FlashList is the single vertical scroll owner and its mounted row
+  // count remains bounded. The legacy non-scrolling Feed fallback stays only for
+  // callers that have not opted into feed ownership.
+  const pinnedPostElement = tab === 'posts' && pinnedPost ? (
+    <React.Suspense fallback={null}>
+      <PinnedPostItem post={pinnedPost} showPinned />
+    </React.Suspense>
+  ) : null;
+
+  if (listOwnsScroll) {
+    return (
+      <Feed
+        type={tab as FeedType}
+        userId={profileId}
+        hideHeader
+        scrollEnabled
+        listHeaderComponent={listHeaderComponent}
+        listStickyHeaderComponent={listStickyHeaderComponent}
+        listLeadingComponent={pinnedPostElement}
+        contentContainerStyle={[
+          listContentContainerStyle,
+          { paddingBottom: 100 },
+        ]}
+      />
+    );
+  }
+
   return (
     <View>
       {/* Pinned post - only show on posts tab */}
-      {tab === 'posts' && pinnedPost && (
-        <React.Suspense fallback={null}>
-          <PinnedPostItem post={pinnedPost} showPinned />
-        </React.Suspense>
-      )}
+      {pinnedPostElement}
       <Feed
         type={tab as FeedType}
         userId={profileId}
@@ -315,7 +364,7 @@ const ProfileStarterPacks = memo(function ProfileStarterPacks({
             totalMembers: memberIds.length,
           };
         });
-      } catch (e) {
+      } catch {
         logger.warn('Failed to load profile starter packs');
         return [];
       }
@@ -395,7 +444,7 @@ const ProfileLists = memo(function ProfileLists({
             itemCount: ((l.memberOxyUserIds || []) as string[]).length,
           };
         });
-      } catch (e) {
+      } catch {
         logger.warn('Failed to load profile lists');
         return [];
       }

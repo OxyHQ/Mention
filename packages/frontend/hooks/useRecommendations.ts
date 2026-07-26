@@ -21,7 +21,8 @@
 
 import { useCallback, useMemo } from 'react';
 import { useInfiniteQuery, useQuery, keepPreviousData } from '@tanstack/react-query';
-import { useAuth, upsertCachedUsers } from '@oxyhq/services';
+import { upsertCachedUsers } from '@oxyhq/services';
+import { useAuth } from '@oxyhq/services/ui/client';
 import type { User } from '@oxyhq/core';
 import { queryClient } from '@/lib/queryClient';
 import { enrichMissingAvatars } from '@/utils/userEnrichment';
@@ -38,6 +39,7 @@ import {
   getRecommendationFilters,
   DEFAULT_RECOMMENDATION_FILTERS,
 } from '@/lib/recommendationFilters';
+import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 
 /** Single-page size for the widgets/connections (the backend caps at 50). */
 const RECOMMENDATIONS_SINGLE_PAGE_SIZE = 50;
@@ -54,7 +56,10 @@ const RECOMMENDATIONS_STALE_TIME_MS = 5 * 60_000;
  * so the derived `excludeTypesCsv` — and therefore the recommendations cache key
  * — updates reactively without a manual invalidation.
  */
-export const RECOMMENDATION_FILTERS_QUERY_KEY = ['recommendationFilters'] as const;
+export const recommendationFiltersQueryKey = (viewerId: string) => [
+  ...viewerQueryKeys.all(viewerId),
+  'recommendationFilters',
+] as const;
 
 export interface UseRecommendationsOptions {
   /** Skip fetching while false (e.g. an inactive tab). Defaults to true. */
@@ -115,8 +120,8 @@ function useRecommendationParams(opts?: UseRecommendationsOptions): Recommendati
   // Sibling query for the persisted filters — read once, kept forever fresh; the
   // settings screen primes it on change so the derived CSV stays in lockstep.
   const filtersQuery = useQuery({
-    queryKey: RECOMMENDATION_FILTERS_QUERY_KEY,
-    queryFn: getRecommendationFilters,
+    queryKey: recommendationFiltersQueryKey(viewerId),
+    queryFn: () => getRecommendationFilters(viewerId),
     staleTime: Infinity,
   });
 

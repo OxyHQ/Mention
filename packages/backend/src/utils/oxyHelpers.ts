@@ -1,15 +1,41 @@
 import { OxyServices } from '@oxyhq/core';
-import { OxyClient } from './privacyHelpers';
+import type { OxyClient } from './privacyHelpers';
 import { logger } from './logger';
 
 const OXY_BASE_URL = process.env.OXY_API_URL || 'https://api.oxy.so';
+const OXY_VIEWER_GRAPH_PATH = '/users/me/graph';
+const OXY_RESTRICTED_USERS_PATH = '/privacy/restricted';
+
+interface ScopedOxyRequest {
+  accessToken?: string;
+  headers?: { authorization?: string };
+  mcp?: { activeUserId?: string };
+}
+
+function bearerToken(header: string | undefined): string | undefined {
+  const match = header ? /^Bearer\s+(.+)$/i.exec(header) : null;
+  const token = match?.[1]?.trim();
+  return token && token.length > 0 ? token : undefined;
+}
 
 /**
- * Create a per-request OxyServices instance with the user's auth token.
- * This avoids mutating the global singleton which is racy under concurrent requests.
+ * Create the Oxy client appropriate for the verified request identity.
+ *
+ * Normal Oxy sessions receive an isolated token-scoped client. MCP requests
+ * MUST NOT plant the Mention-issued MCP bearer into OxyServices; instead they
+ * use Mention's service credential delegated to the already-verified active
+ * bundle account via `X-Oxy-User-Id`.
  */
-export function createScopedOxyClient(req: { accessToken?: string; headers: { authorization?: string } }): OxyClient | undefined {
-  const token = req.accessToken || req.headers.authorization?.replace('Bearer ', '');
+export function createScopedOxyClient(req: ScopedOxyRequest): OxyClient | undefined {
+  const activeMcpUserId = req.mcp?.activeUserId?.trim();
+  if (req.mcp) {
+    if (!activeMcpUserId) {
+      throw new Error('Verified MCP request is missing its active Oxy user');
+    }
+    return createServiceDelegatedOxyClient(activeMcpUserId);
+  }
+
+  const token = req.accessToken || bearerToken(req.headers?.authorization);
   if (!token) return undefined;
   const client = new OxyServices({ baseURL: OXY_BASE_URL });
   client.setTokens(token);
@@ -44,6 +70,74 @@ const serviceClient: OxyServices = (() => {
 
 export function getServiceOxyClient(): OxyServices {
   return serviceClient;
+}
+
+function unwrapDataEnvelope(value: unknown): unknown {
+  if (
+    value &&
+    typeof value === 'object' &&
+    'data' in value
+  ) {
+    return (value as { data?: unknown }).data;
+  }
+  return value;
+}
+
+function delegatedBlockedRows(response: unknown): Array<{ blockedId: string }> {
+  const graph = unwrapDataEnvelope(response);
+  if (!graph || typeof graph !== 'object') {
+    throw new Error('Oxy delegated viewer graph response is malformed');
+  }
+  const blockedIds = (graph as { blockedIds?: unknown }).blockedIds;
+  if (!Array.isArray(blockedIds)) {
+    throw new Error('Oxy delegated viewer graph is missing blockedIds');
+  }
+  return blockedIds
+    .filter((id): id is string => typeof id === 'string' && id.length > 0)
+    .map((blockedId) => ({ blockedId }));
+}
+
+function delegatedRestrictedRows(response: unknown): unknown[] {
+  const rows = unwrapDataEnvelope(response);
+  if (!Array.isArray(rows)) {
+    throw new Error('Oxy delegated restricted-user response is malformed');
+  }
+  return rows;
+}
+
+/**
+ * Privacy/graph client for an MCP bundle member. Every private read is made
+ * with Mention's service credential and an explicit, server-verified viewer id;
+ * the incoming MCP token never leaves Mention.
+ */
+function createServiceDelegatedOxyClient(viewerId: string): OxyClient {
+  const client = getServiceOxyClient();
+  return {
+    async getBlockedUsers(): Promise<unknown[]> {
+      const response = await client.makeServiceRequest(
+        'GET',
+        OXY_VIEWER_GRAPH_PATH,
+        undefined,
+        viewerId,
+      );
+      return delegatedBlockedRows(response);
+    },
+    async getRestrictedUsers(): Promise<unknown[]> {
+      const response = await client.makeServiceRequest(
+        'GET',
+        OXY_RESTRICTED_USERS_PATH,
+        undefined,
+        viewerId,
+      );
+      return delegatedRestrictedRows(response);
+    },
+    getUserFollowing(userId: string): Promise<unknown> {
+      return client.getUserFollowing(userId);
+    },
+    getUserFollowers(userId: string): Promise<unknown> {
+      return client.getUserFollowers(userId);
+    },
+  };
 }
 
 const OXY_ASSET_USER_MEDIA_PATH = '/assets/service/user-media';

@@ -30,15 +30,10 @@ import { logger } from '../utils/logger';
  *  - Stop: clear timers and, if we are the leader, release the lock with an
  *    atomic owner-checked DEL so failover is near-instant on graceful shutdown.
  *
- * Fail-safe (Redis unavailable): if Redis cannot be reached at boot, we do NOT
- * silently leave schedulers off forever — that would stop the whole cron
- * system. Instead we log a clear WARNING and RUN the schedulers anyway in a
- * degraded single-task fallback. This matches the effective behavior at 1 task
- * (that task is always the leader) and is strictly safer than running zero
- * schedulers. With Redis unavailable AND 2 tasks, both would run schedulers —
- * but a Redis outage already degrades the platform, and double-running cron is
- * far less harmful than no cron at all. Once Redis recovers, a redeploy / task
- * restart re-establishes single-leader election.
+ * Fail-safe (Redis unavailable): singleton schedulers remain paused until this
+ * process can acquire and renew the distributed lease. The follower retry loop
+ * continues, so recovery does not require a redeploy and a partition can never
+ * create multiple active leaders.
  */
 
 /** Lock key — single key shared across all backend tasks. */
@@ -83,16 +78,14 @@ export class LeaderElection {
 
   private isLeader = false;
   private started = false;
-  /** True when running schedulers without Redis arbitration (degraded mode). */
-  private degradedFallback = false;
-
   private tickTimer: ReturnType<typeof setInterval> | null = null;
 
   private onAcquire: LeaderCallback | null = null;
   private onLose: LeaderCallback | null = null;
 
-  /** Guard so overlapping ticks (slow Redis) never run the loop body twice. */
-  private tickInFlight = false;
+  /** Shared promise so overlapping ticks and shutdown can await the same work. */
+  private tickInFlight: Promise<void> | null = null;
+  private stopInFlight: Promise<void> | null = null;
 
   /**
    * Begin leader election.
@@ -101,6 +94,9 @@ export class LeaderElection {
    * @param onLose    Invoked when this process STOPS being the leader (stop schedulers).
    */
   async start(onAcquire: LeaderCallback, onLose: LeaderCallback): Promise<void> {
+    if (this.stopInFlight) {
+      await this.stopInFlight;
+    }
     if (this.started) {
       logger.warn('[LeaderElection] start() called more than once — ignoring');
       return;
@@ -109,22 +105,20 @@ export class LeaderElection {
     this.onAcquire = onAcquire;
     this.onLose = onLose;
 
-    // Probe Redis once. If it is unreachable at boot, run schedulers in the
-    // degraded single-task fallback rather than leaving cron off entirely.
+    // Without a distributed lease singleton work must fail closed. The retry
+    // loop stays alive so schedulers recover automatically with Redis.
     const redisAvailable = await this.isRedisAvailable();
     if (!redisAvailable) {
-      this.degradedFallback = true;
       logger.warn(
-        `[LeaderElection] Redis unavailable at boot — running schedulers WITHOUT distributed lock ` +
-          `(degraded single-task fallback, instance=${this.instanceId}). ` +
-          `If more than one task is running, schedulers will double-run until Redis recovers + tasks restart.`,
+        `[LeaderElection] Redis unavailable at boot — singleton schedulers are paused ` +
+          `until a distributed lease can be acquired (instance=${this.instanceId})`,
       );
-      await this.becomeLeader();
-      return;
+    } else {
+      await this.tick();
     }
 
-    // Attempt the first acquisition immediately, then run the tick loop.
-    await this.tick();
+    // stop() may have run while Redis or the initial tick was in flight.
+    if (!this.started) return;
     this.tickTimer = setInterval(() => {
       void this.tick();
     }, TICK_INTERVAL_MS);
@@ -139,7 +133,12 @@ export class LeaderElection {
    * another task can take over immediately (graceful shutdown / SIGTERM).
    */
   async stop(): Promise<void> {
-    if (!this.started) return;
+    if (this.stopInFlight) {
+      await this.stopInFlight;
+      return;
+    }
+    if (!this.started && !this.tickInFlight && !this.isLeader) return;
+
     this.started = false;
 
     if (this.tickTimer) {
@@ -147,22 +146,31 @@ export class LeaderElection {
       this.tickTimer = null;
     }
 
-    // In degraded fallback there is no Redis lock to release; just stop schedulers.
-    if (this.degradedFallback) {
-      if (this.isLeader) {
-        this.isLeader = false;
-        await this.invokeOnLose();
+    const stopping = this.finishStop();
+    this.stopInFlight = stopping;
+    try {
+      await stopping;
+    } finally {
+      if (this.stopInFlight === stopping) {
+        this.stopInFlight = null;
       }
-      return;
     }
+  }
+
+  private async finishStop(): Promise<void> {
+    // A tick may be renewing or acquiring the lease. Let it reach a fenced
+    // stopping point before changing scheduler or lock state.
+    await this.tickInFlight;
 
     if (this.isLeader) {
       this.isLeader = false;
-      // Release the lock first so a follower can acquire it right away, then
-      // stop our own schedulers.
-      await this.releaseLock();
       await this.invokeOnLose();
     }
+
+    // Keep the lease until singleton work has stopped. releaseLock is
+    // owner-checked, so calling it after a follower-side shutdown is harmless
+    // and also cleans up a lease acquired by a tick that raced with stop().
+    await this.releaseLock();
   }
 
   /** Whether this process is currently the scheduler leader. */
@@ -180,11 +188,30 @@ export class LeaderElection {
    * As follower: try to acquire.
    */
   private async tick(): Promise<void> {
-    if (this.tickInFlight) return;
-    this.tickInFlight = true;
+    if (!this.started) return;
+    if (this.tickInFlight) {
+      await this.tickInFlight;
+      return;
+    }
+
+    const inFlight = this.runTick();
+    this.tickInFlight = inFlight;
     try {
+      await inFlight;
+    } finally {
+      if (this.tickInFlight === inFlight) {
+        this.tickInFlight = null;
+      }
+    }
+  }
+
+  private async runTick(): Promise<void> {
+    try {
+      if (!this.started) return;
       if (this.isLeader) {
         const stillOwner = await this.renewLock();
+        // stop() owns the transition and release from this point onward.
+        if (!this.started) return;
         if (!stillOwner) {
           // We lost the lock unexpectedly — step down and stop schedulers.
           logger.warn(
@@ -193,31 +220,44 @@ export class LeaderElection {
           this.isLeader = false;
           await this.invokeOnLose();
           // Immediately try to re-acquire in the same tick (best effort).
-          await this.tryAcquire();
+          if (this.started) {
+            await this.tryAcquire();
+          }
         }
       } else {
         await this.tryAcquire();
       }
     } catch (error) {
-      // A transient Redis error must not crash the loop. If we were leader we
-      // keep running schedulers (the lock will simply expire if Redis stays
-      // down and another task takes over once it recovers). Log and move on.
+      // Losing the ability to prove ownership must stop singleton work.
+      if (this.isLeader) {
+        this.isLeader = false;
+        await this.invokeOnLose();
+      }
       logger.warn('[LeaderElection] Election tick failed (will retry next tick)', error);
-    } finally {
-      this.tickInFlight = false;
     }
   }
 
   /** Try to acquire the lock via SET NX PX. On success, become leader. */
   private async tryAcquire(): Promise<void> {
+    if (!this.started) return;
     const acquired = await this.acquireLock();
-    if (acquired) {
-      await this.becomeLeader();
+    if (!acquired) return;
+
+    // stop() may have started while SET NX was in flight. Never start
+    // schedulers for a stopped election; give the lease back immediately.
+    if (!this.started) {
+      await this.releaseLock();
+      return;
     }
+    await this.becomeLeader();
   }
 
   /** Transition to leader and start schedulers. */
   private async becomeLeader(): Promise<void> {
+    if (!this.started) {
+      await this.releaseLock();
+      return;
+    }
     this.isLeader = true;
     logger.info(`[LeaderElection] Acquired scheduler leadership (instance=${this.instanceId})`);
     await this.invokeOnAcquire();
@@ -272,10 +312,7 @@ export class LeaderElection {
   private async renewLock(): Promise<boolean> {
     const client = getRedisClient();
     if (!client.isReady) {
-      // Cannot verify ownership while Redis is down. Assume we are still leader
-      // to keep schedulers running (degraded). The lock will expire on its own
-      // if Redis stays down, letting a healthy task take over after recovery.
-      return true;
+      return false;
     }
     const result = await client.eval(RENEW_SCRIPT, {
       keys: [LOCK_KEY],

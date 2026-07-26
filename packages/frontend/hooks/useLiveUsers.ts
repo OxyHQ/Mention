@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { getLiveUsers } from '@/lib/liveConfig';
+import { getLiveUsers } from '@/lib/syraApi';
 
 export interface LiveUsersState {
   /** Whether the given Oxy user id is currently live in a Syra room. */

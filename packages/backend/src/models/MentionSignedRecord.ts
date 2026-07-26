@@ -1,5 +1,12 @@
 import mongoose, { Document, Schema } from 'mongoose';
 import type { SignedRecordEnvelope } from '@oxyhq/contracts';
+import {
+  MTN_EVENT_IDEMPOTENCY_INDEX,
+  MTN_RECORD_ID_INDEX,
+  MTN_SEQUENCE_INDEX,
+} from '../indexes/manifest';
+
+export const MENTION_SIGNED_RECORD_COLLECTION = 'mentionsignedrecords';
 
 /**
  * MentionSignedRecord (MTN Protocol — per-subject hash chain, Workstream B / B1)
@@ -53,6 +60,11 @@ export interface IMentionSignedRecord extends Document {
   /** v2 only: content address (sha256 of the canonical signing input). UNIQUE. */
   recordId?: string;
   /**
+   * Durable producer-event identity. Not part of the signed wire envelope and
+   * not the logical rkey: it only makes at-least-once local delivery idempotent.
+   */
+  idempotencyKey?: string;
+  /**
    * v2 only: AtProto-style collection namespace / NSID (e.g. `app.mention.feed.post`).
    * Denormalized from the envelope's `collection` field (renamed here to avoid
    * the reserved Mongoose `Document.collection` member).
@@ -80,12 +92,14 @@ const MentionSignedRecordSchema = new Schema<IMentionSignedRecord>(
     seq: { type: Number },
     prev: { type: String, default: undefined },
     recordId: { type: String },
+    idempotencyKey: { type: String },
     nsid: { type: String },
     rkey: { type: String },
   },
   {
     // Append-only: stamp createdAt, never updatedAt.
     timestamps: { createdAt: true, updatedAt: false },
+    collection: MENTION_SIGNED_RECORD_COLLECTION,
     strict: true,
     minimize: false,
   },
@@ -95,8 +109,14 @@ const MentionSignedRecordSchema = new Schema<IMentionSignedRecord>(
 // never collides (Mongo treats a missing field as null, which would otherwise
 // dupe across every v1 row).
 MentionSignedRecordSchema.index(
-  { recordId: 1 },
-  { unique: true, partialFilterExpression: { recordId: { $type: 'string' } } },
+  { ...MTN_RECORD_ID_INDEX.key },
+  {
+    name: MTN_RECORD_ID_INDEX.name,
+    unique: MTN_RECORD_ID_INDEX.unique,
+    partialFilterExpression: {
+      recordId: { $type: 'string' },
+    },
+  },
 );
 
 // v2 chain: one record per (oxyUserId, seq) — the concurrency backstop for the
@@ -104,8 +124,14 @@ MentionSignedRecordSchema.index(
 // duplicate-key error and re-reads the head). Partial so v1 rows (no `seq`) are
 // excluded. Also serves ordered `getLogSince` pagination.
 MentionSignedRecordSchema.index(
-  { oxyUserId: 1, seq: 1 },
-  { unique: true, partialFilterExpression: { seq: { $type: 'number' } } },
+  { ...MTN_SEQUENCE_INDEX.key },
+  {
+    name: MTN_SEQUENCE_INDEX.name,
+    unique: MTN_SEQUENCE_INDEX.unique,
+    partialFilterExpression: {
+      seq: { $type: 'number' },
+    },
+  },
 );
 
 // v2 materialization: latest verified record for an AtProto-style (nsid, rkey)
@@ -113,6 +139,17 @@ MentionSignedRecordSchema.index(
 MentionSignedRecordSchema.index(
   { oxyUserId: 1, nsid: 1, rkey: 1, createdAt: -1 },
   { partialFilterExpression: { nsid: { $type: 'string' } } },
+);
+
+MentionSignedRecordSchema.index(
+  { ...MTN_EVENT_IDEMPOTENCY_INDEX.key },
+  {
+    name: MTN_EVENT_IDEMPOTENCY_INDEX.name,
+    unique: MTN_EVENT_IDEMPOTENCY_INDEX.unique,
+    partialFilterExpression: {
+      idempotencyKey: { $type: 'string' },
+    },
+  },
 );
 
 export const MentionSignedRecord = mongoose.model<IMentionSignedRecord>(

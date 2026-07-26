@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react';
-import { useAuth, queryKeys } from '@oxyhq/services';
+import { queryKeys } from '@oxyhq/services';
+import { useAuth } from '@oxyhq/services/ui/client';
 import { APP_COLOR_PRESETS, useBloomTheme, type AppColorName } from '@oxyhq/bloom/theme';
 import { logger } from '@/lib/logger';
 import { queryClient } from '@/lib/queryClient';

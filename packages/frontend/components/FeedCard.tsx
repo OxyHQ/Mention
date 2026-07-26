@@ -5,7 +5,7 @@ import { router } from 'expo-router';
 import { ThemedText } from './ThemedText';
 import { Avatar } from '@oxyhq/bloom/avatar';
 import { AvatarGroup, type AvatarGroupItem } from '@oxyhq/bloom/avatar-group';
-import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types';
+import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import * as Skeleton from '@oxyhq/bloom/skeleton';
 import { formatCompactNumber } from '@/utils/formatNumber';
 

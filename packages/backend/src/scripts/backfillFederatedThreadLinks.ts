@@ -37,6 +37,11 @@ import { Post } from '../models/Post';
 import { outboxSyncService } from '../connectors/activitypub/outbox.service';
 import { extractInReplyToUri } from '../connectors/activitypub/helpers';
 import { logger } from '../utils/logger';
+import {
+  PostRecentReplier,
+  type IPostRecentReplier,
+} from '../models/PostRecentReplier';
+import { buildRecentReplierUpdatePipeline } from '../services/PostRecentReplierService';
 
 /** Posts scanned per page (stable `_id` cursor pagination). */
 const PAGE_SIZE = 500;
@@ -51,6 +56,10 @@ const BACKFILL_ANCESTORS = !DRY_RUN && process.env.BACKFILL_ANCESTORS === 'true'
 
 interface OrphanReplyRow {
   _id: mongoose.Types.ObjectId;
+  oxyUserId?: string;
+  createdAt?: Date;
+  visibility?: string;
+  status?: string;
   federation?: { inReplyTo?: string };
 }
 
@@ -87,14 +96,20 @@ async function backfillFederatedThreadLinks(): Promise<void> {
     let malformed = 0;
     let lastId: mongoose.Types.ObjectId | null = null;
     let pendingOps: mongoose.AnyBulkWriteOperation<typeof Post>[] = [];
+    let pendingProjectionOps: mongoose.AnyBulkWriteOperation<IPostRecentReplier>[] = [];
 
     const flush = async (): Promise<void> => {
       if (pendingOps.length === 0 || DRY_RUN) {
         pendingOps = [];
+        pendingProjectionOps = [];
         return;
       }
       await Post.bulkWrite(pendingOps, { ordered: false });
+      if (pendingProjectionOps.length > 0) {
+        await PostRecentReplier.bulkWrite(pendingProjectionOps, { ordered: false });
+      }
       pendingOps = [];
+      pendingProjectionOps = [];
     };
 
     for (;;) {
@@ -103,7 +118,14 @@ async function backfillFederatedThreadLinks(): Promise<void> {
         pageFilter._id = { $gt: lastId };
       }
 
-      const page = await Post.find(pageFilter, { _id: 1, 'federation.inReplyTo': 1 })
+      const page = await Post.find(pageFilter, {
+        _id: 1,
+        oxyUserId: 1,
+        createdAt: 1,
+        visibility: 1,
+        status: 1,
+        'federation.inReplyTo': 1,
+      })
         .sort({ _id: 1 })
         .limit(PAGE_SIZE)
         .lean<OrphanReplyRow[]>();
@@ -137,6 +159,23 @@ async function backfillFederatedThreadLinks(): Promise<void> {
             },
           },
         });
+        if (
+          post.oxyUserId &&
+          (post.visibility ?? 'public') === 'public' &&
+          (post.status ?? 'published') === 'published'
+        ) {
+          pendingProjectionOps.push({
+            updateOne: {
+              filter: { postId: link.parentPostId },
+              update: buildRecentReplierUpdatePipeline(
+                link.parentPostId,
+                post.oxyUserId,
+                post.createdAt ?? new Date(),
+              ),
+              upsert: true,
+            },
+          });
+        }
 
         if (pendingOps.length >= BULK_CHUNK_SIZE) {
           await flush();

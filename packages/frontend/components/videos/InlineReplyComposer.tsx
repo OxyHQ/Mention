@@ -2,7 +2,7 @@ import React, { useCallback, useState } from 'react';
 import { View, TextInput, Pressable, StyleSheet } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '@oxyhq/bloom/theme';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { show as toast } from '@oxyhq/bloom/toast';
 import { usePostsStore } from '@/stores/postsStore';
 

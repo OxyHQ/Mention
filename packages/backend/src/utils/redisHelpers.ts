@@ -1,115 +1,78 @@
 import { RedisClientType } from 'redis';
 import { logger } from './logger';
 
-/** Read the `code`/`message` of an unknown error without assuming its shape. */
-function errorFields(error: unknown): { code?: string; message?: string } {
+/** Read common fields of an unknown error without assuming its shape. */
+function errorFields(error: unknown): { code?: string; message?: string; name?: string } {
   if (!error || typeof error !== 'object') return {};
   const record = error as Record<string, unknown>;
   return {
     code: typeof record.code === 'string' ? record.code : undefined,
     message: typeof record.message === 'string' ? record.message : undefined,
+    name: typeof record.name === 'string' ? record.name : undefined,
   };
 }
+
+const REDIS_CONNECTION_ERROR_CODES: ReadonlySet<string> = new Set([
+  'ECONNREFUSED',
+  'ECONNRESET',
+  'ENOTFOUND',
+  'EPIPE',
+  'ETIMEDOUT',
+]);
+
+const REDIS_CONNECTION_ERROR_NAMES: ReadonlySet<string> = new Set([
+  'ClientClosedError',
+  'ClientOfflineError',
+  'CommandTimeoutError',
+  'ConnectionTimeoutError',
+  'DisconnectsClientError',
+  'SocketClosedUnexpectedlyError',
+  'SocketTimeoutError',
+]);
+
+const REDIS_CONNECTION_ERROR_MESSAGES = [
+  'ECONNREFUSED',
+  'ECONNRESET',
+  'ENOTFOUND',
+  'EPIPE',
+  'ETIMEDOUT',
+  'Socket closed unexpectedly',
+  'Socket timeout',
+  'Connection closed',
+  'Connection timeout',
+  'The client is closed',
+  'The client is not open',
+] as const;
 
 /**
  * Check if an error is a Redis connection error
  */
 export function isRedisConnectionError(error: unknown): boolean {
-  const { code, message } = errorFields(error);
-  return code === 'ECONNREFUSED' || code === 'ENOTFOUND' ||
-         Boolean(message?.includes('ECONNREFUSED')) || Boolean(message?.includes('ENOTFOUND'));
+  const { code, message, name } = errorFields(error);
+  return Boolean(
+    (code && REDIS_CONNECTION_ERROR_CODES.has(code))
+    || (name && REDIS_CONNECTION_ERROR_NAMES.has(name))
+    || REDIS_CONNECTION_ERROR_MESSAGES.some((fragment) => message?.includes(fragment)),
+  );
 }
 
 /**
- * Ensure Redis client is connected, with graceful error handling
- * Returns true if connected and ready, false if unavailable
- * This function verifies the client is actually ready, not just connected
+ * Return whether the shared Redis client is ready for an operation.
+ *
+ * Request hot paths must not PING, connect, or wait for reconnect here: doing so
+ * adds a network round-trip (or a two-second stall during an outage) before
+ * every cache/rate-limit command. The Redis singleton owns its connection
+ * lifecycle. A readiness race is handled by {@link withRedisFallback}, which
+ * catches connection errors from the actual operation.
+ *
+ * `timeoutMs` remains in the signature for backwards compatibility with callers
+ * that used to configure the old wait loop.
  */
-export async function ensureRedisConnected(client: RedisClientType, timeoutMs: number = 2000): Promise<boolean> {
-  // If already ready, verify with ping to ensure it's actually working
-  if (client.isReady) {
-    try {
-      await client.ping();
-      return true;
-    } catch (error) {
-      // If ping fails, client is not actually ready
-      return false;
-    }
-  }
-
-  // If socket is already open, wait for it to become ready
-  if (client.isOpen) {
-    const startTime = Date.now();
-    const maxWait = timeoutMs;
-    
-    // Wait for ready state with timeout
-    while (Date.now() - startTime < maxWait) {
-      if (client.isReady) {
-        // Verify with ping
-        try {
-          await client.ping();
-          return true;
-        } catch (error) {
-          return false;
-        }
-      }
-      await new Promise(resolve => setTimeout(resolve, 100));
-    }
-    // If still not ready after timeout, return false
-    return false;
-  }
-
-  // Socket is not open, try to connect
-  try {
-    await client.connect();
-    
-    // Wait for ready state after connection
-    const startTime = Date.now();
-    const maxWait = timeoutMs;
-    
-    while (Date.now() - startTime < maxWait) {
-      if (client.isReady) {
-        // Verify with ping
-        try {
-          await client.ping();
-          return true;
-        } catch (error) {
-          return false;
-        }
-      }
-      await new Promise(resolve => setTimeout(resolve, 100));
-    }
-    
-    // If still not ready after timeout, return false
-    return false;
-  } catch (error: unknown) {
-    // Handle "Socket already opened" error gracefully - this means connection is in progress
-    const { message: connectErrorMessage } = errorFields(error);
-    if (connectErrorMessage?.includes('Socket already opened') ||
-        connectErrorMessage?.includes('already open') ||
-        connectErrorMessage?.includes('already connected')) {
-      // Socket is already open/connecting, check if it becomes ready
-      const startTime = Date.now();
-      const maxWait = timeoutMs;
-      
-      while (Date.now() - startTime < maxWait) {
-        if (client.isReady) {
-          try {
-            await client.ping();
-            return true;
-          } catch (pingError) {
-            return false;
-          }
-        }
-        await new Promise(resolve => setTimeout(resolve, 100));
-      }
-      return false;
-    }
-    if (isRedisConnectionError(error)) {
-      return false; // Redis unavailable, but not an error
-    }
-    throw error; // Re-throw unexpected errors
-  }
+export async function ensureRedisConnected(
+  client: RedisClientType,
+  _timeoutMs: number = 2000,
+): Promise<boolean> {
+  return client.isReady;
 }
 
 /**
@@ -189,4 +152,3 @@ export async function withRedisFallback<T>(
     throw error;
   }
 }
-

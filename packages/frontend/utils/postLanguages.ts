@@ -1,4 +1,7 @@
-import { sameBaseLanguage, toBaseLanguage } from '@mention/shared-types';
+import {
+  sameBaseLanguage,
+  toBaseLanguage,
+} from '@mention/shared-types/language';
 import type { PostContent, PostVariantSource } from '@mention/shared-types';
 import { CONTENT_LANGUAGES, describeContentLanguage, type ContentLanguage } from '@/constants/contentLanguages';
 

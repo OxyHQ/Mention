@@ -54,7 +54,7 @@ export interface PostInsights {
     totalInteractions: number;
     engagementRate: number;
     reach: number;
-    uniqueViewers: number;
+    uniqueViewers: number | null;
   };
   breakdown: {
     likedBy: number;
@@ -171,4 +171,3 @@ class StatisticsService {
 }
 
 export const statisticsService = new StatisticsService();
-

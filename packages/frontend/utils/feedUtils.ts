@@ -4,7 +4,10 @@
  */
 
 import type { DependencyList } from 'react';
-import { FeedType, FeedFilters as SharedFeedFilters } from '@mention/shared-types';
+import type {
+    FeedType,
+    FeedFilters as SharedFeedFilters,
+} from '@mention/shared-types';
 
 // Extended FeedFilters with additional properties used by the app
 export interface FeedFilters extends SharedFeedFilters {
@@ -328,4 +331,3 @@ export function deduplicateItems<T>(
     
     return Array.from(seen.values());
 }
-

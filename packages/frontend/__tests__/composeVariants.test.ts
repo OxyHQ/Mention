@@ -1,4 +1,5 @@
-import { MAX_AUTHOR_VARIANTS, type PostContent } from '@mention/shared-types';
+import { MAX_AUTHOR_VARIANTS } from '@mention/shared-types/language';
+import type { PostContent } from '@mention/shared-types/post';
 import {
   MAIN_ITEM_ID,
   buildVariantContent,

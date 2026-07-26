@@ -2,14 +2,14 @@ import React, { useCallback, useMemo } from 'react';
 import { Platform, StyleSheet, TouchableOpacity, View, Share } from 'react-native';
 import { Loading } from '@oxyhq/bloom/loading';
 import { useTranslation } from 'react-i18next';
-import { useAuth } from '@oxyhq/services';
+import { useAuth } from '@oxyhq/services/ui/client';
 
 import { useUserById } from '@/hooks/useCachedUser';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { VirtualList } from '@oxyhq/bloom/list';
 import { ThemedText } from '@/components/ThemedText';
 import { ProfileCard, ProfileCardSkeletonList, type ProfileCardData } from '@/components/ProfileCard';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { Error as ErrorDisplay } from '@/components/Error';
 import { LoadMoreSentinel } from '@/components/common/LoadMoreSentinel';
 import { logger } from '@/lib/logger';

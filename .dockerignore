@@ -6,12 +6,12 @@ dist
 *.md
 infrastructure/
 
-# Exclude the heavy frontend and agora app sources from the backend build
-# context, but keep their package.json so `bun install --frozen-lockfile`
-# can reconcile the workspace lockfile. Bun requires every workspace
-# member's manifest to be present, otherwise the frozen lockfile is
-# considered out of date and the install fails.
+# Keep only the frontend manifest needed to validate the full workspace
+# lockfile. Bun's official workspace filters exclude its dependency graph.
 packages/frontend/*
 !packages/frontend/package.json
-packages/agora/*
-!packages/agora/package.json
+
+# Retired local packages are not workspaces and must not inflate Docker build
+# contexts when their generated directories are still present locally.
+packages/agora/
+packages/agora-shared/

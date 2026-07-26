@@ -21,6 +21,9 @@ const mockPublicGet = jest.fn();
 const mockSearchProfiles = jest.fn();
 const mockGetProfileByUsername = jest.fn();
 const mockGetSavedPosts = jest.fn();
+const mockStorageGet = jest.fn();
+const mockStorageSet = jest.fn();
+const mockStorageRemove = jest.fn();
 
 // `/hashtags/search` and `/feeds` sit on the backend's PUBLIC router, so they
 // never 401 — `authenticatedClient` just attaches a token when one exists.
@@ -45,7 +48,11 @@ jest.mock('@/services/feedService', () => ({
 }));
 
 jest.mock('@/utils/storage', () => ({
-  Storage: { get: jest.fn(), set: jest.fn(), remove: jest.fn() },
+  Storage: {
+    get: (...args: unknown[]) => mockStorageGet(...args),
+    set: (...args: unknown[]) => mockStorageSet(...args),
+    remove: (...args: unknown[]) => mockStorageRemove(...args),
+  },
 }));
 
 jest.mock('@/lib/logger', () => ({
@@ -57,7 +64,10 @@ jest.mock('@/lib/logger', () => ({
   }),
 }));
 
-import { searchService } from '@/services/searchService';
+import {
+  getSearchHistoryStorageKey,
+  searchService,
+} from '@/services/searchService';
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -86,6 +96,39 @@ beforeEach(() => {
   });
 
   mockGetSavedPosts.mockResolvedValue({ success: true, data: { posts: [{ id: 's1', content: {} }] } });
+  mockStorageGet.mockResolvedValue([]);
+  mockStorageSet.mockResolvedValue(undefined);
+  mockStorageRemove.mockResolvedValue(undefined);
+});
+
+describe('search history viewer isolation', () => {
+  it('persists A and B under different storage keys', async () => {
+    await searchService.addToSearchHistory('first', 'viewer-a');
+    await searchService.addToSearchHistory('second', 'viewer-b');
+
+    expect(mockStorageSet).toHaveBeenCalledWith(
+      getSearchHistoryStorageKey('viewer-a'),
+      ['first'],
+    );
+    expect(mockStorageSet).toHaveBeenCalledWith(
+      getSearchHistoryStorageKey('viewer-b'),
+      ['second'],
+    );
+    expect(getSearchHistoryStorageKey('viewer-a')).not.toBe(
+      getSearchHistoryStorageKey('viewer-b'),
+    );
+  });
+
+  it('clears only the active viewer history', async () => {
+    await searchService.clearSearchHistory('viewer-a');
+
+    expect(mockStorageRemove).toHaveBeenCalledWith(
+      getSearchHistoryStorageKey('viewer-a'),
+    );
+    expect(mockStorageRemove).not.toHaveBeenCalledWith(
+      getSearchHistoryStorageKey('viewer-b'),
+    );
+  });
 });
 
 describe('searchService.searchAll auth gating', () => {

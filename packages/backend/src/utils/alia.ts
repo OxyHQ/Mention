@@ -65,7 +65,7 @@ export async function aliaChat(
       throw new Error(`Alia API error ${response.status}: ${errorBody.slice(0, 200)}`);
     }
 
-    const data: AliaChatResponse = await response.json();
+    const data = (await response.json()) as AliaChatResponse;
     const content = data.choices?.[0]?.message?.content;
 
     if (typeof content !== 'string') {

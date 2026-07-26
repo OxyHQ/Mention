@@ -4,7 +4,7 @@
 
 import { ViewStyle, TextStyle, StyleProp } from 'react-native';
 import type { Href } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 
 export type ButtonVariant =
   | 'primary'

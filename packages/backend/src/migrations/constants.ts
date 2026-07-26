@@ -68,3 +68,34 @@ export const MIGRATION_FEDERATED_STARTER_PACK_SOURCE_INDEX = '0006-federated-sta
  * view. See {@link ./0007-feed-generator-index}.
  */
 export const MIGRATION_FEED_GENERATOR_INDEX = '0007-feed-generator-index';
+
+/** Ensure engagement indexes and backfill authoritative Bookmark counts (expand-only). */
+export const MIGRATION_BOOKMARK_STATS = '0008-bookmark-stats';
+
+/**
+ * Build the bounded recent-replier read model and its unique parent-post index.
+ * See {@link ./0009-post-recent-repliers}.
+ */
+export const MIGRATION_POST_RECENT_REPLIERS = '0009-post-recent-repliers';
+
+/**
+ * Add exact keyset indexes for public search/feed, author feeds and replies.
+ * Existing candidate indexes are retained until production index telemetry has
+ * observed them for at least 14 days.
+ */
+export const MIGRATION_POST_HOT_PATH_INDEXES = '0010-post-hot-path-indexes';
+
+/**
+ * Create the claim/reclaim and retention indexes for the durable engagement
+ * outbox. Production disables Mongoose auto-indexing, so the deployment
+ * migration is the schema authority for these indexes.
+ */
+export const MIGRATION_ENGAGEMENT_OUTBOX_INDEXES = '0011-engagement-outbox-indexes';
+
+/**
+ * Create the partial unique producer-event key for append-only MTN records.
+ * This is a separate versioned migration so an already-applied outbox migration
+ * can never leave the dispatcher active without its MTN dedupe backstop.
+ */
+export const MIGRATION_MTN_EVENT_IDEMPOTENCY_INDEX =
+  '0012-mtn-event-idempotency-index';

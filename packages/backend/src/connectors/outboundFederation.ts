@@ -25,15 +25,37 @@ export function federateAsResolvedActor(
   context: string,
   buildEvent: (username: string) => LocalNetworkEvent<PostContent>,
 ): void {
-  void (async () => {
-    const user = await getServiceOxyClient().getUserById(actorOxyUserId);
-    const username = user.username?.trim();
-    if (!username) {
-      logger.warn(`[Federation] skipping ${context} federation for ${actorOxyUserId}: no resolvable username`);
-      return;
-    }
-    await connectorRegistry.deliver(buildEvent(username));
-  })().catch((err) => {
+  void federateAsResolvedActorAndWait(
+    actorOxyUserId,
+    context,
+    buildEvent,
+    false,
+  ).catch((err) => {
     logger.error(`[Federation] failed to federate ${context}`, err);
   });
+}
+
+/**
+ * Awaitable delivery used by durable workers. A missing username or connector
+ * failure rejects so the outbox lease is released for retry.
+ */
+export async function federateAsResolvedActorAndWait(
+  actorOxyUserId: string,
+  context: string,
+  buildEvent: (username: string) => LocalNetworkEvent<PostContent>,
+  strict: boolean = true,
+): Promise<void> {
+  const user = await getServiceOxyClient().getUserById(actorOxyUserId);
+  const username = user.username?.trim();
+  if (!username) {
+    throw new Error(
+      `[Federation] cannot deliver ${context} for ${actorOxyUserId}: no resolvable username`,
+    );
+  }
+  const event = buildEvent(username);
+  if (strict) {
+    await connectorRegistry.deliverStrict(event);
+  } else {
+    await connectorRegistry.deliver(event);
+  }
 }

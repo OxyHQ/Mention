@@ -1,5 +1,9 @@
 import { create } from 'zustand';
-import { FeedInterstitialSlot, FeedPostSlice, HydratedPost } from '@mention/shared-types';
+import type {
+  FeedInterstitialSlot,
+  FeedPostSlice,
+  HydratedPost,
+} from '@mention/shared-types';
 
 /**
  * Session-scoped memory-mode retention store + local new-post bridge.
@@ -41,6 +45,7 @@ interface FeedScrollStore {
     setMemoryCache: (key: string, entry: FeedMemoryCacheEntry) => void;
     getMemoryCache: (key: string) => FeedMemoryCacheEntry | undefined;
     clearMemoryCache: (key: string) => void;
+    clearAllMemoryCaches: () => void;
 }
 
 const useFeedScrollStore = create<FeedScrollStore>((set, get) => ({
@@ -59,6 +64,10 @@ const useFeedScrollStore = create<FeedScrollStore>((set, get) => ({
             delete next[key];
             return { memoryCache: next };
         });
+    },
+
+    clearAllMemoryCaches: () => {
+        set({ memoryCache: {} });
     },
 }));
 
@@ -83,6 +92,11 @@ export function setFeedMemoryCache(key: string, entry: FeedMemoryCacheEntry): vo
  */
 export function clearFeedMemoryCache(key: string): void {
     useFeedScrollStore.getState().clearMemoryCache(key);
+}
+
+/** Drop all session-retained feed slices when the active viewer changes. */
+export function clearAllFeedMemoryCaches(): void {
+    useFeedScrollStore.getState().clearAllMemoryCaches();
 }
 
 // ── Local new-post broadcast (memory-mode feeds) ─────────────────────
@@ -130,8 +144,8 @@ export function publishNewLocalPost(item: HydratedPost): void {
 // ── Local post-removal broadcast (memory-mode feeds) ─────────────────
 //
 // The symmetric counterpart of the new-post broadcast above. On the SQLite path,
-// `postsStore.removePostEverywhere` deletes the post from SQLite and bumps
-// `dataVersion`, so the feed selectors re-read and the post vanishes reactively.
+// `postsStore.removePostEverywhere` deletes the post from SQLite and notifies
+// the affected feed keys, so their selectors re-read and the post vanishes.
 // Memory-mode feeds (web without COOP/COEP, where SQLite is unavailable) keep
 // their items in `useFeedState`'s local React state, which never reads SQLite —
 // so a deleted post would linger until a manual refresh.

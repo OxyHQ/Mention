@@ -12,7 +12,7 @@ const { countDocuments, findOne } = vi.hoisted(() => ({
 // module graph and trigger a circular import (server.ts mounts the very route
 // under test). Stub it so the route can be imported in isolation — same pattern
 // as notificationActor.test.ts.
-vi.mock('../../../server', () => ({ oxy: {} }));
+vi.mock('../../runtime/oxyClient', () => ({ getRuntimeOxyClient: () => ({}) }));
 
 vi.mock('../../models/Post', () => ({
   default: { countDocuments },

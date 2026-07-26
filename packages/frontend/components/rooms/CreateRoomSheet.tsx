@@ -1,1 +1,4 @@
-export { CreateRoomSheet, CreateRoomSheet as default } from '@syra.fm/sdk';
+import { LiveCreateRoomSheet } from '@/components/providers/LiveFeatureProviders';
+
+export const CreateRoomSheet = LiveCreateRoomSheet;
+export default LiveCreateRoomSheet;

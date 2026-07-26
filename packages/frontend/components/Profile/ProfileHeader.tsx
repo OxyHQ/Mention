@@ -1,14 +1,14 @@
 import React, { memo } from 'react';
 import { View, Text, TouchableOpacity } from 'react-native';
 import { router } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import FontAwesome5 from '@expo/vector-icons/FontAwesome5';
 import Animated, { useDerivedValue, useAnimatedStyle, interpolate, Extrapolation } from 'react-native-reanimated';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import { ZoomableAvatar } from '@/components/ZoomableAvatar';
 import { LiveAvatar } from '@/components/ui/LiveAvatar';
-import { MEDIA_VARIANT_VIDEO_POSTER } from '@mention/shared-types';
+import { MEDIA_VARIANT_VIDEO_POSTER } from '@mention/shared-types/post';
 import { useLiveUsers } from '@/hooks/useLiveUsers';
 import { useLayoutScroll } from '@/context/LayoutScrollContext';
 import { AnalyticsIcon } from '@/assets/icons/analytics-icon';

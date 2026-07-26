@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { ScrollView, Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { useAuth, OxyAuthPrompt } from '@oxyhq/services';
+import { useAuth, OxyAuthPrompt } from '@oxyhq/services/ui/client';
 import { useBloomTheme, useTheme, PREMIUM_COLOR_NAMES, type AppColorName } from '@oxyhq/bloom/theme';
 import { SettingsListDivider } from '@oxyhq/bloom/settings-list';
 import { Avatar } from '@oxyhq/bloom/avatar';

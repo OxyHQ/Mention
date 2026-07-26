@@ -295,17 +295,24 @@ db.posts.createIndex({ "location": "2dsphere" })
 
 ### Health Check Endpoint
 ```
-GET /health
+GET /health/live
 Response: {
-  "status": "healthy",
-  "version": "1.0.0",
-  "uptime": 1000,
-  "mongoStatus": "connected"
+  "status": "live",
+  "uptime": 1000
+}
+
+GET /health/ready
+Response: {
+  "status": "ready"
 }
 ```
 
+`/health/ready` returns `503` until runtime startup, MongoDB, and the schema
+migration gate are all ready. Prometheus metrics are available only at the
+service-authenticated, network-restricted `/internal/metrics` endpoint.
+
 ### Logging
-- Use Winston for structured logging
+- Use structured Pino logging
 - Log levels: error, warn, info, debug
 - Include request ID in all logs
 
@@ -420,7 +427,10 @@ FEDERATION_MAX_CONTENT_LENGTH=50000      # Max content size for incoming activit
 
 ### Deployment Requirements
 
-The `/.well-known/` and `/ap/` paths on the federation domain (`mention.earth`) **must** route to this backend service, not the static frontend. In production, Cloudflare redirect rules handle this (see [DigitalOcean Deployment](../../docs/DIGITALOCEAN_DEPLOYMENT.md)).
+The backend serves the entire `mention.earth` apex. The `/.well-known/`,
+`/ap/`, host-meta and nodeinfo routes are mounted before the static web proxy and
+must be served directly without redirects. Redirecting a signed ActivityPub
+inbox request breaks delivery. See [Production deployment](../../docs/AWS_DEPLOYMENT.md).
 
 ### Key Files
 

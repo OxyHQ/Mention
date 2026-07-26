@@ -22,12 +22,7 @@ export const SHARE_WEIGHT = 2.0;
  */
 export function engagementScore(post: RankablePost): number {
   const stats = post.stats || {};
-  const metadata = post.metadata || {};
-
-  // Get saves count from metadata.savedBy array
-  const savesCount = Array.isArray(metadata.savedBy)
-    ? metadata.savedBy.length
-    : 0;
+  const savesCount = stats.savesCount ?? 0;
 
   // Raw engagement via the shared native-weighted composite, so the federated
   // boost subset (`federatedBoostsCount`) is dampened to `federatedBoostWeight`

@@ -121,9 +121,9 @@ export function parseInterstitialEvent(body: unknown): ParsedInterstitialEvent {
 
 /**
  * Count a card event. Synchronous and I/O-free by design (see the file header):
- * the counter lives in the in-process metrics Map and is scraped from
- * `/metrics`, so reporting an impression can never add latency to a feed
- * interaction.
+ * the counter lives in the in-process metrics registry and is scraped from the
+ * protected `/internal/metrics` endpoint, so reporting an impression can never
+ * add latency to a feed interaction.
  */
 export function recordInterstitialEvent(input: FeedInterstitialEventInput): void {
   metrics.incrementCounter(INTERSTITIAL_EVENT_METRIC, 1, {

@@ -15,7 +15,9 @@ import type { MediaItem, PostContentVariant, PostUser, StoredPostContent } from 
  * interface (no `as any`), the same harness the podcast attachment test uses.
  */
 
-vi.mock('../../../server', () => ({ oxy: { getUserById: vi.fn() } }));
+vi.mock('../../runtime/oxyClient', () => ({
+  getRuntimeOxyClient: () => ({ getUserById: vi.fn() }),
+}));
 vi.mock('../../utils/oxyHelpers', () => ({
   getServiceOxyClient: () => ({
     getUsersByIds: vi.fn(),
