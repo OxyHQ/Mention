@@ -32,7 +32,7 @@ import { PodcastCard } from '@/components/Podcast/PodcastCard';
 import RoomCard from '@/components/RoomCard';
 import ComposeToolbar from '@/components/ComposeToolbar';
 import { useTranslation } from 'react-i18next';
-import { show as toast } from '@oxyhq/bloom/toast';
+import { toast } from '@oxyhq/bloom/toast';
 import { usePostsStore } from '@/stores/postsStore';
 import { feedService } from '@/services/feedService';
 import type { CreatePostRequest, HydratedPost } from '@mention/shared-types';

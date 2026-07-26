@@ -32,7 +32,7 @@ import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types';
 
 import { formatCompactNumber } from '@/utils/formatNumber';
 import StarRating from '@/components/StarRating';
-import { show as toast } from '@oxyhq/bloom/toast';
+import { toast } from '@oxyhq/bloom/toast';
 import AnimatedTabBar from '@/components/common/AnimatedTabBar';
 import BottomSheet, { type BottomSheetRef } from '@oxyhq/bloom/bottom-sheet';
 import { useTranslation } from 'react-i18next';

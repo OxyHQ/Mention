@@ -12,7 +12,7 @@ import { feedService } from '@/services/feedService';
 import { confirmDialog } from '@/utils/alerts';
 import { Platform } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
-import { show as toast } from '@oxyhq/bloom/toast';
+import { toast } from '@oxyhq/bloom/toast';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
 import { getNormalizedUserHandle } from '@oxyhq/core';
 import type { HydratedPost } from '@mention/shared-types';

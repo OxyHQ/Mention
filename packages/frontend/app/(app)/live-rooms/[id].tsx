@@ -4,7 +4,7 @@ import { SafeAreaView } from '@/lib/SafeAreaViewInterop';
 import { useLocalSearchParams } from 'expo-router';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { Ionicons } from '@expo/vector-icons';
-import { show as toast } from '@oxyhq/bloom/toast';
+import { toast } from '@oxyhq/bloom/toast';
 
 import { ThemedText } from '@/components/ThemedText';
 import { Header } from '@/components/Header';

@@ -1,6 +1,6 @@
 import { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { show as toast } from '@oxyhq/bloom/toast';
+import { toast } from '@oxyhq/bloom/toast';
 import { subscriptionService } from '@/services/subscriptionService';
 import { normalizeApiError } from '@/utils/apiError';
 import { useDeferredToggle } from './useDeferredToggle';

@@ -14,7 +14,7 @@ import { IconButton } from '@/components/ui/Button';
 import { CloseIcon } from '@/assets/icons/close-icon';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
-import { show as toast } from '@oxyhq/bloom/toast';
+import { toast } from '@oxyhq/bloom/toast';
 import VideoPlayer from '@/components/common/VideoPlayer';
 import { api } from '@/utils/api';
 import { createScopedLogger } from '@/lib/logger';

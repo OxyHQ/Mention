@@ -11,7 +11,7 @@ import { Image } from 'expo-image';
 import { useTranslation } from 'react-i18next';
 import { Item } from '@oxyhq/bloom/item';
 import { useTheme } from '@oxyhq/bloom/theme';
-import { show as toast } from '@oxyhq/bloom/toast';
+import { toast } from '@oxyhq/bloom/toast';
 import {
   MagnifyingGlass_Stroke2_Corner0_Rounded,
   MagnifyingGlassX_Stroke2_Corner0_Rounded,

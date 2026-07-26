@@ -27,7 +27,7 @@ import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { customFeedsService, type MarketplaceFeed } from '@/services/customFeedsService';
 import { useSafeBack } from '@/hooks/useSafeBack';
-import { show as toast } from '@oxyhq/bloom/toast';
+import { toast } from '@oxyhq/bloom/toast';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
 import { formatCompactNumber } from '@/utils/formatNumber';

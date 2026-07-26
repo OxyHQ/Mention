@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, ScrollView, Platform } from 'react-native';
-import { show as toast } from '@oxyhq/bloom/toast';
+import { toast } from '@oxyhq/bloom/toast';
 import { useRouter } from 'expo-router';
 import Constants from 'expo-constants';
 import { ThemedView } from '@/components/ThemedView';

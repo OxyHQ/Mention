@@ -1,7 +1,7 @@
 import React, { useCallback, useContext, useEffect, useRef, useState, useMemo, memo } from 'react';
 import { StyleSheet, View, Text, Pressable, FlatList, Platform, Share, PanResponder, useWindowDimensions, type ViewStyle, type TextStyle, type ImageStyle, type LayoutChangeEvent } from 'react-native';
 import { Image } from 'expo-image';
-import { show as toast } from '@oxyhq/bloom/toast';
+import { toast } from '@oxyhq/bloom/toast';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { useSharedValue, useAnimatedStyle, withSequence, withTiming } from 'react-native-reanimated';
 import { ThemedView } from '@/components/ThemedView';

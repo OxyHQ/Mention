@@ -4,7 +4,7 @@ import { queryKeys } from '@oxyhq/services';
 import type { User } from '@oxyhq/core';
 import { getNormalizedUserHandle } from '@oxyhq/core';
 import { logger } from '@/lib/logger';
-import { show as toast } from '@oxyhq/bloom/toast';
+import { toast } from '@oxyhq/bloom/toast';
 import { queryClient } from '@/lib/queryClient';
 
 interface SharePostUser {

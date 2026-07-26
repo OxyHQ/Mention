@@ -1,6 +1,6 @@
 import { Platform, Share } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
-import { show as toast } from '@oxyhq/bloom/toast';
+import { toast } from '@oxyhq/bloom/toast';
 import { createScopedLogger } from '@/lib/logger';
 
 const logger = createScopedLogger('shareLink');

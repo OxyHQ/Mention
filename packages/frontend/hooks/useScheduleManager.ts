@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef, createElement, Suspense } from 'react';
 import type { TFunction } from 'i18next';
-import { show as toastShow } from '@oxyhq/bloom/toast';
+import { toast as toastFn } from '@oxyhq/bloom/toast';
 import type { ScheduleOption } from '@/components/Compose/ScheduleSheet';
 import type { BottomSheetContextProps } from '@/context/BottomSheetContext';
 import { addMinutes } from '@/utils/dateUtils';
@@ -9,7 +9,7 @@ interface UseScheduleManagerProps {
   scheduleEnabled: boolean;
   bottomSheet: BottomSheetContextProps;
   t: TFunction;
-  toast: typeof toastShow;
+  toast: typeof toastFn;
 }
 
 export const useScheduleManager = ({

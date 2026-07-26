@@ -5,7 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Avatar } from '@oxyhq/bloom/avatar';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types';
 import { SettingsListGroup, SettingsListItem } from '@oxyhq/bloom/settings-list';
-import { show as toast } from '@oxyhq/bloom/toast';
+import { toast } from '@oxyhq/bloom/toast';
 import { useTranslation } from 'react-i18next';
 import { useQueryClient } from '@tanstack/react-query';
 import type { User } from '@oxyhq/core';

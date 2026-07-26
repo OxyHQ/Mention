@@ -105,7 +105,7 @@ jest.mock('@oxyhq/bloom/theme', () => ({
   }),
 }));
 
-jest.mock('@oxyhq/bloom/toast', () => ({ show: jest.fn() }));
+jest.mock('@oxyhq/bloom/toast', () => ({ toast: jest.fn() }));
 
 jest.mock('@oxyhq/services', () => ({
   queryKeys: { users: { detail: (id: string) => ['users', id] } },

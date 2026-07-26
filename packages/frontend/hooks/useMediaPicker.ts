@@ -1,5 +1,5 @@
 import { useCallback } from 'react';
-import { show as toast } from '@oxyhq/bloom/toast';
+import { toast } from '@oxyhq/bloom/toast';
 import type { FileMetadata } from '@oxyhq/core';
 import type { RouteName } from '@oxyhq/services';
 import { ComposerMediaItem, toComposerMediaType } from '@/utils/composeUtils';

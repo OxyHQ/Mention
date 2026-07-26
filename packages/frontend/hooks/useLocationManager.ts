@@ -1,7 +1,7 @@
 import { useState } from "react";
 import * as Location from "expo-location";
 import { useTranslation } from "react-i18next";
-import { show as toast } from '@oxyhq/bloom/toast';
+import { toast } from '@oxyhq/bloom/toast';
 import { logger } from '@/lib/logger';
 
 export interface LocationData {

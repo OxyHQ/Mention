@@ -1,6 +1,6 @@
 import { useState, useCallback } from "react";
 import { useTranslation } from "react-i18next";
-import { show as toast } from '@oxyhq/bloom/toast';
+import { toast } from '@oxyhq/bloom/toast';
 import type { FileMetadata } from '@oxyhq/core';
 import { ComposerMediaItem, toComposerMediaType } from "@/utils/composeUtils";
 import { normalizeApiError } from "@/utils/apiError";

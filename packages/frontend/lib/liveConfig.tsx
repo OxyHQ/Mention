@@ -10,7 +10,7 @@ import { useUserById } from '@/hooks/useCachedUser';
 import { queryClient } from '@/lib/queryClient';
 import { getCachedFileDownloadUrl, getCachedFileDownloadUrlSync } from '@/utils/imageUrlCache';
 import { Avatar } from '@oxyhq/bloom/avatar';
-import { show } from '@oxyhq/bloom/toast';
+import { toast } from '@oxyhq/bloom/toast';
 import i18n from '@/lib/i18n';
 import { useAppearanceStore } from '@/store/appearanceStore';
 
@@ -148,10 +148,10 @@ export const liveConfig: LiveConfig = {
   getCachedFileDownloadUrlSync,
   AvatarComponent: LiveAvatar,
   toast: Object.assign(
-    (message: string) => show(message),
+    (message: string) => toast(message),
     {
-      success: (message: string) => show(message, { type: 'success' }),
-      error: (message: string) => show(message, { type: 'error' }),
+      success: (message: string) => toast(message, { type: 'success' }),
+      error: (message: string) => toast(message, { type: 'error' }),
     }
   ),
   isDesktop: false, // Will be overridden at runtime if needed

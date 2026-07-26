@@ -4,7 +4,7 @@ import { router } from 'expo-router';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@oxyhq/services';
-import { show as toast } from '@oxyhq/bloom/toast';
+import { toast } from '@oxyhq/bloom/toast';
 import { FeedCard, FeedCardSkeleton, type FeedCardData } from '@/components/FeedCard';
 import { FeedSubscribeButton } from '@/components/FeedSubscribeButton';
 import {

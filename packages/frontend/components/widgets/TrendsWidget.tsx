@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo } from 'react';
 import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import * as Skeleton from '@oxyhq/bloom/skeleton';
-import { show as toast } from '@oxyhq/bloom/toast';
+import { toast } from '@oxyhq/bloom/toast';
 import { useTranslation } from 'react-i18next';
 import { useRouter } from 'expo-router';
 import { BaseWidget } from './BaseWidget';

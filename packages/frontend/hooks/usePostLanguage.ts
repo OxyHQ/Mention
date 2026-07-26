@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { show as toast } from '@oxyhq/bloom/toast';
+import { toast } from '@oxyhq/bloom/toast';
 import type { PostContent } from '@mention/shared-types';
 import { api } from '@/utils/api';
 import { useAutoTranslateStore } from '@/stores/autoTranslateStore';

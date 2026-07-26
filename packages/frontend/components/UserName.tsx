@@ -1,7 +1,7 @@
 import React, { useCallback } from 'react';
 import { Text, TouchableOpacity, StyleSheet, View, type TextStyle } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
-import { show as toast } from '@oxyhq/bloom/toast';
+import { toast } from '@oxyhq/bloom/toast';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { VerifiedIcon } from '@/assets/icons/verified-icon';
 import { RemoteActorBadge } from '@/components/Fediverse/FediverseBadge';

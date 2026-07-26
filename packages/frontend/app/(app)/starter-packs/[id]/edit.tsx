@@ -7,7 +7,7 @@ import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types';
 import { Button } from '@oxyhq/bloom/button';
 import { Item } from '@oxyhq/bloom/item';
 import { Search } from '@oxyhq/bloom/search';
-import { show as toast } from '@oxyhq/bloom/toast';
+import { toast } from '@oxyhq/bloom/toast';
 import { useTheme } from '@oxyhq/bloom/theme';
 import {
   Group3_Stroke2_Corner0_Rounded as GroupIcon,

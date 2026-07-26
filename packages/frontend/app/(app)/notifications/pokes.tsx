@@ -6,7 +6,7 @@ import { useAuth } from '@oxyhq/services';
 import { useTranslation } from 'react-i18next';
 import FontAwesome5 from '@expo/vector-icons/FontAwesome5';
 import { Loading } from '@oxyhq/bloom/loading';
-import { show as toast } from '@oxyhq/bloom/toast';
+import { toast } from '@oxyhq/bloom/toast';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { useSafeBack } from '@/hooks/useSafeBack';
 

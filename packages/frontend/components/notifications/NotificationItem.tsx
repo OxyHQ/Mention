@@ -10,7 +10,7 @@ import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types';
 import { Button } from '@oxyhq/bloom/button';
 import { SubtleHover } from '@oxyhq/bloom/subtle-hover';
 import { useTheme } from '@oxyhq/bloom/theme';
-import { show as toast } from '@oxyhq/bloom/toast';
+import { toast } from '@oxyhq/bloom/toast';
 import { queryKeys as sdkQueryKeys } from '@oxyhq/services';
 import { getNormalizedUserHandle } from '@oxyhq/core';
 import type { User } from '@oxyhq/core';

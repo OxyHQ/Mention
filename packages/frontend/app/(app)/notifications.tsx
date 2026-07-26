@@ -37,7 +37,7 @@ import { useLayoutScroll } from '@/context/LayoutScrollContext';
 import AnimatedTabBar from '@/components/common/AnimatedTabBar';
 import { Header } from '@/components/Header';
 import { StatusBar } from 'expo-status-bar';
-import { show as toast } from '@oxyhq/bloom/toast';
+import { toast } from '@oxyhq/bloom/toast';
 import { confirmDialog } from '@/utils/alerts';
 import SEO from '@/components/SEO';
 import { IconButton } from '@/components/ui/Button';

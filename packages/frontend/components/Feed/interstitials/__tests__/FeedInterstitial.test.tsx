@@ -254,7 +254,7 @@ jest.mock('@oxyhq/bloom/loading', () => {
   return { SpinnerIcon: () => <View testID="spinner" /> };
 });
 
-jest.mock('@oxyhq/bloom/toast', () => ({ show: jest.fn() }));
+jest.mock('@oxyhq/bloom/toast', () => ({ toast: jest.fn() }));
 
 // Reached through ProfileCard → RemoteActorBadge → FediverseInfoDialog.
 jest.mock('@oxyhq/bloom/dialog', () => {

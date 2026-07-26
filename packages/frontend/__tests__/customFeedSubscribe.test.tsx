@@ -103,7 +103,7 @@ jest.mock('@/services/entityFollowService', () => ({
 
 const mockToast = jest.fn();
 jest.mock('@oxyhq/bloom/toast', () => ({
-  show: (...args: unknown[]) => mockToast(...args),
+  toast: (...args: unknown[]) => mockToast(...args),
 }));
 
 jest.mock('@oxyhq/services', () => {

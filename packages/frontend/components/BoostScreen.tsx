@@ -11,7 +11,7 @@ import {
     Platform,
     ScrollView,
 } from "react-native";
-import { show as toast } from '@oxyhq/bloom/toast';
+import { toast } from '@oxyhq/bloom/toast';
 import { Dialog, useDialogControl } from '@oxyhq/bloom/dialog';
 import { Avatar } from '@oxyhq/bloom/avatar';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types';
