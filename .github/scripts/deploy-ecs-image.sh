@@ -91,6 +91,13 @@ if [[ -z "$current_task_definition" ]]; then
   exit 1
 fi
 
+service_desired_count="$(jq -r '.services[0].desiredCount // empty' <<<"$service_json")"
+if ! [[ "$service_desired_count" =~ ^[0-9]+$ ]] ||
+   (( service_desired_count < 1 )); then
+  echo "::error::ECS service $APP must have a positive desiredCount before deployment (current: ${service_desired_count:-missing}). Scale the service up explicitly before retrying."
+  exit 1
+fi
+
 task_definition_file="$(mktemp)"
 rendered_task_definition_file="$(mktemp)"
 active_one_shot_task_arn=""
@@ -174,7 +181,12 @@ wait_for_service_rollout() {
     else
       IFS=$'\t' read -r rollout_state running desired <<<"$deployment_state"
       echo "($elapsed s) $label rolloutState=$rollout_state running=$running desired=$desired"
-      if [[ "$rollout_state" == "COMPLETED" && "$running" == "$desired" ]]; then
+      if ! [[ "$running" =~ ^[0-9]+$ && "$desired" =~ ^[0-9]+$ ]]; then
+        echo "::warning::ECS returned non-numeric task counts for the $label rollout; retrying."
+      elif (( desired < 1 )); then
+        echo "::error::ECS $label rollout for $APP reached desiredCount=0; refusing to accept a zero-task steady state."
+        return 1
+      elif [[ "$rollout_state" == "COMPLETED" && "$running" == "$desired" ]]; then
         return 0
       fi
       if [[ "$rollout_state" == "FAILED" ]]; then
@@ -303,6 +315,7 @@ rollback_service() {
     --cluster "$CLUSTER" \
     --service "$APP" \
     --task-definition "$current_task_definition" \
+    --desired-count "$service_desired_count" \
     --deployment-configuration '{
       "deploymentCircuitBreaker": {"enable": true, "rollback": true},
       "minimumHealthyPercent": 100,
@@ -457,6 +470,7 @@ if ! aws ecs update-service \
   --cluster "$CLUSTER" \
   --service "$APP" \
   --task-definition "$new_task_definition" \
+  --desired-count "$service_desired_count" \
   --deployment-configuration '{
     "deploymentCircuitBreaker": {"enable": true, "rollback": true},
     "minimumHealthyPercent": 100,

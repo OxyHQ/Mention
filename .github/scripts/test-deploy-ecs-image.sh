@@ -21,6 +21,8 @@ export DEPLOY_TEST_LOG=""
 export DEPLOY_TEST_EXPECT_METRICS_ARN=false
 export DEPLOY_TEST_TASK_EXIT_CODE=0
 export DEPLOY_TEST_EXPECT_TASK_SECRET_ARN=false
+export DEPLOY_TEST_SERVICE_DESIRED_COUNT=1
+export DEPLOY_TEST_ROLLOUT_SCENARIO=healthy
 
 aws() {
   local service_json='{
@@ -28,6 +30,7 @@ aws() {
     "services": [{
       "status": "ACTIVE",
       "taskDefinition": "arn:aws:ecs:test:task-definition/mention-test:1",
+      "desiredCount": 1,
       "networkConfiguration": {
         "awsvpcConfiguration": {
           "subnets": ["subnet-test"],
@@ -53,9 +56,32 @@ aws() {
       ]
     }]
   }'
+  service_json="$(jq \
+    --argjson desired "$DEPLOY_TEST_SERVICE_DESIRED_COUNT" \
+    '.services[0].desiredCount = $desired' \
+    <<<"$service_json")"
 
   case "$1 $2" in
     "ecs describe-services")
+      local describe_count_file="${DEPLOY_TEST_LOG}.describe-count"
+      local describe_count=0
+      if [[ -f "$describe_count_file" ]]; then
+        describe_count="$(<"$describe_count_file")"
+      fi
+      describe_count=$((describe_count + 1))
+      printf '%s\n' "$describe_count" >"$describe_count_file"
+      if [[ "$DEPLOY_TEST_ROLLOUT_SCENARIO" == "zero-during-deploy" &&
+            "$describe_count" == "2" ]]; then
+        service_json="$(jq '
+          .services[0].desiredCount = 0
+          | .services[0].deployments |= map(
+              if .taskDefinition == "arn:aws:ecs:test:task-definition/mention-test:2"
+              then .desiredCount = 0 | .runningCount = 0
+              else .
+              end
+            )
+        ' <<<"$service_json")"
+      fi
       printf '%s\n' "$service_json"
       ;;
     "ecs describe-task-definition")
@@ -129,15 +155,24 @@ aws() {
     "ecs update-service")
       local previous_argument=""
       local task_definition=""
+      local desired_count=""
       local argument
       for argument in "$@"; do
         if [[ "$previous_argument" == "--task-definition" ]]; then
           task_definition="$argument"
-          break
+        elif [[ "$previous_argument" == "--desired-count" ]]; then
+          desired_count="$argument"
         fi
         previous_argument="$argument"
       done
-      printf 'service:%s\n' "$task_definition" >>"$DEPLOY_TEST_LOG"
+      if [[ -z "$desired_count" ]]; then
+        echo "Mocked update-service requires an explicit --desired-count." >&2
+        return 1
+      fi
+      printf 'service:%s:desired=%s\n' \
+        "$task_definition" \
+        "$desired_count" \
+        >>"$DEPLOY_TEST_LOG"
       printf '{}\n'
       ;;
     "ecs run-task")
@@ -183,6 +218,8 @@ run_release() {
   local inject_internal_metrics="${4:-false}"
   local task_exit_code="${5:-0}"
   local inject_task_secret="${6:-false}"
+  local service_desired_count="${7:-1}"
+  local rollout_scenario="${8:-healthy}"
   local case_directory="$test_directory/$case_name"
   local output_file="$case_directory/output.log"
   local smoke_script="$case_directory/smoke.sh"
@@ -192,9 +229,13 @@ run_release() {
   DEPLOY_TEST_EXPECT_METRICS_ARN="$inject_internal_metrics"
   DEPLOY_TEST_TASK_EXIT_CODE="$task_exit_code"
   DEPLOY_TEST_EXPECT_TASK_SECRET_ARN="$inject_task_secret"
+  DEPLOY_TEST_SERVICE_DESIRED_COUNT="$service_desired_count"
+  DEPLOY_TEST_ROLLOUT_SCENARIO="$rollout_scenario"
   export DEPLOY_TEST_LOG DEPLOY_TEST_EXPECT_METRICS_ARN
   export DEPLOY_TEST_TASK_EXIT_CODE
   export DEPLOY_TEST_EXPECT_TASK_SECRET_ARN
+  export DEPLOY_TEST_SERVICE_DESIRED_COUNT
+  export DEPLOY_TEST_ROLLOUT_SCENARIO
 
   # The generated smoke fixture expands this variable when it runs.
   # shellcheck disable=SC2016
@@ -244,7 +285,7 @@ run_release() {
 run_release success true false true
 printf '%s\n' \
   metrics:arn \
-  'service:arn:aws:ecs:test:task-definition/mention-test:2' \
+  'service:arn:aws:ecs:test:task-definition/mention-test:2:desired=1' \
   smoke \
   reconcile \
   >"$test_directory/success/expected.log"
@@ -255,7 +296,7 @@ diff -u \
 run_release explicit-task-secret true false false 0 true
 printf '%s\n' \
   task-secret:arn \
-  'service:arn:aws:ecs:test:task-definition/mention-test:2' \
+  'service:arn:aws:ecs:test:task-definition/mention-test:2:desired=1' \
   smoke \
   reconcile \
   >"$test_directory/explicit-task-secret/expected.log"
@@ -265,11 +306,11 @@ diff -u \
 
 run_release reconciliation-failure false false false 1
 printf '%s\n' \
-  'service:arn:aws:ecs:test:task-definition/mention-test:2' \
+  'service:arn:aws:ecs:test:task-definition/mention-test:2:desired=1' \
   smoke \
   reconcile \
   tasklogs \
-  'service:arn:aws:ecs:test:task-definition/mention-test:1' \
+  'service:arn:aws:ecs:test:task-definition/mention-test:1:desired=1' \
   >"$test_directory/reconciliation-failure/expected.log"
 diff -u \
   "$test_directory/reconciliation-failure/expected.log" \
@@ -291,5 +332,28 @@ if grep -q '^service:' "$test_directory/migration-failure/aws.log"; then
   echo "Failed migration reached update-service." >&2
   exit 1
 fi
+
+run_release zero-desired-count false false false 0 false 0
+grep -F \
+  "must have a positive desiredCount before deployment (current: 0)" \
+  "$test_directory/zero-desired-count/output.log" \
+  >/dev/null
+if [[ -s "$test_directory/zero-desired-count/aws.log" ]]; then
+  echo "Zero-capacity service reached a mutating AWS call." >&2
+  exit 1
+fi
+
+run_release zero-during-deploy false false false 0 false 1 zero-during-deploy
+printf '%s\n' \
+  'service:arn:aws:ecs:test:task-definition/mention-test:2:desired=1' \
+  'service:arn:aws:ecs:test:task-definition/mention-test:1:desired=1' \
+  >"$test_directory/zero-during-deploy/expected.log"
+diff -u \
+  "$test_directory/zero-during-deploy/expected.log" \
+  "$test_directory/zero-during-deploy/aws.log"
+grep -F \
+  "refusing to accept a zero-task steady state" \
+  "$test_directory/zero-during-deploy/output.log" \
+  >/dev/null
 
 echo "Deployment script transaction tests passed."
