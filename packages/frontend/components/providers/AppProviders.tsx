@@ -56,10 +56,19 @@ export const AppProviders = memo(function AppProviders({
          * platform split internally; no manual .web fork needed).
          */}
         <KeyboardProvider>
+          {/*
+           * `webAuthMode="popup"` keeps the SDK off the two lanes that would
+           * navigate this tab away: the silent full-page `prompt=none` restore
+           * on cold boot, and the post-login hub-sync bounce. Without it a
+           * signed-out cold boot on a deep route leaves the origin entirely —
+           * `/explore` → `auth.oxy.so/authorize` → back — which destroys every
+           * bit of in-page state before the user has done anything.
+           */}
           <OxyProvider
             oxyServices={oxyServices}
             clientId={OXY_CLIENT_ID}
             authRedirectUri={OXY_AUTH_REDIRECT_URI}
+            webAuthMode="popup"
             storageKeyPrefix="mention"
             queryClient={queryClient}
           >
