@@ -67,6 +67,7 @@ return {
                 "android.permission.CAMERA",
                 "android.permission.RECORD_AUDIO"
             ],
+            versionCode: 2,
             // Must match a client package_name in google-services.json.
             package: APP_ID,
             // google-services.json carries both earth.mention.app and its .dev

@@ -189,7 +189,6 @@ export function SideBar({ asDrawer = false, onNavigate }: SideBarProps) {
             style={[
                 asDrawer ? styles.drawerContainer : styles.container,
                 !asDrawer && { width: showExpanded ? 240 : 60 },
-                !asDrawer && pathname === '/search' ? styles.searchShadow : undefined,
             ]}
         >
             <View style={styles.inner}>
@@ -297,10 +296,6 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
     },
-    searchShadow: {
-        boxShadow: '0px 2px 3.84px 0px rgba(0, 0, 0, 0.25)',
-        elevation: 5,
-    } as ViewStyle,
     footer: {
         flexDirection: 'column',
         justifyContent: 'flex-end',
