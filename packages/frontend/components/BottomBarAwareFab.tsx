@@ -2,7 +2,7 @@ import React from 'react';
 import { Platform, View } from 'react-native';
 
 import { Fab } from '@oxyhq/bloom/fab';
-import { useTabBarReservedSpace } from '@oxyhq/bloom/tab-bar';
+import { useTabBarFootprint } from '@oxyhq/bloom/tab-bar';
 import { useAuth } from '@oxyhq/services/ui/client';
 
 import { useIsScreenNotMobile } from '@/hooks/useOptimizedMediaQuery';
@@ -42,7 +42,7 @@ export function BottomBarAwareFab({ onPress, icon, accessibilityLabel, size = 48
     // Bloom's raw footprint for the bar: the expanded pill plus the gap it keeps
     // from the window edge, safe-area inset already folded in. Never add
     // `insets.bottom` to it — that counts the home indicator twice.
-    const reserved = useTabBarReservedSpace();
+    const reserved = useTabBarFootprint();
 
     // The bar only renders (and only needs avoiding) on authenticated mobile-web.
     const followsBottomBar = IS_WEB && !isScreenNotMobile && isAuthenticated;

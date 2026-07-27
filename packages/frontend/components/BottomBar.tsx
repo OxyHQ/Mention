@@ -13,7 +13,7 @@ import { useHaptics } from '@oxyhq/bloom/hooks';
 import {
     TabBar,
     TabBarButton,
-    useTabBarReservedSpace,
+    useTabBarFootprint,
     type TabBarItem,
     type TabBarTheme,
 } from '@oxyhq/bloom/tab-bar';
@@ -67,7 +67,7 @@ const BOTTOM_BAR_CLEARANCE = 12;
  * band of dead space under every list.
  */
 export function useBottomBarReservedSpace(): number {
-    return useTabBarReservedSpace() + BOTTOM_BAR_CLEARANCE;
+    return useTabBarFootprint() + BOTTOM_BAR_CLEARANCE;
 }
 
 export const BottomBar = () => {
