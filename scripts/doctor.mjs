@@ -63,12 +63,12 @@ if (frontendManifest.dependencies?.["react-native"] !== "0.85.3") {
   );
 }
 if (
-  frontendManifest.dependencies?.["@oxyhq/bloom"] !== "^0.54.0" ||
-  rootManifest.overrides?.["@oxyhq/bloom"] !== "^0.54.0" ||
-  installedBloom.version !== "0.54.0"
+  frontendManifest.dependencies?.["@oxyhq/bloom"] !== "^0.54.1" ||
+  rootManifest.overrides?.["@oxyhq/bloom"] !== "^0.54.1" ||
+  installedBloom.version !== "0.54.1"
 ) {
   failures.push(
-    `Bloom must stay aligned at manifest/override ^0.54.0 and installed 0.54.0 ` +
+    `Bloom must stay aligned at manifest/override ^0.54.1 and installed 0.54.1 ` +
       `(found ${String(frontendManifest.dependencies?.["@oxyhq/bloom"])}, ` +
       `${String(rootManifest.overrides?.["@oxyhq/bloom"])}, ${String(installedBloom.version)}).`,
   );
