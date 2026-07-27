@@ -20,7 +20,6 @@ import { BottomSheetProvider } from '@/context/BottomSheetContext';
 import { HomeRefreshProvider } from '@/context/HomeRefreshContext';
 import { LayoutScrollProvider } from '@/context/LayoutScrollContext';
 import { OXY_CLIENT_ID, OXY_AUTH_REDIRECT_URI } from '@/config';
-import { ToastOutlet } from '@oxyhq/bloom/toast';
 import { ConfirmPromptProvider } from '@/components/common/ConfirmPrompt';
 import { FediverseInfoDialogProvider } from '@/components/Fediverse/FediverseInfoDialog';
 import { LiveFeatureHost } from '@/components/providers/LiveFeatureProviders';
@@ -76,7 +75,14 @@ export const AppProviders = memo(function AppProviders({
                           <HomeRefreshProvider>
                             {children}
                             <StatusBar style="auto" />
-                            <ToastOutlet />
+                            {/*
+                             * No <ToastOutlet /> here on purpose. Bloom's toast
+                             * stack must be mounted exactly once — every mount
+                             * subscribes to the same store and renders the same
+                             * rows, so a second outlet shows every toast twice.
+                             * OxyProvider above already mounts one at the app
+                             * root, and it carries Bloom's defaults.
+                             */}
                             <ConfirmPromptProvider />
                             <FediverseInfoDialogProvider />
                           </HomeRefreshProvider>
