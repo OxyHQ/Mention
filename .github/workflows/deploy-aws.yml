@@ -40,7 +40,11 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ env.DEPLOY_SHA }}
-          fetch-depth: 2
+          # The scope diff runs from the `deployed/backend` marker to the
+          # candidate, so this job needs the marker tags and the history that
+          # connects them to the candidate.
+          fetch-depth: 0
+          fetch-tags: true
       - name: Detect backend deployment scope
         id: filter
         run: bash .github/scripts/deployment-scope.sh backend
@@ -190,3 +194,22 @@ jobs:
         # as the same readiness gate as `/health/ready`. ELB mutations belong
         # in oxy-infra because the deploy role intentionally lacks ELB access.
         run: bash .github/scripts/deploy-ecs-image.sh
+
+  record-deployment:
+    # Runs only after a green production rollout, so a failed or rolled back
+    # release stays inside the next candidate's scope diff.
+    needs: deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # The only job in this workflow that may move the marker; the deploy job
+    # keeps a read-only token and no AWS job may hold one.
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ env.DEPLOY_SHA }}
+          fetch-depth: 1
+
+      - name: Record the deployed backend revision
+        run: bash .github/scripts/record-deployment.sh backend

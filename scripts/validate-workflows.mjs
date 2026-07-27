@@ -81,6 +81,77 @@ for (const workflowName of workflowNames) {
         );
       }
 
+      // deployment-scope.sh diffs the candidate against the `deployed/<target>`
+      // marker and silently degrades to the single-commit diff when the marker
+      // is absent, so the checkout must actually deliver the tag and history,
+      // and a green rollout must move the marker forward.
+      const jobs = Object.entries(workflow?.jobs || {});
+      const stepRuns = (job) =>
+        (job?.steps || []).map((step) =>
+          typeof step?.run === "string" ? step.run : "",
+        );
+
+      const scopeJob = jobs.find(([, job]) =>
+        stepRuns(job).some((run) => run.includes("deployment-scope.sh")),
+      );
+      if (!scopeJob) {
+        failures.push(
+          `${workflowName}: production workflow_run releases must resolve their scope through deployment-scope.sh`,
+        );
+      } else {
+        const [scopeName, job] = scopeJob;
+        const checkout = (job?.steps || []).find(
+          (step) =>
+            typeof step?.uses === "string" &&
+            step.uses.startsWith("actions/checkout@"),
+        );
+        if (
+          checkout?.with?.["fetch-depth"] !== 0 ||
+          checkout?.with?.["fetch-tags"] !== true
+        ) {
+          failures.push(
+            `${workflowName}: ${scopeName} must check out with fetch-depth: 0 and fetch-tags: true, otherwise the deployed/<target> marker is missing and the scope silently narrows to one commit`,
+          );
+        }
+      }
+
+      const recordJob = jobs.find(([, job]) =>
+        stepRuns(job).some((run) => run.includes("record-deployment.sh")),
+      );
+      if (!recordJob) {
+        failures.push(
+          `${workflowName}: a successful rollout must move its deployed/<target> marker through record-deployment.sh`,
+        );
+      } else {
+        const [recordName, job] = recordJob;
+        if (job?.permissions?.contents !== "write") {
+          failures.push(
+            `${workflowName}: ${recordName} must request job-level contents: write to move the marker`,
+          );
+        }
+        const needs = Array.isArray(job?.needs)
+          ? job.needs
+          : job?.needs
+            ? [job.needs]
+            : [];
+        if (needs.length === 0) {
+          failures.push(
+            `${workflowName}: ${recordName} must depend on the deploy job so the marker only moves after a green rollout`,
+          );
+        }
+        if (/\b(always|failure|cancelled)\s*\(/.test(String(job?.if ?? ""))) {
+          failures.push(
+            `${workflowName}: ${recordName} must not run on a failed or cancelled rollout; a marker moved past an undeployed change orphans it permanently`,
+          );
+        }
+      }
+
+      if (workflow?.permissions?.contents === "write") {
+        failures.push(
+          `${workflowName}: workflow-level contents: write would hand a push-capable token to the build job; scope it to the marker job instead`,
+        );
+      }
+
       if (
         workflowName === "deploy-aws.yml" ||
         workflowName === "deploy-mcp-aws.yml"

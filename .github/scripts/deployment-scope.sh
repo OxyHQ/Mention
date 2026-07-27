@@ -13,16 +13,28 @@ case "$target" in
 esac
 
 git cat-file -e "${sha}^{commit}"
-changed_output="$(
-  git diff-tree \
-    --root \
-    --no-commit-id \
-    --name-only \
-    -r \
-    -m \
-    "$sha" |
-    sort -u
-)"
+
+# A deployment is state, not a per-commit event. Compare the candidate against
+# the revision this target last shipped, so a commit that only repairs CI still
+# releases whatever an earlier failed run left undeployed. The marker is moved
+# by record-deployment.sh, and only after the deploy job succeeds.
+deployed_ref="refs/tags/deployed/$target"
+if base="$(git rev-parse --verify --quiet "${deployed_ref}^{commit}")"; then
+  echo "Comparing $sha against the last deployed $target revision $base"
+  changed_output="$(git diff --name-only "$base".."$sha" | sort -u)"
+else
+  echo "::warning::$deployed_ref is missing; scoping $target from the single commit $sha instead."
+  changed_output="$(
+    git diff-tree \
+      --root \
+      --no-commit-id \
+      --name-only \
+      -r \
+      -m \
+      "$sha" |
+      sort -u
+  )"
+fi
 mapfile -t changed_paths <<<"$changed_output"
 
 deploy=false
