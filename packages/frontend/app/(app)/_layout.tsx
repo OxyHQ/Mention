@@ -5,7 +5,7 @@ import { Slot, Stack, usePathname } from "expo-router";
 import { useAuth } from '@oxyhq/services';
 import { ContentPanel } from '@oxyhq/bloom/content-panel';
 
-import { BottomBar, BOTTOM_BAR_RESERVED_SPACE } from "@/components/BottomBar";
+import { BottomBar, useBottomBarReservedSpace } from "@/components/BottomBar";
 import { DrawerOverlay } from "@/components/DrawerOverlay";
 import KeyboardShortcutsModal from "@/components/KeyboardShortcutsModal";
 import RegisterPush from '@/components/RegisterPushToken';
@@ -18,7 +18,6 @@ import WelcomeModalGate from '@/components/WelcomeModalGate';
 import ConnectionStatus from '@/components/common/ConnectionStatus';
 import { AppShellProviders } from '@/components/providers/AppShellProviders';
 
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { useKeyboardVisibility } from "@/hooks/useKeyboardVisibility";
 import { useIsScreenNotMobile } from "@/hooks/useOptimizedMediaQuery";
@@ -66,7 +65,7 @@ export default function AppLayout() {
   const { isAuthenticated, isAuthResolved } = useAuth();
   const { screenColor } = useScreenColor();
   const pathname = usePathname();
-  const insets = useSafeAreaInsets();
+  const reservedSpace = useBottomBarReservedSpace();
   const onProfileRoute = isProfileRoute(pathname);
 
   // Unscoped app theme: this runs OUTSIDE the `<BloomColorScope>` below, so
@@ -82,10 +81,11 @@ export default function AppLayout() {
   // Mobile-web: the BottomBar is `position: fixed` (see BottomBar.tsx) so it takes
   // no document-scroll space. Reserve its footprint as `paddingBottom` so the last
   // item of every route clears it. Excludes /videos (full-viewport scroll-snap
-  // slides own their bottom spacing); 0 on desktop/native.
+  // slides own their bottom spacing); 0 on desktop/native. The hook already folds
+  // in the bottom safe-area inset — nothing gets added to it here.
   const mobileWebBottomInset =
     IS_WEB && !isScreenNotMobile && isAuthenticated && pathname !== '/videos'
-      ? BOTTOM_BAR_RESERVED_SPACE + insets.bottom
+      ? reservedSpace
       : 0;
 
   // Same center content on both platforms; only the host differs. WEB uses <Slot/>

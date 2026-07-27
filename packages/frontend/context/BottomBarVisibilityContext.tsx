@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect } from 'react';
 import { usePathname } from 'expo-router';
 import { useAnimatedReaction, useSharedValue, type SharedValue } from 'react-native-reanimated';
+import { setMinimized, useMinimizeState } from '@oxyhq/bloom/tab-bar';
 
 import { useLayoutScroll } from '@/context/LayoutScrollContext';
 
@@ -42,9 +43,14 @@ const BottomBarVisibilityContext = createContext<SharedValue<number> | null>(nul
 
 /**
  * Single source of truth for the chrome auto-hide signal, shared across the whole
- * `(app)` group so the BottomBar, the floating action button and the home/explore
- * headers all read the SAME animated value (one driver, one shared value) instead
- * of each running an independent copy.
+ * `(app)` group so the home/explore headers read the SAME animated value as the
+ * tab bar's minimize (one driver, one scroll integration) instead of each running
+ * an independent copy.
+ *
+ * The floating tab bar no longer consumes `hidden` directly: it MINIMIZES (58 → 44,
+ * labels collapsing) rather than sliding off-screen, driven from this same reaction
+ * via Bloom's `setMinimized`. The FAB therefore holds a constant lift and no longer
+ * reads this value either — the bar is always on screen for it to clear.
  *
  * `hidden` is CONTINUOUS in [0, 1]:
  *   - `0` → chrome fully visible
@@ -74,6 +80,11 @@ const BottomBarVisibilityContext = createContext<SharedValue<number> | null>(nul
 export function BottomBarVisibilityProvider({ children }: { children: React.ReactNode }) {
     const { scrollPosition } = useLayoutScroll();
     const pathname = usePathname();
+    // Bloom's shared minimize progress for the floating tab bar. Read here — the
+    // one place that already integrates scroll direction — so the bar shrinks off
+    // the SAME driver as the rest of the chrome instead of a second scroll handler.
+    // Requires <TabBarMinimizeProvider> ABOVE this provider (see AppShellProviders).
+    const minimizeState = useMinimizeState();
 
     // The shared auto-hide signal consumers read (0 = shown, 1 = hidden).
     const hidden = useSharedValue(0);
@@ -94,7 +105,11 @@ export function BottomBarVisibilityProvider({ children }: { children: React.Reac
     useEffect(() => {
         hideAmount.value = 0;
         hidden.value = 0;
-    }, [pathname, hidden, hideAmount]);
+        // The bar must also come back to its EXPANDED size on a route change —
+        // without this, navigating away from a scrolled screen opens the next one
+        // with a shrunken pill.
+        setMinimized(minimizeState, 0);
+    }, [pathname, hidden, hideAmount, minimizeState]);
 
     // THE DRIVER. A UI-thread worklet that integrates a clamped hide amount from
     // the shared scroll position. `useAnimatedReaction` hands us (current,
@@ -108,6 +123,7 @@ export function BottomBarVisibilityProvider({ children }: { children: React.Reac
             if (autoHideDisabled) {
                 hideAmount.value = 0;
                 hidden.value = 0;
+                setMinimized(minimizeState, 0);
                 return;
             }
             const previous = prevY ?? y;
@@ -129,8 +145,14 @@ export function BottomBarVisibilityProvider({ children }: { children: React.Reac
             }
             hideAmount.value = next;
             hidden.value = next / HIDE_SCROLL_RANGE;
+            // Bloom's tab bar minimizes (58 → 44, labels collapsing) instead of
+            // sliding away. `setMinimized` is itself a worklet and no-ops when the
+            // target is unchanged, so this costs nothing on the frames between the
+            // two states. Deliberately driven from THIS reaction rather than a
+            // second one — the direction/threshold integration lives here.
+            setMinimized(minimizeState, next > HIDE_SCROLL_RANGE / 2 ? 1 : 0);
         },
-        [autoHideDisabled],
+        [autoHideDisabled, minimizeState],
     );
 
     return (
@@ -142,10 +164,9 @@ export function BottomBarVisibilityProvider({ children }: { children: React.Reac
 
 /**
  * Read the shared chrome auto-hide signal. Consumers map `hidden` to their own
- * transform (e.g. bar `translateY: hidden * travel` + `opacity: 1 - hidden`; FAB
- * `translateY: -(1 - hidden) * reservedSpace`; header `translateY: hidden *
- * -(headerHeight + insets.top)`) so a single continuous value keeps every element
- * in lock-step.
+ * transform (the home and explore headers use `translateY: hidden *
+ * -(headerHeight + insets.top)`) so one continuous value keeps them in lock-step
+ * with the tab bar's minimize, which this provider drives from the same reaction.
  */
 export function useBottomBarHidden(): SharedValue<number> {
     const ctx = useContext(BottomBarVisibilityContext);

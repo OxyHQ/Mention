@@ -49,6 +49,24 @@ jest.mock('react-native-reanimated', () => ({
     },
 }));
 
+// The provider also drives Bloom's tab-bar minimize progress off this same
+// reaction (the bar shrinks 58 → 44 instead of sliding away). Mock the two
+// functions it uses: `useMinimizeState` hands back a plain mutable holder pair and
+// `setMinimized` mirrors the real no-op-when-unchanged semantics. The real
+// implementation springs `progress` toward `target`; there is no spring runtime
+// under jest, so the mock settles it immediately and tests assert on `target`.
+const mockMinimizeState = { progress: { value: 0 }, target: { value: 0 } };
+
+jest.mock('@oxyhq/bloom/tab-bar', () => ({
+    useMinimizeState: () => mockMinimizeState,
+    setMinimized: (state: { progress: { value: number }; target: { value: number } }, next: 0 | 1) => {
+        if (state.target.value !== next) {
+            state.target.value = next;
+            state.progress.value = next;
+        }
+    },
+}));
+
 function Capture({ onValue }: { onValue: (v: SharedValue<number>) => void }) {
     const hidden = useBottomBarHidden();
     onValue(hidden);
@@ -97,6 +115,8 @@ describe('BottomBarVisibilityProvider (continuous diffClamp)', () => {
         mockReaction.current = null;
         mockPathname = '/';
         prevReacted = null;
+        mockMinimizeState.progress.value = 0;
+        mockMinimizeState.target.value = 0;
     });
 
     afterEach(() => {
@@ -192,5 +212,55 @@ describe('BottomBarVisibilityProvider (continuous diffClamp)', () => {
         pushScroll(0);
         pushScroll(150); // 150px in one frame is a real fling (< 200px jump guard)
         expect(getHidden().value).toBe(1);
+    });
+
+    // ── Bloom tab-bar minimize, driven off this same reaction rather than a second
+    // scroll handler. `hidden` past the halfway point of the range minimizes the
+    // pill; back under it expands again.
+    it('minimizes the tab bar past the halfway point and expands it again on the way up', () => {
+        renderWithPath('/');
+        pushScroll(0);
+        pushScroll(30); // still inside the 50px activation gate → expanded
+        expect(mockMinimizeState.target.value).toBe(0);
+        pushScroll(200); // sustained scroll down → hide amount clamps to the full range
+        expect(mockMinimizeState.target.value).toBe(1);
+        pushScroll(150); // 50px back up → 40 of the 90px range → under half → expanded
+        expect(mockMinimizeState.target.value).toBe(0);
+    });
+
+    it('keeps the tab bar expanded on /videos regardless of scroll', () => {
+        renderWithPath('/videos');
+        pushScroll(0);
+        pushScroll(600);
+        expect(mockMinimizeState.target.value).toBe(0);
+    });
+
+    it('expands the tab bar again on a route change', () => {
+        mockPathname = '/';
+        let renderer: TestRenderer.ReactTestRenderer | null = null;
+        act(() => {
+            renderer = TestRenderer.create(
+                <BottomBarVisibilityProvider>
+                    <Capture onValue={() => {}} />
+                </BottomBarVisibilityProvider>,
+            );
+        });
+        if (renderer) renderers.push(renderer);
+
+        pushScroll(0);
+        pushScroll(200); // scrolled away → minimized
+        expect(mockMinimizeState.target.value).toBe(1);
+
+        // Navigate. Without the reset in the pathname effect the next screen would
+        // open with a shrunken pill while `hidden` had already snapped back to 0.
+        act(() => {
+            mockPathname = '/notifications';
+            renderer?.update(
+                <BottomBarVisibilityProvider>
+                    <Capture onValue={() => {}} />
+                </BottomBarVisibilityProvider>,
+            );
+        });
+        expect(mockMinimizeState.target.value).toBe(0);
     });
 });
