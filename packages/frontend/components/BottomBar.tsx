@@ -23,20 +23,38 @@ import { UnreadBadge } from '@/components/notifications/UnreadBadge';
 import { useTranslation } from 'react-i18next';
 
 /**
- * Forced-dark palette for the fullscreen Reels (/videos) screen, where the bar
- * floats over dark video content regardless of the app theme. Everywhere else the
- * bar resolves all five colors from the Bloom theme on its own.
+ * Forced black-and-white palette for the fullscreen Reels (/videos) screen, where
+ * the bar floats over video regardless of the app theme. Everywhere else the bar
+ * resolves all five colors from the Bloom theme on its own.
  *
- * `glassTint` is what the web surface paints under its `backdrop-filter`;
- * `solidFallback` is the near-opaque fill used where there is no glass to lens.
- * Both keep the #003038 surface the hand-rolled bar used on this screen.
+ * NEUTRAL, not tinted: the surface sits over arbitrary footage, so any hue fights
+ * whatever colour happens to be on frame. Black is the only surface that reads the
+ * same over all of them — the convention every fullscreen video feed converges on.
+ *
+ * `glassTint` is what the web surface paints under its `backdrop-filter` and what
+ * iOS layers over liquid glass, so a blur has already dissolved the frame behind
+ * it: 0.72 is dark enough that a white glyph clears 9:1 contrast even over a blown-
+ * out white frame, while still letting the blurred colour through so the pill reads
+ * as glass rather than a slab punched into the video. `solidFallback` is the fill
+ * used on Android and pre-iOS-26, where there is NO blur — sharp detail (a face,
+ * burned-in captions) would otherwise read straight through the glyphs, so it has
+ * to be near-opaque; 0.92 leaves just enough frame to keep it floating.
+ *
+ * `activeTint`/`inactiveTint` drive the LABELS only — Bloom interpolates between
+ * them in its own mapper. The glyphs cannot follow them (see `activeGlyphClass`
+ * below), so the className tints there are the deliberate twins of these values.
+ * Inactive is 60% white rather than a heavier value so the selected tab is
+ * unmistakable at a glance; it still clears 4.5:1 against the surface. `highlight`
+ * is a touch stronger than Bloom's own scrim because a white scrim separates least
+ * from the surface exactly when a bright frame lifts it toward mid-grey, and the
+ * sliding pill is the bar's primary selection cue.
  */
 const VIDEOS_DARK_TAB_BAR_THEME: Partial<TabBarTheme> = {
     activeTint: '#FFFFFF',
-    inactiveTint: 'rgba(255, 255, 255, 0.65)',
-    highlight: 'rgba(255, 255, 255, 0.16)',
-    glassTint: 'rgba(0, 48, 56, 0.8)',
-    solidFallback: 'rgba(0, 48, 56, 0.94)',
+    inactiveTint: 'rgba(255, 255, 255, 0.6)',
+    highlight: 'rgba(255, 255, 255, 0.2)',
+    glassTint: 'rgba(0, 0, 0, 0.72)',
+    solidFallback: 'rgba(0, 0, 0, 0.92)',
 };
 
 /** Rendered size (px) of the tab glyphs; Bloom centers each one in its own glyph box. */
@@ -79,9 +97,21 @@ export const BottomBar = () => {
     const { t } = useTranslation();
     const unreadCount = useUnreadCount();
 
-    // The Reels (/videos) screen floats this bar over dark video content, so it
-    // renders against a forced-dark surface regardless of the app theme.
+    // The Reels (/videos) screen floats this bar over video content, so it renders
+    // against a forced black-and-white surface regardless of the app theme.
     const isVideosScreen = pathname === '/videos';
+
+    // The glyphs need their own copy of that decision because the theme cannot
+    // reach them: Bloom tints a glyph by CLONING it with a `fill` prop, and
+    // Mention's icons paint `currentColor` sourced from their className instead
+    // (react-native-svg's `color` prop on native, the CSS cascade on web — see
+    // `assets/icons/IconSvg.*`). `activeTint`/`inactiveTint` are therefore a silent
+    // no-op on this icon set and the className is the only channel that works, so
+    // these two are hand-matched to the theme's two tints above. Off /videos they
+    // collapse to the app tokens, leaving every other screen's bar exactly as it
+    // was and still following Bloom's light/dark theme.
+    const activeGlyphClass = isVideosScreen ? 'text-white' : 'text-primary';
+    const inactiveGlyphClass = isVideosScreen ? 'text-white/60' : 'text-muted-foreground';
 
     const activeIndex = pathname === '/' ? TAB_HOME
         : pathname === '/videos' ? TAB_VIDEOS
@@ -99,20 +129,20 @@ export const BottomBar = () => {
         {
             name: 'home',
             label: t('bottomBar.home'),
-            icon: <Home size={ICON_SIZE} className="text-muted-foreground" />,
-            activeIcon: <HomeActive size={ICON_SIZE} className="text-primary" />,
+            icon: <Home size={ICON_SIZE} className={inactiveGlyphClass} />,
+            activeIcon: <HomeActive size={ICON_SIZE} className={activeGlyphClass} />,
         },
         {
             name: 'videos',
             label: t('bottomBar.videos'),
-            icon: <Video size={ICON_SIZE} className="text-muted-foreground" />,
-            activeIcon: <VideoActive size={ICON_SIZE} className="text-primary" />,
+            icon: <Video size={ICON_SIZE} className={inactiveGlyphClass} />,
+            activeIcon: <VideoActive size={ICON_SIZE} className={activeGlyphClass} />,
         },
         {
             name: 'compose',
             label: t('bottomBar.compose'),
-            icon: <ComposeIcon size={ICON_SIZE} className="text-muted-foreground" />,
-            activeIcon: <ComposeIIconActive size={ICON_SIZE} className="text-primary" />,
+            icon: <ComposeIcon size={ICON_SIZE} className={inactiveGlyphClass} />,
+            activeIcon: <ComposeIIconActive size={ICON_SIZE} className={activeGlyphClass} />,
         },
         {
             // The unread badge is composed INTO both glyphs rather than living in a
@@ -120,6 +150,11 @@ export const BottomBar = () => {
             // and `activeIcon` as two stacked crossfade layers, so both must carry
             // it or it would blink mid-crossfade. The two copies are pixel-identical
             // and fully opaque, so the stack is invisible.
+            //
+            // The badge itself is NOT part of the forced-dark treatment: only the
+            // two bell glyphs take `inactiveGlyphClass`/`activeGlyphClass`. It stays
+            // `bg-primary` on every screen because it is an alert, not chrome — the
+            // brand colour is what makes it read as one against a black bar.
             //
             // HEADROOM: the badge is `-top-1` (-4px) inside a glyph box sitting 7px
             // below `itemBox`'s `overflow: 'hidden'` edge — 3px of clearance. If it
@@ -129,13 +164,13 @@ export const BottomBar = () => {
             label: t('bottomBar.notifications'),
             icon: (
                 <View>
-                    <Bell size={ICON_SIZE} className="text-muted-foreground" />
+                    <Bell size={ICON_SIZE} className={inactiveGlyphClass} />
                     <UnreadBadge count={unreadCount} accessibilityLabel={unreadLabel} />
                 </View>
             ),
             activeIcon: (
                 <View>
-                    <BellActive size={ICON_SIZE} className="text-primary" />
+                    <BellActive size={ICON_SIZE} className={activeGlyphClass} />
                     <UnreadBadge count={unreadCount} accessibilityLabel={unreadLabel} />
                 </View>
             ),
@@ -143,11 +178,14 @@ export const BottomBar = () => {
         {
             // No `activeIcon`: the avatar looks the same whether or not the tab is
             // focused, exactly as before — the sliding highlight carries the state.
+            // It is also the one glyph the /videos treatment does not touch: an
+            // <Avatar> is photographic content with no tint to force, so it renders
+            // identically on every screen.
             name: 'profile',
             label: t('bottomBar.profile'),
             icon: <Avatar size={ICON_SIZE + 4} source={user?.avatar} variant={MEDIA_VARIANT_AVATAR} />,
         },
-    ], [t, unreadCount, unreadLabel, user?.avatar]);
+    ], [activeGlyphClass, inactiveGlyphClass, t, unreadCount, unreadLabel, user?.avatar]);
 
     const handleIndexChange = useCallback((index: number) => {
         haptic('light');
@@ -201,19 +239,23 @@ export const BottomBar = () => {
     // `web:` prefix, so the wrapper is inert on native.
     return (
         <View className="web:fixed web:inset-x-0 web:bottom-0 web:z-[1000]">
-            {/* KNOWN ISSUE (accepted, not an oversight): Bloom paints a progressive
-                blur across the bottom 114px of the window (120px in an iOS PWA)
-                behind the pill. On /videos that band covers the Reels controls and
-                visibly smears `scrubberHitArea`, the 3px progress line pinned at
-                `bottom: 0`. There is deliberately NO consumer-side fix: on native the
-                bar host is the LAST sibling of the shell, so no `zIndex` on a shell
-                descendant can paint above it. The real fix is a `blur` control on
-                Bloom's TabBar, landing in 0.53.0 — do not fight this with z-index. */}
+            {/* Bloom paints a progressive blur across the bottom 114px of the window
+                (120px in an iOS PWA) behind the pill. Everywhere else that band is
+                what dissolves scrolling content behind the bar, so it stays on. On
+                /videos it is turned OFF: the band covered the Reels controls and
+                smeared `scrubberHitArea`, the 3px progress line pinned at `bottom: 0`,
+                and that screen already has its own 180px gradient overlay for
+                legibility — two stacked bottom treatments over full-bleed video. There
+                is no consumer-side fix for the smear, on either platform: the bar host
+                is the LAST sibling of the shell, so no `zIndex` on a shell descendant
+                can paint above it. Do not fight this with z-index; `blur` is the
+                control. */}
             <TabBar
                 activeIndex={activeIndex}
                 onIndexChange={handleIndexChange}
                 onIndexLongPress={handleIndexLongPress}
                 theme={isVideosScreen ? VIDEOS_DARK_TAB_BAR_THEME : undefined}
+                blur={!isVideosScreen}
             >
                 {items.map((item, index) => (
                     <TabBarButton key={item.name} item={item} index={index} />
