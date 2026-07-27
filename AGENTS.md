@@ -330,7 +330,7 @@ Uses DOTTED `$set` to enrich the existing subdoc — NEVER a whole-subdoc overwr
 ## Theming
 
 - Default color preset for **Mention frontend: `blue`**.
-- `BloomThemeProvider` is the single source of truth for mode + color preset, with built-in persistence. Pass `persistKey` + `storage` — do NOT add a local theme store.
+- `BloomThemeProvider` is the single source of truth for mode + color preset, with built-in persistence. Pass `persistKey` + `storage` — do NOT add a local theme store. It is mounted for us by `<BloomProvider>` (see below), never directly.
 - Settings UI uses `SettingsList` (`SettingsListGroup` / `SettingsListItem` from `@oxyhq/bloom/settings-list`). Do not introduce local `SettingsItem` wrappers.
 - `BloomColorScope` owns scoped Bloom/NativeWind variables for profile theming. Do not add app-local scope helpers.
-- `frontend/app/_layout.tsx` is the only place that wires `BloomThemeProvider`; consumers use `useTheme()` / `useBloomTheme()` from `@oxyhq/bloom`.
+- **ONE Bloom root:** `frontend/app/_layout.tsx` mounts `<BloomProvider>` (`@oxyhq/bloom/provider`) and nothing else mounts a Bloom state provider. It composes theme + haptics + image resolution + scroll restoration + tab-bar minimize progress, so every one of them sits above the whole shell — including `RightBar`, which renders BESIDE the routed content and hosts its own scrollable feed on `/videos` (that rail crashed the screen when scroll restoration wrapped only the center column: on web `useScrollRestoration()` throws outside its provider). Consumers use `useTheme()` / `useBloomTheme()` from `@oxyhq/bloom`. Outlets are still mounted by the app (`ToastOutlet` comes from `OxyProvider`, `Portal.Provider`/`Outlet` from `app/_layout.tsx`).
