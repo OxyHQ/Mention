@@ -66,7 +66,7 @@
         "@livekit/react-native-expo-plugin": "^1.0.2",
         "@livekit/react-native-webrtc": "^144.1.1",
         "@mention/shared-types": "workspace:*",
-        "@oxyhq/bloom": "^0.54.1",
+        "@oxyhq/bloom": "^0.56.0",
         "@oxyhq/core": "^12.10.6",
         "@oxyhq/services": "^22.12.5",
         "@react-native-async-storage/async-storage": "^2.2.0",
@@ -190,7 +190,7 @@
     },
   },
   "overrides": {
-    "@oxyhq/bloom": "^0.54.1",
+    "@oxyhq/bloom": "^0.56.0",
     "@oxyhq/core": "^12.10.6",
     "@oxyhq/services": "^22.12.5",
     "@react-native-async-storage/async-storage": "2.2.0",
@@ -682,7 +682,7 @@
 
     "@oxc-project/types": ["@oxc-project/types@0.137.0", "", {}, "sha512-WT+Gb24i8hmvo85AIv2oEYouEXkRlKAlT9WaCa3TfLgNCN+GhrJOGZuIlMouAh38Qe4QOx26eUOVsq70qXrywA=="],
 
-    "@oxyhq/bloom": ["@oxyhq/bloom@0.54.1", "", { "dependencies": { "@tanstack/react-virtual": "^3.14.3", "react-native-css": "3.0.7", "react-remove-scroll-bar": "^2.3.8" }, "peerDependencies": { "expo": "*", "expo-blur": "*", "expo-font": "*", "expo-glass-effect": ">=0.1.9", "expo-haptics": "*", "expo-image": "*", "expo-router": ">=3.0.0", "expo-symbols": ">=0.4.5", "nativewind": ">=5.0.0", "react": ">=18.0.0", "react-dom": ">=18.0.0", "react-native": ">=0.73.0", "react-native-gesture-handler": ">=2.16.1", "react-native-reanimated": ">=3.13.0", "react-native-safe-area-context": ">=5.0.0", "react-native-screens": ">=3.16.0", "react-native-svg": ">=13.0.0" }, "optionalPeers": ["expo", "expo-font", "expo-haptics", "expo-router", "nativewind", "react-dom"] }, "sha512-YB3IyeT1zdmaYXPcyt6e4QLF5Pkq3fZ3SgEwLPm9C6G2H/dbJ+/EH4xCzewDyJDZzbW8Y7ZHA971l9b3ZN+GCA=="],
+    "@oxyhq/bloom": ["@oxyhq/bloom@0.56.0", "", { "dependencies": { "@tanstack/react-virtual": "^3.14.3", "react-native-css": "3.0.7", "react-remove-scroll-bar": "^2.3.8" }, "peerDependencies": { "expo": "*", "expo-blur": "*", "expo-font": "*", "expo-glass-effect": ">=0.1.9", "expo-haptics": "*", "expo-image": "*", "expo-router": ">=3.0.0", "expo-symbols": ">=0.4.5", "nativewind": ">=5.0.0", "react": ">=18.0.0", "react-dom": ">=18.0.0", "react-native": ">=0.73.0", "react-native-gesture-handler": ">=2.16.1", "react-native-reanimated": ">=3.13.0", "react-native-safe-area-context": ">=5.0.0", "react-native-screens": ">=3.16.0", "react-native-svg": ">=13.0.0" }, "optionalPeers": ["expo", "expo-font", "expo-haptics", "expo-router", "nativewind", "react-dom"] }, "sha512-ZX9uX46KR3bJ+0QTCtkHczmAX0N3fjJfRb0RGy+7mhzyVdnruZQkG0CeoXRt8xi/mJMmojtzDAk2uic5OzfX3Q=="],
 
     "@oxyhq/contracts": ["@oxyhq/contracts@0.17.0", "", { "dependencies": { "zod": "^3.25.64" } }, "sha512-/GGLe2NsULmVBlqcTYGEag2ETbh0xfWauQXr1fb4F3UjzKQJu1bW+eeTZBegYahTYHIUujGzCk28JS2vYqoMYg=="],
 

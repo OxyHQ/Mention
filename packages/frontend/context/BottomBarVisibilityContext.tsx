@@ -83,7 +83,9 @@ export function BottomBarVisibilityProvider({ children }: { children: React.Reac
     // Bloom's shared minimize progress for the floating tab bar. Read here — the
     // one place that already integrates scroll direction — so the bar shrinks off
     // the SAME driver as the rest of the chrome instead of a second scroll handler.
-    // Requires <TabBarMinimizeProvider> ABOVE this provider (see AppShellProviders).
+    // Requires <TabBarMinimizeProvider> ABOVE this provider — it comes from the
+    // root <BloomProvider> in app/_layout.tsx. Without one, `useMinimizeState()`
+    // silently returns a private fallback and the bar never minimizes.
     const minimizeState = useMinimizeState();
 
     // The shared auto-hide signal consumers read (0 = shown, 1 = hidden).
