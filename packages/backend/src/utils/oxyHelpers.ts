@@ -8,7 +8,6 @@ import { logger } from './logger';
 
 const OXY_BASE_URL = config.oxyApiUrl;
 const OXY_VIEWER_GRAPH_PATH = '/users/me/graph';
-const OXY_RESTRICTED_USERS_PATH = '/privacy/restricted';
 
 interface ScopedOxyRequest {
   accessToken?: string;
@@ -85,26 +84,21 @@ function unwrapDataEnvelope(value: unknown): unknown {
   return value;
 }
 
-function delegatedBlockedRows(response: unknown): Array<{ blockedId: string }> {
+/**
+ * Read one bounded id list off the delegated viewer graph. A missing or
+ * non-array list is an error, never an empty result: treating it as "no
+ * blocks/restrictions" would disclose the accounts the viewer hid.
+ */
+function delegatedGraphIds(response: unknown, key: 'blockedIds' | 'restrictedIds'): string[] {
   const graph = unwrapDataEnvelope(response);
   if (!graph || typeof graph !== 'object') {
     throw new Error('Oxy delegated viewer graph response is malformed');
   }
-  const blockedIds = (graph as { blockedIds?: unknown }).blockedIds;
-  if (!Array.isArray(blockedIds)) {
-    throw new Error('Oxy delegated viewer graph is missing blockedIds');
+  const ids = (graph as Record<string, unknown>)[key];
+  if (!Array.isArray(ids)) {
+    throw new Error(`Oxy delegated viewer graph is missing ${key}`);
   }
-  return blockedIds
-    .filter((id): id is string => typeof id === 'string' && id.length > 0)
-    .map((blockedId) => ({ blockedId }));
-}
-
-function delegatedRestrictedRows(response: unknown): unknown[] {
-  const rows = unwrapDataEnvelope(response);
-  if (!Array.isArray(rows)) {
-    throw new Error('Oxy delegated restricted-user response is malformed');
-  }
-  return rows;
+  return ids.filter((id): id is string => typeof id === 'string' && id.length > 0);
 }
 
 /**
@@ -114,24 +108,25 @@ function delegatedRestrictedRows(response: unknown): unknown[] {
  */
 function createServiceDelegatedOxyClient(viewerId: string): OxyClient {
   const client = getServiceOxyClient();
+  // Blocks and restrictions both come off the viewer graph, and both callers run
+  // in the same `Promise.all`, so the request is made once and shared. The
+  // per-user privacy routes are user-token only, and a delegated caller has no
+  // user token — the graph endpoint is the one that accepts a service
+  // credential with an explicit viewer.
+  let graph: Promise<unknown> | undefined;
+  const viewerGraph = (): Promise<unknown> => {
+    graph ??= client.makeServiceRequest('GET', OXY_VIEWER_GRAPH_PATH, undefined, viewerId);
+    return graph;
+  };
+
   return {
     async getBlockedUsers(): Promise<unknown[]> {
-      const response = await client.makeServiceRequest(
-        'GET',
-        OXY_VIEWER_GRAPH_PATH,
-        undefined,
-        viewerId,
-      );
-      return delegatedBlockedRows(response);
+      const ids = delegatedGraphIds(await viewerGraph(), 'blockedIds');
+      return ids.map((blockedId) => ({ blockedId }));
     },
     async getRestrictedUsers(): Promise<unknown[]> {
-      const response = await client.makeServiceRequest(
-        'GET',
-        OXY_RESTRICTED_USERS_PATH,
-        undefined,
-        viewerId,
-      );
-      return delegatedRestrictedRows(response);
+      const ids = delegatedGraphIds(await viewerGraph(), 'restrictedIds');
+      return ids.map((restrictedId) => ({ restrictedId }));
     },
     getUserFollowing(userId: string): Promise<unknown> {
       return client.getUserFollowing(userId);
