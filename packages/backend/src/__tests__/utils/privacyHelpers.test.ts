@@ -43,7 +43,7 @@ describe('privacyHelpers', () => {
     vi.clearAllMocks();
   });
 
-  it('treats missing Oxy auth context as an empty blocked list without error logging', async () => {
+  it('fails closed when Oxy rejects the blocked-list auth context', async () => {
     const error = Object.assign(new Error('Invalid or missing authorization header'), {
       code: 'UNAUTHORIZED',
       status: 401,
@@ -52,17 +52,20 @@ describe('privacyHelpers', () => {
       getBlockedUsers: vi.fn().mockRejectedValue(error),
     });
 
-    await expect(getBlockedUserIds(client)).resolves.toEqual([]);
+    await expect(getBlockedUserIds(client)).rejects.toMatchObject({
+      name: 'OxyPrivacyAuthorizationError',
+      listType: 'blocked',
+      status: 401,
+    });
 
     expect(logger.error).not.toHaveBeenCalled();
-    expect(logger.warn).not.toHaveBeenCalled();
-    expect(logger.debug).toHaveBeenCalledWith(
-      expect.stringContaining('Skipping blocked users'),
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining('blocked privacy authorization failed'),
       expect.objectContaining({ status: 401, code: 'UNAUTHORIZED' }),
     );
   });
 
-  it('treats forbidden Oxy auth context as an empty restricted list without error logging', async () => {
+  it('fails closed when Oxy rejects the restricted-list auth context', async () => {
     const error = Object.assign(new Error('Forbidden'), {
       code: 'FORBIDDEN',
       status: 403,
@@ -71,13 +74,59 @@ describe('privacyHelpers', () => {
       getRestrictedUsers: vi.fn().mockRejectedValue(error),
     });
 
-    await expect(getRestrictedUserIds(client)).resolves.toEqual([]);
+    await expect(getRestrictedUserIds(client)).rejects.toMatchObject({
+      name: 'OxyPrivacyAuthorizationError',
+      listType: 'restricted',
+      status: 403,
+    });
 
     expect(logger.error).not.toHaveBeenCalled();
-    expect(logger.warn).not.toHaveBeenCalled();
-    expect(logger.debug).toHaveBeenCalledWith(
-      expect.stringContaining('Skipping restricted users'),
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining('restricted privacy authorization failed'),
       expect.objectContaining({ status: 403, code: 'FORBIDDEN' }),
     );
+  });
+
+  it('fails closed when the blocked-list request has a transient network error', async () => {
+    const error = Object.assign(new Error('network unavailable'), {
+      code: 'NETWORK_ERROR',
+    });
+    const client = makeClient({
+      getBlockedUsers: vi.fn().mockRejectedValue(error),
+    });
+
+    await expect(getBlockedUserIds(client)).rejects.toMatchObject({
+      name: 'OxyPrivacyUnavailableError',
+      listType: 'blocked',
+    });
+
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining('blocked privacy resolution failed'),
+      expect.objectContaining({ code: 'NETWORK_ERROR', network: true }),
+    );
+  });
+
+  it('fails closed when the restricted-list response cannot be resolved', async () => {
+    const client = makeClient({
+      getRestrictedUsers: vi.fn().mockRejectedValue(new Error('malformed response')),
+    });
+
+    await expect(getRestrictedUserIds(client)).rejects.toMatchObject({
+      name: 'OxyPrivacyUnavailableError',
+      listType: 'restricted',
+    });
+  });
+
+  it('fails closed when an authenticated path has no scoped Oxy client', async () => {
+    await expect(getBlockedUserIds()).rejects.toMatchObject({
+      name: 'OxyPrivacyUnavailableError',
+      listType: 'blocked',
+      code: 'MISSING_PRIVACY_CLIENT',
+    });
+    await expect(getRestrictedUserIds()).rejects.toMatchObject({
+      name: 'OxyPrivacyUnavailableError',
+      listType: 'restricted',
+      code: 'MISSING_PRIVACY_CLIENT',
+    });
   });
 });

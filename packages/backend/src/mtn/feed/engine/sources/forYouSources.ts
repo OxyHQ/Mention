@@ -82,6 +82,7 @@ function forYouParams(ctx: FeedEngineContext): GatherForYouCandidatesParams | nu
     userBehavior: ctx.userBehavior as CandidateUserBehavior | undefined,
     viewerRegion: ctx.viewerRegion,
     seenPostIds: ctx.seenPostIds ?? [],
+    oxyClient: ctx.privacyOxyClient,
   };
 }
 

@@ -37,21 +37,6 @@ export function errorResponse(
 }
 
 /**
- * Extract a safe, user-facing message from an error.
- * Never exposes stack traces, file paths, or internal details.
- */
-export function getSafeErrorMessage(error: unknown, fallback: string): string {
-    if (error instanceof ApiError) {
-        return error.message;
-    }
-    // For known Mongoose validation errors, provide a meaningful message
-    if (error instanceof Error && error.name === 'ValidationError') {
-        return 'Validation failed';
-    }
-    return fallback;
-}
-
-/**
  * Global error handler middleware — must be registered LAST in the Express middleware chain.
  * Catches unhandled errors from route handlers and sends a safe response.
  */

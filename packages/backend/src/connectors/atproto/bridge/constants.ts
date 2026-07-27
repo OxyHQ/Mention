@@ -1,3 +1,5 @@
+import { config } from '../../../config';
+
 /**
  * AT Protocol BE-DISCOVERED bridge constants (Phase C4).
  *
@@ -18,9 +20,6 @@
  *  - {@link ATPROTO_BRIDGE_ENABLED} gates the be-discovered read endpoints.
  *  - The read connector's `ATPROTO_ENABLED` is NOT required for the bridge — the
  *    read and be-discovered directions are independent products.
- *  - Relay registration (`com.atproto.sync.requestCrawl`) is gated SEPARATELY by
- *    {@link ATPROTO_RELAY_HOST} being set AND called from the explicit activation
- *    entry point — it is NEVER auto-invoked (an external network activation).
  */
 
 /**
@@ -29,7 +28,7 @@
  * `ATPROTO_BRIDGE_ENABLED === 'true'` are the bridge routes live. Independent of
  * the read connector's `ATPROTO_ENABLED`.
  */
-export const ATPROTO_BRIDGE_ENABLED = process.env.ATPROTO_BRIDGE_ENABLED === 'true';
+export const ATPROTO_BRIDGE_ENABLED = config.atproto.bridgeEnabled;
 
 /**
  * The public domain the bridge mints its handle and PDS service URLs under — the
@@ -37,7 +36,7 @@ export const ATPROTO_BRIDGE_ENABLED = process.env.ATPROTO_BRIDGE_ENABLED === 'tr
  * `.well-known/atproto-did` host are both built from this, so a foreign AppView
  * resolves a Mention user's handle back to the bridge.
  */
-export const BRIDGE_DOMAIN = process.env.FEDERATION_DOMAIN || 'mention.earth';
+export const BRIDGE_DOMAIN = config.federation.domain;
 
 /**
  * The `at://` collection NSIDs the bridge exposes. The MTN feed collections map
@@ -57,15 +56,6 @@ export const BRIDGE_BSKY_COLLECTIONS = [
 ] as const;
 
 export type BridgeBskyCollection = (typeof BRIDGE_BSKY_COLLECTIONS)[number];
-
-/**
- * The Relay host to register a crawl with (`com.atproto.sync.requestCrawl`).
- * UNSET by default — Relay registration is an EXTERNAL activation (a real
- * network call to a real Relay) and stays inert until an operator sets this AND
- * calls the explicit activation entry point. The canonical Bluesky Relay is
- * `bsky.network`.
- */
-export const ATPROTO_RELAY_HOST = process.env.ATPROTO_RELAY_HOST?.trim() || undefined;
 
 /** Max records returned by a single `listRecords` page (atproto convention). */
 export const LIST_RECORDS_MAX_LIMIT = 100;

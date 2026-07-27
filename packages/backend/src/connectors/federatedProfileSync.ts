@@ -71,7 +71,7 @@ class FederatedProfileSync {
     } catch (error) {
       // A failed actor lookup must not fail the feed — it only costs us the
       // background sync for this view.
-      logger.warn(`[FedSync] actor lookup failed for userId=${oxyUserId}`, error);
+      logger.warn('[FedSync] actor lookup failed', error);
       return false;
     }
 
@@ -125,7 +125,9 @@ class FederatedProfileSync {
                 // A failed backfill is still a COMPLETED sync attempt: stamp it
                 // below so the pending check can clear instead of polling forever.
                 const message = fetchErr instanceof Error ? fetchErr.message : String(fetchErr);
-                logger.warn(`[FedSync] atproto backfill failed for ${cachedActor.acct}: ${message}`);
+          logger.warn('[FedSync] atproto backfill failed', {
+            error: message,
+          });
               }
             }
 
@@ -140,7 +142,9 @@ class FederatedProfileSync {
               const graphOwner = cachedActor.oxyUserId;
               void syncAtprotoProfileGraph(graphDid, graphOwner).catch((err) => {
                 const message = err instanceof Error ? err.message : String(err);
-                logger.warn(`[FedSync] atproto graph sync failed for ${cachedActor.acct}: ${message}`);
+          logger.warn('[FedSync] atproto graph sync failed', {
+            error: message,
+          });
               });
             }
           }
@@ -172,7 +176,11 @@ class FederatedProfileSync {
               ? oxyUser.username
               : undefined,
           };
-          logger.info(`[FedSync] oxyUser.type=${oxyUser.type} federation.actorUri=${oxyIdentity.actorUri ?? 'missing'} username=${oxyIdentity.acctHint ?? 'missing'}`);
+      logger.info('[FedSync] resolved federated identity', {
+        type: oxyUser.type,
+        hasActorUri: Boolean(oxyIdentity.actorUri),
+        hasAccountHint: Boolean(oxyIdentity.acctHint),
+      });
           return oxyIdentity;
         };
 
@@ -182,7 +190,10 @@ class FederatedProfileSync {
           actor.oxyUserId = syncUserId;
         };
 
-        logger.info(`[FedSync] background sync userId=${syncUserId} existingActor=${!!actor} outboxUrl=${actor?.outboxUrl ?? 'none'}`);
+        logger.info('[FedSync] starting background profile sync', {
+          hasExistingActor: Boolean(actor),
+          hasOutboxUrl: Boolean(actor?.outboxUrl),
+        });
 
         if (!actor) {
           const { actorUri, acctHint } = await getOxyIdentity();
@@ -212,7 +223,9 @@ class FederatedProfileSync {
             const username = normalizeInlineText((acctHint || '').split('@')[0]) || 'unknown';
             const acct = `${username}@${domain}`;
             const fallbackOutboxUrl = `${actorUri}${actorUri.endsWith('/') ? '' : '/'}outbox`;
-            logger.info(`[FedSync] fetchRemoteActor failed for ${actorUri}; creating minimal FederatedActor with fallback outboxUrl=${fallbackOutboxUrl}`);
+            logger.info('[FedSync] remote actor fetch failed; creating minimal actor', {
+              hasFallbackOutbox: Boolean(fallbackOutboxUrl),
+            });
             actor = await FederatedActor.findOneAndUpdate(
               { uri: actorUri },
               {
@@ -240,14 +253,19 @@ class FederatedProfileSync {
           if (actorUriChanged || actorAcctChanged || this.shouldRefreshActorBeforeOutboxSync(actor)) {
             const refreshUri = actorUri || actor.uri;
             const refreshAcct = acctHint || actor.acct;
-            logger.info(`[FedSync] refreshing cached actor before outbox sync for ${actor.acct}; actorUriChanged=${actorUriChanged} actorAcctChanged=${actorAcctChanged}`);
+              logger.info('[FedSync] refreshing cached actor before outbox sync', {
+                actorUriChanged,
+                actorAccountChanged: actorAcctChanged,
+              });
             const refreshed = await activityPubConnector.fetchRemoteActor(refreshUri, false, refreshAcct);
             if (refreshed) {
               actor = refreshed;
               refreshedActorForSync = true;
               await stampActorOxyUserId();
             } else {
-              logger.info(`[FedSync] cached actor refresh failed before outbox sync for ${actor.acct}; using cached outboxUrl=${actor.outboxUrl ?? 'none'}`);
+              logger.info('[FedSync] cached actor refresh failed before outbox sync', {
+                hasCachedOutbox: Boolean(actor.outboxUrl),
+              });
             }
           }
         }
@@ -262,7 +280,7 @@ class FederatedProfileSync {
 
         const outboxStatus = this.currentOutboxBackfillStatus(actor);
         if (outboxStatus === 'unavailable') {
-          logger.info(`[FedSync] outbox sync skipped (unavailable) for ${actor.acct}`);
+          logger.info('[FedSync] outbox sync skipped because it is unavailable');
           return;
         }
 
@@ -279,7 +297,7 @@ class FederatedProfileSync {
           && !shouldClassifyUntrackedOutbox
           && isWithinOutboxSyncCooldown(actor.lastOutboxSyncAt, OUTBOX_SYNC_MIN_INTERVAL_MS);
         if (syncedRecently) {
-          logger.info(`[FedSync] outbox sync skipped (cooldown) for ${actor.acct}`);
+          logger.info('[FedSync] outbox sync skipped during cooldown');
           return;
         }
 
@@ -291,7 +309,9 @@ class FederatedProfileSync {
 
         const syncResult = await activityPubConnector.syncOutboxPostsDetailed(actor, OUTBOX_SYNC_LIMIT);
         const syncedCount = syncResult.syncedCount;
-        logger.info(`[FedSync] syncOutboxPosts returned ${syncedCount} for ${actor.acct}`);
+        logger.info('[FedSync] completed outbox sync', {
+          count: syncedCount,
+        });
         if (isPermanentlyUnavailableOutboxReason(syncResult.reason)) {
           await activityPubConnector.markOutboxBackfillUnavailable(actor, syncResult.reason);
         } else if (syncResult.shouldStampCooldown) {
@@ -302,7 +322,9 @@ class FederatedProfileSync {
             { $set: { lastOutboxSyncAt: new Date() } },
           );
         } else {
-          logger.info(`[FedSync] not stamping outbox cooldown for ${actor.acct}; reason=${syncResult.reason ?? 'unknown'}`);
+          logger.info('[FedSync] did not stamp outbox cooldown', {
+            result: syncResult.reason ?? 'unknown',
+          });
         }
 
         // Backfill oxyUserId on any posts that were stored without it
@@ -314,7 +336,9 @@ class FederatedProfileSync {
         }
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
-        logger.warn(`[FedSync] background profile sync failed for userId=${syncUserId}: ${message}`);
+        logger.warn('[FedSync] background profile sync failed', {
+          error: message,
+        });
       }
     })();
   }
@@ -335,7 +359,9 @@ class FederatedProfileSync {
       await FederatedActor.updateOne({ _id: actorId }, { $set: { lastOutboxSyncAt: new Date() } });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      logger.warn(`[FedSync] failed to stamp post backfill for actor ${String(actorId)}: ${message}`);
+        logger.warn('[FedSync] failed to stamp post backfill', {
+          error: message,
+        });
     }
   }
 

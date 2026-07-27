@@ -16,8 +16,10 @@
  * mocked for the same reason.
  */
 
-Object.assign(globalThis, { __DEV__: false });
+import { feedService } from '@/services/feedService';
+import { FeedImpressionTracker, resolveFeedDescriptor } from '../feedTelemetry';
 
+Object.assign(globalThis, { __DEV__: false });
 jest.mock('@/services/feedService', () => ({
     feedService: { sendFeedInteraction: jest.fn().mockResolvedValue(undefined) },
 }));
@@ -25,9 +27,6 @@ jest.mock('@/services/feedService', () => ({
 jest.mock('@/lib/logger', () => ({
     createScopedLogger: () => ({ debug: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn() }),
 }));
-
-import { feedService } from '@/services/feedService';
-import { FeedImpressionTracker, resolveFeedDescriptor } from '../feedTelemetry';
 
 const mockSendFeedInteraction = feedService.sendFeedInteraction as jest.Mock;
 

@@ -1,10 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Text, TouchableOpacity, View } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { Icon } from '@/lib/icons';
-import { useAppearanceStore } from '@/store/appearanceStore';
+import { useAppearanceStore } from '@/stores/appearanceStore';
 import { logger } from '@/lib/logger';
 
 type ProfileStyle = 'default' | 'minimalist';

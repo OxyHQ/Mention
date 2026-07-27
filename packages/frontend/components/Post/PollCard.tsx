@@ -1,9 +1,8 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Loading } from '@oxyhq/bloom/loading';
 import { pollService, type PollData, type PollOption } from '@/services/pollService';
-import { useAuth } from '@oxyhq/services';
-import { cn } from '@/lib/utils';
+import { useAuth } from '@oxyhq/services/ui/client';
 
 interface PollCardProps {
   pollId: string;
@@ -17,7 +16,7 @@ const PollCard: React.FC<PollCardProps> = ({ pollId, width = 280 }) => {
   const [voting, setVoting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const loadPoll = async () => {
+  const loadPoll = useCallback(async () => {
     try {
       setLoading(true);
       const res = await pollService.getPoll(pollId);
@@ -28,11 +27,11 @@ const PollCard: React.FC<PollCardProps> = ({ pollId, width = 280 }) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [pollId]);
 
   useEffect(() => {
-    loadPoll();
-  }, [pollId]);
+    void loadPoll();
+  }, [loadPoll]);
 
   const totalVotes = useMemo(() => {
     if (!poll) return 0;
@@ -58,7 +57,7 @@ const PollCard: React.FC<PollCardProps> = ({ pollId, width = 280 }) => {
       setVoting(true);
       await pollService.vote(pollId, optionId);
       await loadPoll();
-    } catch (e) {
+    } catch {
       // swallow for now
     } finally {
       setVoting(false);

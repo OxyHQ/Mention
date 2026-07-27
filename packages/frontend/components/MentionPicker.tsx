@@ -2,17 +2,14 @@ import React, { useState, useEffect } from "react";
 import {
     View,
     Text,
-    TextInput,
     TouchableOpacity,
     StyleSheet,
     FlatList,
-    Keyboard,
 } from "react-native";
 import { Loading } from '@oxyhq/bloom/loading';
-import { cn } from "@/lib/utils";
-import { useAuth } from "@oxyhq/services";
+import { useAuth } from "@oxyhq/services/ui/client";
 import { Avatar } from '@oxyhq/bloom/avatar';
-import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types';
+import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import { logger } from '@/lib/logger';
 import { displayNameOrHandle } from '@/utils/displayName';
 
@@ -63,12 +60,13 @@ const MentionPicker: React.FC<MentionPickerProps> = ({
                     profilePicture?: string;
                     verified?: boolean;
                 }) => {
+                    const id = profile.id || profile._id;
                     const username = profile.username || profile.handle || '';
-                    if (!username) {
+                    if (!id || !username) {
                         return [];
                     }
                     return [{
-                        id: profile.id || profile._id || username,
+                        id,
                         username,
                         displayName: profile.name?.displayName,
                         avatar: profile.avatar || profile.profilePicture || undefined,
@@ -78,7 +76,7 @@ const MentionPicker: React.FC<MentionPickerProps> = ({
 
                 setUsers(mappedUsers);
             } catch (error) {
-                logger.error("Error searching users for mentions");
+                logger.error("Error searching users for mentions", { error });
                 setUsers([]);
             } finally {
                 setLoading(false);

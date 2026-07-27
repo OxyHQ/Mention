@@ -1,5 +1,6 @@
 import express, { Response } from 'express';
 import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
+import { config } from '../config';
 import AccountList, { IAccountList } from '../models/AccountList';
 import { Post } from '../models/Post';
 import mongoose from 'mongoose';
@@ -15,13 +16,13 @@ const router = express.Router();
 /**
  * A list's timeline is a FEED — the same shape and the same cost as a page of
  * `/feed/mtn` — so it earns the same per-endpoint limiters the feed routes use,
- * on top of the app-wide limiter in `server.ts`. The global one bounds abuse of
+ * on top of the app-wide limiter in `app.ts`. The global one bounds abuse of
  * the API as a whole; these bound abuse of the expensive DB reads specifically.
  *
  * Production-gated, mirroring `feed.routes.ts`: the limiters are Redis-backed
  * and a dev machine has no Redis.
  */
-const timelineRateLimiters = process.env.NODE_ENV === 'production'
+const timelineRateLimiters = config.runtime.isProduction
   ? [feedIPRateLimiter, feedRateLimiter]
   : [];
 
@@ -40,7 +41,7 @@ const MAX_LIST_PAGE_SIZE = 100;
 function syncListEndorsements(listId: string): void {
   void endorsementSignalService
     .syncScope('accountList', listId)
-    .catch((error) => logger.warn(`[Lists] endorsement sync failed for ${listId}:`, error));
+    .catch((error) => logger.warn('[Lists] endorsement sync failed', error));
 }
 
 function syncListMembershipChange(
@@ -51,7 +52,7 @@ function syncListMembershipChange(
 ): void {
   void endorsementSignalService
     .syncScopeMembershipChange('accountList', listId, ownerId, previousMemberIds, nextMemberIds)
-    .catch((error) => logger.warn(`[Lists] endorsement membership sync failed for ${listId}:`, error));
+    .catch((error) => logger.warn('[Lists] endorsement membership sync failed', error));
 }
 
 type LeanAccountList = Pick<
@@ -202,7 +203,7 @@ router.delete('/:id', async (req: AuthRequest, res: Response) => {
     await list.deleteOne();
     void endorsementSignalService
       .syncScopeRemoval('accountList', listId, ownerId, memberIds)
-      .catch((error) => logger.warn(`[Lists] endorsement retraction failed for ${listId}:`, error));
+    .catch((error) => logger.warn('[Lists] endorsement retraction failed', error));
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({ error: 'Failed to delete list' });

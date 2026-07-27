@@ -56,6 +56,7 @@ import mongoose from 'mongoose';
 import { Post } from '../models/Post';
 import { connectToDatabase } from '../utils/database';
 import { logger } from '../utils/logger';
+import { assertAdminMutationAllowed } from './lib/adminScriptSafety';
 
 /** Root posts fetched per `$in` chunk when verifying ownership / current state. */
 const ROOT_FETCH_CHUNK_SIZE = 500;
@@ -143,6 +144,10 @@ async function loadRoots(threadIds: string[]): Promise<Map<string, RootRow>> {
 }
 
 async function backfillThreadRootThreadId(): Promise<void> {
+  assertAdminMutationAllowed({
+    scriptName: 'backfillThreadRootThreadId',
+    dryRun: DRY_RUN,
+  });
   const startedAt = Date.now();
 
   await connectToDatabase();

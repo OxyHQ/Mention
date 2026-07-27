@@ -48,7 +48,7 @@ router.post('/', async (req: AuthRequest, res: Response) => {
       await listSubscriptionService.incrementSubscriberCount(entityId);
     }
 
-    logger.debug(`User ${userId} followed ${entityType}:${entityId}`);
+    logger.debug('Entity follow created', { type: entityType });
 
     res.status(201).json({ follow });
   } catch (error: unknown) {
@@ -95,7 +95,7 @@ router.delete('/', async (req: AuthRequest, res: Response) => {
       await listSubscriptionService.decrementSubscriberCount(entityId);
     }
 
-    logger.debug(`User ${userId} unfollowed ${entityType}:${entityId}`);
+    logger.debug('Entity follow removed', { type: entityType });
 
     res.json({ message: 'Entity unfollowed successfully' });
   } catch (error) {

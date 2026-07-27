@@ -30,6 +30,20 @@ import { isAbsoluteHttpUrl } from '../shared/url';
 /** Bounded redirect budget for the stricter boost-import fetch; each hop re-validated. */
 const MAX_ACTIVITYPUB_REDIRECTS = 3;
 const REDIRECT_STATUS_CODES: ReadonlySet<number> = new Set([301, 302, 303, 307, 308]);
+/** Maximum buffered ActivityPub JSON document size (2 MiB). */
+export const ACTIVITYPUB_JSON_MAX_BYTES = 2 * 1024 * 1024;
+/** Wall-clock budget for signing, redirects, headers, and body. */
+export const ACTIVITYPUB_FETCH_DEADLINE_MS = 15_000;
+/** Maximum silence between ActivityPub response-body chunks. */
+export const ACTIVITYPUB_BODY_IDLE_TIMEOUT_MS = 5_000;
+
+function activityPubJsonContentType(raw: string | null): boolean {
+  const family = raw?.split(';', 1)[0]?.trim().toLowerCase() ?? '';
+  return family === 'application/json'
+    || family === 'application/activity+json'
+    || family === 'application/ld+json'
+    || (family.startsWith('application/') && family.endsWith('+json'));
+}
 
 export function asRecord(value: unknown): Record<string, any> | null {
   return value && typeof value === 'object' && !Array.isArray(value)
@@ -132,7 +146,7 @@ export function domainFromAcct(acct: string): string | undefined {
  * goes through `/media/proxy`, which streams the `IncomingMessage` directly).
  * Redirect responses carry no body of interest, so their stream is destroyed.
  */
-async function singleHopToResponse(result: SingleHopResult): Promise<Response> {
+export async function singleHopToResponse(result: SingleHopResult): Promise<Response> {
   const headers = new Headers();
   for (const [key, value] of Object.entries(result.headers)) {
     if (value === undefined) continue;
@@ -153,11 +167,100 @@ async function singleHopToResponse(result: SingleHopResult): Promise<Response> {
     return new Response(null, { status: result.status, headers });
   }
 
+  // A successful ActivityPub document must actually be JSON. Error bodies are
+  // allowed to be text/html or text/plain because callers still need the HTTP
+  // status for retry/tombstone decisions; their bodies remain byte/time bounded.
+  if (result.status >= 200 && result.status < 300
+      && !activityPubJsonContentType(headers.get('content-type'))) {
+    result.response.destroy();
+    throw new Error('ActivityPub response has unsupported content-type');
+  }
+
+  const declaredLength = Number(headers.get('content-length'));
+  if (Number.isFinite(declaredLength) && declaredLength > ACTIVITYPUB_JSON_MAX_BYTES) {
+    result.response.destroy();
+    throw new Error(`ActivityPub response exceeds ${ACTIVITYPUB_JSON_MAX_BYTES} bytes`);
+  }
+
   const chunks: Buffer[] = [];
-  for await (const chunk of result.response) {
-    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+  let totalBytes = 0;
+  let idleTimer: ReturnType<typeof setTimeout> | undefined;
+  const armIdleTimer = () => {
+    if (idleTimer) clearTimeout(idleTimer);
+    idleTimer = setTimeout(() => {
+      result.response.destroy(new Error('ActivityPub response body idle timeout'));
+    }, ACTIVITYPUB_BODY_IDLE_TIMEOUT_MS);
+    idleTimer.unref?.();
+  };
+
+  armIdleTimer();
+  try {
+    for await (const chunk of result.response) {
+      armIdleTimer();
+      const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+      totalBytes += buffer.byteLength;
+      if (totalBytes > ACTIVITYPUB_JSON_MAX_BYTES) {
+        result.response.destroy();
+        throw new Error(`ActivityPub response exceeds ${ACTIVITYPUB_JSON_MAX_BYTES} bytes`);
+      }
+      chunks.push(buffer);
+    }
+  } finally {
+    if (idleTimer) clearTimeout(idleTimer);
   }
   return new Response(Buffer.concat(chunks), { status: result.status, headers });
+}
+
+/**
+ * Run one signed ActivityPub fetch under a total deadline while preserving a
+ * caller-provided abort signal. The composed signal reaches the pinned Node
+ * request, so a timeout closes the socket instead of merely abandoning a
+ * still-running promise.
+ */
+export async function withActivityPubDeadline<T>(
+  operation: (signal: AbortSignal) => Promise<T>,
+  upstreamSignal?: AbortSignal | null,
+): Promise<T> {
+  const controller = new AbortController();
+  const forwardAbort = () => {
+    controller.abort(upstreamSignal?.reason);
+  };
+
+  if (upstreamSignal?.aborted) {
+    forwardAbort();
+  } else {
+    upstreamSignal?.addEventListener('abort', forwardAbort, { once: true });
+  }
+
+  const deadline = setTimeout(() => {
+    controller.abort(new Error('ActivityPub fetch deadline exceeded'));
+  }, ACTIVITYPUB_FETCH_DEADLINE_MS);
+  deadline.unref?.();
+
+  let stopAbortRace: (() => void) | undefined;
+  const aborted = new Promise<never>((_resolve, reject) => {
+    const rejectForAbort = () => {
+      reject(controller.signal.reason ?? new Error('ActivityPub fetch aborted'));
+    };
+    if (controller.signal.aborted) {
+      rejectForAbort();
+      return;
+    }
+    controller.signal.addEventListener('abort', rejectForAbort, { once: true });
+    stopAbortRace = () => controller.signal.removeEventListener('abort', rejectForAbort);
+  });
+
+  try {
+    // The transport consumes the signal and closes an active socket. Racing the
+    // operation as well enforces the wall-clock budget even if signing/key
+    // retrieval is the part that stalls and does not consume AbortSignal.
+    if (controller.signal.aborted) return await aborted;
+    return await Promise.race([operation(controller.signal), aborted]);
+  } finally {
+    clearTimeout(deadline);
+    stopAbortRace?.();
+    upstreamSignal?.removeEventListener('abort', forwardAbort);
+  }
 }
 
 /** Resolve the Oxy-managed instance actor's keyId used to sign outbound AP GETs. */
@@ -207,7 +310,10 @@ function getSignedFetch(): SignedFetch {
  * for public resources.
  */
 export function signedFetch(url: string, accept: string, init: RequestInit = {}): Promise<Response> {
-  return getSignedFetch()(url, accept, init);
+  return withActivityPubDeadline(
+    (signal) => getSignedFetch()(url, accept, { ...init, signal }),
+    init.signal,
+  );
 }
 
 function sameOrigin(left: string, right: string): boolean {
@@ -245,7 +351,9 @@ export async function fetchVerifiedAnnouncedNote(objectUri: string): Promise<Fet
   for (let hop = 0; hop <= MAX_ACTIVITYPUB_REDIRECTS; hop++) {
     const guard = await assertSafePublicUrl(currentUrl);
     if (!guard.ok) {
-      logger.info(`[FedSync] blocked boosted object fetch ${currentUrl}: ${guard.reason}`);
+      logger.info('[FedSync] blocked boosted object fetch', {
+        result: guard.reason,
+      });
       return null;
     }
 
@@ -254,14 +362,16 @@ export async function fetchVerifiedAnnouncedNote(objectUri: string): Promise<Fet
       res = await signedFetch(currentUrl, AP_CONTENT_TYPE, { redirect: 'manual' });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      logger.info(`[FedSync] error fetching boosted object ${currentUrl}: ${message}`);
+      logger.info('[FedSync] error fetching boosted object', {
+        error: message,
+      });
       return null;
     }
 
     if (REDIRECT_STATUS_CODES.has(res.status)) {
       const location = res.headers.get('location');
       if (hop === MAX_ACTIVITYPUB_REDIRECTS || !location) {
-        logger.info(`[FedSync] boosted object ${currentUrl} redirect failed`);
+        logger.info('[FedSync] boosted object redirect failed');
         return null;
       }
       currentUrl = new URL(location, currentUrl).toString();
@@ -269,7 +379,10 @@ export async function fetchVerifiedAnnouncedNote(objectUri: string): Promise<Fet
     }
 
     if (!res.ok) {
-      logger.info(`[FedSync] failed to fetch boosted object ${currentUrl}: ${res.status} ${res.statusText}`);
+      logger.info('[FedSync] failed to fetch boosted object', {
+        status: res.status,
+        statusText: res.statusText,
+      });
       return null;
     }
 
@@ -278,7 +391,9 @@ export async function fetchVerifiedAnnouncedNote(objectUri: string): Promise<Fet
       note = await res.json() as Record<string, any>;
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      logger.info(`[FedSync] failed to parse boosted object ${currentUrl}: ${message}`);
+      logger.info('[FedSync] failed to parse boosted object', {
+        error: message,
+      });
       return null;
     }
 
@@ -286,18 +401,18 @@ export async function fetchVerifiedAnnouncedNote(objectUri: string): Promise<Fet
 
     const noteId = typeof note.id === 'string' ? note.id : undefined;
     if (!noteId || !sameOrigin(noteId, currentUrl)) {
-      logger.info(`[FedSync] boosted object ${currentUrl} id is missing or not same-origin; skipping`);
+      logger.info('[FedSync] boosted object id is missing or not same-origin; skipping');
       return null;
     }
 
     const authorUri = extractActorUri(note.attributedTo);
     if (!authorUri || !sameOrigin(authorUri, noteId)) {
-      logger.info(`[FedSync] boosted object ${noteId} attributedTo is missing or not same-origin; skipping`);
+      logger.info('[FedSync] boosted object author is missing or not same-origin; skipping');
       return null;
     }
 
     if (!isPubliclyAddressed(note.to, note.cc)) {
-      logger.info(`[FedSync] boosted object ${noteId} is not public; skipping boost import`);
+      logger.info('[FedSync] boosted object is not public; skipping boost import');
       return null;
     }
 
@@ -315,14 +430,19 @@ export async function fetchActivityPubObject(url: string): Promise<Record<string
   try {
     const res = await signedFetch(url, AP_CONTENT_TYPE);
     if (!res.ok) {
-      logger.info(`[FedSync] ActivityPub object fetch failed: ${res.status} ${res.statusText} for ${url}`);
+      logger.info('[FedSync] ActivityPub object fetch failed', {
+        status: res.status,
+        statusText: res.statusText,
+      });
       return null;
     }
     const object = await res.json();
     return asRecord(object);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    logger.info(`[FedSync] ActivityPub object fetch error for ${url}: ${message}`);
+    logger.info('[FedSync] ActivityPub object fetch error', {
+      error: message,
+    });
     return null;
   }
 }

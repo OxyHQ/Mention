@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { authenticatedClient } from '@/utils/api';
 import type { ModuleCatalog } from '@mention/shared-types';
+import { publicQueryKeys } from '@/lib/viewerQueryKeys';
 
 /**
  * The custom-feed builder module catalog (`GET /feed/modules`).
@@ -12,7 +13,7 @@ import type { ModuleCatalog } from '@mention/shared-types';
  */
 export function useFeedModules() {
   const query = useQuery<ModuleCatalog>({
-    queryKey: ['feedModules'],
+    queryKey: publicQueryKeys.feedModules(),
     staleTime: 60 * 60 * 1000,
     queryFn: async () => {
       const res = await authenticatedClient.get<ModuleCatalog>('/feed/modules');

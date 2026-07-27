@@ -2,8 +2,6 @@
  * List-related types for Mention social network
  */
 
-import { Timestamps } from './common';
-
 export enum ListVisibility {
   PUBLIC = 'public',
   PRIVATE = 'private'
@@ -73,4 +71,4 @@ export interface ListStats {
   totalMembers: number;
   totalSubscribers: number;
   mostPopularLists: List[];
-} 
+}

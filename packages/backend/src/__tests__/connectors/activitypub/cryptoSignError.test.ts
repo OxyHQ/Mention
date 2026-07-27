@@ -9,8 +9,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
  * `ApiError` PLAIN OBJECT (`{ message, code, status }`). The old
  * `err instanceof Error ? err.message : String(err)` therefore logged the
  * useless `"[object Object]"`, which masked a real prod incident (oxy-api
- * `/federation/sign` returning 429). These tests assert the real HTTP status is
- * surfaced in both the log line and the re-thrown error, for every thrown shape.
+ * `/federation/sign` returning 429). These tests assert that status/code remain
+ * observable as bounded metadata while response bodies and free-form details
+ * stay out of logs. The re-thrown error remains descriptive for its caller.
  */
 
 const mocks = vi.hoisted(() => ({
@@ -38,10 +39,10 @@ vi.mock('../../../utils/oxyHelpers', () => ({
 
 import { getPublicKey, signViaOxy } from '../../../connectors/activitypub/crypto';
 
-/** The single log-line string passed to `logger.error` on the most recent call. */
-function lastErrorLog(): string {
+function lastErrorCall(): [unknown, unknown] {
   const calls = mocks.loggerError.mock.calls;
-  return String(calls[calls.length - 1]?.[0] ?? '');
+  const call = calls[calls.length - 1] ?? [];
+  return [call[0], call[1]];
 }
 
 describe('signViaOxy error legibility', () => {
@@ -59,9 +60,14 @@ describe('signViaOxy error legibility', () => {
 
     await expect(signViaOxy('key#main', 'signing-string')).rejects.toThrow(/429/);
 
-    const log = lastErrorLog();
-    expect(log).toContain('429');
-    expect(log).not.toContain('[object Object]');
+    expect(lastErrorCall()).toEqual([
+      '[Federation] signing request failed',
+      expect.objectContaining({
+        status: 429,
+        code: 'RATE_LIMITED',
+        errorKind: 'service-client',
+      }),
+    ]);
   });
 
   it('surfaces status + body from an axios-style { response: { status, data } } object', async () => {
@@ -71,9 +77,15 @@ describe('signViaOxy error legibility', () => {
 
     await expect(signViaOxy('key#main', 'signing-string')).rejects.toThrow(/503/);
 
-    const log = lastErrorLog();
-    expect(log).toContain('503');
-    expect(log).not.toContain('[object Object]');
+    const call = lastErrorCall();
+    expect(call).toEqual([
+      '[Federation] signing request failed',
+      expect.objectContaining({
+        status: 503,
+        errorKind: 'service-client',
+      }),
+    ]);
+    expect(JSON.stringify(call)).not.toContain('sign service down');
   });
 
   it('uses .message for a real Error instance', async () => {
@@ -85,9 +97,12 @@ describe('signViaOxy error legibility', () => {
       /Service credentials not provided/,
     );
 
-    const log = lastErrorLog();
-    expect(log).toContain('Service credentials not provided');
-    expect(log).not.toContain('[object Object]');
+    const call = lastErrorCall();
+    expect(call).toEqual([
+      '[Federation] signing request failed',
+      expect.objectContaining({ errorKind: 'Error' }),
+    ]);
+    expect(JSON.stringify(call)).not.toContain('Service credentials not provided');
   });
 
   it('never emits [object Object] even for an opaque object with no known fields', async () => {
@@ -95,9 +110,12 @@ describe('signViaOxy error legibility', () => {
 
     await expect(signViaOxy('key#main', 'signing-string')).rejects.toThrow();
 
-    const log = lastErrorLog();
-    expect(log).not.toContain('[object Object]');
-    expect(log).toContain('weird');
+    const call = lastErrorCall();
+    expect(call).toEqual([
+      '[Federation] signing request failed',
+      expect.objectContaining({ errorKind: 'service-client' }),
+    ]);
+    expect(JSON.stringify(call)).not.toContain('weird');
   });
 });
 
@@ -115,8 +133,13 @@ describe('getPublicKey error legibility', () => {
 
     await expect(getPublicKey('alice')).rejects.toThrow(/429/);
 
-    const log = lastErrorLog();
-    expect(log).toContain('429');
-    expect(log).not.toContain('[object Object]');
+    expect(lastErrorCall()).toEqual([
+      '[Federation] public-key lookup failed',
+      expect.objectContaining({
+        status: 429,
+        code: 'RATE_LIMITED',
+        errorKind: 'service-client',
+      }),
+    ]);
   });
 });

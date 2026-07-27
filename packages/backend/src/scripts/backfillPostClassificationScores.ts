@@ -23,11 +23,11 @@
  * It writes ONLY `postClassification.scores` + `postClassification.version` — it
  * does not touch languages / topics / sensitive.
  *
- * Idempotent (re-stamping the version removes a post from the selection filter, so
- * a re-run only fills remaining gaps), batched via a stable ascending `_id` page
- * cursor, and fail-soft (a single post's failure is logged at warn and skipped —
- * never aborts the run). Supports `--dry-run` (report what it would update, write
- * nothing).
+ * Idempotent (re-stamping the version removes a post from the selection filter,
+ * so a re-run only fills remaining gaps) and batched via a stable ascending `_id`
+ * page cursor. A single post's failure is isolated so the scan can finish, but
+ * the completed run exits non-zero rather than reporting a partial backfill as
+ * successful. Supports `--dry-run` (report what it would update, write nothing).
  *
  * Runnable as a Fargate one-shot post-deploy:
  *   bun packages/backend/dist/src/scripts/backfillPostClassificationScores.js
@@ -45,6 +45,11 @@ import {
   toClassificationScores,
 } from '../services/contentClassification/spamQuality';
 import { logger } from '../utils/logger';
+import {
+  assertAdminRunComplete,
+  closeAdminScriptResources,
+} from './lib/adminScriptLifecycle';
+import { assertAdminMutationAllowed } from './lib/adminScriptSafety';
 
 /** Posts scanned per page (stable ascending `_id` cursor pagination). */
 const DEFAULT_PAGE_SIZE = 500;
@@ -55,6 +60,7 @@ const BULK_CHUNK_SIZE = 500;
 export interface BackfillPostClassificationScoresResult {
   scanned: number;
   updated: number;
+  failed: number;
 }
 
 /** Minimal projected shape the score recompute needs. */
@@ -127,6 +133,7 @@ export async function backfillPostClassificationScores(
 
   let scanned = 0;
   let updated = 0;
+  let failed = 0;
   let lastId: mongoose.Types.ObjectId | null = null;
   let pendingOps: mongoose.AnyBulkWriteOperation<typeof Post>[] = [];
 
@@ -199,6 +206,7 @@ export async function backfillPostClassificationScores(
           await flush();
         }
       } catch (error) {
+        failed += 1;
         logger.warn('[backfillPostClassificationScores] recompute failed for post; skipping', {
           id: String(post._id),
           reason: error instanceof Error ? error.message : 'unknown',
@@ -207,12 +215,14 @@ export async function backfillPostClassificationScores(
     }
 
     lastId = page[page.length - 1]._id;
-    logger.info(`[backfillPostClassificationScores] progress: scanned ${scanned}, updated ${updated}`);
+    logger.info(
+      `[backfillPostClassificationScores] progress: scanned ${scanned}, updated ${updated}, failed ${failed}`,
+    );
   }
 
   await flush();
 
-  return { scanned, updated };
+  return { scanned, updated, failed };
 }
 
 async function main(): Promise<void> {
@@ -222,25 +232,39 @@ async function main(): Promise<void> {
   const dryRun = process.argv.includes('--dry-run');
 
   try {
+    assertAdminMutationAllowed({
+      scriptName: 'backfillPostClassificationScores',
+      dryRun,
+    });
     await mongoose.connect(mongoUri, { dbName });
-    logger.info(`[backfillPostClassificationScores] connected to MongoDB (${dbName}); DRY_RUN=${dryRun}`);
+    logger.info('[backfillPostClassificationScores] connected to MongoDB', { dryRun });
 
     const result = await backfillPostClassificationScores({ dryRun });
 
     const elapsedSeconds = Math.round((Date.now() - startedAt) / 1000);
     logger.info(
-      `[backfillPostClassificationScores] done${dryRun ? ' (DRY_RUN — no writes)' : ''}: scanned ${result.scanned}, updated ${result.updated} (${elapsedSeconds}s)`,
+      `[backfillPostClassificationScores] done${dryRun ? ' (DRY_RUN — no writes)' : ''}: scanned ${result.scanned}, updated ${result.updated}, failed ${result.failed} (${elapsedSeconds}s)`,
     );
 
-    await mongoose.disconnect();
-    process.exit(0);
+    assertAdminRunComplete('backfillPostClassificationScores', {
+      failed: result.failed,
+    });
   } catch (error) {
     logger.error('[backfillPostClassificationScores] failed', error);
-    await mongoose.disconnect();
-    process.exit(1);
+    throw error;
+  } finally {
+    await closeAdminScriptResources();
+    await mongoose.disconnect().catch((disconnectError) => {
+      logger.warn('[backfillPostClassificationScores] error during mongoose.disconnect()', disconnectError);
+    });
   }
 }
 
 if (require.main === module) {
-  main();
+  main()
+    .then(() => process.exit(0))
+    .catch((error) => {
+      logger.error('[backfillPostClassificationScores] unhandled failure', error);
+      process.exit(1);
+    });
 }

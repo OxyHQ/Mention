@@ -10,8 +10,8 @@ export interface NoUpdatesIllustrationProps {
     fillColor?: string;
 }
 
-// Converted from assets/images/illustrations/no_updates.svg
-// Primary accents mapped to app colors; strokes use app neutral
+// Theme-aware React Native SVG; primary accents map to app colors and strokes
+// use the app neutral.
 export const NoUpdatesIllustration: React.FC<NoUpdatesIllustrationProps> = ({
     width = 200,
     height = 200,

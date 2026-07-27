@@ -1,10 +1,9 @@
-import type { LiveConfig, LiveTheme, RoomsServiceInstance, UserEntity } from '@syra.fm/sdk';
-import { createRoomsService } from '@syra.fm/sdk';
+import type { LiveConfig, LiveTheme, UserEntity } from '@syra.fm/sdk';
 import type { ComponentType } from 'react';
 import type { ViewStyle } from 'react-native';
 import { queryKeys } from '@oxyhq/services';
-import { oxyServices } from '@/lib/oxyServices';
-import { SYRA_API_URL, SYRA_SOCKET_URL } from '@/config';
+import { SYRA_SOCKET_URL } from '@/config';
+import { syraLinkedClient } from '@/lib/syraApi';
 import { useTheme as useBloomTheme } from '@oxyhq/bloom/theme';
 import { useUserById } from '@/hooks/useCachedUser';
 import { queryClient } from '@/lib/queryClient';
@@ -12,64 +11,8 @@ import { getCachedFileDownloadUrl, getCachedFileDownloadUrlSync } from '@/utils/
 import { Avatar } from '@oxyhq/bloom/avatar';
 import { toast } from '@oxyhq/bloom/toast';
 import i18n from '@/lib/i18n';
-import { useAppearanceStore } from '@/store/appearanceStore';
-
-/**
- * Syra-pointed Oxy linked client for live rooms — the SAME `createLinkedClient`
- * Mention uses everywhere, just aimed at Syra's rooms backend (`SYRA_API_URL`)
- * instead of `api.mention.earth`. The Oxy bearer authenticates cross-app (same
- * identity). The `@syra.fm/sdk` engine consumes this client directly (its
- * methods resolve to the parsed body), so there is NO per-app adapter. GET
- * caching stays off (the linked client defaults to no-cache).
- */
-const syraLinkedClient = oxyServices.createLinkedClient({ baseURL: SYRA_API_URL }).client;
-
-/**
- * The one live-rooms service — the engine's `createRoomsService` bound to the
- * Syra client above. Exposed at module scope so non-React callers (Zustand
- * stores) and screens can reuse it without re-instantiating a client. React
- * components can equivalently read `useLiveConfig().roomsService`.
- */
-export const roomsService: RoomsServiceInstance = createRoomsService(syraLinkedClient);
-
-/**
- * A user currently live in a Syra room. `userId` is the Oxy user id (the same id
- * Mention post authors and profiles carry), `roomId` the live room to join.
- */
-export interface LiveUserEntry {
-  userId: string;
-  roomId: string;
-}
-
-/**
- * The viewer's own live-visibility preference — governs WHEN their avatar shows
- * the live badge to others: `'active'` = whenever they are in a live room,
- * `'speaking'` = only while they hold the mic.
- */
-export type LiveVisibility = 'active' | 'speaking';
-
-/**
- * Live-presence reads/writes that live on Syra's rooms backend but are NOT part
- * of the engine's `roomsService`. They reuse the SAME Syra client the live config
- * is built on, so every call hits `api.syra.fm` (cross-app Oxy identity), never
- * `api.mention.earth`.
- */
-export const getLiveUsers = async (): Promise<LiveUserEntry[]> => {
-  const data = await syraLinkedClient.get<{ liveUsers: LiveUserEntry[] }>('/rooms/live-users');
-  return data.liveUsers ?? [];
-};
-
-export const getLivePresencePreference = async (): Promise<LiveVisibility> => {
-  const data = await syraLinkedClient.get<{ liveVisibility: LiveVisibility }>('/rooms/me/presence-preference');
-  return data.liveVisibility;
-};
-
-export const updateLivePresencePreference = async (liveVisibility: LiveVisibility): Promise<LiveVisibility> => {
-  const data = await syraLinkedClient.put<{ liveVisibility: LiveVisibility }>('/rooms/me/presence-preference', {
-    liveVisibility,
-  });
-  return data.liveVisibility ?? liveVisibility;
-};
+import { useAppearanceStore } from '@/stores/appearanceStore';
+import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 
 const useLiveTheme = (): LiveTheme => {
   const theme = useBloomTheme();
@@ -135,7 +78,9 @@ export const liveConfig: LiveConfig = {
   // hooks/useLiveUsers.ts) so every avatar's LIVE badge updates instantly
   // instead of waiting for the 60s background poll.
   onRoomChanged: () => {
-    queryClient.invalidateQueries({ queryKey: ['live-users'] });
+    queryClient.invalidateQueries({
+      predicate: (query) => viewerQueryKeys.isFamily(query.queryKey, 'live-users'),
+    });
   },
   httpClient: syraLinkedClient,
   socketUrl: SYRA_SOCKET_URL,

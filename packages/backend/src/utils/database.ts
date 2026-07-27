@@ -1,164 +1,144 @@
-import mongoose from "mongoose";
-import { logger } from "./logger";
-import { config } from "../config";
+import mongoose from 'mongoose';
+import { config } from '../config';
+import { logger } from './logger';
 
-const APP_NAME = "mention";
+const APP_NAME = 'mention';
+const INITIAL_RETRY_DELAY_MS = 1_000;
 
 let connectPromise: Promise<typeof mongoose> | null = null;
-let retryCount = 0;
-const MAX_RETRIES = 5;
-const INITIAL_RETRY_DELAY = 1000; // 1 second
 
-/**
- * Calculate exponential backoff delay
- */
-function getRetryDelay(attempt: number): number {
-  return INITIAL_RETRY_DELAY * Math.pow(2, attempt);
+export interface DatabaseConnectionOptions {
+  /**
+   * Per-process socket timeout. Long-running one-shot migrations may override
+   * the web runtime's tighter timeout without weakening request-serving tasks.
+   */
+  socketTimeoutMS?: number;
+  /** Keep one-shot pools small; web tasks continue to use the configured pool. */
+  maxPoolSize?: number;
+  minPoolSize?: number;
+  /** Migrations that select canonical state must read the primary. */
+  readPreference?: mongoose.ConnectOptions['readPreference'];
 }
 
-/**
- * Wait for a specified number of milliseconds
- */
+function retryDelay(attempt: number): number {
+  return INITIAL_RETRY_DELAY_MS * 2 ** attempt;
+}
+
 function wait(ms: number): Promise<void> {
-  return new Promise(resolve => setTimeout(resolve, ms));
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-/**
- * Build the database name from app name and environment.
- * Format: {appName}-{environment} (e.g. mention-production, mention-development)
- */
-function getDatabaseName(): string {
-  const env = process.env.NODE_ENV || "development";
-  return `${APP_NAME}-${env}`;
+function databaseName(): string {
+  return `${APP_NAME}-${config.runtime.nodeEnv}`;
 }
 
-export async function connectToDatabase(): Promise<typeof mongoose> {
+function describeConnectionError(error: unknown): { code: string } {
+  const code =
+    error instanceof Error && 'code' in error && error.code
+      ? String(error.code)
+      : error instanceof Error && 'syscall' in error && error.syscall
+        ? String(error.syscall)
+        : '';
+  return { code };
+}
+
+async function connectWithRetry(
+  mongoUri: string,
+  dbName: string,
+  attempt: number,
+  maxRetries: number,
+  options: DatabaseConnectionOptions,
+): Promise<typeof mongoose> {
+  try {
+    await mongoose.connect(mongoUri, {
+      dbName,
+      autoIndex: !config.runtime.isProduction,
+      autoCreate: !config.runtime.isProduction,
+      serverSelectionTimeoutMS: config.db.serverSelectionTimeoutMS,
+      socketTimeoutMS: options.socketTimeoutMS ?? config.db.socketTimeoutMS,
+      maxPoolSize: options.maxPoolSize ?? config.db.maxPoolSize,
+      minPoolSize: options.minPoolSize ?? config.db.minPoolSize,
+      maxIdleTimeMS: config.db.maxIdleTimeMS,
+      readPreference: options.readPreference ?? config.mongoReadPreference,
+      w: 'majority',
+      wtimeoutMS: 5_000,
+      retryWrites: true,
+      retryReads: true,
+      heartbeatFrequencyMS: config.db.heartbeatFrequencyMS,
+    });
+
+    logger.info('Connected to MongoDB successfully');
+    return mongoose;
+  } catch (error: unknown) {
+    const { code } = describeConnectionError(error);
+
+    if (attempt < maxRetries) {
+      const delay = retryDelay(attempt - 1);
+      if (attempt <= 3) {
+        logger.warn(
+          `MongoDB connection failed (attempt ${attempt}/${maxRetries}), retrying in ${delay}ms`,
+          { code },
+        );
+      }
+      await wait(delay);
+      return connectWithRetry(
+        mongoUri,
+        dbName,
+        attempt + 1,
+        maxRetries,
+        options,
+      );
+    }
+
+    logger.error(`Failed to connect to MongoDB after ${maxRetries} attempts`, {
+      code,
+    });
+    throw error;
+  }
+}
+
+export async function connectToDatabase(
+  options: DatabaseConnectionOptions = {},
+): Promise<typeof mongoose> {
   if (mongoose.connection.readyState === 1) {
     return mongoose;
   }
-
   if (connectPromise) {
     return connectPromise;
   }
 
-  const mongoUri = process.env.MONGODB_URI;
-
+  const mongoUri = config.mongoUri;
   if (!mongoUri) {
-    throw new Error("MONGODB_URI environment variable is not defined");
+    throw new Error('MONGODB_URI environment variable is not defined');
   }
 
-  const dbName = getDatabaseName();
+  const dbName = databaseName();
+  logger.debug('Attempting to connect to MongoDB');
 
-  // Log connection string info (without credentials) for debugging
-  const uriInfo = mongoUri.replace(/\/\/[^:]+:[^@]+@/, '//***:***@'); // Mask credentials
-  logger.debug(`Attempting to connect to MongoDB: ${uriInfo.substring(0, 100)}...`);
-  logger.debug(`Using database: ${dbName}`);
+  const configuredRetries = config.db.maxRetries;
+  const maxRetries = Number.isFinite(configuredRetries)
+    ? Math.max(1, configuredRetries)
+    : 5;
+  const pendingConnection = connectWithRetry(
+    mongoUri,
+    dbName,
+    1,
+    maxRetries,
+    options,
+  );
+  connectPromise = pendingConnection;
 
-  const connectWithRetry = async (): Promise<typeof mongoose> => {
-    try {
-    await mongoose.connect(mongoUri, {
-        dbName,
-        autoIndex: process.env.NODE_ENV !== 'production',
-        autoCreate: process.env.NODE_ENV !== 'production',
-        serverSelectionTimeoutMS: config.db.serverSelectionTimeoutMS,
-        socketTimeoutMS: config.db.socketTimeoutMS,
-        maxPoolSize: config.db.maxPoolSize,
-        minPoolSize: config.db.minPoolSize,
-        maxIdleTimeMS: config.db.maxIdleTimeMS,
-        // Use primary in dev (required for autoIndex/autoCreate), secondaryPreferred in prod
-        readPreference: (process.env.MONGODB_READ_PREFERENCE || (process.env.NODE_ENV === 'production' ? 'secondaryPreferred' : 'primary')) as 'primary' | 'primaryPreferred' | 'secondary' | 'secondaryPreferred' | 'nearest',
-        // Write concern for data durability
-        w: 'majority',
-        wtimeoutMS: 5000, // Fixed: use wtimeoutMS instead of deprecated wtimeout
-        // Retry configuration
-        retryWrites: true,
-        retryReads: true,
-        // Heartbeat configuration
-        heartbeatFrequencyMS: config.db.heartbeatFrequencyMS,
-      });
-
-      retryCount = 0; // Reset retry count on successful connection
-      logger.info("Connected to MongoDB successfully");
-      return mongoose;
-    } catch (error: unknown) {
-      retryCount++;
-
-      // Provide helpful error diagnostics
-      const errorCode = error instanceof Error && 'code' in error && error.code
-        ? String(error.code)
-        : error instanceof Error && 'syscall' in error && error.syscall
-          ? String(error.syscall)
-          : '';
-      const errorMessage = error instanceof Error ? error.message : String(error ?? 'Unknown error');
-      
-      if (retryCount < MAX_RETRIES) {
-        const delay = getRetryDelay(retryCount - 1);
-        // Only log first few attempts to reduce spam
-        if (retryCount <= 3) {
-          logger.warn(`MongoDB connection failed (attempt ${retryCount}/${MAX_RETRIES}), retrying in ${delay}ms...`);
-          
-          // Provide specific guidance based on error type
-          if (errorCode === 'querySrv' || errorMessage.includes('querySrv')) {
-            logger.warn('  → DNS SRV lookup failed. Possible causes:');
-            logger.warn('     - Network connectivity issue');
-            logger.warn('     - Firewall blocking DNS queries');
-            logger.warn('     - DNS server unreachable');
-            logger.warn('     - MongoDB hostname incorrect or unreachable');
-          } else if (errorCode === 'ECONNREFUSED') {
-            logger.warn('  → Connection refused. Possible causes:');
-            logger.warn('     - MongoDB server is down');
-            logger.warn('     - IP address not whitelisted in MongoDB cluster');
-            logger.warn('     - Firewall blocking port 27017');
-          }
-        }
-        await wait(delay);
-        return connectWithRetry();
-      } else {
-        retryCount = 0;
-        connectPromise = null;
-        logger.error("Failed to connect to MongoDB after maximum retries - app will continue without database");
-        
-        // Final diagnostic message
-        if (errorCode === 'querySrv' || errorMessage.includes('querySrv')) {
-          logger.error('  → DNS SRV resolution failed. Check:');
-          logger.error('     1. Network connectivity and DNS settings');
-          logger.error('     2. MongoDB connection string format (mongodb+srv://...)');
-          logger.error('     3. DigitalOcean MongoDB cluster status and IP whitelist');
-        }
-        
-        // Don't throw - allow app to start without MongoDB (graceful degradation)
-        // Return mongoose instance anyway - operations will fail gracefully
-        return mongoose;
-      }
-    }
-  };
-
-  connectPromise = connectWithRetry();
-  
   try {
-    return await connectPromise;
-  } catch (error) {
-    connectPromise = null;
-    throw error;
+    return await pendingConnection;
+  } finally {
+    // A resolved promise must not mask a later disconnect. Concurrent callers
+    // still share this attempt, while a later outage can start a fresh one.
+    if (connectPromise === pendingConnection) {
+      connectPromise = null;
+    }
   }
 }
 
 export function isDatabaseConnected(): boolean {
   return mongoose.connection.readyState === 1;
-}
-
-/**
- * Get database connection statistics
- */
-export function getDatabaseStats() {
-  const state = mongoose.connection.readyState;
-  const states = ['disconnected', 'connected', 'connecting', 'disconnecting'];
-  
-  return {
-    state: states[state] || 'unknown',
-    readyState: state,
-    host: mongoose.connection.host,
-    port: mongoose.connection.port,
-    name: mongoose.connection.name,
-  };
 }

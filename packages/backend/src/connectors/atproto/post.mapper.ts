@@ -405,15 +405,19 @@ function isDuplicateKeyError(err: unknown): boolean {
  * undefined (fail-soft) when the DID cannot be resolved to an Oxy user — the caller
  * then leaves the bare `@handle` display text rather than minting a broken link.
  */
-async function resolveAtprotoMentionOxyId(did: string): Promise<string | undefined> {
+async function resolveAtprotoMentionOxyId(
+  did: string,
+  allowIdentityMutation = true,
+): Promise<string | undefined> {
   try {
     const existing = await FederatedActor.findOne({ uri: did })
       .select('oxyUserId')
       .lean<{ oxyUserId?: string } | null>();
     if (existing?.oxyUserId) return String(existing.oxyUserId);
   } catch (err) {
-    logger.warn(`[atproto] mention actor lookup failed for ${did}`, err);
+      logger.warn('[atproto] mention actor lookup failed', err);
   }
+  if (!allowIdentityMutation) return undefined;
   const actor = await fetchAndUpsertAtprotoProfile(did);
   return actor?.oxyUserId ? String(actor.oxyUserId) : undefined;
 }
@@ -424,12 +428,15 @@ async function resolveAtprotoMentionOxyId(did: string): Promise<string | undefin
  * `[mention:<oxyUserId>]` placeholders in the same byte pass as `#link` facets.
  * Unresolvable DIDs are simply absent from the map.
  */
-async function resolveMentionDids(dids: Set<string>): Promise<Map<string, string>> {
+async function resolveMentionDids(
+  dids: Set<string>,
+  allowIdentityMutation = true,
+): Promise<Map<string, string>> {
   const map = new Map<string, string>();
   if (dids.size === 0) return map;
   await Promise.all(
     [...dids].map(async (did) => {
-      const oxyUserId = await resolveAtprotoMentionOxyId(did);
+      const oxyUserId = await resolveAtprotoMentionOxyId(did, allowIdentityMutation);
       if (oxyUserId) map.set(did, oxyUserId);
     }),
   );
@@ -547,7 +554,7 @@ async function createPostFromNormalized(
     return true;
   } catch (err) {
     if (isDuplicateKeyError(err)) return false;
-    logger.warn(`[atproto] failed to import post ${post.activityId}`, err);
+    logger.warn('[atproto] failed to import post', err);
     return false;
   }
 }
@@ -566,7 +573,7 @@ export async function importAuthorFeed(
   const did = actor.externalId;
   const ownerOxyUserId = actor.oxyUserId;
   if (!ownerOxyUserId) {
-    logger.warn(`[atproto] importAuthorFeed called for ${did} without a resolved Oxy user; skipping (no orphan)`);
+      logger.warn('[atproto] skipped author feed import without a resolved Oxy user');
     return { posts: [] };
   }
   // Stamp the actor's instance domain (e.g. `bsky.social`) on imported posts —
@@ -582,7 +589,7 @@ export async function importAuthorFeed(
       cursor: opts.cursor,
     });
   } catch (err) {
-    logger.debug(`[atproto] getAuthorFeed failed for ${did}`, err);
+      logger.debug('[atproto] getAuthorFeed failed', err);
     return { posts: [] };
   }
 
@@ -669,12 +676,13 @@ export async function refetchAtprotoPostForRepair(
   atUri: string,
   expectedAuthorDid: string,
   ownerOxyUserId: string,
+  options: { allowIdentityMutation?: boolean } = {},
 ): Promise<AtprotoRepairFetch> {
   let response: AtprotoGetPostsResponse;
   try {
     response = await xrpcGet<AtprotoGetPostsResponse>(PUBLIC_APPVIEW, 'app.bsky.feed.getPosts', { uris: atUri });
   } catch (err) {
-    logger.warn(`[atproto] getPosts failed for repair of ${atUri}`, err);
+      logger.warn('[atproto] getPosts failed during repair', err);
     return { kind: 'error' };
   }
 
@@ -685,7 +693,10 @@ export async function refetchAtprotoPostForRepair(
     : undefined;
   if (!postView) return { kind: 'gone' };
 
-  const mentionMap = await resolveMentionDids(new Set(extractMentionDids(postView.record)));
+  const mentionMap = await resolveMentionDids(
+    new Set(extractMentionDids(postView.record)),
+    options.allowIdentityMutation ?? true,
+  );
   const mapped = mapPostViewToNormalizedPost(postView, expectedAuthorDid, mentionMap);
   // A view that no longer maps (author reassigned the handle, record type changed)
   // is treated as gone rather than silently repaired against the wrong author.
@@ -730,7 +741,7 @@ export async function getFeed(
       cursor: opts.cursor,
     });
   } catch (err) {
-    logger.debug(`[atproto] getFeed failed for ${feedUri}`, err);
+    logger.debug('[atproto] getFeed failed', err);
     return { posts: [] };
   }
 

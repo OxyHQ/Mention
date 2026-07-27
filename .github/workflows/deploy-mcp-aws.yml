@@ -1,83 +1,131 @@
-name: Deploy Mention MCP
+name: Deploy Mention MCP to AWS
 
 on:
-  push:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
     branches: [main]
-    paths:
-      - 'packages/mcp/**'
-      - 'packages/shared-types/**'
-      - 'package.json'
-      - 'bun.lock'
-      - 'bunfig.toml'
-  workflow_dispatch:
 
 permissions:
   id-token: write
   contents: read
 
+concurrency:
+  group: deploy-mention-mcp
+  cancel-in-progress: false
+
 env:
   AWS_REGION: us-west-2
   ECR_REGISTRY: 237343248947.dkr.ecr.us-west-2.amazonaws.com
   APP: mention-mcp
+  CONTAINER_NAME: mention-mcp
   CLUSTER: oxy-cluster
   DOCKERFILE: packages/mcp/Dockerfile
+  DEPLOY_SHA: ${{ github.event.workflow_run.head_sha }}
 
 jobs:
-  deploy:
-    runs-on: ubuntu-24.04-arm
+  scope:
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_repository.full_name == github.repository &&
+      github.event.workflow_run.head_branch == 'main'
+    runs-on: ubuntu-latest
+    outputs:
+      deploy: ${{ steps.filter.outputs.deploy }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ env.DEPLOY_SHA }}
+          fetch-depth: 2
+      - name: Detect MCP deployment scope
+        id: filter
+        run: bash .github/scripts/deployment-scope.sh mcp
 
-      - name: Configure AWS credentials (OIDC)
-        uses: aws-actions/configure-aws-credentials@v6
+  deploy:
+    needs: scope
+    if: needs.scope.outputs.deploy == 'true'
+    runs-on: ubuntu-24.04-arm
+    # Leaves enough time for both the rollout and an automatic rollback.
+    timeout-minutes: 70
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ env.DEPLOY_SHA }}
+          fetch-depth: 2
+
+      - name: Verify current main before building
+        run: bash .github/scripts/require-current-main.sh
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6
         with:
           role-to-assume: arn:aws:iam::237343248947:role/oxy-github-deploy
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Login to ECR
-        uses: aws-actions/amazon-ecr-login@v2
+        uses: aws-actions/amazon-ecr-login@d539f0932e70871a027e9d5a9d8fc38589180a64 # v2
 
-      - name: Build and push (linux/arm64)
-        run: |
-          IMG=$ECR_REGISTRY/oxy/$APP
-          docker build -f "$DOCKERFILE" -t "$IMG:${{ github.sha }}" -t "$IMG:latest" .
-          docker push "$IMG:${{ github.sha }}"
-          docker push "$IMG:latest"
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
 
-      - name: Deploy to ECS
+      - name: Build and push immutable MCP image
+        id: build
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: .
+          file: ${{ env.DOCKERFILE }}
+          platforms: linux/arm64
+          push: true
+          tags: ${{ env.ECR_REGISTRY }}/oxy/${{ env.APP }}:${{ env.DEPLOY_SHA }}
+          cache-from: type=gha,scope=mention-mcp
+          cache-to: type=gha,mode=max,scope=mention-mcp
+          provenance: true
+          sbom: true
+
+      - name: Audit final MCP runtime image
+        env:
+          IMAGE_URI: ${{ env.ECR_REGISTRY }}/oxy/${{ env.APP }}@${{ steps.build.outputs.digest }}
+          EXPECTED_RUNTIME_ENTRY: packages/mcp/dist/server-http.js
+          EXPECTED_WORKSPACE_PACKAGES: '@mention/mcp,@mention/shared-types'
+        run: bash .github/scripts/audit-runtime-image.sh
+
+      - name: Verify current main before production changes
+        run: bash .github/scripts/require-current-main.sh
+
+      - name: Sync MCP signing secret to both services
+        env:
+          MENTION_MCP_JWT_SECRET: ${{ secrets.MENTION_MCP_JWT_SECRET }}
         run: |
           set -euo pipefail
-          MAX_WAIT_SECS=1200
-          POLL_INTERVAL=15
-
-          STATUS=$(aws ecs describe-services --cluster "$CLUSTER" --services "$APP" --query 'services[0].status' --output text 2>/dev/null || echo NONE)
-          if [ "$STATUS" != "ACTIVE" ]; then
-            echo "ECS service $APP not created yet — image pushed to ECR, skipping deploy"
-            echo "Create the service in oxy-infra (mention-mcp task + mcp.mention.earth ALB rule) then re-run."
-            exit 0
+          if [[ -z "$MENTION_MCP_JWT_SECRET" || "$MENTION_MCP_JWT_SECRET" == "-" ]]; then
+            echo "::error::MENTION_MCP_JWT_SECRET is empty; refusing to rotate only one service."
+            exit 1
           fi
 
-          aws ecs update-service --cluster "$CLUSTER" --service "$APP" --force-new-deployment >/dev/null
-          elapsed=0
-          while [ "$elapsed" -lt "$MAX_WAIT_SECS" ]; do
-            DESC=$(aws ecs describe-services \
-              --cluster "$CLUSTER" --services "$APP" \
-              --query 'services[0].deployments[?status==`PRIMARY`]|[0].[rolloutState,runningCount,desiredCount]' \
-              --output text 2>/dev/null) || DESC=""
-            ROLLOUT_STATE=$(echo "$DESC" | awk '{print $1}')
-            RUNNING=$(echo "$DESC" | awk '{print $2}')
-            DESIRED=$(echo "$DESC" | awk '{print $3}')
-            echo "  ($elapsed s) rolloutState=$ROLLOUT_STATE running=$RUNNING desired=$DESIRED"
-            if [ "$ROLLOUT_STATE" = "COMPLETED" ] && [ "$RUNNING" = "$DESIRED" ]; then
-              echo "deployed $APP"
-              exit 0
-            fi
-            if [ "$ROLLOUT_STATE" = "FAILED" ]; then
-              echo "deploy FAILED"
-              exit 1
-            fi
-            sleep "$POLL_INTERVAL"
-            elapsed=$((elapsed + POLL_INTERVAL))
+          # Running tasks keep their injected value. Update both parameter
+          # paths successfully before any task is restarted.
+          for path in \
+            /oxy/mention/MENTION_MCP_JWT_SECRET \
+            /oxy/mention-mcp/MENTION_MCP_JWT_SECRET; do
+            aws ssm put-parameter \
+              --name "$path" \
+              --value "$MENTION_MCP_JWT_SECRET" \
+              --type SecureString \
+              --overwrite \
+              >/dev/null
+            echo "Synced $path"
           done
-          echo "deploy timed out after ${MAX_WAIT_SECS}s"
-          exit 1
+
+      - name: Re-verify current main before ECS rollout
+        run: bash .github/scripts/require-current-main.sh
+
+      - name: Register immutable task definition and deploy
+        env:
+          IMAGE_URI: ${{ env.ECR_REGISTRY }}/oxy/${{ env.APP }}@${{ steps.build.outputs.digest }}
+          POST_DEPLOY_SMOKE_SCRIPT: .github/scripts/smoke-mcp.sh
+          TASK_SECRET_OVERRIDES_JSON: >-
+            {"MENTION_MCP_JWT_SECRET":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/mention-mcp/MENTION_MCP_JWT_SECRET"}
+        # Session stickiness must be declared in oxy-infra. The deploy role has
+        # no ELB mutation permissions, so this workflow cannot safely enable it.
+        run: bash .github/scripts/deploy-ecs-image.sh

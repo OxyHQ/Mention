@@ -1,7 +1,7 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import type { useRouter } from 'expo-router';
-import {
+import type {
     FeedType,
     HydratedPost,
     HydratedPostSummary,
@@ -21,7 +21,6 @@ import { createScopedLogger } from '@/lib/logger';
 import { getItemKey, deduplicateItems, buildReplyTree, ReplyNode } from '@/utils/feedUtils';
 import { THREAD_LINE_WIDTH, THREAD_LINE_BORDER_RADIUS, THREAD_LINE_Z_INDEX } from '@/components/Compose/composeLayout';
 import { POST_ITEM_SPACING } from '@/styles/shared';
-import { extractAuthorId } from '@/utils/postUtils';
 
 /**
  * Shared feed-row model + render helpers used by BOTH the native (FlashList)
@@ -37,23 +36,12 @@ import { extractAuthorId } from '@/utils/postUtils';
 export type FeedItem = HydratedPost | Reply | Boost;
 
 /**
- * Optional/legacy fields probed on a feed item for thread classification and
- * "my recent post to top" sorting. These are NOT all present on the hydrated
- * shape: `isLocalNew`/`date` come from optimistic local inserts, and
- * `original`/`boostOf`/`quoted`/`quoteOf`/`replyTo` are raw/legacy aliases for
- * the hydrated `originalPost`/`quotedPost`/`parentPostId` nested references.
- * Reading them through this view avoids `as any` while keeping the defensive
- * runtime checks intact.
+ * Local-only fields used for "my recent post to top" sorting. They are added by
+ * the cache/optimistic-write boundary and never appear on the API DTO.
  */
-export type FeedItemProbe = FeedItem & {
+type FeedItemProbe = FeedItem & {
     isLocalNew?: boolean;
     date?: string;
-    createdAt?: string;
-    original?: unknown;
-    boostOf?: unknown;
-    quoted?: unknown;
-    quoteOf?: unknown;
-    replyTo?: unknown;
 };
 
 // A post row: one hydrated post plus its thread state.
@@ -163,6 +151,21 @@ function spliceInterstitials(
 }
 
 /**
+ * Final virtualizer-safety boundary. Upstream page normalization should already
+ * make every post/slot unique, but this guarantees React/FlashList never receive
+ * duplicate row keys if a legacy cache or malformed response bypasses it.
+ */
+export function ensureUniqueFeedRows(rows: FeedRow[]): FeedRow[] {
+    const seen = new Set<string>();
+    return rows.filter((row) => {
+        const key = feedRowKey(row);
+        if (!key || seen.has(key)) return false;
+        seen.add(key);
+        return true;
+    });
+}
+
+/**
  * Transform slices (or flat items) into {@link FeedRow}s with thread state, then
  * splice in the server's recommendation cards. Pure: it decides only WHERE a card
  * goes, never what is inside it — which is what keeps the `useDeepCompareMemo`
@@ -182,31 +185,42 @@ export function buildFeedRows({
     // If we have slices, transform them into FeedRows with thread state
     if (slices && slices.length > 0) {
         const rows: PostFeedRow[] = [];
+        const seenPostIds = new Set<string>();
         for (const slice of slices) {
+            // A ranking boundary can overlap the preceding page. Normalize every
+            // slice before deriving thread flags so removing a duplicate parent or
+            // child cannot leave impossible thread positions behind.
+            const uniqueSliceItems = slice.items.filter((sliceItem) => {
+                const post = sliceItem.post as FeedItem;
+                if (!post || !post.id) return false;
+                if (blockedSet.size > 0) {
+                    const authorId = post.user?.id;
+                    if (authorId && blockedSet.has(authorId)) return false;
+                }
+                const postId = getItemKey(post);
+                if (!postId || seenPostIds.has(postId)) return false;
+                seenPostIds.add(postId);
+                return true;
+            });
+            if (uniqueSliceItems.length === 0) continue;
+
             // Real threads (multi-post slices) share one root: the FIRST item's
             // post. Every row of the thread carries it so a tap opens the whole
             // thread at its root. Standalone slices (one item) leave it undefined.
             const threadRootId = slice.items.length > 1
                 ? String(slice.items[0]?.post?.id ?? '')
                 : undefined;
-            for (let i = 0; i < slice.items.length; i++) {
-                const sliceItem = slice.items[i];
+            for (let i = 0; i < uniqueSliceItems.length; i++) {
+                const sliceItem = uniqueSliceItems[i];
                 const post = sliceItem.post as FeedItem;
-                if (!post || !post.id) continue;
-
-                // Privacy filter
-                if (blockedSet.size > 0) {
-                    const authorId = extractAuthorId(post);
-                    if (authorId && blockedSet.has(authorId)) continue;
-                }
 
                 rows.push({
                     kind: 'post',
                     item: post,
                     sliceKey: slice._sliceKey,
-                    isThreadParent: i < slice.items.length - 1,
+                    isThreadParent: i < uniqueSliceItems.length - 1,
                     isThreadChild: i > 0,
-                    isThreadLastChild: i === slice.items.length - 1 && i > 0,
+                    isThreadLastChild: i === uniqueSliceItems.length - 1 && i > 0,
                     isIncompleteThread: slice.isIncompleteThread,
                     sliceReason: slice.reason,
                     nestingDepth: 0,
@@ -215,7 +229,7 @@ export function buildFeedRows({
                 });
             }
         }
-        return spliceInterstitials(rows, interstitials);
+        return ensureUniqueFeedRows(spliceInterstitials(rows, interstitials));
     }
 
     // Fallback: wrap flat items into single-post FeedRows (no thread state)
@@ -224,7 +238,7 @@ export function buildFeedRows({
     const deduped = deduplicateItems(src, getItemKey);
     const filteredByPrivacy = blockedSet.size > 0
         ? deduped.filter((item) => {
-            const authorId = extractAuthorId(item);
+            const authorId = item.user?.id;
             return authorId ? !blockedSet.has(authorId) : true;
         })
         : deduped;
@@ -261,7 +275,7 @@ export function buildFeedRows({
             flattenNode(node, 0);
         }
 
-        return spliceInterstitials(rows, interstitials);
+        return ensureUniqueFeedRows(spliceInterstitials(rows, interstitials));
     }
 
     // Sort recent user posts to top for for_you feed
@@ -277,7 +291,7 @@ export function buildFeedRows({
             const probe = item as FeedItemProbe;
             const ownerId = probe.user?.id;
             if (probe.isLocalNew || ownerId === currentUserId) {
-                const d = probe.date || probe.createdAt;
+                const d = probe.date;
                 const ts = d ? Date.parse(d) : 0;
                 if (ts && now - ts <= THRESHOLD_MS) {
                     mineNow.push({ item, ts });
@@ -307,7 +321,7 @@ export function buildFeedRows({
         truncatedChildCount: 0,
     }));
 
-    return spliceInterstitials(flatRows, interstitials);
+    return ensureUniqueFeedRows(spliceInterstitials(flatRows, interstitials));
 }
 
 /** Stable key for a feed row (slice-scoped for posts, server-issued for cards). */
@@ -327,10 +341,10 @@ export function feedRowType(row: FeedRow): string {
     if (row.nestingDepth > 0) return `nested_${row.nestingDepth}`;
     if (row.isThreadParent) return 'threadParent';
     if (row.isThreadChild) return 'threadChild';
-    const item = row.item as FeedItemProbe;
-    if (item.original || item.boostOf) return 'boost';
-    if (item.quoted || item.quoteOf) return 'quote';
-    if ((item as { parentPostId?: unknown }).parentPostId || item.replyTo) return 'reply';
+    const item = row.item;
+    if (item.boost) return 'boost';
+    if (item.quotedPost) return 'quote';
+    if (item.parentPostId) return 'reply';
     return 'post';
 }
 
@@ -428,7 +442,7 @@ export function renderFeedRow(row: FeedRow, { router, threadLineColor, feedDescr
                 feedDescriptor={feedDescriptor}
                 sliceKey={row.sliceKey}
                 threadRootId={row.threadRootId}
-                isThread={row.isThreadParent || row.isThreadChild}
+                isThread={Boolean(row.threadRootId)}
             />
             {showThreadLink && (
                 <ShowThreadLink

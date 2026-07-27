@@ -19,7 +19,7 @@
  */
 
 import { queryClient } from '@/lib/queryClient';
-import { queryKeys } from '@/hooks/useOptimizedQuery';
+import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 
 /** Fired with the id of the list that changed, or `null` for create/delete that
  *  has no single relevant id to a viewing screen (the list collection changed). */
@@ -50,15 +50,23 @@ export function subscribeToListChanges(listener: ListChangeListener): () => void
 export function notifyListChanged(listId: string | null): void {
   // 1. React Query: the list detail + the user's list collection.
   if (listId) {
-    queryClient.invalidateQueries({ queryKey: queryKeys.list(listId) });
+    queryClient.invalidateQueries({
+      predicate: (query) =>
+        viewerQueryKeys.isFamily(query.queryKey, 'lists') &&
+        query.queryKey.includes(listId),
+    });
   }
-  queryClient.invalidateQueries({ queryKey: queryKeys.lists() });
+  queryClient.invalidateQueries({
+    predicate: (query) => viewerQueryKeys.isFamily(query.queryKey, 'lists'),
+  });
 
   // 2. React Query: any feed query (custom feeds backed by this list read the
   //    feed cache). The list-backed `<Feed>` itself is memory-mode and is
   //    handled by the imperative broadcast below, but custom feeds and any
   //    React-Query-driven feed consumers are refreshed here.
-  queryClient.invalidateQueries({ queryKey: queryKeys.feed('custom') });
+  queryClient.invalidateQueries({
+    predicate: (query) => viewerQueryKeys.isFamily(query.queryKey, 'feeds'),
+  });
 
   // 3. Imperative subscribers: list-backed feed screens re-fetch the list,
   //    producing a new `authors` filter that makes `<Feed>` re-fetch.

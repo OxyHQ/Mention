@@ -1,31 +1,96 @@
-services:
-  backend:
-    build:
-      context: .
-      dockerfile: packages/backend/Dockerfile
-    ports:
-      - "3000:3000"
-    depends_on:
-      - mongo
-      - redis
-    environment:
-      - NODE_ENV=development
-      - MONGODB_URI=mongodb://mongo:27017
-      - REDIS_URL=redis://redis:6379
+name: mention-local
 
+x-backend-image: &backend-image
+  image: mention-backend:local
+  build:
+    context: .
+    dockerfile: packages/backend/Dockerfile
+
+x-backend-environment: &backend-environment
+  NODE_ENV: development
+  MONGODB_URI: mongodb://mongo:27017/mention?replicaSet=rs0&directConnection=true
+  REDIS_URL: redis://valkey:6379
+
+services:
   mongo:
-    image: mongo:7
+    image: mongo:8.0.16@sha256:4b58ebcb1dc7a7b4e84cd8ce9098d48764ae4478876898ff9551acf2ac4a6a6d
+    command: ["mongod", "--replSet", "rs0", "--bind_ip_all"]
     restart: unless-stopped
     ports:
-      - "27017:27017"
+      - "127.0.0.1:27017:27017"
     volumes:
       - mongo_data:/data/db
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "mongosh --quiet --host 127.0.0.1:27017 --eval 'quit(db.adminCommand({ ping: 1 }).ok ? 0 : 1)'",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
 
-  redis:
-    image: redis:7-alpine
+  mongo-init:
+    image: mongo:8.0.16@sha256:4b58ebcb1dc7a7b4e84cd8ce9098d48764ae4478876898ff9551acf2ac4a6a6d
+    depends_on:
+      mongo:
+        condition: service_healthy
+    restart: "no"
+    entrypoint: ["/bin/bash", "-euc"]
+    command:
+      - |
+        mongosh --quiet --host mongo:27017 --eval '
+          try {
+            rs.status()
+          } catch (error) {
+            rs.initiate({
+              _id: "rs0",
+              members: [{ _id: 0, host: "mongo:27017" }]
+            })
+          }
+        '
+        until mongosh --quiet --host mongo:27017 --eval \
+          'quit(db.hello().isWritablePrimary ? 0 : 1)'; do
+          sleep 1
+        done
+
+  valkey:
+    image: valkey/valkey:8.1.9-alpine@sha256:a038175878d66b9d274fbf8be73c0305e93798b83917647f167e18cef3c71eec
     restart: unless-stopped
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
+    volumes:
+      - valkey_data:/data
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  migrate:
+    <<: *backend-image
+    command: ["bun", "packages/backend/dist/scripts/migrate.js"]
+    restart: "no"
+    depends_on:
+      mongo-init:
+        condition: service_completed_successfully
+      valkey:
+        condition: service_healthy
+    environment: *backend-environment
+
+  backend:
+    <<: *backend-image
+    init: true
+    restart: unless-stopped
+    stop_grace_period: 10s
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    environment: *backend-environment
+    ports:
+      - "127.0.0.1:${MENTION_PORT:-3000}:3000"
 
 volumes:
   mongo_data:
+  valkey_data:

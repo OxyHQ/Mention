@@ -56,6 +56,7 @@ vi.mock('../services/FeedSeenPostsService', () => ({
 
 import { FeedEngine } from '../mtn/feed/engine/FeedEngine';
 import { FeedModuleRegistry } from '../mtn/feed/engine/FeedModuleRegistry';
+import { ScoreCursor } from '../mtn/feed/CursorBuilder';
 import type { CandidatePost, FeedDefinition, SourceModule, FilterModule } from '../mtn/feed/engine/types';
 
 const oid = (n: number) => new mongoose.Types.ObjectId(`5f${n.toString().padStart(22, '0')}`);
@@ -126,6 +127,111 @@ describe('FeedEngine — ranked mode', () => {
     expect(result.items.map((i) => i.id)).toEqual([oid(1).toString()]);
     expect(result.hasMore).toBe(true);
     expect(result.nextCursor).toBeTruthy();
+  });
+
+  it('keeps pre-scored pages disjoint when time and engagement advance', async () => {
+    vi.useFakeTimers();
+    const initialTime = Date.UTC(2026, 6, 26, 12, 0, 0);
+    vi.setSystemTime(initialTime);
+
+    try {
+      const candidates = [
+        makePost(1, { finalScore: 0.9876543210987654 }),
+        makePost(2, { finalScore: 0.8765432109876543 }),
+        makePost(3, { finalScore: 0.7654321098765432 }),
+        makePost(4, { finalScore: 0.6543210987654321 }),
+      ];
+      const observedAsOf: Array<number | undefined> = [];
+      const gather = vi.fn(async (ctx: Parameters<SourceModule['gather']>[0]) => {
+        observedAsOf.push(ctx.rankingAsOf);
+        const parsed = ScoreCursor.parse(ctx.cursor);
+        const excluded = new Set(parsed?.excludeIds ?? []);
+        return candidates
+          .filter((post) => {
+            const id = String(post._id);
+            if (excluded.has(id)) return false;
+            if (!parsed || parsed.score === Infinity) return true;
+            const score = post.finalScore ?? 0;
+            return score < parsed.score || (score === parsed.score && id < parsed.id);
+          })
+          .sort((a, b) => {
+            const scoreDiff = (b.finalScore ?? 0) - (a.finalScore ?? 0);
+            return scoreDiff || String(b._id).localeCompare(String(a._id));
+          });
+      });
+      registry.register({ id: 'pre-scored', kind: 'source', userComposable: false, gather });
+      const def: FeedDefinition = {
+        id: 'test-pre-scored',
+        title: 'Test pre-scored',
+        mode: 'ranked',
+        sources: [{ module: 'pre-scored', enabled: true }],
+        signals: [],
+        filters: [],
+        execution: { preScored: true },
+      };
+
+      const first = await engine.run(def, {}, { limit: 2 });
+      const parsedCursor = ScoreCursor.parse(first.nextCursor);
+      expect(first.items.map((item) => item.id)).toEqual([oid(1).toString(), oid(2).toString()]);
+      expect(parsedCursor).toMatchObject({
+        score: 0.8765432109876543,
+        id: oid(2).toString(),
+        asOf: initialTime,
+      });
+      expect(new Set(parsedCursor?.excludeIds)).toEqual(new Set([oid(1).toString(), oid(2).toString()]));
+
+      // The top item loses engagement and would cross below the old watermark;
+      // advancing the clock must not create a duplicate on page two.
+      candidates[0].finalScore = 0.1;
+      vi.setSystemTime(initialTime + 6 * 60 * 60 * 1000);
+
+      const second = await engine.run(def, {}, { limit: 2, cursor: first.nextCursor });
+      expect(second.items.map((item) => item.id)).toEqual([oid(3).toString(), oid(4).toString()]);
+      const firstIds = new Set(first.items.map((item) => item.id));
+      expect(second.items.some((item) => firstIds.has(item.id))).toBe(false);
+      expect(observedAsOf).toEqual([initialTime, initialTime]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('selects a pre-scored page window before author diversification', async () => {
+    const candidates = [
+      makePost(10, { oxyUserId: 'author-a', finalScore: 10 }),
+      makePost(9, { oxyUserId: 'author-a', finalScore: 9 }),
+      makePost(8, { oxyUserId: 'author-b', finalScore: 8 }),
+    ];
+    const gather = async (ctx: Parameters<SourceModule['gather']>[0]) => {
+      const parsed = ScoreCursor.parse(ctx.cursor);
+      const excluded = new Set(parsed?.excludeIds ?? []);
+      return candidates.filter((post) => {
+        const id = String(post._id);
+        if (excluded.has(id)) return false;
+        if (!parsed || parsed.score === Infinity) return true;
+        const score = post.finalScore ?? 0;
+        return score < parsed.score || (score === parsed.score && id < parsed.id);
+      });
+    };
+    registry.register({ id: 'pre-scored-window', kind: 'source', userComposable: false, gather });
+    const def: FeedDefinition = {
+      id: 'test-pre-scored-window',
+      title: 'Test pre-scored window',
+      mode: 'ranked',
+      sources: [{ module: 'pre-scored-window', enabled: true }],
+      signals: [],
+      filters: [],
+      execution: { preScored: true },
+    };
+
+    const first = await engine.run(def, {}, { limit: 2 });
+    const second = await engine.run(def, {}, { limit: 2, cursor: first.nextCursor });
+
+    expect(first.items.map((item) => item.id)).toEqual([oid(10).toString(), oid(9).toString()]);
+    expect(second.items.map((item) => item.id)).toEqual([oid(8).toString()]);
+    expect(new Set([
+      ...first.items.map((item) => item.id),
+      ...second.items.map((item) => item.id),
+    ])).toEqual(new Set([oid(10).toString(), oid(9).toString(), oid(8).toString()]));
   });
 });
 

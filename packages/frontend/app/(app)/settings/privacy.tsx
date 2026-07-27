@@ -20,19 +20,24 @@ import {
     getRecommendationFilters,
     saveRecommendationFilters,
 } from '@/lib/recommendationFilters';
-import { updatePrivacySettingsCache, type PrivacySettings, type UserSettingsResponse } from '@/hooks/usePrivacySettings';
+import {
+    createPrivacySettingsCacheLease,
+    updatePrivacySettingsCache,
+    type PrivacySettings,
+    type UserSettingsResponse,
+} from '@/hooks/usePrivacySettings';
 import { queryClient } from '@/lib/queryClient';
-import { RECOMMENDATION_FILTERS_QUERY_KEY } from '@/hooks/useRecommendations';
-import { OxyAuthPrompt, useAuth } from '@oxyhq/services';
+import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
+import { OxyAuthPrompt, useAuth } from '@oxyhq/services/ui/client';
 
-const FILTER_TOGGLES: Array<{
+const FILTER_TOGGLES: {
     icon: IconName;
     titleKey: string;
     descKey: string;
     titleDefault: string;
     descDefault: string;
     filterKey: keyof RecommendationFilters;
-}> = [
+}[] = [
     {
         icon: 'globe-outline',
         titleKey: 'settings.privacy.showFediverse',
@@ -62,7 +67,14 @@ const FILTER_TOGGLES: Array<{
 export default function PrivacySettingsScreen() {
     const { t } = useTranslation();
     const safeBack = useSafeBack();
-    const { isAuthenticated, isAuthResolved, canUsePrivateApi, isPrivateApiPending } = useAuth();
+    const {
+        isAuthenticated,
+        isAuthResolved,
+        canUsePrivateApi,
+        isPrivateApiPending,
+        user,
+    } = useAuth();
+    const viewerId = user?.id;
 
     const [privacySettings, setPrivacySettings] = useState<PrivacySettings>({});
     const [recFilters, setRecFilters] = useState<RecommendationFilters>(DEFAULT_RECOMMENDATION_FILTERS);
@@ -72,13 +84,13 @@ export default function PrivacySettingsScreen() {
         if (!isAuthResolved || isPrivateApiPending) {
             return;
         }
-        if (!isAuthenticated) {
+        if (!isAuthenticated || !viewerId) {
             setLoading(false);
             return;
         }
         loadPrivacySettings();
-        getRecommendationFilters().then(setRecFilters);
-    }, [isAuthResolved, isPrivateApiPending, isAuthenticated]);
+        getRecommendationFilters(viewerId).then(setRecFilters);
+    }, [isAuthResolved, isPrivateApiPending, isAuthenticated, viewerId]);
 
     const loadPrivacySettings = async () => {
         try {
@@ -96,20 +108,26 @@ export default function PrivacySettingsScreen() {
     const updateRecFilter = (key: keyof RecommendationFilters, value: boolean) => {
         const updated = { ...recFilters, [key]: value };
         setRecFilters(updated);
-        saveRecommendationFilters(updated);
+        void saveRecommendationFilters(updated, viewerId);
         // Prime the shared filters query so `useRecommendations` re-derives its
         // `excludeTypes` cache key and refetches every recommendation surface
         // (explore tab, widget, suggestions) reactively — no manual invalidation.
-        queryClient.setQueryData(RECOMMENDATION_FILTERS_QUERY_KEY, updated);
+        if (viewerId) {
+            queryClient.setQueryData(
+                viewerQueryKeys.recommendationFilters(viewerId),
+                updated,
+            );
+        }
     };
 
     const updatePrivacyToggle = async (field: 'showSensitiveContent', value: boolean) => {
+        const cacheLease = createPrivacySettingsCacheLease(viewerId);
         const previous = privacySettings;
         const updated = { ...privacySettings, [field]: value };
         setPrivacySettings(updated);
         try {
             await authenticatedClient.put('/profile/settings', { privacy: updated });
-            await updatePrivacySettingsCache(updated);
+            await updatePrivacySettingsCache(updated, cacheLease);
         } catch (error) {
             logger.error('Error updating privacy setting', { error, field });
             setPrivacySettings(previous);

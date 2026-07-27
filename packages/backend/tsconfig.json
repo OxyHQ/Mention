@@ -12,6 +12,8 @@
   // ---------------------------------------------------------------------------
   "extends": "../../tsconfig.json",
   "compilerOptions": {
+    "lib": ["ES2020", "DOM"],
+    "types": ["node"],
     // --- Intentional override of the root base: emit CommonJS for Node/Bun.
     // The ECS image executes the emitted `dist/**` as CommonJS; `node`
     // resolution matches that runtime.
@@ -21,10 +23,13 @@
     // --- Emit settings (the root base is type-check only / noEmit).
     // `rootDir: "./"` because the entrypoint `server.ts` lives at the package
     // root (not under src/); TypeScript auto-excludes `outDir` (dist) from the
-    // compilation, so the emitted tree mirrors the source tree under dist/.
+    // compilation, so the emitted production tree mirrors the non-test source
+    // tree under dist/. Tests remain source-only and run directly in Vitest.
     "noEmit": false,
     "rootDir": "./",
     "outDir": "dist",
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
 
     // Resolve the workspace dependency to shared-types SOURCE during type-check
     // so backend changes see un-built type updates immediately.
@@ -34,6 +39,12 @@
       "@mention/shared-types/*": ["../shared-types/src/*"]
     }
   },
-  "include": ["**/*.ts", "package.json"],
+  "include": ["server.ts", "scripts/**/*.ts", "src/**/*.ts", "package.json"],
+  "exclude": [
+    "dist",
+    "src/__tests__",
+    "**/*.test.ts",
+    "**/*.spec.ts"
+  ],
   "references": [{ "path": "../shared-types" }]
 }

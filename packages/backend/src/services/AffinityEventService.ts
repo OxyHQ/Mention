@@ -26,7 +26,7 @@
  * their own post carries no affinity signal.
  */
 
-import { getRedisClient, isRedisConnected } from '../utils/redis';
+import { getRedisClient } from '../utils/redis';
 import { logger } from '../utils/logger';
 import {
   oxySignalsClient,
@@ -78,7 +78,8 @@ export class AffinityEventService {
     if (!fromUserId || !toUserId || fromUserId === toUserId) return false;
 
     try {
-      if (!(await isRedisConnected())) return false;
+      const client = getRedisClient();
+      if (!client.isReady) return false;
 
       const event: AffinityEvent = {
         fromUserId,
@@ -88,7 +89,6 @@ export class AffinityEventService {
         ...(args.eventId ? { eventId: args.eventId } : {}),
       };
 
-      const client = getRedisClient();
       await client.lPush(AFFINITY_BUFFER_KEY, JSON.stringify(event));
       // Cap the buffer so a stalled drain never grows it unbounded. LPUSH writes
       // to the head, so [0, MAX-1] keeps the newest events and drops the oldest.
@@ -120,8 +120,8 @@ export class AffinityEventService {
   async drainOnce(): Promise<number> {
     let claimed: string[];
     try {
-      if (!(await isRedisConnected())) return 0;
       const client = getRedisClient();
+      if (!client.isReady) return 0;
 
       // Atomically read the newest batch (head) and trim it off in one MULTI so
       // a concurrent drainer on another process can't claim the same slice.

@@ -1,6 +1,6 @@
 import React, { memo, useId, useMemo } from 'react';
 import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import Svg, { Defs, LinearGradient, Polygon, Polyline, Stop } from 'react-native-svg';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { formatCompactNumber } from '@/utils/formatNumber';

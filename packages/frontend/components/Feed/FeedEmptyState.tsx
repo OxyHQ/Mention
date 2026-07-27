@@ -1,7 +1,7 @@
 import React, { memo } from 'react';
 import { View, Text } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { FeedType } from '@mention/shared-types';
+import type { FeedType } from '@mention/shared-types';
 import { EmptyState } from '@/components/common/EmptyState';
 import { Spinner } from '@/components/ui/Spinner';
 import { Home } from '@/assets/icons/home-icon';
@@ -113,4 +113,3 @@ function getEmptySubtext(type: FeedType, showOnlySaved?: boolean): string {
             return 'Start following people to see their posts';
     }
 }
-

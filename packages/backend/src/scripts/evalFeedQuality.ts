@@ -657,7 +657,7 @@ async function main(): Promise<void> {
 
   try {
     await mongoose.connect(mongoUri, { dbName });
-    logger.info(`[evalFeedQuality] connected to MongoDB (${dbName})`);
+    logger.info('[evalFeedQuality] connected to MongoDB');
 
     registerAllModules();
 
@@ -727,7 +727,9 @@ async function main(): Promise<void> {
         viewerRegion: viewerContext.viewerRegion,
         seenPostIds: [],
       });
-      logger.info(`[evalFeedQuality] gathered ${forYouPool.length} For You candidates for viewer ${args.viewerId}`);
+      logger.info('[evalFeedQuality] gathered viewer-scoped For You candidates', {
+        count: forYouPool.length,
+      });
     }
 
     // ---- Resolve federated-actor context for the unlabeled candidates (batch) ----
@@ -772,7 +774,11 @@ async function main(): Promise<void> {
     });
 
     // Master switch echoed so the report is self-describing about gate mode.
-    logger.info(`[evalFeedQuality] gate: enabled=${MtnConfig.feed.discoveryGate.enabled} shadow=${MtnConfig.feed.discoveryGate.shadow} modules=[${gateModules.map((m) => m.id).join(',')}]`);
+    logger.info('[evalFeedQuality] discovery-gate configuration', {
+      enabled: MtnConfig.feed.discoveryGate.enabled,
+      shadow: MtnConfig.feed.discoveryGate.shadow,
+      moduleCount: gateModules.length,
+    });
     for (const line of formatReportLines(report)) logger.info(line);
 
     // ---- Online mode: engagement-per-impression + report-rate from FeedInteraction ----

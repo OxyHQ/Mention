@@ -1,4 +1,4 @@
-import { Request, Response } from 'express';
+import { Response } from 'express';
 import { Post, POST_CLASSIFICATION_PENDING } from '../models/Post';
 import { baselineContentClassifier } from '../services/BaselineContentClassifier';
 import Poll from '../models/Poll';
@@ -6,7 +6,7 @@ import Like from '../models/Like';
 import Bookmark from '../models/Bookmark';
 import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
 import mongoose from 'mongoose';
-import { createNotification, createMentionNotifications, createBatchNotifications, createPostAuthorNotifications } from '../utils/notificationUtils';
+import { createMentionNotifications } from '../utils/notificationUtils';
 import PostSubscription from '../models/PostSubscription';
 import {
   PostVisibility,
@@ -18,18 +18,24 @@ import {
   PostUser,
   toBaseLanguages,
 } from '@mention/shared-types';
+import {
+  mentionTextsFromContent,
+  reconcileMentionIds,
+} from '@mention/shared-types/mentions';
 import { userPreferenceService, readInteractionSurface } from '../services/UserPreferenceService';
 import { affinityEventService } from '../services/AffinityEventService';
 import { postCreationService } from '../services/PostCreationService';
 import ArticleModel, { IArticle } from '../models/Article';
 import { logger } from '../utils/logger';
+import { metrics } from '../utils/metrics';
 import { postHydrationService, resolveUserSummaries, degradedActorSummary } from '../services/PostHydrationService';
 import { config } from '../config';
-import { mergeHashtags, escapeRegex } from '../utils/textProcessing';
+import { mergeHashtags } from '../utils/textProcessing';
 import { createScopedOxyClient } from '../utils/oxyHelpers';
 import { queryInt, queryString } from '../utils/queryParams';
 import { buildTopicSlugMatch } from '../utils/postTopicMatch';
 import { requestLanguageCandidates } from '../utils/viewerLanguage';
+import { getRuntimeSocketServer } from '../runtime/socketServer';
 import { normalizeMediaItems, type NormalizedMediaItem } from '../utils/mediaInput';
 import { warmLinkPreviewForText } from '../utils/linkPreviewWarm';
 import { authorVariants, buildPrimaryVariant, resolveVariant, validateAuthorVariants } from '../services/postVariants';
@@ -38,16 +44,25 @@ import { validatePublicShareTarget } from '../utils/postAccessControl';
 import { sanitizePodcast, resolvePodcastContent } from '../utils/syraPodcast';
 import {
   emitPostCreated,
-  emitLikeCreated,
   emitTombstone,
-  emitBookmarkCreated,
-  likeRecordUri,
-  bookmarkRecordUri,
   postRecordUri,
 } from '../services/mtn/MentionRecordEmitter';
 import { postCollaborationService, CollabValidationError, CollabStateError } from '../services/PostCollaborationService';
 import { resolveMcpAutoAcceptIds } from '../mcp/utils/resolveMcpAutoAcceptIds';
 import { federateAsResolvedActor } from '../connectors/outboundFederation';
+import {
+  EngagementPostNotFoundError,
+  removeVoteCommand,
+  savePostCommand,
+  unsavePostCommand,
+  votePostCommand,
+} from '../services/PostEngagementCommandService';
+import {
+  BookmarkFolderInputError,
+  type BookmarkFolderTarget,
+  updateBookmarkFolderForViewer,
+} from '../services/BookmarkFolderService';
+import { repairRecentRepliersAfterPostDelete } from '../services/PostRecentReplierService';
 
 // Constants from centralized config
 const MAX_SOURCES = config.posts.maxSources;
@@ -379,8 +394,23 @@ export const createPost = async (req: AuthRequest, res: Response) => {
 
     const { content, hashtags, mentions, quoted_post_id, boost_of, in_reply_to_status_id, parentPostId, threadId, contentLocation, postLocation, replyPermission, reviewReplies, quotesDisabled, status: incomingStatus, scheduledFor, collaboratorIds, collaboratorHandles } = req.body;
 
-    // Support both new content structure and legacy text/media structure
-    const media = content?.media || content?.images || req.body.media; // Support both new media field and legacy images
+    // Transitional request aliases are measured with a bounded label so their
+    // retirement is evidence-based. They never become part of the stored DTO.
+    if (!content?.media && content?.images) {
+      metrics.incrementCounter('legacy_post_payload_total', 1, {
+        variant: 'content-images',
+      });
+    } else if (!content?.media && !content?.images && req.body.media) {
+      metrics.incrementCounter('legacy_post_payload_total', 1, {
+        variant: 'top-level-media',
+      });
+    }
+    if (content?.text == null && req.body.text != null) {
+      metrics.incrementCounter('legacy_post_payload_total', 1, {
+        variant: 'top-level-text',
+      });
+    }
+    const media = content?.media || content?.images || req.body.media;
     const video = content?.video;
     const poll = content?.poll;
     const contentLocationData = content?.location || contentLocation;
@@ -435,6 +465,9 @@ export const createPost = async (req: AuthRequest, res: Response) => {
       }
       // Handle legacy format: { latitude: number, longitude: number, address?: string }
       else if (typeof contentLocationData.latitude === 'number' && typeof contentLocationData.longitude === 'number') {
+        metrics.incrementCounter('legacy_post_payload_total', 1, {
+          variant: 'content-location-object',
+        });
         longitude = contentLocationData.longitude;
         latitude = contentLocationData.latitude;
         address = contentLocationData.address;
@@ -469,6 +502,9 @@ export const createPost = async (req: AuthRequest, res: Response) => {
       }
       // Handle legacy format: { latitude: number, longitude: number, address?: string }
       else if (typeof postLocation.latitude === 'number' && typeof postLocation.longitude === 'number') {
+        metrics.incrementCounter('legacy_post_payload_total', 1, {
+          variant: 'post-location-object',
+        });
         longitude = postLocation.longitude;
         latitude = postLocation.latitude;
         address = postLocation.address;
@@ -867,9 +903,11 @@ export const createThread = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ message: 'Collaborators are not supported on threads' });
     }
 
-    logger.debug('Creating thread with body', JSON.stringify(req.body, null, 2));
-
     const { mode, posts } = req.body;
+    logger.debug('Creating thread', {
+      mode,
+      postCount: Array.isArray(posts) ? posts.length : 0,
+    });
 
     if (!Array.isArray(posts) || posts.length === 0) {
       return res.status(400).json({ message: 'Posts array is required and cannot be empty' });
@@ -1053,11 +1091,13 @@ export const createThread = async (req: AuthRequest, res: Response) => {
         }
       }
 
-      // Mentions per post in thread
+      // Mentions per post in thread. Read the reconciled persisted allowlist,
+      // never the raw request metadata: an orphan id must not notify anyone.
       try {
-        if (mentions && mentions.length > 0) {
+        const persistedMentions = Array.isArray(post.mentions) ? post.mentions : [];
+        if (persistedMentions.length > 0) {
           await createMentionNotifications(
-            mentions,
+            persistedMentions,
             post._id.toString(),
             userId,
             'post'
@@ -1099,7 +1139,7 @@ export const createThread = async (req: AuthRequest, res: Response) => {
 
     // Emit real-time feed update for new thread posts
     try {
-      const io = global.io;
+      const io = getRuntimeSocketServer();
       if (io && createdPosts.length > 0) {
         // Emit the first post (main post) to feeds
         const mainPost = createdPosts[0];
@@ -1471,7 +1511,10 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
     post.markModified('content.attachments');
 
     if (hashtags !== undefined) post.hashtags = mergeHashtags('', hashtags || []);
-    if (mentions !== undefined) post.mentions = mentions || [];
+    post.mentions = reconcileMentionIds(
+      mentionTextsFromContent(post.content),
+      mentions !== undefined ? mentions : post.mentions,
+    );
 
     const collaboratorIds = await postCollaborationService.resolveCollaboratorRefs(
       userId,
@@ -1644,6 +1687,10 @@ export const deletePost = async (req: AuthRequest, res: Response) => {
     }
 
     const postId = post._id.toString();
+    await repairRecentRepliersAfterPostDelete({
+      postId,
+      parentPostId: post.parentPostId,
+    });
 
     // MTN dual-write: deleting a LOCAL post tombstones its
     // `app.mention.feed.post` record. (Federated posts never emitted a record.)
@@ -1695,8 +1742,6 @@ export const deletePost = async (req: AuthRequest, res: Response) => {
         PostSubscription.deleteMany({ postId }).exec(),
         // Delete notifications referencing this post
         mongoose.model('Notification').deleteMany({ entityId: postId, entityType: 'post' }).exec(),
-        // Delete replies (child posts)
-        Post.deleteMany({ parentPostId: postId }).exec(),
       ]);
     } catch (cleanupError) {
       logger.error('Error during cascading post cleanup', cleanupError);
@@ -1710,43 +1755,10 @@ export const deletePost = async (req: AuthRequest, res: Response) => {
 };
 
 /**
- * Fire-and-forget outbound federation of a like change: a `Like` (kind
- * `post.like`) or `Undo(Like)` (kind `post.unlike`) sent ONLY to the origin
- * author's inbox when the liked post is federated (the connector no-ops a local
- * post). `likeDocId` is the native `Like` doc `_id` — the deterministic AP Like
- * id so an Undo re-mints the exact id. Callers gate on the liked post being
- * federated to avoid resolving a target for the common local-post case; the
- * connector re-checks. Only upvotes (value 1) are AP likes — a downvote is a
- * Mention-only concept and must never reach here.
+ * Apply an idempotent vote command. The relationship, counters and durable
+ * outbox event commit in one transaction; MTN, notifications and federation
+ * are delivered asynchronously from that event.
  */
-const federateLikeChange = (
-  kind: 'post.like' | 'post.unlike',
-  likeDocId: string,
-  likedPostId: string,
-  likerOxyUserId: string,
-): void => {
-  federateAsResolvedActor(likerOxyUserId, kind, (username) => ({
-    kind,
-    like: { _id: likeDocId, postId: likedPostId },
-    actorOxyUserId: likerOxyUserId,
-    actorUsername: username,
-  }));
-};
-
-// Clamp vote counts to zero and persist corrections if needed
-const clampVoteCounts = async (postId: string, post: { stats?: { likesCount?: number; downvotesCount?: number } } | null): Promise<{ likesCount: number; downvotesCount: number }> => {
-  const likesCount = Math.max(0, post?.stats?.likesCount ?? 0);
-  const downvotesCount = Math.max(0, post?.stats?.downvotesCount ?? 0);
-  const corrections: Record<string, number> = {};
-  if (likesCount !== (post?.stats?.likesCount ?? 0)) corrections['stats.likesCount'] = 0;
-  if (downvotesCount !== (post?.stats?.downvotesCount ?? 0)) corrections['stats.downvotesCount'] = 0;
-  if (Object.keys(corrections).length > 0) {
-    await Post.findByIdAndUpdate(postId, { $set: corrections });
-  }
-  return { likesCount, downvotesCount };
-};
-
-// Like post
 export const likePost = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?.id;
@@ -1758,143 +1770,49 @@ export const likePost = async (req: AuthRequest, res: Response) => {
     const value: 1 | -1 = req.body?.value === -1 ? -1 : 1;
     const surface = readInteractionSurface(req.body);
 
-    logger.debug(`Vote request received: userId=${userId}, postId=${postId}, value=${value}`);
+    logger.debug('Vote request received', {
+      value,
+      surface,
+    });
+    const result = await votePostCommand({ userId, postId, value, source: surface });
 
-    // Check if user already has a vote on this post
-    const existingLike = await Like.findOne({ userId, postId });
-
-    if (existingLike) {
-      const existingValue = existingLike.value ?? 1;
-
-      // Same vote already exists — no-op
-      if (existingValue === value) {
-        logger.debug(`Post ${postId} already voted ${value} by user ${userId}`);
-        const currentPost = await Post.findById(postId).select('stats.likesCount stats.downvotesCount').lean();
-
-        return res.json({
-          message: 'Vote unchanged',
-          likesCount: currentPost?.stats?.likesCount ?? 0,
-          downvotesCount: currentPost?.stats?.downvotesCount ?? 0,
-          liked: value === 1,
-          downvoted: value === -1
-        });
-      }
-
-      // Switching vote direction: atomic update to avoid race condition
-      const updated = await Like.findOneAndUpdate(
-        { userId, postId },
-        { value, ...(surface ? { source: surface } : {}) },
-        { new: true }
-      );
-      // The effective Like doc id — the deterministic AP Like id. `findOneAndUpdate`
-      // keeps the same `_id`; only the rare raced-recreate path mints a new one.
-      let effectiveLikeId = updated ? String(updated._id) : '';
-      if (!updated) {
-        // Document was deleted between findOne and findOneAndUpdate — create fresh
-        const recreated = await Like.create({ userId, postId, value, source: surface });
-        effectiveLikeId = String(recreated._id);
-      }
-
-      const statsUpdate = value === 1
-        ? { $inc: { 'stats.likesCount': 1, 'stats.downvotesCount': -1 } }
-        : { $inc: { 'stats.likesCount': -1, 'stats.downvotesCount': 1 } };
-
-      const updatedPost = await Post.findByIdAndUpdate(postId, statsUpdate, { new: true }).lean();
-
-      const { likesCount, downvotesCount } = await clampVoteCounts(postId, updatedPost);
-
-      // Outbound federation: switching TO an upvote sends a Like to a federated
-      // post's origin author; switching AWAY from an upvote (to a downvote)
-      // retracts it with Undo(Like). A downvote itself is Mention-only and never
-      // federates. Local-post likes are a no-op inside the connector.
-      if (updatedPost?.federation?.activityId) {
-        federateLikeChange(value === 1 ? 'post.like' : 'post.unlike', effectiveLikeId, postId, userId);
-      }
-
-      // Best-effort preference learning — detached so it never adds latency to
-      // the vote response.
-      void userPreferenceService
-        .recordInteraction(userId, postId, 'like', { surface })
-        .catch((error) => logger.warn('Failed to record interaction for vote switch', error));
-
-      return res.json({
-        message: 'Vote switched successfully',
-        likesCount,
-        downvotesCount,
-        liked: value === 1,
-        downvoted: value === -1
-      });
-    }
-
-    // No existing vote — create new
-    logger.debug(`User ${userId} voting ${value} on post ${postId}`);
-    const createdLike = await Like.create({ userId, postId, value, source: surface });
-
-    const statField = value === 1 ? 'stats.likesCount' : 'stats.downvotesCount';
-    const likedPost = await Post.findByIdAndUpdate(
-      postId,
-      { $inc: { [statField]: 1 } },
-      { new: true }
-    ).lean();
-
-    // MTN dual-write: an upvote (value === 1) emits an `app.mention.feed.like`
-    // record. Downvotes are not "likes" and are not part of the MTN like lexicon.
-    if (value === 1) {
-      await emitLikeCreated({
-        likerOxyUserId: userId,
-        likeRkey: String(createdLike._id),
-        likedPostId: postId,
-        likedPostOwnerOxyUserId: likedPost?.oxyUserId?.toString?.(),
-      });
-
-      // Affinity graph: the liker expresses affinity toward the post's author.
-      // Fire-and-forget — buffering must never block or fail the like.
-      const authorId = likedPost?.oxyUserId?.toString?.();
-      if (authorId) {
+    if (result.changed && result.likeId && value === 1) {
+      const postOwnerId = result.post.oxyUserId?.toString?.();
+      if (postOwnerId) {
         void affinityEventService
-          .record({ fromUserId: userId, toUserId: authorId, type: 'like', eventId: `like:${String(createdLike._id)}` })
+          .record({
+            fromUserId: userId,
+            toUserId: postOwnerId,
+            type: 'like',
+            eventId: `like:${result.likeId}`,
+          })
           .catch(() => undefined);
       }
-
-      // Outbound federation: a like of a FEDERATED post notifies its origin
-      // author with a Like delivered to their inbox only. Local-post likes are a
-      // no-op inside the connector (the author is notified natively).
-      if (likedPost?.federation?.activityId) {
-        federateLikeChange('post.like', String(createdLike._id), postId, userId);
-      }
     }
 
-    // Best-effort preference learning — detached so it never adds latency to the
-    // like response.
-    void userPreferenceService
-      .recordInteraction(userId, postId, 'like', { surface })
-      .catch((error) => logger.warn('Failed to record interaction for preferences', error));
-
-    // Create notification for upvotes only (not downvotes)
-    if (value === 1) {
-      try {
-        await createPostAuthorNotifications(
-          likedPost?.authorship as import('@mention/shared-types').PostAuthorshipEntry[] | undefined,
-          {
-            actorId: userId,
-            type: 'like',
-            entityId: postId,
-            entityType: 'post',
-          },
-        );
-      } catch (e) {
-        logger.error('Failed to create like notification', e);
-      }
+    // Learn only from a newly committed upvote. Idempotent retries and
+    // downvotes must not inflate the viewer's positive preference signal.
+    if (result.changed && value === 1) {
+      void userPreferenceService
+        .recordInteraction(userId, postId, 'like', { surface })
+        .catch((error) => logger.warn('Failed to record interaction for preferences', error));
     }
 
     res.json({
-      message: value === 1 ? 'Post liked successfully' : 'Post downvoted successfully',
-      likesCount: likedPost?.stats?.likesCount ?? 0,
-      downvotesCount: likedPost?.stats?.downvotesCount ?? 0,
+      message: result.changed
+        ? result.previousValue === null
+          ? value === 1 ? 'Post liked successfully' : 'Post downvoted successfully'
+          : 'Vote switched successfully'
+        : 'Vote unchanged',
+      likesCount: result.post.stats?.likesCount ?? 0,
+      downvotesCount: result.post.stats?.downvotesCount ?? 0,
       liked: value === 1,
       downvoted: value === -1
     });
   } catch (error) {
+    if (error instanceof EngagementPostNotFoundError) {
+      return res.status(404).json({ message: 'Post not found' });
+    }
     logger.error('Error voting on post', error);
     res.status(500).json({ message: 'Error voting on post' });
   }
@@ -1909,58 +1827,19 @@ export const unlikePost = async (req: AuthRequest, res: Response) => {
     }
 
     const postId = req.params.id as string;
-
-    // Find and remove the vote record to know which count to decrement
-    const existingLike = await Like.findOneAndDelete({ userId, postId });
-    if (!existingLike) {
-      const currentPost = await Post.findById(postId).select('stats.likesCount stats.downvotesCount').lean();
-      return res.json({
-        message: 'No vote to remove',
-        likesCount: currentPost?.stats?.likesCount ?? 0,
-        downvotesCount: currentPost?.stats?.downvotesCount ?? 0,
-        liked: false,
-        downvoted: false
-      });
-    }
-
-    // Decrement the appropriate counter based on the vote's value
-    const voteValue = existingLike.value ?? 1;
-    const statField = voteValue === 1 ? 'stats.likesCount' : 'stats.downvotesCount';
-
-    const updatedPost = await Post.findByIdAndUpdate(
-      postId,
-      { $inc: { [statField]: -1 } },
-      { new: true }
-    ).lean();
-
-    // MTN dual-write: removing an upvote tombstones its `app.mention.feed.like`
-    // record. (A removed downvote has no like record to supersede.)
-    if (voteValue === 1) {
-      await emitTombstone({
-        authorOxyUserId: userId,
-        tombstoneRkey: String(existingLike._id),
-        subjectUri: likeRecordUri(userId, String(existingLike._id)),
-      });
-    }
-
-    // Outbound federation: removing an upvote on a FEDERATED post retracts the
-    // Like at its origin with an Undo(Like) re-minting the same deterministic id
-    // from the (now-deleted) Like doc. A removed downvote never federated, so it
-    // has nothing to retract. Local-post unlikes are a no-op inside the connector.
-    if (voteValue === 1 && updatedPost?.federation?.activityId) {
-      federateLikeChange('post.unlike', String(existingLike._id), postId, userId);
-    }
-
-    const { likesCount, downvotesCount } = await clampVoteCounts(postId, updatedPost);
+    const result = await removeVoteCommand({ userId, postId });
 
     res.json({
-      message: 'Vote removed successfully',
-      likesCount,
-      downvotesCount,
+      message: result.changed ? 'Vote removed successfully' : 'No vote to remove',
+      likesCount: result.post.stats?.likesCount ?? 0,
+      downvotesCount: result.post.stats?.downvotesCount ?? 0,
       liked: false,
       downvoted: false
     });
   } catch (error) {
+    if (error instanceof EngagementPostNotFoundError) {
+      return res.status(404).json({ message: 'Post not found' });
+    }
     logger.error('Error removing vote', error);
     res.status(500).json({ message: 'Error removing vote' });
   }
@@ -1977,53 +1856,24 @@ export const savePost = async (req: AuthRequest, res: Response) => {
     const postId = req.params.id as string;
     const surface = readInteractionSurface(req.body);
 
-    logger.debug(`Save request received: userId=${userId}, postId=${postId}`);
+    logger.debug('Save request received', { surface });
+    const result = await savePostCommand({ userId, postId });
 
-    // Check if already saved
-    const existingSave = await Bookmark.findOne({ userId, postId });
-    if (existingSave) {
-      logger.debug(`Post ${postId} already saved by user ${userId}`);
-
-      // Still record the interaction even if already saved (user expressed
-      // interest). Best-effort, detached — never adds latency to the response.
+    // Learn only from the relationship transition, not an idempotent retry.
+    if (result.changed) {
       void userPreferenceService
         .recordInteraction(userId, postId, 'save', { surface })
-        .catch((error) => logger.warn('Failed to record interaction for already-saved post', error));
-
-      return res.json({ message: 'Post already saved' });
+        .catch((error) => logger.warn('Failed to record interaction for preferences', error));
     }
 
-    logger.debug(`User ${userId} saving post ${postId} (not already saved)`);
-
-    // Create save record
-    const createdBookmark = await Bookmark.create({ userId, postId });
-
-    // Also update post metadata.savedBy for consistency
-    const savedPost = await Post.findByIdAndUpdate(
-      postId,
-      {
-        $addToSet: { 'metadata.savedBy': userId }
-      },
-      { new: true }
-    ).select('oxyUserId').lean();
-
-    // MTN dual-write: a save emits a PRIVATE `app.mention.feed.bookmark` record
-    // (excluded from any public log export).
-    await emitBookmarkCreated({
-      ownerOxyUserId: userId,
-      bookmarkRkey: String(createdBookmark._id),
-      bookmarkedPostId: postId,
-      bookmarkedPostOwnerOxyUserId: savedPost?.oxyUserId?.toString?.(),
+    res.json({
+      message: result.changed ? 'Post saved successfully' : 'Post already saved',
+      savesCount: result.post.stats?.savesCount ?? 0,
     });
-
-    // Best-effort preference learning — detached so it never adds latency to the
-    // save response.
-    void userPreferenceService
-      .recordInteraction(userId, postId, 'save', { surface })
-      .catch((error) => logger.warn('Failed to record interaction for preferences', error));
-
-    res.json({ message: 'Post saved successfully' });
   } catch (error) {
+    if (error instanceof EngagementPostNotFoundError) {
+      return res.status(404).json({ message: 'Post not found' });
+    }
     logger.error('Error saving post', error);
     res.status(500).json({ message: 'Error saving post' });
   }
@@ -2038,31 +1888,17 @@ export const unsavePost = async (req: AuthRequest, res: Response) => {
     }
 
     const postId = req.params.id as string;
+    const result = await unsavePostCommand({ userId, postId });
 
-    // Remove save record
-    const removedBookmark = await Bookmark.findOneAndDelete({ userId, postId });
-    if (!removedBookmark) {
-      return res.json({ message: 'Post not saved' });
-    }
-
-    // Also update post metadata.savedBy for consistency
-    await Post.findByIdAndUpdate(
-      postId,
-      {
-        $pull: { 'metadata.savedBy': userId }
-      }
-    );
-
-    // MTN dual-write: an unsave tombstones the bookmark's
-    // `app.mention.feed.bookmark` record (private — same private chain).
-    await emitTombstone({
-      authorOxyUserId: userId,
-      tombstoneRkey: String(removedBookmark._id),
-      subjectUri: bookmarkRecordUri(userId, String(removedBookmark._id)),
+    // Durable MTN side effects are delivered by the transactional outbox.
+    res.json({
+      message: result.changed ? 'Post unsaved successfully' : 'Post not saved',
+      savesCount: result.post.stats?.savesCount ?? 0,
     });
-
-    res.json({ message: 'Post unsaved successfully' });
   } catch (error) {
+    if (error instanceof EngagementPostNotFoundError) {
+      return res.status(404).json({ message: 'Post not found' });
+    }
     logger.error('Error unsaving post', error);
     res.status(500).json({ message: 'Error unsaving post' });
   }
@@ -2102,7 +1938,9 @@ export const getSavedPosts = async (req: AuthRequest, res: Response) => {
     // Add search filter if provided
     if (searchQuery && searchQuery.trim()) {
       const trimmedQuery = searchQuery.trim();
-      logger.debug(`Applying search filter: "${trimmedQuery}"`);
+      logger.debug('Applying saved-post search filter', {
+        queryLength: trimmedQuery.length,
+      });
       // Use MongoDB $regex for partial text matching (case-insensitive).
       // Escape special regex characters but allow partial matching. The bodies live
       // in the (multikey) renditions, so this matches a saved post by ANY language
@@ -2112,7 +1950,10 @@ export const getSavedPosts = async (req: AuthRequest, res: Response) => {
         $regex: escapedQuery,
         $options: 'i' // case-insensitive
       };
-      logger.debug('Final query', JSON.stringify(postQuery, null, 2));
+      logger.debug('Built saved-post query', {
+        savedPostCount: postIds.length,
+        hasSearchFilter: true,
+      });
     }
 
     // Get the actual posts
@@ -2158,33 +1999,58 @@ export const getBookmarkFolders = async (req: AuthRequest, res: Response) => {
   }
 };
 
-// Move a bookmark to a folder
-export const moveBookmarkToFolder = async (req: AuthRequest, res: Response) => {
+const moveBookmarkFolder = async (
+  req: AuthRequest,
+  res: Response,
+  target: BookmarkFolderTarget,
+) => {
   try {
     const userId = req.user?.id;
     if (!userId) {
       return res.status(401).json({ message: 'Unauthorized' });
     }
 
-    const bookmarkId = req.params.id;
-    const { folder } = req.body;
-
-    const bookmark = await Bookmark.findOneAndUpdate(
-      { _id: bookmarkId, userId },
-      { $set: { folder: folder || null } },
-      { new: true }
-    );
+    const bookmark = await updateBookmarkFolderForViewer({
+      viewerId: userId,
+      target,
+      folder: req.body?.folder,
+    });
 
     if (!bookmark) {
       return res.status(404).json({ message: 'Bookmark not found' });
     }
 
-    res.json({ bookmark });
+    return res.json({ bookmark });
   } catch (error) {
+    if (error instanceof BookmarkFolderInputError) {
+      return res.status(400).json({ message: error.message });
+    }
     logger.error('Error moving bookmark to folder', error);
-    res.status(500).json({ message: 'Error moving bookmark to folder' });
+    return res.status(500).json({ message: 'Error moving bookmark to folder' });
   }
 };
+
+/**
+ * Compatibility route for clients that already hold the Bookmark document id.
+ */
+export const moveBookmarkToFolder = async (req: AuthRequest, res: Response) =>
+  moveBookmarkFolder(req, res, {
+    kind: 'bookmarkId',
+    id: String(req.params.id ?? ''),
+  });
+
+/**
+ * Preferred app contract: saved-post DTOs expose the post id, not the private
+ * Bookmark document id, so update the viewer's relation by `{ userId, postId }`.
+ */
+export const moveBookmarkToFolderByPostId = async (
+  req: AuthRequest,
+  res: Response,
+) =>
+  moveBookmarkFolder(req, res, {
+    kind: 'postId',
+    id: String(req.params.postId ?? ''),
+  });
 
 // Get posts by hashtag
 export function buildPostsByHashtagFilter(
@@ -2649,7 +2515,7 @@ export const getNearbyPostsBothLocations = async (req: AuthRequest, res: Respons
 };
 
 // Get location statistics for analytics
-export const getLocationStats = async (req: AuthRequest, res: Response) => {
+export const getLocationStats = async (_req: AuthRequest, res: Response) => {
   try {
     // Count posts with content locations (user shared)
     const contentLocationCount = await Post.countDocuments({

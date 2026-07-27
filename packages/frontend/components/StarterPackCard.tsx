@@ -1,11 +1,11 @@
 import React, { useCallback, useMemo } from 'react';
 import { View, StyleSheet, TouchableOpacity } from 'react-native';
 import { PressableScale } from '@oxyhq/bloom/pressable-scale';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { AvatarGroup, type AvatarGroupItem } from '@oxyhq/bloom/avatar-group';
-import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types';
-import { useAuth } from '@oxyhq/services';
+import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
+import { useAuth } from '@oxyhq/services/ui/client';
 import { router } from 'expo-router';
 import { ThemedText } from './ThemedText';
 import * as Skeleton from '@oxyhq/bloom/skeleton';

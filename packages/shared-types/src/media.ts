@@ -2,8 +2,6 @@
  * Media-related types for Mention social network
  */
 
-import { Timestamps } from './common';
-
 export enum MediaType {
   IMAGE = 'image',
   VIDEO = 'video',
@@ -203,4 +201,4 @@ export interface MediaStats {
   byStatus: Record<MediaStatus, number>;
   averageFileSize: number;
   mostUsedMedia: Media[];
-} 
+}

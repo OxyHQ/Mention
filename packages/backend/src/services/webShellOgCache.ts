@@ -13,7 +13,6 @@
  * (and, ultimately, to no OG) — it must never break or slow the page.
  */
 import { getRedisClient } from '../utils/redis';
-import { ensureRedisConnected } from '../utils/redisHelpers';
 import { logger } from '../utils/logger';
 import type { OgData } from './webShellRenderer';
 
@@ -44,7 +43,7 @@ const inFlight = new Map<string, Promise<OgData | null>>();
 async function readCache(key: string): Promise<CachedOg | null> {
   try {
     const redis = getRedisClient();
-    if (!(await ensureRedisConnected(redis))) return null;
+    if (!redis.isReady) return null;
     const raw = await redis.get(key);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as CachedOg;
@@ -59,7 +58,7 @@ async function readCache(key: string): Promise<CachedOg | null> {
 async function writeCache(key: string, value: CachedOg, ttlSeconds: number): Promise<void> {
   try {
     const redis = getRedisClient();
-    if (!(await ensureRedisConnected(redis))) return;
+    if (!redis.isReady) return;
     await redis.setEx(key, ttlSeconds, JSON.stringify(value));
   } catch (error) {
     logger.debug('[webShellOgCache] cache write failed', error);

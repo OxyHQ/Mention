@@ -78,6 +78,10 @@ vi.mock('../../../models/MentionUserNode', () => ({
 }));
 vi.mock('../../../models/MentionSignedRecord', () => ({
   __esModule: true,
+  MTN_CHAIN_STATUS: {
+    CANONICAL: 'canonical',
+    CONFLICT: 'conflict',
+  },
   default: {
     findOne: (...a: unknown[]) => mockSignedRecordFindOne(...a),
     create: (...a: unknown[]) => mockSignedRecordCreate(...a),
@@ -120,7 +124,14 @@ function selectLean(value: unknown) {
 }
 /** Chainable `.sort().lean()`. */
 function sortLean(value: unknown) {
-  return { sort: () => ({ lean: () => Promise.resolve(value) }) };
+  const query = {
+    read: vi.fn(),
+    sort: vi.fn(),
+    lean: vi.fn(() => Promise.resolve(value)),
+  };
+  query.read.mockReturnValue(query);
+  query.sort.mockReturnValue(query);
+  return query;
 }
 
 /** The update arg (`{ $set, $unset, ... }`) of a Mongo-static mock's last call. */
@@ -247,15 +258,18 @@ describe('ingestFromNode — last-writer-wins', () => {
     mockLog.mockResolvedValueOnce({ records: [envelope(1)], count: 1, head: null });
     mockVerifyAndStore.mockResolvedValueOnce({ ok: false, reason: 'stale_issued_at' });
     // The existing materialized value for the key has a STRICTLY higher issuedAt.
-    mockSignedRecordFindOne.mockReturnValueOnce(
-      sortLean({ recordId: 'rid-existing', envelope: { issuedAt: 1_700_000_000_999 } }),
-    );
+    const currentValueQuery = sortLean({
+      recordId: 'rid-existing',
+      envelope: { issuedAt: 1_700_000_000_999 },
+    });
+    mockSignedRecordFindOne.mockReturnValueOnce(currentValueQuery);
 
     await ingestFromNode(OXY_USER_ID);
 
     expect(mockSignedRecordCreate).not.toHaveBeenCalled(); // loser NOT stored
     expect(mockProjectRecord).not.toHaveBeenCalled(); // not materialized
     expect(mockWitnessCreate).not.toHaveBeenCalled();
+    expect(currentValueQuery.read).toHaveBeenCalledWith('primary');
     // Clean skip → cursor stamped, lastError cleared.
     expect(mockNodeUpdateOne.mock.calls[0][1].$unset).toEqual({ lastError: '' });
   });

@@ -2,29 +2,26 @@ import React, { useState, useEffect, useRef, useCallback, useMemo, lazy, Suspens
 import {
   View,
   Text,
-  TextInput,
   StyleSheet,
   TouchableOpacity,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
   Image,
-  Modal,
 } from 'react-native';
 import { Loading } from '@oxyhq/bloom/loading';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { logger } from '@/lib/logger';
 import { classifyApiError, normalizeApiError, type ApiErrorReason } from '@/utils/apiError';
-import { OxyAuthPrompt, useAuth } from '@oxyhq/services';
-import type { FileMetadata } from '@oxyhq/core';
+import { OxyAuthPrompt, useAuth } from '@oxyhq/services/ui/client';
+import { getNormalizedUserHandle, type FileMetadata } from '@oxyhq/core';
 import { StatusBar } from 'expo-status-bar';
 import * as ExpoLocation from 'expo-location';
 import { ThemedView } from '@/components/ThemedView';
 import { SafeAreaView } from '@/lib/SafeAreaViewInterop';
-import { router, useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { Avatar } from '@oxyhq/bloom/avatar';
-import { useImageUrl } from '@/hooks/useImageUrl';
 import PostHeader from '@/components/Post/PostHeader';
 import PostArticlePreview from '@/components/Post/PostArticlePreview';
 import PostAttachmentEvent from '@/components/Post/Attachments/PostAttachmentEvent';
@@ -36,18 +33,15 @@ import { toast } from '@oxyhq/bloom/toast';
 import { usePostsStore } from '@/stores/postsStore';
 import { feedService } from '@/services/feedService';
 import type { CreatePostRequest, HydratedPost } from '@mention/shared-types';
-import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types';
+import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import { useTheme } from '@oxyhq/bloom/theme';
-import MentionTextInput, { MentionData, MentionTextInputHandle } from '@/components/MentionTextInput';
-import SEO from '@/components/SEO';
+import MentionTextInput, { MentionTextInputHandle } from '@/components/MentionTextInput';
+import { SEO } from '@/components/SEO';
 import { IconButton } from '@/components/ui/Button';
 import { Header } from '@/components/Header';
 import { DraftsIcon } from '@/assets/icons/drafts';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
-import { CloseIcon } from '@/assets/icons/close-icon';
 import { DotIcon } from '@/assets/icons/dot-icon';
-import { LocationIcon } from '@/assets/icons/location-icon';
-import { Plus } from '@/assets/icons/plus-icon';
 import { PollIcon } from '@/assets/icons/poll-icon';
 import { ChevronRightIcon } from '@/assets/icons/chevron-right-icon';
 import { HideIcon } from '@/assets/icons/hide-icon';
@@ -56,20 +50,8 @@ import { BottomSheetContext } from '@/context/BottomSheetContext';
 import { Dialog, useDialogControl } from '@oxyhq/bloom/dialog';
 import { useIsScreenNotMobile } from '@/hooks/useOptimizedMediaQuery';
 import { useKeyboardVisibility } from '@/hooks/useKeyboardVisibility';
-// Lazy load sheets - only loaded when user opens them
-const DraftsSheet = lazy(() => import('@/components/Compose/DraftsSheet'));
-const GifPickerSheet = lazy(() => import('@/components/Compose/GifPickerSheet'));
-const AltTextSheet = lazy(() => import('@/components/Compose/AltTextSheet'));
-const LanguagePickerSheet = lazy(() => import('@/components/Compose/LanguagePickerSheet'));
-const EmojiPickerSheet = lazy(() => import('@/components/Compose/EmojiPickerSheet'));
-const SourcesSheet = lazy(() => import('@/components/Compose/SourcesSheet'));
-const ScheduleSheet = lazy(() => import('@/components/Compose/ScheduleSheet'));
-const CreateRoomSheet = lazy(() => import('@/components/rooms/CreateRoomSheet'));
-const PodcastPickerSheet = lazy(() => import('@/components/Compose/PodcastPickerSheet'));
 // Import types separately (not lazy loaded)
 import type { ReplyPermission } from '@/components/Compose/ReplySettingsSheet';
-import type { ScheduleOption } from '@/components/Compose/ScheduleSheet';
-const ReplySettingsSheet = lazy(() => import('@/components/Compose/ReplySettingsSheet'));
 import { Toggle } from '@/components/Toggle';
 import { useDrafts } from '@/hooks/useDrafts';
 
@@ -84,15 +66,15 @@ import { useEventManager } from '@/hooks/useEventManager';
 import { useRoomManager } from '@/hooks/useRoomManager';
 import { usePodcastManager } from '@/hooks/usePodcastManager';
 import { useAttachmentOrder } from '@/hooks/useAttachmentOrder';
-import { usePostSubmission } from '@/hooks/usePostSubmission';
 import { useScheduleManager } from '@/hooks/useScheduleManager';
 import { useDraftManager } from '@/hooks/useDraftManager';
 import { useComposeValidation } from '@/hooks/useComposeValidation';
 import { useMediaPicker } from '@/hooks/useMediaPicker';
-import { useMultiRefSync } from '@/hooks/useRefSync';
+import { useRefSync } from '@/hooks/useRefSync';
 import { useUrlUtils } from '@/hooks/useUrlUtils';
 import { useSourcesSheet } from '@/hooks/useSourcesSheet';
 import { useLinkDetection } from '@/hooks/useLinkDetection';
+import { CreateRoomSheet } from '@/components/rooms/CreateRoomSheet';
 import { LinkPreviewCard } from '@oxyhq/bloom/link-preview';
 import {
   PollCreator,
@@ -108,8 +90,6 @@ import ComposeThreadItem from '@/components/Compose/ComposeThreadItem';
 import LanguageTabs from '@/components/Compose/LanguageTabs';
 import VariantEditor from '@/components/Compose/VariantEditor';
 import PostItem from '@/components/Feed/PostItem';
-import { buildAttachmentsPayload } from '@/utils/attachmentsUtils';
-import { formatScheduledLabel, addMinutes } from '@/utils/dateUtils';
 import { buildEditPost, buildMainPost, buildThreadPost, shouldIncludeThreadItem } from '@/utils/postBuilder';
 import {
   ComposerMediaItem,
@@ -121,9 +101,6 @@ import {
   EVENT_ATTACHMENT_KEY,
   ROOM_ATTACHMENT_KEY,
   PODCAST_ATTACHMENT_KEY,
-  LOCATION_ATTACHMENT_KEY,
-  SOURCES_ATTACHMENT_KEY,
-  createMediaAttachmentKey,
   isMediaAttachmentKey,
   getMediaIdFromAttachmentKey,
   isLinkAttachmentKey,
@@ -151,6 +128,8 @@ import {
   primaryTextFromPost,
   promoteVariantToPrimary,
   serializeVariants,
+  variantTextsForItem,
+  draftVariantTextsForItem,
   type ComposeVariantArticle,
   type PromotablePrimary,
 } from '@/utils/composeVariants';
@@ -160,9 +139,27 @@ import type { ThreadItem } from '@/hooks/useThreadManager';
 import { useQuoteManager } from '@/hooks/useQuoteManager';
 import QuoteCard from '@/components/Compose/QuoteCard';
 import CollaboratorPicker, { type CollaboratorUser } from '@/components/Compose/CollaboratorPicker';
+import {
+  areMentionDataEqual,
+  mergeMentionData,
+  reconcileMentionData,
+  reconcileMentionTextValue,
+  type MentionData,
+  type MentionTextValue,
+} from '@/utils/mentions';
 
 // Keep this in sync with PostItem constants
 import { HPAD, AVATAR_SIZE, BOTTOM_LEFT_PAD, TIMELINE_LINE_OFFSET } from '@/components/Compose/composeLayout';
+// Lazy load sheets - only loaded when user opens them
+const DraftsSheet = lazy(() => import('@/components/Compose/DraftsSheet'));
+const GifPickerSheet = lazy(() => import('@/components/Compose/GifPickerSheet'));
+const AltTextSheet = lazy(() => import('@/components/Compose/AltTextSheet'));
+const LanguagePickerSheet = lazy(() => import('@/components/Compose/LanguagePickerSheet'));
+const EmojiPickerSheet = lazy(() => import('@/components/Compose/EmojiPickerSheet'));
+const SourcesSheet = lazy(() => import('@/components/Compose/SourcesSheet'));
+const ScheduleSheet = lazy(() => import('@/components/Compose/ScheduleSheet'));
+const PodcastPickerSheet = lazy(() => import('@/components/Compose/PodcastPickerSheet'));
+const ReplySettingsSheet = lazy(() => import('@/components/Compose/ReplySettingsSheet'));
 
 // Pre-computed stable style objects using layout constants
 const bottomLeftPadStyle = { marginLeft: BOTTOM_LEFT_PAD };
@@ -173,7 +170,7 @@ const ComposeScreenBody = () => {
   const theme = useTheme();
   const safeBack = useSafeBack();
   const bottomSheet = React.useContext(BottomSheetContext);
-  const { drafts, saveDraft, deleteDraft, loadDrafts } = useDrafts();
+  const { drafts, saveDraft, deleteDraft } = useDrafts();
   const discardControl = useDialogControl();
   const clearAllControl = useDialogControl();
   const intentConflictControl = useDialogControl();
@@ -215,7 +212,7 @@ const ComposeScreenBody = () => {
   const podcastManager = usePodcastManager();
 
   // Destructure for easier access (need these first for useAttachmentOrder)
-  const { mediaIds, setMediaIds, addMedia, addMultipleMedia, removeMedia, moveMedia, setMediaAlt } = mediaManager;
+  const { mediaIds, setMediaIds, removeMedia, setMediaAlt } = mediaManager;
   const {
     pollTitle,
     setPollTitle,
@@ -223,7 +220,6 @@ const ComposeScreenBody = () => {
     setPollOptions,
     showPollCreator,
     setShowPollCreator,
-    pollTitleInputRef,
     focusPollCreator,
     addPollOption,
     updatePollOption,
@@ -231,14 +227,14 @@ const ComposeScreenBody = () => {
     removePoll,
   } = pollManager;
   const { location, setLocation, isGettingLocation, requestLocation, removeLocation } = locationManager;
-  const { sources, setSources, addSource, updateSourceField, removeSource: removeSourceEntry, getSanitizedSources, hasInvalidSources } = sourcesManager;
+  const { sources, setSources, addSource, updateSourceField, removeSource: removeSourceEntry } = sourcesManager;
   const {
     threadItems,
     setThreadItems,
     addThread,
     removeThread,
-    updateThreadText,
-    updateThreadMentions,
+    updateThreadMentionState,
+    reconcileThreadMentionState,
     addThreadMedia,
     addThreadMediaMultiple,
     removeThreadMedia,
@@ -252,7 +248,6 @@ const ComposeScreenBody = () => {
     updateThreadPollTitle,
     setThreadLocation,
     removeThreadLocation,
-    setThreadSources,
     addThreadSource,
     updateThreadSourceField,
     removeThreadSource,
@@ -262,11 +257,7 @@ const ComposeScreenBody = () => {
     removeThreadEvent,
     setThreadRoom,
     removeThreadRoom,
-    setThreadAttachmentOrder,
-    addThreadAttachment,
-    removeThreadAttachment,
     setThreadReplyPermission,
-    setThreadReviewReplies,
     setThreadQuotesDisabled,
     setThreadSensitive,
     clearAllThreads,
@@ -285,7 +276,6 @@ const ComposeScreenBody = () => {
     saveArticle: handleArticleSave,
     removeArticle,
     hasContent: articleHasContent,
-    loadArticleFromDraft,
     clearArticle,
   } = articleManager;
   const {
@@ -305,7 +295,6 @@ const ComposeScreenBody = () => {
     saveEvent: handleEventSave,
     removeEvent,
     hasContent: eventHasContent,
-    loadEventFromDraft,
     clearEvent,
   } = eventManager;
   const {
@@ -362,7 +351,6 @@ const ComposeScreenBody = () => {
   } = useComposeVariants(defaultPrimaryTag);
   const activeTag = variants.activeTag;
   const isPrimaryTab = activeTag === variants.primaryTag;
-  const languageTags = useMemo(() => allTags(variants), [variants]);
   const [translatingItemId, setTranslatingItemId] = useState<string | null>(null);
 
   // Seed a fresh compose from the author's saved preferred language, ONCE. An
@@ -392,12 +380,76 @@ const ComposeScreenBody = () => {
   }, [preferredLanguage, editPostId, replyToPostId, variants, setPrimaryLanguage]);
 
   // Remaining local state
-  const [postContent, setPostContent] = useState('');
-  const [mentions, setMentions] = useState<MentionData[]>([]);
+  const [mainMentionState, setMainMentionState] = useState<MentionTextValue>({
+    text: '',
+    mentions: [],
+  });
+  const postContent = mainMentionState.text;
+  const mentions = mainMentionState.mentions;
+  const setPostContent = useCallback(
+    (next: React.SetStateAction<string>) => {
+      setMainMentionState((previous) => {
+        const text = typeof next === 'function' ? next(previous.text) : next;
+        const reconciled = reconcileMentionTextValue(
+          { text, mentions: previous.mentions },
+          variantTextsForItem(variants, MAIN_ITEM_ID),
+        );
+        return text === previous.text &&
+          areMentionDataEqual(reconciled.mentions, previous.mentions)
+          ? previous
+          : reconciled;
+      });
+    },
+    [variants],
+  );
+  const handleMainMentionValueChange = useCallback(
+    (next: MentionTextValue) => {
+      setMainMentionState(
+        reconcileMentionTextValue(
+          next,
+          variantTextsForItem(variants, MAIN_ITEM_ID),
+        ),
+      );
+    },
+    [variants],
+  );
+
+  // Language operations (translate, remove, reset, load) can change mention
+  // scope without typing in the primary input. Reconcile every post registry
+  // against the complete current rendition set and preserve references when
+  // nothing changed.
+  useEffect(() => {
+    setMainMentionState((previous) => {
+      const nextMentions = reconcileMentionData(
+        [
+          previous.text,
+          ...variantTextsForItem(variants, MAIN_ITEM_ID),
+        ],
+        previous.mentions,
+      );
+      return areMentionDataEqual(nextMentions, previous.mentions)
+        ? previous
+        : { ...previous, mentions: nextMentions };
+    });
+
+    setThreadItems((previous) => {
+      let changed = false;
+      const next = previous.map((item) => {
+        const nextMentions = reconcileMentionData(
+          [item.text, ...variantTextsForItem(variants, item.id)],
+          item.mentions,
+        );
+        if (areMentionDataEqual(nextMentions, item.mentions)) return item;
+        changed = true;
+        return { ...item, mentions: nextMentions };
+      });
+      return changed ? next : previous;
+    });
+  }, [variants, setThreadItems]);
   const [isPosting, setIsPosting] = useState(false);
   const [postingMode, setPostingMode] = useState<'thread' | 'beast'>('thread');
   const [replyPermission, setReplyPermission] = useState<ReplyPermission[]>(['anyone']);
-  const [reviewReplies, setReviewReplies] = useState(false);
+  const reviewReplies = false;
   const [quotesDisabled, setQuotesDisabled] = useState(false);
   const [showModeToggle, setShowModeToggle] = useState(false);
   const [isSensitive, setIsSensitive] = useState(false);
@@ -428,9 +480,6 @@ const ComposeScreenBody = () => {
     scheduledAtRef,
     formatScheduledLabel,
     clearSchedule,
-    handleScheduleSelect,
-    handleScheduleClear,
-    handleScheduleClose,
     openScheduleSheet,
   } = scheduleManager;
 
@@ -439,7 +488,12 @@ const ComposeScreenBody = () => {
     saveDraft,
     deleteDraft,
     onDraftLoad: (draft) => {
-      setPostContent(draft.postContent);
+      setMainMentionState(
+        reconcileMentionTextValue(
+          { text: draft.postContent, mentions: draft.mentions },
+          draftVariantTextsForItem(draft.languages, MAIN_ITEM_ID),
+        ),
+      );
       setMediaIds(draft.mediaIds);
       setPollOptions(draft.pollOptions);
       setPollTitle(draft.pollTitle);
@@ -455,7 +509,6 @@ const ComposeScreenBody = () => {
         scheduledAtRef.current = draft.scheduledAt;
       }
       setAttachmentOrder(draft.attachmentOrder);
-      setMentions(draft.mentions);
       setPostingMode(draft.postingMode);
       loadThreadsFromDraft(draft.threadItems);
       loadVariantsFromDraft(draft.languages);
@@ -480,7 +533,7 @@ const ComposeScreenBody = () => {
     sources,
     isPosting,
   });
-  const { canPostContent, hasInvalidSources: invalidSources, isPostButtonEnabled } = validation;
+  const { hasInvalidSources: invalidSources, isPostButtonEnabled } = validation;
 
   // Media picker. The destination is chosen per call: the shared media set, or
   // the media a non-primary language shows instead of it.
@@ -500,7 +553,7 @@ const ComposeScreenBody = () => {
 
   // URL utilities
   const urlUtils = useUrlUtils();
-  const { normalizeUrl, isValidSourceUrl, sanitizeSourcesForSubmit } = urlUtils;
+  const { isValidSourceUrl, sanitizeSourcesForSubmit } = urlUtils;
 
   // Sources sheet management
   const sourcesSheet = useSourcesSheet({
@@ -511,11 +564,11 @@ const ComposeScreenBody = () => {
     isValidSourceUrl,
     bottomSheet,
   });
-  const { isSourcesSheetOpen, openSourcesSheet, closeSourcesSheet } = sourcesSheet;
+  const { openSourcesSheet } = sourcesSheet;
 
   // Link detection and preview (must be before useAttachmentOrder)
   const linkDetection = useLinkDetection(postContent);
-  const { detectedLinks, isLoading: isLoadingLinks } = linkDetection;
+  const { detectedLinks } = linkDetection;
   // One carousel key per detected link, so each preview card moves and is removed
   // on its own. Memoized: a fresh array every render would churn the order hook.
   const detectedLinkUrls = useMemo(() => detectedLinks.map((link) => link.url), [detectedLinks]);
@@ -539,36 +592,9 @@ const ComposeScreenBody = () => {
   });
   const { attachmentOrder, setAttachmentOrder, clearAttachmentOrder, moveAttachment } = attachmentOrderManager;
 
-  // Sync refs with state for timeout/async callbacks
-  const refs = useMultiRefSync({
-    postContent,
-    mediaIds,
-    pollOptions,
-    pollTitle,
-    showPollCreator,
-    location,
-    sources,
-    threadItems,
-    mentions,
-    postingMode,
-    currentDraftId,
-    article,
-    attachmentOrder,
-  });
-  const postContentRef = refs.postContent;
-  const mediaIdsRef = refs.mediaIds;
-  const pollOptionsRef = refs.pollOptions;
-  const pollTitleRef = refs.pollTitle;
-  const showPollCreatorRef = refs.showPollCreator;
-  const locationRef = refs.location;
-  const sourcesRef = refs.sources;
-  const threadItemsRef = refs.threadItems;
-  const mentionsRef = refs.mentions;
-  const postingModeRef = refs.postingMode;
-  const currentDraftIdRef = refs.currentDraftId;
-  const articleRef = refs.article;
-  const attachmentOrderRef = refs.attachmentOrder;
-  const threadPollTitleRefs = useRef<Record<string, TextInput | null>>({});
+  // Async sheet callbacks only need these two current values.
+  const threadItemsRef = useRefSync(threadItems);
+  const attachmentOrderRef = useRefSync(attachmentOrder);
   const mainTextInputRef = useRef<MentionTextInputHandle>(null);
   const threadTextInputRefs = useRef<Record<string, MentionTextInputHandle | null>>({});
   // Note: scheduledAtRef comes from scheduleManager
@@ -758,6 +784,20 @@ const ComposeScreenBody = () => {
 
     intentAppliedRef.current = true;
   }, [
+    setArticle,
+    setArticleDraftBody,
+    setArticleDraftTitle,
+    setEvent,
+    setEventDraftDate,
+    setEventDraftDescription,
+    setEventDraftLocation,
+    setEventDraftName,
+    setLocation,
+    setPollOptions,
+    setPostContent,
+    setScheduledAt,
+    setShowPollCreator,
+    setSources,
     generateSourceId,
     setQuoteId,
     loadThreadsFromDraft,
@@ -810,7 +850,7 @@ const ComposeScreenBody = () => {
       const next = trimmed.length > 0 ? `${trimmed} ${quoteFallbackUrl}` : quoteFallbackUrl;
       return next;
     });
-  }, [quoteFallbackUrl]);
+  }, [quoteFallbackUrl, setPostContent]);
 
   // Load existing post data when in edit mode
   useEffect(() => {
@@ -820,15 +860,37 @@ const ComposeScreenBody = () => {
     setIsEditMode(true);
     (async () => {
       try {
-        const post = await feedService.getPostById(editPostId);
+        const source = await feedService.getPostEditSource(editPostId);
         if (cancelled) return;
-        // Pre-populate compose fields from existing post. `content.text` on a
-        // hydrated post is the body RESOLVED for the viewer's language, which for
-        // a bilingual author can be the wrong one of their own bodies — the
-        // primary rendition is the authoritative source.
-        setPostContent(primaryTextFromPost(post?.content));
-        loadVariantsFromPost(post?.content, MAIN_ITEM_ID);
-        const media = post?.content?.media;
+        const mentionUsers = new Map(
+          source.mentionUsers.map((mentionUser) => [mentionUser.id, mentionUser]),
+        );
+        const restoredMentions = source.mentions.map((userId): MentionData => {
+          const mentionUser = mentionUsers.get(userId);
+          const username = mentionUser
+            ? (getNormalizedUserHandle(mentionUser) ?? '')
+            : '';
+          return {
+            userId,
+            username,
+            displayName:
+              mentionUser?.name?.displayName?.trim() ||
+              username,
+          };
+        });
+        const primaryText = primaryTextFromPost(source.content);
+        const authorVariantTexts = (source.content.variants ?? [])
+          .filter((variant) => variant.source === 'author')
+          .slice(1)
+          .map((variant) => variant.text);
+        setMainMentionState(
+          reconcileMentionTextValue(
+            { text: primaryText, mentions: restoredMentions },
+            authorVariantTexts,
+          ),
+        );
+        loadVariantsFromPost(source.content, MAIN_ITEM_ID);
+        const media = source.content.media;
         if (media && media.length > 0) {
           setMediaIds(media.map((m): ComposerMediaItem => ({
             id: m.id,
@@ -836,13 +898,9 @@ const ComposeScreenBody = () => {
             ...(m.alt ? { alt: m.alt } : {}),
           })));
         }
-        const mentions = post?.metadata?.mentions;
-        if (mentions && mentions.length > 0) {
-          setMentions(mentions.map((m): MentionData => ({ userId: m, username: m, displayName: m })));
-        }
         const soloForCollab =
-          !post?.parentPostId &&
-          !(post?.authorship?.some((entry) => entry.role === 'collaborator'));
+          !source.parentPostId &&
+          !(source.authorship?.some((entry) => entry.role === 'collaborator'));
         setEditCollabEligible(soloForCollab);
       } catch (e) {
         logger.error('Failed to load post for editing', { error: e });
@@ -852,7 +910,7 @@ const ComposeScreenBody = () => {
       }
     })();
     return () => { cancelled = true; };
-  }, [editPostId]);
+  }, [editPostId, loadVariantsFromPost, setMediaIds, t]);
 
   // Load parent post when in reply mode
   useEffect(() => {
@@ -879,7 +937,7 @@ const ComposeScreenBody = () => {
       }
     })();
     return () => { cancelled = true; };
-  }, [replyToPostId]);
+  }, [replyToPostId, t]);
 
   const handlePost = async () => {
     if (isPosting || !user) return;
@@ -1185,19 +1243,22 @@ const ComposeScreenBody = () => {
 
       setThreadLocation(threadId, locationData);
       toast(t('Location added'), { type: 'success' });
-    } catch (error) {
+    } catch {
       toast(t('Failed to get location'), { type: 'error' });
     }
   }, [setThreadLocation, t]);
 
   // Stable callbacks for ComposeThreadItem — these receive threadId as first arg
-  const handleThreadTextChange = useCallback((threadId: string, text: string) => {
-    updateThreadText(threadId, text);
-  }, [updateThreadText]);
-
-  const handleThreadMentionsChange = useCallback((threadId: string, m: MentionData[]) => {
-    updateThreadMentions(threadId, m);
-  }, [updateThreadMentions]);
+  const handleThreadMentionValueChange = useCallback(
+    (threadId: string, value: MentionTextValue) => {
+      updateThreadMentionState(
+        threadId,
+        value,
+        variantTextsForItem(variants, threadId),
+      );
+    },
+    [updateThreadMentionState, variants],
+  );
 
   const handleThreadFocus = useCallback((threadId: string) => {
     setFocusedItemId(threadId);
@@ -1335,21 +1396,19 @@ const ComposeScreenBody = () => {
 
   const handleThreadRoomPress = useCallback((threadId: string) => {
     bottomSheet.setBottomSheetContent(
-      <Suspense fallback={null}>
-        <CreateRoomSheet
-          onClose={() => bottomSheet.openBottomSheet(false)}
-          mode="embed"
-          onRoomCreated={(createdRoom) => {
-            setThreadRoom(threadId, {
-              roomId: createdRoom._id,
-              title: createdRoom.title,
-              status: createdRoom.status,
-              topic: createdRoom.topic ?? undefined,
-              host: createdRoom.host ?? undefined,
-            });
-          }}
-        />
-      </Suspense>
+      <CreateRoomSheet
+        onClose={() => bottomSheet.openBottomSheet(false)}
+        mode="embed"
+        onRoomCreated={(createdRoom) => {
+          setThreadRoom(threadId, {
+            roomId: createdRoom._id,
+            title: createdRoom.title,
+            status: createdRoom.status,
+            topic: createdRoom.topic ?? undefined,
+            host: createdRoom.host ?? undefined,
+          });
+        }}
+      />
     );
     bottomSheet.openBottomSheet(true);
   }, [bottomSheet, setThreadRoom]);
@@ -1476,7 +1535,7 @@ const ComposeScreenBody = () => {
       </Suspense>
     );
     bottomSheet.openBottomSheet(true);
-  }, [bottomSheet, t]);
+  }, [bottomSheet, setMediaIds, t]);
 
   const openAltTextSheet = useCallback(
     (mediaItem: ComposerMediaItem) => openSharedAltTextSheet(MAIN_ITEM_ID, mediaItem),
@@ -1657,9 +1716,33 @@ const ComposeScreenBody = () => {
     if (target) void translateInto(target.itemId, target.tag);
   }, [translateInto]);
 
-  const handleVariantTextChange = useCallback(
-    (itemId: string, text: string) => setVariantText(activeTag, itemId, text),
-    [activeTag, setVariantText],
+  const handleVariantMentionValueChange = useCallback(
+    (itemId: string, next: MentionTextValue) => {
+      const nextVariantTexts = variantTextsForItem(variants, itemId, {
+        tag: activeTag,
+        text: next.text,
+      });
+      setVariantText(activeTag, itemId, next.text);
+
+      if (itemId === MAIN_ITEM_ID) {
+        setMainMentionState((previous) => ({
+          text: previous.text,
+          mentions: reconcileMentionData(
+            [previous.text, ...nextVariantTexts],
+            mergeMentionData(previous.mentions, next.mentions),
+          ),
+        }));
+        return;
+      }
+
+      reconcileThreadMentionState(itemId, next.mentions, nextVariantTexts);
+    },
+    [
+      activeTag,
+      variants,
+      setVariantText,
+      reconcileThreadMentionState,
+    ],
   );
 
   const handleVariantFocus = useCallback((itemId: string) => setFocusedItemId(itemId), []);
@@ -1719,21 +1802,19 @@ const ComposeScreenBody = () => {
 
   const handleMainRoomPress = useCallback(() => {
     bottomSheet.setBottomSheetContent(
-      <Suspense fallback={null}>
-        <CreateRoomSheet
-          onClose={() => bottomSheet.openBottomSheet(false)}
-          mode="embed"
-          onRoomCreated={(createdRoom) => {
-            attachRoom({
-              roomId: createdRoom._id,
-              title: createdRoom.title,
-              status: createdRoom.status,
-              topic: createdRoom.topic ?? undefined,
-              host: createdRoom.host ?? undefined,
-            });
-          }}
-        />
-      </Suspense>
+      <CreateRoomSheet
+        onClose={() => bottomSheet.openBottomSheet(false)}
+        mode="embed"
+        onRoomCreated={(createdRoom) => {
+          attachRoom({
+            roomId: createdRoom._id,
+            title: createdRoom.title,
+            status: createdRoom.status,
+            topic: createdRoom.topic ?? undefined,
+            host: createdRoom.host ?? undefined,
+          });
+        }}
+      />
     );
     bottomSheet.openBottomSheet(true);
   }, [bottomSheet, attachRoom]);
@@ -1813,7 +1894,7 @@ const ComposeScreenBody = () => {
         </Suspense>
       );
     }
-  }, [replyPermission, quotesDisabled, isReplySettingsOpen]);
+  }, [bottomSheet, replyPermission, quotesDisabled, isReplySettingsOpen]);
 
   const openReplySettings = useCallback(() => {
     setIsReplySettingsOpen(true);
@@ -2015,8 +2096,8 @@ const ComposeScreenBody = () => {
                       style={styles.mainTextInput}
                       placeholder={replyToPostId ? t('compose.replyPlaceholder', { defaultValue: 'Post your reply' }) : t('compose.placeholder', { defaultValue: "What's new?" })}
                       value={postContent}
-                      onChangeText={setPostContent}
-                      onMentionsChange={setMentions}
+                      mentions={mentions}
+                      onValueChange={handleMainMentionValueChange}
                       onFocus={() => setFocusedItemId('main')}
                       multiline
                       autoFocus
@@ -2376,8 +2457,7 @@ const ComposeScreenBody = () => {
                   postingMode={postingMode}
                   userAvatar={user?.avatar ?? undefined}
                   userVerified={Boolean(user?.verified)}
-                  onTextChange={handleThreadTextChange}
-                  onMentionsChange={handleThreadMentionsChange}
+                  onMentionValueChange={handleThreadMentionValueChange}
                   onFocus={handleThreadFocus}
                   onRemove={handleThreadRemove}
                   onMediaPress={openThreadMediaPicker}
@@ -2472,7 +2552,8 @@ const ComposeScreenBody = () => {
                     isPosting={isPosting}
                     isTranslating={translatingItemId === MAIN_ITEM_ID}
                     getFileDownloadUrl={getFileDownloadUrl}
-                    onTextChange={handleVariantTextChange}
+                    mentions={mentions}
+                    onMentionValueChange={handleVariantMentionValueChange}
                     onFocus={handleVariantFocus}
                     onTranslate={handleTranslateVariant}
                     onSharedAltPress={handleVariantSharedAltPress}
@@ -2498,7 +2579,8 @@ const ComposeScreenBody = () => {
                       isPosting={isPosting}
                       isTranslating={translatingItemId === item.id}
                       getFileDownloadUrl={getFileDownloadUrl}
-                      onTextChange={handleVariantTextChange}
+                      mentions={item.mentions}
+                      onMentionValueChange={handleVariantMentionValueChange}
                       onFocus={handleVariantFocus}
                       onTranslate={handleTranslateVariant}
                       onSharedAltPress={handleVariantSharedAltPress}
@@ -2674,13 +2756,25 @@ const ComposeScreenBody = () => {
                     pollTitle: item.pollTitle,
                     showPollCreator: item.showPollCreator,
                     location: item.location,
-                    mentions: item.mentions.map((m) => ({
+                    mentions: reconcileMentionData(
+                      [
+                        item.text,
+                        ...variantTextsForItem(variants, item.id),
+                      ],
+                      item.mentions,
+                    ).map((m) => ({
                       userId: m.userId,
                       handle: m.username,
                       name: m.displayName,
                     })),
                   })),
-                  mentions: mentions.map((m) => ({
+                  mentions: reconcileMentionData(
+                    [
+                      postContent,
+                      ...variantTextsForItem(variants, MAIN_ITEM_ID),
+                    ],
+                    mentions,
+                  ).map((m) => ({
                     userId: m.userId,
                     handle: m.username,
                     name: m.displayName,
@@ -2717,7 +2811,7 @@ const ComposeScreenBody = () => {
               label: t('common.clearAll', 'Clear All'),
               color: 'destructive',
               onPress: () => {
-                setPostContent('');
+                setMainMentionState({ text: '', mentions: [] });
                 setMediaIds([]);
                 setPollOptions([]);
                 setPollTitle('');
@@ -2730,7 +2824,6 @@ const ComposeScreenBody = () => {
                 clearPodcast();
                 clearAllThreads();
                 clearAttachmentOrder();
-                setMentions([]);
                 clearSchedule({ silent: true });
                 resetVariants();
                 toast(t('common.cleared'), { type: 'success' });

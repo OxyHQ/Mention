@@ -1,8 +1,7 @@
-import React, { memo } from 'react';
+import React, { memo, useCallback } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import { useCallback } from 'react';
 import { formatCompactNumber } from '@/utils/formatNumber';
 import type { ProfileStatsProps } from './types';
 import { getNormalizedUserHandle } from '@oxyhq/core';

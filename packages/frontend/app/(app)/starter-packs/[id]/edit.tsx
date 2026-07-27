@@ -1,22 +1,16 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, ScrollView, Platform, type TextStyle } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { SpinnerIcon } from '@oxyhq/bloom/loading';
 import { Avatar } from '@oxyhq/bloom/avatar';
-import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types';
+import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import { Button } from '@oxyhq/bloom/button';
 import { Item } from '@oxyhq/bloom/item';
 import { Search } from '@oxyhq/bloom/search';
 import { toast } from '@oxyhq/bloom/toast';
 import { useTheme } from '@oxyhq/bloom/theme';
-import {
-  Group3_Stroke2_Corner0_Rounded as GroupIcon,
-  CheckThick_Stroke2_Corner0_Rounded as CheckIcon,
-  PlusLarge_Stroke2_Corner0_Rounded as PlusIcon,
-  Trash_Stroke2_Corner0_Rounded as TrashIcon,
-  CircleX_Stroke2_Corner0_Rounded as ErrorIcon,
-} from '@oxyhq/bloom/icons';
-import { useAuth } from '@oxyhq/services';
+import { useAuth } from '@oxyhq/services/ui/client';
 
 import { ThemedView } from '@/components/ThemedView';
 import { Header } from '@/components/Header';
@@ -265,7 +259,7 @@ export default function EditStarterPackScreen() {
       <ThemedView className="flex-1">
         {header}
         <View className="flex-1 items-center justify-center gap-3 px-8">
-          <ErrorIcon size="3xl" fill={theme.colors.textSecondary} />
+          <Ionicons name="close-circle-outline" size={48} color={theme.colors.textSecondary} />
           <Text className="text-muted-foreground text-base text-center">{error}</Text>
           <TouchableOpacity onPress={load}>
             <Text className="text-primary text-sm font-semibold">Try again</Text>
@@ -349,7 +343,7 @@ export default function EditStarterPackScreen() {
                           variant="secondary"
                           size="small"
                           disabled
-                          icon={<CheckIcon size="xs" fill={theme.colors.success} />}
+                  icon={<Ionicons name="checkmark" size={12} color={theme.colors.success} />}
                           accessibilityLabel={`${u.name.displayName} added`}
                         >
                           Added
@@ -360,7 +354,7 @@ export default function EditStarterPackScreen() {
                           size="small"
                           loading={busy}
                           disabled={blockedByCap}
-                          icon={<PlusIcon size="xs" fill={theme.colors.primaryForeground} />}
+                  icon={<Ionicons name="add" size={12} color={theme.colors.primaryForeground} />}
                           onPress={() => addMember(u)}
                           accessibilityLabel={`Add ${u.name.displayName}`}
                         >
@@ -389,7 +383,7 @@ export default function EditStarterPackScreen() {
 
         {members.length === 0 ? (
           <View className="items-center justify-center py-10 gap-3">
-            <GroupIcon size="2xl" fill={theme.colors.textSecondary} />
+            <Ionicons name="people-outline" size={40} color={theme.colors.textSecondary} />
             <Text className="text-muted-foreground text-sm text-center font-primary">
               Search above to add people to this starter pack
             </Text>
@@ -410,7 +404,7 @@ export default function EditStarterPackScreen() {
                         size="small"
                         loading={busy}
                         onPress={() => removeMember(m)}
-                        icon={<TrashIcon size="sm" fill={theme.colors.error} />}
+                      icon={<Ionicons name="trash-outline" size={16} color={theme.colors.error} />}
                         accessibilityLabel={`Remove ${m.name.displayName}`}
                       />
                     }

@@ -4,7 +4,6 @@
  * Keeps posts socket connected (mounted under OxyProvider)
  */
 
-import React from 'react';
 import useRealtimePosts from '@/hooks/useRealtimePosts';
 
 /**
@@ -15,4 +14,3 @@ export function RealtimePostsBridge() {
   useRealtimePosts();
   return null;
 }
-

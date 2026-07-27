@@ -183,17 +183,23 @@ export const exploreSource: SourceModule = {
   userComposable: false,
   gather: async (ctx, _params, cap) => {
     const { currentUserId, followingIds } = ctx;
+    const parsedCursor = ScoreCursor.parse(ctx.cursor);
+    const rankingAsOf = parsedCursor?.asOf ?? ctx.rankingAsOf ?? Date.now();
 
     const excludeUserIds: string[] = [];
     if (currentUserId) excludeUserIds.push(currentUserId);
     if (followingIds?.length) excludeUserIds.push(...followingIds);
 
     const relevance = resolveExploreRelevance(ctx);
-    const trendingCutoff = new Date(Date.now() - MtnConfig.feed.trendingWindowMs);
+    const rankingCeiling = new Date(rankingAsOf);
+    const trendingCutoff = new Date(rankingAsOf - MtnConfig.feed.trendingWindowMs);
     const match: Record<string, unknown> = {
       visibility: 'public',
       status: 'published',
-      createdAt: { $gte: trendingCutoff },
+      // Freeze both ends of the candidate window for the whole cursor session:
+      // advancing the wall clock or publishing a new post cannot move existing
+      // candidates across a page boundary.
+      createdAt: { $gte: trendingCutoff, $lte: rankingCeiling },
       ...DISCOVERY_SAFE_MATCH,
       $and: [
         { $or: [{ parentPostId: null }, { parentPostId: { $exists: false } }] },
@@ -204,18 +210,22 @@ export const exploreSource: SourceModule = {
       match.oxyUserId = { $nin: excludeUserIds };
     }
 
+    const cursorExcludedIds = parsedCursor?.excludeIds ?? [];
+    if (cursorExcludedIds.length > 0) {
+      match._id = {
+        $nin: cursorExcludedIds.map((id) => new mongoose.Types.ObjectId(id)),
+      };
+    }
+
     let cursorScore: number | undefined;
     let cursorId: string | undefined;
-    if (ctx.cursor) {
-      const parsed = ScoreCursor.parse(ctx.cursor);
-      if (parsed && parsed.score !== Infinity) {
-        cursorScore = parsed.score;
-        cursorId = parsed.id;
-      }
+    if (parsedCursor && parsedCursor.score !== Infinity) {
+      cursorScore = parsedCursor.score;
+      cursorId = parsedCursor.id;
     }
 
     const halfLifeHours = MtnConfig.ranking.recency.halfLifeMs / (1000 * 60 * 60);
-    const now = new Date();
+    const now = rankingCeiling;
 
     const pipeline: mongoose.PipelineStage[] = [
       { $match: match },

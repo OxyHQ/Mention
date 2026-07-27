@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { requireOxyAuth as requireAuth } from '@oxyhq/core/server';
+import { config } from '../config';
 import { feedController } from '../controllers/feed.controller';
 import { mtnFeedController } from '../mtn/controllers/feed.controller';
 import { feedPreferencesController } from '../mtn/controllers/feedPreferences.controller';
@@ -9,7 +10,7 @@ import { feedRateLimiter, feedIPRateLimiter, feedThrottle } from '../middleware/
 const router = Router();
 
 // Apply rate limiting in production only
-if (process.env.NODE_ENV === 'production') {
+if (config.runtime.isProduction) {
   router.use(feedIPRateLimiter);
   router.use(feedRateLimiter);
   router.use(feedThrottle);

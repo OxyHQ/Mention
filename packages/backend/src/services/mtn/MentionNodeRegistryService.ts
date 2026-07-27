@@ -25,6 +25,7 @@ import type { UpdateQuery } from 'mongoose';
 import { z } from 'zod';
 import { signEnvelope, type SignedRecordSigningFields } from '@oxyhq/protocol';
 import { safeFetch } from '@oxyhq/core/server';
+import { getMentionNodeConfig } from '../../config';
 import MentionUserNode, {
   type IMentionUserNode,
   type MentionUserNodeMode,
@@ -47,9 +48,7 @@ import {
   MENTION_NODE_LAST_ERROR_MAX_LEN,
   MENTION_NODE_LIVENESS_SWEEP_BATCH,
   MENTION_NODE_LIVENESS_PROBE_CONCURRENCY,
-  MENTION_NODE_BASE_URL_ENV,
   MENTION_NODE_USER_PATH_PREFIX,
-  MENTION_NODE_PUBLIC_KEY_ENV,
   MENTION_NODE_MANAGED_MODE,
 } from './mentionNodes.constants';
 
@@ -336,7 +335,7 @@ export type ProvisionManagedVaultResult =
 
 /** The managed node's signing public key: a dedicated fleet key, else the custodial key. */
 function resolveManagedNodePublicKey(): string | undefined {
-  return process.env[MENTION_NODE_PUBLIC_KEY_ENV] || getMentionCustodialPublicKey() || undefined;
+  return getMentionNodeConfig().publicKey || getMentionCustodialPublicKey() || undefined;
 }
 
 /**
@@ -346,7 +345,7 @@ function resolveManagedNodePublicKey(): string | undefined {
  * then fails closed rather than registering a junk endpoint.
  */
 function resolveManagedEndpoint(oxyUserId: string): string | null {
-  const base = process.env[MENTION_NODE_BASE_URL_ENV];
+  const base = getMentionNodeConfig().baseUrl;
   if (!base) {
     return null;
   }

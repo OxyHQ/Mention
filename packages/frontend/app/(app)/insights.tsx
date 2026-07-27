@@ -14,15 +14,15 @@ import { Loading } from '@oxyhq/bloom/loading';
 import { SafeAreaView } from '@/lib/SafeAreaViewInterop';
 import { router } from 'expo-router';
 import { useSafeBack } from '@/hooks/useSafeBack';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { useTheme, type Theme } from '@oxyhq/bloom/theme';
 import { ThemedView } from '@/components/ThemedView';
 import { statisticsService } from '@/services/statisticsService';
 import { useTranslation } from 'react-i18next';
-import { useAuth, OxyAuthPrompt } from '@oxyhq/services';
+import { useAuth, OxyAuthPrompt } from '@oxyhq/services/ui/client';
 import { usePostsStore } from '@/stores/postsStore';
 import PostItem from '@/components/Feed/PostItem';
-import { HydratedPost } from '@mention/shared-types';
+import type { HydratedPost } from '@mention/shared-types';
 import MiniChart from '@/components/MiniChart';
 import AnimatedTabBar from '@/components/common/AnimatedTabBar';
 import { Header } from '@/components/Header';
@@ -31,7 +31,7 @@ import { formatCompactNumber } from '@/utils/formatNumber';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { asViewStyle, asTextStyle } from '@/types/webStyles';
 import { StatusBar } from 'expo-status-bar';
-import SEO from '@/components/SEO';
+import { SEO } from '@/components/SEO';
 import { logger } from '@/lib/logger';
 import { HeartIcon } from '@/assets/icons/heart-icon';
 import { CommentIcon } from '@/assets/icons/comment-icon';
@@ -40,6 +40,7 @@ import { ShareIcon } from '@/assets/icons/share-icon';
 import { CalendarIcon } from '@/assets/icons/calendar-icon';
 import { ChevronRightIcon } from '@/assets/icons/chevron-right-icon';
 import { ArticleIcon } from '@/assets/icons/article-icon';
+import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { MediaIcon } from '@/assets/icons/media-icon';
 import { Video } from '@/assets/icons/video-icon';
 import { PollIcon } from '@/assets/icons/poll-icon';
@@ -137,7 +138,7 @@ const InsightsScreen: React.FC = () => {
     // one loads, matching the original background-prefetch smoothness. Gated on
     // `canUsePrivateApi` since /statistics/* are private endpoints.
     const { data, isLoading } = useQuery({
-        queryKey: ['insights', user?.id, selectedPeriod],
+        queryKey: viewerQueryKeys.insights(user?.id, selectedPeriod),
         queryFn: async () => {
             const [stats, engagement] = await Promise.all([
                 statisticsService.getUserStatistics(selectedPeriod),

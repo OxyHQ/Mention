@@ -1,10 +1,11 @@
 import { useCallback } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useAuth } from '@oxyhq/services';
+import { useAuth } from '@oxyhq/services/ui/client';
 import type { UserNodeStatus } from '@oxyhq/core';
 import { api } from '@/utils/api';
 import { isAuthError } from '@/utils/authErrors';
 import { createScopedLogger } from '@/lib/logger';
+import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 
 const nodeLogger = createScopedLogger('MentionNode');
 
@@ -37,10 +38,6 @@ interface DisconnectResponse {
  * automatically — the same reactivity contract every other private read in the
  * app follows.
  */
-function nodeQueryKey(viewerId: string | undefined): readonly unknown[] {
-  return ['mtn-node', 'me', viewerId ?? 'anon'];
-}
-
 export interface UseMentionNodeResult {
   /** The caller's node, `null` when none is registered, `undefined` until loaded. */
   node: MentionNode | null | undefined;
@@ -85,7 +82,7 @@ export function useMentionNode(): UseMentionNodeResult {
   const enabled = isAuthenticated && Boolean(viewerId) && canUsePrivateApi;
 
   const query = useQuery<MentionNode | null>({
-    queryKey: nodeQueryKey(viewerId),
+    queryKey: viewerQueryKeys.mentionNode(viewerId),
     queryFn: async () => {
       try {
         const { data } = await api.get<NodeMeResponse>('/mtn/nodes/me');
@@ -103,7 +100,9 @@ export function useMentionNode(): UseMentionNodeResult {
   });
 
   const invalidateNode = useCallback(() => {
-    queryClient.invalidateQueries({ queryKey: nodeQueryKey(viewerId) });
+    queryClient.invalidateQueries({
+      queryKey: viewerQueryKeys.mentionNode(viewerId),
+    });
   }, [queryClient, viewerId]);
 
   const createVaultMutation = useMutation<MentionNode, unknown, void>({
@@ -112,7 +111,7 @@ export function useMentionNode(): UseMentionNodeResult {
       return data.node;
     },
     onSuccess: (node) => {
-      queryClient.setQueryData(nodeQueryKey(viewerId), node);
+      queryClient.setQueryData(viewerQueryKeys.mentionNode(viewerId), node);
       invalidateNode();
     },
     onError: (error) => {
@@ -126,7 +125,7 @@ export function useMentionNode(): UseMentionNodeResult {
       return data;
     },
     onSuccess: () => {
-      queryClient.setQueryData(nodeQueryKey(viewerId), null);
+      queryClient.setQueryData(viewerQueryKeys.mentionNode(viewerId), null);
       invalidateNode();
     },
     onError: (error) => {

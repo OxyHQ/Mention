@@ -21,6 +21,8 @@
 
     // --- Emit settings (the root base is type-check only / noEmit).
     "noEmit": false,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
     "rootDir": "./src",
     "outDir": "./dist"
   },

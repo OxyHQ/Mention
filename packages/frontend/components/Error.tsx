@@ -3,7 +3,7 @@ import { View, Text, TouchableOpacity, ViewStyle } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { Loading } from '@oxyhq/bloom/loading';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { flattenStyleArray } from '@/styles/shared';
 

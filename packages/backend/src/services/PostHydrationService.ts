@@ -1,5 +1,4 @@
 import { FeedPostSlice, FeedSliceItem, HydratedPost, HydratedPostSummary, HydratedBoostContext, HydratedAuthor, PostUser, PostAttachmentBundle, PostEngagementSummary, PostLinkPreview, PostPermissions, PostViewerState, PostVisibility, PostAuthorshipEntry, MEDIA_VARIANT_THUMB } from '@mention/shared-types';
-import mongoose from 'mongoose';
 import { Post, type PostFederationData } from '../models/Post';
 import Poll from '../models/Poll';
 import Like from '../models/Like';
@@ -9,10 +8,16 @@ import { UserSettings } from '../models/UserSettings';
 import { actorService } from '../connectors/activitypub/actor.service';
 import { FEDERATION_ENABLED } from '../connectors/activitypub/constants';
 import { deriveBridgyActorUri } from '../connectors/activitypub/bridgy';
-import { oxy as defaultOxyClient } from '../../server';
+import { getRuntimeOxyClient } from '../runtime/oxyClient';
 import { getServiceOxyClient } from '../utils/oxyHelpers';
 import { extractUrls } from '../utils/extractUrls';
-import { getBlockedUserIds, getRestrictedUserIds, extractFollowingIds, extractFollowersIds, OxyClient } from '../utils/privacyHelpers';
+import {
+  getBlockedUserIds,
+  getRestrictedUserIds,
+  extractFollowingIds,
+  extractFollowersIds,
+  OxyClient,
+} from '../utils/privacyHelpers';
 import { resolveMediaItems, attachCdnVariant } from '../utils/mediaResolver';
 import { logger } from '../utils/logger';
 import { readPersistedMediaFields } from './MediaMetadataService';
@@ -29,12 +34,14 @@ import {
   normalizeAuthorship,
 } from '../utils/postAuthorship';
 import { normalizeMentionIds } from '../utils/textProcessing';
+import { degradedActorSummary } from '../utils/degradedActorSummary';
 import {
   readerVariants,
   resolveVariant,
   resolveViewerTag,
   type ResolvedVariant,
 } from './postVariants';
+import { loadRecentReplierIds } from './PostRecentReplierService';
 
 import { PostContentVariant, PostMetadata, StoredPostContent } from '@mention/shared-types';
 
@@ -63,6 +70,7 @@ interface RawPost {
     boostsCount?: number;
     commentsCount?: number;
     viewsCount?: number;
+    savesCount?: number;
   };
   boostOf?: unknown;
   quoteOf?: unknown;
@@ -223,25 +231,9 @@ function toCachedUser(userId: string, userData: OxyUser): CachedUserSummary {
   };
 }
 
-/**
- * The clearly-degraded user emitted when an author cannot be resolved from Oxy
- * (a transient bulk + per-id fetch failure). It carries an EMPTY `username` and
- * a neutral `name.displayName: 'Unknown user'` ON PURPOSE: every renderer derives
- * the `@handle` line and the `/@handle` profile link from a non-empty username
- * (via `getNormalizedUserHandle`), so a momentarily-unresolvable author shows a
- * neutral "Unknown user" with no tappable handle rather than rendering its raw
- * Oxy id as a fake username (the ghost-handle bug). This user is NEVER written to
- * the Redis user-summary cache (see {@link resolveUserSummaries}), so the next
- * hydration re-resolves the real user and the DTO self-heals.
- */
-export function degradedActorSummary(userId: string): PostUser {
-  return {
-    id: userId,
-    username: '',
-    name: { displayName: 'Unknown user' },
-    avatar: null,
-  };
-}
+// Preserve the existing public import path while keeping the placeholder in a
+// dependency-light module that non-hydration surfaces can safely reuse.
+export { degradedActorSummary };
 
 /** A minimal, safe cached value used when an author cannot be resolved from Oxy. */
 function fallbackSummary(userId: string): CachedUserSummary {
@@ -347,13 +339,234 @@ async function applyStarterPackScores(freshlyResolved: Map<string, CachedUserSum
   }
 }
 
+/** Maximum number of public per-user Oxy reads in flight after a bulk miss. */
+export const OXY_USER_FALLBACK_CONCURRENCY = 8;
+/** One wall-clock budget shared by the bulk read and every fallback read. */
+export const OXY_USER_RESOLUTION_DEADLINE_MS = 1_500;
+
+class OxyUserResolutionDeadlineError extends Error {
+  constructor() {
+    super('Oxy user resolution deadline exceeded');
+    this.name = 'OxyUserResolutionDeadlineError';
+  }
+}
+
+const userSummaryFlights = new Map<string, Promise<Map<string, CachedUserSummary>>>();
+let activeOxyUserResolutionCalls = 0;
+const oxyUserResolutionWaiters: Array<{
+  grant: () => void;
+  cancel: () => void;
+}> = [];
+
+function userSummaryFlightKey(userIds: string[]): string {
+  return [...userIds].sort().join('\u0000');
+}
+
+async function withinUserResolutionDeadline<T>(
+  promise: Promise<T>,
+  deadlineAt: number,
+): Promise<T> {
+  const remainingMs = deadlineAt - Date.now();
+  if (remainingMs <= 0) {
+    throw new OxyUserResolutionDeadlineError();
+  }
+
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<never>((_, reject) => {
+        timeout = setTimeout(() => reject(new OxyUserResolutionDeadlineError()), remainingMs);
+        timeout.unref?.();
+      }),
+    ]);
+  } finally {
+    if (timeout) clearTimeout(timeout);
+  }
+}
+
+function releaseOxyUserResolutionPermit(): void {
+  const next = oxyUserResolutionWaiters.shift();
+  if (next) {
+    next.grant();
+    return;
+  }
+  activeOxyUserResolutionCalls = Math.max(0, activeOxyUserResolutionCalls - 1);
+}
+
+async function acquireOxyUserResolutionPermit(
+  deadlineAt: number,
+): Promise<() => void> {
+  if (Date.now() >= deadlineAt) {
+    throw new OxyUserResolutionDeadlineError();
+  }
+
+  if (activeOxyUserResolutionCalls < OXY_USER_FALLBACK_CONCURRENCY) {
+    activeOxyUserResolutionCalls += 1;
+    let released = false;
+    return () => {
+      if (released) return;
+      released = true;
+      releaseOxyUserResolutionPermit();
+    };
+  }
+
+  return new Promise<() => void>((resolve, reject) => {
+    const remainingMs = deadlineAt - Date.now();
+    let settled = false;
+    let timeout: ReturnType<typeof setTimeout>;
+    const waiter = {
+      grant: () => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timeout);
+        let released = false;
+        resolve(() => {
+          if (released) return;
+          released = true;
+          releaseOxyUserResolutionPermit();
+        });
+      },
+      cancel: () => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timeout);
+        reject(new OxyUserResolutionDeadlineError());
+      },
+    };
+    timeout = setTimeout(() => {
+      const index = oxyUserResolutionWaiters.indexOf(waiter);
+      if (index >= 0) oxyUserResolutionWaiters.splice(index, 1);
+      waiter.cancel();
+    }, Math.max(0, remainingMs));
+    timeout.unref?.();
+    oxyUserResolutionWaiters.push(waiter);
+  });
+}
+
+/**
+ * Bound Oxy I/O across every concurrent hydration cohort. A timed-out caller
+ * stops waiting, but its permit remains occupied until the underlying SDK call
+ * actually settles. This prevents slow or non-abortable SDK requests from
+ * accumulating without limit during an outage.
+ */
+async function runBoundedOxyUserResolutionCall<T>(
+  operation: () => Promise<T>,
+  deadlineAt: number,
+): Promise<T> {
+  const release = await acquireOxyUserResolutionPermit(deadlineAt);
+  const inFlight = Promise.resolve().then(operation);
+  void inFlight.then(release, release);
+  return withinUserResolutionDeadline(inFlight, deadlineAt);
+}
+
+async function runWithConcurrencyLimit<T>(
+  values: readonly T[],
+  concurrency: number,
+  worker: (value: T) => Promise<void>,
+): Promise<void> {
+  let nextIndex = 0;
+  const workers = Array.from(
+    { length: Math.min(concurrency, values.length) },
+    async () => {
+      while (nextIndex < values.length) {
+        const value = values[nextIndex++];
+        await worker(value);
+      }
+    },
+  );
+  await Promise.all(workers);
+}
+
+async function resolveOxyUserSummaryMisses(
+  missIds: string[],
+): Promise<Map<string, CachedUserSummary>> {
+  const deadlineAt = Date.now() + OXY_USER_RESOLUTION_DEADLINE_MS;
+  const requestedIds = new Set(missIds);
+  const freshlyResolved = new Map<string, CachedUserSummary>();
+  let bulkFailure: unknown;
+
+  try {
+    const users = await runBoundedOxyUserResolutionCall(
+      () => getServiceOxyClient().getUsersByIds(missIds),
+      deadlineAt,
+    );
+    for (const user of Array.isArray(users) ? users : []) {
+      const id = String((user as { id?: unknown }).id ?? '');
+      if (id && requestedIds.has(id)) {
+        freshlyResolved.set(id, toCachedUser(id, user));
+      }
+    }
+  } catch (error) {
+    bulkFailure = error;
+  }
+
+  const unresolved = missIds.filter((userId) => !freshlyResolved.has(userId));
+  let perIdFailures = 0;
+  let deadlineExceeded = bulkFailure instanceof OxyUserResolutionDeadlineError;
+
+  if (unresolved.length > 0 && Date.now() < deadlineAt) {
+    await runWithConcurrencyLimit(
+      unresolved,
+      OXY_USER_FALLBACK_CONCURRENCY,
+      async (userId) => {
+        if (Date.now() >= deadlineAt) {
+          deadlineExceeded = true;
+          perIdFailures += 1;
+          return;
+        }
+
+        try {
+          const userData = await runBoundedOxyUserResolutionCall(
+            () => getRuntimeOxyClient().getUserById(userId),
+            deadlineAt,
+          );
+          freshlyResolved.set(userId, toCachedUser(userId, userData));
+        } catch (error) {
+          if (error instanceof OxyUserResolutionDeadlineError) {
+            deadlineExceeded = true;
+          }
+          perIdFailures += 1;
+        }
+      },
+    );
+  } else if (unresolved.length > 0) {
+    deadlineExceeded = true;
+    perIdFailures = unresolved.length;
+  }
+
+  if (bulkFailure || perIdFailures > 0) {
+    logger.warn('[PostHydration] Oxy user resolution was partial', {
+      requested: missIds.length,
+      resolved: freshlyResolved.size,
+      fallbackFailures: perIdFailures,
+      deadlineExceeded,
+      bulkReason: bulkFailure instanceof Error ? bulkFailure.message : undefined,
+    });
+  }
+
+  await applyStarterPackScores(freshlyResolved);
+  if (freshlyResolved.size > 0) {
+    await msetUserSummaries(freshlyResolved);
+  }
+
+  const result = new Map<string, CachedUserSummary>();
+  for (const userId of missIds) {
+    result.set(userId, freshlyResolved.get(userId) ?? fallbackSummary(userId));
+  }
+
+  // Mention-owned federated data can repair a degraded actor, but repaired and
+  // degraded summaries remain deliberately uncached so Oxy can self-heal them.
+  await enrichDegradedFederatedUsers(result);
+  return result;
+}
+
 /**
  * Resolve {@link CachedUserSummary} for a set of Oxy user ids, collapsing the
  * classic feed M+1 (one `getUserById` per unique author) into:
  *   1. a single batched read of the Redis user-summary cache, then
  *   2. a single bulk service-token Oxy fetch for the MISSES (`getUsersByIds`
- *      via the service client; per-id `getUserById` fallback on error or for
- *      any id the bulk call does not return), then
+ *      via the service client; bounded per-id fallback under one deadline), then
  *   3. a single batched write of the freshly-resolved summaries back to cache.
  *
  * Cache hits never touch Oxy. Misses that error fall back to a minimal summary
@@ -362,14 +575,15 @@ async function applyStarterPackScores(freshlyResolved: Map<string, CachedUserSum
  */
 export async function resolveUserSummaries(userIds: string[]): Promise<Map<string, CachedUserSummary>> {
   const resolved = new Map<string, CachedUserSummary>();
-  if (userIds.length === 0) {
+  const uniqueUserIds = [...new Set(userIds.filter(Boolean))];
+  if (uniqueUserIds.length === 0) {
     return resolved;
   }
 
   // 1. Batched cache read.
-  const cached = await mgetUserSummaries(userIds);
+  const cached = await mgetUserSummaries(uniqueUserIds);
   const missIds: string[] = [];
-  for (const userId of userIds) {
+  for (const userId of uniqueUserIds) {
     const hit = cached.get(userId);
     if (hit) {
       resolved.set(userId, hit);
@@ -382,69 +596,33 @@ export async function resolveUserSummaries(userIds: string[]): Promise<Map<strin
     return resolved;
   }
 
-  // 2. Resolve misses from Oxy with a single bulk service-token call. The
-  //    `/users/by-ids` endpoint is server-to-server, so it must be called via
-  //    the service client (carries the app bearer token). Any id the bulk call
-  //    does not return — and a whole-call failure — falls back to the per-id
-  //    GET, which works unauthenticated for public user data.
-  const freshlyResolved = new Map<string, CachedUserSummary>();
-
-  const resolvePerId = async (ids: string[]): Promise<void> => {
-    await Promise.all(
-      ids.map(async (userId) => {
-        try {
-          const userData: OxyUser = await defaultOxyClient.getUserById(userId);
-          freshlyResolved.set(userId, toCachedUser(userId, userData));
-        } catch (error) {
-          logger.warn(`[PostHydration] Failed to load user ${userId}:`, error);
-          resolved.set(userId, fallbackSummary(userId));
+  // 2. Single-flight an identical miss cohort. The shared resolver performs the
+  //    bulk service-token read first and bounds any public per-id fallback.
+  const flightKey = userSummaryFlightKey(missIds);
+  let flight = userSummaryFlights.get(flightKey);
+  if (!flight) {
+    flight = resolveOxyUserSummaryMisses(missIds);
+    userSummaryFlights.set(flightKey, flight);
+    void flight.then(
+      () => {
+        if (userSummaryFlights.get(flightKey) === flight) {
+          userSummaryFlights.delete(flightKey);
         }
-      }),
+      },
+      () => {
+        if (userSummaryFlights.get(flightKey) === flight) {
+          userSummaryFlights.delete(flightKey);
+        }
+      },
     );
-  };
-
-  try {
-    const users = await getServiceOxyClient().getUsersByIds(missIds);
-    const byId = new Map<string, OxyUser>();
-    for (const user of users) {
-      const id = String((user as { id?: unknown }).id ?? '');
-      if (id) byId.set(id, user);
-    }
-    const unresolved: string[] = [];
-    for (const userId of missIds) {
-      const userData = byId.get(userId);
-      if (userData) {
-        freshlyResolved.set(userId, toCachedUser(userId, userData));
-      } else {
-        unresolved.push(userId);
-      }
-    }
-    if (unresolved.length > 0) {
-      await resolvePerId(unresolved);
-    }
-  } catch (error) {
-    logger.warn('[PostHydration] Bulk user fetch failed, falling back to per-id', {
-      count: missIds.length,
-      reason: error instanceof Error ? error.message : 'unknown',
-    });
-    await resolvePerId(missIds);
   }
 
-  // 3. Enrich the freshly-resolved authors with their ranking-side starter-pack
-  //    curation score (ONE batched aggregation), then merge and write them back to
-  //    cache (only real resolutions — degraded/enriched users are never cached, so
-  //    the DTO self-heals).
-  await applyStarterPackScores(freshlyResolved);
+  const freshlyResolved = await flight;
+
+  // 3. Merge cache-miss results (real users or deliberately uncached fallbacks).
   for (const [userId, value] of freshlyResolved) {
     resolved.set(userId, value);
   }
-  if (freshlyResolved.size > 0) {
-    await msetUserSummaries(freshlyResolved);
-  }
-
-  // 4. Enrich any still-degraded federated author from Mention's own
-  //    FederatedActor record (fill-missing username/domain/avatar, never a name).
-  await enrichDegradedFederatedUsers(resolved);
 
   return resolved;
 }
@@ -681,7 +859,7 @@ export class PostHydrationService {
     const resolvedMap = this.buildResolvedVariantMap(postsForHydration, viewerContext);
 
     // Run independent hydration steps in parallel to minimize waterfall latency.
-    // Dependency chain: aggregateRecentReplierIds → buildUserMap → buildReplierAvatarsFromUserMap
+    // Dependency chain: loadRecentReplierProjection → buildUserMap → buildReplierAvatarsFromUserMap
     // Everything else is independent and can run concurrently.
     const [
       ,
@@ -693,7 +871,7 @@ export class PostHydrationService {
     ] = await Promise.all([
       this.populateViewerInteractions(postIds, viewerContext),
       (async () => {
-        const replierAggResult = await this.aggregateRecentReplierIds(postIds);
+        const replierAggResult = await this.loadRecentReplierProjection(postIds);
         const uMap = await this.buildUserMap(postsForHydration, replierAggResult.allReplierIds);
         const rMap = this.buildReplierAvatarsFromUserMap(replierAggResult.perPostRepliers, uMap);
         return { userMap: uMap, recentReplierMap: rMap };
@@ -743,7 +921,6 @@ export class PostHydrationService {
         post,
         summary,
         summaryMap,
-        viewerContext,
         collectedPostIds,
         options.publicReferencesOnly === true,
       );
@@ -934,23 +1111,13 @@ export class PostHydrationService {
 
     const client = options?.oxyClient;
 
-    try {
-      const [blockedIds, restrictedIds] = await Promise.all([
-        getBlockedUserIds(client).catch((error) => {
-          logger.warn('[PostHydration] Failed to load blocked users:', error);
-          return [] as string[];
-        }),
-        getRestrictedUserIds(client).catch((error) => {
-          logger.warn('[PostHydration] Failed to load restricted users:', error);
-          return [] as string[];
-        }),
-      ]);
+    const [blockedIds, restrictedIds] = await Promise.all([
+      getBlockedUserIds(client),
+      getRestrictedUserIds(client),
+    ]);
 
-      blockedIds.forEach((id) => context.blockedIds.add(String(id)));
-      restrictedIds.forEach((id) => context.restrictedIds.add(String(id)));
-    } catch (error) {
-      logger.warn('[PostHydration] Privacy list retrieval failed:', error);
-    }
+    blockedIds.forEach((id) => context.blockedIds.add(String(id)));
+    restrictedIds.forEach((id) => context.restrictedIds.add(String(id)));
 
     try {
       const settings = await UserSettings.findOne({ oxyUserId: viewerId }).lean();
@@ -979,7 +1146,7 @@ export class PostHydrationService {
       // Non-feed callers (post detail, notifications, profile, search) do not
       // pre-resolve the graph — fall back to the live Oxy fetch (unchanged).
       try {
-        const oxyForFollows = client || defaultOxyClient;
+        const oxyForFollows = client || getRuntimeOxyClient();
         const [followingResponse, followersResponse] = await Promise.all([
           oxyForFollows.getUserFollowing(viewerId).catch((error: unknown) => {
             logger.warn('[PostHydration] getUserFollowing failed:', error);
@@ -1495,10 +1662,10 @@ export class PostHydrationService {
   }
 
   /**
-   * Phase 1: Aggregate replier user IDs without fetching their profiles.
+   * Phase 1: Read bounded replier user IDs without fetching their profiles.
    * Returns both per-post replier arrays and a flat set of all IDs.
    */
-  private async aggregateRecentReplierIds(postIds: string[]): Promise<{
+  private async loadRecentReplierProjection(postIds: string[]): Promise<{
     perPostRepliers: Map<string, string[]>;
     allReplierIds: Set<string>;
   }> {
@@ -1508,48 +1675,9 @@ export class PostHydrationService {
     if (postIds.length === 0) return { perPostRepliers, allReplierIds };
 
     try {
-      const objectIds = postIds.map((id) => {
-        try { return new mongoose.Types.ObjectId(id); } catch { return id; }
-      });
-
-      // Use $push (preserves $sort order) then deduplicate via $reduce
-      const recentReplies = await Post.aggregate([
-        { $match: { parentPostId: { $in: objectIds } } },
-        { $sort: { createdAt: -1 } },
-        { $group: {
-          _id: '$parentPostId',
-          replierIds: { $push: '$oxyUserId' },
-        }},
-        { $project: {
-          _id: 1,
-          // Deduplicate while preserving recency order, then take first 3
-          replierIds: {
-            $slice: [
-              { $reduce: {
-                input: '$replierIds',
-                initialValue: [],
-                in: { $cond: [
-                  { $in: ['$$this', '$$value'] },
-                  '$$value',
-                  { $concatArrays: ['$$value', ['$$this']] },
-                ]},
-              }},
-              3,
-            ],
-          },
-        }},
-      ]);
-
-      for (const entry of recentReplies) {
-        const parentId = String(entry._id);
-        const ids = (entry.replierIds as unknown[] || []).map((id) => String(id));
-        perPostRepliers.set(parentId, ids);
-        for (const id of ids) {
-          allReplierIds.add(id);
-        }
-      }
+      return await loadRecentReplierIds(postIds);
     } catch (error) {
-      logger.warn('[PostHydration] Failed to aggregate replier IDs:', error);
+      logger.warn('[PostHydration] Failed to load recent replier IDs:', error);
     }
 
     return { perPostRepliers, allReplierIds };
@@ -1699,7 +1827,7 @@ export class PostHydrationService {
     const content = this.buildContent(post, pollMap, viewerContext, resolved, inlineVariants);
     const attachments = this.buildAttachments(post, pollMap, resolved);
     const linkPreviews = linkPreviewMap.get(postId) ?? [];
-    const viewerState = this.buildViewerState(postId, authorId, viewerContext, authorship);
+    const viewerState = this.buildViewerState(postId, viewerContext, authorship);
     const permissions = this.buildPermissions(post, authorId, viewerContext, authorship);
     const authorPrivacy = authorPrivacyMap.get(authorId) ?? { ...DEFAULT_PRIVACY };
     const replierAvatars = recentReplierMap?.get(postId);
@@ -1997,7 +2125,6 @@ export class PostHydrationService {
 
   private buildViewerState(
     postId: string,
-    authorId: string,
     viewerContext: ViewerContext,
     authorship: PostAuthorshipEntry[],
   ): PostViewerState {
@@ -2075,13 +2202,11 @@ export class PostHydrationService {
     recentReplierAvatars?: string[],
   ): PostEngagementSummary {
     const stats = post?.stats || {};
-    const metadata = post?.metadata || {};
-
     const likesCount = typeof stats.likesCount === 'number' ? stats.likesCount : 0;
     const downvotesCount = typeof stats.downvotesCount === 'number' ? stats.downvotesCount : 0;
     const boostsCount = typeof stats.boostsCount === 'number' ? stats.boostsCount : 0;
     const repliesCount = typeof stats.commentsCount === 'number' ? stats.commentsCount : 0;
-    const savesCount = Array.isArray(metadata.savedBy) ? metadata.savedBy.length : undefined;
+    const savesCount = typeof stats.savesCount === 'number' ? stats.savesCount : 0;
 
     const viewsCount = typeof stats.viewsCount === 'number' ? stats.viewsCount : 0;
 
@@ -2090,7 +2215,7 @@ export class PostHydrationService {
       downvotes: authorPrivacy.hideLikeCounts ? null : downvotesCount,
       boosts: authorPrivacy.hideShareCounts ? null : boostsCount,
       replies: authorPrivacy.hideReplyCounts ? null : repliesCount,
-      saves: authorPrivacy.hideSaveCounts ? null : savesCount ?? null,
+      saves: authorPrivacy.hideSaveCounts ? null : savesCount,
       views: viewsCount > 0 ? viewsCount : null,
       impressions: null,
       recentReplierAvatars: recentReplierAvatars?.length ? recentReplierAvatars : undefined,
@@ -2101,7 +2226,6 @@ export class PostHydrationService {
     post: RawPost,
     summary: HydratedPostSummary,
     summaryMap: Map<string, HydratedPostSummary>,
-    viewerContext: ViewerContext,
     collectedPostIds: Set<string>,
     publicReferencesOnly: boolean,
   ): HydratedPost | null {

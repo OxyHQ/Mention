@@ -1,139 +1,162 @@
 ---
 title: Fediverse
-description: ActivityPub federation in Mention — endpoints, sync model, HTTP signatures, and instance-specific behavior.
+description: ActivityPub connector, consent, routing, delivery, and media behavior.
 order: 2
 ---
 
-# Fediverse (ActivityPub)
+# Fediverse
 
-Mention is a full ActivityPub server. Every local user is reachable from any compatible instance at `@username@mention.earth`, can follow remote actors, can be followed by them, and exchanges posts in both directions. The implementation is in `packages/backend/src/services/FederationService.ts` and the routes under `packages/backend/src/routes/federation.routes.ts` / `webfinger.routes.ts` / `federation.api.routes.ts`.
+Mention's ActivityPub implementation is an external-network connector. Native
+posts and the Oxy identity graph remain independent of protocol transport, and
+the connector registry is the only federation seam used by post workflows.
 
-## Identity model
+Local accounts are discoverable as `@username@mention.earth`. Remote actors are
+associated with a canonical Oxy federated user ID so feeds and hydration use
+the same identity shape for local and remote authors.
 
-Data is split across two systems:
+## Public protocol surface
 
-- **Users live in Oxy.** Federated remote actors are stored as shadow Oxy users with `type: 'federated'`. Local users are regular Oxy users.
-- **Posts live in Mention's MongoDB.** Both local and remote posts are stored as `Post` documents.
+These routes are mounted before authentication and before the apex web proxy:
 
-The two systems are stitched together by `oxyUserId`. When a remote actor is resolved for the first time, a shadow Oxy user is created and its ID is stored on the `FederatedActor` cache and on every `Post` we receive from that actor. This means feeds, mentions, follows, and notifications work uniformly regardless of whether the author is local or remote — the rest of the codebase rarely needs to special-case federation.
+| Method | Path | Purpose |
+| --- | --- | --- |
+| GET | `/.well-known/webfinger` | Resolve an account resource |
+| GET | `/.well-known/host-meta` | XRD host metadata |
+| GET | `/.well-known/host-meta.json` | JSON host metadata |
+| GET | `/.well-known/nodeinfo` | NodeInfo discovery |
+| GET | `/nodeinfo/2.0` | NodeInfo document |
+| GET | `/ap/users/:username` | Actor document |
+| POST | `/ap/users/:username/inbox` | Per-actor inbox |
+| POST | `/ap/inbox` | Shared inbox |
+| GET | `/ap/users/:username/followers` | Followers collection |
+| GET | `/ap/users/:username/following` | Following collection |
+| GET | `/ap/users/:username/outbox` | Paginated outbox |
+| GET | `/ap/users/:username/collections/featured` | Pinned public posts |
+| GET | `/ap/users/:username/posts/:id` | Dereference a post |
 
-Per-user RSA keypairs are generated lazily and persisted in `ActorKeyPair`. The private key signs outbound HTTP requests; the public key is published on the actor profile so remote instances can verify our signatures.
+ActivityPub endpoint paths must return directly from the backend. Redirecting
+an inbox request breaks HTTP signatures and delivery. The separate browser
+profile route `/@username` may redirect a GET with an ActivityPub `Accept`
+header to the canonical actor URL; browser requests receive an OG-injected app
+shell instead.
 
-## Endpoints
+## App-facing federation API
 
-### Protocol endpoints (public, no auth)
+The `/federation` router is distinct from the protocol surface:
 
-Served to other ActivityPub servers. These must be reachable on the federation domain (default `mention.earth`).
+| Method | Path | Authentication |
+| --- | --- | --- |
+| GET | `/federation/resolve` | Optional viewer |
+| GET | `/federation/actor/posts` | Optional viewer |
+| POST | `/federation/follow` | Required |
+| POST | `/federation/unfollow` | Required |
+| GET | `/federation/following` | Required |
+| GET | `/federation/followers` | Required |
+| POST | `/federation/sharing-changed` | Required |
 
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/.well-known/webfinger?resource=acct:user@mention.earth` | Profile discovery — returns the actor URL. |
-| GET | `/ap/users/:username` | Actor profile (AP `Person` object) with public key and inboxes. |
-| POST | `/ap/users/:username/inbox` | Per-user inbox for incoming activities. |
-| POST | `/ap/inbox` | Shared inbox for activities addressed to multiple local users. |
-| GET | `/ap/users/:username/outbox` | Public posts as AP activities. |
+Write handlers enforce identity even though the router supports optional
+identity for public reads.
 
-### Frontend-facing API endpoints (auth required)
+## Consent
 
-Used by the Mention frontend, never by remote instances.
+Oxy owns `privacySettings.fediverseSharing`; Mention does not persist a second
+copy. `packages/backend/src/services/fediverseSharing.ts` is the backend read
+path and owns the Mention-side cache. SDK reads bypass the SDK's independent
+GET cache so consent decisions use one cache authority.
 
-| Method | Path | Description |
-|--------|------|-------------|
-| POST | `/federation/follow` | Follow a remote actor. Triggers backfill. |
-| POST | `/federation/unfollow` | Unfollow a remote actor. |
-| GET | `/federation/following` | Federated accounts the viewer follows. |
-| GET | `/federation/followers` | Remote followers of the viewer. |
-| GET | `/federation/actor/posts?uri=...` | Locally-stored posts from a federated actor. |
-| GET | `/federation/search?q=user@instance` | Search fediverse handles. |
-| GET | `/federation/lookup?handle=@user@instance` | Resolve a single handle. |
+When sharing is disabled:
 
-## How sync works
+- WebFinger and user ActivityPub surfaces return 404.
+- New inbound follows and engagement for that local owner are ignored.
+- Outbound connector delivery is blocked.
+- Undo activities remain allowed so remote and local state can converge.
 
-### Following a remote actor
+The sharing-change endpoint re-reads the value server-side. Turning sharing off
+queues cleanup that broadcasts actor deletion, removes bridged follows, clears
+user-scoped federation rows, and invalidates discovery cache. An unavailable
+Oxy read is retried by cleanup rather than interpreted as a consent value.
 
-1. User submits `POST /federation/follow` with a handle (`@gargron@mastodon.social`) or actor URI.
-2. `FederationService.resolveActor()` does WebFinger -> actor fetch; caches the result in `FederatedActor` (creating the shadow Oxy user if needed).
-3. We sign and POST a `Follow` activity to the actor's inbox.
-4. The remote instance replies asynchronously with `Accept`.
-5. On `Accept`, `syncOutboxPosts(actorId, 20)` fetches the actor's outbox and stores the last 20 posts locally so the new follower immediately sees content.
-6. From that point, the actor's posts flow in through the shared inbox.
+## Inbound flow
 
-### Incoming posts (inbox)
-
-1. Remote instance POSTs a `Create` activity to `/ap/inbox` (or per-user inbox).
-2. HTTP signature is verified against the cached public key (we re-fetch and update the cache if signature verification fails).
-3. We reject the activity if the actor has **zero local followers** — this is the primary anti-spam control. No one cares about Creates from actors no one follows.
-4. The note's content is sanitized, truncated to `FEDERATION_MAX_CONTENT_LENGTH`, and stored as a `Post` with `oxyUserId` pointing at the actor's shadow Oxy user.
-5. Fan-out: real-time event to followers via Socket.io, push notifications for mentions, feed cache invalidations.
-
-### Outbound delivery
-
-1. Local user publishes a post.
-2. Followers are gathered from `FederatedFollow` (remote followers of the author) and recipient lists are resolved (per-instance batching).
-3. An activity envelope is built and enqueued in `FederationDeliveryQueue`.
-4. `FederationJobScheduler` drains the queue, signs each request with the author's `ActorKeyPair`, and POSTs to the recipient inbox.
-5. Failures are retried with exponential backoff up to `FEDERATION_DELIVERY_RETRIES` attempts (default 5). Persistent failures are dropped after the queue's TTL.
-
-### HTTP signatures
-
-Every outbound request (both fetches and deliveries) is signed per the HTTP Signatures draft used across the fediverse. Signature construction lives in `packages/backend/src/utils/federation/crypto.ts`. Inbound signatures are verified the same way, with the public key pulled from the cached `FederatedActor` (or re-fetched if the cached key is wrong).
-
-## Instance-specific notes
-
-| Instance | Behavior |
-|----------|----------|
-| **Mastodon** (mastodon.social) | Standard AP. Works with unsigned fetches for public data. Test handle: `@gargron@mastodon.social`. |
-| **Threads** (threads.net) | Requires signed fetches for everything. Uses numeric user IDs resolved via WebFinger. Test handle: `@zuck@threads.net`. |
-
-If you add support for a new instance with quirks, document the workaround alongside the Threads notes — adapter-style branches in `FederationService` are preferred over generic "try / fallback" code.
-
-## Environment variables
-
-```env
-FEDERATION_DOMAIN=mention.earth          # Domain for actor URLs (default: mention.earth)
-FEDERATION_ENABLED=true                  # Set to "false" to disable federation entirely
-FEDERATION_BLOCKED_DOMAINS=bad.example   # Comma-separated blocked domains
-FEDERATION_DELIVERY_RETRIES=5            # Max retry attempts for outgoing activities
-FEDERATION_MAX_CONTENT_LENGTH=50000      # Max characters for incoming activity content
+```text
+inbox request
+  -> body and rate limits
+  -> HTTP signature verification
+  -> actor and target validation
+  -> consent check
+  -> queue
+  -> activity-specific handler
+  -> native model / Oxy graph update
 ```
 
-`FEDERATION_DOMAIN` must match the public hostname where `/.well-known/*` and `/ap/*` are served. The backend always uses this domain when building actor URLs, regardless of the host on the request.
+Follow, Accept, Reject, Undo, Create, Update, Delete, Like, and Announce
+activities are dispatched by the shared federation engine and the Mention
+content handlers. An inbound follow creates the Oxy graph edge before Mention
+sends Accept; the protocol-side follow record is not the app's graph authority.
 
-## Local development
+Remote outbox discovery uses the actor's advertised outbox URL. An empty first
+author-feed page can schedule a background sync and return `pending: true`, so
+the client waits and refetches rather than caching a temporary empty result.
+Imported boosts are stored as boost posts and hydrated with their original.
 
-Federation needs a publicly reachable hostname, so localhost alone is not enough. Use Cloudflare Tunnel:
+## Outbound flow
 
-```sh
-# 1. Start the backend
-bun run dev:backend
+Eligible local mutations call the connector registry after their native write.
+The ActivityPub connector can emit Create, Update, Delete, Like, Undo, and
+Announce activities. Delivery is consent-gated and uses server-side resolution
+of the author's Oxy identity.
 
-# 2. In another terminal, open an ad-hoc tunnel
-cloudflared tunnel --url http://localhost:3000
+Delivery work is isolated with `Promise.allSettled` and queued when Redis is
+available. A connector failure does not roll back a successful native post.
+Replies additionally deliver to the parent author's inbox when required.
 
-# 3. Set the tunnel domain in packages/backend/.env
-FEDERATION_DOMAIN=your-random-subdomain.trycloudflare.com
+Collaborative posts are not federated while an invitation is pending. The
+publish pipeline fans out only after the last invitation resolves, preventing
+an unaccepted collaborator from appearing on the fediverse.
 
-# 4. Restart the backend so the new domain is picked up
+## Discovery and collections
+
+Handle discovery follows:
+
+```text
+acct:username@mention.earth
+  -> /.well-known/webfinger
+  -> actor self link
+  -> /ap/users/username
 ```
 
-The tunnel hostname changes on every run unless you provision a named tunnel. For sustained dev, run `cloudflared tunnel create` and use a stable name.
+The actor advertises its outbox and featured collection. Outbox pages use
+keyset pagination, and followers/following collections expose paginated remote
+actor URIs. The actor's public-key host matches the actor ID host.
 
-## Deployment requirements
+## Remote media
 
-In production the federation domain (`mention.earth`) is **not** the same as the web app's domain. The `/.well-known/*` and `/ap/*` paths must route to the backend service rather than the static frontend. This is done with Cloudflare redirect rules; see `docs/DIGITALOCEAN_DEPLOYMENT.md` for the exact configuration.
+Federated media remains stored as its original remote URL. Browser and native
+clients use the backend's guarded media routes:
 
-## Key files
+| Method | Path | Purpose |
+| --- | --- | --- |
+| GET | `/media/proxy?url=...` | Proxy allowed image, video, or audio |
+| GET | `/media/poster?url=...` | Produce a bounded video poster |
+| GET | `/media/gif?url=...` | Proxy supported GIF media |
 
-| File | Role |
-|------|------|
-| `src/routes/webfinger.routes.ts` | WebFinger endpoint. |
-| `src/routes/federation.routes.ts` | Inbox / outbox / actor profile (AP protocol). |
-| `src/routes/federation.api.routes.ts` | Follow / unfollow / search / lookup (frontend API). |
-| `src/services/FederationService.ts` | Actor resolution, inbox processing, outbox sync. |
-| `src/services/FederationJobScheduler.ts` | Background jobs — actor refresh, delivery retry. |
-| `src/utils/federation/constants.ts` | URL builders + configuration. |
-| `src/utils/federation/crypto.ts` | HTTP signature sign / verify. |
-| `src/models/FederatedActor.ts` | Cached remote actor profiles (carries `oxyUserId`). |
-| `src/models/FederatedFollow.ts` | Follow relationships (both directions). |
-| `src/models/ActorKeyPair.ts` | RSA keypairs for local users. |
-| `src/models/FederationDeliveryQueue.ts` | Outgoing activity retry queue. |
+Upstream requests use DNS pinning, private-address denial, redirect
+revalidation, content-type checks, byte limits, stream abort, and timeouts.
+SVG is rejected. Frequently used remote media can be cached in Oxy object
+storage when the cache-write feature is enabled.
+
+## Optional AT Protocol connector
+
+AT Protocol handle resolution and read/discovery are independently gated by
+`ATPROTO_ENABLED`. A separate bridge gate controls repository exposure. These
+features do not change the ActivityPub routes or the native MongoDB authority.
+
+## Deployment routing
+
+Both `mention.earth` and `api.mention.earth` reach the Mention backend on AWS
+ECS. The apex is Cloudflare-proxied to the same load balancer; the API host is
+DNS-only. The backend mounts `/.well-known`, `/ap`, protocol bridge routes, and
+`/media` before web-shell and static-proxy handling.
+
+No application worker sits in front of the apex. Signed inbox requests must
+reach the backend without a zone-level redirect.

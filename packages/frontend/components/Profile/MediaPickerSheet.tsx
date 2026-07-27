@@ -8,19 +8,12 @@ import {
   View,
 } from 'react-native';
 import { Image } from 'expo-image';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { useTranslation } from 'react-i18next';
 import { Item } from '@oxyhq/bloom/item';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { toast } from '@oxyhq/bloom/toast';
-import {
-  MagnifyingGlass_Stroke2_Corner0_Rounded,
-  MagnifyingGlassX_Stroke2_Corner0_Rounded,
-  CircleX_Stroke2_Corner0_Rounded,
-  MusicNote_Stroke2_Corner0_Rounded,
-  SpeakerVolumeFull_Stroke2_Corner0_Rounded,
-  Trash_Stroke2_Corner0_Rounded,
-} from '@oxyhq/bloom/icons';
-import { useAppearanceStore, type ProfileMedia, type UserAppearance } from '@/store/appearanceStore';
+import { useAppearanceStore, type ProfileMedia, type UserAppearance } from '@/stores/appearanceStore';
 import { useProfileSongPreview } from '@/hooks/useProfileSongPreview';
 import { useInfiniteCatalogSearch, ResultsFooter } from '@/hooks/useInfiniteCatalogSearch';
 import { createScopedLogger } from '@/lib/logger';
@@ -154,7 +147,7 @@ const SongResultRow = memo(function SongResultRow({
             className="rounded-md bg-secondary items-center justify-center"
             style={{ width: 40, height: 40 }}
           >
-            <MusicNote_Stroke2_Corner0_Rounded size="md" fill={colors.textSecondary} />
+            <Ionicons name="musical-note-outline" size={20} color={colors.textSecondary} />
           </View>
         )
       }
@@ -208,7 +201,7 @@ const PodcastResultRow = memo(function PodcastResultRow({
             className="rounded-md bg-secondary items-center justify-center"
             style={{ width: 40, height: 40 }}
           >
-            <SpeakerVolumeFull_Stroke2_Corner0_Rounded size="md" fill={colors.textSecondary} />
+            <Ionicons name="mic-outline" size={20} color={colors.textSecondary} />
           </View>
         )
       }
@@ -403,7 +396,7 @@ export const MediaPickerSheet = memo(function MediaPickerSheet({
 
       {/* Search input — mirrors GifPickerSheet's styled search row. */}
       <View className="flex-row items-center px-3 py-2.5 rounded-xl bg-secondary gap-2.5">
-        <MagnifyingGlass_Stroke2_Corner0_Rounded size="sm" fill={colors.textSecondary} />
+        <Ionicons name="search-outline" size={16} color={colors.textSecondary} />
         <TextInput
           className="flex-1 text-[15px] text-foreground"
           placeholder={isSongTab ? t('profile.media.song.searchPlaceholder') : t('profile.media.podcast.searchPlaceholder')}
@@ -421,7 +414,7 @@ export const MediaPickerSheet = memo(function MediaPickerSheet({
             accessibilityLabel={t('profile.media.clearSearch')}
             hitSlop={8}
           >
-            <CircleX_Stroke2_Corner0_Rounded size="sm" fill={colors.textSecondary} />
+            <Ionicons name="close-circle" size={16} color={colors.textSecondary} />
           </Pressable>
         )}
       </View>
@@ -443,7 +436,7 @@ export const MediaPickerSheet = memo(function MediaPickerSheet({
         ) : isSongTab ? (
           songSearch.results.length === 0 ? (
             <View className="items-center justify-center py-10 gap-2">
-              <MagnifyingGlassX_Stroke2_Corner0_Rounded size="xl" fill={colors.textSecondary} />
+              <Ionicons name="search-outline" size={32} color={colors.textSecondary} />
               <Text className="text-muted-foreground text-[15px]">
                 {t('profile.media.song.empty')}
               </Text>
@@ -469,7 +462,7 @@ export const MediaPickerSheet = memo(function MediaPickerSheet({
           )
         ) : podcastSearch.results.length === 0 ? (
           <View className="items-center justify-center py-10 gap-2">
-            <MagnifyingGlassX_Stroke2_Corner0_Rounded size="xl" fill={colors.textSecondary} />
+            <Ionicons name="search-outline" size={32} color={colors.textSecondary} />
             <Text className="text-muted-foreground text-[15px]">
               {t('profile.media.podcast.empty')}
             </Text>
@@ -511,7 +504,7 @@ export const MediaPickerSheet = memo(function MediaPickerSheet({
                 className="rounded-md bg-background items-center justify-center"
                 style={{ width: 40, height: 40 }}
               >
-                <MusicNote_Stroke2_Corner0_Rounded size="md" fill={colors.textSecondary} />
+                <Ionicons name="musical-note-outline" size={20} color={colors.textSecondary} />
               </View>
             )}
             <View className="flex-1 shrink">
@@ -594,7 +587,7 @@ export const MediaPickerSheet = memo(function MediaPickerSheet({
                 className="rounded-md bg-background items-center justify-center"
                 style={{ width: 40, height: 40 }}
               >
-                <SpeakerVolumeFull_Stroke2_Corner0_Rounded size="md" fill={colors.textSecondary} />
+                <Ionicons name="mic-outline" size={20} color={colors.textSecondary} />
               </View>
             )}
             <View className="flex-1 shrink">
@@ -637,7 +630,7 @@ export const MediaPickerSheet = memo(function MediaPickerSheet({
           accessibilityLabel={t('profile.media.remove')}
           className="flex-row items-center justify-center gap-2 mt-3 py-2.5"
         >
-          <Trash_Stroke2_Corner0_Rounded size="sm" fill={colors.error} />
+          <Ionicons name="trash-outline" size={16} color={colors.error} />
           <Text className="text-[15px] font-semibold" style={{ color: colors.error }}>
             {t('profile.media.remove')}
           </Text>

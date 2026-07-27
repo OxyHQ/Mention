@@ -2,8 +2,7 @@ import React, { useMemo, useContext } from 'react';
 import { useRouter, usePathname } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { useSafeBack } from '@/hooks/useSafeBack';
-import { queryKeys } from '@/hooks/useOptimizedQuery';
-import { useAuth } from '@oxyhq/services';
+import { useAuth } from '@oxyhq/services/ui/client';
 import { createScopedLogger } from '@/lib/logger';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { useTranslation } from 'react-i18next';
@@ -28,14 +27,15 @@ import { ChevronRightIcon } from '@/assets/icons/chevron-right-icon';
 import { ArticleIcon } from '@/assets/icons/article-icon';
 import { MuteIcon } from '@/assets/icons/mute-icon';
 import { ReportIcon } from '@/assets/icons/report-icon';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import PostInsightsSheet from '@/components/Post/PostInsightsSheet';
-import ReplySettingsSheet, { type ReplyPermission } from '@/components/Compose/ReplySettingsSheet';
-import ReportModal from '@/components/report/ReportModal';
+import ReplySettingsSheet from '@/components/Compose/ReplySettingsSheet';
+import { ReportModal } from '@/components/report/ReportModal';
 import { muteService } from '@/services/muteService';
 import { reportService } from '@/services/reportService';
 import { AddToListSheet } from '@/components/Lists/AddToListSheet';
 import { List as ListIcon } from '@/assets/icons/list-icon';
+import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 
 const logger = createScopedLogger('usePostActions');
 
@@ -83,8 +83,8 @@ export function usePostActions({
     onOpenArticle,
     onOpenSources,
 }: UsePostActionsParams): PostActionsResult {
-    const { user } = useAuth();
     const theme = useTheme();
+    const { user } = useAuth();
     const { t } = useTranslation();
     const router = useRouter();
     const pathname = usePathname();
@@ -102,7 +102,7 @@ export function usePostActions({
         const isPostDetail = (pathname || '').startsWith('/p/');
 
         const handleDelete = async () => {
-            try { bottomSheet.openBottomSheet(false); } catch (e) { logger.warn('Failed to close bottom sheet'); }
+            try { bottomSheet.openBottomSheet(false); } catch { logger.warn('Failed to close bottom sheet'); }
             const confirmed = await confirmDialog({
                 title: t('postActions.deletePost'),
                 message: t('postActions.deleteConfirmMessage'),
@@ -130,7 +130,9 @@ export function usePostActions({
                 // The pinned slot lives in React Query (ProfileTabs); refetch it so a
                 // deleted pinned post clears from the author's profile too.
                 if (authorId) {
-                    queryClient.invalidateQueries({ queryKey: queryKeys.pinnedPost(authorId) });
+                    queryClient.invalidateQueries({
+                        queryKey: viewerQueryKeys.pinnedPost(user?.id, authorId),
+                    });
                 }
             } catch (e) {
                 logger.error('Delete API failed — rolling back optimistic removal', { error: e });
@@ -204,9 +206,11 @@ export function usePostActions({
                         }));
                         const authorId = viewPost?.user?.id;
                         if (authorId) {
-                            queryClient.invalidateQueries({ queryKey: queryKeys.pinnedPost(authorId) });
+                            queryClient.invalidateQueries({
+                                queryKey: viewerQueryKeys.pinnedPost(user?.id, authorId),
+                            });
                         }
-                    } catch (e) {
+                    } catch {
                         toast(isPinned ? t('postActions.failedToUnpinPost') : t('postActions.failedToPinPost'), { type: 'error' });
                     }
                     bottomSheet.openBottomSheet(false);
@@ -227,7 +231,7 @@ export function usePostActions({
                             ...prev,
                             metadata: { ...prev.metadata, hideEngagementCounts: nextHidden },
                         }));
-                    } catch (e) {
+                    } catch {
                         toast(t('postActions.failedToUpdateEngagement'), { type: 'error' });
                     }
                     bottomSheet.openBottomSheet(false);
@@ -250,7 +254,7 @@ export function usePostActions({
                                         ...prev,
                                         metadata: { ...prev.metadata, replyPermission: permission },
                                     }));
-                                } catch (e) {
+                                } catch {
                                     toast(t('postActions.failedToUpdateReplyPermissions'), { type: 'error' });
                                 }
                             }}
@@ -262,7 +266,7 @@ export function usePostActions({
                                         ...prev,
                                         metadata: { ...prev.metadata, quotesDisabled: disabled },
                                     }));
-                                } catch (e) {
+                                } catch {
                                     toast(t('postActions.failedToUpdateQuoteSettings'), { type: 'error' });
                                 }
                             }}
@@ -278,7 +282,7 @@ export function usePostActions({
             icon: <Ionicons name="close-circle-outline" size={20} color={theme.colors.error} />,
             text: t('collab.stopSharing', { defaultValue: 'Stop sharing' }),
             onPress: async () => {
-                try { bottomSheet.openBottomSheet(false); } catch (e) { logger.warn('Failed to close bottom sheet'); }
+                try { bottomSheet.openBottomSheet(false); } catch { logger.warn('Failed to close bottom sheet'); }
                 const confirmed = await confirmDialog({
                     title: t('collab.stopSharingTitle', { defaultValue: 'Stop sharing this post?' }),
                     message: t('collab.stopSharingMessage', { defaultValue: 'This post will be removed from your profile. Other collaborators can still see it.' }),
@@ -324,7 +328,7 @@ export function usePostActions({
         }] : [];
 
         const handleMuteUser = async () => {
-            try { bottomSheet.openBottomSheet(false); } catch (e) { logger.warn('Failed to close bottom sheet'); }
+            try { bottomSheet.openBottomSheet(false); } catch { logger.warn('Failed to close bottom sheet'); }
             const userId = viewPost?.user?.id;
             const username = getNormalizedUserHandle(viewPost?.user) || viewPost?.user?.name?.displayName || 'this user';
 
@@ -417,7 +421,7 @@ export function usePostActions({
                     } else {
                         await Clipboard.setStringAsync(postUrl);
                     }
-                } catch (e) { logger.warn('Failed to copy link'); }
+                } catch { logger.warn('Failed to copy link'); }
                 bottomSheet.openBottomSheet(false);
             }
         }];

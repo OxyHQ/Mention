@@ -1,14 +1,15 @@
 import { registrableApex } from '@oxyhq/core';
 import { createDomainPolicy, createUrlBuilders } from '@oxyhq/federation';
+import { config } from '../../config';
 import { logger } from '../../utils/logger';
 import { getServiceOxyClient } from '../../utils/oxyHelpers';
 
-export const FEDERATION_DOMAIN = process.env.FEDERATION_DOMAIN || 'mention.earth';
-export const ACTOR_DOMAIN = process.env.ACTOR_DOMAIN || FEDERATION_DOMAIN;
+export const FEDERATION_DOMAIN = config.federation.domain;
+export const ACTOR_DOMAIN = config.federation.actorDomain;
 if (ACTOR_DOMAIN !== FEDERATION_DOMAIN) {
   logger.warn(`Federation domains differ: ACTOR_DOMAIN=${ACTOR_DOMAIN} FEDERATION_DOMAIN=${FEDERATION_DOMAIN}`);
 }
-export const OXY_API_URL = process.env.OXY_API_URL || 'https://api.oxy.so';
+export const OXY_API_URL = config.oxyApiUrl;
 
 /**
  * Oxy's identity apex — the anchor domain of the DID layer. Every Oxy/Mention
@@ -32,18 +33,15 @@ const oxyApiHost = (() => {
   }
 })();
 export const OXY_IDENTITY_APEX = (
-  process.env.OXY_IDENTITY_APEX
+  config.federation.oxyIdentityApex
   || registrableApex(oxyApiHost)
   || 'oxy.so'
 ).toLowerCase();
-export const FEDERATION_ENABLED = process.env.FEDERATION_ENABLED !== 'false';
-export const FEDERATION_MAX_CONTENT_LENGTH = parseInt(process.env.FEDERATION_MAX_CONTENT_LENGTH || '50000', 10);
-export const FEDERATION_DELIVERY_RETRIES = parseInt(process.env.FEDERATION_DELIVERY_RETRIES || '5', 10);
+export const FEDERATION_ENABLED = config.federation.enabled;
+export const FEDERATION_MAX_CONTENT_LENGTH = config.federation.maxContentLength;
+export const FEDERATION_DELIVERY_RETRIES = config.federation.deliveryRetries;
 const FEDERATION_BLOCKED_DOMAINS = new Set(
-  (process.env.FEDERATION_BLOCKED_DOMAINS || '')
-    .split(',')
-    .map(d => d.trim().toLowerCase())
-    .filter(Boolean)
+  config.federation.blockedDomains,
 );
 
 export const AP_CONTENT_TYPE = 'application/activity+json';
@@ -115,14 +113,14 @@ export const USER_AGENT = `Mention/${FEDERATION_DOMAIN} (ActivityPub)`;
  * Returns the user object or null.
  */
 export async function resolveOxyUser(username: string): Promise<any> {
-  // Service-authed Oxy client — the bare `oxy` singleton in server.ts is
+  // Service-authed Oxy client — the process-wide request-auth client is
   // unauthenticated and reserved for validating incoming request tokens
   // (`oxy.auth()`), so resolving a profile on it returns nothing.
   const oxy = getServiceOxyClient();
   try {
     return await oxy.getProfileByUsername(username);
   } catch (err) {
-    logger.debug(`[Federation] getProfileByUsername('${username}') failed, trying searchProfiles`, err);
+    logger.debug('[Federation] profile lookup failed; trying profile search', err);
     try {
       const response = await oxy.searchProfiles(username);
       const results = Array.isArray(response) ? response : response?.data;
@@ -130,7 +128,7 @@ export async function resolveOxyUser(username: string): Promise<any> {
         u.username?.toLowerCase() === username.toLowerCase()
       ) || null;
     } catch (searchErr) {
-      logger.warn(`[Federation] resolveOxyUser('${username}') failed completely`, searchErr);
+      logger.warn('[Federation] Oxy user resolution failed', searchErr);
       return null;
     }
   }

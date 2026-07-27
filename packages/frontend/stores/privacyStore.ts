@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { subscribeWithSelector } from 'zustand/middleware';
 
 interface PrivacyStoreState {
+    viewerEpoch: number;
     blockedIds: string[];
     restrictedIds: string[];
     blockedSet: Set<string>;
@@ -46,6 +47,7 @@ function arraysEqual(a: string[], b: string[]): boolean {
 
 export const usePrivacyStore = create<PrivacyStoreState>()(
     subscribeWithSelector((set) => ({
+        viewerEpoch: 0,
         blockedIds: [],
         restrictedIds: [],
         blockedSet: new Set<string>(),
@@ -96,7 +98,8 @@ export const usePrivacyStore = create<PrivacyStoreState>()(
         setError: (error) => set({ error }),
         reset: () => {
             const emptySets = createSets([], []);
-            set({
+            set((state) => ({
+                viewerEpoch: state.viewerEpoch + 1,
                 blockedIds: [],
                 restrictedIds: [],
                 ...emptySets,
@@ -104,8 +107,7 @@ export const usePrivacyStore = create<PrivacyStoreState>()(
                 error: undefined,
                 lastFetchedAt: undefined,
                 hasFetched: false,
-            });
+            }));
         },
     }))
 );
-

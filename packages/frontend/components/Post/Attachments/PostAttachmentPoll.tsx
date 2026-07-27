@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, ViewStyle, Platform } from 'react-native';
 import PollCard from '../PollCard';
 import { MEDIA_CARD_WIDTH } from '@/utils/composeUtils';
+import { IS_DEVELOPMENT } from '@/config';
 
 const webGrabCursorStyle: ViewStyle | null = Platform.OS === 'web'
   ? ({ cursor: 'grab' } as unknown as ViewStyle)
@@ -39,7 +40,7 @@ const PostAttachmentPoll: React.FC<PostAttachmentPollProps> = ({ pollId, pollDat
         // Debug: Show what we received
         <View className="bg-secondary p-4 rounded-[15px]">
           <Text className="text-destructive text-base font-bold mb-3">
-            {process.env.NODE_ENV === 'development' ? 'Poll data missing' : 'Poll unavailable'}
+            {IS_DEVELOPMENT ? 'Poll data missing' : 'Poll unavailable'}
           </Text>
         </View>
       )}

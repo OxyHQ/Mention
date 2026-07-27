@@ -3,7 +3,7 @@ import type { PostPodcastContent } from '@mention/shared-types';
 import { config } from '../config';
 import { logger } from './logger';
 import { getRedisClient } from './redis';
-import { withRedisFallback, ensureRedisConnected } from './redisHelpers';
+import { withRedisFallback } from './redisHelpers';
 
 /**
  * The single shared Syra catalog client. Every backend path that resolves Syra
@@ -27,7 +27,7 @@ export const syraClient = createSyraClient({ baseURL: config.syra.apiUrl });
 // ---------------------------------------------------------------------------
 
 /** ~5 minute TTL by default; the catalog is stable so brief staleness is safe. */
-const CACHE_TTL_SECONDS = Number(process.env.SYRA_PODCAST_CACHE_TTL_SECONDS ?? 300);
+const CACHE_TTL_SECONDS = config.cache.syraPodcastTtlSeconds;
 const EPISODES_KEY_PREFIX = 'syrapodcast:episodes:v1:';
 
 function episodesCacheKey(podcastId: string, offset: number): string {
@@ -44,8 +44,6 @@ async function cacheGetJson<T>(key: string): Promise<T | undefined> {
   const raw = await withRedisFallback(
     redis,
     async () => {
-      const connected = await ensureRedisConnected(redis);
-      if (!connected) return undefined;
       return await redis.get(key);
     },
     undefined,
@@ -80,8 +78,6 @@ async function cacheSetJson(key: string, value: unknown): Promise<void> {
   await withRedisFallback(
     redis,
     async () => {
-      const connected = await ensureRedisConnected(redis);
-      if (!connected) return;
       await redis.setEx(key, CACHE_TTL_SECONDS, JSON.stringify(value));
     },
     undefined,

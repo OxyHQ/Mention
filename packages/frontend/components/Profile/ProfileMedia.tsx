@@ -1,5 +1,5 @@
 import React, { memo, useCallback, useContext } from 'react';
-import type { ProfileMedia as ProfileMediaData } from '@/store/appearanceStore';
+import type { ProfileMedia as ProfileMediaData } from '@/stores/appearanceStore';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
 import { ProfileSong } from './ProfileSong';
 import { PodcastCard } from '@/components/Podcast/PodcastCard';

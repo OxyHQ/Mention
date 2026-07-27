@@ -301,7 +301,9 @@ class FederationJobScheduler {
           jobId,
         ).catch((err) => {
           const message = err instanceof Error ? err.message : String(err);
-          logger.warn(`[FedDeliver] drain enqueue failed for ${String(row._id)}: ${message}`);
+          logger.warn('[FedDeliver] drain enqueue failed', {
+            error: message,
+          });
           return false;
         });
 
@@ -465,7 +467,9 @@ class FederationJobScheduler {
           // forceAvatarRefresh=true → Oxy re-downloads/replaces the avatar.
           activityPubConnector.fetchRemoteActor(actor.uri, true, actor.acct).catch((err) => {
             const message = err instanceof Error ? err.message : String(err);
-            logger.debug(`[FedSync] Failed to refresh actor ${actor.uri}: ${message}`);
+            logger.debug('[FedSync] failed to refresh actor', {
+              error: message,
+            });
           })
         )
       );
@@ -510,7 +514,7 @@ class FederationJobScheduler {
         await Promise.allSettled(
           batch.map((actor) =>
             activityPubConnector.syncOutboxPosts(actor, 20).catch((err) =>
-              logger.debug(`[FedSync] Outbox sync failed for ${actor.acct}:`, err)
+              logger.debug('[FedSync] outbox sync failed', err)
             )
           )
         );
@@ -727,8 +731,14 @@ class FederationJobScheduler {
 
     await FederatedActor.updateOne({ _id: actor._id }, update);
     logger.info(
-      `[FedSync] recent backfill ${actor.acct}: status=${String(update.$set['outboxBackfill.status'])} ` +
-      `processed=${processedCount}/${OUTBOX_RECENT_BACKFILL_LIMIT} imported=${importedCount} existing=${existingCount}`,
+      '[FedSync] recent backfill completed',
+      {
+        status: String(update.$set['outboxBackfill.status']),
+        processedCount,
+        processingLimit: OUTBOX_RECENT_BACKFILL_LIMIT,
+        importedCount,
+        existingCount,
+      },
     );
   }
 
@@ -758,8 +768,8 @@ class FederationJobScheduler {
 
       // Resolve every distinct sender in ONE batched round-trip rather than a
       // per-delivery getUserById (up to 200 deliveries, with duplicate senders
-      // re-fetched). Uses the service-authed Oxy client — the bare `oxy`
-      // singleton in server.ts is unauthenticated and is reserved for
+      // re-fetched). Uses the service-authed Oxy client — the process-wide
+      // request-auth client is unauthenticated and is reserved for
       // validating INCOMING request tokens (`oxy.auth()`), so a bulk resolve on
       // it returns nothing.
       const uniqueSenderIds = [...new Set(pending.map((d) => d.senderOxyUserId))];
@@ -815,7 +825,7 @@ class FederationJobScheduler {
             }
           }
         } catch (err) {
-          logger.debug(`Delivery retry failed for ${delivery._id}:`, err);
+          logger.debug('Delivery retry failed', err);
           await FederationDeliveryQueue.updateOne(
             { _id: delivery._id },
             {

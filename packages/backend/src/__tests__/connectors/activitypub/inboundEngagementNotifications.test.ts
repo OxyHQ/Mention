@@ -45,8 +45,8 @@ const mocks = vi.hoisted(() => ({
   postExists: vi.fn(),
   postUpdateOne: vi.fn(),
   postDeleteOne: vi.fn(),
-  likeCreate: vi.fn(),
-  likeFindOneAndDelete: vi.fn(),
+  materializeEngagementRelationship: vi.fn(),
+  materializeEngagementTombstone: vi.fn(),
   postCreatorCreate: vi.fn(),
   ensureFederatedReplyLink: vi.fn(),
   importAnnounce: vi.fn(),
@@ -99,11 +99,11 @@ vi.mock('../../../models/Post', () => ({
   },
 }));
 
-vi.mock('../../../models/Like', () => ({
-  default: {
-    create: mocks.likeCreate,
-    findOneAndDelete: mocks.likeFindOneAndDelete,
-  },
+vi.mock('../../../services/PostEngagementCommandService', () => ({
+  materializeEngagementRelationship: (...args: unknown[]) =>
+    mocks.materializeEngagementRelationship(...args),
+  materializeEngagementTombstone: (...args: unknown[]) =>
+    mocks.materializeEngagementTombstone(...args),
 }));
 
 vi.mock('../../../models/UserSettings', () => ({
@@ -194,7 +194,8 @@ beforeEach(() => {
   mocks.followExists.mockResolvedValue({ _id: 'follow_1' });
   mocks.postExists.mockResolvedValue(null);
   mocks.postUpdateOne.mockResolvedValue({ modifiedCount: 1 });
-  mocks.likeCreate.mockResolvedValue({ _id: 'like_1' });
+  mocks.materializeEngagementRelationship.mockResolvedValue({ changed: true });
+  mocks.materializeEngagementTombstone.mockResolvedValue({ changed: true });
   mocks.postCreatorCreate.mockResolvedValue({ _id: CREATED_REPLY_ID });
   mocks.ensureFederatedReplyLink.mockResolvedValue({ parentPostId: TARGET_POST_ID, threadId: TARGET_POST_ID });
   mocks.importAnnounce.mockResolvedValue(true);
@@ -216,7 +217,11 @@ describe('handleLike — local owner like notification', () => {
   it('notifies the owner (type:"like") on a NEW inbound like, mirroring the native shape', async () => {
     await inboxProcessingService.processInboxActivity(likeActivity(), ACTOR_URI);
 
-    expect(mocks.likeCreate).toHaveBeenCalledWith({ userId: ACTOR_OXY_ID, postId: TARGET_POST_ID, value: 1 });
+    expect(mocks.materializeEngagementRelationship).toHaveBeenCalledWith({
+      kind: 'like',
+      userId: ACTOR_OXY_ID,
+      postId: TARGET_POST_ID,
+    });
     expect(mocks.createPostAuthorNotifications).toHaveBeenCalledWith(OWNER_AUTHORSHIP, {
       actorId: ACTOR_OXY_ID,
       type: 'like',
@@ -225,12 +230,12 @@ describe('handleLike — local owner like notification', () => {
     });
   });
 
-  it('does NOT notify on a redelivered duplicate like (duplicate-key insert)', async () => {
-    mocks.likeCreate.mockRejectedValueOnce(Object.assign(new Error('dup'), { code: 11000 }));
+  it('does NOT notify on a redelivered duplicate like', async () => {
+    mocks.materializeEngagementRelationship.mockResolvedValueOnce({ changed: false });
 
     await inboxProcessingService.processInboxActivity(likeActivity(), ACTOR_URI);
 
-    expect(mocks.likeCreate).toHaveBeenCalledTimes(1);
+    expect(mocks.materializeEngagementRelationship).toHaveBeenCalledTimes(1);
     expect(mocks.postUpdateOne).not.toHaveBeenCalled();
     expect(mocks.createPostAuthorNotifications).not.toHaveBeenCalled();
   });
@@ -240,7 +245,7 @@ describe('handleLike — local owner like notification', () => {
 
     await inboxProcessingService.processInboxActivity(likeActivity(), ACTOR_URI);
 
-    expect(mocks.likeCreate).not.toHaveBeenCalled();
+    expect(mocks.materializeEngagementRelationship).not.toHaveBeenCalled();
     expect(mocks.createPostAuthorNotifications).not.toHaveBeenCalled();
   });
 
@@ -249,7 +254,7 @@ describe('handleLike — local owner like notification', () => {
 
     await inboxProcessingService.processInboxActivity(likeActivity(), ACTOR_URI);
 
-    expect(mocks.likeCreate).not.toHaveBeenCalled();
+    expect(mocks.materializeEngagementRelationship).not.toHaveBeenCalled();
     expect(mocks.createPostAuthorNotifications).not.toHaveBeenCalled();
   });
 
@@ -260,7 +265,7 @@ describe('handleLike — local owner like notification', () => {
 
     await inboxProcessingService.processInboxActivity(likeActivity(), ACTOR_URI);
 
-    expect(mocks.likeCreate).toHaveBeenCalledTimes(1);
+    expect(mocks.materializeEngagementRelationship).toHaveBeenCalledTimes(1);
     expect(mocks.createPostAuthorNotifications).not.toHaveBeenCalled();
   });
 
@@ -271,8 +276,7 @@ describe('handleLike — local owner like notification', () => {
       inboxProcessingService.processInboxActivity(likeActivity(), ACTOR_URI),
     ).resolves.toBeUndefined();
 
-    expect(mocks.likeCreate).toHaveBeenCalledTimes(1);
-    expect(mocks.postUpdateOne).toHaveBeenCalledTimes(1);
+    expect(mocks.materializeEngagementRelationship).toHaveBeenCalledTimes(1);
     expect(mocks.loggerWarn).toHaveBeenCalled();
   });
 });

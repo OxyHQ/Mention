@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { View, StyleSheet, TouchableOpacity, Text } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useAuth } from '@oxyhq/services';
+import { useAuth } from '@oxyhq/services/ui/client';
 import { StarterPackCard, StarterPackCardSkeleton, type StarterPackCardData } from '@/components/StarterPackCard';
 import { starterPacksService, type StarterPackSummary } from '@/services/starterPacksService';
 import { EmptyState } from '@/components/common/EmptyState';
@@ -17,6 +17,11 @@ export function StarterPacksTab() {
   const [packs, setPacks] = useState<StarterPackSummary[]>([]);
 
   const fetchPacks = useCallback(async () => {
+    if (!user?.id) {
+      setPacks([]);
+      setLoading(false);
+      return;
+    }
     try {
       setLoading(true);
       const res = await starterPacksService.list();

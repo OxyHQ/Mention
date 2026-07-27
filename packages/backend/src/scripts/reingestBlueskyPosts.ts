@@ -58,13 +58,10 @@
  *
  * FLAGS (plain argv):
  *   --dry-run              log what WOULD change; write nothing to Mongo (neither
- *                          Post docs nor the FederatedActor handle repair). Mention
- *                          resolution during the re-map is LOOKUP-ONLY
- *                          (`resolveInboundMentionsExisting`): it matches each
- *                          mentioned actor against already-stored identities and
- *                          never fetches or creates a `FederatedActor`, so a repair
- *                          run mints NO new actor rows in either mode. The scanned
- *                          posts themselves are never modified in dry-run.
+ *                          Post docs nor the FederatedActor handle repair).
+ *                          Mention resolution is lookup-only and media stays on
+ *                          its remote URL: no Oxy identity/media persistence and
+ *                          no cache enqueue occurs during the preview.
  *   --limit N              cap the number of posts processed (a canary budget,
  *                          shared across both paths).
  *   --path atproto|bridgy|all   which ingest path(s) to repair (default: all).
@@ -82,8 +79,8 @@
  *
  * RUN AS A FARGATE ONE-SHOT (post-deploy, in-VPC):
  *   bun packages/backend/dist/src/scripts/reingestBlueskyPosts.js --dry-run
- *   bun packages/backend/dist/src/scripts/reingestBlueskyPosts.js --path bridgy --limit 50
- *   bun packages/backend/dist/src/scripts/reingestBlueskyPosts.js            # full live sweep
+ *   CONFIRM_ADMIN_MUTATION=reingestBlueskyPosts \
+ *     bun packages/backend/dist/src/scripts/reingestBlueskyPosts.js --path bridgy --limit 50
  *
  * RUN OVER THE SSM TUNNEL (prod Mongo forwarded to 127.0.0.1:47017):
  *   MONGODB_URI='mongodb://127.0.0.1:47017/?directConnection=true' \
@@ -106,16 +103,19 @@ import { AP_CONTENT_TYPE } from '../connectors/activitypub/constants';
 import { refetchAtprotoPostForRepair } from '../connectors/atproto/post.mapper';
 import { fetchAndUpsertAtprotoProfile, splitHandle } from '../connectors/atproto/profile.mapper';
 import { mapWithConcurrency, DEFAULT_CONCURRENCY, MAX_CONCURRENCY } from '../utils/concurrency';
+import { assertAdminMutationAllowed } from './lib/adminScriptSafety';
+import {
+  assertAdminRunComplete,
+  closeAdminScriptResources,
+} from './lib/adminScriptLifecycle';
 
 /** Posts scanned per page (stable `_id` cursor pagination). */
 const PAGE_SIZE = 500;
 
 /**
- * Hard per-post wall-clock cap on a single post's repair. Defence-in-depth: every
- * network await a repair issues (brid.gy `signedFetch`, the atproto AppView fetch,
- * a mention lookup) is individually bounded, but a race against this timer
- * guarantees ONE slow/unresponsive remote can never freeze the whole sweep. A
- * timed-out post is counted `fetch-failed` and skipped; a later run recovers it.
+ * Hard per-post wall-clock cap used only by the side-effect-free preview. Live
+ * repairs rely on the clients' own request deadlines and are awaited fully so a
+ * non-cancellable Promise cannot mutate after being reported as timed out.
  */
 const REPAIR_TIMEOUT_MS = 45_000;
 
@@ -273,9 +273,9 @@ function sortedStringArrayEqual(a: readonly string[], b: readonly string[]): boo
 function mediaSignature(media: readonly MediaItem[] | undefined | null): string {
   if (!media || media.length === 0) return '';
   return media
-    .map((item) => `${item.id} ${item.type} ${item.alt ?? ''}`)
+    .map((item) => `${item.id}\x00${item.type}\x00${item.alt ?? ''}`)
     .sort()
-    .join('');
+    .join('\x01');
 }
 
 /**
@@ -345,27 +345,27 @@ async function fetchApObject(url: string): Promise<ApFetchOutcome> {
   try {
     res = await signedFetch(url, AP_CONTENT_TYPE);
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    logger.warn(`[reingestBlueskyPosts] AP fetch error for ${url}: ${message}`);
+    logger.warn('[reingestBlueskyPosts] ActivityPub fetch failed', { error: err });
     return { kind: 'error' };
   }
 
   if (GONE_STATUS_CODES.has(res.status)) return { kind: 'gone' };
   if (!res.ok) {
-    logger.warn(`[reingestBlueskyPosts] AP fetch failed for ${url}: ${res.status} ${res.statusText}`);
+    logger.warn('[reingestBlueskyPosts] ActivityPub fetch returned an error status', {
+      status: res.status,
+    });
     return { kind: 'error' };
   }
 
   try {
     const object: unknown = await res.json();
     if (!object || typeof object !== 'object' || Array.isArray(object)) {
-      logger.warn(`[reingestBlueskyPosts] AP fetch returned non-object for ${url}`);
+      logger.warn('[reingestBlueskyPosts] ActivityPub fetch returned a non-object payload');
       return { kind: 'error' };
     }
     return { kind: 'ok', object: object as Record<string, unknown> };
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    logger.warn(`[reingestBlueskyPosts] AP parse error for ${url}: ${message}`);
+    logger.warn('[reingestBlueskyPosts] ActivityPub payload parsing failed', { error: err });
     return { kind: 'error' };
   }
 }
@@ -393,6 +393,7 @@ async function repairBridgyPost(post: StoredPostRow, flags: Flags): Promise<Repa
   const built = await buildFederatedNoteContentForEdit(noteObject, post.oxyUserId ?? null, {
     activityId: post.federation?.activityId,
     actorUri: post.federation?.actorUri,
+    materializeMedia: !flags.dryRun,
   });
 
   const setOps: Record<string, unknown> = {};
@@ -432,10 +433,10 @@ async function repairBridgyPost(post: StoredPostRow, flags: Flags): Promise<Repa
 
   if (changedFields.length === 0) return 'unchanged';
 
-  logger.info(
-    `[reingestBlueskyPosts] ${flags.dryRun ? 'WOULD repair' : 'repairing'} bridgy post ${String(post._id)} ` +
-      `(${changedFields.join(', ')})`,
-  );
+  logger.info('[reingestBlueskyPosts] bridgy post repair prepared', {
+    dryRun: flags.dryRun,
+    changedFieldCount: changedFields.length,
+  });
   if (!flags.dryRun) {
     await Post.updateOne({ _id: post._id }, { $set: setOps });
   }
@@ -456,7 +457,9 @@ async function repairAtprotoPost(post: StoredPostRow, flags: Flags): Promise<Rep
   const ownerOxyUserId = post.oxyUserId;
   if (!atUri || !did || !ownerOxyUserId) return 'skipped';
 
-  const result = await refetchAtprotoPostForRepair(atUri, did, ownerOxyUserId);
+  const result = await refetchAtprotoPostForRepair(atUri, did, ownerOxyUserId, {
+    allowIdentityMutation: !flags.dryRun,
+  });
   if (result.kind === 'error') return 'fetch-failed';
   if (result.kind === 'gone') return 'gone'; // content-bearing — leave, never delete
 
@@ -505,10 +508,10 @@ async function repairAtprotoPost(post: StoredPostRow, flags: Flags): Promise<Rep
 
   if (changedFields.length === 0) return 'unchanged';
 
-  logger.info(
-    `[reingestBlueskyPosts] ${flags.dryRun ? 'WOULD repair' : 'repairing'} atproto post ${String(post._id)} ` +
-      `(${changedFields.join(', ')})`,
-  );
+  logger.info('[reingestBlueskyPosts] atproto post repair prepared', {
+    dryRun: flags.dryRun,
+    changedFieldCount: changedFields.length,
+  });
   if (!flags.dryRun) {
     await Post.updateOne({ _id: post._id }, { $set: setOps });
   }
@@ -549,10 +552,9 @@ async function repairActorHandles(
       continue;
     }
 
-    logger.info(
-      `[reingestBlueskyPosts] ${flags.dryRun ? 'WOULD repair' : 'repairing'} actor ${did} handle: ` +
-        `${actor.username}@${actor.domain} → ${expected.federatedUsername}`,
-    );
+    logger.info('[reingestBlueskyPosts] actor handle repair prepared', {
+      dryRun: flags.dryRun,
+    });
     if (flags.dryRun) {
       counters.repaired += 1;
       continue;
@@ -600,12 +602,8 @@ class RepairTimeoutError extends Error {
 }
 
 /**
- * Race one post's repair against a hard timeout so a single hung remote can never
- * freeze the batch. The timer is ALWAYS cleared when the repair settles (win or
- * lose the race), so no timer is leaked. Losing the race is safe: a repair writes
- * its `Post.updateOne` only as the LAST step after every await resolves, so a
- * genuinely-hung repair never reaches the write — the post is simply left untouched
- * for a later run, exactly like any other `fetch-failed`.
+ * Bound a side-effect-free preview. The timer is always cleared when the preview
+ * settles; live repairs never use this non-cancelling race.
  */
 function withRepairTimeout<T>(work: Promise<T>, ms: number): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -632,7 +630,11 @@ async function scanPath(
 ): Promise<void> {
   const baseFilter = buildFilter(path, flags.actor);
   const total = await Post.countDocuments(baseFilter);
-  logger.info(`[reingestBlueskyPosts] ${path}: ${total} candidate posts to scan${flags.actor ? ` (actor ${flags.actor})` : ''}`);
+  logger.info('[reingestBlueskyPosts] candidate posts selected', {
+    sourceKind: path,
+    count: total,
+    narrowedScope: Boolean(flags.actor),
+  });
   if (total === 0) return;
 
   const repair = path === 'bridgy' ? repairBridgyPost : repairAtprotoPost;
@@ -654,11 +656,13 @@ async function scanPath(
 
     // The page is already sliced to at most the remaining budget (`pageLimit`), so
     // repairing the WHOLE page in a bounded pool can never overshoot `--limit`.
-    // Each post's work stays wrapped in its per-post hard timeout, so one hung
-    // remote still cannot stall the pool beyond `REPAIR_TIMEOUT_MS`.
-    const settledResults = await mapWithConcurrency(page, flags.concurrency, (post) =>
-      withRepairTimeout(repair(post, flags), REPAIR_TIMEOUT_MS),
-    );
+    // A dry-run is side-effect free and may be timed out safely. Live repairs
+    // are awaited to completion: a Promise.race cannot cancel a Mongo/Oxy write
+    // and must never report timeout while mutation continues in the background.
+    const settledResults = await mapWithConcurrency(page, flags.concurrency, (post) => {
+      const work = repair(post, flags);
+      return flags.dryRun ? withRepairTimeout(work, REPAIR_TIMEOUT_MS) : work;
+    });
 
     // Tally sequentially in `_id` order AFTER the pool drains: every counter,
     // the shared budget, and the DID set are mutated exactly once per post on a
@@ -678,16 +682,19 @@ async function scanPath(
         outcome = settled.value;
       } else {
         // One bad post never aborts the run; treat it as a transient failure so a
-        // later run can still recover it. A timeout is the defence-in-depth guard
-        // against an unbounded await hanging the whole sweep.
+        // later run can still recover it. Only side-effect-free previews use the
+        // local timeout; live paths rely on their bounded network clients.
         const err = settled.reason;
         if (err instanceof RepairTimeoutError) {
-          logger.warn(
-            `[reingestBlueskyPosts] ${path} post ${String(post._id)} repair timed out after ${REPAIR_TIMEOUT_MS}ms — skipping`,
-          );
+          logger.warn('[reingestBlueskyPosts] post repair timed out; skipping', {
+            sourceKind: path,
+            durationMs: REPAIR_TIMEOUT_MS,
+          });
         } else {
-          const message = err instanceof Error ? err.message : String(err);
-          logger.warn(`[reingestBlueskyPosts] ${path} post ${String(post._id)} repair threw: ${message}`);
+          logger.warn('[reingestBlueskyPosts] post repair failed; skipping', {
+            sourceKind: path,
+            error: err,
+          });
         }
         outcome = 'fetch-failed';
       }
@@ -734,11 +741,17 @@ async function reingestBlueskyPosts(): Promise<void> {
   const atprotoDids = new Set<string>();
 
   try {
+    assertAdminMutationAllowed({
+      scriptName: 'reingestBlueskyPosts',
+      dryRun: flags.dryRun,
+    });
     await mongoose.connect(mongoUri, { dbName });
-    logger.info(
-      `[reingestBlueskyPosts] connected to MongoDB (${dbName}) — mode: ${flags.dryRun ? 'DRY-RUN' : 'LIVE'}, ` +
-        `path: ${flags.path}, concurrency: ${flags.concurrency}${flags.limit !== undefined ? `, limit: ${flags.limit}` : ''}`,
-    );
+    logger.info('[reingestBlueskyPosts] connected to MongoDB', {
+      dryRun: flags.dryRun,
+      sourceKind: flags.path,
+      concurrency: flags.concurrency,
+      limit: flags.limit,
+    });
 
     if (flags.path === 'bridgy' || flags.path === 'all') {
       await scanPath('bridgy', flags, counters, budget, atprotoDids);
@@ -757,11 +770,18 @@ async function reingestBlueskyPosts(): Promise<void> {
         `unchanged ${actorCounters.unchanged}, missing ${actorCounters.missing}, failed ${actorCounters.failed}`,
     );
 
-    await mongoose.disconnect();
+    assertAdminRunComplete('reingestBlueskyPosts', {
+      fetchFailed: counters.fetchFailed,
+      skipped: counters.skipped,
+      actorMissing: actorCounters.missing,
+      actorFailed: actorCounters.failed,
+    });
   } catch (error) {
     logger.error('[reingestBlueskyPosts] failed', error);
+    throw error;
+  } finally {
+    await closeAdminScriptResources();
     await mongoose.disconnect();
-    process.exit(1);
   }
 }
 

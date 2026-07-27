@@ -279,7 +279,7 @@ router.post('/follow', async (req: AuthRequest, res: Response) => {
     const connector = await resolveTargetConnector(parsed.data.actorUri);
     if (!connector) return res.status(404).json({ error: 'Unsupported or unknown actor' });
 
-    // Service-authed Oxy client — the bare `oxy` singleton in server.ts is
+    // Service-authed Oxy client — the process-wide request-auth client is
     // unauthenticated and reserved for validating incoming request tokens
     // (`oxy.auth()`), so resolving a user on it returns nothing.
     const user = await getServiceOxyClient().getUserById(userId);

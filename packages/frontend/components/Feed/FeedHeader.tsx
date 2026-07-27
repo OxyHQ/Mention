@@ -1,10 +1,10 @@
 import React, { memo, useCallback, useMemo } from 'react';
 import { View, Pressable, StyleSheet, Platform, TouchableOpacity } from 'react-native';
-import { useAuth } from '@oxyhq/services';
+import { useAuth } from '@oxyhq/services/ui/client';
 import { router } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { Avatar } from '@oxyhq/bloom/avatar';
-import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types';
+import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import { ThemedText } from '@/components/ThemedText';
 import { useTheme } from '@oxyhq/bloom/theme';
 

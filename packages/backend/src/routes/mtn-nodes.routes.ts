@@ -3,7 +3,7 @@
  *
  * Mounted at `/mtn/nodes` (behind `optionalAuth`, which populates `req.user` for
  * a valid session). The authed routes enforce auth INTERNALLY (`req.user?.id`),
- * mirroring how `/federation` + `/starter-packs` are mounted in `server.ts`:
+ * mirroring how `/federation` + `/starter-packs` are composed in `appRoutes.ts`:
  *  - `GET    /mtn/nodes/me`                  (auth) — the caller's node + status.
  *  - `DELETE /mtn/nodes/me`                  (auth) — revoke the caller's node.
  *  - `POST   /mtn/nodes/managed`             (auth) — provision a managed vault.

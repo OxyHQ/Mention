@@ -16,7 +16,7 @@ import { endorsementSignalService } from '../services/EndorsementSignalService';
 function syncPackEndorsements(packId: string): void {
   void endorsementSignalService
     .syncScope('starterPack', packId)
-    .catch((error) => logger.warn(`[StarterPacks] endorsement sync failed for ${packId}:`, error));
+    .catch((error) => logger.warn('[StarterPacks] endorsement sync failed', error));
 }
 
 /**
@@ -57,7 +57,7 @@ function syncPackMembershipChange(
 ): void {
   void endorsementSignalService
     .syncScopeMembershipChange('starterPack', packId, ownerId, previousMemberIds, nextMemberIds)
-    .catch((error) => logger.warn(`[StarterPacks] endorsement membership sync failed for ${packId}:`, error));
+    .catch((error) => logger.warn('[StarterPacks] endorsement membership sync failed', error));
 }
 
 const router = express.Router();
@@ -338,7 +338,7 @@ router.delete('/:id', async (req: AuthRequest, res: Response) => {
     await pack.deleteOne();
     void endorsementSignalService
       .syncScopeRemoval('starterPack', packId, ownerId, memberIds)
-      .catch((error) => logger.warn(`[StarterPacks] endorsement retraction failed for ${packId}:`, error));
+    .catch((error) => logger.warn('[StarterPacks] endorsement retraction failed', error));
     invalidateCurationScores(memberIds);
     res.json({ success: true });
   } catch (error) {

@@ -1,4 +1,4 @@
-import React, { memo, useCallback, useMemo, Suspense, lazy } from 'react';
+import { memo, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -7,12 +7,12 @@ import {
   Image,
 } from 'react-native';
 import { Avatar } from '@oxyhq/bloom/avatar';
-import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types';
+import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import PostArticlePreview from '@/components/Post/PostArticlePreview';
 import PostAttachmentEvent from '@/components/Post/Attachments/PostAttachmentEvent';
 import RoomCard from '@/components/RoomCard';
 import ComposeToolbar from '@/components/ComposeToolbar';
-import MentionTextInput, { MentionTextInputHandle, type MentionData } from '@/components/MentionTextInput';
+import MentionTextInput, { MentionTextInputHandle } from '@/components/MentionTextInput';
 import { CloseIcon } from '@/assets/icons/close-icon';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { ChevronRightIcon } from '@/assets/icons/chevron-right-icon';
@@ -23,11 +23,9 @@ import { VideoPreview, PollCreator, LocationDisplay, ComposeAltButton } from '@/
 import InteractionSettingsPills from '@/components/Compose/InteractionSettingsPills';
 import type { ThreadItem } from '@/hooks/useThreadManager';
 import type { ComposerMediaItem } from '@/utils/composeUtils';
-import type { StyleProp, ViewStyle } from 'react-native';
+import type { MentionTextValue } from '@/utils/mentions';
 
-const ReplySettingsSheet = lazy(() => import('@/components/Compose/ReplySettingsSheet'));
-
-import { HPAD, AVATAR_SIZE, BOTTOM_LEFT_PAD, TIMELINE_LINE_OFFSET } from './composeLayout';
+import { HPAD, BOTTOM_LEFT_PAD, TIMELINE_LINE_OFFSET } from './composeLayout';
 
 interface ComposeThreadItemProps {
   item: ThreadItem;
@@ -37,8 +35,7 @@ interface ComposeThreadItemProps {
   userAvatar: string | undefined;
   userVerified: boolean;
   // Stable callback refs — parent must wrap these in useCallback
-  onTextChange: (threadId: string, text: string) => void;
-  onMentionsChange: (threadId: string, mentions: MentionData[]) => void;
+  onMentionValueChange: (threadId: string, value: MentionTextValue) => void;
   onFocus: (threadId: string) => void;
   onRemove: (threadId: string) => void;
   onMediaPress: (threadId: string) => void;
@@ -79,8 +76,7 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(({
   postingMode,
   userAvatar,
   userVerified,
-  onTextChange,
-  onMentionsChange,
+  onMentionValueChange,
   onFocus,
   onRemove,
   onMediaPress,
@@ -122,8 +118,10 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(({
   const itemHasAttachments = item.showPollCreator || item.mediaIds.length > 0 || itemHasArticle || itemHasEvent || itemHasRoom || itemHasSources;
 
   // Stable callbacks bound to this thread item's id
-  const handleTextChange = useCallback((v: string) => onTextChange(threadId, v), [threadId, onTextChange]);
-  const handleMentionsChange = useCallback((m: MentionData[]) => onMentionsChange(threadId, m), [threadId, onMentionsChange]);
+  const handleMentionValueChange = useCallback(
+    (value: MentionTextValue) => onMentionValueChange(threadId, value),
+    [threadId, onMentionValueChange],
+  );
   const handleFocus = useCallback(() => onFocus(threadId), [threadId, onFocus]);
   const handleRemove = useCallback(() => onRemove(threadId), [threadId, onRemove]);
   const handleMediaPress = useCallback(() => onMediaPress(threadId), [threadId, onMediaPress]);
@@ -193,8 +191,8 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(({
                 style={styles.threadTextInput}
                 placeholder={t('Say more...')}
                 value={item.text}
-                onChangeText={handleTextChange}
-                onMentionsChange={handleMentionsChange}
+                mentions={item.mentions}
+                onValueChange={handleMentionValueChange}
                 onFocus={handleFocus}
                 multiline
               />

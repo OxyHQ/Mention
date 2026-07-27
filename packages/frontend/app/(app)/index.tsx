@@ -11,7 +11,9 @@ import { useQuery } from '@tanstack/react-query';
 import Feed from '@/components/Feed/Feed';
 import { customFeedsService } from '@/services/customFeedsService';
 import { useFeedPreferences } from '@/hooks/useFeedPreferences';
-import { PRESET_FEEDS, parseFeedDescriptor, type FeedType } from '@mention/shared-types';
+import { PRESET_FEEDS } from '@mention/shared-types/mtn/presetFeeds';
+import { parseFeedDescriptor } from '@mention/shared-types/mtn/feedDescriptor';
+import type { FeedType } from '@mention/shared-types/feed';
 import AnimatedTabBar from '@/components/common/AnimatedTabBar';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { useHomeRefresh } from '@/context/HomeRefreshContext';
@@ -21,15 +23,16 @@ import { BottomBarAwareFab } from '@/components/BottomBarAwareFab';
 import { Search } from '@/assets/icons/search-icon';
 import { Bell } from '@/assets/icons/bell-icon';
 import { ComposeIcon } from '@/assets/icons/compose-icon';
-import SEO from '@/components/SEO';
+import { SEO } from '@/components/SEO';
 import { IconButton } from '@/components/ui/Button';
 import { LogoIcon } from '@/assets/logo';
 import { MenuIcon } from '@/assets/icons/menu-icon';
 import { useDrawer } from '@/context/DrawerContext';
 import { useIsScreenNotMobile } from '@/hooks/useOptimizedMediaQuery';
-import { useAuth } from '@oxyhq/services';
+import { useAuth } from '@oxyhq/services/ui/client';
 import { logger } from '@/lib/logger';
 import { PanelStickyHeader, PanelChromeTopInsetProvider, PANEL_HEADER_HEIGHT, PANEL_CHROME_TOP_INSET } from '@/components/shell/PanelChrome';
+import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 
 type HomeTab = string;
 
@@ -76,7 +79,7 @@ const HomeScreen: React.FC = () => {
     // Resolve custom-feed ids → titles for the tab labels (pinned custom feeds
     // carry only a descriptor). Keyed on the auth identity; cached + deduped.
     const customTitlesQuery = useQuery<Map<string, string>>({
-        queryKey: ['customFeeds', 'titles', user?.id],
+        queryKey: viewerQueryKeys.customFeedTitles(user?.id),
         enabled: canUsePrivateApi && hasPinnedCustom,
         staleTime: 5 * 60 * 1000,
         queryFn: async () => {

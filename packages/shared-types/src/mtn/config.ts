@@ -10,15 +10,6 @@ import type { FeedInterstitialKind } from '../feed';
 export const MtnConfig = {
   // --- Ranking weights ---
   ranking: {
-    /**
-     * How per-signal ranking multipliers are combined into a post's final score.
-     * `'product'` = the current behavior (all signal multipliers multiplied
-     * together). This is a FUTURE-SWAP MARKER only: Phase 3 introduces a modular
-     * signal registry with a pluggable combiner, at which point this selects the
-     * strategy (e.g. `'product'` vs a weighted-sum stub). UNUSED today — declaring
-     * it here does NOT change ranking; the score math still multiplies inline.
-     */
-    combiner: 'product',
     engagement: {
       likeWeight: 1.0,
       boostWeight: 2.5,
@@ -27,11 +18,9 @@ export const MtnConfig = {
        * `stats.federatedBoostsCount`) — deliberately LOWER than `boostWeight`
        * (2.5) because a remote Announce is a much weaker relevance signal than a
        * native repost: a handful of federated boosts routinely made low-quality
-       * off-instance posts look "trending". The unified engagement composite
-       * (Phase 2) will weight the native boost subset (`boostsCount -
-       * federatedBoostsCount`) at `boostWeight` and the federated subset here.
-       * UNUSED until Phase 2 wires it — defined now so config + the counter land
-       * together; it does NOT affect ranking yet.
+       * off-instance posts look "trending". The engagement composite weights the
+       * native boost subset (`boostsCount - federatedBoostsCount`) at
+       * `boostWeight` and the federated subset here.
        */
       federatedBoostWeight: 0.5,
       commentWeight: 2.0,
@@ -206,14 +195,12 @@ export const MtnConfig = {
     },
 
     /**
-     * OPT-IN ranking signals (Phase 2b).
+     * Optional ranking signals.
      *
-     * Each of these is default-NEUTRAL (multiplier exactly 1.0) and is applied by
-     * `FeedRankingService` ONLY when a feed definition explicitly enables the
-     * matching signal module (custom feeds + deliberate future tuning). They are
-     * NOT part of any preset's default signal set, so For You / Explore / Videos /
-     * Media ranking is unchanged. Every weight below is deliberately CONSERVATIVE
-     * and bounded so a single opt-in signal nudges — never dominates — the score.
+     * `FeedRankingService` applies one only when the resolved feed definition
+     * enables its signal module. For You enables a conservative default subset;
+     * custom feeds and the environment override may choose another subset. Every
+     * weight remains bounded so one signal nudges rather than dominates ranking.
      */
     optInSignals: {
       /** Favor posts that carry media (image / video / gif). */
@@ -298,7 +285,7 @@ export const MtnConfig = {
         boost: 1.15,
       },
       /**
-       * OFF-LANGUAGE discovery PENALTY (Phase 4c). A modest DOWNRANK — never a hard
+       * OFF-LANGUAGE discovery PENALTY. A modest DOWNRANK — never a hard
        * filter — applied ONLY to DISCOVERY posts (`post._discovery === true`, i.e.
        * candidates that entered via a non-trusted lane) whose declared
        * `postClassification.languages` (ISO 639-1) are KNOWN and DISJOINT from the
@@ -307,20 +294,18 @@ export const MtnConfig = {
        * viewer matches an `es` post). Neutral (1.0) when the viewer has no known languages, the post
        * declares no language, the languages overlap, or the post is from a TRUSTED
        * lane (followed/affinity/lists are never `_discovery`). Off-language content
-       * is deliberately PENALIZED, not removed — a good off-language post can still
-       * surface, it just yields to on-language content. DORMANT until Phase 5 adds
-       * it to the For You default signal set.
+       * is deliberately PENALIZED, not removed — a good off-language post can
+       * still surface, it just yields to on-language content.
        */
       languageMismatchPenalty: {
         /** Multiplier (< 1) applied to an off-language discovery post. */
         penalty: 0.5,
       },
       /**
-       * MODEST LOCAL-priority lift (Phase 4d). A small boost for LOCAL posts
+       * MODEST LOCAL-priority lift. A small boost for LOCAL posts
        * (`federation` absent/null); neutral (1.0) for federated posts. Complements
        * the `federatedBoostWeight` engagement dampening by giving first-party
-       * content a light edge without suppressing federated discovery. DORMANT until
-       * Phase 5 adds it to the For You default signal set.
+       * content a light edge without suppressing federated discovery.
        */
       localBoost: {
         /** Multiplier (> 1) applied to a local (non-federated) post. */
@@ -617,9 +602,9 @@ export const MtnConfig = {
       /**
        * Maximum SHARE (0..1) of a rendered For You page that may come from
        * discovery lanes, guaranteeing a floor for trusted (following/affinity)
-       * content. UNUSED until Phase 5, where `capDiscoveryShare` defers — never
-       * discards — discovery slices above `floor(maxDiscoveryShare · limit)`. On
-       * thin social graphs the cap simply isn't reached and discovery backfills.
+       * content. `capDiscoveryShare` defers — never discards — discovery slices
+       * above `floor(maxDiscoveryShare · limit)`. On thin social graphs the cap
+       * simply is not reached and discovery backfills.
        */
       maxDiscoveryShare: 0.7,
     },

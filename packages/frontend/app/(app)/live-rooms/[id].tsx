@@ -3,7 +3,7 @@ import { View, Text, TouchableOpacity, ScrollView, Share } from 'react-native';
 import { SafeAreaView } from '@/lib/SafeAreaViewInterop';
 import { useLocalSearchParams } from 'expo-router';
 import { useSafeBack } from '@/hooks/useSafeBack';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { toast } from '@oxyhq/bloom/toast';
 
 import { ThemedText } from '@/components/ThemedText';
@@ -13,15 +13,14 @@ import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { Avatar } from '@oxyhq/bloom/avatar';
 import { Loading } from '@oxyhq/bloom/loading';
 import { EmptyState } from '@/components/common/EmptyState';
-import SEO from '@/components/SEO';
+import { SEO } from '@/components/SEO';
 
 import { useTheme } from '@oxyhq/bloom/theme';
 import { useRoomUsers, getDisplayName, getAvatarUrl } from '@/hooks/useRoomUsers';
 import { useUserById } from '@/hooks/useCachedUser';
 import { useLiveRoom } from '@/context/LiveRoomContext';
-import { roomsService } from '@/lib/liveConfig';
-import type { Room } from '@syra.fm/sdk';
-import { useAuth } from '@oxyhq/services';
+import { roomsService, type Room } from '@/lib/syraApi';
+import { useAuth } from '@oxyhq/services/ui/client';
 import { useTranslation } from 'react-i18next';
 import { logger } from '@/lib/logger';
 import { BottomSheetContext } from '@/context/BottomSheetContext';

@@ -12,14 +12,79 @@ export default defineConfig({
     include: [path.resolve(backendRoot, 'src/__tests__/**/*.test.ts')],
     coverage: {
       provider: 'v8',
-      reporter: ['text', 'lcov'],
+      reporter: ['text-summary', 'json-summary'],
       include: ['src/**/*.ts'],
       exclude: ['src/__tests__/**', 'src/scripts/**'],
+      thresholds: {
+        // Measured on the complete suite. Keep these values explicit: CI must
+        // reject a regression instead of silently rewriting the baseline.
+        statements: 60.68,
+        branches: 53.92,
+        functions: 65.88,
+        lines: 61.91,
+        'src/services/PostEngagementCommandService.ts': {
+          statements: 95.62,
+          branches: 91.07,
+          functions: 96,
+          lines: 96.8,
+        },
+        'src/services/EngagementOutboxService.ts': {
+          statements: 98.97,
+          branches: 90.56,
+          functions: 100,
+          lines: 100,
+        },
+        'src/services/EngagementOutboxDispatcher.ts': {
+          statements: 98.33,
+          branches: 96.42,
+          functions: 90,
+          lines: 98.18,
+        },
+        'src/services/EngagementProjectionReconciliationService.ts': {
+          statements: 97.53,
+          branches: 94.73,
+          functions: 100,
+          lines: 100,
+        },
+        'src/app.ts': {
+          statements: 100,
+          branches: 94.28,
+          functions: 100,
+          lines: 100,
+        },
+        'src/routes/webTelemetry.routes.ts': {
+          statements: 100,
+          branches: 98.33,
+          functions: 100,
+          lines: 100,
+        },
+        'src/utils/mongoTopology.ts': {
+          statements: 100,
+          branches: 100,
+          functions: 100,
+          lines: 100,
+        },
+      },
     },
   },
   resolve: {
     alias: {
       '@mention/shared-types': path.resolve(__dirname, '../shared-types/src'),
+      // The backend production build is CommonJS. Resolve the Oxy dual packages
+      // to their CJS entrypoints in tests as well; Bun's Vitest runner otherwise
+      // selects the ESM build and mis-interops its nested Zod 3 named export.
+      '@oxyhq/protocol/node': path.resolve(
+        __dirname,
+        '../../node_modules/@oxyhq/protocol/dist/cjs/node/index.js',
+      ),
+      '@oxyhq/protocol': path.resolve(
+        __dirname,
+        '../../node_modules/@oxyhq/protocol/dist/cjs/index.js',
+      ),
+      '@oxyhq/contracts': path.resolve(
+        __dirname,
+        '../../node_modules/@oxyhq/contracts/dist/cjs/index.js',
+      ),
     },
   },
 });

@@ -106,7 +106,7 @@ jest.mock('@oxyhq/bloom/toast', () => ({
   toast: (...args: unknown[]) => mockToast(...args),
 }));
 
-jest.mock('@oxyhq/services', () => {
+jest.mock('@oxyhq/services/ui/client', () => {
   const { View: RNView } = jest.requireActual<typeof import('react-native')>('react-native');
   return {
     useAuth: () => ({ user: { id: VIEWER_ID }, isAuthenticated: true }),
@@ -148,7 +148,7 @@ jest.mock('@oxyhq/bloom/avatar', () => {
 /** The info sheet is closed until presented, so it contributes no controls. */
 jest.mock('@oxyhq/bloom/bottom-sheet', () => ({
   __esModule: true,
-  default: () => null,
+  BottomSheet: () => null,
 }));
 
 jest.mock('@/components/Feed/Feed', () => {

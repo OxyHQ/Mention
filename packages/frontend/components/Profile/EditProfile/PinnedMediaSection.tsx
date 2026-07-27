@@ -1,9 +1,9 @@
 import React, { useCallback, useContext } from 'react';
 import { Pressable, Text, View } from 'react-native';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '@oxyhq/bloom/theme';
-import { PlusLarge_Stroke2_Corner0_Rounded } from '@oxyhq/bloom/icons';
-import { useAppearanceStore } from '@/store/appearanceStore';
+import { useAppearanceStore } from '@/stores/appearanceStore';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
 import { ProfileSong } from '../ProfileSong';
 import { PodcastCard } from '@/components/Podcast/PodcastCard';
@@ -42,7 +42,7 @@ export const PinnedMediaSection: React.FC = () => {
           accessibilityLabel={t('profile.media.add')}
         >
           <View className="w-8 h-8 rounded-full bg-secondary items-center justify-center">
-            <PlusLarge_Stroke2_Corner0_Rounded size="sm" fill={colors.primary} />
+            <Ionicons name="add" size={16} color={colors.primary} />
           </View>
           <Text className="text-primary text-[15px]">{t('profile.media.add')}</Text>
         </Pressable>

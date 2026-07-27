@@ -11,18 +11,18 @@ import {
 } from 'react-native';
 import { Loading } from '@oxyhq/bloom/loading';
 import { SafeAreaView } from '@/lib/SafeAreaViewInterop';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { useTranslation } from 'react-i18next';
 import { router, useFocusEffect } from 'expo-router';
-import { PRESET_FEEDS, type PresetFeed } from '@mention/shared-types';
+import { PRESET_FEEDS, type PresetFeed } from '@mention/shared-types/mtn/presetFeeds';
 
 import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';
 import { BottomBarAwareFab } from '@/components/BottomBarAwareFab';
 import { Avatar } from '@oxyhq/bloom/avatar';
-import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types';
+import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 
-import SEO from '@/components/SEO';
+import { SEO } from '@/components/SEO';
 
 import { customFeedsService } from '@/services/customFeedsService';
 import { useFeedPreferences } from '@/hooks/useFeedPreferences';
@@ -30,7 +30,7 @@ import { useTheme } from '@oxyhq/bloom/theme';
 import { Search } from '@/assets/icons/search-icon';
 import { formatCompactNumber } from '@/utils/formatNumber';
 import { logger } from '@/lib/logger';
-import { useAuth } from '@oxyhq/services';
+import { useAuth } from '@oxyhq/services/ui/client';
 
 const IS_WEB = Platform.OS === 'web';
 

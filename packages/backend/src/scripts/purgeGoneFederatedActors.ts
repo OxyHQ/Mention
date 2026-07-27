@@ -8,8 +8,9 @@
  *   in place: the row, the linked Oxy identity, its posts, follow edges, likes,
  *   notifications, MTN records. After an archive pass confirmed a set of actors are
  *   permanently gone (7,704 in prod at the time of writing), this script is the
- *   IRREVERSIBLE follow-up — it removes that dead identity everywhere it is
- *   referenced by `oxyUserId`, in Mention AND (via oxy-api) in Oxy.
+ *   IRREVERSIBLE follow-up — it removes the explicitly supported references
+ *   below, then removes the identity in Oxy. A fail-closed preflight refuses the
+ *   actor when any other known reference exists.
  *
  *   Because it is irreversible, every candidate is RE-VERIFIED against the remote
  *   server immediately before anything is deleted (see below). A candidate that has
@@ -37,7 +38,7 @@
  *   the `FederatedActor` row (the retry anchor) is dropped LAST — see "ORDERING
  *   GUARANTEE" for why this exact order is the one that can never orphan an Oxy
  *   user:
- *     1. Posts authored by X (`oxyUserId:X` OR `authorship.oxyUserId:X`) and their
+ *     1. Posts owned by X and their
  *        engagement cascade: delete `Like`/`Bookmark` docs on those post ids AND
  *        the boost `Post`s (`type:'boost'`, `boostOf` ∈ those ids) that would
  *        otherwise render blank, then delete the authored posts themselves.
@@ -50,17 +51,16 @@
  *        directions (inbound + outbound) key the remote side by uri.
  *     5. `EntityFollow` (`userId:X`).
  *     6. `Notification` (`recipientId:X` OR `actorId:X`).
- *     7. `Block` (`userId:X` OR `blockedId:X`).
- *     8. Defensive local-only rows a federated actor should never have but is
+ *     7. Defensive local-only rows a federated actor should never have but is
  *        purged if present, each keyed on `oxyUserId:X`: `UserSettings`,
  *        `UserBehavior`, `UserFeedPreference`, `AuthorFollowerSnapshot`,
  *        `ActorKeyPair`, `MentionUserNode`, `MentionRepoHead`,
  *        `MentionSignedRecord`, `MentionNodeIngestWitness`.
- *     9. Oxy identity: `deleteFederatedActorIdentity(X)` → oxy-api hard-deletes the
+ *     8. Oxy identity: `deleteFederatedActorIdentity(X)` → oxy-api hard-deletes the
  *        Oxy `User` + its follow edges (both directions, counts repaired) + blocks
  *        + caches. Only when this returns `deleted`/`absent` (identity CONFIRMED
  *        gone) do we continue.
- *    10. `FederatedActor.deleteOne({ _id })` — the anchor, dropped LAST.
+ *     9. `FederatedActor.deleteOne({ _id })` — the anchor, dropped LAST.
  *
  * ORDERING GUARANTEE (why no Oxy user is ever orphaned on partial failure)
  *   Two invariants, in tension, resolved by the exact order above:
@@ -96,8 +96,8 @@
  * RUN AS A FARGATE ONE-SHOT (post-deploy, in-VPC — the oxy-api call needs the
  * service credential + in-VPC egress):
  *   bun packages/backend/dist/src/scripts/purgeGoneFederatedActors.js --dry-run
- *   bun packages/backend/dist/src/scripts/purgeGoneFederatedActors.js --limit 100
- *   bun packages/backend/dist/src/scripts/purgeGoneFederatedActors.js            # full purge
+ *   CONFIRM_ADMIN_MUTATION=purgeGoneFederatedActors \
+ *     bun packages/backend/dist/src/scripts/purgeGoneFederatedActors.js --limit 100
  *
  * RUN OVER THE SSM TUNNEL (prod Mongo forwarded to 127.0.0.1:47017) — DRY-RUN ONLY
  * is meaningful here; a live run's oxy-api call needs in-VPC service auth:
@@ -117,7 +117,6 @@ import Bookmark from '../models/Bookmark';
 import FederatedFollow from '../models/FederatedFollow';
 import { EntityFollow } from '../models/EntityFollow';
 import Notification from '../models/Notification';
-import Block from '../models/Block';
 import UserSettings from '../models/UserSettings';
 import UserBehavior from '../models/UserBehavior';
 import UserFeedPreference from '../models/UserFeedPreference';
@@ -133,17 +132,25 @@ import { signedFetch } from '../connectors/activitypub/helpers';
 import { AP_CONTENT_TYPE } from '../connectors/activitypub/constants';
 import { logger } from '../utils/logger';
 import { mapWithConcurrency, DEFAULT_CONCURRENCY, MAX_CONCURRENCY } from '../utils/concurrency';
+import { assertAdminMutationAllowed } from './lib/adminScriptSafety';
+import {
+  DeletionPreflightError,
+  assertActorSafeToDelete,
+  assertPostsSafeToDelete,
+  type PostDeletionTarget,
+} from './lib/adminDeletionPreflight';
+import {
+  assertAdminRunComplete,
+  closeAdminScriptResources,
+} from './lib/adminScriptLifecycle';
 
 /** Actors scanned per page (stable `_id` cursor pagination). */
 const PAGE_SIZE = 500;
 
 /**
- * Hard per-actor wall-clock cap on a single actor's re-verify + full cascade. A
- * race against this timer guarantees ONE slow remote (or a stuck delete) can never
- * freeze the whole sweep. A timed-out actor is left intact for a later run — every
- * destructive step happens strictly AFTER the re-verify, and the anchor is dropped
- * only after the Oxy delete is confirmed, so a timeout never leaves an orphaned
- * Oxy user.
+ * Hard wall-clock cap on the read-only remote re-verification. The destructive
+ * cascade is not raced because a losing Promise cannot be cancelled and must not
+ * continue mutating after the caller reports a timeout.
  */
 const ACTOR_PURGE_TIMEOUT_MS = 60_000;
 
@@ -182,7 +189,6 @@ interface CollectionCounts {
   federatedFollows: number;
   entityFollows: number;
   notifications: number;
-  blocks: number;
   userSettings: number;
   userBehavior: number;
   userFeedPreference: number;
@@ -206,7 +212,6 @@ const COLLECTION_KEYS: readonly (keyof CollectionCounts)[] = [
   'federatedFollows',
   'entityFollows',
   'notifications',
-  'blocks',
   'userSettings',
   'userBehavior',
   'userFeedPreference',
@@ -248,6 +253,7 @@ interface RunCounters {
   partial: number;
   resurrected: number;
   unverified: number;
+  blocked: number;
   oxyDeleted: number;
   oxyAbsent: number;
   oxySkipped: number;
@@ -298,21 +304,19 @@ function parseFlags(argv: string[]): Flags {
 
 // --- per-actor timeout (mirrors pruneGoneFederatedActors) --------------------
 
-/** Distinct rejection raised by {@link withActorTimeout} when an actor exceeds the cap. */
+/** Distinct rejection raised when a read-only actor probe exceeds the cap. */
 class ActorPurgeTimeoutError extends Error {
   constructor(ms: number) {
-    super(`actor purge exceeded ${ms}ms hard timeout`);
+    super(`actor probe exceeded ${ms}ms hard timeout`);
     this.name = 'ActorPurgeTimeoutError';
   }
 }
 
 /**
- * Race one actor's full purge against a hard timeout so a single hung remote (or a
- * stuck delete) can never freeze the batch. The timer is ALWAYS cleared when the
- * work settles. Losing the race is safe: every destructive step runs strictly after
- * the re-verify, and the `FederatedActor` anchor is dropped only after the Oxy
- * delete is confirmed — so a lost race leaves the anchor intact and the actor
- * reconcilable by a later run, exactly like any `unverified`.
+ * Race only the read-only remote probe. The destructive cascade is deliberately
+ * outside this race: JavaScript promises are not cancellable, so timing out a
+ * mutating promise could report failure while its writes continued in the
+ * background.
  */
 function withActorTimeout<T>(work: Promise<T>, ms: number): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -359,17 +363,18 @@ async function verifyStillGone(uri: string): Promise<Verdict> {
   try {
     res = await signedFetch(uri, AP_CONTENT_TYPE);
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    logger.warn(`[purgeGoneFederatedActors] re-verify fetch error for ${uri}: ${message} — left intact`);
+    logger.warn('[purgeGoneFederatedActors] re-verification fetch failed; actor left intact', {
+      error: err,
+    });
     return 'unverified';
   }
 
   if (res.status === 410) return 'gone';
   if (res.ok) return 'resurrected';
 
-  logger.info(
-    `[purgeGoneFederatedActors] re-verify got non-gone status ${res.status} ${res.statusText} for ${uri} — left intact`,
-  );
+  logger.info('[purgeGoneFederatedActors] re-verification returned a non-gone status', {
+    status: res.status,
+  });
   return 'unverified';
 }
 
@@ -381,9 +386,17 @@ async function verifyStillGone(uri: string): Promise<Verdict> {
  */
 async function purgeAuthoredPosts(oxyUserId: string, dryRun: boolean, counts: CollectionCounts): Promise<void> {
   const authored = await Post.find(
-    { $or: [{ oxyUserId }, { 'authorship.oxyUserId': oxyUserId }] },
-    { _id: 1 },
-  ).lean<{ _id: mongoose.Types.ObjectId }[]>();
+    {
+      $or: [
+        { oxyUserId },
+        { authorship: { $elemMatch: { oxyUserId, role: 'owner' } } },
+      ],
+    },
+    { _id: 1, federation: 1 },
+  ).lean<Array<{
+    _id: mongoose.Types.ObjectId;
+    federation?: { activityId?: string; url?: string };
+  }>>();
   if (authored.length === 0) return;
 
   const authoredIds = authored.map((p) => p._id);
@@ -392,10 +405,25 @@ async function purgeAuthoredPosts(oxyUserId: string, dryRun: boolean, counts: Co
   // Boosts (by ANYONE) of X's posts — `boostOf` stores the original id as a string.
   const boosts = await Post.find(
     { type: PostType.BOOST, boostOf: { $in: authoredIdStrings } },
-    { _id: 1 },
-  ).lean<{ _id: mongoose.Types.ObjectId }[]>();
+    { _id: 1, federation: 1 },
+  ).lean<Array<{
+    _id: mongoose.Types.ObjectId;
+    federation?: { activityId?: string; url?: string };
+  }>>();
   const boostIds = boosts.map((p) => p._id);
   const allDeletedIds = [...authoredIds, ...boostIds];
+
+  const deletionTargets: PostDeletionTarget[] = [...authored, ...boosts].map((post) => ({
+    id: post._id,
+    uris: [post.federation?.activityId, post.federation?.url].filter(
+      (value): value is string => typeof value === 'string' && value.length > 0,
+    ),
+  }));
+  await assertPostsSafeToDelete(
+    `purgeGoneFederatedActors:${oxyUserId}:posts`,
+    deletionTargets,
+    { cascadeEngagement: true },
+  );
 
   // Cascade engagement on every post about to be deleted (X's posts + their boosts)
   // FIRST, so no Like/Bookmark is left pointing at a deleted post.
@@ -417,7 +445,13 @@ async function purgeConfirmedGone(actor: ActorRow, flags: Flags): Promise<ActorP
   const counts = emptyCounts();
   const oxyUserId = actor.oxyUserId?.trim();
 
-  // Steps 1-3, 5-8 are all keyed on the owner id X — only meaningful when the row
+  await assertActorSafeToDelete(
+    `purgeGoneFederatedActors:${actor.acct}`,
+    { oxyUserId, actorUri: actor.uri },
+    { allowGoneActorCascade: true },
+  );
+
+  // Steps 1-3, 5-7 are all keyed on the owner id X — only meaningful when the row
   // links to one. A suspended federated actor should always have an `oxyUserId`,
   // but a legacy row without one is still purgeable (uri-keyed refs + the anchor).
   if (oxyUserId) {
@@ -440,12 +474,8 @@ async function purgeConfirmedGone(actor: ActorRow, flags: Flags): Promise<ActorP
       { $or: [{ recipientId: oxyUserId }, { actorId: oxyUserId }] },
       flags.dryRun,
     ); // 6
-    counts.blocks = await countOrDelete(
-      Block,
-      { $or: [{ userId: oxyUserId }, { blockedId: oxyUserId }] },
-      flags.dryRun,
-    ); // 7
-    // 8. Defensive local-only rows, each keyed on oxyUserId.
+    // 7. Defensive local-only rows, each keyed on oxyUserId. Blocks are not
+    // duplicated here: Oxy owns them and deletes them with the identity below.
     counts.userSettings = await countOrDelete(UserSettings, { oxyUserId }, flags.dryRun);
     counts.userBehavior = await countOrDelete(UserBehavior, { oxyUserId }, flags.dryRun);
     counts.userFeedPreference = await countOrDelete(UserFeedPreference, { oxyUserId }, flags.dryRun);
@@ -463,7 +493,7 @@ async function purgeConfirmedGone(actor: ActorRow, flags: Flags): Promise<ActorP
     return { outcome: 'purged', oxy: 'dry-run', counts };
   }
 
-  // 9. Oxy identity — the LAST irreversible reference before the anchor. A row
+  // 8. Oxy identity — the LAST irreversible reference before the anchor. A row
   // without an owner id has no Oxy identity to delete (treated as confirmed-gone).
   const oxy: OxyDisposition = oxyUserId ? await deleteFederatedActorIdentity(oxyUserId) : 'no-user';
   const oxyConfirmedGone = oxy === 'deleted' || oxy === 'absent' || oxy === 'no-user';
@@ -472,13 +502,13 @@ async function purgeConfirmedGone(actor: ActorRow, flags: Flags): Promise<ActorP
     // `skipped` (permanent 4xx) or `failed` (transient): KEEP the FederatedActor
     // anchor so a live Oxy user is never stranded without a record to reconcile it.
     logger.warn(
-      `[purgeGoneFederatedActors] Oxy identity delete for ${actor.acct} (oxyUserId ${oxyUserId}) → ${oxy}; ` +
-        `KEEPING FederatedActor anchor for retry`,
+      '[purgeGoneFederatedActors] Oxy identity deletion was not confirmed; retaining actor anchor',
+      { result: oxy },
     );
     return { outcome: 'partial', oxy, counts };
   }
 
-  // 10. Drop the anchor LAST — only now that the Oxy identity is confirmed gone.
+  // 9. Drop the anchor LAST — only now that the Oxy identity is confirmed gone.
   const anchor = await FederatedActor.deleteOne({ _id: actor._id });
   counts.federatedActor = anchor.deletedCount;
   return { outcome: 'purged', oxy, counts };
@@ -489,16 +519,17 @@ async function purgeConfirmedGone(actor: ActorRow, flags: Flags): Promise<ActorP
  * clears the tombstone (resurrected); anything else leaves the actor intact.
  */
 async function processActor(actor: ActorRow, flags: Flags): Promise<ActorPurgeResult> {
-  const verdict = await verifyStillGone(actor.uri);
+  const verdict = await withActorTimeout(
+    verifyStillGone(actor.uri),
+    ACTOR_PURGE_TIMEOUT_MS,
+  );
 
   if (verdict === 'resurrected') {
     if (flags.dryRun) {
-      logger.info(
-        `[purgeGoneFederatedActors] WOULD clear tombstone (resurrected) for ${actor.acct} (${actor.uri})`,
-      );
+      logger.info('[purgeGoneFederatedActors] resurrected actor tombstone would be cleared');
     } else {
       await FederatedActor.updateOne({ _id: actor._id }, { $set: { suspended: false } });
-      logger.info(`[purgeGoneFederatedActors] cleared tombstone (resurrected) for ${actor.acct} (${actor.uri})`);
+      logger.info('[purgeGoneFederatedActors] cleared resurrected actor tombstone');
     }
     return { outcome: 'resurrected', oxy: 'not-reached', counts: emptyCounts() };
   }
@@ -507,10 +538,9 @@ async function processActor(actor: ActorRow, flags: Flags): Promise<ActorPurgeRe
     return { outcome: 'unverified', oxy: 'not-reached', counts: emptyCounts() };
   }
 
-  logger.info(
-    `[purgeGoneFederatedActors] ${flags.dryRun ? 'WOULD purge' : 'purging'} confirmed-gone actor ` +
-      `${actor.acct} (${actor.uri})`,
-  );
+  logger.info('[purgeGoneFederatedActors] processing confirmed-gone actor', {
+    dryRun: flags.dryRun,
+  });
   return purgeConfirmedGone(actor, flags);
 }
 
@@ -557,6 +587,7 @@ async function purgeGoneFederatedActors(): Promise<void> {
     partial: 0,
     resurrected: 0,
     unverified: 0,
+    blocked: 0,
     oxyDeleted: 0,
     oxyAbsent: 0,
     oxySkipped: 0,
@@ -566,12 +597,17 @@ async function purgeGoneFederatedActors(): Promise<void> {
   let remaining = flags.limit;
 
   try {
+    assertAdminMutationAllowed({
+      scriptName: 'purgeGoneFederatedActors',
+      dryRun: flags.dryRun,
+    });
     await connectToDatabase();
-    logger.info(
-      `[purgeGoneFederatedActors] connected — mode: ${flags.dryRun ? 'DRY-RUN' : 'LIVE (IRREVERSIBLE)'}, ` +
-        `scope: suspended${flags.actor ? ` actor ${flags.actor}` : ''}, concurrency: ${flags.concurrency}` +
-        `${flags.limit !== undefined ? `, limit: ${flags.limit}` : ''}`,
-    );
+    logger.info('[purgeGoneFederatedActors] connected', {
+      dryRun: flags.dryRun,
+      narrowedScope: Boolean(flags.actor),
+      concurrency: flags.concurrency,
+      limit: flags.limit,
+    });
 
     const baseFilter = buildFilter(flags);
     const total = await FederatedActor.countDocuments(baseFilter);
@@ -593,33 +629,39 @@ async function purgeGoneFederatedActors(): Promise<void> {
       if (page.length === 0) break;
 
       // The page is already sliced to the remaining budget, so processing the WHOLE
-      // page in a bounded pool can never overshoot `--limit`. Each actor's work
-      // stays wrapped in its per-actor hard timeout.
+      // page in a bounded pool can never overshoot `--limit`. Only the read-only
+      // remote probe is timed; a mutating cascade always settles before tallying.
       const settledResults = await mapWithConcurrency(page, flags.concurrency, (actor) =>
-        withActorTimeout(processActor(actor, flags), ACTOR_PURGE_TIMEOUT_MS),
+        processActor(actor, flags),
       );
 
       // Tally sequentially in `_id` order AFTER the pool drains: every counter is
       // mutated exactly once per actor on a single call stack, so nothing races.
       for (let i = 0; i < page.length; i++) {
-        const actor = page[i];
         counters.scanned += 1;
         if (remaining !== undefined) remaining -= 1;
 
         const settled = settledResults[i];
         if (settled.status === 'rejected') {
-          // One bad actor never aborts the sweep. Every throw/timeout happens before
-          // the anchor is dropped, so the actor is left intact for a later run.
+          // One bad actor never aborts the sweep. Probe timeouts happen before any
+          // mutation; write failures preserve the anchor by purge ordering.
           const err = settled.reason;
-          if (err instanceof ActorPurgeTimeoutError) {
-            logger.warn(
-              `[purgeGoneFederatedActors] actor ${actor.uri} timed out after ${ACTOR_PURGE_TIMEOUT_MS}ms — left intact`,
-            );
+          if (err instanceof DeletionPreflightError) {
+            logger.warn('[purgeGoneFederatedActors] actor blocked by deletion preflight', {
+              error: err,
+            });
+            counters.blocked += 1;
+          } else if (err instanceof ActorPurgeTimeoutError) {
+            logger.warn('[purgeGoneFederatedActors] actor purge timed out; actor left intact', {
+              durationMs: ACTOR_PURGE_TIMEOUT_MS,
+            });
+            counters.unverified += 1;
           } else {
-            const message = err instanceof Error ? err.message : String(err);
-            logger.warn(`[purgeGoneFederatedActors] actor ${actor.uri} threw: ${message} — left intact`);
+            logger.warn('[purgeGoneFederatedActors] actor purge failed; actor left intact', {
+              error: err,
+            });
+            counters.unverified += 1;
           }
-          counters.unverified += 1;
           continue;
         }
 
@@ -645,15 +687,17 @@ async function purgeGoneFederatedActors(): Promise<void> {
       lastId = page[page.length - 1]._id;
       logger.info(
         `[purgeGoneFederatedActors] progress: scanned ${counters.scanned}, purged ${counters.purged}, ` +
-          `partial ${counters.partial}, resurrected ${counters.resurrected}, unverified ${counters.unverified}`,
+          `partial ${counters.partial}, blocked ${counters.blocked}, resurrected ${counters.resurrected}, ` +
+          `unverified ${counters.unverified}`,
       );
     }
 
     const elapsedSeconds = Math.round((Date.now() - startedAt) / 1000);
     logger.info(
       `[purgeGoneFederatedActors] done (${flags.dryRun ? 'DRY-RUN' : 'LIVE'}, ${elapsedSeconds}s): ` +
-        `candidates ${counters.scanned}, verified-gone ${counters.purged + counters.partial} ` +
-        `(purged ${counters.purged}, partial ${counters.partial}), resurrected ${counters.resurrected}, ` +
+        `candidates ${counters.scanned}, verified-gone ${counters.purged + counters.partial + counters.blocked} ` +
+        `(purged ${counters.purged}, partial ${counters.partial}, blocked ${counters.blocked}), ` +
+        `resurrected ${counters.resurrected}, ` +
         `unverified ${counters.unverified}`,
     );
     logger.info(
@@ -665,11 +709,19 @@ async function purgeGoneFederatedActors(): Promise<void> {
       Object.fromEntries(COLLECTION_KEYS.map((key) => [key, counters.totals[key]])),
     );
 
-    await mongoose.disconnect();
+    assertAdminRunComplete('purgeGoneFederatedActors', {
+      partial: counters.partial,
+      blocked: counters.blocked,
+      unverified: counters.unverified,
+      oxySkipped: counters.oxySkipped,
+      oxyFailed: counters.oxyFailed,
+    });
   } catch (error) {
     logger.error('[purgeGoneFederatedActors] failed', error);
+    throw error;
+  } finally {
+    await closeAdminScriptResources();
     await mongoose.disconnect();
-    process.exit(1);
   }
 }
 

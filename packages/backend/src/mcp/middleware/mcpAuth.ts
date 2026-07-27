@@ -6,6 +6,7 @@ import { verifyAccessToken } from '../services/mcpTokenService';
 import { isRevoked } from '../services/mcpRevocationService';
 import { MCP_TOKEN_AUDIENCE } from '../config/constants';
 import { resolveBundleContext } from '../services/mcpBundleService';
+import type { McpBundleContext } from '../services/mcpBundleService';
 import { logger } from '../../utils/logger';
 
 export interface McpRequestContext {
@@ -72,7 +73,14 @@ function looksLikeMcpToken(token: string): boolean {
 }
 
 type McpAuthOutcome =
-  | { status: 'ok'; userId: string; jti: string; scope: string; clientId: string }
+  | {
+      status: 'ok';
+      userId: string;
+      jti: string;
+      scope: string;
+      clientId: string;
+      bundle: McpBundleContext;
+    }
   | { status: 'invalid' }
   | { status: 'revoked' };
 
@@ -92,36 +100,38 @@ async function resolveMcpUser(token: string): Promise<McpAuthOutcome> {
     return { status: 'revoked' };
   }
 
+  // The Mongo connection row is the durable authorization grant and revocation
+  // backstop. Never accept a self-contained JWT by `sub` alone: Redis can be
+  // degraded and a revoked/missing connection must still fail closed.
+  let bundle: McpBundleContext | null;
+  try {
+    bundle = await resolveBundleContext(claims.jti, claims.sub);
+  } catch (error) {
+    logger.warn('[McpAuth] Durable connection lookup failed', {
+      reason: error instanceof Error ? error.message : 'unknown',
+    });
+    return { status: 'invalid' };
+  }
+  if (!bundle) {
+    return { status: 'revoked' };
+  }
+
   return {
     status: 'ok',
     userId: claims.sub,
     jti: claims.jti,
     scope: claims.scope ?? '',
     clientId: claims.client_id ?? '',
+    bundle,
   };
 }
 
 /** Attach the resolved MCP identity to the request in the Oxy-compatible shape. */
-async function attachMcpIdentity(
+function attachMcpIdentity(
   req: OxyAuthRequest,
   outcome: Extract<McpAuthOutcome, { status: 'ok' }>,
-): Promise<void> {
-  const bundle = await resolveBundleContext(outcome.jti, outcome.userId);
-  if (!bundle) {
-    req.user = { id: outcome.userId } as OxyAuthRequest['user'];
-    req.userId = outcome.userId;
-    req.accessToken = undefined;
-    (req as OxyAuthRequestWithMcp).mcp = {
-      jti: outcome.jti,
-      scope: outcome.scope,
-      clientId: outcome.clientId,
-      bundleId: '',
-      primaryUserId: outcome.userId,
-      activeUserId: outcome.userId,
-    };
-    return;
-  }
-
+): void {
+  const { bundle } = outcome;
   req.user = { id: bundle.activeUserId } as OxyAuthRequest['user'];
   req.userId = bundle.activeUserId;
   req.accessToken = undefined;
@@ -140,7 +150,7 @@ async function attachMcpIdentity(
  * pass through untouched. Never rejects the request.
  */
 export function createOptionalMcpAuth(): RequestHandler {
-  return async (req: Request, res: Response, next: NextFunction) => {
+  return async (req: Request, _res: Response, next: NextFunction) => {
     const token = extractBearer(req);
     if (!token || !looksLikeMcpToken(token)) {
       next();
@@ -148,7 +158,7 @@ export function createOptionalMcpAuth(): RequestHandler {
     }
     const outcome = await resolveMcpUser(token);
     if (outcome.status === 'ok') {
-      await attachMcpIdentity(req as OxyAuthRequest, outcome);
+      attachMcpIdentity(req as OxyAuthRequest, outcome);
     }
     next();
   };
@@ -174,7 +184,7 @@ export function createRequireMcpOrOxyAuth(oxy: OxyServices): RequestHandler {
     if (token && looksLikeMcpToken(token)) {
       const outcome = await resolveMcpUser(token);
       if (outcome.status === 'ok') {
-        await attachMcpIdentity(req as OxyAuthRequest, outcome);
+        attachMcpIdentity(req as OxyAuthRequest, outcome);
         next();
         return;
       }

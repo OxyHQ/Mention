@@ -128,6 +128,7 @@ describe('gatherForYouCandidates — union semantics', () => {
   it('includes following + affinity + topic/language matches, not just global', async () => {
     const followingIds = ['follow-1'];
     const affinity = affinityStub(['affinity-1']);
+    const scopedOxyClient = { request: 'client' };
     const behavior: CandidateUserBehavior = {
       preferredTopics: [{ topic: 'tech', weight: 5 }],
       preferredLanguages: ['es'],
@@ -152,6 +153,7 @@ describe('gatherForYouCandidates — union semantics', () => {
       followingIds,
       userBehavior: behavior,
       seenPostIds: [],
+      oxyClient: scopedOxyClient as never,
       contentAffinityService: affinity,
     });
 
@@ -161,6 +163,10 @@ describe('gatherForYouCandidates — union semantics', () => {
     expect(authors).toContain('topic-author');
     expect(authors).toContain('lang-author');
     expect(authors).toContain('global-author');
+    expect(affinity.getContentCandidates).toHaveBeenCalledWith('viewer', {
+      limit: MtnConfig.feed.candidateSources.maxAffinityCandidates,
+      oxyClient: scopedOxyClient,
+    });
   });
 
   it('queries the LANGUAGE source as an ANY-overlap $in over the multikey languages[]', async () => {

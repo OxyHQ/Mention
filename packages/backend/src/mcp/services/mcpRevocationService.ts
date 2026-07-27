@@ -1,5 +1,5 @@
 import { getRedisClient } from '../../utils/redis';
-import { withRedisFallback, ensureRedisConnected } from '../../utils/redisHelpers';
+import { withRedisFallback } from '../../utils/redisHelpers';
 import { logger } from '../../utils/logger';
 import { MCP_ACCESS_TOKEN_TTL_SECONDS } from '../config/constants';
 
@@ -37,8 +37,6 @@ export async function revokeJti(jti: string): Promise<void> {
   await withRedisFallback(
     redis,
     async () => {
-      const connected = await ensureRedisConnected(redis);
-      if (!connected) return;
       await redis.setEx(keyFor(jti), BLOCKLIST_TTL_SECONDS, '1');
     },
     undefined,
@@ -61,8 +59,6 @@ export async function isRevoked(jti: string): Promise<boolean> {
   return withRedisFallback(
     redis,
     async () => {
-      const connected = await ensureRedisConnected(redis);
-      if (!connected) return false;
       const value = await redis.get(keyFor(jti));
       return value !== null && value !== undefined;
     },

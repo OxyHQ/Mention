@@ -8,7 +8,7 @@
  */
 
 import { getDb, isDbAvailable } from './database';
-import type { FeedItemRow, FeedMetaRow, FeedItem } from './schema';
+import type { FeedMetaRow, FeedItem, PostRow } from './schema';
 import { rowToFeedItem, buildFeedKey } from './schema';
 import { upsertPosts } from './postQueries';
 import {
@@ -20,6 +20,7 @@ import {
   memRemoveFeedItem,
   memAddFeedItemAtStart,
   memRemovePostFromAllFeeds,
+  memGetFeedKeysForPost,
   memClearFeed,
 } from './memoryStore';
 import { createScopedLogger } from '@/lib/logger';
@@ -51,13 +52,13 @@ export interface FeedMetaData {
  */
 export function setFeedItems(
   feedKey: string,
-  posts: (FeedItem | any)[],
+  posts: FeedItem[],
   meta: FeedMetaData
 ): void {
   if (!feedKey) return;
 
   if (!isDbAvailable()) {
-    memSetFeedItems(feedKey, posts as FeedItem[], meta);
+    memSetFeedItems(feedKey, posts, meta);
     return;
   }
 
@@ -82,7 +83,7 @@ export function setFeedItems(
     const now = Date.now();
     for (let i = 0; i < posts.length; i++) {
       const post = posts[i];
-      const postId = post?.id || post?._id?.toString();
+      const postId = post.id;
       if (!postId) continue;
 
       db.runSync(
@@ -116,13 +117,13 @@ export function setFeedItems(
  */
 export function appendFeedItems(
   feedKey: string,
-  posts: (FeedItem | any)[],
+  posts: FeedItem[],
   meta: Partial<FeedMetaData>
 ): void {
   if (!feedKey || !posts || posts.length === 0) return;
 
   if (!isDbAvailable()) {
-    memAppendFeedItems(feedKey, posts as FeedItem[], meta);
+    memAppendFeedItems(feedKey, posts, meta);
     return;
   }
 
@@ -150,7 +151,7 @@ export function appendFeedItems(
 
     // Insert new items (IGNORE duplicates via PRIMARY KEY)
     for (const post of posts) {
-      const postId = post?.id || post?._id?.toString();
+      const postId = post.id;
       if (!postId) continue;
 
       const result = db.runSync(
@@ -208,7 +209,7 @@ export function getFeedItems(
 
   const db = getDb();
   if (!db) return [];
-  const rows = db.getAllSync<any>(
+  const rows = db.getAllSync<PostRow>(
     `SELECT p.* FROM feed_items fi
      JOIN posts p ON p.id = fi.post_id
      WHERE fi.feed_key = ?
@@ -217,7 +218,9 @@ export function getFeedItems(
     feedKey, limit, offset
   );
 
-  return rows.map(rowToFeedItem);
+  return rows
+    .map(rowToFeedItem)
+    .filter((item): item is FeedItem => item !== null);
 }
 
 /**
@@ -233,7 +236,7 @@ export function getAllFeedItems(feedKey: string): FeedItem[] {
 
   const db = getDb();
   if (!db) return [];
-  const rows = db.getAllSync<any>(
+  const rows = db.getAllSync<PostRow>(
     `SELECT p.* FROM feed_items fi
      JOIN posts p ON p.id = fi.post_id
      WHERE fi.feed_key = ?
@@ -241,7 +244,9 @@ export function getAllFeedItems(feedKey: string): FeedItem[] {
     feedKey
   );
 
-  return rows.map(rowToFeedItem);
+  return rows
+    .map(rowToFeedItem)
+    .filter((item): item is FeedItem => item !== null);
 }
 
 /**
@@ -433,6 +438,29 @@ export function removePostFromAllFeeds(postId: string): void {
   const db = getDb();
   if (!db) return;
   db.runSync('DELETE FROM feed_items WHERE post_id = ?', postId);
+}
+
+/**
+ * Get the feed keys whose ordering would change if `postId` were removed.
+ *
+ * The SQLite schema has `idx_feed_items_post_id`, so this is a bounded indexed
+ * lookup over the feeds that actually contain the post rather than a scan of
+ * every cached feed.
+ */
+export function getFeedKeysForPost(postId: string): string[] {
+  if (!postId) return [];
+
+  if (!isDbAvailable()) {
+    return memGetFeedKeysForPost(postId);
+  }
+
+  const db = getDb();
+  if (!db) return [];
+  const rows = db.getAllSync<{ feed_key: string }>(
+    'SELECT feed_key FROM feed_items WHERE post_id = ?',
+    postId
+  );
+  return rows.map((row) => row.feed_key);
 }
 
 // ── Clear operations ─────────────────────────────────────────────

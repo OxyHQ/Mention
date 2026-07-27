@@ -80,11 +80,25 @@ const h = vi.hoisted(() => {
     });
   }
 
+  const findOwnedPostAndDelete = vi.fn(async (filter: {
+    _id: string;
+    oxyUserId: string;
+  }) => {
+    const existing = posts.get(filter._id) ?? null;
+    if (existing?.oxyUserId !== filter.oxyUserId) return null;
+    posts.delete(filter._id);
+    return existing;
+  });
+
   return {
     posts,
     likes,
     bookmarks,
-    Post: { findByIdAndUpdate: findByIdAndUpdate(posts), findByIdAndDelete: findByIdAndDelete(posts) },
+    Post: {
+      findByIdAndUpdate: findByIdAndUpdate(posts),
+      findByIdAndDelete: findByIdAndDelete(posts),
+      findOneAndDelete: findOwnedPostAndDelete,
+    },
     Like: { findByIdAndUpdate: findByIdAndUpdate(likes), findByIdAndDelete: findByIdAndDelete(likes) },
     Bookmark: {
       findByIdAndUpdate: findByIdAndUpdate(bookmarks),
@@ -99,6 +113,41 @@ vi.mock('../../../models/Post', () => ({
 }));
 vi.mock('../../../models/Like', () => ({ default: h.Like }));
 vi.mock('../../../models/Bookmark', () => ({ default: h.Bookmark }));
+vi.mock('../../../services/PostRecentReplierService', () => ({
+  recordRecentReplierForPost: vi.fn(async () => undefined),
+  repairRecentRepliersAfterPostDelete: vi.fn(async () => undefined),
+}));
+vi.mock('../../../services/PostEngagementCommandService', () => ({
+  materializeEngagementRelationship: vi.fn(async (input: {
+    kind: 'like' | 'bookmark';
+    relationshipId: string;
+    userId: string;
+    postId: string;
+  }) => {
+    const map = input.kind === 'like' ? h.likes : h.bookmarks;
+    if (map.has(input.relationshipId)) return { changed: false };
+    map.set(input.relationshipId, {
+      _id: input.relationshipId,
+      userId: input.userId,
+      postId: { toString: () => input.postId },
+      ...(input.kind === 'like' ? { value: 1 } : {}),
+    });
+    return { changed: true };
+  }),
+  materializeEngagementTombstone: vi.fn(async (input: {
+    kind: 'like' | 'bookmark';
+    relationshipId: string;
+    userId: string;
+  }) => {
+    const map = input.kind === 'like' ? h.likes : h.bookmarks;
+    const existing = map.get(input.relationshipId);
+    if (!existing || existing.userId !== input.userId) {
+      return { changed: false };
+    }
+    map.delete(input.relationshipId);
+    return { changed: true };
+  }),
+}));
 
 // Mock the service-scoped Oxy client so the read-side blob resolver's REVERSE
 // lookup (`getServiceAssetMetadataBySha256`, sha256 → fileId) is fully
@@ -168,6 +217,7 @@ beforeEach(() => {
   h.bookmarks.clear();
   h.Post.findByIdAndUpdate.mockClear();
   h.Post.findByIdAndDelete.mockClear();
+  h.Post.findOneAndDelete.mockClear();
   h.Like.findByIdAndUpdate.mockClear();
   h.Like.findByIdAndDelete.mockClear();
   h.Bookmark.findByIdAndUpdate.mockClear();
@@ -545,6 +595,24 @@ describe('projectRecord — tombstone', () => {
       envelope(MENTION_TOMBSTONE_COLLECTION, '650000000000000000000096', tombstone),
     );
     expect(result.ok).toBe(true);
+  });
+
+  it('rejects a tombstone whose URI belongs to another account', async () => {
+    h.likes.set(LIKE_RKEY, { _id: LIKE_RKEY, userId: 'other-user' });
+    const tombstone = {
+      subject: createLikeUri('other-user', LIKE_RKEY),
+      createdAt: '2024-01-02T03:04:05.000Z',
+    };
+
+    const result = await projectRecord(
+      envelope(MENTION_TOMBSTONE_COLLECTION, '650000000000000000000095', tombstone),
+    );
+
+    expect(result).toEqual({
+      ok: false,
+      reason: 'tombstone_subject_owner_mismatch',
+    });
+    expect(h.likes.has(LIKE_RKEY)).toBe(true);
   });
 });
 

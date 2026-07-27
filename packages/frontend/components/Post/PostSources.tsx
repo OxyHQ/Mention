@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, TouchableOpacity } from 'react-native';
 import { SourcesIcon } from '@/assets/icons/sources-icon';
-import { PostSourceLink } from '@mention/shared-types';
+import type { PostSourceLink } from '@mention/shared-types';
 import { openExternalLink } from '@/utils/openExternalLink';
 
 interface Props {

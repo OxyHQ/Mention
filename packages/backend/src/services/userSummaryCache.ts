@@ -1,6 +1,7 @@
 import type { PostUser } from '@mention/shared-types';
+import { config } from '../config';
 import { getRedisClient } from '../utils/redis';
-import { withRedisFallback, ensureRedisConnected } from '../utils/redisHelpers';
+import { withRedisFallback } from '../utils/redisHelpers';
 import { logger } from '../utils/logger';
 
 /**
@@ -45,7 +46,7 @@ const USER_SUMMARY_PREFIX = 'usersummary:v4:';
  * ten minutes keeps the feed fresh while still absorbing the burst of repeated
  * lookups within a browsing session. Tunable via env without a redeploy.
  */
-const SUMMARY_TTL_SECONDS = Number(process.env.USER_SUMMARY_CACHE_TTL_SECONDS ?? 10 * 60);
+const SUMMARY_TTL_SECONDS = config.cache.userSummaryTtlSeconds;
 
 /**
  * The cached value: the raw canonical Oxy {@link PostUser} plus the RANKING-side
@@ -148,9 +149,6 @@ export async function mget(userIds: string[]): Promise<Map<string, CachedUserSum
   return withRedisFallback(
     redis,
     async () => {
-      const connected = await ensureRedisConnected(redis);
-      if (!connected) return result;
-
       const keys = userIds.map(keyFor);
       const values = await redis.mGet(keys);
 
@@ -197,9 +195,6 @@ export async function mset(entries: Map<string, CachedUserSummary>): Promise<voi
   await withRedisFallback(
     redis,
     async () => {
-      const connected = await ensureRedisConnected(redis);
-      if (!connected) return;
-
       const pipeline = redis.multi();
       for (const [userId, value] of entries) {
         pipeline.setEx(keyFor(userId), SUMMARY_TTL_SECONDS, JSON.stringify(value));
@@ -231,8 +226,6 @@ export async function invalidate(userIds: string[]): Promise<void> {
   await withRedisFallback(
     redis,
     async () => {
-      const connected = await ensureRedisConnected(redis);
-      if (!connected) return;
       await redis.del(userIds.map(keyFor));
     },
     undefined,

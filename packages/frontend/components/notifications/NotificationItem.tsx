@@ -4,14 +4,15 @@ import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { Avatar } from '@oxyhq/bloom/avatar';
-import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types';
+import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import { Button } from '@oxyhq/bloom/button';
 import { SubtleHover } from '@oxyhq/bloom/subtle-hover';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { toast } from '@oxyhq/bloom/toast';
 import { queryKeys as sdkQueryKeys } from '@oxyhq/services';
+import { useAuth } from '@oxyhq/services/ui/client';
 import { getNormalizedUserHandle } from '@oxyhq/core';
 import type { User } from '@oxyhq/core';
 import type { PostUser } from '@mention/shared-types';
@@ -30,9 +31,9 @@ import { formatRelativeTimeLocalized } from '@/utils/dateUtils';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
 import { feedService } from '@/services/feedService';
 import { usePostsStore } from '@/stores/postsStore';
-import { queryKeys } from '@/hooks/useOptimizedQuery';
 import { cn } from '@/lib/utils';
 import { createScopedLogger } from '@/lib/logger';
+import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 
 const logger = createScopedLogger('NotificationItem');
 
@@ -275,6 +276,7 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({ item, onMa
   const { t } = useTranslation();
   const theme = useTheme();
   const queryClient = useQueryClient();
+  const { user } = useAuth();
   const bottomSheet = useContext(BottomSheetContext);
   // Shared post cache (SQLite/memory) that every feed + the post detail read from.
   // Accepting/declining an invite mutates the post's authorship, so the updated
@@ -320,7 +322,7 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({ item, onMa
   // Collab invites carry no backend preview — fetch the invited post's text via
   // React Query (replaces the old useEffect + useState load).
   const { data: collabPost } = useQuery({
-    queryKey: queryKeys.post(postId),
+    queryKey: viewerQueryKeys.post(user?.id, postId),
     queryFn: () => feedService.getPostById(postId),
     enabled: isCollabInvite && !!postId,
     staleTime: 60_000,
@@ -455,7 +457,10 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({ item, onMa
         // propagate the newly-accepted co-authorship to every feed + the post
         // detail via the shared posts store, so the collaboration shows
         // everywhere without a manual refresh.
-        queryClient.setQueryData(queryKeys.post(postId), result.post);
+        queryClient.setQueryData(
+          viewerQueryKeys.post(user?.id, postId),
+          result.post,
+        );
         cachePosts([result.post]);
       }
       onMarkAsRead(item.notificationIds);
@@ -467,7 +472,7 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({ item, onMa
     } finally {
       setActionLoading(false);
     }
-  }, [postId, queryClient, cachePosts, onMarkAsRead, item.notificationIds, bottomSheet, t]);
+  }, [postId, queryClient, cachePosts, onMarkAsRead, item.notificationIds, bottomSheet, t, user?.id]);
 
   const runDecline = useCallback(async () => {
     if (!postId) return;
@@ -478,7 +483,10 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({ item, onMa
         // Flip this row to the resolved state and reflect the declined status on
         // any cached copy of the post (private posts return no post here, in which
         // case the actionable UI is simply dropped — the viewer lost view access).
-        queryClient.setQueryData(queryKeys.post(postId), result.post);
+        queryClient.setQueryData(
+          viewerQueryKeys.post(user?.id, postId),
+          result.post,
+        );
         cachePosts([result.post]);
       }
       onMarkAsRead(item.notificationIds);
@@ -489,7 +497,7 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({ item, onMa
     } finally {
       setActionLoading(false);
     }
-  }, [postId, queryClient, cachePosts, onMarkAsRead, item.notificationIds, bottomSheet, t]);
+  }, [postId, queryClient, cachePosts, onMarkAsRead, item.notificationIds, bottomSheet, t, user?.id]);
 
   const openAcceptSheet = useCallback(() => {
     bottomSheet.setBottomSheetContent(

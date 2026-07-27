@@ -37,8 +37,9 @@
  * limited), so this is cheap enough to run per recommendation request. Results
  * are additionally cached per-viewer in Redis with a short TTL.
  *
- * NEGATIVE SIGNALS: authors the viewer has hidden/muted/blocked (relation models
- * AND `UserBehavior.hiddenAuthors`/`mutedAuthors`/`blockedAuthors`) are excluded
+ * NEGATIVE SIGNALS: authors the viewer has hidden/muted/blocked (Oxy-owned
+ * block/restrict relations, Mention-local mutes, AND
+ * `UserBehavior.hiddenAuthors`/`mutedAuthors`/`blockedAuthors`) are excluded
  * from candidates, and topics the viewer has hidden (`UserBehavior.hiddenTopics`)
  * are removed from the topic-affinity input so we never recommend "more of what
  * you told us to stop showing you".
@@ -56,12 +57,15 @@ import { Post, type IPost } from '../models/Post';
 import { EntityFollow } from '../models/EntityFollow';
 import UserBehavior, { type IUserBehavior } from '../models/UserBehavior';
 import UserSettings from '../models/UserSettings';
-import Block from '../models/Block';
-import Mute from '../models/Mute';
-import Restrict from '../models/Restrict';
 import { getRedisClient } from '../utils/redis';
 import { logger } from '../utils/logger';
-import { getFollowingIdSet, ProfileVisibility, requiresAccessCheck } from '../utils/privacyHelpers';
+import {
+  getFollowingIdSet,
+  ProfileVisibility,
+  requiresAccessCheck,
+  type OxyClient,
+} from '../utils/privacyHelpers';
+import { UserPrivacyManager } from '../mtn/UserPrivacyManager';
 
 /** Recency window for content signals (days). */
 const WINDOW_DAYS = 30;
@@ -145,6 +149,8 @@ export interface ContentCandidate {
 export interface GetContentCandidatesOptions {
   /** Max candidates to return (clamped to [1, MAX_CONTENT_CANDIDATE_LIMIT]). */
   limit?: number;
+  /** Authenticated per-request client for Oxy-owned privacy and graph reads. */
+  oxyClient?: OxyClient;
 }
 
 /** Mutable per-author accumulator used while aggregating signals. */
@@ -191,7 +197,7 @@ export class ContentAffinityService {
     // Run the (independent) exclusion lookup and the affinity signals in parallel.
     // Each signal already self-degrades to empty on error.
     const [relationExcluded, hashtagScores, topicScores, engagementScores] = await Promise.all([
-      this.resolveExcludeIds(viewerId),
+      this.resolveExcludeIds(viewerId, opts.oxyClient),
       // Aggregation `$match` compares against the BSON Date path directly.
       this.computeHashtagAffinity(viewerId, since),
       this.computeTopicAffinity(viewerId, since, preferredTopics),
@@ -230,7 +236,7 @@ export class ContentAffinityService {
       return [];
     }
 
-    await this.filterCandidateProfileAccess(viewerId, merged);
+    await this.filterCandidateProfileAccess(viewerId, merged, opts.oxyClient);
 
     if (merged.size === 0) {
       await this.writeCache(cacheKey, []);
@@ -266,7 +272,7 @@ export class ContentAffinityService {
     try {
       return await UserBehavior.findOne({ oxyUserId: viewerId }).lean<IUserBehavior>();
     } catch (error) {
-      logger.warn(`[ContentAffinity] behavior load failed for ${viewerId}:`, error);
+      logger.warn('[ContentAffinity] behavior load failed', error);
       return null;
     }
   }
@@ -426,7 +432,7 @@ export class ContentAffinityService {
         result.set(authorId, { weight, reasons: new Set(['topic']) });
       }
     } catch (error) {
-      logger.warn(`[ContentAffinity] topic affinity failed for ${viewerId}:`, error);
+      logger.warn('[ContentAffinity] topic affinity failed', error);
       return new Map();
     }
     return result;
@@ -442,6 +448,7 @@ export class ContentAffinityService {
   private async filterCandidateProfileAccess(
     viewerId: string,
     merged: Map<string, AuthorAccumulator>,
+    oxyClient?: OxyClient,
   ): Promise<void> {
     const authorIds = Array.from(merged.keys()).filter((id) => id !== viewerId);
     if (authorIds.length === 0) return;
@@ -467,7 +474,7 @@ export class ContentAffinityService {
       });
       if (protectedAuthorIds.length === 0) return;
 
-      const followingIds = await getFollowingIdSet(viewerId);
+      const followingIds = await getFollowingIdSet(viewerId, oxyClient);
       for (const authorId of protectedAuthorIds) {
         if (!followingIds.has(authorId)) merged.delete(authorId);
       }
@@ -514,26 +521,18 @@ export class ContentAffinityService {
   }
 
   /**
-   * Resolve the viewer's exclusion set (self + blocked + muted + restricted) as a
-   * Set for O(1) membership tests during the merge. Degrades to just `{viewer}`
-   * if the relation lookups fail (self must never be a candidate).
+   * Resolve the viewer's exclusion set (self + Oxy blocks/restrictions + local
+   * mutes) as a Set for O(1) membership tests during the merge.
    */
-  private async resolveExcludeIds(viewerId: string): Promise<Set<string>> {
-    try {
-      const [blocks, mutes, restricts] = await Promise.all([
-        Block.find({ userId: viewerId }, { blockedId: 1, _id: 0 }).lean(),
-        Mute.find({ userId: viewerId }, { mutedId: 1, _id: 0 }).lean(),
-        Restrict.find({ userId: viewerId }, { restrictedId: 1, _id: 0 }).lean(),
-      ]);
-      const set = new Set<string>([viewerId]);
-      for (const b of blocks) if (b.blockedId) set.add(b.blockedId);
-      for (const m of mutes) if (m.mutedId) set.add(m.mutedId);
-      for (const r of restricts) if (r.restrictedId) set.add(r.restrictedId);
-      return set;
-    } catch (error) {
-      logger.warn(`[ContentAffinity] exclude-id resolution failed for ${viewerId}:`, error);
-      return new Set<string>([viewerId]);
-    }
+  private async resolveExcludeIds(
+    viewerId: string,
+    oxyClient?: OxyClient,
+  ): Promise<Set<string>> {
+    const privacyState = await UserPrivacyManager.loadPrivacyState(viewerId, {
+      oxyClient,
+      includeRestricted: true,
+    });
+    return new Set<string>([viewerId, ...privacyState.excludedUserIds]);
   }
 
   /**
@@ -617,7 +616,7 @@ export class ContentAffinityService {
         result.set(authorId, { weight, reasons: new Set(['hashtag']) });
       }
     } catch (error) {
-      logger.warn(`[ContentAffinity] hashtag affinity failed for ${viewerId}:`, error);
+      logger.warn('[ContentAffinity] hashtag affinity failed', error);
       return new Map();
     }
     return result;
@@ -720,7 +719,7 @@ export class ContentAffinityService {
         }))
         .filter((l) => l.postId.length > 0);
     } catch (error) {
-      logger.warn(`[ContentAffinity] liked-post collection failed for ${viewerId}:`, error);
+      logger.warn('[ContentAffinity] liked-post collection failed', error);
       return [];
     }
   }
@@ -767,7 +766,10 @@ export class ContentAffinityService {
       }
       return targets;
     } catch (error) {
-      logger.warn(`[ContentAffinity] ${kind} target collection failed for ${viewerId}:`, error);
+      logger.warn('[ContentAffinity] target collection failed', {
+        type: kind,
+        error,
+      });
       return [];
     }
   }

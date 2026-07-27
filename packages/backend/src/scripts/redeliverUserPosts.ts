@@ -37,26 +37,19 @@ import { followService, type NoteSourcePost } from '../connectors/activitypub/fo
 import { FEDERATION_ENABLED } from '../connectors/activitypub/constants';
 import { isFediverseSharingEnabled } from '../services/fediverseSharing';
 import { getServiceOxyClient } from '../utils/oxyHelpers';
-import { resolveVariant } from '../services/postVariants';
 import { PostVisibility } from '@mention/shared-types';
 import { logger } from '../utils/logger';
+import { assertAdminMutationAllowed } from './lib/adminScriptSafety';
+import {
+  assertAdminRunComplete,
+  closeAdminScriptResources,
+} from './lib/adminScriptLifecycle';
 
 /** Default delay between deliveries (ms) — throttles the blast to avoid tripping mastodon.social rate limits. */
 const DEFAULT_DELAY_MS = 2000;
 
 /** Default safety cap on how many posts a single run may re-deliver. */
 const DEFAULT_MAX = 500;
-
-/**
- * Grace period to let the awaited-but-detached delivery/enqueue work flush before
- * the process disconnects and exits. `federateNewPost` awaits its follower
- * enqueue, so a short settle is plenty; mirrors the other one-shot federation
- * scripts.
- */
-const DELIVERY_SETTLE_MS = 5000;
-
-/** Characters of the primary body echoed in dry-run / per-post log lines. */
-const SNIPPET_MAX_CHARS = 80;
 
 /** The lean Post shape delivery needs — structurally satisfies `federateNewPost`. */
 type RedeliverablePost = NoteSourcePost & { visibility: string };
@@ -68,24 +61,6 @@ function parsePositiveInt(value: string | undefined, fallback: number): number {
   if (value === undefined) return fallback;
   const parsed = Number.parseInt(value, 10);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
-}
-
-/** One-line body preview (whitespace collapsed, truncated) for logging. */
-function snippetOf(post: RedeliverablePost): string {
-  let text = '';
-  try {
-    text = resolveVariant(post.content).text ?? '';
-  } catch {
-    text = '';
-  }
-  const collapsed = text.replace(/\s+/g, ' ').trim();
-  return collapsed.length > SNIPPET_MAX_CHARS ? `${collapsed.slice(0, SNIPPET_MAX_CHARS)}…` : collapsed;
-}
-
-/** ISO timestamp for logging, tolerant of a Date or string `createdAt`. */
-function formatCreatedAt(createdAt: string | Date): string {
-  const date = createdAt instanceof Date ? createdAt : new Date(createdAt);
-  return Number.isNaN(date.getTime()) ? String(createdAt) : date.toISOString();
 }
 
 /**
@@ -152,8 +127,12 @@ async function redeliverUserPosts(): Promise<void> {
   const mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/mention';
   const dbName = `mention-${process.env.NODE_ENV || 'development'}`;
 
+  assertAdminMutationAllowed({
+    scriptName: 'redeliverUserPosts',
+    dryRun,
+  });
   await mongoose.connect(mongoUri, { dbName });
-  logger.info(`[redeliverUserPosts] connected to MongoDB (${dbName})`);
+  logger.info('[redeliverUserPosts] connected to MongoDB');
 
   try {
     // 2. Resolve the owner username SERVER-SIDE from the authoritative oxyUserId
@@ -162,7 +141,7 @@ async function redeliverUserPosts(): Promise<void> {
     const owner = await getServiceOxyClient().getUserById(targetUserId);
     const username = owner.username?.trim();
     if (!username) {
-      throw new Error(`no resolvable Oxy username for user ${targetUserId}; cannot federate`);
+      throw new Error('Target user has no resolvable Oxy username; cannot federate');
     }
 
     // 3. Respect the owner's fediverse-sharing consent — never blast when sharing
@@ -170,9 +149,7 @@ async function redeliverUserPosts(): Promise<void> {
     //    whole run is a clear no-op instead of silently dropping every post.)
     const sharingEnabled = await isFediverseSharingEnabled(targetUserId);
     if (!sharingEnabled) {
-      throw new Error(
-        `fediverseSharing is OFF for ${targetUserId} (@${username}); refusing to re-deliver posts`,
-      );
+      throw new Error('Fediverse sharing is disabled for the target user');
     }
 
     // Follower inboxes (reporting only). Zero remote inboxes → genuinely nothing
@@ -180,7 +157,7 @@ async function redeliverUserPosts(): Promise<void> {
     const { followerCount, inboxes } = await resolveFollowerInboxes(targetUserId);
     if (inboxes.length === 0) {
       logger.warn(
-        `[redeliverUserPosts] @${username} (${targetUserId}) has no remote follower inboxes; nothing to deliver. Done.`,
+        '[redeliverUserPosts] target has no remote follower inboxes; nothing to deliver',
       );
       return;
     }
@@ -219,11 +196,7 @@ async function redeliverUserPosts(): Promise<void> {
 
     // 7. Header.
     logger.info('[redeliverUserPosts] ===== re-delivery plan =====');
-    logger.info(`[redeliverUserPosts] target user:      ${targetUserId} (@${username})`);
     logger.info(`[redeliverUserPosts] remote followers: ${followerCount} (${inboxes.length} distinct inboxes)`);
-    for (const inbox of inboxes) {
-      logger.info(`[redeliverUserPosts]   inbox: ${inbox}`);
-    }
     logger.info(`[redeliverUserPosts] mode:             ${dryRun ? 'DRY-RUN (sending nothing)' : 'LIVE (delivering)'}`);
     logger.info(`[redeliverUserPosts] delay between:    ${delayMs}ms`);
     logger.info(`[redeliverUserPosts] cap:              ${maxPosts}`);
@@ -235,15 +208,13 @@ async function redeliverUserPosts(): Promise<void> {
 
     for (let i = 0; i < posts.length; i++) {
       const post = posts[i];
-      const postId = String(post._id);
-      const position = `${i + 1}/${posts.length}`;
-      const createdAt = formatCreatedAt(post.createdAt);
-      const snippet = snippetOf(post);
+      const progress = { position: i + 1, total: posts.length };
 
       if (dryRun) {
-        logger.info(
-          `[redeliverUserPosts] [${position}] WOULD deliver post ${postId} (createdAt=${createdAt}) → ${inboxes.length} inbox(es) | "${snippet}"`,
-        );
+        logger.info('[redeliverUserPosts] post would be delivered', {
+          ...progress,
+          inboxes: inboxes.length,
+        });
         continue;
       }
 
@@ -252,28 +223,27 @@ async function redeliverUserPosts(): Promise<void> {
         // `buildCreateNoteActivity` and delivers via `deliverToFollowers`. It
         // gates on FEDERATION_ENABLED + sharing internally and, for these
         // top-level public originals, fans out to the owner's remote followers.
-        await followService.federateNewPost(post, targetUserId, username);
-        delivered += 1;
-        logger.info(
-          `[redeliverUserPosts] [${position}] delivered post ${postId} (createdAt=${createdAt}) | "${snippet}"`,
+        await followService.federateNewPost(
+          post,
+          targetUserId,
+          username,
+          { throwOnError: true },
         );
+        delivered += 1;
+        logger.info('[redeliverUserPosts] post delivered', progress);
       } catch (err) {
         // Count and CONTINUE — one bad post never aborts the whole run.
         failed += 1;
-        const message = err instanceof Error ? err.message : String(err);
-        logger.warn(`[redeliverUserPosts] [${position}] FAILED post ${postId}: ${message}`);
+        logger.warn('[redeliverUserPosts] post delivery failed', {
+          ...progress,
+          error: err,
+        });
       }
 
       // Throttle between deliveries (never after the last).
       if (i < posts.length - 1) {
         await sleep(delayMs);
       }
-    }
-
-    if (!dryRun && delivered > 0) {
-      // Let the awaited-but-detached follower enqueue/delivery work flush before
-      // tearing down the connection.
-      await sleep(DELIVERY_SETTLE_MS);
     }
 
     const elapsedSeconds = Math.round((Date.now() - startedAt) / 1000);
@@ -285,8 +255,10 @@ async function redeliverUserPosts(): Promise<void> {
       logger.info(
         `[redeliverUserPosts] done: delivered ${delivered}, failed ${failed}, skipped ${skipped} of ${totalMatched} matched (${elapsedSeconds}s).`,
       );
+      assertAdminRunComplete('redeliverUserPosts', { failed, skipped });
     }
   } finally {
+    await closeAdminScriptResources();
     await mongoose.disconnect();
   }
 }

@@ -1,14 +1,14 @@
 import React, { useRef } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { SpinnerIcon } from '@oxyhq/bloom/loading';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { CommentIcon } from '@/assets/icons/comment-icon';
 import { BoostIcon, BoostIconActive } from '@/assets/icons/boost-icon';
 import { ShareIcon } from '@/assets/icons/share-icon';
 import { Bookmark, BookmarkActive } from '@/assets/icons/bookmark-icon';
 import { AnalyticsIcon } from '@/assets/icons/analytics-icon';
 import { Avatar } from '@oxyhq/bloom/avatar';
-import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types';
+import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 
 import { useTheme } from '@oxyhq/bloom/theme';
 import { useHaptics } from '@oxyhq/bloom/hooks';

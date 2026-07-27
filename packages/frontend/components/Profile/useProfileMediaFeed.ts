@@ -1,5 +1,5 @@
-import { useEffect, useMemo } from 'react';
-import { useAuth } from '@oxyhq/services';
+import { useCallback, useEffect, useMemo } from 'react';
+import { useAuth } from '@oxyhq/services/ui/client';
 import { usePostsStore, useUserFeedSelector } from '@/stores/postsStore';
 import type { FeedItem } from '@/db';
 
@@ -55,5 +55,35 @@ export function useProfileMediaFeed({ userId, isPrivate, isOwnProfile }: Profile
         [mediaFeed?.items, postsFeed?.items],
     );
 
-    return { mediaFeed, postsFeed, items };
+    const loadMore = useCallback(() => {
+        if (!userId || (isPrivate && !isOwnProfile)) return;
+
+        const usingMediaFeed =
+            (mediaFeed?.items?.length ?? 0) > 0 || !postsFeed;
+        const activeFeed = usingMediaFeed ? mediaFeed : postsFeed;
+        const type = usingMediaFeed ? 'media' : 'posts';
+        if (
+            !activeFeed ||
+            activeFeed.isLoading ||
+            !activeFeed.hasMore ||
+            !activeFeed.nextCursor
+        ) return;
+
+        void fetchUserFeed(userId, {
+            type,
+            cursor: activeFeed.nextCursor,
+            limit: type === 'media'
+                ? PROFILE_MEDIA_FEED_LIMIT
+                : PROFILE_POSTS_FEED_LIMIT,
+        });
+    }, [
+        fetchUserFeed,
+        isOwnProfile,
+        isPrivate,
+        mediaFeed,
+        postsFeed,
+        userId,
+    ]);
+
+    return { mediaFeed, postsFeed, items, loadMore };
 }

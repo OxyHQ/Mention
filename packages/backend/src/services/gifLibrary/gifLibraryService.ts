@@ -8,7 +8,6 @@ import type { IncomingMessage } from 'node:http';
 
 import Gif, { type IGif } from '../../models/Gif';
 import { logger } from '../../utils/logger';
-import { getServiceOxyClient } from '../../utils/oxyHelpers';
 import { SsrfRejection } from '@oxyhq/core/server';
 import { fetchUpstreamFollowingRedirects } from '../../utils/safeUpstreamFetch';
 import { uploadGifLibraryMedia } from '../mediaCache/oxyMediaStore';

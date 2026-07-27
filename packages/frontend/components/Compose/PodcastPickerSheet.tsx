@@ -1,15 +1,10 @@
 import React, { memo, useCallback, useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, Text, TextInput, View } from 'react-native';
 import { Image } from 'expo-image';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { useTranslation } from 'react-i18next';
 import { Item } from '@oxyhq/bloom/item';
 import { useTheme } from '@oxyhq/bloom/theme';
-import {
-  MagnifyingGlass_Stroke2_Corner0_Rounded,
-  MagnifyingGlassX_Stroke2_Corner0_Rounded,
-  CircleX_Stroke2_Corner0_Rounded,
-  SpeakerVolumeFull_Stroke2_Corner0_Rounded,
-} from '@oxyhq/bloom/icons';
 import { useInfiniteCatalogSearch, ResultsFooter } from '@/hooks/useInfiniteCatalogSearch';
 import type { PodcastAttachmentData } from '@/hooks/usePodcastManager';
 
@@ -57,7 +52,7 @@ const PodcastResultRow = memo(function PodcastResultRow({
             className="rounded-md bg-secondary items-center justify-center"
             style={{ width: 40, height: 40 }}
           >
-            <SpeakerVolumeFull_Stroke2_Corner0_Rounded size="md" fill={colors.textSecondary} />
+            <Ionicons name="mic-outline" size={20} color={colors.textSecondary} />
           </View>
         )
       }
@@ -103,7 +98,7 @@ const PodcastPickerSheet = memo(function PodcastPickerSheet({
 
       {/* Search input — mirrors MediaPickerSheet's styled search row. */}
       <View className="flex-row items-center px-3 py-2.5 rounded-xl bg-secondary gap-2.5">
-        <MagnifyingGlass_Stroke2_Corner0_Rounded size="sm" fill={colors.textSecondary} />
+        <Ionicons name="search-outline" size={16} color={colors.textSecondary} />
         <TextInput
           className="flex-1 text-[15px] text-foreground"
           placeholder={t('compose.podcast.searchPlaceholder')}
@@ -121,7 +116,7 @@ const PodcastPickerSheet = memo(function PodcastPickerSheet({
             accessibilityLabel={t('profile.media.clearSearch')}
             hitSlop={8}
           >
-            <CircleX_Stroke2_Corner0_Rounded size="sm" fill={colors.textSecondary} />
+            <Ionicons name="close-circle" size={16} color={colors.textSecondary} />
           </Pressable>
         )}
       </View>
@@ -142,7 +137,7 @@ const PodcastPickerSheet = memo(function PodcastPickerSheet({
           </Text>
         ) : search.results.length === 0 ? (
           <View className="items-center justify-center py-10 gap-2">
-            <MagnifyingGlassX_Stroke2_Corner0_Rounded size="xl" fill={colors.textSecondary} />
+            <Ionicons name="search-outline" size={32} color={colors.textSecondary} />
             <Text className="text-muted-foreground text-[15px]">
               {t('compose.podcast.empty')}
             </Text>

@@ -1,4 +1,7 @@
 import mongoose, { Document, Schema } from 'mongoose';
+import { MTN_REPO_HEAD_OWNER_INDEX } from '../indexes/manifest';
+
+export const MENTION_REPO_HEAD_COLLECTION = 'mentionrepoheads';
 
 /**
  * MentionRepoHead (MTN Protocol — per-subject hash chain, Workstream B / B1)
@@ -32,7 +35,7 @@ export interface IMentionRepoHead extends Document {
 
 const MentionRepoHeadSchema = new Schema<IMentionRepoHead>(
   {
-    oxyUserId: { type: String, required: true, unique: true },
+    oxyUserId: { type: String, required: true },
     subjectDid: { type: String, required: true },
     seq: { type: Number, required: true },
     headRecordId: { type: String, required: true },
@@ -40,8 +43,17 @@ const MentionRepoHeadSchema = new Schema<IMentionRepoHead>(
   },
   {
     timestamps: { createdAt: true, updatedAt: true },
+    collection: MENTION_REPO_HEAD_COLLECTION,
     strict: true,
     minimize: false,
+  },
+);
+
+MentionRepoHeadSchema.index(
+  { ...MTN_REPO_HEAD_OWNER_INDEX.key },
+  {
+    name: MTN_REPO_HEAD_OWNER_INDEX.name,
+    unique: MTN_REPO_HEAD_OWNER_INDEX.unique,
   },
 );
 

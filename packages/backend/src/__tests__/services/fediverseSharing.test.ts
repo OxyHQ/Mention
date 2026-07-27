@@ -28,9 +28,7 @@ vi.mock('../../utils/redis', () => ({
     isReady: true,
     isOpen: true,
     connect: vi.fn().mockResolvedValue(undefined),
-    // `ensureRedisConnected` pings a ready client before running the
-    // operation; a healthy client must resolve it or `withRedisFallback`
-    // returns the no-op fallback instead of exercising the mocked op.
+    // Legacy client surface; ready hot paths do not PING before each cache op.
     ping: vi.fn().mockResolvedValue('PONG'),
     get: mocks.redisGet,
     setEx: mocks.redisSetEx,

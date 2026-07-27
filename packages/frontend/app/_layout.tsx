@@ -1,37 +1,21 @@
 // Import Reanimated early so it initializes before other modules.
 import 'react-native-reanimated';
-
-// Freeze inactive (blurred) screens app-wide. With `freezeOnBlur: true` on the
-// (app) Stack, navigated-away screens stay MOUNTED (state + scroll retained) but
-// pause their JS/render work until refocused — this is what restores the exact
-// feed scroll on feed → /videos → back. Must run once at module scope, before any
-// navigator mounts.
 import { enableFreeze } from 'react-native-screens';
-enableFreeze(true);
-
-// Swallow the harmless dev-only RNW "Unexpected text node" console noise.
-import { suppressRnwTextNodeWarning } from '@/lib/suppressRnwTextNodeWarning';
-suppressRnwTextNodeWarning();
-
-// Register LiveKit WebRTC globals before any LiveKit usage (platform-split:
-// livekit.native.ts imports @livekit/react-native, livekit.web.ts is a no-op).
-import { initLiveKit } from '@/lib/livekit';
-initLiveKit();
-
-// WEB-only: recover from a stale lazy-route chunk 404'ing after a deploy by
-// reloading once onto the fresh bundle (loop-guarded via sessionStorage).
-// Platform-split — chunkReload.native.ts is a no-op. Registered at module scope
-// so the listeners are live before any route lazily imports its chunk.
 import { registerChunkErrorRecovery } from '@/lib/chunkReload';
-registerChunkErrorRecovery();
-
 import NetInfo from '@react-native-community/netinfo';
 import { focusManager, onlineManager } from '@tanstack/react-query';
-import { Redirect, Slot, Stack, useRouter, useSegments } from "expo-router";
+import {
+  Redirect,
+  Slot,
+  Stack,
+  usePathname,
+  useRouter,
+  useSegments,
+} from "expo-router";
 import * as SplashScreen from 'expo-splash-screen';
 import React, { useCallback, useEffect, useState } from "react";
 import { AppState, Platform, type AppStateStatus } from "react-native";
-import { useAuth } from '@oxyhq/services';
+import { useAuth } from '@oxyhq/services/ui/client';
 import { BloomThemeProvider } from '@oxyhq/bloom/theme';
 import { BloomHapticsProvider } from '@oxyhq/bloom/hooks';
 import { ImageResolverProvider } from '@oxyhq/bloom/image-resolver';
@@ -54,14 +38,23 @@ import { useHapticsStore } from '@/stores/hapticsStore';
 import { oxyServices } from '@/lib/oxyServices';
 import { queryClient } from '@/lib/queryClient';
 import { getCachedFileDownloadUrlSync } from '@/utils/imageUrlCache';
-import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types';
+import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import { AppInitializer } from '@/lib/appInitializer';
 import { logger } from '@/lib/logger';
 import { useShareIntentRouter } from '@/lib/shareIntent';
 import { BLOOM_THEME_PERSIST_KEY, BLOOM_THEME_STORAGE } from '@/lib/themePersistence';
+import {
+  initializeWebTelemetry,
+  recordWebNavigation,
+} from '@/lib/webTelemetry';
 
 // Styles
 import '../global.css';
+
+// Freeze blurred screens so their state and scroll position survive navigation,
+// and register web chunk recovery before the first route can lazy-load.
+enableFreeze(true);
+registerChunkErrorRecovery();
 
 // NATIVE ONLY: hold the OS splash until `appIsReady` flips (hidden in RootLayout),
 // making the held OS splash the single native splash; the custom <AppSplashScreen>
@@ -125,6 +118,8 @@ export default function RootLayout() {
       logger.error('Failed to initialize i18n', { error });
     });
   }, []);
+
+  useEffect(() => initializeWebTelemetry(), []);
 
   // React Query managers - setup once on mount
   useEffect(() => {
@@ -220,6 +215,7 @@ function AuthRouter() {
   const { isAuthenticated, isAuthResolved } = useAuth();
   const router = useRouter();
   const segments = useSegments();
+  const pathname = usePathname();
 
   useServerAppearanceSync();
   // Drives Bloom from the viewer's portable Oxy account theme when the local
@@ -235,6 +231,10 @@ function AuthRouter() {
   // Forward OS share-sheet payloads into `/compose`. No-op on web
   // (handled by the manifest Share Target).
   useShareIntentRouter({ router, enabled: isAuthResolved && isAuthenticated });
+
+  useEffect(() => {
+    recordWebNavigation(pathname);
+  }, [pathname]);
 
   if (!isAuthResolved) {
     return null;

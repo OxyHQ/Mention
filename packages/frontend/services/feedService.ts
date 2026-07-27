@@ -1,7 +1,11 @@
 import {
-  AuthorFeedFilter,
   buildFeedDescriptor,
   isAuthorFeedFilter,
+} from '@mention/shared-types/mtn/feedDescriptor';
+import type {
+  AuthorFeedFilter,
+} from '@mention/shared-types/mtn/feedDescriptor';
+import type {
   FeedRequest,
   FeedResponse,
   SlicedFeedResponse,
@@ -9,14 +13,24 @@ import {
   CreateBoostRequest,
   CreatePostRequest,
   CreateThreadRequest,
-  LikeRequest,
-  UnlikeRequest,
   FeedDescriptor,
   HydratedPost,
   UpdatePostRequest,
   FeedInterstitialEventInput,
+  PostEditSource,
   PostUser,
 } from '@mention/shared-types';
+
+import { FeedFilters } from '../utils/feedUtils';
+import { authenticatedClient, publicClient, isNotFoundError } from '../utils/api';
+import { oxyServices } from '@/lib/oxyServices';
+import { logger } from '@/lib/logger';
+import { normalizeApiError } from '@/utils/apiError';
+import {
+  buildBookmarkFolderMoveRequest,
+  buildSavedPostsRequestConfig,
+  type SavedPostsRequest,
+} from './savedPostsRequest';
 
 // Feed responses may include slices for thread grouping, and recommendation-card
 // placements (`interstitials`) for authenticated viewers on the descriptors the
@@ -24,11 +38,6 @@ import {
 // unchanged — the card CONTENT is fetched lazily by each card component, so a feed
 // response never blocks on recommendations.
 type FeedServiceResponse = FeedResponse & Partial<Pick<SlicedFeedResponse, 'slices' | 'interstitials'>>;
-import { FeedFilters } from '../utils/feedUtils';
-import { authenticatedClient, publicClient, isNotFoundError } from '../utils/api';
-import { oxyServices } from '@/lib/oxyServices';
-import { logger } from '@/lib/logger';
-import { normalizeApiError } from '@/utils/apiError';
 
 /** The network a resolved external actor belongs to (matches the backend `NetworkId`). */
 export type ExternalNetwork = 'activitypub' | 'atproto';
@@ -62,22 +71,54 @@ export interface SavedPostsPage {
   limit: number;
 }
 
-/**
- * In-flight dedup discriminator for the viewer's auth state.
- *
- * Returns `'auth'` when an access token is present, `'anon'` otherwise. This is
- * folded into the in-flight request key so an authenticated fetch can never
- * piggyback on an in-flight anonymous fetch's promise (or vice versa) for the
- * same descriptor — the two return different content and must resolve
- * independently. Critically, this prevents an anon load issued during the
- * cold-boot auth-not-ready window from masking the later authenticated fetch.
- */
-function authDedupeMarker(): 'auth' | 'anon' {
+export type { SavedPostsRequest } from './savedPostsRequest';
+
+export interface BookmarkFoldersResponse {
+  folders: string[];
+}
+
+let viewerRequestGeneration = 0;
+let activeViewerRequestScope: string | null | undefined;
+let credentialGeneration = 0;
+let activeAccessToken: string | undefined;
+
+function readAccessToken(): string | undefined {
   try {
-    return oxyServices.getClient().getAccessToken() ? 'auth' : 'anon';
+    return oxyServices.getClient().getAccessToken() || undefined;
   } catch {
+    return undefined;
+  }
+}
+
+function authDedupeMarker(): 'auth' | 'anon' {
+  return readAccessToken() ? 'auth' : 'anon';
+}
+
+/**
+ * In-flight dedup discriminator for the exact authenticated identity generation.
+ *
+ * `auth|anon` alone is insufficient: two authenticated accounts can request the
+ * same descriptor while A's request is still pending, and B must never inherit
+ * A's personalized hydration. The identity boundary advances
+ * `viewerRequestGeneration`; the credential generation is a fail-safe for token
+ * changes that occur before that boundary renders.
+ */
+function requestIdentityDedupeMarker(): string {
+  const accessToken = readAccessToken();
+  if (!accessToken) {
+    if (activeAccessToken !== undefined) {
+      activeAccessToken = undefined;
+      credentialGeneration += 1;
+    }
     return 'anon';
   }
+
+  if (accessToken !== activeAccessToken) {
+    activeAccessToken = accessToken;
+    credentialGeneration += 1;
+  }
+
+  return `auth:v${viewerRequestGeneration}:c${credentialGeneration}`;
 }
 
 // Extended FeedRequest with frontend-specific filter properties
@@ -170,6 +211,22 @@ interface FeedServiceOptions {
 // In-flight request deduplication (transient — stays in memory, not SQLite)
 const inFlightRequests = new Map<string, Promise<FeedServiceResponse>>();
 
+/**
+ * Starts a new viewer-owned request generation.
+ *
+ * Called before the identity boundary renders a new viewer. Clearing the map
+ * drops references to old shared promises; generation-scoped keys also ensure a
+ * late `finally` from A cannot affect B's in-flight entry.
+ */
+export function setFeedViewerRequestScope(viewerId: string | null): void {
+  const normalizedViewerId = viewerId?.trim() || null;
+  if (activeViewerRequestScope === normalizedViewerId) return;
+
+  activeViewerRequestScope = normalizedViewerId;
+  viewerRequestGeneration += 1;
+  inFlightRequests.clear();
+}
+
 // Generate stable dedup key from request
 function getDedupeKey(request: ExtendedFeedRequest): string {
   const filters = request.filters;
@@ -179,7 +236,7 @@ function getDedupeKey(request: ExtendedFeedRequest): string {
         .map((k) => `${k}=${(filters as Record<string, unknown>)[k] ?? ''}`)
         .join('&')
     : '';
-  return `${authDedupeMarker()}|${request.type || 'mixed'}|${request.cursor || 'initial'}|${request.userId || ''}|${request.sort || ''}|${filterKey}`;
+  return `${requestIdentityDedupeMarker()}|${request.type || 'mixed'}|${request.cursor || 'initial'}|${request.userId || ''}|${request.sort || ''}|${filterKey}`;
 }
 
 class FeedService {
@@ -304,11 +361,16 @@ class FeedService {
    * to the default `posts` filter, matching the backend's own descriptor
    * resolution.
    */
-  async getUserFeed(userId: string, request: FeedRequest): Promise<FeedServiceResponse> {
+  async getUserFeed(
+    userId: string,
+    request: FeedRequest,
+    options?: FeedServiceOptions,
+  ): Promise<FeedServiceResponse> {
     const filter: AuthorFeedFilter = isAuthorFeedFilter(request.type) ? request.type : 'posts';
     return await this.getMtnFeed(buildFeedDescriptor('author', userId, filter), {
       cursor: request.cursor,
       limit: request.limit,
+      signal: options?.signal,
     });
   }
 
@@ -375,22 +437,21 @@ class FeedService {
   /**
    * Create a thread of posts
    */
-  async createThread(request: CreateThreadRequest): Promise<{ success: boolean; posts: unknown[] }> {
-    const response = await authenticatedClient.post('/posts/thread', request);
+  async createThread(request: CreateThreadRequest): Promise<{ success: boolean; posts: HydratedPost[] }> {
+    const response = await authenticatedClient.post<{
+      success?: boolean;
+      posts?: HydratedPost[];
+    }>('/posts/thread', request);
     const data = response?.data;
 
-    if (data && typeof data === 'object' && data !== null && 'posts' in data) {
+    if (data && typeof data === 'object' && Array.isArray(data.posts)) {
       return {
-        success: typeof (data as Record<string, unknown>).success === 'boolean'
-          ? (data as Record<string, boolean>).success
-          : true,
-        posts: Array.isArray((data as Record<string, unknown>).posts)
-          ? (data as Record<string, unknown[]>).posts
-          : []
+        success: typeof data.success === 'boolean' ? data.success : true,
+        posts: data.posts,
       };
     }
 
-    return { success: true, posts: Array.isArray(data) ? data : [] };
+    return { success: true, posts: [] };
   }
 
   /**
@@ -485,18 +546,28 @@ class FeedService {
   /**
    * Get saved posts for current user
    */
-  async getSavedPosts(request: { page?: number; limit?: number; search?: string } = {}): Promise<{ success: boolean; data: SavedPostsPage }> {
-    const params: Record<string, unknown> = {
-      page: request.page || 1,
-      limit: request.limit || 20
-    };
-
-    if (request.search) {
-      params.search = request.search;
-    }
-
-    const response = await authenticatedClient.get<SavedPostsPage>('/posts/saved', { params });
+  async getSavedPosts(request: SavedPostsRequest = {}): Promise<{ success: boolean; data: SavedPostsPage }> {
+    const response = await authenticatedClient.get<SavedPostsPage>(
+      '/posts/saved',
+      buildSavedPostsRequestConfig(request),
+    );
     return { success: true, data: response.data };
+  }
+
+  async getBookmarkFolders(signal?: AbortSignal): Promise<string[]> {
+    const response = await authenticatedClient.get<BookmarkFoldersResponse>(
+      '/posts/bookmarks/folders',
+      { signal },
+    );
+    return response.data.folders ?? [];
+  }
+
+  async moveBookmarkToFolder(
+    postId: string,
+    folder: string | null,
+  ): Promise<void> {
+    const request = buildBookmarkFolderMoveRequest(postId, folder);
+    await authenticatedClient.patch(request.url, request.data);
   }
 
   /**
@@ -504,6 +575,19 @@ class FeedService {
    */
   async editPost(postId: string, data: UpdatePostRequest): Promise<HydratedPost> {
     const response = await authenticatedClient.put<HydratedPost>(`/posts/${postId}`, data);
+    return response.data;
+  }
+
+  /**
+   * Fetch the owner's persisted author source for editing. A hydrated post is
+   * unsuitable here because its mention ids have already become display links
+   * and its body may be selected for the viewer's language.
+   */
+  async getPostEditSource(postId: string, signal?: AbortSignal): Promise<PostEditSource> {
+    const response = await authenticatedClient.get<PostEditSource>(
+      `/posts/${postId}/edit-source`,
+      { signal },
+    );
     return response.data;
   }
 
@@ -524,10 +608,17 @@ class FeedService {
   /**
    * Get post by ID
    */
-  async getPostById(postId: string): Promise<HydratedPost> {
+  async getPostById(
+    postId: string,
+    signal?: AbortSignal,
+  ): Promise<HydratedPost> {
     try {
-      return await makeViewerAwarePublicRead<HydratedPost>(`/feed/item/${postId}`);
+      return await makeViewerAwarePublicRead<HydratedPost>(
+        `/feed/item/${postId}`,
+        { signal },
+      );
     } catch (error) {
+      if (signal?.aborted) throw error;
       // The feed-item endpoint may legitimately 404 for non-feed posts; fall
       // back to the posts endpoint. Log so a non-404 failure is observable.
       logger.debug('Feed-item lookup failed, falling back to /posts', {
@@ -535,7 +626,10 @@ class FeedService {
         ...normalizeApiError(error),
       });
     }
-    return await makeViewerAwarePublicRead<HydratedPost>(`/posts/${postId}`);
+    return await makeViewerAwarePublicRead<HydratedPost>(
+      `/posts/${postId}`,
+      { signal },
+    );
   }
 
   /**
@@ -656,13 +750,11 @@ class FeedService {
     if (options?.cursor) params.cursor = options.cursor;
     if (options?.limit) params.limit = options.limit;
 
-    // Dedup in-flight. Keyed on the viewer's auth state so an authenticated fetch
-    // never shares an in-flight promise with an anonymous one for the same
-    // descriptor — the two return different content and must resolve
-    // independently — and on the page size, so a caller asking for a different
-    // number of items never inherits another caller's page (the profile media
-    // grid and the profile feed request the same descriptor at different limits).
-    const cacheKey = `mtn|${authDedupeMarker()}|${descriptor}|${options?.cursor || 'initial'}|${options?.limit ?? 'default'}`;
+    // Dedup in-flight within one exact viewer generation. Authenticated accounts
+    // must never share personalized hydration merely because both are `auth`.
+    // Page size remains part of the key because the profile media grid and feed
+    // can request the same descriptor with different limits.
+    const cacheKey = `mtn|${requestIdentityDedupeMarker()}|${descriptor}|${options?.cursor || 'initial'}|${options?.limit ?? 'default'}`;
 
     // In-flight sharing is ONLY safe for signal-less requests. A request that
     // carries an AbortSignal is owned by a single caller whose lifecycle controls

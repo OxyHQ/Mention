@@ -10,7 +10,7 @@
  * It is a STRICT no-op for the API host (`api.mention.earth`): a non-apex request
  * calls `next()` untouched, so every existing API route behaves exactly as before.
  *
- * Mount order (see server.ts): it runs AFTER the federation routers (`/ap`,
+ * Mount order (see app.ts): it runs AFTER the federation routers (`/ap`,
  * `/.well-known`, `/xrpc`, `/nodeinfo`, `/media`) and the OG web-shell (`/@…`,
  * `/p/…`) — those must keep serving their own content on the apex host too — but
  * BEFORE the API routers, so apex SPA routes whose prefixes collide with API
@@ -25,6 +25,7 @@
 import http, { type IncomingMessage } from 'http';
 import https from 'https';
 import type { Request, Response, NextFunction } from 'express';
+import { config } from '../config';
 import { logger } from '../utils/logger';
 
 /**
@@ -32,7 +33,7 @@ import { logger } from '../utils/logger';
  * config the OG web-shell renderer uses, so the public web origin is defined in one
  * place. Only the bare hostname (no scheme / port) is compared.
  */
-const APEX_HOST = extractHost(process.env.MENTION_WEB_ORIGIN || 'https://mention.earth');
+const APEX_HOST = extractHost(config.web.origin);
 
 /**
  * Static frontend CDN the SPA + its assets are proxied from (CloudFlare Pages).
@@ -40,13 +41,25 @@ const APEX_HOST = extractHost(process.env.MENTION_WEB_ORIGIN || 'https://mention
  * from — so the CDN origin is configured in exactly one place. Trailing slash is
  * stripped so it concatenates cleanly with `req.originalUrl` (which starts `/`).
  */
-const FRONTEND_CDN_ORIGIN = (process.env.WEB_SHELL_ORIGIN || 'https://mention-frontend.pages.dev').replace(/\/+$/, '');
+const FRONTEND_CDN_ORIGIN = config.web.shellOrigin;
 
 /** Hard timeout for a single upstream proxy fetch. The apex must never hang on a slow CDN. */
 const PROXY_FETCH_TIMEOUT_MS = 8000;
 
 /** Max upstream redirects to follow before giving up (a static CDN needs very few). */
 const MAX_PROXY_REDIRECTS = 3;
+
+const CONTENT_HASHED_ASSET =
+  /\/[^/?]+-[a-f0-9]{8,}\.(?:js|css|map|json|png|jpe?g|webp|avif|svg|woff2?|ttf|otf)$/i;
+
+function isHtmlContentType(contentType: string | string[] | undefined): boolean {
+  const value = Array.isArray(contentType) ? contentType[0] : contentType;
+  return typeof value === 'string' && value.toLowerCase().includes('text/html');
+}
+
+function isContentHashedAsset(path: string): boolean {
+  return CONTENT_HASHED_ASSET.test(path);
+}
 
 /**
  * Minimal, valid HTML returned only when the CDN is unreachable — never a crash,
@@ -88,6 +101,25 @@ export function isApexHost(req: Request): boolean {
   }
   if (req.hostname && normalizeHost(req.hostname) === APEX_HOST) return true;
   return false;
+}
+
+/**
+ * Only browser HTML/static requests bypass the API limiter. ActivityPub,
+ * WebFinger, XRPC and media routes on the same apex remain protected.
+ */
+export function isApexWebPlaneRequest(req: Request): boolean {
+  if (!isApexHost(req) || (req.method !== 'GET' && req.method !== 'HEAD')) return false;
+  if (
+    req.path.startsWith('/ap/') ||
+    req.path.startsWith('/.well-known/') ||
+    req.path.startsWith('/xrpc/') ||
+    req.path.startsWith('/media/')
+  ) {
+    return false;
+  }
+  const accept = req.header('accept')?.toLowerCase() ?? '';
+  return !accept.includes('application/activity+json') &&
+    !accept.includes('application/ld+json');
 }
 
 /**
@@ -174,7 +206,7 @@ async function proxyToFrontend(req: Request, res: Response): Promise<void> {
       MAX_PROXY_REDIRECTS,
     );
   } catch (error) {
-    logger.warn(`[apexProxy] Upstream fetch failed for ${req.originalUrl}`, error);
+    logger.warn('[apexProxy] upstream fetch failed', error);
     if (res.headersSent) {
       res.end();
       return;
@@ -186,9 +218,19 @@ async function proxyToFrontend(req: Request, res: Response): Promise<void> {
     return;
   }
 
-  res.status(upstream.statusCode ?? 502);
-
   const contentType = upstream.headers['content-type'];
+  if (isContentHashedAsset(req.path) && isHtmlContentType(contentType)) {
+    // Pages' SPA fallback must never be cached at a hashed static-asset URL.
+    upstream.resume();
+    res.status(404);
+    res.setHeader('Cache-Control', 'no-store');
+    res.removeHeader('Pragma');
+    res.removeHeader('Expires');
+    res.end();
+    return;
+  }
+
+  res.status(upstream.statusCode ?? 502);
   if (contentType) res.setHeader('Content-Type', contentType);
 
   // Relay the CDN's Content-Encoding + its matching Content-Length UNCHANGED: the
@@ -205,7 +247,15 @@ async function proxyToFrontend(req: Request, res: Response): Promise<void> {
   // default the CORS middleware set — this is what lets the browser/edge cache the
   // static assets (`/_expo/static/*`, `/icons/*`, `/manifest.json`, `/favicon.ico`, …).
   const cacheControl = upstream.headers['cache-control'];
-  res.setHeader('Cache-Control', cacheControl ?? 'public, max-age=60');
+  if (isContentHashedAsset(req.path)) {
+    res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+  } else if (isHtmlContentType(contentType)) {
+    res.setHeader('Cache-Control', 'no-cache');
+  } else {
+    res.setHeader('Cache-Control', cacheControl ?? 'public, max-age=60');
+  }
+  res.removeHeader('Pragma');
+  res.removeHeader('Expires');
   const etag = upstream.headers['etag'];
   if (etag) res.setHeader('ETag', etag);
   const lastModified = upstream.headers['last-modified'];
@@ -230,7 +280,7 @@ async function proxyToFrontend(req: Request, res: Response): Promise<void> {
   // On an upstream stream error mid-flight the partially-sent response cannot be
   // recovered — tear it down rather than hang.
   upstream.on('error', (error) => {
-    logger.warn(`[apexProxy] Upstream stream error for ${req.originalUrl}`, error);
+    logger.warn('[apexProxy] upstream stream error', error);
     res.destroy();
   });
 

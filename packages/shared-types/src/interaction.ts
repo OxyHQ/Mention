@@ -2,8 +2,6 @@
  * Interaction-related types for Mention social network
  */
 
-import { Timestamps } from './common';
-
 export enum InteractionType {
   LIKE = 'like',
   BOOST = 'boost',
@@ -192,4 +190,4 @@ export interface InteractionStats {
   totalBlocks: number;
   totalMutes: number;
   totalReports: number;
-} 
+}

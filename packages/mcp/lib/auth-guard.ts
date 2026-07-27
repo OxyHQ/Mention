@@ -1,5 +1,7 @@
 import { requestContext } from "./context.js";
-import { AUTH_REQUIRED_MESSAGE } from "./tool-auth.js";
+
+const AUTH_REQUIRED_MESSAGE =
+  "Authentication required. Connect your Mention account in the MCP client to authorize this action.";
 
 export function getMcpToken(): string {
   return requestContext.getStore()?.userToken ?? "";

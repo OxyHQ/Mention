@@ -60,15 +60,13 @@ export function isVideoExtension(url: string): boolean {
 }
 
 /**
- * Decide whether a raw media reference is a video, combining the three signals
- * the feeds expose: the post-level `type`, the per-item `mediaType`, and the
- * file extension of the reference itself. Any one being "video" is sufficient.
+ * Decide whether a media reference is a video from the canonical per-item type
+ * and, for older media whose metadata is incomplete, the file extension.
  */
 export function isVideoMediaRef(
   raw: string,
-  options: { postType?: string; mediaType?: string } = {},
+  options: { mediaType?: string } = {},
 ): boolean {
-  const isPostVideo = options.postType === 'video';
   const isMediaTypeVideo = options.mediaType === 'video';
-  return isPostVideo || isMediaTypeVideo || isVideoExtension(raw);
+  return isMediaTypeVideo || isVideoExtension(raw);
 }

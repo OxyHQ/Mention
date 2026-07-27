@@ -38,7 +38,11 @@ export class RedisStore {
           return undefined;
         }
         
-        const totalHits = parseInt(value, 10);
+        const totalHits = Number.parseInt(value, 10);
+        if (!Number.isSafeInteger(totalHits) || totalHits < 0) {
+          // A corrupt/stale value must never leak NaN into RateLimit headers.
+          return undefined;
+        }
         const ttl = await this.redis.ttl(fullKey);
         const resetTime = ttl > 0 ? new Date(Date.now() + ttl * 1000) : undefined;
         
@@ -102,8 +106,11 @@ export class RedisStore {
           arguments: [String(ttlSeconds)],
         }) as [number, number];
 
-        const totalHits = result[0];
-        const ttl = result[1];
+        const totalHits = Number(result[0]);
+        const ttl = Number(result[1]);
+        if (!Number.isSafeInteger(totalHits) || totalHits < 1 || !Number.isFinite(ttl)) {
+          return fallback;
+        }
         const resetTime = ttl > 0 ? new Date(Date.now() + ttl * 1000) : undefined;
 
         return { totalHits, resetTime };
@@ -155,4 +162,3 @@ export class RedisStore {
     // Redis client is managed globally, no need to close here
   }
 }
-

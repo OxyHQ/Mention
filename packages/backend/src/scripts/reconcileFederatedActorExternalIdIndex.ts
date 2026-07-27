@@ -44,12 +44,15 @@
  *
  * Runnable as a Fargate one-shot post-deploy:
  *   INSPECT (default, safe):  node dist/src/scripts/reconcileFederatedActorExternalIdIndex.js
- *   APPLY (mutates prod):     APPLY=true node dist/src/scripts/reconcileFederatedActorExternalIdIndex.js
+ *   APPLY (mutates prod):     APPLY=true \
+ *     CONFIRM_ADMIN_MUTATION=reconcileFederatedActorExternalIdIndex \
+ *     node dist/src/scripts/reconcileFederatedActorExternalIdIndex.js
  */
 
 import mongoose from 'mongoose';
 import { FederatedActor } from '../models/FederatedActor';
 import { logger } from '../utils/logger';
+import { assertAdminMutationAllowed } from './lib/adminScriptSafety';
 
 const LOG_PREFIX = '[reconcileFederatedActorExternalIdIndex]';
 
@@ -74,6 +77,12 @@ interface LiveIndex {
   sparse?: boolean;
   partialFilterExpression?: Record<string, unknown>;
   [extra: string]: unknown;
+}
+
+function mongoErrorCode(error: unknown): number | undefined {
+  if (!error || typeof error !== 'object' || !('code' in error)) return undefined;
+  const code = (error as { code?: unknown }).code;
+  return typeof code === 'number' ? code : undefined;
 }
 
 /**
@@ -161,9 +170,12 @@ async function dumpIndexes(label: string): Promise<LiveIndex[]> {
   try {
     indexes = (await FederatedActor.collection.indexes()) as LiveIndex[];
   } catch (error) {
-    // A brand-new/empty collection may not exist yet -> treat as no indexes.
-    logger.warn(`${LOG_PREFIX} could not list indexes (${label}); treating as none`, error);
-    return [];
+    // NamespaceNotFound: a brand-new collection genuinely has no indexes.
+    if (mongoErrorCode(error) === 26) {
+      logger.warn(`${LOG_PREFIX} collection does not exist while listing indexes (${label})`);
+      return [];
+    }
+    throw error;
   }
 
   logger.info(`${LOG_PREFIX} ${label}: ${indexes.length} index(es) on federatedactors`);
@@ -191,10 +203,14 @@ async function reconcileFederatedActorExternalIdIndex(): Promise<void> {
   const dbName = `mention-${process.env.NODE_ENV || 'development'}`;
 
   try {
+    assertAdminMutationAllowed({
+      scriptName: 'reconcileFederatedActorExternalIdIndex',
+      dryRun: !apply,
+    });
     // autoIndex/autoCreate off: this script is the ONLY thing that touches
     // indexes here, so model load must not implicitly build any.
     await mongoose.connect(mongoUri, { dbName, autoIndex: false, autoCreate: false });
-    logger.info(`${LOG_PREFIX} connected to MongoDB (${dbName}) — mode=${mode}`);
+    logger.info(`${LOG_PREFIX} connected to MongoDB`, { mode });
 
     const declared = resolveDeclaredOptions();
 
@@ -250,7 +266,10 @@ async function reconcileNoDeclaredIndex(targetIndexes: LiveIndex[], apply: boole
   for (const idx of targetIndexes) {
     await dropIndexByName(idx.name);
   }
-  await dumpIndexes('final indexes');
+  const finalIndexes = await dumpIndexes('final indexes');
+  if (finalIndexes.some(idx => isTargetKey(idx.key))) {
+    throw new Error(`${LOG_PREFIX} reconciliation failed: ${TARGET_FIELD} index is still present`);
+  }
 }
 
 /**
@@ -309,7 +328,16 @@ async function reconcileDeclaredIndex(
         .join(', ')}); no creation needed.`,
     );
   }
-  await dumpIndexes('final indexes');
+  const finalIndexes = await dumpIndexes('final indexes');
+  const finalTargets = finalIndexes.filter(idx => isTargetKey(idx.key));
+  if (
+    finalTargets.length !== 1
+    || !optionsEqual(liveOptions(finalTargets[0]), declared)
+  ) {
+    throw new Error(
+      `${LOG_PREFIX} reconciliation failed: expected exactly one ${TARGET_FIELD} index with declared options`,
+    );
+  }
 }
 
 /** Create the declared externalId index, tolerating an already-exists race. */
@@ -342,8 +370,12 @@ async function dropIndexByName(name: string | undefined): Promise<void> {
     await FederatedActor.collection.dropIndex(name);
     logger.info(`${LOG_PREFIX} dropped index ${name}`);
   } catch (error) {
-    // IndexNotFound (27) or already gone: log + continue (idempotent).
-    logger.warn(`${LOG_PREFIX} dropIndex(${name}) failed (likely already absent); continuing`, error);
+    // IndexNotFound (27) means a concurrent reconciler already converged it.
+    if (mongoErrorCode(error) === 27) {
+      logger.warn(`${LOG_PREFIX} index ${name} was already absent`);
+      return;
+    }
+    throw error;
   }
 }
 

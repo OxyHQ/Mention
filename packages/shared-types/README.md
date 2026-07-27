@@ -1,206 +1,51 @@
 # @mention/shared-types
 
-Shared TypeScript types for the Mention social network platform. This package contains all the interfaces, enums, and types that are shared between the frontend and backend applications to ensure type consistency.
+Canonical TypeScript contracts shared by the Mention frontend, backend, and
+MCP workspaces.
 
-## Overview
+## Rules
 
-Mention is a Twitter-like social network where users can create posts (instead of tweets), interact with content, and build communities. This package provides comprehensive type definitions for all core functionality.
+- This package contains transport and domain contracts, not application logic.
+- Prefer a published subpath over the root barrel in runtime code. Type-only
+  imports from the barrel are erased by TypeScript and are safe.
+- Add a subpath export before importing a new runtime module from another
+  workspace.
+- Keep viewer-specific state in `PostViewerState`; do not add top-level
+  `isLiked`, `isSaved`, `handle`, `avatarUrl`, or similar compatibility fields.
+- Oxy remains the authority for user identity. `PostUser` is the canonical
+  embedded identity shape.
 
-## Architecture
+## Public exports
 
-The platform uses **Oxy** for user authentication and user data management. All user-related data is linked to Oxy users via `oxyUserId` fields.
+The package publishes the root entry and focused entries including:
 
-## Package Structure
+- `@mention/shared-types/post`
+- `@mention/shared-types/feed`
+- `@mention/shared-types/interaction`
+- `@mention/shared-types/notification`
+- `@mention/shared-types/profile`
+- `@mention/shared-types/language`
+- `@mention/shared-types/externalEmbeds`
+- `@mention/shared-types/mtn/*`
 
-```
-src/
-├── common.ts          # Common utility types and enums
-├── profile.ts         # Profile-related types
-├── post.ts           # Post (tweet) types
-├── interaction.ts    # User interaction types (likes, reposts, etc.)
-├── feed.ts          # Feed and timeline types
-├── media.ts         # Media content types
-├── notification.ts  # Notification system types
-├── list.ts          # User list types
-├── analytics.ts     # Analytics and metrics types
-└── index.ts         # Main export file
-```
+The exact export map is declared in `package.json`.
 
-## Core Types
+## Commands
 
-### Profile Types (`profile.ts`)
-
-- **Profile**: Main profile interface linked to Oxy users
-- **ProfileType**: Personal, Business, Creator, Verified
-- **ProfileVisibility**: Public, Private, Followers Only
-- **PersonalInfo**: Bio, display name, username, avatar, etc.
-- **ProfileSettings**: Notification and privacy settings
-
-### Post Types (`post.ts`)
-
-- **Post**: Main post interface (equivalent to tweets)
-- **PostType**: Text, Image, Video, Poll, Repost, Quote
-- **PostContent**: Text, images, videos, polls, location
-- **PostVisibility**: Public, Followers Only, Private
-- **PollData**: Poll questions, options, and voting data
-
-### Interaction Types (`interaction.ts`)
-
-- **Interaction**: Generic interaction interface
-- **Like**: Post/comment likes
-- **Repost**: Repost and quote functionality
-- **Comment**: Nested comment system
-- **Follow**: User following relationships
-- **Block/Mute**: User blocking and muting
-- **Bookmark**: Post bookmarking
-- **Report**: Content reporting system
-
-### Feed Types (`feed.ts`)
-
-- **Feed**: Generic feed interface
-- **FeedType**: Home, Explore, Trending, User Profile, etc.
-- **FeedAlgorithm**: Chronological, Relevance, Engagement, Personalized
-- **TimelineFeed**: Home timeline feeds
-- **ExploreFeed**: Discovery and trending feeds
-- **SearchFeed**: Search results feeds
-
-### Media Types (`media.ts`)
-
-- **Media**: Generic media interface
-- **MediaType**: Image, Video, Audio, GIF, Document
-- **ImageMedia**: Image-specific metadata and EXIF data
-- **VideoMedia**: Video metadata, codecs, dimensions
-- **AudioMedia**: Audio metadata and properties
-- **MediaProcessingJob**: Media processing and optimization
-
-### Notification Types (`notification.ts`)
-
-- **Notification**: Generic notification interface
-- **NotificationType**: Like, Repost, Comment, Follow, Mention, etc.
-- **NotificationPriority**: Low, Normal, High, Urgent
-- **NotificationPreferences**: User notification settings
-- **Specific notification types**: LikeNotification, FollowNotification, etc.
-
-### List Types (`list.ts`)
-
-- **List**: User-created lists (like Twitter lists)
-- **ListVisibility**: Public, Private
-- **ListType**: User, Topic, Curated
-- **ListMember**: List membership
-- **ListSubscriber**: List following
-
-### Analytics Types (`analytics.ts`)
-
-- **AnalyticsData**: Generic analytics data points
-- **UserAnalytics**: User-specific metrics and insights
-- **PostAnalytics**: Post performance metrics
-- **AudienceAnalytics**: Follower demographics and behavior
-- **PlatformAnalytics**: Platform-wide statistics
-
-## Key Features
-
-### Oxy Integration
-All user-related data is linked to Oxy users via `oxyUserId` fields:
-- Profiles are linked to Oxy users
-- Posts are authored by Oxy users
-- Interactions are performed by Oxy users
-- Notifications are sent to Oxy users
-
-### Comprehensive Social Features
-- **Posts**: Text, images, videos, polls, location sharing
-- **Interactions**: Likes, reposts, comments, follows, blocks, mutes
-- **Feeds**: Multiple feed types with different algorithms
-- **Media**: Rich media support with processing
-- **Notifications**: Comprehensive notification system
-- **Lists**: User-curated lists for organizing follows
-- **Analytics**: Detailed metrics and insights
-
-### Production Ready
-- **Type Safety**: Full TypeScript support with strict typing
-- **Extensible**: Easy to extend with new features
-- **Consistent**: Shared between frontend and backend
-- **Documented**: Comprehensive JSDoc comments
-- **Maintained**: Regular updates and improvements
-
-## Usage
-
-### Installation
+Run these from the repository root:
 
 ```bash
-npm install @mention/shared-types
+bun run build:shared-types
+bun run test:shared-types
+bun run lint:shared-types
 ```
 
-### Import Types
-
-```typescript
-import { 
-  Post, 
-  Profile, 
-  InteractionType, 
-  FeedType,
-  NotificationType 
-} from '@mention/shared-types';
-```
-
-### Example Usage
-
-```typescript
-// Create a new post
-const newPost: CreatePostRequest = {
-  content: {
-    text: "Hello Mention!",
-    images: ["image1.jpg", "image2.jpg"]
-  },
-  visibility: PostVisibility.PUBLIC,
-  hashtags: ["mention", "social"]
-};
-
-// User profile with Oxy integration
-const profile: Profile = {
-  id: "profile123",
-  oxyUserId: "oxy_user_456",
-  profileType: ProfileType.PERSONAL,
-  isPrimary: true,
-  isActive: true,
-  personalInfo: {
-    username: "johndoe",
-    displayName: "John Doe",
-    bio: "Software developer"
-  },
-  // ... other fields
-};
-```
-
-## Development
-
-### Building
+Or from this directory:
 
 ```bash
-npm run build
+bun run build
+bun run test
+bun run lint
 ```
 
-### Development Mode
-
-```bash
-npm run dev
-```
-
-### Linting
-
-```bash
-npm run lint
-```
-
-## Contributing
-
-When adding new types:
-
-1. Follow the existing naming conventions
-2. Use `oxyUserId` for user references
-3. Add comprehensive JSDoc comments
-4. Update this README if adding new major features
-5. Ensure all types are exported from `index.ts`
-
-## License
-
-UNLICENSED - Private package for Mention platform 
+The test command runs the real Bun test suite; it is not a placeholder.

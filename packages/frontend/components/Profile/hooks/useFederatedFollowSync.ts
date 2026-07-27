@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { useFollow } from '@oxyhq/services';
+import { useFollow } from '@oxyhq/services/ui/client';
 import { feedService } from '@/services/feedService';
 import { createScopedLogger } from '@/lib/logger';
 

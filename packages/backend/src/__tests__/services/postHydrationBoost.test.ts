@@ -35,12 +35,12 @@ const { getUserById, getUsersByIds, cacheStore, postFind, postFindOne, federated
   federatedActorFind: vi.fn(),
 }));
 
-vi.mock('../../../server', () => ({
-  oxy: {
+vi.mock('../../runtime/oxyClient', () => ({
+  getRuntimeOxyClient: () => ({
     getUserById,
     getUserFollowing: vi.fn(async () => []),
     getUserFollowers: vi.fn(async () => []),
-  },
+  }),
 }));
 
 vi.mock('../../utils/oxyHelpers', () => ({

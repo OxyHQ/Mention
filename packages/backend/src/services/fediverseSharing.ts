@@ -1,6 +1,7 @@
 import { isNotFoundError } from '@oxyhq/core';
+import { config } from '../config';
 import { getRedisClient } from '../utils/redis';
-import { withRedisFallback, ensureRedisConnected } from '../utils/redisHelpers';
+import { withRedisFallback } from '../utils/redisHelpers';
 import { logger } from '../utils/logger';
 import { getServiceOxyClient } from '../utils/oxyHelpers';
 
@@ -22,7 +23,7 @@ import { getServiceOxyClient } from '../utils/oxyHelpers';
  *  - When Redis is unavailable every operation degrades to a no-op via
  *    {@link withRedisFallback}: reads just re-resolve from Oxy each time.
  *  - Oxy is reached via {@link getServiceOxyClient} — the service-authed
- *    client, NOT the bare `oxy` singleton in server.ts (which is unauthenticated
+ *    client, NOT the process-wide request-auth client (which is unauthenticated
  *    and reserved for validating incoming request tokens, so a resolve on it
  *    returns nothing). The client is obtained inside each function rather than
  *    bound at module scope so callers never depend on its construction order.
@@ -41,7 +42,7 @@ import { getServiceOxyClient } from '../utils/oxyHelpers';
  */
 
 const KEY_PREFIX = 'fedisharing:v1:';
-const TTL_SECONDS = Number(process.env.FEDIVERSE_SHARING_CACHE_TTL_SECONDS ?? 600);
+const TTL_SECONDS = config.cache.fediverseSharingTtlSeconds;
 
 /** Fields of the resolved Oxy user this module reads. */
 interface FediverseSharingUserView {
@@ -74,8 +75,6 @@ async function cacheFlag(oxyUserId: string, enabled: boolean): Promise<void> {
   await withRedisFallback(
     redis,
     async () => {
-      const connected = await ensureRedisConnected(redis);
-      if (!connected) return;
       await redis.setEx(keyFor(oxyUserId), TTL_SECONDS, enabled ? '1' : '0');
     },
     undefined,
@@ -110,8 +109,6 @@ export async function isFediverseSharingEnabled(
     const cached = await withRedisFallback(
       redis,
       async () => {
-        const connected = await ensureRedisConnected(redis);
-        if (!connected) return undefined;
         return await redis.get(keyFor(oxyUserId));
       },
       undefined,
@@ -243,8 +240,6 @@ export async function invalidateFediverseSharing(oxyUserId: string): Promise<voi
   await withRedisFallback(
     redis,
     async () => {
-      const connected = await ensureRedisConnected(redis);
-      if (!connected) return;
       await redis.del(keyFor(oxyUserId));
     },
     undefined,

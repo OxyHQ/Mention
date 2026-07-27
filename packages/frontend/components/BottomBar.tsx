@@ -1,11 +1,14 @@
 import { View } from 'react-native';
-import { Bell, BellActive, ComposeIcon, ComposeIIconActive, Home, HomeActive, Video, VideoActive } from '@/assets/icons';
+import { Home, HomeActive } from '@/assets/icons/home-icon';
+import { Video, VideoActive } from '@/assets/icons/video-icon';
+import { ComposeIcon, ComposeIIconActive } from '@/assets/icons/compose-icon';
+import { Bell, BellActive } from '@/assets/icons/bell-icon';
 import { useRouter, usePathname } from 'expo-router';
 import React, { useCallback, useMemo } from 'react';
 import { Avatar } from '@oxyhq/bloom/avatar';
-import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types';
+import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 
-import { useAuth } from '@oxyhq/services';
+import { useAuth } from '@oxyhq/services/ui/client';
 import { useHaptics } from '@oxyhq/bloom/hooks';
 import {
     TabBar,

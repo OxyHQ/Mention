@@ -2,7 +2,8 @@ import React, { memo, useState, useMemo, useCallback } from 'react';
 import { View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
-import { useAuth, upsertCachedUsers } from '@oxyhq/services';
+import { upsertCachedUsers } from '@oxyhq/services';
+import { useAuth } from '@oxyhq/services/ui/client';
 import { ThemedText } from '@/components/ThemedText';
 import { queryClient } from '@/lib/queryClient';
 import { enrichMissingAvatars } from '@/utils/userEnrichment';
@@ -11,6 +12,7 @@ import type { SuggestedUserData } from './SuggestedUserCard';
 import { logger } from '@/lib/logger';
 import { type ProfileData } from '@/lib/recommendations';
 import { useRecommendations } from '@/hooks/useRecommendations';
+import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 
 interface SuggestedUsersProps {
   visible?: boolean;
@@ -43,7 +45,7 @@ export const SuggestedUsers = memo(function SuggestedUsers({
   // it. Keyed on the source + viewer so it stays deduped/cached and reloads when
   // the session lands. Falls back to shared recommendations on error (below).
   const similarQuery = useQuery<ProfileData[]>({
-    queryKey: ['similarProfiles', sourceUserId ?? '', user?.id ?? 'anon'],
+    queryKey: viewerQueryKeys.similarProfiles(user?.id, sourceUserId),
     queryFn: async () => {
       const src = sourceUserId;
       if (!src) return [];

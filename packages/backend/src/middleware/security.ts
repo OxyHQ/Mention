@@ -1,19 +1,11 @@
 import rateLimit from "express-rate-limit";
 import slowDown from "express-slow-down";
 import type { RequestHandler } from "express";
-import { Request, Response } from "express";
+import { Request } from "express";
 import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
 import { RedisStore } from "./rateLimitStore";
-import { queryString } from "../utils/queryParams";
 import { hashedIpKey } from "../utils/ipKey";
-
-/**
- * Feed types whose ranking work is expensive enough to throttle. A tampered
- * `?type[]=for_you` narrows to `undefined` here, so it can never masquerade as a
- * cheap feed type to dodge the throttle — it is treated as an absent type, the
- * same value the feed controller itself resolves it to.
- */
-const EXPENSIVE_FEED_TYPES: readonly string[] = ['for_you', 'explore'];
+import { getValidatedFeedSource, isExpensiveFeedRequest } from './feedThrottleDescriptor';
 
 // Realistic thresholds for global slow-down. The shared global rate limiter is
 // owned by @oxyhq/core/server; this file only contains app-specific throttles.
@@ -24,10 +16,9 @@ const UNAUTHENTICATED_LIMIT_PER_WINDOW = 600; // per 15 min
  * Generate a rate limit key based on user authentication status.
  * Uses user ID for authenticated users, IP address for unauthenticated users.
  *
- * Per-user keying is essential behind the ALB: many users egress through a
- * small pool of proxy IPs, so IP-only keying would force unrelated users to
- * share a single bucket and trip 429s. `optionalAuth` runs globally before the
- * limiter (see server.ts), so `req.user.id` is populated by the time this runs.
+ * Route-local limiters mounted after authentication use the user ID. The
+ * app-wide slow-down runs before route composition, so it intentionally falls
+ * back to an HMAC of the caller IP when no earlier middleware populated a user.
  */
 function generateRateLimitKey(req: Request, prefix: string): string {
   const authReq = req as AuthRequest;
@@ -200,8 +191,7 @@ export const feedThrottle: RequestHandler = slowDown({
   windowMs: 60 * 1000, // 1 minute
   delayAfter: (req: Request) => {
     // Throttle expensive operations (For You feed, Explore feed)
-    const feedType = queryString(req.query.type) || '';
-    if (EXPENSIVE_FEED_TYPES.includes(feedType)) {
+    if (isExpensiveFeedRequest(req)) {
       const authReq = req as AuthRequest;
       return authReq.user?.id ? 20 : 10; // Lower limit for expensive operations
     }
@@ -210,7 +200,7 @@ export const feedThrottle: RequestHandler = slowDown({
   delayMs: () => 1000, // Add 1 second delay per request above limit
   keyGenerator: (req: Request) => {
     const authReq = req as AuthRequest;
-    const feedType = queryString(req.query.type) || 'mixed';
+    const feedType = getValidatedFeedSource(req) || 'invalid';
     if (authReq.user?.id) {
       return `user:${authReq.user.id}:${feedType}`;
     }
@@ -218,8 +208,7 @@ export const feedThrottle: RequestHandler = slowDown({
   },
   skip: (req: Request) => {
     // Don't throttle simple feed types
-    const feedType = queryString(req.query.type) || '';
-    return !EXPENSIVE_FEED_TYPES.includes(feedType);
+    return !isExpensiveFeedRequest(req);
   }
 });
 

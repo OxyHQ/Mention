@@ -4,7 +4,7 @@ import { Avatar } from '@oxyhq/bloom/avatar';
 import { Loading } from '@oxyhq/bloom/loading';
 import { useTranslation } from 'react-i18next';
 import type { HydratedPost, HydratedPostSummary } from '@mention/shared-types';
-import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types';
+import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import { getNormalizedUserHandle } from '@oxyhq/core';
 
 import { CloseIcon } from '@/assets/icons/close-icon';

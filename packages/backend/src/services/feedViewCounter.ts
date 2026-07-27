@@ -2,7 +2,7 @@ import mongoose from 'mongoose';
 import { MtnConfig, PostVisibility } from '@mention/shared-types';
 import { Post } from '../models/Post';
 import { getRedisClient } from '../utils/redis';
-import { withRedisFallback, ensureRedisConnected } from '../utils/redisHelpers';
+import { withRedisFallback } from '../utils/redisHelpers';
 import { logger } from '../utils/logger';
 
 /**
@@ -80,8 +80,6 @@ export async function recordDedupedView(postId: string, viewerId: string): Promi
   const claimed = await withRedisFallback(
     redis,
     async () => {
-      const connected = await ensureRedisConnected(redis);
-      if (!connected) return false;
       // SET key value NX EX ttl → "OK" when newly set, null when it already exists.
       const result = await redis.set(keyFor(postId, viewerId), '1', {
         NX: true,

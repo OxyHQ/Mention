@@ -4,21 +4,21 @@ import { ThemedView } from '@/components/ThemedView';
 import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
-import { useAuth } from '@oxyhq/services';
+import { useAuth } from '@oxyhq/services/ui/client';
 import { useQueryClient } from '@tanstack/react-query';
 import { starterPacksService } from '@/services/starterPacksService';
-import { STARTER_PACKS_MINE_KEY } from '@/components/AddToStarterPackSheet';
 import { router } from 'expo-router';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { cn } from '@/lib/utils';
 import { useTranslation } from 'react-i18next';
 import { logger } from '@/lib/logger';
 import type { User } from '@oxyhq/core';
+import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 
 type MinimalUser = Pick<User, 'id' | 'username' | 'name' | 'avatar'>;
 
 export default function CreateStarterPackScreen() {
-  const { oxyServices } = useAuth();
+  const { oxyServices, user } = useAuth();
   const { t } = useTranslation();
   const safeBack = useSafeBack();
   const queryClient = useQueryClient();
@@ -69,14 +69,16 @@ export default function CreateStarterPackScreen() {
       });
       // Refresh the viewer's cached pack list so the new pack appears in the
       // AddToStarterPackSheet (which now inherits the global staleTime).
-      queryClient.invalidateQueries({ queryKey: STARTER_PACKS_MINE_KEY });
+      queryClient.invalidateQueries({
+        queryKey: viewerQueryKeys.starterPacksMine(user?.id),
+      });
       router.replace('/starter-packs');
     } catch (e) {
       logger.error('Create starter pack failed', { error: e });
     } finally {
       setSaving(false);
     }
-  }, [name, description, members, queryClient]);
+  }, [name, description, members, queryClient, user?.id]);
 
   return (
     <ThemedView className="flex-1">

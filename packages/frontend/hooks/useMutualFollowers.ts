@@ -1,9 +1,10 @@
 import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { useAuth } from '@oxyhq/services';
+import { useAuth } from '@oxyhq/services/ui/client';
 import type { User } from '@oxyhq/core';
 import { isAuthError } from '@/utils/authErrors';
 import { logger } from '@/lib/logger';
+import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 
 /**
  * How long a fetched mutuals sample stays fresh before React Query refetches it.
@@ -51,7 +52,7 @@ export function useMutualFollowers(profileId?: string): MutualFollowersResult {
     profileId !== viewerId;
 
   const query = useQuery<{ mutuals: User[]; total: number }>({
-    queryKey: ['mutuals', profileId ?? '', viewerId ?? 'anon'],
+    queryKey: viewerQueryKeys.mutualFollowers(viewerId, profileId),
     queryFn: async () => {
       if (!profileId) return { mutuals: [], total: 0 };
       try {

@@ -45,7 +45,7 @@ router.post('/', async (req: AuthRequest, res: Response) => {
 
     await mute.save();
 
-    logger.debug(`User ${userId} muted ${mutedId}`);
+    logger.debug('User mute created');
 
     res.status(201).json({
       message: 'User muted successfully',
@@ -84,7 +84,7 @@ router.delete('/:mutedId', async (req: AuthRequest, res: Response) => {
       return res.status(404).json({ message: 'Mute not found' });
     }
 
-    logger.debug(`User ${userId} unmuted ${mutedId}`);
+    logger.debug('User mute removed');
 
     res.json({
       message: 'User unmuted successfully'

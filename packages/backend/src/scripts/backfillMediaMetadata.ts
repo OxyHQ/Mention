@@ -16,6 +16,7 @@ import type { MediaItem } from '@mention/shared-types';
 import { Post } from '../models/Post';
 import { mediaMetadataService, isOxyFileId } from '../services/MediaMetadataService';
 import { logger } from '../utils/logger';
+import { assertAdminMutationAllowed } from './lib/adminScriptSafety';
 
 const DEFAULT_PAGE_SIZE = 200;
 const BULK_CHUNK_SIZE = 200;
@@ -137,20 +138,27 @@ async function main(): Promise<void> {
   const dryRun = process.argv.includes('--dry-run');
   const mongoUri = process.env.MONGODB_URI || process.env.MONGO_URI;
   if (!mongoUri) {
-    logger.error('[backfillMediaMetadata] MONGODB_URI is required');
-    process.exit(1);
+    throw new Error('[backfillMediaMetadata] MONGODB_URI is required');
   }
 
-  await mongoose.connect(mongoUri);
   try {
+    assertAdminMutationAllowed({
+      scriptName: 'backfillMediaMetadata',
+      dryRun,
+    });
+    await mongoose.connect(mongoUri);
     const result = await backfillMediaMetadata({ dryRun });
     logger.info('[backfillMediaMetadata] complete', { dryRun, ...result });
   } finally {
     await mongoose.disconnect();
-    process.exit(0);
   }
 }
 
 if (require.main === module) {
-  void main();
+  main()
+    .then(() => process.exit(0))
+    .catch((error) => {
+      logger.error('[backfillMediaMetadata] failed', error);
+      process.exit(1);
+    });
 }

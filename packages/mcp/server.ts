@@ -9,13 +9,35 @@
  */
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { createMcpServer } from "./lib/create-server.js";
+import { sanitizeLogValue } from "./lib/logger.js";
+
+function formatStdioLog(args: unknown[]): string {
+  try {
+    return JSON.stringify(sanitizeLogValue(args));
+  } catch {
+    return JSON.stringify(["[Unserializable]"]);
+  }
+}
+
+function redirectConsoleToStderr(): void {
+  const write = (level: string, args: unknown[]): void => {
+    process.stderr.write(
+      `[mention-mcp] ${level} ${formatStdioLog(args)}\n`,
+    );
+  };
+
+  // stdout is reserved exclusively for MCP protocol frames. Keep these
+  // redirects installed for the entire process lifetime: connect() resolves
+  // once the transport is attached, not when the stdio session ends.
+  console.log = (...args: unknown[]) => write("INFO", args);
+  console.info = (...args: unknown[]) => write("INFO", args);
+  console.debug = (...args: unknown[]) => write("DEBUG", args);
+  console.warn = (...args: unknown[]) => write("WARN", args);
+  console.error = (...args: unknown[]) => write("ERROR", args);
+}
 
 async function main() {
-  // Redirect console to stderr so it doesn't interfere with stdio transport
-  const originalLog = console.log;
-  const originalWarn = console.warn;
-  console.log = (...args: unknown[]) => process.stderr.write(`[mention-mcp] ${args.join(" ")}\n`);
-  console.warn = (...args: unknown[]) => process.stderr.write(`[mention-mcp] WARN: ${args.join(" ")}\n`);
+  redirectConsoleToStderr();
 
   const server = createMcpServer();
 
@@ -24,13 +46,11 @@ async function main() {
   await server.connect(transport);
 
   process.stderr.write("[mention-mcp] MCP server running on stdio.\n");
-
-  // Restore console
-  console.log = originalLog;
-  console.warn = originalWarn;
 }
 
 main().catch((error) => {
-  process.stderr.write(`[mention-mcp] Fatal error: ${error}\n`);
+  process.stderr.write(
+    `[mention-mcp] Fatal error: ${formatStdioLog([error])}\n`,
+  );
   process.exit(1);
 });

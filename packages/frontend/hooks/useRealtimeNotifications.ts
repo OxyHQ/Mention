@@ -1,13 +1,11 @@
 import { useEffect, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { createScopedLogger } from '@/lib/logger';
-import { useAuth } from '@oxyhq/services';
+import { useAuth } from '@oxyhq/services/ui/client';
 import { io, Socket } from 'socket.io-client';
 import { API_URL_SOCKET } from '../config';
 import { ZRawNotification } from '../types/validation';
-import { unreadCountKey } from '@/hooks/useUnreadCount';
 import {
-  notificationsKey,
   containsNotification,
   findNotification,
   prependNotification,
@@ -17,6 +15,7 @@ import {
   bumpUnread,
   type NotificationsInfiniteData,
 } from '@/utils/notificationCache';
+import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 
 const logger = createScopedLogger('useRealtimeNotifications');
 
@@ -59,7 +58,7 @@ export const useRealtimeNotifications = () => {
         path: '/socket.io',
       });
 
-      const listKey = notificationsKey(userId);
+      const listKey = viewerQueryKeys.notifications(userId);
 
       socket.on('connect', () => {
         logger.info('Connected to notifications socket');
@@ -128,7 +127,10 @@ export const useRealtimeNotifications = () => {
         queryClient.setQueryData<NotificationsInfiniteData>(listKey, (data) =>
           data ? markAllNotificationsRead(data) : data,
         );
-        queryClient.setQueryData<number>(unreadCountKey(userId), 0);
+        queryClient.setQueryData<number>(
+          viewerQueryKeys.unreadNotifications(userId),
+          0,
+        );
       });
 
       socket.on('disconnect', () => {

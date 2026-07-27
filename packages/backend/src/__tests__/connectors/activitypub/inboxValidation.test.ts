@@ -36,8 +36,8 @@ const mocks = vi.hoisted(() => ({
   postInsertMany: vi.fn(),
   postExists: vi.fn(),
   postDeleteOne: vi.fn(),
-  likeCreate: vi.fn(),
-  likeFindOneAndDelete: vi.fn(),
+  materializeEngagementRelationship: vi.fn(),
+  materializeEngagementTombstone: vi.fn(),
   getServiceOxyClient: vi.fn(),
   makeServiceRequest: vi.fn(),
   persistRemoteMedia: vi.fn(),
@@ -107,11 +107,11 @@ vi.mock('../../../models/Post', () => ({
   },
 }));
 
-vi.mock('../../../models/Like', () => ({
-  default: {
-    create: mocks.likeCreate,
-    findOneAndDelete: mocks.likeFindOneAndDelete,
-  },
+vi.mock('../../../services/PostEngagementCommandService', () => ({
+  materializeEngagementRelationship: (...args: unknown[]) =>
+    mocks.materializeEngagementRelationship(...args),
+  materializeEngagementTombstone: (...args: unknown[]) =>
+    mocks.materializeEngagementTombstone(...args),
 }));
 
 vi.mock('../../../models/UserSettings', () => ({
@@ -190,8 +190,8 @@ beforeEach(() => {
   mocks.postInsertMany.mockResolvedValue({ insertedCount: 0 });
   mocks.postExists.mockResolvedValue(null);
   mocks.followExists.mockResolvedValue({ _id: 'follow_1' });
-  mocks.likeCreate.mockResolvedValue({ _id: 'like_1' });
-  mocks.likeFindOneAndDelete.mockReturnValue({ lean: vi.fn().mockResolvedValue(null) });
+  mocks.materializeEngagementRelationship.mockResolvedValue({ changed: true });
+  mocks.materializeEngagementTombstone.mockResolvedValue({ changed: true });
   mocks.persistRemoteMedia.mockResolvedValue({ ok: false, permanent: false });
   mocks.recordAccess.mockResolvedValue(undefined);
   mocks.postCreatorCreate.mockResolvedValue({ _id: 'created_post_1' });
@@ -207,7 +207,8 @@ describe('processInboxActivity validation gate — invalid activities are droppe
   function expectNoSideEffects() {
     expect(mocks.postCreatorCreate).not.toHaveBeenCalled();
     expect(mocks.postInsertMany).not.toHaveBeenCalled();
-    expect(mocks.likeCreate).not.toHaveBeenCalled();
+    expect(mocks.materializeEngagementRelationship).not.toHaveBeenCalled();
+    expect(mocks.materializeEngagementTombstone).not.toHaveBeenCalled();
     expect(mocks.postUpdateOne).not.toHaveBeenCalled();
     expect(mocks.postDeleteOne).not.toHaveBeenCalled();
     expect(mocks.followFindOneAndUpdate).not.toHaveBeenCalled();
@@ -353,11 +354,12 @@ describe('processInboxActivity validation gate — valid Like/Announce/Undo stil
       actorUri,
     );
 
-    expect(mocks.likeCreate).toHaveBeenCalledWith({ userId: 'oxy_bob', postId: 'local_post_1', value: 1 });
-    expect(mocks.postUpdateOne).toHaveBeenCalledWith(
-      { _id: 'local_post_1' },
-      { $inc: { 'stats.likesCount': 1 } },
-    );
+    expect(mocks.materializeEngagementRelationship).toHaveBeenCalledWith({
+      kind: 'like',
+      userId: 'oxy_bob',
+      postId: 'local_post_1',
+    });
+    expect(mocks.postUpdateOne).not.toHaveBeenCalled();
     expect(mocks.loggerWarn).not.toHaveBeenCalledWith(
       expect.stringContaining('dropping invalid inbound activity'),
     );
@@ -401,9 +403,6 @@ describe('processInboxActivity validation gate — valid Like/Announce/Undo stil
   it('processes a valid Undo(Like): deletes the Like and decrements the counter', async () => {
     stubResolvedActor('oxy_bob');
     stubResolvedPost('local_post_1');
-    mocks.likeFindOneAndDelete.mockReturnValue({
-      lean: vi.fn().mockResolvedValue({ _id: 'like_1' }),
-    });
 
     await federationService.processInboxActivity(
       {
@@ -415,11 +414,12 @@ describe('processInboxActivity validation gate — valid Like/Announce/Undo stil
       actorUri,
     );
 
-    expect(mocks.likeFindOneAndDelete).toHaveBeenCalledWith({ userId: 'oxy_bob', postId: 'local_post_1', value: 1 });
-    expect(mocks.postUpdateOne).toHaveBeenCalledWith(
-      { _id: 'local_post_1', 'stats.likesCount': { $gt: 0 } },
-      { $inc: { 'stats.likesCount': -1 } },
-    );
+    expect(mocks.materializeEngagementTombstone).toHaveBeenCalledWith({
+      kind: 'like',
+      userId: 'oxy_bob',
+      postId: 'local_post_1',
+    });
+    expect(mocks.postUpdateOne).not.toHaveBeenCalled();
     expect(mocks.loggerWarn).not.toHaveBeenCalledWith(
       expect.stringContaining('dropping invalid inbound activity'),
     );

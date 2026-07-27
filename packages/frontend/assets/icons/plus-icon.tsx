@@ -1,5 +1,5 @@
 import React from 'react';
-import { Path, Line, Polygon } from 'react-native-svg';
+import { Path } from 'react-native-svg';
 import { IconSvg } from '@/assets/icons/IconSvg';
 import { ViewStyle } from 'react-native';
 
@@ -9,4 +9,4 @@ export const Plus = ({ color = 'currentColor', size = 26, style, className }: { 
       <Path d="M11 11V4h2v7h7v2h-7v7h-2v-7H4v-2h7z"></Path>
     </IconSvg>
   );
-}; 
+};

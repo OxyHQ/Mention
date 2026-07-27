@@ -7,7 +7,7 @@ import Post from "../models/Post";
 import UserSettings from "../models/UserSettings";
 import { logger } from '../utils/logger';
 import { aliaChat, isAliaEnabled } from '../utils/alia';
-import { oxy as oxyClient } from '../../server';
+import { getRuntimeOxyClient } from '../runtime/oxyClient';
 import { userPreferenceService } from '../services/UserPreferenceService';
 import { recordDedupedView } from '../services/feedViewCounter';
 import { validateRequired } from '../utils/apiHelpers';
@@ -22,6 +22,10 @@ const DEFAULT_SUMMARY_LANGUAGE = 'en';
 
 /** Trailing window the statistics endpoints report on when `?days` is absent. */
 const DEFAULT_STATS_WINDOW_DAYS = 30;
+const MAX_STATS_WINDOW_DAYS = 366;
+const STATISTICS_QUERY_MAX_TIME_MS = 3_000;
+const STATISTICS_CACHE_TTL_MS = 30_000;
+const STATISTICS_CACHE_MAX_ENTRIES = 500;
 
 interface DateRange {
   startDate: Date;
@@ -35,6 +39,220 @@ function getDateRange(days: number = DEFAULT_STATS_WINDOW_DAYS): DateRange {
   return { startDate, endDate };
 }
 
+function requestedStatsDays(value: unknown): number {
+  const parsed = queryInt(value);
+  return parsed === undefined
+    ? DEFAULT_STATS_WINDOW_DAYS
+    : Math.min(MAX_STATS_WINDOW_DAYS, Math.max(1, parsed));
+}
+
+interface UserStatisticsPayload {
+  period: { startDate: string; endDate: string; days: number };
+  overview: {
+    totalPosts: number;
+    totalViews: number;
+    totalInteractions: number;
+    engagementRate: number;
+    averageEngagementPerPost: number;
+  };
+  interactions: { likes: number; replies: number; boosts: number; shares: number };
+  dailyBreakdown: Array<{
+    date: string;
+    views: number;
+    likes: number;
+    replies: number;
+    boosts: number;
+    interactions: number;
+  }>;
+  topPosts: Array<{
+    postId: string;
+    views: number;
+    likes: number;
+    replies: number;
+    boosts: number;
+    engagement: number;
+    createdAt: Date;
+  }>;
+  postsByType: Record<string, number>;
+}
+
+const statisticsCache = new Map<
+  string,
+  { expiresAt: number; value: UserStatisticsPayload }
+>();
+
+function cacheStatistics(key: string, value: UserStatisticsPayload): void {
+  statisticsCache.delete(key);
+  statisticsCache.set(key, { expiresAt: Date.now() + STATISTICS_CACHE_TTL_MS, value });
+  while (statisticsCache.size > STATISTICS_CACHE_MAX_ENTRIES) {
+    const oldest = statisticsCache.keys().next().value as string | undefined;
+    if (!oldest) break;
+    statisticsCache.delete(oldest);
+  }
+}
+
+function rounded(value: number): number {
+  return Number(value.toFixed(2));
+}
+
+async function queryUserStatistics(
+  userId: string,
+  days: number,
+): Promise<UserStatisticsPayload> {
+  const cacheKey = `${userId}:${days}`;
+  const cached = statisticsCache.get(cacheKey);
+  if (cached && cached.expiresAt > Date.now()) {
+    statisticsCache.delete(cacheKey);
+    statisticsCache.set(cacheKey, cached);
+    return cached.value;
+  }
+  if (cached) statisticsCache.delete(cacheKey);
+
+  const { startDate, endDate } = getDateRange(days);
+  const [facets] = await Post.aggregate<{
+    overview: Array<{
+      totalPosts: number;
+      totalViews: number;
+      totalLikes: number;
+      totalReplies: number;
+      totalBoosts: number;
+      totalShares: number;
+    }>;
+    dailyBreakdown: UserStatisticsPayload['dailyBreakdown'];
+    topPosts: UserStatisticsPayload['topPosts'];
+    postsByType: Array<{ type: string; count: number }>;
+  }>([
+    {
+      $match: {
+        authorship: {
+          $elemMatch: { oxyUserId: userId, role: 'owner' },
+        },
+        createdAt: { $gte: startDate, $lte: endDate },
+      },
+    },
+    {
+      $facet: {
+        overview: [
+          {
+            $group: {
+              _id: null,
+              totalPosts: { $sum: 1 },
+              totalViews: { $sum: { $ifNull: ['$stats.viewsCount', 0] } },
+              totalLikes: { $sum: { $ifNull: ['$stats.likesCount', 0] } },
+              totalReplies: { $sum: { $ifNull: ['$stats.commentsCount', 0] } },
+              totalBoosts: { $sum: { $ifNull: ['$stats.boostsCount', 0] } },
+              totalShares: { $sum: { $ifNull: ['$stats.sharesCount', 0] } },
+            },
+          },
+        ],
+        dailyBreakdown: [
+          {
+            $group: {
+              _id: {
+                $dateToString: {
+                  format: '%Y-%m-%d',
+                  date: '$createdAt',
+                  timezone: 'UTC',
+                },
+              },
+              views: { $sum: { $ifNull: ['$stats.viewsCount', 0] } },
+              likes: { $sum: { $ifNull: ['$stats.likesCount', 0] } },
+              replies: { $sum: { $ifNull: ['$stats.commentsCount', 0] } },
+              boosts: { $sum: { $ifNull: ['$stats.boostsCount', 0] } },
+              shares: { $sum: { $ifNull: ['$stats.sharesCount', 0] } },
+            },
+          },
+          {
+            $project: {
+              _id: 0,
+              date: '$_id',
+              views: 1,
+              likes: 1,
+              replies: 1,
+              boosts: 1,
+              shares: 1,
+            },
+          },
+          {
+            $set: {
+              interactions: { $add: ['$likes', '$replies', '$boosts', '$shares'] },
+            },
+          },
+          { $unset: 'shares' },
+          { $sort: { date: 1 } },
+        ],
+        topPosts: [
+          {
+            $project: {
+              postId: { $toString: '$_id' },
+              views: { $ifNull: ['$stats.viewsCount', 0] },
+              likes: { $ifNull: ['$stats.likesCount', 0] },
+              replies: { $ifNull: ['$stats.commentsCount', 0] },
+              boosts: { $ifNull: ['$stats.boostsCount', 0] },
+              shares: { $ifNull: ['$stats.sharesCount', 0] },
+              createdAt: 1,
+            },
+          },
+          {
+            $set: {
+              engagement: { $add: ['$likes', '$replies', '$boosts', '$shares'] },
+            },
+          },
+          { $sort: { engagement: -1, createdAt: -1 } },
+          { $limit: 10 },
+          { $unset: 'shares' },
+        ],
+        postsByType: [
+          { $group: { _id: { $ifNull: ['$type', 'text'] }, count: { $sum: 1 } } },
+          { $project: { _id: 0, type: '$_id', count: 1 } },
+        ],
+      },
+    },
+  ]).option({ maxTimeMS: STATISTICS_QUERY_MAX_TIME_MS });
+
+  const totals = facets?.overview[0] ?? {
+    totalPosts: 0,
+    totalViews: 0,
+    totalLikes: 0,
+    totalReplies: 0,
+    totalBoosts: 0,
+    totalShares: 0,
+  };
+  const totalInteractions =
+    totals.totalLikes + totals.totalReplies + totals.totalBoosts + totals.totalShares;
+  const value: UserStatisticsPayload = {
+    period: {
+      startDate: startDate.toISOString(),
+      endDate: endDate.toISOString(),
+      days,
+    },
+    overview: {
+      totalPosts: totals.totalPosts,
+      totalViews: totals.totalViews,
+      totalInteractions,
+      engagementRate: rounded(
+        totals.totalViews > 0 ? (totalInteractions / totals.totalViews) * 100 : 0,
+      ),
+      averageEngagementPerPost: rounded(
+        totals.totalPosts > 0 ? totalInteractions / totals.totalPosts : 0,
+      ),
+    },
+    interactions: {
+      likes: totals.totalLikes,
+      replies: totals.totalReplies,
+      boosts: totals.totalBoosts,
+      shares: totals.totalShares,
+    },
+    dailyBreakdown: facets?.dailyBreakdown ?? [],
+    topPosts: facets?.topPosts ?? [],
+    postsByType: Object.fromEntries(
+      (facets?.postsByType ?? []).map(({ type, count }) => [type, count]),
+    ),
+  };
+  cacheStatistics(cacheKey, value);
+  return value;
+}
+
 /**
  * Get user statistics (overall analytics)
  * Shows post views, interactions, follower changes, and engagement ratios
@@ -46,110 +264,8 @@ export const getUserStatistics = async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ message: 'Unauthorized' });
     }
 
-    const daysNum = queryInt(req.query.days) || DEFAULT_STATS_WINDOW_DAYS;
-    const { startDate, endDate } = getDateRange(daysNum);
-
-    // Get all posts by user in date range
-    const posts = await Post.find({
-      oxyUserId: userId,
-      createdAt: { $gte: startDate, $lte: endDate }
-    } as Record<string, unknown>).lean();
-
-    // Aggregate stats
-    const totalPosts = posts.length;
-    const totalViews = posts.reduce((sum, post) => sum + (post.stats?.viewsCount || 0), 0);
-    const totalLikes = posts.reduce((sum, post) => sum + (post.stats?.likesCount || 0), 0);
-    const totalReplies = posts.reduce((sum, post) => sum + (post.stats?.commentsCount || 0), 0);
-    const totalBoosts = posts.reduce((sum, post) => sum + (post.stats?.boostsCount || 0), 0);
-    const totalShares = posts.reduce((sum, post) => sum + (post.stats?.sharesCount || 0), 0);
-
-    // Calculate engagement
-    const totalInteractions = totalLikes + totalReplies + totalBoosts + totalShares;
-    const engagementRate = totalViews > 0 ? (totalInteractions / totalViews) * 100 : 0;
-    const averageEngagementPerPost = totalPosts > 0 ? totalInteractions / totalPosts : 0;
-
-    // Get daily breakdown for charts
-    const dailyStats = new Map<string, {
-      date: string;
-      views: number;
-      likes: number;
-      replies: number;
-      boosts: number;
-      interactions: number;
-    }>();
-
-    posts.forEach(post => {
-      const date = new Date(post.createdAt).toISOString().split('T')[0];
-      const existing = dailyStats.get(date) || {
-        date,
-        views: 0,
-        likes: 0,
-        replies: 0,
-        boosts: 0,
-        interactions: 0
-      };
-
-      existing.views += post.stats?.viewsCount || 0;
-      existing.likes += post.stats?.likesCount || 0;
-      existing.replies += post.stats?.commentsCount || 0;
-      existing.boosts += post.stats?.boostsCount || 0;
-      existing.interactions += (post.stats?.likesCount || 0) +
-                                (post.stats?.commentsCount || 0) +
-                                (post.stats?.boostsCount || 0);
-
-      dailyStats.set(date, existing);
-    });
-
-    const dailyBreakdown = Array.from(dailyStats.values()).sort((a, b) => 
-      a.date.localeCompare(b.date)
-    );
-
-    // Get top performing posts
-    const topPosts = posts
-      .map(post => ({
-        postId: post._id.toString(),
-        views: post.stats?.viewsCount || 0,
-        likes: post.stats?.likesCount || 0,
-        replies: post.stats?.commentsCount || 0,
-        boosts: post.stats?.boostsCount || 0,
-        engagement: (post.stats?.likesCount || 0) +
-                   (post.stats?.commentsCount || 0) +
-                   (post.stats?.boostsCount || 0),
-        createdAt: post.createdAt
-      }))
-      .sort((a, b) => b.engagement - a.engagement)
-      .slice(0, 10);
-
-    // Get posts by type breakdown
-    const postsByType = posts.reduce((acc, post) => {
-      const type = post.type || 'text';
-      acc[type] = (acc[type] || 0) + 1;
-      return acc;
-    }, {} as Record<string, number>);
-
-    res.json({
-      period: {
-        startDate: startDate.toISOString(),
-        endDate: endDate.toISOString(),
-        days: daysNum
-      },
-      overview: {
-        totalPosts,
-        totalViews,
-        totalInteractions,
-        engagementRate: parseFloat(engagementRate.toFixed(2)),
-        averageEngagementPerPost: parseFloat(averageEngagementPerPost.toFixed(2))
-      },
-      interactions: {
-        likes: totalLikes,
-        replies: totalReplies,
-        boosts: totalBoosts,
-        shares: totalShares
-      },
-      dailyBreakdown,
-      topPosts,
-      postsByType
-    });
+    const days = requestedStatsDays(req.query.days);
+    res.json(await queryUserStatistics(userId, days));
   } catch (error) {
     logger.error('Error fetching user statistics:', error);
     res.status(500).json({
@@ -232,7 +348,7 @@ export const getUserActivity = async (req: AuthRequest, res: Response) => {
       },
       { $project: { _id: 0, date: '$_id', count: 1 } },
       { $sort: { date: 1 } },
-    ]);
+    ]).option({ maxTimeMS: STATISTICS_QUERY_MAX_TIME_MS });
 
     res.json({ activity });
   } catch (error) {
@@ -257,13 +373,16 @@ export const getPostInsights = async (req: AuthRequest, res: Response) => {
 
     const { postId } = req.params;
 
-    const post = await Post.findById(postId).lean();
+    const post = await Post.findById(postId)
+      .select('_id oxyUserId createdAt stats')
+      .maxTimeMS(STATISTICS_QUERY_MAX_TIME_MS)
+      .lean();
     if (!post) {
       return res.status(404).json({ message: 'Post not found' });
     }
 
     // Check if user owns the post
-    if (post.oxyUserId !== userId) {
+    if (String(post.oxyUserId) !== userId) {
       return res.status(403).json({ message: 'You can only view insights for your own posts' });
     }
 
@@ -272,7 +391,8 @@ export const getPostInsights = async (req: AuthRequest, res: Response) => {
       boostsCount: 0,
       commentsCount: 0,
       viewsCount: 0,
-      sharesCount: 0
+      sharesCount: 0,
+      savesCount: 0,
     };
 
     // Calculate engagement metrics
@@ -281,24 +401,11 @@ export const getPostInsights = async (req: AuthRequest, res: Response) => {
       ? (totalInteractions / stats.viewsCount) * 100 
       : 0;
 
-    // Get unique viewers (approximate - users who liked/commented/boosted)
-    const likedBy = Array.isArray(post.metadata?.likedBy) ? post.metadata.likedBy : [];
-    const uniqueViewers = stats.viewsCount; // We don't track unique viewers separately yet
-
-    // Get replies
-    const replies = await Post.find({ parentPostId: postId }).lean();
-    const replyCount = replies.length;
-
-    // Get boosts
-    const boosts = await Post.find({ boostOf: postId }).lean();
-    const boostCount = boosts.length;
-
-    // Get quote posts (posts that quote this one)
-    const quotes = await Post.find({ quoteOf: postId }).lean();
-    const quoteCount = quotes.length;
-
-    // Calculate reach (approximate - views + boosts reach)
-    const reach = stats.viewsCount + (boostCount * 10); // Estimate boost reach
+    const [replyCount, boostCount, quoteCount] = await Promise.all([
+      Post.countDocuments({ parentPostId: postId }),
+      Post.countDocuments({ boostOf: postId }),
+      Post.countDocuments({ quoteOf: postId }),
+    ]);
 
     res.json({
       postId: post._id.toString(),
@@ -314,11 +421,14 @@ export const getPostInsights = async (req: AuthRequest, res: Response) => {
       engagement: {
         totalInteractions,
         engagementRate: parseFloat(engagementRate.toFixed(2)),
-        reach,
-        uniqueViewers
+        // Reach is the measured view counter. Mention does not currently retain
+        // a durable lifetime unique-viewer set, so that metric is explicit null
+        // rather than a fabricated estimate.
+        reach: stats.viewsCount,
+        uniqueViewers: null,
       },
       breakdown: {
-        likedBy: likedBy.length,
+        likedBy: stats.likesCount,
         hasReplies: replyCount > 0,
         hasBoosts: boostCount > 0,
         hasQuotes: quoteCount > 0
@@ -388,52 +498,13 @@ export const trackPostView = async (req: AuthRequest, res: Response) => {
  * Shows follower growth/loss trends
  */
 export const getFollowerChanges = async (req: AuthRequest, res: Response) => {
-  try {
-    const userId = req.user?.id;
-    if (!userId) {
-      return res.status(401).json({ message: 'Unauthorized' });
-    }
-
-    const daysNum = queryInt(req.query.days) || DEFAULT_STATS_WINDOW_DAYS;
-    const { startDate, endDate } = getDateRange(daysNum);
-
-    // Note: Follower tracking would need to be implemented separately
-    // For now, we'll return a placeholder structure
-    // This would require tracking follower changes in a separate collection
-    
-    // Get posts to estimate engagement-related follower growth
-    const posts = await Post.find({
-      oxyUserId: userId,
-      createdAt: { $gte: startDate, $lte: endDate }
-    } as Record<string, unknown>).lean();
-
-    // Estimate follower engagement based on interactions
-    const totalInteractions = posts.reduce((sum, post) => {
-      return sum + (post.stats?.likesCount || 0) +
-                   (post.stats?.commentsCount || 0) +
-                   (post.stats?.boostsCount || 0);
-    }, 0);
-
-    res.json({
-      period: {
-        startDate: startDate.toISOString(),
-        endDate: endDate.toISOString(),
-        days: daysNum
-      },
-      currentFollowers: 0, // Would need to fetch from Oxy services
-      followerChanges: [], // Would need historical tracking
-      estimatedGrowth: {
-        interactions: totalInteractions,
-        note: 'Follower tracking requires integration with Oxy services'
-      }
-    });
-  } catch (error) {
-    logger.error('Error fetching follower changes:', error);
-    res.status(500).json({
-      message: 'Error fetching follower changes',
-      error: error instanceof Error ? error.message : 'Unknown error'
-    });
+  if (!req.user?.id) {
+    return res.status(401).json({ message: 'Unauthorized' });
   }
+  return res.status(501).json({
+    message: 'Follower history is unavailable until authoritative Oxy snapshots are enabled',
+    available: false,
+  });
 };
 
 /**
@@ -446,29 +517,15 @@ export const getEngagementRatios = async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ message: 'Unauthorized' });
     }
 
-    const daysNum = queryInt(req.query.days) || DEFAULT_STATS_WINDOW_DAYS;
-    const { startDate, endDate } = getDateRange(daysNum);
-
-    const posts = await Post.find({
-      oxyUserId: userId,
-      createdAt: { $gte: startDate, $lte: endDate }
-    } as Record<string, unknown>).lean();
-
-    let totalViews = 0;
-    let totalLikes = 0;
-    let totalReplies = 0;
-    let totalBoosts = 0;
-    let totalShares = 0;
-
-    posts.forEach(post => {
-      totalViews += post.stats?.viewsCount || 0;
-      totalLikes += post.stats?.likesCount || 0;
-      totalReplies += post.stats?.commentsCount || 0;
-      totalBoosts += post.stats?.boostsCount || 0;
-      totalShares += post.stats?.sharesCount || 0;
-    });
-
-    const totalInteractions = totalLikes + totalReplies + totalBoosts + totalShares;
+    const days = requestedStatsDays(req.query.days);
+    const statistics = await queryUserStatistics(userId, days);
+    const totalViews = statistics.overview.totalViews;
+    const totalInteractions = statistics.overview.totalInteractions;
+    const totalLikes = statistics.interactions.likes;
+    const totalReplies = statistics.interactions.replies;
+    const totalBoosts = statistics.interactions.boosts;
+    const totalShares = statistics.interactions.shares;
+    const totalPosts = statistics.overview.totalPosts;
 
     // Calculate various engagement ratios
     const engagementRate = totalViews > 0 ? (totalInteractions / totalViews) * 100 : 0;
@@ -478,14 +535,12 @@ export const getEngagementRatios = async (req: AuthRequest, res: Response) => {
     const shareRate = totalViews > 0 ? (totalShares / totalViews) * 100 : 0;
 
     // Calculate average per post
-    const avgViewsPerPost = posts.length > 0 ? totalViews / posts.length : 0;
-    const avgEngagementPerPost = posts.length > 0 ? totalInteractions / posts.length : 0;
+    const avgViewsPerPost = totalPosts > 0 ? totalViews / totalPosts : 0;
+    const avgEngagementPerPost = totalPosts > 0 ? totalInteractions / totalPosts : 0;
 
     res.json({
       period: {
-        startDate: startDate.toISOString(),
-        endDate: endDate.toISOString(),
-        days: daysNum
+        ...statistics.period,
       },
       ratios: {
         engagementRate: parseFloat(engagementRate.toFixed(2)),
@@ -499,7 +554,7 @@ export const getEngagementRatios = async (req: AuthRequest, res: Response) => {
         engagementPerPost: parseFloat(avgEngagementPerPost.toFixed(2))
       },
       totals: {
-        posts: posts.length,
+        posts: totalPosts,
         views: totalViews,
         interactions: totalInteractions,
         likes: totalLikes,
@@ -538,7 +593,7 @@ export const getWeeklySummary = async (req: AuthRequest, res: Response) => {
     // account declares no language or the profile fetch fails.
     let language = DEFAULT_SUMMARY_LANGUAGE;
     try {
-      const oxyUser = await oxyClient.getUserById(userId);
+      const oxyUser = await getRuntimeOxyClient().getUserById(userId);
       const primaryLocale = getPrimaryLanguage(oxyUser);
       const baseLanguage = primaryLocale ? getBaseLanguage(primaryLocale) : '';
       if (baseLanguage) {
@@ -555,9 +610,12 @@ export const getWeeklySummary = async (req: AuthRequest, res: Response) => {
     const now = new Date();
 
     const posts = await Post.find({
-      oxyUserId: userId,
+      authorship: { $elemMatch: { oxyUserId: userId, role: 'owner' } },
       createdAt: { $gte: startDate, $lte: now },
-    } as Record<string, unknown>).lean();
+    } as Record<string, unknown>)
+      .select('createdAt type stats content.variants content.text')
+      .maxTimeMS(STATISTICS_QUERY_MAX_TIME_MS)
+      .lean();
 
     // Split into current week (last 7 days) and previous week (days 8-14)
     const sevenDaysAgo = new Date();
@@ -701,4 +759,3 @@ export const getWeeklySummary = async (req: AuthRequest, res: Response) => {
     });
   }
 };
-

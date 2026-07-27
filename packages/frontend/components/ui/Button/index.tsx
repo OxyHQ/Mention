@@ -19,7 +19,7 @@ import {
   Pressable,
 } from 'react-native';
 import { Link, useRouter, type Href } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 
 import { useTheme } from '@oxyhq/bloom/theme';
 import { useHaptics } from '@oxyhq/bloom/hooks';
@@ -175,19 +175,16 @@ const ButtonComponent: React.FC<ButtonProps> = ({
     return styles;
   }, [effectiveVariant, sizeConfig, theme]);
 
-  // Disabled styles
-  const disabledStyles = disabled ? { opacity: 0.5 } : {};
-
   // Combined styles for the inner button.
-  const combinedStyles = useMemo(
-    () => flattenStyleArray([
+  const combinedStyles = useMemo(() => {
+    const disabledStyles = disabled ? { opacity: 0.5 } : {};
+    return flattenStyleArray([
       baseStyles,
       style,
       disabledStyles,
       contentStyle,
-    ]),
-    [baseStyles, style, disabledStyles, contentStyle]
-  );
+    ]);
+  }, [baseStyles, style, disabled, contentStyle]);
 
   // Icon component
   const iconElement = useMemo(() => {

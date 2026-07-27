@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import { ipKeyGenerator } from 'express-rate-limit';
 import type { Request } from 'express';
+import { getIpHashSalt } from '../config';
 
 /**
  * Privacy-preserving rate-limit key for anonymous callers.
@@ -21,6 +22,6 @@ export function hashedIpKey(req: Request): string {
     return 'unknown';
   }
   const normalized = ipKeyGenerator(ip);
-  const salt = process.env.IP_HASH_SALT || process.env.DEVICE_ID_SALT || '';
+  const salt = getIpHashSalt() ?? '';
   return crypto.createHmac('sha256', salt).update(`rl|${normalized}`).digest('hex').slice(0, 24);
 }

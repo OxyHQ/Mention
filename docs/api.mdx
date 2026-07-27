@@ -1,252 +1,222 @@
 ---
 title: API
-description: The Mention backend REST + Socket.io surface — feeds, posts, follows, notifications, federation, and more.
+description: Verified HTTP surface exposed by the current Mention backend.
 order: 3
 ---
 
-# Mention API
+# API
 
-`@mention/backend` is an Express 5 service that powers the Mention frontend, the mobile apps, the MCP server, and the federation surface. It speaks REST over HTTPS for request/response work and Socket.io for real-time updates. Authentication is delegated to Oxy: every authenticated request carries an Oxy access token in `Authorization: Bearer <token>`, verified by `@oxyhq/core`'s `auth()` middleware.
+The Mention backend is an Express 5 application served primarily from
+`https://api.mention.earth`. The apex host reaches the same process for
+ActivityPub, OG shells, and static web proxying.
 
-MCP-specific routes (`/mcp/oauth/*`, `/mcp/bundles/*`, `/mcp/connections`) also accept a Mention MCP access JWT with the same Bearer header; see [`packages/mcp/README.md`](../packages/mcp/README.md).
-
-## Base URL
-
-```
-https://api.mention.earth
-```
-
-Local development defaults to `http://localhost:3000`. The federation endpoints (`/.well-known/*`, `/ap/*`) must additionally be reachable on the `FEDERATION_DOMAIN` — see [Fediverse](/developers/docs/mention/fediverse).
+This page describes route families and stable operational contracts. Individual
+controllers remain authoritative for endpoint-specific request bodies and
+response shapes.
 
 ## Authentication
 
-| Type | Header | Use case |
-|------|--------|----------|
-| Oxy user token | `Authorization: Bearer <oxy_access_token>` | First-party Mention clients (web, mobile). |
-| HTTP signature | `Signature: keyId=..., signature=...` | Inbound fediverse activities (verified against `FederatedActor` public keys). |
+Authenticated API routers accept an Oxy bearer token or a valid Mention MCP
+JWT. Public read routers may attach optional viewer identity to calculate
+visibility and viewer state. Mutations require identity in their mount or
+handler.
 
-There is no Mention-specific signup or login flow. Users authenticate against Oxy (`@oxyhq/services` in-app or the standalone Auth app on the web) and the resulting access token is sent to the Mention API. The backend pulls user metadata from Oxy as needed.
+Post responses are hydrated by `PostHydrationService` and use contracts from
+`@mention/shared-types`. Oxy's user object is the canonical post-author shape.
 
-Public endpoints either skip auth entirely (e.g. trending, hashtag pages) or use the `optionalAuth` middleware that attaches the user when present but does not require it. Write endpoints always require auth.
+## Operations
 
-## Conventions
+| Method | Path | Access | Contract |
+| --- | --- | --- | --- |
+| GET | `/health/live` | Public | `200` while the process can answer HTTP |
+| GET | `/health/ready` | Public | `200` only after startup, migrations, and MongoDB; otherwise `503` |
+| GET | `/internal/metrics` | Service-only | Prometheus output after network and bearer-token checks |
+| POST | `/telemetry/web` | Trusted browser origin | Bounded web-vitals/runtime batch; returns `204` |
 
-- **Errors** — every error response follows `{ error: 'CODE', message: 'human readable' }` with the appropriate HTTP status.
-- **Pagination** — list endpoints accept `cursor` (opaque) and `limit` query params; responses include `nextCursor` when more data exists. Feed endpoints expose dual cursors (`score` for ranked feeds, `chrono` for time-ordered feeds) handled by `CursorBuilder`.
-- **Rate limiting** — Redis-backed via `express-rate-limit` + `rate-limit-redis`. Brute-force protection sits on top via `express-slow-down`. Exceeded limits return `429` with `Retry-After`.
-- **Timestamps** — ISO 8601 (`2025-01-15T12:34:56.789Z`).
-- **IDs** — Mongo ObjectIDs serialized as strings.
-- **DTOs** — request and response shapes match the interfaces exported from `@mention/shared-types`.
+A ready response reports the runtime phase and MongoDB, migration, and Redis
+states. Redis can be `degraded` without failing HTTP readiness.
+
+Metrics use normalized route templates and bounded labels. The service does not
+expose user IDs, post IDs, raw paths, query values, tokens, or private content
+as metric labels.
 
 ## Router mounts
 
-The server splits routers into a **public** group (no auth wall, individual routes opt in) and an **authenticated** group (every route runs behind `oxy.auth()`):
+| Mount | Access | Responsibility |
+| --- | --- | --- |
+| `/hashtags` | Public | Hashtag data |
+| `/feed` | Optional viewer | Unified feeds, feed preferences, and interactions |
+| `/posts` | Mixed | Public reads and authenticated post commands |
+| `/profile/design` | Public | Public profile presentation |
+| `/articles` | Public | Long-form content |
+| `/trending` | Public | Trending content |
+| `/topics` | Public | Topic data |
+| `/federation` | Mixed | App-facing external-network operations |
+| `/feeds` | Optional viewer | Custom feed discovery and management |
+| `/recommendations` | Optional viewer | Recommendations |
+| `/starter-packs` | Optional viewer | Starter-pack discovery and commands |
+| `/mtn/nodes` | Optional viewer | Mention node discovery and management |
+| `/statistics` | Mixed | Public activity and authenticated insights |
+| `/lists` | Authenticated | Account lists |
+| `/notifications` | Authenticated | Notifications and push tokens |
+| `/search` | Authenticated | Published, visible post search |
+| `/labelers` | Authenticated | Moderation labelers |
+| `/polls` | Authenticated | Poll operations |
+| `/profile` | Authenticated | Mention-specific profile settings and media |
+| `/subscriptions` | Authenticated | Post subscriptions |
+| `/gifs` | Authenticated | GIF integration |
+| `/mute` | Authenticated | Account mutes |
+| `/mute-words` | Authenticated | Muted terms |
+| `/reports` | Authenticated | Reports |
+| `/pokes` | Authenticated | Pokes |
+| `/entity-follows` | Authenticated | Non-user entity follows |
+| `/mcp/connections` | Authenticated | MCP connection management |
+| `/mcp/bundles` | Authenticated | MCP multi-account bundles |
 
-| Mount | Group | Notes |
-|-------|-------|-------|
-| `/health` | public | Liveness + Mongo + Redis status. |
-| `/.well-known` | public | WebFinger. |
-| `/ap` | public | ActivityPub protocol surface (inbox, outbox, actor). |
-| `/hashtags` | public | Hashtag metadata, trending counts. |
-| `/feed` | public (optional auth) | MTN feed reads. |
-| `/profile/design` | public | Profile theming. |
-| `/articles` | public | Long-form articles. |
-| `/images` | public (rate-limited) | Image optimization proxy. |
-| `/links` | public (optional auth) | Link previews. |
-| `/trending` | public | Trending topics. |
-| `/topics` | public | Topic taxonomy. |
-| `/federation` | public (optional auth) | Frontend-facing fediverse API. Writes enforce auth internally. |
-| `/posts` | authenticated | Post CRUD, likes, saves, reposts. |
-| `/lists` | authenticated | User-curated lists of accounts. |
-| `/notifications` | authenticated | Notifications + FCM push tokens. |
-| `/analytics` | authenticated | Engagement analytics. |
-| `/statistics` | authenticated | Aggregated stats. |
-| `/search` | authenticated | Search users, posts, hashtags. |
-| `/feeds` | authenticated | User-created custom feeds. |
-| `/labelers` | authenticated | Composable moderation labels. |
-| `/polls` | authenticated | Poll creation + voting. |
-| `/profile` | authenticated | Profile settings (Mention-specific, non-Oxy). |
-| `/subscriptions` | authenticated | Post subscriptions ("notify me of new posts"). |
-| `/gifs` | authenticated | GIF picker passthrough. |
-| `/follows` | authenticated | Follow event emission. |
-| `/mute` | authenticated | Mute words + mute users. |
-| `/reports` | authenticated | Content reporting. |
-| `/rooms` | authenticated | Live audio/video rooms (LiveKit token mint). |
-| `/recordings` | authenticated | Recorded room playback. |
-| `/houses` | authenticated | Community spaces. |
-| `/series` | authenticated | Article / post series. |
-| `/pokes` | authenticated | Lightweight nudges. |
-| `/entity-follows` | authenticated | Follow non-user entities (hashtags, lists, etc.). |
-| `/starter-packs` | authenticated | Curated onboarding follow lists. |
-| `/admin` | authenticated (role-gated) | Moderation + ops console. |
+Some `/posts` read paths such as drafts, scheduled posts, and saved posts sit
+on the public-read router but enforce the current viewer themselves.
 
-## Feed endpoints (MTN)
+## Feeds
 
-`/feed/mtn` is the unified read endpoint backed by the MTN feed engine. The feed identity is encoded in the request — `descriptor`, `cursor`, `limit` — and the dispatcher looks up the right `FeedAPI` implementation from `FeedAPIRegistry`.
+| Method | Path | Purpose |
+| --- | --- | --- |
+| GET | `/feed/mtn` | Fetch a page for a validated descriptor |
+| GET | `/feed/mtn/peek` | Check for newer feed content |
+| POST | `/feed/mtn/interactions` | Record bounded ranking interactions |
+| POST | `/feed/mtn/interstitial-events` | Record interstitial events |
+| GET | `/feed/modules` | Fetch feed modules |
+| GET / PUT | `/feed/preferences` | Read or update viewer preferences |
+| GET / PUT | `/feed/tuning` | Read or update viewer tuning |
+| GET | `/feed/replies/:parentId` | Fetch replies |
+| GET | `/feed/thread-continuations/:rootId` | Fetch thread continuations |
+| GET | `/feed/user/:userId/pinned` | Fetch a user's pinned post |
+| GET | `/feed/item/:id` | Fetch one hydrated feed item |
+| POST | `/feed/reply` | Create a reply |
+| POST | `/feed/boost` | Create a boost |
+| DELETE | `/feed/:postId/boost` | Remove a boost |
 
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/feed/mtn` | Fetch a feed page. Query: `descriptor`, `cursor`, `limit`. Returns `SlicedFeedResponse`. |
-| | ↳ profile feed | `descriptor=author\|<oxyUserId>\|<tab>`, where `<tab>` is `posts` (default) / `replies` / `media` / `likes` / `boosts`. An empty first page for a federated author sets `pending: true` while their outbox is imported in the background — the client shows a loading state and refetches. |
-| GET | `/feed/mtn/peek` | Peek the latest item without consuming a cursor — drives the "new posts" pill. |
-| POST | `/feed/mtn/interactions` | Record impressions / interactions for ranking signal. |
-| GET | `/feed/replies/:parentId` | Replies feed for a post. |
-| GET | `/feed/user/:userId/pinned` | Pinned post for a user. |
-| GET | `/feed/item/:id` | Single hydrated feed item by ID. |
-| POST | `/feed/reply` | Create a reply. |
-| POST | `/feed/repost` | Create a repost. |
-| DELETE | `/feed/:postId/repost` | Remove a repost. |
-| POST | `/feed/like` | Like a post. |
-| POST | `/feed/unlike` | Unlike a post. |
-| POST | `/feed/:postId/save` | Save a post to bookmarks. |
-| DELETE | `/feed/:postId/save` | Unsave. |
-
-Feed responses use `HydratedPost` from `@mention/shared-types`, which bundles the post content with its actor summary, attachment bundle, viewer state (`isLiked`, `isReposted`, ...), permissions, engagement counts, and feed context (`reason`, `position`).
+The `descriptor` selects the source and pagination behavior. Examples include
+`following`, `for_you`, `explore`, `videos`, `saved`,
+`author|<oxyUserId>|<tab>`, `hashtag|...`, `topic|...`, and `list|...`.
+Cursors are opaque to clients.
 
 ## Posts
 
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/posts` | List posts (filtered). |
-| GET | `/posts/hashtag/:hashtag` | Posts by hashtag. |
-| GET | `/posts/topic/:topic` | Posts by topic. |
-| GET | `/posts/nearby` | Posts near a coordinate. |
-| GET | `/posts/in-area` | Posts in a bounding box. |
-| GET | `/posts/location-stats` | Aggregated post counts per region. |
-| POST | `/posts` | Create a post. Body: `CreatePostRequest`. |
-| POST | `/posts/thread` | Create a thread. Body: `CreateThreadRequest` (`mode: 'thread' | 'beast'`). |
-| GET | `/posts/drafts` | The viewer's drafts. |
-| GET | `/posts/scheduled` | The viewer's scheduled posts. |
-| GET | `/posts/saved` | The viewer's saved posts. |
-| GET | `/posts/bookmarks/folders` | Bookmark folders. |
-| PATCH | `/posts/bookmarks/:id/folder` | Move a bookmark between folders. |
-| GET | `/posts/:id` | A single post by ID. |
-| PUT | `/posts/:id` | Update a post. Body: `UpdatePostRequest`. |
-| PATCH | `/posts/:id/settings` | Update reply permissions, sensitivity, pin state. |
-| DELETE | `/posts/:id` | Delete a post. |
-| GET | `/posts/:id/likes` | Users who liked the post. |
-| GET | `/posts/:id/reposts` | Users who reposted the post. |
-| POST | `/posts/:id/like` | Like. |
-| DELETE | `/posts/:id/like` | Unlike. |
-| POST | `/posts/:id/save` | Save. |
-| DELETE | `/posts/:id/save` | Unsave. |
-| POST | `/posts/:id/repost` | Repost. |
+Public or viewer-aware reads:
 
-Reply permissions are a `ReplyPermission[]` — `'anyone' | 'followers' | 'following' | 'mentioned' | 'nobody'`. Authors can also enable `reviewReplies` so each reply needs approval before becoming public, and disable quotes entirely with `quotesDisabled: true`.
+| Method | Path |
+| --- | --- |
+| GET | `/posts` |
+| GET | `/posts/hashtag/:hashtag` |
+| GET | `/posts/topic/:topic` |
+| GET | `/posts/nearby` |
+| GET | `/posts/in-area` |
+| GET | `/posts/nearby-all` |
+| GET | `/posts/location-stats` |
+| GET | `/posts/drafts` |
+| GET | `/posts/scheduled` |
+| GET | `/posts/saved` |
+| GET | `/posts/:id` |
+
+Authenticated commands and viewer data:
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| POST | `/posts` | Create a post |
+| POST | `/posts/thread` | Create a thread |
+| GET | `/posts/bookmarks/folders` | List bookmark folders |
+| PATCH | `/posts/bookmarks/by-post/:postId/folder` | Move a post bookmark |
+| PATCH | `/posts/bookmarks/:id/folder` | Move a bookmark |
+| POST | `/posts/translate-draft` | Translate draft content |
+| GET | `/posts/:id/edit-source` | Fetch the owner's canonical raw edit source |
+| GET | `/posts/:id/likes` | List likes |
+| GET | `/posts/:id/boosts` | List boosts |
+| PUT | `/posts/:id` | Edit a post |
+| PATCH | `/posts/:id/settings` | Change post settings |
+| DELETE | `/posts/:id` | Delete a post |
+| POST / DELETE | `/posts/:id/like` | Like or unlike |
+| POST / DELETE | `/posts/:id/save` | Save or unsave |
+| POST | `/posts/:id/translate` | Translate a post |
+
+Collaboration invite actions and threadgate/postgate operations also live under
+`/posts/:id`. Consult the exported shared types and route validators before
+changing their payloads.
+
+## Search and statistics
+
+`GET /search` searches only published, visible posts. It uses MongoDB text
+search, a minimal projection, a bounded execution time, and an opaque,
+versioned cursor over `(createdAt, _id)`.
+
+Authenticated statistics routes:
+
+| Method | Path |
+| --- | --- |
+| GET | `/statistics/user` |
+| GET | `/statistics/post/:postId` |
+| GET | `/statistics/followers` |
+| GET | `/statistics/engagement` |
+| GET | `/statistics/weekly-summary` |
+| POST | `/statistics/post/:postId/view` |
+
+The public activity route is
+`GET /statistics/user/:userId/activity`.
 
 ## Notifications
 
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/notifications` | List the viewer's notifications. |
-| POST | `/notifications` | Create a notification (internal use). |
-| GET | `/notifications/unread-count` | Count unread. |
-| PUT \| PATCH | `/notifications/:id/read` | Mark a single notification as read. |
-| PUT \| PATCH | `/notifications/read-all` | Mark all as read. |
-| PATCH | `/notifications/:id/archive` | Archive a notification. |
-| DELETE | `/notifications/:id` | Delete a notification. |
-| POST | `/notifications/push-token` | Register an FCM push token. Body: `{ token, type, platform, deviceId?, locale? }`. |
-| DELETE | `/notifications/push-token` | Unregister a push token. |
-| POST | `/notifications/push-test` | Send a test push (dev only). |
+| Method | Path |
+| --- | --- |
+| GET | `/notifications` |
+| PUT / PATCH | `/notifications/:id/read` |
+| PUT / PATCH | `/notifications/read-all` |
+| GET | `/notifications/unread-count` |
+| PATCH | `/notifications/:id/archive` |
+| DELETE | `/notifications/:id` |
+| POST / DELETE | `/notifications/push-token` |
+| POST | `/notifications/push-test` |
 
-When a notification is persisted, the server attempts an FCM push to every registered token for the recipient. Push notifications require `FIREBASE_PROJECT_ID` and `FIREBASE_SERVICE_ACCOUNT_BASE64` in the backend environment.
+## Federation and media
 
-## Federation
+The app-facing federation routes are documented in
+[Fediverse](/developers/docs/mention/fediverse). Protocol routes live under
+`/.well-known`, `/nodeinfo/2.0`, and `/ap`.
 
-See [Fediverse](/developers/docs/mention/fediverse) for the protocol-facing endpoints (WebFinger, inbox, outbox, actor) and the frontend-facing endpoints under `/federation/*` (follow, unfollow, search, lookup, actor posts).
+Public guarded media endpoints are:
 
-## Custom feeds
+- `GET /media/proxy`
+- `GET /media/poster`
+- `GET /media/gif`
 
-| Method | Path | Description |
-|--------|------|-------------|
-| POST | `/feeds` | Create a custom feed. |
-| GET | `/feeds` | The viewer's custom feeds. |
-| GET | `/feeds/marketplace` | Browse shareable feeds. |
-| GET | `/feeds/marketplace/categories` | Marketplace categories. |
-| GET | `/feeds/:id` | One feed. |
-| PUT | `/feeds/:id` | Update a feed. |
-| DELETE | `/feeds/:id` | Delete. |
-| POST | `/feeds/:id/members` | Add accounts to the feed source. |
-| DELETE | `/feeds/:id/members` | Remove accounts. |
-| GET | `/feeds/:id/timeline` | The feed's timeline. |
+## MCP OAuth and account bundles
 
-## Real-time (Socket.io)
+OAuth routes are mounted outside the main API authentication wall. Approval
+still authenticates the Oxy user directly:
 
-The Socket.io server uses `@socket.io/redis-adapter` so it scales horizontally behind a Redis pub/sub channel. Clients connect with their Oxy bearer token and subscribe to rooms keyed by `oxyUserId`.
+| Method | Path | Access |
+| --- | --- | --- |
+| GET | `/.well-known/oauth-authorization-server` | Public |
+| GET | `/.well-known/oauth-protected-resource` | Public |
+| POST | `/mcp/oauth/register` | Public |
+| GET | `/mcp/oauth/authorize` | Public |
+| POST | `/mcp/oauth/approve` | Oxy user |
+| POST | `/mcp/oauth/token` | Public |
+| GET | `/mcp/bundles/link/preview` | Public |
 
-Common events emitted to clients:
+Authenticated users manage connections through `/mcp/connections`. Bundle
+members and active-account selection use `/mcp/bundles/accounts`,
+`/mcp/bundles/me`, `/mcp/bundles/link-token`,
+`/mcp/bundles/link/complete`, and `/mcp/bundles/active`.
 
-- `notification:new` — payload is the freshly-persisted `Notification`.
-- `post:stats` — engagement count updates for posts currently in view.
-- `feed:invalidate` — instructs the client to refetch a specific feed descriptor.
-- `room:participant_joined`, `room:participant_left` — for live LiveKit rooms.
+The MCP resource and JWT audience are exactly `https://mcp.mention.earth`
+without a trailing slash. Unauthenticated MCP requests receive a bearer
+challenge.
 
-Clients send `feed:subscribe` / `feed:unsubscribe` to control which feeds the server pushes invalidations for, keeping fan-out cost bounded.
+## Request behavior
 
-## Health
-
-```
-GET /health
-{
-  "status": "healthy",
-  "version": "1.0.0",
-  "uptime": 1000,
-  "mongoStatus": "connected",
-  "redisStatus": "connected"
-}
-```
-
-## Errors
-
-Common error codes the API can return:
-
-| HTTP | Code | Meaning |
-|------|------|---------|
-| 400 | `VALIDATION_FAILED` | Request body failed `express-validator` checks. Details under `errors`. |
-| 401 | `UNAUTHENTICATED` | Missing or invalid Oxy bearer token. |
-| 403 | `FORBIDDEN` | Authenticated, but not allowed (e.g. blocked, muted, or non-admin hitting `/admin`). |
-| 404 | `NOT_FOUND` | Resource not found. |
-| 409 | `CONFLICT` | State conflict (e.g. already liked). |
-| 422 | `INVALID_STATE` | Request was well-formed but the action is not legal in the current state. |
-| 429 | `RATE_LIMITED` | Rate or brute-force limit exceeded. `Retry-After` set. |
-| 500 | `INTERNAL_ERROR` | Unhandled server error. Logged with Pino + request ID. |
-
-## Environment variables
-
-Required for the backend to boot:
-
-```env
-MONGODB_URI=mongodb+srv://...
-REDIS_URL=redis://...           # optional in dev; required for rate-limit + Socket.io adapter in prod
-PORT=3000
-NODE_ENV=development
-
-# Oxy (auth)
-OXY_API_URL=https://api.oxy.so
-OXY_INTERNAL_API_KEY=...
-OXY_INTERNAL_API_SECRET=...
-
-# Media
-AWS_REGION=...
-AWS_S3_BUCKET=...
-AWS_ACCESS_KEY_ID=...
-AWS_SECRET_ACCESS_KEY=...
-
-# Push
-FIREBASE_PROJECT_ID=...
-FIREBASE_SERVICE_ACCOUNT_BASE64=...
-
-# Live rooms
-LIVEKIT_API_KEY=...
-LIVEKIT_API_SECRET=...
-LIVEKIT_URL=wss://...
-
-# Federation
-FEDERATION_DOMAIN=mention.earth
-FEDERATION_ENABLED=true
-FEDERATION_DELIVERY_RETRIES=5
-FEDERATION_MAX_CONTENT_LENGTH=50000
-
-# AI (Alia assistant)
-OPENAI_API_KEY=...
-```
+- JSON request bodies are limited to 1 MiB, including ActivityPub JSON types.
+- Pagination and error bodies are endpoint-specific; do not assume one global
+  envelope.
+- Feed and search cursors are opaque and must be returned unchanged.
+- API rate limiting excludes the apex browser asset plane.
+- Structured request logs include a request ID, normalized route template,
+  duration, and result without secrets or private payloads.

@@ -12,6 +12,8 @@ import {
   PostVariantSource,
 } from '@mention/shared-types';
 import { normalizePostHashtags } from '../utils/textProcessing';
+import { postTextHasHttpLink } from '../utils/postSearchMetadata';
+import { POST_TEXT_SEARCH_INDEX } from '../indexes/manifest';
 
 export type ReplyPermission = 'anyone' | 'followers' | 'following' | 'mentioned' | 'nobody';
 
@@ -37,6 +39,8 @@ export interface IPost extends Document {
    * variant overrides them only when it genuinely differs.
    */
   content: StoredPostContent;
+  /** Write-time projection used by the indexable `has:links` search filter. */
+  hasLinks?: boolean;
   visibility: PostVisibility;
   isEdited: boolean;
   editHistory?: string[];
@@ -380,7 +384,8 @@ const PostStatsSchema = new Schema({
   federatedBoostsCount: { type: Number, default: 0 },
   commentsCount: { type: Number, default: 0 },
   viewsCount: { type: Number, default: 0 },
-  sharesCount: { type: Number, default: 0 }
+  sharesCount: { type: Number, default: 0 },
+  savesCount: { type: Number, default: 0 },
 }, { _id: false }); // Don't create _id for subdocuments
 
 // Ensure stats are always initialized
@@ -392,22 +397,18 @@ PostStatsSchema.pre('save', function() {
   if (!this.commentsCount && this.commentsCount !== 0) this.commentsCount = 0;
   if (!this.viewsCount && this.viewsCount !== 0) this.viewsCount = 0;
   if (!this.sharesCount && this.sharesCount !== 0) this.sharesCount = 0;
+  if (!this.savesCount && this.savesCount !== 0) this.savesCount = 0;
 });
 
 const PostMetadataSchema = new Schema({
   isSensitive: { type: Boolean, default: false },
   isPinned: { type: Boolean, default: false },
-  isSaved: { type: Boolean, default: false },
-  isLiked: { type: Boolean, default: false },
   isBoosted: { type: Boolean, default: false },
   isCommented: { type: Boolean, default: false },
   isFollowingAuthor: { type: Boolean, default: false },
   authorBlocked: { type: Boolean, default: false },
   authorMuted: { type: Boolean, default: false },
   hideEngagementCounts: { type: Boolean, default: false },
-  // Track user interactions
-  likedBy: [{ type: String }], // Array of user IDs who liked this post
-  savedBy: [{ type: String }],  // Array of user IDs who saved this post
   // Poll reference (separate Poll model)
   pollId: { type: String }
 });
@@ -538,6 +539,7 @@ const PostSchema = new Schema<IPost>({
   federation: { type: FederationSchema, default: undefined },
   type: { type: String, enum: Object.values(PostType), default: PostType.TEXT, index: true },
   content: { type: PostContentSchema, required: true },
+  hasLinks: { type: Boolean, default: false },
   visibility: { type: String, enum: Object.values(PostVisibility), default: PostVisibility.PUBLIC, index: true },
   isEdited: { type: Boolean, default: false },
   editHistory: [{ type: String }],
@@ -575,7 +577,8 @@ const PostSchema = new Schema<IPost>({
       federatedBoostsCount: 0,
       commentsCount: 0,
       viewsCount: 0,
-      sharesCount: 0
+      sharesCount: 0,
+      savesCount: 0,
     })
   },
   metadata: { type: PostMetadataSchema, default: () => ({}) },
@@ -686,6 +689,7 @@ PostSchema.pre('validate', function() {
     if (variant.source !== 'author') continue;
     variant.text = normalizePostHashtags(variant.text).content;
   }
+  this.hasLinks = postTextHasHttpLink(variants);
 });
 
 // Pre-save hook to clean up empty location objects and sync authorship → oxyUserId
@@ -711,12 +715,31 @@ PostSchema.pre('save', function() {
 
 // Indexes for optimal query performance
 PostSchema.index({ oxyUserId: 1, createdAt: -1 });
-PostSchema.index({ 'authorship.oxyUserId': 1, 'authorship.status': 1, createdAt: -1 });
+PostSchema.index(
+  {
+    'authorship.oxyUserId': 1,
+    'authorship.status': 1,
+    visibility: 1,
+    status: 1,
+    createdAt: -1,
+    _id: -1,
+  },
+  { name: 'post_author_chrono_v1' },
+);
 PostSchema.index({ type: 1, createdAt: -1 });
 PostSchema.index({ visibility: 1, createdAt: -1 });
 PostSchema.index({ hashtags: 1, createdAt: -1 });
 PostSchema.index({ mentions: 1, createdAt: -1 });
-PostSchema.index({ parentPostId: 1, createdAt: -1 });
+PostSchema.index(
+  {
+    parentPostId: 1,
+    visibility: 1,
+    status: 1,
+    createdAt: -1,
+    _id: -1,
+  },
+  { name: 'post_replies_chrono_v1' },
+);
 PostSchema.index({ threadId: 1, createdAt: -1 });
 PostSchema.index({ boostOf: 1, createdAt: -1 });
 PostSchema.index({ quoteOf: 1, createdAt: -1 });
@@ -753,9 +776,12 @@ PostSchema.index({ hashtags: 1, visibility: 1, status: 1, createdAt: -1 });
 PostSchema.index({ 'content.location': '2dsphere', createdAt: -1 });
 PostSchema.index({ 'location': '2dsphere', createdAt: -1 });
 // Critical compound index for cursor-based pagination (optimizes feed queries)
-PostSchema.index({ visibility: 1, status: 1, createdAt: -1, _id: 1 });
+PostSchema.index(
+  { visibility: 1, status: 1, createdAt: -1, _id: -1 },
+  { name: 'post_public_chrono_v1' },
+);
 // Cursor + author for author feeds
-PostSchema.index({ oxyUserId: 1, visibility: 1, status: 1, createdAt: -1, _id: 1 });
+PostSchema.index({ oxyUserId: 1, visibility: 1, status: 1, createdAt: -1, _id: -1 });
 // Index for saved posts queries
 PostSchema.index({ _id: 1, createdAt: -1 });
 
@@ -829,12 +855,12 @@ PostSchema.index(
 // Replaces the retired `content.text_text` index; the old one must be dropped in
 // prod (the content migration does it) or both will be built.
 PostSchema.index(
-  { 'content.variants.text': 'text' },
+  { ...POST_TEXT_SEARCH_INDEX.key },
   {
-    default_language: 'english',
-    language_override: 'textSearchLanguage',
-    name: 'content.variants.text_text',
-    weights: { 'content.variants.text': 1 },
+    default_language: POST_TEXT_SEARCH_INDEX.default_language,
+    language_override: POST_TEXT_SEARCH_INDEX.language_override,
+    name: POST_TEXT_SEARCH_INDEX.name,
+    weights: { ...POST_TEXT_SEARCH_INDEX.weights },
   }
 );
 

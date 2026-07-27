@@ -1,5 +1,26 @@
 import mongoose, { Document, Schema } from 'mongoose';
 import type { SignedRecordEnvelope } from '@oxyhq/contracts';
+import {
+  MTN_EVENT_IDEMPOTENCY_INDEX,
+  MTN_RECORD_ID_INDEX,
+  MTN_SEQUENCE_INDEX,
+} from '../indexes/manifest';
+
+export const MENTION_SIGNED_RECORD_COLLECTION = 'mentionsignedrecords';
+export const MTN_CHAIN_STATUS = {
+  CANONICAL: 'canonical',
+  CONFLICT: 'conflict',
+} as const;
+export type MtnChainStatus =
+  (typeof MTN_CHAIN_STATUS)[keyof typeof MTN_CHAIN_STATUS];
+
+/**
+ * Query fragment for records that may participate in the authoritative chain.
+ * Rows written before chain-status metadata was introduced remain canonical.
+ */
+export const MTN_CANONICAL_RECORD_FILTER = {
+  chainStatus: { $ne: MTN_CHAIN_STATUS.CONFLICT },
+} as const;
 
 /**
  * MentionSignedRecord (MTN Protocol — per-subject hash chain, Workstream B / B1)
@@ -8,7 +29,10 @@ import type { SignedRecordEnvelope } from '@oxyhq/contracts';
  * user publishes in Mention (posts / likes / reposts / tombstones / bookmarks).
  * Each row stores the FULL signed envelope verbatim plus denormalised fields for
  * indexing. Rows are never mutated or deleted — a newer record (a tombstone, an
- * edit version) simply supersedes an older one by chain order.
+ * edit version) simply supersedes an older one by chain order. The sole local
+ * metadata exception is fork classification: `chainStatus` may be set and a
+ * conflict's denormalized top-level seq/prev removed; its signed envelope and
+ * recordId remain byte-for-byte intact.
  *
  * This MIRRORS oxy-api's `SignedRecord` model, but it lives in MENTION's Mongo
  * and is keyed by `oxyUserId` (the user's Oxy account id as a STRING) instead of
@@ -32,7 +56,8 @@ import type { SignedRecordEnvelope } from '@oxyhq/contracts';
  * v1 rows carry NONE of the chain fields; the chain indexes are PARTIAL (they
  * only cover rows where the field exists), so a unique `recordId`/`{oxyUserId,seq}`
  * index never collides over the absent v1 fields. Mention emits only v2 records,
- * but the v1-tolerant shape is kept so the model is a faithful port.
+ * but the v1-tolerant shape is kept so the model is a faithful port. Conflict
+ * archives also omit top-level seq/prev while retaining both in their envelope.
  */
 export interface IMentionSignedRecord extends Document {
   /** The subject DID the record is about (`did:web:<domain>:u:<oxyUserId>`). */
@@ -52,6 +77,19 @@ export interface IMentionSignedRecord extends Document {
   prev?: string | null;
   /** v2 only: content address (sha256 of the canonical signing input). UNIQUE. */
   recordId?: string;
+  /**
+   * Local chain-selection metadata. It is deliberately outside the signed
+   * envelope: canonical records drive head/log traversal. Conflicting forks
+   * remain eligible for per-key LWW materialization, but never linear-chain
+   * state.
+   * Missing means canonical for records written before migration 0012.
+   */
+  chainStatus?: MtnChainStatus;
+  /**
+   * Durable producer-event identity. Not part of the signed wire envelope and
+   * not the logical rkey: it only makes at-least-once local delivery idempotent.
+   */
+  idempotencyKey?: string;
   /**
    * v2 only: AtProto-style collection namespace / NSID (e.g. `app.mention.feed.post`).
    * Denormalized from the envelope's `collection` field (renamed here to avoid
@@ -80,12 +118,18 @@ const MentionSignedRecordSchema = new Schema<IMentionSignedRecord>(
     seq: { type: Number },
     prev: { type: String, default: undefined },
     recordId: { type: String },
+    chainStatus: {
+      type: String,
+      enum: Object.values(MTN_CHAIN_STATUS),
+    },
+    idempotencyKey: { type: String },
     nsid: { type: String },
     rkey: { type: String },
   },
   {
     // Append-only: stamp createdAt, never updatedAt.
     timestamps: { createdAt: true, updatedAt: false },
+    collection: MENTION_SIGNED_RECORD_COLLECTION,
     strict: true,
     minimize: false,
   },
@@ -95,8 +139,14 @@ const MentionSignedRecordSchema = new Schema<IMentionSignedRecord>(
 // never collides (Mongo treats a missing field as null, which would otherwise
 // dupe across every v1 row).
 MentionSignedRecordSchema.index(
-  { recordId: 1 },
-  { unique: true, partialFilterExpression: { recordId: { $type: 'string' } } },
+  { ...MTN_RECORD_ID_INDEX.key },
+  {
+    name: MTN_RECORD_ID_INDEX.name,
+    unique: MTN_RECORD_ID_INDEX.unique,
+    partialFilterExpression: {
+      recordId: { $type: 'string' },
+    },
+  },
 );
 
 // v2 chain: one record per (oxyUserId, seq) — the concurrency backstop for the
@@ -104,8 +154,14 @@ MentionSignedRecordSchema.index(
 // duplicate-key error and re-reads the head). Partial so v1 rows (no `seq`) are
 // excluded. Also serves ordered `getLogSince` pagination.
 MentionSignedRecordSchema.index(
-  { oxyUserId: 1, seq: 1 },
-  { unique: true, partialFilterExpression: { seq: { $type: 'number' } } },
+  { ...MTN_SEQUENCE_INDEX.key },
+  {
+    name: MTN_SEQUENCE_INDEX.name,
+    unique: MTN_SEQUENCE_INDEX.unique,
+    partialFilterExpression: {
+      seq: { $type: 'number' },
+    },
+  },
 );
 
 // v2 materialization: latest verified record for an AtProto-style (nsid, rkey)
@@ -113,6 +169,17 @@ MentionSignedRecordSchema.index(
 MentionSignedRecordSchema.index(
   { oxyUserId: 1, nsid: 1, rkey: 1, createdAt: -1 },
   { partialFilterExpression: { nsid: { $type: 'string' } } },
+);
+
+MentionSignedRecordSchema.index(
+  { ...MTN_EVENT_IDEMPOTENCY_INDEX.key },
+  {
+    name: MTN_EVENT_IDEMPOTENCY_INDEX.name,
+    unique: MTN_EVENT_IDEMPOTENCY_INDEX.unique,
+    partialFilterExpression: {
+      idempotencyKey: { $type: 'string' },
+    },
+  },
 );
 
 export const MentionSignedRecord = mongoose.model<IMentionSignedRecord>(

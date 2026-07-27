@@ -25,8 +25,8 @@ const { getUsersByIds, getUserFollowing, getUserFollowers } = vi.hoisted(() => (
 // The default (server singleton) oxy client — used by hydration only when the
 // caller supplies no per-request client. We pass an explicit spy client below, so
 // this is just here to keep the import side-effect-free.
-vi.mock('../../../server', () => ({
-  oxy: { getUserFollowing, getUserFollowers, getUserById: vi.fn() },
+vi.mock('../../runtime/oxyClient', () => ({
+  getRuntimeOxyClient: () => ({ getUserFollowing, getUserFollowers, getUserById: vi.fn() }),
 }));
 
 vi.mock('../../utils/oxyHelpers', () => ({

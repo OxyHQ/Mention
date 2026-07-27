@@ -56,6 +56,7 @@ function isNonEmptyString(value: unknown): value is string {
  * axios-style object with `response.status`/`response.data`, so this stays wide.
  */
 interface ServiceClientError {
+  code?: unknown;
   message?: unknown;
   status?: unknown;
   statusCode?: unknown;
@@ -76,12 +77,31 @@ function coerceStatus(value: unknown): number | undefined {
 
 const MAX_ERROR_DETAIL_LENGTH = 300;
 
+function serviceErrorLogContext(err: unknown): {
+  status?: number;
+  code?: string;
+  errorKind: string;
+} {
+  const record = asServiceClientError(err);
+  return {
+    status:
+      coerceStatus(record?.status)
+      ?? coerceStatus(record?.statusCode)
+      ?? coerceStatus(record?.response?.status),
+    code: isNonEmptyString(record?.code) ? record.code : undefined,
+    errorKind: err instanceof Error
+      ? 'Error'
+      : record
+        ? 'service-client'
+        : typeof err,
+  };
+}
+
 /**
- * Build a meaningful log/throw message from whatever the Oxy service client
- * throws, regardless of shape. Surfaces the real HTTP status and body so a
- * `/federation/sign` outage (e.g. oxy-api returning 429) is diagnosable from
- * logs — historically these failures logged only `[object Object]`, masking the
- * incident. NEVER returns `[object Object]`.
+ * Build a meaningful thrown message from whatever the Oxy service client
+ * throws, regardless of shape. Logging uses `serviceErrorLogContext` instead,
+ * so response bodies and free-form error content never enter structured logs.
+ * NEVER returns `[object Object]`.
  *
  * Note: `@oxyhq/core`'s `ApiError` discards upstream response headers, so a
  * 429's `Retry-After` is not recoverable at this layer — surfacing the `429`
@@ -166,21 +186,22 @@ export async function getPublicKey(username: string): Promise<FederationPublicKe
     // actor doc is incomplete and remote servers cannot verify our signatures.
     // Surface at error level — historically these failures were invisible.
     logger.error(
-      `[Federation] getPublicKey failed (username=${username}, domain=${FEDERATION_DOMAIN}): ${message}`,
+      '[Federation] public-key lookup failed',
+      serviceErrorLogContext(err),
     );
-    throw new Error(`Failed to fetch public key for ${username}: ${message}`);
+    throw new Error(`Failed to fetch federation public key: ${message}`);
   }
 
   if (!isNonEmptyString(response?.keyId) || !isNonEmptyString(response?.publicKeyPem)) {
     logger.error(
-      `[Federation] getPublicKey returned malformed payload for username=${username}: ${JSON.stringify(response)?.slice(0, 200)}`,
+      '[Federation] public-key lookup returned a malformed payload',
     );
-    throw new Error(`Malformed public-key response for ${username}`);
+    throw new Error('Malformed federation public-key response');
   }
 
   const data: FederationPublicKey = { keyId: response.keyId, publicKeyPem: response.publicKeyPem };
   publicKeyCache.set(username, { data, fetchedAt: Date.now() });
-  logger.debug(`[Federation] public key fetched for ${username}: keyId=${data.keyId}`);
+  logger.debug('[Federation] public key fetched');
   return data;
 }
 
@@ -203,15 +224,15 @@ export async function signViaOxy(keyId: string, signingString: string): Promise<
     const message = describeServiceError(err);
     // A signing failure means every outbound signed request for this key fails.
     // Surface at error level so the outage is observable in production.
-    logger.error(`[Federation] signViaOxy failed (keyId=${keyId}): ${message}`);
-    throw new Error(`Failed to sign via Oxy for keyId ${keyId}: ${message}`);
+    logger.error('[Federation] signing request failed', serviceErrorLogContext(err));
+    throw new Error(`Failed to sign via Oxy: ${message}`);
   }
 
   if (!isNonEmptyString(response?.signature)) {
     logger.error(
-      `[Federation] signViaOxy returned malformed payload for keyId=${keyId}: ${JSON.stringify(response)?.slice(0, 200)}`,
+      '[Federation] signing request returned a malformed payload',
     );
-    throw new Error(`Malformed sign response for keyId ${keyId}`);
+    throw new Error('Malformed federation signing response');
   }
 
   return response.signature;

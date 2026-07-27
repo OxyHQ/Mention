@@ -48,20 +48,35 @@
  *   - `BACKFILL_APPLY=true`   — actually write `oxyUserId`/`authorship`.
  *   - `BACKFILL_DELETE_GONE=true` — additionally allow deleting 404/410-gone posts.
  * With neither set the script is a pure DRY RUN that reports what it WOULD do.
+ * Dry-run actor resolution is lookup-only: it never calls the identity-minting
+ * actor fetch path, so a live run may link additional actors that were not
+ * already present with an `oxyUserId` during the preview.
  *
  * It makes signed remote fetches (instance key pair + service token), so run it
  * as a Fargate one-shot in the oxy-api SG/subnets, post-deploy:
- *   BACKFILL_APPLY=true node dist/scripts/backfillFederatedPostAuthors.js
+ *   BACKFILL_APPLY=true \
+ *     CONFIRM_ADMIN_MUTATION=backfillFederatedPostAuthors \
+ *     node dist/scripts/backfillFederatedPostAuthors.js
  */
 
 import mongoose from 'mongoose';
 import { Post } from '../models/Post';
+import FederatedActor from '../models/FederatedActor';
 import { actorService } from '../connectors/activitypub/actor.service';
 import { extractActorUri, signedFetch, asRecord } from '../connectors/activitypub/helpers';
 import { AP_CONTENT_TYPE } from '../connectors/activitypub/constants';
 import { assertSafePublicUrl } from '@oxyhq/core/server';
 import { buildAuthorship } from '../utils/postAuthorship';
 import { logger } from '../utils/logger';
+import { assertAdminMutationAllowed } from './lib/adminScriptSafety';
+import {
+  DeletionPreflightError,
+  assertPostsSafeToDelete,
+} from './lib/adminDeletionPreflight';
+import {
+  assertAdminRunComplete,
+  closeAdminScriptResources,
+} from './lib/adminScriptLifecycle';
 
 /** Orphans scanned per page (stable ascending `_id` cursor). */
 const PAGE_SIZE = 200;
@@ -86,7 +101,7 @@ type AuthorUriResult =
   | { kind: 'gone' }
   | { kind: 'transient' };
 
-/** actorUri → resolved oxyUserId (or null when unresolvable) — dedupes shared actors across the whole run. */
+/** mode + actorUri → resolved oxyUserId (or null) — dedupes shared actors across the whole run. */
 const actorOxyCache = new Map<string, string | null>();
 
 /**
@@ -110,21 +125,33 @@ const inFlightActorResolves = new Map<string, Promise<string | null>>();
  * call for an actor already resolving awaits the SAME in-flight promise (no
  * duplicate `/users/resolve`, no 409 race).
  */
-export async function resolveAuthorOxyUserId(actorUri: string): Promise<string | null> {
-  const cached = actorOxyCache.get(actorUri);
+export async function resolveAuthorOxyUserId(
+  actorUri: string,
+  allowIdentityMutation = true,
+): Promise<string | null> {
+  const cacheKey = `${allowIdentityMutation ? 'resolve' : 'lookup'}:${actorUri}`;
+  const cached = actorOxyCache.get(cacheKey);
   if (cached !== undefined) return cached;
 
-  const inFlight = inFlightActorResolves.get(actorUri);
+  const inFlight = inFlightActorResolves.get(cacheKey);
   if (inFlight) return inFlight;
 
   const resolution = (async (): Promise<string | null> => {
     let oxyUserId: string | null = null;
     try {
-      const actor = await actorService.getOrFetchActor(actorUri);
-      oxyUserId = actor?.oxyUserId ?? null;
-      if (!oxyUserId) {
-        const refreshed = await actorService.fetchRemoteActor(actorUri);
-        oxyUserId = refreshed?.oxyUserId ?? null;
+      if (!allowIdentityMutation) {
+        const actor = await FederatedActor.findOne(
+          { uri: actorUri },
+          { oxyUserId: 1 },
+        ).lean<{ oxyUserId?: string | null } | null>();
+        oxyUserId = actor?.oxyUserId ?? null;
+      } else {
+        const actor = await actorService.getOrFetchActor(actorUri);
+        oxyUserId = actor?.oxyUserId ?? null;
+        if (!oxyUserId) {
+          const refreshed = await actorService.fetchRemoteActor(actorUri);
+          oxyUserId = refreshed?.oxyUserId ?? null;
+        }
       }
     } catch (error) {
       logger.warn('[backfillFederatedPostAuthors] actor resolution failed', {
@@ -132,15 +159,15 @@ export async function resolveAuthorOxyUserId(actorUri: string): Promise<string |
         reason: error instanceof Error ? error.message : 'unknown',
       });
     }
-    actorOxyCache.set(actorUri, oxyUserId);
+    actorOxyCache.set(cacheKey, oxyUserId);
     return oxyUserId;
   })();
 
-  inFlightActorResolves.set(actorUri, resolution);
+  inFlightActorResolves.set(cacheKey, resolution);
   try {
     return await resolution;
   } finally {
-    inFlightActorResolves.delete(actorUri);
+    inFlightActorResolves.delete(cacheKey);
   }
 }
 
@@ -187,7 +214,10 @@ async function resolveOrphanAuthorUri(orphan: OrphanRow): Promise<AuthorUriResul
 interface Counters {
   scanned: number;
   linked: number;
+  gone: number;
+  deleteCandidates: number;
   deleted: number;
+  blockedDelete: number;
   unresolvedAuthor: number;
   transient: number;
 }
@@ -201,13 +231,25 @@ async function processOrphan(orphan: OrphanRow): Promise<keyof Omit<Counters, 's
   if (uriResult.kind === 'gone') {
     // Only delete when the source is gone AND no author is resolvable. There is no
     // actor URI to resolve here (a gone object yields none), so the post is dead.
-    if (DELETE_GONE && APPLY) {
-      await Post.deleteOne({ _id: orphan._id });
-    }
+    if (!DELETE_GONE) return 'gone';
+    if (!APPLY) return 'deleteCandidates';
+    await assertPostsSafeToDelete(
+      `backfillFederatedPostAuthors:${String(orphan._id)}`,
+      [{
+        id: orphan._id,
+        uris: [
+          orphan.federation?.activityId,
+          orphan.federation?.url,
+        ].filter((value): value is string => typeof value === 'string' && value.length > 0),
+      }],
+    );
+    await Post.deleteOne({ _id: orphan._id });
     return 'deleted';
   }
 
-  const oxyUserId = await resolveAuthorOxyUserId(uriResult.authorUri);
+  // A dry run is lookup-only: actorService's fetch path can mint an Oxy identity
+  // and upsert FederatedActor, so it is reserved for the explicitly-applied run.
+  const oxyUserId = await resolveAuthorOxyUserId(uriResult.authorUri, APPLY);
   if (!oxyUserId) return 'unresolvedAuthor';
 
   if (APPLY) {
@@ -236,19 +278,32 @@ async function backfillFederatedPostAuthors(): Promise<void> {
   } as const;
 
   try {
+    assertAdminMutationAllowed({
+      scriptName: 'backfillFederatedPostAuthors',
+      dryRun: !APPLY,
+    });
     await mongoose.connect(mongoUri, { dbName });
-    logger.info(
-      `[backfillFederatedPostAuthors] connected to MongoDB (${dbName}); APPLY=${APPLY} DELETE_GONE=${DELETE_GONE}`,
-    );
+    logger.info('[backfillFederatedPostAuthors] connected to MongoDB', {
+      apply: APPLY,
+      deleteGone: DELETE_GONE,
+    });
 
     const totalCount = await Post.countDocuments(orphanFilter);
     logger.info(`[backfillFederatedPostAuthors] ${totalCount} orphan federated posts to scan`);
     if (totalCount === 0) {
-      await mongoose.disconnect();
       return;
     }
 
-    const counters: Counters = { scanned: 0, linked: 0, deleted: 0, unresolvedAuthor: 0, transient: 0 };
+    const counters: Counters = {
+      scanned: 0,
+      linked: 0,
+      gone: 0,
+      deleteCandidates: 0,
+      deleted: 0,
+      blockedDelete: 0,
+      unresolvedAuthor: 0,
+      transient: 0,
+    };
     let lastId: mongoose.Types.ObjectId | null = null;
 
     for (;;) {
@@ -267,13 +322,19 @@ async function backfillFederatedPostAuthors(): Promise<void> {
       // forward cursor, so linked posts simply leave the set.
       for (let i = 0; i < page.length; i += CONCURRENCY) {
         const chunk = page.slice(i, i + CONCURRENCY);
-        const buckets = await Promise.all(chunk.map((orphan) => processOrphan(orphan).catch((error) => {
-          logger.warn('[backfillFederatedPostAuthors] orphan processing failed', {
-            postId: String(orphan._id),
-            reason: error instanceof Error ? error.message : 'unknown',
-          });
-          return 'transient' as const;
-        })));
+        const buckets = await Promise.all(
+          chunk.map((orphan) =>
+            processOrphan(orphan).catch((error) => {
+              logger.warn('[backfillFederatedPostAuthors] orphan processing failed', {
+                postId: String(orphan._id),
+                reason: error instanceof Error ? error.message : 'unknown',
+              });
+              return error instanceof DeletionPreflightError
+                ? 'blockedDelete' as const
+                : 'transient' as const;
+            }),
+          ),
+        );
         for (const bucket of buckets) counters[bucket] += 1;
       }
 
@@ -281,24 +342,35 @@ async function backfillFederatedPostAuthors(): Promise<void> {
       lastId = page[page.length - 1]._id;
       logger.info(
         `[backfillFederatedPostAuthors] progress: scanned ${counters.scanned}/${totalCount}, ` +
-          `linked ${counters.linked}, deleted ${counters.deleted}, ` +
-          `unresolvedAuthor ${counters.unresolvedAuthor}, transient ${counters.transient}`,
+          `linked ${counters.linked}, gone ${counters.gone}, ` +
+          `deleteCandidates ${counters.deleteCandidates}, deleted ${counters.deleted}, ` +
+          `blockedDelete ${counters.blockedDelete}, unresolvedAuthor ${counters.unresolvedAuthor}, ` +
+          `transient ${counters.transient}`,
       );
     }
 
     const elapsedSeconds = Math.round((Date.now() - startedAt) / 1000);
     logger.info(
       `[backfillFederatedPostAuthors] done in ${elapsedSeconds}s: scanned ${counters.scanned}, ` +
-        `linked ${counters.linked}, deleted ${counters.deleted}, ` +
-        `unresolvedAuthor ${counters.unresolvedAuthor}, transient ${counters.transient}` +
+        `linked ${counters.linked}, gone ${counters.gone}, ` +
+        `deleteCandidates ${counters.deleteCandidates}, deleted ${counters.deleted}, ` +
+        `blockedDelete ${counters.blockedDelete}, unresolvedAuthor ${counters.unresolvedAuthor}, ` +
+        `transient ${counters.transient}` +
         (APPLY ? '' : ' (DRY RUN — no writes)'),
     );
 
-    await mongoose.disconnect();
+    assertAdminRunComplete('backfillFederatedPostAuthors', {
+      goneNotDeleted: APPLY && !DELETE_GONE ? counters.gone : 0,
+      blockedDelete: counters.blockedDelete,
+      unresolvedAuthor: counters.unresolvedAuthor,
+      transient: counters.transient,
+    });
   } catch (error) {
     logger.error('[backfillFederatedPostAuthors] failed', error);
+    throw error;
+  } finally {
+    await closeAdminScriptResources();
     await mongoose.disconnect();
-    process.exit(1);
   }
 }
 

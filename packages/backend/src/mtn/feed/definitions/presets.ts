@@ -9,6 +9,10 @@
 
 import { MtnConfig } from '@mention/shared-types';
 import type { AuthorFeedFilter } from '@mention/shared-types';
+import {
+  getDiscoveryGateSelection,
+  getPhase2bSignalSelection,
+} from '../../../config';
 import type { FeedDefinition, ModuleRef } from '../engine/types';
 
 function enabled(module: string, params?: Record<string, unknown>): ModuleRef {
@@ -77,7 +81,7 @@ const PHASE2B_ALLOWED_SIGNAL_IDS = new Set<string>([
 ]);
 
 function parsePhase2bSignalIds(): string[] {
-  const raw = process.env.FOR_YOU_PHASE2B_SIGNALS?.trim();
+  const raw = getPhase2bSignalSelection();
   if (raw === 'off' || raw === 'false' || raw === '0') {
     return [];
   }
@@ -149,7 +153,7 @@ export function resolveDiscoveryGate(): ModuleRef[] {
   if (MtnConfig.feed.discoveryGate.enabled !== true) {
     return [];
   }
-  const raw = process.env.FOR_YOU_DISCOVERY_GATE?.trim();
+  const raw = getDiscoveryGateSelection();
   if (raw === 'off' || raw === 'false' || raw === '0') {
     return [];
   }

@@ -21,8 +21,9 @@ const { getUserById, getUsersByIds, cacheStore } = vi.hoisted(() => ({
   cacheStore: new Map<string, CachedUserSummary>(),
 }));
 
-// `server.ts` constructs a live OxyServices client at import time; stub it.
-vi.mock('../../../server', () => ({ oxy: { getUserById } }));
+vi.mock('../../runtime/oxyClient', () => ({
+  getRuntimeOxyClient: () => ({ getUserById }),
+}));
 
 // The bulk service-token client used by resolveUserSummaries for cache misses.
 vi.mock('../../utils/oxyHelpers', () => ({

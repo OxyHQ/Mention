@@ -1,133 +1,192 @@
-# Reusable AWS deploy workflow — copy to each repo as .github/workflows/deploy-aws.yml
-# and substitute mention (ecs service + ecr repo name) and packages/backend/Dockerfile (path).
-name: Deploy to AWS
+name: Deploy Mention Backend to AWS
 
 on:
-  push:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
     branches: [main]
-    paths-ignore:
-      - '**.md'
-      - 'docs/**'
-  workflow_dispatch:
 
 permissions:
   id-token: write
   contents: read
 
+concurrency:
+  group: deploy-mention-backend
+  # Serialize production rollouts. Cancelling after `update-service` would leave
+  # an unmonitored deployment running in ECS.
+  cancel-in-progress: false
+
 env:
   AWS_REGION: us-west-2
+  AWS_ACCOUNT_ID: '237343248947'
   ECR_REGISTRY: 237343248947.dkr.ecr.us-west-2.amazonaws.com
   APP: mention
+  CONTAINER_NAME: mention
   CLUSTER: oxy-cluster
   DOCKERFILE: packages/backend/Dockerfile
+  DEPLOY_SHA: ${{ github.event.workflow_run.head_sha }}
 
 jobs:
-  deploy:
-    runs-on: ubuntu-24.04-arm
+  scope:
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_repository.full_name == github.repository &&
+      github.event.workflow_run.head_branch == 'main'
+    runs-on: ubuntu-latest
+    outputs:
+      deploy: ${{ steps.filter.outputs.deploy }}
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ env.DEPLOY_SHA }}
+          fetch-depth: 2
+      - name: Detect backend deployment scope
+        id: filter
+        run: bash .github/scripts/deployment-scope.sh backend
 
-      - name: Configure AWS credentials (OIDC, no stored keys)
+  deploy:
+    needs: scope
+    if: needs.scope.outputs.deploy == 'true'
+    runs-on: ubuntu-24.04-arm
+    # Includes image build, migrations, rollout, smoke checks and a full
+    # rollback window if the production smoke check fails.
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ env.DEPLOY_SHA }}
+          fetch-depth: 2
+
+      - name: Verify current main before building
+        run: bash .github/scripts/require-current-main.sh
+
+      - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6
         with:
           role-to-assume: arn:aws:iam::237343248947:role/oxy-github-deploy
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Sync GitHub secrets -> SSM (GitHub is the source of truth)
-        env:
-          SECRETS_JSON: ${{ toJSON(secrets) }}
-          # Explicit backend runtime allowlist. Do not sync unrelated CI/CD
-          # credentials (for example Cloudflare or DigitalOcean deploy tokens)
-          # into the AWS SSM parameter hierarchy.
-          SSM_SECRET_ALLOWLIST: >-
-            ADMIN_USER_IDS ALIA_API_KEY DO_SPACES_KEY DO_SPACES_SECRET
-            FIREBASE_SERVICE_ACCOUNT_BASE64 FIREBASE_PROJECT_ID KLIPY_APP_KEY
-            LIVEKIT_API_KEY LIVEKIT_API_SECRET MENTION_OXY_CLIENT_ID
-            MENTION_PRIVATE_KEY MENTION_MCP_JWT_SECRET
-            MONGODB_URI OXY_DB_URI OXY_SERVICE_API_KEY OXY_SERVICE_API_SECRET
-            OXY_SERVICE_TOKEN REDIS_URL REDIS_URI REDIS_HOST REDIS_PASSWORD
-            AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
-        run: |
-          SHARED="AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY REDIS_URL LIVEKIT_API_KEY LIVEKIT_API_SECRET"
-          echo "$SECRETS_JSON" | jq -r --arg allowlist "$SSM_SECRET_ALLOWLIST" '
-            ($allowlist | split(" ")) as $allowed
-            | to_entries[]
-            | select(.key as $k | $allowed | index($k))
-            | [.key,.value]|@tsv
-          ' | \
-          while IFS=$'\t' read -r k v; do
-            [ -z "$k" ] && continue
-            if [ -z "$v" ] || [ "$v" = "-" ]; then
-              echo "::warning::skip empty/placeholder secret $k; SSM unchanged"
-              continue
-            fi
-            if [ "$k" = "REDIS_URL" ] && [ "$AWS_REGION" = "us-west-2" ] && ! printf '%s' "$v" | grep -q '\.usw2\.cache\.amazonaws\.com'; then
-              echo "::warning::skip REDIS_URL because it does not point at the us-west-2 Valkey endpoint; SSM unchanged"
-              continue
-            fi
-            case " $SHARED " in *" $k "*) path="/oxy/_shared/$k";; *) path="/oxy/$APP/$k";; esac
-            aws ssm put-parameter --name "$path" --value "$v" --type SecureString --overwrite >/dev/null && echo "synced -> $path"
-          done
-
       - name: Login to ECR
         uses: aws-actions/amazon-ecr-login@d539f0932e70871a027e9d5a9d8fc38589180a64 # v2
 
-      - name: Build and push (linux/arm64)
-        run: |
-          IMG=$ECR_REGISTRY/oxy/$APP
-          docker build -f "$DOCKERFILE" -t "$IMG:${{ github.sha }}" -t "$IMG:latest" .
-          docker push "$IMG:${{ github.sha }}"
-          docker push "$IMG:latest"
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
 
-      - name: Deploy to ECS (rolling; skipped until the service exists)
+      - name: Build and push immutable backend image
+        id: build
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: .
+          file: ${{ env.DOCKERFILE }}
+          platforms: linux/arm64
+          push: true
+          tags: ${{ env.ECR_REGISTRY }}/oxy/${{ env.APP }}:${{ env.DEPLOY_SHA }}
+          cache-from: type=gha,scope=mention-backend
+          cache-to: type=gha,mode=max,scope=mention-backend
+          provenance: true
+          sbom: true
+
+      - name: Audit final backend runtime image
+        env:
+          IMAGE_URI: ${{ env.ECR_REGISTRY }}/oxy/${{ env.APP }}@${{ steps.build.outputs.digest }}
+          EXPECTED_RUNTIME_ENTRY: packages/backend/dist/server.js
+          EXPECTED_WORKSPACE_PACKAGES: '@mention/backend,@mention/shared-types'
+        run: bash .github/scripts/audit-runtime-image.sh
+
+      - name: Verify current main before production changes
+        run: bash .github/scripts/require-current-main.sh
+
+      - name: Sync GitHub secrets to SSM
+        env:
+          ALIA_API_KEY: ${{ secrets.ALIA_API_KEY }}
+          FIREBASE_SERVICE_ACCOUNT_BASE64: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_BASE64 }}
+          FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
+          INTERNAL_METRICS_TOKEN: ${{ secrets.INTERNAL_METRICS_TOKEN }}
+          KLIPY_APP_KEY: ${{ secrets.KLIPY_APP_KEY }}
+          MENTION_DID: ${{ secrets.MENTION_DID }}
+          MENTION_MCP_JWT_SECRET: ${{ secrets.MENTION_MCP_JWT_SECRET }}
+          MENTION_OXY_CLIENT_ID: ${{ secrets.MENTION_OXY_CLIENT_ID }}
+          MENTION_PRIVATE_KEY: ${{ secrets.MENTION_PRIVATE_KEY }}
+          MENTION_PUBLIC_KEY: ${{ secrets.MENTION_PUBLIC_KEY }}
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+          OXY_SERVICE_API_KEY: ${{ secrets.OXY_SERVICE_API_KEY }}
+          OXY_SERVICE_API_SECRET: ${{ secrets.OXY_SERVICE_API_SECRET }}
+          OXY_SERVICE_TOKEN: ${{ secrets.OXY_SERVICE_TOKEN }}
+          REDIS_HOST: ${{ secrets.REDIS_HOST }}
+          REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
+          REDIS_URI: ${{ secrets.REDIS_URI }}
+          REDIS_URL: ${{ secrets.REDIS_URL }}
+          SSM_SECRET_ALLOWLIST: >-
+            ALIA_API_KEY FIREBASE_SERVICE_ACCOUNT_BASE64 FIREBASE_PROJECT_ID
+            INTERNAL_METRICS_TOKEN KLIPY_APP_KEY MENTION_OXY_CLIENT_ID
+            MENTION_DID MENTION_PRIVATE_KEY MENTION_PUBLIC_KEY MONGODB_URI
+            OXY_SERVICE_API_KEY OXY_SERVICE_API_SECRET OXY_SERVICE_TOKEN
+            REDIS_URL REDIS_URI
+            REDIS_HOST REDIS_PASSWORD
         run: |
           set -euo pipefail
-
-          # Poll the PRIMARY deployment's rolloutState instead of the fixed
-          # `aws ecs wait services-stable` waiter (40 attempts x 15s = 10 min),
-          # which is shorter than Mention's rollout + ALB drain time and caused
-          # every successful deploy to false-fail with "Max attempts exceeded".
-          MAX_WAIT_SECS=1200   # 20 min hard cap before we call it a real timeout
-          POLL_INTERVAL=15     # seconds between describe-services polls
-
-          STATUS=$(aws ecs describe-services --cluster "$CLUSTER" --services "$APP" --query 'services[0].status' --output text 2>/dev/null || echo NONE)
-          if [ "$STATUS" != "ACTIVE" ]; then
-            echo "ECS service $APP not created yet — image is in ECR, skipping deploy"
-            exit 0
+          if [[ -z "$MENTION_MCP_JWT_SECRET" || "$MENTION_MCP_JWT_SECRET" == "-" ]]; then
+            echo "::error::MENTION_MCP_JWT_SECRET is empty; refusing to rotate only one service."
+            exit 1
           fi
 
-          aws ecs update-service --cluster "$CLUSTER" --service "$APP" --force-new-deployment >/dev/null
-          echo "Triggered new deployment for $APP; polling rolloutState (timeout ${MAX_WAIT_SECS}s)..."
-
-          elapsed=0
-          while [ "$elapsed" -lt "$MAX_WAIT_SECS" ]; do
-            # describe-services must not abort the loop on a transient error (set -e safe).
-            DESC=$(aws ecs describe-services \
-              --cluster "$CLUSTER" --services "$APP" \
-              --query 'services[0].deployments[?status==`PRIMARY`]|[0].[rolloutState,runningCount,desiredCount]' \
-              --output text 2>/dev/null) || DESC=""
-
-            if [ -z "$DESC" ] || [ "$DESC" = "None" ]; then
-              echo "  ($elapsed s) no PRIMARY deployment info yet, retrying..."
-            else
-              ROLLOUT_STATE=$(echo "$DESC" | awk '{print $1}')
-              RUNNING=$(echo "$DESC" | awk '{print $2}')
-              DESIRED=$(echo "$DESC" | awk '{print $3}')
-              echo "  ($elapsed s) rolloutState=$ROLLOUT_STATE running=$RUNNING desired=$DESIRED"
-
-              if [ "$ROLLOUT_STATE" = "COMPLETED" ] && [ "$RUNNING" = "$DESIRED" ]; then
-                echo "deployed $APP — rollout COMPLETED ($RUNNING/$DESIRED tasks running)"
-                exit 0
-              fi
-              if [ "$ROLLOUT_STATE" = "FAILED" ]; then
-                echo "::error::ECS rollout for $APP FAILED — see service events in the AWS console"
-                exit 1
-              fi
-            fi
-
-            sleep "$POLL_INTERVAL"
-            elapsed=$((elapsed + POLL_INTERVAL))
+          # Running tasks keep their injected value. Update both parameter
+          # paths successfully before any task is restarted.
+          for path in \
+            /oxy/mention/MENTION_MCP_JWT_SECRET \
+            /oxy/mention-mcp/MENTION_MCP_JWT_SECRET; do
+            aws ssm put-parameter \
+              --name "$path" \
+              --value "$MENTION_MCP_JWT_SECRET" \
+              --type SecureString \
+              --overwrite \
+              >/dev/null
+            echo "Synced $path"
           done
 
-          echo "::error::ECS rollout for $APP did not reach COMPLETED within ${MAX_WAIT_SECS}s (genuine timeout)"
-          exit 1
+          SHARED="REDIS_URL"
+          for key in $SSM_SECRET_ALLOWLIST; do
+            value="${!key:-}"
+            [[ -z "$key" ]] && continue
+            if [[ -z "$value" || "$value" == "-" ]]; then
+              echo "::warning::Skipping empty or placeholder secret $key; SSM unchanged."
+              continue
+            fi
+            if [[ "$key" == "REDIS_URL" ]] &&
+               [[ "$AWS_REGION" == "us-west-2" ]] &&
+               [[ "$value" != *".usw2.cache.amazonaws.com"* ]]; then
+              echo "::warning::Skipping REDIS_URL because it is not the us-west-2 Valkey endpoint."
+              continue
+            fi
+            if [[ " $SHARED " == *" $key "* ]]; then
+              path="/oxy/_shared/$key"
+            else
+              path="/oxy/$APP/$key"
+            fi
+            aws ssm put-parameter \
+              --name "$path" \
+              --value "$value" \
+              --type SecureString \
+              --overwrite \
+              >/dev/null
+            echo "Synced $path"
+          done
+
+      - name: Re-verify current main before ECS rollout
+        run: bash .github/scripts/require-current-main.sh
+
+      - name: Register immutable task definition and deploy
+        env:
+          IMAGE_URI: ${{ env.ECR_REGISTRY }}/oxy/${{ env.APP }}@${{ steps.build.outputs.digest }}
+          RUN_MIGRATIONS: 'true'
+          INTERNAL_METRICS_PARAMETER: /oxy/mention/INTERNAL_METRICS_TOKEN
+          TASK_SECRET_OVERRIDES_JSON: >-
+            {"MENTION_MCP_JWT_SECRET":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/mention/MENTION_MCP_JWT_SECRET"}
+          POST_DEPLOY_TASK_COMMAND_JSON: >-
+            ["bun","packages/backend/dist/scripts/reconcile-engagement-projections.js"]
+          POST_DEPLOY_SMOKE_SCRIPT: .github/scripts/smoke-mention.sh
+        # The existing target group remains on `/`, which server.ts now serves
+        # as the same readiness gate as `/health/ready`. ELB mutations belong
+        # in oxy-infra because the deploy role intentionally lacks ELB access.
+        run: bash .github/scripts/deploy-ecs-image.sh

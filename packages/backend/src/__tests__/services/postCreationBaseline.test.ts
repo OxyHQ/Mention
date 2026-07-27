@@ -189,6 +189,39 @@ describe('PostCreationService — native Stage-A baseline', () => {
     expect(classification.languages).toEqual(['en', 'es']);
   });
 
+  it('persists only mention ids that still occur in an author body', async () => {
+    await postCreationService.create({
+      oxyUserId: 'oxy_user_mentions',
+      content: {
+        text: 'ignored when author variants exist',
+        variants: [
+          {
+            source: 'author',
+            tag: 'en',
+            text: 'Hello [mention:alice-id]',
+          },
+          {
+            source: 'author',
+            tag: 'es',
+            text: 'Hola [mention:bob-id]',
+          },
+          {
+            source: 'machine',
+            tag: 'it',
+            text: 'Ciao [mention:machine-only]',
+          },
+        ],
+      },
+      mentions: ['orphan-id', 'bob-id', 'alice-id', 'machine-only'],
+      visibility: PostVisibility.PUBLIC,
+      skipNotifications: true,
+      skipSocketEmit: true,
+      skipFederationDelivery: true,
+    });
+
+    expect(lastSavedDoc().mentions).toEqual(['alice-id', 'bob-id']);
+  });
+
   it('does NOT block post creation when the classifier throws', async () => {
     vi.spyOn(baselineContentClassifier, 'classify').mockImplementation(() => {
       throw new Error('classifier boom');

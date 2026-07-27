@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef } from 'react';
 import type { BlockedUser, RestrictedUser } from '@oxyhq/core';
 import { usePrivacyStore } from '@/stores/privacyStore';
 import { logger } from '@/lib/logger';
-import { useAuth } from '@oxyhq/services';
+import { useAuth } from '@oxyhq/services/ui/client';
 
 interface UsePrivacyControlsOptions {
     autoRefresh?: boolean;
@@ -49,6 +49,9 @@ export function usePrivacyControls(options?: UsePrivacyControlsOptions) {
     const refreshPrivacyLists = useCallback(async () => {
         if (!canUsePrivateApi || !oxyServices) return;
         if (inFlightRef.current) return;
+        const operationEpoch = usePrivacyStore.getState().viewerEpoch;
+        const isCurrentViewer = () =>
+            usePrivacyStore.getState().viewerEpoch === operationEpoch;
         inFlightRef.current = true;
         setLoading(true);
         try {
@@ -56,6 +59,7 @@ export function usePrivacyControls(options?: UsePrivacyControlsOptions) {
                 oxyServices.getBlockedUsers?.(),
                 oxyServices.getRestrictedUsers?.(),
             ]);
+            if (!isCurrentViewer()) return;
 
             const blocked = Array.isArray(blockedUsers)
                 ? blockedUsers.map(extractListId).filter((id): id is string => Boolean(id))
@@ -72,6 +76,7 @@ export function usePrivacyControls(options?: UsePrivacyControlsOptions) {
             });
             setError(undefined);
         } catch (error: unknown) {
+            if (!isCurrentViewer()) return;
             // Fail quietly: record a timestamp so `shouldRefresh` becomes false
             // and a transient/unauthorized failure does NOT trigger an immediate
             // refetch storm. Lists stay empty until the interval elapses or the
@@ -82,7 +87,9 @@ export function usePrivacyControls(options?: UsePrivacyControlsOptions) {
             setLists({ blockedIds: [], restrictedIds: [], lastFetchedAt: Date.now() });
         } finally {
             inFlightRef.current = false;
-            setLoading(false);
+            if (isCurrentViewer()) {
+                setLoading(false);
+            }
         }
     }, [canUsePrivateApi, oxyServices, setError, setLists, setLoading]);
 

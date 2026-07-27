@@ -10,11 +10,15 @@ import { useTheme } from '@oxyhq/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import { authenticatedClient } from '@/utils/api';
 import { alertDialog } from '@/utils/alerts';
-import { updatePrivacySettingsCache, type UserSettingsResponse } from '@/hooks/usePrivacySettings';
+import {
+    createPrivacySettingsCacheLease,
+    updatePrivacySettingsCache,
+    type UserSettingsResponse,
+} from '@/hooks/usePrivacySettings';
 import { SettingsListGroup } from '@oxyhq/bloom/settings-list';
 import { Icon, type IconName } from '@/lib/icons';
 import { logger } from '@/lib/logger';
-import { OxyAuthPrompt, useAuth } from '@oxyhq/services';
+import { OxyAuthPrompt, useAuth } from '@oxyhq/services/ui/client';
 
 type VisibilityOption = 'public' | 'private' | 'followers_only';
 
@@ -29,7 +33,13 @@ export default function ProfileVisibilityScreen() {
     const { t } = useTranslation();
     const { colors } = useTheme();
     const safeBack = useSafeBack();
-    const { isAuthenticated, isAuthResolved, canUsePrivateApi, isPrivateApiPending } = useAuth();
+    const {
+        isAuthenticated,
+        isAuthResolved,
+        canUsePrivateApi,
+        isPrivateApiPending,
+        user,
+    } = useAuth();
 
     const [profileVisibility, setProfileVisibility] = useState<VisibilityOption>('public');
     const [loading, setLoading] = useState(true);
@@ -65,6 +75,7 @@ export default function ProfileVisibilityScreen() {
         }
 
         setSaving(true);
+        const cacheLease = createPrivacySettingsCacheLease(user?.id);
         try {
             let currentPrivacy = {};
             try {
@@ -82,7 +93,7 @@ export default function ProfileVisibilityScreen() {
                 privacy: updatedPrivacy,
             });
 
-            await updatePrivacySettingsCache(updatedPrivacy);
+            await updatePrivacySettingsCache(updatedPrivacy, cacheLease);
 
             setProfileVisibility(newVisibility);
             await alertDialog({

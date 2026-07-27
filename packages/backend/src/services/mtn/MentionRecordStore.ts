@@ -26,7 +26,10 @@ import mongoose, { type ClientSession } from 'mongoose';
 import type { SignedRecordEnvelope } from '@oxyhq/contracts';
 import type { AppendOutcome, ChainHead, RecordStore } from '@oxyhq/protocol';
 import { parseUserDid } from './mentionDid';
-import MentionSignedRecord from '../../models/MentionSignedRecord';
+import MentionSignedRecord, {
+  MTN_CANONICAL_RECORD_FILTER,
+  MTN_CHAIN_STATUS,
+} from '../../models/MentionSignedRecord';
 import MentionRepoHead from '../../models/MentionRepoHead';
 import { logger } from '../../utils/logger';
 
@@ -34,6 +37,12 @@ import { logger } from '../../utils/logger';
 export const DEFAULT_LOG_LIMIT = 100;
 /** Hard ceiling so a single log call can never scan an unbounded slice. */
 const MAX_LOG_LIMIT = 500;
+
+export interface StoredIdempotentRecord {
+  recordId: string;
+  seq: number;
+  envelope: SignedRecordEnvelope;
+}
 
 function clampLogLimit(limit: number): number {
   return Math.max(1, Math.min(Math.trunc(limit) || DEFAULT_LOG_LIMIT, MAX_LOG_LIMIT));
@@ -93,10 +102,30 @@ export class MentionRecordStoreImpl implements RecordStore {
       return null;
     }
     const head = await MentionRepoHead.findOne({ oxyUserId })
+      .read('primary')
       .lean<{ seq: number; headRecordId: string; recordCount?: number } | null>();
     if (!head) {
       return null;
     }
+
+    // Never build a new append on a head that no longer resolves to the
+    // authoritative branch. Missing status is accepted for pre-0012 rows.
+    const headRecord = await MentionSignedRecord.findOne({
+      oxyUserId,
+      recordId: head.headRecordId,
+      seq: head.seq,
+      verified: true,
+      ...MTN_CANONICAL_RECORD_FILTER,
+    })
+      .read('primary')
+      .select('_id')
+      .lean<{ _id: unknown } | null>();
+    if (!headRecord) {
+      throw new Error(
+        `MentionRecordStore: inconsistent canonical head for ${oxyUserId}`,
+      );
+    }
+
     return {
       headRecordId: head.headRecordId,
       seq: head.seq,
@@ -113,7 +142,87 @@ export class MentionRecordStoreImpl implements RecordStore {
    * concurrent write that already took this `seq` — is surfaced as
    * `chain_conflict` so the caller re-reads the head and retries.
    */
-  async append(subject: string, env: SignedRecordEnvelope, recordId: string): Promise<AppendOutcome> {
+  async append(
+    subject: string,
+    env: SignedRecordEnvelope,
+    recordId: string,
+  ): Promise<AppendOutcome> {
+    return this.appendRecord(subject, env, recordId);
+  }
+
+  /**
+   * Scope only the append operation to a durable producer event. The protocol
+   * engine still reads the same head/frontiers; its eventual append stores the
+   * event key atomically with the signed record and head advance.
+   */
+  withIdempotencyKey(idempotencyKey: string): RecordStore {
+    return {
+      getHead: (subject) => this.getHead(subject),
+      append: (subject, env, recordId) =>
+        this.appendRecord(subject, env, recordId, idempotencyKey),
+      getLogSince: (subject, sinceSeq, limit) =>
+        this.getLogSince(subject, sinceSeq, limit),
+      resolveCursorSeq: (subject, recordId) =>
+        this.resolveCursorSeq(subject, recordId),
+      materializeCurrent: (subject, collection, rkey) =>
+        this.materializeCurrent(subject, collection, rkey),
+      latestIssuedAtForKey: (subject, env) =>
+        this.latestIssuedAtForKey(subject, env),
+    };
+  }
+
+  /**
+   * Resolve the append previously committed for one durable producer event.
+   * The caller verifies its collection/rkey/issuedAt identity before accepting
+   * it, so accidental key reuse fails closed.
+   */
+  async findByIdempotencyKey(
+    subject: string,
+    idempotencyKey: string,
+  ): Promise<StoredIdempotentRecord | null> {
+    const oxyUserId = parseUserDid(subject);
+    if (!oxyUserId) return null;
+
+    const row = await MentionSignedRecord.findOne({
+      oxyUserId,
+      idempotencyKey,
+      verified: true,
+    })
+      .read('primary')
+      .select('recordId seq envelope')
+      .lean<{
+        recordId?: string;
+        seq?: number;
+        envelope?: SignedRecordEnvelope;
+      } | null>();
+    if (
+      !row ||
+      typeof row.recordId !== 'string' ||
+      !row.envelope
+    ) {
+      return null;
+    }
+    const seq =
+      typeof row.seq === 'number'
+        ? row.seq
+        : row.envelope.version === 2 &&
+            typeof row.envelope.seq === 'number'
+          ? row.envelope.seq
+          : null;
+    if (seq === null) return null;
+    return {
+      recordId: row.recordId,
+      seq,
+      envelope: row.envelope,
+    };
+  }
+
+  private async appendRecord(
+    subject: string,
+    env: SignedRecordEnvelope,
+    recordId: string,
+    idempotencyKey?: string,
+  ): Promise<AppendOutcome> {
     const oxyUserId = parseUserDid(subject);
     if (!oxyUserId) {
       // The subject DID does not belong to a user — there is no Mention chain to
@@ -143,6 +252,8 @@ export class MentionRecordStoreImpl implements RecordStore {
                 seq,
                 prev: env.prev ?? null,
                 recordId,
+                chainStatus: MTN_CHAIN_STATUS.CANONICAL,
+                ...(idempotencyKey ? { idempotencyKey } : {}),
                 // Denormalize the envelope's `collection` to the `nsid` column.
                 nsid: env.collection,
                 rkey: env.rkey,
@@ -179,6 +290,8 @@ export class MentionRecordStoreImpl implements RecordStore {
       envelope: env,
       publicKey: env.publicKey,
       verified: true,
+      chainStatus: MTN_CHAIN_STATUS.CANONICAL,
+      ...(idempotencyKey ? { idempotencyKey } : {}),
     });
     return { ok: true, recordId, seq: -1 };
   }
@@ -188,7 +301,11 @@ export class MentionRecordStoreImpl implements RecordStore {
     if (!oxyUserId) {
       return [];
     }
-    const rows = await MentionSignedRecord.find({ oxyUserId, seq: { $gt: sinceSeq } })
+    const rows = await MentionSignedRecord.find({
+      oxyUserId,
+      seq: { $gt: sinceSeq },
+      ...MTN_CANONICAL_RECORD_FILTER,
+    })
       .sort({ seq: 1 })
       .limit(clampLogLimit(limit))
       .lean<Array<{ envelope: SignedRecordEnvelope }>>();
@@ -200,7 +317,11 @@ export class MentionRecordStoreImpl implements RecordStore {
     if (!oxyUserId) {
       return null;
     }
-    const row = await MentionSignedRecord.findOne({ oxyUserId, recordId })
+    const row = await MentionSignedRecord.findOne({
+      oxyUserId,
+      recordId,
+      ...MTN_CANONICAL_RECORD_FILTER,
+    })
       .select('seq')
       .lean<{ seq?: number } | null>();
     return typeof row?.seq === 'number' ? row.seq : null;
@@ -211,7 +332,13 @@ export class MentionRecordStoreImpl implements RecordStore {
     if (!oxyUserId) {
       return null;
     }
-    const row = await MentionSignedRecord.findOne({ oxyUserId, nsid: collection, rkey, verified: true })
+    const row = await MentionSignedRecord.findOne({
+      oxyUserId,
+      nsid: collection,
+      rkey,
+      verified: true,
+    })
+      .read('primary')
       .sort({ createdAt: -1 })
       .lean<{ envelope: SignedRecordEnvelope } | null>();
     return row?.envelope ?? null;
@@ -238,9 +365,17 @@ export class MentionRecordStoreImpl implements RecordStore {
     }
     const filter =
       env.version === 2
-        ? { oxyUserId: { $eq: oxyUserId }, nsid: { $eq: env.collection }, rkey: { $eq: env.rkey } }
-        : { oxyUserId: { $eq: oxyUserId }, type: { $eq: env.type } };
+        ? {
+            oxyUserId: { $eq: oxyUserId },
+            nsid: { $eq: env.collection },
+            rkey: { $eq: env.rkey },
+          }
+        : {
+            oxyUserId: { $eq: oxyUserId },
+            type: { $eq: env.type },
+          };
     const latest = await MentionSignedRecord.findOne(filter)
+      .read('primary')
       .sort({ createdAt: -1 })
       .lean<{ envelope?: { issuedAt?: number } } | null>();
     const latestIssuedAt = latest?.envelope?.issuedAt;

@@ -1,9 +1,11 @@
 import React from 'react';
-import { View, Text, Pressable, ScrollView, StyleSheet } from 'react-native';
+import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '@oxyhq/bloom/theme';
-import { Ionicons } from '@expo/vector-icons';
-import Feed from '@/components/Feed/Feed';
+import Ionicons from '@expo/vector-icons/Ionicons';
+// This panel owns an element-sized scroller, including on web. Use the
+// FlashList implementation explicitly instead of the document-scroll web feed.
+import Feed from '@/components/Feed/Feed.native';
 import { InlineReplyComposer } from './InlineReplyComposer';
 
 interface VideoRepliesProps {
@@ -22,18 +24,8 @@ interface VideoRepliesProps {
  * Shared replies list + composer content, presented inside the mobile bottom
  * sheet (toggled by the on-video comment button) and the always-open desktop
  * replies column (rendered inside `RightBar`, next to the videos rail).
- * Neither consumer wraps this in a scrolling container of its own (the mobile
- * sheet is opened with `{ scrollable: false }` specifically so ITS content
- * owns scrolling — see `@oxyhq/bloom/bottom-sheet`'s `scrollable` prop doc;
- * the desktop `RightBar` branch is a plain `View` column), so this component
- * owns an internal `ScrollView` around the embedded `<Feed>`. The `<Feed>`
- * itself is embedded (`scrollEnabled={false}`) rather than scroll-owning: on
- * both platforms the embedded path renders every row as plain
- * (non-virtualized) content and composes inside a genuine scrolling ancestor
- * rather than scrolling itself (see `Feed.native.tsx`'s
- * `NonScrollingScrollComponent` and `Feed.web.tsx`'s `EmbeddedWebFeed` doc
- * comments) — exactly mirroring how `ProfileTabs` embeds the profile feed
- * inside `ProfileScreen`'s own `Animated.ScrollView`.
+ * It is the sole scroll owner and uses FlashList on both platforms, keeping
+ * mounted reply rows bounded to the panel viewport.
  */
 export function VideoReplies({ postId, onClose, onCommentPosted }: VideoRepliesProps) {
   const { t } = useTranslation();
@@ -52,14 +44,15 @@ export function VideoReplies({ postId, onClose, onCommentPosted }: VideoRepliesP
         )}
       </View>
 
-      <ScrollView style={styles.list} keyboardShouldPersistTaps="handled">
+      <View style={styles.list}>
         <Feed
           type="replies"
           filters={{ postId, parentPostId: postId }}
-          scrollEnabled={false}
+          scrollEnabled
           hideHeader
+          style={styles.list}
         />
-      </ScrollView>
+      </View>
 
       <InlineReplyComposer postId={postId} onPosted={onCommentPosted} />
     </View>

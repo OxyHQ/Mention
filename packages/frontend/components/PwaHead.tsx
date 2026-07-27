@@ -24,7 +24,7 @@ import { Platform } from 'react-native';
 
 const MANIFEST_HREF = '/manifest.json';
 
-const PWA_META_TAGS: ReadonlyArray<{ name: string; content: string }> = [
+const PWA_META_TAGS: readonly { name: string; content: string }[] = [
   { name: 'theme-color', content: '#0B0B0F' },
   { name: 'apple-mobile-web-app-capable', content: 'yes' },
   { name: 'apple-mobile-web-app-title', content: 'Mention' },

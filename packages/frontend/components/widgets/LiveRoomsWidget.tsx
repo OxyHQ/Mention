@@ -1,22 +1,19 @@
 import React, { useCallback, useEffect, useMemo } from 'react';
 import { Text, TouchableOpacity, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
-import { useAuth } from '@oxyhq/services';
+import Ionicons from '@expo/vector-icons/Ionicons';
+import { useAuth } from '@oxyhq/services/ui/client';
 import { toast } from '@oxyhq/bloom/toast';
 import { useTranslation } from 'react-i18next';
 
 import { BaseWidget } from './BaseWidget';
 import { useTheme } from '@oxyhq/bloom/theme';
-import { useLiveRoom } from '@/context/LiveRoomContext';
-import type { Room } from '@syra.fm/sdk';
+import type { Room } from '@/lib/syraApi';
 import { useLiveRoomsStore } from '@/stores/liveRoomsStore';
-import { useRoomUsers, getDisplayName } from '@/hooks/useRoomUsers';
 import { useUserById } from '@/hooks/useCachedUser';
 import { useWidgetItemMenu } from '@/hooks/useWidgetItemMenu';
 import { shareLink } from '@/utils/shareLink';
 import { WEB_BASE_URL } from '@/config';
-import { SyraIcon } from '@syra.fm/sdk';
 import * as Skeleton from '@oxyhq/bloom/skeleton';
 import { LIVE_INDICATOR_COLOR } from '@/styles/colors';
 
@@ -25,6 +22,13 @@ const LIVE_ROOMS_ROUTE = '/live-rooms';
 
 function buildRoomUrl(roomId: string): string {
   return `${WEB_BASE_URL}/live-rooms/${roomId}`;
+}
+
+function getDisplayName(
+  profile: ReturnType<typeof useUserById>,
+  userId: string,
+): string {
+  return profile?.name?.displayName || profile?.username || userId.slice(0, 10);
 }
 
 const RoomRow = React.memo(function RoomRow({
@@ -89,7 +93,6 @@ export function LiveRoomsWidget({ divider }: { divider?: boolean }) {
   const { t } = useTranslation();
   const router = useRouter();
   const theme = useTheme();
-  const { joinLiveRoom } = useLiveRoom();
   const openWidgetMenu = useWidgetItemMenu();
 
   const { rooms, isLoading, hasFetched, error, hiddenRoomIds, startPolling, stopPolling, hideRoom } =
@@ -97,8 +100,8 @@ export function LiveRoomsWidget({ divider }: { divider?: boolean }) {
 
   useEffect(() => {
     if (!isAuthenticated) return;
-    startPolling();
-    return () => stopPolling();
+    const subscriptionId = startPolling();
+    return () => stopPolling(subscriptionId);
   }, [isAuthenticated, startPolling, stopPolling]);
 
   const visibleRooms = useMemo(
@@ -110,12 +113,6 @@ export function LiveRoomsWidget({ divider }: { divider?: boolean }) {
     () => visibleRooms.slice(0, MAX_ROOMS_DISPLAYED),
     [visibleRooms],
   );
-
-  const hostIds = useMemo(
-    () => displayedRooms.map((r) => r.host).filter(Boolean),
-    [displayedRooms],
-  );
-  useRoomUsers(hostIds);
 
   const handleShowMore = useCallback(() => {
     router.push(LIVE_ROOMS_ROUTE);
@@ -148,7 +145,7 @@ export function LiveRoomsWidget({ divider }: { divider?: boolean }) {
   return (
     <BaseWidget
       title="Live Rooms"
-      icon={<SyraIcon size={16} color={theme.colors.text} />}
+      icon={<Ionicons name="radio-outline" size={16} color={theme.colors.text} />}
       divider={divider}
     >
       {isLoading && !hasFetched ? (
@@ -173,7 +170,10 @@ export function LiveRoomsWidget({ divider }: { divider?: boolean }) {
                 key={room._id}
                 room={room}
                 isLast={index === displayedRooms.length - 1}
-                onPress={() => joinLiveRoom(room._id)}
+                onPress={() => router.push({
+                  pathname: '/live-rooms/live/[id]',
+                  params: { id: room._id },
+                })}
                 onMenuPress={handleMenuPress}
               />
             ))}

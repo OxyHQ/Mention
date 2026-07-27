@@ -1,9 +1,14 @@
 import Notification from '../models/Notification';
 import { getServiceOxyClient } from './oxyHelpers';
+import { getRuntimeSocketServer } from '../runtime/socketServer';
 import { formatPushForNotification, sendPushToUser } from './push';
 import { logger } from './logger';
 import type { PostAuthorshipEntry } from '@mention/shared-types';
 import { getNotificationRecipients, normalizeAuthorship } from './postAuthorship';
+import {
+  toPopulatedActor,
+  type NotificationActorProfile,
+} from './notificationActor';
 
 export interface CreateNotificationData {
   recipientId: string;
@@ -14,26 +19,13 @@ export interface CreateNotificationData {
 }
 
 /**
- * Minimal actor shape consumed when building a real-time notification payload.
- * Sourced either from the service Oxy client's `getUserById` (Oxy user) or a
- * synthetic 'system' actor. `name` may be a plain string or the structured Oxy
- * `{ full }` form.
- */
-interface NotificationActor {
-  id?: string;
-  _id?: string;
-  username?: string;
-  displayName?: string;
-  avatar?: string;
-}
-
-/**
  * Creates a notification for a user action
  * Handles duplicate prevention and emits real-time events
  */
 export const createNotification = async (
   data: CreateNotificationData,
-  emitEvent: boolean = true
+  emitEvent: boolean = true,
+  throwOnPersistenceError: boolean = false,
 ): Promise<void> => {
   try {
     // Check if notification already exists to prevent duplicates
@@ -61,37 +53,24 @@ export const createNotification = async (
     await notification.save();
 
   // Emit real-time notification if requested with actor profile data
-    if (emitEvent && global.io) {
-      let actor: NotificationActor | null = null;
+    const io = emitEvent ? getRuntimeSocketServer() : undefined;
+    if (io) {
+      let actor: NotificationActorProfile | null = null;
       try {
         if (data.actorId && data.actorId !== 'system') {
           const oxyActor = await getServiceOxyClient().getUserById(data.actorId);
-          actor = {
-            id: oxyActor.id,
-            username: oxyActor.username,
-            displayName: oxyActor.name.displayName,
-            avatar: oxyActor.avatar ?? undefined,
-          };
+          actor = oxyActor;
         } else if (data.actorId === 'system') {
           actor = { id: 'system', username: 'system', displayName: 'System' };
         }
       } catch (e) {
         // ignore actor resolution failures
       }
-      const actorId = String(actor?.id || actor?._id || data.actorId);
       const payload = {
         ...notification.toObject(),
-        // Emit the canonical, required `name.displayName` (profile-identity
-        // contract). The `|| actorId` floor is the never-blank last resort
-        // (the handle), NOT a name recompute. Clients render it directly.
-        actorId_populated: actor ? {
-          _id: actorId,
-          username: actor.username || actorId,
-          name: { displayName: (actor.displayName && actor.displayName.trim()) || actorId },
-          avatar: actor.avatar
-        } : undefined
+        actorId_populated: toPopulatedActor(actor, data.actorId),
       };
-      const notificationsNamespace = global.io.of('/notifications');
+      const notificationsNamespace = io.of('/notifications');
       notificationsNamespace.to(`user:${data.recipientId}`).emit('notification', payload);
     }
 
@@ -103,10 +82,12 @@ export const createNotification = async (
       // ignore push failures
     }
 
-    logger.debug(`[Notifications] Notification created: ${data.type} from ${data.actorId} to ${data.recipientId}`);
+    logger.debug('[Notifications] notification created', {
+      type: data.type,
+    });
   } catch (error) {
     logger.error('[Notifications] Error creating notification:', error);
-    // Don't throw error to avoid breaking the main flow
+    if (throwOnPersistenceError) throw error;
   }
 };
 
@@ -146,7 +127,7 @@ export const createMentionNotifications = async (
         }, emitEvent);
       } catch (e) {
         // If notification creation fails, log and continue
-        logger.error(`[Notifications] Failed to create mention notification for user ${recipientId}:`, e);
+    logger.error('[Notifications] failed to create mention notification', e);
       }
     }
   } catch (error) {
@@ -201,5 +182,23 @@ export const createPostAuthorNotifications = async (
     recipients
       .filter((recipientId) => recipientId !== data.actorId)
       .map((recipientId) => createNotification({ ...data, recipientId })),
+  );
+};
+
+/** Durable-worker variant: persistence failures reject for outbox retry. */
+export const createPostAuthorNotificationsStrict = async (
+  authorship: PostAuthorshipEntry[] | undefined,
+  data: Omit<CreateNotificationData, 'recipientId'>,
+): Promise<void> => {
+  const recipients = getNotificationRecipients(normalizeAuthorship(authorship));
+  await Promise.all(
+    recipients
+      .filter((recipientId) => recipientId !== data.actorId)
+      .map((recipientId) =>
+        createNotification(
+          { ...data, recipientId },
+          true,
+          true,
+        )),
   );
 };

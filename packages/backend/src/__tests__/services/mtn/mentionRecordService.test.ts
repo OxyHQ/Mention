@@ -4,6 +4,7 @@ import {
   isAuthorizedKey,
   type RecordStore,
   type ChainHead,
+  type AppendOutcome,
 } from '@oxyhq/protocol';
 import type { SignedRecordEnvelope } from '@oxyhq/contracts';
 
@@ -35,33 +36,101 @@ const SUBJECT_DID = `did:web:oxy.so:u:${SUBJECT_OXY_ID}`;
 // --- In-memory RecordStore (the protocol `RecordStore` contract). -------------
 // Built inside `vi.hoisted` so it exists before the hoisted `vi.mock` factories.
 interface MemoryStore extends RecordStore {
-  rows: Array<{ env: SignedRecordEnvelope; recordId: string }>;
+  rows: Array<{
+    env: SignedRecordEnvelope;
+    recordId: string;
+    idempotencyKey?: string;
+  }>;
   heads: Map<string, ChainHead>;
   conflictOnce: boolean;
+  commitThenConflictOnce: boolean;
+  append(
+    subject: string,
+    env: SignedRecordEnvelope,
+    recordId: string,
+    idempotencyKey?: string,
+  ): Promise<AppendOutcome>;
+  withIdempotencyKey(idempotencyKey: string): RecordStore;
+  findByIdempotencyKey(
+    subject: string,
+    idempotencyKey: string,
+  ): Promise<{
+    recordId: string;
+    seq: number;
+    envelope: SignedRecordEnvelope;
+  } | null>;
 }
 
 const { memoryStore, resolveDid } = vi.hoisted(() => {
-  const rows: Array<{ env: SignedRecordEnvelope; recordId: string }> = [];
+  const rows: Array<{
+    env: SignedRecordEnvelope;
+    recordId: string;
+    idempotencyKey?: string;
+  }> = [];
   const heads = new Map<string, ChainHead>();
   const store: MemoryStore = {
     rows,
     heads,
     conflictOnce: false,
+    commitThenConflictOnce: false,
     async getHead(subject) {
       return heads.get(subject) ?? null;
     },
-    async append(subject, env, recordId) {
+    async append(subject, env, recordId, idempotencyKey?: string) {
       if (store.conflictOnce) {
         store.conflictOnce = false;
         return { ok: false, reason: 'chain_conflict' };
       }
-      rows.push({ env, recordId });
+      if (
+        idempotencyKey &&
+        rows.some(
+          (row) =>
+            row.env.subject === subject &&
+            row.idempotencyKey === idempotencyKey,
+        )
+      ) {
+        return { ok: false, reason: 'chain_conflict' };
+      }
+      rows.push({ env, recordId, idempotencyKey });
       heads.set(subject, {
         headRecordId: recordId,
         seq: env.seq as number,
         recordCount: (heads.get(subject)?.recordCount ?? 0) + 1,
       });
+      if (store.commitThenConflictOnce) {
+        store.commitThenConflictOnce = false;
+        return { ok: false, reason: 'chain_conflict' };
+      }
       return { ok: true, recordId, seq: env.seq as number };
+    },
+    withIdempotencyKey(idempotencyKey) {
+      return {
+        getHead: (subject) => store.getHead(subject),
+        append: (subject, env, recordId) =>
+          store.append(subject, env, recordId, idempotencyKey),
+        getLogSince: (subject, sinceSeq, limit) =>
+          store.getLogSince(subject, sinceSeq, limit),
+        resolveCursorSeq: (subject, recordId) =>
+          store.resolveCursorSeq(subject, recordId),
+        materializeCurrent: (subject, collection, rkey) =>
+          store.materializeCurrent(subject, collection, rkey),
+        latestIssuedAtForKey: (subject, env) =>
+          store.latestIssuedAtForKey(subject, env),
+      };
+    },
+    async findByIdempotencyKey(subject, idempotencyKey) {
+      const row = rows.find(
+        (candidate) =>
+          candidate.env.subject === subject &&
+          candidate.idempotencyKey === idempotencyKey,
+      );
+      return row
+        ? {
+            recordId: row.recordId,
+            seq: row.env.seq as number,
+            envelope: row.env,
+          }
+        : null;
     },
     async getLogSince(subject, sinceSeq, limit) {
       return rows
@@ -108,10 +177,14 @@ vi.mock('../../../utils/oxyHelpers', () => ({
 
 import { signAndAppend } from '../../../services/mtn/MentionRecordService';
 import { mentionVerificationResolver, clearVerificationMethodCache } from '../../../services/mtn/mentionVerificationResolver';
-import { emitPostCreated } from '../../../services/mtn/MentionRecordEmitter';
+import {
+  emitLikeCreatedStrict,
+  emitPostCreated,
+} from '../../../services/mtn/MentionRecordEmitter';
 import {
   MENTION_POST_COLLECTION,
   MENTION_LIKE_COLLECTION,
+  MENTION_TOMBSTONE_COLLECTION,
   createPostUri,
 } from '@mention/shared-types';
 
@@ -123,6 +196,7 @@ beforeEach(() => {
   memoryStore.rows.length = 0;
   memoryStore.heads.clear();
   memoryStore.conflictOnce = false;
+  memoryStore.commitThenConflictOnce = false;
   resolveDid.mockClear();
   clearVerificationMethodCache();
 });
@@ -211,6 +285,126 @@ describe('MentionRecordService.signAndAppend', () => {
     expect(memoryStore.rows).toHaveLength(1);
   });
 
+  it('returns the original append when an outbox event is retried after a crash', async () => {
+    const eventCreatedAt = new Date(Date.now() - 1_000);
+    const eventIdentity = {
+      idempotencyKey: 'engagement:post.like:relation-1:v1',
+      issuedAt: eventCreatedAt,
+    };
+    const payload = {
+      subject: createPostUri('owner-1', 'post-1'),
+      createdAt: eventCreatedAt.toISOString(),
+    };
+
+    const first = await signAndAppend(
+      SUBJECT_OXY_ID,
+      MENTION_LIKE_COLLECTION,
+      'relation-1',
+      payload,
+      eventIdentity,
+    );
+    const retry = await signAndAppend(
+      SUBJECT_OXY_ID,
+      MENTION_LIKE_COLLECTION,
+      'relation-1',
+      payload,
+      eventIdentity,
+    );
+
+    expect(first.ok).toBe(true);
+    expect(retry.ok).toBe(true);
+    if (!first.ok || !retry.ok) return;
+    expect(retry.recordId).toBe(first.recordId);
+    expect(retry.envelope).toEqual(first.envelope);
+    expect(memoryStore.rows).toHaveLength(1);
+  });
+
+  it('returns the committed winner when the exact event surfaces a conflict', async () => {
+    memoryStore.commitThenConflictOnce = true;
+    const eventCreatedAt = new Date(Date.now() - 1_000);
+    const result = await signAndAppend(
+      SUBJECT_OXY_ID,
+      MENTION_LIKE_COLLECTION,
+      'relation-1',
+      {
+        subject: createPostUri('owner-1', 'post-1'),
+        createdAt: eventCreatedAt.toISOString(),
+      },
+      {
+        idempotencyKey: 'engagement:post.like:relation-1:v1',
+        issuedAt: eventCreatedAt,
+      },
+    );
+
+    expect(result.ok).toBe(true);
+    expect(memoryStore.rows).toHaveLength(1);
+    if (!result.ok) return;
+    expect(result.recordId).toBe(memoryStore.rows[0].recordId);
+    expect(result.envelope).toEqual(memoryStore.rows[0].env);
+  });
+
+  it('appends a legitimate like, tombstone and re-like under the same rkey', async () => {
+    const relationshipRkey = 'relation-1';
+    const firstLikeAt = new Date(Date.now() - 3_000);
+    const tombstoneAt = new Date(firstLikeAt.getTime() + 1_000);
+    const reLikeAt = new Date(firstLikeAt.getTime() + 2_000);
+    const likePayload = {
+      subject: createPostUri('owner-1', 'post-1'),
+      createdAt: firstLikeAt.toISOString(),
+    };
+    const firstLike = await signAndAppend(
+      SUBJECT_OXY_ID,
+      MENTION_LIKE_COLLECTION,
+      relationshipRkey,
+      likePayload,
+      {
+        idempotencyKey: 'engagement:post.like:relation-1:v1',
+        issuedAt: firstLikeAt,
+      },
+    );
+    const tombstone = await signAndAppend(
+      SUBJECT_OXY_ID,
+      MENTION_TOMBSTONE_COLLECTION,
+      relationshipRkey,
+      {
+        subject: `mtn://${SUBJECT_OXY_ID}/${MENTION_LIKE_COLLECTION}/${relationshipRkey}`,
+        createdAt: tombstoneAt.toISOString(),
+      },
+      {
+        idempotencyKey: 'engagement:post.downvote:relation-1:v2',
+        issuedAt: tombstoneAt,
+      },
+    );
+    const reLike = await signAndAppend(
+      SUBJECT_OXY_ID,
+      MENTION_LIKE_COLLECTION,
+      relationshipRkey,
+      {
+        ...likePayload,
+        createdAt: reLikeAt.toISOString(),
+      },
+      {
+        idempotencyKey: 'engagement:post.like:relation-1:v3',
+        issuedAt: reLikeAt,
+      },
+    );
+
+    expect(firstLike.ok).toBe(true);
+    expect(tombstone.ok).toBe(true);
+    expect(reLike.ok).toBe(true);
+    expect(memoryStore.rows).toHaveLength(3);
+    expect(memoryStore.rows.map((row) => row.env.rkey)).toEqual([
+      relationshipRkey,
+      relationshipRkey,
+      relationshipRkey,
+    ]);
+    expect(memoryStore.rows.map((row) => row.env.collection)).toEqual([
+      MENTION_LIKE_COLLECTION,
+      MENTION_TOMBSTONE_COLLECTION,
+      MENTION_LIKE_COLLECTION,
+    ]);
+  });
+
   it('is a no-op (disabled) when the custodial key is unconfigured', async () => {
     delete process.env.MENTION_PRIVATE_KEY;
     const result = await signAndAppend(SUBJECT_OXY_ID, MENTION_POST_COLLECTION, 'post-1', {
@@ -235,6 +429,27 @@ describe('MentionRecordService.signAndAppend', () => {
 });
 
 describe('MentionRecordEmitter dual-write gate', () => {
+  it('keeps both envelope and payload time stable across an outbox retry', async () => {
+    const createdAt = new Date(Date.now() - 1_000);
+    const args = {
+      likerOxyUserId: SUBJECT_OXY_ID,
+      likeRkey: 'relation-1',
+      likedPostId: 'post-1',
+      likedPostOwnerOxyUserId: 'owner-1',
+      idempotencyKey: 'engagement:post.like:relation-1:v1',
+      issuedAt: createdAt,
+    };
+
+    await emitLikeCreatedStrict(args);
+    await emitLikeCreatedStrict(args);
+
+    expect(memoryStore.rows).toHaveLength(1);
+    expect(memoryStore.rows[0].env.issuedAt).toBe(createdAt.getTime());
+    expect(memoryStore.rows[0].env.record).toMatchObject({
+      createdAt: createdAt.toISOString(),
+    });
+  });
+
   it('does NOT emit for a federated post', async () => {
     const federatedPost = {
       _id: 'fed-post-1',

@@ -59,8 +59,8 @@
  *
  * RUN AS A FARGATE ONE-SHOT (post-deploy, in-VPC):
  *   bun packages/backend/dist/src/scripts/pruneGoneFederatedActors.js --dry-run
- *   bun packages/backend/dist/src/scripts/pruneGoneFederatedActors.js --limit 200
- *   bun packages/backend/dist/src/scripts/pruneGoneFederatedActors.js --all      # full sweep
+ *   CONFIRM_ADMIN_MUTATION=pruneGoneFederatedActors \
+ *     bun packages/backend/dist/src/scripts/pruneGoneFederatedActors.js --limit 200
  *
  * RUN OVER THE SSM TUNNEL (prod Mongo forwarded to 127.0.0.1:47017):
  *   MONGODB_URI='mongodb://127.0.0.1:47017/?directConnection=true' \
@@ -78,16 +78,18 @@ import { signedFetch } from '../connectors/activitypub/helpers';
 import { AP_CONTENT_TYPE } from '../connectors/activitypub/constants';
 import { logger } from '../utils/logger';
 import { mapWithConcurrency, DEFAULT_CONCURRENCY, MAX_CONCURRENCY } from '../utils/concurrency';
+import { assertAdminMutationAllowed } from './lib/adminScriptSafety';
+import {
+  assertAdminRunComplete,
+  closeAdminScriptResources,
+} from './lib/adminScriptLifecycle';
 
 /** Actors scanned per page (stable `_id` cursor pagination). */
 const PAGE_SIZE = 500;
 
 /**
- * Hard per-actor wall-clock cap on a single actor's re-fetch (+ tombstone). The
- * signed fetch is already internally bounded, but a race against this timer
- * guarantees ONE slow/unresponsive remote can never freeze the whole sweep. A
- * timed-out actor is counted `transient-failed` and left untouched; a later run
- * can still reconcile it.
+ * Hard wall-clock cap on the read-only actor re-fetch. The tombstone write is
+ * deliberately outside the race so a losing Promise cannot mutate later.
  */
 const ACTOR_PROBE_TIMEOUT_MS = 30_000;
 
@@ -169,11 +171,9 @@ class ActorProbeTimeoutError extends Error {
 }
 
 /**
- * Race one actor's probe against a hard timeout so a single hung remote can never
- * freeze the batch. The timer is ALWAYS cleared when the probe settles (win or
- * lose), so no timer is leaked. Losing the race is safe: the tombstone write only
- * happens AFTER a definitive 410 is observed, so a hung probe never reaches it —
- * the actor is simply left untouched for a later run, like any `transient-failed`.
+ * Race only the read-only actor probe. The tombstone mutation remains outside
+ * this race because a timed-out Promise would otherwise keep running and could
+ * write after the caller had counted it as failed.
  */
 function withActorTimeout<T>(work: Promise<T>, ms: number): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -195,17 +195,16 @@ async function probeActor(uri: string): Promise<ScanOutcome> {
   try {
     res = await signedFetch(uri, AP_CONTENT_TYPE);
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    logger.warn(`[pruneGoneFederatedActors] fetch error for ${uri}: ${message}`);
+    logger.warn('[pruneGoneFederatedActors] actor probe failed', { error: err });
     return 'transient';
   }
 
   if (res.status === 410) return 'gone';
   if (res.ok) return 'live';
 
-  logger.info(
-    `[pruneGoneFederatedActors] non-gone status ${res.status} ${res.statusText} for ${uri} — left untouched`,
-  );
+  logger.info('[pruneGoneFederatedActors] actor probe returned a non-gone status', {
+    status: res.status,
+  });
   return 'transient';
 }
 
@@ -215,13 +214,15 @@ async function probeActor(uri: string): Promise<ScanOutcome> {
  * oxy-api). Dry-run reports the intended tombstone without writing.
  */
 async function processActor(actor: ActorRow, flags: Flags): Promise<ScanOutcome> {
-  const outcome = await probeActor(actor.uri);
+  const outcome = await withActorTimeout(
+    probeActor(actor.uri),
+    ACTOR_PROBE_TIMEOUT_MS,
+  );
   if (outcome !== 'gone') return outcome;
 
-  logger.info(
-    `[pruneGoneFederatedActors] ${flags.dryRun ? 'WOULD tombstone' : 'tombstoning'} gone actor ` +
-      `${actor.acct} (${actor.uri})`,
-  );
+  logger.info('[pruneGoneFederatedActors] confirmed-gone actor processed', {
+    dryRun: flags.dryRun,
+  });
   if (!flags.dryRun) {
     await actorService.tombstoneGoneActor(actor.uri);
   }
@@ -257,6 +258,10 @@ async function pruneGoneFederatedActors(): Promise<void> {
   let remaining = flags.limit;
 
   try {
+    assertAdminMutationAllowed({
+      scriptName: 'pruneGoneFederatedActors',
+      dryRun: flags.dryRun,
+    });
     await connectToDatabase();
     const scope = flags.actor ? `actor ${flags.actor}` : flags.all ? 'all' : 'postsCount:0';
     logger.info(
@@ -286,17 +291,16 @@ async function pruneGoneFederatedActors(): Promise<void> {
 
       // The page is already sliced to at most the remaining budget (`pageLimit`), so
       // probing the WHOLE page in a bounded pool can never overshoot `--limit`. Each
-      // actor's work stays wrapped in its per-actor hard timeout, so one hung remote
-      // still cannot stall the pool beyond `ACTOR_PROBE_TIMEOUT_MS`.
+      // actor's read-only probe stays bounded; a tombstone mutation is awaited to
+      // completion so it cannot continue after a reported timeout.
       const settledResults = await mapWithConcurrency(page, flags.concurrency, (actor) =>
-        withActorTimeout(processActor(actor, flags), ACTOR_PROBE_TIMEOUT_MS),
+        processActor(actor, flags),
       );
 
       // Tally sequentially in `_id` order AFTER the pool drains: every counter and
       // the shared budget are mutated exactly once per actor on a single call
       // stack, so no concurrent update can race or double-count.
       for (let i = 0; i < page.length; i++) {
-        const actor = page[i];
         counters.scanned += 1;
         if (remaining !== undefined) remaining -= 1;
 
@@ -310,12 +314,13 @@ async function pruneGoneFederatedActors(): Promise<void> {
           // against an unbounded await hanging the whole run.
           const err = settled.reason;
           if (err instanceof ActorProbeTimeoutError) {
-            logger.warn(
-              `[pruneGoneFederatedActors] actor ${actor.uri} probe timed out after ${ACTOR_PROBE_TIMEOUT_MS}ms — skipping`,
-            );
+            logger.warn('[pruneGoneFederatedActors] actor probe timed out; skipping', {
+              durationMs: ACTOR_PROBE_TIMEOUT_MS,
+            });
           } else {
-            const message = err instanceof Error ? err.message : String(err);
-            logger.warn(`[pruneGoneFederatedActors] actor ${actor.uri} probe threw: ${message}`);
+            logger.warn('[pruneGoneFederatedActors] actor probe threw; skipping', {
+              error: err,
+            });
           }
           outcome = 'transient';
         }
@@ -347,11 +352,15 @@ async function pruneGoneFederatedActors(): Promise<void> {
         `still-live ${counters.stillLive}, transient-failed ${counters.transientFailed}`,
     );
 
-    await mongoose.disconnect();
+    assertAdminRunComplete('pruneGoneFederatedActors', {
+      transientFailed: counters.transientFailed,
+    });
   } catch (error) {
     logger.error('[pruneGoneFederatedActors] failed', error);
+    throw error;
+  } finally {
+    await closeAdminScriptResources();
     await mongoose.disconnect();
-    process.exit(1);
   }
 }
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env bun
-
+/* global __dirname */
 const { execSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
@@ -29,7 +29,7 @@ cacheDirs.forEach(dir => {
 try {
   console.log('  Clearing Watchman...');
   execSync('watchman watch-del-all', { stdio: 'ignore' });
-} catch (e) {
+} catch {
   console.log('  Watchman not available or already cleared');
 }
 
@@ -37,7 +37,7 @@ try {
 try {
   console.log('  Clearing bun cache...');
   execSync('bun pm cache rm', { stdio: 'ignore', cwd: projectRoot });
-} catch (e) {
+} catch {
   console.log('  bun cache clear failed (non-critical)');
 }
 

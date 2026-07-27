@@ -31,9 +31,9 @@ import {
 } from 'react-native-gesture-handler';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { useImageResolver } from '@oxyhq/bloom/image-resolver';
-import { useAuth } from '@oxyhq/services';
+import { useAuth } from '@oxyhq/services/ui/client';
 import { useImageUrl } from '@/hooks/useImageUrl';
-import { MEDIA_VARIANT_VIDEO_POSTER } from '@mention/shared-types';
+import { MEDIA_VARIANT_VIDEO_POSTER } from '@mention/shared-types/post';
 import DefaultAvatar from '@/assets/images/default-avatar.jpg';
 import { Portal } from '@oxyhq/bloom/portal';
 import {
@@ -122,8 +122,8 @@ export const ZoomableAvatar: React.FC<ZoomableAvatarProps> = ({
   const opacity = useSharedValue(0);
   
   // Store original avatar position (relative to screen center)
-  const originX = useSharedValue(0);
-  const originY = useSharedValue(0);
+  const originX = useRef(0);
+  const originY = useRef(0);
 
   // An absolute http(s) `source` is a FINAL, server-resolved URL — render it
   // directly. Defensive fallback: a non-http string is a legacy raw Oxy file id
@@ -193,7 +193,7 @@ export const ZoomableAvatar: React.FC<ZoomableAvatarProps> = ({
           }
         }
         // For local images, dimensions will be captured via onLoad
-      } catch (error) {
+      } catch {
         // If getSize fails, dimensions will be captured via onLoad if available
         // Silently fail - onLoad will handle it
       }
@@ -214,13 +214,13 @@ export const ZoomableAvatar: React.FC<ZoomableAvatarProps> = ({
         const avatarCenterY = pageY + height / 2;
         
         // Store origin position (offset from screen center)
-        originX.value = avatarCenterX - centerX;
-        originY.value = avatarCenterY - centerY;
+        originX.current = avatarCenterX - centerX;
+        originY.current = avatarCenterY - centerY;
         
         setIsZoomed(true);
         // Start from avatar position
-        translateX.value = originX.value;
-        translateY.value = originY.value;
+        translateX.value = originX.current;
+        translateY.value = originY.current;
         // Start with current scale
         scale.value = 1;
         opacity.value = 0;
@@ -263,7 +263,17 @@ export const ZoomableAvatar: React.FC<ZoomableAvatarProps> = ({
         }, 10);
       }
     }
-  }, [isZoomed, size]);
+  }, [
+    isZoomed,
+    MAX_ZOOM_SIZE,
+    opacity,
+    scale,
+    SCREEN_HEIGHT,
+    SCREEN_WIDTH,
+    size,
+    translateX,
+    translateY,
+  ]);
 
   const handleDismiss = useCallback(() => {
     // Animate back to original position with smooth, coordinated animations
@@ -272,8 +282,8 @@ export const ZoomableAvatar: React.FC<ZoomableAvatarProps> = ({
       const duration = CLOSE_DURATION_WEB;
       const easing = Easing.in(Easing.cubic);
       scale.value = withTiming(1, { duration, easing });
-      translateX.value = withTiming(originX.value, { duration, easing });
-      translateY.value = withTiming(originY.value, { duration, easing });
+      translateX.value = withTiming(originX.current, { duration, easing });
+      translateY.value = withTiming(originY.current, { duration, easing });
       opacity.value = withTiming(0, { duration, easing });
       
       setTimeout(() => {
@@ -286,8 +296,8 @@ export const ZoomableAvatar: React.FC<ZoomableAvatarProps> = ({
     } else {
       // Native: use optimized spring for smooth, fast animations
       scale.value = withSpring(1, CLOSE_SPRING);
-      translateX.value = withSpring(originX.value, CLOSE_SPRING);
-      translateY.value = withSpring(originY.value, CLOSE_SPRING);
+      translateX.value = withSpring(originX.current, CLOSE_SPRING);
+      translateY.value = withSpring(originY.current, CLOSE_SPRING);
       opacity.value = withTiming(0, { duration: OPACITY_DURATION });
 
       // Spring animations complete faster with higher stiffness
@@ -299,7 +309,7 @@ export const ZoomableAvatar: React.FC<ZoomableAvatarProps> = ({
         opacity.value = 0;
       }, CLOSE_DURATION_WEB);
     }
-  }, []);
+  }, [opacity, scale, translateX, translateY]);
 
   const startX = useSharedValue(0);
   const startY = useSharedValue(0);
@@ -351,7 +361,20 @@ export const ZoomableAvatar: React.FC<ZoomableAvatarProps> = ({
             opacity.value = withTiming(1, { duration: OPACITY_DURATION });
           }
         }),
-    [handleDismiss, isZoomed, SCREEN_HEIGHT, MAX_ZOOM_SIZE, size]
+    [
+      handleDismiss,
+      isZoomed,
+      SCREEN_HEIGHT,
+      MAX_ZOOM_SIZE,
+      opacity,
+      scale,
+      size,
+      startScale,
+      startX,
+      startY,
+      translateX,
+      translateY,
+    ]
   );
 
   // Style for the small avatar (not zoomed). When a `collapseProgress` driver is

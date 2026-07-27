@@ -13,8 +13,8 @@
  *     `rkey`, `issuer: MENTION_DID`),
  *  5. CUSTODIALLY sign it with `MENTION_PRIVATE_KEY` (web/server path — native
  *     client co-signing is a later seam),
- *  6. compute the `recordId` and `verifyAndAppend` it via the engine with the
- *     Mention store + resolver injected.
+ *  6. `verifyAndAppend` it via the engine with the Mention store + resolver
+ *     injected (the engine returns the canonical `recordId`).
  *
  * On a `chain_conflict` / `bad_seq` (a concurrent writer took this `seq`) it
  * re-reads the head and retries up to {@link MAX_APPEND_ATTEMPTS} times.
@@ -29,7 +29,6 @@
 
 import {
   signEnvelope,
-  computeRecordId,
   verifyAndAppend,
   type SignedRecordSigningFields,
   type RejectionReason,
@@ -64,6 +63,63 @@ export type SignAndAppendResult =
   | { ok: true; recordId: string; seq: number; envelope: SignedRecordEnvelope }
   | { ok: false; reason: RejectionReason | 'disabled' | 'error' };
 
+export interface SignAndAppendOptions {
+  /**
+   * Stable durable-event identity. It is stored only in Mention's local ledger
+   * metadata; it never changes the signed envelope's logical rkey.
+   */
+  idempotencyKey?: string;
+  /** Stable event time used by the signed envelope (Date or epoch millis). */
+  issuedAt?: Date | number;
+}
+
+function resolveIssuedAt(value: Date | number | undefined): number | null {
+  if (value === undefined) return Date.now();
+  const issuedAt = value instanceof Date ? value.getTime() : value;
+  return Number.isFinite(issuedAt) && issuedAt >= 0
+    ? Math.trunc(issuedAt)
+    : null;
+}
+
+type ExistingEventLookup =
+  | { kind: 'absent' }
+  | { kind: 'exact'; result: Extract<SignAndAppendResult, { ok: true }> }
+  | { kind: 'collision' };
+
+async function findExistingEventAppend(input: {
+  subject: string;
+  idempotencyKey: string;
+  collection: string;
+  rkey: string;
+  issuedAt: number;
+}): Promise<ExistingEventLookup> {
+  const existing = await mentionRecordStore.findByIdempotencyKey(
+    input.subject,
+    input.idempotencyKey,
+  );
+  if (!existing) return { kind: 'absent' };
+
+  const envelope = existing.envelope;
+  if (
+    envelope.subject !== input.subject ||
+    envelope.collection !== input.collection ||
+    envelope.rkey !== input.rkey ||
+    envelope.issuedAt !== input.issuedAt
+  ) {
+    return { kind: 'collision' };
+  }
+
+  return {
+    kind: 'exact',
+    result: {
+      ok: true,
+      recordId: existing.recordId,
+      seq: existing.seq,
+      envelope,
+    },
+  };
+}
+
 /**
  * Build, custodially-sign, and append an MTN record to `oxyUserId`'s chain.
  *
@@ -77,6 +133,7 @@ export async function signAndAppend(
   collection: string,
   rkey: string,
   payload: Record<string, unknown>,
+  options: SignAndAppendOptions = {},
 ): Promise<SignAndAppendResult> {
   const issuer = getMentionCustodialIssuer();
   const privateKey = getMentionCustodialPrivateKey();
@@ -91,11 +148,45 @@ export async function signAndAppend(
   }
 
   const subject = buildUserDid(oxyUserId);
+  const idempotencyKey = options.idempotencyKey?.trim() ?? '';
+  const issuedAt = resolveIssuedAt(options.issuedAt);
+  if (
+    issuedAt === null ||
+    (options.idempotencyKey !== undefined && !idempotencyKey) ||
+    (idempotencyKey && options.issuedAt === undefined)
+  ) {
+    logger.error('MentionRecordService: invalid idempotent append options', {
+      collection,
+      rkey,
+      hasIdempotencyKey: Boolean(idempotencyKey),
+      hasIssuedAt: options.issuedAt !== undefined,
+    });
+    return { ok: false, reason: 'error' };
+  }
 
   let lastReason: RejectionReason = 'chain_conflict';
 
   for (let attempt = 0; attempt < MAX_APPEND_ATTEMPTS; attempt++) {
     try {
+      if (idempotencyKey) {
+        const existing = await findExistingEventAppend({
+          subject,
+          idempotencyKey,
+          collection,
+          rkey,
+          issuedAt,
+        });
+        if (existing.kind === 'exact') return existing.result;
+        if (existing.kind === 'collision') {
+          logger.error('MentionRecordService: idempotency key collision', {
+            collection,
+            rkey,
+            idempotencyKey,
+          });
+          return { ok: false, reason: 'error' };
+        }
+      }
+
       const head = await mentionRecordStore.getHead(subject);
       const seq = head ? head.seq + 1 : 0;
       const prev = head ? head.headRecordId : null;
@@ -106,7 +197,7 @@ export async function signAndAppend(
         subject,
         issuer,
         record: payload,
-        issuedAt: Date.now(),
+        issuedAt,
         seq,
         prev,
         collection,
@@ -114,14 +205,43 @@ export async function signAndAppend(
       };
 
       const envelope = await signEnvelope(fields, privateKey);
-      const recordId = await computeRecordId(fields);
-      const outcome = await verifyAndAppend(mentionRecordStore, mentionVerificationResolver, envelope);
+      const appendStore = idempotencyKey
+        ? mentionRecordStore.withIdempotencyKey(idempotencyKey)
+        : mentionRecordStore;
+      const outcome = await verifyAndAppend(
+        appendStore,
+        mentionVerificationResolver,
+        envelope,
+      );
 
       if (outcome.ok) {
         return { ok: true, recordId: outcome.recordId, seq: outcome.seq, envelope };
       }
 
       lastReason = outcome.reason;
+      if (idempotencyKey) {
+        // A concurrent worker may have committed this exact event while our
+        // chain snapshot was in flight. Depending on timing, the engine can
+        // surface a seq conflict OR a stale-issuedAt rejection. In both cases
+        // the unique event key identifies and returns the committed winner.
+        const winner = await findExistingEventAppend({
+          subject,
+          idempotencyKey,
+          collection,
+          rkey,
+          issuedAt,
+        });
+        if (winner.kind === 'exact') return winner.result;
+        if (winner.kind === 'collision') {
+          logger.error('MentionRecordService: idempotency key collision', {
+            collection,
+            rkey,
+            idempotencyKey,
+          });
+          return { ok: false, reason: 'error' };
+        }
+      }
+
       if (!RETRYABLE_REASONS.has(outcome.reason)) {
         // A non-retryable rejection (e.g. untrusted_issuer, bad_signature,
         // stale_issued_at) will never succeed on retry — stop.

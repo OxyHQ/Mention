@@ -11,14 +11,13 @@ import { useTheme } from '@oxyhq/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import { SettingsListGroup } from '@oxyhq/bloom/settings-list';
 import { Icon, type IconName } from '@/lib/icons';
-import { OxyAuthPrompt, useAuth } from '@oxyhq/services';
+import { OxyAuthPrompt, useAuth } from '@oxyhq/services/ui/client';
 import {
     getLivePresencePreference,
     updateLivePresencePreference,
     type LiveVisibility,
-} from '@/lib/liveConfig';
-
-const LIVE_PRESENCE_QUERY_KEY = ['live-presence-preference'] as const;
+} from '@/lib/syraApi';
+import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 
 interface PresenceOption {
     value: LiveVisibility;
@@ -53,30 +52,32 @@ export default function LivePresenceScreen() {
     const { colors } = useTheme();
     const safeBack = useSafeBack();
     const queryClient = useQueryClient();
-    const { canUsePrivateApi, isPrivateApiPending } = useAuth();
+    const { canUsePrivateApi, isPrivateApiPending, user } = useAuth();
+    const viewerId = user?.id;
+    const livePresenceQueryKey = viewerQueryKeys.livePresence(viewerId);
 
     const { data: preference, isLoading } = useQuery({
-        queryKey: LIVE_PRESENCE_QUERY_KEY,
+        queryKey: livePresenceQueryKey,
         queryFn: getLivePresencePreference,
-        enabled: canUsePrivateApi,
+        enabled: canUsePrivateApi && Boolean(viewerId),
         staleTime: 60_000,
     });
 
     const mutation = useMutation({
         mutationFn: updateLivePresencePreference,
         onMutate: async (next: LiveVisibility) => {
-            await queryClient.cancelQueries({ queryKey: LIVE_PRESENCE_QUERY_KEY });
-            const previous = queryClient.getQueryData<LiveVisibility>(LIVE_PRESENCE_QUERY_KEY);
-            queryClient.setQueryData<LiveVisibility>(LIVE_PRESENCE_QUERY_KEY, next);
+            await queryClient.cancelQueries({ queryKey: livePresenceQueryKey });
+            const previous = queryClient.getQueryData<LiveVisibility>(livePresenceQueryKey);
+            queryClient.setQueryData<LiveVisibility>(livePresenceQueryKey, next);
             return { previous };
         },
         onError: (_error, _next, context) => {
             if (context) {
-                queryClient.setQueryData(LIVE_PRESENCE_QUERY_KEY, context.previous);
+                queryClient.setQueryData(livePresenceQueryKey, context.previous);
             }
         },
         onSettled: () => {
-            queryClient.invalidateQueries({ queryKey: LIVE_PRESENCE_QUERY_KEY });
+            queryClient.invalidateQueries({ queryKey: livePresenceQueryKey });
         },
     });
 

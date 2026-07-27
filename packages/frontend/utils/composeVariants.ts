@@ -1,10 +1,12 @@
 import {
   canonicalizeLanguageTag,
   MAX_AUTHOR_VARIANTS,
-  type MediaItem,
-  type PostContent,
-  type PostContentVariant,
-} from '@mention/shared-types';
+} from '@mention/shared-types/language';
+import type {
+  MediaItem,
+  PostContent,
+  PostContentVariant,
+} from '@mention/shared-types/post';
 import { toComposerMediaType, type ComposerMediaItem, type ComposerMediaType } from './composeUtils';
 
 /**
@@ -103,6 +105,25 @@ export function getVariantItem(
   itemId: string,
 ): ComposeVariantItem {
   return state.entries[tag]?.[itemId] ?? EMPTY_VARIANT_ITEM;
+}
+
+/**
+ * Every non-primary body for one composer item, in language-tab order.
+ *
+ * `override` lets an input reconcile mention metadata against the exact next
+ * buffer before the reducer commit, so text and recipients never diverge for a
+ * render.
+ */
+export function variantTextsForItem(
+  state: ComposeVariantsState,
+  itemId: string,
+  override?: { tag: string; text: string },
+): string[] {
+  return state.variantTags.map((tag) =>
+    override?.tag === tag
+      ? override.text
+      : (state.entries[tag]?.[itemId]?.text ?? ''),
+  );
 }
 
 /** Whether a rendition holds anything at all. An untouched tab is not content. */
@@ -727,6 +748,30 @@ export function serializeVariants(state: ComposeVariantsState): DraftVariants {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/**
+ * Tolerantly collect one item's variant bodies from a persisted draft blob.
+ * Used before the full draft reducer is restored so mention metadata can be
+ * reconciled atomically with the text it authorizes.
+ */
+export function draftVariantTextsForItem(raw: unknown, itemId: string): string[] {
+  if (!isRecord(raw) || !Array.isArray(raw.languages)) return [];
+
+  const texts: string[] = [];
+  for (const rawLanguage of raw.languages) {
+    if (!isRecord(rawLanguage) || !Array.isArray(rawLanguage.items)) continue;
+    for (const rawItem of rawLanguage.items) {
+      if (
+        isRecord(rawItem) &&
+        rawItem.itemId === itemId &&
+        typeof rawItem.text === 'string'
+      ) {
+        texts.push(rawItem.text);
+      }
+    }
+  }
+  return texts;
 }
 
 function readStringMap(value: unknown): Record<string, string> {

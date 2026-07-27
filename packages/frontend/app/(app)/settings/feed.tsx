@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
-import { View, Text, Pressable, ScrollView } from 'react-native';
+import { View, Text, ScrollView } from 'react-native';
 import { confirmDialog } from '@/utils/alerts';
 import { Loading } from '@oxyhq/bloom/loading';
 import { Header } from '@/components/Header';
@@ -12,11 +12,11 @@ import { Toggle } from '@/components/Toggle';
 import { Slider } from '@/components/Slider';
 import { useFeedSettings, DEFAULT_FEED_SETTINGS, type FeedSettings } from '@/hooks/useFeedSettings';
 import { useTranslation } from 'react-i18next';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { SettingsListGroup, SettingsListItem } from '@oxyhq/bloom/settings-list';
 import { RowIcon } from '@/components/settings/RowIcon';
 import { logger } from '@/lib/logger';
-import { useAuth, OxyAuthPrompt } from '@oxyhq/services';
+import { useAuth, OxyAuthPrompt } from '@oxyhq/services/ui/client';
 
 const IconComponent = Ionicons as React.ComponentType<React.ComponentProps<typeof Ionicons>>;
 
@@ -234,7 +234,7 @@ export default function FeedSettingsScreen() {
       >
         {/* Presets */}
         <SettingsListGroup title={t('settings.feed.presets.title')}>
-          {(Object.keys(PRESETS) as Array<keyof typeof PRESETS>).map((key) => (
+          {(Object.keys(PRESETS) as (keyof typeof PRESETS)[]).map((key) => (
             <SettingsListItem
               key={key}
               title={PRESETS[key].name}

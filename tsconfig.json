@@ -3,8 +3,9 @@
   // Root / solution tsconfig.
   //
   // This file is the SHARED, RUNTIME-NEUTRAL BASE for every package in the
-  // monorepo and the solution file that wires the TypeScript project references
-  // together (`tsc -b` builds them in dependency order).
+  // monorepo and the solution file for the emitting Node packages. Expo and MCP
+  // are checked by their package-local commands because they use different
+  // module-resolution and emit contracts.
   //
   // Design:
   //   * The root intentionally does NOT extend `expo/tsconfig.base`. The Expo
@@ -12,13 +13,13 @@
   //     with bundler/node16/nodenext module resolution and therefore conflicts
   //     with the Node/CommonJS packages (backend, shared-types) that resolve
   //     with `moduleResolution: "node"`. Leaking it into every package caused
-  //     `TS5098`. Instead, the Expo apps (frontend, agora) extend BOTH this
-  //     base AND `expo/tsconfig.base` (array `extends`), so the React-Native
+  //     `TS5098`. Instead, the Expo frontend extends BOTH this base AND
+  //     `expo/tsconfig.base` (array `extends`), so the React-Native
   //     condition lands only where bundler resolution is in effect.
   //   * Each package's tsconfig `extends` this file and overrides ONLY what it
   //     genuinely needs (see per-package comments). The defaults below are the
   //     "type-check only" baseline (`noEmit: true`); packages that actually
-  //     emit JS (backend, shared-types, agora-shared) deliberately flip
+  //     emit JS (backend, shared-types) deliberately flip
   //     `noEmit` and pick the module/target their runtime requires.
   // ---------------------------------------------------------------------------
   "compilerOptions": {
@@ -62,10 +63,7 @@
   },
   "references": [
     { "path": "./packages/shared-types" },
-    { "path": "./packages/agora-shared" },
-    { "path": "./packages/backend" },
-    { "path": "./packages/frontend" },
-    { "path": "./packages/agora" }
+    { "path": "./packages/backend" }
   ],
   "exclude": [
     "node_modules",

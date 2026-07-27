@@ -41,7 +41,10 @@ class PollsController {
       let finalPostId = postId;
       
       // Log the incoming postId for debugging
-      logger.debug(`[Polls] Creating poll with postId: ${postId}, type: ${typeof postId}, isTemp: ${postId?.toString().startsWith('temp_')}`);
+    logger.debug('[Polls] creating poll', {
+      postIdType: typeof postId,
+      isTemporaryPost: postId?.toString().startsWith('temp_'),
+    });
       
       if (postId && !postId.toString().startsWith('temp_')) {
         try {

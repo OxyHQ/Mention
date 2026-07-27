@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, Platform } from 'react-native';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useAuth } from '@oxyhq/services';
+import { useAuth } from '@oxyhq/services/ui/client';
 import { ThemedView } from '@/components/ThemedView';
 import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';
@@ -12,10 +12,11 @@ import { subscribeToListChanges } from '@/services/listMutations';
 import { router, useFocusEffect } from 'expo-router';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { useTranslation } from 'react-i18next';
-import SEO from '@/components/SEO';
+import { SEO } from '@/components/SEO';
 import { ListCard as ListCardComponent, type ListCardData } from '@/components/ListCard';
 import { EmptyState } from '@/components/common/EmptyState';
 import { List } from '@/assets/icons/list-icon';
+import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 
 const FOLLOWED_LIST_PAGE_SIZE = 50;
 
@@ -51,7 +52,7 @@ export default function ListsScreen() {
   // Identity-keyed so the collections (re)load when the session resolves on cold
   // boot. Keying on the auth identity — not `[]` — means an anonymous-then-signed-in
   // transition refetches instead of staying frozen at the empty anonymous result.
-  const ownedQueryKey = ['lists', 'owned', viewerId ?? 'anon'] as const;
+  const ownedQueryKey = viewerQueryKeys.ownedLists(viewerId);
   const ownedQuery = useQuery<MentionList[]>({
     queryKey: ownedQueryKey,
     enabled: isAuthenticated,
@@ -66,7 +67,7 @@ export default function ListsScreen() {
   // resolved individually; a deleted/private followed list resolves to null and
   // is dropped. The resolution is part of the query so React Query owns its
   // cache, dedupe, and identity-keyed refetch — no mount-only effect.
-  const followedQueryKey = ['lists', 'followed', viewerId ?? 'anon'] as const;
+  const followedQueryKey = viewerQueryKeys.followedLists(viewerId);
   const followedQuery = useQuery<MentionList[]>({
     queryKey: followedQueryKey,
     enabled: isAuthenticated,
@@ -92,9 +93,9 @@ export default function ListsScreen() {
   // (membership/metadata changes broadcast through notifyListChanged).
   useEffect(() => {
     return subscribeToListChanges(() => {
-      queryClient.invalidateQueries({ queryKey: ['lists'] });
+      queryClient.invalidateQueries({ queryKey: viewerQueryKeys.listsRoot(viewerId) });
     });
-  }, [queryClient]);
+  }, [queryClient, viewerId]);
 
   // The follow/unfollow toggle lives on the list detail screen and updates the
   // shared entity-follow store rather than the list collection. Returning to
@@ -103,9 +104,9 @@ export default function ListsScreen() {
   useFocusEffect(
     useCallback(() => {
       if (isAuthenticated) {
-        queryClient.invalidateQueries({ queryKey: ['lists', 'followed'] });
+        queryClient.invalidateQueries({ queryKey: viewerQueryKeys.followedLists(viewerId) });
       }
-    }, [isAuthenticated, queryClient]),
+    }, [isAuthenticated, queryClient, viewerId]),
   );
 
   const ownedLists = ownedQuery.data ?? [];

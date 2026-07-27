@@ -10,7 +10,7 @@ import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { Chat } from '@/assets/icons/chat-icon';
-import SEO from '@/components/SEO';
+import { SEO } from '@/components/SEO';
 
 const ChatScreen: React.FC = () => {
     const { t } = useTranslation();

@@ -195,6 +195,22 @@ describe('buildFederatedNoteContent', () => {
     expect(built.reason).toBe('empty-federated-note');
   });
 
+  it('keeps administrative dry-run media extraction free of persistence side effects', async () => {
+    const remoteUrl = 'https://remote.example/read-only.png';
+    const built = await buildFederatedNoteContent(
+      {
+        content: '',
+        attachment: [{ type: 'Document', mediaType: 'image/png', url: remoteUrl }],
+      },
+      'owner-1',
+      { materializeMedia: false },
+    );
+
+    expect(h.materializeFederatedMedia).not.toHaveBeenCalled();
+    if (built.skip) throw new Error('expected content');
+    expect(built.media[0]?.id).toBe(remoteUrl);
+  });
+
   it('keeps an all-hashtag note: tags captured and the body is not blanked', async () => {
     const built = await buildFederatedNoteContent({ content: '<p>#art #photo #nature #travel</p>' }, 'owner-1', {});
     expect(built.skip).toBeFalsy();

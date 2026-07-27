@@ -24,10 +24,10 @@ export async function syncAtprotoProfileGraph(did: string, ownerOxyUserId: strin
 
   if (packs.status === 'rejected') {
     const message = packs.reason instanceof Error ? packs.reason.message : String(packs.reason);
-    logger.warn(`[atproto] starter-pack sync threw for ${did}: ${message}`);
+    logger.warn('[atproto] starter-pack sync failed', { error: message });
   }
   if (feeds.status === 'rejected') {
     const message = feeds.reason instanceof Error ? feeds.reason.message : String(feeds.reason);
-    logger.warn(`[atproto] feed-generator sync threw for ${did}: ${message}`);
+    logger.warn('[atproto] feed-generator sync failed', { error: message });
   }
 }

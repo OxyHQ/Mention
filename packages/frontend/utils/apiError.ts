@@ -1,4 +1,4 @@
-import axios from 'axios';
+import { isAxiosError } from 'axios';
 
 /**
  * Normalized, transport-agnostic view of a caught error.
@@ -66,7 +66,7 @@ export function normalizeApiError(error: unknown): NormalizedApiError {
   for (const candidate of [error, cause]) {
     if (candidate === undefined) continue;
 
-    if (axios.isAxiosError(candidate)) {
+    if (isAxiosError(candidate)) {
       const status = candidate.response?.status;
       const body = candidate.response?.data;
       const serverMessage = isRecord(body)

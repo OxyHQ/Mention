@@ -25,6 +25,7 @@
  * explode the label space).
  */
 
+import { isValidFeedDescriptor } from '@mention/shared-types';
 import { metrics } from '../../utils/metrics';
 
 export const FEED_METRICS = {
@@ -45,6 +46,7 @@ export type PostOrigin = 'federated' | 'local';
  */
 export function baseDescriptor(descriptor: string | undefined | null): string {
   if (!descriptor || typeof descriptor !== 'string') return 'unknown';
+  if (!isValidFeedDescriptor(descriptor)) return 'unknown';
   const token = descriptor.split('|')[0].trim();
   return token.length > 0 ? token : 'unknown';
 }

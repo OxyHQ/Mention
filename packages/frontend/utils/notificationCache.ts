@@ -1,7 +1,7 @@
 import type { InfiniteData, QueryClient } from '@tanstack/react-query';
 import type { NotificationsResponse } from '@/services/notificationService';
 import type { TRawNotification } from '@/types/validation';
-import { unreadCountKey } from '@/hooks/useUnreadCount';
+import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 
 /**
  * The cached shape of the `['notifications', userId]` infinite query. The page
@@ -9,11 +9,6 @@ import { unreadCountKey } from '@/hooks/useUnreadCount';
  * `useInfiniteQuery` in `notifications.tsx`.
  */
 export type NotificationsInfiniteData = InfiniteData<NotificationsResponse, string | undefined>;
-
-/** React Query key for the paginated notifications list. */
-export function notificationsKey(userId: string | undefined) {
-  return ['notifications', userId] as const;
-}
 
 // ---------------------------------------------------------------------------
 // Pure reducers — no React, no QueryClient. Each returns a NEW object graph
@@ -147,5 +142,8 @@ export function removeNotification(data: NotificationsInfiniteData, id: string):
  */
 export function bumpUnread(queryClient: QueryClient, userId: string | undefined, delta: number): void {
   if (!userId || delta === 0) return;
-  queryClient.setQueryData<number>(unreadCountKey(userId), (prev) => Math.max(0, (prev ?? 0) + delta));
+  queryClient.setQueryData<number>(
+    viewerQueryKeys.unreadNotifications(userId),
+    (prev) => Math.max(0, (prev ?? 0) + delta),
+  );
 }

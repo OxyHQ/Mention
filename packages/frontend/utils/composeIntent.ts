@@ -5,7 +5,7 @@
  * prefilled content (e.g. `/compose?text=...&hashtags=foo,bar&url=...`).
  *
  * The parser is pure and side-effect free:
- *  - Unknown keys are silently dropped (logged in __DEV__).
+ *  - Unknown keys are silently dropped.
  *  - Invalid values are dropped (graceful), other valid fields kept.
  *  - All URLs are validated via `new URL()` + http/https protocol only.
  *  - HTML is stripped from text fields.
@@ -39,35 +39,6 @@ export const POLL_DURATION_DEFAULT_DAYS = 7;
  * `thread[N-1].text`). Matches the Phase 2 schema (N = 0..4).
  */
 export const MAX_THREAD_ITEMS = 5;
-
-const KNOWN_INTENT_KEYS: ReadonlySet<string> = new Set([
-  'text',
-  'url',
-  'mediaUrl',
-  'hashtags',
-  'via',
-  'mentions',
-  'replyToPostId',
-  'quotePostId',
-  'editPostId',
-  'pollOptions',
-  'pollDurationDays',
-  'articleTitle',
-  'articleBody',
-  'eventName',
-  'eventDate',
-  'eventLocation',
-  'eventDescription',
-  'lat',
-  'lng',
-  'address',
-  'sources',
-  'scheduledFor',
-  'sensitive',
-  'replyPermission',
-  'quotesDisabled',
-  'lang',
-]);
 
 /**
  * Matches a thread-item text key: `thread[0].text` … `thread[N].text`. Only the
@@ -298,22 +269,11 @@ const parseThreadItems = (raw: ComposeIntentRawParams): string[] => {
  * Parse a `?text=Hello&hashtags=foo,bar&...` query into a typed `ComposeIntent`.
  *
  * Robust to:
- *  - Unknown keys (logged in dev, dropped).
+ *  - Unknown keys (dropped).
  *  - Array-valued params (takes first).
  *  - Bad values (drops that one field, keeps the rest).
  */
 export const parseComposeIntent = (raw: ComposeIntentRawParams): ComposeIntent => {
-  if (typeof __DEV__ !== 'undefined' && __DEV__) {
-    const unknown = Object.keys(raw).filter(
-      (key) => !KNOWN_INTENT_KEYS.has(key) && !THREAD_TEXT_KEY_REGEX.test(key),
-    );
-    if (unknown.length > 0) {
-      // Lightweight dev signal: third-party callers may be using stale param
-      // names. Production builds drop the check entirely (gated by __DEV__).
-      console.debug('[composeIntent] dropping unknown keys:', unknown.join(', '));
-    }
-  }
-
   const intent: ComposeIntent = {};
 
   const textValue = sanitizeText(firstString(raw.text));

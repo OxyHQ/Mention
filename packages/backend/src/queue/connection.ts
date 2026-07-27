@@ -1,4 +1,8 @@
 import IORedis, { type RedisOptions } from 'ioredis';
+import {
+  getRedisConnectionConfig,
+  isRedisRuntimeConfigured,
+} from '../config';
 import { logger } from '../utils/logger';
 
 /**
@@ -17,44 +21,11 @@ import { logger } from '../utils/logger';
  * false and the connection is never created.
  */
 
-/** Default Redis host when no URL is provided. */
-const DEFAULT_REDIS_HOST = 'localhost';
-
-/** Default Redis port when no URL is provided. */
-const DEFAULT_REDIS_PORT = 6379;
-
-/** Default Redis logical database index. */
-const DEFAULT_REDIS_DB = 0;
-
 /** Connection timeout for the initial BullMQ Redis connect (ms). */
 const REDIS_CONNECT_TIMEOUT_MS = 15_000;
 
 /** Connection timeout when using a TLS (`rediss://`) URL (ms). */
 const REDIS_TLS_CONNECT_TIMEOUT_MS = 20_000;
-
-interface ResolvedRedisConfig {
-  redisUrl?: string;
-  redisHost: string;
-  redisPort: number;
-  redisPassword?: string;
-  redisDb: number;
-}
-
-/**
- * Resolve Redis configuration from the environment. Mirrors the resolution in
- * `src/utils/redis.ts#getRedisConfig` so BullMQ talks to the same Redis the
- * rest of the app uses. Empty/whitespace URLs are treated as unset.
- */
-function resolveRedisConfig(): ResolvedRedisConfig {
-  const rawUrl = (process.env.REDIS_URL || process.env.REDIS_URI)?.trim();
-  return {
-    redisUrl: rawUrl && rawUrl.length > 0 ? rawUrl : undefined,
-    redisHost: process.env.REDIS_HOST || DEFAULT_REDIS_HOST,
-    redisPort: Number.parseInt(process.env.REDIS_PORT || String(DEFAULT_REDIS_PORT), 10),
-    redisPassword: process.env.REDIS_PASSWORD,
-    redisDb: Number.parseInt(process.env.REDIS_DB || String(DEFAULT_REDIS_DB), 10),
-  };
-}
 
 /**
  * Whether a usable Redis target is configured. True when an explicit
@@ -64,9 +35,7 @@ function resolveRedisConfig(): ResolvedRedisConfig {
  * delivery queue instead of crash-looping against a non-existent server.
  */
 export function isQueueEnabled(): boolean {
-  const rawUrl = (process.env.REDIS_URL || process.env.REDIS_URI)?.trim();
-  if (rawUrl && rawUrl.length > 0) return true;
-  return Boolean(process.env.REDIS_HOST && process.env.REDIS_HOST.trim().length > 0);
+  return isRedisRuntimeConfigured();
 }
 
 let connection: IORedis | null = null;
@@ -81,11 +50,11 @@ let connection: IORedis | null = null;
 export function getQueueConnection(): IORedis {
   if (connection) return connection;
 
-  const config = resolveRedisConfig();
+  const redisConfig = getRedisConnectionConfig();
 
-  if (config.redisUrl) {
-    const isTls = config.redisUrl.startsWith('rediss://');
-    connection = new IORedis(config.redisUrl, {
+  if (redisConfig.url) {
+    const isTls = redisConfig.url.startsWith('rediss://');
+    connection = new IORedis(redisConfig.url, {
       maxRetriesPerRequest: null,
       enableReadyCheck: true,
       connectTimeout: isTls ? REDIS_TLS_CONNECT_TIMEOUT_MS : REDIS_CONNECT_TIMEOUT_MS,
@@ -93,16 +62,16 @@ export function getQueueConnection(): IORedis {
     });
   } else {
     const options: RedisOptions = {
-      host: config.redisHost,
-      port: config.redisPort,
-      db: config.redisDb,
+      host: redisConfig.host,
+      port: redisConfig.port,
+      db: redisConfig.db,
       maxRetriesPerRequest: null,
       enableReadyCheck: true,
       connectTimeout: REDIS_CONNECT_TIMEOUT_MS,
       lazyConnect: false,
     };
-    if (config.redisPassword) {
-      options.password = config.redisPassword;
+    if (redisConfig.password) {
+      options.password = redisConfig.password;
     }
     connection = new IORedis(options);
   }
@@ -111,7 +80,7 @@ export function getQueueConnection(): IORedis {
     logger.info('BullMQ Redis connection ready');
   });
   connection.on('error', (err: Error) => {
-    logger.warn(`BullMQ Redis connection error: ${err.message}`);
+    logger.warn('BullMQ Redis connection error', { error: err });
   });
 
   return connection;
@@ -126,8 +95,7 @@ export async function closeQueueConnection(): Promise<void> {
   try {
     await connection.quit();
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    logger.warn(`BullMQ Redis connection close failed: ${message}`);
+    logger.warn('BullMQ Redis connection close failed', { error: err });
   } finally {
     connection = null;
   }

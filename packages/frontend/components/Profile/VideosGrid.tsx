@@ -2,7 +2,7 @@ import React, { useCallback, useMemo } from 'react';
 import { TouchableOpacity, View } from 'react-native';
 import { Spinner } from '@/components/ui/Spinner';
 import { useRouter } from 'expo-router';
-import { useAuth } from '@oxyhq/services';
+import { useAuth } from '@oxyhq/services/ui/client';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { EmptyState } from '@/components/common/EmptyState';
@@ -18,6 +18,12 @@ interface VideosGridProps {
     userId?: string;
     isPrivate?: boolean;
     isOwnProfile?: boolean;
+    ownsScroll?: boolean;
+    listHeaderComponent?: React.ReactElement | null;
+    listStickyHeaderComponent?: React.ReactElement | null;
+    contentContainerStyle?: React.ComponentProps<typeof View>['style'];
+    onScroll?: React.ComponentProps<typeof ProfileGridList<VideoGridEntry>>['onScroll'];
+    scrollRef?: React.ComponentProps<typeof ProfileGridList<VideoGridEntry>>['scrollRef'];
 }
 
 interface VideoGridEntry extends ProfileGridEntry {
@@ -30,17 +36,27 @@ interface VideoGridEntry extends ProfileGridEntry {
     posterUri?: string;
 }
 
-/** Post-level video hint the raw feed row may carry beyond the hydrated DTO. */
-interface RawPostExtras {
-    type?: string;
-}
-
-const VideosGrid: React.FC<VideosGridProps> = ({ userId, isPrivate, isOwnProfile }) => {
+const VideosGrid: React.FC<VideosGridProps> = ({
+    userId,
+    isPrivate,
+    isOwnProfile,
+    ownsScroll,
+    listHeaderComponent,
+    listStickyHeaderComponent,
+    contentContainerStyle,
+    onScroll,
+    scrollRef,
+}) => {
     const { oxyServices } = useAuth();
     const router = useRouter();
     const theme = useTheme();
     const { t } = useTranslation();
-    const { mediaFeed, postsFeed, items } = useProfileMediaFeed({ userId, isPrivate, isOwnProfile });
+    const {
+        mediaFeed,
+        postsFeed,
+        items,
+        loadMore,
+    } = useProfileMediaFeed({ userId, isPrivate, isOwnProfile });
 
     /**
      * Resolve a static video poster. Prefer the server-resolved final `posterUrl`
@@ -61,16 +77,15 @@ const VideosGrid: React.FC<VideosGridProps> = ({ userId, isPrivate, isOwnProfile
     const videoItems = useMemo<VideoGridEntry[]>(() => {
         const out: VideoGridEntry[] = [];
 
-        const extractFrom = (post: HydratedPostSummary & Partial<RawPostExtras>, targetId: string) => {
+        const extractFrom = (post: HydratedPostSummary, targetId: string) => {
             const media = post.content?.media;
             if (!Array.isArray(media) || media.length === 0) return;
 
-            const postType = post.type;
             const seen = new Set<string>();
             media.forEach((ref, idx) => {
                 const key = ref.id || ref.url;
                 if (!key) return;
-                if (!isVideoMediaRef(key, { postType, mediaType: ref.type })) return; // Only include videos
+                if (!isVideoMediaRef(key, { mediaType: ref.type })) return; // Only include videos
                 if (seen.has(key)) return;
                 seen.add(key);
                 out.push({ postId: targetId, posterUri: resolvePosterUri(ref), mediaIndex: idx });
@@ -85,7 +100,11 @@ const VideosGrid: React.FC<VideosGridProps> = ({ userId, isPrivate, isOwnProfile
         return out;
     }, [items, resolvePosterUri]);
 
-    const isLoading = (mediaFeed?.isLoading || postsFeed?.isLoading) && videoItems.length === 0;
+    const isLoading = (
+        (!mediaFeed && !postsFeed) ||
+        mediaFeed?.isLoading ||
+        postsFeed?.isLoading
+    ) && videoItems.length === 0;
 
     const renderCell = useCallback((item: VideoGridEntry, itemSize: number) => {
         const handlePress = () => {
@@ -104,26 +123,40 @@ const VideosGrid: React.FC<VideosGridProps> = ({ userId, isPrivate, isOwnProfile
         );
     }, [router, theme.colors.textSecondary]);
 
-    if (isLoading) {
-        return (
+    const emptyContent = isLoading
+        ? (
             <View className="items-center justify-center p-8">
                 <Spinner />
             </View>
-        );
-    }
-
-    if (videoItems.length === 0) {
-        return (
+        )
+        : videoItems.length === 0
+            ? (
             <EmptyState
                 title={t('profile.videos.empty.title', { defaultValue: 'No videos yet' })}
                 customIcon={<Video size={48} className="text-muted-foreground" />}
                 containerStyle={{ flex: 1 }}
             />
-        );
+            )
+            : null;
+
+    if (!ownsScroll && emptyContent) {
+        return emptyContent;
     }
 
     return (
-        <ProfileGridList data={videoItems} renderCell={renderCell} containerClassName="w-full" />
+        <ProfileGridList
+            data={videoItems}
+            renderCell={renderCell}
+            containerClassName="w-full"
+            ownsScroll={ownsScroll}
+            listHeaderComponent={listHeaderComponent}
+            listStickyHeaderComponent={listStickyHeaderComponent}
+            emptyComponent={emptyContent}
+            contentContainerStyle={contentContainerStyle}
+            onScroll={onScroll}
+            scrollRef={scrollRef}
+            onEndReached={loadMore}
+        />
     );
 };
 

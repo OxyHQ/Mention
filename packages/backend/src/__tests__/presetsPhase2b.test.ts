@@ -45,10 +45,9 @@ describe('resolvePhase2bSignals', () => {
     expect(ids).toEqual(['penalizeSeen', 'mediaBoost', 'dwellTime']);
   });
 
-  it('drops unknown signal ids from the env list', () => {
+  it('rejects unknown signal ids instead of silently dropping them', () => {
     process.env.FOR_YOU_PHASE2B_SIGNALS = 'socialProof,notASignal,verifiedBoost';
-    const ids = resolvePhase2bSignals().map((ref) => ref.module);
-    expect(ids).toEqual(['socialProof', 'verifiedBoost']);
+    expect(() => resolvePhase2bSignals()).toThrow('FOR_YOU_PHASE2B_SIGNALS');
   });
 });
 

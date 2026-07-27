@@ -13,12 +13,8 @@
  * re-resolve users. It only enforces the exclusion set, caching, and soft-fail.
  */
 
-import Block from '../models/Block';
-import Mute from '../models/Mute';
-import Restrict from '../models/Restrict';
 import { getRedisClient } from '../utils/redis';
 import { logger } from '../utils/logger';
-import { config } from '../config';
 import {
   oxyRankingClient,
   type OxyRankingClient,
@@ -32,6 +28,8 @@ import {
   type ContentCandidate,
 } from './ContentAffinityService';
 import { getMentionOxyClientId } from '../utils/oxyHelpers';
+import { UserPrivacyManager } from '../mtn/UserPrivacyManager';
+import type { OxyClient } from '../utils/privacyHelpers';
 
 /** Default page size when the caller omits `limit`. */
 export const DEFAULT_RECOMMENDATION_LIMIT = 20;
@@ -58,6 +56,11 @@ const CACHE_PREFIX = 'rec:v1:';
 export interface GetRecommendationsInput {
   /** Viewer's Oxy user id, or undefined when logged out. */
   viewerId?: string;
+  /**
+   * Authenticated request-scoped Oxy client. Required to resolve the viewer's
+   * Oxy-owned blocks/restrictions without a shared mutable singleton.
+   */
+  oxyClient?: OxyClient;
   /** Requested page size (clamped to [1, MAX_RECOMMENDATION_LIMIT]). */
   limit?: number;
   /** Pagination offset (clamped to [0, MAX_RECOMMENDATION_OFFSET]). */
@@ -152,6 +155,33 @@ function buildCacheKey(
 }
 
 /**
+ * Apply Mention's current viewer exclusions to a recommendation page.
+ *
+ * Oxy receives the same exclusions during ranking, but this local guard is
+ * still required for cached pages: a block/restrict/mute may have been created
+ * after Redis stored the page. Keeping the pagination metadata intact lets the
+ * client continue past a page whose entries were removed by a newer privacy
+ * decision.
+ */
+function filterExcludedProfiles(
+  result: RecommendationsResult,
+  excludeIds: string[] | undefined,
+): RecommendationsResult {
+  if (!excludeIds || excludeIds.length === 0) {
+    return result;
+  }
+
+  const excluded = new Set(excludeIds);
+  const recommendations = result.recommendations.filter(
+    (profile) => !excluded.has(String(profile.id)),
+  );
+
+  return recommendations.length === result.recommendations.length
+    ? result
+    : { ...result, recommendations };
+}
+
+/**
  * Group content-affinity candidates into a bounded set of boost tiers. Each tier
  * shares one Oxy `appBoost` weight, so higher-affinity authors land in a
  * stronger tier. Mention only emits a small, fixed integer weight range
@@ -209,35 +239,16 @@ export class RecommendationService {
   ) {}
 
   /**
-   * Resolve the viewer's exclusion set: every user they block, mute, or
-   * restrict, plus self. Runs the three queries in parallel, projects only the
-   * target id, and dedupes. Returns just `[viewerId]` if the relation lookups
-   * fail (self-exclusion is the floor; a DB hiccup must not surface the viewer
-   * to themselves but must not throw either).
+   * Resolve the viewer's exclusion set: Oxy-owned blocks/restrictions,
+   * Mention-local mutes, and self. Viewer calls require an authenticated Oxy
+   * client and fail closed when that privacy context cannot be resolved.
    */
-  async resolveExcludeIds(viewerId: string): Promise<string[]> {
-    try {
-      const [blocks, mutes, restricts] = await Promise.all([
-        Block.find({ userId: viewerId }, { blockedId: 1, _id: 0 }).lean(),
-        Mute.find({ userId: viewerId }, { mutedId: 1, _id: 0 }).lean(),
-        Restrict.find({ userId: viewerId }, { restrictedId: 1, _id: 0 }).lean(),
-      ]);
-
-      const excluded = new Set<string>([viewerId]);
-      for (const b of blocks) {
-        if (b.blockedId) excluded.add(b.blockedId);
-      }
-      for (const m of mutes) {
-        if (m.mutedId) excluded.add(m.mutedId);
-      }
-      for (const r of restricts) {
-        if (r.restrictedId) excluded.add(r.restrictedId);
-      }
-      return Array.from(excluded);
-    } catch (error) {
-      logger.warn(`[RecommendationService] Failed to resolve exclude ids for ${viewerId}:`, error);
-      return [viewerId];
-    }
+  async resolveExcludeIds(viewerId: string, oxyClient?: OxyClient): Promise<string[]> {
+    const privacyState = await UserPrivacyManager.loadPrivacyState(viewerId, {
+      oxyClient,
+      includeRestricted: true,
+    });
+    return Array.from(new Set([viewerId, ...privacyState.excludedUserIds]));
   }
 
   /**
@@ -279,14 +290,17 @@ export class RecommendationService {
    * recommendation still returns (boosts are purely additive). Logged-out callers
    * have no content history, so this is a no-op for them.
    */
-  private async resolveBoosts(viewerId: string | undefined): Promise<RecommendationBoostInput[]> {
+  private async resolveBoosts(
+    viewerId: string | undefined,
+    oxyClient?: OxyClient,
+  ): Promise<RecommendationBoostInput[]> {
     if (!viewerId) return [];
     try {
-      const candidates = await this.affinityService.getContentCandidates(viewerId);
+      const candidates = await this.affinityService.getContentCandidates(viewerId, { oxyClient });
       return buildBoostsFromCandidates(candidates);
     } catch (error) {
       logger.warn(
-        `[RecommendationService] content-affinity boosts failed for ${viewerId}; proceeding with none:`,
+        '[RecommendationService] content-affinity boosts failed; proceeding with none',
         error,
       );
       return [];
@@ -303,19 +317,27 @@ export class RecommendationService {
     const offset = clampOffset(input.offset);
     const excludeTypes = input.excludeTypes ?? [];
     const viewerId = input.viewerId;
+    const oxyClient = input.oxyClient;
 
     const cacheKey = buildCacheKey(viewerId, limit, offset, excludeTypes);
-    const cached = await this.readCache(cacheKey);
+
+    // A per-viewer cache key is not sufficient privacy isolation: the viewer
+    // can block/restrict/mute an account while an older page is still cached.
+    // Resolve the CURRENT exclusions before any cache hit can be returned, and
+    // fail closed if that authoritative privacy read fails.
+    const [excludeIds, cached] = await Promise.all([
+      viewerId
+        ? this.resolveExcludeIds(viewerId, oxyClient)
+        : Promise.resolve<string[] | undefined>(undefined),
+      this.readCache(cacheKey),
+    ]);
     if (cached) {
-      return cached;
+      return filterExcludedProfiles(cached, excludeIds);
     }
 
-    // Exclusions and content-affinity boosts are independent and viewer-scoped;
-    // resolve them together. Both are individually soft-failing.
-    const [excludeIds, boosts] = await Promise.all([
-      viewerId ? this.resolveExcludeIds(viewerId) : Promise.resolve<string[] | undefined>(undefined),
-      this.resolveBoosts(viewerId),
-    ]);
+    // Content-affinity boosts are additive and soft-failing, and only need to be
+    // computed on a cache miss.
+    const boosts = await this.resolveBoosts(viewerId, oxyClient);
 
     try {
       const { profiles, rawCount } = await this.rankingClient.rank({
@@ -339,7 +361,17 @@ export class RecommendationService {
       const nextCursor = nextOffset !== null ? encodeRecommendationCursor(nextOffset) : null;
 
       const result: RecommendationsResult = {
-        recommendations: profiles,
+        // Defend against an upstream ranking regression/race that returns an id
+        // it was explicitly asked to exclude.
+        recommendations: filterExcludedProfiles(
+          {
+            recommendations: profiles,
+            nextCursor,
+            nextOffset,
+            hasMore,
+          },
+          excludeIds,
+        ).recommendations,
         nextCursor,
         nextOffset,
         hasMore,

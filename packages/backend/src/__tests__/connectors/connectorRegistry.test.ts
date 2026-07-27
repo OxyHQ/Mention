@@ -32,6 +32,7 @@ import type { PostContent } from '@mention/shared-types';
 import type {
   NetworkConnector,
   NetworkId,
+  LocalNetworkEvent,
   LocalPostEventPayload,
 } from '@oxyhq/federation';
 import { ConnectorRegistry } from '../../connectors/ConnectorRegistry';
@@ -98,7 +99,7 @@ describe('ConnectorRegistry.federateNewPost', () => {
     }
   });
 
-  it('logs each rejected connector with its id, not silently swallowing', async () => {
+  it('logs a rejected connector with bounded operational dimensions', async () => {
     const reason = new Error('boom');
     const registry = new ConnectorRegistry([
       makeConnector('activitypub', vi.fn().mockRejectedValue(reason)),
@@ -109,8 +110,12 @@ describe('ConnectorRegistry.federateNewPost', () => {
 
     expect(mocks.loggerError).toHaveBeenCalledTimes(1);
     expect(mocks.loggerError).toHaveBeenCalledWith(
-      expect.stringContaining('"activitypub"'),
-      reason,
+      '[connectors] delivery failed',
+      {
+        connector: 'activitypub',
+        error: reason,
+        type: 'post.create',
+      },
     );
   });
 
@@ -127,5 +132,44 @@ describe('ConnectorRegistry.federateNewPost', () => {
 
     expect(enabledDeliver).toHaveBeenCalledTimes(1);
     expect(disabledDeliver).not.toHaveBeenCalled();
+  });
+});
+
+describe('ConnectorRegistry durable delivery', () => {
+  const LIKE_EVENT: LocalNetworkEvent<PostContent> = {
+    kind: 'post.like',
+    like: { _id: 'like-1', postId: 'post-1' },
+    actorOxyUserId: 'oxy-1',
+    actorUsername: 'alice',
+  };
+
+  it('selects the durable connector boundary only for strict delivery', async () => {
+    const bestEffort = vi.fn().mockResolvedValue(undefined);
+    const durable = vi.fn().mockResolvedValue(undefined);
+    const connector = Object.assign(
+      makeConnector('activitypub', bestEffort),
+      { deliverDurably: durable },
+    );
+    const registry = new ConnectorRegistry([connector]);
+
+    await registry.deliver(LIKE_EVENT);
+    await registry.deliverStrict(LIKE_EVENT);
+
+    expect(bestEffort).toHaveBeenCalledTimes(1);
+    expect(durable).toHaveBeenCalledTimes(1);
+    expect(durable).toHaveBeenCalledWith(LIKE_EVENT);
+  });
+
+  it('surfaces a durable connector rejection to the outbox caller', async () => {
+    const reason = new Error('delivery queue unavailable');
+    const connector = Object.assign(
+      makeConnector('activitypub', vi.fn().mockResolvedValue(undefined)),
+      { deliverDurably: vi.fn().mockRejectedValue(reason) },
+    );
+    const registry = new ConnectorRegistry([connector]);
+
+    await expect(registry.deliverStrict(LIKE_EVENT)).rejects.toThrow(
+      'Connector delivery failed for post.like',
+    );
   });
 });

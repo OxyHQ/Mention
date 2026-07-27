@@ -41,6 +41,11 @@ import { extractApLanguage, getApContentMap } from './apLanguage';
 export interface BuildFederatedNoteContentContext {
   activityId?: string;
   actorUri?: string;
+  /**
+   * Disable media persistence/queueing for an administrative dry run. Normal
+   * ingest defaults to true; false keeps extracted remote URLs unchanged.
+   */
+  materializeMedia?: boolean;
 }
 
 /** A federated Note that resolved to storable content. */
@@ -358,12 +363,14 @@ async function assembleFederatedNoteContent(
   const { content: normalizedText, hashtags } = normalizePostHashtags(rawText, extractApHashtags(object));
 
   const extracted = extractApMedia(object);
-  const { media, attachments } = await materializeFederatedMedia(
-    extracted.media,
-    extracted.attachments,
-    ownerOxyUserId,
-    { activityId: ctx.activityId, actorUri: ctx.actorUri },
-  );
+  const { media, attachments } = ctx.materializeMedia === false
+    ? extracted
+    : await materializeFederatedMedia(
+      extracted.media,
+      extracted.attachments,
+      ownerOxyUserId,
+      { activityId: ctx.activityId, actorUri: ctx.actorUri },
+    );
 
   const summary = extractApSummary(object);
   const sensitive = object.sensitive === true;

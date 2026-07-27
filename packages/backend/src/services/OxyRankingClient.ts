@@ -249,11 +249,13 @@ export class OxyRankingClient {
       if (profile) profiles.push(profile);
     }
 
-    logger.debug(
-      `[OxyRankingClient] ranked ${profiles.length}/${items.length} profiles ` +
-      `(viewer=${options.viewerId ?? 'anon'}, clientId=${clientId ?? 'default'}, ` +
-      `offset=${options.offset ?? 0})`,
-    );
+    logger.debug('[OxyRankingClient] ranked profiles', {
+      returned: profiles.length,
+      candidates: items.length,
+      authenticated: Boolean(options.viewerId),
+      customClient: Boolean(clientId),
+      offset: options.offset ?? 0,
+    });
 
     return { profiles, rawCount: items.length };
   }

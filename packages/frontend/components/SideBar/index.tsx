@@ -14,22 +14,22 @@ import { useTranslation } from "react-i18next";
 import { useUnreadCount } from "@/hooks/useUnreadCount";
 import { SideBarItem } from "./SideBarItem";
 import { Avatar } from '@oxyhq/bloom/avatar';
-import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types';
+import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 
 import { Home, HomeActive } from "@/assets/icons/home-icon";
 import { Bookmark, BookmarkActive } from "@/assets/icons/bookmark-icon";
 import { Gear, GearActive } from "@/assets/icons/gear-icon";
 import { Search, SearchActive } from "@/assets/icons/search-icon";
 import { ComposeIcon } from "@/assets/icons/compose-icon";
-import { confirmDialog } from "@/utils/alerts";
 import { List, ListActive } from "@/assets/icons/list-icon";
 import { Video, VideoActive } from "@/assets/icons/video-icon";
 import { Hashtag, HashtagActive } from "@/assets/icons/hashtag-icon";
 import { AnalyticsIcon, AnalyticsIconActive } from "@/assets/icons/analytics-icon";
 import { useTheme } from '@oxyhq/bloom/theme';
 import { Bell, BellActive } from '@/assets/icons/bell-icon';
-import { SyraIcon, SyraIconActive } from '@syra.fm/sdk';
-import { useAuth, ProfileButton } from '@oxyhq/services';
+import Ionicons from '@expo/vector-icons/Ionicons';
+import { ProfileButton } from '@oxyhq/services';
+import { useAuth } from '@oxyhq/services/ui/client';
 import { getNormalizedUserHandle } from '@oxyhq/core';
 import { asViewStyle, type WebViewStyle } from '@/types/webStyles';
 
@@ -102,7 +102,7 @@ export function SideBar({ asDrawer = false, onNavigate }: SideBarProps) {
         handleNavPress('/settings');
     }, [handleNavPress]);
 
-    const sideBarData = useMemo<Array<{ title: string; icon: React.ReactNode; iconActive: React.ReactNode; route?: Href; onPress?: () => void }>>(() => [
+    const sideBarData = useMemo<{ title: string; icon: React.ReactNode; iconActive: React.ReactNode; route?: Href; onPress?: () => void }[]>(() => [
         {
             title: t("sidebar.home"),
             icon: <Home />,
@@ -133,8 +133,8 @@ export function SideBar({ asDrawer = false, onNavigate }: SideBarProps) {
         },
         {
             title: t("sidebar.liveRooms"),
-            icon: <SyraIcon />,
-            iconActive: <SyraIconActive />,
+            icon: <Ionicons name="radio-outline" size={24} color={theme.colors.text} />,
+            iconActive: <Ionicons name="radio" size={24} color={theme.colors.primary} />,
             route: '/live-rooms',
         },
         {
@@ -173,7 +173,7 @@ export function SideBar({ asDrawer = false, onNavigate }: SideBarProps) {
             iconActive: <GearActive />,
             route: '/settings',
         },
-    ], [t, user, avatarUri, profileHandle, handleNavPress]);
+    ], [t, user, avatarUri, profileHandle, handleNavPress, theme.colors.primary, theme.colors.text]);
 
     const pathname = usePathname();
     const isSideBarVisible = useIsScreenNotMobile();
@@ -189,7 +189,6 @@ export function SideBar({ asDrawer = false, onNavigate }: SideBarProps) {
             style={[
                 asDrawer ? styles.drawerContainer : styles.container,
                 !asDrawer && { width: showExpanded ? 240 : 60 },
-                !asDrawer && pathname === '/search' ? styles.searchShadow : undefined,
             ]}
         >
             <View style={styles.inner}>
@@ -297,10 +296,6 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
     },
-    searchShadow: {
-        boxShadow: '0px 2px 3.84px 0px rgba(0, 0, 0, 0.25)',
-        elevation: 5,
-    } as ViewStyle,
     footer: {
         flexDirection: 'column',
         justifyContent: 'flex-end',

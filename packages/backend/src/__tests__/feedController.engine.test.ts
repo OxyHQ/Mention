@@ -6,7 +6,10 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
  * are mocked so this focuses on the controller's resolve → run → respond flow.
  */
 
-const engineRun = vi.fn(async () => ({
+const engineRun = vi.fn(async (
+  _definition?: unknown,
+  _context?: Record<string, unknown>,
+) => ({
   slices: [],
   items: [{ id: 'p1', user: { id: 'u1' } }],
   hasMore: false,
@@ -17,11 +20,32 @@ vi.mock('../mtn/feed/engine/FeedEngine', () => ({
   feedEngine: { run: (...a: unknown[]) => engineRun(...(a as [])), peekLatest: vi.fn(async () => undefined) },
 }));
 
-// Avoid loading server.ts (oxy client) side effects.
-vi.mock('../../server', () => ({ oxy: { getUserFollowing: vi.fn(async () => ({ data: [] })) } }));
+vi.mock('../runtime/oxyClient', () => ({
+  getRuntimeOxyClient: () => ({
+    getUserFollowing: vi.fn(async () => ({ data: [] })),
+  }),
+}));
+vi.mock('../runtime/oxyClient', () => ({
+  getRuntimeOxyClient: () => ({
+    getBlockedUsers: vi.fn(async () => []),
+    getRestrictedUsers: vi.fn(async () => []),
+    getUserFollowing: vi.fn(async () => ({ data: [] })),
+    getUserFollowers: vi.fn(async () => ({ data: [] })),
+    getMutualUserIds: vi.fn(async () => []),
+  }),
+}));
 
+const privacy = vi.hoisted(() => ({
+  loadPrivacyState: vi.fn(async () => ({ excludedUserIds: new Set() })),
+}));
 vi.mock('../mtn/UserPrivacyManager', () => ({
-  UserPrivacyManager: { loadPrivacyState: vi.fn(async () => ({ excludedUserIds: new Set() })) },
+  UserPrivacyManager: { loadPrivacyState: privacy.loadPrivacyState },
+}));
+const oxyHelpers = vi.hoisted(() => ({
+  createScopedOxyClient: vi.fn((_req?: unknown): unknown => undefined),
+}));
+vi.mock('../utils/oxyHelpers', () => ({
+  createScopedOxyClient: oxyHelpers.createScopedOxyClient,
 }));
 vi.mock('../services/ListSubscriptionService', () => ({
   listSubscriptionService: { getSubscribedListMemberIds: vi.fn(async () => []) },
@@ -96,6 +120,35 @@ describe('MtnFeedController.getFeed → engine', () => {
     const res = makeRes();
     await mtnFeedController.getFeed(req, res as never);
     expect(res.statusCode).toBe(400);
+  });
+
+  it('threads the authenticated request Oxy client into privacy and feed context', async () => {
+    const scopedOxyClient = {
+      getBlockedUsers: vi.fn(async () => []),
+      getRestrictedUsers: vi.fn(async () => []),
+      getUserFollowing: vi.fn(async () => []),
+      getUserFollowers: vi.fn(async () => []),
+    };
+    oxyHelpers.createScopedOxyClient.mockReturnValueOnce(scopedOxyClient);
+    const req = {
+      query: { descriptor: 'for_you' },
+      user: { id: 'viewer1' },
+      headers: { authorization: 'Bearer viewer-token' },
+    } as never;
+    const res = makeRes();
+
+    await mtnFeedController.getFeed(req, res as never);
+
+    expect(privacy.loadPrivacyState).toHaveBeenCalledWith('viewer1', {
+      oxyClient: scopedOxyClient,
+    });
+    const engineCall = engineRun.mock.calls[0] as unknown[] | undefined;
+    expect(engineCall?.[1]).toEqual(
+      expect.objectContaining({
+        oxyClient: scopedOxyClient,
+        privacyOxyClient: scopedOxyClient,
+      }),
+    );
   });
 });
 

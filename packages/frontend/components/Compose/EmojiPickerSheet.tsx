@@ -12,7 +12,7 @@ import { IconButton } from '@/components/ui/Button';
 import { CloseIcon } from '@/assets/icons/close-icon';
 import { useTranslation } from 'react-i18next';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { EMOJI_CATEGORIES, MAX_RECENT_EMOJIS, EmojiCategory } from '@/utils/emojiData';
+import { EMOJI_CATEGORIES, MAX_RECENT_EMOJIS } from '@/utils/emojiData';
 import { cn } from '@/lib/utils';
 
 const RECENT_EMOJIS_KEY = '@mention/recent_emojis';

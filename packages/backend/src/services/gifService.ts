@@ -1,9 +1,6 @@
-const KLIPY_BASE_URL = 'https://api.klipy.com';
+import { getKlipyAppKey } from '../config';
 
-// Get KLIPY_APP_KEY from environment
-function getKlipyAppKey(): string {
-  return process.env.KLIPY_APP_KEY || '';
-}
+const KLIPY_BASE_URL = 'https://api.klipy.com';
 
 interface SearchGifsParams {
   query: string;

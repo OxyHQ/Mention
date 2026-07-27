@@ -13,8 +13,7 @@ import { GifIcon } from '@/assets/icons/gif-icon';
 import { SourcesIcon } from '@/assets/icons/sources-icon';
 import { ArticleIcon } from '@/assets/icons/article-icon';
 import { CalendarIcon } from '@/assets/icons/calendar-icon';
-import { Ionicons } from '@expo/vector-icons';
-import { SpeakerVolumeFull_Stroke2_Corner0_Rounded } from '@oxyhq/bloom/icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 
 interface ComposeToolbarProps {
     contentPaddingLeft?: number;
@@ -218,9 +217,10 @@ const ComposeToolbar = memo<ComposeToolbarProps>(({
                     className="p-1"
                     accessibilityLabel={t('compose.podcast.add')}
                 >
-                    <SpeakerVolumeFull_Stroke2_Corner0_Rounded
-                        size="md"
-                        fill={disabled ? theme.colors.textTertiary : (hasPodcast ? theme.colors.primary : theme.colors.textSecondary)}
+                    <Ionicons
+                        name="mic-outline"
+                        size={20}
+                        color={disabled ? theme.colors.textTertiary : (hasPodcast ? theme.colors.primary : theme.colors.textSecondary)}
                     />
                 </PressableScale>
             )}

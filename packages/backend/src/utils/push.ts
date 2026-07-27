@@ -1,6 +1,7 @@
 import admin from 'firebase-admin';
 import { HydratedDocument } from 'mongoose';
 import { normalizeInlineText } from '@oxyhq/core';
+import { getFirebaseConfig } from '../config';
 import PushToken from '../models/PushToken';
 import { resolveVariant } from '../services/postVariants';
 import Post from '../models/Post';
@@ -12,18 +13,17 @@ let firebaseInitialized = false;
 
 function initFirebase() {
   if (firebaseInitialized) return;
-  const credsB64 = process.env.FIREBASE_SERVICE_ACCOUNT_BASE64;
-  const projectId = process.env.FIREBASE_PROJECT_ID;
-  if (!credsB64 || !projectId) {
+  const firebase = getFirebaseConfig();
+  if (!firebase) {
     logger.warn('[Push] Push disabled: missing FIREBASE_SERVICE_ACCOUNT_BASE64 or FIREBASE_PROJECT_ID');
     return;
   }
   try {
-    const json = Buffer.from(credsB64, 'base64').toString('utf-8');
+    const json = Buffer.from(firebase.serviceAccountBase64, 'base64').toString('utf-8');
     const serviceAccount = JSON.parse(json) as admin.ServiceAccount;
     admin.initializeApp({
       credential: admin.credential.cert(serviceAccount),
-      projectId,
+      projectId: firebase.projectId,
     });
     firebaseInitialized = true;
     logger.info('[Push] Firebase Admin initialized for FCM');

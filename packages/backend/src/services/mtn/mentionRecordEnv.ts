@@ -1,3 +1,8 @@
+import {
+  getMentionSigningConfig,
+  getMentionSigningValues,
+} from '../../config';
+
 /**
  * MTN custodial-signing environment.
  *
@@ -23,24 +28,19 @@
  * setting the env vars on the ECS task, with the rest of the system unchanged.
  */
 
-function readEnv(name: string): string | undefined {
-  const value = process.env[name]?.trim();
-  return value && value.length > 0 ? value : undefined;
-}
-
 /** The custodial issuer DID, or `undefined` when unconfigured. */
 export function getMentionCustodialIssuer(): string | undefined {
-  return readEnv('MENTION_DID');
+  return getMentionSigningValues().did;
 }
 
 /** The custodial signing private key (hex), or `undefined` when unconfigured. */
 export function getMentionCustodialPrivateKey(): string | undefined {
-  return readEnv('MENTION_PRIVATE_KEY');
+  return getMentionSigningValues().privateKey;
 }
 
 /** The custodial public key (hex), or `undefined` when unconfigured. */
 export function getMentionCustodialPublicKey(): string | undefined {
-  return readEnv('MENTION_PUBLIC_KEY');
+  return getMentionSigningValues().publicKey;
 }
 
 /**
@@ -48,9 +48,5 @@ export function getMentionCustodialPublicKey(): string | undefined {
  * must be present; otherwise the dual-write emission is skipped (logged no-op).
  */
 export function isMentionRecordSigningEnabled(): boolean {
-  return Boolean(
-    getMentionCustodialIssuer() &&
-      getMentionCustodialPrivateKey() &&
-      getMentionCustodialPublicKey(),
-  );
+  return getMentionSigningConfig() !== undefined;
 }

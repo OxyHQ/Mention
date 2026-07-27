@@ -1,185 +1,87 @@
 # @mention/frontend
 
-> The frontend package of the Mention monorepo - A modern, cross-platform social app built with Expo, React Native, and TypeScript.
+Universal Mention client for Android, iOS, and the web. It uses Expo Router,
+React Native, React Query, Zustand, Bloom, Socket.IO, and the shared
+`@mention/shared-types` contracts.
 
----
+## Runtime boundaries
 
-## Table of Contents
-- [About](#about)
-- [Features](#features)
-- [Tech Stack](#tech-stack)
-- [Project Structure](#project-structure)
-- [Getting Started](#getting-started)
-- [Development Scripts](#development-scripts)
-- [Contributing](#contributing)
-- [License](#license)
+- Oxy owns authentication and canonical user identity.
+- React Query owns server-state fetching and request cancellation.
+- `stores/` contains client state; private stores and persisted queries are
+  scoped to the current viewer.
+- `db/` provides the native SQLite cache and the bounded in-memory web
+  implementation. Persisted post rows accept only canonical hydrated DTOs.
+- `services/socketService.ts` owns the single Socket.IO connection for the
+  active `{viewerId, token}` identity.
+- LiveKit/Syra runtime code loads only when a live feature is entered.
 
----
+## Setup
 
-## About
+Use the versions pinned at the monorepo root (Bun 1.3.14 and Node 22.17.0):
 
-This is the **frontend package** of the **Mention** monorepo. **Mention** is a universal social platform inspired by Twitter/X, designed for mobile and web. It features real-time feeds, user profiles, trends, notifications, and more. Built with Expo and React Native, it supports file-based routing, multi-language support, and a modern UI.
-
-This package contains the complete React Native application that runs on Android, iOS, and Web platforms.
-
-## Features
-- Universal app: Android, iOS, and Web
-- Real-time feed with posts, replies, quotes, and reposts
-- User profiles with followers/following
-- Trends and analytics
-- Saved posts, lists, and media posts
-- Notifications (push and in-app)
-- Multi-language support (English, Spanish, Italian)
-- Responsive design and theming
-- Modern UI with custom icons and animations
-
-## Tech Stack
-- [Expo](https://expo.dev/) & React Native
-- TypeScript
-- NativeWind (Tailwind CSS for React Native)
-- Zustand (state management)
-- i18next (internationalization)
-- Expo Router (file-based routing)
-- Custom SVG icons
-- Expo Notifications, Secure Store, Camera, Video, Image Picker
-
-## Project Structure
-```
-├── app/                # App entry, screens, and routing
-│   ├── [username]/     # User profile, followers, following
-│   ├── ai/             # AI assistant (Alia chat)
-│   ├── p/[id]/         # Post details, replies, quotes
-│   └── ...
-├── components/         # UI components (Feed, Post, SideBar, etc.)
-├── assets/             # Images, icons, fonts
-├── constants/          # App-wide constants
-├── context/            # React context providers
-├── features/           # Feature modules (e.g., trends)
-├── hooks/              # Custom React hooks
-├── interfaces/         # TypeScript interfaces
-├── lib/                # Library code (e.g., reactQuery)
-├── locales/            # i18n translation files
-├── scripts/            # Utility scripts
-├── store/              # State management (Zustand)
-├── styles/             # Global styles and colors
-├── utils/              # Utility functions
-├── app.config.js       # Expo app configuration
-├── package.json        # Project metadata and dependencies
-└── ...
-```
-
-## Getting Started
-
-### Prerequisites
-- Node.js 18+ and npm 8+
-- Expo CLI (optional, but recommended)
-- For iOS development: macOS with Xcode
-- For Android development: Android Studio
-
-### Development Setup
-
-#### Option 1: From the Monorepo Root (Recommended)
 ```bash
-# Clone the repository
-git clone https://github.com/OxyHQ/Mention.git
-cd Mention
-
-# Install all dependencies
-bun run install:all
-
-# Start frontend development
+cp packages/frontend/.env.example packages/frontend/.env
+bun install --frozen-lockfile
+bun run doctor
 bun run dev:frontend
 ```
 
-#### Option 2: From This Package Directory
+Only `EXPO_PUBLIC_*` values are exposed to the client. Never put secrets in the
+frontend environment file. The available variables and production defaults are
+documented in `.env.example`.
+
+Metro development must start from this workspace. The root scripts already use
+the correct working directory.
+
+## Commands
+
+From the repository root:
+
 ```bash
-# Navigate to this package
-cd packages/frontend
+bun run dev:frontend
+bun run build:frontend
+bun run test:frontend
+bun run lint:frontend
+bun run --cwd packages/frontend typecheck
+```
 
-# Install dependencies
-bun install
+From this directory:
 
-# Start the app
+```bash
 bun run start
+bun run start:local
+bun run android
+bun run ios
+bun run web
+bun run build
+bun run build:analyze
+bun run analyze-bundle
+bun run test
+bun run test:coverage
+bun run lint
+bun run typecheck
 ```
 
-### Running the App
+The coverage gate freezes the current untested-code baseline and applies
+stricter per-file thresholds to the account-switch and viewer-query-key
+boundaries. Jest excludes files with their own thresholds from its reported
+`global` gate, so those residual global values intentionally differ from the
+all-files summary printed above them.
 
-Once the development server is running, you can:
+## Native release APK
 
-- **Web**: Press `w` in the terminal or run `bun run web`
-- **iOS**: Press `i` in the terminal or run `bun run ios` (requires macOS)
-- **Android**: Press `a` in the terminal or run `bun run android`
-- **Expo Go**: Scan the QR code with the Expo Go app on your device
+For the standalone arm64 Android release command and the required
+`NODE_ENV=production` setting, use the repository `AGENTS.md`. A release APK
+must contain `assets/index.android.bundle`; otherwise it is a development
+client that still depends on Metro.
 
-### Environment Setup
+## Related documentation
 
-The app uses environment variables for configuration. Create a `.env` file in this package directory:
+- [Repository overview](../../README.md)
+- [User mentions](../../docs/mentions.md)
+- [Theming](../../docs/THEMING.md)
+- [Compose intent URL](docs/INTENT_URL.md)
+- [MCP OAuth and linked accounts](../mcp/README.md)
 
-```env
-# API Configuration
-EXPO_PUBLIC_API_URL=http://localhost:3000
-EXPO_PUBLIC_WS_URL=ws://localhost:3000
-
-# Analytics and Monitoring
-EXPO_PUBLIC_POSTHOG_KEY=your_posthog_key
-EXPO_PUBLIC_BITDRIFT_KEY=your_bitdrift_key
-```
-
-## Development Scripts
-
-- `bun run start` — Start Expo development server
-- `bun run dev` — Start Expo development server (alias for start)
-- `bun run android` — Run on Android device/emulator
-- `bun run ios` — Run on iOS simulator
-- `bun run web` — Run in web browser
-- `bun run build-web` — Build static web output
-- `bun run build-web:prod` — Build static web output for production
-- `bun run reset-project` — Reset to a fresh project state
-- `bun run clear-cache` — Clear Expo cache
-- `bun run lint` — Lint codebase
-- `bun run test` — Run tests
-- `bun run clean` — Clean build artifacts
-
-## Monorepo Integration
-
-This package is part of the Mention monorepo and integrates with:
-
-- **@mention/backend**: API server for data and authentication
-- **@mention/shared-types**: Shared TypeScript type definitions
-
-### Shared Dependencies
-- Uses `@mention/shared-types` for type safety across packages
-- Integrates with `@oxyhq/services` for common functionality
-
-## Push Notifications (Expo + FCM)
-
-- `expo-notifications` is configured via plugin in `app.config.js` for native builds.
-- The app registers the device push token after the user authenticates and posts it to the backend endpoint `/api/notifications/push-token`.
-- Backend requires Firebase Admin credentials via env vars to send FCM pushes.
-
-## MCP OAuth UI (Claude connector)
-
-Browser screens for authorizing the remote MCP server (`https://mcp.mention.earth`):
-
-| Route | Purpose |
-|-------|---------|
-| `app/(app)/oauth/mcp/authorize.tsx` | Initial OAuth consent (shows @handle) |
-| `app/(app)/oauth/mcp/link.tsx` | Link an additional Mention account to an existing Claude connector |
-| `app/(app)/settings/connected-ai.tsx` | List/revoke MCP connections (grouped by bundle) |
-
-i18n keys: `mcp.authorize.*`, `mcp.link.*` in `locales/{en,es,it}.json`. See [`packages/mcp/README.md`](../mcp/README.md) for the full flow.
-
-## Contributing
-
-Contributions are welcome! Please see the [main README](../../README.md) for the complete contributing guidelines.
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Run tests and linting: `bun run test && bun run lint`
-5. Submit a pull request
-
-## License
-
-This project is licensed under the MIT License.
+The repository is available under the [MIT License](../../LICENSE).

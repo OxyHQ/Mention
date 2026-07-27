@@ -112,11 +112,13 @@ export class UserPreferenceService {
     context?: InteractionContext
   ): Promise<void> {
     try {
-      logger.debug(`[UserPreference] Recording ${interactionType} interaction for user ${userId}, post ${postId}`);
+      logger.debug('[UserPreference] recording interaction', {
+        type: interactionType,
+      });
 
       const post = await Post.findById(postId).lean();
       if (!post) {
-        logger.warn(`[UserPreference] Post ${postId} not found, skipping interaction recording`);
+        logger.warn('[UserPreference] post not found; skipping interaction');
         return;
       }
 
@@ -147,12 +149,13 @@ export class UserPreferenceService {
       for (let attempt = 0; ; attempt++) {
         try {
           await this.applyInteraction(userId, post, interactionType, context);
-          logger.debug(`[UserPreference] Successfully saved UserBehavior for user ${userId}`);
+          logger.debug('[UserPreference] saved user behavior');
           return;
         } catch (error) {
           if (this.isConcurrentWriteConflict(error) && attempt < this.MAX_VERSION_CONFLICT_RETRIES) {
             logger.debug(
-              `[UserPreference] Concurrent write conflict saving UserBehavior for user ${userId} (attempt ${attempt + 1}), retrying`,
+              '[UserPreference] Concurrent write conflict saving user behavior; retrying',
+              { attempt: attempt + 1 },
             );
             continue;
           }
@@ -160,7 +163,7 @@ export class UserPreferenceService {
         }
       }
     } catch (error) {
-      logger.error(`[UserPreference] Error recording interaction for user ${userId}, post ${postId}:`, error);
+      logger.error('[UserPreference] error recording interaction', error);
       // Re-throw to see full error stack
       throw error;
     }
@@ -184,7 +187,7 @@ export class UserPreferenceService {
     let userBehavior = await UserBehavior.findOne({ oxyUserId: userId });
 
     if (!userBehavior) {
-      logger.debug(`[UserPreference] Creating new UserBehavior record for user ${userId}`);
+      logger.debug('[UserPreference] creating user behavior record');
       userBehavior = new UserBehavior({
         oxyUserId: userId,
         preferredAuthors: [],
@@ -677,7 +680,7 @@ export class UserPreferenceService {
         }
       }
     } catch (error) {
-      logger.error(`[UserPreference] Error batch updating preferences for user ${userId}:`, error);
+      logger.error('[UserPreference] error batch updating preferences', error);
     }
   }
 
@@ -714,7 +717,7 @@ export class UserPreferenceService {
 
       await userBehavior.save();
     } catch (error) {
-      logger.error(`[UserPreference] Error recording view time for user ${userId}:`, error);
+      logger.error('[UserPreference] error recording view time', error);
     }
   }
 }

@@ -18,12 +18,14 @@ import type { ClassificationTopicRef } from '@mention/shared-types';
 // --- Force classification ON for this suite (gated OFF by default). ---
 vi.mock('../../config', () => ({
   config: {
+    oxyApiUrl: 'https://api.oxy.test',
     classification: { enabled: true },
-    alia: { apiUrl: 'http://alia.test', apiKey: 'test-key', model: 'alia-v1', timeoutMs: 30_000 },
+    alia: { apiUrl: 'http://alia.test', model: 'alia-v1', timeoutMs: 30_000 },
     // The service resolves each post's primary rendition through `postVariants`,
     // which reads these caps at module scope.
     posts: { maxTextLength: 5000, maxAltTextLength: 1000 },
   },
+  getOxyServiceCredentials: () => ({}),
 }));
 
 const aliaJSON = vi.fn();

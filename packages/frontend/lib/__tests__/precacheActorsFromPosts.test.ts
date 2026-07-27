@@ -2,8 +2,8 @@
  * Unit tests for the feed/post actor precache.
  *
  * `precacheActorsFromPosts` is the surviving Mention seeding wrapper: it extracts
- * every embedded actor from a batch of posts (author, original/quoted authors,
- * booster, boost actor) and hands them to the SDK's canonical merge-upsert,
+ * every embedded actor from a batch of posts (author, related-post author,
+ * boost actor) and hands them to the SDK's canonical merge-upsert,
  * `upsertCachedUsers`. Routing through that ONE merge-upsert is the structural
  * fix for the whole "sparse feed author clobbers the authoritative profile entry"
  * class of bug — the merge preserves `createdAt` (the "Joined … disappears on the
@@ -15,6 +15,9 @@
  * tests pin — is the WIRING: that every post's actors are extracted and every
  * seeding path is delegated to the merge-upsert, so no writer here can clobber.
  */
+
+import { queryClient as mockQueryClient } from '@/lib/queryClient';
+import { precacheActorsFromPosts } from '../precacheActorsFromPosts';
 
 const mockUpsertCachedUsers = jest.fn();
 jest.mock('@oxyhq/services', () => ({
@@ -31,9 +34,6 @@ jest.mock('@oxyhq/services', () => ({
  */
 jest.mock('@/lib/queryClient', () => ({ queryClient: { __sentinel: 'queryClient' } }));
 
-import { precacheActorsFromPosts } from '../precacheActorsFromPosts';
-import { queryClient as mockQueryClient } from '@/lib/queryClient';
-
 /** The users the upsert was asked to prime on its single call. */
 function upsertedUsers(): unknown[] {
   expect(mockUpsertCachedUsers).toHaveBeenCalledTimes(1);
@@ -47,30 +47,35 @@ beforeEach(() => {
 });
 
 describe('precacheActorsFromPosts — extraction', () => {
-  it('extracts the author, original/quoted authors, booster, and boost actor', () => {
+  it('extracts actors from canonical quote and boost relations', () => {
     precacheActorsFromPosts([
       {
         user: { id: 'author-1', username: 'author' },
-        original: { user: { id: 'orig-1', username: 'orig' } },
-        quoted: { user: { id: 'quoted-1', username: 'quoted' } },
-        boostedBy: { id: 'booster-1', username: 'booster' },
-        boost: { actor: { id: 'actor-1', username: 'actor' } },
+        originalPost: { user: { id: 'quoted-1', username: 'quoted' } },
+        quotedPost: { user: { id: 'quoted-1', username: 'quoted' } },
+      },
+      {
+        user: { id: 'booster-1', username: 'booster' },
+        originalPost: { user: { id: 'orig-1', username: 'orig' } },
+        boost: {
+          actor: { id: 'booster-1', username: 'booster' },
+          originalPost: { user: { id: 'orig-1', username: 'orig' } },
+        },
       },
     ]);
 
     expect(upsertedUsers()).toEqual([
       { id: 'author-1', username: 'author' },
-      { id: 'orig-1', username: 'orig' },
       { id: 'quoted-1', username: 'quoted' },
       { id: 'booster-1', username: 'booster' },
-      { id: 'actor-1', username: 'actor' },
+      { id: 'orig-1', username: 'orig' },
+      { id: 'booster-1', username: 'booster' },
     ]);
   });
 
-  it('accepts a post author carrying the id as Mongo `_id`', () => {
+  it('does not admit a legacy Mongo `_id` as canonical post identity', () => {
     precacheActorsFromPosts([{ user: { _id: 'author-2', username: 'mongo' } }]);
-
-    expect(upsertedUsers()).toEqual([{ _id: 'author-2', username: 'mongo' }]);
+    expect(mockUpsertCachedUsers).not.toHaveBeenCalled();
   });
 
   it('skips a post author with no id (id-less actors cannot be keyed)', () => {

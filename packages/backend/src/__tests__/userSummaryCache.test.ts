@@ -13,21 +13,29 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   mGet: vi.fn(),
+  multi: vi.fn(),
+  setEx: vi.fn(),
+  exec: vi.fn(),
+  del: vi.fn(),
+  ping: vi.fn(),
+  connect: vi.fn(),
 }));
 
-// A ready client whose `ensureRedisConnected` ping succeeds, so `withRedisFallback`
-// runs the real operation (the MGET) instead of returning the empty-map fallback.
+// A ready client makes `withRedisFallback` run MGET directly. Readiness checks
+// must never add a PING/connect round-trip on this hot hydration path.
 vi.mock('../utils/redis', () => ({
   getRedisClient: vi.fn().mockReturnValue({
     isReady: true,
     isOpen: true,
-    connect: vi.fn().mockResolvedValue(undefined),
-    ping: vi.fn().mockResolvedValue('PONG'),
+    connect: mocks.connect,
+    ping: mocks.ping,
     mGet: mocks.mGet,
+    multi: mocks.multi,
+    del: mocks.del,
   }),
 }));
 
-import { mget } from '../services/userSummaryCache';
+import { invalidate, mget, mset } from '../services/userSummaryCache';
 import { logger } from '../utils/logger';
 
 const summaryFor = (id: string) => ({
@@ -43,6 +51,12 @@ const summaryFor = (id: string) => ({
 describe('userSummaryCache.mget', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.multi.mockReturnValue({
+      setEx: mocks.setEx,
+      exec: mocks.exec,
+    });
+    mocks.exec.mockResolvedValue([]);
+    mocks.del.mockResolvedValue(1);
   });
 
   // NOTE: `nonArrayReplyWarned` is a module-level latch, so this test — the first
@@ -87,6 +101,8 @@ describe('userSummaryCache.mget', () => {
     expect(result.get('u1')).toEqual(cached);
     expect(result.has('u2')).toBe(false);
     expect(result.size).toBe(1);
+    expect(mocks.ping).not.toHaveBeenCalled();
+    expect(mocks.connect).not.toHaveBeenCalled();
   });
 
   it('skips corrupt (unparseable) entries instead of throwing', async () => {
@@ -104,5 +120,29 @@ describe('userSummaryCache.mget', () => {
 
     expect(result.size).toBe(0);
     expect(mocks.mGet).not.toHaveBeenCalled();
+  });
+
+  it('writes through one pipeline without a readiness PING', async () => {
+    await mset(new Map([[
+      'u1',
+      {
+        user: summaryFor('u1').summary,
+        followerCount: 7,
+      },
+    ]]));
+
+    expect(mocks.multi).toHaveBeenCalledTimes(1);
+    expect(mocks.setEx).toHaveBeenCalledTimes(1);
+    expect(mocks.exec).toHaveBeenCalledTimes(1);
+    expect(mocks.ping).not.toHaveBeenCalled();
+    expect(mocks.connect).not.toHaveBeenCalled();
+  });
+
+  it('invalidates directly without a readiness PING', async () => {
+    await invalidate(['u1', 'u2']);
+
+    expect(mocks.del).toHaveBeenCalledTimes(1);
+    expect(mocks.ping).not.toHaveBeenCalled();
+    expect(mocks.connect).not.toHaveBeenCalled();
   });
 });

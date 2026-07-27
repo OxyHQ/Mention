@@ -3,7 +3,7 @@
  * Separated from _layout.tsx for better testability and maintainability
  */
 
-import i18n, { init as i18nInit, use as i18nUse } from 'i18next';
+import i18n, { changeLanguage, init as i18nInit, use as i18nUse } from 'i18next';
 import { initReactI18next } from 'react-i18next';
 
 import enUS from '@/locales/en.json';
@@ -49,7 +49,7 @@ export async function initializeI18n(): Promise<void> {
 
     if (i18n.isInitialized) {
       // If already initialized, just change the language
-      await i18n.changeLanguage(initialLanguage);
+      await changeLanguage(initialLanguage);
       return;
     }
 
@@ -82,4 +82,3 @@ export async function initializeI18n(): Promise<void> {
 }
 
 export default i18n;
-

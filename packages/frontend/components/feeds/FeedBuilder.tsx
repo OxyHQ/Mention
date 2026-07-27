@@ -1,15 +1,14 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, ScrollView, Platform, StyleSheet } from 'react-native';
 import { Loading } from '@oxyhq/bloom/loading';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { Avatar } from '@oxyhq/bloom/avatar';
-import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types';
+import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import { SettingsListGroup, SettingsListItem } from '@oxyhq/bloom/settings-list';
 import { toast } from '@oxyhq/bloom/toast';
 import { useTranslation } from 'react-i18next';
 import { useQueryClient } from '@tanstack/react-query';
 import type { User } from '@oxyhq/core';
-import { getNormalizedUserHandle } from '@oxyhq/core';
 import type {
   CustomFeed,
   FeedDefinitionInput,
@@ -29,12 +28,13 @@ import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { Toggle } from '@/components/Toggle';
 import { Slider } from '@/components/Slider';
 import { useTheme } from '@oxyhq/bloom/theme';
-import { useAuth } from '@oxyhq/services';
+import { useAuth } from '@oxyhq/services/ui/client';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { customFeedsService } from '@/services/customFeedsService';
 import { useFeedModules } from '@/hooks/useFeedModules';
 import Feed from '@/components/Feed/Feed';
 import { logger } from '@/lib/logger';
+import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 
 type MinimalUser = Pick<User, 'id' | 'username' | 'name' | 'avatar'>;
 type ModuleState = { enabled: boolean; params: Record<string, unknown> };
@@ -598,7 +598,7 @@ export function FeedBuilder({ feedId, initialFeed }: { feedId?: string; initialF
   const { t } = useTranslation();
   const theme = useTheme();
   const safeBack = useSafeBack();
-  const { oxyServices } = useAuth();
+  const { oxyServices, user } = useAuth();
   const queryClient = useQueryClient();
   const { catalog, isLoading: catalogLoading } = useFeedModules();
 
@@ -694,8 +694,12 @@ export function FeedBuilder({ feedId, initialFeed }: { feedId?: string; initialF
         const created = await customFeedsService.create(payload);
         setSavedFeedId(String(created.id ?? created._id ?? ''));
       }
-      queryClient.invalidateQueries({ queryKey: ['feedPreferences'] });
-      queryClient.invalidateQueries({ queryKey: ['customFeeds'] });
+      queryClient.invalidateQueries({
+        queryKey: viewerQueryKeys.feedPreferences(user?.id),
+      });
+      queryClient.invalidateQueries({
+        queryKey: viewerQueryKeys.customFeedsRoot(user?.id),
+      });
       setPreviewKey((k) => k + 1);
       toast(t('feeds.builder.saved'), { type: 'success' });
     } catch (error) {
@@ -704,7 +708,7 @@ export function FeedBuilder({ feedId, initialFeed }: { feedId?: string; initialF
     } finally {
       setSaving(false);
     }
-  }, [catalog, title, description, isPublic, mode, sourceStates, filterStates, signalStates, selectedAccounts, savedFeedId, queryClient, t]);
+  }, [catalog, title, description, isPublic, mode, sourceStates, filterStates, signalStates, selectedAccounts, savedFeedId, queryClient, t, user?.id]);
 
   const canSave = title.trim().length > 0 && !saving && Boolean(catalog);
 

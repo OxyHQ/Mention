@@ -19,15 +19,15 @@ export interface UserStatistics {
     boosts: number;
     shares: number;
   };
-  dailyBreakdown: Array<{
+  dailyBreakdown: {
     date: string;
     views: number;
     likes: number;
     replies: number;
     boosts: number;
     interactions: number;
-  }>;
-  topPosts: Array<{
+  }[];
+  topPosts: {
     postId: string;
     views: number;
     likes: number;
@@ -35,7 +35,7 @@ export interface UserStatistics {
     boosts: number;
     engagement: number;
     createdAt: string;
-  }>;
+  }[];
   postsByType: Record<string, number>;
 }
 
@@ -54,7 +54,7 @@ export interface PostInsights {
     totalInteractions: number;
     engagementRate: number;
     reach: number;
-    uniqueViewers: number;
+    uniqueViewers: number | null;
   };
   breakdown: {
     likedBy: number;
@@ -99,11 +99,11 @@ export interface FollowerChanges {
     days: number;
   };
   currentFollowers: number;
-  followerChanges: Array<{
+  followerChanges: {
     date: string;
     change: number;
     total: number;
-  }>;
+  }[];
   estimatedGrowth: {
     interactions: number;
     note: string;
@@ -171,4 +171,3 @@ class StatisticsService {
 }
 
 export const statisticsService = new StatisticsService();
-

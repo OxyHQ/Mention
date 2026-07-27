@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import mongoose from 'mongoose';
 
 /**
@@ -91,12 +91,17 @@ function makeFan(
 }
 
 beforeEach(() => {
+  vi.stubEnv('CONFIRM_ADMIN_MUTATION', 'migrateThreadFanToChain');
   h.state.candidates = [];
   h.state.roots = [];
   h.state.capturedOps = [];
   h.aggregate.mockClear();
   h.find.mockClear();
   h.bulkWrite.mockClear();
+});
+
+afterEach(() => {
+  vi.unstubAllEnvs();
 });
 
 describe('migrateThreadFanToChain', () => {

@@ -5,7 +5,6 @@
 
 import {
   HydratedPost,
-  PostContent,
   PostContentInput,
   PostVisibility,
   PostUser,

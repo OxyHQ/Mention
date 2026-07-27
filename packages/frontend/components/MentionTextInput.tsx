@@ -13,13 +13,14 @@ import {
 } from "react-native";
 import { useTheme } from '@oxyhq/bloom/theme';
 import MentionPicker, { MentionUser } from "./MentionPicker";
-import { asTextStyle, type WebTextStyle } from "@/types/webStyles";
-
-export interface MentionData {
-    userId: string;
-    username: string;
-    displayName: string;
-}
+import { asTextStyle } from "@/types/webStyles";
+import {
+    displayTextToStorageText,
+    mergeMentionData,
+    storageTextToDisplayText,
+    type MentionData,
+    type MentionTextValue,
+} from "@/utils/mentions";
 
 export interface MentionTextInputHandle {
     /** Insert text at the current cursor position */
@@ -28,10 +29,12 @@ export interface MentionTextInputHandle {
     focus: () => void;
 }
 
-interface MentionTextInputProps extends Omit<TextInputProps, "onChangeText" | "value"> {
+interface MentionTextInputProps extends Omit<TextInputProps, "onChange" | "onChangeText" | "value"> {
     value: string;
-    onChangeText: (text: string) => void;
-    onMentionsChange?: (mentions: MentionData[]) => void;
+    /** Post-scoped metadata registry controlled by the composer parent. */
+    mentions: readonly MentionData[];
+    /** Atomic storage-text + metadata candidate update. */
+    onValueChange: (value: MentionTextValue) => void;
     placeholder?: string;
     maxLength?: number;
     multiline?: boolean;
@@ -40,8 +43,8 @@ interface MentionTextInputProps extends Omit<TextInputProps, "onChangeText" | "v
 
 const MentionTextInput = memo(forwardRef<MentionTextInputHandle, MentionTextInputProps>(({
     value,
-    onChangeText,
-    onMentionsChange,
+    mentions,
+    onValueChange,
     placeholder,
     maxLength,
     multiline = true,
@@ -52,7 +55,6 @@ const MentionTextInput = memo(forwardRef<MentionTextInputHandle, MentionTextInpu
     const [showMentionPicker, setShowMentionPicker] = useState(false);
     const [mentionQuery, setMentionQuery] = useState("");
     const [cursorPosition, setCursorPosition] = useState(0);
-    const [mentions, setMentions] = useState<MentionData[]>([]);
     const textInputRef = useRef<TextInput>(null);
     const [contentHeight, setContentHeight] = useState<number | undefined>(undefined);
 
@@ -88,35 +90,12 @@ const MentionTextInput = memo(forwardRef<MentionTextInputHandle, MentionTextInpu
         autoGrowWeb();
     }, [value, autoGrowWeb]);
 
-    // Convert display text with @username to storage format with [mention:userId]
-    const convertToStorageFormat = useCallback((displayText: string, currentMentions: MentionData[]): string => {
-        let result = displayText;
-        // Replace @username with [mention:userId]
-        currentMentions.forEach(mention => {
-            const displayMention = `@${mention.username}`;
-            const storageMention = `[mention:${mention.userId}]`;
-            result = result.replace(displayMention, storageMention);
-        });
-        return result;
-    }, []);
-
-    // Convert storage format [mention:userId] to display format @username
-    const convertToDisplayFormat = useCallback((storageText: string, currentMentions: MentionData[]): string => {
-        let result = storageText;
-        currentMentions.forEach(mention => {
-            const storageMention = `[mention:${mention.userId}]`;
-            const displayMention = `@${mention.username}`;
-            result = result.replace(new RegExp(storageMention.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), displayMention);
-        });
-        return result;
-    }, []);
-
     // Handle text change
     const handleTextChange = useCallback((text: string) => {
         // Text from input is in display format (@name)
         // We need to convert to storage format for the parent component
-        const storageText = convertToStorageFormat(text, mentions);
-        onChangeText(storageText);
+        const storageText = displayTextToStorageText(text, mentions);
+        onValueChange({ text: storageText, mentions: [...mentions] });
 
         // Check if user is typing a mention
         const cursorPos = cursorPosition;
@@ -141,7 +120,7 @@ const MentionTextInput = memo(forwardRef<MentionTextInputHandle, MentionTextInpu
             setShowMentionPicker(false);
             setMentionQuery("");
         }
-    }, [cursorPosition, onChangeText, mentions, convertToStorageFormat]);
+    }, [cursorPosition, mentions, onValueChange]);
 
     // Handle selection change to track cursor position
     const handleSelectionChange = useCallback((event: NativeSyntheticEvent<TextInputSelectionChangeEventData>) => {
@@ -151,7 +130,7 @@ const MentionTextInput = memo(forwardRef<MentionTextInputHandle, MentionTextInpu
     // Handle user selection from mention picker
     const handleMentionSelect = useCallback((user: MentionUser) => {
         // Convert current storage value to display to find @ position
-        const currentDisplayValue = convertToDisplayFormat(value, mentions);
+        const currentDisplayValue = storageTextToDisplayText(value, mentions);
         const textBeforeCursor = currentDisplayValue.substring(0, cursorPosition);
         const textAfterCursor = currentDisplayValue.substring(cursorPosition);
         const lastAtSymbol = textBeforeCursor.lastIndexOf("@");
@@ -164,7 +143,7 @@ const MentionTextInput = memo(forwardRef<MentionTextInputHandle, MentionTextInpu
                 displayName: user.displayName?.trim() || user.username,
             };
 
-            const updatedMentions = [...mentions, newMention];
+            const updatedMentions = mergeMentionData(mentions, [newMention]);
 
             // Display format uses @username (handle)
             const displayMentionText = `@${user.username}`;
@@ -178,21 +157,11 @@ const MentionTextInput = memo(forwardRef<MentionTextInputHandle, MentionTextInpu
 
             // Build storage text (what we send to parent)
             // We need to convert the new display text with updated mentions
-            let storageText = newDisplayText;
-            updatedMentions.forEach(mention => {
-                const displayMention = `@${mention.username}`;
-                const storageMention = `[mention:${mention.userId}]`;
-                storageText = storageText.replace(displayMention, storageMention);
-            });
+            const storageText = displayTextToStorageText(newDisplayText, updatedMentions);
 
-            setMentions(updatedMentions);
-
-            // Send storage format to parent
-            onChangeText(storageText);
-
-            if (onMentionsChange) {
-                onMentionsChange(updatedMentions);
-            }
+            // The parent owns reconciliation across this post's primary body and
+            // every language rendition.
+            onValueChange({ text: storageText, mentions: updatedMentions });
 
             // Move cursor after mention in display text
             const newCursorPos = lastAtSymbol + displayMentionText.length + 1;
@@ -208,7 +177,7 @@ const MentionTextInput = memo(forwardRef<MentionTextInputHandle, MentionTextInpu
 
         setShowMentionPicker(false);
         setMentionQuery("");
-    }, [value, cursorPosition, mentions, onChangeText, onMentionsChange, convertToDisplayFormat]);
+    }, [value, cursorPosition, mentions, onValueChange]);
 
     const handleClosePicker = useCallback(() => {
         setShowMentionPicker(false);
@@ -218,15 +187,15 @@ const MentionTextInput = memo(forwardRef<MentionTextInputHandle, MentionTextInpu
     // Expose imperative methods via ref
     useImperativeHandle(ref, () => ({
         insertTextAtCursor: (text: string) => {
-            const displayValue = convertToDisplayFormat(value, mentions);
+            const displayValue = storageTextToDisplayText(value, mentions);
             const pos = Math.min(cursorPosition, displayValue.length);
             const before = displayValue.substring(0, pos);
             const after = displayValue.substring(pos);
             const newDisplayText = before + text + after;
 
             // Convert back to storage format
-            const storageText = convertToStorageFormat(newDisplayText, mentions);
-            onChangeText(storageText);
+            const storageText = displayTextToStorageText(newDisplayText, mentions);
+            onValueChange({ text: storageText, mentions: [...mentions] });
 
             // Update cursor position to after inserted text
             const newCursorPos = pos + text.length;
@@ -242,12 +211,12 @@ const MentionTextInput = memo(forwardRef<MentionTextInputHandle, MentionTextInpu
         focus: () => {
             textInputRef.current?.focus();
         },
-    }), [value, cursorPosition, mentions, onChangeText, convertToDisplayFormat, convertToStorageFormat]);
+    }), [value, cursorPosition, mentions, onValueChange]);
 
     // Convert storage format to display format for rendering
     const displayValue = useMemo(
-        () => convertToDisplayFormat(value, mentions),
-        [value, mentions, convertToDisplayFormat],
+        () => storageTextToDisplayText(value, mentions),
+        [value, mentions],
     );
 
     const inputStyle = useMemo(() => [
@@ -316,3 +285,4 @@ const styles = StyleSheet.create({
 
 export default MentionTextInput;
 export type { MentionTextInputProps };
+export type { MentionData, MentionTextValue } from "@/utils/mentions";

@@ -1,9 +1,8 @@
 import React, { useCallback, useMemo, useContext, useState, lazy, Suspense } from 'react';
 import { StyleSheet, View, Pressable, TouchableOpacity, Text, GestureResponderEvent } from 'react-native';
 import { useRouter, usePathname } from 'expo-router';
-import {
+import type {
     HydratedPost,
-    HydratedPostSummary,
     PostUser,
     PostAttachmentDescriptor,
     PostAttachmentBundle,
@@ -11,8 +10,10 @@ import {
     PostEngagementSummary,
     PostLinkPreview,
     PostRoomContent,
+} from '@mention/shared-types/post';
+import {
     MEDIA_VARIANT_AVATAR,
-} from '@mention/shared-types';
+} from '@mention/shared-types/post';
 import { usePostSelector } from '../../stores/postsStore';
 import PostHeader, { HEADER_CONTENT_GAP, POST_CONTEXT_ROW_HEIGHT } from '../Post/PostHeader';
 import PostContentText from '../Post/PostContentText';
@@ -21,15 +22,8 @@ import ContentWarning from '../Post/ContentWarning';
 import PostActions from '../Post/PostActions';
 import PostLocation from '../Post/PostLocation';
 import PostAttachmentsRow from '../Post/PostAttachmentsRow';
-// Lazy load modals/sheets - only loaded when user opens them
-const PostSourcesSheet = lazy(() => import('@/components/Post/PostSourcesSheet'));
-const PostArticleModal = lazy(() => import('@/components/Post/PostArticleModal'));
-const PostInsightsSheet = lazy(() => import('@/components/Post/PostInsightsSheet'));
-const EngagementListSheet = lazy(() => import('@/components/Post/EngagementListSheet'));
-const CollaboratorsSheet = lazy(() => import('@/components/Post/CollaboratorsSheet'));
 import { BottomSheetContext } from '@/context/BottomSheetContext';
-import { useLiveRoom } from '@/context/LiveRoomContext';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { cn } from '@/lib/utils';
 import { useTranslation } from 'react-i18next';
@@ -52,10 +46,12 @@ import { reportFeedInteraction } from '@/utils/feedTelemetry';
 import { formatFullTimestamp } from '@/utils/dateUtils';
 import { displayNameOrHandle } from '@/utils/displayName';
 
-type PostEntity = HydratedPost & {
-    original?: HydratedPostSummary | null;
-    quoted?: HydratedPostSummary | null;
-};
+// Lazy load modals/sheets only when the user opens them.
+const PostSourcesSheet = lazy(() => import('@/components/Post/PostSourcesSheet'));
+const PostArticleModal = lazy(() => import('@/components/Post/PostArticleModal'));
+const PostInsightsSheet = lazy(() => import('@/components/Post/PostInsightsSheet'));
+const EngagementListSheet = lazy(() => import('@/components/Post/EngagementListSheet'));
+const CollaboratorsSheet = lazy(() => import('@/components/Post/CollaboratorsSheet'));
 
 /** Stable identity for the "no link previews" case (see `linkPreviews` below). */
 const EMPTY_LINK_PREVIEWS: PostLinkPreview[] = [];
@@ -64,7 +60,7 @@ const EMPTY_LINK_PREVIEWS: PostLinkPreview[] = [];
 const EMPTY_CONTENT: PostContent = {};
 
 interface PostItemProps {
-    post: PostEntity;
+    post: HydratedPost;
     isNested?: boolean;
     showPinned?: boolean;
     style?: object;
@@ -155,7 +151,6 @@ const PostItem: React.FC<PostItemProps> = ({
     const router = useRouter();
     const pathname = usePathname();
     const bottomSheet = useContext(BottomSheetContext);
-    const { joinLiveRoom } = useLiveRoom();
     const [isArticleModalVisible, setIsArticleModalVisible] = useState(false);
 
     const postId = post?.id;
@@ -189,15 +184,16 @@ const PostItem: React.FC<PostItemProps> = ({
     const isBoosted = viewerState.isBoosted ?? false;
     const isSaved = viewerState.isSaved ?? false;
 
-    const sourcesList = attachmentsBundle.sources ?? [];
+    const sourcesList = useMemo(
+        () => attachmentsBundle.sources ?? [],
+        [attachmentsBundle.sources],
+    );
     const hasSources = sourcesList.length > 0;
 
     const articleContent = attachmentsBundle.article ?? null;
     const hasArticle = Boolean(articleContent);
 
     const eventContent = attachmentsBundle.event ?? content.event ?? null;
-    const hasEvent = Boolean(eventContent);
-
     const roomContent: PostRoomContent | null =
         attachmentsBundle.room ?? content.room ?? null;
 
@@ -219,15 +215,9 @@ const PostItem: React.FC<PostItemProps> = ({
 
     const nestedPost = useMemo(() => {
         if (!viewPost) return null;
-        // `original`/`quoted` are legacy snake-case aliases for the hydrated
-        // `originalPost`/`quotedPost` nested summaries (some cached responses
-        // still carry them). Read both shapes via the alias view.
-        const legacy = viewPost as { original?: HydratedPostSummary | null; quoted?: HydratedPostSummary | null };
         if (viewPost.boost?.originalPost) return viewPost.boost.originalPost;
-        if (legacy.original) return legacy.original;
-        if (viewPost.originalPost) return viewPost.originalPost;
-        if (legacy.quoted) return legacy.quoted;
         if (viewPost.quotedPost) return viewPost.quotedPost;
+        if (viewPost.originalPost) return viewPost.originalPost;
         return null;
     }, [viewPost]);
 
@@ -468,8 +458,12 @@ const PostItem: React.FC<PostItemProps> = ({
 
     const roomId = roomContent?.roomId;
     const handleRoomPress = useCallback(() => {
-        if (roomId) joinLiveRoom(roomId);
-    }, [joinLiveRoom, roomId]);
+        if (!roomId) return;
+        router.push({
+            pathname: '/live-rooms/live/[id]',
+            params: { id: roomId },
+        });
+    }, [roomId, router]);
 
     const postActions = usePostActions({
         viewPost,
@@ -511,7 +505,7 @@ const PostItem: React.FC<PostItemProps> = ({
         );
 
         const ActionGroup: React.FC<{
-            actions: Array<{ icon: React.ReactNode; text: string; onPress: () => void; color?: string }>;
+            actions: { icon: React.ReactNode; text: string; onPress: () => void; color?: string }[];
         }> = ({ actions }) => {
             if (actions.length === 0) return null;
             return (

@@ -1,10 +1,7 @@
 import React, { memo } from 'react';
 import { ActivityIndicator, Pressable } from 'react-native';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { useTheme } from '@oxyhq/bloom/theme';
-import {
-  Play_Stroke2_Corner0_Rounded,
-  Pause_Stroke2_Corner0_Rounded,
-} from '@oxyhq/bloom/icons';
 
 interface SongPreviewButtonProps {
   isPlaying: boolean;
@@ -29,7 +26,7 @@ export const SongPreviewButton = memo(function SongPreviewButton({
 }: SongPreviewButtonProps) {
   const { colors } = useTheme();
   const dimension = size === 'sm' ? 32 : 36;
-  const Icon = isPlaying ? Pause_Stroke2_Corner0_Rounded : Play_Stroke2_Corner0_Rounded;
+  const iconName = isPlaying ? 'pause' : 'play';
 
   return (
     <Pressable
@@ -43,7 +40,7 @@ export const SongPreviewButton = memo(function SongPreviewButton({
       {isLoading ? (
         <ActivityIndicator size="small" color={colors.primaryForeground} />
       ) : (
-        <Icon size="sm" fill={colors.primaryForeground} />
+        <Ionicons name={iconName} size={16} color={colors.primaryForeground} />
       )}
     </Pressable>
   );

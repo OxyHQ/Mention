@@ -12,9 +12,9 @@ import {
 import { SpinnerIcon } from '@oxyhq/bloom/loading';
 import { useLocalSearchParams, router } from 'expo-router';
 import { useSafeBack } from '@/hooks/useSafeBack';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import * as Clipboard from 'expo-clipboard';
-import { useAuth } from '@oxyhq/services';
+import { useAuth } from '@oxyhq/services/ui/client';
 import { useQuery } from '@tanstack/react-query';
 
 import { ThemedView } from '@/components/ThemedView';
@@ -22,7 +22,7 @@ import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { Avatar } from '@oxyhq/bloom/avatar';
-import { MEDIA_VARIANT_VIDEO_POSTER } from '@mention/shared-types';
+import { MEDIA_VARIANT_VIDEO_POSTER } from '@mention/shared-types/post';
 import { ProfileCard, ProfileCardSkeletonList } from '@/components/ProfileCard';
 
 import Feed from '@/components/Feed/Feed';
@@ -33,6 +33,7 @@ import { useTheme } from '@oxyhq/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import { EntityFollowButton } from '@/components/EntityFollowButton';
 import { getNormalizedUserHandle, type User } from '@oxyhq/core';
+import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 
 interface ListOwner {
   _id?: string;
@@ -430,13 +431,12 @@ function ListMembers({
 }) {
   const theme = useTheme();
   const { t } = useTranslation();
-  const { oxyServices } = useAuth();
+  const { oxyServices, user } = useAuth();
 
   // The list document carries only member ids — Oxy owns the identities, so the
   // profiles are resolved in ONE bulk call and rendered through the shared row.
-  const membersKey = useMemo(() => memberIds.join(','), [memberIds]);
   const { data: members = [], isPending } = useQuery<User[]>({
-    queryKey: ['lists', listId, 'members', membersKey],
+    queryKey: viewerQueryKeys.listMembers(user?.id, listId, memberIds),
     queryFn: () => oxyServices.getUsersByIds(memberIds),
     enabled: memberIds.length > 0,
     staleTime: MEMBERS_STALE_TIME_MS,

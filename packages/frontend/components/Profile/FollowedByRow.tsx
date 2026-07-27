@@ -3,7 +3,7 @@ import { Pressable, Text } from 'react-native';
 import { router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { AvatarGroup, type AvatarGroupItem } from '@oxyhq/bloom/avatar-group';
-import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types';
+import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import { useMutualFollowers } from '@/hooks/useMutualFollowers';
 import { displayNameOrHandle } from '@/utils/displayName';
 

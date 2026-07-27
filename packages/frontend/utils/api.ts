@@ -1,6 +1,6 @@
 import { oxyServices } from '@/lib/oxyServices';
 import type { LinkedHttpClient } from '@oxyhq/core';
-import axios from 'axios';
+import { create as createAxiosClient } from 'axios';
 import { API_URL } from '@/config';
 import i18n from '@/lib/i18n';
 
@@ -86,7 +86,7 @@ const authenticatedClient = {
 };
 
 // Public API client (no authentication)
-const publicClient = axios.create({
+const publicClient = createAxiosClient({
   baseURL: API_URL,
   headers: { 'Content-Type': 'application/json' },
   timeout: API_TIMEOUT_MS,

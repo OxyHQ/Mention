@@ -52,7 +52,7 @@ Monorepo using Bun workspaces.
 ```
 packages/
   frontend/       @mention/frontend    Expo 56 / React Native 0.85.3 / React 19
-  backend/        @mention/backend     Express 5.2 / Mongoose 9.3 / Redis / Socket.io
+  backend/        @mention/backend     Express 5.2 / Mongoose 8.24 / Redis / Socket.io
   shared-types/   @mention/shared-types TypeScript type definitions
   mcp/            @mention/mcp         Model Context Protocol server for Claude
 ```
@@ -60,7 +60,7 @@ packages/
 ### Key Tech
 
 - **Frontend**: Expo Router, NativeWind + TailwindCSS 4.2, TanStack React Query, Zustand, Socket.io-client, LiveKit
-- **Backend**: Express 5, Mongoose 9, Redis 5, Socket.io, LiveKit Server SDK, Firebase Admin, AWS S3
+- **Backend**: Express 5, Mongoose 8, Redis 5, Socket.io, Firebase Admin, Oxy media services
 
 ## MTN Protocol (Mention's signed-records layer)
 
@@ -95,7 +95,7 @@ The old `services/FederationService.ts` facade has been replaced by the connecto
 
 Feeds live in `backend/src/mtn/` — ForYou, Following, Author, Hashtag, Explore, Custom, Videos feeds + tuners.
 
-- `videos` feed descriptor → `VideosFeed` (`packages/backend/src/mtn/feed/feeds/VideosFeed.ts`) — ranked feed of video posts (native + federated), powers the fullscreen Reels viewer (`packages/frontend/app/(app)/videos.tsx`). The legacy `type:'media'` global descriptor does NOT exist — returns 400.
+- `videos` feed descriptor → `videosDefinition` plus `videosSource` (`packages/backend/src/mtn/feed/definitions/presets.ts` and `engine/sources/discoverySources.ts`) — ranked feed of video posts (native + federated), powers the fullscreen Reels viewer (`packages/frontend/app/(app)/videos.tsx`). The legacy `type:'media'` global descriptor does NOT exist — returns 400.
 - **Boost hydration gotcha:** A `type:'boost'` post has an intentionally empty body and relies on `boostOf` for hydration. `PostHydrationService` only embeds the boosted original at `maxDepth >= 1`. Any endpoint/feed that INCLUDES boosts MUST pass `maxDepth:1` or boosts render blank. Affected: `routes/federation.api.routes.ts` and the `author` preset (`mtn/feed/definitions/presets.ts`, `hydrateMaxDepth: 1` on every variant). Native feeds (ForYou/posts via `feedQueryBuilder`) avoid this by excluding boosts.
 - **`hasMore` from authoritative overfetch:** `FeedResponseBuilder` computes `hasMore` from the overfetch flag, NOT `slicesToReturn.length >= limit` — post groups (thread slicing) can produce fewer slices than limit items, causing premature `hasMore: false`.
 
@@ -241,7 +241,7 @@ Production: **`https://mcp.mention.earth`**. Full doc: [`packages/mcp/README.md`
 
 ## CORS (Web) — Intentional Exception to `createOxyCors`
 
-Mention keeps its own CORS middleware (`server.ts` + `utils/allowedOrigins.ts`) on purpose — do NOT "fix" it to use `@oxyhq/core/server`'s `createOxyCors`. Two reasons: (1) `createOxyCors` only does exact-origin allowlist matching, so it can't express Mention's dev `DEV_ORIGIN_PATTERN` (any localhost/127.0.0.1/RFC1918 LAN-IP on any port, non-prod only — needed for the Expo dev server + physical test devices); (2) it unconditionally allows the whole HTTPS `*.oxy.so` family, which would BROADEN Mention's prod CORS (currently scoped to `mention.earth` + `agora.mention.earth`) — a credentialed-CORS loosening. The hand-rolled middleware also sets `Cache-Control: no-store` on non-federation routes, which `createOxyCors` doesn't. The strict hand-rolled allowlist is the correct, tighter choice here.
+Mention keeps its own CORS middleware (`app.ts` + `utils/allowedOrigins.ts`) on purpose — do NOT "fix" it to use `@oxyhq/core/server`'s `createOxyCors`. Two reasons: (1) `createOxyCors` only does exact-origin allowlist matching, so it can't express Mention's dev `DEV_ORIGIN_PATTERN` (any localhost/127.0.0.1/RFC1918 LAN-IP on any port, non-prod only — needed for the Expo dev server + physical test devices); (2) it unconditionally allows the whole HTTPS `*.oxy.so` family, which would BROADEN Mention's production CORS beyond the configured Mention frontend origin — a credentialed-CORS loosening. The hand-rolled middleware also sets `Cache-Control: no-store` on non-federation routes, which `createOxyCors` doesn't. The strict hand-rolled allowlist is the correct, tighter choice here.
 
 ## Auth Cold-Boot Reactivity (Web)
 
@@ -263,7 +263,11 @@ The SSO restore path can take 5–25s. React Query keys and effect deps MUST inc
 
 Panel chrome insets: `packages/frontend/components/shell/PanelChrome.tsx` (`PANEL_TOP_INSET`, `<PanelStickyHeader>`, `<PanelStickyFooter>`). Do NOT add per-page inset padding to individual feed screens.
 
-**Never block the feed response on remote link-preview / image fetching.** Persist previews in Redis (`packages/backend/src/services/linkPreviewCache.ts`). Any function touching remote URLs must be fire-and-forget and detached before the feed response returns.
+**Never block the feed response on remote link-preview / image fetching.**
+Oxy owns preview resolution/cache; hydration batches through
+`OxyServices.getLinkPreviews`, while post-create warming lives in
+`packages/backend/src/utils/linkPreviewWarm.ts`. Any feed-side function touching
+remote URLs must be detached before the feed response returns.
 
 ## Feed Interstitials (Recommendation Cards)
 

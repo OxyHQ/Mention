@@ -5,10 +5,8 @@ import { Spinner } from '@/components/ui/Spinner';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '@oxyhq/bloom/theme';
-import { usePostsStore } from '@/stores/postsStore';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { EmptyState } from '@/components/common/EmptyState';
-import { isDbAvailable } from '@/db';
 import type { FeedItem } from '@/db';
 import type { HydratedPostSummary, MediaItem } from '@mention/shared-types';
 import VideoPosterCell from '@/components/common/VideoPosterCell';
@@ -20,6 +18,12 @@ interface MediaGridProps {
     userId?: string;
     isPrivate?: boolean;
     isOwnProfile?: boolean;
+    ownsScroll?: boolean;
+    listHeaderComponent?: React.ReactElement | null;
+    listStickyHeaderComponent?: React.ReactElement | null;
+    contentContainerStyle?: React.ComponentProps<typeof View>['style'];
+    onScroll?: React.ComponentProps<typeof ProfileGridList<MediaGridEntry>>['onScroll'];
+    scrollRef?: React.ComponentProps<typeof ProfileGridList<MediaGridEntry>>['scrollRef'];
 }
 
 interface MediaGridEntry extends ProfileGridEntry {
@@ -32,18 +36,6 @@ const CAROUSEL_ICON_SIZE = 12;
 const INITIAL_RENDER_COUNT = 18;
 const WINDOW_SIZE = 7;
 
-/**
- * Fields the raw feed row can carry beyond the hydrated DTO contract (the feed
- * transform spreads the raw API row). Read defensively — all optional — for the
- * post-level video hint and the native SQLite by-id media fallback.
- */
-interface RawPostExtras {
-    type?: string;
-    originalPostId?: string;
-    boostOf?: string;
-    quoteOf?: string;
-}
-
 // Grid image thumbnail from the server-resolved media object (`thumbUrl`,
 // fallback `url`).
 const resolveImageUri = (ref: MediaItem): string | undefined => ref.thumbUrl || ref.url || undefined;
@@ -53,17 +45,31 @@ const resolveImageUri = (ref: MediaItem): string | undefined => ref.thumbUrl || 
 // is handled by the cell's own image-error fallback.
 const resolveVideoPosterUri = (ref: MediaItem): string | undefined => ref.posterUrl || ref.thumbUrl || undefined;
 
-const MediaGrid: React.FC<MediaGridProps> = ({ userId, isPrivate, isOwnProfile }) => {
+const MediaGrid: React.FC<MediaGridProps> = ({
+    userId,
+    isPrivate,
+    isOwnProfile,
+    ownsScroll,
+    listHeaderComponent,
+    listStickyHeaderComponent,
+    contentContainerStyle,
+    onScroll,
+    scrollRef,
+}) => {
     const router = useRouter();
     const theme = useTheme();
     const { t } = useTranslation();
-    const getPostFromDb = usePostsStore((s) => s.getPostFromDb);
-    const { mediaFeed, postsFeed, items } = useProfileMediaFeed({ userId, isPrivate, isOwnProfile });
+    const {
+        mediaFeed,
+        postsFeed,
+        items,
+        loadMore,
+    } = useProfileMediaFeed({ userId, isPrivate, isOwnProfile });
 
     const mediaItems = useMemo<MediaGridEntry[]>(() => {
         const out: MediaGridEntry[] = [];
 
-        const pushUris = (targetId: string, sources: MediaItem[], postType?: string) => {
+        const pushUris = (targetId: string, sources: MediaItem[]) => {
             const seen = new Set<string>();
 
             sources.forEach((ref, idx) => {
@@ -71,7 +77,7 @@ const MediaGrid: React.FC<MediaGridProps> = ({ userId, isPrivate, isOwnProfile }
                 // object's server URLs first (handled inside the resolvers).
                 const key = ref.id || ref.url;
                 if (!key) return;
-                const isVideo = isVideoMediaRef(key, { postType, mediaType: ref.type });
+                const isVideo = isVideoMediaRef(key, { mediaType: ref.type });
 
                 if (seen.has(key)) return;
                 seen.add(key);
@@ -91,40 +97,32 @@ const MediaGrid: React.FC<MediaGridProps> = ({ userId, isPrivate, isOwnProfile }
             });
         };
 
-        const extractFrom = (post: HydratedPostSummary & Partial<RawPostExtras>, targetId: string) => {
+        const extractFrom = (post: HydratedPostSummary, targetId: string) => {
             // The server-resolved `content.media` objects carry the final URLs
             // (url/thumbUrl/posterUrl) — the single source for grid thumbnails.
             const media = post.content?.media;
             if (!Array.isArray(media) || media.length === 0) return;
-            pushUris(targetId, media, post.type);
+            pushUris(targetId, media);
         };
 
         for (const rawPost of items) {
-            const p: FeedItem & Partial<RawPostExtras> = rawPost;
+            const p: FeedItem = rawPost;
             extractFrom(p, String(p.id));
 
             const ownMedia = p.content?.media;
             if (Array.isArray(ownMedia) && ownMedia.length > 0) continue;
 
-            // Boosted/quoted media: the transformed feed item already carries the
-            // related post objects (`original` / `quoted` / `boost.originalPost`).
-            // Use those first — they work on web (no SQLite). On native we can also
-            // fall back to the SQLite cache when the embedded object is absent.
-            const embeddedOriginal = p.original ?? p.quoted ?? p.boost?.originalPost ?? null;
+            // Related media is embedded by the canonical hydrated contract, so it
+            // works identically on web and native without a second SQLite lookup.
+            const embeddedOriginal =
+                p.boost?.originalPost ?? p.quotedPost ?? p.originalPost ?? null;
             if (embeddedOriginal) {
                 extractFrom(embeddedOriginal, String(p.id));
-                continue;
-            }
-
-            const origId = p.originalPostId || p.boostOf || p.quoteOf;
-            if (origId && isDbAvailable()) {
-                const orig = getPostFromDb(String(origId));
-                if (orig) extractFrom(orig, String(p.id));
             }
         }
 
         return out;
-    }, [items, getPostFromDb]);
+    }, [items]);
 
     const renderCell = useCallback((item: MediaGridEntry, itemSize: number) => {
         const handlePress = () => {
@@ -168,16 +166,14 @@ const MediaGrid: React.FC<MediaGridProps> = ({ userId, isPrivate, isOwnProfile }
 
     // Loading state first; if no items yet and feeds are still loading, show spinner
     const isLoading = (!mediaFeed && !postsFeed) || mediaFeed?.isLoading || postsFeed?.isLoading;
-    if (isLoading && mediaItems.length === 0) {
-        return (
+    const emptyContent = isLoading && mediaItems.length === 0
+        ? (
             <View className="items-center justify-center p-8">
                 <Spinner />
             </View>
-        );
-    }
-
-    if (!isLoading && mediaItems.length === 0) {
-        return (
+        )
+        : !isLoading && mediaItems.length === 0
+            ? (
             <EmptyState
                 title={t('profile.media.empty.title', { defaultValue: 'No media posts yet' })}
                 subtitle={t('profile.media.empty.subtitle', { defaultValue: 'Photos and videos you share will appear here.' })}
@@ -187,7 +183,11 @@ const MediaGrid: React.FC<MediaGridProps> = ({ userId, isPrivate, isOwnProfile }
                 }}
                 containerStyle={{ flex: 1 }}
             />
-        );
+            )
+            : null;
+
+    if (!ownsScroll && emptyContent) {
+        return emptyContent;
     }
 
     return (
@@ -197,6 +197,14 @@ const MediaGrid: React.FC<MediaGridProps> = ({ userId, isPrivate, isOwnProfile }
             containerClassName="bg-background"
             initialNumToRender={INITIAL_RENDER_COUNT}
             windowSize={WINDOW_SIZE}
+            ownsScroll={ownsScroll}
+            listHeaderComponent={listHeaderComponent}
+            listStickyHeaderComponent={listStickyHeaderComponent}
+            emptyComponent={emptyContent}
+            contentContainerStyle={contentContainerStyle}
+            onScroll={onScroll}
+            scrollRef={scrollRef}
+            onEndReached={loadMore}
         />
     );
 };

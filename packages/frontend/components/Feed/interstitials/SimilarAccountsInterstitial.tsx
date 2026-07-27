@@ -3,7 +3,8 @@ import { View } from 'react-native';
 import { router, type Href } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { useAuth, upsertCachedUsers } from '@oxyhq/services';
+import { upsertCachedUsers } from '@oxyhq/services';
+import { useAuth } from '@oxyhq/services/ui/client';
 import { getNormalizedUserHandle, type User } from '@oxyhq/core';
 import {
   ProfileCard,
@@ -27,6 +28,7 @@ import {
   type ReportInterstitialEvent,
 } from './interstitialTelemetry';
 import { useIsScreenNotMobile } from '@/hooks/useOptimizedMediaQuery';
+import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 
 /**
  * "Accounts similar to the one whose feed you are reading" — the profile-feed
@@ -60,7 +62,7 @@ export function SimilarAccountsInterstitial({
   // fetched — this band costs no extra request, and whichever surface asks first
   // pays for both.
   const query = useQuery<User[]>({
-    queryKey: ['similarProfiles', subjectId ?? '', user?.id ?? 'anon'],
+    queryKey: viewerQueryKeys.similarProfiles(user?.id, subjectId),
     queryFn: async () => {
       if (!subjectId) return [];
       const similar = await oxyServices.getSimilarProfiles(subjectId);

@@ -5,13 +5,14 @@ import {
     RefreshControl,
     Platform,
     ScrollView,
+    type ViewToken,
     type ScrollViewProps,
     type ViewStyle,
 } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
-import { FeedType } from '@mention/shared-types';
+import type { FeedType } from '@mention/shared-types';
 import { ErrorBoundary } from '@oxyhq/bloom/error-boundary';
-import { useAuth } from '@oxyhq/services';
+import { useAuth } from '@oxyhq/services/ui/client';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { useLayoutScroll, type ScrollEvent } from '@/context/LayoutScrollContext';
 import { flattenStyleArray } from '@/styles/shared';
@@ -27,9 +28,12 @@ import { FeedHeader } from './FeedHeader';
 import { FeedFooter } from './FeedFooter';
 import { FeedEmptyState } from './FeedEmptyState';
 import { usePrivacyControls } from '@/hooks/usePrivacyControls';
+import {
+    getFeedScrollOffset,
+    setFeedScrollOffset,
+} from '@/stores/feedScrollStore';
 import { usePanelChromeTopInset } from '@/components/shell/PanelChrome';
 import { resolveFeedDescriptor, useFeedImpressionTracker } from '@/utils/feedTelemetry';
-import type { ViewToken } from 'react-native';
 import {
     type FeedRow,
     buildFeedRows,
@@ -55,6 +59,14 @@ interface FeedProps {
     style?: React.ComponentProps<typeof View>['style'];
     contentContainerStyle?: React.ComponentProps<typeof View>['style'];
     listHeaderComponent?: React.ReactElement | null;
+    /**
+     * A data-row header that sticks independently from `listHeaderComponent`.
+     * Kept separate so callers can scroll a large summary away while pinning
+     * only the compact navigation row below it.
+     */
+    listStickyHeaderComponent?: React.ReactElement | null;
+    /** Optional non-sticky row rendered immediately after the sticky header. */
+    listLeadingComponent?: React.ReactElement | null;
     threaded?: boolean;
     threadPostId?: string;
 }
@@ -84,6 +96,20 @@ const IMPRESSION_VIEWABILITY_CONFIG = {
     minimumViewTime: 100,
     waitForInteraction: false,
 } as const;
+
+interface AuxiliaryFeedRow {
+    kind: 'auxiliary';
+    key: 'sticky-header' | 'leading';
+    element: React.ReactElement;
+}
+
+type NativeFeedRow = FeedRow | AuxiliaryFeedRow;
+
+const nativeFeedRowKey = (row: NativeFeedRow): string =>
+    row.kind === 'auxiliary' ? `feed-${row.key}` : feedRowKey(row);
+
+const nativeFeedRowType = (row: NativeFeedRow): string =>
+    row.kind === 'auxiliary' ? `feed-${row.key}` : feedRowType(row);
 
 /**
  * A non-scrolling ScrollView replacement for FlashList.
@@ -161,6 +187,8 @@ const Feed = ((props: FeedProps) => {
         style,
         contentContainerStyle,
         listHeaderComponent,
+        listStickyHeaderComponent,
+        listLeadingComponent,
         threaded,
         threadPostId,
     } = { ...DEFAULT_FEED_PROPS, ...props };
@@ -174,13 +202,9 @@ const Feed = ((props: FeedProps) => {
     // the registered scrollable for web wheel forwarding — otherwise a frozen
     // background feed could move the shared value or steal wheel targeting.
     const isFocused = useIsFocused();
-    const flatListRef = useRef<FlashListRef<FeedRow> | null>(null);
+    const flatListRef = useRef<FlashListRef<NativeFeedRow> | null>(null);
     const unregisterScrollableRef = useRef<(() => void) | null>(null);
-    // Scroll restoration is owned by Bloom's shared primitive: it saves this
-    // feed's offset on scroll/blur and restores it on focus, keyed by the active
-    // route. No-op on native (the navigator keeps screens mounted) and for
-    // embedded feeds, which don't own scrolling — the parent ScrollView does.
-    useScrollRestoration(flatListRef, { enabled: scrollEnabled !== false });
+    // The Bloom restoration hook is registered after feed identity is resolved.
     const [refreshing, setRefreshing] = useState(false);
     const { handleScroll, scrollEventThrottle, registerScrollable } = useLayoutScroll();
 
@@ -208,6 +232,13 @@ const Feed = ((props: FeedProps) => {
         reloadKey,
         isAuthenticated,
         currentUserId: currentUser?.id,
+    });
+    // Bloom is a no-op on native today, but pass the same identity sub-key used
+    // on web so feeds hosted by one route can never share an offset if native
+    // restoration becomes active.
+    useScrollRestoration(flatListRef, {
+        enabled: scrollEnabled !== false,
+        key: feedState.feedScrollKey,
     });
 
     // Destructure stable function references from feedState to avoid re-creating
@@ -254,6 +285,58 @@ const Feed = ((props: FeedProps) => {
         threadPostId,
     }), [feedState.slices, feedState.items, feedState.interstitials, type, showOnlySaved, currentUser?.id, blockedSet, threaded, threadPostId]);
 
+    const listRows = useMemo<NativeFeedRow[]>(() => {
+        const auxiliaryRows: AuxiliaryFeedRow[] = [];
+        if (listStickyHeaderComponent) {
+            auxiliaryRows.push({
+                kind: 'auxiliary',
+                key: 'sticky-header',
+                element: listStickyHeaderComponent,
+            });
+        }
+        if (listLeadingComponent) {
+            auxiliaryRows.push({
+                kind: 'auxiliary',
+                key: 'leading',
+                element: listLeadingComponent,
+            });
+        }
+        return auxiliaryRows.length > 0
+            ? [...auxiliaryRows, ...feedRows]
+            : feedRows;
+    }, [feedRows, listLeadingComponent, listStickyHeaderComponent]);
+
+    // Bloom intentionally delegates native restoration to the navigator, but a
+    // route/tab swap can genuinely unmount a feed. Restore the last feed-scoped
+    // offset once its retained rows are available; the imperative map avoids a
+    // Zustand publication on every scroll frame.
+    const restoredFeedKeyRef = useRef<string | null>(null);
+    useEffect(() => {
+        if (scrollEnabled === false || !isFocused) {
+            restoredFeedKeyRef.current = null;
+            return;
+        }
+        if (listRows.length === 0) return;
+        const key = feedState.feedScrollKey;
+        if (restoredFeedKeyRef.current === key) return;
+        restoredFeedKeyRef.current = key;
+
+        const offset = getFeedScrollOffset(key);
+        if (offset <= 0) return;
+        const frame = requestAnimationFrame(() => {
+            flatListRef.current?.scrollToOffset({
+                offset,
+                animated: false,
+            });
+        });
+        return () => cancelAnimationFrame(frame);
+    }, [
+        feedState.feedScrollKey,
+        isFocused,
+        listRows.length,
+        scrollEnabled,
+    ]);
+
     // Feed-ranking telemetry: derive the descriptor this feed reports against and
     // own an impression tracker for the session. The session resets when the
     // descriptor changes or the feed is reloaded (reloadKey), so impressions are
@@ -262,7 +345,8 @@ const Feed = ((props: FeedProps) => {
     const impressionTracker = useFeedImpressionTracker(feedDescriptor, reloadKey);
 
     // Memoize renderPostItem to prevent recreating on every render
-    const renderPostItem = useCallback(({ item: row }: { item: FeedRow; index: number }) => {
+    const renderPostItem = useCallback(({ item: row }: { item: NativeFeedRow; index: number }) => {
+        if (row.kind === 'auxiliary') return row.element;
         return renderFeedRow(row, { router, threadLineColor: theme.colors.border, feedDescriptor });
     }, [router, theme.colors.border, feedDescriptor]);
 
@@ -279,7 +363,7 @@ const Feed = ((props: FeedProps) => {
             const visibleUris: string[] = [];
             for (const token of viewableItems) {
                 if (!token.isViewable) continue;
-                const row = token.item as FeedRow | undefined;
+                const row = token.item as NativeFeedRow | undefined;
                 // Only post rows produce impressions — a recommendation card has no
                 // post to report, and must never reach `/feed/mtn/interactions`.
                 if (row?.kind !== 'post') continue;
@@ -290,22 +374,22 @@ const Feed = ((props: FeedProps) => {
         [impressionTracker]
     );
 
-    const keyExtractor = useCallback((row: FeedRow) => feedRowKey(row), []);
+    const keyExtractor = useCallback((row: NativeFeedRow) => nativeFeedRowKey(row), []);
 
     // CRITICAL: getItemType helps FlashList properly recycle components
-    const getItemType = useCallback((row: FeedRow) => feedRowType(row), []);
+    const getItemType = useCallback((row: NativeFeedRow) => nativeFeedRowType(row), []);
 
     // Optimized data hash for FlashList extraData - only recalculate when rows change.
     // Keys off `feedRowKey` so it covers BOTH row kinds (a post id is meaningless
     // for a recommendation card).
     const dataHash = useMemo(() => {
-        const count = feedRows.length;
+        const count = listRows.length;
         if (count === 0) return 'empty';
-        const firstKey = feedRowKey(feedRows[0]);
-        const lastKey = feedRowKey(feedRows[count - 1]);
-        const midKey = count > 2 ? feedRowKey(feedRows[Math.floor(count / 2)]) : '';
+        const firstKey = nativeFeedRowKey(listRows[0]);
+        const lastKey = nativeFeedRowKey(listRows[count - 1]);
+        const midKey = count > 2 ? nativeFeedRowKey(listRows[Math.floor(count / 2)]) : '';
         return `${count}-${firstKey}-${midKey}-${lastKey}`;
-    }, [feedRows]);
+    }, [listRows]);
 
     // Register scrollable with LayoutScrollContext
     const clearScrollableRegistration = useCallback(() => {
@@ -315,7 +399,7 @@ const Feed = ((props: FeedProps) => {
         }
     }, []);
 
-    const assignListRef = useCallback((node: FlashListRef<FeedRow> | null) => {
+    const assignListRef = useCallback((node: FlashListRef<NativeFeedRow> | null) => {
         flatListRef.current = node;
         clearScrollableRegistration();
         // Only the focused, scroll-owning feed registers as the active scrollable.
@@ -353,10 +437,17 @@ const Feed = ((props: FeedProps) => {
         // background feed must never move the shared scrollY (it isn't actually
         // being scrolled by the user).
         if (scrollEnabled === false || !isFocused) return;
+        const contentOffset = event.nativeEvent?.contentOffset;
+        const offsetY = typeof contentOffset === 'number'
+            ? contentOffset
+            : contentOffset?.y;
+        if (typeof offsetY === 'number' && Number.isFinite(offsetY)) {
+            setFeedScrollOffset(feedState.feedScrollKey, offsetY);
+        }
         if (handleScroll) {
             handleScroll(event);
         }
-    }, [handleScroll, scrollEnabled, isFocused]);
+    }, [feedState.feedScrollKey, handleScroll, scrollEnabled, isFocused]);
 
     // Memoize RefreshControl to prevent recreation on every render. When the feed
     // scrolls behind the overlay chrome, offset the pull-to-refresh spinner by the
@@ -450,6 +541,13 @@ const Feed = ((props: FeedProps) => {
         ),
         [showOnlySaved, feedState.hasMore, isLoadingMore, feedRows.length]
     );
+    const hasAuxiliaryRows = listRows.length > feedRows.length;
+    const renderedEmptyComponent = hasAuxiliaryRows ? null : emptyStateComponent;
+    const renderedFooterComponent = feedRows.length === 0 && hasAuxiliaryRows
+        ? emptyStateComponent
+        : showFooter
+            ? footerComponent
+            : null;
 
     const handleBoundaryError = useCallback((error: Error, errorInfo: React.ErrorInfo) => {
         logger.error('Error caught by boundary', { error, errorInfo });
@@ -468,14 +566,15 @@ const Feed = ((props: FeedProps) => {
             >
                 <FlashList
                     ref={assignListRef}
-                    data={feedRows}
+                    data={listRows}
                     renderItem={renderPostItem}
                     keyExtractor={keyExtractor}
                     getItemType={getItemType}
                     extraData={dataHash}
                     ListHeaderComponent={headerComponent}
-                    ListEmptyComponent={emptyStateComponent}
-                    ListFooterComponent={showFooter ? footerComponent : null}
+                    ListEmptyComponent={renderedEmptyComponent}
+                    ListFooterComponent={renderedFooterComponent}
+                    stickyHeaderIndices={listStickyHeaderComponent ? [0] : undefined}
                     scrollEnabled={scrollEnabled}
                     {...(scrollEnabled === false ? { renderScrollComponent: NonScrollingScrollComponent } : {})}
                     refreshControl={refreshControl}
@@ -518,7 +617,9 @@ const arePropsEqual = (prevProps: FeedProps, nextProps: FeedProps): boolean => {
         prevProps.scrollEnabled !== nextProps.scrollEnabled ||
         prevProps.threaded !== nextProps.threaded ||
         prevProps.threadPostId !== nextProps.threadPostId ||
-        prevProps.listHeaderComponent !== nextProps.listHeaderComponent
+        prevProps.listHeaderComponent !== nextProps.listHeaderComponent ||
+        prevProps.listStickyHeaderComponent !== nextProps.listStickyHeaderComponent ||
+        prevProps.listLeadingComponent !== nextProps.listLeadingComponent
     ) {
         return false;
     }

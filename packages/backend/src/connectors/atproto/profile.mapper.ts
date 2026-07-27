@@ -154,7 +154,7 @@ export async function upsertAtprotoActor(actor: NormalizedExternalActor): Promis
   } catch (err) {
     // A rare unique-key collision (a handle reassigned across DIDs) must not
     // abort discovery — log and continue with no stamped row.
-    logger.warn(`[atproto] failed to upsert FederatedActor for ${did}`, err);
+    logger.warn('[atproto] failed to upsert federated actor', err);
   }
 
   const existingOxyId = fedActor?.oxyUserId ?? undefined;
@@ -162,7 +162,7 @@ export async function upsertAtprotoActor(actor: NormalizedExternalActor): Promis
   if (!oxyId) {
     // Hard runtime dependency: oxy-api `PUT /users/resolve` must accept a `did:`
     // actorUri. Until it does this returns null — fail soft (no throw, no orphan).
-    logger.warn(`[atproto] Oxy user unresolved for ${did}; importing skipped until oxy-api accepts did: actorUri`);
+    logger.warn('[atproto] import skipped while Oxy user is unresolved');
     return { ...actor, oxyUserId: undefined };
   }
 
@@ -182,13 +182,13 @@ export async function fetchAndUpsertAtprotoProfile(actor: string): Promise<Norma
   try {
     profile = await xrpcGet<AtprotoProfileView>(PUBLIC_APPVIEW, 'app.bsky.actor.getProfile', { actor });
   } catch (err) {
-    logger.debug(`[atproto] getProfile failed for ${actor}`, err);
+    logger.debug('[atproto] getProfile failed', err);
     return null;
   }
 
   const normalized = mapProfileToNormalizedActor(profile);
   if (!normalized) {
-    logger.debug(`[atproto] getProfile for ${actor} returned an unmappable profile`);
+    logger.debug('[atproto] getProfile returned an unmappable profile');
     return null;
   }
 

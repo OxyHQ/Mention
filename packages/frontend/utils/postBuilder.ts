@@ -1,4 +1,5 @@
-import { MentionData } from '@/components/MentionTextInput';
+import type { MentionData } from '@/utils/mentions';
+import { reconcileMentionIds } from '@mention/shared-types/mentions';
 import type {
   CreatePostRequest,
   CreateThreadPostRequest,
@@ -95,6 +96,13 @@ export const buildMainPost = (params: BuildMainPostParams): CreatePostRequest =>
 
   const hasPoll = pollOptions.length > 0 && pollOptions.some(opt => opt.trim().length > 0);
   const wasScheduled = Boolean(scheduledAt);
+  const mentionIds = reconcileMentionIds(
+    [
+      postContent,
+      ...(variantContent ?? []).map((variant) => variant.text),
+    ],
+    mentions.map((mention) => mention.userId),
+  );
 
   const podcastId = hasPodcastContent && podcast ? podcast.syraPodcastId : undefined;
 
@@ -160,7 +168,7 @@ export const buildMainPost = (params: BuildMainPostParams): CreatePostRequest =>
       ...(podcastId && { podcast: { syraPodcastId: podcastId } }),
       ...(attachmentsPayload.length > 0 && { attachments: attachmentsPayload })
     },
-    mentions: mentions.map(m => m.userId),
+    mentions: mentionIds,
     hashtags: [],
     replyPermission: replyPermission,
     reviewReplies: reviewReplies,
@@ -194,6 +202,13 @@ interface BuildEditPostParams {
  */
 export const buildEditPost = (params: BuildEditPostParams): UpdatePostRequest => {
   const { postContent, mediaIds, mentions, hashtags, collaboratorIds, variantContent } = params;
+  const mentionIds = reconcileMentionIds(
+    [
+      postContent,
+      ...(variantContent ?? []).map((variant) => variant.text),
+    ],
+    mentions,
+  );
 
   return {
     content: {
@@ -206,7 +221,7 @@ export const buildEditPost = (params: BuildEditPostParams): UpdatePostRequest =>
       })),
     },
     hashtags,
-    mentions,
+    mentions: mentionIds,
     ...(collaboratorIds && collaboratorIds.length > 0 ? { collaboratorIds } : {}),
   };
 };
@@ -222,6 +237,13 @@ export const buildThreadPost = (
   const threadHasRoom = Boolean(item.room && item.room.roomId);
   const threadFormattedSources = (item.sources || []).filter(s => s.url.trim().length > 0);
   const threadHasSources = threadFormattedSources.length > 0;
+  const mentionIds = reconcileMentionIds(
+    [
+      item.text,
+      ...(variantContent ?? []).map((variant) => variant.text),
+    ],
+    item.mentions.map((mention) => mention.userId),
+  );
 
   // Use explicit attachment order if provided, otherwise auto-build
   let threadOrder: string[];
@@ -300,7 +322,7 @@ export const buildThreadPost = (
       }),
       ...(threadAttachmentsPayload.length > 0 && { attachments: threadAttachmentsPayload })
     },
-    mentions: item.mentions?.map(m => m.userId) || [],
+    mentions: mentionIds,
     hashtags: [],
     replyPermission: item.replyPermission || ['anyone'],
     reviewReplies: item.reviewReplies || false,

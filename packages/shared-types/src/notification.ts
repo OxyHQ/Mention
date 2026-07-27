@@ -2,8 +2,6 @@
  * Notification-related types for Mention social network
  */
 
-import { Timestamps } from './common';
-
 export enum NotificationType {
   LIKE = 'like',
   BOOST = 'boost',
@@ -227,4 +225,4 @@ export interface NotificationSettings {
   preferences: NotificationPreferences;
   createdAt: string;
   updatedAt: string;
-} 
+}

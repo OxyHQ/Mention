@@ -26,6 +26,7 @@ vi.mock('../models/Post', () => ({
 }));
 
 import { exploreSource } from '../mtn/feed/engine/sources/discoverySources';
+import { ScoreCursor } from '../mtn/feed/CursorBuilder';
 import type { FeedEngineContext } from '../mtn/feed/engine/types';
 
 const oid = (n: number) => new mongoose.Types.ObjectId(`5f${n.toString().padStart(22, '0')}`);
@@ -56,6 +57,24 @@ function relevanceBoostExpr(): unknown {
   );
   expect(stage).toBeDefined();
   return (stage as { $addFields: { relevanceBoost: unknown } }).$addFields.relevanceBoost;
+}
+
+function allMatchStages(): Array<Record<string, unknown>> {
+  const pipeline = aggregatePipelines[aggregatePipelines.length - 1] as Array<Record<string, unknown>>;
+  return pipeline
+    .filter((stage) => '$match' in stage)
+    .map((stage) => (stage as { $match: Record<string, unknown> }).$match);
+}
+
+function scoringReferenceTime(): Date {
+  const pipeline = aggregatePipelines[aggregatePipelines.length - 1] as Array<Record<string, unknown>>;
+  const stage = pipeline.find((candidate) => {
+    if (!('$addFields' in candidate)) return false;
+    const fields = candidate.$addFields as Record<string, unknown>;
+    return 'ageHours' in fields;
+  }) as { $addFields: { ageHours: { $divide: [{ $subtract: [Date, string] }, number] } } } | undefined;
+  expect(stage).toBeDefined();
+  return stage?.$addFields.ageHours.$divide[0].$subtract[0] as Date;
 }
 
 describe('explore source — SFW (default / anonymous)', () => {
@@ -222,5 +241,53 @@ describe('explore source — relevance boost (logged-in)', () => {
 
     const expr = relevanceBoostExpr() as { $min: [unknown, { $cond: [{ $gt: [{ $size: { $setIntersection: [unknown, { $literal: string[] }] } }, number] }, number, number] }] };
     expect(expr.$min[1].$cond[0].$gt[0].$size.$setIntersection[1]).toEqual({ $literal: ['technews'] });
+  });
+});
+
+describe('explore source - stable pagination snapshot', () => {
+  it('reuses asOf, freezes the candidate window, and excludes the previous page after the clock advances', async () => {
+    vi.useFakeTimers();
+    const initialTime = Date.UTC(2026, 6, 26, 12, 0, 0);
+    vi.setSystemTime(initialTime);
+
+    try {
+      await gather({ currentUserId: undefined, followingIds: [] });
+      const firstScoreTime = scoringReferenceTime();
+      const firstCreatedAt = firstMatch().createdAt as { $gte: Date; $lte: Date };
+      expect(firstScoreTime.getTime()).toBe(initialTime);
+      expect(firstCreatedAt.$lte.getTime()).toBe(initialTime);
+
+      const cursorScore = 0.12345678901234568;
+      const previousPageIds = [oid(1).toString(), oid(2).toString()];
+      const cursor = ScoreCursor.build(cursorScore, previousPageIds[1], {
+        asOf: initialTime,
+        excludeIds: previousPageIds,
+      });
+
+      vi.setSystemTime(initialTime + 6 * 60 * 60 * 1000);
+      await gather({ currentUserId: undefined, followingIds: [], cursor });
+
+      const matches = allMatchStages();
+      const baseMatch = matches[0];
+      const createdAt = baseMatch.createdAt as { $gte: Date; $lte: Date };
+      const excludedIds = ((baseMatch._id as { $nin: mongoose.Types.ObjectId[] }).$nin)
+        .map((id) => id.toString());
+      expect(scoringReferenceTime().getTime()).toBe(initialTime);
+      expect(createdAt.$lte.getTime()).toBe(initialTime);
+      expect(createdAt.$gte.getTime()).toBe(initialTime - MtnConfig.feed.trendingWindowMs);
+      expect(new Set(excludedIds)).toEqual(new Set(previousPageIds));
+
+      const cursorMatch = matches[1] as {
+        $or: [
+          { finalScore: { $lt: number } },
+          { $and: [{ finalScore: number }, { _id: { $lt: mongoose.Types.ObjectId } }] },
+        ];
+      };
+      expect(cursorMatch.$or[0].finalScore.$lt).toBe(cursorScore);
+      expect(cursorMatch.$or[1].$and[0].finalScore).toBe(cursorScore);
+      expect(cursorMatch.$or[1].$and[1]._id.$lt.toString()).toBe(previousPageIds[1]);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

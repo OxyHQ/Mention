@@ -133,4 +133,17 @@ describe('backfillCustomFeedDefinitions', () => {
     expect(h.bulkWrite).not.toHaveBeenCalled();
     expect(h.state.feeds[0].definition).toBeUndefined();
   });
+
+  it('reports malformed legacy rows as failures instead of silently succeeding', async () => {
+    h.state.feeds = [{
+      _id: new mongoose.Types.ObjectId(),
+      ownerOxyUserId: 'owner-1',
+      memberOxyUserIds: 'not-an-array' as unknown as string[],
+    }];
+
+    const result = await backfillCustomFeedDefinitions({ batchSize: 100 });
+
+    expect(result).toMatchObject({ scanned: 1, updated: 0, failed: 1 });
+    expect(h.bulkWrite).not.toHaveBeenCalled();
+  });
 });

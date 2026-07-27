@@ -126,7 +126,7 @@ export async function mirrorFederatedBanner(
       // rejection) at `warn` — a silent `debug` previously hid a total outage where
       // 0 federated banners were ever stored. Permanently unavailable banners
       // (dead/oversized/non-image) are expected and stay quiet.
-      logger.warn(`Failed to mirror banner for ${actorUri}`, {
+      logger.warn('Failed to mirror federated actor banner', {
         reason: result.reason,
         remoteHost,
       });
@@ -137,7 +137,7 @@ export async function mirrorFederatedBanner(
     // Honor the documented best-effort contract: a throw from the media persist or
     // the `UserSettings` write must never propagate. Treat it as a transient
     // (retryable) failure so the backfill still retries, and swallow it.
-    logger.warn(`Failed to mirror banner for ${actorUri}`, {
+    logger.warn('Failed to mirror federated actor banner', {
       error: bannerErr,
       remoteHost,
     });

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
     View,
     Text,
@@ -6,7 +6,7 @@ import {
     ScrollView,
 } from 'react-native';
 import { Loading } from '@oxyhq/bloom/loading';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';
@@ -60,27 +60,27 @@ const PostInsightsSheet: React.FC<PostInsightsSheetProps> = ({ postId, onClose }
     const [loading, setLoading] = useState(false);
     const [insights, setInsights] = useState<PostInsights | null>(null);
 
-    useEffect(() => {
-        if (postId) {
-            loadInsights();
-        } else {
-            setInsights(null);
-        }
-    }, [postId]);
-
-    const loadInsights = async () => {
+    const loadInsights = useCallback(async () => {
         if (!postId) return;
 
         try {
             setLoading(true);
             const data = await statisticsService.getPostInsights(postId);
             setInsights(data);
-        } catch (error) {
+        } catch {
             logger.error('Error loading post insights');
         } finally {
             setLoading(false);
         }
-    };
+    }, [postId]);
+
+    useEffect(() => {
+        if (postId) {
+            void loadInsights();
+        } else {
+            setInsights(null);
+        }
+    }, [loadInsights, postId]);
 
     const headerEl = (
         <Header

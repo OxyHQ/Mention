@@ -2,7 +2,7 @@ import express from 'express';
 import request from 'supertest';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-process.env.MENTION_MCP_JWT_SECRET = 'test-mcp-secret';
+process.env.MENTION_MCP_JWT_SECRET = 'test-mcp-secret-that-is-at-least-32-bytes';
 
 const mocks = vi.hoisted(() => ({
   connectionFindOne: vi.fn(),
@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => ({
   getProfileByUsername: vi.fn(),
   redisGet: vi.fn(),
   redisSet: vi.fn(),
+  redisReady: true,
 }));
 
 vi.mock('../../mcp/models/McpConnection', () => ({
@@ -36,14 +37,17 @@ vi.mock('../../utils/oxyHelpers', () => ({
 
 vi.mock('../../utils/redis', () => ({
   getRedisClient: () => ({
+    get isReady() {
+      return mocks.redisReady;
+    },
     get: mocks.redisGet,
     set: mocks.redisSet,
   }),
 }));
 
 vi.mock('../../utils/redisHelpers', () => ({
-  ensureRedisConnected: vi.fn().mockResolvedValue(true),
-  withRedisFallback: vi.fn(async (_redis, fn, fallback) => {
+  withRedisFallback: vi.fn(async (redis, fn, fallback) => {
+    if (!redis.isReady) return fallback;
     try {
       return await fn();
     } catch {
@@ -55,7 +59,6 @@ vi.mock('../../utils/redisHelpers', () => ({
 import mcpBundlesRoutes from '../../mcp/routes/mcpBundles.routes';
 import { signLinkToken } from '../../mcp/services/mcpBundleService';
 import type { OxyAuthRequestWithMcp } from '../../mcp/middleware/mcpAuth';
-import { ensureRedisConnected } from '../../utils/redisHelpers';
 
 function buildApp(mcpContext?: OxyAuthRequestWithMcp['mcp']) {
   const app = express();
@@ -84,6 +87,7 @@ const bundleContext: OxyAuthRequestWithMcp['mcp'] = {
 describe('MCP bundles routes', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.redisReady = true;
     mocks.redisSet.mockResolvedValue('OK');
     mocks.connectionUpdateOne.mockResolvedValue({ matchedCount: 1 });
     mocks.connectionCountDocuments.mockResolvedValue(1);
@@ -100,6 +104,33 @@ describe('MCP bundles routes', () => {
     expect(res.status).toBe(200);
     expect(res.body.linkUrl).toContain('/oauth/mcp/link?token=');
     expect(res.body.token).toBeTruthy();
+  });
+
+  it('GET /mcp/bundles/me never exposes the raw Oxy id when Oxy is down', async () => {
+    mocks.getUserById.mockRejectedValueOnce(new Error('oxy unavailable'));
+
+    const res = await request(buildApp(bundleContext)).get('/mcp/bundles/me');
+
+    expect(res.status).toBe(200);
+    expect(res.body.oxyUserId).toBe('user-a');
+    expect(res.body.username).toBe('');
+    expect(res.body.handle).toBe('');
+    expect(res.body.displayName).toBe('Unknown user');
+  });
+
+  it('GET /mcp/bundles/me degrades safely when Oxy returns an identity miss', async () => {
+    mocks.getUserById.mockResolvedValueOnce({
+      id: 'user-a',
+      username: 'user-a',
+      name: { displayName: 'user-a' },
+    });
+
+    const res = await request(buildApp(bundleContext)).get('/mcp/bundles/me');
+
+    expect(res.status).toBe(200);
+    expect(res.body.username).toBe('');
+    expect(res.body.handle).toBe('');
+    expect(res.body.displayName).toBe('Unknown user');
   });
 
   it('POST /mcp/bundles/active switches active account by handle', async () => {
@@ -127,7 +158,7 @@ describe('MCP bundles routes', () => {
     mocks.connectionFindOne.mockReturnValue({
       lean: () => Promise.resolve({ oxyUserId: 'user-b', bundleId: 'bundle-1' }),
     });
-    vi.mocked(ensureRedisConnected).mockResolvedValueOnce(false);
+    mocks.redisReady = false;
     mocks.connectionUpdateOne.mockResolvedValue({ matchedCount: 0 });
 
     const res = await request(app).post('/mcp/bundles/active').send({ handle: '@brand' });

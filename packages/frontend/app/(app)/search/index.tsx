@@ -1,11 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { View, Text, TextInput, TouchableOpacity } from "react-native";
 import { SafeAreaView } from "@/lib/SafeAreaViewInterop";
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { useTranslation } from "react-i18next";
 import { router, useLocalSearchParams } from "expo-router";
 import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useAuth } from "@oxyhq/services";
+import { useAuth } from "@oxyhq/services/ui/client";
 import { getNormalizedUserHandle } from "@oxyhq/core";
 import { useSafeBack } from "@/hooks/useSafeBack";
 import { ThemedView } from "@/components/ThemedView";
@@ -26,8 +26,9 @@ import { Loading } from "@oxyhq/bloom/loading";
 import { FlashList } from "@shopify/flash-list";
 import AnimatedTabBar from "@/components/common/AnimatedTabBar";
 import PostItem from "@/components/Feed/PostItem";
-import { Search } from "@/assets/icons/search-icon";
-import SEO from "@/components/SEO";
+import { Search } from "@oxyhq/bloom/search";
+import { Search as SearchIcon } from "@/assets/icons/search-icon";
+import { SEO } from "@/components/SEO";
 import { ProfileCard, ProfileCardSkeletonList, type ProfileCardData } from "@/components/ProfileCard";
 import { FeedCard, type FeedCardData } from "@/components/FeedCard";
 import { ListCard, type ListCardData } from "@/components/ListCard";
@@ -37,11 +38,12 @@ import type { ExternalActorResolution } from "@/services/feedService";
 import { EmptyState } from "@/components/common/EmptyState";
 import { Error } from "@/components/Error";
 import { TrendItemRow } from "@/components/trending/TrendItemRow";
-import { useTrendsStore } from "@/store/trendsStore";
+import { useTrendsStore } from "@/stores/trendsStore";
 import { useTrendNavigation } from "@/hooks/useTrendNavigation";
 import type { Trend } from "@/interfaces/Trend";
 import { formatCompactNumber } from "@/utils/formatNumber";
 import { logger } from "@/lib/logger";
+import { viewerQueryKeys } from "@/lib/viewerQueryKeys";
 
 type ResultTab = "posts" | "users" | "feeds" | "hashtags" | "lists" | "saved";
 type SearchTab = "all" | ResultTab;
@@ -84,9 +86,6 @@ const SKELETON_ROW_COUNT = 8;
 
 /** Trending rows offered on the idle (no query) screen. */
 const MAX_IDLE_TRENDS = 5;
-
-/** The search history lives in Storage; React Query owns the in-memory copy. */
-const SEARCH_HISTORY_QUERY_KEY = ["search", "history"] as const;
 
 /**
  * One flattened, virtualized row model so the WHOLE screen — idle state and
@@ -145,10 +144,15 @@ async function fetchSearchPage(
     query: string,
     pageParam: SearchPageParam,
     canUsePrivateApi: boolean,
+    signal?: AbortSignal,
 ): Promise<SearchResultsPage> {
     switch (tab) {
         case "all": {
-            const all = await searchService.searchAll(query, canUsePrivateApi);
+            const all = await searchService.searchAll(
+                query,
+                canUsePrivateApi,
+                signal,
+            );
             return {
                 results: {
                     posts: all.posts ?? [],
@@ -167,7 +171,7 @@ async function fetchSearchPage(
             // this page fills in) the moment the session lands.
             if (!canUsePrivateApi) return { results: EMPTY_RESULTS, nextPageParam: undefined };
             const cursor = typeof pageParam === "string" ? pageParam : undefined;
-            const { posts, hasMore, nextCursor } = await searchService.searchPostsPage(query, cursor);
+            const { posts, hasMore, nextCursor } = await searchService.searchPostsPage(query, cursor, signal);
             return { results: { ...EMPTY_RESULTS, posts }, nextPageParam: hasMore ? nextCursor : undefined };
         }
         case "users": {
@@ -179,24 +183,24 @@ async function fetchSearchPage(
             // Auth-gated (`/posts/saved`) — see the posts tab above.
             if (!canUsePrivateApi) return { results: EMPTY_RESULTS, nextPageParam: undefined };
             const page = typeof pageParam === "number" ? pageParam : 1;
-            const { posts, hasMore, nextPage } = await searchService.searchSavedPage(query, page);
+            const { posts, hasMore, nextPage } = await searchService.searchSavedPage(query, page, signal);
             return { results: { ...EMPTY_RESULTS, saved: posts }, nextPageParam: hasMore ? nextPage : undefined };
         }
         case "feeds": {
             const offset = typeof pageParam === "number" ? pageParam : 0;
-            const { feeds, hasMore, nextOffset } = await searchService.searchFeedsPage(query, offset);
+            const { feeds, hasMore, nextOffset } = await searchService.searchFeedsPage(query, offset, signal);
             return { results: { ...EMPTY_RESULTS, feeds }, nextPageParam: hasMore ? nextOffset : undefined };
         }
         case "hashtags": {
             const offset = typeof pageParam === "number" ? pageParam : 0;
-            const { hashtags, hasMore, nextOffset } = await searchService.searchHashtagsPage(query, offset);
+            const { hashtags, hasMore, nextOffset } = await searchService.searchHashtagsPage(query, offset, signal);
             return { results: { ...EMPTY_RESULTS, hashtags }, nextPageParam: hasMore ? nextOffset : undefined };
         }
         case "lists": {
             // Auth-gated (`/lists`) — see the posts tab above.
             if (!canUsePrivateApi) return { results: EMPTY_RESULTS, nextPageParam: undefined };
             const offset = typeof pageParam === "number" ? pageParam : 0;
-            const { lists, hasMore, nextOffset } = await searchService.searchListsPage(query, offset);
+            const { lists, hasMore, nextOffset } = await searchService.searchListsPage(query, offset, signal);
             return { results: { ...EMPTY_RESULTS, lists }, nextPageParam: hasMore ? nextOffset : undefined };
         }
     }
@@ -320,7 +324,8 @@ export default function SearchIndex() {
     // early → no 401 noise) and is KEYED into the search query below, so the query
     // refetches and those sections fill in the moment the session lands. A genuine
     // signed-out viewer keeps them quietly empty and still gets people + feeds.
-    const { canUsePrivateApi } = useAuth();
+    const { canUsePrivateApi, user } = useAuth();
+    const viewerId = user?.id;
 
     const [query, setQuery] = useState(urlQuery);
     // `query` drives the input box; `debouncedQuery` drives the actual request
@@ -345,17 +350,21 @@ export default function SearchIndex() {
     }
 
     // --- Search history (Storage-backed, cached by React Query) ---
+    const searchHistoryQueryKey = useMemo(
+        () => viewerQueryKeys.searchHistory(viewerId),
+        [viewerId],
+    );
     const { data: searchHistory = [] } = useQuery({
-        queryKey: SEARCH_HISTORY_QUERY_KEY,
-        queryFn: () => searchService.getSearchHistory(),
+        queryKey: searchHistoryQueryKey,
+        queryFn: () => searchService.getSearchHistory(viewerId),
         staleTime: Infinity,
     });
 
     const setSearchHistory = useCallback(
         (history: string[]) => {
-            queryClient.setQueryData<string[]>(SEARCH_HISTORY_QUERY_KEY, history);
+            queryClient.setQueryData<string[]>(searchHistoryQueryKey, history);
         },
-        [queryClient],
+        [queryClient, searchHistoryQueryKey],
     );
 
     // History records what the user MEANT to search — an explicit submit or an
@@ -365,11 +374,11 @@ export default function SearchIndex() {
             const trimmed = term.trim();
             if (!trimmed) return;
             searchService
-                .addToSearchHistory(trimmed)
+                .addToSearchHistory(trimmed, viewerId)
                 .then(setSearchHistory)
                 .catch((error: unknown) => logger.warn("Failed to save search history", { error }));
         },
-        [setSearchHistory],
+        [setSearchHistory, viewerId],
     );
 
     const commitCurrentQuery = useCallback(() => {
@@ -390,8 +399,8 @@ export default function SearchIndex() {
     // Subscribing to the shared trends poller is external-system sync — the one
     // thing Effects are for. The store ref-counts subscribers.
     useEffect(() => {
-        startTrendsPolling();
-        return () => stopTrendsPolling();
+        const subscriptionId = startTrendsPolling();
+        return () => stopTrendsPolling(subscriptionId);
     }, [startTrendsPolling, stopTrendsPolling]);
 
     const visibleTrends = useMemo(
@@ -423,8 +432,19 @@ export default function SearchIndex() {
         isError: searchFailed,
         refetch: refetchSearch,
     } = useInfiniteQuery({
-        queryKey: ["search", activeTab, trimmedDebounced, canUsePrivateApi],
-        queryFn: ({ pageParam }) => fetchSearchPage(activeTab, trimmedDebounced, pageParam, canUsePrivateApi),
+        queryKey: viewerQueryKeys.search(
+            viewerId,
+            activeTab,
+            trimmedDebounced,
+            canUsePrivateApi,
+        ),
+        queryFn: ({ pageParam, signal }) => fetchSearchPage(
+            activeTab,
+            trimmedDebounced,
+            pageParam,
+            canUsePrivateApi,
+            signal,
+        ),
         initialPageParam: null as SearchPageParam,
         // Each tab reports its own "next page" token; `undefined` stops paging, so
         // the "all" overview settles after one page while every single-category tab
@@ -548,15 +568,15 @@ export default function SearchIndex() {
 
     const handleRemoveRecent = useCallback(
         async (term: string) => {
-            setSearchHistory(await searchService.removeFromSearchHistory(term));
+            setSearchHistory(await searchService.removeFromSearchHistory(term, viewerId));
         },
-        [setSearchHistory],
+        [setSearchHistory, viewerId],
     );
 
     const handleClearHistory = useCallback(async () => {
-        await searchService.clearSearchHistory();
+        await searchService.clearSearchHistory(viewerId);
         setSearchHistory([]);
-    }, [setSearchHistory]);
+    }, [setSearchHistory, viewerId]);
 
     const handleOperatorPress = useCallback(
         (operator: string) => {
@@ -714,7 +734,7 @@ export default function SearchIndex() {
         pushSection(
             isAll || activeTab === "saved",
             t("search.sections.saved", "Saved"),
-            results.saved.map((post): SearchRow => ({ kind: "post", key: `saved-${post.id || post._id}`, post })),
+            results.saved.map((post): SearchRow => ({ kind: "post", key: `saved-${post.id}`, post })),
         );
 
         return rows;
@@ -915,7 +935,7 @@ export default function SearchIndex() {
             <EmptyState
                 title={t("search.startSearching", "Search Mention")}
                 subtitle={t("search.startDescription", "Find people, posts, hashtags, and more")}
-                customIcon={<Search size={48} className="text-muted-foreground" />}
+                customIcon={<SearchIcon size={48} className="text-muted-foreground" />}
             />
         ) : null;
 
@@ -957,7 +977,7 @@ export default function SearchIndex() {
             <EmptyState
                 title={t("search.noResults", "No results found")}
                 subtitle={t("search.tryDifferent", "Try searching for something else")}
-                customIcon={<Search size={48} className="text-muted-foreground" />}
+                customIcon={<SearchIcon size={48} className="text-muted-foreground" />}
             />
         );
     };
@@ -979,35 +999,16 @@ export default function SearchIndex() {
                         hideBottomBorder={true}
                     />
 
-                    <View className="mx-4 my-2 flex-row items-center rounded-3xl bg-secondary px-4 py-2">
-                        <View className="mr-2">
-                            <Search
-                                size={18}
-                                color={query.trim() ? theme.colors.primary : theme.colors.textSecondary}
-                            />
-                        </View>
-                        <TextInput
+                    <View className="mx-4 my-2">
+                        <Search
                             ref={searchInputRef}
-                            className="flex-1 py-2 text-base text-foreground"
-                            placeholder={t("search.placeholder", "Search...")}
-                            placeholderTextColor={theme.colors.textSecondary}
+                            label={t("search.placeholder", "Search...")}
                             value={query}
                             onChangeText={handleQueryChange}
                             onSubmitEditing={handleSubmit}
+                            onClearText={clearSearch}
                             autoFocus
-                            returnKeyType="search"
                         />
-                        {query.length > 0 ? (
-                            <TouchableOpacity
-                                onPress={clearSearch}
-                                className="p-1"
-                                hitSlop={8}
-                                accessibilityRole="button"
-                                accessibilityLabel={t("search.clearInput", "Clear search")}
-                            >
-                                <Ionicons name="close-circle" size={18} color={theme.colors.textSecondary} />
-                            </TouchableOpacity>
-                        ) : null}
                     </View>
 
                     <AnimatedTabBar

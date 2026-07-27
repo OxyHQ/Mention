@@ -3,12 +3,11 @@ import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
 import {
   recommendationService,
   decodeRecommendationCursor,
-  MAX_RECOMMENDATION_LIMIT,
-  DEFAULT_RECOMMENDATION_LIMIT,
   MAX_RECOMMENDATION_OFFSET,
 } from '../services/RecommendationService';
 import type { RecommendationExcludeType } from '../services/OxyRankingClient';
 import { logger } from '../utils/logger';
+import { createScopedOxyClient } from '../utils/oxyHelpers';
 
 const router = express.Router();
 
@@ -81,6 +80,7 @@ router.get('/', async (req: AuthRequest, res: Response) => {
 
     const result = await recommendationService.getRecommendations({
       viewerId,
+      oxyClient: createScopedOxyClient(req),
       limit,
       offset,
       excludeTypes,

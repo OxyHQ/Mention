@@ -14,6 +14,9 @@ export * from './profile';
 // Post types
 export * from './post';
 
+// Canonical mention placeholder parsing and reconciliation
+export * from './mentions';
+
 // Interaction types
 export * from './interaction';
 
@@ -25,9 +28,6 @@ export * from './notification';
 
 // List types
 export * from './list';
-
-// Analytics types
-export * from './analytics';
 
 // Feed types
 export * from './feed';

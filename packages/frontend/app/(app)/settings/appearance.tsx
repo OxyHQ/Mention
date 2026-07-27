@@ -1,6 +1,6 @@
 import React, { useState, useCallback } from 'react';
 import { View, Text, ScrollView } from 'react-native';
-import { useAppearanceStore, type PostTextExpand, type PostReadMoreAction } from '@/store/appearanceStore';
+import { useAppearanceStore, type PostTextExpand, type PostReadMoreAction } from '@/stores/appearanceStore';
 import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';

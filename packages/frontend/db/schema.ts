@@ -6,19 +6,10 @@
  */
 
 import type {
-  HydratedPost,
-  PostContent,
-  PostAttachmentBundle,
-  PostLinkPreview,
-  PostPermissions,
-  PostEngagementSummary,
-  PostViewerState,
-  PostMetadataState,
   HydratedBoostContext,
-  PostFeedContext,
-  FeedPostSlice,
+  HydratedPost,
 } from '@mention/shared-types';
-import { PostVisibility } from '@mention/shared-types';
+import { PostVisibility } from '@mention/shared-types/post';
 import type { LinkMetadata } from '@/stores/linksStore';
 
 // ── Table names ──────────────────────────────────────────────────
@@ -96,18 +87,24 @@ export interface LinkPreviewRow {
 
 // ── FeedItem type (matches postsStore's FeedItem) ────────────────
 
-export type FeedItem = HydratedPost & {
+type CachedBoostContext = Omit<HydratedBoostContext, 'originalPost'> & {
+  originalPost: FeedItem | null;
+};
+
+/**
+ * The canonical hydrated post plus cache-only rendering metadata. Related posts
+ * keep the public `originalPost` / `quotedPost` / `boost.originalPost` names at
+ * every layer; the cache never manufactures a second alias for the same object.
+ */
+export type FeedItem = Omit<HydratedPost, 'originalPost' | 'quotedPost' | 'boost'> & {
+  originalPost?: FeedItem | null;
+  quotedPost?: FeedItem | null;
+  boost?: CachedBoostContext | null;
   date?: string;
-  isLiked?: boolean;
-  isDownvoted?: boolean;
-  isBoosted?: boolean;
-  isSaved?: boolean;
   media?: string[];
   mediaIds?: string[];
   originalMediaIds?: string[];
   allMediaIds?: string[];
-  original?: FeedItem | null;
-  quoted?: FeedItem | null;
   isLocalNew?: boolean;
 };
 
@@ -131,6 +128,53 @@ function safeJsonStringify(value: unknown): string | null {
   }
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+function hasLegacyIdentityFields(value: Record<string, unknown>): boolean {
+  return 'handle' in value || 'avatarUrl' in value || 'isVerified' in value;
+}
+
+/**
+ * Stored rows must have originated from the canonical hydrated DTO. Schema v6
+ * clears all older rows before reads, and this guard fails closed for corrupt
+ * or manually injected cache entries rather than rebuilding legacy identity or
+ * viewer state from partial data.
+ */
+function isCanonicalStoredPost(value: unknown): value is FeedItem {
+  if (!isRecord(value)) return false;
+  if (
+    typeof value.id !== 'string' ||
+    !isRecord(value.content) ||
+    !isRecord(value.attachments) ||
+    !isRecord(value.user) ||
+    !Array.isArray(value.authors) ||
+    !isRecord(value.engagement) ||
+    !isRecord(value.viewerState) ||
+    !isRecord(value.permissions) ||
+    !isRecord(value.metadata)
+  ) {
+    return false;
+  }
+
+  if (
+    'isLiked' in value ||
+    'isDownvoted' in value ||
+    'isBoosted' in value ||
+    'isSaved' in value ||
+    'original' in value ||
+    'quoted' in value ||
+    hasLegacyIdentityFields(value.user)
+  ) {
+    return false;
+  }
+
+  return value.authors.every(
+    (author) => isRecord(author) && !hasLegacyIdentityFields(author),
+  );
+}
+
 /**
  * Coerce a stored visibility string back into the {@link PostVisibility} enum,
  * defaulting to public for any unrecognized value.
@@ -146,44 +190,36 @@ function toPostVisibility(value: string): PostVisibility {
 /**
  * Convert a HydratedPost (API response / FeedItem) to a PostRow for SQLite storage.
  */
-export function postToRow(post: FeedItem | HydratedPost | any): PostRow {
-  const id = post.id || post._id?.toString() || '';
-  const user = post.user || {};
-  const userId = user.id || user._id?.toString() || '';
-  const engagement = post.engagement || {};
-  const viewerState = post.viewerState || {};
-  const metadata = post.metadata || {};
-  const content = post.content || {};
-
+export function postToRow(post: FeedItem): PostRow {
   return {
-    id,
-    user_id: userId,
-    type: post.type || 'text',
-    parent_post_id: post.parentPostId || null,
-    original_post_id: post.originalPost?.id || post.original?.id || null,
-    quoted_post_id: post.quotedPost?.id || post.quoted?.id || null,
-    content_json: safeJsonStringify(content) || '{"text":""}',
+    id: post.id,
+    user_id: post.user.id,
+    type: 'text',
+    parent_post_id: post.parentPostId ?? null,
+    original_post_id: post.originalPost?.id ?? null,
+    quoted_post_id: post.quotedPost?.id ?? null,
+    content_json: safeJsonStringify(post.content) || '{"text":""}',
     attachments_json: safeJsonStringify(post.attachments),
     link_previews_json: safeJsonStringify(post.linkPreviews),
     permissions_json: safeJsonStringify(post.permissions),
     boost_json: safeJsonStringify(post.boost),
     context_json: safeJsonStringify(post.context),
-    user_json: safeJsonStringify(user) || '{}',
-    likes_count: engagement.likes ?? 0,
-    downvotes_count: engagement.downvotes ?? 0,
-    boosts_count: engagement.boosts ?? 0,
-    replies_count: engagement.replies ?? 0,
-    saves_count: engagement.saves ?? 0,
-    views_count: engagement.views ?? 0,
-    impressions_count: engagement.impressions ?? 0,
-    is_liked: viewerState.isLiked ? 1 : 0,
-    is_downvoted: viewerState.isDownvoted ? 1 : 0,
-    is_boosted: viewerState.isBoosted ? 1 : 0,
-    is_saved: viewerState.isSaved ? 1 : 0,
-    is_owner: viewerState.isOwner ? 1 : 0,
-    visibility: metadata.visibility || post.visibility || 'public',
-    created_at: metadata.createdAt || post.createdAt || post.date || new Date().toISOString(),
-    updated_at: metadata.updatedAt || post.updatedAt || null,
+    user_json: safeJsonStringify(post.user) || '{}',
+    likes_count: post.engagement.likes ?? 0,
+    downvotes_count: post.engagement.downvotes ?? 0,
+    boosts_count: post.engagement.boosts ?? 0,
+    replies_count: post.engagement.replies ?? 0,
+    saves_count: post.engagement.saves ?? 0,
+    views_count: post.engagement.views ?? 0,
+    impressions_count: post.engagement.impressions ?? 0,
+    is_liked: post.viewerState.isLiked ? 1 : 0,
+    is_downvoted: post.viewerState.isDownvoted ? 1 : 0,
+    is_boosted: post.viewerState.isBoosted ? 1 : 0,
+    is_saved: post.viewerState.isSaved ? 1 : 0,
+    is_owner: post.viewerState.isOwner ? 1 : 0,
+    visibility: post.metadata.visibility,
+    created_at: post.metadata.createdAt,
+    updated_at: post.metadata.updatedAt,
     fetched_at: Date.now(),
     raw_json: safeJsonStringify(post),
   };
@@ -193,102 +229,44 @@ export function postToRow(post: FeedItem | HydratedPost | any): PostRow {
  * Reconstruct a FeedItem from a PostRow.
  * This is the inverse of postToRow — used in render paths.
  */
-export function rowToFeedItem(row: PostRow): FeedItem {
-  const content = safeJsonParse<PostContent>(row.content_json, { text: '' });
-  const attachments = safeJsonParse<PostAttachmentBundle>(row.attachments_json, {} as PostAttachmentBundle);
-  const linkPreviews = safeJsonParse<PostLinkPreview[]>(row.link_previews_json, []);
-  const permissions = safeJsonParse<PostPermissions>(row.permissions_json, {
-    canReply: true,
-    canDelete: false,
-    canPin: false,
-    canViewSources: false,
-  });
-  const boost = safeJsonParse<HydratedBoostContext | null>(row.boost_json, null);
-  const context = safeJsonParse<PostFeedContext | null>(row.context_json, null);
-  const user = safeJsonParse<HydratedPost['user']>(row.user_json, {
-    id: row.user_id,
-    name: {},
-  });
+export function rowToFeedItem(row: PostRow): FeedItem | null {
+  const raw = safeJsonParse<unknown>(row.raw_json, null);
+  if (!isCanonicalStoredPost(raw)) return null;
 
-  const engagement: PostEngagementSummary = {
-    likes: row.likes_count,
-    downvotes: row.downvotes_count,
-    boosts: row.boosts_count,
-    replies: row.replies_count,
-    saves: row.saves_count ?? null,
-    views: row.views_count ?? null,
-    impressions: row.impressions_count ?? null,
-  };
+  const mediaIds = raw.attachments.media?.map((item) => item.id) ?? [];
 
-  const viewerState: PostViewerState = {
-    isOwner: Boolean(row.is_owner),
-    isCollaborator: false,
-    isLiked: Boolean(row.is_liked),
-    isDownvoted: Boolean(row.is_downvoted),
-    isBoosted: Boolean(row.is_boosted),
-    isSaved: Boolean(row.is_saved),
-  };
-
-  const metadata: PostMetadataState = {
-    visibility: toPostVisibility(row.visibility),
-    createdAt: row.created_at,
-    updatedAt: row.updated_at || row.created_at,
-  };
-
-  const mediaIds = attachments.media?.map((item: any) =>
-    typeof item === 'string' ? item : item?.id
-  ).filter(Boolean) ?? [];
-
-  // Reconstruct original/quoted from raw_json if available
-  let original: FeedItem | null = null;
-  let quoted: FeedItem | null = null;
-  if (row.raw_json) {
-    const raw = safeJsonParse<any>(row.raw_json, null);
-    if (raw?.original) original = raw.original;
-    if (raw?.quoted) quoted = raw.quoted;
-  }
-
-  const authorsFromRaw = row.raw_json
-    ? safeJsonParse<any>(row.raw_json, null)?.authors
-    : undefined;
-  const authors = Array.isArray(authorsFromRaw) && authorsFromRaw.length > 0
-    ? authorsFromRaw
-    : [{
-        ...user,
-        id: user.id || row.user_id,
-        role: 'owner' as const,
-        status: 'accepted' as const,
-      }];
-
-  const feedItem: FeedItem = {
+  return {
+    ...raw,
     id: row.id,
-    content,
-    attachments,
-    linkPreviews,
-    user: {
-      ...user,
-      id: user.id || row.user_id,
+    engagement: {
+      ...raw.engagement,
+      likes: row.likes_count,
+      downvotes: row.downvotes_count,
+      boosts: row.boosts_count,
+      replies: row.replies_count,
+      saves: row.saves_count ?? null,
+      views: row.views_count ?? null,
+      impressions: row.impressions_count ?? null,
     },
-    authors,
-    engagement,
-    viewerState,
-    permissions,
-    metadata,
+    viewerState: {
+      ...raw.viewerState,
+      isOwner: Boolean(row.is_owner),
+      isLiked: Boolean(row.is_liked),
+      isDownvoted: Boolean(row.is_downvoted),
+      isBoosted: Boolean(row.is_boosted),
+      isSaved: Boolean(row.is_saved),
+    },
+    metadata: {
+      ...raw.metadata,
+      visibility: toPostVisibility(row.visibility),
+      createdAt: row.created_at,
+      updatedAt: row.updated_at || row.created_at,
+    },
     parentPostId: row.parent_post_id || undefined,
-    boost,
-    context,
     date: row.created_at,
-    isLiked: Boolean(row.is_liked),
-    isDownvoted: Boolean(row.is_downvoted),
-    isBoosted: Boolean(row.is_boosted),
-    isSaved: Boolean(row.is_saved),
     mediaIds,
     allMediaIds: mediaIds,
-    original,
-    quoted,
-  } as FeedItem;
-
-  return feedItem;
+  };
 }
 
 // ── Link preview conversions ─────────────────────────────────────

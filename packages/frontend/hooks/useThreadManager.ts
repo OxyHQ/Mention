@@ -1,5 +1,10 @@
 import { useState, useCallback } from "react";
-import { MentionData } from "@/components/MentionTextInput";
+import {
+  mergeMentionData,
+  reconcileMentionData,
+  type MentionData,
+  type MentionTextValue,
+} from "@/utils/mentions";
 import { ComposerMediaItem } from "@/utils/composeUtils";
 import { Source } from "@/hooks/useSourcesManager";
 import { ArticleData } from "@/hooks/useArticleManager";
@@ -65,16 +70,56 @@ export const useThreadManager = () => {
     setThreadItems((prev) => prev.filter((item) => item.id !== threadId));
   }, []);
 
-  const updateThreadText = useCallback((threadId: string, text: string) => {
-    setThreadItems((prev) =>
-      prev.map((item) => (item.id === threadId ? { ...item, text } : item))
-    );
-  }, []);
-
-  const updateThreadMentions = useCallback(
-    (threadId: string, mentions: MentionData[]) => {
+  /**
+   * Atomically update a thread body's storage text and its post-scoped mention
+   * registry. `variantTexts` contains that thread item's other language bodies.
+   */
+  const updateThreadMentionState = useCallback(
+    (
+      threadId: string,
+      value: MentionTextValue,
+      variantTexts: readonly string[] = [],
+    ) => {
       setThreadItems((prev) =>
-        prev.map((item) => (item.id === threadId ? { ...item, mentions } : item))
+        prev.map((item) =>
+          item.id === threadId
+            ? {
+                ...item,
+                text: value.text,
+                mentions: reconcileMentionData(
+                  [value.text, ...variantTexts],
+                  value.mentions,
+                ),
+              }
+            : item
+        )
+      );
+    },
+    []
+  );
+
+  /**
+   * Reconcile a thread's registry after one of its non-primary language bodies
+   * changes. The primary body stays untouched.
+   */
+  const reconcileThreadMentionState = useCallback(
+    (
+      threadId: string,
+      mentions: readonly MentionData[],
+      variantTexts: readonly string[],
+    ) => {
+      setThreadItems((prev) =>
+        prev.map((item) =>
+          item.id === threadId
+            ? {
+                ...item,
+                mentions: reconcileMentionData(
+                  [item.text, ...variantTexts],
+                  mergeMentionData(item.mentions, mentions),
+                ),
+              }
+            : item
+        )
       );
     },
     []
@@ -473,8 +518,8 @@ export const useThreadManager = () => {
     setThreadItems,
     addThread,
     removeThread,
-    updateThreadText,
-    updateThreadMentions,
+    updateThreadMentionState,
+    reconcileThreadMentionState,
     addThreadMedia,
     addThreadMediaMultiple,
     removeThreadMedia,

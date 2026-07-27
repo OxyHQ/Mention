@@ -9,6 +9,7 @@ import { RedisStore } from '../middleware/rateLimitStore';
 import { hashedIpKey } from '../utils/ipKey';
 import { getServiceOxyClient, uploadServiceUserMedia } from '../utils/oxyHelpers';
 import type { OxyAuthRequestWithMcp } from '../mcp/middleware/mcpAuth';
+import { config } from '../config';
 import { SsrfRejection } from '@oxyhq/core/server';
 import {
   UpstreamResult,
@@ -31,7 +32,7 @@ import { MEDIA_REJECTED_TYPES } from '../services/mediaCache/mediaTypes';
 
 const router = Router();
 
-const OXY_API_URL = process.env.OXY_API_URL || 'https://api.oxy.so';
+const OXY_API_URL = config.oxyApiUrl;
 
 const RATE_LIMIT_WINDOW_MS = 60 * 1000;
 const RATE_LIMIT_MAX = 20;

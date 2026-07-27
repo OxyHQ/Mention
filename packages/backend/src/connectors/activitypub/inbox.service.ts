@@ -4,7 +4,6 @@ import { logger } from '../../utils/logger';
 import FederatedActor from '../../models/FederatedActor';
 import FederatedFollow from '../../models/FederatedFollow';
 import { Post } from '../../models/Post';
-import Like from '../../models/Like';
 import {
   FEDERATION_MAX_CONTENT_LENGTH,
   resolveOxyUser,
@@ -24,7 +23,6 @@ import {
   extractAnnouncedObjectUri,
   extractApQuoteUri,
   extractInReplyToUri,
-  isDuplicateKeyError,
   mapApVisibility,
   parseApPublished,
   resolvePostIdFromObjectUri,
@@ -35,6 +33,10 @@ import { normalizeMentionIds } from '../../utils/textProcessing';
 import { getRemoteHost } from '../shared/url';
 import { parseInboundActivity, parseNote, primaryApType } from './apSchemas';
 import type { z } from 'zod';
+import {
+  materializeEngagementRelationship,
+  materializeEngagementTombstone,
+} from '../../services/PostEngagementCommandService';
 
 /**
  * Compact, log-safe summary of a `ZodError` — the first few issues rendered as
@@ -201,7 +203,8 @@ export class InboxProcessingService {
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       logger.warn(
-        `[Federation] ${type} notification failed for post ${postId} from actor ${actorOxyUserId}: ${message}`,
+        '[Federation] engagement notification failed',
+        { type, error: message },
       );
     }
   }
@@ -244,7 +247,8 @@ export class InboxProcessingService {
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       logger.warn(
-        `[Federation] mention notification failed for post ${entityId} from actor ${actorOxyUserId}: ${message}`,
+        '[Federation] mention notification failed',
+        { error: message },
       );
     }
   }
@@ -273,14 +277,13 @@ export class InboxProcessingService {
     const likerOxyUserId = await actorService.resolveActorOxyUserId(actorUri);
     if (!likerOxyUserId) return;
 
-    const deleted = await Like.findOneAndDelete({ userId: likerOxyUserId, postId, value: 1 }).lean();
-    if (!deleted) return;
-
-    await Post.updateOne(
-      { _id: postId, 'stats.likesCount': { $gt: 0 } },
-      { $inc: { 'stats.likesCount': -1 } },
-    );
-    logger.debug(`[Federation] undo Like from ${actorUri} on ${postId}`);
+    const { changed } = await materializeEngagementTombstone({
+      kind: 'like',
+      userId: likerOxyUserId,
+      postId,
+    });
+    if (!changed) return;
+    logger.debug('[Federation] processed Like undo');
   }
 
   /**
@@ -300,12 +303,19 @@ export class InboxProcessingService {
     const announceId = typeof announceObject.id === 'string' ? announceObject.id : undefined;
     const announcedUri = extractAnnouncedObjectUri(announceObject.object);
 
-    // Prefer the precise Announce-id match. Fall back to (boostOf, author) when
-    // the Undo omits the original Announce id but carries the announced object.
+    // Prefer the precise Announce-id match, but always scope it to the actor
+    // whose HTTP signature was verified. Announce ids are public, so matching
+    // only by id would let one remote actor retract another actor's boost.
+    // Fall back to (boostOf, author, actorUri) when the Undo omits the original
+    // Announce id but carries the announced object.
     let boost: { _id: mongoose.Types.ObjectId; boostOf?: string } | null = null;
     if (announceId) {
       boost = await Post.findOne(
-        { 'federation.activityId': announceId, type: 'boost' },
+        {
+          'federation.activityId': announceId,
+          'federation.actorUri': actorUri,
+          type: 'boost',
+        },
         { _id: 1, boostOf: 1 },
       ).lean<{ _id: mongoose.Types.ObjectId; boostOf?: string } | null>();
     }
@@ -314,7 +324,12 @@ export class InboxProcessingService {
       const boosterOxyUserId = await actorService.resolveActorOxyUserId(actorUri);
       if (originalPostId && boosterOxyUserId) {
         boost = await Post.findOne(
-          { boostOf: originalPostId, oxyUserId: boosterOxyUserId, type: 'boost' },
+          {
+            boostOf: originalPostId,
+            oxyUserId: boosterOxyUserId,
+            'federation.actorUri': actorUri,
+            type: 'boost',
+          },
           { _id: 1, boostOf: 1 },
         ).lean<{ _id: mongoose.Types.ObjectId; boostOf?: string } | null>();
       }
@@ -322,7 +337,13 @@ export class InboxProcessingService {
 
     if (!boost?.boostOf) return;
 
-    await Post.deleteOne({ _id: boost._id });
+    // Keep the ownership predicate on the destructive write as a final
+    // fail-closed guard against a concurrent mutation between lookup/delete.
+    const deleted = await Post.deleteOne({
+      _id: boost._id,
+      'federation.actorUri': actorUri,
+    });
+    if (deleted.deletedCount !== 1) return;
     await Post.updateOne(
       { _id: boost.boostOf, 'stats.boostsCount': { $gt: 0 } },
       { $inc: { 'stats.boostsCount': -1 } },
@@ -336,7 +357,7 @@ export class InboxProcessingService {
       { _id: boost.boostOf, 'stats.federatedBoostsCount': { $gt: 0 } },
       { $inc: { 'stats.federatedBoostsCount': -1 } },
     );
-    logger.debug(`[Federation] undo Announce from ${actorUri} (boost ${String(boost._id)})`);
+    logger.debug('[Federation] processed Announce undo');
   }
 
   /**
@@ -381,22 +402,24 @@ export class InboxProcessingService {
 
     // The poll owner may have turned fediverse sharing off — drop it silently.
     if (!(await this.isLocalPostOwnerSharingEnabled(postId))) {
-      logger.debug(`[Federation] dropping poll vote from ${actorUri} on ${postId} — poll owner has sharing disabled`);
+      logger.debug('[Federation] dropped poll vote because sharing is disabled');
       return true;
     }
 
     // Resolve the remote voter to a native Oxy user (syncs the actor, like handleLike).
     const voterOxyUserId = await actorService.resolveActorOxyUserId(actorUri);
     if (!voterOxyUserId) {
-      logger.info(`[Federation] skipping poll vote from ${actorUri} on ${postId}: unresolved actor`);
+      logger.info('[Federation] skipped poll vote from unresolved actor');
       return true;
     }
 
     const result = await pollVoteService.recordVoteByOptionText(String(pollId), name, voterOxyUserId);
     if (result.ok) {
-      logger.debug(`[Federation] recorded poll vote from ${actorUri} on ${postId} (option="${name}")`);
+      logger.debug('[Federation] recorded poll vote');
     } else {
-      logger.debug(`[Federation] poll vote from ${actorUri} on ${postId} not recorded (${result.reason})`);
+      logger.debug('[Federation] poll vote was not recorded', {
+        result: result.reason,
+      });
     }
     return true;
   }
@@ -412,7 +435,11 @@ export class InboxProcessingService {
     const parsedNote = parseNote(object);
     if (!parsedNote.ok) {
       logger.warn(
-        `[Federation] skipping Create from ${actorUri}: invalid embedded ${object.type}: ${summarizeZodError(parsedNote.error)}`,
+        '[Federation] skipped Create with invalid embedded object',
+        {
+          type: object.type,
+          error: summarizeZodError(parsedNote.error),
+        },
       );
       return;
     }
@@ -435,7 +462,7 @@ export class InboxProcessingService {
     // Sanitize and check content length
     const rawContent = object.content || '';
     if (rawContent.length > FEDERATION_MAX_CONTENT_LENGTH) {
-      logger.debug(`Rejecting oversized content from ${actorUri}`);
+      logger.debug('[Federation] rejected oversized content');
       return;
     }
 
@@ -473,7 +500,9 @@ export class InboxProcessingService {
       actorUri,
     });
     if (built.skip) {
-      logger.debug(`Skipping empty federated Create from ${actorUri} (${object.id}): ${built.reason}`);
+      logger.debug('[Federation] skipped empty Create', {
+        result: built.reason,
+      });
       return;
     }
     const { media, attachments, hashtags, summary, sensitive, variants } = built;
@@ -502,7 +531,7 @@ export class InboxProcessingService {
     // user who has turned fediverse sharing off, drop the reply silently
     // rather than materialize it against an opted-out account.
     if (threadLink && !(await this.isLocalPostOwnerSharingEnabled(threadLink.parentPostId))) {
-      logger.debug(`[Federation] dropping reply Create from ${actorUri} — parent post owner has sharing disabled`);
+      logger.debug('[Federation] dropped reply because sharing is disabled');
       return;
     }
 
@@ -591,23 +620,30 @@ export class InboxProcessingService {
       );
     }
 
-    logger.debug(`Stored federated post from ${actorUri}: ${object.id}`);
+    logger.debug('[Federation] stored federated post');
   }
 
   private async handleDelete(activity: Record<string, any>, actorUri: string): Promise<void> {
     const objectId = typeof activity.object === 'string' ? activity.object : activity.object?.id;
     if (!objectId) return;
 
-    const post = await Post.findOne({ 'federation.activityId': objectId, federation: { $ne: null } }).lean();
+    // The object id is public and remote-controlled. Authorize directly against
+    // the actor URI stamped when the post was ingested, using the actor whose
+    // HTTP signature was verified rather than trusting activity.actor or a
+    // best-effort actor-cache lookup.
+    const ownershipFilter = {
+      'federation.activityId': objectId,
+      'federation.actorUri': actorUri,
+    };
+    const post = await Post.findOne(ownershipFilter, { _id: 1 }).lean();
     if (!post) return;
-    // Verify the deleting actor owns this post via Oxy user ID
-    const actorRecord = await FederatedActor.findOne({ uri: actorUri }).lean();
-    if (actorRecord && post.oxyUserId && actorRecord.oxyUserId !== post.oxyUserId) {
-      logger.warn(`Delete rejected: actor ${actorUri} does not own post ${objectId}`);
-      return;
-    }
-    await Post.deleteOne({ _id: post._id });
-    logger.debug(`Deleted federated post: ${objectId}`);
+
+    const deleted = await Post.deleteOne({
+      _id: post._id,
+      'federation.actorUri': actorUri,
+    });
+    if (deleted.deletedCount !== 1) return;
+    logger.debug('[Federation] deleted federated post');
   }
 
   /**
@@ -626,29 +662,23 @@ export class InboxProcessingService {
     if (!postId) return;
 
     if (!(await this.isLocalPostOwnerSharingEnabled(postId))) {
-      logger.debug(`[Federation] dropping Like from ${actorUri} on ${postId} — target owner has sharing disabled`);
+      logger.debug('[Federation] dropped Like because sharing is disabled');
       return;
     }
 
     const likerOxyUserId = await actorService.resolveActorOxyUserId(actorUri);
     if (!likerOxyUserId) {
-      logger.info(`[Federation] skipping Like from ${actorUri} on ${objectId}: unresolved actor`);
+      logger.info('[Federation] skipped Like from unresolved actor');
       return;
     }
 
-    // Idempotent insert: a duplicate key means this actor already liked the post
-    // (redelivered activity) — do not move the counter again.
-    try {
-      await Like.create({ userId: likerOxyUserId, postId, value: 1 });
-    } catch (err) {
-      if (isDuplicateKeyError(err)) return;
-      const message = err instanceof Error ? err.message : String(err);
-      logger.warn(`[Federation] failed to record Like from ${actorUri} on ${postId}: ${message}`);
-      return;
-    }
-
-    await Post.updateOne({ _id: postId }, { $inc: { 'stats.likesCount': 1 } });
-    logger.debug(`[Federation] recorded Like from ${actorUri} on ${postId}`);
+    const { changed } = await materializeEngagementRelationship({
+      kind: 'like',
+      userId: likerOxyUserId,
+      postId,
+    });
+    if (!changed) return;
+    logger.debug('[Federation] recorded Like');
 
     // Notify the local owner exactly like a native like. Only reached after a
     // NEW Like doc was inserted — a redelivered Like returns on the duplicate-key
@@ -679,7 +709,7 @@ export class InboxProcessingService {
     // no local owner to protect.
     const announcedPostId = await resolvePostIdFromObjectUri(announcedUri);
     if (announcedPostId && !(await this.isLocalPostOwnerSharingEnabled(announcedPostId))) {
-      logger.debug(`[Federation] dropping Announce from ${actorUri} of ${announcedUri} — target owner has sharing disabled`);
+      logger.debug('[Federation] dropped Announce because sharing is disabled');
       return;
     }
 
@@ -687,15 +717,21 @@ export class InboxProcessingService {
     // when unresolvable so we never move the counter without a backing record.
     const boosterOxyUserId = await actorService.resolveActorOxyUserId(actorUri);
     if (!boosterOxyUserId) {
-      logger.info(`[Federation] skipping Announce from ${actorUri} of ${announcedUri}: unresolved actor`);
+      logger.info('[Federation] skipped Announce from unresolved actor');
       return;
     }
 
     // importAnnounce creates the native boost Post (deduped by Announce id) and
     // increments stats.boostsCount in lockstep only when a new boost is created.
-    const created = await outboxSyncService.importAnnounce(activity, announcedUri, boosterOxyUserId);
+    // Persist the verified signer as the boost owner. The JSON-level
+    // `activity.actor` is untrusted and may deliberately name another actor.
+    const created = await outboxSyncService.importAnnounce(
+      { ...activity, actor: actorUri },
+      announcedUri,
+      boosterOxyUserId,
+    );
     if (created) {
-      logger.debug(`Imported boost from ${actorUri} of ${announcedUri}`);
+      logger.debug('[Federation] imported boost');
 
       // Notify the local owner exactly like a native boost. Only reached when a
       // NEW boost Post was created (`importAnnounce` returns false on a
@@ -719,7 +755,11 @@ export class InboxProcessingService {
       const parsedNote = parseNote(object);
       if (!parsedNote.ok) {
         logger.warn(
-          `[Federation] skipping Update from ${actorUri}: invalid embedded ${object.type}: ${summarizeZodError(parsedNote.error)}`,
+          '[Federation] skipped Update with invalid embedded object',
+          {
+            type: object.type,
+            error: summarizeZodError(parsedNote.error),
+          },
         );
         return;
       }
@@ -804,7 +844,7 @@ export class InboxProcessingService {
       const update: Record<string, unknown> = { $set: setOps };
       if (Object.keys(unsetOps).length > 0) update.$unset = unsetOps;
       await Post.updateOne(editFilter, update);
-      logger.debug(`Updated federated post: ${objectActivityId}`);
+      logger.debug('[Federation] updated federated post');
 
       // Notify only NEWLY-added local mentions (diff against the post's prior
       // mentions), so a redelivered/unchanged Update never re-notifies while an
@@ -825,7 +865,7 @@ export class InboxProcessingService {
     } else if (object.type === 'Person' || object.type === 'Service' || object.type === 'Application') {
       // Profile update — re-fetch the actor to get updated data
       await actorService.fetchRemoteActor(actorUri);
-      logger.debug(`Updated federated actor: ${actorUri}`);
+      logger.debug('[Federation] updated federated actor');
     }
   }
 }
@@ -935,7 +975,7 @@ const inboundDispatcher = createInboundDispatcher({
   // Fail-soft: the Oxy edge is already committed, so a notification failure must
   // never fail (and thus retry) the follow. Imported lazily — `notificationUtils`
   // reaches the `server` singleton, and this module is itself pulled in by `server`.
-  onInboundFollowAccepted: async (localUserId, followerOxyUserId, actorUri) => {
+  onInboundFollowAccepted: async (localUserId, followerOxyUserId, _actorUri) => {
     try {
       const { createNotification } = await import('../../utils/notificationUtils');
       await createNotification({
@@ -946,8 +986,9 @@ const inboundDispatcher = createInboundDispatcher({
         entityType: 'profile',
       });
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      logger.warn(`[Federation] follow notification failed for ${localUserId} from ${actorUri}: ${message}`);
+      logger.warn('[Federation] follow notification failed', {
+        error: err,
+      });
     }
   },
   // Fire-and-forget: backfill the newly-followed actor's recent posts after Accept.
@@ -956,7 +997,9 @@ const inboundDispatcher = createInboundDispatcher({
     if (actor) {
       outboxSyncService.syncOutboxPosts(actor, 20).catch((err) => {
         const message = err instanceof Error ? err.message : String(err);
-        logger.warn(`Failed to sync outbox after accept from ${actorUri}: ${message}`);
+        logger.warn('[Federation] failed to sync outbox after accept', {
+          error: message,
+        });
       });
     }
   },

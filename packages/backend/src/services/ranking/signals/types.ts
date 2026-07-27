@@ -52,8 +52,7 @@ export interface RankingSignal {
 
 /**
  * Combines the per-signal `id → multiplier` contributions into a single scalar
- * score. `productCombiner` (the default, selected by `MtnConfig.ranking.combiner
- * === 'product'`) multiplies them; a future weighted / learning-to-rank model
- * can be swapped in behind this seam without touching any signal.
+ * score. `productCombiner` multiplies them; a future fully specified model can
+ * be swapped in behind this seam without touching any signal.
  */
 export type SignalCombiner = (contributions: Map<string, number>) => number;

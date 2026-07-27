@@ -87,9 +87,9 @@ router.post('/', async (req: AuthRequest, res: Response) => {
 
     await report.save();
 
-    logger.info(`Report created: ${reportedType} ${reportedId} by ${reporter}`, {
-      categories,
-      reportId: report._id
+    logger.info('Report created', {
+      type: reportedType,
+      categoryCount: categories.length,
     });
 
     res.status(201).json({

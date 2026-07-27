@@ -23,14 +23,14 @@
  */
 
 import { createHash } from 'crypto';
+import { isDiscoveryGateExperimentEnabled as getDiscoveryGateExperimentFlag } from '../../config';
 import type { DiscoveryGateBucket } from './engine/types';
 
 export type { DiscoveryGateBucket };
 
 /** Whether the discovery-gate A/B experiment is enabled via `FOR_YOU_DISCOVERY_GATE_AB`. */
 export function isDiscoveryGateExperimentEnabled(): boolean {
-  const raw = process.env.FOR_YOU_DISCOVERY_GATE_AB?.trim().toLowerCase();
-  return raw === 'on' || raw === 'true' || raw === '1';
+  return getDiscoveryGateExperimentFlag() === true;
 }
 
 /**

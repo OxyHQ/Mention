@@ -12,7 +12,7 @@ import { useTheme } from '@oxyhq/bloom/theme';
 import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';
 import { CloseIcon } from '@/assets/icons/close-icon';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { useTranslation } from 'react-i18next';
 import { toast } from '@oxyhq/bloom/toast';
 import VideoPlayer from '@/components/common/VideoPlayer';

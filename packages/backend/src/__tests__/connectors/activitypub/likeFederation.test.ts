@@ -28,6 +28,7 @@ const {
   actorFindOneLean,
   postFindByIdLean,
   insertMany,
+  fallbackCreate,
 } = vi.hoisted(() => ({
   enqueueDelivery: vi.fn(),
   isFediverseSharingEnabled: vi.fn(),
@@ -37,6 +38,7 @@ const {
   actorFindOneLean: vi.fn(),
   postFindByIdLean: vi.fn(),
   insertMany: vi.fn(),
+  fallbackCreate: vi.fn(),
 }));
 
 vi.mock('../../../connectors/activitypub/constants', async () => {
@@ -58,7 +60,7 @@ vi.mock('../../../models/FederatedFollow', () => ({
   default: { find: () => ({ lean: () => followFindLean() }) },
 }));
 vi.mock('../../../models/FederationDeliveryQueue', () => ({
-  default: { insertMany, create: vi.fn() },
+  default: { insertMany, create: fallbackCreate },
 }));
 vi.mock('../../../models/Post', () => ({
   Post: { findById: () => ({ select: () => ({ lean: () => postFindByIdLean() }) }) },
@@ -106,6 +108,7 @@ function deliveredActivity(): Record<string, unknown> {
 beforeEach(() => {
   vi.clearAllMocks();
   enqueueDelivery.mockResolvedValue(true);
+  fallbackCreate.mockResolvedValue(undefined);
   isFediverseSharingEnabled.mockResolvedValue(true);
   followFindLean.mockResolvedValue([]);
   actorFindLean.mockResolvedValue([]);
@@ -153,6 +156,28 @@ describe('federateLike — Like to origin', () => {
     expect(postFindByIdLean).not.toHaveBeenCalled();
     expect(enqueueDelivery).not.toHaveBeenCalled();
   });
+
+  it('keeps the public path best-effort but propagates queue failure from the durable path', async () => {
+    mockFederatedTarget();
+    enqueueDelivery.mockRejectedValue(new Error('delivery queue unavailable'));
+    fallbackCreate.mockRejectedValue(new Error('delivery queue unavailable'));
+
+    await expect(
+      followService.federateLike(
+        { _id: 'like1', postId: 'orig1' },
+        'liker-oxy',
+        'alice',
+      ),
+    ).resolves.toBeUndefined();
+
+    await expect(
+      followService.federateLikeStrict(
+        { _id: 'like1', postId: 'orig1' },
+        'liker-oxy',
+        'alice',
+      ),
+    ).rejects.toThrow('delivery queue unavailable');
+  });
 });
 
 describe('federateUndoLike — Undo(Like) to origin', () => {
@@ -181,5 +206,19 @@ describe('federateUndoLike — Undo(Like) to origin', () => {
     await followService.federateUndoLike({ _id: 'like1', postId: 'localpost' }, 'liker-oxy', 'alice');
 
     expect(enqueueDelivery).not.toHaveBeenCalled();
+  });
+
+  it('propagates queue failure from the durable Undo path', async () => {
+    mockFederatedTarget();
+    enqueueDelivery.mockRejectedValue(new Error('undo queue unavailable'));
+    fallbackCreate.mockRejectedValue(new Error('undo queue unavailable'));
+
+    await expect(
+      followService.federateUndoLikeStrict(
+        { _id: 'like1', postId: 'orig1' },
+        'liker-oxy',
+        'alice',
+      ),
+    ).rejects.toThrow('undo queue unavailable');
   });
 });

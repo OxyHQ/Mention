@@ -9,14 +9,15 @@ import { useSafeBack } from '@/hooks/useSafeBack';
 import { ThemedView } from '@/components/ThemedView';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { useTranslation } from 'react-i18next';
-import { useAppearanceStore } from '@/store/appearanceStore';
+import { useAppearanceStore } from '@/stores/appearanceStore';
 import { authenticatedClient } from '@/utils/api';
 import { topicService } from '@/services/topicService';
 import { SettingsListGroup } from '@oxyhq/bloom/settings-list';
 import { Icon } from '@/lib/icons';
 import { cn } from '@/lib/utils';
 import { logger } from '@/lib/logger';
-import { useAuth, OxyAuthPrompt } from '@oxyhq/services';
+import { useAuth, OxyAuthPrompt } from '@oxyhq/services/ui/client';
+import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 
 function debounce<T extends (...args: unknown[]) => unknown>(func: T, wait: number): T {
     let timeout: ReturnType<typeof setTimeout> | null = null;
@@ -41,7 +42,7 @@ export default function InterestsSettingsScreen() {
     // failure rather than throwing, so the query always settles — the spinner can
     // never hang, and an error simply surfaces the empty state.
     const categoriesQuery = useQuery({
-        queryKey: ['interests', 'categories', user?.id],
+        queryKey: viewerQueryKeys.interestsCategories(user?.id),
         queryFn: () => topicService.getCategories(),
         enabled: canUsePrivateApi,
         staleTime: 5 * 60 * 1000,
@@ -53,7 +54,7 @@ export default function InterestsSettingsScreen() {
     // on success AND on failure, rather than waiting forever for `mySettings` to
     // become truthy (the old permanent-spinner bug).
     const mySettingsQuery = useQuery({
-        queryKey: ['appearance', 'mySettings', user?.id],
+        queryKey: viewerQueryKeys.myAppearance(user?.id),
         queryFn: async () => {
             await loadMySettings(true);
             return useAppearanceStore.getState().mySettings ?? null;

@@ -3,6 +3,7 @@ import { randomBytes } from 'node:crypto';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { config } from '../config';
 import { logger } from './logger';
 
 /**
@@ -29,7 +30,7 @@ import { logger } from './logger';
  */
 
 /** Absolute path to the ffmpeg binary. Overridable for non-standard images. */
-const FFMPEG_BINARY = process.env.FFMPEG_PATH ?? 'ffmpeg';
+const FFMPEG_BINARY = config.media.ffmpegPath;
 
 /** Hard wall-clock ceiling for a single ffmpeg decode before we SIGKILL it. */
 const FFMPEG_TIMEOUT_MS = 10_000;

@@ -13,7 +13,7 @@ import { useBottomBarHidden } from '@/context/BottomBarVisibilityContext';
 import { useAnimatedStyle, useDerivedValue } from 'react-native-reanimated';
 import { BottomBarAwareFab } from '@/components/BottomBarAwareFab';
 import { Search } from '@/assets/icons/search-icon';
-import SEO from '@/components/SEO';
+import { SEO } from '@/components/SEO';
 import { IconButton } from '@/components/ui/Button';
 import { PanelStickyHeader, PanelChromeTopInsetProvider, PANEL_HEADER_HEIGHT, PANEL_CHROME_TOP_INSET } from '@/components/shell/PanelChrome';
 

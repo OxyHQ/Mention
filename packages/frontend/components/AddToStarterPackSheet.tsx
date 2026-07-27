@@ -1,15 +1,16 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import { View, Text, TouchableOpacity, ScrollView } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { router } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { SpinnerIcon } from '@oxyhq/bloom/loading';
 import { toast } from '@oxyhq/bloom/toast';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { useTranslation } from 'react-i18next';
-import { useAuth } from '@oxyhq/services';
+import { useAuth } from '@oxyhq/services/ui/client';
 import { starterPacksService, type StarterPackCollection } from '@/services/starterPacksService';
 import { createScopedLogger } from '@/lib/logger';
+import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 
 const logger = createScopedLogger('AddToStarterPackSheet');
 
@@ -22,8 +23,6 @@ const logger = createScopedLogger('AddToStarterPackSheet');
  * next time the sheet opens — which is why the query can inherit the global
  * 5-min staleTime instead of forcing `staleTime: 0` (a refetch on every open).
  */
-export const STARTER_PACKS_MINE_KEY = ['starter-packs', 'mine'] as const;
-
 interface PackRow {
   id: string;
   name: string;
@@ -68,10 +67,12 @@ export function AddToStarterPackSheet({ targetUserId, targetLabel, onClose }: Ad
   const [pendingIds, setPendingIds] = useState<Set<string>>(new Set());
 
   // Account-scoped cache key: prevents the previous account's packs from leaking
-  // after a switch. Shares the `STARTER_PACKS_MINE_KEY` prefix so the create
-  // screen's `invalidateQueries({ queryKey: STARTER_PACKS_MINE_KEY })` still
-  // matches (invalidation is prefix-based; get/setQueryData below are exact).
-  const packsQueryKey = useMemo(() => [...STARTER_PACKS_MINE_KEY, user?.id], [user?.id]);
+  // after a switch. The create screen uses this same central factory entry, so
+  // a new pack invalidates the exact viewer-owned collection.
+  const packsQueryKey = useMemo(
+    () => viewerQueryKeys.starterPacksMine(user?.id),
+    [user?.id],
+  );
 
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: packsQueryKey,

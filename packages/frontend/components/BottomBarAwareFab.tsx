@@ -3,7 +3,7 @@ import { Platform, View } from 'react-native';
 
 import { Fab } from '@oxyhq/bloom/fab';
 import { useTabBarReservedSpace } from '@oxyhq/bloom/tab-bar';
-import { useAuth } from '@oxyhq/services';
+import { useAuth } from '@oxyhq/services/ui/client';
 
 import { useIsScreenNotMobile } from '@/hooks/useOptimizedMediaQuery';
 

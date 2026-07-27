@@ -2,14 +2,98 @@
   "name": "@mention/shared-types",
   "version": "1.0.0",
   "description": "Shared TypeScript types for Mention frontend and backend",
+  "type": "commonjs",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./common": {
+      "types": "./dist/common.d.ts",
+      "import": "./dist/common.js",
+      "require": "./dist/common.js"
+    },
+    "./post": {
+      "types": "./dist/post.d.ts",
+      "import": "./dist/post.js",
+      "require": "./dist/post.js"
+    },
+    "./mentions": {
+      "types": "./dist/mentions.d.ts",
+      "import": "./dist/mentions.js",
+      "require": "./dist/mentions.js"
+    },
+    "./feed": {
+      "types": "./dist/feed.d.ts",
+      "import": "./dist/feed.js",
+      "require": "./dist/feed.js"
+    },
+    "./language": {
+      "types": "./dist/language.d.ts",
+      "import": "./dist/language.js",
+      "require": "./dist/language.js"
+    },
+    "./interaction": {
+      "types": "./dist/interaction.d.ts",
+      "import": "./dist/interaction.js",
+      "require": "./dist/interaction.js"
+    },
+    "./customFeed": {
+      "types": "./dist/customFeed.d.ts",
+      "import": "./dist/customFeed.js",
+      "require": "./dist/customFeed.js"
+    },
+    "./externalEmbeds": {
+      "types": "./dist/externalEmbeds.d.ts",
+      "import": "./dist/externalEmbeds.js",
+      "require": "./dist/externalEmbeds.js"
+    },
+    "./list": {
+      "types": "./dist/list.d.ts",
+      "import": "./dist/list.js",
+      "require": "./dist/list.js"
+    },
+    "./notification": {
+      "types": "./dist/notification.d.ts",
+      "import": "./dist/notification.js",
+      "require": "./dist/notification.js"
+    },
+    "./media": {
+      "types": "./dist/media.d.ts",
+      "import": "./dist/media.js",
+      "require": "./dist/media.js"
+    },
+    "./profile": {
+      "types": "./dist/profile.d.ts",
+      "import": "./dist/profile.js",
+      "require": "./dist/profile.js"
+    },
+    "./federation": {
+      "types": "./dist/federation.d.ts",
+      "import": "./dist/federation.js",
+      "require": "./dist/federation.js"
+    },
+    "./mtn": {
+      "types": "./dist/mtn/index.d.ts",
+      "import": "./dist/mtn/index.js",
+      "require": "./dist/mtn/index.js"
+    },
+    "./mtn/*": {
+      "types": "./dist/mtn/*.d.ts",
+      "import": "./dist/mtn/*.js",
+      "require": "./dist/mtn/*.js"
+    }
+  },
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
     "clean": "rm -rf dist",
-    "lint": "eslint src --ext .ts",
-    "test": "echo \"No tests specified\" && exit 0",
+    "lint": "tsc --noEmit --noUnusedLocals --noUnusedParameters",
+    "test": "bun test",
     "prepublishOnly": "bun run build"
   },
   "keywords": [
@@ -19,7 +103,7 @@
     "mention"
   ],
   "author": "Mention Team",
-  "license": "UNLICENSED",
+  "license": "MIT",
   "dependencies": {
     "@oxyhq/contracts": "^0.17.0",
     "zod": "^4.4.3"

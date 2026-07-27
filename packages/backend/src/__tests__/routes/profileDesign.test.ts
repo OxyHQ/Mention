@@ -7,12 +7,9 @@ const { countDocuments, findOne } = vi.hoisted(() => ({
   findOne: vi.fn(),
 }));
 
-// `privacyHelpers` (loaded via importActual below) imports `oxy` from the
-// server entrypoint, which would otherwise pull the whole Express app into the
-// module graph and trigger a circular import (server.ts mounts the very route
-// under test). Stub it so the route can be imported in isolation — same pattern
-// as notificationActor.test.ts.
-vi.mock('../../../server', () => ({ oxy: {} }));
+// Keep the runtime-client seam deterministic while importing the route in
+// isolation. No live Oxy client should be constructed by this unit test.
+vi.mock('../../runtime/oxyClient', () => ({ getRuntimeOxyClient: () => ({}) }));
 
 vi.mock('../../models/Post', () => ({
   default: { countDocuments },
@@ -22,10 +19,9 @@ vi.mock('../../models/UserSettings', () => ({
   default: { findOne },
 }));
 
-// Mock privacyHelpers directly (not via importActual) — the real module imports
-// `oxy` from the server entrypoint, and importActual loads the genuine dep tree,
-// re-triggering the server circular import. The three exports the route uses are
-// reproduced faithfully: requiresAccessCheck mirrors the real predicate.
+// Mock privacyHelpers directly: this route test only needs the visibility
+// contract, not the helper's Oxy graph dependencies. The three exports the route
+// uses are reproduced faithfully.
 vi.mock('../../utils/privacyHelpers', () => ({
   ProfileVisibility: {
     PUBLIC: 'public',

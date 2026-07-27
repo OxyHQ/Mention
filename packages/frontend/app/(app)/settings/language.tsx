@@ -8,7 +8,7 @@ import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { useTranslation } from 'react-i18next';
-import i18n from 'i18next';
+import i18n, { changeLanguage } from 'i18next';
 import { Storage } from '@/utils/storage';
 import { SettingsListGroup, SettingsListItem } from '@oxyhq/bloom/settings-list';
 import { RowIcon } from '@/components/settings/RowIcon';
@@ -34,10 +34,6 @@ export default function LanguageSettingsScreen() {
     const autoTranslateEnabled = useAutoTranslateStore((s) => s.enabled);
     const setAutoTranslateEnabled = useAutoTranslateStore((s) => s.setEnabled);
 
-    useEffect(() => {
-        loadLanguage();
-    }, []);
-
     const loadLanguage = useCallback(async () => {
         try {
             const savedLanguage = await Storage.get<string>(LANGUAGE_STORAGE_KEY);
@@ -49,6 +45,10 @@ export default function LanguageSettingsScreen() {
         }
     }, []);
 
+    useEffect(() => {
+        void loadLanguage();
+    }, [loadLanguage]);
+
     const handleLanguageChange = useCallback(async (languageCode: string) => {
         if (languageCode === currentLanguage) return;
 
@@ -56,7 +56,7 @@ export default function LanguageSettingsScreen() {
             setSaving(true);
             setCurrentLanguage(languageCode);
             await Storage.set(LANGUAGE_STORAGE_KEY, languageCode);
-            await i18n.changeLanguage(languageCode);
+            await changeLanguage(languageCode);
         } catch (error) {
             logger.error('Error changing language', { error });
             setCurrentLanguage(i18n.language || 'en-US');

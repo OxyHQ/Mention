@@ -3,7 +3,7 @@ import { View, Text, StyleSheet } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { CloseIcon } from '@/assets/icons/close-icon';
 import PostSources from './PostSources';
-import { PostSourceLink } from '@mention/shared-types';
+import type { PostSourceLink } from '@mention/shared-types';
 import { IconButton } from '@/components/ui/Button';
 import { EmptyState } from '@/components/common/EmptyState';
 

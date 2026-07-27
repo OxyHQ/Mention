@@ -1,7 +1,7 @@
 import React, { memo } from 'react';
 import { View, Text, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useAuth } from '@oxyhq/services';
+import { useAuth } from '@oxyhq/services/ui/client';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@oxyhq/bloom/button';
 import { PanelStickyFooter } from '@/components/shell/PanelChrome';

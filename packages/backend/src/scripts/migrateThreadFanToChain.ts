@@ -58,6 +58,7 @@ import mongoose from 'mongoose';
 import { Post } from '../models/Post';
 import { connectToDatabase } from '../utils/database';
 import { logger } from '../utils/logger';
+import { assertAdminMutationAllowed } from './lib/adminScriptSafety';
 
 /**
  * A thread needs 2+ continuations to be a broken fan worth repairing. A thread
@@ -174,6 +175,10 @@ function byIdAscending(a: ContinuationRow, b: ContinuationRow): number {
 }
 
 async function migrateThreadFanToChain(): Promise<void> {
+  assertAdminMutationAllowed({
+    scriptName: 'migrateThreadFanToChain',
+    dryRun: DRY_RUN,
+  });
   const startedAt = Date.now();
 
   await connectToDatabase();

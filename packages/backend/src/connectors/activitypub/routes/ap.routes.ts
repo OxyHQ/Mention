@@ -22,7 +22,7 @@ import { isFediverseSharingEnabledFromUser } from '../../../services/fediverseSh
  * from the `Post` model, so they stay in Mention; the engine (`engine.routes.ts`)
  * owns the actor doc, the inbox, and the follower/following collections on the SAME
  * `/ap` prefix. The AP rate limiter is applied once at the `/ap` mount in
- * `server.ts`, covering this router and the engine router alike.
+ * `app.ts`, covering this router and the engine router alike.
  */
 const router = Router();
 

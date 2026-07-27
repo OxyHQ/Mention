@@ -14,6 +14,7 @@
  */
 import { OxyServices, getNormalizedUserHandle } from '@oxyhq/core';
 import type { HydratedPost } from '@mention/shared-types';
+import { config } from '../config';
 
 /** Normalized OG payload injected into a shell for one profile / post URL. */
 export interface OgData {
@@ -27,10 +28,10 @@ export interface OgData {
 }
 
 /** Canonical web origin used for `og:url` (the apex the SPA is served from). */
-const WEB_ORIGIN = (process.env.MENTION_WEB_ORIGIN || 'https://mention.earth').replace(/\/+$/, '');
+const WEB_ORIGIN = config.web.origin;
 
 /** Oxy API origin — bare-file-id avatars resolve to their public CDN URL through the SDK. */
-const OXY_API_URL = process.env.OXY_API_URL || 'https://api.oxy.so';
+const OXY_API_URL = config.oxyApiUrl;
 
 /**
  * A bare, unauthenticated OxyServices instance used ONLY as the canonical

@@ -82,21 +82,41 @@ export function parseFeedDescriptor(descriptor: FeedDescriptor): ParsedFeedDescr
  * Build a feed descriptor from source and params.
  */
 export function buildFeedDescriptor(source: FeedDescriptorSource, ...params: string[]): FeedDescriptor {
-  if (params.length === 0) {
-    return source as FeedDescriptor;
+  const descriptor = params.length === 0
+    ? source
+    : `${source}|${params.join('|')}`;
+  if (!isValidFeedDescriptor(descriptor)) {
+    throw new Error(`Invalid feed descriptor: ${descriptor}`);
   }
-  return `${source}|${params.join('|')}` as FeedDescriptor;
+  return descriptor;
 }
 
 /**
  * Check whether a string is a valid feed descriptor.
  */
 export function isValidFeedDescriptor(value: string): value is FeedDescriptor {
-  const validSources: FeedDescriptorSource[] = [
+  const simpleSources: ReadonlySet<FeedDescriptorSource> = new Set([
     'following', 'for_you', 'explore', 'videos', 'media', 'saved',
     'trending', 'mutuals', 'friends_popular', 'friends_of_friends',
-    'author', 'custom', 'hashtag', 'topic', 'list', 'feedgen',
-  ];
-  const source = value.split('|')[0];
-  return validSources.includes(source as FeedDescriptorSource);
+  ]);
+  const [source, ...params] = value.split('|');
+
+  if (simpleSources.has(source as FeedDescriptorSource)) {
+    return params.length === 0;
+  }
+  if (source === 'author') {
+    return (
+      (params.length === 1 || params.length === 2) &&
+      isNonEmptyParam(params[0]) &&
+      (params.length === 1 || isAuthorFeedFilter(params[1]))
+    );
+  }
+  if (['custom', 'hashtag', 'topic', 'list', 'feedgen'].includes(source)) {
+    return params.length === 1 && isNonEmptyParam(params[0]);
+  }
+  return false;
+}
+
+function isNonEmptyParam(value: string | undefined): value is string {
+  return value !== undefined && value.trim().length > 0;
 }

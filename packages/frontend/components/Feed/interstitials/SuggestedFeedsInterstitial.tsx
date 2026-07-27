@@ -3,7 +3,7 @@ import { View } from 'react-native';
 import { router } from 'expo-router';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { useAuth } from '@oxyhq/services';
+import { useAuth } from '@oxyhq/services/ui/client';
 import { toast } from '@oxyhq/bloom/toast';
 import { FeedCard, FeedCardSkeleton, type FeedCardData } from '@/components/FeedCard';
 import { FeedSubscribeButton } from '@/components/FeedSubscribeButton';
@@ -27,6 +27,7 @@ import {
   type ReportInterstitialEvent,
 } from './interstitialTelemetry';
 import { useIsScreenNotMobile } from '@/hooks/useOptimizedMediaQuery';
+import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 
 /**
  * Custom feeds the viewer does not already read, inline in the feed.
@@ -54,7 +55,7 @@ export function SuggestedFeedsInterstitial({
   const query = useQuery({
     // Keyed on the viewer: `excludeSubscribed` makes this list viewer-specific,
     // so it must never be shared across an account switch.
-    queryKey: ['feedInterstitial', 'suggestedFeeds', user?.id ?? 'anon'],
+    queryKey: viewerQueryKeys.feedInterstitial(user?.id, 'suggested-feeds'),
     queryFn: () =>
       customFeedsService.getMarketplace({
         excludeSubscribed: true,

@@ -12,9 +12,8 @@ import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { MenuProvider } from 'react-native-popup-menu';
 import { SafeAreaProvider, initialWindowMetrics } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
-import { OxyProvider } from '@oxyhq/services';
+import { OxyProvider } from '@oxyhq/services/ui/client';
 import { OxyServices } from '@oxyhq/core';
-import { LiveConfigProvider, LiveRoomProvider } from '@syra.fm/sdk';
 import { AppErrorBoundary } from '@/components/AppErrorBoundary';
 import { AccountSwitchReset } from '@/components/providers/AccountSwitchReset';
 import { BottomSheetProvider } from '@/context/BottomSheetContext';
@@ -24,8 +23,9 @@ import { OXY_CLIENT_ID, OXY_AUTH_REDIRECT_URI } from '@/config';
 import { ToastOutlet } from '@oxyhq/bloom/toast';
 import { ConfirmPromptProvider } from '@/components/common/ConfirmPrompt';
 import { FediverseInfoDialogProvider } from '@/components/Fediverse/FediverseInfoDialog';
+import { LiveFeatureHost } from '@/components/providers/LiveFeatureProviders';
+import { LiveRoomControllerProvider } from '@/context/LiveRoomContext';
 import i18n from '@/lib/i18n';
-import { liveConfig } from '@/lib/liveConfig';
 import { createScopedLogger } from '@/lib/logger';
 
 const logger = createScopedLogger('AppProviders');
@@ -64,15 +64,14 @@ export const AppProviders = memo(function AppProviders({
             storageKeyPrefix="mention"
             queryClient={queryClient}
           >
-            <AccountSwitchReset />
-            <I18nextProvider i18n={i18n}>
-              <LiveConfigProvider config={liveConfig}>
-                <LiveRoomProvider>
-                  <BottomSheetProvider>
-                    <MenuProvider>
-                      <AppErrorBoundary
-                        onError={handleBoundaryError}
-                      >
+            <AccountSwitchReset>
+              <I18nextProvider i18n={i18n}>
+                <BottomSheetProvider>
+                  <MenuProvider>
+                    <AppErrorBoundary
+                      onError={handleBoundaryError}
+                    >
+                      <LiveRoomControllerProvider>
                         <LayoutScrollProvider>
                           <HomeRefreshProvider>
                             {children}
@@ -82,12 +81,13 @@ export const AppProviders = memo(function AppProviders({
                             <FediverseInfoDialogProvider />
                           </HomeRefreshProvider>
                         </LayoutScrollProvider>
-                      </AppErrorBoundary>
-                    </MenuProvider>
-                  </BottomSheetProvider>
-                </LiveRoomProvider>
-              </LiveConfigProvider>
-            </I18nextProvider>
+                        <LiveFeatureHost />
+                      </LiveRoomControllerProvider>
+                    </AppErrorBoundary>
+                  </MenuProvider>
+                </BottomSheetProvider>
+              </I18nextProvider>
+            </AccountSwitchReset>
           </OxyProvider>
         </KeyboardProvider>
       </GestureHandlerRootView>

@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { View, Pressable, StyleSheet, Text, Platform, type StyleProp, type ViewStyle, type GestureResponderEvent } from 'react-native';
 import { Image } from 'expo-image';
 import { VideoView, useVideoPlayer } from 'expo-video';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { useVideoMuteStore } from '@/stores/videoMuteStore';
 import { useActiveVideo } from '@/context/ActiveVideoContext';
 
@@ -122,6 +122,15 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
     }
   });
 
+  const scheduleHideControls = useCallback(() => {
+    if (hideControlsTimer.current) {
+      clearTimeout(hideControlsTimer.current);
+    }
+    hideControlsTimer.current = setTimeout(() => {
+      setShowControls(false);
+    }, CONTROLS_HIDE_DELAY);
+  }, []);
+
   // Sync mute state from global store (GIFs stay force-muted regardless).
   useEffect(() => {
     if (player) {
@@ -174,7 +183,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
       statusSub.remove();
       sourceLoadSub.remove();
     };
-  }, [player, isSeeking, reportAspectRatio]);
+  }, [isSeeking, player, reportAspectRatio, scheduleHideControls]);
 
   // Web only: report this player's viewport position to the active-video
   // coordinator via an IntersectionObserver (threshold 0.5), exactly like
@@ -240,16 +249,6 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
       }
     };
   }, [player, autoPlay, effectiveActive]);
-
-  // Controls auto-hide
-  const scheduleHideControls = useCallback(() => {
-    if (hideControlsTimer.current) {
-      clearTimeout(hideControlsTimer.current);
-    }
-    hideControlsTimer.current = setTimeout(() => {
-      setShowControls(false);
-    }, CONTROLS_HIDE_DELAY);
-  }, []);
 
   useEffect(() => {
     return () => {

@@ -3,7 +3,7 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import jwt from 'jsonwebtoken';
 
 // Secret must be present before any sign/verify call (read lazily at call time).
-process.env.MENTION_MCP_JWT_SECRET = 'test-mcp-secret';
+process.env.MENTION_MCP_JWT_SECRET = 'test-mcp-secret-that-is-at-least-32-bytes';
 
 import {
   signAccessToken,
@@ -18,7 +18,7 @@ import { MCP_TOKEN_AUDIENCE } from '../../mcp/config/constants';
 
 describe('mcpTokenService', () => {
   beforeAll(() => {
-    process.env.MENTION_MCP_JWT_SECRET = 'test-mcp-secret';
+    process.env.MENTION_MCP_JWT_SECRET = 'test-mcp-secret-that-is-at-least-32-bytes';
   });
 
   describe('access tokens', () => {

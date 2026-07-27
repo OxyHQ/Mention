@@ -110,7 +110,7 @@ export function mapGeneratorView(view: AtprotoGeneratorView | undefined): Normal
  */
 export async function syncActorFeeds(did: string, ownerOxyUserId: string): Promise<number> {
   if (!ownerOxyUserId) {
-    logger.warn(`[atproto] syncActorFeeds called for ${did} without a resolved Oxy owner; skipping`);
+    logger.warn('[atproto] feed sync skipped without a resolved Oxy owner');
     return 0;
   }
 
@@ -121,7 +121,7 @@ export async function syncActorFeeds(did: string, ownerOxyUserId: string): Promi
       limit: MAX_FEEDS_PER_ACTOR,
     });
   } catch (err) {
-    logger.debug(`[atproto] getActorFeeds failed for ${did}`, err);
+    logger.debug('[atproto] getActorFeeds failed', err);
     return 0;
   }
 
@@ -151,10 +151,12 @@ export async function syncActorFeeds(did: string, ownerOxyUserId: string): Promi
       upserted += 1;
     } catch (err) {
       // A concurrent sync racing the same generator to an E11000 is benign; log + skip.
-      logger.warn(`[atproto] failed to upsert feed generator ${generator.uri}`, err);
+      logger.warn('[atproto] failed to upsert feed generator', err);
     }
   }
 
-  if (upserted > 0) logger.info(`[atproto] mirrored ${upserted} feed generators for ${did}`);
+  if (upserted > 0) {
+    logger.info('[atproto] mirrored feed generators', { count: upserted });
+  }
   return upserted;
 }

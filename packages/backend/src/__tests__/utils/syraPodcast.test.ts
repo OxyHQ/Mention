@@ -25,8 +25,7 @@ vi.mock('@syra.fm/sdk', () => ({
   })),
 }));
 
-// Controllable Redis: healthy + ready so `ensureRedisConnected` passes and the
-// cache get/set ops actually run against `redisGet` / `redisSetEx`.
+// Controllable Redis: ready so cache ops run directly against the stubs.
 vi.mock('../../utils/redis', () => ({
   getRedisClient: vi.fn().mockReturnValue({
     isReady: true,

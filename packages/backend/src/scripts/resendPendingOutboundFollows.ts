@@ -13,56 +13,99 @@
  * follow that IS already known to the remote is harmless to resend).
  *
  * Idempotent and safe to re-run. Runnable as a Fargate one-shot post-deploy:
+ *   node dist/scripts/resendPendingOutboundFollows.js --dry-run
  *   node dist/scripts/resendPendingOutboundFollows.js
  */
 
 import mongoose from 'mongoose';
 import FederatedFollow from '../models/FederatedFollow';
 import { deliveryService } from '../connectors/activitypub/delivery.service';
-import { FEDERATION_ENABLED } from '../connectors/activitypub/constants';
+import { actorService } from '../connectors/activitypub/actor.service';
+import {
+  FEDERATION_ENABLED,
+  federationUrls,
+} from '../connectors/activitypub/constants';
 import { getServiceOxyClient } from '../utils/oxyHelpers';
 import { logger } from '../utils/logger';
-
-/**
- * Grace period to let `sendFollow`'s fire-and-forget delivery/enqueue promises
- * flush before the process disconnects and exits. `sendFollow` awaits the
- * durable `FederatedFollow` re-upsert but detaches the actual inbox resolution
- * and delivery/queue write; a one-shot must not exit before those complete.
- */
-const DELIVERY_SETTLE_MS = 15_000;
+import { assertAdminMutationAllowed } from './lib/adminScriptSafety';
+import {
+  assertAdminRunComplete,
+  closeAdminScriptResources,
+} from './lib/adminScriptLifecycle';
 
 interface PendingFollowRow {
   _id: mongoose.Types.ObjectId;
   localUserId: string;
   remoteActorUri: string;
+  activityId?: string;
+}
+
+async function queuePendingFollow(
+  follow: PendingFollowRow,
+  username: string,
+): Promise<void> {
+  let inbox = await deliveryService.resolveActorInbox(follow.remoteActorUri);
+  if (!inbox) {
+    const actor = await actorService.fetchRemoteActor(follow.remoteActorUri);
+    inbox = actor?.sharedInboxUrl ?? actor?.inboxUrl;
+  }
+  if (!inbox) {
+    throw new Error(`no resolvable inbox for ${follow.remoteActorUri}`);
+  }
+
+  const localActorUri = federationUrls.actor(username);
+  const activityId =
+    follow.activityId ??
+    `${localActorUri}/follows/${encodeURIComponent(follow.remoteActorUri)}`;
+  await deliveryService.queueDelivery(
+    {
+      '@context': 'https://www.w3.org/ns/activitystreams',
+      id: activityId,
+      type: 'Follow',
+      actor: localActorUri,
+      object: follow.remoteActorUri,
+    },
+    inbox,
+    follow.localUserId,
+  );
 }
 
 async function resendPendingOutboundFollows(): Promise<void> {
   const startedAt = Date.now();
   const mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/mention';
   const dbName = `mention-${process.env.NODE_ENV || 'development'}`;
+  const dryRun = process.argv.includes('--dry-run');
 
   try {
-    if (!FEDERATION_ENABLED) {
+    assertAdminMutationAllowed({
+      scriptName: 'resendPendingOutboundFollows',
+      dryRun,
+    });
+    if (!FEDERATION_ENABLED && !dryRun) {
       // With federation disabled `sendFollow` no-ops, so re-delivery is
       // impossible. Fail loudly rather than silently "succeeding" on zero work.
-      logger.error('[resendPendingOutboundFollows] FEDERATION_ENABLED is false; nothing to do');
-      process.exit(1);
+      throw new Error('FEDERATION_ENABLED is false; nothing to do');
     }
 
     await mongoose.connect(mongoUri, { dbName });
-    logger.info(`[resendPendingOutboundFollows] connected to MongoDB (${dbName})`);
+    logger.info('[resendPendingOutboundFollows] connected to MongoDB', { dryRun });
 
     const pending = await FederatedFollow.find(
       { direction: 'outbound', status: 'pending' },
-      { _id: 1, localUserId: 1, remoteActorUri: 1 },
+      { _id: 1, localUserId: 1, remoteActorUri: 1, activityId: 1 },
     ).lean<PendingFollowRow[]>();
 
     logger.info(`[resendPendingOutboundFollows] ${pending.length} pending outbound follows to re-deliver`);
 
     if (pending.length === 0) {
       logger.info('[resendPendingOutboundFollows] nothing to do');
-      await mongoose.disconnect();
+      return;
+    }
+
+    if (dryRun) {
+      logger.info(
+        `[resendPendingOutboundFollows] DRY-RUN: would re-deliver up to ${pending.length} pending outbound follows`,
+      );
       return;
     }
 
@@ -76,37 +119,36 @@ async function resendPendingOutboundFollows(): Promise<void> {
         const username = user?.username;
         if (!username) {
           skipped += 1;
-          logger.warn(
-            `[resendPendingOutboundFollows] skipping ${follow.remoteActorUri}: no username for local user ${follow.localUserId}`,
-          );
+          logger.warn('[resendPendingOutboundFollows] local username unavailable; follow skipped');
           continue;
         }
 
-        await deliveryService.sendFollow(follow.localUserId, username, follow.remoteActorUri);
+        // Queue the deterministic Follow activity through an awaited durable
+        // producer. `sendFollow` intentionally detaches this work for request
+        // latency and is therefore unsuitable for a terminating one-shot.
+        await queuePendingFollow(follow, username);
         resent += 1;
       } catch (err) {
         failed += 1;
-        const message = err instanceof Error ? err.message : String(err);
-        logger.warn(
-          `[resendPendingOutboundFollows] failed to re-deliver follow to ${follow.remoteActorUri} for ${follow.localUserId}: ${message}`,
-        );
+        logger.warn('[resendPendingOutboundFollows] follow re-delivery failed', { error: err });
       }
     }
-
-    // Allow the detached delivery/enqueue work triggered above to flush before
-    // tearing down the connection and exiting.
-    await new Promise((resolve) => setTimeout(resolve, DELIVERY_SETTLE_MS));
 
     const elapsedSeconds = Math.round((Date.now() - startedAt) / 1000);
     logger.info(
       `[resendPendingOutboundFollows] done: ${resent} re-delivered, ${skipped} skipped, ${failed} failed of ${pending.length} (${elapsedSeconds}s)`,
     );
 
-    await mongoose.disconnect();
+    assertAdminRunComplete('resendPendingOutboundFollows', {
+      skipped,
+      failed,
+    });
   } catch (error) {
     logger.error('[resendPendingOutboundFollows] failed', error);
+    throw error;
+  } finally {
+    await closeAdminScriptResources();
     await mongoose.disconnect();
-    process.exit(1);
   }
 }
 

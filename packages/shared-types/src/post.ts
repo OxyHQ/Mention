@@ -577,6 +577,8 @@ export interface PostStats {
   commentsCount: number;
   viewsCount: number;
   sharesCount: number;
+  /** Number of authoritative Bookmark rows for this post. */
+  savesCount: number;
 }
 
 export interface PostMetadata {
@@ -588,17 +590,12 @@ export interface PostMetadata {
    */
   spoilerText?: string;
   isPinned?: boolean;
-  isBookmarked?: boolean;
-  isLiked?: boolean;
   isBoosted?: boolean;
   isCommented?: boolean;
   isFollowingAuthor?: boolean;
   authorBlocked?: boolean;
   authorMuted?: boolean;
   hideEngagementCounts?: boolean;
-  // Track user interactions
-  likedBy?: string[]; // Array of user IDs who liked this post
-  savedBy?: string[]; // Array of user IDs who saved this post
   // Collaborative post federation lifecycle flags
   /** Set when a post with pending collab invites defers its fediverse delivery. Cleared once federation runs. */
   collabFederationDeferred?: boolean;
@@ -720,6 +717,24 @@ export interface PostUser {
   federation?: { domain?: string; actorUri?: string; actorId?: string };
   instance?: string;
   badges?: string[];
+}
+
+/**
+ * Owner-only source used to prefill the post editor.
+ *
+ * Unlike a hydrated post, `content.text` and every author variant retain raw
+ * `[mention:<id>]` placeholders. `mentionUsers` carries canonical Oxy identity
+ * for display when it resolves; an id can remain in `mentions` without a user
+ * entry during an identity-service outage, preserving the stable reference
+ * without inventing a handle.
+ */
+export interface PostEditSource {
+  id: string;
+  content: PostContent;
+  mentions: string[];
+  mentionUsers: PostUser[];
+  authorship?: PostAuthorshipEntry[];
+  parentPostId?: string;
 }
 
 export interface HydratedAuthor extends PostUser {

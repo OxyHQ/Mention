@@ -1,9 +1,9 @@
 import React, { memo, useCallback, useContext } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { useTranslation } from 'react-i18next';
 import { Item } from '@oxyhq/bloom/item';
 import { useTheme } from '@oxyhq/bloom/theme';
-import { ChainLink_Stroke2_Corner0_Rounded } from '@oxyhq/bloom/icons';
 import type { ProfileLink } from '@oxyhq/core';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
 import { prettifyUrl } from '@/utils/prettifyUrl';
@@ -38,7 +38,7 @@ function LinkSummarySheet({ links, onPressLink, onClose }: LinkSummarySheetProps
         {links.map((link) => (
           <Item
             key={link.id}
-            leading={<ChainLink_Stroke2_Corner0_Rounded size="md" fill={colors.textSecondary} />}
+            leading={<Ionicons name="link-outline" size={20} color={colors.textSecondary} />}
             title={link.title || prettifyUrl(link.url)}
             subtitle={prettifyUrl(link.url)}
             onPress={() => {
@@ -87,7 +87,7 @@ export const LinkSummary = memo(function LinkSummary({ links, onPressLink }: Lin
       accessibilityRole="button"
       accessibilityLabel={t('profile.links.title')}
     >
-      <ChainLink_Stroke2_Corner0_Rounded size="sm" fill={colors.textSecondary} />
+      <Ionicons name="link-outline" size={16} color={colors.textSecondary} />
       <Text className="text-primary text-[15px] shrink" numberOfLines={1}>
         {prettifyUrl(links[0].url)}
       </Text>

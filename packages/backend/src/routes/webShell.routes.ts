@@ -22,6 +22,7 @@
  */
 import { Router, Request, Response } from 'express';
 import mongoose from 'mongoose';
+import { config } from '../config';
 import { Post } from '../models/Post';
 import { postHydrationService } from '../services/PostHydrationService';
 import { logger } from '../utils/logger';
@@ -36,7 +37,7 @@ import {
 import { getOgCached } from '../services/webShellOgCache';
 
 /** Frontend CDN origin the static SPA shell is fetched from (NOT the apex — that would loop the Origin Rule). */
-const SHELL_ORIGIN = process.env.WEB_SHELL_ORIGIN || 'https://mention-frontend.pages.dev/';
+const SHELL_ORIGIN = `${config.web.shellOrigin}/`;
 /** How long a fetched shell is trusted before a background refresh. */
 const SHELL_TTL_MS = 10 * 60 * 1000;
 /** Hard timeout for the shell fetch — a slow CDN must never block a page. */
@@ -45,12 +46,12 @@ const SHELL_FETCH_TIMEOUT_MS = 5000;
 const OG_FETCH_TIMEOUT_MS = 2500;
 
 /** Oxy API origin — canonical profiles live here. */
-const OXY_API_URL = process.env.OXY_API_URL || 'https://api.oxy.so';
+const OXY_API_URL = config.oxyApiUrl;
 /** Backend origin that serves the canonical ActivityPub actor. */
-const API_ORIGIN = (process.env.MENTION_API_ORIGIN || 'https://api.mention.earth').replace(/\/+$/, '');
+const API_ORIGIN = config.web.apiOrigin;
 const AP_ACTOR_BASE = `${API_ORIGIN}/ap/users/`;
 /** Oxy file/media CDN origin — canonical avatars/media are served from here (see CSP `cloud.oxy.so`). */
-const OXY_MEDIA_CDN_ORIGIN = (process.env.OXY_MEDIA_CDN_ORIGIN || 'https://cloud.oxy.so').replace(/\/+$/, '');
+const OXY_MEDIA_CDN_ORIGIN = config.web.oxyMediaCdnOrigin;
 
 /**
  * Static `<head>` resource hints injected into every deep-link shell so the
@@ -170,7 +171,7 @@ async function fetchProfileOg(handle: string): Promise<OgData | null> {
       signal: controller.signal,
     });
     if (!response.ok) return null;
-    const json: { data?: OxyProfileData } = await response.json();
+    const json = (await response.json()) as { data?: OxyProfileData };
     return mapProfileOg(json?.data);
   } catch (error) {
     logger.debug('[webShell] Profile OG fetch failed', error);

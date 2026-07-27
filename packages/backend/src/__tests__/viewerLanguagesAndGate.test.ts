@@ -93,9 +93,14 @@ describe('resolveDiscoveryGate', () => {
     expect(resolveDiscoveryGate()).toEqual([]);
   });
 
-  it('accepts an explicit subset', () => {
-    process.env.FOR_YOU_DISCOVERY_GATE = 'lowEffortGate,nativeEngagement,bogus';
+  it('accepts a validated explicit subset', () => {
+    process.env.FOR_YOU_DISCOVERY_GATE = 'lowEffortGate,nativeEngagement';
     expect(ids(resolveDiscoveryGate())).toEqual(['lowEffortGate', 'nativeEngagement']);
+  });
+
+  it('rejects unknown gate ids instead of silently dropping them', () => {
+    process.env.FOR_YOU_DISCOVERY_GATE = 'lowEffortGate,bogus';
+    expect(() => resolveDiscoveryGate()).toThrow('FOR_YOU_DISCOVERY_GATE');
   });
 
   it('injects the minLength threshold from config', () => {

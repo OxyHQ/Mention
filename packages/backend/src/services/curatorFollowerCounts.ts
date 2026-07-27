@@ -36,7 +36,7 @@ import { MtnConfig } from '@mention/shared-types';
 import type { User as OxyUser } from '@oxyhq/core';
 import { getServiceOxyClient } from '../utils/oxyHelpers';
 import { getRedisClient } from '../utils/redis';
-import { withRedisFallback, ensureRedisConnected } from '../utils/redisHelpers';
+import { withRedisFallback } from '../utils/redisHelpers';
 import { logger } from '../utils/logger';
 
 /**
@@ -68,9 +68,6 @@ async function readCached(curatorIds: string[]): Promise<Map<string, number>> {
   return withRedisFallback(
     redis,
     async () => {
-      const connected = await ensureRedisConnected(redis);
-      if (!connected) return hits;
-
       const values = await redis.mGet(curatorIds.map(keyFor));
 
       // A Redis client/server can hand back a non-array reply for MGET (observed
@@ -106,9 +103,6 @@ async function writeCached(counts: Map<string, number>): Promise<void> {
   await withRedisFallback(
     redis,
     async () => {
-      const connected = await ensureRedisConnected(redis);
-      if (!connected) return;
-
       const pipeline = redis.multi();
       for (const [curatorId, count] of counts) {
         pipeline.setEx(keyFor(curatorId), cacheTtlSeconds, String(count));

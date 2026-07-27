@@ -35,6 +35,7 @@
  * resumable via the idempotent skip check.
  *
  * Runnable as a Fargate one-shot post-deploy:
+ *   bun packages/backend/dist/src/scripts/backfillFederatedBanners.js --dry-run
  *   bun packages/backend/dist/src/scripts/backfillFederatedBanners.js
  *   BACKFILL_FORCE=true bun packages/backend/dist/src/scripts/backfillFederatedBanners.js
  *   BACKFILL_RATE_PER_MIN=20 bun packages/backend/dist/src/scripts/backfillFederatedBanners.js
@@ -46,6 +47,8 @@ import { FederatedActor } from '../models/FederatedActor';
 import UserSettings from '../models/UserSettings';
 import { mirrorFederatedBanner } from '../connectors/identity';
 import { logger } from '../utils/logger';
+import { assertAdminMutationAllowed } from './lib/adminScriptSafety';
+import { assertAdminRunComplete } from './lib/adminScriptLifecycle';
 
 /** Actors scanned per page (stable ascending `_id` cursor pagination). */
 const PAGE_SIZE = 500;
@@ -135,6 +138,7 @@ async function processActor(
   actor: FederatedActorRow,
   counters: BackfillCounters,
   gate: RateGate,
+  dryRun: boolean,
 ): Promise<void> {
   if (!FORCE) {
     const existing = await UserSettings.findOne(
@@ -145,6 +149,11 @@ async function processActor(
       counters.skippedAlreadySet += 1;
       return;
     }
+  }
+
+  if (dryRun) {
+    counters.stored += 1;
+    return;
   }
 
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
@@ -177,14 +186,16 @@ async function processActor(
       // a classified permanent failure — it returns `permanent: true`).
       if (attempt < MAX_ATTEMPTS) {
         counters.retried += 1;
-        logger.warn(`[backfillFederatedBanners] mirror threw for ${actor.uri} (attempt ${attempt})`, {
+        logger.warn('[backfillFederatedBanners] mirror attempt failed; retrying', {
+          attempt,
           reason: error instanceof Error ? error.message : 'unknown',
         });
         await sleep(BACKOFF_BASE_MS * 3 ** (attempt - 1));
         continue;
       }
       counters.failed += 1;
-      logger.warn(`[backfillFederatedBanners] mirror threw for ${actor.uri} (final)`, {
+      logger.warn('[backfillFederatedBanners] final mirror attempt failed', {
+        attempt,
         reason: error instanceof Error ? error.message : 'unknown',
       });
       return;
@@ -213,11 +224,17 @@ async function backfillFederatedBanners(): Promise<void> {
   const concurrency = getConcurrency();
   const ratePerMinute = getRatePerMinute();
   const gate = new RateGate(ratePerMinute);
+  const dryRun = process.argv.includes('--dry-run');
 
   try {
+    assertAdminMutationAllowed({
+      scriptName: 'backfillFederatedBanners',
+      dryRun,
+    });
     await connectToDatabase();
     logger.info(
-      `[backfillFederatedBanners] connected to MongoDB; FORCE=${FORCE}, concurrency=${concurrency}, rate=${ratePerMinute}/min`,
+      `[backfillFederatedBanners] connected to MongoDB; mode=${dryRun ? 'DRY-RUN' : 'LIVE'}, ` +
+        `FORCE=${FORCE}, concurrency=${concurrency}, rate=${ratePerMinute}/min`,
     );
 
     // Actors that advertise a banner AND are linked to an Oxy user (so the banner
@@ -234,7 +251,6 @@ async function backfillFederatedBanners(): Promise<void> {
 
     if (totalCount === 0) {
       logger.info('[backfillFederatedBanners] nothing to do');
-      await mongoose.disconnect();
       return;
     }
 
@@ -261,25 +277,34 @@ async function backfillFederatedBanners(): Promise<void> {
 
       if (page.length === 0) break;
 
-      await runPool(page, concurrency, (actor) => processActor(actor, counters, gate));
+      await runPool(page, concurrency, (actor) => processActor(actor, counters, gate, dryRun));
 
       counters.processed += page.length;
       lastId = page[page.length - 1]._id;
       logger.info(
-        `[backfillFederatedBanners] progress: processed ${counters.processed}/${totalCount}, stored ${counters.stored}, skipped-already-set ${counters.skippedAlreadySet}, retried ${counters.retried}, failed ${counters.failed}, dead ${counters.dead}`,
+        `[backfillFederatedBanners] progress: processed ${counters.processed}/${totalCount}, ` +
+          `${dryRun ? 'would-store' : 'stored'} ${counters.stored}, ` +
+          `skipped-already-set ${counters.skippedAlreadySet}, retried ${counters.retried}, ` +
+          `failed ${counters.failed}, dead ${counters.dead}`,
       );
     }
 
     const elapsedSeconds = Math.round((Date.now() - startedAt) / 1000);
     logger.info(
-      `[backfillFederatedBanners] done${FORCE ? ' (FORCE)' : ''}: processed ${counters.processed}, stored ${counters.stored}, skipped-already-set ${counters.skippedAlreadySet}, retried ${counters.retried}, failed ${counters.failed}, dead ${counters.dead} (${elapsedSeconds}s)`,
+      `[backfillFederatedBanners] done (${dryRun ? 'DRY-RUN' : 'LIVE'}${FORCE ? ', FORCE' : ''}): ` +
+        `processed ${counters.processed}, ${dryRun ? 'would-store' : 'stored'} ${counters.stored}, ` +
+        `skipped-already-set ${counters.skippedAlreadySet}, retried ${counters.retried}, ` +
+        `failed ${counters.failed}, dead ${counters.dead} (${elapsedSeconds}s)`,
     );
 
-    await mongoose.disconnect();
+    assertAdminRunComplete('backfillFederatedBanners', {
+      failed: counters.failed,
+    });
   } catch (error) {
     logger.error('[backfillFederatedBanners] failed', error);
+    throw error;
+  } finally {
     await mongoose.disconnect();
-    process.exit(1);
   }
 }
 

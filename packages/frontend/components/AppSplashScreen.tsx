@@ -6,6 +6,9 @@ import { getPresetVars } from '@oxyhq/bloom/preset-vars';
 import { LogoIcon } from '@/assets/logo';
 import { Loading } from '@oxyhq/bloom/loading';
 import { BLOOM_THEME_PERSIST_KEY, BLOOM_THEME_STORAGE } from '@/lib/themePersistence';
+import { createScopedLogger } from '@/lib/logger';
+
+const logger = createScopedLogger('AppSplashScreen');
 
 interface AppSplashScreenProps {
     onFadeComplete?: () => void;
@@ -109,7 +112,9 @@ const AppSplashScreen: React.FC<AppSplashScreenProps> = ({
             })
             .catch((error: unknown) => {
                 // best-effort: keep the default preset if persisted state can't be read.
-                if (__DEV__) console.warn('AppSplashScreen: failed to read persisted theme', error);
+                logger.warn('Failed to read persisted theme', {
+                    error: error instanceof Error ? error.message : String(error),
+                });
             });
         return () => {
             cancelled = true;

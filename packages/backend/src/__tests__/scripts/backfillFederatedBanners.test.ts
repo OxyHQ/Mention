@@ -107,12 +107,20 @@ function actor(oxyUserId: string): ActorRow {
  * spacing + backoff sleeps) so the async chain completes deterministically.
  */
 async function runBackfill(): Promise<void> {
-  const done = backfillFederatedBanners();
+  let failure: unknown;
+  // Attach the rejection handler immediately. The backfill can finish while fake
+  // timers are being drained; leaving its promise temporarily unobserved makes
+  // Vitest report a false unhandled-rejection regression.
+  const done = backfillFederatedBanners().catch((error: unknown) => {
+    failure = error;
+  });
   await vi.runAllTimersAsync();
   await done;
+  if (failure) throw failure;
 }
 
 beforeEach(() => {
+  vi.stubEnv('CONFIRM_ADMIN_MUTATION', 'backfillFederatedBanners');
   vi.clearAllMocks();
   vi.useFakeTimers();
   h.state.actors = [];
@@ -124,6 +132,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.unstubAllEnvs();
   vi.useRealTimers();
   vi.resetModules();
   vi.doUnmock('../../scripts/backfillFederatedBanners');
@@ -213,7 +222,7 @@ describe('backfillFederatedBanners', () => {
       { ok: false, permanent: false },
     ]);
 
-    await runBackfill();
+    await expect(runBackfill()).rejects.toThrow('failed=1');
 
     // MAX_ATTEMPTS = 3 → exactly 3 calls, no infinite retry.
     expect(h.mirror).toHaveBeenCalledTimes(3);

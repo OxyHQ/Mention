@@ -12,7 +12,7 @@ import { feedEngine } from '../mtn/feed/engine/FeedEngine';
 import FeedLike from '../models/FeedLike';
 import { escapeRegex } from '../utils/textProcessing';
 import { resolveUserSummaries, degradedActorSummary } from '../services/PostHydrationService';
-import { getServiceOxyClient } from '../utils/oxyHelpers';
+import { createScopedOxyClient, getServiceOxyClient } from '../utils/oxyHelpers';
 import type { CachedUserSummary } from '../services/userSummaryCache';
 import type { PostUser } from '@mention/shared-types';
 import { logger } from '../utils/logger';
@@ -244,7 +244,7 @@ router.get('/', async (req: AuthRequest, res: Response) => {
 });
 
 // Marketplace: get feeds by category counts
-router.get('/marketplace/categories', async (req: AuthRequest, res: Response) => {
+router.get('/marketplace/categories', async (_req: AuthRequest, res: Response) => {
   try {
     const results = await CustomFeed.aggregate<{ _id: string; count: number }>([
       { $match: { isPublic: true, category: { $exists: true, $ne: null } } },
@@ -566,7 +566,12 @@ router.get('/:id/timeline', validateObjectId('id'), async (req: AuthRequest, res
     // Resolve the runnable definition (stored, or derived from legacy fields for
     // feeds not yet backfilled) and run it against the viewer's feed context.
     const definition = buildCustomFeedDefinition(feed);
-    const context = await loadViewerFeedContext(userId, getServiceOxyClient());
+    const requestOxyClient = createScopedOxyClient(req);
+    const context = await loadViewerFeedContext(
+      userId,
+      requestOxyClient ?? getServiceOxyClient(),
+    );
+    context.privacyOxyClient = requestOxyClient;
     const response = await feedEngine.run(definition, context, { cursor, limit });
 
     // The frontend Feed component expects `items` to be posts directly.

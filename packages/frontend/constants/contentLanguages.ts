@@ -1,4 +1,4 @@
-import { canonicalizeLanguageTag } from '@mention/shared-types';
+import { canonicalizeLanguageTag } from '@mention/shared-types/language';
 
 /**
  * A language an author can WRITE a post in.

@@ -11,15 +11,13 @@ import mongoose from 'mongoose';
  * own continuations (those are rendered as the connected spine on the client). For
  * any other parent the query is the single-parent match, unchanged.
  *
- * The controller pulls in the server bootstrap + hydration/Oxy layers; stub those so
- * the test stays pure and never touches a DB or the network. `Post.findById`/
+ * The controller pulls in hydration/Oxy layers; stub those so the test stays
+ * pure and never touches a DB or the network. `Post.findById`/
  * `Post.find` are spied so we can assert on the EXACT Mongo query the controller
  * builds.
  */
-vi.mock('../../../server', () => ({
-  oxy: {},
-  io: { of: () => ({ emit: vi.fn() }) },
-  notificationsNamespace: { emit: vi.fn() },
+vi.mock('../../runtime/socketServer', () => ({
+  getRuntimeSocketServer: () => undefined,
 }));
 
 vi.mock('../../services/PostHydrationService', () => ({
@@ -29,8 +27,20 @@ vi.mock('../../services/PostHydrationService', () => ({
   resolveUserSummaries: vi.fn(async () => new Map()),
 }));
 
+const privacyMocks = vi.hoisted(() => ({
+  loadPrivacyState: vi.fn(async () => ({ excludedUserIds: new Set() })),
+}));
+vi.mock('../../mtn/UserPrivacyManager', () => ({
+  UserPrivacyManager: { loadPrivacyState: privacyMocks.loadPrivacyState },
+}));
+
+const oxyMocks = vi.hoisted(() => ({
+  scopedClient: {},
+  createScopedOxyClient: vi.fn(),
+}));
+oxyMocks.createScopedOxyClient.mockReturnValue(oxyMocks.scopedClient);
 vi.mock('../../utils/oxyHelpers', () => ({
-  createScopedOxyClient: vi.fn(() => ({})),
+  createScopedOxyClient: oxyMocks.createScopedOxyClient,
 }));
 
 import { Post } from '../../models/Post';
@@ -101,7 +111,12 @@ describe('getRepliesFeed — self-thread spine expansion', () => {
   it('expands a self-thread root into its whole spine and excludes the OP continuations', async () => {
     const { findFilters } = stubModel({ _id: ROOT_ID, threadId: ROOT_ID, oxyUserId: OP_USER });
 
-    const req = { query: {}, params: { parentId: ROOT_ID } };
+    const req = {
+      query: {},
+      params: { parentId: ROOT_ID },
+      user: { id: 'viewer' },
+      headers: { authorization: 'Bearer viewer-token' },
+    };
     const { res, payload } = buildResponse();
     await feedController.getRepliesFeed(req as never, res as never);
 
@@ -121,6 +136,9 @@ describe('getRepliesFeed — self-thread spine expansion', () => {
 
     // Response shape unchanged.
     expect((payload.value as { items: unknown[] }).items).toHaveLength(1);
+    expect(privacyMocks.loadPrivacyState).toHaveBeenCalledWith('viewer', {
+      oxyClient: oxyMocks.scopedClient,
+    });
   });
 
   it('merges the pagination cursor with the continuation exclusion on _id', async () => {

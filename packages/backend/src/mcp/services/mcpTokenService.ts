@@ -1,5 +1,6 @@
 import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
+import { getMcpJwtSecret } from '../../config';
 import {
   MCP_ACCESS_TOKEN_TTL_SECONDS,
   MCP_ISSUER,
@@ -49,14 +50,6 @@ export interface GeneratedRefreshToken {
  * deployments that set the env after import still work. Throws when unset — an
  * MCP token must never be signed with an empty/absent secret.
  */
-function getSecret(): string {
-  const secret = process.env.MENTION_MCP_JWT_SECRET;
-  if (!secret || secret.length === 0) {
-    throw new Error('MENTION_MCP_JWT_SECRET is not configured');
-  }
-  return secret;
-}
-
 /** Sign a short-lived MCP access token for the given connection. */
 export function signAccessToken(params: SignAccessTokenParams): string {
   const { oxyUserId, clientId, scopes, jti } = params;
@@ -65,7 +58,7 @@ export function signAccessToken(params: SignAccessTokenParams): string {
       client_id: clientId,
       scope: scopes.join(' '),
     },
-    getSecret(),
+    getMcpJwtSecret(),
     {
       algorithm: 'HS256',
       subject: oxyUserId,
@@ -84,7 +77,7 @@ export function signAccessToken(params: SignAccessTokenParams): string {
  * verified-but-revoked token is a distinct, testable step.
  */
 export function verifyAccessToken(token: string): McpAccessTokenClaims {
-  const decoded = jwt.verify(token, getSecret(), {
+  const decoded = jwt.verify(token, getMcpJwtSecret(), {
     algorithms: ['HS256'],
     audience: MCP_TOKEN_AUDIENCE,
     issuer: MCP_ISSUER,

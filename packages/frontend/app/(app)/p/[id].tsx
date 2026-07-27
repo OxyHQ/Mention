@@ -8,7 +8,7 @@ import {
 import { Loading } from '@oxyhq/bloom/loading';
 import { useLocalSearchParams, router } from 'expo-router';
 import { useSafeBack } from '@/hooks/useSafeBack';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import PostItem from '@/components/Feed/PostItem';
 import Feed from '@/components/Feed/Feed';
@@ -17,9 +17,13 @@ import { useThreadPreferences, SORT_TO_API } from '@/hooks/useThreadPreferences'
 import { usePostsStore, usePostSelector } from '@/stores/postsStore';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
 import ReplyPreferencesSheet from '@/components/ReplyPreferencesSheet';
-import { FeedType } from '@mention/shared-types';
-import { HydratedPost, Reply, FeedBoost as Boost } from '@mention/shared-types';
-import { useAuth } from '@oxyhq/services';
+import type {
+  FeedType,
+  HydratedPost,
+  Reply,
+  FeedBoost as Boost,
+} from '@mention/shared-types';
+import { useAuth } from '@oxyhq/services/ui/client';
 import { ThemedView } from '@/components/ThemedView';
 import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';
@@ -28,7 +32,7 @@ import { useTheme } from '@oxyhq/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import { statisticsService } from '@/services/statisticsService';
 import { feedService } from '@/services/feedService';
-import SEO from '@/components/SEO';
+import { SEO } from '@/components/SEO';
 
 type PostDetailEntity = HydratedPost | Reply | Boost;
 
@@ -75,7 +79,7 @@ const PostDetailScreen: React.FC = () => {
     // paints immediately and revalidates in the background (stale-while-revalidate).
     const [loading, setLoading] = useState(() => !cachedPost);
     const [error, setError] = useState<string | null>(null);
-    const [repliesReloadKey, setRepliesReloadKey] = useState(0);
+    const [repliesReloadKey] = useState(0);
 
     // The TAIL of the OP's self-thread — the last continuation (cN). Undefined for
     // a non-thread post (no continuation spine).

@@ -2,10 +2,15 @@ import React from 'react';
 import { Text, TouchableOpacity } from 'react-native';
 import TestRenderer, { act, type ReactTestInstance } from 'react-test-renderer';
 import { QueryClient, QueryClientProvider, notifyManager } from '@tanstack/react-query';
-import { PostVisibility, type HydratedPost, type PostViewerState } from '@mention/shared-types';
+import {
+  PostVisibility,
+  type HydratedPost,
+  type PostViewerState,
+} from '@mention/shared-types/post';
 import type { GroupedNotification } from '@/utils/groupNotifications';
 import type { TRawNotification } from '@/types/validation';
-import { queryKeys } from '@/hooks/useOptimizedQuery';
+import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
+import { NotificationItem } from '../NotificationItem';
 
 /**
  * The collaboration-invite notification row.
@@ -24,6 +29,11 @@ import { queryKeys } from '@/hooks/useOptimizedQuery';
 
 const POST_ID = 'post-1';
 const NOTIF_ID = 'notif-1';
+const VIEWER_ID = 'viewer-1';
+
+jest.mock('@oxyhq/services/ui/client', () => ({
+  useAuth: () => ({ user: { id: 'viewer-1' } }),
+}));
 
 // ── Module boundaries ───────────────────────────────────────────────────────
 
@@ -162,10 +172,6 @@ jest.mock('@/lib/logger', () => ({
   createScopedLogger: () => ({ error: jest.fn(), warn: jest.fn(), info: jest.fn(), debug: jest.fn() }),
 }));
 
-// The mocks above are hoisted, so the component below loads with every boundary
-// already swapped for its double.
-import { NotificationItem } from '../NotificationItem';
-
 // ── Fixtures ────────────────────────────────────────────────────────────────
 
 function viewerState(overrides: Partial<PostViewerState>): PostViewerState {
@@ -234,6 +240,20 @@ function collabInviteItem(): GroupedNotification {
 
 notifyManager.setScheduler((callback) => callback());
 
+const mountedRenderers: TestRenderer.ReactTestRenderer[] = [];
+const queryClients: QueryClient[] = [];
+
+afterEach(async () => {
+  await act(async () => {
+    for (const renderer of mountedRenderers.splice(0)) {
+      renderer.unmount();
+    }
+  });
+  for (const queryClient of queryClients.splice(0)) {
+    queryClient.clear();
+  }
+});
+
 async function flush(): Promise<void> {
   await act(async () => {
     await new Promise((resolve) => setTimeout(resolve, 0));
@@ -249,7 +269,10 @@ async function renderRow(state: PostViewerState): Promise<{
   });
   // Seed the post-detail query the row reads. With the row's 60s staleTime the
   // seeded (fresh) data is served synchronously and `getPostById` is never hit.
-  queryClient.setQueryData(queryKeys.post(POST_ID), collabPost(state));
+  queryClient.setQueryData(
+    viewerQueryKeys.post(VIEWER_ID, POST_ID),
+    collabPost(state),
+  );
 
   let renderer!: TestRenderer.ReactTestRenderer;
   await act(async () => {
@@ -259,6 +282,8 @@ async function renderRow(state: PostViewerState): Promise<{
       </QueryClientProvider>,
     );
   });
+  mountedRenderers.push(renderer);
+  queryClients.push(queryClient);
   await flush();
   return { renderer, queryClient };
 }
