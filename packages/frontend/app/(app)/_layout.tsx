@@ -23,7 +23,6 @@ import { useKeyboardVisibility } from "@/hooks/useKeyboardVisibility";
 import { useIsScreenNotMobile } from "@/hooks/useOptimizedMediaQuery";
 import { useScreenColor } from '@/context/ScreenColorContext';
 import { APP_COLOR_PRESETS, BloomColorScope, useTheme, type AppColorName } from '@oxyhq/bloom/theme';
-import { ScrollRestorationProvider } from '@oxyhq/bloom/scroll';
 import { cn } from '@/lib/utils';
 
 const IS_WEB = Platform.OS === 'web';
@@ -94,7 +93,7 @@ export default function AppLayout() {
   // NATIVE keeps <Stack> for real push/pop + freezeOnBlur (pushed screens stay
   // mounted so `back` restores scroll).
   const centerContent = (
-    <ScrollRestorationProvider>
+    <>
       {IS_WEB ? (
         <Slot />
       ) : (
@@ -114,7 +113,7 @@ export default function AppLayout() {
           `isAuthenticated` is undetermined and would flash the banner to a user
           whose session is about to restore. */}
       {isAuthResolved && !isAuthenticated && <SignInBanner />}
-    </ScrollRestorationProvider>
+    </>
   );
 
   return (

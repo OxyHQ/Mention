@@ -16,9 +16,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import React, { useCallback, useEffect, useState } from "react";
 import { AppState, Platform, type AppStateStatus } from "react-native";
 import { useAuth } from '@oxyhq/services/ui/client';
-import { BloomThemeProvider } from '@oxyhq/bloom/theme';
-import { BloomHapticsProvider } from '@oxyhq/bloom/hooks';
-import { ImageResolverProvider } from '@oxyhq/bloom/image-resolver';
+import { BloomProvider } from '@oxyhq/bloom/provider';
 
 // Components
 import AppSplashScreen from '@/components/AppSplashScreen';
@@ -88,8 +86,8 @@ interface SplashState {
 export default function RootLayout() {
   // State
   const [appIsReady, setAppIsReady] = useState(false);
-  // Global haptics on/off, persisted via the accessibility settings toggle. Drives
-  // Bloom's BloomHapticsProvider so every useHaptics() call honors the preference.
+  // Global haptics on/off, persisted via the accessibility settings toggle. Passed
+  // to <BloomProvider haptics> so every useHaptics() call honors the preference.
   const hapticsDisabled = useHapticsStore((s) => s.disabled);
   const [splashState, setSplashState] = useState<SplashState>({
     initializationComplete: false,
@@ -166,12 +164,20 @@ export default function RootLayout() {
   }, [appIsReady]);
 
   return (
-    <ImageResolverProvider value={resolveImageSource}>
+    <>
       {/* WEB-only: inject the PWA manifest <link> + apple/theme metas into
           document.head at runtime (installability + Web Share Target). Mounted at
-          the root so it is present on every page; renders nothing. No-op on native. */}
+          the root so it is present on every page; renders nothing. No-op on native.
+          Sits OUTSIDE <BloomProvider> on purpose: the theme provider gates its
+          children while fonts load, and the manifest must not wait for that. */}
       <PwaHead />
-      <BloomThemeProvider
+      {/* The single Bloom root — theme + haptics + image resolution + scroll
+          restoration + tab-bar minimize progress. Everything Bloom renders must be
+          under it: on web `useScrollRestoration()` throws outside its provider, so
+          a scrollable mounted beside it (a right rail, an overlay) crashes. */}
+      <BloomProvider
+        imageResolver={resolveImageSource}
+        haptics={!hapticsDisabled}
         defaultMode="system"
         defaultColorPreset="blue"
         persistKey={BLOOM_THEME_PERSIST_KEY}
@@ -180,10 +186,9 @@ export default function RootLayout() {
         // because the held OS splash is already covering the screen.
         onFontsLoading={Platform.OS === 'web' ? <AppSplashScreen /> : null}
       >
-        <BloomHapticsProvider enabled={!hapticsDisabled}>
-          <AppProviders oxyServices={oxyServices} queryClient={queryClient}>
-            {appIsReady ? (
-              <>
+        <AppProviders oxyServices={oxyServices} queryClient={queryClient}>
+          {appIsReady ? (
+            <>
               {Platform.OS !== 'web' && (
                 <NotificationPermissionGate
                   appIsReady={appIsReady}
@@ -194,20 +199,19 @@ export default function RootLayout() {
                 <AuthRouter />
                 <PortalOutlet />
               </PortalProvider>
-              </>
-            ) : Platform.OS === 'web' ? (
-              // WEB: the custom splash covers font-load + init and fades out; its
-              // `onFadeComplete` gates `appIsReady`. NATIVE renders null here — the
-              // held OS splash is on top, so nothing underneath needs to paint.
-              <AppSplashScreen
-                startFade={splashState.initializationComplete}
-                onFadeComplete={handleSplashFadeComplete}
-              />
-            ) : null}
-          </AppProviders>
-        </BloomHapticsProvider>
-      </BloomThemeProvider>
-    </ImageResolverProvider>
+            </>
+          ) : Platform.OS === 'web' ? (
+            // WEB: the custom splash covers font-load + init and fades out; its
+            // `onFadeComplete` gates `appIsReady`. NATIVE renders null here — the
+            // held OS splash is on top, so nothing underneath needs to paint.
+            <AppSplashScreen
+              startFade={splashState.initializationComplete}
+              onFadeComplete={handleSplashFadeComplete}
+            />
+          ) : null}
+        </AppProviders>
+      </BloomProvider>
+    </>
   );
 }
 
