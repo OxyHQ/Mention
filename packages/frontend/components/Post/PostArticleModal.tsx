@@ -9,8 +9,8 @@ import {
   Pressable,
   type GestureResponderEvent,
 } from 'react-native';
+import { Backdrop } from '@oxyhq/bloom/overlay';
 import { Loading } from '@oxyhq/bloom/loading';
-import { BlurView } from 'expo-blur';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -19,7 +19,6 @@ import Animated, {
 } from 'react-native-reanimated';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useTheme } from '@oxyhq/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import { CloseIcon } from '@/assets/icons/close-icon';
 import { IconButton } from '@/components/ui/Button';
@@ -28,7 +27,6 @@ import { LinkifiedText } from '@/components/common/LinkifiedText';
 import { Portal } from '@oxyhq/bloom/portal';
 import { logger } from '@/lib/logger';
 
-const AnimatedBlurView = Animated.createAnimatedComponent(BlurView);
 
 /**
  * Animation configuration for smooth, non-bouncy modal transitions
@@ -59,7 +57,6 @@ const PostArticleModal: React.FC<PostArticleModalProps> = ({
   body,
   onClose
 }) => {
-  const theme = useTheme();
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
 
@@ -147,10 +144,6 @@ const PostArticleModal: React.FC<PostArticleModalProps> = ({
   );
 
   // Animated styles - memoized with worklets
-  const backdropAnimatedStyle = useAnimatedStyle(() => ({
-    opacity: opacity.value,
-  }), []);
-
   const contentAnimatedStyle = useAnimatedStyle(() => ({
     opacity: opacity.value,
     transform: [
@@ -185,17 +178,7 @@ const PostArticleModal: React.FC<PostArticleModalProps> = ({
     [insets.top, contentAnimatedStyle]
   );
 
-  const overlayColor = useMemo(
-    () => theme.colors.overlay || 'rgba(0, 0, 0, 0.5)',
-    [theme.colors.overlay]
-  );
-
   // Memoize blur tint
-  const blurTint = useMemo(
-    () => (theme.isDark ? 'dark' : 'light'),
-    [theme.isDark]
-  );
-
   // Text styles are now handled via className - only keep non-theme memoized styles
   const headerTitleStyle = styles.headerTitle;
   const articleTitleStyle = styles.articleTitle;
@@ -213,25 +196,8 @@ const PostArticleModal: React.FC<PostArticleModalProps> = ({
       className="web:fixed web:inset-0 web:z-[10000]"
       style={styles.modalContainer}
     >
-      <Pressable
-        style={StyleSheet.absoluteFill}
-        onPress={handleBackdropPress}
-      >
-        <AnimatedBlurView
-          intensity={80}
-          tint={blurTint}
-          experimentalBlurMethod="dimezisBlurView"
-          style={[StyleSheet.absoluteFill, backdropAnimatedStyle]}
-        >
-          <Animated.View
-            style={[
-              StyleSheet.absoluteFill,
-              { backgroundColor: overlayColor },
-              backdropAnimatedStyle,
-            ]}
-          />
-        </AnimatedBlurView>
-      </Pressable>
+      {/* Bloom's shared backdrop (see WelcomeModal) — one blur + dim for every surface. */}
+      <Backdrop onPress={handleBackdropPress} progress={opacity} />
 
       <Animated.View
         className="bg-background"

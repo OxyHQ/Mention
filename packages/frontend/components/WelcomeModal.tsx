@@ -12,7 +12,6 @@ import {
   type ViewStyle,
   type GestureResponderEvent,
 } from 'react-native';
-import { BlurView } from 'expo-blur';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -21,7 +20,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useTheme } from '@oxyhq/bloom/theme';
+import { Backdrop } from '@oxyhq/bloom/overlay';
 import { useAuth } from '@oxyhq/services/ui/client';
 import { useRouter } from 'expo-router';
 import { CloseIcon } from '@/assets/icons/close-icon';
@@ -31,7 +30,6 @@ import { Z_INDEX } from '@/lib/constants';
 import { FONT_FAMILIES } from '@/styles/typography';
 import Svg, { Defs, LinearGradient as SvgLinearGradient, Stop, Text as SvgText, TSpan } from 'react-native-svg';
 
-const AnimatedBlurView = Animated.createAnimatedComponent(BlurView);
 
 /**
  * Animation configuration for smooth modal transitions
@@ -111,7 +109,6 @@ const WelcomeModal: React.FC<WelcomeModalProps> = ({
   visible,
   onClose,
 }) => {
-  const theme = useTheme();
   const insets = useSafeAreaInsets();
   const { signIn } = useAuth();
   const router = useRouter();
@@ -162,10 +159,6 @@ const WelcomeModal: React.FC<WelcomeModalProps> = ({
   }, [stableOnClose, signIn]);
 
   // Animated styles
-  const backdropAnimatedStyle = useAnimatedStyle(() => ({
-    opacity: opacity.value,
-  }), []);
-
   const contentAnimatedStyle = useAnimatedStyle(() => ({
     opacity: opacity.value,
     transform: [
@@ -175,16 +168,6 @@ const WelcomeModal: React.FC<WelcomeModalProps> = ({
   }), []);
 
   // Memoize styles
-  const blurTint = useMemo(
-    () => (theme.isDark ? 'dark' : 'light'),
-    [theme.isDark]
-  );
-
-  const overlayColor = useMemo(
-    () => theme.colors.overlay || 'rgba(0, 0, 0, 0.5)',
-    [theme.colors.overlay]
-  );
-
   // Load background image
   const backgroundImage: ImageSourcePropType = useMemo(
     () => require('@/assets/images/welcome-modal-bg.jpg'),
@@ -198,25 +181,9 @@ const WelcomeModal: React.FC<WelcomeModalProps> = ({
 
   const modalContent = (
     <GestureHandlerRootView style={styles.modalContainer}>
-      <Pressable
-        style={StyleSheet.absoluteFill}
-        onPress={handleBackdropPress}
-      >
-        <AnimatedBlurView
-          intensity={80}
-          tint={blurTint}
-          experimentalBlurMethod="dimezisBlurView"
-          style={[StyleSheet.absoluteFill, backdropAnimatedStyle]}
-        >
-          <Animated.View
-            style={[
-              StyleSheet.absoluteFill,
-              { backgroundColor: overlayColor },
-              backdropAnimatedStyle,
-            ]}
-          />
-        </AnimatedBlurView>
-      </Pressable>
+      {/* Bloom's shared backdrop — same blur and dim as every dialog, sheet and
+          menu. Hand-rolling one here is what made this modal look different. */}
+      <Backdrop onPress={handleBackdropPress} progress={opacity} />
 
       <Animated.View
         style={[
