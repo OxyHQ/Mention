@@ -78,6 +78,7 @@ return {
                 "android.permission.CAMERA",
                 "android.permission.RECORD_AUDIO"
             ],
+            versionCode: 2,
             // Must match a client package_name in google-services.json.
             package: APP_ID,
             // google-services.json carries both earth.mention.app and its .dev
@@ -168,6 +169,19 @@ return {
         // native-only plugins (like expo-notifications) from web builds.
         plugins: (() => {
             const base = [
+                // Re-encodes the generated bitmap resources into real lossless
+                // WebP — Expo emits PNG bytes whatever extension it writes. See
+                // the plugin header for the @expo/image-utils bug behind it.
+                //
+                // Registered FIRST so that it RUNS LAST. `withMod`'s
+                // `interceptingMod` awaits its own action and only then calls
+                // `nextMod` (the previously registered mod), so the mod chain
+                // executes in reverse registration order. It has to run after
+                // every image generator: `withSplashBranding` rewrites the
+                // splash images, and when this ran before it the tree ended up
+                // with both a `.png` and a `.webp` claiming the same
+                // `@drawable/splashscreen_logo` resource name.
+                './plugins/withAndroidWebpMipmaps',
                 [
                     // Async routes split each route into its own lazy chunk under
                     // `_expo/static/js/web/` so heavy screens (compose, videos,
@@ -223,12 +237,6 @@ return {
                 "expo-image",
                 'react-native-compressor',
                 [
-                    '@bitdrift/react-native',
-                    {
-                        networkInstrumentation: true,
-                    }
-                ],
-                [
                     'expo-build-properties',
                     {
                       ios: {
@@ -245,11 +253,40 @@ return {
                         buildToolsVersion: '36.0.0',
                         enableProguardInReleaseBuilds: true,
                         enableShrinkResourcesInReleaseBuilds: true,
-                        useLegacyPackaging: false
+                        useLegacyPackaging: false,
+                        // x86/x86_64 only serve emulators and Chromebooks, and
+                        // Chromebooks translate arm64 anyway. Every configured
+                        // ABI is compiled and ships in the AAB, so 4 -> 2 ABIs
+                        // halves that work and payload (the x86_64 .so set alone
+                        // measures ~47 MB). Build another ABI without editing
+                        // this: `./gradlew <task> -PreactNativeArchitectures=x86_64`.
+                        buildArchs: ['armeabi-v7a', 'arm64-v8a'],
+                        // Appended to android/app/proguard-rules.pro. Kept
+                        // deliberately small: react-native, expo-modules-core,
+                        // reanimated and @livekit/* already ship their own rules
+                        // as consumerProguardFiles inside their AARs, and
+                        // over-keeping would cancel the R8 optimization that
+                        // withAndroidReleaseBuild turns on.
+                        extraProguardRules: [
+                          '# Readable production stack traces: R8 optimize rewrites line numbers',
+                          '# when inlining, so without these the traces reaching the Play',
+                          '# Console point at the wrong code.',
+                          '-keepattributes SourceFile,LineNumberTable',
+                          '-renamesourcefileattribute SourceFile',
+                          '',
+                          '# react-native-nitro-modules ships no consumerProguardFiles, and its C++',
+                          '# layer resolves HybridObjects by name at runtime.',
+                          '-keep class com.margelo.nitro.** { *; }',
+                          '-keepclassmembers class * extends com.margelo.nitro.core.HybridObject { *; }',
+                        ].join('\n'),
                       },
                     },
                 ],
                 "expo-web-browser",
+                // Release buildType bits expo-build-properties cannot express:
+                // the R8 -optimize proguard file, and the real release signing
+                // config (credentials come from Gradle properties, never the repo).
+                './plugins/withAndroidReleaseBuild',
                 // Android sharedUserId for cross-app authentication
                 './plugins/withSharedUserId',
                 // Reader side of the shared-identity native module (ships in

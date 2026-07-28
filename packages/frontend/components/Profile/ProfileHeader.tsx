@@ -2,7 +2,6 @@ import React, { memo } from 'react';
 import { View, Text, TouchableOpacity } from 'react-native';
 import { router } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import FontAwesome5 from '@expo/vector-icons/FontAwesome5';
 import Animated, { useDerivedValue, useAnimatedStyle, interpolate, Extrapolation } from 'react-native-reanimated';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { useTranslation } from 'react-i18next';
@@ -152,11 +151,10 @@ export const ProfileHeaderDefault = memo(function ProfileHeaderDefault({
                 active={poked}
                 accessibilityLabel={poked ? 'Unpoke' : 'Poke'}
                 icon={
-                  <FontAwesome5
-                    name="hand-point-right"
+                  <Ionicons
+                    name={poked ? 'hand-right' : 'hand-right-outline'}
                     size={18}
                     color={poked ? theme.colors.primaryForeground : theme.colors.text}
-                    solid={poked}
                   />
                 }
               />
@@ -281,11 +279,10 @@ export const ProfileActions = memo(function ProfileActions({
             active={poked}
             accessibilityLabel={poked ? 'Unpoke' : 'Poke'}
             icon={
-              <FontAwesome5
-                name="hand-point-right"
+              <Ionicons
+                name={poked ? 'hand-right' : 'hand-right-outline'}
                 size={18}
                 color={poked ? theme.colors.primaryForeground : theme.colors.text}
-                solid={poked}
               />
             }
           />

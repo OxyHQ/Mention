@@ -15,7 +15,7 @@ import { useTheme } from '@oxyhq/bloom/theme';
 import { useTranslation } from "react-i18next";
 import { IconButton } from '@/components/ui/Button';
 import { CloseIcon } from "@/assets/icons/close-icon";
-import DateTimePicker, { DateType, useDefaultStyles } from "react-native-ui-datepicker";
+import { Calendar } from "@/components/ui/Calendar";
 
 interface EventEditorProps {
     visible: boolean;
@@ -47,7 +47,6 @@ export const EventEditor: React.FC<EventEditorProps> = ({
     const theme = useTheme();
     const { t } = useTranslation();
     const insets = useSafeAreaInsets();
-    const defaultStyles = useDefaultStyles();
     const [showDatePicker, setShowDatePicker] = React.useState(false);
     const [showTimePicker, setShowTimePicker] = React.useState(false);
 
@@ -59,18 +58,12 @@ export const EventEditor: React.FC<EventEditorProps> = ({
         }
     }, [date]);
 
-    const handleDateChange = React.useCallback((params: { date: DateType }) => {
-        if (params.date) {
-            // `DateType` is `string | number | Dayjs | Date`; `valueOf()` yields a
-            // `Date`-constructible value for every member (Dayjs/Date → ms epoch).
-            const selectedDate = new Date(params.date.valueOf());
-            // Merge with existing time if we're just changing the date
-            const currentDateTime = eventDate;
-            selectedDate.setHours(currentDateTime.getHours());
-            selectedDate.setMinutes(currentDateTime.getMinutes());
-            selectedDate.setSeconds(currentDateTime.getSeconds());
-            onDateChange(selectedDate.toISOString());
-        }
+    const handleDateChange = React.useCallback((selectedDate: Date) => {
+        // The calendar reports midnight of the tapped day; keep the time the
+        // user already set on the event.
+        const merged = new Date(selectedDate);
+        merged.setHours(eventDate.getHours(), eventDate.getMinutes(), eventDate.getSeconds(), 0);
+        onDateChange(merged.toISOString());
         setShowDatePicker(false);
     }, [eventDate, onDateChange]);
 
@@ -90,19 +83,6 @@ export const EventEditor: React.FC<EventEditorProps> = ({
             hour12: true,
         });
     }, [eventDate]);
-
-    // Customize styles to match theme
-    const customStyles = React.useMemo(() => ({
-        ...defaultStyles,
-        selectedDayBackground: { backgroundColor: theme.colors.primary },
-        todayText: { color: theme.colors.primary },
-        selectedDayText: { color: theme.colors.card },
-        headerText: { color: theme.colors.text },
-        weekDaysText: { color: theme.colors.textSecondary },
-        calendarText: { color: theme.colors.text },
-        yearContainer: { backgroundColor: theme.colors.background },
-        monthContainer: { backgroundColor: theme.colors.background },
-    }), [defaultStyles, theme]);
 
     return (
         <Modal
@@ -180,12 +160,7 @@ export const EventEditor: React.FC<EventEditorProps> = ({
 
                         {showDatePicker && (
                             <View className="rounded-xl border border-border bg-secondary p-3 mt-2">
-                                <DateTimePicker
-                                    mode="single"
-                                    date={eventDate}
-                                    onChange={handleDateChange}
-                                    styles={customStyles}
-                                />
+                                <Calendar value={eventDate} onChange={handleDateChange} />
                             </View>
                         )}
 

@@ -93,6 +93,15 @@ config.resolver = {
 
 config.transformer = {
   ...config.transformer,
+  // WEB ONLY. Metro skips the JS minifier whenever the transform profile is
+  // `hermes-stable`/`hermes-canary` (see the `const minify = options.minify &&
+  // …` guard in metro-transform-worker), and @expo/metro-config sets
+  // `hermes-stable` for every Hermes-enabled native build. So none of this
+  // reaches the Android/iOS bundle — Hermes' own bytecode compiler does that
+  // optimization — and tuning it will not move the `.hbc`. Verified by
+  // exporting Android twice, with `drop_console` on and off: byte-identical
+  // bundles (18,072,060 B each, same content hash). The web export uses the
+  // `default` profile, so terser runs there and these settings apply.
   minifierConfig: {
     ...config.transformer?.minifierConfig,
     keep_classnames: false,
@@ -113,7 +122,11 @@ config.transformer = {
     compress: {
       arguments: true,
       dead_code: true,
-      drop_console: false,
+      // Strips `console.*` from the production web bundle (27 KB across the 105
+      // chunks). Safe because the app's only console sink, `lib/logger`'s
+      // console transport, is already registered under `__DEV__` alone, and the
+      // minifier never runs on a development build.
+      drop_console: true,
       drop_debugger: true,
       ecma: 2020,
       evaluate: true,

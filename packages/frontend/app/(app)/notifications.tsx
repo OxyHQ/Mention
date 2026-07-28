@@ -5,7 +5,6 @@ import {
 } from 'react-native';
 import { SafeAreaView } from '@/lib/SafeAreaViewInterop';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import FontAwesome5 from '@expo/vector-icons/FontAwesome5';
 import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import { OxyAuthPrompt, useAuth } from '@oxyhq/services/ui/client';
@@ -444,7 +443,7 @@ const NotificationsScreen: React.FC = () => {
                 return {
                     title: t('notification.empty.pokes.title', { defaultValue: 'No pokes yet' }),
                     subtitle: t('notification.empty.pokes.subtitle', { defaultValue: 'When someone pokes you, it will appear here. Poke your followers to get started!' }),
-                    icon: <FontAwesome5 name="hand-point-right" size={32} color={iconColor} />,
+                    icon: <Ionicons name="hand-right-outline" size={32} color={iconColor} />,
                     iconBg,
                 };
             default:
@@ -548,7 +547,7 @@ const NotificationsScreen: React.FC = () => {
                         justifyContent: 'center',
                     }}
                 >
-                    <FontAwesome5 name="hand-point-right" size={18} color="#fff" solid />
+                    <Ionicons name="hand-right" size={18} color="#fff" />
                 </View>
                 <View style={{ flex: 1 }}>
                     <ThemedText style={{ fontSize: 15, fontWeight: '600' }}>
