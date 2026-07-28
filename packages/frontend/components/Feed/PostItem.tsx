@@ -37,7 +37,7 @@ import { usePostActions } from '@/hooks/usePostActions';
 import { PinIcon } from '@/assets/icons/pin-icon';
 import { BoostIcon } from '@/assets/icons/boost-icon';
 import { usePostLanguage } from '@/hooks/usePostLanguage';
-import { SheetMenuGroup } from '@/components/common/SheetMenu';
+import { showActionMenu } from '@/components/common/ActionMenu';
 import { THREAD_LINE_WIDTH, THREAD_LINE_BORDER_RADIUS, THREAD_LINE_Z_INDEX } from '@/components/Compose/composeLayout';
 import { POST_ITEM_SPACING } from '@/styles/shared';
 import { SubtleHover } from '@oxyhq/bloom/subtle-hover';
@@ -480,21 +480,21 @@ const PostItem: React.FC<PostItemProps> = ({
     });
 
     const openMenu = useCallback(() => {
-        bottomSheet.setBottomSheetContent(
-            <View className="bg-background p-4 gap-2">
-                {postActions.insightsAction.length > 0 && <SheetMenuGroup actions={postActions.insightsAction} />}
-                {postActions.saveActionGroup.length > 0 && <SheetMenuGroup actions={postActions.saveActionGroup} />}
-                {postActions.stopSharingAction.length > 0 && <SheetMenuGroup actions={postActions.stopSharingAction} />}
-                {postActions.deleteAction.length > 0 && <SheetMenuGroup actions={postActions.deleteAction} />}
-                {postActions.articleAction.length > 0 && <SheetMenuGroup actions={postActions.articleAction} />}
-                {postActions.sourcesAction.length > 0 && <SheetMenuGroup actions={postActions.sourcesAction} />}
-                {postActions.addToListAction.length > 0 && <SheetMenuGroup actions={postActions.addToListAction} />}
-                {postActions.muteReportAction.length > 0 && <SheetMenuGroup actions={postActions.muteReportAction} />}
-                <SheetMenuGroup actions={postActions.copyLinkAction} />
-            </View>,
-        );
-        bottomSheet.openBottomSheet(true);
-    }, [bottomSheet, postActions]);
+        showActionMenu({
+            label: t('postActions.title', { defaultValue: 'Post options' }),
+            groups: [
+                postActions.insightsAction,
+                postActions.saveActionGroup,
+                postActions.stopSharingAction,
+                postActions.deleteAction,
+                postActions.articleAction,
+                postActions.sourcesAction,
+                postActions.addToListAction,
+                postActions.muteReportAction,
+                postActions.copyLinkAction,
+            ],
+        });
+    }, [postActions, t]);
 
     // Memoize the structured props handed to the memoized children so they keep a
     // stable identity across re-renders. The inline object/array literals these

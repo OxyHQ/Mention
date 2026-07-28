@@ -21,6 +21,7 @@ import { HomeRefreshProvider } from '@/context/HomeRefreshContext';
 import { LayoutScrollProvider } from '@/context/LayoutScrollContext';
 import { OXY_CLIENT_ID, OXY_AUTH_REDIRECT_URI } from '@/config';
 import { ConfirmPromptProvider } from '@/components/common/ConfirmPrompt';
+import { ActionMenuHost } from '@/components/common/ActionMenu';
 import { FediverseInfoDialogProvider } from '@/components/Fediverse/FediverseInfoDialog';
 import { LiveFeatureHost } from '@/components/providers/LiveFeatureProviders';
 import { LiveRoomControllerProvider } from '@/context/LiveRoomContext';
@@ -93,6 +94,7 @@ export const AppProviders = memo(function AppProviders({
                              * root, and it carries Bloom's defaults.
                              */}
                             <ConfirmPromptProvider />
+                            <ActionMenuHost />
                             <FediverseInfoDialogProvider />
                           </HomeRefreshProvider>
                         </LayoutScrollProvider>

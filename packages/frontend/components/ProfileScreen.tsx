@@ -12,7 +12,6 @@ import {
 import { toast } from '@oxyhq/bloom/toast';
 import { router, useLocalSearchParams, type Href } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Ionicons from '@expo/vector-icons/Ionicons';
 import { BloomColorScope, useTheme } from '@oxyhq/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import { FollowButton as OxyFollowButton, useAuth, useFollow } from '@oxyhq/services/ui/client';
@@ -22,7 +21,8 @@ import { usePostsStore } from '@/stores/postsStore';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
 import { muteService } from '@/services/muteService';
 import { reportService } from '@/services/reportService';
-import { SheetMenuGroup, type SheetMenuAction } from '@/components/common/SheetMenu';
+import { showActionMenu } from '@/components/common/ActionMenu';
+import type { ActionMenuAction } from '@/components/common/actionMenuGroups';
 import { ReportModal } from '@/components/report/ReportModal';
 import { AddToListSheet } from '@/components/Lists/AddToListSheet';
 import { AddToStarterPackSheet } from '@/components/AddToStarterPackSheet';
@@ -43,6 +43,11 @@ import { ComposeIcon } from '@/assets/icons/compose-icon';
 import { MailIcon } from '@/assets/icons/mail-icon';
 import { MoreIcon } from '@/assets/icons/more-icon';
 import { ExternalLinkIcon } from '@/assets/icons/external-link-icon';
+import { List as ListIcon } from '@/assets/icons/list-icon';
+import { StarterPackIcon } from '@/assets/icons/starter-pack-icon';
+import { MuteIcon } from '@/assets/icons/mute-icon';
+import { BlockIcon } from '@/assets/icons/block-icon';
+import { ReportIcon } from '@/assets/icons/report-icon';
 
 // Components
 import { Avatar } from '@oxyhq/bloom/avatar';
@@ -332,7 +337,6 @@ const MentionProfileContent: React.FC<MentionProfileContentProps> = ({
         const displayUsername = profileData.username;
 
         const handleMute = async () => {
-            bottomSheet.openBottomSheet(false);
             const success = await muteService.muteUser(profileData.id);
             if (success) {
                 toast(t('profile.muted', { username: displayUsername, defaultValue: `@${displayUsername} has been muted` }), { type: 'success' });
@@ -342,7 +346,6 @@ const MentionProfileContent: React.FC<MentionProfileContentProps> = ({
         };
 
         const handleBlock = async () => {
-            bottomSheet.openBottomSheet(false);
             const confirmed = await confirmDialog({
                 title: t('profile.blockUser', { defaultValue: `Block @${displayUsername}` }),
                 message: t('profile.blockConfirm', { username: displayUsername, defaultValue: `They won't be able to find your profile, posts, or mentions. They won't be notified that you blocked them.` }),
@@ -350,7 +353,13 @@ const MentionProfileContent: React.FC<MentionProfileContentProps> = ({
                 cancelText: t('common.cancel', { defaultValue: 'Cancel' }),
                 destructive: true,
             });
-            if (!confirmed) return;
+            // Backing out of the confirm returns to where it was opened from —
+            // the menu — instead of dumping the user back on the profile with
+            // nothing to show for the trip.
+            if (!confirmed) {
+                openMenu();
+                return;
+            }
             try {
                 await oxyServices.blockUser(profileData.id);
                 toast(t('profile.blocked', { username: displayUsername, defaultValue: `@${displayUsername} has been blocked` }), { type: 'success' });
@@ -399,50 +408,49 @@ const MentionProfileContent: React.FC<MentionProfileContentProps> = ({
             bottomSheet.openBottomSheet(true);
         };
 
-        // Same rows as the post menu — grouped cards from the shared
-        // `SheetMenuGroup`. This menu used to hand-roll full-width buttons on
-        // the bare sheet background, which is why it looked unfinished next to
-        // every other sheet.
-        const actions: SheetMenuAction[] = [
+        const actions: ActionMenuAction[] = [
             {
-                icon: <Ionicons name="list-outline" size={22} color={theme.colors.text} />,
+                icon: <ListIcon size={22} className="text-foreground" />,
                 label: t('lists.addTo.menuItem', { defaultValue: 'Add/remove from lists' }),
                 onPress: handleAddToList,
             },
             {
-                icon: <Ionicons name="rocket-outline" size={22} color={theme.colors.text} />,
+                icon: <StarterPackIcon size={22} className="text-foreground" />,
                 label: t('starterPacks.addTo.menuItem', { defaultValue: 'Add/remove from starter packs' }),
                 onPress: handleAddToStarterPack,
             },
             {
-                icon: <Ionicons name="volume-mute-outline" size={22} color={theme.colors.text} />,
+                icon: <MuteIcon size={22} className="text-foreground" />,
                 label: t('profile.muteUser', { username: displayUsername, defaultValue: `Mute @${displayUsername}` }),
                 onPress: handleMute,
             },
         ];
 
-        const destructiveActions: SheetMenuAction[] = [
+        const destructiveActions: ActionMenuAction[] = [
             {
-                icon: <Ionicons name="ban-outline" size={22} color={theme.colors.error} />,
+                icon: <BlockIcon size={22} color={theme.colors.error} />,
                 label: t('profile.blockUser', { username: displayUsername, defaultValue: `Block @${displayUsername}` }),
                 onPress: handleBlock,
                 color: theme.colors.error,
             },
             {
-                icon: <Ionicons name="flag-outline" size={22} color={theme.colors.error} />,
+                icon: <ReportIcon size={22} color={theme.colors.error} />,
                 label: t('profile.reportUser', { defaultValue: 'Report' }),
                 onPress: handleReport,
                 color: theme.colors.error,
             },
         ];
 
-        bottomSheet.setBottomSheetContent(
-            <View className="bg-background p-4 gap-2">
-                <SheetMenuGroup actions={actions} />
-                <SheetMenuGroup actions={destructiveActions} />
-            </View>,
-        );
-        bottomSheet.openBottomSheet(true);
+        // Named so the block flow can reopen the exact same menu after a
+        // cancelled confirm.
+        function openMenu() {
+            showActionMenu({
+                label: t('profile.moreOptions', { username: displayUsername, defaultValue: `Options for @${displayUsername}` }),
+                groups: [actions, destructiveActions],
+            });
+        }
+
+        openMenu();
     }, [profileData, isOwnProfile, theme, t, bottomSheet, oxyServices]);
 
     // DM button handler

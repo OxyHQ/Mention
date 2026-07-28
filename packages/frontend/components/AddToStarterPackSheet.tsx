@@ -11,6 +11,7 @@ import { useAuth } from '@oxyhq/services/ui/client';
 import { starterPacksService, type StarterPackCollection } from '@/services/starterPacksService';
 import { createScopedLogger } from '@/lib/logger';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
+import { StarterPackIcon } from '@/assets/icons/starter-pack-icon';
 
 const logger = createScopedLogger('AddToStarterPackSheet');
 
@@ -191,7 +192,7 @@ export function AddToStarterPackSheet({ targetUserId, targetLabel, onClose }: Ad
         </View>
       ) : rows.length === 0 ? (
         <View className="items-center justify-center py-8 gap-3">
-          <Ionicons name="rocket-outline" size={40} color={theme.colors.textSecondary} />
+          <StarterPackIcon size={40} className="text-muted-foreground" />
           <Text className="text-muted-foreground text-sm text-center">
             {t('starterPacks.addTo.empty', { defaultValue: 'You have no starter packs yet' })}
           </Text>
@@ -215,7 +216,7 @@ export function AddToStarterPackSheet({ targetUserId, targetLabel, onClose }: Ad
             >
               <View className="flex-row items-center gap-3 flex-1">
                 <View className="w-9 h-9 rounded-lg items-center justify-center bg-secondary">
-                  <Ionicons name="rocket" size={18} color={theme.colors.text} />
+                  <StarterPackIcon size={18} className="text-foreground" />
                 </View>
                 <Text className="text-foreground text-[15px] font-medium flex-1" numberOfLines={1}>
                   {row.name}

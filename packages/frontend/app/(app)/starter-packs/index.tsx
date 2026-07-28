@@ -12,6 +12,7 @@ import { StarterPackCard, StarterPackCardSkeleton, type StarterPackCardData } fr
 import { useTranslation } from 'react-i18next';
 import { logger } from '@/lib/logger';
 import { EmptyState } from '@/components/common/EmptyState';
+import { StarterPackIcon } from '@/assets/icons/starter-pack-icon';
 
 const IS_WEB = Platform.OS === 'web';
 
@@ -54,10 +55,7 @@ export default function StarterPacksScreen() {
     <EmptyState
       title="No starter packs yet"
       subtitle="Create a starter pack to help others discover great accounts"
-      icon={{
-        name: 'rocket-outline',
-        size: 48,
-      }}
+      customIcon={<StarterPackIcon size={48} className="text-muted-foreground" />}
       action={{
         label: t('starterPacks.create'),
         onPress: () => router.push('/starter-packs/create'),

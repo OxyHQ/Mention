@@ -1,13 +1,36 @@
 import React from 'react';
-import { Path, G } from 'react-native-svg';
+import { Path } from 'react-native-svg';
 import { IconSvg } from '@/assets/icons/IconSvg';
 import { ViewStyle } from 'react-native';
-export const ReportIcon = ({ color = 'currentColor', size = 24, style, className }: { color?: string; size?: number; style?: ViewStyle; className?: string }) => {
+
+/**
+ * Report — an exclamation inside a burst outline. Material Symbols geometry,
+ * hence the `0 -960 960 960` viewBox rather than the 24×24 box the older icons
+ * in this folder use.
+ */
+export const ReportIcon = ({
+  color = 'currentColor',
+  size = 24,
+  style,
+  className,
+}: {
+  color?: string;
+  size?: number;
+  style?: ViewStyle;
+  className?: string;
+}) => {
   return (
-    <IconSvg viewBox="0 0 24 24" width={size} height={size} style={{ ...style }} className={className}>
-      <G>
-        <Path d="M3 2h18.61l-3.5 7 3.5 7H5v6H3V2zm2 12h13.38l-2.5-5 2.5-5H5v10z" fill={color} />
-      </G>
+    <IconSvg
+      viewBox="0 -960 960 960"
+      width={size}
+      height={size}
+      style={{ ...style }}
+      className={className}
+    >
+      <Path
+        fill={color}
+        d="M518.59-281.48q15.8-15.7 15.8-38.59 0-22.89-15.7-38.97-15.7-16.09-38.58-16.09-22.89 0-38.7 15.98-15.8 15.98-15.8 38.87 0 22.89 15.7 38.69 15.7 15.81 38.58 15.81 22.89 0 38.7-15.7Zm-2.55-172.35Q531-468.78 531-489.37v-148q0-20.59-14.96-35.54-14.95-14.96-35.54-14.96t-35.54 14.96Q430-657.96 430-637.37v148q0 20.59 14.96 35.54 14.95 14.96 35.54 14.96t35.54-14.96ZM347.31-150.78h-95.53q-42.24 0-71.62-29.38-29.38-29.38-29.38-71.62v-95.53l-61.74-62.1q-14.95-14.89-21.9-32.95Q60.2-460.41 60.2-480t6.94-37.64q6.95-18.06 21.9-32.95l61.74-62.1v-95.53q0-42.24 29.38-71.62 29.38-29.38 71.62-29.38h95.53l62.1-61.74q15.46-14.95 33.23-21.9 17.77-6.94 37.36-6.94t37.36 6.94q17.77 6.95 33.23 21.9l62.1 61.74h95.53q42.24 0 71.62 29.38 29.38 29.38 29.38 71.62v95.53l61.74 62.1q14.95 15.46 21.9 33.23 6.94 17.77 6.94 37.36t-6.94 37.36q-6.95 17.77-21.9 33.23l-61.74 62.1v95.53q0 42.24-29.38 71.62-29.38 29.38-71.62 29.38h-95.53l-62.1 61.74q-14.89 14.95-32.95 21.9Q499.59-60.2 480-60.2t-37.64-6.94q-18.06-6.95-32.95-21.9l-62.1-61.74Zm41.6-101L480-160.7l91.09-91.08h137.13v-137.13L799.3-480l-91.08-91.09v-137.13H571.09L480-799.3l-91.09 91.08H251.78v137.13L160.7-480l91.08 91.09v137.13h137.13ZM480-480Z"
+      />
     </IconSvg>
   );
 };

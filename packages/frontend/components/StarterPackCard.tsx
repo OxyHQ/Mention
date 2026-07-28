@@ -1,7 +1,6 @@
 import React, { useCallback, useMemo } from 'react';
 import { View, StyleSheet, TouchableOpacity } from 'react-native';
 import { PressableScale } from '@oxyhq/bloom/pressable-scale';
-import Ionicons from '@expo/vector-icons/Ionicons';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { AvatarGroup, type AvatarGroupItem } from '@oxyhq/bloom/avatar-group';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
@@ -11,6 +10,7 @@ import { ThemedText } from './ThemedText';
 import * as Skeleton from '@oxyhq/bloom/skeleton';
 import { formatCompactNumber } from '@/utils/formatNumber';
 import { getNormalizedUserHandle } from '@oxyhq/core';
+import { StarterPackIcon } from '@/assets/icons/starter-pack-icon';
 
 export interface StarterPackCardData {
   id: string;
@@ -47,7 +47,7 @@ const MAX_ROW_AVATARS = 6;
  * - "Starter pack by @handle" or "Starter pack by you" byline (tappable)
  * - Optional description (up to 3 lines)
  * - "N users have joined!" stat (shown when useCount >= 50)
- * - Falls back to rocket icon when no member avatars available
+ * - Falls back to the starter-pack mark when no member avatars available
  */
 export function StarterPackCard({ pack, onPress, noDescription }: StarterPackCardProps) {
   const theme = useTheme();
@@ -99,7 +99,7 @@ export function StarterPackCard({ pack, onPress, noDescription }: StarterPackCar
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
       testID={`starterpack-${pack.id}`}>
-      {/* Compact group-avatar cluster, or rocket fallback when no avatars exist */}
+      {/* Compact group-avatar cluster, or the pack mark when no avatars exist */}
       {hasAvatars ? (
         <AvatarGroup
           items={avatarItems}
@@ -111,7 +111,7 @@ export function StarterPackCard({ pack, onPress, noDescription }: StarterPackCar
         />
       ) : (
         <View className="bg-primary/20" style={styles.iconBubble}>
-          <Ionicons name="rocket-outline" size={22} color={theme.colors.primary} />
+          <StarterPackIcon size={22} color={theme.colors.primary} />
         </View>
       )}
 

@@ -1,7 +1,7 @@
 import React, { useMemo, useContext } from 'react';
 import { useRouter, usePathname } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
-import type { SheetMenuAction } from '@/components/common/SheetMenu';
+import type { ActionMenuAction } from '@/components/common/actionMenuGroups';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { useAuth } from '@oxyhq/services/ui/client';
 import { createScopedLogger } from '@/lib/logger';
@@ -54,15 +54,15 @@ interface UsePostActionsParams {
 }
 
 interface PostActionsResult {
-    insightsAction: SheetMenuAction[];
-    saveActionGroup: SheetMenuAction[];
-    addToListAction: SheetMenuAction[];
-    stopSharingAction: SheetMenuAction[];
-    deleteAction: SheetMenuAction[];
-    articleAction: SheetMenuAction[];
-    sourcesAction: SheetMenuAction[];
-    muteReportAction: SheetMenuAction[];
-    copyLinkAction: SheetMenuAction[];
+    insightsAction: ActionMenuAction[];
+    saveActionGroup: ActionMenuAction[];
+    addToListAction: ActionMenuAction[];
+    stopSharingAction: ActionMenuAction[];
+    deleteAction: ActionMenuAction[];
+    articleAction: ActionMenuAction[];
+    sourcesAction: ActionMenuAction[];
+    muteReportAction: ActionMenuAction[];
+    copyLinkAction: ActionMenuAction[];
 }
 
 export function usePostActions({
@@ -96,7 +96,6 @@ export function usePostActions({
         const isPostDetail = (pathname || '').startsWith('/p/');
 
         const handleDelete = async () => {
-            try { bottomSheet.openBottomSheet(false); } catch { logger.warn('Failed to close bottom sheet'); }
             const confirmed = await confirmDialog({
                 title: t('postActions.deletePost'),
                 message: t('postActions.deleteConfirmMessage'),
@@ -151,19 +150,19 @@ export function usePostActions({
             }
         }] : [];
 
-        const saveActionGroup: SheetMenuAction[] = [];
+        const saveActionGroup: ActionMenuAction[] = [];
 
         if (!isSaved) {
             saveActionGroup.push({
                 icon: <Bookmark size={20} className="text-muted-foreground" />,
                 label: t('postActions.save'),
-                onPress: async () => { await onSave(); bottomSheet.openBottomSheet(false); }
+                onPress: onSave,
             });
         } else {
             saveActionGroup.push({
                 icon: <BookmarkActive size={20} className="text-muted-foreground" />,
                 label: t('postActions.unsave'),
-                onPress: async () => { await onSave(); bottomSheet.openBottomSheet(false); }
+                onPress: onSave,
             });
         }
 
@@ -176,10 +175,7 @@ export function usePostActions({
                 saveActionGroup.push({
                     icon: <Ionicons name="create-outline" size={20} color={theme.colors.textSecondary} />,
                     label: t('postActions.edit'),
-                    onPress: () => {
-                        bottomSheet.openBottomSheet(false);
-                        router.push(`/compose?editPostId=${postId}`);
-                    }
+                    onPress: () => router.push(`/compose?editPostId=${postId}`),
                 });
             }
         }
@@ -207,7 +203,6 @@ export function usePostActions({
                     } catch {
                         toast(isPinned ? t('postActions.failedToUnpinPost') : t('postActions.failedToPinPost'), { type: 'error' });
                     }
-                    bottomSheet.openBottomSheet(false);
                 }
             });
         }
@@ -228,7 +223,6 @@ export function usePostActions({
                     } catch {
                         toast(t('postActions.failedToUpdateEngagement'), { type: 'error' });
                     }
-                    bottomSheet.openBottomSheet(false);
                 }
             });
         }
@@ -276,7 +270,6 @@ export function usePostActions({
             icon: <Ionicons name="close-circle-outline" size={20} color={theme.colors.error} />,
             label: t('collab.stopSharing', { defaultValue: 'Stop sharing' }),
             onPress: async () => {
-                try { bottomSheet.openBottomSheet(false); } catch { logger.warn('Failed to close bottom sheet'); }
                 const confirmed = await confirmDialog({
                     title: t('collab.stopSharingTitle', { defaultValue: 'Stop sharing this post?' }),
                     message: t('collab.stopSharingMessage', { defaultValue: 'This post will be removed from your profile. Other collaborators can still see it.' }),
@@ -322,7 +315,6 @@ export function usePostActions({
         }] : [];
 
         const handleMuteUser = async () => {
-            try { bottomSheet.openBottomSheet(false); } catch { logger.warn('Failed to close bottom sheet'); }
             const userId = viewPost?.user?.id;
             const username = getNormalizedUserHandle(viewPost?.user) || viewPost?.user?.name?.displayName || 'this user';
 
@@ -367,7 +359,7 @@ export function usePostActions({
             bottomSheet.openBottomSheet(true);
         };
 
-        const muteReportAction: SheetMenuAction[] = [];
+        const muteReportAction: ActionMenuAction[] = [];
 
         if (!isOwner) {
             const username = getNormalizedUserHandle(viewPost?.user) || viewPost?.user?.name?.displayName || 'user';
@@ -385,7 +377,7 @@ export function usePostActions({
             });
         }
 
-        const addToListAction: SheetMenuAction[] = [];
+        const addToListAction: ActionMenuAction[] = [];
         const authorId = viewPost?.user?.id;
         if (!isOwner && authorId) {
             const authorHandle = getNormalizedUserHandle(viewPost?.user) || '';
@@ -416,7 +408,6 @@ export function usePostActions({
                         await Clipboard.setStringAsync(postUrl);
                     }
                 } catch { logger.warn('Failed to copy link'); }
-                bottomSheet.openBottomSheet(false);
             }
         }];
 

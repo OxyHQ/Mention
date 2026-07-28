@@ -21,6 +21,7 @@ import { SEO } from '@/components/SEO';
 import { formatCompactNumber } from '@/utils/formatNumber';
 import { displayNameOrHandle } from '@/utils/displayName';
 import { logger } from '@/lib/logger';
+import { StarterPackIcon } from '@/assets/icons/starter-pack-icon';
 
 interface MemberProfile {
   id: string;
@@ -130,7 +131,7 @@ export default function StarterPackDetailScreen() {
           <AvatarGroup items={avatarItems} size={56} max={8} total={members.length} variant={MEDIA_VARIANT_VIDEO_POSTER} />
         ) : (
           <View className="w-16 h-16 rounded-2xl items-center justify-center bg-primary/20">
-            <Ionicons name="rocket-outline" size={32} color={theme.colors.primary} />
+            <StarterPackIcon size={32} color={theme.colors.primary} />
           </View>
         )}
 

@@ -21,6 +21,7 @@ import type { FeedType, HydratedPost } from '@mention/shared-types';
 import type { ProfileTabsProps } from './types';
 import { logger } from '@/lib/logger';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
+import { StarterPackIcon } from '@/assets/icons/starter-pack-icon';
 
 const IS_WEB = Platform.OS === 'web';
 
@@ -347,7 +348,6 @@ const ProfileStarterPacks = memo(function ProfileStarterPacks({
   isOwnProfile: boolean;
   viewerId?: string;
 }) {
-  const theme = useTheme();
   const { t } = useTranslation();
 
   // React Query (keyed on the profile + ownership) replaces the per-tab
@@ -397,7 +397,7 @@ const ProfileStarterPacks = memo(function ProfileStarterPacks({
   if (packs.length === 0) {
     return (
       <View className="items-center justify-center p-8 gap-3" style={{ minHeight: 200 }}>
-        <Ionicons name="rocket-outline" size={48} color={theme.colors.textSecondary} />
+        <StarterPackIcon size={48} className="text-muted-foreground" />
         <Text className="text-muted-foreground text-base font-medium">
           {t('profile.starterPacks.empty', { defaultValue: 'No starter packs yet' })}
         </Text>
