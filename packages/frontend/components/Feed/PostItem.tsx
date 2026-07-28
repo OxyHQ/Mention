@@ -37,6 +37,7 @@ import { usePostActions } from '@/hooks/usePostActions';
 import { PinIcon } from '@/assets/icons/pin-icon';
 import { BoostIcon } from '@/assets/icons/boost-icon';
 import { usePostLanguage } from '@/hooks/usePostLanguage';
+import { SheetMenuGroup } from '@/components/common/SheetMenu';
 import { THREAD_LINE_WIDTH, THREAD_LINE_BORDER_RADIUS, THREAD_LINE_Z_INDEX } from '@/components/Compose/composeLayout';
 import { POST_ITEM_SPACING } from '@/styles/shared';
 import { SubtleHover } from '@oxyhq/bloom/subtle-hover';
@@ -479,63 +480,17 @@ const PostItem: React.FC<PostItemProps> = ({
     });
 
     const openMenu = useCallback(() => {
-        const ActionRow: React.FC<{
-            icon: React.ReactNode;
-            text: string;
-            onPress: () => void;
-            color?: string;
-            isFirst?: boolean;
-            isLast?: boolean;
-        }> = ({ icon, text, onPress, color, isFirst, isLast }) => (
-            <TouchableOpacity
-                className="bg-surface flex-row items-center justify-between py-3 px-3.5"
-                style={{
-                    borderTopLeftRadius: isFirst ? 16 : 0,
-                    borderTopRightRadius: isFirst ? 16 : 0,
-                    borderBottomLeftRadius: isLast ? 16 : 0,
-                    borderBottomRightRadius: isLast ? 16 : 0,
-                    marginBottom: !isLast ? 4 : 0,
-                }}
-                onPress={onPress}
-                activeOpacity={0.7}
-            >
-                <Text className={cn("text-base font-medium", !color && "text-foreground")} style={color ? { color } : undefined}>{text}</Text>
-                <View className="ml-3">{icon}</View>
-            </TouchableOpacity>
-        );
-
-        const ActionGroup: React.FC<{
-            actions: { icon: React.ReactNode; text: string; onPress: () => void; color?: string }[];
-        }> = ({ actions }) => {
-            if (actions.length === 0) return null;
-            return (
-                <View className="mb-1">
-                    {actions.map((action, index) => (
-                        <ActionRow
-                            key={index}
-                            icon={action.icon}
-                            text={action.text}
-                            onPress={action.onPress}
-                            color={action.color}
-                            isFirst={index === 0}
-                            isLast={index === actions.length - 1}
-                        />
-                    ))}
-                </View>
-            );
-        };
-
         bottomSheet.setBottomSheetContent(
             <View className="bg-background p-4 gap-2">
-                {postActions.insightsAction.length > 0 && <ActionGroup actions={postActions.insightsAction} />}
-                {postActions.saveActionGroup.length > 0 && <ActionGroup actions={postActions.saveActionGroup} />}
-                {postActions.stopSharingAction.length > 0 && <ActionGroup actions={postActions.stopSharingAction} />}
-                {postActions.deleteAction.length > 0 && <ActionGroup actions={postActions.deleteAction} />}
-                {postActions.articleAction.length > 0 && <ActionGroup actions={postActions.articleAction} />}
-                {postActions.sourcesAction.length > 0 && <ActionGroup actions={postActions.sourcesAction} />}
-                {postActions.addToListAction.length > 0 && <ActionGroup actions={postActions.addToListAction} />}
-                {postActions.muteReportAction.length > 0 && <ActionGroup actions={postActions.muteReportAction} />}
-                <ActionGroup actions={postActions.copyLinkAction} />
+                {postActions.insightsAction.length > 0 && <SheetMenuGroup actions={postActions.insightsAction} />}
+                {postActions.saveActionGroup.length > 0 && <SheetMenuGroup actions={postActions.saveActionGroup} />}
+                {postActions.stopSharingAction.length > 0 && <SheetMenuGroup actions={postActions.stopSharingAction} />}
+                {postActions.deleteAction.length > 0 && <SheetMenuGroup actions={postActions.deleteAction} />}
+                {postActions.articleAction.length > 0 && <SheetMenuGroup actions={postActions.articleAction} />}
+                {postActions.sourcesAction.length > 0 && <SheetMenuGroup actions={postActions.sourcesAction} />}
+                {postActions.addToListAction.length > 0 && <SheetMenuGroup actions={postActions.addToListAction} />}
+                {postActions.muteReportAction.length > 0 && <SheetMenuGroup actions={postActions.muteReportAction} />}
+                <SheetMenuGroup actions={postActions.copyLinkAction} />
             </View>,
         );
         bottomSheet.openBottomSheet(true);

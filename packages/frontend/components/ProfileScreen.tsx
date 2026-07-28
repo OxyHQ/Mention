@@ -22,6 +22,7 @@ import { usePostsStore } from '@/stores/postsStore';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
 import { muteService } from '@/services/muteService';
 import { reportService } from '@/services/reportService';
+import { SheetMenuGroup, type SheetMenuAction } from '@/components/common/SheetMenu';
 import { ReportModal } from '@/components/report/ReportModal';
 import { AddToListSheet } from '@/components/Lists/AddToListSheet';
 import { AddToStarterPackSheet } from '@/components/AddToStarterPackSheet';
@@ -398,52 +399,49 @@ const MentionProfileContent: React.FC<MentionProfileContentProps> = ({
             bottomSheet.openBottomSheet(true);
         };
 
-        const MenuContent = () => (
-            <View className="py-2 px-4">
-                <IconButton variant="icon" onPress={handleAddToList} style={{ width: '100%', paddingVertical: 14 }}>
-                    <View className="flex-row items-center w-full" style={{ gap: 14 }}>
-                        <Ionicons name="list-outline" size={22} color={theme.colors.text} />
-                        <Text className="text-foreground text-base font-medium">
-                            {t('lists.addTo.menuItem', { defaultValue: 'Add/remove from lists' })}
-                        </Text>
-                    </View>
-                </IconButton>
-                <IconButton variant="icon" onPress={handleAddToStarterPack} style={{ width: '100%', paddingVertical: 14 }}>
-                    <View className="flex-row items-center w-full" style={{ gap: 14 }}>
-                        <Ionicons name="rocket-outline" size={22} color={theme.colors.text} />
-                        <Text className="text-foreground text-base font-medium">
-                            {t('starterPacks.addTo.menuItem', { defaultValue: 'Add/remove from starter packs' })}
-                        </Text>
-                    </View>
-                </IconButton>
-                <IconButton variant="icon" onPress={handleMute} style={{ width: '100%', paddingVertical: 14 }}>
-                    <View className="flex-row items-center w-full" style={{ gap: 14 }}>
-                        <Ionicons name="volume-mute-outline" size={22} color={theme.colors.text} />
-                        <Text className="text-foreground text-base font-medium">
-                            {t('profile.muteUser', { username: displayUsername, defaultValue: `Mute @${displayUsername}` })}
-                        </Text>
-                    </View>
-                </IconButton>
-                <IconButton variant="icon" onPress={handleBlock} style={{ width: '100%', paddingVertical: 14 }}>
-                    <View className="flex-row items-center w-full" style={{ gap: 14 }}>
-                        <Ionicons name="ban-outline" size={22} color={theme.colors.error} />
-                        <Text className="text-destructive text-base font-medium">
-                            {t('profile.blockUser', { username: displayUsername, defaultValue: `Block @${displayUsername}` })}
-                        </Text>
-                    </View>
-                </IconButton>
-                <IconButton variant="icon" onPress={handleReport} style={{ width: '100%', paddingVertical: 14 }}>
-                    <View className="flex-row items-center w-full" style={{ gap: 14 }}>
-                        <Ionicons name="flag-outline" size={22} color={theme.colors.error} />
-                        <Text className="text-destructive text-base font-medium">
-                            {t('profile.reportUser', { defaultValue: 'Report' })}
-                        </Text>
-                    </View>
-                </IconButton>
-            </View>
-        );
+        // Same rows as the post menu — grouped cards from the shared
+        // `SheetMenuGroup`. This menu used to hand-roll full-width buttons on
+        // the bare sheet background, which is why it looked unfinished next to
+        // every other sheet.
+        const actions: SheetMenuAction[] = [
+            {
+                icon: <Ionicons name="list-outline" size={22} color={theme.colors.text} />,
+                label: t('lists.addTo.menuItem', { defaultValue: 'Add/remove from lists' }),
+                onPress: handleAddToList,
+            },
+            {
+                icon: <Ionicons name="rocket-outline" size={22} color={theme.colors.text} />,
+                label: t('starterPacks.addTo.menuItem', { defaultValue: 'Add/remove from starter packs' }),
+                onPress: handleAddToStarterPack,
+            },
+            {
+                icon: <Ionicons name="volume-mute-outline" size={22} color={theme.colors.text} />,
+                label: t('profile.muteUser', { username: displayUsername, defaultValue: `Mute @${displayUsername}` }),
+                onPress: handleMute,
+            },
+        ];
 
-        bottomSheet.setBottomSheetContent(<MenuContent />);
+        const destructiveActions: SheetMenuAction[] = [
+            {
+                icon: <Ionicons name="ban-outline" size={22} color={theme.colors.error} />,
+                label: t('profile.blockUser', { username: displayUsername, defaultValue: `Block @${displayUsername}` }),
+                onPress: handleBlock,
+                color: theme.colors.error,
+            },
+            {
+                icon: <Ionicons name="flag-outline" size={22} color={theme.colors.error} />,
+                label: t('profile.reportUser', { defaultValue: 'Report' }),
+                onPress: handleReport,
+                color: theme.colors.error,
+            },
+        ];
+
+        bottomSheet.setBottomSheetContent(
+            <View className="bg-background p-4 gap-2">
+                <SheetMenuGroup actions={actions} />
+                <SheetMenuGroup actions={destructiveActions} />
+            </View>,
+        );
         bottomSheet.openBottomSheet(true);
     }, [profileData, isOwnProfile, theme, t, bottomSheet, oxyServices]);
 

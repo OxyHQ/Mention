@@ -1,6 +1,7 @@
 import React, { useMemo, useContext } from 'react';
 import { useRouter, usePathname } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
+import type { SheetMenuAction } from '@/components/common/SheetMenu';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { useAuth } from '@oxyhq/services/ui/client';
 import { createScopedLogger } from '@/lib/logger';
@@ -39,13 +40,6 @@ import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 
 const logger = createScopedLogger('usePostActions');
 
-interface ActionItem {
-    icon: React.ReactNode;
-    text: string;
-    onPress: () => void;
-    color?: string;
-}
-
 interface UsePostActionsParams {
     viewPost: HydratedPost;
     isOwner: boolean;
@@ -60,15 +54,15 @@ interface UsePostActionsParams {
 }
 
 interface PostActionsResult {
-    insightsAction: ActionItem[];
-    saveActionGroup: ActionItem[];
-    addToListAction: ActionItem[];
-    stopSharingAction: ActionItem[];
-    deleteAction: ActionItem[];
-    articleAction: ActionItem[];
-    sourcesAction: ActionItem[];
-    muteReportAction: ActionItem[];
-    copyLinkAction: ActionItem[];
+    insightsAction: SheetMenuAction[];
+    saveActionGroup: SheetMenuAction[];
+    addToListAction: SheetMenuAction[];
+    stopSharingAction: SheetMenuAction[];
+    deleteAction: SheetMenuAction[];
+    articleAction: SheetMenuAction[];
+    sourcesAction: SheetMenuAction[];
+    muteReportAction: SheetMenuAction[];
+    copyLinkAction: SheetMenuAction[];
 }
 
 export function usePostActions({
@@ -145,7 +139,7 @@ export function usePostActions({
 
         const insightsAction = canViewInsights ? [{
             icon: <AnalyticsIcon size={20} className="text-muted-foreground" />,
-            text: t('postActions.insights'),
+            label: t('postActions.insights'),
             onPress: () => {
                 bottomSheet.setBottomSheetContent(
                     <PostInsightsSheet
@@ -157,18 +151,18 @@ export function usePostActions({
             }
         }] : [];
 
-        const saveActionGroup: ActionItem[] = [];
+        const saveActionGroup: SheetMenuAction[] = [];
 
         if (!isSaved) {
             saveActionGroup.push({
                 icon: <Bookmark size={20} className="text-muted-foreground" />,
-                text: t('postActions.save'),
+                label: t('postActions.save'),
                 onPress: async () => { await onSave(); bottomSheet.openBottomSheet(false); }
             });
         } else {
             saveActionGroup.push({
                 icon: <BookmarkActive size={20} className="text-muted-foreground" />,
-                text: t('postActions.unsave'),
+                label: t('postActions.unsave'),
                 onPress: async () => { await onSave(); bottomSheet.openBottomSheet(false); }
             });
         }
@@ -181,7 +175,7 @@ export function usePostActions({
             if (withinEditWindow) {
                 saveActionGroup.push({
                     icon: <Ionicons name="create-outline" size={20} color={theme.colors.textSecondary} />,
-                    text: t('postActions.edit'),
+                    label: t('postActions.edit'),
                     onPress: () => {
                         bottomSheet.openBottomSheet(false);
                         router.push(`/compose?editPostId=${postId}`);
@@ -195,7 +189,7 @@ export function usePostActions({
                 icon: isPinned
                     ? <UnpinIcon size={20} className="text-muted-foreground" />
                     : <PinIcon size={20} className="text-muted-foreground" />,
-                text: isPinned ? t('postActions.unpinFromProfile') : t('postActions.pinToProfile'),
+                label: isPinned ? t('postActions.unpinFromProfile') : t('postActions.pinToProfile'),
                 onPress: async () => {
                     const nextPinned = !isPinned;
                     try {
@@ -222,7 +216,7 @@ export function usePostActions({
             const isHidden = Boolean(viewPost?.metadata?.hideEngagementCounts);
             saveActionGroup.push({
                 icon: <HideIcon size={20} className="text-muted-foreground" />,
-                text: isHidden ? t('postActions.showEngagementCounts') : t('postActions.hideEngagementCounts'),
+                label: isHidden ? t('postActions.showEngagementCounts') : t('postActions.hideEngagementCounts'),
                 onPress: async () => {
                     const nextHidden = !isHidden;
                     try {
@@ -242,7 +236,7 @@ export function usePostActions({
         if (isOwner) {
             saveActionGroup.push({
                 icon: <ChevronRightIcon size={20} className="text-muted-foreground" />,
-                text: t('postActions.replyOptions'),
+                label: t('postActions.replyOptions'),
                 onPress: () => {
                     bottomSheet.setBottomSheetContent(
                         <ReplySettingsSheet
@@ -280,7 +274,7 @@ export function usePostActions({
 
         const stopSharingAction = canStopSharing ? [{
             icon: <Ionicons name="close-circle-outline" size={20} color={theme.colors.error} />,
-            text: t('collab.stopSharing', { defaultValue: 'Stop sharing' }),
+            label: t('collab.stopSharing', { defaultValue: 'Stop sharing' }),
             onPress: async () => {
                 try { bottomSheet.openBottomSheet(false); } catch { logger.warn('Failed to close bottom sheet'); }
                 const confirmed = await confirmDialog({
@@ -308,12 +302,12 @@ export function usePostActions({
         }] : [];
 
         const deleteAction = isOwner ? [
-            { icon: <TrashIcon size={20} className="text-destructive" />, text: t('postActions.delete'), onPress: handleDelete, color: theme.colors.error }
+            { icon: <TrashIcon size={20} className="text-destructive" />, label: t('postActions.delete'), onPress: handleDelete, color: theme.colors.error }
         ] : [];
 
         const articleAction = hasArticle ? [{
             icon: <ArticleIcon size={20} className="text-muted-foreground" />,
-            text: t('post.viewArticle', { defaultValue: 'View article' }),
+            label: t('post.viewArticle', { defaultValue: 'View article' }),
             onPress: () => {
                 onOpenArticle();
             }
@@ -321,7 +315,7 @@ export function usePostActions({
 
         const sourcesAction = hasSources ? [{
             icon: <SourcesIcon size={20} className="text-muted-foreground" />,
-            text: t('post.viewSources', { defaultValue: 'View sources' }),
+            label: t('post.viewSources', { defaultValue: 'View sources' }),
             onPress: () => {
                 onOpenSources();
             }
@@ -373,31 +367,31 @@ export function usePostActions({
             bottomSheet.openBottomSheet(true);
         };
 
-        const muteReportAction: ActionItem[] = [];
+        const muteReportAction: SheetMenuAction[] = [];
 
         if (!isOwner) {
             const username = getNormalizedUserHandle(viewPost?.user) || viewPost?.user?.name?.displayName || 'user';
             muteReportAction.push({
                 icon: <MuteIcon size={20} className="text-muted-foreground" />,
-                text: t('postActions.muteUser', { username }),
+                label: t('postActions.muteUser', { username }),
                 onPress: handleMuteUser,
             });
 
             muteReportAction.push({
                 icon: <ReportIcon size={20} className="text-destructive" />,
-                text: t('postActions.reportPost'),
+                label: t('postActions.reportPost'),
                 onPress: handleReportPost,
                 color: theme.colors.error,
             });
         }
 
-        const addToListAction: ActionItem[] = [];
+        const addToListAction: SheetMenuAction[] = [];
         const authorId = viewPost?.user?.id;
         if (!isOwner && authorId) {
             const authorHandle = getNormalizedUserHandle(viewPost?.user) || '';
             addToListAction.push({
                 icon: <ListIcon size={20} className="text-muted-foreground" />,
-                text: t('lists.addTo.menuItem', { defaultValue: 'Add/remove from lists' }),
+                label: t('lists.addTo.menuItem', { defaultValue: 'Add/remove from lists' }),
                 onPress: () => {
                     bottomSheet.setBottomSheetContent(
                         <AddToListSheet
@@ -413,7 +407,7 @@ export function usePostActions({
 
         const copyLinkAction = [{
             icon: <LinkIcon size={20} className="text-muted-foreground" />,
-            text: t('postActions.copyLink'),
+            label: t('postActions.copyLink'),
             onPress: async () => {
                 try {
                     if (Platform.OS === 'web') {
