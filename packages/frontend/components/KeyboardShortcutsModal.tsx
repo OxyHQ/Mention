@@ -1,5 +1,7 @@
 import React, { memo } from 'react';
 import { Modal, View, Text, TouchableOpacity, StyleSheet, Platform, ScrollView, Pressable } from 'react-native';
+import { Backdrop } from '@oxyhq/bloom/overlay';
+
 import { SHORTCUTS } from '@/hooks/useKeyboardShortcuts';
 
 interface KeyboardShortcutsModalProps {
@@ -18,7 +20,9 @@ const KeyboardShortcutsModal: React.FC<KeyboardShortcutsModalProps> = ({ visible
       animationType="fade"
       onRequestClose={onClose}
     >
-      <Pressable style={styles.overlay} onPress={onClose}>
+      {/* Bloom's shared backdrop — the same blur + dim every dialog, sheet and
+          menu uses. This screen used to paint its own flat 50% black. */}
+      <Backdrop onPress={onClose} style={styles.overlay}>
         <Pressable
           className="bg-background border-border"
           style={styles.modal}
@@ -68,17 +72,15 @@ const KeyboardShortcutsModal: React.FC<KeyboardShortcutsModalProps> = ({ visible
             ))}
           </ScrollView>
         </Pressable>
-      </Pressable>
+      </Backdrop>
     </Modal>
   );
 };
 
 const styles = StyleSheet.create({
   overlay: {
-    flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
   },
   modal: {
     width: 400,
