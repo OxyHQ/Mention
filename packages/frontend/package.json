@@ -85,7 +85,7 @@
     "@livekit/react-native-expo-plugin": "^1.0.2",
     "@livekit/react-native-webrtc": "^144.1.1",
     "@mention/shared-types": "workspace:*",
-    "@oxyhq/bloom": "^0.61.0",
+    "@oxyhq/bloom": "^0.62.0",
     "@oxyhq/core": "^12.11.0",
     "@oxyhq/services": "^22.13.0",
     "@react-native-async-storage/async-storage": "^2.2.0",
