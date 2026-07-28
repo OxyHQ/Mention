@@ -135,3 +135,19 @@ packages/backend/uploads/
 .claude/
 .opencode
 .superpowers
+
+# Sandboxed agent runs bind-mount empty read-only files over these paths inside
+# the repo, which makes them show up as untracked noise in `git status`. They are
+# never project files, so ignore them. (`.gitmodules` and `.mcp.json` get the same
+# treatment from the sandbox but are deliberately NOT listed here: both can be
+# legitimate project files, and ignoring them would silently block committing a
+# real one.)
+.bash_profile
+.bashrc
+.profile
+.zprofile
+.zshrc
+.gitconfig
+.ripgreprc
+/.idea
+/.vscode
