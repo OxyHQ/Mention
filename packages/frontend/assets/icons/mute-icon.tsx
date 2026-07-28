@@ -2,16 +2,35 @@ import React from 'react';
 import { Path } from 'react-native-svg';
 import { IconSvg } from '@/assets/icons/IconSvg';
 import { ViewStyle } from 'react-native';
-export const MuteIcon = ({ color = 'currentColor', size = 24, style, className }: { color?: string; size?: number; style?: ViewStyle; className?: string }) => {
+
+/**
+ * Mute a person — a struck-through voice mark, not a speaker: what goes quiet
+ * is someone's posts, not the device volume. Material Symbols geometry, hence
+ * the `0 -960 960 960` viewBox rather than the 24×24 box the older icons in
+ * this folder use.
+ */
+export const MuteIcon = ({
+  color = 'currentColor',
+  size = 24,
+  style,
+  className,
+}: {
+  color?: string;
+  size?: number;
+  style?: ViewStyle;
+  className?: string;
+}) => {
   return (
-    <IconSvg viewBox="0 0 24 24" width={size} height={size} style={{ ...style }} className={className}>
+    <IconSvg
+      viewBox="0 -960 960 960"
+      width={size}
+      height={size}
+      style={{ ...style }}
+      className={className}
+    >
       <Path
-        d="M18 8.59V1.2L12.71 6H5.5c-.28 0-.5.22-.5.5v11c0 .28.22.5.5.5H12l6.71 6.71 1.41-1.41-2.3-2.3L21 17.41l-2.41-2.41zM12 19.29L8.41 16H7V8h4.41l3.59-3.59v8.17l-3 3z"
         fill={color}
-      />
-      <Path
-        d="M20 12c0 .34-.03.67-.08 1l1.48 1.48c.14-.48.22-.98.22-1.48 0-3.31-2.69-6-6-6-.34 0-.67.03-1 .08l1.48 1.48c.17-.01.34-.02.52-.02 2.21 0 4 1.79 4 4z"
-        fill={color}
+        d="M771.09-615.52q20.87-1 33.56 15.52 41.18 51.57 64.76 115.72Q893-420.13 893-347.83q0 26.4-3.85 53-3.85 26.61-10.54 53.01-14.74 19.95-38.85 23.65-24.11 3.69-44.07-11.05-19.95-14.74-23.65-38.63-3.69-23.89 11.05-43.85 7.95-56.74-6.07-111.41-14.02-54.67-47.59-100.37-12.69-17.52-10.91-38.89 1.78-21.37 16.74-36.76 14.96-15.39 35.83-16.39Zm-450-181.22q-10.83-17.83-3.63-37 7.19-19.17 26.15-29.44 20.09-10.82 41.8-3.06 21.72 7.76 33.68 27.85l50.04 89.21q11.39 17.96 2.85 38.05-8.55 20.09-28.2 29.35-20.08 9.69-40.89.93-20.8-8.76-32.2-28.28l-49.6-87.61ZM140.78-342.78v-51q0-22.09 15.46-37.55 15.46-15.45 37.54-15.45h107v-67q0-22.09 15.46-37.55 15.46-15.45 37.54-15.45h48.92l106 106H406.78v27q0 38.65-27.17 65.82-27.18 27.18-65.83 27.18h-66.43v4.78q2.26 28.22 20.37 49.35 18.11 21.13 45.45 28.43l12 3q47.92 12.26 54.33 60.74 6.41 48.48-37.5 73-52.7 29.57-110.39 42.57-57.7 13-117.83 16.56-22.08 1.57-37.54-13.89t-15.46-37.54q0-22.09 15.46-37.26 15.46-15.18 37.54-15.61 28.09-.87 55.24-5.39 27.15-4.53 53.24-14.26-38.65-26.4-60.07-67.92-21.41-41.52-21.41-88.56ZM797.22-47.52 55.43-789.17q-12.69-12.7-12.91-30.9-.22-18.19 12.91-31.32 12.7-12.7 31.11-12.7 18.42 0 31.11 12.7l742.22 742.22q12.7 12.69 12.7 30.61 0 17.91-12.7 31.04-13.13 13.13-31.33 13.13-18.19 0-31.32-13.13Z"
       />
     </IconSvg>
   );
