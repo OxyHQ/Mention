@@ -4,7 +4,7 @@ import { SafeAreaView } from '@/lib/SafeAreaViewInterop';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@oxyhq/services/ui/client';
 import { useTranslation } from 'react-i18next';
-import FontAwesome5 from '@expo/vector-icons/FontAwesome5';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { Loading } from '@oxyhq/bloom/loading';
 import { toast } from '@oxyhq/bloom/toast';
 import { useTheme } from '@oxyhq/bloom/theme';
@@ -132,11 +132,10 @@ export default function PokesScreen() {
                 activeOpacity={0.7}
                 accessibilityLabel={variant === 'undo' ? 'Unpoke' : 'Poke'}
             >
-                <FontAwesome5
-                    name="hand-point-right"
+                <Ionicons
+                    name={variant === 'undo' ? 'hand-right' : 'hand-right-outline'}
                     size={18}
                     color={filled ? '#fff' : theme.colors.text}
-                    solid={variant === 'undo'}
                 />
             </TouchableOpacity>
         );
@@ -229,7 +228,7 @@ export default function PokesScreen() {
                         subtitle={t('pokes.empty.subtitle', { defaultValue: 'When someone pokes you, it will show up here. Poke your followers to get started!' })}
                         customIcon={
                             <View style={[styles.emptyIcon, { backgroundColor: `${theme.colors.border}33` }]}>
-                                <FontAwesome5 name="hand-point-right" size={36} color={theme.colors.textSecondary} solid />
+                                <Ionicons name="hand-right" size={36} color={theme.colors.textSecondary} />
                             </View>
                         }
                     />
