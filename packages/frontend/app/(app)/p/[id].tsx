@@ -1,8 +1,8 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import {
+    Platform,
     View,
     Text,
-    StyleSheet,
     TouchableOpacity,
 } from 'react-native';
 import { Loading } from '@oxyhq/bloom/loading';
@@ -12,7 +12,10 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import PostItem from '@/components/Feed/PostItem';
 import Feed from '@/components/Feed/Feed';
-import { FeedHeader } from '@/components/Feed/FeedHeader';
+import { FeedHeader, FEED_COMPOSER_PROMPT_HEIGHT } from '@/components/Feed/FeedHeader';
+import { PanelStickyFooter } from '@/components/shell/PanelChrome';
+import { useBottomBarReservedSpace } from '@/components/BottomBar';
+import { useIsScreenNotMobile } from '@/hooks/useOptimizedMediaQuery';
 import { useThreadPreferences, SORT_TO_API } from '@/hooks/useThreadPreferences';
 import { usePostsStore, usePostSelector } from '@/stores/postsStore';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
@@ -36,6 +39,11 @@ import { SEO } from '@/components/SEO';
 
 type PostDetailEntity = HydratedPost | Reply | Boost;
 
+const IS_WEB = Platform.OS === 'web';
+
+/** Breathing room (px) below the last reply, before the pinned composer / screen edge. */
+const FEED_BOTTOM_PADDING = 16;
+
 // Hard cap on how far up the reply chain we walk when building the ancestor
 // thread, guarding against a runaway/cyclic chain. Threads are short in practice
 // (a handful of hops); this is purely a safety ceiling.
@@ -51,6 +59,8 @@ const PostDetailScreen: React.FC = () => {
     const { t } = useTranslation();
     const { treeView, sortOrder } = useThreadPreferences();
     const { openBottomSheet, setBottomSheetContent } = React.useContext(BottomSheetContext);
+    const isScreenNotMobile = useIsScreenNotMobile();
+    const bottomBarReservedSpace = useBottomBarReservedSpace();
 
     // The cached post for this id, read reactively from the shared cache (re-reads
     // whenever the cache mutates: background revalidation, optimistic like/boost,
@@ -115,6 +125,30 @@ const PostDetailScreen: React.FC = () => {
         parentPostId: repliesQueryTargetId,
         sort: SORT_TO_API[sortOrder],
     }), [repliesQueryTargetId, sortOrder]);
+
+    // The floating BottomBar renders only for a signed-in user on the mobile shell
+    // (see `app/(app)/_layout.tsx`); while it is up the pinned composer has to clear
+    // its footprint instead of sitting under it. Off the mobile shell there is no bar,
+    // so the composer keeps the sticky footer's own gutter offset (web) / the bottom
+    // safe-area inset (native).
+    const bottomBarInset = user && !isScreenNotMobile ? bottomBarReservedSpace : 0;
+
+    // Web: <PanelStickyFooter> pins with `position: sticky`, so it takes real flow
+    // space at the end of the document and only ever OVERLAYS content mid-scroll —
+    // the last reply is reachable without extra padding, and `bottom` is overridden
+    // only to clear the BottomBar. Native: the footer is a bottom-anchored absolute
+    // overlay, so it both carries the bar/safe-area inset itself and needs the feed
+    // to reserve its height as scrollable bottom padding.
+    const stickyComposerStyle = useMemo(() => {
+        if (bottomBarInset > 0) return { bottom: bottomBarInset };
+        return IS_WEB ? undefined : { bottom: insets.bottom };
+    }, [bottomBarInset, insets.bottom]);
+
+    const feedContentStyle = useMemo(() => ({
+        paddingBottom: IS_WEB
+            ? FEED_BOTTOM_PADDING
+            : FEED_BOTTOM_PADDING + FEED_COMPOSER_PROMPT_HEIGHT + (bottomBarInset || insets.bottom),
+    }), [bottomBarInset, insets.bottom]);
 
     const openReplyPreferences = useCallback(() => {
         setBottomSheetContent(<ReplyPreferencesSheet />);
@@ -278,7 +312,9 @@ const PostDetailScreen: React.FC = () => {
     const postTitle = t('seo.post.title', { author: postAuthor, defaultValue: `${postAuthor} on Mention` });
     const postImage = getPostImage();
 
-    // List header for Feed: ancestor thread + focused post + compose prompt + replies heading
+    // List header for Feed: ancestor thread + focused post + the OP's self-thread
+    // spine. The reply composer is NOT part of it — it is pinned to the bottom of
+    // the screen as sticky chrome below (see <PanelStickyFooter>).
     const listHeader = useMemo(() => {
         if (!post) return null;
         const hasAncestors = ancestors.length > 0;
@@ -317,8 +353,8 @@ const PostDetailScreen: React.FC = () => {
                     so the thread is continuous last-ancestor → focused → c1 … cN —
                     and it drops its bottom border (no longer the last node). Only
                     when there is NO spine does it close the thread with
-                    `isThreadLastChild` (keeping its bottom border above the compose
-                    prompt). */}
+                    `isThreadLastChild` (keeping its bottom border above the replies
+                    below). */}
                 <PostItem
                     post={post}
                     isPostDetail
@@ -335,8 +371,8 @@ const PostDetailScreen: React.FC = () => {
                     every node but the last; `attachedBelow` drops their bottom border
                     so they connect flush with no separators. The LAST continuation
                     (the thread tail) closes the thread with `isThreadLastChild`,
-                    keeping its bottom border to separate the tail from the compose
-                    prompt below. A new reply attaches to this tail (see
+                    keeping its bottom border to separate the tail from the replies
+                    below. A new reply attaches to this tail (see
                     `composeReplyTargetId`); the spine-aware replies feed excludes the
                     OP continuations, so they never double up in the replies list. */}
                 {continuations.map((continuation, index) => {
@@ -353,15 +389,9 @@ const PostDetailScreen: React.FC = () => {
                         />
                     );
                 })}
-
-                <FeedHeader
-                    showComposeButton={!!user}
-                    onComposePress={handleOpenReply}
-                    promptText={t('compose.replyPlaceholder', { defaultValue: 'Post your reply' })}
-                />
             </View>
         );
-    }, [post, ancestors, continuations, handleOpenReply, user, t]);
+    }, [post, ancestors, continuations, handleOpenReply]);
 
     if (!loading && (error || !post)) {
         return (
@@ -439,26 +469,37 @@ const PostDetailScreen: React.FC = () => {
                         <Loading className="text-primary" size="large" />
                     </View>
                 ) : (
-                    <Feed
-                        type={'replies' as FeedType}
-                        filters={feedFilters}
-                        reloadKey={repliesReloadKey}
-                        listHeaderComponent={listHeader}
-                        hideHeader={true}
-                        threaded={treeView}
-                        threadPostId={repliesQueryTargetId}
-                        contentContainerStyle={styles.feedContent}
-                    />
+                    <>
+                        <Feed
+                            type={'replies' as FeedType}
+                            filters={feedFilters}
+                            reloadKey={repliesReloadKey}
+                            listHeaderComponent={listHeader}
+                            hideHeader={true}
+                            threaded={treeView}
+                            threadPostId={repliesQueryTargetId}
+                            contentContainerStyle={feedContentStyle}
+                        />
+
+                        {/* The reply composer stays reachable at the bottom of the
+                            screen no matter how far down the replies are scrolled.
+                            It must be the LAST flow sibling for `position: sticky`
+                            to pin it on web. `bg-background` matches the feed rows,
+                            so replies never show through it while it overlays them. */}
+                        {!!user && (
+                            <PanelStickyFooter className="bg-background" style={stickyComposerStyle}>
+                                <FeedHeader
+                                    showComposeButton
+                                    onComposePress={handleOpenReply}
+                                    promptText={t('compose.replyPlaceholder', { defaultValue: 'Post your reply' })}
+                                />
+                            </PanelStickyFooter>
+                        )}
+                    </>
                 )}
             </ThemedView>
         </>
     );
 };
-
-const styles = StyleSheet.create({
-    feedContent: {
-        paddingBottom: 16,
-    },
-});
 
 export default PostDetailScreen;

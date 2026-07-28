@@ -1,5 +1,5 @@
 import { useRouter } from 'expo-router'
-import React, { useCallback, useState } from 'react'
+import React, { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { View } from 'react-native'
 import { Search } from '@oxyhq/bloom/search'
@@ -21,12 +21,13 @@ export const SearchBar = () => {
     const { t } = useTranslation();
     const [query, setQuery] = useState('');
 
-    const handleSubmit = useCallback(() => {
+    // Same declarative `{pathname, params}` navigation the `/search/<query>` deep
+    // link uses (`app/(app)/search/[query].tsx`) — expo-router owns the encoding.
+    // A blank submit goes to the bare route rather than a trailing `?q=`.
+    const handleSubmit = () => {
         const term = query.trim();
-        router.push(term ? `/search?q=${encodeURIComponent(term)}` : '/search');
-    }, [query, router]);
-
-    const handleClear = useCallback(() => setQuery(''), []);
+        router.push(term ? { pathname: '/search', params: { q: term } } : '/search');
+    };
 
     return (
         <View className="bg-background w-full z-[1000] web:sticky web:top-0">
@@ -34,7 +35,7 @@ export const SearchBar = () => {
                 label={t('Search Mention')}
                 value={query}
                 onChangeText={setQuery}
-                onClearText={handleClear}
+                onClearText={() => setQuery('')}
                 onSubmitEditing={handleSubmit}
             />
         </View>

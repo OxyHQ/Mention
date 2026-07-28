@@ -15,6 +15,22 @@ interface FeedHeaderProps {
     promptText?: string;
 }
 
+/** Height (px) of the prompt row: the avatar and the placeholder/action line beside it. */
+const PROMPT_ROW_HEIGHT = 32;
+/** Padding (px) inside the pill, above and below the prompt row. */
+const PROMPT_VERTICAL_PADDING = 12;
+/** Margin (px) around the pill, on every side. */
+const PROMPT_MARGIN = 12;
+
+/**
+ * Total laid-out height (px) of the prompt, its outer margin included. Screens that
+ * pin the prompt as a footer OVER their scrollable content (the post detail screen,
+ * where it is the reply composer) reserve this much scrollable bottom padding so the
+ * last row is never permanently hidden behind it.
+ */
+export const FEED_COMPOSER_PROMPT_HEIGHT =
+    PROMPT_ROW_HEIGHT + PROMPT_VERTICAL_PADDING * 2 + PROMPT_MARGIN * 2;
+
 /**
  * Composer prompt matching Bluesky's ComposerPrompt layout:
  * [Avatar 40px] ["What's up?" text] [Camera icon (native)] [Image icon]
@@ -109,9 +125,9 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'flex-start',
         paddingHorizontal: 12,
-        paddingVertical: 12,
+        paddingVertical: PROMPT_VERTICAL_PADDING,
         borderRadius: 9999,
-        margin: 12,
+        margin: PROMPT_MARGIN,
     },
     pressed: {
         opacity: 0.7,
@@ -122,7 +138,7 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        height: 32,
+        height: PROMPT_ROW_HEIGHT,
     },
     promptText: {
         fontSize: 16,

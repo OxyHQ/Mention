@@ -107,10 +107,12 @@ describe('MCP feed privacy delegation', () => {
     mocks.makeServiceRequest.mockImplementation(
       async (_method: string, path: string) => {
         if (path === '/users/me/graph') {
-          return { data: { blockedIds: ['blocked-user'] } };
-        }
-        if (path === '/privacy/restricted') {
-          return [{ restrictedId: 'restricted-user' }];
+          return {
+            data: {
+              blockedIds: ['blocked-user'],
+              restrictedIds: ['restricted-user'],
+            },
+          };
         }
         throw new Error(`Unexpected Oxy path: ${path}`);
       },
@@ -133,12 +135,9 @@ describe('MCP feed privacy delegation', () => {
       undefined,
       'active-user',
     );
-    expect(mocks.makeServiceRequest).toHaveBeenCalledWith(
-      'GET',
-      '/privacy/restricted',
-      undefined,
-      'active-user',
-    );
+    // Blocks and restrictions share ONE graph read, so the two callers must not
+    // each pay for a round trip.
+    expect(mocks.makeServiceRequest).toHaveBeenCalledTimes(1);
     expect(mocks.setTokens).not.toHaveBeenCalled();
   });
 

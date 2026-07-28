@@ -8,6 +8,10 @@ const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const rootManifest = await readJson("package.json");
 const expectedBunVersion = String(rootManifest.packageManager || "").replace(/^bun@/, "");
 const expectedNodeVersion = "22.17.0";
+// The Bloom release the whole workspace is pinned to — manifest range, root
+// override and installed copy must all agree on it. Bump this ONE constant when
+// taking a new Bloom.
+const expectedBloomVersion = "0.62.0";
 const failures = [];
 
 if (!expectedBunVersion) {
@@ -63,12 +67,12 @@ if (frontendManifest.dependencies?.["react-native"] !== "0.85.3") {
   );
 }
 if (
-  frontendManifest.dependencies?.["@oxyhq/bloom"] !== "^0.54.1" ||
-  rootManifest.overrides?.["@oxyhq/bloom"] !== "^0.54.1" ||
-  installedBloom.version !== "0.54.1"
+  frontendManifest.dependencies?.["@oxyhq/bloom"] !== `^${expectedBloomVersion}` ||
+  rootManifest.overrides?.["@oxyhq/bloom"] !== `^${expectedBloomVersion}` ||
+  installedBloom.version !== expectedBloomVersion
 ) {
   failures.push(
-    `Bloom must stay aligned at manifest/override ^0.54.1 and installed 0.54.1 ` +
+    `Bloom must stay aligned at manifest/override ^${expectedBloomVersion} and installed ${expectedBloomVersion} ` +
       `(found ${String(frontendManifest.dependencies?.["@oxyhq/bloom"])}, ` +
       `${String(rootManifest.overrides?.["@oxyhq/bloom"])}, ${String(installedBloom.version)}).`,
   );
