@@ -3,6 +3,7 @@ import { Platform, View } from "react-native";
 import { Slot, Stack, usePathname } from "expo-router";
 
 import { useAuth } from '@oxyhq/services/ui/client';
+import { ConnectionStatusToasts } from '@oxyhq/bloom/connection-status';
 import { ContentPanel } from '@oxyhq/bloom/content-panel';
 
 import { BottomBar, useBottomBarReservedSpace } from "@/components/BottomBar";
@@ -15,7 +16,6 @@ import { RightBar } from "@/components/RightBar";
 import { SideBar } from "@/components/SideBar";
 import { SignInBanner } from "@/components/SignInBanner";
 import WelcomeModalGate from '@/components/WelcomeModalGate';
-import ConnectionStatus from '@/components/common/ConnectionStatus';
 import { AppShellProviders } from '@/components/providers/AppShellProviders';
 
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
@@ -118,7 +118,9 @@ export default function AppLayout() {
 
   return (
     <AppShellProviders>
-      <ConnectionStatus />
+      {/* Connection loss shows as a Bloom toast — see @oxyhq/bloom/connection-status.
+          It replaced an app-local banner that pushed the whole screen down. */}
+      <ConnectionStatusToasts />
       <RealtimePostsBridge />
       <RealtimeNotificationsBridge />
       {/* ── visual shell (was MainLayout): SideBar + gutter/ContentPanel + RightBar ── */}
