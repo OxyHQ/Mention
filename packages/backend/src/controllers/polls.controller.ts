@@ -7,6 +7,29 @@ import { logger } from '../utils/logger';
 import { pollVoteService } from '../services/PollVoteService';
 import mongoose from 'mongoose';
 
+/**
+ * Strip voter IDs from an anonymous poll, leaving only the counts.
+ *
+ * A module function, NOT a method: Express registers handlers detached
+ * (`router.get('/:id', pollsController.getPoll)`), so a handler reaching this
+ * through `this` gets `undefined` at call time and throws — which is exactly
+ * how `GET /polls/:id` and the success path of `POST /polls/:id/vote` came to
+ * answer 500 in production (the vote was recorded, then the response blew up).
+ */
+function sanitizePollResponse(poll: IPoll) {
+  const pollObj = poll.toObject ? poll.toObject() : { ...poll };
+  if (pollObj.isAnonymous && pollObj.options) {
+    return {
+      ...pollObj,
+      options: pollObj.options.map((opt: IPollOption) => ({
+        ...opt,
+        votes: opt.votes ? opt.votes.length : 0, // Replace voter IDs with count
+      })),
+    };
+  }
+  return pollObj;
+}
+
 class PollsController {
   async createPoll(req: AuthRequest, res: Response, next: NextFunction) {
     try {
@@ -141,7 +164,7 @@ class PollsController {
 
       res.json({
         success: true,
-        data: this.sanitizePollResponse(poll)
+        data: sanitizePollResponse(poll)
       });
     } catch (error) {
       logger.error('[Polls] Error fetching poll:', error);
@@ -173,7 +196,7 @@ class PollsController {
       // inbound ActivityPub poll-vote handler uses), then map its result to HTTP.
       const result = await pollVoteService.recordVoteByOptionId(id, optionId, userId);
       if (result.ok) {
-        return res.json({ success: true, data: this.sanitizePollResponse(result.poll) });
+        return res.json({ success: true, data: sanitizePollResponse(result.poll) });
       }
 
       switch (result.reason) {
@@ -190,23 +213,6 @@ class PollsController {
       logger.error('[Polls] Error voting in poll:', error);
       next(createError(500, 'Error voting in poll'));
     }
-  }
-
-  /**
-   * Sanitize poll response — strip voter IDs from anonymous polls
-   */
-  private sanitizePollResponse(poll: IPoll) {
-    const pollObj = poll.toObject ? poll.toObject() : { ...poll };
-    if (pollObj.isAnonymous && pollObj.options) {
-      return {
-        ...pollObj,
-        options: pollObj.options.map((opt: IPollOption) => ({
-          ...opt,
-          votes: opt.votes ? opt.votes.length : 0, // Replace voter IDs with count
-        })),
-      };
-    }
-    return pollObj;
   }
 
   async getResults(req: Request, res: Response, next: NextFunction) {
