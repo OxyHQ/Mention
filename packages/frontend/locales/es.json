@@ -706,6 +706,14 @@
       "totalQuotes": "Total de citas"
     }
   },
+  "post.stats.likes_one": "me gusta",
+  "post.stats.likes_other": "me gusta",
+  "post.stats.boosts_one": "boost",
+  "post.stats.boosts_other": "boosts",
+  "post.stats.quotes_one": "cita",
+  "post.stats.quotes_other": "citas",
+  "post.stats.saves_one": "guardado",
+  "post.stats.saves_other": "guardados",
   "postActions": {
     "insights": "Estadísticas",
     "save": "Guardar",

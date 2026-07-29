@@ -782,6 +782,14 @@
       "totalQuotes": "Total quotes"
     }
   },
+  "post.stats.likes_one": "like",
+  "post.stats.likes_other": "likes",
+  "post.stats.boosts_one": "boost",
+  "post.stats.boosts_other": "boosts",
+  "post.stats.quotes_one": "quote",
+  "post.stats.quotes_other": "quotes",
+  "post.stats.saves_one": "save",
+  "post.stats.saves_other": "saves",
   "postActions": {
     "insights": "Insights",
     "save": "Save",

@@ -1,5 +1,6 @@
 import React, { useRef } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import { SpinnerIcon } from '@oxyhq/bloom/loading';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { CommentIcon } from '@/assets/icons/comment-icon';
@@ -20,8 +21,6 @@ import { useVoteStyle } from '@/hooks/useVoteStyle';
 import VotePill from './VotePill';
 
 const ICON_SIZE = 20;
-// The focused post-detail variant uses larger icons spread across the full row.
-const DETAIL_ICON_SIZE = 22;
 const MINI_AVATAR = 16;
 const AVATAR_OVERLAP = -4;
 
@@ -32,6 +31,8 @@ interface Engagement {
   downvotes?: number | null;
   saves?: number | null;
   views?: number | null;
+  /** Only the post-detail read carries this — see `includeQuoteCounts` on the backend. */
+  quotes?: number | null;
   recentReplierAvatars?: string[];
 }
 
@@ -92,21 +93,178 @@ const PostActions: React.FC<Props> = ({
   const haptic = useHaptics();
   const hasBeenToggled = useRef(false);
   const voteStyle = useVoteStyle();
+  const { t } = useTranslation();
 
   const replies = engagement?.replies ?? 0;
   const likes = engagement?.likes ?? 0;
   const boosts = engagement?.boosts ?? 0;
   const saves = engagement?.saves ?? 0;
+  const quotes = engagement?.quotes ?? 0;
   const downvotes = engagement?.downvotes ?? 0;
   const replierAvatars = engagement?.recentReplierAvatars ?? [];
 
+  // The action bar itself — identical on a feed row and on the post-detail
+  // screen. The detail variant only wraps it in extra chrome (timestamp row,
+  // engagement stats, dividers); it must never fork the buttons themselves, or
+  // the two surfaces drift in icon size, order and affordances.
+  const actionIconRow = (
+    <View className="flex-row items-center" style={{ gap: 12 }}>
+      {voteStyle === 'pill' && onDownvote ? (
+        <VotePill
+          likeCount={likes}
+          downvoteCount={downvotes}
+          isLiked={!!isLiked}
+          isDownvoted={!!isDownvoted}
+          onUpvote={() => {
+            hasBeenToggled.current = true;
+            onLike();
+          }}
+          onDownvote={onDownvote}
+        />
+      ) : (
+        <PressableScale
+          style={styles.iconButton}
+          onPress={() => {
+            hasBeenToggled.current = true;
+            haptic('light');
+            onLike();
+          }}
+          hitSlop={{ top: 5, bottom: 10, left: 10, right: 10 }}
+          accessibilityLabel={isLiked ? 'Unlike' : 'Like'}
+        >
+          <View className="flex-row items-center gap-1">
+            <AnimatedLikeIcon
+              isLiked={!!isLiked}
+              hasBeenToggled={hasBeenToggled.current}
+            />
+            <CountWheel
+              likeCount={likes}
+              isLiked={!!isLiked}
+              hasBeenToggled={hasBeenToggled.current}
+            />
+          </View>
+        </PressableScale>
+      )}
+
+      <PressableScale
+        style={styles.iconButton}
+        onPress={() => {
+          haptic('light');
+          onReply();
+        }}
+        hitSlop={{ top: 5, bottom: 10, left: 10, right: 10 }}
+        accessibilityLabel="Reply"
+      >
+        <CommentIcon size={ICON_SIZE} className="text-muted-foreground" />
+      </PressableScale>
+
+      <PressableScale
+        style={styles.iconButton}
+        onPress={() => {
+          haptic('medium');
+          onBoost();
+        }}
+        hitSlop={{ top: 5, bottom: 10, left: 10, right: 10 }}
+        accessibilityLabel={isBoosted ? 'Undo boost' : 'Boost'}
+      >
+        {isBoosted ? (
+          <BoostIconActive size={ICON_SIZE} color={theme.colors.success} />
+        ) : (
+          <BoostIcon size={ICON_SIZE} className="text-muted-foreground" />
+        )}
+      </PressableScale>
+
+      <PressableScale
+        style={styles.iconButton}
+        onPress={() => {
+          haptic('light');
+          onShare();
+        }}
+        hitSlop={{ top: 5, bottom: 10, left: 10, right: 10 }}
+        accessibilityLabel="Share"
+      >
+        <ShareIcon size={ICON_SIZE} className="text-muted-foreground" />
+      </PressableScale>
+
+      {/* Spacer: pushes Save + Translate + Insights to the right edge */}
+      <View className="flex-1" />
+
+      <PressableScale
+        className="flex-row items-center"
+        style={[styles.iconButton, { gap: 6 }]}
+        onPress={() => {
+          haptic('light');
+          onSave();
+        }}
+        hitSlop={{ top: 5, bottom: 10, left: 10, right: 10 }}
+        accessibilityRole="button"
+        accessibilityLabel={isSaved ? 'Remove from saved' : 'Save post'}
+      >
+        {isSaved ? (
+          <BookmarkActive size={ICON_SIZE} color={theme.colors.primary} />
+        ) : (
+          <Bookmark size={ICON_SIZE} className="text-muted-foreground" />
+        )}
+        {saves > 0 && (
+          <Text
+            className={isSaved ? 'text-[13px]' : 'text-[13px] text-muted-foreground'}
+            style={isSaved ? { color: theme.colors.primary } : undefined}
+          >
+            {formatCompactNumber(saves)}
+          </Text>
+        )}
+      </PressableScale>
+
+      {onTranslate && (
+        <PressableScale
+          style={styles.iconButton}
+          onPress={() => {
+            haptic('light');
+            onTranslate();
+          }}
+          hitSlop={{ top: 5, bottom: 10, left: 10, right: 10 }}
+          accessibilityLabel={isTranslated ? 'Show original' : 'Translate'}
+          disabled={isTranslating}
+        >
+          {isTranslating ? (
+            <SpinnerIcon size={16} className="text-muted-foreground" />
+          ) : (
+            <Ionicons
+              name={isTranslated ? 'language' : 'language-outline'}
+              size={ICON_SIZE}
+              color={isTranslated ? theme.colors.primary : theme.colors.textSecondary}
+            />
+          )}
+        </PressableScale>
+      )}
+
+      {onInsightsPress && (
+        <PressableScale
+          style={styles.iconButton}
+          onPress={() => {
+            haptic('light');
+            onInsightsPress();
+          }}
+          hitSlop={{ top: 5, bottom: 10, left: 10, right: 10 }}
+          accessibilityLabel="Insights"
+        >
+          <AnalyticsIcon size={ICON_SIZE} className="text-muted-foreground" />
+        </PressableScale>
+      )}
+    </View>
+  );
+
   if (detail) {
-    // Engagement-stats summary entries (boosts · likes · saves), tappable to open
-    // the engagement-list sheet where a handler is provided.
+    // Engagement-stats summary, the ONE thing the detail variant adds over the
+    // feed row: the counts the icon row deliberately does not carry. Entries with
+    // a zero count are dropped, and a `quotes` count only exists when the caller
+    // asked the backend for it (`includeQuoteCounts`) — feed-seeded cache paints
+    // without it until the detail read lands.
     const statsEntries: { key: string; label: string; count: number; onPress?: () => void }[] = [];
-    if (boosts > 0) statsEntries.push({ key: 'boosts', label: boosts === 1 ? 'boost' : 'boosts', count: boosts, onPress: onBoostsPress });
-    if (likes > 0) statsEntries.push({ key: 'likes', label: likes === 1 ? 'like' : 'likes', count: likes, onPress: onLikesPress });
-    if (saves > 0) statsEntries.push({ key: 'saves', label: saves === 1 ? 'save' : 'saves', count: saves });
+    if (likes > 0) statsEntries.push({ key: 'likes', label: t('post.stats.likes', { count: likes }), count: likes, onPress: onLikesPress });
+    if (boosts > 0) statsEntries.push({ key: 'boosts', label: t('post.stats.boosts', { count: boosts }), count: boosts, onPress: onBoostsPress });
+    if (quotes > 0) statsEntries.push({ key: 'quotes', label: t('post.stats.quotes', { count: quotes }), count: quotes });
+    if (saves > 0) statsEntries.push({ key: 'saves', label: t('post.stats.saves', { count: saves }), count: saves });
 
     return (
       <View>
@@ -139,125 +297,10 @@ const PostActions: React.FC<Props> = ({
           </View>
         )}
 
-        {/* Action buttons row — spread across the full width */}
-        <View className="flex-row items-center justify-between py-2.5 border-border" style={{ borderTopWidth: StyleSheet.hairlineWidth }}>
-          {voteStyle === 'pill' && onDownvote ? (
-            <VotePill
-              likeCount={likes}
-              downvoteCount={downvotes}
-              isLiked={!!isLiked}
-              isDownvoted={!!isDownvoted}
-              onUpvote={() => {
-                hasBeenToggled.current = true;
-                onLike();
-              }}
-              onDownvote={onDownvote}
-            />
-          ) : (
-            <PressableScale
-              className="flex-row items-center"
-              style={{ gap: 6 }}
-              onPress={() => {
-                hasBeenToggled.current = true;
-                haptic('light');
-                onLike();
-              }}
-              hitSlop={{ top: 5, bottom: 10, left: 10, right: 10 }}
-              accessibilityLabel={isLiked ? 'Unlike' : 'Like'}
-            >
-              <AnimatedLikeIcon isLiked={!!isLiked} hasBeenToggled={hasBeenToggled.current} />
-              {likes > 0 && <CountWheel likeCount={likes} isLiked={!!isLiked} hasBeenToggled={hasBeenToggled.current} />}
-            </PressableScale>
-          )}
-
-          <PressableScale
-            className="flex-row items-center"
-            style={{ gap: 6 }}
-            onPress={() => {
-              haptic('light');
-              onReply();
-            }}
-            hitSlop={{ top: 5, bottom: 10, left: 10, right: 10 }}
-            accessibilityLabel="Reply"
-          >
-            <CommentIcon size={DETAIL_ICON_SIZE} className="text-muted-foreground" />
-            {replies > 0 && <Text className="text-muted-foreground text-[13px]">{formatCompactNumber(replies)}</Text>}
-          </PressableScale>
-
-          <PressableScale
-            className="flex-row items-center"
-            style={{ gap: 6 }}
-            onPress={() => {
-              haptic('medium');
-              onBoost();
-            }}
-            hitSlop={{ top: 5, bottom: 10, left: 10, right: 10 }}
-            accessibilityLabel={isBoosted ? 'Undo boost' : 'Boost'}
-          >
-            {isBoosted ? (
-              <BoostIconActive size={DETAIL_ICON_SIZE} color={theme.colors.success} />
-            ) : (
-              <BoostIcon size={DETAIL_ICON_SIZE} className="text-muted-foreground" />
-            )}
-            {boosts > 0 && (
-              <Text
-                className={isBoosted ? 'text-[13px]' : 'text-[13px] text-muted-foreground'}
-                style={isBoosted ? { color: theme.colors.success } : undefined}
-              >
-                {formatCompactNumber(boosts)}
-              </Text>
-            )}
-          </PressableScale>
-
-          <PressableScale
-            className="flex-row items-center"
-            style={{ gap: 6 }}
-            onPress={() => {
-              haptic('light');
-              onSave();
-            }}
-            hitSlop={{ top: 5, bottom: 10, left: 10, right: 10 }}
-            accessibilityRole="button"
-            accessibilityLabel={isSaved ? 'Remove from saved' : 'Save post'}
-          >
-            {isSaved ? (
-              <BookmarkActive size={DETAIL_ICON_SIZE} color={theme.colors.primary} />
-            ) : (
-              <Bookmark size={DETAIL_ICON_SIZE} className="text-muted-foreground" />
-            )}
-            {saves > 0 && (
-              <Text
-                className={isSaved ? 'text-[13px]' : 'text-[13px] text-muted-foreground'}
-                style={isSaved ? { color: theme.colors.primary } : undefined}
-              >
-                {formatCompactNumber(saves)}
-              </Text>
-            )}
-          </PressableScale>
-
-          <PressableScale
-            onPress={() => {
-              haptic('light');
-              onShare();
-            }}
-            hitSlop={{ top: 5, bottom: 10, left: 10, right: 10 }}
-            accessibilityLabel="Share"
-          >
-            <ShareIcon size={DETAIL_ICON_SIZE} className="text-muted-foreground" />
-          </PressableScale>
-
-          {onInsightsPress && (
-            <PressableScale
-              onPress={() => {
-                haptic('light');
-                onInsightsPress();
-              }}
-              hitSlop={{ top: 5, bottom: 10, left: 10, right: 10 }}
-              accessibilityLabel="Insights"
-            >
-              <AnalyticsIcon size={DETAIL_ICON_SIZE} className="text-muted-foreground" />
-            </PressableScale>
-          )}
+        {/* The SAME icon row the feed renders — the detail screen differs from a
+            feed row only by what it adds around this bar, never by rebuilding it. */}
+        <View className="py-2.5 border-border" style={{ borderTopWidth: StyleSheet.hairlineWidth }}>
+          {actionIconRow}
         </View>
 
         {/* Bottom divider */}
@@ -272,151 +315,7 @@ const PostActions: React.FC<Props> = ({
 
   return (
     <View>
-      {/* Icon row -- icon-only, left-aligned */}
-      <View className="flex-row items-center" style={{ gap: 12 }}>
-        {voteStyle === 'pill' && onDownvote ? (
-          <VotePill
-            likeCount={likes}
-            downvoteCount={downvotes}
-            isLiked={!!isLiked}
-            isDownvoted={!!isDownvoted}
-            onUpvote={() => {
-              hasBeenToggled.current = true;
-              onLike();
-            }}
-            onDownvote={onDownvote}
-          />
-        ) : (
-          <PressableScale
-            style={styles.iconButton}
-            onPress={() => {
-              hasBeenToggled.current = true;
-              haptic('light');
-              onLike();
-            }}
-            hitSlop={{ top: 5, bottom: 10, left: 10, right: 10 }}
-            accessibilityLabel={isLiked ? 'Unlike' : 'Like'}
-          >
-            <View className="flex-row items-center gap-1">
-              <AnimatedLikeIcon
-                isLiked={!!isLiked}
-                hasBeenToggled={hasBeenToggled.current}
-              />
-              <CountWheel
-                likeCount={likes}
-                isLiked={!!isLiked}
-                hasBeenToggled={hasBeenToggled.current}
-              />
-            </View>
-          </PressableScale>
-        )}
-
-        <PressableScale
-          style={styles.iconButton}
-          onPress={() => {
-            haptic('light');
-            onReply();
-          }}
-          hitSlop={{ top: 5, bottom: 10, left: 10, right: 10 }}
-          accessibilityLabel="Reply"
-        >
-          <CommentIcon size={ICON_SIZE} className="text-muted-foreground" />
-        </PressableScale>
-
-        <PressableScale
-          style={styles.iconButton}
-          onPress={() => {
-            haptic('medium');
-            onBoost();
-          }}
-          hitSlop={{ top: 5, bottom: 10, left: 10, right: 10 }}
-          accessibilityLabel={isBoosted ? 'Undo boost' : 'Boost'}
-        >
-          {isBoosted ? (
-            <BoostIconActive size={ICON_SIZE} color={theme.colors.success} />
-          ) : (
-            <BoostIcon size={ICON_SIZE} className="text-muted-foreground" />
-          )}
-        </PressableScale>
-
-        <PressableScale
-          style={styles.iconButton}
-          onPress={() => {
-            haptic('light');
-            onShare();
-          }}
-          hitSlop={{ top: 5, bottom: 10, left: 10, right: 10 }}
-          accessibilityLabel="Share"
-        >
-          <ShareIcon size={ICON_SIZE} className="text-muted-foreground" />
-        </PressableScale>
-
-        {/* Spacer: pushes Save + Translate + Insights to the right edge */}
-        <View className="flex-1" />
-
-        <PressableScale
-          className="flex-row items-center"
-          style={[styles.iconButton, { gap: 6 }]}
-          onPress={() => {
-            haptic('light');
-            onSave();
-          }}
-          hitSlop={{ top: 5, bottom: 10, left: 10, right: 10 }}
-          accessibilityRole="button"
-          accessibilityLabel={isSaved ? 'Remove from saved' : 'Save post'}
-        >
-          {isSaved ? (
-            <BookmarkActive size={ICON_SIZE} color={theme.colors.primary} />
-          ) : (
-            <Bookmark size={ICON_SIZE} className="text-muted-foreground" />
-          )}
-          {saves > 0 && (
-            <Text
-              className={isSaved ? 'text-[13px]' : 'text-[13px] text-muted-foreground'}
-              style={isSaved ? { color: theme.colors.primary } : undefined}
-            >
-              {formatCompactNumber(saves)}
-            </Text>
-          )}
-        </PressableScale>
-
-        {onTranslate && (
-          <PressableScale
-            style={styles.iconButton}
-            onPress={() => {
-              haptic('light');
-              onTranslate();
-            }}
-            hitSlop={{ top: 5, bottom: 10, left: 10, right: 10 }}
-            accessibilityLabel={isTranslated ? 'Show original' : 'Translate'}
-            disabled={isTranslating}
-          >
-            {isTranslating ? (
-              <SpinnerIcon size={16} className="text-muted-foreground" />
-            ) : (
-              <Ionicons
-                name={isTranslated ? 'language' : 'language-outline'}
-                size={ICON_SIZE}
-                color={isTranslated ? theme.colors.primary : theme.colors.textSecondary}
-              />
-            )}
-          </PressableScale>
-        )}
-
-        {onInsightsPress && (
-          <PressableScale
-            style={styles.iconButton}
-            onPress={() => {
-              haptic('light');
-              onInsightsPress();
-            }}
-            hitSlop={{ top: 5, bottom: 10, left: 10, right: 10 }}
-            accessibilityLabel="Insights"
-          >
-            <AnalyticsIcon size={ICON_SIZE} className="text-muted-foreground" />
-          </PressableScale>
-        )}
-      </View>
+      {actionIconRow}
 
       {/* Engagement summary -- avatar bubbles + "X replies . Y likes" */}
       {summaryParts.length > 0 && (

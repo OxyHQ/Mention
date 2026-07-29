@@ -700,6 +700,14 @@
       "totalQuotes": "Totale citazioni"
     }
   },
+  "post.stats.likes_one": "mi piace",
+  "post.stats.likes_other": "mi piace",
+  "post.stats.boosts_one": "boost",
+  "post.stats.boosts_other": "boost",
+  "post.stats.quotes_one": "citazione",
+  "post.stats.quotes_other": "citazioni",
+  "post.stats.saves_one": "salvataggio",
+  "post.stats.saves_other": "salvataggi",
   "postActions": {
     "insights": "Statistiche",
     "save": "Salva",

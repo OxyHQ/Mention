@@ -133,6 +133,14 @@ interface HydrationOptions {
    * reads them from the Redis-cached identity itself.
    */
   viewerLanguages?: string[];
+  /**
+   * Count the posts that quote each hydrated post and expose them as
+   * `engagement.quotes`. Off by default: there is no denormalized `quotesCount`
+   * on `stats`, so this costs one extra aggregate over the `quoteOf` index per
+   * hydration call — worth it on the post-detail endpoints that render the
+   * number, wasted on every feed request that does not.
+   */
+  includeQuoteCounts?: boolean;
 }
 
 interface HydratedGraphNode {
@@ -868,6 +876,7 @@ export class PostHydrationService {
       authorPrivacyMap,
       linkPreviewMap,
       orphanAuthorMap,
+      quoteCountMap,
     ] = await Promise.all([
       this.populateViewerInteractions(postIds, viewerContext),
       (async () => {
@@ -882,6 +891,11 @@ export class PostHydrationService {
         ? this.buildLinkPreviewMap(postsForHydration, resolvedMap)
         : Promise.resolve(new Map<string, PostLinkPreview[]>()),
       this.buildOrphanFederatedAuthorMap(postsForHydration),
+      // `undefined` (not an empty Map) when the caller did not ask, so a post
+      // with zero quotes is still reported as 0 rather than as "not counted".
+      options.includeQuoteCounts === true
+        ? this.buildQuoteCountMap(postIds)
+        : Promise.resolve(undefined),
     ]);
     const mentionCache: Map<string, PostUser> = new Map(userMap);
 
@@ -900,6 +914,7 @@ export class PostHydrationService {
           recentReplierMap,
           orphanAuthorMap,
           resolvedMap,
+          quoteCountMap,
         })
       )
     );
@@ -1722,8 +1737,10 @@ export class PostHydrationService {
     recentReplierMap?: Map<string, string[]>;
     orphanAuthorMap: Map<string, PostUser>;
     resolvedMap: Map<string, ResolvedVariant>;
+    /** Undefined unless the caller passed `includeQuoteCounts` — see {@link HydrationOptions}. */
+    quoteCountMap: Map<string, number> | undefined;
   }): Promise<HydratedPostSummary | null> {
-    const { post, viewerContext, pollMap, userMap, mentionCache, linkPreviewMap, authorPrivacyMap, recentReplierMap, orphanAuthorMap, resolvedMap } = params;
+    const { post, viewerContext, pollMap, userMap, mentionCache, linkPreviewMap, authorPrivacyMap, recentReplierMap, orphanAuthorMap, resolvedMap, quoteCountMap } = params;
 
     const postId = this.resolveId(post);
     if (!postId) return null;
@@ -1831,7 +1848,12 @@ export class PostHydrationService {
     const permissions = this.buildPermissions(post, authorId, viewerContext, authorship);
     const authorPrivacy = authorPrivacyMap.get(authorId) ?? { ...DEFAULT_PRIVACY };
     const replierAvatars = recentReplierMap?.get(postId);
-    const engagement = this.buildEngagement(post, authorPrivacy, replierAvatars);
+    const engagement = this.buildEngagement(
+      post,
+      authorPrivacy,
+      replierAvatars,
+      quoteCountMap ? quoteCountMap.get(postId) ?? 0 : undefined,
+    );
 
     // Only include essential metadata for feed performance
     const includeFullMetadata = (params.viewerContext as ExtendedViewerContext).includeFullMetadata !== false;
@@ -2196,10 +2218,34 @@ export class PostHydrationService {
     return false;
   }
 
+  /**
+   * Posts-that-quote counts for the whole hydrated graph in ONE indexed
+   * aggregate over `{ quoteOf: 1, createdAt: -1 }`. Only ids with at least one
+   * quote appear; a caller reads a miss as zero. Counting on read (rather than a
+   * denormalized `stats.quotesCount`) matches how the insights endpoint already
+   * reports quotes, so there is one source of truth and nothing to backfill or
+   * keep in lockstep at the quote write sites.
+   */
+  private async buildQuoteCountMap(postIds: string[]): Promise<Map<string, number>> {
+    const counts = new Map<string, number>();
+    if (postIds.length === 0) return counts;
+
+    const rows = await Post.aggregate<{ _id: string; count: number }>([
+      { $match: { quoteOf: { $in: postIds } } },
+      { $group: { _id: '$quoteOf', count: { $sum: 1 } } },
+    ]);
+
+    for (const row of rows) {
+      if (row?._id) counts.set(String(row._id), row.count);
+    }
+    return counts;
+  }
+
   private buildEngagement(
     post: RawPost,
     authorPrivacy: typeof DEFAULT_PRIVACY,
     recentReplierAvatars?: string[],
+    quotesCount?: number,
   ): PostEngagementSummary {
     const stats = post?.stats || {};
     const likesCount = typeof stats.likesCount === 'number' ? stats.likesCount : 0;
@@ -2216,6 +2262,11 @@ export class PostHydrationService {
       boosts: authorPrivacy.hideShareCounts ? null : boostsCount,
       replies: authorPrivacy.hideReplyCounts ? null : repliesCount,
       saves: authorPrivacy.hideSaveCounts ? null : savesCount,
+      // Absent unless the caller asked for quote counts. Hidden by the same
+      // author control as boosts — a quote is a share of the post.
+      quotes: quotesCount === undefined
+        ? undefined
+        : authorPrivacy.hideShareCounts ? null : quotesCount,
       views: viewsCount > 0 ? viewsCount : null,
       impressions: null,
       recentReplierAvatars: recentReplierAvatars?.length ? recentReplierAvatars : undefined,

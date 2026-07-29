@@ -82,7 +82,14 @@ class FeedController {
    */
   // Public because the list-timeline route (`routes/lists.ts`) reuses the same
   // hydration path as the controller's own feed endpoints.
-  async transformPostsWithProfiles(posts: object[], currentUserId?: string, oxyClient?: OxyClient): Promise<HydratedPost[]> {
+  async transformPostsWithProfiles(
+    posts: object[],
+    currentUserId?: string,
+    oxyClient?: OxyClient,
+    // Only the single-item detail route asks for quote counts — see
+    // `HydrationOptions.includeQuoteCounts` for why the feed does not.
+    options: { includeQuoteCounts?: boolean } = {},
+  ): Promise<HydratedPost[]> {
     try {
       if (!posts || posts.length === 0) {
         return [];
@@ -97,6 +104,7 @@ class FeedController {
         includeLinkMetadata: true,
         includeFullArticleBody: false, // Don't include article bodies in feed
         includeFullMetadata: false, // Skip some metadata fields for performance
+        includeQuoteCounts: options.includeQuoteCounts === true,
       });
       
       // Ensure all posts have required fields
@@ -922,7 +930,14 @@ class FeedController {
         return res.status(404).json({ error: 'Post not found' });
       }
 
-      const [transformed] = await this.transformPostsWithProfiles([post], currentUserId, createScopedOxyClient(req));
+      // This is the post-detail read (`/p/:id`), the one surface that renders the
+      // quote count, so it is the one that pays for counting it.
+      const [transformed] = await this.transformPostsWithProfiles(
+        [post],
+        currentUserId,
+        createScopedOxyClient(req),
+        { includeQuoteCounts: true },
+      );
 
       return res.json(transformed);
     } catch (error) {

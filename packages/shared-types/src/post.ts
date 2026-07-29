@@ -769,6 +769,13 @@ export interface PostEngagementSummary {
   boosts: number | null;
   replies: number | null;
   saves?: number | null;
+  /**
+   * Posts that quote this one. Unlike the other counters this is NOT denormalized
+   * onto `stats` — it is counted on read off the `quoteOf` index, so it is only
+   * present when the caller asked for it (`includeQuoteCounts`, the post-detail
+   * endpoints). Absent on feed DTOs, where nothing renders it.
+   */
+  quotes?: number | null;
   views?: number | null;
   impressions?: number | null;
   recentReplierAvatars?: string[];

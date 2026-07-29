@@ -1223,6 +1223,8 @@ export const getPostById = async (req: AuthRequest, res: Response) => {
       requestLanguages: requestLanguageCandidates(req),
       maxDepth: 2,
       includeLinkMetadata: true,
+      // Single-post detail read — the surface that renders the quote count.
+      includeQuoteCounts: true,
     });
 
     const hydratedPost = hydrated[0];

@@ -553,6 +553,10 @@ const PostItem: React.FC<PostItemProps> = ({
             likes: engagementSummary?.likes ?? 0,
             downvotes: engagementSummary?.downvotes ?? 0,
             saves: engagementSummary?.saves ?? 0,
+            // Undefined on any DTO the detail endpoints did not produce (feed
+            // rows, cache seeds) — the stats row simply omits the entry until a
+            // detail read fills it in.
+            quotes: engagementSummary?.quotes,
             views: engagementSummary?.views ?? null,
             recentReplierAvatars: engagementSummary?.recentReplierAvatars,
         }),
@@ -562,6 +566,7 @@ const PostItem: React.FC<PostItemProps> = ({
             engagementSummary?.likes,
             engagementSummary?.downvotes,
             engagementSummary?.saves,
+            engagementSummary?.quotes,
             engagementSummary?.views,
             engagementSummary?.recentReplierAvatars,
         ],
