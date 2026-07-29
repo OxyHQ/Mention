@@ -157,6 +157,11 @@ export const viewerQueryKeys = {
     ...viewerQueryKeys.all(viewerId),
     'notifications',
   ] as const,
+  /** The viewer's activity subscriptions ("notify me when this account posts"). */
+  subscriptions: (viewerId: ViewerId) => [
+    ...viewerQueryKeys.all(viewerId),
+    'activity-subscriptions',
+  ] as const,
   notifications: (viewerId: ViewerId) => [
     ...viewerQueryKeys.notificationsRoot(viewerId),
     'list',
