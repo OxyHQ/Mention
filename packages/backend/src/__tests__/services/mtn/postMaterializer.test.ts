@@ -32,10 +32,16 @@ const h = vi.hoisted(() => {
     map: Map<string, StoredDoc>,
     id: string,
     update: { $set?: Record<string, unknown>; $setOnInsert?: Record<string, unknown> },
+    filterFields: Record<string, unknown> = {},
   ): StoredDoc {
     const isInsert = !map.has(id);
     const doc: StoredDoc = map.get(id) ?? { _id: id };
-    const merged: Record<string, unknown> = { ...(update.$set ?? {}) };
+    // On insert Mongo seeds the new document from the filter's equality fields
+    // before applying the update operators.
+    const merged: Record<string, unknown> = {
+      ...(isInsert ? filterFields : {}),
+      ...(update.$set ?? {}),
+    };
     if (isInsert && update.$setOnInsert) {
       Object.assign(merged, update.$setOnInsert);
     }
@@ -72,6 +78,41 @@ const h = vi.hoisted(() => {
     );
   }
 
+  /**
+   * `findOneAndUpdate` with the filter semantics the owner-scoped post upsert
+   * relies on, verified against a real MongoDB 8 server:
+   *  - the filter matches only when EVERY equality field matches the stored doc;
+   *  - a miss with `upsert` inserts, seeding the doc from the filter's fields;
+   *  - a miss with `upsert` on an `_id` that ALREADY EXISTS (i.e. the row belongs
+   *    to another owner) raises a duplicate-key error (code 11000) and leaves the
+   *    stored document untouched.
+   * The `_id` is compared as a string: the materializer passes a 24-hex rkey and
+   * Mongoose casts it, so the mock's string keys are the equivalent identity.
+   */
+  function findOneAndUpdate(map: Map<string, StoredDoc>) {
+    return vi.fn(
+      async (
+        filter: Record<string, unknown> & { _id: string },
+        update: { $set?: Record<string, unknown>; $setOnInsert?: Record<string, unknown> },
+        options?: { upsert?: boolean },
+      ) => {
+        const { _id, ...predicate } = filter;
+        const existing = map.get(_id);
+        const matches = existing !== undefined
+          && Object.entries(predicate).every(([field, value]) => existing[field] === value);
+        if (matches) return applyUpsert(map, _id, update, predicate);
+        if (!options?.upsert) return null;
+        if (existing !== undefined) {
+          throw Object.assign(
+            new Error(`E11000 duplicate key error collection: posts index: _id_ dup key: { _id: "${_id}" }`),
+            { code: 11000 },
+          );
+        }
+        return applyUpsert(map, _id, update, predicate);
+      },
+    );
+  }
+
   function findByIdAndDelete(map: Map<string, StoredDoc>) {
     return vi.fn(async (id: string) => {
       const existing = map.get(id) ?? null;
@@ -95,7 +136,12 @@ const h = vi.hoisted(() => {
     likes,
     bookmarks,
     Post: {
+      // `findByIdAndUpdate` is the UNSCOPED (rkey-only) upsert the materializer no
+      // longer uses. It stays on the double so a regression that drops the owner
+      // predicate still runs against faithful Mongo semantics and is reported as a
+      // rewritten victim post, not as a missing mock method.
       findByIdAndUpdate: findByIdAndUpdate(posts),
+      findOneAndUpdate: findOneAndUpdate(posts),
       findByIdAndDelete: findByIdAndDelete(posts),
       findOneAndDelete: findOwnedPostAndDelete,
     },
@@ -216,6 +262,7 @@ beforeEach(() => {
   h.likes.clear();
   h.bookmarks.clear();
   h.Post.findByIdAndUpdate.mockClear();
+  h.Post.findOneAndUpdate.mockClear();
   h.Post.findByIdAndDelete.mockClear();
   h.Post.findOneAndDelete.mockClear();
   h.Like.findByIdAndUpdate.mockClear();
@@ -319,6 +366,34 @@ describe('projectRecord — post', () => {
     const doc = h.posts.get(POST_RKEY);
     expect(doc?.threadId).toBe(rootId);
     expect(doc?.parentPostId).toBe(parentId);
+  });
+
+  it('REJECTS a record whose rkey is ANOTHER user\'s post — the victim row is untouched', async () => {
+    // The rkey is a key in the SUBJECT's namespace, so a genuinely-signed record
+    // naming someone else's post id must never rewrite that post. Without the
+    // owner predicate this projection silently forges the victim's content and
+    // hands their post (oxyUserId + authorship) to the record's author.
+    h.posts.set(POST_RKEY, {
+      _id: POST_RKEY,
+      oxyUserId: OWNER_OXY_ID,
+      content: { variants: [{ source: 'author', text: 'the victim wrote this' }] },
+      status: 'published',
+      visibility: 'public',
+    });
+
+    const result = await projectRecord(envelope(MENTION_POST_COLLECTION, POST_RKEY, postRecord));
+
+    // Assert the victim's row FIRST: a failure here is the forgery itself, so the
+    // message names the damage rather than only the wrong return value.
+    const doc = h.posts.get(POST_RKEY);
+    expect((doc?.content as { variants: Array<{ text: string }> }).variants[0].text).toBe(
+      'the victim wrote this',
+    );
+    expect(doc?.oxyUserId).toBe(OWNER_OXY_ID);
+    expect(doc?.authorship).toBeUndefined();
+    // No second row was invented for the taken rkey either.
+    expect(h.posts.size).toBe(1);
+    expect(result).toEqual({ ok: false, reason: 'record_owner_mismatch' });
   });
 
   it('PRESERVES existing content.media (BLOB DEFERRED — never clobbers to empty)', async () => {
@@ -520,6 +595,30 @@ describe('projectRecord — repost', () => {
     expect(doc?.oxyUserId).toBe(SUBJECT_OXY_ID);
     // No rendition at all — a boost has nothing to say in any language.
     expect((doc?.content as { variants: unknown[] }).variants).toEqual([]);
+  });
+
+  it('REJECTS a repost record whose rkey is ANOTHER user\'s post — the victim row is untouched', async () => {
+    h.posts.set(REPOST_RKEY, {
+      _id: REPOST_RKEY,
+      oxyUserId: OWNER_OXY_ID,
+      type: 'text',
+      content: { variants: [{ source: 'author', text: 'the victim wrote this' }] },
+    });
+
+    const repostRecord = {
+      subject: createPostUri(OWNER_OXY_ID, LIKED_POST_ID),
+      createdAt: '2024-01-02T03:04:05.000Z',
+    };
+    const result = await projectRecord(envelope(MENTION_REPOST_COLLECTION, REPOST_RKEY, repostRecord));
+
+    const doc = h.posts.get(REPOST_RKEY);
+    expect((doc?.content as { variants: Array<{ text: string }> }).variants[0].text).toBe(
+      'the victim wrote this',
+    );
+    expect(doc?.oxyUserId).toBe(OWNER_OXY_ID);
+    expect(doc?.type).toBe('text');
+    expect(doc?.boostOf).toBeUndefined();
+    expect(result).toEqual({ ok: false, reason: 'record_owner_mismatch' });
   });
 });
 

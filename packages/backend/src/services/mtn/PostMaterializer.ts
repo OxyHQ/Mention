@@ -14,6 +14,11 @@
  *  - IDEMPOTENT — every projection is keyed by the envelope's `rkey` (the Mongo
  *    `_id` of the post/like/etc.), so re-projecting the same record converges to
  *    the same row (no duplicates, stable classification). Re-runs are safe.
+ *  - OWNER-SCOPED — an `rkey` is a key in the SUBJECT's namespace, never a global
+ *    one, so every post/boost upsert is filtered by `{ _id: rkey, oxyUserId }`.
+ *    A record whose rkey names ANOTHER user's post fails closed on the taken `_id`
+ *    (`record_owner_mismatch`) instead of rewriting that user's row: without this
+ *    a genuinely-signed record could take over any post whose id its author knows.
  *  - ZERO-REGRESSION — a post upsert uses a FIELD-SCOPED `$set` of only the fields
  *    the record owns (text, reply, tags, langs, sources, location, …). It NEVER
  *    replaces the whole document, and it only writes `content.media` when the
@@ -72,7 +77,7 @@ import {
   type PostContentVariant,
 } from '@mention/shared-types';
 import { PostType, PostVisibility } from '@mention/shared-types';
-import { Post, POST_CLASSIFICATION_PENDING } from '../../models/Post';
+import { Post, POST_CLASSIFICATION_PENDING, type IPost } from '../../models/Post';
 import { logger } from '../../utils/logger';
 import { getServiceOxyClient } from '../../utils/oxyHelpers';
 import { parseUserDid } from './mentionDid';
@@ -292,6 +297,18 @@ function toObjectId(rkey: string): mongoose.Types.ObjectId | null {
 }
 
 /**
+ * Whether an error is a MongoDB duplicate-key error (code 11000) — how an
+ * owner-scoped upsert reports that the `rkey` is already taken by ANOTHER user
+ * (see {@link projectPost}).
+ */
+function isDuplicateKeyError(err: unknown): boolean {
+  if (err && typeof err === 'object' && 'code' in err) {
+    return (err as { code?: unknown }).code === 11000;
+  }
+  return false;
+}
+
+/**
  * Build the Stage-A `postClassification` subdoc + primary `language` for a post
  * record, MIRRORING `PostCreationService.applyBaselineClassification` EXACTLY so
  * a materialized post's classification is identical to a natively-created one.
@@ -345,7 +362,8 @@ function buildClassificationFields(record: MentionPostRecord): Record<string, un
 
 /**
  * Project an `app.mention.feed.post` record into a `Post` row, upserted by
- * `_id = rkey`. Only the fields the record OWNS are `$set` (text/reply/tags/…).
+ * `{ _id: rkey, oxyUserId }` — the owner predicate keeps a record confined to its
+ * own author's rows. Only the fields the record OWNS are `$set` (text/reply/tags/…).
  * `content.media` is written ONLY when the record's content-addressed `embed`
  * RESOLVES to ≥1 live MediaItem ({@link resolveEmbedItemsToMedia}); an empty
  * resolution leaves the field untouched, so an existing post's fileId media
@@ -420,21 +438,32 @@ async function projectPost(
     };
   }
 
-  const projectedPost = await Post.findByIdAndUpdate(
-    rkey,
-    {
-      $set: set,
-      $setOnInsert: { visibility: PostVisibility.PUBLIC, status: 'published' },
-    },
-    { upsert: true, new: true, setDefaultsOnInsert: true },
-  );
+  // OWNER-SCOPED upsert: the filter carries the record owner alongside the rkey,
+  // so a record can only ever create or rewrite a row THIS subject owns. When the
+  // rkey already belongs to someone else the filter misses, the upsert attempts an
+  // insert on a taken `_id`, and Mongo rejects it with a duplicate-key error —
+  // atomically failing closed instead of overwriting the other user's post.
+  let projectedPost: IPost | null;
+  try {
+    projectedPost = await Post.findOneAndUpdate(
+      { _id: rkey, oxyUserId },
+      {
+        $set: set,
+        $setOnInsert: { visibility: PostVisibility.PUBLIC, status: 'published' },
+      },
+      { upsert: true, new: true, setDefaultsOnInsert: true },
+    );
+  } catch (error) {
+    if (isDuplicateKeyError(error)) return { ok: false, reason: 'record_owner_mismatch' };
+    throw error;
+  }
 
   // Re-derive the Stage-A classification from the SAME inputs the native path
   // uses, and write it with a dotted `$set` (so it overwrites the whole subdoc
   // + the top-level primary language without touching unrelated fields).
   const classificationFields = buildClassificationFields(record);
   if (Object.keys(classificationFields).length > 0) {
-    await Post.findByIdAndUpdate(rkey, { $set: classificationFields });
+    await Post.findOneAndUpdate({ _id: rkey, oxyUserId }, { $set: classificationFields });
   }
   if (record.reply && projectedPost) {
     await recordRecentReplierForPost(projectedPost);
@@ -466,8 +495,9 @@ async function projectLike(
 
 /**
  * Project an `app.mention.feed.repost` record into a `type: 'boost'` Post row
- * (upsert by `_id = rkey`). A boost has an INTENTIONALLY EMPTY content body and
- * relies on `boostOf` for hydration (see the boost-hydration gotcha).
+ * (upsert by `{ _id: rkey, oxyUserId }`). A boost has an INTENTIONALLY EMPTY
+ * content body and relies on `boostOf` for hydration (see the boost-hydration
+ * gotcha).
  *
  * "Empty body" now means NO RENDITION — an empty `content.variants`, not a
  * rendition whose text happens to be `''`. A boost has nothing to say in any
@@ -482,21 +512,29 @@ async function projectRepost(
   const boostOf = rkeyFromMtnUri(record.subject);
   if (!boostOf) return { ok: false, reason: 'unresolvable_repost_subject' };
 
-  await Post.findByIdAndUpdate(
-    rkey,
-    {
-      $set: {
-        oxyUserId,
-        authorship: buildAuthorship(oxyUserId, []),
-        type: PostType.BOOST,
-        boostOf,
-        'content.variants': [],
-        createdAt,
+  // OWNER-SCOPED upsert, exactly as in {@link projectPost}: a duplicate-key error
+  // means the rkey already belongs to another user, so the boost is rejected
+  // rather than rewriting their row.
+  try {
+    await Post.findOneAndUpdate(
+      { _id: rkey, oxyUserId },
+      {
+        $set: {
+          oxyUserId,
+          authorship: buildAuthorship(oxyUserId, []),
+          type: PostType.BOOST,
+          boostOf,
+          'content.variants': [],
+          createdAt,
+        },
+        $setOnInsert: { visibility: PostVisibility.PUBLIC, status: 'published' },
       },
-      $setOnInsert: { visibility: PostVisibility.PUBLIC, status: 'published' },
-    },
-    { upsert: true, new: true, setDefaultsOnInsert: true },
-  );
+      { upsert: true, new: true, setDefaultsOnInsert: true },
+    );
+  } catch (error) {
+    if (isDuplicateKeyError(error)) return { ok: false, reason: 'record_owner_mismatch' };
+    throw error;
+  }
 
   return { ok: true, kind: 'repost', id: rkey };
 }
