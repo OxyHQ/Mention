@@ -29,6 +29,8 @@ import { confirmDialog } from '@/utils/alerts';
 import { reportService } from '@/services/reportService';
 import { ReportModal } from '@/components/report/ReportModal';
 import { LIVE_INDICATOR_COLOR, LIVE_INDICATOR_FOREGROUND_COLOR } from '@/styles/colors';
+import { getNormalizedUserHandle } from '@oxyhq/core';
+import { ProfileHoverCard } from '@/components/ProfileHoverCard';
 
 /** The participant grid stays glanceable; the overflow collapses into a "+N" chip. */
 const MAX_PARTICIPANT_AVATARS = 10;
@@ -36,7 +38,13 @@ const MAX_PARTICIPANT_AVATARS = 10;
 const ParticipantAvatar = ({ userId, oxyServices }: { userId: string; oxyServices: FileUrlResolver }) => {
   const profile = useUserById(userId);
   const avatarUri = getAvatarUrl(profile, oxyServices);
-  return <Avatar size={32} source={avatarUri} shape="squircle" />;
+  // A grid of faces says nothing about who they are — the preview is how you
+  // find out without leaving the room.
+  return (
+    <ProfileHoverCard username={getNormalizedUserHandle(profile) ?? undefined}>
+      <Avatar size={32} source={avatarUri} shape="squircle" />
+    </ProfileHoverCard>
+  );
 };
 
 const HostInfo = ({ hostId, oxyServices }: { hostId: string; oxyServices: FileUrlResolver }) => {
@@ -45,15 +53,17 @@ const HostInfo = ({ hostId, oxyServices }: { hostId: string; oxyServices: FileUr
   const avatarUri = getAvatarUrl(profile, oxyServices);
 
   return (
-    <View className="flex-row items-center">
-      <Avatar size={48} source={avatarUri} shape="squircle" />
-      <View className="flex-1 ml-3">
-        <ThemedText type="defaultSemiBold">{displayName}</ThemedText>
-        {profile?.username && (
-          <Text className="text-sm mt-0.5 text-muted-foreground">@{profile.username}</Text>
-        )}
+    <ProfileHoverCard username={getNormalizedUserHandle(profile) ?? undefined}>
+      <View className="flex-row items-center">
+        <Avatar size={48} source={avatarUri} shape="squircle" />
+        <View className="flex-1 ml-3">
+          <ThemedText type="defaultSemiBold">{displayName}</ThemedText>
+          {profile?.username && (
+            <Text className="text-sm mt-0.5 text-muted-foreground">@{profile.username}</Text>
+          )}
+        </View>
       </View>
-    </View>
+    </ProfileHoverCard>
   );
 };
 

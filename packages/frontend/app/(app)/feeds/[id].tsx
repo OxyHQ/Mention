@@ -38,6 +38,7 @@ import { BottomSheet, type BottomSheetRef } from '@oxyhq/bloom/bottom-sheet';
 import { useTranslation } from 'react-i18next';
 import { FeedSubscribeButton } from '@/components/FeedSubscribeButton';
 import { getNormalizedUserHandle } from '@oxyhq/core';
+import { ProfileHoverCard } from '@/components/ProfileHoverCard';
 import type { PostUser } from '@mention/shared-types';
 import { displayNameOrHandle } from '@/utils/displayName';
 import { WEB_BASE_URL } from '@/config';
@@ -89,6 +90,9 @@ const FeedHeaderBar = React.memo(function FeedHeaderBar({
   const theme = useTheme();
   const safeBack = useSafeBack();
   const creatorHandle = profileHandle(feed.owner);
+  // The bare handle (no `@`) the hover preview resolves; `creatorHandle` is the
+  // display form.
+  const ownerHandle = getNormalizedUserHandle(feed.owner) ?? undefined;
 
   return (
     <View
@@ -115,9 +119,11 @@ const FeedHeaderBar = React.memo(function FeedHeaderBar({
               </Text>
               <View className="flex-row items-center" style={{ gap: 6 }}>
                 {creatorHandle ? (
-                  <Text className="text-sm leading-snug text-muted-foreground shrink" numberOfLines={1}>
-                    {creatorHandle}
-                  </Text>
+                  <ProfileHoverCard username={ownerHandle}>
+                    <Text className="text-sm leading-snug text-muted-foreground shrink" numberOfLines={1}>
+                      {creatorHandle}
+                    </Text>
+                  </ProfileHoverCard>
                 ) : null}
                 <View className="flex-row items-center" style={{ gap: 2 }}>
                   <Ionicons name="people-outline" size={12} color={theme.colors.textSecondary} />

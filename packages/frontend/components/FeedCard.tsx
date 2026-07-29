@@ -8,6 +8,8 @@ import { AvatarGroup, type AvatarGroupItem } from '@oxyhq/bloom/avatar-group';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import * as Skeleton from '@oxyhq/bloom/skeleton';
 import { formatCompactNumber } from '@/utils/formatNumber';
+import { getNormalizedUserHandle } from '@oxyhq/core';
+import { ProfileHoverCard } from '@/components/ProfileHoverCard';
 
 export interface FeedCardData {
     id: string;
@@ -126,11 +128,13 @@ export function FeedCard({
                         {feed.displayName}
                     </ThemedText>
                     {feed.creator && (
-                        <ThemedText
-                            className="text-sm text-muted-foreground leading-[18px]"
-                            numberOfLines={1}>
-                            Feed by @{feed.creator.username}
-                        </ThemedText>
+                        <ProfileHoverCard username={getNormalizedUserHandle(feed.creator) ?? undefined}>
+                            <ThemedText
+                                className="text-sm text-muted-foreground leading-[18px]"
+                                numberOfLines={1}>
+                                Feed by @{feed.creator.username}
+                            </ThemedText>
+                        </ProfileHoverCard>
                     )}
                 </View>
 

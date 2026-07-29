@@ -11,6 +11,7 @@ import * as Skeleton from '@oxyhq/bloom/skeleton';
 import { formatCompactNumber } from '@/utils/formatNumber';
 import { getNormalizedUserHandle } from '@oxyhq/core';
 import { StarterPackIcon } from '@/assets/icons/starter-pack-icon';
+import { ProfileHoverCard } from '@/components/ProfileHoverCard';
 
 export interface StarterPackCardData {
   id: string;
@@ -55,12 +56,17 @@ export function StarterPackCard({ pack, onPress, noDescription }: StarterPackCar
 
   const isOwner = pack.creator?.id ? pack.creator.id === user?.id : false;
 
+  // One handle for the byline's link and its hover preview.
+  const creatorHandle = useMemo(
+    () => getNormalizedUserHandle({ username: pack.creator?.username }) ?? undefined,
+    [pack.creator?.username],
+  );
+
   const handleCreatorPress = useCallback(() => {
-    const handle = getNormalizedUserHandle({ username: pack.creator?.username });
-    if (handle && !isOwner) {
-      router.push(`/@${handle}`);
+    if (creatorHandle && !isOwner) {
+      router.push(`/@${creatorHandle}`);
     }
-  }, [pack.creator, isOwner]);
+  }, [creatorHandle, isOwner]);
 
   const accessibilityLabel = useMemo(() => {
     const parts = [pack.name];
@@ -122,23 +128,27 @@ export function StarterPackCard({ pack, onPress, noDescription }: StarterPackCar
             {pack.name}
           </ThemedText>
           {pack.creator && (
-            <TouchableOpacity
-              onPress={handleCreatorPress}
-              disabled={isOwner}
-              activeOpacity={0.6}
-              // Vertical only on purpose: the card behind this byline is
-              // itself pressable, so horizontal slop would take taps meant
-              // for opening the pack.
-              hitSlop={{ top: 4, bottom: 4, left: 0, right: 0 }}>
-              <ThemedText
-                className="text-muted-foreground"
-                style={styles.byline}
-                numberOfLines={1}>
-                {isOwner
-                  ? 'Starter pack by you'
-                  : `Starter pack by @${pack.creator.username}`}
-              </ThemedText>
-            </TouchableOpacity>
+            // No preview of yourself — the byline reads "by you" and is not
+            // even a link in that case.
+            <ProfileHoverCard username={isOwner ? undefined : creatorHandle}>
+              <TouchableOpacity
+                onPress={handleCreatorPress}
+                disabled={isOwner}
+                activeOpacity={0.6}
+                // Vertical only on purpose: the card behind this byline is
+                // itself pressable, so horizontal slop would take taps meant
+                // for opening the pack.
+                hitSlop={{ top: 4, bottom: 4, left: 0, right: 0 }}>
+                <ThemedText
+                  className="text-muted-foreground"
+                  style={styles.byline}
+                  numberOfLines={1}>
+                  {isOwner
+                    ? 'Starter pack by you'
+                    : `Starter pack by @${pack.creator.username}`}
+                </ThemedText>
+              </TouchableOpacity>
+            </ProfileHoverCard>
           )}
         </View>
       </View>

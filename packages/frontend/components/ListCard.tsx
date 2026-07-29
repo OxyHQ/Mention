@@ -7,6 +7,8 @@ import { ThemedText } from './ThemedText';
 import { Avatar } from '@oxyhq/bloom/avatar';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import { cn } from '@/lib/utils';
+import { getNormalizedUserHandle } from '@oxyhq/core';
+import { ProfileHoverCard } from '@/components/ProfileHoverCard';
 
 /**
  * ListCard Component
@@ -90,11 +92,13 @@ export function ListCard({
                         {list.name}
                     </ThemedText>
                     {list.creator && (
-                        <ThemedText
-                            className="text-muted-foreground text-sm leading-[18px]"
-                            numberOfLines={1}>
-                            {purposeLabel} by @{list.creator.username}
-                        </ThemedText>
+                        <ProfileHoverCard username={getNormalizedUserHandle(list.creator) ?? undefined}>
+                            <ThemedText
+                                className="text-muted-foreground text-sm leading-[18px]"
+                                numberOfLines={1}>
+                                {purposeLabel} by @{list.creator.username}
+                            </ThemedText>
+                        </ProfileHoverCard>
                     )}
                 </View>
                 {showPinButton && (

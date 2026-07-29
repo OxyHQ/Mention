@@ -33,6 +33,7 @@ import { useTheme } from '@oxyhq/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import { EntityFollowButton } from '@/components/EntityFollowButton';
 import { getNormalizedUserHandle, type User } from '@oxyhq/core';
+import { ProfileHoverCard } from '@/components/ProfileHoverCard';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { formatCompactNumber } from '@/utils/formatNumber';
 
@@ -120,6 +121,8 @@ export default function ListDetailScreen() {
 
   const listOwner = list?.owner || list?.createdBy || list?.creator;
   const isOwnList = Boolean(user?.id && list?.ownerOxyUserId === user.id);
+  // One handle for the byline's link and its hover preview.
+  const listOwnerHandle = getNormalizedUserHandle({ username: listOwner?.username }) ?? undefined;
   const memberCount = (list?.memberOxyUserIds || []).length;
   const subscriberCount = list?.subscriberCount ?? 0;
   const listId = String(list?._id || list?.id || id);
@@ -162,19 +165,20 @@ export default function ListDetailScreen() {
           >
             {list?.title || 'Untitled List'}
           </Text>
-          <Pressable
-            onPress={() => {
-              const handle = getNormalizedUserHandle({ username: listOwner?.username });
-              if (handle && !isOwnList) {
-                router.push(`/@${handle}`);
-              }
-            }}
-            disabled={isOwnList || !listOwner?.username}
-          >
-            <Text className="text-muted-foreground text-sm mt-0.5">
-              {bylineText}
-            </Text>
-          </Pressable>
+          <ProfileHoverCard username={isOwnList ? undefined : listOwnerHandle}>
+            <Pressable
+              onPress={() => {
+                if (listOwnerHandle && !isOwnList) {
+                  router.push(`/@${listOwnerHandle}`);
+                }
+              }}
+              disabled={isOwnList || !listOwner?.username}
+            >
+              <Text className="text-muted-foreground text-sm mt-0.5">
+                {bylineText}
+              </Text>
+            </Pressable>
+          </ProfileHoverCard>
         </View>
       </View>
 
@@ -228,7 +232,7 @@ export default function ListDetailScreen() {
         ) : null}
       </View>
     </View>
-  ), [list?.avatar, list?.title, list?.description, list?.isPublic, listOwner?.username, isOwnList, bylineText, memberCount, subscriberCount, listId, theme.colors.textSecondary, t]);
+  ), [list?.avatar, list?.title, list?.description, list?.isPublic, listOwner?.username, listOwnerHandle, isOwnList, bylineText, memberCount, subscriberCount, listId, theme.colors.textSecondary, t]);
 
   // Chrome (subheader + tab bar) handed to the posts-tab Feed as its
   // listHeaderComponent. A single element so the Feed treats it as one header.

@@ -7,8 +7,9 @@ import { flip, offset, shift, size, useFloating } from '@floating-ui/react-dom';
 import { FollowButton } from '@oxyhq/services/ui/client';
 import { getNormalizedUserHandle } from '@oxyhq/core';
 
-import { useTheme } from '@oxyhq/bloom/theme';
+import { BloomColorScope, useTheme } from '@oxyhq/bloom/theme';
 import { useProfileData, usePrefetchProfile } from '@/hooks/useProfileData';
+import { resolveProfileColorName } from '@/hooks/useProfileScreenColor';
 import { usePostActivity } from '@/hooks/usePostActivity';
 import { formatCompactNumber } from '@/utils/formatNumber';
 import { Portal } from '@oxyhq/bloom/portal';
@@ -303,6 +304,11 @@ let Card = ({
   const router = useRouter();
   const { data: profile, loading } = useProfileData(username);
 
+  // The card is a small piece of that profile, so it wears the profile's own
+  // color exactly as the profile screen does — scoped to this subtree, never
+  // published to the screen underneath (see `resolveProfileColorName`).
+  const profileColorName = resolveProfileColorName(username, profile?.design?.color);
+
   const isFederated = profile?.isFederated;
   const instance = profile?.instance;
   const profileUsername = profile?.username;
@@ -320,27 +326,31 @@ let Card = ({
   }, [hide, router, username, isFederated, instance, profileUsername]);
 
   return (
-    <View
-      className="bg-card border-border"
-      style={{
-        width: 300,
-        padding: 16,
-        borderRadius: 12,
-        borderWidth: StyleSheet.hairlineWidth,
-        shadowColor: theme.colors.text,
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.12,
-        shadowRadius: 12,
-        elevation: 8,
-      }}>
-      {profile && !loading ? (
-        <CardContent profile={profile} username={username} hide={hide} onPressProfile={handlePressProfile} />
-      ) : (
-        <View className="items-center justify-center" style={{ minHeight: 120 }}>
-          <SpinnerIcon size={20} className="text-primary" />
-        </View>
-      )}
-    </View>
+    <BloomColorScope colorPreset={profileColorName} asChild>
+      <View
+        className="bg-card border-border"
+        style={{
+          width: 300,
+          padding: 16,
+          // The same corner Bloom gives its own floating surfaces (Dialog,
+          // SheetShell) — this is one of them, not a card in the page flow.
+          borderRadius: 20,
+          borderWidth: StyleSheet.hairlineWidth,
+          shadowColor: theme.colors.text,
+          shadowOffset: { width: 0, height: 4 },
+          shadowOpacity: 0.12,
+          shadowRadius: 12,
+          elevation: 8,
+        }}>
+        {profile && !loading ? (
+          <CardContent profile={profile} username={username} hide={hide} onPressProfile={handlePressProfile} />
+        ) : (
+          <View className="items-center justify-center" style={{ minHeight: 120 }}>
+            <SpinnerIcon size={20} className="text-primary" />
+          </View>
+        )}
+      </View>
+    </BloomColorScope>
   );
 };
 Card = memo(Card);
