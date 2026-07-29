@@ -117,6 +117,27 @@ const DEFINITIONS = {
     help: 'Bounded browser load, navigation and runtime error events',
     labelNames: ['kind', 'route', 'result'],
   },
+  /**
+   * CrowdSource moderation integration. Every label value below is a closed set
+   * this codebase produces — a rejection reason from the webhook middleware, a
+   * delivery outcome, an enforcement action and mode. None is caller-supplied, so
+   * none can mint unbounded series.
+   */
+  crowdsource_webhook_rejected_total: {
+    kind: 'counter',
+    help: 'CrowdSource webhook deliveries refused, by reason',
+    labelNames: ['rejection'],
+  },
+  crowdsource_report_delivery_total: {
+    kind: 'counter',
+    help: 'Report delivery attempts to CrowdSource, by outcome',
+    labelNames: ['result'],
+  },
+  crowdsource_enforcement_total: {
+    kind: 'counter',
+    help: 'Enforcement actions planned or applied from a CrowdSource decision',
+    labelNames: ['action', 'mode', 'result'],
+  },
 } as const satisfies Record<string, MetricDefinition>;
 
 type MetricName = keyof typeof DEFINITIONS;

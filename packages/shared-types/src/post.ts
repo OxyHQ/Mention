@@ -515,6 +515,25 @@ export interface PostAuthorshipEntry {
 
 export const MAX_POST_COLLABORATORS = 5;
 
+/**
+ * Whether a post is published, and if not, why not.
+ *
+ * The three author-driven states are the ones a composer produces. `restricted`
+ * is the fourth and is NOT one a client can ask for: it is set only by
+ * moderation enforcement acting on a published CrowdSource decision, and cleared
+ * only by the restore path when a correction supersedes that decision.
+ *
+ * It lives on this axis rather than in a subdocument of its own because every
+ * feed source and the post-hydration ACL already require `status: 'published'`.
+ * Reusing the invariant means a restricted post leaves discovery, ranking,
+ * search and every DTO the moment the field is written, with no query left
+ * behind to forget — while the author's own `visibility` choice survives intact
+ * for the restore.
+ *
+ * {@link CreatePostRequest} deliberately keeps the narrow three-state union.
+ */
+export type PostPublicationStatus = 'draft' | 'published' | 'scheduled' | 'restricted';
+
 export interface Post {
   id: string;
   _id?: string;
@@ -548,7 +567,7 @@ export interface Post {
   stats: PostStats;
   metadata: PostMetadata;
   location?: GeoJSONPoint; // Post creation location metadata
-  status?: 'draft' | 'published' | 'scheduled';
+  status?: PostPublicationStatus;
   scheduledFor?: string;
   /**
    * Internal AI-inferred classification metadata (topics, sentiment, intent,
@@ -844,7 +863,7 @@ export interface PostMetadataState {
   hashtags?: string[];
   createdAt: string;
   updatedAt: string;
-  status?: 'draft' | 'published' | 'scheduled';
+  status?: PostPublicationStatus;
 }
 
 export interface HydratedPostSummary {

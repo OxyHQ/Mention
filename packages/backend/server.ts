@@ -29,6 +29,7 @@ import {
   type AuthenticatedPresenceSocket as AuthenticatedSocket,
 } from './src/services/SocketPresenceLifecycle';
 import { engagementOutboxDispatcher } from './src/services/EngagementOutboxDispatcher';
+import { moderationOutboxDispatcher } from './src/services/moderation/ModerationOutboxDispatcher';
 
 // Models
 import Notification from "./src/models/Notification";
@@ -594,6 +595,17 @@ function startSchedulers(): void {
   } catch (error) {
     logger.warn("Failed to start follower snapshot job", error);
   }
+
+  // CrowdSource reconciliation (leader-gated, env-gated on CROWDSOURCE_ENABLED):
+  // finds reports whose durable delivery event is missing or dead-lettered. The
+  // outbox DISPATCHER runs on every task (Mongo-leased); this sweep scans the whole
+  // collection, so one task is enough.
+  try {
+    const { moderationReconciliationJob } = require("./src/services/moderation/ModerationReconciliationJob");
+    moderationReconciliationJob.start();
+  } catch (error) {
+    logger.warn("Failed to start moderation reconciliation job", error);
+  }
 }
 
 /**
@@ -654,6 +666,13 @@ function stopSchedulers(): void {
   } catch (error) {
     logger.warn("Failed to stop follower snapshot job", error);
   }
+
+  try {
+    const { moderationReconciliationJob } = require("./src/services/moderation/ModerationReconciliationJob");
+    moderationReconciliationJob.stop();
+  } catch (error) {
+    logger.warn("Failed to stop moderation reconciliation job", error);
+  }
 }
 
 // --- Server Listen ---
@@ -701,6 +720,10 @@ const bootServer = async () => {
   // depend on Redis leadership, so committed engagement effects keep draining
   // even while Redis is degraded.
   engagementOutboxDispatcher.start();
+  // Same reasoning for moderation: a report and its delivery event committed
+  // together, and the lease-based claim means every task can drain the queue.
+  // No-ops when CROWDSOURCE_ENABLED=false, leaving the durable rows for later.
+  moderationOutboxDispatcher.start();
 
   // Singleton jobs start only after the schema is ready. Leader election fails
   // closed when Redis is unavailable, while the HTTP API can remain degraded.
@@ -789,6 +812,7 @@ const gracefulShutdown = (signal: string): void => {
     await Promise.allSettled([
       leaderElection.stop(),
       engagementOutboxDispatcher.stop(),
+      moderationOutboxDispatcher.stop(),
       queueShutdown(),
     ]);
 

@@ -43,6 +43,7 @@ function createRoutes(): AppRoutes {
     atprotoBridgeMeta: passThrough,
     wellKnownBridge: passThrough,
     media: passThrough,
+    crowdSourceWebhook: passThrough,
     mcpOAuth: passThrough,
     webShell: routerWith('/@alice', 'web-shell'),
     apexProxy,
@@ -211,6 +212,47 @@ describe('createApp', () => {
     await request(app).get('/feed').set('Host', 'api.mention.earth').expect(200, 'api');
     expect(rateLimiter).toHaveBeenCalledTimes(1);
     expect(bruteForceProtection).toHaveBeenCalledTimes(1);
+  });
+
+  /**
+   * The CrowdSource webhook signature covers the bytes that arrived. `express.json`
+   * consumes the stream and those bytes stop existing, so the mount ORDER is part of
+   * the security property rather than a tidiness preference — and it is the kind of
+   * thing a later refactor moves without noticing. This asserts what the middleware
+   * actually observes: an unconsumed stream and no parsed body.
+   */
+  it('mounts the CrowdSource webhook ahead of the JSON body parser', async () => {
+    const { createApp } = await import('../app');
+    const deps = createDependencies();
+
+    const webhook = express.Router();
+    webhook.post('/crowdsource', (req, res) => {
+      const chunks: Buffer[] = [];
+      req.on('data', (chunk: Buffer) => chunks.push(chunk));
+      req.on('end', () => {
+        res.json({
+          // `undefined` is what proves no parser ran. A `{}` here would mean
+          // `express.json` had already consumed and replaced the stream.
+          parsedBodyType: typeof req.body,
+          streamReadable: chunks.length > 0,
+          bytes: Buffer.concat(chunks).toString('utf8'),
+        });
+      });
+    });
+    deps.routes.crowdSourceWebhook = webhook;
+
+    const app = createApp(deps);
+
+    await request(app)
+      .post('/webhooks/crowdsource')
+      .set('Host', 'api.mention.earth')
+      .set('Content-Type', 'application/json')
+      .send('{"id":"evt_1"}')
+      .expect(200, {
+        parsedBodyType: 'undefined',
+        streamReadable: true,
+        bytes: '{"id":"evt_1"}',
+      });
   });
 
   it('captures raw JSON, reconstructs filter queries and handles nodeinfo failures', async () => {

@@ -22,6 +22,9 @@
     "@mention/shared-types": "workspace:*",
     "@oxyhq/contracts": "^0.20.0",
     "@oxyhq/core": "^15.0.1",
+    "@oxyhq/crowdsource": "0.2.0",
+    "@oxyhq/crowdsource-contracts": "0.2.0",
+    "@oxyhq/crowdsource-express": "0.2.0",
     "@oxyhq/federation": "^0.4.0",
     "@oxyhq/protocol": "^0.1.6",
     "@socket.io/redis-adapter": "^8.3.0",
@@ -46,6 +49,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@oxyhq/crowdsource-testing": "0.2.0",
     "@types/compression": "^1.8.1",
     "@types/he": "^1.2.3",
     "@types/jsonwebtoken": "^9.0.10",

@@ -53,5 +53,8 @@ export * from './trending';
 // Public (unauthenticated) realtime namespace contract
 export * from './realtime';
 
+// Local moderation-integration state (CrowdSource reports, decisions, enforcement)
+export * from './moderation';
+
 // MTN Protocol types
 export * from './mtn';
