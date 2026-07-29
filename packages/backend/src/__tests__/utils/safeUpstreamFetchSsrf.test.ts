@@ -134,3 +134,50 @@ describe('media-proxy transport — SSRF blocking (real core guard)', () => {
     expect(dialedPaths).toEqual(['/start', '/final.jpg']);
   });
 });
+
+/**
+ * `preValidated` — the hop-0 guard reuse `/media/proxy` relies on so that
+ * validating the URL before it can reach the cache store costs no extra DNS
+ * resolution. The load-bearing property is that the reuse is scoped to hop 0
+ * ONLY: a redirect targets a different URL and must always be validated afresh.
+ */
+describe('media-proxy transport — preValidated hop-0 guard reuse', () => {
+  const PRE_VALIDATED = { ok: true, ip: '8.8.8.8', family: 4 } as const;
+
+  it('reuses the caller guard for hop 0 instead of re-resolving', async () => {
+    pendingResponses = [makeFakeResponse(200, { 'content-type': 'image/jpeg' })];
+
+    // A URL the real guard REJECTS. It is dialed anyway, which is only possible
+    // if hop 0 consumed the caller's guard rather than running its own check —
+    // the observable proof that the second resolution is genuinely skipped.
+    const result = await fetchUpstreamFollowingRedirects(
+      'http://127.0.0.1/cached.jpg',
+      {},
+      signal,
+      PRE_VALIDATED,
+    );
+
+    expect(result.response.statusCode).toBe(200);
+    expect(dialedPaths).toEqual(['/cached.jpg']);
+  });
+
+  it('does NOT let the reused guard cover a redirect hop into an internal IP', async () => {
+    pendingResponses = [
+      makeFakeResponse(302, { location: 'http://169.254.169.254/latest/meta-data/' }),
+    ];
+
+    await expect(
+      fetchUpstreamFollowingRedirects('http://8.8.8.8/redir', {}, signal, PRE_VALIDATED),
+    ).rejects.toBeInstanceOf(SsrfRejection);
+
+    // Hop 1 was validated for real and rejected before a second socket opened.
+    expect(dialedPaths).toEqual(['/redir']);
+  });
+
+  it('validates hop 0 for real when no caller guard is supplied', async () => {
+    await expect(
+      fetchUpstreamFollowingRedirects('http://127.0.0.1/secret', {}, signal),
+    ).rejects.toBeInstanceOf(SsrfRejection);
+    expect(dialedPaths).toEqual([]);
+  });
+});
