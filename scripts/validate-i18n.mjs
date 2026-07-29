@@ -1,0 +1,573 @@
+#!/usr/bin/env bun
+
+/**
+ * Validates the frontend translation catalogs, and every statically written
+ * `t()` key in the app against them.
+ *
+ * Ported in intent from bluesky-social/social-app dcc8b3514 ("Add checks for
+ * invalid syntax post-i18n builds", MIT (c) 2023-2026 Bluesky Social PBC), which
+ * found that its translation compiler printed `invalid syntax` for a
+ * translator-broken message and still exited 0, so a broken catalog shipped.
+ * Mention compiles nothing — `lib/i18n.ts` hands these JSON files straight to
+ * i18next — so there is no build output to grep and the equivalent check has to
+ * read the catalogs itself.
+ *
+ * Everything below is invisible at runtime: i18next never throws for a bad
+ * catalog. It renders the key, or the placeholder, verbatim.
+ */
+
+import { readdir, readFile } from "node:fs/promises";
+import { dirname, join, relative, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const frontendRoot = resolve(repositoryRoot, "packages/frontend");
+const localesDirectory = resolve(frontendRoot, "locales");
+const baselinePath = resolve(repositoryRoot, "scripts/i18n-known-gaps.json");
+
+/** `en` is both `DEFAULT_LANGUAGE` and i18next's `fallbackLng` (`lib/i18n.ts`). */
+const SOURCE_LANGUAGE = "en";
+
+/**
+ * Directories whose code ships to users. Tests are excluded because they assert
+ * on keys that deliberately do not exist.
+ */
+const SOURCE_DIRECTORIES = [
+  "app",
+  "components",
+  "context",
+  "hooks",
+  "lib",
+  "modules",
+  "services",
+  "stores",
+  "utils",
+];
+
+const SOURCE_EXTENSIONS = /\.(?:tsx?|jsx?)$/;
+const EXCLUDED_PATH =
+  /(?:^|\/)(?:node_modules|dist|__tests__|__mocks__)(?:\/|$)|\.(?:test|spec)\.[jt]sx?$/;
+
+/**
+ * English's CLDR plural categories. i18next appends these to the key when the
+ * call passes `count`, and only then, so a key with plural forms and no base
+ * form resolves for `t(key, {count})` and not for `t(key)`.
+ */
+const PLURAL_SUFFIXES = ["_one", "_other"];
+
+/**
+ * Vacuity floors. A directory walk that quietly stops finding files, or an
+ * extractor broken by a syntax change, would otherwise report a clean run, so
+ * the check has to be able to tell "nothing is wrong" from "nothing was
+ * inspected". Set well below the current counts (518 files, 1276 keys, 1394
+ * source entries) so ordinary deletions never trip them.
+ */
+const MINIMUM_SCANNED_FILES = 400;
+const MINIMUM_EXTRACTED_KEYS = 900;
+const MINIMUM_CATALOG_ENTRIES = 1000;
+
+const failures = [];
+const notes = [];
+
+/**
+ * i18next's own key resolution, so this check agrees with what users see rather
+ * than with a simplified model of it: a flat key wins over a nested path, and a
+ * dotted path resolves segment by segment while letting any segment contain
+ * dots itself. Ported from i18next's `deepFind` (`dist/cjs/i18next.js`, MIT).
+ */
+function resolveKey(catalog, key) {
+  if (!catalog) return undefined;
+  if (Object.prototype.hasOwnProperty.call(catalog, key)) return catalog[key];
+
+  const tokens = key.split(".");
+  let current = catalog;
+  for (let index = 0; index < tokens.length; ) {
+    if (!current || typeof current !== "object") return undefined;
+    let next;
+    let nextPath = "";
+    for (let end = index; end < tokens.length; ++end) {
+      if (end !== index) nextPath += ".";
+      nextPath += tokens[end];
+      next = current[nextPath];
+      if (next !== undefined) {
+        if (typeof next === "string" && end < tokens.length - 1) continue;
+        index += end - index + 1;
+        break;
+      }
+    }
+    current = next;
+  }
+  return current;
+}
+
+/** Every leaf entry of a catalog, as `dotted.path -> value`. */
+function flattenCatalog(value, prefix, into) {
+  for (const [key, entry] of Object.entries(value)) {
+    const path = prefix ? `${prefix}.${key}` : key;
+    if (entry !== null && typeof entry === "object" && !Array.isArray(entry)) {
+      flattenCatalog(entry, path, into);
+    } else {
+      into.set(path, entry);
+    }
+  }
+  return into;
+}
+
+/**
+ * Duplicate keys inside one object: `JSON.parse` keeps the last and silently
+ * drops the rest, so a merge can overwrite a translation with no trace. Sound
+ * because every catalog is required (below) to be canonically pretty-printed,
+ * which puts exactly one key on each line.
+ */
+function findDuplicateKeys(source) {
+  const duplicates = [];
+  const seenByDepth = new Map();
+  let lineNumber = 0;
+  for (const line of source.split("\n")) {
+    lineNumber += 1;
+    const match = /^(\s*)"((?:[^"\\]|\\.)*)"\s*:/.exec(line);
+    if (!match) continue;
+    const [, indent, rawKey] = match;
+    const depth = indent.length;
+    for (const knownDepth of [...seenByDepth.keys()]) {
+      if (knownDepth > depth) seenByDepth.delete(knownDepth);
+    }
+    let seen = seenByDepth.get(depth);
+    if (!seen) {
+      seen = new Map();
+      seenByDepth.set(depth, seen);
+    }
+    const key = JSON.parse(`"${rawKey}"`);
+    if (seen.has(key)) {
+      duplicates.push({ key, lineNumber, firstLineNumber: seen.get(key) });
+    } else {
+      seen.set(key, lineNumber);
+    }
+  }
+  return duplicates;
+}
+
+/**
+ * i18next interpolation is `{{name}}`, optionally `{{- name}}` (unescaped) or
+ * `{{name, formatter}}`. Anything it cannot parse reaches the screen verbatim,
+ * which is the translator-authored breakage this check exists for.
+ */
+function inspectPlaceholders(value) {
+  const names = new Set();
+  const problems = [];
+  const wellFormed = /\{\{([^{}]*)\}\}/g;
+  let match;
+  while ((match = wellFormed.exec(value)) !== null) {
+    const name = match[1].split(",")[0].replace(/^\s*-?\s*/, "").trim();
+    if (name === "") {
+      problems.push(`the empty placeholder \`${match[0]}\``);
+      continue;
+    }
+    if (!/^[A-Za-z0-9_$.[\]]+$/.test(name)) {
+      problems.push(`\`${match[0]}\`, whose name i18next cannot look up`);
+      continue;
+    }
+    names.add(name);
+  }
+
+  const residue = value.replace(wellFormed, "");
+  if (residue.includes("{{")) problems.push("an unclosed `{{`");
+  if (residue.includes("}}")) problems.push("a `}}` with no opening `{{`");
+
+  return { names, problems };
+}
+
+/** Unescapes the body of a JavaScript string literal. */
+function unescapeLiteral(raw) {
+  return raw.replace(
+    /\\(u\{[0-9a-fA-F]+\}|u[0-9a-fA-F]{4}|x[0-9a-fA-F]{2}|[\s\S])/g,
+    (_escape, body) => {
+      switch (body[0]) {
+        case "n":
+          return "\n";
+        case "t":
+          return "\t";
+        case "r":
+          return "\r";
+        case "b":
+          return "\b";
+        case "f":
+          return "\f";
+        case "v":
+          return "\v";
+        case "0":
+          return "\0";
+        case "u":
+        case "x":
+          return String.fromCodePoint(Number.parseInt(body.replace(/[ux{}]/g, ""), 16));
+        default:
+          return body;
+      }
+    },
+  );
+}
+
+/**
+ * The text of a call's remaining arguments, starting just past the comma that
+ * follows the key. Brace- and quote-aware, so `defaultValue` is only ever read
+ * out of this call and never out of the next one on the same line.
+ */
+function readRemainingArguments(source, start) {
+  let depth = 1;
+  let text = "";
+  let cursor = start;
+  while (cursor < source.length && depth > 0) {
+    const character = source[cursor];
+    if (character === "'" || character === '"' || character === "`") {
+      text += character;
+      cursor += 1;
+      while (cursor < source.length) {
+        const inner = source[cursor];
+        text += inner;
+        if (inner === "\\") {
+          text += source[cursor + 1] ?? "";
+          cursor += 2;
+          continue;
+        }
+        cursor += 1;
+        if (inner === character) break;
+      }
+      continue;
+    }
+    if (character === "(" || character === "{" || character === "[") depth += 1;
+    else if (character === ")" || character === "}" || character === "]") {
+      depth -= 1;
+      if (depth === 0) break;
+    }
+    text += character;
+    cursor += 1;
+  }
+  return text;
+}
+
+/**
+ * Every `t('key')` / `i18n.t('key')` written as a literal, plus the static
+ * prefixes of the keys this app assembles at runtime (`` t(`a.${b}`) ``).
+ * Runtime keys cannot be checked statically, but their prefixes tell us which
+ * catalog entries are reachable, which is what the orphan check below needs.
+ */
+function extractKeys(source) {
+  const keys = [];
+  const dynamicPrefixes = [];
+
+  for (let index = 0; index < source.length; index += 1) {
+    if (source[index] !== "t" || source[index + 1] !== "(") continue;
+
+    // `t(`, `.t(` only for `i18n.t(`; never the tail of another identifier.
+    const before = source[index - 1];
+    const isTranslateCall =
+      before === undefined ||
+      (!/[A-Za-z0-9_$]/.test(before) && before !== ".") ||
+      source.slice(Math.max(0, index - 5), index) === "i18n.";
+    if (!isTranslateCall) continue;
+
+    let cursor = index + 2;
+    while (cursor < source.length && /\s/.test(source[cursor])) cursor += 1;
+    const quote = source[cursor];
+    if (quote !== "'" && quote !== '"' && quote !== "`") continue;
+
+    let raw = "";
+    cursor += 1;
+    let terminated = false;
+    for (; cursor < source.length; cursor += 1) {
+      const character = source[cursor];
+      if (character === "\\") {
+        raw += character + (source[cursor + 1] ?? "");
+        cursor += 1;
+        continue;
+      }
+      if (character === quote) {
+        terminated = true;
+        break;
+      }
+      if (character === "\n" && quote !== "`") break;
+      raw += character;
+    }
+    if (!terminated) continue;
+
+    if (quote === "`" && raw.includes("${")) {
+      const prefix = raw.slice(0, raw.indexOf("${"));
+      if (prefix) dynamicPrefixes.push(unescapeLiteral(prefix));
+      continue;
+    }
+
+    cursor += 1;
+    while (cursor < source.length && /\s/.test(source[cursor])) cursor += 1;
+
+    let hasDefault = false;
+    let hasCount = false;
+    if (source[cursor] === ",") {
+      const argumentText = readRemainingArguments(source, cursor + 1).trim();
+      // `t(key, 'English')` is i18next's positional default, `t(key, {defaultValue})`
+      // the object form. Either way the English text lives at the call site and a
+      // missing catalog entry never reaches the user.
+      hasDefault = /^['"`]/.test(argumentText) || /\bdefaultValue\b/.test(argumentText);
+      hasCount = /\bcount\b/.test(argumentText);
+    }
+
+    keys.push({ key: unescapeLiteral(raw), offset: index, hasDefault, hasCount });
+  }
+
+  return { keys, dynamicPrefixes };
+}
+
+async function collectSourceFiles(directory) {
+  const files = [];
+  const entries = await readdir(directory, { withFileTypes: true }).catch(() => []);
+  for (const entry of entries) {
+    const path = join(directory, entry.name);
+    if (EXCLUDED_PATH.test(relative(frontendRoot, path))) continue;
+    if (entry.isDirectory()) {
+      files.push(...(await collectSourceFiles(path)));
+    } else if (SOURCE_EXTENSIONS.test(entry.name)) {
+      files.push(path);
+    }
+  }
+  return files;
+}
+
+/** A key i18next would render verbatim as an identifier path rather than as prose. */
+function isPathShaped(key) {
+  return /^[A-Za-z0-9_$]+(?:\.[A-Za-z0-9_$]+)+$/.test(key);
+}
+
+// ---------------------------------------------------------------------------
+// 1. The catalogs parse, are canonically formatted, define each key once, and
+//    every interpolation in them is one i18next can substitute.
+// ---------------------------------------------------------------------------
+
+const catalogNames = (await readdir(localesDirectory)).filter((name) => name.endsWith(".json")).sort();
+
+const catalogs = new Map();
+for (const name of catalogNames) {
+  const path = resolve(localesDirectory, name);
+  const source = await readFile(path, "utf8");
+
+  let parsed;
+  try {
+    parsed = JSON.parse(source);
+  } catch (error) {
+    failures.push(`locales/${name}: is not valid JSON — ${error.message}`);
+    continue;
+  }
+
+  if (source !== `${JSON.stringify(parsed, null, 2)}\n`) {
+    failures.push(
+      `locales/${name}: is not canonically formatted — rewrite it as JSON.stringify(catalog, null, 2) plus a trailing newline, so the duplicate-key check stays sound and merges stay reviewable`,
+    );
+  }
+
+  for (const duplicate of findDuplicateKeys(source)) {
+    failures.push(
+      `locales/${name}:${duplicate.lineNumber}: duplicate key "${duplicate.key}", first defined on line ${duplicate.firstLineNumber} — JSON.parse silently keeps only the last`,
+    );
+  }
+
+  const entries = flattenCatalog(parsed, "", new Map());
+  for (const [key, value] of entries) {
+    if (typeof value !== "string") {
+      failures.push(
+        `locales/${name}: key "${key}" is ${value === null ? "null" : typeof value}, not a string`,
+      );
+      continue;
+    }
+    for (const problem of inspectPlaceholders(value).problems) {
+      failures.push(`locales/${name}: key "${key}" contains ${problem}`);
+    }
+  }
+
+  catalogs.set(name.replace(/\.json$/, ""), { name, parsed, entries });
+}
+
+const sourceCatalog = catalogs.get(SOURCE_LANGUAGE);
+if (!sourceCatalog) {
+  failures.push(
+    `locales/${SOURCE_LANGUAGE}.json: missing, but it is the source language and i18next's fallback`,
+  );
+} else if (sourceCatalog.entries.size < MINIMUM_CATALOG_ENTRIES) {
+  failures.push(
+    `locales/${SOURCE_LANGUAGE}.json: ${sourceCatalog.entries.size} entries is below the ${MINIMUM_CATALOG_ENTRIES} floor — the catalog reader is probably broken`,
+  );
+}
+
+// ---------------------------------------------------------------------------
+// 2. A translation never interpolates something its English source does not.
+//    Callers pass values for the English placeholders, so an invented one is
+//    rendered to that language's users as literal `{{text}}`.
+// ---------------------------------------------------------------------------
+
+if (sourceCatalog) {
+  for (const [language, catalog] of catalogs) {
+    if (language === SOURCE_LANGUAGE) continue;
+    for (const [key, value] of catalog.entries) {
+      if (typeof value !== "string") continue;
+      const englishValue = sourceCatalog.entries.get(key);
+      if (typeof englishValue !== "string") continue;
+      const provided = inspectPlaceholders(englishValue).names;
+      for (const name of inspectPlaceholders(value).names) {
+        if (provided.has(name)) continue;
+        failures.push(
+          `locales/${catalog.name}: key "${key}" interpolates {{${name}}}, which its ${SOURCE_LANGUAGE} source does not — ${language} users see the placeholder verbatim`,
+        );
+      }
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 3. Every key the app writes down has an English source entry.
+//
+//    Two different consequences, one rule. A path-shaped key with no entry is
+//    rendered as `settings.some.key`. A prose key with no entry renders as
+//    itself, which reads correctly in English but leaves the string invisible
+//    to translators, so `es`/`it` can never render it. Calls that pass a
+//    `defaultValue` are exempt: that default IS the English source, colocated
+//    at the call site, and 356 call sites already use it that way.
+// ---------------------------------------------------------------------------
+
+const scannedFiles = [];
+for (const directory of SOURCE_DIRECTORIES) {
+  scannedFiles.push(...(await collectSourceFiles(resolve(frontendRoot, directory))));
+}
+
+if (scannedFiles.length < MINIMUM_SCANNED_FILES) {
+  failures.push(
+    `${scannedFiles.length} source files scanned is below the ${MINIMUM_SCANNED_FILES} floor — the directory walk is probably broken`,
+  );
+}
+
+const callSites = [];
+const usedKeys = new Set();
+const dynamicPrefixes = new Set();
+for (const path of scannedFiles) {
+  const source = await readFile(path, "utf8");
+  const { keys, dynamicPrefixes: prefixes } = extractKeys(source);
+  for (const prefix of prefixes) dynamicPrefixes.add(prefix);
+  for (const { key, offset, hasDefault, hasCount } of keys) {
+    callSites.push({
+      key,
+      hasDefault,
+      hasCount,
+      location: `${relative(repositoryRoot, path)}:${source.slice(0, offset).split("\n").length}`,
+    });
+    usedKeys.add(key);
+  }
+}
+callSites.sort((left, right) => (left.key < right.key ? -1 : left.key > right.key ? 1 : 0));
+
+if (usedKeys.size < MINIMUM_EXTRACTED_KEYS) {
+  failures.push(
+    `${usedKeys.size} translation keys extracted is below the ${MINIMUM_EXTRACTED_KEYS} floor — the key extractor is probably broken`,
+  );
+}
+
+const baseline = JSON.parse(await readFile(baselinePath, "utf8"));
+const allowedMissing = new Set(baseline.keysMissingFromSourceCatalog ?? []);
+const stillMissing = new Set();
+
+if (sourceCatalog) {
+  const reported = new Set();
+  for (const { key, location, hasDefault, hasCount } of callSites) {
+    if (reported.has(key)) continue;
+
+    const resolved = resolveKey(sourceCatalog.parsed, key);
+    if (typeof resolved === "string") continue;
+    if (resolved !== undefined) {
+      reported.add(key);
+      failures.push(
+        `${location}: t("${key}") resolves to an object in locales/${SOURCE_LANGUAGE}.json, not a string`,
+      );
+      continue;
+    }
+    // With `count`, i18next looks the plural forms up instead of the base key.
+    if (
+      hasCount &&
+      PLURAL_SUFFIXES.some((suffix) => typeof resolveKey(sourceCatalog.parsed, key + suffix) === "string")
+    ) {
+      continue;
+    }
+    if (hasDefault) continue;
+
+    stillMissing.add(key);
+    reported.add(key);
+    if (allowedMissing.has(key)) continue;
+    failures.push(
+      isPathShaped(key)
+        ? `${location}: t("${key}") has no entry in locales/${SOURCE_LANGUAGE}.json, so users see the raw key`
+        : `${location}: t("${key}") has no entry in locales/${SOURCE_LANGUAGE}.json, so it renders in English for every language — add it, or pass a defaultValue`,
+    );
+  }
+
+  for (const key of allowedMissing) {
+    if (stillMissing.has(key)) continue;
+    failures.push(
+      `scripts/i18n-known-gaps.json: "${key}" is listed under keysMissingFromSourceCatalog but now has an English entry — delete the line`,
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 4. Key drift.
+//
+//    Missing FROM a translation is fine: i18next falls back to English, so it
+//    is reported and never fails the build. Present in a translation with no
+//    English source is an error when nothing in the app can reach the key —
+//    that is a translation whose English source was renamed or deleted, and
+//    no code path will ever render it again. A prose key that IS reached from
+//    code is legitimate (English users get the key text, `es` users get the
+//    translation), so reachability, not mere absence from `en`, is the test.
+// ---------------------------------------------------------------------------
+
+if (sourceCatalog) {
+  const allowedOrphans = baseline.orphanedTranslations ?? {};
+
+  for (const [language, catalog] of catalogs) {
+    if (language === SOURCE_LANGUAGE) continue;
+
+    const allowed = new Set(allowedOrphans[language] ?? []);
+    const orphans = [...catalog.entries.keys()].filter(
+      (key) =>
+        !sourceCatalog.entries.has(key) &&
+        !usedKeys.has(key) &&
+        ![...dynamicPrefixes].some((prefix) => key.startsWith(prefix)),
+    );
+    const orphanSet = new Set(orphans);
+
+    for (const key of orphans) {
+      if (allowed.has(key)) continue;
+      failures.push(
+        `locales/${catalog.name}: key "${key}" has no ${SOURCE_LANGUAGE} source and no call site, so nothing can ever render it — delete it, or restore the ${SOURCE_LANGUAGE} key it was translated from`,
+      );
+    }
+    for (const key of allowed) {
+      if (orphanSet.has(key)) continue;
+      failures.push(
+        `scripts/i18n-known-gaps.json: "${key}" is listed under orphanedTranslations.${language} but is no longer orphaned — delete the line`,
+      );
+    }
+
+    const untranslated = [...sourceCatalog.entries.keys()].filter((key) => !catalog.entries.has(key));
+    notes.push(
+      `${catalog.name}: ${catalog.entries.size} entries, ${untranslated.length} untranslated (rendered in ${SOURCE_LANGUAGE}), ${orphans.length} orphaned`,
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+
+if (failures.length > 0) {
+  console.error("Translation validation failed:\n");
+  for (const failure of failures) console.error(`- ${failure}`);
+  console.error("");
+  process.exit(1);
+}
+
+console.log(
+  `Validated ${catalogs.size} translation catalogs (${sourceCatalog?.entries.size ?? 0} ${SOURCE_LANGUAGE} entries) and ${usedKeys.size} keys across ${scannedFiles.length} source files.`,
+);
+for (const note of notes) console.log(`  ${note}`);

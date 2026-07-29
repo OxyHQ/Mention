@@ -283,7 +283,7 @@
   "settings.aboutMention.buildVersion": "Informazioni di build non disponibili",
   "settings.aboutMention.oxySDK": "SDK Oxy",
   "settings.aboutMention.expoSDK": "SDK Expo",
-  "settings.aboutMention.platform": "Piattaforma: {{platform}}",
+  "settings.aboutMention.platform": "Piattaforma",
   "settings.aboutMention.apiUrl": "URL API",
   "settings.sections.supportFeedback": "Supporto e feedback",
   "settings.supportFeedback.helpSupport": "Aiuto e supporto",
