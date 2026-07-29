@@ -617,6 +617,58 @@ export const MtnConfig = {
     },
   },
 
+  /** Trending topics — the list itself is not a feed, but it is tuned like one. */
+  trending: {
+    /**
+     * The VOLUME SPARKLINE shown beside a trend.
+     *
+     * The series is read from the `Trending` collection itself, which is the only
+     * place a per-name time series exists: the job inserts a full batch every 30
+     * minutes and a unique `{name, calculatedAt}` index serves the per-name range
+     * scan directly. (`TopicStats` cannot be used — it holds one current-value row
+     * per topic and no history at all.)
+     *
+     * Every number here is a presentation bound on REAL measurements. Nothing in
+     * this feature synthesizes a point: a trend without enough history gets no
+     * chart, never a placeholder line.
+     */
+    series: {
+      /**
+       * How far back the series reaches. 24 hours ≈ 48 batches at the 30-minute
+       * cadence, and it matches the window `volume` itself is counted over, so a
+       * point and its axis describe the same span.
+       */
+      windowMs: 24 * 60 * 60 * 1000,
+      /**
+       * Points on the wire after downsampling. Fixed so the response size and the
+       * SVG geometry are constant no matter how many batches a name appears in
+       * (observed: 34–52 for the trends actually rendered). Twelve is comfortably
+       * more shape than 50 device-independent pixels can resolve, so raising it
+       * would cost bytes and draw nothing new.
+       */
+      maxPoints: 12,
+      /**
+       * COVERAGE FLOOR: fewer real points than this and the trend ships no series
+       * at all, so the client draws nothing.
+       *
+       * Chosen against measured prod data (148 batches over 7 days, 1,294 rendered
+       * trend-instances at the widget's limit of 10). Share that would draw:
+       * ≥2 points 94.0% · ≥3 89.3% · ≥4 84.9% · ≥6 76.0% · ≥8 69.5% · ≥12 57.0%.
+       *
+       * Six wins on what the line has to SAY, not on coverage. Two points are one
+       * straight segment, which encodes exactly what the direction arrow already
+       * encodes; three can bend once, but at the 30-minute cadence that is 90
+       * minutes of history where a single noisy batch is a third of the picture.
+       * Six points is three hours and five segments — the shortest span that reads
+       * as a shape rather than a zigzag — and it is the density the 50×24 chart was
+       * drawn for. The price is that roughly one rendered trend in five shows no
+       * chart, which is the honest outcome for a trend nobody has watched long
+       * enough yet.
+       */
+      minPoints: 6,
+    },
+  },
+
   /** Videos (Reels) feed — metadata-backed filters (no runtime probing). */
   videosFeed: {
     /** Default minimum video duration in seconds for the ranked videos feed. */

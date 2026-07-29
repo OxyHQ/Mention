@@ -1,6 +1,6 @@
 import { Post } from '../models/Post';
-import Trending, { TrendingType, ITrending, TRENDING_TTL_SECONDS } from '../models/Trending';
-import { PostVisibility } from '@mention/shared-types';
+import Trending, { TrendingType, TrendingRecord, TRENDING_TTL_SECONDS } from '../models/Trending';
+import { MtnConfig, PostVisibility } from '@mention/shared-types';
 import { TopicType } from '@oxyhq/core';
 import TrendBatch from '../models/TrendBatch';
 import { logger } from '../utils/logger';
@@ -13,6 +13,7 @@ import { isNsfwHashtag } from './contentClassification/nsfw';
 // feed (For You, Explore, ranking). Adding a new gate updates trending too.
 import { SENSITIVE_EXCLUDE_MATCH } from '../mtn/feed/feedSafety';
 import { mintTrendRecId } from './trending/trendTelemetry';
+import { buildTrendSeries } from './trending/trendSeries';
 
 /**
  * How long the current batch's `recId` is memoized in process. Far shorter than
@@ -30,6 +31,18 @@ interface TrendItem {
   momentum: number;
   topicId?: string;
 }
+
+/**
+ * A trend as `GET /trending` serves it: the stored row plus the recent history of
+ * its `volume`, which is what the row's sparkline draws.
+ *
+ * `series` is OPTIONAL and load-bearing. A trend seen in fewer than
+ * `MtnConfig.trending.series.minPoints` batches has too little history to draw,
+ * and the honest response is its absence — never a padded or flattened stand-in.
+ * History trends (`getTrendingHistory`) never carry one at all; see
+ * {@link TrendingService.loadVolumeSeries}.
+ */
+export type TrendWithSeries = TrendingRecord & { series?: number[] };
 
 class TrendingService {
   private calculationInterval: NodeJS.Timeout | null = null;
@@ -393,7 +406,7 @@ class TrendingService {
   public async getTrending(
     limit: number = 20,
     type?: TrendingType,
-  ): Promise<{ trending: ITrending[]; summary: string; recId?: string }> {
+  ): Promise<{ trending: TrendWithSeries[]; summary: string; recId?: string }> {
     const cacheKey = `trending:latest:${limit}:${type || 'all'}`;
     const redis = await getRedisClient();
 
@@ -424,10 +437,18 @@ class TrendingService {
     const trending = await Trending.find(query)
       .sort({ score: -1, rank: 1 })
       .limit(limit)
-      .lean() as unknown as ITrending[];
+      .lean() as unknown as TrendingRecord[];
+
+    // Only reached on a cache MISS. The entry below is warmed right after each
+    // recalculation (see warmDefaultCache), so this aggregation runs on the order
+    // of once per 30-minute batch per requested shape — not once per reader.
+    const series = await this.loadVolumeSeries(trending.map((trend) => trend.name));
 
     const result = {
-      trending,
+      trending: trending.map((trend): TrendWithSeries => {
+        const points = series.get(trend.name);
+        return points ? { ...trend, series: points } : trend;
+      }),
       summary: latestBatch.summary || '',
       recId: mintTrendRecId(latestBatch.calculatedAt),
     };
@@ -441,6 +462,56 @@ class TrendingService {
     }
 
     return result;
+  }
+
+  /**
+   * Recent `volume` history for the given trend names, keyed by name.
+   *
+   * The `Trending` collection is the ONLY per-name time series that exists: the
+   * job appends a full batch every 30 minutes and keeps 90 days, and the unique
+   * `{ name: 1, calculatedAt: 1 }` index serves this range scan directly. (The
+   * obvious-looking alternative, `TopicStats`, holds one current-value row per
+   * topic and no history whatsoever.) The `$sort` uses that index's exact key
+   * order, so the planner can stream straight into `$group` — `$push` accumulates
+   * in arrival order, which is what puts each name's volumes in time order.
+   *
+   * A name absent from a batch contributes NO point rather than a zero: it means
+   * the trend fell out of the window that batch, and only for hashtags does that
+   * strictly imply zero posts (topics need two). Guessing which would be exactly
+   * the kind of invented data this feature exists to avoid, so short runs are
+   * simply dropped by the floor in {@link buildTrendSeries}.
+   *
+   * DELIBERATELY NOT wired into `getTrendingHistory`. That route is an archive of
+   * what trended on days past, and the series here is anchored to `now` — a row
+   * from forty days ago would be handed the last 24 hours of a name it was not
+   * trending in. Anchoring per archived batch instead would mean one range scan
+   * per (name, day) pair — up to 20 days × 20 trends — to decorate a page nobody
+   * reads for live movement. Same reasoning that already keeps `recId` off it: an
+   * archive is not a recommendation.
+   *
+   * Fail-soft: an aggregation failure costs the sparkline, never the trend list.
+   */
+  private async loadVolumeSeries(names: string[]): Promise<Map<string, number[]>> {
+    const byName = new Map<string, number[]>();
+    if (names.length === 0) return byName;
+
+    try {
+      const cutoff = new Date(Date.now() - MtnConfig.trending.series.windowMs);
+      const rows = await Trending.aggregate<{ _id: string; volumes: number[] }>([
+        { $match: { name: { $in: names }, calculatedAt: { $gte: cutoff } } },
+        { $sort: { name: 1, calculatedAt: 1 } },
+        { $group: { _id: '$name', volumes: { $push: '$volume' } } },
+      ]);
+
+      for (const row of rows) {
+        const series = buildTrendSeries(row.volumes);
+        if (series) byName.set(row._id, series);
+      }
+    } catch (error) {
+      logger.warn('[Trending] Volume series lookup failed:', error);
+    }
+
+    return byName;
   }
 
   /**
@@ -491,7 +562,7 @@ class TrendingService {
   public async getTrendingHistory(
     page: number = 1,
     limit: number = 10,
-  ): Promise<{ days: Array<{ date: string; trends: ITrending[] }>; page: number; totalPages: number }> {
+  ): Promise<{ days: Array<{ date: string; trends: TrendingRecord[] }>; page: number; totalPages: number }> {
     const cacheKey = `trending:history:${page}:${limit}`;
     const redis = await getRedisClient();
 
@@ -532,7 +603,7 @@ class TrendingService {
     // For each day, get unique trends with highest score. The leading
     // `$match` on `calculatedAt` lets the planner use the index before the
     // day-string derivation and `$in` filter.
-    const grouped = await Trending.aggregate<{ date: string; trends: ITrending[] }>([
+    const grouped = await Trending.aggregate<{ date: string; trends: TrendingRecord[] }>([
       { $match: { calculatedAt: { $gte: cutoff } } },
       {
         $addFields: {
