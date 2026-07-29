@@ -131,6 +131,10 @@ google-services.json
 # Backend uploads
 packages/backend/uploads/
 
+# Browser gate artefacts (traces, screenshots, HTML report)
+packages/e2e/test-results/
+packages/e2e/playwright-report/
+
 # AI tool worktrees
 .claude/
 .opencode

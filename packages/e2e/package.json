@@ -1,0 +1,19 @@
+{
+  "name": "@mention/e2e",
+  "version": "1.0.0",
+  "description": "Real-browser release gate: runs the candidate web build at the production origin before it is promoted",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "playwright test",
+    "install-browser": "playwright install --with-deps chromium",
+    "lint": "tsc --noEmit",
+    "clean": "rm -rf playwright-report test-results"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.62.0",
+    "@types/node": "^25.9.5",
+    "typescript": "^5.9.3"
+  }
+}

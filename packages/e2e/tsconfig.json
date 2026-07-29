@@ -1,0 +1,31 @@
+{
+  // ---------------------------------------------------------------------------
+  // @mention/e2e
+  //
+  // Standalone (like @mention/mcp) rather than extending the root base: this
+  // package never emits, never participates in project references, and runs
+  // under Playwright's own transpiling loader, so none of the root's
+  // composite/emit contract applies. `DOM` is in `lib` because the bodies
+  // passed to `page.evaluate` are typed as browser code.
+  //
+  // `bundler` resolution rather than `NodeNext` because Playwright transpiles
+  // the specs itself and resolves extensionless relative imports; NodeNext
+  // would demand `.js` suffixes that the runtime neither needs nor uses.
+  // ---------------------------------------------------------------------------
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "types": ["node"]
+  },
+  "include": ["*.ts", "tests/**/*.ts"],
+  "exclude": ["node_modules"]
+}
