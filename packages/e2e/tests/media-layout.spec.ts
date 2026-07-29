@@ -42,6 +42,27 @@ declare global {
 const POST_MEDIA_MIN_WIDTH = 200;
 
 /**
+ * Only media the DTO actually carried geometry for is held to the
+ * one-layout rule, and that distinction is load-bearing rather than a
+ * convenience. Persisted geometry covers roughly 64% of recent posts, so an
+ * older item that was never enriched has no dimensions to send and legitimately
+ * renders a fallback and then jumps. Asserting over every image would make this
+ * gate fail on the age of the content it happened to be served, which is not a
+ * property of any candidate build.
+ *
+ * The pair still closes both ways. Geometry disappearing from the DTO again —
+ * the original regression — empties this set and trips the floor below.
+ * Geometry present but still jumping fails the assertion. And the set widens on
+ * its own as backfill coverage grows, without the test being touched.
+ */
+interface FeedMediaGeometry {
+  /** File ids the feed said it knew the dimensions of. */
+  readonly withGeometry: Set<string>;
+  /** File ids the feed served with no dimensions at all. */
+  readonly withoutGeometry: Set<string>;
+}
+
+/**
  * How long a post image is given to finish loading. Nothing sleeps for this —
  * it is the ceiling on a poll that resolves as soon as the images are done.
  */
@@ -71,6 +92,44 @@ test('an image post renders one layout, never a fallback then a jump', async ({
       requestAnimationFrame(sample);
     };
     requestAnimationFrame(sample);
+  });
+
+  // Read the geometry straight off the feed responses the page is already
+  // making. Nothing extra is requested, and it is the DTO the renderer itself
+  // consumed rather than a second opinion fetched separately.
+  const geometry: FeedMediaGeometry = {
+    withGeometry: new Set<string>(),
+    withoutGeometry: new Set<string>(),
+  };
+  page.on('response', (response) => {
+    const url = new URL(response.url());
+    if (url.origin !== 'https://api.mention.earth' || !url.pathname.startsWith('/feed/')) return;
+    void response
+      .json()
+      .then((payload: unknown) => {
+        const items = (payload as { data?: { items?: unknown[] } })?.data?.items ?? [];
+        for (const item of items) {
+          const post = item as {
+            content?: { media?: unknown[] };
+            attachments?: { media?: unknown[] };
+          };
+          const media = [...(post.content?.media ?? []), ...(post.attachments?.media ?? [])];
+          for (const entry of media) {
+            const value = entry as {
+              id?: string;
+              width?: number;
+              height?: number;
+              aspectRatio?: number;
+            };
+            if (!value.id) continue;
+            const known = Boolean(value.width && value.height) || Boolean(value.aspectRatio);
+            (known ? geometry.withGeometry : geometry.withoutGeometry).add(value.id);
+          }
+        }
+      })
+      // A body that cannot be read (aborted, redirected, not JSON) simply
+      // contributes nothing; it must never fail the test on its own.
+      .catch(() => undefined);
   });
 
   await page.goto('/');
@@ -118,14 +177,30 @@ test('an image post renders one layout, never a fallback then a jump', async ({
       }),
   );
 
-  const jumped = (await postMedia())
+  const sampled = await postMedia();
+  const measured = sampled.filter((media) =>
+    [...geometry.withGeometry].some((id) => media.source.includes(id)),
+  );
+
+  // Floor. Zero measurable images means the feed sent no dimensions at all —
+  // which is the original regression, not a quiet pass.
+  expect(
+    measured.length,
+    `no feed media carried width/height, so nothing here can be measured. ` +
+      `The feed described ${geometry.withGeometry.size} item(s) with geometry and ` +
+      `${geometry.withoutGeometry.size} without; if that first number is zero the DTO ` +
+      `has stopped sending dimensions again.`,
+  ).toBeGreaterThan(0);
+
+  const jumped = measured
     .filter((media) => media.sizes.length > 1)
     .map((media) => `${media.source.split('/').pop()}: ${media.sizes.join(' -> ')}`);
 
   expect(
     jumped,
-    'every post image must settle on a single layout; a second entry is the fallback ' +
-      'box being replaced by the real aspect ratio once the bytes arrive',
+    'a post image whose dimensions the feed KNEW must settle on a single layout; a ' +
+      'second entry is the fallback box being replaced by the real aspect ratio once ' +
+      'the bytes arrive, which is the space that should have been reserved up front',
   ).toEqual([]);
 
   expect(candidate.scriptErrors).toEqual([]);
