@@ -217,6 +217,12 @@ describe('media download policy intersection', () => {
     expect(isAllowedByDownloadPolicy('image/svg+xml', permissive)).toBe(false);
     // `text/html` is not an allowed media family, whatever the caller asks for.
     expect(isAllowedByDownloadPolicy('text/html', permissive)).toBe(false);
+    // An HLS playlist spelled under an allowed prefix is the other generic
+    // rejection, and a caller policy cannot re-admit it either. It matters here
+    // specifically: the media proxy DOES admit playlists, but only on its own
+    // rewrite path — never as bytes to store, and never through a policy.
+    expect(isAllowedByDownloadPolicy('video/mpegurl', permissive)).toBe(false);
+    expect(isAllowedByDownloadPolicy('application/vnd.apple.mpegurl', permissive)).toBe(false);
     // A huge caller ceiling cannot raise the generic per-type caps.
     expect(maxBytesForDownload('image/jpeg', permissive)).toBe(32 * 1024 * 1024);
     expect(maxBytesForDownload('video/mp4', permissive)).toBe(200 * 1024 * 1024);

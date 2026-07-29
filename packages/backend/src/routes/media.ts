@@ -11,9 +11,11 @@ import {
   fetchUpstreamFollowingRedirects,
 } from '../utils/safeUpstreamFetch';
 import { extractPosterFrame } from '../utils/videoPoster';
+import { isHlsManifestBody, rewriteHlsManifest } from '../utils/hlsManifest';
+import { HLS_SIGNATURE_PARAM, isSignedHlsComponent, signHlsComponentUrl } from '../utils/hlsSignature';
 import { lookupCacheRow, bumpAccess, recordAccessAndMaybeEnqueue } from '../services/mediaCache/cacheStore';
 import { decideProxyServe } from '../services/mediaCache/policy';
-import { isAllowedMediaType } from '../services/mediaCache/mediaTypes';
+import { isAllowedMediaType, isHlsManifestType } from '../services/mediaCache/mediaTypes';
 import { isMediaCacheEnabled, resolveOxyDownloadUrl } from '../services/mediaCache/oxyMediaStore';
 import { isNegativelyCached, markNegativelyCached } from '../services/mediaCache/negativeCache';
 import { classifyUpstreamStatus } from './mediaProxyStatus';
@@ -48,6 +50,39 @@ const MAX_CONTENT_BYTES = 256 * 1024 * 1024; // 256 MiB
 
 /** Browser/CDN cache directive for successfully proxied media. */
 const MEDIA_CACHE_CONTROL = 'public, max-age=86400, immutable';
+
+/**
+ * Root-relative path this router's proxy is mounted at, used to build the
+ * rewritten URIs inside a proxied HLS playlist. Root-relative (not absolute) so
+ * the segment urls follow whichever of our hosts served the playlist.
+ */
+const MEDIA_PROXY_PATH = '/media/proxy';
+
+/**
+ * Hard cap on a buffered HLS playlist. Far below {@link MAX_CONTENT_BYTES}
+ * because a playlist is text: even a live stream with thousands of segments is
+ * well under a megabyte, and unlike media bytes this one is held in memory to be
+ * rewritten.
+ */
+const HLS_MANIFEST_MAX_BYTES = 8 * 1024 * 1024; // 8 MiB
+
+/**
+ * Cache directive for a rewritten playlist. Short and NOT `immutable`: a live
+ * playlist is re-read to discover new segments, so it must stay revalidatable
+ * (the segments it points at keep the long immutable directive above).
+ */
+const HLS_MANIFEST_CACHE_CONTROL = 'public, max-age=60';
+
+/** Content type used for a rewritten playlist when the upstream declared none. */
+const HLS_MANIFEST_CONTENT_TYPE = 'application/vnd.apple.mpegurl';
+
+/**
+ * The generic binary content type. Object stores serve HLS segments (`.ts`,
+ * `.m4s`) under it — Bluesky's `video.cdn.bsky.app` does — so a correct playlist
+ * points at bytes the media allowlist rejects. It is accepted ONLY for a request
+ * carrying a valid playlist-component signature; see `utils/hlsSignature.ts`.
+ */
+const GENERIC_BINARY_CONTENT_TYPE = 'application/octet-stream';
 
 // --- Poster endpoint tunables -----------------------------------------------
 
@@ -336,6 +371,154 @@ function readBoundedPrefix(response: IncomingMessage, maxBytes: number): Promise
   });
 }
 
+/** Thrown by {@link readWholeBody} when a body exceeds its cap. */
+class BodyTooLargeError extends Error {}
+
+/**
+ * Read an ENTIRE upstream body into a Buffer, rejecting with
+ * {@link BodyTooLargeError} the moment it exceeds `maxBytes`.
+ *
+ * Distinct from {@link readBoundedPrefix}, which stops at the cap and resolves
+ * with what it has. Truncation is right for poster extraction (a keyframe lives
+ * near the start) and wrong here: half a playlist is not a playlist, and
+ * rewriting one would emit a manifest whose final URI is silently cut in two.
+ */
+function readWholeBody(response: IncomingMessage, maxBytes: number): Promise<Buffer> {
+  return new Promise<Buffer>((resolve, reject) => {
+    const chunks: Buffer[] = [];
+    let total = 0;
+    let settled = false;
+
+    const fail = (error: Error): void => {
+      if (settled) return;
+      settled = true;
+      if (!response.destroyed) response.destroy();
+      reject(error);
+    };
+
+    response.setTimeout(UPSTREAM_SOCKET_TIMEOUT_MS, () => {
+      fail(new Error('upstream socket idle timeout'));
+    });
+
+    response.on('data', (chunk: Buffer) => {
+      total += chunk.length;
+      if (total > maxBytes) {
+        fail(new BodyTooLargeError(`body exceeds ${maxBytes} bytes`));
+        return;
+      }
+      chunks.push(chunk);
+    });
+    response.on('end', () => {
+      if (settled) return;
+      settled = true;
+      resolve(Buffer.concat(chunks, total));
+    });
+    response.on('error', (error: Error) => fail(error));
+  });
+}
+
+/**
+ * Build the url a client should fetch in place of one URI found in a playlist:
+ * this proxy, plus a signature marking the target as a component of a playlist
+ * we fetched and rewrote ourselves. The signature is what later permits the
+ * `application/octet-stream` segments object stores serve, without relaxing the
+ * content-type policy for any other caller.
+ */
+function buildSignedProxyUrl(absoluteUrl: string): string {
+  const params = new URLSearchParams({ url: absoluteUrl });
+  const signature = signHlsComponentUrl(absoluteUrl);
+  if (signature) params.set(HLS_SIGNATURE_PARAM, signature);
+  return `${MEDIA_PROXY_PATH}?${params.toString()}`;
+}
+
+/**
+ * Serve an HLS playlist with every URI it contains rewritten to point back
+ * through this proxy, so segments, variant playlists and keys keep the SSRF
+ * guard, the size caps, the rate limiter and the negative cache that a direct
+ * CDN fetch would bypass. The rationale in full is in `utils/hlsManifest.ts`.
+ *
+ * The playlist is buffered rather than streamed — it has to be, to be rewritten
+ * — under its own tight cap, well below the streaming-body cap that applies to
+ * actual media.
+ */
+async function serveRewrittenHlsManifest(
+  rawUrl: string,
+  upstream: UpstreamResult,
+  deadline: RequestDeadline,
+  res: Response,
+): Promise<void> {
+  let source = upstream;
+
+  // The client sent a Range, we forwarded it, and the upstream honoured it. A
+  // partial playlist cannot be rewritten, and byte offsets into the original are
+  // meaningless once the body changes — so fetch the whole playlist (same
+  // SSRF-validated helper, redirects re-validated per hop) and answer 200, which
+  // RFC 9110 §14.2 permits a server to do for any range request.
+  if (source.response.statusCode === HTTP_STATUS.PARTIAL_CONTENT) {
+    source.response.destroy();
+    try {
+      source = await fetchUpstreamFollowingRedirects(rawUrl, {}, deadline.signal);
+      deadline.setActiveResponse(source.response);
+    } catch (error) {
+      if (res.headersSent || res.writableEnded) return;
+      logger.warn('[MediaProxy] HLS full-playlist refetch failed', {
+        reason: error instanceof Error ? error.message : 'unknown',
+      });
+      res.status(HTTP_STATUS.BAD_GATEWAY).json({ error: 'Upstream media unavailable' });
+      return;
+    }
+    if (source.response.statusCode !== HTTP_STATUS.OK) {
+      source.response.destroy();
+      logger.warn('[MediaProxy] HLS full-playlist refetch returned non-OK', {
+        status: source.response.statusCode,
+      });
+      res.status(HTTP_STATUS.BAD_GATEWAY).json({ error: 'Upstream media unavailable' });
+      return;
+    }
+  }
+
+  let body: Buffer;
+  try {
+    body = await readWholeBody(source.response, HLS_MANIFEST_MAX_BYTES);
+  } catch (error) {
+    if (res.headersSent || res.writableEnded) return;
+    if (error instanceof BodyTooLargeError) {
+      logger.warn('[MediaProxy] HLS playlist exceeds cap', { maxBytes: HLS_MANIFEST_MAX_BYTES });
+      res.status(HTTP_STATUS.PAYLOAD_TOO_LARGE).json({ error: 'Upstream media too large' });
+      return;
+    }
+    logger.warn('[MediaProxy] Failed to read HLS playlist', {
+      reason: error instanceof Error ? error.message : 'unknown',
+    });
+    res.status(HTTP_STATUS.BAD_GATEWAY).json({ error: 'Upstream media unavailable' });
+    return;
+  }
+
+  const manifest = body.toString('utf8');
+  if (!isHlsManifestBody(manifest)) {
+    // Declared as a playlist but is not one. Rewriting would be meaningless and
+    // relaying it would put arbitrary upstream text behind a media content type.
+    logger.warn('[MediaProxy] Upstream HLS content type carries a non-playlist body');
+    res.status(HTTP_STATUS.UNSUPPORTED_MEDIA_TYPE).json({ error: 'Upstream is not a supported media type' });
+    return;
+  }
+
+  // Relative URIs resolve against the url the playlist was actually fetched
+  // from, so the base must be the post-redirect `finalUrl`, not the requested one.
+  const rewritten = rewriteHlsManifest(manifest, source.finalUrl, buildSignedProxyUrl);
+
+  res.setHeader('Content-Type', source.response.headers['content-type'] ?? HLS_MANIFEST_CONTENT_TYPE);
+  res.setHeader('Cache-Control', HLS_MANIFEST_CACHE_CONTROL);
+  setPublicMediaCors(res);
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Content-Disposition', MEDIA_CONTENT_DISPOSITION);
+  // Ranges cannot be honoured on a body we generate, and the upstream's own
+  // validators describe the ORIGINAL bytes, so neither is relayed. Express
+  // derives an ETag from the rewritten body instead.
+  res.setHeader('Accept-Ranges', 'none');
+  res.status(HTTP_STATUS.OK).send(Buffer.from(rewritten, 'utf8'));
+}
+
 /**
  * Consult the federated-media cache for a (non-range) proxy request.
  *
@@ -595,9 +778,23 @@ router.get('/proxy', mediaProxyRateLimiter, async (req: Request, res: Response):
     return;
   }
 
-  // Content-type gate: only relay image/video/audio.
   const family = contentTypeFamily(response.headers);
-  if (!isAllowedMediaType(family)) {
+
+  // HLS playlist: rewrite its URIs back through this proxy instead of relaying
+  // it. See `utils/hlsManifest.ts` for why a playlist can never be passed
+  // through verbatim.
+  if (isHlsManifestType(family)) {
+    await serveRewrittenHlsManifest(rawUrl, upstream, deadline, res);
+    return;
+  }
+
+  // Content-type gate: only relay image/video/audio — plus, for a request whose
+  // signature proves it is a component of a playlist this proxy itself rewrote,
+  // the generic binary type object stores use for HLS segments.
+  const isSignedPlaylistComponent = isSignedHlsComponent(rawUrl, req.query[HLS_SIGNATURE_PARAM]);
+  const isRelayableType =
+    isAllowedMediaType(family) || (isSignedPlaylistComponent && family === GENERIC_BINARY_CONTENT_TYPE);
+  if (!isRelayableType) {
     response.destroy();
     logger.warn('[MediaProxy] Rejected non-media content type', { contentType: family || 'unknown' });
     res.status(HTTP_STATUS.UNSUPPORTED_MEDIA_TYPE).json({ error: 'Upstream is not a supported media type' });

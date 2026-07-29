@@ -8,7 +8,12 @@ import {
   MEDIA_CACHE_MAX_IMAGE_BYTES,
   MEDIA_CACHE_MAX_VIDEO_BYTES,
 } from './constants';
-import { MEDIA_IMAGE_TYPE_PREFIX, MEDIA_VIDEO_TYPE_PREFIX, isAllowedMediaType } from './mediaTypes';
+import {
+  MEDIA_IMAGE_TYPE_PREFIX,
+  MEDIA_VIDEO_TYPE_PREFIX,
+  isAllowedMediaType,
+  isHlsManifestType,
+} from './mediaTypes';
 
 /**
  * Pure decision helpers for the federated media cache.
@@ -35,6 +40,8 @@ export type ProxyServeDecision =
 export interface CacheLookup {
   state: FederatedMediaCacheState;
   oxyFileId?: string;
+  /** Stored upstream content type, when the worker recorded one. */
+  contentType?: string;
 }
 
 /**
@@ -50,6 +57,14 @@ export interface CacheLookup {
 export function decideProxyServe(lookup: CacheLookup | undefined): ProxyServeDecision {
   if (!lookup) {
     return { action: 'stream-and-enqueue' };
+  }
+
+  // An HLS playlist must never be served from Oxy, whatever the row says: the
+  // stored copy is the RAW upstream manifest, and its URIs only become usable
+  // once the proxy rewrites them at serve time. `isCacheableMediaType` stops new
+  // playlists being stored; this covers rows written before that was true.
+  if (isHlsManifestType(contentTypeFamilyFromString(lookup.contentType))) {
+    return { action: 'stream-only' };
   }
 
   switch (lookup.state) {
