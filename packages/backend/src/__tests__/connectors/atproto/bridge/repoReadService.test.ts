@@ -17,9 +17,14 @@ import { buildUserDid } from '../../../../services/mtn/mentionDid';
  */
 
 const mockFind = vi.fn();
+const mockPostFind = vi.fn();
 
 vi.mock('../../../../models/MentionSignedRecord', () => ({
   default: { find: (...a: unknown[]) => mockFind(...a) },
+}));
+
+vi.mock('../../../../models/Post', () => ({
+  Post: { find: (...a: unknown[]) => mockPostFind(...a) },
 }));
 
 import { listRecords, getRecord } from '../../../../connectors/atproto/bridge/repoReadService';
@@ -66,6 +71,13 @@ function postRecord(text: string): Record<string, unknown> {
 function mockLedger(rows: ReturnType<typeof row>[]): void {
   mockFind.mockReturnValue({
     sort: () => ({ lean: () => Promise.resolve(rows) }),
+  });
+  mockPublicPosts(rows.filter((r) => r.nsid === MENTION_POST_COLLECTION).map((r) => r.rkey));
+}
+
+function mockPublicPosts(postIds: string[]): void {
+  mockPostFind.mockReturnValue({
+    lean: () => Promise.resolve(postIds.map((_id) => ({ _id }))),
   });
 }
 
@@ -125,6 +137,28 @@ describe('listRecords', () => {
     const likes = await listRecords(OWNER, 'app.bsky.feed.like');
     expect(likes.records).toHaveLength(1);
     expect(likes.records[0].value.$type).toBe('app.bsky.feed.like');
+  });
+
+  it('filters draft and non-public post records through the authoritative Post document', async () => {
+    mockLedger([
+      row({ nsid: MENTION_POST_COLLECTION, rkey: 'published-public', record: postRecord('safe'), createdAt: '2026-06-30T03:00:00.000Z' }),
+      row({ nsid: MENTION_POST_COLLECTION, rkey: 'draft-public', record: postRecord('draft secret'), createdAt: '2026-06-30T02:00:00.000Z' }),
+      row({ nsid: MENTION_POST_COLLECTION, rkey: 'published-private', record: postRecord('private secret'), createdAt: '2026-06-30T01:00:00.000Z' }),
+    ]);
+    mockPublicPosts(['published-public']);
+
+    const page = await listRecords(OWNER, 'app.bsky.feed.post');
+
+    expect(page.records.map((record) => record.rkey)).toEqual(['published-public']);
+    expect(mockPostFind).toHaveBeenCalledWith(
+      {
+        _id: { $in: ['published-public', 'draft-public', 'published-private'] },
+        oxyUserId: OWNER,
+        status: 'published',
+        visibility: 'public',
+      },
+      { _id: 1 },
+    );
   });
 
   it('returns an empty page for an unknown / private collection', async () => {
@@ -214,6 +248,15 @@ describe('getRecord', () => {
     ]);
     const record = await getRecord(OWNER, 'app.bsky.feed.post', 'p1');
     expect(record?.value).toMatchObject({ text: 'edited' });
+  });
+
+  it('returns null when the authoritative Post document is draft or non-public', async () => {
+    mockLedger([
+      row({ nsid: MENTION_POST_COLLECTION, rkey: 'p1', record: postRecord('secret'), createdAt: '2026-06-30T01:00:00.000Z' }),
+    ]);
+    mockPublicPosts([]);
+
+    expect(await getRecord(OWNER, 'app.bsky.feed.post', 'p1')).toBeNull();
   });
 
   it('returns null for an unknown / private collection without a ledger read', async () => {

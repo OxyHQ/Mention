@@ -8,6 +8,9 @@
  *  - Emission is gated on a LOCAL author: `federation == null && oxyUserId`.
  *    Federated/remote-authored content NEVER emits (those records belong to the
  *    origin instance, not Mention).
+ *  - A POST is additionally gated on being PUBLISHED and PUBLIC. A record is
+ *    readable on the public atproto bridge, so a draft or a private /
+ *    followers-only post must never reach the chain at all.
  *  - Every emit is wrapped so it cannot throw to the caller (it logs on failure).
  *    Callers still place the call inside their existing `Promise.allSettled`
  *    side-effect block.
@@ -18,6 +21,7 @@
 
 import type { IPost } from '../../models/Post';
 import {
+  PostVisibility,
   MENTION_POST_COLLECTION,
   MENTION_LIKE_COLLECTION,
   MENTION_REPOST_COLLECTION,
@@ -44,6 +48,11 @@ import {
 /** True when a post is authored by a LOCAL Mention user (eligible to emit). */
 function isLocalAuthored(post: Pick<IPost, 'federation' | 'oxyUserId'>): post is Pick<IPost, 'federation' | 'oxyUserId'> & { oxyUserId: string } {
   return post.federation == null && typeof post.oxyUserId === 'string' && post.oxyUserId.length > 0;
+}
+
+/** True when a post is safe to publish to public MTN/atproto read surfaces. */
+function isPublicPublishedPost(post: Pick<IPost, 'status' | 'visibility'>): boolean {
+  return (post.status ?? 'published') === 'published' && post.visibility === PostVisibility.PUBLIC;
 }
 
 /**
@@ -103,7 +112,7 @@ export async function emitPostCreated(
   post: IPost,
   options: { reply?: ReplyContext; facets?: MtnFacet[] } = {},
 ): Promise<void> {
-  if (!isLocalAuthored(post)) return;
+  if (!isLocalAuthored(post) || !isPublicPublishedPost(post)) return;
   const authorOxyUserId = post.oxyUserId;
   await isolate('emitPostCreated', async () => {
     // Resolve every media item the post references — the shared set and each
