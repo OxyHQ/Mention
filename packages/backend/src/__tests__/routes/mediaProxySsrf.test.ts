@@ -34,6 +34,20 @@ vi.mock('../../middleware/rateLimitStore', () => ({
   },
 }));
 
+/**
+ * The route pre-validates the caller-supplied URL with the real core guard, which
+ * would resolve DNS for the fake `remote.example` host. Stub only that function;
+ * the rest of `@oxyhq/core/server` stays real. Per-hop SSRF blocking is proven
+ * against the real guard in `utils/safeUpstreamFetchSsrf.test.ts`.
+ */
+vi.mock('@oxyhq/core/server', async () => {
+  const actual = await vi.importActual<typeof import('@oxyhq/core/server')>('@oxyhq/core/server');
+  return {
+    ...actual,
+    assertSafePublicUrl: async () => ({ ok: true, ip: '203.0.113.10', family: 4 }),
+  };
+});
+
 /** Keep the media cache front inert so requests hit the remote-stream path. */
 vi.mock('../../services/mediaCache/oxyMediaStore', () => ({
   isMediaCacheEnabled: () => false,

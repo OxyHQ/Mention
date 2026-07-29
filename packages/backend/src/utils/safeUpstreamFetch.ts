@@ -3,7 +3,7 @@ import https from 'node:https';
 import type { LookupAddress, LookupAllOptions, LookupOneOptions } from 'node:dns';
 import type { LookupFunction } from 'node:net';
 import { URL } from 'node:url';
-import { assertSafePublicUrl, SsrfRejection, UpstreamError } from '@oxyhq/core/server';
+import { assertSafePublicUrl, SsrfRejection, UpstreamError, type SsrfCheckOk } from '@oxyhq/core/server';
 
 /**
  * Shared SSRF-safe upstream HTTP fetch primitives.
@@ -155,6 +155,14 @@ function buildMediaProxyHeaders(extras: UpstreamRequestExtras): Record<string, s
  * and re-running the SSRF check (DNS + IP-range validation) on EVERY hop.
  * Returns the first non-redirect response; redirect bodies are destroyed.
  *
+ * `preValidated` lets a caller that ALREADY validated `initialUrl` hand the
+ * result in so hop 0 reuses it instead of resolving DNS a second time. The
+ * security contract is unchanged: the connection is still pinned to an IP that
+ * `assertSafePublicUrl` accepted, and every REDIRECT hop is always resolved and
+ * validated fresh. `/media/proxy` uses this because it must validate before the
+ * URL can reach the cache store, and that endpoint carries enough traffic that a
+ * duplicate resolution per request is worth avoiding.
+ *
  * Throws {@link SsrfRejection} when any hop targets a blocked address and
  * {@link UpstreamError} on redirect-loop / malformed-redirect failures.
  */
@@ -162,11 +170,14 @@ export async function fetchUpstreamFollowingRedirects(
   initialUrl: string,
   extras: UpstreamRequestExtras,
   signal: AbortSignal,
+  preValidated?: SsrfCheckOk,
 ): Promise<UpstreamResult> {
   let currentUrl = initialUrl;
 
   for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
-    const guard = await assertSafePublicUrl(currentUrl);
+    // Hop 0 targets `initialUrl`, so it may reuse the caller's guard; a redirect
+    // hop targets a NEW url and must always be validated here.
+    const guard = hop === 0 && preValidated ? preValidated : await assertSafePublicUrl(currentUrl);
     if (!guard.ok) {
       throw new SsrfRejection(guard.reason);
     }

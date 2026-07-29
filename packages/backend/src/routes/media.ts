@@ -4,7 +4,7 @@ import rateLimit from 'express-rate-limit';
 import { logger } from '../utils/logger';
 import { RedisStore } from '../middleware/rateLimitStore';
 import { hashedIpKey } from '../utils/ipKey';
-import { SsrfRejection } from '@oxyhq/core/server';
+import { SsrfRejection, assertSafePublicUrl } from '@oxyhq/core/server';
 import {
   UpstreamResult,
   contentTypeFamily,
@@ -425,15 +425,37 @@ function shouldNegativeCacheClientError(status: number, hasRequestSpecificUpstre
  * through our origin so the browser sees same-origin (CORS-safe), cacheable,
  * range-seekable bytes instead of hot-linking third-party CDNs.
  *
- * SECURITY: every upstream request — including hop 0 and each redirect hop — is
- * validated by `assertSafePublicUrl` inside `fetchUpstreamFollowingRedirects`
- * (BEFORE any socket is opened) and the TCP connection is pinned to the validated
- * IP. A blocked target surfaces as an `SsrfRejection` and maps to 403.
+ * SECURITY: the caller-supplied URL is validated by `assertSafePublicUrl` BEFORE
+ * it can reach any side effect (see below), and every upstream request —
+ * including hop 0 and each redirect hop — is validated the same way inside
+ * `fetchUpstreamFollowingRedirects` before a socket is opened, with the TCP
+ * connection pinned to the validated IP. A blocked target surfaces as an
+ * `SsrfRejection` and maps to 403.
  */
 router.get('/proxy', mediaProxyRateLimiter, async (req: Request, res: Response): Promise<void> => {
   const rawUrl = req.query.url;
   if (typeof rawUrl !== 'string' || rawUrl.length === 0) {
     res.status(HTTP_STATUS.BAD_REQUEST).json({ error: 'Missing required "url" query parameter' });
+    return;
+  }
+
+  // --- Validate BEFORE the URL can become durable state ---
+  // The cache front below keys `FederatedMediaCache` rows on this string, and
+  // `recordAccessAndMaybeEnqueue` UPSERTS one for a URL it has never seen. That
+  // made an unauthenticated caller able to write a row per arbitrary string —
+  // rows that nothing in the media cache ever deletes (eviction clears the S3
+  // object and keeps the row) — and every junk row then consumed worker slots and
+  // four backoff-spaced fetch attempts, starving genuine federated media.
+  //
+  // Validating here means only a syntactically valid, publicly-resolvable http(s)
+  // URL can reach the cache store or the worker queue. The result is handed to
+  // `fetchUpstreamFollowingRedirects` below so hop 0 reuses it: this endpoint
+  // keeps exactly ONE DNS resolution per request, and redirect hops are still
+  // resolved and re-validated individually.
+  const initialGuard = await assertSafePublicUrl(rawUrl);
+  if (!initialGuard.ok) {
+    logger.warn('[MediaProxy] Rejected media URL before cache lookup', { reason: initialGuard.reason });
+    res.status(HTTP_STATUS.FORBIDDEN).json({ error: 'URL not permitted' });
     return;
   }
 
@@ -500,7 +522,7 @@ router.get('/proxy', mediaProxyRateLimiter, async (req: Request, res: Response):
 
   let upstream: UpstreamResult;
   try {
-    upstream = await fetchUpstreamFollowingRedirects(rawUrl, extras, deadline.signal);
+    upstream = await fetchUpstreamFollowingRedirects(rawUrl, extras, deadline.signal, initialGuard);
   } catch (error) {
     // The deadline timer may already have responded (it aborts the in-flight
     // request, which surfaces here as an AbortError); don't double-send.
