@@ -878,6 +878,7 @@ const PostItem: React.FC<PostItemProps> = ({
                         saves={engagementSummary?.saves}
                         replyPermission={metadata.replyPermission}
                         quotesDisabled={metadata.quotesDisabled}
+                        postId={viewPostId}
                         onLikesPress={openLikesList}
                         onBoostsPress={openBoostsList}
                         onQuotesPress={openQuotesList}

@@ -37,6 +37,7 @@ describe('viewer-scoped private cache', () => {
       viewerQueryKeys.unreadNotifications(viewerId),
       viewerQueryKeys.similarProfiles(viewerId, 'source-1'),
       viewerQueryKeys.mutualFollowers(viewerId, 'profile-1'),
+      viewerQueryKeys.knownLikers(viewerId, 'post-1'),
       viewerQueryKeys.connectionsMutuals(viewerId, 'profile-1'),
       viewerQueryKeys.customFeedsRoot(viewerId),
       viewerQueryKeys.customFeedTitles(viewerId),
@@ -99,6 +100,7 @@ describe('viewer-scoped private cache', () => {
     expect(viewerQueryKeys.all('   ')).toEqual(['viewer', 'anon']);
     expect(viewerQueryKeys.similarProfiles('viewer-a', undefined)).toContain('');
     expect(viewerQueryKeys.mutualFollowers('viewer-a', undefined)).toContain('');
+    expect(viewerQueryKeys.knownLikers('viewer-a', undefined)).toContain('');
     expect(viewerQueryKeys.connectionsMutuals('viewer-a', undefined)).toContain('');
     expect(viewerQueryKeys.profileFeeds('viewer-a', undefined, true)).toContain('');
     expect(viewerQueryKeys.profileStarterPacks('viewer-a', undefined, true)).toContain('');

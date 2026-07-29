@@ -23,6 +23,17 @@ export interface OxyClient {
   getRestrictedUsers(): Promise<unknown[]>;
   getUserFollowing(userId: string): Promise<unknown>;
   getUserFollowers(userId: string): Promise<unknown>;
+  /**
+   * The viewer's OWN graph as ONE ids-only payload (`GET /users/me/graph`):
+   * following + mutuals + blocked, each server-bounded. Prefer it over
+   * `getUserFollowing` wherever only the ids are needed — that route hydrates a
+   * full user DTO per follow, which is a far heavier response for the same
+   * answer, and is unbounded where this one is capped server-side.
+   *
+   * The viewer is derived from the client's own credential, so this is only
+   * meaningful on a viewer-scoped client (`createScopedOxyClient`).
+   */
+  getViewerGraph(): Promise<unknown>;
 }
 
 /** Read a string-or-`{_id}` reference, returning the resolved id string when present. */
@@ -222,11 +233,14 @@ export async function getRestrictedUserIds(client?: OxyClient): Promise<string[]
 }
 
 /**
- * Extract user IDs from Oxy following response
- * Handles various response formats from Oxy API
+ * Extract user IDs from an Oxy following response.
+ *
+ * Handles every shape the Oxy graph endpoints return: `getUserFollowing`'s
+ * hydrated `{ following: User[] }` (and its bare-array variant), and the
+ * consolidated viewer graph's ids-only `{ followingIds: string[] }`.
  */
 export function extractFollowingIds(followingRes: unknown): string[] {
-  const following = readProp(followingRes, 'following');
+  const following = readProp(followingRes, 'following') ?? readProp(followingRes, 'followingIds');
   const followingList: unknown[] = Array.isArray(following)
     ? following
     : (Array.isArray(followingRes) ? followingRes : []);

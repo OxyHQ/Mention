@@ -148,6 +148,19 @@ interface PostEngagementUsersResponse {
   totalCount: number;
 }
 
+/**
+ * Social proof for a focused post (`GET /posts/:id/likes/known`): the likers the
+ * VIEWER follows, as a fixed-size avatar sample plus the exact total. Distinct
+ * from {@link PostEngagementUsersResponse}, which is the cursor-paginated list
+ * of everybody who liked the post.
+ */
+export interface PostKnownLikersResponse {
+  /** Canonical Oxy `PostUser` per liker, same shape as `post.user`. */
+  likers: PostUser[];
+  /** Every liker the viewer follows, not just the sampled ones. */
+  total: number;
+}
+
 type FeedDataResponse = FeedServiceResponse | FeedDataEnvelope;
 
 interface PinnedPostResponse {
@@ -739,6 +752,15 @@ class FeedService {
     if (cursor) params.cursor = cursor;
 
     const response = await authenticatedClient.get<PostEngagementUsersResponse>(`/posts/${postId}/likes`, { params });
+    return response.data;
+  }
+
+  /**
+   * Get the likers of a post that the viewer follows — the post-detail social
+   * proof row. Viewer-scoped: an anonymous caller gets an empty result (200).
+   */
+  async getKnownPostLikers(postId: string): Promise<PostKnownLikersResponse> {
+    const response = await authenticatedClient.get<PostKnownLikersResponse>(`/posts/${postId}/likes/known`);
     return response.data;
   }
 

@@ -32,6 +32,7 @@ import { postHydrationService, resolveUserSummaries, degradedActorSummary } from
 import { config } from '../config';
 import { mergeHashtags } from '../utils/textProcessing';
 import { createScopedOxyClient } from '../utils/oxyHelpers';
+import { extractFollowingIds } from '../utils/privacyHelpers';
 import { queryInt, queryString } from '../utils/queryParams';
 import { buildTopicSlugMatch } from '../utils/postTopicMatch';
 import { requestLanguageCandidates } from '../utils/viewerLanguage';
@@ -2393,6 +2394,103 @@ export const getPostLikes = async (req: AuthRequest, res: Response) => {
   } catch (error) {
     logger.error('Error fetching post likes', error);
     res.status(500).json({ message: 'Error fetching post likes' });
+  }
+};
+
+/**
+ * Avatars shown in the known-likers row. Deliberately tiny: this is a face pile,
+ * not a list — the real count travels separately as `total`.
+ */
+const KNOWN_LIKERS_SAMPLE_LIMIT = 3;
+
+/**
+ * Ceiling on the `$in` width of the follow-graph filter. Oxy already bounds the
+ * viewer graph server-side, so this is a second, local guard that keeps the
+ * index scan bounded no matter what the upstream cap becomes — mirroring
+ * `MAX_SUBSCRIBED_LIST_AUTHORS_FOR_FEED`, the same bound the feed applies to a
+ * viewer-derived id list.
+ */
+const MAX_KNOWN_LIKER_CANDIDATES = 5000;
+
+/**
+ * Social proof for a focused post: the people the VIEWER follows who liked it,
+ * as a 3-avatar sample plus the exact total.
+ *
+ * Deliberately NOT a flag on `GET /:id/likes`. That one is a cursor-paginated
+ * engagement list of everybody; this is a fixed-size sample intersected with the
+ * viewer's follow graph, and returns the `{ items, total }` shape the profile's
+ * "Followed by" row already consumes.
+ *
+ * The follow graph is Oxy-owned and the likes are Mention-owned, so the two are
+ * intersected here. The graph comes from the CONSOLIDATED viewer-graph read
+ * (`getViewerGraph`), not `getUserFollowing`: it answers the same question with
+ * an ids-only, server-bounded payload instead of a hydrated user DTO per follow.
+ *
+ * Query shape is what keeps it cheap, and the shape that matters is `userId`
+ * bounded by a `$in` PLUS an exact `postId`: together they let the unique
+ * `{ userId: 1, postId: 1 }` index answer with one seek per followed id, so the
+ * work scales with the viewer's FOLLOW COUNT — bounded below — instead of with
+ * the post's like count. (The order of the keys in the filter document is
+ * irrelevant; MongoDB's planner picks an index by cost, not by BSON order.)
+ *
+ * Measured on a 150k-like post with a 5000-wide graph and no matches, which is
+ * both the common case and the one no `limit` can short-circuit: 5000 keys and
+ * ZERO documents examined on the compound index, against 150,000 keys AND
+ * 150,000 documents when forced onto `{ postId: 1 }` (9ms vs 105ms). The
+ * planner reaches for the compound index unaided in every case where the
+ * difference matters, so there is deliberately no `hint()` — that leaves it
+ * free to use `{ postId: 1 }` when it is genuinely cheaper, e.g. an unpopular
+ * post, or a match sitting at the front of the scan.
+ *
+ * Anonymous viewers have no follow graph and therefore no social proof to show,
+ * so they get an empty result with a 200 — never a 401. This is a decorative
+ * read on a public post-detail screen; failing it closed with an auth error
+ * would make signed-out detail views log an error per post.
+ */
+export const getKnownPostLikers = async (req: AuthRequest, res: Response) => {
+  try {
+    // Narrowed with `String` because Express types a route param as
+    // `string | string[]`; a repeated param collapses to a comma-joined string,
+    // which fails the id check below exactly like any other malformed value.
+    const id = String(req.params.id ?? '');
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: 'Post ID is required' });
+    }
+
+    const viewerId = req.user?.id;
+    const oxyClient = createScopedOxyClient(req);
+    if (!viewerId || !oxyClient) {
+      return res.json({ likers: [], total: 0 });
+    }
+
+    const followingIds = extractFollowingIds(await oxyClient.getViewerGraph())
+      .slice(0, MAX_KNOWN_LIKER_CANDIDATES);
+    if (followingIds.length === 0) {
+      return res.json({ likers: [], total: 0 });
+    }
+
+    const filter = {
+      userId: { $in: followingIds },
+      postId: new mongoose.Types.ObjectId(id),
+      value: 1,
+    };
+
+    // Unsorted on purpose: the index is keyed on `{ userId, postId }`, so any
+    // recency sort would add a blocking in-memory sort over every match just to
+    // pick three avatars whose order carries no meaning. `total` is exact.
+    const [likes, total] = await Promise.all([
+      Like.find(filter).limit(KNOWN_LIKERS_SAMPLE_LIMIT).select({ userId: 1, _id: 0 }).lean(),
+      Like.countDocuments(filter),
+    ]);
+
+    const likerIds = [...new Set(likes.map((like) => like.userId))];
+    const summaries = await resolveUserSummaries(likerIds);
+    const likers = likerIds.map((likerId) => mapActorSummary(likerId, summaries.get(likerId)?.user));
+
+    return res.json({ likers, total });
+  } catch (error) {
+    logger.error('Error fetching known post likers', error);
+    return res.status(500).json({ message: 'Error fetching known post likers' });
   }
 };
 
