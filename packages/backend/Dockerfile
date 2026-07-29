@@ -41,7 +41,7 @@ COPY --from=manifests /app/packages/e2e/package.json packages/e2e/
 RUN --mount=type=cache,target=/root/.bun/install/cache \
   bun install --frozen-lockfile --omit=dev --omit=peer --omit=optional --ignore-scripts \
     --filter @mention/shared-types --filter @mention/backend
-RUN rm -rf packages/frontend packages/mcp
+RUN rm -rf packages/frontend packages/mcp packages/e2e
 
 COPY --from=builder /app/packages/shared-types/dist/ packages/shared-types/dist/
 COPY --from=builder /app/packages/backend/dist/ packages/backend/dist/
