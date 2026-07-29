@@ -45,6 +45,10 @@ app.use((req, _res, next) => {
 });
 app.use('/search', searchRoutes);
 
+/** The same router with no session, to exercise the anonymous operator paths. */
+const anonApp = express();
+anonApp.use('/search', searchRoutes);
+
 function post(id: string, createdAt: string, type = 'post') {
   return {
     _id: new mongoose.Types.ObjectId(id),
@@ -183,5 +187,106 @@ describe('GET /search post search', () => {
       },
     });
     expect(filter).not.toHaveProperty('oxyUserId');
+  });
+
+  it('strips a leading @ so from:@alice and from:alice resolve the same author', async () => {
+    mocks.getProfileByUsername.mockResolvedValue({ id: 'resolved-author' });
+
+    await request(app)
+      .get('/search')
+      .query({ query: 'from:@alice', type: 'posts' })
+      .expect(200);
+
+    // Handed a literal `@alice`, Oxy resolves nobody and the search silently
+    // answers "no posts" — which reads as an empty account, not as bad input.
+    expect(mocks.getProfileByUsername).toHaveBeenCalledWith('alice');
+  });
+
+  it('resolves from:me to the viewer without asking Oxy for a user named "me"', async () => {
+    await request(app)
+      .get('/search')
+      .query({ query: 'from:me coffee', type: 'posts' })
+      .expect(200);
+
+    expect(mocks.getProfileByUsername).not.toHaveBeenCalled();
+    const filter = mocks.find.mock.calls[0][0] as Record<string, unknown>;
+    expect(filter).toMatchObject({
+      $text: { $search: 'coffee' },
+      authorship: { $elemMatch: { oxyUserId: 'viewer-1', status: 'accepted' } },
+    });
+  });
+
+  it('returns nothing for from:me when there is no viewer', async () => {
+    const res = await request(anonApp)
+      .get('/search')
+      .query({ query: 'from:me', type: 'posts' })
+      .expect(200);
+
+    expect(res.body).toEqual({ posts: [], hasMore: false });
+    expect(mocks.find).not.toHaveBeenCalled();
+    expect(mocks.getProfileByUsername).not.toHaveBeenCalled();
+  });
+
+  it('matches to:username against the indexed mentions array', async () => {
+    mocks.getProfileByUsername.mockResolvedValue({ id: 'mentioned-user' });
+
+    await request(app)
+      .get('/search')
+      .query({ query: 'to:@alice deadline', type: 'posts' })
+      .expect(200);
+
+    expect(mocks.getProfileByUsername).toHaveBeenCalledWith('alice');
+    const filter = mocks.find.mock.calls[0][0] as Record<string, unknown>;
+    expect(filter).toMatchObject({
+      $text: { $search: 'deadline' },
+      mentions: 'mentioned-user',
+    });
+  });
+
+  it('resolves to:me to the viewer', async () => {
+    await request(app)
+      .get('/search')
+      .query({ query: 'to:me', type: 'posts' })
+      .expect(200);
+
+    expect(mocks.getProfileByUsername).not.toHaveBeenCalled();
+    expect(mocks.find.mock.calls[0][0]).toMatchObject({ mentions: 'viewer-1' });
+  });
+
+  it('returns nothing for to:me when there is no viewer', async () => {
+    const res = await request(anonApp)
+      .get('/search')
+      .query({ query: 'to:me', type: 'posts' })
+      .expect(200);
+
+    expect(res.body).toEqual({ posts: [], hasMore: false });
+    expect(mocks.find).not.toHaveBeenCalled();
+  });
+
+  it('combines from: and to: into one filter', async () => {
+    mocks.getProfileByUsername.mockResolvedValue({ id: 'alice-id' });
+
+    await request(app)
+      .get('/search')
+      .query({ query: 'from:me to:alice', type: 'posts' })
+      .expect(200);
+
+    expect(mocks.getProfileByUsername).toHaveBeenCalledTimes(1);
+    expect(mocks.find.mock.calls[0][0]).toMatchObject({
+      authorship: { $elemMatch: { oxyUserId: 'viewer-1', status: 'accepted' } },
+      mentions: 'alice-id',
+    });
+  });
+
+  it('returns nothing rather than dropping the filter when to: names an unknown user', async () => {
+    mocks.getProfileByUsername.mockResolvedValue(null);
+
+    const res = await request(app)
+      .get('/search')
+      .query({ query: 'to:nobody', type: 'posts' })
+      .expect(200);
+
+    expect(res.body).toEqual({ posts: [], hasMore: false });
+    expect(mocks.find).not.toHaveBeenCalled();
   });
 });

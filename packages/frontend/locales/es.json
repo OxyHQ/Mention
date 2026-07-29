@@ -1382,7 +1382,6 @@
   "search.operator.from": "Publicaciones de un usuario específico",
   "search.operator.since": "Publicaciones después de una fecha",
   "search.operator.until": "Publicaciones antes de una fecha",
-  "search.operator.has": "Publicaciones con medios o enlaces",
   "search.operator.min_likes": "Mínimo de me gusta",
   "search.operator.min_boosts": "Mínimo de impulsos",
   "search.tabs.all": "Todo",
@@ -1512,8 +1511,6 @@
   "compose.schedule.datePlaceholder": "AAAA-MM-DD",
   "compose.schedule.timePlaceholder": "HH:MM",
   "compose.schedule.time24hPlaceholder": "HH:MM (formato 24h)",
-  "search.filters.datePlaceholder": "AAAA-MM-DD",
-  "search.filters.usernamePlaceholder": "Usuario (ej., @johndoe)",
   "report.contextPlaceholder": "Proporciona más contexto...",
   "widgets.notifications": "Widget de notificaciones",
   "widgets.messagesPreview": "Widget de vista previa de mensajes",
@@ -1634,5 +1631,15 @@
   "user": {
     "unknown": "Usuario desconocido"
   },
-  "compose.languages.makeMain": "Establecer como idioma principal"
+  "compose.languages.makeMain": "Establecer como idioma principal",
+  "search.operator.fromMe": "Tus propias publicaciones",
+  "search.operator.to": "Publicaciones que mencionan a un usuario específico",
+  "search.operator.toMe": "Publicaciones que te mencionan",
+  "search.operator.hasMedia": "Publicaciones con medios",
+  "search.operator.hasLinks": "Publicaciones con enlaces",
+  "search.tabs.starterPacks": "Packs de inicio",
+  "search.sections.starterPacks": "Packs de inicio",
+  "search.suggestions.searchFor": "Buscar \"{{query}}\"",
+  "search.suggestions.goToProfile": "Ir a @{{handle}}",
+  "search.suggestions.completeOperator": "Completar {{prefix}}:"
 }

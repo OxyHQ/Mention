@@ -1013,9 +1013,13 @@
       "from": "Posts by a specific user",
       "since": "Posts after a date",
       "until": "Posts before a date",
-      "has": "Posts with media or links",
       "min_likes": "Minimum likes",
-      "min_boosts": "Minimum boosts"
+      "min_boosts": "Minimum boosts",
+      "fromMe": "Your own posts",
+      "to": "Posts mentioning a specific user",
+      "toMe": "Posts mentioning you",
+      "hasMedia": "Posts with media",
+      "hasLinks": "Posts with links"
     },
     "tabs": {
       "all": "All",
@@ -1024,7 +1028,8 @@
       "feeds": "Feeds",
       "hashtags": "Hashtags",
       "lists": "Lists",
-      "saved": "Saved"
+      "saved": "Saved",
+      "starterPacks": "Starter Packs"
     },
     "sections": {
       "posts": "Posts",
@@ -1032,7 +1037,8 @@
       "feeds": "Feeds",
       "hashtags": "Hashtags",
       "lists": "Lists",
-      "saved": "Saved"
+      "saved": "Saved",
+      "starterPacks": "Starter Packs"
     },
     "external": {
       "follow": "Follow",
@@ -1047,7 +1053,12 @@
     },
     "retry": "Retry",
     "clearInput": "Clear search",
-    "removeRecent": "Remove from recent searches"
+    "removeRecent": "Remove from recent searches",
+    "suggestions": {
+      "searchFor": "Search for \"{{query}}\"",
+      "goToProfile": "Go to @{{handle}}",
+      "completeOperator": "Complete {{prefix}}:"
+    }
   },
   "feeds": {
     "title": "Feeds",
@@ -1498,8 +1509,6 @@
   "compose.schedule.datePlaceholder": "YYYY-MM-DD",
   "compose.schedule.timePlaceholder": "HH:MM",
   "compose.schedule.time24hPlaceholder": "HH:MM (24h format)",
-  "search.filters.datePlaceholder": "YYYY-MM-DD",
-  "search.filters.usernamePlaceholder": "Username (e.g., @johndoe)",
   "report.contextPlaceholder": "Provide more context...",
   "widgets.notifications": "Notifications Widget",
   "widgets.messagesPreview": "Messages Preview Widget",

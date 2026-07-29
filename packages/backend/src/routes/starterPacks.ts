@@ -6,6 +6,7 @@ import { resolveUserSummaries, isFallbackUserSummary } from '../services/PostHyd
 import { invalidate as invalidateUserSummaries } from '../services/userSummaryCache';
 import type { PostUser } from '@mention/shared-types';
 import { logger } from '../utils/logger';
+import { queryInt } from '../utils/queryParams';
 import { endorsementSignalService } from '../services/EndorsementSignalService';
 
 /**
@@ -63,6 +64,16 @@ function syncPackMembershipChange(
 const router = express.Router();
 
 const MAX_MEMBERS = 150;
+
+/**
+ * Page size for the paginated starter-pack listing. The default is the window
+ * this route already returned before it paginated, so the callers that pass no
+ * `limit` (explore, the profile tab, the "add to pack" sheet, the feed
+ * interstitial) see exactly what they saw before; the ceiling mirrors the feed
+ * marketplace. Every page costs ONE batched avatar resolution regardless of size.
+ */
+const DEFAULT_PACK_PAGE_SIZE = 50;
+const MAX_PACK_PAGE_SIZE = 100;
 
 /**
  * A pack MIRRORED from an external network (`source` set) is owned UPSTREAM and
@@ -225,7 +236,9 @@ router.post('/', async (req: AuthRequest, res: Response) => {
 //   - userId=<oxyId>  → a specific owner's packs (a profile's "Starter Packs" tab)
 //   - neither         → public discovery (all packs, most-used first)
 // Discovery additionally accepts `excludeUsed=true` (see below).
-// The write routes below enforce auth internally.
+// `page`/`limit` paginate every mode on the same stable sort, and `total` is the
+// real match count — so a caller can page past the first window instead of being
+// silently capped at it. The write routes below enforce auth internally.
 router.get('/', async (req: AuthRequest, res: Response) => {
   try {
     const viewerId = req.user?.id;
@@ -233,11 +246,15 @@ router.get('/', async (req: AuthRequest, res: Response) => {
     const search = typeof req.query.search === 'string' ? req.query.search : undefined;
     const ownerId = typeof req.query.userId === 'string' ? req.query.userId.trim() : '';
 
+    const page = Math.max(1, queryInt(req.query.page) || 1);
+    const limit = Math.min(Math.max(1, queryInt(req.query.limit) || DEFAULT_PACK_PAGE_SIZE), MAX_PACK_PAGE_SIZE);
+    const skip = (page - 1) * limit;
+
     const q: Record<string, unknown> = {};
     let ownerScoped = false;
     if (mine === 'true') {
       // "My packs" requires identity; an anonymous viewer owns nothing.
-      if (!viewerId) return res.json({ items: [], total: 0 });
+      if (!viewerId) return res.json({ items: [], total: 0, page, totalPages: 0 });
       q.ownerOxyUserId = viewerId;
       ownerScoped = true;
     } else if (ownerId.length > 0) {
@@ -263,12 +280,18 @@ router.get('/', async (req: AuthRequest, res: Response) => {
     }
 
     // Owner-scoped views read best most-recent-first; discovery ranks by usage.
+    // `_id` breaks ties so the sort is TOTAL — without it two packs sharing a
+    // timestamp (or a `useCount`, which most packs do) could swap places between
+    // requests and make an offset page repeat or skip a row.
     const sort: Record<string, 1 | -1> = ownerScoped
-      ? { updatedAt: -1 }
-      : { useCount: -1, createdAt: -1 };
-    const items = await StarterPack.find(q).sort(sort).limit(50).lean<LeanStarterPack[]>();
+      ? { updatedAt: -1, _id: -1 }
+      : { useCount: -1, createdAt: -1, _id: -1 };
+    const [items, total] = await Promise.all([
+      StarterPack.find(q).sort(sort).skip(skip).limit(limit).lean<LeanStarterPack[]>(),
+      StarterPack.countDocuments(q),
+    ]);
     const enriched = await enrichWithMemberAvatars(items);
-    res.json({ items: enriched, total: enriched.length });
+    res.json({ items: enriched, total, page, totalPages: Math.ceil(total / limit) });
   } catch (error) {
     res.status(500).json({ error: 'Failed to list starter packs' });
   }
