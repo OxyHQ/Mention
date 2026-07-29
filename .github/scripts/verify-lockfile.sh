@@ -46,6 +46,15 @@ fi
 
 echo "::error file=bun.lock::bun.lock is not what \`bun install\` produces from ${base_revision}'s lockfile and this revision's package.json files. Run \`bun install\` and commit bun.lock in the same commit as the package.json change. The corrective diff is in the job summary."
 
+# Third possible cause, and the only one that is not a defect: a branch running
+# this locally while behind its base. bun carries a resolution forward from the
+# lockfile it starts with, so a version the base resolved can survive as a nested
+# entry that the branch's own lockfile never had a reason to record — measured
+# here as a spurious `@alia.onl/sdk/react-native-gesture-handler`. CI is immune
+# because actions/checkout gives a pull request the merge of head and base, so
+# the manifests and the base lockfile always agree.
+echo "::notice::if this branch is behind ${base_revision}, merge or rebase and re-run before treating the diff as real"
+
 {
   echo "### \`bun.lock\` does not match a clean resolve"
   echo
