@@ -1,13 +1,14 @@
 import type { FederatedMediaCacheState } from '../../models/FederatedMediaCache';
 import { contentTypeFamilyFromString } from '../../utils/safeUpstreamFetch';
 import {
+  FEDERATED_BANNER_MAX_BYTES,
   MEDIA_CACHE_BACKOFF_BASE_MS,
   MEDIA_CACHE_BACKOFF_MAX_MS,
   MEDIA_CACHE_MAX_FAIL_COUNT,
   MEDIA_CACHE_MAX_IMAGE_BYTES,
   MEDIA_CACHE_MAX_VIDEO_BYTES,
 } from './constants';
-import { MEDIA_VIDEO_TYPE_PREFIX, isAllowedMediaType } from './mediaTypes';
+import { MEDIA_IMAGE_TYPE_PREFIX, MEDIA_VIDEO_TYPE_PREFIX, isAllowedMediaType } from './mediaTypes';
 
 /**
  * Pure decision helpers for the federated media cache.
@@ -80,6 +81,65 @@ export function isVideoType(contentType: string): boolean {
 /** The per-type size cap above which media stays proxy-only (marked `failed`). */
 export function maxBytesForType(contentType: string): number {
   return isVideoType(contentType) ? MEDIA_CACHE_MAX_VIDEO_BYTES : MEDIA_CACHE_MAX_IMAGE_BYTES;
+}
+
+/**
+ * An optional, call-site-specific NARROWING of the generic federated-media
+ * download rules, for callers whose media has a tighter contract than "any
+ * federated media".
+ *
+ * It can only ever narrow, never widen: {@link isAllowedByDownloadPolicy}
+ * INTERSECTS with {@link isCacheableMediaType} and {@link maxBytesForDownload}
+ * takes the MINIMUM of the per-type cap and the caller's ceiling. So a policy can
+ * never re-admit something the generic rules reject (`image/svg+xml` stays
+ * rejected via the generic branch) nor raise a per-type size cap.
+ */
+export interface MediaDownloadPolicy {
+  /** Content-type family prefixes this call site accepts (e.g. `['image/']`). */
+  allowedContentTypePrefixes: readonly string[];
+  /** Byte ceiling for this call site, intersected with the per-type cap. */
+  maxBytes: number;
+}
+
+/**
+ * Download policy for a federated actor's profile banner.
+ *
+ * A banner is a single decorative STILL IMAGE, so it accepts `image/` only. The
+ * generic federated-media policy also allows `video/` and `audio/` because
+ * federated POST media legitimately carries them — but a video "banner" is never
+ * a real banner, and accepting one made every actor resolve mirror a video-sized
+ * body to S3 and run poster extraction over it. This bound is about what a banner
+ * IS, so it holds regardless of how the generic per-type caps are tuned later.
+ */
+export const FEDERATED_BANNER_DOWNLOAD_POLICY: MediaDownloadPolicy = {
+  allowedContentTypePrefixes: [MEDIA_IMAGE_TYPE_PREFIX],
+  maxBytes: FEDERATED_BANNER_MAX_BYTES,
+};
+
+/**
+ * True when a content type satisfies BOTH the generic cacheable-media rules and
+ * the caller's optional narrowing policy. With no policy this is exactly
+ * {@link isCacheableMediaType}.
+ */
+export function isAllowedByDownloadPolicy(
+  contentType: string,
+  policy?: MediaDownloadPolicy,
+): boolean {
+  if (!isCacheableMediaType(contentType)) return false;
+  if (!policy) return true;
+  const family = contentTypeFamilyFromString(contentType);
+  return policy.allowedContentTypePrefixes.some((prefix) => family.startsWith(prefix));
+}
+
+/**
+ * The effective byte cap for a download: the per-type cap from
+ * {@link maxBytesForType}, further narrowed by the caller's ceiling when a policy
+ * is supplied. Callers enforce this on BOTH the declared `content-length` and the
+ * streamed byte count, so a lying `content-length` is still caught mid-stream.
+ */
+export function maxBytesForDownload(contentType: string, policy?: MediaDownloadPolicy): number {
+  const perType = maxBytesForType(contentType);
+  return policy ? Math.min(perType, policy.maxBytes) : perType;
 }
 
 /**

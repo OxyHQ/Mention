@@ -9,8 +9,18 @@
  * XSS). Defining it once keeps the two paths from drifting apart.
  */
 
+/** Prefix used to detect a still-image content-type family. */
+export const MEDIA_IMAGE_TYPE_PREFIX = 'image/';
+
+/** Prefix used to detect a video content-type family (poster extraction applies). */
+export const MEDIA_VIDEO_TYPE_PREFIX = 'video/';
+
 /** Content-type families this platform is willing to relay/store. */
-export const MEDIA_ALLOWED_TYPE_PREFIXES = ['image/', 'video/', 'audio/'] as const;
+export const MEDIA_ALLOWED_TYPE_PREFIXES = [
+  MEDIA_IMAGE_TYPE_PREFIX,
+  MEDIA_VIDEO_TYPE_PREFIX,
+  'audio/',
+] as const;
 
 /**
  * Content types explicitly rejected even though they match an allowed prefix.
@@ -18,9 +28,6 @@ export const MEDIA_ALLOWED_TYPE_PREFIXES = ['image/', 'video/', 'audio/'] as con
  * relay or store it same-origin.
  */
 export const MEDIA_REJECTED_TYPES: ReadonlySet<string> = new Set(['image/svg+xml']);
-
-/** Prefix used to detect a video content-type family (poster extraction applies). */
-export const MEDIA_VIDEO_TYPE_PREFIX = 'video/';
 
 /**
  * True when a (parameter-stripped, lowercased) content-type family is an allowed

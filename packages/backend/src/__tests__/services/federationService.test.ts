@@ -488,6 +488,9 @@ describe('federationService.fetchRemoteActor', () => {
       'https://remote.example/banner.jpg',
       'oxy_user_1',
       expect.objectContaining({ role: 'banner', remoteHost: 'remote.example' }),
+      // Banners download under an image-only policy, never the generic
+      // federated-media video/audio allowance (see policy.ts).
+      expect.objectContaining({ allowedContentTypePrefixes: ['image/'] }),
     );
     expect(mocks.userSettingsUpdateOne).toHaveBeenCalledWith(
       { oxyUserId: 'oxy_user_1' },
@@ -520,6 +523,7 @@ describe('federationService.fetchRemoteActor', () => {
       'https://remote.example/banner.txt',
       'oxy_user_1',
       expect.objectContaining({ role: 'banner' }),
+      expect.objectContaining({ allowedContentTypePrefixes: ['image/'] }),
     );
     expect(mocks.userSettingsUpdateOne).not.toHaveBeenCalled();
   });

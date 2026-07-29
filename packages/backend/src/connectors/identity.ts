@@ -3,6 +3,7 @@ import { getServiceOxyClient } from '../utils/oxyHelpers';
 import UserSettings from '../models/UserSettings';
 import { invalidate as invalidateUserSummaryCache } from '../services/userSummaryCache';
 import { persistRemoteMediaForFederatedOwnerDetailed } from '../services/mediaCache/cacheWorker';
+import { FEDERATED_BANNER_DOWNLOAD_POLICY } from '../services/mediaCache/policy';
 import { isAbsoluteHttpUrl, getRemoteHost } from './shared/url';
 import { createIdentityBridge, type ServiceRequest, type ServiceRequestMethod } from '@oxyhq/federation/node';
 
@@ -88,6 +89,14 @@ export interface MirrorBannerResult {
  * the USER-authenticated `POST /assets/upload` and is rejected `401 UNAUTHORIZED`
  * on the service client, so the banner was never stored.
  *
+ * Unlike post media it passes `FEDERATED_BANNER_DOWNLOAD_POLICY`, restricting the
+ * download to `image/` within `FEDERATED_BANNER_MAX_BYTES`. This call site is
+ * reached on EVERY successful actor resolve with no per-URL dedup, so it must not
+ * inherit the generic federated-media allowance of a video- or audio-sized body:
+ * a banner is a still image, and a remote actor advertising a video as its `image`
+ * would otherwise have every resolve mirror that body to S3 and run poster
+ * extraction over it.
+ *
  * Best-effort: returns `{ ok: true }` when the banner was stored, otherwise
  * `{ ok: false, permanent }`. A non-http url is `permanent: true`. Transient
  * failures are surfaced at `warn`; permanent ones stay quiet. Shared by the live
@@ -106,11 +115,16 @@ export async function mirrorFederatedBanner(
   const remoteHost = getRemoteHost(bannerUrl);
 
   try {
-    const result = await persistRemoteMediaForFederatedOwnerDetailed(bannerUrl, oxyUserId, {
-      role: 'banner',
-      actorUri,
-      remoteHost,
-    });
+    const result = await persistRemoteMediaForFederatedOwnerDetailed(
+      bannerUrl,
+      oxyUserId,
+      {
+        role: 'banner',
+        actorUri,
+        remoteHost,
+      },
+      FEDERATED_BANNER_DOWNLOAD_POLICY,
+    );
 
     if (result.ok) {
       await UserSettings.updateOne(
