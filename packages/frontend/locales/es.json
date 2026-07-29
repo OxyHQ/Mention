@@ -716,6 +716,11 @@
   "post.stats.quotes_other": "citas",
   "post.stats.saves_one": "guardado",
   "post.stats.saves_other": "guardados",
+  "post.restrictions.repliesOff": "Respuestas desactivadas",
+  "post.restrictions.repliesLimited": "Respuestas limitadas",
+  "post.restrictions.quotesOff": "Citas desactivadas",
+  "post.quotes.title": "Citas",
+  "post.quotes.description": "Publicaciones que citan esta publicación en Mention",
   "postActions": {
     "insights": "Estadísticas",
     "save": "Guardar",

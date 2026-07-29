@@ -50,6 +50,11 @@ router.put('/tuning', requireAuth, feedPreferencesController.updateTuning.bind(f
 router.get('/replies/:parentId', feedController.getRepliesFeed.bind(feedController));
 
 // ────────────────────────────────────────────────────────────
+// Quotes of a post (the destination behind the detail screen's "N quotes")
+// ────────────────────────────────────────────────────────────
+router.get('/quotes/:postId', feedController.getQuotesFeed.bind(feedController));
+
+// ────────────────────────────────────────────────────────────
 // Thread continuation spine (author's self-thread, root → c1 → c2 …)
 // ────────────────────────────────────────────────────────────
 router.get('/thread-continuations/:rootId', feedController.getThreadContinuations.bind(feedController));

@@ -710,6 +710,11 @@
   "post.stats.quotes_other": "citazioni",
   "post.stats.saves_one": "salvataggio",
   "post.stats.saves_other": "salvataggi",
+  "post.restrictions.repliesOff": "Risposte disattivate",
+  "post.restrictions.repliesLimited": "Risposte limitate",
+  "post.restrictions.quotesOff": "Citazioni disattivate",
+  "post.quotes.title": "Citazioni",
+  "post.quotes.description": "Post che citano questo post su Mention",
   "postActions": {
     "insights": "Statistiche",
     "save": "Salva",

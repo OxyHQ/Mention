@@ -841,6 +841,77 @@ class FeedController {
   }
 
   /**
+   * The posts that quote a given post — the destination behind the "N quotes"
+   * count on the post-detail screen. Quotes are POSTS, not actors, so this
+   * returns a feed page (same `{items, hasMore, nextCursor}` contract as the
+   * replies feed) rather than the user list that backs likes/boosts.
+   *
+   * Ordered and paged on `_id` alone, NOT on `createdAt`: a federated quote
+   * carries the REMOTE authoring time, so a `createdAt` sort behind an `_id`
+   * cursor silently skips backfilled rows at every page boundary (the same
+   * keyset mismatch that once dropped boosts from profile feeds). Insertion
+   * order is the one axis that is consistent for both native and imported
+   * quotes, and for native quotes it IS chronological.
+   */
+  async getQuotesFeed(req: AuthRequest, res: Response) {
+    try {
+      const postId = req.params.postId;
+      const currentUserId = req.user?.id;
+      const limit = validateAndNormalizeLimit(req.query.limit, FEED_CONSTANTS.DEFAULT_LIMIT);
+      const cursor = queryString(req.query.cursor);
+
+      const query: FilterQuery<IPost> = {
+        quoteOf: String(postId),
+        visibility: PostVisibility.PUBLIC,
+        status: 'published',
+      };
+
+      if (cursor) {
+        const cursorId = parseFeedCursor(cursor);
+        if (cursorId) query._id = { $lt: cursorId };
+      }
+
+      const posts = await Post.find(query)
+        .select(this.FEED_FIELDS)
+        .sort({ _id: -1 })
+        .limit(limit + 1)
+        .maxTimeMS(FEED_CONSTANTS.QUERY_TIMEOUT_MS)
+        .lean();
+
+      const hasMore = posts.length > limit;
+      const slicedPosts = hasMore ? posts.slice(0, limit) : posts;
+      const requestOxyClient = createScopedOxyClient(req);
+
+      let filteredPosts = slicedPosts;
+      if (currentUserId) {
+        const blockedAndMutedIds = await this.getBlockedAndMutedUserIds(
+          currentUserId,
+          requestOxyClient,
+        );
+        filteredPosts = this.filterBlockedAndMutedPosts(slicedPosts, blockedAndMutedIds);
+      }
+
+      // maxDepth 1: every row here quotes the post being viewed, so without the
+      // nested original each one renders as a bare comment with no context.
+      const hydrated = await postHydrationService.hydratePosts(filteredPosts, {
+        viewerId: currentUserId,
+        oxyClient: requestOxyClient,
+        maxDepth: 1,
+        includeLinkMetadata: true,
+      });
+      const items = hydrated.filter((post) => post?.id && post.user?.id);
+      const nextCursor = hasMore && slicedPosts.length > 0
+        ? String(slicedPosts[slicedPosts.length - 1]._id)
+        : undefined;
+
+      return res.json({ items, hasMore, nextCursor });
+    } catch (error) {
+      logger.error('[getQuotesFeed] Error:', error);
+      return res.status(500).json({ message: 'Error fetching quotes' });
+    }
+  }
+
+  /**
    * Get the author's self-thread continuation spine for a root post.
    *
    * A self-thread root authored from the composer stamps `threadId === <its own

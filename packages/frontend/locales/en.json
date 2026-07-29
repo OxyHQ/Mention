@@ -792,6 +792,11 @@
   "post.stats.quotes_other": "quotes",
   "post.stats.saves_one": "save",
   "post.stats.saves_other": "saves",
+  "post.restrictions.repliesOff": "Replies are off",
+  "post.restrictions.repliesLimited": "Replies are limited",
+  "post.restrictions.quotesOff": "Quotes are off",
+  "post.quotes.title": "Quotes",
+  "post.quotes.description": "Posts quoting this post on Mention",
   "postActions": {
     "insights": "Insights",
     "save": "Save",

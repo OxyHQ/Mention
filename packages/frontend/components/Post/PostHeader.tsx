@@ -103,6 +103,13 @@ interface PostHeaderProps {
   onPressCollaborators?: () => void;
   onPressMenu?: () => void;
   onPressAuthor?: (handle: string) => void;
+  /**
+   * Follow control for the post's author, rendered left of the overflow menu.
+   * The FOCUSED post on `/p/:id` passes one so a reader who lands on a post from
+   * search or a link can follow its author without opening the profile first; a
+   * feed row passes nothing, keeping the row exactly as it was.
+   */
+  followButton?: React.ReactNode;
 }
 
 interface HeaderAuthor {
@@ -131,6 +138,7 @@ const PostHeader: React.FC<PostHeaderProps> = ({
   onPressCollaborators,
   onPressMenu,
   onPressAuthor,
+  followButton,
 }) => {
   const theme = useTheme();
   const { t } = useTranslation();
@@ -301,6 +309,11 @@ const PostHeader: React.FC<PostHeaderProps> = ({
           </View>
           {children ? <View>{children}</View> : null}
         </View>
+        {followButton ? (
+          <View className="self-center" style={{ marginTop: headerTopOffset }}>
+            {followButton}
+          </View>
+        ) : null}
         {onPressMenu ? (
           <TouchableOpacity
             accessibilityLabel="Post options"

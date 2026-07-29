@@ -320,6 +320,23 @@ class FeedService {
             return response.data;
           }
 
+          // Handle quotes feed — the posts quoting a given post, behind the
+          // post-detail screen's "N quotes" count.
+          if (request.type === 'quotes') {
+            const quotedId = request.filters?.postId;
+            if (!quotedId) {
+              return { items: [], hasMore: false, nextCursor: undefined, totalCount: 0 };
+            }
+            const quotesParams: Record<string, string | number> = {};
+            if (request.cursor) quotesParams.cursor = request.cursor;
+            if (request.limit) quotesParams.limit = request.limit;
+
+            return await makeViewerAwarePublicRead<FeedServiceResponse>(`/feed/quotes/${quotedId}`, {
+              params: quotesParams,
+              signal: options?.signal,
+            });
+          }
+
           // Route standard feeds through MTN descriptor-based API
           const descriptor: FeedDescriptor = (request.type || 'for_you') as FeedDescriptor;
           return await this.getMtnFeed(descriptor, {

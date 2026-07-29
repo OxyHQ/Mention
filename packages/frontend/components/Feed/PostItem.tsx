@@ -41,6 +41,7 @@ import { usePostLanguage } from '@/hooks/usePostLanguage';
 import { showActionMenu } from '@/components/common/ActionMenu';
 import { THREAD_LINE_WIDTH, THREAD_LINE_BORDER_RADIUS, THREAD_LINE_Z_INDEX } from '@/components/Compose/composeLayout';
 import { POST_ITEM_SPACING } from '@/styles/shared';
+import { FollowButton } from '@oxyhq/services/ui/client';
 import { SubtleHover } from '@oxyhq/bloom/subtle-hover';
 import { useThreadHoverStore } from '@/stores/threadHoverStore';
 import { getNormalizedUserHandle } from '@oxyhq/core';
@@ -442,6 +443,11 @@ const PostItem: React.FC<PostItemProps> = ({
     // closure on every render of the focused post.
     const openLikesList = useCallback(() => openEngagementList('likes'), [openEngagementList]);
     const openBoostsList = useCallback(() => openEngagementList('boosts'), [openEngagementList]);
+    // Quotes are posts, not actors, so they get a feed screen instead of the
+    // engagement-list sheet the other two counters open.
+    const openQuotesList = useCallback(() => {
+        if (viewPostId) router.push(`/p/${viewPostId}/quotes`);
+    }, [router, viewPostId]);
 
     // Owner + accepted collaborators, already hydrated on the post. A post is
     // collaborative when it carries more than one author.
@@ -762,6 +768,14 @@ const PostItem: React.FC<PostItemProps> = ({
                         onPressCollaborators={isCollab ? openCollaboratorsSheet : undefined}
                         onPressAuthor={goToAuthor}
                         onPressMenu={openMenu}
+                        followButton={
+                            // Focused post only, and never for the viewer's own post.
+                            // The SDK button owns its follow state, so nothing about
+                            // the relationship has to be plumbed through the post DTO.
+                            isDetailMain && !isOwner && viewPost.user?.id
+                                ? <FollowButton userId={String(viewPost.user.id)} size="small" />
+                                : undefined
+                        }
                         paddingHorizontal={isNested ? 0 : HPAD}
                     >
                         {spoilerText ? <ContentWarning text={spoilerText} /> : null}
@@ -869,10 +883,13 @@ const PostItem: React.FC<PostItemProps> = ({
                         timestampLabel={fullTimestamp}
                         likes={engagementSummary?.likes}
                         boosts={engagementSummary?.boosts}
-                        quotes={engagementSummary?.quotes}
+                        quotes={metadata.quotesDisabled ? null : engagementSummary?.quotes}
                         saves={engagementSummary?.saves}
+                        replyPermission={metadata.replyPermission}
+                        quotesDisabled={metadata.quotesDisabled}
                         onLikesPress={openLikesList}
                         onBoostsPress={openBoostsList}
+                        onQuotesPress={openQuotesList}
                     />
                 )}
                     </View>
