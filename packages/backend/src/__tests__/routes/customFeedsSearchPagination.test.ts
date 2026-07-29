@@ -15,7 +15,12 @@ import { type Doc, makeQuery, matchCondition } from './fakeMongo';
  * stubbed so importing the router stays isolated.
  */
 
-const { find, countDocuments } = vi.hoisted(() => ({ find: vi.fn(), countDocuments: vi.fn() }));
+const { find, countDocuments, reviewFind, reviewCount } = vi.hoisted(() => ({
+  find: vi.fn(),
+  countDocuments: vi.fn(),
+  reviewFind: vi.fn(),
+  reviewCount: vi.fn(),
+}));
 
 vi.mock('../../models/CustomFeed', () => ({ default: { find, countDocuments } }));
 vi.mock('../../models/FeedLike', () => ({
@@ -25,7 +30,7 @@ vi.mock('../../models/FeedLike', () => ({
   },
 }));
 vi.mock('../../models/FeedGenerator', () => ({ FeedGenerator: {} }));
-vi.mock('../../models/FeedReview', () => ({ default: {} }));
+vi.mock('../../models/FeedReview', () => ({ default: { find: reviewFind, countDocuments: reviewCount } }));
 
 // Heavy collaborators imported at module load but unused by GET /feeds.
 vi.mock('../../services/PostHydrationService', () => ({
@@ -146,5 +151,47 @@ describe('GET /feeds — offset pagination', () => {
 
     expect(sortSpecs).toHaveLength(1);
     expect(sortSpecs[0]).toEqual({ updatedAt: -1, _id: -1 });
+  });
+});
+
+/**
+ * The marketplace and the review list are the other two offset-paginated
+ * listings in this router. Their sorts end in `createdAt`, which makes a tie
+ * unlikely rather than impossible, so `_id` is what makes each order provably
+ * total. Same reasoning as the `GET /feeds` case above; only the sort spec can
+ * catch its removal.
+ */
+describe('GET /feeds/marketplace — total sort order', () => {
+  beforeEach(() => seed([]));
+
+  it.each([
+    ['trending (default)', undefined, { subscriberCount: -1, createdAt: -1, _id: -1 }],
+    ['newest', 'newest', { createdAt: -1, _id: -1 }],
+    ['rating', 'rating', { averageRating: -1, ratingsCount: -1, createdAt: -1, _id: -1 }],
+  ])('breaks ties by _id when sorting by %s', async (_label, sortBy, expected) => {
+    const query: Record<string, string | number> = { limit: 2, page: 1 };
+    if (sortBy) query.sortBy = sortBy;
+
+    await request(app).get('/feeds/marketplace').query(query).expect(200);
+
+    expect(sortSpecs).toHaveLength(1);
+    expect(sortSpecs[0]).toEqual(expected);
+  });
+});
+
+describe('GET /feeds/:id/reviews — total sort order', () => {
+  beforeEach(() => {
+    reviewFind.mockImplementation(() => makeQuery([], (spec) => sortSpecs.push(spec)));
+    reviewCount.mockResolvedValue(0);
+  });
+
+  it('breaks createdAt ties by _id', async () => {
+    await request(app)
+      .get('/feeds/aaaaaaaaaaaaaaaaaaaaaaa1/reviews')
+      .query({ page: 1, limit: 2 })
+      .expect(200);
+
+    expect(sortSpecs).toHaveLength(1);
+    expect(sortSpecs[0]).toEqual({ createdAt: -1, _id: -1 });
   });
 });

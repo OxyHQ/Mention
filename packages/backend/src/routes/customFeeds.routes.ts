@@ -301,14 +301,22 @@ router.get('/marketplace', async (req: AuthRequest, res: Response) => {
       ];
     }
 
+    // Every branch ends in `_id` so the order is TOTAL. This is offset
+    // pagination: two rows that tie on every sort key are free to swap places
+    // between page requests, which drops or duplicates a row at the boundary.
+    // The trailing `createdAt` already makes a tie unlikely (it would take two
+    // feeds created in the same millisecond, and nothing bulk-inserts them), so
+    // this is pre-emptive rather than a fix for observed breakage — but the
+    // failure is silent when it does happen, and `_id` makes the order provably
+    // total instead of probably total.
     let sortStage: Record<string, 1 | -1>;
     if (sortBy === 'rating' || sortBy === 'top_rated') {
-      sortStage = { averageRating: -1, ratingsCount: -1, createdAt: -1 };
+      sortStage = { averageRating: -1, ratingsCount: -1, createdAt: -1, _id: -1 };
     } else if (sortBy === 'newest') {
-      sortStage = { createdAt: -1 };
+      sortStage = { createdAt: -1, _id: -1 };
     } else {
       // trending (default): sort by subscriberCount desc
-      sortStage = { subscriberCount: -1, createdAt: -1 };
+      sortStage = { subscriberCount: -1, createdAt: -1, _id: -1 };
     }
 
     const [items, total] = await Promise.all([
@@ -379,6 +387,10 @@ router.get('/generators', async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ error: 'A userId or mine=true is required' });
     }
 
+    // No `_id` tie-break needed here, unlike the paginated listings above: this
+    // is a single bounded page (a fixed `.limit()`, no `.skip()`, no `offset`
+    // param, and the client wrapper's params are `{userId, mine}` only), so
+    // there is no second page for tied rows to shuffle across.
     const items = await FeedGenerator.find({ createdBy: ownerId, 'source.network': 'atproto' })
       .sort({ likeCount: -1, updatedAt: -1 })
       .limit(MAX_FEED_PAGE_SIZE)
@@ -685,7 +697,10 @@ router.get('/:id/reviews', validateObjectId('id'), async (req: AuthRequest, res:
     const feedId = new mongoose.Types.ObjectId(String(req.params.id));
 
     const [reviews, total] = await Promise.all([
-      FeedReview.find({ feedId }).sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
+      // `_id` keeps the order TOTAL across offset pages — see the marketplace
+      // sort above for why. Pre-emptive: two reviews on one feed sharing a
+      // millisecond is unlikely, and the drift it would cause is silent.
+      FeedReview.find({ feedId }).sort({ createdAt: -1, _id: -1 }).skip(skip).limit(limit).lean(),
       FeedReview.countDocuments({ feedId }),
     ]);
 
