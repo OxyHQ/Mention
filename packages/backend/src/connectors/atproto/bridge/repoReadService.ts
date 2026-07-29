@@ -28,9 +28,11 @@ import {
   mentionLikeRecordSchema,
   mentionRepostRecordSchema,
   mentionTombstoneRecordSchema,
+  PostVisibility,
 } from '@mention/shared-types';
 import type { SignedRecordEnvelope } from '@oxyhq/contracts';
 import MentionSignedRecord from '../../../models/MentionSignedRecord';
+import { Post } from '../../../models/Post';
 import { buildUserDid } from '../../../services/mtn/mentionDid';
 import { logger } from '../../../utils/logger';
 import {
@@ -197,12 +199,44 @@ function reduceLiveRecords(
 }
 
 /**
+ * Keep only the post records whose AUTHORITATIVE `Post` row is still published
+ * and public. The chain is append-only and carries no visibility of its own, so
+ * `status`/`visibility` are read back from Mongo at every bridge read — the emitter
+ * gate stops NEW records for unpublished/non-public posts, and this join is what
+ * keeps the records already on existing chains off the public bridge.
+ *
+ * Fail-closed: a record whose post row is missing (hard-deleted without a
+ * tombstone) is dropped too. Applied to post records only — a like/repost record
+ * carries just a subject URI, never post content.
+ */
+async function filterPublicPublishedPosts(
+  oxyUserId: string,
+  records: BridgeRecord[],
+): Promise<BridgeRecord[]> {
+  if (records.length === 0) return records;
+
+  const postIds = records.map((record) => record.rkey);
+  const publicPosts = await Post.find(
+    {
+      _id: { $in: postIds },
+      oxyUserId,
+      status: 'published',
+      visibility: PostVisibility.PUBLIC,
+    },
+    { _id: 1 },
+  ).lean<Array<{ _id: unknown }>>();
+  const publicPostIds = new Set(publicPosts.map((post) => String(post._id)));
+  return records.filter((record) => publicPostIds.has(record.rkey));
+}
+
+/**
  * Materialize the CURRENT records of a single bsky collection for a user
  * (LWW per rkey, tombstones removed), newest-first, translated to atproto.
  *
  * Reads ONLY the requested collection + tombstones (not every feed collection),
  * then runs {@link reduceLiveRecords} — the shared rule `getRecord` also uses, so
- * the list and single-get views cannot drift.
+ * the list and single-get views cannot drift — and finally
+ * {@link filterPublicPublishedPosts} for the post collection.
  */
 async function materializeCollection(
   oxyUserId: string,
@@ -212,7 +246,10 @@ async function materializeCollection(
   if (!mtnCollection) return [];
 
   const rows = await readLiveRows(oxyUserId, mtnCollection);
-  return reduceLiveRecords(rows, oxyUserId, bskyCollection, mtnCollection);
+  const records = reduceLiveRecords(rows, oxyUserId, bskyCollection, mtnCollection);
+  return bskyCollection === BSKY_POST_COLLECTION
+    ? filterPublicPublishedPosts(oxyUserId, records)
+    : records;
 }
 
 /**
@@ -272,7 +309,10 @@ export async function getRecord(
   if (!mtnCollection) return null;
 
   const rows = await readLiveRows(oxyUserId, mtnCollection, rkey);
-  const records = reduceLiveRecords(rows, oxyUserId, bskyCollection, mtnCollection);
+  const liveRecords = reduceLiveRecords(rows, oxyUserId, bskyCollection, mtnCollection);
+  const records = bskyCollection === BSKY_POST_COLLECTION
+    ? await filterPublicPublishedPosts(oxyUserId, liveRecords)
+    : liveRecords;
   return records.find((record) => record.rkey === rkey) ?? null;
 }
 

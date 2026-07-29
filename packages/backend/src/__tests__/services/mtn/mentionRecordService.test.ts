@@ -469,6 +469,8 @@ describe('MentionRecordEmitter dual-write gate', () => {
       oxyUserId: SUBJECT_OXY_ID,
       federation: undefined,
       content: { variants: [{ source: 'author', text: 'native post' }], sources: [], media: [] },
+      visibility: 'public',
+      status: 'published',
       hashtags: ['mtn'],
       language: 'en',
       createdAt: new Date().toISOString(),
@@ -480,5 +482,43 @@ describe('MentionRecordEmitter dual-write gate', () => {
     expect(stored.collection).toBe(MENTION_POST_COLLECTION);
     expect(stored.rkey).toBe('local-post-1');
     expect(stored.record).toMatchObject({ text: 'native post', tags: ['mtn'], langs: ['en'] });
+  });
+
+  it('does NOT emit a record for a DRAFT or non-public LOCAL post', async () => {
+    // A record is readable on the public atproto bridge, so an unpublished or
+    // non-public post must never reach the chain in the first place.
+    const draftPost = {
+      _id: 'draft-post-1',
+      oxyUserId: SUBJECT_OXY_ID,
+      federation: undefined,
+      content: { variants: [{ source: 'author', text: 'draft secret' }], sources: [], media: [] },
+      visibility: 'public',
+      status: 'draft',
+      createdAt: new Date().toISOString(),
+    } as unknown as Parameters<typeof emitPostCreated>[0];
+    const privatePost = {
+      _id: 'private-post-1',
+      oxyUserId: SUBJECT_OXY_ID,
+      federation: undefined,
+      content: { variants: [{ source: 'author', text: 'private secret' }], sources: [], media: [] },
+      visibility: 'private',
+      status: 'published',
+      createdAt: new Date().toISOString(),
+    } as unknown as Parameters<typeof emitPostCreated>[0];
+    const followersOnlyPost = {
+      _id: 'followers-post-1',
+      oxyUserId: SUBJECT_OXY_ID,
+      federation: undefined,
+      content: { variants: [{ source: 'author', text: 'followers only' }], sources: [], media: [] },
+      visibility: 'followers_only',
+      status: 'published',
+      createdAt: new Date().toISOString(),
+    } as unknown as Parameters<typeof emitPostCreated>[0];
+
+    await emitPostCreated(draftPost);
+    await emitPostCreated(privatePost);
+    await emitPostCreated(followersOnlyPost);
+
+    expect(memoryStore.rows).toHaveLength(0);
   });
 });
