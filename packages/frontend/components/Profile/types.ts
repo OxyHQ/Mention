@@ -135,6 +135,11 @@ export interface ProfileHeaderMinimalistProps extends ProfileHeaderBaseProps {
   UserNameComponent: UserNameComponent;
   isPrivate: boolean;
   privacySettings?: ProfileData['privacy'];
+  /** Drives the live-avatar swap and the presence dot; both are skipped without it. */
+  profileId?: string;
+  isOwnProfile?: boolean;
+  /** Extra element rendered inline after the name (e.g. the fediverse badge). */
+  trailingBadge?: React.ReactNode;
 }
 
 export interface ProfileHeaderDefaultProps extends ProfileHeaderBaseProps {

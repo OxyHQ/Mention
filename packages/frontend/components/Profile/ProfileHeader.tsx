@@ -184,7 +184,7 @@ export const ProfileHeaderMinimalist = memo(function ProfileHeaderMinimalist({
   isOwnProfile,
   UserNameComponent,
   trailingBadge,
-}: ProfileHeaderMinimalistProps & { profileId?: string; isOwnProfile?: boolean; trailingBadge?: React.ReactNode }) {
+}: ProfileHeaderMinimalistProps) {
   const theme = useTheme();
   const { isLive } = useLiveUsers();
   const isProfileLive = isLive(profileId);
