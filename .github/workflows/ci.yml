@@ -88,8 +88,17 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
-  frontend-bundle:
-    name: Frontend bundle budget
+  # Populate the baseline from main so every pull request can restore the same
+  # trusted report instead of each one rebuilding its own. Job shape ported from
+  # bluesky-social/social-app 783dfe2a1 ("Cache main bundle stats for PR checks",
+  # MIT (c) 2023-2026 Bluesky Social PBC).
+  #
+  # This job and frontend-bundle are mutually exclusive on event type, so a main
+  # push still gets exactly one export and the absolute budgets stay enforced on
+  # both paths.
+  frontend-bundle-baseline:
+    name: Frontend bundle baseline
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
@@ -101,6 +110,112 @@ jobs:
         uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
         with:
           node-version: ${{ env.NODE_VERSION }}
+      # A hit means this exact commit was already measured by an earlier run of
+      # this job, and the cache is only written after the budgets pass, so
+      # skipping the rebuild cannot skip a failing gate.
+      - name: Restore bundle baseline for this commit
+        id: restore_baseline
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/mention-bundle-report.json
+          key: mention-bundle-baseline-${{ github.sha }}
+      - name: Install exact dependency graph
+        if: ${{ !steps.restore_baseline.outputs.cache-hit }}
+        run: bun install --frozen-lockfile --ignore-scripts
+      - name: Build shared runtime package
+        if: ${{ !steps.restore_baseline.outputs.cache-hit }}
+        run: bun run build:shared-types
+      - name: Export production web bundle
+        if: ${{ !steps.restore_baseline.outputs.cache-hit }}
+        run: bun run --cwd packages/frontend build:analyze
+        env:
+          NODE_ENV: production
+          EXPO_PUBLIC_ENV: production
+          EXPO_PUBLIC_API_URL: https://api.mention.earth
+      - name: Validate static hosting contract
+        if: ${{ !steps.restore_baseline.outputs.cache-hit }}
+        run: bun .github/scripts/validate-frontend-static-output.mjs packages/frontend/dist
+      - name: Enforce bundle budgets
+        if: ${{ !steps.restore_baseline.outputs.cache-hit }}
+        run: >-
+          bun run --cwd packages/frontend analyze-bundle --
+          --ci
+          --json "${{ runner.temp }}/mention-bundle-report.json"
+          --markdown "${{ runner.temp }}/mention-bundle-summary.md"
+      - name: Publish bundle summary
+        if: always() && !steps.restore_baseline.outputs.cache-hit
+        run: |
+          if [ -f "$RUNNER_TEMP/mention-bundle-summary.md" ]; then
+            cat "$RUNNER_TEMP/mention-bundle-summary.md" >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Save bundle baseline for this commit
+        if: ${{ !steps.restore_baseline.outputs.cache-hit }}
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/mention-bundle-report.json
+          key: mention-bundle-baseline-${{ github.sha }}
+
+  frontend-bundle:
+    name: Frontend bundle budget
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      # fetch-depth: 0 so origin/<base> and its history are present; the fallback
+      # baseline build below has to check the base commit out.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+      - name: Set up pinned Node bundle runtime
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      # The tip of the base branch, which is the commit frontend-bundle-baseline
+      # keyed its cache on. Deliberately not the pull request's merge base: a
+      # stale merge base would compare this build against a baseline nobody on
+      # main is running.
+      - name: Resolve baseline commit
+        id: baseline_commit
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          echo "sha=$(git rev-parse "origin/$BASE_REF")" >> "$GITHUB_OUTPUT"
+          echo "head=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      - name: Restore bundle baseline from the base branch
+        id: restore_baseline
+        # Restore-only prevents PR-scoped fallback builds from creating caches.
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/mention-bundle-baseline.json
+          key: mention-bundle-baseline-${{ steps.baseline_commit.outputs.sha }}
+      # Fallback for a cache miss (first run after this job landed, an evicted
+      # entry, a base branch that never pushed). `git reset --hard` rather than
+      # the upstream `git reset` + `git restore .`: a mixed reset leaves files
+      # this branch added on disk as untracked, and the baseline export would
+      # then bundle them and understate the delta.
+      - name: Build the baseline bundle at the base commit
+        if: ${{ !steps.restore_baseline.outputs.cache-hit }}
+        env:
+          BASELINE_SHA: ${{ steps.baseline_commit.outputs.sha }}
+          HEAD_SHA: ${{ steps.baseline_commit.outputs.head }}
+          NODE_ENV: production
+          EXPO_PUBLIC_ENV: production
+          EXPO_PUBLIC_API_URL: https://api.mention.earth
+        run: |
+          set -euo pipefail
+          git reset --hard "$BASELINE_SHA"
+          bun install --frozen-lockfile --ignore-scripts
+          bun run build:shared-types
+          bun run --cwd packages/frontend build:analyze
+          # No --ci: a base branch that already breaches a ceiling is main's
+          # problem to fix, not a reason to fail this pull request.
+          bun run --cwd packages/frontend analyze-bundle -- \
+            --json "$RUNNER_TEMP/mention-bundle-baseline.json"
+          git reset --hard "$HEAD_SHA"
+          rm -rf packages/frontend/dist
       - name: Install exact dependency graph
         run: bun install --frozen-lockfile --ignore-scripts
       - name: Build shared runtime package
@@ -113,11 +228,25 @@ jobs:
           EXPO_PUBLIC_API_URL: https://api.mention.earth
       - name: Validate static hosting contract
         run: bun .github/scripts/validate-frontend-static-output.mjs packages/frontend/dist
-      - name: Enforce bundle budgets
+      # The comparison is advisory and never fails on its own; the absolute
+      # ceilings in bundle-budgets.json remain the only hard gate.
+      - name: Enforce bundle budgets and compare against the baseline
         run: >-
           bun run --cwd packages/frontend analyze-bundle --
           --ci
           --json "${{ runner.temp }}/mention-bundle-report.json"
+          --baseline "${{ runner.temp }}/mention-bundle-baseline.json"
+          --markdown "${{ runner.temp }}/mention-bundle-summary.md"
+      # Step summary rather than a pull request comment: this workflow runs on
+      # `pull_request` with contents: read, a comment needs pull-requests: write
+      # that forks never receive, and `pull_request_target` would run untrusted
+      # code with a write token.
+      - name: Publish bundle summary
+        if: always()
+        run: |
+          if [ -f "$RUNNER_TEMP/mention-bundle-summary.md" ]; then
+            cat "$RUNNER_TEMP/mention-bundle-summary.md" >> "$GITHUB_STEP_SUMMARY"
+          fi
       - name: Upload bundle report
         if: always()
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
