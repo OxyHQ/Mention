@@ -34,6 +34,14 @@ export const MEDIA_CACHE_MAX_VIDEO_BYTES = 200 * BYTES_PER_MIB;
 export const MEDIA_CACHE_MAX_IMAGE_BYTES = 32 * BYTES_PER_MIB;
 
 /**
+ * Maximum size of a federated actor's profile BANNER. Much smaller than the
+ * generic image cap because a banner is one decorative header image mirrored on
+ * every actor resolve, not user-posted content — an over-cap banner is skipped
+ * (the actor still resolves, it just keeps no banner).
+ */
+export const FEDERATED_BANNER_MAX_BYTES = 10 * BYTES_PER_MIB;
+
+/**
  * Number of leading bytes of a video to buffer for poster-frame extraction. A
  * keyframe lives near the start of a faststart container; we never need the
  * whole file just for the poster.

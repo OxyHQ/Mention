@@ -21,9 +21,10 @@ import {
 } from './constants';
 import {
   classifyFailure,
-  isCacheableMediaType,
+  isAllowedByDownloadPolicy,
   isVideoType,
-  maxBytesForType,
+  maxBytesForDownload,
+  type MediaDownloadPolicy,
 } from './policy';
 import {
   MediaStoreUnavailableError,
@@ -64,8 +65,16 @@ type MediaUploader = (source: CachedMediaSource) => Promise<UploadedAsset>;
  * Stream a remote media body to a local temp file, enforcing the per-type size
  * cap. Never buffers the whole body in memory. The caller owns cleanup of the
  * temp directory (passed in) in its `finally`.
+ *
+ * `policy` optionally NARROWS the accepted content types and the byte cap for
+ * call sites whose media is tighter than "any federated media" (see
+ * {@link MediaDownloadPolicy}); omitting it applies the generic rules unchanged.
  */
-async function downloadToTempFile(remoteUrl: string, dir: string): Promise<DownloadOutcome> {
+async function downloadToTempFile(
+  remoteUrl: string,
+  dir: string,
+  policy?: MediaDownloadPolicy,
+): Promise<DownloadOutcome> {
   const abortController = new AbortController();
   let response: IncomingMessage | null = null;
 
@@ -91,7 +100,7 @@ async function downloadToTempFile(remoteUrl: string, dir: string): Promise<Downl
   }
 
   const contentType = contentTypeFamily(response.headers);
-  if (!isCacheableMediaType(contentType)) {
+  if (!isAllowedByDownloadPolicy(contentType, policy)) {
     response.destroy();
     logger.info('[MediaCache] Worker skipping non-cacheable media type', {
       contentType: contentType || 'unknown',
@@ -99,7 +108,7 @@ async function downloadToTempFile(remoteUrl: string, dir: string): Promise<Downl
     return { ok: false, reason: 'not-media' };
   }
 
-  const maxBytes = maxBytesForType(contentType);
+  const maxBytes = maxBytesForDownload(contentType, policy);
 
   // Reject over-large declared bodies up front (streamed bytes are capped too).
   const declared = Number(response.headers['content-length']);
@@ -323,11 +332,17 @@ function isPermanentlyUnavailableDownloadFailure(outcome: Extract<DownloadOutcom
  * asset owned by the resolved federated Oxy user. This deliberately bypasses
  * `FederatedMediaCache`: persisted post media must not be evicted by the cache
  * TTL job while a Mention post still references its file id.
+ *
+ * `downloadPolicy` narrows what this specific call site will accept (content-type
+ * families and byte ceiling) on top of the generic federated-media rules — see
+ * {@link MediaDownloadPolicy}. Post media legitimately spans image/video/audio and
+ * passes no policy; a profile banner passes `FEDERATED_BANNER_DOWNLOAD_POLICY`.
  */
 export async function persistRemoteMediaForFederatedOwnerDetailed(
   remoteUrl: string,
   ownerUserId: string,
   metadata?: Record<string, unknown>,
+  downloadPolicy?: MediaDownloadPolicy,
 ): Promise<PersistFederatedMediaResult> {
   if (!isMediaCacheEnabled()) {
     logger.debug('[MediaCache] Durable federation upload skipped — media writes disabled');
@@ -336,7 +351,7 @@ export async function persistRemoteMediaForFederatedOwnerDetailed(
 
   const dir = await mkdtemp(join(tmpdir(), TEMP_DIR_PREFIX));
   try {
-    const outcome = await downloadToTempFile(remoteUrl, dir);
+    const outcome = await downloadToTempFile(remoteUrl, dir, downloadPolicy);
     if (!outcome.ok) {
       return {
         ok: false,

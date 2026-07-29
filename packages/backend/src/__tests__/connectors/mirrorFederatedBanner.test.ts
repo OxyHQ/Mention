@@ -60,6 +60,9 @@ describe('mirrorFederatedBanner', () => {
         actorUri: 'https://mastodon.social/users/alice',
         remoteHost: 'files.mastodon.social',
       }),
+      // A banner is a still image: the download must be constrained to `image/`
+      // rather than inheriting the generic federated-media video/audio allowance.
+      expect.objectContaining({ allowedContentTypePrefixes: ['image/'] }),
     );
     expect(mocks.userSettingsUpdateOne).toHaveBeenCalledWith(
       { oxyUserId: 'oxy-user-1' },

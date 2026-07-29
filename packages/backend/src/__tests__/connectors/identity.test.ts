@@ -150,6 +150,8 @@ describe('resolveOxyExternalUser', () => {
         actorUri: 'https://mastodon.social/users/alice',
         remoteHost: 'files.mastodon.social',
       }),
+      // Constrained to `image/` — see mirrorFederatedBanner.test.ts.
+      expect.objectContaining({ allowedContentTypePrefixes: ['image/'] }),
     );
     expect(mocks.userSettingsUpdateOne).toHaveBeenCalledWith(
       { oxyUserId: 'oxy-resolved' },
@@ -175,6 +177,7 @@ describe('resolveOxyExternalUser', () => {
       'https://files.mastodon.social/banner.txt',
       'oxy-resolved',
       expect.objectContaining({ role: 'banner' }),
+      expect.objectContaining({ allowedContentTypePrefixes: ['image/'] }),
     );
     expect(mocks.userSettingsUpdateOne).not.toHaveBeenCalled();
   });
