@@ -115,16 +115,27 @@ of job:
 - **Flow 5, the Starter Packs search tab and its paging.** Switching to the tab
   and asserting the card count grows past the first page is the pin worth having,
   because paging past the first window used to be structurally impossible. It is
-  not here because production does not currently hold enough packs matching a
-  query to exercise it: `?search=` returns 20 on page one, and a realistic query
-  like `mention` returns none. A test that cannot reach page two would assert
-  something weaker than it appears to, which is worse than not having it. Revisit
-  when the data supports it.
+  deferred rather than blocked, and the mechanics are settled — from the author
+  of the surface, so it does not need rediscovering:
+
+  * Use `search=art`. It returns 79 packs across 4 pages, with zero overlap
+    between pages one and two. `mention` returns nothing and `?search=` fills
+    exactly one page, so either would make the test unable to fail. This is the
+    detail that had me wrongly call the flow data-blocked.
+  * The tab pages by page NUMBER, and `hasMore` is computed client-side as
+    `page < totalPages`, driven by FlashList's `onEndReached` at `threshold:
+    0.5`. The deterministic trigger is therefore scrolling until the last
+    rendered card is reached — not a fixed pixel offset.
+  * Assert the card COUNT grew, never that a particular pack appeared: ranking
+    is `useCount desc` and can reorder between page fetches.
+
+  What it still needs is a careful pass of its own, because scrolling a
+  virtualised list is where flake lives, and this suite would rather be small
+  than occasionally wrong.
 
 - **Flow 6, login → compose → assert → delete.** Needs a real test account.
   Whatever secret carries those credentials, the spec must `test.skip` when it
-  is absent, so forks and PRs from forks stay green. Landing this unblocks
-  flow 5.
+  is absent, so forks and PRs from forks stay green.
 
 Chromium only, on purpose: WebKit doubles both the browser download and the wall
 clock of a step sitting directly in front of a production promotion. Add it when
