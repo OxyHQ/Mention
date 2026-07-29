@@ -38,6 +38,7 @@ import { VideoReplies } from '@/components/videos/VideoReplies';
 import { HIT_SLOP_LG } from '@/styles/hitSlop';
 import { useVideoPipSession } from '@/hooks/useVideoPipSession';
 import { useMediaSessionTransport, type MediaSessionTrack } from '@/hooks/useMediaSessionTransport';
+import { usePipTransportActions } from '@/hooks/usePipTransportActions';
 import { resolveFeedDescriptor } from '@/utils/feedTelemetry';
 
 /**
@@ -1768,6 +1769,20 @@ export default function VideosScreen() {
         onNext: handleTransportNext,
         onPrevious: handleTransportPrevious,
         onSeek: handleTransportSeek,
+    });
+
+    // Android draws the same two controls INSIDE the OS window, from a
+    // `RemoteAction` list only native code can set — the platform's counterpart
+    // to what `navigator.mediaSession` does for Chromium above, sharing its
+    // handlers and therefore its session, so a press swaps the source under the
+    // window instead of moving a pager nobody can see. A no-op on iOS (AVKit
+    // offers no such API) and on web, and in any build that predates the module.
+    usePipTransportActions({
+        active: pipOwnerId !== null,
+        nextLabel: t('videos.next'),
+        previousLabel: t('videos.previous'),
+        onNext: handleTransportNext,
+        onPrevious: handleTransportPrevious,
     });
 
     // The reel is the viewability source for its own surfaces (native), exactly as
