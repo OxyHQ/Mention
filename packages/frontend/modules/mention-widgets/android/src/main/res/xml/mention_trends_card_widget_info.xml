@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Provider metadata for variant J, the tonal card. See
+  `mention_trends_list_widget_info.xml` for the attributes the three trends
+  providers share and why each is set the way it is.
+
+  It defaults to 4 × 2 cells rather than 4 × 3: the card is one headline and a line
+  of names, so a short, wide placement is its natural shape — three cells of height
+  would leave it with space it has nothing to put in.
+-->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:initialLayout="@layout/glance_default_loading_layout"
+    android:description="@string/mention_trends_card_widget_description"
+    android:minWidth="@dimen/mention_trends_card_widget_min_width"
+    android:minHeight="@dimen/mention_trends_card_widget_min_height"
+    android:minResizeWidth="@dimen/mention_trends_widget_min_resize_width"
+    android:minResizeHeight="@dimen/mention_trends_widget_min_resize_height"
+    android:maxResizeWidth="@dimen/mention_trends_widget_max_resize_width"
+    android:maxResizeHeight="@dimen/mention_trends_widget_max_resize_height"
+    android:targetCellWidth="@integer/mention_trends_card_widget_target_cell_width"
+    android:targetCellHeight="@integer/mention_trends_card_widget_target_cell_height"
+    android:resizeMode="horizontal|vertical"
+    android:widgetCategory="home_screen" />

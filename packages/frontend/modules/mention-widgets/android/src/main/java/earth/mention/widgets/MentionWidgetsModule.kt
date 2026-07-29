@@ -23,11 +23,12 @@ class MentionWidgetsModule : Module() {
         Name("MentionWidgets")
 
         /**
-         * Fetch the trending batch now.
+         * Fetch the trending batch now, for whichever trends widgets are placed.
          *
          * Returns as soon as the work is enqueued; the fetch itself runs in
          * WorkManager under the same network constraint as the periodic refresh,
-         * and is a no-op when no trends widget is on the home screen.
+         * and is a no-op when no trends widget of any variant is on the home
+         * screen. One fetch serves all three — they read the same store.
          */
         AsyncFunction("refreshTrends") {
             val context = appContext.reactContext ?: throw Exceptions.ReactContextLost()

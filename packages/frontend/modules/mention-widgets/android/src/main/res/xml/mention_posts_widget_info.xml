@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Provider metadata for the trending-posts widget.
+
+  `initialLayout` is Glance's own loading layout, which is what the launcher shows for the
+  moment between the widget being placed and the first composition arriving.
+
+  `resizeMode` is `horizontal|vertical` because the card is designed at three sizes rather
+  than one (see `POSTS_WIDGET_SIZES`), and the resize range in dimens_posts.xml is what keeps
+  a resize inside them — notably a horizontal floor of 4 cells, since a paragraph of post text
+  has nothing to say at 2.
+
+  See `mention_trends_list_widget_info.xml` for the attributes every provider in this module
+  shares and why each is set the way it is.
+-->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:initialLayout="@layout/glance_default_loading_layout"
+    android:description="@string/mention_posts_widget_description"
+    android:minWidth="@dimen/mention_posts_widget_min_width"
+    android:minHeight="@dimen/mention_posts_widget_min_height"
+    android:minResizeWidth="@dimen/mention_posts_widget_min_resize_width"
+    android:minResizeHeight="@dimen/mention_posts_widget_min_resize_height"
+    android:maxResizeWidth="@dimen/mention_posts_widget_max_resize_width"
+    android:maxResizeHeight="@dimen/mention_posts_widget_max_resize_height"
+    android:targetCellWidth="@integer/mention_posts_widget_target_cell_width"
+    android:targetCellHeight="@integer/mention_posts_widget_target_cell_height"
+    android:resizeMode="horizontal|vertical"
+    android:widgetCategory="home_screen" />

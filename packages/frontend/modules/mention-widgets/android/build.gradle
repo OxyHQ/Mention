@@ -55,4 +55,15 @@ dependencies {
   // already in the app as a runtime-scope transitive of Glance, so declaring it
   // adds no artifact — it only puts it on this module's compile classpath.
   implementation "androidx.datastore:datastore-preferences:1.2.1"
+
+  // The widgets' arithmetic — series normalisation, the row and chip counts, the
+  // response parsing — is written to be pure, so it is tested on a plain JVM
+  // rather than on a device. Nothing in `src/test` touches Glance, a Canvas or a
+  // launcher; those need the real thing.
+  testImplementation "junit:junit:4.13.2"
+
+  // `org.json` in `android.jar` is a THROWING stub for unit tests, and the trends
+  // parser is built on it. This is the real implementation; AGP puts the mockable
+  // android.jar last on the unit-test classpath, so this one wins.
+  testImplementation "org.json:json:20250517"
 }

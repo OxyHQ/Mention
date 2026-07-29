@@ -1,0 +1,18 @@
+<!--
+  One position pip for the trending-posts widget — the FILLED one, marking which post of
+  the rotation is on screen.
+
+  A vector oval rather than a `Box` with a corner radius, because Glance's `cornerRadius`
+  modifier is backed by `setViewOutlinePreferredRadius` and does nothing below API 31: a
+  rounded Box would be a square pip on an API 23–30 device. Tinted at draw time by the
+  card's content colour, the same way `CircleIconButton` tints its own icon.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="6dp"
+    android:height="6dp"
+    android:viewportWidth="6"
+    android:viewportHeight="6">
+  <path
+      android:fillColor="#FFFFFFFF"
+      android:pathData="M3,0a3,3 0 1,0 0,6a3,3 0 1,0 0,-6z" />
+</vector>

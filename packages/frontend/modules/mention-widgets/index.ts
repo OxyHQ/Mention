@@ -25,8 +25,9 @@ import { requireOptionalNativeModule, type NativeModule } from 'expo';
 // This is the shape create-expo-module generates.
 declare class MentionWidgetsNativeModule extends NativeModule {
   /**
-   * Enqueue an immediate refresh of the trends widget. Resolves once the work
-   * is queued, not once it has run.
+   * Enqueue an immediate refresh of the trends widgets — all three variants read
+   * one store, so this is one fetch for however many are placed. Resolves once
+   * the work is queued, not once it has run.
    */
   refreshTrends(): Promise<void>;
 }
@@ -37,10 +38,11 @@ const nativeModule = requireOptionalNativeModule<MentionWidgetsNativeModule>('Me
 export const areHomeScreenWidgetsAvailable = nativeModule !== null;
 
 /**
- * Ask the trends widget to fetch now.
+ * Ask the trends widgets to fetch now.
  *
  * A no-op where the module is absent, and a no-op natively when no trends
- * widget is on the home screen — so callers never have to check either.
+ * widget of any variant is on the home screen — so callers never have to check
+ * either.
  */
 export function refreshTrendsWidget(): Promise<void> {
   return nativeModule?.refreshTrends() ?? Promise.resolve();

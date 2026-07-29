@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Home-screen sizes for the trends widget, in the launcher's own grid units.
+  Home-screen sizes for the three trends widgets, in the launcher's own grid units.
 
   Every value below is `70 × cells − 30` dp, the conversion the App Widget
   sizing guide gives for turning a cell count into the `minWidth` / `minHeight`
@@ -10,24 +10,31 @@
 
       2 cells → 110dp    3 cells → 180dp    4 cells → 250dp    5 cells → 320dp
 
-  The same four numbers are the width/height axes of `TrendsWidget.sizeMode`, so
+  The same four numbers are the width/height axes of each variant's `sizeMode`, so
   a placement the launcher allows always lands on a breakpoint the widget was
   designed for.
 -->
 <resources>
-  <!-- Default placement on pre-API-31 launchers: 4 cells wide, 3 tall. -->
-  <dimen name="mention_trends_widget_min_width">250dp</dimen>
-  <dimen name="mention_trends_widget_min_height">180dp</dimen>
-
-  <!-- Smallest the user may resize to: 2×2, the compact breakpoint. -->
+  <!--
+    The resize range is shared: all three variants are designed from 2×2 up to 5×5.
+    The floor is the size each one turns into its smallest form at (one row, one
+    chip, a compact headline); the ceiling is where each one runs out of content to
+    reveal, so a larger placement would only stretch what is already there.
+  -->
   <dimen name="mention_trends_widget_min_resize_width">110dp</dimen>
   <dimen name="mention_trends_widget_min_resize_height">110dp</dimen>
-
-  <!--
-    Largest: 5×5, the biggest breakpoint the layout is designed for. Capped on
-    purpose — past this the list has no further rows to reveal, so a larger
-    placement would only stretch the same content.
-  -->
   <dimen name="mention_trends_widget_max_resize_width">320dp</dimen>
   <dimen name="mention_trends_widget_max_resize_height">320dp</dimen>
+
+  <!-- Variant A, the ranked list. Default placement 4 cells wide, 3 tall: two rows. -->
+  <dimen name="mention_trends_list_widget_min_width">250dp</dimen>
+  <dimen name="mention_trends_list_widget_min_height">180dp</dimen>
+
+  <!-- Variant C, the chip cloud. Same default: two rows of chips. -->
+  <dimen name="mention_trends_chips_widget_min_width">250dp</dimen>
+  <dimen name="mention_trends_chips_widget_min_height">180dp</dimen>
+
+  <!-- Variant J, the tonal card. Wide and short — 4 cells by 2. -->
+  <dimen name="mention_trends_card_widget_min_width">250dp</dimen>
+  <dimen name="mention_trends_card_widget_min_height">110dp</dimen>
 </resources>

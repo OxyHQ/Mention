@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Provider metadata for variant A, the ranked list.
+
+  The three trends providers share every attribute except their sizes, their
+  description and their default placement; the notes below apply to all three and
+  are not repeated in the other two files.
+
+  `initialLayout` is the loading layout androidx.glance:glance-appwidget ships;
+  it is what the host shows for the frames between placing the widget and the
+  first composition arriving, and it is the value Google's own Glance samples
+  use. It is NOT a resting state — none of these widgets ever renders a spinner
+  once it is composing.
+
+  There is deliberately no `previewImage` / `previewLayout`: the picker preview
+  for a Glance widget is a screenshot of the real thing, which cannot be
+  produced without running it on a device. Until one exists the picker falls
+  back to the app icon and `android:label`, which is honest; a hand-drawn
+  approximation would not be.
+
+  `updatePeriodMillis` is absent on purpose. The system's own update alarm has a
+  30-minute floor it silently rounds up to and no network constraint, so it
+  would fire on a plane as readily as on Wi-Fi; the refresh is driven by
+  `TrendsRefreshScheduler`'s WorkManager job instead, which can require a
+  network and be cancelled when the last widget of any variant is removed.
+-->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:initialLayout="@layout/glance_default_loading_layout"
+    android:description="@string/mention_trends_list_widget_description"
+    android:minWidth="@dimen/mention_trends_list_widget_min_width"
+    android:minHeight="@dimen/mention_trends_list_widget_min_height"
+    android:minResizeWidth="@dimen/mention_trends_widget_min_resize_width"
+    android:minResizeHeight="@dimen/mention_trends_widget_min_resize_height"
+    android:maxResizeWidth="@dimen/mention_trends_widget_max_resize_width"
+    android:maxResizeHeight="@dimen/mention_trends_widget_max_resize_height"
+    android:targetCellWidth="@integer/mention_trends_list_widget_target_cell_width"
+    android:targetCellHeight="@integer/mention_trends_list_widget_target_cell_height"
+    android:resizeMode="horizontal|vertical"
+    android:widgetCategory="home_screen" />

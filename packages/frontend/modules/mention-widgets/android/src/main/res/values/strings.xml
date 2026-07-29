@@ -1,16 +1,33 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-  <!-- Name of the widget in the launcher's widget picker, and its label there. -->
-  <string name="mention_trends_widget_label">Trending</string>
-  <string name="mention_trends_widget_description">The topics and hashtags moving on Mention right now.</string>
+  <!--
+    What the launcher's widget picker shows for each variant. All three draw the
+    same trends, so the labels have to say what SHAPE each one is — that is the
+    only thing the user is choosing between.
+  -->
+  <string name="mention_trends_list_widget_label">Trending list</string>
+  <string name="mention_trends_list_widget_description">The topics and hashtags moving on Mention right now, ranked.</string>
 
-  <!-- Title bar of the widget itself. -->
+  <string name="mention_trends_chips_widget_label">Trending tags</string>
+  <string name="mention_trends_chips_widget_description">Trending topics and hashtags as tappable chips.</string>
+
+  <string name="mention_trends_card_widget_label">Top trend</string>
+  <string name="mention_trends_card_widget_description">The one topic moving hardest on Mention, with its recent volume.</string>
+
+  <!-- Title bar of the list and chip widgets. -->
   <string name="mention_trends_widget_title">Trending</string>
   <!-- Content description of the title-bar button that opens the full list. -->
   <string name="mention_trends_widget_see_all">See all trends</string>
 
   <!--
-    Supporting line above each trend name. Mirrors `getTrendLabel` in
+    The card's eyebrow, above its headline. All caps in the string itself: Glance's
+    `TextStyle` has no text-transform, and uppercasing per locale in code is not
+    something a widget can do correctly without one.
+  -->
+  <string name="mention_trends_widget_eyebrow">TRENDING</string>
+
+  <!--
+    Supporting line for a trend. Mirrors `getTrendLabel` in
     components/trending/TrendItemRow.tsx so a trend reads the same on the home
     screen as it does in the app. `%1$s` is the post count, already formatted.
   -->
@@ -23,10 +40,10 @@
   <string name="mention_trends_widget_open_app">Open Mention</string>
 
   <!--
-    Read out by TalkBack for a whole row, which is one tap target: `%1$s` is the
-    trend name and `%2$s` the supporting line above it. Not translatable — it
-    contains no words of its own, only the separator between two strings that
-    are themselves already localized.
+    Read out by TalkBack for a whole row, chip or headline, each of which is one tap
+    target: `%1$s` is the trend name and `%2$s` the supporting line. Not
+    translatable — it contains no words of its own, only the separator between two
+    strings that are themselves already localized.
   -->
   <string name="mention_trends_widget_item_description" translatable="false">%1$s, %2$s</string>
 </resources>

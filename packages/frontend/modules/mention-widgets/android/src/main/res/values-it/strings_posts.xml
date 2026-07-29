@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="mention_posts_widget_label">Post di tendenza</string>
+  <string name="mention_posts_widget_description">Un post di tendenza alla volta, dal feed Esplora di Mention.</string>
+
+  <string name="mention_posts_widget_eyebrow">DI TENDENZA</string>
+
+  <string name="mention_posts_widget_empty">Ancora nessun post</string>
+  <string name="mention_posts_widget_open_app">Apri Mention</string>
+
+  <string name="mention_posts_widget_card_description">%1$s. Pubblicato da %2$s.</string>
+  <string name="mention_posts_widget_no_text">Un post senza testo</string>
+</resources>

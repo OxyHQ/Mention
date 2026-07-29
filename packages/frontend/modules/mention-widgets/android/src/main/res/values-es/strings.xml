@@ -1,10 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-  <string name="mention_trends_widget_label">Tendencias</string>
-  <string name="mention_trends_widget_description">Los temas y hashtags que se mueven en Mention ahora mismo.</string>
+  <string name="mention_trends_list_widget_label">Lista de tendencias</string>
+  <string name="mention_trends_list_widget_description">Los temas y hashtags que se mueven en Mention ahora mismo, en orden.</string>
+
+  <string name="mention_trends_chips_widget_label">Etiquetas en tendencia</string>
+  <string name="mention_trends_chips_widget_description">Temas y hashtags en tendencia como etiquetas que puedes pulsar.</string>
+
+  <string name="mention_trends_card_widget_label">Tendencia principal</string>
+  <string name="mention_trends_card_widget_description">El tema que más se mueve en Mention, con su volumen reciente.</string>
 
   <string name="mention_trends_widget_title">Tendencias</string>
   <string name="mention_trends_widget_see_all">Ver todas las tendencias</string>
+
+  <string name="mention_trends_widget_eyebrow">EN TENDENCIA</string>
 
   <string name="mention_trends_widget_item_hashtag">Tendencia · %1$s publicaciones</string>
   <string name="mention_trends_widget_item_topic">Tema en tendencia</string>

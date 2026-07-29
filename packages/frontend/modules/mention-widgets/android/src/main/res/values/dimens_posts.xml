@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Home-screen sizes for the trending-posts widget, in the launcher's own grid units.
+
+  Every value is `70 × cells − 30` dp, the conversion the App Widget sizing guide gives for
+  turning a cell count into the `minWidth` / `minHeight` a provider must declare
+  (developer.android.com/develop/ui/views/appwidgets § "Determine widget sizing"):
+
+      2 cells → 110dp    3 cells → 180dp    4 cells → 250dp    5 cells → 320dp
+
+  The same numbers are the axes of `POSTS_WIDGET_SIZES` in `PostsWidgetStyle.kt`, so a
+  placement the launcher allows always lands on a design the card was drawn for.
+-->
+<resources>
+  <!--
+    Default placement: 4 cells wide by 3 tall — the design with the image slot, which is the
+    one worth meeting the widget as.
+  -->
+  <dimen name="mention_posts_widget_min_width">250dp</dimen>
+  <dimen name="mention_posts_widget_min_height">180dp</dimen>
+
+  <!--
+    The resize floor is 4 cells WIDE but only 2 tall, which is narrower than the trends
+    family's 2 × 2 and deliberately so: a post is a paragraph of text, and at 110dp across
+    there is room for about three words per line. Letting it shrink that far would offer a
+    size at which the card cannot do its job. Vertically it does shrink, to the design that
+    drops the image.
+  -->
+  <dimen name="mention_posts_widget_min_resize_width">250dp</dimen>
+  <dimen name="mention_posts_widget_min_resize_height">110dp</dimen>
+
+  <!--
+    The ceiling is where the card runs out of content to reveal — five lines of text, a
+    120dp image and a byline — so a larger placement would only stretch what is there.
+  -->
+  <dimen name="mention_posts_widget_max_resize_width">320dp</dimen>
+  <dimen name="mention_posts_widget_max_resize_height">320dp</dimen>
+</resources>

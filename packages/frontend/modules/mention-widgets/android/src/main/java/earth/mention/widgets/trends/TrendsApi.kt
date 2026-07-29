@@ -27,12 +27,18 @@ internal object TrendsApi {
     /**
      * How many trends to ask for.
      *
-     * Matches the `limit: 10` the app's own trends store uses
-     * (stores/trendsStore.ts), and comfortably exceeds the four rows the largest
-     * breakpoint draws — the surplus is what lets a resize show more rows
+     * Sized for the HUNGRIEST variant, which is the chip cloud rather than the list:
+     * a list's largest breakpoint draws four rows, but a cloud packs several chips
+     * into each of its four, and a row of short names (`ai`, `food`) fits five in the
+     * 296dp a 5×5 widget has. Twenty is that worst case, so no placement runs out of
+     * trends and shows a half-empty last row.
+     *
+     * It is also the server's own default and well inside its 1–50 range
+     * (`MAX_TRENDING_LIMIT`, packages/backend/src/routes/trending.routes.ts), and the
+     * surplus over what a smaller placement shows is what lets a resize reveal more
      * immediately instead of waiting for the next refresh.
      */
-    private const val REQUESTED_TRENDS = 10
+    private const val REQUESTED_TRENDS = 20
 
     private val CONNECT_TIMEOUT_MS = TimeUnit.SECONDS.toMillis(10).toInt()
     private val READ_TIMEOUT_MS = TimeUnit.SECONDS.toMillis(15).toInt()

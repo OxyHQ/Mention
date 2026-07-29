@@ -1,0 +1,21 @@
+<!--
+  A position pip the rotation is NOT currently on.
+
+  The same oval as `mention_widget_pip.xml` with its alpha BAKED IN via `fillAlpha`, which
+  is the only way to weight two pips differently: Glance has no alpha modifier, and an
+  image-level tint would apply one colour to both. Same reasoning as the sparkline's two
+  paints.
+
+  `setColorFilter` tints with SRC_ATOP, so the tint replaces the colour and leaves this
+  alpha intact.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="6dp"
+    android:height="6dp"
+    android:viewportWidth="6"
+    android:viewportHeight="6">
+  <path
+      android:fillColor="#FFFFFFFF"
+      android:fillAlpha="0.35"
+      android:pathData="M3,0a3,3 0 1,0 0,6a3,3 0 1,0 0,-6z" />
+</vector>
