@@ -26,7 +26,7 @@ import type {
   Reply,
   FeedBoost as Boost,
 } from '@mention/shared-types';
-import { useAuth, FollowButton } from '@oxyhq/services/ui/client';
+import { useAuth } from '@oxyhq/services/ui/client';
 import { ThemedView } from '@/components/ThemedView';
 import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';
@@ -304,11 +304,6 @@ const PostDetailScreen: React.FC = () => {
         return undefined;
     }, [post, oxyServices]);
 
-    // The author of the post being viewed, when there is someone to follow: not
-    // the viewer, and actually resolved (a degraded author carries no usable id).
-    const postAuthorId = post?.user?.id ? String(post.user.id) : undefined;
-    const authorIdToFollow = postAuthorId && postAuthorId !== user?.id ? postAuthorId : undefined;
-
     const postText = post?.content.text || '';
     const postDescription = postText.length > 200
         ? `${postText.substring(0, 197)}...`
@@ -460,13 +455,6 @@ const PostDetailScreen: React.FC = () => {
                             </IconButton>,
                         ],
                         rightComponents: [
-                            // Following the author belongs to the SCREEN, not to the
-                            // post: inside the post header it crowds the byline and
-                            // reads as part of the content. Hidden on your own post
-                            // and until the post (and so its author) has loaded.
-                            ...(authorIdToFollow
-                                ? [<FollowButton key="follow" userId={authorIdToFollow} size="small" />]
-                                : []),
                             <IconButton variant="icon" key="reply-prefs" onPress={openReplyPreferences}>
                                 <Ionicons name="options-outline" size={22} color={theme.colors.text} />
                             </IconButton>,
