@@ -183,6 +183,11 @@ export const viewerQueryKeys = {
     'mutual-followers',
     profileId ?? '',
   ] as const,
+  knownLikers: (viewerId: ViewerId, postId: string | null | undefined) => [
+    ...viewerQueryKeys.all(viewerId),
+    'known-likers',
+    postId ?? '',
+  ] as const,
   connectionsMutuals: (
     viewerId: ViewerId,
     profileId: string | null | undefined,

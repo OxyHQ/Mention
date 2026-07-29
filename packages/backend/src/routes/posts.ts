@@ -24,6 +24,7 @@ import {
   getNearbyPostsBothLocations,
   getLocationStats,
   getPostLikes,
+  getKnownPostLikers,
   getPostBoosts,
   translatePost,
   translateDraft,
@@ -98,6 +99,12 @@ publicPostsRouter.get('/', getPosts);
 publicPostsRouter.get('/drafts', getDrafts);
 publicPostsRouter.get('/scheduled', getScheduledPosts);
 publicPostsRouter.get('/saved', getSavedPosts);
+
+// Social proof on the post-detail screen: the likers the VIEWER follows. Public,
+// unlike the `/:id/likes` engagement list below, because it discloses nothing an
+// anonymous viewer could not already see — it is scoped to the viewer's own
+// follow graph, so signed-out callers get an empty result rather than a 401.
+publicPostsRouter.get('/:id/likes/known', getKnownPostLikers);
 
 // Public post detail — parameterized, MUST be registered LAST so every literal
 // read above resolves first. Anonymous viewers receive ONLY public+published

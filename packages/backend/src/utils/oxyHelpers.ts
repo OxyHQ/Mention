@@ -108,11 +108,11 @@ function delegatedGraphIds(response: unknown, key: 'blockedIds' | 'restrictedIds
  */
 function createServiceDelegatedOxyClient(viewerId: string): OxyClient {
   const client = getServiceOxyClient();
-  // Blocks and restrictions both come off the viewer graph, and both callers run
-  // in the same `Promise.all`, so the request is made once and shared. The
-  // per-user privacy routes are user-token only, and a delegated caller has no
-  // user token — the graph endpoint is the one that accepts a service
-  // credential with an explicit viewer.
+  // Blocks, restrictions and the following list all come off the viewer graph,
+  // and the callers run in the same `Promise.all`, so the request is made once
+  // and shared. The per-user privacy routes are user-token only, and a delegated
+  // caller has no user token — the graph endpoint is the one that accepts a
+  // service credential with an explicit viewer.
   let graph: Promise<unknown> | undefined;
   const viewerGraph = (): Promise<unknown> => {
     graph ??= client.makeServiceRequest('GET', OXY_VIEWER_GRAPH_PATH, undefined, viewerId);
@@ -127,6 +127,12 @@ function createServiceDelegatedOxyClient(viewerId: string): OxyClient {
     async getRestrictedUsers(): Promise<unknown[]> {
       const ids = delegatedGraphIds(await viewerGraph(), 'restrictedIds');
       return ids.map((restrictedId) => ({ restrictedId }));
+    },
+    // Unwrapped so the delegated shape matches what OxyServices.getViewerGraph
+    // returns for a session-scoped client: the graph object itself, never the
+    // `{ data }` envelope the raw service request carries.
+    async getViewerGraph(): Promise<unknown> {
+      return unwrapDataEnvelope(await viewerGraph());
     },
     getUserFollowing(userId: string): Promise<unknown> {
       return client.getUserFollowing(userId);

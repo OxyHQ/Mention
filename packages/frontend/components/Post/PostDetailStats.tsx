@@ -5,6 +5,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { PressableScale } from '@oxyhq/bloom/pressable-scale';
 import type { ReplyPermission } from '@mention/shared-types';
+import { KnownLikersRow } from '@/components/Post/KnownLikersRow';
 import { formatCompactNumber } from '@/utils/formatNumber';
 import { POST_ITEM_SPACING } from '@/styles/shared';
 
@@ -34,6 +35,11 @@ interface Props {
   replyPermission?: ReplyPermission[];
   /** Whether the author turned off quote posts. */
   quotesDisabled?: boolean;
+  /**
+   * Enables the known-likers social-proof row. Omit it and the row is never
+   * mounted, so nothing is fetched — the feed rendering of a post is unchanged.
+   */
+  postId?: string;
   onLikesPress?: () => void;
   onBoostsPress?: () => void;
   onQuotesPress?: () => void;
@@ -59,6 +65,7 @@ const PostDetailStats = memo<Props>(function PostDetailStats({
   saves,
   replyPermission,
   quotesDisabled,
+  postId,
   onLikesPress,
   onBoostsPress,
   onQuotesPress,
@@ -104,6 +111,18 @@ const PostDetailStats = memo<Props>(function PostDetailStats({
 
   return (
     <View>
+      {/* Social proof leads the block: it sits directly under the action bar,
+          so the faces land next to the like button that produced them. It draws
+          nothing at all when the viewer follows none of the likers, so the rows
+          below simply move up. */}
+      {postId ? (
+        <KnownLikersRow
+          postId={postId}
+          onPress={onLikesPress}
+          rowStyle={[rowStyle, { paddingBottom: SECTION_GAP }]}
+        />
+      ) : null}
+
       {timestampLabel || restrictions.length > 0 ? (
         <View
           className="flex-row items-center flex-wrap border-border"
