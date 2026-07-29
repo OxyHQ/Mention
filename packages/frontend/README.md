@@ -63,6 +63,23 @@ bun run lint
 bun run typecheck
 ```
 
+`analyze-bundle` measures `dist/`, exporting it first when it is missing. It
+takes four flags:
+
+| Flag | Effect |
+| --- | --- |
+| `--ci` | Exit non-zero when a `bundle-budgets.json` ceiling is breached. The only hard gate. |
+| `--json <path>` | Write the full JSON report. |
+| `--baseline <path>` | Compare against a previously written JSON report. |
+| `--markdown <path>` | Write a Markdown summary, which CI appends to the job step summary. |
+
+Run it with `--source-maps external` output (`bun run build:analyze`), otherwise
+the per-source attribution is empty. The `--baseline` comparison is advisory: a
+missing, unreadable or differently-versioned baseline prints a note and the run
+still succeeds, because a branch with no baseline on record is a normal state
+and only the absolute ceilings decide pass or fail. CI restores that baseline
+from an Actions cache the `main` branch populates; see `.github/workflows/ci.yml`.
+
 The coverage gate freezes the current untested-code baseline and applies
 stricter per-file thresholds to the account-switch and viewer-query-key
 boundaries. Jest excludes files with their own thresholds from its reported
