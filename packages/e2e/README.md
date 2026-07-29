@@ -76,6 +76,7 @@ whatever is already live.
 | 1 | Cold boot of `/` | Provider-ordering crash; suspense deadlock that never commits the root |
 | 2 | `/` → `/explore` → `/p/<id>` → back | expo-router async route chunks; the silent `chunkReload.web.ts` recovery reload |
 | 3 | `/@<handle>` as a page, and as ActivityPub | `webShell.routes.ts` content negotiation — breaks fediverse discovery while the profile still looks healthy |
+| 4 | Search submit carries the full typed query | The stale-closure submit that drops the final character of a fast query |
 
 Three further flows are planned and are not implemented. They split cleanly by
 what each one needs, and the split is the reason they are not all the same size
@@ -92,11 +93,14 @@ of job:
   fix intends. The dependency is five nominated, stable post ids, not new
   machinery.
 
-- **Flow 5, search typing.** Asserting that a fast multi-character query with
-  Enter on the final keystroke sends the FULL string is a good test and cannot
-  run here yet: `GET /search` answers `401 MISSING_TOKEN` anonymously, and the
-  client gates search behind `canUsePrivateApi`. It therefore needs the signed-in
-  session below and should land with it, not before it.
+- **Flow 5, the Starter Packs search tab and its paging.** Switching to the tab
+  and asserting the card count grows past the first page is the pin worth having,
+  because paging past the first window used to be structurally impossible. It is
+  not here because production does not currently hold enough packs matching a
+  query to exercise it: `?search=` returns 20 on page one, and a realistic query
+  like `mention` returns none. A test that cannot reach page two would assert
+  something weaker than it appears to, which is worse than not having it. Revisit
+  when the data supports it.
 
 - **Flow 6, login → compose → assert → delete.** Needs a real test account.
   Whatever secret carries those credentials, the spec must `test.skip` when it
