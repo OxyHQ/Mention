@@ -201,12 +201,25 @@ describe('mentionsOfMe source', () => {
 });
 
 describe('hashtagFollows source', () => {
-  it('resolves followed hashtags and matches them', async () => {
-    entityFollowDistinct = ['Cats', 'Dogs'];
+  /**
+   * The stored ids are already canonical — `POST /entity-follows` runs them
+   * through the same `normalizeHashtag` that derives `Post.hashtags` — so this
+   * source must pass them through UNTOUCHED. It used to lowercase them again,
+   * a second rule that never matched the punctuation-stripping half of the
+   * canonical form (`my-tag` stayed `my-tag` here while a post indexed `mytag`).
+   *
+   * The fixtures are deliberately NOT canonical. A canonical tag is a fixpoint of
+   * every normalization, so feeding one in cannot tell "passes through" apart
+   * from "normalizes again" — the assertion would hold either way. Handing the
+   * source values that a re-normalization WOULD change is the only way to observe
+   * the absence of that step; it is a probe, not a claim that such a row exists.
+   */
+  it('matches the stored hashtags as-is, without re-normalizing them', async () => {
+    entityFollowDistinct = ['cats', 'Dogs', 'my-tag'];
     findRouter = () => [makePost(7)];
     await hashtagFollowsSource.gather({ currentUserId: 'viewer' }, {}, 30);
     const match = findCalls[0];
-    expect(match.hashtags).toEqual({ $in: ['cats', 'dogs'] });
+    expect(match.hashtags).toEqual({ $in: ['cats', 'Dogs', 'my-tag'] });
   });
 
   it('returns [] when the viewer follows no hashtags', async () => {

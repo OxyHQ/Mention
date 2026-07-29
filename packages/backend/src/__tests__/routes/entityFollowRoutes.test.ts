@@ -277,6 +277,112 @@ describe('entity-follow routes — write inputs are bounded', () => {
   });
 });
 
+/**
+ * A followed hashtag is stored in ONE canonical form.
+ *
+ * The write path used to store whatever the client sent while both readers
+ * lowercased at read time, and the hashtag screen sends the URL segment
+ * un-normalized — so `/hashtag/Design` and `/hashtag/design` wrote two rows for
+ * one viewer, straight past the unique index on
+ * `{userId, entityType, entityId}`. Each row was then counted again by the
+ * affinity signals, and an unfollow removed only the casing it arrived by.
+ *
+ * `normalizeHashtag` is the same function that derives `Post.hashtags`, so a
+ * followed tag and an indexed tag are the same string by construction. Every
+ * entry point resolves through it: otherwise a client asking about `Design`
+ * would miss the `design` row its own follow just created.
+ */
+describe('entity-follow routes — a followed hashtag is stored canonically', () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+    mockIncrementSubscriberCount.mockReset().mockResolvedValue(undefined);
+    mockLoadListVisibility.mockReset();
+  });
+
+  it.each([
+    ['upper case', 'Design', 'design'],
+    ['mixed case', 'DeSiGn', 'design'],
+    ['a leading hash', '#design', 'design'],
+    ['surrounding whitespace', '  design  ', 'design'],
+    ['punctuation', 'my-tag', 'mytag'],
+    ['spaces between words', 'the village', 'thevillage'],
+    ['an emoji separator', 'design✨', 'design'],
+  ])('stores %s as the canonical tag', async (_label, sent, stored) => {
+    const save = vi.spyOn(EntityFollow.prototype, 'save').mockResolvedValue(undefined);
+
+    const res = await request(buildApp())
+      .post('/entity-follows')
+      .send({ entityType: 'hashtag', entityId: sent });
+
+    expect(res.status).toBe(201);
+    expect(save).toHaveBeenCalledTimes(1);
+    // The row the API reports back is the row it wrote.
+    expect(res.body.follow.entityId).toBe(stored);
+  });
+
+  it('preserves a non-ASCII tag rather than mangling it to ASCII', async () => {
+    vi.spyOn(EntityFollow.prototype, 'save').mockResolvedValue(undefined);
+
+    const res = await request(buildApp())
+      .post('/entity-follows')
+      .send({ entityType: 'hashtag', entityId: '#Café' });
+
+    expect(res.status).toBe(201);
+    expect(res.body.follow.entityId).toBe('café');
+  });
+
+  it('rejects a tag that canonicalizes to nothing', async () => {
+    const save = vi.spyOn(EntityFollow.prototype, 'save').mockResolvedValue(undefined);
+
+    const res = await request(buildApp())
+      .post('/entity-follows')
+      .send({ entityType: 'hashtag', entityId: '#!!!' });
+
+    // An empty entityId would violate the schema; there is no tag here to follow.
+    expect(res.status).toBe(400);
+    expect(save).not.toHaveBeenCalled();
+  });
+
+  it('unfollows by the canonical tag, so the casing sent does not matter', async () => {
+    const remove = vi.spyOn(EntityFollow, 'findOneAndDelete').mockResolvedValue({ _id: 'row-1' });
+
+    const res = await request(buildApp())
+      .delete('/entity-follows')
+      .send({ entityType: 'hashtag', entityId: '#Design' });
+
+    expect(res.status).toBe(200);
+    expect(remove).toHaveBeenCalledWith({ userId: VIEWER_ID, entityType: 'hashtag', entityId: 'design' });
+  });
+
+  it('reads status by the canonical tag, so a follow it just wrote is found', async () => {
+    const findOne = vi.spyOn(EntityFollow, 'findOne').mockResolvedValue({ _id: 'row-1' });
+
+    const res = await request(buildApp())
+      .get('/entity-follows/status')
+      .query({ entityType: 'hashtag', entityId: 'Design' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.isFollowing).toBe(true);
+    expect(findOne).toHaveBeenCalledWith({ userId: VIEWER_ID, entityType: 'hashtag', entityId: 'design' });
+  });
+
+  it('leaves a LIST id untouched — normalization is for tags, not ids', async () => {
+    vi.spyOn(EntityFollow.prototype, 'save').mockResolvedValue(undefined);
+    mockLoadListVisibility.mockResolvedValue({ isPublic: true, ownerOxyUserId: OTHER_USER_ID });
+
+    const res = await request(buildApp())
+      .post('/entity-follows')
+      .send({ entityType: 'list', entityId: LIST_ID });
+
+    expect(res.status).toBe(201);
+    // An ObjectId must survive verbatim: `normalizeHashtag` would happily strip
+    // characters out of one, and the id would then match no list.
+    expect(res.body.follow.entityId).toBe(LIST_ID);
+    expect(mockLoadListVisibility).toHaveBeenCalledWith(LIST_ID);
+    expect(mockIncrementSubscriberCount).toHaveBeenCalledWith(LIST_ID);
+  });
+});
+
 describe('entity-follow routes — the entity followers endpoint is gone', () => {
   /**
    * It enumerated the followers of any entity to any authenticated caller: a

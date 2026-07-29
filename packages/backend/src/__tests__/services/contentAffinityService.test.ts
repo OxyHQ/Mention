@@ -108,6 +108,28 @@ describe('ContentAffinityService.getContentCandidates', () => {
     expect(mocks.entityFollowFind).not.toHaveBeenCalled();
   });
 
+  /**
+   * `POST /entity-follows` canonicalizes a followed tag with the same
+   * `normalizeHashtag` that derives `Post.hashtags`, so the stored ids go into
+   * the aggregation UNCHANGED. This service used to `.trim().toLowerCase()` them
+   * — a second rule, and one that never matched the punctuation-stripping half
+   * of the canonical form.
+   *
+   * The fixtures are deliberately NOT canonical: a canonical tag is a fixpoint of
+   * every normalization, so the assertion would hold whether or not the step was
+   * there. Only a value that re-normalizing WOULD change can observe its absence.
+   */
+  it('matches followed tags as stored, without re-normalizing them', async () => {
+    mocks.entityFollowFind.mockImplementation(leanQuery([{ entityId: 'Rust' }, { entityId: ' go-lang ' }]));
+    mocks.postAggregate.mockResolvedValue([]);
+
+    await makeService().getContentCandidates('viewer_1');
+
+    const pipeline = mocks.postAggregate.mock.calls[0]?.[0] as Array<Record<string, never>>;
+    const match = pipeline[0] as unknown as { $match: { hashtags: { $in: string[] } } };
+    expect(match.$match.hashtags).toEqual({ $in: ['Rust', ' go-lang '] });
+  });
+
   it('hashtag affinity picks authors posting under followed tags', async () => {
     mocks.entityFollowFind.mockImplementation(leanQuery([{ entityId: 'rust' }, { entityId: 'go' }]));
     // Author a1 covers both followed tags; a2 covers one.

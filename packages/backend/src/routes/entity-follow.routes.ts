@@ -6,6 +6,7 @@ import { logger } from '../utils/logger';
 import { listSubscriptionService, LIST_ENTITY_TYPE } from '../services/ListSubscriptionService';
 import { canViewList, loadListVisibility } from '../services/listAccess';
 import { queryInt, queryString } from '../utils/queryParams';
+import { normalizeHashtag } from '../utils/textProcessing';
 
 const router = Router();
 
@@ -30,7 +31,11 @@ function isValidEntityType(type: string): type is EntityFollowType {
 const clampFollowPageSize = (limit: number | undefined): number =>
   Math.min(Math.max(limit || DEFAULT_FOLLOW_PAGE_SIZE, 1), MAX_FOLLOW_PAGE_SIZE);
 
-/** A validated `{entityType, entityId}` pair from a write request's body. */
+/**
+ * A resolved `{entityType, entityId}` pair. `entityId` is CANONICAL: for a
+ * hashtag it has been through {@link normalizeHashtag}, so it is the single
+ * form that is ever stored or queried.
+ */
 interface EntityRef {
   entityType: EntityFollowType;
   entityId: string;
@@ -39,15 +44,23 @@ interface EntityRef {
 type EntityRefResult = { ok: true; ref: EntityRef } | { ok: false; message: string };
 
 /**
- * Validate the pair every write carries.
+ * Validate and canonicalize the pair every entry point carries.
  *
  * Both values end up in a Mongo query, so both must be real strings — an
- * `{"$ne": null}` object would otherwise reach the query as an operator, the
- * same hazard `/status` already guards its params against with `queryString`.
+ * `{"$ne": null}` object would otherwise reach the query as an operator.
+ *
+ * A hashtag is stored in canonical form. `normalizeHashtag` is the SAME function
+ * every post-write path uses to derive `Post.hashtags`, so a followed tag and an
+ * indexed tag are by construction the same string, and `#Design`/`#design`/`#de
+ * sign` all resolve to one row instead of one row apiece. Without this the
+ * unique index on `{userId, entityType, entityId}` never fires for case
+ * variants: the viewer accumulates a row per casing, each one counted again by
+ * the affinity signals, and an unfollow removes only the casing it arrived by.
+ *
+ * A list id is an ObjectId and is passed through untouched — normalization
+ * applies to tags, which are free text, not to ids.
  */
-function parseEntityRef(body: Record<string, unknown>): EntityRefResult {
-  const { entityType, entityId } = body;
-
+function resolveEntityRef(entityType: unknown, entityId: unknown): EntityRefResult {
   if (typeof entityType !== 'string' || typeof entityId !== 'string' || !entityType || !entityId) {
     return { ok: false, message: 'entityType and entityId are required' };
   }
@@ -56,8 +69,20 @@ function parseEntityRef(body: Record<string, unknown>): EntityRefResult {
     return { ok: false, message: `entityType must be one of: ${ENTITY_FOLLOW_TYPES.join(', ')}` };
   }
 
+  // Bound the RAW input: normalization only ever shortens, so checking here
+  // rejects an oversized payload before doing any work on it.
   if (entityId.length > MAX_ENTITY_ID_LENGTH) {
     return { ok: false, message: `entityId must be at most ${MAX_ENTITY_ID_LENGTH} characters` };
+  }
+
+  if (entityType === 'hashtag') {
+    const canonical = normalizeHashtag(entityId);
+    if (!canonical) {
+      // Everything was stripped — punctuation or emoji only. There is no tag
+      // here to follow, and an empty entityId would violate the schema anyway.
+      return { ok: false, message: 'entityId must contain at least one letter, number, or underscore' };
+    }
+    return { ok: true, ref: { entityType, entityId: canonical } };
   }
 
   return { ok: true, ref: { entityType, entityId } };
@@ -74,7 +99,8 @@ router.post('/', async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ message: 'Unauthorized' });
     }
 
-    const parsed = parseEntityRef(req.body ?? {});
+    const body: Record<string, unknown> = req.body ?? {};
+    const parsed = resolveEntityRef(body.entityType, body.entityId);
     if (!parsed.ok) {
       return res.status(400).json({ message: parsed.message });
     }
@@ -139,7 +165,8 @@ router.delete('/', async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ message: 'Unauthorized' });
     }
 
-    const parsed = parseEntityRef(req.body ?? {});
+    const body: Record<string, unknown> = req.body ?? {};
+    const parsed = resolveEntityRef(body.entityType, body.entityId);
     if (!parsed.ok) {
       return res.status(400).json({ message: parsed.message });
     }
@@ -179,18 +206,14 @@ router.get('/status', async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ message: 'Unauthorized' });
     }
 
-    // Both are Mongo query values below, so they must be real strings — an
-    // `?entityId[$ne]=x` object would otherwise reach `findOne` as an operator.
-    const entityType = queryString(req.query.entityType);
-    const entityId = queryString(req.query.entityId);
-
-    if (!entityType || !entityId) {
-      return res.status(400).json({ message: 'entityType and entityId query params are required' });
+    // `queryString` first, so an `?entityId[$ne]=x` object never reaches the
+    // resolver — then the SAME resolution the writes use, or a client asking
+    // about `Design` would miss the `design` row its own follow just created.
+    const parsed = resolveEntityRef(queryString(req.query.entityType), queryString(req.query.entityId));
+    if (!parsed.ok) {
+      return res.status(400).json({ message: parsed.message });
     }
-
-    if (!isValidEntityType(entityType)) {
-      return res.status(400).json({ message: `entityType must be one of: ${ENTITY_FOLLOW_TYPES.join(', ')}` });
-    }
+    const { entityType, entityId } = parsed.ref;
 
     const follow = await EntityFollow.findOne({ userId, entityType, entityId });
 

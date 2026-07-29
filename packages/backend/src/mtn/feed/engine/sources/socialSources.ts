@@ -242,6 +242,13 @@ export const mentionsOfMeSource: SourceModule = {
 /**
  * `hashtagFollows`: posts carrying any hashtag the viewer follows (resolved via
  * `EntityFollow` `entityType:'hashtag'`).
+ *
+ * The stored ids go into the query AS-IS. `POST /entity-follows` canonicalizes a
+ * followed tag with `normalizeHashtag` — the same function that derives
+ * `Post.hashtags` — so the two are the same string by construction. Normalizing
+ * again here would be a second rule free to drift from that one; it used to
+ * lowercase, which silently did not match the punctuation-stripping the write
+ * path now applies.
  */
 export const hashtagFollowsSource: SourceModule = {
   id: 'hashtagFollows',
@@ -261,11 +268,10 @@ export const hashtagFollowsSource: SourceModule = {
       return [];
     }
 
-    const normalized = Array.from(new Set(tags.map((t) => t.toLowerCase()).filter(Boolean)));
-    if (normalized.length === 0) return [];
+    if (tags.length === 0) return [];
 
     return fetchChrono(
-      { hashtags: { $in: normalized }, visibility: PostVisibility.PUBLIC, status: 'published' },
+      { hashtags: { $in: tags }, visibility: PostVisibility.PUBLIC, status: 'published' },
       ctx.cursor,
       cap,
     );
