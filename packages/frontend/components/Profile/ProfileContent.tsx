@@ -106,8 +106,8 @@ export const ProfileContent = memo(function ProfileContent({
           isPrivate={isPrivate}
           privacySettings={profileData.privacy}
           isOwnProfile={isOwnProfile}
+          profileId={profileData.id}
           trailingBadge={fediverseBadge}
-
           UserNameComponent={UserName}
         />
       ) : (
