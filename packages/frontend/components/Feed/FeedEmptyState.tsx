@@ -1,12 +1,10 @@
-import React, { memo } from 'react';
+import { memo } from 'react';
 import { View, Text } from 'react-native';
+import { Image } from 'expo-image';
 import { useTranslation } from 'react-i18next';
 import type { FeedType } from '@mention/shared-types';
 import { EmptyState } from '@/components/common/EmptyState';
 import { Spinner } from '@/components/ui/Spinner';
-import { Home } from '@/assets/icons/home-icon';
-import { Bookmark } from '@/assets/icons/bookmark-icon';
-import { Hashtag } from '@/assets/icons/hashtag-icon';
 
 interface FeedEmptyStateProps {
     isLoading: boolean;
@@ -59,33 +57,28 @@ export const FeedEmptyState = memo<FeedEmptyStateProps>(
             );
         }
 
-        const emptyText = showOnlySaved ? 'No saved posts yet' : 'No posts yet';
-        const emptySubtext = getEmptySubtext(type, showOnlySaved);
-        const icon = getEmptyIcon(type, showOnlySaved);
-
         return (
             <EmptyState
-                title={emptyText}
-                subtitle={emptySubtext}
-                customIcon={icon}
+                title={showOnlySaved ? 'No saved posts yet' : 'No posts yet'}
+                subtitle={getEmptySubtext(type, showOnlySaved)}
+                customIcon={
+                    /* Decorative: EmptyState already announces the title and
+                       subtitle as a single accessibility element. */
+                    <Image
+                        source={require('@/assets/images/empty-state-illustration.png')}
+                        className="w-[258px] max-w-full aspect-[258/134]"
+                        contentFit="contain"
+                        alt=""
+                        accessibilityElementsHidden
+                        importantForAccessibility="no"
+                    />
+                }
             />
         );
     }
 );
 
 FeedEmptyState.displayName = 'FeedEmptyState';
-
-function getEmptyIcon(type: FeedType, showOnlySaved?: boolean): React.ReactNode {
-    if (showOnlySaved) {
-        return <Bookmark size={48} className="text-muted-foreground" />;
-    }
-    switch (type) {
-        case 'custom':
-            return <Hashtag size={48} className="text-muted-foreground" />;
-        default:
-            return <Home size={48} className="text-muted-foreground" />;
-    }
-}
 
 function getEmptySubtext(type: FeedType, showOnlySaved?: boolean): string {
     if (showOnlySaved) {
