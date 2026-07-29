@@ -1,22 +1,14 @@
 /**
- * Flow 4 — the search screen's submit.
+ * Flow 4 — the search screen's suggestion surface and its submit.
  *
- * Assertion supplied by the agent that built the surface; the reason is theirs,
- * the reachability is verified here. It runs signed-out: the tabs the screen
- * actually queries on submit (starter packs, hashtags, feeds) are public
- * endpoints, and only the posts/users/lists tabs need a session.
+ * Assertions supplied by the agent that built the surfaces; the reasons are
+ * theirs, the reachability is verified here. All of them run signed-out: the
+ * suggestion rows are client state, and the tabs the screen queries on submit
+ * (starter packs, hashtags, feeds) are public endpoints. Only the
+ * posts/users/lists tabs need a session, and nothing below depends on them.
  *
- * The companion assertions — that the suggestion rows survive typing and survive
- * blur — are NOT here, and deliberately so. The screen serves two row sets (idle:
- * recents, trending, the operator cheat-sheet; typing: commit-this-query, an
- * optional go-to-profile, an optional operator completion, then filtered
- * recents), and the swap between them does not track the typed text closely
- * enough for either set to be a stable landmark at assertion time: the
- * cheat-sheet row flaked roughly one run in three, and the commit-this-query row
- * was never present at all within a 30s wait while typing. Shipping either would
- * have put a coin-flip in front of a production promotion. What is needed is a
- * landmark the screen guarantees while a query is being typed; that is a
- * question for the surface's author, not something to guess at here.
+ * The suggestion rows are list content, not an overlay, dropdown or portal, so
+ * nothing here waits on an animation or a z-index.
  */
 
 import { expect, test } from '../fixtures';
@@ -28,10 +20,63 @@ import { expect, test } from '../fixtures';
  */
 const QUERY = 'starter';
 
+/**
+ * The search SCREEN's own box. `/search` renders two text inputs and picking the
+ * wrong one fails silently: the right rail's "Search Mention" widget belongs to
+ * the persistent shell, so it is in the DOM from the first paint, before this
+ * route has mounted at all. Typing into it puts the text in a real input while
+ * the screen's own `query` never changes, so the suggestion list stays on its
+ * idle branch and every assertion below reads as a broken feature. Selecting the
+ * screen's own placeholder is also the honest readiness wait: this input cannot
+ * exist until the route's chunk has rendered.
+ */
+const SCREEN_SEARCH_BOX = 'Search...';
+
+/**
+ * The commit-this-query row — the first row the typing branch pushes, before any
+ * conditional, so it is present whenever the box is non-empty. It is the right
+ * landmark precisely because the screen swaps row sets on the first keystroke:
+ * the idle set (recents, trending, the operator cheat-sheet) is REPLACED, so
+ * asserting on the cheat-sheet would be asserting that the feature had not run.
+ */
+const COMMIT_QUERY_ROW = /search for/i;
+
+test('suggestions survive typing and blur', async ({ page, candidate }) => {
+  await page.goto('/search');
+
+  const input = page.getByPlaceholder(SCREEN_SEARCH_BOX, { exact: true });
+  await expect(input).toBeVisible();
+  await input.click();
+  await page.keyboard.type(QUERY, { delay: 0 });
+
+  // Before the fix the whole suggestion surface vanished on the first keystroke.
+  const suggestionRow = page.getByText(COMMIT_QUERY_ROW).first();
+  await expect(suggestionRow).toBeVisible();
+
+  // Deliberately NOT overlay behaviour: the rows are list content, so "does not
+  // close when the input loses focus" holds structurally rather than by policy.
+  // There is no `onBlur` in the screen and there should not be one — Bluesky
+  // shipped exactly that handler and deleted it 25 days later because their
+  // overlay's own focus management made the results uninteractable. This
+  // assertion is what catches someone re-adding it.
+  //
+  // Known limit, measured rather than assumed: an injected handler that hides
+  // the surface IMMEDIATELY on blur fails this, but one that hides it on a
+  // ~400ms timer still passes. A React `onBlur` calling `setState` renders
+  // synchronously and is caught; a deliberately deferred dismissal is not.
+  // Closing that needs a settle window, i.e. a sleep, which would cost more in
+  // flakiness than it buys.
+  await page.keyboard.press('Tab');
+  await expect(input).not.toBeFocused();
+  await expect(suggestionRow).toBeVisible();
+
+  expect(candidate.scriptErrors).toEqual([]);
+});
+
 test('submitting carries the full typed query', async ({ page, candidate }) => {
   await page.goto('/search');
 
-  const input = page.getByPlaceholder('Search Mention').first();
+  const input = page.getByPlaceholder(SCREEN_SEARCH_BOX, { exact: true });
   await expect(input).toBeVisible();
 
   // The outgoing request is the unambiguous signal — rendered results can lag,
