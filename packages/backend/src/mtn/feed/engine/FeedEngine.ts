@@ -92,7 +92,9 @@ export class FeedEngine {
     };
 
     // Anonymous popular fallback (For You / Videos / Media): no viewer signals,
-    // so we serve the engagement-sorted popular source directly.
+    // so we serve the engagement-sorted popular source directly. Note this
+    // returns the page in `items` with an EMPTY `slices` — see
+    // `runPopularFallback`, because it makes a working feed look empty.
     if (definition.mode === 'ranked' && exec.popularFallback && !ctx.currentUserId) {
       return this.runPopularFallback(exec.popularFallback, ctx, exec, cursor, limit);
     }
@@ -650,6 +652,15 @@ export class FeedEngine {
    * Popular fallback for the anonymous + never-blank paths (For You / Videos /
    * Media): serve the engagement-sorted popular source directly, hydrated as
    * flat items with `viewerId: undefined` (matching the bespoke `fetchPopular`).
+   *
+   * ON THIS PATH THE POSTS ARE IN `items`, AND `slices` IS DELIBERATELY EMPTY.
+   * Thread slicing is a personalized presentation concern, so a flat popular
+   * page skips it. The consequence is worth stating because it has cost real
+   * debugging time: a healthy anonymous `videos`/`for_you` page looks like
+   * `{ slices: [], items: [5 posts], hasMore: true }`, so anything measuring
+   * `slices.length` reads a working feed as an empty one — and every OTHER
+   * descriptor (`explore`, `trending`) does populate `slices`, which makes the
+   * difference look like a bug in this feed rather than a property of this path.
    */
   private async runPopularFallback(
     popularSourceId: string,
