@@ -98,22 +98,23 @@ whatever is already live.
 | 4 | Search suggestions survive typing and blur; submit carries the full query | The suggestion surface vanishing on the first keystroke or on blur; the stale-closure submit that drops the final character |
 | 5 | An image post whose dimensions the feed KNEW settles on ONE layout | The 280x180 fallback box jumping to the real aspect ratio, i.e. media geometry being dropped from the DTO |
 
-Three further flows are planned and are not implemented. They split cleanly by
-what each one needs, and the split is the reason they are not all the same size
-of job:
+### Reading a red run of flow 5
 
-- **Flow 4, media bounding boxes.** The regression lock for the image
-  crop/pillarbox work — the only automatable check of that geometry. Runs
-  anonymously, so it needs no new infrastructure, but it does need *known*
-  media: a live feed cannot be relied on to contain a wide image, a tall image,
-  a video, a multi-image grid and a wide image inside a quote card on the day
-  the gate runs. Pin one production post id per shape and drive `/p/<id>`
-  directly (post detail already renders anonymously — flow 2 depends on it),
-  reading each rendered box with `boundingBox()` and asserting the aspect the
-  fix intends. The dependency is five nominated, stable post ids, not new
-  machinery.
+The two ways it fails mean opposite things, and the failure text distinguishes
+them, so read the message before reaching for a diff:
 
-- **Flow 5, the Starter Packs search tab and its paging.** Switching to the tab
+- **`no feed media carried width/height ... 0 item(s) with geometry and N
+  without`** — a deploy or data-coverage state, not a regression in the build
+  being gated. Either the DTO has stopped sending dimensions (which is the
+  original bug returning), or the feed simply served no enriched media on that
+  run. The ForYou feed rotates, so the second is possible on any given run.
+- **A populated list of `id: 280x180 -> WxH`** — a real regression. The feed
+  said it knew those dimensions and the client still painted a fallback first.
+
+Two further flows are planned and are not implemented. They split by what each
+one needs, and the split is the reason they are not the same size of job:
+
+- **The Starter Packs search tab and its paging.** Switching to the tab
   and asserting the card count grows past the first page is the pin worth having,
   because paging past the first window used to be structurally impossible. It is
   deferred rather than blocked, and the mechanics are settled — from the author
@@ -134,7 +135,7 @@ of job:
   virtualised list is where flake lives, and this suite would rather be small
   than occasionally wrong.
 
-- **Flow 6, login → compose → assert → delete.** Needs a real test account.
+- **Login → compose → assert → delete.** Needs a real test account.
   Whatever secret carries those credentials, the spec must `test.skip` when it
   is absent, so forks and PRs from forks stay green.
 
