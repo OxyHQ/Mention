@@ -1005,9 +1005,20 @@ export class PostHydrationService {
           ? slice._sliceKey
           : recalculated.map((i) => i.post.id).join('+');
 
+        // A `replyContext` reason describes the parent that anchors the slice
+        // ("Replying to @…"), and such a slice is exactly [parent, reply]. When
+        // the per-viewer ACL above drops the parent, the reason is left
+        // describing an item the response no longer carries — so it goes with its
+        // anchor instead of naming the author of a post this viewer was denied.
+        const reason = slice.reason?.type === 'replyContext'
+          && hydratedItems.length !== slice.items.length
+          ? undefined
+          : slice.reason;
+
         result.push({
           ...slice,
           _sliceKey: sliceKey,
+          reason,
           items: recalculated,
         });
       }

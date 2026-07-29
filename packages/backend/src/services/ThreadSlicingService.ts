@@ -44,6 +44,19 @@ const DEFAULT_OPTIONS: ThreadSlicingOptions = {
   maxSliceSize: MtnConfig.feed.maxSliceSize,
 };
 
+/**
+ * The projection for the posts the slicer pulls in itself — self-thread children
+ * and reply-context parents. Both queries share it because they feed the same
+ * consumer.
+ *
+ * `status` is part of it deliberately. These lean docs go straight to
+ * `PostHydrationService`, whose unpublished guard reads `post.status ?? 'published'`:
+ * leave the field unprojected and that guard reads `undefined`, defaults to
+ * `'published'`, and never fires — an inert ACL rather than an enforced one.
+ */
+const SLICE_POST_PROJECTION =
+  '_id oxyUserId authorship federation createdAt parentPostId threadId content status stats metadata hashtags mentions language visibility type boostOf quoteOf';
+
 class ThreadSlicingService {
   /**
    * Takes a flat array of feed posts (already ranked/sorted) and groups them
@@ -216,7 +229,7 @@ class ThreadSlicingService {
         status: 'published',
         $or: orConditions,
       })
-        .select('_id oxyUserId authorship federation createdAt parentPostId threadId content stats metadata hashtags mentions language visibility type boostOf quoteOf')
+        .select(SLICE_POST_PROJECTION)
         .sort({ createdAt: 1 })
         .limit(threadRoots.size * (maxSliceSize - 1))
         .maxTimeMS(3000)
@@ -267,8 +280,15 @@ class ThreadSlicingService {
     try {
       const parents = await Post.find({
         _id: { $in: uniqueParentIds },
+        // A reply-context parent is injected into whatever feed the reply landed
+        // in, so it must clear the same publication bar as every feed candidate:
+        // a draft or scheduled parent must never be rendered as reply context.
+        // `visibility` is deliberately NOT filtered here — hydration re-checks
+        // post ACL per viewer, and a followers-only parent that a follower IS
+        // entitled to see must still reach them.
+        status: 'published',
       })
-        .select('_id oxyUserId authorship federation createdAt parentPostId threadId content stats metadata hashtags mentions language visibility type boostOf quoteOf')
+        .select(SLICE_POST_PROJECTION)
         .maxTimeMS(3000)
         .lean();
 
