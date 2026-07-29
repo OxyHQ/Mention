@@ -54,6 +54,11 @@ const DEFINITIONS = {
     help: 'Feed interstitial engagement events',
     labelNames: ['kind', 'event', 'descriptor'],
   },
+  trend_events_total: {
+    kind: 'counter',
+    help: 'Trending-topic impressions and presses, by surface and batch freshness',
+    labelNames: ['type', 'event', 'surface', 'freshness'],
+  },
   feed_ranking_duration_ms: {
     kind: 'histogram',
     help: 'Feed ranking latency in milliseconds',

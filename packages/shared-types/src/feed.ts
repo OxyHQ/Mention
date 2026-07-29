@@ -111,12 +111,18 @@ export interface FeedPostSlice {
  * `similarAccounts` is the PROFILE-feed card ("accounts similar to the profile
  * you are viewing"). It is the only kind driven by the feed's SUBJECT rather
  * than the viewer's own graph, and it is the only one that carries `subjectId`.
+ *
+ * `trendingTopics` is the only kind whose content the client already HAS — the
+ * trends store is global, socket-driven and polling — so it costs no fetch. It
+ * is also the only kind that works with an empty follow graph, which is why it
+ * is planned for cold and warm viewers and not for dense ones.
  */
 export type FeedInterstitialKind =
   | 'suggestedUsers'
   | 'suggestedFeeds'
   | 'suggestedStarterPacks'
-  | 'similarAccounts';
+  | 'similarAccounts'
+  | 'trendingTopics';
 
 /**
  * A recommendation card's PLACEMENT, not its content. The server decides which

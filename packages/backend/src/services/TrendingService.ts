@@ -12,6 +12,14 @@ import { isNsfwHashtag } from './contentClassification/nsfw';
 // Trending shares the SINGLE canonical sensitive-exclusion clause with every
 // feed (For You, Explore, ranking). Adding a new gate updates trending too.
 import { SENSITIVE_EXCLUDE_MATCH } from '../mtn/feed/feedSafety';
+import { mintTrendRecId } from './trending/trendTelemetry';
+
+/**
+ * How long the current batch's `recId` is memoized in process. Far shorter than
+ * the 30-minute batch interval so a rotation is picked up almost immediately,
+ * long enough that a burst of reported presses costs at most one Mongo read.
+ */
+const CURRENT_REC_ID_TTL_MS = 30_000;
 
 interface TrendItem {
   type: TrendingType;
@@ -25,6 +33,8 @@ interface TrendItem {
 
 class TrendingService {
   private calculationInterval: NodeJS.Timeout | null = null;
+  /** Memoized current-batch token; see {@link getCurrentRecId}. */
+  private currentRecIdCache: { value: string | null; expiresAt: number } | null = null;
   private readonly REDIS_CACHE_TTL = 1800; // 30 minutes in seconds
   // History changes only every 30 minutes (each calculation batch), so a short
   // TTL is safe and makes repeat loads of the Explore "Trending" history tab
@@ -372,12 +382,18 @@ class TrendingService {
   }
 
   /**
-   * Get the latest batch of trends with its summary.
+   * Get the latest batch of trends with its summary and its `recId`.
+   *
+   * The `recId` identifies the BATCH (see {@link mintTrendRecId}) and is what a
+   * later `POST /trending/events` submits back, so the server can tell a press
+   * on the current batch from one on a page a CDN served after the batch rotated.
+   * It is derived from `calculatedAt` — already loaded here — rather than minted
+   * per request, precisely because this result is cached and shared.
    */
   public async getTrending(
     limit: number = 20,
     type?: TrendingType,
-  ): Promise<{ trending: ITrending[]; summary: string }> {
+  ): Promise<{ trending: ITrending[]; summary: string; recId?: string }> {
     const cacheKey = `trending:latest:${limit}:${type || 'all'}`;
     const redis = await getRedisClient();
 
@@ -410,7 +426,11 @@ class TrendingService {
       .limit(limit)
       .lean() as unknown as ITrending[];
 
-    const result = { trending, summary: latestBatch.summary || '' };
+    const result = {
+      trending,
+      summary: latestBatch.summary || '',
+      recId: mintTrendRecId(latestBatch.calculatedAt),
+    };
 
     if (redis && trending.length > 0) {
       try {
@@ -421,6 +441,40 @@ class TrendingService {
     }
 
     return result;
+  }
+
+  /**
+   * The `recId` of the batch that is current RIGHT NOW — what a submitted token
+   * is compared against to derive the bounded `freshness` label.
+   *
+   * Memoized in process for {@link CURRENT_REC_ID_TTL_MS} because this is read on
+   * the telemetry hot path, where a Mongo round trip per reported press would
+   * cost far more than the measurement is worth. The memo is deliberately much
+   * shorter than the 30-minute batch interval, so a rotation shows up almost
+   * immediately; a stale-by-seconds token would only ever mislabel presses that
+   * land in that window, and it never blocks the write.
+   *
+   * Fail-soft: `null` on any error, which the telemetry module reads as
+   * `unknown` rather than declaring every press stale.
+   */
+  public async getCurrentRecId(): Promise<string | null> {
+    const now = Date.now();
+    if (this.currentRecIdCache && this.currentRecIdCache.expiresAt > now) {
+      return this.currentRecIdCache.value;
+    }
+
+    try {
+      const latestBatch = await TrendBatch.findOne()
+        .sort({ calculatedAt: -1 })
+        .select({ calculatedAt: 1 })
+        .lean();
+      const value = latestBatch ? mintTrendRecId(latestBatch.calculatedAt) : null;
+      this.currentRecIdCache = { value, expiresAt: now + CURRENT_REC_ID_TTL_MS };
+      return value;
+    } catch (error) {
+      logger.warn('[Trending] Current recId lookup failed:', error);
+      return null;
+    }
   }
 
   /**

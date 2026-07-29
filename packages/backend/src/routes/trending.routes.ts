@@ -2,7 +2,10 @@ import { Router, Request, Response } from 'express';
 import { trendingService } from '../services/TrendingService';
 import { TrendingType } from '../models/Trending';
 import { logger } from '../utils/logger';
+import { config } from '../config';
 import { cachePublicMedium } from '../middleware/cacheControl';
+import { feedIPRateLimiter } from '../middleware/security';
+import { parseTrendEvent, recordTrendEvent } from '../services/trending/trendTelemetry';
 import { queryInt, queryString } from '../utils/queryParams';
 
 const router = Router();
@@ -38,6 +41,9 @@ router.get('/', cachePublicMedium, async (req: Request, res: Response) => {
       trending: result.trending,
       summary: result.summary,
       count: result.trending.length,
+      // Identifies the BATCH, so a press reported later can be attributed to it.
+      // Absent only when a pre-existing cache entry predates the token.
+      ...(result.recId ? { recId: result.recId } : {}),
     });
   } catch (error) {
     logger.error('Error fetching trending topics:', { error, query: req.query });
@@ -76,5 +82,43 @@ router.get('/history', cachePublicMedium, async (req: Request, res: Response) =>
     });
   }
 });
+
+/**
+ * Report what a viewer did with a trend.
+ * POST /api/trending/events
+ * PUBLIC ROUTE - No authentication required
+ *
+ * Anonymous reports COUNT. This diverges from the interstitial-card endpoint,
+ * which 200-no-ops for anonymous viewers because cards are only ever planned for
+ * authenticated ones — whereas `/trending` is public and the widget renders for
+ * signed-out visitors, so dropping their presses would bias the metric.
+ *
+ * Rate-limited by IP in production with the SAME limiter the feed routes use: an
+ * unauthenticated public counter with no bound lets anyone inflate the metrics.
+ * The limiter is on this route alone, not the router — the two GETs above are
+ * CDN-cached reads that a shared office NAT should not be throttled out of.
+ *
+ * Body: {@link TrendEventInput}. Never persists anything; the whole handler is a
+ * validation plus one in-process counter increment.
+ */
+router.post(
+  '/events',
+  ...(config.runtime.isProduction ? [feedIPRateLimiter] : []),
+  async (req: Request, res: Response) => {
+    const parsed = parseTrendEvent(req.body);
+    if (!parsed.ok) {
+      res.status(400).json({ success: false, error: parsed.error });
+      return;
+    }
+
+    // The one server-side read: the token of the CURRENT batch, memoized, so the
+    // client-supplied `recId` can be collapsed into a bounded `freshness` label
+    // instead of ever becoming one itself.
+    const currentRecId = await trendingService.getCurrentRecId();
+    recordTrendEvent(parsed.input, currentRecId);
+
+    res.json({ success: true });
+  },
+);
 
 export default router;

@@ -33,6 +33,13 @@ jest.mock('@/services/feedService', () => ({
     feedService: { sendFeedInteractions: jest.fn().mockResolvedValue(undefined) },
 }));
 
+// The module's other transport (`reportTrendEvent` → `POST /trending/events`).
+// Mocked for the same reason as the feed one: the real service reaches the SDK
+// client, which does not load under jest.
+jest.mock('@/services/trendingService', () => ({
+    trendingService: { sendTrendEvent: jest.fn().mockResolvedValue(undefined) },
+}));
+
 jest.mock('@/lib/logger', () => ({
     createScopedLogger: () => ({ debug: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn() }),
 }));

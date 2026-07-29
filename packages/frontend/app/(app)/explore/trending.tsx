@@ -9,6 +9,7 @@ import { useTranslation } from 'react-i18next';
 import { trendingService, type TrendingTopic, type TrendingDay } from '@/services/trendingService';
 import { TrendItemRow } from '@/components/trending/TrendItemRow';
 import { useTrendNavigation } from '@/hooks/useTrendNavigation';
+import { useTrendItemMenu } from '@/hooks/useTrendItemMenu';
 import { useTrendsStore } from '@/stores/trendsStore';
 import type { Trend } from '@/interfaces/Trend';
 import { SPACING } from '@/styles/spacing';
@@ -32,6 +33,9 @@ interface TrendSection {
   title: string;
   data: Trend[];
 }
+
+/** Section key of the live "Trending now" block; every other section is a past day. */
+const LIVE_SECTION_KEY = 'now';
 
 /** History page size (days per request). */
 const HISTORY_PAGE_SIZE = 5;
@@ -86,6 +90,7 @@ export default function ExploreTrendingScreen() {
   const theme = useTheme();
   const { t } = useTranslation();
   const { navigateToTrend } = useTrendNavigation();
+  const handleMenuPress = useTrendItemMenu();
 
   // Live current trends (realtime store): same single source the right-rail
   // TrendsWidget reads. Start polling on mount (idempotent) so a direct deep-link
@@ -126,7 +131,7 @@ export default function ExploreTrendingScreen() {
   const sections = useMemo<TrendSection[]>(() => {
     const result: TrendSection[] = [];
     if (visibleTrends.length > 0) {
-      result.push({ key: 'now', title: t('Trending now'), data: visibleTrends });
+      result.push({ key: LIVE_SECTION_KEY, title: t('Trending now'), data: visibleTrends });
     }
     const todayKey = localTodayKey();
     for (const day of historyDays) {
@@ -153,13 +158,36 @@ export default function ExploreTrendingScreen() {
     }
   }, [historyQuery]);
 
+  // The live section and the archive are different surfaces, not one screen:
+  // a press on "Trending now" is a press on a recommendation, while a press on
+  // a past day is a press on history — and only the former carries a `recId`.
+  const handleTrendPress = useCallback(
+    (trend: Trend, section: TrendSection, index: number) => {
+      navigateToTrend(trend, section.key === LIVE_SECTION_KEY ? 'explore' : 'history', index + 1);
+    },
+    [navigateToTrend],
+  );
+
   const renderItem = useCallback(
-    ({ item }: { item: Trend }) => (
+    ({ item, index, section }: { item: Trend; index: number; section: TrendSection }) => (
       <View className="px-4">
-        <TrendItemRow trend={item} onPress={navigateToTrend} showBorder size="large" />
+        <TrendItemRow
+          trend={item}
+          // Position within THIS section's rendered rows. `trend.rank` is the
+          // rank across the whole unfiltered batch, so it shows gaps here as
+          // soon as a reader hides one — and it means nothing at all in a
+          // history section, whose rows come from a different day's batch.
+          ordinal={index + 1}
+          onPress={(trend) => handleTrendPress(trend, section, index)}
+          // Parity with the widget: a trend could be hidden from the rail but
+          // not from the screen that exists to browse trends.
+          onMenuPress={handleMenuPress}
+          showBorder
+          size="large"
+        />
       </View>
     ),
-    [navigateToTrend],
+    [handleTrendPress, handleMenuPress],
   );
 
   const renderSectionHeader = useCallback(
