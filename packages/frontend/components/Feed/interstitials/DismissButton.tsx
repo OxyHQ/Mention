@@ -3,6 +3,7 @@ import { TouchableOpacity } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { CloseIcon } from '@/assets/icons/close-icon';
 import { cn } from '@/lib/utils';
+import { HIT_SLOP_MD } from '@/styles/hitSlop';
 
 interface DismissButtonProps {
   onPress: () => void;
@@ -28,7 +29,7 @@ export function DismissButton({ onPress, accessibilityLabel, overlay = false }: 
     <TouchableOpacity
       onPress={onPress}
       activeOpacity={0.6}
-      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+      hitSlop={HIT_SLOP_MD}
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
       accessibilityHint={t('feed.interstitial.dismissHint')}

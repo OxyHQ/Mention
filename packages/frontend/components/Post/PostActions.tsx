@@ -17,6 +17,7 @@ import { PressableScale } from '@oxyhq/bloom/pressable-scale';
 import { AnimatedLikeIcon } from '@/lib/animations/AnimatedLikeIcon';
 import { CountWheel } from '@/lib/animations/CountWheel';
 import { useVoteStyle } from '@/hooks/useVoteStyle';
+import { HIT_SLOP_MD } from '@/styles/hitSlop';
 import VotePill from './VotePill';
 
 const ICON_SIZE = 20;
@@ -108,7 +109,7 @@ const PostActions: React.FC<Props> = ({
             haptic('light');
             onLike();
           }}
-          hitSlop={{ top: 5, bottom: 10, left: 10, right: 10 }}
+          hitSlop={HIT_SLOP_MD}
           accessibilityLabel={isLiked ? 'Unlike' : 'Like'}
         >
           <View className="flex-row items-center gap-1">
@@ -131,7 +132,7 @@ const PostActions: React.FC<Props> = ({
           haptic('light');
           onReply();
         }}
-        hitSlop={{ top: 5, bottom: 10, left: 10, right: 10 }}
+        hitSlop={HIT_SLOP_MD}
         accessibilityLabel="Reply"
       >
         <CommentIcon size={ICON_SIZE} className="text-muted-foreground" />
@@ -143,7 +144,7 @@ const PostActions: React.FC<Props> = ({
           haptic('medium');
           onBoost();
         }}
-        hitSlop={{ top: 5, bottom: 10, left: 10, right: 10 }}
+        hitSlop={HIT_SLOP_MD}
         accessibilityLabel={isBoosted ? 'Undo boost' : 'Boost'}
       >
         {isBoosted ? (
@@ -159,7 +160,7 @@ const PostActions: React.FC<Props> = ({
           haptic('light');
           onShare();
         }}
-        hitSlop={{ top: 5, bottom: 10, left: 10, right: 10 }}
+        hitSlop={HIT_SLOP_MD}
         accessibilityLabel="Share"
       >
         <ShareIcon size={ICON_SIZE} className="text-muted-foreground" />
@@ -175,7 +176,7 @@ const PostActions: React.FC<Props> = ({
           haptic('light');
           onSave();
         }}
-        hitSlop={{ top: 5, bottom: 10, left: 10, right: 10 }}
+        hitSlop={HIT_SLOP_MD}
         accessibilityRole="button"
         accessibilityLabel={isSaved ? 'Remove from saved' : 'Save post'}
       >
@@ -201,7 +202,7 @@ const PostActions: React.FC<Props> = ({
             haptic('light');
             onTranslate();
           }}
-          hitSlop={{ top: 5, bottom: 10, left: 10, right: 10 }}
+          hitSlop={HIT_SLOP_MD}
           accessibilityLabel={isTranslated ? 'Show original' : 'Translate'}
           disabled={isTranslating}
         >
@@ -224,7 +225,7 @@ const PostActions: React.FC<Props> = ({
             haptic('light');
             onInsightsPress();
           }}
-          hitSlop={{ top: 5, bottom: 10, left: 10, right: 10 }}
+          hitSlop={HIT_SLOP_MD}
           accessibilityLabel="Insights"
         >
           <AnalyticsIcon size={ICON_SIZE} className="text-muted-foreground" />

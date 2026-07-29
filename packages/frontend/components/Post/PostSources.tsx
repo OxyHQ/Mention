@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity } from 'react-native';
 import { SourcesIcon } from '@/assets/icons/sources-icon';
 import type { PostSourceLink } from '@mention/shared-types';
 import { openExternalLink } from '@/utils/openExternalLink';
+import { HIT_SLOP_MD } from '@/styles/hitSlop';
 
 interface Props {
   sources?: PostSourceLink[];
@@ -35,6 +36,7 @@ const PostSources: React.FC<Props> = ({ sources, leftOffset = 0 }) => {
             key={`${source.url}-${index}`}
             className="flex-row items-center border border-border bg-surface rounded-xl py-2.5 px-3 gap-3"
             activeOpacity={0.85}
+            hitSlop={HIT_SLOP_MD}
             onPress={() => openExternalLink(source.url)}
           >
             <View className="w-8 h-8 rounded-full items-center justify-center bg-card">

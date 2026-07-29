@@ -14,6 +14,7 @@ import { Plus } from '@/assets/icons/plus-icon';
 import { describeContentLanguage } from '@/constants/contentLanguages';
 import { MEDIA_CARD_HEIGHT, MEDIA_CARD_WIDTH, type ComposerMediaItem } from '@/utils/composeUtils';
 import type { ComposeVariantItem } from '@/utils/composeVariants';
+import { HIT_SLOP_SM } from '@/styles/hitSlop';
 import { AVATAR_SIZE, BOTTOM_LEFT_PAD, HPAD } from './composeLayout';
 import type { MentionData, MentionTextValue } from '@/utils/mentions';
 
@@ -49,8 +50,6 @@ interface VariantEditorProps {
   onArticlePress: (itemId: string) => void;
   onArticleReset: (itemId: string) => void;
 }
-
-const HITSLOP_6 = { top: 6, bottom: 6, left: 6, right: 6 };
 
 /**
  * One item (the main post, or a thread item) as seen from a NON-PRIMARY language
@@ -193,7 +192,7 @@ const VariantEditor = memo(function VariantEditor({
                     onPress={() => onRemoveOwnMedia(itemId, media.id)}
                     className="bg-background"
                     style={styles.mediaRemove}
-                    hitSlop={HITSLOP_6}
+                    hitSlop={HIT_SLOP_SM}
                   >
                     <CloseIcon size={16} className="text-foreground" />
                   </TouchableOpacity>

@@ -2,6 +2,7 @@ import React from 'react';
 import { Text, TouchableOpacity } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { cn } from '@/lib/utils';
+import { HIT_SLOP_SM } from '@/styles/hitSlop';
 
 interface ComposeAltButtonProps {
   /** Whether an alt description has already been entered for this image. */
@@ -13,8 +14,6 @@ interface ComposeAltButtonProps {
   raised?: boolean;
   onPress: () => void;
 }
-
-const HITSLOP = { top: 6, bottom: 6, left: 6, right: 6 };
 
 /**
  * Bluesky-style "ALT" pill overlaid on a composer image thumbnail. Tapping it
@@ -29,7 +28,7 @@ export const ComposeAltButton: React.FC<ComposeAltButtonProps> = ({ hasAlt, rais
       raised ? 'bottom-12' : 'bottom-2',
       hasAlt ? 'bg-primary' : 'bg-black/60',
     )}
-    hitSlop={HITSLOP}
+    hitSlop={HIT_SLOP_SM}
     accessibilityRole="button"
   >
     {hasAlt ? <Ionicons name="checkmark" size={11} color="#ffffff" /> : null}
