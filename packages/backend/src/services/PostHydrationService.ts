@@ -202,11 +202,6 @@ const DEFAULT_PRIVACY = {
 function toCachedUser(userId: string, userData: OxyUser): CachedUserSummary {
   const isFederated = Boolean(userData.isFederated) || userData.type === 'federated';
   const federation = userData.federation;
-  const badges = Array.isArray(userData.badges)
-    ? userData.badges
-        .map((badge) => (typeof badge === 'string' ? badge : (badge as Record<string, unknown>)?.name as string | undefined))
-        .filter((b): b is string => typeof b === 'string')
-    : undefined;
 
   const user: PostUser = {
     id: String(userData.id || userId),
@@ -223,7 +218,6 @@ function toCachedUser(userId: string, userData: OxyUser): CachedUserSummary {
       ? { domain: federation.domain, actorUri: federation.actorUri, actorId: federation.actorId }
       : undefined,
     instance: isFederated ? (userData.instance || federation?.domain) : (userData.instance || undefined),
-    badges: badges && badges.length > 0 ? badges : undefined,
   };
 
   const followerCount = userData._count?.followers;

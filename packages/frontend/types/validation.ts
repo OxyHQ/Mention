@@ -26,7 +26,6 @@ const embeddedUserShape = {
   isFederated: z.boolean().optional(),
   instance: z.string().optional(),
   federation: z.object({ domain: z.string().optional() }).passthrough().optional(),
-  badges: z.array(z.string()).optional(),
 };
 
 export const ZEmbeddedUser = z

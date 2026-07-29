@@ -56,8 +56,7 @@ export const colors = {
     buttonPrimary: primaryColor,
     buttonSecondary: '#718096',
     buttonDisabled: '#CBD5E0',
-    linkColor: primaryColor,
-    
+
     // Status colors
     online: '#00C853',
     offline: '#718096',

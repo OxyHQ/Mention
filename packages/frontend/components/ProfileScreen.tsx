@@ -779,8 +779,28 @@ const MentionProfileContent: React.FC<MentionProfileContentProps> = ({
                                 className="absolute flex-row items-center gap-1 web:pointer-events-auto"
                                 style={[{ zIndex: 10, right: LAYOUT.DEFAULT_PADDING - 8 }, themedStyles.headerActions]}
                             >
+                                {/* The bell is a toggle rendered as two different
+                                    glyphs, so its label has to carry the state a
+                                    sighted user reads from the icon — a static
+                                    "Notifications" would leave a screen reader
+                                    unable to tell subscribed from not. */}
                                 {!isOwnProfile && (
-                                    <IconButton variant="icon" onPress={toggleSubscription} disabled={subLoading}>
+                                    <IconButton
+                                        variant="icon"
+                                        onPress={toggleSubscription}
+                                        disabled={subLoading}
+                                        accessibilityLabel={
+                                            subscribed
+                                                ? t('profile.actions.unsubscribe', {
+                                                    handle: profileHandle,
+                                                    defaultValue: 'Stop notifying me about new posts from @{{handle}}',
+                                                })
+                                                : t('profile.actions.subscribe', {
+                                                    handle: profileHandle,
+                                                    defaultValue: 'Notify me about new posts from @{{handle}}',
+                                                })
+                                        }
+                                    >
                                         {subscribed ? (
                                             <BellActive size={18} className="text-primary" />
                                         ) : (
@@ -789,12 +809,26 @@ const MentionProfileContent: React.FC<MentionProfileContentProps> = ({
                                     </IconButton>
                                 )}
                                 {!isOwnProfile && !isFederated && (
-                                    <IconButton variant="icon" onPress={handleDM}>
+                                    <IconButton
+                                        variant="icon"
+                                        onPress={handleDM}
+                                        accessibilityLabel={t('profile.actions.message', {
+                                            handle: profileHandle,
+                                            defaultValue: 'Message @{{handle}}',
+                                        })}
+                                    >
                                         <MailIcon size={18} className="text-foreground" />
                                     </IconButton>
                                 )}
                                 {isFederated && (
-                                    <IconButton variant="icon" onPress={handleOpenOnInstance}>
+                                    <IconButton
+                                        variant="icon"
+                                        onPress={handleOpenOnInstance}
+                                        accessibilityLabel={t('profile.actions.openOnInstance', {
+                                            handle: profileHandle,
+                                            defaultValue: 'Open @{{handle}} on their home instance',
+                                        })}
+                                    >
                                         <ExternalLinkIcon size={18} className="text-foreground" />
                                     </IconButton>
                                 )}

@@ -716,7 +716,6 @@ export interface PostUser {
   isFederated?: boolean;
   federation?: { domain?: string; actorUri?: string; actorId?: string };
   instance?: string;
-  badges?: string[];
 }
 
 /**

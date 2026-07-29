@@ -30,7 +30,6 @@ export interface ProfileNotificationSettings {
   email: boolean;
   push: boolean;
   sms: boolean;
-  postNotifications?: boolean;
   mentionNotifications?: boolean;
   followNotifications?: boolean;
   likeNotifications?: boolean;

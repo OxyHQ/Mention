@@ -34,6 +34,7 @@ import { useTranslation } from 'react-i18next';
 import { EntityFollowButton } from '@/components/EntityFollowButton';
 import { getNormalizedUserHandle, type User } from '@oxyhq/core';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
+import { formatCompactNumber } from '@/utils/formatNumber';
 
 interface ListOwner {
   _id?: string;
@@ -188,7 +189,7 @@ export default function ListDetailScreen() {
       <View className="flex-row items-center gap-4 mt-3 mb-1">
         <View className="flex-row items-center gap-1">
           <Text className="text-foreground text-sm font-semibold">
-            {memberCount}
+            {formatCompactNumber(memberCount)}
           </Text>
           <Text className="text-muted-foreground text-sm">
             {memberCount === 1 ? 'member' : 'members'}
@@ -196,7 +197,7 @@ export default function ListDetailScreen() {
         </View>
         <View className="flex-row items-center gap-1">
           <Text className="text-foreground text-sm font-semibold">
-            {subscriberCount}
+            {formatCompactNumber(subscriberCount)}
           </Text>
           <Text className="text-muted-foreground text-sm">
             {subscriberCount === 1
