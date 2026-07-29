@@ -15,8 +15,10 @@ import { useAppearanceStore } from '@/stores/appearanceStore';
  *
  * The store is the SINGLE source of truth for the current banner: the preview
  * renders `mySettings.profileHeaderImage` directly rather than mirroring it into
- * local state. A failed save therefore keeps showing the banner that is actually
- * stored instead of the one the picker optimistically painted.
+ * local state. The store paints the pick optimistically and rolls back on a
+ * failed save, so the preview follows the picked image on the tap yet still ends
+ * up showing the banner that is actually stored if the write never lands — no
+ * second copy of the value here to drift out of sync.
  */
 export const BannerSection: React.FC = () => {
   const { t } = useTranslation();

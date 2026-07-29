@@ -120,6 +120,46 @@ export interface UserAppearanceUpdate {
   interests?: UserAppearance['interests'];
 }
 
+/**
+ * Paint the caller's own edit straight onto the cached settings, so the surface
+ * that issued it re-renders on the tap instead of after the round trip. Only the
+ * fields the server stores VERBATIM are echoed:
+ *
+ * - `profileHeaderImage` — stored as sent (trimmed); `''`/`null` clears it.
+ * - `profileCustomization` — plain booleans.
+ * - `appearance` — plain scalars.
+ *
+ * `profileMedia` and `interests` are deliberately absent. A pinned song/podcast
+ * is submitted as a bare catalog reference and the server resolves the canonical
+ * title/artist/artwork before storing it, so there is nothing truthful to echo —
+ * those surfaces keep waiting for the authoritative response.
+ *
+ * Pure, and never mutates `current`: the caller keeps the pre-edit object as the
+ * rollback value for a failed save.
+ */
+function withOptimisticSettings(
+  current: UserAppearance,
+  partial: UserAppearanceUpdate,
+): UserAppearance {
+  const next: UserAppearance = { ...current };
+
+  if (Object.prototype.hasOwnProperty.call(partial, 'profileHeaderImage')) {
+    const ref = partial.profileHeaderImage?.trim();
+    next.profileHeaderImage = ref ? ref : undefined;
+  }
+  if (partial.profileCustomization) {
+    next.profileCustomization = {
+      ...current.profileCustomization,
+      ...partial.profileCustomization,
+    };
+  }
+  if (partial.appearance) {
+    next.appearance = { ...current.appearance, ...partial.appearance };
+  }
+
+  return next;
+}
+
 interface AppearanceStore {
   mySettings: UserAppearance | null;
   loading: boolean;
@@ -138,7 +178,7 @@ interface AppearanceStore {
 
 let viewerEpoch = 0;
 
-export const useAppearanceStore = create<AppearanceStore>((set) => ({
+export const useAppearanceStore = create<AppearanceStore>((set, get) => ({
   mySettings: null,
   loading: false,
   error: null,
@@ -185,8 +225,18 @@ export const useAppearanceStore = create<AppearanceStore>((set) => ({
 
   async updateMySettings(partial: UserAppearanceUpdate) {
     const operationEpoch = viewerEpoch;
+    // Pre-edit snapshot: the rollback target if the save fails. Captured before
+    // the optimistic paint below so a failure lands back on what is actually
+    // stored rather than on the value the picker painted.
+    const previousSettings = get().mySettings;
     try {
-      set({ loading: true, error: null });
+      set({
+        loading: true,
+        error: null,
+        ...(previousSettings && {
+          mySettings: withOptimisticSettings(previousSettings, partial),
+        }),
+      });
 
       const payload: UserAppearanceUpdate = {
         ...(partial.appearance && { appearance: partial.appearance }),
@@ -232,12 +282,17 @@ export const useAppearanceStore = create<AppearanceStore>((set) => ({
         return doc;
       }
 
-      set({ loading: false });
+      // Saved, but the server returned no document: the optimistic paint has
+      // nothing authoritative behind it, so drop back to the stored value.
+      set({ mySettings: previousSettings, loading: false });
       return null;
     } catch (e: unknown) {
+      // The epoch guard comes first: on a viewer switch `previousSettings` holds
+      // the PREVIOUS account's settings, and restoring it would leak them into
+      // the new session.
       if (operationEpoch !== viewerEpoch) return null;
       const message = e instanceof Error ? e.message : 'Failed to update settings';
-      set({ loading: false, error: message });
+      set({ mySettings: previousSettings, loading: false, error: message });
       return null;
     }
   },
