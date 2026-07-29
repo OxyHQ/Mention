@@ -4,6 +4,7 @@ import { EntityFollow, ENTITY_FOLLOW_TYPES, type EntityFollowType, type IEntityF
 import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
 import { logger } from '../utils/logger';
 import { listSubscriptionService, LIST_ENTITY_TYPE } from '../services/ListSubscriptionService';
+import { canViewList, loadListVisibility } from '../services/listAccess';
 import { queryInt, queryString } from '../utils/queryParams';
 
 const router = Router();
@@ -11,12 +12,56 @@ const router = Router();
 const DEFAULT_FOLLOW_PAGE_SIZE = 20;
 const MAX_FOLLOW_PAGE_SIZE = 50;
 
+/**
+ * Upper bound on a followed entity's id.
+ *
+ * A hashtag has no row to check existence against — following `#wwdc` before
+ * anyone has posted it is the normal case, and the hashtag screen offers the
+ * button on any tag — so the bound on what a client may write is length, not
+ * existence. Comfortably above a real tag (Mastodon caps one at 64 characters)
+ * and above a 24-character ObjectId, while keeping a row's size bounded.
+ */
+const MAX_ENTITY_ID_LENGTH = 100;
+
 function isValidEntityType(type: string): type is EntityFollowType {
   return (ENTITY_FOLLOW_TYPES as readonly string[]).includes(type);
 }
 
 const clampFollowPageSize = (limit: number | undefined): number =>
   Math.min(Math.max(limit || DEFAULT_FOLLOW_PAGE_SIZE, 1), MAX_FOLLOW_PAGE_SIZE);
+
+/** A validated `{entityType, entityId}` pair from a write request's body. */
+interface EntityRef {
+  entityType: EntityFollowType;
+  entityId: string;
+}
+
+type EntityRefResult = { ok: true; ref: EntityRef } | { ok: false; message: string };
+
+/**
+ * Validate the pair every write carries.
+ *
+ * Both values end up in a Mongo query, so both must be real strings — an
+ * `{"$ne": null}` object would otherwise reach the query as an operator, the
+ * same hazard `/status` already guards its params against with `queryString`.
+ */
+function parseEntityRef(body: Record<string, unknown>): EntityRefResult {
+  const { entityType, entityId } = body;
+
+  if (typeof entityType !== 'string' || typeof entityId !== 'string' || !entityType || !entityId) {
+    return { ok: false, message: 'entityType and entityId are required' };
+  }
+
+  if (!isValidEntityType(entityType)) {
+    return { ok: false, message: `entityType must be one of: ${ENTITY_FOLLOW_TYPES.join(', ')}` };
+  }
+
+  if (entityId.length > MAX_ENTITY_ID_LENGTH) {
+    return { ok: false, message: `entityId must be at most ${MAX_ENTITY_ID_LENGTH} characters` };
+  }
+
+  return { ok: true, ref: { entityType, entityId } };
+}
 
 /**
  * Follow an entity
@@ -29,14 +74,26 @@ router.post('/', async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ message: 'Unauthorized' });
     }
 
-    const { entityType, entityId } = req.body;
-
-    if (!entityType || !entityId) {
-      return res.status(400).json({ message: 'entityType and entityId are required' });
+    const parsed = parseEntityRef(req.body ?? {});
+    if (!parsed.ok) {
+      return res.status(400).json({ message: parsed.message });
     }
+    const { entityType, entityId } = parsed.ref;
 
-    if (!isValidEntityType(entityType)) {
-      return res.status(400).json({ message: `entityType must be one of: ${ENTITY_FOLLOW_TYPES.join(', ')}` });
+    // Subscribing to a list is an act ON someone else's list: it merges that
+    // list's members into the subscriber's feed (so its membership becomes
+    // inferable from who shows up there) and it mutates the list's
+    // `subscriberCount`. `GET /lists/:id` already refuses a non-owner on a
+    // private list, so this write answers to the very same rule — one
+    // definition of it, in `listAccess`.
+    if (entityType === LIST_ENTITY_TYPE) {
+      const list = await loadListVisibility(entityId);
+      if (!list) {
+        return res.status(404).json({ message: 'List not found' });
+      }
+      if (!canViewList(list, userId)) {
+        return res.status(403).json({ message: 'Not allowed' });
+      }
     }
 
     const follow = new EntityFollow({ userId, entityType, entityId });
@@ -66,6 +123,14 @@ router.post('/', async (req: AuthRequest, res: Response) => {
 /**
  * Unfollow an entity
  * DELETE /entity-follows
+ *
+ * Deliberately NOT gated on list visibility, unlike the follow above. This
+ * deletes only the caller's own row (the query is scoped to `userId`) and
+ * decrements only the count that row inflated, so it grants nothing. Gating it
+ * would do active harm: a viewer who subscribed while a list was public could
+ * never unsubscribe once the owner flipped it private, and the stranded row
+ * would keep feeding that list's members into their feed — turning the leak
+ * this route now closes into a permanent one. Teardown has to converge.
  */
 router.delete('/', async (req: AuthRequest, res: Response) => {
   try {
@@ -74,15 +139,11 @@ router.delete('/', async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ message: 'Unauthorized' });
     }
 
-    const { entityType, entityId } = req.body;
-
-    if (!entityType || !entityId) {
-      return res.status(400).json({ message: 'entityType and entityId are required' });
+    const parsed = parseEntityRef(req.body ?? {});
+    if (!parsed.ok) {
+      return res.status(400).json({ message: parsed.message });
     }
-
-    if (!isValidEntityType(entityType)) {
-      return res.status(400).json({ message: `entityType must be one of: ${ENTITY_FOLLOW_TYPES.join(', ')}` });
-    }
+    const { entityType, entityId } = parsed.ref;
 
     const result = await EntityFollow.findOneAndDelete({ userId, entityType, entityId });
 
@@ -189,49 +250,19 @@ router.get('/', async (req: AuthRequest, res: Response) => {
   }
 });
 
-/**
- * List followers of an entity
- * GET /entity-follows/:entityType/:entityId/followers?limit=...&cursor=...
+/*
+ * There is deliberately no "followers of an entity" endpoint.
+ *
+ * One existed and no client ever called it. It returned raw `EntityFollow` rows
+ * for any `{entityType, entityId}` to any authenticated user, paginated to
+ * exhaustion — which enumerated a private list's subscribers, and enumerated by
+ * name everyone who follows a given hashtag. Hashtag follows surface in no UI,
+ * so that second one inferred sensitive interests (health, sexuality, politics)
+ * about named accounts from a graph nobody had reason to believe was public.
+ *
+ * If a followers view is ever wanted, it needs a visibility rule of its own —
+ * per entity kind — designed alongside the UI that consumes it. Do not restore
+ * this as an ungated read.
  */
-router.get('/:entityType/:entityId/followers', async (req: AuthRequest, res: Response) => {
-  try {
-    const userId = req.user?.id;
-    if (!userId) {
-      return res.status(401).json({ message: 'Unauthorized' });
-    }
-
-    const entityType = req.params.entityType as string;
-    const entityId = req.params.entityId as string;
-
-    if (!isValidEntityType(entityType)) {
-      return res.status(400).json({ message: `entityType must be one of: ${ENTITY_FOLLOW_TYPES.join(', ')}` });
-    }
-
-    const limit = clampFollowPageSize(queryInt(req.query.limit));
-    const cursor = queryString(req.query.cursor);
-
-    const query: FilterQuery<IEntityFollow> = { entityType, entityId };
-    if (cursor) {
-      query._id = { $lt: cursor };
-    }
-
-    const followers = await EntityFollow.find(query)
-      .sort({ _id: -1 })
-      .limit(limit + 1)
-      .lean();
-
-    const hasMore = followers.length > limit;
-    const results = hasMore ? followers.slice(0, limit) : followers;
-    const nextCursor = hasMore && results.length > 0 ? String(results[results.length - 1]._id) : undefined;
-
-    res.json({ followers: results, hasMore, nextCursor });
-  } catch (error) {
-    logger.error('Error listing entity followers:', { entityType: req.params.entityType, entityId: req.params.entityId, error });
-    res.status(500).json({
-      message: 'Error listing entity followers',
-      error: error instanceof Error ? error.message : 'Unknown error',
-    });
-  }
-});
 
 export default router;
