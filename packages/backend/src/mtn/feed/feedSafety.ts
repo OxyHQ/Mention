@@ -15,6 +15,11 @@
  *   - the in-memory predicate ({@link isSfw} / {@link isDiscoverable}) +
  *     {@link filterDiscoverable} for filtering already-fetched lean documents.
  *
+ * A third export, {@link requiresContentWarning}, widens the gate for surfaces that
+ * cannot render a warning at all (OpenGraph unfurls, plain-text notification
+ * previews) — see its own doc for why that is a separate question from "is this
+ * post sensitive".
+ *
  * Both forms encode the SAME definition of "sensitive": a post is sensitive when
  * ANY of the three independent flags is set — the unified classifier verdict
  * (`postClassification.sensitive`), the legacy content-warning flag
@@ -70,7 +75,7 @@ export interface FeedSafetyPostShape {
   hashtags?: string[];
   postClassification?: { sensitive?: boolean | null };
   metadata?: { isSensitive?: boolean | null };
-  federation?: { sensitive?: boolean | null };
+  federation?: { sensitive?: boolean | null; spoilerText?: string | null };
 }
 
 /**
@@ -119,4 +124,38 @@ export const isDiscoverable = isSfw;
  */
 export function filterDiscoverable<T extends FeedSafetyPostShape>(posts: T[]): T[] {
   return posts.filter(isSfw);
+}
+
+/**
+ * Whether the post carries a federated content warning (ActivityPub `summary` —
+ * Mastodon's CW), which the app renders as a spoiler header gating the body.
+ *
+ * Deliberately NOT folded into {@link isSensitivePost}: a CW is an instruction about
+ * HOW to present the post, not a claim that it is NSFW, and a remote server sets
+ * `summary` without setting `sensitive` on plenty of text-only posts. Feeds keep
+ * carrying those (the client shows the spoiler); only surfaces that cannot show a
+ * warning need to care — see {@link requiresContentWarning}.
+ */
+export function hasFederatedContentWarning(post: FeedSafetyPostShape | null | undefined): boolean {
+  const spoiler = post?.federation?.spoilerText;
+  return typeof spoiler === 'string' && spoiler.trim().length > 0;
+}
+
+/**
+ * Whether this post may only be shown BEHIND a warning — sensitive/NSFW
+ * ({@link isSensitivePost}) or carrying a content warning
+ * ({@link hasFederatedContentWarning}).
+ *
+ * This is the gate for surfaces that render content RAW, with no affordance to show
+ * a warning first and no way for the person seeing it to opt in: an OpenGraph
+ * unfurl in a group chat, or a plain-text notification preview. Those surfaces must
+ * WITHHOLD such content — the in-app warning is the whole reason it is safe to
+ * carry it anywhere else, so a surface that cannot reproduce the warning cannot
+ * reproduce the content either.
+ *
+ * Feeds and ranking deliberately keep using the narrower {@link isSensitivePost}:
+ * their client CAN render a spoiler, so a CW'd post belongs in them.
+ */
+export function requiresContentWarning(post: FeedSafetyPostShape | null | undefined): boolean {
+  return isSensitivePost(post) || hasFederatedContentWarning(post);
 }

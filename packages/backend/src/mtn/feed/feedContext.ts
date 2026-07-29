@@ -15,42 +15,15 @@
 import type { FeedTuning } from '@mention/shared-types';
 import type { OxyClient } from '../../utils/privacyHelpers';
 import { extractFollowingIds, extractFollowersIds } from '../../utils/privacyHelpers';
-import FederatedFollow from '../../models/FederatedFollow';
-import FederatedActor from '../../models/FederatedActor';
 import UserSettings from '../../models/UserSettings';
 import { listSubscriptionService } from '../../services/ListSubscriptionService';
 import { userPreferenceService } from '../../services/UserPreferenceService';
 import { resolveUserSummaries } from '../../services/PostHydrationService';
+import { mergeFederatedFollowIds } from '../../services/viewerFollowGraph';
+import { loadShowSensitiveContent } from '../../services/safety/viewerSafety';
 import type { IUserBehavior } from '../../models/UserBehavior';
 import { logger } from '../../utils/logger';
 import type { FeedEngineContext } from './engine/types';
-
-/**
- * Merge oxyUserIds from accepted federated (ActivityPub) outbound follows into
- * `followingIds`, deduplicating in-place.
- */
-export async function mergeFederatedFollowIds(localUserId: string, followingIds: string[]): Promise<void> {
-  const fedFollowUris = await FederatedFollow.distinct('remoteActorUri', {
-    localUserId,
-    direction: 'outbound',
-    status: 'accepted',
-  });
-  if (fedFollowUris.length === 0) return;
-
-  const fedActors = await FederatedActor.find(
-    { uri: { $in: fedFollowUris }, oxyUserId: { $ne: null } },
-    { oxyUserId: 1 },
-  ).lean();
-
-  const existing = new Set(followingIds);
-  for (const actor of fedActors) {
-    const id = actor.oxyUserId;
-    if (id && !existing.has(id)) {
-      followingIds.push(id);
-      existing.add(id);
-    }
-  }
-}
 
 /**
  * The viewer's account languages — canonical BCP-47 locales (`es-ES`, `en-US`),
@@ -76,22 +49,6 @@ export async function loadViewerLanguages(userId: string | undefined): Promise<s
   } catch (error) {
     logger.warn('[feedContext] Failed to load viewer languages', error);
     return [];
-  }
-}
-
-/**
- * The viewer's "show sensitive/NSFW content" opt-in. `false` for anonymous
- * viewers, viewers with no settings, or on any load failure — only an explicit
- * stored `true` opts in.
- */
-export async function loadShowSensitiveContent(userId: string | undefined): Promise<boolean> {
-  if (!userId) return false;
-  try {
-    const doc = await UserSettings.findOne({ oxyUserId: userId }, { 'privacy.showSensitiveContent': 1 }).lean();
-    return doc?.privacy?.showSensitiveContent === true;
-  } catch (error) {
-    logger.warn('[feedContext] Failed to load showSensitiveContent preference', error);
-    return false;
   }
 }
 

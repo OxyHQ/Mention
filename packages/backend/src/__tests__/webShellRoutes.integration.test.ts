@@ -149,3 +149,134 @@ describe('webShell routes (integration)', () => {
     expect(res.text).not.toContain('og:title');
   });
 });
+
+/**
+ * An unfurl renders at full size for everyone in a Slack/Discord/iMessage thread,
+ * with no content warning and nobody having opted in — so a post that is only safe
+ * behind a warning must contribute NO image and none of its body text.
+ *
+ * These assert on the rendered HTML rather than an internal flag: the `<meta>` tag is
+ * the thing that leaks.
+ */
+describe('webShell post OG sensitivity gate', () => {
+  const SENSITIVE_BODY = 'graphic body text nobody in the chat asked to see';
+
+  /** Mock the raw Mongo row + the hydrated DTO a crawler `/p/:id` request resolves. */
+  function mockPost(raw: Record<string, unknown>, text = SENSITIVE_BODY) {
+    vi.mocked(Post.findById).mockReturnValue({
+      maxTimeMS: () => ({ lean: () => Promise.resolve({ _id: POST_ID, oxyUserId: 'u1', ...raw }) }),
+    } as unknown as ReturnType<typeof Post.findById>);
+    vi.mocked(postHydrationService.hydratePosts).mockResolvedValue([
+      {
+        id: POST_ID,
+        user: { id: 'u1', username: 'nate', name: { displayName: 'Nate' }, avatar: 'https://cdn/a.png' },
+        content: { text, media: [{ url: 'https://cdn/sensitive.jpg' }] },
+      } as unknown as HydratedPost,
+    ]);
+  }
+
+  async function crawl() {
+    return request(makeApp()).get(`/p/${POST_ID}`).set('User-Agent', 'facebookexternalhit/1.1');
+  }
+
+  beforeEach(() => {
+    vi.unstubAllGlobals();
+    vi.clearAllMocks();
+    stubFetch({ ok: false });
+  });
+
+  it('emits NO og:image for a post flagged sensitive by the classifier', async () => {
+    mockPost({ postClassification: { sensitive: true, status: 'classified' } });
+
+    const res = await crawl();
+
+    expect(res.text).not.toContain('og:image');
+    expect(res.text).not.toContain('twitter:image');
+    expect(res.text).not.toContain('https://cdn/sensitive.jpg');
+    // The card must not promise a large image it is no longer sending.
+    expect(res.text).toContain('<meta name="twitter:card" content="summary">');
+    // Attribution and the link still go out — neither reveals what the warning covers.
+    expect(res.text).toContain('<meta property="og:title" content="Nate on Mention">');
+    expect(res.text).toContain(`<meta property="og:url" content="https://mention.earth/p/${POST_ID}">`);
+  });
+
+  it('emits NO og:image for the legacy metadata.isSensitive flag', async () => {
+    mockPost({ metadata: { isSensitive: true } });
+
+    const res = await crawl();
+
+    expect(res.text).not.toContain('og:image');
+    expect(res.text).not.toContain('https://cdn/sensitive.jpg');
+  });
+
+  it('emits NO og:image for a federated post whose origin flagged it', async () => {
+    mockPost({ federation: { sensitive: true } });
+
+    const res = await crawl();
+
+    expect(res.text).not.toContain('og:image');
+  });
+
+  it('emits NO og:image for a post tagged with an NSFW hashtag', async () => {
+    mockPost({ hashtags: ['nsfw'] });
+
+    const res = await crawl();
+
+    expect(res.text).not.toContain('og:image');
+  });
+
+  it('never unfurls the body text of a gated post', async () => {
+    mockPost({ metadata: { isSensitive: true } });
+
+    const res = await crawl();
+
+    expect(res.text).not.toContain(SENSITIVE_BODY);
+    expect(res.text).toContain('This post is marked sensitive.');
+  });
+
+  it('unfurls the author’s own content warning as the description', async () => {
+    mockPost({ federation: { spoilerText: 'CW: eye contact' } });
+
+    const res = await crawl();
+
+    expect(res.text).toContain('<meta property="og:description" content="CW: eye contact">');
+    expect(res.text).not.toContain(SENSITIVE_BODY);
+    expect(res.text).not.toContain('og:image');
+  });
+
+  it('gates a boost whose ORIGINAL is sensitive, even though the boost row is clean', async () => {
+    // A boost has an empty body and draws its description from the boosted original,
+    // so a clean boost row is not enough to clear the original for unfurling.
+    const original = { _id: 'orig-1', metadata: { isSensitive: true }, content: { text: SENSITIVE_BODY } };
+    vi.mocked(Post.findById)
+      .mockReturnValueOnce({
+        maxTimeMS: () => ({ lean: () => Promise.resolve({ _id: POST_ID, oxyUserId: 'u1', boostOf: 'orig-1' }) }),
+      } as unknown as ReturnType<typeof Post.findById>)
+      .mockReturnValueOnce({
+        maxTimeMS: () => ({ lean: () => Promise.resolve(original) }),
+      } as unknown as ReturnType<typeof Post.findById>);
+    vi.mocked(postHydrationService.hydratePosts).mockResolvedValue([
+      {
+        id: POST_ID,
+        user: { id: 'u1', username: 'nate', name: { displayName: 'Nate' }, avatar: 'https://cdn/a.png' },
+        content: { text: '' },
+        originalPost: { content: { text: SENSITIVE_BODY } },
+      } as unknown as HydratedPost,
+    ]);
+
+    const res = await crawl();
+
+    expect(res.text).not.toContain(SENSITIVE_BODY);
+    expect(res.text).not.toContain('og:image');
+  });
+
+  it('still unfurls an ordinary post with its image and text', async () => {
+    mockPost({ postClassification: { status: 'baseline' } }, 'an ordinary post');
+
+    const res = await crawl();
+
+    expect(res.text).toContain('<meta property="og:image" content="https://cdn/sensitive.jpg">');
+    expect(res.text).toContain('<meta property="og:description" content="an ordinary post">');
+    expect(res.text).toContain('<meta name="twitter:card" content="summary_large_image">');
+  });
+});

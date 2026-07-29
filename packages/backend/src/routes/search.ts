@@ -10,6 +10,14 @@ import { getRuntimeOxyClient } from '../runtime/oxyClient';
 import { queryInt } from '../utils/queryParams';
 import { PostVisibility } from '@mention/shared-types';
 import { decodeSearchCursor, encodeSearchCursor } from '../utils/searchCursor';
+import { DISCOVERY_SAFE_MATCH } from '../mtn/feed/feedSafety';
+import { loadMuteWords, loadShowSensitiveContent } from '../services/safety/viewerSafety';
+import {
+  NO_FOLLOWED_AUTHORS,
+  compileMuteWords,
+  isMutedSubject,
+} from '../services/safety/muteWordMatcher';
+import { loadFollowedAuthorIds } from '../services/viewerFollowGraph';
 
 const router = express.Router();
 
@@ -173,6 +181,16 @@ router.get("/", async (req: AuthRequest, res: Response) => {
     const results: { posts: unknown[]; hasMore?: boolean; nextCursor?: string } = { posts: [] };
 
     if (type === "all" || type === "posts") {
+      // The viewer's safety rules. Search is a DISCOVERY surface, so it is subject to
+      // the same two per-user gates every feed applies — the sensitive/NSFW opt-in and
+      // the viewer's muted words. Both loaders short-circuit for an anonymous viewer
+      // (no opt-in, no mutes) and soft-fail to their safe default.
+      const [showSensitiveContent, muteWords] = await Promise.all([
+        loadShowSensitiveContent(currentUserId),
+        loadMuteWords(currentUserId),
+      ]);
+      const compiledMuteWords = compileMuteWords(muteWords);
+
       // Parse search operators from query string
       const rawQuery = (typeof query === 'string') ? query.trim() : '';
       const operators = parseSearchOperators(rawQuery);
@@ -181,6 +199,11 @@ router.get("/", async (req: AuthRequest, res: Response) => {
       const filter: Record<string, unknown> = {
         visibility: PostVisibility.PUBLIC,
         status: 'published',
+        // Sensitive/NSFW exclusion happens in the QUERY (not post-hoc) so a safe-mode
+        // viewer's page is filled with results they can actually see. Same clause the
+        // ranked/discovery feeds use — `mtn/feed/feedSafety` is the one definition of
+        // "sensitive", never re-implemented here.
+        ...(showSensitiveContent ? {} : DISCOVERY_SAFE_MATCH),
       };
 
       // Use the Post text index instead of scanning every variant with a regex.
@@ -348,13 +371,28 @@ router.get("/", async (req: AuthRequest, res: Response) => {
       // (privacy, interactions, viewerState) resolve, and maxDepth:1 so quoted
       // posts and boost originals are embedded (a maxDepth:0 boost renders
       // blank). Mirrors the profile/posts.controller hydration path.
+      const scopedOxyClient = createScopedOxyClient(req);
       const transformedPosts = await postHydrationService.hydratePosts(postsToReturn, {
         viewerId: currentUserId,
-        oxyClient: createScopedOxyClient(req),
+        oxyClient: scopedOxyClient,
         maxDepth: 1,
         includeLinkMetadata: true,
       });
-      results.posts = transformedPosts;
+
+      // Muted words are matched on the HYDRATED post — the rendition and canonical
+      // hashtags the viewer would actually be shown — which is exactly what the feed
+      // tuner matches, so a muted word means the same thing on both surfaces. Dropping
+      // here (after the cursor was taken from the unfiltered page window above) keeps
+      // pagination stable: a page may return fewer than `limit` posts, but no post is
+      // skipped on the next page.
+      const followedAuthorIds = compiledMuteWords?.needsFollowState
+        ? await loadFollowedAuthorIds(currentUserId, scopedOxyClient)
+        : NO_FOLLOWED_AUTHORS;
+      results.posts = transformedPosts.filter((post) => !isMutedSubject(
+        compiledMuteWords,
+        { text: post.content?.text, hashtags: post.metadata?.hashtags, authorId: post.user?.id },
+        followedAuthorIds,
+      ));
       results.hasMore = hasMoreResults;
       results.nextCursor = nextCursor;
     }

@@ -16,6 +16,14 @@ import {
   toPopulatedActor,
   type NotificationActorProfile as ActorProfile,
 } from '../utils/notificationActor';
+import { requiresContentWarning } from '../mtn/feed/feedSafety';
+import { loadMuteWords, loadShowSensitiveContent } from '../services/safety/viewerSafety';
+import {
+  NO_FOLLOWED_AUTHORS,
+  compileMuteWords,
+  isMutedSubject,
+} from '../services/safety/muteWordMatcher';
+import { loadFollowedAuthorIds } from '../services/viewerFollowGraph';
 
 export { toPopulatedActor };
 
@@ -86,7 +94,11 @@ router.get("/", async (req: AuthRequest, res: Response) => {
     // the range and the sort are on `_id`), so the query is fully served by the
     // `{ recipientId: 1, _id: -1 }` index and pagination is consistent. `_id`
     // descending is chronological newest-first (ObjectIds embed a timestamp).
-    const [notificationsRaw, unreadCount] = await Promise.all([
+    // The viewer's two safety gates are loaded alongside the page: a notification
+    // carries OTHER people's post text (a reply, a mention), so the sensitive-content
+    // opt-in and the muted words apply here exactly as they do to a feed. Both soft-fail
+    // to their safe default and neither is worth a serial round trip.
+    const [notificationsRaw, unreadCount, showSensitiveContent, muteWords] = await Promise.all([
       Notification.find(query)
         .sort({ _id: -1 })
         .limit(limit + 1)
@@ -94,7 +106,9 @@ router.get("/", async (req: AuthRequest, res: Response) => {
       Notification.countDocuments({
         recipientId: userId,
         read: false
-      })
+      }),
+      loadShowSensitiveContent(userId),
+      loadMuteWords(userId),
     ]);
 
     if (!notificationsRaw) {
@@ -151,23 +165,65 @@ router.get("/", async (req: AuthRequest, res: Response) => {
 
     const postPreviewMap = new Map<string, string>();
     const postMap = new Map<string, HydratedPost>();
+    /** Referenced posts the viewer muted — their notifications are dropped below. */
+    const mutedPostIds = new Set<string>();
     if (referencedPostIds.length > 0) {
       // Fetch full lean docs (no field projection): `hydratePosts` reads
       // `boostOf`/`quoteOf` (nested embeds), `parentPostId`/`threadId`/`type`
       // (thread + type flags) and `visibility`/`status` (publication controls).
       const posts = await Post.find({ _id: { $in: referencedPostIds } }).lean();
 
+      // Sensitivity is read off the RAW rows, which carry every signal (the classifier
+      // verdict, the legacy flag, the federated flag/CW, the hashtags) — the hydrated
+      // DTO deliberately exposes only a subset.
+      const gatedPostIds = new Set(
+        posts.filter((post) => requiresContentWarning(post)).map((post) => String(post._id)),
+      );
+
+      const scopedOxyClient = createScopedOxyClient(req);
+
       // Deliberately let hydration/privacy failures reach the outer handler.
       // Returning a partially enriched page would otherwise make a transient
       // privacy-authority outage indistinguishable from authorization success.
       const hydratedPosts = await postHydrationService.hydratePosts(posts, {
         viewerId: userId,
-        oxyClient: createScopedOxyClient(req),
+        oxyClient: scopedOxyClient,
         maxDepth: 1,
         includeLinkMetadata: true,
       });
 
+      const compiledMuteWords = compileMuteWords(muteWords);
+      const followedAuthorIds = compiledMuteWords?.needsFollowState
+        ? await loadFollowedAuthorIds(userId, scopedOxyClient)
+        : NO_FOLLOWED_AUTHORS;
+
       for (const post of hydratedPosts) {
+        // BOTH gates protect the viewer from OTHER people's content, so neither applies
+        // to a post the viewer wrote: a sensitive post is no surprise to its own author,
+        // and hiding "someone liked your post" because the post uses a word THEY muted
+        // would silently drop real engagement on their own work.
+        const isOwnPost = post.viewerState?.isOwner === true || post.viewerState?.isCollaborator === true;
+
+        if (!isOwnPost && compiledMuteWords && isMutedSubject(
+          compiledMuteWords,
+          { text: post.content.text, hashtags: post.metadata?.hashtags, authorId: post.user?.id },
+          followedAuthorIds,
+        )) {
+          // A muted word means "do not put this in front of me". Blanking the text but
+          // keeping the row would still announce the interaction and invite a tap
+          // through to the very content they muted, so the notification goes entirely.
+          mutedPostIds.add(post.id);
+          continue;
+        }
+
+        // A notification preview is plain text and the embed is rendered without the
+        // in-app spoiler chrome, so neither can carry content that is only safe behind
+        // a warning. The notification itself is kept — the viewer still learns someone
+        // replied, and the post opens in the app where the warning does apply.
+        if (!isOwnPost && !showSensitiveContent && gatedPostIds.has(post.id)) {
+          continue;
+        }
+
         postMap.set(post.id, post);
         const text = post.content.text?.trim() ?? '';
         postPreviewMap.set(
@@ -181,21 +237,28 @@ router.get("/", async (req: AuthRequest, res: Response) => {
     const hasMore = notificationsRaw.length > limit;
     const notificationsToReturn = hasMore ? notificationsRaw.slice(0, limit) : notificationsRaw;
 
-    const notifications = notificationsToReturn.map((n) => {
-      const actor = profilesMap.get(n.actorId);
-      const entIdStr = resolveEntityId(n.entityId);
-      // `preview` now covers post + like/reply/mention/boost/quote (any type
-      // whose entityId resolved a cheap text preview above). The full hydrated
-      // `post` embed stays gated to `type:'post'`.
-      const preview = postPreviewMap.get(entIdStr);
-      const embeddedPost = (n.type === 'post' && n.entityType === 'post') ? postMap.get(entIdStr) : undefined;
-      return {
-        ...n,
-        preview,
-        post: embeddedPost,
-        actorId_populated: toPopulatedActor(actor, n.actorId),
-      };
-    });
+    // Muted notifications are dropped AFTER `hasMore`/`nextCursor` were taken from the
+    // unfiltered page window, so a page can come back short but never skips a
+    // notification on the next one. `unreadCount` is a separate global aggregate and
+    // still counts a dropped notification — muting is evaluated at read time, against
+    // the rules as they stand now, rather than stamped onto the row when it was written.
+    const notifications = notificationsToReturn
+      .filter((n) => !mutedPostIds.has(resolveEntityId(n.entityId)))
+      .map((n) => {
+        const actor = profilesMap.get(n.actorId);
+        const entIdStr = resolveEntityId(n.entityId);
+        // `preview` now covers post + like/reply/mention/boost/quote (any type
+        // whose entityId resolved a cheap text preview above). The full hydrated
+        // `post` embed stays gated to `type:'post'`.
+        const preview = postPreviewMap.get(entIdStr);
+        const embeddedPost = (n.type === 'post' && n.entityType === 'post') ? postMap.get(entIdStr) : undefined;
+        return {
+          ...n,
+          preview,
+          post: embeddedPost,
+          actorId_populated: toPopulatedActor(actor, n.actorId),
+        };
+      });
 
     // Calculate next cursor from the last notification
     const nextCursor = hasMore && notificationsToReturn.length > 0
