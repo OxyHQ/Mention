@@ -20,6 +20,7 @@ import PostContentText from '../Post/PostContentText';
 import PostLanguageChip from '../Post/PostLanguageChip';
 import ContentWarning from '../Post/ContentWarning';
 import PostActions from '../Post/PostActions';
+import PostDetailStats from '../Post/PostDetailStats';
 import PostLocation from '../Post/PostLocation';
 import PostAttachmentsRow from '../Post/PostAttachmentsRow';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
@@ -437,6 +438,11 @@ const PostItem: React.FC<PostItemProps> = ({
         bottomSheet.openBottomSheet(true);
     }, [bottomSheet, viewPostId]);
 
+    // Bound once each so the memoized <PostDetailStats> is not handed a fresh
+    // closure on every render of the focused post.
+    const openLikesList = useCallback(() => openEngagementList('likes'), [openEngagementList]);
+    const openBoostsList = useCallback(() => openEngagementList('boosts'), [openEngagementList]);
+
     // Owner + accepted collaborators, already hydrated on the post. A post is
     // collaborative when it carries more than one author.
     const collaborators = viewPost?.authors;
@@ -845,16 +851,29 @@ const PostItem: React.FC<PostItemProps> = ({
                             onSave={handleSave}
                             onShare={handleShare}
                             postId={viewPostId}
-                            onTranslate={!isDetailMain && content.text ? toggleReaderTranslation : undefined}
+                            onTranslate={content.text ? toggleReaderTranslation : undefined}
                             isTranslated={isTranslated}
                             isTranslating={isTranslating}
                             onInsightsPress={isOwner ? handleInsightsPress : undefined}
-                            detail={isDetailMain}
-                            timestampLabel={fullTimestamp}
-                            onLikesPress={isDetailMain ? () => openEngagementList('likes') : undefined}
-                            onBoostsPress={isDetailMain ? () => openEngagementList('boosts') : undefined}
                         />
                     </View>
+                )}
+
+                {/* Everything above is the plain feed rendering of a post. A
+                    FOCUSED post adds this block below the action bar — the
+                    absolute timestamp and the engagement counts — and nothing
+                    else. It sits outside the avatar-indented column above so its
+                    rule spans the full row (see PostDetailStats). */}
+                {isDetailMain && (
+                    <PostDetailStats
+                        timestampLabel={fullTimestamp}
+                        likes={actionsEngagement.likes}
+                        boosts={actionsEngagement.boosts}
+                        quotes={actionsEngagement.quotes ?? 0}
+                        saves={actionsEngagement.saves}
+                        onLikesPress={openLikesList}
+                        onBoostsPress={openBoostsList}
+                    />
                 )}
                     </View>
                 )}

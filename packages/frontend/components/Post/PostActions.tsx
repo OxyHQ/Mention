@@ -1,6 +1,5 @@
 import React, { useRef } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import { useTranslation } from 'react-i18next';
 import { SpinnerIcon } from '@oxyhq/bloom/loading';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { CommentIcon } from '@/assets/icons/comment-icon';
@@ -18,24 +17,18 @@ import { PressableScale } from '@oxyhq/bloom/pressable-scale';
 import { AnimatedLikeIcon } from '@/lib/animations/AnimatedLikeIcon';
 import { CountWheel } from '@/lib/animations/CountWheel';
 import { useVoteStyle } from '@/hooks/useVoteStyle';
-import { POST_ITEM_SPACING } from '@/styles/shared';
 import VotePill from './VotePill';
 
 const ICON_SIZE = 20;
-/** Same vertical rhythm PostItem puts between a post's own blocks. */
-const { SECTION_GAP } = POST_ITEM_SPACING;
 const MINI_AVATAR = 16;
 const AVATAR_OVERLAP = -4;
 
+/** Only what the bar itself renders. Counts it does not show (boosts, quotes, views) live on <PostDetailStats>. */
 interface Engagement {
   replies: number | null;
-  boosts: number | null;
   likes: number | null;
   downvotes?: number | null;
   saves?: number | null;
-  views?: number | null;
-  /** Only the post-detail read carries this — see `includeQuoteCounts` on the backend. */
-  quotes?: number | null;
   recentReplierAvatars?: string[];
 }
 
@@ -58,14 +51,6 @@ interface Props {
   isTranslated?: boolean;
   isTranslating?: boolean;
   postId?: string;
-  /**
-   * Focused post-detail variant. Renders the SAME icon row as a feed row, with
-   * two extra rows stacked above it: the full absolute timestamp and a tappable
-   * engagement-stats summary. Nothing about the buttons themselves changes.
-   */
-  detail?: boolean;
-  /** Full absolute timestamp (detail variant only), e.g. "9:20 PM · Jun 11, 2026". */
-  timestampLabel?: string;
 }
 
 const PostActions: React.FC<Props> = ({
@@ -86,27 +71,21 @@ const PostActions: React.FC<Props> = ({
   onTranslate,
   isTranslated,
   isTranslating,
-  detail = false,
-  timestampLabel,
 }) => {
   const theme = useTheme();
   const haptic = useHaptics();
   const hasBeenToggled = useRef(false);
   const voteStyle = useVoteStyle();
-  const { t } = useTranslation();
 
   const replies = engagement?.replies ?? 0;
   const likes = engagement?.likes ?? 0;
-  const boosts = engagement?.boosts ?? 0;
   const saves = engagement?.saves ?? 0;
-  const quotes = engagement?.quotes ?? 0;
   const downvotes = engagement?.downvotes ?? 0;
   const replierAvatars = engagement?.recentReplierAvatars ?? [];
 
-  // The action bar itself — identical on a feed row and on the post-detail
-  // screen. The detail variant only stacks extra rows ABOVE it (timestamp,
-  // engagement stats); it must never fork the buttons themselves, or the two
-  // surfaces drift in icon size, order and affordances.
+  // ONE action bar, rendered identically wherever a post appears — a feed row
+  // and the focused post on `/p/:id` included. A focused post adds
+  // <PostDetailStats> BELOW this bar; it does not get a bar of its own.
   const actionIconRow = (
     <View className="flex-row items-center" style={{ gap: 12 }}>
       {voteStyle === 'pill' && onDownvote ? (
@@ -253,60 +232,6 @@ const PostActions: React.FC<Props> = ({
       )}
     </View>
   );
-
-  if (detail) {
-    // Engagement-stats summary, the ONE thing the detail variant adds over the
-    // feed row: the counts the icon row deliberately does not carry. Entries with
-    // a zero count are dropped, and a `quotes` count only exists when the caller
-    // asked the backend for it (`includeQuoteCounts`) — feed-seeded cache paints
-    // without it until the detail read lands.
-    const statsEntries: { key: string; label: string; count: number; onPress?: () => void }[] = [];
-    if (likes > 0) statsEntries.push({ key: 'likes', label: t('post.stats.likes', { count: likes }), count: likes, onPress: onLikesPress });
-    if (boosts > 0) statsEntries.push({ key: 'boosts', label: t('post.stats.boosts', { count: boosts }), count: boosts, onPress: onBoostsPress });
-    if (quotes > 0) statsEntries.push({ key: 'quotes', label: t('post.stats.quotes', { count: quotes }), count: quotes });
-    if (saves > 0) statsEntries.push({ key: 'saves', label: t('post.stats.saves', { count: saves }), count: saves });
-
-    // Rows only — NO dividers. PostItem mounts this inside the content column
-    // (`paddingLeft: AVATAR_OFFSET`), so any hairline drawn here starts 64px in
-    // and stops short of the right edge: a stub that reads as a broken separator
-    // beside the container's own full-width bottom border. Row separation is
-    // spacing, and closing the post is the container's job — exactly as in a feed
-    // row. `SECTION_GAP` is the same rhythm PostItem uses between its own blocks.
-    return (
-      <View style={{ gap: SECTION_GAP }}>
-        {/* Full absolute timestamp */}
-        {timestampLabel ? (
-          <View className="flex-row items-center">
-            <Text className="text-muted-foreground text-[14px]">{timestampLabel}</Text>
-            <Ionicons name="globe-outline" size={14} color={theme.colors.textSecondary} style={{ marginLeft: 6 }} />
-          </View>
-        ) : null}
-
-        {/* Engagement stats */}
-        {statsEntries.length > 0 && (
-          <View className="flex-row items-center flex-wrap" style={{ gap: 16 }}>
-            {statsEntries.map((stat) => (
-              <PressableScale
-                key={stat.key}
-                className="flex-row items-center"
-                style={{ gap: 4 }}
-                onPress={stat.onPress}
-                disabled={!stat.onPress}
-              >
-                <Text className="text-foreground text-[14px] font-bold">{formatCompactNumber(stat.count)}</Text>
-                <Text className="text-muted-foreground text-[14px]">{stat.label}</Text>
-              </PressableScale>
-            ))}
-          </View>
-        )}
-
-        {/* The SAME icon row the feed renders — the detail screen differs from a
-            feed row only by what it adds ABOVE this bar, never by rebuilding it
-            or fencing it in. */}
-        {actionIconRow}
-      </View>
-    );
-  }
 
   // Build summary parts like Threads: "X replies · Y likes"
   const summaryParts: string[] = [];
