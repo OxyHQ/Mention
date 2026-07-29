@@ -16,6 +16,7 @@ import {
 } from '@oxyhq/bloom/image-aspect-ratio-cache';
 import { readMediaAspectRatio } from '@/utils/mediaTypes';
 import type { MeasuredRect } from '@oxyhq/bloom/zoomable-image-gallery';
+import { HIT_SLOP_MD } from '@/styles/hitSlop';
 
 /**
  * Registers (or clears, on unmount) the measurable host node of an image
@@ -405,7 +406,7 @@ const SensitiveMediaCover: React.FC<{ onReveal: () => void }> = ({ onReveal }) =
       style={styles.sensitiveCover}
       accessibilityRole="button"
       accessibilityLabel={t('post.sensitiveContentTap', { defaultValue: 'Tap to reveal' })}
-      hitSlop={8}
+      hitSlop={HIT_SLOP_MD}
     >
       <BlurView
         intensity={SENSITIVE_BLUR_INTENSITY}

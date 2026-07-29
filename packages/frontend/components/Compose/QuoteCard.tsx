@@ -8,6 +8,7 @@ import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import { getNormalizedUserHandle } from '@oxyhq/core';
 
 import { CloseIcon } from '@/assets/icons/close-icon';
+import { HIT_SLOP_SM } from '@/styles/hitSlop';
 
 interface QuoteCardProps {
   /** The fetched quoted post; null while loading or if not found. */
@@ -95,7 +96,7 @@ const QuoteCard: React.FC<QuoteCardProps> = ({ post, loading, onDismiss }) => {
         accessibilityRole="button"
         accessibilityLabel={t('compose.quote.dismiss', { defaultValue: 'Remove quoted post' })}
         className="bg-background absolute right-2 top-2 rounded-full p-1.5"
-        hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+        hitSlop={HIT_SLOP_SM}
       >
         <CloseIcon size={14} className="text-foreground" />
       </TouchableOpacity>

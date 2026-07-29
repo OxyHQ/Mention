@@ -6,6 +6,7 @@ import { useEvent, useEventListener } from 'expo';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useVideoMuteStore } from '@/stores/videoMuteStore';
 import { useVideoPlayback } from '@/context/VideoPlaybackContext';
+import { HIT_SLOP_MD } from '@/styles/hitSlop';
 
 interface VideoPlayerProps {
   src: string;
@@ -366,7 +367,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
           {/* Mute/unmute stays available without leaving the feed; sits above the tap surface */}
           <Pressable
             onPress={handlePreviewMuteToggle}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            hitSlop={HIT_SLOP_MD}
             style={styles.previewMuteButton}
           >
             <View style={styles.previewMuteButtonInner}>
@@ -387,6 +388,9 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
             <Pressable
               style={styles.playPauseButton}
               onPress={handlePlayPause}
+              // Deliberately larger than HIT_SLOP_LG: this is the player's
+              // primary control, centred and alone in the overlay, so a
+              // generous region has nothing nearby to steal taps from.
               hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
             >
               <View style={styles.playPauseCircle}>
@@ -436,7 +440,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
               {/* Mute button */}
               <Pressable
                 onPress={handleMuteToggle}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                hitSlop={HIT_SLOP_MD}
                 style={styles.controlButton}
               >
                 <Ionicons
@@ -449,7 +453,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
               {/* Fullscreen button */}
               <Pressable
                 onPress={handleFullscreen}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                hitSlop={HIT_SLOP_MD}
                 style={styles.controlButton}
               >
                 <Ionicons name="expand" size={20} color="white" />

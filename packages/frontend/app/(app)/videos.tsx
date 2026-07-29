@@ -34,6 +34,7 @@ import { useVideosRail, type VideosRailActivePost } from '@/context/VideosRailCo
 import { useVideoPlayback, VideoViewabilityProvider } from '@/context/VideoPlaybackContext';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
 import { VideoReplies } from '@/components/videos/VideoReplies';
+import { HIT_SLOP_LG } from '@/styles/hitSlop';
 
 /**
  * Whether this platform can put a video in the OS Picture-in-Picture window.
@@ -128,7 +129,6 @@ const WEB_SLIDE_HEIGHT_CLASS = 'web:h-[100dvh]';
 const TABS_ROW_HEIGHT = 34;
 const WEB_TABS_STICKY_CLASS = 'web:sticky web:[margin-bottom:-34px]';
 
-const HIT_SLOP = { top: 10, bottom: 10, left: 10, right: 10 };
 
 const GRADIENT_COLORS = ['transparent', 'rgba(0, 0, 0, 0.3)', 'rgba(0, 0, 0, 0.8)', '#000000'] as const;
 const GRADIENT_LOCATIONS = [0, 0.4, 0.7, 1] as const;
@@ -648,7 +648,7 @@ const ActiveVideoSurface = memo<ActiveVideoSurfaceProps>(({
                 </View>
             )}
 
-            <Pressable style={styles.muteButton} onPress={toggleMute} hitSlop={HIT_SLOP}>
+            <Pressable style={styles.muteButton} onPress={toggleMute} hitSlop={HIT_SLOP_LG}>
                 <View style={styles.overlayButtonInner}>
                     <Ionicons name={muted ? 'volume-mute' : 'volume-high'} size={OVERLAY_BUTTON_ICON_SIZE} color="white" />
                 </View>
@@ -658,7 +658,7 @@ const ActiveVideoSurface = memo<ActiveVideoSurfaceProps>(({
                 <Pressable
                     style={styles.pipButton}
                     onPress={handleStartPictureInPicture}
-                    hitSlop={HIT_SLOP}
+                    hitSlop={HIT_SLOP_LG}
                     accessibilityRole="button"
                     accessibilityLabel={t('videos.picture_in_picture')}
                 >
@@ -671,6 +671,9 @@ const ActiveVideoSurface = memo<ActiveVideoSurfaceProps>(({
             {showScrubber && (
                 <View
                     style={styles.scrubberHitArea}
+                    // Vertical only on purpose: the track's x maps to seek
+                    // position, so widening it horizontally would make the
+                    // touch-to-time mapping lie past both ends.
                     hitSlop={{ top: 8, bottom: 8 }}
                     onLayout={onTrackLayout}
                     {...panResponder.panHandlers}
@@ -930,7 +933,7 @@ interface ActionButtonProps {
 }
 
 const ActionButton = memo<ActionButtonProps>(({ icon, count, isActive, activeColor, onPress, formatCompactNumber, hideCount = false }) => (
-    <Pressable style={styles.actionButton} onPress={onPress} hitSlop={HIT_SLOP}>
+    <Pressable style={styles.actionButton} onPress={onPress} hitSlop={HIT_SLOP_LG}>
         <Ionicons
             name={icon}
             size={28}
@@ -960,7 +963,7 @@ const FeedTab = memo<FeedTabProps>(({ label, active, onPress }) => (
         onPress={onPress}
         accessibilityRole="button"
         accessibilityState={{ selected: active }}
-        hitSlop={HIT_SLOP}
+        hitSlop={HIT_SLOP_LG}
     >
         <Text style={[styles.tabLabel, active ? styles.tabLabelActive : styles.tabLabelInactive]}>
             {label}

@@ -31,6 +31,7 @@ import { Search } from '@/assets/icons/search-icon';
 import { formatCompactNumber } from '@/utils/formatNumber';
 import { logger } from '@/lib/logger';
 import { useAuth } from '@oxyhq/services/ui/client';
+import { HIT_SLOP_MD } from '@/styles/hitSlop';
 
 const IS_WEB = Platform.OS === 'web';
 
@@ -72,7 +73,7 @@ const PinButton = ({ pinned, onPress }: { pinned: boolean; onPress: () => void }
   return (
     <TouchableOpacity
       onPress={onPress}
-      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+      hitSlop={HIT_SLOP_MD}
       style={[
         styles.pinBtn,
         pinned
@@ -312,7 +313,7 @@ const FeedsScreen: React.FC = () => {
           onChangeText={setSearchQuery}
         />
         {searchQuery.length > 0 && (
-          <TouchableOpacity onPress={() => setSearchQuery('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+          <TouchableOpacity onPress={() => setSearchQuery('')} hitSlop={HIT_SLOP_MD}>
             <Ionicons name="close-circle" size={18} color={theme.colors.textSecondary} />
           </TouchableOpacity>
         )}

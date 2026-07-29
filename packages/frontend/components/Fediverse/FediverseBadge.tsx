@@ -12,6 +12,7 @@ import { useTranslation } from 'react-i18next';
 import { FediverseIcon } from '@/assets/icons/fediverse-icon';
 import { showFediverseInfo } from './FediverseInfoDialog';
 import type { ExternalNetwork } from '@/services/feedService';
+import { HIT_SLOP_MD } from '@/styles/hitSlop';
 
 interface FediverseIconBadgeProps {
   /** Icon size in px. Defaults to 15 (inline-with-text size). */
@@ -66,7 +67,7 @@ function FediverseIconBadge({
       onPointerUp={stopPointer}
       accessibilityRole="button"
       accessibilityLabel={a11yLabel}
-      hitSlop={8}
+      hitSlop={HIT_SLOP_MD}
       className={containerClassName}
       style={style}
     >

@@ -18,6 +18,7 @@ import { useProfileSongPreview } from '@/hooks/useProfileSongPreview';
 import { useInfiniteCatalogSearch, ResultsFooter } from '@/hooks/useInfiniteCatalogSearch';
 import { createScopedLogger } from '@/lib/logger';
 import { SongPreviewButton } from './SongPreviewButton';
+import { HIT_SLOP_MD } from '@/styles/hitSlop';
 
 const logger = createScopedLogger('MediaPickerSheet');
 
@@ -412,7 +413,7 @@ export const MediaPickerSheet = memo(function MediaPickerSheet({
             onPress={() => setQuery('')}
             accessibilityRole="button"
             accessibilityLabel={t('profile.media.clearSearch')}
-            hitSlop={8}
+            hitSlop={HIT_SLOP_MD}
           >
             <Ionicons name="close-circle" size={16} color={colors.textSecondary} />
           </Pressable>
@@ -528,7 +529,7 @@ export const MediaPickerSheet = memo(function MediaPickerSheet({
                   disabled={startSec <= 0}
                   accessibilityRole="button"
                   accessibilityLabel={t('profile.media.song.startEarlier')}
-                  hitSlop={8}
+                  hitSlop={HIT_SLOP_MD}
                   className="rounded-full bg-background items-center justify-center"
                   style={{ width: 32, height: 32, opacity: startSec <= 0 ? 0.4 : 1 }}
                 >
@@ -542,7 +543,7 @@ export const MediaPickerSheet = memo(function MediaPickerSheet({
                   disabled={startSec >= maxStartSec}
                   accessibilityRole="button"
                   accessibilityLabel={t('profile.media.song.startLater')}
-                  hitSlop={8}
+                  hitSlop={HIT_SLOP_MD}
                   className="rounded-full bg-background items-center justify-center"
                   style={{ width: 32, height: 32, opacity: startSec >= maxStartSec ? 0.4 : 1 }}
                 >

@@ -8,6 +8,7 @@ import { BackArrowIcon } from "@/assets/icons/back-arrow-icon";
 import { ChevronRightIcon } from "@/assets/icons/chevron-right-icon";
 import { MEDIA_CARD_WIDTH } from "@/utils/composeUtils";
 import { cn } from "@/lib/utils";
+import { HIT_SLOP_SM } from '@/styles/hitSlop';
 
 interface PollAttachmentCardProps {
     pollTitle: string;
@@ -135,7 +136,7 @@ export const PollAttachmentCard: React.FC<PollAttachmentCardProps> = ({
             <TouchableOpacity
                 onPress={onRemove}
                 className="absolute top-2 right-2 rounded-full p-1.5 bg-background"
-                hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                hitSlop={HIT_SLOP_SM}
             >
                 <CloseIcon size={16} className="text-foreground" />
             </TouchableOpacity>

@@ -5,6 +5,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { useUserById } from '@/hooks/useCachedUser';
 import { ProfileCard, type ProfileCardData } from '@/components/ProfileCard';
+import { HIT_SLOP_MD } from '@/styles/hitSlop';
 
 interface SuggestedUserData {
   id: string;
@@ -64,7 +65,7 @@ export const SuggestedUserCard = memo(function SuggestedUserCard({
           <Pressable
             className="p-1"
             onPress={handleDismiss}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            hitSlop={HIT_SLOP_MD}
             accessibilityRole="button"
             accessibilityLabel="Dismiss suggestion"
           >

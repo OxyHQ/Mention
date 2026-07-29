@@ -6,6 +6,7 @@ import { useTheme } from '@oxyhq/bloom/theme';
 import { SpinnerIcon } from '@oxyhq/bloom/loading';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
 import { languageLabel, translateTargets, type PostLanguageOption } from '@/utils/postLanguages';
+import { HIT_SLOP_MD } from '@/styles/hitSlop';
 
 const CHIP_ICON_SIZE = 13;
 
@@ -152,7 +153,7 @@ const PostLanguageChip: React.FC<Props> = ({ options, activeTag, isTranslating =
       ) : (
         <Pressable
           onPress={handlePress}
-          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          hitSlop={HIT_SLOP_MD}
           accessibilityRole="button"
           accessibilityLabel={actionLabel}
         >

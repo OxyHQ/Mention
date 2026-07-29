@@ -7,6 +7,7 @@ import { useTheme } from '@oxyhq/bloom/theme';
 import type { ProfileSongMedia } from '@/stores/appearanceStore';
 import { useProfileSongPreview } from '@/hooks/useProfileSongPreview';
 import { SongPreviewButton } from './SongPreviewButton';
+import { HIT_SLOP_MD } from '@/styles/hitSlop';
 
 interface ProfileSongProps {
   song: ProfileSongMedia;
@@ -68,7 +69,7 @@ export const ProfileSong = memo(function ProfileSong({ song, isOwnProfile, onEdi
           onPress={onEdit}
           accessibilityRole="button"
           accessibilityLabel={t('profile.media.edit')}
-          hitSlop={8}
+          hitSlop={HIT_SLOP_MD}
           className="p-1"
         >
           <Ionicons name="pencil-outline" size={16} color={colors.textSecondary} />

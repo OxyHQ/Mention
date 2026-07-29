@@ -7,6 +7,7 @@ import { Avatar } from '@oxyhq/bloom/avatar';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import { ThemedText } from '@/components/ThemedText';
 import { useTheme } from '@oxyhq/bloom/theme';
+import { HIT_SLOP_MD } from '@/styles/hitSlop';
 
 interface FeedHeaderProps {
     showComposeButton?: boolean;
@@ -98,7 +99,7 @@ export const FeedHeader = memo<FeedHeaderProps>(
                         {Platform.OS !== 'web' && (
                             <TouchableOpacity
                                 onPress={handleCameraPress}
-                                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                                hitSlop={HIT_SLOP_MD}
                                 accessibilityLabel="Open camera"
                                 accessibilityHint="Opens device camera">
                                 <Ionicons name="camera-outline" size={22} color={iconColor} />
@@ -106,7 +107,7 @@ export const FeedHeader = memo<FeedHeaderProps>(
                         )}
                         <TouchableOpacity
                             onPress={handleImagePress}
-                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                            hitSlop={HIT_SLOP_MD}
                             accessibilityLabel="Add image"
                             accessibilityHint="Opens image picker">
                             <Ionicons name="image-outline" size={22} color={iconColor} />

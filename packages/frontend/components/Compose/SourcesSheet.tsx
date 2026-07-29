@@ -6,6 +6,7 @@ import { CloseIcon } from '@/assets/icons/close-icon';
 import { Plus } from '@/assets/icons/plus-icon';
 import { IconButton } from '@/components/ui/Button';
 import { EmptyState } from '@/components/common/EmptyState';
+import { HIT_SLOP_MD } from '@/styles/hitSlop';
 
 type SourceField = 'title' | 'url';
 
@@ -107,7 +108,7 @@ const SourcesSheet: React.FC<SourcesSheetProps> = ({
                     <Text className="text-xs font-semibold tracking-wide uppercase text-muted-foreground">
                       {t('compose.sources.itemLabel', { defaultValue: 'Source {{index}}', index: index + 1 })}
                     </Text>
-                    <TouchableOpacity onPress={() => onRemove(source.id)} className="p-1" hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                    <TouchableOpacity onPress={() => onRemove(source.id)} className="p-1" hitSlop={HIT_SLOP_MD}>
                       <CloseIcon size={16} className="text-muted-foreground" />
                     </TouchableOpacity>
                   </View>

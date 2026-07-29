@@ -16,6 +16,7 @@ import {
   type InterstitialLimits,
 } from './interstitialLayout';
 import { useInterstitialImpression, type ReportInterstitialEvent } from './interstitialTelemetry';
+import { HIT_SLOP_MD } from '@/styles/hitSlop';
 
 /**
  * The frame every recommendation band shares.
@@ -106,7 +107,7 @@ export function InterstitialShell<TItem>({
           <TouchableOpacity
             onPress={handleSeeMore}
             activeOpacity={0.7}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            hitSlop={HIT_SLOP_MD}
             style={styles.webCursor}
             accessibilityRole="link"
             accessibilityLabel={seeMoreLabel}>

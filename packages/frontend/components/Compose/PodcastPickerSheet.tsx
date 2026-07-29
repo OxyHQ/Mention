@@ -7,6 +7,7 @@ import { Item } from '@oxyhq/bloom/item';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { useInfiniteCatalogSearch, ResultsFooter } from '@/hooks/useInfiniteCatalogSearch';
 import type { PodcastAttachmentData } from '@/hooks/usePodcastManager';
+import { HIT_SLOP_MD } from '@/styles/hitSlop';
 
 interface PodcastSearchResult {
   syraPodcastId: string;
@@ -114,7 +115,7 @@ const PodcastPickerSheet = memo(function PodcastPickerSheet({
             onPress={() => setQuery('')}
             accessibilityRole="button"
             accessibilityLabel={t('profile.media.clearSearch')}
-            hitSlop={8}
+            hitSlop={HIT_SLOP_MD}
           >
             <Ionicons name="close-circle" size={16} color={colors.textSecondary} />
           </Pressable>

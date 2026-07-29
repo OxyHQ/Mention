@@ -4,6 +4,7 @@ import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { ChevronRightIcon } from '@/assets/icons/chevron-right-icon';
 import { CloseIcon } from '@/assets/icons/close-icon';
 import { cn } from '@/lib/utils';
+import { HIT_SLOP_SM } from '@/styles/hitSlop';
 
 interface AttachmentCarouselItemProps {
   attachmentKey: string;
@@ -54,7 +55,7 @@ const AttachmentCarouselItem: React.FC<AttachmentCarouselItemProps> = ({
           onRemove();
         }}
         className="absolute top-2 right-2 rounded-full p-1.5 bg-background"
-        hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+        hitSlop={HIT_SLOP_SM}
       >
         <CloseIcon size={16} className="text-foreground" />
       </TouchableOpacity>

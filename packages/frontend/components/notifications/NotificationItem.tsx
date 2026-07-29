@@ -34,6 +34,7 @@ import { usePostsStore } from '@/stores/postsStore';
 import { cn } from '@/lib/utils';
 import { createScopedLogger } from '@/lib/logger';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
+import { HIT_SLOP_MD } from '@/styles/hitSlop';
 
 const logger = createScopedLogger('NotificationItem');
 
@@ -606,7 +607,7 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({ item, onMa
                     ))}
                   </View>
                 ) : null}
-                <Pressable onPress={toggleExpanded} hitSlop={8} accessibilityRole="button">
+                <Pressable onPress={toggleExpanded} hitSlop={HIT_SLOP_MD} accessibilityRole="button">
                   <Text className="text-primary text-sm font-semibold">
                     {expanded
                       ? t('notification.group.showLess', { defaultValue: 'Show less' })
