@@ -1,7 +1,10 @@
 import { useEffect, useRef } from 'react';
-import type {
-    FeedType,
-    FeedInterstitialEventInput,
+import {
+    FEED_INTERACTION_BATCH_LIMIT,
+    type FeedType,
+    type FeedInteractionEventName,
+    type FeedInteractionInput,
+    type FeedInterstitialEventInput,
 } from '@mention/shared-types';
 import { feedService } from '@/services/feedService';
 import { createScopedLogger } from '@/lib/logger';
@@ -18,16 +21,80 @@ import { FeedFilters } from './feedUtils';
  *    into the same descriptor string the feed was actually fetched with, so an
  *    interaction is attributed to the correct feed source.
  *  - `FeedImpressionTracker` dedupes impressions (once per post per feed
- *    session), accumulates visible dwell time, and batches network writes so a
- *    fast scroll never spams `POST /feed/mtn/interactions`.
+ *    session) and accumulates visible dwell time.
+ *  - The module-level queue below coalesces every emitted interaction into
+ *    periodic batched writes, so a fast scroll cannot spam
+ *    `POST /feed/mtn/interactions`.
  *
- * All writes are best-effort: `feedService.sendFeedInteraction` swallows and
+ * All writes are best-effort: `feedService.sendFeedInteractions` swallows and
  * debug-logs its own failures, so telemetry can never block or break the feed.
  */
 
 const logger = createScopedLogger('FeedTelemetry');
 
-export type FeedInteractionEvent = 'impression' | 'click' | 'like' | 'reply' | 'boost' | 'save';
+// How long emitted interactions accumulate before a batch is sent. The backend
+// admits 10 feed requests per second per IP; a screenful of rows crossing the
+// dwell gate together used to emit one request EACH, which blew straight past
+// that and lost the overflow to 429s. One flush per window bounds the client to
+// a single telemetry request per second no matter how fast the user scrolls.
+const FLUSH_INTERVAL_MS = 1000;
+
+/**
+ * Pending interactions, shared by every tracker and by `reportFeedInteraction`.
+ *
+ * Module-level ON PURPOSE: several feeds can be mounted at once (a profile's
+ * tabs, the right rail), and the rate limit is per CLIENT, not per feed. Each
+ * entry carries its own `feedDescriptor`, so coalescing across trackers is safe
+ * and strictly reduces request count. Only ever touched from event handlers and
+ * timers — never read during render — so it is not external state a memoized
+ * position could freeze.
+ */
+const pendingInteractions: FeedInteractionInput[] = [];
+let flushTimer: ReturnType<typeof setTimeout> | null = null;
+
+function sendPendingBatch(): void {
+    if (pendingInteractions.length === 0) return;
+    // Drain at most one batch per request; anything beyond the cap stays queued
+    // and goes out on the next flush rather than as one unbounded body.
+    const batch = pendingInteractions.splice(0, FEED_INTERACTION_BATCH_LIMIT);
+    feedService.sendFeedInteractions(batch).catch((error) => {
+        // `sendFeedInteractions` already swallows + debug-logs network failures;
+        // this guards against any synchronous throw so telemetry can't bubble.
+        logger.debug('Interaction batch failed', { error });
+    });
+}
+
+function scheduleFlush(): void {
+    if (flushTimer !== null) return;
+    flushTimer = setTimeout(() => {
+        flushTimer = null;
+        sendPendingBatch();
+        // A drain that hit the cap leaves a remainder; keep flushing until empty.
+        if (pendingInteractions.length > 0) scheduleFlush();
+    }, FLUSH_INTERVAL_MS);
+}
+
+/** Queue one interaction for the next batched write. */
+function enqueueInteraction(interaction: FeedInteractionInput): void {
+    pendingInteractions.push(interaction);
+    scheduleFlush();
+}
+
+/**
+ * Send everything queued right now, without waiting for the window.
+ *
+ * Called on feed teardown so navigating away never strands a batch. Sends the
+ * WHOLE queue (not just one batch) because there is no later flush to rely on.
+ */
+export function flushFeedInteractions(): void {
+    if (flushTimer !== null) {
+        clearTimeout(flushTimer);
+        flushTimer = null;
+    }
+    while (pendingInteractions.length > 0) {
+        sendPendingBatch();
+    }
+}
 
 /**
  * Derive the feed descriptor a Feed instance reports against. Mirrors how
@@ -181,6 +248,9 @@ export class FeedImpressionTracker {
             this.report(entry);
         }
         this.pending.clear();
+        // The feed is going away, so there is no later flush to ride on — send
+        // what is queued now rather than stranding this session's impressions.
+        flushFeedInteractions();
     }
 
     // (Re)arm the bounded safety timer. Called on every real visibility change so
@@ -245,6 +315,8 @@ export class FeedImpressionTracker {
     }
 
     // Emit the impression exactly once per post (with the accumulated dwell).
+    // Queued, not sent: the batch goes out on the shared flush window, so a
+    // screenful qualifying at once costs ONE request instead of one per row.
     private report(entry: PendingImpression): void {
         if (!entry.qualified || entry.sent) return;
         // Never POST telemetry for a viewer who cannot use the private API
@@ -254,15 +326,11 @@ export class FeedImpressionTracker {
         // becomes reportable (auth lands mid-session) before this post disposes.
         if (!this.canReport()) return;
         entry.sent = true;
-        feedService.sendFeedInteraction({
+        enqueueInteraction({
             feedDescriptor: this.descriptor,
             postUri: entry.postUri,
             event: 'impression',
             durationMs: entry.durationMs,
-        }).catch((error) => {
-            // sendFeedInteraction already swallows + debug-logs network failures;
-            // this guards against any synchronous throw so telemetry can't bubble.
-            logger.debug('Impression report failed', { error });
         });
     }
 }
@@ -325,17 +393,20 @@ export function useFeedImpressionTracker(
 
 /**
  * Emit a single, non-impression feed interaction (click/like/reply/boost/save).
- * Best-effort and self-logging; safe to call from a press handler.
+ * Safe to call from a press handler.
+ *
+ * Goes through the SAME queue as impressions rather than sending immediately:
+ * one path, one rate-limit budget, and a rapid tap sequence coalesces instead of
+ * racing the limiter. These land as offline ranking signal, so arriving up to
+ * one flush window later changes nothing; a feed teardown flushes early.
  */
 export function reportFeedInteraction(
     feedDescriptor: string,
     postUri: string,
-    event: Exclude<FeedInteractionEvent, 'impression'>,
+    event: Exclude<FeedInteractionEventName, 'impression'>,
 ): void {
     if (!feedDescriptor || !postUri) return;
-    feedService.sendFeedInteraction({ feedDescriptor, postUri, event }).catch((error) => {
-        logger.debug('Interaction report failed', { event, error });
-    });
+    enqueueInteraction({ feedDescriptor, postUri, event });
 }
 
 /**

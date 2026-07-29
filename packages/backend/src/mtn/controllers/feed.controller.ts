@@ -24,6 +24,7 @@ import { FeedResponseBuilder } from '../../utils/FeedResponseBuilder';
 import { queryString } from '../../utils/queryParams';
 import { UserPrivacyManager } from '../UserPrivacyManager';
 import { trackFeedInteraction } from '../feed/FeedInteractionTracker';
+import { parseFeedInteractionBatch } from '../feed/interactionTelemetry';
 import { federatedProfileSync } from '../../connectors/federatedProfileSync';
 import { logger } from '../../utils/logger';
 import { getRuntimeOxyClient } from '../../runtime/oxyClient';
@@ -532,9 +533,12 @@ class MtnFeedController {
   }
 
   /**
-   * POST /api/feed/interactions
+   * POST /api/feed/mtn/interactions
    *
-   * Record feed interaction data (impressions, clicks, engagement).
+   * Record feed interaction data (impressions, clicks, engagement) for a BATCH
+   * of posts. A feed reports many rows in one pass, so accepting one row per
+   * request put a scrolling client over the per-IP feed rate limiter and dropped
+   * the overflow. Validation lives in `parseFeedInteractionBatch`.
    */
   async recordInteraction(req: AuthRequest, res: Response): Promise<void> {
     try {
@@ -550,26 +554,31 @@ class MtnFeedController {
         return;
       }
 
-      const { feedDescriptor, postUri, event, durationMs } = req.body;
-      if (!feedDescriptor || !postUri || !event) {
-        res.status(400).json({ success: false, error: 'Missing required fields' });
+      const parsed = parseFeedInteractionBatch(req.body);
+      if (!parsed.ok) {
+        res.status(400).json({ success: false, error: parsed.error });
         return;
       }
 
-      const validEvents = ['impression', 'click', 'like', 'reply', 'boost', 'save', 'report'];
-      if (!validEvents.includes(event)) {
-        res.status(400).json({ success: false, error: `Invalid event: ${event}` });
-        return;
+      // One timestamp for the whole batch: the entries were observed together on
+      // the client, and the queue's flush delay is not per-entry information.
+      const timestamp = new Date();
+      // `allSettled`, not `all`: each entry's side effects are independent, so a
+      // single failure must not discard the rest of the batch. `trackFeedInteraction`
+      // already logs its own failures; this only reports how many did not land, so
+      // a systematically failing batch stays visible.
+      const results = await Promise.allSettled(
+        parsed.interactions.map((interaction) =>
+          trackFeedInteraction({ ...interaction, userId, timestamp }),
+        ),
+      );
+      const failed = results.filter((result) => result.status === 'rejected').length;
+      if (failed > 0) {
+        logger.warn('[MtnFeedController] recordInteraction: some entries failed', {
+          failed,
+          total: parsed.interactions.length,
+        });
       }
-
-      await trackFeedInteraction({
-        userId,
-        feedDescriptor,
-        postUri,
-        event,
-        durationMs,
-        timestamp: new Date(),
-      });
 
       res.json({ success: true });
     } catch (error) {

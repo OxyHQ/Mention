@@ -166,15 +166,15 @@ jest.mock('@oxyhq/services/ui/client', () => {
 /**
  * The telemetry transport. The REAL `utils/feedTelemetry` runs on top of it, so
  * these two spies are exactly the two routes the app can reach: card events must
- * land on `sendInterstitialEvent` and NEVER on `sendFeedInteraction`, which
+ * land on `sendInterstitialEvent` and NEVER on `sendFeedInteractions`, which
  * carries a `postUri` and feeds post ranking.
  */
 const mockSendInterstitialEvent = jest.fn();
-const mockSendFeedInteraction = jest.fn();
+const mockSendFeedInteractions = jest.fn();
 jest.mock('@/services/feedService', () => ({
   feedService: {
     sendInterstitialEvent: (...args: unknown[]) => mockSendInterstitialEvent(...args),
-    sendFeedInteraction: (...args: unknown[]) => mockSendFeedInteraction(...args),
+    sendFeedInteractions: (...args: unknown[]) => mockSendFeedInteractions(...args),
   },
 }));
 
@@ -563,7 +563,7 @@ beforeEach(() => {
   mockGetSimilarProfiles.mockReset().mockResolvedValue([]);
   mockGetUsersByIds.mockReset().mockResolvedValue([]);
   mockSendInterstitialEvent.mockReset().mockResolvedValue(undefined);
-  mockSendFeedInteraction.mockReset().mockResolvedValue(undefined);
+  mockSendFeedInteractions.mockReset().mockResolvedValue(undefined);
   mockSubject = undefined;
 });
 
@@ -1363,7 +1363,7 @@ describe('interstitial telemetry', () => {
     // `/feed/mtn/interactions` requires a postUri and feeds POST ranking: a card
     // event sent there would credit author/topic affinity with engagement that
     // never touched a post.
-    expect(mockSendFeedInteraction).not.toHaveBeenCalled();
+    expect(mockSendFeedInteractions).not.toHaveBeenCalled();
     expect(mockSendInterstitialEvent.mock.calls.length).toBeGreaterThan(0);
   });
 

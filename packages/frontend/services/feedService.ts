@@ -16,6 +16,7 @@ import type {
   FeedDescriptor,
   HydratedPost,
   UpdatePostRequest,
+  FeedInteractionInput,
   FeedInterstitialEventInput,
   PostEditSource,
   PostUser,
@@ -808,21 +809,22 @@ class FeedService {
   }
 
   /**
-   * Send feed interaction data
+   * Send a BATCH of feed interactions.
+   *
+   * Batched, never one-per-event: a feed reports many rows in a single pass, and
+   * one request per row put a scrolling client over the backend's per-IP feed
+   * rate limiter, which rejected the overflow and lost the ranking signal.
+   * Batching is owned by `utils/feedTelemetry.ts`; this method is the transport.
    */
-  async sendFeedInteraction(data: {
-    feedDescriptor: string;
-    postUri: string;
-    event: 'impression' | 'click' | 'like' | 'reply' | 'boost' | 'save';
-    durationMs?: number;
-  }): Promise<void> {
+  async sendFeedInteractions(interactions: FeedInteractionInput[]): Promise<void> {
+    if (interactions.length === 0) return;
     try {
-      await authenticatedClient.post('/feed/mtn/interactions', data);
+      await authenticatedClient.post('/feed/mtn/interactions', { interactions });
     } catch (error) {
       // Telemetry write — non-critical to the user, but log so silent loss of
       // feed-ranking signal is observable in diagnostics.
-      logger.debug('Failed to send feed interaction', {
-        event: data.event,
+      logger.debug('Failed to send feed interactions', {
+        count: interactions.length,
         ...normalizeApiError(error),
       });
     }
@@ -831,7 +833,7 @@ class FeedService {
   /**
    * Report what a viewer did with a recommendation card.
    *
-   * A SEPARATE route from `sendFeedInteraction` on purpose: that one carries a
+   * A SEPARATE route from `sendFeedInteractions` on purpose: that one carries a
    * `postUri` and feeds post ranking, so a card event sent through it would
    * credit author/topic affinity with engagement that never touched a post.
    * Card events are counters about the CARDS, and nothing else reads them.

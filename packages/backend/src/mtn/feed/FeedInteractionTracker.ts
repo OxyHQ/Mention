@@ -7,6 +7,7 @@
 
 import mongoose from 'mongoose';
 import { MtnConfig, PostVisibility } from '@mention/shared-types';
+import type { FeedInteractionEventName } from '@mention/shared-types';
 import { logger } from '../../utils/logger';
 import { Post } from '../../models/Post';
 import { recordDedupedView } from '../../services/feedViewCounter';
@@ -19,13 +20,12 @@ import {
   originForFederation,
 } from './feedMetrics';
 
-export type InteractionEvent = 'impression' | 'click' | 'like' | 'reply' | 'boost' | 'save' | 'report';
-
 export interface FeedInteractionData {
   userId: string;
   feedDescriptor: string;
   postUri: string;
-  event: InteractionEvent;
+  /** Shared with the client emitter and the route validator — see `@mention/shared-types`. */
+  event: FeedInteractionEventName;
   durationMs?: number;
   timestamp: Date;
 }
@@ -166,27 +166,4 @@ export async function recordReportSignal(interaction: FeedInteractionData): Prom
     federation = post?.federation;
   }
   recordReport(interaction.feedDescriptor, originForFederation(federation));
-}
-
-/**
- * Record a batch of impressions (fire-and-forget).
- */
-export function trackImpressions(
-  userId: string,
-  feedDescriptor: string,
-  postUris: string[]
-): void {
-  const now = new Date();
-  const interactions = postUris.map((uri) => ({
-    userId,
-    feedDescriptor,
-    postUri: uri,
-    event: 'impression' as const,
-    timestamp: now,
-  }));
-
-  // Fire and forget — don't await
-  Promise.all(interactions.map(trackFeedInteraction)).catch((error) => {
-    logger.warn('[FeedInteractionTracker] Batch impression tracking failed', error);
-  });
 }

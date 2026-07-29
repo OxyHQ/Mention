@@ -174,6 +174,54 @@ export interface FeedInterstitialEventInput {
   position?: number;
 }
 
+/**
+ * What a viewer did with a POST in a feed. Unlike the card events above these
+ * DO feed post ranking (view counts, dwell, author/topic affinity), so every one
+ * of them carries the `postUri` it is attributed to.
+ *
+ * This union is the single source of truth for both ends of
+ * `POST /feed/mtn/interactions` — the client emitter and the server validator
+ * previously each kept their own copy and had already drifted (`report` existed
+ * only on the server).
+ */
+export type FeedInteractionEventName =
+  | 'impression'
+  | 'click'
+  | 'like'
+  | 'reply'
+  | 'boost'
+  | 'save'
+  | 'report';
+
+export interface FeedInteractionInput {
+  feedDescriptor: string;
+  postUri: string;
+  event: FeedInteractionEventName;
+  /**
+   * Accrued visible time in milliseconds, for an `impression`. Server-clamped
+   * before it reaches any ranking signal — client telemetry is untrusted.
+   */
+  durationMs?: number;
+}
+
+/**
+ * The request body of `POST /feed/mtn/interactions`. Always a batch, even for a
+ * single event: a feed reports N rows at once (a screenful crossing the dwell
+ * gate together, or a teardown flush), and one request per row walks straight
+ * into the per-IP feed rate limiter.
+ */
+export interface FeedInteractionBatchInput {
+  interactions: FeedInteractionInput[];
+}
+
+/**
+ * Hard cap on interactions per request. Bounds the server's per-request fan-out
+ * (each entry can trigger a post lookup plus dedupe/dwell writes) and bounds the
+ * client's queue drain, so a backlog is spread across requests instead of
+ * arriving as one unbounded body.
+ */
+export const FEED_INTERACTION_BATCH_LIMIT = 50;
+
 export interface SlicedFeedResponse {
   slices: FeedPostSlice[];
   /**

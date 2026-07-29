@@ -32,7 +32,7 @@
  *   bun packages/backend/dist/src/scripts/evalFeedQuality.js --languages en,es --sample 300
  */
 
-import type { PostClassification, PostContent } from '@mention/shared-types';
+import type { FeedInteractionEventName, PostClassification, PostContent } from '@mention/shared-types';
 import { resolveVariant } from '../services/postVariants';
 import type { FeedTuning } from '@mention/shared-types';
 import { getBaseLanguage } from '@oxyhq/core';
@@ -46,7 +46,6 @@ import {
 import type { BaselineContentClassifier, ClassifyInput } from '../services/BaselineContentClassifier';
 import type { FeedRankingService } from '../services/FeedRankingService';
 import type { CandidatePost, FeedEngineContext, DiscoveryGateBucket } from '../mtn/feed/engine/types';
-import type { InteractionEvent } from '../mtn/feed/FeedInteractionTracker';
 import { originForFederation } from '../mtn/feed/feedMetrics';
 import type {
   FeedQualityLabel,
@@ -422,13 +421,13 @@ function buildReport(
 // the online comparison the discovery-gate experiment is validated on.
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** Per-event interaction counts (a subset of the {@link InteractionEvent} space). */
-export type OnlineEventCounts = Partial<Record<InteractionEvent, number>>;
+/** Per-event interaction counts (a subset of the {@link FeedInteractionEventName} space). */
+export type OnlineEventCounts = Partial<Record<FeedInteractionEventName, number>>;
 
 /** One pre-aggregated `(userId, event) → count` row from the interaction collection. */
 export interface OnlineInteractionRow {
   userId: string;
-  event: InteractionEvent;
+  event: FeedInteractionEventName;
   count: number;
 }
 
@@ -441,7 +440,7 @@ export interface OnlineEngagementReport {
 }
 
 /** Events that count as POSITIVE engagement in the per-impression ratio. */
-const ENGAGEMENT_EVENTS: InteractionEvent[] = ['click', 'like', 'reply', 'boost', 'save'];
+const ENGAGEMENT_EVENTS: FeedInteractionEventName[] = ['click', 'like', 'reply', 'boost', 'save'];
 
 /** Compute engagement-per-impression and report-per-impression from event counts. Pure. */
 export function computeOnlineEngagement(counts: OnlineEventCounts): OnlineEngagementReport {
