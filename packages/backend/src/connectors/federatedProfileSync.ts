@@ -327,10 +327,18 @@ class FederatedProfileSync {
           });
         }
 
-        // Backfill oxyUserId on any posts that were stored without it
+        // Backfill oxyUserId on any posts that were stored without it. The match is
+        // a `/`-terminated RANGE over `federation.activityId` (the same form the
+        // sibling read in `connectors.routes.ts` uses), never a `$regex` built from
+        // the actor URI: an unescaped prefix would let `@bob` claim `@bobsmith`'s
+        // orphaned posts, and any `.`/`*`/`+`/`(`/`?` surviving URL normalization
+        // would become a mongod-evaluated pattern over an unindexable scan.
         if (syncedCount > 0) {
           await Post.updateMany(
-            { 'federation.activityId': { $regex: `^${actor.uri}` }, oxyUserId: null },
+            {
+              'federation.activityId': { $gte: `${actor.uri}/`, $lt: `${actor.uri}/\uffff` },
+              oxyUserId: null,
+            },
             { $set: { oxyUserId: syncUserId } },
           );
         }
