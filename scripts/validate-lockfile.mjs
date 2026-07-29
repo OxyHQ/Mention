@@ -1,9 +1,24 @@
 #!/usr/bin/env bun
 
 /**
- * Supply-chain lint for bun.lock: every dependency resolves from the default
- * public registry over TLS, carries an integrity hash, and is not an alias
- * pointing at a differently-named package.
+ * Static checks on bun.lock, each of which fails for its own distinct reason so
+ * that a failure names its own cause rather than being misread as one of the
+ * others:
+ *
+ *   1. Supply chain — every dependency resolves from the default public registry
+ *      over TLS, carries an integrity hash, and is not an alias pointing at a
+ *      differently-named package.
+ *   2. Workspace records — what the lockfile records for each workspace (path
+ *      set, package name, version) matches the manifests on disk. `bun install`
+ *      does NOT repair a stale recorded workspace version, so no install-and-diff
+ *      check can see this one (~/Oxy/AGENTS.md, "layer 1").
+ *   3. Dockerfile manifest coverage — every `bun install --frozen-lockfile` in
+ *      an image build has a manifest for every workspace the lockfile records.
+ *      Copying 4 of 5 workspace manifests fails with the same
+ *      "lockfile had changes, but lockfile is frozen" as a genuinely stale
+ *      lockfile, but for an unrelated reason, and only inside the image build —
+ *      .github/scripts/verify-lockfile.sh runs against a full checkout and
+ *      cannot see it at all.
  *
  * Intent ported from bluesky-social/social-app 29dad38ab ("Add lockfile lint",
  * MIT (c) 2023-2026 Bluesky Social PBC), which configures `lockfile-lint` with
@@ -21,12 +36,14 @@
  * starts empty rather than carrying entries nothing can trip.
  */
 
-import { readFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
+import { readdir, readFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const lockfilePath = resolve(repositoryRoot, "bun.lock");
+const packagesDirectory = resolve(repositoryRoot, "packages");
 
 /**
  * Hosts a resolution may name. bun leaves this field empty for the default
@@ -205,6 +222,169 @@ for (const [key, entry] of Object.entries(packages)) {
   }
 }
 
+// ---------------------------------------------------------------------------
+// 2. The workspace records match the manifests on disk.
+//
+//    `bun install` leaves a stale recorded workspace `version` exactly as it
+//    found it and reports no change, so an install-and-diff check — including
+//    .github/scripts/verify-lockfile.sh — is blind to this shape. Only deleting
+//    the lockfile and resolving from scratch rewrites it, which is not something
+//    CI can do (see the note on caret ranges in verify-lockfile.sh).
+// ---------------------------------------------------------------------------
+
+const recordedWorkspaces = lockfile.workspaces;
+if (!recordedWorkspaces || typeof recordedWorkspaces !== "object") {
+  console.error("bun.lock has no `workspaces` map; this is not a bun text lockfile");
+  process.exit(1);
+}
+
+/** Workspace directories the lockfile claims exist, root (`""`) excluded. */
+const workspacePaths = Object.keys(recordedWorkspaces)
+  .filter((path) => path !== "")
+  .sort();
+
+const onDiskWorkspacePaths = (await readdir(packagesDirectory, { withFileTypes: true }))
+  .filter((entry) => entry.isDirectory())
+  .map((entry) => `packages/${entry.name}`)
+  .filter((path) => existsSync(resolve(repositoryRoot, path, "package.json")))
+  .sort();
+
+for (const path of onDiskWorkspacePaths) {
+  if (workspacePaths.includes(path)) continue;
+  failures.push(
+    `workspace ${path} has a package.json but bun.lock does not record it — run \`bun install\` so the workspace is resolvable`,
+  );
+}
+for (const path of workspacePaths) {
+  if (onDiskWorkspacePaths.includes(path)) continue;
+  failures.push(
+    `bun.lock records workspace ${path}, which has no package.json on disk — the lockfile is describing a workspace that no longer exists`,
+  );
+}
+
+for (const [path, recorded] of Object.entries(recordedWorkspaces)) {
+  const manifestPath = resolve(repositoryRoot, path, "package.json");
+  if (!existsSync(manifestPath)) continue;
+  const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
+  const location = path === "" ? "package.json" : `${path}/package.json`;
+
+  if (recorded.name !== manifest.name) {
+    failures.push(
+      `bun.lock records workspace ${path || "(root)"} as "${recorded.name}", but ${location} says "${manifest.name}"`,
+    );
+  }
+  // bun omits `version` for the root workspace, so only compare what it records.
+  if (recorded.version !== undefined && recorded.version !== manifest.version) {
+    failures.push(
+      `bun.lock records ${location} at version ${recorded.version}, but the manifest says ${manifest.version} — \`bun install\` does not repair this; delete bun.lock and reinstall`,
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 3. Every frozen install in an image build can see every workspace manifest.
+// ---------------------------------------------------------------------------
+
+/**
+ * A Dockerfile as logical instructions, with continuations joined and comments
+ * dropped, so a `RUN` spanning four physical lines is one instruction and still
+ * reports the line it started on.
+ */
+function parseDockerfile(source) {
+  const instructions = [];
+  let text = "";
+  let startLine = 0;
+  let lineNumber = 0;
+  for (const line of source.split("\n")) {
+    lineNumber += 1;
+    const trimmed = line.trim();
+    if (trimmed === "" || trimmed.startsWith("#")) continue;
+    if (text === "") startLine = lineNumber;
+    const continued = trimmed.endsWith("\\");
+    text += (text === "" ? "" : " ") + (continued ? trimmed.slice(0, -1).trim() : trimmed);
+    if (!continued) {
+      instructions.push({ text, line: startLine });
+      text = "";
+    }
+  }
+  if (text !== "") instructions.push({ text, line: startLine });
+  return instructions;
+}
+
+/** The workspaces whose package.json a single COPY makes available. */
+function workspacesCoveredByCopy(argumentText, candidates) {
+  const tokens = argumentText.split(/\s+/).filter((token) => token !== "" && !token.startsWith("--"));
+  // The final token is the destination; everything before it is a source.
+  const sources = tokens.slice(0, -1).map((source) => source.replace(/^\/app\//, "").replace(/^\.\//, ""));
+
+  const covered = [];
+  for (const workspace of candidates) {
+    for (const source of sources) {
+      const manifest = `${workspace}/package.json`;
+      const wholeDirectory = source === workspace || source === `${workspace}/`;
+      const glob =
+        source.includes("*") &&
+        new RegExp(`^${source.replace(/[.+^${}()|[\]\\]/g, "\\$&").replace(/\*/g, "[^/]*")}$`).test(manifest);
+      if (source === manifest || wholeDirectory || glob) {
+        covered.push(workspace);
+        break;
+      }
+    }
+  }
+  return covered;
+}
+
+const dockerfileNames = (await readdir(packagesDirectory, { withFileTypes: true }))
+  .filter((entry) => entry.isDirectory())
+  .map((entry) => `packages/${entry.name}/Dockerfile`)
+  .filter((path) => existsSync(resolve(repositoryRoot, path)))
+  .sort();
+
+if (dockerfileNames.length === 0) {
+  failures.push("no Dockerfiles found under packages/ — the Dockerfile scan is probably broken");
+}
+
+let auditedInstalls = 0;
+for (const dockerfileName of dockerfileNames) {
+  const coverageByStage = new Map();
+  let stage = null;
+
+  for (const { text, line } of parseDockerfile(await readFile(resolve(repositoryRoot, dockerfileName), "utf8"))) {
+    const from = /^FROM\s+(\S+)(?:\s+AS\s+(\S+))?/i.exec(text);
+    if (from) {
+      // `FROM <earlier stage>` inherits that stage's filesystem, manifests included.
+      const inherited = coverageByStage.get(from[1]);
+      stage = { name: from[2] ?? `${dockerfileName}:${line}`, covered: new Set(inherited ?? []) };
+      coverageByStage.set(stage.name, stage.covered);
+      continue;
+    }
+    if (!stage) continue;
+
+    const copy = /^COPY\s+(.+)$/i.exec(text);
+    if (copy) {
+      for (const workspace of workspacesCoveredByCopy(copy[1], workspacePaths)) stage.covered.add(workspace);
+      continue;
+    }
+
+    if (!/^RUN\b/i.test(text) || !/\bbun\s+install\b/.test(text) || !text.includes("--frozen-lockfile")) {
+      continue;
+    }
+
+    auditedInstalls += 1;
+    const missing = workspacePaths.filter((workspace) => !stage.covered.has(workspace));
+    if (missing.length === 0) continue;
+    failures.push(
+      `${dockerfileName}:${line}: \`bun install --frozen-lockfile\` runs in stage "${stage.name}" without a manifest for ${missing.join(", ")}. bun.lock records ${workspacePaths.length} workspaces and a frozen install needs all of them, so this fails with "lockfile had changes, but lockfile is frozen" inside the image build even though the lockfile is correct. Add \`COPY ${missing[0]}/package.json ${missing[0]}/\` before this RUN.`,
+    );
+  }
+}
+
+if (auditedInstalls === 0) {
+  failures.push(
+    "no frozen `bun install` found in any Dockerfile — the instruction parser is probably broken",
+  );
+}
+
 if (failures.length > 0) {
   console.error("bun.lock validation failed:\n");
   for (const failure of failures) console.error(`- ${failure}`);
@@ -213,5 +393,7 @@ if (failures.length > 0) {
 }
 
 console.log(
-  `Validated ${packageCount} bun.lock resolutions: registry-only, https, integrity-pinned, no package-name aliases.`,
+  `Validated ${packageCount} bun.lock resolutions (registry-only, https, integrity-pinned, no aliases), ` +
+    `${workspacePaths.length} workspace records against their manifests, and ` +
+    `${auditedInstalls} frozen installs across ${dockerfileNames.length} Dockerfiles.`,
 );
