@@ -3,28 +3,69 @@
  * Separated from _layout.tsx for better testability and maintainability
  */
 
-import i18n, { changeLanguage, init as i18nInit, use as i18nUse } from 'i18next';
+import i18n, {
+  changeLanguage,
+  init as i18nInit,
+  use as i18nUse,
+  type Resource,
+  type ResourceKey,
+} from 'i18next';
 import { initReactI18next } from 'react-i18next';
 
 import enUS from '@/locales/en.json';
-import esES from '@/locales/es.json';
-import itIT from '@/locales/it.json';
 
 import { DEFAULT_LANGUAGE, STORAGE_KEYS } from './constants';
 import { Storage } from '@/utils/storage';
 import { logger } from '@/lib/logger';
 
-const i18nResources = {
-  'en-US': { translation: enUS },
-  'es-ES': { translation: esES },
-  'it-IT': { translation: itIT },
-} as const;
+/**
+ * `en-US` is both `DEFAULT_LANGUAGE` and `fallbackLng`, so it is needed on every
+ * boot and stays in the initial graph. The other locales are fetched on demand:
+ * statically importing all three put every translation of every string into the
+ * web app's initial chunk, ~40 KB gzip of which no single user can ever read.
+ *
+ * Same shape as bluesky-social/social-app 41b374236, which moved its message
+ * catalogs (and date-fns locale data, which we do not use) behind `import()`.
+ */
+const TRANSLATION_LOADERS: Record<string, () => Promise<ResourceKey>> = {
+  'es-ES': async () => (await import('@/locales/es.json')).default,
+  'it-IT': async () => (await import('@/locales/it.json')).default,
+};
 
-export interface I18nConfig {
-  resources: typeof i18nResources;
-  lng: string;
-  fallbackLng: string;
-  interpolation: { escapeValue: boolean };
+const baseResources: Resource = { 'en-US': { translation: enUS } };
+
+/**
+ * Resolves a language's translations, or `null` when the language needs none
+ * beyond the statically bundled default. A failed fetch is not fatal — i18next
+ * falls back to `DEFAULT_LANGUAGE`.
+ */
+async function loadTranslation(language: string): Promise<ResourceKey | null> {
+  const load = TRANSLATION_LOADERS[language];
+  if (!load) return null;
+
+  try {
+    return await load();
+  } catch (error) {
+    logger.error('Failed to load translation bundle', { language, error });
+    return null;
+  }
+}
+
+/**
+ * Switches language, fetching its translations first so the new strings are
+ * present before the re-render. This is the only supported way to change
+ * language — calling i18next's `changeLanguage` directly would switch to a
+ * language whose bundle has never been loaded.
+ */
+export async function setLanguage(language: string): Promise<void> {
+  if (!i18n.hasResourceBundle(language, 'translation')) {
+    const translation = await loadTranslation(language);
+    if (translation) {
+      i18n.addResourceBundle(language, 'translation', translation);
+    }
+  }
+
+  await changeLanguage(language);
 }
 
 /**
@@ -49,14 +90,21 @@ export async function initializeI18n(): Promise<void> {
 
     if (i18n.isInitialized) {
       // If already initialized, just change the language
-      await changeLanguage(initialLanguage);
+      await setLanguage(initialLanguage);
       return;
     }
+
+    // Resolve the saved language's translations before init so the first render
+    // already has them and never flashes the fallback language.
+    const translation = await loadTranslation(initialLanguage);
+    const resources: Resource = translation
+      ? { ...baseResources, [initialLanguage]: { translation } }
+      : baseResources;
 
     // Initialize i18n with the saved language
     i18nUse(initReactI18next);
     await i18nInit({
-      resources: i18nResources,
+      resources,
       lng: initialLanguage,
       fallbackLng: DEFAULT_LANGUAGE,
       interpolation: { escapeValue: false },
@@ -68,7 +116,7 @@ export async function initializeI18n(): Promise<void> {
       try {
         i18nUse(initReactI18next);
         await i18nInit({
-          resources: i18nResources,
+          resources: baseResources,
           lng: DEFAULT_LANGUAGE,
           fallbackLng: DEFAULT_LANGUAGE,
           interpolation: { escapeValue: false },
