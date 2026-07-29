@@ -35,6 +35,26 @@ import { useVideoPlayback, VideoViewabilityProvider } from '@/context/VideoPlayb
 import { BottomSheetContext } from '@/context/BottomSheetContext';
 import { VideoReplies } from '@/components/videos/VideoReplies';
 
+/**
+ * Whether this platform can put a video in the OS Picture-in-Picture window.
+ *
+ * NOT simply `isPictureInPictureSupported()`: that export goes through
+ * expo-video's `NativeVideoModule`, and the module's WEB shim
+ * (`NativeVideoModule.web.ts`) defines only `VideoThumbnail`. Calling it in a
+ * browser therefore throws `isPictureInPictureSupported is not a function` and
+ * takes the whole screen down. `tsc` cannot see it — the types come from the
+ * NATIVE module declaration, so the web shim's missing method typechecks fine.
+ *
+ * On web, feature-detect the DOM API directly (what expo-video's own web
+ * `VideoView` does); on native the module call is the real capability check.
+ */
+function supportsPictureInPicture(): boolean {
+    if (Platform.OS === 'web') {
+        return typeof document !== 'undefined' && typeof document.exitPictureInPicture === 'function';
+    }
+    return isPictureInPictureSupported();
+}
+
 // ── Tuning constants ─────────────────────────────────────────────
 // One-screen vertical pager: keep the live-player window tight so only the
 // active video and its neighbours hold a decoder.
@@ -561,7 +581,7 @@ const ActiveVideoSurface = memo<ActiveVideoSurfaceProps>(({
     // Hidden while the OS window is already up (the affordance would be a no-op)
     // and wherever the platform reports no PiP support — Firefox on web, Android
     // without `FEATURE_PICTURE_IN_PICTURE`, iOS without `AVPictureInPictureController`.
-    const showPipButton = pictureInPictureAllowed && !inPictureInPicture && isPictureInPictureSupported();
+    const showPipButton = pictureInPictureAllowed && !inPictureInPicture && supportsPictureInPicture();
 
     return (
         <>
