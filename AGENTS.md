@@ -307,7 +307,7 @@ Runs at all ingest chokepoints: `PostCreationService`, `feed.controller` reply p
 - Top-level `post.language` = `languages[0]` (primary, the AP protocol field).
 - Sensitive, spam, quality, toxicity scores (`services/contentClassification/spamQuality.ts`), normalized hashtags, rule-based topics via `TopicClassifier`.
 - Status: `'pending'` (waiting for Stage B).
-- `BASELINE_CLASSIFIER_VERSION = 4` — ranking only trusts scores stamped at or above this version.
+- `BASELINE_CLASSIFIER_VERSION` (`services/BaselineContentClassifier.ts`) — ranking only trusts scores stamped at or above this version. The constant is the source of truth; never restate its value here, and bump it whenever a Stage-A signal changes meaning so older stamps stop being honored.
 
 **Stage B — async AI enrichment (`PostClassificationService`, Alia):**
 Uses DOTTED `$set` to enrich the existing subdoc — NEVER a whole-subdoc overwrite (would wipe Stage A fields). Topics via `postClassification.topicRefs` resolved through `TopicService.resolveTopicRefs`. Readers prefer `topicRefs`, fall back to `extracted.topics`, then neutral.
