@@ -288,6 +288,14 @@ function persistedGeometry(item: MediaItem): Partial<MediaItem> {
  * description — passed through unchanged, it is not a URL and needs no
  * resolution) and its persisted {@link persistedGeometry}. Items without an
  * `id` are dropped.
+ *
+ * Because each return site builds a fresh object, this list IS the public shape
+ * of a media cell — a property with two edges. It is what let the geometry go
+ * missing silently, and it is also the boundary that keeps ingest bookkeeping
+ * (`sizeBytes`, `mime`, `cachedFromFederation`, and above all `remoteUrl`, the
+ * origin URL a federated item is proxied to hide) off the wire. Widening the
+ * list is therefore a deliberate act, not a formality; a test pins the exclusion
+ * so the next field added has to be a decision.
  */
 export function resolveMediaItems(items: MediaItem[] | undefined | null): MediaItem[] {
   if (!Array.isArray(items) || items.length === 0) {
