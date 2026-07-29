@@ -100,3 +100,13 @@ export const MIGRATION_ENGAGEMENT_OUTBOX_INDEXES = '0011-engagement-outbox-index
  */
 export const MIGRATION_MTN_EVENT_IDEMPOTENCY_INDEX =
   '0012-mtn-event-idempotency-index';
+
+/**
+ * Widen the `Trending` batch uniqueness key from `{ name, calculatedAt }` to
+ * `{ name, calculatedAt, type }`, so a name that trends as BOTH a hashtag and a
+ * classified topic stops colliding and killing the whole batch write. Production
+ * disables Mongoose auto-indexing, so this migration is the schema authority.
+ * See {@link ./0013-trending-name-type-unique-index}.
+ */
+export const MIGRATION_TRENDING_NAME_TYPE_UNIQUE_INDEX =
+  '0013-trending-name-type-unique-index';

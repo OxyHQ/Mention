@@ -102,8 +102,24 @@ const TrendingSchema = new Schema({
 // Efficient query for latest batch and history browsing
 TrendingSchema.index({ calculatedAt: -1, score: -1 });
 
-// Unique constraint: same trend name can't appear twice in the same batch
-TrendingSchema.index({ name: 1, calculatedAt: 1 }, { unique: true });
+// Unique constraint: the same trend can't appear twice in the same batch — and a
+// trend is a (name, type) pair, not a name. A hashtag someone typed and a topic
+// the classifier inferred are different things that carry different volumes and
+// route to different screens (`/hashtag/science` vs `/trend/science`), so both
+// legitimately appear in one batch under the same name. Keying uniqueness on the
+// name alone made that collision fatal: the batch insert aborted on it and the
+// job stopped publishing, freezing `GET /trending` on its last complete batch.
+//
+// `type` is deliberately LAST. `{ name, calculatedAt }` stays an exact index
+// prefix, so the per-name volume-series range scan behind the sparkline
+// (`TrendingService.loadVolumeSeries`) still gets its sort straight from the
+// index; verified by explain — moving `type` into the middle instead adds a
+// blocking SORT stage.
+//
+// NOTE: `autoIndex`/`autoCreate` are OFF in production — the widened index is
+// created (and the old `{ name, calculatedAt }` one dropped) by migration
+// `0013-trending-name-type-unique-index`, not on model load.
+TrendingSchema.index({ name: 1, calculatedAt: 1, type: 1 }, { unique: true });
 
 // TTL index: MongoDB's background monitor reaps rows older than the retention
 // window so the collection stays bounded. This is ALSO the ascending
