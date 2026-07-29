@@ -78,20 +78,47 @@ export function extractPublicProfileData(doc: Partial<UserSettingsData> | null |
 }
 
 /**
+ * The profile-design DTO with every design field suppressed — what a viewer
+ * without profile access receives. Sharing this list means a design field added
+ * to {@link extractPublicProfileData} cannot be redacted on one profile surface
+ * and forgotten on the other.
+ */
+export function redactedProfileDesign(userId: string) {
+  return {
+    oxyUserId: userId,
+    appearance: undefined,
+    profileHeaderImage: undefined,
+    profileCustomization: undefined,
+    profileMedia: undefined,
+  };
+}
+
+/**
  * Returns the appropriate settings payload for a viewer.
  *
  * Full settings documents include private preferences (for example NSFW opt-in
  * and hidden words) and must only be returned to the settings owner. Other
  * authenticated viewers receive the same public-safe profile data used by
  * profile surfaces.
+ *
+ * `canViewProfileDesign` is REQUIRED, not optional: the design fields are gated
+ * on the target's `privacy.profileVisibility`, and a permissive default is
+ * exactly how the next call site would silently reopen the bypass this closed.
+ * Resolve it with `canViewProfileDesign` from `utils/privacyHelpers` — the same
+ * rule `GET /profile/design/:userId` applies.
  */
 export function buildSettingsResponseForViewer(
   doc: Partial<UserSettingsData> | null | undefined,
   targetUserId: string,
   viewerUserId: string,
+  options: { canViewProfileDesign: boolean },
 ) {
   if (targetUserId === viewerUserId) {
     return doc;
+  }
+
+  if (!options.canViewProfileDesign) {
+    return redactedProfileDesign(targetUserId);
   }
 
   return extractPublicProfileData(doc, targetUserId);

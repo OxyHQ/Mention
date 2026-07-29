@@ -8,6 +8,7 @@ import Like from '../models/Like';
 import { requireOxyAuth as requireAuth, type OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
 import { buildSettingsResponseForViewer, ensureUserSettings } from '../utils/userSettings';
 import { ensureProfileMediaPublic } from '../utils/oxyHelpers';
+import { canViewProfileDesign } from '../utils/privacyHelpers';
 import { sendErrorResponse, sendSuccessResponse, validateRequired } from '../utils/apiHelpers';
 import { getRequiredOxyUserId as getAuthenticatedUserId } from '@oxyhq/core/server';
 import { type TrackSummary, type PodcastSummary } from '@syra.fm/sdk';
@@ -64,7 +65,24 @@ router.get('/settings/:userId', async (req: AuthRequest, res: Response) => {
     const doc = userId === viewerUserId
       ? await ensureUserSettings(userId)
       : await UserSettings.findOne({ oxyUserId: userId }).lean().exec();
-    return sendSuccessResponse(res, 200, buildSettingsResponseForViewer(doc, userId, viewerUserId));
+
+    // This route serves the SAME profile-design DTO as `GET /profile/design/:userId`,
+    // so it applies the SAME visibility rule. Without it a private profile's
+    // banner, appearance, customization and pinned profile media were readable
+    // here by any authenticated account, while the design route withheld them.
+    const canViewDesign = await canViewProfileDesign(
+      userId,
+      viewerUserId,
+      doc?.privacy?.profileVisibility,
+    );
+
+    return sendSuccessResponse(
+      res,
+      200,
+      buildSettingsResponseForViewer(doc, userId, viewerUserId, {
+        canViewProfileDesign: canViewDesign,
+      }),
+    );
   } catch (err) {
     logger.error('[ProfileSettings] Error fetching user settings:', { userId: req.user?.id, targetUserId: req.params.userId, error: err });
     return sendErrorResponse(res, 500, 'Internal Server Error', 'Failed to fetch settings');

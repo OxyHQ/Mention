@@ -323,3 +323,34 @@ export function requiresAccessCheck(profileVisibility: string | undefined): bool
   return profileVisibility === ProfileVisibility.PRIVATE ||
          profileVisibility === ProfileVisibility.FOLLOWERS_ONLY;
 }
+
+/**
+ * Whether a viewer may read a profile's DESIGN surface — banner, appearance,
+ * customization, pinned profile media.
+ *
+ * This is the ONE access rule behind every profile-design response. Both
+ * `GET /profile/design/:userId` and `GET /profile/settings/:userId` serve that
+ * same DTO, so both must call this: when only the design route gated it, a
+ * private profile's banner and appearance stayed readable through the settings
+ * route by any authenticated account.
+ *
+ * The owner always has access; a public profile is open to everyone, anonymous
+ * viewers included; a private or followers-only profile requires an
+ * authenticated viewer who follows the owner.
+ *
+ * @param targetUserId - The profile being read
+ * @param viewerUserId - The viewer, or undefined when unauthenticated
+ * @param profileVisibility - The target's `privacy.profileVisibility`
+ * @param client - Optional per-request OxyServices instance
+ */
+export async function canViewProfileDesign(
+  targetUserId: string,
+  viewerUserId: string | undefined,
+  profileVisibility: string | undefined,
+  client?: OxyClient,
+): Promise<boolean> {
+  if (viewerUserId && viewerUserId === targetUserId) return true;
+  if (!requiresAccessCheck(profileVisibility)) return true;
+  if (!viewerUserId) return false;
+  return checkFollowAccess(viewerUserId, targetUserId, client);
+}

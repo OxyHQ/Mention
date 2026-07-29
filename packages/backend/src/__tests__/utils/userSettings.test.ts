@@ -52,7 +52,9 @@ describe('buildSettingsResponseForViewer', () => {
       },
     };
 
-    expect(buildSettingsResponseForViewer(doc, 'user-1', 'user-1')).toBe(doc);
+    expect(
+      buildSettingsResponseForViewer(doc, 'user-1', 'user-1', { canViewProfileDesign: true }),
+    ).toBe(doc);
   });
 
   it('redacts private preferences from cross-user settings responses', () => {
@@ -74,6 +76,7 @@ describe('buildSettingsResponseForViewer', () => {
       },
       'target-user',
       'viewer-user',
+      { canViewProfileDesign: true },
     );
 
     expect(result).toBeTruthy();
@@ -89,5 +92,46 @@ describe('buildSettingsResponseForViewer', () => {
     if (result) {
       expect('privacy' in result).toBe(false);
     }
+  });
+
+  // The design fields are gated on the target's profile visibility. The caller
+  // resolves that rule (`canViewProfileDesign` in utils/privacyHelpers); this
+  // asserts the DTO honours a denial rather than falling back to the full
+  // payload — the fail-open shape a defaulted option would have produced.
+  it('suppresses every design field when the viewer has no profile access', () => {
+    const result = buildSettingsResponseForViewer(
+      {
+        oxyUserId: 'target-user',
+        appearance: { themeMode: 'system', primaryColor: '#00f' },
+        profileHeaderImage: 'banner-file',
+        profileCustomization: {
+          coverPhotoEnabled: true,
+          minimalistMode: false,
+          profileMedia: {
+            type: 'podcast',
+            syraPodcastId: 'show-1',
+            title: 'A private show',
+            artworkUrl: 'https://cdn.syra.fm/artwork.jpg',
+            showUrl: 'https://syra.fm/show-1',
+          },
+        },
+        privacy: {
+          profileVisibility: 'private',
+          showSensitiveContent: true,
+          hiddenWords: ['private'],
+        },
+      },
+      'target-user',
+      'viewer-user',
+      { canViewProfileDesign: false },
+    );
+
+    expect(result).toEqual({
+      oxyUserId: 'target-user',
+      appearance: undefined,
+      profileHeaderImage: undefined,
+      profileCustomization: undefined,
+      profileMedia: undefined,
+    });
   });
 });
