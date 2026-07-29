@@ -203,3 +203,62 @@ describe('resolveMediaItems', () => {
     expect(partial[0].id).toBe('keep');
   });
 });
+
+/**
+ * Intrinsic geometry is resolved once at ingest and persisted on the post, but
+ * every branch of `resolveMediaItems` builds a FRESH object — so a field that
+ * is not deliberately carried across is silently lost, and the client is left
+ * to measure the bytes itself and re-lay-out. These cases pin the passthrough
+ * on each branch (plain image, video, GIF), since they return from three
+ * separate statements and a fix applied to only one would still regress the
+ * others.
+ */
+describe('resolveMediaItems — persisted geometry passthrough', () => {
+  const geometry = {
+    width: 1200,
+    height: 800,
+    aspectRatio: 1.5,
+    orientation: 'landscape',
+  } as const;
+
+  it('forwards width/height/aspectRatio/orientation for a native image', () => {
+    const [item] = resolveMediaItems([{ id: 'img-file', type: 'image', ...geometry }]);
+
+    expect(item).toMatchObject(geometry);
+    // The URLs must still be resolved, not displaced by the geometry spread.
+    expect(item.thumbUrl).toBe(`${OXY_BASE}/assets/img-file/stream?variant=w320`);
+  });
+
+  it('forwards geometry and durationSec for a video', () => {
+    const [item] = resolveMediaItems([
+      { id: 'video-file', type: 'video', ...geometry, durationSec: 12.5 },
+    ]);
+
+    expect(item).toMatchObject({ ...geometry, durationSec: 12.5 });
+    expect(item.posterUrl).toBe(`${OXY_BASE}/assets/video-file/stream?variant=thumb`);
+  });
+
+  it('forwards geometry for a GIF', () => {
+    const [item] = resolveMediaItems([{ id: 'gif-file', type: 'gif', ...geometry }]);
+
+    expect(item).toMatchObject(geometry);
+  });
+
+  it('forwards geometry for federated (absolute-URL) media', () => {
+    const [item] = resolveMediaItems([
+      { id: 'https://external.test/i.png', type: 'image', ...geometry },
+    ]);
+
+    expect(item).toMatchObject(geometry);
+  });
+
+  it('omits geometry keys entirely when the item has none', () => {
+    const [item] = resolveMediaItems([{ id: 'bare', type: 'image' }]);
+
+    expect(item).not.toHaveProperty('width');
+    expect(item).not.toHaveProperty('height');
+    expect(item).not.toHaveProperty('aspectRatio');
+    expect(item).not.toHaveProperty('orientation');
+    expect(item).not.toHaveProperty('durationSec');
+  });
+});
