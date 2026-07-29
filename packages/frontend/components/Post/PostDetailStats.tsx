@@ -9,18 +9,24 @@ import { POST_ITEM_SPACING } from '@/styles/shared';
 
 const { HPAD, SECTION_GAP } = POST_ITEM_SPACING;
 
+/**
+ * A count straight off the post DTO, NOT coalesced by the caller — the three
+ * states have to stay distinguishable here:
+ *   number    → render it, zero included;
+ *   null      → the author hides this counter (`hideLikeCounts` and friends), so
+ *               the entry is omitted rather than shown as a misleading "0";
+ *   undefined → this DTO never carried the field (only quotes, which the feed
+ *               does not count) — read as 0 until the detail response lands.
+ */
+type StatCount = number | null | undefined;
+
 interface Props {
   /** Full absolute timestamp, e.g. "9:20 PM · Jun 11, 2026". */
   timestampLabel: string;
-  likes: number;
-  boosts: number;
-  /**
-   * Quotes are counted on read, so only the post-detail endpoints return them
-   * (`includeQuoteCounts`). Absent on a feed-seeded cache paint until the detail
-   * read lands — the entry simply does not appear until then.
-   */
-  quotes: number;
-  saves: number;
+  likes: StatCount;
+  boosts: StatCount;
+  quotes: StatCount;
+  saves: StatCount;
   onLikesPress?: () => void;
   onBoostsPress?: () => void;
 }
@@ -49,35 +55,43 @@ const PostDetailStats = memo<Props>(function PostDetailStats({
   const theme = useTheme();
   const { t } = useTranslation();
 
-  // Zero counts are dropped, so a post nobody has touched shows the timestamp
-  // alone rather than a row of zeroes.
+  // Every counter the author publishes is listed, zeroes included — a fresh post
+  // reads "0 likes · 0 boosts …" rather than silently dropping rows as the counts
+  // move, which made the block change height on every like.
   const statsEntries: { key: string; label: string; count: number; onPress?: () => void }[] = [];
-  if (likes > 0) statsEntries.push({ key: 'likes', label: t('post.stats.likes', { count: likes }), count: likes, onPress: onLikesPress });
-  if (boosts > 0) statsEntries.push({ key: 'boosts', label: t('post.stats.boosts', { count: boosts }), count: boosts, onPress: onBoostsPress });
-  if (quotes > 0) statsEntries.push({ key: 'quotes', label: t('post.stats.quotes', { count: quotes }), count: quotes });
-  if (saves > 0) statsEntries.push({ key: 'saves', label: t('post.stats.saves', { count: saves }), count: saves });
+  const pushStat = (key: string, count: StatCount, onPress?: () => void) => {
+    if (count === null) return; // author hides this counter
+    const value = count ?? 0;
+    statsEntries.push({ key, label: t(`post.stats.${key}`, { count: value }), count: value, onPress });
+  };
+  pushStat('likes', likes, onLikesPress);
+  pushStat('boosts', boosts, onBoostsPress);
+  pushStat('quotes', quotes);
+  pushStat('saves', saves);
 
   if (!timestampLabel && statsEntries.length === 0) return null;
 
+  // Each row carries its OWN full-width top rule. The wrapper deliberately holds
+  // no horizontal padding so those rules span the row exactly like the post
+  // container's bottom border; the padding lives on the rows themselves.
+  const rowStyle = {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: HPAD,
+    paddingTop: SECTION_GAP,
+  } as const;
+
   return (
-    <View
-      className="border-border"
-      style={{
-        borderTopWidth: StyleSheet.hairlineWidth,
-        paddingHorizontal: HPAD,
-        paddingTop: SECTION_GAP,
-        gap: SECTION_GAP,
-      }}
-    >
+    <View>
       {timestampLabel ? (
-        <View className="flex-row items-center">
+        <View className="flex-row items-center border-border" style={[rowStyle, { paddingBottom: SECTION_GAP }]}>
           <Text className="text-muted-foreground text-[14px]">{timestampLabel}</Text>
           <Ionicons name="globe-outline" size={14} color={theme.colors.textSecondary} style={{ marginLeft: 6 }} />
         </View>
       ) : null}
 
       {statsEntries.length > 0 && (
-        <View className="flex-row items-center flex-wrap" style={{ gap: 16 }}>
+        // No bottom padding: the post container's own `VPAD` closes the block.
+        <View className="flex-row items-center flex-wrap border-border" style={[rowStyle, { gap: 16 }]}>
           {statsEntries.map((stat) => (
             <PressableScale
               key={stat.key}

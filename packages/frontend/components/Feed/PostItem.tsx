@@ -867,10 +867,10 @@ const PostItem: React.FC<PostItemProps> = ({
                 {isDetailMain && (
                     <PostDetailStats
                         timestampLabel={fullTimestamp}
-                        likes={actionsEngagement.likes}
-                        boosts={actionsEngagement.boosts}
-                        quotes={actionsEngagement.quotes ?? 0}
-                        saves={actionsEngagement.saves}
+                        likes={engagementSummary?.likes}
+                        boosts={engagementSummary?.boosts}
+                        quotes={engagementSummary?.quotes}
+                        saves={engagementSummary?.saves}
                         onLikesPress={openLikesList}
                         onBoostsPress={openBoostsList}
                     />
