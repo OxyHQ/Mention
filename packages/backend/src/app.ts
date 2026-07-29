@@ -1,10 +1,10 @@
+import { createOxySecurityHeaders, type OxyCspExtensions } from '@oxyhq/core/server';
 import compression from 'compression';
 import express, {
   type ErrorRequestHandler,
   type Request,
   type RequestHandler,
 } from 'express';
-import helmet from 'helmet';
 import type { AppRoutes } from './appRoutes';
 
 export interface AppMiddleware {
@@ -28,34 +28,42 @@ export interface CreateAppDependencies {
   routes: AppRoutes;
 }
 
-const CSP_CONNECT_SRC = [
-  "'self'",
-  'blob:',
-  'data:',
-  'https://api.mention.earth',
-  'wss://api.mention.earth',
-  'https://api.oxy.so',
-  'wss://api.oxy.so',
-  'https://cloud.oxy.so',
-  'https://api.syra.fm',
-  'wss://api.syra.fm',
-  'https://livekit.oxy.so',
-  'wss://livekit.oxy.so',
-];
-
-const CSP_FRAME_SRC = [
-  "'self'",
-  'https://www.youtube-nocookie.com',
-  'https://www.youtube.com',
-  'https://player.vimeo.com',
-  'https://open.spotify.com',
-  'https://player.twitch.tv',
-  'https://clips.twitch.tv',
-  'https://w.soundcloud.com',
-  'https://embed.music.apple.com',
-  'https://embedr.flickr.com',
-  'https://bandcamp.com',
-];
+/**
+ * Mention's additions to the Oxy CSP baseline (`@oxyhq/core/server`). Additive
+ * only: the baseline already carries `'self'`, the Cloudflare Insights beacon
+ * hosts, the Oxy API/CDN origins, inline styles and `data:` images/fonts, so
+ * nothing it provides is restated here — only what is specific to Mention.
+ */
+const MENTION_CSP_EXTENSIONS: OxyCspExtensions = {
+  connectSrc: [
+    'blob:',
+    'data:',
+    'https://api.mention.earth',
+    'wss://api.mention.earth',
+    // Live rooms are served by Syra's backend and LiveKit, not api.mention.earth.
+    'https://api.syra.fm',
+    'wss://api.syra.fm',
+    'https://livekit.oxy.so',
+    'wss://livekit.oxy.so',
+  ],
+  // Federated media is user-supplied and lives on arbitrary remote instances.
+  imgSrc: ['blob:', 'https:'],
+  mediaSrc: ['data:', 'blob:', 'https:'],
+  // External embed players (`utils/embedPlayer.ts`) mount these in an iframe.
+  frameSrc: [
+    'https://www.youtube-nocookie.com',
+    'https://www.youtube.com',
+    'https://player.vimeo.com',
+    'https://open.spotify.com',
+    'https://player.twitch.tv',
+    'https://clips.twitch.tv',
+    'https://w.soundcloud.com',
+    'https://embed.music.apple.com',
+    'https://embedr.flickr.com',
+    'https://bandcamp.com',
+  ],
+  workerSrc: ['blob:'],
+};
 
 /**
  * Build the HTTP application only.
@@ -104,17 +112,17 @@ export function createApp(deps: CreateAppDependencies): express.Express {
   app.use(routes.health);
   app.use(routes.internalMetrics);
 
-  app.use(helmet({
-    crossOriginResourcePolicy: { policy: 'cross-origin' },
-    contentSecurityPolicy: {
-      useDefaults: true,
-      directives: {
-        'connect-src': CSP_CONNECT_SRC,
-        'img-src': ["'self'", 'data:', 'blob:', 'https:'],
-        'media-src': ["'self'", 'data:', 'blob:', 'https:'],
-        'frame-src': CSP_FRAME_SRC,
-        'worker-src': ["'self'", 'blob:'],
-      },
+  // `helmet` must stay a DIRECT dependency of this package even though nothing
+  // here imports it: `@oxyhq/core` requires it at runtime but declares it as an
+  // OPTIONAL peerDependency, so it is installed only because we declare it.
+  // Dropping it from package.json uninstalls it and this call throws at boot.
+  app.use(createOxySecurityHeaders({
+    csp: MENTION_CSP_EXTENSIONS,
+    helmet: {
+      crossOriginResourcePolicy: { policy: 'cross-origin' },
+      // Match the baseline's `frame-ancestors 'none'`; helmet's SAMEORIGIN
+      // default would state a different policy to pre-CSP browsers.
+      frameguard: { action: 'deny' },
     },
   }));
 
