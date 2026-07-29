@@ -61,6 +61,9 @@ const EMPTY_LINK_PREVIEWS: PostLinkPreview[] = [];
 /** Stable identity for a post whose content failed to hydrate (see `content` below). */
 const EMPTY_CONTENT: PostContent = {};
 
+/** Inset of the nested (quote) card — see `styles.nestedPostContainer`. */
+const NESTED_CARD_PADDING = 12;
+
 interface PostItemProps {
     post: HydratedPost;
     isNested?: boolean;
@@ -126,6 +129,13 @@ interface PostItemProps {
      * the search screen committing its query to the search history).
      */
     onOpen?: () => void;
+    /**
+     * Width of the block this post is rendered in, when the parent already knows
+     * it — set by the quote card, which is narrower than the feed row it sits in.
+     * Forwarded to the attachments row so media inside a quote is sized against
+     * the quote card, not against the screen.
+     */
+    containerWidth?: number;
 }
 
 const PostItem: React.FC<PostItemProps> = ({
@@ -147,6 +157,7 @@ const PostItem: React.FC<PostItemProps> = ({
     threadRootId,
     isThread = false,
     onOpen,
+    containerWidth,
 }) => {
     const theme = useTheme();
     const { t } = useTranslation();
@@ -838,6 +849,10 @@ const PostItem: React.FC<PostItemProps> = ({
                         onSourcesPress={hasSources ? openSourcesSheet : undefined}
                         text={content.text}
                         linkPreviews={linkPreviews}
+                        // Only a quote card hands a width down, and it measures the
+                        // card OUTSIDE its own inset — take that off before the row
+                        // sizes anything against it.
+                        containerWidth={containerWidth !== undefined ? containerWidth - NESTED_CARD_PADDING * 2 : undefined}
                     />
                 )}
 
@@ -910,15 +925,16 @@ const styles = StyleSheet.create({
     nestedPostContainer: {
         borderWidth: StyleSheet.hairlineWidth,
         borderRadius: 16,
-        padding: 12,
+        padding: NESTED_CARD_PADDING,
         // No top margin: the nested card's spacing from the outer header/content is
         // owned by the parent content column's flex `gap` (see PostItem render).
     },
 });
 
 export default React.memo(PostItem, (prevProps, nextProps) => {
-    // Fast path: same post reference
-    if (prevProps.post === nextProps.post) return true;
+    // Fast path: same post reference. `containerWidth` is part of it because a
+    // quote card that resizes hands down a new width without touching the post.
+    if (prevProps.post === nextProps.post && prevProps.containerWidth === nextProps.containerWidth) return true;
 
     const prev = prevProps.post;
     const next = nextProps.post;
@@ -946,6 +962,7 @@ export default React.memo(PostItem, (prevProps, nextProps) => {
         prevProps.sliceKey === nextProps.sliceKey &&
         prevProps.threadRootId === nextProps.threadRootId &&
         prevProps.isThread === nextProps.isThread &&
+        prevProps.containerWidth === nextProps.containerWidth &&
         // Same original post id can be reposted by different actors across rows;
         // compare the booster so a recycled row never shows a stale "Reposted by".
         prevProps.repostedBy?.id === nextProps.repostedBy?.id

@@ -45,6 +45,8 @@ const VotePill: React.FC<VotePillProps> = ({
           haptic('light');
           onUpvote();
         }}
+        // Asymmetric on purpose: the two arrows are adjacent halves of ONE pill,
+        // so neither may grow toward the other or it swallows the other's taps.
         hitSlop={{ top: 5, bottom: 5, left: 5, right: 0 }}
         accessibilityLabel={isLiked ? 'Remove upvote' : 'Upvote'}
       >
@@ -75,6 +77,7 @@ const VotePill: React.FC<VotePillProps> = ({
           haptic('light');
           onDownvote();
         }}
+        // Mirror of the upvote arrow above — see the note there.
         hitSlop={{ top: 5, bottom: 5, left: 0, right: 5 }}
         accessibilityLabel={isDownvoted ? 'Remove downvote' : 'Downvote'}
       >

@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Loading } from '@oxyhq/bloom/loading';
 import { pollService, type PollData, type PollOption } from '@/services/pollService';
 import { useAuth } from '@oxyhq/services/ui/client';
+import { HIT_SLOP_MD } from '@/styles/hitSlop';
 
 interface PollCardProps {
   pollId: string;
@@ -83,6 +84,7 @@ const PollCard: React.FC<PollCardProps> = ({ pollId, width = 280 }) => {
             <Pressable
               key={opt._id}
               onPress={() => handleVote(opt._id)}
+              hitSlop={HIT_SLOP_MD}
               disabled={ended || (hasVoted && !poll.isMultipleChoice) || voting}
               className="border-border bg-background"
               style={({ pressed }) => [

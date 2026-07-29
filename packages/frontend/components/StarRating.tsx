@@ -33,6 +33,10 @@ const StarRating = React.memo(function StarRating({
           <TouchableOpacity
             key={key}
             onPress={() => onRate?.(key + 1)}
+            // Asymmetric on purpose: the stars sit side by side, so the
+            // horizontal slop stays under half the gap between them — a
+            // symmetric one would let each star swallow its neighbour's taps
+            // and rate the wrong value.
             hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}
           >
             <Ionicons name={filled ? 'star' : 'star-outline'} size={size} color={color} />

@@ -90,6 +90,13 @@ interface Props {
    * independently. Non-media attachments (polls, links, articles…) are unaffected.
    */
   sensitive?: boolean;
+  /**
+   * Width of the block this row is laid out in, when the parent already knows it.
+   * The row measures itself too, but a nested quote card is narrower than the
+   * feed row and hands its width down so the FIRST paint is already sized to it
+   * instead of reflowing a frame later.
+   */
+  containerWidth?: number;
   style?: ViewStyle;
 }
 
@@ -137,6 +144,7 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
   text,
   linkPreviews,
   sensitive,
+  containerWidth,
   style
 }) => {
   const router = useRouter();
@@ -495,7 +503,10 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
   }, [handleVideoPress, handleImagePress]);
 
   const screenWidth = Dimensions.get('window').width;
-  const [scrollViewWidth, setScrollViewWidth] = React.useState(screenWidth);
+  // Measured width wins once layout reports it; until then the parent's own
+  // width (a nested quote card knows it) is a far better guess than the screen.
+  const [measuredWidth, setMeasuredWidth] = React.useState<number | undefined>(undefined);
+  const scrollViewWidth = measuredWidth ?? containerWidth ?? screenWidth;
 
   const startX = useRef<number | null>(null);
   const startY = useRef<number | null>(null);
@@ -570,7 +581,9 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
 
   const scrollerPaddingRight = 12;
   const scrollerPaddingLeft = Math.abs(leftOffset);
-  const nestedWidth = scrollViewWidth - scrollerPaddingLeft - scrollerPaddingRight;
+  // Content width one full-bleed child may occupy: what a nested quote card or an
+  // external embed is sized to, and the cap every media cell is clamped against.
+  const availableWidth = scrollViewWidth - scrollerPaddingLeft - scrollerPaddingRight;
 
   return (
     <>
@@ -584,7 +597,7 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
       onMoveShouldSetResponderCapture={onMoveShouldSetResponderCapture}
       onStartShouldSetResponderCapture={() => true}
       onStartShouldSetResponder={() => true}
-      onLayout={(e) => setScrollViewWidth(e.nativeEvent.layout.width)}
+      onLayout={(e) => setMeasuredWidth(e.nativeEvent.layout.width)}
       style={style}
       contentContainerStyle={[styles.scroller, leftOffset ? { paddingLeft: leftOffset } : null]}
     >
@@ -649,7 +662,7 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
                 description={item.description}
                 image={item.image}
                 siteName={item.siteName}
-                width={nestedWidth}
+                width={availableWidth}
               />
             );
           }
@@ -681,7 +694,7 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
               key={`nested-${idx}`}
               nestedPost={nestedPost}
               nestingDepth={nestingDepth}
-              width={nestedWidth}
+              width={availableWidth}
             />
           );
         }
@@ -699,6 +712,7 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
               aspectRatio={item.aspectRatio}
               hasSingleMedia={hasSingleMedia}
               hasMultipleMedia={hasMultipleMedia}
+              availableWidth={availableWidth}
               sensitive={sensitive}
             />
           );
@@ -725,6 +739,7 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
               registerHost={imageIndex !== undefined ? registerThumbHost(imageIndex) : undefined}
               hasSingleMedia={hasSingleMedia}
               hasMultipleMedia={hasMultipleMedia}
+              availableWidth={availableWidth}
               sensitive={sensitive}
             />
           );
@@ -757,7 +772,8 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
     prevProps.location === nextProps.location &&
     prevProps.sources === nextProps.sources &&
     prevProps.onSourcesPress === nextProps.onSourcesPress &&
-    prevProps.sensitive === nextProps.sensitive
+    prevProps.sensitive === nextProps.sensitive &&
+    prevProps.containerWidth === nextProps.containerWidth
   );
 });
 

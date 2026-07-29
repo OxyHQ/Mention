@@ -24,6 +24,7 @@ import InteractionSettingsPills from '@/components/Compose/InteractionSettingsPi
 import type { ThreadItem } from '@/hooks/useThreadManager';
 import type { ComposerMediaItem } from '@/utils/composeUtils';
 import type { MentionTextValue } from '@/utils/mentions';
+import { HIT_SLOP_SM } from '@/styles/hitSlop';
 
 import { HPAD, BOTTOM_LEFT_PAD, TIMELINE_LINE_OFFSET } from './composeLayout';
 
@@ -66,8 +67,6 @@ interface ComposeThreadItemProps {
   // Styles from parent
   styles: Record<string, any>;
 }
-
-const HITSLOP_6 = { top: 6, bottom: 6, left: 6, right: 6 };
 
 const ComposeThreadItem = memo<ComposeThreadItemProps>(({
   item,
@@ -288,7 +287,7 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(({
                   <TouchableOpacity
                     onPress={handlePollRemove}
                     className="bg-background" style={styles.pollAttachmentRemoveButton}
-                    hitSlop={HITSLOP_6}
+                    hitSlop={HIT_SLOP_SM}
                   >
                     <CloseIcon size={16} className="text-foreground" />
                   </TouchableOpacity>
@@ -339,7 +338,7 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(({
                     <TouchableOpacity
                       onPress={() => onMediaRemove(threadId, mediaItem.id)}
                       className="bg-background" style={styles.mediaRemoveButton}
-                      hitSlop={HITSLOP_6}
+                      hitSlop={HIT_SLOP_SM}
                     >
                       <CloseIcon size={16} className="text-foreground" />
                     </TouchableOpacity>
@@ -365,7 +364,7 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(({
                   <TouchableOpacity
                     onPress={handleArticleRemove}
                     className="bg-background" style={styles.pollAttachmentRemoveButton}
-                    hitSlop={HITSLOP_6}
+                    hitSlop={HIT_SLOP_SM}
                   >
                     <CloseIcon size={16} className="text-foreground" />
                   </TouchableOpacity>
@@ -391,7 +390,7 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(({
                   <TouchableOpacity
                     onPress={handleEventRemove}
                     className="bg-background" style={styles.pollAttachmentRemoveButton}
-                    hitSlop={HITSLOP_6}
+                    hitSlop={HIT_SLOP_SM}
                   >
                     <CloseIcon size={16} className="text-foreground" />
                   </TouchableOpacity>
@@ -419,7 +418,7 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(({
                   <TouchableOpacity
                     onPress={handleRoomRemove}
                     className="bg-background" style={styles.pollAttachmentRemoveButton}
-                    hitSlop={HITSLOP_6}
+                    hitSlop={HIT_SLOP_SM}
                   >
                     <CloseIcon size={16} className="text-foreground" />
                   </TouchableOpacity>

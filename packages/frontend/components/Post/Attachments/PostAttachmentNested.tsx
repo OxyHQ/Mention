@@ -4,7 +4,12 @@ import type { HydratedPostSummary } from '@mention/shared-types';
 
 // PostItem's `post` prop. Typed structurally here because the concrete
 // `PostEntity` alias is local to PostItem.
-type NestedPostItemProps = { post: HydratedPostSummary; isNested?: boolean; nestingDepth?: number };
+type NestedPostItemProps = {
+  post: HydratedPostSummary;
+  isNested?: boolean;
+  nestingDepth?: number;
+  containerWidth?: number;
+};
 
 // Lazy loading breaks PostItem -> PostAttachmentsRow -> PostItem without a
 // CommonJS runtime require.
@@ -26,7 +31,15 @@ const PostAttachmentNested: React.FC<PostAttachmentNestedProps> = ({
   return (
     <View style={[styles.nestedContainer, { width }]}>
       <Suspense fallback={null}>
-        <PostItem post={nestedPost} isNested={true} nestingDepth={nestingDepth + 1} />
+        {/* The quote card is narrower than the feed row, and its own media takes
+            the identical render path — hand the width down so nothing inside it
+            is sized against the outer row. */}
+        <PostItem
+          post={nestedPost}
+          isNested={true}
+          nestingDepth={nestingDepth + 1}
+          containerWidth={width}
+        />
       </Suspense>
     </View>
   );
