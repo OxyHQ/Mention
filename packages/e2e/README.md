@@ -95,7 +95,8 @@ whatever is already live.
 | 1 | Cold boot of `/` | Provider-ordering crash; suspense deadlock that never commits the root |
 | 2 | `/` → `/explore` → `/p/<id>` → back | expo-router async route chunks; the silent `chunkReload.web.ts` recovery reload |
 | 3 | `/@<handle>` as a page, and as ActivityPub | `webShell.routes.ts` content negotiation — breaks fediverse discovery while the profile still looks healthy |
-| 4 | Search submit carries the full typed query | The stale-closure submit that drops the final character of a fast query |
+| 4 | Search suggestions survive typing and blur; submit carries the full query | The suggestion surface vanishing on the first keystroke or on blur; the stale-closure submit that drops the final character |
+| 5 | An image post settles on ONE layout | The 280x180 fallback box jumping to the real aspect ratio, i.e. media geometry being dropped from the DTO |
 
 Three further flows are planned and are not implemented. They split cleanly by
 what each one needs, and the split is the reason they are not all the same size
