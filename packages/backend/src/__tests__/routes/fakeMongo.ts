@@ -55,14 +55,24 @@ function compareValues(a: unknown, b: unknown): number {
   return String(a) < String(b) ? -1 : 1;
 }
 
-/** A chainable query builder over an already-filtered set of documents. */
-export function makeQuery(docs: Doc[]) {
+/**
+ * A chainable query builder over an already-filtered set of documents.
+ *
+ * `onSort` receives the sort spec the handler built. Offset pagination is only
+ * safe on a TOTAL order — a sort that can tie leaves the tied rows free to swap
+ * places between two page requests, dropping or duplicating rows at the page
+ * boundary. That drift needs concurrent writes or a query-plan change to appear,
+ * so no amount of single-node paging can assert it: the sort SPEC is the only
+ * thing a test can check that actually fails when someone removes the tie-break.
+ */
+export function makeQuery(docs: Doc[], onSort?: (spec: SortSpec) => void) {
   let sortSpec: SortSpec = {};
   let skipN = 0;
   let limitN: number | undefined;
   const builder = {
     sort(spec: SortSpec) {
       sortSpec = spec;
+      onSort?.(spec);
       return builder;
     },
     skip(n: number) {

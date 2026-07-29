@@ -50,10 +50,13 @@ app.use((req, _res, next) => {
 });
 app.use('/lists', listsRoutes);
 
+/** Sort specs the route handed to Mongo, in call order. */
+const sortSpecs: Array<Record<string, number>> = [];
+
 /** Seed the in-memory collection and wire find/countDocuments to it. */
 function seed(docs: Doc[]): void {
   find.mockImplementation((q: Record<string, unknown> = {}) =>
-    makeQuery(docs.filter((d) => matchCondition(d, q))),
+    makeQuery(docs.filter((d) => matchCondition(d, q)), (spec) => sortSpecs.push(spec)),
   );
   countDocuments.mockImplementation((q: Record<string, unknown> = {}) =>
     Promise.resolve(docs.filter((d) => matchCondition(d, q)).length),
@@ -62,6 +65,7 @@ function seed(docs: Doc[]): void {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  sortSpecs.length = 0;
 });
 
 describe('GET /lists — search filter (the bug) + visibility gate', () => {
@@ -146,5 +150,17 @@ describe('GET /lists — offset pagination', () => {
     const res = await request(app).get('/lists').query({ search: 'team' }).expect(200);
     expect(res.body.items).toHaveLength(5);
     expect(res.body.pagination.hasMore).toBe(false);
+  });
+
+  // The paging assertions above CANNOT catch a missing tie-break: `updatedAt`
+  // ties reshuffle only under concurrent writes or a plan change, neither of
+  // which a seeded single-node run reproduces. Verified by mutation — removing
+  // `_id` from the route's sort left every test above green. This is the check
+  // that fails.
+  it('sorts on a TOTAL order so offsets cannot shuffle rows between pages', async () => {
+    await request(app).get('/lists').query({ search: 'team', limit: 2, offset: 0 }).expect(200);
+
+    expect(sortSpecs).toHaveLength(1);
+    expect(sortSpecs[0]).toEqual({ updatedAt: -1, _id: -1 });
   });
 });

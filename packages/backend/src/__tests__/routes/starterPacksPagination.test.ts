@@ -43,19 +43,13 @@ app.use((req, _res, next) => {
 });
 app.use('/starter-packs', starterPackRoutes);
 
-/** Sort specs the route handed to Mongo, most recent last. */
+/** Sort specs the route handed to Mongo, in call order. */
 const sortSpecs: Array<Record<string, number>> = [];
 
 function seed(docs: Doc[]): void {
-  find.mockImplementation((q: Record<string, unknown> = {}) => {
-    const query = makeQuery(docs.filter((d) => matchCondition(d, q)));
-    const { sort } = query;
-    query.sort = (spec: Record<string, 1 | -1>) => {
-      sortSpecs.push(spec);
-      return sort(spec);
-    };
-    return query;
-  });
+  find.mockImplementation((q: Record<string, unknown> = {}) =>
+    makeQuery(docs.filter((d) => matchCondition(d, q)), (spec) => sortSpecs.push(spec)),
+  );
   countDocuments.mockImplementation((q: Record<string, unknown> = {}) =>
     Promise.resolve(docs.filter((d) => matchCondition(d, q)).length),
   );
