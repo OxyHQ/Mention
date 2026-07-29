@@ -75,8 +75,12 @@ export default function SavedPostsList({
     : 0;
   const spacerHeight = Math.max(totalSize, lastItemEnd);
 
-  const onEndReachedRef = useRef(onEndReached);
-  onEndReachedRef.current = onEndReached;
+  // The observer closes over `onEndReached` and re-subscribes when its identity
+  // changes, rather than reading it from a ref. A "latest ref" written during
+  // render is illegal input for the React Compiler (enabled for this app), which
+  // is free to memoize past the write and leave the ref on a stale callback — and
+  // a stale callback here means infinite scroll silently stops fetching. The
+  // re-subscribe is cheap and already happens per page: `posts.length` is a dep.
   useEffect(() => {
     const node = sentinelRef.current;
     if (
@@ -91,14 +95,14 @@ export default function SavedPostsList({
     const observer = new IntersectionObserver(
       (entries) => {
         if (entries.some((entry) => entry.isIntersecting)) {
-          onEndReachedRef.current();
+          onEndReached();
         }
       },
       { root: null, rootMargin: LOAD_MORE_ROOT_MARGIN },
     );
     observer.observe(node);
     return () => observer.disconnect();
-  }, [hasNextPage, posts.length]);
+  }, [hasNextPage, onEndReached, posts.length]);
 
   useScrollRestoration('window', { enabled: true });
 
