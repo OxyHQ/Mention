@@ -16,6 +16,13 @@ export default defineConfig({
   // whole step well under a minute.
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
+  // Two workers in CI, not the default one-per-core. Every flow drives a real
+  // browser against the live API, and the per-address rate budget is the
+  // binding constraint rather than CPU — exhausting it locally is what made the
+  // feed flows fail as though the candidate had not rendered. Fewer concurrent
+  // browsers keeps the gate well inside it; the suite is I/O-bound anyway, so
+  // this costs seconds, not minutes.
+  workers: process.env.CI ? 2 : undefined,
   // One retry, and no more. A live-network gate in front of a production
   // promotion must not turn a dropped connection into a blocked release — but a
   // real regression fails both attempts, and Playwright still reports anything
