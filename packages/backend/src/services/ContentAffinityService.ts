@@ -540,6 +540,10 @@ export class ContentAffinityService {
    * recent PUBLIC, published authors posting under any of them. Each author's
    * weight rises with how many DISTINCT followed hashtags they cover plus a
    * saturating post-volume bonus.
+   *
+   * The stored tags are used AS-IS: `POST /entity-follows` canonicalizes them
+   * with the same `normalizeHashtag` that derives `Post.hashtags`, so a second
+   * normalization here would only be a rule free to drift from that one.
    */
   private async computeHashtagAffinity(
     viewerId: string,
@@ -555,8 +559,8 @@ export class ContentAffinityService {
         .lean();
 
       const tags = follows
-        .map((f) => (typeof f.entityId === 'string' ? f.entityId.trim().toLowerCase() : ''))
-        .filter((t) => t.length > 0);
+        .map((f) => f.entityId)
+        .filter((t): t is string => typeof t === 'string' && t.length > 0);
       if (tags.length === 0) return result;
 
       // One aggregation: recent public posts under any followed tag, grouped by
