@@ -58,6 +58,7 @@ interface TrendsStore {
   error: string | null;
   hiddenTrendIds: string[];
   fetchTrends: (opts?: { silent?: boolean }) => Promise<void>;
+  resyncAfterReconnect: () => void;
   startPolling: () => number;
   stopPolling: (subscriptionId: number) => void;
   hideTrend: (id: string) => void;
@@ -156,6 +157,25 @@ export const useTrendsStore = create<TrendsStore>()(
           const message = error instanceof Error ? error.message : 'Failed to fetch trends';
           if (!silent) set({ error: message, isLoading: false });
         }
+      },
+
+      /**
+       * Re-sync after the socket reconnects, because a client that was asleep or
+       * disconnected missed every `trends:updated` broadcast in between.
+       *
+       * This refetches the WHOLE list, which is the only reason the volume series
+       * cannot silently develop gaps: `fetchTrends` replaces `trends` outright, so
+       * a client that slept through six batches gets the current twelve points
+       * rather than a line with six missing samples. There is no delta or append
+       * path in this feature at all — the absence of one is the guarantee.
+       *
+       * A client that has never fetched has no stale series to repair, and most
+       * clients never render a trend at all, so `hasFetched` keeps the reconnect
+       * storm off the API for everyone but the surfaces that actually show one.
+       */
+      resyncAfterReconnect: () => {
+        if (!get().hasFetched) return;
+        void get().fetchTrends({ silent: true });
       },
 
       startPolling: () => {
