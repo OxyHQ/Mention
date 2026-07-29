@@ -113,6 +113,9 @@ describe('CrowdSource webhook receiver', () => {
     vi.clearAllMocks();
     // The inbound service commits the audit row and the outbox row together.
     vi.spyOn(mongoose, 'startSession').mockResolvedValue({
+      // `inTransaction()` is what `enqueueModerationOutboxEvent` checks. A stub
+      // without it would make the guard fire and hide the behaviour under test.
+      inTransaction: () => true,
       withTransaction: vi.fn(async (operation: () => Promise<void>) => {
         await operation();
       }),

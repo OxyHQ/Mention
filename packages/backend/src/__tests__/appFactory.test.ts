@@ -227,14 +227,27 @@ describe('createApp', () => {
 
     const webhook = express.Router();
     webhook.post('/crowdsource', (req, res) => {
+      /**
+       * Answered from SYNCHRONOUS facts first, deliberately.
+       *
+       * The obvious version of this test waits for `req.on('end')` — but when a parser
+       * ran first the stream is already ended, `end` never fires again, and the failure
+       * arrives as a five-second timeout that names nothing. A timeout is also the kind
+       * of failure a later reader "fixes" by raising the limit. `req.body` and
+       * `readableEnded` are both observable immediately and say exactly what happened.
+       */
+      const alreadyConsumed = req.readableEnded || req.body !== undefined;
+      if (alreadyConsumed) {
+        res.json({ parsedBodyType: typeof req.body, readableEnded: req.readableEnded });
+        return;
+      }
+
       const chunks: Buffer[] = [];
       req.on('data', (chunk: Buffer) => chunks.push(chunk));
       req.on('end', () => {
         res.json({
-          // `undefined` is what proves no parser ran. A `{}` here would mean
-          // `express.json` had already consumed and replaced the stream.
           parsedBodyType: typeof req.body,
-          streamReadable: chunks.length > 0,
+          readableEnded: false,
           bytes: Buffer.concat(chunks).toString('utf8'),
         });
       });
@@ -249,8 +262,10 @@ describe('createApp', () => {
       .set('Content-Type', 'application/json')
       .send('{"id":"evt_1"}')
       .expect(200, {
+        // `undefined` is what proves no parser ran; an `object` here means
+        // `express.json` consumed and replaced the signed bytes.
         parsedBodyType: 'undefined',
-        streamReadable: true,
+        readableEnded: false,
         bytes: '{"id":"evt_1"}',
       });
   });

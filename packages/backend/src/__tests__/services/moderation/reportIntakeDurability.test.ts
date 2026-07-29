@@ -56,6 +56,12 @@ interface TransactionSpy {
 
 function stubSession(): TransactionSpy {
   const session = {
+    /**
+     * Reports being INSIDE a transaction, because `enqueueModerationOutboxEvent`
+     * refuses to write otherwise. The stub has to model that or every test here
+     * would fail on the guard rather than on the behaviour it targets.
+     */
+    inTransaction: () => true,
     withTransaction: vi.fn(async (operation: () => Promise<void>) => {
       try {
         await operation();
@@ -183,6 +189,35 @@ describe('report intake — durable reception (§7.1)', () => {
 
     expect(Report.create).not.toHaveBeenCalled();
     expect(ModerationOutbox.updateOne).not.toHaveBeenCalled();
+  });
+
+  it('refuses to write a delivery event outside a transaction', async () => {
+    /**
+     * The invariant this whole collection exists for, enforced rather than reviewed.
+     *
+     * A required `session` parameter is satisfied by any session — including a bare
+     * `startSession()` nobody opened a transaction on. That type-checks perfectly,
+     * commits the outbox row on its own, and passes any test that only asserts the row
+     * exists; it fails as lost moderation work with no trace on the day something
+     * restarts between the two writes. So the check is on `inTransaction()`, not on the
+     * parameter being present.
+     *
+     * This matters beyond Mention: every app copying this template inherits the guard
+     * instead of inheriting a comment asking them to be careful.
+     */
+    vi.spyOn(mongoose, 'startSession').mockResolvedValue({
+      inTransaction: () => false,
+      withTransaction: vi.fn(async (operation: () => Promise<void>) => {
+        await operation();
+      }),
+      endSession: vi.fn().mockResolvedValue(undefined),
+    } as never);
+    vi.mocked(Report.findOne).mockReturnValue(queryReturning(null) as never);
+    mockCreatedReport();
+
+    await expect(createReport(INPUT)).rejects.toThrow(
+      /Refusing to enqueue moderation outbox event .* outside a transaction/,
+    );
   });
 
   it('refuses to report success for a transaction that produced no result', async () => {

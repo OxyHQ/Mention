@@ -73,6 +73,9 @@ describe('moderation reconciliation', () => {
     submittedLongAgo = 0;
     vi.clearAllMocks();
     vi.spyOn(mongoose, 'startSession').mockResolvedValue({
+      // `inTransaction()` is what `enqueueModerationOutboxEvent` checks. A stub
+      // without it would make the guard fire and hide the behaviour under test.
+      inTransaction: () => true,
       withTransaction: vi.fn(async (operation: () => Promise<void>) => {
         await operation();
       }),

@@ -71,12 +71,42 @@ export function decisionApplyEventId(eventId: string): string {
 }
 
 /**
+ * Raised when an outbox event is written outside a transaction.
+ *
+ * Never expected at runtime. It exists so the invariant is ENFORCED rather than
+ * reviewed — see {@link enqueueModerationOutboxEvent}.
+ */
+export class ModerationOutboxTransactionError extends Error {
+  constructor(eventId: string) {
+    super(
+      `Refusing to enqueue moderation outbox event '${eventId}' outside a transaction: ` +
+        'the domain write and this row must commit together, or a report is answered 201 ' +
+        'and never delivered.',
+    );
+    this.name = 'ModerationOutboxTransactionError';
+  }
+}
+
+/**
  * Write the event with the CALLER's session.
  *
  * The session is required, not optional. This is the whole point of the
  * collection: the domain write and this row commit together or not at all. An
  * overload that let a caller enqueue outside a transaction would be the one line
  * that quietly reintroduces "the report was answered 201 and then vanished".
+ *
+ * The type makes the session mandatory; the runtime check below makes it mandatory
+ * that the session is ACTUALLY IN a transaction. A required parameter is satisfied
+ * by any session — including a bare `startSession()` nobody opened a transaction on,
+ * which type-checks perfectly and commits the row on its own. That is the shape of
+ * the mistake worth catching: it looks exactly like correct code, it passes any test
+ * that only asserts the row exists, and it fails as lost moderation work with no
+ * trace on the day something restarts between the two writes.
+ *
+ * This function is also the ONLY writer of this collection — the dispatcher claims
+ * existing rows and never creates one — so there is no second queue that can drift
+ * out of sync with the outbox. A job here is never the only evidence that work
+ * exists, because the row IS the job.
  */
 export async function enqueueModerationOutboxEvent(
   input: {
@@ -86,6 +116,10 @@ export async function enqueueModerationOutboxEvent(
   },
   session: ClientSession,
 ): Promise<string> {
+  if (!session.inTransaction()) {
+    throw new ModerationOutboxTransactionError(input.eventId);
+  }
+
   const now = new Date();
   await ModerationOutbox.updateOne(
     { _id: input.eventId },
