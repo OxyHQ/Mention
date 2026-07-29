@@ -112,18 +112,14 @@ export const ProfileContent = memo(function ProfileContent({
         />
       ) : (
         <ProfileHeaderDefault
-          displayName={design.displayName}
           username={profileData.username}
           avatarUri={avatarUri}
-          verified={profileData.verified}
           isOwnProfile={isOwnProfile}
           isFederated={profileData.isFederated}
           actorUri={profileData.actorUri}
           isFollowing={profileData.isFollowing}
           currentUsername={currentUsername}
           profileId={profileData.id}
-
-          UserNameComponent={UserName}
           FollowButtonComponent={FollowButtonComponent}
         />
       )}

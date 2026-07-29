@@ -120,16 +120,19 @@ export interface UserNameProps {
 
 export type UserNameComponent = React.ComponentType<UserNameProps>;
 
-// Profile header props (shared between default and minimalist)
+// Profile header props (shared between default and minimalist). Only the
+// minimalist header renders the name itself; the default header leaves that to
+// the `UserName` block the parent renders beneath it, so the name/verified/
+// component trio belongs to the minimalist contract alone.
 export interface ProfileHeaderBaseProps {
-  displayName?: string;
   username?: string;
   avatarUri?: string;
-  verified?: boolean;
-  UserNameComponent: UserNameComponent;
 }
 
 export interface ProfileHeaderMinimalistProps extends ProfileHeaderBaseProps {
+  displayName?: string;
+  verified?: boolean;
+  UserNameComponent: UserNameComponent;
   isPrivate: boolean;
   privacySettings?: ProfileData['privacy'];
 }

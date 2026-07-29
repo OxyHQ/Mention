@@ -41,17 +41,14 @@ const ANALYTICS_ICON = <AnalyticsIcon size={20} className="text-foreground" />;
 const SETTINGS_ICON = <Gear size={20} className="text-foreground" />;
 
 export const ProfileHeaderDefault = memo(function ProfileHeaderDefault({
-  displayName,
   username,
   avatarUri,
-  verified,
   isOwnProfile,
   currentUsername,
   profileId,
   isFederated,
   actorUri,
   isFollowing: initialIsFollowing,
-  UserNameComponent,
   FollowButtonComponent,
 }: ProfileHeaderDefaultProps) {
   const theme = useTheme();
