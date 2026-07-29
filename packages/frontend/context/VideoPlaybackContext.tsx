@@ -14,7 +14,7 @@ import { useIsFocused } from 'expo-router';
 /**
  * The single app-wide authority answering "may this player play right now?".
  *
- * Two orthogonal concepts:
+ * Three inputs:
  *
  * - **Visible** — on screen AND its screen is focused AND the app/tab is in the
  *   foreground. Applies to EVERY player, GIFs included; anything else pauses.
@@ -22,9 +22,14 @@ import { useIsFocused } from 'expo-router';
  *   one closest to the viewport's ideal line (web) or highest in the list's
  *   viewable order (native). Silent players (GIF mode) never compete, so several
  *   visible GIFs may animate at once.
- *
- * Picture-in-Picture is the ONE exception to the foreground gate: a player that
- * owns the OS PiP window keeps playing while the app is backgrounded.
+ * - **Session owner** — the one player the OS is presenting OUTSIDE the app's
+ *   own layout, in the Picture-in-Picture window. While a session is open the
+ *   layout no longer describes what the viewer is watching, so the owner is
+ *   eligible whatever its viewability source says, takes the audible slot
+ *   outright, and is exempt from the foreground gate. Its screen may keep
+ *   feeding it new content — the reel advances by swapping the SOURCE on this
+ *   same player — and the authority must not pull the slot out from under it
+ *   when the surface it was mounted for stops being the on-screen one.
  *
  * Visibility is *reported*, never guessed, and the source is per platform:
  * web players observe themselves with an `IntersectionObserver`; native players
@@ -91,10 +96,11 @@ interface PlayerRegistration {
   /** Silent players (GIF mode) never compete for the single audible slot. */
   silent: boolean;
   /**
-   * Visible AND on a focused screen. Screen focus belongs in candidacy, not only
-   * in the final gate: a blurred screen's player is often still intersecting the
-   * viewport, and if it could still hold the audible slot it would silence the
-   * video on the screen the viewer actually navigated to.
+   * Visible AND on a focused screen — or the owner of an open session, whose
+   * surface is deliberately no longer the on-screen one. Screen focus belongs in
+   * candidacy, not only in the final gate: a blurred screen's player is often
+   * still intersecting the viewport, and if it could still hold the audible slot
+   * it would silence the video on the screen the viewer actually navigated to.
    */
   eligible: boolean;
   /**
@@ -104,6 +110,8 @@ interface PlayerRegistration {
    * order, so the topmost viewable video wins.
    */
   order: number;
+  /** This player owns the OS Picture-in-Picture window (see the session note above). */
+  ownsSession: boolean;
 }
 
 interface VideoPlaybackContextValue {
@@ -171,6 +179,23 @@ export function VideoPlaybackProvider({ children }: { children: React.ReactNode 
   const reselect = useCallback(() => {
     const players = playersRef.current;
     const idealY = Dimensions.get('window').height / IDEAL_VIEWPORT_LINE_DIVISOR;
+
+    // A session owner outranks BOTH the manual override and the viewport
+    // ranking: the OS is showing that player outside the app, so it is the only
+    // one the viewer can actually see, and the two ordering rules below rank
+    // surfaces against a layout the viewer is not looking at. Only one player
+    // can hold the OS window, but a tie is resolved on the id anyway so the
+    // winner never depends on Map insertion order.
+    let sessionId: string | null = null;
+    for (const [id, registration] of players) {
+      if (registration.ownsSession && (sessionId === null || id < sessionId)) {
+        sessionId = id;
+      }
+    }
+    if (sessionId !== null) {
+      setActiveId(sessionId);
+      return;
+    }
 
     // A manually played video keeps the slot while it stays visible. Once it
     // scrolls out of view (or unmounts) the override is dropped for good and the
@@ -307,8 +332,12 @@ export interface UseVideoPlaybackOptions {
   viewabilityKey?: string;
   /** Silent players (GIF mode) never compete for the single audible slot. */
   silent?: boolean;
-  /** Set while this player owns the OS PiP window — exempts it from the foreground gate. */
-  inPictureInPicture?: boolean;
+  /**
+   * Set while this player owns the OS Picture-in-Picture window. It then keeps
+   * the audible slot and the right to play whatever the app's layout is doing —
+   * see the session note at the top of this file.
+   */
+  ownsSession?: boolean;
 }
 
 export interface UseVideoPlaybackResult {
@@ -335,7 +364,7 @@ export function useVideoPlayback({
   id,
   viewabilityKey,
   silent = false,
-  inPictureInPicture = false,
+  ownsSession = false,
 }: UseVideoPlaybackOptions): UseVideoPlaybackResult {
   const authority = useContext(VideoPlaybackContext);
   if (!authority) {
@@ -360,7 +389,11 @@ export function useVideoPlayback({
   const native = resolveNativeVisibility(viewabilitySource, viewabilityKey);
   const visible = IS_WEB ? webVisibility.isIntersecting : native.visible;
   const order = IS_WEB ? webVisibility.y : native.order;
-  const eligible = visible && screenFocused;
+  // A session owner is eligible whatever the layout reports about it: the screen
+  // that opened the session leaves that surface behind on purpose (the pager
+  // moves on, or the app is backgrounded entirely), so its viewability source is
+  // describing something the viewer is no longer being shown.
+  const eligible = ownsSession || (visible && screenFocused);
 
   // The authority is an imperative registry outside React's tree; publishing this
   // player's candidacy into it — and removing it on unmount, which is what
@@ -368,15 +401,15 @@ export function useVideoPlayback({
   // Split in two so a scroll-driven position update never momentarily unpublishes
   // the player and hands the slot to someone else for a frame.
   useEffect(() => {
-    publish(id, { silent, eligible, order });
-  }, [publish, id, silent, eligible, order]);
+    publish(id, { silent, eligible, order, ownsSession });
+  }, [publish, id, silent, eligible, order, ownsSession]);
 
   useEffect(() => () => unpublish(id), [unpublish, id]);
 
   const claimActive = useCallback(() => claimActiveById(id), [claimActiveById, id]);
 
   const shouldPlay =
-    eligible && (foreground || inPictureInPicture) && (silent || activeId === id);
+    eligible && (foreground || ownsSession) && (silent || activeId === id);
 
   return { shouldPlay, claimActive, reportVisibility };
 }

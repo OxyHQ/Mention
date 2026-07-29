@@ -16,6 +16,7 @@ import { useRouter, useLocalSearchParams, useIsFocused } from 'expo-router';
 import { usePostsStore } from '@/stores/postsStore';
 import { useVideoMuteStore } from '@/stores/videoMuteStore';
 import { feedService } from '@/services/feedService';
+import { createScopedLogger } from '@/lib/logger';
 import { proxyExternalUrl, videoPosterUrl } from '@/utils/imageUrlCache';
 import { SpinnerIcon } from '@oxyhq/bloom/loading';
 import { Avatar } from '@oxyhq/bloom/avatar';
@@ -35,6 +36,9 @@ import { useVideoPlayback, VideoViewabilityProvider } from '@/context/VideoPlayb
 import { BottomSheetContext } from '@/context/BottomSheetContext';
 import { VideoReplies } from '@/components/videos/VideoReplies';
 import { HIT_SLOP_LG } from '@/styles/hitSlop';
+import { useVideoPipSession } from '@/hooks/useVideoPipSession';
+import { useMediaSessionTransport, type MediaSessionTrack } from '@/hooks/useMediaSessionTransport';
+import { resolveFeedDescriptor } from '@/utils/feedTelemetry';
 
 /**
  * Whether this platform can put a video in the OS Picture-in-Picture window.
@@ -162,6 +166,8 @@ const OVERLAY_BUTTON_ICON_SIZE = 22;
 // is the general following feed filtered down to video posts.
 type VideoFeedTab = 'videos' | 'following';
 
+const logger = createScopedLogger('VideosScreen');
+
 // ── Types ────────────────────────────────────────────────────────
 // Runtime media reference. The shared `MediaItem` declares `id` + `type` plus the
 // server-resolved final URLs (`url`, `thumbUrl`, `posterUrl`). We type the superset
@@ -190,6 +196,17 @@ interface VideoPost extends HydratedPost {
     createdAt: string;
 }
 
+// A video a surface can be pointed at: the preferred source (the adaptive HLS
+// stream when the server resolved one) plus the raw original to retry with.
+interface PlayableSource {
+    url: string;
+    fallbackUrl?: string;
+}
+
+// How a surface publishes its player's seek to the screen, which owns the OS
+// transport controls but not the players. Returns its own release.
+type RegisterTransportSeek = (seek: (seconds: number) => void) => () => void;
+
 interface ViewableItem {
     index: number | null;
     isViewable: boolean;
@@ -217,6 +234,12 @@ interface VideoItemProps {
     // The signed-in viewer's id — hides the on-video follow button on the
     // author's own video.
     viewerId?: string;
+    // PiP session plumbing, forwarded to the surface (see ActiveVideoSurfaceProps).
+    ownsSession: boolean;
+    sessionSource?: PlayableSource;
+    onSessionStart: (postId: string) => void;
+    onSessionEnd: (postId: string) => void;
+    onRegisterTransportSeek: RegisterTransportSeek;
 }
 
 // ── Active player surface ────────────────────────────────────────
@@ -248,6 +271,17 @@ interface ActiveVideoSurfaceProps {
     // Double-tap-to-like state + a like-ONLY handler (never unlikes).
     isLiked: boolean;
     onLikePost: () => void;
+    // True while THIS surface owns the OS Picture-in-Picture window. The screen
+    // owns that fact (it is the reel's session), so the surface never tracks it
+    // locally — see the session block below.
+    ownsSession: boolean;
+    // Where the session has moved to, while this surface owns it. Swapped onto
+    // the SAME player rather than mounting the next slide's, which is what keeps
+    // the OS window from freezing on a still frame.
+    sessionSource?: PlayableSource;
+    onSessionStart: (postId: string) => void;
+    onSessionEnd: (postId: string) => void;
+    onRegisterTransportSeek: RegisterTransportSeek;
 }
 
 const ActiveVideoSurface = memo<ActiveVideoSurfaceProps>(({
@@ -266,6 +300,11 @@ const ActiveVideoSurface = memo<ActiveVideoSurfaceProps>(({
     theme,
     isLiked,
     onLikePost,
+    ownsSession,
+    sessionSource,
+    onSessionStart,
+    onSessionEnd,
+    onRegisterTransportSeek,
 }) => {
     // `hasRendered` latches true on the FIRST `readyToPlay` and never flips back,
     // so a mid-playback re-buffer (status → loading) does NOT re-show the poster.
@@ -277,14 +316,12 @@ const ActiveVideoSurface = memo<ActiveVideoSurfaceProps>(({
     // Poster frame can 404 (no extractable frame) or fail to load → fall back to
     // the neutral icon instead of a blank/broken image. Reset when the source changes.
     const [posterFailed, setPosterFailed] = useState(false);
-    // The source actually handed to the player. Starts as the preferred
-    // `videoUrl` (HLS when the server resolved one); swaps to
-    // `fallbackVideoUrl` EXACTLY ONCE if that source errors (e.g. the HLS
-    // ladder hasn't finished transcoding yet). `triedFallbackRef` prevents a
-    // second swap if the fallback ALSO errors — at that point it's a genuine
-    // terminal failure and `onError` (the parent's give-up path) fires.
-    const [currentSource, setCurrentSource] = useState(videoUrl);
-    const triedFallbackRef = useRef(false);
+    // Whether the preferred source has already been given up on for the video
+    // currently targeted. The preferred source is the HLS stream when the server
+    // resolved one; if it errors (e.g. the ladder hasn't finished transcoding)
+    // the raw original is tried EXACTLY ONCE, and a second error is a genuine
+    // terminal failure that fires `onError` (the parent's give-up path).
+    const [usedFallback, setUsedFallback] = useState(false);
     // Reels tap-to-pause: a viewer-driven pause override on the ACTIVE surface. It
     // is cleared whenever the surface stops being active (see the playback effect)
     // so a newly-activated video always autoplays instead of inheriting a stale
@@ -307,7 +344,29 @@ const ActiveVideoSurface = memo<ActiveVideoSurfaceProps>(({
 
     const handlePosterError = useCallback(() => setPosterFailed(true), []);
 
-    const player = useVideoPlayer(currentSource, (p: VideoPlayer) => {
+    // The video this surface must have LOADED right now: its own row's, or —
+    // while it owns the PiP session — wherever the session's cursor has moved to.
+    const targetUrl = sessionSource?.url ?? videoUrl;
+    const targetFallbackUrl = sessionSource ? sessionSource.fallbackUrl : fallbackVideoUrl;
+    const desiredSource = usedFallback && targetFallbackUrl ? targetFallbackUrl : targetUrl;
+
+    // Pointing the surface at a different video gives it a clean slate: its own
+    // one-shot fallback retry, no inherited error, and no inherited pause
+    // override (asking for the next video is an intent to watch it). Adjusted
+    // during render via a previous-value tracker, like the poster above.
+    const [prevTargetUrl, setPrevTargetUrl] = useState(targetUrl);
+    if (prevTargetUrl !== targetUrl) {
+        setPrevTargetUrl(targetUrl);
+        setUsedFallback(false);
+        setHasError(false);
+        setUserPaused(false);
+    }
+
+    // The player is built ONCE, from this row's own source, and is never rebuilt:
+    // `useVideoPlayer` releases and recreates its player whenever the source
+    // argument changes, which would tear the OS window's subject out from under
+    // it mid-session. Every later source change goes through `replaceAsync`.
+    const player = useVideoPlayer(videoUrl, (p: VideoPlayer) => {
         p.loop = true;
         // Drive the scrubber at a smooth-but-cheap cadence.
         p.timeUpdateEventInterval = TIME_UPDATE_INTERVAL_S;
@@ -333,9 +392,8 @@ const ActiveVideoSurface = memo<ActiveVideoSurfaceProps>(({
             // rendered; the initial load is covered by the poster instead.
             setIsBuffering(hasRendered);
         } else if (next === 'error') {
-            if (!triedFallbackRef.current && fallbackVideoUrl) {
-                triedFallbackRef.current = true;
-                setCurrentSource(fallbackVideoUrl);
+            if (!usedFallback && targetFallbackUrl) {
+                setUsedFallback(true);
             } else {
                 setHasError(true);
                 onError();
@@ -361,6 +419,21 @@ const ActiveVideoSurface = memo<ActiveVideoSurfaceProps>(({
         }
     }, [player, muted]);
 
+    // Point the (never rebuilt) player at whatever source it should be holding.
+    // The ref starts at the source the player was CONSTRUCTED with, so the common
+    // case — no session, no fallback — never issues a replace at all.
+    const loadedSourceRef = useRef(videoUrl);
+    useEffect(() => {
+        if (loadedSourceRef.current === desiredSource) return;
+        loadedSourceRef.current = desiredSource;
+        player.replaceAsync(desiredSource).catch((error: unknown) => {
+            // A rejected swap is the call failing, not the asset: a source that
+            // loads and then fails arrives as a `statusChange` error instead, and
+            // is handled there.
+            logger.debug('Video source swap failed', { postId, error });
+        });
+    }, [player, desiredSource, postId]);
+
     // When this surface stops being the active index, drop any viewer pause
     // override so re-activating it (scrolling back) autoplays from the top rather
     // than staying paused. A neighbour preloads but never plays, so the override
@@ -374,27 +447,49 @@ const ActiveVideoSurface = memo<ActiveVideoSurfaceProps>(({
         }
     }
 
-    // ── Picture-in-Picture ──────────────────────────────────────────
+    // ── Picture-in-Picture session ──────────────────────────────────
     // The reels screen is the app's ONLY PiP surface (tapping a feed video routes
     // here), and expo-video allows exactly one player in PiP at a time — so only
-    // the surface that is BOTH active and focused gets the capability. The
-    // preloaded neighbours buffer but never play, and never enter PiP.
+    // the surface being watched gets the capability. The preloaded neighbours
+    // buffer but never play, and never enter PiP.
+    //
+    // Entering PiP opens the screen's session, pinned to this surface: it stays
+    // the owner (and the audible player) however far the session's cursor walks,
+    // because the alternative — the pager moving and a different player mounting
+    // — would leave the OS window showing a frozen frame of a player nothing is
+    // driving any more.
     const videoViewRef = useRef<VideoView | null>(null);
-    const [inPictureInPicture, setInPictureInPicture] = useState(false);
-    const handlePictureInPictureStart = useCallback(() => setInPictureInPicture(true), []);
-    const handlePictureInPictureStop = useCallback(() => setInPictureInPicture(false), []);
-    const pictureInPictureAllowed = isActive && screenFocused;
+    const handlePictureInPictureStart = useCallback(() => onSessionStart(postId), [onSessionStart, postId]);
+    const handlePictureInPictureStop = useCallback(() => onSessionEnd(postId), [onSessionEnd, postId]);
+
+    // The surface the viewer is actually watching: the slide the pager is on, or —
+    // while the OS window is up — the session's owner, wherever the pager left it.
+    // The owner must stay in this set: on web `allowsPictureInPicture` maps to the
+    // element's `disablePictureInPicture`, which the browser reads as "leave PiP
+    // now", so dropping the capability under a live window would close it.
+    const isWatched = ownsSession || (isActive && screenFocused);
+
+    // The OS window dies with this player, so a surface torn down while it owns
+    // the session (a feed switch rebuilds the whole list) must release the
+    // session rather than leave the authority pinned to a player that is gone.
+    // `onSessionEnd` ignores a caller that is not the current owner, so the
+    // ordinary path — PiP stops, the session closes, this flips false — does not
+    // end anything twice.
+    useEffect(() => {
+        if (!ownsSession) return;
+        return () => onSessionEnd(postId);
+    }, [ownsSession, postId, onSessionEnd]);
 
     // The app-wide playback authority owns the foreground gate (app backgrounded /
     // tab hidden → nothing plays) and the single audible slot. A player the OS is
-    // showing in the PiP window is the ONE exception to that foreground gate —
-    // that is exactly what `inPictureInPicture` buys here.
+    // showing in the PiP window is exempt from both — that is exactly what
+    // `ownsSession` buys here.
     const { shouldPlay: playbackAllowed, claimActive, reportVisibility } = useVideoPlayback({
         id: `${PLAYBACK_ID_PREFIX}:${postId}`,
         // Native reads visibility from the reel's own viewability source — the
         // `VideoViewabilityProvider` this screen publishes the snapped slide into.
         viewabilityKey: postId,
-        inPictureInPicture,
+        ownsSession,
     });
 
     // Web resolves visibility only from what a player reports, and this screen
@@ -429,20 +524,36 @@ const ActiveVideoSurface = memo<ActiveVideoSurfaceProps>(({
         }
     }, [isActive, screenFocused, claimActive]);
 
-    // Drive playback from the active/focused gate, the app-wide authority, AND the
-    // viewer's tap override. The active surface plays from the top when it first
-    // activates; a tap-resume continues from the current position (no
-    // `currentTime = 0` reset) so toggling play/pause does not jump the video back
-    // to the start. Off-screen, blurred, backgrounded (unless in PiP), or
-    // viewer-paused → paused.
-    const shouldPlay = isActive && screenFocused && playbackAllowed && !userPaused;
+    // Drive playback from the watched gate, the app-wide authority, AND the viewer's tap
+    // override. The active surface plays from the top when it first activates; a
+    // tap-resume continues from the current position (no `currentTime = 0` reset)
+    // so toggling play/pause does not jump the video back to the start.
+    // Off-screen, blurred, backgrounded (unless in PiP), or viewer-paused → paused.
+    //
+    // `desiredSource` is a dependency because a swap RESETS the element's play
+    // state: the web player's `replace` calls `play()` itself, so without
+    // re-asserting the gate here a source change could start a video this surface
+    // is not allowed to play.
+    const shouldPlay = isWatched && playbackAllowed && !userPaused;
     useEffect(() => {
         if (shouldPlay) {
             player.play();
         } else {
             player.pause();
         }
-    }, [player, shouldPlay]);
+    }, [player, shouldPlay, desiredSource]);
+
+    // The OS transport controls (media keys, the lock screen, and the buttons
+    // Chromium puts inside the PiP window) are registered by the SCREEN, which
+    // owns no player. Publish this player's seek while this surface is the one
+    // being watched; the returned release only ever clears its own registration,
+    // so a late teardown can never unhook the live player.
+    useEffect(() => {
+        if (!isWatched) return;
+        return onRegisterTransportSeek((seconds: number) => {
+            player.seekBy(seconds);
+        });
+    }, [isWatched, player, onRegisterTransportSeek]);
 
     // Restart from the top whenever the surface (re)becomes active+focused, so each
     // activation begins at the start. Kept separate from the play/pause gate so a
@@ -581,7 +692,7 @@ const ActiveVideoSurface = memo<ActiveVideoSurfaceProps>(({
     // Hidden while the OS window is already up (the affordance would be a no-op)
     // and wherever the platform reports no PiP support — Firefox on web, Android
     // without `FEATURE_PICTURE_IN_PICTURE`, iOS without `AVPictureInPictureController`.
-    const showPipButton = pictureInPictureAllowed && !inPictureInPicture && supportsPictureInPicture();
+    const showPipButton = isWatched && !ownsSession && supportsPictureInPicture();
 
     return (
         <>
@@ -592,8 +703,8 @@ const ActiveVideoSurface = memo<ActiveVideoSurfaceProps>(({
                 contentFit="contain"
                 nativeControls={false}
                 fullscreenOptions={{ enable: false }}
-                allowsPictureInPicture={pictureInPictureAllowed}
-                startsPictureInPictureAutomatically={pictureInPictureAllowed}
+                allowsPictureInPicture={isWatched}
+                startsPictureInPictureAutomatically={isWatched}
                 onPictureInPictureStart={handlePictureInPictureStart}
                 onPictureInPictureStop={handlePictureInPictureStop}
             />
@@ -716,6 +827,11 @@ const VideoItem = memo<VideoItemProps>(({
     t,
     windowHeight,
     viewerId,
+    ownsSession,
+    sessionSource,
+    onSessionStart,
+    onSessionEnd,
+    onRegisterTransportSeek,
 }) => {
     const router = useRouter();
     const [videoError, setVideoError] = useState(false);
@@ -778,6 +894,11 @@ const VideoItem = memo<VideoItemProps>(({
                     theme={theme}
                     isLiked={item.viewerState.isLiked}
                     onLikePost={handleDoubleTapLike}
+                    ownsSession={ownsSession}
+                    sessionSource={sessionSource}
+                    onSessionStart={onSessionStart}
+                    onSessionEnd={onSessionEnd}
+                    onRegisterTransportSeek={onRegisterTransportSeek}
                 />
             ) : (
                 // Outside the live window (or errored): no decoder, just a poster.
@@ -1344,21 +1465,83 @@ export default function VideosScreen() {
 
     // Scroll the reel to a clamped target index. Powers the rail arrows + the
     // web keyboard ↑/↓ shortcuts. Web scrolls the document; native scrolls the
-    // FlatList by the slide height.
-    const goToIndex = useCallback((targetIndex: number) => {
+    // FlatList by the slide height. `animated` is off for the jump back from a
+    // PiP session, which can span dozens of slides the viewer never scrolled.
+    const goToIndex = useCallback((targetIndex: number, animated = true) => {
         const clamped = Math.min(Math.max(targetIndex, 0), posts.length - 1);
         if (clamped < 0) return;
         if (Platform.OS === 'web') {
             if (typeof window !== 'undefined') {
-                window.scrollTo({ top: clamped * window.innerHeight, behavior: 'smooth' });
+                window.scrollTo({ top: clamped * window.innerHeight, behavior: animated ? 'smooth' : 'auto' });
             }
         } else {
-            flatListRef.current?.scrollToOffset({ offset: clamped * WINDOW_HEIGHT, animated: true });
+            flatListRef.current?.scrollToOffset({ offset: clamped * WINDOW_HEIGHT, animated });
         }
     }, [posts.length, WINDOW_HEIGHT]);
 
     const prev = useCallback(() => goToIndex(currentVisibleIndex - 1), [goToIndex, currentVisibleIndex]);
     const next = useCallback(() => goToIndex(currentVisibleIndex + 1), [goToIndex, currentVisibleIndex]);
+
+    // ── Picture-in-Picture session ──────────────────────────────────
+    // While the OS window is open the pager stays exactly where it was: the
+    // window is bound to that surface's player, and moving the pager would both
+    // unmount the player out from under the OS and hand the audible slot to a
+    // surface nobody can see. The session walks its own cursor instead, the
+    // owner's player takes each new source, and the pager is re-synced to the
+    // cursor on the way out so the app comes back on the right video.
+    //
+    // A session can also end because its owner was torn down rather than because
+    // the viewer closed the window — a tab switch rebuilds the whole list — and
+    // then the reload owns the index, so a cursor that no longer points into the
+    // list is dropped instead of applied. The length is mirrored into a ref (as
+    // the pagination state above is) because the surface that reports the end is
+    // unmounting, and its callback closes over the render BEFORE the rebuild.
+    const postsLengthRef = useRef(posts.length);
+    postsLengthRef.current = posts.length;
+
+    const handleSessionEnded = useCallback((index: number) => {
+        if (index >= postsLengthRef.current) return;
+        setCurrentVisibleIndex(index);
+        goToIndex(index, false);
+    }, [goToIndex]);
+
+    const {
+        ownerId: pipOwnerId,
+        playing: pipPlaying,
+        start: startPipSession,
+        end: endPipSession,
+        goToNext: pipGoToNext,
+        goToPrevious: pipGoToPrevious,
+    } = useVideoPipSession({
+        items: posts,
+        onEnded: handleSessionEnded,
+        loadMore: handleLoadMore,
+        hasMore,
+        // The reel fetches with exactly these feed types, so its impressions are
+        // attributed to the same descriptor the feed was served under.
+        feedDescriptor: resolveFeedDescriptor(activeFeed),
+        impressionResetKey: viewerId,
+        canReportImpressions: canUsePrivateApi,
+    });
+
+    const sessionSource = useMemo<PlayableSource | undefined>(
+        () => (pipPlaying
+            ? { url: pipPlaying.videoUrl, fallbackUrl: pipPlaying.fallbackVideoUrl }
+            : undefined),
+        [pipPlaying],
+    );
+
+    // The transport controls act on ONE player, published up by whichever surface
+    // is currently being watched (see `onRegisterTransportSeek` there).
+    const transportSeekRef = useRef<((seconds: number) => void) | null>(null);
+    const registerTransportSeek = useCallback<RegisterTransportSeek>((seek) => {
+        transportSeekRef.current = seek;
+        return () => {
+            if (transportSeekRef.current === seek) {
+                transportSeekRef.current = null;
+            }
+        };
+    }, []);
 
     const handleSelectFeed = useCallback((tab: VideoFeedTab) => {
         setActiveFeed((prevTab) => (prevTab === tab ? prevTab : tab));
@@ -1537,6 +1720,56 @@ export default function VideosScreen() {
         return { id: activeVideoPost.id };
     }, [activeVideoPost]);
 
+    // ── OS transport controls ───────────────────────────────────────
+    // Media keys, the lock screen, and — the reason this is wired at all — the
+    // next / previous buttons Chromium renders INSIDE the Picture-in-Picture
+    // window. They act on whatever is playing: the session's cursor while the OS
+    // window is open, else the slide the pager is on.
+    const nowPlaying = pipPlaying ?? activeVideoPost;
+    const transportTrack = useMemo<MediaSessionTrack | null>(() => {
+        if (!nowPlaying) return null;
+        const displayName = nowPlaying.user?.name?.displayName ?? '';
+        const handle = getNormalizedUserHandle(nowPlaying.user);
+        const caption = nowPlaying.content?.text?.trim() ?? '';
+        return {
+            // A caption-less reel is labelled by its author rather than by a
+            // placeholder, and an unresolved author by the same string the sound
+            // row already shows for one.
+            title: caption || displayName || t('videos.original_audio'),
+            artist: handle ? `@${handle}` : displayName,
+            artwork: nowPlaying.posterUrl,
+        };
+    }, [nowPlaying, t]);
+
+    const handleTransportNext = useCallback(() => {
+        // Inside a session the pager is frozen, so "next" moves the cursor and
+        // swaps the source under the OS window; outside one it pages normally.
+        if (pipOwnerId !== null) {
+            pipGoToNext();
+            return;
+        }
+        next();
+    }, [pipOwnerId, pipGoToNext, next]);
+
+    const handleTransportPrevious = useCallback(() => {
+        if (pipOwnerId !== null) {
+            pipGoToPrevious();
+            return;
+        }
+        prev();
+    }, [pipOwnerId, pipGoToPrevious, prev]);
+
+    const handleTransportSeek = useCallback((seconds: number) => {
+        transportSeekRef.current?.(seconds);
+    }, []);
+
+    useMediaSessionTransport({
+        track: transportTrack,
+        onNext: handleTransportNext,
+        onPrevious: handleTransportPrevious,
+        onSeek: handleTransportSeek,
+    });
+
     // The reel is the viewability source for its own surfaces (native), exactly as
     // a feed list is for the players inside it: the snapped slide is the only one on
     // screen, and only while this screen is focused. The focus gate is what releases
@@ -1560,7 +1793,11 @@ export default function VideosScreen() {
         <VideoItem
             item={item}
             isActive={index === currentVisibleIndex}
-            isNear={Math.abs(index - currentVisibleIndex) <= ACTIVE_WINDOW_RADIUS}
+            // The session's owner keeps its player for as long as the OS window
+            // is open, however far the pager has been scrolled from it: dropping
+            // out of the live window would release the very player the window is
+            // showing.
+            isNear={Math.abs(index - currentVisibleIndex) <= ACTIVE_WINDOW_RADIUS || item.id === pipOwnerId}
             screenFocused={isFocused}
             theme={theme}
             onLike={handleLike}
@@ -1574,8 +1811,13 @@ export default function VideosScreen() {
             t={t}
             windowHeight={WINDOW_HEIGHT}
             viewerId={viewerId}
+            ownsSession={item.id === pipOwnerId}
+            sessionSource={item.id === pipOwnerId ? sessionSource : undefined}
+            onSessionStart={startPipSession}
+            onSessionEnd={endPipSession}
+            onRegisterTransportSeek={registerTransportSeek}
         />
-    ), [currentVisibleIndex, isFocused, theme, handleLike, handleComment, handleBoost, handleShare, globalMuted, handleMuteChange, bottomBarHeight, t, WINDOW_HEIGHT, viewerId]);
+    ), [currentVisibleIndex, isFocused, theme, handleLike, handleComment, handleBoost, handleShare, globalMuted, handleMuteChange, bottomBarHeight, t, WINDOW_HEIGHT, viewerId, pipOwnerId, sessionSource, startPipSession, endPipSession, registerTransportSeek]);
 
     const keyExtractor = useCallback((item: VideoPost) => item.id, []);
 
@@ -1649,7 +1891,8 @@ export default function VideosScreen() {
                                         key={item.id}
                                         item={item}
                                         isActive={index === currentVisibleIndex}
-                                        isNear={Math.abs(index - currentVisibleIndex) <= ACTIVE_WINDOW_RADIUS}
+                                        // See the native path: the session's owner keeps its player.
+                                        isNear={Math.abs(index - currentVisibleIndex) <= ACTIVE_WINDOW_RADIUS || item.id === pipOwnerId}
                                         screenFocused={isFocused}
                                         theme={theme}
                                         onLike={handleLike}
@@ -1663,6 +1906,11 @@ export default function VideosScreen() {
                                         t={t}
                                         windowHeight={WINDOW_HEIGHT}
                                         viewerId={viewerId}
+                                        ownsSession={item.id === pipOwnerId}
+                                        sessionSource={item.id === pipOwnerId ? sessionSource : undefined}
+                                        onSessionStart={startPipSession}
+                                        onSessionEnd={endPipSession}
+                                        onRegisterTransportSeek={registerTransportSeek}
                                     />
                                 ))}
                             </View>

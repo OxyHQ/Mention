@@ -315,6 +315,126 @@ describe('video playback authority — VideoViewabilityScope', () => {
     });
 });
 
+describe('video playback authority — Picture-in-Picture session', () => {
+    it('keeps the session owner playing after it leaves the viewable set', () => {
+        // The defect this input exists to kill: the reel advancing while the OS
+        // window is open used to make the PiP-owning surface non-visible, so the
+        // authority paused the very player the viewer was watching.
+        const renderer = render(
+            <VideoPlaybackProvider>
+                <VideoViewabilityProvider viewableKeys={new Set(['post-a', 'post-b'])}>
+                    <Player id="owner" viewabilityKey="post-a" ownsSession />
+                    <Player id="onscreen" viewabilityKey="post-b" />
+                </VideoViewabilityProvider>
+            </VideoPlaybackProvider>,
+        );
+        expect(shouldPlay('owner')).toBe(true);
+
+        update(
+            renderer,
+            <VideoPlaybackProvider>
+                <VideoViewabilityProvider viewableKeys={new Set(['post-b'])}>
+                    <Player id="owner" viewabilityKey="post-a" ownsSession />
+                    <Player id="onscreen" viewabilityKey="post-b" />
+                </VideoViewabilityProvider>
+            </VideoPlaybackProvider>,
+        );
+
+        expect(shouldPlay('owner')).toBe(true);
+        // And it holds the audible slot: the on-screen player stays silent.
+        expect(shouldPlay('onscreen')).toBe(false);
+    });
+
+    it('takes the audible slot from a better-ranked player', () => {
+        // Both are on screen and the OTHER one is first in the published viewable
+        // order, so it wins the slot on rank alone. The session owner takes it
+        // anyway: the ranking orders surfaces in a layout the viewer is not
+        // looking at, and the OS window is the only thing they can see.
+        render(
+            <VideoPlaybackProvider>
+                <VideoViewabilityProvider viewableKeys={new Set(['post-a', 'post-b'])}>
+                    <Player id="onscreen" viewabilityKey="post-a" />
+                    <Player id="owner" viewabilityKey="post-b" ownsSession />
+                </VideoViewabilityProvider>
+            </VideoPlaybackProvider>,
+        );
+
+        expect(shouldPlay('owner')).toBe(true);
+        expect(shouldPlay('onscreen')).toBe(false);
+    });
+
+    it('hands the slot back to the on-screen player when the session ends', () => {
+        const renderer = render(
+            <VideoPlaybackProvider>
+                <VideoViewabilityProvider viewableKeys={new Set(['post-b'])}>
+                    <Player id="owner" viewabilityKey="post-a" ownsSession />
+                    <Player id="onscreen" viewabilityKey="post-b" />
+                </VideoViewabilityProvider>
+            </VideoPlaybackProvider>,
+        );
+        expect(shouldPlay('owner')).toBe(true);
+
+        update(
+            renderer,
+            <VideoPlaybackProvider>
+                <VideoViewabilityProvider viewableKeys={new Set(['post-b'])}>
+                    <Player id="owner" viewabilityKey="post-a" />
+                    <Player id="onscreen" viewabilityKey="post-b" />
+                </VideoViewabilityProvider>
+            </VideoPlaybackProvider>,
+        );
+
+        expect(shouldPlay('owner')).toBe(false);
+        expect(shouldPlay('onscreen')).toBe(true);
+    });
+
+    it('plays while the app is backgrounded, when nothing else may', () => {
+        AppState.currentState = 'background';
+        render(
+            <VideoPlaybackProvider>
+                <VideoViewabilityProvider viewableKeys={new Set(['post-a', 'post-b'])}>
+                    <Player id="owner" viewabilityKey="post-a" ownsSession />
+                    <Player id="onscreen" viewabilityKey="post-b" />
+                </VideoViewabilityProvider>
+            </VideoPlaybackProvider>,
+        );
+
+        expect(shouldPlay('owner')).toBe(true);
+        expect(shouldPlay('onscreen')).toBe(false);
+    });
+
+    it('plays on a blurred screen — another route pushed over the reel', () => {
+        jest.mocked(useIsFocused).mockReturnValue(false);
+        render(
+            <VideoPlaybackProvider>
+                <VideoViewabilityProvider viewableKeys={new Set(['post-a'])}>
+                    <Player id="owner" viewabilityKey="post-a" ownsSession />
+                </VideoViewabilityProvider>
+            </VideoPlaybackProvider>,
+        );
+
+        expect(shouldPlay('owner')).toBe(true);
+    });
+
+    it('outranks a manual claim by another player', () => {
+        render(
+            <VideoPlaybackProvider>
+                <VideoViewabilityProvider viewableKeys={new Set(['post-a', 'post-b'])}>
+                    <Player id="owner" viewabilityKey="post-a" ownsSession />
+                    <Player id="onscreen" viewabilityKey="post-b" />
+                </VideoViewabilityProvider>
+            </VideoPlaybackProvider>,
+        );
+
+        act(() => {
+            probes.get('onscreen')?.claimActive();
+        });
+
+        expect(shouldPlay('owner')).toBe(true);
+        expect(shouldPlay('onscreen')).toBe(false);
+    });
+});
+
 describe('video playback authority — screen focus', () => {
     it('does not let a blurred screen hold the audible slot', () => {
         jest.mocked(useIsFocused).mockReturnValue(false);
