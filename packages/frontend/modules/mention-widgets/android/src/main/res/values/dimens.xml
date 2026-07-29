@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Home-screen sizes for the trends widget, in the launcher's own grid units.
+
+  Every value below is `70 × cells − 30` dp, the conversion the App Widget
+  sizing guide gives for turning a cell count into the `minWidth` / `minHeight`
+  a provider must declare (developer.android.com/develop/ui/views/appwidgets
+  § "Determine widget sizing"). They are written out rather than computed so the
+  cell count each one stands for is stated once, here:
+
+      2 cells → 110dp    3 cells → 180dp    4 cells → 250dp    5 cells → 320dp
+
+  The same four numbers are the width/height axes of `TrendsWidget.sizeMode`, so
+  a placement the launcher allows always lands on a breakpoint the widget was
+  designed for.
+-->
+<resources>
+  <!-- Default placement on pre-API-31 launchers: 4 cells wide, 3 tall. -->
+  <dimen name="mention_trends_widget_min_width">250dp</dimen>
+  <dimen name="mention_trends_widget_min_height">180dp</dimen>
+
+  <!-- Smallest the user may resize to: 2×2, the compact breakpoint. -->
+  <dimen name="mention_trends_widget_min_resize_width">110dp</dimen>
+  <dimen name="mention_trends_widget_min_resize_height">110dp</dimen>
+
+  <!--
+    Largest: 5×5, the biggest breakpoint the layout is designed for. Capped on
+    purpose — past this the list has no further rows to reveal, so a larger
+    placement would only stretch the same content.
+  -->
+  <dimen name="mention_trends_widget_max_resize_width">320dp</dimen>
+  <dimen name="mention_trends_widget_max_resize_height">320dp</dimen>
+</resources>

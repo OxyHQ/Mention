@@ -1,0 +1,58 @@
+buildscript {
+  repositories {
+    mavenCentral()
+  }
+  dependencies {
+    // Glance widgets are `@Composable`, so this module needs the Kotlin Compose
+    // compiler plugin. `kotlinVersion` is the root-project extra that
+    // `expo-root-project` sets from the Expo version catalog, so the plugin is
+    // always the exact match for the Kotlin the rest of the build uses. Same
+    // shape as `expo-dev-menu`'s and `expo-modules-core`'s own build.gradle.
+    classpath("org.jetbrains.kotlin.plugin.compose:org.jetbrains.kotlin.plugin.compose.gradle.plugin:${kotlinVersion}")
+  }
+}
+
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+apply plugin: 'org.jetbrains.kotlin.plugin.compose'
+
+group = 'earth.mention.widgets'
+version = '1.0.0'
+
+android {
+  namespace "earth.mention.widgets"
+  defaultConfig {
+    versionCode 1
+    versionName "1.0.0"
+  }
+
+  buildFeatures {
+    compose true
+  }
+}
+
+dependencies {
+  // Jetpack Glance — the widget UI, its Material 3 `Scaffold`/`TitleBar`
+  // components, and the dynamic-colour `GlanceTheme`. 1.1.1 is the newest
+  // STABLE release (1.2.0 never left rc, 1.3.0 is alpha).
+  implementation "androidx.glance:glance-appwidget:1.1.1"
+
+  // Glance depends on `androidx.compose.runtime` only at RUNTIME scope (and at a
+  // 2022-era version), so the compile classpath needs it declared here. Pinned
+  // to the highest Compose already present in this project's Kotlin 2.1.20
+  // build (`expo-dev-menu`'s `composeVersion`), which keeps every Compose
+  // artifact in the app on one metadata generation.
+  implementation "androidx.compose.runtime:runtime:1.9.0"
+
+  // The periodic refresh. Glance pulls work-runtime transitively for its own
+  // session worker, but again only at runtime scope.
+  implementation "androidx.work:work-runtime-ktx:2.10.5"
+
+  // Backing store for the last-known trends. Same story as the two above: it is
+  // already in the app as a runtime-scope transitive of Glance, so declaring it
+  // adds no artifact — it only puts it on this module's compile classpath.
+  implementation "androidx.datastore:datastore-preferences:1.2.1"
+}

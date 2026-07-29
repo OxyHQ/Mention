@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <!-- Name of the widget in the launcher's widget picker, and its label there. -->
+  <string name="mention_trends_widget_label">Trending</string>
+  <string name="mention_trends_widget_description">The topics and hashtags moving on Mention right now.</string>
+
+  <!-- Title bar of the widget itself. -->
+  <string name="mention_trends_widget_title">Trending</string>
+  <!-- Content description of the title-bar button that opens the full list. -->
+  <string name="mention_trends_widget_see_all">See all trends</string>
+
+  <!--
+    Supporting line above each trend name. Mirrors `getTrendLabel` in
+    components/trending/TrendItemRow.tsx so a trend reads the same on the home
+    screen as it does in the app. `%1$s` is the post count, already formatted.
+  -->
+  <string name="mention_trends_widget_item_hashtag">Trending · %1$s posts</string>
+  <string name="mention_trends_widget_item_topic">Trending topic</string>
+  <string name="mention_trends_widget_item_generic">Trending</string>
+
+  <!-- Shown only before the first successful fetch; never replaces content. -->
+  <string name="mention_trends_widget_empty">No trends yet</string>
+  <string name="mention_trends_widget_open_app">Open Mention</string>
+
+  <!--
+    Read out by TalkBack for a whole row, which is one tap target: `%1$s` is the
+    trend name and `%2$s` the supporting line above it. Not translatable — it
+    contains no words of its own, only the separator between two strings that
+    are themselves already localized.
+  -->
+  <string name="mention_trends_widget_item_description" translatable="false">%1$s, %2$s</string>
+</resources>

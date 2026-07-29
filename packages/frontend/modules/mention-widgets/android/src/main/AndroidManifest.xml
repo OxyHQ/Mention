@@ -1,0 +1,45 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+  <!--
+    The refresh worker fetches `GET /trending` directly. The host app already
+    holds INTERNET (React Native cannot run without it), so this is a no-op at
+    merge time — it is declared anyway because the permission belongs to the
+    component that needs it, not to whichever consumer happens to have it.
+  -->
+  <uses-permission android:name="android.permission.INTERNET" />
+
+  <application>
+    <!--
+      The trends widget provider.
+
+      `exported="false"`: an app-widget provider is bound through the system's
+      AppWidgetManager, which does not need the receiver exported — this is the
+      shape Google's own Glance samples ship (android/platform-samples,
+      samples/user-interface/appwidgets/src/main/AndroidManifest.xml).
+
+      `enabled="@bool/glance_appwidget_available"`: a bool that
+      androidx.glance:glance-appwidget defines as false in `values/` and true in
+      `values-v23/`, so the provider disappears from the widget picker on the
+      API levels where Glance cannot render at all, instead of offering a widget
+      that would fail to load.
+
+      LOCALE_CHANGED sits beside APPWIDGET_UPDATE so the already-rendered
+      RemoteViews are rebuilt after a language switch; every string in the
+      widget comes from resources, and without this they would stay in the old
+      language until the next data refresh.
+    -->
+    <receiver
+      android:name="earth.mention.widgets.trends.TrendsWidgetReceiver"
+      android:enabled="@bool/glance_appwidget_available"
+      android:exported="false"
+      android:label="@string/mention_trends_widget_label">
+      <intent-filter>
+        <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+        <action android:name="android.intent.action.LOCALE_CHANGED" />
+      </intent-filter>
+      <meta-data
+        android:name="android.appwidget.provider"
+        android:resource="@xml/mention_trends_widget_info" />
+    </receiver>
+  </application>
+</manifest>
