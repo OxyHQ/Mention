@@ -3,7 +3,7 @@ import type { User } from '@oxyhq/core';
 import { queryKeys } from '@oxyhq/services';
 import { useAuth } from '@oxyhq/services/ui/client';
 import { queryClient } from '@/lib/queryClient';
-import { getCachedFileDownloadUrlSync } from '@/utils/imageUrlCache';
+import { getCachedFileDownloadUrlSync, type FileUrlResolver } from '@/utils/imageUrlCache';
 
 type RoomUser = Pick<User, 'id' | 'name' | 'username' | 'avatar'>;
 
@@ -41,7 +41,7 @@ export function getDisplayName(
 
 export function getAvatarUrl(
   userProfile: RoomUser | undefined,
-  oxyServices: unknown,
+  oxyServices: FileUrlResolver | null | undefined,
 ): string | undefined {
   if (!userProfile?.avatar || !oxyServices) return undefined;
   return getCachedFileDownloadUrlSync(oxyServices, userProfile.avatar, 'thumb');

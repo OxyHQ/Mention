@@ -1,5 +1,9 @@
 import { useState, useEffect, useMemo } from 'react';
-import { imageUrlCache, getCachedFileDownloadUrl } from '@/utils/imageUrlCache';
+import {
+  imageUrlCache,
+  getCachedFileDownloadUrl,
+  type FileUrlResolver,
+} from '@/utils/imageUrlCache';
 import { oxyServices } from '@/lib/oxyServices';
 
 /**
@@ -16,7 +20,7 @@ import { oxyServices } from '@/lib/oxyServices';
 export function useImageUrl(
   fileId: string | undefined | null,
   variant?: string,
-  oxyServicesOverride?: unknown,
+  oxyServicesOverride?: FileUrlResolver | null,
 ): string | undefined {
   const services = oxyServicesOverride ?? oxyServices;
 

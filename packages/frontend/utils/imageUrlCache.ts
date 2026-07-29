@@ -8,19 +8,30 @@
 import { API_URL, OXY_BASE_URL } from '@/config';
 
 /**
- * The subset of `OxyServices` these resolvers actually call. Accepting this
- * structural shape (rather than `any`) keeps the param assignable from the SDK
- * client AND from `unknown`-typed callers (the live-room engine passes `unknown`), which
- * we narrow at the call site with optional chaining.
+ * The subset of `OxyServices` these resolvers actually call. A structural shape
+ * rather than the SDK class itself, so this util stays trivially mockable in
+ * tests; the real client satisfies it. Both members are optional because the
+ * resolver methods are what we probe for — a caller that has no client yet
+ * (cold boot) passes `null`/`undefined` and gets the raw reference back.
  */
-interface FileUrlResolver {
+export interface FileUrlResolver {
   getFileDownloadUrl?: (fileId: string, variant?: string, expiresIn?: number) => string | undefined;
   getFileDownloadUrlAsync?: (fileId: string, variant?: string, expiresIn?: number) => Promise<string>;
 }
 
-/** Narrow an `unknown` services value to the {@link FileUrlResolver} shape. */
-function asFileUrlResolver(value: unknown): FileUrlResolver | undefined {
-  return value && typeof value === 'object' ? (value as FileUrlResolver) : undefined;
+/**
+ * Runtime narrowing for the ONE boundary where the resolver arrives untyped:
+ * `@syra.fm/sdk`'s `LiveConfig` declares its `getCachedFileDownloadUrl*` hooks
+ * with an `unknown` first parameter, so the live-room engine hands us back
+ * whatever it was given. Narrow there (see `lib/liveConfig.tsx`) instead of
+ * letting a foreign contract's `unknown` leak into this module's own signatures.
+ */
+export function isFileUrlResolver(value: unknown): value is FileUrlResolver {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    ('getFileDownloadUrl' in value || 'getFileDownloadUrlAsync' in value)
+  );
 }
 
 // Backend media proxy: streams remote media with CORS + cache + HTTP Range, and
@@ -99,16 +110,6 @@ export function proxyExternalUrl(url: string): string {
 }
 
 /**
- * Minimal shape we rely on from the Oxy services client for resolving native
- * (non-federated) video posters. Kept local so this util has no hard dependency
- * on the full SDK surface and stays trivially mockable in tests.
- */
-interface OxyFileUrlResolver {
-  getFileDownloadUrl?: (fileId: string, variant?: string, expiresIn?: number) => string | undefined;
-  getFileDownloadUrlAsync?: (fileId: string, variant?: string, expiresIn?: number) => Promise<string>;
-}
-
-/**
  * Given the RAW video reference for a post (an Oxy file id OR an absolute
  * http(s) URL — possibly already wrapped by our `/media/proxy`), return a poster
  * (thumbnail) image URL, or `undefined` when no sensible poster exists.
@@ -133,7 +134,7 @@ interface OxyFileUrlResolver {
  */
 export function videoPosterUrl(
   videoUrl: string,
-  oxyServices?: OxyFileUrlResolver | null,
+  oxyServices?: FileUrlResolver | null,
 ): string | undefined {
   if (!videoUrl) return undefined;
 
@@ -297,12 +298,11 @@ if (typeof window !== 'undefined') {
  * Uses async method when available, falls back to sync method
  */
 export async function getCachedFileDownloadUrl(
-  oxyServices: unknown,
+  resolver: FileUrlResolver | null | undefined,
   fileId: string,
   variant?: string,
   expiresIn?: number
 ): Promise<string> {
-  const resolver = asFileUrlResolver(oxyServices);
   // Absolute HTTP URLs are already FINAL, ready-to-render URLs resolved by the
   // backend (our CDN/media-proxy, or a remote one the server chose to expose).
   // Return as-is — the client no longer rewrites them.
@@ -344,7 +344,7 @@ export async function getCachedFileDownloadUrl(
  * Use this when you need immediate return (e.g., in render)
  */
 export function getCachedFileDownloadUrlSync(
-  oxyServices: unknown,
+  resolver: FileUrlResolver | null | undefined,
   fileId: string,
   variant?: string,
   expiresIn?: number
@@ -363,7 +363,7 @@ export function getCachedFileDownloadUrlSync(
   }
 
   // Generate URL using sync method
-  const url = asFileUrlResolver(oxyServices)?.getFileDownloadUrl?.(fileId, variant, expiresIn);
+  const url = resolver?.getFileDownloadUrl?.(fileId, variant, expiresIn);
   if (!url || !url.startsWith('http')) {
     // Don't cache invalid URLs — return raw fileId so next render retries
     return fileId;

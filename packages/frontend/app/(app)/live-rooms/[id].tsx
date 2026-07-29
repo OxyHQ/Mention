@@ -17,6 +17,7 @@ import { SEO } from '@/components/SEO';
 
 import { useTheme } from '@oxyhq/bloom/theme';
 import { useRoomUsers, getDisplayName, getAvatarUrl } from '@/hooks/useRoomUsers';
+import type { FileUrlResolver } from '@/utils/imageUrlCache';
 import { useUserById } from '@/hooks/useCachedUser';
 import { useLiveRoom } from '@/context/LiveRoomContext';
 import { roomsService, type Room } from '@/lib/syraApi';
@@ -32,13 +33,13 @@ import { LIVE_INDICATOR_COLOR, LIVE_INDICATOR_FOREGROUND_COLOR } from '@/styles/
 /** The participant grid stays glanceable; the overflow collapses into a "+N" chip. */
 const MAX_PARTICIPANT_AVATARS = 10;
 
-const ParticipantAvatar = ({ userId, oxyServices }: { userId: string; oxyServices: unknown }) => {
+const ParticipantAvatar = ({ userId, oxyServices }: { userId: string; oxyServices: FileUrlResolver }) => {
   const profile = useUserById(userId);
   const avatarUri = getAvatarUrl(profile, oxyServices);
   return <Avatar size={32} source={avatarUri} shape="squircle" />;
 };
 
-const HostInfo = ({ hostId, oxyServices }: { hostId: string; oxyServices: unknown }) => {
+const HostInfo = ({ hostId, oxyServices }: { hostId: string; oxyServices: FileUrlResolver }) => {
   const profile = useUserById(hostId);
   const displayName = getDisplayName(profile, hostId);
   const avatarUri = getAvatarUrl(profile, oxyServices);

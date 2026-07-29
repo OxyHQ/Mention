@@ -5,8 +5,10 @@ import { useAuth } from '@oxyhq/services/ui/client';
 import type { User } from '@oxyhq/core';
 import { useAppearanceStore, type UserAppearance, type ProfileMedia } from '@/stores/appearanceStore';
 import { APP_COLOR_PRESETS, HEX_TO_APP_COLOR } from '@oxyhq/bloom/theme';
+import { MEDIA_VARIANT_FULL } from '@mention/shared-types/post';
 import type { Community } from '@/components/Profile/types';
 import { displayNameOrHandle } from '@/utils/displayName';
+import { getCachedFileDownloadUrlSync, type FileUrlResolver } from '@/utils/imageUrlCache';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 
 const PROFILE_STALE_TIME = 5 * 60 * 1000; // 5 minutes
@@ -84,19 +86,35 @@ export interface ProfileData {
 
 /**
  * Computes profile design values from the Oxy profile + backend customization.
+ *
+ * `bannerUrl` is the one field that needs resolving: `profileHeaderImage` is a
+ * media REFERENCE, and both forms occur in the wild — a bare Oxy file id (what
+ * the banner picker and the federated-actor mirror write) and an absolute
+ * `cloud.oxy.so` URL (legacy rows). Renderers must never guess which one they
+ * got, so it goes through the canonical resolver here — the same chokepoint
+ * Bloom's `ImageResolver` uses — and every consumer receives a real URL. An
+ * unresolvable reference yields `undefined` rather than a bare id: consumers
+ * render `bannerUrl` straight into an image source and `<meta og:image>`, where
+ * a bare id becomes a same-origin request that silently returns the SPA shell.
  */
 function computeDesign(
   profile: User,
   appearance: UserAppearance | null | undefined,
+  oxyServices: FileUrlResolver,
 ): ProfileDesign {
   const presetColor =
     typeof profile.color === 'string' && profile.color in APP_COLOR_PRESETS
       ? profile.color
       : undefined;
 
+  const bannerRef = appearance?.profileHeaderImage;
+  const bannerUrl = bannerRef
+    ? getCachedFileDownloadUrlSync(oxyServices, bannerRef, MEDIA_VARIANT_FULL)
+    : undefined;
+
   return {
     displayName: displayNameOrHandle(profile.name.displayName, profile.username),
-    bannerUrl: appearance?.profileHeaderImage,
+    bannerUrl: bannerUrl?.startsWith('http') ? bannerUrl : undefined,
     avatar: profile.avatar ?? undefined,
     coverPhotoEnabled: appearance?.profileCustomization?.coverPhotoEnabled ?? true,
     minimalistMode: appearance?.profileCustomization?.minimalistMode ?? false,
@@ -181,7 +199,7 @@ export function useProfileData(username?: string): {
   const profileData = useMemo<ProfileData | null>(() => {
     if (!profile) return null;
 
-    const design = computeDesign(profile, appearance);
+    const design = computeDesign(profile, appearance, oxyServices);
     const federation = profile.federation;
     const followersCount =
       profile._count?.followers ??
@@ -230,7 +248,7 @@ export function useProfileData(username?: string): {
       design,
       privacy: appearance?.privacy,
     };
-  }, [profile, appearance]);
+  }, [profile, appearance, oxyServices]);
 
   // Loading while the query has not yet produced a value. Not-found
   // (resolved with no data) surfaces as an error so the UI can show its

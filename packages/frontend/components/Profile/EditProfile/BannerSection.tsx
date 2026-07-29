@@ -1,31 +1,31 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { Image } from 'expo-image';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@oxyhq/services/ui/client';
 import { useTheme } from '@oxyhq/bloom/theme';
+import { MEDIA_VARIANT_FULL } from '@mention/shared-types/post';
 import { Icon } from '@/lib/icons';
+import { getCachedFileDownloadUrlSync } from '@/utils/imageUrlCache';
 import { useAppearanceStore } from '@/stores/appearanceStore';
 
 /**
- * Profile banner picker/preview — extracted from the old
- * `settings/appearance.tsx` "Profile header" section, unchanged in behavior.
- * Self-contained: reads/writes `useAppearanceStore` directly.
+ * Profile banner picker/preview. Self-contained: reads/writes
+ * `useAppearanceStore` directly.
+ *
+ * The store is the SINGLE source of truth for the current banner: the preview
+ * renders `mySettings.profileHeaderImage` directly rather than mirroring it into
+ * local state. A failed save therefore keeps showing the banner that is actually
+ * stored instead of the one the picker optimistically painted.
  */
 export const BannerSection: React.FC = () => {
   const { t } = useTranslation();
   const { colors } = useTheme();
   const { showBottomSheet, oxyServices } = useAuth();
-  const mySettings = useAppearanceStore((state) => state.mySettings);
+  const headerImageRef = useAppearanceStore(
+    (state) => state.mySettings?.profileHeaderImage ?? '',
+  );
   const updateMySettings = useAppearanceStore((state) => state.updateMySettings);
-
-  const [headerImageId, setHeaderImageId] = useState<string>(mySettings?.profileHeaderImage ?? '');
-
-  useEffect(() => {
-    if (mySettings?.profileHeaderImage !== undefined) {
-      setHeaderImageId(mySettings.profileHeaderImage || '');
-    }
-  }, [mySettings?.profileHeaderImage]);
 
   const openHeaderPicker = useCallback(() => {
     showBottomSheet?.({
@@ -34,10 +34,15 @@ export const BannerSection: React.FC = () => {
         selectMode: true,
         multiSelect: false,
         disabledMimeTypes: ['video/', 'audio/', 'application/pdf'],
+        // A banner is public-facing: an anonymous <img> on a profile page cannot
+        // send a bearer token, so the asset must be public or the CDN 404s. The
+        // picker defaults to `private` and would otherwise DEMOTE an already
+        // public banner on re-pick, leaving it broken until the backend's
+        // post-write promotion lands (and permanently if that write fails).
+        defaultVisibility: 'public',
         afterSelect: 'back',
         onSelect: async (file: { id: string; contentType?: string }) => {
           if (!file?.contentType?.startsWith?.('image/')) return;
-          setHeaderImageId(file.id);
           await updateMySettings({ profileHeaderImage: file.id });
         },
       },
@@ -45,7 +50,6 @@ export const BannerSection: React.FC = () => {
   }, [showBottomSheet, updateMySettings]);
 
   const removeHeaderImage = useCallback(async () => {
-    setHeaderImageId('');
     await updateMySettings({ profileHeaderImage: '' });
   }, [updateMySettings]);
 
@@ -58,12 +62,18 @@ export const BannerSection: React.FC = () => {
         </Text>
       </View>
 
-      {headerImageId ? (
+      {headerImageRef ? (
         <View className="rounded-xl overflow-hidden border border-border relative">
           <Image
-            source={{ uri: oxyServices.getFileDownloadUrl(headerImageId, 'full') }}
+            source={{
+              uri: getCachedFileDownloadUrlSync(
+                oxyServices,
+                headerImageRef,
+                MEDIA_VARIANT_FULL,
+              ),
+            }}
             className="w-full h-32 bg-muted"
-            resizeMode="cover"
+            contentFit="cover"
           />
           <View className="absolute bottom-2 right-2 flex-row gap-1.5">
             <Pressable

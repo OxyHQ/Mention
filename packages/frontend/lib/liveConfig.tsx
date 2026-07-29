@@ -7,7 +7,11 @@ import { syraLinkedClient } from '@/lib/syraApi';
 import { useTheme as useBloomTheme } from '@oxyhq/bloom/theme';
 import { useUserById } from '@/hooks/useCachedUser';
 import { queryClient } from '@/lib/queryClient';
-import { getCachedFileDownloadUrl, getCachedFileDownloadUrlSync } from '@/utils/imageUrlCache';
+import {
+  getCachedFileDownloadUrl,
+  getCachedFileDownloadUrlSync,
+  isFileUrlResolver,
+} from '@/utils/imageUrlCache';
 import { Avatar } from '@oxyhq/bloom/avatar';
 import { toast } from '@oxyhq/bloom/toast';
 import i18n from '@/lib/i18n';
@@ -55,6 +59,36 @@ const ensureUserById: LiveConfig['ensureUserById'] = (id, loader) =>
 const translate: NonNullable<LiveConfig['t']> = (key, options) => String(i18n.t(key, options));
 
 /**
+ * The live-room engine's media seam. `LiveConfig` declares both resolver hooks
+ * with an `unknown` first parameter, so this is the ONE place an untyped client
+ * enters — narrow it here rather than weakening `imageUrlCache`'s own signatures
+ * for every other caller. A value that carries neither resolver method (the
+ * engine has no client yet) degrades to the reference itself, exactly as the
+ * resolvers already do for a missing client.
+ */
+const resolveLiveFileUrl: LiveConfig['getCachedFileDownloadUrlSync'] = (
+  oxyServices,
+  fileId,
+  variant,
+) =>
+  getCachedFileDownloadUrlSync(
+    isFileUrlResolver(oxyServices) ? oxyServices : undefined,
+    fileId,
+    variant,
+  );
+
+const resolveLiveFileUrlAsync: LiveConfig['getCachedFileDownloadUrl'] = (
+  oxyServices,
+  fileId,
+  variant,
+) =>
+  getCachedFileDownloadUrl(
+    isFileUrlResolver(oxyServices) ? oxyServices : undefined,
+    fileId,
+    variant,
+  );
+
+/**
  * Resolve the viewer's pinned Syra podcast from their profile media so the
  * podcast stream picker can offer a one-tap quick-start row. Reads the appearance
  * store (loading it once if cold); returns `null` when the viewer has no pinned
@@ -89,8 +123,8 @@ export const liveConfig: LiveConfig = {
   getPinnedPodcast,
   useUserById,
   ensureUserById,
-  getCachedFileDownloadUrl,
-  getCachedFileDownloadUrlSync,
+  getCachedFileDownloadUrl: resolveLiveFileUrlAsync,
+  getCachedFileDownloadUrlSync: resolveLiveFileUrl,
   AvatarComponent: LiveAvatar,
   toast: Object.assign(
     (message: string) => toast(message),
