@@ -851,7 +851,6 @@ const PostItem: React.FC<PostItemProps> = ({
                             onInsightsPress={isOwner ? handleInsightsPress : undefined}
                             detail={isDetailMain}
                             timestampLabel={fullTimestamp}
-                            hasMediaBlock={shouldRenderMediaBlock}
                             onLikesPress={isDetailMain ? () => openEngagementList('likes') : undefined}
                             onBoostsPress={isDetailMain ? () => openEngagementList('boosts') : undefined}
                         />

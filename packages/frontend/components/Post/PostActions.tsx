@@ -18,9 +18,12 @@ import { PressableScale } from '@oxyhq/bloom/pressable-scale';
 import { AnimatedLikeIcon } from '@/lib/animations/AnimatedLikeIcon';
 import { CountWheel } from '@/lib/animations/CountWheel';
 import { useVoteStyle } from '@/hooks/useVoteStyle';
+import { POST_ITEM_SPACING } from '@/styles/shared';
 import VotePill from './VotePill';
 
 const ICON_SIZE = 20;
+/** Same vertical rhythm PostItem puts between a post's own blocks. */
+const { SECTION_GAP } = POST_ITEM_SPACING;
 const MINI_AVATAR = 16;
 const AVATAR_OVERLAP = -4;
 
@@ -56,15 +59,13 @@ interface Props {
   isTranslating?: boolean;
   postId?: string;
   /**
-   * Focused post-detail variant: a full-width spread-out action bar with inline
-   * counts, preceded by the full absolute timestamp row and a tappable
-   * engagement-stats summary. The feed (default) renders the compact icon row.
+   * Focused post-detail variant. Renders the SAME icon row as a feed row, with
+   * two extra rows stacked above it: the full absolute timestamp and a tappable
+   * engagement-stats summary. Nothing about the buttons themselves changes.
    */
   detail?: boolean;
   /** Full absolute timestamp (detail variant only), e.g. "9:20 PM · Jun 11, 2026". */
   timestampLabel?: string;
-  /** Whether this post has attachments above the bar — controls the top border on the timestamp row. */
-  hasMediaBlock?: boolean;
 }
 
 const PostActions: React.FC<Props> = ({
@@ -87,7 +88,6 @@ const PostActions: React.FC<Props> = ({
   isTranslating,
   detail = false,
   timestampLabel,
-  hasMediaBlock = false,
 }) => {
   const theme = useTheme();
   const haptic = useHaptics();
@@ -104,9 +104,9 @@ const PostActions: React.FC<Props> = ({
   const replierAvatars = engagement?.recentReplierAvatars ?? [];
 
   // The action bar itself — identical on a feed row and on the post-detail
-  // screen. The detail variant only wraps it in extra chrome (timestamp row,
-  // engagement stats, dividers); it must never fork the buttons themselves, or
-  // the two surfaces drift in icon size, order and affordances.
+  // screen. The detail variant only stacks extra rows ABOVE it (timestamp,
+  // engagement stats); it must never fork the buttons themselves, or the two
+  // surfaces drift in icon size, order and affordances.
   const actionIconRow = (
     <View className="flex-row items-center" style={{ gap: 12 }}>
       {voteStyle === 'pill' && onDownvote ? (
@@ -266,22 +266,25 @@ const PostActions: React.FC<Props> = ({
     if (quotes > 0) statsEntries.push({ key: 'quotes', label: t('post.stats.quotes', { count: quotes }), count: quotes });
     if (saves > 0) statsEntries.push({ key: 'saves', label: t('post.stats.saves', { count: saves }), count: saves });
 
+    // Rows only — NO dividers. PostItem mounts this inside the content column
+    // (`paddingLeft: AVATAR_OFFSET`), so any hairline drawn here starts 64px in
+    // and stops short of the right edge: a stub that reads as a broken separator
+    // beside the container's own full-width bottom border. Row separation is
+    // spacing, and closing the post is the container's job — exactly as in a feed
+    // row. `SECTION_GAP` is the same rhythm PostItem uses between its own blocks.
     return (
-      <View>
-        {/* Full absolute timestamp row */}
+      <View style={{ gap: SECTION_GAP }}>
+        {/* Full absolute timestamp */}
         {timestampLabel ? (
-          <View
-            className="flex-row items-center py-3 border-border"
-            style={{ borderTopWidth: hasMediaBlock ? 0 : StyleSheet.hairlineWidth }}
-          >
+          <View className="flex-row items-center">
             <Text className="text-muted-foreground text-[14px]">{timestampLabel}</Text>
             <Ionicons name="globe-outline" size={14} color={theme.colors.textSecondary} style={{ marginLeft: 6 }} />
           </View>
         ) : null}
 
-        {/* Engagement stats row */}
+        {/* Engagement stats */}
         {statsEntries.length > 0 && (
-          <View className="flex-row items-center py-3 border-border" style={{ borderTopWidth: StyleSheet.hairlineWidth, gap: 16 }}>
+          <View className="flex-row items-center flex-wrap" style={{ gap: 16 }}>
             {statsEntries.map((stat) => (
               <PressableScale
                 key={stat.key}
@@ -298,13 +301,9 @@ const PostActions: React.FC<Props> = ({
         )}
 
         {/* The SAME icon row the feed renders — the detail screen differs from a
-            feed row only by what it adds around this bar, never by rebuilding it. */}
-        <View className="py-2.5 border-border" style={{ borderTopWidth: StyleSheet.hairlineWidth }}>
-          {actionIconRow}
-        </View>
-
-        {/* Bottom divider */}
-        <View className="bg-border" style={{ height: StyleSheet.hairlineWidth }} />
+            feed row only by what it adds ABOVE this bar, never by rebuilding it
+            or fencing it in. */}
+        {actionIconRow}
       </View>
     );
   }
