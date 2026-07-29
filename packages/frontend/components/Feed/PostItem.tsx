@@ -41,7 +41,6 @@ import { usePostLanguage } from '@/hooks/usePostLanguage';
 import { showActionMenu } from '@/components/common/ActionMenu';
 import { THREAD_LINE_WIDTH, THREAD_LINE_BORDER_RADIUS, THREAD_LINE_Z_INDEX } from '@/components/Compose/composeLayout';
 import { POST_ITEM_SPACING } from '@/styles/shared';
-import { FollowButton } from '@oxyhq/services/ui/client';
 import { SubtleHover } from '@oxyhq/bloom/subtle-hover';
 import { useThreadHoverStore } from '@/stores/threadHoverStore';
 import { getNormalizedUserHandle } from '@oxyhq/core';
@@ -768,14 +767,6 @@ const PostItem: React.FC<PostItemProps> = ({
                         onPressCollaborators={isCollab ? openCollaboratorsSheet : undefined}
                         onPressAuthor={goToAuthor}
                         onPressMenu={openMenu}
-                        followButton={
-                            // Focused post only, and never for the viewer's own post.
-                            // The SDK button owns its follow state, so nothing about
-                            // the relationship has to be plumbed through the post DTO.
-                            isDetailMain && !isOwner && viewPost.user?.id
-                                ? <FollowButton userId={String(viewPost.user.id)} size="small" />
-                                : undefined
-                        }
                         paddingHorizontal={isNested ? 0 : HPAD}
                     >
                         {spoilerText ? <ContentWarning text={spoilerText} /> : null}
