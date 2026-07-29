@@ -20,7 +20,7 @@
  * a loading state and refetches shortly, instead of rendering an empty profile.
  */
 
-import { normalizeInlineText, type User } from '@oxyhq/core';
+import type { User } from '@oxyhq/core';
 import { Post } from '../models/Post';
 import FederatedActor, { IFederatedActor } from '../models/FederatedActor';
 import { logger } from '../utils/logger';
@@ -100,8 +100,10 @@ class FederatedProfileSync {
    * Performs ALL federation network I/O off the client request path:
    *  1. Resolves the Oxy user to find its `federation.actorUri` (only when we
    *     don't already have a cached actor row).
-   *  2. Upserts a minimal FederatedActor (outbox URL) so the outbox sync can run
-   *     immediately without waiting on a full actor fetch.
+   *  2. Fetches the remote actor document — the only source of the canonical
+   *     `outbox`/`inbox` endpoints, AND the one place the instance domain policy
+   *     is enforced. A failed fetch ends the sync; there is no guessed-outbox
+   *     fallback (see below).
    *  3. Syncs the actor's outbox into local posts.
    *  4. Enqueues a full background actor refresh so avatar/banner/displayName
    *     populate (and refresh over time) for viewed profiles — followed or not.
@@ -211,41 +213,22 @@ class FederatedProfileSync {
           actor = await activityPubConnector.fetchRemoteActor(actorUri, false, acctHint);
 
           if (!actor) {
-            // The remote actor fetch failed (network error, blocked domain,
-            // unauthorized fetch, etc.). Fall back to a minimal FederatedActor
-            // with a guessed outbox so the sync can still attempt Mastodon-style
-            // layouts; the enqueued background refresh will correct it later.
-            const domain = new URL(actorUri).hostname;
-            // The handle hint is remote text, and this row is written straight to
-            // Mongo: the schema normalizes NOTHING (see `models/FederatedActor.ts`),
-            // so this writer applies the canonical rule itself — a padded hint must
-            // not become a padded username in a unique index.
-            const username = normalizeInlineText((acctHint || '').split('@')[0]) || 'unknown';
-            const acct = `${username}@${domain}`;
-            const fallbackOutboxUrl = `${actorUri}${actorUri.endsWith('/') ? '' : '/'}outbox`;
-            logger.info('[FedSync] remote actor fetch failed; creating minimal actor', {
-              hasFallbackOutbox: Boolean(fallbackOutboxUrl),
-            });
-            actor = await FederatedActor.findOneAndUpdate(
-              { uri: actorUri },
-              {
-                $set: {
-                  uri: actorUri,
-                  username,
-                  domain,
-                  acct,
-                  inboxUrl: `${actorUri}${actorUri.endsWith('/') ? '' : '/'}inbox`,
-                  outboxUrl: fallbackOutboxUrl,
-                  oxyUserId: syncUserId,
-                  lastFetchedAt: new Date(0), // Mark stale so the refresh below runs
-                },
-                $setOnInsert: { type: 'Person', manuallyApprovesFollowers: false, discoverable: true, memorial: false, suspended: false, fields: [], followersCount: 0, followingCount: 0, postsCount: 0 },
-              },
-              { upsert: true, returnDocument: 'after', lean: true },
-            ) as IFederatedActor | null;
-          } else {
-            await stampActorOxyUserId();
+            // The actor fetch is the ONLY place the instance domain policy is
+            // enforced (`isBlockedDomain` inside `fetchRemoteActor` — it rejects a
+            // configured blocked instance, our own AP domains, and the Oxy identity
+            // apex; `syncOutboxPostsDetailed` does not check it). Fabricating a
+            // minimal actor row with a guessed `<actorUri>/outbox` here therefore
+            // imported posts from an instance the policy had just refused. Guessing
+            // that URL is also wrong on its own terms — the outbox has to come from
+            // the actor's advertised `outbox` field, since non-Mastodon layouts
+            // (PeerTube, Lemmy, some Pleroma) put it elsewhere. So a failed fetch is
+            // simply the end of this sync; the next profile view retries it. This
+            // return precedes the `lastOutboxSyncAt` stamp, so nothing is recorded
+            // that could lock in an empty result.
+            logger.info('[FedSync] remote actor fetch failed; skipping outbox sync');
+            return;
           }
+          await stampActorOxyUserId();
         } else {
           const { actorUri, acctHint } = await getOxyIdentity();
           const actorUriChanged = Boolean(actorUri && actorUri !== actor.uri);

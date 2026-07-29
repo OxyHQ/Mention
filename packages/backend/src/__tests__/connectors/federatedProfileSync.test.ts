@@ -14,11 +14,12 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 const actorFindOne = vi.fn();
 const actorUpdateOne = vi.fn(async () => undefined);
+const actorFindOneAndUpdate = vi.fn(async () => null);
 vi.mock('../../models/FederatedActor', () => ({
   default: {
     findOne: (...args: unknown[]) => actorFindOne(...args),
     updateOne: (...args: unknown[]) => actorUpdateOne(...(args as [])),
-    findOneAndUpdate: vi.fn(async () => null),
+    findOneAndUpdate: (...args: unknown[]) => actorFindOneAndUpdate(...(args as [])),
   },
 }));
 
@@ -96,7 +97,18 @@ vi.mock('../../connectors/index', () => ({
   connectorRegistry: { connectorFor: (...a: unknown[]) => connectorFor(...(a as [string])) },
 }));
 
-const getUserById = vi.fn(async () => ({ id: 'local1', type: 'user', username: 'local' }));
+/** The Oxy identity fields the background sync reads back for a viewed profile. */
+interface OxyIdentityUser {
+  id: string;
+  type: string;
+  username: string;
+  federation?: { actorUri: string };
+}
+/** A LOCAL Oxy user: no `federation.actorUri`, so the background probe stops. */
+const LOCAL_OXY_USER: OxyIdentityUser = { id: 'local1', type: 'user', username: 'local' };
+const getUserById = vi.fn<(oxyUserId: string) => Promise<OxyIdentityUser>>(
+  async () => LOCAL_OXY_USER,
+);
 vi.mock('../../utils/oxyHelpers', () => ({
   getServiceOxyClient: () => ({ getUserById: (...a: unknown[]) => getUserById(...(a as [])) }),
 }));
@@ -140,6 +152,9 @@ beforeEach(() => {
   fetchRemoteActor.mockResolvedValue(null);
   connectorFor.mockReturnValue(undefined);
   atprotoFetchPosts.mockResolvedValue({ posts: [] });
+  // `clearAllMocks` keeps implementations, so restore the default identity here
+  // rather than leaking one test's Oxy user into the next.
+  getUserById.mockResolvedValue(LOCAL_OXY_USER);
   h.orphans.length = 0;
 });
 
@@ -163,6 +178,29 @@ describe('federatedProfileSync.syncOnProfileView', () => {
     await expect(federatedProfileSync.syncOnProfileView('fed1')).resolves.toBe(true);
     await vi.waitFor(() => expect(releaseOutboxSync).toBeDefined());
     releaseOutboxSync?.();
+  });
+
+  it('never fabricates an actor row or syncs an outbox when the actor fetch is refused', async () => {
+    // `fetchRemoteActor` is where the instance domain policy (`isBlockedDomain`)
+    // runs; `syncOutboxPostsDetailed` does not check it. A null fetch must end the
+    // sync — inventing an actor row with a guessed `<actorUri>/outbox` would import
+    // from an instance the policy just refused (and would guess a URL that is wrong
+    // on PeerTube/Lemmy/some Pleroma anyway).
+    mockActorLookup(null);
+    getUserById.mockResolvedValue({
+      id: 'fed2',
+      type: 'federated',
+      username: 'someone@blocked.example',
+      federation: { actorUri: 'https://blocked.example/users/someone' },
+    });
+    fetchRemoteActor.mockResolvedValue(null);
+
+    await expect(federatedProfileSync.syncOnProfileView('fed2')).resolves.toBe(false);
+
+    await vi.waitFor(() => expect(fetchRemoteActor).toHaveBeenCalledOnce());
+    expect(actorFindOneAndUpdate).not.toHaveBeenCalled();
+    expect(syncOutboxPostsDetailed).not.toHaveBeenCalled();
+    expect(refreshActorInBackground).not.toHaveBeenCalled();
   });
 
   it('does NOT report pending for a local author, and never syncs an outbox', async () => {
