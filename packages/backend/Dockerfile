@@ -8,6 +8,7 @@ COPY packages/shared-types/package.json packages/shared-types/
 COPY packages/backend/package.json packages/backend/
 COPY packages/mcp/package.json packages/mcp/
 COPY packages/frontend/package.json packages/frontend/
+COPY packages/e2e/package.json packages/e2e/
 RUN bun install --frozen-lockfile --ignore-scripts --lockfile-only
 
 FROM manifests AS builder
@@ -35,6 +36,7 @@ COPY --from=manifests /app/packages/shared-types/package.json packages/shared-ty
 COPY --from=manifests /app/packages/backend/package.json packages/backend/
 COPY --from=manifests /app/packages/mcp/package.json packages/mcp/
 COPY --from=manifests /app/packages/frontend/package.json packages/frontend/
+COPY --from=manifests /app/packages/e2e/package.json packages/e2e/
 
 RUN --mount=type=cache,target=/root/.bun/install/cache \
   bun install --frozen-lockfile --omit=dev --omit=peer --omit=optional --ignore-scripts \
