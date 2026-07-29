@@ -29,6 +29,8 @@ bun run clean               # Remove all node_modules
 
 Run backend tests from the package root: `cd packages/backend && bun run test` (running from the repo root picks up stale `.dist` copies → false failures).
 
+**Rebuild `shared-types` before believing a red typecheck or build.** `@mention/shared-types` is consumed through its BUILT `dist`, so after any rebase/checkout that pulls in a shared-types change, every other package still compiles against the previous build and reports the newly-landed symbols as missing — `TS2305: has no exported member 'X'`, in files you never touched. It reads exactly like someone else's broken commit, and has been reported as "N pre-existing errors" more than once. `bun run --cwd packages/shared-types build` first; only a failure that survives that is real.
+
 ## Local Android device build
 
 To produce a TRUE standalone release APK (no Metro / no Expo DevLauncher) for on-device testing:

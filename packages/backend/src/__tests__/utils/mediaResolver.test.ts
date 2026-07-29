@@ -261,4 +261,32 @@ describe('resolveMediaItems — persisted geometry passthrough', () => {
     expect(item).not.toHaveProperty('orientation');
     expect(item).not.toHaveProperty('durationSec');
   });
+
+  // The other side of the same property. Because every return site builds a
+  // fresh object, the fields listed there ARE the public shape of a media cell —
+  // which is how the geometry above went missing from the DTO for three weeks
+  // while ingest kept storing it. That cuts both ways: the omission of these
+  // fields is a deliberate boundary, not another oversight, so it is pinned
+  // rather than left to be re-derived by whoever next widens the list.
+  it('keeps ingest-only bookkeeping server-side', () => {
+    const [item] = resolveMediaItems([
+      {
+        id: 'internal',
+        type: 'image',
+        ...geometry,
+        sizeBytes: 12345,
+        mime: 'image/jpeg',
+        remoteUrl: 'https://remote.test/original.jpg',
+        cachedFromFederation: true,
+      },
+    ]);
+
+    expect(item).toMatchObject(geometry);
+    expect(item).not.toHaveProperty('sizeBytes');
+    expect(item).not.toHaveProperty('mime');
+    // A federated item's ORIGIN url is the one that must never leak: the DTO
+    // deliberately hands out our proxied url instead.
+    expect(item).not.toHaveProperty('remoteUrl');
+    expect(item).not.toHaveProperty('cachedFromFederation');
+  });
 });
