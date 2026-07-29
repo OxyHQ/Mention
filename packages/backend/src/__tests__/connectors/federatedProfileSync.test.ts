@@ -22,8 +22,46 @@ vi.mock('../../models/FederatedActor', () => ({
   },
 }));
 
+/**
+ * The orphaned federated posts (`oxyUserId: null`) the background sync's author
+ * backfill claims, plus enough of Mongo's matching to tell a `/`-terminated RANGE
+ * over `federation.activityId` apart from a prefix `$regex`. The corpus holds two
+ * actors whose usernames share a prefix, so a match that is not `/`-terminated
+ * visibly hands one user's posts to the other.
+ */
+const h = vi.hoisted(() => {
+  interface OrphanPost {
+    activityId: string;
+    oxyUserId: string | null;
+  }
+  const orphans: OrphanPost[] = [];
+
+  function matchesActivityId(activityId: string, condition: Record<string, unknown>): boolean {
+    if (typeof condition.$regex === 'string') return new RegExp(condition.$regex).test(activityId);
+    const { $gte: gte, $lt: lt } = condition;
+    if (typeof gte !== 'string' || typeof lt !== 'string') return false;
+    return activityId >= gte && activityId < lt;
+  }
+
+  const postUpdateMany = vi.fn(async (
+    filter: { 'federation.activityId': Record<string, unknown>; oxyUserId: string | null },
+    update: { $set: { oxyUserId: string } },
+  ) => {
+    let modifiedCount = 0;
+    for (const post of orphans) {
+      if (post.oxyUserId !== filter.oxyUserId) continue;
+      if (!matchesActivityId(post.activityId, filter['federation.activityId'])) continue;
+      post.oxyUserId = update.$set.oxyUserId;
+      modifiedCount += 1;
+    }
+    return { matchedCount: modifiedCount, modifiedCount };
+  });
+
+  return { orphans, postUpdateMany };
+});
+
 vi.mock('../../models/Post', () => ({
-  Post: { updateMany: vi.fn(async () => undefined) },
+  Post: { updateMany: (...a: unknown[]) => h.postUpdateMany(...(a as Parameters<typeof h.postUpdateMany>)) },
 }));
 
 /** Resolves only when the test lets it — proves the request path never awaits it. */
@@ -102,6 +140,7 @@ beforeEach(() => {
   fetchRemoteActor.mockResolvedValue(null);
   connectorFor.mockReturnValue(undefined);
   atprotoFetchPosts.mockResolvedValue({ posts: [] });
+  h.orphans.length = 0;
 });
 
 describe('federatedProfileSync.syncOnProfileView', () => {
@@ -219,5 +258,48 @@ describe('federatedProfileSync.syncOnProfileView', () => {
     mockActorLookup(atprotoActor({ postsCount: 5, lastOutboxSyncAt: new Date() }));
 
     await expect(federatedProfileSync.syncOnProfileView('at1')).resolves.toBe(false);
+  });
+});
+
+describe('federatedProfileSync author backfill', () => {
+  /** Let the detached background task reach the author backfill. */
+  async function runSyncAndAwaitBackfill(oxyUserId: string): Promise<void> {
+    syncOutboxPostsDetailed.mockResolvedValueOnce({ syncedCount: 3, shouldStampCooldown: true });
+    await federatedProfileSync.syncOnProfileView(oxyUserId);
+    await vi.waitFor(() => expect(h.postUpdateMany).toHaveBeenCalledOnce());
+  }
+
+  it('claims ONLY the synced actor\'s orphaned posts, never a username-prefix sibling\'s', async () => {
+    // `@alice` and `@alicesmith` are different people on the same instance. An
+    // activityId prefix that is not `/`-terminated matches both.
+    h.orphans.push(
+      { activityId: 'https://remote.example/users/alice/statuses/1', oxyUserId: null },
+      { activityId: 'https://remote.example/users/alicesmith/statuses/1', oxyUserId: null },
+    );
+    mockActorLookup(federatedActor());
+
+    await runSyncAndAwaitBackfill('fed1');
+
+    expect(h.orphans).toEqual([
+      { activityId: 'https://remote.example/users/alice/statuses/1', oxyUserId: 'fed1' },
+      // The sibling's post must still be unclaimed.
+      { activityId: 'https://remote.example/users/alicesmith/statuses/1', oxyUserId: null },
+    ]);
+  });
+
+  it('treats regex metacharacters in the actor URI as literal text', async () => {
+    // A dot in the remote username is a wildcard to a mongod-evaluated `$regex`,
+    // so `@a.ice` would claim `@alice`'s posts (and the pattern would run over an
+    // unindexable scan).
+    h.orphans.push({ activityId: 'https://remote.example/users/alice/statuses/1', oxyUserId: null });
+    mockActorLookup(federatedActor({
+      uri: 'https://remote.example/users/a.ice',
+      acct: 'a.ice@remote.example',
+      outboxUrl: 'https://remote.example/users/a.ice/outbox',
+    }));
+
+    await runSyncAndAwaitBackfill('fed1');
+
+    expect(h.orphans[0].oxyUserId).toBeNull();
   });
 });
