@@ -6,6 +6,7 @@ import { useEvent, useEventListener } from 'expo';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useVideoMuteStore } from '@/stores/videoMuteStore';
 import { useVideoPlayback } from '@/context/VideoPlaybackContext';
+import { useHlsPlayback } from '@/lib/hlsPlayback';
 import { HIT_SLOP_MD } from '@/styles/hitSlop';
 
 interface VideoPlayerProps {
@@ -137,7 +138,14 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
   // player's viewport center-Y AND whether it still intersects the viewport.
   const containerRef = useRef<View>(null);
 
-  const player = useVideoPlayer(src, (p) => {
+  // Federated video is an HLS playlist, which Chrome and Firefox cannot decode.
+  // On web such a source is handed to hls.js, which attaches a MediaSource to
+  // this same element — so the source must be WITHHELD from expo-video (`null`),
+  // or the element would first attempt, and fail, a native load of the playlist.
+  // Inert on native: ExoPlayer/AVPlayer decode HLS themselves.
+  const hls = useHlsPlayback(src, videoViewRef);
+
+  const player = useVideoPlayer(hls.active ? null : src, (p) => {
     p.loop = gif ? true : loop;
     p.muted = gif ? true : isMuted;
     p.timeUpdateEventInterval = TIME_UPDATE_INTERVAL;
