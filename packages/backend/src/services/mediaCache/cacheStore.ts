@@ -16,20 +16,22 @@ export interface CacheRow {
   state: FederatedMediaCacheState;
   oxyFileId?: string;
   posterFileId?: string;
+  contentType?: string;
 }
 
 /** Look up the current cache row for a remote URL (lean, projected). */
 export async function lookupCacheRow(remoteUrl: string): Promise<CacheRow | undefined> {
   const row = await FederatedMediaCache.findOne(
     { remoteUrl },
-    { state: 1, oxyFileId: 1, posterFileId: 1 },
-  ).lean<Pick<IFederatedMediaCache, 'state' | 'oxyFileId' | 'posterFileId'>>();
+    { state: 1, oxyFileId: 1, posterFileId: 1, contentType: 1 },
+  ).lean<Pick<IFederatedMediaCache, 'state' | 'oxyFileId' | 'posterFileId' | 'contentType'>>();
 
   if (!row) return undefined;
   return {
     state: row.state,
     oxyFileId: row.oxyFileId ?? undefined,
     posterFileId: row.posterFileId ?? undefined,
+    contentType: row.contentType ?? undefined,
   };
 }
 

@@ -25,6 +25,15 @@ describe('media cache policy — decideProxyServe (state machine)', () => {
     expect(decideProxyServe(row)).toEqual({ action: 'serve-from-oxy', oxyFileId: 'file_123' });
   });
 
+  it('cached HLS playlist → NEVER served from Oxy (the stored copy is un-rewritten)', () => {
+    const row: CacheLookup = {
+      state: 'cached',
+      oxyFileId: 'file_123',
+      contentType: 'application/vnd.apple.mpegurl',
+    };
+    expect(decideProxyServe(row)).toEqual({ action: 'stream-only' });
+  });
+
   it('cached WITHOUT oxyFileId (inconsistent) → treat as miss, re-enqueue', () => {
     const row: CacheLookup = { state: 'cached' };
     expect(decideProxyServe(row)).toEqual({ action: 'stream-and-enqueue' });
@@ -70,6 +79,18 @@ describe('media cache policy — content type gating', () => {
     expect(isCacheableMediaType('text/html')).toBe(false);
     expect(isCacheableMediaType('application/json')).toBe(false);
     expect(isCacheableMediaType('')).toBe(false);
+  });
+
+  it('rejects every HLS playlist spelling — a stored playlist is served un-rewritten', () => {
+    // The `audio/…` and `video/…` spellings match an allowed prefix, so this is
+    // the assertion that keeps them out of the cache.
+    expect(isCacheableMediaType('application/vnd.apple.mpegurl')).toBe(false);
+    expect(isCacheableMediaType('application/x-mpegURL')).toBe(false);
+    expect(isCacheableMediaType('application/mpegurl')).toBe(false);
+    expect(isCacheableMediaType('audio/mpegurl')).toBe(false);
+    expect(isCacheableMediaType('audio/x-mpegurl')).toBe(false);
+    expect(isCacheableMediaType('video/mpegurl')).toBe(false);
+    expect(isCacheableMediaType('video/x-mpegurl')).toBe(false);
   });
 
   it('detects video for poster extraction', () => {
