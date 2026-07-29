@@ -252,10 +252,42 @@ export function resolveAvatarUrl(ref?: string | null): string | undefined {
 }
 
 /**
+ * The intrinsic geometry a client needs to reserve the correct box BEFORE any
+ * byte of the image arrives.
+ *
+ * These fields are resolved once at ingest — from Oxy for native uploads
+ * (`MediaMetadataService.enrichFromOxy`) or from the AP attachment for
+ * federated ones — and persisted on the post, so they are already in hand here.
+ * They must be forwarded rather than rebuilt: every return site below
+ * constructs a fresh object, so anything not explicitly carried over is
+ * silently dropped, and a client with no geometry has no choice but to render a
+ * placeholder box and then re-lay-out once it has measured the bytes itself.
+ *
+ * `aspectRatio` is emitted rather than left to the client to divide, because it
+ * is what Mention's renderers already read, and because it is computed at a
+ * single Oxy chokepoint from the same width/height pair emitted beside it — so
+ * the two can never disagree. Deriving it per-app instead would put the same
+ * arithmetic in every consumer.
+ *
+ * Each field is omitted when absent so a media item that genuinely has no known
+ * geometry keeps its current shape rather than gaining `undefined` keys.
+ */
+function persistedGeometry(item: MediaItem): Partial<MediaItem> {
+  return {
+    ...(item.width !== undefined ? { width: item.width } : {}),
+    ...(item.height !== undefined ? { height: item.height } : {}),
+    ...(item.aspectRatio !== undefined ? { aspectRatio: item.aspectRatio } : {}),
+    ...(item.orientation !== undefined ? { orientation: item.orientation } : {}),
+    ...(item.durationSec !== undefined ? { durationSec: item.durationSec } : {}),
+  };
+}
+
+/**
  * Enrich a list of {@link MediaItem}s with final `url`/`thumbUrl`/`posterUrl`/
- * `fullUrl`, preserving each item's `id`, `type`, and `alt` (accessibility
+ * `fullUrl`, preserving each item's `id`, `type`, `alt` (accessibility
  * description — passed through unchanged, it is not a URL and needs no
- * resolution). Items without an `id` are dropped.
+ * resolution) and its persisted {@link persistedGeometry}. Items without an
+ * `id` are dropped.
  */
 export function resolveMediaItems(items: MediaItem[] | undefined | null): MediaItem[] {
   if (!Array.isArray(items) || items.length === 0) {
@@ -268,6 +300,7 @@ export function resolveMediaItems(items: MediaItem[] | undefined | null): MediaI
       // Accessibility description — passthrough only (never a URL). Omitted when
       // absent so the field stays off items that have no alt text.
       const altField = item.alt ? { alt: item.alt } : {};
+      const geometry = persistedGeometry(item);
 
       if (item.type === 'video' && !isAbsoluteHttpUrl(item.id)) {
         try {
@@ -281,6 +314,7 @@ export function resolveMediaItems(items: MediaItem[] | undefined | null): MediaI
             id: item.id,
             type: item.type,
             ...altField,
+            ...geometry,
             url: resolved.url || undefined,
             thumbUrl: posterUrl,
             posterUrl,
@@ -300,6 +334,7 @@ export function resolveMediaItems(items: MediaItem[] | undefined | null): MediaI
           id: item.id,
           type: item.type,
           ...altField,
+          ...geometry,
           url: original,
           thumbUrl: original,
           posterUrl: original,
@@ -311,6 +346,7 @@ export function resolveMediaItems(items: MediaItem[] | undefined | null): MediaI
         id: item.id,
         type: item.type,
         ...altField,
+        ...geometry,
         url: resolved.url || undefined,
         thumbUrl: resolved.thumbUrl,
         posterUrl: resolved.posterUrl,
