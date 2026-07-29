@@ -20,6 +20,23 @@ interface TrendApiItem {
   rank?: number;
   calculatedAt?: string;
   updatedAt?: string;
+  /** Recent `volume` history, oldest first. Absent when the server has too little. */
+  series?: unknown;
+}
+
+/**
+ * Accept a wire `series` only if it is genuinely an array of finite numbers.
+ *
+ * The sparkline turns these straight into SVG coordinates, so one `null` or
+ * `NaN` from a malformed response would poison the whole polyline rather than
+ * spoiling a single point. Anything unexpected drops the series entirely, which
+ * the row already knows how to render: as no chart at all.
+ */
+function parseSeries(value: unknown): number[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  return value.every((point) => typeof point === 'number' && Number.isFinite(point))
+    ? (value as number[])
+    : undefined;
 }
 
 interface TrendsApiResponse {
@@ -79,20 +96,24 @@ export const useTrendsStore = create<TrendsStore>()(
           if (operationEpoch !== viewerEpoch) return;
           const items: TrendApiItem[] = response.data.trending || [];
           const recId = response.data.recId;
-          const next = items.map((item) => ({
-            id: item._id || item.name,
-            type: item.type || 'hashtag',
-            text: item.name,
-            hashtag: item.type === 'hashtag' ? `#${item.name}` : item.name,
-            description: item.description || '',
-            score: item.score || 0,
-            volume: item.volume || 0,
-            momentum: item.momentum || 0,
-            rank: item.rank || 0,
-            created_at: item.calculatedAt || item.updatedAt || '',
-            direction: momentumToDirection(item.momentum || 0),
-            ...(recId ? { recId } : {}),
-          })) as Trend[];
+          const next = items.map((item) => {
+            const series = parseSeries(item.series);
+            return {
+              id: item._id || item.name,
+              type: item.type || 'hashtag',
+              text: item.name,
+              hashtag: item.type === 'hashtag' ? `#${item.name}` : item.name,
+              description: item.description || '',
+              score: item.score || 0,
+              volume: item.volume || 0,
+              momentum: item.momentum || 0,
+              rank: item.rank || 0,
+              created_at: item.calculatedAt || item.updatedAt || '',
+              direction: momentumToDirection(item.momentum || 0),
+              ...(recId ? { recId } : {}),
+              ...(series ? { series } : {}),
+            };
+          }) as Trend[];
 
           const { trends: prev, summary: prevSummary } = get();
           let changed = prev.length !== next.length;
@@ -104,13 +125,18 @@ export const useTrendsStore = create<TrendsStore>()(
               // identical: a rotated batch whose content happens to match would
               // otherwise keep the old token in state, and every press reported
               // afterwards would be labelled `stale` for no reason.
+              // The series is compared explicitly rather than left to `recId`:
+              // the token is absent whenever a cache entry predates it, and a
+              // sparkline that silently kept yesterday's shape would be the
+              // quiet version of the invented geometry this chart replaced.
               if (
                 !a ||
                 !b ||
                 a.id !== b.id ||
                 a.score !== b.score ||
                 a.direction !== b.direction ||
-                a.recId !== b.recId
+                a.recId !== b.recId ||
+                a.series?.join() !== b.series?.join()
               ) {
                 changed = true;
                 break;
