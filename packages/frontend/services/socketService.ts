@@ -89,6 +89,7 @@ class SocketService {
 
   private readonly handleManagerReconnect = () => {
     this.reconnectAttempts = 0;
+    this.resyncTrendsAfterReconnect();
   };
 
   private readonly handleManagerReconnectFailed = () => {
@@ -436,9 +437,27 @@ class SocketService {
 
   /**
    * Trends recalculated server-side. Payload is a signal only — refetch silently.
+   *
+   * The refetch is what carries the trend VOLUME SERIES the sparkline draws: the
+   * server appends a point to each series once per trending batch, and this is
+   * the moment that point reaches the screen. There is deliberately no separate
+   * series push and no delta — see {@link resyncTrendsAfterReconnect}.
    */
   private handleTrendsUpdated(): void {
     void useTrendsStore.getState().fetchTrends({ silent: true });
+  }
+
+  /**
+   * Re-sync trends after the socket comes back: a client that was disconnected or
+   * asleep missed every `trends:updated` broadcast in between, so its sparklines
+   * are stale by however many batches it slept through. The store owns the policy
+   * (see `resyncAfterReconnect`); this only supplies the moment.
+   *
+   * Bound to the Manager's `reconnect`, which fires ONLY on a re-connection —
+   * never on the first one, where the store's own initial fetch already runs.
+   */
+  private resyncTrendsAfterReconnect(): void {
+    useTrendsStore.getState().resyncAfterReconnect();
   }
 
   /**
