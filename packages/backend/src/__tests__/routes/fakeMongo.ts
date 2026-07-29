@@ -30,6 +30,17 @@ export function matchCondition(doc: Doc, query: Query): boolean {
     if (cond instanceof RegExp) {
       return typeof value === 'string' && cond.test(value);
     }
+    if (isQuery(cond)) {
+      // The two field-level operator forms these handlers build: the object
+      // spelling of a regex match, and an equality negation.
+      if (typeof cond.$regex === 'string') {
+        const flags = typeof cond.$options === 'string' ? cond.$options : '';
+        return typeof value === 'string' && new RegExp(cond.$regex, flags).test(value);
+      }
+      if ('$ne' in cond) {
+        return Array.isArray(value) ? !value.includes(cond.$ne) : value !== cond.$ne;
+      }
+    }
     return value === cond;
   });
 }

@@ -47,7 +47,8 @@ const SEARCH_HYDRATION_PROJECTION = [
 /**
  * Parse search operators from query string.
  * Supported operators:
- *   from:username    - filter posts by author username
+ *   from:username    - filter posts by author username (`from:me` = the viewer)
+ *   to:username      - filter posts mentioning a user (`to:me` = the viewer)
  *   since:YYYY-MM-DD - posts after date
  *   until:YYYY-MM-DD - posts before date
  *   has:media        - posts with media attachments
@@ -55,11 +56,14 @@ const SEARCH_HYDRATION_PROJECTION = [
  *   min_likes:N      - minimum likes count
  *   min_boosts:N     - minimum boosts count
  *
- * Returns the remaining text query and the extracted operators.
+ * Returns the remaining text query and the extracted operators. This function is
+ * PURE and viewer-less: the `me` alias is a property of the request, so it is
+ * resolved at the use site (see {@link resolveOperatorUserId}), not here.
  */
 interface ParsedOperators {
   textQuery: string;
   from?: string;
+  to?: string;
   since?: string;
   until?: string;
   hasMedia?: boolean;
@@ -72,7 +76,7 @@ function parseSearchOperators(raw: string): ParsedOperators {
   const result: ParsedOperators = { textQuery: '' };
 
   // Match operator:value patterns (value can be quoted or unquoted)
-  const operatorRegex = /\b(from|since|until|has|min_likes|min_boosts):("[^"]*"|[^\s]+)/gi;
+  const operatorRegex = /\b(from|to|since|until|has|min_likes|min_boosts):("[^"]*"|[^\s]+)/gi;
   let remaining = raw;
 
   let match: RegExpExecArray | null;
@@ -84,6 +88,9 @@ function parseSearchOperators(raw: string): ParsedOperators {
     switch (key) {
       case 'from':
         result.from = value.replace(/^@/, ''); // strip leading @
+        break;
+      case 'to':
+        result.to = value.replace(/^@/, ''); // strip leading @
         break;
       case 'since':
         if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
@@ -117,6 +124,34 @@ function parseSearchOperators(raw: string): ParsedOperators {
 
   result.textQuery = remaining.replace(/\s+/g, ' ').trim();
   return result;
+}
+
+/**
+ * Resolve a `from:` / `to:` operand to an Oxy user id, or `undefined` when it
+ * names nobody this request can search for.
+ *
+ * `me` means the viewer. The alias is genuinely ambiguous — a real Oxy account
+ * could be named `me` — and it is resolved in favour of the VIEWER, the same
+ * call Twitter and Bluesky make: an account literally named `me` is still
+ * reachable by any other search, while "my own posts" has no other spelling.
+ * Resolving it locally also skips the Oxy round trip entirely.
+ *
+ * An anonymous viewer has no `me`, so the operator resolves to nobody — the same
+ * terminal state as an unknown username, which the caller turns into an empty
+ * result set rather than silently dropping the filter (a dropped filter would
+ * answer a DIFFERENT question than the one asked).
+ */
+async function resolveOperatorUserId(
+  operand: string,
+  currentUserId: string | undefined,
+): Promise<string | undefined> {
+  if (operand.toLowerCase() === 'me') return currentUserId;
+  try {
+    const profile = await getRuntimeOxyClient().getProfileByUsername(operand);
+    return profile?.id ? String(profile.id) : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 router.get("/", async (req: AuthRequest, res: Response) => {
@@ -155,28 +190,34 @@ router.get("/", async (req: AuthRequest, res: Response) => {
 
       // --- Operator-based filters ---
 
-      // from:username - resolve username to oxyUserId
+      // from:username — posts AUTHORED by that user (`from:me` = the viewer).
       if (operators.from) {
-        try {
-          const profile = await getRuntimeOxyClient().getProfileByUsername(operators.from);
-          const profileId = profile?.id;
-          if (profileId) {
-            filter.authorship = {
-              $elemMatch: {
-                oxyUserId: String(profileId),
-                status: 'accepted',
-              },
-            };
-          } else {
-            // Username not found - return empty results
-            res.json({ posts: [], hasMore: false });
-            return;
-          }
-        } catch {
-          // Username not found - return empty results
+        const authorId = await resolveOperatorUserId(operators.from, currentUserId);
+        if (!authorId) {
+          // Nobody to search for (unknown username, or `me` with no session).
           res.json({ posts: [], hasMore: false });
           return;
         }
+        filter.authorship = {
+          $elemMatch: {
+            oxyUserId: authorId,
+            status: 'accepted',
+          },
+        };
+      }
+
+      // to:username — posts MENTIONING that user (`to:me` = the viewer).
+      // `mentions` holds oxyUserIds and is indexed twice (plain, plus the
+      // compound `{mentions, createdAt}` that also serves this query's sort), so
+      // containment is an index lookup rather than a scan. Mongo matches an array
+      // field by element equality, so the scalar matches any post mentioning them.
+      if (operators.to) {
+        const mentionedId = await resolveOperatorUserId(operators.to, currentUserId);
+        if (!mentionedId) {
+          res.json({ posts: [], hasMore: false });
+          return;
+        }
+        filter.mentions = mentionedId;
       }
 
       // since: / until: operators

@@ -1,5 +1,12 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { View, Text, TextInput, TouchableOpacity } from "react-native";
+import {
+    View,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    type NativeSyntheticEvent,
+    type TextInputSelectionChangeEventData,
+} from "react-native";
 import { SafeAreaView } from "@/lib/SafeAreaViewInterop";
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useTranslation } from "react-i18next";
@@ -20,8 +27,17 @@ import {
     type SearchHashtagResult,
     type SearchListResult,
     type SearchPostResult,
+    type SearchStarterPackResult,
     type SearchUserResult,
 } from "@/services/searchService";
+import {
+    applyOperatorCompletion,
+    buildOperatorValueSuggestions,
+    filterRecentSearches,
+    findActiveOperatorToken,
+    toProfileHandleSuggestion,
+    type ActiveOperatorToken,
+} from "@/utils/searchSuggestions";
 import { Loading } from "@oxyhq/bloom/loading";
 import { FlashList } from "@shopify/flash-list";
 import AnimatedTabBar from "@/components/common/AnimatedTabBar";
@@ -32,6 +48,7 @@ import { SEO } from "@/components/SEO";
 import { ProfileCard, ProfileCardSkeletonList, type ProfileCardData } from "@/components/ProfileCard";
 import { FeedCard, type FeedCardData } from "@/components/FeedCard";
 import { ListCard, type ListCardData } from "@/components/ListCard";
+import { StarterPackCard, type StarterPackCardData } from "@/components/StarterPackCard";
 import { ExternalActorFollowButton } from "@/components/search/ExternalActorFollowButton";
 import { useExternalActorResolve } from "@/hooks/useExternalActorResolve";
 import type { ExternalActorResolution } from "@/services/feedService";
@@ -45,7 +62,7 @@ import { formatCompactNumber } from "@/utils/formatNumber";
 import { logger } from "@/lib/logger";
 import { viewerQueryKeys } from "@/lib/viewerQueryKeys";
 
-type ResultTab = "posts" | "users" | "feeds" | "hashtags" | "lists" | "saved";
+type ResultTab = "posts" | "users" | "feeds" | "hashtags" | "lists" | "starterPacks" | "saved";
 type SearchTab = "all" | ResultTab;
 
 type LocalSearchResults = {
@@ -54,6 +71,7 @@ type LocalSearchResults = {
     feeds: SearchFeedResult[];
     hashtags: SearchHashtagResult[];
     lists: SearchListResult[];
+    starterPacks: SearchStarterPackResult[];
     saved: SearchPostResult[];
 };
 
@@ -63,10 +81,11 @@ const EMPTY_RESULTS: LocalSearchResults = {
     feeds: [],
     hashtags: [],
     lists: [],
+    starterPacks: [],
     saved: [],
 };
 
-const RESULT_TABS: ResultTab[] = ["posts", "users", "feeds", "hashtags", "lists", "saved"];
+const RESULT_TABS: ResultTab[] = ["posts", "users", "feeds", "hashtags", "lists", "starterPacks", "saved"];
 const SEARCH_TABS: SearchTab[] = ["all", ...RESULT_TABS];
 
 function isSearchTab(value: string): value is SearchTab {
@@ -88,12 +107,27 @@ const SKELETON_ROW_COUNT = 8;
 const MAX_IDLE_TRENDS = 5;
 
 /**
- * One flattened, virtualized row model so the WHOLE screen — idle state and
+ * Recent searches still offered once the viewer starts typing. Kept short: while
+ * typing they are a shortcut alongside live results, not the main event.
+ */
+const MAX_TYPING_RECENTS = 3;
+
+/** Value chips offered when completing an operator token. */
+const MAX_OPERATOR_VALUE_SUGGESTIONS = 6;
+
+/**
+ * One flattened, virtualized row model so the WHOLE screen — suggestions and
  * results alike — renders through a single FlashList. The scroll container never
  * swaps between states (no scroll/keyboard reset on the first keystroke), and
  * off-screen rows (notably the heavy <PostItem> cards) stay unmounted. `kind`
  * doubles as the FlashList recycle bucket, so a post card is never recycled into
  * a profile row.
+ *
+ * The suggestion rows are ordinary list CONTENT, which is the whole design: with
+ * no floating surface there is no dismissal policy, so they cannot close on blur
+ * (see the note on `suggestionRows`). `status` likewise renders loading / error /
+ * no-results as a row rather than through `ListEmptyComponent`, which would never
+ * fire now that suggestions keep the list non-empty.
  */
 type SearchRow =
     | { kind: "sectionHeader"; key: string; title: string; action?: { label: string; onPress: () => void } }
@@ -102,12 +136,17 @@ type SearchRow =
     | { kind: "trendsLoading"; key: string }
     | { kind: "trendsError"; key: string }
     | { kind: "operators"; key: string }
+    | { kind: "operatorValues"; key: string; token: ActiveOperatorToken; values: string[] }
+    | { kind: "searchFor"; key: string; term: string }
+    | { kind: "goToProfile"; key: string; handle: string }
+    | { kind: "status"; key: string; state: "loading" | "error" | "empty" }
     | { kind: "user"; key: string; profile: ProfileCardData }
     | { kind: "externalUser"; key: string; profile: ProfileCardData; actor: ExternalActorResolution }
     | { kind: "post"; key: string; post: SearchPostResult }
     | { kind: "feed"; key: string; feed: SearchFeedResult }
     | { kind: "hashtag"; key: string; hashtag: SearchHashtagResult }
-    | { kind: "list"; key: string; list: SearchListResult };
+    | { kind: "list"; key: string; list: SearchListResult }
+    | { kind: "starterPack"; key: string; pack: SearchStarterPackResult };
 
 /**
  * A page cursor for the active tab's infinite query. Its meaning depends on the
@@ -160,6 +199,7 @@ async function fetchSearchPage(
                     feeds: all.feeds ?? [],
                     hashtags: all.hashtags ?? [],
                     lists: all.lists ?? [],
+                    starterPacks: all.starterPacks ?? [],
                     saved: all.saved ?? [],
                 },
                 nextPageParam: undefined,
@@ -202,6 +242,13 @@ async function fetchSearchPage(
             const offset = typeof pageParam === "number" ? pageParam : 0;
             const { lists, hasMore, nextOffset } = await searchService.searchListsPage(query, offset, signal);
             return { results: { ...EMPTY_RESULTS, lists }, nextPageParam: hasMore ? nextOffset : undefined };
+        }
+        case "starterPacks": {
+            // Public (`/starter-packs` reads the viewer optionally), so it runs for
+            // signed-out viewers too — no `canUsePrivateApi` gate.
+            const page = typeof pageParam === "number" ? pageParam : 1;
+            const { starterPacks, hasMore, nextPage } = await searchService.searchStarterPacksPage(query, page, signal);
+            return { results: { ...EMPTY_RESULTS, starterPacks }, nextPageParam: hasMore ? nextPage : undefined };
         }
     }
 }
@@ -310,6 +357,22 @@ function toListCardData(list: SearchListResult): ListCardData | null {
     };
 }
 
+function toStarterPackCardData(pack: SearchStarterPackResult): StarterPackCardData | null {
+    const id = String(pack._id || pack.id || "");
+    if (!id) return null;
+    const memberCount = pack.memberCount ?? (pack.memberOxyUserIds || []).length;
+    return {
+        id,
+        name: pack.name || "Untitled Pack",
+        description: pack.description,
+        creator: pack.creator,
+        memberCount,
+        useCount: pack.useCount || 0,
+        memberAvatars: pack.memberAvatars ?? [],
+        totalMembers: memberCount,
+    };
+}
+
 export default function SearchIndex() {
     const { t } = useTranslation();
     const theme = useTheme();
@@ -333,6 +396,12 @@ export default function SearchIndex() {
     // explicit submit / tab press / recent tap commits it instantly.
     const [debouncedQuery, setDebouncedQuery] = useState(urlQuery);
     const [activeTab, setActiveTab] = useState<SearchTab>("all");
+    // Caret offset, so an operator completion targets the token the viewer is
+    // actually editing rather than always the last one. Every write below keeps it
+    // at the end of the text it just set; `onSelectionChange` then reports the
+    // real position. A stale value is harmless — `findActiveOperatorToken` clamps
+    // it into the current query, which degrades to "the last token".
+    const [caret, setCaret] = useState(urlQuery.length);
 
     // Pending debounce timer, set and cleared INSIDE event handlers — never an
     // Effect — so a burst of keystrokes collapses to exactly one search.
@@ -347,6 +416,7 @@ export default function SearchIndex() {
         setSyncedUrlQuery(urlQuery);
         setQuery(urlQuery);
         setDebouncedQuery(urlQuery);
+        setCaret(urlQuery.length);
     }
 
     // --- Search history (Storage-backed, cached by React Query) ---
@@ -473,6 +543,7 @@ export default function SearchIndex() {
                 feeds: acc.feeds.concat(page.results.feeds),
                 hashtags: acc.hashtags.concat(page.results.hashtags),
                 lists: acc.lists.concat(page.results.lists),
+                starterPacks: acc.starterPacks.concat(page.results.starterPacks),
                 saved: acc.saved.concat(page.results.saved),
             }),
             EMPTY_RESULTS,
@@ -508,6 +579,7 @@ export default function SearchIndex() {
     const handleQueryChange = useCallback(
         (text: string) => {
             setQuery(text);
+            setCaret(text.length);
             clearDebounce();
             const trimmed = text.trim();
             // Clearing the box returns the screen to its idle state at once (the
@@ -528,9 +600,19 @@ export default function SearchIndex() {
 
     const clearSearch = useCallback(() => {
         setQuery("");
+        setCaret(0);
         commitQuery("");
         searchInputRef.current?.focus();
     }, [commitQuery]);
+
+    // The box reports where the caret really is. Read-only: the selection is never
+    // driven from state, so this only ever refines what the write handlers assumed.
+    const handleSelectionChange = useCallback(
+        (event: NativeSyntheticEvent<TextInputSelectionChangeEventData>) => {
+            setCaret(event.nativeEvent.selection.end);
+        },
+        [],
+    );
 
     const handleSubmit = useCallback(() => {
         const searchQuery = query.trim();
@@ -560,6 +642,7 @@ export default function SearchIndex() {
     const handleRecentPress = useCallback(
         (term: string) => {
             setQuery(term);
+            setCaret(term.length);
             commitToHistory(term);
             commitQuery(term);
         },
@@ -578,15 +661,34 @@ export default function SearchIndex() {
         setSearchHistory([]);
     }, [setSearchHistory, viewerId]);
 
+    // Seed the box from an operator chip. A parameterised operator contributes its
+    // prefix and waits for a value; a complete one (`from:me`, `has:media`) goes in
+    // whole and searches straight away. Routed through the same debounce path a
+    // keystroke takes.
     const handleOperatorPress = useCallback(
-        (operator: string) => {
-            const [prefix] = operator.split(":");
-            // Route through the same debounce path a keystroke takes, so seeding the
-            // box with an operator prefix still kicks off a search.
-            handleQueryChange(`${prefix}:`);
+        (insert: string) => {
+            handleQueryChange(insert);
             searchInputRef.current?.focus();
         },
         [handleQueryChange],
+    );
+
+    // Complete the operator token the caret sits in, preserving the rest of the
+    // query on either side of it.
+    const handleOperatorValuePress = useCallback(
+        (token: ActiveOperatorToken, value: string) => {
+            handleQueryChange(applyOperatorCompletion(query, token, value));
+            searchInputRef.current?.focus();
+        },
+        [handleQueryChange, query],
+    );
+
+    const handleGoToProfile = useCallback(
+        (handle: string) => {
+            commitCurrentQuery();
+            router.push(`/@${handle}`);
+        },
+        [commitCurrentQuery],
     );
 
     // --- Result handlers (opening a result commits the query to history) ---
@@ -623,6 +725,14 @@ export default function SearchIndex() {
         [commitCurrentQuery],
     );
 
+    const handleOpenStarterPack = useCallback(
+        (packId: string) => {
+            commitCurrentQuery();
+            router.push(`/starter-packs/${packId}`);
+        },
+        [commitCurrentQuery],
+    );
+
     const tabs = useMemo(
         () => [
             { id: "all", label: t("search.tabs.all", "All") },
@@ -631,48 +741,115 @@ export default function SearchIndex() {
             { id: "feeds", label: t("search.tabs.feeds", "Feeds") },
             { id: "hashtags", label: t("search.tabs.hashtags", "Hashtags") },
             { id: "lists", label: t("search.tabs.lists", "Lists") },
+            { id: "starterPacks", label: t("search.tabs.starterPacks", "Starter Packs") },
             { id: "saved", label: t("search.tabs.saved", "Saved") },
         ],
         [t],
     );
 
-    const isIdle = !query.trim();
+    const trimmedQuery = query.trim();
+    const isIdle = trimmedQuery.length === 0;
 
-    // Idle rows: recent searches, then trending, then the (secondary) operator
-    // chips. Empty while a query is active.
-    const idleRows = useMemo<SearchRow[]>(() => {
-        if (!isIdle) return [];
+    /**
+     * Suggestion rows, rendered as a header SECTION above the results — and, in
+     * the typing state, rendered *at the same time as* them.
+     *
+     * This is the deliberate shape of the feature. Mention has no floating
+     * autocomplete and is not getting one: the suggestions are list content, so
+     * "does not close when the input loses focus" holds STRUCTURALLY rather than
+     * by policy — there is no overlay to dismiss, and correspondingly no
+     * `onBlur` handler anywhere in this file. Please do not "finish" this by
+     * adding one. Bluesky shipped exactly that handler in `6b342f61b`
+     * (2026-06-25) and deleted it 25 days later in `92ef1528b` (2026-07-20),
+     * noting that on web their overlay's own focus management made the results
+     * uninteractable. The overlay is what creates the problem; not having one is
+     * the fix.
+     *
+     * Idle (empty box): recents, then trending, then the operator cheat-sheet.
+     * Typing: commit-this-query, an optional go-to-profile, an optional operator
+     * completion, then recents FILTERED by what has been typed — the history
+     * stays reachable instead of vanishing on the first keystroke.
+     */
+    const suggestionRows = useMemo<SearchRow[]>(() => {
         const rows: SearchRow[] = [];
 
-        if (searchHistory.length > 0) {
+        if (isIdle) {
+            if (searchHistory.length > 0) {
+                rows.push({
+                    kind: "sectionHeader",
+                    key: "header-recent",
+                    title: t("search.recentSearches", "Recent searches"),
+                    action: { label: t("common.clearAll", "Clear all"), onPress: () => void handleClearHistory() },
+                });
+                for (const term of searchHistory) {
+                    rows.push({ kind: "recent", key: `recent-${term}`, term });
+                }
+            }
+
+            const showTrendsSection = visibleTrends.length > 0 || !trendsFetched || Boolean(trendsError);
+            if (showTrendsSection) {
+                rows.push({ kind: "sectionHeader", key: "header-trending", title: t("Trending") });
+                if (visibleTrends.length > 0) {
+                    for (const trend of visibleTrends) {
+                        rows.push({ kind: "trend", key: `trend-${trend.id}`, trend });
+                    }
+                } else if (trendsError) {
+                    rows.push({ kind: "trendsError", key: "trends-error" });
+                } else if (trendsLoading || !trendsFetched) {
+                    rows.push({ kind: "trendsLoading", key: "trends-loading" });
+                }
+            }
+
+            rows.push({ kind: "operators", key: "operators" });
+            return rows;
+        }
+
+        rows.push({ kind: "searchFor", key: "suggestion-search-for", term: trimmedQuery });
+
+        const handle = toProfileHandleSuggestion(trimmedQuery);
+        if (handle) {
+            rows.push({ kind: "goToProfile", key: `suggestion-profile-${handle}`, handle });
+        }
+
+        // A targeted completion for the operator being typed replaces the full
+        // cheat-sheet here — once the viewer has committed to `from:`, the other
+        // nine operators are noise.
+        const token = findActiveOperatorToken(query, caret);
+        if (token) {
+            const values = buildOperatorValueSuggestions(token, searchHistory, MAX_OPERATOR_VALUE_SUGGESTIONS);
+            if (values.length > 0) {
+                rows.push({ kind: "operatorValues", key: `suggestion-operator-${token.prefix}`, token, values });
+            }
+        }
+
+        const recents = filterRecentSearches(searchHistory, trimmedQuery, MAX_TYPING_RECENTS);
+        if (recents.length > 0) {
+            // No "Clear all" while filtering: the action clears the WHOLE history,
+            // not the subset on screen, so offering it here would misdescribe it.
             rows.push({
                 kind: "sectionHeader",
                 key: "header-recent",
                 title: t("search.recentSearches", "Recent searches"),
-                action: { label: t("common.clearAll", "Clear all"), onPress: () => void handleClearHistory() },
             });
-            for (const term of searchHistory) {
+            for (const term of recents) {
                 rows.push({ kind: "recent", key: `recent-${term}`, term });
             }
         }
 
-        const showTrendsSection = visibleTrends.length > 0 || !trendsFetched || Boolean(trendsError);
-        if (showTrendsSection) {
-            rows.push({ kind: "sectionHeader", key: "header-trending", title: t("Trending") });
-            if (visibleTrends.length > 0) {
-                for (const trend of visibleTrends) {
-                    rows.push({ kind: "trend", key: `trend-${trend.id}`, trend });
-                }
-            } else if (trendsError) {
-                rows.push({ kind: "trendsError", key: "trends-error" });
-            } else if (trendsLoading || !trendsFetched) {
-                rows.push({ kind: "trendsLoading", key: "trends-loading" });
-            }
-        }
-
-        rows.push({ kind: "operators", key: "operators" });
         return rows;
-    }, [isIdle, searchHistory, visibleTrends, trendsFetched, trendsLoading, trendsError, t, handleClearHistory]);
+    }, [
+        isIdle,
+        query,
+        trimmedQuery,
+        caret,
+        searchHistory,
+        visibleTrends,
+        trendsFetched,
+        trendsLoading,
+        trendsError,
+        t,
+        handleClearHistory,
+    ]);
 
     // Result rows: one section per non-empty category on the "all" tab (headers
     // included), a flat list on a single-category tab. Empty while loading so the
@@ -732,6 +909,15 @@ export default function SearchIndex() {
             results.lists.map((list): SearchRow => ({ kind: "list", key: `list-${list.id || list._id}`, list })),
         );
         pushSection(
+            isAll || activeTab === "starterPacks",
+            t("search.sections.starterPacks", "Starter Packs"),
+            results.starterPacks.map((pack): SearchRow => ({
+                kind: "starterPack",
+                key: `starter-pack-${pack._id || pack.id}`,
+                pack,
+            })),
+        );
+        pushSection(
             isAll || activeTab === "saved",
             t("search.sections.saved", "Saved"),
             results.saved.map((post): SearchRow => ({ kind: "post", key: `saved-${post.id}`, post })),
@@ -740,7 +926,24 @@ export default function SearchIndex() {
         return rows;
     }, [isIdle, loading, searchFailed, activeTab, results, externalActor, t]);
 
-    const rows = isIdle ? idleRows : resultRows;
+    /**
+     * Loading / error / no-results, as a ROW rather than `ListEmptyComponent`.
+     * The suggestion rows above keep the list non-empty at all times now, so
+     * `ListEmptyComponent` would never render again — the state has to live in
+     * the data. Idle has no status: nothing has been asked yet.
+     */
+    const statusRow = useMemo<SearchRow | null>(() => {
+        if (isIdle) return null;
+        if (loading) return { kind: "status", key: "status-loading", state: "loading" };
+        if (searchFailed) return { kind: "status", key: "status-error", state: "error" };
+        if (resultRows.length === 0) return { kind: "status", key: "status-empty", state: "empty" };
+        return null;
+    }, [isIdle, loading, searchFailed, resultRows.length]);
+
+    const rows = useMemo<SearchRow[]>(
+        () => (statusRow ? [...suggestionRows, ...resultRows, statusRow] : [...suggestionRows, ...resultRows]),
+        [suggestionRows, resultRows, statusRow],
+    );
 
     // Reaching the end of a results tab pulls its next page. The idle list and the
     // "all" overview report no next page, so this is a no-op there; the guard
@@ -828,24 +1031,111 @@ export default function SearchIndex() {
                                 {t("search.operatorHints", "Search operators")}
                             </Text>
                             <View className="flex-row flex-wrap gap-2">
-                                {SEARCH_OPERATORS.map((operator) => {
-                                    const [prefix] = operator.operator.split(":");
-                                    return (
-                                        <TouchableOpacity
-                                            key={operator.operator}
-                                            onPress={() => handleOperatorPress(operator.operator)}
-                                            className="rounded-full bg-secondary px-3 py-1.5"
-                                            accessibilityRole="button"
-                                            accessibilityLabel={t(`search.operator.${prefix}`, operator.description)}
-                                        >
-                                            <Text className="text-xs font-medium text-muted-foreground">
-                                                {operator.operator}
-                                            </Text>
-                                        </TouchableOpacity>
-                                    );
-                                })}
+                                {SEARCH_OPERATORS.map((operator) => (
+                                    <TouchableOpacity
+                                        key={operator.operator}
+                                        onPress={() => handleOperatorPress(operator.insert)}
+                                        className="rounded-full bg-secondary px-3 py-1.5"
+                                        accessibilityRole="button"
+                                        accessibilityLabel={t(`search.operator.${operator.labelKey}`, operator.description)}
+                                    >
+                                        <Text className="text-xs font-medium text-muted-foreground">
+                                            {operator.operator}
+                                        </Text>
+                                    </TouchableOpacity>
+                                ))}
                             </View>
                         </View>
+                    );
+
+                case "operatorValues":
+                    return (
+                        <View className="w-full px-3 py-4 gap-2 border-b border-border">
+                            <Text className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                                {t("search.suggestions.completeOperator", "Complete {{prefix}}:", { prefix: item.token.prefix })}
+                            </Text>
+                            <View className="flex-row flex-wrap gap-2">
+                                {item.values.map((value) => (
+                                    <TouchableOpacity
+                                        key={value}
+                                        onPress={() => handleOperatorValuePress(item.token, value)}
+                                        className="rounded-full bg-secondary px-3 py-1.5"
+                                        accessibilityRole="button"
+                                    >
+                                        <Text className="text-xs font-medium text-muted-foreground">
+                                            {`${item.token.prefix}:${value}`}
+                                        </Text>
+                                    </TouchableOpacity>
+                                ))}
+                            </View>
+                        </View>
+                    );
+
+                case "searchFor":
+                    return (
+                        <TouchableOpacity
+                            className="w-full flex-row items-center gap-3 px-3 py-3 border-b border-border"
+                            onPress={handleSubmit}
+                            accessibilityRole="button"
+                        >
+                            <SearchIcon size={18} className="text-muted-foreground" />
+                            <Text className="flex-1 text-base text-foreground" numberOfLines={1}>
+                                {t('search.suggestions.searchFor', 'Search for "{{query}}"', { query: item.term })}
+                            </Text>
+                        </TouchableOpacity>
+                    );
+
+                case "goToProfile":
+                    return (
+                        <TouchableOpacity
+                            className="w-full flex-row items-center gap-3 px-3 py-3 border-b border-border"
+                            onPress={() => handleGoToProfile(item.handle)}
+                            accessibilityRole="button"
+                        >
+                            <Ionicons name="person-outline" size={18} color={theme.colors.textSecondary} />
+                            <Text className="flex-1 text-base text-foreground" numberOfLines={1}>
+                                {t("search.suggestions.goToProfile", "Go to @{{handle}}", { handle: item.handle })}
+                            </Text>
+                        </TouchableOpacity>
+                    );
+
+                // Loading is checked before the error state so a retry/refetch shows
+                // the spinner rather than lingering on the error card.
+                case "status":
+                    if (item.state === "loading") {
+                        // The people tab paints the row it is about to show; the other
+                        // tabs mix result kinds (or show posts), so they keep the
+                        // neutral spinner.
+                        if (activeTab === "users") {
+                            return <ProfileCardSkeletonList count={SKELETON_ROW_COUNT} showFollowButton />;
+                        }
+                        return (
+                            <View className="items-center justify-center py-20">
+                                <Loading className="text-primary" size="large" />
+                            </View>
+                        );
+                    }
+                    if (item.state === "error") {
+                        return (
+                            <Error
+                                title={t("search.error.title", "Search failed")}
+                                message={t(
+                                    "search.error.message",
+                                    "We couldn't complete that search. Check your connection and try again.",
+                                )}
+                                onRetry={retrySearch}
+                                hideBackButton
+                            />
+                        );
+                    }
+                    // A resolved cross-network actor is a normal row, so it keeps the
+                    // results non-empty on its own — nothing to special-case here.
+                    return (
+                        <EmptyState
+                            title={t("search.noResults", "No results found")}
+                            subtitle={t("search.tryDifferent", "Try searching for something else")}
+                            customIcon={<SearchIcon size={48} className="text-muted-foreground" />}
+                        />
                     );
 
                 case "user":
@@ -907,6 +1197,16 @@ export default function SearchIndex() {
                     return <ListCard list={list} variant="row" onPress={() => handleOpenList(list.id)} />;
                 }
 
+                case "starterPack": {
+                    const pack = toStarterPackCardData(item.pack);
+                    if (!pack) return null;
+                    return (
+                        <View className="w-full px-3 py-2">
+                            <StarterPackCard pack={pack} onPress={() => handleOpenStarterPack(pack.id)} />
+                        </View>
+                    );
+                }
+
                 default:
                     return null;
             }
@@ -914,15 +1214,21 @@ export default function SearchIndex() {
         [
             theme,
             t,
+            activeTab,
             handleRecentPress,
             handleRemoveRecent,
             navigateToTrend,
             fetchTrends,
             handleOperatorPress,
+            handleOperatorValuePress,
+            handleSubmit,
+            handleGoToProfile,
+            retrySearch,
             handleOpenProfile,
             handleOpenFeed,
             handleOpenHashtag,
             handleOpenList,
+            handleOpenStarterPack,
             commitCurrentQuery,
         ],
     );
@@ -942,49 +1248,6 @@ export default function SearchIndex() {
                 customIcon={<SearchIcon size={48} className="text-muted-foreground" />}
             />
         ) : null;
-
-    const renderListEmpty = () => {
-        if (isIdle) return null;
-
-        // Loading is checked before the error state so a retry/refetch shows the
-        // spinner rather than lingering on the error card.
-        if (loading) {
-            // The people tab paints the row it is about to show; the other tabs mix
-            // result kinds (or show posts), so they keep the neutral spinner.
-            if (activeTab === "users") {
-                return <ProfileCardSkeletonList count={SKELETON_ROW_COUNT} showFollowButton />;
-            }
-            return (
-                <View className="items-center justify-center py-20">
-                    <Loading className="text-primary" size="large" />
-                </View>
-            );
-        }
-
-        if (searchFailed) {
-            return (
-                <Error
-                    title={t("search.error.title", "Search failed")}
-                    message={t(
-                        "search.error.message",
-                        "We couldn't complete that search. Check your connection and try again.",
-                    )}
-                    onRetry={retrySearch}
-                    hideBackButton
-                />
-            );
-        }
-
-        // A resolved cross-network actor is a normal row now, so it keeps the list
-        // non-empty on its own — nothing to special-case here.
-        return (
-            <EmptyState
-                title={t("search.noResults", "No results found")}
-                subtitle={t("search.tryDifferent", "Try searching for something else")}
-                customIcon={<SearchIcon size={48} className="text-muted-foreground" />}
-            />
-        );
-    };
 
     return (
         <>
@@ -1009,6 +1272,7 @@ export default function SearchIndex() {
                             label={t("search.placeholder", "Search...")}
                             value={query}
                             onChangeText={handleQueryChange}
+                            onSelectionChange={handleSelectionChange}
                             onSubmitEditing={handleSubmit}
                             onClearText={clearSearch}
                             autoFocus
@@ -1022,10 +1286,11 @@ export default function SearchIndex() {
                         scrollEnabled={true}
                     />
 
-                    {/* ONE scroll container for every state — idle content, results,
-                        loading, error and empty all render through this list, so the
-                        container never swaps (no scroll or keyboard reset on the
-                        first keystroke). */}
+                    {/* ONE scroll container for every state — suggestions, results,
+                        loading, error and empty all render through this list as ROWS,
+                        so the container never swaps (no scroll or keyboard reset on
+                        the first keystroke) and the suggestions have no focus-bound
+                        lifecycle to get wrong. */}
                     <View className="flex-1 min-h-0">
                         <FlashList
                             data={rows}
@@ -1038,7 +1303,6 @@ export default function SearchIndex() {
                             onEndReached={handleEndReached}
                             onEndReachedThreshold={0.5}
                             ListHeaderComponent={renderListHeader()}
-                            ListEmptyComponent={renderListEmpty()}
                             ListFooterComponent={
                                 isFetchingNextPage ? (
                                     <View className="items-center justify-center py-4">

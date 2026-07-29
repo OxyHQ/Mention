@@ -6,6 +6,7 @@ import { Storage } from "@/utils/storage";
 import { viewerStorageKey, type ViewerId } from "@/lib/viewerQueryKeys";
 import type { User } from '@oxyhq/core';
 import type { HydratedPost } from '@mention/shared-types';
+import type { StarterPackSummary } from './starterPacksService';
 
 const logger = createScopedLogger('SearchService');
 
@@ -47,6 +48,13 @@ export interface SearchHashtagResult {
   count: number;
 }
 
+/**
+ * A starter pack as the search tab renders it — the same document the rest of
+ * the app already models, so a result row feeds the shared `StarterPackCard`
+ * without a second shape to keep in sync.
+ */
+export type SearchStarterPackResult = StarterPackSummary;
+
 export interface SearchListResult {
   id?: string;
   _id?: string;
@@ -70,18 +78,7 @@ export interface SearchResults {
   users?: SearchUserResult[];
   lists?: SearchListResult[];
   saved?: SearchPostResult[];
-}
-
-export interface SearchFilters {
-  dateFrom?: string;
-  dateTo?: string;
-  minLikes?: number;
-  minBoosts?: number;
-  mediaType?: 'image' | 'video' | 'gif';
-  hasMedia?: boolean;
-  language?: string;
-  cursor?: string;
-  limit?: number;
+  starterPacks?: SearchStarterPackResult[];
 }
 
 /** Page size for the paginated single-category search tabs. */
@@ -143,6 +140,21 @@ export interface SearchListsPage {
   nextOffset: number;
 }
 
+/** A page of starter-pack results plus the page number to request next. */
+export interface SearchStarterPacksPage {
+  starterPacks: SearchStarterPackResult[];
+  hasMore: boolean;
+  nextPage: number;
+}
+
+/** The page window `GET /starter-packs` echoes back on every listing. */
+interface StarterPackListResponse {
+  items?: SearchStarterPackResult[];
+  total?: number;
+  page?: number;
+  totalPages?: number;
+}
+
 const SEARCH_HISTORY_KEY = 'mention_search_history';
 const MAX_SEARCH_HISTORY = 10;
 
@@ -180,18 +192,42 @@ function isHydratedPost(value: unknown): value is SearchPostResult {
   );
 }
 
+/** One operator chip in the search hint cluster. */
+export interface SearchOperatorHint {
+  /** The chip's label — the operator's full spelling. */
+  operator: string;
+  /**
+   * What tapping the chip puts in the box. A PARAMETERISED operator seeds only
+   * its prefix and waits for a value (`from:`); a COMPLETE one is inserted whole
+   * (`from:me`). The distinction isn't derivable from the label, so it is stated.
+   */
+  insert: string;
+  /** Suffix of this chip's `search.operator.*` i18n key — unique per chip. */
+  labelKey: string;
+  description: string;
+}
+
 /**
  * Search operator definitions for display in the UI hint.
+ *
+ * `from:me` / `to:me` are resolved SERVER-side, against the authenticated
+ * viewer; the query text carries the literal `me`. Bluesky arrived at the same
+ * split in `b0a40145e`, deleting the client-side `from:me` → DID substitution
+ * they used to do so the backend owns the resolution — the client has no
+ * business rewriting a query it doesn't own the identity for.
  */
-export const SEARCH_OPERATORS = [
-  { operator: 'from:username', description: 'Posts by a specific user' },
-  { operator: 'since:YYYY-MM-DD', description: 'Posts after a date' },
-  { operator: 'until:YYYY-MM-DD', description: 'Posts before a date' },
-  { operator: 'has:media', description: 'Posts with media' },
-  { operator: 'has:links', description: 'Posts with links' },
-  { operator: 'min_likes:N', description: 'Minimum likes' },
-  { operator: 'min_boosts:N', description: 'Minimum boosts' },
-] as const;
+export const SEARCH_OPERATORS: readonly SearchOperatorHint[] = [
+  { operator: 'from:username', insert: 'from:', labelKey: 'from', description: 'Posts by a specific user' },
+  { operator: 'from:me', insert: 'from:me', labelKey: 'fromMe', description: 'Your own posts' },
+  { operator: 'to:username', insert: 'to:', labelKey: 'to', description: 'Posts mentioning a specific user' },
+  { operator: 'to:me', insert: 'to:me', labelKey: 'toMe', description: 'Posts mentioning you' },
+  { operator: 'since:YYYY-MM-DD', insert: 'since:', labelKey: 'since', description: 'Posts after a date' },
+  { operator: 'until:YYYY-MM-DD', insert: 'until:', labelKey: 'until', description: 'Posts before a date' },
+  { operator: 'has:media', insert: 'has:media', labelKey: 'hasMedia', description: 'Posts with media' },
+  { operator: 'has:links', insert: 'has:links', labelKey: 'hasLinks', description: 'Posts with links' },
+  { operator: 'min_likes:N', insert: 'min_likes:', labelKey: 'min_likes', description: 'Minimum likes' },
+  { operator: 'min_boosts:N', insert: 'min_boosts:', labelKey: 'min_boosts', description: 'Minimum boosts' },
+];
 
 /**
  * Posts, lists and saved posts live behind the authenticated API. A signed-out
@@ -408,6 +444,46 @@ class SearchService {
     };
   }
 
+  // Search starter packs — the compact "All" overview (the paginated tab uses
+  // `searchStarterPacksPage`).
+  //
+  // Deliberately on the PUBLIC client, unlike `starterPacksService.list`: the
+  // route reads `req.user?.id` optionally and answers anonymous callers, so a
+  // signed-out viewer gets real results here exactly as they do for feeds and
+  // hashtags. Routing it through the authenticated client would 401 them into a
+  // silently empty section instead.
+  async searchStarterPacks(
+    query: string,
+    signal?: AbortSignal,
+  ): Promise<SearchStarterPackResult[]> {
+    const res = await publicClient.get<StarterPackListResponse>("/starter-packs", {
+      params: { search: query, limit: SEARCH_PAGE_LIMIT },
+      signal,
+    });
+    return res.data.items ?? [];
+  }
+
+  // Paginated starter-pack search — `GET /starter-packs` page-paginates
+  // (`{ page, limit }` → `{ items, total, page, totalPages }`) on a stable,
+  // TOTAL sort (`useCount desc, createdAt desc, _id desc`), so page paging never
+  // repeats a row. Drives the infinite Starter Packs tab.
+  async searchStarterPacksPage(
+    query: string,
+    page = 1,
+    signal?: AbortSignal,
+  ): Promise<SearchStarterPacksPage> {
+    const res = await publicClient.get<StarterPackListResponse>("/starter-packs", {
+      params: { search: query, limit: SEARCH_PAGE_LIMIT, page },
+      signal,
+    });
+    const currentPage = res.data.page ?? page;
+    return {
+      starterPacks: res.data.items ?? [],
+      hasMore: currentPage < (res.data.totalPages ?? 0),
+      nextPage: currentPage + 1,
+    };
+  }
+
   // Search saved posts
   async searchSaved(
     query: string,
@@ -471,10 +547,11 @@ class SearchService {
     canUsePrivateApi: boolean,
     signal?: AbortSignal,
   ): Promise<SearchResults> {
-    const [users, feeds, hashtags, posts, lists, saved] = await Promise.allSettled([
+    const [users, feeds, hashtags, starterPacks, posts, lists, saved] = await Promise.allSettled([
       this.searchUsers(query),
       this.searchFeeds(query, signal),
       this.searchHashtags(query, signal),
+      this.searchStarterPacks(query, signal),
       canUsePrivateApi ? this.searchPosts(query, signal) : Promise.resolve<SearchPostResult[]>([]),
       canUsePrivateApi ? this.searchLists(query, signal) : Promise.resolve<SearchListResult[]>([]),
       canUsePrivateApi ? this.searchSaved(query, signal) : Promise.resolve<SearchPostResult[]>([]),
@@ -483,10 +560,12 @@ class SearchService {
     // The gated sources short-circuit to a resolved empty page when the private
     // API isn't ready, so exclude them from the total-failure count — otherwise a
     // signed-out viewer with healthy public sources could never surface a real
-    // error, and a fulfilled no-op would mask one.
+    // error, and a fulfilled no-op would mask one. Starter packs are PUBLIC, so
+    // they count in both shapes: leaving a real source out of this list would let
+    // its failure hide behind the others.
     const activeSources = canUsePrivateApi
-      ? [users, feeds, hashtags, posts, lists, saved]
-      : [users, feeds, hashtags];
+      ? [users, feeds, hashtags, starterPacks, posts, lists, saved]
+      : [users, feeds, hashtags, starterPacks];
     const rejections = activeSources.filter(
       (result): result is PromiseRejectedResult => result.status === 'rejected',
     );
@@ -508,29 +587,8 @@ class SearchService {
       lists: valueOf(lists),
       hashtags: valueOf(hashtags),
       saved: valueOf(saved),
+      starterPacks: valueOf(starterPacks),
     };
-  }
-
-  // Advanced search with filters
-  async searchAdvanced(query: string, filters: SearchFilters = {}): Promise<{ posts: SearchPostResult[]; hasMore: boolean; nextCursor?: string }> {
-    try {
-      const params: Record<string, string | number | boolean> = { query, type: 'posts' };
-      Object.entries(filters).forEach(([key, value]) => {
-        if (value !== undefined) {
-          params[key] = value;
-        }
-      });
-
-      const res = await authenticatedClient.get<{ posts?: SearchPostResult[]; hasMore?: boolean; nextCursor?: string }>("/search", { params });
-      return {
-        posts: res.data.posts || [],
-        hasMore: res.data.hasMore || false,
-        nextCursor: res.data.nextCursor
-      };
-    } catch (error) {
-      logger.warn("Failed advanced search", { error });
-      return { posts: [], hasMore: false };
-    }
   }
 
   // --- Search history ---

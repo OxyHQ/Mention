@@ -1162,7 +1162,6 @@
   "search.operator.from": "Post di un utente specifico",
   "search.operator.since": "Post dopo una data",
   "search.operator.until": "Post prima di una data",
-  "search.operator.has": "Post con media o link",
   "search.operator.min_likes": "Mi piace minimi",
   "search.operator.min_boosts": "Boost minimi",
   "search.tabs.all": "Tutto",
@@ -1292,8 +1291,6 @@
   "compose.schedule.datePlaceholder": "AAAA-MM-GG",
   "compose.schedule.timePlaceholder": "HH:MM",
   "compose.schedule.time24hPlaceholder": "HH:MM (formato 24h)",
-  "search.filters.datePlaceholder": "AAAA-MM-GG",
-  "search.filters.usernamePlaceholder": "Utente (es., @johndoe)",
   "report.contextPlaceholder": "Fornisci più contesto...",
   "widgets.notifications": "Widget notifiche",
   "widgets.messagesPreview": "Widget anteprima messaggi",
@@ -1414,5 +1411,15 @@
   "user": {
     "unknown": "Utente sconosciuto"
   },
-  "compose.languages.makeMain": "Imposta come lingua principale"
+  "compose.languages.makeMain": "Imposta come lingua principale",
+  "search.operator.fromMe": "I tuoi post",
+  "search.operator.to": "Post che menzionano un utente specifico",
+  "search.operator.toMe": "Post che ti menzionano",
+  "search.operator.hasMedia": "Post con media",
+  "search.operator.hasLinks": "Post con link",
+  "search.tabs.starterPacks": "Starter pack",
+  "search.sections.starterPacks": "Starter pack",
+  "search.suggestions.searchFor": "Cerca \"{{query}}\"",
+  "search.suggestions.goToProfile": "Vai a @{{handle}}",
+  "search.suggestions.completeOperator": "Completa {{prefix}}:"
 }
