@@ -4,9 +4,6 @@
   "workspaces": {
     "": {
       "name": "mention",
-      "dependencies": {
-        "@oxyhq/services": "^23.0.1",
-      },
       "devDependencies": {
         "@types/node": "^26.1.1",
         "typescript": "~5.9.3",
