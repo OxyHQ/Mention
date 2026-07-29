@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { HIT_SLOP_MD } from '@/styles/hitSlop';
 
 export type Severity = 'low' | 'medium' | 'high' | 'critical';
 export type LabelActionType = 'show' | 'warn' | 'blur' | 'hide';
@@ -53,7 +54,7 @@ const LabelBadge: React.FC<LabelBadgeProps> = ({
             style={[styles.showAnywayBtn, { borderColor: color }]}
             onPress={onShowAnyway}
             activeOpacity={0.7}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            hitSlop={HIT_SLOP_MD}
           >
             <Text style={[styles.showAnywayText, { color }]}>Show anyway</Text>
           </TouchableOpacity>

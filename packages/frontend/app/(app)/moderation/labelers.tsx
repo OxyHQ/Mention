@@ -23,6 +23,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { labelerService, type LabelDefinition } from '@/services/labelerService';
 import { cn } from '@/lib/utils';
 import { logger } from '@/lib/logger';
+import { HIT_SLOP_MD } from '@/styles/hitSlop';
 
 const IS_WEB = Platform.OS === 'web';
 
@@ -291,7 +292,7 @@ const LabelersScreen: React.FC = () => {
           returnKeyType="search"
         />
         {search.length > 0 && (
-          <TouchableOpacity onPress={() => handleSearch('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+          <TouchableOpacity onPress={() => handleSearch('')} hitSlop={HIT_SLOP_MD}>
             <Ionicons name="close-circle" size={16} color={theme.colors.textSecondary} />
           </TouchableOpacity>
         )}

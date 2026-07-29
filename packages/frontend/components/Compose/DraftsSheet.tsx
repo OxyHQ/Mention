@@ -12,6 +12,7 @@ import { useDrafts, Draft } from '@/hooks/useDrafts';
 import { toast } from '@oxyhq/bloom/toast';
 import { confirmDialog } from '@/utils/alerts';
 import { createScopedLogger } from '@/lib/logger';
+import { HIT_SLOP_LG } from '@/styles/hitSlop';
 
 const logger = createScopedLogger('DraftsSheet');
 
@@ -180,7 +181,7 @@ const DraftsSheet: React.FC<DraftsSheetProps> = ({ onClose, onLoadDraft, current
             handleDeleteDraft(item.id);
           }}
           disabled={isDeleting}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          hitSlop={HIT_SLOP_LG}
           activeOpacity={0.7}
         >
           {isDeleting ? (

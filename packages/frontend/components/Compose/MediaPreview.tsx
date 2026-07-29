@@ -9,6 +9,7 @@ import { VideoPreview } from "./VideoPreview";
 import { composePreviewEnter, composePreviewExit } from "@/lib/animations/entryExit";
 import { ComposerMediaItem, MEDIA_CARD_WIDTH, MEDIA_CARD_HEIGHT } from "@/utils/composeUtils";
 import { cn } from "@/lib/utils";
+import { HIT_SLOP_SM } from '@/styles/hitSlop';
 
 interface MediaPreviewProps {
     mediaItems: ComposerMediaItem[];
@@ -96,7 +97,7 @@ export const MediaPreview: React.FC<MediaPreviewProps> = ({
                             <TouchableOpacity
                                 onPress={() => onRemove(mediaItem.id)}
                                 className="absolute top-2 right-2 rounded-full p-1.5 bg-background"
-                                hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                                hitSlop={HIT_SLOP_SM}
                             >
                                 <CloseIcon size={16} className="text-foreground" />
                             </TouchableOpacity>

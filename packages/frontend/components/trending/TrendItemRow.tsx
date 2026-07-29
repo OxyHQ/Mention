@@ -4,6 +4,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { formatCompactNumber } from '@/utils/formatNumber';
 import type { Trend } from '@/interfaces/Trend';
+import { HIT_SLOP_LG } from '@/styles/hitSlop';
 
 /**
  * One trend, shared by every surface that lists them (the right-rail widget,
@@ -141,7 +142,7 @@ export const TrendItemRow = memo(function TrendItemRow({
           className="p-1"
           style={styles.webCursor}
           onPress={() => onMenuPress(trend)}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          hitSlop={HIT_SLOP_LG}
           accessibilityLabel="More options"
           accessibilityRole="button"
         >

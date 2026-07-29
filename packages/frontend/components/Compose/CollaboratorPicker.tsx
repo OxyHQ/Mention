@@ -8,6 +8,7 @@ import { useTranslation } from 'react-i18next';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { logger } from '@/lib/logger';
 import { displayNameOrHandle } from '@/utils/displayName';
+import { HIT_SLOP_MD } from '@/styles/hitSlop';
 
 export interface CollaboratorUser {
   id: string;
@@ -95,7 +96,7 @@ const CollaboratorPicker: React.FC<CollaboratorPickerProps> = ({ selected, onCha
               <Text className="text-foreground text-sm" numberOfLines={1}>
                 {displayNameOrHandle(collab.displayName, `@${collab.username}`)}
               </Text>
-              <TouchableOpacity onPress={() => removeUser(collab.id)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <TouchableOpacity onPress={() => removeUser(collab.id)} hitSlop={HIT_SLOP_MD}>
                 <Ionicons name="close-circle" size={18} className="text-muted-foreground" />
               </TouchableOpacity>
             </View>

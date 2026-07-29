@@ -21,6 +21,7 @@ import { logger } from '@/lib/logger';
 import { queryClient } from '@/lib/queryClient';
 import type { User } from '@oxyhq/core';
 import { displayNameOrHandle } from '@/utils/displayName';
+import { HIT_SLOP_MD } from '@/styles/hitSlop';
 
 interface MemberProfile {
   id: string;
@@ -298,7 +299,7 @@ export default function EditListMembersScreen() {
                   <TouchableOpacity
                     onPress={() => removeMember(m)}
                     disabled={busy}
-                    hitSlop={8}
+                    hitSlop={HIT_SLOP_MD}
                     accessibilityRole="button"
                     accessibilityLabel={t('lists.create.remove', { defaultValue: 'Remove' })}
                   >

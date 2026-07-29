@@ -2,6 +2,7 @@ import React, { memo } from 'react';
 import { ActivityIndicator, Pressable } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useTheme } from '@oxyhq/bloom/theme';
+import { HIT_SLOP_SM } from '@/styles/hitSlop';
 
 interface SongPreviewButtonProps {
   isPlaying: boolean;
@@ -33,7 +34,7 @@ export const SongPreviewButton = memo(function SongPreviewButton({
       onPress={onPress}
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
-      hitSlop={6}
+      hitSlop={HIT_SLOP_SM}
       className="rounded-full bg-primary items-center justify-center"
       style={{ width: dimension, height: dimension }}
     >

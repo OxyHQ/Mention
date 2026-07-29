@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { PollIcon } from "@/assets/icons/poll-icon";
 import { CloseIcon } from "@/assets/icons/close-icon";
 import { Plus } from "@/assets/icons/plus-icon";
+import { HIT_SLOP_MD } from '@/styles/hitSlop';
 
 interface PollCreatorProps {
     pollTitle: string;
@@ -62,7 +63,7 @@ export const PollCreator: React.FC<PollCreatorProps> = ({
                 <TouchableOpacity
                     onPress={onRemove}
                     className="p-1"
-                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    hitSlop={HIT_SLOP_MD}
                 >
                     <CloseIcon size={18} className="text-muted-foreground" />
                 </TouchableOpacity>
@@ -111,7 +112,7 @@ export const PollCreator: React.FC<PollCreatorProps> = ({
                             <TouchableOpacity
                                 onPress={() => onRemoveOption(index)}
                                 className="p-1 shrink-0"
-                                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                                hitSlop={HIT_SLOP_MD}
                             >
                                 <CloseIcon size={16} className="text-muted-foreground" />
                             </TouchableOpacity>

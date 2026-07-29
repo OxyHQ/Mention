@@ -8,6 +8,7 @@ import { useTheme } from '@oxyhq/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import { listsService } from '@/services/listsService';
 import { createScopedLogger } from '@/lib/logger';
+import { HIT_SLOP_MD } from '@/styles/hitSlop';
 
 const logger = createScopedLogger('AddToListSheet');
 
@@ -117,7 +118,7 @@ export function AddToListSheet({ targetUserId, targetLabel, onClose }: AddToList
         <Text className="text-foreground text-lg font-bold">
           {t('lists.addTo.title', { user: label, defaultValue: `Add ${label} to list` })}
         </Text>
-        <TouchableOpacity onPress={onClose} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('common.close', { defaultValue: 'Close' })}>
+        <TouchableOpacity onPress={onClose} hitSlop={HIT_SLOP_MD} accessibilityRole="button" accessibilityLabel={t('common.close', { defaultValue: 'Close' })}>
           <Ionicons name="close" size={22} color={theme.colors.textSecondary} />
         </TouchableOpacity>
       </View>

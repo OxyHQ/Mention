@@ -38,6 +38,7 @@ import { FeedSubscribeButton } from '@/components/FeedSubscribeButton';
 import { LoadMoreSentinel } from '@/components/common/LoadMoreSentinel';
 import type { CustomFeedListResponse } from '@mention/shared-types';
 import { publicQueryKeys, viewerQueryKeys } from '@/lib/viewerQueryKeys';
+import { HIT_SLOP_MD } from '@/styles/hitSlop';
 
 const PAGE_LIMIT = 20;
 
@@ -329,7 +330,7 @@ export default function FeedMarketplaceScreen() {
               returnKeyType="search"
             />
             {search.length > 0 && (
-              <TouchableOpacity onPress={() => handleSearchChange('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <TouchableOpacity onPress={() => handleSearchChange('')} hitSlop={HIT_SLOP_MD}>
                 <Ionicons name="close-circle" size={16} color={theme.colors.textSecondary} />
               </TouchableOpacity>
             )}

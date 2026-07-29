@@ -35,6 +35,7 @@ import { useFeedModules } from '@/hooks/useFeedModules';
 import Feed from '@/components/Feed/Feed';
 import { logger } from '@/lib/logger';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
+import { HIT_SLOP_MD, HIT_SLOP_SM } from '@/styles/hitSlop';
 
 type MinimalUser = Pick<User, 'id' | 'username' | 'name' | 'avatar'>;
 type ModuleState = { enabled: boolean; params: Record<string, unknown> };
@@ -112,7 +113,7 @@ const ChipInput = ({
               <Text className="text-[13px] text-foreground">{v}</Text>
               <TouchableOpacity
                 onPress={() => onChange(values.filter((x) => x !== v))}
-                hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                hitSlop={HIT_SLOP_SM}
               >
                 <Ionicons name="close" size={13} color={theme.colors.textSecondary} />
               </TouchableOpacity>
@@ -192,7 +193,7 @@ const AccountPicker = ({
           </View>
           <TouchableOpacity
             onPress={() => onChange(selected.filter((s) => s.id !== u.id))}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            hitSlop={HIT_SLOP_MD}
           >
             <Ionicons name="close-circle" size={22} color={theme.colors.textSecondary} />
           </TouchableOpacity>

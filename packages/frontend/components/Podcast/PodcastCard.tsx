@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { cn } from '@/lib/utils';
 import { openExternalLink } from '@/utils/openExternalLink';
+import { HIT_SLOP_MD } from '@/styles/hitSlop';
 
 export type PodcastCardVariant = 'full' | 'card';
 
@@ -118,7 +119,7 @@ export const PodcastCard = memo(function PodcastCard({
             onPress={onEdit}
             accessibilityRole="button"
             accessibilityLabel={t('profile.media.edit')}
-            hitSlop={8}
+            hitSlop={HIT_SLOP_MD}
             className="p-1"
           >
             <Ionicons name="pencil-outline" size={16} color={colors.textSecondary} />

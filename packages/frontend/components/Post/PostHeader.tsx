@@ -14,6 +14,7 @@ import { formatTimeAgo } from '@/utils/dateUtils';
 import { displayNameOrHandle } from '@/utils/displayName';
 import type { HydratedAuthor } from '@mention/shared-types';
 import { getNormalizedUserHandle } from '@oxyhq/core';
+import { HIT_SLOP_MD } from '@/styles/hitSlop';
 
 // Inline indicator icons (boost/reply) are subtler than the action-bar glyphs.
 const INDICATOR_ICON_SIZE = 14;
@@ -304,7 +305,7 @@ const PostHeader: React.FC<PostHeaderProps> = ({
         {onPressMenu ? (
           <TouchableOpacity
             accessibilityLabel="Post options"
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            hitSlop={HIT_SLOP_MD}
             className="px-2"
             style={{ marginTop: headerTopOffset }}
             onPress={onPressMenu}

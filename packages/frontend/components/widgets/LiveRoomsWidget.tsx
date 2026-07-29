@@ -16,6 +16,7 @@ import { shareLink } from '@/utils/shareLink';
 import { WEB_BASE_URL } from '@/config';
 import * as Skeleton from '@oxyhq/bloom/skeleton';
 import { LIVE_INDICATOR_COLOR } from '@/styles/colors';
+import { HIT_SLOP_LG } from '@/styles/hitSlop';
 
 const MAX_ROOMS_DISPLAYED = 3;
 const LIVE_ROOMS_ROUTE = '/live-rooms';
@@ -78,7 +79,7 @@ const RoomRow = React.memo(function RoomRow({
       <TouchableOpacity
         className="p-1 web:cursor-pointer"
         onPress={() => onMenuPress(room)}
-        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        hitSlop={HIT_SLOP_LG}
         accessibilityLabel="More options"
         accessibilityRole="button"
       >

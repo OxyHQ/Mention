@@ -12,6 +12,7 @@ import { starterPacksService, type StarterPackCollection } from '@/services/star
 import { createScopedLogger } from '@/lib/logger';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { StarterPackIcon } from '@/assets/icons/starter-pack-icon';
+import { HIT_SLOP_MD } from '@/styles/hitSlop';
 
 const logger = createScopedLogger('AddToStarterPackSheet');
 
@@ -172,7 +173,7 @@ export function AddToStarterPackSheet({ targetUserId, targetLabel, onClose }: Ad
         <Text className="text-foreground text-lg font-bold">
           {t('starterPacks.addTo.title', { user: label, defaultValue: `Add ${label} to starter pack` })}
         </Text>
-        <TouchableOpacity onPress={onClose} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('common.close', { defaultValue: 'Close' })}>
+        <TouchableOpacity onPress={onClose} hitSlop={HIT_SLOP_MD} accessibilityRole="button" accessibilityLabel={t('common.close', { defaultValue: 'Close' })}>
           <Ionicons name="close" size={22} color={theme.colors.textSecondary} />
         </TouchableOpacity>
       </View>

@@ -126,6 +126,9 @@ export function StarterPackCard({ pack, onPress, noDescription }: StarterPackCar
               onPress={handleCreatorPress}
               disabled={isOwner}
               activeOpacity={0.6}
+              // Vertical only on purpose: the card behind this byline is
+              // itself pressable, so horizontal slop would take taps meant
+              // for opening the pack.
               hitSlop={{ top: 4, bottom: 4, left: 0, right: 0 }}>
               <ThemedText
                 className="text-muted-foreground"

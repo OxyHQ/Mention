@@ -62,6 +62,7 @@ import { formatCompactNumber } from "@/utils/formatNumber";
 import { logger } from "@/lib/logger";
 import { viewerQueryKeys } from "@/lib/viewerQueryKeys";
 import { useLatchedState } from "@/hooks/useLatchedState";
+import { HIT_SLOP_MD } from '@/styles/hitSlop';
 
 type ResultTab = "posts" | "users" | "feeds" | "hashtags" | "lists" | "starterPacks" | "saved";
 type SearchTab = "all" | ResultTab;
@@ -974,7 +975,7 @@ export default function SearchIndex() {
                         <View className="w-full flex-row items-center justify-between px-3 pt-4 pb-2">
                             <Text className="text-lg font-bold text-foreground">{item.title}</Text>
                             {item.action ? (
-                                <TouchableOpacity onPress={item.action.onPress} hitSlop={8}>
+                                <TouchableOpacity onPress={item.action.onPress} hitSlop={HIT_SLOP_MD}>
                                     <Text className="text-sm font-semibold text-primary">{item.action.label}</Text>
                                 </TouchableOpacity>
                             ) : null}
@@ -996,7 +997,7 @@ export default function SearchIndex() {
                             </View>
                             <TouchableOpacity
                                 onPress={() => void handleRemoveRecent(item.term)}
-                                hitSlop={8}
+                                hitSlop={HIT_SLOP_MD}
                                 accessibilityRole="button"
                                 accessibilityLabel={t("search.removeRecent", "Remove from recent searches")}
                             >

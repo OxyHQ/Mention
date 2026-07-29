@@ -29,6 +29,7 @@ import { Portal } from '@oxyhq/bloom/portal';
 import { Z_INDEX } from '@/lib/constants';
 import { FONT_FAMILIES } from '@/styles/typography';
 import Svg, { Defs, LinearGradient as SvgLinearGradient, Stop, Text as SvgText, TSpan } from 'react-native-svg';
+import { HIT_SLOP_LG } from '@/styles/hitSlop';
 
 
 /**
@@ -207,7 +208,7 @@ const WelcomeModal: React.FC<WelcomeModalProps> = ({
             <Pressable
               onPress={handleBackdropPress}
               style={styles.closeButton}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              hitSlop={HIT_SLOP_LG}
             >
               <CloseIcon className="text-foreground" size={20} />
             </Pressable>
