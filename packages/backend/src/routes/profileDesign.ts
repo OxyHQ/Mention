@@ -1,9 +1,9 @@
 import { Router, Response } from 'express';
 import UserSettings, { type ProfileMedia } from '../models/UserSettings';
 import Post from '../models/Post';
-import { extractPublicProfileData } from '../utils/userSettings';
+import { extractPublicProfileData, redactedProfileDesign } from '../utils/userSettings';
 import { sendErrorResponse, sendSuccessResponse, validateRequired } from '../utils/apiHelpers';
-import { checkFollowAccess, requiresAccessCheck, ProfileVisibility } from '../utils/privacyHelpers';
+import { canViewProfileDesign, ProfileVisibility } from '../utils/privacyHelpers';
 import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
 import { PostType, PostVisibility } from '@mention/shared-types';
 import { logger } from '../utils/logger';
@@ -52,32 +52,15 @@ router.get('/:userId', async (req: AuthRequest, res: Response) => {
 
     const doc = await UserSettings.findOne({ oxyUserId: userId }).lean();
     const profileVisibility = doc?.privacy?.profileVisibility || ProfileVisibility.PUBLIC;
-    const isOwnProfile = currentUserId === userId;
-    
-    // Build minimal response helper
-    const buildMinimalResponse = (): PublicProfileDesignResponse => ({
-      oxyUserId: userId,
-      appearance: undefined,
-      profileHeaderImage: undefined,
-      profileCustomization: undefined,
-      privacy: {
-        profileVisibility: profileVisibility,
-      },
-    });
-    
-    // Check privacy settings
-    if (!isOwnProfile && requiresAccessCheck(profileVisibility)) {
-      if (!currentUserId) {
-        // Not authenticated - return minimal public data but include privacy info so frontend knows it's private
-        return sendSuccessResponse(res, 200, buildMinimalResponse());
-      }
-      
-      // Check if current user is following the profile owner
-      const hasAccess = await checkFollowAccess(currentUserId, userId);
-      if (!hasAccess) {
-        // No access - return minimal public data but include privacy info
-        return sendSuccessResponse(res, 200, buildMinimalResponse());
-      }
+
+    // The shared profile-design rule (`GET /profile/settings/:userId` applies the
+    // same one). A viewer without access still learns the profile IS restricted,
+    // so the frontend can render the locked state instead of an empty profile.
+    if (!(await canViewProfileDesign(userId, currentUserId, profileVisibility))) {
+      return sendSuccessResponse(res, 200, {
+        ...redactedProfileDesign(userId),
+        privacy: { profileVisibility },
+      } satisfies PublicProfileDesignResponse);
     }
 
     // User has access - return full profile design data with privacy info

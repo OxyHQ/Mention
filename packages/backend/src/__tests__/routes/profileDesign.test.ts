@@ -20,17 +20,17 @@ vi.mock('../../models/UserSettings', () => ({
 }));
 
 // Mock privacyHelpers directly: this route test only needs the visibility
-// contract, not the helper's Oxy graph dependencies. The three exports the route
-// uses are reproduced faithfully.
+// contract, not the helper's Oxy graph dependencies. The two exports the route
+// uses are reproduced faithfully; the gate resolves to "visible" so the counts
+// below are what the assertions are actually about. The gate's own behaviour is
+// covered by `profileDesignVisibilityParity.test.ts`.
 vi.mock('../../utils/privacyHelpers', () => ({
   ProfileVisibility: {
     PUBLIC: 'public',
     PRIVATE: 'private',
     FOLLOWERS_ONLY: 'followers_only',
   },
-  requiresAccessCheck: (visibility?: string) =>
-    visibility === 'private' || visibility === 'followers_only',
-  checkFollowAccess: vi.fn().mockResolvedValue(true),
+  canViewProfileDesign: vi.fn().mockResolvedValue(true),
 }));
 
 import profileDesignRoutes from '../../routes/profileDesign';
