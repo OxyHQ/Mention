@@ -9,24 +9,27 @@ import { ProfileCard } from '@/components/ProfileCard';
 import { getNormalizedUserHandle } from '@oxyhq/core';
 import type { PostUser } from '@mention/shared-types';
 
-interface CollaboratorsSheetProps {
+interface CollaboratorsListProps {
   /**
    * Owner + accepted collaborators, already hydrated on the post (`post.authors`).
-   * The sheet renders them directly — there is NO fetch here, unlike the
-   * likes/boosts {@link EngagementListSheet}.
+   * This panel renders them directly — there is NO fetch here, unlike the
+   * likes/boosts {@link EngagementList}.
    */
   authors: PostUser[];
   onClose: () => void;
 }
 
 /**
- * The collaborators of a multi-author post, as a bottom-sheet list. Surfaces each
- * author's full identity — displayName + @username (federated authors render
- * `@user@domain`) — which the compact byline (first names only) omits. Reuses
- * {@link ProfileCard} for every row and the same `getNormalizedUserHandle` →
- * `/@handle` navigation as {@link EngagementListSheet}.
+ * The collaborators of a multi-author post. Surfaces each author's full identity
+ * — displayName + @username (federated authors render `@user@domain`) — which
+ * the compact byline (first names only) omits. Reuses {@link ProfileCard} for
+ * every row and the same `getNormalizedUserHandle` → `/@handle` navigation as
+ * {@link EngagementList}.
+ *
+ * Rendered on the shared content-dialog surface (`showContentDialog`), the same
+ * one the post's ⋯ menu uses — centered card on desktop, bottom sheet on mobile.
  */
-const CollaboratorsSheet: React.FC<CollaboratorsSheetProps> = ({ authors, onClose }) => {
+const CollaboratorsList: React.FC<CollaboratorsListProps> = ({ authors, onClose }) => {
   const router = useRouter();
   const { t } = useTranslation();
 
@@ -82,4 +85,4 @@ const CollaboratorsSheet: React.FC<CollaboratorsSheetProps> = ({ authors, onClos
   );
 };
 
-export default CollaboratorsSheet;
+export default CollaboratorsList;

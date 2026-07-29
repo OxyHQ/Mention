@@ -22,6 +22,7 @@ import { LayoutScrollProvider } from '@/context/LayoutScrollContext';
 import { OXY_CLIENT_ID, OXY_AUTH_REDIRECT_URI } from '@/config';
 import { ConfirmPromptProvider } from '@/components/common/ConfirmPrompt';
 import { ActionMenuHost } from '@/components/common/ActionMenu';
+import { ContentDialogHost } from '@/components/common/ContentDialog';
 import { FediverseInfoDialogProvider } from '@/components/Fediverse/FediverseInfoDialog';
 import { LiveFeatureHost } from '@/components/providers/LiveFeatureProviders';
 import { LiveRoomControllerProvider } from '@/context/LiveRoomContext';
@@ -95,6 +96,7 @@ export const AppProviders = memo(function AppProviders({
                              */}
                             <ConfirmPromptProvider />
                             <ActionMenuHost />
+                            <ContentDialogHost />
                             <FediverseInfoDialogProvider />
                           </HomeRefreshProvider>
                         </LayoutScrollProvider>

@@ -16,13 +16,13 @@ import type { PostUser } from '@mention/shared-types';
 /** Placeholder rows painted while the first page of engagers loads. */
 const SKELETON_ROW_COUNT = 8;
 
-interface EngagementListSheetProps {
+interface EngagementListProps {
   postId: string;
   type: 'likes' | 'boosts';
   onClose: () => void;
 }
 
-const EngagementListSheet: React.FC<EngagementListSheetProps> = ({ postId, type, onClose }) => {
+const EngagementList: React.FC<EngagementListProps> = ({ postId, type, onClose }) => {
   const router = useRouter();
   const [users, setUsers] = useState<PostUser[]>([]);
   const [loading, setLoading] = useState(true);
@@ -162,4 +162,4 @@ const EngagementListSheet: React.FC<EngagementListSheetProps> = ({ postId, type,
   );
 };
 
-export default EngagementListSheet;
+export default EngagementList;

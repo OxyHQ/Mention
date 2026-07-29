@@ -40,6 +40,7 @@ import { PinIcon } from '@/assets/icons/pin-icon';
 import { BoostIcon } from '@/assets/icons/boost-icon';
 import { usePostLanguage } from '@/hooks/usePostLanguage';
 import { showActionMenu } from '@/components/common/ActionMenu';
+import { showContentDialog } from '@/components/common/ContentDialog';
 import { THREAD_LINE_WIDTH, THREAD_LINE_BORDER_RADIUS, THREAD_LINE_Z_INDEX } from '@/components/Compose/composeLayout';
 import { POST_ITEM_SPACING } from '@/styles/shared';
 import { SubtleHover } from '@oxyhq/bloom/subtle-hover';
@@ -53,8 +54,8 @@ import { displayNameOrHandle } from '@/utils/displayName';
 const PostSourcesSheet = lazy(() => import('@/components/Post/PostSourcesSheet'));
 const PostArticleModal = lazy(() => import('@/components/Post/PostArticleModal'));
 const PostInsightsSheet = lazy(() => import('@/components/Post/PostInsightsSheet'));
-const EngagementListSheet = lazy(() => import('@/components/Post/EngagementListSheet'));
-const CollaboratorsSheet = lazy(() => import('@/components/Post/CollaboratorsSheet'));
+const EngagementList = lazy(() => import('@/components/Post/EngagementList'));
+const CollaboratorsList = lazy(() => import('@/components/Post/CollaboratorsList'));
 
 /** Stable identity for the "no link previews" case (see `linkPreviews` below). */
 const EMPTY_LINK_PREVIEWS: PostLinkPreview[] = [];
@@ -441,27 +442,29 @@ const PostItem: React.FC<PostItemProps> = ({
     }, [bottomSheet, viewPostId]);
 
     // Detail-only: open the likes/boosts engagement list. No-op outside the
-    // focused post-detail variant (the feed action row doesn't expose it).
+    // focused post-detail variant (the feed action row doesn't expose it). Same
+    // surface as the post's ⋯ menu — a centered card on desktop, a sheet on
+    // mobile — so everything a post opens looks like the same app.
     const openEngagementList = useCallback((type: 'likes' | 'boosts') => {
         if (!viewPostId) return;
-        bottomSheet.setBottomSheetContent(
-            <Suspense fallback={null}>
-                <EngagementListSheet
-                    postId={viewPostId}
-                    type={type}
-                    onClose={() => bottomSheet.openBottomSheet(false)}
-                />
-            </Suspense>
-        );
-        bottomSheet.openBottomSheet(true);
-    }, [bottomSheet, viewPostId]);
+        showContentDialog({
+            label: type === 'likes'
+                ? t('post.likesTitle', { defaultValue: 'Likes' })
+                : t('post.boostsTitle', { defaultValue: 'Reposts' }),
+            render: (close) => (
+                <Suspense fallback={null}>
+                    <EngagementList postId={viewPostId} type={type} onClose={close} />
+                </Suspense>
+            ),
+        });
+    }, [viewPostId, t]);
 
     // Bound once each so the memoized <PostDetailStats> is not handed a fresh
     // closure on every render of the focused post.
     const openLikesList = useCallback(() => openEngagementList('likes'), [openEngagementList]);
     const openBoostsList = useCallback(() => openEngagementList('boosts'), [openEngagementList]);
     // Quotes are posts, not actors, so they get a feed screen instead of the
-    // engagement-list sheet the other two counters open.
+    // engagement list the other two counters open.
     const openQuotesList = useCallback(() => {
         if (viewPostId) router.push(`/p/${viewPostId}/quotes`);
     }, [router, viewPostId]);
@@ -473,18 +476,17 @@ const PostItem: React.FC<PostItemProps> = ({
 
     // Open the collaborators list — the byline shows first names only, so this is
     // where the full @usernames live. Content is already on the post (no fetch).
-    const openCollaboratorsSheet = useCallback(() => {
+    const openCollaboratorsList = useCallback(() => {
         if (!collaborators || collaborators.length <= 1) return;
-        bottomSheet.setBottomSheetContent(
-            <Suspense fallback={null}>
-                <CollaboratorsSheet
-                    authors={collaborators}
-                    onClose={() => bottomSheet.openBottomSheet(false)}
-                />
-            </Suspense>
-        );
-        bottomSheet.openBottomSheet(true);
-    }, [bottomSheet, collaborators]);
+        showContentDialog({
+            label: t('collab.collaboratorsTitle', { defaultValue: 'Collaborators' }),
+            render: (close) => (
+                <Suspense fallback={null}>
+                    <CollaboratorsList authors={collaborators} onClose={close} />
+                </Suspense>
+            ),
+        });
+    }, [collaborators, t]);
 
     const roomId = roomContent?.roomId;
     const handleRoomPress = useCallback(() => {
@@ -790,7 +792,7 @@ const PostItem: React.FC<PostItemProps> = ({
                         authorUserId={viewPost.user.id || undefined}
                         onPressUser={goToUser}
                         onPressAvatar={goToUser}
-                        onPressCollaborators={isCollab ? openCollaboratorsSheet : undefined}
+                        onPressCollaborators={isCollab ? openCollaboratorsList : undefined}
                         onPressAuthor={goToAuthor}
                         onPressMenu={openMenu}
                         paddingHorizontal={isNested ? 0 : HPAD}

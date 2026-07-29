@@ -2,7 +2,7 @@ import React from 'react';
 import { Text } from 'react-native';
 import TestRenderer, { act } from 'react-test-renderer';
 import type { PostUser } from '@mention/shared-types';
-import EngagementListSheet from '../EngagementListSheet';
+import EngagementList from '../EngagementList';
 
 /**
  * Regression harness for the "likes/boosts list shows every engager as
@@ -132,7 +132,7 @@ function renderedTexts(renderer: TestRenderer.ReactTestRenderer): string[] {
     .filter((child): child is string => typeof child === 'string');
 }
 
-describe('EngagementListSheet — canonical PostUser rendering', () => {
+describe('EngagementList — canonical PostUser rendering', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockCapturedProfiles.length = 0;
@@ -149,7 +149,7 @@ describe('EngagementListSheet — canonical PostUser rendering', () => {
     let renderer!: TestRenderer.ReactTestRenderer;
     await act(async () => {
       renderer = TestRenderer.create(
-        <EngagementListSheet postId="post-1" type="boosts" onClose={jest.fn()} />,
+        <EngagementList postId="post-1" type="boosts" onClose={jest.fn()} />,
       );
     });
     await flush();
@@ -188,7 +188,7 @@ describe('EngagementListSheet — canonical PostUser rendering', () => {
     let renderer!: TestRenderer.ReactTestRenderer;
     await act(async () => {
       renderer = TestRenderer.create(
-        <EngagementListSheet postId="post-1" type="likes" onClose={jest.fn()} />,
+        <EngagementList postId="post-1" type="likes" onClose={jest.fn()} />,
       );
     });
     await flush();
