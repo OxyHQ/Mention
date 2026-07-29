@@ -139,7 +139,7 @@
     "react-native": "0.85.3",
     "react-native-compressor": "^2.0.2",
     "react-native-css": "^3.0.7",
-    "react-native-gesture-handler": "~2.31.2",
+    "react-native-gesture-handler": "~2.32.0",
     "react-native-keyboard-controller": "1.21.6",
     "react-native-nitro-modules": "^0.36.1",
     "react-native-popup-menu": "^0.19.0",
