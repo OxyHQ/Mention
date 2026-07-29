@@ -868,10 +868,21 @@ const MentionProfileContent: React.FC<MentionProfileContentProps> = ({
                             The fade is driven by the same
                             window-fed `scrollY` interpolation as native. The overlay
                             is `pointer-events-none` (matching native), and the wrapper
-                            consumes 0 net flow height. */}
+                            consumes 0 net flow height.
+
+                            It is `aria-hidden` because it is a purely visual restatement
+                            of the avatar, name, verified badge and post count the profile
+                            summary below already renders — a screen reader would otherwise
+                            announce that identity twice on every profile, and the overlay
+                            holds nothing focusable to lose. One prop covers all three
+                            platforms: RN's View maps `aria-hidden` onto
+                            `accessibilityElementsHidden` (iOS) AND
+                            `importantForAccessibility: 'no-hide-descendants'` (Android),
+                            and react-native-web emits the DOM attribute. */}
                         <View className="left-0 right-0 web:sticky web:z-[101] web:pointer-events-none" style={[webStickyChrome.chromeAnchor, panelStickyTopInset]}>
                             <Animated.View
                                 className="absolute"
+                                aria-hidden
                                 style={[
                                     { zIndex: 10, left: LAYOUT.DEFAULT_PADDING, flexDirection: 'row', alignItems: 'center', gap: 10 },
                                     themedStyles.headerNameOverlay,
