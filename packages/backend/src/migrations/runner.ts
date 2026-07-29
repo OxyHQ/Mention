@@ -23,6 +23,7 @@ import { migrationPostRecentRepliers } from './0009-post-recent-repliers';
 import { migrationPostHotPathIndexes } from './0010-post-hot-path-indexes';
 import { migrationEngagementOutboxIndexes } from './0011-engagement-outbox-indexes';
 import { migrationMtnEventIdempotencyIndex } from './0012-mtn-event-idempotency-index';
+import { migrationTrendingNameTypeUniqueIndex } from './0013-trending-name-type-unique-index';
 import { MIGRATIONS_COLLECTION } from './constants';
 
 export interface Migration {
@@ -71,6 +72,7 @@ const MIGRATIONS: readonly Migration[] = [
   migrationPostHotPathIndexes,
   migrationEngagementOutboxIndexes,
   migrationMtnEventIdempotencyIndex,
+  migrationTrendingNameTypeUniqueIndex,
 ];
 
 export async function getPendingMigrationIds(): Promise<string[]> {

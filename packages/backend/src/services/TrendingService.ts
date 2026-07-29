@@ -14,6 +14,7 @@ import { isNsfwHashtag } from './contentClassification/nsfw';
 import { SENSITIVE_EXCLUDE_MATCH } from '../mtn/feed/feedSafety';
 import { mintTrendRecId } from './trending/trendTelemetry';
 import { buildTrendSeries } from './trending/trendSeries';
+import { metrics } from '../utils/metrics';
 
 /**
  * How long the current batch's `recId` is memoized in process. Far shorter than
@@ -30,6 +31,28 @@ interface TrendItem {
   volume: number;
   momentum: number;
   topicId?: string;
+}
+
+/**
+ * What the database actually accepted for a batch. Returned rather than thrown so
+ * a single rejected row degrades one trend instead of the whole batch — see
+ * {@link TrendingService.saveTrendingBatch}.
+ */
+interface TrendingBatchWrite {
+  /** Rows the database accepted. */
+  insertedCount: number;
+  /** Rows it rejected, as `type:name`, so the error log names them. */
+  rejected: string[];
+}
+
+/**
+ * Identity of a trend within a batch, matching the `{ name, calculatedAt, type }`
+ * uniqueness key. Used to key the volume series, because a name that trends as
+ * both a hashtag and a topic is two series, not one — pushing both into a single
+ * array would draw a sparkline that alternates between two unrelated measurements.
+ */
+function trendKey(name: string, type: TrendingType): string {
+  return `${type}:${name}`;
 }
 
 /**
@@ -65,6 +88,11 @@ class TrendingService {
   // History query window, in milliseconds, derived from the collection's TTL
   // retention so the window never asks for data the TTL has already reaped.
   private readonly HISTORY_WINDOW_MS = TRENDING_TTL_SECONDS * 1000;
+  // How old the served batch may get before it is reported as stale. Derived from
+  // the calculation cadence rather than fixed, so the two can never drift apart.
+  // Three cadences: one missed run is a blip (a leader handover, a slow Mongo),
+  // three in a row is the job not landing, which is what went unnoticed for a day.
+  private readonly STALE_BATCH_AFTER_MS = this.CALCULATION_INTERVAL * 3;
 
   /**
    * Relevance contributed by a canonical topic ref that carries no `relevance`
@@ -111,6 +139,14 @@ class TrendingService {
 
   /**
    * Main calculation: aggregate hashtags + topics from classified post data, then save as a batch.
+   *
+   * `TrendBatch` is what `getTrending` reads the current timestamp from, so it is
+   * created only once the rows it points at exist. The failure this ordering
+   * guards against is not hypothetical: a batch write that died partway left the
+   * `TrendBatch` uncreated, and the endpoint then served its last complete batch
+   * for over a day — HTTP 200, full payload, no external sign anything was wrong.
+   * Hence the outcome counter here, and the age gauge in {@link getTrending}: the
+   * job failing and the job never running must both be visible from outside.
    */
   public async calculateTrending(): Promise<void> {
     try {
@@ -145,11 +181,37 @@ class TrendingService {
         .map(t => ({ topicId: t.topicId!, trendingScore: t.score }));
 
       // Run AI summary generation, trend persistence, and popularity updates in parallel
-      const [summary] = await Promise.all([
+      const [summary, write] = await Promise.all([
         this.generateSummary([...topTopicNames, ...topHashtagNames]),
         this.saveTrendingBatch(allTrends, calculatedAt),
         topicService.updatePopularityFromTrending(popularityUpdates),
       ]);
+
+      // Nothing accepted out of a non-empty batch: publishing the `TrendBatch`
+      // would point readers at rows that do not exist and blank the widget, which
+      // is strictly worse than continuing to serve the previous batch. An empty
+      // INSTANCE (no trends measured at all) is a different thing and still
+      // publishes — that is a fact about the data, not a failed write.
+      if (allTrends.length > 0 && write.insertedCount === 0) {
+        throw new Error(
+          `Trending batch ${calculatedAt.toISOString()} inserted 0 of ${allTrends.length} rows`,
+        );
+      }
+
+      if (write.rejected.length > 0) {
+        // Loud on purpose. Every rejected row is a trend the batch measured and
+        // failed to store, and the only place that is visible is right here.
+        logger.error('[Trending] Batch stored with rejected rows', {
+          calculatedAt: calculatedAt.toISOString(),
+          inserted: write.insertedCount,
+          expected: allTrends.length,
+          rejected: write.rejected,
+        });
+      }
+      metrics.incrementCounter('trending_calculation_total', 1, {
+        result: write.rejected.length > 0 ? 'partial' : 'success',
+      });
+
       await TrendBatch.create({ calculatedAt, summary });
 
       logger.info(
@@ -168,6 +230,7 @@ class TrendingService {
 
       await this.cleanupOldTrends();
     } catch (error) {
+      metrics.incrementCounter('trending_calculation_total', 1, { result: 'failure' });
       logger.error('[Trending] Error calculating trending:', error);
       throw error;
     }
@@ -367,12 +430,26 @@ class TrendingService {
 
   /**
    * Save a batch of trends (append-only — does not delete previous batches).
+   *
+   * The insert is UNORDERED, which is the whole point. The rows of a batch are
+   * independent measurements: no row is derived from another, and none needs to
+   * land before the next. An ordered insert buys nothing here and costs a great
+   * deal — it stops at the first rejected document, silently discarding every
+   * remaining row, and the rejection then propagates out of `calculateTrending`
+   * before the batch is ever published. One bad row therefore took down the whole
+   * feature indefinitely. Unordered, the database attempts every document and
+   * reports which ones it refused, so the same bad row costs exactly one trend.
+   *
+   * Rejections are RETURNED rather than thrown, and the caller decides: it logs
+   * them at error level and still publishes the batch, unless nothing at all was
+   * accepted. Swallowing them here would recreate the original defect in a quieter
+   * form — a partial batch that nothing outside can distinguish from a whole one.
    */
   private async saveTrendingBatch(
     items: TrendItem[],
     calculatedAt: Date,
-  ): Promise<void> {
-    if (items.length === 0) return;
+  ): Promise<TrendingBatchWrite> {
+    if (items.length === 0) return { insertedCount: 0, rejected: [] };
 
     // Sort by score descending for ranking
     const sorted = [...items].sort((a, b) => b.score - a.score);
@@ -390,8 +467,25 @@ class TrendingService {
       updatedAt: new Date(),
     }));
 
-    await Trending.insertMany(docs);
-    logger.debug(`[Trending] Saved ${docs.length} trends for batch ${calculatedAt.toISOString()}`);
+    try {
+      const inserted = await Trending.insertMany(docs, { ordered: false });
+      logger.debug(`[Trending] Saved ${inserted.length} trends for batch ${calculatedAt.toISOString()}`);
+      return { insertedCount: inserted.length, rejected: [] };
+    } catch (error) {
+      // An unordered bulk write reports per-document failures on the error rather
+      // than the result, with `index` addressing the position in `docs`. Anything
+      // that is NOT a per-document report (a connection loss, an auth failure) has
+      // no partial outcome to salvage and must keep propagating.
+      const writeErrors = (error as { writeErrors?: unknown }).writeErrors;
+      if (!Array.isArray(writeErrors)) throw error;
+
+      const rejected = writeErrors.map((writeError) => {
+        const index = (writeError as { index?: number }).index;
+        const doc = typeof index === 'number' ? docs[index] : undefined;
+        return doc ? trendKey(doc.name, doc.type) : 'unknown';
+      });
+      return { insertedCount: docs.length - writeErrors.length, rejected };
+    }
   }
 
   /**
@@ -402,6 +496,13 @@ class TrendingService {
    * on the current batch from one on a page a CDN served after the batch rotated.
    * It is derived from `calculatedAt` — already loaded here — rather than minted
    * per request, precisely because this result is cached and shared.
+   *
+   * This is also where batch staleness is observed, via {@link observeBatchAge}.
+   * The read path is the honest place for it: the age is derived from persisted
+   * state, so it survives a task restart and does not care which task holds
+   * leadership — a job that dies, a job that never starts, and a leader that never
+   * gets elected all show up identically here, which is exactly the property the
+   * calculation-side counter lacks.
    */
   public async getTrending(
     limit: number = 20,
@@ -429,6 +530,8 @@ class TrendingService {
 
     if (!latestBatch) return { trending: [], summary: '' };
 
+    this.observeBatchAge(latestBatch.calculatedAt);
+
     const query: Record<string, unknown> = {
       calculatedAt: latestBatch.calculatedAt,
     };
@@ -442,11 +545,11 @@ class TrendingService {
     // Only reached on a cache MISS. The entry below is warmed right after each
     // recalculation (see warmDefaultCache), so this aggregation runs on the order
     // of once per 30-minute batch per requested shape — not once per reader.
-    const series = await this.loadVolumeSeries(trending.map((trend) => trend.name));
+    const series = await this.loadVolumeSeries(trending);
 
     const result = {
       trending: trending.map((trend): TrendWithSeries => {
-        const points = series.get(trend.name);
+        const points = series.get(trendKey(trend.name, trend.type));
         return points ? { ...trend, series: points } : trend;
       }),
       summary: latestBatch.summary || '',
@@ -465,15 +568,21 @@ class TrendingService {
   }
 
   /**
-   * Recent `volume` history for the given trend names, keyed by name.
+   * Recent `volume` history for the given trends, keyed by {@link trendKey}.
    *
-   * The `Trending` collection is the ONLY per-name time series that exists: the
-   * job appends a full batch every 30 minutes and keeps 90 days, and the unique
-   * `{ name: 1, calculatedAt: 1 }` index serves this range scan directly. (The
-   * obvious-looking alternative, `TopicStats`, holds one current-value row per
-   * topic and no history whatsoever.) The `$sort` uses that index's exact key
-   * order, so the planner can stream straight into `$group` — `$push` accumulates
-   * in arrival order, which is what puts each name's volumes in time order.
+   * The `Trending` collection is the ONLY per-(name, type) time series that
+   * exists: the job appends a full batch every 30 minutes and keeps 90 days, and
+   * the unique `{ name: 1, calculatedAt: 1, type: 1 }` index serves this range
+   * scan directly. (The obvious-looking alternative, `TopicStats`, holds one
+   * current-value row per topic and no history whatsoever.) The `$sort` uses that
+   * index's exact key order, so the planner can stream straight into `$group` —
+   * `$push` accumulates in arrival order, which is what puts each series' volumes
+   * in time order.
+   *
+   * Keyed on (name, type), NOT on name. A name that trends as both a hashtag and
+   * a classified topic is two independent measurements of two different things;
+   * grouping them under the name alone would interleave them into one array and
+   * draw a sparkline that zig-zags between two unrelated quantities.
    *
    * A name absent from a batch contributes NO point rather than a zero: it means
    * the trend fell out of the window that batch, and only for hashtags does that
@@ -491,27 +600,62 @@ class TrendingService {
    *
    * Fail-soft: an aggregation failure costs the sparkline, never the trend list.
    */
-  private async loadVolumeSeries(names: string[]): Promise<Map<string, number[]>> {
-    const byName = new Map<string, number[]>();
-    if (names.length === 0) return byName;
+  private async loadVolumeSeries(
+    trends: Array<Pick<TrendingRecord, 'name' | 'type'>>,
+  ): Promise<Map<string, number[]>> {
+    const byTrend = new Map<string, number[]>();
+    if (trends.length === 0) return byTrend;
+
+    // The `$match` narrows on name alone (the index's leading field); the group
+    // then splits each name back into its per-type series.
+    const names = [...new Set(trends.map((trend) => trend.name))];
 
     try {
       const cutoff = new Date(Date.now() - MtnConfig.trending.series.windowMs);
-      const rows = await Trending.aggregate<{ _id: string; volumes: number[] }>([
+      const rows = await Trending.aggregate<{
+        _id: { name: string; type: TrendingType };
+        volumes: number[];
+      }>([
         { $match: { name: { $in: names }, calculatedAt: { $gte: cutoff } } },
-        { $sort: { name: 1, calculatedAt: 1 } },
-        { $group: { _id: '$name', volumes: { $push: '$volume' } } },
+        { $sort: { name: 1, calculatedAt: 1, type: 1 } },
+        { $group: { _id: { name: '$name', type: '$type' }, volumes: { $push: '$volume' } } },
       ]);
 
       for (const row of rows) {
         const series = buildTrendSeries(row.volumes);
-        if (series) byName.set(row._id, series);
+        if (series) byTrend.set(trendKey(row._id.name, row._id.type), series);
       }
     } catch (error) {
       logger.warn('[Trending] Volume series lookup failed:', error);
     }
 
-    return byName;
+    return byTrend;
+  }
+
+  /**
+   * Publish how old the batch being served actually is.
+   *
+   * The defect this exists for is not that the job can fail — it always could —
+   * but that a frozen batch is indistinguishable from a fresh one from outside:
+   * `GET /trending` answered 200 with a full, plausible payload for over a day
+   * while every recalculation behind it was dying. The gauge makes the age
+   * alertable, and the log gives a human reading the logs the same fact.
+   *
+   * Only reached on a cache miss, which is roughly once per batch per requested
+   * shape — the right frequency for a health observation and nowhere near a hot
+   * path. Never throws: an observation must not be able to fail a read.
+   */
+  private observeBatchAge(calculatedAt: Date): void {
+    const ageMs = Date.now() - calculatedAt.getTime();
+    metrics.setGauge('trending_batch_age_seconds', Math.max(0, Math.round(ageMs / 1000)));
+
+    if (ageMs > this.STALE_BATCH_AFTER_MS) {
+      logger.error('[Trending] Serving a stale batch — recalculation is not landing', {
+        calculatedAt: calculatedAt.toISOString(),
+        ageSeconds: Math.round(ageMs / 1000),
+        staleAfterSeconds: Math.round(this.STALE_BATCH_AFTER_MS / 1000),
+      });
+    }
   }
 
   /**
@@ -550,7 +694,11 @@ class TrendingService {
 
   /**
    * Get paginated trending history grouped by day.
-   * Deduplicates trends by name within each day, keeping the highest score.
+   *
+   * Collapses each day's ~48 batches to one row per trend, keeping the highest
+   * score. A trend is a (name, type) pair, so that is the collapse key: a name
+   * that trended both as a hashtag and as a classified topic is two trends, and
+   * keying on the name alone would silently drop whichever scored lower.
    *
    * Both aggregations are WINDOWED: their first stage matches
    * `calculatedAt >= cutoff` (now − retention window) so MongoDB narrows the
@@ -614,7 +762,7 @@ class TrendingService {
       { $sort: { score: -1 } },
       {
         $group: {
-          _id: { day: '$day', name: '$name' },
+          _id: { day: '$day', name: '$name', type: '$type' },
           doc: { $first: '$$ROOT' },
         },
       },

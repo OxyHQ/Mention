@@ -59,6 +59,16 @@ const DEFINITIONS = {
     help: 'Trending-topic impressions and presses, by surface and batch freshness',
     labelNames: ['type', 'event', 'surface', 'freshness'],
   },
+  trending_calculation_total: {
+    kind: 'counter',
+    help: 'Trending batch calculations by outcome (success, partial, failure)',
+    labelNames: ['result'],
+  },
+  trending_batch_age_seconds: {
+    kind: 'gauge',
+    help: 'Age of the trending batch being served, observed on a cache miss',
+    labelNames: [],
+  },
   feed_ranking_duration_ms: {
     kind: 'histogram',
     help: 'Feed ranking latency in milliseconds',

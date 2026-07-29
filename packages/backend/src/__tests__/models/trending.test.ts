@@ -48,11 +48,33 @@ describe('Trending model — indexes', () => {
     expect(compound).toBeDefined();
   });
 
-  it('keeps the unique { name: 1, calculatedAt: 1 } index', () => {
-    const unique = schemaIndexes().find(
-      ([keys, options]) =>
-        keys.name === 1 && keys.calculatedAt === 1 && options?.unique === true,
-    );
+  it('scopes batch uniqueness to { name, calculatedAt, type }', () => {
+    const unique = schemaIndexes().find(([, options]) => options?.unique === true);
     expect(unique).toBeDefined();
+    // Key ORDER is load-bearing, so compare the entry sequence, not membership.
+    expect(Object.entries(unique?.[0] ?? {})).toEqual([
+      ['name', 1],
+      ['calculatedAt', 1],
+      ['type', 1],
+    ]);
+  });
+
+  it('never keys batch uniqueness on the name alone', () => {
+    // The regression that froze `GET /trending` for over a day: with `type` out of
+    // the key, a name trending as BOTH a hashtag and a classified topic collides,
+    // the batch insert is rejected mid-flight and no `TrendBatch` is ever written.
+    const nameOnly = schemaIndexes().filter(
+      ([keys, options]) => options?.unique === true && keys.type === undefined,
+    );
+    expect(nameOnly).toEqual([]);
+  });
+
+  it('keeps { name, calculatedAt } as a prefix of the unique index', () => {
+    // The per-name volume-series scan behind the sparkline sorts on exactly
+    // `{ name, calculatedAt }`. It only gets that ordering from the index while
+    // those two remain the leading keys — verified by explain, where moving `type`
+    // into the middle adds a blocking SORT stage.
+    const unique = schemaIndexes().find(([, options]) => options?.unique === true);
+    expect(Object.keys(unique?.[0] ?? {}).slice(0, 2)).toEqual(['name', 'calculatedAt']);
   });
 });
