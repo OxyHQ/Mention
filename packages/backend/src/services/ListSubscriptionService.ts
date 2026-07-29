@@ -16,6 +16,7 @@
 import mongoose from 'mongoose';
 import { EntityFollow } from '../models/EntityFollow';
 import AccountList from '../models/AccountList';
+import { canViewList } from './listAccess';
 import { logger } from '../utils/logger';
 
 /** EntityFollow.entityType value for list subscriptions. */
@@ -73,6 +74,13 @@ export class ListSubscriptionService {
    * and caps both the number of lists and the number of resolved authors, logging
    * when either bound truncates the result.
    *
+   * Re-checks list visibility per row rather than trusting the subscription. The
+   * write path gates a new subscription, but a subscription outlives the state
+   * it was created under: a list can be flipped to private after the fact, and
+   * rows predating the gate are already in the collection. Since membership is
+   * inferable from whose posts land in the feed, the check has to be here — at
+   * the point of use — not only at the point of subscription.
+   *
    * @returns deduplicated member oxyUserIds (excludes the empty set on no subscriptions)
    */
   async getSubscribedListMemberIds(userId: string): Promise<string[]> {
@@ -104,12 +112,13 @@ export class ListSubscriptionService {
 
     const lists = await AccountList.find(
       { _id: { $in: objectIds } },
-      { memberOxyUserIds: 1 },
+      { memberOxyUserIds: 1, isPublic: 1, ownerOxyUserId: 1 },
     ).lean();
 
     const memberIds = new Set<string>();
     let truncatedAuthors = false;
     for (const list of lists) {
+      if (!canViewList(list, userId)) continue;
       for (const memberId of list.memberOxyUserIds || []) {
         if (memberIds.size >= MAX_SUBSCRIBED_LIST_AUTHORS_FOR_FEED) {
           truncatedAuthors = true;

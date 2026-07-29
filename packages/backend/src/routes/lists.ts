@@ -6,6 +6,7 @@ import { Post } from '../models/Post';
 import mongoose from 'mongoose';
 import { feedController } from '../controllers/feed.controller';
 import { endorsementSignalService } from '../services/EndorsementSignalService';
+import { canViewList } from '../services/listAccess';
 import { logger } from '../utils/logger';
 import { queryInt, queryString } from '../utils/queryParams';
 import { escapeRegex } from '../utils/textProcessing';
@@ -157,7 +158,7 @@ router.get('/:id', async (req: AuthRequest, res: Response) => {
     const userId = req.user?.id;
     const list = await AccountList.findById(req.params.id).lean<LeanAccountList>();
     if (!list) return res.status(404).json({ error: 'List not found' });
-    if (!list.isPublic && list.ownerOxyUserId !== userId) return res.status(403).json({ error: 'Not allowed' });
+    if (!canViewList(list, userId)) return res.status(403).json({ error: 'Not allowed' });
     res.json(serializeList(list));
   } catch (error) {
     res.status(500).json({ error: 'Failed to get list' });
@@ -256,7 +257,7 @@ router.get('/:id/timeline', ...timelineRateLimiters, async (req: AuthRequest, re
     const limit = Math.min(Math.max(queryInt(req.query.limit) || DEFAULT_TIMELINE_PAGE_SIZE, 1), MAX_TIMELINE_PAGE_SIZE);
     const list = await AccountList.findById(req.params.id).lean();
     if (!list) return res.status(404).json({ error: 'List not found' });
-    if (!list.isPublic && list.ownerOxyUserId !== userId) return res.status(403).json({ error: 'Not allowed' });
+    if (!canViewList(list, userId)) return res.status(403).json({ error: 'Not allowed' });
 
     const q: Record<string, unknown> = { oxyUserId: { $in: list.memberOxyUserIds || [] }, visibility: 'public' };
     if (cursor) q._id = { $lt: new mongoose.Types.ObjectId(cursor) };
