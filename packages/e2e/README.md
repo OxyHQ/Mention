@@ -45,6 +45,25 @@ and the media CDN are left alone.
 This has one consequence worth stating plainly: the backend the gate exercises
 is the live one, so a backend outage will also fail this gate.
 
+That is what `preflight.ts` is for. It runs once before any flow and checks the
+backend answers (a `429` counts as not answering — see below), that its
+`access-control-allow-origin` still equals the origin the browser is parked on,
+and that the candidate deployment is reachable. Any of those failing aborts the
+run with `GATE COULD NOT EVALUATE THIS CANDIDATE` and names the dependency at
+fault.
+
+The rate-limit case is the one that actually happened rather than the one that
+was imagined: running the suite repeatedly from a single address exhausted the
+API's 600-requests-per-900-seconds budget, and the flows then failed as
+`cold boot did not paint feed rows` — the API was perfectly healthy, it simply
+would not serve that caller, so the browser booted into an empty feed. It looks
+exactly like a broken candidate and is not one, which is why `429` is treated as
+inconclusive and the message carries the `retry-after`. It still fails closed — with the API down there
+is no way to tell a safe candidate from a broken one — but it does not let an
+unrelated outage surface as "cold boot did not paint feed rows" and send someone
+looking through their own diff. A gate that misassigns blame gets switched off
+by the first person it blocks.
+
 ## Running it locally
 
 ```bash

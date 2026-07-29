@@ -8,6 +8,9 @@ import { APP_ORIGIN } from './environment';
  */
 export default defineConfig({
   testDir: './tests',
+  // Runs before any flow, and fails the whole run with a message that names the
+  // backend rather than the candidate when the gate cannot reach a verdict.
+  globalSetup: './preflight.ts',
   // The suite talks to production over the network, so wall clock is dominated
   // by real latency rather than CPU. Running the flows concurrently keeps the
   // whole step well under a minute.
