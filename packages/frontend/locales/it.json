@@ -1405,6 +1405,9 @@
       "similarAccounts": {
         "title": "Account simili",
         "dismiss": "Ignora {{name}}"
+      },
+      "trends": {
+        "title": "Di tendenza ora"
       }
     }
   },

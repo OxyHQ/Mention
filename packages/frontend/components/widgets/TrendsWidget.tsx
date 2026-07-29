@@ -1,15 +1,13 @@
 import React, { useCallback, useEffect, useMemo } from 'react';
 import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import * as Skeleton from '@oxyhq/bloom/skeleton';
-import { toast } from '@oxyhq/bloom/toast';
 import { useTranslation } from 'react-i18next';
 import { useRouter } from 'expo-router';
 import { BaseWidget } from './BaseWidget';
 import { useTrendsStore } from '@/stores/trendsStore';
 import type { Trend } from '@/interfaces/Trend';
-import { useTrendNavigation, buildTrendUrl } from '@/hooks/useTrendNavigation';
-import { useWidgetItemMenu } from '@/hooks/useWidgetItemMenu';
-import { shareLink } from '@/utils/shareLink';
+import { useTrendNavigation } from '@/hooks/useTrendNavigation';
+import { useTrendItemMenu } from '@/hooks/useTrendItemMenu';
 import { TrendItemRow } from '@/components/trending/TrendItemRow';
 
 const MAX_TRENDS_DISPLAYED = 5;
@@ -22,10 +20,10 @@ interface TrendsWidgetProps {
 
 export function TrendsWidget({ variant = 'card', divider }: TrendsWidgetProps) {
   const { t } = useTranslation();
-  const { trends, summary, isLoading, hasFetched, error, hiddenTrendIds, startPolling, stopPolling, hideTrend } =
+  const { trends, summary, isLoading, hasFetched, error, hiddenTrendIds, startPolling, stopPolling } =
     useTrendsStore();
   const router = useRouter();
-  const openWidgetMenu = useWidgetItemMenu();
+  const handleMenuPress = useTrendItemMenu();
 
   useEffect(() => {
     const subscriptionId = startPolling();
@@ -43,26 +41,15 @@ export function TrendsWidget({ variant = 'card', divider }: TrendsWidgetProps) {
     router.push(TRENDING_ROUTE);
   }, [router]);
 
-  const handleMenuPress = useCallback(
+  // The rendered position travels with the press so the metric can say WHERE in
+  // the widget readers actually press — `visibleTrends` is already filtered and
+  // capped, so this is the position the reader saw, not the batch-wide rank.
+  const handleTrendPress = useCallback(
     (trend: Trend) => {
-      const trendName = trend.type === 'hashtag' ? `#${(trend.hashtag || trend.text).replace(/^#/, '')}` : trend.text;
-      openWidgetMenu({
-        title: trendName,
-        onNotInterested: () => {
-          hideTrend(trend.id);
-          toast(t('widgetMenu.trendHidden'), { type: 'success' });
-        },
-        onShare: () => {
-          void shareLink({
-            title: trendName,
-            url: buildTrendUrl(trend),
-            copiedToast: t('widgetMenu.linkCopied'),
-            errorToast: t('widgetMenu.shareFailed'),
-          });
-        },
-      });
+      const position = visibleTrends.findIndex((candidate) => candidate.id === trend.id);
+      navigateToTrend(trend, 'widget', position >= 0 ? position + 1 : undefined);
     },
-    [openWidgetMenu, hideTrend, t],
+    [navigateToTrend, visibleTrends],
   );
 
   if (hasFetched && !error && visibleTrends.length === 0) {
@@ -97,7 +84,11 @@ export function TrendsWidget({ variant = 'card', divider }: TrendsWidgetProps) {
             <TrendItemRow
               key={trend.id}
               trend={trend}
-              onPress={navigateToTrend}
+              // Position in what the reader actually sees — this list is capped
+              // at five and has the hidden trends filtered out of it, so the
+              // batch-wide `trend.rank` would show gaps here.
+              ordinal={index + 1}
+              onPress={handleTrendPress}
               onMenuPress={handleMenuPress}
               showBorder={!isLast}
             />

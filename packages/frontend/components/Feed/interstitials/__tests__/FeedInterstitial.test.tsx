@@ -6,8 +6,10 @@ import type {
   FeedInterstitialEventInput,
   FeedInterstitialKind,
   FeedInterstitialSlot,
+  TrendEventInput,
 } from '@mention/shared-types';
 import type { User } from '@oxyhq/core';
+import type { Trend } from '@/interfaces/Trend';
 import type { ProfileData } from '@/lib/recommendations';
 import type { MarketplaceFeed } from '@/services/customFeedsService';
 import type { StarterPackSummary } from '@/services/starterPacksService';
@@ -18,6 +20,7 @@ import { SimilarAccountsInterstitial } from '../SimilarAccountsInterstitial';
 import { SuggestedFeedsInterstitial } from '../SuggestedFeedsInterstitial';
 import { SuggestedStarterPacksInterstitial } from '../SuggestedStarterPacksInterstitial';
 import { SuggestedUsersInterstitial } from '../SuggestedUsersInterstitial';
+import { TrendingTopicsInterstitial } from '../TrendingTopicsInterstitial';
 
 /**
  * Render + telemetry tests for the four feed recommendation bands.
@@ -312,6 +315,56 @@ jest.mock('@/services/starterPacksService', () => ({
   },
 }));
 
+/**
+ * The trends band's SECOND transport. Trend events go to `POST /trending/events`
+ * and card events to `POST /feed/mtn/interstitial-events` — two endpoints with
+ * two different denominators — so a trend pressed inside the card must reach
+ * BOTH spies, and neither may reach `sendFeedInteractions`.
+ */
+const mockSendTrendEvent = jest.fn();
+jest.mock('@/services/trendingService', () => ({
+  trendingService: {
+    sendTrendEvent: (...args: unknown[]) => mockSendTrendEvent(...args),
+  },
+}));
+
+/** The ⋯ menu on a trend row: a boundary of its own (a global bottom sheet). */
+jest.mock('@/hooks/useTrendItemMenu', () => ({
+  useTrendItemMenu: () => jest.fn(),
+}));
+
+/**
+ * The global trends store the band reads instead of fetching. Only the slice the
+ * band touches is modelled; `startPolling` returns a lease id the band gives
+ * back on unmount.
+ */
+interface TrendsStoreSlice {
+  trends: Trend[];
+  hiddenTrendIds: string[];
+  isLoading: boolean;
+  hasFetched: boolean;
+  startPolling: () => number;
+  stopPolling: (subscriptionId: number) => void;
+}
+
+let mockTrends: Trend[] = [];
+let mockHiddenTrendIds: string[] = [];
+let mockTrendsLoading = false;
+let mockTrendsFetched = true;
+const mockStartPolling = jest.fn(() => 1);
+const mockStopPolling = jest.fn();
+jest.mock('@/stores/trendsStore', () => ({
+  useTrendsStore: (select: (state: TrendsStoreSlice) => unknown) =>
+    select({
+      trends: mockTrends,
+      hiddenTrendIds: mockHiddenTrendIds,
+      isLoading: mockTrendsLoading,
+      hasFetched: mockTrendsFetched,
+      startPolling: mockStartPolling,
+      stopPolling: mockStopPolling,
+    }),
+}));
+
 // ── Fixtures ────────────────────────────────────────────────────────────────
 
 /** The slot the bands under test were planned for, and the feed they sit in. */
@@ -357,6 +410,34 @@ function similarAccounts(count: number): User[] {
     username: `similar${index + 1}`,
     name: { displayName: `Similar ${index + 1}` },
     avatar: `avatar-${index + 1}`,
+  }));
+}
+
+/** The batch token `GET /trending` hands the client, echoed back on every press. */
+const TREND_REC_ID = 'm3rkq9x2';
+
+/**
+ * `count` trends: #topic1, #topic2, … (`t1`, `t2`, …).
+ *
+ * `rank` deliberately starts at 11 — it is the rank across the WHOLE unfiltered
+ * batch, which is exactly what a row must NOT paint, so a row that leaked it
+ * would show "11" where the tests expect "1". `volume` is 0 so the label stays a
+ * bare "Trending" and no formatted count can collide with an ordinal.
+ */
+function trendItems(count: number): Trend[] {
+  return Array.from({ length: count }, (_, index) => ({
+    id: `t${index + 1}`,
+    type: 'hashtag' as const,
+    text: `topic${index + 1}`,
+    hashtag: `#topic${index + 1}`,
+    description: '',
+    score: 100 - index,
+    volume: 0,
+    momentum: 0.5,
+    rank: 11 + index,
+    created_at: '2026-01-01T00:00:00.000Z',
+    direction: 'up' as const,
+    recId: TREND_REC_ID,
   }));
 }
 
@@ -545,11 +626,17 @@ function reportedEvents(): FeedInterstitialEventInput[] {
   return mockSendInterstitialEvent.mock.calls.map(([input]) => input as FeedInterstitialEventInput);
 }
 
+/** Every TREND event reported, in order — the other endpoint entirely. */
+function reportedTrendEvents(): TrendEventInput[] {
+  return mockSendTrendEvent.mock.calls.map(([input]) => input as TrendEventInput);
+}
+
 const TITLES: Record<FeedInterstitialKind, string> = {
   suggestedUsers: 'Who to follow',
   suggestedFeeds: 'Suggested feeds',
   suggestedStarterPacks: 'Starter packs for you',
   similarAccounts: 'Similar accounts',
+  trendingTopics: 'Trending now',
 };
 
 beforeEach(() => {
@@ -564,7 +651,12 @@ beforeEach(() => {
   mockGetUsersByIds.mockReset().mockResolvedValue([]);
   mockSendInterstitialEvent.mockReset().mockResolvedValue(undefined);
   mockSendFeedInteractions.mockReset().mockResolvedValue(undefined);
+  mockSendTrendEvent.mockReset().mockResolvedValue(undefined);
   mockSubject = undefined;
+  mockTrends = [];
+  mockHiddenTrendIds = [];
+  mockTrendsLoading = false;
+  mockTrendsFetched = true;
 });
 
 afterEach(() => {
@@ -1070,6 +1162,129 @@ describe('SimilarAccountsInterstitial', () => {
   });
 });
 
+// ── Trending topics ─────────────────────────────────────────────────────────
+
+/**
+ * The rows of the trends band: a trend row's pressable carries neither an
+ * accessible name (the ⋯ button does) nor a role, so this is the same shape as
+ * `profileRowPressables` — the row itself, not the controls beside it.
+ */
+function trendRowPressables(
+  renderer: TestRenderer.ReactTestRenderer,
+): ReactTestInstance[] {
+  return pressables(renderer).filter(
+    (node) =>
+      node.props.accessibilityLabel === undefined &&
+      node.props.accessibilityRole === undefined,
+  );
+}
+
+describe('TrendingTopicsInterstitial', () => {
+  it('renders NOTHING when the store has no trends', async () => {
+    mockTrends = [];
+
+    const renderer = await renderBand(<TrendingTopicsInterstitial {...inFeed} ordinal={0} />);
+
+    expect(renderer.toJSON()).toBeNull();
+  });
+
+  it('renders nothing below the desktop minimum of 3', async () => {
+    mockTrends = trendItems(2);
+
+    const renderer = await renderBand(<TrendingTopicsInterstitial {...inFeed} ordinal={0} />);
+
+    expect(renderer.toJSON()).toBeNull();
+  });
+
+  it('takes a polling lease so a feed-only session still fills the store', async () => {
+    // The band never fetches: the store is its source. Without the lease, a
+    // session that never opens a surface with the right rail would leave the
+    // store empty and the card would silently never render.
+    mockTrends = trendItems(3);
+    mockStartPolling.mockClear();
+
+    await renderBand(<TrendingTopicsInterstitial {...inFeed} ordinal={0} />);
+
+    expect(mockStartPolling).toHaveBeenCalled();
+  });
+
+  it('paints the position in the RENDERED list, never the batch-wide rank', async () => {
+    mockTrends = trendItems(3);
+
+    const renderer = await renderBand(<TrendingTopicsInterstitial {...inFeed} ordinal={0} />);
+    const text = renderedText(renderer);
+
+    expect(text).toContain(TITLES.trendingTopics);
+    expect(text).toContain('#topic1');
+    expect(text).toEqual(expect.arrayContaining(['1', '2', '3']));
+    // The fixture's ranks are 11, 12, 13. A row painting `trend.rank` would put
+    // them on screen — which is the bug this replaces, since a hidden trend
+    // leaves visible gaps in a raw rank sequence.
+    expect(text).not.toContain('11');
+    expect(text).not.toContain('12');
+    expect(text).not.toContain('13');
+  });
+
+  it('skips the trends the reader hid, backfilling from deeper in the pool', async () => {
+    mockTrends = trendItems(4);
+    mockHiddenTrendIds = ['t2'];
+
+    const renderer = await renderBand(<TrendingTopicsInterstitial {...inFeed} ordinal={0} />);
+    const text = renderedText(renderer);
+
+    expect(text).not.toContain('#topic2');
+    // Backfilled, not shrunk: the fourth trend takes the hidden one's place.
+    expect(text).toContain('#topic4');
+    expect(trendRowPressables(renderer)).toHaveLength(3);
+  });
+
+  it('reports one `seen` per trend when the CARD is seen — not on mere mount', async () => {
+    mockTrends = trendItems(3);
+
+    await renderBand(<TrendingTopicsInterstitial {...inFeed} ordinal={0} />);
+
+    // Painted but not yet seen: a card below the fold must not inflate the
+    // denominator of the click/seen ratio.
+    expect(reportedTrendEvents()).toHaveLength(0);
+
+    await elapseImpressionDelay();
+
+    const seen = reportedTrendEvents().filter((event) => event.event === 'seen');
+    expect(seen).toEqual([
+      { event: 'seen', type: 'hashtag', surface: 'interstitial', rank: 1, recId: TREND_REC_ID },
+      { event: 'seen', type: 'hashtag', surface: 'interstitial', rank: 2, recId: TREND_REC_ID },
+      { event: 'seen', type: 'hashtag', surface: 'interstitial', rank: 3, recId: TREND_REC_ID },
+    ]);
+  });
+
+  it('reports a press to BOTH endpoints, and never to the post-interaction one', async () => {
+    mockTrends = trendItems(3);
+
+    const renderer = await renderBand(<TrendingTopicsInterstitial {...inFeed} ordinal={0} />);
+    press(trendRowPressables(renderer)[1]);
+
+    // The card click compares this card against the other card kinds…
+    expect(reportedEvents()).toContainEqual({
+      feedDescriptor: FEED_DESCRIPTOR,
+      slotKey: SLOT_KEY,
+      kind: 'trendingTopics',
+      event: 'click',
+      position: 1,
+    });
+    // …the trend click compares this surface against the other places a trend is
+    // shown. Different denominators: neither is redundant.
+    expect(reportedTrendEvents()).toContainEqual({
+      event: 'click',
+      type: 'hashtag',
+      surface: 'interstitial',
+      rank: 2,
+      recId: TREND_REC_ID,
+    });
+    // Post ranking never hears about any of it.
+    expect(mockSendFeedInteractions).not.toHaveBeenCalled();
+  });
+});
+
 // ── Dispatch ────────────────────────────────────────────────────────────────
 
 describe('FeedInterstitial', () => {
@@ -1112,6 +1327,20 @@ describe('FeedInterstitial', () => {
 
     expect(text).toContain(TITLES.suggestedStarterPacks);
     expect(text).toContain('Pack 1');
+    expect(text).not.toContain(TITLES.suggestedUsers);
+    expect(text).not.toContain(TITLES.suggestedFeeds);
+  });
+
+  it('dispatches trendingTopics to the trends band', async () => {
+    mockTrends = trendItems(3);
+
+    const renderer = await renderBand(
+      <FeedInterstitial slot={slot('trendingTopics')} ordinal={0} />,
+    );
+    const text = renderedText(renderer);
+
+    expect(text).toContain(TITLES.trendingTopics);
+    expect(text).toContain('#topic1');
     expect(text).not.toContain(TITLES.suggestedUsers);
     expect(text).not.toContain(TITLES.suggestedFeeds);
   });

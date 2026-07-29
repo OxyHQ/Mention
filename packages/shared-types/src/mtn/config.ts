@@ -436,10 +436,17 @@ export const MtnConfig = {
         warm: { firstPage: [8], nextPage: [12] },
         dense: { firstPage: [8], nextPage: [12] },
       },
-      /** Rotation order of card kinds, cycled per slot, per graph temperature. */
+      /**
+       * Rotation order of card kinds, cycled per slot, per graph temperature.
+       *
+       * `trendingTopics` is in the COLD and WARM rotations only. A viewer whose
+       * follow graph is near-empty has nothing in Following, and trends are the
+       * one discovery surface that works with zero graph — while a dense viewer
+       * already has a feed and wants accounts, not headlines.
+       */
       rotation: {
-        cold: ['suggestedStarterPacks', 'suggestedUsers', 'suggestedFeeds'] satisfies FeedInterstitialKind[],
-        warm: ['suggestedUsers', 'suggestedFeeds', 'suggestedStarterPacks'] satisfies FeedInterstitialKind[],
+        cold: ['suggestedStarterPacks', 'trendingTopics', 'suggestedUsers', 'suggestedFeeds'] satisfies FeedInterstitialKind[],
+        warm: ['suggestedUsers', 'suggestedFeeds', 'trendingTopics', 'suggestedStarterPacks'] satisfies FeedInterstitialKind[],
         dense: ['suggestedUsers', 'suggestedUsers', 'suggestedFeeds'] satisfies FeedInterstitialKind[],
       },
       /**

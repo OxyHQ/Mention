@@ -1611,6 +1611,9 @@
       "similarAccounts": {
         "title": "Similar accounts",
         "dismiss": "Dismiss {{name}}"
+      },
+      "trends": {
+        "title": "Trending now"
       }
     }
   },

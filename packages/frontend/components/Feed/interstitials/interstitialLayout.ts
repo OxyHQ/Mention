@@ -70,6 +70,11 @@ const MAX_ITEMS: Record<FeedInterstitialKind, Record<InterstitialBreakpoint, num
   // Similar accounts are the same profile row as "who to follow", from a pool the
   // subject's own graph bounds — so it shares that band's shape.
   similarAccounts: { desktop: 5, mobile: 8 },
+  // Trends are read, not acted on one by one, so the band stays short — a
+  // glanceable few rather than a second feed. The pool itself is only ten deep
+  // (what the trends store fetches), which also bounds how many bands can offset
+  // into it before one comes up empty and renders nothing.
+  trendingTopics: { desktop: 3, mobile: 5 },
 };
 
 /** Placeholders shown while the suggestions load — as many as will be seen. */

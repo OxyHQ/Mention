@@ -44,5 +44,8 @@ export * from './customFeed';
 // Federation types (ActivityPub/Mastodon)
 export * from './federation';
 
+// Trending-topic telemetry
+export * from './trending';
+
 // MTN Protocol types
 export * from './mtn';

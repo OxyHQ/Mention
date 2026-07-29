@@ -25,6 +25,12 @@ interface TrendApiItem {
 interface TrendsApiResponse {
   trending?: TrendApiItem[];
   summary?: string;
+  /**
+   * Batch token, at the TOP LEVEL of the response because it identifies the
+   * batch rather than any one trend. Stamped onto every mapped trend so a press
+   * reported from any surface can carry it back. Absent on older responses.
+   */
+  recId?: string;
 }
 
 interface TrendsStore {
@@ -72,6 +78,7 @@ export const useTrendsStore = create<TrendsStore>()(
           const response = await api.get<TrendsApiResponse>('/trending', { limit: 10 });
           if (operationEpoch !== viewerEpoch) return;
           const items: TrendApiItem[] = response.data.trending || [];
+          const recId = response.data.recId;
           const next = items.map((item) => ({
             id: item._id || item.name,
             type: item.type || 'hashtag',
@@ -84,6 +91,7 @@ export const useTrendsStore = create<TrendsStore>()(
             rank: item.rank || 0,
             created_at: item.calculatedAt || item.updatedAt || '',
             direction: momentumToDirection(item.momentum || 0),
+            ...(recId ? { recId } : {}),
           })) as Trend[];
 
           const { trends: prev, summary: prevSummary } = get();
@@ -92,7 +100,18 @@ export const useTrendsStore = create<TrendsStore>()(
             for (let i = 0; i < next.length; i++) {
               const a = prev[i];
               const b = next[i];
-              if (!a || !b || a.id !== b.id || a.score !== b.score || a.direction !== b.direction) {
+              // `recId` counts as a change even when the trends themselves are
+              // identical: a rotated batch whose content happens to match would
+              // otherwise keep the old token in state, and every press reported
+              // afterwards would be labelled `stale` for no reason.
+              if (
+                !a ||
+                !b ||
+                a.id !== b.id ||
+                a.score !== b.score ||
+                a.direction !== b.direction ||
+                a.recId !== b.recId
+              ) {
                 changed = true;
                 break;
               }

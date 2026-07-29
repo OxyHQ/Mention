@@ -4,6 +4,7 @@ import { SimilarAccountsInterstitial } from './SimilarAccountsInterstitial';
 import { SuggestedFeedsInterstitial } from './SuggestedFeedsInterstitial';
 import { SuggestedStarterPacksInterstitial } from './SuggestedStarterPacksInterstitial';
 import { SuggestedUsersInterstitial } from './SuggestedUsersInterstitial';
+import { TrendingTopicsInterstitial } from './TrendingTopicsInterstitial';
 
 interface FeedInterstitialProps {
   /** The PLACEMENT the server planned: which kind of card, anchored where. */
@@ -68,6 +69,14 @@ export default function FeedInterstitial({
           slotKey={slot.key}
           feedDescriptor={feedDescriptor}
           subjectId={slot.subjectId}
+        />
+      );
+    case 'trendingTopics':
+      return (
+        <TrendingTopicsInterstitial
+          ordinal={ordinal}
+          slotKey={slot.key}
+          feedDescriptor={feedDescriptor}
         />
       );
   }

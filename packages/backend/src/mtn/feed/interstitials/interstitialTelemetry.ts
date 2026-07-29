@@ -20,6 +20,13 @@
  *
  * The whole surface is pure and synchronous, and lives outside the controller so
  * it can be unit-tested without importing the Express app.
+ *
+ * One deliberate overlap: a trend pressed inside the `trendingTopics` card is
+ * reported HERE (as a card `click`) and ALSO to `POST /trending/events` (as a
+ * trend press on the `interstitial` surface). The two have different
+ * denominators — this metric compares that card against the other card kinds,
+ * the other compares that surface against the other places a trend is shown —
+ * so neither is redundant. See `services/trending/trendTelemetry.ts`.
  */
 
 import { isValidFeedDescriptor } from '@mention/shared-types';
@@ -44,6 +51,7 @@ const INTERSTITIAL_KINDS: Record<FeedInterstitialKind, true> = {
   suggestedFeeds: true,
   suggestedStarterPacks: true,
   similarAccounts: true,
+  trendingTopics: true,
 };
 
 const INTERSTITIAL_EVENTS: Record<FeedInterstitialEventName, true> = {

@@ -792,7 +792,11 @@ export default function SearchIndex() {
                 case "trend":
                     return (
                         <View className="w-full px-3 border-b border-border">
-                            <TrendItemRow trend={item.trend} onPress={navigateToTrend} size="large" />
+                            <TrendItemRow
+                                trend={item.trend}
+                                onPress={(trend) => navigateToTrend(trend, "search")}
+                                size="large"
+                            />
                         </View>
                     );
 

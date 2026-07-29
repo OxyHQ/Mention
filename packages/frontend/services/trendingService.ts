@@ -1,5 +1,6 @@
+import type { TrendEventInput } from "@mention/shared-types";
 import { logger } from "@/lib/logger";
-import { authenticatedClient } from "@/utils/api";
+import { authenticatedClient, publicClient } from "@/utils/api";
 
 export interface TrendingTopic {
   type: string;
@@ -44,6 +45,26 @@ class TrendingService {
     } catch (error) {
       logger.warn("Failed fetching trending history", { error });
       return { days: [], page, totalPages: 0 };
+    }
+  }
+
+  /**
+   * Report a trend impression or press (`POST /trending/events`).
+   *
+   * Sent on the PUBLIC client on purpose: `/trending` is public, the right-rail
+   * widget renders for signed-out visitors, and the endpoint counts their
+   * presses too — routing this through the authenticated client would make an
+   * anonymous report depend on a session that is not there.
+   *
+   * Swallows its own failures, same contract as the other telemetry writes: a
+   * lost counter must never reach the reader, but it stays visible in
+   * diagnostics.
+   */
+  async sendTrendEvent(input: TrendEventInput): Promise<void> {
+    try {
+      await publicClient.post("/trending/events", input);
+    } catch (error) {
+      logger.debug("Failed to send trend event", { event: input.event, surface: input.surface, error });
     }
   }
 }

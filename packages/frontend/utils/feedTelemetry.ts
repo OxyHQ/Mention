@@ -5,8 +5,10 @@ import {
     type FeedInteractionEventName,
     type FeedInteractionInput,
     type FeedInterstitialEventInput,
+    type TrendEventInput,
 } from '@mention/shared-types';
 import { feedService } from '@/services/feedService';
+import { trendingService } from '@/services/trendingService';
 import { createScopedLogger } from '@/lib/logger';
 import { FeedFilters } from './feedUtils';
 
@@ -441,6 +443,45 @@ export function reportInterstitialEvent(input: FeedInterstitialEventInput): void
 
     try {
         feedService.sendInterstitialEvent(input).catch(swallow);
+    } catch (error) {
+        swallow(error);
+    }
+}
+
+/**
+ * Emit what a viewer did with a TRENDING TOPIC (`seen`/`click`), from whichever
+ * surface showed it — the right rail, Explore, the history archive, search, or
+ * the in-feed card.
+ *
+ * Its own endpoint, not the card one: `POST /feed/mtn/interstitial-events`
+ * requires a valid `feedDescriptor`, and a trend pressed in the right rail or in
+ * search is not in any feed at all. A trend pressed INSIDE the in-feed card is
+ * therefore reported TWICE, deliberately — once as a card click
+ * (`kind='trendingTopics'`, which compares that card against the other card
+ * kinds) and once as a trend press (`surface='interstitial'`, which compares
+ * that surface against the other places a trend is shown). The two have
+ * different denominators; folding either into the other loses a question.
+ *
+ * Unlike card events, an ANONYMOUS report is kept: `/trending` is public and the
+ * widget renders for signed-out visitors, so dropping them would bias the
+ * metric. That is why the write goes out on the public client.
+ *
+ * Fire-and-forget and FAIL-SILENT, same as {@link reportInterstitialEvent}: both
+ * ways the transport can fail are handled — a rejected promise (already
+ * swallowed and debug-logged by `sendTrendEvent`) and a synchronous throw before
+ * any promise exists, which `.catch()` cannot see.
+ */
+export function reportTrendEvent(input: TrendEventInput): void {
+    const swallow = (error: unknown): void => {
+        logger.debug('Trend event report failed', {
+            event: input.event,
+            surface: input.surface,
+            error,
+        });
+    };
+
+    try {
+        trendingService.sendTrendEvent(input).catch(swallow);
     } catch (error) {
         swallow(error);
     }

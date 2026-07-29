@@ -1625,6 +1625,9 @@
       "similarAccounts": {
         "title": "Cuentas similares",
         "dismiss": "Descartar {{name}}"
+      },
+      "trends": {
+        "title": "Tendencias ahora"
       }
     }
   },
