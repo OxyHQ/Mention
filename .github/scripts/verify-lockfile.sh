@@ -51,6 +51,8 @@ echo "::error file=bun.lock::bun.lock is not what \`bun install\` produces from 
   echo
   echo "Resolving \`${base_revision}\`'s \`bun.lock\` against this revision's \`package.json\` manifests produced something other than the committed lockfile."
   echo
+  echo "This is the committed lockfile being stale against the manifests. It is NOT the other failure that reports \`lockfile had changes, but lockfile is frozen\`: a Dockerfile that copies only some of the workspace manifests fails that way inside an image build with a perfectly correct lockfile, and \`bun run validate:lockfile\` is what catches that one."
+  echo
   echo "Fix it by running \`bun install\` and committing \`bun.lock\`, or apply this diff directly:"
   echo
   echo '```diff'
