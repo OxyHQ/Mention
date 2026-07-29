@@ -4,7 +4,7 @@ import { TRawNotification } from '../types/validation';
  * Types that should be grouped when they share the same target entity.
  * Mentions and replies are kept individual since they carry unique content.
  */
-const GROUPABLE_TYPES = new Set(['like', 'boost', 'follow', 'quote']);
+export const GROUPABLE_TYPES = new Set(['like', 'boost', 'follow', 'quote']);
 
 /**
  * Time window (in ms) within which notifications of the same type+entity
@@ -87,13 +87,19 @@ export function groupNotifications(
 ): GroupedNotification[] {
   if (!notifications || notifications.length === 0) return [];
 
-  const groups = new Map<string, GroupedNotification>();
-  const singles: GroupedNotification[] = [];
+  // Every item — single or group — lands in `rows` as soon as it is created, so
+  // nothing can be lost afterwards. `openGroups` is only an index of the group
+  // each key is CURRENTLY merging into (plus how many groups that key has opened,
+  // which keeps the list keys unique). A key whose next notification falls
+  // outside the window opens a second group and re-points the index at it; the
+  // group it was pointing at stays in `rows` with every actor already merged.
+  const rows: GroupedNotification[] = [];
+  const openGroups = new Map<string, { group: GroupedNotification; ordinal: number }>();
 
   for (const n of notifications) {
     // Non-groupable types stay as individual items
     if (!GROUPABLE_TYPES.has(n.type)) {
-      singles.push(toSingle(n));
+      rows.push(toSingle(n));
       continue;
     }
 
@@ -101,31 +107,32 @@ export function groupNotifications(
     const entityId = objectId(n.entityId) || String(n.entityId || '');
     const groupKey = `${n.type}:${entityId}`;
 
-    const existing = groups.get(groupKey);
+    const open = openGroups.get(groupKey);
 
-    if (existing) {
+    if (open) {
       // Check time window — compare against the lead (most recent) notification
-      const existingTime = new Date(existing.createdAt).getTime();
+      const openTime = new Date(open.group.createdAt).getTime();
       const currentTime = new Date(n.createdAt).getTime();
-      const timeDiff = Math.abs(existingTime - currentTime);
+      const timeDiff = Math.abs(openTime - currentTime);
 
       if (timeDiff <= windowMs) {
-        // Merge into existing group
-        mergeIntoGroup(existing, n);
+        // Merge into the group this key is open on
+        mergeIntoGroup(open.group, n);
         continue;
       }
     }
 
-    // Start a new group
-    const group = toGroup(n, groupKey, entityId);
-    groups.set(groupKey, group);
+    // First of its key, or outside the open group's window: start a new group
+    const ordinal = open ? open.ordinal + 1 : 0;
+    const group = toGroup(n, groupKey, entityId, ordinal);
+    rows.push(group);
+    openGroups.set(groupKey, { group, ordinal });
   }
 
-  // Combine groups and singles, sort by createdAt descending
-  const all: GroupedNotification[] = [...groups.values(), ...singles];
-  all.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  // Sort by createdAt descending — each row's createdAt is its lead notification's
+  rows.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
-  return all;
+  return rows;
 }
 
 // ---------------------------------------------------------------------------
@@ -200,10 +207,16 @@ function toSingle(n: TRawNotification): GroupedNotification {
   };
 }
 
-function toGroup(n: TRawNotification, groupKey: string, entityId: string): GroupedNotification {
+/**
+ * `ordinal` counts how many groups this key has already opened. A type+entity
+ * whose notifications span more than one window emits more than one group, and
+ * the notifications screen de-dupes rows by `key` — so the ordinal is what keeps
+ * the later windows from being dropped on render.
+ */
+function toGroup(n: TRawNotification, groupKey: string, entityId: string, ordinal: number): GroupedNotification {
   const actor = extractActor(n);
   return {
-    key: `group:${groupKey}`,
+    key: `group:${groupKey}#${ordinal}`,
     type: n.type,
     entityId,
     entityType: n.entityType,
