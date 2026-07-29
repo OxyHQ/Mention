@@ -61,6 +61,7 @@ import type { Trend } from "@/interfaces/Trend";
 import { formatCompactNumber } from "@/utils/formatNumber";
 import { logger } from "@/lib/logger";
 import { viewerQueryKeys } from "@/lib/viewerQueryKeys";
+import { useLatchedState } from "@/hooks/useLatchedState";
 
 type ResultTab = "posts" | "users" | "feeds" | "hashtags" | "lists" | "starterPacks" | "saved";
 type SearchTab = "all" | ResultTab;
@@ -390,7 +391,11 @@ export default function SearchIndex() {
     const { canUsePrivateApi, user } = useAuth();
     const viewerId = user?.id;
 
-    const [query, setQuery] = useState(urlQuery);
+    // `latestQuery()` reads the box text SYNCHRONOUSLY, which is what the submit
+    // path needs: the final keystroke and the Enter that submits it can land in
+    // one batch, leaving a callback memoized on `query` holding the previous
+    // value — searching "ca" for a box reading "cat". See `useLatchedState`.
+    const [query, setQuery, latestQuery] = useLatchedState(urlQuery);
     // `query` drives the input box; `debouncedQuery` drives the actual request
     // (and the React Query key). A keystroke schedules the debounce below; an
     // explicit submit / tab press / recent tap commits it instantly.
@@ -452,8 +457,8 @@ export default function SearchIndex() {
     );
 
     const commitCurrentQuery = useCallback(() => {
-        commitToHistory(query);
-    }, [commitToHistory, query]);
+        commitToHistory(latestQuery());
+    }, [commitToHistory, latestQuery]);
 
     // --- Trending (idle state) ---
     const trends = useTrendsStore((state) => state.trends);
@@ -595,7 +600,7 @@ export default function SearchIndex() {
                 setDebouncedQuery(trimmed);
             }, SEARCH_DEBOUNCE_MS);
         },
-        [clearDebounce],
+        [clearDebounce, setQuery],
     );
 
     const clearSearch = useCallback(() => {
@@ -603,7 +608,7 @@ export default function SearchIndex() {
         setCaret(0);
         commitQuery("");
         searchInputRef.current?.focus();
-    }, [commitQuery]);
+    }, [commitQuery, setQuery]);
 
     // The box reports where the caret really is. Read-only: the selection is never
     // driven from state, so this only ever refines what the write handlers assumed.
@@ -615,11 +620,13 @@ export default function SearchIndex() {
     );
 
     const handleSubmit = useCallback(() => {
-        const searchQuery = query.trim();
+        // Read the box text now rather than whatever this callback closed over:
+        // on the keystroke that submits, the two can differ by one character.
+        const searchQuery = latestQuery().trim();
         if (!searchQuery) return;
         commitToHistory(searchQuery);
         commitQuery(searchQuery);
-    }, [query, commitToHistory, commitQuery]);
+    }, [latestQuery, commitToHistory, commitQuery]);
 
     const retrySearch = useCallback(() => {
         void refetchSearch();
@@ -633,9 +640,10 @@ export default function SearchIndex() {
         (id: string) => {
             if (!isSearchTab(id)) return;
             setActiveTab(id);
-            if (query.trim()) commitQuery(query);
+            const current = latestQuery();
+            if (current.trim()) commitQuery(current);
         },
-        [query, commitQuery],
+        [latestQuery, commitQuery],
     );
 
     // --- Idle-state handlers ---
@@ -646,7 +654,7 @@ export default function SearchIndex() {
             commitToHistory(term);
             commitQuery(term);
         },
-        [commitToHistory, commitQuery],
+        [commitToHistory, commitQuery, setQuery],
     );
 
     const handleRemoveRecent = useCallback(
@@ -675,6 +683,11 @@ export default function SearchIndex() {
 
     // Complete the operator token the caret sits in, preserving the rest of the
     // query on either side of it.
+    //
+    // Deliberately reads the RENDERED `query`, not `latestQuery()`: `token`
+    // carries character offsets computed from that exact string, and pairing
+    // fresh text with stale offsets would splice at the wrong place. Both come
+    // from the same render, so they cannot disagree.
     const handleOperatorValuePress = useCallback(
         (token: ActiveOperatorToken, value: string) => {
             handleQueryChange(applyOperatorCompletion(query, token, value));

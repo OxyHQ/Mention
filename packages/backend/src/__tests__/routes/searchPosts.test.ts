@@ -278,6 +278,37 @@ describe('GET /search post search', () => {
     });
   });
 
+  it('applies every operator in a mixed query and strips them all from the text', async () => {
+    await request(app)
+      .get('/search')
+      .query({ query: 'from:me has:media has:links min_likes:5 since:2026-01-01 rust release', type: 'posts' })
+      .expect(200);
+
+    const filter = mocks.find.mock.calls[0][0] as Record<string, unknown>;
+    expect(filter).toMatchObject({
+      // Only the free text survives as the text query — no operator token leaks
+      // into it, which would make the search hunt for the literal "from:me".
+      $text: { $search: 'rust release' },
+      authorship: { $elemMatch: { oxyUserId: 'viewer-1', status: 'accepted' } },
+      'content.media.0': { $exists: true },
+      hasLinks: true,
+      'stats.likesCount': { $gte: 5 },
+      createdAt: { $gte: new Date('2026-01-01') },
+    });
+  });
+
+  it('accepts a quoted operand and does not leak the quotes into the lookup', async () => {
+    mocks.getProfileByUsername.mockResolvedValue({ id: 'quoted-user' });
+
+    await request(app)
+      .get('/search')
+      .query({ query: 'from:"alice" news', type: 'posts' })
+      .expect(200);
+
+    expect(mocks.getProfileByUsername).toHaveBeenCalledWith('alice');
+    expect(mocks.find.mock.calls[0][0]).toMatchObject({ $text: { $search: 'news' } });
+  });
+
   it('returns nothing rather than dropping the filter when to: names an unknown user', async () => {
     mocks.getProfileByUsername.mockResolvedValue(null);
 
