@@ -832,11 +832,25 @@ const MentionProfileContent: React.FC<MentionProfileContentProps> = ({
                                         <ExternalLinkIcon size={18} className="text-foreground" />
                                     </IconButton>
                                 )}
-                                <IconButton variant="icon" onPress={handleShare}>
+                                <IconButton
+                                    variant="icon"
+                                    onPress={handleShare}
+                                    accessibilityLabel={t('profile.actions.share', {
+                                        handle: profileHandle,
+                                        defaultValue: "Share @{{handle}}'s profile",
+                                    })}
+                                >
                                     <ShareIcon size={18} className="text-foreground" />
                                 </IconButton>
                                 {!isOwnProfile && (
-                                    <IconButton variant="icon" onPress={handleMoreOptions}>
+                                    <IconButton
+                                        variant="icon"
+                                        onPress={handleMoreOptions}
+                                        accessibilityLabel={t('profile.actions.more', {
+                                            handle: profileHandle,
+                                            defaultValue: 'More options for @{{handle}}',
+                                        })}
+                                    >
                                         <MoreIcon size={18} className="text-foreground" />
                                     </IconButton>
                                 )}

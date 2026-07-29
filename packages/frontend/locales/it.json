@@ -243,6 +243,8 @@
   "profile.actions.unsubscribe": "Non avvisarmi più dei nuovi post di @{{handle}}",
   "profile.actions.message": "Invia un messaggio a @{{handle}}",
   "profile.actions.openOnInstance": "Apri @{{handle}} sulla sua istanza di origine",
+  "profile.actions.share": "Condividi il profilo di @{{handle}}",
+  "profile.actions.more": "Altre opzioni per @{{handle}}",
   "profile.notFound.title": "Profilo non trovato",
   "profile.notFound.message": "Impossibile caricare questo profilo. L'utente potrebbe non esistere o il suo server potrebbe non essere disponibile.",
   "error.validation.token_expired": "Il token è scaduto",

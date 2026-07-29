@@ -254,6 +254,8 @@
   "profile.actions.unsubscribe": "Stop notifying me about new posts from @{{handle}}",
   "profile.actions.message": "Message @{{handle}}",
   "profile.actions.openOnInstance": "Open @{{handle}} on their home instance",
+  "profile.actions.share": "Share @{{handle}}'s profile",
+  "profile.actions.more": "More options for @{{handle}}",
   "profile.notFound.title": "Profile not found",
   "profile.notFound.message": "This profile couldn't be loaded. The user may not exist or their server may be unavailable.",
   "settings.title": "Settings",

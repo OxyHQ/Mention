@@ -279,6 +279,8 @@
   "profile.actions.unsubscribe": "Dejar de avisarme de las nuevas publicaciones de @{{handle}}",
   "profile.actions.message": "Enviar un mensaje a @{{handle}}",
   "profile.actions.openOnInstance": "Abrir @{{handle}} en su instancia de origen",
+  "profile.actions.share": "Compartir el perfil de @{{handle}}",
+  "profile.actions.more": "Más opciones para @{{handle}}",
   "profile.notFound.title": "Perfil no encontrado",
   "profile.notFound.message": "No se pudo cargar este perfil. El usuario puede no existir o su servidor puede no estar disponible.",
   "error.validation.token_expired": "El token ha expirado",
