@@ -104,6 +104,13 @@ interface PostHeaderProps {
   onPressCollaborators?: () => void;
   onPressMenu?: () => void;
   onPressAuthor?: (handle: string) => void;
+  /**
+   * Suppresses the author hover preview on both the avatar and the identity
+   * line. For surfaces where the header is not a feed row pointing at someone
+   * else — the composer's own preview of the post being written, where a card
+   * would pop over the editor.
+   */
+  disableHoverCard?: boolean;
 }
 
 interface HeaderAuthor {
@@ -132,6 +139,7 @@ const PostHeader: React.FC<PostHeaderProps> = ({
   onPressCollaborators,
   onPressMenu,
   onPressAuthor,
+  disableHoverCard,
 }) => {
   const theme = useTheme();
   const { t } = useTranslation();
@@ -208,7 +216,7 @@ const PostHeader: React.FC<PostHeaderProps> = ({
             />
           </TouchableOpacity>
         ) : (
-          <ProfileHoverCard username={user.handle}>
+          <ProfileHoverCard username={user.handle} disable={disableHoverCard}>
             <LiveAvatar
               userId={authorUserId}
               source={avatarSource}
@@ -228,8 +236,8 @@ const PostHeader: React.FC<PostHeaderProps> = ({
                 aggressively); the trailing "\u00B7 time" never wraps and stays visible.
                 With NO display name the @handle becomes the bold primary (rendered
                 ONCE here \u2014 the trailing muted handle is suppressed), never blank. */}
-            <View className="flex-row items-end flex-shrink" style={{ minWidth: 0 }}>
-              {isCollabHeader ? (
+            {isCollabHeader ? (
+              <View className="flex-row items-end flex-shrink" style={{ minWidth: 0 }}>
                 <Text
                   className="text-foreground text-[15px] font-semibold leading-tight"
                   style={{ flexShrink: 1, minWidth: 0 }}
@@ -256,8 +264,17 @@ const PostHeader: React.FC<PostHeaderProps> = ({
                     );
                   })}
                 </Text>
-              ) : (
-                <>
+              </View>
+            ) : (
+              // The whole identity line \u2014 name, `@handle` and the federated badge
+              // \u2014 is one hover target, so pointing at ANY part of it previews the
+              // author (the avatar is its own target above).
+              <ProfileHoverCard
+                username={user.handle}
+                disable={disableHoverCard}
+                style={{ minWidth: 0 }}
+              >
+                <View className="flex-row items-end flex-shrink" style={{ minWidth: 0 }}>
                   <UserName
                     name={hasDisplayName ? user.displayName : (user.handle ? `@${user.handle}` : undefined)}
                     verified={user.verified}
@@ -277,9 +294,9 @@ const PostHeader: React.FC<PostHeaderProps> = ({
                   {user.isFederated ? (
                     <RemoteActorBadge size={13} className="text-muted-foreground" containerClassName="self-center ml-1" />
                   ) : null}
-                </>
-              )}
-            </View>
+                </View>
+              </ProfileHoverCard>
+            )}
             {!!timeLabel && (
               <Text
                 className="text-muted-foreground text-[15px] leading-tight web:whitespace-nowrap"

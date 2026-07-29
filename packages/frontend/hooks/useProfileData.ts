@@ -1,6 +1,6 @@
-import { useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { useUserByUsername } from '@oxyhq/services';
+import { useCallback, useMemo } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useUserByUsername, queryKeys as sdkQueryKeys } from '@oxyhq/services';
 import { useAuth } from '@oxyhq/services/ui/client';
 import type { User } from '@oxyhq/core';
 import { useAppearanceStore, type UserAppearance, type ProfileMedia } from '@/stores/appearanceStore';
@@ -257,4 +257,49 @@ export function useProfileData(username?: string): {
   const error = isError || (Boolean(handle) && !isPending && !profile);
 
   return { data: profileData, loading, error };
+}
+
+/**
+ * Warms the profile query {@link useProfileData} reads, for a handle the viewer
+ * has only pointed at — the hover card's open delay (500ms) is dead time the
+ * fetch can run in, so the card mounts with data instead of a spinner.
+ *
+ * It writes the EXACT keys `useProfileData` reads (the SDK's viewer-scoped
+ * by-username entry for local handles, Mention's WebFinger entry for federated
+ * ones), so the warmed entry is the one the card renders rather than a second,
+ * parallel cache entry. Cheap to over-call: React Query dedupes in flight, and
+ * a fresh entry (within {@link PROFILE_STALE_TIME}) is a no-op.
+ */
+export function usePrefetchProfile(): (username: string) => void {
+  const { oxyServices, user } = useAuth();
+  const queryClient = useQueryClient();
+  const viewerId = user?.id ?? '';
+
+  return useCallback(
+    (username: string) => {
+      const handle = username.trim();
+      if (!handle) return;
+
+      if (handle.includes('@')) {
+        queryClient.prefetchQuery({
+          queryKey: viewerQueryKeys.federatedProfile(viewerId, handle),
+          queryFn: () => oxyServices.resolveProfile(handle),
+          staleTime: PROFILE_STALE_TIME,
+          gcTime: PROFILE_GC_TIME,
+        });
+        return;
+      }
+
+      queryClient.prefetchQuery({
+        // `queryKeys.users.byUsername` lowercases the handle itself, and the SDK
+        // hook lowercases it again before fetching — mirror that here so the
+        // warmed entry and the hook's own fetch agree by construction.
+        queryKey: sdkQueryKeys.users.byUsername(handle, viewerId),
+        queryFn: () => oxyServices.getProfileByUsername(handle.toLowerCase()),
+        staleTime: PROFILE_STALE_TIME,
+        gcTime: PROFILE_GC_TIME,
+      });
+    },
+    [queryClient, oxyServices, viewerId],
+  );
 }

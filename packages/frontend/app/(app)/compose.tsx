@@ -2089,6 +2089,7 @@ const ComposeScreenBody = () => {
                     avatarSize={AVATAR_SIZE}
                     onPressUser={() => { }}
                     onPressAvatar={() => { }}
+                    disableHoverCard
                   >
                     <MentionTextInput
                       ref={mainTextInputRef}

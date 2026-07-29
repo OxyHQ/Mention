@@ -1,5 +1,5 @@
 import React, { memo, useCallback, useEffect, useReducer, useRef } from 'react';
-import { View, Text, StyleSheet, Platform, type ViewProps, type ViewStyle } from 'react-native';
+import { View, Text, StyleSheet, Platform, type ViewProps } from 'react-native';
 import { SpinnerIcon } from '@oxyhq/bloom/loading';
 import { ActivityHeatmap } from '@oxyhq/bloom/activity-heatmap';
 import { useRouter } from 'expo-router';
@@ -8,7 +8,7 @@ import { FollowButton } from '@oxyhq/services/ui/client';
 import { getNormalizedUserHandle } from '@oxyhq/core';
 
 import { useTheme } from '@oxyhq/bloom/theme';
-import { useProfileData } from '@/hooks/useProfileData';
+import { useProfileData, usePrefetchProfile } from '@/hooks/useProfileData';
 import { usePostActivity } from '@/hooks/usePostActivity';
 import { formatCompactNumber } from '@/utils/formatNumber';
 import { Portal } from '@oxyhq/bloom/portal';
@@ -21,27 +21,21 @@ import { type ProfileHoverCardProps } from './types';
 
 const IS_TOUCH_DEVICE = typeof window !== 'undefined' && 'ontouchstart' in window;
 
-// `inline-flex` is a valid react-native-web `display` value but is not in RN's
-// native `ViewStyle['display']` union. Author it through an extended ViewStyle,
-// then bridge to ViewStyle at the boundary (same intent as SideBar's web sticky
-// style). The `display` unions don't overlap, so the bridge goes through
-// `unknown` — a deliberate, contained web-platform type bridge, not an escape
-// hatch over the whole value.
-type WebInlineViewStyle = Omit<ViewStyle, 'display'> & {
-  display?: ViewStyle['display'] | 'inline-flex';
-};
-const webInlineFlexStyle: WebInlineViewStyle = { display: 'inline-flex' };
-const webInlineFlex = webInlineFlexStyle as unknown as ViewStyle;
-
-// react-native-web forwards `onMouseUp` and resolves the `ref` to a DOM element,
-// but RN's `ViewProps`/`Ref<View>` types model neither. `WebView` extends View
-// with the web-only prop surface (floating-ui's DOM-node ref + `onMouseUp`) so we
-// attach them with full typing rather than per-line type suppressions. (Same
-// "extend the type" approach SideBar uses for its web-only sticky style.)
-type WebViewProps = Omit<ViewProps, 'ref'> & {
+/**
+ * The props the hover target carries: floating-ui's reference node plus the
+ * pointer handlers that drive the state machine. react-native-web forwards
+ * `onMouseUp` and resolves a component ref to the DOM element, but RN's own
+ * `ViewProps`/`TextProps` model neither — so the target types are widened here,
+ * once, instead of per-line type suppressions. (Same "extend the type" approach
+ * SideBar uses for its web-only sticky style.)
+ */
+interface HoverTargetProps {
   ref?: (node: Element | null) => void;
+  onPointerMove?: () => void;
+  onPointerLeave?: () => void;
   onMouseUp?: () => void;
-};
+}
+type WebViewProps = Omit<ViewProps, 'ref'> & HoverTargetProps;
 const WebView = View as unknown as React.ComponentType<WebViewProps>;
 
 const floatingMiddlewares = [
@@ -59,16 +53,15 @@ const floatingMiddlewares = [
   }),
 ];
 
-export function ProfileHoverCard(props: ProfileHoverCardProps) {
-  if (props.disable || IS_TOUCH_DEVICE) {
+export function ProfileHoverCard({ username, ...props }: ProfileHoverCardProps) {
+  // No handle ⇒ nothing to preview (degraded author) — render the target alone.
+  // Every hook lives in the inner component, which only mounts when the card is
+  // actually live, so this early return can never reorder hooks.
+  if (!username || props.disable || IS_TOUCH_DEVICE) {
     return props.children as React.ReactElement;
   }
 
-  return (
-    <View style={[{ flexShrink: 1 }, props.inline && webInlineFlex, props.style]}>
-      <ProfileHoverCardInner {...props} />
-    </View>
-  );
+  return <ProfileHoverCardInner {...props} username={username} />;
 }
 
 // --- State machine ---
@@ -93,7 +86,8 @@ const SHOW_DURATION = 300;
 const HIDE_DELAY = 150;
 const HIDE_DURATION = 200;
 
-function ProfileHoverCardInner(props: ProfileHoverCardProps) {
+function ProfileHoverCardInner(props: ProfileHoverCardProps & { username: string }) {
+  const prefetchProfile = usePrefetchProfile();
   const { refs, floatingStyles } = useFloating({
     middleware: floatingMiddlewares,
   });
@@ -213,9 +207,13 @@ function ProfileHoverCardInner(props: ProfileHoverCardProps) {
   const onPointerMoveTarget = useCallback(() => {
     if (!didFireHover.current) {
       didFireHover.current = true;
+      // Warm the profile query the card reads BEFORE the open delay elapses, so
+      // the card usually mounts with data instead of a spinner. Once per hover:
+      // the flag resets on pointer-leave, and a warm entry is a no-op anyway.
+      prefetchProfile(props.username);
       dispatch('hovered-target');
     }
-  }, []);
+  }, [prefetchProfile, props.username]);
 
   const onPointerLeaveTarget = useCallback(() => {
     didFireHover.current = false;
@@ -246,16 +244,35 @@ function ProfileHoverCardInner(props: ProfileHoverCardProps) {
         : `profileHoverCardFadeIn ${SHOW_DURATION}ms both`,
   };
 
-  return (
-    <WebView
-      // floating-ui's `setReference` takes a DOM node; on react-native-web the
-      // View ref resolves to that node. `onMouseUp` is a web-only View prop.
-      ref={refs.setReference}
-      onPointerMove={onPointerMoveTarget}
-      onPointerLeave={onPointerLeaveTarget}
-      onMouseUp={onPress}
-      style={[{ flexShrink: 1 }, props.inline && webInlineFlex]}>
+  // floating-ui's `setReference` takes a DOM node; on react-native-web a
+  // component ref resolves to that node. `onMouseUp` is a web-only prop.
+  const targetProps: HoverTargetProps = {
+    ref: refs.setReference,
+    onPointerMove: onPointerMoveTarget,
+    onPointerLeave: onPointerLeaveTarget,
+    onMouseUp: onPress,
+  };
+
+  // An INLINE target (a `@mention` inside a paragraph) becomes the hover target
+  // itself: react-native-web renders a `View` as a block-level flex box, which
+  // an enclosing `Text` takes out of the line flow — the mention would sit on
+  // its own line, overlapping the body copy. So the handlers are attached to the
+  // caller's own element instead of a wrapper. Every other target keeps the
+  // wrapper, which is also where the caller's layout `style` lands.
+  const target = props.inline ? (
+    React.cloneElement(
+      React.Children.only(props.children) as React.ReactElement<HoverTargetProps>,
+      targetProps,
+    )
+  ) : (
+    <WebView {...targetProps} style={[{ flexShrink: 1 }, props.style]}>
       {props.children}
+    </WebView>
+  );
+
+  return (
+    <>
+      {target}
       {isVisible && (
         <Portal>
           <div
@@ -269,7 +286,7 @@ function ProfileHoverCardInner(props: ProfileHoverCardProps) {
           </div>
         </Portal>
       )}
-    </WebView>
+    </>
   );
 }
 

@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import { Text, StyleProp, TextStyle } from 'react-native';
 import { useRouter } from 'expo-router';
 import { getNormalizedUserHandle } from '@oxyhq/core';
+import { ProfileHoverCard } from '@/components/ProfileHoverCard';
 import { URL_PATTERN_SOURCE, toOpenableUrl, trimUrlTrailingPunct } from '@/utils/extractUrls';
 import { openExternalLink } from '@/utils/openExternalLink';
 
@@ -61,20 +62,20 @@ export const LinkifiedText: React.FC<LinkifiedTextProps> = ({ text, style, class
         const start = match.index;
         pushText(text.slice(lastIndex, start));
 
+        // One handle drives both behaviors — the profile link and the hover
+        // preview — so they can never point at different profiles. `inline`
+        // keeps the mention in the text flow instead of breaking the line.
+        const mentionHandle = getNormalizedUserHandle({ username: mentionUsername }) ?? undefined;
         elements.push(
-          <Text
-            key={`m-${key++}`}
-            className="text-primary"
-            style={linkStyle}
-            onPress={() => {
-              const handle = getNormalizedUserHandle({ username: mentionUsername });
-              if (handle) {
-                router.push(`/@${handle}`);
-              }
-            }}
-          >
-            {mentionDisplay}
-          </Text>
+          <ProfileHoverCard key={`m-${key++}`} username={mentionHandle} inline>
+            <Text
+              className="text-primary"
+              style={linkStyle}
+              onPress={mentionHandle ? () => router.push(`/@${mentionHandle}`) : undefined}
+            >
+              {mentionDisplay}
+            </Text>
+          </ProfileHoverCard>
         );
         lastIndex = start + full.length;
       } else if (urlCandidate) {

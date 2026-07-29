@@ -16,6 +16,7 @@ import {
 } from '@mention/shared-types/post';
 import { usePostSelector } from '../../stores/postsStore';
 import PostHeader, { HEADER_CONTENT_GAP, POST_CONTEXT_ROW_HEIGHT } from '../Post/PostHeader';
+import { ProfileHoverCard } from '../ProfileHoverCard';
 import PostContentText from '../Post/PostContentText';
 import PostLanguageChip from '../Post/PostLanguageChip';
 import ContentWarning from '../Post/ContentWarning';
@@ -349,13 +350,19 @@ const PostItem: React.FC<PostItemProps> = ({
 
     // "Reposted by X" row → the BOOSTER's profile. Stop propagation so it doesn't
     // also trigger the outer container press (which opens the ORIGINAL post detail).
+    // Canonical handle of the BOOSTER, on the same terms as `authorHandle`: it
+    // drives the "Reposted by" row's link and its hover preview from one value.
+    const reposterHandle = useMemo(
+        () => getNormalizedUserHandle(repostedBy) ?? undefined,
+        [repostedBy],
+    );
+
     const goToReposter = useCallback((event?: GestureResponderEvent) => {
         event?.stopPropagation?.();
-        const handle = getNormalizedUserHandle(repostedBy);
-        if (handle) {
-            router.push(`/@${handle}`);
+        if (reposterHandle) {
+            router.push(`/@${reposterHandle}`);
         }
-    }, [router, repostedBy]);
+    }, [router, reposterHandle]);
 
     // Pass the originating feed descriptor as the engagement `source` so the
     // backend can attribute a like/save/boost to the surface it happened on
@@ -616,7 +623,12 @@ const PostItem: React.FC<PostItemProps> = ({
     const hasBelowHeaderBlocks = Boolean((hasValidLocation && location) || hasSources || shouldRenderMediaBlock || boostUnavailable || !isNested);
     const headerToBlocksGap = content.text ? SECTION_GAP : HEADER_CONTENT_GAP;
 
-    const replyContextHandle = getNormalizedUserHandle(replyContextAuthor) || replyContextAuthor?.name?.displayName;
+    // The parent author's real handle, when there is one — what the hover preview
+    // resolves. The LABEL below falls back to the display name so the row still
+    // reads as a reply to someone, but a display name is not a handle and must
+    // never be fetched as one.
+    const replyContextAuthorHandle = getNormalizedUserHandle(replyContextAuthor) ?? undefined;
+    const replyContextHandle = replyContextAuthorHandle || replyContextAuthor?.name?.displayName;
 
     const postAuthor = displayNameOrHandle(viewPost.user.name?.displayName, authorHandle ? `@${authorHandle}` : '');
     const postTextSummary = content.text
@@ -641,21 +653,22 @@ const PostItem: React.FC<PostItemProps> = ({
     const contextRows: React.ReactNode[] = [];
     if (repostedBy) {
         contextRows.push(
-            <TouchableOpacity
-                key="reposted"
-                className="flex-row items-center"
-                style={{ height: POST_CONTEXT_ROW_HEIGHT }}
-                activeOpacity={0.7}
-                onPress={goToReposter}
-                accessibilityRole="link"
-            >
-                <View className="-ml-4 mr-[3px]">
-                    <BoostIcon size={13} color={theme.colors.textSecondary} />
-                </View>
-                <Text className="text-muted-foreground text-[13px] font-semibold" numberOfLines={1}>
-                    {t('post.repostedBy', { defaultValue: 'Reposted by' })} {displayNameOrHandle(repostedBy.name?.displayName, getNormalizedUserHandle(repostedBy) ? `@${getNormalizedUserHandle(repostedBy)}` : '')}
-                </Text>
-            </TouchableOpacity>,
+            <ProfileHoverCard key="reposted" username={reposterHandle}>
+                <TouchableOpacity
+                    className="flex-row items-center"
+                    style={{ height: POST_CONTEXT_ROW_HEIGHT }}
+                    activeOpacity={0.7}
+                    onPress={goToReposter}
+                    accessibilityRole="link"
+                >
+                    <View className="-ml-4 mr-[3px]">
+                        <BoostIcon size={13} color={theme.colors.textSecondary} />
+                    </View>
+                    <Text className="text-muted-foreground text-[13px] font-semibold" numberOfLines={1}>
+                        {t('post.repostedBy', { defaultValue: 'Reposted by' })} {displayNameOrHandle(repostedBy.name?.displayName, reposterHandle ? `@${reposterHandle}` : '')}
+                    </Text>
+                </TouchableOpacity>
+            </ProfileHoverCard>,
         );
     }
     if (showPinned) {
@@ -672,14 +685,16 @@ const PostItem: React.FC<PostItemProps> = ({
     }
     if (replyContextHandle) {
         contextRows.push(
-            <View key="reply" className="flex-row items-center" style={{ height: POST_CONTEXT_ROW_HEIGHT }}>
-                <View className="-ml-4 mr-[3px]">
-                    <Ionicons name="return-down-forward-outline" size={13} color={theme.colors.textSecondary} />
+            <ProfileHoverCard key="reply" username={replyContextAuthorHandle}>
+                <View className="flex-row items-center" style={{ height: POST_CONTEXT_ROW_HEIGHT }}>
+                    <View className="-ml-4 mr-[3px]">
+                        <Ionicons name="return-down-forward-outline" size={13} color={theme.colors.textSecondary} />
+                    </View>
+                    <Text className="text-muted-foreground text-[13px] font-semibold" numberOfLines={1}>
+                        {t('post.replyingTo', { defaultValue: 'Replying to' })} @{replyContextHandle}
+                    </Text>
                 </View>
-                <Text className="text-muted-foreground text-[13px] font-semibold" numberOfLines={1}>
-                    {t('post.replyingTo', { defaultValue: 'Replying to' })} @{replyContextHandle}
-                </Text>
-            </View>,
+            </ProfileHoverCard>,
         );
     }
 

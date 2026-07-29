@@ -19,6 +19,7 @@ import type { PostUser } from '@mention/shared-types';
 
 import UserName from '../UserName';
 import { LinkifiedText } from '../common/LinkifiedText';
+import { ProfileHoverCard } from '../ProfileHoverCard';
 import { RemoteActorBadge } from '@/components/Fediverse/FediverseBadge';
 import CollabAcceptSheet from '@/components/Compose/CollabAcceptSheet';
 import { DoneAllIcon } from '@/assets/icons/done-all-icon';
@@ -535,7 +536,9 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({ item, onMa
         <View className="flex-row items-start justify-between">
           {/* Avatar column: avatar + themed action-badge overlay. */}
           <View className="relative mr-3">
-            <Avatar source={resolvedPrimary.avatar} size={AVATAR_SIZE} variant={MEDIA_VARIANT_AVATAR} />
+            <ProfileHoverCard username={resolvedPrimary.handle}>
+              <Avatar source={resolvedPrimary.avatar} size={AVATAR_SIZE} variant={MEDIA_VARIANT_AVATAR} />
+            </ProfileHoverCard>
             <View
               className="absolute -bottom-0.5 -right-0.5 w-5 h-5 rounded-full border-2 border-background items-center justify-center"
               style={{ backgroundColor: badgeColor }}
@@ -555,26 +558,34 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({ item, onMa
 
             {/* Byline: bold name + muted @handle + federated badge + "· time". */}
             <View className="flex-row items-end gap-2">
-              <View className="flex-row items-end flex-shrink min-w-0">
-                <UserName
-                  name={bylineName}
-                  verified={isSingleActor && resolvedPrimary.verified}
-                  style={{ container: { flexShrink: 0 } }}
-                />
-                {showHandleLine ? (
-                  <Text
-                    className="text-muted-foreground text-[15px] leading-5"
-                    style={{ flexShrink: 10, minWidth: 0 }}
-                    numberOfLines={1}
-                    ellipsizeMode="tail"
-                  >
-                    {` @${resolvedPrimary.handle}`}
-                  </Text>
-                ) : null}
-                {isSingleActor && resolvedPrimary.isFederated ? (
-                  <RemoteActorBadge size={13} className="text-muted-foreground" containerClassName="self-center ml-1" />
-                ) : null}
-              </View>
+              {/* Same hover target as a post byline. Only for a SINGLE actor: a
+                  grouped byline reads "Alice, Bob and 3 more", so previewing one
+                  of them from the whole phrase would be arbitrary. */}
+              <ProfileHoverCard
+                username={isSingleActor ? resolvedPrimary.handle : undefined}
+                style={{ minWidth: 0 }}
+              >
+                <View className="flex-row items-end flex-shrink min-w-0">
+                  <UserName
+                    name={bylineName}
+                    verified={isSingleActor && resolvedPrimary.verified}
+                    style={{ container: { flexShrink: 0 } }}
+                  />
+                  {showHandleLine ? (
+                    <Text
+                      className="text-muted-foreground text-[15px] leading-5"
+                      style={{ flexShrink: 10, minWidth: 0 }}
+                      numberOfLines={1}
+                      ellipsizeMode="tail"
+                    >
+                      {` @${resolvedPrimary.handle}`}
+                    </Text>
+                  ) : null}
+                  {isSingleActor && resolvedPrimary.isFederated ? (
+                    <RemoteActorBadge size={13} className="text-muted-foreground" containerClassName="self-center ml-1" />
+                  ) : null}
+                </View>
+              </ProfileHoverCard>
               {timeLabel ? (
                 <Text className="text-muted-foreground text-[15px] leading-5 shrink-0 web:whitespace-nowrap">
                   {'·'} {timeLabel}
@@ -595,15 +606,16 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({ item, onMa
                 {expanded ? (
                   <View className="gap-2">
                     {resolvedActors.map((actor) => (
-                      <Pressable
-                        key={actor.id}
-                        onPress={() => openActorProfile(actor)}
-                        className="flex-row items-center gap-2"
-                        accessibilityRole="button"
-                      >
-                        <Avatar source={actor.avatar} size={STACK_AVATAR_SIZE} variant={MEDIA_VARIANT_AVATAR} />
-                        <UserName name={actorLabel(actor, someone)} variant="small" />
-                      </Pressable>
+                      <ProfileHoverCard key={actor.id} username={actor.handle}>
+                        <Pressable
+                          onPress={() => openActorProfile(actor)}
+                          className="flex-row items-center gap-2"
+                          accessibilityRole="button"
+                        >
+                          <Avatar source={actor.avatar} size={STACK_AVATAR_SIZE} variant={MEDIA_VARIANT_AVATAR} />
+                          <UserName name={actorLabel(actor, someone)} variant="small" />
+                        </Pressable>
+                      </ProfileHoverCard>
                     ))}
                   </View>
                 ) : null}
