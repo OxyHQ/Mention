@@ -224,7 +224,24 @@ return {
                     }
                 ],
                 "expo-image-picker",
-                "expo-video",
+                [
+                    // Picture-in-Picture for the reels screen (`app/(app)/videos.tsx`),
+                    // the only PiP surface. The plugin adds
+                    // `android:supportsPictureInPicture="true"` to the main activity and
+                    // `UIBackgroundModes: ["audio"]` on iOS (iOS requires the audio
+                    // background mode to keep decoding into the PiP window).
+                    //
+                    // `supportsBackgroundPlayback` stays OFF on purpose: it pulls in an
+                    // Android foreground service plus a now-playing notification, which
+                    // is background AUDIO, a different feature from PiP.
+                    //
+                    // `android/` and `ios/` are gitignored (CNG), so this lands at the
+                    // next prebuild / EAS build — it does NOT ship over OTA.
+                    "expo-video",
+                    {
+                        supportsPictureInPicture: true,
+                    },
+                ],
                 "expo-audio",
                 [
                     "expo-secure-store",

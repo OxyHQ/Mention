@@ -24,42 +24,66 @@ export interface FeedFilters extends SharedFeedFilters {
 }
 
 /**
+ * An id as it can reach the feed key helpers: a string, a numeric id, or a
+ * Mongo `ObjectId`-like object that stringifies to its hex form.
+ */
+type FeedEntityId = string | number | { toString(): string };
+
+/**
+ * The id-bearing shape every feed entity is keyed by. Deliberately structural
+ * and fully optional: posts, replies, boosts, slice items and cached rows all
+ * flow through here carrying different subsets of these fields.
+ */
+interface KeyableFeedEntity {
+    id?: FeedEntityId;
+    _id?: FeedEntityId;
+    _id_str?: FeedEntityId;
+    postId?: FeedEntityId;
+    post?: { id?: FeedEntityId; _id?: FeedEntityId };
+    username?: string;
+}
+
+/** Renders one candidate id field, or `''` when it is absent/empty. */
+function readEntityId(value: FeedEntityId | undefined): string {
+    if (value === undefined || value === null || value === '') return '';
+    return String(value);
+}
+
+/**
  * Normalize item ID for consistent deduplication
  * Handles various ID formats: id, _id, _id_str, postId, post.id, post._id
  */
-export function normalizeItemId(item: any): string {
-    if (item?.id) return String(item.id);
-    if (item?._id) {
-        const _id = item._id;
-        return typeof _id === 'object' && typeof _id.toString === 'function'
-            ? _id.toString()
-            : String(_id);
-    }
-    if (item?._id_str) return String(item._id_str);
-    if (item?.postId) return String(item.postId);
-    if (item?.post?.id) return String(item.post.id);
-    if (item?.post?._id) {
-        const _id = item.post._id;
-        return typeof _id === 'object' && typeof _id.toString === 'function'
-            ? _id.toString()
-            : String(_id);
-    }
+export function normalizeItemId(item: unknown): string {
+    if (item === null || typeof item !== 'object') return '';
+    const entity = item as KeyableFeedEntity;
+
+    const direct =
+        readEntityId(entity.id) ||
+        readEntityId(entity._id) ||
+        readEntityId(entity._id_str) ||
+        readEntityId(entity.postId);
+    if (direct) return direct;
+
+    const post = entity.post;
+    if (post) return readEntityId(post.id) || readEntityId(post._id);
     return '';
 }
 
 /**
  * Extract item key using normalization
  */
-export function getItemKey(item: any): string {
+export function getItemKey(item: unknown): string {
     const normalizedId = normalizeItemId(item);
-    
-    if (normalizedId && normalizedId !== 'undefined' && normalizedId !== 'null' && normalizedId !== '') {
+
+    if (normalizedId && normalizedId !== 'undefined' && normalizedId !== 'null') {
         return normalizedId;
     }
-    
+
     // Fallback to username or JSON stringification as last resort
-    const fallback = item?.username || JSON.stringify(item);
-    return String(fallback);
+    const username = item !== null && typeof item === 'object'
+        ? (item as KeyableFeedEntity).username
+        : undefined;
+    return username || String(JSON.stringify(item));
 }
 
 export interface FeedPageContent {
@@ -358,10 +382,12 @@ export function depsShallowEqual(a: DependencyList, b: DependencyList): boolean 
 }
 
 /**
- * Node in a reply tree, used for threaded display
+ * Node in a reply tree, used for threaded display. A reply IS a post — the
+ * threaded view is built from the same hydrated posts every other feed row
+ * renders — so the tree carries them unchanged.
  */
 export interface ReplyNode {
-    reply: any;
+    reply: HydratedPost;
     children: ReplyNode[];
 }
 
@@ -369,30 +395,29 @@ export interface ReplyNode {
  * Build a tree of replies from a flat list.
  * Top-level replies have parentPostId === postId.
  * Nested replies have parentPostId pointing to another reply.
+ *
+ * Nodes are keyed by {@link getItemKey}, the same key the rendered rows use, so
+ * the tree and the rows built from it can never disagree about a post's identity.
  */
-export function buildReplyTree(replies: any[], postId: string): ReplyNode[] {
+export function buildReplyTree(replies: readonly HydratedPost[], postId: string): ReplyNode[] {
     const replyMap = new Map<string, ReplyNode>();
-    const topLevel: ReplyNode[] = [];
-
     for (const reply of replies) {
-        const id = String(reply.id || reply._id);
-        replyMap.set(id, { reply, children: [] });
+        replyMap.set(getItemKey(reply), { reply, children: [] });
     }
 
+    const topLevel: ReplyNode[] = [];
     for (const reply of replies) {
-        const id = String(reply.id || reply._id);
-        const parentId = String(reply.parentPostId || '');
-        const node = replyMap.get(id)!;
+        const node = replyMap.get(getItemKey(reply));
+        if (!node) continue;
 
-        if (parentId === postId || !replyMap.has(parentId)) {
-            topLevel.push(node);
+        // A reply hangs off its parent only when that parent is in THIS batch and
+        // is not the thread root; everything else is a top-level reply.
+        const parentId = reply.parentPostId ?? '';
+        const parentNode = parentId === postId ? undefined : replyMap.get(parentId);
+        if (parentNode) {
+            parentNode.children.push(node);
         } else {
-            const parentNode = replyMap.get(parentId);
-            if (parentNode) {
-                parentNode.children.push(node);
-            } else {
-                topLevel.push(node);
-            }
+            topLevel.push(node);
         }
     }
 
@@ -404,7 +429,7 @@ export function buildReplyTree(replies: any[], postId: string): ReplyNode[] {
  */
 export function deduplicateItems<T>(
     items: T[],
-    getKey: (item: T) => string = getItemKey as (item: T) => string
+    getKey: (item: T) => string = getItemKey
 ): T[] {
     if (items.length === 0) return [];
     

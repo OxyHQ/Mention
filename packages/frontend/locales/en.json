@@ -690,7 +690,9 @@
     "less": "less",
     "original_audio": "Original audio",
     "previous": "Previous video",
-    "next": "Next video"
+    "next": "Next video",
+    "picture_in_picture": "Picture in Picture",
+    "picture_in_picture_failed": "Couldn't start Picture in Picture"
   },
   "common": {
     "unknown": "unknown",

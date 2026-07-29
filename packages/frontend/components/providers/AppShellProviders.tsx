@@ -1,7 +1,7 @@
 import React, { memo, type ReactNode } from 'react';
 import { ScreenColorProvider } from '@/context/ScreenColorContext';
 import { VideosRailProvider } from '@/context/VideosRailContext';
-import { ActiveVideoProvider } from '@/context/ActiveVideoContext';
+import { VideoPlaybackProvider } from '@/context/VideoPlaybackContext';
 import { DrawerProvider } from '@/context/DrawerContext';
 import { BottomBarVisibilityProvider } from '@/context/BottomBarVisibilityContext';
 
@@ -15,15 +15,16 @@ export const AppShellProviders = memo(function AppShellProviders({ children }: {
   return (
     <ScreenColorProvider>
       <VideosRailProvider>
-        {/* one "only the on-screen video plays" coordinator for the whole (app) group */}
-        <ActiveVideoProvider>
+        {/* one playback authority for the whole (app) group: only a visible,
+            focused, foregrounded player may play, and only one may be audible */}
+        <VideoPlaybackProvider>
           <DrawerProvider>
             {/* shared bottom-bar auto-hide signal, pinned visible on /videos */}
             <BottomBarVisibilityProvider>
               {children}
             </BottomBarVisibilityProvider>
           </DrawerProvider>
-        </ActiveVideoProvider>
+        </VideoPlaybackProvider>
       </VideosRailProvider>
     </ScreenColorProvider>
   );

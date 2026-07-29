@@ -8,7 +8,8 @@ import { ThemedView } from '@/components/ThemedView';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import { useAuth, FollowButton } from '@oxyhq/services/ui/client';
-import { VideoView, useVideoPlayer, type VideoPlayer } from 'expo-video';
+import { useEventListener } from 'expo';
+import { VideoView, useVideoPlayer, isPictureInPictureSupported, type VideoPlayer } from 'expo-video';
 import { LinearGradient } from 'expo-linear-gradient';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useRouter, useLocalSearchParams, useIsFocused } from 'expo-router';
@@ -30,6 +31,7 @@ import { readMediaDurationSec } from '@/utils/mediaTypes';
 import { LinkifiedText } from '@/components/common/LinkifiedText';
 import { useIsRightBarVisible } from '@/hooks/useOptimizedMediaQuery';
 import { useVideosRail, type VideosRailActivePost } from '@/context/VideosRailContext';
+import { useVideoPlayback, VideoViewabilityProvider } from '@/context/VideoPlaybackContext';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
 import { VideoReplies } from '@/components/videos/VideoReplies';
 
@@ -123,6 +125,19 @@ const CAPTION_EXPAND_MIN_CHARS = 80;
 // expo-video timeUpdate cadence (seconds) driving the scrubber.
 const TIME_UPDATE_INTERVAL_S = 0.25;
 
+// Namespace for this screen's playback ids in the app-wide video authority. A
+// feed `VideoPlayer` can be mounted for the SAME post at the same time (the reel
+// is pushed over the feed screen), so the reel surface must not share its id.
+const PLAYBACK_ID_PREFIX = 'videos';
+
+// Circular overlay buttons (mute, Picture-in-Picture) stack down the top-right
+// corner of the surface, above the video and the tap layer.
+const OVERLAY_BUTTON_SIZE = 44;
+const OVERLAY_BUTTON_TOP = 50;
+const OVERLAY_BUTTON_RIGHT = 16;
+const OVERLAY_BUTTON_GAP = 12;
+const OVERLAY_BUTTON_ICON_SIZE = 22;
+
 // The /videos feed tabs. 'videos' is the ranked "For You" video feed; 'following'
 // is the general following feed filtered down to video posts.
 type VideoFeedTab = 'videos' | 'following';
@@ -189,6 +204,9 @@ interface VideoItemProps {
 // `useVideoPlayer` instance (auto-released on unmount), so leaving the window
 // tears the decoder down. A poster sits behind the surface until `readyToPlay`.
 interface ActiveVideoSurfaceProps {
+    // Identity of the post this surface plays — the stable playback id handed to
+    // the app-wide video authority.
+    postId: string;
     videoUrl: string;
     // The raw (non-HLS) original URL, always playable. Used as a one-shot
     // retry source if `videoUrl` (the preferred/HLS source) errors.
@@ -199,6 +217,9 @@ interface ActiveVideoSurfaceProps {
     isActive: boolean;
     // See VideoItemProps.screenFocused — only play when active AND focused.
     screenFocused: boolean;
+    // Viewport height: one slide tall, so it also yields this surface's centre-Y
+    // for the visibility report to the playback authority.
+    windowHeight: number;
     muted: boolean;
     onMutedChange: (muted: boolean) => void;
     onError: () => void;
@@ -210,12 +231,14 @@ interface ActiveVideoSurfaceProps {
 }
 
 const ActiveVideoSurface = memo<ActiveVideoSurfaceProps>(({
+    postId,
     videoUrl,
     fallbackVideoUrl,
     posterUrl,
     initialDurationSec,
     isActive,
     screenFocused,
+    windowHeight,
     muted,
     onMutedChange,
     onError,
@@ -276,45 +299,40 @@ const ActiveVideoSurface = memo<ActiveVideoSurfaceProps>(({
     // Surface readiness + errors + live buffering. `hasRendered` latches on first
     // `readyToPlay`; AFTER that, a transition to `loading` is a mid-playback
     // re-buffer (small spinner), and `readyToPlay` clears it.
-    useEffect(() => {
-        const sub = player.addListener('statusChange', ({ status: next }) => {
-            if (next === 'readyToPlay') {
-                setHasRendered(true);
-                setIsBuffering(false);
-                if (player.duration > 0) {
-                    setDuration(player.duration);
-                }
-            } else if (next === 'loading') {
-                // Only a re-buffer (small spinner) once the first frame has
-                // rendered; the initial load is covered by the poster instead.
-                setHasRendered((rendered) => {
-                    setIsBuffering(rendered);
-                    return rendered;
-                });
-            } else if (next === 'error') {
-                if (!triedFallbackRef.current && fallbackVideoUrl) {
-                    triedFallbackRef.current = true;
-                    setCurrentSource(fallbackVideoUrl);
-                } else {
-                    setHasError(true);
-                    onError();
-                }
+    // `useEventListener` (expo) subscribes once per player and always invokes the
+    // LATEST listener, so these handlers read fresh state without re-subscribing.
+    useEventListener(player, 'statusChange', ({ status: next }) => {
+        if (next === 'readyToPlay') {
+            setHasRendered(true);
+            setIsBuffering(false);
+            if (player.duration > 0) {
+                setDuration(player.duration);
             }
-        });
-        return () => sub.remove();
-    }, [player, onError, fallbackVideoUrl]);
+        } else if (next === 'loading') {
+            // Only a re-buffer (small spinner) once the first frame has
+            // rendered; the initial load is covered by the poster instead.
+            setIsBuffering(hasRendered);
+        } else if (next === 'error') {
+            if (!triedFallbackRef.current && fallbackVideoUrl) {
+                triedFallbackRef.current = true;
+                setCurrentSource(fallbackVideoUrl);
+            } else {
+                setHasError(true);
+                onError();
+            }
+        }
+    });
 
     // Track the playhead for the scrubber. Skipped while the viewer is dragging so
     // the thumb follows the gesture, not the (lagging) player position.
-    useEffect(() => {
-        const sub = player.addListener('timeUpdate', ({ currentTime: nextTime }) => {
-            setCurrentTime((prev) => (isScrubbing ? prev : nextTime));
-            if (duration <= 0 && player.duration > 0) {
-                setDuration(player.duration);
-            }
-        });
-        return () => sub.remove();
-    }, [player, isScrubbing, duration]);
+    useEventListener(player, 'timeUpdate', ({ currentTime: nextTime }) => {
+        if (!isScrubbing) {
+            setCurrentTime(nextTime);
+        }
+        if (duration <= 0 && player.duration > 0) {
+            setDuration(player.duration);
+        }
+    });
 
     // Single place that syncs the live player's mute with the store.
     useEffect(() => {
@@ -336,12 +354,68 @@ const ActiveVideoSurface = memo<ActiveVideoSurfaceProps>(({
         }
     }
 
-    // Drive playback from the active/focused gate AND the viewer's tap override.
-    // The active surface plays from the top when it first activates; a tap-resume
-    // continues from the current position (no `currentTime = 0` reset) so toggling
-    // play/pause does not jump the video back to the start. Off-screen, blurred,
-    // or viewer-paused → paused.
-    const shouldPlay = isActive && screenFocused && !userPaused;
+    // ── Picture-in-Picture ──────────────────────────────────────────
+    // The reels screen is the app's ONLY PiP surface (tapping a feed video routes
+    // here), and expo-video allows exactly one player in PiP at a time — so only
+    // the surface that is BOTH active and focused gets the capability. The
+    // preloaded neighbours buffer but never play, and never enter PiP.
+    const videoViewRef = useRef<VideoView | null>(null);
+    const [inPictureInPicture, setInPictureInPicture] = useState(false);
+    const handlePictureInPictureStart = useCallback(() => setInPictureInPicture(true), []);
+    const handlePictureInPictureStop = useCallback(() => setInPictureInPicture(false), []);
+    const pictureInPictureAllowed = isActive && screenFocused;
+
+    // The app-wide playback authority owns the foreground gate (app backgrounded /
+    // tab hidden → nothing plays) and the single audible slot. A player the OS is
+    // showing in the PiP window is the ONE exception to that foreground gate —
+    // that is exactly what `inPictureInPicture` buys here.
+    const { shouldPlay: playbackAllowed, claimActive, reportVisibility } = useVideoPlayback({
+        id: `${PLAYBACK_ID_PREFIX}:${postId}`,
+        // Native reads visibility from the reel's own viewability source — the
+        // `VideoViewabilityProvider` this screen publishes the snapped slide into.
+        viewabilityKey: postId,
+        inPictureInPicture,
+    });
+
+    // Web resolves visibility only from what a player reports, and this screen
+    // mounts no `IntersectionObserver` — its pager already knows which slide is on
+    // screen. Report exactly what an observer would: the snapped slide of a focused
+    // screen is on screen (a slide fills the viewport, so it sits at its centre);
+    // the preloaded neighbours and every slide of a blurred screen are not. NOT
+    // reporting would leave this surface permanently hidden on web; reporting a
+    // blurred screen as visible would let the reel hold the audible slot after the
+    // viewer pushes another route on top of it.
+    //
+    // Reported DURING RENDER via a previous-value tracker — the same pattern as the
+    // trackers above. From an effect it would land AFTER the claim below and leave
+    // that claim standing on stale visibility, which the authority then drops.
+    const onScreen = isActive && screenFocused;
+    const surfaceCenterY = windowHeight / 2;
+    const [reportedOnScreen, setReportedOnScreen] = useState<boolean | null>(null);
+    const [reportedCenterY, setReportedCenterY] = useState<number | null>(null);
+    if (reportedOnScreen !== onScreen || reportedCenterY !== surfaceCenterY) {
+        setReportedOnScreen(onScreen);
+        setReportedCenterY(surfaceCenterY);
+        reportVisibility(surfaceCenterY, onScreen);
+    }
+
+    // This screen's own paging decides WHICH row is audible, so the active+focused
+    // surface claims the authority's audible slot outright rather than competing on
+    // position with whatever else is mounted. Publishing to an external store on a
+    // state change is the legitimate effect case.
+    useEffect(() => {
+        if (isActive && screenFocused) {
+            claimActive();
+        }
+    }, [isActive, screenFocused, claimActive]);
+
+    // Drive playback from the active/focused gate, the app-wide authority, AND the
+    // viewer's tap override. The active surface plays from the top when it first
+    // activates; a tap-resume continues from the current position (no
+    // `currentTime = 0` reset) so toggling play/pause does not jump the video back
+    // to the start. Off-screen, blurred, backgrounded (unless in PiP), or
+    // viewer-paused → paused.
+    const shouldPlay = isActive && screenFocused && playbackAllowed && !userPaused;
     useEffect(() => {
         if (shouldPlay) {
             player.play();
@@ -425,6 +499,19 @@ const ActiveVideoSurface = memo<ActiveVideoSurfaceProps>(({
         }
     }, [muted, shouldPlay, onMutedChange, player]);
 
+    // Manual entry into the OS Picture-in-Picture window. This is the ONLY PiP
+    // affordance on web: browsers never start PiP automatically, and
+    // `nativeControls={false}` means there is no built-in button to fall back on.
+    // `startPictureInPicture` rejects when the platform refuses — another player
+    // already owns the single PiP window, or the native build predates the
+    // `supportsPictureInPicture` config-plugin flag (device support, which
+    // `isPictureInPictureSupported()` reports, is a separate question).
+    const handleStartPictureInPicture = useCallback(() => {
+        videoViewRef.current?.startPictureInPicture().catch(() => {
+            toast(t('videos.picture_in_picture_failed'), { type: 'error' });
+        });
+    }, [t]);
+
     // ── Scrubber / seek ─────────────────────────────────────────────
     // Measured track width drives the gesture→time mapping. PanResponder works on
     // both web and native and is confined to the thin bar's own hit area, so it
@@ -471,16 +558,24 @@ const ActiveVideoSurface = memo<ActiveVideoSurfaceProps>(({
     const showPauseAffordance = isActive && screenFocused && userPaused;
     const showScrubber = isActive && screenFocused;
     const showBufferSpinner = isBuffering && isActive && hasRendered;
+    // Hidden while the OS window is already up (the affordance would be a no-op)
+    // and wherever the platform reports no PiP support — Firefox on web, Android
+    // without `FEATURE_PICTURE_IN_PICTURE`, iOS without `AVPictureInPictureController`.
+    const showPipButton = pictureInPictureAllowed && !inPictureInPicture && isPictureInPictureSupported();
 
     return (
         <>
             <VideoView
+                ref={videoViewRef}
                 player={player}
                 style={styles.video}
                 contentFit="contain"
                 nativeControls={false}
                 fullscreenOptions={{ enable: false }}
-                allowsPictureInPicture={false}
+                allowsPictureInPicture={pictureInPictureAllowed}
+                startsPictureInPictureAutomatically={pictureInPictureAllowed}
+                onPictureInPictureStart={handlePictureInPictureStart}
+                onPictureInPictureStop={handlePictureInPictureStop}
             />
 
             {showPoster && (
@@ -534,10 +629,24 @@ const ActiveVideoSurface = memo<ActiveVideoSurfaceProps>(({
             )}
 
             <Pressable style={styles.muteButton} onPress={toggleMute} hitSlop={HIT_SLOP}>
-                <View style={styles.muteButtonInner}>
-                    <Ionicons name={muted ? 'volume-mute' : 'volume-high'} size={22} color="white" />
+                <View style={styles.overlayButtonInner}>
+                    <Ionicons name={muted ? 'volume-mute' : 'volume-high'} size={OVERLAY_BUTTON_ICON_SIZE} color="white" />
                 </View>
             </Pressable>
+
+            {showPipButton && (
+                <Pressable
+                    style={styles.pipButton}
+                    onPress={handleStartPictureInPicture}
+                    hitSlop={HIT_SLOP}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('videos.picture_in_picture')}
+                >
+                    <View style={styles.overlayButtonInner}>
+                        <Ionicons name="browsers-outline" size={OVERLAY_BUTTON_ICON_SIZE} color="white" />
+                    </View>
+                </Pressable>
+            )}
 
             {showScrubber && (
                 <View
@@ -631,12 +740,14 @@ const VideoItem = memo<VideoItemProps>(({
         >
             {canRenderPlayer ? (
                 <ActiveVideoSurface
+                    postId={item.id}
                     videoUrl={item.videoUrl}
                     fallbackVideoUrl={item.fallbackVideoUrl}
                     posterUrl={item.posterUrl}
                     initialDurationSec={item.durationSec}
                     isActive={isActive}
                     screenFocused={screenFocused}
+                    windowHeight={windowHeight}
                     muted={muted}
                     onMutedChange={onMutedChange}
                     onError={handleError}
@@ -1403,6 +1514,17 @@ export default function VideosScreen() {
         return { id: activeVideoPost.id };
     }, [activeVideoPost]);
 
+    // The reel is the viewability source for its own surfaces (native), exactly as
+    // a feed list is for the players inside it: the snapped slide is the only one on
+    // screen, and only while this screen is focused. The focus gate is what releases
+    // the audible slot when another route is pushed on top — the reel stays mounted
+    // underneath, so without it a blurred reel would keep the slot from the newly
+    // focused screen's videos.
+    const viewableVideoKeys = useMemo<ReadonlySet<string>>(
+        () => (isFocused && activeVideoPost ? new Set([activeVideoPost.id]) : new Set()),
+        [isFocused, activeVideoPost],
+    );
+
     // Publish the active post + the comment-posted callback so the RightBar
     // replies panel tracks whichever video is currently active and can bump the
     // comment count after a reply posts. Engagement itself lives on the on-video
@@ -1479,69 +1601,74 @@ export default function VideosScreen() {
                     )}
                 </View>
 
+                {/* The reel publishes its own viewability (the snapped slide) to the
+                    playback authority. A context provider renders no view, so the
+                    slides' layout is untouched. */}
                 {posts.length > 0 && (
-                    Platform.OS === 'web' ? (
-                        // WEB: slides flow in the DOCUMENT — no internal scroller, no
-                        // `overflow-y-scroll`, no height clamp. This plain full-column
-                        // `<View>` grows to the sum of its `100dvh` slides, and the
-                        // BODY/documentElement is the scroller (the `html, body {
-                        // overflow: visible }` reset in `global.css`), exactly like every
-                        // other screen — so wheeling anywhere (over the SideBar, right
-                        // rail, or gutter) scrolls the videos. Scroll-snap is applied to
-                        // the document scroller (scoped to /videos via the mount effect
-                        // above); each slide carries `web:[scroll-snap-align:start]` so it
-                        // rests flush at the viewport top. The active index + infinite
-                        // scroll come from the window scroll listener above. The slides
-                        // stay full COLUMN width (sidebars/rail visible) because this
-                        // `<View>` lives inside the central column, not the viewport.
-                        <View className="web:w-full">
-                            {posts.map((item, index) => (
-                                <VideoItem
-                                    key={item.id}
-                                    item={item}
-                                    isActive={index === currentVisibleIndex}
-                                    isNear={Math.abs(index - currentVisibleIndex) <= ACTIVE_WINDOW_RADIUS}
-                                    screenFocused={isFocused}
-                                    theme={theme}
-                                    onLike={handleLike}
-                                    onComment={handleComment}
-                                    onBoost={handleBoost}
-                                    onShare={handleShare}
-                                    formatCompactNumber={formatCompactNumber}
-                                    muted={globalMuted}
-                                    onMutedChange={handleMuteChange}
-                                    bottomBarHeight={bottomBarHeight}
-                                    t={t}
-                                    windowHeight={WINDOW_HEIGHT}
-                                    viewerId={viewerId}
-                                />
-                            ))}
-                        </View>
-                    ) : (
-                        <FlatList
-                            ref={flatListRef}
-                            data={posts}
-                            renderItem={renderVideoItem}
-                            keyExtractor={keyExtractor}
-                            pagingEnabled
-                            snapToInterval={WINDOW_HEIGHT}
-                            snapToAlignment="start"
-                            decelerationRate="fast"
-                            onEndReached={handleLoadMore}
-                            onEndReachedThreshold={FLATLIST_CONFIG.END_REACHED_THRESHOLD}
-                            onViewableItemsChanged={handleViewableItemsChanged}
-                            viewabilityConfig={VIEWABILITY_CONFIG}
-                            showsVerticalScrollIndicator={false}
-                            removeClippedSubviews
-                            maxToRenderPerBatch={FLATLIST_CONFIG.MAX_TO_RENDER_PER_BATCH}
-                            windowSize={FLATLIST_CONFIG.WINDOW_SIZE}
-                            initialNumToRender={FLATLIST_CONFIG.INITIAL_NUM_TO_RENDER}
-                            style={styles.list}
-                            contentContainerStyle={styles.listContent}
-                            contentInsetAdjustmentBehavior="never"
-                            getItemLayout={getItemLayout}
-                        />
-                    )
+                    <VideoViewabilityProvider viewableKeys={viewableVideoKeys}>
+                        {Platform.OS === 'web' ? (
+                            // WEB: slides flow in the DOCUMENT — no internal scroller, no
+                            // `overflow-y-scroll`, no height clamp. This plain full-column
+                            // `<View>` grows to the sum of its `100dvh` slides, and the
+                            // BODY/documentElement is the scroller (the `html, body {
+                            // overflow: visible }` reset in `global.css`), exactly like every
+                            // other screen — so wheeling anywhere (over the SideBar, right
+                            // rail, or gutter) scrolls the videos. Scroll-snap is applied to
+                            // the document scroller (scoped to /videos via the mount effect
+                            // above); each slide carries `web:[scroll-snap-align:start]` so it
+                            // rests flush at the viewport top. The active index + infinite
+                            // scroll come from the window scroll listener above. The slides
+                            // stay full COLUMN width (sidebars/rail visible) because this
+                            // `<View>` lives inside the central column, not the viewport.
+                            <View className="web:w-full">
+                                {posts.map((item, index) => (
+                                    <VideoItem
+                                        key={item.id}
+                                        item={item}
+                                        isActive={index === currentVisibleIndex}
+                                        isNear={Math.abs(index - currentVisibleIndex) <= ACTIVE_WINDOW_RADIUS}
+                                        screenFocused={isFocused}
+                                        theme={theme}
+                                        onLike={handleLike}
+                                        onComment={handleComment}
+                                        onBoost={handleBoost}
+                                        onShare={handleShare}
+                                        formatCompactNumber={formatCompactNumber}
+                                        muted={globalMuted}
+                                        onMutedChange={handleMuteChange}
+                                        bottomBarHeight={bottomBarHeight}
+                                        t={t}
+                                        windowHeight={WINDOW_HEIGHT}
+                                        viewerId={viewerId}
+                                    />
+                                ))}
+                            </View>
+                        ) : (
+                            <FlatList
+                                ref={flatListRef}
+                                data={posts}
+                                renderItem={renderVideoItem}
+                                keyExtractor={keyExtractor}
+                                pagingEnabled
+                                snapToInterval={WINDOW_HEIGHT}
+                                snapToAlignment="start"
+                                decelerationRate="fast"
+                                onEndReached={handleLoadMore}
+                                onEndReachedThreshold={FLATLIST_CONFIG.END_REACHED_THRESHOLD}
+                                onViewableItemsChanged={handleViewableItemsChanged}
+                                viewabilityConfig={VIEWABILITY_CONFIG}
+                                showsVerticalScrollIndicator={false}
+                                removeClippedSubviews
+                                maxToRenderPerBatch={FLATLIST_CONFIG.MAX_TO_RENDER_PER_BATCH}
+                                windowSize={FLATLIST_CONFIG.WINDOW_SIZE}
+                                initialNumToRender={FLATLIST_CONFIG.INITIAL_NUM_TO_RENDER}
+                                style={styles.list}
+                                contentContainerStyle={styles.listContent}
+                                contentInsetAdjustmentBehavior="never"
+                                getItemLayout={getItemLayout}
+                            />
+                        )}
+                    </VideoViewabilityProvider>
                 )}
 
                 {!isLoading && posts.length === 0 && (
@@ -1607,7 +1734,8 @@ interface VideosStyles {
     scrubberFill: ViewStyle;
     errorBadge: ViewStyle;
     muteButton: ViewStyle;
-    muteButtonInner: ViewStyle;
+    pipButton: ViewStyle;
+    overlayButtonInner: ViewStyle;
     overlay: ViewStyle;
     gradientOverlay: ViewStyle;
     rightActions: ViewStyle;
@@ -1763,14 +1891,21 @@ const styles = StyleSheet.create<VideosStyles>({
     },
     muteButton: {
         position: 'absolute',
-        top: 50,
-        right: 16,
+        top: OVERLAY_BUTTON_TOP,
+        right: OVERLAY_BUTTON_RIGHT,
         zIndex: 10,
     },
-    muteButtonInner: {
-        width: 44,
-        height: 44,
-        borderRadius: 22,
+    pipButton: {
+        position: 'absolute',
+        // Stacked directly under the mute button, same column.
+        top: OVERLAY_BUTTON_TOP + OVERLAY_BUTTON_SIZE + OVERLAY_BUTTON_GAP,
+        right: OVERLAY_BUTTON_RIGHT,
+        zIndex: 10,
+    },
+    overlayButtonInner: {
+        width: OVERLAY_BUTTON_SIZE,
+        height: OVERLAY_BUTTON_SIZE,
+        borderRadius: OVERLAY_BUTTON_SIZE / 2,
         backgroundColor: 'rgba(0, 0, 0, 0.5)',
         justifyContent: 'center',
         alignItems: 'center',

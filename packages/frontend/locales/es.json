@@ -616,7 +616,9 @@
     "less": "menos",
     "original_audio": "Audio original",
     "previous": "Video anterior",
-    "next": "Video siguiente"
+    "next": "Video siguiente",
+    "picture_in_picture": "Imagen en imagen",
+    "picture_in_picture_failed": "No se pudo iniciar Imagen en imagen"
   },
   "common": {
     "unknown": "desconocido",

@@ -249,7 +249,7 @@ export function buildFeedRows({
         const rows: PostFeedRow[] = [];
 
         const flattenNode = (node: ReplyNode, depth: number) => {
-            const item = node.reply as FeedItem;
+            const item = node.reply;
             const isTruncated = depth >= MAX_THREAD_NESTING_DEPTH && node.children.length > 0;
 
             rows.push({

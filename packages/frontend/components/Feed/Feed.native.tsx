@@ -5,6 +5,7 @@ import {
     RefreshControl,
     Platform,
     ScrollView,
+    type LayoutChangeEvent,
     type ViewToken,
     type ScrollViewProps,
     type ViewStyle,
@@ -34,7 +35,9 @@ import {
 } from '@/stores/feedScrollStore';
 import { usePanelChromeTopInset } from '@/components/shell/PanelChrome';
 import { resolveFeedDescriptor, useFeedImpressionTracker } from '@/utils/feedTelemetry';
+import { VideoViewabilityProvider, VideoViewabilityScope } from '@/context/VideoPlaybackContext';
 import {
+    type FeedItem,
     type FeedRow,
     buildFeedRows,
     renderFeedRow,
@@ -110,6 +113,57 @@ const nativeFeedRowKey = (row: NativeFeedRow): string =>
 
 const nativeFeedRowType = (row: NativeFeedRow): string =>
     row.kind === 'auxiliary' ? `feed-${row.key}` : feedRowType(row);
+
+const EMPTY_VIEWABLE_KEYS: ReadonlySet<string> = new Set<string>();
+const EMPTY_ROW_KEYS: readonly string[] = [];
+
+/**
+ * Viewability key this list publishes for its `ListHeaderComponent`. The header
+ * is NOT a data row, so it never appears in `onViewableItemsChanged` — its
+ * on-screen state is derived from this list's own scroll offset and the header's
+ * measured height instead, and handed to the players inside it through a
+ * {@link VideoViewabilityScope}.
+ */
+const FEED_HEADER_VIEWABILITY_KEY = 'feed-header';
+
+/**
+ * The post a row renders NESTED inside itself, mirroring `PostItem`'s own
+ * `nestedPost` resolution. Structural on purpose: `FeedItem` is a union of post /
+ * reply / boost shapes and only some members carry these fields.
+ */
+type NestedPostSource = {
+    boost?: { originalPost?: { id?: string } | null } | null;
+    quotedPost?: { id?: string } | null;
+    originalPost?: { id?: string } | null;
+};
+
+/**
+ * Every post key a viewable row can render a video under.
+ *
+ * `renderFeedRow` renders a BOOST as its original post, and a quote renders its
+ * quoted post as a nested `PostItem` — each of those reports ITS OWN post id as
+ * the video's viewability key. Publishing only the row item's key would leave a
+ * boosted or quoted video permanently "not visible", i.e. never playing.
+ */
+function collectRowVideoKeys(item: FeedItem, into: string[]): void {
+    into.push(getItemKey(item));
+    const nesting = item as NestedPostSource;
+    const nestedId =
+        nesting.boost?.originalPost?.id ?? nesting.quotedPost?.id ?? nesting.originalPost?.id;
+    if (nestedId) into.push(String(nestedId));
+}
+
+function sameKeys(a: ReadonlySet<string>, b: ReadonlySet<string>): boolean {
+    if (a === b) return true;
+    if (a.size !== b.size) return false;
+    // Compared in ITERATION order, not merely by membership: the published order IS
+    // the audible slot's ranking, so a reordered set is a real change.
+    const next = b.values();
+    for (const key of a) {
+        if (next.next().value !== key) return false;
+    }
+    return true;
+}
 
 /**
  * A non-scrolling ScrollView replacement for FlashList.
@@ -346,32 +400,96 @@ const Feed = ((props: FeedProps) => {
 
     // Memoize renderPostItem to prevent recreating on every render
     const renderPostItem = useCallback(({ item: row }: { item: NativeFeedRow; index: number }) => {
-        if (row.kind === 'auxiliary') return row.element;
+        // An auxiliary row (sticky header, a profile's pinned post) IS a real list
+        // row, so the list reports whether it is on screen — but the players inside
+        // it are keyed by post id, which this list cannot know. Scope the subtree to
+        // the ROW's own key so it goes silent when the row scrolls away.
+        if (row.kind === 'auxiliary') {
+            return (
+                <VideoViewabilityScope viewabilityKey={nativeFeedRowKey(row)}>
+                    {row.element}
+                </VideoViewabilityScope>
+            );
+        }
         return renderFeedRow(row, { router, threadLineColor: theme.colors.border, feedDescriptor });
     }, [router, theme.colors.border, feedDescriptor]);
+
+    // Everything currently on screen, published to the video playback authority in
+    // on-screen order (native has no IntersectionObserver, so this list IS the
+    // visibility source for the players inside it). Two inputs feed it — FlashList's
+    // viewability tokens for the rows, and this list's own scroll geometry for the
+    // header, which is not a row — so both are held imperatively and the published
+    // set is rebuilt from them.
+    const [viewableVideoKeys, setViewableVideoKeys] = useState<ReadonlySet<string>>(EMPTY_VIEWABLE_KEYS);
+    const rowViewableKeysRef = useRef<readonly string[]>(EMPTY_ROW_KEYS);
+    const headerOnScreenRef = useRef(false);
+    const headerBottomRef = useRef(0);
+    const scrollOffsetRef = useRef(0);
+
+    const publishViewableKeys = useCallback(() => {
+        const keys = new Set<string>();
+        // The header sits above every row, so publishing it first makes a video
+        // inside it outrank the rows for the single audible slot while it shows.
+        if (headerOnScreenRef.current) keys.add(FEED_HEADER_VIEWABILITY_KEY);
+        for (const key of rowViewableKeysRef.current) keys.add(key);
+        setViewableVideoKeys((previous) => (sameKeys(previous, keys) ? previous : keys));
+    }, []);
+
+    // The header spans [topInset, topInset + height) of the scrollable content, so
+    // it is on screen exactly while the scroll offset has not passed its bottom
+    // edge. Starts false: until it has been measured, silence is the safe answer.
+    //
+    // An EMBEDDED feed (`scrollEnabled === false`) is scrolled by a parent it can
+    // neither see nor measure, so it genuinely cannot report this — and an
+    // unreportable subtree resolves to silent, never to "assume visible".
+    const ownsScroll = scrollEnabled !== false;
+    const syncHeaderOnScreen = useCallback(() => {
+        const onScreen = ownsScroll && scrollOffsetRef.current < headerBottomRef.current;
+        if (headerOnScreenRef.current === onScreen) return;
+        headerOnScreenRef.current = onScreen;
+        publishViewableKeys();
+    }, [ownsScroll, publishViewableKeys]);
+
+    const handleHeaderLayout = useCallback((event: LayoutChangeEvent) => {
+        headerBottomRef.current = topInset + event.nativeEvent.layout.height;
+        syncHeaderOnScreen();
+    }, [topInset, syncHeaderOnScreen]);
 
     // Impression tracking: reconcile the full viewable set on each change.
     // FlashList REQUIRES a stable onViewableItemsChanged identity (it warns/throws
     // on a changing callback), so this is created ONCE and reads both the tracker
-    // and the focus flag through ref objects. Only a FOCUSED feed reports — a
-    // background feed isn't actually being viewed by the user.
+    // and the focus flag through ref objects. Only a FOCUSED feed REPORTS
+    // impressions — a background feed isn't actually being viewed by the user —
+    // but viewability itself is a fact about the list, so video visibility is
+    // published either way (a blurred screen's players are gated on focus anyway).
     const isFocusedRef = useRef(isFocused);
     isFocusedRef.current = isFocused;
     const handleViewableItemsChanged = useCallback(
         ({ viewableItems }: { viewableItems: ViewToken[]; changed: ViewToken[] }) => {
-            if (!isFocusedRef.current) return;
             const visibleUris: string[] = [];
+            const rowKeys: string[] = [];
             for (const token of viewableItems) {
                 if (!token.isViewable) continue;
                 const row = token.item as NativeFeedRow | undefined;
+                if (!row) continue;
+                // An auxiliary row produces no impression, but can hold a video (a
+                // profile's pinned post), so it publishes its ROW key for the scope.
+                if (row.kind === 'auxiliary') {
+                    rowKeys.push(nativeFeedRowKey(row));
+                    continue;
+                }
                 // Only post rows produce impressions — a recommendation card has no
                 // post to report, and must never reach `/feed/mtn/interactions`.
-                if (row?.kind !== 'post') continue;
-                if (row.item) visibleUris.push(getItemKey(row.item));
+                if (row.kind !== 'post' || !row.item) continue;
+                visibleUris.push(getItemKey(row.item));
+                collectRowVideoKeys(row.item, rowKeys);
             }
+            rowViewableKeysRef.current = rowKeys;
+            publishViewableKeys();
+            if (!isFocusedRef.current) return;
             impressionTracker.current.syncVisible(visibleUris);
         },
-        [impressionTracker]
+        [impressionTracker, publishViewableKeys]
     );
 
     const keyExtractor = useCallback((row: NativeFeedRow) => nativeFeedRowKey(row), []);
@@ -443,11 +561,15 @@ const Feed = ((props: FeedProps) => {
             : contentOffset?.y;
         if (typeof offsetY === 'number' && Number.isFinite(offsetY)) {
             setFeedScrollOffset(feedState.feedScrollKey, offsetY);
+            // The header is not a data row, so this is the only signal that tells
+            // the playback authority a video inside it has scrolled off screen.
+            scrollOffsetRef.current = offsetY;
+            syncHeaderOnScreen();
         }
         if (handleScroll) {
             handleScroll(event);
         }
-    }, [feedState.feedScrollKey, handleScroll, scrollEnabled, isFocused]);
+    }, [feedState.feedScrollKey, handleScroll, scrollEnabled, isFocused, syncHeaderOnScreen]);
 
     // Memoize RefreshControl to prevent recreation on every render. When the feed
     // scrolls behind the overlay chrome, offset the pull-to-refresh spinner by the
@@ -493,10 +615,19 @@ const Feed = ((props: FeedProps) => {
         [style, scrollEnabled]
     );
 
-    // Memoize header component
+    // Memoize header component. The header is not a data row, so it gets no
+    // viewability token: it is measured here instead, and the players inside it —
+    // the focused post on the post-detail screen, for one — read the resulting
+    // on-screen state through the scope rather than being assumed visible.
     const headerComponent = useMemo(
-        () => listHeaderComponent ?? <FeedHeader showComposeButton={showComposeButton} onComposePress={onComposePress} hideHeader={hideHeader} />,
-        [listHeaderComponent, showComposeButton, onComposePress, hideHeader]
+        () => (
+            <VideoViewabilityScope viewabilityKey={FEED_HEADER_VIEWABILITY_KEY}>
+                <View onLayout={handleHeaderLayout}>
+                    {listHeaderComponent ?? <FeedHeader showComposeButton={showComposeButton} onComposePress={onComposePress} hideHeader={hideHeader} />}
+                </View>
+            </VideoViewabilityScope>
+        ),
+        [listHeaderComponent, showComposeButton, onComposePress, hideHeader, handleHeaderLayout]
     );
 
     // Memoize empty state retry handler
@@ -564,40 +695,44 @@ const Feed = ((props: FeedProps) => {
                 className={scrollEnabled === false ? "bg-background" : "flex-1 bg-background"}
                 style={[{ minHeight: 0 }, scrollEnabled !== false && containerStyle]}
             >
-                <FlashList
-                    ref={assignListRef}
-                    data={listRows}
-                    renderItem={renderPostItem}
-                    keyExtractor={keyExtractor}
-                    getItemType={getItemType}
-                    extraData={dataHash}
-                    ListHeaderComponent={headerComponent}
-                    ListEmptyComponent={renderedEmptyComponent}
-                    ListFooterComponent={renderedFooterComponent}
-                    stickyHeaderIndices={listStickyHeaderComponent ? [0] : undefined}
-                    scrollEnabled={scrollEnabled}
-                    {...(scrollEnabled === false ? { renderScrollComponent: NonScrollingScrollComponent } : {})}
-                    refreshControl={refreshControl}
-                    onEndReached={handleLoadMore}
-                    onEndReachedThreshold={0.7}
-                    onViewableItemsChanged={handleViewableItemsChanged}
-                    viewabilityConfig={IMPRESSION_VIEWABILITY_CONFIG}
-                    showsVerticalScrollIndicator={false}
-                    keyboardShouldPersistTaps="handled"
-                    onScroll={scrollEnabled === false ? undefined : handleScrollEvent}
-                    scrollEventThrottle={scrollEnabled === false ? undefined : scrollEventThrottle}
-                    contentContainerStyle={listContentStyle}
-                    style={listStyle}
-                    // FlashList v2 perf levers. v2 auto-measures rows (no
-                    // estimatedItemSize) and recycles by `getItemType`; the v1/FlatList
-                    // props (maxToRenderPerBatch, windowSize, initialNumToRender,
-                    // updateCellsBatchingPeriod, removeClippedSubviews) and the
-                    // size-setting overrideItemLayout were no-ops here and have been
-                    // dropped. Cap the recycle pool so off-screen rows release memory
-                    // instead of accumulating during long sessions.
-                    drawDistance={FEED_DRAW_DISTANCE}
-                    maxItemsInRecyclePool={20}
-                />
+                {/* This list owns viewability for every video inside it: a player
+                    whose row is not viewable is not visible, so it cannot play. */}
+                <VideoViewabilityProvider viewableKeys={viewableVideoKeys}>
+                    <FlashList
+                        ref={assignListRef}
+                        data={listRows}
+                        renderItem={renderPostItem}
+                        keyExtractor={keyExtractor}
+                        getItemType={getItemType}
+                        extraData={dataHash}
+                        ListHeaderComponent={headerComponent}
+                        ListEmptyComponent={renderedEmptyComponent}
+                        ListFooterComponent={renderedFooterComponent}
+                        stickyHeaderIndices={listStickyHeaderComponent ? [0] : undefined}
+                        scrollEnabled={scrollEnabled}
+                        {...(scrollEnabled === false ? { renderScrollComponent: NonScrollingScrollComponent } : {})}
+                        refreshControl={refreshControl}
+                        onEndReached={handleLoadMore}
+                        onEndReachedThreshold={0.7}
+                        onViewableItemsChanged={handleViewableItemsChanged}
+                        viewabilityConfig={IMPRESSION_VIEWABILITY_CONFIG}
+                        showsVerticalScrollIndicator={false}
+                        keyboardShouldPersistTaps="handled"
+                        onScroll={scrollEnabled === false ? undefined : handleScrollEvent}
+                        scrollEventThrottle={scrollEnabled === false ? undefined : scrollEventThrottle}
+                        contentContainerStyle={listContentStyle}
+                        style={listStyle}
+                        // FlashList v2 perf levers. v2 auto-measures rows (no
+                        // estimatedItemSize) and recycles by `getItemType`; the v1/FlatList
+                        // props (maxToRenderPerBatch, windowSize, initialNumToRender,
+                        // updateCellsBatchingPeriod, removeClippedSubviews) and the
+                        // size-setting overrideItemLayout were no-ops here and have been
+                        // dropped. Cap the recycle pool so off-screen rows release memory
+                        // instead of accumulating during long sessions.
+                        drawDistance={FEED_DRAW_DISTANCE}
+                        maxItemsInRecyclePool={20}
+                    />
+                </VideoViewabilityProvider>
             </View>
         </ErrorBoundary>
     );

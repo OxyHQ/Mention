@@ -1,10 +1,11 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { View, Pressable, StyleSheet, Text, Platform, type StyleProp, type ViewStyle, type GestureResponderEvent } from 'react-native';
 import { Image } from 'expo-image';
 import { VideoView, useVideoPlayer } from 'expo-video';
+import { useEvent, useEventListener } from 'expo';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useVideoMuteStore } from '@/stores/videoMuteStore';
-import { useActiveVideo } from '@/context/ActiveVideoContext';
+import { useVideoPlayback } from '@/context/VideoPlaybackContext';
 
 interface VideoPlayerProps {
   src: string;
@@ -32,6 +33,14 @@ interface VideoPlayerProps {
    * GIFs stored as mp4. Leaves all other behavior untouched when unset.
    */
   gif?: boolean;
+  /**
+   * Key the nearest viewability source knows this player's row by — on native
+   * feeds, the post key the list publishes from `onViewableItemsChanged`. Without
+   * it a player inside a list falls back to "visible while its screen is
+   * focused", which is the right answer for screens that own no list (post
+   * detail, single-video screens) and too permissive inside one.
+   */
+  viewabilityKey?: string;
   /**
    * Reports the video's intrinsic aspect ratio (width / height) once the source's
    * metadata loads. A feed card uses this to give itself a DEFINITE, aspect-correct
@@ -62,18 +71,23 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
   poster,
   onPress,
   gif = false,
+  viewabilityKey,
   onAspectRatio,
 }) => {
   const isPreviewMode = onPress !== undefined && !gif;
   const { isMuted, toggleMuted } = useVideoMuteStore();
 
-  // "Only the on-screen video plays" coordination (Bluesky web mechanism). GIFs
-  // do NOT participate — they always loop/autoplay — so they ignore `active`
-  // entirely. Outside a feed (no Provider) or on native, `useActiveVideo`
-  // returns `active: true`, preserving today's autoplay.
-  const { active, setActive, sendPosition } = useActiveVideo();
-  const effectiveActive = gif ? true : active;
-  const [isPlaying, setIsPlaying] = useState(false);
+  // The app-wide playback authority decides whether this player may play at all
+  // (visible + screen focused + app foregrounded) and whether it owns the single
+  // audible slot. GIF mode is `silent`: still visibility-gated, but it never
+  // competes for that slot, so several visible GIFs may loop at once.
+  const playerInstanceId = useId();
+  const { shouldPlay, claimActive, reportVisibility } = useVideoPlayback({
+    id: playerInstanceId,
+    viewabilityKey,
+    silent: gif,
+  });
+
   const [showControls, setShowControls] = useState(true);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -85,13 +99,21 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
   const [posterFailed, setPosterFailed] = useState(false);
   // Dedupes the aspect-ratio callback: emit at most once per distinct ratio per
   // source, so repeated metadata events don't churn the parent's state.
-  const lastReportedRatio = useRef<number | null>(null);
+  const [reportedRatio, setReportedRatio] = useState<number | null>(null);
 
-  useEffect(() => {
+  // Reset the per-source state when the source changes. Adjusted during render
+  // via a previous-value tracker rather than in an effect, so a new source never
+  // paints a frame carrying the previous video's poster/duration state. See
+  // React "You Might Not Need an Effect".
+  const [prevSrc, setPrevSrc] = useState(src);
+  if (prevSrc !== src) {
+    setPrevSrc(src);
     setHasRenderedFrame(false);
     setPosterFailed(false);
-    lastReportedRatio.current = null;
-  }, [src]);
+    setReportedRatio(null);
+    setDuration(0);
+    setCurrentTime(0);
+  }
 
   const handlePosterError = useCallback(() => setPosterFailed(true), []);
 
@@ -100,26 +122,24 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
     (width?: number, height?: number) => {
       if (!onAspectRatio || !width || !height || width <= 0 || height <= 0) return;
       const ratio = width / height;
-      if (!Number.isFinite(ratio) || ratio <= 0 || lastReportedRatio.current === ratio) return;
-      lastReportedRatio.current = ratio;
+      if (!Number.isFinite(ratio) || ratio <= 0 || reportedRatio === ratio) return;
+      setReportedRatio(ratio);
       onAspectRatio(ratio);
     },
-    [onAspectRatio],
+    [onAspectRatio, reportedRatio],
   );
 
   const videoViewRef = useRef<InstanceType<typeof VideoView>>(null);
   const hideControlsTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const progressBarRef = useRef<View>(null);
   // Root container — observed by an IntersectionObserver on web to report this
-  // player's viewport center-Y to the active-video coordinator.
+  // player's viewport center-Y AND whether it still intersects the viewport.
   const containerRef = useRef<View>(null);
 
   const player = useVideoPlayer(src, (p) => {
-    if (p) {
-      p.loop = gif ? true : loop;
-      p.muted = gif ? true : isMuted;
-      p.timeUpdateEventInterval = TIME_UPDATE_INTERVAL;
-    }
+    p.loop = gif ? true : loop;
+    p.muted = gif ? true : isMuted;
+    p.timeUpdateEventInterval = TIME_UPDATE_INTERVAL;
   });
 
   const scheduleHideControls = useCallback(() => {
@@ -133,65 +153,55 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
 
   // Sync mute state from global store (GIFs stay force-muted regardless).
   useEffect(() => {
-    if (player) {
-      player.muted = gif ? true : isMuted;
-    }
+    player.muted = gif ? true : isMuted;
   }, [isMuted, player, gif]);
 
-  // Listen to player events
+  // Player events. `useEvent` / `useEventListener` (from expo) own the
+  // subscription AND its removal, so playback state is derived from the player's
+  // own event stream instead of hand-rolled listener effects.
+  const { isPlaying } = useEvent(player, 'playingChange', { isPlaying: false });
+
+  useEventListener(player, 'playingChange', ({ isPlaying: playing }) => {
+    if (playing) {
+      scheduleHideControls();
+    }
+  });
+
+  useEventListener(player, 'timeUpdate', ({ currentTime: time }) => {
+    if (!isSeeking) {
+      setCurrentTime(time);
+    }
+  });
+
+  useEventListener(player, 'statusChange', ({ status }) => {
+    if (status !== 'readyToPlay') return;
+    setHasRenderedFrame(true);
+    if (player.duration > 0) {
+      setDuration(player.duration);
+    }
+    reportAspectRatio(player.videoTrack?.size?.width, player.videoTrack?.size?.height);
+  });
+
+  useEventListener(player, 'sourceLoad', ({ duration: loadedDuration, availableVideoTracks }) => {
+    if (loadedDuration > 0) {
+      setDuration(loadedDuration);
+    }
+    const track = availableVideoTracks?.find(
+      (t) => t.size?.width > 0 && t.size?.height > 0,
+    );
+    if (track) {
+      reportAspectRatio(track.size.width, track.size.height);
+    }
+  });
+
+  // Web only: this player's own IntersectionObserver is its visibility source. It
+  // reports BOTH the viewport center-Y (which contests the single audible slot)
+  // and whether the player still intersects the viewport at all — the latter is
+  // what makes a video that scrolled past go silent instead of playing forever.
+  // GIFs report too: they never compete for audio, but an off-screen GIF must
+  // stop decoding.
   useEffect(() => {
-    if (!player) return;
-
-    const playingSub = player.addListener('playingChange', ({ isPlaying: playing }) => {
-      setIsPlaying(playing);
-      if (playing) {
-        scheduleHideControls();
-      }
-    });
-
-    const timeUpdateSub = player.addListener('timeUpdate', ({ currentTime: time }) => {
-      if (!isSeeking) {
-        setCurrentTime(time);
-      }
-    });
-
-    const statusSub = player.addListener('statusChange', ({ status }) => {
-      if (status === 'readyToPlay') {
-        setHasRenderedFrame(true);
-        if (player.duration > 0) {
-          setDuration(player.duration);
-        }
-        reportAspectRatio(player.videoTrack?.size?.width, player.videoTrack?.size?.height);
-      }
-    });
-
-    const sourceLoadSub = player.addListener('sourceLoad', ({ duration: dur, availableVideoTracks }) => {
-      if (dur > 0) {
-        setDuration(dur);
-      }
-      const track = availableVideoTracks?.find(
-        (t) => t.size?.width > 0 && t.size?.height > 0,
-      );
-      if (track) {
-        reportAspectRatio(track.size.width, track.size.height);
-      }
-    });
-
-    return () => {
-      playingSub.remove();
-      timeUpdateSub.remove();
-      statusSub.remove();
-      sourceLoadSub.remove();
-    };
-  }, [isSeeking, player, reportAspectRatio, scheduleHideControls]);
-
-  // Web only: report this player's viewport position to the active-video
-  // coordinator via an IntersectionObserver (threshold 0.5), exactly like
-  // Bluesky. GIFs never compete (they always play), so they skip this entirely.
-  useEffect(() => {
-    if (gif) return;
     if (Platform.OS !== 'web') return;
-    if (typeof window === 'undefined' || !('IntersectionObserver' in window)) return;
 
     // Resolve the underlying DOM node from the react-native-web View ref. RNW
     // exposes it via `_nativeNode`/`getNode()` (neither is on the typed ref),
@@ -199,56 +209,47 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
     const ref = containerRef.current as
       | (View & { _nativeNode?: Element; getNode?: () => Element })
       | null;
-    const element: Element | View | null =
-      ref?._nativeNode ?? ref?.getNode?.() ?? ref;
-    if (!element || (element as Partial<Element>).nodeType === undefined) return;
+    const node: Element | View | null = ref?._nativeNode ?? ref?.getNode?.() ?? ref;
+    const element = node && (node as Partial<Element>).nodeType !== undefined
+      ? (node as Element)
+      : null;
+
+    if (!element || typeof window === 'undefined' || !('IntersectionObserver' in window)) {
+      // No observer to report with (no DOM node resolved, or a runtime without
+      // IntersectionObserver): treat the player as visible so the screen still
+      // works, rather than silently never playing.
+      reportVisibility(0, true);
+      return;
+    }
 
     const observer = new IntersectionObserver(
       (entries) => {
-        const entry = entries[0];
+        const entry = entries[entries.length - 1];
         if (!entry) return;
-        sendPosition(
+        reportVisibility(
           entry.boundingClientRect.y + entry.boundingClientRect.height / 2,
+          entry.isIntersecting,
         );
       },
       { threshold: 0.5 },
     );
-    observer.observe(element as Element);
+    observer.observe(element);
     return () => observer.disconnect();
-  }, [gif, sendPosition]);
+  }, [reportVisibility]);
 
-  // Auto-play — gated on the active-video coordinator. Only the single active
-  // (on-screen) video plays; a non-active video pauses. GIFs are forced active
-  // so they always loop. Outside a feed / on native, `active` is always true,
-  // preserving today's autoplay.
+  // The ONE playback signal: the authority already folded visibility, screen
+  // focus, app foreground and the single-audible-slot rule into `shouldPlay`.
+  // `autoPlay` only gates AUTOMATIC start, so a manually started video keeps
+  // playing; anything the authority disallows always pauses.
   useEffect(() => {
-    if (!player) return;
-    if (autoPlay && effectiveActive) {
-      const play = async () => {
-        try {
-          await player.play();
-        } catch {
-          // Autoplay may be blocked
-        }
-      };
-      play();
-    } else {
-      try {
-        player.pause();
-      } catch {
-        // Silently handle
-      }
+    if (!shouldPlay) {
+      player.pause();
+      return;
     }
-    return () => {
-      if (player) {
-        try {
-          player.pause();
-        } catch {
-          // Silently handle
-        }
-      }
-    };
-  }, [player, autoPlay, effectiveActive]);
+    if (autoPlay) {
+      player.play();
+    }
+  }, [player, shouldPlay, autoPlay]);
 
   useEffect(() => {
     return () => {
@@ -269,25 +270,20 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
   }, [isPlaying, scheduleHideControls]);
 
   const handlePlayPause = useCallback(() => {
-    if (!player) return;
-    try {
-      if (isPlaying) {
-        player.pause();
-        // Keep controls visible when paused
-        if (hideControlsTimer.current) {
-          clearTimeout(hideControlsTimer.current);
-        }
-      } else {
-        // Manual play wins: claim active status so this becomes THE playing
-        // video (and any other on-screen video pauses), mirroring Bluesky.
-        setActive();
-        player.play();
-        scheduleHideControls();
+    if (isPlaying) {
+      player.pause();
+      // Keep controls visible when paused
+      if (hideControlsTimer.current) {
+        clearTimeout(hideControlsTimer.current);
       }
-    } catch {
-      // Silently handle
+      return;
     }
-  }, [player, isPlaying, scheduleHideControls, setActive]);
+    // Manual play wins: claim the audible slot so this becomes THE playing video
+    // and every other on-screen video pauses.
+    claimActive();
+    player.play();
+    scheduleHideControls();
+  }, [player, isPlaying, scheduleHideControls, claimActive]);
 
   const handleMuteToggle = useCallback(() => {
     toggleMuted();
@@ -312,7 +308,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
 
   const handleProgressBarPress = useCallback(
     (event: GestureResponderEvent) => {
-      if (!player || duration <= 0) return;
+      if (duration <= 0) return;
 
       progressBarRef.current?.measure((_x, _y, width, _height, _pageX, _pageY) => {
         if (!width || width <= 0) return;

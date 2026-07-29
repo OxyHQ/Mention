@@ -83,6 +83,12 @@ interface PostAttachmentMediaProps {
    */
   alt?: string;
   mediaId?: string;
+  /**
+   * Id of the post this cell belongs to. Video/GIF cells hand it to the playback
+   * authority as their viewability key: on native it is the key the feed list
+   * publishes from `onViewableItemsChanged`, so a player only plays while its row
+   * is actually viewable.
+   */
   postId?: string;
   /** Poster (thumbnail) shown over the video until the first frame plays. */
   poster?: string;
@@ -120,10 +126,11 @@ const PostAttachmentVideo: React.FC<{
   aspectRatio?: number;
   width?: number;
   height?: number;
+  postId?: string;
   onPress?: () => void;
   hasSingleMedia?: boolean;
   hasMultipleMedia?: boolean;
-}> = ({ src, poster, aspectRatio, width, height, onPress, hasSingleMedia, hasMultipleMedia }) => {
+}> = ({ src, poster, aspectRatio, width, height, postId, onPress, hasSingleMedia, hasMultipleMedia }) => {
   const initialRatio = readMediaAspectRatio({ aspectRatio, width, height });
   const { cardStyle, onAspectRatio } = useSingleMediaCardStyle(initialRatio);
   return (
@@ -143,6 +150,7 @@ const PostAttachmentVideo: React.FC<{
         autoPlay={true}
         loop={true}
         onPress={onPress}
+        viewabilityKey={postId}
         onAspectRatio={hasSingleMedia ? onAspectRatio : undefined}
       />
       <MediaInsetBorder style={styles.mediaBorder} />
@@ -158,9 +166,10 @@ const PostAttachmentGif: React.FC<{
   aspectRatio?: number;
   width?: number;
   height?: number;
+  postId?: string;
   hasSingleMedia?: boolean;
   hasMultipleMedia?: boolean;
-}> = ({ src, aspectRatio, width, height, hasSingleMedia, hasMultipleMedia }) => {
+}> = ({ src, aspectRatio, width, height, postId, hasSingleMedia, hasMultipleMedia }) => {
   const initialRatio = readMediaAspectRatio({ aspectRatio, width, height });
   const { cardStyle, onAspectRatio } = useSingleMediaCardStyle(initialRatio);
   return (
@@ -179,6 +188,7 @@ const PostAttachmentGif: React.FC<{
         autoPlay={true}
         loop={true}
         gif={true}
+        viewabilityKey={postId}
         onAspectRatio={hasSingleMedia ? onAspectRatio : undefined}
       />
       <MediaInsetBorder style={styles.mediaBorder} />
@@ -372,6 +382,7 @@ const PostAttachmentMedia: React.FC<PostAttachmentMediaProps> = ({
   src,
   alt,
   poster,
+  postId,
   width,
   height,
   aspectRatio,
@@ -394,6 +405,7 @@ const PostAttachmentMedia: React.FC<PostAttachmentMediaProps> = ({
         width={width}
         height={height}
         aspectRatio={aspectRatio}
+        postId={postId}
         onPress={onPress}
         hasSingleMedia={hasSingleMedia}
         hasMultipleMedia={hasMultipleMedia}
@@ -406,6 +418,7 @@ const PostAttachmentMedia: React.FC<PostAttachmentMediaProps> = ({
         width={width}
         height={height}
         aspectRatio={aspectRatio}
+        postId={postId}
         hasSingleMedia={hasSingleMedia}
         hasMultipleMedia={hasMultipleMedia}
       />
