@@ -86,6 +86,38 @@ describe('trendsStore series', () => {
   });
 });
 
+describe('trend identity', () => {
+  it('keeps the same id across batches, so a row is never re-keyed', async () => {
+    // The server writes a NEW `Trending` document per batch, so its `_id` differs
+    // every 30 minutes for the same trend. This id is the React list key: if it
+    // moved with the row, every update would unmount the row and mount a
+    // replacement, throwing away the sparkline's SVG subtree and repainting it
+    // — which would mask a chart that never re-derived its geometry.
+    respond([{ ...trend('tech'), _id: 'row-in-batch-1' }]);
+    await useTrendsStore.getState().fetchTrends();
+    const first = useTrendsStore.getState().trends[0].id;
+
+    respond([{ ...trend('tech'), _id: 'row-in-batch-2' }], 'batch-2');
+    await useTrendsStore.getState().fetchTrends({ silent: true });
+
+    expect(useTrendsStore.getState().trends[0].id).toBe(first);
+    expect(first).not.toContain('row-in-batch');
+  });
+
+  it('separates a hashtag from a topic of the same name', async () => {
+    // The server's own unique index is `{ name, calculatedAt, type }` — the two
+    // are different trends and must not collapse onto one key.
+    respond([
+      { ...trend('art'), type: 'hashtag' },
+      { ...trend('art'), type: 'topic' },
+    ]);
+    await useTrendsStore.getState().fetchTrends();
+
+    const [a, b] = useTrendsStore.getState().trends;
+    expect(a.id).not.toBe(b.id);
+  });
+});
+
 describe('resyncAfterReconnect', () => {
   it('refetches the WHOLE list, never appending the batch it missed', async () => {
     respond([trend('tech', [1, 2, 3, 4, 5, 6])]);

@@ -10,7 +10,8 @@ import type { Trend } from '@/interfaces/Trend';
 const POLL_INTERVAL_MS = 300_000; // 5 minutes
 
 interface TrendApiItem {
-  _id?: string;
+  // The wire carries a per-batch `_id`; it is deliberately not read. See
+  // `trendIdentity` for why a row id is the wrong identity for a trend.
   name: string;
   type?: Trend['type'];
   description?: string;
@@ -65,6 +66,33 @@ interface TrendsStore {
   resetViewerState: () => void;
 }
 
+/**
+ * The identity of a TREND, not of the row that happened to carry it.
+ *
+ * The server inserts a fresh `Trending` document for every name in every batch,
+ * so its `_id` changes each time the job runs even when the trend is the same
+ * one. Using that as the client-side id made three separate things wrong:
+ *
+ *  - It is the React list key. A new key every batch UNMOUNTS each row and
+ *    mounts a replacement, so the sparkline's whole SVG subtree was thrown away
+ *    and rebuilt on every update. That repaint hides a frozen memo — a chart
+ *    that never re-derived its geometry would still show the new shape, because
+ *    it was a brand-new chart — which is exactly the failure a "the line moved"
+ *    check is supposed to be able to see.
+ *  - It is the key `hideTrend` records. Hiding a trend lasted only until the
+ *    next batch, after which the same trend came back under a new id.
+ *  - It is the first thing `fetchTrends` compares to decide whether anything
+ *    changed. Comparing ids that differ by construction made that answer
+ *    unconditionally "yes", so none of the careful comparison below it could
+ *    ever take effect.
+ *
+ * `type` is part of the key because a hashtag and a topic can legitimately share
+ * a name — the server's own unique index is `{ name, calculatedAt, type }`.
+ */
+function trendIdentity(type: NonNullable<Trend['type']>, name: string): string {
+  return `${type}:${name}`;
+}
+
 function momentumToDirection(momentum: number): 'up' | 'down' | 'flat' {
   if (momentum > 0.3) return 'up';
   if (momentum < -0.1) return 'down';
@@ -99,9 +127,10 @@ export const useTrendsStore = create<TrendsStore>()(
           const recId = response.data.recId;
           const next = items.map((item) => {
             const series = parseSeries(item.series);
+            const type = item.type || 'hashtag';
             return {
-              id: item._id || item.name,
-              type: item.type || 'hashtag',
+              id: trendIdentity(type, item.name),
+              type,
               text: item.name,
               hashtag: item.type === 'hashtag' ? `#${item.name}` : item.name,
               description: item.description || '',

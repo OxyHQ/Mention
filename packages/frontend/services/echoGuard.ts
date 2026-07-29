@@ -8,7 +8,7 @@ const recentActions: Map<string, Record<EchoAction, number>> = new Map();
 const CLEANUP_INTERVAL_MS = 30_000;
 const STALE_THRESHOLD_MS = 5_000;
 
-setInterval(() => {
+const cleanupTimer = setInterval(() => {
   const now = Date.now();
   for (const [postId, rec] of recentActions.entries()) {
     const allStale = Object.values(rec).every((ts) => now - ts > STALE_THRESHOLD_MS);
@@ -17,6 +17,13 @@ setInterval(() => {
     }
   }
 }, CLEANUP_INTERVAL_MS);
+
+// Housekeeping must never be the reason a process stays alive. On Node (Jest)
+// a referenced interval on a module-level singleton holds the event loop open
+// forever, which is why importing anything that reaches this module — the whole
+// posts/socket graph — used to hang the test run instead of failing. RN/web
+// return a numeric handle with no `unref`, so the optional call no-ops there.
+cleanupTimer.unref?.();
 
 export const markLocalAction = (postId: string, action: EchoAction) => {
   const now = Date.now();

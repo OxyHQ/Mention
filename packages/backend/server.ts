@@ -4,6 +4,7 @@ import mongoose from "mongoose";
 import { hostname } from 'os';
 import { connectToDatabase } from "./src/utils/database";
 import { Server as SocketIOServer, Namespace } from "socket.io";
+import { PUBLIC_REALTIME_NAMESPACE } from "@mention/shared-types";
 import { logger, sanitizeLogValue } from "./src/utils/logger";
 import { config, validateEnvironment } from './src/config';
 import { isAllowedOrigin } from "./src/utils/allowedOrigins";
@@ -233,9 +234,26 @@ const configureNamespaceErrorHandling = (namespace: Namespace) => {
 const notificationsNamespace = io.of("/notifications");
 const postsNamespace = io.of("/posts");
 
+/**
+ * The one namespace on this server with NO auth middleware.
+ *
+ * It exists because trending is a public surface: a signed-out visitor sees the
+ * widget, and every other namespace here rejects a client with no session, so
+ * anonymous readers had no push path at all. The admission rule for what may be
+ * emitted here — public by definition, broadcast to everyone, notice not payload
+ * — is documented with `PUBLIC_REALTIME_NAMESPACE` in `@mention/shared-types`.
+ * Read it before adding an event.
+ *
+ * There are no rooms here and no inbound message handlers, deliberately: with no
+ * `socket.user.id` to derive a room from, any room key would have to come from
+ * client input, which is exactly the shape this codebase forbids.
+ */
+const publicNamespace = io.of(PUBLIC_REALTIME_NAMESPACE);
+
 // --- Socket Auth Middleware ---
 // Use oxy.authSocket() which validates tokens via jwtDecode + Oxy API session validation.
 // This matches how oxy.auth() works for HTTP — no local JWT_SECRET needed.
+// `publicNamespace` is intentionally absent from this list; see its doc comment.
 const oxySocketAuth = oxy.authSocket();
 const authTargets: Array<Namespace | SocketIOServer> = [notificationsNamespace, postsNamespace, io];
 authTargets.forEach((namespaceOrServer) => {
@@ -354,10 +372,22 @@ postsNamespace.on("connection", (socket: AuthenticatedSocket) => {
   });
 });
 
+// Public namespace: broadcasts only. No auth, no rooms, and no inbound message
+// handlers at all — a connection here is a subscription to server-wide public
+// notices and nothing else. Nothing a client sends is ever read, which is why
+// there is no rate-limited handler to register or clean up.
+publicNamespace.on("connection", (socket) => {
+  logger.debug('Client connected to public namespace');
+  socket.on("disconnect", (reason: DisconnectReason) => {
+    logger.debug('Client disconnected from public namespace', { reason });
+  });
+});
+
 // Apply verification middleware to all namespaces
 [
   notificationsNamespace,
   postsNamespace,
+  publicNamespace,
 ].forEach((namespace) => {
   configureNamespaceErrorHandling(namespace);
 });
