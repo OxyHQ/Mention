@@ -12,6 +12,7 @@ import KeyboardShortcutsModal from "@/components/KeyboardShortcutsModal";
 import RegisterPush from '@/components/RegisterPushToken';
 import { RealtimePostsBridge } from '@/components/RealtimePostsBridge';
 import { RealtimeNotificationsBridge } from '@/components/RealtimeNotificationsBridge';
+import { PublicRealtimeBridge } from '@/components/PublicRealtimeBridge';
 import { RightBar } from "@/components/RightBar";
 import { SideBar } from "@/components/SideBar";
 import { SignInBanner } from "@/components/SignInBanner";
@@ -123,6 +124,9 @@ export default function AppLayout() {
       <ConnectionStatusToasts />
       <RealtimePostsBridge />
       <RealtimeNotificationsBridge />
+      {/* Ungated on purpose: the public socket is what makes trending realtime
+          for signed-out visitors, who cannot connect to the two above at all. */}
+      <PublicRealtimeBridge />
       {/* ── visual shell (was MainLayout): SideBar + gutter/ContentPanel + RightBar ── */}
       <View
         className={cn(

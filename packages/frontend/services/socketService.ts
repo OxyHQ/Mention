@@ -5,10 +5,8 @@ import { AppState, type AppStateStatus } from 'react-native';
 import { io, Socket } from 'socket.io-client';
 import { usePostsStore } from '../stores/postsStore';
 import type { FeedItem } from '@/db';
-import { useTrendsStore } from '@/stores/trendsStore';
 import { useLiveRoomsStore } from '@/stores/liveRoomsStore';
 import {
-  SOCKET_EVENT_TRENDS_UPDATED,
   SOCKET_EVENT_ROOMS_LIVE_UPDATED,
   ROOMS_LIVE_REFETCH_DEBOUNCE_MS,
 } from '@/constants/realtimeEvents';
@@ -89,7 +87,6 @@ class SocketService {
 
   private readonly handleManagerReconnect = () => {
     this.reconnectAttempts = 0;
-    this.resyncTrendsAfterReconnect();
   };
 
   private readonly handleManagerReconnectFailed = () => {
@@ -343,7 +340,6 @@ class SocketService {
     this.socket.off('post:unsaved');
     this.socket.off('user:presence');
     this.socket.off('user:presenceBulk');
-    this.socket.off(SOCKET_EVENT_TRENDS_UPDATED);
     this.socket.off(SOCKET_EVENT_ROOMS_LIVE_UPDATED);
     this.socket.io.off('reconnect_attempt', this.handleManagerReconnectAttempt);
     this.socket.io.off('reconnect', this.handleManagerReconnect);
@@ -424,40 +420,14 @@ class SocketService {
       this.handlePresenceBulkUpdate(data);
     });
 
-    // Trends recalculated server-side → silently refetch the trends list
-    this.socket.on(SOCKET_EVENT_TRENDS_UPDATED, () => {
-      this.handleTrendsUpdated();
-    });
+    // Trends are NOT handled here. They travel on the public namespace
+    // (`publicRealtimeService`) so signed-out visitors — who cannot connect to
+    // this authenticated socket at all — receive them too. One owner, one path.
 
     // Live-rooms set changed → debounced silent refetch (coalesces participant churn)
     this.socket.on(SOCKET_EVENT_ROOMS_LIVE_UPDATED, () => {
       this.handleLiveRoomsUpdated();
     });
-  }
-
-  /**
-   * Trends recalculated server-side. Payload is a signal only — refetch silently.
-   *
-   * The refetch is what carries the trend VOLUME SERIES the sparkline draws: the
-   * server appends a point to each series once per trending batch, and this is
-   * the moment that point reaches the screen. There is deliberately no separate
-   * series push and no delta — see {@link resyncTrendsAfterReconnect}.
-   */
-  private handleTrendsUpdated(): void {
-    void useTrendsStore.getState().fetchTrends({ silent: true });
-  }
-
-  /**
-   * Re-sync trends after the socket comes back: a client that was disconnected or
-   * asleep missed every `trends:updated` broadcast in between, so its sparklines
-   * are stale by however many batches it slept through. The store owns the policy
-   * (see `resyncAfterReconnect`); this only supplies the moment.
-   *
-   * Bound to the Manager's `reconnect`, which fires ONLY on a re-connection —
-   * never on the first one, where the store's own initial fetch already runs.
-   */
-  private resyncTrendsAfterReconnect(): void {
-    useTrendsStore.getState().resyncAfterReconnect();
   }
 
   /**

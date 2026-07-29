@@ -101,15 +101,17 @@ describe('viewer-owned polling stores', () => {
       data: { trending: [{ _id: 'trend-b', name: 'B' }] },
     });
     await requestB;
+    // The client id is the trend's own identity, not the per-batch row `_id`
+    // the wire carries — see `trendIdentity`.
     expect(useTrendsStore.getState().trends.map((item) => item.id))
-      .toEqual(['trend-b']);
+      .toEqual(['hashtag:B']);
 
     pendingA.resolve({
       data: { trending: [{ _id: 'trend-a', name: 'A' }] },
     });
     await requestA;
     expect(useTrendsStore.getState().trends.map((item) => item.id))
-      .toEqual(['trend-b']);
+      .toEqual(['hashtag:B']);
   });
 
   it('starts fresh polling after reset and ignores delayed old cleanup', () => {

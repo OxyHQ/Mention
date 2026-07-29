@@ -50,5 +50,8 @@ export * from './federation';
 // Trending-topic telemetry
 export * from './trending';
 
+// Public (unauthenticated) realtime namespace contract
+export * from './realtime';
+
 // MTN Protocol types
 export * from './mtn';
