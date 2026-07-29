@@ -7,6 +7,7 @@ import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { Toggle } from '@/components/Toggle';
 import { useTranslation } from 'react-i18next';
+import { useRouter } from 'expo-router';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { authenticatedClient } from '@/utils/api';
 import { toast } from '@oxyhq/bloom/toast';
@@ -40,6 +41,7 @@ const DEFAULT_PREFS: NotificationPreferences = {
 
 export default function NotificationSettingsScreen() {
     const { t } = useTranslation();
+    const router = useRouter();
     const safeBack = useSafeBack();
     const { canUsePrivateApi, isPrivateApiPending } = useAuth();
 
@@ -206,6 +208,15 @@ export default function NotificationSettingsScreen() {
                         rightElement={
                             <Toggle value={prefs.emailEnabled} onValueChange={(v) => updatePreference('emailEnabled', v)} />
                         }
+                    />
+                </SettingsListGroup>
+
+                <SettingsListGroup title={t('settings.notifications.sections.activity', { defaultValue: 'Activity from others' })}>
+                    <SettingsListItem
+                        icon={<RowIcon name="notifications" />}
+                        title={t('subscription.list.title', { defaultValue: 'Activity notifications' })}
+                        description={t('subscription.list.entryDesc', { defaultValue: "Accounts that notify you when they post" })}
+                        onPress={() => router.push('/settings/notifications/subscriptions')}
                     />
                 </SettingsListGroup>
 

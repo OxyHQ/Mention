@@ -29,6 +29,9 @@ export * from './notification';
 // List types
 export * from './list';
 
+// Activity subscriptions ("notify me when this account posts")
+export * from './subscription';
+
 // Feed types
 export * from './feed';
 

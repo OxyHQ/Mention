@@ -42,7 +42,7 @@ import { SEO } from '@/components/SEO';
 import { IconButton } from '@/components/ui/Button';
 import { Error } from '@/components/Error';
 import { EmptyState } from '@/components/common/EmptyState';
-import { Bell } from '@/assets/icons/bell-icon';
+import { Bell, BellActive } from '@/assets/icons/bell-icon';
 import { DoneAllIcon } from '@/assets/icons/done-all-icon';
 import { Gear } from '@/assets/icons/gear-icon';
 import { PanelStickyHeader } from '@/components/shell/PanelChrome';
@@ -613,6 +613,16 @@ const NotificationsScreen: React.FC = () => {
                                             />
                                         </IconButton>
                                     ) : null,
+                                    <IconButton variant="icon"
+                                        key="activity-subscriptions"
+                                        onPress={() => router.push('/settings/notifications/subscriptions')}
+                                        accessibilityLabel={t('subscription.list.title', { defaultValue: 'Activity notifications' })}
+                                    >
+                                        <BellActive
+                                            size={22}
+                                            color={theme.colors.text}
+                                        />
+                                    </IconButton>,
                                     <IconButton variant="icon"
                                         key="notification-settings"
                                         onPress={() => router.push('/settings/notifications')}
