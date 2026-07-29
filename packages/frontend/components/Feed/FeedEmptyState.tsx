@@ -66,7 +66,7 @@ export const FeedEmptyState = memo<FeedEmptyStateProps>(
                        subtitle as a single accessibility element. */
                     <Image
                         source={require('@/assets/images/empty-state-illustration.png')}
-                        className="w-[258px] max-w-full aspect-[258/134]"
+                        className="w-[160px] max-w-full aspect-[258/134]"
                         contentFit="contain"
                         alt=""
                         accessibilityElementsHidden
