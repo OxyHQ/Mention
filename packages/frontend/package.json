@@ -76,7 +76,7 @@
     }
   },
   "dependencies": {
-    "@alia.onl/sdk": "^4.1.0",
+    "@alia.onl/sdk": "^5.0.0",
     "@babel/plugin-transform-export-namespace-from": "^7.29.7",
     "@expo/vector-icons": "^15.1.1",
     "@floating-ui/react-dom": "^2.1.9",

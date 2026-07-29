@@ -1,4 +1,5 @@
 import { AliaChatScreen } from "@alia.onl/sdk";
+import { VoiceSession } from "@alia.onl/sdk/voice";
 import { useAuth } from "@oxyhq/services/ui/client";
 import React from "react";
 import { useTranslation } from "react-i18next";
@@ -9,6 +10,7 @@ export default function AiScreen() {
 
   return (
     <AliaChatScreen
+      voiceSession={VoiceSession}
       welcomeGreeting={`${t("Hello")}, ${user?.username || "there"}.`}
       welcomeSubtitle={t("How can I help you today?")}
       welcomeSuggestions={[
