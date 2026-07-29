@@ -67,13 +67,16 @@ export function escapeHtml(value: string): string {
 /**
  * Render the OG/Twitter `<meta>` block for injection into `<head>`. Every dynamic
  * value is HTML-escaped. `og:image`/`twitter:image` are emitted only when an
- * image is present (a preview card without an image is still valid).
+ * image is present (a preview card without an image is still valid), and the
+ * Twitter card type follows: `summary_large_image` promises an image, so a card
+ * with no image must declare the plain `summary` instead.
  */
 export function buildOgMetaHtml(og: OgData): string {
   const title = escapeHtml(og.title);
   const description = escapeHtml(og.description);
   const url = escapeHtml(og.url);
   const type = escapeHtml(og.type);
+  const card = og.image ? 'summary_large_image' : 'summary';
 
   let html =
     `<meta property="og:type" content="${type}">` +
@@ -81,7 +84,7 @@ export function buildOgMetaHtml(og: OgData): string {
     `<meta property="og:url" content="${url}">` +
     `<meta property="og:title" content="${title}">` +
     `<meta property="og:description" content="${description}">` +
-    `<meta name="twitter:card" content="summary_large_image">` +
+    `<meta name="twitter:card" content="${card}">` +
     `<meta name="twitter:title" content="${title}">` +
     `<meta name="twitter:description" content="${description}">` +
     `<meta name="description" content="${description}">`;
@@ -163,16 +166,60 @@ export function mapProfileOg(data: OxyProfileData | null | undefined): OgData | 
 }
 
 /**
+ * The safety verdict a post's OG card is rendered under. Required rather than
+ * optional so no future caller can render a card without having decided: an
+ * unfurler has no viewer, so there is no per-user setting to consult and no way for
+ * the people in that chat to opt in.
+ */
+export interface PostOgSafety {
+  /**
+   * Whether the post may only be shown behind a warning (sensitive/NSFW, or a
+   * federated content warning). Computed by the caller from the RAW post row, which
+   * carries every signal — see `mtn/feed/feedSafety.requiresContentWarning`.
+   */
+  requiresWarning: boolean;
+  /** The federated content-warning label, when the post carries one. */
+  contentWarning?: string;
+}
+
+/**
+ * Description used for a gated post that carries no content-warning label of its
+ * own. Deliberately says nothing about the post beyond the fact that it is gated.
+ */
+const GATED_POST_DESCRIPTION = 'This post is marked sensitive. Open it on Mention to view it.';
+
+/**
  * Map a hydrated post into OG data. Media / poster / link-preview URLs are
  * already absolute (resolved server-side during hydration). The author avatar is
  * a canonical Oxy `User` shape: a federated absolute URL or a bare Oxy file id
  * resolved to its public CDN URL through the SDK — never a pre-resolved
  * `avatarUrl` shim.
+ *
+ * A post that {@link PostOgSafety.requiresWarning} gets NO image and none of its
+ * body text. An unfurl renders at full size in Slack / Discord / iMessage for
+ * everyone in the conversation, with no content warning and nobody having opted in —
+ * so emitting the media there defeats the in-app warning completely, for people who
+ * never asked to see it. Title and URL still go out: attributing a post to its
+ * author and linking to it reveals nothing the warning was protecting, and a card
+ * with no metadata at all would just look broken. The description carries the
+ * author's own content warning when there is one (the fediverse convention — it is
+ * written precisely to be read INSTEAD of the body), else a neutral notice.
  */
-export function mapPostOg(post: HydratedPost, id: string): OgData {
+export function mapPostOg(post: HydratedPost, id: string, safety: PostOgSafety): OgData {
   const user = post.user;
   const handle = getNormalizedUserHandle(user);
   const author = user.name?.displayName?.trim() || (handle ? `@${handle}` : 'Someone');
+
+  if (safety.requiresWarning) {
+    const warning = safety.contentWarning?.trim();
+    return {
+      title: `${author} on Mention`,
+      description: (warning || GATED_POST_DESCRIPTION).slice(0, 200),
+      url: `${WEB_ORIGIN}/p/${id}`,
+      type: 'article',
+    };
+  }
+
   const media = post.content?.media?.[0];
 
   let avatarImage: string | undefined;

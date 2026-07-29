@@ -14,10 +14,22 @@ const mocks = vi.hoisted(() => ({
   hydratePosts: vi.fn(),
   getProfileByUsername: vi.fn(),
   scopedClient: { kind: 'scoped-client' },
+  loadShowSensitiveContent: vi.fn(),
+  loadMuteWords: vi.fn(),
+  loadFollowedAuthorIds: vi.fn(),
 }));
 
 vi.mock('../../models/Post', () => ({
   default: { find: mocks.find },
+}));
+
+vi.mock('../../services/safety/viewerSafety', () => ({
+  loadShowSensitiveContent: mocks.loadShowSensitiveContent,
+  loadMuteWords: mocks.loadMuteWords,
+}));
+
+vi.mock('../../services/viewerFollowGraph', () => ({
+  loadFollowedAuthorIds: mocks.loadFollowedAuthorIds,
 }));
 
 vi.mock('../../services/PostHydrationService', () => ({
@@ -73,6 +85,10 @@ beforeEach(() => {
   mocks.maxTimeMS.mockReturnValue(chain);
   mocks.lean.mockResolvedValue([]);
   mocks.hydratePosts.mockImplementation(async (posts: unknown[]) => posts);
+  // Default viewer: safe mode (no sensitive opt-in), no muted words.
+  mocks.loadShowSensitiveContent.mockResolvedValue(false);
+  mocks.loadMuteWords.mockResolvedValue([]);
+  mocks.loadFollowedAuthorIds.mockResolvedValue(new Set<string>());
 });
 
 describe('GET /search post search', () => {
@@ -319,5 +335,126 @@ describe('GET /search post search', () => {
 
     expect(res.body).toEqual({ posts: [], hasMore: false });
     expect(mocks.find).not.toHaveBeenCalled();
+  });
+});
+
+describe('GET /search sensitive-content gating', () => {
+  it('excludes sensitive and NSFW-hashtag posts for a viewer who has not opted in', async () => {
+    await request(app).get('/search').query({ query: 'beach', type: 'posts' }).expect(200);
+
+    const filter = mocks.find.mock.calls[0][0] as Record<string, unknown>;
+    expect(filter).toMatchObject({
+      'postClassification.sensitive': { $ne: true },
+      'metadata.isSensitive': { $ne: true },
+      'federation.sensitive': { $ne: true },
+    });
+    expect(filter.hashtags).toMatchObject({ $nin: expect.arrayContaining(['nsfw']) });
+  });
+
+  it('drops the sensitive exclusion for a viewer who opted in', async () => {
+    mocks.loadShowSensitiveContent.mockResolvedValue(true);
+
+    await request(app).get('/search').query({ query: 'beach', type: 'posts' }).expect(200);
+
+    const filter = mocks.find.mock.calls[0][0] as Record<string, unknown>;
+    expect(filter['postClassification.sensitive']).toBeUndefined();
+    expect(filter['metadata.isSensitive']).toBeUndefined();
+    expect(filter.hashtags).toBeUndefined();
+  });
+
+  it('gates an anonymous viewer, who has no opt-in to consult', async () => {
+    await request(anonApp).get('/search').query({ query: 'beach', type: 'posts' }).expect(200);
+
+    expect(mocks.find.mock.calls[0][0]).toMatchObject({ 'metadata.isSensitive': { $ne: true } });
+  });
+});
+
+describe('GET /search muted words', () => {
+  /** Two hydrated results: one clean, one carrying the term the viewer muted. */
+  function mockTwoHydratedResults() {
+    const clean = post('65fdc8c8c8c8c8c8c8c8c8c1', '2026-01-03T00:00:00.000Z');
+    const offending = post('65fdc8c8c8c8c8c8c8c8c8c2', '2026-01-02T00:00:00.000Z');
+    mocks.lean.mockResolvedValue([clean, offending]);
+    mocks.hydratePosts.mockResolvedValue([
+      { id: String(clean._id), content: { text: 'a perfectly ordinary post' }, metadata: {}, user: { id: 'a1' } },
+      { id: String(offending._id), content: { text: 'massive spoilers for the finale' }, metadata: {}, user: { id: 'a2' } },
+    ]);
+  }
+
+  it('never returns a post whose text contains a term the viewer muted', async () => {
+    mocks.loadMuteWords.mockResolvedValue([
+      { value: 'spoilers', targets: ['content', 'tag'], actorTarget: 'all' },
+    ]);
+    mockTwoHydratedResults();
+
+    const res = await request(app).get('/search').query({ query: 'finale', type: 'posts' }).expect(200);
+
+    expect(res.body.posts).toHaveLength(1);
+    expect(res.body.posts[0].content.text).toBe('a perfectly ordinary post');
+    expect(JSON.stringify(res.body)).not.toContain('spoilers');
+  });
+
+  it('never returns a post carrying a hashtag the viewer muted', async () => {
+    mocks.loadMuteWords.mockResolvedValue([
+      { value: 'politics', targets: ['tag'], actorTarget: 'all' },
+    ]);
+    const row = post('65fdc8c8c8c8c8c8c8c8c8c3', '2026-01-03T00:00:00.000Z');
+    mocks.lean.mockResolvedValue([row]);
+    mocks.hydratePosts.mockResolvedValue([
+      { id: String(row._id), content: { text: 'election night' }, metadata: { hashtags: ['Politics'] }, user: { id: 'a3' } },
+    ]);
+
+    const res = await request(app).get('/search').query({ query: 'election', type: 'posts' }).expect(200);
+
+    expect(res.body.posts).toEqual([]);
+  });
+
+  it('keeps a followed author when the muted word excludes follows', async () => {
+    mocks.loadMuteWords.mockResolvedValue([
+      { value: 'spoilers', targets: ['content'], actorTarget: 'exclude-following' },
+    ]);
+    mocks.loadFollowedAuthorIds.mockResolvedValue(new Set(['a2']));
+    mockTwoHydratedResults();
+
+    const res = await request(app).get('/search').query({ query: 'finale', type: 'posts' }).expect(200);
+
+    expect(mocks.loadFollowedAuthorIds).toHaveBeenCalledWith('viewer-1', mocks.scopedClient);
+    expect(res.body.posts).toHaveLength(2);
+  });
+
+  it('does not pay for the follow-graph lookup when no rule needs it', async () => {
+    mocks.loadMuteWords.mockResolvedValue([
+      { value: 'spoilers', targets: ['content'], actorTarget: 'all' },
+    ]);
+    mockTwoHydratedResults();
+
+    await request(app).get('/search').query({ query: 'finale', type: 'posts' }).expect(200);
+
+    expect(mocks.loadFollowedAuthorIds).not.toHaveBeenCalled();
+  });
+
+  it('keeps the cursor on the unfiltered page window so a dropped post skips nothing', async () => {
+    mocks.loadMuteWords.mockResolvedValue([
+      { value: 'spoilers', targets: ['content'], actorTarget: 'all' },
+    ]);
+    const clean = post('65fdc8c8c8c8c8c8c8c8c8c1', '2026-01-03T00:00:00.000Z');
+    const offending = post('65fdc8c8c8c8c8c8c8c8c8c2', '2026-01-02T00:00:00.000Z');
+    const overfetch = post('65fdc8c8c8c8c8c8c8c8c8c0', '2026-01-01T00:00:00.000Z');
+    mocks.lean.mockResolvedValue([clean, offending, overfetch]);
+    mocks.hydratePosts.mockResolvedValue([
+      { id: String(clean._id), content: { text: 'ordinary' }, metadata: {}, user: { id: 'a1' } },
+      { id: String(offending._id), content: { text: 'spoilers here' }, metadata: {}, user: { id: 'a2' } },
+    ]);
+
+    const res = await request(app).get('/search').query({ type: 'posts', limit: 2 }).expect(200);
+
+    // One of the two page results was muted, so the page is short — but the cursor
+    // still points at the LAST post the query returned for this page.
+    expect(res.body.posts).toHaveLength(1);
+    expect(res.body.hasMore).toBe(true);
+    expect(decodeSearchCursor(res.body.nextCursor)).toEqual({
+      createdAt: offending.createdAt,
+      id: offending._id.toString(),
+    });
   });
 });

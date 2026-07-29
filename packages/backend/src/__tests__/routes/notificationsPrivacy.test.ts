@@ -10,6 +10,15 @@ const mocks = vi.hoisted(() => ({
   hydratePosts: vi.fn(),
   getUsersByIds: vi.fn(),
   createScopedOxyClient: vi.fn(),
+  loadShowSensitiveContent: vi.fn(),
+  loadMuteWords: vi.fn(),
+}));
+
+// The viewer's safety preferences are read from Mongo; this suite has no database,
+// and the gates themselves are covered by `notificationsSafety.test.ts`.
+vi.mock('../../services/safety/viewerSafety', () => ({
+  loadShowSensitiveContent: mocks.loadShowSensitiveContent,
+  loadMuteWords: mocks.loadMuteWords,
 }));
 
 vi.mock('../../middleware/rateLimiter', () => ({
@@ -114,6 +123,8 @@ beforeEach(() => {
   vi.clearAllMocks();
   mocks.getUsersByIds.mockResolvedValue([]);
   mocks.createScopedOxyClient.mockReturnValue({ scope: 'viewer-1' });
+  mocks.loadShowSensitiveContent.mockResolvedValue(false);
+  mocks.loadMuteWords.mockResolvedValue([]);
   mockNotificationPage();
   mockRawPost();
 });

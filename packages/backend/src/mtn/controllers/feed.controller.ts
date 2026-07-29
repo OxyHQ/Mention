@@ -13,7 +13,8 @@ import { resolveDefinition } from '../feed/definitions/resolveDefinition';
 import { forYouUsesSocialProof } from '../feed/definitions/presets';
 import { feedEngine } from '../feed/engine/FeedEngine';
 import type { FeedEngineContext } from '../feed/engine/types';
-import { loadViewerFeedContext, mergeFederatedFollowIds } from '../feed/feedContext';
+import { loadViewerFeedContext } from '../feed/feedContext';
+import { mergeFederatedFollowIds } from '../../services/viewerFollowGraph';
 import { resolveDiscoveryGateBucket } from '../feed/discoveryGateExperiment';
 import { FeedGeneratorFeed } from '../feed/feeds/FeedGeneratorFeed';
 import type { FeedAPI } from '../feed/FeedAPI';
@@ -32,36 +33,13 @@ import { extractFollowingIds, type OxyClient } from '../../utils/privacyHelpers'
 import { createScopedOxyClient } from '../../utils/oxyHelpers';
 import FederatedFollow from '../../models/FederatedFollow';
 import FederatedActor from '../../models/FederatedActor';
-import { MuteWord } from '../../models/MuteWord';
 import { listSubscriptionService } from '../../services/ListSubscriptionService';
 import { anonFeedCache } from '../../services/anonFeedCache';
-import type { TunerContext } from '../feed/FeedTuner';
-
-type MutePreference = NonNullable<TunerContext['preferences']['muteWords']>;
+import { loadMuteWords } from '../../services/safety/viewerSafety';
 
 function syncFlattenedItemsWithSlices(response: Pick<SlicedFeedResponse, 'slices' | 'items' | 'totalCount'>): void {
   response.items = FeedResponseBuilder.flattenSlicesToItems(response.slices);
   response.totalCount = response.items.length;
-}
-
-/**
- * Load the user's muted words/hashtags and map them into the tuner-preference
- * shape consumed by `filterMuteWords`. One query per feed request — no N+1.
- * Returns an empty array for anonymous viewers or on load failure (fail-open:
- * a muted-word lookup error must never break the feed).
- */
-async function loadMuteWordsForUser(userId: string | undefined): Promise<MutePreference> {
-  if (!userId) return [];
-  try {
-    const docs = await MuteWord.find(
-      { userId },
-      { value: 1, targets: 1 },
-    ).lean();
-    return docs.map((doc) => ({ value: doc.value, targets: doc.targets }));
-  } catch (error) {
-    logger.warn('[MtnFeedController] Failed to load muted words', error);
-    return [];
-  }
 }
 
 /** Hard cap on the mutual-id set threaded into the Mutuals feed context. */
@@ -304,10 +282,10 @@ class MtnFeedController {
       const needsFof = !!currentUserId && feedSource === 'friends_of_friends';
 
       // Prefetched here so it runs in parallel with the context load; only consumed
-      // (awaited) below if the built page actually has slices. `loadMuteWordsForUser`
+      // (awaited) below if the built page actually has slices. `loadMuteWords`
       // never rejects (soft-fails to `[]`), so leaving it un-awaited on a blank page
       // cannot surface an unhandled rejection.
-      const muteWordsPromise = loadMuteWordsForUser(currentUserId);
+      const muteWordsPromise = loadMuteWords(currentUserId);
 
       const [privacyState, context, mutualIds, fofIds] = await Promise.all([
         currentUserId
@@ -384,6 +362,9 @@ class MtnFeedController {
         const tuner = FeedTuner.default();
         response.slices = tuner.apply(response.slices, {
           viewerId: currentUserId,
+          // The graph the context already resolved — an `exclude-following` muted
+          // word is evaluated against it without a second lookup.
+          followedAuthorIds: context.followingIds,
           preferences: {
             muteWords,
             hideBoosts: false,

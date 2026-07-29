@@ -6,15 +6,24 @@
  */
 
 import { FeedPostSlice } from '@mention/shared-types';
+import type { MuteWordRule } from '../../services/safety/muteWordMatcher';
 
 export interface TunerContext {
   viewerId?: string;
+  /**
+   * The viewer's followed-author ids (Oxy ∪ accepted federated), for tuners whose
+   * rules are scoped by whether the viewer follows the author — today the
+   * `exclude-following` scope on a muted word. Passed as the list the caller
+   * already has; a tuner indexes it only if one of its rules needs it. Absent means
+   * "follows nobody relevant", so such a rule then applies to every author.
+   */
+  followedAuthorIds?: readonly string[];
   preferences: {
     languages?: string[];
     hideBoosts?: boolean;
     hideReplies?: boolean;
     hideSensitive?: boolean;
-    muteWords?: Array<{ value: string; targets: ('content' | 'tag')[] }>;
+    muteWords?: MuteWordRule[];
     hiddenPostIds?: Set<string>;
     labelPreferences?: Record<string, 'show' | 'warn' | 'blur' | 'hide'>;
   };

@@ -7,6 +7,7 @@ import {
   mapProfileOg,
   mapPostOg,
   OgData,
+  PostOgSafety,
 } from '../services/webShellRenderer';
 
 const SHELL =
@@ -125,6 +126,9 @@ describe('mapProfileOg', () => {
 });
 
 describe('mapPostOg', () => {
+  /** A post carrying no sensitivity signal — the ordinary unfurl path. */
+  const SAFE: PostOgSafety = { requiresWarning: false };
+
   const base = {
     id: 'p1',
     // Canonical Oxy `User` shape: `name.displayName`, `username`, and an absolute
@@ -134,7 +138,7 @@ describe('mapPostOg', () => {
   } as unknown as HydratedPost;
 
   it('builds the author title, sliced description, and post url', () => {
-    const og = mapPostOg(base, 'p1');
+    const og = mapPostOg(base, 'p1', SAFE);
     expect(og.title).toBe('Nate on Mention');
     expect(og.description).toBe('hello world');
     expect(og.url).toBe('https://mention.earth/p/p1');
@@ -145,12 +149,12 @@ describe('mapPostOg', () => {
 
   it('falls back to @handle when the author has no display name', () => {
     const post = { ...base, user: { ...base.user, name: {} } } as HydratedPost;
-    expect(mapPostOg(post, 'p1').title).toBe('@nate on Mention');
+    expect(mapPostOg(post, 'p1', SAFE).title).toBe('@nate on Mention');
   });
 
   it('truncates the description to 200 characters', () => {
     const post = { ...base, content: { text: 'x'.repeat(500) } } as HydratedPost;
-    expect(mapPostOg(post, 'p1').description).toHaveLength(200);
+    expect(mapPostOg(post, 'p1', SAFE).description).toHaveLength(200);
   });
 
   it('falls back to the boosted original text when the boost body is empty', () => {
@@ -161,7 +165,7 @@ describe('mapPostOg', () => {
       content: { text: '' },
       originalPost: { id: 'orig', content: { text: 'the boosted original body' } },
     } as unknown as HydratedPost;
-    expect(mapPostOg(boost, 'b1').description).toBe('the boosted original body');
+    expect(mapPostOg(boost, 'b1', SAFE).description).toBe('the boosted original body');
   });
 
   it('prefers media url over thumb/poster/linkPreviews/avatar', () => {
@@ -170,7 +174,7 @@ describe('mapPostOg', () => {
       content: { text: 't', media: [{ id: 'm', type: 'image', url: 'https://m/u.jpg', thumbUrl: 'https://m/t.jpg' }] },
       linkPreviews: [{ url: 'https://l', image: 'https://l/i.jpg' }],
     } as unknown as HydratedPost;
-    expect(mapPostOg(post, 'p1').image).toBe('https://m/u.jpg');
+    expect(mapPostOg(post, 'p1', SAFE).image).toBe('https://m/u.jpg');
   });
 
   it('uses the FIRST link-preview image when there is no media', () => {
@@ -182,6 +186,6 @@ describe('mapPostOg', () => {
         { url: 'https://l2', image: 'https://l2/i.jpg' },
       ],
     } as unknown as HydratedPost;
-    expect(mapPostOg(post, 'p1').image).toBe('https://l/i.jpg');
+    expect(mapPostOg(post, 'p1', SAFE).image).toBe('https://l/i.jpg');
   });
 });

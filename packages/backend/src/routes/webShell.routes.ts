@@ -29,12 +29,14 @@ import { logger } from '../utils/logger';
 import {
   OgData,
   OxyProfileData,
+  PostOgSafety,
   injectHeadHtml,
   mapPostOg,
   mapProfileOg,
   renderShellWithOg,
 } from '../services/webShellRenderer';
 import { getOgCached } from '../services/webShellOgCache';
+import { requiresContentWarning, type FeedSafetyPostShape } from '../mtn/feed/feedSafety';
 
 /** Frontend CDN origin the static SPA shell is fetched from (NOT the apex — that would loop the Origin Rule). */
 const SHELL_ORIGIN = `${config.web.shellOrigin}/`;
@@ -181,6 +183,35 @@ async function fetchProfileOg(handle: string): Promise<OgData | null> {
   }
 }
 
+/** The raw post fields the OG safety verdict reads. */
+type PostSafetyRow = FeedSafetyPostShape & { boostOf?: unknown };
+
+/**
+ * The safety verdict for a post's OG card, read from the RAW rows (the hydrated DTO
+ * exposes only a subset of the sensitivity signals).
+ *
+ * A BOOST is checked against its original as well as itself: a boost's own body is
+ * empty, so `mapPostOg` draws its description from the boosted original — which means
+ * a boost of a sensitive post would otherwise unfurl that post's text while carrying
+ * no signal of its own.
+ */
+async function resolvePostOgSafety(post: PostSafetyRow): Promise<PostOgSafety> {
+  const rows: Array<PostSafetyRow | null> = [post];
+
+  if (post.boostOf) {
+    rows.push(await Post.findById(String(post.boostOf)).maxTimeMS(OG_FETCH_TIMEOUT_MS).lean());
+  }
+
+  const gated = rows.find((row) => requiresContentWarning(row));
+  if (!gated) return { requiresWarning: false };
+
+  const spoiler = gated.federation?.spoilerText;
+  return {
+    requiresWarning: true,
+    contentWarning: typeof spoiler === 'string' && spoiler.trim() ? spoiler : undefined,
+  };
+}
+
 /** Hydrate + map a post's OG data in-process (same path as `GET /feed/item/:id`). Returns null on any failure. */
 async function fetchPostOg(id: string): Promise<OgData | null> {
   try {
@@ -189,12 +220,15 @@ async function fetchPostOg(id: string): Promise<OgData | null> {
     if (!post) return null;
     // maxDepth:1 so boosts hydrate their original and link previews are included;
     // the OG mapping itself only reads the post's own top-level fields.
-    const [hydrated] = await postHydrationService.hydratePosts([post], {
-      maxDepth: 1,
-      includeLinkMetadata: true,
-    });
+    const [hydrated, safety] = await Promise.all([
+      postHydrationService.hydratePosts([post], {
+        maxDepth: 1,
+        includeLinkMetadata: true,
+      }).then((posts) => posts[0]),
+      resolvePostOgSafety(post),
+    ]);
     if (!hydrated?.user) return null;
-    return mapPostOg(hydrated, id);
+    return mapPostOg(hydrated, id, safety);
   } catch (error) {
     logger.debug('[webShell] Post OG fetch failed', error);
     return null;
