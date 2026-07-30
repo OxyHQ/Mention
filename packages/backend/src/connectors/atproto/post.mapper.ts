@@ -12,6 +12,7 @@ import type { NormalizedExternalActor, NormalizedExternalMedia, NormalizedExtern
 import { xrpcGet } from './xrpcClient';
 import { fetchAndUpsertAtprotoProfile } from './profile.mapper';
 import { BSKY_APP_ORIGIN, POST_COLLECTION, PUBLIC_APPVIEW } from './constants';
+import { clampFutureDate } from '../../utils/ingestTimestamp';
 
 /**
  * Maps Bluesky `app.bsky.feed.post` records (from `app.bsky.feed.getAuthorFeed`)
@@ -113,14 +114,13 @@ function parseAtUri(uri: string): { authority: string; collection: string; rkey:
   return { authority: match[1], collection: match[2], rkey: match[3] };
 }
 
-/** Parse an atproto `createdAt`, rejecting NaN and clamping far-future dates. */
+/**
+ * Parse an atproto `createdAt`, rejecting NaN and far-future dates. The guard is
+ * {@link clampFutureDate}, shared with every other ingest path; only the tolerance
+ * window is an atproto policy decision.
+ */
 function parseCreatedAt(value: unknown): Date | undefined {
-  if (typeof value !== 'string') return undefined;
-  const date = new Date(value);
-  const ms = date.getTime();
-  if (Number.isNaN(ms)) return undefined;
-  if (ms > Date.now() + MAX_FUTURE_SKEW_MS) return undefined;
-  return date;
+  return clampFutureDate(value, MAX_FUTURE_SKEW_MS);
 }
 
 /** Extract hashtags from richtext `#tag` facets and the record-level `tags`. */
