@@ -11,7 +11,7 @@ export interface ApiErrorResponse {
 /**
  * Standard API success response format
  */
-export interface ApiSuccessResponse<T = any> {
+export interface ApiSuccessResponse<T = unknown> {
   success?: boolean;
   message?: string;
   data?: T;

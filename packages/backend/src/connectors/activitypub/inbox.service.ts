@@ -20,6 +20,7 @@ import { outboxSyncService } from './outbox.service';
 import { deliveryService } from './delivery.service';
 import { getServiceOxyClient } from '../../utils/oxyHelpers';
 import {
+  asRecord,
   extractAnnouncedObjectUri,
   extractApQuoteUri,
   extractInReplyToUri,
@@ -75,7 +76,7 @@ export class InboxProcessingService {
    * engine dispatcher. Kept as an instance method so the BullMQ worker + the
    * connector facade keep calling `inboxProcessingService.processInboxActivity`.
    */
-  processInboxActivity(activity: Record<string, any>, verifiedActorUri: string): Promise<void> {
+  processInboxActivity(activity: Record<string, unknown>, verifiedActorUri: string): Promise<void> {
     return inboundDispatcher.processInboxActivity(activity, verifiedActorUri);
   }
 
@@ -86,7 +87,7 @@ export class InboxProcessingService {
    * the primary type and routes to the matching content handler, so the handlers'
    * side effects stay byte-for-byte identical to the prior single-dispatch path.
    */
-  async onContentActivity(activity: Record<string, any>, verifiedActorUri: string): Promise<void> {
+  async onContentActivity(activity: Record<string, unknown>, verifiedActorUri: string): Promise<void> {
     const type = primaryApType(activity.type);
     switch (type) {
       case 'Create':
@@ -119,12 +120,14 @@ export class InboxProcessingService {
    * `Post`. Both are ungated (an Undo is teardown, not new engagement) — see the
    * handler doc comments.
    */
-  private async handleUndoContent(object: any, actorUri: string): Promise<void> {
-    const objectType = typeof object === 'string' ? null : object?.type;
+  private async handleUndoContent(object: unknown, actorUri: string): Promise<void> {
+    const undone = asRecord(object);
+    if (!undone) return;
+    const objectType = undone.type;
     if (objectType === 'Like') {
-      await this.handleUndoLike(object, actorUri);
+      await this.handleUndoLike(undone, actorUri);
     } else if (objectType === 'Announce') {
-      await this.handleUndoAnnounce(object, actorUri);
+      await this.handleUndoAnnounce(undone, actorUri);
     }
   }
 
@@ -267,8 +270,10 @@ export class InboxProcessingService {
    * permanently orphaned. Mirrors the pre-existing `handleUndo(Follow)`
    * branch above, which is likewise ungated.
    */
-  private async handleUndoLike(likeObject: Record<string, any>, actorUri: string): Promise<void> {
-    const likedObjectId = typeof likeObject.object === 'string' ? likeObject.object : likeObject.object?.id;
+  private async handleUndoLike(likeObject: Record<string, unknown>, actorUri: string): Promise<void> {
+    const likedObjectId = typeof likeObject.object === 'string'
+      ? likeObject.object
+      : asRecord(likeObject.object)?.id;
     if (!likedObjectId || typeof likedObjectId !== 'string') return;
 
     const postId = await resolvePostIdFromObjectUri(likedObjectId);
@@ -299,7 +304,7 @@ export class InboxProcessingService {
    * permanently orphan the boost Post and its counter contribution. Mirrors
    * the pre-existing, likewise-ungated `handleUndo(Follow)` branch.
    */
-  private async handleUndoAnnounce(announceObject: Record<string, any>, actorUri: string): Promise<void> {
+  private async handleUndoAnnounce(announceObject: Record<string, unknown>, actorUri: string): Promise<void> {
     const announceId = typeof announceObject.id === 'string' ? announceObject.id : undefined;
     const announcedUri = extractAnnouncedObjectUri(announceObject.object);
 
@@ -380,7 +385,7 @@ export class InboxProcessingService {
    * a local poll), leaving {@link handleCreate} to process it as a normal
    * reply/post. Fail-soft is inherited from the shared helpers; nothing throws.
    */
-  private async handlePollVote(object: Record<string, any>, actorUri: string): Promise<boolean> {
+  private async handlePollVote(object: Record<string, unknown>, actorUri: string): Promise<boolean> {
     // Shape gate — cheap checks first, no DB until the shape is a plausible vote.
     const name = typeof object.name === 'string' ? object.name.trim() : '';
     if (!name) return false;
@@ -424,9 +429,9 @@ export class InboxProcessingService {
     return true;
   }
 
-  private async handleCreate(activity: Record<string, any>, actorUri: string): Promise<void> {
-    const object = activity.object;
-    if (!object || typeof object !== 'object') return;
+  private async handleCreate(activity: Record<string, unknown>, actorUri: string): Promise<void> {
+    const object = asRecord(activity.object);
+    if (!object) return;
     if (object.type !== 'Note' && object.type !== 'Article') return;
 
     // Validate the embedded content object before reading its fields by raw
@@ -443,6 +448,11 @@ export class InboxProcessingService {
       );
       return;
     }
+    // The validated view of the same object. Only the fields the schema passes
+    // through untouched are read from here (`id`, `content`, `url`); everything
+    // else stays on the raw record, whose `published` the schema would have
+    // coerced from its ISO string to a `Date`.
+    const note = parsedNote.data;
 
     // A remote poll VOTE arrives as a Create(Note) — chosen option in `name`,
     // `inReplyTo` = our poll's Question id, no content — and must be recorded
@@ -460,14 +470,14 @@ export class InboxProcessingService {
     if (!hasFollower) return;
 
     // Sanitize and check content length
-    const rawContent = object.content || '';
+    const rawContent = note.content || '';
     if (rawContent.length > FEDERATION_MAX_CONTENT_LENGTH) {
       logger.debug('[Federation] rejected oversized content');
       return;
     }
 
     // Dedup by activityId
-    const existingPost = await Post.exists({ 'federation.activityId': object.id });
+    const existingPost = await Post.exists({ 'federation.activityId': note.id });
     if (existingPost) return;
 
     // The Oxy link is MANDATORY: a federated post must carry a real Oxy author,
@@ -478,7 +488,7 @@ export class InboxProcessingService {
     // (Oxy reachable) the actor resolves and the post inserts with a real author.
     // We NEVER insert an orphan post with a null author.
     const actor = await actorService.getOrFetchActor(actorUri);
-    const authorOxyUserId = requireActorOxyUserId(actor, actorUri, `Create ${object.id}`);
+    const authorOxyUserId = requireActorOxyUserId(actor, actorUri, `Create ${note.id}`);
 
     // Resolve the Note's @mentions BEFORE building the body: each `Mention` tag's
     // actor URI is resolved (and synced/created) to a federated or local Oxy user
@@ -496,7 +506,7 @@ export class InboxProcessingService {
     // storable (no text, no surviving media, no content-warning) is dropped
     // instead of persisted as a blank post.
     const built = await buildFederatedNoteContent(noteObject, authorOxyUserId, {
-      activityId: object.id,
+      activityId: note.id,
       actorUri,
     });
     if (built.skip) {
@@ -548,10 +558,10 @@ export class InboxProcessingService {
     const createdPost = await getPostCreator().create({
       oxyUserId: authorOxyUserId,
       federation: {
-        activityId: object.id,
+        activityId: note.id,
         actorUri,
         inReplyTo: inReplyToUri,
-        url: object.url || object.id,
+        url: typeof note.url === 'string' ? note.url : note.id,
         sensitive,
         spoilerText: summary,
       },
@@ -623,9 +633,11 @@ export class InboxProcessingService {
     logger.debug('[Federation] stored federated post');
   }
 
-  private async handleDelete(activity: Record<string, any>, actorUri: string): Promise<void> {
-    const objectId = typeof activity.object === 'string' ? activity.object : activity.object?.id;
-    if (!objectId) return;
+  private async handleDelete(activity: Record<string, unknown>, actorUri: string): Promise<void> {
+    const objectId = typeof activity.object === 'string'
+      ? activity.object
+      : asRecord(activity.object)?.id;
+    if (!objectId || typeof objectId !== 'string') return;
 
     // The object id is public and remote-controlled. Authorize directly against
     // the actor URI stamped when the post was ingested, using the actor whose
@@ -654,8 +666,10 @@ export class InboxProcessingService {
    * idempotent). Skips entirely when the post or the federated user can't be
    * resolved, so the count only ever reflects real, listable likers.
    */
-  private async handleLike(activity: Record<string, any>, actorUri: string): Promise<void> {
-    const objectId = typeof activity.object === 'string' ? activity.object : activity.object?.id;
+  private async handleLike(activity: Record<string, unknown>, actorUri: string): Promise<void> {
+    const objectId = typeof activity.object === 'string'
+      ? activity.object
+      : asRecord(activity.object)?.id;
     if (!objectId || typeof objectId !== 'string') return;
 
     const postId = await resolvePostIdFromObjectUri(objectId);
@@ -698,7 +712,7 @@ export class InboxProcessingService {
    * creating a boost Post for a non-followed booster populates the boost list and
    * count without flooding anyone's feed.
    */
-  private async handleAnnounce(activity: Record<string, any>, actorUri: string): Promise<void> {
+  private async handleAnnounce(activity: Record<string, unknown>, actorUri: string): Promise<void> {
     const announcedUri = extractAnnouncedObjectUri(activity.object);
     if (!announcedUri) return;
 
@@ -745,9 +759,9 @@ export class InboxProcessingService {
     }
   }
 
-  private async handleUpdate(activity: Record<string, any>, actorUri: string): Promise<void> {
-    const object = activity.object;
-    if (!object || typeof object !== 'object') return;
+  private async handleUpdate(activity: Record<string, unknown>, actorUri: string): Promise<void> {
+    const object = asRecord(activity.object);
+    if (!object) return;
 
     if (object.type === 'Note' || object.type === 'Article') {
       // Validate the edited content object before reading its fields by raw
