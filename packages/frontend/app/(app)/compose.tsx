@@ -477,7 +477,6 @@ const ComposeScreenBody = () => {
   const {
     scheduledAt,
     setScheduledAt,
-    scheduledAtRef,
     formatScheduledLabel,
     clearSchedule,
     openScheduleSheet,
@@ -505,9 +504,6 @@ const ComposeScreenBody = () => {
       setArticleDraftBody(draft.articleDraftBody);
       loadPodcastFromDraft(draft.podcast);
       setScheduledAt(draft.scheduledAt);
-      if (draft.scheduledAt) {
-        scheduledAtRef.current = draft.scheduledAt;
-      }
       setAttachmentOrder(draft.attachmentOrder);
       setPostingMode(draft.postingMode);
       loadThreadsFromDraft(draft.threadItems);
@@ -597,7 +593,6 @@ const ComposeScreenBody = () => {
   const attachmentOrderRef = useRefSync(attachmentOrder);
   const mainTextInputRef = useRef<MentionTextInputHandle>(null);
   const threadTextInputRefs = useRef<Record<string, MentionTextInputHandle | null>>({});
-  // Note: scheduledAtRef comes from scheduleManager
 
   const generateSourceId = useCallback(() => `source_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`, []);
 
@@ -1012,7 +1007,11 @@ const ComposeScreenBody = () => {
         replyPermission,
         reviewReplies,
         quotesDisabled,
-        scheduledAt: scheduledAtRef.current,
+        // The same value the "Scheduled for …" toast below is built from. These
+        // used to be two sources — state for the toast, a render-written ref for
+        // the payload — so they could disagree and tell the author their post was
+        // scheduled while it went out immediately.
+        scheduledAt: scheduledAtValue,
         isSensitive,
         quotedPostId: quotedPost?.id,
         collaboratorIds: collaborators.length > 0 ? collaborators.map((c) => c.id) : undefined,

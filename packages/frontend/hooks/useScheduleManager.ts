@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, createElement, Suspense } from 'react';
+import { useState, useCallback, createElement, Suspense } from 'react';
 import type { TFunction } from 'i18next';
 import { toast as toastFn } from '@oxyhq/bloom/toast';
 import type { ScheduleOption } from '@/components/Compose/ScheduleSheet';
@@ -18,11 +18,14 @@ export const useScheduleManager = ({
   t,
   toast,
 }: UseScheduleManagerProps) => {
+  // The chosen time is state and nothing else. It used to be mirrored into a ref
+  // written during render, which the composer read when building the payload —
+  // three ways to be wrong at once: the write is illegal input for the React
+  // Compiler (it refuses the whole hook over it), the mirror could disagree with
+  // the state the "Scheduled for …" toast is built from, and every writer had to
+  // remember to update both. `handlePost` is a plain function rebuilt each
+  // render, so it already closes over the current value.
   const [scheduledAt, setScheduledAt] = useState<Date | null>(null);
-  const scheduledAtRef = useRef<Date | null>(null);
-
-  // Update ref when state changes
-  scheduledAtRef.current = scheduledAt;
 
   const formatScheduledLabel = useCallback((date: Date) => {
     try {
@@ -34,7 +37,6 @@ export const useScheduleManager = ({
 
   const clearSchedule = useCallback((options?: { silent?: boolean }) => {
     setScheduledAt(null);
-    scheduledAtRef.current = null;
     if (!options?.silent) {
       toast(t('compose.schedule.cleared', { defaultValue: 'Scheduling removed' }), { type: 'success' });
     }
@@ -42,7 +44,6 @@ export const useScheduleManager = ({
 
   const handleScheduleSelect = useCallback((date: Date) => {
     setScheduledAt(date);
-    scheduledAtRef.current = date;
     toast(t('compose.schedule.set', { defaultValue: 'Scheduled for {{time}}', time: formatScheduledLabel(date) }), { type: 'success' });
     bottomSheet.openBottomSheet(false);
   }, [bottomSheet, formatScheduledLabel, t, toast]);
@@ -114,7 +115,6 @@ export const useScheduleManager = ({
   return {
     scheduledAt,
     setScheduledAt,
-    scheduledAtRef,
     formatScheduledLabel,
     clearSchedule,
     handleScheduleSelect,
