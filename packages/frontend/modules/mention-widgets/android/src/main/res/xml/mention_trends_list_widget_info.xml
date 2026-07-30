@@ -30,7 +30,7 @@
     android:minWidth="@dimen/mention_trends_list_widget_min_width"
     android:minHeight="@dimen/mention_trends_list_widget_min_height"
     android:minResizeWidth="@dimen/mention_trends_widget_min_resize_width"
-    android:minResizeHeight="@dimen/mention_trends_widget_min_resize_height"
+    android:minResizeHeight="@dimen/mention_trends_list_widget_min_resize_height"
     android:maxResizeWidth="@dimen/mention_trends_widget_max_resize_width"
     android:maxResizeHeight="@dimen/mention_trends_widget_max_resize_height"
     android:targetCellWidth="@integer/mention_trends_list_widget_target_cell_width"

@@ -37,4 +37,20 @@
   <!-- Variant J, the tonal card. Wide and short — 4 cells by 2. -->
   <dimen name="mention_trends_card_widget_min_width">250dp</dimen>
   <dimen name="mention_trends_card_widget_min_height">110dp</dimen>
+
+  <!--
+    How short the user may drag the LIST and the CARD.
+
+    Derived, not chosen: `rowsThatFit` charges 12dp of padding top and bottom and a 48dp
+    row (Material's minimum touch target), so 72dp is the shortest height at which either
+    widget can still show one COMPLETE row. Below that it would be showing a clipped one.
+
+    They get their own value rather than sharing `mention_trends_widget_min_resize_height`
+    because that floor is 110dp — two launcher cells — and both of these degrade honestly
+    to a single headline, so two cells was costing the user a placement they could use.
+    The chips widget keeps the shared 110dp: its content is a flowing row of chips, and one
+    cell of height would give it a single chip, which is a worse thing than a short list.
+  -->
+  <dimen name="mention_trends_list_widget_min_resize_height">72dp</dimen>
+  <dimen name="mention_trends_card_widget_min_resize_height">72dp</dimen>
 </resources>
