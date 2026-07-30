@@ -34,9 +34,16 @@ export const SYRA_API_URL =
 export const SYRA_SOCKET_URL =
   process.env.EXPO_PUBLIC_SYRA_SOCKET_URL || 'wss://api.syra.fm';
 
-export const OXY_BASE_URL =
-  process.env.EXPO_PUBLIC_OXY_BASE_URL ||
-  (process.env.NODE_ENV === 'production' ? 'https://api.oxy.so' : 'http://localhost:3001');
+// Oxy is ALWAYS the production identity provider — there is deliberately no
+// localhost fallback here, unlike `API_URL` above. Oxy owns the account, and a
+// build that quietly points identity at a port nothing is listening on does not
+// fail loudly: it renders a signed-out app whose feed simply will not load, which
+// reads as a broken feed rather than as a missing backend. That happened on a
+// device build made without a `.env`, and the previous `NODE_ENV`-keyed fallback
+// is what made it silent: any build that was not marked production defaulted to a
+// local port instead of to Oxy.
+// Overridable for a non-production Oxy environment; the default is never local.
+export const OXY_BASE_URL = process.env.EXPO_PUBLIC_OXY_BASE_URL || 'https://api.oxy.so';
 
 // Mention's registered Oxy OAuth client id (ApplicationCredential publicKey).
 // Required by @oxyhq/services for the cross-app device sign-in flow. Public and
