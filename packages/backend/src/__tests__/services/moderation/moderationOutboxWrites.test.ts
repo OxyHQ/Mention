@@ -111,6 +111,39 @@ describe('the outbox write is one Mongo accepts', () => {
     expect(stored?.updatedAt).toBeInstanceOf(Date);
   });
 
+  it('a repeated enqueue writes NOTHING — not even updatedAt', async () => {
+    /**
+     * The assertion that DISTINGUISHES the two candidate fixes, and the reason it
+     * exists as its own test.
+     *
+     * Both `timestamps: false` + explicit fields and "let Mongoose own them" clear
+     * the update-conflict, so both satisfy every other assertion in this file —
+     * including the row-count one below, because a row that was rewritten is still
+     * one row. Only `updatedAt` moves, so only `updatedAt` tells them apart.
+     *
+     * The 25 ms wait is load-bearing: without it an unchanged timestamp could be
+     * same-millisecond luck on a fast machine, and the test would pass under the
+     * wrong fix about half the time.
+     */
+    const eventId = `moderation:report.submit:${new mongoose.Types.ObjectId().toString()}`;
+    const enqueue = async (): Promise<void> => {
+      await enqueueModerationOutboxEvent(
+        { eventId, kind: 'report.submit', payload: { reportId: 'r4' } },
+        sessionInTransaction(session),
+      );
+    };
+
+    await enqueue();
+    const before = await ModerationOutbox.findById(eventId).lean();
+    await new Promise((resolve) => setTimeout(resolve, 25));
+    await enqueue();
+    const after = await ModerationOutbox.findById(eventId).lean();
+
+    expect(before?.updatedAt).toBeInstanceOf(Date);
+    expect(after?.updatedAt?.getTime()).toBe(before?.updatedAt?.getTime());
+    expect(after?.createdAt?.getTime()).toBe(before?.createdAt?.getTime());
+  });
+
   it('is idempotent — a replayed enqueue writes one row, not two', async () => {
     const eventId = `moderation:report.submit:${new mongoose.Types.ObjectId().toString()}`;
 
