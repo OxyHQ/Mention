@@ -19,7 +19,7 @@ import { starterPacksService } from '@/services/starterPacksService';
 import { listsService } from '@/services/listsService';
 import type { FeedType, HydratedPost } from '@mention/shared-types';
 import type { ProfileTabsProps } from './types';
-import { logger } from '@/lib/logger';
+import { logger } from '@oxyhq/core/logger';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { StarterPackIcon } from '@/assets/icons/starter-pack-icon';
 

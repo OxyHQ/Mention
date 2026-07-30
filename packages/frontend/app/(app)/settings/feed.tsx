@@ -15,7 +15,7 @@ import { useTranslation } from 'react-i18next';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { SettingsListGroup, SettingsListItem } from '@oxyhq/bloom/settings-list';
 import { RowIcon } from '@/components/settings/RowIcon';
-import { logger } from '@/lib/logger';
+import { logger } from '@oxyhq/core/logger';
 import { useAuth, OxyAuthPrompt } from '@oxyhq/services/ui/client';
 
 const IconComponent = Ionicons as React.ComponentType<React.ComponentProps<typeof Ionicons>>;
@@ -107,7 +107,7 @@ export default function FeedSettingsScreen() {
       }
     } catch (error) {
       if (!request.cancelled && request.id === requestIdRef.current) {
-        logger.error('Error saving feed settings', { error });
+        logger.error('Error saving feed settings', error);
         setSaving(false);
         setJustSaved(false);
       }

@@ -1,7 +1,7 @@
-import { createScopedLogger } from "@/lib/logger";
+import { createLogger } from '@oxyhq/core/logger';
 import { authenticatedClient } from "@/utils/api";
 
-const logger = createScopedLogger('MuteService');
+const logger = createLogger('MuteService');
 
 class MuteService {
   async muteUser(mutedId: string): Promise<boolean> {

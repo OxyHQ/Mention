@@ -10,7 +10,7 @@ import {
   SOCKET_EVENT_ROOMS_LIVE_UPDATED,
   ROOMS_LIVE_REFETCH_DEBOUNCE_MS,
 } from '@/constants/realtimeEvents';
-import { createScopedLogger } from '@/lib/logger';
+import { createLogger } from '@oxyhq/core/logger';
 import { wasRecent, type EchoAction } from './echoGuard';
 import {
   engagementQueueStorageKey,
@@ -18,7 +18,7 @@ import {
   serializeEngagementQueue,
 } from './engagementQueuePersistence';
 
-const logger = createScopedLogger('SocketService');
+const logger = createLogger('SocketService');
 
 // Valid feed types for validation
 const VALID_FEED_TYPES: string[] = ['posts', 'media', 'replies', 'likes', 'boosts', 'mixed', 'for_you', 'following', 'saved', 'explore', 'custom'];
@@ -181,7 +181,7 @@ class SocketService {
       this.setupSocketEventListeners();
       this.setupFeedLoadingWatcher();
     } catch (error) {
-      logger.error('Connection error', { error });
+      logger.error('Connection error', error);
     }
   }
 

@@ -22,10 +22,10 @@ import { BottomSheetContext } from '@/context/BottomSheetContext';
 import { ConfirmBottomSheet } from '@/components/common/ConfirmBottomSheet';
 import { MessageBottomSheet } from '@/components/common/MessageBottomSheet';
 import { EmptyState } from '@/components/common/EmptyState';
-import { createScopedLogger } from '@/lib/logger';
+import { createLogger } from '@oxyhq/core/logger';
 import { usePrivacyStore } from '@/stores/privacyStore';
 
-const restrictedLogger = createScopedLogger('RestrictedUsers');
+const restrictedLogger = createLogger('RestrictedUsers');
 
 interface RestrictedUser {
     id?: string;
@@ -122,7 +122,7 @@ export default function RestrictedUsersScreen() {
             setRestrictedUsers(users);
         } catch (error) {
             const err = error as { response?: { data?: unknown } };
-            restrictedLogger.error('Error loading restricted users', { error, responseData: err.response?.data });
+            restrictedLogger.error('Error loading restricted users', error, { responseData: err.response?.data });
             bottomSheet.setBottomSheetContent(
                 <MessageBottomSheet
                     title={t('common.error')}
@@ -196,7 +196,7 @@ export default function RestrictedUsersScreen() {
         } catch (error) {
             const err = error as { name?: string };
             if (err.name !== 'AbortError') {
-                restrictedLogger.error('Error searching users', { error });
+                restrictedLogger.error('Error searching users', error);
             }
         } finally {
             if (!abortController.signal.aborted) {
@@ -277,7 +277,7 @@ export default function RestrictedUsersScreen() {
             bottomSheet.openBottomSheet(true);
         } catch (error) {
             const err = error as { response?: { data?: { error?: string } } };
-            restrictedLogger.error('Error restricting user', { error });
+            restrictedLogger.error('Error restricting user', error);
             setRestrictedUserIds(prev => prev.filter(id => id !== userId));
             setRestrictedUsers(prev => prev.filter(u => getUserId(u) !== userId));
             const errorMessage = err.response?.data?.error || t('settings.privacy.failedToRestrictUser');
@@ -323,7 +323,7 @@ export default function RestrictedUsersScreen() {
                 bottomSheet.openBottomSheet(true);
             } catch (error) {
                 const err = error as { response?: { data?: { error?: string } } };
-                restrictedLogger.error('Error unrestricting user', { error, responseData: err.response?.data });
+                restrictedLogger.error('Error unrestricting user', error, { responseData: err.response?.data });
                 if (userToRemove) {
                     setRestrictedUserIds(prev => [...prev, userId]);
                     setRestrictedUsers(prev => [...prev, userToRemove]);
@@ -522,7 +522,7 @@ export default function RestrictedUsersScreen() {
                                                 if (userId) {
                                                     handleUnrestrict(userId);
                                                 } else {
-                                                    restrictedLogger.error('No userId found for user', { user });
+                                                    restrictedLogger.error('No userId found for user', undefined, { user });
                                                     bottomSheet.setBottomSheetContent(
                                                         <MessageBottomSheet
                                                             title={t('common.error')}

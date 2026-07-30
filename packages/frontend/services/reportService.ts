@@ -1,4 +1,4 @@
-import { logger } from "@/lib/logger";
+import { logger } from '@oxyhq/core/logger';
 import { authenticatedClient } from "@/utils/api";
 import { normalizeApiError } from "@/utils/apiError";
 

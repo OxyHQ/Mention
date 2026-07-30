@@ -12,7 +12,8 @@ jest.mock('@oxyhq/services/ui/client', () => ({
   useAuth: jest.fn(),
 }));
 
-jest.mock('@/lib/logger', () => ({
+jest.mock('@oxyhq/core/logger', () => ({
+  ...jest.requireActual('@oxyhq/core/logger'),
   logger: {
     error: jest.fn(),
   },

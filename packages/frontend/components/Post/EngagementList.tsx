@@ -9,7 +9,7 @@ import { ProfileCard, ProfileCardSkeletonList } from '@/components/ProfileCard';
 
 import { useRouter } from 'expo-router';
 import { EmptyState } from '@/components/common/EmptyState';
-import { logger } from '@/lib/logger';
+import { logger } from '@oxyhq/core/logger';
 import { getNormalizedUserHandle } from '@oxyhq/core';
 import type { PostUser } from '@mention/shared-types';
 

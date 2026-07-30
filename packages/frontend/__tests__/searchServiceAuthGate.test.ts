@@ -63,8 +63,9 @@ jest.mock('@/utils/storage', () => ({
   },
 }));
 
-jest.mock('@/lib/logger', () => ({
-  createScopedLogger: () => ({
+jest.mock('@oxyhq/core/logger', () => ({
+  ...jest.requireActual('@oxyhq/core/logger'),
+  createLogger: () => ({
     info: jest.fn(),
     warn: jest.fn(),
     error: jest.fn(),

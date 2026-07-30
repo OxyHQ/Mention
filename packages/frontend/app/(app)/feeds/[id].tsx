@@ -42,7 +42,7 @@ import { ProfileHoverCard } from '@/components/ProfileHoverCard';
 import type { PostUser } from '@mention/shared-types';
 import { displayNameOrHandle } from '@/utils/displayName';
 import { WEB_BASE_URL } from '@/config';
-import { logger } from '@/lib/logger';
+import { logger } from '@oxyhq/core/logger';
 import { publicQueryKeys, viewerQueryKeys } from '@/lib/viewerQueryKeys';
 
 type FeedTab = 'recent' | 'profiles' | 'topics' | 'reviews';

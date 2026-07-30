@@ -22,10 +22,10 @@ import { BottomSheetContext } from '@/context/BottomSheetContext';
 import { ConfirmBottomSheet } from '@/components/common/ConfirmBottomSheet';
 import { MessageBottomSheet } from '@/components/common/MessageBottomSheet';
 import { EmptyState } from '@/components/common/EmptyState';
-import { createScopedLogger } from '@/lib/logger';
+import { createLogger } from '@oxyhq/core/logger';
 import { usePrivacyStore } from '@/stores/privacyStore';
 
-const blockedLogger = createScopedLogger('BlockedUsers');
+const blockedLogger = createLogger('BlockedUsers');
 
 interface BlockedUser {
     id?: string;
@@ -114,7 +114,7 @@ export default function BlockedUsersScreen() {
             setBlockedUsers(users);
         } catch (error) {
             const err = error as { response?: { data?: unknown } };
-            blockedLogger.error('Error loading blocked users', { error, responseData: err.response?.data });
+            blockedLogger.error('Error loading blocked users', error, { responseData: err.response?.data });
             bottomSheet.setBottomSheetContent(
                 <MessageBottomSheet
                     title={t('common.error')}
@@ -167,7 +167,7 @@ export default function BlockedUsersScreen() {
             });
             setSearchResults(filtered);
         } catch (error) {
-            blockedLogger.error('Error searching users', { error });
+            blockedLogger.error('Error searching users', error);
         } finally {
             setSearching(false);
         }
@@ -217,7 +217,7 @@ export default function BlockedUsersScreen() {
             bottomSheet.openBottomSheet(true);
         } catch (error) {
             const err = error as { response?: { data?: { error?: string } } };
-            blockedLogger.error('Error blocking user', { error });
+            blockedLogger.error('Error blocking user', error);
             setBlockedUserIds(prev => prev.filter(id => id !== userId));
             setBlockedUsers(prev => prev.filter(u => getUserId(u) !== userId));
             const errorMessage = err.response?.data?.error || t('settings.privacy.failedToBlockUser');
@@ -263,7 +263,7 @@ export default function BlockedUsersScreen() {
                 bottomSheet.openBottomSheet(true);
             } catch (error) {
                 const err = error as { response?: { data?: { error?: string } } };
-                blockedLogger.error('Error unblocking user', { error, responseData: err.response?.data });
+                blockedLogger.error('Error unblocking user', error, { responseData: err.response?.data });
                 if (userToRemove) {
                     setBlockedUserIds(prev => [...prev, userId]);
                     setBlockedUsers(prev => [...prev, userToRemove]);

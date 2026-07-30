@@ -30,7 +30,7 @@ import {
 import { FeedFilters } from '../utils/feedUtils';
 import { authenticatedClient, publicClient, isNotFoundError } from '../utils/api';
 import { oxyServices } from '@/lib/oxyServices';
-import { logger } from '@/lib/logger';
+import { logger } from '@oxyhq/core/logger';
 import { normalizeApiError } from '@/utils/apiError';
 import {
   buildBookmarkFolderMoveRequest,
@@ -386,7 +386,7 @@ class FeedService {
           });
         } catch (error) {
           const normalized = normalizeApiError(error);
-          logger.error('Error fetching feed', {
+          logger.error('Error fetching feed', undefined, {
             message: normalized.message,
             status: normalized.status,
             code: normalized.code,

@@ -7,7 +7,7 @@ import type {
   PostUser,
   UpdateCustomFeedRequest,
 } from '@mention/shared-types';
-import { logger } from '@/lib/logger';
+import { logger } from '@oxyhq/core/logger';
 import { normalizeApiError } from '@/utils/apiError';
 
 interface CustomFeedListParams {
@@ -133,7 +133,7 @@ async function run<T>(operation: string, request: () => Promise<T>): Promise<T> 
     return await request();
   } catch (error) {
     const normalized = normalizeApiError(error);
-    logger.error(`customFeedsService.${operation} failed`, {
+    logger.error(`customFeedsService.${operation} failed`, undefined, {
       status: normalized.status,
       code: normalized.code,
       message: normalized.message,

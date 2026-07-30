@@ -14,7 +14,7 @@ import {
     buildFeedScrollKey,
     mergeFeedPageContent,
 } from '@/utils/feedUtils';
-import { createScopedLogger } from '@/lib/logger';
+import { createLogger } from '@oxyhq/core/logger';
 import { useDeepCompareEffect } from './useDeepCompare';
 import { buildFeedKey, hasFeedData, isDbAvailable } from '@/db';
 import { resolveUseMemoryFeed } from '@/utils/feedMemoryMode';
@@ -31,7 +31,7 @@ import {
 // Re-export so callers that already imported from here keep working.
 export { resolveUseMemoryFeed } from '@/utils/feedMemoryMode';
 
-const logger = createScopedLogger('useFeedState');
+const logger = createLogger('useFeedState');
 
 // Retry configuration
 const MAX_RETRIES = 3;
@@ -637,7 +637,7 @@ export function useFeedState({
                     logger.debug('Request aborted');
                     return;
                 }
-                logger.error('Error fetching feed', { error: err });
+                logger.error('Error fetching feed', err);
                 if (useMemoryFeed && ownsPrimary()) {
                     setLocalError('Failed to load');
                 }
@@ -765,7 +765,7 @@ export function useFeedState({
             }
         } catch (err: unknown) {
             if (signal.aborted) return;
-            logger.error('Error refreshing feed after retries', { error: err });
+            logger.error('Error refreshing feed after retries', err);
             if (useMemoryFeed && ownsPrimary()) {
                 setLocalError('Failed to refresh');
             }
@@ -922,7 +922,7 @@ export function useFeedState({
                 logger.debug('Load more aborted');
                 return;
             }
-            logger.error('Error loading more', { error: err });
+            logger.error('Error loading more', err);
             if (useMemoryFeed && ownsLoadMore()) {
                 let errorMessage = 'Failed to load more posts';
                 if (err instanceof Error) errorMessage = err.message;

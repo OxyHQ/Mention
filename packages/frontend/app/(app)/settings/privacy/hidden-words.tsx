@@ -17,7 +17,7 @@ import { EmptyState } from '@/components/common/EmptyState';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
 import { ConfirmBottomSheet } from '@/components/common/ConfirmBottomSheet';
 import { getErrorMessage } from '@/utils/apiError';
-import { createScopedLogger } from '@/lib/logger';
+import { createLogger } from '@oxyhq/core/logger';
 import {
     muteWordsService,
     isHashtagMuteWord,
@@ -26,7 +26,7 @@ import {
 } from '@/services/muteWordsService';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 
-const hiddenWordsLogger = createScopedLogger('HiddenWords');
+const hiddenWordsLogger = createLogger('HiddenWords');
 
 export default function HiddenWordsScreen() {
     const { t } = useTranslation();
@@ -79,7 +79,7 @@ export default function HiddenWordsScreen() {
             toast(t('settings.privacy.wordMuted', { defaultValue: 'Word muted' }), { type: 'success' });
         },
         onError: (error) => {
-            hiddenWordsLogger.error('Failed to add muted word', { error });
+            hiddenWordsLogger.error('Failed to add muted word', error);
             toast(getErrorMessage(error, t('settings.privacy.failedToMuteWord', { defaultValue: 'Failed to mute word' })), {
                 type: 'error',
             });
@@ -96,7 +96,7 @@ export default function HiddenWordsScreen() {
             toast(t('settings.privacy.wordUnmuted', { defaultValue: 'Word unmuted' }), { type: 'success' });
         },
         onError: (error) => {
-            hiddenWordsLogger.error('Failed to remove muted word', { error });
+            hiddenWordsLogger.error('Failed to remove muted word', error);
             toast(
                 getErrorMessage(error, t('settings.privacy.failedToUnmuteWord', { defaultValue: 'Failed to unmute word' })),
                 { type: 'error' }

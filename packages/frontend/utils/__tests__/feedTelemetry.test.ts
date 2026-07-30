@@ -16,7 +16,7 @@
  *      descriptor the feed is fetched with.
  *
  * The tracker's only outward effect is `feedService.sendFeedInteractions`, which
- * is mocked so the test never touches the network/SDK layer. `@/lib/logger` is
+ * is mocked so the test never touches the network/SDK layer. `@oxyhq/core/logger` is
  * mocked for the same reason.
  */
 
@@ -40,8 +40,9 @@ jest.mock('@/services/trendingService', () => ({
     trendingService: { sendTrendEvent: jest.fn().mockResolvedValue(undefined) },
 }));
 
-jest.mock('@/lib/logger', () => ({
-    createScopedLogger: () => ({ debug: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn() }),
+jest.mock('@oxyhq/core/logger', () => ({
+    ...jest.requireActual('@oxyhq/core/logger'),
+    createLogger: () => ({ debug: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn() }),
 }));
 
 const mockSendFeedInteractions = feedService.sendFeedInteractions as jest.Mock;

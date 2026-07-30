@@ -13,7 +13,7 @@ import { ThemedView } from '@/components/ThemedView';
 import { Loading } from '@oxyhq/bloom/loading';
 import { NotificationItem } from '@/components/notifications/NotificationItem';
 import { ErrorBoundary } from '@oxyhq/bloom/error-boundary';
-import { createScopedLogger } from '@/lib/logger';
+import { createLogger } from '@oxyhq/core/logger';
 import { notificationService } from '@/services/notificationService';
 import { useTranslation } from 'react-i18next';
 import { validateNotifications } from '@/types/validation';
@@ -48,7 +48,7 @@ import { Gear } from '@/assets/icons/gear-icon';
 import { PanelStickyHeader } from '@/components/shell/PanelChrome';
 import { prewarmUsersByIds } from '@/utils/userEnrichment';
 
-const notificationLogger = createScopedLogger('Notifications');
+const notificationLogger = createLogger('Notifications');
 
 type NotificationTab = 'all' | 'mentions' | 'follows' | 'likes' | 'posts' | 'pokes';
 
@@ -168,7 +168,7 @@ const NotificationsScreen: React.FC = () => {
         mutationFn: (ids: string[]) => Promise.all(ids.map((id) => notificationService.markAsRead(id))),
         onMutate: (ids: string[]) => applyReadPatch(ids),
         onError: (error: unknown) => {
-            notificationLogger.error('Error marking notification as read', { error });
+            notificationLogger.error('Error marking notification as read', error);
             toast(t('notification.mark_read_error') || 'Failed to mark notification as read', { type: 'error' });
             // Resync from the server on failure to undo the optimistic patch.
             queryClient.invalidateQueries({
@@ -206,7 +206,7 @@ const NotificationsScreen: React.FC = () => {
             toast(t('notification.deleted', { defaultValue: 'Notification deleted' }), { type: 'success' });
         },
         onError: (error: unknown) => {
-            notificationLogger.error('Error deleting notification', { error });
+            notificationLogger.error('Error deleting notification', error);
             toast(t('notification.delete_error', { defaultValue: 'Failed to delete notification' }), { type: 'error' });
             // Resync from the server on failure to undo the optimistic patch.
             queryClient.invalidateQueries({
@@ -232,7 +232,7 @@ const NotificationsScreen: React.FC = () => {
         },
         onError: (error: unknown) => {
             const { status: statusCode, message: errorMessage } = normalizeApiError(error);
-            notificationLogger.error('Error marking all notifications as read', { error, statusCode });
+            notificationLogger.error('Error marking all notifications as read', error, { statusCode });
             toast(
                 t('notification.mark_all_read_error') ||
                 `Failed to mark all notifications as read${statusCode ? ` (${statusCode})` : ''}: ${errorMessage}`,
@@ -382,7 +382,7 @@ const NotificationsScreen: React.FC = () => {
     }, [listItems, t]);
 
     const handleBoundaryError = useCallback((error: Error, errorInfo: React.ErrorInfo) => {
-        notificationLogger.error('Error caught by boundary', { error, errorInfo });
+        notificationLogger.error('Error caught by boundary', error, { errorInfo });
     }, []);
 
     const renderNotification = useCallback((item: NotificationListItem) => {

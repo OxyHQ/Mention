@@ -27,7 +27,7 @@ import type { User } from '@oxyhq/core';
 import { queryClient } from '@/lib/queryClient';
 import { enrichMissingAvatars } from '@/utils/userEnrichment';
 import { isAuthError } from '@/utils/authErrors';
-import { logger } from '@/lib/logger';
+import { logger } from '@oxyhq/core/logger';
 import {
   fetchRecommendationsPage,
   deriveExcludeTypes,

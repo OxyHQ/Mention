@@ -17,7 +17,7 @@
  * The module is platform-split — `chunkReload.native.ts` is a no-op.
  */
 
-import { logger } from '@/lib/logger';
+import { logger } from '@oxyhq/core/logger';
 
 /** sessionStorage key holding the epoch-ms of the last recovery reload. */
 const RELOAD_STAMP_KEY = 'mention:chunkReloadAt';
@@ -85,17 +85,13 @@ function recover(error: unknown): void {
   if (lastReloadAt && now - lastReloadAt < RELOAD_COOLDOWN_MS) {
     // We already reloaded moments ago and a chunk still failed: it is broken, not
     // merely stale. Surface it rather than reload in a loop.
-    logger.error('Route chunk still failing after a recovery reload; not reloading again', {
-      error: describeError(error),
-    });
+    logger.error('Route chunk still failing after a recovery reload; not reloading again', describeError(error));
     return;
   }
 
   if (!writeStamp(now)) {
     // Without a persisted guard a reload risks an infinite loop — refuse.
-    logger.error('Stale route chunk detected but the reload guard is unavailable; not reloading', {
-      error: describeError(error),
-    });
+    logger.error('Stale route chunk detected but the reload guard is unavailable; not reloading', describeError(error));
     return;
   }
 

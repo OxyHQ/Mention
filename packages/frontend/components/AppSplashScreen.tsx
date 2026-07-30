@@ -6,9 +6,9 @@ import { getPresetVars } from '@oxyhq/bloom/preset-vars';
 import { LogoIcon } from '@/assets/logo';
 import { Loading } from '@oxyhq/bloom/loading';
 import { BLOOM_THEME_PERSIST_KEY, BLOOM_THEME_STORAGE } from '@/lib/themePersistence';
-import { createScopedLogger } from '@/lib/logger';
+import { createLogger } from '@oxyhq/core/logger';
 
-const logger = createScopedLogger('AppSplashScreen');
+const logger = createLogger('AppSplashScreen');
 
 interface AppSplashScreenProps {
     onFadeComplete?: () => void;

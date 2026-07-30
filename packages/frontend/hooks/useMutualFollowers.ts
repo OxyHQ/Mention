@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@oxyhq/services/ui/client';
 import type { User } from '@oxyhq/core';
 import { isAuthError } from '@/utils/authErrors';
-import { logger } from '@/lib/logger';
+import { logger } from '@oxyhq/core/logger';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 
 /**

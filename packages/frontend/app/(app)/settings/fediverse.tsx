@@ -20,9 +20,9 @@ import { describeContentLanguage } from '@/constants/contentLanguages';
 import { confirmDialog } from '@/utils/alerts';
 import { api } from '@/utils/api';
 import { WEB_BASE_URL } from '@/config';
-import { createScopedLogger } from '@/lib/logger';
+import { createLogger } from '@oxyhq/core/logger';
 
-const logger = createScopedLogger('FediverseSettings');
+const logger = createLogger('FediverseSettings');
 
 /**
  * Fediverse-sharing controls. Mounted only once auth is resolved and a private
@@ -48,7 +48,7 @@ function FediverseSharingBody() {
       try {
         await updatePreferredLanguage(tag);
       } catch (error) {
-        logger.error('Failed to update fediverse preferred language', { error });
+        logger.error('Failed to update fediverse preferred language', error);
         toast(
           t('fediverse.settings.updateFailed', {
             defaultValue: "Couldn't update fediverse sharing. Please try again.",
@@ -85,7 +85,7 @@ function FediverseSharingBody() {
       try {
         await oxyServices.updatePrivacySettings({ fediverseSharing: value });
       } catch (error) {
-        logger.error('Failed to update fediverse sharing preference', { error });
+        logger.error('Failed to update fediverse sharing preference', error);
         setSharing(!value);
         setPending(false);
         toast(

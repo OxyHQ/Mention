@@ -21,7 +21,7 @@ import { useSafeBack } from '@/hooks/useSafeBack';
 import { confirmDestructive } from '@/utils/alerts';
 import { displayNameOrHandle } from '@/utils/displayName';
 import { cn } from '@/lib/utils';
-import { logger } from '@/lib/logger';
+import { logger } from '@oxyhq/core/logger';
 import type { User } from '@oxyhq/core';
 
 interface MemberProfile {
@@ -167,7 +167,7 @@ export default function EditStarterPackScreen() {
       await starterPacksService.addMembers(packId, [profile.id]);
       toast(`Added @${profile.username}`, { type: 'success' });
     } catch (e) {
-      logger.error('Add member failed', { error: e });
+      logger.error('Add member failed', e);
       setMembers((prev) => prev.filter((m) => m.id !== profile.id));
       toast('Failed to add member', { type: 'error' });
     } finally {
@@ -185,7 +185,7 @@ export default function EditStarterPackScreen() {
       await starterPacksService.removeMembers(packId, [profile.id]);
       toast(`Removed @${profile.username}`, { type: 'success' });
     } catch (e) {
-      logger.error('Remove member failed', { error: e });
+      logger.error('Remove member failed', e);
       setMembers(previous);
       toast('Failed to remove member', { type: 'error' });
     } finally {
@@ -206,7 +206,7 @@ export default function EditStarterPackScreen() {
       toast('Starter pack updated', { type: 'success' });
       safeBack();
     } catch (e) {
-      logger.error('Update starter pack failed', { error: e });
+      logger.error('Update starter pack failed', e);
       toast('Failed to update starter pack', { type: 'error' });
     } finally {
       setSavingDetails(false);
@@ -223,7 +223,7 @@ export default function EditStarterPackScreen() {
       await starterPacksService.remove(packId);
       router.replace('/starter-packs');
     } catch (e) {
-      logger.error('Failed to delete starter pack', { error: e });
+      logger.error('Failed to delete starter pack', e);
       toast('Failed to delete starter pack', { type: 'error' });
     }
   }, [packId]);

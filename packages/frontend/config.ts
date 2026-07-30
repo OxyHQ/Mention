@@ -1,21 +1,25 @@
+import type { LogLevel } from '@oxyhq/core/logger';
+
 // Base URLs (prod first → env → fallback)
 export const IS_DEVELOPMENT = process.env.NODE_ENV === 'development';
 
-export type RuntimeLogLevel = 'debug' | 'info' | 'log' | 'warn' | 'error';
-const VALID_LOG_LEVELS: readonly RuntimeLogLevel[] = [
-  'debug',
-  'info',
-  'log',
-  'warn',
+// Mirrors `LogLevel` from @oxyhq/core/logger — the levels the shared logger
+// understands. Anything else in EXPO_PUBLIC_LOG_LEVEL is ignored.
+const VALID_LOG_LEVELS: readonly LogLevel[] = [
+  'silent',
   'error',
+  'warn',
+  'info',
+  'debug',
 ];
 const configuredLogLevel = process.env.EXPO_PUBLIC_LOG_LEVEL;
-export const LOG_LEVEL: RuntimeLogLevel | undefined =
-  configuredLogLevel &&
-  VALID_LOG_LEVELS.includes(configuredLogLevel as RuntimeLogLevel)
-    ? (configuredLogLevel as RuntimeLogLevel)
+export const LOG_LEVEL: LogLevel | undefined =
+  configuredLogLevel && VALID_LOG_LEVELS.includes(configuredLogLevel as LogLevel)
+    ? (configuredLogLevel as LogLevel)
     : undefined;
-export const LOG_DEBUG_FILTER = process.env.EXPO_PUBLIC_LOG_DEBUG ?? '';
+// Annotated because `process.env.*` widens to `any` here, which would otherwise
+// propagate into every consumer of this constant.
+export const LOG_DEBUG_FILTER: string = process.env.EXPO_PUBLIC_LOG_DEBUG ?? '';
 
 export const API_URL =
   process.env.NODE_ENV === 'production'

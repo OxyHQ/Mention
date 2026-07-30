@@ -1,4 +1,4 @@
-import type { Metadata, Serializable, TransportEntry } from './types'
+import type { LogContext, LogEntry } from '@oxyhq/core/logger'
 
 export const REDACTED = '[REDACTED]'
 export const CIRCULAR = '[Circular]'
@@ -39,6 +39,18 @@ const HANDLE_RE =
   /(^|[\s([{"'])@[a-z0-9](?:[a-z0-9._-]{0,62})(?:@[a-z0-9.-]+)?\b/gi
 
 const OMIT = Symbol('omit')
+
+/** JSON-safe value a sanitized log field is reduced to. */
+export type Serializable =
+  | string
+  | number
+  | boolean
+  | null
+  | undefined
+  | Serializable[]
+  | {
+      [key: string]: Serializable
+    }
 
 type SanitizedValue = Serializable | typeof OMIT
 
@@ -192,19 +204,28 @@ function sanitizeValue(
   return sanitizeObject(value as object, depth, state)
 }
 
-export function sanitizeLogMetadata(
-  metadata: Metadata | Record<string, unknown>,
-): Metadata {
-  const state: SanitizeState = {
-    seen: new WeakSet<object>(),
-    remainingNodes: MAX_NODES,
-  }
-  const sanitized = sanitizeObject(metadata, 0, state)
+function freshState(): SanitizeState {
+  return { seen: new WeakSet<object>(), remainingNodes: MAX_NODES }
+}
+
+/**
+ * Scrub an arbitrary value logged in the `error` slot or as a variadic arg.
+ * Errors collapse to `{name, message, stack}`; everything else is reduced to
+ * bounded JSON-safe data.
+ */
+export function sanitizeLogValue(value: unknown): Serializable {
+  const sanitized = sanitizeValue(value, 0, freshState())
+  return sanitized === OMIT ? undefined : sanitized
+}
+
+/** Scrub the structured context object carried alongside a log line. */
+export function sanitizeLogContext(context: LogContext): LogContext {
+  const sanitized = sanitizeObject(context, 0, freshState())
   return (
     typeof sanitized === 'object' && sanitized !== null && !Array.isArray(sanitized)
       ? sanitized
       : {}
-  ) as Metadata
+  ) as LogContext
 }
 
 export function sanitizeLogMessage(message: string | Error): string {
@@ -216,14 +237,20 @@ export function sanitizeLogMessage(message: string | Error): string {
   return sanitizeLogString(String(message))
 }
 
-export function sanitizeTransportEntry(entry: TransportEntry): TransportEntry {
+/**
+ * Scrub a whole log entry — message, namespace, context, the error slot and
+ * every variadic arg — before it reaches a transport.
+ */
+export function sanitizeLogEntry(entry: LogEntry): LogEntry {
   return {
     level: entry.level,
-    context: entry.context
-      ? truncate(sanitizeLogString(entry.context), MAX_KEY_LENGTH)
-      : undefined,
     message: sanitizeLogMessage(entry.message),
-    metadata: sanitizeLogMetadata(entry.metadata),
+    namespace: entry.namespace
+      ? truncate(sanitizeLogString(entry.namespace), MAX_KEY_LENGTH)
+      : undefined,
+    context: entry.context ? sanitizeLogContext(entry.context) : undefined,
+    error: entry.error === undefined ? undefined : sanitizeLogValue(entry.error),
+    args: entry.args.map(sanitizeLogValue),
     timestamp: entry.timestamp,
   }
 }

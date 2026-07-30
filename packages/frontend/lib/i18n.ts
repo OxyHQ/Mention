@@ -16,7 +16,7 @@ import enUS from '@/locales/en.json';
 
 import { DEFAULT_LANGUAGE, STORAGE_KEYS } from './constants';
 import { Storage } from '@/utils/storage';
-import { logger } from '@/lib/logger';
+import { logger } from '@oxyhq/core/logger';
 
 /**
  * `en-US` is both `DEFAULT_LANGUAGE` and `fallbackLng`, so it is needed on every
@@ -46,7 +46,7 @@ async function loadTranslation(language: string): Promise<ResourceKey | null> {
   try {
     return await load();
   } catch (error) {
-    logger.error('Failed to load translation bundle', { language, error });
+    logger.error('Failed to load translation bundle', error, { language });
     return null;
   }
 }
@@ -76,7 +76,7 @@ export async function loadSavedLanguage(): Promise<string> {
     const savedLanguage = await Storage.get<string>(STORAGE_KEYS.LANGUAGE_PREFERENCE);
     return savedLanguage || DEFAULT_LANGUAGE;
   } catch (error) {
-    logger.error('Failed to load saved language', { error });
+    logger.error('Failed to load saved language', error);
     return DEFAULT_LANGUAGE;
   }
 }
@@ -110,7 +110,7 @@ export async function initializeI18n(): Promise<void> {
       interpolation: { escapeValue: false },
     });
   } catch (error) {
-    logger.error('i18n initialization failed', { error });
+    logger.error('i18n initialization failed', error);
     // Fallback to default initialization
     if (!i18n.isInitialized) {
       try {
@@ -122,7 +122,7 @@ export async function initializeI18n(): Promise<void> {
           interpolation: { escapeValue: false },
         });
       } catch (fallbackError) {
-        logger.error('i18n fallback initialization failed', { error: fallbackError });
+        logger.error('i18n fallback initialization failed', fallbackError);
         throw fallbackError;
       }
     }

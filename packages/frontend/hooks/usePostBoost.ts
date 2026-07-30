@@ -1,6 +1,6 @@
 import { useCallback, useRef } from 'react';
 import { usePostsStore } from '@/stores/postsStore';
-import { logger } from '@/lib/logger';
+import { logger } from '@oxyhq/core/logger';
 
 /**
  * @param source Optional originating feed descriptor for surface-aware
@@ -21,7 +21,7 @@ export function usePostBoost(postId: string | undefined, isBoosted: boolean, sou
 
             await action;
         } catch (error) {
-            logger.error('Error toggling boost', { error });
+            logger.error('Error toggling boost', error);
         } finally {
             pendingRef.current = false;
         }

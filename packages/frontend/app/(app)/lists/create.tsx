@@ -8,7 +8,7 @@ import { useAuth } from '@oxyhq/services/ui/client';
 import { listsService } from '@/services/listsService';
 import { router } from 'expo-router';
 import { useSafeBack } from '@/hooks/useSafeBack';
-import { logger } from '@/lib/logger';
+import { logger } from '@oxyhq/core/logger';
 import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
 import type { User } from '@oxyhq/core';

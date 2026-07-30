@@ -47,8 +47,9 @@ jest.mock('@/utils/api', () => ({
   isNotFoundError: jest.fn(() => false),
 }));
 
-jest.mock('@/lib/logger', () => ({
-  createScopedLogger: jest.fn(() => ({
+jest.mock('@oxyhq/core/logger', () => ({
+  ...jest.requireActual('@oxyhq/core/logger'),
+  createLogger: jest.fn(() => ({
     debug: jest.fn(),
   })),
 }));

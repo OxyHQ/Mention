@@ -59,7 +59,7 @@ import { useTrendsStore } from "@/stores/trendsStore";
 import { useTrendNavigation } from "@/hooks/useTrendNavigation";
 import type { Trend } from "@/interfaces/Trend";
 import { formatCompactNumber } from "@/utils/formatNumber";
-import { logger } from "@/lib/logger";
+import { logger } from '@oxyhq/core/logger';
 import { viewerQueryKeys } from "@/lib/viewerQueryKeys";
 import { useLatchedState } from "@/hooks/useLatchedState";
 import { HIT_SLOP_MD } from '@/styles/hitSlop';

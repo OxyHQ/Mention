@@ -3,7 +3,7 @@ import {
   reconcileMentionData,
   type MentionData,
 } from '@/utils/mentions';
-import { logger } from '@/lib/logger';
+import { logger } from '@oxyhq/core/logger';
 import {
   ComposerMediaItem,
   toComposerMediaType,
@@ -192,7 +192,7 @@ export const useDraftManager = ({
       const draftId = await saveDraft(draftData);
       setCurrentDraftId(draftId);
     } catch (error) {
-      logger.error('Error auto-saving draft', { error });
+      logger.error('Error auto-saving draft', error);
     }
   }, [hasContent, buildDraftData, saveDraft, deleteDraft]);
 

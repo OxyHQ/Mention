@@ -16,7 +16,7 @@ import { useTheme } from '@oxyhq/bloom/theme';
 import { useRoomUsers } from '@/hooks/useRoomUsers';
 import { useLiveRoom } from '@/context/LiveRoomContext';
 import { roomsService, type Room } from '@/lib/syraApi';
-import { logger } from '@/lib/logger';
+import { logger } from '@oxyhq/core/logger';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
 import { useTranslation } from 'react-i18next';
 import { LIVE_INDICATOR_COLOR, LIVE_INDICATOR_FOREGROUND_COLOR } from '@/styles/colors';

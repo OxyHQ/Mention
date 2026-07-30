@@ -9,10 +9,10 @@
  */
 
 import * as SQLite from 'expo-sqlite';
-import { createScopedLogger } from '@/lib/logger';
+import { createLogger } from '@oxyhq/core/logger';
 import { runMigrations } from './migrations';
 
-const logger = createScopedLogger('Database');
+const logger = createLogger('Database');
 
 const DB_NAME = 'mention.db';
 
@@ -75,7 +75,7 @@ export function getDb(): SQLiteDb | null {
 
     return db;
   } catch (e) {
-    logger.error('Failed to initialize SQLite', { error: e });
+    logger.error('Failed to initialize SQLite', e);
     sqliteAvailable = false;
     db = null;
     initialized = false;
@@ -92,7 +92,7 @@ export function closeDb(): void {
     try {
       db.closeSync();
     } catch (e) {
-      logger.error('Error closing database', { error: e });
+      logger.error('Error closing database', e);
     }
     db = null;
     initialized = false;
@@ -111,7 +111,7 @@ export function resetDb(): void {
     SQLite.deleteDatabaseSync(DB_NAME);
     logger.debug('Database deleted');
   } catch (e) {
-    logger.error('Error deleting database', { error: e });
+    logger.error('Error deleting database', e);
   }
   // Re-initialize on next getDb() call
 }

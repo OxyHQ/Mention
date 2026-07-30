@@ -10,7 +10,8 @@ jest.mock('@/services/entityFollowService', () => ({
   },
 }));
 
-jest.mock('@/lib/logger', () => ({
+jest.mock('@oxyhq/core/logger', () => ({
+  ...jest.requireActual('@oxyhq/core/logger'),
   logger: {
     warn: jest.fn(),
   },

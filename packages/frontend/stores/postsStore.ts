@@ -15,7 +15,7 @@ import type {
   FeedInterstitialSlot,
   FeedPostSlice,
 } from '@mention/shared-types';
-import { createScopedLogger } from '@/lib/logger';
+import { createLogger } from '@oxyhq/core/logger';
 import { feedService } from '../services/feedService';
 import { markLocalAction } from '../services/echoGuard';
 import { publishNewLocalPost, publishRemovedLocalPost } from '@/stores/feedScrollStore';
@@ -45,7 +45,7 @@ import { toFeedItem } from '@/db/feedItem';
 import { precacheActorsFromPosts } from '@/lib/precacheActorsFromPosts';
 import type { FeedFilters } from '@/utils/feedUtils';
 
-const logger = createScopedLogger('PostsStore');
+const logger = createLogger('PostsStore');
 
 // ── Shared helpers ───────────────────────────────────────────────
 

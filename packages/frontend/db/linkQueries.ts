@@ -6,9 +6,9 @@ import { getDb } from './database';
 import type { LinkPreviewRow } from './schema';
 import { linkMetadataToRow, rowToLinkMetadata } from './schema';
 import type { LinkMetadata } from '@/stores/linksStore';
-import { createScopedLogger } from '@/lib/logger';
+import { createLogger } from '@oxyhq/core/logger';
 
-const logger = createScopedLogger('LinkQueries');
+const logger = createLogger('LinkQueries');
 
 // ── URL normalization ────────────────────────────────────────────
 

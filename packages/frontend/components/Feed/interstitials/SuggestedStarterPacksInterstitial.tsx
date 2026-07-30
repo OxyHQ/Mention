@@ -13,7 +13,7 @@ import {
   starterPacksService,
   type StarterPackSummary,
 } from '@/services/starterPacksService';
-import { logger } from '@/lib/logger';
+import { logger } from '@oxyhq/core/logger';
 import { DismissButton } from './DismissButton';
 import { InterstitialShell, type InterstitialItemContext } from './InterstitialShell';
 import {

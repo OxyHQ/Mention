@@ -18,10 +18,10 @@ import { confirmDialog } from '@/utils/alerts';
 import { formatRelativeTimeLocalized } from '@/utils/dateUtils';
 import { api } from '@/utils/api';
 import { getErrorMessage } from '@/utils/apiError';
-import { createScopedLogger } from '@/lib/logger';
+import { createLogger } from '@oxyhq/core/logger';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 
-const logger = createScopedLogger('ConnectedAiSettings');
+const logger = createLogger('ConnectedAiSettings');
 
 interface McpConnection {
   id: string;
@@ -119,7 +119,7 @@ export default function ConnectedAiScreen() {
       toast(t('mcp.connections.revoked', { defaultValue: 'Access revoked' }), { type: 'success' });
     },
     onError: (error) => {
-      logger.error('Failed to revoke MCP connection', { error });
+      logger.error('Failed to revoke MCP connection', error);
       toast(
         getErrorMessage(
           error,

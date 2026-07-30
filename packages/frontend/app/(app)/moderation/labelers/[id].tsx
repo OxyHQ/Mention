@@ -22,7 +22,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { labelerService } from '@/services/labelerService';
 import { SEVERITY_COLORS, Severity, LabelActionType } from '@/components/LabelBadge';
 import { cn } from '@/lib/utils';
-import { logger } from '@/lib/logger';
+import { logger } from '@oxyhq/core/logger';
 
 type LabelAction = LabelActionType;
 

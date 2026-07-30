@@ -8,7 +8,7 @@ import { EmptyState } from '@/components/common/EmptyState';
 import { StarterPackIcon } from '@/assets/icons/starter-pack-icon';
 import { VirtualList } from '@oxyhq/bloom/list';
 import { useTranslation } from 'react-i18next';
-import { logger } from '@/lib/logger';
+import { logger } from '@oxyhq/core/logger';
 
 export function StarterPacksTab() {
   const router = useRouter();

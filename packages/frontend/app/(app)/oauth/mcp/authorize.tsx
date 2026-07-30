@@ -18,9 +18,9 @@ import { useProfileData } from '@/hooks/useProfileData';
 import { displayNameOrHandle } from '@/utils/displayName';
 import { api } from '@/utils/api';
 import { getErrorMessage } from '@/utils/apiError';
-import { createScopedLogger } from '@/lib/logger';
+import { createLogger } from '@oxyhq/core/logger';
 
-const logger = createScopedLogger('McpOAuthAuthorize');
+const logger = createLogger('McpOAuthAuthorize');
 
 /**
  * Known MCP client ids → human labels. Falls back to the raw client id so an
@@ -135,7 +135,7 @@ function ConsentBody({ params }: { params: Required<Pick<McpAuthorizeParams, 'cl
       }
       await redirectToClient(redirectUrl);
     } catch (err) {
-      logger.error('MCP OAuth approval failed', { error: err });
+      logger.error('MCP OAuth approval failed', err);
       setError(
         getErrorMessage(
           err,

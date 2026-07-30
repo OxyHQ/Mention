@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import { logger } from '@/lib/logger';
+import { logger } from '@oxyhq/core/logger';
 
 interface Props {
   children: React.ReactNode;

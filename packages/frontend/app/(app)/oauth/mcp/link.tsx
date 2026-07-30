@@ -17,9 +17,9 @@ import { useSafeBack } from '@/hooks/useSafeBack';
 import { useProfileData } from '@/hooks/useProfileData';
 import { displayNameOrHandle } from '@/utils/displayName';
 import { api } from '@/utils/api';
-import { createScopedLogger } from '@/lib/logger';
+import { createLogger } from '@oxyhq/core/logger';
 
-const logger = createScopedLogger('McpOAuthLink');
+const logger = createLogger('McpOAuthLink');
 
 interface LinkPreviewResponse {
   clientLabel: string;
@@ -90,7 +90,7 @@ function LinkBody({ token }: { token: string }) {
       const response = await api.post<LinkCompleteResponse>('/mcp/bundles/link/complete', { token });
       setDone(response.data ?? null);
     } catch (err) {
-      logger.error('MCP link complete failed', { error: err });
+      logger.error('MCP link complete failed', err);
       setError(
         t('mcp.link.completeError', {
           defaultValue: "Couldn't link this account. Please try again.",

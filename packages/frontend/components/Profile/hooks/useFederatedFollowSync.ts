@@ -1,9 +1,9 @@
 import { useEffect, useRef } from 'react';
 import { useFollow } from '@oxyhq/services/ui/client';
 import { feedService } from '@/services/feedService';
-import { createScopedLogger } from '@/lib/logger';
+import { createLogger } from '@oxyhq/core/logger';
 
-const logger = createScopedLogger('FederatedFollowSync');
+const logger = createLogger('FederatedFollowSync');
 
 /**
  * Watches the Oxy follow state for a federated profile and bridges it

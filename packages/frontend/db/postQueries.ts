@@ -15,9 +15,9 @@ import {
   memUpdatePost,
   memDeletePost,
 } from './memoryStore';
-import { createScopedLogger } from '@/lib/logger';
+import { createLogger } from '@oxyhq/core/logger';
 
-const logger = createScopedLogger('PostQueries');
+const logger = createLogger('PostQueries');
 
 // ── Prepared statement SQL ───────────────────────────────────────
 
@@ -105,7 +105,7 @@ export function upsertPosts(posts: FeedItem[]): void {
     db.execSync('COMMIT');
   } catch (error) {
     db.execSync('ROLLBACK');
-    logger.error('Failed to batch upsert posts', { error });
+    logger.error('Failed to batch upsert posts', error);
     throw error;
   }
 }
@@ -339,7 +339,7 @@ export function pruneOldPosts(maxAgeMs: number = 7 * 24 * 60 * 60 * 1000): numbe
         db.execSync('VACUUM');
         logger.debug('VACUUM completed after large prune');
       } catch (e) {
-        logger.error('VACUUM failed', { error: e });
+        logger.error('VACUUM failed', e);
       }
     }
   }

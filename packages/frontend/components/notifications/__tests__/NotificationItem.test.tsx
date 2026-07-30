@@ -168,8 +168,9 @@ jest.mock('@/context/BottomSheetContext', () => {
   };
 });
 
-jest.mock('@/lib/logger', () => ({
-  createScopedLogger: () => ({ error: jest.fn(), warn: jest.fn(), info: jest.fn(), debug: jest.fn() }),
+jest.mock('@oxyhq/core/logger', () => ({
+  ...jest.requireActual('@oxyhq/core/logger'),
+  createLogger: () => ({ error: jest.fn(), warn: jest.fn(), info: jest.fn(), debug: jest.fn() }),
 }));
 
 // ── Fixtures ────────────────────────────────────────────────────────────────

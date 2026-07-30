@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { logger } from '@/lib/logger';
+import { logger } from '@oxyhq/core/logger';
 
 /**
  * Generic storage utility for caching data

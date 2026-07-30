@@ -8,7 +8,7 @@ import { useTheme } from '@oxyhq/bloom/theme';
 import { useRouter } from 'expo-router';
 import { useScrollRestoration } from '@oxyhq/bloom/scroll';
 import { useTranslation } from 'react-i18next';
-import { createScopedLogger } from '@/lib/logger';
+import { createLogger } from '@oxyhq/core/logger';
 import { useFeedState } from '@/hooks/useFeedState';
 import { useDeepCompareMemo } from '@/hooks/useDeepCompare';
 import { FeedFilters, getItemKey, shallowFiltersEqual } from '@/utils/feedUtils';
@@ -24,7 +24,7 @@ import {
     feedRowKey,
 } from './feedRows';
 
-const logger = createScopedLogger('Feed');
+const logger = createLogger('Feed');
 
 interface FeedProps {
     type: FeedType;
@@ -145,7 +145,7 @@ function useWebFeed(props: Required<Pick<FeedProps, 'type' | 'showOnlySaved'>> &
         try {
             await feedFetchInitial(true);
         } catch (retryError) {
-            logger.error('Retry failed', { error: retryError });
+            logger.error('Retry failed', retryError);
         }
     }, [feedClearError, feedFetchInitial]);
 
@@ -156,7 +156,7 @@ function useWebFeed(props: Required<Pick<FeedProps, 'type' | 'showOnlySaved'>> &
         try {
             await feedRefresh();
         } catch (err) {
-            logger.error('Error refreshing feed', { error: err });
+            logger.error('Error refreshing feed', err);
         }
     }, [feedRefresh]);
 
@@ -471,7 +471,7 @@ function VirtualizedWebFeed(props: FeedProps) {
     const showFooter = isLoadingMore || (!isAuthenticated && count > 0);
 
     const handleBoundaryError = useCallback((error: Error, errorInfo: React.ErrorInfo) => {
-        logger.error('Error caught by boundary', { error, errorInfo });
+        logger.error('Error caught by boundary', error, { errorInfo });
     }, []);
 
     return (

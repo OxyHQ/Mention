@@ -20,7 +20,7 @@ import { ProfileCard } from '@/components/ProfileCard';
 import { SEO } from '@/components/SEO';
 import { formatCompactNumber } from '@/utils/formatNumber';
 import { displayNameOrHandle } from '@/utils/displayName';
-import { logger } from '@/lib/logger';
+import { logger } from '@oxyhq/core/logger';
 import { StarterPackIcon } from '@/assets/icons/starter-pack-icon';
 
 interface MemberProfile {

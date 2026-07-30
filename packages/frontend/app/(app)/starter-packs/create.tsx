@@ -11,7 +11,7 @@ import { router } from 'expo-router';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { cn } from '@/lib/utils';
 import { useTranslation } from 'react-i18next';
-import { logger } from '@/lib/logger';
+import { logger } from '@oxyhq/core/logger';
 import type { User } from '@oxyhq/core';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 
@@ -74,7 +74,7 @@ export default function CreateStarterPackScreen() {
       });
       router.replace('/starter-packs');
     } catch (e) {
-      logger.error('Create starter pack failed', { error: e });
+      logger.error('Create starter pack failed', e);
     } finally {
       setSaving(false);
     }

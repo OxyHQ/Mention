@@ -1,6 +1,6 @@
 import { useCallback, useRef } from 'react';
 import { usePostsStore } from '@/stores/postsStore';
-import { logger } from '@/lib/logger';
+import { logger } from '@oxyhq/core/logger';
 
 /**
  * @param source Optional originating feed descriptor (e.g. 'videos', 'for_you',
@@ -22,7 +22,7 @@ export function usePostLike(postId: string | undefined, isLiked: boolean, source
 
             await action;
         } catch (error) {
-            logger.error('Error toggling like', { error });
+            logger.error('Error toggling like', error);
         } finally {
             pendingRef.current = false;
         }

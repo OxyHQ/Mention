@@ -22,7 +22,7 @@ import { useTranslation } from 'react-i18next';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { labelerService, type LabelDefinition } from '@/services/labelerService';
 import { cn } from '@/lib/utils';
-import { logger } from '@/lib/logger';
+import { logger } from '@oxyhq/core/logger';
 import { HIT_SLOP_MD } from '@/styles/hitSlop';
 
 const IS_WEB = Platform.OS === 'web';

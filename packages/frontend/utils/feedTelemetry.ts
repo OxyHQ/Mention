@@ -9,7 +9,7 @@ import {
 } from '@mention/shared-types';
 import { feedService } from '@/services/feedService';
 import { trendingService } from '@/services/trendingService';
-import { createScopedLogger } from '@/lib/logger';
+import { createLogger } from '@oxyhq/core/logger';
 import { FeedFilters } from './feedUtils';
 
 /**
@@ -32,7 +32,7 @@ import { FeedFilters } from './feedUtils';
  * debug-logs its own failures, so telemetry can never block or break the feed.
  */
 
-const logger = createScopedLogger('FeedTelemetry');
+const logger = createLogger('FeedTelemetry');
 
 // How long emitted interactions accumulate before a batch is sent. The backend
 // admits 10 feed requests per second per IP; a screenful of rows crossing the

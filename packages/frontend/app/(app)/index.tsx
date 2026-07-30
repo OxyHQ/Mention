@@ -30,7 +30,7 @@ import { MenuIcon } from '@/assets/icons/menu-icon';
 import { useDrawer } from '@/context/DrawerContext';
 import { useIsScreenNotMobile } from '@/hooks/useOptimizedMediaQuery';
 import { useAuth } from '@oxyhq/services/ui/client';
-import { logger } from '@/lib/logger';
+import { logger } from '@oxyhq/core/logger';
 import { PanelStickyHeader, PanelChromeTopInsetProvider, PANEL_HEADER_HEIGHT, PANEL_CHROME_TOP_INSET } from '@/components/shell/PanelChrome';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 

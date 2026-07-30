@@ -7,10 +7,10 @@ import { toast } from '@oxyhq/bloom/toast';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import { listsService } from '@/services/listsService';
-import { createScopedLogger } from '@/lib/logger';
+import { createLogger } from '@oxyhq/core/logger';
 import { HIT_SLOP_MD } from '@/styles/hitSlop';
 
-const logger = createScopedLogger('AddToListSheet');
+const logger = createLogger('AddToListSheet');
 
 interface ListRow {
   id: string;
@@ -100,7 +100,7 @@ export function AddToListSheet({ targetUserId, targetLabel, onClose }: AddToList
       }
       setRows((prev) => prev.map((r) => (r.id === row.id ? { ...r, pending: false } : r)));
     } catch (e) {
-      logger.error('List membership toggle failed', { error: e });
+      logger.error('List membership toggle failed', e);
       // Revert optimistic state.
       setRows((prev) => prev.map((r) => (r.id === row.id ? { ...r, hasUser: !willAdd, pending: false } : r)));
       toast(t('lists.addTo.toggleFailed', { defaultValue: 'Something went wrong' }), { type: 'error' });

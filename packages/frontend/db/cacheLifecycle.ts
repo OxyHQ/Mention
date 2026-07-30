@@ -1,11 +1,11 @@
 import { getDb, resetDb, type SQLiteDb } from './database';
 import { memClearAll } from './memoryStore';
-import { createScopedLogger } from '@/lib/logger';
+import { createLogger } from '@oxyhq/core/logger';
 
 const VIEWER_OWNER_KEY = 'viewer_id';
 const ANONYMOUS_VIEWER_ID = 'anon';
 const BROWSER_VIEWER_OWNER_KEY = 'mention.viewer-cache-owner.v1';
-const logger = createScopedLogger('ViewerCache');
+const logger = createLogger('ViewerCache');
 
 let activeViewerId: string | null = null;
 
@@ -136,7 +136,7 @@ export function claimViewerCache(
   } catch (error) {
     // Fail closed if an old/corrupt schema cannot be cleared transactionally:
     // recreate the cache file, write the owner, and only then release renders.
-    logger.error('Failed to replace viewer cache transactionally', { error });
+    logger.error('Failed to replace viewer cache transactionally', error);
     memClearAll();
     resetDb();
     const freshDb = getDb();
@@ -144,9 +144,7 @@ export function claimViewerCache(
       try {
         replaceViewerOwner(freshDb, nextViewerId);
       } catch (recoveryError) {
-        logger.error('Viewer cache recovery failed; keeping UI gated', {
-          error: recoveryError,
-        });
+        logger.error('Viewer cache recovery failed; keeping UI gated', recoveryError);
         activeViewerId = null;
         return {
           reset: true,

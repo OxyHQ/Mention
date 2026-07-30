@@ -1,4 +1,4 @@
-import { createScopedLogger } from "@/lib/logger";
+import { createLogger } from '@oxyhq/core/logger';
 import { authenticatedClient, isUnauthorizedError, publicClient } from "@/utils/api";
 import { oxyServices } from "@/lib/oxyServices";
 import { feedService } from "./feedService";
@@ -8,7 +8,7 @@ import type { User } from '@oxyhq/core';
 import type { HydratedPost } from '@mention/shared-types';
 import type { StarterPackSummary } from './starterPacksService';
 
-const logger = createScopedLogger('SearchService');
+const logger = createLogger('SearchService');
 
 export type SearchPostResult = HydratedPost;
 

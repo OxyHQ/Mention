@@ -4,10 +4,10 @@ import { useAuth } from '@oxyhq/services/ui/client';
 import type { UserNodeStatus } from '@oxyhq/core';
 import { api } from '@/utils/api';
 import { isAuthError } from '@/utils/authErrors';
-import { createScopedLogger } from '@/lib/logger';
+import { createLogger } from '@oxyhq/core/logger';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 
-const nodeLogger = createScopedLogger('MentionNode');
+const nodeLogger = createLogger('MentionNode');
 
 /**
  * The caller's Mention node, as projected by the backend's `serializeNode`
@@ -115,7 +115,7 @@ export function useMentionNode(): UseMentionNodeResult {
       invalidateNode();
     },
     onError: (error) => {
-      nodeLogger.error('Failed to create managed vault', { error });
+      nodeLogger.error('Failed to create managed vault', error);
     },
   });
 
@@ -129,7 +129,7 @@ export function useMentionNode(): UseMentionNodeResult {
       invalidateNode();
     },
     onError: (error) => {
-      nodeLogger.error('Failed to disconnect Mention node', { error });
+      nodeLogger.error('Failed to disconnect Mention node', error);
     },
   });
 

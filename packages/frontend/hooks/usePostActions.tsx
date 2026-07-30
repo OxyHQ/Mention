@@ -4,7 +4,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import type { ActionMenuAction } from '@/components/common/actionMenuGroups';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { useAuth } from '@oxyhq/services/ui/client';
-import { createScopedLogger } from '@/lib/logger';
+import { createLogger } from '@oxyhq/core/logger';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import { usePostsStore } from '@/stores/postsStore';
@@ -38,7 +38,7 @@ import { AddToListSheet } from '@/components/Lists/AddToListSheet';
 import { List as ListIcon } from '@/assets/icons/list-icon';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 
-const logger = createScopedLogger('usePostActions');
+const logger = createLogger('usePostActions');
 
 interface UsePostActionsParams {
     viewPost: HydratedPost;
@@ -128,7 +128,7 @@ export function usePostActions({
                     });
                 }
             } catch (e) {
-                logger.error('Delete API failed — rolling back optimistic removal', { error: e });
+                logger.error('Delete API failed — rolling back optimistic removal', e);
                 // Roll back: the post still exists server-side, so re-insert it and
                 // surface the error instead of leaving the UI inconsistent.
                 reinsertPost(snapshot);
@@ -287,7 +287,7 @@ export function usePostActions({
                     }
                     toast(t('collab.stopSharingSuccess', { defaultValue: 'You stopped sharing this post' }), { type: 'success' });
                 } catch (e) {
-                    logger.error('Stop sharing failed', { error: e });
+                    logger.error('Stop sharing failed', e);
                     toast(t('collab.stopSharingFailed', { defaultValue: 'Failed to stop sharing' }), { type: 'error' });
                 }
             },

@@ -1,7 +1,7 @@
 import type { LinkedHttpClient } from '@oxyhq/core';
 import { oxyServices } from '@/lib/oxyServices';
 import { SYRA_API_URL } from '@/config';
-import { createScopedLogger } from '@/lib/logger';
+import { createLogger } from '@oxyhq/core/logger';
 
 /** Lightweight authenticated Syra HTTP client; no LiveKit or UI imports. */
 export const syraLinkedClient: LinkedHttpClient['client'] =
@@ -9,7 +9,7 @@ export const syraLinkedClient: LinkedHttpClient['client'] =
     baseURL: SYRA_API_URL,
   }).client;
 
-const logger = createScopedLogger('SyraApi');
+const logger = createLogger('SyraApi');
 
 export interface Room {
   _id: string;

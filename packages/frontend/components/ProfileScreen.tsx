@@ -29,7 +29,7 @@ import { AddToStarterPackSheet } from '@/components/AddToStarterPackSheet';
 import { confirmDialog } from '@/utils/alerts';
 import { openExternalLink } from '@/utils/openExternalLink';
 import type { FeedType } from '@mention/shared-types';
-import { logger } from '@/lib/logger';
+import { logger } from '@oxyhq/core/logger';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { NoUpdatesIllustration } from '@/assets/illustrations/NoUpdates';
 import { EmptyState } from '@/components/common/EmptyState';

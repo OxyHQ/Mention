@@ -27,9 +27,9 @@ import { FediverseInfoDialogProvider } from '@/components/Fediverse/FediverseInf
 import { LiveFeatureHost } from '@/components/providers/LiveFeatureProviders';
 import { LiveRoomControllerProvider } from '@/context/LiveRoomContext';
 import i18n from '@/lib/i18n';
-import { createScopedLogger } from '@/lib/logger';
+import { createLogger } from '@oxyhq/core/logger';
 
-const logger = createScopedLogger('AppProviders');
+const logger = createLogger('AppProviders');
 
 interface AppProvidersProps {
   children: React.ReactNode;
@@ -43,7 +43,7 @@ export const AppProviders = memo(function AppProviders({
   queryClient,
 }: AppProvidersProps) {
   const handleBoundaryError = useCallback((error: Error, errorInfo: React.ErrorInfo) => {
-    logger.error('Error caught by boundary', { error, errorInfo });
+    logger.error('Error caught by boundary', error, { errorInfo });
   }, []);
 
   return (

@@ -38,7 +38,7 @@ import {
     type SavedPostsPage,
 } from '@/services/feedService';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
-import { logger } from '@/lib/logger';
+import { logger } from '@oxyhq/core/logger';
 import SavedPostsList, {
     type SavedPost,
 } from '@/components/saved/SavedPostsList';
@@ -180,7 +180,7 @@ const SavedPostsScreen: React.FC = () => {
             ]);
         },
         onError: (error) => {
-            logger.error('Error moving bookmark', { error });
+            logger.error('Error moving bookmark', error);
         },
         onSettled: () => {
             setShowMoveModal(false);

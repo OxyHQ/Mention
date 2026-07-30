@@ -1,6 +1,6 @@
 import { authenticatedClient } from '@/utils/api';
 import type { ForYouFeedTuning } from '@mention/shared-types';
-import { logger } from '@/lib/logger';
+import { logger } from '@oxyhq/core/logger';
 import { normalizeApiError } from '@/utils/apiError';
 
 interface FeedTuningResponse {
@@ -17,7 +17,7 @@ async function run<T>(operation: string, request: () => Promise<T>): Promise<T> 
     return await request();
   } catch (error) {
     const normalized = normalizeApiError(error);
-    logger.error(`feedTuningService.${operation} failed`, {
+    logger.error(`feedTuningService.${operation} failed`, undefined, {
       status: normalized.status,
       code: normalized.code,
       message: normalized.message,

@@ -15,7 +15,7 @@ import { topicService } from '@/services/topicService';
 import { SettingsListGroup } from '@oxyhq/bloom/settings-list';
 import { Icon } from '@/lib/icons';
 import { cn } from '@/lib/utils';
-import { logger } from '@/lib/logger';
+import { logger } from '@oxyhq/core/logger';
 import { useAuth, OxyAuthPrompt } from '@oxyhq/services/ui/client';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 
@@ -113,7 +113,7 @@ export default function InterestsSettingsScreen() {
 
                 logger.info('Interests saved successfully');
             } catch (error) {
-                logger.error('Failed to save interests', { error });
+                logger.error('Failed to save interests', error);
             } finally {
                 setIsSaving(false);
             }

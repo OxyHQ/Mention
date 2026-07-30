@@ -9,12 +9,12 @@ import { useTheme } from '@oxyhq/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@oxyhq/services/ui/client';
 import { starterPacksService, type StarterPackCollection } from '@/services/starterPacksService';
-import { createScopedLogger } from '@/lib/logger';
+import { createLogger } from '@oxyhq/core/logger';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { StarterPackIcon } from '@/assets/icons/starter-pack-icon';
 import { HIT_SLOP_MD } from '@/styles/hitSlop';
 
-const logger = createScopedLogger('AddToStarterPackSheet');
+const logger = createLogger('AddToStarterPackSheet');
 
 /**
  * React Query cache key for the viewer's own (editable) starter packs. This
@@ -146,7 +146,7 @@ export function AddToStarterPackSheet({ targetUserId, targetLabel, onClose }: Ad
       // Revalidate against server truth after a successful membership change.
       queryClient.invalidateQueries({ queryKey: packsQueryKey });
     } catch (e) {
-      logger.error('Starter pack membership toggle failed', { error: e });
+      logger.error('Starter pack membership toggle failed', e);
       // Revert optimistic cache state.
       if (previous) queryClient.setQueryData(packsQueryKey, previous);
       toast(

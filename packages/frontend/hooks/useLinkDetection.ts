@@ -3,7 +3,7 @@ import { useAuth } from '@oxyhq/services/ui/client';
 import { MAX_POST_LINK_PREVIEWS } from '@mention/shared-types/post';
 import { type LinkMetadata, useLinksStore } from '../stores/linksStore';
 import { extractUrls } from '@/utils/extractUrls';
-import { logger } from '@/lib/logger';
+import { logger } from '@oxyhq/core/logger';
 
 /**
  * Hook to detect the links in a post's text and resolve their previews. A post

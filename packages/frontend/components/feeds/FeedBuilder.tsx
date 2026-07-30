@@ -33,7 +33,7 @@ import { useSafeBack } from '@/hooks/useSafeBack';
 import { customFeedsService } from '@/services/customFeedsService';
 import { useFeedModules } from '@/hooks/useFeedModules';
 import Feed from '@/components/Feed/Feed';
-import { logger } from '@/lib/logger';
+import { logger } from '@oxyhq/core/logger';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { HIT_SLOP_MD, HIT_SLOP_SM } from '@/styles/hitSlop';
 
@@ -704,7 +704,7 @@ export function FeedBuilder({ feedId, initialFeed }: { feedId?: string; initialF
       setPreviewKey((k) => k + 1);
       toast(t('feeds.builder.saved'), { type: 'success' });
     } catch (error) {
-      logger.error('Save feed failed', { error });
+      logger.error('Save feed failed', error);
       toast(t('feeds.builder.saveFailed'), { type: 'error' });
     } finally {
       setSaving(false);

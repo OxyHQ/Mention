@@ -1,5 +1,5 @@
 import type { TrendEventInput } from "@mention/shared-types";
-import { logger } from "@/lib/logger";
+import { logger } from '@oxyhq/core/logger';
 import { authenticatedClient, publicClient } from "@/utils/api";
 
 export interface TrendingTopic {

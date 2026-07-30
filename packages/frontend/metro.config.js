@@ -123,9 +123,9 @@ config.transformer = {
       arguments: true,
       dead_code: true,
       // Strips `console.*` from the production web bundle (27 KB across the 105
-      // chunks). Safe because the app's only console sink, `lib/logger`'s
-      // console transport, is already registered under `__DEV__` alone, and the
-      // minifier never runs on a development build.
+      // chunks). Safe because the app's only console sink (`lib/logging`, on
+      // the shared `@oxyhq/core/logger`) resolves to level `silent` outside
+      // development anyway, and the minifier never runs on a development build.
       drop_console: true,
       drop_debugger: true,
       ecma: 2020,

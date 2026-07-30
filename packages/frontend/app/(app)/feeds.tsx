@@ -29,7 +29,7 @@ import { useFeedPreferences } from '@/hooks/useFeedPreferences';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { Search } from '@/assets/icons/search-icon';
 import { formatCompactNumber } from '@/utils/formatNumber';
-import { logger } from '@/lib/logger';
+import { logger } from '@oxyhq/core/logger';
 import { useAuth } from '@oxyhq/services/ui/client';
 import { HIT_SLOP_MD } from '@/styles/hitSlop';
 

@@ -5,9 +5,9 @@ import {
 } from '@mention/shared-types';
 import { io, Socket } from 'socket.io-client';
 import { useTrendsStore } from '@/stores/trendsStore';
-import { createScopedLogger } from '@/lib/logger';
+import { createLogger } from '@oxyhq/core/logger';
 
-const logger = createScopedLogger('PublicRealtime');
+const logger = createLogger('PublicRealtime');
 
 /**
  * The client half of the server's PUBLIC realtime namespace.

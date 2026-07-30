@@ -15,7 +15,7 @@ import { SettingsListGroup, SettingsListItem } from '@oxyhq/bloom/settings-list'
 import { RowIcon } from '@/components/settings/RowIcon';
 import { Toggle } from '@/components/Toggle';
 import { Icon } from '@/lib/icons';
-import { logger } from '@/lib/logger';
+import { logger } from '@oxyhq/core/logger';
 import { useAutoTranslateStore } from '@/stores/autoTranslateStore';
 
 const LANGUAGE_OPTIONS = [
@@ -41,7 +41,7 @@ export default function LanguageSettingsScreen() {
             const language = savedLanguage || i18n.language || 'en-US';
             setCurrentLanguage(language);
         } catch (error) {
-            logger.error('Error loading language', { error });
+            logger.error('Error loading language', error);
             setCurrentLanguage(i18n.language || 'en-US');
         }
     }, []);
@@ -59,7 +59,7 @@ export default function LanguageSettingsScreen() {
             await Storage.set(LANGUAGE_STORAGE_KEY, languageCode);
             await setLanguage(languageCode);
         } catch (error) {
-            logger.error('Error changing language', { error });
+            logger.error('Error changing language', error);
             setCurrentLanguage(i18n.language || 'en-US');
         } finally {
             setSaving(false);

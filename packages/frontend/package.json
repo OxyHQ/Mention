@@ -28,8 +28,12 @@
   },
   "jest": {
     "preset": "jest-expo",
+    "setupFiles": [
+      "<rootDir>/jest.setup.ts"
+    ],
     "moduleNameMapper": {
-      "^@oxyhq/services/ui/client$": "<rootDir>/../../node_modules/@oxyhq/services/lib/commonjs/ui/client.js"
+      "^@oxyhq/services/ui/client$": "<rootDir>/../../node_modules/@oxyhq/services/lib/commonjs/ui/client.js",
+      "^@oxyhq/core/logger$": "<rootDir>/../../node_modules/@oxyhq/core/dist/cjs/logger/index.js"
     },
     "collectCoverageFrom": [
       "**/*.{ts,tsx}",

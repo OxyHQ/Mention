@@ -1,15 +1,18 @@
+import type { LogEntry } from '@oxyhq/core/logger'
+
 import {
   CIRCULAR,
   MAX_DEPTH_REACHED,
   REDACTED,
   TRUNCATED,
+  sanitizeLogContext,
+  sanitizeLogEntry,
   sanitizeLogMessage,
-  sanitizeLogMetadata,
 } from '../sanitize'
 
 describe('frontend logger sanitizer', () => {
   it('redacts private fields while preserving bounded operational metadata', () => {
-    const sanitized = sanitizeLogMetadata({
+    const sanitized = sanitizeLogContext({
       body: { text: 'private post' },
       requestQuery: { search: 'private query' },
       params: { postId: '507f1f77bcf86cd799439011' },
@@ -100,7 +103,7 @@ describe('frontend logger sanitizer', () => {
       'request for person@example.com at https://private.example failed from 203.0.113.9',
     )
 
-    const sanitized = sanitizeLogMetadata({
+    const sanitized = sanitizeLogContext({
       error,
       cyclic,
       withGetter,
@@ -138,5 +141,50 @@ describe('frontend logger sanitizer', () => {
     expect(message).not.toContain('private.example')
     expect(message).not.toContain('203.0.113.8')
     expect(message.match(/\[REDACTED\]/g)?.length).toBeGreaterThanOrEqual(6)
+  })
+
+  it('scrubs every slot of an SDK log entry, including the error and args', () => {
+    const entry: LogEntry = {
+      level: 'error',
+      message: 'upload failed for person@example.com',
+      namespace: 'mediaUpload',
+      context: { postId: '507f1f77bcf86cd799439011', status: 500 },
+      error: new Error('POST https://cdn.example/upload rejected'),
+      args: ['retrying for @private-user', { authorization: 'Bearer abc.def' }],
+      timestamp: '2026-07-31T00:00:00.000Z',
+    }
+
+    const sanitized = sanitizeLogEntry(entry)
+
+    expect(sanitized.message).toBe(`upload failed for ${REDACTED}`)
+    expect(sanitized.namespace).toBe('mediaUpload')
+    expect(sanitized.context).toEqual({ postId: REDACTED, status: 500 })
+    expect(sanitized.error).toMatchObject({
+      name: 'Error',
+      message: `POST ${REDACTED} rejected`,
+    })
+    expect(sanitized.args[0]).toBe(`retrying for ${REDACTED}`)
+    expect(sanitized.args[1]).toEqual({ authorization: REDACTED })
+    expect(sanitized.level).toBe('error')
+    expect(sanitized.timestamp).toBe(entry.timestamp)
+  })
+
+  it('leaves an entry with no context, error or args intact', () => {
+    const sanitized = sanitizeLogEntry({
+      level: 'info',
+      message: 'feed loaded',
+      args: [],
+      timestamp: '2026-07-31T00:00:00.000Z',
+    })
+
+    expect(sanitized).toEqual({
+      level: 'info',
+      message: 'feed loaded',
+      namespace: undefined,
+      context: undefined,
+      error: undefined,
+      args: [],
+      timestamp: '2026-07-31T00:00:00.000Z',
+    })
   })
 })

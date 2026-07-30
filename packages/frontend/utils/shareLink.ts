@@ -1,9 +1,9 @@
 import { Platform, Share } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { toast } from '@oxyhq/bloom/toast';
-import { createScopedLogger } from '@/lib/logger';
+import { createLogger } from '@oxyhq/core/logger';
 
-const logger = createScopedLogger('shareLink');
+const logger = createLogger('shareLink');
 
 interface ShareLinkOptions {
   /** Human-readable title for the share sheet. */

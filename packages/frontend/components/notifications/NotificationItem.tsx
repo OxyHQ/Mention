@@ -33,11 +33,11 @@ import { BottomSheetContext } from '@/context/BottomSheetContext';
 import { feedService } from '@/services/feedService';
 import { usePostsStore } from '@/stores/postsStore';
 import { cn } from '@/lib/utils';
-import { createScopedLogger } from '@/lib/logger';
+import { createLogger } from '@oxyhq/core/logger';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { HIT_SLOP_MD } from '@/styles/hitSlop';
 
-const logger = createScopedLogger('NotificationItem');
+const logger = createLogger('NotificationItem');
 
 type GroupedActor = GroupedNotification['actors'][number];
 
@@ -469,7 +469,7 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({ item, onMa
       bottomSheet.openBottomSheet(false);
       toast(t('collab.acceptedToast', { defaultValue: "You're now a collaborator on this post" }), { type: 'success' });
     } catch (error) {
-      logger.error('Failed to accept collab invite', { error });
+      logger.error('Failed to accept collab invite', error);
       toast(t('collab.acceptFailed', { defaultValue: 'Failed to accept invite' }), { type: 'error' });
     } finally {
       setActionLoading(false);
@@ -494,7 +494,7 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({ item, onMa
       onMarkAsRead(item.notificationIds);
       bottomSheet.openBottomSheet(false);
     } catch (error) {
-      logger.error('Failed to decline collab invite', { error });
+      logger.error('Failed to decline collab invite', error);
       toast(t('collab.declineFailed', { defaultValue: 'Failed to decline invite' }), { type: 'error' });
     } finally {
       setActionLoading(false);

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { authenticatedClient, isUnauthorizedError, isNotFoundError } from '@/utils/api';
-import { createScopedLogger } from '@/lib/logger';
+import { createLogger } from '@oxyhq/core/logger';
 import { useAuth } from '@oxyhq/services/ui/client';
 import type { FeedSettings } from '@/hooks/useFeedSettings';
 import type { ExternalEmbedsSettings } from '@mention/shared-types';
@@ -11,7 +11,7 @@ import {
 } from '@/lib/viewerQueryKeys';
 import { createKeyedAsyncQueue } from '@/lib/keyedAsyncQueue';
 
-const logger = createScopedLogger('usePrivacySettings');
+const logger = createLogger('usePrivacySettings');
 
 const LEGACY_PRIVACY_SETTINGS_CACHE_KEY = '@mention_privacy_settings';
 const PRIVACY_SETTINGS_CACHE_KEY = '@mention_privacy_settings:v2';

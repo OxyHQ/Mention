@@ -15,7 +15,7 @@ import { statisticsService, PostInsights } from '@/services/statisticsService';
 import { useTranslation } from 'react-i18next';
 import { EmptyState } from '@/components/common/EmptyState';
 import { formatCompactNumber } from '@/utils/formatNumber';
-import { logger } from '@/lib/logger';
+import { logger } from '@oxyhq/core/logger';
 
 interface PostInsightsSheetProps {
     postId: string | null;

@@ -5,9 +5,9 @@ import { FollowButton, useAuth } from '@oxyhq/services/ui/client';
 
 import { Button } from '@/components/ui/Button';
 import { feedService, type ExternalActorResolution } from '@/services/feedService';
-import { createScopedLogger } from '@/lib/logger';
+import { createLogger } from '@oxyhq/core/logger';
 
-const logger = createScopedLogger('ExternalActorFollow');
+const logger = createLogger('ExternalActorFollow');
 
 interface ExternalActorFollowButtonProps {
   /** The cross-network actor resolved by `GET /federation/resolve`. */

@@ -10,7 +10,7 @@ import { Loading } from '@oxyhq/bloom/loading';
 import { useAuth } from "@oxyhq/services/ui/client";
 import { Avatar } from '@oxyhq/bloom/avatar';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
-import { logger } from '@/lib/logger';
+import { logger } from '@oxyhq/core/logger';
 import { displayNameOrHandle } from '@/utils/displayName';
 
 export interface MentionUser {
@@ -76,7 +76,7 @@ const MentionPicker: React.FC<MentionPickerProps> = ({
 
                 setUsers(mappedUsers);
             } catch (error) {
-                logger.error("Error searching users for mentions", { error });
+                logger.error("Error searching users for mentions", error);
                 setUsers([]);
             } finally {
                 setLoading(false);

@@ -1,12 +1,12 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Storage } from '@/utils/storage';
-import { createScopedLogger } from '@/lib/logger';
+import { createLogger } from '@oxyhq/core/logger';
 import type { DraftVariants } from '@/utils/composeVariants';
 import { useAuth } from '@oxyhq/services/ui/client';
 import { viewerStorageKey } from '@/lib/viewerQueryKeys';
 import { useRefSync } from '@/hooks/useRefSync';
 
-const logger = createScopedLogger('useDrafts');
+const logger = createLogger('useDrafts');
 
 export interface Draft {
   id: string;
@@ -96,7 +96,7 @@ export const useDrafts = () => {
       }
     } catch (error) {
       if (viewerIdRef.current !== operationViewerId) return;
-      logger.error('Error loading drafts', { error });
+      logger.error('Error loading drafts', error);
       setDrafts([]);
     } finally {
       if (viewerIdRef.current === operationViewerId) {
@@ -120,7 +120,7 @@ export const useDrafts = () => {
         setDrafts(newDrafts);
       }
     } catch (error) {
-      logger.error('Error saving drafts', { error });
+      logger.error('Error saving drafts', error);
       if (viewerIdRef.current !== operationViewerId) return;
       throw error;
     }
@@ -157,7 +157,7 @@ export const useDrafts = () => {
       await saveDrafts(newDrafts);
       return draftId;
     } catch (error) {
-      logger.error('Error saving draft', { error });
+      logger.error('Error saving draft', error);
       throw error;
     }
   }, [drafts, saveDrafts]);
@@ -186,7 +186,7 @@ export const useDrafts = () => {
       await saveDrafts(newDrafts);
       logger.debug('Drafts saved to storage');
     } catch (error) {
-      logger.error('Error deleting draft', { error });
+      logger.error('Error deleting draft', error);
       throw error;
     }
   }, [saveDrafts, viewerId]);
@@ -209,7 +209,7 @@ export const useDrafts = () => {
         setDrafts([]);
       }
     } catch (error) {
-      logger.error('Error clearing drafts', { error });
+      logger.error('Error clearing drafts', error);
       throw error;
     }
   }, [viewerId]);

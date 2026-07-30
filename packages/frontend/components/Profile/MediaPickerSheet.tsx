@@ -16,11 +16,11 @@ import { toast } from '@oxyhq/bloom/toast';
 import { useAppearanceStore, type ProfileMedia, type UserAppearance } from '@/stores/appearanceStore';
 import { useProfileSongPreview } from '@/hooks/useProfileSongPreview';
 import { useInfiniteCatalogSearch, ResultsFooter } from '@/hooks/useInfiniteCatalogSearch';
-import { createScopedLogger } from '@/lib/logger';
+import { createLogger } from '@oxyhq/core/logger';
 import { SongPreviewButton } from './SongPreviewButton';
 import { HIT_SLOP_MD } from '@/styles/hitSlop';
 
-const logger = createScopedLogger('MediaPickerSheet');
+const logger = createLogger('MediaPickerSheet');
 
 // The public Syra preview is a fixed 30s clip; the start offset is bounded so
 // the whole window stays inside the track. Mirrors the backend clamp.
@@ -305,7 +305,7 @@ export const MediaPickerSheet = memo(function MediaPickerSheet({
         return;
       }
       const message = useAppearanceStore.getState().error;
-      logger.error('Failed to save profile media', { error: message });
+      logger.error('Failed to save profile media', message);
       toast(message || t('profile.media.saveError'), { type: 'error' });
     },
     [t, onClose],
@@ -347,7 +347,7 @@ export const MediaPickerSheet = memo(function MediaPickerSheet({
       onClose();
     } else {
       const message = useAppearanceStore.getState().error;
-      logger.error('Failed to remove profile media', { error: message });
+      logger.error('Failed to remove profile media', message);
       toast(message || t('profile.media.saveError'), { type: 'error' });
     }
   }, [saving, updateMySettings, t, onClose]);

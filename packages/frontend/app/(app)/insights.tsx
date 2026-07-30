@@ -32,7 +32,7 @@ import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { asViewStyle, asTextStyle } from '@/types/webStyles';
 import { StatusBar } from 'expo-status-bar';
 import { SEO } from '@/components/SEO';
-import { logger } from '@/lib/logger';
+import { logger } from '@oxyhq/core/logger';
 import { HeartIcon } from '@/assets/icons/heart-icon';
 import { CommentIcon } from '@/assets/icons/comment-icon';
 import { BoostIcon } from '@/assets/icons/boost-icon';
@@ -152,7 +152,7 @@ const InsightsScreen: React.FC = () => {
                         getPostById(postInfo.postId).catch((error: unknown) => {
                             const status = (error as { response?: { status?: number } })?.response?.status;
                             if (status !== 404) {
-                                logger.error(`Error loading post ${postInfo.postId}`, { error });
+                                logger.error(`Error loading post ${postInfo.postId}`, error);
                             }
                             return null;
                         })

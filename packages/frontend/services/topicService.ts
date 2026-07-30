@@ -1,5 +1,5 @@
 import { authenticatedClient } from "@/utils/api";
-import { logger } from "@/lib/logger";
+import { logger } from '@oxyhq/core/logger';
 import { TopicData, TopicType } from "@oxyhq/core";
 
 class TopicService {

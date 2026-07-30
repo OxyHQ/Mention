@@ -17,7 +17,7 @@ import {
 } from '@/hooks/usePrivacySettings';
 import { SettingsListGroup } from '@oxyhq/bloom/settings-list';
 import { Icon, type IconName } from '@/lib/icons';
-import { logger } from '@/lib/logger';
+import { logger } from '@oxyhq/core/logger';
 import { OxyAuthPrompt, useAuth } from '@oxyhq/services/ui/client';
 
 type VisibilityOption = 'public' | 'private' | 'followers_only';
@@ -63,7 +63,7 @@ export default function ProfileVisibilityScreen() {
             setProfileVisibility(settings.privacy?.profileVisibility || 'public');
             setLoading(false);
         } catch (error) {
-            logger.error('Error loading settings', { error });
+            logger.error('Error loading settings', error);
             setLoading(false);
         }
     };
@@ -105,7 +105,7 @@ export default function ProfileVisibilityScreen() {
             }, 300);
         } catch (error) {
             const err = error as { response?: { data?: { error?: string } } };
-            logger.error('Error updating profile visibility', { error });
+            logger.error('Error updating profile visibility', error);
             await alertDialog({
                 title: t('common.error'),
                 message: err?.response?.data?.error || t('settings.privacy.updateError'),

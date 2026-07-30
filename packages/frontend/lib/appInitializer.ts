@@ -12,7 +12,7 @@ import {
   setupNotifications,
 } from '@/utils/notifications';
 import { initializeI18n } from './i18n';
-import { logger } from '@/lib/logger';
+import { logger } from '@oxyhq/core/logger';
 
 export interface InitializationResult {
   success: boolean;
@@ -105,7 +105,7 @@ export class AppInitializer {
       logger.debug('Initialization complete');
       return { success: true };
     } catch (error) {
-      logger.error(error instanceof Error ? error : new Error(String(error)));
+      logger.error('App initialization failed', error);
       return {
         success: false,
         error: error instanceof Error ? error : new Error('Unknown initialization error'),

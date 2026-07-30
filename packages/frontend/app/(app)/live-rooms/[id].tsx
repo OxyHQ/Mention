@@ -23,7 +23,7 @@ import { useLiveRoom } from '@/context/LiveRoomContext';
 import { roomsService, type Room } from '@/lib/syraApi';
 import { useAuth } from '@oxyhq/services/ui/client';
 import { useTranslation } from 'react-i18next';
-import { logger } from '@/lib/logger';
+import { logger } from '@oxyhq/core/logger';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
 import { confirmDialog } from '@/utils/alerts';
 import { reportService } from '@/services/reportService';

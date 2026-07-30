@@ -4,7 +4,7 @@ import { useAuth } from '@oxyhq/services/ui/client';
 import type { PostUser } from '@mention/shared-types';
 import { feedService } from '@/services/feedService';
 import { isAuthError } from '@/utils/authErrors';
-import { logger } from '@/lib/logger';
+import { logger } from '@oxyhq/core/logger';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 
 /**

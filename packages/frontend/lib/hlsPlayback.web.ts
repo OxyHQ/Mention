@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { VideoView } from 'expo-video';
 import type HlsJs from 'hls.js';
-import { createScopedLogger } from '@/lib/logger';
+import { createLogger } from '@oxyhq/core/logger';
 import { isHlsSource } from '@/utils/hlsSource';
 
 /**
@@ -22,7 +22,7 @@ import { isHlsSource } from '@/utils/hlsSource';
  * HLS, and shipping a JS demuxer there would be strictly worse.
  */
 
-const logger = createScopedLogger('HlsPlayback');
+const logger = createLogger('HlsPlayback');
 
 /**
  * hls.js is loaded from ONE `import()` site, on purpose.

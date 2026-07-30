@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { logger } from '@/lib/logger';
+import { logger } from '@oxyhq/core/logger';
 
 // Actor/profile coming from actorId_populated
 export const ZActor = z.object({

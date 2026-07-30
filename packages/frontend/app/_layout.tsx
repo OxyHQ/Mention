@@ -38,7 +38,8 @@ import { queryClient } from '@/lib/queryClient';
 import { getCachedFileDownloadUrlSync } from '@/utils/imageUrlCache';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import { AppInitializer } from '@/lib/appInitializer';
-import { logger } from '@/lib/logger';
+import { logger } from '@oxyhq/core/logger';
+import { configureAppLogging } from '@/lib/logging';
 import { useShareIntentRouter } from '@/lib/shareIntent';
 import { BLOOM_THEME_PERSIST_KEY, BLOOM_THEME_STORAGE } from '@/lib/themePersistence';
 import {
@@ -48,6 +49,10 @@ import {
 
 // Styles
 import '../global.css';
+
+// Install the app's level + scrubbing sink on the shared SDK logger before any
+// route can emit a line.
+configureAppLogging();
 
 // Freeze blurred screens so their state and scroll position survive navigation,
 // and register web chunk recovery before the first route can lazy-load.
@@ -105,7 +110,7 @@ export default function RootLayout() {
     if (result.success) {
       setSplashState((prev) => ({ ...prev, initializationComplete: true }));
     } else {
-      logger.error('App initialization failed', { error: result.error });
+      logger.error('App initialization failed', result.error);
       setSplashState((prev) => ({ ...prev, initializationComplete: true }));
     }
   }, []);
@@ -113,7 +118,7 @@ export default function RootLayout() {
   // Initialize i18n once when the app mounts
   useEffect(() => {
     AppInitializer.initializeI18n().catch((error) => {
-      logger.error('Failed to initialize i18n', { error });
+      logger.error('Failed to initialize i18n', error);
     });
   }, []);
 

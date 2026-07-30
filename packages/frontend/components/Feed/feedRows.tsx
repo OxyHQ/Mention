@@ -17,7 +17,7 @@ import { PostErrorBoundary } from './PostErrorBoundary';
 import FeedInterstitial from './interstitials/FeedInterstitial';
 import { SubtleHover } from '@oxyhq/bloom/subtle-hover';
 import { useThreadHoverStore } from '@/stores/threadHoverStore';
-import { createScopedLogger } from '@/lib/logger';
+import { createLogger } from '@oxyhq/core/logger';
 import { getItemKey, deduplicateItems, buildReplyTree, ReplyNode } from '@/utils/feedUtils';
 import { THREAD_LINE_WIDTH, THREAD_LINE_BORDER_RADIUS, THREAD_LINE_Z_INDEX } from '@/components/Compose/composeLayout';
 import { POST_ITEM_SPACING } from '@/styles/shared';
@@ -84,7 +84,7 @@ export type FeedRow = PostFeedRow | InterstitialFeedRow;
 
 export const MAX_THREAD_NESTING_DEPTH = 3;
 
-const logger = createScopedLogger('Feed');
+const logger = createLogger('Feed');
 
 export interface BuildFeedRowsParams {
     slices?: FeedPostSlice[];

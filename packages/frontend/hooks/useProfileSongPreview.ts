@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createAudioPlayer, setAudioModeAsync } from 'expo-audio';
-import { createScopedLogger } from '@/lib/logger';
+import { createLogger } from '@oxyhq/core/logger';
 
-const logger = createScopedLogger('useProfileSongPreview');
+const logger = createLogger('useProfileSongPreview');
 
 // `expo-audio`'s `AudioPlayer` extends `SharedObject`, which the package types as
 // the constructor side of a global C++ class — so its instance members

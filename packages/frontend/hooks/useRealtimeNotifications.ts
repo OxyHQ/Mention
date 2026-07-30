@@ -1,6 +1,6 @@
 import { useEffect, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { createScopedLogger } from '@/lib/logger';
+import { createLogger } from '@oxyhq/core/logger';
 import { useAuth } from '@oxyhq/services/ui/client';
 import { io, Socket } from 'socket.io-client';
 import { API_URL_SOCKET } from '../config';
@@ -17,7 +17,7 @@ import {
 } from '@/utils/notificationCache';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 
-const logger = createScopedLogger('useRealtimeNotifications');
+const logger = createLogger('useRealtimeNotifications');
 
 let socket: Socket | null = null;
 
@@ -138,10 +138,10 @@ export const useRealtimeNotifications = () => {
       });
 
       socket.on('connect_error', (error) => {
-        logger.error('Socket connection error', { error });
+        logger.error('Socket connection error', error);
       });
     } catch (error) {
-      logger.error('Failed to connect to notifications socket', { error });
+      logger.error('Failed to connect to notifications socket', error);
     }
   }, [isAuthenticated, isReady, user?.id, oxyServices, queryClient]);
 

@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { createScopedLogger } from '@/lib/logger';
+import { createLogger } from '@oxyhq/core/logger';
 
 /**
  * Binds the OS transport controls to whatever the reel is playing, through the
@@ -19,7 +19,7 @@ import { createScopedLogger } from '@/lib/logger';
  * than an exception.
  */
 
-const logger = createScopedLogger('MediaSessionTransport');
+const logger = createLogger('MediaSessionTransport');
 
 /**
  * How far a relative seek moves when the OS asks for one without naming an

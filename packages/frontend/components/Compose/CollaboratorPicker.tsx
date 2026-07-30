@@ -6,7 +6,7 @@ import { Avatar } from '@oxyhq/bloom/avatar';
 import { MAX_POST_COLLABORATORS, MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import { useTranslation } from 'react-i18next';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { logger } from '@/lib/logger';
+import { logger } from '@oxyhq/core/logger';
 import { displayNameOrHandle } from '@/utils/displayName';
 import { HIT_SLOP_MD } from '@/styles/hitSlop';
 

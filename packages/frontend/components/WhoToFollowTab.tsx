@@ -12,7 +12,7 @@ import { ProfileCard, ProfileCardSkeletonList, type ProfileCardData } from '@/co
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Error as ErrorDisplay } from '@/components/Error';
 import { LoadMoreSentinel } from '@/components/common/LoadMoreSentinel';
-import { logger } from '@/lib/logger';
+import { logger } from '@oxyhq/core/logger';
 import { useInfiniteRecommendations } from '@/hooks/useRecommendations';
 import { type ProfileData } from '@/lib/recommendations';
 

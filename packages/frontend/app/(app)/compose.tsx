@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { Loading } from '@oxyhq/bloom/loading';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { logger } from '@/lib/logger';
+import { logger } from '@oxyhq/core/logger';
 import { classifyApiError, normalizeApiError, type ApiErrorReason } from '@/utils/apiError';
 import { OxyAuthPrompt, useAuth } from '@oxyhq/services/ui/client';
 import { getNormalizedUserHandle, type FileMetadata } from '@oxyhq/core';
@@ -898,7 +898,7 @@ const ComposeScreenBody = () => {
           !(source.authorship?.some((entry) => entry.role === 'collaborator'));
         setEditCollabEligible(soloForCollab);
       } catch (e) {
-        logger.error('Failed to load post for editing', { error: e });
+        logger.error('Failed to load post for editing', e);
         toast(t('Failed to load post for editing'), { type: 'error' });
       } finally {
         if (!cancelled) setEditLoading(false);
@@ -924,7 +924,7 @@ const ComposeScreenBody = () => {
         }
       } catch (e) {
         if (!cancelled) {
-          logger.error('Failed to load parent post', { error: e });
+          logger.error('Failed to load parent post', e);
           toast(t('Failed to load post'), { type: 'error' });
         }
       } finally {
@@ -1091,7 +1091,7 @@ const ComposeScreenBody = () => {
       safeBack();
     } catch (error) {
       const { reason, normalized } = classifyApiError(error);
-      logger.error('Failed to publish post', {
+      logger.error('Failed to publish post', undefined, {
         reason,
         status: normalized.status,
         code: normalized.code,
@@ -1677,7 +1677,7 @@ const ComposeScreenBody = () => {
       );
     } catch (error) {
       const { reason, normalized } = classifyApiError(error);
-      logger.error('Failed to translate compose draft', {
+      logger.error('Failed to translate compose draft', undefined, {
         reason,
         status: normalized.status,
         code: normalized.code,

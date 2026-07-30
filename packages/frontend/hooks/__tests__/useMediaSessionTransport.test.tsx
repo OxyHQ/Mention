@@ -8,11 +8,12 @@ import { useMediaSessionTransport, type MediaSessionTrack } from '../useMediaSes
 // distinguishable from "tried and swallowed the error".
 const mockDebug = jest.fn();
 
-jest.mock('@/lib/logger', () => ({
+jest.mock('@oxyhq/core/logger', () => ({
+    ...jest.requireActual('@oxyhq/core/logger'),
     // Read `mockDebug` at CALL time: the factory runs while the test module's own
     // bindings are still being initialised, so capturing it here would capture
     // `undefined` and every swallowed failure would become a crash.
-    createScopedLogger: () => ({ debug: (...args: unknown[]) => mockDebug(...args) }),
+    createLogger: () => ({ debug: (...args: unknown[]) => mockDebug(...args) }),
 }));
 
 /**

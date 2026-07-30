@@ -11,9 +11,9 @@
  */
 
 import type * as SQLite from 'expo-sqlite';
-import { createScopedLogger } from '@/lib/logger';
+import { createLogger } from '@oxyhq/core/logger';
 
-const logger = createScopedLogger('Schema');
+const logger = createLogger('Schema');
 
 /**
  * Schema version. Bump this whenever the table definitions below change —

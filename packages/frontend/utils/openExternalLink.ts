@@ -1,8 +1,8 @@
 import { Linking, Platform } from 'react-native';
 import { openBrowserAsync, type WebBrowserOpenOptions } from 'expo-web-browser';
-import { createScopedLogger } from '@/lib/logger';
+import { createLogger } from '@oxyhq/core/logger';
 
-const logger = createScopedLogger('openExternalLink');
+const logger = createLogger('openExternalLink');
 
 /**
  * The ONE imperative entry point for opening an external link from post bodies,

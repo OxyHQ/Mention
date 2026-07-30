@@ -11,7 +11,7 @@ import { authenticatedClient } from '@/utils/api';
 import { Toggle } from '@/components/Toggle';
 import { SettingsListGroup, SettingsListItem } from '@oxyhq/bloom/settings-list';
 import { RowIcon } from '@/components/settings/RowIcon';
-import { logger } from '@/lib/logger';
+import { logger } from '@oxyhq/core/logger';
 import type { UserSettingsResponse } from '@/hooks/usePrivacySettings';
 import { OxyAuthPrompt, useAuth } from '@oxyhq/services/ui/client';
 
@@ -42,7 +42,7 @@ export default function TagsMentionsScreen() {
             setAllowMentions(settings.privacy?.allowMentions !== false);
             setLoading(false);
         } catch (error) {
-            logger.error('Error loading settings', { error });
+            logger.error('Error loading settings', error);
             setLoading(false);
         }
     };
@@ -65,7 +65,7 @@ export default function TagsMentionsScreen() {
                 privacy: updatedPrivacy,
             });
         } catch (error) {
-            logger.error('Error updating setting', { error });
+            logger.error('Error updating setting', error);
             if (field === 'allowTags') setAllowTags(!value);
             if (field === 'allowMentions') setAllowMentions(!value);
         }

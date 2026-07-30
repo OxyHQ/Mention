@@ -23,9 +23,9 @@ import {
   memGetFeedKeysForPost,
   memClearFeed,
 } from './memoryStore';
-import { createScopedLogger } from '@/lib/logger';
+import { createLogger } from '@oxyhq/core/logger';
 
-const logger = createScopedLogger('FeedQueries');
+const logger = createLogger('FeedQueries');
 
 // ── Helpers ──────────────────────────────────────────────────────
 
@@ -69,7 +69,7 @@ export function setFeedItems(
   try {
     upsertPosts(posts);
   } catch (e) {
-    logger.error('Failed to upsert posts for feed', { error: e });
+    logger.error('Failed to upsert posts for feed', e);
     // Continue — feed_items will skip posts that failed to insert
   }
 
@@ -107,7 +107,7 @@ export function setFeedItems(
     db.execSync('COMMIT');
   } catch (error) {
     db.execSync('ROLLBACK');
-    logger.error(`Failed to set feed items for ${feedKey}`, { error });
+    logger.error(`Failed to set feed items for ${feedKey}`, error);
   }
 }
 
@@ -134,7 +134,7 @@ export function appendFeedItems(
   try {
     upsertPosts(posts);
   } catch (e) {
-    logger.error('Failed to upsert posts for feed append', { error: e });
+    logger.error('Failed to upsert posts for feed append', e);
   }
 
   // Step 2: Append feed_items in a transaction
@@ -186,7 +186,7 @@ export function appendFeedItems(
     db.execSync('COMMIT');
   } catch (error) {
     db.execSync('ROLLBACK');
-    logger.error(`Failed to append feed items for ${feedKey}`, { error });
+    logger.error(`Failed to append feed items for ${feedKey}`, error);
   }
 }
 
@@ -420,7 +420,7 @@ export function addFeedItemAtStart(feedKey: string, postId: string): void {
     db.execSync('COMMIT');
   } catch (error) {
     db.execSync('ROLLBACK');
-    logger.error(`Failed to add feed item at start for ${feedKey}`, { error });
+    logger.error(`Failed to add feed item at start for ${feedKey}`, error);
   }
 }
 
@@ -485,7 +485,7 @@ export function clearFeed(feedKey: string): void {
     db.execSync('COMMIT');
   } catch (error) {
     db.execSync('ROLLBACK');
-    logger.error(`Failed to clear feed ${feedKey}`, { error });
+    logger.error(`Failed to clear feed ${feedKey}`, error);
   }
 }
 
@@ -502,7 +502,7 @@ export function clearAllFeeds(): void {
     db.execSync('COMMIT');
   } catch (error) {
     db.execSync('ROLLBACK');
-    logger.error('Failed to clear all feeds', { error });
+    logger.error('Failed to clear all feeds', error);
   }
 }
 

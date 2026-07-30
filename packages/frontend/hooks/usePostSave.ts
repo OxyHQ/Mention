@@ -2,7 +2,7 @@ import { useCallback, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@oxyhq/services/ui/client';
 import { usePostsStore } from '@/stores/postsStore';
-import { logger } from '@/lib/logger';
+import { logger } from '@oxyhq/core/logger';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 
 /**
@@ -37,7 +37,7 @@ export function usePostSave(postId: string | undefined, isSaved: boolean, source
                 });
             }
         } catch (error) {
-            logger.error('Error toggling save', { error });
+            logger.error('Error toggling save', error);
         } finally {
             pendingRef.current = false;
         }

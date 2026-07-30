@@ -1,10 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import { authenticatedClient, isUnauthorizedError, isNotFoundError } from '@/utils/api';
 import { useAuth } from '@oxyhq/services/ui/client';
-import { createScopedLogger } from '@/lib/logger';
+import { createLogger } from '@oxyhq/core/logger';
 import type { UserSettingsResponse } from '@/hooks/usePrivacySettings';
 
-const logger = createScopedLogger('useFediversePreferredLanguage');
+const logger = createLogger('useFediversePreferredLanguage');
 
 /**
  * The author's default PRIMARY content language — a Mention `UserSettings` field

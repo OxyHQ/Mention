@@ -11,7 +11,7 @@ import {
   customFeedsService,
   type MarketplaceFeed,
 } from '@/services/customFeedsService';
-import { logger } from '@/lib/logger';
+import { logger } from '@oxyhq/core/logger';
 import { DismissButton } from './DismissButton';
 import { InterstitialShell, type InterstitialItemContext } from './InterstitialShell';
 import {

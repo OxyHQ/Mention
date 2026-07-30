@@ -16,10 +16,10 @@ import {
     updatePrivacySettingsCache,
     type UserSettingsResponse,
 } from '@/hooks/usePrivacySettings';
-import { createScopedLogger } from '@/lib/logger';
+import { createLogger } from '@oxyhq/core/logger';
 import { OxyAuthPrompt, useAuth } from '@oxyhq/services/ui/client';
 
-const hideCountsLogger = createScopedLogger('HideCounts');
+const hideCountsLogger = createLogger('HideCounts');
 
 export default function HideCountsScreen() {
     const { t } = useTranslation();
@@ -54,7 +54,7 @@ export default function HideCountsScreen() {
             setHideSaveCounts(settings.privacy?.hideSaveCounts || false);
             setLoading(false);
         } catch (error) {
-            hideCountsLogger.error('Error loading settings', { error });
+            hideCountsLogger.error('Error loading settings', error);
             setLoading(false);
         }
     };
@@ -80,7 +80,7 @@ export default function HideCountsScreen() {
 
             await updatePrivacySettingsCache(updatedPrivacy, cacheLease);
         } catch (error) {
-            hideCountsLogger.error('Error updating setting', { error });
+            hideCountsLogger.error('Error updating setting', error);
             if (field === 'hideLikeCounts') setHideLikeCounts(!value);
             if (field === 'hideShareCounts') setHideShareCounts(!value);
             if (field === 'hideReplyCounts') setHideReplyCounts(!value);
@@ -117,7 +117,7 @@ export default function HideCountsScreen() {
 
             await updatePrivacySettingsCache(updatedPrivacy, cacheLease);
         } catch (error) {
-            hideCountsLogger.error('Error updating all settings', { error });
+            hideCountsLogger.error('Error updating all settings', error);
         }
     };
 

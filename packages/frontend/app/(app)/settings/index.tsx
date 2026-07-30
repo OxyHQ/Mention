@@ -17,11 +17,11 @@ import { Loading } from '@oxyhq/bloom/loading';
 import { RowIcon } from '@/components/settings/RowIcon';
 import { LogoIcon } from "@/assets/logo";
 import { confirmDialog } from "@/utils/alerts";
-import { createScopedLogger } from "@/lib/logger";
+import { createLogger } from '@oxyhq/core/logger';
 import { useBloomTheme } from '@oxyhq/bloom/theme';
 import { useAppearanceStore } from '@/stores/appearanceStore';
 
-const logger = createScopedLogger('SettingsScreen');
+const logger = createLogger('SettingsScreen');
 
 export default function SettingsScreen() {
     const { t } = useTranslation();

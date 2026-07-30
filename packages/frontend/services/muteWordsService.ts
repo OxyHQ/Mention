@@ -1,7 +1,7 @@
-import { createScopedLogger } from '@/lib/logger';
+import { createLogger } from '@oxyhq/core/logger';
 import { authenticatedClient } from '@/utils/api';
 
-const logger = createScopedLogger('MuteWordsService');
+const logger = createLogger('MuteWordsService');
 
 /**
  * Where a muted word is matched. `content` matches post body text;

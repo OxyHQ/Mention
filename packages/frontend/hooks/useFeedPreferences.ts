@@ -7,7 +7,7 @@ import {
   type SavedFeed,
 } from '@mention/shared-types/mtn/presetFeeds';
 import { feedPreferencesService } from '@/services/feedPreferencesService';
-import { logger } from '@/lib/logger';
+import { logger } from '@oxyhq/core/logger';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 
 /**

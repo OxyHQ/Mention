@@ -17,7 +17,7 @@ import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { listsService } from '@/services/listsService';
 import { useSafeBack } from '@/hooks/useSafeBack';
-import { logger } from '@/lib/logger';
+import { logger } from '@oxyhq/core/logger';
 import { queryClient } from '@/lib/queryClient';
 import type { User } from '@oxyhq/core';
 import { displayNameOrHandle } from '@/utils/displayName';
@@ -152,7 +152,7 @@ export default function EditListMembersScreen() {
       await listsService.addMembers(listId, [profile.id]);
       toast(t('lists.edit.added', { user: profile.username, defaultValue: `Added @${profile.username}` }), { type: 'success' });
     } catch (e) {
-      logger.error('Add member failed', { error: e });
+      logger.error('Add member failed', e);
       setMembers((prev) => prev.filter((m) => m.id !== profile.id));
       toast(t('lists.edit.addFailed', { defaultValue: 'Failed to add member' }), { type: 'error' });
     } finally {
@@ -170,7 +170,7 @@ export default function EditListMembersScreen() {
       await listsService.removeMembers(listId, [profile.id]);
       toast(t('lists.edit.removed', { user: profile.username, defaultValue: `Removed @${profile.username}` }), { type: 'success' });
     } catch (e) {
-      logger.error('Remove member failed', { error: e });
+      logger.error('Remove member failed', e);
       setMembers(previous);
       toast(t('lists.edit.removeFailed', { defaultValue: 'Failed to remove member' }), { type: 'error' });
     } finally {

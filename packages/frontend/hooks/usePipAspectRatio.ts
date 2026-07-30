@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useEventListener } from 'expo';
 import type { VideoPlayer, VideoTrack } from 'expo-video';
-import { createScopedLogger } from '@/lib/logger';
+import { createLogger } from '@oxyhq/core/logger';
 import { setPipAspectRatio } from '@/modules/pip-transport';
 import { toMediaPixelSize, type MediaPixelSize } from '@/utils/mediaTypes';
 
@@ -41,7 +41,7 @@ import { toMediaPixelSize, type MediaPixelSize } from '@/utils/mediaTypes';
  * binding resolves to a no-op, so there is no platform branch at the call site.
  */
 
-const logger = createScopedLogger('PipAspectRatio');
+const logger = createLogger('PipAspectRatio');
 
 /**
  * The size a video track reports, or nothing when there is no usable one yet.

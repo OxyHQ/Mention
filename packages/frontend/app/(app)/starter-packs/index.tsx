@@ -10,7 +10,7 @@ import { useSafeBack } from '@/hooks/useSafeBack';
 import { SEO } from '@/components/SEO';
 import { StarterPackCard, StarterPackCardSkeleton, type StarterPackCardData } from '@/components/StarterPackCard';
 import { useTranslation } from 'react-i18next';
-import { logger } from '@/lib/logger';
+import { logger } from '@oxyhq/core/logger';
 import { EmptyState } from '@/components/common/EmptyState';
 import { StarterPackIcon } from '@/assets/icons/starter-pack-icon';
 

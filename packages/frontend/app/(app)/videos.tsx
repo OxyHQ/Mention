@@ -16,7 +16,7 @@ import { useRouter, useLocalSearchParams, useIsFocused } from 'expo-router';
 import { usePostsStore } from '@/stores/postsStore';
 import { useVideoMuteStore } from '@/stores/videoMuteStore';
 import { feedService } from '@/services/feedService';
-import { createScopedLogger } from '@/lib/logger';
+import { createLogger } from '@oxyhq/core/logger';
 import { proxyExternalUrl, videoPosterUrl } from '@/utils/imageUrlCache';
 import { SpinnerIcon } from '@oxyhq/bloom/loading';
 import { Avatar } from '@oxyhq/bloom/avatar';
@@ -169,7 +169,7 @@ const OVERLAY_BUTTON_ICON_SIZE = 22;
 // is the general following feed filtered down to video posts.
 type VideoFeedTab = 'videos' | 'following';
 
-const logger = createScopedLogger('VideosScreen');
+const logger = createLogger('VideosScreen');
 
 /**
  * Hold an OS wake lock for exactly as long as `active` is true.

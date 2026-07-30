@@ -19,7 +19,7 @@ import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '@oxyhq/services/ui/client';
 import { authenticatedClient } from '@/utils/api';
-import { createScopedLogger } from '@/lib/logger';
+import { createLogger } from '@oxyhq/core/logger';
 import {
   viewerCacheId,
   viewerStorageKey,
@@ -33,7 +33,7 @@ import type {
 } from '@mention/shared-types';
 import type { UserSettingsResponse } from '@/hooks/usePrivacySettings';
 
-const logger = createScopedLogger('externalEmbedsStore');
+const logger = createLogger('externalEmbedsStore');
 
 const CACHE_KEY = '@mention_external_embeds:v2';
 const LEGACY_CACHE_KEY = '@mention_external_embeds';
@@ -187,7 +187,7 @@ export const useExternalEmbedsStore = create<ExternalEmbedsState>((set, get) => 
         generation !== hydrationGeneration ||
         activeViewerId !== viewerId
       ) return;
-      logger.error('Failed to persist external-embed prefs', { error });
+      logger.error('Failed to persist external-embed prefs', error);
       set({ prefs: previous });
     }
   },

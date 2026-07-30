@@ -4,14 +4,14 @@ import { useTranslation } from 'react-i18next';
 import { WhoToFollowWidget } from './WhoToFollowWidget';
 import { TrendsWidget } from './TrendsWidget';
 import { LiveRoomsWidget } from './LiveRoomsWidget';
-import { createScopedLogger } from '@/lib/logger';
+import { createLogger } from '@oxyhq/core/logger';
 
-const logger = createScopedLogger('WidgetManager');
+const logger = createLogger('WidgetManager');
 
 class WidgetErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean }> {
     state = { hasError: false };
     static getDerivedStateFromError() { return { hasError: true }; }
-    componentDidCatch(error: Error) { logger.error('Widget crashed', { error }); }
+    componentDidCatch(error: Error) { logger.error('Widget crashed', error); }
     render() { return this.state.hasError ? null : this.props.children; }
 }
 

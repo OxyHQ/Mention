@@ -13,7 +13,7 @@ import { authenticatedClient } from '@/utils/api';
 import { SettingsListGroup, SettingsListItem } from '@oxyhq/bloom/settings-list';
 import { RowIcon } from '@/components/settings/RowIcon';
 import type { IconName } from '@/lib/icons';
-import { logger } from '@/lib/logger';
+import { logger } from '@oxyhq/core/logger';
 import {
     type RecommendationFilters,
     DEFAULT_RECOMMENDATION_FILTERS,
@@ -99,7 +99,7 @@ export default function PrivacySettingsScreen() {
             setPrivacySettings(settings.privacy || { profileVisibility: 'public' });
             setLoading(false);
         } catch (error) {
-            logger.error('Error loading privacy settings', { error });
+            logger.error('Error loading privacy settings', error);
             setPrivacySettings({ profileVisibility: 'public' });
             setLoading(false);
         }
@@ -129,7 +129,7 @@ export default function PrivacySettingsScreen() {
             await authenticatedClient.put('/profile/settings', { privacy: updated });
             await updatePrivacySettingsCache(updated, cacheLease);
         } catch (error) {
-            logger.error('Error updating privacy setting', { error, field });
+            logger.error('Error updating privacy setting', error, { field });
             setPrivacySettings(previous);
         }
     };

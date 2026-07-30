@@ -1,5 +1,5 @@
 import { Platform } from "react-native";
-import { logger } from '@/lib/logger';
+import { logger } from '@oxyhq/core/logger';
 
 // Do not statically import 'expo-notifications' to avoid bundling it on web.
 // Use a cached dynamic import so the package is only loaded on native platforms.

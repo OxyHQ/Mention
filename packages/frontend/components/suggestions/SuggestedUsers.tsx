@@ -9,7 +9,7 @@ import { queryClient } from '@/lib/queryClient';
 import { enrichMissingAvatars } from '@/utils/userEnrichment';
 import { SuggestedUserCard } from './SuggestedUserCard';
 import type { SuggestedUserData } from './SuggestedUserCard';
-import { logger } from '@/lib/logger';
+import { logger } from '@oxyhq/core/logger';
 import { type ProfileData } from '@/lib/recommendations';
 import { useRecommendations } from '@/hooks/useRecommendations';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';

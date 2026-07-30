@@ -21,7 +21,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { Error as ErrorComponent } from '@/components/Error';
 import { useProfileData, type ProfileData } from '@/hooks/useProfileData';
 import { useProfileScreenColor } from '@/hooks/useProfileScreenColor';
-import { logger } from '@/lib/logger';
+import { logger } from '@oxyhq/core/logger';
 import { useRecommendations } from '@/hooks/useRecommendations';
 import { type ProfileData as RecommendedProfile } from '@/lib/recommendations';
 import { isAuthError } from '@/utils/authErrors';
@@ -200,7 +200,7 @@ function ConnectionsContent({
       } else {
         const message = err instanceof globalThis.Error ? err.message : 'Failed to load followers';
         setError(message);
-        logger.error('Error loading followers', { error: err });
+        logger.error('Error loading followers', err);
       }
     }
   }, [profileData?.id, oxyServices]);
@@ -224,7 +224,7 @@ function ConnectionsContent({
       } else {
         const message = err instanceof globalThis.Error ? err.message : 'Failed to load following';
         setError(message);
-        logger.error('Error loading following', { error: err });
+        logger.error('Error loading following', err);
       }
     }
   }, [profileData?.id, oxyServices]);
@@ -384,7 +384,7 @@ function ConnectionsContent({
     } catch (err: unknown) {
       const shareErr = err as { message?: string; code?: string };
       if (shareErr?.message !== 'User did not share' && shareErr?.code !== 'ERR_SHARE_CANCELLED') {
-        logger.error('Error inviting friends', { error: err });
+        logger.error('Error inviting friends', err);
       }
     }
   }, [getInviteMessage, t]);

@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { createScopedLogger } from '@/lib/logger';
+import { createLogger } from '@oxyhq/core/logger';
 import { useRefSync } from '@/hooks/useRefSync';
 import {
   addPipActionListener,
@@ -27,7 +27,7 @@ import {
  * prebuild — every call below is a no-op and nothing throws.
  */
 
-const logger = createScopedLogger('PipTransportActions');
+const logger = createLogger('PipTransportActions');
 
 /**
  * Which button survives the clamp, most valuable first. A reel is watched

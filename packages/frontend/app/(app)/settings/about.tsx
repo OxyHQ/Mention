@@ -1,7 +1,6 @@
 import React from 'react';
 import { View, Text, ScrollView } from 'react-native';
 import { toast } from '@oxyhq/bloom/toast';
-import { useRouter } from 'expo-router';
 import Constants from 'expo-constants';
 import { ThemedView } from '@/components/ThemedView';
 import { useSafeBack } from '@/hooks/useSafeBack';
@@ -20,7 +19,6 @@ export default function AboutScreen() {
     const { t } = useTranslation();
     const safeBack = useSafeBack();
     const { showBottomSheet } = useAuth() as { showBottomSheet?: (screen: string) => void };
-    const router = useRouter();
 
     const appVersion = Constants.expoConfig?.version || '1.0.0';
     const runtimeVersion = typeof Constants.expoConfig?.runtimeVersion === 'string'
@@ -159,12 +157,6 @@ export default function AboutScreen() {
 
                 {/* Debug */}
                 <SettingsListGroup title={t('settings.debug', { defaultValue: 'Debug' })}>
-                    <SettingsListItem
-                        icon={<RowIcon name="code-slash" />}
-                        title={t('settings.systemLog', { defaultValue: 'System log' })}
-                        description={t('settings.systemLogDesc', { defaultValue: 'View in-app diagnostic logs' })}
-                        onPress={() => router.push('/sys/log')}
-                    />
                     <SettingsListItem
                         icon={<RowIcon name="trash" destructive />}
                         title={t('settings.data.clearCache')}

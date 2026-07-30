@@ -6,7 +6,7 @@ import { authenticatedClient } from '@/utils/api';
 import { Storage } from '@/utils/storage';
 import { getDevicePushToken } from '@/utils/notifications';
 import i18next from 'i18next';
-import { logger } from '@/lib/logger';
+import { logger } from '@oxyhq/core/logger';
 
 export const RegisterPushToken: React.FC = () => {
     const { isAuthenticated, user } = useAuth();

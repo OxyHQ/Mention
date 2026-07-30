@@ -2,7 +2,7 @@ import { useCallback, useState } from 'react';
 import { queryKeys } from '@oxyhq/services';
 import { useAuth } from '@oxyhq/services/ui/client';
 import { APP_COLOR_PRESETS, useBloomTheme, type AppColorName } from '@oxyhq/bloom/theme';
-import { logger } from '@/lib/logger';
+import { logger } from '@oxyhq/core/logger';
 import { queryClient } from '@/lib/queryClient';
 import { useAppearanceStore } from '@/stores/appearanceStore';
 import { useThemeSourceStore } from '@/stores/themeSourceStore';
@@ -63,7 +63,7 @@ export function useAppColorSave() {
         queryClient.invalidateQueries({ queryKey: queryKeys.users.byUsername(ownUsername, ownId) });
       }
     } catch (error) {
-      logger.error('Error updating color', { error });
+      logger.error('Error updating color', error);
     } finally {
       setSaving(false);
     }

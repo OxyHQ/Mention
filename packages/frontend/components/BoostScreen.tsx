@@ -26,7 +26,7 @@ import { getNormalizedUserHandle } from "@oxyhq/core";
 import { usePostsStore } from "../stores/postsStore";
 import { useTheme } from '@oxyhq/bloom/theme';
 import { useTranslation } from 'react-i18next';
-import { logger } from '@/lib/logger';
+import { logger } from '@oxyhq/core/logger';
 
 const MAX_CHARACTERS = 280;
 

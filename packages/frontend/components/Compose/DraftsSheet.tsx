@@ -11,10 +11,10 @@ import { DraftsIcon } from '@/assets/icons/drafts';
 import { useDrafts, Draft } from '@/hooks/useDrafts';
 import { toast } from '@oxyhq/bloom/toast';
 import { confirmDialog } from '@/utils/alerts';
-import { createScopedLogger } from '@/lib/logger';
+import { createLogger } from '@oxyhq/core/logger';
 import { HIT_SLOP_LG } from '@/styles/hitSlop';
 
-const logger = createScopedLogger('DraftsSheet');
+const logger = createLogger('DraftsSheet');
 
 interface DraftsSheetProps {
   onClose: () => void;
@@ -58,7 +58,7 @@ const DraftsSheet: React.FC<DraftsSheetProps> = ({ onClose, onLoadDraft, current
       logger.debug('Drafts reloaded');
       toast(t('compose.draftDeleted'), { type: 'success' });
     } catch (error) {
-      logger.error('Error deleting draft', { error });
+      logger.error('Error deleting draft', error);
       toast(t('compose.deleteDraftError'), { type: 'error' });
     } finally {
       setDeletingId(null);

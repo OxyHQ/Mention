@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { Icon } from '@/lib/icons';
 import { useAppearanceStore } from '@/stores/appearanceStore';
-import { logger } from '@/lib/logger';
+import { logger } from '@oxyhq/core/logger';
 
 type ProfileStyle = 'default' | 'minimalist';
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
@@ -78,7 +78,7 @@ export const ProfileStyleSection: React.FC = () => {
         },
       });
     } catch (error) {
-      logger.error('Error updating profile customization', { error });
+      logger.error('Error updating profile customization', error);
       setCoverPhotoEnabled(mySettings?.profileCustomization?.coverPhotoEnabled ?? true);
       setMinimalistMode(mySettings?.profileCustomization?.minimalistMode ?? false);
     }

@@ -20,7 +20,8 @@ jest.mock('../index', () => ({
   refreshTrendsWidget: () => mockRefreshTrendsWidget(),
 }));
 
-jest.mock('@/lib/logger', () => ({
+jest.mock('@oxyhq/core/logger', () => ({
+  ...jest.requireActual('@oxyhq/core/logger'),
   logger: { debug: (...args: unknown[]) => mockDebug(...args) },
 }));
 

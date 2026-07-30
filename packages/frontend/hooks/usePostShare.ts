@@ -3,7 +3,7 @@ import { Share, Platform } from 'react-native';
 import { queryKeys } from '@oxyhq/services';
 import type { User } from '@oxyhq/core';
 import { getNormalizedUserHandle } from '@oxyhq/core';
-import { logger } from '@/lib/logger';
+import { logger } from '@oxyhq/core/logger';
 import { toast } from '@oxyhq/bloom/toast';
 import { queryClient } from '@/lib/queryClient';
 
@@ -70,7 +70,7 @@ export function usePostShare(post: SharePost | null | undefined) {
                 });
             }
         } catch (error) {
-            logger.error('Error sharing post', { error });
+            logger.error('Error sharing post', error);
             toast('Failed to share post', { type: 'error' });
         }
     }, [post]);

@@ -13,7 +13,7 @@ import { authenticatedClient } from '@/utils/api';
 import { toast } from '@oxyhq/bloom/toast';
 import { SettingsListGroup, SettingsListItem } from '@oxyhq/bloom/settings-list';
 import { RowIcon } from '@/components/settings/RowIcon';
-import { logger } from '@/lib/logger';
+import { logger } from '@oxyhq/core/logger';
 import type { UserSettingsResponse } from '@/hooks/usePrivacySettings';
 import { OxyAuthPrompt, useAuth } from '@oxyhq/services/ui/client';
 
@@ -68,7 +68,7 @@ export default function NotificationSettingsScreen() {
                 setPrefs({ ...DEFAULT_PREFS, ...settings.notificationPreferences });
             }
         } catch (error) {
-            logger.error('Error loading notification preferences', { error });
+            logger.error('Error loading notification preferences', error);
         } finally {
             setLoading(false);
         }
@@ -85,7 +85,7 @@ export default function NotificationSettingsScreen() {
                 notificationPreferences: { [key]: value },
             });
         } catch (error) {
-            logger.error('Error updating notification preferences', { error });
+            logger.error('Error updating notification preferences', error);
             setPrefs(previous);
             toast(
                 t('settings.notifications.saveError', {

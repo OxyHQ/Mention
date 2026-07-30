@@ -1,9 +1,9 @@
 import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getLiveRooms, type Room } from '@/lib/syraApi';
-import { createScopedLogger } from '@/lib/logger';
+import { createLogger } from '@oxyhq/core/logger';
 
-const logger = createScopedLogger('LiveRoomsStore');
+const logger = createLogger('LiveRoomsStore');
 
 /**
  * Slow safety-net poll. Realtime freshness is driven by the

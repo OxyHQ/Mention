@@ -17,10 +17,10 @@ import { useTranslation } from 'react-i18next';
 import { toast } from '@oxyhq/bloom/toast';
 import VideoPlayer from '@/components/common/VideoPlayer';
 import { api } from '@/utils/api';
-import { createScopedLogger } from '@/lib/logger';
+import { createLogger } from '@oxyhq/core/logger';
 import { normalizeApiError } from '@/utils/apiError';
 
-const logger = createScopedLogger('GifPickerSheet');
+const logger = createLogger('GifPickerSheet');
 
 interface GifPickerSheetProps {
   onClose: () => void;
@@ -70,7 +70,7 @@ const GifPickerSheet: React.FC<GifPickerSheetProps> = ({ onClose, onSelectGif })
       const items = response.data?.gifs;
       setGifs(Array.isArray(items) ? items : []);
     } catch (error: unknown) {
-      logger.error('Error fetching GIFs', { error });
+      logger.error('Error fetching GIFs', error);
       toast(normalizeApiError(error).message || t('Failed to load GIFs'), { type: 'error' });
       setGifs([]);
     } finally {
@@ -116,7 +116,7 @@ const GifPickerSheet: React.FC<GifPickerSheetProps> = ({ onClose, onSelectGif })
       await onSelectGif(res.data.mp4Url, fileId);
       onClose();
     } catch (error: unknown) {
-      logger.error('Error selecting GIF', { error });
+      logger.error('Error selecting GIF', error);
       toast(normalizeApiError(error).message || t('Failed to add GIF'), { type: 'error' });
     } finally {
       setUploading(false);

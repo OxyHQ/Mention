@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef } from 'react';
 import type { BlockedUser, RestrictedUser } from '@oxyhq/core';
 import { usePrivacyStore } from '@/stores/privacyStore';
-import { logger } from '@/lib/logger';
+import { logger } from '@oxyhq/core/logger';
 import { useAuth } from '@oxyhq/services/ui/client';
 
 interface UsePrivacyControlsOptions {
@@ -82,7 +82,7 @@ export function usePrivacyControls(options?: UsePrivacyControlsOptions) {
             // refetch storm. Lists stay empty until the interval elapses or the
             // viewer identity changes.
             const message = error instanceof Error ? error.message : 'Failed to load privacy data';
-            logger.error('[usePrivacyControls] Unable to load privacy lists', { error });
+            logger.error('[usePrivacyControls] Unable to load privacy lists', error);
             setError(message);
             setLists({ blockedIds: [], restrictedIds: [], lastFetchedAt: Date.now() });
         } finally {

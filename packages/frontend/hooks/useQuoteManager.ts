@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import { logger } from '@/lib/logger';
+import { logger } from '@oxyhq/core/logger';
 import { feedService } from '@/services/feedService';
 import type { HydratedPost } from '@mention/shared-types';
 

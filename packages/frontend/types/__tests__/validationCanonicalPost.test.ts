@@ -2,7 +2,8 @@ import type { HydratedPost } from '@mention/shared-types';
 import { PostVisibility } from '@mention/shared-types/post';
 import { validateNotifications } from '../validation';
 
-jest.mock('@/lib/logger', () => ({
+jest.mock('@oxyhq/core/logger', () => ({
+  ...jest.requireActual('@oxyhq/core/logger'),
   logger: {
     warn: jest.fn(),
   },
