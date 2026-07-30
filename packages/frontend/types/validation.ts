@@ -130,14 +130,17 @@ export const ZEmbeddedPost = z
 export const ZRawNotification = z
   .object({
     _id: z.string(),
-    recipientId: z.any(),
-    actorId: z.any(),
+    // `recipientId` and `actorId` hold Oxy user ids (the backend model types both
+    // as `String`, never a Mongoose ref — hence the separate `actorId_populated`).
+    // `entityId` is an ObjectId that serializes to its hex string over JSON.
+    recipientId: z.string(),
+    actorId: z.string(),
     type: z.string(),
-    entityId: z.any(),
+    entityId: z.string(),
     entityType: z.string(),
     read: z.boolean().default(false),
     createdAt: z.string(),
-    updatedAt: z.any().optional(),
+    updatedAt: z.string().optional(),
     preview: z.string().optional(),
     post: ZEmbeddedPost.optional(),
     actorId_populated: ZActor.optional(),
