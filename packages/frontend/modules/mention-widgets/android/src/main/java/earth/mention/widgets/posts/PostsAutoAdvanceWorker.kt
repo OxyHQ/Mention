@@ -5,6 +5,7 @@ import android.os.PowerManager
 import androidx.core.content.getSystemService
 import androidx.glance.appwidget.updateAll
 import earth.mention.widgets.feedcard.autoAdvanceTick
+import earth.mention.widgets.feedcard.postImageUrls
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 
@@ -50,11 +51,35 @@ internal class PostsAutoAdvanceWorker(
 
         if (tick.advance) {
             PostsStore.advance(applicationContext)
+            // Make sure the post about to be drawn HAS its pictures before drawing it.
+            //
+            // A no-op whenever they are already on disk, which is the normal case: the
+            // refresh worker caches the whole rotation. What this covers is the abnormal one
+            // — a download that failed. Seen on a real device: the system tore down the
+            // process's TCP sockets mid-fetch ("Destroyed live tcp sockets for uids={...}")
+            // and two files were lost, so one post in five drew a byline with no avatar.
+            //
+            // The refresh worker does retry, on every tick and not only when it fetches, but
+            // its tick is the fifteen-minute periodic floor. Retrying here brings the window
+            // down to one turn, because this is the code that decides which post the reader
+            // is about to look at.
+            //
+            // Only this widget can do it: its feed is anonymous, so the store needs no
+            // account to read. See `FollowingAutoAdvanceWorker` for why the authenticated one
+            // leaves this to its refresh worker.
+            cacheCurrentImages()
             PostsWidget().updateAll(applicationContext)
         }
         if (tick.rearm) {
             PostsRefreshScheduler.scheduleNextAutoAdvance(applicationContext)
         }
         return Result.success()
+    }
+
+    private suspend fun cacheCurrentImages() {
+        val current = PostsStore.read(applicationContext, POSTS_ACCOUNT_ID).current ?: return
+        postImageUrls(applicationContext, current).forEach { url ->
+            PostsImages.ensureCached(applicationContext, url)
+        }
     }
 }

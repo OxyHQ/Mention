@@ -41,6 +41,15 @@ internal class FollowingAutoAdvanceWorker(
 
         if (tick.advance) {
             FollowingStore.advance(applicationContext)
+            // Deliberately NOT re-caching the incoming post's pictures here, unlike the
+            // trending-posts widget which does exactly that. Doing it needs the account the
+            // stored rotation belongs to, and this worker does not have it: `read` compares
+            // against the account it is given and reports the store EMPTY when that does not
+            // match, which is the property that stops a previous account's posts surfacing
+            // after a switch. Passing `null` to get around it would either read nothing —
+            // making this pointless — or, if that guard ever loosened, cache another
+            // account's media. A missing picture for one turn is not worth standing near
+            // that. The refresh worker caches this rotation in full on its own tick.
             FollowingWidget().updateAll(applicationContext)
         }
         if (tick.rearm) {
@@ -48,4 +57,5 @@ internal class FollowingAutoAdvanceWorker(
         }
         return Result.success()
     }
+
 }
