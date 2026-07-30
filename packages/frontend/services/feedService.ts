@@ -150,9 +150,8 @@ function requestIdentityDedupeMarker(): string {
 }
 
 // Extended FeedRequest with frontend-specific filter properties
-interface ExtendedFeedRequest extends Omit<FeedRequest, 'filters'> {
+export interface ExtendedFeedRequest extends Omit<FeedRequest, 'filters'> {
   filters?: FeedFilters;
-  sort?: string;
 }
 
 interface PublicReadRequestConfig {
@@ -274,10 +273,10 @@ function getDedupeKey(request: ExtendedFeedRequest): string {
   const filterKey = filters
     ? Object.keys(filters)
         .sort()
-        .map((k) => `${k}=${(filters as Record<string, unknown>)[k] ?? ''}`)
+        .map((k) => `${k}=${filters[k] ?? ''}`)
         .join('&')
     : '';
-  return `${requestIdentityDedupeMarker()}|${request.type || 'mixed'}|${request.cursor || 'initial'}|${request.userId || ''}|${request.sort || ''}|${filterKey}`;
+  return `${requestIdentityDedupeMarker()}|${request.type || 'mixed'}|${request.cursor || 'initial'}|${request.userId || ''}|${filterKey}`;
 }
 
 class FeedService {

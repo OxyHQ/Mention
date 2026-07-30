@@ -4,20 +4,39 @@ import { useSharedValue, type SharedValue } from 'react-native-reanimated';
 
 const IS_WEB = Platform.OS === 'web';
 
-export type ScrollEvent = {
-    nativeEvent?: {
-        contentOffset?: { x?: number; y?: number } | number;
-        target?: { scrollTop?: number };
-        [key: string]: any;
-    };
-    target?: { scrollTop?: number };
-    [key: string]: any;
+/**
+ * The scroll metrics every scroller reports, whichever platform produced them.
+ * Native delivers them under `nativeEvent`; react-native-web sometimes reports
+ * the offset as `scrollTop` on the target DOM node instead, and `target` is a
+ * numeric node handle rather than a node on native — hence the unions.
+ */
+type ScrollMetrics = {
+    contentOffset?: { x?: number; y?: number } | number;
+    contentSize?: { height?: number; width?: number };
+    layoutMeasurement?: { height?: number; width?: number };
+    target?: { scrollTop?: number } | number;
 };
 
-type ScrollableRef = {
+/**
+ * A scroll event as this app consumes it. The metrics are readable at the top
+ * level too, so a caller may hand over a bare `nativeEvent` payload.
+ */
+export type ScrollEvent = ScrollMetrics & {
+    nativeEvent?: ScrollMetrics;
+};
+
+/** Anything this app can drive to an offset — a FlashList, a ScrollView, a FlatList. */
+export type ScrollableRef = {
     scrollToOffset?: (params: { offset: number; animated?: boolean }) => void;
     scrollTo?: (params: { x?: number; y?: number; animated?: boolean }) => void;
 };
+
+/**
+ * What a ref callback is actually handed. `Animated.ScrollView` still types its
+ * ref as possibly the legacy `getNode()` wrapper, so a callback that registers a
+ * scroller has to unwrap before it gets a {@link ScrollableRef}.
+ */
+export type ScrollableRefTarget = ScrollableRef | { getNode(): ScrollableRef };
 
 type LayoutScrollContextValue = {
     scrollY: Animated.Value;
@@ -42,7 +61,7 @@ type LayoutScrollContextValue = {
      * Factory that returns an Animated.event handler bound to the shared scrollY.
      * Consumers can provide an optional listener to run side effects alongside the shared update.
      */
-    createAnimatedScrollHandler: (listener?: (event: ScrollEvent) => void) => (...args: any[]) => void;
+    createAnimatedScrollHandler: (listener?: (event: ScrollEvent) => void) => (event: ScrollEvent) => void;
     /**
      * Direct setter for components that need to programmatically adjust the global scroll position.
      */
@@ -80,7 +99,9 @@ export function extractOffsetY(event: ScrollEvent): number {
 
     // React Native Web sometimes keeps scrollTop on the target node instead.
     const target = nativeEvent.target ?? event?.target;
-    if (target && typeof target.scrollTop === 'number') return target.scrollTop;
+    if (typeof target === 'object' && target !== null && typeof target.scrollTop === 'number') {
+        return target.scrollTop;
+    }
 
     return 0;
 }
@@ -137,11 +158,11 @@ export function LayoutScrollProvider({
             let lastCallTime = 0;
             const THROTTLE_MS = 16; // ~60fps
             
-            return Animated.event(
+            return Animated.event<ScrollMetrics>(
                 [{ nativeEvent: { contentOffset: { y: scrollY } } }],
                 {
                     useNativeDriver: false, // Required for scroll position
-                    listener: (event: any) => {
+                    listener: (event) => {
                         const now = Date.now();
                         // Always update scrollY state (required for animations)
                         handleScroll(event);

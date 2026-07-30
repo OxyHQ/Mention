@@ -1,6 +1,12 @@
 import { useRef, useCallback, useEffect, useMemo } from 'react';
 import { Platform } from 'react-native';
-import { useLayoutScroll, extractOffsetY, type ScrollEvent } from '@/context/LayoutScrollContext';
+import {
+  useLayoutScroll,
+  extractOffsetY,
+  type ScrollableRef,
+  type ScrollableRefTarget,
+  type ScrollEvent,
+} from '@/context/LayoutScrollContext';
 import { usePostsStore } from '@/stores/postsStore';
 import { getFeedMeta } from '@/db/feedQueries';
 import type { FeedType } from '@mention/shared-types';
@@ -35,8 +41,9 @@ export function useProfileScroll({ profileId, currentTab }: UseProfileScrollOpti
     setScrollY,
   } = useLayoutScroll();
 
-  // Refs - using any for ScrollView ref due to Animated wrapper complexity
-  const scrollRef = useRef<any>(null);
+  // The active scroller: the profile ScrollView on non-feed tabs, the grid's
+  // FlashList on virtualized ones.
+  const scrollRef = useRef<ScrollableRef | null>(null);
   const loadingMoreRef = useRef(false);
   const unregisterRef = useRef<(() => void) | null>(null);
   const lastScrollCheckRef = useRef(0);
@@ -80,17 +87,18 @@ export function useProfileScroll({ profileId, currentTab }: UseProfileScrollOpti
   const lastProfileRef = useRef<string | undefined>(undefined);
 
   // Assign scroll ref with registration
-  const assignScrollRef = useCallback((node: any) => {
-    scrollRef.current = node;
+  const assignScrollRef = useCallback((node: ScrollableRefTarget | null) => {
+    const scroller = node && 'getNode' in node ? node.getNode() : node;
+    scrollRef.current = scroller;
     clearRegistration();
-    if (node && registerScrollable) {
+    if (scroller && registerScrollable) {
       // Only reset scroll position when navigating to a different profile,
       // not when switching tabs within the same profile
       if (lastProfileRef.current !== profileId) {
         setScrollY(0);
         lastProfileRef.current = profileId;
       }
-      unregisterRef.current = registerScrollable(node);
+      unregisterRef.current = registerScrollable(scroller);
     }
   }, [clearRegistration, registerScrollable, setScrollY, profileId]);
 
