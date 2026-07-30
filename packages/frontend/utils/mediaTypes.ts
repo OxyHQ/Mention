@@ -44,6 +44,51 @@ export function readMediaDurationSec(item: PersistedMediaDimensions | undefined)
   return typeof duration === 'number' && Number.isFinite(duration) && duration > 0 ? duration : undefined;
 }
 
+/** Intrinsic pixel size of a media item, as a pair. */
+export interface MediaPixelSize {
+  width: number;
+  height: number;
+}
+
+/**
+ * A width and height that describe a real shape, or `undefined`.
+ *
+ * ONE definition of a usable axis — positive and finite — because two callers need
+ * it: the persisted dimensions below, and the size a video player reports. Both
+ * feed the Android Picture-in-Picture window, which rejects a non-positive axis
+ * outright, and `0 × 0` is precisely what a player reports before it has decoded a
+ * frame. Non-finite is checked as well as positive: `NaN <= 0` is false, so a
+ * comparison alone would let `NaN` through.
+ *
+ * BOTH axes or nothing: one alone says nothing about shape, and every caller here
+ * wants a ratio.
+ */
+export function toMediaPixelSize(width: unknown, height: unknown): MediaPixelSize | undefined {
+  if (!isUsableAxis(width) || !isUsableAxis(height)) return undefined;
+  return { width, height };
+}
+
+function isUsableAxis(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0;
+}
+
+/**
+ * Read the stored intrinsic pixel size from the media DTO.
+ *
+ * `undefined` where the backend has not backfilled the dimensions, which is normal
+ * for older media.
+ *
+ * Unlike [readMediaAspectRatio] this does not fall back to the stored
+ * `aspectRatio` — a ratio cannot be turned back into a size, and the one caller
+ * that needs a size (the Picture-in-Picture window, which takes a `Rational`)
+ * would only be handing the same information through a lossier route.
+ */
+export function readMediaPixelSize(
+  item: PersistedMediaDimensions | undefined,
+): MediaPixelSize | undefined {
+  return toMediaPixelSize(item?.width, item?.height);
+}
+
 /**
  * File extensions we treat as video. Matched against the END of a URL/path
  * (case-insensitive). Kept in sync with the formats the player + poster

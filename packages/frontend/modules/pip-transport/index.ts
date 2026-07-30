@@ -42,6 +42,7 @@ declare class PipTransportNativeModule extends NativeModule<PipTransportEvents> 
   getMaxActions(): number;
   setActions(actions: readonly PipTransportAction[]): Promise<void>;
   clearActions(): Promise<void>;
+  setAspectRatio(width: number, height: number): Promise<void>;
 }
 
 export type PipTransportSubscription = ReturnType<PipTransportNativeModule['addListener']>;
@@ -67,6 +68,31 @@ export function setPipActions(actions: readonly PipTransportAction[]): Promise<v
 /** Withdraw them again. */
 export function clearPipActions(): Promise<void> {
   return nativeModule?.clearActions() ?? Promise.resolve();
+}
+
+/**
+ * Give the OS window the video's shape, so a portrait video is not shown in a
+ * landscape box.
+ *
+ * expo-video computes this once, in `VideoView.onVideoSourceLoaded`, from
+ * `player.videoSize` — and never again, because its `VideoView` has no
+ * `onVideoSizeChanged`. At source-load time ExoPlayer has usually not reported a
+ * size yet, so the value is `0×0`, which is not a valid `Rational`; Android
+ * rejects it and falls back to its own default, and that default is landscape.
+ * On a reels screen that swaps sources with `replace`, even a correct first value
+ * then goes stale for every video after it.
+ *
+ * So the caller passes the size it actually knows (`player.videoTrack.size`, or
+ * the intrinsic dimensions the feed persists). Extreme ratios are clamped
+ * natively to Android's own 1:2.39 … 2.39:1 limits rather than rejected — outside
+ * that range `setAspectRatio` throws, and refusing a 1:3 crop would put it back in
+ * the landscape window this exists to prevent.
+ *
+ * Resolves without doing anything where the module is absent (iOS, web, or a build
+ * older than the module), like every other export here.
+ */
+export function setPipAspectRatio(width: number, height: number): Promise<void> {
+  return nativeModule?.setAspectRatio(width, height) ?? Promise.resolve();
 }
 
 /**

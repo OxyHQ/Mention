@@ -28,7 +28,7 @@ import { formatCompactNumber } from '@/utils/formatNumber';
 import { getNormalizedUserHandle } from '@oxyhq/core';
 import { cn } from '@/lib/utils';
 import type { HydratedPost } from '@mention/shared-types';
-import { readMediaDurationSec } from '@/utils/mediaTypes';
+import { readMediaDurationSec, readMediaPixelSize, type MediaPixelSize } from '@/utils/mediaTypes';
 import { LinkifiedText } from '@/components/common/LinkifiedText';
 import { useIsRightBarVisible } from '@/hooks/useOptimizedMediaQuery';
 import { useVideosRail, type VideosRailActivePost } from '@/context/VideosRailContext';
@@ -39,6 +39,7 @@ import { HIT_SLOP_LG } from '@/styles/hitSlop';
 import { useVideoPipSession } from '@/hooks/useVideoPipSession';
 import { useMediaSessionTransport, type MediaSessionTrack } from '@/hooks/useMediaSessionTransport';
 import { usePipTransportActions } from '@/hooks/usePipTransportActions';
+import { usePipAspectRatio } from '@/hooks/usePipAspectRatio';
 import { resolveFeedDescriptor } from '@/utils/feedTelemetry';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 
@@ -231,6 +232,10 @@ interface MediaRef {
     durationSec?: number;
     orientation?: 'portrait' | 'landscape' | 'square';
     aspectRatio?: number;
+    // Intrinsic pixel size, persisted at ingest. Read for the PiP window's shape,
+    // which needs a size before playback has reported one.
+    width?: number;
+    height?: number;
 }
 
 interface VideoPost extends HydratedPost {
@@ -242,6 +247,12 @@ interface VideoPost extends HydratedPost {
     posterUrl?: string;
     /** Persisted duration from content.media[] (seconds); seeds scrubber before player metadata loads. */
     durationSec?: number;
+    /**
+     * Persisted intrinsic pixel size from content.media[]. Gives the OS
+     * Picture-in-Picture window its shape before the player reports a track — see
+     * `usePipAspectRatio`.
+     */
+    intrinsicSize?: MediaPixelSize;
     createdAt: string;
 }
 
@@ -306,6 +317,11 @@ interface ActiveVideoSurfaceProps {
     posterUrl?: string;
     /** Persisted duration from the post DTO; used until the player reports duration. */
     initialDurationSec?: number;
+    /**
+     * Persisted intrinsic size from the post DTO; gives the OS Picture-in-Picture
+     * window its shape until the player reports a video track.
+     */
+    intrinsicSize?: MediaPixelSize;
     isActive: boolean;
     // See VideoItemProps.screenFocused — only play when active AND focused.
     screenFocused: boolean;
@@ -339,6 +355,7 @@ const ActiveVideoSurface = memo<ActiveVideoSurfaceProps>(({
     fallbackVideoUrl,
     posterUrl,
     initialDurationSec,
+    intrinsicSize,
     isActive,
     screenFocused,
     windowHeight,
@@ -517,6 +534,17 @@ const ActiveVideoSurface = memo<ActiveVideoSurfaceProps>(({
     // element's `disablePictureInPicture`, which the browser reads as "leave PiP
     // now", so dropping the capability under a live window would close it.
     const isWatched = ownsSession || (isActive && screenFocused);
+
+    // Give the OS window this video's shape. Only the watched surface publishes —
+    // the params are activity-wide, so a preloading neighbour asserting its own
+    // shape would describe a video nobody is looking at. Without this the window
+    // comes up at expo-video's `Rational(16, 9)` default: landscape, for a reel.
+    usePipAspectRatio({
+        player,
+        active: isWatched,
+        persistedSize: intrinsicSize,
+        postId,
+    });
 
     // The OS window dies with this player, so a surface torn down while it owns
     // the session (a feed switch rebuilds the whole list) must release the
@@ -937,6 +965,7 @@ const VideoItem = memo<VideoItemProps>(({
                     fallbackVideoUrl={item.fallbackVideoUrl}
                     posterUrl={item.posterUrl}
                     initialDurationSec={item.durationSec}
+                    intrinsicSize={item.intrinsicSize}
                     isActive={isActive}
                     screenFocused={screenFocused}
                     windowHeight={windowHeight}
@@ -1302,6 +1331,7 @@ export default function VideosScreen() {
             fallbackVideoUrl,
             posterUrl: resolvePosterUrl(selected),
             durationSec: readMediaDurationSec(selected),
+            intrinsicSize: readMediaPixelSize(selected),
         };
     }, [resolveVideoUrl, resolveFallbackVideoUrl, resolvePosterUrl]);
 

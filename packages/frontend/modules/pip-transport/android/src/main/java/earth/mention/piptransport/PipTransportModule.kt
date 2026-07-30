@@ -12,6 +12,7 @@ import android.content.pm.PackageManager
 import android.graphics.drawable.Icon
 import android.os.Build
 import android.util.Log
+import android.util.Rational
 import androidx.annotation.RequiresApi
 import androidx.core.content.ContextCompat
 import androidx.core.os.bundleOf
@@ -77,6 +78,10 @@ class PipTransportModule : Module() {
       applyActions(emptyList())
     }.runOnQueue(Queues.MAIN)
 
+    AsyncFunction("setAspectRatio") { width: Int, height: Int ->
+      applyAspectRatio(width, height)
+    }.runOnQueue(Queues.MAIN)
+
     OnStartObserving(ACTION_EVENT) { startObserving() }
     OnStopObserving(ACTION_EVENT) { stopObserving() }
     // A module torn down while JS still held a listener never gets
@@ -115,6 +120,53 @@ class PipTransportModule : Module() {
     } catch (cause: IllegalStateException) {
       // Thrown when the activity is not declared `supportsPictureInPicture`.
       // There is no API to ask in advance, so the throw IS the capability check.
+      throw PictureInPictureUnsupportedException(cause)
+    }
+  }
+
+  /**
+   * Tell the window the video's real shape, so a vertical video gets a vertical window.
+   *
+   * ## Why this has to come from us
+   *
+   * expo-video computes the ratio in exactly one place — `VideoView.onVideoSourceLoaded`
+   * calls `calculateCurrentPipAspectRatio()`, which reads `player.videoSize`. There is no
+   * `onVideoSizeChanged` anywhere in its `VideoView`, so the value is never recomputed. Two
+   * consequences, and both bite a reels screen:
+   *
+   *  - At source-load time ExoPlayer often has not reported a size yet, so `videoSize` is
+   *    `0×0`. `Rational(0, 0)` is not a valid aspect ratio, Android rejects it and falls
+   *    back to its own default — which is landscape. That is the reported bug: a portrait
+   *    reel in a landscape window.
+   *  - A screen that swaps sources with `player.replace()` keeps whichever ratio the FIRST
+   *    source produced, so even a correct value goes stale on the next video.
+   *
+   * JS knows the size reliably (`player.videoTrack.size`, and the feed persists intrinsic
+   * dimensions besides), so it passes it here instead of hoping the native side guessed.
+   *
+   * Only `setAspectRatio` is set on the builder, for the same reason `applyActions` sets
+   * only its own field: Android merges successive calls field by field, so the actions we
+   * published and the hints expo-video pushes both survive this.
+   */
+  private fun applyAspectRatio(width: Int, height: Int) {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
+      throw PictureInPictureUnsupportedException()
+    }
+    val activity = appContext.currentActivity ?: throw Exceptions.MissingActivity()
+    if (!activity.packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)) {
+      throw PictureInPictureUnsupportedException()
+    }
+    if (width <= 0 || height <= 0) {
+      throw InvalidAspectRatioException(width, height)
+    }
+
+    val params = PictureInPictureParams.Builder()
+      .setAspectRatio(clampToPipRange(width, height))
+      .build()
+
+    try {
+      activity.setPictureInPictureParams(params)
+    } catch (cause: IllegalStateException) {
       throw PictureInPictureUnsupportedException(cause)
     }
   }
@@ -229,7 +281,34 @@ class PipActionRecord : Record {
   var title: String = ""
 }
 
+/**
+ * Android's own bounds on a PiP window, from
+ * `PictureInPictureParams.Builder#setAspectRatio`: outside 1:2.39 … 2.39:1 the call throws
+ * `IllegalArgumentException`.
+ *
+ * Clamped rather than rejected, because the extremes are real content and not bad input — a
+ * 9:16 reel sits comfortably inside the range, but a stitched panorama or a 1:3 vertical
+ * crop does not, and refusing those would put them back in the landscape window this fixes.
+ * A clamped window is slightly the wrong shape; a rejected one is the bug.
+ */
+private val PIP_MAX_RATIO = Rational(239, 100)
+private val PIP_MIN_RATIO = Rational(100, 239)
+
+internal fun clampToPipRange(width: Int, height: Int): Rational {
+  val requested = Rational(width, height)
+  return when {
+    requested.toFloat() > PIP_MAX_RATIO.toFloat() -> PIP_MAX_RATIO
+    requested.toFloat() < PIP_MIN_RATIO.toFloat() -> PIP_MIN_RATIO
+    else -> requested
+  }
+}
+
 internal class PictureInPictureUnsupportedException(cause: Throwable? = null) : CodedException(
   "This activity cannot show Picture-in-Picture actions",
   cause,
+)
+
+/** A size JS could not have meant — zero or negative in either axis. */
+internal class InvalidAspectRatioException(width: Int, height: Int) : CodedException(
+  "Cannot set a picture-in-picture aspect ratio from ${width}x${height}: both axes must be positive.",
 )
