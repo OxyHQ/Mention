@@ -552,10 +552,30 @@ const ActiveVideoSurface = memo<ActiveVideoSurfaceProps>(({
     // `onSessionEnd` ignores a caller that is not the current owner, so the
     // ordinary path — PiP stops, the session closes, this flips false — does not
     // end anything twice.
+    //
+    // Keyed on OWNERSHIP alone, with the callback read at teardown time rather
+    // than depended on. `onSessionEnd` closes over the session, so its identity
+    // changes on every cursor move; depending on it here would make the FIRST
+    // "next" pressed in the OS window run this cleanup — releasing the session,
+    // dropping `allowsPictureInPicture` from the owner, and so closing the very
+    // window the press was meant to advance. This is a teardown action: it must
+    // fire when the surface stops owning the session, never when a callback it
+    // happens to call is rebuilt.
+    //
+    // The mirror is written from an effect, not during render — a render-phase
+    // ref write makes the React Compiler refuse the whole function (see the
+    // AGENTS note). The one-commit lag it costs is immaterial here: the only
+    // commit that both rebuilds the callback and runs this cleanup is the one
+    // where the session has just ended anyway, and re-ending an already-ended
+    // session is the no-op the ownership guard is there for.
+    const sessionEndRef = useRef(onSessionEnd);
+    useEffect(() => {
+        sessionEndRef.current = onSessionEnd;
+    }, [onSessionEnd]);
     useEffect(() => {
         if (!ownsSession) return;
-        return () => onSessionEnd(postId);
-    }, [ownsSession, postId, onSessionEnd]);
+        return () => sessionEndRef.current(postId);
+    }, [ownsSession, postId]);
 
     // The app-wide playback authority owns the foreground gate (app backgrounded /
     // tab hidden → nothing plays) and the single audible slot. A player the OS is
@@ -619,6 +639,25 @@ const ActiveVideoSurface = memo<ActiveVideoSurfaceProps>(({
             player.pause();
         }
     }, [player, shouldPlay, desiredSource]);
+
+    // …and once more per LOAD, because the effect above cannot see a reload it
+    // did not cause. A swap produces TWO of them on web: `replace` writes the
+    // element's `src` attribute imperatively, then expo-video's own `VideoView`
+    // re-renders and React writes its rendered `src` — the same URL, but a value
+    // React last committed as the old one, so the element loads a second time.
+    // That second load aborts the `play()` the first one issued (`AbortError`,
+    // no `pause` event, so nothing downstream notices) and leaves the surface
+    // frozen on the new video's first frame, with `desiredSource` already
+    // settled and no further reason for the effect to run. `sourceChange` is
+    // emitted from `loadstart`, so it fires once per load and covers both;
+    // `play`/`pause` are idempotent, so the native single-load path is unchanged.
+    useEventListener(player, 'sourceChange', () => {
+        if (shouldPlay) {
+            player.play();
+        } else {
+            player.pause();
+        }
+    });
 
     // Keep the device awake while this surface is the one actually playing. Same
     // predicate as the player above, so the lock cannot outlive playback.
