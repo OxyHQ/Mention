@@ -56,7 +56,7 @@ describe('media feed descriptor', () => {
 
 describe('FeedQueryBuilder.buildMediaFeedQuery', () => {
   it('matches media posts by type, content.media, or a media attachment', () => {
-    const query = FeedQueryBuilder.buildMediaFeedQuery([], undefined);
+    const query = FeedQueryBuilder.buildMediaFeedQuery([]);
 
     expect(query.visibility).toBe(PostVisibility.PUBLIC);
     expect(query.status).toBe('published');
@@ -74,10 +74,9 @@ describe('FeedQueryBuilder.buildMediaFeedQuery', () => {
     expect(orConditions).toContainEqual({ 'content.attachments': { $elemMatch: { type: 'media' } } });
   });
 
-  it('excludes boosts and seen posts, and applies a cursor', () => {
-    const cursor = '65fdc8c8c8c8c8c8c8c8c8c8';
+  it('excludes boosts and seen posts, and bounds _id no further', () => {
     const seen = ['65aaaaaaaaaaaaaaaaaaaaaa'];
-    const query = FeedQueryBuilder.buildMediaFeedQuery(seen, cursor);
+    const query = FeedQueryBuilder.buildMediaFeedQuery(seen);
     const and = query.$and as Array<Record<string, unknown>>;
 
     // Boost exclusion clause is present.
@@ -85,18 +84,20 @@ describe('FeedQueryBuilder.buildMediaFeedQuery', () => {
       && (c.$or as Array<Record<string, unknown>>).some((o) => o.boostOf === null));
     expect(boostClause).toBeDefined();
 
-    // Seen-post exclusion ($nin) and cursor ($lt) clauses are present.
+    // Seen-post exclusion ($nin) is present.
     const ninClause = and.find((c) => {
       const id = c._id as { $nin?: unknown[] } | undefined;
       return Array.isArray(id?.$nin);
     });
     expect(ninClause).toBeDefined();
 
+    // No `_id` RANGE, though: every consumer feeds a RANKED pipeline paginated by
+    // a score. See `rankedSourceCandidateWindow.test.ts`.
     const ltClause = and.find((c) => {
       const id = c._id as { $lt?: unknown } | undefined;
       return id?.$lt !== undefined;
     });
-    expect(ltClause).toBeDefined();
+    expect(ltClause).toBeUndefined();
   });
 });
 

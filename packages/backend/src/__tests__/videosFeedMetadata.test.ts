@@ -10,7 +10,7 @@ describe('FeedQueryBuilder.buildVideosQuery metadata filters', () => {
   // field did not enforce a 20-second policy, it discarded 94% of the corpus and
   // enforced the policy on the remainder (shipped pool: 147 posts).
   it('requires dimensions, and applies the duration minimum only where duration is known', () => {
-    const query = FeedQueryBuilder.buildVideosQuery([], undefined);
+    const query = FeedQueryBuilder.buildVideosQuery([]);
     const and = query.$and as Array<Record<string, unknown>>;
 
     const mediaClause = and.find((c) => typeof c['content.media'] === 'object');
@@ -33,7 +33,7 @@ describe('FeedQueryBuilder.buildVideosQuery metadata filters', () => {
   // clause. `{$exists: true}` was still a filter: it silently required orientation to
   // have been persisted.
   it('applies orientation=all by not filtering on orientation at all', () => {
-    const query = FeedQueryBuilder.buildVideosQuery([], undefined, { orientation: 'all' });
+    const query = FeedQueryBuilder.buildVideosQuery([], { orientation: 'all' });
     const and = query.$and as Array<Record<string, unknown>>;
     const mediaClause = and.find((c) => typeof c['content.media'] === 'object');
     const elemMatch = (mediaClause?.['content.media'] as { $elemMatch: Record<string, unknown> }).$elemMatch;
@@ -41,7 +41,7 @@ describe('FeedQueryBuilder.buildVideosQuery metadata filters', () => {
   });
 
   it('applies orientation and minDuration overrides', () => {
-    const query = FeedQueryBuilder.buildVideosQuery([], undefined, {
+    const query = FeedQueryBuilder.buildVideosQuery([], {
       orientation: 'portrait',
       minDurationSec: 30,
     });
@@ -55,7 +55,7 @@ describe('FeedQueryBuilder.buildVideosQuery metadata filters', () => {
   });
 
   it('keeps public published non-boost base match', () => {
-    const query = FeedQueryBuilder.buildVideosQuery([], undefined);
+    const query = FeedQueryBuilder.buildVideosQuery([]);
     expect(query.visibility).toBe(PostVisibility.PUBLIC);
     expect(query.status).toBe('published');
   });
