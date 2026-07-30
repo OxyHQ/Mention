@@ -175,8 +175,22 @@ describe('CrowdSource webhook receiver', () => {
       tamperedBody: JSON.stringify({ ...event, data: { caseId: 'case_attacker' } }),
     });
 
+    /**
+     * The REASON, not just the status.
+     *
+     * `WEBHOOK_REJECTIONS` in `@oxyhq/crowdsource-express` holds eleven tokens and
+     * every one of them answers 401, so `toBe(401)` alone is satisfied by a
+     * `missing_event_id` just as well as by a signature that failed to verify —
+     * which means it survives deleting the signature comparison entirely. Naming
+     * the token is what makes this a test of the signature check.
+     *
+     * The values are read off `verify.ts`, never guessed: a tampered body and a
+     * forged secret both reach the HMAC comparison and come back
+     * `signature_mismatch`, while a stale delivery is refused earlier, at the
+     * window check, as `timestamp_out_of_window`.
+     */
     expect(response.status).toBe(401);
-    expect(response.body).toMatchObject({ received: false });
+    expect(response.body).toMatchObject({ received: false, rejection: 'signature_mismatch' });
     // Nothing was claimed, so the real delivery can still arrive and be processed.
     expect(events).toHaveLength(0);
     expect(outbox).toHaveLength(0);
@@ -189,6 +203,7 @@ describe('CrowdSource webhook receiver', () => {
     });
 
     expect(response.status).toBe(401);
+    expect(response.body).toMatchObject({ received: false, rejection: 'signature_mismatch' });
     expect(outbox).toHaveLength(0);
   });
 
@@ -199,6 +214,10 @@ describe('CrowdSource webhook receiver', () => {
     });
 
     expect(response.status).toBe(401);
+    expect(response.body).toMatchObject({
+      received: false,
+      rejection: 'timestamp_out_of_window',
+    });
     expect(outbox).toHaveLength(0);
   });
 
@@ -211,6 +230,49 @@ describe('CrowdSource webhook receiver', () => {
     // §10.8 allows two valid secrets so a rotation drops nothing.
     expect(response.status).toBe(200);
     expect(outbox).toHaveLength(1);
+  });
+
+  it('hands the SDK the secrets Mention resolved, instead of leaving it to read the environment', async () => {
+    const app = await buildApp();
+
+    /**
+     * What every other test in this file CANNOT see.
+     *
+     * `configuredSecrets` in `@oxyhq/crowdsource-express` is
+     * `options.secret ?? process.env[WEBHOOK_SECRET_ENV_VAR]`, and every test here
+     * sets that variable through `vi.stubEnv`. So deleting the `secret` /
+     * `previousSecret` pass-through in `crowdSourceWebhook.routes.ts` leaves all of
+     * them green — the SDK's own env fallback quietly covers for it. They confirm
+     * signatures are verified; none of them confirms MENTION is why.
+     *
+     * The discriminator is an ordering asymmetry, checked rather than assumed:
+     * `config/index.ts` builds `environment` from ONE
+     * `parseRuntimeEnvironment(process.env)` at module load, so the router captured
+     * both secrets when `buildApp` imported it, whereas the SDK re-reads
+     * `process.env` on every request. Clearing the variables here therefore leaves
+     * standing only a value Mention captured and passed explicitly. With the
+     * pass-through gone the SDK sees no secret at all and refuses with
+     * `no_secret_configured`.
+     *
+     * Not tidiness: `config` is where the secret is length-validated
+     * (`optionalString(16)`), so a deployment leaning on the SDK's raw env read
+     * would silently accept a secret this app rejects at boot.
+     */
+    vi.stubEnv('CROWDSOURCE_WEBHOOK_SECRET', undefined);
+    vi.stubEnv('CROWDSOURCE_WEBHOOK_SECRET_PREVIOUS', undefined);
+
+    const active = await deliver(app, caseDecidedEventFixture({ id: 'evt_passthrough_1' }));
+    expect(active.status).toBe(200);
+    expect(outbox).toHaveLength(1);
+
+    // Asserted separately because the two are passed separately: a rotation that
+    // only forwards the active secret drops every delivery still signed with the
+    // old one, and that is exactly the loss §10.8's overlap exists to prevent.
+    const previous = await deliver(app, caseDecidedEventFixture({ id: 'evt_passthrough_2' }), {
+      secret: PREVIOUS_SECRET,
+    });
+    expect(previous.status).toBe(200);
+    expect(outbox).toHaveLength(2);
   });
 
   it('acknowledges an event type it does not handle without queueing work', async () => {
