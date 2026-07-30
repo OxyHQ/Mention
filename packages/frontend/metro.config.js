@@ -5,7 +5,6 @@ const path = require('path');
 const projectRoot = __dirname;
 const monorepoRoot = path.resolve(projectRoot, '../..');
 const exactModuleAliases = new Map([
-  ['@expo/vector-icons', path.join(projectRoot, 'shims/expo-vector-icons.ts')],
   ['@oxyhq/bloom', path.join(projectRoot, 'shims/oxy-bloom.ts')],
 ]);
 const bloomFontDataShim = path.join(projectRoot, 'shims/bloom-font-data.web.ts');
@@ -56,11 +55,12 @@ config.resolver = {
   unstable_enableSymlinks: true,
   // Enable package.json "exports" field resolution (required by @oxyhq/bloom subpath exports)
   unstable_enablePackageExports: true,
-  // Oxy's published UI still imports the `@expo/vector-icons` barrel even
-  // though it only renders Ionicons and MaterialCommunityIcons. The barrel
-  // eagerly registers every glyph map/font family in web and adds megabytes of
-  // unused assets. Mention itself imports icon-family subpaths directly; only
-  // the exact legacy barrel request is narrowed here.
+  // `@oxyhq/services` still reaches for the `@oxyhq/bloom` root barrel in a
+  // handful of screens even though it only needs Dialog/toast, and that barrel
+  // re-exports every Bloom component plus the whole icon set. Metro does no
+  // tree-shaking, so the request is narrowed to the three symbols services
+  // actually consumes. Mention's own code imports Bloom subpaths directly;
+  // only the exact barrel request is rewritten.
   resolveRequest: (context, moduleName, platform) => {
     // Bloom publishes its web fonts as base64 strings in font-data.web.js.
     // Keeping those bytes in the entry graph inflates every initial JS download,
