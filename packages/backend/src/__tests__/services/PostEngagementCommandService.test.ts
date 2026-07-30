@@ -118,6 +118,24 @@ describe('PostEngagementCommandService', () => {
       }),
       expect.objectContaining({ upsert: true, session: expect.any(Object) }),
     );
+
+    /**
+     * The bookmark upsert must own both timestamps AND pass `timestamps: false`.
+     * `Bookmark` declares `timestamps: true`, so without the option Mongoose adds
+     * `updatedAt` to `$set`, one path lands under two operators, and the server
+     * refuses the write — aborting this transaction, so every save fails. Without
+     * the explicit fields, a duplicate save rewrites the existing bookmark and
+     * bumps `updatedAt` on a relationship that did not change.
+     */
+    const [, bookmarkUpdate, bookmarkOptions] = vi.mocked(Bookmark.updateOne).mock
+      .calls[0] as unknown as [
+      unknown,
+      { $setOnInsert?: Record<string, unknown> },
+      { timestamps?: boolean } | undefined,
+    ];
+    expect(bookmarkUpdate.$setOnInsert).toHaveProperty('createdAt');
+    expect(bookmarkUpdate.$setOnInsert).toHaveProperty('updatedAt');
+    expect(bookmarkOptions?.timestamps).toBe(false);
   });
 
   it('rejects an invalid post id before creating an orphan bookmark', async () => {

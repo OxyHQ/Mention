@@ -209,7 +209,18 @@ export async function savePostCommand(input: {
           updatedAt: now,
         },
       },
-      { upsert: true, session },
+      /**
+       * `timestamps: false` is what makes naming the two fields above correct —
+       * `Bookmark` declares `timestamps: true`, so otherwise Mongoose adds
+       * `updatedAt` to `$set`, the path appears under two operators and the server
+       * rejects the write, aborting this transaction and failing every save.
+       *
+       * Dropping the fields instead would clear the error and make a duplicate save
+       * rewrite the existing bookmark, bumping `updatedAt` on a relationship that
+       * did not change. `upsertedCount` is what decides `changed` either way; this
+       * keeps the no-op an actual no-op.
+       */
+      { upsert: true, session, timestamps: false },
     );
 
     if (write.upsertedCount !== 1) {
