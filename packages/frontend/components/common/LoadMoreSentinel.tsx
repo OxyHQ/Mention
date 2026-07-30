@@ -22,10 +22,18 @@ const SENTINEL_STYLE = { height: 1 } as const;
  */
 export function LoadMoreSentinel({ onLoadMore, enabled, rootMargin = '600px' }: LoadMoreSentinelProps) {
   const viewRef = useRef<View>(null);
-  // Keep the latest callback without re-subscribing the observer every render.
-  const onLoadMoreRef = useRef(onLoadMore);
-  onLoadMoreRef.current = onLoadMore;
 
+  // The observer closes over `onLoadMore` and re-subscribes when its identity
+  // changes, rather than reading it from a ref. A "latest ref" written during
+  // render is illegal input for the React Compiler (enabled for this app), which
+  // is free to memoize past the write and leave the ref on a stale callback — and
+  // a stale callback here means infinite scroll silently stops fetching, on every
+  // screen that renders this sentinel.
+  //
+  // The re-subscribe is cheap and rare: every caller wraps its handler in
+  // `useCallback` over the fetch state, so the identity only changes on a fetch
+  // transition, and each handler already guards on its own in-flight flag — which
+  // absorbs the single extra callback a fresh observer delivers on subscribe.
   useEffect(() => {
     if (Platform.OS !== 'web' || typeof window === 'undefined' || !('IntersectionObserver' in window)) {
       return;
@@ -44,14 +52,14 @@ export function LoadMoreSentinel({ onLoadMore, enabled, rootMargin = '600px' }: 
     const observer = new IntersectionObserver(
       (entries) => {
         if (entries.some((entry) => entry.isIntersecting)) {
-          onLoadMoreRef.current();
+          onLoadMore();
         }
       },
       { rootMargin },
     );
     observer.observe(element as Element);
     return () => observer.disconnect();
-  }, [enabled, rootMargin]);
+  }, [enabled, onLoadMore, rootMargin]);
 
   return <View ref={viewRef} style={SENTINEL_STYLE} />;
 }
