@@ -2,6 +2,7 @@ package earth.mention.widgets.feedcard
 
 import org.json.JSONException
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -23,9 +24,19 @@ import org.junit.Test
  */
 class FeedHandoffTest {
 
+    /** A rotation with one post, last fetched at [fetchedAtMs] — enough for the age rules. */
+    private fun rotationFetchedAt(fetchedAtMs: Long) = FeedRotation(
+        posts = parseHandoffPosts(HANDOFF_POST),
+        index = 0,
+        fetchedAtMs = fetchedAtMs,
+    )
+
     private companion object {
         const val ACCOUNT = "6981c9178fcdefaf81988ffb"
         const val OTHER_ACCOUNT = "70a1d2e3f4b5c6d7e8f90001"
+
+        /** An arbitrary wall clock, comfortably past `FETCH_INTERVAL_MS` from zero. */
+        const val NOW = 1_785_431_244_500L
 
         /**
          * One post as the FEED serves it — nested wire objects, what the refresh worker
@@ -250,5 +261,85 @@ class FeedHandoffTest {
 
         assertEquals(FeedHandoff.Write(null), outcome)
         assertNull((outcome as FeedHandoff.Write).accountId)
+    }
+
+    /**
+     * THE PREFETCH GATE — the only path in this module that spends a request rather than
+     * saving one, so every branch that would open the tap is pinned.
+     */
+    @Test
+    fun `a placed widget with a stale batch is worth a request`() {
+        assertTrue(
+            handoffPrefetchWanted(
+                placed = true,
+                deviceAccountId = ACCOUNT,
+                stored = rotationFetchedAt(NOW - FETCH_INTERVAL_MS),
+                nowMs = NOW,
+            ),
+        )
+    }
+
+    /**
+     * The condition that makes the feature cost nothing for almost everyone: a reader who
+     * never placed the widget must not pay a request for it, however stale the store is.
+     */
+    @Test
+    fun `no widget on a home screen is never worth a request`() {
+        assertFalse(
+            handoffPrefetchWanted(
+                placed = false,
+                deviceAccountId = ACCOUNT,
+                stored = rotationFetchedAt(0L),
+                nowMs = NOW,
+            ),
+        )
+    }
+
+    /**
+     * With no credential there is no account to stamp a fetched page with, so it could not
+     * be stored even if it arrived — and the card is drawing its signed-out state anyway.
+     */
+    @Test
+    fun `no credential is never worth a request`() {
+        assertFalse(
+            handoffPrefetchWanted(
+                placed = true,
+                deviceAccountId = null,
+                stored = rotationFetchedAt(0L),
+                nowMs = NOW,
+            ),
+        )
+    }
+
+    /**
+     * The gate that bounds the cost. Without it the app would fetch on every cold start;
+     * with it a reader who opens the app five times an hour pays for two.
+     */
+    @Test
+    fun `a fresh batch is not worth a request`() {
+        assertFalse(
+            handoffPrefetchWanted(
+                placed = true,
+                deviceAccountId = ACCOUNT,
+                stored = rotationFetchedAt(NOW - FETCH_INTERVAL_MS + 1),
+                nowMs = NOW,
+            ),
+        )
+    }
+
+    /**
+     * An empty store — a first run, or a rotation left by a PREVIOUS account, which
+     * `rotationFor` reports as empty to whoever is asking now.
+     */
+    @Test
+    fun `an empty store is worth a request as soon as a widget is placed`() {
+        assertTrue(
+            handoffPrefetchWanted(
+                placed = true,
+                deviceAccountId = ACCOUNT,
+                stored = FeedRotation(posts = emptyList(), index = 0, fetchedAtMs = 0L),
+                nowMs = NOW,
+            ),
+        )
     }
 }

@@ -6,6 +6,7 @@ import earth.mention.widgets.feedcard.FeedHandoff
 import earth.mention.widgets.feedcard.accountFeedHandoff
 import earth.mention.widgets.feedcard.anonymousFeedHandoff
 import earth.mention.widgets.feedcard.anyPlaced
+import earth.mention.widgets.feedcard.handoffPrefetchWanted
 import earth.mention.widgets.feedcard.logHandoff
 import earth.mention.widgets.feedcard.parseHandoffPosts
 import earth.mention.widgets.feedcard.publishHandoff
@@ -42,6 +43,10 @@ import so.oxy.session.OxyBackgroundSession
  *    feed a card draws, so hand it over rather than making a worker fetch it again half an
  *    hour later. Data, and the ONE case where JS supplying it is cheaper than the widget
  *    fetching it: the request has already happened.
+ *  - `followingWidgetNeedsFeed` — the one function here that leads to a request being
+ *    SPENT rather than saved. It exists because the handoff only ever covers the feed the
+ *    reader opened, and home defaults to For You; it answers `false` unless a following
+ *    widget is placed AND its batch is stale, so almost every caller pays nothing.
  *
  * The `publish*` pair is not a second implementation of the fetch path. JS supplies raw
  * strings; every rule about what a card shows, and the account stamp that decides whether a
@@ -92,6 +97,34 @@ class MentionWidgetsModule : Module() {
                 widget = PostsWidget(),
                 accountId = outcome.accountId,
                 posts = posts,
+                nowMs = System.currentTimeMillis(),
+            )
+        }
+
+        /**
+         * Whether the following widget would be worth a REQUEST right now.
+         *
+         * Both gates are facts only this side knows — whether a widget is on a home screen,
+         * how old its stored batch is, and whether there is a credential to stamp a new one
+         * with — so they are answered here rather than mirrored into JS, where the store's
+         * age would have to be a second copy of `FETCH_INTERVAL_MS`.
+         *
+         * `false` for the overwhelmingly common case of no widget placed, which is what
+         * makes this affordable: the caller spends a request only for readers who asked for
+         * the card by putting it on their home screen. See [handoffPrefetchWanted].
+         */
+        // The explicit empty parameter list is required, not stylistic: a bare `{ ... }`
+        // could be a lambda taking one implicit `it`, and `Coroutine` has an overload for
+        // each arity, so resolution is ambiguous without it.
+        AsyncFunction("followingWidgetNeedsFeed") Coroutine { ->
+            val deviceAccountId = OxyBackgroundSession.activeAccountId(context)
+            handoffPrefetchWanted(
+                placed = anyPlaced(context, FollowingWidgetReceiver::class.java),
+                deviceAccountId = deviceAccountId,
+                // Read for the account the store would be stamped with, so a rotation left
+                // by a PREVIOUS account reads as empty here and is correctly called stale
+                // rather than mistaken for fresh content.
+                stored = FollowingStore.read(context, deviceAccountId),
                 nowMs = System.currentTimeMillis(),
             )
         }

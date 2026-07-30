@@ -2,7 +2,11 @@ import type { FeedDescriptor, HydratedPost } from '@mention/shared-types';
 
 import { logger } from '@/lib/logger';
 
-import { publishFollowingWidgetFeed, publishTrendingWidgetFeed } from './index';
+import {
+  followingWidgetNeedsFeed,
+  publishFollowingWidgetFeed,
+  publishTrendingWidgetFeed,
+} from './index';
 
 /**
  * When a feed the app just downloaded is worth handing to a home-screen widget.
@@ -19,9 +23,13 @@ import { publishFollowingWidgetFeed, publishTrendingWidgetFeed } from './index';
  * the whole widget, and it lands at the moment the reader was demonstrably
  * engaged rather than at a moment a scheduler picked.
  *
- * It does not replace the workers, and must not: the app is opened irregularly,
- * and a widget on a phone nobody has opened for a day still has to update
- * itself.
+ * That is true of {@link syncFeedWidget} and STOPS BEING TRUE at
+ * {@link prefetchFollowingWidgetFeed}, which spends a request on purpose. The
+ * two live in the same file and have opposite cost profiles; read each one's own
+ * doc rather than the paragraph above.
+ *
+ * Neither replaces the workers, and must not: the app is opened irregularly, and
+ * a widget on a phone nobody has opened for a day still has to update itself.
  *
  * ## What crosses the bridge
  *
@@ -212,4 +220,103 @@ export function syncFeedWidget(
       error,
     });
   });
+}
+
+/**
+ * Whether this response is a moment worth ASKING the widget if it wants a
+ * following page fetched for it.
+ *
+ * This is the JS half of a two-sided gate. It answers "is the app in a state
+ * where such a request would make sense at all"; the expensive half — is a
+ * widget even placed, and is its batch actually stale — is
+ * {@link followingWidgetNeedsFeed}, answered natively because only that side
+ * knows. Asking here first keeps the native round trip off the hot path.
+ *
+ * Four rules:
+ *
+ *  1. **Not while one is already in flight.** Two feed screens opening together
+ *     would otherwise each start a fetch for the same widget.
+ *  2. **Not when signed out.** Without a bearer the request answers 200 with
+ *     zero posts (`descriptor=following` does), so it would spend a request to
+ *     learn nothing and leave the store exactly as stale.
+ *  3. **Not on a `following` load.** That response already fed the widget. This
+ *     rule is also what makes recursion impossible BY CONSTRUCTION rather than
+ *     by luck: the fetch this function authorises is itself a `following` load,
+ *     and it cannot authorise another.
+ *  4. **Only on a first page.** A reader paging through a feed is mid-session,
+ *     not opening the app.
+ */
+export function shouldOfferFollowingPrefetch({
+  descriptor,
+  cursor,
+  viewerId,
+  prefetchInFlight,
+}: {
+  descriptor: FeedDescriptor;
+  cursor: string | undefined;
+  viewerId: string | null;
+  prefetchInFlight: boolean;
+}): boolean {
+  if (prefetchInFlight) return false;
+  if (!viewerId) return false;
+  if (descriptor === 'following') return false;
+  if (cursor) return false;
+  return true;
+}
+
+let prefetchInFlight = false;
+
+/**
+ * Fetch the following timeline FOR THE WIDGET, when that is worth a request.
+ *
+ * ## This one is not free, unlike {@link syncFeedWidget}
+ *
+ * It exists because the handoff only ever covers the feed the reader opened, and
+ * Mention's home defaults to For You — so the following widget would be fed only
+ * on a visit to a tab many readers rarely open, which is a widget that does not
+ * update. The card whose staleness shows most is exactly that one, because the
+ * posts on it are the reader's own people.
+ *
+ * The cost is bounded by the two gates rather than by hope: no request at all
+ * unless a following widget is placed (almost nobody), and at most one per
+ * `FETCH_INTERVAL_MS` of app usage after that, because the native side declines
+ * while the stored batch is still fresh.
+ *
+ * It fetches through the caller's own feed path and does nothing with the
+ * result: the response goes through {@link syncFeedWidget} inside that call like
+ * any other following load, so the projection, the account check and the store
+ * write happen in exactly one place.
+ *
+ * Fire-and-forget. Nothing the app renders depends on it, and a failure is a
+ * home screen that stays a batch behind — worth a diagnostic line, not a
+ * surfaced error.
+ */
+export function prefetchFollowingWidgetFeed({
+  descriptor,
+  cursor,
+  viewerId,
+  fetchFollowingPage,
+}: {
+  descriptor: FeedDescriptor;
+  cursor: string | undefined;
+  viewerId: string | null;
+  /** The caller's own `following` fetch. Its response feeds the widget on the way through. */
+  fetchFollowingPage: () => Promise<unknown>;
+}): void {
+  if (!shouldOfferFollowingPrefetch({ descriptor, cursor, viewerId, prefetchInFlight })) {
+    return;
+  }
+
+  prefetchInFlight = true;
+  void (async () => {
+    try {
+      if (await followingWidgetNeedsFeed()) {
+        await fetchFollowingPage();
+      }
+    } catch (error: unknown) {
+      logger.debug('Could not refill the following widget', { error });
+    } finally {
+      prefetchInFlight = false;
+    }
+  })();
 }

@@ -16,6 +16,10 @@ import androidx.glance.appwidget.updateAll
  * same feed anyway. Handing the page it already has to the widget's store costs ZERO extra
  * requests and makes the card current at the moment its owner was demonstrably engaged.
  *
+ * That is true of the HANDOFF and only of the handoff. [handoffPrefetchWanted] below governs
+ * a second path that does spend a request — see its own doc, and do not carry the sentence
+ * above onto it.
+ *
  * The worker is not replaced by this and must not be: the app is opened irregularly, and a
  * widget on a phone nobody has opened for a day still has to update itself.
  *
@@ -130,6 +134,46 @@ internal fun anonymousFeedHandoff(postCount: Int): FeedHandoff =
     } else {
         FeedHandoff.Write(null)
     }
+
+/**
+ * Whether it is worth the app spending a REQUEST to fill this widget — the one path here
+ * that is not free, and the gate that keeps it affordable.
+ *
+ * ## Why a request is on the table at all
+ *
+ * The handoff above rides on a feed the app was fetching anyway, so it costs nothing — but
+ * it only fires for the feed the reader actually opened, and Mention's home defaults to For
+ * You. So the FOLLOWING widget is fed only when someone visits a tab they may rarely visit,
+ * which for most readers means a widget that does not update. That is the card whose
+ * staleness shows most, because it is their own people on it.
+ *
+ * ## Three conditions, all required
+ *
+ *  - **A widget is placed.** A reader who never put one on a home screen must not pay a
+ *    request for it, ever. This is the condition that makes the feature cost nothing for
+ *    almost everyone.
+ *  - **There is a credential.** With no background session there is no account to stamp a
+ *    rotation with, so a fetched page could not be stored even if it arrived — and the card
+ *    is drawing its signed-out state regardless.
+ *  - **The stored batch is stale**, by [shouldFetchRotation] — the SAME rule the refresh
+ *    worker applies, so the app and the worker cannot disagree about what "stale" means.
+ *    Without this the app would spend a request on every cold start; with it the ceiling is
+ *    one per [FETCH_INTERVAL_MS] of app usage, and a reader who opens the app five times an
+ *    hour pays for two.
+ *
+ * Pure, so all four branches are pinned on a plain JVM — including the two that cost a
+ * request when they should not.
+ */
+internal fun handoffPrefetchWanted(
+    placed: Boolean,
+    deviceAccountId: String?,
+    stored: FeedRotation,
+    nowMs: Long,
+): Boolean {
+    if (!placed) return false
+    if (deviceAccountId == null) return false
+    return shouldFetchRotation(stored, nowMs)
+}
 
 /**
  * Store a handed-over rotation and bring the card up to date.

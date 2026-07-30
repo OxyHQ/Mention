@@ -22,7 +22,11 @@ import type {
   PostUser,
 } from '@mention/shared-types';
 
-import { syncFeedWidget } from '../modules/mention-widgets/feedWidgetSync';
+import {
+  MAX_WIDGET_HANDOFF_POSTS,
+  prefetchFollowingWidgetFeed,
+  syncFeedWidget,
+} from '../modules/mention-widgets/feedWidgetSync';
 import { FeedFilters } from '../utils/feedUtils';
 import { authenticatedClient, publicClient, isNotFoundError } from '../utils/api';
 import { oxyServices } from '@/lib/oxyServices';
@@ -849,16 +853,31 @@ class FeedService {
       // request — the app already has the posts — and is a no-op off Android,
       // for every other descriptor, past the first page, and when the widget is
       // not placed. Never awaited: nothing the app renders depends on it.
+      const viewerIdAfter = readViewerId();
       syncFeedWidget(
         {
           descriptor,
           cursor: options?.cursor,
           viewerIdBefore,
-          viewerIdAfter: readViewerId(),
+          viewerIdAfter,
           postCount: feed.items?.length ?? 0,
         },
         feed.items ?? [],
       );
+
+      // And the other direction: the following widget is fed by the handoff
+      // above only when the reader opens the Following tab, which home does not
+      // default to — so if one is PLACED and its batch has gone stale, fetch the
+      // timeline for it. Unlike the handoff this spends a request; both gates
+      // live natively (`followingWidgetNeedsFeed`) and answer `false` for
+      // anyone without the widget. Never awaited.
+      prefetchFollowingWidgetFeed({
+        descriptor,
+        cursor: options?.cursor,
+        viewerId: viewerIdAfter,
+        fetchFollowingPage: () =>
+          this.getMtnFeed('following', { limit: MAX_WIDGET_HANDOFF_POSTS }),
+      });
 
       return feed;
     })();

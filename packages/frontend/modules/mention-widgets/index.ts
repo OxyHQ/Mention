@@ -59,6 +59,13 @@ declare class MentionWidgetsNativeModule extends NativeModule {
    * credential and refuses on mismatch; it never becomes the stamp by itself.
    */
   publishFollowingFeed(accountId: string, body: string): Promise<void>;
+
+  /**
+   * Whether a following widget is placed AND its stored batch is stale enough
+   * to be worth the app spending a request on. `false` whenever either is not
+   * so, which for most installs is always.
+   */
+  followingWidgetNeedsFeed(): Promise<boolean>;
 }
 
 const nativeModule = requireOptionalNativeModule<MentionWidgetsNativeModule>('MentionWidgets');
@@ -98,4 +105,17 @@ export function publishTrendingWidgetFeed(body: string): Promise<void> {
  */
 export function publishFollowingWidgetFeed(accountId: string, body: string): Promise<void> {
   return nativeModule?.publishFollowingFeed(accountId, body) ?? Promise.resolve();
+}
+
+/**
+ * Whether fetching the following timeline purely for the widget would be worth
+ * a request right now.
+ *
+ * Unlike everything above this can lead to a request being SPENT. It answers
+ * `false` unless a following widget is on a home screen and its stored batch is
+ * already stale — and `false` where the module is absent, so no other platform
+ * ever asks. See `feedWidgetSync.ts` for when the app acts on a `true`.
+ */
+export function followingWidgetNeedsFeed(): Promise<boolean> {
+  return nativeModule?.followingWidgetNeedsFeed() ?? Promise.resolve(false);
 }
