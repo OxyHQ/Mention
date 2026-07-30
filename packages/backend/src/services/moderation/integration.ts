@@ -61,6 +61,30 @@ async function loadPostState(postId: string): Promise<PostState | null> {
  * the most recent APPLIED row rather than making this file re-query the ledger —
  * which is where the `applied: true` filter lives, and re-implementing it here
  * would be one more chance to omit it.
+ *
+ * ## UNFINISHED, and `reverses` does NOT close it
+ *
+ * `unlabel_sensitive` is still never PLANNED. `reverses` says which earlier action
+ * a reversal undoes; `restoreAction` says what the planner EMITS on `no_violation`,
+ * and against this pinned artifact it is a single value. So a correction still
+ * plans `restore` alone, and a content warning applied by an earlier revision
+ * survives an accepted appeal — the bug this file was supposed to stop porting.
+ *
+ * Two designs, and they are not equivalent:
+ *
+ *   (a) `restoreAction: ['restore', 'unlabel_sensitive']` — each reversal keeps its
+ *       own enforcement row, so the audit trail still says which effect landed and
+ *       either can be reversed alone. Needs the package's plural `restoreAction`
+ *       (CrowdSource #44). Note the value names the UNDOERS, not what they undo:
+ *       `['restrict', 'label_sensitive']` there would plan a REMOVAL on an appeal.
+ *   (b) `reverses: { restore: ['restrict', 'label_sensitive'] }` with one `restore`
+ *       undoing both effects. Works against this artifact with no package change —
+ *       and costs the audit trail: idempotency is keyed on
+ *       `decisionId + revision + action`, so ONE row would cover two distinct
+ *       effects, neither separately reversible nor separately explainable, and
+ *       `unlabel_sensitive` stays dead code in an executor that implements it.
+ *
+ * Do not pick (b) for being available. Re-derive it before choosing.
  */
 export function createMentionModerationIntegration(): ModerationIntegration<
   IReport,
