@@ -139,7 +139,7 @@ internal object PostsCardDimensions {
      *
      * 48dp is Material's minimum touch target and the figure this module's design committed
      * to, so it is not negotiated down to fit — the control is dropped instead at the size
-     * where it does not fit (see `RotationControls`). A widget is operated with a thumb over
+     * where it does not fit (see `RotationControlRow`). A widget is operated with a thumb over
      * a launcher that also interprets long-press and drag on the same pixels; a target that
      * is merely usually-hittable there costs the user a rearranged home screen.
      */
