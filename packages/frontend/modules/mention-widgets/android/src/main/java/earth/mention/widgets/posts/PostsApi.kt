@@ -2,6 +2,9 @@ package earth.mention.widgets.posts
 
 import android.content.Context
 import earth.mention.widgets.R
+import earth.mention.widgets.feedcard.ROTATION_LENGTH
+import earth.mention.widgets.feedcard.WidgetPost
+import earth.mention.widgets.feedcard.parseFeedResponse
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.IOException
@@ -53,7 +56,7 @@ internal object PostsApi {
             if (status != HttpURLConnection.HTTP_OK) {
                 throw IOException("GET /feed/mtn?descriptor=explore responded $status")
             }
-            parsePostsResponse(connection.inputStream.bufferedReader().use { it.readText() })
+            parseFeedResponse(connection.inputStream.bufferedReader().use { it.readText() })
         } finally {
             connection.disconnect()
         }

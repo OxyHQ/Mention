@@ -40,8 +40,8 @@ internal enum class RotationStep { NEXT, PREVIOUS }
  */
 internal suspend fun applyRotationStep(context: Context, step: RotationStep) {
     when (step) {
-        RotationStep.NEXT -> PostsRepository.advance(context)
-        RotationStep.PREVIOUS -> PostsRepository.retreat(context)
+        RotationStep.NEXT -> PostsStore.advance(context)
+        RotationStep.PREVIOUS -> PostsStore.retreat(context)
     }
     PostsWidget().updateAll(context)
     PostsRefreshScheduler.restartAutoAdvance(context)

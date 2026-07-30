@@ -1,4 +1,4 @@
-package earth.mention.widgets.posts
+package earth.mention.widgets.feedcard
 
 import org.json.JSONArray
 import org.json.JSONObject
@@ -123,7 +123,7 @@ private const val FIELD_AVATAR = "avatar"
  * Throws [org.json.JSONException] when the body is not the documented shape; the
  * caller answers for that by keeping whatever it already had.
  */
-internal fun parsePostsResponse(body: String, limit: Int = ROTATION_LENGTH): List<WidgetPost> {
+internal fun parseFeedResponse(body: String, limit: Int = ROTATION_LENGTH): List<WidgetPost> {
     val items = JSONObject(body).getJSONObject(FIELD_DATA).getJSONArray(FIELD_ITEMS)
     return buildList(minOf(items.length(), limit)) {
         for (index in 0 until items.length()) {

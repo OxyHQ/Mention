@@ -107,5 +107,35 @@
         android:name="android.appwidget.provider"
         android:resource="@xml/mention_posts_widget_info" />
     </receiver>
+
+    <!--
+      The FOLLOWING widget — the same card as the one above, over the reader's own timeline
+      instead of Explore. It is a separate provider (and so a separate entry in the picker)
+      rather than a configuration of that one, because the two answer different questions and a
+      reader may well want both on a home screen at once.
+
+      It keeps its own store, worker chain and schedule for the usual reason — the two are placed
+      independently, and neither should pay for the other's fetch — and for one that is specific
+      to this widget: it is the only one in this module that AUTHENTICATES, so a reader who never
+      places it never causes a token to be minted.
+
+      The three attributes above are set for the same reasons here — see the comment on the trends
+      providers. `exported="false"` in particular is worth noting on this one: the provider is
+      bound through the system's AppWidgetManager, so nothing outside the app can address the
+      receiver that draws a private timeline.
+    -->
+    <receiver
+      android:name="earth.mention.widgets.following.FollowingWidgetReceiver"
+      android:enabled="@bool/glance_appwidget_available"
+      android:exported="false"
+      android:label="@string/mention_following_widget_label">
+      <intent-filter>
+        <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+        <action android:name="android.intent.action.LOCALE_CHANGED" />
+      </intent-filter>
+      <meta-data
+        android:name="android.appwidget.provider"
+        android:resource="@xml/mention_following_widget_info" />
+    </receiver>
   </application>
 </manifest>

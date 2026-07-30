@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Default placement for the FOLLOWING widget on API 31+, expressed directly in launcher cells
+  rather than through the `70 × cells − 30` dp conversion the older attributes need. The pair
+  matches `mention_following_widget_min_width` / `_min_height` in dimens_following.xml.
+-->
+<resources>
+  <integer name="mention_following_widget_target_cell_width">4</integer>
+  <integer name="mention_following_widget_target_cell_height">3</integer>
+
+  <!--
+    How long the following card waits before turning to the next post on its own.
+
+    Thirty seconds, the same as the trending card: long enough that a redraw — which re-serialises
+    this widget's decoded bitmaps to the launcher, see FeedCardBitmaps.kt — is not paid twelve times
+    a minute, and short enough that the rotation visibly moves while someone is looking at it. It is
+    a resource so the pace can be tuned without touching the scheduler.
+
+    A turn costs no network and no token mint on this widget either — it moves a cursor over posts
+    that are already stored — so the interval is set by the redraw alone.
+
+    NOT expressible as periodic work: WorkManager floors that at fifteen minutes, which is why
+    FollowingAutoAdvanceWorker chains one-time requests instead.
+  -->
+  <integer name="mention_following_widget_auto_advance_seconds">30</integer>
+</resources>

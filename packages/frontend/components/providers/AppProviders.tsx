@@ -66,6 +66,23 @@ export const AppProviders = memo(function AppProviders({
            * `/explore` → `auth.oxy.so/authorize` → back — which destroys every
            * bit of in-page state before the user has done anything.
            */}
+          {/*
+           * `backgroundSession` is what makes the FOLLOWING home-screen widget
+           * possible. That widget's WorkManager worker runs with no JS runtime —
+           * often with the app process dead — so it cannot reach this session at
+           * all; the SDK instead provisions a purpose-built, non-rotating
+           * credential while the app runs and stores it where the widget's Kotlin
+           * (`so.oxy.session.OxyBackgroundSession`) can exchange it for a short
+           * access token. This prop is the whole integration: no app-local token
+           * helper, no manual `Authorization`.
+           *
+           * It cannot create a session, only extend one the user established
+           * here, and every mint is re-authorized server-side against the live
+           * device session — so a sign-out or an account switch takes the widget's
+           * content with it. Android-only; inert on web and iOS. The trending-posts
+           * widget needs none of this (Explore answers anonymously) and is
+           * unaffected either way.
+           */}
           <OxyProvider
             oxyServices={oxyServices}
             clientId={OXY_CLIENT_ID}
@@ -73,6 +90,7 @@ export const AppProviders = memo(function AppProviders({
             webAuthMode="popup"
             storageKeyPrefix="mention"
             queryClient={queryClient}
+            backgroundSession
           >
             <AccountSwitchReset>
               <I18nextProvider i18n={i18n}>

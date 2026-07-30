@@ -1,4 +1,4 @@
-package earth.mention.widgets.posts
+package earth.mention.widgets.feedcard
 
 import androidx.compose.ui.unit.Dp
 import kotlin.math.roundToInt
@@ -17,10 +17,10 @@ import kotlin.math.sqrt
  * bound cannot come from one. It comes instead from the HARD PIXEL CEILINGS below: each
  * bitmap is sized for the slot it fills and then capped, so the payload is bounded at any
  * size a launcher can invent — including one no breakpoint declared and one past the
- * provider's own resize ceiling. [POSTS_WORST_CASE_BITMAP_BYTES] is that bound.
+ * provider's own resize ceiling. [FEED_CARD_WORST_CASE_BITMAP_BYTES] is that bound.
  *
  * This file is pure so all of it is unit tested; the decoding itself is in
- * `PostsImageRenderer.kt`.
+ * `FeedImageRenderer.kt`.
  */
 
 /** ARGB_8888 — the only config worth using here, and four bytes a pixel. */
@@ -52,7 +52,7 @@ private const val THUMBNAIL_PIXELS_PER_DP = 1.5f
  * It was 30,000 while `SizeMode.Responsive` put a thumbnail for every image-bearing design
  * in the same parcel. `Exact` carries at most two, and the slot they fill is no longer a
  * 120dp band, so the freed payload goes into keeping the bigger picture as sharp as the
- * small one was rather than into a smaller number. [POSTS_WORST_CASE_BITMAP_BYTES] is what
+ * small one was rather than into a smaller number. [FEED_CARD_WORST_CASE_BITMAP_BYTES] is what
  * holds that trade honest, and `PostsBitmapTest` is what holds the total inside the
  * transaction.
  */
@@ -72,7 +72,7 @@ private const val AVATAR_MAX_PIXELS = 4_000L
 private const val MIN_BITMAP_EDGE_PX = 2
 
 /** The pixel dimensions to decode a bitmap at. */
-internal data class PostsBitmapSize(val widthPx: Int, val heightPx: Int) {
+internal data class FeedBitmapSize(val widthPx: Int, val heightPx: Int) {
     val pixels: Long get() = widthPx.toLong() * heightPx.toLong()
     val bytes: Long get() = pixels * BYTES_PER_PIXEL
 }
@@ -93,29 +93,29 @@ internal fun bitmapSizeFor(
     height: Dp,
     pixelsPerDp: Float,
     maxPixels: Long,
-): PostsBitmapSize? {
+): FeedBitmapSize? {
     val widthPx = (width.value * pixelsPerDp).roundToInt()
     val heightPx = (height.value * pixelsPerDp).roundToInt()
     if (widthPx < MIN_BITMAP_EDGE_PX || heightPx < MIN_BITMAP_EDGE_PX) return null
 
     val pixels = widthPx.toLong() * heightPx.toLong()
-    if (pixels <= maxPixels) return PostsBitmapSize(widthPx, heightPx)
+    if (pixels <= maxPixels) return FeedBitmapSize(widthPx, heightPx)
 
     val scale = sqrt(maxPixels.toDouble() / pixels.toDouble()).toFloat()
-    return PostsBitmapSize(
+    return FeedBitmapSize(
         widthPx = (widthPx * scale).toInt().coerceAtLeast(MIN_BITMAP_EDGE_PX),
         heightPx = (heightPx * scale).toInt().coerceAtLeast(MIN_BITMAP_EDGE_PX),
     )
 }
 
 /** The thumbnail bitmap for a slot of `width × height`. */
-internal fun thumbnailBitmapSize(width: Dp, height: Dp): PostsBitmapSize? =
+internal fun thumbnailBitmapSize(width: Dp, height: Dp): FeedBitmapSize? =
     bitmapSizeFor(width, height, THUMBNAIL_PIXELS_PER_DP, THUMBNAIL_MAX_PIXELS)
 
-/** The avatar bitmap — square, at [PostsCardDimensions.AVATAR_SIZE]. */
-internal fun avatarBitmapSize(): PostsBitmapSize? = bitmapSizeFor(
-    width = PostsCardDimensions.AVATAR_SIZE,
-    height = PostsCardDimensions.AVATAR_SIZE,
+/** The avatar bitmap — square, at [FeedCardDimensions.AVATAR_SIZE]. */
+internal fun avatarBitmapSize(): FeedBitmapSize? = bitmapSizeFor(
+    width = FeedCardDimensions.AVATAR_SIZE,
+    height = FeedCardDimensions.AVATAR_SIZE,
     pixelsPerDp = AVATAR_PIXELS_PER_DP,
     maxPixels = AVATAR_MAX_PIXELS,
 )
@@ -126,7 +126,7 @@ internal fun avatarBitmapSize(): PostsBitmapSize? = bitmapSizeFor(
  * The slot spans the content width — the image is the card's picture, not a thumbnail
  * beside a column of text.
  */
-internal fun imageSlotWidth(size: PostsCardSize, cardWidth: Dp): Dp =
+internal fun imageSlotWidth(size: FeedCardSize, cardWidth: Dp): Dp =
     cardWidth - cardPadding(size) * 2
 
 /**
@@ -162,5 +162,5 @@ private const val COMPOSITIONS_PER_PARCEL = 2
  * holds this to half of that, leaving the other half for the view tree, the strings and
  * everything else in the same parcel.
  */
-internal val POSTS_WORST_CASE_BITMAP_BYTES: Long =
+internal val FEED_CARD_WORST_CASE_BITMAP_BYTES: Long =
     COMPOSITIONS_PER_PARCEL * (AVATAR_MAX_PIXELS + THUMBNAIL_MAX_PIXELS) * BYTES_PER_PIXEL

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="mention_following_widget_label">Seguiti</string>
+  <string name="mention_following_widget_description">Un post alla volta dagli account che segui. Devi aver effettuato l\'accesso.</string>
+
+  <string name="mention_following_widget_eyebrow">SEGUITI</string>
+
+  <string name="mention_following_widget_empty">Ancora niente qui</string>
+
+  <string name="mention_following_widget_signed_out">Accedi per vedere gli account che segui</string>
+</resources>

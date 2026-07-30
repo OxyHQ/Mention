@@ -1,4 +1,4 @@
-package earth.mention.widgets.posts
+package earth.mention.widgets.feedcard
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -14,7 +14,6 @@ import androidx.glance.LocalContext
 import androidx.glance.LocalSize
 import androidx.glance.action.Action
 import androidx.glance.action.clickable
-import androidx.glance.appwidget.action.actionRunCallback
 import androidx.glance.appwidget.action.actionStartActivity
 import androidx.glance.appwidget.components.CircleIconButton
 import androidx.glance.appwidget.components.FilledButton
@@ -39,7 +38,7 @@ import earth.mention.widgets.R
 import earth.mention.widgets.trends.openInAppIntent
 
 /**
- * The trending-posts card: ONE post from Explore, rotating, as a full-bleed tonal
+ * THE feed card: ONE post from Explore, rotating, as a full-bleed tonal
  * container.
  *
  * The shape, top to bottom: a BRAND ROW saying where this came from, the POST TEXT as the
@@ -62,9 +61,10 @@ import earth.mention.widgets.trends.openInAppIntent
  * animate at all.
  */
 @Composable
-internal fun PostsWidgetContent(rotation: PostsRotation) {
+internal fun FeedCardContent(spec: FeedCardSpec, state: FeedCardState) {
+    val context = LocalContext.current
     val widgetSize = LocalSize.current
-    val design = postsCardSize(widgetSize.width, widgetSize.height)
+    val design = feedCardSize(widgetSize.width, widgetSize.height)
     val padding = cardPadding(design)
     val contentColor = GlanceTheme.colors.onPrimaryContainer
 
@@ -77,18 +77,36 @@ internal fun PostsWidgetContent(rotation: PostsRotation) {
         horizontalPadding = 0.dp,
     ) {
         Box(GlanceModifier.fillMaxSize().padding(padding)) {
-            val post = rotation.current
-            if (post == null) {
-                PostsEmptyContent(contentColor)
-            } else {
-                PostCard(
-                    post = post,
-                    rotation = rotation,
-                    design = design,
-                    cardSize = widgetSize,
-                    padding = padding,
+            // Three states, one branch each, and the reason they are distinguished is on
+            // `FeedCardState`: "nothing fetched yet" and "no session" look identical on a
+            // card and mean opposite things to the reader.
+            when (state) {
+                is FeedCardState.SignedOut -> FeedCardMessage(
+                    spec = spec,
+                    message = context.getString(state.message),
                     contentColor = contentColor,
                 )
+
+                is FeedCardState.Rotating -> {
+                    val post = state.rotation.current
+                    if (post == null) {
+                        FeedCardMessage(
+                            spec = spec,
+                            message = context.getString(spec.emptyMessage),
+                            contentColor = contentColor,
+                        )
+                    } else {
+                        PostCard(
+                            spec = spec,
+                            post = post,
+                            rotation = state.rotation,
+                            design = design,
+                            cardSize = widgetSize,
+                            padding = padding,
+                            contentColor = contentColor,
+                        )
+                    }
+                }
             }
         }
     }
@@ -96,9 +114,10 @@ internal fun PostsWidgetContent(rotation: PostsRotation) {
 
 @Composable
 private fun PostCard(
+    spec: FeedCardSpec,
     post: WidgetPost,
-    rotation: PostsRotation,
-    design: PostsCardSize,
+    rotation: FeedRotation,
+    design: FeedCardSize,
     cardSize: DpSize,
     padding: Dp,
     contentColor: ColorProvider,
@@ -130,13 +149,13 @@ private fun PostCard(
             .semantics { contentDescription = cardContentDescription(context, post, text) }
             .clickable(actionStartActivity(openInAppIntent(context, postUrl(context, post)))),
     ) {
-        BrandRow(contentColor)
+        BrandRow(spec = spec, contentColor = contentColor)
 
         if (textLines > 0) {
-            Spacer(GlanceModifier.height(PostsCardDimensions.BLOCK_SPACING))
+            Spacer(GlanceModifier.height(FeedCardDimensions.BLOCK_SPACING))
             Text(
                 text = text,
-                style = PostsCardTextStyles.body(contentColor, design),
+                style = FeedCardTextStyles.body(contentColor, design),
                 // The lines the card RESERVED, so the text can never take height the picture
                 // was measured against. `truncateToBudget` has already cut the string to an
                 // estimate of the same width; this is what bounds the estimate running low.
@@ -151,6 +170,7 @@ private fun PostCard(
         Spacer(GlanceModifier.defaultWeight())
 
         MediaSlot(
+            spec = spec,
             post = post,
             slotWidth = imageSlotWidth(design, cardSize.width),
             slotHeight = imageSlotHeight(
@@ -161,9 +181,15 @@ private fun PostCard(
                 fontScale = fontScale,
             ),
         )
-        Byline(post = post, rotation = rotation, design = design, contentColor = contentColor)
+        Byline(
+            spec = spec,
+            post = post,
+            rotation = rotation,
+            design = design,
+            contentColor = contentColor,
+        )
         if (showsControls) {
-            RotationControlRow(rotation = rotation, contentColor = contentColor)
+            RotationControlRow(spec = spec, rotation = rotation, contentColor = contentColor)
         }
     }
 }
@@ -175,7 +201,7 @@ private fun PostCard(
  * headline of its own.
  */
 @Composable
-private fun BrandRow(contentColor: ColorProvider) {
+private fun BrandRow(spec: FeedCardSpec, contentColor: ColorProvider) {
     val context = LocalContext.current
     Row(
         modifier = GlanceModifier.fillMaxWidth(),
@@ -186,13 +212,13 @@ private fun BrandRow(contentColor: ColorProvider) {
             // The words beside it say the same thing, and the card's own description
             // already names the app.
             contentDescription = null,
-            modifier = GlanceModifier.size(PostsCardDimensions.BRAND_MARK_SIZE),
+            modifier = GlanceModifier.size(FeedCardDimensions.BRAND_MARK_SIZE),
             colorFilter = ColorFilter.tint(contentColor),
         )
-        Spacer(GlanceModifier.width(PostsCardDimensions.BRAND_SPACING))
+        Spacer(GlanceModifier.width(FeedCardDimensions.BRAND_SPACING))
         Text(
-            text = context.getString(R.string.mention_posts_widget_eyebrow),
-            style = PostsCardTextStyles.brand(contentColor),
+            text = context.getString(spec.eyebrow),
+            style = FeedCardTextStyles.brand(contentColor),
             maxLines = 1,
             modifier = GlanceModifier.semantics { contentDescription = "" },
         )
@@ -214,7 +240,12 @@ private fun BrandRow(contentColor: ColorProvider) {
  * cache directory, never a fetch: `PostsRefreshWorker` has already put the file there.
  */
 @Composable
-private fun MediaSlot(post: WidgetPost, slotWidth: Dp, slotHeight: Dp?) {
+private fun MediaSlot(
+    spec: FeedCardSpec,
+    post: WidgetPost,
+    slotWidth: Dp,
+    slotHeight: Dp?,
+) {
     val context = LocalContext.current
 
     // ONE `remember`, called unconditionally and holding everything that depends on the
@@ -224,23 +255,23 @@ private fun MediaSlot(post: WidgetPost, slotWidth: Dp, slotHeight: Dp?) {
     val bitmap = remember(post.imageUrl, slotWidth, slotHeight) {
         val url = post.imageUrl
         val size = if (slotHeight == null) null else thumbnailBitmapSize(slotWidth, slotHeight)
-        val file = if (url == null) null else PostsImageCache.fileForComposition(context, url)
+        val file = if (url == null) null else spec.images.fileForComposition(context, url)
         if (size == null || file == null) {
             null
         } else {
-            PostsImageRenderer.decodeCropped(
+            FeedImageRenderer.decodeCropped(
                 file = file,
                 size = size,
                 // The radius in the bitmap's own pixels rather than in dp, so the curve comes
                 // out at 20dp on screen after the launcher scales the bitmap into the slot.
-                cornerRadiusPx = PostsCardDimensions.IMAGE_CORNER_RADIUS.value *
+                cornerRadiusPx = FeedCardDimensions.IMAGE_CORNER_RADIUS.value *
                     (size.widthPx / slotWidth.value),
             )
         }
     }
 
     if (bitmap != null && slotHeight != null) {
-        Spacer(GlanceModifier.height(PostsCardDimensions.BLOCK_SPACING))
+        Spacer(GlanceModifier.height(FeedCardDimensions.BLOCK_SPACING))
         Image(
             provider = ImageProvider(bitmap),
             // The author's alt text when there is one. Null — not an empty string — where
@@ -266,17 +297,18 @@ private fun MediaSlot(post: WidgetPost, slotWidth: Dp, slotHeight: Dp?) {
  */
 @Composable
 private fun Byline(
+    spec: FeedCardSpec,
     post: WidgetPost,
-    rotation: PostsRotation,
-    design: PostsCardSize,
+    rotation: FeedRotation,
+    design: FeedCardSize,
     contentColor: ColorProvider,
 ) {
-    Spacer(GlanceModifier.height(PostsCardDimensions.BLOCK_SPACING))
+    Spacer(GlanceModifier.height(FeedCardDimensions.BLOCK_SPACING))
     Row(
         modifier = GlanceModifier.fillMaxWidth(),
         verticalAlignment = Alignment.Vertical.CenterVertically,
     ) {
-        BylineAvatar(post)
+        BylineAvatar(spec = spec, post = post)
         // Takes the slack, so a long display name shrinks rather than pushing the pips off
         // the end of the row.
         Row(
@@ -285,7 +317,7 @@ private fun Byline(
         ) {
             Text(
                 text = post.authorName,
-                style = PostsCardTextStyles.bylineName(contentColor),
+                style = FeedCardTextStyles.bylineName(contentColor),
                 maxLines = 1,
                 modifier = GlanceModifier.semantics { contentDescription = "" },
             )
@@ -293,11 +325,11 @@ private fun Byline(
             // shares its row with the pips, and a name plus a federated handle
             // (`verge@mastodon.social`) does not fit beside them.
             val handle = bylineHandle(post)
-            if (design != PostsCardSize.SMALL && handle.isNotEmpty()) {
-                Spacer(GlanceModifier.width(PostsCardDimensions.BYLINE_SPACING))
+            if (design != FeedCardSize.SMALL && handle.isNotEmpty()) {
+                Spacer(GlanceModifier.width(FeedCardDimensions.BYLINE_SPACING))
                 Text(
                     text = handle,
-                    style = PostsCardTextStyles.bylineHandle(contentColor),
+                    style = FeedCardTextStyles.bylineHandle(contentColor),
                     maxLines = 1,
                     modifier = GlanceModifier.semantics { contentDescription = "" },
                 )
@@ -314,14 +346,14 @@ private fun Byline(
  * placeholder would add a shape without adding information.
  */
 @Composable
-private fun BylineAvatar(post: WidgetPost) {
+private fun BylineAvatar(spec: FeedCardSpec, post: WidgetPost) {
     val context = LocalContext.current
     val url = avatarUrl(context, post)
 
     val bitmap = remember(url) {
         val size = avatarBitmapSize()
-        val file = if (url == null) null else PostsImageCache.fileForComposition(context, url)
-        if (size == null || file == null) null else PostsImageRenderer.decodeCircular(file, size)
+        val file = if (url == null) null else spec.images.fileForComposition(context, url)
+        if (size == null || file == null) null else FeedImageRenderer.decodeCircular(file, size)
     }
 
     if (bitmap != null) {
@@ -330,10 +362,10 @@ private fun BylineAvatar(post: WidgetPost) {
             // The name beside it is the label; announcing the picture as well would read the
             // author twice.
             contentDescription = null,
-            modifier = GlanceModifier.size(PostsCardDimensions.AVATAR_SIZE),
+            modifier = GlanceModifier.size(FeedCardDimensions.AVATAR_SIZE),
             contentScale = ContentScale.FillBounds,
         )
-        Spacer(GlanceModifier.width(PostsCardDimensions.BYLINE_SPACING))
+        Spacer(GlanceModifier.width(FeedCardDimensions.BYLINE_SPACING))
     }
 }
 
@@ -349,15 +381,15 @@ private fun BylineAvatar(post: WidgetPost) {
  */
 @Composable
 private fun RotationPips(
-    rotation: PostsRotation,
-    design: PostsCardSize,
+    rotation: FeedRotation,
+    design: FeedCardSize,
     contentColor: ColorProvider,
 ) {
     // At every size but the smallest the pips live in the control row instead, beside the
     // chevrons they belong with.
-    if (rotation.posts.size <= 1 || design != PostsCardSize.SMALL) return
+    if (rotation.posts.size <= 1 || design != FeedCardSize.SMALL) return
 
-    Spacer(GlanceModifier.width(PostsCardDimensions.BYLINE_SPACING))
+    Spacer(GlanceModifier.width(FeedCardDimensions.BYLINE_SPACING))
     Pips(rotation = rotation, contentColor = contentColor)
 }
 
@@ -384,7 +416,7 @@ private fun RotationPips(
  * A row of its own removes the contention rather than tuning it, and the space was already
  * there: a post with no picture leaves the card visibly empty above the byline.
  *
- * ## Why nothing is drawn at [PostsCardSize.SMALL]
+ * ## Why nothing is drawn at [FeedCardSize.SMALL]
  *
  * 48dp is Material's minimum touch target and is not shrunk to fit. At 250 × 110dp the card
  * has a brand row, two lines of text and a byline; another 48dp row would take roughly half
@@ -397,7 +429,11 @@ private fun RotationPips(
  * is spent.
  */
 @Composable
-private fun RotationControlRow(rotation: PostsRotation, contentColor: ColorProvider) {
+private fun RotationControlRow(
+    spec: FeedCardSpec,
+    rotation: FeedRotation,
+    contentColor: ColorProvider,
+) {
     val context = LocalContext.current
     Row(
         modifier = GlanceModifier.fillMaxWidth(),
@@ -406,26 +442,26 @@ private fun RotationControlRow(rotation: PostsRotation, contentColor: ColorProvi
     ) {
         RotationStepButton(
             icon = R.drawable.mention_widget_chevron_left,
-            label = context.getString(R.string.mention_posts_widget_previous),
-            action = actionRunCallback<PreviousPostAction>(),
+            label = context.getString(R.string.mention_feed_widget_previous),
+            action = spec.previousAction,
         )
         Pips(rotation = rotation, contentColor = contentColor)
         RotationStepButton(
             icon = R.drawable.mention_widget_chevron_right,
-            label = context.getString(R.string.mention_posts_widget_next),
-            action = actionRunCallback<NextPostAction>(),
+            label = context.getString(R.string.mention_feed_widget_next),
+            action = spec.nextAction,
         )
     }
 }
 
 /** The pips themselves — one filled, the rest dim. */
 @Composable
-private fun Pips(rotation: PostsRotation, contentColor: ColorProvider) {
+private fun Pips(rotation: FeedRotation, contentColor: ColorProvider) {
     val current = normalizeRotationIndex(rotation.index, rotation.posts.size)
     Row(verticalAlignment = Alignment.Vertical.CenterVertically) {
         rotation.posts.indices.forEach { index ->
             if (index != 0) {
-                Spacer(GlanceModifier.width(PostsCardDimensions.PIP_SPACING))
+                Spacer(GlanceModifier.width(FeedCardDimensions.PIP_SPACING))
             }
             Image(
                 provider = ImageProvider(
@@ -436,7 +472,7 @@ private fun Pips(rotation: PostsRotation, contentColor: ColorProvider) {
                     },
                 ),
                 contentDescription = null,
-                modifier = GlanceModifier.size(PostsCardDimensions.PIP_SIZE),
+                modifier = GlanceModifier.size(FeedCardDimensions.PIP_SIZE),
                 colorFilter = ColorFilter.tint(contentColor),
             )
         }
@@ -459,7 +495,7 @@ private fun RotationStepButton(icon: Int, label: String, action: Action) {
         contentColor = GlanceTheme.colors.secondary,
         backgroundColor = null,
         onClick = action,
-        modifier = GlanceModifier.size(PostsCardDimensions.CONTROL_SIZE),
+        modifier = GlanceModifier.size(FeedCardDimensions.CONTROL_SIZE),
     )
 }
 
@@ -471,7 +507,7 @@ private fun RotationStepButton(icon: Int, label: String, action: Action) {
  * a spinner looks broken every time the user glances at it.
  */
 @Composable
-private fun PostsEmptyContent(contentColor: ColorProvider) {
+private fun FeedCardMessage(spec: FeedCardSpec, message: String, contentColor: ColorProvider) {
     val context = LocalContext.current
     Column(
         modifier = GlanceModifier.fillMaxSize(),
@@ -479,14 +515,19 @@ private fun PostsEmptyContent(contentColor: ColorProvider) {
         horizontalAlignment = Alignment.Horizontal.CenterHorizontally,
     ) {
         Text(
-            text = context.getString(R.string.mention_posts_widget_empty),
-            style = PostsCardTextStyles.emptyMessage(contentColor),
-            maxLines = 1,
+            text = message,
+            style = FeedCardTextStyles.emptyMessage(contentColor),
+            // Two lines rather than one: "Sign in to see the accounts you follow" does not
+            // fit on a single line of a 250dp card, and a signed-out reader is precisely the
+            // one who cannot afford the explanation to be clipped.
+            maxLines = 2,
         )
-        Spacer(GlanceModifier.height(PostsCardDimensions.BLOCK_SPACING))
+        Spacer(GlanceModifier.height(FeedCardDimensions.BLOCK_SPACING))
         FilledButton(
-            text = context.getString(R.string.mention_posts_widget_open_app),
-            onClick = actionStartActivity(openInAppIntent(context, exploreScreenUrl(context))),
+            text = context.getString(R.string.mention_feed_widget_open_app),
+            onClick = actionStartActivity(
+                openInAppIntent(context, spec.feedScreenUrl(context)),
+            ),
             maxLines = 1,
         )
     }

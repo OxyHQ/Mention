@@ -1,4 +1,4 @@
-package earth.mention.widgets.posts
+package earth.mention.widgets.feedcard
 
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpSize
@@ -19,7 +19,7 @@ import org.junit.Test
  *
  * The 1708-character post used below is the longest observed in the live explore feed.
  */
-class PostsBreakpointsTest {
+class FeedCardStyleTest {
 
     private companion object {
         /** Content width inside each design at a 4-cell-wide placement. */
@@ -29,7 +29,7 @@ class PostsBreakpointsTest {
 
         /**
          * The resize FLOOR the provider declares, from `dimens_posts.xml` — 4 cells wide by
-         * 2 tall. The ceiling has a Kotlin constant ([POSTS_MAX_PLACEMENT]); the floor does
+         * 2 tall. The ceiling has a Kotlin constant ([FEED_CARD_MAX_PLACEMENT]); the floor does
          * not, because nothing in the layout is measured against it.
          */
         val MIN_RESIZE_WIDTH = 250.dp
@@ -48,7 +48,7 @@ class PostsBreakpointsTest {
      * reads as the one thing it is about.
      */
     private fun slotAt(
-        design: PostsCardSize,
+        design: FeedCardSize,
         widgetHeight: Dp,
         textLines: Int,
         showsRotationControls: Boolean = true,
@@ -65,9 +65,9 @@ class PostsBreakpointsTest {
 
     @Test
     fun `each cell count maps to its own design`() {
-        assertEquals(PostsCardSize.SMALL, postsCardSize(250.dp, 110.dp))
-        assertEquals(PostsCardSize.MEDIUM, postsCardSize(250.dp, 180.dp))
-        assertEquals(PostsCardSize.LARGE, postsCardSize(320.dp, 320.dp))
+        assertEquals(FeedCardSize.SMALL, feedCardSize(250.dp, 110.dp))
+        assertEquals(FeedCardSize.MEDIUM, feedCardSize(250.dp, 180.dp))
+        assertEquals(FeedCardSize.LARGE, feedCardSize(320.dp, 320.dp))
     }
 
     @Test
@@ -78,29 +78,29 @@ class PostsBreakpointsTest {
         val reachable = listOf(
             DpSize(MIN_RESIZE_WIDTH, MIN_RESIZE_HEIGHT),
             DpSize(MIN_RESIZE_WIDTH, MEDIUM_HEIGHT),
-            POSTS_MAX_PLACEMENT,
-        ).map { postsCardSize(it.width, it.height) }
+            FEED_CARD_MAX_PLACEMENT,
+        ).map { feedCardSize(it.width, it.height) }
 
-        assertEquals(PostsCardSize.entries.toSet(), reachable.toSet())
+        assertEquals(FeedCardSize.entries.toSet(), reachable.toSet())
         assertEquals(reachable.size, reachable.toSet().size)
     }
 
     @Test
     fun `the large design needs the width as well as the height`() {
         // A 120dp image slot on a 250dp-wide card would leave the text a strip.
-        assertEquals(PostsCardSize.MEDIUM, postsCardSize(250.dp, 320.dp))
-        assertEquals(PostsCardSize.MEDIUM, postsCardSize(319.dp, 400.dp))
-        assertEquals(PostsCardSize.LARGE, postsCardSize(320.dp, 320.dp))
+        assertEquals(FeedCardSize.MEDIUM, feedCardSize(250.dp, 320.dp))
+        assertEquals(FeedCardSize.MEDIUM, feedCardSize(319.dp, 400.dp))
+        assertEquals(FeedCardSize.LARGE, feedCardSize(320.dp, 320.dp))
     }
 
     @Test
     fun `a size no breakpoint declared still lands on a design`() {
         // A launcher is free to hand over anything inside the resize range, and something
         // outside it after a display-density change.
-        assertEquals(PostsCardSize.SMALL, postsCardSize(110.dp, 110.dp))
-        assertEquals(PostsCardSize.SMALL, postsCardSize(250.dp, 179.dp))
-        assertEquals(PostsCardSize.MEDIUM, postsCardSize(300.dp, 200.dp))
-        assertEquals(PostsCardSize.LARGE, postsCardSize(500.dp, 500.dp))
+        assertEquals(FeedCardSize.SMALL, feedCardSize(110.dp, 110.dp))
+        assertEquals(FeedCardSize.SMALL, feedCardSize(250.dp, 179.dp))
+        assertEquals(FeedCardSize.MEDIUM, feedCardSize(300.dp, 200.dp))
+        assertEquals(FeedCardSize.LARGE, feedCardSize(500.dp, 500.dp))
     }
 
     // ── What each design drops ──────────────────────────────────────────────────────
@@ -110,29 +110,29 @@ class PostsBreakpointsTest {
         // 110dp of height holds a brand row, two lines and a byline. An image would have
         // about 20dp left, which is a stripe rather than a picture — and this design keeps
         // its two lines whatever the arithmetic would allow.
-        assertNull(slotAt(PostsCardSize.SMALL, MIN_RESIZE_HEIGHT, textLines = 1))
-        assertNull(slotAt(PostsCardSize.SMALL, 400.dp, textLines = 1))
+        assertNull(slotAt(FeedCardSize.SMALL, MIN_RESIZE_HEIGHT, textLines = 1))
+        assertNull(slotAt(FeedCardSize.SMALL, 400.dp, textLines = 1))
     }
 
     @Test
     fun `a taller card shows more lines of text`() {
-        assertTrue(textMaxLines(PostsCardSize.SMALL) < textMaxLines(PostsCardSize.MEDIUM))
-        assertTrue(textMaxLines(PostsCardSize.MEDIUM) < textMaxLines(PostsCardSize.LARGE))
+        assertTrue(textMaxLines(FeedCardSize.SMALL) < textMaxLines(FeedCardSize.MEDIUM))
+        assertTrue(textMaxLines(FeedCardSize.MEDIUM) < textMaxLines(FeedCardSize.LARGE))
         // Two is the floor worth drawing: one line of a post is a fragment.
-        assertTrue(textMaxLines(PostsCardSize.SMALL) >= 2)
+        assertTrue(textMaxLines(FeedCardSize.SMALL) >= 2)
     }
 
     @Test
     fun `the image slot spans the content width, inside the design's own padding`() {
         assertEquals(
             (250f - 16f * 2).dp,
-            imageSlotWidth(PostsCardSize.MEDIUM, 250.dp),
+            imageSlotWidth(FeedCardSize.MEDIUM, 250.dp),
         )
         // The small design pads tighter, so at the same card width its content is wider —
         // which is exactly why the padding is read from the design and not from a constant.
         assertEquals(
             (250f - 12f * 2).dp,
-            imageSlotWidth(PostsCardSize.SMALL, 250.dp),
+            imageSlotWidth(FeedCardSize.SMALL, 250.dp),
         )
     }
 
@@ -143,9 +143,9 @@ class PostsBreakpointsTest {
         // The whole point of the change: the slot is the leftover, so the parts above and
         // below it plus the slot itself account for the whole widget with nothing spare.
         val height = 325.dp
-        val slot = requireNotNull(slotAt(PostsCardSize.LARGE, height, textLines = 2))
+        val slot = requireNotNull(slotAt(FeedCardSize.LARGE, height, textLines = 2))
         val reserved = cardHeightWithoutImage(
-            size = PostsCardSize.LARGE,
+            size = FeedCardSize.LARGE,
             textLines = 2,
             showsRotationControls = true,
             fontScale = 1f,
@@ -158,8 +158,8 @@ class PostsBreakpointsTest {
     fun `a taller placement is a taller picture, dp for dp`() {
         // What `SizeMode.Responsive` could not do: every dp the launcher hands over reaches
         // the photograph instead of being quantised away at the nearest declared bucket.
-        val short = requireNotNull(slotAt(PostsCardSize.LARGE, 325.dp, textLines = 2))
-        val tall = requireNotNull(slotAt(PostsCardSize.LARGE, 425.dp, textLines = 2))
+        val short = requireNotNull(slotAt(FeedCardSize.LARGE, 325.dp, textLines = 2))
+        val tall = requireNotNull(slotAt(FeedCardSize.LARGE, 425.dp, textLines = 2))
 
         assertEquals(100f, (tall - short).value, 0.01f)
     }
@@ -168,12 +168,12 @@ class PostsBreakpointsTest {
     fun `a short post gets a bigger picture than a long one`() {
         // The empty space this change exists to spend: a one-line post used to leave the room
         // its unused lines would have taken sitting blank above the byline.
-        val oneLine = requireNotNull(slotAt(PostsCardSize.LARGE, 400.dp, textLines = 1))
-        val fiveLines = requireNotNull(slotAt(PostsCardSize.LARGE, 400.dp, textLines = 5))
+        val oneLine = requireNotNull(slotAt(FeedCardSize.LARGE, 400.dp, textLines = 1))
+        val fiveLines = requireNotNull(slotAt(FeedCardSize.LARGE, 400.dp, textLines = 5))
 
         assertTrue("one line: $oneLine, five: $fiveLines", oneLine > fiveLines)
         // …and a post with no words at all gets the most of any.
-        val noText = requireNotNull(slotAt(PostsCardSize.LARGE, 400.dp, textLines = 0))
+        val noText = requireNotNull(slotAt(FeedCardSize.LARGE, 400.dp, textLines = 0))
         assertTrue("no text: $noText, one line: $oneLine", noText > oneLine)
     }
 
@@ -183,10 +183,10 @@ class PostsBreakpointsTest {
         // has to be worth having, not merely different: at a placement that could hold the
         // old band, it now holds at least as much picture.
         assertTrue(
-            requireNotNull(slotAt(PostsCardSize.LARGE, 325.dp, textLines = 2)) >= 120.dp,
+            requireNotNull(slotAt(FeedCardSize.LARGE, 325.dp, textLines = 2)) >= 120.dp,
         )
         assertTrue(
-            requireNotNull(slotAt(PostsCardSize.MEDIUM, 290.dp, textLines = 2)) >= 72.dp,
+            requireNotNull(slotAt(FeedCardSize.MEDIUM, 290.dp, textLines = 2)) >= 72.dp,
         )
     }
 
@@ -194,18 +194,18 @@ class PostsBreakpointsTest {
     fun `a card with no room for a picture shows none, rather than a sliver`() {
         // Below twice the corner radius the two curves meet and the slot has no straight edge
         // left. A 4×2 placement at the medium design's text is exactly that case.
-        assertNull(slotAt(PostsCardSize.MEDIUM, 213.dp, textLines = 2))
+        assertNull(slotAt(FeedCardSize.MEDIUM, 213.dp, textLines = 2))
 
         // The boundary itself is inclusive, and one dp below it is not.
         val reserved = cardHeightWithoutImage(
-            size = PostsCardSize.MEDIUM,
+            size = FeedCardSize.MEDIUM,
             textLines = 2,
             showsRotationControls = true,
             fontScale = 1f,
         )
-        val floor = PostsCardDimensions.MIN_IMAGE_HEIGHT
-        assertEquals(floor, slotAt(PostsCardSize.MEDIUM, reserved + floor, textLines = 2))
-        assertNull(slotAt(PostsCardSize.MEDIUM, reserved + floor - 1.dp, textLines = 2))
+        val floor = FeedCardDimensions.MIN_IMAGE_HEIGHT
+        assertEquals(floor, slotAt(FeedCardSize.MEDIUM, reserved + floor, textLines = 2))
+        assertNull(slotAt(FeedCardSize.MEDIUM, reserved + floor - 1.dp, textLines = 2))
     }
 
     @Test
@@ -213,26 +213,26 @@ class PostsBreakpointsTest {
         // The row is 48dp and the launcher clips rather than shrinks, so a slot that ignored
         // it would push the controls off the bottom of the card.
         val withControls = requireNotNull(
-            slotAt(PostsCardSize.LARGE, 400.dp, textLines = 2, showsRotationControls = true),
+            slotAt(FeedCardSize.LARGE, 400.dp, textLines = 2, showsRotationControls = true),
         )
         val without = requireNotNull(
-            slotAt(PostsCardSize.LARGE, 400.dp, textLines = 2, showsRotationControls = false),
+            slotAt(FeedCardSize.LARGE, 400.dp, textLines = 2, showsRotationControls = false),
         )
 
-        assertEquals(PostsCardDimensions.CONTROL_SIZE, without - withControls)
+        assertEquals(FeedCardDimensions.CONTROL_SIZE, without - withControls)
     }
 
     @Test
     fun `a larger font setting takes its height from the picture, not from the card`() {
-        val standard = requireNotNull(slotAt(PostsCardSize.LARGE, 400.dp, textLines = 3))
+        val standard = requireNotNull(slotAt(FeedCardSize.LARGE, 400.dp, textLines = 3))
         val large = requireNotNull(
-            slotAt(PostsCardSize.LARGE, 400.dp, textLines = 3, fontScale = 1.3f),
+            slotAt(FeedCardSize.LARGE, 400.dp, textLines = 3, fontScale = 1.3f),
         )
 
         assertTrue("standard: $standard, at 1.3: $large", large < standard)
         // At the largest scale Android offers, a full five-line post on a real 325dp placement
         // leaves nothing — the words win, and the card shows no picture rather than clipping.
-        assertNull(slotAt(PostsCardSize.LARGE, 325.dp, textLines = 5, fontScale = 2f))
+        assertNull(slotAt(FeedCardSize.LARGE, 325.dp, textLines = 5, fontScale = 2f))
     }
 
     @Test
@@ -246,7 +246,7 @@ class PostsBreakpointsTest {
         // that was never needed.
         val measuredWithoutPicture = 20f + 8f + 50.7f + 8f + 8f + 28f + 48f + 16f * 2
         val reserved = cardHeightWithoutImage(
-            size = PostsCardSize.LARGE,
+            size = FeedCardSize.LARGE,
             textLines = 2,
             showsRotationControls = true,
             fontScale = 1f,
@@ -259,7 +259,7 @@ class PostsBreakpointsTest {
         )
         assertTrue(
             "reserved ${reserved}dp leaves more than a gap's worth of slack",
-            reserved <= measuredWithoutPicture + PostsCardDimensions.BLOCK_SPACING.value,
+            reserved <= measuredWithoutPicture + FeedCardDimensions.BLOCK_SPACING.value,
         )
     }
 
@@ -269,16 +269,16 @@ class PostsBreakpointsTest {
     fun `the line count is what the text needs, bounded by the design`() {
         val perLine = MEDIUM_CONTENT_WIDTH / (17f * 0.6f)
 
-        assertEquals(0, textLinesFor(PostsCardSize.MEDIUM, 0, MEDIUM_CONTENT_WIDTH, 1f))
-        assertEquals(1, textLinesFor(PostsCardSize.MEDIUM, 1, MEDIUM_CONTENT_WIDTH, 1f))
+        assertEquals(0, textLinesFor(FeedCardSize.MEDIUM, 0, MEDIUM_CONTENT_WIDTH, 1f))
+        assertEquals(1, textLinesFor(FeedCardSize.MEDIUM, 1, MEDIUM_CONTENT_WIDTH, 1f))
         assertEquals(
             2,
-            textLinesFor(PostsCardSize.MEDIUM, perLine.toInt() + 1, MEDIUM_CONTENT_WIDTH, 1f),
+            textLinesFor(FeedCardSize.MEDIUM, perLine.toInt() + 1, MEDIUM_CONTENT_WIDTH, 1f),
         )
         // Never more than the design draws: the `Text` is given this as its own `maxLines`.
         assertEquals(
-            textMaxLines(PostsCardSize.MEDIUM),
-            textLinesFor(PostsCardSize.MEDIUM, 10_000, MEDIUM_CONTENT_WIDTH, 1f),
+            textMaxLines(FeedCardSize.MEDIUM),
+            textLinesFor(FeedCardSize.MEDIUM, 10_000, MEDIUM_CONTENT_WIDTH, 1f),
         )
     }
 
@@ -287,15 +287,15 @@ class PostsBreakpointsTest {
         // The direction that costs the picture a few dp rather than clipping the card. The
         // measured card fitted 71 characters of 20sp text on two lines at this width; the
         // estimate must not claim fewer lines than that.
-        val estimated = textLinesFor(PostsCardSize.LARGE, 71, 355.3f, 1f)
+        val estimated = textLinesFor(FeedCardSize.LARGE, 71, 355.3f, 1f)
 
         assertTrue("estimated $estimated lines for a post that really took 2", estimated >= 2)
     }
 
     @Test
     fun `a degenerate width yields no lines rather than an exception`() {
-        assertEquals(0, textLinesFor(PostsCardSize.MEDIUM, 100, 0f, 1f))
-        assertEquals(0, textLinesFor(PostsCardSize.MEDIUM, 100, -10f, 1f))
+        assertEquals(0, textLinesFor(FeedCardSize.MEDIUM, 100, 0f, 1f))
+        assertEquals(0, textLinesFor(FeedCardSize.MEDIUM, 100, -10f, 1f))
     }
 
     // ── The rotation controls ───────────────────────────────────────────────────────
@@ -304,22 +304,22 @@ class PostsBreakpointsTest {
     fun `the controls are drawn exactly where their height is reserved`() {
         // One predicate for both, because a card that reserves the row without drawing it
         // leaves a gap and one that draws it without reserving it loses the row to a clip.
-        assertTrue(showsRotationControls(PostsCardSize.MEDIUM, rotationLength = 5))
-        assertTrue(showsRotationControls(PostsCardSize.LARGE, rotationLength = 2))
+        assertTrue(showsRotationControls(FeedCardSize.MEDIUM, rotationLength = 5))
+        assertTrue(showsRotationControls(FeedCardSize.LARGE, rotationLength = 2))
         // Nowhere to step to.
-        assertFalse(showsRotationControls(PostsCardSize.LARGE, rotationLength = 1))
-        assertFalse(showsRotationControls(PostsCardSize.LARGE, rotationLength = 0))
+        assertFalse(showsRotationControls(FeedCardSize.LARGE, rotationLength = 1))
+        assertFalse(showsRotationControls(FeedCardSize.LARGE, rotationLength = 0))
         // No room for a 48dp row; that design keeps its pips in the byline instead.
-        assertFalse(showsRotationControls(PostsCardSize.SMALL, rotationLength = 5))
+        assertFalse(showsRotationControls(FeedCardSize.SMALL, rotationLength = 5))
     }
 
     // ── The text budget ─────────────────────────────────────────────────────────────
 
     @Test
     fun `a bigger card holds more text than a smaller one`() {
-        val small = textBudgetChars(PostsCardSize.SMALL, SMALL_CONTENT_WIDTH, 1f)
-        val medium = textBudgetChars(PostsCardSize.MEDIUM, MEDIUM_CONTENT_WIDTH, 1f)
-        val large = textBudgetChars(PostsCardSize.LARGE, LARGE_CONTENT_WIDTH, 1f)
+        val small = textBudgetChars(FeedCardSize.SMALL, SMALL_CONTENT_WIDTH, 1f)
+        val medium = textBudgetChars(FeedCardSize.MEDIUM, MEDIUM_CONTENT_WIDTH, 1f)
+        val large = textBudgetChars(FeedCardSize.LARGE, LARGE_CONTENT_WIDTH, 1f)
 
         assertTrue("the small card must hold the least: $small", small < medium)
         assertTrue("the large card must hold the most: $large", medium < large)
@@ -330,9 +330,9 @@ class PostsBreakpointsTest {
 
     @Test
     fun `a larger font setting shrinks the budget`() {
-        val standard = textBudgetChars(PostsCardSize.MEDIUM, MEDIUM_CONTENT_WIDTH, 1f)
-        val large = textBudgetChars(PostsCardSize.MEDIUM, MEDIUM_CONTENT_WIDTH, 1.3f)
-        val largest = textBudgetChars(PostsCardSize.MEDIUM, MEDIUM_CONTENT_WIDTH, 2f)
+        val standard = textBudgetChars(FeedCardSize.MEDIUM, MEDIUM_CONTENT_WIDTH, 1f)
+        val large = textBudgetChars(FeedCardSize.MEDIUM, MEDIUM_CONTENT_WIDTH, 1.3f)
+        val largest = textBudgetChars(FeedCardSize.MEDIUM, MEDIUM_CONTENT_WIDTH, 2f)
 
         // Left out, a card at a 1.3 scale hands its TextView a third more text than fits.
         assertTrue(large < standard)
@@ -341,10 +341,10 @@ class PostsBreakpointsTest {
 
     @Test
     fun `a degenerate width or font scale yields no budget rather than an exception`() {
-        assertEquals(0, textBudgetChars(PostsCardSize.MEDIUM, 0f, 1f))
-        assertEquals(0, textBudgetChars(PostsCardSize.MEDIUM, -10f, 1f))
+        assertEquals(0, textBudgetChars(FeedCardSize.MEDIUM, 0f, 1f))
+        assertEquals(0, textBudgetChars(FeedCardSize.MEDIUM, -10f, 1f))
         // A zero font scale would divide by zero; it is treated as the default instead.
-        assertTrue(textBudgetChars(PostsCardSize.MEDIUM, MEDIUM_CONTENT_WIDTH, 0f) > 0)
+        assertTrue(textBudgetChars(FeedCardSize.MEDIUM, MEDIUM_CONTENT_WIDTH, 0f) > 0)
     }
 
     @Test
@@ -355,11 +355,11 @@ class PostsBreakpointsTest {
         assertEquals(LARGEST_TEXT_BUDGET_CHARS, MAX_STORED_TEXT_CHARS)
         assertEquals(
             LARGEST_TEXT_BUDGET_CHARS,
-            textBudgetChars(PostsCardSize.LARGE, LARGE_CONTENT_WIDTH, 0.85f),
+            textBudgetChars(FeedCardSize.LARGE, LARGE_CONTENT_WIDTH, 0.85f),
         )
 
         // …and it really is the largest: no design at any supported font scale exceeds it.
-        PostsCardSize.entries.forEach { design ->
+        FeedCardSize.entries.forEach { design ->
             listOf(0.85f, 1f, 1.3f, 2f).forEach { scale ->
                 val budget = textBudgetChars(design, LARGE_CONTENT_WIDTH, scale)
                 assertTrue(
@@ -376,7 +376,7 @@ class PostsBreakpointsTest {
     fun `the longest real post is truncated for every design`() {
         assertEquals(1708, LONGEST_POST.length)
 
-        PostsCardSize.entries.forEach { design ->
+        FeedCardSize.entries.forEach { design ->
             val budget = textBudgetChars(design, MEDIUM_CONTENT_WIDTH, 1f)
             val drawn = truncateToBudget(LONGEST_POST, budget)
 
@@ -388,7 +388,7 @@ class PostsBreakpointsTest {
 
     @Test
     fun `text that fits is left exactly as it is`() {
-        val budget = textBudgetChars(PostsCardSize.LARGE, LARGE_CONTENT_WIDTH, 1f)
+        val budget = textBudgetChars(FeedCardSize.LARGE, LARGE_CONTENT_WIDTH, 1f)
 
         // No card carries an ellipsis it did not earn.
         assertEquals(TYPICAL_POST, truncateToBudget(TYPICAL_POST, budget))

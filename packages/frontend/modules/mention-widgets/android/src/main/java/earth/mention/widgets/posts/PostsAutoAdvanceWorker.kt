@@ -50,7 +50,7 @@ internal class PostsAutoAdvanceWorker(
         val power = applicationContext.getSystemService<PowerManager>()
         if (power?.isInteractive != true) return Result.success()
 
-        PostsRepository.advance(applicationContext)
+        PostsStore.advance(applicationContext)
         PostsWidget().updateAll(applicationContext)
         PostsRefreshScheduler.scheduleNextAutoAdvance(applicationContext)
         return Result.success()

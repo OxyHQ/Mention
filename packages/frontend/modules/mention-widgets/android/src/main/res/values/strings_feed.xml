@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Strings the FEED CARD shares — every widget built on `FeedCardContent` shows these.
+
+  Their own file, beside `strings_posts.xml` and `strings_following.xml`, because they belong to
+  the shared card rather than to either widget: the card is one implementation (see
+  `FeedCardLayout.kt`), so its copy is written once and translated once. A second copy per widget
+  is how two cards end up with two different words for the same button.
+
+  What is NOT here is anything that names a feed — the eyebrow, the empty message, the picker
+  label. Those live with the widget they describe.
+-->
+<resources>
+  <!-- The button on every card that has no post to show. -->
+  <string name="mention_feed_widget_open_app">Open Mention</string>
+
+  <!--
+    Read out by TalkBack for the whole card, which is one tap target. `%1$s` is the post's text
+    (already truncated as drawn) and `%2$s` the author's display name — in that order, because
+    that is the order the card is designed to be read in.
+  -->
+  <string name="mention_feed_widget_card_description">%1$s. Posted by %2$s.</string>
+  <!-- Stands in for the text of a post that has none — a bare link with a picture. -->
+  <string name="mention_feed_widget_no_text">A post with no text</string>
+
+  <!--
+    The card's rotation controls. Labels only — the controls are icons, so these are what
+    TalkBack announces and the only text a user ever hears for them. A widget cannot be swiped
+    (RemoteViews has no gestures), so these taps are the whole manual affordance.
+  -->
+  <string name="mention_feed_widget_previous">Previous post</string>
+  <string name="mention_feed_widget_next">Next post</string>
+</resources>

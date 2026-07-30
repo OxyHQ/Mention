@@ -1,4 +1,4 @@
-package earth.mention.widgets.posts
+package earth.mention.widgets.feedcard
 
 import androidx.compose.ui.unit.dp
 import org.junit.Assert.assertEquals
@@ -21,7 +21,7 @@ import org.junit.Test
  * Nothing here decodes anything — `BitmapFactory` is a stub off-device. What is pinned is
  * every size decided before a decode.
  */
-class PostsBitmapTest {
+class FeedCardBitmapsTest {
 
     private companion object {
         /**
@@ -43,9 +43,9 @@ class PostsBitmapTest {
     @Test
     fun `the worst-case bitmap payload stays inside its budget`() {
         assertTrue(
-            "worst case is $POSTS_WORST_CASE_BITMAP_BYTES bytes, over the " +
+            "worst case is $FEED_CARD_WORST_CASE_BITMAP_BYTES bytes, over the " +
                 "$PAYLOAD_BUDGET_BYTES budget — a widget this heavy renders blank",
-            POSTS_WORST_CASE_BITMAP_BYTES <= PAYLOAD_BUDGET_BYTES,
+            FEED_CARD_WORST_CASE_BITMAP_BYTES <= PAYLOAD_BUDGET_BYTES,
         )
     }
 
@@ -58,8 +58,8 @@ class PostsBitmapTest {
 
         assertTrue("avatars alone should not be the whole payload", avatarsOnly > 0)
         assertTrue(
-            "worst case $POSTS_WORST_CASE_BITMAP_BYTES is no more than the avatars ($avatarsOnly)",
-            POSTS_WORST_CASE_BITMAP_BYTES > avatarsOnly,
+            "worst case $FEED_CARD_WORST_CASE_BITMAP_BYTES is no more than the avatars ($avatarsOnly)",
+            FEED_CARD_WORST_CASE_BITMAP_BYTES > avatarsOnly,
         )
     }
 
@@ -72,8 +72,8 @@ class PostsBitmapTest {
             THUMBNAIL_CEILING_PIXELS * BYTES_PER_PIXEL
 
         assertTrue(
-            "worst case $POSTS_WORST_CASE_BITMAP_BYTES does not cover two compositions",
-            POSTS_WORST_CASE_BITMAP_BYTES >= oneComposition * 2,
+            "worst case $FEED_CARD_WORST_CASE_BITMAP_BYTES does not cover two compositions",
+            FEED_CARD_WORST_CASE_BITMAP_BYTES >= oneComposition * 2,
         )
     }
 
@@ -85,7 +85,7 @@ class PostsBitmapTest {
         var checked = 0
         SWEPT_WIDTHS.forEach { width ->
             SWEPT_HEIGHTS.forEach { height ->
-                val design = postsCardSize(width, height)
+                val design = feedCardSize(width, height)
                 (0..textMaxLines(design)).forEach { lines ->
                     val slotHeight = imageSlotHeight(
                         size = design,
@@ -189,7 +189,7 @@ class PostsBitmapTest {
 
     @Test
     fun `bytes are counted at four per pixel`() {
-        val size = PostsBitmapSize(widthPx = 10, heightPx = 10)
+        val size = FeedBitmapSize(widthPx = 10, heightPx = 10)
 
         assertEquals(100L, size.pixels)
         assertEquals(400L, size.bytes)
@@ -199,7 +199,7 @@ class PostsBitmapTest {
 
     @Test
     fun `a large source is sampled down to the smallest power of two that still covers the slot`() {
-        val slot = PostsBitmapSize(widthPx = 300, heightPx = 200)
+        val slot = FeedBitmapSize(widthPx = 300, heightPx = 200)
 
         // 2048/4 = 512, which still covers 300×200; 2048/8 = 256, which does not.
         assertEquals(4, sampleSizeFor(sourceWidth = 2048, sourceHeight = 2048, target = slot))
@@ -207,7 +207,7 @@ class PostsBitmapTest {
 
     @Test
     fun `a source no bigger than the slot is not sampled at all`() {
-        val slot = PostsBitmapSize(widthPx = 300, heightPx = 200)
+        val slot = FeedBitmapSize(widthPx = 300, heightPx = 200)
 
         // Sampling past the slot would upscale the picture into it and undo the point.
         assertEquals(1, sampleSizeFor(sourceWidth = 100, sourceHeight = 100, target = slot))
@@ -216,7 +216,7 @@ class PostsBitmapTest {
 
     @Test
     fun `sampling stops on the shorter axis`() {
-        val slot = PostsBitmapSize(widthPx = 100, heightPx = 100)
+        val slot = FeedBitmapSize(widthPx = 100, heightPx = 100)
 
         // A wide panorama: halving is bounded by the height, or the result would no longer
         // cover the slot vertically and would be stretched to fill it.
@@ -226,7 +226,7 @@ class PostsBitmapTest {
     @Test
     fun `a source with no dimensions is not sampled`() {
         // What `BitmapFactory` reports for a file that is not an image.
-        assertEquals(1, sampleSizeFor(0, 0, PostsBitmapSize(100, 100)))
-        assertEquals(1, sampleSizeFor(-1, 100, PostsBitmapSize(100, 100)))
+        assertEquals(1, sampleSizeFor(0, 0, FeedBitmapSize(100, 100)))
+        assertEquals(1, sampleSizeFor(-1, 100, FeedBitmapSize(100, 100)))
     }
 }

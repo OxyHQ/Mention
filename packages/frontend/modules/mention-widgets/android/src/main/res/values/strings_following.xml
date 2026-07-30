@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Strings that name the FOLLOWING widget and its feed.
+
+  The copy the card shares with the trending widget lives in `strings_feed.xml`; only what is
+  specific to this feed is here. That is four strings, and one of them exists for a reason no other
+  widget in this module has: this one can be signed out.
+-->
+<resources>
+  <!--
+    What the launcher's widget picker shows.
+
+    The label and description say WHOSE posts these are, because that is the whole difference from
+    the trending widget in the same picker — and because a reader deciding whether to put this on a
+    home screen should be able to tell from the picker that it will show their own timeline there.
+  -->
+  <string name="mention_following_widget_label">Following</string>
+  <string name="mention_following_widget_description">One post at a time from the accounts you follow. Needs you to be signed in.</string>
+
+  <!--
+    The brand row, above the post. All caps in the string itself: Glance's `TextStyle` has no
+    text-transform, and uppercasing per locale in code is not something a widget can do correctly
+    without one.
+  -->
+  <string name="mention_following_widget_eyebrow">FOLLOWING</string>
+
+  <!--
+    Shown before the first successful fetch, and for a reader who follows nobody yet — the two are
+    indistinguishable from here, and the sentence is true of both. Never replaces content.
+  -->
+  <string name="mention_following_widget_empty">Nothing here yet</string>
+
+  <!--
+    Shown when there is no session: never provisioned, expired, signed out, or the account was
+    switched away on this device.
+
+    It states a FACT and offers the action that fixes it, and it deliberately does not read as an
+    error — being signed out is not a malfunction. Two lines' worth of room is allowed for it on
+    the card (see `FeedCardMessage`), because clipping the one sentence that explains an empty
+    widget is worse than clipping a post.
+  -->
+  <string name="mention_following_widget_signed_out">Sign in to see the accounts you follow</string>
+</resources>

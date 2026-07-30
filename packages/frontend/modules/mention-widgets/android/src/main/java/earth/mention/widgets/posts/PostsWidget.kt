@@ -8,17 +8,24 @@ import androidx.glance.appwidget.GlanceAppWidget
 import androidx.glance.appwidget.SizeMode
 import androidx.glance.appwidget.provideContent
 import androidx.glance.state.GlanceStateDefinition
+import earth.mention.widgets.feedcard.FeedCardContent
+import earth.mention.widgets.feedcard.FeedCardState
 import earth.mention.widgets.theme.MentionGlanceTheme
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 
 /**
  * The trending-posts widget: ONE post from Explore at a time, rotating.
  *
- * The content comes from [PostsRepository], never from a fetch started here: composing
+ * The content comes from [PostsStore], never from a fetch started here: composing
  * happens while the launcher waits, so the only thing that touches the network is
  * `PostsRefreshWorker`. That separation is also what makes the widget survive an outage —
  * it draws whatever the store last held, with no notion of whether the fetch behind it
  * succeeded.
+ *
+ * It can never reach [FeedCardState.SignedOut]: Explore answers an unauthenticated request, so
+ * this widget has no session to lose. That is the one behavioural difference from the following
+ * widget, and it lives here rather than inside the shared card.
  */
 internal class PostsWidget : GlanceAppWidget() {
 
@@ -46,10 +53,10 @@ internal class PostsWidget : GlanceAppWidget() {
      * `views_bitmap_memory`) and exactly what the arithmetic in `PostsBitmapBudget.kt`
      * predicts. `Exact` composes the sizes the launcher actually offers, which is at most a
      * portrait and a landscape one, so the same parcel carries two of each at worst instead of
-     * five bitmaps. See [POSTS_WORST_CASE_BITMAP_BYTES] for how the bound is derived once
+     * five bitmaps. See [FEED_CARD_WORST_CASE_BITMAP_BYTES] for how the bound is derived once
      * there is no declared set to sum over.
      *
-     * The breakpoints are not lost: `postsCardSize` still decides what the card SHOWS — the
+     * The breakpoints are not lost: `feedCardSize` still decides what the card SHOWS — the
      * lines of text, the handle, the controls — from the height. It now decides that, and the
      * size of the picture, from the height the widget really has.
      */
@@ -63,16 +70,17 @@ internal class PostsWidget : GlanceAppWidget() {
     override val stateDefinition: GlanceStateDefinition<*>? = null
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
-        // Built once, outside the composition: `PostsRepository.rotation` returns a fresh
+        // Built once, outside the composition: `PostsStore.rotation` returns a fresh
         // Flow per call, and collecting a new instance on every recomposition would
         // resubscribe to DataStore each time.
-        val rotation = PostsRepository.rotation(context)
-        val initial = rotation.first()
+        val state = PostsStore.rotation(context, POSTS_ACCOUNT_ID)
+            .map { rotation -> FeedCardState.Rotating(rotation) }
+        val initial = state.first()
 
         provideContent {
-            val current by rotation.collectAsState(initial = initial)
+            val current by state.collectAsState(initial = initial)
             MentionGlanceTheme {
-                PostsWidgetContent(current)
+                FeedCardContent(spec = PostsCardSpec, state = current)
             }
         }
     }

@@ -1,4 +1,4 @@
-package earth.mention.widgets.posts
+package earth.mention.widgets.feedcard
 
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -15,7 +15,7 @@ import java.util.concurrent.TimeUnit
  * it wrong in the other and it freezes on one post forever, which is indistinguishable from
  * a broken widget.
  */
-class PostsRefreshTest {
+class FeedRefreshRulesTest {
 
     private companion object {
         val NOW = TimeUnit.DAYS.toMillis(20_000)
@@ -33,7 +33,7 @@ class PostsRefreshTest {
         )
 
         fun rotation(fetchedAtMs: Long, posts: List<WidgetPost> = POSTS) =
-            PostsRotation(posts = posts, index = 0, fetchedAtMs = fetchedAtMs)
+            FeedRotation(posts = posts, index = 0, fetchedAtMs = fetchedAtMs)
     }
 
     @Test

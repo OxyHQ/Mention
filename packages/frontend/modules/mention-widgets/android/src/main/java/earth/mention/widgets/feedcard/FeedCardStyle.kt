@@ -1,4 +1,4 @@
-package earth.mention.widgets.posts
+package earth.mention.widgets.feedcard
 
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpSize
@@ -34,11 +34,11 @@ import kotlin.math.ceil
  *
  * The payload still has to be bounded, and with no declared size set it is bounded by
  * the per-bitmap pixel ceilings rather than by a table: see
- * [POSTS_WORST_CASE_BITMAP_BYTES].
+ * [FEED_CARD_WORST_CASE_BITMAP_BYTES].
  */
 
 /** Which of the three designs a given placement gets. */
-internal enum class PostsCardSize {
+internal enum class FeedCardSize {
     SMALL,
     MEDIUM,
     LARGE,
@@ -55,7 +55,7 @@ internal enum class PostsCardSize {
  * rely on it as a maximum; the payload is bounded by the per-bitmap pixel ceilings in
  * `PostsBitmapBudget.kt`, which hold at any size a launcher can invent.
  */
-internal val POSTS_MAX_PLACEMENT: DpSize = DpSize(320.dp, 460.dp)
+internal val FEED_CARD_MAX_PLACEMENT: DpSize = DpSize(320.dp, 460.dp)
 
 /**
  * Cell-grid thresholds, in the launcher's own `70 × cells − 30` dp conversion
@@ -76,13 +76,13 @@ private val LARGE_MIN_WIDTH = 320.dp
  * A launcher may hand over a size no breakpoint declared, so the boundaries are
  * inclusive floors rather than equality tests against the declared set.
  */
-internal fun postsCardSize(width: Dp, height: Dp): PostsCardSize = when {
-    height >= LARGE_MIN_HEIGHT && width >= LARGE_MIN_WIDTH -> PostsCardSize.LARGE
-    height >= MEDIUM_MIN_HEIGHT -> PostsCardSize.MEDIUM
-    else -> PostsCardSize.SMALL
+internal fun feedCardSize(width: Dp, height: Dp): FeedCardSize = when {
+    height >= LARGE_MIN_HEIGHT && width >= LARGE_MIN_WIDTH -> FeedCardSize.LARGE
+    height >= MEDIUM_MIN_HEIGHT -> FeedCardSize.MEDIUM
+    else -> FeedCardSize.SMALL
 }
 
-internal object PostsCardDimensions {
+internal object FeedCardDimensions {
     /**
      * Padding inside the card. M3's card content padding is 16dp; the small design
      * falls back to the 12dp every other widget surface in this module uses, because
@@ -153,10 +153,10 @@ internal object PostsCardDimensions {
 }
 
 /** Padding inside a card of this design. */
-internal fun cardPadding(size: PostsCardSize): Dp = if (size == PostsCardSize.SMALL) {
-    PostsCardDimensions.PADDING_SMALL
+internal fun cardPadding(size: FeedCardSize): Dp = if (size == FeedCardSize.SMALL) {
+    FeedCardDimensions.PADDING_SMALL
 } else {
-    PostsCardDimensions.PADDING
+    FeedCardDimensions.PADDING
 }
 
 /**
@@ -171,15 +171,15 @@ internal fun cardPadding(size: PostsCardSize): Dp = if (size == PostsCardSize.SM
  * A rotation of one has nowhere to step to, and the small design has no room for a 48dp
  * row — see `RotationControlRow` for both.
  */
-internal fun showsRotationControls(size: PostsCardSize, rotationLength: Int): Boolean =
-    rotationLength > 1 && size != PostsCardSize.SMALL
+internal fun showsRotationControls(size: FeedCardSize, rotationLength: Int): Boolean =
+    rotationLength > 1 && size != FeedCardSize.SMALL
 
 /**
  * Height of the picture: WHATEVER THE REST OF THE CARD DOES NOT NEED, or `null` when
  * that is not enough to draw a photograph in.
  *
  * The slot is still a BOUNDED BAND whose height is known before the bitmap is decoded —
- * that has not changed and cannot: `PostsImageRenderer.decodeCropped` crops to the slot's
+ * that has not changed and cannot: `FeedImageRenderer.decodeCropped` crops to the slot's
  * exact aspect ratio and the picture is then drawn with `ContentScale.FillBounds`, so a
  * slot of unknown height (a Glance `defaultWeight`, say) would distort the photograph
  * rather than merely mis-size it. Nor does the slot take the image's OWN aspect ratio: a
@@ -198,7 +198,7 @@ internal fun showsRotationControls(size: PostsCardSize, rotationLength: Int): Bo
  * what makes this reservation exact instead of hopeful.
  */
 internal fun imageSlotHeight(
-    size: PostsCardSize,
+    size: FeedCardSize,
     widgetHeight: Dp,
     textLines: Int,
     showsRotationControls: Boolean,
@@ -207,11 +207,11 @@ internal fun imageSlotHeight(
     // The small design gives the picture up, not because the arithmetic says so but
     // because that is what it IS: the design that keeps a brand row, two lines and a
     // byline when there is nothing else to give.
-    if (size == PostsCardSize.SMALL) return null
+    if (size == FeedCardSize.SMALL) return null
 
     val available = widgetHeight -
         cardHeightWithoutImage(size, textLines, showsRotationControls, fontScale)
-    return if (available >= PostsCardDimensions.MIN_IMAGE_HEIGHT) available else null
+    return if (available >= FeedCardDimensions.MIN_IMAGE_HEIGHT) available else null
 }
 
 /**
@@ -228,31 +228,31 @@ internal fun imageSlotHeight(
  * gap it sits under was not counted.
  */
 internal fun cardHeightWithoutImage(
-    size: PostsCardSize,
+    size: FeedCardSize,
     textLines: Int,
     showsRotationControls: Boolean,
     fontScale: Float,
 ): Dp {
     val brandRow = maxOf(
-        PostsCardDimensions.BRAND_MARK_SIZE,
+        FeedCardDimensions.BRAND_MARK_SIZE,
         textBlockHeight(BRAND_FONT_SIZE_SP, lines = 1, fontScale = fontScale),
     )
     val text = if (textLines > 0) {
-        PostsCardDimensions.BLOCK_SPACING +
+        FeedCardDimensions.BLOCK_SPACING +
             textBlockHeight(textFontSizeSp(size), textLines, fontScale)
     } else {
         0.dp
     }
     // The avatar is the tallest thing in the byline until the reader's font scale makes
     // the name taller than it.
-    val byline = PostsCardDimensions.BLOCK_SPACING + maxOf(
-        PostsCardDimensions.AVATAR_SIZE,
+    val byline = FeedCardDimensions.BLOCK_SPACING + maxOf(
+        FeedCardDimensions.AVATAR_SIZE,
         textBlockHeight(BYLINE_NAME_FONT_SIZE_SP, lines = 1, fontScale = fontScale),
     )
-    val controls = if (showsRotationControls) PostsCardDimensions.CONTROL_SIZE else 0.dp
+    val controls = if (showsRotationControls) FeedCardDimensions.CONTROL_SIZE else 0.dp
 
     return cardPadding(size) * 2 + brandRow + text +
-        PostsCardDimensions.BLOCK_SPACING + byline + controls
+        FeedCardDimensions.BLOCK_SPACING + byline + controls
 }
 
 /**
@@ -291,10 +291,10 @@ private const val TEXT_FONT_PADDING_RATIO = 0.2f
  * how much text there actually is, so a short post leaves its unused lines to the
  * picture instead of holding space it will not fill.
  */
-internal fun textMaxLines(size: PostsCardSize): Int = when (size) {
-    PostsCardSize.SMALL -> 2
-    PostsCardSize.MEDIUM -> 3
-    PostsCardSize.LARGE -> 5
+internal fun textMaxLines(size: FeedCardSize): Int = when (size) {
+    FeedCardSize.SMALL -> 2
+    FeedCardSize.MEDIUM -> 3
+    FeedCardSize.LARGE -> 5
 }
 
 /**
@@ -313,7 +313,7 @@ internal fun textMaxLines(size: PostsCardSize): Int = when (size) {
  * picture) and the case the extra room is most worth having.
  */
 internal fun textLinesFor(
-    size: PostsCardSize,
+    size: FeedCardSize,
     textLength: Int,
     availableWidthDp: Float,
     fontScale: Float,
@@ -325,10 +325,10 @@ internal fun textLinesFor(
 }
 
 /** Font size the post's text draws at, in sp. M3 Title Medium, up to Title Large. */
-private fun textFontSizeSp(size: PostsCardSize): Float = when (size) {
-    PostsCardSize.SMALL -> 15f
-    PostsCardSize.MEDIUM -> 17f
-    PostsCardSize.LARGE -> 20f
+private fun textFontSizeSp(size: FeedCardSize): Float = when (size) {
+    FeedCardSize.SMALL -> 15f
+    FeedCardSize.MEDIUM -> 17f
+    FeedCardSize.LARGE -> 20f
 }
 
 /** The brand row's label, and the byline's name — the two the height arithmetic reads. */
@@ -363,7 +363,7 @@ private const val MIN_SYSTEM_FONT_SCALE = 0.85f
  * see. Both are truncation; only one of them throws away room that was available.
  */
 internal fun textBudgetChars(
-    size: PostsCardSize,
+    size: FeedCardSize,
     availableWidthDp: Float,
     fontScale: Float,
 ): Int = (charsPerLine(size, availableWidthDp, fontScale) * textMaxLines(size))
@@ -378,7 +378,7 @@ internal fun textBudgetChars(
  * degenerate width or font size, which the callers treat as "no text".
  */
 private fun charsPerLine(
-    size: PostsCardSize,
+    size: FeedCardSize,
     availableWidthDp: Float,
     fontScale: Float,
 ): Float {
@@ -390,7 +390,7 @@ private fun charsPerLine(
 
 /**
  * The largest budget any design can reach at the widest placement the provider asks for
- * ([POSTS_MAX_PLACEMENT]) and the smallest font scale Android offers.
+ * ([FEED_CARD_MAX_PLACEMENT]) and the smallest font scale Android offers.
  *
  * Derived from the breakpoint table above rather than written down, so it cannot fall
  * out of step with it — which matters because [MAX_STORED_TEXT_CHARS] is this number,
@@ -401,10 +401,10 @@ private fun charsPerLine(
  * store keeps, so it draws all of the stored text with no ellipsis — never less than it
  * stored, which is the direction that costs the reader nothing visible.
  */
-internal val LARGEST_TEXT_BUDGET_CHARS: Int = PostsCardSize.entries.maxOf { size ->
+internal val LARGEST_TEXT_BUDGET_CHARS: Int = FeedCardSize.entries.maxOf { size ->
     textBudgetChars(
         size = size,
-        availableWidthDp = POSTS_MAX_PLACEMENT.width.value - cardPadding(size).value * 2,
+        availableWidthDp = FEED_CARD_MAX_PLACEMENT.width.value - cardPadding(size).value * 2,
         fontScale = MIN_SYSTEM_FONT_SCALE,
     )
 }
@@ -457,7 +457,7 @@ private const val MIN_WORD_BOUNDARY_FRACTION = 0.5f
  * its text sits on `onPrimaryContainer`, while the image slot's own fallback sits on a
  * different pair.
  */
-internal object PostsCardTextStyles {
+internal object FeedCardTextStyles {
     /** The brand row: M3 Label Medium, Medium weight. */
     fun brand(color: ColorProvider) = TextStyle(
         color = color,
@@ -470,7 +470,7 @@ internal object PostsCardTextStyles {
      * Expressive is legible on a surface that cannot animate: emphasis here is type
      * size and weight, not motion or a morphing shape.
      */
-    fun body(color: ColorProvider, size: PostsCardSize) = TextStyle(
+    fun body(color: ColorProvider, size: FeedCardSize) = TextStyle(
         color = color,
         fontWeight = FontWeight.Medium,
         fontSize = textFontSizeSp(size).sp,

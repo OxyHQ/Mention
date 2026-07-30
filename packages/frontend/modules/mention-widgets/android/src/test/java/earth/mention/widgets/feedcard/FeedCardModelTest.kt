@@ -1,4 +1,4 @@
-package earth.mention.widgets.posts
+package earth.mention.widgets.feedcard
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -19,7 +19,7 @@ import org.junit.Test
  * which fails in a way that looks like a working card in code: a card repeating the same
  * sentence twice, a slot with a hole in it, a rotation that crashes on an index.
  */
-class PostsModelTest {
+class FeedCardModelTest {
 
     private companion object {
         /**
@@ -98,7 +98,7 @@ class PostsModelTest {
 
     @Test
     fun `a link posts card shows the preview title, not the text with its URL`() {
-        val post = parsePostsResponse(body(LINK_POST)).single()
+        val post = parseFeedResponse(body(LINK_POST)).single()
 
         // The whole point: the two strings are the same sentence, and the preview's is the
         // one without the URL welded to the end.
@@ -108,7 +108,7 @@ class PostsModelTest {
 
     @Test
     fun `the post text is used when there is no preview`() {
-        val post = parsePostsResponse(body(TEXT_POST)).single()
+        val post = parseFeedResponse(body(TEXT_POST)).single()
 
         assertTrue(post.text.startsWith("Analog Devices"))
     }
@@ -152,14 +152,14 @@ class PostsModelTest {
 
     @Test
     fun `a link post falls back to its preview image`() {
-        val post = parsePostsResponse(body(LINK_POST)).single()
+        val post = parseFeedResponse(body(LINK_POST)).single()
 
         assertEquals("https://cloud.oxy.so/6a6a7ef1ab026eb594ddb4d4?variant=w320", post.imageUrl)
     }
 
     @Test
     fun `a media post uses the servers thumbnail URL and never builds one from the id`() {
-        val post = parsePostsResponse(body(MEDIA_POST)).single()
+        val post = parseFeedResponse(body(MEDIA_POST)).single()
 
         assertEquals("https://cloud.oxy.so/6a6a7cf7ab026eb594ddb1a5?variant=w320", post.imageUrl)
         // For a federated post `id` is the ORIGINAL remote URL, so a card that resolved
@@ -169,7 +169,7 @@ class PostsModelTest {
 
     @Test
     fun `a text post has no image at all`() {
-        val post = parsePostsResponse(body(TEXT_POST)).single()
+        val post = parseFeedResponse(body(TEXT_POST)).single()
 
         // `null`, not an empty string: the slot is not drawn, so there is no gap to collapse.
         assertNull(post.imageUrl)
@@ -185,16 +185,16 @@ class PostsModelTest {
     fun `alt text is carried when the author wrote one and is null otherwise`() {
         assertEquals(
             "A cat asleep on a keyboard",
-            parsePostsResponse(body(MEDIA_POST)).single().imageAlt,
+            parseFeedResponse(body(MEDIA_POST)).single().imageAlt,
         )
-        assertNull(parsePostsResponse(body(TEXT_POST)).single().imageAlt)
+        assertNull(parseFeedResponse(body(TEXT_POST)).single().imageAlt)
     }
 
     // ── Parsing ─────────────────────────────────────────────────────────────────────
 
     @Test
     fun `the real response shape is read from data items`() {
-        val posts = parsePostsResponse(body(LINK_POST, MEDIA_POST, TEXT_POST))
+        val posts = parseFeedResponse(body(LINK_POST, MEDIA_POST, TEXT_POST))
 
         assertEquals(3, posts.size)
         assertEquals("6a6a82f9c1d2e3f4a5b60001", posts[0].id)
@@ -207,7 +207,7 @@ class PostsModelTest {
 
     @Test
     fun `no more than the requested number of posts is kept`() {
-        val posts = parsePostsResponse(body(LINK_POST, MEDIA_POST, TEXT_POST), limit = 2)
+        val posts = parseFeedResponse(body(LINK_POST, MEDIA_POST, TEXT_POST), limit = 2)
 
         assertEquals(2, posts.size)
     }
@@ -220,7 +220,7 @@ class PostsModelTest {
 
         // The id is the deep-link target and the name is the whole byline: a card missing
         // either could be attributed to anyone or open nothing.
-        assertEquals(0, parsePostsResponse(body(noId, noName, noUser)).size)
+        assertEquals(0, parseFeedResponse(body(noId, noName, noUser)).size)
     }
 
     @Test
@@ -235,7 +235,7 @@ class PostsModelTest {
         """.trimIndent()
 
         // Dropping it would make the position pips lie about the length of the rotation.
-        val post = parsePostsResponse(body(bare)).single()
+        val post = parseFeedResponse(body(bare)).single()
         assertEquals("", post.text)
         assertNull(post.imageUrl)
     }
@@ -252,7 +252,7 @@ class PostsModelTest {
             }
         """.trimIndent()
 
-        val post = parsePostsResponse(body(degraded)).single()
+        val post = parseFeedResponse(body(degraded)).single()
         assertEquals("", post.authorHandle)
         assertEquals("", bylineHandle(post))
     }
@@ -261,7 +261,7 @@ class PostsModelTest {
 
     @Test
     fun `posts survive a round trip through the store`() {
-        val original = parsePostsResponse(body(LINK_POST, MEDIA_POST, TEXT_POST))
+        val original = parseFeedResponse(body(LINK_POST, MEDIA_POST, TEXT_POST))
 
         assertEquals(original, decodePosts(encodePosts(original)))
     }
@@ -295,7 +295,7 @@ class PostsModelTest {
 
     @Test
     fun `an index past the end of a shrunken rotation wraps instead of crashing`() {
-        val posts = parsePostsResponse(body(LINK_POST, MEDIA_POST))
+        val posts = parseFeedResponse(body(LINK_POST, MEDIA_POST))
 
         // A fetch that returns two posts where the last returned five leaves a stored index
         // pointing past the end.
@@ -332,7 +332,7 @@ class PostsModelTest {
 
     @Test
     fun `a full cycle visits every post exactly once`() {
-        val posts = parsePostsResponse(body(LINK_POST, MEDIA_POST, TEXT_POST))
+        val posts = parseFeedResponse(body(LINK_POST, MEDIA_POST, TEXT_POST))
         var index = 0
         val seen = mutableListOf<String>()
 

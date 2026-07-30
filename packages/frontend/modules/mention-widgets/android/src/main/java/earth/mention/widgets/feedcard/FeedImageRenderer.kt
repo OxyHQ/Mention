@@ -1,4 +1,4 @@
-package earth.mention.widgets.posts
+package earth.mention.widgets.feedcard
 
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
@@ -27,9 +27,9 @@ import kotlin.math.max
  * Everything that decides HOW BIG the bitmap is lives in `PostsBitmapBudget.kt` and is
  * unit tested. This file is the `android.graphics` calls, which are stubs off-device.
  */
-internal object PostsImageRenderer {
+internal object FeedImageRenderer {
 
-    private const val TAG = "MentionPostsWidget"
+    private const val TAG = "MentionFeedWidget"
 
     /**
      * Decode [file] into a [size] bitmap with [cornerRadiusPx] corners, cropped to fill.
@@ -39,7 +39,7 @@ internal object PostsImageRenderer {
      * draws no image in that case, which is the same thing it does for a post that has
      * no image at all, so a failure here costs a picture and never a card.
      */
-    fun decodeCropped(file: File, size: PostsBitmapSize, cornerRadiusPx: Float): Bitmap? {
+    fun decodeCropped(file: File, size: FeedBitmapSize, cornerRadiusPx: Float): Bitmap? {
         val source = decodeSampled(file, size) ?: return null
         return try {
             cropToFill(source, size, cornerRadiusPx)
@@ -57,7 +57,7 @@ internal object PostsImageRenderer {
     }
 
     /** As [decodeCropped], but round: the byline's avatar. */
-    fun decodeCircular(file: File, size: PostsBitmapSize): Bitmap? =
+    fun decodeCircular(file: File, size: FeedBitmapSize): Bitmap? =
         decodeCropped(file, size, cornerRadiusPx = max(size.widthPx, size.heightPx) / 2f)
 
     /**
@@ -68,7 +68,7 @@ internal object PostsImageRenderer {
      * going into is 30,000 pixels. Powers of two are all `BitmapFactory` honours, which
      * is why the exact size is reached by the scaling draw afterwards rather than here.
      */
-    private fun decodeSampled(file: File, target: PostsBitmapSize): Bitmap? {
+    private fun decodeSampled(file: File, target: FeedBitmapSize): Bitmap? {
         if (!file.isFile || file.length() == 0L) return null
 
         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
@@ -94,7 +94,7 @@ internal object PostsImageRenderer {
      * cropping shows the middle of the picture — which is what a reader expects from
      * every other image in a feed.
      */
-    private fun cropToFill(source: Bitmap, size: PostsBitmapSize, cornerRadiusPx: Float): Bitmap {
+    private fun cropToFill(source: Bitmap, size: FeedBitmapSize, cornerRadiusPx: Float): Bitmap {
         val scale = max(
             size.widthPx.toFloat() / source.width.toFloat(),
             size.heightPx.toFloat() / source.height.toFloat(),
@@ -140,7 +140,7 @@ internal object PostsImageRenderer {
  * Pure, and separated from the decode for that reason: this is the part that can be
  * wrong.
  */
-internal fun sampleSizeFor(sourceWidth: Int, sourceHeight: Int, target: PostsBitmapSize): Int {
+internal fun sampleSizeFor(sourceWidth: Int, sourceHeight: Int, target: FeedBitmapSize): Int {
     if (sourceWidth <= 0 || sourceHeight <= 0) return 1
     var sample = 1
     while (

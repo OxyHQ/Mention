@@ -1,4 +1,4 @@
-package earth.mention.widgets.posts
+package earth.mention.widgets.feedcard
 
 import android.content.Context
 import android.util.Log
@@ -25,29 +25,43 @@ import java.util.concurrent.TimeUnit
  * — not the whole rotation's. Rotating is the mechanism that makes this widget cheap: at
  * any moment the cache needs two files, and [prune] is what keeps that true over months
  * of use rather than accumulating every image the feed has ever shown.
+ *
+ * ONE INSTANCE PER WIDGET FAMILY, each with its OWN [directoryName]. They are separate
+ * directories because [prune] is exact — it deletes every file the rotation it was given does
+ * not name — so a shared directory would have each widget's refresh evicting the other's
+ * pictures, and both would re-download them twice an hour forever. The cost of separating them
+ * is that a post appearing in both feeds is stored twice, a few tens of kilobytes; the
+ * alternative is either that mutual eviction or a prune that has to reach into a sibling
+ * widget's store to know what to keep.
  */
-internal object PostsImageCache {
-
-    private const val TAG = "MentionPostsWidget"
-
-    /** Subdirectory of the app's cache dir. Cache, so the system may clear it at will. */
-    private const val CACHE_DIRECTORY = "mention_widget_posts_images"
-
-    private val CONNECT_TIMEOUT_MS = TimeUnit.SECONDS.toMillis(10).toInt()
-    private val READ_TIMEOUT_MS = TimeUnit.SECONDS.toMillis(20).toInt()
+internal class FeedImageCache(private val directoryName: String) {
 
     /**
-     * Most bytes read from one image.
+     * The invariants, which are the same for every instance — only the directory differs.
      *
-     * The URLs the widget is handed are thumbnails and avatars, tens of kilobytes each,
-     * so this is not a budget — it is a bound on a response that turns out not to be
-     * what it claimed. Without it a mis-resolved URL pointing at a video file would be
-     * streamed to the device's disk in full, on a metered connection, in the background.
+     * A companion rather than class-body properties because `const val` is not legal in a
+     * class body, and because one copy of these is correct: two caches do not want two
+     * different timeouts.
      */
-    private const val MAX_IMAGE_BYTES = 4L * 1024 * 1024
+    private companion object {
+        private const val TAG = "MentionFeedWidget"
 
-    /** Read buffer. 16KB is the JDK's own default for stream copies. */
-    private const val COPY_BUFFER_BYTES = 16 * 1024
+        private val CONNECT_TIMEOUT_MS = TimeUnit.SECONDS.toMillis(10).toInt()
+        private val READ_TIMEOUT_MS = TimeUnit.SECONDS.toMillis(20).toInt()
+
+        /**
+         * Most bytes read from one image.
+         *
+         * The URLs the widget is handed are thumbnails and avatars, tens of kilobytes each,
+         * so this is not a budget — it is a bound on a response that turns out not to be
+         * what it claimed. Without it a mis-resolved URL pointing at a video file would be
+         * streamed to the device's disk in full, on a metered connection, in the background.
+         */
+        private const val MAX_IMAGE_BYTES = 4L * 1024 * 1024
+
+        /** Read buffer. 16KB is the JDK's own default for stream copies. */
+        private const val COPY_BUFFER_BYTES = 16 * 1024
+    }
 
     /**
      * Whether [url] is one the widget is willing to fetch.
@@ -88,7 +102,7 @@ internal object PostsImageCache {
     }
 
     private fun directory(context: Context): File =
-        File(context.applicationContext.cacheDir, CACHE_DIRECTORY)
+        File(context.applicationContext.cacheDir, directoryName)
 
     /**
      * The cached file for [url] if it is ALREADY on disk, and `null` otherwise.

@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Home-screen sizes for the FOLLOWING widget, in the launcher's own grid units.
+
+  Identical to the trending-posts widget's, and that is the point rather than a copy-paste: both
+  widgets draw the SAME card (`FeedCardContent`), whose three designs are declared once in
+  `FEED_CARD_SIZES`. A provider that offered a placement the card was not drawn for would land on
+  a design it does not have.
+
+  Every value is `70 × cells − 30` dp, the conversion the App Widget sizing guide gives for turning
+  a cell count into the `minWidth` / `minHeight` a provider must declare
+  (developer.android.com/develop/ui/views/appwidgets § "Determine widget sizing"):
+
+      2 cells → 110dp    3 cells → 180dp    4 cells → 250dp    5 cells → 320dp
+
+  They are separate resources rather than shared with the posts widget because a provider XML
+  cannot be shared — each provider needs its own — and pointing two providers at one set of dimens
+  would make retuning one silently retune the other.
+-->
+<resources>
+  <!--
+    Default placement: 4 cells wide by 3 tall — the design with the image slot, which is the one
+    worth meeting the widget as.
+  -->
+  <dimen name="mention_following_widget_min_width">250dp</dimen>
+  <dimen name="mention_following_widget_min_height">180dp</dimen>
+
+  <!--
+    The resize floor is 4 cells WIDE but only 2 tall. A post is a paragraph of text, and at 110dp
+    across there is room for about three words per line, so letting it shrink that far would offer
+    a size at which the card cannot do its job. Vertically it does shrink, to the design that drops
+    the image and the rotation controls.
+  -->
+  <dimen name="mention_following_widget_min_resize_width">250dp</dimen>
+  <dimen name="mention_following_widget_min_resize_height">110dp</dimen>
+
+  <!--
+    The ceiling is where the card runs out of content to reveal — five lines of text, a 120dp image,
+    a byline and the control row — so a larger placement would only stretch what is there.
+  -->
+  <dimen name="mention_following_widget_max_resize_width">320dp</dimen>
+  <dimen name="mention_following_widget_max_resize_height">320dp</dimen>
+</resources>

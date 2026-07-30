@@ -1,4 +1,4 @@
-package earth.mention.widgets.posts
+package earth.mention.widgets.feedcard
 
 import android.content.Context
 import android.net.Uri
@@ -8,13 +8,13 @@ import earth.mention.widgets.R
  * Turning a [WidgetPost] into the things the launcher shows and opens.
  *
  * Everything here needs a `Context` — a string resource, or a configured origin — which
- * is what separates it from `PostsModel.kt`. Every rule mirrors an existing in-app one
+ * is what separates it from `FeedCardModel.kt`. Every rule mirrors an existing in-app one
  * and cites it: a post has to read and behave the same on the home screen as it does in
  * the app, and a widget is the surface where a divergence is least likely to be noticed.
  */
 
 /** Web origin the widget deep-links into; see `res/values/config.xml`. */
-private fun webBaseUrl(context: Context): String =
+internal fun webBaseUrl(context: Context): String =
     context.getString(R.string.mention_widget_web_base_url).trimEnd('/')
 
 /**
@@ -27,8 +27,6 @@ private fun webBaseUrl(context: Context): String =
 internal fun postUrl(context: Context, post: WidgetPost): String =
     "${webBaseUrl(context)}/p/${Uri.encode(post.id)}"
 
-/** Where the brand row goes: the Explore feed this rotation is drawn from. */
-internal fun exploreScreenUrl(context: Context): String = "${webBaseUrl(context)}/explore"
 
 /**
  * Absolute URL for an Oxy media reference, at [variant].
@@ -104,7 +102,7 @@ internal fun bylineHandle(post: WidgetPost): String =
  */
 internal fun cardContentDescription(context: Context, post: WidgetPost, text: String): String =
     context.getString(
-        R.string.mention_posts_widget_card_description,
-        text.ifEmpty { context.getString(R.string.mention_posts_widget_no_text) },
+        R.string.mention_feed_widget_card_description,
+        text.ifEmpty { context.getString(R.string.mention_feed_widget_no_text) },
         post.authorName,
     )

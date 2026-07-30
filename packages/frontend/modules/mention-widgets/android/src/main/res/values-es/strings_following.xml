@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="mention_following_widget_label">Siguiendo</string>
+  <string name="mention_following_widget_description">Una publicación a la vez de las cuentas que sigues. Necesitas iniciar sesión.</string>
+
+  <string name="mention_following_widget_eyebrow">SIGUIENDO</string>
+
+  <string name="mention_following_widget_empty">Aún no hay nada aquí</string>
+
+  <string name="mention_following_widget_signed_out">Inicia sesión para ver las cuentas que sigues</string>
+</resources>
