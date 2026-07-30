@@ -31,11 +31,16 @@ import type { IReport } from '../../models/Report.model';
 /**
  * The material could not be described, because nothing can describe it.
  *
- * Unreachable through the API — `POST /reports` refuses a type the registry does not
- * cover — so this is a defect, not a state: a report row whose type has no provider,
- * which today can only mean a document that predates the registry. `retryable: false`
- * dead-letters the outbox event so the reconciliation sweep counts it and a human
- * looks, rather than the report sitting in a local state that nothing alerts on.
+ * This is a DEFECT, not a state, and it should be unreachable. A report whose type has
+ * no subject provider never gets a delivery event in the first place — intake decides
+ * that from the same registry this module reads — so an event that arrives here has
+ * been created by something that bypassed `ReportIntakeService`, or by a deployment
+ * where a provider was removed while its reports were still in flight.
+ *
+ * `retryable: false` therefore dead-letters the outbox event, so the reconciliation
+ * sweep counts it and a human looks. The alternative — writing a local state — would
+ * file a genuine defect in the one place that looks identical to the deliberate
+ * local-only reports and nothing would ever alert on it.
  *
  * Separate from "the object is gone": a deleted object is a fact about the world and
  * closes the report normally.

@@ -23,11 +23,15 @@
  * `submitted` has been accepted by CrowdSource and is waiting for a jury; it has
  * not been judged, and nothing in this union ever means "the content was bad".
  *
- * There is deliberately no state meaning "stored, and nothing will ever happen to
- * it". A report Mention cannot act on is REFUSED at the API rather than accepted
- * into a terminal state: accepting it would tell a reporter their report was
- * received when nothing would ever read it again, and nothing would alert on a
- * queue that was designed never to drain.
+ * `received` is the state that means "stored, and not sent for review" — a report
+ * about a kind of object this application has no subject provider for, and the state
+ * every report written before the integration existed reads as. It is deliberately
+ * NOT the same as `closed` (a case that ended) or `delivery_failed` (a route that
+ * exists and did not work). The distinction is load-bearing: the reconciliation sweep
+ * re-derives a missing delivery event for `queued` and `delivery_failed` and must
+ * never do so for `received`, or a report with nothing to deliver would be retried
+ * until it dead-lettered. It counts them instead, so a surface designed never to
+ * drain is at least measured.
  */
 export type ModerationLocalStatus =
   | 'received'

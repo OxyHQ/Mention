@@ -13,10 +13,6 @@ import {
   DuplicateReportError,
   createReport,
 } from '../services/moderation/ReportIntakeService';
-import {
-  isReportableType,
-  reportableTypes,
-} from '../services/moderation/subjects/registry';
 import { logger } from '../utils/logger';
 import { queryInt } from '../utils/queryParams';
 
@@ -62,10 +58,10 @@ function toReceipt(report: ReportFields & { _id: unknown }): ModerationReportRec
  * Create a report
  * POST /api/reports
  *
- * 201 means the report row and its durable delivery event committed together
- * (§7.1). It never means CrowdSource accepted anything — no outbound request is
- * made here, and the reporter is not made to wait for a third party to be
- * reachable.
+ * 201 means the report was stored — together with its durable delivery event, when
+ * the reported type has one (§7.1). It never means CrowdSource accepted anything: no
+ * outbound request is made here, and the reporter is not made to wait for a third
+ * party to be reachable.
  */
 router.post('/', async (req: AuthRequest, res: Response) => {
   try {
@@ -84,20 +80,19 @@ router.post('/', async (req: AuthRequest, res: Response) => {
     }
 
     /**
-     * Validate reportedType against what Mention can actually moderate, not merely
-     * against the stored enum.
+     * The stored enum is the API contract — NOT the subject registry.
      *
-     * The registry is the authority because the constraint is about OWNERSHIP, not
-     * capability: `applicationId` comes off the credential, so a report Mention
-     * submits opens a case in Mention's tenant — and a case about an object another
-     * application owns cannot be enforced here and collides with that application's
-     * own case for the same object. Refusing is the honest answer; accepting into a
-     * terminal local state would tell the reporter their report was received while
-     * nothing would ever read it again.
+     * A type the registry has no provider for is accepted and stored locally; only a
+     * type this application has no concept of at all is refused. Gating here on the
+     * registry instead was tried and reverted: it turns adopting CrowdSource into a
+     * breaking change for every report surface not yet wired to it, which is exactly
+     * what has to not happen for the next six Oxy apps to adopt this one subject type
+     * at a time. Whether a report went for review is answered by `localStatus` on the
+     * receipt below, not by a refusal.
      */
-    if (!isReportableType(reportedType)) {
+    if (!Object.values(ReportedType).includes(reportedType)) {
       return res.status(400).json({
-        message: `Invalid reportedType. Must be one of: ${reportableTypes().join(', ')}`
+        message: `Invalid reportedType. Must be one of: ${Object.values(ReportedType).join(', ')}`
       });
     }
 

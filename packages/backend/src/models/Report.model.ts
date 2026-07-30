@@ -21,14 +21,20 @@ import type {
 /**
  * The objects Mention accepts reports about.
  *
- * Deliberately NOT widened to cover everything the app's UI offers. `applicationId`
- * comes off the service credential, so a report Mention submits opens a case in
- * MENTION's tenant — and a case about an object Mention does not own cannot be
- * snapshotted, cannot be enforced, and would collide with the owning application's
- * own case for the same object under a different tenant. See
- * `services/moderation/subjects/registry.ts`.
+ * This is the API contract, and it is deliberately WIDER than the set of types that
+ * reach CrowdSource. Whether a report can be sent for review is a property of
+ * `services/moderation/subjects/registry.ts` — a type with a subject provider is
+ * delivered, a type without one is stored locally and nothing more. Rejecting the
+ * types with no provider was tried and reverted: it breaks the application's own
+ * existing report surfaces the moment the integration is adopted, which is the one
+ * property that has to hold for the other six Oxy apps to adopt it incrementally.
  *
- * `MESSAGE` predates this and has never had a caller in Mention's UI (direct
+ * `ROOM` is the case that forced the distinction. Mention owns the live-room
+ * EXPERIENCE (`LiveRoomContext`, the room UI) but persists no Room document, so
+ * there is nothing to snapshot and §5.6's "pin the exact version reported" cannot be
+ * satisfied without capturing audio. A room report is therefore genuinely local-only.
+ *
+ * `MESSAGE` predates all of this and has never had a caller in Mention's UI (direct
  * messages are Allo's). It is kept because removing an enum value is a destructive
  * change to stored documents, not because anything can produce one.
  */
@@ -36,7 +42,8 @@ export enum ReportedType {
   POST = 'post',
   USER = 'user',
   COMMENT = 'comment',
-  MESSAGE = 'message'
+  MESSAGE = 'message',
+  ROOM = 'room'
 }
 
 export enum ReportCategory {

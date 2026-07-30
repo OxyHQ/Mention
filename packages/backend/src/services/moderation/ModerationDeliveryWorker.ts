@@ -20,8 +20,9 @@ import type { ModerationOutboxEvent } from './ModerationOutboxService';
  *   pending, untouched, and delivers when it is — a delay, never a loss.
  * - **The object is gone.** Deleted between the report and its delivery. There is
  *   nothing to review, so the report closes locally instead of retrying for days.
- * - **The type has no provider.** A permanent property of the reported type, so the
- *   report is marked unsupported rather than retried.
+ * - **The type has no provider.** Unreachable by design — such a report never gets a
+ *   delivery event — so an event that reaches it is a defect and is dead-lettered
+ *   rather than retried or filed as a state.
  * - **Anything else** is the SDK's `retryable` to answer, and the outbox obeys it.
  */
 

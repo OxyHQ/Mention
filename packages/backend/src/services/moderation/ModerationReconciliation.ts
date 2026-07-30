@@ -10,12 +10,12 @@ import mongoose from 'mongoose';
 /**
  * Finding the reports the pipeline lost sight of (§14.4's `ModerationReconciliation`).
  *
- * The outbox makes delivery durable, not infallible. Three divergences are possible and
+ * The outbox makes delivery durable, not infallible. Four divergences are possible and
  * none of them announces itself:
  *
- * 1. A report that should have a delivery event and does not — a row written before
- *    this integration existed, or one whose event was dropped by a retention TTL while
- *    the deployment was down for longer than the retention window.
+ * 1. A report that should have a delivery event and does not — one whose event was
+ *    dropped by a retention TTL while the deployment was down for longer than the
+ *    retention window, or one whose enqueue was lost to an operator's intervention.
  * 2. A report stuck at `delivery_failed` whose outbox event has been dead-lettered.
  *    That one is not re-queued: something about the payload has to change first, and
  *    re-queueing it would spin. It is COUNTED, because the count is the alert.
@@ -23,6 +23,14 @@ import mongoose from 'mongoose';
  *    the decision is CrowdSource's to publish — but a rising count is how a broken
  *    webhook endpoint or a rotated secret becomes visible before somebody notices a
  *    quiet moderation queue.
+ * 4. A report that was never going anywhere: `received`, because its type has no
+ *    subject provider (a live room), or because it predates the integration. This is
+ *    the one divergence that is not a fault, so it is counted and NEVER re-queued —
+ *    re-deriving a delivery event for a report nothing can describe would send it
+ *    straight to the dead-letter queue and turn a deliberate local-only report into a
+ *    recurring alert. Counting it is still worth doing: it is the only number that
+ *    makes "reports stored here that no jury will ever see" visible at all, and that
+ *    is precisely the cost of accepting them.
  *
  * A sweep only ever RE-DERIVES work from the reports; it never invents any. Everything
  * it enqueues uses the same deterministic event id as the original, so a report that
@@ -46,6 +54,8 @@ export interface ModerationReconciliationResult {
   deadLettered: number;
   /** Reports submitted long ago with no decision yet. */
   awaitingDecision: number;
+  /** Reports stored with no route to review at all. Never re-queued. */
+  localOnly: number;
 }
 
 /**
@@ -64,8 +74,16 @@ export async function reconcileModerationReports(
     requeued: 0,
     deadLettered: 0,
     awaitingDecision: 0,
+    localOnly: 0,
   };
 
+  /**
+   * `queued` and `delivery_failed` only. `received` is excluded deliberately and the
+   * omission is the safety property, not an oversight: those reports have no subject
+   * provider, so an event re-derived for one would fail as
+   * `ModerationSubjectUnsupportedError` on its first attempt and dead-letter. They are
+   * counted below instead.
+   */
   const pending = await Report.find({ localStatus: { $in: ['queued', 'delivery_failed'] } })
     .select('_id localStatus')
     .sort({ createdAt: 1 })
@@ -109,13 +127,15 @@ export async function reconcileModerationReports(
     localStatus: 'submitted',
     submittedAt: { $lt: new Date(now.getTime() - STALE_SUBMITTED_HOURS * 60 * 60 * 1_000) },
   });
+  result.localOnly = await Report.countDocuments({ localStatus: 'received' });
 
   if (result.requeued > 0 || result.deadLettered > 0) {
     logger.warn('[CrowdSource] reconciliation found divergence', result);
-  } else if (result.awaitingDecision > 0) {
-    logger.info('[CrowdSource] reports awaiting a decision', {
+  } else if (result.awaitingDecision > 0 || result.localOnly > 0) {
+    logger.info('[CrowdSource] reports with no decision to apply', {
       awaitingDecision: result.awaitingDecision,
       olderThanHours: STALE_SUBMITTED_HOURS,
+      localOnly: result.localOnly,
     });
   }
 

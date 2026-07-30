@@ -17,6 +17,7 @@ type Doc = Record<string, unknown>;
 let reports: Doc[];
 let outbox: Doc[];
 let submittedLongAgo: number;
+let localOnly: number;
 
 vi.mock('../../../models/Report.model', async () => {
   const actual = await vi.importActual<typeof import('../../../models/Report.model')>(
@@ -25,16 +26,40 @@ vi.mock('../../../models/Report.model', async () => {
   return {
     ...actual,
     default: {
-      find: vi.fn(() => {
+      /**
+       * Applies the `localStatus` filter, which a filter-blind mock would not.
+       *
+       * The sweep must never pick up a `received` report, and a mock that returned every
+       * report regardless of the query could not tell the difference between "the sweep
+       * excludes it" and "the mock handed it over anyway". With the filter honoured,
+       * adding `'received'` to the sweep's `$in` makes the local-only test fail.
+       */
+      find: vi.fn((filter: Doc) => {
+        const wanted = (filter.localStatus as { $in?: string[] } | undefined)?.$in;
+        if (wanted === undefined) {
+          throw new Error(`Unexpected reconciliation find filter: ${JSON.stringify(filter)}`);
+        }
         const query = {
           select: () => query,
           sort: () => query,
           limit: () => query,
-          lean: async () => reports.map((report) => ({ ...report })),
+          lean: async () =>
+            reports
+              .filter((report) => wanted.includes(String(report.localStatus)))
+              .map((report) => ({ ...report })),
         };
         return query;
       }),
-      countDocuments: vi.fn(async () => submittedLongAgo),
+      /**
+       * Answers on the FILTER, not on call order. The sweep makes two counts and a mock
+       * that returned one number for both would let either assertion pass on the other's
+       * value — a check that cannot tell the two apart is worse than no check.
+       */
+      countDocuments: vi.fn(async (filter: Doc) => {
+        if (filter.localStatus === 'submitted') return submittedLongAgo;
+        if (filter.localStatus === 'received') return localOnly;
+        throw new Error(`Unexpected reconciliation count filter: ${JSON.stringify(filter)}`);
+      }),
     },
   };
 });
@@ -71,6 +96,7 @@ describe('moderation reconciliation', () => {
     reports = [];
     outbox = [];
     submittedLongAgo = 0;
+    localOnly = 0;
     vi.clearAllMocks();
     vi.spyOn(mongoose, 'startSession').mockResolvedValue({
       // `inTransaction()` is what `enqueueModerationOutboxEvent` checks. A stub
@@ -158,5 +184,24 @@ describe('moderation reconciliation', () => {
     // rising count is how a broken endpoint or a rotated secret becomes visible before
     // somebody notices a silent moderation queue.
     expect(result.awaitingDecision).toBe(7);
+  });
+
+  it('counts local-only reports and never re-queues one', async () => {
+    /**
+     * The sweep's answer to the cost of accepting a report nothing will deliver. A
+     * `received` report has no subject provider, so a re-derived delivery event would
+     * fail non-retryably on its first attempt and dead-letter — turning a deliberate
+     * local-only report into a permanent entry in the queue that is supposed to mean
+     * "something is wrong". Counting is the only correct action, and it is the one number
+     * that makes reports no jury will ever see visible at all.
+     */
+    localOnly = 3;
+    reports = [{ _id: new mongoose.Types.ObjectId(REPORT_A), localStatus: 'received' }];
+
+    const result = await reconcileModerationReports();
+
+    expect(result.localOnly).toBe(3);
+    expect(result.requeued).toBe(0);
+    expect(ModerationOutbox.updateOne).not.toHaveBeenCalled();
   });
 });

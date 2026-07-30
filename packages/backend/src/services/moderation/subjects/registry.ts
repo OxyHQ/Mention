@@ -10,26 +10,35 @@ import type { ModerationSubjectProvider } from './types';
  * the integration knows what a post is — not the outbox, not the delivery worker,
  * not the webhook receiver, not the enforcement service.
  *
- * ## This list is also an ownership boundary, not just a capability list
+ * ## This list decides DELIVERY, and nothing else
  *
- * Mention may only report objects Mention OWNS. That is a tenancy constraint, and
- * it is stricter than "can we produce a snapshot":
+ * A reported type with a provider here is sent to CrowdSource. A reported type
+ * WITHOUT one is still accepted by `POST /reports` and still stored — it simply never
+ * leaves. The registry is not an admission gate on the API, and making it one was
+ * tried and reverted, because a gate that refuses unwired types means every
+ * application breaks its own existing report surfaces on the day it adopts
+ * CrowdSource. Incremental adoption, one subject type at a time, is the property that
+ * makes this integration copyable to the other Oxy apps at all.
  *
- * `applicationId` is read off the service credential, so a report Mention submits
- * opens a case in MENTION's tenant. A case about a Syra live room would therefore
- * sit in Mention's tenant describing an object Mention cannot snapshot and cannot
- * enforce against — enforcement would have to happen in Syra, which never receives
- * the decision. Worse, when Syra reports the same room under its own credential,
- * §7.3's dedup key (`applicationId + subjectExternalId + contentHash + policyVersion`)
- * differs by tenant, so the same incident opens a SECOND case with a second jury and
- * a second consequence. "One decision per incident" is an invariant, and a
- * cross-application report breaks it at the tenancy layer where no amount of
- * care inside Mention can repair it.
+ * ## Why a live room has no provider, and would not gain one by trying harder
  *
- * So a report for an object Mention does not own is refused at the API (see
- * `routes/reports.routes.ts`), not stored in a terminal state. Cross-application
- * hand-off is a real design question, and the honest answer is that the plan does
- * not answer it yet.
+ * Mention owns the room EXPERIENCE but stores no Room document — there is no row to
+ * load, no text, no author, nothing §5.6 could pin as "the exact version reported".
+ * The only material a live audio room has is its audio, and capturing that is a
+ * privacy decision far larger than this integration.
+ *
+ * There is also a tenancy argument, and it is worth stating because it survives even
+ * if a Room document appeared: `applicationId` is read off the service credential, so
+ * a report Mention submits opens a case in MENTION's tenant. A case about a room whose
+ * sanction would have to be carried out in Syra names an object Mention cannot enforce
+ * against, and when Syra reports the same room under its own credential §7.3's dedup
+ * key (`applicationId + subjectExternalId + contentHash + policyVersion`) differs by
+ * tenant — so one incident opens two cases, two juries and two consequences, breaking
+ * "one decision per incident" at a layer nothing inside Mention can repair.
+ *
+ * Both arguments point at the same conclusion, which is a MISSING PROVIDER rather than
+ * a refused report: cross-application hand-off is a real design question and the plan
+ * does not answer it yet, so the report stays local until it does.
  */
 const PROVIDERS: readonly ModerationSubjectProvider[] = Object.freeze([
   createPostSubjectProvider({
@@ -49,7 +58,13 @@ const BY_REPORTED_TYPE: ReadonlyMap<string, ModerationSubjectProvider> = new Map
   PROVIDERS.map((provider) => [provider.reportedType, provider]),
 );
 
-/** The provider for a reported type, or `undefined` when it is not deliverable. */
+/**
+ * The provider for a reported type, or `undefined` when it is not deliverable.
+ *
+ * The single authority on whether a report leaves this deployment. `ReportIntakeService`
+ * asks before queueing a delivery, and `EvidenceSnapshotService` asks again when it
+ * builds one; a type this returns `undefined` for is stored and never enqueued.
+ */
 export function subjectProviderFor(
   reportedType: string,
 ): ModerationSubjectProvider | undefined {
@@ -57,17 +72,14 @@ export function subjectProviderFor(
 }
 
 /**
- * Whether Mention may accept a report about this kind of object.
+ * The reported types wired to CrowdSource, as the registry itself sees them.
  *
- * The single authority, consulted by `POST /reports` before anything is stored. A
- * type absent from the registry is refused, so no report can enter the pipeline
- * without a route through it.
+ * Exists so a test can pin the set (`reportsOwnership.test.ts`). That is not
+ * ceremony: the difference between a delivered type and a local-only one is invisible
+ * in a 201, so registering a provider — or forgetting to — is a change no response
+ * body would reveal. The assertion makes widening the delivered surface a deliberate
+ * act with an argument attached.
  */
-export function isReportableType(reportedType: string): boolean {
-  return BY_REPORTED_TYPE.has(reportedType);
-}
-
-/** The types a client may report, for the API's own error message. */
-export function reportableTypes(): string[] {
+export function deliverableTypes(): string[] {
   return Array.from(BY_REPORTED_TYPE.keys());
 }

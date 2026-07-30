@@ -111,10 +111,15 @@ describe('delivery worker — the undeliverable cases', () => {
     vi.mocked(subjectProviderFor).mockReturnValue(undefined);
 
     /**
-     * Unreachable through the API — `POST /reports` refuses a type the registry does
-     * not cover — so this is a defect, not a state. `retryable: false` sends it to the
-     * outbox's dead-letter, which the reconciliation sweep counts and a human reads.
-     * Writing a local state instead would file it somewhere nothing alerts on.
+     * Unreachable by design: intake never creates a delivery event for a type with no
+     * provider, so an event that gets here came from something that bypassed
+     * `ReportIntakeService`. That makes it a defect, not a state. `retryable: false`
+     * sends it to the outbox's dead-letter, which the reconciliation sweep counts and a
+     * human reads.
+     *
+     * Writing a local state instead would be worse than in the obvious way: it would
+     * file a genuine defect at `received`, indistinguishable from the deliberate
+     * local-only reports, where nothing alerts on it.
      */
     await expect(deliverReportOutboxEvent(event())).rejects.toMatchObject({
       name: 'ModerationSubjectUnsupportedError',

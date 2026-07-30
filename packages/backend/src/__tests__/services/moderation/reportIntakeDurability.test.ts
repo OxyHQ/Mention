@@ -14,6 +14,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
  * the SESSION each write receives rather than on the end state. A test that only
  * checked "both rows exist" passes just as happily against two sequential writes
  * outside a transaction — and that is exactly the regression worth catching.
+ *
+ * The second property, asserted at the bottom: a report whose type has no subject
+ * provider gets NO delivery event. Not one that is skipped later — none. That is what
+ * keeps a type this application cannot describe from dead-lettering in the queue an
+ * operator has to be able to read, and it is why the two branches decide `localStatus`
+ * and the outbox row from one fact rather than two.
  */
 
 vi.mock('../../../models/Report.model', async () => {
@@ -36,6 +42,20 @@ vi.mock('../../../models/ModerationOutbox', () => ({
   },
 }));
 
+/**
+ * The registry is mocked so both branches of the delivery decision are exercised
+ * deterministically. Which types actually have providers is pinned separately, by the
+ * vacuity floor in `routes/reportsAcceptedTypes.test.ts` — asserting it here too would
+ * couple this file to Mention's own nouns, and the property under test is about any
+ * application's.
+ */
+vi.mock('../../../services/moderation/subjects/registry', async () => {
+  const actual = await vi.importActual<
+    typeof import('../../../services/moderation/subjects/registry')
+  >('../../../services/moderation/subjects/registry');
+  return { ...actual, subjectProviderFor: vi.fn() };
+});
+
 import ModerationOutbox from '../../../models/ModerationOutbox';
 import Report, { ReportCategory, ReportedType } from '../../../models/Report.model';
 import {
@@ -43,6 +63,7 @@ import {
   createReport,
 } from '../../../services/moderation/ReportIntakeService';
 import { reportSubmitEventId } from '../../../services/moderation/ModerationOutboxService';
+import { subjectProviderFor } from '../../../services/moderation/subjects/registry';
 
 interface TransactionSpy {
   /** Whether the body ran to completion inside `withTransaction`. */
@@ -106,6 +127,15 @@ function mockCreatedReport(): void {
   ] as never);
 }
 
+/** A provider for the reported type: the report is deliverable. */
+function withSubjectProvider(): void {
+  vi.mocked(subjectProviderFor).mockReturnValue({
+    reportedType: 'post',
+    subjectType: 'social.post',
+    snapshot: vi.fn(),
+  });
+}
+
 const INPUT = {
   reporter: 'oxy-user-reporter',
   reportedType: ReportedType.POST,
@@ -114,9 +144,18 @@ const INPUT = {
   details: 'This is targeted at me repeatedly.',
 };
 
+/** A live room: accepted by the API, and nothing in Mention can describe it. */
+const ROOM_INPUT = {
+  reporter: 'oxy-user-reporter',
+  reportedType: ReportedType.ROOM,
+  reportedId: 'room_123',
+  categories: [ReportCategory.HARASSMENT],
+};
+
 describe('report intake — durable reception (§7.1)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    withSubjectProvider();
   });
 
   afterEach(() => {
@@ -239,7 +278,7 @@ describe('report intake — durable reception (§7.1)', () => {
     expect(Report.create).not.toHaveBeenCalled();
   });
 
-  it('never stores a report without a delivery event', async () => {
+  it('never stores a DELIVERABLE report without a delivery event', async () => {
     const transaction = stubSession();
     vi.mocked(Report.findOne).mockReturnValue(queryReturning(null) as never);
     mockCreatedReport();
@@ -248,11 +287,10 @@ describe('report intake — durable reception (§7.1)', () => {
     const result = await createReport(INPUT);
 
     /**
-     * There is no "stored but undeliverable" branch, and that is the point. A report
-     * Mention cannot act on is refused by `POST /reports` before intake is reached, so
-     * every row this function writes has a durable route out. A local state meaning
-     * "nothing will ever happen to this" would be a receipt for work nobody does, and
-     * no queue alert would ever fire on it.
+     * A report whose type has a provider always leaves with a route out. `queued` and
+     * the outbox row are decided from ONE fact and written in one transaction, so the
+     * pair cannot come apart — a row claiming `queued` with nothing to deliver it is a
+     * report that waits forever while every status field says it is on its way.
      */
     expect(result.outboxEventId).toBeDefined();
     expect(Report.create).toHaveBeenCalledWith(
@@ -260,5 +298,61 @@ describe('report intake — durable reception (§7.1)', () => {
       { session: transaction.session },
     );
     expect(ModerationOutbox.updateOne).toHaveBeenCalledTimes(1);
+  });
+
+  it('stores a report with no subject provider and queues nothing', async () => {
+    /**
+     * The local-only path, and the assertion the gate change exists for.
+     *
+     * A type with no provider keeps the behaviour the application had before CrowdSource:
+     * the report is a receipt and a local record. Enqueueing one anyway would send it to
+     * the delivery worker, which would raise `ModerationSubjectUnsupportedError` with
+     * `retryable: false` — dead-lettering a report that is not defective and putting a
+     * permanent entry in the queue an operator is supposed to be able to trust.
+     */
+    const transaction = stubSession();
+    vi.mocked(subjectProviderFor).mockReturnValue(undefined);
+    vi.mocked(Report.findOne).mockReturnValue(queryReturning(null) as never);
+    mockCreatedReport();
+
+    const result = await createReport(ROOM_INPUT);
+
+    expect(transaction.committed).toBe(true);
+    expect(result.outboxEventId).toBeUndefined();
+    // Nothing was enqueued. Not "enqueued and skipped later" — never written.
+    expect(ModerationOutbox.updateOne).not.toHaveBeenCalled();
+
+    /**
+     * `received`, with the reason ON the row. A missing outbox event is also what a lost
+     * write looks like, so "there was never a route out" has to be recorded rather than
+     * inferred months later from which types happened to have providers at the time.
+     */
+    const [documents] = vi.mocked(Report.create).mock.calls[0];
+    expect(documents[0]).toMatchObject({
+      reportedType: 'room',
+      localStatus: 'received',
+      localStatusReason: expect.stringContaining('not sent for community review'),
+    });
+  });
+
+  it('keeps the local-only report inside the same transaction', async () => {
+    /**
+     * The transaction is not conditional on there being two writes. `withTransaction`
+     * still wraps the intake, so the duplicate check and the insert are one atomic
+     * decision — and, more importantly, the shape of the function does not change
+     * between the two branches, so a later edit cannot make one of them the
+     * carefully-ordered version.
+     */
+    const transaction = stubSession();
+    vi.mocked(subjectProviderFor).mockReturnValue(undefined);
+    vi.mocked(Report.findOne).mockReturnValue(queryReturning(null) as never);
+    mockCreatedReport();
+
+    await createReport(ROOM_INPUT);
+
+    expect(Report.create).toHaveBeenCalledWith([expect.anything()], {
+      session: transaction.session,
+    });
+    expect(transaction.ended).toBe(true);
   });
 });
