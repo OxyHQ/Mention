@@ -37,7 +37,7 @@ import { ReportCategory } from '../../models/Report.model';
  */
 export const REPORT_TAXONOMY_VERSION = '2026.07';
 
-const CATEGORY_TO_ALLEGATION: Readonly<Record<ReportCategory, TaxonomyCode>> = Object.freeze({
+const CATEGORY_TO_ALLEGATION: Readonly<Partial<Record<string, TaxonomyCode>>> = Object.freeze({
   [ReportCategory.SPAM]: 'integrity.spam',
   [ReportCategory.HATE_SPEECH]: 'hate.protected_targeting',
   [ReportCategory.HARASSMENT]: 'harassment.targeted_abuse',
@@ -55,8 +55,17 @@ const CATEGORY_TO_ALLEGATION: Readonly<Record<ReportCategory, TaxonomyCode>> = O
  * a permanent 409 — days later, as a report silently stuck in a queue. Sorting
  * makes the same report produce the same bytes every time.
  */
+/**
+ * Takes `readonly string[]` rather than `readonly ReportCategory[]` because the
+ * shared package hands categories through as it received them — it has no opinion
+ * about any application's enum. Widening here is honest rather than lossy: the
+ * body below already treats an uncovered category as `other.unclassifiable`, so a
+ * string outside the enum takes the path that was always written for it. The
+ * alternative — casting at the boundary — would type-check while silently
+ * asserting something untrue about the value.
+ */
 export function allegationsForCategories(
-  categories: readonly ReportCategory[],
+  categories: readonly string[],
 ): TaxonomyCode[] {
   const codes = new Set<TaxonomyCode>();
   for (const category of categories) {
