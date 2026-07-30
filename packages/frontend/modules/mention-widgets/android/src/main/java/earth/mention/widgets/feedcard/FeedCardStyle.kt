@@ -216,6 +216,28 @@ internal val OVER_IMAGE_CONTENT_COLOR: ColorProvider = ColorProvider(Color.White
 private const val LINE_HEIGHT_RATIO = 1.2f
 
 /**
+ * Average glyph advance for the card's BODY text, as a fraction of the font size.
+ *
+ * The module's shared [AVERAGE_GLYPH_WIDTH_RATIO] is 0.6, and it is right where it is used —
+ * packing chips into a row, where over-estimating how many characters fit makes a chip
+ * overflow its cloud. Here the incentive is exactly reversed: `maxLines` is the real bound,
+ * the `TextView` clips anything past it for free, and a budget that runs SHORT ends a
+ * sentence with a visible ellipsis while the room it needed sits empty.
+ *
+ * MEASURED, not taken from the type spec. On a real launcher 31 characters of body text
+ * occupy 218dp at 17sp, which is an advance of 0.41em. Roboto's lowercase advances are often
+ * quoted near 0.5em, and 0.5 was tried first — it still allowed only 25 characters where 31
+ * were observed, because prose is not lowercase letters: spaces, `i`, `l`, `t` and
+ * punctuation pull the running average well below the nominal figure.
+ *
+ * So this is the observation itself, and erring at or slightly below it is the safe side
+ * here: a budget that runs long costs nothing (the `TextView` clips at `maxLines`), while one
+ * that runs short ends a sentence with a visible ellipsis and leaves the room it needed
+ * empty. A test pins it against that measurement, so raising it silently would fail.
+ */
+private const val BODY_GLYPH_WIDTH_RATIO = 0.41f
+
+/**
  * Lines of text this card can actually show, DERIVED from the height it was given.
  *
  * It used to be a table — 2, 3, 5 by design — and that table was calibrated when the
@@ -298,7 +320,7 @@ internal fun textBudgetChars(
     fontScale: Float,
 ): Int {
     val effectiveScale = if (fontScale > 0f) fontScale else 1f
-    val glyphWidthDp = textFontSizeSp(size) * effectiveScale * AVERAGE_GLYPH_WIDTH_RATIO
+    val glyphWidthDp = textFontSizeSp(size) * effectiveScale * BODY_GLYPH_WIDTH_RATIO
     if (glyphWidthDp <= 0f || availableWidthDp <= 0f) return 0
     val charsPerLine = availableWidthDp / glyphWidthDp
     return (charsPerLine * textMaxLines(size, cardHeight, effectiveScale)).toInt().coerceAtLeast(0)

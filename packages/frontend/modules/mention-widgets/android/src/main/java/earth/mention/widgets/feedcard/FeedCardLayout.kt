@@ -213,14 +213,19 @@ private fun PostCard(
                 // The second guard on truncation: `truncateToBudget` cut the string against
                 // an estimate, and this bounds what happens if that estimate ran low.
                 maxLines = textMaxLines(design, cardHeight, context.resources.configuration.fontScale),
-                modifier = GlanceModifier.semantics { contentDescription = "" },
+                // THE TEXT takes the leftover height, not a spacer. It used to be the other
+                // way round — a weighted `Spacer` below claimed every spare pixel, so a long
+                // post was cut while the room it needed sat empty underneath it. The brand
+                // row still sits at the top and the byline still hugs the bottom, because the
+                // weight is what pushes them apart; the difference is which of them may grow.
+                modifier = GlanceModifier
+                    .defaultWeight()
+                    .semantics { contentDescription = "" },
             )
+        } else {
+            // Nothing to grow, so something still has to hold the byline down.
+            Spacer(GlanceModifier.defaultWeight())
         }
-
-        // Absorbs whatever height the placement actually has, so the brand row stays at the
-        // top and the byline hugs the bottom — with the picture behind all of it, this is
-        // where a short post's unused room goes, and it costs the card nothing.
-        Spacer(GlanceModifier.defaultWeight())
 
         Byline(spec = spec, post = post, design = design, contentColor = contentColor)
     }

@@ -253,4 +253,25 @@ class FeedCardStyleTest {
         // A post whose whole body was a bare URL with an image. The card draws the picture.
         assertEquals("", truncateToBudget("", 50))
     }
+
+    @Test
+    fun `the body budget errs toward showing more words, not fewer`() {
+        // `maxLines` is the real bound — the TextView clips anything past it for free — so a
+        // budget that runs SHORT ends a sentence with a visible ellipsis while the room it
+        // needed sits empty. That is what "the text gets cut early" was: the shared 0.6 chip
+        // ratio over-estimated glyph width by about a third for body text.
+        //
+        // Pinned against a MEASURED observation rather than a preference: 31 characters of
+        // body text occupy 218dp at 17sp on a real launcher.
+        val measuredChars = 31
+        val measuredWidthDp = 218f
+        val budget = textBudgetChars(FeedCardSize.MEDIUM, measuredWidthDp, MEDIUM_HEIGHT, 1f)
+        val linesAtThatHeight = textMaxLines(FeedCardSize.MEDIUM, MEDIUM_HEIGHT, 1f)
+        val perLine = budget / linesAtThatHeight
+
+        assertTrue(
+            "the budget allows $perLine characters per line where $measuredChars were measured",
+            perLine >= measuredChars,
+        )
+    }
 }

@@ -31,8 +31,23 @@
     a size at which the card cannot do its job. Vertically it does shrink, to the design that drops
     the image and the rotation controls.
   -->
-  <dimen name="mention_following_widget_min_resize_width">250dp</dimen>
-  <dimen name="mention_following_widget_min_resize_height">110dp</dimen>
+  <!--
+    How small the user may drag this widget.
+
+    250 x 110dp was two launcher cells of height and four of width, and it was inherited
+    from a layout where the picture took a fixed BAND out of the middle — a card that short
+    genuinely had nowhere to put one. The picture is the background now, so the card degrades
+    honestly at any size: brand row, whatever lines of text fit (derived, see textMaxLines),
+    and the byline.
+
+    110 x 72dp is two cells wide by one tall. 72dp is the derived floor the trends widgets
+    use for the same reason: 12dp of padding top and bottom plus one 48dp row, which is
+    Material's minimum touch target and the shortest height at which a complete line of
+    content still fits. Below that the card would be drawing a clipped line, which is the
+    thing this module's line arithmetic exists to prevent.
+  -->
+  <dimen name="mention_following_widget_min_resize_width">110dp</dimen>
+  <dimen name="mention_following_widget_min_resize_height">72dp</dimen>
 
   <!--
     The ceiling is where the card runs out of content to reveal — five lines of text, a 120dp image,
