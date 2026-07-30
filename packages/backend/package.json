@@ -20,10 +20,10 @@
   },
   "dependencies": {
     "@mention/shared-types": "workspace:*",
-    "@oxyhq/contracts": "^0.19.0",
-    "@oxyhq/core": "^14.0.0",
+    "@oxyhq/contracts": "^0.20.0",
+    "@oxyhq/core": "^15.0.1",
     "@oxyhq/federation": "^0.4.0",
-    "@oxyhq/protocol": "^0.1.5",
+    "@oxyhq/protocol": "^0.1.6",
     "@socket.io/redis-adapter": "^8.3.0",
     "@syra.fm/sdk": "^0.7.0",
     "bullmq": "^5.80.4",

@@ -9,7 +9,7 @@
   "dependencies": {
     "@mention/shared-types": "workspace:*",
     "@modelcontextprotocol/sdk": "^1.29.0",
-    "@oxyhq/core": "^14.0.0",
+    "@oxyhq/core": "^15.0.1",
     "jsonwebtoken": "^9.0.3",
     "zod": "^4.4.3"
   },
