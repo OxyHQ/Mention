@@ -7,7 +7,6 @@ import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import earth.mention.widgets.feedcard.FETCH_INTERVAL_MS
 import earth.mention.widgets.feedcard.anyPlaced
-import earth.mention.widgets.feedcard.postImageUrls
 import earth.mention.widgets.feedcard.rotationImageUrls
 import earth.mention.widgets.feedcard.shouldFetchRotation
 import org.json.JSONException
@@ -124,7 +123,7 @@ internal class FollowingRefreshWorker(
         // Runs whatever happened above, including after a failed fetch: the post about to be
         // drawn is the one the rotation now points at, and it needs its pictures regardless of
         // whether this tick refreshed anything.
-        cacheCurrentImages(auth.accountId)
+        cacheRotationImages(auth.accountId)
         FollowingWidget().updateAll(applicationContext)
         return outcome
     }
@@ -171,15 +170,28 @@ internal class FollowingRefreshWorker(
     }
 
     /**
-     * Download the current post's avatar and image if they are not already cached.
+     * Download every picture the ROTATION needs, not just the one on screen.
      *
-     * At most two small files, because only one post is on screen — that is the whole reason
-     * the widget rotates instead of listing several posts with their attachments, which is the
-     * shape that overruns a `RemoteViews`.
+     * It used to fetch only the current post's two files, on the reasoning that one post is
+     * visible at a time. That reasoning describes the `RemoteViews` payload, which is a real
+     * constraint, and it does not describe the DISK cache, which has none — and the rotation
+     * turns over every thirty seconds without any fetch of its own. So each turn revealed a
+     * post whose avatar and picture nobody had downloaded, and the card drew a byline with no
+     * avatar until a refresh a quarter of an hour later happened to land on it. That is the
+     * "some posts load without an avatar" report, and it was never about those users.
+     *
+     * `rotationImageUrls` was already the set the cache is allowed to KEEP, and its own doc
+     * said images "arrive lazily as the rotation reaches each post" — nothing ever made them
+     * arrive. Fetching the same set closes that gap and makes the sets identical, so the cache
+     * can no longer evict something the rotation is about to want.
+     *
+     * At most ten small files once per refresh: five avatars of about 1.6KB and up to five
+     * pictures. Failures are per-file and silent by design — a picture that will not download
+     * costs that card its picture, never the card.
      */
-    private suspend fun cacheCurrentImages(accountId: String) {
-        val current = FollowingStore.read(applicationContext, accountId).current ?: return
-        postImageUrls(applicationContext, current).forEach { url ->
+    private suspend fun cacheRotationImages(accountId: String) {
+        val posts = FollowingStore.read(applicationContext, accountId).posts
+        rotationImageUrls(applicationContext, posts).forEach { url ->
             FollowingImages.ensureCached(applicationContext, url)
         }
     }
