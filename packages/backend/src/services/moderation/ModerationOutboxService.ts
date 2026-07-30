@@ -132,11 +132,46 @@ export async function enqueueModerationOutboxEvent(
         attempts: 0,
         availableAt: now,
         expiresAt: new Date(now.getTime() + MODERATION_OUTBOX_RETENTION_SECONDS * 1_000),
+        /**
+         * Both timestamps are written HERE, and `timestamps: false` below turns
+         * Mongoose's own timestamping off for this one operation.
+         *
+         * There are two ways to stop this update naming `updatedAt` twice, and
+         * they are NOT interchangeable — the wrong one was tried first.
+         *
+         * The schema declares `{ timestamps: true }`, so on an upsert Mongoose
+         * adds `updatedAt` to `$set` and both paths to `$setOnInsert`. Naming
+         * them here as well puts `updatedAt` in two operators of one update
+         * document and Mongo rejects the WHOLE write — `Updating the path
+         * 'updatedAt' would create a conflict at 'updatedAt'`. Inside
+         * `createReport`'s transaction that abort takes the `Report` with it, so
+         * the symptom is `POST /reports` failing for every report, from the first.
+         *
+         * Dropping these two lines and letting Mongoose own the timestamps also
+         * clears that error, which is why it looks equivalent. It is not: it
+         * leaves Mongoose's `$set: { updatedAt }` on the update, so a repeated
+         * enqueue for a row that ALREADY EXISTS becomes a real write instead of a
+         * no-op (measured: `modifiedCount` 1 versus 0). A repeat is ordinary — a
+         * transaction retry, two concurrent duplicate submissions, a
+         * reconciliation sweep re-deriving this deterministic id — and it runs
+         * while the dispatcher is claiming, renewing and completing leases on
+         * these same rows. A write nobody needed then contends with a live lease:
+         * measured elsewhere in this ecosystem as both an aborted transaction and
+         * as one hanging until `operation exceeded time limit`. That trades a
+         * total, immediately visible failure for an intermittent one, which is
+         * strictly worse to ship.
+         *
+         * Writing both fields explicitly keeps the upsert a genuine no-op for an
+         * existing row, which is the property the deterministic event id exists
+         * to provide.
+         *
+         * Credit: the refinement is `homiio`'s, from the Homiio integration.
+         */
         createdAt: now,
         updatedAt: now,
       },
     },
-    { upsert: true, session },
+    { upsert: true, session, timestamps: false },
   );
   return input.eventId;
 }
