@@ -80,11 +80,36 @@ export async function enqueueEngagementOutboxEvent(
         expiresAt: new Date(
           now.getTime() + ENGAGEMENT_OUTBOX_RETENTION_SECONDS * 1_000,
         ),
+        /**
+         * Both timestamps are written HERE, and `timestamps: false` below turns
+         * Mongoose's own timestamping off for this one operation.
+         *
+         * There are two ways to stop this update naming `updatedAt` twice and
+         * they are NOT interchangeable — the schema declares `{ timestamps: true }`,
+         * so on an upsert Mongoose adds `updatedAt` to `$set` itself. Naming it
+         * here as well puts the path under two operators of one update document
+         * and Mongo rejects the WHOLE write: `Updating the path 'updatedAt' would
+         * create a conflict at 'updatedAt'`. Every caller enqueues inside the
+         * transaction that owns the relationship and the counter, so that abort
+         * took the like/downvote/save with it.
+         *
+         * Dropping these two lines and letting Mongoose own the timestamps also
+         * clears the error, which is why it looks equivalent. It is not: it
+         * leaves Mongoose's `$set: { updatedAt }` on the update, so a repeated
+         * enqueue for a row that ALREADY EXISTS becomes a real write instead of a
+         * no-op. A repeat is ordinary here — {@link engagementOutboxEventId} is
+         * derived from the relationship transition precisely so a transaction
+         * retry or two concurrent duplicate requests land on the same id — and it
+         * runs while the dispatcher is claiming, renewing and completing leases
+         * on these same rows. A write nobody needed then contends with a live
+         * lease, trading a total, immediately visible failure for an intermittent
+         * one.
+         */
         createdAt: now,
         updatedAt: now,
       },
     },
-    { upsert: true, session },
+    { upsert: true, session, timestamps: false },
   );
   return eventId;
 }

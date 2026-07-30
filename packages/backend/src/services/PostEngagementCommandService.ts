@@ -205,11 +205,19 @@ export async function savePostCommand(input: {
           userId: input.userId,
           postId: new mongoose.Types.ObjectId(input.postId),
           folder: null,
+          /**
+           * Same contract as the outbox enqueue: `Bookmark` declares
+           * `{ timestamps: true }`, so on an upsert Mongoose adds `updatedAt` to
+           * `$set` and Mongo refuses an update naming that path under two
+           * operators. Turning its timestamping off for this one operation and
+           * writing both fields here keeps a repeated save a genuine no-op —
+           * which is what `upsertedCount` below is reading.
+           */
           createdAt: now,
           updatedAt: now,
         },
       },
-      { upsert: true, session },
+      { upsert: true, session, timestamps: false },
     );
 
     if (write.upsertedCount !== 1) {
