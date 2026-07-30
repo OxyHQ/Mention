@@ -85,6 +85,20 @@ internal val MAX_STORED_TEXT_CHARS = LARGEST_TEXT_BUDGET_CHARS
  */
 internal const val ROTATION_LENGTH = 5
 
+/**
+ * How many posts the widget ASKS the feed for, against the [ROTATION_LENGTH] it keeps.
+ *
+ * Thirty rather than five because the choice of which five to keep is made here and needs
+ * something to choose from: the feed carries a picture on roughly a fifth of its posts, so
+ * a page of five usually contains none, and the card's background is the picture. Thirty is
+ * the feed's own default page size, so it costs no extra work server-side.
+ *
+ * The response is larger — about 146KB for thirty posts against 26KB for five — and that is
+ * paid once per fetch, in a worker, and never stored: [encodePosts] re-encodes the six
+ * fields a card actually draws.
+ */
+internal const val FEED_PAGE_LENGTH = 30
+
 private const val FIELD_DATA = "data"
 private const val FIELD_ITEMS = "items"
 private const val FIELD_ID = "id"
@@ -125,13 +139,42 @@ private const val FIELD_AVATAR = "avatar"
  */
 internal fun parseFeedResponse(body: String, limit: Int = ROTATION_LENGTH): List<WidgetPost> {
     val items = JSONObject(body).getJSONObject(FIELD_DATA).getJSONArray(FIELD_ITEMS)
-    return buildList(minOf(items.length(), limit)) {
+    val parsed = buildList(items.length()) {
         for (index in 0 until items.length()) {
-            if (size >= limit) break
             val post = items.optJSONObject(index) ?: continue
             add(readPost(post) ?: continue)
         }
     }
+    return preferPostsWithPictures(parsed, limit)
+}
+
+/**
+ * Up to [limit] posts, taking the ones that HAVE a picture first.
+ *
+ * The picture is the card's whole background now, so a rotation of five text-only posts is
+ * five cards of flat colour — which is what the widget was showing, and it was not a bug in
+ * the parser. It was arithmetic: the feed carries a picture on roughly a fifth of its posts,
+ * so asking for exactly five and taking them in order usually yields none at all.
+ *
+ * Worse, that fraction MOVES. Link previews are resolved asynchronously through Oxy's cache
+ * and the feed never blocks on them, so the same request answers with previews at one moment
+ * and without them a minute later — measured, alternating calls, the count went from four in
+ * eight posts to zero across every query. Attached media is stable; previews are not. Taking
+ * the first five means the rotation's look depends on cache warmth at the instant of a fetch.
+ *
+ * So the widget asks the feed for MANY posts (see the callers' `limit=` query) and chooses
+ * from them here. Order is preserved inside each group, so the rotation still reads
+ * newest-first; picture-bearing posts simply come before text-only ones.
+ *
+ * It does NOT drop text-only posts: they fill the rotation whenever there are not enough
+ * pictures, which is the common case for a quiet following feed. A rotation shorter than
+ * [ROTATION_LENGTH] would be the wrong trade — a card that says nothing is worse than a card
+ * with no picture.
+ */
+internal fun preferPostsWithPictures(posts: List<WidgetPost>, limit: Int): List<WidgetPost> {
+    if (limit <= 0) return emptyList()
+    val (withPicture, withoutPicture) = posts.partition { it.imageUrl != null }
+    return (withPicture + withoutPicture).take(limit)
 }
 
 private fun readPost(post: JSONObject): WidgetPost? {

@@ -21,9 +21,14 @@ import earth.mention.widgets.trends.AVERAGE_GLYPH_WIDTH_RATIO
  * The card is DESIGNED PER SIZE rather than stretched. Three designs, and each one drops
  * something rather than squeezing everything:
  *
- *   under 180dp tall          SMALL   brand row, two lines of text, byline. No handle.
+ *   under 180dp tall          SMALL   brand row, text, byline. No handle.
  *   180dp tall                MEDIUM  the same, plus the author's handle.
- *   320 × 320dp and larger    LARGE   more lines of text again.
+ *   320 × 320dp and larger    LARGE   the same, at a larger type size.
+ *
+ * How many LINES of text each draws is no longer part of that table: it is derived from the
+ * height the launcher actually gave the card (see [textMaxLines]), because a table sized for
+ * a layout that reserved a media band promised the small card a line it had no room for and
+ * denied the large one several it did.
  *
  * THE PICTURE IS NOT ONE OF THESE DECISIONS. It is the card's BACKGROUND — full-bleed
  * behind everything, at every size, so it costs no layout height and there is no slot to
@@ -59,6 +64,28 @@ internal enum class FeedCardSize {
  * only thing left that reads this constant is the text cap below.
  */
 internal val FEED_CARD_MAX_PLACEMENT: DpSize = DpSize(320.dp, 320.dp)
+
+/**
+ * The placement the TEXT STORE is sized for — deliberately larger than any real one.
+ *
+ * Not a design size and never used to lay anything out. It exists because
+ * [MAX_STORED_TEXT_CHARS] has to bound every card the launcher can produce, and the
+ * launcher hands out whole cells: a four-cell placement measures 387 × 325dp on a 480dpi
+ * phone, past the 320 × 320dp the provider requests. Sizing the store to the request would
+ * leave the biggest real cards short of words, which is exactly the "the text gets cut"
+ * this file's line arithmetic exists to prevent.
+ *
+ * 640 × 640dp is past any phone placement by a wide margin and past a tablet's too. The
+ * first value tried, 480 × 480, was NOT enough: the test that probes real placements found
+ * the small design wanting 1699 characters at 520 × 480 against a 1490-character store,
+ * because the small design's 15sp type fits the most characters per line of the three. That
+ * is the failure this constant exists to prevent, caught by widening the probe rather than
+ * by a reader noticing a clipped sentence.
+ *
+ * It costs one integer. The extra characters live in a single preferences entry, and each
+ * card cuts what it draws to its own budget anyway.
+ */
+private val TEXT_STORAGE_PLACEMENT: DpSize = DpSize(640.dp, 640.dp)
 
 /**
  * Cell-grid thresholds, in the launcher's own `70 × cells − 30` dp conversion
@@ -181,15 +208,49 @@ internal const val IMAGE_SCRIM_ALPHA = 0.55f
 internal val OVER_IMAGE_CONTENT_COLOR: ColorProvider = ColorProvider(Color.White)
 
 /**
- * Lines of text each design draws.
+ * Roboto's line box as a multiple of its font size.
  *
- * Also the second guard on truncation: [truncateToBudget] cuts the string, and
- * `maxLines` catches the case where the character estimate ran low.
+ * 1.2 is the platform default for a `TextView` with no explicit line spacing, which is
+ * what Glance emits. Used only to convert a font size into the height one line occupies.
  */
-internal fun textMaxLines(size: FeedCardSize): Int = when (size) {
-    FeedCardSize.SMALL -> 2
-    FeedCardSize.MEDIUM -> 3
-    FeedCardSize.LARGE -> 5
+private const val LINE_HEIGHT_RATIO = 1.2f
+
+/**
+ * Lines of text this card can actually show, DERIVED from the height it was given.
+ *
+ * It used to be a table — 2, 3, 5 by design — and that table was calibrated when the
+ * picture took a fixed BAND of vertical space in the middle of the card. The picture is
+ * now the background, so the band is gone and the room it held belongs to the words. A
+ * table sized for the old layout kept the text at its old length and clipped the rest,
+ * which is the "the text gets cut" the user reported.
+ *
+ * Deriving it also fixes the opposite error at the smallest size, which is the same bug
+ * wearing the other face: 110dp of height minus padding, a brand row and a byline leaves
+ * roughly one line, and the table claimed two — so the `TextView` was handed a second
+ * line it had nowhere to draw and clipped it. A derived count cannot promise a line that
+ * does not fit.
+ *
+ * The chrome subtracted is every block that is always present and whose height is known:
+ * padding top and bottom, the brand row (its mark is the tallest thing in it), the gaps
+ * either side of the text, and the byline (its avatar likewise). The media is NOT
+ * subtracted — that is the whole point of it being the background now.
+ *
+ * [fontScale] matters in both directions: a reader at 1.3 gets taller lines and therefore
+ * fewer of them, which is the honest answer rather than a clipped one.
+ *
+ * Still the second guard on truncation: [truncateToBudget] cuts the string against a width
+ * estimate, and `maxLines` bounds what happens if that estimate ran low.
+ */
+internal fun textMaxLines(size: FeedCardSize, cardHeight: Dp, fontScale: Float): Int {
+    val effectiveScale = if (fontScale > 0f) fontScale else 1f
+    val chrome = cardPadding(size).value * 2 +
+        FeedCardDimensions.BRAND_MARK_SIZE.value +
+        FeedCardDimensions.BLOCK_SPACING.value * 2 +
+        FeedCardDimensions.AVATAR_SIZE.value
+    val available = cardHeight.value - chrome
+    val lineHeightDp = textFontSizeSp(size) * effectiveScale * LINE_HEIGHT_RATIO
+    if (lineHeightDp <= 0f || available <= 0f) return 1
+    return (available / lineHeightDp).toInt().coerceAtLeast(1)
 }
 
 /** Font size the post's text draws at, in sp. M3 Title Medium, up to Title Large. */
@@ -233,13 +294,14 @@ private const val MIN_SYSTEM_FONT_SCALE = 0.85f
 internal fun textBudgetChars(
     size: FeedCardSize,
     availableWidthDp: Float,
+    cardHeight: Dp,
     fontScale: Float,
 ): Int {
     val effectiveScale = if (fontScale > 0f) fontScale else 1f
     val glyphWidthDp = textFontSizeSp(size) * effectiveScale * AVERAGE_GLYPH_WIDTH_RATIO
     if (glyphWidthDp <= 0f || availableWidthDp <= 0f) return 0
     val charsPerLine = availableWidthDp / glyphWidthDp
-    return (charsPerLine * textMaxLines(size)).toInt().coerceAtLeast(0)
+    return (charsPerLine * textMaxLines(size, cardHeight, effectiveScale)).toInt().coerceAtLeast(0)
 }
 
 /**
@@ -250,15 +312,24 @@ internal fun textBudgetChars(
  * out of step with it — which matters because [MAX_STORED_TEXT_CHARS] is this number,
  * and a store that held less than a card can draw would truncate text that had room.
  *
- * A launcher may hand over a card WIDER than that ceiling, since it deals in whole cells
- * (387dp for four of them at 480dpi). Such a card fits a few more characters than the
- * store keeps, so it draws all of the stored text with no ellipsis — never less than it
- * stored, which is the direction that costs the reader nothing visible.
+ * A launcher may hand over a card LARGER than that ceiling, since it deals in whole cells
+ * — 387 × 325dp for four of them at 480dpi, measured. That used to cost only a few
+ * characters of width, and the argument was that a card simply drew all of the stored text
+ * with no ellipsis. It no longer holds: now that the line count is derived from HEIGHT, a
+ * card 5dp taller than the ceiling is not a few characters richer, it is a whole line
+ * richer, and a store sized to the declared ceiling would run out of words to give it.
+ *
+ * So the cap is computed against [TEXT_STORAGE_PLACEMENT] — a placement chosen to exceed
+ * any the launcher can actually produce — rather than against what the provider asks for.
+ * Over-storing is free: the text lives in one preferences entry and is cut to the drawn
+ * card's own budget at composition. Under-storing is what the reader sees as a sentence
+ * ending early.
  */
 internal val LARGEST_TEXT_BUDGET_CHARS: Int = FeedCardSize.entries.maxOf { size ->
     textBudgetChars(
         size = size,
-        availableWidthDp = FEED_CARD_MAX_PLACEMENT.width.value - cardPadding(size).value * 2,
+        availableWidthDp = TEXT_STORAGE_PLACEMENT.width.value - cardPadding(size).value * 2,
+        cardHeight = TEXT_STORAGE_PLACEMENT.height,
         fontScale = MIN_SYSTEM_FONT_SCALE,
     )
 }

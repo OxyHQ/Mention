@@ -38,6 +38,9 @@ class FeedCardStyleTest {
         /** Where the medium design starts — 3 cells. */
         val MEDIUM_HEIGHT = 180.dp
 
+        /** Where the large design starts — 5 cells. */
+        val LARGE_HEIGHT = 320.dp
+
         /** The longest real post, and a realistic one. */
         val LONGEST_POST = "word ".repeat(341) + "end"
         val TYPICAL_POST = "Microsoft confirms Copilot super app coming this year"
@@ -89,19 +92,51 @@ class FeedCardStyleTest {
 
     @Test
     fun `a taller card shows more lines of text`() {
-        assertTrue(textMaxLines(FeedCardSize.SMALL) < textMaxLines(FeedCardSize.MEDIUM))
-        assertTrue(textMaxLines(FeedCardSize.MEDIUM) < textMaxLines(FeedCardSize.LARGE))
-        // Two is the floor worth drawing: one line of a post is a fragment.
-        assertTrue(textMaxLines(FeedCardSize.SMALL) >= 2)
+        val small = textMaxLines(FeedCardSize.SMALL, MIN_RESIZE_HEIGHT, 1f)
+        val medium = textMaxLines(FeedCardSize.MEDIUM, MEDIUM_HEIGHT, 1f)
+        val large = textMaxLines(FeedCardSize.LARGE, LARGE_HEIGHT, 1f)
+
+        assertTrue("small=$small medium=$medium", small < medium)
+        assertTrue("medium=$medium large=$large", medium < large)
+        // A vacuity floor: every count is a division, so a zero anywhere in the chain would
+        // satisfy the ordering above while drawing nothing.
+        assertTrue("a card that shows $large lines is not a design", large >= 5)
+    }
+
+    @Test
+    fun `the line count follows the height it was actually given, not the design`() {
+        // The whole point of deriving it. A card 100dp taller is several lines richer, and
+        // before this was derived it drew the same five lines and clipped the rest — which
+        // is what "the text gets cut" looked like on a real launcher.
+        val declared = textMaxLines(FeedCardSize.LARGE, LARGE_HEIGHT, 1f)
+        val roomier = textMaxLines(FeedCardSize.LARGE, LARGE_HEIGHT + 100.dp, 1f)
+        assertTrue("declared=$declared roomier=$roomier", roomier > declared)
+    }
+
+    @Test
+    fun `a card with no room for a line still promises one rather than zero`() {
+        // The opposite error, and the same bug: a table claiming two lines on a 110dp card
+        // handed the TextView a line it had nowhere to draw. One is the floor — never zero,
+        // which would silently render a card with no words at all.
+        assertEquals(1, textMaxLines(FeedCardSize.SMALL, 40.dp, 1f))
+        assertEquals(1, textMaxLines(FeedCardSize.SMALL, 0.dp, 1f))
+    }
+
+    @Test
+    fun `a larger font setting costs lines rather than clipping them`() {
+        val standard = textMaxLines(FeedCardSize.LARGE, LARGE_HEIGHT, 1f)
+        val accessible = textMaxLines(FeedCardSize.LARGE, LARGE_HEIGHT, 2f)
+        assertTrue("standard=$standard accessible=$accessible", accessible < standard)
+        assertTrue(accessible >= 1)
     }
 
     // ── The text budget ─────────────────────────────────────────────────────────────
 
     @Test
     fun `a bigger card holds more text than a smaller one`() {
-        val small = textBudgetChars(FeedCardSize.SMALL, SMALL_CONTENT_WIDTH, 1f)
-        val medium = textBudgetChars(FeedCardSize.MEDIUM, MEDIUM_CONTENT_WIDTH, 1f)
-        val large = textBudgetChars(FeedCardSize.LARGE, LARGE_CONTENT_WIDTH, 1f)
+        val small = textBudgetChars(FeedCardSize.SMALL, SMALL_CONTENT_WIDTH, MIN_RESIZE_HEIGHT, 1f)
+        val medium = textBudgetChars(FeedCardSize.MEDIUM, MEDIUM_CONTENT_WIDTH, MEDIUM_HEIGHT, 1f)
+        val large = textBudgetChars(FeedCardSize.LARGE, LARGE_CONTENT_WIDTH, LARGE_HEIGHT, 1f)
 
         assertTrue("the small card must hold the least: $small", small < medium)
         assertTrue("the large card must hold the most: $large", medium < large)
@@ -112,9 +147,9 @@ class FeedCardStyleTest {
 
     @Test
     fun `a larger font setting shrinks the budget`() {
-        val standard = textBudgetChars(FeedCardSize.MEDIUM, MEDIUM_CONTENT_WIDTH, 1f)
-        val large = textBudgetChars(FeedCardSize.MEDIUM, MEDIUM_CONTENT_WIDTH, 1.3f)
-        val largest = textBudgetChars(FeedCardSize.MEDIUM, MEDIUM_CONTENT_WIDTH, 2f)
+        val standard = textBudgetChars(FeedCardSize.MEDIUM, MEDIUM_CONTENT_WIDTH, MEDIUM_HEIGHT, 1f)
+        val large = textBudgetChars(FeedCardSize.MEDIUM, MEDIUM_CONTENT_WIDTH, MEDIUM_HEIGHT, 1.3f)
+        val largest = textBudgetChars(FeedCardSize.MEDIUM, MEDIUM_CONTENT_WIDTH, MEDIUM_HEIGHT, 2f)
 
         // Left out, a card at a 1.3 scale hands its TextView a third more text than fits.
         assertTrue(large < standard)
@@ -123,33 +158,43 @@ class FeedCardStyleTest {
 
     @Test
     fun `a degenerate width or font scale yields no budget rather than an exception`() {
-        assertEquals(0, textBudgetChars(FeedCardSize.MEDIUM, 0f, 1f))
-        assertEquals(0, textBudgetChars(FeedCardSize.MEDIUM, -10f, 1f))
+        assertEquals(0, textBudgetChars(FeedCardSize.MEDIUM, 0f, MEDIUM_HEIGHT, 1f))
+        assertEquals(0, textBudgetChars(FeedCardSize.MEDIUM, -10f, MEDIUM_HEIGHT, 1f))
         // A zero font scale would divide by zero; it is treated as the default instead.
-        assertTrue(textBudgetChars(FeedCardSize.MEDIUM, MEDIUM_CONTENT_WIDTH, 0f) > 0)
+        assertTrue(textBudgetChars(FeedCardSize.MEDIUM, MEDIUM_CONTENT_WIDTH, MEDIUM_HEIGHT, 0f) > 0)
     }
 
     @Test
-    fun `the stored text cap is the largest budget any design can reach`() {
-        // Derived from the breakpoint table rather than written down, so it cannot fall out
-        // of step with it — a store holding less than a card can draw would truncate text
-        // that had room on screen.
+    fun `the stored text cap exceeds what any real placement can draw`() {
+        // The cap's job is to bound every card the LAUNCHER can produce, not the one the
+        // provider requests. Those differ: the launcher deals in whole cells, so a four-cell
+        // placement measures 387 x 325dp against a declared 320 x 320dp ceiling. Sizing the
+        // store to the request left the biggest real cards short of words — the store ran out
+        // before the card did, which is what "the text gets cut" looked like.
         assertEquals(LARGEST_TEXT_BUDGET_CHARS, MAX_STORED_TEXT_CHARS)
-        assertEquals(
-            LARGEST_TEXT_BUDGET_CHARS,
-            textBudgetChars(FeedCardSize.LARGE, LARGE_CONTENT_WIDTH, 0.85f),
-        )
 
-        // …and it really is the largest: no design at any supported font scale exceeds it.
+        // A measured four-cell placement, and generous headroom past it.
+        val realPlacements = listOf(
+            387f to 325.dp,
+            480f to 400.dp,
+            520f to 480.dp,
+        )
         FeedCardSize.entries.forEach { design ->
-            listOf(0.85f, 1f, 1.3f, 2f).forEach { scale ->
-                val budget = textBudgetChars(design, LARGE_CONTENT_WIDTH, scale)
-                assertTrue(
-                    "$design at scale $scale wants $budget characters, more than the store keeps",
-                    budget <= MAX_STORED_TEXT_CHARS,
-                )
+            realPlacements.forEach { (widthDp, height) ->
+                listOf(0.85f, 1f, 1.3f, 2f).forEach { scale ->
+                    val budget = textBudgetChars(design, widthDp, height, scale)
+                    assertTrue(
+                        "$design at ${widthDp}x$height scale $scale wants $budget characters, " +
+                            "more than the $MAX_STORED_TEXT_CHARS the store keeps",
+                        budget <= MAX_STORED_TEXT_CHARS,
+                    )
+                }
             }
         }
+
+        // A vacuity floor. Every budget is a product of several factors, so a zero would
+        // satisfy every bound above while storing nothing at all.
+        assertTrue("a cap of $MAX_STORED_TEXT_CHARS characters is not a design", MAX_STORED_TEXT_CHARS >= 200)
     }
 
     // ── Truncation ──────────────────────────────────────────────────────────────────
@@ -159,7 +204,7 @@ class FeedCardStyleTest {
         assertEquals(1708, LONGEST_POST.length)
 
         FeedCardSize.entries.forEach { design ->
-            val budget = textBudgetChars(design, MEDIUM_CONTENT_WIDTH, 1f)
+            val budget = textBudgetChars(design, MEDIUM_CONTENT_WIDTH, LARGE_HEIGHT, 1f)
             val drawn = truncateToBudget(LONGEST_POST, budget)
 
             assertTrue("$design drew ${drawn.length} of a $budget budget", drawn.length <= budget)
@@ -170,7 +215,7 @@ class FeedCardStyleTest {
 
     @Test
     fun `text that fits is left exactly as it is`() {
-        val budget = textBudgetChars(FeedCardSize.LARGE, LARGE_CONTENT_WIDTH, 1f)
+        val budget = textBudgetChars(FeedCardSize.LARGE, LARGE_CONTENT_WIDTH, LARGE_HEIGHT, 1f)
 
         // No card carries an ellipsis it did not earn.
         assertEquals(TYPICAL_POST, truncateToBudget(TYPICAL_POST, budget))

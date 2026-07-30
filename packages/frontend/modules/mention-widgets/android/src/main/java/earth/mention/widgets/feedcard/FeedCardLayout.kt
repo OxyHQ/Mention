@@ -129,6 +129,7 @@ internal fun FeedCardContent(spec: FeedCardSpec, state: FeedCardState) {
                                 post = post,
                                 design = design,
                                 cardWidth = widgetSize.width,
+                                cardHeight = widgetSize.height,
                                 padding = padding,
                                 contentColor = contentColor,
                             )
@@ -175,6 +176,7 @@ private fun PostCard(
     post: WidgetPost,
     design: FeedCardSize,
     cardWidth: Dp,
+    cardHeight: Dp,
     padding: Dp,
     contentColor: ColorProvider,
 ) {
@@ -184,6 +186,9 @@ private fun PostCard(
         budget = textBudgetChars(
             size = design,
             availableWidthDp = cardWidth.value - padding.value * 2,
+            // The height decides how many LINES fit, now that the picture is the background
+            // rather than a band taking room out of the middle.
+            cardHeight = cardHeight,
             // The user's font-size setting. Left out, a card at a 1.3 scale would hand its
             // TextView a third more text than fits and let it clip mid-word.
             fontScale = context.resources.configuration.fontScale,
@@ -207,7 +212,7 @@ private fun PostCard(
                 style = FeedCardTextStyles.body(contentColor, design),
                 // The second guard on truncation: `truncateToBudget` cut the string against
                 // an estimate, and this bounds what happens if that estimate ran low.
-                maxLines = textMaxLines(design),
+                maxLines = textMaxLines(design, cardHeight, context.resources.configuration.fontScale),
                 modifier = GlanceModifier.semantics { contentDescription = "" },
             )
         }

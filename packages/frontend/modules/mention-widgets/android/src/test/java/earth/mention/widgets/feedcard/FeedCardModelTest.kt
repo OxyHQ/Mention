@@ -353,4 +353,70 @@ class FeedCardModelTest {
         assertEquals(0, nextRotationIndex(3, 0))
         assertEquals(0, nextRotationIndex(-3, 0))
     }
+
+    // ── Which posts make it into the rotation ───────────────────────────────────────
+
+    private fun post(id: String, image: String?) = WidgetPost(
+        id = id,
+        text = "t",
+        imageUrl = image,
+        imageAlt = null,
+        authorName = "A",
+        authorHandle = "a",
+        authorAvatar = null,
+    )
+
+    @Test
+    fun `posts with a picture are taken before text-only ones`() {
+        // The card's background IS the picture, and the feed carries one on roughly a fifth
+        // of its posts — so taking the first five in order usually yielded a rotation with no
+        // picture at all. That is what "the background isn't there" was.
+        val feed = listOf(
+            post("a", null),
+            post("b", "https://x/1.jpg"),
+            post("c", null),
+            post("d", "https://x/2.jpg"),
+            post("e", null),
+        )
+
+        assertEquals(listOf("b", "d"), preferPostsWithPictures(feed, 2).map { it.id })
+    }
+
+    @Test
+    fun `feed order is kept inside each group`() {
+        // The rotation still reads newest-first; pictures are promoted as a group, not
+        // shuffled. A rotation whose order changed on every fetch would read as random.
+        val feed = listOf(
+            post("a", "https://x/1.jpg"),
+            post("b", null),
+            post("c", "https://x/2.jpg"),
+            post("d", null),
+        )
+
+        assertEquals(listOf("a", "c", "b", "d"), preferPostsWithPictures(feed, 4).map { it.id })
+    }
+
+    @Test
+    fun `text-only posts still fill the rotation when pictures run out`() {
+        // A quiet following feed may have none, and a short rotation would be the worse
+        // trade: a card that says nothing beats a card with no picture.
+        val feed = listOf(post("a", null), post("b", null), post("c", "https://x/1.jpg"))
+
+        assertEquals(listOf("c", "a", "b"), preferPostsWithPictures(feed, 5).map { it.id })
+    }
+
+    @Test
+    fun `a degenerate limit yields nothing rather than an exception`() {
+        assertEquals(emptyList<WidgetPost>(), preferPostsWithPictures(listOf(post("a", null)), 0))
+        assertEquals(emptyList<WidgetPost>(), preferPostsWithPictures(listOf(post("a", null)), -1))
+        assertEquals(emptyList<WidgetPost>(), preferPostsWithPictures(emptyList(), 5))
+    }
+
+    @Test
+    fun `the widget asks the feed for more posts than it keeps`() {
+        // The selection above needs something to select FROM: a page of exactly
+        // ROTATION_LENGTH would leave it choosing five from five.
+        assertTrue("$FEED_PAGE_LENGTH must exceed $ROTATION_LENGTH", FEED_PAGE_LENGTH > ROTATION_LENGTH)
+        assertTrue("a page of $FEED_PAGE_LENGTH is not enough to find a picture in", FEED_PAGE_LENGTH >= 20)
+    }
 }

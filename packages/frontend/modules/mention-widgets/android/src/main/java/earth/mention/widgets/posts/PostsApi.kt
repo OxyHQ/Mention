@@ -2,6 +2,7 @@ package earth.mention.widgets.posts
 
 import android.content.Context
 import earth.mention.widgets.R
+import earth.mention.widgets.feedcard.FEED_PAGE_LENGTH
 import earth.mention.widgets.feedcard.ROTATION_LENGTH
 import earth.mention.widgets.feedcard.WidgetPost
 import earth.mention.widgets.feedcard.parseFeedResponse
@@ -44,7 +45,7 @@ internal object PostsApi {
      */
     suspend fun fetch(context: Context): List<WidgetPost> = withContext(Dispatchers.IO) {
         val base = context.getString(R.string.mention_widget_api_base_url).trimEnd('/')
-        val url = URL("$base/feed/mtn?descriptor=explore&limit=$ROTATION_LENGTH")
+        val url = URL("$base/feed/mtn?descriptor=explore&limit=$FEED_PAGE_LENGTH")
         val connection = (url.openConnection() as HttpURLConnection).apply {
             requestMethod = "GET"
             connectTimeout = CONNECT_TIMEOUT_MS

@@ -2,6 +2,7 @@ package earth.mention.widgets.following
 
 import android.content.Context
 import earth.mention.widgets.R
+import earth.mention.widgets.feedcard.FEED_PAGE_LENGTH
 import earth.mention.widgets.feedcard.ROTATION_LENGTH
 import earth.mention.widgets.feedcard.WidgetPost
 import earth.mention.widgets.feedcard.parseFeedResponse
@@ -51,7 +52,7 @@ internal object FollowingApi {
     suspend fun fetch(context: Context, accessToken: String): List<WidgetPost> =
         withContext(Dispatchers.IO) {
             val base = context.getString(R.string.mention_widget_api_base_url).trimEnd('/')
-            val url = URL("$base/feed/mtn?descriptor=following&limit=$ROTATION_LENGTH")
+            val url = URL("$base/feed/mtn?descriptor=following&limit=$FEED_PAGE_LENGTH")
             val connection = (url.openConnection() as HttpURLConnection).apply {
                 requestMethod = "GET"
                 connectTimeout = CONNECT_TIMEOUT_MS
