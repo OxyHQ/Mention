@@ -44,25 +44,44 @@ import mediaRoutes from '../../routes/media';
 
 const REMOTE = 'https://remote.example/video.mp4';
 
-function fakeVideoResponse() {
-  const response = new EventEmitter() as EventEmitter & {
-    statusCode: number;
-    headers: Record<string, string>;
-    destroyed: boolean;
-    resume: () => void;
-    destroy: () => void;
-    setTimeout: () => void;
-  };
+type FakeVideoResponse = EventEmitter & {
+  statusCode: number;
+  headers: Record<string, string>;
+  destroyed: boolean;
+  resume: () => void;
+  destroy: () => void;
+  setTimeout: () => void;
+  /**
+   * Resolves once the route has started reading this body — the point from which
+   * a client disconnect is supposed to tear the upstream down.
+   *
+   * `readBoundedPrefix` arms the upstream idle timeout as its very first act, and
+   * everything from the upstream fetch resolving through
+   * `deadline.setActiveResponse(response)` to that call runs in ONE synchronous
+   * continuation. So this firing means the deadline has already been handed the
+   * response and can destroy it.
+   */
+  readingStarted: Promise<void>;
+};
+
+function fakeVideoResponse(): FakeVideoResponse {
+  let signalReadingStarted: () => void = () => undefined;
+  const readingStarted = new Promise<void>((resolve) => {
+    signalReadingStarted = resolve;
+  });
+
+  const response = new EventEmitter() as FakeVideoResponse;
   response.statusCode = 200;
   response.headers = { 'content-type': 'video/mp4' };
   response.destroyed = false;
   response.resume = vi.fn();
-  response.setTimeout = vi.fn();
+  response.setTimeout = vi.fn(() => signalReadingStarted());
   response.destroy = vi.fn(() => {
     if (response.destroyed) return;
     response.destroyed = true;
     queueMicrotask(() => response.emit('error', new Error('upstream aborted')));
   });
+  response.readingStarted = readingStarted;
   return response;
 }
 
@@ -105,7 +124,15 @@ describe('GET /media/poster — client disconnect cleanup', () => {
       (res) => res.resume(),
     );
     req.on('error', () => undefined);
-    setTimeout(() => req.destroy(), 20);
+
+    // Disconnect only once the route is genuinely reading the upstream body.
+    // A fixed timer here is a race the test can LOSE PERMANENTLY: on a loaded
+    // machine the client can tear the connection down before the server has even
+    // routed the request, so the route never runs, `capturedSignal` is never
+    // assigned, and no amount of waiting below can recover — the assertion reads
+    // `undefined` instead of `true`.
+    await upstreamResponse.readingStarted;
+    req.destroy();
 
     await vi.waitFor(() => {
       expect(capturedSignal?.aborted).toBe(true);
