@@ -279,8 +279,8 @@ describe('report input — what the SDK is handed', () => {
     // §6.2: details are the reporter's claim, never evidence for it — so they are not
     // repeated across codes as if written about each separately.
     expect(built?.reportInput.metadata).toMatchObject({
-      mentionTaxonomyVersion: expect.any(String),
-      mentionCategories: 'harassment,spam',
+      taxonomyVersion: expect.any(String),
+      categories: 'harassment,spam',
     });
     expect(built?.reportInput.submittedAt).toEqual(report.createdAt);
   });

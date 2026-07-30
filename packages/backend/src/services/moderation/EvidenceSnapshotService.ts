@@ -137,9 +137,19 @@ export async function buildModerationReportInput(
        */
       submittedAt: report.createdAt,
       metadata: {
-        /** So a case can be read back against the mapping that produced it. */
-        mentionTaxonomyVersion: REPORT_TAXONOMY_VERSION,
-        mentionCategories: [...report.categories].sort().join(','),
+        /**
+         * So a case can be read back against the mapping that produced it.
+         *
+         * The keys are deliberately un-branded. Every application sends these two,
+         * `buildModerationReportInput` is being lifted into `@oxyhq/crowdsource-app`
+         * for all of them, and one consumer's prefix in a shared builder is a prefix
+         * the other six inherit for no reason. Renaming them is free only until the
+         * first delivery: ingress fingerprints the whole envelope, so afterwards a
+         * retry of an already-sent report is a different payload and a permanent
+         * 409 (§10.5) rather than a new case.
+         */
+        taxonomyVersion: REPORT_TAXONOMY_VERSION,
+        categories: [...report.categories].sort().join(','),
         /**
          * Declared, because it cannot yet be attached — see `postSubject.ts`. A
          * jury that can see material exists which it was not given can answer
