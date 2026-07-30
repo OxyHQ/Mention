@@ -366,18 +366,22 @@ export class FeedQueryBuilder {
     // Measured against production (2026-07-30): of 9,465 posts carrying a video
     // media item, `durationSec` is present on 5.9% — and on 0% of the last day's
     // arrivals. Federated video is the ENTIRE video corpus (native video posts:
-    // 0), Mastodon advertises width/height but essentially never duration, and
-    // `enrichFromOxy` cannot help because federated media is stored raw by
-    // `remoteUrl` and is not an Oxy asset. So a `$gte` on a mostly-absent field
-    // was not enforcing a 20-second policy on the corpus; it was discarding 94%
-    // of it and enforcing the policy on the remainder. The shipped default pool
-    // was 147 posts out of 9,465.
+    // 0), and Mastodon advertises width/height but essentially never duration.
+    // So a `$gte` on a mostly-absent field was not enforcing a 20-second policy
+    // on the corpus; it was discarding 94% of it and enforcing the policy on the
+    // remainder. The shipped default pool was 147 posts out of 9,465.
+    //
+    // NOT because the data is unobtainable: 7,489 of those posts (79%) are
+    // mirrored into Oxy and DO carry an Oxy file id, and Oxy already probed them
+    // — 96.4% of oxy-prod's video files hold `metadata.media.durationSec`.
+    // `enrichFromOxy` reads exactly that, so it is the fix, not a dead end; it
+    // simply was never reaching these posts (see `mediaMetadataEnrichJob`).
     //
     // Duration therefore applies WHEN KNOWN and abstains when absent. The
     // editorial intent (prefer substantial videos) is preserved exactly for every
-    // post we can actually judge. The real fix is upstream — probe duration at
-    // ingest — and this does not substitute for it: 5,576 posts have no
-    // dimensions either, and no filter relaxation reaches those.
+    // post we can actually judge. The real fix is upstream — collect the
+    // metadata Oxy already has — and this does not substitute for it: 5,576
+    // posts have no dimensions either, and no filter relaxation reaches those.
     const elemMatch: Record<string, unknown> = {
       type: 'video',
       $or: [
