@@ -340,6 +340,24 @@ Surface behaviour: **search** excludes sensitive at the QUERY level and drops mu
 - **Viewer languages**: `loadViewerFeedContext` resolves the viewer's Oxy account languages (`loadViewerLanguages` → the Redis-cached `resolveUserSummaries` path — no extra Oxy round trip; fail-soft to `[]`). They are BCP-47 LOCALES (`es-ES`), while `postClassification.languages` are ISO 639-1 base codes (`es`), so `languageMismatchPenalty` compares on the BASE subtag via `getBaseLanguage` from `@oxyhq/core`. Empty on either side ⇒ neutral (never penalize).
 - **Never honor default-zero scores**: ranking gates on `status === 'classified' OR version >= BASELINE_CLASSIFIER_VERSION` before trusting quality/spam/toxicity values.
 
+## React Compiler — a render-phase ref write is REFUSED, not miscompiled
+
+Writing a ref during render (`const r = useRef(x); r.current = x;` at the top level of a component or hook) does NOT produce a stale read with the compiler this app ships. Measured against the installed `babel-plugin-react-compiler` 19.1.0-rc.1 with the options `babel-preset-expo` passes in production (`target: '19'`, `panicThreshold: 'NONE'`): the compiler emits
+
+```
+CompileError: Ref values (the `current` property) may not be accessed during render.
+```
+
+and **bails on the entire function**, which then ships completely unoptimized. Control, same code with a closure instead of the ref: compiles to `_c(3)`.
+
+So the live cost of this pattern today is **lost memoization for the whole component or hook**, not a stale value — one such line silently opts a file out of the compiler. Staleness remains a real risk, but through discarded concurrent renders, not through the compiler.
+
+This matters because the fix is the same either way (close over the value and add it to the dep array, after checking callers pass a stable identity) but the REASON in a commit message or a review comment is often stated wrongly — including in `2ee96d48` and `29b82e5f`, which are correct fixes with an inaccurate rationale.
+
+To check a specific site rather than reason about it, compile it with the app's own plugin and look for `_c(n)` versus a `CompileError` in the logger — that probe is a dozen lines and settles the question in seconds.
+
+Distinct from the ecosystem rule in `~/AGENTS.md` about reading external mutable state inside a memoized position, which IS a stale-read hazard. Reading a ref in render and writing one in render fail differently.
+
 ## Theming
 
 - Default color preset for **Mention frontend: `blue`**.
