@@ -6,12 +6,16 @@ import {
   FEDERATION_MAX_CONTENT_LENGTH,
   AP_CONTENT_TYPE,
 } from './constants';
+import { Types } from 'mongoose';
 import { PostVisibility } from '@mention/shared-types';
+import type { MediaItem } from '@mention/shared-types';
 import { extractApLanguage, extractApLanguages } from './apLanguage';
 import { buildFederatedNoteContent, buildFederatedNoteVariants } from './apPostContent';
 import { normalizeMentionIds } from '../../utils/textProcessing';
 import { postTextHasHttpLink } from '../../utils/postSearchMetadata';
 import { getPostCreator } from '../../services/serviceRegistry';
+import { mediaMetadataService } from '../../services/MediaMetadataService';
+import { enqueueMediaMetadataEnrich } from '../../services/mediaMetadataEnrichJob';
 import { baselineContentClassifier } from '../../services/BaselineContentClassifier';
 import {
   SPAM_QUALITY_CONFIG,
@@ -826,6 +830,10 @@ export class OutboxSyncService {
         const visibility = mapApVisibility(note.to, note.cc);
 
         newDocs.push({
+          // Assigned here rather than left to the driver so the post-insert
+          // metadata-enrich pass below can address each doc without depending on
+          // `insertMany` mutating the input array.
+          _id: new Types.ObjectId(),
           oxyUserId: resolvedOxyUserId,
           authorship: buildAuthorship(resolvedOxyUserId, []),
           federation: {
@@ -936,6 +944,22 @@ export class OutboxSyncService {
             throw err;
           }
         });
+
+        // Oxy derives intrinsic media metadata (width/height/durationSec) by
+        // probing the asset asynchronously, so the inline `enrichFromOxy` that
+        // ran while materializing this media almost always beat the probe and
+        // came back empty. Schedule the retry that actually collects it.
+        //
+        // This path builds posts through a RAW `Post.collection.insertMany`,
+        // bypassing `PostCreationService` — which is where every other ingest
+        // route picks up this enqueue. Without it, outbox-backfilled posts (the
+        // bulk of federated video) never get a second attempt at all, and their
+        // media stays permanently dimension- and duration-less.
+        for (const doc of newDocs) {
+          const media = (doc.content as { media?: MediaItem[] } | undefined)?.media;
+          if (!Array.isArray(media) || !mediaMetadataService.needsOxyRetry(media)) continue;
+          void enqueueMediaMetadataEnrich(String(doc._id));
+        }
       }
 
       // Link federated replies into their threads. Done AFTER the insert so a

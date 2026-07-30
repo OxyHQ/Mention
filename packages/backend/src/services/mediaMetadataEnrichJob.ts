@@ -44,18 +44,48 @@ export async function enqueueMediaMetadataEnrich(postId: string): Promise<boolea
   return enqueueJob({ postId });
 }
 
-/** BullMQ worker entry — returns whether another retry is warranted. */
+/**
+ * Raised when Oxy has not finished deriving intrinsic media metadata yet.
+ *
+ * This is thrown, not logged, ON PURPOSE. BullMQ only re-runs a job that throws:
+ * a handler that returns normally has consumed its single delivery, and the
+ * queue's `attempts` / `backoff` settings never come into play. Returning here
+ * is what this handler used to do, which left the retry — the entire reason the
+ * job exists — permanently inert.
+ *
+ * Oxy derives width/height/durationSec by probing the asset AFTER the upload
+ * call returns, so the first enrich attempt essentially always races that probe
+ * and finds nothing. Every media item whose metadata arrives late depends on the
+ * retry window, so "still pending" has to look like failure to the queue.
+ *
+ * An asset Oxy never derives metadata for (a small minority) exhausts `attempts`
+ * and lands in the failed set. That is the honest outcome: a bounded, visible
+ * give-up rather than a success that silently wrote nothing.
+ */
+export class MediaMetadataPendingError extends Error {
+  constructor(postId: string) {
+    super(`Oxy media metadata still pending for post ${postId}`);
+    this.name = 'MediaMetadataPendingError';
+  }
+}
+
+/** BullMQ worker entry — throws to request a retry while Oxy metadata is pending. */
 export async function processMediaMetadataEnrichJob(postId: string): Promise<void> {
+  let needsRetry: boolean;
   try {
-    const needsRetry = await patchPostMediaMetadata(postId);
-    if (needsRetry) {
-      logger.debug('[MediaMetadataEnrich] Oxy metadata still pending', { postId });
-    }
+    needsRetry = await patchPostMediaMetadata(postId);
   } catch (error) {
     logger.warn('[MediaMetadataEnrich] patch failed', {
       postId,
       error: error instanceof Error ? error.message : String(error),
     });
     throw error;
+  }
+
+  // Deliberately outside the catch above so a pending probe is not relabelled as
+  // a patch failure — the two have different causes and different log levels.
+  if (needsRetry) {
+    logger.debug('[MediaMetadataEnrich] Oxy metadata still pending, requesting retry', { postId });
+    throw new MediaMetadataPendingError(postId);
   }
 }
