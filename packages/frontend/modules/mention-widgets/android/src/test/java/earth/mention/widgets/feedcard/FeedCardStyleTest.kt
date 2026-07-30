@@ -114,12 +114,32 @@ class FeedCardStyleTest {
     }
 
     @Test
-    fun `a card with no room for a line still promises one rather than zero`() {
-        // The opposite error, and the same bug: a table claiming two lines on a 110dp card
-        // handed the TextView a line it had nowhere to draw. One is the floor — never zero,
-        // which would silently render a card with no words at all.
-        assertEquals(1, textMaxLines(FeedCardSize.SMALL, 40.dp, 1f))
-        assertEquals(1, textMaxLines(FeedCardSize.SMALL, 0.dp, 1f))
+    fun `a card with no room draws no text rather than a line sliced in half`() {
+        // The bug this replaces: the count was floored at one, so the smallest placement
+        // promised a line it had nowhere to put and the TextView drew it clipped through the
+        // middle. Zero is a real answer — the card becomes a picture with an attribution.
+        assertEquals(0, textMaxLines(FeedCardSize.SMALL, 72.dp, 1f))
+        assertEquals(0, textMaxLines(FeedCardSize.SMALL, 40.dp, 1f))
+        assertEquals(0, textMaxLines(FeedCardSize.SMALL, 0.dp, 1f))
+    }
+
+    @Test
+    fun `the brand row is dropped before the last line of text is`() {
+        // As the card shrinks, something has to go. The brand row goes first: it is context
+        // for the post, while the words are the post. The byline is never a candidate — a
+        // card that cannot name its author could be attributed to anyone.
+        val heightThatNeedsTheRoom = 100.dp
+
+        assertTrue(
+            "the brand row should yield its 28dp so a line of text survives",
+            !showsBrandRow(FeedCardSize.SMALL, heightThatNeedsTheRoom, 1f),
+        )
+        assertTrue(
+            "dropping it must actually buy a line",
+            textMaxLines(FeedCardSize.SMALL, heightThatNeedsTheRoom, 1f) >= 1,
+        )
+        // A card with room for both keeps both.
+        assertTrue(showsBrandRow(FeedCardSize.MEDIUM, MEDIUM_HEIGHT, 1f))
     }
 
     @Test

@@ -264,15 +264,55 @@ private const val BODY_GLYPH_WIDTH_RATIO = 0.41f
  * estimate, and `maxLines` bounds what happens if that estimate ran low.
  */
 internal fun textMaxLines(size: FeedCardSize, cardHeight: Dp, fontScale: Float): Int {
+    val lineHeightDp = bodyLineHeightDp(size, fontScale)
+    if (lineHeightDp <= 0f) return 0
+    val available = cardHeight.value - chromeHeightDp(size, showsBrandRow(size, cardHeight, fontScale))
+    if (available < lineHeightDp) return 0
+    return (available / lineHeightDp).toInt()
+}
+
+/** Height of one line of body text at this design and font scale. */
+private fun bodyLineHeightDp(size: FeedCardSize, fontScale: Float): Float {
     val effectiveScale = if (fontScale > 0f) fontScale else 1f
-    val chrome = cardPadding(size).value * 2 +
-        FeedCardDimensions.BRAND_MARK_SIZE.value +
-        FeedCardDimensions.BLOCK_SPACING.value * 2 +
-        FeedCardDimensions.AVATAR_SIZE.value
-    val available = cardHeight.value - chrome
-    val lineHeightDp = textFontSizeSp(size) * effectiveScale * LINE_HEIGHT_RATIO
-    if (lineHeightDp <= 0f || available <= 0f) return 1
-    return (available / lineHeightDp).toInt().coerceAtLeast(1)
+    return textFontSizeSp(size) * effectiveScale * LINE_HEIGHT_RATIO
+}
+
+/**
+ * Everything that is not the text: padding, the byline, and the brand row when it is drawn.
+ *
+ * The gaps are counted with the blocks they separate — one below the brand row when it is
+ * there, and always one above the byline.
+ */
+private fun chromeHeightDp(size: FeedCardSize, withBrandRow: Boolean): Float {
+    val padding = cardPadding(size).value * 2
+    val byline = FeedCardDimensions.AVATAR_SIZE.value + FeedCardDimensions.BLOCK_SPACING.value
+    val brand = if (withBrandRow) {
+        FeedCardDimensions.BRAND_MARK_SIZE.value + FeedCardDimensions.BLOCK_SPACING.value
+    } else {
+        0f
+    }
+    return padding + byline + brand
+}
+
+/**
+ * Whether the card is tall enough to spend 28dp on saying which feed this came from.
+ *
+ * The brand row is the FIRST thing dropped as the card shrinks, and it is the right one to
+ * drop: its own doc calls it the quietest thing on the card, context for the post rather
+ * than a headline. The byline is not a candidate — a card whose byline cannot name anyone is
+ * a card that could be attributed to anyone, which is a content-safety property rather than
+ * a layout preference.
+ *
+ * Dropped only when keeping it would cost the last line of TEXT, so a card that can afford
+ * both keeps both. At the 72dp floor neither survives: the byline and padding alone leave
+ * 20dp, less than one 18dp line, so the card is a picture with an attribution — and that is
+ * the honest answer at two launcher cells by one, rather than a line sliced through the
+ * middle, which is what the previous `coerceAtLeast(1)` produced.
+ */
+internal fun showsBrandRow(size: FeedCardSize, cardHeight: Dp, fontScale: Float): Boolean {
+    val lineHeightDp = bodyLineHeightDp(size, fontScale)
+    if (lineHeightDp <= 0f) return true
+    return cardHeight.value - chromeHeightDp(size, withBrandRow = true) >= lineHeightDp
 }
 
 /** Font size the post's text draws at, in sp. M3 Title Medium, up to Title Large. */

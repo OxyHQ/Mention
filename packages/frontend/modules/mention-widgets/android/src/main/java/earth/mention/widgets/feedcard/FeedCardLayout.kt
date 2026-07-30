@@ -203,16 +203,24 @@ private fun PostCard(
             .semantics { contentDescription = cardContentDescription(context, post, text) }
             .clickable(actionStartActivity(openInAppIntent(context, postUrl(context, post)))),
     ) {
-        BrandRow(spec = spec, contentColor = contentColor)
+        val fontScale = context.resources.configuration.fontScale
+        val lines = textMaxLines(design, cardHeight, fontScale)
 
-        if (text.isNotEmpty()) {
+        if (showsBrandRow(design, cardHeight, fontScale)) {
+            BrandRow(spec = spec, contentColor = contentColor)
+        }
+
+        // `lines == 0` is a real state, not a guard: at the smallest placement the byline and
+        // the padding already fill the card, and drawing one line anyway is what sliced a line
+        // of text through the middle. A picture with an attribution is the honest card there.
+        if (text.isNotEmpty() && lines > 0) {
             Spacer(GlanceModifier.height(FeedCardDimensions.BLOCK_SPACING))
             Text(
                 text = text,
                 style = FeedCardTextStyles.body(contentColor, design),
                 // The second guard on truncation: `truncateToBudget` cut the string against
                 // an estimate, and this bounds what happens if that estimate ran low.
-                maxLines = textMaxLines(design, cardHeight, context.resources.configuration.fontScale),
+                maxLines = lines,
                 // THE TEXT takes the leftover height, not a spacer. It used to be the other
                 // way round — a weighted `Spacer` below claimed every spare pixel, so a long
                 // post was cut while the room it needed sat empty underneath it. The brand
