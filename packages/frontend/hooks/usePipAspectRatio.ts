@@ -84,6 +84,21 @@ export interface UsePipAspectRatioOptions {
   active: boolean;
   /** Intrinsic dimensions from the feed, used until the player reports a track. */
   persistedSize?: MediaPixelSize;
+  /**
+   * Whether this surface's player is the one the OS window is showing right now.
+   *
+   * Read only as a TRIGGER: the ratio is re-stated the moment the window opens,
+   * because expo-video may have overwritten it in the meantime. Its params are
+   * activity-wide and pushed by every mounted `VideoView` (`applyPiPParams`, from
+   * `onPiPParamsChanged`), and a view whose own `onVideoSourceLoaded` never
+   * produced a usable size still carries `PiPParams.aspectRatio`'s default of
+   * `Rational(16, 9)` — which IS in the valid range, so it lands. Measured: a
+   * 720×1280 video published 0.5625 correctly, sat 38 seconds while its neighbours
+   * loaded, and opened its window at 1.7797 — landscape, the reported bug exactly.
+   * Publishing again on open is enough because nothing writes after that (two other
+   * videos held their shape for 12s once the owner was the only publisher).
+   */
+  sessionOwner?: boolean;
   /** For the log line, so a failure names the video it was about. */
   postId: string;
 }
@@ -92,6 +107,7 @@ export function usePipAspectRatio({
   player,
   active,
   persistedSize,
+  sessionOwner,
   postId,
 }: UsePipAspectRatioOptions): void {
   // Seeded from the player rather than from nothing: a surface promoted from
@@ -125,5 +141,5 @@ export function usePipAspectRatio({
         error,
       });
     });
-  }, [active, width, height, postId]);
+  }, [active, sessionOwner, width, height, postId]);
 }

@@ -65,15 +65,18 @@ interface HarnessProps {
   player: FakePlayer;
   active: boolean;
   persistedSize?: { width: number; height: number };
+  /** Whether the OS window is showing this surface's player. */
+  sessionOwner?: boolean;
   postId?: string;
 }
 
-function Harness({ player, active, persistedSize, postId = 'post-1' }: HarnessProps) {
+function Harness({ player, active, persistedSize, sessionOwner = false, postId = 'post-1' }: HarnessProps) {
   usePipAspectRatio({
     // The fake stands in for the parts of `VideoPlayer` this hook touches.
     player: player as unknown as Parameters<typeof usePipAspectRatio>[0]['player'],
     active,
     persistedSize,
+    sessionOwner,
     postId,
   });
   return null;
@@ -182,6 +185,28 @@ describe('usePipAspectRatio', () => {
     });
 
     expect(mockNative.calls).toEqual([{ width: 720, height: 1280 }]);
+  });
+
+  it('re-states the ratio when the OS window opens', () => {
+    // expo-video's params are activity-wide and pushed by every mounted `VideoView`;
+    // one whose own source load produced no usable size still carries
+    // `PiPParams.aspectRatio`'s `Rational(16, 9)` default, which is in range and so
+    // lands. Measured: a correctly-published 720x1280 sat 38 seconds while its
+    // neighbours loaded and its window then opened at 1.7797 — landscape. Publishing
+    // once when the size is known is therefore not enough; the window opening is a
+    // second moment where the truth has to be restated.
+    const player = makePlayer({ size: { width: 720, height: 1280 } });
+    const tree = render({ player, active: true });
+    expect(mockNative.calls).toEqual([{ width: 720, height: 1280 }]);
+
+    act(() => {
+      tree.update(<Harness player={player} active sessionOwner postId="post-1" />);
+    });
+
+    expect(mockNative.calls).toEqual([
+      { width: 720, height: 1280 },
+      { width: 720, height: 1280 },
+    ]);
   });
 
   it('ignores a track that reports no usable size', () => {

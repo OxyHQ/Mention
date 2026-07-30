@@ -296,6 +296,7 @@ interface VideoItemProps {
     viewerId?: string;
     // PiP session plumbing, forwarded to the surface (see ActiveVideoSurfaceProps).
     ownsSession: boolean;
+    sessionActive: boolean;
     sessionSource?: PlayableSource;
     onSessionStart: (postId: string) => void;
     onSessionEnd: (postId: string) => void;
@@ -340,6 +341,9 @@ interface ActiveVideoSurfaceProps {
     // owns that fact (it is the reel's session), so the surface never tracks it
     // locally — see the session block below.
     ownsSession: boolean;
+    // Whether ANY surface owns the window. While one does, the pager's active slide
+    // stops deciding which surface is watched — see `isWatched` below.
+    sessionActive: boolean;
     // Where the session has moved to, while this surface owns it. Swapped onto
     // the SAME player rather than mounting the next slide's, which is what keeps
     // the OS window from freezing on a still frame.
@@ -367,6 +371,7 @@ const ActiveVideoSurface = memo<ActiveVideoSurfaceProps>(({
     isLiked,
     onLikePost,
     ownsSession,
+    sessionActive,
     sessionSource,
     onSessionStart,
     onSessionEnd,
@@ -525,15 +530,35 @@ const ActiveVideoSurface = memo<ActiveVideoSurfaceProps>(({
     // — would leave the OS window showing a frozen frame of a player nothing is
     // driving any more.
     const videoViewRef = useRef<VideoView | null>(null);
-    const handlePictureInPictureStart = useCallback(() => onSessionStart(postId), [onSessionStart, postId]);
-    const handlePictureInPictureStop = useCallback(() => onSessionEnd(postId), [onSessionEnd, postId]);
 
     // The surface the viewer is actually watching: the slide the pager is on, or —
     // while the OS window is up — the session's owner, wherever the pager left it.
     // The owner must stay in this set: on web `allowsPictureInPicture` maps to the
     // element's `disablePictureInPicture`, which the browser reads as "leave PiP
     // now", so dropping the capability under a live window would close it.
-    const isWatched = ownsSession || (isActive && screenFocused);
+    //
+    // Once a session exists the owner is the ONLY watched surface, which is why the
+    // pager's own idea of the active slide is ignored for as long as one is open.
+    // Entering PiP shrinks the activity's window to a couple of hundred pixels, and
+    // that resize makes the list re-run its viewability pass and hand `isActive` to
+    // a NEIGHBOUR — which then declared itself watched, published its own video's
+    // shape into the activity-wide PiP params, and reshaped a window showing someone
+    // else's video (measured: a 0.7999 window became the neighbour's 0.5618 about a
+    // second after it opened). The pager is not an authority on what the OS is
+    // showing while the OS is the one showing it.
+    const isWatched = ownsSession || (!sessionActive && isActive && screenFocused);
+
+    // Android delivers `onPictureInPictureModeChanged` to the ACTIVITY, so
+    // expo-video forwards `onPictureInPictureStart` to EVERY mounted `VideoView` —
+    // all five of them, in the same millisecond, not just the one that entered.
+    // Without this guard the last preloading neighbour to be called won the session
+    // and became the owner of a window showing a video it had nothing to do with.
+    // Only a surface that could actually enter PiP may claim to have done so.
+    const handlePictureInPictureStart = useCallback(() => {
+        if (!isWatched) return;
+        onSessionStart(postId);
+    }, [isWatched, onSessionStart, postId]);
+    const handlePictureInPictureStop = useCallback(() => onSessionEnd(postId), [onSessionEnd, postId]);
 
     // Give the OS window this video's shape. Only the watched surface publishes —
     // the params are activity-wide, so a preloading neighbour asserting its own
@@ -543,6 +568,7 @@ const ActiveVideoSurface = memo<ActiveVideoSurfaceProps>(({
         player,
         active: isWatched,
         persistedSize: intrinsicSize,
+        sessionOwner: ownsSession,
         postId,
     });
 
@@ -948,6 +974,7 @@ const VideoItem = memo<VideoItemProps>(({
     windowHeight,
     viewerId,
     ownsSession,
+    sessionActive,
     sessionSource,
     onSessionStart,
     onSessionEnd,
@@ -1016,6 +1043,7 @@ const VideoItem = memo<VideoItemProps>(({
                     isLiked={item.viewerState.isLiked}
                     onLikePost={handleDoubleTapLike}
                     ownsSession={ownsSession}
+                    sessionActive={sessionActive}
                     sessionSource={sessionSource}
                     onSessionStart={onSessionStart}
                     onSessionEnd={onSessionEnd}
@@ -1948,6 +1976,7 @@ export default function VideosScreen() {
             windowHeight={WINDOW_HEIGHT}
             viewerId={viewerId}
             ownsSession={item.id === pipOwnerId}
+            sessionActive={pipOwnerId !== null}
             sessionSource={item.id === pipOwnerId ? sessionSource : undefined}
             onSessionStart={startPipSession}
             onSessionEnd={endPipSession}
@@ -2043,6 +2072,7 @@ export default function VideosScreen() {
                                         windowHeight={WINDOW_HEIGHT}
                                         viewerId={viewerId}
                                         ownsSession={item.id === pipOwnerId}
+                                        sessionActive={pipOwnerId !== null}
                                         sessionSource={item.id === pipOwnerId ? sessionSource : undefined}
                                         onSessionStart={startPipSession}
                                         onSessionEnd={endPipSession}
