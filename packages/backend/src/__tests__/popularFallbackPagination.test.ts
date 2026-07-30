@@ -208,3 +208,15 @@ describe('seen posts on the fallback path', () => {
     expect(JSON.stringify(aggregateCalls)).toContain(seen);
   });
 });
+
+describe('seen posts on the for_you fallback', () => {
+  it('excludes what the viewer already saw, like the video and media fallbacks do', async () => {
+    // `popularSource` builds its match by hand rather than through a query builder,
+    // and was the only fallback that never threaded the seen set — so the first
+    // fallback page could re-serve the posts the ranked pages had just exhausted.
+    const seen = new mongoose.Types.ObjectId().toString();
+    await popularSource.gather(context({ seenPostIds: [seen] }), {}, 10);
+
+    expect(JSON.stringify(aggregateCalls)).toContain(seen);
+  });
+});

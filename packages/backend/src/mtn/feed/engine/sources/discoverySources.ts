@@ -314,6 +314,20 @@ export const popularSource: SourceModule = {
       ...DISCOVERY_SAFE_MATCH,
       $and: [{ $or: [{ boostOf: null }, { boostOf: { $exists: false } }] }],
     };
+
+    // Exclude what the viewer has already been shown. The video and media
+    // fallbacks thread the seen set through their query builders; this one built
+    // its match by hand and never did, so the FIRST fallback page could re-serve
+    // exactly the posts the ranked pages had just run out of — the most visible
+    // moment to repeat yourself. Later pages were already fine, because the keyset
+    // carries the boundary forward; it is only the ranked→fallback transition,
+    // where there is no keyset yet, that had nothing to exclude on.
+    const seenObjectIds = (ctx.seenPostIds ?? [])
+      .filter((id) => mongoose.Types.ObjectId.isValid(id))
+      .map((id) => new mongoose.Types.ObjectId(id));
+    if (seenObjectIds.length > 0) {
+      (baseMatch.$and as unknown[]).push({ _id: { $nin: seenObjectIds } });
+    }
     // This source is BOTH For You anonymous and the authenticated never-blank
     // fallback, so it is handed whatever cursor the ranked feed last emitted —
     // including a `ScoreCursor`, which is not a bare ObjectId. It used to accept a
