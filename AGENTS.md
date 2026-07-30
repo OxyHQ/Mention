@@ -114,7 +114,7 @@ The profile feed is NOT a separate endpoint — it is `GET /feed/mtn?descriptor=
 
 ActivityPub is implemented as the `activitypub/ActivityPubConnector` inside the connectors module (see External Network Connectors above). Federated users are type `'federated'` in Oxy, posts in Mention, linked by `oxyUserId`. HTTP signatures on all outbound requests.
 
-- **Local dev**: `cloudflared tunnel --url http://localhost:3000` + set `FEDERATION_DOMAIN` to the tunnel domain.
+- **Local dev**: `cloudflared tunnel --url http://localhost:4110` + set `FEDERATION_DOMAIN` to the tunnel domain.
 - **Outbox sync** uses the actor's advertised `outbox` URL; `actorUri + '/outbox'` is fallback only — guessing breaks PeerTube/Lemmy/some Pleroma. Lives in `connectors/activitypub/outbox.service.ts`.
 - **Boosts** imported as `type:'boost'` posts, deduped by `federation.activityId`, in both inbox push (`handleAnnounce`) and outbox backfill paths.
 - **Likes/boosts from federated actors** stored as NATIVE records (Like doc / boost Post). The AP connector does NOT copy remote aggregate counts — counts only move ±1 in lockstep with real records.

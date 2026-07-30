@@ -218,7 +218,7 @@ cd packages/backend && bun run dev
 
 # Terminal 2 — MCP HTTP server (not for end users)
 cd packages/mcp
-MENTION_API_URL=http://localhost:3000 bun run dev:http
+MENTION_API_URL=http://localhost:4110 bun run dev:http
 ```
 
 From repo root: `bun run dev:mcp:http`

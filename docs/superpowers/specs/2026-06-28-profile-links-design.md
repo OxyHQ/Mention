@@ -127,7 +127,7 @@ same normalizer feeding its own existing UI.
   device/web check**: profile shows the collapsed row after stats, tap opens the "Links"
   sheet, rows open URLs, `ProfileMeta` no longer shows links. Test a profile with 1 link,
   3 links, 0 links, and a link with/without a title. (Mention is already running locally on
-  `:3000` backend / `:8090` web — use it.)
+  `:4110` backend / `:8110` web — use it.)
 - **services**: tsc + build; the SDK profile screen still renders links via the shared
   normalizer.
 - Push each repo via `test-build` → `git-ops`.

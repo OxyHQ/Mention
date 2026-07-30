@@ -135,7 +135,7 @@ describe('public realtime transport', () => {
     publicRealtimeService.connect();
 
     expect(mockIoCalls).toHaveLength(1);
-    expect(mockIoCalls[0].url).toBe(`ws://localhost:3000${PUBLIC_REALTIME_NAMESPACE}`);
+    expect(mockIoCalls[0].url).toBe(`ws://localhost:4110${PUBLIC_REALTIME_NAMESPACE}`);
     // The whole point of this connection: a signed-out visitor can open it.
     // Anything token-shaped here would mean it needs a session after all.
     expect(mockIoCalls[0].opts).not.toHaveProperty('auth');

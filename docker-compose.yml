@@ -8,6 +8,11 @@ x-backend-image: &backend-image
 
 x-backend-environment: &backend-environment
   NODE_ENV: development
+  # Pinned to the port the image EXPOSEs and HEALTHCHECKs. The code default is
+  # 4110 (Mention's slot in the per-app local dev port map), which is what the
+  # HOST side of the port mapping below uses; inside the container the two must
+  # agree with the Dockerfile, so set it explicitly rather than inherit.
+  PORT: "3000"
   MONGODB_URI: mongodb://mongo:27017/mention?replicaSet=rs0&directConnection=true
   REDIS_URL: redis://valkey:6379
 
@@ -89,7 +94,9 @@ services:
         condition: service_completed_successfully
     environment: *backend-environment
     ports:
-      - "127.0.0.1:${MENTION_PORT:-3000}:3000"
+      # Host side is Mention's slot in the per-app local dev port map (4110) so
+      # several Oxy backends can run side by side.
+      - "127.0.0.1:${MENTION_PORT:-4110}:3000"
 
 volumes:
   mongo_data:

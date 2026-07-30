@@ -142,18 +142,18 @@ export function isNotFoundError(error: unknown): boolean {
 }
 
 /**
- * Get API origin, ensuring correct port for localhost (3000)
- * Backend API runs on port 3000, regardless of frontend dev server port
+ * Get API origin, ensuring correct port for localhost (4110)
+ * Backend API runs on port 4110, regardless of frontend dev server port
  */
 export function getApiOrigin(): string {
   try {
     const url = new URL(API_URL);
     if (url.hostname === 'localhost' || url.hostname === '127.0.0.1') {
-      return `${url.protocol}//${url.hostname}:3000`;
+      return `${url.protocol}//${url.hostname}:4110`;
     }
     return url.origin;
   } catch {
-    return 'http://localhost:3000';
+    return 'http://localhost:4110';
   }
 }
 

@@ -32,8 +32,8 @@ export function getAllowedOrigins(): string[] {
   }
   return [
     ...PRODUCTION_ORIGINS,
-    'http://localhost:8081',
-    'http://localhost:8082',
+    'http://localhost:8110',
+    'http://localhost:8111',
   ];
 }
 
