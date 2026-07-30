@@ -9,6 +9,7 @@ import androidx.compose.ui.unit.dp
 import androidx.glance.ColorFilter
 import androidx.glance.GlanceModifier
 import androidx.glance.GlanceTheme
+import androidx.glance.background
 import androidx.glance.Image
 import androidx.glance.ImageProvider
 import androidx.glance.LocalContext
@@ -18,7 +19,6 @@ import androidx.glance.action.clickable
 import androidx.glance.appwidget.action.actionStartActivity
 import androidx.glance.appwidget.components.CircleIconButton
 import androidx.glance.appwidget.components.FilledButton
-import androidx.glance.appwidget.components.Scaffold
 import androidx.glance.layout.Alignment
 import androidx.glance.layout.Box
 import androidx.glance.layout.Column
@@ -78,14 +78,25 @@ internal fun FeedCardContent(spec: FeedCardSpec, state: FeedCardState) {
         OVER_IMAGE_CONTENT_COLOR
     }
 
-    Scaffold(
-        // The tonal container IS the widget — there is no chrome outside it, and it is what
-        // shows through when the post has no picture. The corner comes from `Scaffold`,
-        // which applies the launcher's own `system_app_widget_background_radius` on API
-        // 31+; setting one here would draw a second, mismatched curve just inside the
-        // host's.
-        backgroundColor = GlanceTheme.colors.primaryContainer,
-        horizontalPadding = 0.dp,
+    // A plain `Box`, not `Scaffold`, and the reason is geometric rather than stylistic.
+    //
+    // `Scaffold` applies a vertical padding of its own and exposes only `horizontalPadding`,
+    // so the height its content actually receives is smaller than `LocalSize` by an amount
+    // this file cannot name. Everything here — how many lines fit, whether the brand row
+    // survives, how tall the text block is — is arithmetic against that height, and an
+    // unknown subtrahend makes the whole sum wrong in the one direction that shows: the last
+    // child, the byline, gets clipped. That is the avatar being cut off at small sizes.
+    //
+    // Nothing is lost with it. The tonal container is one `background` modifier. The rounded
+    // corner was never `Scaffold`'s to give on this surface: the launcher clips widget
+    // content to `system_app_widget_background_radius` itself, which this module verified on
+    // a real launcher — the pixel just inside the widget's box but outside the card's arc is
+    // wallpaper, at all four corners. Below API 31 Glance's own `cornerRadius` does nothing
+    // either way.
+    Box(
+        GlanceModifier
+            .fillMaxSize()
+            .background(GlanceTheme.colors.primaryContainer),
     ) {
         Box(GlanceModifier.fillMaxSize()) {
             if (background != null) {
