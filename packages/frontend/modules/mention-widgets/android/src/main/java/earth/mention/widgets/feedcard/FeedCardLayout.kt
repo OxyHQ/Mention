@@ -289,6 +289,16 @@ private fun BrandRow(spec: FeedCardSpec, contentColor: ColorProvider) {
         modifier = GlanceModifier.fillMaxWidth(),
         verticalAlignment = Alignment.Vertical.CenterVertically,
     ) {
+        // The label leads and the mark sits at the far end, pushed there by the weight
+        // between them rather than by a fixed gap — so it stays pinned to the right edge at
+        // every width the launcher can hand out, instead of trailing the text.
+        Text(
+            text = context.getString(spec.eyebrow),
+            style = FeedCardTextStyles.brand(contentColor),
+            maxLines = 1,
+            modifier = GlanceModifier.defaultWeight().semantics { contentDescription = "" },
+        )
+        Spacer(GlanceModifier.width(FeedCardDimensions.BRAND_SPACING))
         Image(
             provider = ImageProvider(R.drawable.mention_widget_brand),
             // The words beside it say the same thing, and the card's own description
@@ -296,13 +306,6 @@ private fun BrandRow(spec: FeedCardSpec, contentColor: ColorProvider) {
             contentDescription = null,
             modifier = GlanceModifier.size(FeedCardDimensions.BRAND_MARK_SIZE),
             colorFilter = ColorFilter.tint(contentColor),
-        )
-        Spacer(GlanceModifier.width(FeedCardDimensions.BRAND_SPACING))
-        Text(
-            text = context.getString(spec.eyebrow),
-            style = FeedCardTextStyles.brand(contentColor),
-            maxLines = 1,
-            modifier = GlanceModifier.semantics { contentDescription = "" },
         )
     }
 }
