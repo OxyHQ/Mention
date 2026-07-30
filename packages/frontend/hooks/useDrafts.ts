@@ -1,9 +1,10 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Storage } from '@/utils/storage';
 import { createScopedLogger } from '@/lib/logger';
 import type { DraftVariants } from '@/utils/composeVariants';
 import { useAuth } from '@oxyhq/services/ui/client';
 import { viewerStorageKey } from '@/lib/viewerQueryKeys';
+import { useRefSync } from '@/hooks/useRefSync';
 
 const logger = createScopedLogger('useDrafts');
 
@@ -55,8 +56,17 @@ export const getDraftsStorageKey = (viewerId: string): string =>
 export const useDrafts = () => {
   const { user } = useAuth();
   const viewerId = user?.id?.trim() || null;
-  const viewerIdRef = useRef(viewerId);
-  viewerIdRef.current = viewerId;
+  // Every operation below takes its STORAGE KEY from `operationViewerId`, the
+  // closure value — never from this ref — so no draft can be written under the
+  // wrong account. What the ref decides is narrower and purely about state: has
+  // the viewer changed while this read or write was in flight, i.e. may its
+  // result still be shown. Answering that with the COMMITTED viewer is what an
+  // Effect gives us, and it is the correct question: a render that never commits
+  // is not a viewer the reader ever had. (The render-phase mirror it replaces was
+  // also illegal input for the React Compiler.) A lagging answer would strand
+  // the guards closed — the drafts list would stay on its spinner after an
+  // account switch and stop refreshing when a draft is saved.
+  const viewerIdRef = useRefSync(viewerId);
   const [drafts, setDrafts] = useState<Draft[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
