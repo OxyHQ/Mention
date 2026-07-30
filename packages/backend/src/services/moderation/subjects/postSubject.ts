@@ -22,17 +22,45 @@ import type {
  *
  * ## What is NOT here, and why
  *
- * **Media is not attached.** A post's images and video live as Oxy file ids (or,
- * for federated posts, as remote URLs), and §5.2's `AssetRef` requires the exact
- * bytes to be identified — one of an `uploadId` or a URL, plus a `sha256` of what
- * the jury will look at. Mention stores neither digest, and `POST /v1/uploads`
- * (the SDK's `uploads.upload()`) is not served by the CrowdSource backend yet. So
- * rather than inventing a digest or shipping a bare URL the contract would
- * refuse, a post's media is DECLARED in the report metadata — count and kinds —
- * and the jury can see that material exists which it was not given. A report
- * whose only substance is an image is therefore answerable only as
- * `insufficient_context`, which is the honest answer while this gap is open.
- * Closing it is one function here plus an upload call, and nothing else changes.
+ * **Media is not attached.** A post's media is DECLARED in the report metadata —
+ * count and kinds — so a jury can see that material exists which it was not given,
+ * and a report whose only substance is an image is answerable as
+ * `insufficient_context` for the right reason rather than by accident. That is the
+ * honest state while the gap is open, and it is not the state it has to stay in.
+ *
+ * ### What closing it actually takes, as of `@oxyhq/crowdsource-contracts` 0.3.0
+ *
+ * 0.3.0 changed the answer and made it much smaller than it was. `AssetRef` used to
+ * be "exactly one of `uploadId` or `url`", with `uploadId` needing a presigned upload
+ * route CrowdSource never built. That is gone: the `Uploads` namespace was removed,
+ * CrowdSource serves no upload route at all, and the shape is now
+ * `{ fileId, url?, mimeType, sha256, sizeBytes?, width?, height?, durationSeconds? }`
+ * — a bare Oxy file id plus a digest, because bytes travel through the Oxy media
+ * chokepoint like all other Oxy media. `url` is PROVENANCE ONLY and no reviewer
+ * client dereferences it (fetching would tell the origin host when its content is
+ * under review, and deliver live bytes rather than the pinned ones §5.6 requires).
+ *
+ * Which means Mention already holds every field but one, and the missing one needs no
+ * byte fetching either:
+ *
+ *   * `fileId` — `MediaItem.id` IS an Oxy file id for native media, and for federated
+ *     media once the media cache has rewritten it (`cachedFromFederation`, with the
+ *     origin URL preserved in `remoteUrl` — which is exactly `AssetRef.url`).
+ *   * `sha256` + `mimeType` + `sizeBytes`/`width`/`height`/`durationSeconds` — one
+ *     batched `getServiceAssetMetadataByIds` call on the service Oxy client returns
+ *     `{ id, sha256, mime, size, width?, height?, durationSec? }` per file id, which
+ *     is the whole of `AssetRef` field-for-field. Mention already makes this exact
+ *     call in `services/mtn/mentionRecordBuilders.ts` (`resolvePostRecordEmbeds`) to
+ *     content-address post media for the MTN chain, so the digest is a lookup rather
+ *     than a download.
+ *
+ * So this is one function here — collect the file ids, resolve metadata, map to
+ * `attachments` — plus flipping `evidenceAttachmentsSupported` in
+ * `EvidenceSnapshotService`. Two things to get right when it is built, both of which
+ * would otherwise be found in production: the digest MUST land in the snapshot hash
+ * (a re-uploaded image is a different version and §5.6 says so), and a federated item
+ * the cache has NOT rewritten still has a URL in `id` and no file id at all, so it
+ * stays declared-only rather than becoming an `AssetRef` with an invented digest.
  */
 
 /** A lean post, projected to exactly what a snapshot needs. */
