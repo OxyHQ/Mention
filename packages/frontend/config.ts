@@ -20,11 +20,11 @@ export const LOG_DEBUG_FILTER = process.env.EXPO_PUBLIC_LOG_DEBUG ?? '';
 export const API_URL =
   process.env.NODE_ENV === 'production'
     ? 'https://api.mention.earth'
-    : (process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000');
+    : (process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:4110');
 export const API_URL_SOCKET =
   process.env.NODE_ENV === "production"
     ? "wss://api.mention.earth"
-    : (process.env.EXPO_PUBLIC_API_URL_SOCKET ?? "ws://localhost:3000");
+    : (process.env.EXPO_PUBLIC_API_URL_SOCKET ?? "ws://localhost:4110");
 
 // Syra live-rooms backend. Mention's rooms feature is powered by Syra, so room
 // HTTP + realtime traffic targets Syra (NOT api.mention.earth). The Oxy bearer

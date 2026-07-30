@@ -93,7 +93,7 @@ MENTION_E2E_CANDIDATE_ORIGIN=https://<deployment>.mention-frontend.pages.dev \
   bun run --cwd packages/e2e test
 
 # Or against a local export: bun run build:frontend && npx serve packages/frontend/dist
-MENTION_E2E_CANDIDATE_ORIGIN=http://127.0.0.1:3000 bun run --cwd packages/e2e test
+MENTION_E2E_CANDIDATE_ORIGIN=http://127.0.0.1:4110 bun run --cwd packages/e2e test
 ```
 
 First run needs the browser: `bun run --cwd packages/e2e install-browser`.

@@ -224,7 +224,10 @@ const environmentSchema = z
     LOG_LEVEL: z
       .enum(['trace', 'debug', 'info', 'warn', 'error', 'fatal', 'silent'])
       .optional(),
-    PORT: integerFromEnv(3_000, { minimum: 1, maximum: 65_535 }),
+    // Local dev default only — ECS injects PORT explicitly (oxy-infra
+    // terraform-uswest2/app-services-realtime.tf). 4110 is Mention's slot in
+    // the per-app port map so several Oxy backends can run side by side.
+    PORT: integerFromEnv(4_110, { minimum: 1, maximum: 65_535 }),
 
     MONGODB_URI: trimmedOptionalString,
     MONGODB_READ_PREFERENCE: z
@@ -688,7 +691,7 @@ export const config = {
   frontendUrl: environment.FRONTEND_URL,
   oxyApiUrl: environment.OXY_API_URL,
   federationDomain: environment.FEDERATION_DOMAIN,
-  publicApiUrl: environment.MENTION_PUBLIC_API_URL ?? 'http://localhost:3000',
+  publicApiUrl: environment.MENTION_PUBLIC_API_URL ?? 'http://localhost:4110',
   redis: {
     configured: redisConfigFrom(environment).explicitlyConfigured,
   },
@@ -704,7 +707,7 @@ export const config = {
   },
   mcp: {
     resourceUrl: environment.MENTION_MCP_PUBLIC_URL,
-    issuer: environment.MENTION_PUBLIC_API_URL ?? 'http://localhost:3000',
+    issuer: environment.MENTION_PUBLIC_API_URL ?? 'http://localhost:4110',
     frontendOrigin: environment.MENTION_FRONTEND_ORIGIN,
     linkTokenTtlSeconds: environment.MCP_LINK_TOKEN_TTL_SECONDS,
     maxBundleMembers: environment.MCP_MAX_BUNDLE_MEMBERS,

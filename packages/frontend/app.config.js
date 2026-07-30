@@ -50,7 +50,7 @@ module.exports = function(_config) {
   const WIDGET_API_BASE_URL =
     process.env.NODE_ENV === 'production'
       ? 'https://api.mention.earth'
-      : (process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000')
+      : (process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:4110')
   const WIDGET_WEB_BASE_URL =
     process.env.EXPO_PUBLIC_WEB_BASE_URL || 'https://mention.earth'
 
