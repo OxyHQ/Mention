@@ -31,10 +31,31 @@ const { savePostCommand, votePostCommand } = await import(
  * `createdAt`/`updatedAt` in `$setOnInsert` against schemas declaring
  * `{ timestamps: true }`, so Mongoose added the same paths and Mongo refused the
  * whole update — `Updating the path 'updatedAt' would create a conflict at
- * 'updatedAt'`. Inside `inIdempotentTransaction` that abort took the command with
- * it, so every like, downvote, save and unsave failed. It shipped in `ce333c92`
- * and the suite stayed green throughout, because a mocked `updateOne` accepts any
+ * 'updatedAt'`, `code: 40` `ConflictingUpdateOperators`. Inside
+ * `inIdempotentTransaction` that abort took the command with it, so every like,
+ * downvote, save and unsave was CAPABLE of failing. It shipped in `ce333c92` and
+ * the suite stayed green throughout, because a mocked `updateOne` accepts any
  * update document at all.
+ *
+ * ## What production actually observed, which is narrower
+ *
+ * The code was live from 2026-07-26T20:15Z (task definition `oxy-mention:20`)
+ * until the fix four days later. In that window `POST /posts/:id/like` was called
+ * 33 times — 21 on 07-28, 12 on 07-29 — and returned 500 every time. Not a
+ * sample: 33 of 33, with no other status code for that route on any day. The
+ * other three days saw zero attempts, which is the whole reason the failures
+ * cluster on two days rather than five.
+ *
+ * `POST /posts/:id/save` was called ZERO times in that window. The bookmark half
+ * was equally broken and simply never exercised, so it is recorded here as never
+ * tried rather than never broken — the distinction matters to anyone reading this
+ * later for what the outage cost.
+ *
+ * The failure is deterministic and NOT retryable: `code: 40` rejects the update
+ * document before touching a row, so a retry resends the identical document for
+ * the identical rejection. Do not confuse it with `code: 112` `WriteConflict` /
+ * `TransientTransactionError`, which is what the WRONG fix causes under
+ * concurrency (see the last test in this file) and which never shipped.
  *
  * ## Why a replica set, unlike the moderation file
  *
