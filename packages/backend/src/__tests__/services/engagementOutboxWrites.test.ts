@@ -171,4 +171,70 @@ describe('the engagement writes are ones Mongo accepts', () => {
       await session.endSession();
     }
   });
+
+  it('a replayed enqueue does not abort a transaction racing the dispatcher', async () => {
+    /**
+     * The CONSEQUENCE the no-op exists for, rather than the mechanism.
+     *
+     * The test above proves the repeat writes nothing, by watching `updatedAt`.
+     * This one proves what that buys: the dispatcher claims, renews and completes
+     * leases on these same rows inside its own transactions, so if a replayed
+     * enqueue were a real write it would collide with an uncommitted one and Mongo
+     * would abort the transaction that got there second. That failure is silent,
+     * intermittent, and only appears under concurrency — the shape that survives
+     * every single-threaded test.
+     *
+     * Both are worth keeping. `updatedAt` discriminates the two candidate fixes
+     * cheaply; this one is the reason to care which one is chosen, and it fails
+     * with a write conflict rather than a moved timestamp.
+     */
+    const relationshipId = new mongoose.Types.ObjectId().toHexString();
+    const payload = {
+      actorOxyUserId: 'viewer-c',
+      postId: new mongoose.Types.ObjectId().toHexString(),
+      relationshipId,
+    };
+    const seed = await mongoose.startSession();
+    let eventId = '';
+    try {
+      eventId = await enqueueEngagementOutboxEvent(
+        { kind: 'post.like', relationshipId, revision: 1, payload },
+        seed,
+      );
+    } finally {
+      await seed.endSession();
+    }
+
+    const dispatcher = await mongoose.startSession();
+    const replay = await mongoose.startSession();
+    try {
+      // The dispatcher holds an uncommitted write on the row, as it does whenever
+      // it is claiming or renewing that event's lease.
+      dispatcher.startTransaction();
+      await EngagementOutbox.updateOne(
+        { _id: eventId },
+        { $set: { leaseOwner: 'dispatcher-1' } },
+        { session: dispatcher },
+      );
+
+      // The replay lands on the same row, in its own transaction, while that write
+      // is still open. It must write nothing and therefore conflict with nothing.
+      replay.startTransaction();
+      await expect(
+        enqueueEngagementOutboxEvent(
+          { kind: 'post.like', relationshipId, revision: 1, payload },
+          replay,
+        ),
+      ).resolves.toBe(eventId);
+      await expect(replay.commitTransaction()).resolves.not.toThrow();
+      await dispatcher.commitTransaction();
+
+      const stored = await EngagementOutbox.findById(eventId).lean();
+      expect(stored?.leaseOwner).toBe('dispatcher-1');
+      expect(await EngagementOutbox.countDocuments({ _id: eventId })).toBe(1);
+    } finally {
+      await dispatcher.endSession();
+      await replay.endSession();
+    }
+  });
 });
