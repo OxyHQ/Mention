@@ -68,6 +68,15 @@ export const ZoomableAvatar: React.FC<ZoomableAvatarProps> = ({
   const { oxyServices } = useAuth();
   const imageResolver = useImageResolver();
   const [errored, setErrored] = useState(false);
+  // A new source has not failed yet. Reset during render rather than in an
+  // effect, so `thumbUri` below never gets one committed frame of the previous
+  // source's failure — which showed the default avatar over a perfectly good
+  // new image.
+  const [erroredSource, setErroredSource] = useState(source);
+  if (erroredSource !== source) {
+    setErroredSource(source);
+    setErrored(false);
+  }
   const wrapperRef = useRef<View>(null);
   const galleryRef = useRef<ZoomableImageGalleryHandle>(null);
 
@@ -94,10 +103,6 @@ export const ZoomableAvatar: React.FC<ZoomableAvatarProps> = ({
     if (typeof source === 'string' && source.startsWith('http')) return source;
     return resolvedFull ?? thumbUri;
   }, [source, resolvedFull, thumbUri]);
-
-  React.useEffect(() => {
-    setErrored(false);
-  }, [source]);
 
   const imageSource = useMemo(() => {
     if (thumbUri) return { uri: thumbUri };

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 import { Image } from 'expo-image';
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -26,10 +26,14 @@ export function ExternalEmbedPoster({ thumb, active, loading, onPressPlay }: Ext
   // A remote link-preview thumbnail can 404 or fail to load even through the
   // proxy — fall back to the plain dim scrim + play button rather than showing a
   // broken image. Reset the error state when the thumb URL changes.
+  // Reset during render rather than in an effect, so a new thumb never renders
+  // one committed frame of the previous one's failure.
   const [thumbErrored, setThumbErrored] = useState(false);
-  useEffect(() => {
+  const [erroredThumb, setErroredThumb] = useState(thumb);
+  if (erroredThumb !== thumb) {
+    setErroredThumb(thumb);
     setThumbErrored(false);
-  }, [thumb]);
+  }
 
   if (active && !loading) return null;
 

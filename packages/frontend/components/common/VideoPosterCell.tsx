@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { View } from 'react-native';
 import { Image } from 'expo-image';
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -59,10 +59,14 @@ const VideoPosterCell = React.memo<VideoPosterCellProps>(
       [size]
     );
     const [posterFailed, setPosterFailed] = useState(false);
-
-    useEffect(() => {
+    // A new poster has not failed yet. Reset during render rather than in an
+    // effect, so a new URI never renders one committed frame of the previous
+    // one's placeholder.
+    const [failedUri, setFailedUri] = useState(posterUri);
+    if (failedUri !== posterUri) {
+      setFailedUri(posterUri);
       setPosterFailed(false);
-    }, [posterUri]);
+    }
 
     const handlePosterError = useCallback(() => setPosterFailed(true), []);
 
