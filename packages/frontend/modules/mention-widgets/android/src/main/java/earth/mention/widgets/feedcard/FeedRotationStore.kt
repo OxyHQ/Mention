@@ -136,20 +136,6 @@ internal class FeedRotationStore(private val dataStore: Context.() -> DataStore<
             preferences[KEY_INDEX] = nextRotationIndex(preferences[KEY_INDEX] ?: 0, size)
         }
     }
-
-    /**
-     * Move to the previous post — what the card's back control does.
-     *
-     * Reads the size inside the transaction for the same reason [advance] does, and that
-     * matters more here: a tap arrives at a moment the user chose, which is far likelier to
-     * land during a fetch than a scheduled tick is.
-     */
-    suspend fun retreat(context: Context) {
-        context.applicationContext.dataStore().edit { preferences ->
-            val size = decodePosts(preferences[KEY_POSTS]).size
-            preferences[KEY_INDEX] = previousRotationIndex(preferences[KEY_INDEX] ?: 0, size)
-        }
-    }
 }
 
 /**

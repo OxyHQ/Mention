@@ -1,5 +1,6 @@
 package earth.mention.widgets.feedcard
 
+import android.graphics.Bitmap
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.unit.Dp
@@ -66,48 +67,104 @@ internal fun FeedCardContent(spec: FeedCardSpec, state: FeedCardState) {
     val widgetSize = LocalSize.current
     val design = feedCardSize(widgetSize.width, widgetSize.height)
     val padding = cardPadding(design)
-    val contentColor = GlanceTheme.colors.onPrimaryContainer
+    val post = (state as? FeedCardState.Rotating)?.rotation?.current
+    val background = cardBackgroundBitmap(spec, post)
+    // The one place this module reads a colour the theme did not choose. Over a photograph
+    // the theme's `onPrimaryContainer` is a coin toss against the picture; with no
+    // photograph it is exactly right. See [OVER_IMAGE_CONTENT_COLOR].
+    val contentColor = if (background == null) {
+        GlanceTheme.colors.onPrimaryContainer
+    } else {
+        OVER_IMAGE_CONTENT_COLOR
+    }
 
     Scaffold(
-        // The tonal container IS the widget — there is no chrome outside it. The corner
-        // comes from `Scaffold`, which applies the launcher's own
-        // `system_app_widget_background_radius` on API 31+; setting one here would draw a
-        // second, mismatched curve just inside the host's.
+        // The tonal container IS the widget — there is no chrome outside it, and it is what
+        // shows through when the post has no picture. The corner comes from `Scaffold`,
+        // which applies the launcher's own `system_app_widget_background_radius` on API
+        // 31+; setting one here would draw a second, mismatched curve just inside the
+        // host's.
         backgroundColor = GlanceTheme.colors.primaryContainer,
         horizontalPadding = 0.dp,
     ) {
-        Box(GlanceModifier.fillMaxSize().padding(padding)) {
-            // Three states, one branch each, and the reason they are distinguished is on
-            // `FeedCardState`: "nothing fetched yet" and "no session" look identical on a
-            // card and mean opposite things to the reader.
-            when (state) {
-                is FeedCardState.SignedOut -> FeedCardMessage(
-                    spec = spec,
-                    message = context.getString(state.message),
-                    contentColor = contentColor,
+        Box(GlanceModifier.fillMaxSize()) {
+            if (background != null) {
+                Image(
+                    provider = ImageProvider(background),
+                    // The author's alt text where there is one, so the picture is not
+                    // silently dropped from the card's announcement now that it is the
+                    // background. Null — not an empty string — where there is none, so a
+                    // screen reader skips it rather than announcing an unlabelled image.
+                    contentDescription = post?.imageAlt,
+                    modifier = GlanceModifier.fillMaxSize(),
+                    // CROP, not FillBounds: the bitmap is decoded at a fixed size that has
+                    // nothing to do with this placement (which is what lets every
+                    // composition share one), so the launcher is the thing that knows how to
+                    // make it fit. Cropping keeps the photograph's proportions; stretching
+                    // it to the card would not.
+                    contentScale = ContentScale.Crop,
                 )
+            }
+            Box(GlanceModifier.fillMaxSize().padding(padding)) {
+                // Three states, one branch each, and the reason they are distinguished is on
+                // `FeedCardState`: "nothing fetched yet" and "no session" look identical on a
+                // card and mean opposite things to the reader.
+                when (state) {
+                    is FeedCardState.SignedOut -> FeedCardMessage(
+                        spec = spec,
+                        message = context.getString(state.message),
+                        contentColor = contentColor,
+                    )
 
-                is FeedCardState.Rotating -> {
-                    val post = state.rotation.current
-                    if (post == null) {
-                        FeedCardMessage(
-                            spec = spec,
-                            message = context.getString(spec.emptyMessage),
-                            contentColor = contentColor,
-                        )
-                    } else {
-                        PostCard(
-                            spec = spec,
-                            post = post,
-                            rotation = state.rotation,
-                            design = design,
-                            cardSize = widgetSize,
-                            padding = padding,
-                            contentColor = contentColor,
-                        )
+                    is FeedCardState.Rotating -> {
+                        if (post == null) {
+                            FeedCardMessage(
+                                spec = spec,
+                                message = context.getString(spec.emptyMessage),
+                                contentColor = contentColor,
+                            )
+                        } else {
+                            PostCard(
+                                spec = spec,
+                                post = post,
+                                design = design,
+                                cardWidth = widgetSize.width,
+                                padding = padding,
+                                contentColor = contentColor,
+                            )
+                        }
                     }
                 }
             }
+        }
+    }
+}
+
+/**
+ * The post's picture, decoded once for every composition of this update, or `null` when there
+ * is nothing to draw.
+ *
+ * `null` is the ordinary case as much as the exceptional one: a third of the feed carries no
+ * image, and a file that failed to cache looks the same from here. Both mean the card falls
+ * back to its tonal container, which is a design rather than a fallback.
+ *
+ * The decode is keyed and shared through [FeedCardBitmapCache] rather than held in a
+ * `remember`, and that is not an optimisation: `remember` is per composition, and Glance
+ * composes this card once per size the launcher offers, so a remembered bitmap would be a
+ * second copy of the same picture in the same parcel. See [FEED_CARD_WORST_CASE_BITMAP_BYTES].
+ */
+@Composable
+private fun cardBackgroundBitmap(spec: FeedCardSpec, post: WidgetPost?): Bitmap? {
+    val context = LocalContext.current
+    val url = post?.imageUrl ?: return null
+
+    // `remember` still, so a redraw that changes nothing does not re-enter the cache on the
+    // launcher's clock — but keyed on the URL alone, since the size is a constant.
+    return remember(url) {
+        val size = cardBackgroundBitmapSize()
+        FeedCardBitmapCache.getOrDecode(FeedCardBitmapCache.backgroundKey(url, size)) {
+            val file = spec.images.fileForComposition(context, url) ?: return@getOrDecode null
+            FeedImageRenderer.decodeCardBackground(file, size, IMAGE_SCRIM_ALPHA)
         }
     }
 }
@@ -116,81 +173,51 @@ internal fun FeedCardContent(spec: FeedCardSpec, state: FeedCardState) {
 private fun PostCard(
     spec: FeedCardSpec,
     post: WidgetPost,
-    rotation: FeedRotation,
     design: FeedCardSize,
-    cardSize: DpSize,
+    cardWidth: Dp,
     padding: Dp,
     contentColor: ColorProvider,
 ) {
     val context = LocalContext.current
-    val contentWidthDp = cardSize.width.value - padding.value * 2
-    // The user's font-size setting. Left out, a card at a 1.3 scale would hand its TextView
-    // a third more text than fits, and would reserve a third too little height for it.
-    val fontScale = context.resources.configuration.fontScale
     val text = truncateToBudget(
         text = post.text,
-        budget = textBudgetChars(design, contentWidthDp, fontScale),
+        budget = textBudgetChars(
+            size = design,
+            availableWidthDp = cardWidth.value - padding.value * 2,
+            // The user's font-size setting. Left out, a card at a 1.3 scale would hand its
+            // TextView a third more text than fits and let it clip mid-word.
+            fontScale = context.resources.configuration.fontScale,
+        ),
     )
-    // ONE line count, used twice: as the `Text`'s own `maxLines` and as what the picture's
-    // height is measured against. Two separate figures here is how a card comes to reserve
-    // room for lines it never draws, or to draw lines it never reserved.
-    val textLines = textLinesFor(design, text.length, contentWidthDp, fontScale)
-    val showsControls = showsRotationControls(design, rotation.posts.size)
 
     Column(
         modifier = GlanceModifier
             .fillMaxSize()
-            // The card is the PRIMARY tap target, opening the post — 48dp minimum by a wide
-            // margin. The rotation controls sit inside it and do compete for the tap, on
-            // purpose: `RemoteViews` dispatches to the innermost view with an `onClick`, so a
-            // tap on a chevron steps the rotation and a tap anywhere else opens the post. That
-            // is the only reason two nested targets are acceptable here — the inner ones are
-            // the full 48dp, so neither is a near-miss for the other.
+            // The card is ONE tap target, opening the post, and nothing inside it competes
+            // for the tap — the rotation turns over by itself, so there is nothing to press.
             .semantics { contentDescription = cardContentDescription(context, post, text) }
             .clickable(actionStartActivity(openInAppIntent(context, postUrl(context, post)))),
     ) {
         BrandRow(spec = spec, contentColor = contentColor)
 
-        if (textLines > 0) {
+        if (text.isNotEmpty()) {
             Spacer(GlanceModifier.height(FeedCardDimensions.BLOCK_SPACING))
             Text(
                 text = text,
                 style = FeedCardTextStyles.body(contentColor, design),
-                // The lines the card RESERVED, so the text can never take height the picture
-                // was measured against. `truncateToBudget` has already cut the string to an
-                // estimate of the same width; this is what bounds the estimate running low.
-                maxLines = textLines,
+                // The second guard on truncation: `truncateToBudget` cut the string against
+                // an estimate, and this bounds what happens if that estimate ran low.
+                maxLines = textMaxLines(design),
                 modifier = GlanceModifier.semantics { contentDescription = "" },
             )
         }
 
-        // Takes up the difference between the lines reserved and the lines the launcher
-        // actually drew — the estimate errs towards reserving one line too many, and this is
-        // where that dp goes rather than into a gap under the byline.
+        // Absorbs whatever height the placement actually has, so the brand row stays at the
+        // top and the byline hugs the bottom — with the picture behind all of it, this is
+        // where a short post's unused room goes, and it costs the card nothing.
         Spacer(GlanceModifier.defaultWeight())
 
-        MediaSlot(
-            spec = spec,
-            post = post,
-            slotWidth = imageSlotWidth(design, cardSize.width),
-            slotHeight = imageSlotHeight(
-                size = design,
-                widgetHeight = cardSize.height,
-                textLines = textLines,
-                showsRotationControls = showsControls,
-                fontScale = fontScale,
-            ),
-        )
-        Byline(
-            spec = spec,
-            post = post,
-            rotation = rotation,
-            design = design,
-            contentColor = contentColor,
-        )
-        if (showsControls) {
-            RotationControlRow(spec = spec, rotation = rotation, contentColor = contentColor)
-        }
+        Byline(spec = spec, post = post, design = design, contentColor = contentColor)
     }
 }
 
@@ -226,67 +253,6 @@ private fun BrandRow(spec: FeedCardSpec, contentColor: ColorProvider) {
 }
 
 /**
- * The card's picture, or NOTHING AT ALL.
- *
- * Emits no view and no gap in three cases, all of them ordinary rather than exceptional:
- * [slotHeight] is null because the card has no room to spare (the small design always, a
- * taller one whose text ran long), the post has no image (a third of the feed), or the image
- * failed to cache. A placeholder frame in any of them would make a perfectly good text post
- * look like a failed load.
- *
- * The bitmap is decoded HERE, in the composition, because the slot's height depends on the
- * placement and on the post's own text, so the picture cannot be scaled ahead of time — the
- * same reason the sparkline rasterises inside its composable. It is a read from the app's
- * cache directory, never a fetch: `PostsRefreshWorker` has already put the file there.
- */
-@Composable
-private fun MediaSlot(
-    spec: FeedCardSpec,
-    post: WidgetPost,
-    slotWidth: Dp,
-    slotHeight: Dp?,
-) {
-    val context = LocalContext.current
-
-    // ONE `remember`, called unconditionally and holding everything that depends on the
-    // size — the same discipline as the sparkline's rasterisation. Decoding on every
-    // recomposition would re-scale the same picture each time the store emits, and the store
-    // emits on every rotation tick.
-    val bitmap = remember(post.imageUrl, slotWidth, slotHeight) {
-        val url = post.imageUrl
-        val size = if (slotHeight == null) null else thumbnailBitmapSize(slotWidth, slotHeight)
-        val file = if (url == null) null else spec.images.fileForComposition(context, url)
-        if (size == null || file == null) {
-            null
-        } else {
-            FeedImageRenderer.decodeCropped(
-                file = file,
-                size = size,
-                // The radius in the bitmap's own pixels rather than in dp, so the curve comes
-                // out at 20dp on screen after the launcher scales the bitmap into the slot.
-                cornerRadiusPx = FeedCardDimensions.IMAGE_CORNER_RADIUS.value *
-                    (size.widthPx / slotWidth.value),
-            )
-        }
-    }
-
-    if (bitmap != null && slotHeight != null) {
-        Spacer(GlanceModifier.height(FeedCardDimensions.BLOCK_SPACING))
-        Image(
-            provider = ImageProvider(bitmap),
-            // The author's alt text when there is one. Null — not an empty string — where
-            // there is none, so a screen reader skips a decorative image instead of
-            // announcing an unlabelled one.
-            contentDescription = post.imageAlt,
-            modifier = GlanceModifier.fillMaxWidth().height(slotHeight),
-            // The bitmap was already cropped to this slot's aspect ratio, so nothing is
-            // distorted or cropped a second time here.
-            contentScale = ContentScale.FillBounds,
-        )
-    }
-}
-
-/**
  * Who wrote it, and where the rotation is.
  *
  * SMALL AND SECONDARY BY DESIGN, and that is also the content mitigation on this surface:
@@ -299,7 +265,6 @@ private fun MediaSlot(
 private fun Byline(
     spec: FeedCardSpec,
     post: WidgetPost,
-    rotation: FeedRotation,
     design: FeedCardSize,
     contentColor: ColorProvider,
 ) {
@@ -309,7 +274,7 @@ private fun Byline(
         verticalAlignment = Alignment.Vertical.CenterVertically,
     ) {
         BylineAvatar(spec = spec, post = post)
-        // Takes the slack, so a long display name shrinks rather than pushing the pips off
+        // Takes the slack, so a long display name shrinks rather than pushing the handle off
         // the end of the row.
         Row(
             modifier = GlanceModifier.defaultWeight(),
@@ -321,9 +286,9 @@ private fun Byline(
                 maxLines = 1,
                 modifier = GlanceModifier.semantics { contentDescription = "" },
             )
-            // The handle is what the smallest design gives up: at 250 × 110dp the byline
-            // shares its row with the pips, and a name plus a federated handle
-            // (`verge@mastodon.social`) does not fit beside them.
+            // The handle is what the smallest design gives up: at 250 × 110dp a name plus a
+            // federated handle (`verge@mastodon.social`) does not fit on one line, and the
+            // name is the half that identifies the author.
             val handle = bylineHandle(post)
             if (design != FeedCardSize.SMALL && handle.isNotEmpty()) {
                 Spacer(GlanceModifier.width(FeedCardDimensions.BYLINE_SPACING))
@@ -335,7 +300,6 @@ private fun Byline(
                 )
             }
         }
-        RotationPips(rotation = rotation, design = design, contentColor = contentColor)
     }
 }
 
@@ -350,10 +314,21 @@ private fun BylineAvatar(spec: FeedCardSpec, post: WidgetPost) {
     val context = LocalContext.current
     val url = avatarUrl(context, post)
 
+    // Through the shared cache for the same reason the background is: one instance across the
+    // compositions of one update is one copy in the parcel. Measured — with the avatar decoded
+    // per composition the launcher reported 264,224 bytes for a card whose two bitmaps come to
+    // 251,680, the difference being a second copy of this 12.5KB circle.
     val bitmap = remember(url) {
         val size = avatarBitmapSize()
-        val file = if (url == null) null else spec.images.fileForComposition(context, url)
-        if (size == null || file == null) null else FeedImageRenderer.decodeCircular(file, size)
+        if (url == null || size == null) {
+            null
+        } else {
+            FeedCardBitmapCache.getOrDecode(FeedCardBitmapCache.avatarKey(url, size)) {
+                val file = spec.images.fileForComposition(context, url)
+                    ?: return@getOrDecode null
+                FeedImageRenderer.decodeCircular(file, size)
+            }
+        }
     }
 
     if (bitmap != null) {
@@ -367,136 +342,6 @@ private fun BylineAvatar(spec: FeedCardSpec, post: WidgetPost) {
         )
         Spacer(GlanceModifier.width(FeedCardDimensions.BYLINE_SPACING))
     }
-}
-
-/**
- * Where in the rotation this post is.
- *
- * Kept in the byline because the pips are 6dp and cost nothing there. The CONTROLS are not:
- * see [RotationControlRow] for why they have a row of their own, and why the pips move down
- * to join them when that row exists.
- *
- * Nothing at all for a rotation of one, where a single pip would say nothing and there is
- * nowhere to step to.
- */
-@Composable
-private fun RotationPips(
-    rotation: FeedRotation,
-    design: FeedCardSize,
-    contentColor: ColorProvider,
-) {
-    // At every size but the smallest the pips live in the control row instead, beside the
-    // chevrons they belong with.
-    if (rotation.posts.size <= 1 || design != FeedCardSize.SMALL) return
-
-    Spacer(GlanceModifier.width(FeedCardDimensions.BYLINE_SPACING))
-    Pips(rotation = rotation, contentColor = contentColor)
-}
-
-/**
- * The rotation's own row: step back, position, step forward.
- *
- * ## Why the pips needed controls at all
- *
- * They used to be indicators only, on the reasoning that a widget cannot be swiped — which is
- * true: `RemoteViews` has no gestures, Glance exposes none, and no app can add one. But dots
- * that cannot be dragged read as a broken carousel rather than as a position readout, because
- * dots mean "swipe me" everywhere else. Taps are the input a widget does have, so the
- * affordance the pips imply now exists (see `PostsRotationControl.kt`).
- *
- * ## Why they are NOT in the byline
- *
- * They were, and the forward control did not survive it — verified on a real launcher, not
- * reasoned about: with the chevrons appended after the byline's weighted name, the row
- * overflowed and Android dropped the last child, leaving a card with `previous` and no `next`.
- * A `RemoteViews` row is a `LinearLayout` measured in the launcher's process, so the space a
- * name will actually claim is not knowable here — which makes any fix that shares one row with
- * flexible text a guess.
- *
- * A row of its own removes the contention rather than tuning it, and the space was already
- * there: a post with no picture leaves the card visibly empty above the byline.
- *
- * ## Why nothing is drawn at [FeedCardSize.SMALL]
- *
- * 48dp is Material's minimum touch target and is not shrunk to fit. At 250 × 110dp the card
- * has a brand row, two lines of text and a byline; another 48dp row would take roughly half
- * of it. Dropping the least-essential control as the surface narrows is this module's existing
- * rule, and that size keeps its pips in the byline and its automatic turn
- * (`PostsAutoAdvanceWorker`), so it is a glance surface that still moves.
- *
- * Whether this row is drawn at all is [showsRotationControls], asked by the caller — the same
- * predicate the picture's height is reserved against, so the 48dp is charged exactly when it
- * is spent.
- */
-@Composable
-private fun RotationControlRow(
-    spec: FeedCardSpec,
-    rotation: FeedRotation,
-    contentColor: ColorProvider,
-) {
-    val context = LocalContext.current
-    Row(
-        modifier = GlanceModifier.fillMaxWidth(),
-        verticalAlignment = Alignment.Vertical.CenterVertically,
-        horizontalAlignment = Alignment.Horizontal.End,
-    ) {
-        RotationStepButton(
-            icon = R.drawable.mention_widget_chevron_left,
-            label = context.getString(R.string.mention_feed_widget_previous),
-            action = spec.previousAction,
-        )
-        Pips(rotation = rotation, contentColor = contentColor)
-        RotationStepButton(
-            icon = R.drawable.mention_widget_chevron_right,
-            label = context.getString(R.string.mention_feed_widget_next),
-            action = spec.nextAction,
-        )
-    }
-}
-
-/** The pips themselves — one filled, the rest dim. */
-@Composable
-private fun Pips(rotation: FeedRotation, contentColor: ColorProvider) {
-    val current = normalizeRotationIndex(rotation.index, rotation.posts.size)
-    Row(verticalAlignment = Alignment.Vertical.CenterVertically) {
-        rotation.posts.indices.forEach { index ->
-            if (index != 0) {
-                Spacer(GlanceModifier.width(FeedCardDimensions.PIP_SPACING))
-            }
-            Image(
-                provider = ImageProvider(
-                    if (index == current) {
-                        R.drawable.mention_widget_pip
-                    } else {
-                        R.drawable.mention_widget_pip_dim
-                    },
-                ),
-                contentDescription = null,
-                modifier = GlanceModifier.size(FeedCardDimensions.PIP_SIZE),
-                colorFilter = ColorFilter.tint(contentColor),
-            )
-        }
-    }
-}
-
-/**
- * One rotation control.
- *
- * `backgroundColor = null` keeps it an icon on the card rather than a filled button: the card
- * is one large tap target that opens the post, and two filled buttons inside it would compete
- * with that for the eye. The 48dp target is still there whether or not anything is painted
- * under it.
- */
-@Composable
-private fun RotationStepButton(icon: Int, label: String, action: Action) {
-    CircleIconButton(
-        imageProvider = ImageProvider(icon),
-        contentDescription = label,
-        contentColor = GlanceTheme.colors.secondary,
-        backgroundColor = null,
-        onClick = action,
-        modifier = GlanceModifier.size(FeedCardDimensions.CONTROL_SIZE),
-    )
 }
 
 /**

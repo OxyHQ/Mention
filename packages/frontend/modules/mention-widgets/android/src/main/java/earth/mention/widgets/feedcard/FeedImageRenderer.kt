@@ -4,45 +4,79 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.BitmapShader
 import android.graphics.Canvas
+import android.graphics.Color
 import android.graphics.Matrix
 import android.graphics.Paint
 import android.graphics.Shader
 import android.util.Log
 import java.io.File
 import kotlin.math.max
+import kotlin.math.roundToInt
 
 /**
- * Turning a cached image FILE into the exact bitmap a card slot needs.
+ * Turning a cached image FILE into the exact bitmap the card needs.
  *
- * Three things happen in one pass — downscale, centre-crop, round — because each of
- * them alone would allocate another full-size bitmap, and this code runs while the
- * launcher is waiting for a composition.
+ * Everything happens in ONE pass — downscale, centre-crop, round, and for the card's
+ * background darken — because each step alone would allocate another full-size bitmap, and
+ * this code runs while the launcher is waiting for a composition.
  *
- * Rounding is done HERE, in the bitmap, rather than with Glance's `cornerRadius`
- * modifier. That modifier is backed by `setViewOutlinePreferredRadius` and does nothing
- * below API 31, so on an API 23–30 device the card's image would be the one square
- * element in a layout built on the Material 3 Expressive shape scale. Rounding the
- * pixels works everywhere and costs one `Paint`.
+ * Rounding, where it happens at all, is done HERE in the bitmap rather than with Glance's
+ * `cornerRadius` modifier: that modifier is backed by `setViewOutlinePreferredRadius` and
+ * does nothing below API 31, so on an API 23–30 device a rounded element would come out
+ * square. The BACKGROUND is the exception and takes no radius at all — its corners are the
+ * card's corners, and the host already clips those (see `FeedCardDimensions`).
  *
- * Everything that decides HOW BIG the bitmap is lives in `PostsBitmapBudget.kt` and is
+ * Everything that decides HOW BIG the bitmap is lives in `FeedCardBitmaps.kt` and is
  * unit tested. This file is the `android.graphics` calls, which are stubs off-device.
  */
 internal object FeedImageRenderer {
 
-    private const val TAG = "MentionFeedWidget"
+    private const val TAG = "MentionPostsWidget"
 
     /**
-     * Decode [file] into a [size] bitmap with [cornerRadiusPx] corners, cropped to fill.
+     * Decode [file] into the card's BACKGROUND: [size] pixels, cropped to fill, with
+     * [scrimAlpha] of black baked over it.
+     *
+     * The scrim is baked into the pixels because Glance cannot draw one. There is no
+     * gradient primitive, no `Modifier.background(Brush)`, and no way to overlay a
+     * translucent colour on an `Image` — a `Box` with a coloured child would work only if
+     * `RemoteViews` composited children the way Compose does, which it does not. So the
+     * darkening has to be part of the picture, exactly as the sparkline's fill is part of
+     * its own bitmap.
+     *
+     * Baked-in also means the scrim cannot be lost: it survives the launcher's crop and it
+     * cannot be defeated by a theme, which is the point of the contrast floor it implements
+     * (see [IMAGE_SCRIM_ALPHA]).
+     */
+    fun decodeCardBackground(file: File, size: FeedBitmapSize, scrimAlpha: Float): Bitmap? =
+        decodeInto(file, size, cornerRadiusPx = 0f, scrimAlpha = scrimAlpha)
+
+    /** The byline's avatar: round, and undarkened — no text is drawn on it. */
+    fun decodeCircular(file: File, size: FeedBitmapSize): Bitmap? = decodeInto(
+        file = file,
+        size = size,
+        cornerRadiusPx = max(size.widthPx, size.heightPx) / 2f,
+        scrimAlpha = 0f,
+    )
+
+    /**
+     * Decode [file] into a [size] bitmap, cropped to fill, with [cornerRadiusPx] corners
+     * and [scrimAlpha] of black over it.
      *
      * Returns `null` for anything that cannot be decoded — a truncated download, a file
      * that is not an image, a device too low on memory to hold the result. The caller
      * draws no image in that case, which is the same thing it does for a post that has
      * no image at all, so a failure here costs a picture and never a card.
      */
-    fun decodeCropped(file: File, size: FeedBitmapSize, cornerRadiusPx: Float): Bitmap? {
+    private fun decodeInto(
+        file: File,
+        size: FeedBitmapSize,
+        cornerRadiusPx: Float,
+        scrimAlpha: Float,
+    ): Bitmap? {
         val source = decodeSampled(file, size) ?: return null
         return try {
-            cropToFill(source, size, cornerRadiusPx)
+            cropToFill(source, size, cornerRadiusPx, scrimAlpha)
         } catch (cause: OutOfMemoryError) {
             // Caught deliberately, and only around the allocation: a widget must not be
             // the reason a launcher dies, and the honest fallback for a picture that
@@ -55,10 +89,6 @@ internal object FeedImageRenderer {
             source.recycle()
         }
     }
-
-    /** As [decodeCropped], but round: the byline's avatar. */
-    fun decodeCircular(file: File, size: FeedBitmapSize): Bitmap? =
-        decodeCropped(file, size, cornerRadiusPx = max(size.widthPx, size.heightPx) / 2f)
 
     /**
      * Decode [file] at the smallest power-of-two reduction that still covers [target].
@@ -87,14 +117,19 @@ internal object FeedImageRenderer {
 
     /**
      * Draw [source] into a [size] bitmap, scaled to COVER and centred, with rounded
-     * corners.
+     * corners and [scrimAlpha] of black over the result.
      *
-     * Cover rather than fit, because the slot is a fixed band: fitting would letterbox
-     * a portrait photo into a wide slot and leave two transparent columns, where
-     * cropping shows the middle of the picture — which is what a reader expects from
-     * every other image in a feed.
+     * Cover rather than fit, because the bitmap has a shape of its own that the picture
+     * may not share: fitting would letterbox a portrait photo and leave two transparent
+     * columns, where cropping shows the middle of the picture — which is what a reader
+     * expects from every other image in a feed.
      */
-    private fun cropToFill(source: Bitmap, size: FeedBitmapSize, cornerRadiusPx: Float): Bitmap {
+    private fun cropToFill(
+        source: Bitmap,
+        size: FeedBitmapSize,
+        cornerRadiusPx: Float,
+        scrimAlpha: Float,
+    ): Bitmap {
         val scale = max(
             size.widthPx.toFloat() / source.width.toFloat(),
             size.heightPx.toFloat() / source.height.toFloat(),
@@ -116,7 +151,8 @@ internal object FeedImageRenderer {
                 setLocalMatrix(matrix)
             }
         }
-        Canvas(output).drawRoundRect(
+        val canvas = Canvas(output)
+        canvas.drawRoundRect(
             0f,
             0f,
             size.widthPx.toFloat(),
@@ -125,8 +161,29 @@ internal object FeedImageRenderer {
             cornerRadiusPx,
             paint,
         )
+
+        if (scrimAlpha > 0f) {
+            // Over the same rounded rect rather than the whole canvas, so a rounded bitmap
+            // does not get opaque black corners outside its own curve.
+            val scrim = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.BLACK
+                alpha = (scrimAlpha.coerceIn(0f, 1f) * MAX_ALPHA).roundToInt()
+            }
+            canvas.drawRoundRect(
+                0f,
+                0f,
+                size.widthPx.toFloat(),
+                size.heightPx.toFloat(),
+                cornerRadiusPx,
+                cornerRadiusPx,
+                scrim,
+            )
+        }
         return output
     }
+
+    /** `Paint.alpha` is 0–255, while every scrim figure in this module is a fraction. */
+    private const val MAX_ALPHA = 255f
 }
 
 /**

@@ -99,4 +99,40 @@ class FeedRefreshRulesTest {
         // come round in an hour and a quarter.
         assertTrue(ROTATION_LENGTH in 3..6)
     }
+
+    // ── The automatic turn ──────────────────────────────────────────────────────────
+
+    @Test
+    fun `a tick with the screen on turns the rotation over`() {
+        val tick = autoAdvanceTick(screenInteractive = true)
+
+        assertTrue("a visible widget must advance", tick.advance)
+        assertTrue("and must queue the next turn", tick.rearm)
+    }
+
+    @Test
+    fun `a tick with the screen off keeps the chain alive without drawing`() {
+        // The bug this pins, which cost nothing to have until the chevrons were removed: the
+        // chain is each widget's only clock, every link is queued by the one before, and the
+        // things that would restart it (`onEnabled`, `onUpdate`) do not include the screen
+        // coming back on. A tick that skipped the re-arm therefore froze the rotation until the
+        // device rebooted — indistinguishable from a broken widget, and invisible in any
+        // screenshot.
+        val tick = autoAdvanceTick(screenInteractive = false)
+
+        assertFalse("a widget nobody can see should not be redrawn", tick.advance)
+        assertTrue("but the chain must survive the screen going off", tick.rearm)
+    }
+
+    @Test
+    fun `the chain is re-armed on every tick, whatever the screen is doing`() {
+        // Stated as the invariant rather than as two cases, because this is the property that
+        // matters: there is no state in which a tick may end the chain. Both widgets share it.
+        listOf(true, false).forEach { interactive ->
+            assertTrue(
+                "a tick with screenInteractive=$interactive ended the chain",
+                autoAdvanceTick(interactive).rearm,
+            )
+        }
+    }
 }

@@ -2,22 +2,22 @@ package earth.mention.widgets.feedcard
 
 import android.content.Context
 import androidx.annotation.StringRes
-import androidx.glance.action.Action
 
 /**
  * Everything that differs between one feed-card widget and another.
  *
  * There is ONE card implementation ([FeedCardContent]) and two widgets over it — the
  * trending-posts card reading Explore, and the following card reading the viewer's own
- * timeline. This is the seam, and it is deliberately narrow: four strings, a destination,
- * and the two rotation actions. Everything else about the card — its three breakpoints,
- * its bitmap budget, its truncation, its byline, its pips — is the same code for both,
- * which is the property that stops the approved design from drifting apart in two places.
+ * timeline. This is the seam, and it is deliberately narrow: two strings, a destination and
+ * an image cache. Everything else about the card — its three breakpoints, its bitmap budget,
+ * its truncation, its byline, its background picture — is the same code for both, which is
+ * the property that stops the approved design from drifting apart in two places.
  *
- * A spec is an `object` per widget rather than a data class instance because
- * [previousAction] and [nextAction] must name that widget's OWN [androidx.glance.appwidget.action.ActionCallback]
- * classes: Glance instantiates a callback reflectively by class, so the two widgets cannot
- * share one pair or a tap on either would step both rotations.
+ * It used to carry each widget's own pair of rotation ACTIONS, which is why a spec is an
+ * `object` per widget rather than one data class instance: Glance instantiates an
+ * `ActionCallback` reflectively by class, so two widgets could not share one pair without a
+ * tap on either stepping both rotations. The controls are gone — the card turns over by
+ * itself — and the per-widget `object` is now only about the image cache below.
  */
 internal interface FeedCardSpec {
 
@@ -39,12 +39,6 @@ internal interface FeedCardSpec {
      * drawn from, so a reader who taps it lands on the same content at full size.
      */
     fun feedScreenUrl(context: Context): String
-
-    /** This widget's own back control. */
-    val previousAction: Action
-
-    /** This widget's own forward control. */
-    val nextAction: Action
 
     /**
      * Where this widget's pictures are on disk.

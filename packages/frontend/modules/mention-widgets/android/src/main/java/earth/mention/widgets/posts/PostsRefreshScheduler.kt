@@ -135,15 +135,6 @@ internal object PostsRefreshScheduler {
         enqueueAutoAdvance(context, ExistingWorkPolicy.REPLACE)
     }
 
-    /**
-     * Push the automatic turn back to a full interval from now.
-     *
-     * Called after a manual next/previous so the rotation does not move again a moment after
-     * the user chose a post — the reason a tap must reset the timer rather than run beside it.
-     */
-    fun restartAutoAdvance(context: Context) {
-        enqueueAutoAdvance(context, ExistingWorkPolicy.REPLACE)
-    }
 
     private fun enqueueAutoAdvance(context: Context, policy: ExistingWorkPolicy) {
         val seconds = context.resources

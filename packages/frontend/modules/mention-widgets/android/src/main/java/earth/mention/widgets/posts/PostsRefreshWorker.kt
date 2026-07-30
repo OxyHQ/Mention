@@ -57,6 +57,15 @@ internal class PostsRefreshWorker(
         // regardless of whether this tick refreshed anything.
         cacheCurrentImages()
         PostsWidget().updateAll(applicationContext)
+
+        // The SECOND way the automatic turn can come back, and the only one that runs without
+        // the user or the framework doing anything. `ensureAutoAdvance` keeps a live chain
+        // untouched (`KEEP`), so on a healthy widget this costs nothing; where it earns its
+        // line is a chain that ended — a cancelled job, a WorkManager database out of step with
+        // JobScheduler after an app update, a link the system dropped under quota. The rotation
+        // is the whole card now that the chevrons are gone (see `autoAdvanceTick`), so it
+        // should not take a reboot to restart it.
+        PostsRefreshScheduler.ensureAutoAdvance(applicationContext)
         return outcome
     }
 

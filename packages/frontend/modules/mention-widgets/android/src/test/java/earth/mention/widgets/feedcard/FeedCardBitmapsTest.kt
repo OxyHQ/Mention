@@ -13,10 +13,11 @@ import org.junit.Test
  * it does not degrade gracefully: the widget is blank, with nothing in the log to say why. So
  * the total is bounded here, as a test rather than as a comment.
  *
- * Under `SizeMode.Exact` there is no declared-size set to check the bound against — the
- * launcher picks the size — so what is checked instead is that the PIXEL CEILINGS hold across
- * the whole range of placements a launcher can produce, including sizes past the provider's
- * own resize ceiling. That is the property the bound rests on.
+ * The card's background is the reason this file matters more than it used to: a picture behind
+ * the whole card is several times the band it replaced. What keeps it bounded is that the
+ * bitmap does not depend on the placement, so every composition shares ONE instance — and
+ * because that is an argument rather than a guarantee, the budget is checked BOTH ways here:
+ * with the sharing, and with two full copies in case it ever stops happening.
  *
  * Nothing here decodes anything — `BitmapFactory` is a stub off-device. What is pinned is
  * every size decided before a decode.
@@ -30,12 +31,26 @@ class FeedCardBitmapsTest {
          */
         const val PAYLOAD_BUDGET_BYTES = 512L * 1024
 
-        /** The per-thumbnail ceiling the sizing is built around: 46,000px, 184KB at ARGB. */
-        const val THUMBNAIL_CEILING_PIXELS = 46_000L
+        /** The background's pixel budget: 60,000px, 240KB at ARGB. */
+        const val BACKGROUND_BUDGET_PIXELS = 60_000L
 
-        /** Placements to sweep: the provider's floor, its ceiling, and past both. */
-        val SWEPT_WIDTHS = listOf(110.dp, 250.dp, 320.dp, 387.dp, 500.dp)
-        val SWEPT_HEIGHTS = listOf(110.dp, 180.dp, 260.dp, 325.dp, 460.dp, 600.dp)
+        /**
+         * WCAG AA's contrast floor for text below 18pt — the smallest type on this card is a
+         * 12sp handle, so this is the figure the scrim has to clear rather than the 3:1 that
+         * large text would allow.
+         */
+        const val AA_CONTRAST_FLOOR = 4.5f
+
+        /** Placements a launcher can produce, from the provider's floor to past its ceiling. */
+        val SWEPT_SIZES = listOf(
+            110.dp to 110.dp,
+            250.dp to 110.dp,
+            250.dp to 180.dp,
+            320.dp to 320.dp,
+            373.dp to 306.dp,
+            387.dp to 325.dp,
+            500.dp to 600.dp,
+        )
     }
 
     // ── The worst-case payload ──────────────────────────────────────────────────────
@@ -50,100 +65,141 @@ class FeedCardBitmapsTest {
     }
 
     @Test
-    fun `the worst case actually counts the thumbnails, not just the avatars`() {
-        // A vacuity floor. The total is a product of a composition count and two ceilings, so
-        // a bug that dropped the thumbnail term would leave a comfortably small number that
-        // passes the budget assertion above while measuring nothing.
-        val avatarsOnly = (avatarBitmapSize()?.bytes ?: 0L) * 2
+    fun `the payload fits even if the compositions stop sharing one instance`() {
+        // The bound above holds because both bitmaps are size-independent, so the parcel
+        // carries one of each however many sizes the launcher asks for. That rests on
+        // `RemoteViews` deduplicating by identity, which is a claim about someone else's code
+        // — so the ceiling is also set low enough that TWO full copies fit, which is what a
+        // phone launcher would produce if the sharing ever stopped. A blank widget is not an
+        // acceptable outcome for an optimisation regressing.
+        val unshared = FEED_CARD_WORST_CASE_BITMAP_BYTES * 2
 
-        assertTrue("avatars alone should not be the whole payload", avatarsOnly > 0)
         assertTrue(
-            "worst case $FEED_CARD_WORST_CASE_BITMAP_BYTES is no more than the avatars ($avatarsOnly)",
-            FEED_CARD_WORST_CASE_BITMAP_BYTES > avatarsOnly,
+            "two unshared copies are $unshared bytes, over the $PAYLOAD_BUDGET_BYTES budget",
+            unshared <= PAYLOAD_BUDGET_BYTES,
         )
     }
 
     @Test
-    fun `the worst case counts more than one composition`() {
-        // The other half of the same floor: `Exact` composes the portrait size AND the
-        // landscape one into the same parcel, so a bound written for a single layout would be
-        // half the real payload.
-        val oneComposition = (avatarBitmapSize()?.bytes ?: 0L) +
-            THUMBNAIL_CEILING_PIXELS * BYTES_PER_PIXEL
+    fun `the worst case counts the background, not just the avatar`() {
+        // A vacuity floor. The total is a sum of two terms, and the avatar is the small one,
+        // so a bug that dropped the background would leave a comfortably small number that
+        // passes both budget assertions above while measuring almost nothing.
+        val avatarOnly = avatarBitmapSize()?.bytes ?: 0L
 
+        assertTrue("the avatar should have a size at all", avatarOnly > 0)
         assertTrue(
-            "worst case $FEED_CARD_WORST_CASE_BITMAP_BYTES does not cover two compositions",
-            FEED_CARD_WORST_CASE_BITMAP_BYTES >= oneComposition * 2,
+            "worst case $FEED_CARD_WORST_CASE_BITMAP_BYTES is under ten avatars " +
+                "(${avatarOnly * 10}), so the background is missing or is thumbnail-sized",
+            FEED_CARD_WORST_CASE_BITMAP_BYTES > avatarOnly * 10,
+        )
+    }
+
+    // ── The background, which is sized without reference to the card ───────────────
+
+    @Test
+    fun `one picture is one cache key, and two pictures are two`() {
+        // The property the payload bound rests on, and the one that would show the wrong
+        // photograph if it were wrong. Same URL and size means the same key, so every
+        // composition of one update gets ONE instance and the parcel carries one copy; a
+        // different URL must never collide onto it, or a card would draw the previous post's
+        // picture.
+        val size = cardBackgroundBitmapSize()
+        val first = FeedCardBitmapCache.backgroundKey("https://cdn.example/a.jpg", size)
+        val again = FeedCardBitmapCache.backgroundKey("https://cdn.example/a.jpg", size)
+        val other = FeedCardBitmapCache.backgroundKey("https://cdn.example/b.jpg", size)
+
+        assertEquals(first, again)
+        assertTrue("two posts must not share one key", first != other)
+        // The avatar shares the cache, so its keys must not collide with a background's.
+        assertTrue(
+            "avatar and background keys collide",
+            FeedCardBitmapCache.avatarKey("https://cdn.example/a.jpg", size) != first,
         )
     }
 
     @Test
-    fun `no thumbnail at any placement exceeds the per-bitmap ceiling`() {
-        // The bound has no declared-size set to rest on any more, so it rests on this: every
-        // slot the derivation can produce, at every placement a launcher can hand over,
-        // decodes inside the ceiling.
-        var checked = 0
-        SWEPT_WIDTHS.forEach { width ->
-            SWEPT_HEIGHTS.forEach { height ->
-                val design = feedCardSize(width, height)
-                (0..textMaxLines(design)).forEach { lines ->
-                    val slotHeight = imageSlotHeight(
-                        size = design,
-                        widgetHeight = height,
-                        textLines = lines,
-                        showsRotationControls = showsRotationControls(design, rotationLength = 5),
-                        fontScale = 1f,
-                    ) ?: return@forEach
-                    val size = thumbnailBitmapSize(imageSlotWidth(design, width), slotHeight)
-                        ?: return@forEach
-                    checked++
+    fun `the background stays inside its pixel budget`() {
+        val size = cardBackgroundBitmapSize()
 
-                    assertTrue(
-                        "$width × $height at $lines lines decodes " +
-                            "${size.widthPx}×${size.heightPx} = ${size.pixels}px",
-                        size.pixels <= THUMBNAIL_CEILING_PIXELS,
-                    )
-                }
-            }
-        }
-
-        // A vacuity floor on the sweep itself: a derivation that returned null everywhere
-        // would satisfy every assertion above without measuring one bitmap.
-        assertTrue("the sweep checked only $checked thumbnails", checked >= 20)
+        assertTrue(
+            "${size.widthPx}×${size.heightPx} = ${size.pixels}px, over the budget",
+            size.pixels <= BACKGROUND_BUDGET_PIXELS,
+        )
+        // A vacuity floor: the budget is a ceiling, and a size far under it would pass the
+        // assertion above while putting a thumbnail-sized picture behind a whole card.
+        assertTrue("${size.pixels}px is not a picture", size.pixels >= BACKGROUND_BUDGET_PIXELS / 2)
     }
 
     @Test
-    fun `a thumbnail is sized for the slot it fills, not for the biggest one`() {
-        val shortBand = requireNotNull(thumbnailBitmapSize(355.dp, 72.dp))
-        val tallBand = requireNotNull(thumbnailBitmapSize(355.dp, 256.dp))
+    fun `the background is decoded at four by three`() {
+        val size = cardBackgroundBitmapSize()
+        val aspect = size.widthPx.toFloat() / size.heightPx.toFloat()
 
-        // A card that decoded every picture at the largest slot's size would carry the tall
-        // band's pixels on a placement showing the short one.
-        assertTrue("the tall slot decodes taller", tallBand.heightPx > shortBand.heightPx)
-        assertTrue("the short slot stays under the ceiling by a margin", shortBand.pixels < THUMBNAIL_CEILING_PIXELS)
+        // The aspect decides how much of the bitmap survives the launcher's centre-crop, so a
+        // square or portrait background would quietly throw away a third of the pixels the
+        // budget above paid for.
+        assertEquals(4f / 3f, aspect, 0.02f)
     }
 
     @Test
-    fun `the ceiling keeps a big slot close to one pixel per dp`() {
-        // Why the ceiling moved with the slot: the picture is the card's one photograph, and a
-        // 16:9 band at the content width of the widest placement the provider asks for is the
-        // shape it usually arrives in. That shape has to land at about one pixel per dp, or
-        // the card's only image is visibly soft.
-        val band = requireNotNull(thumbnailBitmapSize(288.dp, 162.dp))
-        val pixelsPerDp = band.widthPx / 288f
-
-        assertTrue("a 288 × 162dp band decodes at $pixelsPerDp px/dp", pixelsPerDp >= 0.95f)
-    }
-
-    @Test
-    fun `a thumbnail keeps the aspect ratio of the slot it fills`() {
-        // Both axes are scaled by the same factor when the ceiling bites, so a photograph is
-        // never stretched into its slot.
-        val slotAspect = 288f / 120f
-        val size = requireNotNull(thumbnailBitmapSize(288.dp, 120.dp))
+    fun `enough of the background survives the crop to stay a picture`() {
+        // What the fixed aspect actually costs at each placement: the launcher centre-crops,
+        // so the visible pixels are the bitmap's area times the smaller of the two aspect
+        // ratios. Below a third of the bitmap the card would be showing a strip blown up.
+        val size = cardBackgroundBitmapSize()
         val bitmapAspect = size.widthPx.toFloat() / size.heightPx.toFloat()
 
-        assertEquals(slotAspect, bitmapAspect, 0.05f)
+        SWEPT_SIZES.forEach { (width, height) ->
+            val cardAspect = width.value / height.value
+            val visible = minOf(cardAspect / bitmapAspect, bitmapAspect / cardAspect)
+
+            assertTrue(
+                "at $width × $height only ${(visible * 100).toInt()}% of the picture is used",
+                visible >= 0.33f,
+            )
+        }
+    }
+
+    // ── Legibility over the picture ────────────────────────────────────────────────
+
+    @Test
+    fun `the scrim clears the contrast floor over the brightest possible photograph`() {
+        // The card's one real risk: text over a photograph nobody vetted. The explore feed can
+        // supply a picture that is white exactly where the byline sits, so the scrim has to be
+        // strong enough for the WORST case rather than for a typical one — and this is the
+        // assertion that stops it being weakened for looks, because the failure it prevents
+        // (grey text on a white sky) is invisible in any screenshot taken over a dark image.
+        val contrast = whiteTextContrastOverWhite(IMAGE_SCRIM_ALPHA)
+
+        assertTrue(
+            "white text over a $IMAGE_SCRIM_ALPHA scrim on white is only " +
+                "${"%.2f".format(contrast)}:1, under the $AA_CONTRAST_FLOOR:1 WCAG AA floor " +
+                "for the 12sp handle",
+            contrast >= AA_CONTRAST_FLOOR,
+        )
+    }
+
+    @Test
+    fun `the scrim is no darker than the floor requires`() {
+        // The other side of it: the scrim is the picture's cost, so it should be the least that
+        // clears the floor rather than a comfortable margin. One step lighter must FAIL the
+        // floor — which is what makes the figure derived rather than picked.
+        val oneStepLighter = whiteTextContrastOverWhite(IMAGE_SCRIM_ALPHA - 0.05f)
+
+        assertTrue(
+            "a scrim 5% lighter still clears the floor at ${"%.2f".format(oneStepLighter)}:1, " +
+                "so $IMAGE_SCRIM_ALPHA is darker than it needs to be",
+            oneStepLighter < AA_CONTRAST_FLOOR,
+        )
+    }
+
+    @Test
+    fun `the contrast maths agrees with the two figures WCAG is defined by`() {
+        // A control on the helper itself, since both assertions above are only as good as it
+        // is: white on black is 21:1 and white on white is 1:1, by definition.
+        assertEquals(21.0, whiteTextContrastOverWhite(1f).toDouble(), 0.01)
+        assertEquals(1.0, whiteTextContrastOverWhite(0f).toDouble(), 0.01)
     }
 
     // ── The sizing rules ───────────────────────────────────────────────────────────
@@ -198,29 +254,29 @@ class FeedCardBitmapsTest {
     // ── Decoding at size ───────────────────────────────────────────────────────────
 
     @Test
-    fun `a large source is sampled down to the smallest power of two that still covers the slot`() {
-        val slot = FeedBitmapSize(widthPx = 300, heightPx = 200)
+    fun `a large source is sampled down to the smallest power of two that still covers the target`() {
+        val target = FeedBitmapSize(widthPx = 300, heightPx = 200)
 
         // 2048/4 = 512, which still covers 300×200; 2048/8 = 256, which does not.
-        assertEquals(4, sampleSizeFor(sourceWidth = 2048, sourceHeight = 2048, target = slot))
+        assertEquals(4, sampleSizeFor(sourceWidth = 2048, sourceHeight = 2048, target = target))
     }
 
     @Test
-    fun `a source no bigger than the slot is not sampled at all`() {
-        val slot = FeedBitmapSize(widthPx = 300, heightPx = 200)
+    fun `a source no bigger than the target is not sampled at all`() {
+        val target = FeedBitmapSize(widthPx = 300, heightPx = 200)
 
-        // Sampling past the slot would upscale the picture into it and undo the point.
-        assertEquals(1, sampleSizeFor(sourceWidth = 100, sourceHeight = 100, target = slot))
-        assertEquals(1, sampleSizeFor(sourceWidth = 320, sourceHeight = 240, target = slot))
+        // Sampling past the target would upscale the picture into it and undo the point.
+        assertEquals(1, sampleSizeFor(sourceWidth = 100, sourceHeight = 100, target = target))
+        assertEquals(1, sampleSizeFor(sourceWidth = 320, sourceHeight = 240, target = target))
     }
 
     @Test
     fun `sampling stops on the shorter axis`() {
-        val slot = FeedBitmapSize(widthPx = 100, heightPx = 100)
+        val target = FeedBitmapSize(widthPx = 100, heightPx = 100)
 
         // A wide panorama: halving is bounded by the height, or the result would no longer
-        // cover the slot vertically and would be stretched to fill it.
-        assertEquals(2, sampleSizeFor(sourceWidth = 4000, sourceHeight = 200, target = slot))
+        // cover the target vertically and would be stretched to fill it.
+        assertEquals(2, sampleSizeFor(sourceWidth = 4000, sourceHeight = 200, target = target))
     }
 
     @Test
@@ -228,5 +284,23 @@ class FeedCardBitmapsTest {
         // What `BitmapFactory` reports for a file that is not an image.
         assertEquals(1, sampleSizeFor(0, 0, FeedBitmapSize(100, 100)))
         assertEquals(1, sampleSizeFor(-1, 100, FeedBitmapSize(100, 100)))
+    }
+
+    /**
+     * The contrast ratio of white text over [scrimAlpha] of black over a WHITE photograph.
+     *
+     * The formula WCAG 2 defines: `(L1 + 0.05) / (L2 + 0.05)` over relative luminances, with
+     * the composite's sRGB channel value linearised the way the spec requires. White's
+     * luminance is 1.0, so the numerator is fixed and the whole thing turns on how dark the
+     * scrim makes the brightest pixel the feed can hand us.
+     */
+    private fun whiteTextContrastOverWhite(scrimAlpha: Float): Float {
+        val channel = 1f - scrimAlpha.coerceIn(0f, 1f)
+        val linear = if (channel <= 0.04045f) {
+            channel / 12.92f
+        } else {
+            Math.pow(((channel + 0.055f) / 1.055f).toDouble(), 2.4).toFloat()
+        }
+        return (1f + 0.05f) / (linear + 0.05f)
     }
 }

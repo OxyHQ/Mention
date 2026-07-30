@@ -4,8 +4,6 @@ import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.preferencesDataStore
-import androidx.glance.action.Action
-import androidx.glance.appwidget.action.actionRunCallback
 import earth.mention.widgets.R
 import earth.mention.widgets.feedcard.FeedCardSpec
 import earth.mention.widgets.feedcard.FeedImageCache
@@ -56,9 +54,6 @@ internal object PostsCardSpec : FeedCardSpec {
     /** The Explore feed this rotation is drawn from. */
     override fun feedScreenUrl(context: Context): String = "${webBaseUrl(context)}/explore"
 
-    override val previousAction: Action get() = actionRunCallback<PreviousPostAction>()
-
-    override val nextAction: Action get() = actionRunCallback<NextPostAction>()
 
     override val images: FeedImageCache = PostsImages
 }

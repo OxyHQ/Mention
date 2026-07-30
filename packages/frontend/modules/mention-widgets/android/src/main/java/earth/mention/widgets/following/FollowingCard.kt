@@ -4,8 +4,6 @@ import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.preferencesDataStore
-import androidx.glance.action.Action
-import androidx.glance.appwidget.action.actionRunCallback
 import earth.mention.widgets.R
 import earth.mention.widgets.feedcard.FeedCardSpec
 import earth.mention.widgets.feedcard.FeedImageCache
@@ -65,11 +63,6 @@ internal object FollowingCardSpec : FeedCardSpec {
      * to a signed-out reader is the action that fixes their widget.
      */
     override fun feedScreenUrl(context: Context): String = webBaseUrl(context)
-
-    override val previousAction: Action
-        get() = actionRunCallback<PreviousFollowingPostAction>()
-
-    override val nextAction: Action get() = actionRunCallback<NextFollowingPostAction>()
 
     override val images: FeedImageCache = FollowingImages
 }

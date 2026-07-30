@@ -6,8 +6,8 @@
   moment between the widget being placed and the first composition arriving.
 
   `resizeMode` is `horizontal|vertical` because the card is designed per size rather than
-  stretched (see `postsCardSize`) and its picture grows with the room the card is given
-  (`imageSlotHeight`), so resizing changes what the widget shows rather than only its scale.
+  stretched (see `feedCardSize`), so resizing changes how many words the card shows rather than
+  only its scale. The picture is the background at every size and needs no room of its own.
   The range in dimens_posts.xml is what keeps a resize somewhere the card still works —
   notably a horizontal floor of 4 cells, since a paragraph of post text has nothing to say
   at 2.

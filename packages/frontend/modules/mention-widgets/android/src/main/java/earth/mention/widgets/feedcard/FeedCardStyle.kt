@@ -1,5 +1,6 @@
 package earth.mention.widgets.feedcard
 
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
@@ -8,7 +9,6 @@ import androidx.glance.text.FontWeight
 import androidx.glance.text.TextStyle
 import androidx.glance.unit.ColorProvider
 import earth.mention.widgets.trends.AVERAGE_GLYPH_WIDTH_RATIO
-import kotlin.math.ceil
 
 /**
  * The trending-posts card's MEASUREMENTS and its BREAKPOINTS.
@@ -21,20 +21,22 @@ import kotlin.math.ceil
  * The card is DESIGNED PER SIZE rather than stretched. Three designs, and each one drops
  * something rather than squeezing everything:
  *
- *   under 180dp tall          SMALL   brand row, two lines of text, byline. NO picture.
- *   180dp tall                MEDIUM  the same, plus the handle, the rotation controls,
- *                                     and a picture in whatever room is left.
- *   320 × 320dp and larger    LARGE   more lines of text, and the same derived picture.
+ *   under 180dp tall          SMALL   brand row, two lines of text, byline. No handle.
+ *   180dp tall                MEDIUM  the same, plus the author's handle.
+ *   320 × 320dp and larger    LARGE   more lines of text again.
  *
- * WHAT EACH DESIGN SHOWS is a breakpoint decision; HOW TALL THE PICTURE IS is not. The
- * slot takes the height the rest of the card does not need ([imageSlotHeight]), so a
- * placement between two cell counts spends the difference on the photograph instead of
- * leaving it blank. That is only possible because the widget composes at its REAL size
- * (`SizeMode.Exact`, see `PostsWidget`) rather than at the nearest declared bucket.
+ * THE PICTURE IS NOT ONE OF THESE DECISIONS. It is the card's BACKGROUND — full-bleed
+ * behind everything, at every size, so it costs no layout height and there is no slot to
+ * measure. What the designs differ in is how many words fit on top of it.
  *
- * The payload still has to be bounded, and with no declared size set it is bounded by
- * the per-bitmap pixel ceilings rather than by a table: see
- * [FEED_CARD_WORST_CASE_BITMAP_BYTES].
+ * Two consequences of that, both handled here rather than in the layout:
+ *
+ *  - A photograph the app did not choose sits under the text, so legibility cannot come
+ *    from a theme colour. Over a picture the text is [OVER_IMAGE_CONTENT_COLOR] on a
+ *    baked scrim of [IMAGE_SCRIM_ALPHA]; a card with no picture keeps the tonal container
+ *    and the theme's own `onPrimaryContainer`.
+ *  - The bitmap is bounded by pixels rather than by the card, because it does not depend
+ *    on the card's size at all: see [FEED_CARD_WORST_CASE_BITMAP_BYTES].
  */
 
 /** Which of the three designs a given placement gets. */
@@ -51,11 +53,12 @@ internal enum class FeedCardSize {
  * A REQUEST, not a bound, and the difference matters to everything measured against it:
  * `maxResize*` limits how far a user may DRAG the widget, but the launcher still hands
  * out whole cells, and a cell is wider than the declaration assumes — on a 480dpi phone
- * a four-cell placement measures 387dp against this 320dp ceiling. So nothing here may
- * rely on it as a maximum; the payload is bounded by the per-bitmap pixel ceilings in
- * `PostsBitmapBudget.kt`, which hold at any size a launcher can invent.
+ * a four-cell placement measures 387 × 325dp against this 320 × 320dp ceiling, measured.
+ * So nothing may rely on it as a maximum. Nothing has to: the picture is sized from a
+ * pixel budget that has no reference to the card at all (`FeedCardBitmaps.kt`), and the
+ * only thing left that reads this constant is the text cap below.
  */
-internal val FEED_CARD_MAX_PLACEMENT: DpSize = DpSize(320.dp, 460.dp)
+internal val FEED_CARD_MAX_PLACEMENT: DpSize = DpSize(320.dp, 320.dp)
 
 /**
  * Cell-grid thresholds, in the launcher's own `70 × cells − 30` dp conversion
@@ -111,39 +114,17 @@ internal object FeedCardDimensions {
     /** Gap between the avatar and the name it belongs to. */
     val BYLINE_SPACING = 8.dp
 
-    /**
-     * Corner radius on the image slot: the Material 3 Expressive shape scale's large
-     * step. The CARD's own corner is not set here — `Scaffold` applies
-     * `android.R.dimen.system_app_widget_background_radius`, the radius the launcher
-     * itself clips widgets to, and a hand-set value inside that draws a second
-     * mismatched curve just inside the first.
-     */
-    val IMAGE_CORNER_RADIUS = 20.dp
-
-    /**
-     * Shortest band still worth drawing a photograph in: twice [IMAGE_CORNER_RADIUS].
-     *
-     * Derived rather than chosen. Below twice the radius the two 20dp corners meet and
-     * the slot has no straight edge left, so the picture reads as a lozenge rather than
-     * as a photograph. A card with less room than this shows no picture at all — the
-     * same answer the small design gives, for the same reason.
-     */
-    val MIN_IMAGE_HEIGHT = IMAGE_CORNER_RADIUS * 2
-
-    /** One position pip, and the gap between two of them. */
-    val PIP_SIZE = 6.dp
-    val PIP_SPACING = 4.dp
-
-    /**
-     * The rotation controls' tap target.
-     *
-     * 48dp is Material's minimum touch target and the figure this module's design committed
-     * to, so it is not negotiated down to fit — the control is dropped instead at the size
-     * where it does not fit (see `RotationControlRow`). A widget is operated with a thumb over
-     * a launcher that also interprets long-press and drag on the same pixels; a target that
-     * is merely usually-hittable there costs the user a rearranged home screen.
-     */
-    val CONTROL_SIZE = 48.dp
+    // There is deliberately NO corner-radius constant here any more, and none is baked into
+    // the picture either. The picture is the card, so its corners ARE the card's corners, and
+    // those are the host's to draw: `Scaffold` rounds its background with
+    // `android.R.dimen.system_app_widget_background_radius` on API 31+, and the launcher clips
+    // the widget's content to the same curve. Verified rather than assumed — on a real
+    // launcher the pixel just inside the widget's bounding box but outside the card's arc is
+    // wallpaper, at all four corners of two widgets whose background graphic runs to the edge.
+    // A radius baked into the bitmap would draw a second, slightly different curve just inside
+    // the host's. The AVATAR still rounds its own pixels (`FeedImageRenderer.decodeCircular`)
+    // because a circle inside the card IS ours to draw, and Glance's `cornerRadius` modifier
+    // does nothing below API 31.
 
     /** The brand mark on the top row, at the same 20dp the app's own header uses. */
     val BRAND_MARK_SIZE = 20.dp
@@ -160,168 +141,55 @@ internal fun cardPadding(size: FeedCardSize): Dp = if (size == FeedCardSize.SMAL
 }
 
 /**
- * Whether the card draws the rotation's own control row.
+ * How much black is baked over the picture before any text is drawn on it — 55%.
  *
- * One predicate rather than a condition repeated in two places, because the LAYOUT and the
- * height arithmetic have to agree about it exactly: a card that reserved 48dp the layout
- * then declined to draw would leave a gap, and one that drew a row it had not reserved
- * would push the bottom of the card past the widget (a `RemoteViews` row is a
- * `LinearLayout` measured in the launcher's process, which clips rather than shrinks).
+ * DERIVED FROM A CONTRAST FLOOR, not chosen by eye, because the picture is arbitrary: the
+ * explore feed can and does supply a photograph that is white where the byline sits. Take
+ * the worst case the feed can produce — a pure white pixel — put `a` of black over it, and
+ * white text on the result has a WCAG contrast ratio of `1.05 / (L + 0.05)` where `L` is
+ * the sRGB-linearised luminance of `1 − a`. At 0.50 that is 3.98:1, which clears AA for
+ * large text only; at 0.55 it is 4.75:1, which clears the 4.5:1 AA floor for text of ANY
+ * size — and the smallest type on this card is a 12sp handle.
  *
- * A rotation of one has nowhere to step to, and the small design has no room for a 48dp
- * row — see `RotationControlRow` for both.
+ * ## Why a flat scrim rather than the usual gradient
+ *
+ * A vertical gradient, strongest where the text sits, is the standard treatment and it is
+ * the WRONG one here — not for taste, but because the bitmap is not in one-to-one
+ * correspondence with the card. The picture is sized independently of the placement and
+ * the launcher CENTRE-CROPS it to whatever the card turns out to be (see
+ * [cardBackgroundBitmapSize]), so on a wide card the launcher throws away the top and
+ * bottom of the bitmap — exactly the bands a gradient would have put its protection in.
+ * A flat scrim survives any crop, so the contrast floor above holds at every placement
+ * instead of at the ones the gradient was drawn for.
  */
-internal fun showsRotationControls(size: FeedCardSize, rotationLength: Int): Boolean =
-    rotationLength > 1 && size != FeedCardSize.SMALL
+internal const val IMAGE_SCRIM_ALPHA = 0.55f
 
 /**
- * Height of the picture: WHATEVER THE REST OF THE CARD DOES NOT NEED, or `null` when
- * that is not enough to draw a photograph in.
+ * The text colour over a picture: plain white, and DELIBERATELY NOT A THEME COLOUR.
  *
- * The slot is still a BOUNDED BAND whose height is known before the bitmap is decoded —
- * that has not changed and cannot: `FeedImageRenderer.decodeCropped` crops to the slot's
- * exact aspect ratio and the picture is then drawn with `ContentScale.FillBounds`, so a
- * slot of unknown height (a Glance `defaultWeight`, say) would distort the photograph
- * rather than merely mis-size it. Nor does the slot take the image's OWN aspect ratio: a
- * portrait photograph given its natural shape would push the text off the card, and the
- * card's proportions would jump with whatever picture the rotation landed on.
+ * Everywhere else this module takes its colours from `GlanceTheme`, which on API 31+
+ * follows the user's wallpaper — and that is exactly why it cannot be used here. Material
+ * You is free to hand this card a light `onPrimaryContainer`, which is correct on the
+ * tonal container it was picked for and unreadable over a photograph. The pairing that
+ * makes the card legible is a fixed light foreground on [IMAGE_SCRIM_ALPHA], and the
+ * contrast figure quoted there is computed for white specifically.
  *
- * What changed is where the band's height COMES FROM. It used to be a constant per design
- * — 72dp and 120dp — which wasted every dp between one cell count and the next, and
- * over-committed the card when the text ran long. Now it is the height left after the
- * parts whose heights are known: the padding, the brand row, the text at the number of
- * lines the card will actually draw, the byline, the rotation controls, and the gap above
- * the picture. See [cardHeightWithoutImage].
- *
- * [textLines] is the line count the layout has COMMITTED to (`maxLines` on the `Text`),
- * not a guess about the string — the two are the same number by construction, which is
- * what makes this reservation exact instead of hopeful.
+ * So this is a considered exception to the dynamic-colour rule, for the one surface where
+ * the background is not ours to choose. A card with NO picture keeps the theme colour —
+ * see `FeedCardContent`. Please do not "fix" this back.
  */
-internal fun imageSlotHeight(
-    size: FeedCardSize,
-    widgetHeight: Dp,
-    textLines: Int,
-    showsRotationControls: Boolean,
-    fontScale: Float,
-): Dp? {
-    // The small design gives the picture up, not because the arithmetic says so but
-    // because that is what it IS: the design that keeps a brand row, two lines and a
-    // byline when there is nothing else to give.
-    if (size == FeedCardSize.SMALL) return null
-
-    val available = widgetHeight -
-        cardHeightWithoutImage(size, textLines, showsRotationControls, fontScale)
-    return if (available >= FeedCardDimensions.MIN_IMAGE_HEIGHT) available else null
-}
+internal val OVER_IMAGE_CONTENT_COLOR: ColorProvider = ColorProvider(Color.White)
 
 /**
- * Everything on the card except the picture, added up — the reservation
- * [imageSlotHeight] subtracts.
+ * Lines of text each design draws.
  *
- * Every term is one of the constants above rather than a measurement, which is exactly
- * why it can be computed here, before the composition: a `Row` of a 20dp brand mark is
- * 20dp tall wherever it is drawn. The one estimated term is TEXT, and it is estimated in
- * the direction that cannot overflow (see [textBlockHeight]).
- *
- * The gap above the picture is charged here even when the post has no picture. That is
- * the direction that stays honest: the alternative is a slot that only fits because the
- * gap it sits under was not counted.
- */
-internal fun cardHeightWithoutImage(
-    size: FeedCardSize,
-    textLines: Int,
-    showsRotationControls: Boolean,
-    fontScale: Float,
-): Dp {
-    val brandRow = maxOf(
-        FeedCardDimensions.BRAND_MARK_SIZE,
-        textBlockHeight(BRAND_FONT_SIZE_SP, lines = 1, fontScale = fontScale),
-    )
-    val text = if (textLines > 0) {
-        FeedCardDimensions.BLOCK_SPACING +
-            textBlockHeight(textFontSizeSp(size), textLines, fontScale)
-    } else {
-        0.dp
-    }
-    // The avatar is the tallest thing in the byline until the reader's font scale makes
-    // the name taller than it.
-    val byline = FeedCardDimensions.BLOCK_SPACING + maxOf(
-        FeedCardDimensions.AVATAR_SIZE,
-        textBlockHeight(BYLINE_NAME_FONT_SIZE_SP, lines = 1, fontScale = fontScale),
-    )
-    val controls = if (showsRotationControls) FeedCardDimensions.CONTROL_SIZE else 0.dp
-
-    return cardPadding(size) * 2 + brandRow + text +
-        FeedCardDimensions.BLOCK_SPACING + byline + controls
-}
-
-/**
- * Height a `TextView` of [lines] lines at [fontSizeSp] occupies.
- *
- * MEASURED rather than assumed, on the real widget at 480dpi: the card's 20sp body drew
- * 50.7dp at two lines and 74.3dp at three, and its 12sp label 16.3dp at one. That is
- * 1.164em per line plus 0.196em of font padding charged once — Roboto's metrics plus the
- * `includeFontPadding` a `TextView` adds by default and `RemoteViews` gives no way to
- * turn off. The ratios below round both UP, so the reservation is never short.
- *
- * Rounding up is the safe direction here, unlike in the character budget: this figure is
- * SUBTRACTED from the widget's height, so over-estimating costs the picture a few dp
- * while under-estimating pushes the bottom of the card past the widget, where the
- * launcher clips it.
- *
- * [fontScale] multiplies rather than being ignored: `sp` is scaled by the reader's
- * font-size setting and `dp` is not, so a card at a 1.3 scale spends a third more of its
- * height on the same words.
- */
-private fun textBlockHeight(fontSizeSp: Float, lines: Int, fontScale: Float): Dp {
-    if (lines <= 0) return 0.dp
-    val effectiveScale = if (fontScale > 0f) fontScale else 1f
-    val ems = TEXT_LINE_HEIGHT_RATIO * lines + TEXT_FONT_PADDING_RATIO
-    return (fontSizeSp * effectiveScale * ems).dp
-}
-
-/** Height of one line of text, and the font padding a `TextView` adds once, in em. */
-private const val TEXT_LINE_HEIGHT_RATIO = 1.2f
-private const val TEXT_FONT_PADDING_RATIO = 0.2f
-
-/**
- * Most lines of text each design will draw.
- *
- * A CEILING, not the count: the card commits to [textLinesFor], which is this bounded by
- * how much text there actually is, so a short post leaves its unused lines to the
- * picture instead of holding space it will not fill.
+ * Also the second guard on truncation: [truncateToBudget] cuts the string, and
+ * `maxLines` catches the case where the character estimate ran low.
  */
 internal fun textMaxLines(size: FeedCardSize): Int = when (size) {
     FeedCardSize.SMALL -> 2
     FeedCardSize.MEDIUM -> 3
     FeedCardSize.LARGE -> 5
-}
-
-/**
- * Lines the card commits to for a post of [textLength] characters — what the `Text` is
- * given as `maxLines` AND what [cardHeightWithoutImage] reserves, which is the whole
- * point of it being one function.
- *
- * Estimated from [charsPerLine], with the same caveat as the character budget: `RemoteViews`
- * is measured in the launcher's process, so there is no way to ask how many lines a string
- * takes. The estimate errs towards MORE lines than the text needs, because [charsPerLine]
- * assumes a wider glyph than Roboto actually draws — the measured card fitted 36 characters
- * on a line the estimate gave 29. Erring that way costs the picture a line's worth of
- * height; erring the other way would clip the card.
- *
- * Zero for a post with no words, which is a real post in this feed (a bare URL with a
- * picture) and the case the extra room is most worth having.
- */
-internal fun textLinesFor(
-    size: FeedCardSize,
-    textLength: Int,
-    availableWidthDp: Float,
-    fontScale: Float,
-): Int {
-    if (textLength <= 0) return 0
-    val perLine = charsPerLine(size, availableWidthDp, fontScale)
-    if (perLine <= 0f) return 0
-    return ceil(textLength / perLine).toInt().coerceIn(1, textMaxLines(size))
 }
 
 /** Font size the post's text draws at, in sp. M3 Title Medium, up to Title Large. */
@@ -366,26 +234,12 @@ internal fun textBudgetChars(
     size: FeedCardSize,
     availableWidthDp: Float,
     fontScale: Float,
-): Int = (charsPerLine(size, availableWidthDp, fontScale) * textMaxLines(size))
-    .toInt()
-    .coerceAtLeast(0)
-
-/**
- * Characters that fit on ONE line of this design, at this width.
- *
- * The estimate both [textBudgetChars] and [textLinesFor] are built from, so the budget
- * and the line count can never disagree about how wide a character is. Zero for a
- * degenerate width or font size, which the callers treat as "no text".
- */
-private fun charsPerLine(
-    size: FeedCardSize,
-    availableWidthDp: Float,
-    fontScale: Float,
-): Float {
+): Int {
     val effectiveScale = if (fontScale > 0f) fontScale else 1f
     val glyphWidthDp = textFontSizeSp(size) * effectiveScale * AVERAGE_GLYPH_WIDTH_RATIO
-    if (glyphWidthDp <= 0f || availableWidthDp <= 0f) return 0f
-    return availableWidthDp / glyphWidthDp
+    if (glyphWidthDp <= 0f || availableWidthDp <= 0f) return 0
+    val charsPerLine = availableWidthDp / glyphWidthDp
+    return (charsPerLine * textMaxLines(size)).toInt().coerceAtLeast(0)
 }
 
 /**

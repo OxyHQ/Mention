@@ -318,20 +318,3 @@ internal fun nextRotationIndex(index: Int, size: Int): Int {
     return (normalizeRotationIndex(index, size) + 1) % size
 }
 
-/**
- * The previous rotation position, wrapping to the last post from the first.
- *
- * `+ size - 1` rather than `- 1` because the modulo that follows would otherwise be handed
- * a negative operand at position zero, and Kotlin's `%` keeps the sign of its left side —
- * the same trap [normalizeRotationIndex] exists to absorb. Doing the arithmetic so it never
- * goes negative in the first place means the stored value is always inside `0 until size`,
- * which is the property that lets the widget read it without a guard.
- *
- * Wrapping, not clamping: the pips say "one of five", so a tap on `previous` at the first
- * post has to go somewhere, and stopping dead at an end would read as the control being
- * broken.
- */
-internal fun previousRotationIndex(index: Int, size: Int): Int {
-    if (size <= 0) return 0
-    return (normalizeRotationIndex(index, size) + size - 1) % size
-}

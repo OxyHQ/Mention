@@ -5,6 +5,4 @@
   <string name="mention_feed_widget_card_description">%1$s. Pubblicato da %2$s.</string>
   <string name="mention_feed_widget_no_text">Un post senza testo</string>
 
-  <string name="mention_feed_widget_previous">Post precedente</string>
-  <string name="mention_feed_widget_next">Post successivo</string>
 </resources>

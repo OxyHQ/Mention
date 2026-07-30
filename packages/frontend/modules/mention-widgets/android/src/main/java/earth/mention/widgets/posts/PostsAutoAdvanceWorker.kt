@@ -4,6 +4,7 @@ import android.content.Context
 import android.os.PowerManager
 import androidx.core.content.getSystemService
 import androidx.glance.appwidget.updateAll
+import earth.mention.widgets.feedcard.autoAdvanceTick
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 
@@ -44,15 +45,16 @@ internal class PostsAutoAdvanceWorker(
 ) : CoroutineWorker(context, parameters) {
 
     override suspend fun doWork(): Result {
-        // Screen off: step nothing and, crucially, do not re-enqueue. Cycling a widget that
-        // cannot be seen is pure battery. The chain restarts from the next real update —
-        // `onUpdate` fires when the screen comes back to a home screen holding the widget.
         val power = applicationContext.getSystemService<PowerManager>()
-        if (power?.isInteractive != true) return Result.success()
+        val tick = autoAdvanceTick(screenInteractive = power?.isInteractive == true)
 
-        PostsStore.advance(applicationContext)
-        PostsWidget().updateAll(applicationContext)
-        PostsRefreshScheduler.scheduleNextAutoAdvance(applicationContext)
+        if (tick.advance) {
+            PostsStore.advance(applicationContext)
+            PostsWidget().updateAll(applicationContext)
+        }
+        if (tick.rearm) {
+            PostsRefreshScheduler.scheduleNextAutoAdvance(applicationContext)
+        }
         return Result.success()
     }
 }

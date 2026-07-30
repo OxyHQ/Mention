@@ -11,11 +11,4 @@
   <string name="mention_posts_widget_card_description">%1$s. Pubblicato da %2$s.</string>
   <string name="mention_posts_widget_no_text">Un post senza testo</string>
 
-  <!--
-    The card's rotation controls. Labels only — the controls are icons, so these are what
-    TalkBack announces and the only text a user ever hears for them. A widget cannot be
-    swiped (RemoteViews has no gestures), so these taps are the whole manual affordance.
-  -->
-  <string name="mention_posts_widget_previous">Post precedente</string>
-  <string name="mention_posts_widget_next">Post successivo</string>
 </resources>

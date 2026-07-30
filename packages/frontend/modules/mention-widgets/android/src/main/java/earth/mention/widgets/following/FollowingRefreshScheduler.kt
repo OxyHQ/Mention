@@ -149,15 +149,13 @@ internal object FollowingRefreshScheduler {
     }
 
     /**
-     * What [FollowingAutoAdvanceWorker] calls to continue the chain, and what a manual step calls
-     * to push the next turn a full interval away.
+     * What [FollowingAutoAdvanceWorker] calls to continue the chain.
      *
-     * One function for both because they mean the same thing — the clock restarts here — and
-     * REPLACE is what does it. The manual case matters: without the reset, a card tapped a moment
-     * before an automatic turn was due would jump again immediately and lose the post the reader
-     * had just chosen.
+     * Distinct from [ensureAutoAdvance] only in policy: the link that just ran is finished, so
+     * KEEP would have nothing to keep, and being explicit about REPLACE here documents that
+     * this is the one caller allowed to restart the clock unconditionally.
      */
-    fun restartAutoAdvance(context: Context) {
+    fun scheduleNextAutoAdvance(context: Context) {
         enqueueAutoAdvance(context, ExistingWorkPolicy.REPLACE)
     }
 
