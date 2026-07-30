@@ -65,8 +65,16 @@ const EMPTY_RESPONSE: SlicedFeedResponse = {
  * one recency window, and `excludeIds` rolls forward so a page boundary survives
  * engagement counts changing underneath it.
  *
+ * It is also STAMPED as the fallback's. The score it carries is an
+ * `engagementScore`, while every other cursor on these feeds carries a
+ * `finalScore`; without the stamp the ranked path compared the two as if they were
+ * one quantity. See {@link ScoreCursorData.fromPopularFallback}.
+ *
  * Returns `undefined` when the last item cannot supply a full key — better a feed
- * that stops than one that silently repeats or skips.
+ * that stops than one that silently repeats or skips. Note the stamp rides in the
+ * v1 metadata envelope, which `ScoreCursor.build` only emits for a valid `asOf`;
+ * `asOf` is unconditional here (inherited, else now), so a minted cursor is always
+ * stamped.
  */
 function buildPopularCursor(page: readonly CandidatePost[], incomingCursor?: string): string | undefined {
   const last = page[page.length - 1];
@@ -88,6 +96,7 @@ function buildPopularCursor(page: readonly CandidatePost[], incomingCursor?: str
     asOf: inherited?.asOf ?? Date.now(),
     tiebreakAt: createdAt,
     excludeIds: inherited?.excludeIds,
+    fromPopularFallback: true,
   });
 }
 
@@ -132,6 +141,30 @@ export class FeedEngine {
     // returns the page in `items` with an EMPTY `slices` — see
     // `runPopularFallback`, because it makes a working feed look empty.
     if (definition.mode === 'ranked' && exec.popularFallback && !ctx.currentUserId) {
+      return this.runPopularFallback(exec.popularFallback, ctx, exec, cursor, limit);
+    }
+
+    // A cursor MINTED BY the fallback keeps the session in the fallback, for the
+    // rest of that cursor chain. Once `neverBlank` handed the ranked path a
+    // fallback cursor, it compared that cursor's `engagementScore` against
+    // `finalScore`: a fallback anchor of 0 filtered out every ranked candidate,
+    // and a high one made the window a no-op and silently restarted the ranked
+    // feed at page ONE, with only the seen set between the viewer and the posts
+    // they had just read.
+    //
+    // Staying is the right half of that choice, not just the safe one. The
+    // alternative — resume ranked at page one and lean on the seen set — throws
+    // away the only correct watermark anyone holds: the fallback's keyset is total
+    // over `{engagementScore, createdAt, _id}` and walks forward with no repeats,
+    // whereas the seen set is a bounded 30-minute cache (1000 ids, shared across
+    // for_you/videos/media) that is under the most pressure exactly here, deep in a
+    // scroll. Resuming would also re-run the full multi-lane ranked gather on every
+    // subsequent page to reach the same fallback, since what emptied the ranked
+    // pool has not changed between two adjacent requests.
+    //
+    // The door is one-way per CURSOR CHAIN, never per viewer: a refresh sends no
+    // cursor and starts ranked at page one again.
+    if (definition.mode === 'ranked' && exec.popularFallback && parsedScoreCursor?.fromPopularFallback) {
       return this.runPopularFallback(exec.popularFallback, ctx, exec, cursor, limit);
     }
 
@@ -459,7 +492,13 @@ export class FeedEngine {
       });
 
       let filtered = sorted;
-      if (parsedCursor && parsedCursor.score !== Infinity) {
+      // Only a cursor carrying THIS feed's own ranking score may bound it. A
+      // fallback cursor carries an `engagementScore` on a wholly different scale,
+      // and `run` already routes one back to the fallback rather than here — but a
+      // definition that LOSES its `popularFallback` still receives in-flight
+      // fallback cursors from clients, and the router has nowhere to send those.
+      // So the refusal is stated where the comparison happens, not only upstream.
+      if (parsedCursor && parsedCursor.score !== Infinity && !parsedCursor.fromPopularFallback) {
         filtered = sorted.filter((post) => {
           const postScore = readCandidateScore(post);
           const postId = readCandidateId(post);
