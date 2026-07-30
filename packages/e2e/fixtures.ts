@@ -17,6 +17,15 @@
 
 import { test as base, expect } from '@playwright/test';
 import { APP_ORIGIN, CANDIDATE_ORIGIN } from './environment';
+import { withTransientTransportRetry } from './transientNetwork';
+
+/**
+ * Retry budget for a candidate fetch whose connection died. Three retries on a
+ * short ramp: the Pages resets this defends against are per-connection, so a
+ * fresh one either works at once or the origin is genuinely broken. Worst case
+ * this adds 2.5s of waiting to a single asset, against a 90s per-test budget.
+ */
+const CANDIDATE_RETRY_DELAYS_MS = [250, 750, 1500];
 
 /**
  * Headers describing how the body was framed on the wire. `route.fetch()` hands
@@ -62,18 +71,42 @@ export const test = base.extend<{ candidate: CandidateBuild }>({
       (url) => url.origin === APP_ORIGIN,
       async (route) => {
         const requested = new URL(route.request().url());
-        const response = await route.fetch({
-          url: `${CANDIDATE_ORIGIN}${requested.pathname}${requested.search}`,
-          maxRedirects: 0,
-        });
+        // Reading the body inside the retried attempt keeps a connection that
+        // dies mid-transfer on the same footing as one that never opened. Only
+        // the transport is retried — see `transientNetwork.ts` for why that
+        // cannot turn a broken build into a green gate.
+        const served = await withTransientTransportRetry(
+          async () => {
+            const response = await route.fetch({
+              url: `${CANDIDATE_ORIGIN}${requested.pathname}${requested.search}`,
+              maxRedirects: 0,
+            });
+            return {
+              status: response.status(),
+              headers: response.headers(),
+              body: await response.body(),
+            };
+          },
+          {
+            retryDelaysMs: CANDIDATE_RETRY_DELAYS_MS,
+            // Announced rather than silent: an origin resetting often enough to
+            // need this is worth seeing in the step log even when every retry
+            // succeeds, because otherwise a degrading deployment reads as green.
+            onRetry: (error, attemptsRemaining) => {
+              console.warn(
+                `[candidate] ${requested.pathname}: ${error.message.split('\n')[0]} — retrying (${attemptsRemaining} left)`,
+              );
+            },
+          },
+        );
         const headers = Object.fromEntries(
-          Object.entries(response.headers()).filter(([name]) => !WIRE_FRAMING_HEADERS.has(name)),
+          Object.entries(served.headers).filter(([name]) => !WIRE_FRAMING_HEADERS.has(name)),
         );
         servedPaths.push(requested.pathname);
         await route.fulfill({
-          status: response.status(),
+          status: served.status,
           headers,
-          body: await response.body(),
+          body: served.body,
         });
       },
     );
