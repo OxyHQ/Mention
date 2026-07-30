@@ -45,16 +45,44 @@ export function engagementScoreExpr(): Record<string, unknown> {
   };
 }
 
+/**
+ * WHY NEITHER OF THE TWO SOURCES BELOW APPLIES THE CURSOR — the question this
+ * file will be asked again.
+ *
+ * `videos` and `media` are RANKED sources, not pre-scored ones and not
+ * chronological ones. They hand the engine an unordered candidate POOL; the
+ * engine scores it in process (`FeedRankingService.rankPosts`) and paginates the
+ * RESULT by a score window (`FeedEngine.finalizeRanked`). Nothing about their
+ * output is ordered by `_id`, so an `_id` bound here narrows the pool on an axis
+ * neither layer sorts by: a post that scored just BELOW the cursor — exactly the
+ * page-two candidate the score window is there to admit — is dropped before
+ * ranking ever sees it, and since the bound only ever moves down it can never
+ * come back in that session. Federated posts lose the most: `_id` is their IMPORT
+ * time, so one backfilled minutes ago carries a near-maximal `_id` however old
+ * the post itself is, and is the first thing an `_id` bound cuts.
+ *
+ * Nothing is lost by dropping it. Forward progress is the SCORE window's job and
+ * it needs no help: every item on the emitted page scores at or above that page's
+ * cursor anchor, so the window excludes the whole page by construction — even
+ * from a source that re-offers the identical pool every time. The seen set
+ * (`ctx.seenPostIds`, threaded into the match below) is what slides the candidate
+ * window forward so the pool keeps refilling.
+ *
+ * This mirrors For You, the other ranked in-process-scored feed:
+ * `GatherForYouCandidatesParams` takes a seen set and NO cursor. Cursor-in-the-
+ * source is correct only where source order IS page order — the chronological
+ * lanes (`ChronoCursor.applyToQuery` over a `_id`/`createdAt` sort) and the
+ * pre-scored `exploreSource`, which keysets on the `finalScore` it sorts by.
+ */
+
 /** `videos`: ranked candidate query for video posts (wraps `buildVideosQuery`). */
 export const videosSource: SourceModule = {
   id: 'videos',
   kind: 'source',
   userComposable: false,
   gather: async (ctx, _params, cap) => {
-    const seenPostIds = ctx.seenPostIds ?? [];
-    const parsed = ScoreCursor.parse(ctx.cursor);
     const match = {
-      ...FeedQueryBuilder.buildVideosQuery(seenPostIds, parsed?.id, {
+      ...FeedQueryBuilder.buildVideosQuery(ctx.seenPostIds ?? [], {
         orientation: ctx.videoFilters?.orientation,
         minDurationSec: ctx.videoFilters?.minDurationSec,
       }),
@@ -75,10 +103,8 @@ export const mediaSource: SourceModule = {
   kind: 'source',
   userComposable: false,
   gather: async (ctx, _params, cap) => {
-    const seenPostIds = ctx.seenPostIds ?? [];
-    const parsed = ScoreCursor.parse(ctx.cursor);
     const match = {
-      ...FeedQueryBuilder.buildMediaFeedQuery(seenPostIds, parsed?.id),
+      ...FeedQueryBuilder.buildMediaFeedQuery(ctx.seenPostIds ?? []),
       ...DISCOVERY_SAFE_MATCH,
     };
     return await Post.find(match)
@@ -421,10 +447,11 @@ async function gatherPopularByQuery(
 /**
  * `popularVideos`: the Videos fallback (wraps `VideosFeed.fetchPopular`).
  *
- * The cursor goes to {@link gatherPopularByQuery}, NOT to `buildVideosQuery`: that
- * builder applies an `_id` bound, which is the wrong axis for an engagement sort.
- * The viewer's seen set is passed through so a fallback page cannot re-serve what
- * the ranked pages already showed — the reason this path could repeat forever.
+ * The cursor goes to {@link gatherPopularByQuery}, which keysets on the
+ * `{engagementScore, createdAt, _id}` axis this source actually sorts by. The
+ * builder only supplies the CONTENT predicate plus the seen set, so a fallback
+ * page cannot re-serve what the ranked pages already showed — the reason this
+ * path could repeat forever.
  */
 export const popularVideosSource: SourceModule = {
   id: 'popularVideos',
@@ -433,7 +460,7 @@ export const popularVideosSource: SourceModule = {
   gather: async (ctx, _params, cap) =>
     gatherPopularByQuery(
       {
-        ...FeedQueryBuilder.buildVideosQuery(ctx.seenPostIds ?? [], undefined, {
+        ...FeedQueryBuilder.buildVideosQuery(ctx.seenPostIds ?? [], {
           orientation: ctx.videoFilters?.orientation,
           minDurationSec: ctx.videoFilters?.minDurationSec,
         }),
@@ -452,7 +479,7 @@ export const popularMediaSource: SourceModule = {
   gather: async (ctx, _params, cap) =>
     gatherPopularByQuery(
       {
-        ...FeedQueryBuilder.buildMediaFeedQuery(ctx.seenPostIds ?? [], undefined),
+        ...FeedQueryBuilder.buildMediaFeedQuery(ctx.seenPostIds ?? []),
         ...DISCOVERY_SAFE_MATCH,
       },
       cap,

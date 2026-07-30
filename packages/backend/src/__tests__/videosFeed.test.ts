@@ -64,7 +64,7 @@ describe('videos feed descriptor', () => {
 
 describe('FeedQueryBuilder.buildVideosQuery', () => {
   it('requires complete persisted video metadata with default min duration', () => {
-    const query = FeedQueryBuilder.buildVideosQuery([], undefined);
+    const query = FeedQueryBuilder.buildVideosQuery([]);
 
     expect(query.visibility).toBe(PostVisibility.PUBLIC);
     expect(query.status).toBe('published');
@@ -83,10 +83,9 @@ describe('FeedQueryBuilder.buildVideosQuery', () => {
     expect(elemMatch.height).toEqual({ $gt: 0 });
   });
 
-  it('excludes boosts and seen posts, and applies a cursor', () => {
-    const cursor = '65fdc8c8c8c8c8c8c8c8c8c8';
+  it('excludes boosts and seen posts, and bounds _id no further', () => {
     const seen = ['65aaaaaaaaaaaaaaaaaaaaaa'];
-    const query = FeedQueryBuilder.buildVideosQuery(seen, cursor);
+    const query = FeedQueryBuilder.buildVideosQuery(seen);
     const and = query.$and as Array<Record<string, unknown>>;
 
     const boostClause = and.find((c) => Array.isArray(c.$or)
@@ -99,11 +98,14 @@ describe('FeedQueryBuilder.buildVideosQuery', () => {
     });
     expect(ninClause).toBeDefined();
 
+    // Every consumer of this builder feeds a RANKED pipeline paginated by a score,
+    // so an `_id` range here would drop page-two candidates on an axis nothing
+    // sorts by. See `rankedSourceCandidateWindow.test.ts`.
     const ltClause = and.find((c) => {
       const id = c._id as { $lt?: unknown } | undefined;
       return id?.$lt !== undefined;
     });
-    expect(ltClause).toBeDefined();
+    expect(ltClause).toBeUndefined();
   });
 });
 

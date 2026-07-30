@@ -346,10 +346,15 @@ export class FeedQueryBuilder {
    * federation exclusion). Boosts are excluded (the underlying original is
    * surfaced instead). Replies flow through so multi-post threads can still
    * be sliced.
+   *
+   * CONTENT PREDICATE + SEEN SET ONLY — deliberately NO cursor. Every consumer
+   * feeds a RANKED pipeline (`videosSource`, `popularVideosSource`) whose page
+   * order is a score, not `_id`, so a cursor bound here would drop candidates on
+   * an axis nothing sorts by. Each consumer applies its own keyset on the axis it
+   * actually orders by; see the note above {@link videosSource}.
    */
   static buildVideosQuery(
     seenPostIds: string[],
-    cursor?: string,
     options: VideosQueryOptions = {},
   ): Record<string, unknown> {
     const minDurationSec = options.minDurationSec ?? MtnConfig.videosFeed.minDurationSec;
@@ -412,11 +417,6 @@ export class FeedQueryBuilder {
       (match.$and as unknown[]).push({ _id: { $nin: seenObjectIds } });
     }
 
-    const cursorId = parseFeedCursor(cursor);
-    if (cursorId) {
-      (match.$and as unknown[]).push({ _id: { $lt: cursorId } });
-    }
-
     return match;
   }
 
@@ -434,11 +434,11 @@ export class FeedQueryBuilder {
    * The content.media predicate is backed by the `{ 'content.media': 1,
    * createdAt: -1 }` index; the type predicate is backed by the
    * `{ type: 1, visibility: 1, status: 1, createdAt: -1 }` index.
+   *
+   * CONTENT PREDICATE + SEEN SET ONLY — deliberately NO cursor, for the reason
+   * given on {@link FeedQueryBuilder.buildVideosQuery}.
    */
-  static buildMediaFeedQuery(
-    seenPostIds: string[],
-    cursor?: string,
-  ): Record<string, unknown> {
+  static buildMediaFeedQuery(seenPostIds: string[]): Record<string, unknown> {
     const mediaMatch = {
       $or: [
         { type: { $in: [PostType.IMAGE, PostType.VIDEO] } },
@@ -462,11 +462,6 @@ export class FeedQueryBuilder {
       .map(id => new mongoose.Types.ObjectId(id));
     if (seenObjectIds.length > 0) {
       (match.$and as unknown[]).push({ _id: { $nin: seenObjectIds } });
-    }
-
-    const cursorId = parseFeedCursor(cursor);
-    if (cursorId) {
-      (match.$and as unknown[]).push({ _id: { $lt: cursorId } });
     }
 
     return match;
