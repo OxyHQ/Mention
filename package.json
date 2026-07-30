@@ -65,7 +65,7 @@
     "@react-native/metro-config": "0.85.3",
     "@oxyhq/bloom": "^0.71.0",
     "@oxyhq/core": "^15.0.1",
-    "@oxyhq/services": "^24.0.1",
+    "@oxyhq/services": "^24.0.2",
     "brace-expansion": "2.1.2",
     "fast-uri": "3.1.4",
     "fast-xml-parser": "5.10.1",
