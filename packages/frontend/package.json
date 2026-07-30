@@ -113,7 +113,6 @@
     "expo-font": "~56.0.7",
     "expo-glass-effect": "~56.0.4",
     "expo-haptics": "~56.0.3",
-    "expo-keep-awake": "~56.0.3",
     "expo-image": "~56.0.11",
     "expo-image-manipulator": "~56.0.22",
     "expo-image-picker": "~56.0.21",
