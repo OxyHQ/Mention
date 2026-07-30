@@ -149,6 +149,48 @@ internal fun parseFeedResponse(body: String, limit: Int = ROTATION_LENGTH): List
 }
 
 /**
+ * Read the page the RUNNING APP handed over — `MentionWidgets.publish*Feed` in JS.
+ *
+ * The same posts as [parseFeedResponse], through a different door and in a flatter shape:
+ * JS projects each post down to the ten strings the card rules consume and sends those, so
+ * the bridge carries a few hundred bytes per post instead of the whole hydrated DTO (about
+ * 5KB each). The field NAMES are deliberately the ones this file already uses, so there is
+ * one vocabulary for the wire shape, the handoff shape and the store shape rather than
+ * three.
+ *
+ * Everything after the shape is identical — [buildWidgetPost] applies the same rules and
+ * the same drops, and [preferPostsWithPictures] makes the same choice — so a rotation the
+ * app hands over is indistinguishable from one the worker fetched. That is the point: the
+ * app is saving the widget a REQUEST, not giving it a second kind of content.
+ *
+ * Throws [org.json.JSONException] when the body is not an array; the caller answers for
+ * that by keeping whatever it already had.
+ */
+internal fun parseHandoffPosts(body: String, limit: Int = ROTATION_LENGTH): List<WidgetPost> {
+    val items = JSONArray(body)
+    val parsed = buildList(items.length()) {
+        for (index in 0 until items.length()) {
+            val item = items.optJSONObject(index) ?: continue
+            add(
+                buildWidgetPost(
+                    id = item.optString(FIELD_ID),
+                    postText = item.optString(FIELD_TEXT),
+                    previewTitle = item.optString(FIELD_TITLE),
+                    mediaThumbUrl = item.optString(FIELD_THUMB_URL),
+                    mediaUrl = item.optString(FIELD_URL),
+                    previewImageUrl = item.optString(FIELD_IMAGE),
+                    imageAlt = item.optString(FIELD_ALT),
+                    authorName = item.optString(FIELD_NAME),
+                    authorHandle = item.optString(FIELD_USERNAME),
+                    authorAvatar = item.optString(FIELD_AVATAR),
+                ) ?: continue,
+            )
+        }
+    }
+    return preferPostsWithPictures(parsed, limit)
+}
+
+/**
  * Up to [limit] posts, taking the ones that HAVE a picture first.
  *
  * The picture is the card's whole background now, so a rotation of five text-only posts is
@@ -178,35 +220,75 @@ internal fun preferPostsWithPictures(posts: List<WidgetPost>, limit: Int): List<
 }
 
 private fun readPost(post: JSONObject): WidgetPost? {
-    val id = post.optString(FIELD_ID).trim()
-    if (id.isEmpty()) return null
-
     val user = post.optJSONObject(FIELD_USER) ?: return null
-    val authorName = user.optJSONObject(FIELD_NAME)?.optString(FIELD_DISPLAY_NAME)?.trim().orEmpty()
-    if (authorName.isEmpty()) return null
+    val firstPreview = post.optJSONArray(FIELD_LINK_PREVIEWS)?.optJSONObject(0)
+    val firstMedia = post.optJSONObject(FIELD_ATTACHMENTS)?.optJSONArray(FIELD_MEDIA)?.optJSONObject(0)
 
-    val previews = post.optJSONArray(FIELD_LINK_PREVIEWS)
-    val firstPreview = previews?.optJSONObject(0)
-    val media = post.optJSONObject(FIELD_ATTACHMENTS)?.optJSONArray(FIELD_MEDIA)
-    val firstMedia = media?.optJSONObject(0)
+    return buildWidgetPost(
+        id = post.optString(FIELD_ID),
+        postText = post.optJSONObject(FIELD_CONTENT)?.optString(FIELD_TEXT).orEmpty(),
+        previewTitle = firstPreview?.optString(FIELD_TITLE).orEmpty(),
+        mediaThumbUrl = firstMedia?.optString(FIELD_THUMB_URL).orEmpty(),
+        mediaUrl = firstMedia?.optString(FIELD_URL).orEmpty(),
+        previewImageUrl = firstPreview?.optString(FIELD_IMAGE).orEmpty(),
+        imageAlt = firstMedia?.optString(FIELD_ALT).orEmpty(),
+        authorName = user.optJSONObject(FIELD_NAME)?.optString(FIELD_DISPLAY_NAME).orEmpty(),
+        authorHandle = user.optString(FIELD_USERNAME),
+        authorAvatar = user.optString(FIELD_AVATAR),
+    )
+}
+
+/**
+ * THE CARD'S CONTENT RULES, applied to one post's raw strings — every decision about what a
+ * card shows, in one place, with nothing above it but where the strings came from.
+ *
+ * It is separated from [readPost] because there are now TWO places a post arrives from and
+ * only one of them is the feed's own JSON: the refresh worker parses
+ * `GET /feed/mtn?...` (above), and the running app hands over the page it already
+ * downloaded (`FeedHandoff.kt`). Those differ in the SHAPE they read — nested wire objects
+ * against the flat projection JS sends — and in nothing else. Keeping the rules here means
+ * the two paths cannot drift into showing different things: a post handed over by the app
+ * draws exactly as it would have drawn had the worker fetched it.
+ *
+ * Every argument is a plain string, empty for absent, so neither caller has to decide what
+ * "missing" means — that decision is made once, here.
+ *
+ * A post is DROPPED (`null`) for a missing id or a missing author name, because both are
+ * load-bearing: the id is the deep-link target, and a card whose byline cannot name anyone
+ * is a card that could be attributed to anyone. Nothing else drops a post.
+ */
+internal fun buildWidgetPost(
+    id: String,
+    postText: String,
+    previewTitle: String,
+    mediaThumbUrl: String,
+    mediaUrl: String,
+    previewImageUrl: String,
+    imageAlt: String,
+    authorName: String,
+    authorHandle: String,
+    authorAvatar: String,
+): WidgetPost? {
+    val postId = id.trim()
+    if (postId.isEmpty()) return null
+
+    val name = authorName.trim()
+    if (name.isEmpty()) return null
 
     return WidgetPost(
-        id = id,
-        text = chooseDisplayText(
-            postText = post.optJSONObject(FIELD_CONTENT)?.optString(FIELD_TEXT).orEmpty(),
-            previewTitle = firstPreview?.optString(FIELD_TITLE).orEmpty(),
-        ),
+        id = postId,
+        text = chooseDisplayText(postText = postText, previewTitle = previewTitle),
         imageUrl = chooseImageUrl(
-            mediaThumbUrl = firstMedia?.optString(FIELD_THUMB_URL).orEmpty(),
-            mediaUrl = firstMedia?.optString(FIELD_URL).orEmpty(),
-            previewImageUrl = firstPreview?.optString(FIELD_IMAGE).orEmpty(),
+            mediaThumbUrl = mediaThumbUrl,
+            mediaUrl = mediaUrl,
+            previewImageUrl = previewImageUrl,
         ),
-        imageAlt = firstMedia?.optString(FIELD_ALT)?.trim()?.ifEmpty { null },
-        authorName = authorName,
+        imageAlt = imageAlt.trim().ifEmpty { null },
+        authorName = name,
         // Normalized to bare here so nothing downstream has to know that a federated
         // username arrives as `user@host` while the byline renders `@user@host`.
-        authorHandle = user.optString(FIELD_USERNAME).trim().removePrefix("@"),
-        authorAvatar = user.optString(FIELD_AVATAR).trim().ifEmpty { null },
+        authorHandle = authorHandle.trim().removePrefix("@"),
+        authorAvatar = authorAvatar.trim().ifEmpty { null },
     )
 }
 

@@ -22,6 +22,7 @@ import type {
   PostUser,
 } from '@mention/shared-types';
 
+import { syncFeedWidget } from '../modules/mention-widgets/feedWidgetSync';
 import { FeedFilters } from '../utils/feedUtils';
 import { authenticatedClient, publicClient, isNotFoundError } from '../utils/api';
 import { oxyServices } from '@/lib/oxyServices';
@@ -93,6 +94,28 @@ function readAccessToken(): string | undefined {
 
 function authDedupeMarker(): 'auth' | 'anon' {
   return readAccessToken() ? 'auth' : 'anon';
+}
+
+/**
+ * The account this client is currently authorized as, decoded from the bearer —
+ * the server's own answer rather than app state.
+ *
+ * Guarded like {@link readAccessToken} beside it, and for the same reason: the
+ * only caller is the home-screen widget handoff, which is an ENHANCEMENT riding
+ * on a feed request. A missing method on an older SDK, or a test double that
+ * stubs only part of the client, must degrade to "no viewer identity" — never
+ * reject the feed the reader is waiting for.
+ *
+ * `null` is a first-class answer downstream: it is what an anonymous read looks
+ * like, and the handoff policy already refuses to attribute a personal timeline
+ * without one.
+ */
+function readViewerId(): string | null {
+  try {
+    return oxyServices.getCurrentUserId();
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -811,11 +834,33 @@ class FeedService {
     }
 
     const fetchPromise = (async () => {
+      // Read BEFORE the request goes out, and again after it lands: this is the
+      // account the server actually authorized (decoded from the bearer the
+      // request carried), and a change across the round trip means a switch
+      // raced it. `syncFeedWidget` refuses to attribute the page in that case.
+      const viewerIdBefore = readViewerId();
       const response = await makeViewerAwarePublicRead<FeedDataResponse>('/feed/mtn', {
         params,
         signal: options?.signal,
       });
-      return hasFeedDataEnvelope(response) ? response.data : response;
+      const feed = hasFeedDataEnvelope(response) ? response.data : response;
+
+      // Hand the page to whichever home-screen widget draws this feed. Costs no
+      // request — the app already has the posts — and is a no-op off Android,
+      // for every other descriptor, past the first page, and when the widget is
+      // not placed. Never awaited: nothing the app renders depends on it.
+      syncFeedWidget(
+        {
+          descriptor,
+          cursor: options?.cursor,
+          viewerIdBefore,
+          viewerIdAfter: readViewerId(),
+          postCount: feed.items?.length ?? 0,
+        },
+        feed.items ?? [],
+      );
+
+      return feed;
     })();
 
     if (!canShare) {

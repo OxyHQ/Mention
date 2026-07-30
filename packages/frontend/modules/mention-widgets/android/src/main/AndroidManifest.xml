@@ -137,5 +137,30 @@
         android:name="android.appwidget.provider"
         android:resource="@xml/mention_following_widget_info" />
     </receiver>
+
+    <!--
+      NO SCREEN-UNLOCK RECEIVER, and this is a finding rather than an omission.
+
+      `ACTION_USER_PRESENT` is the obvious signal for "somebody is about to look at their
+      home screen", and a receiver for it was built, declared here and measured on a
+      device (Android 17, API 36). The system never ran it. Its own broadcast record says
+      why, for every MANIFEST receiver of that action — Android's own included:
+
+        BroadcastRecord{... android.intent.action.USER_PRESENT ...} caller=com.android.systemui
+          skipped by policy at enqueue: Background execution not allowed:
+            receiving Intent { act=android.intent.action.USER_PRESENT } to com.android.stk/.UserPresentReceiver
+            ... to com.google.android.gms/.auth.setup.devicesignals.LockScreenReceiver
+            ... to com.google.android.gms/.chimera.GmsIntentOperationService$PersistentTrustedReceiver
+
+      `USER_PRESENT` is not on the implicit-broadcast exception list (API 26+), so a
+      manifest receiver is skipped. A LIVE process does not help: `com.google.android.gms`
+      is permanently running and its manifest receiver was skipped in that same broadcast.
+      Only RUNTIME-registered receivers were delivered — and a widget has no process of
+      its own to register one from, which is the whole problem.
+
+      So a widget cannot observe the unlock. What it gets instead is that leaving Doze
+      flushes the deferred `FollowingRefreshWorker` / `PostsRefreshWorker` ticks, and that
+      the running app hands its feed over directly (see `feedcard/FeedHandoff.kt`).
+    -->
   </application>
 </manifest>

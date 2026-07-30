@@ -12,12 +12,25 @@ import { requireOptionalNativeModule, type NativeModule } from 'expo';
  * which is why `requireOptionalNativeModule` is used and its `null` handled once
  * here instead of at each call site.
  *
- * The surface is one function on purpose. A widget runs outside the app process,
- * so each one owns its data end to end natively — fetch, cache, render, deep
- * link — and anything mirrored here would be a second implementation of that
- * path. What is genuinely JS-side is the one fact only the running app knows:
- * that the content it is displaying has just changed. See `trendsWidgetSync.ts`
- * for when acting on that is worth a fetch.
+ * The surface is small on purpose. A widget runs outside the app process, so
+ * each one owns its data end to end natively — fetch, cache, render, deep link —
+ * and anything mirrored here would be a second implementation of that path. What
+ * is genuinely JS-side is what only a RUNNING app knows: what it is looking at
+ * right now.
+ *
+ * That takes two forms, and they are different in kind:
+ *
+ *  - CONTROL — {@link refreshTrendsWidget}: the batch on screen has rotated, so
+ *    fetch now rather than at the end of the schedule. See `trendsWidgetSync.ts`
+ *    for when that is worth a fetch.
+ *  - DATA — {@link publishTrendingWidgetFeed} / {@link publishFollowingWidgetFeed}:
+ *    the app has ALREADY downloaded the exact feed a card draws, so handing it
+ *    over costs no request at all and beats making a worker fetch the same thing
+ *    half an hour later. See `feedWidgetSync.ts` for which loads qualify.
+ *
+ * The data pair is not a second fetch path. It carries raw strings; every rule
+ * about what a card shows, and the account stamp that decides whether a rotation
+ * may be drawn at all, stays in Kotlin (`feedcard/FeedHandoff.kt`).
  */
 
 // `declare class`, not an interface: `NativeModule` is exported as the
@@ -30,6 +43,22 @@ declare class MentionWidgetsNativeModule extends NativeModule {
    * the work is queued, not once it has run.
    */
   refreshTrends(): Promise<void>;
+
+  /**
+   * Store an Explore page the app fetched as the trending-posts widget's
+   * rotation. `body` is the JSON array `feedWidgetSync.ts` builds.
+   *
+   * Resolves once the rotation is stored AND its pictures are on disk, so it is
+   * seconds rather than immediate — callers fire and forget.
+   */
+  publishTrendingFeed(body: string): Promise<void>;
+
+  /**
+   * The same, for the following widget, naming the account the page was fetched
+   * as. That account is a claim the native side checks against the device
+   * credential and refuses on mismatch; it never becomes the stamp by itself.
+   */
+  publishFollowingFeed(accountId: string, body: string): Promise<void>;
 }
 
 const nativeModule = requireOptionalNativeModule<MentionWidgetsNativeModule>('MentionWidgets');
@@ -46,4 +75,27 @@ export const areHomeScreenWidgetsAvailable = nativeModule !== null;
  */
 export function refreshTrendsWidget(): Promise<void> {
   return nativeModule?.refreshTrends() ?? Promise.resolve();
+}
+
+/**
+ * Hand the trending-posts widget an Explore page the app already downloaded.
+ *
+ * A no-op where the module is absent, and a no-op natively when the widget is
+ * not on a home screen — checked before the body is even parsed, so a reader who
+ * never placed one pays nothing.
+ */
+export function publishTrendingWidgetFeed(body: string): Promise<void> {
+  return nativeModule?.publishTrendingFeed(body) ?? Promise.resolve();
+}
+
+/**
+ * Hand the following widget a timeline the app already downloaded, naming the
+ * account it was fetched as.
+ *
+ * Same no-ops as above. The account is checked natively against the device's own
+ * background credential and the whole page is dropped if they disagree, so a
+ * handoff can never put one account's timeline under another's name.
+ */
+export function publishFollowingWidgetFeed(accountId: string, body: string): Promise<void> {
+  return nativeModule?.publishFollowingFeed(accountId, body) ?? Promise.resolve();
 }
