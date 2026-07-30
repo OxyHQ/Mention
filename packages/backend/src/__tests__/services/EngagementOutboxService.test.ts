@@ -139,6 +139,51 @@ describe('EngagementOutboxService', () => {
     );
   });
 
+  it('owns both timestamps and opts out of the managed ones', async () => {
+    /**
+     * Two failures, one line apart, and asserting either half alone passes the
+     * other's bug:
+     *
+     *  - Without `timestamps: false`, the schema's `timestamps: true` also puts
+     *    `updatedAt` in `$set`; one path under two operators makes the server
+     *    refuse the whole update and abort the enclosing transaction — every like,
+     *    downvote, save and unsave.
+     *  - Without the explicit fields, Mongoose's `$set: { updatedAt }` remains and a
+     *    REPEATED upsert becomes a real write rather than the no-op the
+     *    deterministic event id exists to guarantee.
+     *
+     * A proxy, and worth knowing as one: the model is mocked here and this suite has
+     * no Mongo, so it reads the update instead of executing it.
+     */
+    vi.mocked(EngagementOutbox.updateOne).mockResolvedValue(
+      { acknowledged: true } as never,
+    );
+
+    await enqueueEngagementOutboxEvent(
+      {
+        kind: 'post.save',
+        relationshipId: 'bookmark-1',
+        revision: 1,
+        payload: {
+          actorOxyUserId: 'viewer-a',
+          postId: 'post-1',
+          relationshipId: 'bookmark-1',
+        },
+      },
+      {} as never,
+    );
+
+    const [, update, options] = vi.mocked(EngagementOutbox.updateOne).mock
+      .calls[0] as unknown as [
+      unknown,
+      { $setOnInsert?: Record<string, unknown> },
+      { timestamps?: boolean } | undefined,
+    ];
+    expect(update.$setOnInsert).toHaveProperty('createdAt');
+    expect(update.$setOnInsert).toHaveProperty('updatedAt');
+    expect(options?.timestamps).toBe(false);
+  });
+
   it('atomically claims pending work or an expired lease', async () => {
     const now = new Date('2026-07-26T12:00:00.000Z');
     const event = {

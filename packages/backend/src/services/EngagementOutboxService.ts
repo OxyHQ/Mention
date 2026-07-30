@@ -84,7 +84,20 @@ export async function enqueueEngagementOutboxEvent(
         updatedAt: now,
       },
     },
-    { upsert: true, session },
+    /**
+     * `timestamps: false` is what makes naming the two fields above correct.
+     *
+     * Without it the schema's `timestamps: true` puts `updatedAt` in `$set` too,
+     * one path under two operators, and the server rejects the whole update —
+     * aborting the enclosing transaction, i.e. every like, downvote, save and
+     * unsave. Dropping the fields instead clears the error but leaves Mongoose's
+     * `$set: { updatedAt }`, making a repeated upsert a real write where the
+     * deterministic id exists precisely so a retry is a no-op.
+     *
+     * See `ModerationOutboxService.enqueueModerationOutboxEvent` for the full
+     * account and the measurements.
+     */
+    { upsert: true, session, timestamps: false },
   );
   return eventId;
 }
