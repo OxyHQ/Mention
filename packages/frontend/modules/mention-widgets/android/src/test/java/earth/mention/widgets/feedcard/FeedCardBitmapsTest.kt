@@ -80,6 +80,43 @@ class FeedCardBitmapsTest {
         )
     }
 
+    /**
+     * THE CEILING IS WHAT THE BUDGET AFFORDS — derived here, not restated.
+     *
+     * `BACKGROUND_MAX_PIXELS` and [BACKGROUND_BUDGET_PIXELS] are the same number written in two
+     * files, and every other assertion in here checks a decoded size against the copy in THIS
+     * file. So the one thing none of them can see is the two copies drifting apart: lower the
+     * source constant and the sweep still passes against a stale 60,000 here, which would read
+     * as a widget that is merely conservative while actually being softer than it needs to be.
+     *
+     * This computes the ceiling from the budget instead — `budget / 2 compositions / 4 bytes
+     * − the avatar` — and checks the real sizing function against it, so the derivation is the
+     * assertion rather than a comment. It fails if the budget moves, if a third bitmap joins the
+     * parcel, or if either copy of the ceiling is edited alone.
+     */
+    @Test
+    fun `the background ceiling is what the budget actually affords`() {
+        val perComposition = PAYLOAD_BUDGET_BYTES / 2 / BYTES_PER_PIXEL
+        val affordable = perComposition - (avatarBitmapSize()?.pixels ?: 0L)
+        // Asked of the sizing function, so this reads the SOURCE ceiling rather than the copy
+        // above — which is the whole point of the test.
+        val decoded = cardBackgroundBitmapSize().pixels
+
+        assertTrue("the background should have a size at all", decoded > 0L)
+        assertTrue(
+            "the background decodes ${decoded}px, past the ${affordable}px the budget affords " +
+                "beside an avatar — the parcel would overrun and the widget would render blank",
+            decoded <= affordable,
+        )
+        // And it is not left far under what it could use, which would be softness bought for
+        // nothing. A tenth is the slack the rounding down to a whole 60,000 needs.
+        assertTrue(
+            "the background decodes ${decoded}px of an affordable ${affordable}px, wasting " +
+                "more than a tenth of the budget on softness",
+            decoded >= affordable - affordable / 10,
+        )
+    }
+
     @Test
     fun `the worst case counts the background, not just the avatar`() {
         // A vacuity floor. The total is a sum of two terms, and the avatar is the small one,
