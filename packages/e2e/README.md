@@ -64,6 +64,27 @@ unrelated outage surface as "cold boot did not paint feed rows" and send someone
 looking through their own diff. A gate that misassigns blame gets switched off
 by the first person it blocks.
 
+The candidate origin needs the same treatment for the same reason. A Pages
+deployment is minutes old when the gate reaches it, and Cloudflare intermittently
+resets connections on one — run `30563300446` failed two flows and blocked a
+promotion on four `route.fetch: read ECONNRESET`, every one of them against
+`*.pages.dev` and none against the API, with successful fetches interleaved in
+the same seconds. Playwright's own `retries` does not cover this: re-running a
+whole flow re-rolls the dice on every asset it loads, which is why both retries
+failed too. So `fixtures.ts` retries the connection rather than the flow
+(`transientNetwork.ts`).
+
+That retry is narrow on purpose, and the reasoning is worth keeping straight
+because widening it would quietly disarm the gate. Only transport faults are
+retried — the connection dying, never the origin answering badly. Every failure
+this suite exists to catch (a missing chunk, a broken build, a bad deploy)
+arrives as a perfectly well-formed HTTP response carrying a 404, a 500 or the
+wrong bytes, and is therefore untouched. A candidate that is genuinely
+unreachable still fails, with the same error it reported before the retry
+existed. `tests/candidate-transport.spec.ts` is what holds that line: it drives a
+real TCP reset through a real `route.fetch` and asserts both halves — that a
+reset is survived, and that an exhausted budget still fails.
+
 ## Running it locally
 
 ```bash
