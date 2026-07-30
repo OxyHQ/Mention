@@ -94,34 +94,37 @@ export function useProfileScroll({ profileId, currentTab }: UseProfileScrollOpti
     }
   }, [clearRegistration, registerScrollable, setScrollY, profileId]);
 
-  // Use refs for values that change on tab switch to keep handleScrollEvent stable
-  const currentTabRef = useRef(currentTab);
-  currentTabRef.current = currentTab;
-  const profileIdRef = useRef(profileId);
-  profileIdRef.current = profileId;
-
-  // Shared near-bottom load-more trigger. Stable — reads tab/profileId from refs.
+  // Shared near-bottom load-more trigger. It closes over the profile and the tab
+  // rather than reading them from refs mirrored during render: that write is
+  // illegal input for the React Compiler, and WHICH feed to page is the one thing
+  // here that must never be stale. A lagging pair pages the profile or the tab
+  // you just left — the request lands in `user:<other>:<other>`, so the list you
+  // are actually looking at never grows and simply looks like it ended, while a
+  // slice you cannot see fills up behind it.
+  //
+  // The identity churn this costs is bounded to a tab switch or a profile
+  // change, both of which already re-render the whole screen (`assignScrollRef`
+  // is keyed on `profileId` for the same reason), and `loadingMoreRef` absorbs
+  // any duplicate call a fresh subscription delivers.
   const maybeLoadMore = useCallback((distanceFromBottom: number) => {
     if (distanceFromBottom >= LAYOUT.LOAD_MORE_THRESHOLD) return;
-    const pid = profileIdRef.current;
-    const tab = currentTabRef.current;
-    if (!pid || loadingMoreRef.current || !fetchUserFeedRef.current || !getUserSliceRef.current) {
+    if (!profileId || loadingMoreRef.current || !fetchUserFeedRef.current || !getUserSliceRef.current) {
       return;
     }
     // Native media/video grids own pagination through FlashList.onEndReached.
     // Running the profile's generic scroll detector too would issue a duplicate
     // request, and `videos` is backed by the author `media` feed rather than a
     // separate videos descriptor.
-    if (Platform.OS !== 'web' && isVirtualizedProfileGridTab(tab)) return;
+    if (Platform.OS !== 'web' && isVirtualizedProfileGridTab(currentTab)) return;
 
-    const feedTab = tab === 'videos' ? 'media' : tab;
-    const slice = getUserSliceRef.current(pid, feedTab as FeedType);
+    const feedTab = currentTab === 'videos' ? 'media' : currentTab;
+    const slice = getUserSliceRef.current(profileId, feedTab as FeedType);
     if (slice && slice.hasMore && !slice.isLoading) {
       loadingMoreRef.current = true;
       const fetchUserFeed = fetchUserFeedRef.current;
       void (async () => {
         try {
-          await fetchUserFeed(pid, {
+          await fetchUserFeed(profileId, {
             type: feedTab as FeedType,
             cursor: slice.nextCursor,
             limit: LAYOUT.FEED_LIMIT,
@@ -131,10 +134,9 @@ export function useProfileScroll({ profileId, currentTab }: UseProfileScrollOpti
         }
       })();
     }
-  }, []);
+  }, [profileId, currentTab]);
 
-  // NATIVE scroll event handler with throttling + infinite scroll. Stable
-  // callback — uses refs for tab/profileId to avoid re-creating onScroll.
+  // NATIVE scroll event handler with throttling + infinite scroll.
   const handleScrollEvent = useCallback((event: ScrollEvent) => {
     const now = Date.now();
     if (now - lastScrollCheckRef.current < LAYOUT.SCROLL_CHECK_THROTTLE) {
