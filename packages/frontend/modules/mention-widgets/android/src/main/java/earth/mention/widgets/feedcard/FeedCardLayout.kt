@@ -226,14 +226,21 @@ private fun PostCard(
                 // post was cut while the room it needed sat empty underneath it. The brand
                 // row still sits at the top and the byline still hugs the bottom, because the
                 // weight is what pushes them apart; the difference is which of them may grow.
+                // An EXPLICIT height, not a weight. A weighted text block negotiates its
+                // height with the launcher at layout time, and when its own measurement
+                // disagrees with what the column has left, the byline gets pushed down —
+                // which is what "the avatar sits on top of the text" was at the smallest
+                // sizes. Every child now has a height this file already computed, so the sum
+                // cannot exceed the card and nothing can be pushed out of it.
                 modifier = GlanceModifier
-                    .defaultWeight()
+                    .height(textBlockHeightDp(design, fontScale, lines).dp)
                     .semantics { contentDescription = "" },
             )
-        } else {
-            // Nothing to grow, so something still has to hold the byline down.
-            Spacer(GlanceModifier.defaultWeight())
         }
+
+        // The leftover goes here, so the brand row stays at the top and the byline hugs the
+        // bottom whether or not there is any text.
+        Spacer(GlanceModifier.defaultWeight())
 
         Byline(spec = spec, post = post, design = design, contentColor = contentColor)
     }

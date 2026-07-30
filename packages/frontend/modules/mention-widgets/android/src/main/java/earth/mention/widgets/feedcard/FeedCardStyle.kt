@@ -271,6 +271,22 @@ internal fun textMaxLines(size: FeedCardSize, cardHeight: Dp, fontScale: Float):
     return (available / lineHeightDp).toInt()
 }
 
+/**
+ * Exact height the text block occupies for [lines] lines.
+ *
+ * The block is given this height EXPLICITLY rather than a layout weight, and that is the
+ * fix for a real defect: with a weight, the `TextView`'s own measured height competes with
+ * the space the column has left, and when the two disagree the launcher resolves it by
+ * pushing the byline down — which reads as the avatar and handle sitting on top of the
+ * text at the smallest sizes. Give every child a height the arithmetic already knows and
+ * the sum cannot exceed the card, so nothing can be pushed anywhere.
+ *
+ * The words still get the room: [lines] is derived from the height available, so this IS
+ * the leftover space, just spent deterministically instead of negotiated at layout time.
+ */
+internal fun textBlockHeightDp(size: FeedCardSize, fontScale: Float, lines: Int): Float =
+    if (lines <= 0) 0f else bodyLineHeightDp(size, fontScale) * lines
+
 /** Height of one line of body text at this design and font scale. */
 private fun bodyLineHeightDp(size: FeedCardSize, fontScale: Float): Float {
     val effectiveScale = if (fontScale > 0f) fontScale else 1f

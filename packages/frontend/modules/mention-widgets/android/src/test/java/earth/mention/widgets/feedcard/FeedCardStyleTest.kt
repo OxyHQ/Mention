@@ -294,4 +294,42 @@ class FeedCardStyleTest {
             perLine >= measuredChars,
         )
     }
+
+    @Test
+    fun `the blocks always fit inside the card they were measured for`() {
+        // The invariant that makes overlap impossible: padding, brand row, text block and
+        // byline summed can never exceed the height the launcher gave. When they could, the
+        // launcher resolved the disagreement by pushing the byline down over the text.
+        val placements = listOf(72.dp, 80.dp, 110.dp, 140.dp, 180.dp, 250.dp, 320.dp, 460.dp)
+        FeedCardSize.entries.forEach { design ->
+            placements.forEach { height ->
+                listOf(0.85f, 1f, 1.3f, 2f).forEach { scale ->
+                    val lines = textMaxLines(design, height, scale)
+                    val brand = if (showsBrandRow(design, height, scale)) 20f + 8f else 0f
+                    // Mirrors what the layout actually emits: padding, the brand row when
+                    // shown, ONE gap above the text, the text block, and the byline. The gap
+                    // above the byline is the weighted spacer, which shrinks to nothing —
+                    // counting it here as fixed is what made this assertion fail against
+                    // correct code the first time it ran.
+                    val used = cardPadding(design).value * 2 + brand +
+                        (if (lines > 0) 8f else 0f) +
+                        textBlockHeightDp(design, scale, lines) + 28f
+                    assertTrue(
+                        "$design at $height scale $scale asks for ${used}dp of a ${height.value}dp card",
+                        used <= height.value,
+                    )
+                }
+            }
+        }
+    }
+
+    @Test
+    fun `the text block is exactly the lines it was granted`() {
+        // A vacuity floor for the invariant above: a block of zero height would satisfy every
+        // bound while showing nothing.
+        val lines = textMaxLines(FeedCardSize.LARGE, LARGE_HEIGHT, 1f)
+        assertTrue("a large card should fit several lines, got $lines", lines >= 5)
+        assertEquals(0f, textBlockHeightDp(FeedCardSize.LARGE, 1f, 0), 0.01f)
+        assertTrue(textBlockHeightDp(FeedCardSize.LARGE, 1f, lines) > textBlockHeightDp(FeedCardSize.LARGE, 1f, lines - 1))
+    }
 }
