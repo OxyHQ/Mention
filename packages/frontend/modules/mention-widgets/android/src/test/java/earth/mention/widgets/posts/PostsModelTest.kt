@@ -344,4 +344,42 @@ class PostsModelTest {
         assertEquals(posts.map { it.id }, seen)
         assertEquals(0, index)
     }
+
+    @Test
+    fun `stepping back wraps to the last post rather than stopping`() {
+        // The pips say "one of five", so `previous` at the first position has to go somewhere;
+        // clamping at an end would read as the control being broken.
+        assertEquals(4, previousRotationIndex(0, 5))
+        assertEquals(0, previousRotationIndex(1, 5))
+        assertEquals(3, previousRotationIndex(4, 5))
+    }
+
+    @Test
+    fun `stepping back never yields a negative index`() {
+        // The arithmetic adds `size` before the modulo precisely so the operand is never
+        // negative — Kotlin's `%` would otherwise keep the sign and index out of bounds. An
+        // out-of-range or already-negative stored value has to survive the same way.
+        for (index in listOf(0, 1, 4, 7, -1, -5, Int.MAX_VALUE, Int.MIN_VALUE + 1)) {
+            assertTrue(
+                "previousRotationIndex($index, 5) escaped 0 until 5",
+                previousRotationIndex(index, 5) in 0 until 5,
+            )
+        }
+    }
+
+    @Test
+    fun `stepping back is the exact inverse of stepping forward`() {
+        // What makes the two controls trustworthy together: next-then-previous has to land
+        // where it started, from every position including both wrap points.
+        for (index in 0 until 5) {
+            assertEquals(index, previousRotationIndex(nextRotationIndex(index, 5), 5))
+            assertEquals(index, nextRotationIndex(previousRotationIndex(index, 5), 5))
+        }
+    }
+
+    @Test
+    fun `an empty rotation cannot be stepped in either direction`() {
+        assertEquals(0, previousRotationIndex(3, 0))
+        assertEquals(0, previousRotationIndex(-3, 0))
+    }
 }

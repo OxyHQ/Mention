@@ -7,4 +7,17 @@
 <resources>
   <integer name="mention_posts_widget_target_cell_width">4</integer>
   <integer name="mention_posts_widget_target_cell_height">3</integer>
+
+  <!--
+    How long the trending-posts card waits before turning to the next post on its own.
+
+    Thirty seconds: long enough that a redraw — which re-serialises this widget's decoded
+    bitmaps to the launcher, see PostsBitmapBudget.kt — is not paid twelve times a minute,
+    and short enough that the rotation visibly moves while someone is looking at it. It is a
+    resource so the pace can be tuned without touching the scheduler.
+
+    NOT expressible as periodic work: WorkManager floors that at fifteen minutes, which is
+    why PostsAutoAdvanceWorker chains one-time requests instead.
+  -->
+  <integer name="mention_posts_widget_auto_advance_seconds">30</integer>
 </resources>

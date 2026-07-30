@@ -10,6 +10,7 @@ import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkRequest
+import earth.mention.widgets.R
 import java.util.concurrent.TimeUnit
 
 /**
@@ -26,6 +27,14 @@ import java.util.concurrent.TimeUnit
 internal object PostsRefreshScheduler {
     private const val PERIODIC_WORK_NAME = "mention-widget-posts-periodic"
     private const val IMMEDIATE_WORK_NAME = "mention-widget-posts-immediate"
+
+    /**
+     * The automatic-turn chain's unique name.
+     *
+     * One name for every link, which is what makes the chain a chain: `enqueueUniqueWork`
+     * against it can never leave two pending turns, however many callers ask.
+     */
+    private const val AUTO_ADVANCE_WORK_NAME = "mention-widget-posts-auto-advance"
 
     /**
      * How often the job runs.
@@ -98,10 +107,64 @@ internal object PostsRefreshScheduler {
             .enqueueUniqueWork(IMMEDIATE_WORK_NAME, ExistingWorkPolicy.REPLACE, request)
     }
 
+    /**
+     * Queue the next automatic turn, keeping one already queued.
+     *
+     * [ExistingWorkPolicy.KEEP] is the whole safety property of the chain: `onUpdate` fires
+     * often — after a reboot, an app update, a locale change, every periodic tick — and
+     * REPLACE would restart the delay each time, so a frequently-updated widget would never
+     * reach the end of one. KEEP also means the chain cannot fork: a second call while a link
+     * is pending is a no-op rather than a second chain advancing the same rotation twice as
+     * fast.
+     *
+     * No network constraint, deliberately — a step reads the batch already in the store, so
+     * requiring connectivity would stop the rotation on a plane for no reason.
+     */
+    fun ensureAutoAdvance(context: Context) {
+        enqueueAutoAdvance(context, ExistingWorkPolicy.KEEP)
+    }
+
+    /**
+     * What [PostsAutoAdvanceWorker] calls to continue the chain.
+     *
+     * Distinct from [ensureAutoAdvance] only in policy: the link that just ran is finished, so
+     * KEEP would have nothing to keep, and being explicit about REPLACE here documents that
+     * this is the one caller allowed to restart the clock unconditionally.
+     */
+    fun scheduleNextAutoAdvance(context: Context) {
+        enqueueAutoAdvance(context, ExistingWorkPolicy.REPLACE)
+    }
+
+    /**
+     * Push the automatic turn back to a full interval from now.
+     *
+     * Called after a manual next/previous so the rotation does not move again a moment after
+     * the user chose a post — the reason a tap must reset the timer rather than run beside it.
+     */
+    fun restartAutoAdvance(context: Context) {
+        enqueueAutoAdvance(context, ExistingWorkPolicy.REPLACE)
+    }
+
+    private fun enqueueAutoAdvance(context: Context, policy: ExistingWorkPolicy) {
+        val seconds = context.resources
+            .getInteger(R.integer.mention_posts_widget_auto_advance_seconds)
+            .toLong()
+        val request = OneTimeWorkRequestBuilder<PostsAutoAdvanceWorker>()
+            .setInitialDelay(seconds, TimeUnit.SECONDS)
+            .build()
+
+        WorkManager.getInstance(context)
+            .enqueueUniqueWork(AUTO_ADVANCE_WORK_NAME, policy, request)
+    }
+
     /** Called when the last trending-posts widget is removed from the home screen. */
     fun cancel(context: Context) {
         val workManager = WorkManager.getInstance(context)
         workManager.cancelUniqueWork(PERIODIC_WORK_NAME)
         workManager.cancelUniqueWork(IMMEDIATE_WORK_NAME)
+        // Without this the chain outlives the widget: each link enqueues the next, so a
+        // self-rescheduling worker with nothing left to draw would advance a rotation nobody
+        // can see, forever.
+        workManager.cancelUniqueWork(AUTO_ADVANCE_WORK_NAME)
     }
 }

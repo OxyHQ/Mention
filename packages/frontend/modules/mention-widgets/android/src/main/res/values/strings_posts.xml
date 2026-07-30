@@ -32,4 +32,12 @@
   <string name="mention_posts_widget_card_description">%1$s. Posted by %2$s.</string>
   <!-- Stands in for the text of a post that has none — a bare link with a picture. -->
   <string name="mention_posts_widget_no_text">A post with no text</string>
+
+  <!--
+    The card's rotation controls. Labels only — the controls are icons, so these are what
+    TalkBack announces and the only text a user ever hears for them. A widget cannot be
+    swiped (RemoteViews has no gestures), so these taps are the whole manual affordance.
+  -->
+  <string name="mention_posts_widget_previous">Previous post</string>
+  <string name="mention_posts_widget_next">Next post</string>
 </resources>

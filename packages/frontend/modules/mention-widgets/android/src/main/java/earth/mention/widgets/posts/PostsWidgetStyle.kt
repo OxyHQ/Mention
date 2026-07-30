@@ -120,6 +120,17 @@ internal object PostsCardDimensions {
     val PIP_SIZE = 6.dp
     val PIP_SPACING = 4.dp
 
+    /**
+     * The rotation controls' tap target.
+     *
+     * 48dp is Material's minimum touch target and the figure this module's design committed
+     * to, so it is not negotiated down to fit — the control is dropped instead at the size
+     * where it does not fit (see `RotationControls`). A widget is operated with a thumb over
+     * a launcher that also interprets long-press and drag on the same pixels; a target that
+     * is merely usually-hittable there costs the user a rearranged home screen.
+     */
+    val CONTROL_SIZE = 48.dp
+
     /** The brand mark on the top row, at the same 20dp the app's own header uses. */
     val BRAND_MARK_SIZE = 20.dp
 

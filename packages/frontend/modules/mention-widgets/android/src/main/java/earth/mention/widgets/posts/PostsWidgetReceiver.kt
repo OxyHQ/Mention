@@ -20,10 +20,11 @@ class PostsWidgetReceiver : GlanceAppWidgetReceiver() {
 
     override val glanceAppWidget: GlanceAppWidget = PostsWidget()
 
-    /** First widget placed: start the tick and fill it immediately. */
+    /** First widget placed: start both ticks and fill it immediately. */
     override fun onEnabled(context: Context) {
         super.onEnabled(context)
         PostsRefreshScheduler.ensureScheduled(context)
+        PostsRefreshScheduler.ensureAutoAdvance(context)
         PostsRefreshScheduler.refreshNow(context)
     }
 
@@ -36,6 +37,12 @@ class PostsWidgetReceiver : GlanceAppWidgetReceiver() {
      * chance to reschedule, and the widget would sit on one post forever.
      * `ExistingPeriodicWorkPolicy.KEEP` makes the repeat a no-op when the job is already
      * there.
+     *
+     * The automatic-turn chain is restarted from here for a second reason: it deliberately
+     * stops itself whenever the screen is off, rather than turning a widget nobody can see.
+     * This is where it picks back up — `onUpdate` fires when the launcher comes back to a home
+     * screen holding the widget — and `ExistingWorkPolicy.KEEP` is what stops a burst of
+     * updates from forking the chain or resetting its delay forever.
      */
     override fun onUpdate(
         context: Context,
@@ -44,6 +51,7 @@ class PostsWidgetReceiver : GlanceAppWidgetReceiver() {
     ) {
         super.onUpdate(context, appWidgetManager, appWidgetIds)
         PostsRefreshScheduler.ensureScheduled(context)
+        PostsRefreshScheduler.ensureAutoAdvance(context)
     }
 
     /** Last one removed. */

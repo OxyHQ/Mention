@@ -11,8 +11,11 @@ import androidx.glance.Image
 import androidx.glance.ImageProvider
 import androidx.glance.LocalContext
 import androidx.glance.LocalSize
+import androidx.glance.action.Action
 import androidx.glance.action.clickable
+import androidx.glance.appwidget.action.actionRunCallback
 import androidx.glance.appwidget.action.actionStartActivity
+import androidx.glance.appwidget.components.CircleIconButton
 import androidx.glance.appwidget.components.FilledButton
 import androidx.glance.appwidget.components.Scaffold
 import androidx.glance.layout.Alignment
@@ -118,8 +121,12 @@ private fun PostCard(
     Column(
         modifier = GlanceModifier
             .fillMaxSize()
-            // The whole card is ONE tap target, opening the post — 48dp minimum by a wide
-            // margin, and nothing inside it competes for the tap.
+            // The card is the PRIMARY tap target, opening the post — 48dp minimum by a wide
+            // margin. The rotation controls sit inside it and do compete for the tap, on
+            // purpose: `RemoteViews` dispatches to the innermost view with an `onClick`, so a
+            // tap on a chevron steps the rotation and a tap anywhere else opens the post. That
+            // is the only reason two nested targets are acceptable here — the inner ones are
+            // the full 48dp, so neither is a near-miss for the other.
             .semantics { contentDescription = cardContentDescription(context, post, text) }
             .clickable(actionStartActivity(openInAppIntent(context, postUrl(context, post)))),
     ) {
@@ -282,7 +289,7 @@ private fun Byline(
                 )
             }
         }
-        RotationPips(rotation = rotation, contentColor = contentColor)
+        RotationControls(rotation = rotation, design = design, contentColor = contentColor)
     }
 }
 
@@ -317,41 +324,96 @@ private fun BylineAvatar(post: WidgetPost) {
 }
 
 /**
- * Where in the rotation this post is.
+ * Where in the rotation this post is, and how to move through it.
  *
- * Indicators, not controls — a widget cannot be swiped, and the rotation is advanced by the
- * refresh tick. They exist so a glance at the card says "one of five" rather than leaving
- * the reader to wonder whether the widget is stuck.
+ * ## Why the pips needed controls beside them
  *
- * Nothing is drawn for a rotation of one, where a single pip would say nothing.
+ * They used to be indicators only, on the reasoning that a widget cannot be swiped — which is
+ * true: `RemoteViews` has no gestures and Glance exposes none, so no app can put a swipe here.
+ * But dots that cannot be dragged read as a broken carousel rather than as a position
+ * readout, because dots mean "swipe me" everywhere else. Taps are the input a widget does
+ * have, so the affordance the pips imply now exists (see `PostsRotationControl.kt`).
+ *
+ * ## Why the controls are dropped at [PostsCardSize.SMALL]
+ *
+ * The tap target is 48dp and is not shrunk to fit: at 250 × 110dp the byline already gives up
+ * the author's handle for want of room, and two 48dp targets would take the byline to nearly
+ * half the card's height — leaving the post itself, which is the content, with two lines.
+ * Dropping the least-essential control as the surface narrows is this module's existing rule
+ * (and the documented behaviour of Google's own canonical toolbar layout).
+ *
+ * That size is not left without movement: the automatic turn
+ * (`PostsAutoAdvanceWorker`) runs at every size, so the smallest card is a glance surface that
+ * cycles on its own, and the pips still say "one of five".
+ *
+ * Nothing at all is drawn for a rotation of one, where a single pip would say nothing and
+ * there is nowhere to step to.
  */
 @Composable
-private fun RotationPips(rotation: PostsRotation, contentColor: ColorProvider) {
-    // Nothing at all for a rotation of one, where a single pip would say nothing.
-    if (rotation.posts.size > 1) {
-        val current = normalizeRotationIndex(rotation.index, rotation.posts.size)
+private fun RotationControls(
+    rotation: PostsRotation,
+    design: PostsCardSize,
+    contentColor: ColorProvider,
+) {
+    if (rotation.posts.size <= 1) return
 
-        Spacer(GlanceModifier.width(PostsCardDimensions.BYLINE_SPACING))
-        Row(verticalAlignment = Alignment.Vertical.CenterVertically) {
-            rotation.posts.indices.forEach { index ->
-                if (index != 0) {
-                    Spacer(GlanceModifier.width(PostsCardDimensions.PIP_SPACING))
-                }
-                Image(
-                    provider = ImageProvider(
-                        if (index == current) {
-                            R.drawable.mention_widget_pip
-                        } else {
-                            R.drawable.mention_widget_pip_dim
-                        },
-                    ),
-                    contentDescription = null,
-                    modifier = GlanceModifier.size(PostsCardDimensions.PIP_SIZE),
-                    colorFilter = ColorFilter.tint(contentColor),
-                )
+    val context = LocalContext.current
+    val current = normalizeRotationIndex(rotation.index, rotation.posts.size)
+
+    Spacer(GlanceModifier.width(PostsCardDimensions.BYLINE_SPACING))
+    Row(verticalAlignment = Alignment.Vertical.CenterVertically) {
+        if (design != PostsCardSize.SMALL) {
+            RotationStepButton(
+                icon = R.drawable.mention_widget_chevron_left,
+                label = context.getString(R.string.mention_posts_widget_previous),
+                action = actionRunCallback<PreviousPostAction>(),
+            )
+        }
+        rotation.posts.indices.forEach { index ->
+            if (index != 0) {
+                Spacer(GlanceModifier.width(PostsCardDimensions.PIP_SPACING))
             }
+            Image(
+                provider = ImageProvider(
+                    if (index == current) {
+                        R.drawable.mention_widget_pip
+                    } else {
+                        R.drawable.mention_widget_pip_dim
+                    },
+                ),
+                contentDescription = null,
+                modifier = GlanceModifier.size(PostsCardDimensions.PIP_SIZE),
+                colorFilter = ColorFilter.tint(contentColor),
+            )
+        }
+        if (design != PostsCardSize.SMALL) {
+            RotationStepButton(
+                icon = R.drawable.mention_widget_chevron_right,
+                label = context.getString(R.string.mention_posts_widget_next),
+                action = actionRunCallback<NextPostAction>(),
+            )
         }
     }
+}
+
+/**
+ * One rotation control.
+ *
+ * `backgroundColor = null` keeps it an icon on the card rather than a filled button: the card
+ * is one large tap target that opens the post, and two filled buttons inside it would compete
+ * with that for the eye. The 48dp target is still there whether or not anything is painted
+ * under it.
+ */
+@Composable
+private fun RotationStepButton(icon: Int, label: String, action: Action) {
+    CircleIconButton(
+        imageProvider = ImageProvider(icon),
+        contentDescription = label,
+        contentColor = GlanceTheme.colors.secondary,
+        backgroundColor = null,
+        onClick = action,
+        modifier = GlanceModifier.size(PostsCardDimensions.CONTROL_SIZE),
+    )
 }
 
 /**

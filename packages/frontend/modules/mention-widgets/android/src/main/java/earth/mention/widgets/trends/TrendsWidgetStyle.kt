@@ -179,3 +179,25 @@ internal fun rowsThatFit(
     val pitch = rowHeight + rowSpacing
     return ((available + rowSpacing) / pitch).toInt().coerceAtLeast(1)
 }
+
+/**
+ * How many rows fit at this size.
+ *
+ * Derived rather than tabulated: `n` rows need `n × ROW_HEIGHT` plus the
+ * `(n − 1)` gaps between them, inside whatever the title bar and padding leave.
+ * That keeps the per-breakpoint row count a consequence of the two cited
+ * constants instead of a table someone has to keep in step with them, and it
+ * still answers for a size the launcher hands over that no breakpoint declared.
+ *
+ * At the smallest breakpoint (2×2, 110dp tall) the answer is one row. That is
+ * the honest result of a 48dp minimum touch target inside 110dp minus padding —
+ * two rows would need 100dp of the 86dp available — not a missing case.
+ */
+internal fun maxRows(widgetHeight: Dp, showTitleBar: Boolean): Int {
+    val chrome = with(TrendsWidgetDimensions) {
+        (if (showTitleBar) TITLE_BAR_HEIGHT else WIDGET_PADDING) + WIDGET_PADDING
+    }
+    val available = widgetHeight - chrome
+    val pitch = TrendsWidgetDimensions.ROW_HEIGHT + TrendsWidgetDimensions.ITEM_SPACING
+    return ((available + TrendsWidgetDimensions.ITEM_SPACING) / pitch).toInt().coerceAtLeast(1)
+}
