@@ -24,6 +24,7 @@ import articlesRoutes from './routes/articles';
 import muteRoutes from './routes/mute.routes';
 import muteWordsRoutes from './routes/muteWords.routes';
 import reportsRoutes from './routes/reports.routes';
+import { createCrowdSourceWebhookRoutes } from './routes/crowdSourceWebhook.routes';
 import trendingRoutes from './routes/trending.routes';
 import topicsRoutes from './routes/topics.routes';
 import entityFollowRoutes from './routes/entity-follow.routes';
@@ -70,6 +71,11 @@ export interface AppRoutes {
   atprotoBridgeMeta: RequestHandler;
   wellKnownBridge: RequestHandler;
   media: RequestHandler;
+  /**
+   * Mounted BEFORE `express.json` in `app.ts`. See the comment there — a webhook
+   * signature covers the bytes that arrived, and a body parser destroys them.
+   */
+  crowdSourceWebhook: RequestHandler;
   mcpOAuth: RequestHandler;
   webShell: RequestHandler;
   apexProxy: RequestHandler;
@@ -138,6 +144,7 @@ export function createAppRoutes({
     atprotoBridgeMeta: atprotoBridgeMetaRoutes,
     wellKnownBridge: wellKnownBridgeRouter,
     media: mediaRoutes,
+    crowdSourceWebhook: createCrowdSourceWebhookRoutes(),
     mcpOAuth: createMcpOAuthRoutes(oxy),
     webShell: webShellRoutes,
     apexProxy: apexFrontendProxy,

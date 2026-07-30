@@ -374,6 +374,73 @@ Distinct from the ecosystem rule in `~/AGENTS.md` about reading external mutable
 
 The compiler pays off where code is NOT already hand-memoized. Check what the optimization would CONTAIN before spending a refactor to unlock it, and never restructure a `try`/`finally` that exists to guarantee cleanup on the error path — that trades correctness for a cache.
 
+## CrowdSource Moderation (reports → cases → decisions → enforcement)
+
+Reports leave Mention durably, CrowdSource decides them with a randomly drawn jury, and decisions come back signed. **CrowdSource owns cases, reviews and decisions; Oxy Trust owns reputation; Mention owns only its own enforcement actions.** Mention never computes reputation points and never calls Oxy Trust — it reports and enforces, nothing else.
+
+Everything lives in `packages/backend/src/services/moderation/` plus three models (`ModerationOutbox`, `ModerationEvent`, `ModerationEnforcement`) and one route (`routes/crowdSourceWebhook.routes.ts`).
+
+### The three rules that are load-bearing
+
+- **A 201 from `POST /reports` means stored — and will-retry when the type is deliverable — NEVER "CrowdSource accepted it."** `ReportIntakeService` commits the `Report` and its `ModerationOutbox` event in ONE transaction; no outbound request is made in the request handler. Whether a delivery event exists at all is decided from ONE fact (a subject provider) read before the transaction body, so `localStatus` and the outbox row can never disagree. Two writes outside one transaction give two silent failure modes (a report nothing will ever send; an event whose report was rolled back) and neither surfaces as an error when it happens. **`enqueueModerationOutboxEvent` throws unless `session.inTransaction()`** — the type makes the session mandatory, the runtime check makes it mandatory that a transaction is actually open, because a bare `startSession()` type-checks, commits the row alone, and passes any test that only asserts the row exists. It is also the ONLY writer of that collection (the dispatcher claims existing rows, never creates one), so no second queue can drift out of sync: the row IS the job.
+- **The webhook route MUST stay mounted before `express.json()` in `app.ts`.** The signature covers the bytes that arrived. Mention's parser keeps `req.rawBody` as a *string* for ActivityPub signatures, and `@oxyhq/crowdsource-express` wants a Buffer — so after the parser it REFUSES rather than verifying a re-serialisation. Guarded by a test in `appFactory.test.ts` that reads the stream and asserts `typeof req.body === 'undefined'`.
+- **Enforcement is idempotent on `decisionId + revision + action`** (Appendix D), enforced by the unique compound index on `ModerationEnforcement`. Each action CLAIMS its row before acting and releases it if the effect throws. `revision` is in the key so a correction's `restore` is a *different* action from the removal it supersedes — remove it and an accepted appeal can never put the post back.
+
+### Enforcement modes and Mention's three primitives
+
+`CROWDSOURCE_ENFORCEMENT_MODE` (`observe` | `manual` | `automatic`, default **`observe`**). `observe` plans and RECORDS every action with `applied: false` and removes nothing — the audit trail is real, so the mode proves what will happen when it is switched off. `manual` additionally applies only the give-something-back half (`restore`, `unlabel_sensitive`).
+
+Mention maps `decision.recommendedActions`, **not** findings — the jury already classified the material under a versioned policy, and re-deriving an action from raw severity would be Mention re-deciding the case with a second unversioned policy. Severity is a fallback only when a `violation` arrives with no recommendation. The map lives in `enforcementPlan.ts` (pure, table-tested):
+
+- `restrict` → `Post.status = 'restricted'`. Every feed source and the post-hydration ACL already require `status: 'published'`, so this removes the post from discovery, ranking, search and every DTO with **no feed query to edit**, and the author's `visibility` choice survives for the restore. `PostPublicationStatus` in shared-types carries the fourth value; `CreatePostRequest` deliberately does not, so a client cannot ask for it.
+- `label_sensitive` → `metadata.isSensitive`, which the existing `feedSafety` gate already reads. This is what `label`, `age_gate` and `reduce_distribution` all become — Mention has no separate distribution dial and recording an effect that did not happen would be worse than mapping honestly.
+- `manual_review` → recorded, never executed. `suspend_user` is **Oxy's** to carry out, `legal_queue` needs a human. §7.6 lets an application refuse a recommendation provided it records what it did; a declined recommendation must never look like one that never arrived.
+
+**`no_violation` always plans a `restore`, whatever it recommended.** A correction's recommendation is frequently `no_action`, which means "take no NEW action" — mapping it straight through leaves the post its superseded revision removed down forever, with no error anywhere. Caught by a test; do not "simplify" it away.
+
+### The subject-provider seam (what a second app writes)
+
+`subjects/types.ts` is the whole per-application surface: given one of your own nouns and its id, return a `ModerationSubjectSnapshot` (subject + content + attachments + context) using the **SDK's own input types**. Everything else — resource ids, relations, digests, pseudonymous principal refs, the identity binding proof, the pinned policy version, privacy terms, the idempotency key, the envelope — is composed by `@oxyhq/crowdsource`.
+
+A provider returns a DESCRIPTION and never an envelope. §7.3's dedup key is computed over exactly the values the SDK derives, so an app that composed its own envelope would be the reason two reporters about one post open two cases. Adding a noun = one provider file + one line in `subjects/registry.ts`; nothing in the outbox, delivery worker, webhook receiver, decision worker or enforcement service changes.
+
+`EvidenceSnapshotService` is the plan's `CrowdSourceCaseEnvelopeBuilder` under an honest name: it builds the SDK's `ReportInput`, not a Case Envelope.
+
+**Nothing the builder composes may vary between two deliveries of the same report.** Ingress fingerprints the whole envelope to detect §10.5's payload conflict, so an invented timestamp, a random id or an unsorted list turns a legitimate outbox retry into a permanent 409 — silently, days later, as a report stuck in a queue. Hence: `submittedAt` is the report's own `createdAt`, allegation codes are sorted, and resource order is positional.
+
+### Known gaps (deliberate, not oversights)
+
+- **Media evidence is declared, not attached.** A post with no text gets a `metadata` subject resource saying what it consisted of, so a jury can answer `insufficient_context` for the right reason. **The answer changed at contracts 0.3.0 and is now small:** `AssetRef` is `{ fileId, url?, mimeType, sha256, sizeBytes?, width?, height?, durationSeconds? }` — the `uploadId`/`Uploads` route is gone, CrowdSource serves no upload route, bytes go through the Oxy media chokepoint, and `url` is provenance no reviewer client ever dereferences. Mention already holds all of it: `MediaItem.id` IS the `fileId` (federated too, once the media cache rewrote it — origin URL kept in `remoteUrl`), and one batched `getServiceAssetMetadataByIds` returns `{sha256, mime, size, width, height, durationSec}` field-for-field. **No byte fetching** — Mention makes that same call in `services/mtn/mentionRecordBuilders.ts` (`resolvePostRecordEmbeds`) for the MTN chain. Closing it: one function in `postSubject.ts` + flip `evidenceAttachmentsSupported`. Two traps documented in that file: the digest must enter the snapshot hash, and a federated item the cache never rewrote has a URL in `id` and no file id, so it must stay declared-only.
+- **Mention only SENDS FOR REVIEW the objects it owns — `post`, `comment`, `user` — but it ACCEPTS every type in the enum.** Two questions, two authorities, and conflating them was tried and reverted: `ReportedType` is the API contract, `subjects/registry.ts` decides delivery. A type with a provider gets a `ModerationOutbox` row in the intake transaction and `localStatus: 'queued'`; a type without one is stored at `localStatus: 'received'` with `localStatusReason` saying why, and **no outbox row is created at all** — never one that a worker skips later, because that would dead-letter (`ModerationSubjectUnsupportedError`, `retryable: false`) a report that is not defective. `POST /reports` only 400s a type the enum has never heard of.
+  - **Why not refuse.** Gating the route on the registry makes adopting CrowdSource a breaking change for every report surface an app has not yet wired up. Incremental adoption, one subject type at a time, is the property the other six apps (Mercaria, Homiio, Allo, Noted, Moovo, Alia, Syra) need — so a type with no provider must keep its previous local behaviour.
+  - **Why a live room has no provider,** and would not gain one by trying harder: Mention owns the room *experience* (`LiveRoomContext`, the room UI) but persists no Room document, so §5.6's "pin the exact version reported" has nothing to pin short of capturing audio. The tenancy argument survives even if a Room document appeared — `applicationId` comes off the credential, so the case would open in *Mention's* tenant naming an object only Syra can enforce against, and Syra reporting the same room under its own credential gets a different §7.3 dedup key, hence two cases, two juries, two consequences. Both arguments land on a **missing provider**, not a refused report. Cross-application hand-off is still an open design question.
+  - `frontend/services/reportService.ts` `reportRoom` (live-rooms overflow menu, `app/(app)/live-rooms/[id].tsx`) therefore succeeds and stores a local row. Its toast — "Thank you for helping keep our community safe." — promises no review, which is what makes that honest. `ReportedType.ROOM` was added for it; `ReportedType.MESSAGE` predates all of this and has never had a caller (DMs are Allo's).
+  - **The cost is real and is measured, not hidden.** A `received` report is a receipt for work nobody does. `reconcileModerationReports` therefore COUNTS them (`localOnly`) and must never re-queue one — the sweep's `$in` is `['queued','delivery_failed']` and adding `'received'` to it sends every local-only report to the dead-letter queue.
+- **A restricted post is invisible to everyone but its author.** There is no author-facing "your post was removed" surface yet; build one before `automatic` mode is enabled for real.
+
+### Environment
+
+The names come from the packages, not from the plan's §14.6 table, and the packages win:
+
+```
+CROWDSOURCE_ENABLED=false
+CROWDSOURCE_SERVICE_KEY=            # applicationId:credentialId:secret, ONE opaque value
+CROWDSOURCE_BASE_URL=               # optional; the SDK defaults to the one deployment
+CROWDSOURCE_WEBHOOK_SECRET=
+CROWDSOURCE_WEBHOOK_SECRET_PREVIOUS=   # both accepted during a rotation (§10.8)
+CROWDSOURCE_OUTBOX_BATCH_SIZE=50
+CROWDSOURCE_OUTBOX_POLL_INTERVAL_MS=5000
+CROWDSOURCE_ENFORCEMENT_MODE=observe
+```
+
+**There is no `CROWDSOURCE_APP_ID`, and never add one.** `applicationId` is read off the credential; a variable holding it could only ever disagree with the credential. `CROWDSOURCE_ENABLED=true` requires BOTH the service key and the webhook secret (enforced in `config/index.ts`) — a half-configured integration sends reports that can never come back.
+
+### Lifecycle
+
+- `moderationOutboxDispatcher` starts on EVERY task (`server.ts`, next to `engagementOutboxDispatcher`): claims are Mongo leases with an owner check, so N tasks share the work and a dead task's lease is reclaimed. No-ops when `CROWDSOURCE_ENABLED=false` — the LOOP is gated, never the durable record, so reports taken while off deliver when it is switched on.
+- `moderationReconciliationJob` is leader-gated (`startSchedulers`), 15-minute sweep: re-derives a missing delivery event with the same deterministic id, COUNTS dead-lettered ones (re-queueing would spin) and counts cases gone quiet.
+- The webhook dedupe store is **Mongo-backed** (`moderationEventStore.ts`) because Mention runs several ECS tasks; the SDK's in-process default would dedupe only the instance that received both copies of a redelivery.
+
 ## Theming
 
 - Default color preset for **Mention frontend: `blue`**.

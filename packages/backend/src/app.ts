@@ -136,6 +136,26 @@ export function createApp(deps: CreateAppDependencies): express.Express {
     threshold: 1024,
   }));
 
+  /**
+   * MUST stay ahead of `express.json` below.
+   *
+   * A CrowdSource webhook signature covers the bytes that arrived, and once a JSON
+   * parser has consumed the stream those bytes no longer exist. The `verify` hook
+   * below keeps a UTF-8 STRING copy for ActivityPub HTTP signatures, which is not
+   * what `@oxyhq/crowdsource-express` accepts — it looks for a Buffer, finds a
+   * parsed `req.body` instead, and REFUSES rather than verifying a signature over a
+   * re-serialisation. So mounting this after the parser does not silently verify the
+   * wrong bytes; it fails every delivery, loudly. Mounted here anyway, because a
+   * moderation decision that arrives correctly is better than one that arrives as an
+   * error handler entry.
+   *
+   * It also sits ahead of the rate limiter, deliberately: the HMAC is the
+   * authentication (§10.8) and it is verified over a body bounded by the
+   * middleware's own limit, while a 429 to CrowdSource would put a decision back on
+   * a retry schedule for no reason.
+   */
+  app.use('/webhooks', routes.crowdSourceWebhook);
+
   app.use(express.json({
     limit: '1mb',
     type: ['application/json', 'application/activity+json', 'application/ld+json'],

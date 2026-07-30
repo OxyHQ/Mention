@@ -1,7 +1,18 @@
 import { Router, Response } from 'express';
 import mongoose from 'mongoose';
-import Report, { ReportedType, ReportCategory, ReportStatus, type IReport } from '../models/Report.model';
+import type { ModerationReportReceipt } from '@mention/shared-types';
+import Report, {
+  ReportedType,
+  ReportCategory,
+  ReportStatus,
+  type LeanReport,
+  type ReportFields,
+} from '../models/Report.model';
 import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
+import {
+  DuplicateReportError,
+  createReport,
+} from '../services/moderation/ReportIntakeService';
 import { logger } from '../utils/logger';
 import { queryInt } from '../utils/queryParams';
 
@@ -12,8 +23,45 @@ const DEFAULT_REPORTS_PAGE_SIZE = 20;
 const MAX_REPORTS_PAGE_SIZE = 100;
 
 /**
+ * What a reporter is allowed to see about their own report.
+ *
+ * A projection, not the document. The row also carries the CrowdSource case id,
+ * the decision id and its revision, and none of that belongs to the reporter:
+ * §9.1 keeps a case away from everyone who is not on its jury, and the case id is
+ * the value that makes one addressable. `decisionOutcome` is safe, and is the only
+ * part of the answer the reporter actually asked for.
+ */
+function toReceipt(report: ReportFields & { _id: unknown }): ModerationReportReceipt {
+  return {
+    id: String(report._id),
+    reportedType: report.reportedType,
+    reportedId: report.reportedId,
+    categories: report.categories,
+    ...(report.details === undefined ? {} : { details: report.details }),
+    status: report.status,
+    localStatus: report.localStatus,
+    ...(report.decisionOutcome === undefined
+      ? {}
+      : { decisionOutcome: report.decisionOutcome }),
+    ...(report.enforcedAction === undefined
+      ? {}
+      : { enforcedAction: report.enforcedAction }),
+    ...(report.enforcedAt === undefined
+      ? {}
+      : { enforcedAt: report.enforcedAt.toISOString() }),
+    createdAt: report.createdAt.toISOString(),
+    updatedAt: report.updatedAt.toISOString(),
+  };
+}
+
+/**
  * Create a report
  * POST /api/reports
+ *
+ * 201 means the report was stored — together with its durable delivery event, when
+ * the reported type has one (§7.1). It never means CrowdSource accepted anything: no
+ * outbound request is made here, and the reporter is not made to wait for a third
+ * party to be reachable.
  */
 router.post('/', async (req: AuthRequest, res: Response) => {
   try {
@@ -31,7 +79,17 @@ router.post('/', async (req: AuthRequest, res: Response) => {
       });
     }
 
-    // Validate reportedType
+    /**
+     * The stored enum is the API contract — NOT the subject registry.
+     *
+     * A type the registry has no provider for is accepted and stored locally; only a
+     * type this application has no concept of at all is refused. Gating here on the
+     * registry instead was tried and reverted: it turns adopting CrowdSource into a
+     * breaking change for every report surface not yet wired to it, which is exactly
+     * what has to not happen for the next six Oxy apps to adopt this one subject type
+     * at a time. Whether a report went for review is answered by `localStatus` on the
+     * receipt below, not by a refusal.
+     */
     if (!Object.values(ReportedType).includes(reportedType)) {
       return res.status(400).json({
         message: `Invalid reportedType. Must be one of: ${Object.values(ReportedType).join(', ')}`
@@ -61,42 +119,32 @@ router.post('/', async (req: AuthRequest, res: Response) => {
       });
     }
 
-    // Check if user already reported this item
-    const existingReport = await Report.findOne({
+    const { report, outboxEventId } = await createReport({
       reporter,
-      reportedId,
-      reportedType
-    });
-
-    if (existingReport) {
-      return res.status(409).json({
-        message: 'You have already reported this item',
-        report: existingReport
-      });
-    }
-
-    // Create report
-    const report = new Report({
       reportedType,
       reportedId,
-      reporter,
       categories,
-      details: details || undefined,
-      status: ReportStatus.PENDING
+      details: typeof details === 'string' && details.length > 0 ? details : undefined,
     });
-
-    await report.save();
 
     logger.info('Report created', {
       type: reportedType,
       categoryCount: categories.length,
+      localStatus: report.localStatus,
+      queued: outboxEventId !== undefined,
     });
 
     res.status(201).json({
       message: 'Report submitted successfully',
-      report
+      report: toReceipt(report),
     });
   } catch (error) {
+    if (error instanceof DuplicateReportError) {
+      return res.status(409).json({
+        message: 'You have already reported this item',
+        report: toReceipt(error.existing),
+      });
+    }
     logger.error('Error creating report:', { userId: req.user?.id, reportedType: req.body.reportedType, reportedId: req.body.reportedId, error });
     res.status(500).json({
       message: 'Error creating report',
@@ -106,8 +154,11 @@ router.post('/', async (req: AuthRequest, res: Response) => {
 });
 
 /**
- * Get reports (admin endpoint - optional for now, can be expanded later)
+ * Get reports
  * GET /api/reports
+ *
+ * The reporter's own reports, as receipts — never another reporter's, and never
+ * the case behind one.
  */
 router.get('/', async (req: AuthRequest, res: Response) => {
   try {
@@ -117,11 +168,9 @@ router.get('/', async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ message: 'Unauthorized' });
     }
 
-    // Optional: Add admin check here if needed
-    // For now, return reports created by the current user
     const { status, reportedType, cursor } = req.query;
 
-    const query: mongoose.FilterQuery<IReport> = { reporter: userId };
+    const query: mongoose.FilterQuery<LeanReport> = { reporter: userId };
 
     // Filter by status
     if (status && typeof status === 'string') {
@@ -149,17 +198,17 @@ router.get('/', async (req: AuthRequest, res: Response) => {
     const reports = await Report.find(query)
       .sort({ createdAt: -1 })
       .limit(limitNum + 1)
-      .lean();
+      .lean<LeanReport[]>();
 
     // Check if there are more results
     const hasMore = reports.length > limitNum;
     const reportsToReturn = hasMore ? reports.slice(0, limitNum) : reports;
     const nextCursor = hasMore && reportsToReturn.length > 0
-      ? reportsToReturn[reportsToReturn.length - 1]._id.toString()
+      ? String(reportsToReturn[reportsToReturn.length - 1]._id)
       : undefined;
 
     res.json({
-      reports: reportsToReturn,
+      reports: reportsToReturn.map(toReceipt),
       hasMore,
       nextCursor
     });

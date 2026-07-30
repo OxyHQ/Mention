@@ -338,6 +338,37 @@ const environmentSchema = z
     FOR_YOU_DISCOVERY_GATE: feedModuleSelection(discoveryGateModuleIds),
     FOR_YOU_PHASE2B_SIGNALS: feedModuleSelection(phase2bSignalIds),
 
+    /**
+     * CrowdSource participatory moderation (§14.6).
+     *
+     * The names come from the packages, not from §14.6's table, and the difference
+     * is deliberate. `@oxyhq/crowdsource` reads `CROWDSOURCE_SERVICE_KEY` (the
+     * applicationId, credentialId and secret as ONE opaque value) and
+     * `CROWDSOURCE_BASE_URL`; `@oxyhq/crowdsource-express` reads
+     * `CROWDSOURCE_WEBHOOK_SECRET` and `CROWDSOURCE_WEBHOOK_SECRET_PREVIOUS`.
+     * §14.6's `CROWDSOURCE_APP_ID` is absent on purpose: the applicationId comes
+     * off the credential and there is no surface anywhere that can carry one, so a
+     * variable holding it could only ever disagree with the credential.
+     */
+    CROWDSOURCE_ENABLED: booleanFromEnv(false),
+    CROWDSOURCE_SERVICE_KEY: optionalString(),
+    CROWDSOURCE_BASE_URL: optionalHttpOrigin,
+    CROWDSOURCE_WEBHOOK_SECRET: optionalString(16),
+    CROWDSOURCE_WEBHOOK_SECRET_PREVIOUS: optionalString(16),
+    CROWDSOURCE_OUTBOX_BATCH_SIZE: integerFromEnv(50, { minimum: 1, maximum: 500 }),
+    CROWDSOURCE_OUTBOX_POLL_INTERVAL_MS: integerFromEnv(5_000, {
+      minimum: 250,
+      maximum: 300_000,
+    }),
+    /**
+     * `observe` is the first deployment and the default (§14.6's safe rollout):
+     * decisions are received, stored and planned, and nothing is removed.
+     */
+    CROWDSOURCE_ENFORCEMENT_MODE: z.preprocess(
+      emptyAsUndefined,
+      z.enum(['observe', 'manual', 'automatic']).default('observe'),
+    ),
+
     INTERNAL_METRICS_ENABLED: booleanFromEnv(false),
     INTERNAL_METRICS_TOKEN: optionalString(32),
     METRICS_ALLOWED_IPS: exactIpList,
@@ -376,6 +407,29 @@ const environmentSchema = z
         path: [hasOxyKey ? 'OXY_SERVICE_API_SECRET' : 'OXY_SERVICE_API_KEY'],
         message: 'OXY_SERVICE_API_KEY and OXY_SERVICE_API_SECRET must be configured together',
       });
+    }
+    /**
+     * A half-configured integration is worse than a disabled one: reports would be
+     * delivered and decisions would never arrive, or the reverse, and either way the
+     * gap is invisible until somebody wonders why a case never came back. Both
+     * directions are required together.
+     */
+    if (environment.CROWDSOURCE_ENABLED) {
+      if (!environment.CROWDSOURCE_SERVICE_KEY) {
+        context.addIssue({
+          code: 'custom',
+          path: ['CROWDSOURCE_SERVICE_KEY'],
+          message: 'is required when CROWDSOURCE_ENABLED=true',
+        });
+      }
+      if (!environment.CROWDSOURCE_WEBHOOK_SECRET) {
+        context.addIssue({
+          code: 'custom',
+          path: ['CROWDSOURCE_WEBHOOK_SECRET'],
+          message:
+            'is required when CROWDSOURCE_ENABLED=true — without it no decision can ever be verified, so reports would leave and nothing would come back',
+        });
+      }
     }
     const hasFirebaseCredential = Boolean(environment.FIREBASE_SERVICE_ACCOUNT_BASE64);
     const hasFirebaseProject = Boolean(environment.FIREBASE_PROJECT_ID);
@@ -765,6 +819,16 @@ export const config = {
   },
   classification: {
     enabled: environment.POST_CLASSIFICATION_ENABLED,
+  },
+  crowdSource: {
+    enabled: environment.CROWDSOURCE_ENABLED,
+    serviceKey: environment.CROWDSOURCE_SERVICE_KEY,
+    baseUrl: environment.CROWDSOURCE_BASE_URL,
+    webhookSecret: environment.CROWDSOURCE_WEBHOOK_SECRET,
+    webhookPreviousSecret: environment.CROWDSOURCE_WEBHOOK_SECRET_PREVIOUS,
+    outboxBatchSize: environment.CROWDSOURCE_OUTBOX_BATCH_SIZE,
+    outboxPollIntervalMs: environment.CROWDSOURCE_OUTBOX_POLL_INTERVAL_MS,
+    enforcementMode: environment.CROWDSOURCE_ENFORCEMENT_MODE,
   },
 } as const;
 

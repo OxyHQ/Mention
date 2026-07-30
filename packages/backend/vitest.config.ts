@@ -64,6 +64,46 @@ export default defineConfig({
           functions: 100,
           lines: 100,
         },
+        // CrowdSource moderation. Pinned per file because these five are where a
+        // regression is silent: a report stored with nothing to deliver it, a decision
+        // enforced twice, a correction that cannot restore, or an outcome with no
+        // consensus turned into a verdict. None of them fails loudly in production.
+        'src/services/moderation/ReportIntakeService.ts': {
+          statements: 100,
+          branches: 100,
+          functions: 100,
+          lines: 100,
+        },
+        'src/services/moderation/ModerationOutboxService.ts': {
+          statements: 77.41,
+          branches: 57.62,
+          functions: 70.58,
+          lines: 80.23,
+        },
+        'src/services/moderation/ModerationEnforcementService.ts': {
+          statements: 76.11,
+          branches: 58.49,
+          functions: 100,
+          lines: 76.92,
+        },
+        'src/services/moderation/enforcementPlan.ts': {
+          statements: 86.84,
+          branches: 63.33,
+          functions: 100,
+          lines: 87.87,
+        },
+        'src/services/moderation/ModerationDecisionWorker.ts': {
+          statements: 97.14,
+          branches: 78.57,
+          functions: 100,
+          lines: 96.87,
+        },
+        'src/services/moderation/reportStatus.ts': {
+          statements: 100,
+          branches: 100,
+          functions: 100,
+          lines: 100,
+        },
       },
     },
   },
