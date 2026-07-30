@@ -311,8 +311,10 @@ class FeedCardStyleTest {
                     // above the byline is the weighted spacer, which shrinks to nothing —
                     // counting it here as fixed is what made this assertion fail against
                     // correct code the first time it ran.
+                    // Exactly what the layout emits: padding, the brand row and its gap when
+                    // shown, the text block, the byline. No gap above the byline (that is the
+                    // weighted spacer) and no gap above the text unless a brand row precedes it.
                     val used = cardPadding(design).value * 2 + brand +
-                        (if (lines > 0) 8f else 0f) +
                         textBlockHeightDp(design, scale, lines) + 28f
                     // Against the height the card can actually lay out in, not the one it was
                     // told: the host keeps 8dp for itself and `LocalSize` does not say so.
@@ -335,5 +337,18 @@ class FeedCardStyleTest {
         assertTrue("a large card should fit several lines, got $lines", lines >= 5)
         assertEquals(0f, textBlockHeightDp(FeedCardSize.LARGE, 1f, 0), 0.01f)
         assertTrue(textBlockHeightDp(FeedCardSize.LARGE, 1f, lines) > textBlockHeightDp(FeedCardSize.LARGE, 1f, lines - 1))
+    }
+
+    @Test
+    fun `the small placement keeps two lines of the post`() {
+        // A regression guard with a number behind it. The card measured on a real launcher is
+        // 187 x 99dp; two lines there is what the reader had before the host inset was
+        // reserved, and reclaiming the two gaps the layout never emits is what buys them back
+        // WITHOUT the clipped avatar that came with them the first time.
+        assertEquals(2, textMaxLines(FeedCardSize.SMALL, 99.dp, 1f))
+        assertTrue(
+            "at 99dp the brand row should yield rather than a line of the post",
+            !showsBrandRow(FeedCardSize.SMALL, 99.dp, 1f),
+        )
     }
 }

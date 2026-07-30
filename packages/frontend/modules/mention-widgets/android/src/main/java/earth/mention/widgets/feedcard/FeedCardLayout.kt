@@ -68,6 +68,22 @@ internal fun FeedCardContent(spec: FeedCardSpec, state: FeedCardState) {
     val design = feedCardSize(widgetSize.width, widgetSize.height)
     val padding = cardPadding(design)
     val post = (state as? FeedCardState.Rotating)?.rotation?.current
+    // Computed here rather than inside the card, because the card's ACCESSIBILITY description
+    // now lives on the outermost box and must name the same string the card draws. One call,
+    // one answer, no chance of the two drifting.
+    val cardText = post?.let {
+        truncateToBudget(
+            text = it.text,
+            budget = textBudgetChars(
+                size = design,
+                availableWidthDp = widgetSize.width.value - padding.value * 2,
+                cardHeight = widgetSize.height,
+                // The user's font-size setting. Left out, a card at a 1.3 scale would hand its
+                // TextView a third more text than fits and let it clip mid-word.
+                fontScale = context.resources.configuration.fontScale,
+            ),
+        )
+    }.orEmpty()
     val background = cardBackgroundBitmap(spec, post)
     // The one place this module reads a colour the theme did not choose. Over a photograph
     // the theme's `onPrimaryContainer` is a coin toss against the picture; with no
@@ -93,11 +109,29 @@ internal fun FeedCardContent(spec: FeedCardSpec, state: FeedCardState) {
     // a real launcher — the pixel just inside the widget's box but outside the card's arc is
     // wallpaper, at all four corners. Below API 31 Glance's own `cornerRadius` does nothing
     // either way.
-    Box(
-        GlanceModifier
-            .fillMaxSize()
-            .background(GlanceTheme.colors.primaryContainer),
-    ) {
+    // The tap target and its press feedback belong on the OUTERMOST box, not on the padded
+    // content inside it. On the inner one the launcher draws the pressed state within the
+    // padding, so a card that is one tap target looks like a smaller button floating inside
+    // itself. Here it covers the whole widget, which is what the card is.
+    //
+    // Only when there is a post to open. The signed-out and empty states carry their own
+    // button, and a whole-card tap behind it would give the reader two targets for one action.
+    val cardModifier = GlanceModifier
+        .fillMaxSize()
+        .background(GlanceTheme.colors.primaryContainer)
+        .let { base ->
+            if (post == null) {
+                base
+            } else {
+                base
+                    .semantics {
+                        contentDescription = cardContentDescription(context, post, cardText)
+                    }
+                    .clickable(actionStartActivity(openInAppIntent(context, postUrl(context, post))))
+            }
+        }
+
+    Box(cardModifier) {
         Box(GlanceModifier.fillMaxSize()) {
             if (background != null) {
                 Image(
@@ -138,10 +172,9 @@ internal fun FeedCardContent(spec: FeedCardSpec, state: FeedCardState) {
                             PostCard(
                                 spec = spec,
                                 post = post,
+                                text = cardText,
                                 design = design,
-                                cardWidth = widgetSize.width,
                                 cardHeight = widgetSize.height,
-                                padding = padding,
                                 contentColor = contentColor,
                             )
                         }
@@ -185,35 +218,16 @@ private fun cardBackgroundBitmap(spec: FeedCardSpec, post: WidgetPost?): Bitmap?
 private fun PostCard(
     spec: FeedCardSpec,
     post: WidgetPost,
+    text: String,
     design: FeedCardSize,
-    cardWidth: Dp,
     cardHeight: Dp,
-    padding: Dp,
     contentColor: ColorProvider,
 ) {
     val context = LocalContext.current
-    val text = truncateToBudget(
-        text = post.text,
-        budget = textBudgetChars(
-            size = design,
-            availableWidthDp = cardWidth.value - padding.value * 2,
-            // The height decides how many LINES fit, now that the picture is the background
-            // rather than a band taking room out of the middle.
-            cardHeight = cardHeight,
-            // The user's font-size setting. Left out, a card at a 1.3 scale would hand its
-            // TextView a third more text than fits and let it clip mid-word.
-            fontScale = context.resources.configuration.fontScale,
-        ),
-    )
 
-    Column(
-        modifier = GlanceModifier
-            .fillMaxSize()
-            // The card is ONE tap target, opening the post, and nothing inside it competes
-            // for the tap — the rotation turns over by itself, so there is nothing to press.
-            .semantics { contentDescription = cardContentDescription(context, post, text) }
-            .clickable(actionStartActivity(openInAppIntent(context, postUrl(context, post)))),
-    ) {
+    // No tap target here: the whole card carries it, from the outermost box, so the pressed
+    // state covers the widget rather than stopping at the padding.
+    Column(modifier = GlanceModifier.fillMaxSize()) {
         val fontScale = context.resources.configuration.fontScale
         val lines = textMaxLines(design, cardHeight, fontScale)
 
@@ -225,7 +239,12 @@ private fun PostCard(
         // the padding already fill the card, and drawing one line anyway is what sliced a line
         // of text through the middle. A picture with an attribution is the honest card there.
         if (text.isNotEmpty() && lines > 0) {
-            Spacer(GlanceModifier.height(FeedCardDimensions.BLOCK_SPACING))
+            // Only when there is a brand row to be separated FROM. With no brand row the text
+            // begins straight after the card's padding, and a spacer there is 8dp spent on
+            // nothing — 8dp that at the small placement is a whole second line of the post.
+            if (showsBrandRow(design, cardHeight, fontScale)) {
+                Spacer(GlanceModifier.height(FeedCardDimensions.BLOCK_SPACING))
+            }
             Text(
                 text = text,
                 style = FeedCardTextStyles.body(contentColor, design),

@@ -322,7 +322,14 @@ private fun bodyLineHeightDp(size: FeedCardSize, fontScale: Float): Float {
  */
 private fun chromeHeightDp(size: FeedCardSize, withBrandRow: Boolean): Float {
     val padding = cardPadding(size).value * 2
-    val byline = FeedCardDimensions.AVATAR_SIZE.value + FeedCardDimensions.BLOCK_SPACING.value
+    // The byline is its avatar and nothing else. It used to be charged a BLOCK_SPACING as
+    // well, for the gap above it — but that gap is the weighted spacer, which shrinks to
+    // nothing when the card is tight. Charging it as fixed cost the card 8dp it did have,
+    // which at the small placement was the difference between two lines of the post and one.
+    val byline = FeedCardDimensions.AVATAR_SIZE.value
+    // The brand row carries the gap BELOW it, because that gap only exists when it does:
+    // with no brand row the text starts straight after the padding, and a spacer separating
+    // the text from the padding is 8dp spent on nothing.
     val brand = if (withBrandRow) {
         FeedCardDimensions.BRAND_MARK_SIZE.value + FeedCardDimensions.BLOCK_SPACING.value
     } else {
