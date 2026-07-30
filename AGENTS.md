@@ -358,6 +358,22 @@ To check a specific site rather than reason about it, compile it with the app's 
 
 Distinct from the ecosystem rule in `~/AGENTS.md` about reading external mutable state inside a memoized position, which IS a stale-read hazard. Reading a ref in render and writing one in render fail differently.
 
+**A `finally` CLAUSE also bails the whole function** (BuildHIR cannot lower it), while the promise `.finally()` METHOD is fine. Measured on the same plugin, one synthetic hook per shape against a no-try control at `_c(6)`:
+
+| shape | result |
+|---|---|
+| no `try` at all (control) | `_c(6)` |
+| `try` / `catch` | `_c(5)` |
+| `try` / `finally` | **bails** |
+| `try` / `catch` / `finally` | **bails** |
+| `try` / `catch`, cleanup duplicated into both paths | `_c(6)` |
+| promise `.finally()` method | `_c(6)` |
+| `try` / `finally` nested inside a `try` / `catch` | **bails** |
+
+**But a bail is NOT by itself evidence of a missing optimization.** Three hooks were audited for this (`useProfileScroll`, `useDrafts`, `useDeferredToggle`) and none was worth unlocking: they are already densely hand-memoized, and the compiler's inferred deps came out as the SAME sets as the hand-written arrays — so the cache it would add holds values nothing observes (`useDeferredToggle`'s entire net win was caching a returned object that both consumers destructure on the spot). Two of the three could not be unlocked at any acceptable price: `useProfileScroll` has no compiler-acceptable form for a throttle timestamp (ref → flagged, closure `let` → "reassigning a variable after render has completed", `useState` → a re-render per scroll check), and `useDrafts` would require rewriting four hand-written dep arrays to match inference, changing when viewer-isolation callbacks change identity.
+
+The compiler pays off where code is NOT already hand-memoized. Check what the optimization would CONTAIN before spending a refactor to unlock it, and never restructure a `try`/`finally` that exists to guarantee cleanup on the error path — that trades correctness for a cache.
+
 ## Theming
 
 - Default color preset for **Mention frontend: `blue`**.
