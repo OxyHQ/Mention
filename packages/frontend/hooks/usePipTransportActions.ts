@@ -1,5 +1,6 @@
-import { useEffect, useRef } from 'react';
+import { useEffect } from 'react';
 import { createScopedLogger } from '@/lib/logger';
+import { useRefSync } from '@/hooks/useRefSync';
 import {
   addPipActionListener,
   clearPipActions,
@@ -81,8 +82,19 @@ export function usePipTransportActions({
   // would tear the native BroadcastReceiver down and back up (it lives exactly
   // as long as a JS listener does) several times a scroll. Read them at press
   // time instead, so the subscription only ever tracks the session.
-  const handlersRef = useRef({ onNext, onPrevious });
-  handlersRef.current = { onNext, onPrevious };
+  //
+  // Synced through `useRefSync` — an Effect — rather than written in the render
+  // body: a render-phase ref write is illegal input for the React Compiler, and
+  // it refuses this whole hook over it (measured: removing the write is the only
+  // thing between here and a compiled hook). The commit-time write also answers
+  // the right question, since a press can only land on a committed tree. What a
+  // stale pair would cost: `onNext` is rebuilt whenever the session opens, and
+  // the open version routes the press to the PiP cursor while the closed one
+  // pages the reel — so a stale handler would scroll a pager nobody can see and
+  // leave the OS window on the same video, which is the exact failure this hook
+  // exists to prevent.
+  const nextRef = useRefSync(onNext);
+  const previousRef = useRefSync(onPrevious);
 
   // Publishing to (and withdrawing from) the OS window is external-system
   // synchronization with a real teardown — the effect case this is for. Keyed on
@@ -113,10 +125,10 @@ export function usePipTransportActions({
     const subscription = addPipActionListener((event) => {
       switch (event.id) {
         case 'next':
-          handlersRef.current.onNext();
+          nextRef.current();
           break;
         case 'previous':
-          handlersRef.current.onPrevious();
+          previousRef.current();
           break;
       }
     });
