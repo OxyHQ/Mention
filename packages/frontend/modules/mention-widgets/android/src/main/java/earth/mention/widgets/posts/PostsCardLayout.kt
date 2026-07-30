@@ -150,6 +150,7 @@ private fun PostCard(
 
         MediaSlot(post = post, design = design, cardWidth = cardWidth)
         Byline(post = post, rotation = rotation, design = design, contentColor = contentColor)
+        RotationControlRow(rotation = rotation, design = design, contentColor = contentColor)
     }
 }
 
@@ -289,7 +290,7 @@ private fun Byline(
                 )
             }
         }
-        RotationControls(rotation = rotation, design = design, contentColor = contentColor)
+        RotationPips(rotation = rotation, design = design, contentColor = contentColor)
     }
 }
 
@@ -324,51 +325,93 @@ private fun BylineAvatar(post: WidgetPost) {
 }
 
 /**
- * Where in the rotation this post is, and how to move through it.
+ * Where in the rotation this post is.
  *
- * ## Why the pips needed controls beside them
+ * Kept in the byline because the pips are 6dp and cost nothing there. The CONTROLS are not:
+ * see [RotationControlRow] for why they have a row of their own, and why the pips move down
+ * to join them when that row exists.
  *
- * They used to be indicators only, on the reasoning that a widget cannot be swiped — which is
- * true: `RemoteViews` has no gestures and Glance exposes none, so no app can put a swipe here.
- * But dots that cannot be dragged read as a broken carousel rather than as a position
- * readout, because dots mean "swipe me" everywhere else. Taps are the input a widget does
- * have, so the affordance the pips imply now exists (see `PostsRotationControl.kt`).
- *
- * ## Why the controls are dropped at [PostsCardSize.SMALL]
- *
- * The tap target is 48dp and is not shrunk to fit: at 250 × 110dp the byline already gives up
- * the author's handle for want of room, and two 48dp targets would take the byline to nearly
- * half the card's height — leaving the post itself, which is the content, with two lines.
- * Dropping the least-essential control as the surface narrows is this module's existing rule
- * (and the documented behaviour of Google's own canonical toolbar layout).
- *
- * That size is not left without movement: the automatic turn
- * (`PostsAutoAdvanceWorker`) runs at every size, so the smallest card is a glance surface that
- * cycles on its own, and the pips still say "one of five".
- *
- * Nothing at all is drawn for a rotation of one, where a single pip would say nothing and
- * there is nowhere to step to.
+ * Nothing at all for a rotation of one, where a single pip would say nothing and there is
+ * nowhere to step to.
  */
 @Composable
-private fun RotationControls(
+private fun RotationPips(
     rotation: PostsRotation,
     design: PostsCardSize,
     contentColor: ColorProvider,
 ) {
-    if (rotation.posts.size <= 1) return
-
-    val context = LocalContext.current
-    val current = normalizeRotationIndex(rotation.index, rotation.posts.size)
+    // At every size but the smallest the pips live in the control row instead, beside the
+    // chevrons they belong with.
+    if (rotation.posts.size <= 1 || design != PostsCardSize.SMALL) return
 
     Spacer(GlanceModifier.width(PostsCardDimensions.BYLINE_SPACING))
+    Pips(rotation = rotation, contentColor = contentColor)
+}
+
+/**
+ * The rotation's own row: step back, position, step forward.
+ *
+ * ## Why the pips needed controls at all
+ *
+ * They used to be indicators only, on the reasoning that a widget cannot be swiped — which is
+ * true: `RemoteViews` has no gestures, Glance exposes none, and no app can add one. But dots
+ * that cannot be dragged read as a broken carousel rather than as a position readout, because
+ * dots mean "swipe me" everywhere else. Taps are the input a widget does have, so the
+ * affordance the pips imply now exists (see `PostsRotationControl.kt`).
+ *
+ * ## Why they are NOT in the byline
+ *
+ * They were, and the forward control did not survive it — verified on a real launcher, not
+ * reasoned about: with the chevrons appended after the byline's weighted name, the row
+ * overflowed and Android dropped the last child, leaving a card with `previous` and no `next`.
+ * A `RemoteViews` row is a `LinearLayout` measured in the launcher's process, so the space a
+ * name will actually claim is not knowable here — which makes any fix that shares one row with
+ * flexible text a guess.
+ *
+ * A row of its own removes the contention rather than tuning it, and the space was already
+ * there: a post with no picture leaves the card visibly empty above the byline.
+ *
+ * ## Why nothing is drawn at [PostsCardSize.SMALL]
+ *
+ * 48dp is Material's minimum touch target and is not shrunk to fit. At 250 × 110dp the card
+ * has a brand row, two lines of text and a byline; another 48dp row would take roughly half
+ * of it. Dropping the least-essential control as the surface narrows is this module's existing
+ * rule, and that size keeps its pips in the byline and its automatic turn
+ * (`PostsAutoAdvanceWorker`), so it is a glance surface that still moves.
+ */
+@Composable
+private fun RotationControlRow(
+    rotation: PostsRotation,
+    design: PostsCardSize,
+    contentColor: ColorProvider,
+) {
+    if (rotation.posts.size <= 1 || design == PostsCardSize.SMALL) return
+
+    val context = LocalContext.current
+    Row(
+        modifier = GlanceModifier.fillMaxWidth(),
+        verticalAlignment = Alignment.Vertical.CenterVertically,
+        horizontalAlignment = Alignment.Horizontal.End,
+    ) {
+        RotationStepButton(
+            icon = R.drawable.mention_widget_chevron_left,
+            label = context.getString(R.string.mention_posts_widget_previous),
+            action = actionRunCallback<PreviousPostAction>(),
+        )
+        Pips(rotation = rotation, contentColor = contentColor)
+        RotationStepButton(
+            icon = R.drawable.mention_widget_chevron_right,
+            label = context.getString(R.string.mention_posts_widget_next),
+            action = actionRunCallback<NextPostAction>(),
+        )
+    }
+}
+
+/** The pips themselves — one filled, the rest dim. */
+@Composable
+private fun Pips(rotation: PostsRotation, contentColor: ColorProvider) {
+    val current = normalizeRotationIndex(rotation.index, rotation.posts.size)
     Row(verticalAlignment = Alignment.Vertical.CenterVertically) {
-        if (design != PostsCardSize.SMALL) {
-            RotationStepButton(
-                icon = R.drawable.mention_widget_chevron_left,
-                label = context.getString(R.string.mention_posts_widget_previous),
-                action = actionRunCallback<PreviousPostAction>(),
-            )
-        }
         rotation.posts.indices.forEach { index ->
             if (index != 0) {
                 Spacer(GlanceModifier.width(PostsCardDimensions.PIP_SPACING))
@@ -384,13 +427,6 @@ private fun RotationControls(
                 contentDescription = null,
                 modifier = GlanceModifier.size(PostsCardDimensions.PIP_SIZE),
                 colorFilter = ColorFilter.tint(contentColor),
-            )
-        }
-        if (design != PostsCardSize.SMALL) {
-            RotationStepButton(
-                icon = R.drawable.mention_widget_chevron_right,
-                label = context.getString(R.string.mention_posts_widget_next),
-                action = actionRunCallback<NextPostAction>(),
             )
         }
     }
