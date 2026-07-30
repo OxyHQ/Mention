@@ -141,17 +141,61 @@ export function patchFromApAttachment(attachment: ApAttachment): Partial<MediaIt
 }
 
 export class MediaMetadataService {
+  /** Every Oxy file id referenced by a media list, deduped. */
+  collectOxyIds(items: MediaItem[]): string[] {
+    if (!Array.isArray(items) || items.length === 0) return [];
+    return [...new Set(items.map((item) => item.id).filter(isOxyFileId))];
+  }
+
+  /**
+   * Copy already-resolved Oxy metadata onto a media list.
+   *
+   * Split out from {@link enrichFromOxy} so a caller processing MANY documents
+   * can resolve one batch of ids for the whole page and apply it per document.
+   * Resolving per document instead issues one tiny request per document, which
+   * defeats the SDK's chunk-at-100 batching and walks straight into the API's
+   * per-IP budget — the shape that had a backfill absorbing tens of thousands of
+   * 429s.
+   */
+  applyResolved(items: MediaItem[], byId: Map<string, ServiceAssetMetadata>): MediaItem[] {
+    if (!Array.isArray(items) || items.length === 0) return items;
+    return items.map((item) => {
+      if (!isOxyFileId(item.id)) return item;
+      const asset = byId.get(item.id);
+      if (!asset) return item;
+      return copyFromOxyAsset(item, asset);
+    });
+  }
+
+  /**
+   * Resolve Oxy metadata for a batch of file ids, keyed by id.
+   *
+   * Deliberately does NOT catch: a caller batching across many documents (the
+   * backfill) must abort on a throttled lookup rather than treat a whole page as
+   * carrying no metadata. {@link enrichFromOxy} is the fail-soft wrapper for the
+   * single-document case, where a failure is meant to leave `needsOxyRetry` true
+   * so the queue picks it up again.
+   */
+  async enrichLookup(oxyIds: string[]): Promise<Map<string, ServiceAssetMetadata>> {
+    if (oxyIds.length === 0) return new Map();
+    const resolved = await getServiceOxyClient().getServiceAssetMetadataByIds(oxyIds);
+    return new Map(resolved.map((entry) => [entry.id, entry]));
+  }
+
   /** Batch-resolve Oxy file ids and copy intrinsic metadata onto media items. */
   async enrichFromOxy(items: MediaItem[]): Promise<MediaItem[]> {
-    if (!Array.isArray(items) || items.length === 0) return items;
-
-    const oxyIds = [...new Set(items.map((item) => item.id).filter(isOxyFileId))];
+    const oxyIds = this.collectOxyIds(items);
     if (oxyIds.length === 0) return items;
 
     let resolved: ServiceAssetMetadata[] = [];
     try {
       resolved = await getServiceOxyClient().getServiceAssetMetadataByIds(oxyIds);
     } catch (error) {
+      // Fail-soft on purpose for the SINGLE-document case: returning the items
+      // unchanged leaves `needsOxyRetry` true, which is what schedules the retry.
+      // From @oxyhq/core > 15.0.1 a throttled lookup RAISES rather than resolving
+      // empty, so this catch is what turns rate-limiting into a retry instead of
+      // a silent "these assets carry no metadata".
       logger.warn('MediaMetadataService.enrichFromOxy failed', {
         error: error instanceof Error ? error.message : String(error),
         count: oxyIds.length,
@@ -159,13 +203,7 @@ export class MediaMetadataService {
       return items;
     }
 
-    const byId = new Map(resolved.map((entry) => [entry.id, entry]));
-    return items.map((item) => {
-      if (!isOxyFileId(item.id)) return item;
-      const asset = byId.get(item.id);
-      if (!asset) return item;
-      return copyFromOxyAsset(item, asset);
-    });
+    return this.applyResolved(items, new Map(resolved.map((entry) => [entry.id, entry])));
   }
 
   /** True when any Oxy-backed item is still missing width/height after enrich. */

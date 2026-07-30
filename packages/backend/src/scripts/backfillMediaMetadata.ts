@@ -13,6 +13,7 @@
 
 import mongoose from 'mongoose';
 import type { MediaItem } from '@mention/shared-types';
+import type { ServiceAssetMetadata } from '@oxyhq/core';
 import { Post } from '../models/Post';
 import { mediaMetadataService, isOxyFileId } from '../services/MediaMetadataService';
 import { logger } from '../utils/logger';
@@ -81,6 +82,32 @@ export async function backfillMediaMetadata(
 
     if (rows.length === 0) break;
 
+    // Resolve ONE batch of ids for the whole page before touching any row.
+    // Resolving per row issued one 1-4 id request per post across a ~110k-post
+    // scan, which defeats the SDK's chunk-at-100 batching and buried the run in
+    // 429s — and because a throttled chunk used to come back empty, every one of
+    // those posts was silently counted as needing no update.
+    const pageRows = rows.filter((row) => {
+      const media = row.content?.media;
+      return Array.isArray(media) && media.length > 0 && mediaNeedsEnrichment(media);
+    });
+    const pageIds = [
+      ...new Set(pageRows.flatMap((row) => mediaMetadataService.collectOxyIds(row.content?.media ?? []))),
+    ];
+    // `enrichLookup` deliberately does not catch, so a failed lookup aborts the
+    // run instead of quietly recording the page as "nothing to do".
+    //
+    // REQUIRES @oxyhq/core > 15.0.1. Up to and including 15.0.1,
+    // `getServiceAssetMetadataByIds` swallowed a failed chunk and returned the
+    // rest, so a throttled request resolved as an empty result and there was
+    // nothing here to catch — this loop would still silently under-apply. The
+    // batching below cuts request volume enough to avoid the throttling in the
+    // first place, but the two go together: do not run this against 15.0.1 and
+    // trust the output.
+    const resolved = pageIds.length > 0
+      ? await mediaMetadataService.enrichLookup(pageIds)
+      : new Map<string, ServiceAssetMetadata>();
+
     for (const row of rows) {
       scanned += 1;
       lastId = row._id;
@@ -94,7 +121,7 @@ export async function backfillMediaMetadata(
         continue;
       }
 
-      const enriched = await mediaMetadataService.enrichFromOxy(current);
+      const enriched = mediaMetadataService.applyResolved(current, resolved);
       const changed = enriched.some((item, index) => {
         const prev = current[index];
         return (
