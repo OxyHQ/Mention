@@ -3,7 +3,13 @@ import { MtnConfig, PostVisibility } from '@mention/shared-types';
 import { FeedQueryBuilder } from '../utils/feedQueryBuilder';
 
 describe('FeedQueryBuilder.buildVideosQuery metadata filters', () => {
-  it('requires complete persisted video metadata with default min duration', () => {
+  // Duration APPLIES WHEN KNOWN and abstains when absent; dimensions stay required.
+  // Measured in production 2026-07-30: `durationSec` is present on 5.9% of the 9,465
+  // posts carrying a video item, and on 0% of the last day's arrivals — the whole
+  // video corpus is federated and Mastodon does not advertise duration. Requiring the
+  // field did not enforce a 20-second policy, it discarded 94% of the corpus and
+  // enforced the policy on the remainder (shipped pool: 147 posts).
+  it('requires dimensions, and applies the duration minimum only where duration is known', () => {
     const query = FeedQueryBuilder.buildVideosQuery([], undefined);
     const and = query.$and as Array<Record<string, unknown>>;
 
@@ -13,19 +19,25 @@ describe('FeedQueryBuilder.buildVideosQuery metadata filters', () => {
     const elemMatch = (mediaClause?.['content.media'] as { $elemMatch: Record<string, unknown> }).$elemMatch;
     expect(elemMatch).toEqual({
       type: 'video',
-      durationSec: { $gte: MtnConfig.videosFeed.minDurationSec },
+      $or: [
+        { durationSec: { $gte: MtnConfig.videosFeed.minDurationSec } },
+        { durationSec: { $exists: false } },
+      ],
       orientation: MtnConfig.videosFeed.defaultOrientation,
       width: { $gt: 0 },
       height: { $gt: 0 },
     });
   });
 
-  it('applies orientation=all to include every stored orientation', () => {
+  // `'all'` is the one setting whose NAME promises no filtering, so it must emit no
+  // clause. `{$exists: true}` was still a filter: it silently required orientation to
+  // have been persisted.
+  it('applies orientation=all by not filtering on orientation at all', () => {
     const query = FeedQueryBuilder.buildVideosQuery([], undefined, { orientation: 'all' });
     const and = query.$and as Array<Record<string, unknown>>;
     const mediaClause = and.find((c) => typeof c['content.media'] === 'object');
     const elemMatch = (mediaClause?.['content.media'] as { $elemMatch: Record<string, unknown> }).$elemMatch;
-    expect(elemMatch.orientation).toEqual({ $exists: true });
+    expect(elemMatch.orientation).toBeUndefined();
   });
 
   it('applies orientation and minDuration overrides', () => {
@@ -39,7 +51,7 @@ describe('FeedQueryBuilder.buildVideosQuery metadata filters', () => {
     expect(mediaClause).toBeDefined();
     const elemMatch = (mediaClause?.['content.media'] as { $elemMatch: Record<string, unknown> }).$elemMatch;
     expect(elemMatch.orientation).toBe('portrait');
-    expect(elemMatch.durationSec).toEqual({ $gte: 30 });
+    expect(elemMatch.$or).toContainEqual({ durationSec: { $gte: 30 } });
   });
 
   it('keeps public published non-boost base match', () => {

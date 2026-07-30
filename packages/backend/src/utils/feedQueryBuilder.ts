@@ -354,13 +354,42 @@ export class FeedQueryBuilder {
   ): Record<string, unknown> {
     const minDurationSec = options.minDurationSec ?? MtnConfig.videosFeed.minDurationSec;
     const orientation = options.orientation ?? MtnConfig.videosFeed.defaultOrientation;
+    // UNKNOWN IS NOT A VALUE. Both of these used to treat a missing field as a
+    // failed match, which silently made the videos feed mean "the videos whose
+    // metadata we happen to have" rather than what it says.
+    //
+    // Measured against production (2026-07-30): of 9,465 posts carrying a video
+    // media item, `durationSec` is present on 5.9% — and on 0% of the last day's
+    // arrivals. Federated video is the ENTIRE video corpus (native video posts:
+    // 0), Mastodon advertises width/height but essentially never duration, and
+    // `enrichFromOxy` cannot help because federated media is stored raw by
+    // `remoteUrl` and is not an Oxy asset. So a `$gte` on a mostly-absent field
+    // was not enforcing a 20-second policy on the corpus; it was discarding 94%
+    // of it and enforcing the policy on the remainder. The shipped default pool
+    // was 147 posts out of 9,465.
+    //
+    // Duration therefore applies WHEN KNOWN and abstains when absent. The
+    // editorial intent (prefer substantial videos) is preserved exactly for every
+    // post we can actually judge. The real fix is upstream — probe duration at
+    // ingest — and this does not substitute for it: 5,576 posts have no
+    // dimensions either, and no filter relaxation reaches those.
     const elemMatch: Record<string, unknown> = {
       type: 'video',
-      durationSec: { $gte: minDurationSec },
-      orientation: orientation === 'all' ? { $exists: true } : orientation,
+      $or: [
+        { durationSec: { $gte: minDurationSec } },
+        { durationSec: { $exists: false } },
+      ],
       width: { $gt: 0 },
       height: { $gt: 0 },
     };
+
+    // `'all'` is the one setting whose NAME promises no filtering, so it must not
+    // compile to a filter. It costs ~0 posts today only because `width`/`height`
+    // already imply orientation was derivable, but it becomes load-bearing the
+    // moment that dimension gate is relaxed.
+    if (orientation !== 'all') {
+      elemMatch.orientation = orientation;
+    }
 
     const strictMediaMatch = {
       'content.media': { $elemMatch: elemMatch },

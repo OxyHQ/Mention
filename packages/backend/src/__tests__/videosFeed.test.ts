@@ -77,7 +77,7 @@ describe('FeedQueryBuilder.buildVideosQuery', () => {
 
     const elemMatch = (mediaClause?.['content.media'] as { $elemMatch: Record<string, unknown> }).$elemMatch;
     expect(elemMatch.type).toBe('video');
-    expect(elemMatch.durationSec).toEqual({ $gte: 20 });
+    expect(elemMatch.$or).toContainEqual({ durationSec: { $gte: 20 } });
     expect(elemMatch.orientation).toBe('portrait');
     expect(elemMatch.width).toEqual({ $gt: 0 });
     expect(elemMatch.height).toEqual({ $gt: 0 });
