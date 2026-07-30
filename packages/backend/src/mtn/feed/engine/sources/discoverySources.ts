@@ -374,15 +374,27 @@ export const POPULAR_SORT = { engagementScore: -1, createdAt: -1, _id: -1 } as c
  * instead would be wrong for federated posts, whose `_id` is their IMPORT time
  * and bears no relation to when they were written.
  *
- * Returns `undefined` for a cursor that cannot express the full key — a legacy
- * bare ObjectId, or a v1 cursor minted before `tiebreakAt` existed. The caller
- * then relies on the cursor's bounded `excludeIds` for that single page instead of
- * filtering on an axis it is not sorted by, which is precisely the defect this
- * replaces: an `_id` filter under an engagement sort both repeats high-engagement
- * posts and permanently skips newer, less-engaged ones.
+ * Returns `undefined` unless the cursor is one THIS regime minted and it can
+ * express the full key. Two independent requirements, both necessary:
+ *
+ *  - PROVENANCE (`fromPopularFallback`). `parsed.score` becomes a bound on
+ *    `engagementScore` here, so a cursor whose score is a ranking `finalScore` —
+ *    which a `neverBlank` feed hands over the moment its ranked pool empties —
+ *    would compare two different quantities. Absence of `tiebreakAt` happens to
+ *    exclude today's ranked cursors as well, but that is a coincidence of the
+ *    current sort keys, not a statement about where the score came from: give the
+ *    ranked sort a `createdAt` tiebreak and the coincidence inverts silently.
+ *  - COMPLETENESS (`tiebreakAt`). A legacy bare ObjectId, or a v1 cursor minted
+ *    before `tiebreakAt` existed, cannot say which `createdAt` the page stopped at.
+ *
+ * Failing either, the caller relies on the cursor's bounded `excludeIds` for that
+ * single page instead of filtering on an axis it is not sorted by — precisely the
+ * defect this replaces: an `_id` filter under an engagement sort both repeats
+ * high-engagement posts and permanently skips newer, less-engaged ones.
  */
 function popularKeysetStage(parsed?: ScoreCursorData): mongoose.PipelineStage.Match | undefined {
-  if (!parsed || !Number.isFinite(parsed.score) || parsed.tiebreakAt === undefined) return undefined;
+  if (!parsed || !parsed.fromPopularFallback) return undefined;
+  if (!Number.isFinite(parsed.score) || parsed.tiebreakAt === undefined) return undefined;
   if (!mongoose.Types.ObjectId.isValid(parsed.id)) return undefined;
 
   const boundaryAt = new Date(parsed.tiebreakAt);

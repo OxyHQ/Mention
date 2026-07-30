@@ -33,6 +33,22 @@ export interface ScoreCursorData {
    * recency-decayed `finalScore`), and absent on every legacy cursor.
    */
   tiebreakAt?: number;
+  /**
+   * Set only on a cursor minted by the POPULAR FALLBACK, whose `score` is an
+   * `engagementScore` — a weighted sum of likes/boosts/comments, 0 for most posts
+   * and unbounded above. Every other cursor's `score` is a `finalScore`, a product
+   * of near-1 ranking signals. The two are not comparable, and a `neverBlank` feed
+   * hands cursors back and forth between the regimes that produce them, so the
+   * reader has to be able to tell which quantity it is holding.
+   *
+   * ABSENCE MEANS "not the fallback", deliberately, rather than a second state
+   * being written: the ranked path mints the LEGACY `score:id` form for every
+   * non-pre-scored feed (`FeedEngine` only supplies `asOf` when `exec.preScored`),
+   * and that form has no metadata envelope to stamp. So absence is the only signal
+   * a ranked cursor can carry, and it already covers legacy cursors too — both
+   * mean "compare this against a ranking score".
+   */
+  fromPopularFallback?: true;
 }
 
 export interface ScoreCursorBuildOptions {
@@ -40,6 +56,8 @@ export interface ScoreCursorBuildOptions {
   excludeIds?: Iterable<string>;
   /** See {@link ScoreCursorData.tiebreakAt}. */
   tiebreakAt?: Date | number;
+  /** See {@link ScoreCursorData.fromPopularFallback}. */
+  fromPopularFallback?: boolean;
 }
 
 const SCORE_CURSOR_V1_MARKER = '~v1~';
@@ -53,6 +71,8 @@ interface ScoreCursorCompatV1Payload {
   x?: string[];
   /** See {@link ScoreCursorData.tiebreakAt}. Additive: an older parser ignores it. */
   t?: number;
+  /** See {@link ScoreCursorData.fromPopularFallback}. Additive: an older parser ignores it. */
+  f?: 1;
 }
 
 /** A millisecond timestamp we are willing to treat as a keyset boundary. */
@@ -108,6 +128,7 @@ export const ScoreCursor = {
         a: rawAsOf,
         x: normalizeExcludedIds(id, options?.excludeIds),
         ...(isValidCursorTimestamp(rawTiebreakAt) ? { t: rawTiebreakAt } : {}),
+        ...(options?.fromPopularFallback === true ? { f: 1 } : {}),
       };
       const encoded = Buffer.from(JSON.stringify(metadata), 'utf8').toString('base64url');
       // Keep the ObjectId after the first colon and the full-precision score at
@@ -147,6 +168,7 @@ export const ScoreCursor = {
               id,
               asOf: metadata.a,
               ...(isValidCursorTimestamp(metadata.t) ? { tiebreakAt: metadata.t } : {}),
+              ...(metadata.f === 1 ? { fromPopularFallback: true as const } : {}),
               excludeIds: normalizeExcludedIds(
                 id,
                 Array.isArray(metadata.x)

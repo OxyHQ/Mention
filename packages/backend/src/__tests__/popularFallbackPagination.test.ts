@@ -75,12 +75,23 @@ const BOUNDARY_ID = new mongoose.Types.ObjectId().toString();
 const BOUNDARY_AT = Date.UTC(2026, 6, 20, 12, 0, 0);
 const NEWER_ID = new mongoose.Types.ObjectId().toString();
 
-/** A cursor of the shape a ranked feed hands the fallback. */
-function rankedCursor(score: number): string {
+/**
+ * A cursor of the shape the fallback mints for its OWN next page.
+ *
+ * This used to be called `rankedCursor` and described as "the shape a ranked feed
+ * hands the fallback", which it never was: a ranked feed cursors on `finalScore`
+ * and never sets `tiebreakAt`. The misnomer was harmless only while `tiebreakAt`
+ * presence doubled as the de facto provenance signal. Now that provenance is
+ * explicit (`fromPopularFallback`), the fixture has to say which regime it is
+ * imitating — and the genuinely-ranked case is covered in
+ * `fallbackCursorRegime.test.ts`, which asserts the keyset is REFUSED for it.
+ */
+function fallbackCursor(score: number): string {
   return ScoreCursor.build(score, BOUNDARY_ID, {
     asOf: BOUNDARY_AT,
     tiebreakAt: BOUNDARY_AT,
     excludeIds: [NEWER_ID],
+    fromPopularFallback: true,
   });
 }
 
@@ -91,12 +102,12 @@ beforeEach(() => {
 
 describe('ScoreCursor keyset metadata', () => {
   it('round-trips the createdAt boundary the popular sort needs', () => {
-    const parsed = ScoreCursor.parse(rankedCursor(12.5));
+    const parsed = ScoreCursor.parse(fallbackCursor(12.5));
     expect(parsed).toMatchObject({ score: 12.5, id: BOUNDARY_ID, asOf: BOUNDARY_AT, tiebreakAt: BOUNDARY_AT });
   });
 
   it('keeps carrying the rolling exclusion list alongside it', () => {
-    expect(ScoreCursor.parse(rankedCursor(3))?.excludeIds).toContain(NEWER_ID);
+    expect(ScoreCursor.parse(fallbackCursor(3))?.excludeIds).toContain(NEWER_ID);
   });
 
   it('still reads a legacy cursor that predates the boundary, without inventing one', () => {
@@ -118,7 +129,7 @@ describe.each([
   ['popularMedia', popularMediaSource],
 ])('%s pagination', (_id, source) => {
   it('continues on engagementScore, not on _id', async () => {
-    await source.gather(context({ cursor: rankedCursor(9.25) }), {}, 10);
+    await source.gather(context({ cursor: fallbackCursor(9.25) }), {}, 10);
 
     const matches = keysetMatches();
     expect(matches.length).toBeGreaterThan(0);
@@ -127,7 +138,7 @@ describe.each([
   });
 
   it('breaks a score tie by createdAt before falling back to _id', async () => {
-    await source.gather(context({ cursor: rankedCursor(9.25) }), {}, 10);
+    await source.gather(context({ cursor: fallbackCursor(9.25) }), {}, 10);
 
     const clauses = keysetMatches()[0].$or as Array<Record<string, unknown>>;
     expect(clauses[1]).toEqual({ engagementScore: 9.25, createdAt: { $lt: new Date(BOUNDARY_AT) } });
@@ -136,7 +147,7 @@ describe.each([
   });
 
   it('sorts on a total order, so the keyset refers to a position that exists', async () => {
-    await source.gather(context({ cursor: rankedCursor(1) }), {}, 10);
+    await source.gather(context({ cursor: fallbackCursor(1) }), {}, 10);
 
     for (const sort of sortStages()) {
       expect(Object.keys(sort)).toEqual(['engagementScore', 'createdAt', '_id']);
@@ -145,7 +156,7 @@ describe.each([
   });
 
   it('excludes the ids the cursor is carrying', async () => {
-    await source.gather(context({ cursor: rankedCursor(1) }), {}, 10);
+    await source.gather(context({ cursor: fallbackCursor(1) }), {}, 10);
 
     const excluded = stages()
       .filter((stage): stage is { $match: Record<string, unknown> } => '$match' in stage)
@@ -170,7 +181,7 @@ describe.each([
   });
 
   it('never constrains _id as a range on its own', async () => {
-    await source.gather(context({ cursor: rankedCursor(4) }), {}, 10);
+    await source.gather(context({ cursor: fallbackCursor(4) }), {}, 10);
 
     const rangeOnId = stages()
       .filter((stage): stage is { $match: Record<string, unknown> } => '$match' in stage)
