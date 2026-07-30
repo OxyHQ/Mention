@@ -29,6 +29,12 @@ export type CandidatePost = Record<string, unknown> & Omit<FeedSafetyPostShape, 
   createdAt?: Date | string;
   /** Pre-scored sources (e.g. Explore's aggregation) attach the ranked score. */
   finalScore?: number;
+  /**
+   * The engagement-sorted popular sources attach the score they sorted on, so the
+   * caller can mint a keyset cursor on the SAME axis. Without it a popular page
+   * can only be continued by `_id`, which is not the axis it is ordered by.
+   */
+  engagementScore?: number;
   /** Ordered sources (Saved, Author-likes) attach the next-page cursor token. */
   _feedCursor?: string;
   /**

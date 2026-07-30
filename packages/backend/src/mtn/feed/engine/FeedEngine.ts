@@ -55,6 +55,42 @@ const EMPTY_RESPONSE: SlicedFeedResponse = {
   totalCount: 0,
 };
 
+/**
+ * Mint the cursor that continues a popular-fallback page, on the same
+ * `{engagementScore, createdAt, _id}` axis the popular sources sort by.
+ *
+ * Every key of that sort has to travel: the score, the `createdAt` that orders the
+ * (very large) set of posts tied at the same score, and the id that makes the order
+ * total. `asOf` is inherited from the incoming cursor so a pagination session keeps
+ * one recency window, and `excludeIds` rolls forward so a page boundary survives
+ * engagement counts changing underneath it.
+ *
+ * Returns `undefined` when the last item cannot supply a full key — better a feed
+ * that stops than one that silently repeats or skips.
+ */
+function buildPopularCursor(page: readonly CandidatePost[], incomingCursor?: string): string | undefined {
+  const last = page[page.length - 1];
+  if (!last) return undefined;
+
+  const ranked = toRankedCandidate(last);
+  if (!ranked) return undefined;
+  const id = readCandidateId(ranked);
+
+  const score = last.engagementScore;
+  const createdAt = last.createdAt ? new Date(last.createdAt).getTime() : Number.NaN;
+  if (typeof score !== 'number' || !Number.isFinite(score) || !Number.isFinite(createdAt)) {
+    logger.warn('[FeedEngine] Popular fallback page cannot mint a keyset cursor', { id });
+    return undefined;
+  }
+
+  const inherited = ScoreCursor.parse(incomingCursor);
+  return ScoreCursor.build(score, id, {
+    asOf: inherited?.asOf ?? Date.now(),
+    tiebreakAt: createdAt,
+    excludeIds: inherited?.excludeIds,
+  });
+}
+
 function readPortraitMedia(post: RankedCandidate): Array<{ type?: string; orientation?: string }> | undefined {
   if (!('content' in post)) return undefined;
   const content = Reflect.get(post, 'content');
@@ -678,14 +714,32 @@ export class FeedEngine {
     const candidates = await source.gather({ ...ctx, cursor, pageLimit: limit }, {}, limit + 1);
     const hasMore = candidates.length > limit;
     const page = hasMore ? candidates.slice(0, limit) : candidates;
-    const nextCursor = hasMore && page.length > 0 ? String(page[page.length - 1]._id) : undefined;
+
+    // Continue on the axis the source SORTED on. This used to emit a bare
+    // ObjectId, which the popular sources then either ignored outright (so every
+    // page was page one, forever) or applied as an `_id` bound under an engagement
+    // sort — repeating high-engagement posts while permanently skipping newer,
+    // less-engaged ones. `asOf` is carried forward so the recency window cannot
+    // shift under an in-progress pagination session, and `excludeIds` keeps the
+    // page boundary stable while engagement counts move underneath it.
+    const nextCursor = hasMore ? buildPopularCursor(page, cursor) : undefined;
 
     const hydrated = await postHydrationService.hydratePosts(page, {
-      viewerId: undefined,
+      // The authenticated never-blank path reaches here too, and hydrating it as
+      // anonymous stripped the viewer's own like/save/boost state off every post
+      // in the fallback page.
+      viewerId: ctx.currentUserId,
       oxyClient: ctx.oxyClient,
       maxDepth: exec.hydrateMaxDepth ?? 0,
       includeLinkMetadata: true,
     });
+
+    // A fallback page counts as seen exactly like a ranked one. Without this the
+    // seen set never grows on this path, so the next fallback page can legitimately
+    // re-serve the same posts even with the cursor fixed.
+    if (ctx.currentUserId) {
+      this.markPostsSeen(ctx.currentUserId, hydrated);
+    }
 
     return {
       slices: [],
@@ -696,17 +750,30 @@ export class FeedEngine {
     };
   }
 
-  /** Mark every hydrated post in the emitted page as seen (fire and forget). */
+  /** Mark every hydrated post in the emitted slices as seen (fire and forget). */
   private markSlicesSeen(userId: string, slices: SlicedFeedResponse['slices']): void {
-    const allPostIds: string[] = [];
+    const posts: HydratedPost[] = [];
     for (const slice of slices) {
       for (const item of slice.items) {
-        const id = item.post?.id?.toString();
-        if (id && id !== 'undefined' && id !== 'null') allPostIds.push(id);
+        if (item.post) posts.push(item.post);
       }
     }
-    if (allPostIds.length > 0) {
-      feedSeenPostsService.markPostsAsSeen(userId, allPostIds).catch((e) => {
+    this.markPostsSeen(userId, posts);
+  }
+
+  /**
+   * Mark an emitted page as seen (fire and forget). Shared by the sliced path and
+   * the popular fallback, which emits a flat `items[]` and no slices — both have to
+   * grow the same seen set or the fallback can re-serve what it just showed.
+   */
+  private markPostsSeen(userId: string, posts: readonly HydratedPost[]): void {
+    const postIds: string[] = [];
+    for (const post of posts) {
+      const id = post.id?.toString();
+      if (id && id !== 'undefined' && id !== 'null') postIds.push(id);
+    }
+    if (postIds.length > 0) {
+      feedSeenPostsService.markPostsAsSeen(userId, postIds).catch((e) => {
         logger.warn('[FeedEngine] Failed to mark posts as seen', e);
       });
     }

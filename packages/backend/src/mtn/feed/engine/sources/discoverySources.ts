@@ -13,7 +13,7 @@ import { Post } from '../../../../models/Post';
 import { FeedQueryBuilder } from '../../../../utils/feedQueryBuilder';
 import { fetchWithRecencyFallback } from '../../../../utils/feedUtils';
 import { FEED_FIELDS } from '../../FeedAPI';
-import { ScoreCursor } from '../../CursorBuilder';
+import { ScoreCursor, type ScoreCursorData } from '../../CursorBuilder';
 import { DISCOVERY_SAFE_MATCH, filterDiscoverable } from '../../feedSafety';
 import type { CandidatePost, FeedEngineContext, SourceModule } from '../types';
 
@@ -288,18 +288,29 @@ export const popularSource: SourceModule = {
       ...DISCOVERY_SAFE_MATCH,
       $and: [{ $or: [{ boostOf: null }, { boostOf: { $exists: false } }] }],
     };
-    if (ctx.cursor && mongoose.Types.ObjectId.isValid(ctx.cursor)) {
-      baseMatch._id = { $lt: new mongoose.Types.ObjectId(ctx.cursor) };
-    }
+    // This source is BOTH For You anonymous and the authenticated never-blank
+    // fallback, so it is handed whatever cursor the ranked feed last emitted —
+    // including a `ScoreCursor`, which is not a bare ObjectId. It used to accept a
+    // cursor only when the whole string parsed as an ObjectId, so every
+    // authenticated fallback page silently became page ONE: an authenticated
+    // viewer past their unseen pool was served the same most-engaged posts over
+    // and over, with `hasMore: true`.
+    const parsedCursor = ScoreCursor.parse(ctx.cursor);
+    const cursorScopedMatch = withExcludedIds(baseMatch, parsedCursor?.excludeIds);
+    const keyset = popularKeysetStage(parsedCursor);
 
     // A recency window bounds the engagement scan through the
     // `{ visibility, status, createdAt }` index; the never-blank fallback widens
     // (7d → 30d → unbounded) so this source (For You anonymous + never-blank
     // fallback) is never starved on a low-traffic instance. Cutoff computed
     // per-call inside the helper.
-    const runPopular = (cutoff: Date | undefined): Promise<CandidatePost[]> =>
-      Post.aggregate<CandidatePost>([
-        { $match: cutoff ? { ...baseMatch, createdAt: { $gte: cutoff } } : baseMatch },
+    const runPopular = (cutoff: Date | undefined): Promise<CandidatePost[]> => {
+      const pipeline: mongoose.PipelineStage[] = [
+        {
+          $match: cutoff
+            ? { ...cursorScopedMatch, createdAt: { $gte: cutoff } }
+            : cursorScopedMatch,
+        },
         {
           $project: {
             _id: 1, oxyUserId: 1, authorship: 1, federation: 1, createdAt: 1, visibility: 1, type: 1,
@@ -309,9 +320,15 @@ export const popularSource: SourceModule = {
           },
         },
         { $addFields: { engagementScore: engagementScoreExpr() } },
-        { $sort: { engagementScore: -1, createdAt: -1 } },
-        { $limit: cap },
-      ]).option({ maxTimeMS: 5000 });
+      ];
+      if (keyset) pipeline.push(keyset);
+      // `_id` completes the order. Without it `{engagementScore, createdAt}` is not
+      // total — two posts published in the same millisecond with equal engagement
+      // have no defined relative position, so paging over them is undefined
+      // regardless of how the cursor is shaped.
+      pipeline.push({ $sort: POPULAR_SORT }, { $limit: cap });
+      return Post.aggregate<CandidatePost>(pipeline).option({ maxTimeMS: 5000 });
+    };
 
     const posts = await fetchWithRecencyFallback(cap, runPopular);
 
@@ -319,10 +336,71 @@ export const popularSource: SourceModule = {
   },
 };
 
-/** Shared engagement-sorted popular aggregation for the media/video anonymous fallbacks. */
-async function gatherPopularByQuery(match: Record<string, unknown>, cap: number): Promise<CandidatePost[]> {
-  return await Post.aggregate<CandidatePost>([
-    { $match: match },
+/** The sort every popular source orders by, and therefore the keyset it must page on. */
+export const POPULAR_SORT = { engagementScore: -1, createdAt: -1, _id: -1 } as const;
+
+/**
+ * The keyset stage that continues a popular page, matching {@link POPULAR_SORT}.
+ *
+ * THREE keys, where `explore` needs two: `engagementScore` carries no recency
+ * term, so every zero-engagement post ties on it and `createdAt` is doing real
+ * ordering work rather than breaking rare ties. Ordering that bulk by `_id`
+ * instead would be wrong for federated posts, whose `_id` is their IMPORT time
+ * and bears no relation to when they were written.
+ *
+ * Returns `undefined` for a cursor that cannot express the full key — a legacy
+ * bare ObjectId, or a v1 cursor minted before `tiebreakAt` existed. The caller
+ * then relies on the cursor's bounded `excludeIds` for that single page instead of
+ * filtering on an axis it is not sorted by, which is precisely the defect this
+ * replaces: an `_id` filter under an engagement sort both repeats high-engagement
+ * posts and permanently skips newer, less-engaged ones.
+ */
+function popularKeysetStage(parsed?: ScoreCursorData): mongoose.PipelineStage.Match | undefined {
+  if (!parsed || !Number.isFinite(parsed.score) || parsed.tiebreakAt === undefined) return undefined;
+  if (!mongoose.Types.ObjectId.isValid(parsed.id)) return undefined;
+
+  const boundaryAt = new Date(parsed.tiebreakAt);
+  const boundaryId = new mongoose.Types.ObjectId(parsed.id);
+  return {
+    $match: {
+      $or: [
+        { engagementScore: { $lt: parsed.score } },
+        { engagementScore: parsed.score, createdAt: { $lt: boundaryAt } },
+        { engagementScore: parsed.score, createdAt: boundaryAt, _id: { $lt: boundaryId } },
+      ],
+    },
+  };
+}
+
+/**
+ * Add the cursor's bounded exclusion list as one more `$and` clause. Appending
+ * rather than assigning `_id` is deliberate: these matches already carry `$and`
+ * and may constrain `_id` themselves, and an assignment would silently drop
+ * whichever clause lost.
+ */
+function withExcludedIds(
+  match: Record<string, unknown>,
+  excludeIds?: readonly string[],
+): Record<string, unknown> {
+  const ids = (excludeIds ?? []).filter((id) => mongoose.Types.ObjectId.isValid(id));
+  if (ids.length === 0) return match;
+
+  const existing = Array.isArray(match.$and) ? match.$and : [];
+  return {
+    ...match,
+    $and: [...existing, { _id: { $nin: ids.map((id) => new mongoose.Types.ObjectId(id)) } }],
+  };
+}
+
+/** Shared engagement-sorted popular aggregation for the media/video fallbacks. */
+async function gatherPopularByQuery(
+  match: Record<string, unknown>,
+  cap: number,
+  cursor?: string,
+): Promise<CandidatePost[]> {
+  const parsed = ScoreCursor.parse(cursor);
+  const pipeline: mongoose.PipelineStage[] = [
+    { $match: withExcludedIds(match, parsed?.excludeIds) },
     {
       $project: {
         _id: 1, oxyUserId: 1, authorship: 1, federation: 1, createdAt: 1, visibility: 1, type: 1,
@@ -331,12 +409,23 @@ async function gatherPopularByQuery(match: Record<string, unknown>, cap: number)
       },
     },
     { $addFields: { engagementScore: engagementScoreExpr() } },
-    { $sort: { engagementScore: -1, createdAt: -1, _id: -1 } },
-    { $limit: cap },
-  ]).option({ maxTimeMS: 5000 });
+  ];
+
+  const keyset = popularKeysetStage(parsed);
+  if (keyset) pipeline.push(keyset);
+
+  pipeline.push({ $sort: POPULAR_SORT }, { $limit: cap });
+  return await Post.aggregate<CandidatePost>(pipeline).option({ maxTimeMS: 5000 });
 }
 
-/** `popularVideos`: anonymous Videos fallback (wraps `VideosFeed.fetchPopular`). */
+/**
+ * `popularVideos`: the Videos fallback (wraps `VideosFeed.fetchPopular`).
+ *
+ * The cursor goes to {@link gatherPopularByQuery}, NOT to `buildVideosQuery`: that
+ * builder applies an `_id` bound, which is the wrong axis for an engagement sort.
+ * The viewer's seen set is passed through so a fallback page cannot re-serve what
+ * the ranked pages already showed — the reason this path could repeat forever.
+ */
 export const popularVideosSource: SourceModule = {
   id: 'popularVideos',
   kind: 'source',
@@ -344,25 +433,30 @@ export const popularVideosSource: SourceModule = {
   gather: async (ctx, _params, cap) =>
     gatherPopularByQuery(
       {
-        ...FeedQueryBuilder.buildVideosQuery([], ctx.cursor, {
+        ...FeedQueryBuilder.buildVideosQuery(ctx.seenPostIds ?? [], undefined, {
           orientation: ctx.videoFilters?.orientation,
           minDurationSec: ctx.videoFilters?.minDurationSec,
         }),
         ...DISCOVERY_SAFE_MATCH,
       },
       cap,
+      ctx.cursor,
     ),
 };
 
-/** `popularMedia`: anonymous Media fallback (wraps `MediaFeed.fetchPopular`). */
+/** `popularMedia`: the Media fallback (wraps `MediaFeed.fetchPopular`). Same shape as above. */
 export const popularMediaSource: SourceModule = {
   id: 'popularMedia',
   kind: 'source',
   userComposable: false,
   gather: async (ctx, _params, cap) =>
     gatherPopularByQuery(
-      { ...FeedQueryBuilder.buildMediaFeedQuery([], ctx.cursor), ...DISCOVERY_SAFE_MATCH },
+      {
+        ...FeedQueryBuilder.buildMediaFeedQuery(ctx.seenPostIds ?? [], undefined),
+        ...DISCOVERY_SAFE_MATCH,
+      },
       cap,
+      ctx.cursor,
     ),
 };
 

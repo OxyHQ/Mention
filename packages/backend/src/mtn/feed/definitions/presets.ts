@@ -267,6 +267,12 @@ export const videosDefinition: FeedDefinition = {
   execution: {
     seenPosts: true,
     popularFallback: 'popularVideos',
+    // The reels screen auto-advances, so exhausting the unseen pool showed an EMPTY
+    // reel rather than a feed that ran out — For You already falls back this way.
+    // This is only safe now that the fallback paginates on its own sort axis and
+    // passes the seen set through: before that, falling back here would have
+    // replaced an empty feed with the same top-N videos on a loop, forever.
+    neverBlank: true,
     threadGrouping: true,
     replyContext: false,
     hydrateMaxDepth: 0,

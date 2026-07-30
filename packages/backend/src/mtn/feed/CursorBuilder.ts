@@ -21,11 +21,25 @@ export interface ScoreCursorData {
    * while keeping cursor size and server state bounded.
    */
   excludeIds?: string[];
+  /**
+   * `createdAt` of the cursor item, in milliseconds. Present only for sorts whose
+   * SECOND key is `createdAt` — the popular sources, whose score carries no
+   * recency component and therefore ties in bulk (every zero-engagement post
+   * scores the same), so `createdAt` is load-bearing in their ordering rather
+   * than decorative. A keyset needs a value for every key it orders on, so those
+   * sources cannot paginate without it.
+   *
+   * Absent on a score whose ties are effectively unique (`explore`'s
+   * recency-decayed `finalScore`), and absent on every legacy cursor.
+   */
+  tiebreakAt?: number;
 }
 
 export interface ScoreCursorBuildOptions {
   asOf?: Date | number;
   excludeIds?: Iterable<string>;
+  /** See {@link ScoreCursorData.tiebreakAt}. */
+  tiebreakAt?: Date | number;
 }
 
 const SCORE_CURSOR_V1_MARKER = '~v1~';
@@ -37,6 +51,18 @@ const MAX_SCORE_CURSOR_FUTURE_SKEW_MS = 5 * 60 * 1000;
 interface ScoreCursorCompatV1Payload {
   a: number;
   x?: string[];
+  /** See {@link ScoreCursorData.tiebreakAt}. Additive: an older parser ignores it. */
+  t?: number;
+}
+
+/** A millisecond timestamp we are willing to treat as a keyset boundary. */
+function isValidCursorTimestamp(value: unknown): value is number {
+  return (
+    typeof value === 'number'
+    && Number.isSafeInteger(value)
+    && value > 0
+    && value <= MAX_JAVASCRIPT_DATE_MS
+  );
 }
 
 function isValidScoreCursorAsOf(value: unknown): value is number {
@@ -75,9 +101,13 @@ export const ScoreCursor = {
       && mongoose.Types.ObjectId.isValid(id)
       && isValidScoreCursorAsOf(rawAsOf)
     ) {
+      const rawTiebreakAt = options?.tiebreakAt instanceof Date
+        ? options.tiebreakAt.getTime()
+        : options?.tiebreakAt;
       const metadata: ScoreCursorCompatV1Payload = {
         a: rawAsOf,
         x: normalizeExcludedIds(id, options?.excludeIds),
+        ...(isValidCursorTimestamp(rawTiebreakAt) ? { t: rawTiebreakAt } : {}),
       };
       const encoded = Buffer.from(JSON.stringify(metadata), 'utf8').toString('base64url');
       // Keep the ObjectId after the first colon and the full-precision score at
@@ -116,6 +146,7 @@ export const ScoreCursor = {
               score,
               id,
               asOf: metadata.a,
+              ...(isValidCursorTimestamp(metadata.t) ? { tiebreakAt: metadata.t } : {}),
               excludeIds: normalizeExcludedIds(
                 id,
                 Array.isArray(metadata.x)
