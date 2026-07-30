@@ -9,11 +9,14 @@ import org.junit.Test
 /**
  * The card's bitmap budget — the arithmetic that decides whether this widget renders at all.
  *
- * `SizeMode.Responsive` composes every declared size into the ONE `RemoteViews` the launcher
- * receives, and that parcel crosses a Binder transaction. A `RemoteViews` that overruns it
- * does not degrade gracefully: the widget is blank, with nothing in the log to say why. So
- * the total is bounded here, as a test rather than as a comment, and the bound is checked
- * against the same declared-size set the widget actually uses.
+ * The `RemoteViews` the launcher receives crosses a Binder transaction, and one that overruns
+ * it does not degrade gracefully: the widget is blank, with nothing in the log to say why. So
+ * the total is bounded here, as a test rather than as a comment.
+ *
+ * Under `SizeMode.Exact` there is no declared-size set to check the bound against — the
+ * launcher picks the size — so what is checked instead is that the PIXEL CEILINGS hold across
+ * the whole range of placements a launcher can produce, including sizes past the provider's
+ * own resize ceiling. That is the property the bound rests on.
  *
  * Nothing here decodes anything — `BitmapFactory` is a stub off-device. What is pinned is
  * every size decided before a decode.
@@ -27,8 +30,12 @@ class PostsBitmapTest {
          */
         const val PAYLOAD_BUDGET_BYTES = 512L * 1024
 
-        /** The per-thumbnail ceiling the sizing is built around: 30,000px, 120KB at ARGB. */
-        const val THUMBNAIL_CEILING_PIXELS = 30_000L
+        /** The per-thumbnail ceiling the sizing is built around: 46,000px, 184KB at ARGB. */
+        const val THUMBNAIL_CEILING_PIXELS = 46_000L
+
+        /** Placements to sweep: the provider's floor, its ceiling, and past both. */
+        val SWEPT_WIDTHS = listOf(110.dp, 250.dp, 320.dp, 387.dp, 500.dp)
+        val SWEPT_HEIGHTS = listOf(110.dp, 180.dp, 260.dp, 325.dp, 460.dp, 600.dp)
     }
 
     // ── The worst-case payload ──────────────────────────────────────────────────────
@@ -44,10 +51,10 @@ class PostsBitmapTest {
 
     @Test
     fun `the worst case actually counts the thumbnails, not just the avatars`() {
-        // A vacuity floor. The total is a sum over sizes with a nullable slot in the middle,
-        // so a bug that dropped every thumbnail would leave a comfortably small number that
+        // A vacuity floor. The total is a product of a composition count and two ceilings, so
+        // a bug that dropped the thumbnail term would leave a comfortably small number that
         // passes the budget assertion above while measuring nothing.
-        val avatarsOnly = (avatarBitmapSize()?.bytes ?: 0L) * POSTS_WIDGET_SIZES.size
+        val avatarsOnly = (avatarBitmapSize()?.bytes ?: 0L) * 2
 
         assertTrue("avatars alone should not be the whole payload", avatarsOnly > 0)
         assertTrue(
@@ -57,29 +64,75 @@ class PostsBitmapTest {
     }
 
     @Test
-    fun `no single thumbnail exceeds the per-bitmap ceiling`() {
-        POSTS_WIDGET_SIZES.forEach { declared ->
-            val design = postsCardSize(declared.width, declared.height)
-            val slotHeight = imageSlotHeight(design) ?: return@forEach
-            val size = requireNotNull(
-                thumbnailBitmapSize(imageSlotWidth(design, declared.width), slotHeight),
-            )
+    fun `the worst case counts more than one composition`() {
+        // The other half of the same floor: `Exact` composes the portrait size AND the
+        // landscape one into the same parcel, so a bound written for a single layout would be
+        // half the real payload.
+        val oneComposition = (avatarBitmapSize()?.bytes ?: 0L) +
+            THUMBNAIL_CEILING_PIXELS * BYTES_PER_PIXEL
 
-            assertTrue(
-                "$design decodes ${size.widthPx}×${size.heightPx} = ${size.pixels}px",
-                size.pixels <= THUMBNAIL_CEILING_PIXELS,
-            )
-        }
+        assertTrue(
+            "worst case $POSTS_WORST_CASE_BITMAP_BYTES does not cover two compositions",
+            POSTS_WORST_CASE_BITMAP_BYTES >= oneComposition * 2,
+        )
     }
 
     @Test
-    fun `each design's thumbnail is sized for its own slot`() {
-        val medium = requireNotNull(thumbnailBitmapSize(218.dp, 72.dp))
-        val large = requireNotNull(thumbnailBitmapSize(288.dp, 120.dp))
+    fun `no thumbnail at any placement exceeds the per-bitmap ceiling`() {
+        // The bound has no declared-size set to rest on any more, so it rests on this: every
+        // slot the derivation can produce, at every placement a launcher can hand over,
+        // decodes inside the ceiling.
+        var checked = 0
+        SWEPT_WIDTHS.forEach { width ->
+            SWEPT_HEIGHTS.forEach { height ->
+                val design = postsCardSize(width, height)
+                (0..textMaxLines(design)).forEach { lines ->
+                    val slotHeight = imageSlotHeight(
+                        size = design,
+                        widgetHeight = height,
+                        textLines = lines,
+                        showsRotationControls = showsRotationControls(design, rotationLength = 5),
+                        fontScale = 1f,
+                    ) ?: return@forEach
+                    val size = thumbnailBitmapSize(imageSlotWidth(design, width), slotHeight)
+                        ?: return@forEach
+                    checked++
 
-        // Sized per design, not one bitmap reused across sizes: a card that put the largest
-        // slot's bitmap into every declared size would multiply the payload by three.
-        assertTrue("the large slot is taller than the medium one", large.heightPx > medium.heightPx)
+                    assertTrue(
+                        "$width × $height at $lines lines decodes " +
+                            "${size.widthPx}×${size.heightPx} = ${size.pixels}px",
+                        size.pixels <= THUMBNAIL_CEILING_PIXELS,
+                    )
+                }
+            }
+        }
+
+        // A vacuity floor on the sweep itself: a derivation that returned null everywhere
+        // would satisfy every assertion above without measuring one bitmap.
+        assertTrue("the sweep checked only $checked thumbnails", checked >= 20)
+    }
+
+    @Test
+    fun `a thumbnail is sized for the slot it fills, not for the biggest one`() {
+        val shortBand = requireNotNull(thumbnailBitmapSize(355.dp, 72.dp))
+        val tallBand = requireNotNull(thumbnailBitmapSize(355.dp, 256.dp))
+
+        // A card that decoded every picture at the largest slot's size would carry the tall
+        // band's pixels on a placement showing the short one.
+        assertTrue("the tall slot decodes taller", tallBand.heightPx > shortBand.heightPx)
+        assertTrue("the short slot stays under the ceiling by a margin", shortBand.pixels < THUMBNAIL_CEILING_PIXELS)
+    }
+
+    @Test
+    fun `the ceiling keeps a big slot close to one pixel per dp`() {
+        // Why the ceiling moved with the slot: the picture is the card's one photograph, and a
+        // 16:9 band at the content width of the widest placement the provider asks for is the
+        // shape it usually arrives in. That shape has to land at about one pixel per dp, or
+        // the card's only image is visibly soft.
+        val band = requireNotNull(thumbnailBitmapSize(288.dp, 162.dp))
+        val pixelsPerDp = band.widthPx / 288f
+
+        assertTrue("a 288 × 162dp band decodes at $pixelsPerDp px/dp", pixelsPerDp >= 0.95f)
     }
 
     @Test

@@ -5,10 +5,12 @@
   `initialLayout` is Glance's own loading layout, which is what the launcher shows for the
   moment between the widget being placed and the first composition arriving.
 
-  `resizeMode` is `horizontal|vertical` because the card is designed at three sizes rather
-  than one (see `POSTS_WIDGET_SIZES`), and the resize range in dimens_posts.xml is what keeps
-  a resize inside them — notably a horizontal floor of 4 cells, since a paragraph of post text
-  has nothing to say at 2.
+  `resizeMode` is `horizontal|vertical` because the card is designed per size rather than
+  stretched (see `postsCardSize`) and its picture grows with the room the card is given
+  (`imageSlotHeight`), so resizing changes what the widget shows rather than only its scale.
+  The range in dimens_posts.xml is what keeps a resize somewhere the card still works —
+  notably a horizontal floor of 4 cells, since a paragraph of post text has nothing to say
+  at 2.
 
   See `mention_trends_list_widget_info.xml` for the attributes every provider in this module
   shares and why each is set the way it is.

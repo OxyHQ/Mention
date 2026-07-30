@@ -8,16 +8,19 @@ import kotlin.math.sqrt
  * How big the card's bitmaps are allowed to be — the one piece of arithmetic on this
  * widget that decides whether it renders at all.
  *
- * The constraint is `SizeMode.Responsive`: it composes EVERY declared size into the
- * single `RemoteViews` handed to the launcher, so the payload is not the picture on
- * screen but the sum of the pictures for all three designs at once. A `RemoteViews`
- * crosses a Binder transaction to another process, and one that overruns it does not
- * degrade — the widget is blank.
+ * A `RemoteViews` crosses a Binder transaction to another process, and one that overruns
+ * it does not degrade: the widget is blank, with nothing in the log to say why. This
+ * widget's `RemoteViews` carries decoded bitmaps, so the bound has to be real.
  *
- * So every bitmap is sized for THE DESIGN IT BELONGS TO and then capped by a hard pixel
- * ceiling, and the resulting total is derived in [POSTS_WORST_CASE_BITMAP_BYTES] rather
- * than estimated by hand. This file is pure so all of it is unit tested; the decoding
- * itself is in `PostsImageRenderer.kt`.
+ * Under `SizeMode.Exact` (see `PostsWidget`) the parcel carries the sizes the LAUNCHER
+ * offers rather than a declared set, so there is no table of sizes to add up and the
+ * bound cannot come from one. It comes instead from the HARD PIXEL CEILINGS below: each
+ * bitmap is sized for the slot it fills and then capped, so the payload is bounded at any
+ * size a launcher can invent — including one no breakpoint declared and one past the
+ * provider's own resize ceiling. [POSTS_WORST_CASE_BITMAP_BYTES] is that bound.
+ *
+ * This file is pure so all of it is unit tested; the decoding itself is in
+ * `PostsImageRenderer.kt`.
  */
 
 /** ARGB_8888 — the only config worth using here, and four bytes a pixel. */
@@ -35,16 +38,25 @@ internal const val BYTES_PER_PIXEL = 4
 private const val THUMBNAIL_PIXELS_PER_DP = 1.5f
 
 /**
- * Hard ceiling on one thumbnail, in pixels — 30,000, which is 120KB at
+ * Hard ceiling on one thumbnail, in pixels — 46,000, which is 184KB at
  * [BYTES_PER_PIXEL].
  *
- * This, not [THUMBNAIL_PIXELS_PER_DP], is what actually sizes the two image-bearing
- * designs: it puts the large slot at roughly one pixel per dp and the medium slot a
- * little above it. It is expressed as a pixel count rather than a scale factor because
- * the thing being bounded is memory, and a scale factor bounds nothing when a launcher
- * hands over a size no breakpoint declared.
+ * This, not [THUMBNAIL_PIXELS_PER_DP], is what actually sizes every slot the card draws:
+ * at 46,000 pixels a 288 × 162dp band — a 16:9 landscape at the content width of the
+ * widest placement the provider asks for, which is the shape most feed photographs and
+ * video posters arrive in — comes out at one pixel per dp, and the taller slots a large
+ * placement now produces come out a little under it. It is expressed as a pixel count
+ * rather than a scale factor because the thing being bounded is memory, and a scale factor
+ * bounds nothing when a launcher hands over a size no breakpoint declared.
+ *
+ * It was 30,000 while `SizeMode.Responsive` put a thumbnail for every image-bearing design
+ * in the same parcel. `Exact` carries at most two, and the slot they fill is no longer a
+ * 120dp band, so the freed payload goes into keeping the bigger picture as sharp as the
+ * small one was rather than into a smaller number. [POSTS_WORST_CASE_BITMAP_BYTES] is what
+ * holds that trade honest, and `PostsBitmapTest` is what holds the total inside the
+ * transaction.
  */
-private const val THUMBNAIL_MAX_PIXELS = 30_000L
+private const val THUMBNAIL_MAX_PIXELS = 46_000L
 
 /**
  * Pixels per dp the AVATAR aims for, and its ceiling.
@@ -114,24 +126,35 @@ internal fun avatarBitmapSize(): PostsBitmapSize? = bitmapSizeFor(
  * The slot spans the content width — the image is the card's picture, not a thumbnail
  * beside a column of text.
  */
-internal fun imageSlotWidth(size: PostsCardSize, cardWidth: Dp): Dp {
-    val padding = if (size == PostsCardSize.SMALL) {
-        PostsCardDimensions.PADDING_SMALL
-    } else {
-        PostsCardDimensions.PADDING
-    }
-    return cardWidth - padding * 2
-}
+internal fun imageSlotWidth(size: PostsCardSize, cardWidth: Dp): Dp =
+    cardWidth - cardPadding(size) * 2
 
 /**
- * THE NUMBER TO REPORT: bytes of bitmap in the worst-case `RemoteViews` — every
- * declared size, each with its avatar, and a thumbnail wherever the design has a slot.
+ * How many layouts one `RemoteViews` carries — TWO.
  *
- * It is derived from [POSTS_WIDGET_SIZES] and the slot table, so it cannot fall out of
- * step with the layout, and it assumes NO deduplication between sizes. `RemoteViews`
- * does share one bitmap cache across its sized variants and would collapse the three
- * identical avatars if they were the same instance — they are not, since each size is
- * composed separately — so the real payload is at or below this figure, never above.
+ * `SizeMode.Exact` composes once per size the launcher offers in
+ * `AppWidgetManager.OPTION_APPWIDGET_SIZES`, and on API 31+ a launcher offers the portrait
+ * size and the landscape one. They are different sizes, so they can land on different
+ * designs with differently-shaped slots, and neither bitmap can be assumed to be the other.
+ */
+private const val COMPOSITIONS_PER_PARCEL = 2
+
+/**
+ * THE NUMBER TO REPORT: bytes of bitmap in the worst-case `RemoteViews` — an avatar and a
+ * thumbnail per composition, each at its hard pixel ceiling.
+ *
+ * The CEILINGS rather than any particular size, because under `SizeMode.Exact` there is no
+ * declared set to sum over and the launcher decides the size — so a figure computed from
+ * one placement would not bound the next one. Every decode goes through [bitmapSizeFor],
+ * which caps at these ceilings, so this figure bounds the payload at ANY size, including a
+ * placement past the provider's resize ceiling (which launchers do hand out: a four-cell
+ * width is 387dp against a 320dp declaration).
+ *
+ * It assumes NO deduplication between compositions. `RemoteViews` does share one bitmap
+ * cache across its sized variants and would collapse two identical avatars if they were the
+ * same instance — they are not, since each size is composed separately — so the real
+ * payload is at or below this figure, never above. Measured on a real placement before this
+ * arithmetic changed, the launcher's own `views_bitmap_memory` agreed with it to the byte.
  *
  * A worst case is only meaningful against a limit, and the limit here is not a public
  * constant: the ceiling that matters is the Binder transaction the `RemoteViews`
@@ -139,14 +162,5 @@ internal fun imageSlotWidth(size: PostsCardSize, cardWidth: Dp): Dp {
  * holds this to half of that, leaving the other half for the view tree, the strings and
  * everything else in the same parcel.
  */
-internal val POSTS_WORST_CASE_BITMAP_BYTES: Long = POSTS_WIDGET_SIZES.sumOf { declared ->
-    val design = postsCardSize(declared.width, declared.height)
-    val avatarBytes = avatarBitmapSize()?.bytes ?: 0L
-    val slotHeight = imageSlotHeight(design)
-    val thumbnailBytes = if (slotHeight == null) {
-        0L
-    } else {
-        thumbnailBitmapSize(imageSlotWidth(design, declared.width), slotHeight)?.bytes ?: 0L
-    }
-    avatarBytes + thumbnailBytes
-}
+internal val POSTS_WORST_CASE_BITMAP_BYTES: Long =
+    COMPOSITIONS_PER_PARCEL * (AVATAR_MAX_PIXELS + THUMBNAIL_MAX_PIXELS) * BYTES_PER_PIXEL

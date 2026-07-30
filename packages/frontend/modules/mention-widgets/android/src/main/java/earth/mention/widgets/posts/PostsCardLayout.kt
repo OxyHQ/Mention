@@ -3,6 +3,7 @@ package earth.mention.widgets.posts
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.glance.ColorFilter
 import androidx.glance.GlanceModifier
@@ -64,11 +65,7 @@ import earth.mention.widgets.trends.openInAppIntent
 internal fun PostsWidgetContent(rotation: PostsRotation) {
     val widgetSize = LocalSize.current
     val design = postsCardSize(widgetSize.width, widgetSize.height)
-    val padding = if (design == PostsCardSize.SMALL) {
-        PostsCardDimensions.PADDING_SMALL
-    } else {
-        PostsCardDimensions.PADDING
-    }
+    val padding = cardPadding(design)
     val contentColor = GlanceTheme.colors.onPrimaryContainer
 
     Scaffold(
@@ -88,7 +85,7 @@ internal fun PostsWidgetContent(rotation: PostsRotation) {
                     post = post,
                     rotation = rotation,
                     design = design,
-                    cardWidth = widgetSize.width,
+                    cardSize = widgetSize,
                     padding = padding,
                     contentColor = contentColor,
                 )
@@ -102,21 +99,24 @@ private fun PostCard(
     post: WidgetPost,
     rotation: PostsRotation,
     design: PostsCardSize,
-    cardWidth: Dp,
+    cardSize: DpSize,
     padding: Dp,
     contentColor: ColorProvider,
 ) {
     val context = LocalContext.current
+    val contentWidthDp = cardSize.width.value - padding.value * 2
+    // The user's font-size setting. Left out, a card at a 1.3 scale would hand its TextView
+    // a third more text than fits, and would reserve a third too little height for it.
+    val fontScale = context.resources.configuration.fontScale
     val text = truncateToBudget(
         text = post.text,
-        budget = textBudgetChars(
-            size = design,
-            availableWidthDp = cardWidth.value - padding.value * 2,
-            // The user's font-size setting. Left out, a card at a 1.3 scale would hand its
-            // TextView a third more text than fits and let it clip mid-word.
-            fontScale = context.resources.configuration.fontScale,
-        ),
+        budget = textBudgetChars(design, contentWidthDp, fontScale),
     )
+    // ONE line count, used twice: as the `Text`'s own `maxLines` and as what the picture's
+    // height is measured against. Two separate figures here is how a card comes to reserve
+    // room for lines it never draws, or to draw lines it never reserved.
+    val textLines = textLinesFor(design, text.length, contentWidthDp, fontScale)
+    val showsControls = showsRotationControls(design, rotation.posts.size)
 
     Column(
         modifier = GlanceModifier
@@ -132,25 +132,39 @@ private fun PostCard(
     ) {
         BrandRow(contentColor)
 
-        if (text.isNotEmpty()) {
+        if (textLines > 0) {
             Spacer(GlanceModifier.height(PostsCardDimensions.BLOCK_SPACING))
             Text(
                 text = text,
                 style = PostsCardTextStyles.body(contentColor, design),
-                // The second guard on truncation: `truncateToBudget` cut the string against
-                // an estimate, and this bounds what happens if that estimate ran low.
-                maxLines = textMaxLines(design),
+                // The lines the card RESERVED, so the text can never take height the picture
+                // was measured against. `truncateToBudget` has already cut the string to an
+                // estimate of the same width; this is what bounds the estimate running low.
+                maxLines = textLines,
                 modifier = GlanceModifier.semantics { contentDescription = "" },
             )
         }
 
-        // Absorbs whatever height the placement actually has, so the brand row stays at the
-        // top and the image and byline hug the bottom.
+        // Takes up the difference between the lines reserved and the lines the launcher
+        // actually drew — the estimate errs towards reserving one line too many, and this is
+        // where that dp goes rather than into a gap under the byline.
         Spacer(GlanceModifier.defaultWeight())
 
-        MediaSlot(post = post, design = design, cardWidth = cardWidth)
+        MediaSlot(
+            post = post,
+            slotWidth = imageSlotWidth(design, cardSize.width),
+            slotHeight = imageSlotHeight(
+                size = design,
+                widgetHeight = cardSize.height,
+                textLines = textLines,
+                showsRotationControls = showsControls,
+                fontScale = fontScale,
+            ),
+        )
         Byline(post = post, rotation = rotation, design = design, contentColor = contentColor)
-        RotationControlRow(rotation = rotation, design = design, contentColor = contentColor)
+        if (showsControls) {
+            RotationControlRow(rotation = rotation, contentColor = contentColor)
+        }
     }
 }
 
@@ -189,20 +203,19 @@ private fun BrandRow(contentColor: ColorProvider) {
  * The card's picture, or NOTHING AT ALL.
  *
  * Emits no view and no gap in three cases, all of them ordinary rather than exceptional:
- * the small design has no slot, the post has no image (a third of the feed), or the image
+ * [slotHeight] is null because the card has no room to spare (the small design always, a
+ * taller one whose text ran long), the post has no image (a third of the feed), or the image
  * failed to cache. A placeholder frame in any of them would make a perfectly good text post
  * look like a failed load.
  *
- * The bitmap is decoded HERE, in the composition, because `SizeMode.Responsive` composes
- * each declared size separately and each one wants a bitmap scaled for its own slot — the
+ * The bitmap is decoded HERE, in the composition, because the slot's height depends on the
+ * placement and on the post's own text, so the picture cannot be scaled ahead of time — the
  * same reason the sparkline rasterises inside its composable. It is a read from the app's
  * cache directory, never a fetch: `PostsRefreshWorker` has already put the file there.
  */
 @Composable
-private fun MediaSlot(post: WidgetPost, design: PostsCardSize, cardWidth: Dp) {
+private fun MediaSlot(post: WidgetPost, slotWidth: Dp, slotHeight: Dp?) {
     val context = LocalContext.current
-    val slotHeight = imageSlotHeight(design)
-    val slotWidth = imageSlotWidth(design, cardWidth)
 
     // ONE `remember`, called unconditionally and holding everything that depends on the
     // size — the same discipline as the sparkline's rasterisation. Decoding on every
@@ -378,15 +391,13 @@ private fun RotationPips(
  * of it. Dropping the least-essential control as the surface narrows is this module's existing
  * rule, and that size keeps its pips in the byline and its automatic turn
  * (`PostsAutoAdvanceWorker`), so it is a glance surface that still moves.
+ *
+ * Whether this row is drawn at all is [showsRotationControls], asked by the caller — the same
+ * predicate the picture's height is reserved against, so the 48dp is charged exactly when it
+ * is spent.
  */
 @Composable
-private fun RotationControlRow(
-    rotation: PostsRotation,
-    design: PostsCardSize,
-    contentColor: ColorProvider,
-) {
-    if (rotation.posts.size <= 1 || design == PostsCardSize.SMALL) return
-
+private fun RotationControlRow(rotation: PostsRotation, contentColor: ColorProvider) {
     val context = LocalContext.current
     Row(
         modifier = GlanceModifier.fillMaxWidth(),

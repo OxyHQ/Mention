@@ -7,9 +7,12 @@
   (developer.android.com/develop/ui/views/appwidgets § "Determine widget sizing"):
 
       2 cells → 110dp    3 cells → 180dp    4 cells → 250dp    5 cells → 320dp
+      7 cells → 460dp
 
-  The same numbers are the axes of `POSTS_WIDGET_SIZES` in `PostsWidgetStyle.kt`, so a
-  placement the launcher allows always lands on a design the card was drawn for.
+  The card composes at its REAL size rather than at a declared bucket (`SizeMode.Exact`,
+  see `PostsWidget.kt`), so these are the range the user may drag inside, not a set of
+  sizes the layout is drawn for. The thresholds the layout does still switch designs at
+  live in `postsCardSize`, and the ceiling below is mirrored by `POSTS_MAX_PLACEMENT`.
 -->
 <resources>
   <!--
@@ -30,9 +33,16 @@
   <dimen name="mention_posts_widget_min_resize_height">110dp</dimen>
 
   <!--
-    The ceiling is where the card runs out of content to reveal — five lines of text, a
-    120dp image and a byline — so a larger placement would only stretch what is there.
+    The WIDTH ceiling is where the card runs out of content to reveal sideways: the text
+    reflows and the picture widens, but nothing new appears.
+
+    The HEIGHT ceiling is 7 cells rather than 5 because height is no longer only stretch —
+    the picture takes whatever the rest of the card does not need (`imageSlotHeight`), so a
+    taller placement is a bigger photograph. 7 is where that stops being true: the parts
+    whose heights are fixed come to about 204dp on a two-line card, and at 460dp that
+    leaves the slot 256dp, which is already as tall as the 288dp of content width it spans.
+    Past square, a landscape photograph is being cropped more than it is shown.
   -->
   <dimen name="mention_posts_widget_max_resize_width">320dp</dimen>
-  <dimen name="mention_posts_widget_max_resize_height">320dp</dimen>
+  <dimen name="mention_posts_widget_max_resize_height">460dp</dimen>
 </resources>
