@@ -216,6 +216,27 @@ internal val OVER_IMAGE_CONTENT_COLOR: ColorProvider = ColorProvider(Color.White
 private const val LINE_HEIGHT_RATIO = 1.2f
 
 /**
+ * Height the HOST keeps for itself, which `LocalSize` does not tell us about.
+ *
+ * MEASURED, because there is no API that reports it: on a real launcher the byline's 28dp
+ * avatar came out 83 x 73 device pixels at density 3 — 27.7 x 24.3dp. Square bitmap, square
+ * `size()` modifier, and still 4dp shorter than it asked for, which means the column had
+ * less room than `LocalSize.height` and clipped its last child. The avatar sliced flat along
+ * the bottom is exactly that clip, and the card's own background shows below the cut, which
+ * is how it is distinguishable from a bitmap that was decoded wrong.
+ *
+ * 8dp rather than the 4 observed: the measurement is one launcher at one density, the
+ * `TextView`'s `includeFontPadding` adds a little more on top of its line boxes, and the cost
+ * of over-reserving is a few pixels of slack while the cost of under-reserving is a clipped
+ * avatar. It is subtracted once, in [usableCardHeightDp], so every derivation in this file
+ * shares one answer rather than each guessing.
+ */
+private const val HOST_CONTENT_INSET_DP = 8f
+
+/** The height the card can actually lay out in, as opposed to the one it was told. */
+private fun usableCardHeightDp(cardHeight: Dp): Float = cardHeight.value - HOST_CONTENT_INSET_DP
+
+/**
  * Average glyph advance for the card's BODY text, as a fraction of the font size.
  *
  * The module's shared [AVERAGE_GLYPH_WIDTH_RATIO] is 0.6, and it is right where it is used —
@@ -266,7 +287,7 @@ private const val BODY_GLYPH_WIDTH_RATIO = 0.41f
 internal fun textMaxLines(size: FeedCardSize, cardHeight: Dp, fontScale: Float): Int {
     val lineHeightDp = bodyLineHeightDp(size, fontScale)
     if (lineHeightDp <= 0f) return 0
-    val available = cardHeight.value - chromeHeightDp(size, showsBrandRow(size, cardHeight, fontScale))
+    val available = usableCardHeightDp(cardHeight) - chromeHeightDp(size, showsBrandRow(size, cardHeight, fontScale))
     if (available < lineHeightDp) return 0
     return (available / lineHeightDp).toInt()
 }
@@ -328,7 +349,7 @@ private fun chromeHeightDp(size: FeedCardSize, withBrandRow: Boolean): Float {
 internal fun showsBrandRow(size: FeedCardSize, cardHeight: Dp, fontScale: Float): Boolean {
     val lineHeightDp = bodyLineHeightDp(size, fontScale)
     if (lineHeightDp <= 0f) return true
-    return cardHeight.value - chromeHeightDp(size, withBrandRow = true) >= lineHeightDp
+    return usableCardHeightDp(cardHeight) - chromeHeightDp(size, withBrandRow = true) >= lineHeightDp
 }
 
 /** Font size the post's text draws at, in sp. M3 Title Medium, up to Title Large. */

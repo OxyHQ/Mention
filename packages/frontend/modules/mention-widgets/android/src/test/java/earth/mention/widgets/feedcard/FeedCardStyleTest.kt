@@ -314,9 +314,13 @@ class FeedCardStyleTest {
                     val used = cardPadding(design).value * 2 + brand +
                         (if (lines > 0) 8f else 0f) +
                         textBlockHeightDp(design, scale, lines) + 28f
+                    // Against the height the card can actually lay out in, not the one it was
+                    // told: the host keeps 8dp for itself and `LocalSize` does not say so.
+                    // Asserting against the full height is what let a clipped avatar pass.
+                    val usable = height.value - 8f
                     assertTrue(
-                        "$design at $height scale $scale asks for ${used}dp of a ${height.value}dp card",
-                        used <= height.value,
+                        "$design at $height scale $scale asks for ${used}dp of a usable ${usable}dp",
+                        used <= usable,
                     )
                 }
             }
