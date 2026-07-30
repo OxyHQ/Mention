@@ -11,6 +11,7 @@ import {
 import { PostVisibility, type MediaItem } from '@mention/shared-types';
 import { extractApMediaFromNote, type ApMediaType } from './apMedia';
 import { normalizeHashtag } from '../../utils/textProcessing';
+import { clampFutureDate } from '../../utils/ingestTimestamp';
 import { assertSafePublicUrl } from '@oxyhq/core/server';
 import { fetchUpstreamSingleHop, type SingleHopResult } from '../../utils/safeUpstreamFetch';
 import { isAbsoluteHttpUrl } from '../shared/url';
@@ -95,24 +96,16 @@ const AP_PUBLISHED_MAX_FUTURE_SKEW_MS = 24 * 60 * 60 * 1000; // 24 hours
  *
  * Returns `undefined` — so callers fall back to the schema's default timestamp
  * (now) — when the value is missing, not a string, unparseable, or implausibly
- * far in the future. Used by BOTH federation ingest paths (inbox `handleCreate`
- * and outbox backfill / boost import) so a federated post always reflects its
- * ORIGINAL remote publish date rather than our sync time.
+ * far in the future (which would otherwise let a misconfigured remote pin a post
+ * to the top of time-ordered feeds). Used by BOTH federation ingest paths (inbox
+ * `handleCreate` and outbox backfill / boost import) so a federated post always
+ * reflects its ORIGINAL remote publish date rather than our sync time.
+ *
+ * The guard itself is {@link clampFutureDate}, shared with every other ingest
+ * path; only the tolerance window is an ActivityPub policy decision.
  */
 export function parseApPublished(published: unknown): Date | undefined {
-  if (typeof published !== 'string') return undefined;
-  const trimmed = published.trim();
-  if (!trimmed) return undefined;
-
-  const parsed = new Date(trimmed);
-  const ms = parsed.getTime();
-  if (Number.isNaN(ms)) return undefined;
-
-  // Reject clearly-bogus future timestamps so a misconfigured remote can't
-  // push a post permanently to the top of time-ordered feeds.
-  if (ms > Date.now() + AP_PUBLISHED_MAX_FUTURE_SKEW_MS) return undefined;
-
-  return parsed;
+  return clampFutureDate(published, AP_PUBLISHED_MAX_FUTURE_SKEW_MS);
 }
 
 export function normalizeFederatedAcct(acct: string | undefined): string | undefined {

@@ -83,6 +83,7 @@ import { getServiceOxyClient } from '../../utils/oxyHelpers';
 import { parseUserDid } from './mentionDid';
 import { baselineContentClassifier } from '../BaselineContentClassifier';
 import { buildAuthorship } from '../../utils/postAuthorship';
+import { clampFutureDate } from '../../utils/ingestTimestamp';
 import {
   recordRecentReplierForPost,
   repairRecentRepliersAfterPostDelete,
@@ -103,6 +104,45 @@ export type ProjectedKind = 'post' | 'like' | 'repost' | 'tombstone' | 'bookmark
 export type ProjectResult =
   | { ok: true; kind: ProjectedKind; id: string }
   | { ok: false; reason: string };
+
+/**
+ * How far ahead of our clock a record's self-asserted `createdAt` may be.
+ *
+ * TIGHTER than the 24h ActivityPub window and matching the atproto one, because the
+ * two are answering different questions. AP's tolerance exists to accommodate a
+ * THIRD-PARTY instance whose clock we cannot audit and whose real posts we must not
+ * misdate — wide tolerance is the price of interop. An MTN record arrives from a node
+ * the AUTHOR runs, carrying a timestamp the author's own software asserts: the
+ * signature proves who wrote the record, not that its clock is honest, so the value is
+ * entirely author-chosen at no cost. The only legitimate skew is that one machine
+ * being off (a home server with no NTP, a VM resumed from suspend), which an hour
+ * covers generously. Rejecting also costs little here — we fall back to now, and a
+ * record we just synced was almost certainly authored moments ago.
+ *
+ * A third distinct number would be a coin flip, so this reuses the existing precedent
+ * for a directly author-asserted record rather than inventing one.
+ */
+const MTN_RECORD_MAX_FUTURE_SKEW_MS = 60 * 60 * 1000; // 1 hour
+
+/**
+ * The creation date to materialize a record under: its own `createdAt` when that is a
+ * usable timestamp, else NOW.
+ *
+ * Two things make the guard necessary, and the lexicon is why. `createdAt` is typed
+ * `z.string().min(1)` — ANY non-empty string validates — so the raw value reaches us
+ * both (a) arbitrarily far in the future, which pins the post atop the profile feed
+ * and post search (both sort `{createdAt: -1, _id: -1}`) until the clock catches up,
+ * and (b) entirely unparseable, where `new Date('banana').toISOString()` throws a
+ * `RangeError` deep inside variant building and fails the whole projection for that
+ * author.
+ *
+ * Falling back to `now` mirrors what the ActivityPub path gets from the schema
+ * default: REJECT the value rather than re-date it to the clamp edge, since a post
+ * pinned at exactly `now + window` is the same bug with a smaller number.
+ */
+function recordCreatedAt(rawCreatedAt: unknown): Date {
+  return clampFutureDate(rawCreatedAt, MTN_RECORD_MAX_FUTURE_SKEW_MS) ?? new Date();
+}
 
 /**
  * Reverse-resolve EVERY content address a post record references — the shared
@@ -658,7 +698,7 @@ export async function projectRecord(envelope: SignedRecordEnvelope): Promise<Pro
       case MENTION_POST_COLLECTION: {
         const parsed = mentionPostRecordSchema.safeParse(record);
         if (!parsed.success) return { ok: false, reason: 'invalid_record' };
-        return await projectPost(rkey, oxyUserId, parsed.data, new Date(parsed.data.createdAt));
+        return await projectPost(rkey, oxyUserId, parsed.data, recordCreatedAt(parsed.data.createdAt));
       }
       case MENTION_LIKE_COLLECTION: {
         const parsed = mentionLikeRecordSchema.safeParse(record);
@@ -668,7 +708,7 @@ export async function projectRecord(envelope: SignedRecordEnvelope): Promise<Pro
       case MENTION_REPOST_COLLECTION: {
         const parsed = mentionRepostRecordSchema.safeParse(record);
         if (!parsed.success) return { ok: false, reason: 'invalid_record' };
-        return await projectRepost(rkey, oxyUserId, parsed.data, new Date(parsed.data.createdAt));
+        return await projectRepost(rkey, oxyUserId, parsed.data, recordCreatedAt(parsed.data.createdAt));
       }
       case MENTION_TOMBSTONE_COLLECTION: {
         const parsed = mentionTombstoneRecordSchema.safeParse(record);

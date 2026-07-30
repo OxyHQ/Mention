@@ -564,6 +564,89 @@ describe('projectRecord — post', () => {
   });
 });
 
+/**
+ * A record's `createdAt` is self-asserted by whoever runs the node the record was
+ * synced from, and the lexicon types it `z.string().min(1)` — any non-empty string
+ * validates. The profile feed and post search both sort `{createdAt: -1, _id: -1}`,
+ * so an unbounded value pins the post above everything else until the clock catches
+ * up. Signature verification proves authorship, not that the clock is honest.
+ */
+describe('projectRecord — self-asserted createdAt is bounded', () => {
+  const HOUR_MS = 60 * 60 * 1000;
+
+  /** The date the projection actually stored for `rkey`. */
+  function storedCreatedAt(rkey: string): Date {
+    return h.posts.get(rkey)?.createdAt as Date;
+  }
+
+  it('keeps a plausible past createdAt exactly as the record asserts it', async () => {
+    const iso = '2024-01-02T03:04:05.000Z';
+    await projectRecord(envelope(MENTION_POST_COLLECTION, POST_RKEY, {
+      text: 'authored a while ago, synced today',
+      createdAt: iso,
+    }));
+
+    expect(storedCreatedAt(POST_RKEY).toISOString()).toBe(iso);
+  });
+
+  it('does not let a far-future post record pin itself atop the profile feed', async () => {
+    const before = Date.now();
+    await projectRecord(envelope(MENTION_POST_COLLECTION, POST_RKEY, {
+      text: 'from the year 2999',
+      createdAt: '2999-01-01T00:00:00.000Z',
+    }));
+
+    const stored = storedCreatedAt(POST_RKEY).getTime();
+    expect(stored).toBeGreaterThanOrEqual(before);
+    expect(stored).toBeLessThanOrEqual(Date.now());
+  });
+
+  it('does not let a far-future BOOST record pin itself either', async () => {
+    const before = Date.now();
+    await projectRecord(envelope(MENTION_REPOST_COLLECTION, REPOST_RKEY, {
+      subject: createPostUri(OWNER_OXY_ID, LIKED_POST_ID),
+      createdAt: '2999-01-01T00:00:00.000Z',
+    }));
+
+    const stored = storedCreatedAt(REPOST_RKEY).getTime();
+    expect(stored).toBeGreaterThanOrEqual(before);
+    expect(stored).toBeLessThanOrEqual(Date.now());
+  });
+
+  it('falls back to NOW rather than re-dating the post to the clamp edge', async () => {
+    await projectRecord(envelope(MENTION_POST_COLLECTION, POST_RKEY, {
+      text: 'a post that wants to be first forever',
+      createdAt: '2999-01-01T00:00:00.000Z',
+    }));
+
+    // A post silently re-dated to `now + window` is the same pin, one window long.
+    expect(storedCreatedAt(POST_RKEY).getTime()).toBeLessThanOrEqual(Date.now());
+  });
+
+  it('tolerates a small clock skew on the node that produced the record', async () => {
+    const slightlyAhead = new Date(Date.now() + HOUR_MS / 2).toISOString();
+    await projectRecord(envelope(MENTION_POST_COLLECTION, POST_RKEY, {
+      text: 'a node whose clock runs a little fast',
+      createdAt: slightlyAhead,
+    }));
+
+    expect(storedCreatedAt(POST_RKEY).toISOString()).toBe(slightlyAhead);
+  });
+
+  it('projects a record whose createdAt is unparseable instead of failing it', async () => {
+    // `z.string().min(1)` accepts this, and `new Date('banana').toISOString()` throws
+    // a RangeError inside variant building — which used to fail the whole projection.
+    const result = await projectRecord(envelope(MENTION_POST_COLLECTION, POST_RKEY, {
+      text: 'a record with a garbage timestamp',
+      createdAt: 'banana',
+    }));
+
+    expect(result).toEqual({ ok: true, kind: 'post', id: POST_RKEY });
+    expect(storedCreatedAt(POST_RKEY).getTime()).toBeLessThanOrEqual(Date.now());
+    expect(Number.isNaN(storedCreatedAt(POST_RKEY).getTime())).toBe(false);
+  });
+});
+
 describe('projectRecord — like', () => {
   it('projects a like record into a Like row', async () => {
     const likeRecord = {
