@@ -74,7 +74,7 @@ export function subjectProviderFor(
 /**
  * The reported types wired to CrowdSource, as the registry itself sees them.
  *
- * Exists so a test can pin the set (`reportsOwnership.test.ts`). That is not
+ * Exists so a test can pin the set (`reportsAcceptedTypes.test.ts`). That is not
  * ceremony: the difference between a delivered type and a local-only one is invisible
  * in a 201, so registering a provider — or forgetting to — is a change no response
  * body would reveal. The assertion makes widening the delivered surface a deliberate
