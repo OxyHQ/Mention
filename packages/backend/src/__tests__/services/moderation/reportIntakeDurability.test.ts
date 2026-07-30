@@ -356,3 +356,54 @@ describe('report intake — durable reception (§7.1)', () => {
     expect(transaction.ended).toBe(true);
   });
 });
+
+describe('report intake — an operator is not an identifier', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    withSubjectProvider();
+    /**
+     * Inert while the guard holds — intake throws before it ever opens a session.
+     *
+     * It is here for the run where the guard does NOT hold, which is the only run
+     * that tells you whether these tests are worth anything. Without it, removing the
+     * guard sends `createReport` into a real `mongoose.startSession()` against no
+     * connection: the tests fail by a five-second timeout that names nothing and
+     * looks like flake. With it they fail in milliseconds, on the assertions below,
+     * showing intake running to completion and queueing a delivery for an operator.
+     */
+    stubSession();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  /**
+   * `CreateReportInput` types these as strings and the route rejects a missing
+   * one, but a type is erased at runtime and a truthiness check passes
+   * `{$ne: null}`. Handed that, the dedup `findOne` matches an UNRELATED report
+   * and intake answers "you already reported this" about somebody else's row —
+   * so the failure is not a crash, it is a wrong answer about another user.
+   *
+   * The refusal is asserted BEFORE any query runs: `Report.findOne` must not have
+   * been called at all. A guard that rejects after building the query has already
+   * sent the operator to Mongo.
+   */
+  it.each([
+    ['reportedId', { reportedId: { $ne: null } }],
+    ['reporter', { reporter: { $ne: null } }],
+    ['reportedType', { reportedType: { $ne: null } }],
+  ])('refuses an operator in %s before it reaches the query', async (_field, override) => {
+    await expect(
+      createReport({ ...INPUT, ...override } as unknown as typeof INPUT),
+    ).rejects.toThrow(TypeError);
+    expect(Report.findOne).not.toHaveBeenCalled();
+  });
+
+  it('refuses a reportedType outside the enum, even as a string', async () => {
+    await expect(
+      createReport({ ...INPUT, reportedType: 'planet' } as unknown as typeof INPUT),
+    ).rejects.toThrow(/not a reportable type/);
+    expect(Report.findOne).not.toHaveBeenCalled();
+  });
+});

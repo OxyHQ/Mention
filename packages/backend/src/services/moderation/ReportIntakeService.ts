@@ -53,6 +53,27 @@ export class DuplicateReportError extends Error {
   }
 }
 
+/**
+ * Refuses an identifier that is not a string, at the point the QUERY is built.
+ *
+ * `CreateReportInput` types these as strings and the route rejects a missing one,
+ * but a type is erased at runtime and a truthiness check passes `{$ne: null}`.
+ * Handed that, `findOne` matches an UNRELATED report and this function answers
+ * "you already reported this" about somebody else's row — and `create` would then
+ * store an operator where an id belongs.
+ *
+ * The check lives here rather than at the route because `createReport` is
+ * exported: a queue worker, a reconciliation script or a future admin path is
+ * under no obligation to have passed the route's validation, and a guard that
+ * only exists at one caller is a guard that holds until the second one arrives.
+ */
+function requireIdentifier(value: unknown, field: string): string {
+  if (typeof value !== 'string' || value.length === 0) {
+    throw new TypeError(`createReport: ${field} must be a non-empty string.`);
+  }
+  return value;
+}
+
 export interface CreateReportInput {
   reporter: string;
   reportedType: ReportedType;
@@ -126,13 +147,19 @@ async function inTransaction<T>(
  * whether this application knows how to describe the object at all.
  */
 export async function createReport(input: CreateReportInput): Promise<CreateReportResult> {
-  const deliverable = subjectProviderFor(input.reportedType) !== undefined;
+  const reporter = requireIdentifier(input.reporter, 'reporter');
+  const reportedId = requireIdentifier(input.reportedId, 'reportedId');
+  const reportedType = requireIdentifier(input.reportedType, 'reportedType');
+  if (!Object.values(ReportedType).includes(reportedType as ReportedType)) {
+    throw new TypeError(`createReport: reportedType '${reportedType}' is not a reportable type.`);
+  }
+  const deliverable = subjectProviderFor(reportedType) !== undefined;
 
   return await inTransaction(async (session) => {
     const existing = await Report.findOne({
-      reporter: input.reporter,
-      reportedId: input.reportedId,
-      reportedType: input.reportedType,
+      reporter,
+      reportedId,
+      reportedType,
     })
       .session(session)
       .lean<LeanReport | null>();
@@ -141,16 +168,14 @@ export async function createReport(input: CreateReportInput): Promise<CreateRepo
     const [report] = await Report.create(
       [
         {
-          reportedType: input.reportedType,
-          reportedId: input.reportedId,
-          reporter: input.reporter,
+          reportedType,
+          reportedId,
+          reporter,
           categories: input.categories,
           details: input.details,
           status: ReportStatus.PENDING,
           localStatus: deliverable ? 'queued' : 'received',
-          ...(deliverable
-            ? {}
-            : { localStatusReason: localOnlyReason(input.reportedType) }),
+          ...(deliverable ? {} : { localStatusReason: localOnlyReason(reportedType) }),
         },
       ],
       { session },
