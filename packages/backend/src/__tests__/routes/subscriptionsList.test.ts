@@ -27,7 +27,7 @@ const { mockResolveUserSummaries, mockFind } = vi.hoisted(() => ({
 vi.mock('../../services/PostHydrationService', async () => {
   // The REAL degraded summary, so a change to its shape breaks this test rather
   // than being masked by a hand-written stub.
-  const { degradedActorSummary } = await import('../../utils/degradedActorSummary');
+  const { degradedActorSummary } = await import('../../utils/degradedActorSummary.js');
   return { resolveUserSummaries: mockResolveUserSummaries, degradedActorSummary };
 });
 

@@ -297,7 +297,7 @@ describe('CrowdSource webhook receiver', () => {
 
   it('releases the claim when the work cannot be recorded, so a retry still lands', async () => {
     const app = await buildApp();
-    const ModerationOutbox = (await import('../../../models/ModerationOutbox')).default;
+    const ModerationOutbox = (await import('../../../models/ModerationOutbox.js')).default;
     vi.mocked(ModerationOutbox.updateOne).mockRejectedValueOnce(new Error('mongo unavailable'));
 
     const event = caseDecidedEventFixture({ id: 'evt_released_1' });

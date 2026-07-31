@@ -97,7 +97,7 @@ vi.mock('../../utils/oxyHelpers', () => ({
 }));
 
 vi.mock('../../utils/safeUpstreamFetch', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../../utils/safeUpstreamFetch')>();
+  const actual = await importOriginal<typeof import('../../utils/safeUpstreamFetch.js')>();
   return {
     ...actual,
     fetchUpstreamFollowingRedirects: mocks.fetchUpstreamFollowingRedirects,

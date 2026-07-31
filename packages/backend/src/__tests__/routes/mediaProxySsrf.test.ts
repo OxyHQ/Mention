@@ -56,7 +56,7 @@ vi.mock('../../services/mediaCache/oxyMediaStore', () => ({
 
 const fetchUpstreamFollowingRedirects = vi.fn();
 vi.mock('../../utils/safeUpstreamFetch', async () => {
-  const actual = await vi.importActual<typeof import('../../utils/safeUpstreamFetch')>(
+  const actual = await vi.importActual<typeof import('../../utils/safeUpstreamFetch.js')>(
     '../../utils/safeUpstreamFetch',
   );
   return {

@@ -20,7 +20,7 @@ let submittedLongAgo: number;
 let localOnly: number;
 
 vi.mock('../../../models/Report.model', async () => {
-  const actual = await vi.importActual<typeof import('../../../models/Report.model')>(
+  const actual = await vi.importActual<typeof import('../../../models/Report.model.js')>(
     '../../../models/Report.model',
   );
   return {

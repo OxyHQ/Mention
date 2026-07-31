@@ -38,7 +38,7 @@ beforeEach(() => {
 
 describe('connector runtime bootstrap', () => {
   it('has no registration side effect on import and initializes once explicitly', async () => {
-    const connectors = await import('../../connectors');
+    const connectors = await import('../../connectors.js');
 
     expect(mocks.ConnectorRegistry).toHaveBeenCalledOnce();
     expect(mocks.registerPostFederator).not.toHaveBeenCalled();

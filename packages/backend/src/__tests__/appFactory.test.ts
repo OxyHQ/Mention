@@ -82,11 +82,11 @@ describe('createApp', () => {
     const intervalSpy = vi.spyOn(globalThis, 'setInterval');
     const timeoutSpy = vi.spyOn(globalThis, 'setTimeout');
     const listenSpy = vi.spyOn(express.application, 'listen');
-    const database = await import('../utils/database');
-    const redis = await import('../utils/redis');
+    const database = await import('../utils/database.js');
+    const redis = await import('../utils/redis.js');
     const mongoConnectSpy = vi.spyOn(database, 'connectToDatabase');
     const redisClientSpy = vi.spyOn(redis, 'getRedisClient');
-    const { createApp } = await import('../app');
+    const { createApp } = await import('../app.js');
 
     const deps = createDependencies();
     const app = createApp(deps);
@@ -102,14 +102,14 @@ describe('createApp', () => {
   });
 
   it('serves health without runtime bootstrap', async () => {
-    const { createApp } = await import('../app');
+    const { createApp } = await import('../app.js');
     await request(createApp(createDependencies()))
       .get('/health/live')
       .expect(200, 'live');
   });
 
   it('keeps federation and web shell ahead of the apex proxy and API routers', async () => {
-    const { createApp } = await import('../app');
+    const { createApp } = await import('../app.js');
     const app = createApp(createDependencies());
 
     await request(app)
@@ -135,7 +135,7 @@ describe('createApp', () => {
   });
 
   it('applies bounded CORS and handles preflight before application routes', async () => {
-    const { createApp } = await import('../app');
+    const { createApp } = await import('../app.js');
 
     const allowed = createDependencies();
     await request(createApp(allowed))
@@ -174,7 +174,7 @@ describe('createApp', () => {
   });
 
   it('does not attach API no-store headers to federation or apex web-plane requests', async () => {
-    const { createApp } = await import('../app');
+    const { createApp } = await import('../app.js');
     const app = createApp(createDependencies());
 
     for (const path of [
@@ -197,7 +197,7 @@ describe('createApp', () => {
   });
 
   it('bypasses API throttles only for the apex web plane', async () => {
-    const { createApp } = await import('../app');
+    const { createApp } = await import('../app.js');
     const deps = createDependencies();
     const rateLimiter = vi.fn<RequestHandler>(passThrough);
     const bruteForceProtection = vi.fn<RequestHandler>(passThrough);
@@ -222,7 +222,7 @@ describe('createApp', () => {
    * actually observes: an unconsumed stream and no parsed body.
    */
   it('mounts the CrowdSource webhook ahead of the JSON body parser', async () => {
-    const { createApp } = await import('../app');
+    const { createApp } = await import('../app.js');
     const deps = createDependencies();
 
     const webhook = express.Router();
@@ -271,7 +271,7 @@ describe('createApp', () => {
   });
 
   it('captures raw JSON, reconstructs filter queries and handles nodeinfo failures', async () => {
-    const { createApp } = await import('../app');
+    const { createApp } = await import('../app.js');
     const deps = createDependencies();
     const publicApi = express.Router();
     publicApi.post('/raw', (req, res) => {
@@ -338,7 +338,7 @@ describe('createApp', () => {
   });
 
   it('compresses ordinary large responses but honors both opt-out paths', async () => {
-    const { createApp } = await import('../app');
+    const { createApp } = await import('../app.js');
     const deps = createDependencies();
     const publicApi = express.Router();
     const largeBody = 'x'.repeat(4096);

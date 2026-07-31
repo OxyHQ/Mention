@@ -107,7 +107,7 @@ afterEach(() => {
 
 describe('Redis singleton supervisor', () => {
   it('shares one client and one connection attempt across concurrent hot paths', async () => {
-    const redis = await import('../utils/redis');
+    const redis = await import('../utils/redis.js');
     const clients = Array.from({ length: 50 }, () => redis.getRedisClient());
 
     expect(new Set(clients).size).toBe(1);
@@ -122,7 +122,7 @@ describe('Redis singleton supervisor', () => {
   });
 
   it('keeps the same client and fails fast throughout the cooldown', async () => {
-    const redis = await import('../utils/redis');
+    const redis = await import('../utils/redis.js');
     const client = redis.getRedisClient() as unknown as FakeRedisClient;
 
     client.attempts[0].reject(new Error('connect failed'));
@@ -149,7 +149,7 @@ describe('Redis singleton supervisor', () => {
   });
 
   it('recovers the stable client and cancels further retries when Redis returns', async () => {
-    const redis = await import('../utils/redis');
+    const redis = await import('../utils/redis.js');
     const client = redis.getRedisClient() as unknown as FakeRedisClient;
 
     client.attempts[0].reject(new Error('ECONNREFUSED'));
@@ -173,7 +173,7 @@ describe('Redis singleton supervisor', () => {
   });
 
   it('supervises a dropped ready connection without reconnecting from callers', async () => {
-    const redis = await import('../utils/redis');
+    const redis = await import('../utils/redis.js');
     const client = redis.getRedisClient() as unknown as FakeRedisClient;
     resolveReady(client, 0);
     await flushPromises();
@@ -196,8 +196,8 @@ describe('Redis singleton supervisor', () => {
   });
 
   it('opens the circuit after a command timeout and recovers before running commands again', async () => {
-    const redis = await import('../utils/redis');
-    const { withRedisFallback } = await import('../utils/redisHelpers');
+    const redis = await import('../utils/redis.js');
+    const { withRedisFallback } = await import('../utils/redisHelpers.js');
     const client = redis.getRedisClient() as unknown as FakeRedisClient;
     resolveReady(client, 0);
     await flushPromises();
@@ -253,7 +253,7 @@ describe('Redis singleton supervisor', () => {
   });
 
   it('makes shutdown terminal and ignores a late connection completion', async () => {
-    const redis = await import('../utils/redis');
+    const redis = await import('../utils/redis.js');
     const client = redis.getRedisClient() as unknown as FakeRedisClient;
 
     await redis.closeRedisConnection();
@@ -278,7 +278,7 @@ describe('Redis singleton supervisor', () => {
   });
 
   it('cancels a scheduled retry and gracefully quits a ready client', async () => {
-    const redis = await import('../utils/redis');
+    const redis = await import('../utils/redis.js');
     const client = redis.getRedisClient() as unknown as FakeRedisClient;
     resolveReady(client, 0);
     await flushPromises();

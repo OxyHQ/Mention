@@ -48,7 +48,7 @@ const { federateNewPost, getUserById, MockPost, postFindLean } = vi.hoisted(() =
 });
 
 vi.mock('../../models/Post', async () => {
-  const actual = await vi.importActual<typeof import('../../models/Post')>('../../models/Post');
+  const actual = await vi.importActual<typeof import('../../models/Post.js')>('../../models/Post');
   return {
     POST_CLASSIFICATION_PENDING: actual.POST_CLASSIFICATION_PENDING,
     Post: Object.assign(MockPost, {

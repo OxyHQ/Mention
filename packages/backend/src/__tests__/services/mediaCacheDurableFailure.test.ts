@@ -123,8 +123,8 @@ describe('federated banner download policy', () => {
     );
     const [{ persistRemoteMediaForFederatedOwnerDetailed }, { FEDERATED_BANNER_DOWNLOAD_POLICY }] =
       await Promise.all([
-        import('../../services/mediaCache/cacheWorker'),
-        import('../../services/mediaCache/policy'),
+        import('../../services/mediaCache/cacheWorker.js'),
+        import('../../services/mediaCache/policy.js'),
       ]);
 
     await expect(
@@ -144,8 +144,8 @@ describe('federated banner download policy', () => {
     );
     const [{ persistRemoteMediaForFederatedOwnerDetailed }, { FEDERATED_BANNER_DOWNLOAD_POLICY }] =
       await Promise.all([
-        import('../../services/mediaCache/cacheWorker'),
-        import('../../services/mediaCache/policy'),
+        import('../../services/mediaCache/cacheWorker.js'),
+        import('../../services/mediaCache/policy.js'),
       ]);
 
     await expect(
@@ -169,8 +169,8 @@ describe('federated banner download policy', () => {
     );
     const [{ persistRemoteMediaForFederatedOwnerDetailed }, { FEDERATED_BANNER_DOWNLOAD_POLICY }] =
       await Promise.all([
-        import('../../services/mediaCache/cacheWorker'),
-        import('../../services/mediaCache/policy'),
+        import('../../services/mediaCache/cacheWorker.js'),
+        import('../../services/mediaCache/policy.js'),
       ]);
 
     await expect(

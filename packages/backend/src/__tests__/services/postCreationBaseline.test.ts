@@ -47,7 +47,7 @@ const { savedDocs, MockPost, postFindLean } = vi.hoisted(() => {
 });
 
 vi.mock('../../models/Post', async () => {
-  const actual = await vi.importActual<typeof import('../../models/Post')>('../../models/Post');
+  const actual = await vi.importActual<typeof import('../../models/Post.js')>('../../models/Post');
   return {
     // Re-export the real constant so the service's pending status matches.
     POST_CLASSIFICATION_PENDING: actual.POST_CLASSIFICATION_PENDING,

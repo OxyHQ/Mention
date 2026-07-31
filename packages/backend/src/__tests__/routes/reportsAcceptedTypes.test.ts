@@ -29,7 +29,7 @@ const createReport = vi.fn();
 
 vi.mock('../../services/moderation/ReportIntakeService', async () => {
   const actual = await vi.importActual<
-    typeof import('../../services/moderation/ReportIntakeService')
+    typeof import('../../services/moderation/ReportIntakeService.js')
   >('../../services/moderation/ReportIntakeService');
   return { ...actual, createReport: (...args: unknown[]) => createReport(...args) };
 });

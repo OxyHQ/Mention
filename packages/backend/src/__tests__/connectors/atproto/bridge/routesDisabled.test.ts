@@ -29,7 +29,7 @@ vi.mock('../../../../middleware/rateLimitStore', () => ({
 let app: Express;
 
 beforeAll(async () => {
-  const mod = await import('../../../../connectors/atproto/bridge/routes');
+  const mod = await import('../../../../connectors/atproto/bridge/routes.js');
   app = express();
   app.use('/xrpc', mod.default);
   app.use('/ap-bridge', mod.bridgeMetaRouter);

@@ -42,7 +42,7 @@ const {
 }));
 
 vi.mock('../../../connectors/activitypub/constants', async () => {
-  const actual = await vi.importActual<typeof import('../../../connectors/activitypub/constants')>(
+  const actual = await vi.importActual<typeof import('../../../connectors/activitypub/constants.js')>(
     '../../../connectors/activitypub/constants',
   );
   return { ...actual, FEDERATION_ENABLED: true };

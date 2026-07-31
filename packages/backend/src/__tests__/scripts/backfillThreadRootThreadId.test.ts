@@ -204,7 +204,7 @@ describe('backfillThreadRootThreadId', () => {
     // DRY_RUN is read once at module load, so re-import the script with the env set.
     vi.stubEnv('DRY_RUN', 'true');
     vi.resetModules();
-    const { default: dryRunBackfill } = await import('../../scripts/backfillThreadRootThreadId');
+    const { default: dryRunBackfill } = await import('../../scripts/backfillThreadRootThreadId.js');
 
     const { group, rootRow } = makeThread({ author: 'user-A' });
     h.state.candidates = [group];

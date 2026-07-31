@@ -15,9 +15,16 @@
   "extends": "../../tsconfig.json",
   "compilerOptions": {
     // --- Intentional override of the root base: emit CommonJS for the backend.
-    // `node` resolution matches the CJS module format the backend runtime uses.
-    "module": "commonjs",
-    "moduleResolution": "node",
+    // `node16` is the CJS-correct resolution for a `"type": "commonjs"` package
+    // and replaces the `node` (node10) mode TypeScript 7 removed.
+    "module": "node16",
+    "moduleResolution": "node16",
+
+    // TypeScript <=5 made every `@types/*` package it could enumerate global, so
+    // this package silently got `File` (and the rest of Node's globals) from the
+    // `@types/node` it already depends on. TypeScript 7 only makes global what is
+    // named here, so name it: these DTOs describe payloads for a Node runtime.
+    "types": ["node"],
 
     // --- Emit settings (the root base is type-check only / noEmit).
     "noEmit": false,

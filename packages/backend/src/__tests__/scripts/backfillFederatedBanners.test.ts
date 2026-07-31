@@ -190,7 +190,7 @@ describe('backfillFederatedBanners', () => {
       return { ...actual, default: { ...actual.default, disconnect: vi.fn(async () => undefined) } };
     });
 
-    const forced = (await import('../../scripts/backfillFederatedBanners')).default;
+    const forced = (await import('../../scripts/backfillFederatedBanners.js')).default;
     const done = forced();
     await vi.runAllTimersAsync();
     await done;

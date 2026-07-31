@@ -15,7 +15,7 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('../../../connectors/atproto/xrpcClient', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../../../connectors/atproto/xrpcClient')>();
+  const actual = await importOriginal<typeof import('../../../connectors/atproto/xrpcClient.js')>();
   return {
     ...actual,
     xrpcGet: mocks.xrpcGet,

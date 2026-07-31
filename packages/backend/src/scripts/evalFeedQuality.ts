@@ -636,20 +636,20 @@ async function main(): Promise<void> {
 
   // Imports local to main() keep the pure core free of heavy runtime coupling.
   const mongoose = (await import('mongoose')).default;
-  const { logger } = await import('../utils/logger');
+  const { logger } = await import('../utils/logger.js');
   const { MtnConfig } = await import('@mention/shared-types');
-  const { Post } = await import('../models/Post');
-  const FederatedActor = (await import('../models/FederatedActor')).default;
-  const { FEED_FIELDS } = await import('../mtn/feed/FeedAPI');
-  const { baselineContentClassifier } = await import('../services/BaselineContentClassifier');
-  const { feedRankingService } = await import('../services/FeedRankingService');
-  const { registerAllModules } = await import('../mtn/feed/engine');
-  const { feedModuleRegistry } = await import('../mtn/feed/engine/FeedModuleRegistry');
-  const { resolveDiscoveryGate, resolvePhase2bSignals } = await import('../mtn/feed/definitions/presets');
-  const { loadViewerFeedContext } = await import('../mtn/feed/feedContext');
-  const { gatherForYouCandidates } = await import('../mtn/feed/feeds/forYouCandidateSources');
-  const { getServiceOxyClient } = await import('../utils/oxyHelpers');
-  const { FEED_QUALITY_LABELS, resolveLabeledPosts } = await import('./fixtures/feedQualityLabels');
+  const { Post } = await import('../models/Post.js');
+  const FederatedActor = (await import('../models/FederatedActor.js')).default;
+  const { FEED_FIELDS } = await import('../mtn/feed/FeedAPI.js');
+  const { baselineContentClassifier } = await import('../services/BaselineContentClassifier.js');
+  const { feedRankingService } = await import('../services/FeedRankingService.js');
+  const { registerAllModules } = await import('../mtn/feed/engine.js');
+  const { feedModuleRegistry } = await import('../mtn/feed/engine/FeedModuleRegistry.js');
+  const { resolveDiscoveryGate, resolvePhase2bSignals } = await import('../mtn/feed/definitions/presets.js');
+  const { loadViewerFeedContext } = await import('../mtn/feed/feedContext.js');
+  const { gatherForYouCandidates } = await import('../mtn/feed/feeds/forYouCandidateSources.js');
+  const { getServiceOxyClient } = await import('../utils/oxyHelpers.js');
+  const { FEED_QUALITY_LABELS, resolveLabeledPosts } = await import('./fixtures/feedQualityLabels.js');
 
   const mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/mention';
   const dbName = `mention-${process.env.NODE_ENV || 'development'}`;
@@ -782,8 +782,8 @@ async function main(): Promise<void> {
 
     // ---- Online mode: engagement-per-impression + report-rate from FeedInteraction ----
     if (args.online) {
-      const { FeedInteraction } = await import('../models/FeedInteraction');
-      const { resolveDiscoveryGateBucket } = await import('../mtn/feed/discoveryGateExperiment');
+      const { FeedInteraction } = await import('../models/FeedInteraction.js');
+      const { resolveDiscoveryGateBucket } = await import('../mtn/feed/discoveryGateExperiment.js');
       const since = new Date(Date.now() - args.onlineWindowMs);
       const grouped = await FeedInteraction.aggregate<OnlineInteractionRow>([
         { $match: { createdAt: { $gte: since } } },
@@ -800,7 +800,7 @@ async function main(): Promise<void> {
     await mongoose.disconnect();
     process.exit(0);
   } catch (error) {
-    const { logger } = await import('../utils/logger');
+    const { logger } = await import('../utils/logger.js');
     logger.error('[evalFeedQuality] failed', error);
     await mongoose.disconnect();
     process.exit(1);

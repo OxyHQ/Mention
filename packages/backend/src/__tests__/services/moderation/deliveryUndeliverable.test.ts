@@ -16,7 +16,7 @@ let report: Doc | null;
 let updates: Doc[];
 
 vi.mock('../../../models/Report.model', async () => {
-  const actual = await vi.importActual<typeof import('../../../models/Report.model')>(
+  const actual = await vi.importActual<typeof import('../../../models/Report.model.js')>(
     '../../../models/Report.model',
   );
   return {
@@ -35,7 +35,7 @@ const snapshot = vi.fn();
 
 vi.mock('../../../services/moderation/subjects/registry', async () => {
   const actual = await vi.importActual<
-    typeof import('../../../services/moderation/subjects/registry')
+    typeof import('../../../services/moderation/subjects/registry.js')
   >('../../../services/moderation/subjects/registry');
   return { ...actual, subjectProviderFor: vi.fn() };
 });

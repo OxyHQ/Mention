@@ -276,7 +276,7 @@ describe('MentionNodeRegistryService.provisionManagedVault', () => {
 
     // The record genuinely verifies + is authorized for the custodial issuer.
     expect(await verifyEnvelopeSignature(stored)).toBe(true);
-    const { mentionVerificationResolver } = await import('../../../services/mtn/mentionVerificationResolver');
+    const { mentionVerificationResolver } = await import('../../../services/mtn/mentionVerificationResolver.js');
     const resolved = await mentionVerificationResolver.resolve(stored.subject);
     expect(isAuthorizedKey(resolved, stored).ok).toBe(true);
 

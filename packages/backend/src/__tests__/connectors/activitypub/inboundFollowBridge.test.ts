@@ -164,7 +164,7 @@ vi.mock('../../../services/serviceRegistry', () => ({
 // targets by `require()`-ing the whole server; override just that export while
 // preserving every other real constant the connector graph reads at import.
 vi.mock('../../../connectors/activitypub/constants', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../../../connectors/activitypub/constants')>();
+  const actual = await importOriginal<typeof import('../../../connectors/activitypub/constants.js')>();
   return { ...actual, resolveOxyUser: mocks.resolveOxyUser };
 });
 

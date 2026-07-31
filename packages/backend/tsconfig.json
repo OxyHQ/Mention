@@ -17,8 +17,8 @@
     // --- Intentional override of the root base: emit CommonJS for Node/Bun.
     // The ECS image executes the emitted `dist/**` as CommonJS; `node`
     // resolution matches that runtime.
-    "module": "commonjs",
-    "moduleResolution": "node",
+    "module": "node16",
+    "moduleResolution": "node16",
 
     // --- Emit settings (the root base is type-check only / noEmit).
     // `rootDir: "./"` because the entrypoint `server.ts` lives at the package
@@ -33,7 +33,10 @@
 
     // Resolve the workspace dependency to shared-types SOURCE during type-check
     // so backend changes see un-built type updates immediately.
-    "baseUrl": ".",
+    //
+    // No `baseUrl`: TypeScript 7 removed it, and these mappings never needed it —
+    // they were already written relative to this file, which is what `paths`
+    // resolves against on its own.
     "paths": {
       "@mention/shared-types": ["../shared-types/src"],
       "@mention/shared-types/*": ["../shared-types/src/*"]

@@ -12,7 +12,7 @@
  * are not self-contained bytes but a manifest of further URIs, so they are
  * excluded from {@link isAllowedMediaType} entirely and handled by the proxy's
  * own rewrite branch ({@link isHlsManifestType} +
- * {@link import('../../utils/hlsManifest').rewriteHlsManifest}).
+ * {@link import('../../utils/hlsManifest.js').rewriteHlsManifest}).
  */
 
 /** Prefix used to detect a still-image content-type family. */
@@ -70,7 +70,7 @@ export function isHlsManifestType(family: string): boolean {
 /**
  * True when a (parameter-stripped, lowercased) content-type family is an allowed
  * media type. Callers pass the bare family produced by
- * {@link import('../../utils/safeUpstreamFetch').contentTypeFamily}.
+ * {@link import('../../utils/safeUpstreamFetch.js').contentTypeFamily}.
  */
 export function isAllowedMediaType(family: string): boolean {
   if (MEDIA_REJECTED_TYPES.has(family)) return false;

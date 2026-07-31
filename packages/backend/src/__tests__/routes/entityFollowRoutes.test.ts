@@ -41,7 +41,7 @@ vi.mock('../../services/ListSubscriptionService', () => ({
 const mockLoadListVisibility = vi.fn();
 
 vi.mock('../../services/listAccess', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../../services/listAccess')>();
+  const actual = await importOriginal<typeof import('../../services/listAccess.js')>();
   return {
     ...actual,
     loadListVisibility: (listId: string) => mockLoadListVisibility(listId),
