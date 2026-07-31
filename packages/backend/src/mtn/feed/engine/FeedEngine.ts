@@ -670,7 +670,10 @@ export class FeedEngine {
     const nextCursor = hasMore && page.length > 0 ? String(page[page.length - 1]._id) : undefined;
 
     const hydrated = await postHydrationService.hydratePosts(page, {
-      viewerId: undefined,
+      // The authenticated never-blank path reaches here too, and hydrating it as
+      // anonymous stripped the viewer's own like/save/boost state off every post
+      // in the fallback page.
+      viewerId: ctx.currentUserId,
       oxyClient: ctx.oxyClient,
       maxDepth: exec.hydrateMaxDepth ?? 0,
       includeLinkMetadata: true,

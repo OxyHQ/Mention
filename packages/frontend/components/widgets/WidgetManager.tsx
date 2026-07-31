@@ -1,5 +1,5 @@
-import React, { Component, ReactNode } from 'react';
-import { View, Text } from 'react-native';
+import React, { Component, ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
+import { View, Text, StyleSheet } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { WhoToFollowWidget } from './WhoToFollowWidget';
 import { TrendsWidget } from './TrendsWidget';
@@ -13,6 +13,30 @@ class WidgetErrorBoundary extends Component<{ children: ReactNode }, { hasError:
     static getDerivedStateFromError() { return { hasError: true }; }
     componentDidCatch(error: Error) { logger.error('Widget crashed', { error }); }
     render() { return this.state.hasError ? null : this.props.children; }
+}
+
+function WidgetSlot({
+    slotId,
+    children,
+    onVisibilityChange,
+}: {
+    slotId: string;
+    children: ReactNode;
+    onVisibilityChange: (slotId: string, visible: boolean) => void;
+}) {
+    const ref = React.useRef<View>(null);
+
+    useEffect(() => {
+        const node = ref.current;
+        const hasVisibleContent = Boolean(node && node.children && node.children.length > 0);
+        onVisibilityChange(slotId, hasVisibleContent);
+    }, [children, onVisibilityChange, slotId]);
+
+    return (
+        <View ref={ref} style={styles.slot} collapsable={false}>
+            {children}
+        </View>
+    );
 }
 
 // Define screen IDs for social network
@@ -39,6 +63,15 @@ interface WidgetManagerProps {
  */
 export function WidgetManager({ screenId, customWidgets = [] }: WidgetManagerProps) {
     const { t } = useTranslation();
+    const [visibleSlots, setVisibleSlots] = useState<Record<string, boolean>>({});
+
+    const handleVisibilityChange = useCallback((slotId: string, visible: boolean) => {
+        setVisibleSlots((previous) => {
+            if (previous[slotId] === visible) return previous;
+            return { ...previous, [slotId]: visible };
+        });
+    }, []);
+
     // Define which widgets should appear on which screens
     const getWidgetsForScreen = (screen: ScreenId): ReactNode[] => {
         switch (screen) {
@@ -108,19 +141,38 @@ export function WidgetManager({ screenId, customWidgets = [] }: WidgetManagerPro
     const screenWidgets = getWidgetsForScreen(screenId);
 
     // Combine screen-specific widgets with any custom widgets passed as props
-    const allWidgets = [...screenWidgets, ...customWidgets];
+    const allWidgets = useMemo(() => [...screenWidgets, ...customWidgets], [screenWidgets, customWidgets]);
 
-    if (allWidgets.length === 0) {
+    const widgetSlots = useMemo(() => allWidgets.map((widget, index) => {
+        const slotKey = (widget as React.ReactElement)?.key?.toString() ?? `widget-${index}`;
+        return { slotKey, widget };
+    }), [allWidgets]);
+
+    useEffect(() => {
+        setVisibleSlots({});
+    }, [screenId, customWidgets]);
+
+    const hasVisibleWidgets = useMemo(() => Object.values(visibleSlots).some(Boolean), [visibleSlots]);
+
+    if (allWidgets.length === 0 || !hasVisibleWidgets) {
         return null;
     }
 
     return (
         <View className="flex-col gap-4">
-            {allWidgets.map((widget) => (
-                <WidgetErrorBoundary key={(widget as React.ReactElement)?.key ?? undefined}>
-                    {widget}
+            {widgetSlots.map(({ slotKey, widget }) => (
+                <WidgetErrorBoundary key={slotKey}>
+                    <WidgetSlot slotId={slotKey} onVisibilityChange={handleVisibilityChange}>
+                        {widget}
+                    </WidgetSlot>
                 </WidgetErrorBoundary>
             ))}
         </View>
     );
 }
+
+const styles = StyleSheet.create({
+    slot: {
+        width: '100%',
+    },
+});
