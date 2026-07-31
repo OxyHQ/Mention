@@ -11,7 +11,7 @@ const expectedNodeVersion = "22.17.0";
 // The Bloom release the whole workspace is pinned to — manifest range, root
 // override and installed copy must all agree on it. Bump this ONE constant when
 // taking a new Bloom.
-const expectedBloomVersion = "0.72.1";
+const expectedBloomVersion = "0.72.2";
 const failures = [];
 
 if (!expectedBunVersion) {
