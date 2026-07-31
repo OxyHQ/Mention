@@ -1,4 +1,4 @@
-import React, { Component, ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
+import React, { Component, ReactNode, useMemo } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { WhoToFollowWidget } from './WhoToFollowWidget';
@@ -15,25 +15,9 @@ class WidgetErrorBoundary extends Component<{ children: ReactNode }, { hasError:
     render() { return this.state.hasError ? null : this.props.children; }
 }
 
-function WidgetSlot({
-    slotId,
-    children,
-    onVisibilityChange,
-}: {
-    slotId: string;
-    children: ReactNode;
-    onVisibilityChange: (slotId: string, visible: boolean) => void;
-}) {
-    const ref = React.useRef<View>(null);
-
-    useEffect(() => {
-        const node = ref.current;
-        const hasVisibleContent = Boolean(node?.children?.length);
-        onVisibilityChange(slotId, hasVisibleContent);
-    }, [children, onVisibilityChange, slotId]);
-
+function WidgetSlot({ children }: { children: ReactNode }) {
     return (
-        <View ref={ref} style={styles.slot} collapsable={false}>
+        <View style={styles.slot} collapsable={false}>
             {children}
         </View>
     );
@@ -63,15 +47,6 @@ interface WidgetManagerProps {
  */
 export function WidgetManager({ screenId, customWidgets = [] }: WidgetManagerProps) {
     const { t } = useTranslation();
-    const [visibleSlots, setVisibleSlots] = useState<Record<string, boolean>>({});
-    const [hasMeasuredSlots, setHasMeasuredSlots] = useState(false);
-
-    const handleVisibilityChange = useCallback((slotId: string, visible: boolean) => {
-        setVisibleSlots((previous) => {
-            if (previous[slotId] === visible) return previous;
-            return { ...previous, [slotId]: visible };
-        });
-    }, []);
 
     const getWidgetsForScreen = (screen: ScreenId): ReactNode[] => {
         switch (screen) {
@@ -141,53 +116,22 @@ export function WidgetManager({ screenId, customWidgets = [] }: WidgetManagerPro
     const screenWidgets = getWidgetsForScreen(screenId);
     const allWidgets = useMemo(() => [...screenWidgets, ...customWidgets], [screenWidgets, customWidgets]);
 
-    useEffect(() => {
-        setVisibleSlots({});
-        setHasMeasuredSlots(false);
-    }, [screenId, customWidgets]);
-
-    useEffect(() => {
-        setHasMeasuredSlots(true);
-    }, [allWidgets]);
-
-    const widgetSlots = useMemo(() => allWidgets.map((widget, index) => {
-        const slotKey = (widget as React.ReactElement)?.key?.toString() ?? `widget-${index}`;
-        return { slotKey, widget };
-    }), [allWidgets]);
-
-    const hasVisibleWidgets = useMemo(() => Object.values(visibleSlots).some(Boolean), [visibleSlots]);
-
     if (allWidgets.length === 0) {
-        return null;
-    }
-
-    if (!hasMeasuredSlots) {
-        return (
-            <View className="flex-col gap-4">
-                {widgetSlots.map(({ slotKey, widget }) => (
-                    <WidgetErrorBoundary key={slotKey}>
-                        <WidgetSlot slotId={slotKey} onVisibilityChange={handleVisibilityChange}>
-                            {widget}
-                        </WidgetSlot>
-                    </WidgetErrorBoundary>
-                ))}
-            </View>
-        );
-    }
-
-    if (!hasVisibleWidgets) {
         return null;
     }
 
     return (
         <View className="flex-col gap-4">
-            {widgetSlots.map(({ slotKey, widget }) => (
-                <WidgetErrorBoundary key={slotKey}>
-                    <WidgetSlot slotId={slotKey} onVisibilityChange={handleVisibilityChange}>
-                        {widget}
-                    </WidgetSlot>
-                </WidgetErrorBoundary>
-            ))}
+            {allWidgets.map((widget, index) => {
+                const slotKey = (widget as React.ReactElement)?.key?.toString() ?? `widget-${index}`;
+                return (
+                    <WidgetErrorBoundary key={slotKey}>
+                        <WidgetSlot>
+                            {widget}
+                        </WidgetSlot>
+                    </WidgetErrorBoundary>
+                );
+            })}
         </View>
     );
 }
