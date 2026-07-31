@@ -1,4 +1,6 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { useAuth } from '@oxyhq/services/ui/client';
 import {
     View,
     Text,
@@ -11,11 +13,11 @@ import { useTheme } from '@oxyhq/bloom/theme';
 import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';
 import { CloseIcon } from '@/assets/icons/close-icon';
-import { statisticsService, PostInsights } from '@/services/statisticsService';
+import { statisticsService } from '@/services/statisticsService';
 import { useTranslation } from 'react-i18next';
 import { EmptyState } from '@/components/common/EmptyState';
 import { formatCompactNumber } from '@/utils/formatNumber';
-import { logger } from '@oxyhq/core/logger';
+import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 
 interface PostInsightsSheetProps {
     postId: string | null;
@@ -57,30 +59,17 @@ const PostInsightsSheet: React.FC<PostInsightsSheetProps> = ({ postId, onClose }
     const { t } = useTranslation();
     const theme = useTheme();
 
-    const [loading, setLoading] = useState(false);
-    const [insights, setInsights] = useState<PostInsights | null>(null);
+    const { user, canUsePrivateApi } = useAuth();
 
-    const loadInsights = useCallback(async () => {
-        if (!postId) return;
-
-        try {
-            setLoading(true);
-            const data = await statisticsService.getPostInsights(postId);
-            setInsights(data);
-        } catch {
-            logger.error('Error loading post insights');
-        } finally {
-            setLoading(false);
-        }
-    }, [postId]);
-
-    useEffect(() => {
-        if (postId) {
-            void loadInsights();
-        } else {
-            setInsights(null);
-        }
-    }, [loadInsights, postId]);
+    // Insights are the owner's own private analytics, so the key carries the
+    // viewer: a cold boot that resolves a session 5-25s after mount changes the
+    // key and refetches, rather than caching whatever the anonymous attempt got.
+    const { data: insights, isLoading } = useQuery({
+        queryKey: viewerQueryKeys.postInsights(user?.id, postId ?? ''),
+        queryFn: () => statisticsService.getPostInsights(postId ?? ''),
+        enabled: canUsePrivateApi && Boolean(postId),
+        staleTime: 60_000,
+    });
 
     const headerEl = (
         <Header
@@ -97,7 +86,7 @@ const PostInsightsSheet: React.FC<PostInsightsSheetProps> = ({ postId, onClose }
         />
     );
 
-    if (loading) {
+    if (isLoading) {
         return (
             <View className="flex-1 bg-background">
                 {headerEl}
