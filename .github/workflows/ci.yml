@@ -267,6 +267,15 @@ jobs:
             --json "$RUNNER_TEMP/mention-bundle-baseline.json"
           git reset --hard "$HEAD_SHA"
           rm -rf packages/frontend/dist
+          # This job is the only one that installs TWO dependency graphs into one
+          # runner: the base commit's, then this revision's. Bun's hoisted linker
+          # is not guaranteed to converge on the second install — taking the SDK
+          # 56 -> 57 bump, it left `@expo/cli` resolving the hoisted ws 7 that
+          # `@react-native/dev-middleware` pins instead of the ws 8 it depends on
+          # for `WebSocketServer`, and the export died inside @expo/cli. The
+          # lockfile records the nested copy correctly and a clean install
+          # produces it, so drop the baseline's tree rather than install over it.
+          rm -rf node_modules packages/*/node_modules
       - name: Install exact dependency graph
         run: bun install --frozen-lockfile --ignore-scripts
       - name: Build shared runtime package
