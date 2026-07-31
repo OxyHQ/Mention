@@ -1,6 +1,11 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useCallback, useMemo } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useTranslation } from 'react-i18next';
+import { toast } from '@oxyhq/bloom/toast';
+import { logger } from '@oxyhq/core/logger';
 import { authenticatedClient, isUnauthorizedError, isNotFoundError } from '@/utils/api';
 import { useAuth } from '@oxyhq/services/ui/client';
+import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import type { UserSettingsResponse } from '@/hooks/usePrivacySettings';
 
 export interface FeedSettings {
@@ -35,114 +40,138 @@ export const DEFAULT_FEED_SETTINGS: FeedSettings = {
   },
 };
 
-/**
- * Hook to load and update current user's feed settings
- */
-export function useFeedSettings() {
-  const { isAuthResolved, canUsePrivateApi, isPrivateApiPending, user } = useAuth();
-  const viewerId = user?.id;
-  const [settings, setSettings] = useState<FeedSettings | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<Error | null>(null);
-
-  const loadSettings = useCallback(async () => {
-    if (!isAuthResolved || isPrivateApiPending) {
-      return;
-    }
-
-    if (!canUsePrivateApi) {
-      setSettings(DEFAULT_FEED_SETTINGS);
-      setLoading(false);
-      return;
-    }
-    setLoading(true);
-    setError(null);
-    try {
-      const response = await authenticatedClient.get<UserSettingsResponse>('/profile/settings/me');
-      if (response.data?.feedSettings) {
-        // Merge with defaults to ensure all fields are present
-        setSettings({
-          ...DEFAULT_FEED_SETTINGS,
-          ...response.data.feedSettings,
-          diversity: {
-            ...DEFAULT_FEED_SETTINGS.diversity,
-            ...response.data.feedSettings.diversity,
-          },
-          recency: {
-            ...DEFAULT_FEED_SETTINGS.recency,
-            ...response.data.feedSettings.recency,
-          },
-          quality: {
-            ...DEFAULT_FEED_SETTINGS.quality,
-            ...response.data.feedSettings.quality,
-          },
-        });
-      } else {
-        setSettings(DEFAULT_FEED_SETTINGS);
-      }
-    } catch (err: unknown) {
-      if (isUnauthorizedError(err) || isNotFoundError(err)) {
-        setSettings(DEFAULT_FEED_SETTINGS);
-      } else {
-        setError(err instanceof Error ? err : new Error('Failed to load feed settings'));
-      }
-    } finally {
-      setLoading(false);
-    }
-    // Auth readiness changes rebuild this callback, replacing the cold-boot
-    // anonymous window with the viewer-scoped read once the token is usable.
-  }, [canUsePrivateApi, isAuthResolved, isPrivateApiPending]);
-
-  const updateSettings = useCallback(async (updates: Partial<FeedSettings>): Promise<void> => {
-    if (!canUsePrivateApi) {
-      throw new Error('Sign in to update feed settings');
-    }
-
-    try {
-      const response = await authenticatedClient.put<UserSettingsResponse>('/profile/settings', {
-        feedSettings: updates,
-      });
-
-      if (response.data?.feedSettings) {
-        setSettings({
-          ...DEFAULT_FEED_SETTINGS,
-          ...response.data.feedSettings,
-          diversity: {
-            ...DEFAULT_FEED_SETTINGS.diversity,
-            ...response.data.feedSettings.diversity,
-          },
-          recency: {
-            ...DEFAULT_FEED_SETTINGS.recency,
-            ...response.data.feedSettings.recency,
-          },
-          quality: {
-            ...DEFAULT_FEED_SETTINGS.quality,
-            ...response.data.feedSettings.quality,
-          },
-        });
-      }
-    } catch (err: unknown) {
-      throw err;
-    }
-  }, [canUsePrivateApi]);
-
-  useEffect(() => {
-    loadSettings();
-    // `viewerId` covers account switches; `loadSettings` re-runs the load when
-    // the auth session resolves (its identity changes with `isAuthenticated`).
-  }, [loadSettings, viewerId]);
-
+/** Fill in every field the server omitted, so readers never see a partial shape. */
+function withDefaults(partial: Partial<FeedSettings> | undefined): FeedSettings {
   return {
-    settings: settings || DEFAULT_FEED_SETTINGS,
-    loading,
-    error,
-    updateSettings,
-    reloadSettings: loadSettings,
+    ...DEFAULT_FEED_SETTINGS,
+    ...partial,
+    diversity: { ...DEFAULT_FEED_SETTINGS.diversity, ...partial?.diversity },
+    recency: { ...DEFAULT_FEED_SETTINGS.recency, ...partial?.recency },
+    quality: { ...DEFAULT_FEED_SETTINGS.quality, ...partial?.quality },
   };
 }
 
+export interface UseFeedSettings {
+  /** The viewer's settings — server state, or the defaults while anonymous. */
+  settings: FeedSettings;
+  isLoading: boolean;
+  /** Whether the viewer can persist a change (signed in). */
+  canEdit: boolean;
+  /** Whether a save is in flight. */
+  isSaving: boolean;
+  /**
+   * Show a value without persisting it — for a control that emits continuously,
+   * like a slider being dragged. Writes the cache only, so the UI tracks the
+   * gesture while the network stays quiet. Always followed by {@link save}.
+   */
+  preview: (next: FeedSettings) => void;
+  /** Persist a change immediately, optimistically, rolling back on failure. */
+  save: (next: FeedSettings) => void;
+}
 
+/**
+ * The viewer's server-persisted feed ranking settings.
+ *
+ * Server state is the ONLY state: there is no local draft and no save button.
+ * A control writes through {@link UseFeedSettings.save}, which updates the cache
+ * optimistically and reverts — visibly, with a toast — if the write fails. That
+ * is what makes an instant-save screen honest; a setting that appears to change
+ * and quietly did not is worse than one that visibly refuses.
+ *
+ * Keyed on the auth identity so the settings reload when a session resolves on
+ * cold boot or an account switches, and gated on `canUsePrivateApi` so the
+ * private endpoint is never hit while anonymous.
+ */
+export function useFeedSettings(): UseFeedSettings {
+  const { t } = useTranslation();
+  const { user, canUsePrivateApi } = useAuth();
+  const queryClient = useQueryClient();
+  const queryKey = useMemo(
+    () => viewerQueryKeys.feedSettings(user?.id),
+    [user?.id],
+  );
 
+  const query = useQuery<FeedSettings>({
+    queryKey,
+    enabled: canUsePrivateApi,
+    staleTime: 5 * 60 * 1000,
+    queryFn: async ({ signal }) => {
+      try {
+        const response = await authenticatedClient.get<UserSettingsResponse>(
+          '/profile/settings/me',
+          { signal },
+        );
+        return withDefaults(response.data?.feedSettings);
+      } catch (error: unknown) {
+        // A viewer who has never saved settings has no document yet, and an
+        // expired token resolves to the same "nothing of your own" answer.
+        if (isUnauthorizedError(error) || isNotFoundError(error)) {
+          return DEFAULT_FEED_SETTINGS;
+        }
+        throw error;
+      }
+    },
+  });
 
+  const mutation = useMutation<
+    FeedSettings,
+    Error,
+    FeedSettings,
+    { previous: FeedSettings | undefined }
+  >({
+    mutationFn: async (next) => {
+      const response = await authenticatedClient.put<UserSettingsResponse>(
+        '/profile/settings',
+        { feedSettings: next },
+      );
+      return withDefaults(response.data?.feedSettings ?? next);
+    },
+    onMutate: async (next) => {
+      await queryClient.cancelQueries({ queryKey });
+      const previous = queryClient.getQueryData<FeedSettings>(queryKey);
+      queryClient.setQueryData<FeedSettings>(queryKey, next);
+      return { previous };
+    },
+    onError: (error, _next, context) => {
+      if (context?.previous !== undefined) {
+        queryClient.setQueryData<FeedSettings>(queryKey, context.previous);
+      }
+      logger.error('Failed to save feed settings', error);
+      toast(
+        t('settings.feed.saveError', {
+          defaultValue: "Couldn't save that setting. Please try again.",
+        }),
+        { type: 'error' },
+      );
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey });
+    },
+  });
 
+  const preview = useCallback(
+    (next: FeedSettings) => {
+      if (!canUsePrivateApi) return;
+      queryClient.setQueryData<FeedSettings>(queryKey, next);
+    },
+    [canUsePrivateApi, queryClient, queryKey],
+  );
 
+  const { mutate } = mutation;
+  const save = useCallback(
+    (next: FeedSettings) => {
+      if (!canUsePrivateApi) return;
+      mutate(next);
+    },
+    [canUsePrivateApi, mutate],
+  );
+
+  return {
+    settings: query.data ?? DEFAULT_FEED_SETTINGS,
+    isLoading: canUsePrivateApi && query.isLoading,
+    canEdit: canUsePrivateApi,
+    isSaving: mutation.isPending,
+    preview,
+    save,
+  };
+}

@@ -1,4 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useAuth } from '@oxyhq/services/ui/client';
+import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import {
   View,
   Text,
@@ -26,6 +29,9 @@ import { logger } from '@oxyhq/core/logger';
 import { HIT_SLOP_MD } from '@/styles/hitSlop';
 
 const IS_WEB = Platform.OS === 'web';
+
+/** How long typing settles before it becomes a new query key. */
+const SEARCH_DEBOUNCE_MS = 300;
 
 interface Labeler {
   _id: string;
@@ -132,58 +138,55 @@ const LabelersScreen: React.FC = () => {
   const { t } = useTranslation();
   const safeBack = useSafeBack();
 
-  const [labelers, setLabelers] = useState<Labeler[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
+  const queryClient = useQueryClient();
+  const { user, canUsePrivateApi } = useAuth();
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+
+  // The typed query is debounced into the KEY, so each distinct search is its
+  // own cache entry and returning to a previous one is instant. React Query
+  // owns the request lifecycle, so there is no timer cancelling stale loads.
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(search.trim()), SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  const queryKey = viewerQueryKeys.labelers(user?.id, debouncedSearch);
+
+  const { data: labelers = [], isLoading, isFetching, refetch } = useQuery<Labeler[]>({
+    queryKey,
+    // `isSubscribed` is viewer-specific, so this is a private read and the key
+    // carries the viewer — a session resolving after a cold boot re-keys and
+    // refetches instead of keeping the anonymous answer.
+    enabled: canUsePrivateApi,
+    staleTime: 30_000,
+    queryFn: async () => {
+      const res = await labelerService.list(debouncedSearch ? { search: debouncedSearch } : undefined);
+      return res.items ?? [];
+    },
+  });
+
   const [subscribingIds, setSubscribingIds] = useState<Set<string>>(new Set());
 
-  const loadLabelers = useCallback(async (searchQuery?: string) => {
-    try {
-      const res = await labelerService.list(searchQuery ? { search: searchQuery } : undefined);
-      setLabelers(res.items ?? []);
-    } catch (e) {
-      logger.warn('Failed to load labelers', { error: e });
-      toast(t('labelers.loadError', { defaultValue: 'Failed to load labelers' }), { type: 'error' });
-    }
-  }, [t]);
-
-  useEffect(() => {
-    loadLabelers().finally(() => setLoading(false));
-  }, [loadLabelers]);
-
-  const onRefresh = useCallback(async () => {
-    setRefreshing(true);
-    await loadLabelers(search);
-    setRefreshing(false);
-  }, [loadLabelers, search]);
-
-  const searchTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const handleSearch = useCallback(
-    (q: string) => {
-      setSearch(q);
-      if (searchTimer.current) clearTimeout(searchTimer.current);
-      searchTimer.current = setTimeout(() => {
-        loadLabelers(q.trim() || undefined);
-      }, 300);
+  const subscription = useMutation<
+    void,
+    Error,
+    { id: string; currentlySubscribed: boolean },
+    { previous: Labeler[] | undefined }
+  >({
+    mutationFn: async ({ id, currentlySubscribed }) => {
+      if (currentlySubscribed) {
+        await labelerService.unsubscribe(id);
+      } else {
+        await labelerService.subscribe(id);
+      }
     },
-    [loadLabelers],
-  );
-
-  useEffect(() => {
-    return () => {
-      if (searchTimer.current) clearTimeout(searchTimer.current);
-    };
-  }, []);
-
-  const handleSubscribeToggle = useCallback(
-    async (id: string, currentlySubscribed: boolean) => {
+    onMutate: async ({ id, currentlySubscribed }) => {
       setSubscribingIds((prev) => new Set(prev).add(id));
-
-      // Optimistic update
-      setLabelers((prev) =>
-        prev.map((l) =>
+      await queryClient.cancelQueries({ queryKey });
+      const previous = queryClient.getQueryData<Labeler[]>(queryKey);
+      queryClient.setQueryData<Labeler[]>(queryKey, (current) =>
+        (current ?? []).map((l) =>
           String(l._id || l.id) === id
             ? {
                 ...l,
@@ -195,41 +198,39 @@ const LabelersScreen: React.FC = () => {
             : l,
         ),
       );
-
-      try {
-        if (currentlySubscribed) {
-          await labelerService.unsubscribe(id);
-          toast(t('labelers.unsubscribed', { defaultValue: 'Unsubscribed' }), { type: 'success' });
-        } else {
-          await labelerService.subscribe(id);
-          toast(t('labelers.subscribed', { defaultValue: 'Subscribed' }), { type: 'success' });
-        }
-      } catch (e) {
-        logger.warn('Subscribe toggle failed', { error: e });
-        // Revert optimistic update
-        setLabelers((prev) =>
-          prev.map((l) =>
-            String(l._id || l.id) === id
-              ? {
-                  ...l,
-                  isSubscribed: currentlySubscribed,
-                  subscriberCount: currentlySubscribed
-                    ? l.subscriberCount + 1
-                    : l.subscriberCount - 1,
-                }
-              : l,
-          ),
-        );
-        toast(t('labelers.subscribeError', { defaultValue: 'Action failed' }), { type: 'error' });
-      } finally {
-        setSubscribingIds((prev) => {
-          const next = new Set(prev);
-          next.delete(id);
-          return next;
-        });
-      }
+      return { previous };
     },
-    [t],
+    onSuccess: (_result, { currentlySubscribed }) => {
+      toast(
+        currentlySubscribed
+          ? t('labelers.unsubscribed', { defaultValue: 'Unsubscribed' })
+          : t('labelers.subscribed', { defaultValue: 'Subscribed' }),
+        { type: 'success' },
+      );
+    },
+    onError: (error, _variables, context) => {
+      if (context?.previous !== undefined) {
+        queryClient.setQueryData<Labeler[]>(queryKey, context.previous);
+      }
+      logger.warn('Subscribe toggle failed', { error });
+      toast(t('labelers.subscribeError', { defaultValue: 'Action failed' }), { type: 'error' });
+    },
+    onSettled: (_result, _error, { id }) => {
+      setSubscribingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
+      queryClient.invalidateQueries({ queryKey });
+    },
+  });
+
+  const { mutate: toggleSubscription } = subscription;
+  const handleSubscribeToggle = useCallback(
+    (id: string, currentlySubscribed: boolean) => {
+      toggleSubscription({ id, currentlySubscribed });
+    },
+    [toggleSubscription],
   );
 
   const renderItem = useCallback(
@@ -284,7 +285,7 @@ const LabelersScreen: React.FC = () => {
         <Ionicons name="search" size={16} color={theme.colors.textSecondary} />
         <TextInput
           value={search}
-          onChangeText={handleSearch}
+          onChangeText={setSearch}
           placeholder={t('labelers.searchPlaceholder', { defaultValue: 'Search labelers\u2026' })}
           placeholderTextColor={theme.colors.textSecondary}
           className="flex-1 text-[15px] text-foreground"
@@ -292,13 +293,13 @@ const LabelersScreen: React.FC = () => {
           returnKeyType="search"
         />
         {search.length > 0 && (
-          <TouchableOpacity onPress={() => handleSearch('')} hitSlop={HIT_SLOP_MD}>
+          <TouchableOpacity onPress={() => setSearch('')} hitSlop={HIT_SLOP_MD}>
             <Ionicons name="close-circle" size={16} color={theme.colors.textSecondary} />
           </TouchableOpacity>
         )}
       </View>
 
-      {loading ? (
+      {isLoading ? (
         <View className="flex-1 justify-center items-center">
           <Loading className="text-primary" size="large" />
         </View>
@@ -330,8 +331,8 @@ const LabelersScreen: React.FC = () => {
           ListEmptyComponent={ListEmpty}
           refreshControl={
             <RefreshControl
-              refreshing={refreshing}
-              onRefresh={onRefresh}
+              refreshing={isFetching}
+              onRefresh={refetch}
               tintColor={theme.colors.primary}
             />
           }

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useMemo } from 'react';
 import { Text, TouchableOpacity, View } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useTranslation } from 'react-i18next';
@@ -30,9 +30,6 @@ export const ProfileStyleSection: React.FC = () => {
   const mySettings = useAppearanceStore((state) => state.mySettings);
   const updateMySettings = useAppearanceStore((state) => state.updateMySettings);
 
-  const [coverPhotoEnabled, setCoverPhotoEnabled] = useState<boolean>(true);
-  const [minimalistMode, setMinimalistMode] = useState<boolean>(false);
-
   const styleOptions: StyleOption[] = useMemo(() => [
     {
       id: 'default' as ProfileStyle,
@@ -52,24 +49,18 @@ export const ProfileStyleSection: React.FC = () => {
     },
   ], [t]);
 
+  // Read straight from the store: `updateMySettings` already applies the change
+  // optimistically and restores the previous settings if the write fails, so a
+  // local mirror of these two flags would only be a second, staler copy of what
+  // the store is already showing.
   const currentStyle: ProfileStyle = useMemo(() => {
-    if (minimalistMode && !coverPhotoEnabled) {
-      return 'minimalist';
-    }
-    return 'default';
-  }, [minimalistMode, coverPhotoEnabled]);
-
-  useEffect(() => {
-    if (mySettings) {
-      setCoverPhotoEnabled(mySettings.profileCustomization?.coverPhotoEnabled ?? true);
-      setMinimalistMode(mySettings.profileCustomization?.minimalistMode ?? false);
-    }
+    const customization = mySettings?.profileCustomization;
+    const coverPhotoEnabled = customization?.coverPhotoEnabled ?? true;
+    const minimalistMode = customization?.minimalistMode ?? false;
+    return minimalistMode && !coverPhotoEnabled ? 'minimalist' : 'default';
   }, [mySettings]);
 
   const handleStyleSelect = useCallback(async (style: StyleOption) => {
-    setCoverPhotoEnabled(style.coverPhotoEnabled);
-    setMinimalistMode(style.minimalistMode);
-
     try {
       await updateMySettings({
         profileCustomization: {
@@ -79,10 +70,8 @@ export const ProfileStyleSection: React.FC = () => {
       });
     } catch (error) {
       logger.error('Error updating profile customization', error);
-      setCoverPhotoEnabled(mySettings?.profileCustomization?.coverPhotoEnabled ?? true);
-      setMinimalistMode(mySettings?.profileCustomization?.minimalistMode ?? false);
     }
-  }, [updateMySettings, mySettings]);
+  }, [updateMySettings]);
 
   return (
     <View className="px-5 py-3 gap-3">
