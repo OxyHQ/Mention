@@ -9,10 +9,10 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 vi.unmock('mongoose');
 
 const mongoose = (await import('mongoose')).default;
-const { default: Bookmark } = await import('../../models/Bookmark.js');
-const { default: EngagementOutbox } = await import('../../models/EngagementOutbox.js');
-const { default: Like } = await import('../../models/Like.js');
-const { default: Post } = await import('../../models/Post.js');
+const { default: Bookmark } = await import('../../models/Bookmark');
+const { default: EngagementOutbox } = await import('../../models/EngagementOutbox');
+const { default: Like } = await import('../../models/Like');
+const { default: Post } = await import('../../models/Post');
 const { enqueueEngagementOutboxEvent } = await import(
   '../../services/EngagementOutboxService'
 );

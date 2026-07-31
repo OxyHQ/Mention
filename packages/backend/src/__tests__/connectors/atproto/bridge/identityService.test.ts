@@ -14,7 +14,7 @@ const mockResolveDid = vi.fn();
 const mockGetUserById = vi.fn();
 
 vi.mock('../../../../connectors/activitypub/constants', async () => {
-  const actual = await vi.importActual<typeof import('../../../../connectors/activitypub/constants.js')>(
+  const actual = await vi.importActual<typeof import('../../../../connectors/activitypub/constants')>(
     '../../../../connectors/activitypub/constants',
   );
   return { ...actual, resolveOxyUser: (...a: unknown[]) => mockResolveOxyUser(...a) };

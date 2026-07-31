@@ -4,7 +4,7 @@
  *
  * A `mention-node` serves media bytes by `sha256` (content address). Mention's
  * feed renders by Oxy `fileId` (`cloud.oxy.so/<fileId>`), and the read-side
- * resolver ({@link import('./PostMaterializer.js').resolveEmbedToMedia}) turns a
+ * resolver ({@link import('./PostMaterializer').resolveEmbedToMedia}) turns a
  * blob `sha256` back into a `fileId` via the REVERSE lookup
  * `getServiceAssetMetadataBySha256`. That lookup only finds a blob that already
  * lives in OUR S3. For a record ingested from a node whose blobs are

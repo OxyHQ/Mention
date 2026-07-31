@@ -14,11 +14,28 @@
   "compilerOptions": {
     "lib": ["ES2020", "DOM"],
     "types": ["node"],
-    // --- Intentional override of the root base: emit CommonJS for Node/Bun.
-    // The ECS image executes the emitted `dist/**` as CommonJS; `node`
-    // resolution matches that runtime.
-    "module": "node16",
-    "moduleResolution": "node16",
+    // --- Intentional override of the root base: emit CommonJS for Bun.
+    // The ECS image runs `bun packages/backend/dist/server.js`, so `dist/**` is
+    // executed as CommonJS. `module: "commonjs"` is that emit contract and is
+    // deliberately NOT `node16`.
+    //
+    // `node16` would keep `await import(...)` as a NATIVE dynamic import in the
+    // output instead of downlevelling it to `require`, and native `import()` of
+    // a CommonJS module does not mean the same thing in every runtime: Node
+    // hands back `default === module.exports` (so an `export default`ed Mongoose
+    // model would need `.default.default`), while Bun unwraps `__esModule` and
+    // hands back the model at `.default`. TypeScript types that expression with
+    // Node's semantics, which are not the semantics of the runtime that
+    // actually executes this code, so under `node16` the type model and the
+    // runtime cannot both be right. Downlevelling to `require` removes the
+    // divergence — `require` means the same thing in Node and in Bun.
+    //
+    // `bundler` is the resolution mode that pairs with `commonjs` here:
+    // TypeScript 7 removed `node10` (`"node"`), and `node16`/`nodenext`
+    // resolution may only be used with the matching `module` setting (TS5110).
+    // It also matches the root base, and unlike `node10` it honours `exports`.
+    "module": "commonjs",
+    "moduleResolution": "bundler",
 
     // --- Emit settings (the root base is type-check only / noEmit).
     // `rootDir: "./"` because the entrypoint `server.ts` lives at the package

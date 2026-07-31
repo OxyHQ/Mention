@@ -117,7 +117,7 @@ vi.mock('../../../connectors/activitypub/actor.service', () => ({
 }));
 
 vi.mock('../../../connectors/activitypub/constants', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../../../connectors/activitypub/constants.js')>();
+  const actual = await importOriginal<typeof import('../../../connectors/activitypub/constants')>();
   return { ...actual, resolveOxyUser: (...args: unknown[]) => mocks.resolveOxyUser(...args) };
 });
 

@@ -55,7 +55,7 @@ vi.mock('../../../connectors/activitypub/crypto', () => ({
 // these outbox fixtures keep exercising the real validation/ingest logic; only
 // the transport is adapted.
 vi.mock('../../../utils/safeUpstreamFetch', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../../../utils/safeUpstreamFetch.js')>();
+  const actual = await importOriginal<typeof import('../../../utils/safeUpstreamFetch')>();
   return {
     ...actual,
     fetchUpstreamSingleHop: mocks.fetchUpstreamSingleHop,

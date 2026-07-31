@@ -9,13 +9,13 @@
   //
   // Design:
   //   * The root intentionally does NOT extend `expo/tsconfig.base`. The Expo
-  //     base sets `customConditions: ["react-native"]`, which is only valid
-  //     with bundler/node16/nodenext module resolution and therefore conflicts
-  //     with the Node/CommonJS packages (backend, shared-types) that resolve
-  //     with `moduleResolution: "node"`. Leaking it into every package caused
-  //     `TS5098`. Instead, the Expo frontend extends BOTH this base AND
+  //     base sets `customConditions: ["react-native"]`, which would resolve
+  //     every package's dependencies through React-Native entry points —
+  //     wrong for the Node/CommonJS packages (backend, shared-types), which
+  //     run on Bun and must resolve the same entries `require` would.
+  //     Instead, the Expo frontend extends BOTH this base AND
   //     `expo/tsconfig.base` (array `extends`), so the React-Native
-  //     condition lands only where bundler resolution is in effect.
+  //     condition lands only where it belongs.
   //   * Each package's tsconfig `extends` this file and overrides ONLY what it
   //     genuinely needs (see per-package comments). The defaults below are the
   //     "type-check only" baseline (`noEmit: true`); packages that actually

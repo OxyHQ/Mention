@@ -150,12 +150,12 @@ vi.mock('../../connectors/activitypub/helpers', () => ({ signedFetch: h.signedFe
 vi.mock('../../connectors/activitypub/constants', () => ({ AP_CONTENT_TYPE: 'application/activity+json' }));
 vi.mock('../../connectors/identity', () => ({ deleteFederatedActorIdentity: h.oxyDelete }));
 vi.mock('../../scripts/lib/adminDeletionPreflight', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('../../scripts/lib/adminDeletionPreflight.js')>()),
+  ...(await importOriginal<typeof import('../../scripts/lib/adminDeletionPreflight')>()),
   assertActorSafeToDelete: h.assertActorSafeToDelete,
   assertPostsSafeToDelete: h.assertPostsSafeToDelete,
 }));
 vi.mock('../../scripts/lib/adminScriptLifecycle', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('../../scripts/lib/adminScriptLifecycle.js')>()),
+  ...(await importOriginal<typeof import('../../scripts/lib/adminScriptLifecycle')>()),
   closeAdminScriptResources: h.closeAdminScriptResources,
 }));
 

@@ -37,7 +37,7 @@ export interface FeedInteractionData {
 export async function trackFeedInteraction(interaction: FeedInteractionData): Promise<void> {
   try {
     // Lazy import to avoid circular dependency at module load time
-    const { FeedInteraction } = await import('../../models/FeedInteraction.js');
+    const { FeedInteraction } = await import('../../models/FeedInteraction');
     await FeedInteraction.create({
       userId: interaction.userId,
       feedDescriptor: interaction.feedDescriptor,

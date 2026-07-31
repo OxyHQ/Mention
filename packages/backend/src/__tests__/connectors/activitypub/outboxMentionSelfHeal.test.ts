@@ -57,7 +57,7 @@ vi.mock('../../../connectors/activitypub/crypto', () => ({
 // global `fetch`). Route it through the per-test stubbed global `fetch` so the
 // real validation/ingest logic runs; only the transport is adapted.
 vi.mock('../../../utils/safeUpstreamFetch', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../../../utils/safeUpstreamFetch.js')>();
+  const actual = await importOriginal<typeof import('../../../utils/safeUpstreamFetch')>();
   return {
     ...actual,
     fetchUpstreamSingleHop: mocks.fetchUpstreamSingleHop,

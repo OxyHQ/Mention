@@ -13,7 +13,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 vi.unmock('mongoose');
 
 const mongoose = (await import('mongoose')).default;
-const { default: ModerationOutbox } = await import('../../../models/ModerationOutbox.js');
+const { default: ModerationOutbox } = await import('../../../models/ModerationOutbox');
 const { enqueueModerationOutboxEvent } = await import(
   '../../../services/moderation/ModerationOutboxService'
 );

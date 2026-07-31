@@ -322,7 +322,7 @@ describe('PostHydrationService — boost original embedding is deterministic', (
       return [];
     });
 
-    const { extractFollowingIds } = await import('../../utils/privacyHelpers.js');
+    const { extractFollowingIds } = await import('../../utils/privacyHelpers');
     vi.mocked(extractFollowingIds).mockReturnValueOnce([ORIGINAL_AUTHOR_OXY_ID]);
 
     const [hydrated] = await hydrateBoost(VIEWER_ID);

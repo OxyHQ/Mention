@@ -328,7 +328,7 @@ async function handleAuthorizationCodeGrant(req: Request, res: Response): Promis
     lastUsedAt: new Date(),
   });
 
-  const { setActiveAccount } = await import('../services/mcpBundleService.js');
+  const { setActiveAccount } = await import('../services/mcpBundleService');
   await setActiveAccount(bundleId, authCode.oxyUserId);
 
   const accessToken = signAccessToken({

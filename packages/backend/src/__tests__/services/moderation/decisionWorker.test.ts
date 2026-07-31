@@ -18,7 +18,7 @@ let reports: Doc[];
 let updates: Array<{ filter: Doc; update: Doc }>;
 
 vi.mock('../../../models/Report.model', async () => {
-  const actual = await vi.importActual<typeof import('../../../models/Report.model.js')>(
+  const actual = await vi.importActual<typeof import('../../../models/Report.model')>(
     '../../../models/Report.model',
   );
   return {

@@ -92,7 +92,7 @@ describe('MediaMetadataService.enrichFromOxy', () => {
   });
 
   it('copies Oxy by-ids fields onto matching media items', async () => {
-    const { getServiceOxyClient } = await import('../../utils/oxyHelpers.js');
+    const { getServiceOxyClient } = await import('../../utils/oxyHelpers');
     const getServiceAssetMetadataByIds = vi.fn().mockResolvedValue([
       {
         id: '65fdc8c8c8c8c8c8c8c8c8c8',
@@ -108,7 +108,7 @@ describe('MediaMetadataService.enrichFromOxy', () => {
       getServiceAssetMetadataByIds,
     } as never);
 
-    const { mediaMetadataService } = await import('../../services/MediaMetadataService.js');
+    const { mediaMetadataService } = await import('../../services/MediaMetadataService');
     const items: MediaItem[] = [{ id: '65fdc8c8c8c8c8c8c8c8c8c8', type: 'video' }];
     const enriched = await mediaMetadataService.enrichFromOxy(items);
 

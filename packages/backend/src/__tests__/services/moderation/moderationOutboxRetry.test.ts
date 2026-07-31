@@ -105,7 +105,7 @@ vi.mock('../../../models/ModerationOutbox', () => ({
 const report: Doc = {};
 
 vi.mock('../../../models/Report.model', async () => {
-  const actual = await vi.importActual<typeof import('../../../models/Report.model.js')>(
+  const actual = await vi.importActual<typeof import('../../../models/Report.model')>(
     '../../../models/Report.model',
   );
   return {
@@ -125,7 +125,7 @@ vi.mock('../../../models/Report.model', async () => {
 /** The subject snapshot. The seam is exercised elsewhere; here it just resolves. */
 vi.mock('../../../services/moderation/subjects/registry', async () => {
   const actual = await vi.importActual<
-    typeof import('../../../services/moderation/subjects/registry.js')
+    typeof import('../../../services/moderation/subjects/registry')
   >('../../../services/moderation/subjects/registry');
   return {
     ...actual,
