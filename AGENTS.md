@@ -31,6 +31,16 @@ Run backend tests from the package root: `cd packages/backend && bun run test` (
 
 **Rebuild `shared-types` before believing a red typecheck or build.** `@mention/shared-types` is consumed through its BUILT `dist`, so after any rebase/checkout that pulls in a shared-types change, every other package still compiles against the previous build and reports the newly-landed symbols as missing — `TS2305: has no exported member 'X'`, in files you never touched. It reads exactly like someone else's broken commit, and has been reported as "N pre-existing errors" more than once. `bun run --cwd packages/shared-types build` first; only a failure that survives that is real.
 
+## Bumping an Oxy SDK package (CRITICAL — `bun add` reports success and changes nothing)
+
+The ROOT `package.json` `overrides` block pins `@oxyhq/bloom`, `@oxyhq/core` and `@oxyhq/services` as well as the workspace manifests, and an override beats a workspace range. So `bun add @oxyhq/bloom@^0.72.1` inside `packages/frontend` prints `installed @oxyhq/bloom@0.71.0`, exits 0, and leaves the old version in both `node_modules` and `bun.lock`. `bun update` behaves the same. Nothing mentions the override.
+
+Every bump therefore touches four things: the workspace manifest, the root `overrides` entry, `expectedBloomVersion` in `scripts/doctor.mjs` (which pins the whole workspace to ONE Bloom release by design), and `bun.lock`. `@oxyhq/bloom` must NOT appear in the root `dependencies` — doctor rejects that ("Runtime dependencies must live in their owning workspace"), and a rebase conflict resolution reintroduces it easily.
+
+**Assert the installed version after any bump — never trust the installer's output.** `node -e "console.log(require('./node_modules/@oxyhq/<pkg>/package.json').version)"` before running any gate, or the gate measures the old package.
+
+For `bun.lock`, do NOT regenerate from scratch: that produced 734 lines of unrelated churn and still failed CI. The correct delta is minimal — the workspace range, the `overrides` entry, and the resolution record. `.github/scripts/verify-lockfile.sh origin/main` prints exactly that diff, and it compares the COMMITTED lockfile, so commit before re-running it.
+
 ## Local Android device build
 
 To produce a TRUE standalone release APK (no Metro / no Expo DevLauncher) for on-device testing:

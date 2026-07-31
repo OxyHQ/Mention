@@ -68,11 +68,6 @@ jest.mock('expo-image', () => {
   return { Image: () => <RNView /> };
 });
 
-jest.mock('@expo/vector-icons', () => {
-  const { View: RNView } = jest.requireActual<typeof import('react-native')>('react-native');
-  return { Ionicons: () => <RNView /> };
-});
-
 jest.mock('@oxyhq/bloom/avatar', () => {
   const { View: RNView } = jest.requireActual<typeof import('react-native')>('react-native');
   return { Avatar: () => <RNView /> };
