@@ -18,6 +18,12 @@ const failures = [];
 const catalog = (!Array.isArray(rootManifest.workspaces) && rootManifest.workspaces?.catalog) || {};
 const CATALOG_REFERENCE = "catalog:";
 const expectedBloomVersion = String(catalog["@oxyhq/bloom"] ?? "").replace(/^\^/, "");
+// The Expo SDK line and the React Native release it pairs with. Same rule as
+// Bloom above: bump these two constants when taking a new SDK, and the manifest
+// and installed-copy assertions below follow. They were spelled out inline until
+// SDK 57, which meant an upgrade passed local review and failed here instead.
+const expectedExpoMajor = "57";
+const expectedReactNativeVersion = "0.86.0";
 
 if (!expectedBunVersion) {
   failures.push("package.json must declare packageManager as bun@<version>.");
@@ -74,18 +80,23 @@ const frontendManifest = await readJson("packages/frontend/package.json");
 const installedExpo = await readJson("node_modules/expo/package.json");
 const installedBloom = await readJson("node_modules/@oxyhq/bloom/package.json");
 
-if (!String(frontendManifest.dependencies?.expo || "").startsWith("~56.")) {
-  failures.push(`Mention frontend must target Expo 56 (found ${String(frontendManifest.dependencies?.expo)}).`);
+if (!String(frontendManifest.dependencies?.expo || "").startsWith(`~${expectedExpoMajor}.`)) {
+  failures.push(
+    `Mention frontend must target Expo ${expectedExpoMajor} (found ${String(frontendManifest.dependencies?.expo)}).`,
+  );
 }
-if (!String(installedExpo.version || "").startsWith("56.")) {
-  failures.push(`Installed Expo must be version 56.x (found ${String(installedExpo.version)}).`);
+if (!String(installedExpo.version || "").startsWith(`${expectedExpoMajor}.`)) {
+  failures.push(
+    `Installed Expo must be version ${expectedExpoMajor}.x (found ${String(installedExpo.version)}).`,
+  );
 }
 if (frontendManifest.dependencies?.react !== "19.2.3") {
   failures.push(`Mention frontend must target React 19.2.3 (found ${String(frontendManifest.dependencies?.react)}).`);
 }
-if (frontendManifest.dependencies?.["react-native"] !== "0.85.3") {
+if (frontendManifest.dependencies?.["react-native"] !== expectedReactNativeVersion) {
   failures.push(
-    `Mention frontend must target React Native 0.85.3 (found ${String(frontendManifest.dependencies?.["react-native"])}).`,
+    `Mention frontend must target React Native ${expectedReactNativeVersion} ` +
+      `(found ${String(frontendManifest.dependencies?.["react-native"])}).`,
   );
 }
 if (installedBloom.version !== expectedBloomVersion) {
