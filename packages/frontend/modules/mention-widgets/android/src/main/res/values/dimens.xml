@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Home-screen sizes for the three trends widgets, in the launcher's own grid units.
+
+  Every value below is `70 × cells − 30` dp, the conversion the App Widget
+  sizing guide gives for turning a cell count into the `minWidth` / `minHeight`
+  a provider must declare (developer.android.com/develop/ui/views/appwidgets
+  § "Determine widget sizing"). They are written out rather than computed so the
+  cell count each one stands for is stated once, here:
+
+      1 cell → 40dp    2 cells → 110dp    3 cells → 180dp
+      4 cells → 250dp  5 cells → 320dp
+
+  These are PLACEMENT sizes only — the default each provider asks for and the range a
+  launcher may resize it within. They are no longer breakpoints: the trends widgets use
+  `SizeMode.Exact` (see `TrendsWidget`), so each one lays out for the height it is
+  actually given rather than for the nearest of a declared set.
+-->
+<resources>
+  <!--
+    The resize range, shared where it is genuinely shared.
+
+    The ceiling is common to all three: 5×5 is where each runs out of content to
+    reveal, so a larger placement would only stretch what is already there. The width
+    floor is common too — 2 cells is the narrowest any of them reads at.
+
+    The HEIGHT floor is not common, and the two below say why. This one is the chip
+    cloud's: a cloud reduced to one chip is a weaker thing than a one-row list or a
+    single large trend, so variant C keeps its floor at the smallest height it has
+    something to say at.
+  -->
+  <dimen name="mention_trends_widget_min_resize_width">110dp</dimen>
+  <dimen name="mention_trends_widget_min_resize_height">110dp</dimen>
+  <dimen name="mention_trends_widget_max_resize_width">320dp</dimen>
+  <dimen name="mention_trends_widget_max_resize_height">320dp</dimen>
+
+  <!--
+    Variants J and A may each be dragged down to ONE cell of height, where each has a
+    form worth showing: the card drops to the trend and its volume with no eyebrow,
+    runners-up or chart, and the list stops being a list and leads with the top trend
+    the same way (`TrendsCardLayout`, `TrendsListLayout`).
+
+    Both are 60dp, and they are two resources rather than one shared value because each
+    provider states its own floor and the two are free to diverge — they coincide today
+    because the form is the same two lines of type in both: a 20sp name and a 12sp
+    supporting line, each occupying about 1.3× its font size in a `TextView`, inside 8dp
+    of padding, come to 57.6dp. 60dp is that rounded up to a whole number, and it lands
+    inside the 40–60dp a single launcher cell reports on most devices, which is what
+    makes a one-cell-tall placement reachable at all.
+
+    Unlike the placement sizes above, a `minResizeHeight` is never a size the widget is
+    given — only the floor a launcher measures a drag against — so it does not have to
+    be a whole number of cells, and neither of these is.
+  -->
+  <dimen name="mention_trends_card_widget_min_resize_height">60dp</dimen>
+  <dimen name="mention_trends_list_widget_min_resize_height">60dp</dimen>
+
+  <!-- Variant A, the ranked list. Default placement 4 cells wide, 3 tall: two rows. -->
+  <dimen name="mention_trends_list_widget_min_width">250dp</dimen>
+  <dimen name="mention_trends_list_widget_min_height">180dp</dimen>
+
+  <!-- Variant C, the chip cloud. Same default: two rows of chips. -->
+  <dimen name="mention_trends_chips_widget_min_width">250dp</dimen>
+  <dimen name="mention_trends_chips_widget_min_height">180dp</dimen>
+
+  <!-- Variant J, the tonal card. Wide and short — 4 cells by 2. -->
+  <dimen name="mention_trends_card_widget_min_width">250dp</dimen>
+  <dimen name="mention_trends_card_widget_min_height">110dp</dimen>
+</resources>

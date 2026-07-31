@@ -38,5 +38,10 @@ yarn-error.*
 
 app-example
 
-android/
-ios/
+# CNG prebuild output — the generated native projects at the PACKAGE ROOT only.
+# Anchored with a leading slash on purpose: an unanchored `android/` matches at
+# any depth, which would also swallow the hand-written native source of the local
+# Expo modules under `modules/*/android/` (that source is checked in — it is the
+# input to prebuild, not its output).
+/android/
+/ios/

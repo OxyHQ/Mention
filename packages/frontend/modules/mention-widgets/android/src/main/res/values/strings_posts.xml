@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Strings for the trending-POSTS widget.
+
+  Its own file rather than more entries in `strings.xml`: Android merges everything under
+  `res/values/`, so a widget family gets its own file and the trends family keeps theirs.
+-->
+<resources>
+  <!--
+    What the launcher's widget picker shows. The label has to distinguish this from the
+    three trends widgets, which show trending TOPICS — this one shows trending POSTS.
+  -->
+  <string name="mention_posts_widget_label">Trending posts</string>
+  <string name="mention_posts_widget_description">One trending post at a time, from Mention\'s Explore feed.</string>
+
+  <!--
+    The brand row, above the post. All caps in the string itself: Glance's `TextStyle` has
+    no text-transform, and uppercasing per locale in code is not something a widget can do
+    correctly without one.
+  -->
+  <string name="mention_posts_widget_eyebrow">TRENDING</string>
+
+  <!-- Shown only before the first successful fetch; never replaces content. -->
+  <string name="mention_posts_widget_empty">No posts yet</string>
+  <string name="mention_posts_widget_open_app">Open Mention</string>
+
+  <!--
+    Read out by TalkBack for the card, which is the primary tap target. `%1$s` is the post's
+    text (already truncated as drawn) and `%2$s` the author's display name — in that order,
+    because that is the order the card is designed to be read in.
+  -->
+  <string name="mention_posts_widget_card_description">%1$s. Posted by %2$s.</string>
+
+  <!--
+    The advance control, the one thing on the card that can move the rotation on. It carries
+    the position as well as the action because the pips beside it are untitled images that a
+    screen reader has nothing to say about: `%1$d` is the post on screen, one-based, and
+    `%2$d` the length of the rotation.
+  -->
+  <string name="mention_posts_widget_next">Next post. Showing %1$d of %2$d.</string>
+
+  <!-- Stands in for the text of a post that has none — a bare link with a picture. -->
+  <string name="mention_posts_widget_no_text">A post with no text</string>
+</resources>

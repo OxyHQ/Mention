@@ -160,12 +160,6 @@ export default function AboutScreen() {
                 {/* Debug */}
                 <SettingsListGroup title={t('settings.debug', { defaultValue: 'Debug' })}>
                     <SettingsListItem
-                        icon={<RowIcon name="code-slash" />}
-                        title={t('settings.systemLog', { defaultValue: 'System log' })}
-                        description={t('settings.systemLogDesc', { defaultValue: 'View in-app diagnostic logs' })}
-                        onPress={() => router.push('/sys/log')}
-                    />
-                    <SettingsListItem
                         icon={<RowIcon name="trash" destructive />}
                         title={t('settings.data.clearCache')}
                         description={t('settings.data.clearCacheDesc')}

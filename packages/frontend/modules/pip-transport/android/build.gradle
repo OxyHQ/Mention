@@ -1,0 +1,22 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'earth.mention.piptransport'
+version = '1.0.0'
+
+android {
+  namespace "earth.mention.piptransport"
+  defaultConfig {
+    versionCode 1
+    versionName "1.0.0"
+  }
+}
+
+dependencies {
+  // `ContextCompat.registerReceiver` (the RECEIVER_NOT_EXPORTED overload that
+  // API 34 requires) landed in core 1.9.0; `bundleOf` comes from the same
+  // artifact. Pinned to the version expo's own modules resolve to.
+  implementation "androidx.core:core-ktx:1.17.0"
+}

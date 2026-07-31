@@ -1,0 +1,15 @@
+<manifest>
+  <!--
+    Intentionally empty.
+
+    The receiver behind the Picture-in-Picture actions is registered at RUNTIME
+    (`ContextCompat.registerReceiver(..., RECEIVER_NOT_EXPORTED)`) for exactly as
+    long as JS is listening, so it needs no manifest entry — and declaring one
+    would publish a component that outlives the session and is reachable by the
+    whole system rather than only by our own PendingIntents.
+
+    `android:supportsPictureInPicture` on the main activity is the expo-video
+    config plugin's job (see the `expo-video` entry in `app.config.js`); this
+    module only adds actions to a window that plugin already made possible.
+  -->
+</manifest>

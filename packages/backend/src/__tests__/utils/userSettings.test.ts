@@ -6,20 +6,24 @@ vi.mock('../../config', () => ({
 
 const getFileDownloadUrl = vi.fn((fileId: string, variant?: string) => {
   const qs = variant ? `?variant=${variant}` : '';
-  return `https://api.oxy.so/assets/${encodeURIComponent(fileId)}/stream${qs}`;
+  return `https://cloud.oxy.so/${encodeURIComponent(fileId)}${qs}`;
 });
 
 vi.mock('../../utils/oxyHelpers', () => ({
   getServiceOxyClient: () => ({
     getBaseURL: () => 'https://api.oxy.so',
+    getCloudURL: () => 'https://cloud.oxy.so',
     getFileDownloadUrl,
   }),
 }));
 
 import { buildSettingsResponseForViewer, extractPublicProfileData } from '../../utils/userSettings';
 
+// The banner is a full-bleed 170px strip, so the DTO must carry the banner
+// VARIANT and never the no-variant original — that original is the raw upload
+// (megabytes of camera-roll PNG) and it is what the profile screen renders.
 describe('extractPublicProfileData', () => {
-  it('exposes profileHeaderImage as the canonical resolved banner field', () => {
+  it('resolves a bare file id to the banner variant, not the original', () => {
     const result = extractPublicProfileData(
       {
         profileHeaderImage: 'new-banner-file',
@@ -32,12 +36,38 @@ describe('extractPublicProfileData', () => {
     );
 
     expect(result.profileHeaderImage).toBe(
-      'https://api.oxy.so/assets/new-banner-file/stream',
+      'https://cloud.oxy.so/new-banner-file?variant=w1280',
     );
     expect(result.profileCustomization).toEqual({
       coverPhotoEnabled: true,
       minimalistMode: false,
     });
+  });
+
+  it('attaches the banner variant to an already-absolute Oxy CDN url', () => {
+    const result = extractPublicProfileData(
+      { profileHeaderImage: 'https://cloud.oxy.so/legacy-banner-file' },
+      'user-1',
+    );
+
+    expect(result.profileHeaderImage).toBe(
+      'https://cloud.oxy.so/legacy-banner-file?variant=w1280',
+    );
+  });
+
+  it('proxies a genuinely external banner url, which has no variant system', () => {
+    const result = extractPublicProfileData(
+      { profileHeaderImage: 'https://remote.example/header.jpg' },
+      'user-1',
+    );
+
+    expect(result.profileHeaderImage).toBe(
+      'https://api.mention.earth/media/proxy?url=https%3A%2F%2Fremote.example%2Fheader.jpg',
+    );
+  });
+
+  it('omits the field when no banner is set', () => {
+    expect(extractPublicProfileData({}, 'user-1').profileHeaderImage).toBeUndefined();
   });
 });
 
@@ -80,7 +110,7 @@ describe('buildSettingsResponseForViewer', () => {
     expect(result).toEqual({
       oxyUserId: 'target-user',
       appearance: { primaryColor: '#00f' },
-      profileHeaderImage: 'https://api.oxy.so/assets/banner-file/stream',
+      profileHeaderImage: 'https://cloud.oxy.so/banner-file?variant=w1280',
       profileCustomization: {
         coverPhotoEnabled: true,
         minimalistMode: false,

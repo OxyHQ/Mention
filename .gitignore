@@ -112,6 +112,12 @@ temp/
 # Local development
 .local/
 
+# Local build artefacts and scratch output
+ctrl/
+wired/
+out3.txt
+packages/frontend/.env.local.bak
+
 # APK Builder
 packages/apk-builder/outputs/*.apk
 packages/apk-builder/outputs/*.json

@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="mention_trends_list_widget_label">Elenco tendenze</string>
+  <string name="mention_trends_list_widget_description">Gli argomenti e gli hashtag del momento su Mention, in ordine.</string>
+
+  <string name="mention_trends_chips_widget_label">Tag di tendenza</string>
+  <string name="mention_trends_chips_widget_description">Argomenti e hashtag di tendenza come chip da toccare.</string>
+
+  <string name="mention_trends_card_widget_label">Tendenza principale</string>
+  <!-- The apostrophe is escaped because aapt2 rejects a bare one in a string resource. -->
+  <string name="mention_trends_card_widget_description">L\'argomento che si muove più in fretta su Mention, con il volume recente.</string>
+
+  <string name="mention_trends_widget_title">Di tendenza</string>
+  <string name="mention_trends_widget_see_all">Vedi tutte le tendenze</string>
+
+  <string name="mention_trends_widget_eyebrow">DI TENDENZA</string>
+
+  <string name="mention_trends_widget_item_hashtag">Di tendenza · %1$s post</string>
+  <string name="mention_trends_widget_item_topic">Argomento di tendenza</string>
+  <string name="mention_trends_widget_item_generic">Di tendenza</string>
+
+  <string name="mention_trends_widget_empty">Ancora nessuna tendenza</string>
+  <string name="mention_trends_widget_open_app">Apri Mention</string>
+</resources>

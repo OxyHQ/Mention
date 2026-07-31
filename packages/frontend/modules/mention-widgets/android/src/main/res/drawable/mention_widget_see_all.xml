@@ -1,0 +1,17 @@
+<!--
+  Chevron for the title-bar button that opens the full Trending screen.
+
+  The path is the app's own `ChevronRight` glyph (assets/icons/chevron-right-icon.tsx),
+  copied verbatim so the affordance is the same shape here as it is in the app.
+  Drawn in white and tinted at draw time by `CircleIconButton`'s `contentColor`,
+  which is what keeps it legible under both dynamic and fallback colours.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+  <path
+      android:fillColor="#FFFFFFFF"
+      android:pathData="M9.29,6.71c-0.39,0.39 -0.39,1.02 0,1.41L13.17,12l-3.88,3.88c-0.39,0.39 -0.39,1.02 0,1.41 0.39,0.39 1.02,0.39 1.41,0l4.59,-4.59c0.39,-0.39 0.39,-1.02 0,-1.41L10.7,6.7c-0.38,-0.38 -1.02,-0.38 -1.41,0.01z" />
+</vector>

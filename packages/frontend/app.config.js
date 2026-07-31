@@ -38,6 +38,22 @@ module.exports = function(_config) {
    * registered in the Firebase console (project mention-a7a53) and the real
    * `google-services.json` swapped in — until then the entries are placeholders.
    */
+  /**
+   * Endpoints the Android home-screen widgets talk to.
+   *
+   * A widget runs outside the JS runtime, so it cannot read `config.ts`. These
+   * two expressions are a deliberate MIRROR of that file's `API_URL` and
+   * `WEB_BASE_URL` — same env vars, same production defaults — so the widget and
+   * the app can never end up pointing at different backends. Keep them in step
+   * if `config.ts` changes.
+   */
+  const WIDGET_API_BASE_URL =
+    process.env.NODE_ENV === 'production'
+      ? 'https://api.mention.earth'
+      : (process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000')
+  const WIDGET_WEB_BASE_URL =
+    process.env.EXPO_PUBLIC_WEB_BASE_URL || 'https://mention.earth'
+
   const IS_DEV_VARIANT = process.env.APP_VARIANT === 'development'
   const APP_ID = IS_DEV_VARIANT ? 'earth.mention.app.dev' : 'earth.mention.app'
   const IOS_ID = IS_DEV_VARIANT ? 'earth.mention.app.dev' : 'earth.mention.app'
@@ -306,6 +322,19 @@ return {
                 './plugins/withAndroidReleaseBuild',
                 // Android sharedUserId for cross-app authentication
                 './plugins/withSharedUserId',
+                [
+                    // Points the Android home-screen widgets (`modules/mention-widgets`)
+                    // at the same backend the app uses. The native module itself is
+                    // autolinked from `modules/` — this plugin only writes the two
+                    // endpoint string resources it reads. `android/` is gitignored
+                    // (CNG), so it lands at the next prebuild / EAS build and does
+                    // NOT ship over OTA.
+                    './modules/mention-widgets/app.plugin',
+                    {
+                        apiBaseUrl: WIDGET_API_BASE_URL,
+                        webBaseUrl: WIDGET_WEB_BASE_URL,
+                    },
+                ],
                 // Reader side of the shared-identity native module (ships in
                 // @oxyhq/services): request the signature permission + <queries>
                 // so cold boot can silently read the Commons-hosted shared

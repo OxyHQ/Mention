@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Provider metadata for variant C, the chip cloud. See
+  `mention_trends_list_widget_info.xml` for the attributes the three trends
+  providers share and why each is set the way it is.
+
+  Its default placement matches the list's — 4 × 3 cells — because at that size the
+  cloud holds two rows of chips, which is where the shape starts reading as a cloud
+  rather than as a single row of pills.
+-->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:initialLayout="@layout/glance_default_loading_layout"
+    android:description="@string/mention_trends_chips_widget_description"
+    android:minWidth="@dimen/mention_trends_chips_widget_min_width"
+    android:minHeight="@dimen/mention_trends_chips_widget_min_height"
+    android:minResizeWidth="@dimen/mention_trends_widget_min_resize_width"
+    android:minResizeHeight="@dimen/mention_trends_widget_min_resize_height"
+    android:maxResizeWidth="@dimen/mention_trends_widget_max_resize_width"
+    android:maxResizeHeight="@dimen/mention_trends_widget_max_resize_height"
+    android:targetCellWidth="@integer/mention_trends_chips_widget_target_cell_width"
+    android:targetCellHeight="@integer/mention_trends_chips_widget_target_cell_height"
+    android:resizeMode="horizontal|vertical"
+    android:widgetCategory="home_screen" />

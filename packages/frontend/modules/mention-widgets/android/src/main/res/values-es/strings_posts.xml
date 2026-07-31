@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="mention_posts_widget_label">Publicaciones en tendencia</string>
+  <string name="mention_posts_widget_description">Una publicación en tendencia a la vez, del feed Explorar de Mention.</string>
+
+  <string name="mention_posts_widget_eyebrow">EN TENDENCIA</string>
+
+  <string name="mention_posts_widget_empty">Aún no hay publicaciones</string>
+  <string name="mention_posts_widget_open_app">Abrir Mention</string>
+
+  <string name="mention_posts_widget_card_description">%1$s. Publicado por %2$s.</string>
+  <string name="mention_posts_widget_next">Publicación siguiente. Mostrando la %1$d de %2$d.</string>
+  <string name="mention_posts_widget_no_text">Una publicación sin texto</string>
+</resources>

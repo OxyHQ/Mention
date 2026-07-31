@@ -1,16 +1,18 @@
 import { z } from "zod";
-import { logger } from '@/lib/logger';
+import { logger } from "@/lib/logger";
 
 // Actor/profile coming from actorId_populated
-export const ZActor = z.object({
-  _id: z.string().optional(),
-  id: z.string().optional(),
-  username: z.string().optional(),
-  // Canonical resolved display name (profile-identity contract). The backend
-  // serializer always emits `name.displayName`; clients render it directly.
-  name: z.object({ displayName: z.string().optional() }).partial().optional(),
-  avatar: z.string().optional(),
-}).partial();
+export const ZActor = z
+  .object({
+    _id: z.string().optional(),
+    id: z.string().optional(),
+    username: z.string().optional(),
+    // Canonical resolved display name (profile-identity contract). The backend
+    // serializer always emits `name.displayName`; clients render it directly.
+    name: z.object({ displayName: z.string().optional() }).partial().optional(),
+    avatar: z.string().optional(),
+  })
+  .partial();
 
 // Embedded post user — the canonical Oxy `User` shape emitted by
 // `PostHydrationService` (Oxy owns identity). Render `name.displayName` directly,
@@ -20,22 +22,22 @@ export const ZActor = z.object({
 const embeddedUserShape = {
   id: z.string(),
   username: z.string().optional(),
-  name: z.object({ displayName: z.string().optional() }).passthrough(),
+  name: z.object({ displayName: z.string().optional() }).loose(),
   avatar: z.string().nullable().optional(),
   verified: z.boolean().optional(),
   isFederated: z.boolean().optional(),
   instance: z.string().optional(),
-  federation: z.object({ domain: z.string().optional() }).passthrough().optional(),
+  federation: z.object({ domain: z.string().optional() }).loose().optional(),
 };
 
 export const ZEmbeddedUser = z
   .object(embeddedUserShape)
-  .passthrough()
+  .loose()
   .superRefine((user, context) => {
-    for (const field of ['handle', 'avatarUrl', 'isVerified'] as const) {
+    for (const field of ["handle", "avatarUrl", "isVerified"] as const) {
       if (field in user) {
         context.addIssue({
-          code: z.ZodIssueCode.custom,
+          code: "custom",
           message: `Legacy identity field "${field}" is not allowed`,
           path: [field],
         });
@@ -46,15 +48,15 @@ export const ZEmbeddedUser = z
 const ZEmbeddedAuthor = z
   .object({
     ...embeddedUserShape,
-    role: z.enum(['owner', 'collaborator']),
-    status: z.enum(['pending', 'accepted', 'declined', 'stopped']),
+    role: z.enum(["owner", "collaborator"]),
+    status: z.enum(["pending", "accepted", "declined", "stopped"]),
   })
-  .passthrough()
+  .loose()
   .superRefine((author, context) => {
-    for (const field of ['handle', 'avatarUrl', 'isVerified'] as const) {
+    for (const field of ["handle", "avatarUrl", "isVerified"] as const) {
       if (field in author) {
         context.addIssue({
-          code: z.ZodIssueCode.custom,
+          code: "custom",
           message: `Legacy identity field "${field}" is not allowed`,
           path: [field],
         });
@@ -71,8 +73,8 @@ export const ZEmbeddedPost = z
     user: ZEmbeddedUser,
     authors: z.array(ZEmbeddedAuthor),
     content: z.object({ text: z.string().optional() }).passthrough(),
-    attachments: z.object({}).passthrough(),
-    linkPreviews: z.array(z.object({ url: z.string() }).passthrough()).optional(),
+    attachments: z.object({}).loose(),
+    linkPreviews: z.array(z.object({ url: z.string() }).loose()).optional(),
     engagement: z
       .object({
         replies: z.number().nullable(),
@@ -83,7 +85,7 @@ export const ZEmbeddedPost = z
         views: z.number().nullable().optional(),
         impressions: z.number().nullable().optional(),
       })
-      .passthrough(),
+      .loose(),
     viewerState: z
       .object({
         isOwner: z.boolean(),
@@ -93,9 +95,9 @@ export const ZEmbeddedPost = z
         isBoosted: z.boolean(),
         isSaved: z.boolean(),
         collabInvitePending: z.boolean().optional(),
-        viewerRole: z.enum(['owner', 'collaborator']).optional(),
+        viewerRole: z.enum(["owner", "collaborator"]).optional(),
       })
-      .passthrough(),
+      .loose(),
     permissions: z
       .object({
         canReply: z.boolean(),
@@ -103,22 +105,27 @@ export const ZEmbeddedPost = z
         canPin: z.boolean(),
         canViewSources: z.boolean(),
       })
-      .passthrough(),
+      .loose(),
     metadata: z
       .object({
         visibility: z.string(),
         createdAt: z.string(),
         updatedAt: z.string(),
       })
-      .passthrough(),
+      .loose(),
     parentPostId: z.string().optional(),
   })
-  .passthrough()
+  .loose()
   .superRefine((post, context) => {
-    for (const field of ['isLiked', 'isDownvoted', 'isBoosted', 'isSaved'] as const) {
+    for (const field of [
+      "isLiked",
+      "isDownvoted",
+      "isBoosted",
+      "isSaved",
+    ] as const) {
       if (field in post) {
         context.addIssue({
-          code: z.ZodIssueCode.custom,
+          code: "custom",
           message: `Legacy viewer field "${field}" is not allowed`,
           path: [field],
         });
@@ -142,7 +149,7 @@ export const ZRawNotification = z
     post: ZEmbeddedPost.optional(),
     actorId_populated: ZActor.optional(),
   })
-  .passthrough();
+  .loose();
 
 export type TEmbeddedPost = z.infer<typeof ZEmbeddedPost>;
 export type TRawNotification = z.infer<typeof ZRawNotification>;
@@ -155,7 +162,9 @@ export const validateNotifications = (items: unknown): TRawNotification[] => {
     if (parsed.success) {
       valid.push(parsed.data);
     } else {
-      logger.warn("Dropping invalid notification", { issue: parsed.error?.issues?.[0] });
+      logger.warn("Dropping invalid notification", {
+        issue: parsed.error?.issues?.[0],
+      });
     }
   }
   return valid;

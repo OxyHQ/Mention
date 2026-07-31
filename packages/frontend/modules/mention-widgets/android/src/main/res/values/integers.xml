@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Default placements on API 31+, expressed directly in launcher cells rather than
+  through the `70 × cells − 30` dp conversion the older attributes need. Each pair
+  matches that variant's `_min_width` / `_min_height` in dimens.xml.
+-->
+<resources>
+  <integer name="mention_trends_list_widget_target_cell_width">4</integer>
+  <integer name="mention_trends_list_widget_target_cell_height">3</integer>
+
+  <integer name="mention_trends_chips_widget_target_cell_width">4</integer>
+  <integer name="mention_trends_chips_widget_target_cell_height">3</integer>
+
+  <integer name="mention_trends_card_widget_target_cell_width">4</integer>
+  <integer name="mention_trends_card_widget_target_cell_height">2</integer>
+</resources>

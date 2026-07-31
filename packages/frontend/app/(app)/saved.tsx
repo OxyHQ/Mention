@@ -6,10 +6,8 @@ import React, {
 } from 'react';
 import {
     Modal,
-    ScrollView,
     StyleSheet,
     Text,
-    TextInput,
     TouchableOpacity,
     View,
 } from 'react-native';
@@ -19,7 +17,11 @@ import {
     useQuery,
     useQueryClient,
 } from '@tanstack/react-query';
+import { Button } from '@oxyhq/bloom/button';
+import { Dialog, useDialogControl } from '@oxyhq/bloom/dialog';
 import { Loading } from '@oxyhq/bloom/loading';
+import { Search } from '@oxyhq/bloom/search';
+import { TextField, TextFieldInput } from '@oxyhq/bloom/text-field';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { useAuth } from '@oxyhq/services/ui/client';
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -28,11 +30,13 @@ import { useTranslation } from 'react-i18next';
 import { SafeAreaView } from '@/lib/SafeAreaViewInterop';
 import { ThemedView } from '@/components/ThemedView';
 import { Header } from '@/components/Header';
-import { Search } from '@/assets/icons/search-icon';
+import { Search as SearchIcon } from '@/assets/icons/search-icon';
 import { Bookmark } from '@/assets/icons/bookmark-icon';
 import { SEO } from '@/components/SEO';
 import { EmptyState } from '@/components/common/EmptyState';
 import { PanelStickyHeader } from '@/components/shell/PanelChrome';
+import AnimatedTabBar from '@/components/common/AnimatedTabBar';
+import { BottomBarAwareFab } from '@/components/BottomBarAwareFab';
 import {
     feedService,
     type SavedPostsPage,
@@ -46,6 +50,13 @@ import { usePostsStore } from '@/stores/postsStore';
 
 const PAGE_SIZE = 30;
 const SEARCH_DEBOUNCE_MS = 400;
+
+// Folder tab ids are namespaced so a folder a user literally named "all" can
+// never collide with the "All" tab.
+const ALL_FOLDERS_TAB_ID = 'all';
+const FOLDER_TAB_PREFIX = 'folder:';
+
+const folderTabId = (folder: string) => `${FOLDER_TAB_PREFIX}${folder}`;
 
 function flattenSavedPages(pages: SavedPostsPage[] | undefined): SavedPost[] {
     if (!pages) return [];
@@ -80,7 +91,7 @@ const SavedPostsScreen: React.FC = () => {
     const [debouncedSearch, setDebouncedSearch] = useState('');
     const [selectedFolder, setSelectedFolder] = useState<string | null>(null);
     const [localFolders, setLocalFolders] = useState<string[]>([]);
-    const [showNewFolderModal, setShowNewFolderModal] = useState(false);
+    const newFolderControl = useDialogControl();
     const [newFolderName, setNewFolderName] = useState('');
     const [movingPostId, setMovingPostId] = useState<string | null>(null);
     const [showMoveModal, setShowMoveModal] = useState(false);
@@ -114,6 +125,20 @@ const SavedPostsScreen: React.FC = () => {
         () => Array.from(new Set([...(foldersQuery.data ?? []), ...localFolders])),
         [foldersQuery.data, localFolders],
     );
+
+    const folderTabs = useMemo(
+        () => [
+            { id: ALL_FOLDERS_TAB_ID, label: t('saved.allBookmarks', 'All') },
+            ...folders.map((folder) => ({ id: folderTabId(folder), label: folder })),
+        ],
+        [folders, t],
+    );
+
+    const handleFolderTabPress = useCallback((tabId: string) => {
+        setSelectedFolder(
+            tabId === ALL_FOLDERS_TAB_ID ? null : tabId.slice(FOLDER_TAB_PREFIX.length),
+        );
+    }, []);
 
     const savedPostsQuery = useInfiniteQuery({
         queryKey: viewerQueryKeys.savedPosts(
@@ -192,6 +217,11 @@ const SavedPostsScreen: React.FC = () => {
         mutate: moveBookmark,
     } = moveBookmarkMutation;
 
+    const closeNewFolder = useCallback(() => {
+        newFolderControl.close();
+        setNewFolderName('');
+    }, [newFolderControl]);
+
     const handleCreateFolder = useCallback(() => {
         const name = newFolderName.trim();
         if (!name) return;
@@ -199,9 +229,9 @@ const SavedPostsScreen: React.FC = () => {
             current.includes(name) ? current : [...current, name]
         ));
         setNewFolderName('');
-        setShowNewFolderModal(false);
+        newFolderControl.close();
         setSelectedFolder(name);
-    }, [newFolderName]);
+    }, [newFolderControl, newFolderName]);
 
     const handleMoveToFolder = useCallback((folder: string | null) => {
         if (!movingPostId || isMovingBookmark) return;
@@ -231,128 +261,33 @@ const SavedPostsScreen: React.FC = () => {
 
     const listHeader = useMemo(() => (
         <View>
-            <View className="flex-row items-center px-4 py-2 mx-4 my-2 rounded-3xl bg-secondary">
-                <View className="mr-2">
-                    <Search size={20} className="text-muted-foreground" />
-                </View>
-                <TextInput
-                    className="flex-1 text-base py-2 text-foreground"
-                    placeholder={t('search.placeholder', 'Search saved posts...')}
-                    placeholderTextColor={theme.colors.textSecondary}
+            <View className="mx-4 my-2">
+                <Search
+                    label={t('saved.searchPlaceholder', 'Search saved posts')}
                     value={searchQuery}
                     onChangeText={setSearchQuery}
-                    accessibilityLabel={t('search.placeholder', 'Search saved posts...')}
+                    onClearText={() => setSearchQuery('')}
                 />
-                {searchQuery.length > 0 && (
-                    <TouchableOpacity
-                        onPress={() => setSearchQuery('')}
-                        accessibilityRole="button"
-                        accessibilityLabel={t('common.clear', 'Clear search')}
-                    >
-                        <Ionicons
-                            name="close-circle"
-                            size={20}
-                            color={theme.colors.textSecondary}
-                        />
-                    </TouchableOpacity>
-                )}
             </View>
 
-            <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                style={styles.folderScrollContainer}
-                contentContainerStyle={styles.folderScrollContent}
-                keyboardShouldPersistTaps="handled"
-            >
-                <TouchableOpacity
-                    style={[
-                        styles.folderChip,
-                        {
-                            backgroundColor: selectedFolder === null
-                                ? theme.colors.primary
-                                : theme.colors.backgroundSecondary,
-                            borderColor: selectedFolder === null
-                                ? theme.colors.primary
-                                : theme.colors.border,
-                        },
-                    ]}
-                    onPress={() => setSelectedFolder(null)}
-                    accessibilityRole="button"
-                    accessibilityState={{ selected: selectedFolder === null }}
-                >
-                    <Text
-                        className="text-sm font-medium"
-                        style={{
-                            color: selectedFolder === null
-                                ? '#fff'
-                                : theme.colors.text,
-                        }}
-                    >
-                        {t('saved.allBookmarks', 'All')}
-                    </Text>
-                </TouchableOpacity>
-
-                {folders.map((folder) => (
-                    <TouchableOpacity
-                        key={folder}
-                        style={[
-                            styles.folderChip,
-                            {
-                                backgroundColor: selectedFolder === folder
-                                    ? theme.colors.primary
-                                    : theme.colors.backgroundSecondary,
-                                borderColor: selectedFolder === folder
-                                    ? theme.colors.primary
-                                    : theme.colors.border,
-                            },
-                        ]}
-                        onPress={() => setSelectedFolder(folder)}
-                        accessibilityRole="button"
-                        accessibilityState={{ selected: selectedFolder === folder }}
-                    >
-                        <Text
-                            className="text-sm font-medium"
-                            style={{
-                                color: selectedFolder === folder
-                                    ? '#fff'
-                                    : theme.colors.text,
-                            }}
-                        >
-                            {folder}
-                        </Text>
-                    </TouchableOpacity>
-                ))}
-
-                <TouchableOpacity
-                    style={[
-                        styles.folderChip,
-                        {
-                            borderColor: theme.colors.border,
-                            backgroundColor: 'transparent',
-                        },
-                    ]}
-                    onPress={() => setShowNewFolderModal(true)}
-                    accessibilityRole="button"
-                    accessibilityLabel={t('saved.newFolder', 'New folder')}
-                >
-                    <Ionicons name="add" size={16} color={theme.colors.primary} />
-                    <Text className="text-sm font-medium text-primary">
-                        {t('saved.newFolder', 'New')}
-                    </Text>
-                </TouchableOpacity>
-            </ScrollView>
+            {/* Folders read as sections of one collection, so they get the same
+                tab bar every other sectioned screen uses (search, notifications,
+                lists). Creating a folder is an action, not a section, so it lives
+                in the FAB — same place as "create" on every other screen. */}
+            <AnimatedTabBar
+                tabs={folderTabs}
+                activeTabId={selectedFolder === null ? ALL_FOLDERS_TAB_ID : folderTabId(selectedFolder)}
+                onTabPress={handleFolderTabPress}
+                scrollEnabled
+                instanceId="saved-folders"
+            />
         </View>
     ), [
-        folders,
+        folderTabs,
+        handleFolderTabPress,
         searchQuery,
         selectedFolder,
         t,
-        theme.colors.backgroundSecondary,
-        theme.colors.border,
-        theme.colors.primary,
-        theme.colors.text,
-        theme.colors.textSecondary,
     ]);
 
     const listEmpty = useMemo(() => {
@@ -389,10 +324,17 @@ const SavedPostsScreen: React.FC = () => {
         return (
             <EmptyState
                 title={debouncedSearch
-                    ? t('search.noResults', 'No results found')
-                    : t('search.startSearching', 'No saved posts yet')}
+                    ? t('saved.empty.search.title', 'No results found')
+                    : selectedFolder
+                        ? t('saved.empty.folder.title', 'This folder is empty')
+                        : t('saved.empty.title', 'No saved posts yet')}
+                subtitle={debouncedSearch
+                    ? t('saved.empty.search.subtitle', 'No saved post matches that search. Try another term.')
+                    : selectedFolder
+                        ? t('saved.empty.folder.subtitle', 'Long-press a saved post to move it into this folder.')
+                        : t('saved.empty.subtitle', 'Posts you save are kept here, private to you.')}
                 customIcon={debouncedSearch
-                    ? <Search size={48} className="text-muted-foreground" />
+                    ? <SearchIcon size={48} className="text-muted-foreground" />
                     : <Bookmark size={48} className="text-muted-foreground" />}
                 containerStyle={{ paddingTop: 60 }}
             />
@@ -404,6 +346,7 @@ const SavedPostsScreen: React.FC = () => {
         refetchSavedPosts,
         savedPostsFailed,
         savedPostsPending,
+        selectedFolder,
         t,
     ]);
 
@@ -443,47 +386,51 @@ const SavedPostsScreen: React.FC = () => {
                         backgroundColor={theme.colors.background}
                     />
                 </ThemedView>
+
+                {/* Create-folder FAB — same anchor and BottomBar clearance as the
+                    create action on feeds, lists and the home feed. */}
+                {canUsePrivateApi ? (
+                    <BottomBarAwareFab
+                        onPress={newFolderControl.open}
+                        icon={<Ionicons name="add" size={24} color="white" />}
+                        accessibilityLabel={t('saved.newFolder', 'New folder')}
+                    />
+                ) : null}
             </SafeAreaView>
 
-            <Modal visible={showNewFolderModal} transparent animationType="fade">
-                <View style={styles.modalOverlay}>
-                    <View className="w-full max-w-[360px] rounded-2xl p-5 bg-card">
-                        <Text className="text-lg font-semibold mb-4 text-foreground">
-                            {t('saved.createFolder', 'Create Folder')}
-                        </Text>
-                        <TextInput
-                            className="text-base p-3 mb-4 rounded-xl border text-foreground border-border bg-secondary"
-                            placeholder={t('saved.folderName', 'Folder name')}
-                            placeholderTextColor={theme.colors.textSecondary}
+            <Dialog
+                control={newFolderControl}
+                title={t('saved.createFolder', 'Create folder')}
+                label={t('saved.createFolder', 'Create folder')}
+            >
+                <View className="gap-4">
+                    <TextField>
+                        <TextFieldInput
+                            label={t('saved.folderName', 'Folder name')}
                             value={newFolderName}
                             onChangeText={setNewFolderName}
+                            onSubmitEditing={handleCreateFolder}
+                            returnKeyType="done"
                             autoFocus
                             maxLength={100}
                         />
-                        <View className="flex-row justify-end gap-2">
-                            <TouchableOpacity
-                                className="px-4 py-2.5 rounded-[10px] items-center bg-secondary"
-                                onPress={() => {
-                                    setShowNewFolderModal(false);
-                                    setNewFolderName('');
-                                }}
-                            >
-                                <Text className="text-foreground">
-                                    {t('common.cancel', 'Cancel')}
-                                </Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity
-                                className="px-4 py-2.5 rounded-[10px] items-center bg-primary"
-                                onPress={handleCreateFolder}
-                            >
-                                <Text className="text-white">
-                                    {t('common.create', 'Create')}
-                                </Text>
-                            </TouchableOpacity>
-                        </View>
+                    </TextField>
+
+                    <View className="flex-row justify-end gap-2">
+                        <Button variant="secondary" size="large" onPress={closeNewFolder}>
+                            {t('common.cancel', 'Cancel')}
+                        </Button>
+                        <Button
+                            variant="primary"
+                            size="large"
+                            disabled={!newFolderName.trim()}
+                            onPress={handleCreateFolder}
+                        >
+                            {t('common.create', 'Create')}
+                        </Button>
                     </View>
                 </View>
-            </Modal>
+            </Dialog>
 
             <Modal visible={showMoveModal} transparent animationType="fade">
                 <View style={styles.modalOverlay}>
@@ -536,24 +483,6 @@ const SavedPostsScreen: React.FC = () => {
 };
 
 const styles = StyleSheet.create({
-    folderScrollContainer: {
-        maxHeight: 44,
-        marginBottom: 4,
-    },
-    folderScrollContent: {
-        paddingHorizontal: 16,
-        gap: 8,
-        alignItems: 'center',
-    },
-    folderChip: {
-        paddingHorizontal: 14,
-        paddingVertical: 6,
-        borderRadius: 20,
-        borderWidth: 1,
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 4,
-    },
     listFooterSpace: {
         height: 24,
     },
