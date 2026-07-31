@@ -16,8 +16,8 @@
   "compilerOptions": {
     // --- Intentional override of the root base: emit CommonJS for the backend.
     // `node` resolution matches the CJS module format the backend runtime uses.
-    "module": "commonjs",
-    "moduleResolution": "node",
+    "module": "node16",
+    "moduleResolution": "node16",
 
     // --- Emit settings (the root base is type-check only / noEmit).
     "noEmit": false,
