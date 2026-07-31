@@ -12,6 +12,7 @@ import { requireOptionalNativeModule, type NativeModule } from 'expo';
  * which is why `requireOptionalNativeModule` is used and its `null` handled once
  * here instead of at each call site.
  *
+<<<<<<< HEAD
  * The surface is small on purpose. A widget runs outside the app process, so
  * each one owns its data end to end natively — fetch, cache, render, deep link —
  * and anything mirrored here would be a second implementation of that path. What
@@ -31,6 +32,14 @@ import { requireOptionalNativeModule, type NativeModule } from 'expo';
  * The data pair is not a second fetch path. It carries raw strings; every rule
  * about what a card shows, and the account stamp that decides whether a rotation
  * may be drawn at all, stays in Kotlin (`feedcard/FeedHandoff.kt`).
+=======
+ * The surface is one function on purpose. A widget runs outside the app process,
+ * so each one owns its data end to end natively — fetch, cache, render, deep
+ * link — and anything mirrored here would be a second implementation of that
+ * path. What is genuinely JS-side is the one fact only the running app knows:
+ * that the content it is displaying has just changed. See `trendsWidgetSync.ts`
+ * for when acting on that is worth a fetch.
+>>>>>>> eb94101b (chore: sync latest frontend/backend changes)
  */
 
 // `declare class`, not an interface: `NativeModule` is exported as the
@@ -43,6 +52,7 @@ declare class MentionWidgetsNativeModule extends NativeModule {
    * the work is queued, not once it has run.
    */
   refreshTrends(): Promise<void>;
+<<<<<<< HEAD
 
   /**
    * Store an Explore page the app fetched as the trending-posts widget's
@@ -66,6 +76,8 @@ declare class MentionWidgetsNativeModule extends NativeModule {
    * so, which for most installs is always.
    */
   followingWidgetNeedsFeed(): Promise<boolean>;
+=======
+>>>>>>> eb94101b (chore: sync latest frontend/backend changes)
 }
 
 const nativeModule = requireOptionalNativeModule<MentionWidgetsNativeModule>('MentionWidgets');
@@ -83,6 +95,7 @@ export const areHomeScreenWidgetsAvailable = nativeModule !== null;
 export function refreshTrendsWidget(): Promise<void> {
   return nativeModule?.refreshTrends() ?? Promise.resolve();
 }
+<<<<<<< HEAD
 
 /**
  * Hand the trending-posts widget an Explore page the app already downloaded.
@@ -119,3 +132,5 @@ export function publishFollowingWidgetFeed(accountId: string, body: string): Pro
 export function followingWidgetNeedsFeed(): Promise<boolean> {
   return nativeModule?.followingWidgetNeedsFeed() ?? Promise.resolve(false);
 }
+=======
+>>>>>>> eb94101b (chore: sync latest frontend/backend changes)

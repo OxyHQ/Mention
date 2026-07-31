@@ -37,9 +37,14 @@ const mockNative = {
 
 const mockDebug = jest.fn();
 
+<<<<<<< HEAD
 jest.mock('@oxyhq/core/logger', () => ({
   ...jest.requireActual('@oxyhq/core/logger'),
   createLogger: () => ({ debug: (...args: unknown[]) => mockDebug(...args) }),
+=======
+jest.mock('@/lib/logger', () => ({
+  createScopedLogger: () => ({ debug: (...args: unknown[]) => mockDebug(...args) }),
+>>>>>>> eb94101b (chore: sync latest frontend/backend changes)
 }));
 
 jest.mock('@/modules/pip-transport', () => ({

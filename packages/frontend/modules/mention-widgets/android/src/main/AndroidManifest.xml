@@ -107,6 +107,7 @@
         android:name="android.appwidget.provider"
         android:resource="@xml/mention_posts_widget_info" />
     </receiver>
+<<<<<<< HEAD
 
     <!--
       The FOLLOWING widget — the same card as the one above, over the reader's own timeline
@@ -162,5 +163,7 @@
       flushes the deferred `FollowingRefreshWorker` / `PostsRefreshWorker` ticks, and that
       the running app hands its feed over directly (see `feedcard/FeedHandoff.kt`).
     -->
+=======
+>>>>>>> eb94101b (chore: sync latest frontend/backend changes)
   </application>
 </manifest>

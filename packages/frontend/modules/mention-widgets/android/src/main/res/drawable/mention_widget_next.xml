@@ -1,0 +1,22 @@
+<!--
+  Chevron for the trending-posts card's advance control.
+
+  The path is the app's own `ChevronRight` glyph (assets/icons/chevron-right-icon.tsx), so
+  "forward" is the same shape on the home screen as it is inside the app. Drawn in white and
+  tinted at draw time by `CircleIconButton`'s `contentColor`, which is what keeps it legible
+  under both dynamic and fallback colours.
+
+  Its own file rather than a reference to `mention_widget_see_all.xml`, which happens to carry
+  the same glyph today: that one belongs to the trends title bar and means "open the full
+  list", this one means "next post". Per-family resources are the convention throughout this
+  module — the same reason the two widget families keep separate `strings` files.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+  <path
+      android:fillColor="#FFFFFFFF"
+      android:pathData="M9.29,6.71c-0.39,0.39 -0.39,1.02 0,1.41L13.17,12l-3.88,3.88c-0.39,0.39 -0.39,1.02 0,1.41 0.39,0.39 1.02,0.39 1.41,0l4.59,-4.59c0.39,-0.39 0.39,-1.02 0,-1.41L10.7,6.7c-0.38,-0.38 -1.02,-0.38 -1.41,0.01z" />
+</vector>

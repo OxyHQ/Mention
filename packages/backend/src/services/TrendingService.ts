@@ -1,6 +1,6 @@
 import { Post } from '../models/Post';
-import Trending, { TrendingType, TrendingRecord, TRENDING_TTL_SECONDS } from '../models/Trending';
-import { MtnConfig, PostVisibility } from '@mention/shared-types';
+import Trending, { TrendingType, ITrending, TRENDING_TTL_SECONDS } from '../models/Trending';
+import { PostVisibility } from '@mention/shared-types';
 import { TopicType } from '@oxyhq/core';
 import TrendBatch from '../models/TrendBatch';
 import { logger } from '../utils/logger';
@@ -13,8 +13,11 @@ import { isNsfwHashtag } from './contentClassification/nsfw';
 // feed (For You, Explore, ranking). Adding a new gate updates trending too.
 import { SENSITIVE_EXCLUDE_MATCH } from '../mtn/feed/feedSafety';
 import { mintTrendRecId } from './trending/trendTelemetry';
+<<<<<<< HEAD
 import { buildTrendSeries } from './trending/trendSeries';
 import { metrics } from '../utils/metrics';
+=======
+>>>>>>> eb94101b (chore: sync latest frontend/backend changes)
 
 /**
  * How long the current batch's `recId` is memoized in process. Far shorter than
@@ -33,6 +36,7 @@ interface TrendItem {
   topicId?: string;
 }
 
+<<<<<<< HEAD
 /**
  * What the database actually accepted for a batch. Returned rather than thrown so
  * a single rejected row degrades one trend instead of the whole batch — see
@@ -67,6 +71,8 @@ function trendKey(name: string, type: TrendingType): string {
  */
 export type TrendWithSeries = TrendingRecord & { series?: number[] };
 
+=======
+>>>>>>> eb94101b (chore: sync latest frontend/backend changes)
 class TrendingService {
   private calculationInterval: NodeJS.Timeout | null = null;
   /** Memoized current-batch token; see {@link getCurrentRecId}. */
@@ -507,7 +513,7 @@ class TrendingService {
   public async getTrending(
     limit: number = 20,
     type?: TrendingType,
-  ): Promise<{ trending: TrendWithSeries[]; summary: string; recId?: string }> {
+  ): Promise<{ trending: ITrending[]; summary: string; recId?: string }> {
     const cacheKey = `trending:latest:${limit}:${type || 'all'}`;
     const redis = await getRedisClient();
 
@@ -540,6 +546,7 @@ class TrendingService {
     const trending = await Trending.find(query)
       .sort({ score: -1, rank: 1 })
       .limit(limit)
+<<<<<<< HEAD
       .lean() as unknown as TrendingRecord[];
 
     // Only reached on a cache MISS. The entry below is warmed right after each
@@ -552,6 +559,12 @@ class TrendingService {
         const points = series.get(trendKey(trend.name, trend.type));
         return points ? { ...trend, series: points } : trend;
       }),
+=======
+      .lean() as unknown as ITrending[];
+
+    const result = {
+      trending,
+>>>>>>> eb94101b (chore: sync latest frontend/backend changes)
       summary: latestBatch.summary || '',
       recId: mintTrendRecId(latestBatch.calculatedAt),
     };
@@ -568,6 +581,7 @@ class TrendingService {
   }
 
   /**
+<<<<<<< HEAD
    * Recent `volume` history for the given trends, keyed by {@link trendKey}.
    *
    * The `Trending` collection is the ONLY per-(name, type) time series that
@@ -659,6 +673,8 @@ class TrendingService {
   }
 
   /**
+=======
+>>>>>>> eb94101b (chore: sync latest frontend/backend changes)
    * The `recId` of the batch that is current RIGHT NOW — what a submitted token
    * is compared against to derive the bounded `freshness` label.
    *
@@ -710,7 +726,7 @@ class TrendingService {
   public async getTrendingHistory(
     page: number = 1,
     limit: number = 10,
-  ): Promise<{ days: Array<{ date: string; trends: TrendingRecord[] }>; page: number; totalPages: number }> {
+  ): Promise<{ days: Array<{ date: string; trends: ITrending[] }>; page: number; totalPages: number }> {
     const cacheKey = `trending:history:${page}:${limit}`;
     const redis = await getRedisClient();
 
@@ -751,7 +767,7 @@ class TrendingService {
     // For each day, get unique trends with highest score. The leading
     // `$match` on `calculatedAt` lets the planner use the index before the
     // day-string derivation and `$in` filter.
-    const grouped = await Trending.aggregate<{ date: string; trends: TrendingRecord[] }>([
+    const grouped = await Trending.aggregate<{ date: string; trends: ITrending[] }>([
       { $match: { calculatedAt: { $gte: cutoff } } },
       {
         $addFields: {

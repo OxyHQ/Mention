@@ -9,6 +9,11 @@
   <string name="mention_posts_widget_open_app">Apri Mention</string>
 
   <string name="mention_posts_widget_card_description">%1$s. Pubblicato da %2$s.</string>
+<<<<<<< HEAD
   <string name="mention_posts_widget_no_text">Un post senza testo</string>
 
+=======
+  <string name="mention_posts_widget_next">Post successivo. Mostra il %1$d di %2$d.</string>
+  <string name="mention_posts_widget_no_text">Un post senza testo</string>
+>>>>>>> eb94101b (chore: sync latest frontend/backend changes)
 </resources>

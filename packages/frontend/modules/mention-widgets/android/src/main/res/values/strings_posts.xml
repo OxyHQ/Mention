@@ -25,12 +25,30 @@
   <string name="mention_posts_widget_open_app">Open Mention</string>
 
   <!--
+<<<<<<< HEAD
     Read out by TalkBack for the whole card, which is one tap target. `%1$s` is the post's
+=======
+    Read out by TalkBack for the card, which is the primary tap target. `%1$s` is the post's
+>>>>>>> eb94101b (chore: sync latest frontend/backend changes)
     text (already truncated as drawn) and `%2$s` the author's display name — in that order,
     because that is the order the card is designed to be read in.
   -->
   <string name="mention_posts_widget_card_description">%1$s. Posted by %2$s.</string>
+<<<<<<< HEAD
   <!-- Stands in for the text of a post that has none — a bare link with a picture. -->
   <string name="mention_posts_widget_no_text">A post with no text</string>
 
+=======
+
+  <!--
+    The advance control, the one thing on the card that can move the rotation on. It carries
+    the position as well as the action because the pips beside it are untitled images that a
+    screen reader has nothing to say about: `%1$d` is the post on screen, one-based, and
+    `%2$d` the length of the rotation.
+  -->
+  <string name="mention_posts_widget_next">Next post. Showing %1$d of %2$d.</string>
+
+  <!-- Stands in for the text of a post that has none — a bare link with a picture. -->
+  <string name="mention_posts_widget_no_text">A post with no text</string>
+>>>>>>> eb94101b (chore: sync latest frontend/backend changes)
 </resources>

@@ -41,7 +41,11 @@ internal fun TrendsTitleBar(compact: Boolean) {
         textColor = GlanceTheme.colors.onSurface,
         actions = {
             CircleIconButton(
+<<<<<<< HEAD
                 imageProvider = ImageProvider(R.drawable.mention_widget_chevron_right),
+=======
+                imageProvider = ImageProvider(R.drawable.mention_widget_see_all),
+>>>>>>> eb94101b (chore: sync latest frontend/backend changes)
                 contentDescription = context.getString(R.string.mention_trends_widget_see_all),
                 contentColor = GlanceTheme.colors.secondary,
                 backgroundColor = null,

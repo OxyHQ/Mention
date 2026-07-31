@@ -2,10 +2,13 @@ package earth.mention.widgets.posts
 
 import android.content.Context
 import earth.mention.widgets.R
+<<<<<<< HEAD
 import earth.mention.widgets.feedcard.FEED_PAGE_LENGTH
 import earth.mention.widgets.feedcard.ROTATION_LENGTH
 import earth.mention.widgets.feedcard.WidgetPost
 import earth.mention.widgets.feedcard.parseFeedResponse
+=======
+>>>>>>> eb94101b (chore: sync latest frontend/backend changes)
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.IOException
@@ -45,7 +48,11 @@ internal object PostsApi {
      */
     suspend fun fetch(context: Context): List<WidgetPost> = withContext(Dispatchers.IO) {
         val base = context.getString(R.string.mention_widget_api_base_url).trimEnd('/')
+<<<<<<< HEAD
         val url = URL("$base/feed/mtn?descriptor=explore&limit=$FEED_PAGE_LENGTH")
+=======
+        val url = URL("$base/feed/mtn?descriptor=explore&limit=$ROTATION_LENGTH")
+>>>>>>> eb94101b (chore: sync latest frontend/backend changes)
         val connection = (url.openConnection() as HttpURLConnection).apply {
             requestMethod = "GET"
             connectTimeout = CONNECT_TIMEOUT_MS
@@ -57,7 +64,11 @@ internal object PostsApi {
             if (status != HttpURLConnection.HTTP_OK) {
                 throw IOException("GET /feed/mtn?descriptor=explore responded $status")
             }
+<<<<<<< HEAD
             parseFeedResponse(connection.inputStream.bufferedReader().use { it.readText() })
+=======
+            parsePostsResponse(connection.inputStream.bufferedReader().use { it.readText() })
+>>>>>>> eb94101b (chore: sync latest frontend/backend changes)
         } finally {
             connection.disconnect()
         }

@@ -20,8 +20,12 @@ jest.mock('../index', () => ({
   refreshTrendsWidget: () => mockRefreshTrendsWidget(),
 }));
 
+<<<<<<< HEAD
 jest.mock('@oxyhq/core/logger', () => ({
   ...jest.requireActual('@oxyhq/core/logger'),
+=======
+jest.mock('@/lib/logger', () => ({
+>>>>>>> eb94101b (chore: sync latest frontend/backend changes)
   logger: { debug: (...args: unknown[]) => mockDebug(...args) },
 }));
 

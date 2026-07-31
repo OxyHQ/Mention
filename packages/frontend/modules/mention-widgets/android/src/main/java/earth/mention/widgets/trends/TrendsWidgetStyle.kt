@@ -89,6 +89,67 @@ internal object TrendsWidgetDimensions {
 }
 
 /**
+<<<<<<< HEAD
+=======
+ * The type scale's sizes, in sp, as plain numbers.
+ *
+ * They exist because a layout on this surface sometimes has to MEASURE text rather than
+ * just style it — Glance cannot measure, so how much fits is estimated from the font
+ * size before anything is emitted (`estimateTextWidthDp`, [estimateLineHeightDp]) — and
+ * a measurement taken against a different number than the one drawn is a layout that
+ * silently disagrees with itself.
+ *
+ * So this is the single source: [TrendsWidgetTextStyles] builds every `TextStyle` from
+ * these values, and the layouts that measure read the same ones.
+ */
+internal object TrendsWidgetFontSizes {
+    /** M3 Title Medium / Title Small — a trend's name in a list row or a chip. */
+    const val NAME = 16f
+    const val NAME_COMPACT = 14f
+
+    /** M3 Headline Small, and the compact step for a surface too small to hold it. */
+    const val HEADLINE = 26f
+    const val HEADLINE_COMPACT = 20f
+
+    /** M3 Label Medium — a rank numeral, a post count, the line under a headline. */
+    const val SUPPORTING = 12f
+
+    /** M3 Label Small — the card's eyebrow. */
+    const val EYEBROW = 11f
+
+    /** M3 Title Medium — the empty state's single line. */
+    const val EMPTY_MESSAGE = 16f
+}
+
+/**
+ * Height one line of text occupies, as a fraction of its font size.
+ *
+ * A `TextView` reserves ascent plus descent INCLUDING the font's own padding
+ * (`includeFontPadding`, on by default and not reachable from Glance), which for Roboto
+ * is a little over 1.28em rather than the 1.17em its bare ascent and descent come to.
+ * 1.3 is that rounded up, which claims slightly less room than there is — the safe
+ * direction, since over-estimating costs a line that is dropped and under-estimating
+ * costs a line that is clipped.
+ */
+private const val LINE_HEIGHT_RATIO = 1.3f
+
+/**
+ * Roughly how tall one line of [fontSizeSp] text renders, in dp.
+ *
+ * The height counterpart to `estimateTextWidthDp`, and [fontScale] is here for the same
+ * reason it is there: a layout that ignores the reader's font setting is a layout that
+ * breaks for the readers who need it most. Android 14's non-linear scaling steps large
+ * type up by less than this assumes, which again errs towards claiming less room.
+ *
+ * It is shared because two variants need it — the card's short form and the list's lead
+ * are the same two lines of type, and each has to know whether the second one fits
+ * inside its own padding.
+ */
+internal fun estimateLineHeightDp(fontSizeSp: Float, fontScale: Float): Float =
+    fontSizeSp * fontScale * LINE_HEIGHT_RATIO
+
+/**
+>>>>>>> eb94101b (chore: sync latest frontend/backend changes)
  * The type scale, as Material 3 roles.
  *
  * Colour is a parameter rather than a constant because the same text is drawn on
@@ -106,7 +167,15 @@ internal object TrendsWidgetTextStyles {
     fun name(color: ColorProvider, compact: Boolean) = TextStyle(
         color = color,
         fontWeight = FontWeight.Medium,
+<<<<<<< HEAD
         fontSize = if (compact) 14.sp else 16.sp,
+=======
+        fontSize = if (compact) {
+            TrendsWidgetFontSizes.NAME_COMPACT.sp
+        } else {
+            TrendsWidgetFontSizes.NAME.sp
+        },
+>>>>>>> eb94101b (chore: sync latest frontend/backend changes)
     )
 
     /**
@@ -121,14 +190,26 @@ internal object TrendsWidgetTextStyles {
     fun headline(color: ColorProvider, compact: Boolean) = TextStyle(
         color = color,
         fontWeight = FontWeight.Bold,
+<<<<<<< HEAD
         fontSize = if (compact) 20.sp else 26.sp,
+=======
+        fontSize = if (compact) {
+            TrendsWidgetFontSizes.HEADLINE_COMPACT.sp
+        } else {
+            TrendsWidgetFontSizes.HEADLINE.sp
+        },
+>>>>>>> eb94101b (chore: sync latest frontend/backend changes)
     )
 
     /** Rank numeral, post count, the line under a headline: M3 Label Medium. */
     fun supporting(color: ColorProvider) = TextStyle(
         color = color,
         fontWeight = FontWeight.Normal,
+<<<<<<< HEAD
         fontSize = 12.sp,
+=======
+        fontSize = TrendsWidgetFontSizes.SUPPORTING.sp,
+>>>>>>> eb94101b (chore: sync latest frontend/backend changes)
     )
 
     /**
@@ -141,14 +222,22 @@ internal object TrendsWidgetTextStyles {
     fun eyebrow(color: ColorProvider) = TextStyle(
         color = color,
         fontWeight = FontWeight.Medium,
+<<<<<<< HEAD
         fontSize = 11.sp,
+=======
+        fontSize = TrendsWidgetFontSizes.EYEBROW.sp,
+>>>>>>> eb94101b (chore: sync latest frontend/backend changes)
     )
 
     /** The empty state's single line; M3 Title Medium, as `NoDataContent` uses. */
     fun emptyMessage(color: ColorProvider) = TextStyle(
         color = color,
         fontWeight = FontWeight.Medium,
+<<<<<<< HEAD
         fontSize = 16.sp,
+=======
+        fontSize = TrendsWidgetFontSizes.EMPTY_MESSAGE.sp,
+>>>>>>> eb94101b (chore: sync latest frontend/backend changes)
     )
 }
 

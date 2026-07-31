@@ -18,9 +18,20 @@
   This origin is also half of the download allowlist in `PostsImageCache`: the widget will
   fetch a picture from here or from the configured API origin, and from nowhere else.
 
+<<<<<<< HEAD
   Overriding it needs no plugin change — an app-module string of the same name wins over a
   library dependency's at merge time, which is the mechanism `app.plugin.js` already uses for
   the other two origins.
+=======
+  Overridden the same way as the other two origins: pass `mediaBaseUrl` to
+  `withMentionWidgets` in `app.config.js` and the plugin writes this same resource name into
+  the APP module's strings, which win over a library dependency's at merge time.
+
+  Repointing it is not optional for a development build. A file id that exists on a
+  development backend does not exist on the production CDN, so a build that repointed only
+  `apiBaseUrl` would draw a card whose text came from one environment and whose pictures were
+  all broken.
+>>>>>>> eb94101b (chore: sync latest frontend/backend changes)
 -->
 <resources>
   <string name="mention_widget_media_base_url" translatable="false">https://cloud.oxy.so</string>

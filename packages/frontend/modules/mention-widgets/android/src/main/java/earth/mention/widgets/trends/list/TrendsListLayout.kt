@@ -1,6 +1,10 @@
 package earth.mention.widgets.trends.list
 
 import androidx.compose.runtime.Composable
+<<<<<<< HEAD
+=======
+import androidx.compose.ui.unit.Dp
+>>>>>>> eb94101b (chore: sync latest frontend/backend changes)
 import androidx.compose.ui.unit.dp
 import androidx.glance.GlanceModifier
 import androidx.glance.GlanceTheme
@@ -28,8 +32,15 @@ import earth.mention.widgets.trends.TrendKind
 import earth.mention.widgets.trends.TrendsEmptyContent
 import earth.mention.widgets.trends.TrendsTitleBar
 import earth.mention.widgets.trends.TrendsWidgetDimensions
+<<<<<<< HEAD
 import earth.mention.widgets.trends.TrendsWidgetTextStyles
 import earth.mention.widgets.trends.WidgetTrend
+=======
+import earth.mention.widgets.trends.TrendsWidgetFontSizes
+import earth.mention.widgets.trends.TrendsWidgetTextStyles
+import earth.mention.widgets.trends.WidgetTrend
+import earth.mention.widgets.trends.estimateLineHeightDp
+>>>>>>> eb94101b (chore: sync latest frontend/backend changes)
 import earth.mention.widgets.trends.formatCompactCount
 import earth.mention.widgets.trends.leadingSeries
 import earth.mention.widgets.trends.openInAppIntent
@@ -61,10 +72,69 @@ import earth.mention.widgets.trends.trendUrl
  * list that failed to load rather than as a deliberate smaller widget. Showing
  * LESS, in a shape that suits the space, is the honest answer to being resized
  * down. The threshold is not configured: it is [rowsThatFit] reaching one.
+<<<<<<< HEAD
  */
 @Composable
 internal fun TrendsListWidgetContent(trends: List<WidgetTrend>) {
     val size = LocalSize.current
+=======
+ *
+ * ONE CELL OF HEIGHT goes one step further ([LIST_SHORT_MAX_HEIGHT]). The lead above
+ * still has the room for a full 26sp headline, its supporting line and a chart behind
+ * them; at 60dp it has room for the trend and its volume and nothing whatever else, so
+ * that is what it draws — see [TrendsListShortLead]. That form, not a one-row list, is
+ * what the list turns into at its resize floor.
+ *
+ * Every one of those counts comes from the height the widget REALLY has, because the
+ * size mode is `SizeMode.Exact` (see `TrendsWidget`). Under the declared-size set this
+ * variant used to carry, a 170dp list was composed as the 110dp declaration and drew one
+ * row while two fit.
+ */
+
+/**
+ * Below this height the list draws [TrendsListShortLead] instead of anything else.
+ *
+ * Two launcher cells (`70 × 2 − 30`). At or above it the widget can hold the lead's full
+ * 26sp headline, its supporting line and the chart band behind them; below it — which is
+ * to say at one cell, the resize floor — it cannot hold any two of the three.
+ */
+private val LIST_SHORT_MAX_HEIGHT = 110.dp
+
+/**
+ * Padding around the short form, on all four sides.
+ *
+ * 8dp rather than the 12dp every other surface in this module uses, because at 60dp of
+ * height 12dp twice over is a fifth of the widget. It is the same value, chosen the same
+ * way, as the card's short form.
+ */
+private val LIST_SHORT_PADDING = 8.dp
+
+/**
+ * Whether the short form has room for the trend's volume as well as its name.
+ *
+ * The same rule as the card's, against the same shared line-height estimate and for the
+ * same reason: at the 60dp floor the two lines occupy 41.6dp of a 44dp content box, so one
+ * step up the reader's font scale pushes the second past the bottom edge, where a
+ * `RemoteViews` clips it rather than shrinking it. Dropping it keeps the name whole, and
+ * the volume is still announced — it is part of the lead's content description.
+ *
+ * The two variants keep their own copy of the rule rather than sharing one function
+ * because each measures against its OWN padding; what they share is
+ * [estimateLineHeightDp] and the type scale it reads.
+ */
+internal fun listShortLeadShowsSupportingLine(widgetHeight: Dp, fontScale: Float): Boolean {
+    val available = widgetHeight.value - LIST_SHORT_PADDING.value * 2
+    val text = estimateLineHeightDp(TrendsWidgetFontSizes.HEADLINE_COMPACT, fontScale) +
+        estimateLineHeightDp(TrendsWidgetFontSizes.SUPPORTING, fontScale)
+    return text <= available
+}
+
+@Composable
+internal fun TrendsListWidgetContent(trends: List<WidgetTrend>) {
+    val context = LocalContext.current
+    val size = LocalSize.current
+    val short = size.height < LIST_SHORT_MAX_HEIGHT
+>>>>>>> eb94101b (chore: sync latest frontend/backend changes)
     val showTitleBar = size.height >= TrendsWidgetDimensions.TITLE_BAR_MIN_HEIGHT
     val compact = size.width < TrendsWidgetDimensions.COMPACT_MAX_WIDTH
     val rows = rowsThatFit(
@@ -78,11 +148,20 @@ internal fun TrendsListWidgetContent(trends: List<WidgetTrend>) {
         backgroundColor = GlanceTheme.colors.widgetBackground,
         // Without a title bar there is nothing above the content, so the padding
         // the title bar would have provided has to come from somewhere. Same
+<<<<<<< HEAD
         // arrangement as the canonical ActionListLayout.
         modifier = if (showTitleBar) {
             GlanceModifier
         } else {
             GlanceModifier.padding(top = TrendsWidgetDimensions.WIDGET_PADDING)
+=======
+        // arrangement as the canonical ActionListLayout. The short form pads itself
+        // tighter still, and on both sides, since 12dp twice over is a fifth of it.
+        modifier = when {
+            showTitleBar -> GlanceModifier
+            short -> GlanceModifier.padding(top = LIST_SHORT_PADDING)
+            else -> GlanceModifier.padding(top = TrendsWidgetDimensions.WIDGET_PADDING)
+>>>>>>> eb94101b (chore: sync latest frontend/backend changes)
         },
         // Scaffold's own 12dp would inset the chart too. The chart has to reach the
         // widget's side edges to read as a background rather than as a cropped
@@ -95,7 +174,18 @@ internal fun TrendsListWidgetContent(trends: List<WidgetTrend>) {
         },
     ) {
         Box(GlanceModifier.fillMaxSize()) {
+<<<<<<< HEAD
             SparklineBackground(leadingSeries(trends), GlanceTheme.colors.primary)
+=======
+            // NO CHART at one cell of height, for the reason the card's short form
+            // draws none either: the band has a 40dp floor, so at 60dp it covers two
+            // thirds of the widget and the one line that matters would be drawn
+            // straight across the stroke. The chart is this variant's background, not
+            // its content.
+            if (!short) {
+                SparklineBackground(leadingSeries(trends), GlanceTheme.colors.primary)
+            }
+>>>>>>> eb94101b (chore: sync latest frontend/backend changes)
             Box(
                 GlanceModifier
                     .fillMaxSize()
@@ -103,13 +193,29 @@ internal fun TrendsListWidgetContent(trends: List<WidgetTrend>) {
                     // four-sided form with no top: the title bar or the Scaffold
                     // modifier above has already provided that side.
                     .padding(
+<<<<<<< HEAD
                         start = TrendsWidgetDimensions.WIDGET_PADDING,
                         end = TrendsWidgetDimensions.WIDGET_PADDING,
                         bottom = TrendsWidgetDimensions.WIDGET_PADDING,
+=======
+                        start = if (short) LIST_SHORT_PADDING else TrendsWidgetDimensions.WIDGET_PADDING,
+                        end = if (short) LIST_SHORT_PADDING else TrendsWidgetDimensions.WIDGET_PADDING,
+                        bottom = if (short) LIST_SHORT_PADDING else TrendsWidgetDimensions.WIDGET_PADDING,
+>>>>>>> eb94101b (chore: sync latest frontend/backend changes)
                     ),
             ) {
                 when {
                     trends.isEmpty() -> TrendsEmptyContent(textColor = GlanceTheme.colors.onSurface)
+<<<<<<< HEAD
+=======
+                    short -> TrendsListShortLead(
+                        trend = trends.first(),
+                        showSupportingLine = listShortLeadShowsSupportingLine(
+                            widgetHeight = size.height,
+                            fontScale = context.resources.configuration.fontScale,
+                        ),
+                    )
+>>>>>>> eb94101b (chore: sync latest frontend/backend changes)
                     rows <= 1 -> TrendsListLead(trend = trends.first(), compact = compact)
                     else -> TrendsList(trends = trends, maxRows = rows, compact = compact)
                 }
@@ -198,7 +304,68 @@ private fun TrendRow(trend: WidgetTrend, ordinal: Int, compact: Boolean) {
 }
 
 /**
+<<<<<<< HEAD
  * What the two shortest breakpoints draw instead of a list: the leading trend, as a
+=======
+ * ONE CELL OF HEIGHT: the top trend and its volume, centred, and nothing else.
+ *
+ * What it gives up against [TrendsListLead], and what drove each:
+ *
+ *  - THE RANK NUMERAL. There is no rank to show. A numeral indexes a trend against the
+ *    ones below it, and here there are none — `TrendRow` already drops it at a compact
+ *    width for the weaker version of the same reason. It would also eat 20dp of the
+ *    width the name needs.
+ *  - THE CHART. See the note at the call site: a 40dp band inside a 60dp widget is a
+ *    backdrop under the text rather than a band behind it.
+ *  - THE FULL-SIZE HEADLINE. The compact 20sp step, chosen here by the HEIGHT rather
+ *    than by the width, because 26sp plus a supporting line needs 49dp of the 44dp this
+ *    form has.
+ *  - THE SUPPORTING LINE, but only when the reader's font setting leaves no room for it
+ *    ([listShortLeadShowsSupportingLine]).
+ *
+ * Centred rather than top-aligned, unlike the lead: the chart it would otherwise keep
+ * clear of is not drawn here, and centring makes the whole widget one tap target instead
+ * of the 42dp the two lines occupy — Material's minimum is 48dp.
+ */
+@Composable
+private fun TrendsListShortLead(trend: WidgetTrend, showSupportingLine: Boolean) {
+    val context = LocalContext.current
+    val name = trendDisplayName(trend)
+    val label = trendLabel(context, trend)
+
+    Column(
+        modifier = GlanceModifier
+            .fillMaxSize()
+            .semantics {
+                contentDescription = context.getString(
+                    R.string.mention_trends_widget_item_description,
+                    name,
+                    label,
+                )
+            }
+            .clickable(actionStartActivity(openInAppIntent(context, trendUrl(context, trend)))),
+        verticalAlignment = Alignment.Vertical.CenterVertically,
+    ) {
+        Text(
+            text = name,
+            style = TrendsWidgetTextStyles.headline(GlanceTheme.colors.onSurface, compact = true),
+            maxLines = 1,
+            modifier = GlanceModifier.semantics { contentDescription = "" },
+        )
+        if (showSupportingLine) {
+            Text(
+                text = label,
+                style = TrendsWidgetTextStyles.supporting(GlanceTheme.colors.onSurfaceVariant),
+                maxLines = 1,
+                modifier = GlanceModifier.semantics { contentDescription = "" },
+            )
+        }
+    }
+}
+
+/**
+ * What a widget too short for two rows draws instead of a list: the leading trend, as a
+>>>>>>> eb94101b (chore: sync latest frontend/backend changes)
  * headline with its supporting line.
  *
  * Top-aligned rather than centred, and that is the chart's doing — the chart is a

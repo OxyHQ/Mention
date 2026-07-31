@@ -1,4 +1,8 @@
+<<<<<<< HEAD
 import { logger } from '@oxyhq/core/logger';
+=======
+import { logger } from '@/lib/logger';
+>>>>>>> eb94101b (chore: sync latest frontend/backend changes)
 
 import { refreshTrendsWidget } from './index';
 

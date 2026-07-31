@@ -23,6 +23,13 @@
   would fire on a plane as readily as on Wi-Fi; the refresh is driven by
   `TrendsRefreshScheduler`'s WorkManager job instead, which can require a
   network and be cancelled when the last widget of any variant is removed.
+<<<<<<< HEAD
+=======
+
+  `minResizeHeight` comes from this variant's OWN dimen rather than the shared one:
+  the list may be dragged down to a single cell, where it leads with the top trend
+  instead of squashing its rows. Only the chip cloud still takes the shared floor.
+>>>>>>> eb94101b (chore: sync latest frontend/backend changes)
 -->
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
     android:initialLayout="@layout/glance_default_loading_layout"

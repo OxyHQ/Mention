@@ -6,7 +6,18 @@
 
   It defaults to 4 × 2 cells rather than 4 × 3: the card is one headline and a line
   of names, so a short, wide placement is its natural shape — three cells of height
+<<<<<<< HEAD
   would leave it with space it has nothing to put in.
+=======
+  would leave it with space it has nothing to put in. That default is deliberately
+  unchanged by the shorter resize floor below: how small the card may be DRAGGED is
+  a different question from what it should LAND at, and it lands on the form that
+  shows the eyebrow, the headline and its supporting line.
+
+  It is also the only one of the three that takes its `minResizeHeight` from its own
+  resource rather than the shared one — see the note on that dimen for what it can
+  still render at one cell of height, and why the other two cannot.
+>>>>>>> eb94101b (chore: sync latest frontend/backend changes)
 -->
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
     android:initialLayout="@layout/glance_default_loading_layout"

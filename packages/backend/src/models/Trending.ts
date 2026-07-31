@@ -18,18 +18,7 @@ export enum TrendingType {
  */
 export const TRENDING_TTL_SECONDS = 90 * 24 * 60 * 60;
 
-/**
- * The STORED shape of a trending row, free of Mongoose's document surface.
- *
- * Every read path in `TrendingService` is `.lean()` or an aggregation, both of
- * which hand back plain objects. Typing those as `ITrending` — a `Document`, with
- * `save()` and forty-odd other methods on it — was a fiction that held only
- * because nothing ever tried to construct one. Attaching a volume series to a row
- * does construct one, so the plain shape is named here and the document type is
- * derived from it, rather than the other way around.
- */
-export interface TrendingRecord {
-  _id: mongoose.Types.ObjectId;
+export interface ITrending extends Document {
   type: TrendingType;
   name: string;
   description: string;
@@ -41,12 +30,6 @@ export interface TrendingRecord {
   calculatedAt: Date;
   updatedAt: Date;
 }
-
-// `_id` is omitted from the document side: Mongoose's `Document` declares its own
-// (generic, optional) `_id`, and an interface cannot extend two parents that
-// disagree about a property. The lean type above is the one that must be exact,
-// because it is what leaves the process as JSON.
-export interface ITrending extends Omit<TrendingRecord, '_id'>, Document {}
 
 const TrendingSchema = new Schema({
   type: {

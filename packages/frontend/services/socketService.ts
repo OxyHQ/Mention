@@ -431,6 +431,16 @@ class SocketService {
   }
 
   /**
+<<<<<<< HEAD
+=======
+   * Trends recalculated server-side. Payload is a signal only — refetch silently.
+   */
+  private handleTrendsUpdated(): void {
+    void useTrendsStore.getState().fetchTrends({ silent: true });
+  }
+
+  /**
+>>>>>>> eb94101b (chore: sync latest frontend/backend changes)
    * Live-rooms set changed. Coalesce bursts (participant churn) into a single
    * silent refetch.
    */

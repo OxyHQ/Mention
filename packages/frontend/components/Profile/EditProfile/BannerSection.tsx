@@ -4,7 +4,7 @@ import { Image } from 'expo-image';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@oxyhq/services/ui/client';
 import { useTheme } from '@oxyhq/bloom/theme';
-import { MEDIA_VARIANT_FULL } from '@mention/shared-types/post';
+import { MEDIA_VARIANT_BANNER } from '@mention/shared-types/post';
 import { Icon } from '@/lib/icons';
 import { getCachedFileDownloadUrlSync } from '@/utils/imageUrlCache';
 import { useAppearanceStore } from '@/stores/appearanceStore';
@@ -68,10 +68,13 @@ export const BannerSection: React.FC = () => {
         <View className="rounded-xl overflow-hidden border border-border relative">
           <Image
             source={{
+              // Same variant the profile banner asks for, so this preview and
+              // the profile share ONE cache entry instead of pulling two
+              // differently-sized copies of the picked image.
               uri: getCachedFileDownloadUrlSync(
                 oxyServices,
                 headerImageRef,
-                MEDIA_VARIANT_FULL,
+                MEDIA_VARIANT_BANNER,
               ),
             }}
             className="w-full h-32 bg-muted"

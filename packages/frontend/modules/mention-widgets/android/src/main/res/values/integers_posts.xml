@@ -9,6 +9,7 @@
   <integer name="mention_posts_widget_target_cell_height">3</integer>
 
   <!--
+<<<<<<< HEAD
     How long the trending-posts card waits before turning to the next post on its own.
 
     Thirty seconds: long enough that a redraw — which re-serialises this widget's decoded
@@ -20,4 +21,28 @@
     why PostsAutoAdvanceWorker chains one-time requests instead.
   -->
   <integer name="mention_posts_widget_auto_advance_seconds">30</integer>
+=======
+    How long each post stays on screen before the rotation moves on, in seconds — the pace of
+    the whole widget, and a resource so a build can retune it without a code change.
+
+    TWENTY, and the reasoning is about a glance rather than about a clock. Five posts at this
+    interval come round in a hundred seconds, so somebody who unlocks their phone a few times
+    an hour sees a different post nearly every time — which is the entire point of the request
+    this exists to answer. It is also four times the few seconds it takes to read a headline
+    and a byline, so the card does not change while it is being read. Under about ten seconds
+    it would, and it would spend a wake-up every few seconds to do it; over thirty, a single
+    unlock usually misses any movement at all.
+
+    IT IS A REQUEST, NOT A GUARANTEE. `PostsRotationWorker` is one-time WorkManager work with
+    an initial delay, so JobScheduler batching, Doze and the app-standby buckets all get a say:
+    with the screen on and the app in an active bucket the real cadence lands around this
+    number, and in a `rare` or `restricted` bucket it can stretch to minutes. That is correct
+    platform behaviour and the widget does not fight it — no exact alarms.
+
+    `PostsRotationWorker` clamps whatever is written here into 5 … 300 seconds, so an override
+    cannot turn this into a wake-up loop or something slower than the refresh tick it exists to
+    beat.
+  -->
+  <integer name="mention_posts_widget_rotate_seconds">20</integer>
+>>>>>>> eb94101b (chore: sync latest frontend/backend changes)
 </resources>

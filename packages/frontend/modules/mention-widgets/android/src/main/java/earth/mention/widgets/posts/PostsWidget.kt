@@ -8,20 +8,35 @@ import androidx.glance.appwidget.GlanceAppWidget
 import androidx.glance.appwidget.SizeMode
 import androidx.glance.appwidget.provideContent
 import androidx.glance.state.GlanceStateDefinition
+<<<<<<< HEAD
 import earth.mention.widgets.feedcard.FeedCardContent
 import earth.mention.widgets.feedcard.FeedCardState
 import earth.mention.widgets.theme.MentionGlanceTheme
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+=======
+import earth.mention.widgets.theme.MentionGlanceTheme
+import kotlinx.coroutines.flow.first
+>>>>>>> eb94101b (chore: sync latest frontend/backend changes)
 
 /**
  * The trending-posts widget: ONE post from Explore at a time, rotating.
  *
+<<<<<<< HEAD
  * The content comes from [PostsStore], never from a fetch started here: composing
+=======
+ * Its declared sizes are [POSTS_WIDGET_SIZES] — three, one per design, and no more,
+ * because `SizeMode.Responsive` puts every declared size into the single `RemoteViews`
+ * the launcher receives and this widget's `RemoteViews` carries decoded bitmaps. See
+ * `PostsBitmapBudget.kt` for the resulting worst-case payload.
+ *
+ * The content comes from [PostsRepository], never from a fetch started here: composing
+>>>>>>> eb94101b (chore: sync latest frontend/backend changes)
  * happens while the launcher waits, so the only thing that touches the network is
  * `PostsRefreshWorker`. That separation is also what makes the widget survive an outage —
  * it draws whatever the store last held, with no notion of whether the fetch behind it
  * succeeded.
+<<<<<<< HEAD
  *
  * It can never reach [FeedCardState.SignedOut]: Explore answers an unauthenticated request, so
  * this widget has no session to lose. That is the one behavioural difference from the following
@@ -61,6 +76,12 @@ internal class PostsWidget : GlanceAppWidget() {
      * size of the picture, from the height the widget really has.
      */
     override val sizeMode: SizeMode = SizeMode.Exact
+=======
+ */
+internal class PostsWidget : GlanceAppWidget() {
+
+    override val sizeMode: SizeMode = SizeMode.Responsive(POSTS_WIDGET_SIZES)
+>>>>>>> eb94101b (chore: sync latest frontend/backend changes)
 
     /**
      * No per-widget state. Two posts widgets show the same rotation from one app-scoped
@@ -70,6 +91,7 @@ internal class PostsWidget : GlanceAppWidget() {
     override val stateDefinition: GlanceStateDefinition<*>? = null
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
+<<<<<<< HEAD
         // Built once, outside the composition: `PostsStore.rotation` returns a fresh
         // Flow per call, and collecting a new instance on every recomposition would
         // resubscribe to DataStore each time.
@@ -81,6 +103,18 @@ internal class PostsWidget : GlanceAppWidget() {
             val current by state.collectAsState(initial = initial)
             MentionGlanceTheme {
                 FeedCardContent(spec = PostsCardSpec, state = current)
+=======
+        // Built once, outside the composition: `PostsRepository.rotation` returns a fresh
+        // Flow per call, and collecting a new instance on every recomposition would
+        // resubscribe to DataStore each time.
+        val rotation = PostsRepository.rotation(context)
+        val initial = rotation.first()
+
+        provideContent {
+            val current by rotation.collectAsState(initial = initial)
+            MentionGlanceTheme {
+                PostsWidgetContent(current)
+>>>>>>> eb94101b (chore: sync latest frontend/backend changes)
             }
         }
     }

@@ -14,13 +14,18 @@ import earth.mention.widgets.R
 import java.util.concurrent.TimeUnit
 
 /**
+<<<<<<< HEAD
  * When the trending-posts widget ticks.
+=======
+ * When the trending-posts widget ticks — ALL of its WorkManager in one place.
+>>>>>>> eb94101b (chore: sync latest frontend/backend changes)
  *
  * Its own schedule, separate from the trends widgets': this one both rotates and fetches,
  * on a shorter interval than a trends refresh needs, and the two families are placed
  * independently — a user with only a posts widget must not be paying for a trends fetch,
  * and the reverse.
  *
+<<<<<<< HEAD
  * Scheduling is tied to the widget's own lifecycle — started when one is placed, cancelled
  * when the last is removed — so a user who never adds the widget never pays for it.
  */
@@ -35,6 +40,33 @@ internal object PostsRefreshScheduler {
      * against it can never leave two pending turns, however many callers ask.
      */
     private const val AUTO_ADVANCE_WORK_NAME = "mention-widget-posts-auto-advance"
+=======
+ * THREE PIECES OF WORK, on deliberately different clocks:
+ *
+ *  - the PERIODIC tick ([ensureScheduled]) — fetch and rotate, every fifteen minutes, which
+ *    is WorkManager's floor for periodic work;
+ *  - an IMMEDIATE run ([refreshNow]) — so a freshly placed widget fills in seconds;
+ *  - the ROTATION chain ([ensureRotating] / [restartRotation]) — a self-rescheduling
+ *    one-time request every twenty-odd seconds, which is the only way under that floor, and
+ *    the only reason a reader ever sees the card turn over.
+ *
+ * Scheduling is tied to the widget's own lifecycle — started when one is placed, cancelled
+ * when the last is removed — so a user who never adds the widget never pays for it. That is
+ * also why [cancel] iterates [ALL_WORK_NAMES] rather than naming each one: a fourth kind of
+ * work added to this object without a line in that list would outlive the widget it belongs
+ * to, and this module holds itself to leaking no workers.
+ */
+internal object PostsRefreshScheduler {
+    const val PERIODIC_WORK_NAME = "mention-widget-posts-periodic"
+    const val IMMEDIATE_WORK_NAME = "mention-widget-posts-immediate"
+    const val ROTATION_WORK_NAME = "mention-widget-posts-rotation"
+
+    /**
+     * Every unique work name this widget enqueues, and therefore everything [cancel] has to
+     * take away with it. Add a new kind of work above, add it here.
+     */
+    val ALL_WORK_NAMES = listOf(PERIODIC_WORK_NAME, IMMEDIATE_WORK_NAME, ROTATION_WORK_NAME)
+>>>>>>> eb94101b (chore: sync latest frontend/backend changes)
 
     /**
      * How often the job runs.
@@ -108,6 +140,7 @@ internal object PostsRefreshScheduler {
     }
 
     /**
+<<<<<<< HEAD
      * Queue the next automatic turn, keeping one already queued.
      *
      * [ExistingWorkPolicy.KEEP] is the whole safety property of the chain: `onUpdate` fires
@@ -157,5 +190,68 @@ internal object PostsRefreshScheduler {
         // self-rescheduling worker with nothing left to draw would advance a rotation nobody
         // can see, forever.
         workManager.cancelUniqueWork(AUTO_ADVANCE_WORK_NAME)
+=======
+     * Start the rotation chain, and leave a running one alone.
+     *
+     * [ExistingWorkPolicy.KEEP] is what makes this safe to call from every `onUpdate` and
+     * from the refresh tick: re-enqueuing with REPLACE on each of those would restart the
+     * delay every time, and a widget updated often enough would never reach the end of one.
+     *
+     * This is also how the chain comes back after the screen has been off. A link that finds
+     * the device asleep ends the chain rather than cycling in a pocket, so something has to
+     * start it again — `onUpdate`, the fifteen-minute refresh tick, or a tap. That means
+     * rotation can take until the next refresh tick to resume after a long screen-off, which
+     * is the honest cost of not waking the device to animate something nobody can see.
+     */
+    fun ensureRotating(context: Context) {
+        enqueueRotation(context, ExistingWorkPolicy.KEEP)
+    }
+
+    /**
+     * Start the rotation timer over from now.
+     *
+     * Two callers, both of which mean "the clock restarts here": the chain's own next link,
+     * and a READER'S TAP. The tap matters — without the reset, a card tapped a second before
+     * a rotation was due would jump again immediately, moving under the finger that had just
+     * asked for something specific.
+     */
+    fun restartRotation(context: Context) {
+        enqueueRotation(context, ExistingWorkPolicy.REPLACE)
+    }
+
+    /**
+     * One link of the rotation chain, due in [rotationIntervalSeconds].
+     *
+     * NO CONSTRAINTS, unlike the two fetching requests: advancing reads the store that the
+     * last fetch already filled, so the rotation keeps working on a phone with no signal —
+     * requiring a network here would stop the card moving for the exact reason it has content
+     * to move through.
+     *
+     * No backoff criteria either. There is nothing to retry: a link that cannot do its work
+     * ends the chain, and the next `onUpdate` or refresh tick starts a new one.
+     */
+    private fun enqueueRotation(context: Context, policy: ExistingWorkPolicy) {
+        val request = OneTimeWorkRequestBuilder<PostsRotationWorker>()
+            .setInitialDelay(
+                rotationIntervalSeconds(
+                    context.resources.getInteger(R.integer.mention_posts_widget_rotate_seconds),
+                ),
+                TimeUnit.SECONDS,
+            )
+            .build()
+
+        WorkManager.getInstance(context).enqueueUniqueWork(ROTATION_WORK_NAME, policy, request)
+    }
+
+    /**
+     * Called when the last trending-posts widget is removed from the home screen.
+     *
+     * Iterates [ALL_WORK_NAMES] so that nothing this object can enqueue can survive the
+     * widget it was enqueued for — including a rotation link that is already counting down.
+     */
+    fun cancel(context: Context) {
+        val workManager = WorkManager.getInstance(context)
+        ALL_WORK_NAMES.forEach { name -> workManager.cancelUniqueWork(name) }
+>>>>>>> eb94101b (chore: sync latest frontend/backend changes)
     }
 }

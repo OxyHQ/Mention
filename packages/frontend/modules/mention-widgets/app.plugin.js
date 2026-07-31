@@ -7,13 +7,30 @@
  * before the app has ever been opened, and its refresh worker runs while the app
  * is dead — so it cannot read `config.ts`. Its endpoints are Android string
  * resources instead, declared with production defaults in the module's own
+<<<<<<< HEAD
  * `res/values/config.xml`.
  *
  * This plugin writes the same two resource names into the APP module's strings.
+=======
+ * `res/values/config.xml` and `res/values/config_posts.xml`.
+ *
+ * This plugin writes the same three resource names into the APP module's strings.
+>>>>>>> eb94101b (chore: sync latest frontend/backend changes)
  * App resources take priority over a library dependency's at merge time, so that
  * is all it takes to repoint a development or staging build; a production build
  * passes no options and the module's own defaults stand.
  *
+<<<<<<< HEAD
+=======
+ * All THREE have to be repointable together, not just the two that address our own
+ * backend. A build pointed at a development API still resolves avatars against the
+ * media origin, and a file id that exists on a dev backend does not exist on the
+ * production CDN — so repointing `apiBaseUrl` alone yields a widget whose text is
+ * from one environment and whose pictures are broken. The media origin is also half
+ * of the trending-posts widget's download allowlist (`PostsImageCache`), so leaving
+ * it behind would silently refuse the dev host's images too.
+ *
+>>>>>>> eb94101b (chore: sync latest frontend/backend changes)
  * The native module itself is autolinked from `modules/` like any local Expo
  * module — this plugin exists only for the configuration above.
  *
@@ -25,6 +42,10 @@ const { withStringsXml, AndroidConfig } = require('expo/config-plugins');
 
 const API_BASE_URL_RESOURCE = 'mention_widget_api_base_url';
 const WEB_BASE_URL_RESOURCE = 'mention_widget_web_base_url';
+<<<<<<< HEAD
+=======
+const MEDIA_BASE_URL_RESOURCE = 'mention_widget_media_base_url';
+>>>>>>> eb94101b (chore: sync latest frontend/backend changes)
 
 /**
  * Reject anything that is not an absolute http(s) origin.
@@ -75,6 +96,14 @@ module.exports = function withMentionWidgets(config, options = {}) {
     overrides.push([WEB_BASE_URL_RESOURCE, options.webBaseUrl]);
   }
 
+<<<<<<< HEAD
+=======
+  if (options.mediaBaseUrl !== undefined) {
+    assertBaseUrl('mediaBaseUrl', options.mediaBaseUrl);
+    overrides.push([MEDIA_BASE_URL_RESOURCE, options.mediaBaseUrl]);
+  }
+
+>>>>>>> eb94101b (chore: sync latest frontend/backend changes)
   if (overrides.length === 0) {
     return config;
   }

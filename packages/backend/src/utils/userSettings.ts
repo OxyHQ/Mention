@@ -1,5 +1,5 @@
 import UserSettings, { type UserSettingsData } from '../models/UserSettings';
-import { resolveMediaRef } from './mediaResolver';
+import { resolveBannerUrl } from './mediaResolver';
 
 /**
  * Default profile customization settings
@@ -15,11 +15,17 @@ function nonEmptyString(value: unknown): string | undefined {
     : undefined;
 }
 
+/**
+ * The public design DTO carries a FINAL, banner-sized URL. It must go through
+ * `resolveBannerUrl` and not `resolveMediaRef(...).url`: the latter's `url` is
+ * the no-variant ORIGINAL, so the profile screen was rendering the raw upload
+ * (megabytes of camera-roll PNG) into a 170px-tall strip.
+ */
 function resolveProfileHeaderImage(value: unknown): string | undefined {
   const ref = nonEmptyString(value);
   if (!ref) return undefined;
 
-  return resolveMediaRef(ref).url || undefined;
+  return resolveBannerUrl(ref);
 }
 
 /**

@@ -1,13 +1,17 @@
 package earth.mention.widgets.trends.card
 
 import androidx.compose.runtime.Composable
+<<<<<<< HEAD
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.glance.appwidget.SizeMode
+=======
+>>>>>>> eb94101b (chore: sync latest frontend/backend changes)
 import earth.mention.widgets.trends.TrendsWidget
 import earth.mention.widgets.trends.WidgetTrend
 
 /**
+<<<<<<< HEAD
  * The sizes variant J is designed for — FOUR, one fewer than the other two.
  *
  * Same launcher-cell grid (`70 × n − 30`). The card has fewer states than a list or a
@@ -37,6 +41,23 @@ internal class TrendsCardWidget : TrendsWidget() {
 
     override val sizeMode: SizeMode = SizeMode.Responsive(TRENDS_CARD_WIDGET_SIZES)
 
+=======
+ * Variant J: the top trend as a tonal card. See [TrendsCardWidgetContent].
+ *
+ * It declares no size set, and neither do the other two: the size mode is
+ * `SizeMode.Exact`, settled once in [TrendsWidget], so the card is composed for the
+ * height it actually has rather than for the nearest of a handful of declarations. What
+ * it shows at a given height is therefore a property of the layout —
+ * [TrendsCardDensity] — instead of a table of breakpoints that has to be kept in step
+ * with one.
+ *
+ * The card is still the only variant a launcher will let the user drag below two cells
+ * of height; that floor is `mention_trends_card_widget_min_resize_height`, not a
+ * declared size.
+ */
+internal class TrendsCardWidget : TrendsWidget() {
+
+>>>>>>> eb94101b (chore: sync latest frontend/backend changes)
     @Composable
     override fun Content(trends: List<WidgetTrend>) = TrendsCardWidgetContent(trends)
 }

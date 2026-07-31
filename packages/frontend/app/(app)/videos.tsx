@@ -39,7 +39,10 @@ import { HIT_SLOP_LG } from '@/styles/hitSlop';
 import { useVideoPipSession } from '@/hooks/useVideoPipSession';
 import { useMediaSessionTransport, type MediaSessionTrack } from '@/hooks/useMediaSessionTransport';
 import { usePipTransportActions } from '@/hooks/usePipTransportActions';
+<<<<<<< HEAD
 import { usePipAspectRatio } from '@/hooks/usePipAspectRatio';
+=======
+>>>>>>> eb94101b (chore: sync latest frontend/backend changes)
 import { resolveFeedDescriptor } from '@/utils/feedTelemetry';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 
@@ -170,6 +173,53 @@ const OVERLAY_BUTTON_ICON_SIZE = 22;
 type VideoFeedTab = 'videos' | 'following';
 
 const logger = createLogger('VideosScreen');
+
+/**
+ * Hold an OS wake lock for exactly as long as `active` is true.
+ *
+ * A reel is the one surface in the app a viewer watches without touching anything,
+ * so the idle timer would dim and lock the device mid-video. The lock therefore
+ * follows PLAYBACK, not the screen's lifetime: a paused reel — someone reading the
+ * replies panel — has to let the device sleep on its normal schedule, which is why
+ * this takes the same `shouldPlay` predicate that drives the player rather than
+ * `expo-keep-awake`'s own `useKeepAwake()` (which holds the lock for as long as the
+ * component is mounted, and so would keep a paused reel awake indefinitely).
+ *
+ * `tag` scopes the lock to ONE surface. The reel keeps preloaded neighbours mounted,
+ * and an untagged release is global — a neighbour tearing down would otherwise drop
+ * the watched slide's lock.
+ *
+ * Activation is async and this effect can tear down before it resolves, so a late
+ * resolve releases immediately instead of leaking a lock with no owner.
+ */
+function useKeepAwakeWhile(active: boolean, tag: string): void {
+    useEffect(() => {
+        if (!active) return;
+
+        let released = false;
+        const release = () => {
+            deactivateKeepAwake(tag).catch((error: unknown) => {
+                logger.debug('Keep-awake release rejected', { tag, error });
+            });
+        };
+
+        activateKeepAwakeAsync(tag)
+            .then(() => {
+                if (released) release();
+            })
+            .catch((error: unknown) => {
+                // Browsers without the Screen Wake Lock API reject outright, and
+                // Chromium refuses one on a hidden document. Playback is unaffected;
+                // the device just keeps its ordinary idle behaviour.
+                logger.debug('Keep-awake unavailable', { tag, error });
+            });
+
+        return () => {
+            released = true;
+            release();
+        };
+    }, [active, tag]);
+}
 
 /**
  * Hold an OS wake lock for exactly as long as `active` is true.
@@ -666,6 +716,7 @@ const ActiveVideoSurface = memo<ActiveVideoSurfaceProps>(({
         }
     }, [player, shouldPlay, desiredSource]);
 
+<<<<<<< HEAD
     // …and once more per LOAD, because the effect above cannot see a reload it
     // did not cause. A swap produces TWO of them on web: `replace` writes the
     // element's `src` attribute imperatively, then expo-video's own `VideoView`
@@ -685,6 +736,8 @@ const ActiveVideoSurface = memo<ActiveVideoSurfaceProps>(({
         }
     });
 
+=======
+>>>>>>> eb94101b (chore: sync latest frontend/backend changes)
     // Keep the device awake while this surface is the one actually playing. Same
     // predicate as the player above, so the lock cannot outlive playback.
     useKeepAwakeWhile(shouldPlay, `${PLAYBACK_ID_PREFIX}:${postId}`);
