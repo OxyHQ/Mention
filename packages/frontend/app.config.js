@@ -201,7 +201,7 @@ return {
                 [
                     // Async routes split each route into its own lazy chunk under
                     // `_expo/static/js/web/` so heavy screens (compose, videos,
-                    // statistics, insights) are fetched on demand instead of
+                    // insights) are fetched on demand instead of
                     // shipping in the entry bundle. Web-only: `production` is the
                     // documented web-only value and is disabled on native (see
                     // expo-router plugin options — the setting lands in

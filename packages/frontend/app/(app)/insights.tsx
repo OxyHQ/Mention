@@ -17,7 +17,7 @@ import { useSafeBack } from '@/hooks/useSafeBack';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useTheme, type Theme } from '@oxyhq/bloom/theme';
 import { ThemedView } from '@/components/ThemedView';
-import { statisticsService } from '@/services/statisticsService';
+import { insightsService } from '@/services/insightsService';
 import { useTranslation } from 'react-i18next';
 import { useAuth, OxyAuthPrompt } from '@oxyhq/services/ui/client';
 import { usePostsStore } from '@/stores/postsStore';
@@ -141,8 +141,8 @@ const InsightsScreen: React.FC = () => {
         queryKey: viewerQueryKeys.insights(user?.id, selectedPeriod),
         queryFn: async () => {
             const [stats, engagement] = await Promise.all([
-                statisticsService.getUserStatistics(selectedPeriod),
-                statisticsService.getEngagementRatios(selectedPeriod)
+                insightsService.getAccountInsights(selectedPeriod),
+                insightsService.getEngagementRatios(selectedPeriod)
             ]);
 
             let topPosts: HydratedPost[] = [];
