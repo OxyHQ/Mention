@@ -268,6 +268,20 @@ export const viewerQueryKeys = {
     ...viewerQueryKeys.all(viewerId),
     'feed-tuning',
   ] as const,
+  feedSettings: (viewerId: ViewerId) => [
+    ...viewerQueryKeys.all(viewerId),
+    'feed-settings',
+  ] as const,
+  labelers: (viewerId: ViewerId, search: string) => [
+    ...viewerQueryKeys.all(viewerId),
+    'labelers',
+    search,
+  ] as const,
+  postInsights: (viewerId: ViewerId, postId: string) => [
+    ...viewerQueryKeys.all(viewerId),
+    'post-insights',
+    postId,
+  ] as const,
   profileFeeds: (
     viewerId: ViewerId,
     profileId: string | null | undefined,

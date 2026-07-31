@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React from 'react';
 import { View, Text, ScrollView, Pressable } from 'react-native';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { ThemedView } from '@/components/ThemedView';
@@ -8,13 +8,10 @@ import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { Toggle } from '@/components/Toggle';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { useTranslation } from 'react-i18next';
-import { Storage } from '@/utils/storage';
 import { SettingsListGroup } from '@oxyhq/bloom/settings-list';
-import { STORAGE_KEYS } from '@/lib/constants';
 import { Icon, type IconName } from '@/lib/icons';
 import { RadioIndicator } from '@oxyhq/bloom/radio-indicator';
-import { useThreadPreferencesStore, SORT_OPTIONS } from '@/hooks/useThreadPreferences';
-import { useVoteStyle, type VoteStyle } from '@/hooks/useVoteStyle';
+import { useThreadPreferencesStore, SORT_OPTIONS, type VoteStyle } from '@/hooks/useThreadPreferences';
 
 const VOTE_STYLE_OPTIONS: { value: VoteStyle; icon: IconName; labelKey: string; defaultLabel: string }[] = [
     { value: 'heart', icon: 'heart-outline', labelKey: 'settings.threadPreferences.voteStyleHeart', defaultLabel: 'Heart' },
@@ -25,18 +22,10 @@ export default function ThreadPreferencesScreen() {
     const { t } = useTranslation();
     const safeBack = useSafeBack();
     const { colors } = useTheme();
-    const { sortOrder, treeView, setSortOrder, setTreeView } = useThreadPreferencesStore();
-    const savedVoteStyle = useVoteStyle();
-    const [voteStyle, setVoteStyle] = useState<VoteStyle>(savedVoteStyle);
-
-    useEffect(() => {
-        setVoteStyle(savedVoteStyle);
-    }, [savedVoteStyle]);
-
-    const onVoteStyleChange = useCallback(async (value: VoteStyle) => {
-        setVoteStyle(value);
-        await Storage.set(STORAGE_KEYS.VOTE_STYLE, value);
-    }, []);
+    // All three preferences live in the one store, which owns persistence — so
+    // every row reads and writes the same value, with no local copy to sync.
+    const { sortOrder, treeView, voteStyle, setSortOrder, setTreeView, setVoteStyle } =
+        useThreadPreferencesStore();
 
     return (
         <ThemedView className="flex-1">
@@ -89,7 +78,7 @@ export default function ThreadPreferencesScreen() {
                         <Pressable
                             key={option.value}
                             className="px-4 py-3.5 flex-row items-center justify-between"
-                            onPress={() => onVoteStyleChange(option.value)}
+                            onPress={() => setVoteStyle(option.value)}
                         >
                             <View className="flex-row items-center gap-3">
                                 <View className="w-7 items-center justify-center">

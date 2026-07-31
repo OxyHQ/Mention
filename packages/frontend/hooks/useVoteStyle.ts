@@ -1,28 +1,16 @@
-import { useState, useEffect } from 'react';
-import { Storage } from '@/utils/storage';
-import { STORAGE_KEYS } from '@/lib/constants';
+import { useThreadPreferencesStore } from '@/hooks/useThreadPreferences';
+import type { VoteStyle } from '@/hooks/useThreadPreferences';
 
-export type VoteStyle = 'heart' | 'pill';
+export type { VoteStyle };
 
-const DEFAULT_VOTE_STYLE: VoteStyle = 'heart';
-
+/**
+ * The viewer's like-control style, from the one shared thread-preferences store.
+ *
+ * It reads the store rather than loading storage per caller: a per-caller copy
+ * meant every mounted post kept whichever value it had loaded, so changing the
+ * style in settings left already-rendered posts on the old one until they
+ * remounted.
+ */
 export function useVoteStyle(): VoteStyle {
-    const [voteStyle, setVoteStyle] = useState<VoteStyle>(DEFAULT_VOTE_STYLE);
-
-    useEffect(() => {
-        let mounted = true;
-
-        async function load() {
-            const saved = await Storage.get<VoteStyle>(STORAGE_KEYS.VOTE_STYLE);
-            if (!mounted) return;
-            if (saved === 'heart' || saved === 'pill') {
-                setVoteStyle(saved);
-            }
-        }
-
-        load();
-        return () => { mounted = false; };
-    }, []);
-
-    return voteStyle;
+    return useThreadPreferencesStore((state) => state.voteStyle);
 }

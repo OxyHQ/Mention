@@ -1,24 +1,19 @@
-import React, { useEffect, useState, useCallback, useRef } from 'react';
+import React, { useCallback } from 'react';
 import { View, Text, ScrollView } from 'react-native';
 import { confirmDialog } from '@/utils/alerts';
 import { Loading } from '@oxyhq/bloom/loading';
 import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
-import { useTheme } from '@oxyhq/bloom/theme';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { ThemedView } from '@/components/ThemedView';
 import { Toggle } from '@/components/Toggle';
 import { Slider } from '@/components/Slider';
 import { useFeedSettings, DEFAULT_FEED_SETTINGS, type FeedSettings } from '@/hooks/useFeedSettings';
 import { useTranslation } from 'react-i18next';
-import Ionicons from '@expo/vector-icons/Ionicons';
 import { SettingsListGroup, SettingsListItem } from '@oxyhq/bloom/settings-list';
 import { RowIcon } from '@/components/settings/RowIcon';
-import { logger } from '@oxyhq/core/logger';
 import { useAuth, OxyAuthPrompt } from '@oxyhq/services/ui/client';
-
-const IconComponent = Ionicons as React.ComponentType<React.ComponentProps<typeof Ionicons>>;
 
 const PRESETS = {
   mostRecent: {
@@ -54,93 +49,44 @@ const PRESETS = {
 export default function FeedSettingsScreen() {
   const { t } = useTranslation();
   const safeBack = useSafeBack();
-  const { colors } = useTheme();
   const { isAuthenticated } = useAuth();
-  const { settings, loading, updateSettings } = useFeedSettings();
+  // Server state is the only state — every control below writes straight
+  // through, so there is no draft to reconcile and no save button.
+  const { settings, isLoading, isSaving, preview, save } = useFeedSettings();
 
-  const [localSettings, setLocalSettings] = useState<FeedSettings>(settings);
-  const [saving, setSaving] = useState(false);
-  const [justSaved, setJustSaved] = useState(false);
+  /** Merge a partial change onto the current settings. */
+  const merged = useCallback((updates: Partial<FeedSettings>): FeedSettings => ({
+    ...settings,
+    ...updates,
+    diversity: { ...settings.diversity, ...updates.diversity },
+    recency: { ...settings.recency, ...updates.recency },
+    quality: { ...settings.quality, ...updates.quality },
+  }), [settings]);
 
-  const saveRequestRef = useRef<{ id: number; cancelled: boolean } | null>(null);
-  const requestIdRef = useRef(0);
-  const justSavedTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** A discrete control (toggle, preset) — persist immediately. */
+  const commit = useCallback((updates: Partial<FeedSettings>) => {
+    save(merged(updates));
+  }, [merged, save]);
 
-  useEffect(() => {
-    setLocalSettings(settings);
-  }, [settings]);
-
-  useEffect(() => {
-    return () => {
-      if (justSavedTimeoutRef.current) {
-        clearTimeout(justSavedTimeoutRef.current);
-      }
-    };
-  }, []);
-
-  const saveSettings = useCallback(async (newSettings: FeedSettings) => {
-    if (saveRequestRef.current) {
-      saveRequestRef.current.cancelled = true;
-    }
-
-    const requestId = ++requestIdRef.current;
-    const request = { id: requestId, cancelled: false };
-    saveRequestRef.current = request;
-
-    setSaving(true);
-    setJustSaved(false);
-
-    try {
-      await updateSettings(newSettings);
-
-      if (!request.cancelled && request.id === requestIdRef.current) {
-        setJustSaved(true);
-        setSaving(false);
-
-        if (justSavedTimeoutRef.current) {
-          clearTimeout(justSavedTimeoutRef.current);
-        }
-
-        justSavedTimeoutRef.current = setTimeout(() => {
-          setJustSaved(false);
-        }, 1500);
-      }
-    } catch (error) {
-      if (!request.cancelled && request.id === requestIdRef.current) {
-        logger.error('Error saving feed settings', error);
-        setSaving(false);
-        setJustSaved(false);
-      }
-    }
-  }, [updateSettings]);
-
-  const updateLocalSettings = useCallback((updates: Partial<FeedSettings>) => {
-    setLocalSettings(prev => {
-      const newSettings = {
-        ...prev,
-        ...updates,
-        diversity: { ...prev.diversity, ...updates.diversity },
-        recency: { ...prev.recency, ...updates.recency },
-        quality: { ...prev.quality, ...updates.quality },
-      };
-
-      saveSettings(newSettings);
-      return newSettings;
-    });
-  }, [saveSettings]);
+  /**
+   * A slider mid-drag. `onValueChange` fires every frame, so showing the value
+   * and persisting it are separate: this only moves the displayed value, and the
+   * matching `onSlidingComplete` persists once on release.
+   */
+  const previewChange = useCallback((updates: Partial<FeedSettings>) => {
+    preview(merged(updates));
+  }, [merged, preview]);
 
   const applyPreset = useCallback((presetKey: keyof typeof PRESETS) => {
     const preset = PRESETS[presetKey];
-    const newSettings = {
+    save({
       ...DEFAULT_FEED_SETTINGS,
       ...preset.settings,
       diversity: { ...DEFAULT_FEED_SETTINGS.diversity, ...preset.settings.diversity },
       recency: { ...DEFAULT_FEED_SETTINGS.recency, ...preset.settings.recency },
       quality: { ...DEFAULT_FEED_SETTINGS.quality, ...preset.settings.quality },
-    };
-    setLocalSettings(newSettings);
-    saveSettings(newSettings);
-  }, [saveSettings]);
+    });
+  }, [save]);
 
   const resetToDefaults = useCallback(async () => {
     const confirmed = await confirmDialog({
@@ -151,10 +97,9 @@ export default function FeedSettingsScreen() {
       destructive: true,
     });
     if (confirmed) {
-      setLocalSettings(DEFAULT_FEED_SETTINGS);
-      saveSettings(DEFAULT_FEED_SETTINGS);
+      save(DEFAULT_FEED_SETTINGS);
     }
-  }, [saveSettings, t]);
+  }, [save, t]);
 
   if (!isAuthenticated) {
     return (
@@ -179,7 +124,7 @@ export default function FeedSettingsScreen() {
     );
   }
 
-  if (loading) {
+  if (isLoading) {
     return (
       <ThemedView className="flex-1">
         <Header
@@ -212,13 +157,9 @@ export default function FeedSettingsScreen() {
             </IconButton>,
           ],
           rightComponents: [
-            saving ? (
+            isSaving ? (
               <View key="saving" className="pr-2">
                 <Loading className="text-primary" variant="inline" size="small" />
-              </View>
-            ) : justSaved ? (
-              <View key="saved" className="pr-2">
-                <IconComponent name="checkmark-circle" size={20} color={colors.primary} />
               </View>
             ) : null,
           ].filter(Boolean),
@@ -252,22 +193,25 @@ export default function FeedSettingsScreen() {
             showChevron={false}
             rightElement={
               <Toggle
-                value={localSettings.diversity.enabled}
-                onValueChange={(value) => updateLocalSettings({
-                  diversity: { ...localSettings.diversity, enabled: value },
+                value={settings.diversity.enabled}
+                onValueChange={(value) => commit({
+                  diversity: { ...settings.diversity, enabled: value },
                 })}
               />
             }
           />
         </SettingsListGroup>
 
-        {localSettings.diversity.enabled && (
+        {settings.diversity.enabled && (
           <View className="px-5 py-3 gap-4">
             <View>
               <Slider
-                value={localSettings.diversity.sameAuthorPenalty}
-                onValueChange={(value) => updateLocalSettings({
-                  diversity: { ...localSettings.diversity, sameAuthorPenalty: value },
+                value={settings.diversity.sameAuthorPenalty}
+                onValueChange={(value) => previewChange({
+                  diversity: { ...settings.diversity, sameAuthorPenalty: value },
+                })}
+                onSlidingComplete={(value) => commit({
+                  diversity: { ...settings.diversity, sameAuthorPenalty: value },
                 })}
                 minimumValue={0.5}
                 maximumValue={1.0}
@@ -281,9 +225,12 @@ export default function FeedSettingsScreen() {
             </View>
             <View>
               <Slider
-                value={localSettings.diversity.sameTopicPenalty}
-                onValueChange={(value) => updateLocalSettings({
-                  diversity: { ...localSettings.diversity, sameTopicPenalty: value },
+                value={settings.diversity.sameTopicPenalty}
+                onValueChange={(value) => previewChange({
+                  diversity: { ...settings.diversity, sameTopicPenalty: value },
+                })}
+                onSlidingComplete={(value) => commit({
+                  diversity: { ...settings.diversity, sameTopicPenalty: value },
                 })}
                 minimumValue={0.5}
                 maximumValue={1.0}
@@ -303,9 +250,12 @@ export default function FeedSettingsScreen() {
           <View className="px-5 py-3 gap-4">
             <View>
               <Slider
-                value={localSettings.recency.halfLifeHours}
-                onValueChange={(value) => updateLocalSettings({
-                  recency: { ...localSettings.recency, halfLifeHours: Math.round(value) },
+                value={settings.recency.halfLifeHours}
+                onValueChange={(value) => previewChange({
+                  recency: { ...settings.recency, halfLifeHours: Math.round(value) },
+                })}
+                onSlidingComplete={(value) => commit({
+                  recency: { ...settings.recency, halfLifeHours: Math.round(value) },
                 })}
                 minimumValue={6}
                 maximumValue={72}
@@ -319,9 +269,12 @@ export default function FeedSettingsScreen() {
             </View>
             <View>
               <Slider
-                value={localSettings.recency.maxAgeHours}
-                onValueChange={(value) => updateLocalSettings({
-                  recency: { ...localSettings.recency, maxAgeHours: Math.round(value) },
+                value={settings.recency.maxAgeHours}
+                onValueChange={(value) => previewChange({
+                  recency: { ...settings.recency, maxAgeHours: Math.round(value) },
+                })}
+                onSlidingComplete={(value) => commit({
+                  recency: { ...settings.recency, maxAgeHours: Math.round(value) },
                 })}
                 minimumValue={24}
                 maximumValue={336}
@@ -344,9 +297,9 @@ export default function FeedSettingsScreen() {
             showChevron={false}
             rightElement={
               <Toggle
-                value={localSettings.quality.boostHighQuality}
-                onValueChange={(value) => updateLocalSettings({
-                  quality: { ...localSettings.quality, boostHighQuality: value },
+                value={settings.quality.boostHighQuality}
+                onValueChange={(value) => commit({
+                  quality: { ...settings.quality, boostHighQuality: value },
                 })}
               />
             }

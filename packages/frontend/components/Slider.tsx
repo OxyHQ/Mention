@@ -10,7 +10,14 @@ import { useTheme } from '@oxyhq/bloom/theme';
 
 interface SliderProps {
   value: number;
+  /** Fires continuously while dragging — drive the displayed value with it. */
   onValueChange: (value: number) => void;
+  /**
+   * Fires once, on release, with the final value. A caller that persists the
+   * value should do it here rather than in `onValueChange`, which emits on every
+   * frame of the gesture.
+   */
+  onSlidingComplete?: (value: number) => void;
   minimumValue?: number;
   maximumValue?: number;
   step?: number;
@@ -23,6 +30,7 @@ interface SliderProps {
 export const Slider: React.FC<SliderProps> = ({
   value,
   onValueChange,
+  onSlidingComplete,
   minimumValue = 0,
   maximumValue = 1,
   step = 0.01,
@@ -82,8 +90,16 @@ export const Slider: React.FC<SliderProps> = ({
       .onEnd(() => {
         'worklet';
         isDragging.value = false;
+        if (onSlidingComplete && widthSV.value > 0) {
+          const percentage = translateX.value / widthSV.value;
+          const rawValue = minimumValue + percentage * (maximumValue - minimumValue);
+          const steppedValue = Math.round(rawValue / step) * step;
+          runOnJS(onSlidingComplete)(
+            Math.max(minimumValue, Math.min(maximumValue, steppedValue)),
+          );
+        }
       });
-  }, [disabled, minimumValue, maximumValue, step, onValueChange, widthSV, isDragging, translateX]);
+  }, [disabled, minimumValue, maximumValue, step, onValueChange, onSlidingComplete, widthSV, isDragging, translateX]);
 
   const thumbStyle = useAnimatedStyle(() => {
     return {
