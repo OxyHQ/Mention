@@ -29,13 +29,33 @@ bun run clean               # Remove all node_modules
 
 Run backend tests from the package root: `cd packages/backend && bun run test` (running from the repo root picks up stale `.dist` copies → false failures).
 
+`check`, `lint` and `test` fan out with `bun run --parallel` (Foreman-style, one prefix per script). `check` keeps three ordered stages because the middle one is a real dependency: workspace validators → `build` → type-checks, since every `tsc --noEmit` compiles against shared-types' built `dist`. `lint:frontend` (`expo lint`) runs after the parallel group rather than inside it — it is the heaviest single job and there is nothing to overlap it with. Local A/B, warm, three alternating runs: 11.8s sequential → 7.4s parallel.
+
+**The backend and MCP run on Bun, not Node** (`CMD ["bun", …]` in both images), so both are typed with `"types": ["node", "bun"]` and `Bun.*` is fair game in their source. `@types/bun` is catalogued at the exact version `packageManager` names, and doctor fails if the two drift — type definitions for a different Bun than the one shipping is a silent way to be wrong. The frontend is Metro/Node and stays Node-typed.
+
+**`bun install` refuses to RESOLVE a dependency published in the last week** (`minimumReleaseAge` in `bunfig.toml`), which is where a compromised release is most likely to still be live. It applies at resolution only: `--frozen-lockfile` (CI, both image builds) installs an already-locked fresh package with no complaint — verified in a real image build. First-party packages are excluded by EXACT name, because a scope glob (`"@oxyhq/*"`) parses fine and silently matches nothing; a new first-party dependency must be added to `minimumReleaseAgeExcludes` or its first install fails loudly. Deliberate one-off override: `bun install --minimum-release-age=0`.
+
+Bun built-ins that look like they could delete a dependency here, and cannot — each measured, so none of these needs re-deriving:
+
+- **`Bun.YAML` does not replace the `yaml` devDependency.** `scripts/validate-workflows.mjs` parses with `uniqueKeys: true`; `Bun.YAML.parse("a: 1\na: 2")` returns `{a: 2}` without complaint, and it reports one error rather than a document's worth. A workflow validator that stops noticing a duplicate key is a worse trade than one dependency.
+- **`Bun.redis` does not replace `redis`/`ioredis`.** Its client exposes no `multi`/`exec`/`watch` (168 prototype methods, checked), and `DistributedPresenceService` is a `multi()` pipeline; BullMQ requires ioredis specifically, and `@socket.io/redis-adapter` wants a node-redis or ioredis client object. Adopting it would add a THIRD client, not remove one.
+- **`Bun.Image` does not replace `sharp`.** The only consumers are `plugins/withAndroidWebpMipmaps.js` and `plugins/withSplashBranding.js`, which `expo prebuild` runs under Node.
+- **`bun test` does not replace Vitest in the backend** (336 files, 1138 `vi.mock`, plus `vi.hoisted`/`vi.importActual`/per-file coverage thresholds) nor Jest in the frontend (`jest-expo` preset).
+- **The global virtual store is unreachable** while `linker = "hoisted"`, which Metro requires (see `bunfig.toml`).
+
 **Rebuild `shared-types` before believing a red typecheck or build.** `@mention/shared-types` is consumed through its BUILT `dist`, so after any rebase/checkout that pulls in a shared-types change, every other package still compiles against the previous build and reports the newly-landed symbols as missing — `TS2305: has no exported member 'X'`, in files you never touched. It reads exactly like someone else's broken commit, and has been reported as "N pre-existing errors" more than once. `bun run --cwd packages/shared-types build` first; only a failure that survives that is real.
 
 ## Bumping an Oxy SDK package (CRITICAL — `bun add` reports success and changes nothing)
 
-The ROOT `package.json` `overrides` block pins `@oxyhq/bloom`, `@oxyhq/core` and `@oxyhq/services` as well as the workspace manifests, and an override beats a workspace range. So `bun add @oxyhq/bloom@^0.72.1` inside `packages/frontend` prints `installed @oxyhq/bloom@0.71.0`, exits 0, and leaves the old version in both `node_modules` and `bun.lock`. `bun update` behaves the same. Nothing mentions the override.
+**Shared versions live in exactly one place: `workspaces.catalog` in the root `package.json`.** Workspace manifests and the root `overrides` both name the package as `"catalog:"`, and `scripts/doctor.mjs` reads the Bloom pin out of the catalog rather than repeating it. A bump is therefore ONE edit (the catalog entry) plus `bun install` for `bun.lock`.
 
-Every bump therefore touches four things: the workspace manifest, the root `overrides` entry, `expectedBloomVersion` in `scripts/doctor.mjs` (which pins the whole workspace to ONE Bloom release by design), and `bun.lock`. `@oxyhq/bloom` must NOT appear in the root `dependencies` — doctor rejects that ("Runtime dependencies must live in their owning workspace"), and a rebase conflict resolution reintroduces it easily.
+An override reading `"catalog:"` still rewrites transitive resolutions — verified against a package whose dependency pinned an older version, which the catalogued version replaced. That is what makes one entry enough: `@oxyhq/services` depends on `@oxyhq/core`, and the override is what keeps a single copy of it in the tree.
+
+`bun add` remains the wrong tool. An override beats a workspace range, so `bun add @oxyhq/bloom@^0.72.1` inside `packages/frontend` prints `installed @oxyhq/bloom@0.71.0`, exits 0, and leaves the old version in both `node_modules` and `bun.lock`; `bun update` behaves the same, and nothing mentions the override. Edit the catalog by hand instead.
+
+Doctor rejects a manifest or override that re-pins a catalogued package to a literal range, because that silently escapes the catalog while still resolving (mutation-tested: each of manifest re-pin, override re-pin, an emptied catalog, and a `@types/bun` that drifts from `packageManager` fails with its own message). `@oxyhq/bloom` must NOT appear in the root `dependencies` — doctor rejects that too ("Runtime dependencies must live in their owning workspace"), and a rebase conflict resolution reintroduces it easily.
+
+Packages with a single consumer and an exact pin (`@oxyhq/crowdsource*`, `@oxyhq/federation`, `@oxyhq/protocol`) are deliberately NOT catalogued: there is no second site for them to drift from.
 
 **Assert the installed version after any bump — never trust the installer's output.** `node -e "console.log(require('./node_modules/@oxyhq/<pkg>/package.json').version)"` before running any gate, or the gate measures the old package.
 

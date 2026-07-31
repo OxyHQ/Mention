@@ -13,7 +13,10 @@
   "extends": "../../tsconfig.json",
   "compilerOptions": {
     "lib": ["ES2020", "DOM"],
-    "types": ["node"],
+    // The ECS image runs this service on Bun (`CMD ["bun", …]`), so `Bun.*` is
+    // part of the runtime and has to be part of the type environment too.
+    // `bun` must come last: its globals refine Node's rather than replace them.
+    "types": ["node", "bun"],
     // --- Intentional override of the root base: emit CommonJS for Node/Bun.
     // The ECS image executes the emitted `dist/**` as CommonJS; `node`
     // resolution matches that runtime.

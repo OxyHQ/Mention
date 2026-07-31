@@ -9,9 +9,9 @@
   "dependencies": {
     "@mention/shared-types": "workspace:*",
     "@modelcontextprotocol/sdk": "^1.29.0",
-    "@oxyhq/core": "^16.0.0",
-    "jsonwebtoken": "^9.0.3",
-    "zod": "^4.4.3"
+    "@oxyhq/core": "catalog:",
+    "jsonwebtoken": "catalog:",
+    "zod": "catalog:"
   },
   "scripts": {
     "start": "bun server.ts",
@@ -26,8 +26,9 @@
     "test": "bun test"
   },
   "devDependencies": {
-    "@types/jsonwebtoken": "^9.0.10",
-    "@types/node": "^25.9.5",
-    "typescript": "^5.9.3"
+    "@types/bun": "catalog:",
+    "@types/jsonwebtoken": "catalog:",
+    "@types/node": "catalog:",
+    "typescript": "catalog:"
   }
 }
