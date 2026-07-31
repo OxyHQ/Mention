@@ -174,7 +174,7 @@ function buildVisibleLikedPostMatch(ctx: FeedEngineContext): Record<string, unkn
 async function gatherAuthorLikes(authorId: string, ctx: FeedEngineContext): Promise<CandidatePost[]> {
   const pageLimit = ctx.pageLimit ?? 30;
 
-  const Like = (await import('../../../../models/Like')).default;
+  const { Like } = await import('../../../../models/Like.js');
   const likes = await Like.find({ userId: authorId, value: 1 })
     .sort({ createdAt: -1 })
     .limit(pageLimit + 1)
@@ -251,7 +251,7 @@ export const savedSource: SourceModule = {
     if (!ctx.currentUserId) return [];
     const pageLimit = ctx.pageLimit ?? 30;
 
-    const Bookmark = (await import('../../../../models/Bookmark')).default;
+    const { Bookmark } = await import('../../../../models/Bookmark.js');
     const bookmarkQuery: Record<string, unknown> = { userId: ctx.currentUserId };
     if (ctx.cursor && mongoose.Types.ObjectId.isValid(ctx.cursor)) {
       bookmarkQuery._id = { $lt: new mongoose.Types.ObjectId(ctx.cursor) };

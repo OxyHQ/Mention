@@ -109,11 +109,12 @@ const bookmarkFixture = [
   { _id: oid(101), postId: oid(1), createdAt: new Date(2020, 0, 9) },
   { _id: oid(102), postId: oid(2), createdAt: new Date(2020, 0, 8) },
 ];
-vi.mock('../models/Bookmark', () => ({
-  default: {
-    find: vi.fn(() => ({ sort: () => ({ limit: () => ({ lean: () => Promise.resolve(bookmarkFixture) }) }) })),
-  },
-}));
+// Mirrors the real module, which exports the model BOTH ways: the saved source
+// destructures the named export, so a default-only mock would not satisfy it.
+const bookmarkModel = {
+  find: vi.fn(() => ({ sort: () => ({ limit: () => ({ lean: () => Promise.resolve(bookmarkFixture) }) }) })),
+};
+vi.mock('../models/Bookmark', () => ({ Bookmark: bookmarkModel, default: bookmarkModel }));
 
 import { feedEngine } from '../mtn/feed/engine/FeedEngine';
 import { registerSourceModules } from '../mtn/feed/engine/sources';

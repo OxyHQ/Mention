@@ -15,10 +15,25 @@
     "lib": ["ES2020", "DOM"],
     "types": ["node"],
     // --- Intentional override of the root base: emit CommonJS for Node/Bun.
-    // The ECS image executes the emitted `dist/**` as CommonJS; `node`
-    // resolution matches that runtime.
-    "module": "commonjs",
-    "moduleResolution": "node",
+    // The ECS image executes the emitted `dist/**` as CommonJS. This package is
+    // `"type": "commonjs"`, so under `node16` every .ts file here is still a
+    // CommonJS module and STATIC imports still emit `require`/`exports`.
+    //
+    // TypeScript 7 DELETED `moduleResolution: "node"` (node10), and it rejects
+    // `moduleResolution: "node16"` next to `module: "commonjs"` (TS5110), so the
+    // node16/node16 pair below is forced rather than chosen.
+    //
+    // It carries ONE emit change worth knowing about: a dynamic `import()` is no
+    // longer downlevelled to `require()` — it is preserved, so Node runs it
+    // through the real ESM loader. Two consequences, both already handled at
+    // every call site in this package:
+    //   * a relative specifier needs its explicit `.js` extension (ESM
+    //     resolution does not guess extensions or fall back to `index`), and
+    //   * the result must be destructured by NAME, because for a CommonJS target
+    //     Node binds the namespace's `default` to the whole `module.exports`,
+    //     NOT to the module's own default export — a mismatch tsc cannot see.
+    "module": "node16",
+    "moduleResolution": "node16",
 
     // --- Emit settings (the root base is type-check only / noEmit).
     // `rootDir: "./"` because the entrypoint `server.ts` lives at the package
@@ -33,7 +48,11 @@
 
     // Resolve the workspace dependency to shared-types SOURCE during type-check
     // so backend changes see un-built type updates immediately.
-    "baseUrl": ".",
+    //
+    // There is deliberately no `baseUrl`: TypeScript 7 removed it, and it was
+    // set to `"."` — the directory holding this file — which is also what
+    // `paths` entries resolve against when `baseUrl` is absent. Dropping it
+    // therefore leaves both mappings below pointing at exactly the same files.
     "paths": {
       "@mention/shared-types": ["../shared-types/src"],
       "@mention/shared-types/*": ["../shared-types/src/*"]

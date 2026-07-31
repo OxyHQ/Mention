@@ -196,7 +196,7 @@ export class InboxProcessingService {
       ).lean<{ authorship?: PostAuthorshipEntry[]; federation?: unknown } | null>();
       if (!post || post.federation != null) return;
 
-      const { createPostAuthorNotifications } = await import('../../utils/notificationUtils');
+      const { createPostAuthorNotifications } = await import('../../utils/notificationUtils.js');
       await createPostAuthorNotifications(post.authorship, {
         actorId: actorOxyUserId,
         type,
@@ -245,7 +245,7 @@ export class InboxProcessingService {
       ).filter((id): id is string => id !== null);
       if (consented.length === 0) return;
 
-      const { createMentionNotifications } = await import('../../utils/notificationUtils');
+      const { createMentionNotifications } = await import('../../utils/notificationUtils.js');
       await createMentionNotifications(consented, entityId, actorOxyUserId, entityType);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
@@ -991,7 +991,7 @@ const inboundDispatcher = createInboundDispatcher({
   // reaches the `server` singleton, and this module is itself pulled in by `server`.
   onInboundFollowAccepted: async (localUserId, followerOxyUserId, _actorUri) => {
     try {
-      const { createNotification } = await import('../../utils/notificationUtils');
+      const { createNotification } = await import('../../utils/notificationUtils.js');
       await createNotification({
         recipientId: localUserId,
         actorId: followerOxyUserId,

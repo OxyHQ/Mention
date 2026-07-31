@@ -22,4 +22,10 @@ BookmarkSchema.index({ userId: 1, postId: 1 }, { unique: true });
 // Index for querying user's bookmarks
 BookmarkSchema.index({ userId: 1, createdAt: -1 });
 
-export default mongoose.model<IBookmark>("Bookmark", BookmarkSchema);
+// Exported BOTH ways on purpose. Static importers use the default; the lazy
+// `await import()` in the feed sources must destructure the NAMED export,
+// because Node's CommonJS-to-ESM interop binds a dynamic import's `default` to
+// the whole `module.exports`, not to the module's own default export.
+export const Bookmark = mongoose.model<IBookmark>("Bookmark", BookmarkSchema);
+
+export default Bookmark;

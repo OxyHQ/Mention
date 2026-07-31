@@ -52,13 +52,14 @@ vi.mock('../models/UserSettings', () => ({
 }));
 
 const bookmarkDocs: Array<Record<string, unknown>> = [];
-vi.mock('../models/Bookmark', () => ({
-  default: {
-    find: vi.fn(() => ({
-      sort: () => ({ limit: () => ({ lean: () => Promise.resolve(bookmarkDocs) }) }),
-    })),
-  },
-}));
+// Mirrors the real module, which exports the model BOTH ways: the saved source
+// destructures the named export, so a default-only mock would not satisfy it.
+const bookmarkModel = {
+  find: vi.fn(() => ({
+    sort: () => ({ limit: () => ({ lean: () => Promise.resolve(bookmarkDocs) }) }),
+  })),
+};
+vi.mock('../models/Bookmark', () => ({ Bookmark: bookmarkModel, default: bookmarkModel }));
 
 import {
   followingSource,

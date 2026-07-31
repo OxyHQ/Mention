@@ -15,9 +15,28 @@
   "extends": "../../tsconfig.json",
   "compilerOptions": {
     // --- Intentional override of the root base: emit CommonJS for the backend.
-    // `node` resolution matches the CJS module format the backend runtime uses.
-    "module": "commonjs",
-    "moduleResolution": "node",
+    // `node16` is the CJS-correct replacement for the removed legacy resolver:
+    // this package is `"type": "commonjs"`, so under node16 every .ts file here
+    // is still a CommonJS module — the emit is `require`/`exports` and relative
+    // imports still resolve with Node's CJS algorithm (extensionless, directory
+    // /index). What changes is that dependency resolution now honours the
+    // `exports`/`imports` maps the way the real Node runtime does instead of
+    // walking node_modules blindly. TypeScript 7 DELETED
+    // `moduleResolution: "node"` (node10) and rejects `node16` resolution next
+    // to `module: "commonjs"` (TS5110), so this pair is forced, not chosen.
+    // This package contains no dynamic `import()`, which is the one construct
+    // node16 emits differently (see the backend tsconfig); its `dist/` is
+    // byte-identical to the pre-migration build.
+    "module": "node16",
+    "moduleResolution": "node16",
+
+    // TypeScript 7 no longer pulls every `node_modules/@types/*` package into
+    // the program implicitly, so the ambient globals this package leans on have
+    // to be named. `src/media.ts` types `MediaUploadRequest.file` as the global
+    // `File`, which has always resolved through `@types/node` (already a
+    // devDependency here) — this makes that dependency explicit rather than
+    // changing it, and matches how the backend declares its own globals.
+    "types": ["node"],
 
     // --- Emit settings (the root base is type-check only / noEmit).
     "noEmit": false,
