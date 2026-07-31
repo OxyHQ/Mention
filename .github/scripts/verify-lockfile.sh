@@ -37,7 +37,20 @@ git show "${base_revision}:bun.lock" >bun.lock
 # --lockfile-only resolves and writes the lockfile without downloading or
 # linking any package, so no lifecycle script runs. Verified to produce a
 # byte-identical lockfile to a full `bun install` on this repo.
-bun install --lockfile-only
+#
+# --minimum-release-age=0 opts out of the supply-chain quarantine in
+# bunfig.toml, which belongs at AUTHORING time and would be wrong here. This job
+# RE-RESOLVES rather than installing frozen, so on a cold manifest cache the
+# quarantine judges every dependency afresh — including ones already committed
+# to the lockfile — and refuses any published inside the window
+# (`@playwright/test@1.62.0` was the first casualty). A developer adding a
+# too-fresh dependency is blocked by their own `bun install` long before this
+# runs, so the decision has already been made by the time a lockfile exists to
+# reproduce; blocking here would only mean a week of red CI per fresh dependency,
+# which is how a gate gets disabled by whoever hits it next. A frozen install is
+# unaffected either way, cold cache included: the `quality` job installs 1588
+# packages with the quarantine active and never sees it.
+bun install --lockfile-only --minimum-release-age=0
 
 if git diff --quiet --exit-code -- bun.lock; then
   echo "bun.lock is what bun resolves from ${base_revision} plus this revision's manifests."
