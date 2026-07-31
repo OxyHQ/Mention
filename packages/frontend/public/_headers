@@ -1,7 +1,9 @@
-# Expo emits content-hashed browser assets under this path.
+# Expo emits content-hashed browser assets under these two paths: JS chunks
+# under /_expo/static, and everything imported as an asset — Bloom's four
+# .woff2 web fonts among them — under /assets. Both carry a 32-char content
+# hash in the filename, so a changed file is a changed URL.
 /_expo/static/*
   Cache-Control: public, max-age=31536000, immutable
 
-# These font filenames include a content hash and are referenced by the bundle.
-/fonts/*
+/assets/*
   Cache-Control: public, max-age=31536000, immutable

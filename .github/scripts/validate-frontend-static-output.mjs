@@ -27,7 +27,12 @@ if (!(await exists(headersPath))) {
   failures.push("_headers is missing");
 } else {
   const headers = await readFile(headersPath, "utf8");
-  for (const route of ["/_expo/static/*", "/fonts/*"]) {
+  // The two paths Expo writes content-hashed output to: JS chunks under
+  // /_expo/static, and everything imported as an asset — Bloom's `.woff2` web
+  // fonts among them — under /assets. `/fonts/*` used to be here because the
+  // app served the fonts from `public/fonts/` with hand-copied hashes; Bloom
+  // emits them itself now, so that directory no longer exists.
+  for (const route of ["/_expo/static/*", "/assets/*"]) {
     const escapedRoute = route.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     const immutableRule = new RegExp(
       `^${escapedRoute}\\s*\\n(?:[ \\t]+[^\\n]*\\n)*?[ \\t]+Cache-Control:\\s*public,\\s*max-age=31536000,\\s*immutable\\s*$`,

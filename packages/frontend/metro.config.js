@@ -7,7 +7,6 @@ const monorepoRoot = path.resolve(projectRoot, '../..');
 const exactModuleAliases = new Map([
   ['@oxyhq/bloom', path.join(projectRoot, 'shims/oxy-bloom.ts')],
 ]);
-const bloomFontDataShim = path.join(projectRoot, 'shims/bloom-font-data.web.ts');
 
 const config = getDefaultConfig(projectRoot);
 
@@ -61,33 +60,14 @@ config.resolver = {
   // tree-shaking, so the request is narrowed to the three symbols services
   // actually consumes. Mention's own code imports Bloom subpaths directly;
   // only the exact barrel request is rewritten.
-  resolveRequest: (context, moduleName, platform) => {
-    // Bloom publishes its web fonts as base64 strings in font-data.web.js.
-    // Keeping those bytes in the entry graph inflates every initial JS download,
-    // even though the browser already has an efficient, cacheable font pipeline.
-    // Limit the override to Bloom's own relative import on web so no unrelated
-    // module can accidentally resolve to the shim.
-    const isBloomFontDataRequest =
-      platform === 'web' &&
-      (moduleName === './font-data.web' || moduleName === './font-data.web.js') &&
-      /[\\/]@oxyhq[\\/]bloom[\\/].*[\\/]fonts[\\/]apply-font-faces\.web\.(?:js|ts)$/.test(
-        context.originModulePath ?? '',
-      );
-
-    return context.resolveRequest(
-      context,
-      isBloomFontDataRequest
-        ? bloomFontDataShim
-        : exactModuleAliases.get(moduleName) ?? moduleName,
-      platform,
-    );
-  },
+  resolveRequest: (context, moduleName, platform) =>
+    context.resolveRequest(context, exactModuleAliases.get(moduleName) ?? moduleName, platform),
   sourceExts: [...config.resolver.sourceExts, 'ts', 'tsx'],
-  // Bloom 0.3.3 imports `.woff2` files directly from JS for its bundled font system
-  // (BlomusModernus, Inter Variable, Geist Mono). When Metro bundles for web
-  // (`bundler: "metro"` in app.config.js) it picks `apply-font-faces.web.js`, which
-  // has module-level `.woff2` imports. Metro does not include `.woff2` in default
-  // `assetExts`, so we register it here so those imports resolve as static assets.
+  // Bloom imports its four `.woff2` web fonts straight from JS so the browser
+  // downloads and caches them separately from the bundle (`fonts/font-urls.web.ts`).
+  // Metro does not carry `woff2` in its default `assetExts`, and only the web
+  // graph reaches those imports — native loads the `.ttf` variants through
+  // `useFonts` instead.
   assetExts: [...config.resolver.assetExts.filter((ext) => ext !== 'svg'), 'wasm', 'woff2', 'woff'],
 };
 
