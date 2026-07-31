@@ -5,7 +5,7 @@ import { useAuth } from '@oxyhq/services/ui/client';
 import type { User } from '@oxyhq/core';
 import { useAppearanceStore, type UserAppearance, type ProfileMedia } from '@/stores/appearanceStore';
 import { APP_COLOR_PRESETS, HEX_TO_APP_COLOR } from '@oxyhq/bloom/theme';
-import { MEDIA_VARIANT_FULL } from '@mention/shared-types/post';
+import { MEDIA_VARIANT_BANNER } from '@mention/shared-types/post';
 import type { Community } from '@/components/Profile/types';
 import { displayNameOrHandle } from '@/utils/displayName';
 import { getCachedFileDownloadUrlSync, type FileUrlResolver } from '@/utils/imageUrlCache';
@@ -90,12 +90,18 @@ export interface ProfileData {
  * `bannerUrl` is the one field that needs resolving: `profileHeaderImage` is a
  * media REFERENCE, and both forms occur in the wild — a bare Oxy file id (what
  * the banner picker and the federated-actor mirror write) and an absolute
- * `cloud.oxy.so` URL (legacy rows). Renderers must never guess which one they
- * got, so it goes through the canonical resolver here — the same chokepoint
- * Bloom's `ImageResolver` uses — and every consumer receives a real URL. An
+ * `cloud.oxy.so` URL (what the public design DTO emits, already carrying the
+ * banner variant). Renderers must never guess which one they got, so it goes
+ * through the canonical resolver here — the same chokepoint Bloom's
+ * `ImageResolver` uses — and every consumer receives a real URL. An
  * unresolvable reference yields `undefined` rather than a bare id: consumers
  * render `bannerUrl` straight into an image source and `<meta og:image>`, where
  * a bare id becomes a same-origin request that silently returns the SPA shell.
+ *
+ * The variant asked for here is {@link MEDIA_VARIANT_BANNER}, the same one the
+ * server attaches, so a bare id and a server-resolved URL produce the SAME
+ * string — the edit-screen preview and this banner then share one HTTP cache
+ * entry instead of fetching two differently-sized copies of the same image.
  */
 function computeDesign(
   profile: User,
@@ -109,7 +115,7 @@ function computeDesign(
 
   const bannerRef = appearance?.profileHeaderImage;
   const bannerUrl = bannerRef
-    ? getCachedFileDownloadUrlSync(oxyServices, bannerRef, MEDIA_VARIANT_FULL)
+    ? getCachedFileDownloadUrlSync(oxyServices, bannerRef, MEDIA_VARIANT_BANNER)
     : undefined;
 
   return {

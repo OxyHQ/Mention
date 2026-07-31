@@ -48,11 +48,20 @@ export enum PostVisibility {
  * crop it replaced. Video posters are a DIFFERENT context: they fill the (up
  * to ~320px wide) media card as a rectangle, so they keep the 256px `thumb`
  * crop via VIDEO_POSTER rather than being shrunk to a small square.
+ *
+ * The profile banner is its own context: a full-bleed 170px-tall strip, so its
+ * width — not the lightbox's — is what bounds it. The widest real surface is a
+ * 3x-DPR phone (~430pt ⇒ ~1290 device px); the framed web panel is far narrower.
+ * BANNER therefore maps to `w1280` rather than reusing FULL: at that height the
+ * extra rows in `w2048` are invisible while costing ~1.5x the bytes, and the raw
+ * no-variant original costs ~15x (measured on a live banner: 2.66 MB PNG
+ * original / 270 KB `w2048` / 179 KB `w1280`).
  */
 export const MEDIA_VARIANT_THUMB = 'w320';
 export const MEDIA_VARIANT_FULL = 'w2048';
 export const MEDIA_VARIANT_AVATAR = 'w96';
 export const MEDIA_VARIANT_VIDEO_POSTER = 'thumb';
+export const MEDIA_VARIANT_BANNER = 'w1280';
 
 export interface MediaItem {
   id: string;
