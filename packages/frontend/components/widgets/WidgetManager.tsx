@@ -28,7 +28,7 @@ function WidgetSlot({
 
     useEffect(() => {
         const node = ref.current;
-        const hasVisibleContent = Boolean(node && node.children && node.children.length > 0);
+        const hasVisibleContent = Boolean(node?.children?.length);
         onVisibilityChange(slotId, hasVisibleContent);
     }, [children, onVisibilityChange, slotId]);
 
@@ -57,13 +57,14 @@ interface WidgetManagerProps {
 
 /**
  * Widget Manager Component
- * 
+ *
  * This component controls which widgets should appear on which screens.
  * It provides a centralized way to manage widget visibility based on screen context.
  */
 export function WidgetManager({ screenId, customWidgets = [] }: WidgetManagerProps) {
     const { t } = useTranslation();
     const [visibleSlots, setVisibleSlots] = useState<Record<string, boolean>>({});
+    const [hasMeasuredSlots, setHasMeasuredSlots] = useState(false);
 
     const handleVisibilityChange = useCallback((slotId: string, visible: boolean) => {
         setVisibleSlots((previous) => {
@@ -72,7 +73,6 @@ export function WidgetManager({ screenId, customWidgets = [] }: WidgetManagerPro
         });
     }, []);
 
-    // Define which widgets should appear on which screens
     const getWidgetsForScreen = (screen: ScreenId): ReactNode[] => {
         switch (screen) {
             case 'home':
@@ -139,22 +139,43 @@ export function WidgetManager({ screenId, customWidgets = [] }: WidgetManagerPro
     };
 
     const screenWidgets = getWidgetsForScreen(screenId);
-
-    // Combine screen-specific widgets with any custom widgets passed as props
     const allWidgets = useMemo(() => [...screenWidgets, ...customWidgets], [screenWidgets, customWidgets]);
+
+    useEffect(() => {
+        setVisibleSlots({});
+        setHasMeasuredSlots(false);
+    }, [screenId, customWidgets]);
+
+    useEffect(() => {
+        setHasMeasuredSlots(true);
+    }, [allWidgets]);
 
     const widgetSlots = useMemo(() => allWidgets.map((widget, index) => {
         const slotKey = (widget as React.ReactElement)?.key?.toString() ?? `widget-${index}`;
         return { slotKey, widget };
     }), [allWidgets]);
 
-    useEffect(() => {
-        setVisibleSlots({});
-    }, [screenId, customWidgets]);
-
     const hasVisibleWidgets = useMemo(() => Object.values(visibleSlots).some(Boolean), [visibleSlots]);
 
-    if (allWidgets.length === 0 || !hasVisibleWidgets) {
+    if (allWidgets.length === 0) {
+        return null;
+    }
+
+    if (!hasMeasuredSlots) {
+        return (
+            <View className="flex-col gap-4">
+                {widgetSlots.map(({ slotKey, widget }) => (
+                    <WidgetErrorBoundary key={slotKey}>
+                        <WidgetSlot slotId={slotKey} onVisibilityChange={handleVisibilityChange}>
+                            {widget}
+                        </WidgetSlot>
+                    </WidgetErrorBoundary>
+                ))}
+            </View>
+        );
+    }
+
+    if (!hasVisibleWidgets) {
         return null;
     }
 
