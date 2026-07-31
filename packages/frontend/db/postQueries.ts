@@ -300,7 +300,7 @@ export function updatePost(
       // undo, but a rollback that fails for any other reason is worth seeing.
       logger.debug('Rollback after a failed post update did not apply', { error: rollbackError });
     }
-    logger.error(`Failed to update post ${id} in place`, { error });
+    logger.error(`Failed to update post ${id} in place`, error);
     return null;
   }
 }

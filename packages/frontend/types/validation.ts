@@ -1,6 +1,37 @@
 import { z } from "zod";
 import { logger } from '@oxyhq/core/logger';
 
+/**
+ * Reject legacy fields that the profile-identity contract retired, so a shim
+ * cannot re-enter through notifications. Shared by the three embedded shapes
+ * that each guard their own list.
+ *
+ * `.passthrough()` is what makes this necessary: unknown keys are preserved
+ * rather than stripped, so without an explicit refusal a resurrected `handle`
+ * or `isLiked` would ride along and be read downstream.
+ */
+const refuseLegacyFields = (
+  kind: string,
+  fields: readonly string[],
+): ((value: object, context: z.RefinementCtx) => void) =>
+  (value, context) => {
+    for (const field of fields) {
+      if (field in value) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `Legacy ${kind} field "${field}" is not allowed`,
+          path: [field],
+        });
+      }
+    }
+  };
+
+/** Identity shims replaced by `username` / `avatar` / `verified`. */
+const LEGACY_IDENTITY_FIELDS = ['handle', 'avatarUrl', 'isVerified'] as const;
+
+/** Viewer-state shims that moved onto `viewerState`. */
+const LEGACY_VIEWER_FIELDS = ['isLiked', 'isDownvoted', 'isBoosted', 'isSaved'] as const;
+
 // Actor/profile coming from actorId_populated
 export const ZActor = z.object({
   _id: z.string().optional(),
@@ -8,9 +39,9 @@ export const ZActor = z.object({
   username: z.string().optional(),
   // Canonical resolved display name (profile-identity contract). The backend
   // serializer always emits `name.displayName`; clients render it directly.
-  name: z.object({ displayName: z.string().optional() }).partial().optional(),
+  name: z.object({ displayName: z.string().optional() }).optional(),
   avatar: z.string().optional(),
-}).partial();
+});
 
 // Embedded post user — the canonical Oxy `User` shape emitted by
 // `PostHydrationService` (Oxy owns identity). Render `name.displayName` directly,
@@ -31,17 +62,7 @@ const embeddedUserShape = {
 export const ZEmbeddedUser = z
   .object(embeddedUserShape)
   .passthrough()
-  .superRefine((user, context) => {
-    for (const field of ['handle', 'avatarUrl', 'isVerified'] as const) {
-      if (field in user) {
-        context.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: `Legacy identity field "${field}" is not allowed`,
-          path: [field],
-        });
-      }
-    }
-  });
+  .superRefine(refuseLegacyFields('identity', LEGACY_IDENTITY_FIELDS));
 
 const ZEmbeddedAuthor = z
   .object({
@@ -50,17 +71,7 @@ const ZEmbeddedAuthor = z
     status: z.enum(['pending', 'accepted', 'declined', 'stopped']),
   })
   .passthrough()
-  .superRefine((author, context) => {
-    for (const field of ['handle', 'avatarUrl', 'isVerified'] as const) {
-      if (field in author) {
-        context.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: `Legacy identity field "${field}" is not allowed`,
-          path: [field],
-        });
-      }
-    }
-  });
+  .superRefine(refuseLegacyFields('identity', LEGACY_IDENTITY_FIELDS));
 
 // Embedded posts are hydrated by PostHydrationService. Keep the validator
 // aligned with that canonical contract so old identity/viewer shims cannot
@@ -114,17 +125,7 @@ export const ZEmbeddedPost = z
     parentPostId: z.string().optional(),
   })
   .passthrough()
-  .superRefine((post, context) => {
-    for (const field of ['isLiked', 'isDownvoted', 'isBoosted', 'isSaved'] as const) {
-      if (field in post) {
-        context.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: `Legacy viewer field "${field}" is not allowed`,
-          path: [field],
-        });
-      }
-    }
-  });
+  .superRefine(refuseLegacyFields('viewer', LEGACY_VIEWER_FIELDS));
 
 // Raw notification as received from API
 export const ZRawNotification = z
