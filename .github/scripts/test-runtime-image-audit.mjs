@@ -88,6 +88,21 @@ try {
     recursive: true,
   });
 
+  // TypeScript 7 splits the compiler into per-platform native binaries under
+  // `@typescript/`, each around 24 MB. They are optionalDependencies of
+  // `typescript`, so the exact ban on that name above never sees them — this
+  // case pins the prefix that does.
+  await writeJson("node_modules/@typescript/typescript-linux-x64/package.json", {
+    name: "@typescript/typescript-linux-x64",
+  });
+  await runAudit(
+    false,
+    "Forbidden development/frontend packages are installed: @typescript/typescript-linux-x64",
+  );
+  await rm(resolve(fixtureRoot, "node_modules/@typescript"), {
+    recursive: true,
+  });
+
   await writeFile(
     resolve(fixtureRoot, "packages/backend/dist/query.spec.js"),
     "export {};\n",

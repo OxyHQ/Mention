@@ -153,6 +153,13 @@ const bannedPackagePrefixes = [
   "@expo/",
   "@jest/",
   "@testing-library/",
+  // TypeScript 7 ships the compiler as a native binary split across 20
+  // per-platform packages under this scope (`@typescript/typescript-linux-x64`
+  // and friends), pulled in as optionalDependencies of `typescript`. The exact
+  // ban on "typescript" above does not name them, and each one is ~24 MB, so
+  // without this prefix a runtime image could carry the compiler's payload
+  // while the audit reported the compiler itself absent.
+  "@typescript/",
   "@vitest/",
   "expo-",
   "jest-",
