@@ -28,6 +28,20 @@
     // affects how the type-checker is configured.
     "noEmit": false,
 
+    // Global (non-imported) type packages this project relies on.
+    //
+    // TypeScript <=5 inferred this list by ENUMERATING every `@types/*` package
+    // it could find under `typeRoots`, so the frontend silently inherited all 56
+    // `@types` packages hoisted into the monorepo root — most of them backend
+    // transitives it has no business seeing. TypeScript 7 dropped that
+    // enumeration: only type packages named here (or reached by an explicit
+    // `/// <reference types="..." />`) become global. Listing them is therefore
+    // required, and is also the honest declaration of what the app actually uses:
+    //   * `jest`  — the test globals (`describe`/`it`/`expect`, `jest.Mock`).
+    //   * `node`  — `node:*` imports in build/lint-style tests, and the Node
+    //               timer handle whose `.unref?.()` the polling stores call.
+    "types": ["jest", "node"],
+
     // App-local path alias used throughout the frontend (`@/components/...`).
     "paths": {
       "@/*": ["./*"]
