@@ -57,10 +57,21 @@
     "declarationMap": true,
     "sourceMap": true,
 
-    // The root itself never emits — it only orchestrates references and is the
-    // default for editor/CLI type-checking. Emitting packages override this.
+    // The root itself never emits — it only orchestrates references, and every
+    // package inherits this as the type-check-only baseline. Emitting packages
+    // (backend, shared-types) override it.
     "noEmit": true
   },
+  // Solution-style: the root owns no sources of its own, it only points at the
+  // referenced projects. Without this, the root has no `files`/`include` and so
+  // falls back to the default `**/*`, sweeping every package — including the
+  // Expo `.tsx` — into one program that has neither `jsx` nor the frontend's
+  // module resolution. TypeScript 5.9 hid that: it stopped after the TS6305
+  // "referenced project has not been built" errors and never checked the swept
+  // files. TypeScript 7 reports both, so the same unbuilt tree went from 441
+  // errors to 13096. Packages are unaffected either way — each one `extends`
+  // this file but declares its own `include`, which is what selects its sources.
+  "files": [],
   "references": [
     { "path": "./packages/shared-types" },
     { "path": "./packages/backend" }
