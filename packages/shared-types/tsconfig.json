@@ -15,9 +15,19 @@
   "extends": "../../tsconfig.json",
   "compilerOptions": {
     // --- Intentional override of the root base: emit CommonJS for the backend.
-    // `node` resolution matches the CJS module format the backend runtime uses.
+    // `bundler` replaces the `node` (node10) mode TypeScript 7 removed. It is
+    // paired with `commonjs` rather than `node16` for the same reason the
+    // backend does it (see that tsconfig): `node16` changes what dynamic
+    // `import()` emits, and TypeScript 7 rejects `node16` resolution unless
+    // `module` is `node16` too (TS5110).
     "module": "commonjs",
-    "moduleResolution": "node",
+    "moduleResolution": "bundler",
+
+    // TypeScript <=5 made every `@types/*` package it could enumerate global, so
+    // this package silently got `File` (and the rest of Node's globals) from the
+    // `@types/node` it already depends on. TypeScript 7 only makes global what is
+    // named here, so name it: these DTOs describe payloads for a Node runtime.
+    "types": ["node"],
 
     // --- Emit settings (the root base is type-check only / noEmit).
     "noEmit": false,
