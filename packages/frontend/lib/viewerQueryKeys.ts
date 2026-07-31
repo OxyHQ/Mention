@@ -106,16 +106,6 @@ export const viewerQueryKeys = {
     ...viewerQueryKeys.all(viewerId),
     'bookmark-folders',
   ] as const,
-  statistics: (viewerId: ViewerId, period: string | number) => [
-    ...viewerQueryKeys.all(viewerId),
-    'statistics',
-    period,
-  ] as const,
-  statisticsTopPosts: (viewerId: ViewerId, postIds: readonly string[]) => [
-    ...viewerQueryKeys.all(viewerId),
-    'statistics-top-posts',
-    postIds,
-  ] as const,
   listsRoot: (viewerId: ViewerId) => [
     ...viewerQueryKeys.all(viewerId),
     'lists',

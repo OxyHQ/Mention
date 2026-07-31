@@ -22,8 +22,6 @@ describe('viewer-scoped private cache', () => {
       viewerQueryKeys.savedPostsRoot(viewerId),
       viewerQueryKeys.savedPosts(viewerId, 'query', 'work'),
       viewerQueryKeys.bookmarkFolders(viewerId),
-      viewerQueryKeys.statistics(viewerId, 30),
-      viewerQueryKeys.statisticsTopPosts(viewerId, ['post-1']),
       viewerQueryKeys.listsRoot(viewerId),
       viewerQueryKeys.ownedLists(viewerId),
       viewerQueryKeys.followedLists(viewerId),

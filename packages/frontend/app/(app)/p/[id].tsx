@@ -33,7 +33,7 @@ import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { useTranslation } from 'react-i18next';
-import { statisticsService } from '@/services/statisticsService';
+import { insightsService } from '@/services/insightsService';
 import { feedService } from '@/services/feedService';
 import { SEO } from '@/components/SEO';
 
@@ -184,7 +184,7 @@ const PostDetailScreen: React.FC = () => {
 
         // Track view in background (non-blocking) regardless of cache state.
         if (user) {
-            statisticsService.trackPostView(postId).catch(() => {});
+            insightsService.trackPostView(postId).catch(() => {});
         }
 
         // Fetch the author's self-thread continuation spine (root → c1 … cN) ONLY

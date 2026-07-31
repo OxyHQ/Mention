@@ -14,7 +14,7 @@ import { ThemedView } from '@/components/ThemedView';
 import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
-import { statisticsService, UserStatistics } from '@/services/statisticsService';
+import { insightsService, type AccountInsights } from '@/services/insightsService';
 import { useTranslation } from 'react-i18next';
 import { useAuth, OxyAuthPrompt } from '@oxyhq/services/ui/client';
 import { Avatar } from '@oxyhq/bloom/avatar';
@@ -28,8 +28,8 @@ import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 
 
 interface WeeklyRecapData {
-    currentWeek: UserStatistics;
-    previousWeek: UserStatistics;
+    currentWeek: AccountInsights;
+    previousWeek: AccountInsights;
     newFollowers: number;
     previousFollowers: number;
 }
@@ -78,7 +78,7 @@ const WeeklyRecapScreen: React.FC = () => {
         return labels;
     };
 
-    const getCurrentWeekData = (data: UserStatistics['dailyBreakdown'], field: 'views' | 'replies' | 'interactions'): number[] => {
+    const getCurrentWeekData = (data: AccountInsights['dailyBreakdown'], field: 'views' | 'replies' | 'interactions'): number[] => {
         if (!data || data.length === 0) return Array(7).fill(0);
 
         const weekDates = getWeekDates(0);
@@ -125,9 +125,9 @@ const WeeklyRecapScreen: React.FC = () => {
             // Fetch statistics for both weeks
             // Fetch 14 days total, then split into current week (last 7) and previous week (first 7)
             const [combinedStats, followerChanges, summaryResult] = await Promise.all([
-                statisticsService.getUserStatistics(14),
-                statisticsService.getFollowerChanges(14).catch(() => null),
-                statisticsService.getWeeklySummary().catch(() => ({ summary: null })),
+                insightsService.getAccountInsights(14),
+                insightsService.getFollowerChanges(14).catch(() => null),
+                insightsService.getWeeklySummary().catch(() => ({ summary: null })),
             ]);
 
             // Split daily breakdown into current and previous weeks
@@ -136,7 +136,7 @@ const WeeklyRecapScreen: React.FC = () => {
             const currentWeekBreakdown = dailyBreakdown.slice(-7); // Last 7 days (newer)
 
             // Calculate current week stats from daily breakdown
-            const currentWeekStats: UserStatistics = {
+            const currentWeekStats: AccountInsights = {
                 ...combinedStats,
                 dailyBreakdown: currentWeekBreakdown,
                 overview: {
@@ -156,7 +156,7 @@ const WeeklyRecapScreen: React.FC = () => {
             };
 
             // Calculate previous week stats from daily breakdown
-            const previousWeekStats: UserStatistics = {
+            const previousWeekStats: AccountInsights = {
                 ...combinedStats,
                 dailyBreakdown: previousWeekBreakdown,
                 overview: {

@@ -13,7 +13,7 @@ import { useTheme } from '@oxyhq/bloom/theme';
 import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';
 import { CloseIcon } from '@/assets/icons/close-icon';
-import { statisticsService } from '@/services/statisticsService';
+import { insightsService } from '@/services/insightsService';
 import { useTranslation } from 'react-i18next';
 import { EmptyState } from '@/components/common/EmptyState';
 import { formatCompactNumber } from '@/utils/formatNumber';
@@ -66,7 +66,7 @@ const PostInsightsSheet: React.FC<PostInsightsSheetProps> = ({ postId, onClose }
     // key and refetches, rather than caching whatever the anonymous attempt got.
     const { data: insights, isLoading } = useQuery({
         queryKey: viewerQueryKeys.postInsights(user?.id, postId ?? ''),
-        queryFn: () => statisticsService.getPostInsights(postId ?? ''),
+        queryFn: () => insightsService.getPostInsights(postId ?? ''),
         enabled: canUsePrivateApi && Boolean(postId),
         staleTime: 60_000,
     });

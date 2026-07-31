@@ -1,6 +1,19 @@
 import { authenticatedClient } from '../utils/api';
 
-export interface UserStatistics {
+/**
+ * Client for the viewer's own analytics — the data behind the Insights screen,
+ * the weekly recap and a post's insights sheet.
+ *
+ * The SERVER routes are still `/statistics/*`. This module is named for the
+ * feature the app ships (Insights); renaming the API is a backend change and
+ * deliberately not part of this one.
+ */
+const INSIGHTS_BASE = '/statistics';
+
+/** Default window for every period-scoped query, in days. */
+const DEFAULT_PERIOD_DAYS = 30;
+
+export interface AccountInsights {
   period: {
     startDate: string;
     endDate: string;
@@ -114,60 +127,61 @@ export interface WeeklySummary {
   summary: string | null;
 }
 
-class StatisticsService {
-  /**
-   * Get user statistics (overall analytics)
-   */
-  async getUserStatistics(days: number = 30): Promise<UserStatistics> {
-    const response = await authenticatedClient.get<UserStatistics>('/statistics/user', {
-      params: { days }
+/** Acknowledgement of a recorded post view, carrying the fresh total. */
+export interface PostViewAck {
+  success: boolean;
+  viewsCount: number;
+}
+
+class InsightsService {
+  /** Account-level analytics over the given window. */
+  async getAccountInsights(days: number = DEFAULT_PERIOD_DAYS): Promise<AccountInsights> {
+    const response = await authenticatedClient.get<AccountInsights>(`${INSIGHTS_BASE}/user`, {
+      params: { days },
     });
     return response.data;
   }
 
-  /**
-   * Get post-specific insights
-   */
+  /** Per-post analytics behind the post insights sheet. */
   async getPostInsights(postId: string): Promise<PostInsights> {
-    const response = await authenticatedClient.get<PostInsights>(`/statistics/post/${postId}`);
+    const response = await authenticatedClient.get<PostInsights>(
+      `${INSIGHTS_BASE}/post/${postId}`,
+    );
     return response.data;
   }
 
-  /**
-   * Track post view
-   */
-  async trackPostView(postId: string): Promise<{ success: boolean; viewsCount: number }> {
-    const response = await authenticatedClient.post<{ success: boolean; viewsCount: number }>(`/statistics/post/${postId}/view`);
+  /** Record one view of a post. Fire-and-forget at every call site. */
+  async trackPostView(postId: string): Promise<PostViewAck> {
+    const response = await authenticatedClient.post<PostViewAck>(
+      `${INSIGHTS_BASE}/post/${postId}/view`,
+    );
     return response.data;
   }
 
-  /**
-   * Get follower changes over time
-   */
-  async getFollowerChanges(days: number = 30): Promise<FollowerChanges> {
-    const response = await authenticatedClient.get<FollowerChanges>('/statistics/followers', {
-      params: { days }
+  /** Follower-count movement across the window. */
+  async getFollowerChanges(days: number = DEFAULT_PERIOD_DAYS): Promise<FollowerChanges> {
+    const response = await authenticatedClient.get<FollowerChanges>(`${INSIGHTS_BASE}/followers`, {
+      params: { days },
     });
     return response.data;
   }
 
-  /**
-   * Get engagement ratios and performance metrics
-   */
-  async getEngagementRatios(days: number = 30): Promise<EngagementRatios> {
-    const response = await authenticatedClient.get<EngagementRatios>('/statistics/engagement', {
-      params: { days }
-    });
+  /** Engagement ratios, averages and totals for the window. */
+  async getEngagementRatios(days: number = DEFAULT_PERIOD_DAYS): Promise<EngagementRatios> {
+    const response = await authenticatedClient.get<EngagementRatios>(
+      `${INSIGHTS_BASE}/engagement`,
+      { params: { days } },
+    );
     return response.data;
   }
 
-  /**
-   * Get AI-generated weekly summary
-   */
+  /** AI-generated recap of the viewer's week; `summary` is null when unavailable. */
   async getWeeklySummary(): Promise<WeeklySummary> {
-    const response = await authenticatedClient.get<WeeklySummary>('/statistics/weekly-summary');
+    const response = await authenticatedClient.get<WeeklySummary>(
+      `${INSIGHTS_BASE}/weekly-summary`,
+    );
     return response.data;
   }
 }
 
-export const statisticsService = new StatisticsService();
+export const insightsService = new InsightsService();
