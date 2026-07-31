@@ -55,15 +55,7 @@ export function WhoToFollowWidget({ divider }: { divider?: boolean }) {
   }
 
   if (displayedUsers.length === 0) {
-    return (
-      <BaseWidget title={t("Who to follow")} divider={divider}>
-        <View className="py-2 items-center">
-          <ThemedText className="text-muted-foreground">
-            {t("No recommendations available")}
-          </ThemedText>
-        </View>
-      </BaseWidget>
-    );
+    return null;
   }
 
   return (
