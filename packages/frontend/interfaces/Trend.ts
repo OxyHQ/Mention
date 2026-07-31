@@ -26,16 +26,4 @@ export interface Trend {
    * not a recommendation).
    */
   recId?: string;
-  /**
-   * Recent history of this trend's `volume`, oldest first — the sparkline's only
-   * input. Every value is a measurement: the server reads them from the trending
-   * batches it has stored and downsamples by averaging, never interpolating.
-   *
-   * Optional and load-bearing, exactly like `recId`. The server omits it entirely
-   * for a trend seen in too few batches to draw a meaningful line (the floor is
-   * `MtnConfig.trending.series.minPoints`, applied server-side so it has one
-   * authority), and history trends never carry one. Absent means DRAW NOTHING —
-   * it must never be filled in with a flat or synthesized line.
-   */
-  series?: number[];
 }

@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The media origin the trending-posts widget loads pictures from.
+
+  WHY THIS EXISTS AT ALL. The ecosystem has one chokepoint for media URLs —
+  `oxyServices.getFileDownloadUrl(id, variant)` — and nothing is supposed to build such a URL
+  itself. A widget cannot call it: it runs outside the JS runtime, in a `BroadcastReceiver`
+  and a WorkManager job, potentially before the app has ever been opened. So the origin is a
+  string resource, exactly as `config.xml` already mirrors `API_URL` and `WEB_BASE_URL` for
+  the same reason, and `oxyFileUrl` in `PostsPresentation.kt` is the single place that
+  composes it.
+
+  It is needed for ONE field: the author's avatar, which arrives in the DTO as a bare Oxy
+  file id. Everything else the card draws — a media item's `thumbUrl`, a link preview's
+  `image` — is absolute and server-resolved before it reaches the widget, and is used
+  verbatim.
+
+  This origin is also half of the download allowlist in `PostsImageCache`: the widget will
+  fetch a picture from here or from the configured API origin, and from nowhere else.
+
+  Overridden the same way as the other two origins: pass `mediaBaseUrl` to
+  `withMentionWidgets` in `app.config.js` and the plugin writes this same resource name into
+  the APP module's strings, which win over a library dependency's at merge time.
+
+  Repointing it is not optional for a development build. A file id that exists on a
+  development backend does not exist on the production CDN, so a build that repointed only
+  `apiBaseUrl` would draw a card whose text came from one environment and whose pictures were
+  all broken.
+-->
+<resources>
+  <string name="mention_widget_media_base_url" translatable="false">https://cloud.oxy.so</string>
+</resources>

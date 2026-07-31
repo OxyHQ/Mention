@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Endpoints the widget talks to. A widget runs outside the JS runtime, so it
+  cannot read `config.ts`; these are the native mirror of `API_URL` and
+  `WEB_BASE_URL`.
+
+  The values here are the PRODUCTION defaults, and they are what a build gets
+  when nothing overrides them — which matters because a widget can be placed on
+  the home screen before the app has ever been opened, so the URLs have to be
+  correct with no JS having run.
+
+  A build that targets a different backend (a dev machine, a staging host)
+  overrides them from `app.config.js` via `modules/mention-widgets/app.plugin.js`,
+  which writes the same two names into the APP module's strings. App resources
+  win over a library dependency's at merge time, so the override lands without
+  anything here changing.
+-->
+<resources>
+  <string name="mention_widget_api_base_url" translatable="false">https://api.mention.earth</string>
+  <string name="mention_widget_web_base_url" translatable="false">https://mention.earth</string>
+</resources>

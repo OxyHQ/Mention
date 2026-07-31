@@ -4,6 +4,7 @@ import {
   MEDIA_VARIANT_FULL,
   MEDIA_VARIANT_AVATAR,
   MEDIA_VARIANT_VIDEO_POSTER,
+  MEDIA_VARIANT_BANNER,
 } from '@mention/shared-types';
 import { config } from '../config';
 import { getServiceOxyClient } from './oxyHelpers';
@@ -74,6 +75,8 @@ export interface ResolvedMedia {
  *  - video posters (feed media rectangle)       → {@link MEDIA_VARIANT_VIDEO_POSTER}.
  *    Kept on the 256px `thumb` crop: a poster fills the media card, so it
  *    must not be shrunk to a small square.
+ *  - profile banners (full-bleed 170px strip)   → {@link MEDIA_VARIANT_BANNER}.
+ *    Bounded by width, not by the lightbox: `w1280` covers a 3x-DPR phone.
  */
 
 /** Backend route that proxies remote media through our own origin. */
@@ -247,6 +250,51 @@ export function resolveAvatarUrl(ref?: string | null): string | undefined {
     return getServiceOxyClient().getFileDownloadUrl(ref, MEDIA_VARIANT_AVATAR) || undefined;
   } catch (error) {
     logger.warn('[mediaResolver] Failed to resolve avatar ref; falling back to passthrough:', error);
+    return ref;
+  }
+}
+
+/**
+ * Resolve a profile-banner reference to a FINAL URL, sized for the banner strip
+ * ({@link MEDIA_VARIANT_BANNER}).
+ *
+ * Same three-way shape as {@link resolveAvatarUrl}, and it exists for the same
+ * reason: {@link resolveMediaRef}'s `url` is deliberately the NO-VARIANT
+ * original, so a caller that hands a banner to a client through it ships the raw
+ * upload — megabytes of PNG straight from the camera roll — for a 170px-tall
+ * strip. Both banner shapes must therefore attach the variant explicitly:
+ *  - a bare Oxy file id (what the picker and the federated-actor mirror write)
+ *    resolves through the SDK builder with the variant;
+ *  - an absolute URL already on the Oxy CDN (legacy rows) gets the variant
+ *    attached in place rather than being served un-transformed or pointlessly
+ *    double-proxied through our own `/media/proxy`;
+ *  - a genuinely external/federated CDN URL falls back to the shared resolver's
+ *    proxy wrapping (no variant system exists there).
+ *
+ * Returns `undefined` for an empty reference so callers can omit the field.
+ */
+export function resolveBannerUrl(ref?: string | null): string | undefined {
+  if (!ref || typeof ref !== 'string') {
+    return undefined;
+  }
+  try {
+    if (isAbsoluteHttpUrl(ref)) {
+      let host: string | undefined;
+      try {
+        host = new URL(ref).host.toLowerCase();
+      } catch {
+        // Malformed absolute URL — return it untouched rather than proxying garbage.
+        return ref;
+      }
+      if (host && host === getCloudHost()) {
+        return attachCdnVariant(ref, MEDIA_VARIANT_BANNER);
+      }
+      return resolveMediaRef(ref).url || undefined;
+    }
+    // Oxy file id → banner-width variant.
+    return getServiceOxyClient().getFileDownloadUrl(ref, MEDIA_VARIANT_BANNER) || undefined;
+  } catch (error) {
+    logger.warn('[mediaResolver] Failed to resolve banner ref; falling back to passthrough:', error);
     return ref;
   }
 }

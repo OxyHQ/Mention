@@ -1,4 +1,3 @@
-import { add } from './logDump'
 import { consoleTransport } from './transports/console'
 import { sanitizeTransportEntry } from './sanitize'
 import {
@@ -18,8 +17,6 @@ const LOG_LEVEL_RANK: Record<LogLevel, number> = {
   [LogLevel.Warn]: 3,
   [LogLevel.Error]: 4,
 }
-
-let nextEntryId = 0
 
 export class Logger {
   static Level = LogLevel
@@ -121,11 +118,6 @@ export class Logger {
       message,
       metadata: meta,
       timestamp,
-    })
-
-    add({
-      id: String(nextEntryId++),
-      ...entry,
     })
 
     for (const transport of this.transports) {

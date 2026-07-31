@@ -1,0 +1,6 @@
+{
+  "platforms": ["android"],
+  "android": {
+    "modules": ["earth.mention.widgets.MentionWidgetsModule"]
+  }
+}

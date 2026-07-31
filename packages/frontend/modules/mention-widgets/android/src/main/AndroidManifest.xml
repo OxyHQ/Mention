@@ -1,0 +1,111 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+  <!--
+    The refresh workers fetch `GET /trending` and `GET /feed/mtn` directly, and the
+    posts widget also downloads its images. The host app already holds INTERNET
+    (React Native cannot run without it), so this is a no-op at merge time — it is
+    declared anyway because the permission belongs to the component that needs it,
+    not to whichever consumer happens to have it.
+  -->
+  <uses-permission android:name="android.permission.INTERNET" />
+
+  <application>
+    <!--
+      THREE providers for one set of trends: a ranked list, a cloud of chips, and a
+      card built around the top trend. They are separate providers rather than one
+      configurable widget because that is what puts all three in the launcher's
+      picker — a user places the shape they want, and can place more than one.
+
+      They share a store, a refresh schedule and a worker; only the layout and the
+      declared size set differ. See `TrendsWidgets.kt`.
+
+      Common to all three:
+
+      `exported="false"`: an app-widget provider is bound through the system's
+      AppWidgetManager, which does not need the receiver exported — this is the
+      shape Google's own Glance samples ship (android/platform-samples,
+      samples/user-interface/appwidgets/src/main/AndroidManifest.xml).
+
+      `enabled="@bool/glance_appwidget_available"`: a bool that
+      androidx.glance:glance-appwidget defines as false in `values/` and true in
+      `values-v23/`, so a provider disappears from the widget picker on the API
+      levels where Glance cannot render at all, instead of offering a widget that
+      would fail to load.
+
+      LOCALE_CHANGED sits beside APPWIDGET_UPDATE so the already-rendered
+      RemoteViews are rebuilt after a language switch; every string in these
+      widgets comes from resources, and without this they would stay in the old
+      language until the next data refresh.
+    -->
+
+    <!-- Variant A — the ranked list. -->
+    <receiver
+      android:name="earth.mention.widgets.trends.list.TrendsListWidgetReceiver"
+      android:enabled="@bool/glance_appwidget_available"
+      android:exported="false"
+      android:label="@string/mention_trends_list_widget_label">
+      <intent-filter>
+        <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+        <action android:name="android.intent.action.LOCALE_CHANGED" />
+      </intent-filter>
+      <meta-data
+        android:name="android.appwidget.provider"
+        android:resource="@xml/mention_trends_list_widget_info" />
+    </receiver>
+
+    <!-- Variant C — the chip cloud. -->
+    <receiver
+      android:name="earth.mention.widgets.trends.chips.TrendsChipsWidgetReceiver"
+      android:enabled="@bool/glance_appwidget_available"
+      android:exported="false"
+      android:label="@string/mention_trends_chips_widget_label">
+      <intent-filter>
+        <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+        <action android:name="android.intent.action.LOCALE_CHANGED" />
+      </intent-filter>
+      <meta-data
+        android:name="android.appwidget.provider"
+        android:resource="@xml/mention_trends_chips_widget_info" />
+    </receiver>
+
+    <!-- Variant J — the tonal card. -->
+    <receiver
+      android:name="earth.mention.widgets.trends.card.TrendsCardWidgetReceiver"
+      android:enabled="@bool/glance_appwidget_available"
+      android:exported="false"
+      android:label="@string/mention_trends_card_widget_label">
+      <intent-filter>
+        <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+        <action android:name="android.intent.action.LOCALE_CHANGED" />
+      </intent-filter>
+      <meta-data
+        android:name="android.appwidget.provider"
+        android:resource="@xml/mention_trends_card_widget_info" />
+    </receiver>
+
+    <!--
+      The trending POSTS widget — a different family from the three above, not a fourth
+      variant of them. It draws posts rather than topics, from `/feed/mtn?descriptor=explore`
+      rather than `/trending`, and it keeps its own store, worker and schedule because the
+      two are placed independently: a user with only this one must not be paying for a
+      trends fetch, or the reverse. Its lifecycle lives in `PostsWidgetReceiver`, not in
+      `TrendsWidgetReceiver`.
+
+      The three attributes above are set for the same reasons here — see the comment on the
+      trends providers.
+    -->
+    <receiver
+      android:name="earth.mention.widgets.posts.PostsWidgetReceiver"
+      android:enabled="@bool/glance_appwidget_available"
+      android:exported="false"
+      android:label="@string/mention_posts_widget_label">
+      <intent-filter>
+        <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+        <action android:name="android.intent.action.LOCALE_CHANGED" />
+      </intent-filter>
+      <meta-data
+        android:name="android.appwidget.provider"
+        android:resource="@xml/mention_posts_widget_info" />
+    </receiver>
+  </application>
+</manifest>
