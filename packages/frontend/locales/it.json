@@ -1439,5 +1439,25 @@
   "search.sections.starterPacks": "Starter pack",
   "search.suggestions.searchFor": "Cerca \"{{query}}\"",
   "search.suggestions.goToProfile": "Vai a @{{handle}}",
-  "search.suggestions.completeOperator": "Completa {{prefix}}:"
+  "search.suggestions.completeOperator": "Completa {{prefix}}:",
+  "saved": {
+    "allBookmarks": "Tutti",
+    "newFolder": "Nuova cartella",
+    "createFolder": "Crea cartella",
+    "folderName": "Nome della cartella",
+    "moveToFolder": "Sposta nella cartella",
+    "empty": {
+      "title": "Nessun post salvato",
+      "subtitle": "I post che salvi restano qui, visibili solo a te.",
+      "folder": {
+        "title": "Questa cartella è vuota",
+        "subtitle": "Tieni premuto un post salvato per spostarlo in questa cartella."
+      },
+      "search": {
+        "title": "Nessun risultato",
+        "subtitle": "Nessun post salvato corrisponde a quella ricerca. Prova un altro termine."
+      }
+    },
+    "searchPlaceholder": "Cerca nei salvati"
+  }
 }
