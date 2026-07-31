@@ -105,12 +105,12 @@
   "author": "Mention Team",
   "license": "MIT",
   "dependencies": {
-    "@oxyhq/contracts": "^0.20.0",
-    "zod": "^4.4.3"
+    "@oxyhq/contracts": "catalog:",
+    "zod": "catalog:"
   },
   "devDependencies": {
-    "typescript": "^5.9.3",
-    "@types/node": "^25.9.5"
+    "typescript": "catalog:",
+    "@types/node": "catalog:"
   },
   "files": [
     "dist/**/*"

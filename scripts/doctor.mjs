@@ -1,6 +1,7 @@
 #!/usr/bin/env bun
 
-import { readFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
+import { readdir, readFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -8,11 +9,15 @@ const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const rootManifest = await readJson("package.json");
 const expectedBunVersion = String(rootManifest.packageManager || "").replace(/^bun@/, "");
 const expectedNodeVersion = "22.17.0";
-// The Bloom release the whole workspace is pinned to — manifest range, root
-// override and installed copy must all agree on it. Bump this ONE constant when
-// taking a new Bloom.
-const expectedBloomVersion = "0.72.2";
 const failures = [];
+
+// Shared dependency versions live in ONE place: the root `workspaces.catalog`.
+// Workspace manifests and the root `overrides` both reference it as "catalog:"
+// (verified: an override reading "catalog:" still rewrites transitive
+// resolutions), so taking a new release is a single edit here.
+const catalog = (!Array.isArray(rootManifest.workspaces) && rootManifest.workspaces?.catalog) || {};
+const CATALOG_REFERENCE = "catalog:";
+const expectedBloomVersion = String(catalog["@oxyhq/bloom"] ?? "").replace(/^\^/, "");
 
 if (!expectedBunVersion) {
   failures.push("package.json must declare packageManager as bun@<version>.");
@@ -37,11 +42,28 @@ if (nodeVersionResult.exitCode !== 0 || actualNodeVersion !== expectedNodeVersio
 }
 
 if (
-  !Array.isArray(rootManifest.workspaces) ||
-  rootManifest.workspaces.length !== 1 ||
-  rootManifest.workspaces[0] !== "packages/*"
+  Array.isArray(rootManifest.workspaces) ||
+  !Array.isArray(rootManifest.workspaces?.packages) ||
+  rootManifest.workspaces.packages.length !== 1 ||
+  rootManifest.workspaces.packages[0] !== "packages/*"
 ) {
-  failures.push("package.json workspaces must be exactly packages/*.");
+  failures.push(
+    "package.json workspaces must be the object form { packages: [\"packages/*\"], catalog: {…} }.",
+  );
+}
+
+if (Object.keys(catalog).length === 0) {
+  failures.push("package.json workspaces.catalog is empty; shared versions must be declared there.");
+}
+
+// The Bun type definitions describe the runtime that actually executes the
+// backend and MCP images, so a version other than the pinned toolchain's would
+// be describing a different Bun than the one we ship.
+if (catalog["@types/bun"] !== expectedBunVersion) {
+  failures.push(
+    `workspaces.catalog["@types/bun"] must be ${expectedBunVersion} to match packageManager ` +
+      `(found ${String(catalog["@types/bun"])}).`,
+  );
 }
 
 if (Object.keys(rootManifest.dependencies || {}).length > 0) {
@@ -66,15 +88,42 @@ if (frontendManifest.dependencies?.["react-native"] !== "0.85.3") {
     `Mention frontend must target React Native 0.85.3 (found ${String(frontendManifest.dependencies?.["react-native"])}).`,
   );
 }
-if (
-  frontendManifest.dependencies?.["@oxyhq/bloom"] !== `^${expectedBloomVersion}` ||
-  rootManifest.overrides?.["@oxyhq/bloom"] !== `^${expectedBloomVersion}` ||
-  installedBloom.version !== expectedBloomVersion
-) {
+if (installedBloom.version !== expectedBloomVersion) {
   failures.push(
-    `Bloom must stay aligned at manifest/override ^${expectedBloomVersion} and installed ${expectedBloomVersion} ` +
-      `(found ${String(frontendManifest.dependencies?.["@oxyhq/bloom"])}, ` +
-      `${String(rootManifest.overrides?.["@oxyhq/bloom"])}, ${String(installedBloom.version)}).`,
+    `Bloom must be installed at the catalogued ${expectedBloomVersion} (found ${String(installedBloom.version)}).`,
+  );
+}
+
+// A catalogued package that a manifest re-pins to a literal range silently
+// escapes the catalog: the version still resolves, so nothing else here notices,
+// and the workspace is back to carrying the same number in several places. Every
+// declaration of a catalogued package — workspace manifests and the root
+// overrides alike — must therefore be the reference itself.
+const workspaceManifestPaths = ["package.json"];
+for (const entry of await readdir(resolve(repositoryRoot, "packages"), { withFileTypes: true })) {
+  if (!entry.isDirectory()) continue;
+  const manifestPath = `packages/${entry.name}/package.json`;
+  if (existsSync(resolve(repositoryRoot, manifestPath))) workspaceManifestPaths.push(manifestPath);
+}
+
+for (const manifestPath of workspaceManifestPaths) {
+  const manifest = await readJson(manifestPath);
+  for (const section of ["dependencies", "devDependencies", "optionalDependencies", "peerDependencies"]) {
+    for (const [name, range] of Object.entries(manifest[section] || {})) {
+      if (catalog[name] === undefined || range === CATALOG_REFERENCE) continue;
+      failures.push(
+        `${manifestPath} ${section}.${name} is pinned to "${range}" while workspaces.catalog owns that version; ` +
+          `use "${CATALOG_REFERENCE}".`,
+      );
+    }
+  }
+}
+
+for (const [name, range] of Object.entries(rootManifest.overrides || {})) {
+  if (catalog[name] === undefined || range === CATALOG_REFERENCE) continue;
+  failures.push(
+    `package.json overrides.${name} is pinned to "${range}" while workspaces.catalog owns that version; ` +
+      `use "${CATALOG_REFERENCE}".`,
   );
 }
 

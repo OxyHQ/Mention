@@ -88,13 +88,13 @@
     "@livekit/react-native-expo-plugin": "^1.0.2",
     "@livekit/react-native-webrtc": "^144.1.1",
     "@mention/shared-types": "workspace:*",
-    "@oxyhq/bloom": "^0.72.2",
-    "@oxyhq/core": "^16.0.0",
-    "@oxyhq/services": "^25.0.1",
+    "@oxyhq/bloom": "catalog:",
+    "@oxyhq/core": "catalog:",
+    "@oxyhq/services": "catalog:",
     "@react-native-async-storage/async-storage": "^2.2.0",
     "@react-native-community/netinfo": "^12.0.1",
     "@shopify/flash-list": "2.3.2",
-    "@syra.fm/sdk": "^0.7.0",
+    "@syra.fm/sdk": "catalog:",
     "@tanstack/query-async-storage-persister": "^5.101.2",
     "@tanstack/react-query": "^5.101.2",
     "@tanstack/react-query-persist-client": "^5.101.2",
@@ -162,7 +162,7 @@
     "tailwindcss": "4.3.2",
     "tailwindcss-animate": "^1.0.7",
     "web-vitals": "^6.0.0",
-    "zod": "^4.4.3",
+    "zod": "catalog:",
     "zustand": "^5.0.14"
   },
   "devDependencies": {
@@ -179,7 +179,7 @@
     "jest-expo": "^56.0.5",
     "react-test-renderer": "19.2.3",
     "sharp": "^0.35.3",
-    "typescript": "~5.9.3"
+    "typescript": "catalog:"
   },
   "private": true,
   "optionalDependencies": {
