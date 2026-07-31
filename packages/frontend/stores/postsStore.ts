@@ -16,7 +16,7 @@ import type {
   FeedPostSlice,
 } from '@mention/shared-types';
 import { createLogger } from '@oxyhq/core/logger';
-import { feedService } from '../services/feedService';
+import { feedService, type ExtendedFeedRequest } from '../services/feedService';
 import { markLocalAction } from '../services/echoGuard';
 import { publishNewLocalPost, publishRemovedLocalPost } from '@/stores/feedScrollStore';
 
@@ -155,7 +155,7 @@ interface PostsStoreState {
   lastRefresh: number;
 
   // Feed operations
-  fetchFeed: (request: FeedRequest) => Promise<void>;
+  fetchFeed: (request: ExtendedFeedRequest) => Promise<void>;
   fetchUserFeed: (userId: string, request: FeedRequest) => Promise<{ pending: boolean }>;
   fetchSavedPosts: (request: { page?: number; limit?: number }) => Promise<void>;
   refreshFeed: (type: FeedType, filters?: FeedFilters) => Promise<void>;
@@ -358,7 +358,7 @@ export const usePostsStore = create<PostsStoreState>()(
     getPostFromDb: (postId: string) => dbGetPostById(postId),
 
     // ── fetchFeed ────────────────────────────────────────────
-    fetchFeed: async (request: FeedRequest) => {
+    fetchFeed: async (request: ExtendedFeedRequest) => {
       const operationEpoch = captureViewerStateEpoch();
       const { type = 'mixed' } = request;
       const feedKey = buildFeedKey(type);

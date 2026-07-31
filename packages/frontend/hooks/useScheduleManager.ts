@@ -1,7 +1,7 @@
 import { useState, useCallback, createElement, Suspense } from 'react';
 import type { TFunction } from 'i18next';
 import { toast as toastFn } from '@oxyhq/bloom/toast';
-import type { ScheduleOption } from '@/components/Compose/ScheduleSheet';
+import type { ScheduleOption, ScheduleSheetProps } from '@/components/Compose/ScheduleSheet';
 import type { BottomSheetContextProps } from '@/context/BottomSheetContext';
 import { addMinutes } from '@/utils/dateUtils';
 
@@ -78,7 +78,7 @@ export const useScheduleManager = ({
     ];
   }, [t]);
 
-  const openScheduleSheet = useCallback((ScheduleSheetComponent: React.ComponentType<any>) => {
+  const openScheduleSheet = useCallback((ScheduleSheetComponent: React.ComponentType<ScheduleSheetProps>) => {
     if (!scheduleEnabled) {
       toast(t('compose.schedule.singlePostOnly', { defaultValue: 'Scheduling is only available for single posts' }), { type: 'info' });
       return;

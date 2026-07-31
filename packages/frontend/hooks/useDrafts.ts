@@ -47,6 +47,12 @@ export interface Draft {
   updatedAt: number;
 }
 
+/**
+ * A draft as a CALLER submits it. The id is optional (absent means "create") and
+ * the timestamps are owned by {@link useDrafts}, never by the composer.
+ */
+export type DraftInput = Omit<Draft, 'id' | 'createdAt' | 'updatedAt'> & { id?: string };
+
 const LEGACY_DRAFTS_STORAGE_KEY = '@mention_drafts';
 const DRAFTS_STORAGE_KEY = '@mention_drafts:v2';
 
@@ -127,7 +133,7 @@ export const useDrafts = () => {
   }, [viewerId]);
 
   // Create or update a draft
-  const saveDraft = useCallback(async (draft: Omit<Draft, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }) => {
+  const saveDraft = useCallback(async (draft: DraftInput) => {
     try {
       const now = Date.now();
       const draftId = draft.id || `draft_${now}_${Math.random().toString(36).substr(2, 9)}`;

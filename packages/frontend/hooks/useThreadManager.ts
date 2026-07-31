@@ -10,7 +10,20 @@ import { Source } from "@/hooks/useSourcesManager";
 import { ArticleData } from "@/hooks/useArticleManager";
 import { EventData } from "@/hooks/useEventManager";
 import { RoomAttachmentData } from "@/hooks/useRoomManager";
+import type { Draft } from "@/hooks/useDrafts";
 import type { ReplyPermission } from "@/components/Compose/ReplySettingsSheet";
+
+/**
+ * A thread item as it comes back OUT of a stored draft: the persisted subset,
+ * with mentions and media already reconciled into their composer shapes by the
+ * draft reader. Narrower than {@link ThreadItem} — a draft never persisted the
+ * attachments or the per-item interaction settings.
+ */
+export interface DraftThreadItem
+  extends Omit<Draft['threadItems'][number], 'mediaIds' | 'mentions'> {
+  mediaIds: ComposerMediaItem[];
+  mentions: MentionData[];
+}
 
 export interface ThreadItem {
   id: string;
@@ -509,8 +522,34 @@ export const useThreadManager = () => {
     setThreadItems([]);
   }, []);
 
-  const loadThreadsFromDraft = useCallback((threads: ThreadItem[]) => {
-    setThreadItems(threads);
+  /**
+   * Restore thread items from a stored draft. A draft persists only the parts of
+   * a thread item the composer can rebuild from — it carries no sources,
+   * article, event, room, or per-item interaction settings — so each restored
+   * item is completed with the SAME defaults `addThread` uses. Without that, a
+   * restored thread item reaches the composer missing `replyPermission` and the
+   * sensitive/quote flags entirely.
+   */
+  const loadThreadsFromDraft = useCallback((threads: DraftThreadItem[]) => {
+    setThreadItems(threads.map((thread) => ({
+      id: thread.id,
+      text: thread.text,
+      mediaIds: thread.mediaIds,
+      pollOptions: thread.pollOptions,
+      pollTitle: thread.pollTitle ?? "",
+      showPollCreator: thread.showPollCreator,
+      location: thread.location,
+      mentions: thread.mentions,
+      sources: [],
+      article: null,
+      event: null,
+      room: null,
+      attachmentOrder: [],
+      replyPermission: ["anyone"],
+      reviewReplies: false,
+      quotesDisabled: false,
+      isSensitive: false,
+    })));
   }, []);
 
   return {

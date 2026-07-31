@@ -46,13 +46,13 @@ function activityPubJsonContentType(raw: string | null): boolean {
     || (family.startsWith('application/') && family.endsWith('+json'));
 }
 
-export function asRecord(value: unknown): Record<string, any> | null {
+export function asRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === 'object' && !Array.isArray(value)
-    ? value as Record<string, any>
+    ? value as Record<string, unknown>
     : null;
 }
 
-export function activityPubItems(value: Record<string, any>): unknown[] {
+export function activityPubItems(value: Record<string, unknown>): unknown[] {
   if (Array.isArray(value.orderedItems)) return value.orderedItems;
   if (Array.isArray(value.items)) return value.items;
   return [];
@@ -328,7 +328,7 @@ function isPubliclyAddressed(to?: unknown, cc?: unknown): boolean {
 }
 
 export interface FetchedAnnouncedNote {
-  note: Record<string, any>;
+  note: Record<string, unknown>;
   finalUrl: string;
 }
 
@@ -379,9 +379,9 @@ export async function fetchVerifiedAnnouncedNote(objectUri: string): Promise<Fet
       return null;
     }
 
-    let note: Record<string, any>;
+    let note: Record<string, unknown>;
     try {
-      note = await res.json() as Record<string, any>;
+      note = await res.json() as Record<string, unknown>;
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       logger.info('[FedSync] failed to parse boosted object', {
@@ -419,7 +419,7 @@ export async function fetchVerifiedAnnouncedNote(objectUri: string): Promise<Fet
  * Fetch and parse a remote ActivityPub object via `signedFetch`. Returns null
  * on any HTTP/parse failure.
  */
-export async function fetchActivityPubObject(url: string): Promise<Record<string, any> | null> {
+export async function fetchActivityPubObject(url: string): Promise<Record<string, unknown> | null> {
   try {
     const res = await signedFetch(url, AP_CONTENT_TYPE);
     if (!res.ok) {
@@ -576,7 +576,7 @@ export function extractApQuoteUri(object: Record<string, unknown>): string | und
  * attachment shapes (Mastodon string `url`, Pleroma `Link` object, PeerTube/Lemmy
  * array of `Link` objects) and picks the most broadly-playable video variant.
  */
-export function extractApMedia(note: Record<string, any>): {
+export function extractApMedia(note: Record<string, unknown>): {
   media: MediaItem[];
   attachments: Array<{ type: 'media'; id: string; mediaType: ApMediaType }>;
 } {
@@ -591,7 +591,7 @@ export function extractApMedia(note: Record<string, any>): {
  * `HashtagFeed`, and the trending aggregations. Entries that are empty after
  * stripping the leading `#` are skipped.
  */
-export function extractApHashtags(note: Record<string, any>): string[] {
+export function extractApHashtags(note: Record<string, unknown>): string[] {
   const hashtags: string[] = [];
   if (!Array.isArray(note.tag)) return hashtags;
 
@@ -609,12 +609,13 @@ export function extractApHashtags(note: Record<string, any>): string[] {
 /**
  * Map ActivityPub to/cc addressing to Mention visibility.
  */
-export function mapApVisibility(to?: string[], cc?: string[]): PostVisibility {
-  const allAddressees = [...(to || []), ...(cc || [])];
-  if (allAddressees.includes('https://www.w3.org/ns/activitystreams#Public')) {
-    return PostVisibility.PUBLIC;
-  }
-  return PostVisibility.FOLLOWERS_ONLY;
+/**
+ * `to`/`cc` come straight off remote JSON-LD, so they are `unknown` until the
+ * addressee check narrows them — the same narrowing {@link isPubliclyAddressed}
+ * already performs.
+ */
+export function mapApVisibility(to?: unknown, cc?: unknown): PostVisibility {
+  return isPubliclyAddressed(to, cc) ? PostVisibility.PUBLIC : PostVisibility.FOLLOWERS_ONLY;
 }
 
 /**

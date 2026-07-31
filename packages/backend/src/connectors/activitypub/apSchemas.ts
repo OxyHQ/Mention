@@ -80,9 +80,9 @@ export const apPublished = z
 export const apType = z.union([z.string(), z.array(z.string())]);
 
 /** The primary `type` string from an `apType` value (first entry of an array). */
-export function primaryApType(type: string | string[] | undefined): string | undefined {
+export function primaryApType(type: unknown): string | undefined {
   if (typeof type === 'string') return type;
-  if (Array.isArray(type)) return type[0];
+  if (Array.isArray(type)) return typeof type[0] === 'string' ? type[0] : undefined;
   return undefined;
 }
 

@@ -159,27 +159,16 @@ function ConnectionsContent({
     isFederated: profileData?.isFederated,
   }) || cleanUsername;
 
-  // Determine active tab from pathname
-  const getActiveTab = useCallback((): TabType => {
-    if (pathname?.endsWith('/following')) return 'following';
-    if (pathname?.endsWith('/who-may-know')) return 'who-may-know';
-    if (pathname?.endsWith('/in-common')) return 'in-common';
-    return 'followers';
-  }, [pathname]);
-
-  const [activeTab, setActiveTab] = useState<TabType>(() => {
-    if (pathname?.endsWith('/following')) return 'following';
-    if (pathname?.endsWith('/who-may-know')) return 'who-may-know';
-    if (pathname?.endsWith('/in-common')) return 'in-common';
-    return 'followers';
-  });
-
-  useEffect(() => {
-    const newTab = getActiveTab();
-    if (newTab !== activeTab) {
-      setActiveTab(newTab);
-    }
-  }, [pathname, activeTab, getActiveTab]);
+  // The route IS the active tab — `handleTabPress` navigates, so there is
+  // nothing else that could select one. Derived rather than held in state, which
+  // is what made the old copy need an effect to chase the pathname.
+  const activeTab: TabType = pathname?.endsWith('/following')
+    ? 'following'
+    : pathname?.endsWith('/who-may-know')
+      ? 'who-may-know'
+      : pathname?.endsWith('/in-common')
+        ? 'in-common'
+        : 'followers';
 
   // Load followers
   const loadFollowers = useCallback(async () => {

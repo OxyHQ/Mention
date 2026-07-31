@@ -63,28 +63,80 @@ export function validateObjectId(paramName: string = 'id') {
   };
 }
 
+/** A `MediaItem` as a client submits it: the id and kind, plus optional metadata. */
+const mediaItemSchema = z.object({
+  id: z.string().min(1),
+  type: z.enum(['image', 'video', 'gif']),
+  alt: z.string().optional(),
+  width: z.number().optional(),
+  height: z.number().optional(),
+  durationSec: z.number().optional(),
+  sizeBytes: z.number().optional(),
+  mime: z.string().optional(),
+});
+
+/** A `GeoJSONPoint` — `[longitude, latitude]`, optionally with a readable address. */
+const locationSchema = z.object({
+  type: z.literal('Point'),
+  coordinates: z.tuple([z.number(), z.number()]),
+  address: z.string().optional(),
+});
+
+/** A `PostSourceLink` cited within the post body. */
+const sourceLinkSchema = z.object({
+  url: z.string().min(1),
+  title: z.string().optional(),
+});
+
+/** A `PostArticleContent` — long-form body attached to the post. */
+const articleSchema = z.object({
+  articleId: z.string().optional(),
+  title: z.string().optional(),
+  body: z.string().optional(),
+  excerpt: z.string().optional(),
+});
+
+/** A `PostEventContent` — name and ISO date are the only required parts. */
+const eventSchema = z.object({
+  eventId: z.string().optional(),
+  name: z.string().min(1),
+  date: z.string().min(1),
+  location: z.string().optional(),
+  description: z.string().optional(),
+});
+
+/** A `PostAttachmentDescriptor` — the render order of the post's attachments. */
+const attachmentSchema = z.object({
+  type: z.enum(['media', 'poll', 'article', 'location', 'sources', 'event', 'room', 'podcast']),
+  id: z.string().optional(),
+  mediaType: z.enum(['image', 'video', 'gif']).optional(),
+});
+
+/** The `PostContentInput` a client submits, for a top-level post or a reply. */
+const postContentSchema = z.object({
+  text: z.string().max(5000).default(''),
+  media: z.array(mediaItemSchema).max(10).optional(),
+  poll: z.object({
+    question: z.string().min(1).max(280),
+    options: z.array(z.string().min(1).max(100)).min(2).max(4),
+    endTime: z.string().optional(),
+    isMultipleChoice: z.boolean().optional(),
+    isAnonymous: z.boolean().optional(),
+  }).optional(),
+  location: locationSchema.optional(),
+  sources: z.array(sourceLinkSchema).max(5).optional(),
+  article: articleSchema.optional(),
+  event: eventSchema.optional(),
+  attachments: z.array(attachmentSchema).optional(),
+});
+
 /**
  * Common validation schemas for reuse across routes.
  */
 export const schemas = {
   /** Post creation request body */
   createPost: z.object({
-    content: z.object({
-      text: z.string().max(5000).default(''),
-      media: z.array(z.any()).max(10).optional(),
-      poll: z.object({
-        question: z.string().min(1).max(280),
-        options: z.array(z.string().min(1).max(100)).min(2).max(4),
-        endTime: z.string().optional(),
-        isMultipleChoice: z.boolean().optional(),
-        isAnonymous: z.boolean().optional(),
-      }).optional(),
-      location: z.any().optional(),
-      sources: z.array(z.any()).max(5).optional(),
-      article: z.any().optional(),
-      event: z.any().optional(),
-      attachments: z.array(z.any()).optional(),
-    }).optional().default({ text: '' }),
+    content: postContentSchema.optional().default({ text: '' }),
     hashtags: z.array(z.string()).optional(),
     mentions: z.array(z.string()).optional(),
     visibility: z.enum(['public', 'private', 'followers_only']).optional().default('public'),
@@ -106,7 +158,7 @@ export const schemas = {
   /** Reply creation request body */
   createReply: z.object({
     postId: z.string().min(1),
-    content: z.any(),
+    content: postContentSchema.optional().default({ text: '' }),
     mentions: z.array(z.string()).optional(),
     hashtags: z.array(z.string()).optional(),
   }),

@@ -174,18 +174,9 @@ function extractActor(n: TRawNotification): GroupedActor {
     };
   }
 
-  const actor = objectValue(n.actorId);
-  if (actor) {
-    const username = stringValue(actor.username);
-    const actorName = objectValue(actor.name);
-    return {
-      id: objectId(actor) || 'unknown',
-      name: stringValue(actorName?.displayName) || stringValue(actor.displayName) || username || actorId,
-      username,
-      avatar: stringValue(actor.avatar),
-    };
-  }
-
+  // `actorId` is a bare Oxy user id — the backend models it as a `String` and
+  // never populates it (that is what `actorId_populated` above is for). The
+  // handle is the never-blank floor, never a name recompute.
   return { id: actorId, name: actorId };
 }
 

@@ -10,7 +10,7 @@ export type ScheduleOption = {
   date: Date;
 };
 
-interface ScheduleSheetProps {
+export interface ScheduleSheetProps {
   scheduledAt: Date | null;
   options: ScheduleOption[];
   onSelect: (date: Date) => void;

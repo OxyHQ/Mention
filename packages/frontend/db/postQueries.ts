@@ -292,8 +292,15 @@ export function updatePost(
     );
     db.execSync('COMMIT');
     return updated;
-  } catch {
-    try { db.execSync('ROLLBACK'); } catch {}
+  } catch (error) {
+    try {
+      db.execSync('ROLLBACK');
+    } catch (rollbackError) {
+      // The transaction was already closed (or never opened) — nothing left to
+      // undo, but a rollback that fails for any other reason is worth seeing.
+      logger.debug('Rollback after a failed post update did not apply', { error: rollbackError });
+    }
+    logger.error(`Failed to update post ${id} in place`, error);
     return null;
   }
 }

@@ -12,7 +12,9 @@ import type {
     HydratedPost,
 } from '@mention/shared-types';
 
-// Extended FeedFilters with additional properties used by the app
+// Extended FeedFilters with additional properties used by the app.
+// The index signature is what `serializeFeedFilters` and `shallowFiltersEqual`
+// walk, so it states the real contract: filters are a flat bag of scalars.
 export interface FeedFilters extends SharedFeedFilters {
     searchQuery?: string;
     postId?: string;
@@ -20,7 +22,9 @@ export interface FeedFilters extends SharedFeedFilters {
     customFeedId?: string;
     hashtag?: string;
     topic?: string;
-    [key: string]: any;
+    /** Reply ordering, as the replies feed sends it to the API. */
+    sort?: string;
+    [key: string]: string | boolean | undefined;
 }
 
 /**

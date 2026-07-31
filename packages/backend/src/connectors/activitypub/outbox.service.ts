@@ -112,8 +112,8 @@ const MAX_ANCESTOR_DEPTH = 30;
  * of another actor's object.
  */
 type OutboxCandidate =
-  | { kind: 'note'; note: Record<string, any>; activity: Record<string, any>; activityId: string }
-  | { kind: 'announce'; activity: Record<string, any>; activityId: string; announcedUri: string };
+  | { kind: 'note'; note: Record<string, unknown>; activity: Record<string, unknown>; activityId: string }
+  | { kind: 'announce'; activity: Record<string, unknown>; activityId: string; announcedUri: string };
 
 /**
  * Typed reason describing why an outbox sync produced no posts (or only a
@@ -410,7 +410,7 @@ export class OutboxSyncService {
       }
       // Keep reading raw fields below so every existing field access (including
       // `.loose()` passthrough extensions) behaves identically to before.
-      const collection = rawCollection as Record<string, any>;
+      const collection = rawCollection as Record<string, unknown>;
       logger.debug('[FedSync] parsed outbox collection', {
         type: collection.type,
         totalItems: collection.totalItems,
@@ -435,7 +435,7 @@ export class OutboxSyncService {
       const visitedPageUrls = new Set<string>();
 
       const processPage = async (
-        pageData: Record<string, any>,
+        pageData: Record<string, unknown>,
         pageUrl: string,
         startItemOffset: number,
       ): Promise<void> => {
@@ -509,7 +509,7 @@ export class OutboxSyncService {
             return;
           }
           // Keep reading raw fields so every existing access is unchanged.
-          const pageData = rawPage as Record<string, any>;
+          const pageData = rawPage as Record<string, unknown>;
           await processPage(pageData, pageUrl, startItemOffset);
         } catch (pageErr) {
           logger.debug('[FedSync] outbox pagination error', {
@@ -741,7 +741,7 @@ export class OutboxSyncService {
       for (const { note, activity, activityId } of noteCandidates) {
         if (existingIds.has(activityId)) continue;
 
-        const rawContent = note.content || '';
+        const rawContent = typeof note.content === 'string' ? note.content : '';
         if (rawContent.length > FEDERATION_MAX_CONTENT_LENGTH) continue;
 
         // Normalize the AP `inReplyTo` (string IRI or embedded Link object) to a
@@ -1180,7 +1180,7 @@ export class OutboxSyncService {
       // Raw `===` on `type` preserves the prior behavior exactly (array-typed
       // `type` values were already not matched here).
       if (activity.type === 'Announce') {
-        const activityId = activity.id;
+        const activityId = typeof activity.id === 'string' ? activity.id : '';
         const announcedUri = extractAnnouncedObjectUri(activity.object);
         if (!activityId || !announcedUri) continue;
         if (!actorUrisMatch(extractActorUri(activity.actor), expectedActorUri)) continue;
@@ -1208,7 +1208,8 @@ export class OutboxSyncService {
       // `activityIdBelongsToActor` guards below still ensure only the actor's own
       // notes become candidates.
 
-      const activityId = note.id || activity.id;
+      const noteId = typeof note.id === 'string' ? note.id : '';
+      const activityId = noteId || (typeof activity.id === 'string' ? activity.id : '');
       if (!activityId) continue;
 
       const attributedTo = extractActorUri(note.attributedTo);
@@ -1222,7 +1223,7 @@ export class OutboxSyncService {
     return maxIndexExclusive;
   }
 
-  private async resolveOutboxActivity(item: unknown, sourcePageUrl: string): Promise<Record<string, any> | null> {
+  private async resolveOutboxActivity(item: unknown, sourcePageUrl: string): Promise<Record<string, unknown> | null> {
     const inlineActivity = asRecord(item);
     if (inlineActivity) return inlineActivity;
 
@@ -1230,7 +1231,7 @@ export class OutboxSyncService {
     return fetchActivityPubObject(item);
   }
 
-  private async extractOutboxNote(activity: Record<string, any>, sourcePageUrl: string): Promise<Record<string, any> | null> {
+  private async extractOutboxNote(activity: Record<string, unknown>, sourcePageUrl: string): Promise<Record<string, unknown> | null> {
     if (activity.type === 'Note' || activity.type === 'Article') return activity;
     if (activity.type !== 'Create') return null;
 
@@ -1260,7 +1261,7 @@ export class OutboxSyncService {
    * @returns true when a new boost Post was created.
    */
   async importAnnounce(
-    announceActivity: Record<string, any>,
+    announceActivity: Record<string, unknown>,
     announcedUri: string,
     boosterOxyUserId: string | null,
   ): Promise<boolean> {

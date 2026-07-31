@@ -1,4 +1,4 @@
-import { registrableApex } from '@oxyhq/core';
+import { registrableApex, type User } from '@oxyhq/core';
 import { createDomainPolicy, createUrlBuilders } from '@oxyhq/federation';
 import { config } from '../../config';
 import { logger } from '../../utils/logger';
@@ -112,7 +112,7 @@ export const USER_AGENT = `Mention/${FEDERATION_DOMAIN} (ActivityPub)`;
  * Resolve an Oxy user by username (tries getUserByUsername, falls back to searchUsers).
  * Returns the user object or null.
  */
-export async function resolveOxyUser(username: string): Promise<any> {
+export async function resolveOxyUser(username: string): Promise<User | null> {
   // Service-authed Oxy client — the process-wide request-auth client is
   // unauthenticated and reserved for validating incoming request tokens
   // (`oxy.auth()`), so resolving a profile on it returns nothing.

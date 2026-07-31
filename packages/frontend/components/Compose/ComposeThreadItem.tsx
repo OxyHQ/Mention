@@ -5,6 +5,9 @@ import {
   TouchableOpacity,
   ScrollView,
   Image,
+  type ImageStyle,
+  type TextStyle,
+  type ViewStyle,
 } from 'react-native';
 import { Avatar } from '@oxyhq/bloom/avatar';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
@@ -27,6 +30,49 @@ import type { MentionTextValue } from '@/utils/mentions';
 import { HIT_SLOP_SM } from '@/styles/hitSlop';
 
 import { HPAD, BOTTOM_LEFT_PAD, TIMELINE_LINE_OFFSET } from './composeLayout';
+
+/**
+ * The exact slice of the composer's stylesheet this row renders with. The
+ * composer owns the sheet, so spelling the contract out here is what makes a
+ * missing or renamed entry a compile error on the parent instead of a silently
+ * unstyled row.
+ */
+export interface ComposeThreadItemStyles {
+  threadItemWithTimeline: ViewStyle;
+  itemConnectorLineAbove: ViewStyle;
+  itemConnectorLine: ViewStyle;
+  timelineForeground: ViewStyle;
+  postContainer: ViewStyle;
+  unfocusedItem: ViewStyle;
+  headerRow: ViewStyle;
+  headerMeta: ViewStyle;
+  headerChildren: ViewStyle;
+  threadTextInput: TextStyle;
+  toolbarWrapper: ViewStyle;
+  removeThreadBtn: ViewStyle;
+  mediaPreviewContainer: ViewStyle;
+  mediaPreviewScroll: ViewStyle;
+  mediaPreviewItem: ViewStyle;
+  mediaPreviewImage: ImageStyle;
+  mediaReorderControls: ViewStyle;
+  mediaReorderButton: ViewStyle;
+  mediaReorderButtonDisabled: ViewStyle;
+  mediaRemoveButton: ViewStyle;
+  pollAttachmentWrapper: ViewStyle;
+  pollAttachmentCard: ViewStyle;
+  pollAttachmentHeader: ViewStyle;
+  pollAttachmentBadge: ViewStyle;
+  pollAttachmentBadgeText: TextStyle;
+  pollAttachmentMeta: TextStyle;
+  pollAttachmentQuestion: TextStyle;
+  pollAttachmentOptions: ViewStyle;
+  pollAttachmentOption: ViewStyle;
+  pollAttachmentOptionText: TextStyle;
+  pollAttachmentMore: TextStyle;
+  pollAttachmentRemoveButton: ViewStyle;
+  articleAttachmentWrapper: ViewStyle;
+  articleAttachmentPreview: ViewStyle;
+}
 
 interface ComposeThreadItemProps {
   item: ThreadItem;
@@ -65,7 +111,7 @@ interface ComposeThreadItemProps {
   getFileDownloadUrl: (id: string) => string;
   textInputRef: (threadId: string, el: MentionTextInputHandle | null) => void;
   // Styles from parent
-  styles: Record<string, any>;
+  styles: ComposeThreadItemStyles;
 }
 
 const ComposeThreadItem = memo<ComposeThreadItemProps>(({

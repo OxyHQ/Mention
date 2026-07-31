@@ -200,7 +200,7 @@ class ActivityPubConnector implements NetworkConnector<PostContent> {
   /** Process an inbound, already-verified ActivityPub activity. */
   async receive(payload: unknown, ctx: ReceiveContext): Promise<void> {
     await inboxProcessingService.processInboxActivity(
-      payload as Record<string, any>,
+      payload as Record<string, unknown>,
       ctx.verifiedActorUri,
     );
   }
@@ -432,7 +432,7 @@ class ActivityPubConnector implements NetworkConnector<PostContent> {
   // ============================================================
 
   processInboxActivity(
-    activity: Record<string, any>,
+    activity: Record<string, unknown>,
     verifiedActorUri: string,
   ): Promise<void> {
     return inboxProcessingService.processInboxActivity(activity, verifiedActorUri);

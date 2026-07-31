@@ -4,7 +4,7 @@ import { Response } from 'express';
  * Standard API response format.
  * Ensures consistent response shape across all endpoints.
  */
-export interface ApiSuccessResponse<T = any> {
+export interface ApiSuccessResponse<T = unknown> {
   success: true;
   data: T;
   pagination?: PaginationMeta;
@@ -31,7 +31,7 @@ export interface ApiErrorResponse {
   };
 }
 
-export type ApiResponse<T = any> = ApiSuccessResponse<T> | ApiErrorResponse;
+export type ApiResponse<T = unknown> = ApiSuccessResponse<T> | ApiErrorResponse;
 
 /**
  * Send a success response with consistent format.

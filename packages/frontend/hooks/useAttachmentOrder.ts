@@ -13,25 +13,24 @@ import {
   ROOM_ATTACHMENT_KEY,
   PODCAST_ATTACHMENT_KEY,
 } from '@/utils/composeUtils';
+import type { ArticleData } from './useArticleManager';
+import type { EventData } from './useEventManager';
+import type { LocationData } from './useLocationManager';
 import type { PodcastAttachmentData } from './usePodcastManager';
-
-interface Source {
-  id: string;
-  url?: string;
-  title?: string;
-}
+import type { RoomAttachmentData } from './useRoomManager';
+import type { Source } from './useSourcesManager';
 
 interface UseAttachmentOrderProps {
   showPollCreator: boolean;
   hasArticleContent: boolean;
-  article: any;
+  article: ArticleData | null;
   hasEventContent: boolean;
-  event: any;
+  event: EventData | null;
   hasRoomContent: boolean;
-  room: any;
+  room: RoomAttachmentData | null;
   hasPodcastContent: boolean;
   podcast: PodcastAttachmentData | null;
-  location: any;
+  location: LocationData | null;
   sources: Source[];
   mediaIds: ComposerMediaItem[];
   /** URLs of the links detected in the post text — one carousel card each. */

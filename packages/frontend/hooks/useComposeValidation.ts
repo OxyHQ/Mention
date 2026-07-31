@@ -2,18 +2,14 @@ import { useMemo } from 'react';
 import { ComposerMediaItem } from '@/utils/composeUtils';
 import type { ThreadItem } from '@/hooks/useThreadManager';
 import { shouldIncludeThreadItem } from '@/utils/postBuilder';
-
-interface Source {
-  id: string;
-  url?: string;
-  title?: string;
-}
+import type { LocationData } from '@/hooks/useLocationManager';
+import type { Source } from '@/hooks/useSourcesManager';
 
 interface UseComposeValidationProps {
   postContent: string;
   mediaIds: ComposerMediaItem[];
   pollOptions: string[];
-  location: any;
+  location: LocationData | null;
   hasArticleContent: boolean;
   threadItems: ThreadItem[];
   sources: Source[];
@@ -36,7 +32,7 @@ export const useComposeValidation = ({
       postContent.trim().length > 0 ||
       mediaIds.length > 0 ||
       (pollOptions.length > 0 && pollOptions.some(opt => opt.trim().length > 0)) ||
-      location ||
+      location !== null ||
       hasArticleContent ||
       threadItems.some(shouldIncludeThreadItem)
     );

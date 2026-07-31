@@ -574,7 +574,7 @@ export function useFeedState({
                     const pid = filters?.postId || filters?.parentPostId;
                     if (pid) {
                         items = items.filter(
-                            (it: any) => String(it.postId || it.parentPostId) === String(pid)
+                            (it) => String(it.parentPostId) === String(pid)
                         );
                     }
 
@@ -722,7 +722,7 @@ export function useFeedState({
                 const pid = filters?.postId || filters?.parentPostId;
                 if (pid) {
                     items = items.filter(
-                        (it: any) => String(it.postId || it.parentPostId) === String(pid)
+                        (it) => String(it.parentPostId) === String(pid)
                     );
                 }
 
@@ -849,7 +849,7 @@ export function useFeedState({
                 const pid = filters?.postId || filters?.parentPostId;
                 if (pid) {
                     items = items.filter(
-                        (it: any) => String(it.postId || it.parentPostId) === String(pid)
+                        (it) => String(it.parentPostId) === String(pid)
                     );
                 }
 

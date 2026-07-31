@@ -98,7 +98,10 @@ router.put('/settings', async (req: AuthRequest, res: Response) => {
     const oxyUserId = getAuthenticatedUserId(req);
     const { appearance, profileHeaderImage, privacy, profileCustomization, profileMedia, interests, feedSettings, notificationPreferences, externalEmbeds, fediversePreferredLanguage } = req.body || {};
 
-    const update: Record<string, any> = {};
+    // Dot-notation leaf paths mapped to the value Mongo should store. The values
+    // are deliberately heterogeneous (scalars, arrays, sub-documents) and are only
+    // ever handed to `$set`, never read back here.
+    const update: Record<string, unknown> = {};
     const unset: Record<string, ''> = {};
     // The Oxy file id newly set as the profile banner (if any). Captured here so
     // we can promote it to public AFTER the settings persist — profile banners
@@ -381,7 +384,7 @@ router.put('/settings', async (req: AuthRequest, res: Response) => {
       }
     }
 
-    const operation: Record<string, Record<string, any>> = {};
+    const operation: { $set?: Record<string, unknown>; $unset?: Record<string, ''> } = {};
     if (Object.keys(update).length > 0) {
       operation.$set = update;
     }

@@ -23,6 +23,7 @@ import {
   memGetFeedKeysForPost,
   memClearFeed,
 } from './memoryStore';
+import type { FeedFilters } from '@/utils/feedUtils';
 import { createLogger } from '@oxyhq/core/logger';
 
 const logger = createLogger('FeedQueries');
@@ -41,7 +42,7 @@ export interface FeedMetaData {
   nextCursor?: string;
   totalCount: number;
   lastUpdated: number;
-  filters?: Record<string, any>;
+  filters?: FeedFilters;
 }
 
 // ── Write operations ─────────────────────────────────────────────

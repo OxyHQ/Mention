@@ -247,11 +247,3 @@ export interface UseSubscriptionReturn {
   loading: boolean;
   toggle: () => Promise<void>;
 }
-
-export interface UseProfileScrollReturn {
-  scrollY: any; // Animated.Value type from useLayoutScroll
-  scrollRef: React.RefObject<any>;
-  onScroll: any; // Animated scroll handler
-  assignScrollRef: (node: any) => void;
-  scrollToContent: (offset: number) => void;
-}
