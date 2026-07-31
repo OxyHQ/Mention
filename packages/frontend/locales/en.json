@@ -1647,5 +1647,25 @@
   "user": {
     "unknown": "Unknown user"
   },
-  "compose.languages.makeMain": "Make main language"
+  "compose.languages.makeMain": "Make main language",
+  "saved": {
+    "allBookmarks": "All",
+    "newFolder": "New folder",
+    "createFolder": "Create folder",
+    "folderName": "Folder name",
+    "moveToFolder": "Move to folder",
+    "empty": {
+      "title": "No saved posts yet",
+      "subtitle": "Posts you save are kept here, private to you.",
+      "folder": {
+        "title": "This folder is empty",
+        "subtitle": "Long-press a saved post to move it into this folder."
+      },
+      "search": {
+        "title": "No results found",
+        "subtitle": "No saved post matches that search. Try another term."
+      }
+    },
+    "searchPlaceholder": "Search saved posts"
+  }
 }

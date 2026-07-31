@@ -1659,5 +1659,25 @@
   "search.sections.starterPacks": "Packs de inicio",
   "search.suggestions.searchFor": "Buscar \"{{query}}\"",
   "search.suggestions.goToProfile": "Ir a @{{handle}}",
-  "search.suggestions.completeOperator": "Completar {{prefix}}:"
+  "search.suggestions.completeOperator": "Completar {{prefix}}:",
+  "saved": {
+    "allBookmarks": "Todo",
+    "newFolder": "Nueva carpeta",
+    "createFolder": "Crear carpeta",
+    "folderName": "Nombre de la carpeta",
+    "moveToFolder": "Mover a carpeta",
+    "empty": {
+      "title": "Aún no has guardado nada",
+      "subtitle": "Las publicaciones que guardes se quedan aquí, solo para ti.",
+      "folder": {
+        "title": "Esta carpeta está vacía",
+        "subtitle": "Mantén pulsada una publicación guardada para moverla a esta carpeta."
+      },
+      "search": {
+        "title": "Sin resultados",
+        "subtitle": "Ninguna publicación guardada coincide con esa búsqueda. Prueba con otro término."
+      }
+    },
+    "searchPlaceholder": "Buscar en guardados"
+  }
 }
