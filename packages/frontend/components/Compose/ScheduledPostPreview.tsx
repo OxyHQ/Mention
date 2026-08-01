@@ -1,22 +1,28 @@
 import React, { useCallback, useState } from 'react';
-import { View, Text, TouchableOpacity, ScrollView } from 'react-native';
+import { View, Text, TouchableOpacity } from 'react-native';
 import { Loading } from '@oxyhq/bloom/loading';
 import { useTheme } from '@oxyhq/bloom/theme';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useTranslation } from 'react-i18next';
 import type { HydratedPost } from '@mention/shared-types';
-import PostItem from '@/components/Feed/PostItem';
 import { CalendarIcon } from '@/assets/icons/calendar-icon';
 import { isPastDue, scheduledDate } from '@/utils/postSchedule';
+import PostPreviewSurface from './PostPreviewSurface';
 import { confirmAndCancel } from './ScheduledPostsList';
+import { confirmDialog } from '@/utils/alerts';
+import { toast } from '@oxyhq/bloom/toast';
+import { createLogger } from '@oxyhq/core/logger';
 import { formatScheduledLabel } from '@/utils/dateUtils';
-import { HIT_SLOP_LG } from '@/styles/hitSlop';
+
+const logger = createLogger('ScheduledPostPreview');
 
 export interface ScheduledPostPreviewProps {
   post: HydratedPost;
   onBack: () => void;
   /** Load the previewed post back into the composer. */
   onEdit: () => void;
+  /** Publish the previewed post immediately. Rejects when the server refuses. */
+  onPublishNow: (postId: string) => Promise<void>;
   /** Cancel the previewed post. Rejects when the server refuses. */
   onCancel: (postId: string) => Promise<void>;
   /** Called after a successful cancel, so the sheet can leave the preview. */
@@ -43,12 +49,15 @@ const ScheduledPostPreview: React.FC<ScheduledPostPreviewProps> = ({
   post,
   onBack,
   onEdit,
+  onPublishNow,
   onCancel,
   onCancelled,
 }) => {
   const theme = useTheme();
   const { t } = useTranslation();
   const [isCancelling, setIsCancelling] = useState(false);
+  const [isPublishing, setIsPublishing] = useState(false);
+  const busy = isCancelling || isPublishing;
 
   const publishAt = scheduledDate(post);
   const pastDue = isPastDue(post);
@@ -65,39 +74,55 @@ const ScheduledPostPreview: React.FC<ScheduledPostPreviewProps> = ({
     }
   }, [onCancel, onCancelled, post, t]);
 
-  return (
-    <View className="flex-1">
-      <View className="flex-row items-center gap-2 px-4 py-3 border-b border-border">
-        <TouchableOpacity
-          onPress={onBack}
-          hitSlop={HIT_SLOP_LG}
-          activeOpacity={0.7}
-          accessibilityRole="button"
-          accessibilityLabel={t('common.back', { defaultValue: 'Back' })}
-        >
-          <Ionicons name="chevron-back" size={22} color={theme.colors.text} />
-        </TouchableOpacity>
-        <View className="flex-1">
-          <Text className="text-base font-semibold text-foreground">
-            {t('compose.scheduled.previewTitle', { defaultValue: 'Preview' })}
-          </Text>
-          <View className="flex-row items-center gap-1.5 mt-0.5">
-            <CalendarIcon size={12} color={theme.colors.textSecondary} />
-            <Text className="text-xs text-muted-foreground">
-              {publishAt === null
-                ? t('compose.scheduled.unknownTime', { defaultValue: 'Time unavailable' })
-                : pastDue
-                  ? t('compose.scheduled.publishing', { defaultValue: 'Publishing now…' })
-                  : t('compose.scheduled.publishesAt', {
-                      defaultValue: 'Publishes {{time}}',
-                      time: formatScheduledLabel(publishAt),
-                    })}
-            </Text>
-          </View>
-        </View>
-      </View>
+  /**
+   * Publishing early is a one-way, PUBLIC action — it federates and notifies —
+   * so it asks first, like cancelling does. The wording says what changes:
+   * the post goes out now instead of at the time that was chosen.
+   */
+  const handlePublishNow = useCallback(async () => {
+    const confirmed = await confirmDialog({
+      title: t('compose.scheduled.publishNow', { defaultValue: 'Post now' }),
+      message: t('compose.scheduled.publishNowConfirm', {
+        defaultValue: 'This post goes out immediately instead of at its scheduled time.',
+      }),
+      okText: t('compose.scheduled.publishNow', { defaultValue: 'Post now' }),
+      cancelText: t('common.cancel'),
+    });
+    if (!confirmed) return;
 
-      {pastDue && (
+    setIsPublishing(true);
+    try {
+      await onPublishNow(post.id);
+      toast(t('compose.scheduled.published', { defaultValue: 'Post published' }), { type: 'success' });
+      onCancelled();
+    } catch (error) {
+      logger.error('Error publishing a scheduled post early', error);
+      toast(t('compose.scheduled.publishError', { defaultValue: 'Could not publish the post' }), { type: 'error' });
+    } finally {
+      setIsPublishing(false);
+    }
+  }, [onCancelled, onPublishNow, post.id, t]);
+
+  return (
+    <PostPreviewSurface
+      post={post}
+      title={t('compose.scheduled.previewTitle', { defaultValue: 'Preview' })}
+      subtitle={(
+        <View className="flex-row items-center gap-1.5 mt-0.5">
+          <CalendarIcon size={12} color={theme.colors.textSecondary} />
+          <Text className="text-xs text-muted-foreground">
+            {publishAt === null
+              ? t('compose.scheduled.unknownTime', { defaultValue: 'Time unavailable' })
+              : pastDue
+                ? t('compose.scheduled.publishing', { defaultValue: 'Publishing now…' })
+                : t('compose.scheduled.publishesAt', {
+                    defaultValue: 'Publishes {{time}}',
+                    time: formatScheduledLabel(publishAt),
+                  })}
+          </Text>
+        </View>
+      )}
+      notice={pastDue ? (
         <View className="px-4 py-2 bg-secondary border-b border-border">
           <Text className="text-xs text-muted-foreground">
             {t('compose.scheduled.pastDueNotice', {
@@ -105,23 +130,34 @@ const ScheduledPostPreview: React.FC<ScheduledPostPreviewProps> = ({
             })}
           </Text>
         </View>
-      )}
+      ) : undefined}
+      onBack={onBack}
+    >
+      <View className="px-4 pt-3 border-t border-border">
+        <TouchableOpacity
+          className="flex-row items-center justify-center gap-2 py-3 rounded-full bg-primary"
+          onPress={handlePublishNow}
+          disabled={busy}
+          activeOpacity={0.85}
+          accessibilityRole="button"
+          accessibilityLabel={t('compose.scheduled.publishNow', { defaultValue: 'Post now' })}
+        >
+          {isPublishing ? (
+            <Loading className="text-primary" variant="inline" size="small" style={{ flex: undefined }} />
+          ) : (
+            <Ionicons name="send" size={16} color={theme.colors.card} />
+          )}
+          <Text className="text-sm font-semibold" style={{ color: theme.colors.card }}>
+            {t('compose.scheduled.publishNow', { defaultValue: 'Post now' })}
+          </Text>
+        </TouchableOpacity>
+      </View>
 
-      <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
-        {/*
-          Inert on purpose — see the component doc. The wrapper carries no
-          styling of its own so the post renders at exactly its feed width.
-        */}
-        <View pointerEvents="none">
-          <PostItem post={post} />
-        </View>
-      </ScrollView>
-
-      <View className="flex-row items-center gap-2 px-4 py-3 border-t border-border">
+      <View className="flex-row items-center gap-2 px-4 py-3">
         <TouchableOpacity
           className="flex-1 flex-row items-center justify-center gap-2 py-3 rounded-full bg-secondary"
           onPress={onEdit}
-          disabled={isCancelling}
+          disabled={busy}
           activeOpacity={0.85}
           accessibilityRole="button"
           accessibilityLabel={t('compose.scheduled.edit', { defaultValue: 'Edit scheduled post' })}
@@ -135,7 +171,7 @@ const ScheduledPostPreview: React.FC<ScheduledPostPreviewProps> = ({
           className="flex-1 flex-row items-center justify-center gap-2 py-3 rounded-full"
           style={{ backgroundColor: `${theme.colors.error}1A` }}
           onPress={handleCancel}
-          disabled={isCancelling}
+          disabled={busy}
           activeOpacity={0.85}
           accessibilityRole="button"
           accessibilityLabel={t('compose.scheduled.cancelTitle', { defaultValue: 'Cancel scheduled post' })}
@@ -150,7 +186,7 @@ const ScheduledPostPreview: React.FC<ScheduledPostPreviewProps> = ({
           </Text>
         </TouchableOpacity>
       </View>
-    </View>
+    </PostPreviewSurface>
   );
 };
 

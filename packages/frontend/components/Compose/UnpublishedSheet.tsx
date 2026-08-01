@@ -12,6 +12,7 @@ import { useScheduledPosts } from '@/hooks/useScheduledPosts';
 import DraftsList from './DraftsList';
 import ScheduledPostsList from './ScheduledPostsList';
 import ScheduledPostPreview from './ScheduledPostPreview';
+import DraftPreview from './DraftPreview';
 
 export type UnpublishedTab = 'drafts' | 'scheduled';
 
@@ -88,13 +89,25 @@ const UnpublishedSheet: React.FC<UnpublishedSheetProps> = ({
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<UnpublishedTab>('drafts');
   const [previewPostId, setPreviewPostId] = useState<string | null>(null);
-  const { scheduledPosts, isLoading, isError, refetch, cancelScheduledPost } = useScheduledPosts();
+  // A draft is LOCAL, so unlike a scheduled post there is no server list to look
+  // it back up in — the draft object itself is the only handle there is.
+  const [previewDraft, setPreviewDraft] = useState<Draft | null>(null);
+  const {
+    scheduledPosts,
+    isLoading,
+    isError,
+    refetch,
+    cancelScheduledPost,
+    publishScheduledPostNow,
+  } = useScheduledPosts();
 
   const showDrafts = useCallback(() => setActiveTab('drafts'), []);
   const showScheduled = useCallback(() => setActiveTab('scheduled'), []);
 
   const openPreview = useCallback((post: HydratedPost) => setPreviewPostId(post.id), []);
   const closePreview = useCallback(() => setPreviewPostId(null), []);
+  const openDraftPreview = useCallback((draft: Draft) => setPreviewDraft(draft), []);
+  const closeDraftPreview = useCallback(() => setPreviewDraft(null), []);
 
   /**
    * Editing reuses the composer's OWN edit route rather than the drafts loader.
@@ -116,6 +129,21 @@ const UnpublishedSheet: React.FC<UnpublishedSheetProps> = ({
     ? undefined
     : scheduledPosts.find((post) => post.id === previewPostId);
 
+  if (previewDraft) {
+    return (
+      <View className="flex-1 max-h-[600px] bg-background">
+        <DraftPreview
+          draft={previewDraft}
+          onBack={closeDraftPreview}
+          onEdit={() => {
+            closeDraftPreview();
+            onLoadDraft(previewDraft);
+          }}
+        />
+      </View>
+    );
+  }
+
   if (previewPost) {
     return (
       <View className="flex-1 max-h-[600px] bg-background">
@@ -123,6 +151,7 @@ const UnpublishedSheet: React.FC<UnpublishedSheetProps> = ({
           post={previewPost}
           onBack={closePreview}
           onEdit={() => editPost(previewPost)}
+          onPublishNow={publishScheduledPostNow}
           onCancel={cancelScheduledPost}
           onCancelled={closePreview}
         />
@@ -160,7 +189,11 @@ const UnpublishedSheet: React.FC<UnpublishedSheetProps> = ({
       </View>
 
       {activeTab === 'drafts' ? (
-        <DraftsList onLoadDraft={onLoadDraft} currentDraftId={currentDraftId} />
+        <DraftsList
+          onLoadDraft={onLoadDraft}
+          onPreviewDraft={openDraftPreview}
+          currentDraftId={currentDraftId}
+        />
       ) : (
         <ScheduledPostsList
           posts={scheduledPosts}
