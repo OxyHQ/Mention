@@ -96,6 +96,41 @@ jobs:
     name: Test ${{ matrix.package }}
     runs-on: ubuntu-latest
     timeout-minutes: 35
+
+    # PostgreSQL for the Mongo->Postgres migration. The backend suite creates ONE
+    # throwaway, fully-migrated database per run against this server
+    # (packages/backend/src/db/testDatabase.ts) and drops it afterwards.
+    #
+    # PostGIS, not plain Postgres: posts.geo and posts.content_geo are generated
+    # `geography` columns, so `CREATE EXTENSION postgis` has to succeed before the
+    # migration that names the type. Pinned on BOTH versions and identical to
+    # docker-compose.postgres.yml, so a developer's database and CI's cannot
+    # disagree about what is installed.
+    #
+    # Declared for every matrix entry rather than only the backend: a `services:`
+    # block cannot be made conditional on a matrix value, and an empty `image` is
+    # a hard error. The cost is one container start on three jobs that never
+    # connect to it.
+    services:
+      postgres:
+        image: postgis/postgis:17-3.5
+        env:
+          POSTGRES_USER: mention
+          POSTGRES_PASSWORD: mention
+          POSTGRES_DB: mention_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U mention -d mention_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      # The harness creates its own throwaway database on this SERVER; it never
+      # writes to `mention_ci` itself.
+      TEST_DATABASE_URL: postgres://mention:mention@127.0.0.1:5432/mention_ci
+
     strategy:
       fail-fast: false
       matrix:

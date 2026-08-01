@@ -241,6 +241,15 @@ const environmentSchema = z
     MONGODB_MAX_IDLE_TIME_MS: integerFromEnv(60_000, { minimum: 1 }),
     MONGODB_HEARTBEAT_FREQUENCY_MS: integerFromEnv(10_000, { minimum: 1 }),
 
+    // PostgreSQL — the Mongo→Postgres migration target. Optional while the
+    // migration is additive: absent means no pool is opened and every query
+    // still runs against Mongo. It becomes required at cutover, not before.
+    DATABASE_URL: trimmedOptionalString,
+    PG_MAX_POOL_SIZE: integerFromEnv(20, { minimum: 1, maximum: 1_000 }),
+    PG_IDLE_TIMEOUT_SECONDS: integerFromEnv(30, { minimum: 1 }),
+    PG_CONNECT_TIMEOUT_SECONDS: integerFromEnv(10, { minimum: 1 }),
+    PG_MAX_LIFETIME_SECONDS: integerFromEnv(1_800, { minimum: 1 }),
+
     REDIS_URL: optionalRedisUrl,
     REDIS_URI: optionalRedisUrl,
     REDIS_HOST: optionalHost,
@@ -685,6 +694,23 @@ export const config = {
     level: environment.LOG_LEVEL ?? (environment.NODE_ENV === 'production' ? 'info' : 'debug'),
   },
   mongoUri: environment.MONGODB_URI,
+  postgres: {
+    /**
+     * Absent until the cutover. Every Postgres entry point treats "no URL" as
+     * "this deployment has not migrated yet" and leaves Mongo untouched, so a
+     * task without the variable boots exactly as it does today.
+     */
+    url: environment.DATABASE_URL,
+    /**
+     * Sized well below the Mongo pool above: a Postgres connection is a
+     * server-side PROCESS, not a thread, so an oversized pool costs the
+     * database real memory. Raise deliberately, against a measurement.
+     */
+    maxPoolSize: environment.PG_MAX_POOL_SIZE,
+    idleTimeoutSeconds: environment.PG_IDLE_TIMEOUT_SECONDS,
+    connectTimeoutSeconds: environment.PG_CONNECT_TIMEOUT_SECONDS,
+    maxLifetimeSeconds: environment.PG_MAX_LIFETIME_SECONDS,
+  },
   mongoReadPreference:
     environment.MONGODB_READ_PREFERENCE ??
     (environment.NODE_ENV === 'production' ? 'secondaryPreferred' : 'primary'),
