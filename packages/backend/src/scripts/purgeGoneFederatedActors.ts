@@ -108,8 +108,10 @@
 
 import mongoose from 'mongoose';
 import type { FilterQuery, Model } from 'mongoose';
+import { count, eq } from 'drizzle-orm';
 import { PostType } from '@mention/shared-types';
 import { connectToDatabase } from '../utils/database';
+import { connectPostgres, getDb } from '../db/postgres';
 import FederatedActor from '../models/FederatedActor';
 import { Post } from '../models/Post';
 import Like from '../models/Like';
@@ -123,9 +125,8 @@ import UserFeedPreference from '../models/UserFeedPreference';
 import { AuthorFollowerSnapshot } from '../models/AuthorFollowerSnapshot';
 import ActorKeyPair from '../models/ActorKeyPair';
 import MentionUserNode from '../models/MentionUserNode';
-import MentionRepoHead from '../models/MentionRepoHead';
-import MentionSignedRecord from '../models/MentionSignedRecord';
 import MentionNodeIngestWitness from '../models/MentionNodeIngestWitness';
+import { mentionRepoHeads, mentionSignedRecords } from '../db/schema/mtn';
 import { deleteFederatedActorIdentity } from '../connectors/identity';
 import type { DeleteActorIdentityOutcome } from '@oxyhq/federation/node';
 import { signedFetch } from '../connectors/activitypub/helpers';
@@ -482,8 +483,37 @@ async function purgeConfirmedGone(actor: ActorRow, flags: Flags): Promise<ActorP
     counts.authorFollowerSnapshots = await countOrDelete(AuthorFollowerSnapshot, { oxyUserId }, flags.dryRun);
     counts.actorKeyPairs = await countOrDelete(ActorKeyPair, { oxyUserId }, flags.dryRun);
     counts.mentionUserNodes = await countOrDelete(MentionUserNode, { oxyUserId }, flags.dryRun);
-    counts.mentionRepoHeads = await countOrDelete(MentionRepoHead, { oxyUserId }, flags.dryRun);
-    counts.mentionSignedRecords = await countOrDelete(MentionSignedRecord, { oxyUserId }, flags.dryRun);
+    // The MTN chain lives in Postgres. Same contract as `countOrDelete`: a dry run
+    // COUNTS and writes nothing; a live run deletes and reports how many rows went.
+    // `returning` is what makes the live count real — a delete with no `returning`
+    // hands back a driver result whose shape is the driver's business, and a wrong
+    // read of it would silently report 0 purged rows on a successful purge.
+    counts.mentionRepoHeads = flags.dryRun
+      ? (
+          await getDb()
+            .select({ total: count() })
+            .from(mentionRepoHeads)
+            .where(eq(mentionRepoHeads.oxyUserId, oxyUserId))
+        )[0].total
+      : (
+          await getDb()
+            .delete(mentionRepoHeads)
+            .where(eq(mentionRepoHeads.oxyUserId, oxyUserId))
+            .returning({ id: mentionRepoHeads.id })
+        ).length;
+    counts.mentionSignedRecords = flags.dryRun
+      ? (
+          await getDb()
+            .select({ total: count() })
+            .from(mentionSignedRecords)
+            .where(eq(mentionSignedRecords.oxyUserId, oxyUserId))
+        )[0].total
+      : (
+          await getDb()
+            .delete(mentionSignedRecords)
+            .where(eq(mentionSignedRecords.oxyUserId, oxyUserId))
+            .returning({ id: mentionSignedRecords.id })
+        ).length;
     counts.mentionNodeIngestWitnesses = await countOrDelete(MentionNodeIngestWitness, { oxyUserId }, flags.dryRun);
   }
 
@@ -602,6 +632,9 @@ async function purgeGoneFederatedActors(): Promise<void> {
       dryRun: flags.dryRun,
     });
     await connectToDatabase();
+    // The MTN chain rows this purge removes live in Postgres, so the cascade
+    // needs BOTH connections open before the first actor is processed.
+    await connectPostgres();
     logger.info('[purgeGoneFederatedActors] connected', {
       dryRun: flags.dryRun,
       narrowedScope: Boolean(flags.actor),

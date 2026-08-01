@@ -42,8 +42,10 @@
  */
 
 import mongoose from 'mongoose';
+import { and, eq, inArray } from 'drizzle-orm';
 import { Post, type IPost } from '../models/Post';
-import MentionSignedRecord from '../models/MentionSignedRecord';
+import { connectPostgres, getDb } from '../db/postgres';
+import { mentionSignedRecords } from '../db/schema/mtn';
 import { MENTION_POST_COLLECTION, PostVisibility } from '@mention/shared-types';
 import { connectToDatabase } from '../utils/database';
 import { logger } from '../utils/logger';
@@ -101,10 +103,17 @@ async function resolveReplyContext(post: IPost): Promise<ReplyContext | undefine
  */
 async function findPostIdsWithRecord(postIds: string[]): Promise<Set<string>> {
   if (postIds.length === 0) return new Set();
-  const existing = await MentionSignedRecord.find(
-    { nsid: MENTION_POST_COLLECTION, rkey: { $in: postIds } },
-    { rkey: 1 },
-  ).lean<Array<{ rkey?: string }>>();
+  // `inArray`, never a JS array interpolated into `sql` — a raw array binds as a
+  // ROW constructor and `= any(<row>)` is a type error, not a match.
+  const existing = await getDb()
+    .select({ rkey: mentionSignedRecords.rkey })
+    .from(mentionSignedRecords)
+    .where(
+      and(
+        eq(mentionSignedRecords.nsid, MENTION_POST_COLLECTION),
+        inArray(mentionSignedRecords.rkey, postIds),
+      ),
+    );
   return new Set(existing.map((r) => r.rkey).filter((r): r is string => typeof r === 'string'));
 }
 
@@ -115,8 +124,11 @@ async function backfillMtnRecords(): Promise<void> {
     scriptName: 'backfillMtnRecords',
     dryRun: DRY_RUN,
   });
+  // Both stores: the post scan still reads Mongo, while the MTN chain (the
+  // existence check AND the append the emitter performs) now lives in Postgres.
   await connectToDatabase();
-  logger.info(`[backfill-mtn-records] connected to MongoDB; DRY_RUN=${DRY_RUN}`);
+  await connectPostgres();
+  logger.info(`[backfill-mtn-records] connected to MongoDB + PostgreSQL; DRY_RUN=${DRY_RUN}`);
 
   // INERT-SAFE: never fabricate unsigned records. Bail up front when signing is
   // unconfigured so a re-run with the env set later does the real work.
@@ -198,10 +210,16 @@ async function backfillMtnRecords(): Promise<void> {
         await emitPostCreated(post, { reply });
         // Confirm the record landed (the emitter swallows append failures). A
         // present record on re-query means the append succeeded.
-        const wrote = await MentionSignedRecord.exists({
-          nsid: MENTION_POST_COLLECTION,
-          rkey: postId,
-        });
+        const [wrote] = await getDb()
+          .select({ id: mentionSignedRecords.id })
+          .from(mentionSignedRecords)
+          .where(
+            and(
+              eq(mentionSignedRecords.nsid, MENTION_POST_COLLECTION),
+              eq(mentionSignedRecords.rkey, postId),
+            ),
+          )
+          .limit(1);
         if (wrote) {
           emitted += 1;
         } else {

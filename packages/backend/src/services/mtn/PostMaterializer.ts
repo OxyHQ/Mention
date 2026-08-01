@@ -1,32 +1,32 @@
 /**
  * MTN PostMaterializer — projects a VERIFIED signed `app.mention.feed.*` record
- * into the feed-readable Mongo store (the same `Post` / `Like` / `Bookmark` rows
- * the hot read path already reads).
+ * into the feed-readable store (the same `posts` / `Like` / `Bookmark` rows the
+ * hot read path already reads).
  *
  * This is the READ-side dual of the write emitter (`MentionRecordEmitter`): the
- * emitter turns a native Mongo write into a signed record; the materializer turns
- * a signed record back into the native Mongo rows. The two together let the chain
- * become the source of truth in a later phase (B3+) — but in B2 the materializer
- * is NOT wired into the live create/like/boost path. It is invoked only by the
- * B2 backfill and (future) node ingest.
+ * emitter turns a native write into a signed record; the materializer turns a
+ * signed record back into the native rows. The two together let the chain become
+ * the source of truth in a later phase (B3+) — but in B2 the materializer is NOT
+ * wired into the live create/like/boost path. It is invoked only by the B2
+ * backfill and node ingest.
  *
  * CONTRACT:
- *  - IDEMPOTENT — every projection is keyed by the envelope's `rkey` (the Mongo
- *    `_id` of the post/like/etc.), so re-projecting the same record converges to
- *    the same row (no duplicates, stable classification). Re-runs are safe.
+ *  - IDEMPOTENT — every projection is keyed by the envelope's `rkey` (the post's
+ *    `_id`), so re-projecting the same record converges to the same row (no
+ *    duplicates, stable classification). Re-runs are safe.
  *  - OWNER-SCOPED — an `rkey` is a key in the SUBJECT's namespace, never a global
- *    one, so every post/boost upsert is filtered by `{ _id: rkey, oxyUserId }`.
- *    A record whose rkey names ANOTHER user's post fails closed on the taken `_id`
+ *    one, so every post/boost upsert is confined to `{ id: rkey, oxy_user_id }`.
+ *    A record whose rkey names ANOTHER user's post fails closed
  *    (`record_owner_mismatch`) instead of rewriting that user's row: without this
  *    a genuinely-signed record could take over any post whose id its author knows.
- *  - ZERO-REGRESSION — a post upsert uses a FIELD-SCOPED `$set` of only the fields
- *    the record owns (text, reply, tags, langs, sources, location, …). It NEVER
- *    replaces the whole document, and it only writes `content.media` when the
- *    embed RESOLVES to ≥1 renderable item (see below), so re-projecting an
- *    existing post whose `content.media` fileId items would not re-resolve KEEPS
- *    that media untouched. The authoritative native write path is unchanged; media
- *    rendering stays byte-identical (URLs are resolved by the existing
- *    `mediaResolver` at hydration time, exactly as for native fileId media).
+ *  - ZERO-REGRESSION — the post upsert writes only the fields the record OWNS
+ *    (body, reply, tags, langs, sources, location, …). It NEVER replaces the whole
+ *    row, and it only replaces `post_media` when the embed RESOLVES to ≥1
+ *    renderable item (see below), so re-projecting an existing post whose media
+ *    would not re-resolve KEEPS that media untouched. The authoritative native
+ *    write path is unchanged; media rendering stays byte-identical (URLs are
+ *    resolved by the existing `mediaResolver` at hydration time, exactly as for
+ *    native fileId media).
  *  - READ-SIDE BLOB RESOLUTION — `record.embed` carries content-addressed blob
  *    refs (the WRITE side populates `embed[].blob.sha256` via the service SDK).
  *    The READ side turns each bare `sha256` back into a servable native MediaItem
@@ -34,24 +34,48 @@
  *    (core 5.2.0, `POST /assets/service/by-sha256`) — the inverse of the FORWARD
  *    `fileId → sha256` lookup the write side uses. {@link resolveRecordFileIds}
  *    maps each resolvable blob to `{ id: <resolved Oxy fileId>, type, alt? }`, so
- *    the materialized post's `content.media` renders through the EXISTING
+ *    the materialized post's media renders through the EXISTING
  *    `getFileDownloadUrl` CDN path EXACTLY like a normal fileId post. FAIL-SOFT: a
  *    `sha256` with no live asset in our S3 is dropped (the upstream omits
  *    unknown/trashed hashes), so a record whose blobs are not yet mirrored yields
- *    fewer/zero items and never a fake URL. ZERO-REGRESSION GUARD: the post upsert
- *    only writes `content.media` when the resolver produced ≥1 item; an empty
- *    resolution leaves the field untouched, so the B2 round-trip (Mention's own
- *    records re-projected onto the SAME `rkey`) keeps its existing fileId media.
- *    This path matters for records INGESTED from a node whose blobs are
- *    content-addressed (the node-blob mirror in `MentionNodeSyncService` makes
- *    those blobs resolvable by `sha256` first).
+ *    fewer/zero items and never a fake URL.
  *  - NEVER THROWS — any failure (bad subject DID, invalid inner record, DB error)
  *    is wrapped and returned as `{ ok: false, reason }` so the backfill/ingest
  *    caller can log and continue. Validation runs FIRST: the inner `record` is
  *    parsed with the matching `mention*RecordSchema` before any projection.
+ *
+ * ## What the Postgres port changed, and why
+ *
+ * **A post is now SIX tables, and the child rows are not optional.** The body
+ * lives in `post_content_variants`, the media in `post_media`, the authorship in
+ * `post_authorships`, the sources in `post_sources`. Writing the parent row alone
+ * produces a post that exists, passes every foreign key, satisfies every feed
+ * query — and renders as an empty card, with no error anywhere. Every write below
+ * happens in ONE transaction for that reason: a partially materialized post is
+ * worse than an absent one, because the ingest is idempotent and would skip it.
+ *
+ * **The owner scope is now the upsert's own predicate.** Mongo relied on the
+ * `_id` unique index to reject an upsert that missed the owner filter, and read
+ * the duplicate-key error as "someone else owns this rkey". Postgres states it
+ * directly: `ON CONFLICT (id) DO UPDATE … WHERE posts.oxy_user_id = $owner`
+ * updates nothing when the row belongs to another account, and the empty
+ * `RETURNING` is the mismatch.
+ *
+ * **A reply whose parent is not here yet links to nothing rather than to a
+ * dangling id.** `posts.parent_post_id` / `thread_id` are real foreign keys, so
+ * the Mongo behaviour (store the id, let it resolve later if the parent ever
+ * arrives) is not representable. The ids are resolved against real rows first and
+ * dropped when absent; a later re-projection links the reply once its parent
+ * lands. See the migration report — the same escalation as `ON DELETE SET NULL`.
+ *
+ * **The `ObjectId.isValid` guards on like/bookmark/tombstone subjects are gone.**
+ * They existed to dodge a Mongoose `CastError` and answered `invalid_*_post_id`
+ * for anything that was not 24-char hex — which is every id minted after the
+ * cutover. A `text` id that names no row already produces the "no such thing"
+ * answer the caller was written for.
  */
 
-import mongoose from 'mongoose';
+import { and, eq, inArray } from 'drizzle-orm';
 import type { SignedRecordEnvelope } from '@oxyhq/contracts';
 import {
   MENTION_POST_COLLECTION,
@@ -77,7 +101,18 @@ import {
   type PostContentVariant,
 } from '@mention/shared-types';
 import { PostType, PostVisibility } from '@mention/shared-types';
-import { Post, POST_CLASSIFICATION_PENDING, type IPost } from '../../models/Post';
+import { getDb, type Transaction } from '../../db/postgres';
+import { uuidv7 } from '../../db/schema/columns';
+import { posts } from '../../db/schema/posts';
+import {
+  postAuthorships,
+  postContentVariants,
+  postMedia,
+  postSources,
+  postVariantAltTexts,
+  postVariantMedia,
+} from '../../db/schema/postContent';
+import { POST_CLASSIFICATION_PENDING } from '../../models/Post';
 import { logger } from '../../utils/logger';
 import { getServiceOxyClient } from '../../utils/oxyHelpers';
 import { parseUserDid } from './mentionDid';
@@ -206,7 +241,7 @@ async function resolveRecordFileIds(record: MentionPostRecord): Promise<Map<stri
 }
 
 /**
- * Project a record's body back onto native `content.variants` — the post's ONLY
+ * Project a record's body back onto native content variants — the post's ONLY
  * body storage. Every variant on the chain is authored by definition (a machine
  * translation is never signed), so they all materialize as `source:'author'`.
  *
@@ -318,8 +353,8 @@ function resolveEmbedItemsToMedia(
 }
 
 /**
- * Recover the Mongo `_id` (rkey) of the post referenced by an MTN URI. Returns
- * `null` when the URI is not a parseable MTN URI.
+ * Recover the post id (rkey) referenced by an MTN URI. Returns `null` when the
+ * URI is not a parseable MTN URI.
  */
 function rkeyFromMtnUri(uri: string): string | null {
   if (!MtnUri.isValid(uri)) return null;
@@ -330,34 +365,55 @@ function rkeyFromMtnUri(uri: string): string | null {
   }
 }
 
-/** Coerce an rkey string to an ObjectId, or `null` when it is not a valid id. */
-function toObjectId(rkey: string): mongoose.Types.ObjectId | null {
-  if (!mongoose.Types.ObjectId.isValid(rkey)) return null;
-  return new mongoose.Types.ObjectId(rkey);
-}
-
 /**
- * Whether an error is a MongoDB duplicate-key error (code 11000) — how an
- * owner-scoped upsert reports that the `rkey` is already taken by ANOTHER user
- * (see {@link projectPost}).
+ * Which of `ids` name a post that exists.
+ *
+ * `posts.parent_post_id`, `thread_id` and `boost_of` are real foreign keys, so an
+ * id that names no row cannot be stored at all — the insert would fail and take
+ * the whole projection with it. Resolving first turns "the parent is not here
+ * yet" from a hard error into a decision each caller makes explicitly.
  */
-function isDuplicateKeyError(err: unknown): boolean {
-  if (err && typeof err === 'object' && 'code' in err) {
-    return (err as { code?: unknown }).code === 11000;
-  }
-  return false;
+async function existingPostIds(tx: Transaction, ids: string[]): Promise<Set<string>> {
+  const unique = [...new Set(ids.filter((id) => id.length > 0))];
+  if (unique.length === 0) return new Set();
+  const rows = await tx
+    .select({ id: posts.id })
+    .from(posts)
+    .where(inArray(posts.id, unique));
+  return new Set(rows.map((row) => row.id));
+}
+
+/** The classification columns a Stage-A baseline writes, plus the primary language. */
+interface ClassificationColumns {
+  classificationTopics: string[];
+  classificationLanguages: string[];
+  classificationRegion: string | null;
+  classificationHashtagsNorm: string[];
+  classificationSensitive: boolean | null;
+  classificationVersion: number;
+  classificationStatus: typeof POST_CLASSIFICATION_PENDING;
+  classificationAttempts: number;
+  classificationClassifiedAt: Date;
+  classificationScoreToxicity: number;
+  classificationScoreConstructiveness: number;
+  classificationScoreSpam: number;
+  classificationScoreQuality: number;
+  classificationScoreControversy: number;
+  classificationScoreNegativity: number;
+  /** `languages[0]` — overrides the record's own primary when the classifier resolved one. */
+  language?: string;
 }
 
 /**
- * Build the Stage-A `postClassification` subdoc + primary `language` for a post
- * record, MIRRORING `PostCreationService.applyBaselineClassification` EXACTLY so
- * a materialized post's classification is identical to a natively-created one.
+ * Build the Stage-A classification columns for a post record, MIRRORING
+ * `PostCreationService.applyBaselineClassification` EXACTLY so a materialized
+ * post's classification is identical to a natively-created one.
  *
  * Best-effort: the classifier is pure/synchronous, but any throw is caught so it
- * can never fail projection — the caller then leaves the schema-default
- * `{ status: 'pending' }` subdoc in place (mirrors PostCreationService).
+ * can never fail projection — the caller then leaves the column defaults in place
+ * (mirrors PostCreationService).
  */
-function buildClassificationFields(record: MentionPostRecord): Record<string, unknown> {
+function buildClassificationColumns(record: MentionPostRecord): ClassificationColumns | null {
   try {
     const signals = baselineContentClassifier.classify({
       text: record.text,
@@ -370,44 +426,127 @@ function buildClassificationFields(record: MentionPostRecord): Record<string, un
       // native: no `sensitive`/`instanceDomain` source flag to thread through.
     });
 
-    const fields: Record<string, unknown> = {
-      postClassification: {
-        status: POST_CLASSIFICATION_PENDING,
-        attempts: 0,
-        topics: signals.topics,
-        languages: signals.languages,
-        region: signals.region,
-        hashtagsNorm: signals.hashtagsNorm,
-        sensitive: signals.sensitive,
-        scores: signals.scores,
-        version: signals.version,
-        classifiedAt: new Date(signals.classifiedAt),
-      },
+    const columns: ClassificationColumns = {
+      classificationTopics: signals.topics,
+      classificationLanguages: signals.languages,
+      classificationRegion: signals.region ?? null,
+      classificationHashtagsNorm: signals.hashtagsNorm,
+      classificationSensitive: signals.sensitive ?? null,
+      classificationVersion: signals.version,
+      classificationStatus: POST_CLASSIFICATION_PENDING,
+      classificationAttempts: 0,
+      classificationClassifiedAt: new Date(signals.classifiedAt),
+      classificationScoreToxicity: signals.scores.toxicity,
+      classificationScoreConstructiveness: signals.scores.constructiveness,
+      classificationScoreSpam: signals.scores.spam,
+      classificationScoreQuality: signals.scores.quality,
+      classificationScoreControversy: signals.scores.controversy,
+      classificationScoreNegativity: signals.scores.negativity,
     };
 
     // Keep the top-level AP `post.language` in sync with the resolved primary
     // (`languages[0]`), exactly as PostCreationService does.
     const primaryLanguage = signals.languages[0];
     if (primaryLanguage != null) {
-      fields.language = primaryLanguage;
+      columns.language = primaryLanguage;
     }
 
-    return fields;
+    return columns;
   } catch (error) {
-    // Never fail projection on classification — leave the default pending subdoc.
+    // Never fail projection on classification — leave the column defaults.
     logger.warn('PostMaterializer: baseline classification failed; projecting without Stage-A signals', error);
-    return {};
+    return null;
+  }
+}
+
+/** Replace a post's authorship rows with the record owner's sole `owner` entry. */
+async function writeAuthorship(tx: Transaction, postId: string, oxyUserId: string): Promise<void> {
+  await tx.delete(postAuthorships).where(eq(postAuthorships.postId, postId));
+  await tx.insert(postAuthorships).values(
+    buildAuthorship(oxyUserId, []).map((entry) => ({
+      postId,
+      oxyUserId: entry.oxyUserId,
+      role: entry.role,
+      status: entry.status,
+      invitedAt: entry.invitedAt ? new Date(entry.invitedAt) : null,
+      respondedAt: entry.respondedAt ? new Date(entry.respondedAt) : null,
+    })),
+  );
+}
+
+/** The `variantCreatedAt` of a rendition, or NULL when the string is not a date. */
+function variantDate(value: string | undefined): Date | null {
+  if (!value) return null;
+  const parsed = new Date(value);
+  return Number.isFinite(parsed.getTime()) ? parsed : null;
+}
+
+/**
+ * Replace a post's body — its variants, each variant's media override and each
+ * variant's localized alt map — in one pass.
+ *
+ * ALWAYS replaces, even with an empty list, so a re-projection can never leave a
+ * stale rendition of a body the chain has since changed. Variant ids are minted
+ * here rather than read back from the insert, so the children can be written in
+ * ONE statement instead of one round trip per rendition.
+ */
+async function writeVariants(
+  tx: Transaction,
+  postId: string,
+  variants: PostContentVariant[],
+): Promise<void> {
+  // The children cascade from `post_content_variants`, so one delete clears all three.
+  await tx.delete(postContentVariants).where(eq(postContentVariants.postId, postId));
+  if (variants.length === 0) return;
+
+  const variantIds = variants.map(() => uuidv7());
+  await tx.insert(postContentVariants).values(
+    variants.map((variant, position) => ({
+      id: variantIds[position],
+      postId,
+      position,
+      tag: variant.tag ?? null,
+      source: variant.source,
+      body: variant.text,
+      articleTitle: variant.article?.title ?? null,
+      articleBody: variant.article?.body ?? null,
+      articleExcerpt: variant.article?.excerpt ?? null,
+      variantCreatedAt: variantDate(variant.createdAt),
+    })),
+  );
+
+  const overrideMedia = variants.flatMap((variant, index) =>
+    (variant.media ?? []).map((item, position) => ({
+      variantId: variantIds[index],
+      position,
+      mediaId: item.id,
+      type: item.type,
+      alt: item.alt ?? null,
+    })),
+  );
+  if (overrideMedia.length > 0) {
+    await tx.insert(postVariantMedia).values(overrideMedia);
+  }
+
+  const altTexts = variants.flatMap((variant, index) =>
+    Object.entries(variant.alt ?? {}).map(([mediaId, description]) => ({
+      variantId: variantIds[index],
+      mediaId,
+      description,
+    })),
+  );
+  if (altTexts.length > 0) {
+    await tx.insert(postVariantAltTexts).values(altTexts);
   }
 }
 
 /**
- * Project an `app.mention.feed.post` record into a `Post` row, upserted by
- * `{ _id: rkey, oxyUserId }` — the owner predicate keeps a record confined to its
- * own author's rows. Only the fields the record OWNS are `$set` (text/reply/tags/…).
- * `content.media` is written ONLY when the record's content-addressed `embed`
+ * Project an `app.mention.feed.post` record into a `posts` row and its child
+ * rows, confined to `{ id: rkey, oxy_user_id }`.
+ *
+ * `post_media` is replaced ONLY when the record's content-addressed `embed`
  * RESOLVES to ≥1 live MediaItem ({@link resolveEmbedItemsToMedia}); an empty
- * resolution leaves the field untouched, so an existing post's fileId media
- * survives re-projection (zero-regression guard).
+ * resolution leaves the existing media untouched (zero-regression guard).
  */
 async function projectPost(
   rkey: string,
@@ -418,101 +557,150 @@ async function projectPost(
   // Recover the reply context from the MTN reply ref. `threadId` is the reply
   // ROOT's rkey; `parentPostId` is the direct PARENT's rkey. A top-level post
   // (no reply) → both null.
-  let parentPostId: string | null = null;
-  let threadId: string | null = null;
-  if (record.reply) {
-    parentPostId = rkeyFromMtnUri(record.reply.parent);
-    threadId = rkeyFromMtnUri(record.reply.root);
-  }
+  const declaredParentId = record.reply ? rkeyFromMtnUri(record.reply.parent) : null;
+  const declaredThreadId = record.reply ? rkeyFromMtnUri(record.reply.root) : null;
 
   const tags = Array.isArray(record.tags) ? [...record.tags] : [];
 
-  const set: Record<string, unknown> = {
-    oxyUserId,
-    authorship: buildAuthorship(oxyUserId, []),
-    type: PostType.TEXT,
-    hashtags: tags,
-    parentPostId,
-    threadId,
-    createdAt,
-  };
-
-  // The top-level AP `post.language` is a BASE subtag (the classifier's alphabet),
-  // while the record's `langs` are BCP-47 (`es-ES`). Normalize rather than storing
-  // a regional tag in a field the ranking layer reads as a base code.
-  const primaryBase = toBaseLanguage(record.langs?.[0]);
-  if (primaryBase !== null) {
-    set.language = primaryBase;
-  }
-
   // ONE content-address lookup for the whole record: the shared embed, every
   // variant's media override, and the blob keys of every variant's `alt` map.
+  // Outside the transaction — it is a network call, not a write.
   const fileIdBySha256 = await resolveRecordFileIds(record);
-
-  // `content.media`: reverse-resolve the content-addressed blob embed to native
-  // fileId MediaItems. Only set the path when ≥1 blob resolved — an empty result
-  // (no embed, or blobs not yet in our S3) is intentionally OMITTED so the upsert
-  // never clobbers an existing post's fileId media to empty.
   const media = resolveEmbedItemsToMedia(record.embed, fileIdBySha256);
-  if (media.length > 0) {
-    set['content.media'] = media;
-  }
+  const variants = buildVariantsFromRecord(record, fileIdBySha256, createdAt);
+  const classification = buildClassificationColumns(record);
 
-  // The body — `content.variants` is its only home, and `variants[0]` is the
-  // primary. Always written (even empty, for a bodiless record) so a re-projection
-  // can never leave a stale rendition of a body the chain has since changed.
-  set['content.variants'] = buildVariantsFromRecord(record, fileIdBySha256, createdAt);
+  // The record's `langs` are BCP-47 (`es-ES`) while the top-level `language` is a
+  // BASE subtag (the classifier's alphabet), so normalize rather than storing a
+  // regional tag in a field the ranking layer reads as a base code. The
+  // classifier's own resolved primary wins when it produced one.
+  const recordPrimary = toBaseLanguage(record.langs?.[0]);
+  const language = classification?.language ?? recordPrimary ?? null;
 
-  // `content.sources`: map the record's source links to the native shape.
-  if (Array.isArray(record.sources) && record.sources.length > 0) {
-    set['content.sources'] = record.sources.map((s) =>
-      s.title ? { url: s.url, title: s.title } : { url: s.url },
-    );
-  }
+  return getDb().transaction(async (tx) => {
+    const linkable = await existingPostIds(tx, [declaredParentId ?? '', declaredThreadId ?? '']);
+    const parentPostId = declaredParentId && linkable.has(declaredParentId) ? declaredParentId : null;
+    const threadId = declaredThreadId && linkable.has(declaredThreadId) ? declaredThreadId : null;
+    if (declaredParentId && !parentPostId) {
+      logger.info('PostMaterializer: reply parent is not materialized here; leaving the reply unlinked', {
+        rkey,
+        parentPostId: declaredParentId,
+      });
+    }
 
-  // `content.location`: a GeoJSON Point, when present on the record.
-  if (record.location) {
-    set['content.location'] = {
-      type: 'Point',
-      coordinates: [record.location.coordinates[0], record.location.coordinates[1]],
+    const owned = {
+      oxyUserId,
+      type: PostType.TEXT,
+      hashtags: tags,
+      parentPostId,
+      threadId,
+      language,
+      createdAt,
+      updatedAt: new Date(),
+      ...(classification === null
+        ? {}
+        : {
+            classificationTopics: classification.classificationTopics,
+            classificationLanguages: classification.classificationLanguages,
+            classificationRegion: classification.classificationRegion,
+            classificationHashtagsNorm: classification.classificationHashtagsNorm,
+            classificationSensitive: classification.classificationSensitive,
+            classificationVersion: classification.classificationVersion,
+            classificationStatus: classification.classificationStatus,
+            classificationAttempts: classification.classificationAttempts,
+            classificationClassifiedAt: classification.classificationClassifiedAt,
+            classificationScoreToxicity: classification.classificationScoreToxicity,
+            classificationScoreConstructiveness: classification.classificationScoreConstructiveness,
+            classificationScoreSpam: classification.classificationScoreSpam,
+            classificationScoreQuality: classification.classificationScoreQuality,
+            classificationScoreControversy: classification.classificationScoreControversy,
+            classificationScoreNegativity: classification.classificationScoreNegativity,
+          }),
+      // A coordinate pair is all-or-nothing (`posts_content_location_pair_check`),
+      // and the geography point is GENERATED from these two columns — there is no
+      // hand-written point to disagree with them.
+      ...(record.location
+        ? {
+            contentLocationLongitude: record.location.coordinates[0],
+            contentLocationLatitude: record.location.coordinates[1],
+          }
+        : {}),
     };
-  }
 
-  // OWNER-SCOPED upsert: the filter carries the record owner alongside the rkey,
-  // so a record can only ever create or rewrite a row THIS subject owns. When the
-  // rkey already belongs to someone else the filter misses, the upsert attempts an
-  // insert on a taken `_id`, and Mongo rejects it with a duplicate-key error —
-  // atomically failing closed instead of overwriting the other user's post.
-  let projectedPost: IPost | null;
-  try {
-    projectedPost = await Post.findOneAndUpdate(
-      { _id: rkey, oxyUserId },
-      {
-        $set: set,
-        $setOnInsert: { visibility: PostVisibility.PUBLIC, status: 'published' },
-      },
-      { upsert: true, new: true, setDefaultsOnInsert: true },
-    );
-  } catch (error) {
-    if (isDuplicateKeyError(error)) return { ok: false, reason: 'record_owner_mismatch' };
-    throw error;
-  }
+    // OWNER-SCOPED upsert: `DO UPDATE … WHERE posts.oxy_user_id = $owner` updates
+    // nothing when the rkey already belongs to someone else, and the empty
+    // RETURNING is how that is detected — atomically failing closed instead of
+    // overwriting the other user's post.
+    const [upserted] = await tx
+      .insert(posts)
+      .values({
+        id: rkey,
+        // Only on INSERT — an existing post keeps whatever visibility/status it has.
+        visibility: PostVisibility.PUBLIC,
+        status: 'published',
+        ...owned,
+      })
+      .onConflictDoUpdate({
+        target: posts.id,
+        set: owned,
+        setWhere: eq(posts.oxyUserId, oxyUserId),
+      })
+      .returning({ id: posts.id });
 
-  // Re-derive the Stage-A classification from the SAME inputs the native path
-  // uses, and write it with a dotted `$set` (so it overwrites the whole subdoc
-  // + the top-level primary language without touching unrelated fields).
-  const classificationFields = buildClassificationFields(record);
-  if (Object.keys(classificationFields).length > 0) {
-    await Post.findOneAndUpdate({ _id: rkey, oxyUserId }, { $set: classificationFields });
-  }
-  if (record.reply && projectedPost) {
-    await recordRecentReplierForPost(projectedPost);
-  }
+    if (!upserted) {
+      // The transaction has written nothing else yet, so returning here leaves no
+      // partial row behind.
+      return { ok: false, reason: 'record_owner_mismatch' };
+    }
 
-  return { ok: true, kind: 'post', id: rkey };
+    await writeAuthorship(tx, rkey, oxyUserId);
+    await writeVariants(tx, rkey, variants);
+
+    // Only replace the shared media set when ≥1 blob resolved — an empty result
+    // (no embed, or blobs not yet in our S3) is intentionally SKIPPED so the
+    // upsert never clobbers an existing post's fileId media to empty.
+    if (media.length > 0) {
+      await tx.delete(postMedia).where(eq(postMedia.postId, rkey));
+      await tx.insert(postMedia).values(
+        media.map((item, position) => ({
+          postId: rkey,
+          position,
+          mediaId: item.id,
+          type: item.type,
+          alt: item.alt ?? null,
+        })),
+      );
+    }
+
+    // Source links: only when the record carries them, mirroring the Mongo `$set`
+    // — an absent `sources` leaves the existing list alone.
+    if (Array.isArray(record.sources) && record.sources.length > 0) {
+      await tx.delete(postSources).where(eq(postSources.postId, rkey));
+      await tx.insert(postSources).values(
+        record.sources.map((source, position) => ({
+          postId: rkey,
+          position,
+          url: source.url,
+          title: source.title ?? null,
+        })),
+      );
+    }
+
+    if (parentPostId) {
+      await recordRecentReplierForPost({
+        parentPostId,
+        oxyUserId,
+        createdAt,
+        visibility: PostVisibility.PUBLIC,
+        status: 'published',
+      });
+    }
+
+    return { ok: true, kind: 'post', id: rkey };
+  });
 }
 
-/** Project an `app.mention.feed.like` record into a `Like` row (upsert by _id). */
+/** Project an `app.mention.feed.like` record into a `Like` row (upsert by id). */
 async function projectLike(
   rkey: string,
   userId: string,
@@ -520,28 +708,30 @@ async function projectLike(
 ): Promise<ProjectResult> {
   const likedRkey = rkeyFromMtnUri(record.subject);
   if (!likedRkey) return { ok: false, reason: 'unresolvable_like_subject' };
-  const postId = toObjectId(likedRkey);
-  if (!postId) return { ok: false, reason: 'invalid_like_post_id' };
 
   await materializeEngagementRelationship({
     kind: 'like',
     relationshipId: rkey,
     userId,
-    postId: postId.toHexString(),
+    postId: likedRkey,
   });
 
   return { ok: true, kind: 'like', id: rkey };
 }
 
 /**
- * Project an `app.mention.feed.repost` record into a `type: 'boost'` Post row
- * (upsert by `{ _id: rkey, oxyUserId }`). A boost has an INTENTIONALLY EMPTY
- * content body and relies on `boostOf` for hydration (see the boost-hydration
- * gotcha).
+ * Project an `app.mention.feed.repost` record into a `type: 'boost'` post row,
+ * confined to `{ id: rkey, oxy_user_id }`. A boost has an INTENTIONALLY EMPTY
+ * body and relies on `boost_of` for hydration (see the boost-hydration gotcha).
  *
- * "Empty body" now means NO RENDITION — an empty `content.variants`, not a
- * rendition whose text happens to be `''`. A boost has nothing to say in any
+ * "Empty body" means NO RENDITION — no `post_content_variants` row at all, not a
+ * rendition whose body happens to be `''`. A boost has nothing to say in any
  * language, so there is nothing to tag.
+ *
+ * A boost whose ORIGINAL is not materialized here is REFUSED rather than stored
+ * with a null `boost_of`: `boost_of` is a foreign key now, and a boost that
+ * points at nothing renders as a permanently blank card. Refusing keeps the
+ * projection re-runnable — the boost lands the moment the original does.
  */
 async function projectRepost(
   rkey: string,
@@ -552,31 +742,44 @@ async function projectRepost(
   const boostOf = rkeyFromMtnUri(record.subject);
   if (!boostOf) return { ok: false, reason: 'unresolvable_repost_subject' };
 
-  // OWNER-SCOPED upsert, exactly as in {@link projectPost}: a duplicate-key error
-  // means the rkey already belongs to another user, so the boost is rejected
-  // rather than rewriting their row.
-  try {
-    await Post.findOneAndUpdate(
-      { _id: rkey, oxyUserId },
-      {
-        $set: {
-          oxyUserId,
-          authorship: buildAuthorship(oxyUserId, []),
-          type: PostType.BOOST,
-          boostOf,
-          'content.variants': [],
-          createdAt,
-        },
-        $setOnInsert: { visibility: PostVisibility.PUBLIC, status: 'published' },
-      },
-      { upsert: true, new: true, setDefaultsOnInsert: true },
-    );
-  } catch (error) {
-    if (isDuplicateKeyError(error)) return { ok: false, reason: 'record_owner_mismatch' };
-    throw error;
-  }
+  return getDb().transaction(async (tx) => {
+    const existing = await existingPostIds(tx, [boostOf]);
+    if (!existing.has(boostOf)) {
+      return { ok: false, reason: 'unmaterialized_repost_subject' };
+    }
 
-  return { ok: true, kind: 'repost', id: rkey };
+    const owned = {
+      oxyUserId,
+      type: PostType.BOOST,
+      boostOf,
+      createdAt,
+      updatedAt: new Date(),
+    };
+
+    const [upserted] = await tx
+      .insert(posts)
+      .values({
+        id: rkey,
+        visibility: PostVisibility.PUBLIC,
+        status: 'published',
+        ...owned,
+      })
+      .onConflictDoUpdate({
+        target: posts.id,
+        set: owned,
+        setWhere: eq(posts.oxyUserId, oxyUserId),
+      })
+      .returning({ id: posts.id });
+
+    if (!upserted) return { ok: false, reason: 'record_owner_mismatch' };
+
+    await writeAuthorship(tx, rkey, oxyUserId);
+    // A boost has no rendition at all; the delete is what makes a re-projection
+    // over a former post row leave no stale body behind.
+    await writeVariants(tx, rkey, []);
+
+    return { ok: true, kind: 'repost', id: rkey };
+  });
 }
 
 /** Project an `app.mention.feed.bookmark` record into a `Bookmark` row (upsert). */
@@ -587,26 +790,23 @@ async function projectBookmark(
 ): Promise<ProjectResult> {
   const bookmarkedRkey = rkeyFromMtnUri(record.subject);
   if (!bookmarkedRkey) return { ok: false, reason: 'unresolvable_bookmark_subject' };
-  const postId = toObjectId(bookmarkedRkey);
-  if (!postId) return { ok: false, reason: 'invalid_bookmark_post_id' };
 
   await materializeEngagementRelationship({
     kind: 'bookmark',
     relationshipId: rkey,
     userId,
-    postId: postId.toHexString(),
+    postId: bookmarkedRkey,
   });
 
   return { ok: true, kind: 'bookmark', id: rkey };
 }
 
 /**
- * Project an `app.mention.feed.tombstone` record: soft-remove the row referenced
- * by `record.subject`. The codebase removes these by HARD delete (delete-post is
- * `Post.findOneAndDelete`, unlike is `Like.findOneAndDelete`, unsave is
- * `Bookmark.findOneAndDelete`), so the materializer mirrors that. The subject's
- * COLLECTION selects which model to delete from. Idempotent: removing an
- * already-removed row is a no-op (still `ok`).
+ * Project an `app.mention.feed.tombstone` record: remove the row referenced by
+ * `record.subject`. The codebase removes these by HARD delete (delete-post is a
+ * `findOneAndDelete`, unlike deletes the `Like`, unsave deletes the `Bookmark`),
+ * so the materializer mirrors that. The subject's COLLECTION selects which row to
+ * delete. Idempotent: removing an already-removed row is a no-op (still `ok`).
  */
 async function projectTombstone(
   record: MentionTombstoneRecord,
@@ -626,20 +826,17 @@ async function projectTombstone(
   if (subject.identity !== ownerOxyUserId) {
     return { ok: false, reason: 'tombstone_subject_owner_mismatch' };
   }
-  if (!toObjectId(rkey)) {
-    return { ok: false, reason: 'invalid_tombstone_record_id' };
-  }
 
   switch (subject.collection) {
     case MENTION_POST_COLLECTION:
     case MENTION_REPOST_COLLECTION: {
-      // A post or boost: delete the Post by id (mirrors delete-post's hard
-      // delete). The owner predicate prevents a valid chain for account A from
-      // deleting account B's post by guessing its rkey.
-      const deleted = await Post.findOneAndDelete({
-        _id: rkey,
-        oxyUserId: ownerOxyUserId,
-      });
+      // A post or boost: delete it by id. The owner predicate prevents a valid
+      // chain for account A from deleting account B's post by guessing its rkey.
+      // Child rows (authorship, variants, media, sources) cascade.
+      const [deleted] = await getDb()
+        .delete(posts)
+        .where(and(eq(posts.id, rkey), eq(posts.oxyUserId, ownerOxyUserId)))
+        .returning({ id: posts.id, parentPostId: posts.parentPostId });
       if (deleted) {
         await repairRecentRepliersAfterPostDelete({
           postId: rkey,
@@ -669,9 +866,9 @@ async function projectTombstone(
 
 /**
  * Project a VERIFIED `app.mention.feed.*` signed record into the feed-readable
- * Mongo store. Idempotent (keyed by `rkey`), zero-regression (field-scoped post
- * upsert preserves existing media), and NEVER throws — every failure is returned
- * as `{ ok: false, reason }`.
+ * store. Idempotent (keyed by `rkey`), zero-regression (the post upsert writes
+ * only owned fields and preserves existing media), and NEVER throws — every
+ * failure is returned as `{ ok: false, reason }`.
  *
  * The caller MUST pass a record whose signature/chain has already been verified
  * (by the protocol engine on the ingest/backfill side); this function validates

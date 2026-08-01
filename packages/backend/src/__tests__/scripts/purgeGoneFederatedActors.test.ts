@@ -1,20 +1,27 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import mongoose from 'mongoose';
+import { eq } from 'drizzle-orm';
 
 /**
- * Offline tests for the irreversible `purgeGoneFederatedActors` one-shot.
+ * Tests for the irreversible `purgeGoneFederatedActors` one-shot.
  *
- * Every model, `signedFetch`, `deleteFederatedActorIdentity`, `connectToDatabase`
- * and `mongoose.disconnect` are mocked so the REAL paging, re-verify gate, cascade
- * ORDER, and the partial-failure anchor-keeping run WITHOUT MongoDB or a network.
- * A shared `callLog` records the exact execution order of every destructive step so
- * the tests can assert:
+ * Every Mongo model, `signedFetch`, `deleteFederatedActorIdentity`,
+ * `connectToDatabase` and `mongoose.disconnect` are mocked so the REAL paging,
+ * re-verify gate, cascade ORDER, and the partial-failure anchor-keeping run
+ * WITHOUT MongoDB or a network. A shared `callLog` records the exact execution
+ * order of every destructive step so the tests can assert:
  *   - the full delete order (Mention refs → Oxy identity → FederatedActor anchor),
  *   - a re-verified-live (200) actor is NOT purged and its tombstone is cleared,
  *   - the Oxy identity delete runs AFTER all Mention refs and strictly BEFORE the
  *     FederatedActor anchor is dropped (and the anchor is the very last step),
  *   - a transient Oxy failure KEEPS the anchor (never orphans the Oxy user),
  *   - `--dry-run` performs zero destructive work.
+ *
+ * **The MTN chain rows are real.** They moved to Postgres, so a `callLog` entry
+ * could no longer stand in for them — and a purge that misses a user's signed
+ * chain leaves their whole history behind under an identity that no longer
+ * exists. Both directions are asserted against actual rows: a live run removes
+ * them, a `--dry-run` must not.
  */
 
 interface PostRow {
@@ -136,8 +143,6 @@ const h = vi.hoisted(() => {
     authorFollowerSnapshot: makeSimple('AuthorFollowerSnapshot'),
     actorKeyPair: makeSimple('ActorKeyPair'),
     mentionUserNode: makeSimple('MentionUserNode'),
-    mentionRepoHead: makeSimple('MentionRepoHead'),
-    mentionSignedRecord: makeSimple('MentionSignedRecord'),
     mentionNodeIngestWitness: makeSimple('MentionNodeIngestWitness'),
   };
 });
@@ -172,8 +177,6 @@ vi.mock('../../models/UserFeedPreference', () => ({ default: h.userFeedPreferenc
 vi.mock('../../models/AuthorFollowerSnapshot', () => ({ AuthorFollowerSnapshot: h.authorFollowerSnapshot }));
 vi.mock('../../models/ActorKeyPair', () => ({ default: h.actorKeyPair }));
 vi.mock('../../models/MentionUserNode', () => ({ default: h.mentionUserNode }));
-vi.mock('../../models/MentionRepoHead', () => ({ default: h.mentionRepoHead }));
-vi.mock('../../models/MentionSignedRecord', () => ({ default: h.mentionSignedRecord }));
 vi.mock('../../models/MentionNodeIngestWitness', () => ({ default: h.mentionNodeIngestWitness }));
 
 vi.mock('mongoose', async () => {
@@ -181,10 +184,49 @@ vi.mock('mongoose', async () => {
   return { ...actual, default: { ...actual.default, disconnect: vi.fn(async () => undefined) } };
 });
 
+import { closePostgres, connectPostgres, getDb } from '../../db/postgres';
+import { mentionRepoHeads, mentionSignedRecords } from '../../db/schema/mtn';
 import purgeGoneFederatedActors from '../../scripts/purgeGoneFederatedActors';
 import { DeletionPreflightError } from '../../scripts/lib/adminDeletionPreflight';
 
 const originalArgv = process.argv;
+/** The owner id `makeActor` defaults to — the chain rows below belong to it. */
+const CHAIN_OWNER = 'X';
+
+/** Seed one signed record + the chain head for {@link CHAIN_OWNER}. */
+async function seedChain(): Promise<void> {
+  await getDb().insert(mentionSignedRecords).values({
+    subjectDid: `did:web:oxy.so:u:${CHAIN_OWNER}`,
+    oxyUserId: CHAIN_OWNER,
+    type: 'app_record',
+    envelope: { version: 2, type: 'app_record', subject: `did:web:oxy.so:u:${CHAIN_OWNER}` } as never,
+    publicKey: '04abc',
+    verified: true,
+    seq: 0,
+    prev: null,
+    recordId: 'rid-purge-0',
+  });
+  await getDb().insert(mentionRepoHeads).values({
+    oxyUserId: CHAIN_OWNER,
+    subjectDid: `did:web:oxy.so:u:${CHAIN_OWNER}`,
+    seq: 0,
+    headRecordId: 'rid-purge-0',
+    recordCount: 1,
+  });
+}
+
+/** How many chain rows {@link CHAIN_OWNER} still has, as `[records, heads]`. */
+async function chainRowCounts(): Promise<[number, number]> {
+  const records = await getDb()
+    .select({ id: mentionSignedRecords.id })
+    .from(mentionSignedRecords)
+    .where(eq(mentionSignedRecords.oxyUserId, CHAIN_OWNER));
+  const heads = await getDb()
+    .select({ id: mentionRepoHeads.id })
+    .from(mentionRepoHeads)
+    .where(eq(mentionRepoHeads.oxyUserId, CHAIN_OWNER));
+  return [records.length, heads.length];
+}
 
 function makeActor(oxyUserId: string = 'X'): ActorRow {
   return {
@@ -211,9 +253,19 @@ function expectOrder(callLog: string[], labels: string[]): void {
   }
 }
 
-beforeEach(() => {
+beforeAll(async () => {
+  await connectPostgres();
+});
+
+afterAll(async () => {
+  await closePostgres();
+});
+
+beforeEach(async () => {
   vi.clearAllMocks();
   vi.stubEnv('CONFIRM_ADMIN_MUTATION', 'purgeGoneFederatedActors');
+  await getDb().delete(mentionSignedRecords).where(eq(mentionSignedRecords.oxyUserId, CHAIN_OWNER));
+  await getDb().delete(mentionRepoHeads).where(eq(mentionRepoHeads.oxyUserId, CHAIN_OWNER));
   h.callLog.length = 0;
   h.state.actors = [];
   h.state.authoredPosts = [];
@@ -225,10 +277,12 @@ beforeEach(() => {
   });
 });
 
-afterEach(() => {
+afterEach(async () => {
   process.argv = originalArgv;
   vi.unstubAllEnvs();
   vi.restoreAllMocks();
+  await getDb().delete(mentionSignedRecords).where(eq(mentionSignedRecords.oxyUserId, CHAIN_OWNER));
+  await getDb().delete(mentionRepoHeads).where(eq(mentionRepoHeads.oxyUserId, CHAIN_OWNER));
 });
 
 describe('purgeGoneFederatedActors', () => {
@@ -255,6 +309,16 @@ describe('purgeGoneFederatedActors', () => {
     // X's posts + their boosts are deleted before any follow edges are touched.
     expect(h.callLog.indexOf('Post.deleteMany')).toBeGreaterThanOrEqual(0);
     expect(h.callLog.indexOf('Post.deleteMany')).toBeLessThan(h.callLog.indexOf('FederatedFollow'));
+  });
+
+  it("removes the purged owner's signed chain and its head", async () => {
+    h.state.actors = [makeActor(CHAIN_OWNER)];
+    await seedChain();
+    expect(await chainRowCounts()).toEqual([1, 1]);
+
+    await run();
+
+    expect(await chainRowCounts()).toEqual([0, 0]);
   });
 
   it('drops the FederatedActor anchor LAST, strictly AFTER a confirmed Oxy identity delete', async () => {
@@ -335,14 +399,17 @@ describe('purgeGoneFederatedActors', () => {
   });
 
   it('--dry-run performs ZERO destructive work (no delete, no tombstone clear, no oxy-api call)', async () => {
-    h.state.actors = [makeActor('X')];
+    h.state.actors = [makeActor(CHAIN_OWNER)];
     h.state.authoredPosts = [{ _id: new mongoose.Types.ObjectId() }];
     h.state.boostPosts = [{ _id: new mongoose.Types.ObjectId() }];
+    await seedChain();
 
     await run(['--dry-run']);
 
     // No deleteMany / updateMany / deleteOne / updateOne ever executed.
     expect(h.callLog).toEqual([]);
+    // …and the chain rows a live run would remove are still there.
+    expect(await chainRowCounts()).toEqual([1, 1]);
     expect(h.oxyDelete).not.toHaveBeenCalled();
     expect(h.federatedActor.deleteOne).not.toHaveBeenCalled();
     expect(h.federatedActor.updateOne).not.toHaveBeenCalled();

@@ -1,4 +1,5 @@
 import type { Types } from 'mongoose';
+import { eq } from 'drizzle-orm';
 import { Post } from '../../models/Post';
 import Like from '../../models/Like';
 import Bookmark from '../../models/Bookmark';
@@ -34,9 +35,9 @@ import UserFeedPreference from '../../models/UserFeedPreference';
 import { AuthorFollowerSnapshot } from '../../models/AuthorFollowerSnapshot';
 import ActorKeyPair from '../../models/ActorKeyPair';
 import MentionUserNode from '../../models/MentionUserNode';
-import MentionRepoHead from '../../models/MentionRepoHead';
-import MentionSignedRecord from '../../models/MentionSignedRecord';
 import MentionNodeIngestWitness from '../../models/MentionNodeIngestWitness';
+import { getDb } from '../../db/postgres';
+import { mentionRepoHeads, mentionSignedRecords } from '../../db/schema/mtn';
 
 export interface ReferenceProbe {
   name: string;
@@ -527,13 +528,30 @@ function actorReferenceProbes(
         name: 'MentionUserNode.oxyUserId',
         hasReference: () => exists(MentionUserNode.exists({ oxyUserId })),
       },
+      // The MTN chain moved to Postgres, so these two probes are `SELECT … LIMIT 1`
+      // rather than a Mongoose `exists`. The probe NAME follows the storage: a
+      // blocker message has to name something an operator can go and look at.
       {
-        name: 'MentionRepoHead.oxyUserId',
-        hasReference: () => exists(MentionRepoHead.exists({ oxyUserId })),
+        name: 'mention_repo_heads.oxy_user_id',
+        hasReference: async () => {
+          const [row] = await getDb()
+            .select({ id: mentionRepoHeads.id })
+            .from(mentionRepoHeads)
+            .where(eq(mentionRepoHeads.oxyUserId, oxyUserId))
+            .limit(1);
+          return row !== undefined;
+        },
       },
       {
-        name: 'MentionSignedRecord.oxyUserId',
-        hasReference: () => exists(MentionSignedRecord.exists({ oxyUserId })),
+        name: 'mention_signed_records.oxy_user_id',
+        hasReference: async () => {
+          const [row] = await getDb()
+            .select({ id: mentionSignedRecords.id })
+            .from(mentionSignedRecords)
+            .where(eq(mentionSignedRecords.oxyUserId, oxyUserId))
+            .limit(1);
+          return row !== undefined;
+        },
       },
       {
         name: 'MentionNodeIngestWitness.oxyUserId',

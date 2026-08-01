@@ -1,3 +1,4 @@
+import { closePostgres } from '../../db/postgres';
 import { closeQueues } from '../../queue/queues';
 import { closeQueueConnection } from '../../queue/connection';
 import { closeRedisConnection } from '../../utils/redis';
@@ -6,12 +7,18 @@ import { closeRedisConnection } from '../../utils/redis';
  * Close the lazily-created producer resources an administrative script may have
  * opened through federation/media services. Queue handles must close before
  * their shared ioredis connection. Every function is safe when never initialized.
+ *
+ * `closePostgres` is unconditional for the same reason: a one-shot Fargate task
+ * that leaves an open postgres.js pool never exits, and a script cannot be
+ * trusted to remember which of its transitive services opened one. It is a no-op
+ * when nothing connected.
  */
 export async function closeAdminScriptResources(): Promise<void> {
   await closeQueues();
   await Promise.all([
     closeQueueConnection(),
     closeRedisConnection(),
+    closePostgres(),
   ]);
 }
 
