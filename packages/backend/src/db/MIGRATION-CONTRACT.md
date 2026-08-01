@@ -66,22 +66,42 @@ contract (`middleware/validate.ts` `validateObjectId`, the poll routes), use a
 check that accepts BOTH live id shapes.
 
 **Audit each site — several branch on the result rather than merely rejecting,
-and some FAIL OPEN.** The full inventory is in the migration report; the ones
-that matter:
+and some FAIL OPEN.** The full inventory is in the migration report.
 
-- **`services/moderation/ModerationEnforcementService.ts:77`** — `loadPostState`
-  returns `null` for a non-ObjectId id, and the caller answers
-  `"The reported post no longer exists"`. Every CrowdSource enforcement action
-  becomes a silent no-op **with a plausible-looking reason in the audit log**.
-  This is the closest analogue of the oxy-api `mediaPrivacyService` bug.
-- **`services/LabelService.ts:189`** — a subscribed labeler whose id is not
-  24-hex is dropped from the viewer's effective label set with no log, so their
-  hide/warn/blur preferences stop applying.
-- **`utils/feedQueryBuilder.ts:135` and `:235`** — both drop label filters and
-  then return "nothing hidden". Currently DEAD code; fix or delete before it is
-  revived into a non-ObjectId world.
-- **`services/ContentAffinityService.ts:781`** — the doc comment describes an
+`db/ids.ts` `isLiveEntityId` is the ONLY place either id shape is spelled out,
+and it exists for the documented-400 case alone (`middleware/validate.ts`
+`validateObjectId`, which now accepts both). Reaching for it as a precondition on
+a QUERY re-introduces the fail-open bug in a new costume.
+
+The four fail-open sites, all closed by the query phase's batch 0:
+
+- **`services/moderation/ModerationEnforcementService.ts`** — `loadPostState`
+  returned `null` for a non-ObjectId id, and the caller answers
+  `"The reported post no longer exists"`, so every CrowdSource enforcement became
+  a silent no-op **with a plausible-looking reason in the audit log**. The
+  closest analogue of the oxy-api `mediaPrivacyService` bug. Guard deleted, file
+  ported to Drizzle, suite rebuilt against real rows.
+- **`services/LabelService.ts`** — a subscribed labeler whose id was not 24-hex
+  was dropped from the viewer's effective label set with no log, so their
+  hide/warn/blur preferences stopped applying. Guard deleted; `LabelService` and
+  `routes/labeler.routes.ts` ported together (one request path may not span two
+  stores). **`getUserEffectiveLabels` still has no callers** — nothing applies a
+  label to any feed, so the guard's consequence was masked by a larger gap.
+- **`utils/feedQueryBuilder.ts`** — `applyLabelFiltering` and the
+  `excludePostIds` filter both dropped label filters and then returned "nothing
+  hidden". Verified dead repo-wide (no caller, no producer) and DELETED. Only
+  `buildVideosQuery` and `buildMediaFeedQuery` are reachable from production;
+  the rest of that class is dead but guard-free.
+- **`services/ContentAffinityService.ts`** — the doc comment described an
   `isValid` guard that **was never written**. Do not audit this file by comment.
+  Comment corrected; the file's queries belong to the feed/ranking batch, which
+  must also fix what the comment concealed: one malformed id in the `$in` throws
+  a `CastError` that the `catch` turns into a whole EMPTY batch, not a skipped id.
+
+Not a fail-open guard, checked and left alone: `services/MediaMetadataService.ts`
+`isOxyFileId` is a DISCRIMINATOR (Oxy file id vs. a raw federated URL) whose
+shape belongs to **oxy-api**, a different service still on Mongo — it must NOT
+widen to uuid v7 with Mention's own ids.
 
 ## Production safety
 

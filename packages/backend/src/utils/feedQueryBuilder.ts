@@ -6,7 +6,6 @@
 
 import { FeedType, PostType, PostVisibility, MtnConfig } from '@mention/shared-types';
 import mongoose from 'mongoose';
-import { ContentLabel } from '../models/ContentLabel';
 import { parseFeedCursor } from './feedUtils';
 import { notAReplyClause, restrictToReplies, restrictToRoots } from './postReply';
 
@@ -106,53 +105,6 @@ export class FeedQueryBuilder {
   }
   
   /**
-   * Apply label filtering to exclude posts that match the caller's hidden label subscriptions.
-   * Returns sets of post IDs grouped by the action that should be taken on them.
-   */
-  /** Merge a $nin exclusion into the query's _id filter, creating $and if needed */
-  private static excludeIds(query: Record<string, unknown>, ids: string[]): void {
-    if (ids.length === 0) return;
-    const existing = query._id;
-    if (existing && typeof existing === 'object') {
-      if (!Array.isArray(query.$and)) {
-        query.$and = [];
-      }
-      (query.$and as unknown[]).push({ _id: { $nin: ids } });
-    } else {
-      query._id = { $nin: ids };
-    }
-  }
-
-  static async applyLabelFiltering(
-    query: Record<string, unknown>,
-    hiddenLabelFilters: Array<{ labelerId: string; labelSlug: string }>
-  ): Promise<{ hiddenPostIds: string[]; warnPostIds: string[]; blurPostIds: string[] }> {
-    const empty = { hiddenPostIds: [], warnPostIds: [], blurPostIds: [] };
-    if (!hiddenLabelFilters || hiddenLabelFilters.length === 0) return empty;
-
-    // Build $or conditions for each (labelerId, labelSlug) pair
-    const orConditions = hiddenLabelFilters
-      .filter(f => mongoose.Types.ObjectId.isValid(f.labelerId))
-      .map(f => ({
-        labelerId: new mongoose.Types.ObjectId(f.labelerId),
-        labelSlug: f.labelSlug,
-      }));
-
-    if (orConditions.length === 0) return empty;
-
-    const matchingLabels = await ContentLabel.find({
-      targetType: 'post',
-      $or: orConditions,
-    }, { targetId: 1, _id: 0 }).limit(200).lean();
-
-    const hiddenPostIds = matchingLabels.map((l) => String(l.targetId));
-
-    this.excludeIds(query, hiddenPostIds);
-
-    return { hiddenPostIds, warnPostIds: [], blurPostIds: [] };
-  }
-
-  /**
    * Apply filters to query
    */
   private static applyFilters(
@@ -227,14 +179,6 @@ export class FeedQueryBuilder {
     // Parent post filter (for fetching replies to a specific post)
     if (filters.parentPostId) {
       query.parentPostId = String(filters.parentPostId);
-    }
-
-    // Exclude specific post IDs (e.g. label-filtered posts)
-    if (filters.excludePostIds) {
-      const ids = Array.isArray(filters.excludePostIds)
-        ? (filters.excludePostIds as string[]).filter(id => mongoose.Types.ObjectId.isValid(id))
-        : [];
-      this.excludeIds(query, ids);
     }
 
     // Keywords filter

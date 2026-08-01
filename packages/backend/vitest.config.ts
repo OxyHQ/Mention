@@ -64,10 +64,10 @@ export default defineConfig({
         // full the moment it is imported, so ~2,500 lines of declarations joined
         // the numerator. Leaving the old floors would have handed the suite
         // three points of silent headroom a real regression could hide in.
-        statements: 63.77,
-        branches: 56.82,
-        functions: 68.43,
-        lines: 65.06,
+        statements: 64.19,
+        branches: 57.14,
+        functions: 69.05,
+        lines: 65.47,
         'src/services/PostEngagementCommandService.ts': {
           statements: 95.62,
           branches: 91.07,
@@ -127,10 +127,10 @@ export default defineConfig({
           lines: 80.23,
         },
         'src/services/moderation/ModerationEnforcementService.ts': {
-          statements: 76.11,
-          branches: 58.49,
+          statements: 82.35,
+          branches: 68.75,
           functions: 100,
-          lines: 76.92,
+          lines: 82.08,
         },
         'src/services/moderation/enforcementPlan.ts': {
           statements: 86.84,
@@ -143,6 +143,15 @@ export default defineConfig({
           branches: 78.57,
           functions: 100,
           lines: 96.87,
+        },
+        // The labels feature. Pinned for the same reason as the moderation files
+        // above: its failure mode is a viewer's hide/warn/blur silently ceasing
+        // to apply, which no request ever reports as an error.
+        'src/services/LabelService.ts': {
+          statements: 96.15,
+          branches: 78.33,
+          functions: 100,
+          lines: 100,
         },
         'src/services/moderation/reportStatus.ts': {
           statements: 100,

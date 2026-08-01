@@ -1,10 +1,9 @@
 import { Router, type Response } from 'express';
 import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
 import { z } from 'zod';
-import mongoose from 'mongoose';
+import { isUniqueViolation } from '../db/pgErrors';
 import { validateBody, validateObjectId } from '../middleware/validate';
-import { LabelService } from '../services/LabelService';
-import UserSettings, { type LabelAction } from '../models/UserSettings';
+import { LabelService, type LabelActionPreference } from '../services/LabelService';
 import { logger } from '../utils/logger';
 
 const router = Router();
@@ -49,19 +48,16 @@ router.get('/', async (req: AuthRequest, res: Response) => {
     if (!userId) return res.status(401).json({ error: 'Authentication required' });
 
     const search = typeof req.query.search === 'string' ? req.query.search : undefined;
-    const [labelers, settings] = await Promise.all([
+    const [labelers, subscribedIds] = await Promise.all([
       LabelService.getLabelers(search ? { search } : undefined),
-      UserSettings.findOne({ oxyUserId: userId }, { 'privacy.labelPreferences.subscribedLabelers': 1 }).lean(),
+      LabelService.getSubscribedLabelerIds(userId),
     ]);
 
-    const subscribedSet = new Set<string>(
-      settings?.privacy?.labelPreferences?.subscribedLabelers ?? []
-    );
-
-    const items = labelers.map((l) => {
-      const id = String(l._id);
-      return { ...l, id, isSubscribed: subscribedSet.has(id) };
-    });
+    const subscribedSet = new Set<string>(subscribedIds);
+    const items = labelers.map((labeler) => ({
+      ...labeler,
+      isSubscribed: subscribedSet.has(labeler.id),
+    }));
 
     res.json({ items, total: items.length });
   } catch (error) {
@@ -87,8 +83,7 @@ router.post('/', validateBody(createLabelerSchema), async (req: AuthRequest, res
       labelDefinitions,
     });
 
-    const result = { ...labeler.toObject(), id: String(labeler._id) };
-    res.status(201).json(result);
+    res.status(201).json(labeler);
   } catch (error) {
     logger.error('[Labelers] Create labeler error:', { userId: req.user?.id, error, body: req.body });
     res.status(500).json({ error: 'Failed to create labeler' });
@@ -122,16 +117,15 @@ router.get('/content/:type/:id', async (req: AuthRequest, res: Response) => {
 // DELETE /labels/:id — remove a content label
 // (placed before /:id to avoid route shadowing)
 // ---------------------------------------------------------------------------
-router.delete('/labels/:id', async (req: AuthRequest, res: Response) => {
+// The hand-rolled `ObjectId.isValid` 400 this route used to carry is now the
+// shared `validateObjectId`, same as every other id param here — it keeps the
+// documented 400 while accepting both live id shapes.
+router.delete('/labels/:id', validateObjectId('id'), async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ error: 'Authentication required' });
 
     const labelId = String(req.params.id);
-    if (!mongoose.Types.ObjectId.isValid(labelId)) {
-      return res.status(400).json({ error: 'Invalid label id' });
-    }
-
     await LabelService.removeLabel(labelId, userId);
     res.json({ success: true });
   } catch (error: unknown) {
@@ -144,31 +138,18 @@ router.delete('/labels/:id', async (req: AuthRequest, res: Response) => {
 });
 
 // ---------------------------------------------------------------------------
-// PUT /preferences — update label action preferences in UserSettings
+// PUT /preferences — replace label action overrides for the labelers named
 // ---------------------------------------------------------------------------
 router.put('/preferences', validateBody(updatePreferencesSchema), async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ error: 'Authentication required' });
 
-    const { labelActions } = req.body;
-
-    // Merge incoming actions per-labeler instead of replacing the entire array.
-    // Build a map keyed by "labelerId:labelSlug" so new entries override old ones
-    // while preserving actions for labelers not included in this request.
-    const settings = await UserSettings.findOne({ oxyUserId: userId }).lean();
-    const existing: LabelAction[] = settings?.privacy?.labelPreferences?.labelActions ?? [];
-
-    const incomingLabelerIds = new Set<string>(labelActions.map((a: LabelAction) => a.labelerId));
-    // Keep actions for labelers NOT in the incoming payload
-    const kept = existing.filter((a) => !incomingLabelerIds.has(a.labelerId));
-    const merged = [...kept, ...labelActions];
-
-    await UserSettings.findOneAndUpdate(
-      { oxyUserId: userId },
-      { $set: { 'privacy.labelPreferences.labelActions': merged } },
-      { upsert: true, new: true }
-    );
+    // Per-labeler REPLACE, not a whole-array rewrite: overrides for labelers this
+    // request does not name are left exactly as they are. The read-merge-write the
+    // Mongo version used lost one of two concurrent saves.
+    const labelActions: LabelActionPreference[] = req.body.labelActions;
+    await LabelService.setLabelActions(userId, labelActions);
 
     res.json({ success: true });
   } catch (error) {
@@ -186,17 +167,13 @@ router.get('/:id', validateObjectId('id'), async (req: AuthRequest, res: Respons
     if (!userId) return res.status(401).json({ error: 'Authentication required' });
 
     const labelerId = String(req.params.id);
-    const [labeler, settingsDoc] = await Promise.all([
+    const [labeler, subscribedIds] = await Promise.all([
       LabelService.getLabelerById(labelerId),
-      UserSettings.findOne({ oxyUserId: userId }, { 'privacy.labelPreferences.subscribedLabelers': 1 }).lean(),
+      LabelService.getSubscribedLabelerIds(userId),
     ]);
     if (!labeler) return res.status(404).json({ error: 'Labeler not found' });
 
-    const subscribedList: string[] = settingsDoc?.privacy?.labelPreferences?.subscribedLabelers ?? [];
-    const isSubscribed = subscribedList.includes(labelerId);
-
-    const id = String(labeler._id);
-    res.json({ ...labeler, id, isSubscribed });
+    res.json({ ...labeler, isSubscribed: subscribedIds.includes(labelerId) });
   } catch (error) {
     logger.error('[Labelers] Get labeler error:', { userId: req.user?.id, labelerId: req.params.id, error });
     res.status(500).json({ error: 'Failed to get labeler' });
@@ -265,14 +242,17 @@ router.post('/:id/labels', validateObjectId('id'), validateBody(applyLabelSchema
       reason,
     });
 
-    const result = { ...label.toObject(), id: String(label._id) };
-    res.status(201).json(result);
+    res.status(201).json(label);
   } catch (error) {
     logger.error('[Labelers] Apply label error:', { userId: req.user?.id, labelerId: req.params.id, error, body: req.body });
-    const err = error as { message?: string; code?: number };
-    if (err?.message?.includes('does not exist in this labeler')) return res.status(400).json({ error: err.message });
-    if (err?.message === 'Labeler not found') return res.status(404).json({ error: err.message });
-    if (err?.code === 11000) return res.status(409).json({ error: 'Label already applied' });
+    const message = error instanceof Error ? error.message : '';
+    if (message.includes('does not exist in this labeler')) return res.status(400).json({ error: message });
+    if (message === 'Labeler not found') return res.status(404).json({ error: message });
+    // NAMED: this route answers 409 for "already applied" and nothing else. A
+    // bare 23505 check would report any future unique index as a duplicate label.
+    if (isUniqueViolation(error, 'content_labels_labeler_target_slug_key')) {
+      return res.status(409).json({ error: 'Label already applied' });
+    }
     res.status(500).json({ error: 'Failed to apply label' });
   }
 });

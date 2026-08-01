@@ -779,8 +779,19 @@ export class ContentAffinityService {
   }
 
   /**
-   * Resolve a batch of post ids to their author oxyUserIds in one query. Ignores
-   * ids that are not valid ObjectIds or whose post has no author.
+   * Resolve a batch of post ids to their author oxyUserIds in one query. A post
+   * that is absent, unpublished, non-public or has no author is simply not in
+   * the returned map.
+   *
+   * **This performs no id-shape validation, whatever an earlier version of this
+   * comment claimed.** It said "Ignores ids that are not valid ObjectIds" and no
+   * such check was ever written — a description of a guard is not a guard, and
+   * auditing this file by its comments is how that went unnoticed. The real
+   * behaviour under Mongoose is worse than the comment: ONE malformed id in the
+   * batch makes the whole `$in` throw a `CastError`, and the `catch` below
+   * discards every author in the batch, not just the bad one. Still to be fixed
+   * by the batch that ports this file's queries — a `text` id there matches no
+   * row and the "ignores" the comment promised becomes true for free.
    */
   private async resolvePostAuthors(postIds: string[]): Promise<Map<string, string>> {
     const map = new Map<string, string>();

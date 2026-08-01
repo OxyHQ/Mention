@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import type { Request, Response, NextFunction } from 'express';
 import mongoose from 'mongoose';
+import { uuidv7 } from '../../db/schema/columns';
 import { validateBody, validateObjectId, schemas } from '../../middleware/validate';
 import { ErrorCodes } from '../../utils/apiResponse';
 
@@ -227,5 +228,36 @@ describe('validateObjectId middleware', () => {
     expect(res.status).toHaveBeenCalledWith(400);
     const body = getJsonBody(res) as { error: { message: string } };
     expect(body.error.message).toContain('postId');
+  });
+
+  it('accepts a uuid v7, the id shape every row created after the cutover has', () => {
+    /**
+     * A 24-hex-only check here is not fail-open, it is fail-CLOSED — and total:
+     * every route behind it (`/labelers/:id`, `/custom-feeds/:id`,
+     * `/mute-words/:id`) would 400 for every entity created after the cutover,
+     * before any handler runs.
+     */
+    const req = makeReq({}, { id: uuidv7() });
+    const res = makeRes();
+    const next = makeNext();
+
+    validateObjectId('id')(req, res, next);
+
+    expect(next).toHaveBeenCalledOnce();
+    expect(res.status).not.toHaveBeenCalled();
+  });
+
+  it('still rejects a shape neither store ever produced', () => {
+    /**
+     * The vacuity floor for the case above: widening to two shapes must not
+     * degrade into accepting anything. A v4 UUID is the sharp case — nothing in
+     * this schema generates one, so it names no row and is a client error.
+     */
+    for (const id of ['not-an-id', '', '123', 'f47ac10b-58cc-4372-a567-0e02b2c3d479']) {
+      const res = makeRes();
+      const next = makeNext();
+      validateObjectId('id')(makeReq({}, { id }), res, next);
+      expect(next, `expected ${JSON.stringify(id)} to be rejected`).not.toHaveBeenCalled();
+    }
   });
 });
