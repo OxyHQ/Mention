@@ -446,6 +446,17 @@ export const postClassificationTopicRefs = pgTable(
 );
 
 /**
+ * How many repliers the projection keeps per post.
+ *
+ * Lives next to the table it constrains and is the ONE declaration of the cap:
+ * `PostRecentReplierService` enforces it on write and honours it on read, and
+ * the (now write-dead) Mongoose model's array validator reads it from here. A
+ * CHECK cannot count sibling rows, so this is application-enforced by necessity
+ * rather than by preference — which is exactly why it must not exist twice.
+ */
+export const POST_RECENT_REPLIER_LIMIT = 3;
+
+/**
  * `post_recent_repliers` — the ≤3 most recent distinct repliers, per post.
  *
  * Mongo kept one document per post holding an ORDERED array with a `≤3`
@@ -453,9 +464,6 @@ export const postClassificationTopicRefs = pgTable(
  * (`buildRecentReplierUpdatePipeline`). Here it is one ROW per (post, replier)
  * with the cap enforced by the writer, because the pipeline existed only to
  * splice an array in place — a thing Postgres never needs to do.
- *
- * `POST_RECENT_REPLIER_LIMIT` stays the application's constant; a CHECK cannot
- * count sibling rows.
  */
 export const postRecentRepliers = pgTable(
   'post_recent_repliers',

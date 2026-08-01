@@ -1,5 +1,8 @@
+import { asc, eq, sql } from 'drizzle-orm';
 import type { PostAuthorshipEntry } from '@mention/shared-types';
 import { federateAsResolvedActorAndWait } from '../connectors/outboundFederation';
+import { getDb } from '../db/postgres';
+import { postAuthorships } from '../db/schema/postContent';
 import {
   bookmarkRecordUri,
   emitBookmarkCreatedStrict,
@@ -17,6 +20,53 @@ import { logger } from '../utils/logger';
 const DISPATCH_INTERVAL_MS = 1_000;
 const DISPATCH_BATCH_SIZE = 100;
 
+/**
+ * The post's authorship, read at DELIVERY time.
+ *
+ * `engagement_outbox` used to carry a `postAuthorship` snapshot taken when the
+ * event was emitted — a `Mixed` array Mongo could not otherwise join to. The
+ * column is dropped: it is reconstructible from `post_authorships`, which is the
+ * authority the rest of the codebase already reads.
+ *
+ * The behaviour change is real and intended. A collaborator who accepted between
+ * the like and its delivery now receives the notification, and one who was
+ * removed does not — where the snapshot would have answered with the membership
+ * as it stood seconds earlier. Neither answer is more correct in the abstract;
+ * this one cannot go stale, and it cannot disagree with the byline the reader
+ * sees on the post.
+ *
+ * Ordered owner-first, then by user id. The array Mongo carried was owner-first
+ * (`buildAuthorship`), and a child table has no inherent order, so this restores
+ * the familiar shape and makes the result deterministic. It is NOT load-bearing:
+ * `getNotificationRecipients` finds the owner by predicate, never by position.
+ */
+async function loadPostAuthorship(postId: string): Promise<PostAuthorshipEntry[]> {
+  const rows = await getDb()
+    .select({
+      oxyUserId: postAuthorships.oxyUserId,
+      role: postAuthorships.role,
+      status: postAuthorships.status,
+      invitedAt: postAuthorships.invitedAt,
+      respondedAt: postAuthorships.respondedAt,
+    })
+    .from(postAuthorships)
+    .where(eq(postAuthorships.postId, postId))
+    .orderBy(
+      sql`case when ${postAuthorships.role} = 'owner' then 0 else 1 end`,
+      asc(postAuthorships.oxyUserId),
+    );
+
+  return rows.map((row) => ({
+    oxyUserId: row.oxyUserId,
+    role: row.role,
+    status: row.status,
+    // `PostAuthorshipEntry` carries these as ISO strings and OMITS them when
+    // absent; drizzle hands back `null`, which is not the same thing.
+    ...(row.invitedAt ? { invitedAt: row.invitedAt.toISOString() } : {}),
+    ...(row.respondedAt ? { respondedAt: row.respondedAt.toISOString() } : {}),
+  }));
+}
+
 async function deliverFederatedLike(
   event: EngagementOutboxEvent,
   kind: 'post.like' | 'post.unlike',
@@ -25,7 +75,7 @@ async function deliverFederatedLike(
   const { actorOxyUserId, postId, relationshipId } = event.payload;
   await federateAsResolvedActorAndWait(
     actorOxyUserId,
-    `${kind} outbox ${event._id}`,
+    `${kind} outbox ${event.id}`,
     (username) => ({
       kind,
       like: { _id: relationshipId, postId },
@@ -49,11 +99,10 @@ export async function handleEngagementOutboxEvent(
     postId,
     relationshipId,
     postOwnerOxyUserId,
-    postAuthorship,
     previousValue,
   } = event.payload;
   const mtnEventIdentity = {
-    idempotencyKey: event._id,
+    idempotencyKey: event.id,
     issuedAt: event.createdAt,
   };
 
@@ -66,15 +115,12 @@ export async function handleEngagementOutboxEvent(
         likedPostOwnerOxyUserId: postOwnerOxyUserId,
         ...mtnEventIdentity,
       });
-      await createPostAuthorNotificationsStrict(
-        postAuthorship as PostAuthorshipEntry[] | undefined,
-        {
-          actorId: actorOxyUserId,
-          type: 'like',
-          entityId: postId,
-          entityType: 'post',
-        },
-      );
+      await createPostAuthorNotificationsStrict(await loadPostAuthorship(postId), {
+        actorId: actorOxyUserId,
+        type: 'like',
+        entityId: postId,
+        entityType: 'post',
+      });
       await deliverFederatedLike(event, 'post.like');
       return;
 

@@ -1,8 +1,8 @@
 import type mongoose from 'mongoose';
+import { POST_RECENT_REPLIER_LIMIT } from '../db/schema/postContent';
 import {
   POST_RECENT_REPLIER_COLLECTION,
   POST_RECENT_REPLIER_INDEX,
-  POST_RECENT_REPLIER_LIMIT,
   type RecentReplierEntry,
 } from '../models/PostRecentReplier';
 import { logger } from '../utils/logger';

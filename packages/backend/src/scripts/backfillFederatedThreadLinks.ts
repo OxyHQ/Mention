@@ -43,10 +43,9 @@ import {
   closeAdminScriptResources,
 } from './lib/adminScriptLifecycle';
 import {
-  PostRecentReplier,
-  type IPostRecentReplier,
-} from '../models/PostRecentReplier';
-import { buildRecentReplierUpdatePipeline } from '../services/PostRecentReplierService';
+  recordRecentReplierForPost,
+  type RecentReplyLike,
+} from '../services/PostRecentReplierService';
 
 /** Posts scanned per page (stable `_id` cursor pagination). */
 const PAGE_SIZE = 500;
@@ -106,20 +105,27 @@ async function backfillFederatedThreadLinks(): Promise<void> {
     let malformed = 0;
     let lastId: mongoose.Types.ObjectId | null = null;
     let pendingOps: mongoose.AnyBulkWriteOperation<typeof Post>[] = [];
-    let pendingProjectionOps: mongoose.AnyBulkWriteOperation<IPostRecentReplier>[] = [];
+    /**
+     * Newly-linked replies whose parent's avatar projection has to learn about
+     * them. It is no longer a Mongo `bulkWrite`: `post_recent_repliers` is a
+     * Postgres table now, and `recordRecentReplierForPost` is its only writer —
+     * the projection has exactly one authority and this script must not become a
+     * second one. Fail-soft, per reply, exactly as the live reply paths are.
+     */
+    let pendingProjectionReplies: RecentReplyLike[] = [];
 
     const flush = async (): Promise<void> => {
       if (pendingOps.length === 0 || DRY_RUN) {
         pendingOps = [];
-        pendingProjectionOps = [];
+        pendingProjectionReplies = [];
         return;
       }
       await Post.bulkWrite(pendingOps, { ordered: false });
-      if (pendingProjectionOps.length > 0) {
-        await PostRecentReplier.bulkWrite(pendingProjectionOps, { ordered: false });
+      for (const reply of pendingProjectionReplies) {
+        await recordRecentReplierForPost(reply);
       }
       pendingOps = [];
-      pendingProjectionOps = [];
+      pendingProjectionReplies = [];
     };
 
     for (;;) {
@@ -174,16 +180,12 @@ async function backfillFederatedThreadLinks(): Promise<void> {
           (post.visibility ?? 'public') === 'public' &&
           (post.status ?? 'published') === 'published'
         ) {
-          pendingProjectionOps.push({
-            updateOne: {
-              filter: { postId: link.parentPostId },
-              update: buildRecentReplierUpdatePipeline(
-                link.parentPostId,
-                post.oxyUserId,
-                post.createdAt ?? new Date(),
-              ),
-              upsert: true,
-            },
+          pendingProjectionReplies.push({
+            parentPostId: link.parentPostId,
+            oxyUserId: post.oxyUserId,
+            createdAt: post.createdAt ?? new Date(),
+            visibility: post.visibility,
+            status: post.status,
           });
         }
 

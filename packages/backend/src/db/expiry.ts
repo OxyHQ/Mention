@@ -158,10 +158,16 @@ export const EXPIRY_SWEEP_TARGETS: readonly ExpirySweepTarget[] = [
       'predicate is the deadline alone, not the status, so a `pending` event ' +
       'whose dispatcher has been stalled for the whole retention window is ' +
       'destroyed rather than retried, and the like/save it represents never ' +
-      'reaches MTN, federation or notifications. `models/EngagementOutbox.ts` ' +
-      'states this is deliberate ("operational alerts must fire well before ' +
-      'this deadline"); the alerting is what makes it safe, so the sweep must ' +
-      'not be scheduled into an environment that lacks it.',
+      'reaches MTN, federation or notifications. The Mongoose model stated ' +
+      'this is deliberate ("operational alerts must fire well before this ' +
+      'deadline"), and the alerting is what makes it safe. THAT ALERTING DOES ' +
+      'NOT EXIST: there is no engagement-outbox metric in `utils/metrics.ts` ' +
+      '(so nothing is exported for `GET /internal/metrics` to serve), and ' +
+      'oxy-infra defines no CloudWatch alarm, scraper or notification target ' +
+      'for this or anything else. Until a backlog-age signal exists and is ' +
+      'wired to somewhere a human reads, scheduling this sweep converts a ' +
+      'stalled dispatcher from a recoverable incident into silent, permanent ' +
+      'data loss. Sweep every other table; leave this one unscheduled.',
   },
 ];
 

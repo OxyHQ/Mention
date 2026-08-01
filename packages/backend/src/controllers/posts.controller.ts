@@ -1780,7 +1780,7 @@ export const likePost = async (req: AuthRequest, res: Response) => {
     const result = await votePostCommand({ userId, postId, value, source: surface });
 
     if (result.changed && result.likeId && value === 1) {
-      const postOwnerId = result.post.oxyUserId?.toString?.();
+      const postOwnerId = result.post.oxyUserId;
       if (postOwnerId) {
         void affinityEventService
           .record({
@@ -1807,8 +1807,8 @@ export const likePost = async (req: AuthRequest, res: Response) => {
           ? value === 1 ? 'Post liked successfully' : 'Post downvoted successfully'
           : 'Vote switched successfully'
         : 'Vote unchanged',
-      likesCount: result.post.stats?.likesCount ?? 0,
-      downvotesCount: result.post.stats?.downvotesCount ?? 0,
+      likesCount: result.post.statsLikesCount,
+      downvotesCount: result.post.statsDownvotesCount,
       liked: value === 1,
       downvoted: value === -1
     });
@@ -1834,8 +1834,8 @@ export const unlikePost = async (req: AuthRequest, res: Response) => {
 
     res.json({
       message: result.changed ? 'Vote removed successfully' : 'No vote to remove',
-      likesCount: result.post.stats?.likesCount ?? 0,
-      downvotesCount: result.post.stats?.downvotesCount ?? 0,
+      likesCount: result.post.statsLikesCount,
+      downvotesCount: result.post.statsDownvotesCount,
       liked: false,
       downvoted: false
     });
@@ -1871,7 +1871,7 @@ export const savePost = async (req: AuthRequest, res: Response) => {
 
     res.json({
       message: result.changed ? 'Post saved successfully' : 'Post already saved',
-      savesCount: result.post.stats?.savesCount ?? 0,
+      savesCount: result.post.statsSavesCount,
     });
   } catch (error) {
     if (error instanceof EngagementPostNotFoundError) {
@@ -1896,7 +1896,7 @@ export const unsavePost = async (req: AuthRequest, res: Response) => {
     // Durable MTN side effects are delivered by the transactional outbox.
     res.json({
       message: result.changed ? 'Post unsaved successfully' : 'Post not saved',
-      savesCount: result.post.stats?.savesCount ?? 0,
+      savesCount: result.post.statsSavesCount,
     });
   } catch (error) {
     if (error instanceof EngagementPostNotFoundError) {

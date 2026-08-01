@@ -1,6 +1,19 @@
 import mongoose, { Schema } from 'mongoose';
+import { POST_RECENT_REPLIER_LIMIT } from '../db/schema/postContent';
 
-export const POST_RECENT_REPLIER_LIMIT = 3;
+/**
+ * The Mongo half of the recent-replier projection.
+ *
+ * WRITE-DEAD as of the Postgres engagement port: `PostRecentReplierService` and
+ * `EngagementProjectionReconciliationService` now maintain `post_recent_repliers`
+ * in Postgres. This model survives only because the historical Mongo migration
+ * `0009-post-recent-repliers` names its collection and index, and
+ * `scripts/lib/adminDeletionPreflight` still enumerates the Mongo collections.
+ * Both belong to the cutover/cleanup batch; nothing else may write here.
+ *
+ * The cap is imported rather than redeclared — one constant, and `db/schema`
+ * owns it now that the authoritative table lives there.
+ */
 export const POST_RECENT_REPLIER_COLLECTION = 'post_recent_repliers';
 export const POST_RECENT_REPLIER_INDEX = 'post_recent_repliers_post_id_unique';
 
