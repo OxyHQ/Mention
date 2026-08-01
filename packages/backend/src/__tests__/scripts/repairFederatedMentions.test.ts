@@ -177,9 +177,11 @@ vi.mock('../../connectors/shared/federatedMedia', () => ({
 }));
 
 import {
+  assertRepairRunComplete,
   buildCandidateFilter,
   repairFederatedMentions,
   resolveSourceUrl,
+  type RepairFederatedMentionsSummary,
 } from '../../scripts/repairFederatedMentions';
 import { logger } from '../../utils/logger';
 
@@ -637,5 +639,104 @@ describe('repairFederatedMentions', () => {
       oid('2').toString(),
     ]);
     expect(store.posts[2].mentions).toEqual([]);
+  });
+});
+
+/**
+ * Which counters reach the completion guard, and in which bucket. The guard's own
+ * threshold arithmetic is covered by `adminRunTolerance.test.ts`; this pins the
+ * WIRING, which is the part specific to this sweep and the part a future edit
+ * could silently get wrong by dropping a strict counter into the tolerated bucket.
+ */
+describe('assertRepairRunComplete', () => {
+  /** A clean summary of a 600-post run — the shape of the production dry run. */
+  function summaryOf(overrides: Partial<RepairFederatedMentionsSummary> = {}): RepairFederatedMentionsSummary {
+    const byReason = {
+      timeout: 0,
+      transport: 0,
+      httpStatus: 0,
+      nonObjectPayload: 0,
+      malformedJson: 0,
+      ...(overrides.fetchFailedByReason ?? {}),
+    };
+    return {
+      dryRun: true,
+      candidates: 164969,
+      scanned: 600,
+      repaired: 288,
+      unchanged: 0,
+      unresolved: 260,
+      gone: 40,
+      skippedNoSource: 0,
+      skippedEmptyBody: 0,
+      written: 0,
+      samples: [],
+      failures: [],
+      ...overrides,
+      // Derived last so the per-reason merge above always wins, and the total
+      // defaults to agreeing with it unless a case deliberately desyncs the two.
+      fetchFailedByReason: byReason,
+      fetchFailed:
+        overrides.fetchFailed
+        ?? Object.values(byReason).reduce((total, value) => total + value, 0),
+    };
+  }
+
+  it('accepts the measured production run: 12 unreachable origins in 600 scanned (2%)', () => {
+    expect(() =>
+      assertRepairRunComplete(
+        summaryOf({ fetchFailedByReason: { transport: 3, httpStatus: 9 } }),
+      ),
+    ).not.toThrow();
+  });
+
+  it('treats `gone` and `unresolved` as terminal outcomes, never as failures', () => {
+    // 40 tombstoned origins and 260 mentions of actors we have never stored is
+    // the lookup-only resolver working exactly as designed. Neither is handed to
+    // the guard at all — a run of nothing but these must still pass.
+    expect(() =>
+      assertRepairRunComplete(summaryOf({ gone: 600, unresolved: 600, repaired: 0 })),
+    ).not.toThrow();
+  });
+
+  it('fails once unreachable origins pass the stated ceiling', () => {
+    // The pre-fix production run, which dereferenced the human web page: 80%.
+    expect(() =>
+      assertRepairRunComplete(summaryOf({ fetchFailedByReason: { httpStatus: 480 } })),
+    ).toThrow(/remoteUnavailable=480 \(80\.00% of 600 scanned, over the 10\.00% allowed/);
+  });
+
+  it('fails on a SINGLE unparseable payload — our side is never a matter of rate', () => {
+    expect(() =>
+      assertRepairRunComplete(
+        summaryOf({ fetchFailedByReason: { transport: 3, httpStatus: 9, malformedJson: 1 } }),
+      ),
+    ).toThrow('malformedPayload=1');
+
+    expect(() =>
+      assertRepairRunComplete(summaryOf({ fetchFailedByReason: { nonObjectPayload: 1 } })),
+    ).toThrow('malformedPayload=1');
+  });
+
+  it('fails on a single candidate with no source URL — the filter guarantees one', () => {
+    expect(() => assertRepairRunComplete(summaryOf({ skippedNoSource: 1 }))).toThrow(
+      'skippedNoSource=1',
+    );
+  });
+
+  it('fails on a single empty re-derive — the filter guarantees a stored body', () => {
+    expect(() => assertRepairRunComplete(summaryOf({ skippedEmptyBody: 1 }))).toThrow(
+      'skippedEmptyBody=1',
+    );
+  });
+
+  it('fails STRICTLY on a failure that landed in no reason bucket', () => {
+    // Vacuity guard: a future path incrementing the total without classifying it
+    // must surface here, not vanish into a bucket it was never measured against.
+    expect(() =>
+      assertRepairRunComplete(
+        summaryOf({ fetchFailed: 20, fetchFailedByReason: { httpStatus: 9 } }),
+      ),
+    ).toThrow('unclassifiedFetchFailure=11');
   });
 });

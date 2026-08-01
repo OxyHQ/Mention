@@ -93,8 +93,14 @@
  *     READ-ONLY fetch only (a live write is never raced against a timer it cannot
  *     cancel). A slow, dead, deleted or unreachable origin skips ONE post and
  *     never aborts the run.
- *   - A completed run with unresolved work exits NON-ZERO (`assertAdminRunComplete`)
- *     so a partial sweep is never reported as a success.
+ *   - A completed run with unresolved work exits NON-ZERO
+ *     (`assertRepairRunComplete`), so a partial sweep is never reported as a
+ *     success — but with an EXPLICIT tolerance, because across ~165,000 posts on
+ *     the open fediverse some origins are always down. Unreachable origins are
+ *     tolerated below a stated rate; a payload we could not parse, a candidate
+ *     with no source URL, or an unclassified failure fail the run at ANY count.
+ *     Nothing is hidden either way: the per-reason breakdown is always reported
+ *     and a tolerated-but-non-zero rate is logged as a warning.
  *
  * ENV
  *   DRY_RUN=true              resolve + report, write NOTHING. Collects a sample
@@ -730,6 +736,81 @@ export async function repairFederatedMentions(
   return summary;
 }
 
+/**
+ * The share of scanned posts that may fail because the REMOTE WORLD is imperfect
+ * before the sweep counts as broken.
+ *
+ * Measured baseline: a 600-post production dry run failed 12 (2.00%) — 9 HTTP
+ * statuses and 3 transport errors, zero timeouts. Across ~165,000 posts spanning
+ * the whole open fediverse there will always be dead hosts, rate limits and 5xx,
+ * and the tail of the corpus (oldest posts, longest-dead instances) will be worse
+ * than a sample taken from the head, so the ceiling has to sit above the measured
+ * rate rather than on it.
+ *
+ * 10% is 5x the measured baseline: comfortably above ordinary instance churn and
+ * a worse tail, yet far below anything systemic. Every breakage of this kind seen
+ * so far was not a few points worse — it was catastrophic (the pre-fix run, which
+ * dereferenced the human web page instead of the AP object id, failed 80%), and a
+ * broken signing key or a dead egress path would read as ~100%. The rate is
+ * logged on EVERY run whether or not it passes, so a drift from 2% to 9% is
+ * visible long before it reaches this ceiling.
+ */
+const REMOTE_UNAVAILABLE_TOLERANCE = 0.1;
+
+/**
+ * Decide whether the sweep completed, separating the two things a single
+ * `fetchFailed` counter conflates.
+ *
+ * TOLERATED (below {@link REMOTE_UNAVAILABLE_TOLERANCE}): the origin could not be
+ * reached or refused us — `timeout`, `transport`, `httpStatus`. Nothing on our
+ * side is wrong and re-running later is the remedy.
+ *
+ * NEVER TOLERATED, at any count: `nonObjectPayload` and `malformedJson` — we
+ * reached the origin, it answered, and we could not make sense of what came back.
+ * That is a mapping or contract failure on OUR side and a rate is not the point.
+ * `skippedNoSource` likewise: the candidate filter REQUIRES `federation.activityId`,
+ * so a candidate with no source URL means the filter and the reader disagree.
+ * `skippedEmptyBody` too: the filter requires a stored body variant, so a re-derive
+ * that produces none is a mapping mismatch worth reading, not remote weather.
+ *
+ * `gone` (404/410) and `unresolved` (no already-known identity for the mentioned
+ * actor — the lookup-only resolver working as designed) are TERMINAL, EXPECTED
+ * outcomes, not failures. They are reported in the summary and deliberately never
+ * handed to the guard at all.
+ */
+export function assertRepairRunComplete(summary: RepairFederatedMentionsSummary): void {
+  const byReason = summary.fetchFailedByReason;
+  const remoteUnavailable = byReason.timeout + byReason.transport + byReason.httpStatus;
+  const malformedPayload = byReason.nonObjectPayload + byReason.malformedJson;
+
+  assertAdminRunComplete(
+    'repairFederatedMentions',
+    {
+      remoteUnavailable,
+      malformedPayload,
+      skippedNoSource: summary.skippedNoSource,
+      skippedEmptyBody: summary.skippedEmptyBody,
+      // Vacuity guard: every `fetchFailed` must land in exactly one reason
+      // bucket. If a future path ever increments the total without classifying
+      // it, the difference surfaces here and fails the run STRICTLY, rather than
+      // disappearing into a tolerated bucket it was never measured against.
+      unclassifiedFetchFailure:
+        summary.fetchFailed - remoteUnavailable - malformedPayload,
+    },
+    {
+      scanned: summary.scanned,
+      tolerate: {
+        remoteUnavailable: {
+          maxFraction: REMOTE_UNAVAILABLE_TOLERANCE,
+          reason:
+            'remote origins that are down, rate-limiting or answering 5xx — unavoidable '
+            + 'across the open fediverse and fixed by re-running, not by a code change',
+        },
+      },
+    },
+  );
+}
+
 /** Parse a strictly-positive integer env value, falling back on absent/invalid input. */
 function parsePositiveInt(value: string | undefined, fallback: number): number {
   if (value === undefined) return fallback;
@@ -784,14 +865,7 @@ async function main(): Promise<void> {
       durationMs: Date.now() - startedAt,
     });
 
-    // A sweep that could not read some origins is INCOMPLETE, not successful —
-    // exit non-zero so the operator re-runs it rather than assuming it is done.
-    // `gone` and `unresolved` are terminal, expected states and are not failures.
-    assertAdminRunComplete('repairFederatedMentions', {
-      fetchFailed: summary.fetchFailed,
-      skippedNoSource: summary.skippedNoSource,
-      skippedEmptyBody: summary.skippedEmptyBody,
-    });
+    assertRepairRunComplete(summary);
   } catch (error) {
     logger.error('[repairFederatedMentions] failed', error);
     throw error;
