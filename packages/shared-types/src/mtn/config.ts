@@ -740,14 +740,22 @@ export const MtnConfig = {
       /**
        * Posts a term needs in the trailing window.
        *
-       * Guards the rate estimate itself, and the bar is set by what a wrong
-       * answer looks like rather than by statistical confidence. `why` (5
-       * posts, 3 authors) and `will` (4, 4) were textbook bursts — four of
-       * five posts arriving recently is 2.5 standard deviations, impeccable
-       * arithmetic — and neither is a trend. Below this many observations the
-       * statistic is measuring a coincidence precisely.
+       * Guards the rate estimate itself: below a handful of observations the
+       * burst statistic measures a coincidence precisely.
+       *
+       * Briefly raised to 8 to remove `why`, `right` and `will` from the live
+       * list, which emptied it completely — and that was the wrong lever pulled
+       * for the right complaint. Those terms are noise because of WHAT THEY
+       * ARE, and the stop-word filter that now runs at detection removes them
+       * by name at any volume. This floor only has to exclude counts too small
+       * to estimate a rate from; asking it to do semantics as well is what
+       * costs a small network its entire list.
+       *
+       * Measured against the batches of 2026-08-01: at 5, `why`/`will` are
+       * gone by name, `right` (4 posts) is gone by count, and `music` (5) and
+       * `politics` (11) survive — which is the list this network actually has.
        */
-      minVolume: 8,
+      minVolume: 5,
       /**
        * VOCABULARY CEILING: the share of ALL posts in the window a term may
        * appear in before it is treated as vocabulary rather than a subject.
@@ -802,7 +810,7 @@ export const MtnConfig = {
        * form of every common verb. The honest fix is to require the popular
        * path to actually be popular.
        */
-      minPopularVolume: 15,
+      minPopularVolume: 10,
       /**
        * How far above its own baseline a term must sit to be reported, in
        * standard deviations of the Poisson count it is compared against.
