@@ -9,8 +9,8 @@ import {
 } from '@mention/shared-types';
 import {
   mentionTextsFromContent,
-  reconcileMentionIds,
 } from '@mention/shared-types/mentions';
+import { reconcileMentionIdsForPost } from '../utils/textProcessing';
 import {
   createMentionNotifications,
   createBatchNotifications,
@@ -377,7 +377,7 @@ class PostCreationService {
     const primaryLanguage = typeof postData.language === 'string' ? postData.language : undefined;
     const storedContent = this.buildStoredContent(content, inputVariants, primaryLanguage);
     postData.content = storedContent;
-    postData.mentions = reconcileMentionIds(
+    postData.mentions = reconcileMentionIdsForPost(
       mentionTextsFromContent(storedContent),
       params.mentions,
     );

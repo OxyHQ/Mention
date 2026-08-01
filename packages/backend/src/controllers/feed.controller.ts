@@ -10,7 +10,6 @@ import {
 } from '@mention/shared-types';
 import {
   mentionTextsFromContent,
-  reconcileMentionIds,
 } from '@mention/shared-types/mentions';
 import mongoose, { FilterQuery } from 'mongoose';
 import { IPost } from '../models/Post';
@@ -28,7 +27,7 @@ import {
   parseFeedCursor,
   FEED_CONSTANTS
 } from '../utils/feedUtils';
-import { mergeHashtags } from '../utils/textProcessing';
+import { mergeHashtags, reconcileMentionIdsForPost } from '../utils/textProcessing';
 import { normalizeMediaItems } from '../utils/mediaInput';
 import { queryString } from '../utils/queryParams';
 import { buildAuthorship } from '../utils/postAuthorship';
@@ -313,7 +312,7 @@ class FeedController {
 
       // Create reply post
       const mergedTags = mergeHashtags(replyContent?.text || '', hashtags);
-      const reconciledMentions = reconcileMentionIds(
+      const reconciledMentions = reconcileMentionIdsForPost(
         mentionTextsFromContent(replyContent),
         mentions,
       );
@@ -506,7 +505,7 @@ class FeedController {
       // Create boost
       const mergedTags = mergeHashtags(content?.text || '', hashtags);
       const boostContent = content || { text: '' };
-      const reconciledMentions = reconcileMentionIds(
+      const reconciledMentions = reconcileMentionIdsForPost(
         mentionTextsFromContent(boostContent),
         mentions,
       );

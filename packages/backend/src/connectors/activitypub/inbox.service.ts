@@ -30,6 +30,7 @@ import {
 } from './helpers';
 import { buildFederatedNoteContent, buildFederatedNoteContentForEdit } from './apPostContent';
 import { applyMentionPlaceholders, resolveInboundMentions } from './apMentions';
+import { isMentionBroadcast } from '@mention/shared-types/mentions';
 import { normalizeMentionIds } from '../../utils/textProcessing';
 import { getRemoteHost } from '../shared/url';
 import { parseInboundActivity, parseNote, primaryApType } from './apSchemas';
@@ -230,14 +231,32 @@ export class InboxProcessingService {
    * mentioning post. NEVER throws — a notification failure must not fail (and thus
    * retry) the inbox activity. Lazy import for the same load-time-cycle reason as
    * the sibling notify helpers.
+   *
+   * `postMentionCount` is the note's TOTAL distinct resolved mentions, which is the
+   * denominator the broadcast rule is about — `localMentionIds` is only the local
+   * subset (and, on the Update path, only the newly-added part of it), so a note
+   * that addresses 30 people would otherwise slip past the cap in
+   * `createMentionNotifications` on the strength of its single local recipient. That
+   * one local user is precisely who the cap exists for: a reply-all pile-up rings
+   * them once per post, thousands of times, while every other participant is remote
+   * and silent. See `isMentionBroadcast` for the notify-nobody rationale.
    */
   private async notifyLocalMentionedUsers(
     localMentionIds: string[],
+    postMentionCount: number,
     actorOxyUserId: string,
     entityId: string,
     entityType: 'post' | 'reply',
   ): Promise<void> {
     try {
+      if (isMentionBroadcast(postMentionCount)) {
+        logger.warn('[Federation] suppressed mention notifications for a broadcast note', {
+          mentioned: postMentionCount,
+          local: localMentionIds.length,
+        });
+        return;
+      }
+
       const consented = (
         await Promise.all(
           localMentionIds.map(async (id) => ((await isFediverseSharingEnabled(id)) ? id : null)),
@@ -624,6 +643,7 @@ export class InboxProcessingService {
     if (mentionResult.localIds.length > 0) {
       await this.notifyLocalMentionedUsers(
         mentionResult.localIds,
+        mentionResult.ids.length,
         authorOxyUserId,
         String(createdPost._id),
         threadLink?.parentPostId ? 'reply' : 'post',
@@ -870,6 +890,9 @@ export class InboxProcessingService {
         if (newLocalIds.length > 0) {
           await this.notifyLocalMentionedUsers(
             newLocalIds,
+            // The EDIT'S full mention set, not the newly-added slice: an edit that
+            // adds one name to a 30-name broadcast leaves it a broadcast.
+            mentionResult.ids.length,
             ownerOxyUserId,
             String(existingPost._id),
             existingPost.parentPostId ? 'reply' : 'post',

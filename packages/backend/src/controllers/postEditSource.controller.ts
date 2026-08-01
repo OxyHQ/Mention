@@ -10,8 +10,8 @@ import type {
 } from '@mention/shared-types/post';
 import {
   mentionTextsFromContent,
-  reconcileMentionIds,
 } from '@mention/shared-types/mentions';
+import { reconcileMentionIdsForPost } from '../utils/textProcessing';
 import { Post } from '../models/Post';
 import { authorVariants } from '../services/postVariants';
 import {
@@ -62,7 +62,7 @@ export const getPostEditSource = async (
       ...(variants.length > 0 ? { variants } : {}),
       ...(Array.isArray(storedContent.media) ? { media: storedContent.media } : {}),
     };
-    const mentions = reconcileMentionIds(
+    const mentions = reconcileMentionIdsForPost(
       mentionTextsFromContent(content),
       post.mentions,
     );

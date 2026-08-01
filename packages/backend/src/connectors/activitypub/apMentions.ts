@@ -1,3 +1,4 @@
+import { MAX_MENTIONS_PER_POST } from '@mention/shared-types/mentions';
 import { logger } from '../../utils/logger';
 import FederatedActor from '../../models/FederatedActor';
 import { actorService } from './actor.service';
@@ -57,7 +58,7 @@ export interface ResolvedInboundMentions {
   /**
    * Every resolved mentioned Oxy user id (federated AND local), deduped — stored
    * verbatim as the post's `mentions` allowlist so hydration can render each
-   * `[mention:<id>]` placeholder.
+   * `[mention:<id>]` placeholder. Never longer than `MAX_MENTIONS_PER_POST`.
    */
   ids: string[];
   /**
@@ -357,7 +358,10 @@ function isProfileLikeHref(href: string): boolean {
 function collectContentProfileHrefs(
   object: Record<string, unknown>,
   anchorMap: ReadonlyMap<string, string>,
+  limit: number,
 ): string[] {
+  if (limit <= 0) return [];
+
   const bodies: string[] = [];
   if (typeof object.content === 'string') bodies.push(object.content);
   const contentMap = getApContentMap(object);
@@ -380,7 +384,7 @@ function collectContentProfileHrefs(
       if (!isProfileLikeHref(href)) continue;
       seen.add(normalized);
       hrefs.push(href);
-      if (hrefs.length >= MAX_CONTENT_PROFILE_LINKS) return hrefs;
+      if (hrefs.length >= limit) return hrefs;
     }
   }
   return hrefs;
@@ -398,7 +402,10 @@ function collectContentProfileHrefs(
  * allowlist for hydration to render the placeholder at all, and that same
  * allowlist is what puts the post in the mentioned user's mentions feed — so
  * withholding only the notification would be an inconsistency, not a safeguard.
- * The bound on that is {@link MAX_CONTENT_PROFILE_LINKS}.
+ * The bound on that is {@link MAX_CONTENT_PROFILE_LINKS}, further narrowed to
+ * whatever headroom the note's `Mention` tags left under
+ * {@link MAX_MENTIONS_PER_POST} — the two mention sources share ONE per-post
+ * ceiling, so a tag-saturated note spends no lookups on its links at all.
  *
  * Fail-soft and lookup-only per link (see {@link lookupExistingActorByProfileHref}):
  * a link that resolves to nothing is left exactly as it is today.
@@ -407,7 +414,12 @@ async function addContentProfileMentions(
   object: Record<string, unknown>,
   into: { ids: Set<string>; localIds: Set<string>; anchorMap: Map<string, string> },
 ): Promise<void> {
-  const hrefs = collectContentProfileHrefs(object, into.anchorMap);
+  const headroom = MAX_MENTIONS_PER_POST - into.ids.size;
+  const hrefs = collectContentProfileHrefs(
+    object,
+    into.anchorMap,
+    Math.min(MAX_CONTENT_PROFILE_LINKS, headroom),
+  );
   if (hrefs.length === 0) return;
 
   await Promise.all(
@@ -436,6 +448,33 @@ async function addContentProfileMentions(
 type MentionTagResolver = (tag: InboundMentionTag) => Promise<MentionActorResolution | null>;
 
 /**
+ * The `Mention` tags of ONE note, deduped by actor href and cut to
+ * {@link MAX_MENTIONS_PER_POST}, keeping the FIRST distinct actors in the order the
+ * note declared them.
+ *
+ * Document order is the only ordering the origin actually committed to, so it is
+ * the only one that makes the kept set reproducible across a redelivery, an edit
+ * and a re-ingest — resolution order is not, since the resolutions run
+ * concurrently. Every path that resolves a note's mentions goes through this, so
+ * the batched outbox path spends remote fetches on exactly the actors the per-note
+ * assembly will keep, and never on the surplus it is about to discard.
+ *
+ * Surplus tags are simply not resolved: their anchors stay untouched and degrade to
+ * the bare `@user` text an unresolved mention has always produced — never a broken
+ * link, and never a stored id with no placeholder behind it. `total` is returned so
+ * the caller can log the truncation rather than lose mentions quietly.
+ */
+function cappedDistinctMentionTags(
+  object: Record<string, unknown>,
+): { kept: InboundMentionTag[]; total: number } {
+  const byHref = new Map<string, InboundMentionTag>();
+  for (const tag of extractMentionTags(object)) {
+    if (!byHref.has(tag.href)) byHref.set(tag.href, tag);
+  }
+  return { kept: [...byHref.values()].slice(0, MAX_MENTIONS_PER_POST), total: byHref.size };
+}
+
+/**
  * Shared engine behind {@link resolveInboundMentions},
  * {@link resolveInboundMentionsExisting} and {@link resolveInboundMentionsForNotes}:
  * extract the `Mention` tags, resolve each DISTINCT actor href AT MOST once (no
@@ -449,6 +488,13 @@ type MentionTagResolver = (tag: InboundMentionTag) => Promise<MentionActorResolu
  * The tag pass is followed by {@link addContentProfileMentions}, which picks up
  * the profile links no tag claimed. That pass is lookup-only on every caller, so
  * it needs no seam of its own.
+ *
+ * Both passes share ONE per-note ceiling, {@link MAX_MENTIONS_PER_POST} — the tag
+ * pass via {@link cappedDistinctMentionTags}, the link pass via whatever headroom
+ * the tags left. A remote note's `tag` array is entirely author-controlled and was
+ * measured at up to 34 entries per post in a reply-all pile-up; resolving it
+ * unbounded means one inbound note can make us fetch-and-create that many remote
+ * actors, store that many ids, and hand that many placeholders to hydration.
  */
 async function buildResolvedInboundMentions(
   object: Record<string, unknown>,
@@ -458,16 +504,16 @@ async function buildResolvedInboundMentions(
   const ids = new Set<string>();
   const localIds = new Set<string>();
 
-  const tags = extractMentionTags(object);
-  if (tags.length > 0) {
-    // Dedupe by actor href so a user mentioned twice is resolved once.
-    const byHref = new Map<string, InboundMentionTag>();
-    for (const tag of tags) {
-      if (!byHref.has(tag.href)) byHref.set(tag.href, tag);
-    }
-
+  const { kept, total } = cappedDistinctMentionTags(object);
+  if (total > kept.length) {
+    logger.warn('[Federation] truncated inbound mentions above the per-post ceiling', {
+      mentioned: total,
+      kept: kept.length,
+    });
+  }
+  if (kept.length > 0) {
     await Promise.all(
-      [...byHref.values()].map(async (tag) => {
+      kept.map(async (tag) => {
         try {
           const resolved = await resolveTag(tag);
           if (!resolved) return;
@@ -576,10 +622,12 @@ export async function resolveInboundMentionsForNotes(
   const byNote = new Map<Record<string, unknown>, ResolvedInboundMentions>();
   if (objects.length === 0) return byNote;
 
-  // 1. Union of DISTINCT mention actor hrefs across every note in the page.
+  // 1. Union of DISTINCT mention actor hrefs across every note in the page —
+  //    counting only each note's CAPPED tag set, so the page never spends a remote
+  //    fetch on an actor the per-note assembly in step 3 is going to discard.
   const distinctHrefs = new Set<string>();
   for (const object of objects) {
-    for (const tag of extractMentionTags(object)) distinctHrefs.add(tag.href);
+    for (const tag of cappedDistinctMentionTags(object).kept) distinctHrefs.add(tag.href);
   }
 
   // 2. Resolve each distinct href AT MOST once (fetch-and-create) in bounded

@@ -20,7 +20,6 @@ import {
 } from '@mention/shared-types';
 import {
   mentionTextsFromContent,
-  reconcileMentionIds,
 } from '@mention/shared-types/mentions';
 import { userPreferenceService, readInteractionSurface } from '../services/UserPreferenceService';
 import { affinityEventService } from '../services/AffinityEventService';
@@ -30,7 +29,7 @@ import { logger } from '../utils/logger';
 import { metrics } from '../utils/metrics';
 import { postHydrationService, resolveUserSummaries, degradedActorSummary } from '../services/PostHydrationService';
 import { config } from '../config';
-import { mergeHashtags } from '../utils/textProcessing';
+import { mergeHashtags, reconcileMentionIdsForPost } from '../utils/textProcessing';
 import { createScopedOxyClient } from '../utils/oxyHelpers';
 import { extractFollowingIds } from '../utils/privacyHelpers';
 import { queryInt, queryString } from '../utils/queryParams';
@@ -1515,7 +1514,7 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
     post.markModified('content.attachments');
 
     if (hashtags !== undefined) post.hashtags = mergeHashtags('', hashtags || []);
-    post.mentions = reconcileMentionIds(
+    post.mentions = reconcileMentionIdsForPost(
       mentionTextsFromContent(post.content),
       mentions !== undefined ? mentions : post.mentions,
     );

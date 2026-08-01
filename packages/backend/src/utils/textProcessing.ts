@@ -3,11 +3,37 @@
  * Consolidates duplicate regex patterns across controllers.
  */
 
+import { reconcileMentionIdsDetailed } from '@mention/shared-types/mentions';
+import { logger } from './logger';
+
 const HASHTAG_REGEX = /#([A-Za-z0-9_]+)/g;
 export {
   extractMentionIds,
   normalizeMentionIds,
 } from '@mention/shared-types/mentions';
+
+/**
+ * Server-side {@link reconcileMentionIds}: the same reconciliation and the same
+ * `MAX_MENTIONS_PER_POST` ceiling, plus the log that keeps the ceiling from being a
+ * silent drop.
+ *
+ * Every backend write boundary that persists a mention allowlist uses this rather
+ * than the bare shared helper — the shared module is imported by the client too and
+ * so cannot log, which is the whole reason it reports `total` instead.
+ */
+export function reconcileMentionIdsForPost(
+  texts: Iterable<string | null | undefined>,
+  authorizedIds: unknown,
+): string[] {
+  const { ids, total } = reconcileMentionIdsDetailed(texts, authorizedIds);
+  if (total > ids.length) {
+    logger.warn('[Mentions] truncated a post mention allowlist above the per-post ceiling', {
+      mentioned: total,
+      kept: ids.length,
+    });
+  }
+  return ids;
+}
 
 /**
  * Extract hashtags from text content.
