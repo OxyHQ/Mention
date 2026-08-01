@@ -1,11 +1,11 @@
 import admin from 'firebase-admin';
-import { HydratedDocument } from 'mongoose';
+import { and, eq, inArray } from 'drizzle-orm';
 import { normalizeInlineText } from '@oxyhq/core';
 import { getFirebaseConfig } from '../config';
-import PushToken from '../models/PushToken';
+import { getDb } from '../db/postgres';
+import { pushTokens } from '../db/schema/discovery';
 import { resolveVariant } from '../services/postVariants';
 import Post from '../models/Post';
-import { INotification } from '../models/Notification';
 import { getServiceOxyClient } from './oxyHelpers';
 import { logger } from './logger';
 
@@ -63,7 +63,13 @@ export async function sendPushToUser(userId: string, payload: PushPayload) {
   initFirebase();
   if (!firebaseInitialized) return;
   try {
-    const tokens = await PushToken.find({ userId, enabled: true }).lean();
+    // Served by `push_tokens_user_enabled_idx`, the partial index on enabled
+    // rows. The `type` filter stays in memory exactly as before: a device is
+    // one row, so the set is tiny and no index would earn its keep.
+    const tokens = await getDb()
+      .select({ token: pushTokens.token, type: pushTokens.type })
+      .from(pushTokens)
+      .where(and(eq(pushTokens.userId, userId), eq(pushTokens.enabled, true)));
     if (!tokens.length) return;
     const fcmTokens = tokens.filter(t => t.type === 'fcm').map(t => t.token);
     if (!fcmTokens.length) return;
@@ -104,7 +110,12 @@ export async function sendPushToUser(userId: string, payload: PushPayload) {
       }
     }
     if (toDisable.length) {
-      await PushToken.updateMany({ token: { $in: toDisable } }, { enabled: false });
+      // `inArray`, never `= any(${toDisable})`: a raw JS array interpolated into
+      // `sql` binds as a ROW constructor, which Postgres rejects at runtime only.
+      await getDb()
+        .update(pushTokens)
+        .set({ enabled: false })
+        .where(inArray(pushTokens.token, toDisable));
       logger.info(`[Push] Disabled invalid push tokens: ${toDisable.length}`);
     }
   } catch (e) {
@@ -112,7 +123,24 @@ export async function sendPushToUser(userId: string, payload: PushPayload) {
   }
 }
 
-export async function formatPushForNotification(n: HydratedDocument<INotification>) {
+/**
+ * The notification fields a push body is built from.
+ *
+ * Structural rather than `typeof notifications.$inferSelect`: this is the whole
+ * read surface, so the compiler rejects a caller that has not actually resolved
+ * the row, and the function stays callable from a test with a literal. `id`
+ * replaces Mongoose's `_id` — the value it carries is the same one, since the
+ * backfill copies `_id` verbatim into the `text` primary key.
+ */
+export interface PushNotificationSource {
+  id: string;
+  type: string;
+  entityId: string;
+  entityType: string;
+  actorId: string;
+}
+
+export async function formatPushForNotification(n: PushNotificationSource) {
   // Best-effort: hydrate actor for title/body
   let actorName = 'Someone';
   try {
@@ -138,7 +166,10 @@ export async function formatPushForNotification(n: HydratedDocument<INotificatio
   };
   let f = map[n.type] || { title: 'Notification', body: 'You have a new notification' };
   let preview: string | undefined;
-  // For post notifications, try to include a short preview in the push body
+  // For post notifications, try to include a short preview in the push body.
+  // The POST row is deliberately still read from Mongo: `posts` and
+  // `resolveVariant`'s content shape belong to the posts batch, and reading a
+  // half-migrated table here would produce an empty preview rather than an error.
   try {
     if (n.type === 'post' && n.entityType === 'post' && n.entityId) {
       const post = await Post.findById(n.entityId, { 'content.variants': 1 }).lean();
@@ -159,7 +190,7 @@ export async function formatPushForNotification(n: HydratedDocument<INotificatio
     entityId: String(n.entityId || ''),
     entityType: String(n.entityType || ''),
     actorId: String(n.actorId || ''),
-    notificationId: String(n._id || ''),
+    notificationId: String(n.id || ''),
   };
   if (preview) data.preview = preview;
   return { title: f.title, body: f.body, data };

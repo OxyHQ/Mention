@@ -1,7 +1,9 @@
 import { TopicType } from '@oxyhq/core';
 import type { TopicData, TopicTranslation } from '@oxyhq/core';
 import type { ClassificationTopicRef } from '@mention/shared-types';
-import TopicStats from '../models/TopicStats';
+import { asc, desc, gte, sql } from 'drizzle-orm';
+import { getDb } from '../db/postgres';
+import { topicStats } from '../db/schema/discovery';
 import { logger } from '../utils/logger';
 import { aliaJSON, isAliaEnabled } from '../utils/alia';
 import { getServiceOxyClient } from '../utils/oxyHelpers';
@@ -12,6 +14,9 @@ const KNOWN_CATEGORIES = [
   'finance', 'food', 'gaming', 'journalism', 'movies', 'music', 'nature', 'news',
   'pets', 'photography', 'politics', 'science', 'sports', 'tech', 'tv', 'writers', 'none',
 ] as const;
+
+/** Local post count a topic needs before AI enrichment considers it worth the tokens. */
+const ENRICHMENT_MIN_POST_COUNT = 5;
 
 class TopicService {
   private enrichmentInterval: NodeJS.Timeout | null = null;
@@ -161,8 +166,23 @@ class TopicService {
     }
   }
 
-  // --- App-Specific Metrics (local TopicStats) ---
+  // --- App-Specific Metrics (local topic_stats) ---
 
+  /**
+   * Add `delta` to each topic's popularity, creating the row when absent.
+   *
+   * Mongo's `bulkWrite` of `$inc` upserts becomes ONE multi-row
+   * `insert … on conflict do update`: on insert the column takes the delta
+   * (which is what `$inc` on an upsert did), on conflict it takes
+   * `existing + excluded`. Duplicate topic ids are summed BEFORE the statement,
+   * as they were before — and now they have to be, because a single statement
+   * may not touch one row twice (`ON CONFLICT DO UPDATE command cannot affect
+   * row a second time`).
+   *
+   * `updated_at` is written explicitly: the column's `$onUpdate` fires on
+   * `db.update()` only, never on a conflict branch, so leaving it out would
+   * silently freeze the timestamp Mongoose's `timestamps: true` maintained.
+   */
   async batchIncrementPopularity(
     updates: Array<{ topicId: string; delta: number }>,
   ): Promise<void> {
@@ -173,20 +193,20 @@ class TopicService {
       aggregated.set(topicId, (aggregated.get(topicId) ?? 0) + delta);
     }
 
-    const ops = Array.from(aggregated.entries()).map(([topicId, delta]) => ({
-      updateOne: {
-        filter: { topicId },
-        update: { $inc: { popularity: delta } },
-        upsert: true,
-      },
-    }));
-
-    await TopicStats.bulkWrite(ops, { ordered: false });
+    await getDb()
+      .insert(topicStats)
+      .values([...aggregated].map(([topicId, popularity]) => ({ topicId, popularity })))
+      .onConflictDoUpdate({
+        target: topicStats.topicId,
+        set: {
+          popularity: sql`${topicStats.popularity} + excluded.popularity`,
+          updatedAt: new Date(),
+        },
+      });
   }
 
-  async batchIncrementPostCount(
-    topicIds: string[],
-  ): Promise<void> {
+  /** Count one post per occurrence of each topic id. Same upsert shape as above. */
+  async batchIncrementPostCount(topicIds: string[]): Promise<void> {
     if (topicIds.length === 0) return;
 
     const countMap = new Map<string, number>();
@@ -194,17 +214,31 @@ class TopicService {
       countMap.set(id, (countMap.get(id) ?? 0) + 1);
     }
 
-    const ops = Array.from(countMap.entries()).map(([topicId, count]) => ({
-      updateOne: {
-        filter: { topicId },
-        update: { $inc: { postCount: count } },
-        upsert: true,
-      },
-    }));
-
-    await TopicStats.bulkWrite(ops, { ordered: false });
+    await getDb()
+      .insert(topicStats)
+      .values([...countMap].map(([topicId, postCount]) => ({ topicId, postCount })))
+      .onConflictDoUpdate({
+        target: topicStats.topicId,
+        set: {
+          postCount: sql`${topicStats.postCount} + excluded.post_count`,
+          updatedAt: new Date(),
+        },
+      });
   }
 
+  /**
+   * Decay each topic's popularity toward its latest trending score:
+   * `popularity ← popularity·decay + trendingScore·(1 − decay)`.
+   *
+   * The recurrence is NOT associative, so — unlike the two counters above —
+   * duplicate topic ids cannot be folded into one row by summing. They do occur:
+   * a name that trends as BOTH a hashtag and a classified topic resolves through
+   * `resolveNames` (keyed on the name alone) to the SAME registry id, so one
+   * batch can carry two updates for it, and Mongo's `bulkWrite` applied both in
+   * sequence. A single Postgres statement may not touch one row twice, so the
+   * updates are split into ROUNDS of distinct ids and applied in order — which
+   * reproduces the sequence exactly. In practice there is one round.
+   */
   async updatePopularityFromTrending(
     updates: Array<{ topicId: string; trendingScore: number }>,
     decay: number = 0.7,
@@ -213,26 +247,27 @@ class TopicService {
 
     const weight = 1 - decay;
 
-    const ops = updates.map(({ topicId, trendingScore }) => ({
-      updateOne: {
-        filter: { topicId },
-        update: [
-          {
-            $set: {
-              popularity: {
-                $add: [
-                  { $multiply: [{ $ifNull: ['$popularity', 0] }, decay] },
-                  trendingScore * weight,
-                ],
-              },
-            },
-          },
-        ],
-        upsert: true,
-      },
-    }));
+    const rounds: Array<Array<{ topicId: string; popularity: number }>> = [];
+    const roundOf = new Map<string, number>();
+    for (const { topicId, trendingScore } of updates) {
+      const round = roundOf.get(topicId) ?? 0;
+      roundOf.set(topicId, round + 1);
+      (rounds[round] ??= []).push({ topicId, popularity: trendingScore * weight });
+    }
 
-    await TopicStats.bulkWrite(ops, { ordered: false });
+    const db = getDb();
+    for (const round of rounds) {
+      await db
+        .insert(topicStats)
+        .values(round)
+        .onConflictDoUpdate({
+          target: topicStats.topicId,
+          set: {
+            popularity: sql`${topicStats.popularity} * ${decay} + excluded.popularity`,
+            updatedAt: new Date(),
+          },
+        });
+    }
   }
 
   // --- AI Topic Enrichment ---
@@ -272,11 +307,16 @@ Return ONLY valid JSON.`;
     if (!isAliaEnabled()) return 0;
 
     try {
-      // Find topics with high local engagement that might need enrichment
-      const topStats = await TopicStats.find({ postCount: { $gte: 5 } })
-        .sort({ postCount: -1 })
-        .limit(limit * 2)
-        .lean();
+      // Topics with high local engagement that might need enrichment. `topic_id`
+      // breaks the tie: `post_count` alone is not a total order, so without it
+      // the `limit` would pick an arbitrary subset of the tied rows on every run
+      // and the same topics could be enriched or skipped at random.
+      const topStats = await getDb()
+        .select({ topicId: topicStats.topicId })
+        .from(topicStats)
+        .where(gte(topicStats.postCount, ENRICHMENT_MIN_POST_COUNT))
+        .orderBy(desc(topicStats.postCount), asc(topicStats.topicId))
+        .limit(limit * 2);
 
       if (topStats.length === 0) return 0;
 

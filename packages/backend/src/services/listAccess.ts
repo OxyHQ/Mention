@@ -8,15 +8,23 @@
  * reads or acts on a list answers to this function instead.
  */
 
-import mongoose from 'mongoose';
-import AccountList from '../models/AccountList';
+import { eq } from 'drizzle-orm';
+import { getDb } from '../db/postgres';
+import { accountLists } from '../db/schema/lists';
 
 /**
  * The only two fields the visibility rule reads. Declared structurally so a
- * hydrated document, a `.lean()` row and a projected row all satisfy it.
+ * hydrated row, a projected row and a caller that assembled one by hand all
+ * satisfy it.
  */
 export interface ListVisibility {
-  /** Optional: `.lean()` bypasses the schema default, so a row could lack it. */
+  /**
+   * Optional on purpose. `account_lists.is_public` is `NOT NULL DEFAULT true`,
+   * so a row loaded from Postgres always carries it — but the rule below reads
+   * `=== true`, and keeping the field optional is what makes "absent" fail
+   * CLOSED for any caller that assembles a `ListVisibility` from somewhere
+   * other than the table.
+   */
   isPublic?: boolean;
   ownerOxyUserId: string;
 }
@@ -25,8 +33,8 @@ export interface ListVisibility {
  * Whether `viewerId` may see `list`. A private list is owner-only; a viewer
  * with no id can only ever see public lists.
  *
- * Fails CLOSED on a row stored without `isPublic` — absent reads as private,
- * which is what `GET /lists/:id` has always done.
+ * Fails CLOSED on a value without `isPublic` — absent reads as private, which
+ * is what `GET /lists/:id` has always done.
  */
 export function canViewList(list: ListVisibility, viewerId: string | undefined): boolean {
   return list.isPublic === true || list.ownerOxyUserId === viewerId;
@@ -35,11 +43,17 @@ export function canViewList(list: ListVisibility, viewerId: string | undefined):
 /**
  * Load just the fields `canViewList` needs.
  *
- * Returns null both for a list that does not exist and for a malformed id:
- * `findById` throws a CastError on a non-ObjectId string, and a caller
- * enforcing access wants "no such list", not a 500.
+ * Returns null for a list that does not exist — including one named by an id of
+ * any shape at all. The Mongoose version needed an `ObjectId.isValid` guard in
+ * front of `findById` to keep a malformed id from throwing a `CastError`; a
+ * `text` primary key simply matches no row, so the guard is deleted rather than
+ * widened (see `db/MIGRATION-CONTRACT.md`).
  */
 export async function loadListVisibility(listId: string): Promise<ListVisibility | null> {
-  if (!mongoose.Types.ObjectId.isValid(listId)) return null;
-  return AccountList.findById(listId).select('isPublic ownerOxyUserId').lean<ListVisibility>();
+  const [row] = await getDb()
+    .select({ isPublic: accountLists.isPublic, ownerOxyUserId: accountLists.ownerOxyUserId })
+    .from(accountLists)
+    .where(eq(accountLists.id, listId))
+    .limit(1);
+  return row ?? null;
 }

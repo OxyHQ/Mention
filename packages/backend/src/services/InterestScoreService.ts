@@ -18,7 +18,9 @@
  * correct — Oxy is last-write-wins — just less efficient).
  */
 
-import { Post } from '../models/Post';
+import { and, eq, gte, isNotNull, ne, sql } from 'drizzle-orm';
+import { getDb } from '../db/postgres';
+import { posts } from '../db/schema/posts';
 import { getRedisClient } from '../utils/redis';
 import { logger } from '../utils/logger';
 import { oxySignalsClient, type OxySignalsClient, type InterestSignal } from './OxySignalsClient';
@@ -67,50 +69,53 @@ export class InterestScoreService {
   async aggregateAuthors(now: number = Date.now()): Promise<AuthorAggregate[]> {
     const since = new Date(now - WINDOW_MS);
 
-    const rows = await Post.aggregate<{
-      _id: string;
-      raw: number;
-      postCount: number;
-      lastPost: Date;
-    }>([
-      {
-        $match: {
-          oxyUserId: { $ne: null },
-          status: 'published',
-          visibility: 'public',
+    /**
+     * `mapWith(Number)` on every aggregate is not decoration: postgres.js hands
+     * `sum()` and `count()` back as STRINGS (they are `numeric`/`int8` on the
+     * wire), so an unmapped column would flow into `Math.log1p` as a string and
+     * silently score every author 0 — the read-side shape of the trap
+     * `MIGRATION-CONTRACT.md` describes for `db.execute`.
+     *
+     * The five `stats_*` columns are `NOT NULL DEFAULT 0`, so Mongo's `$ifNull`
+     * wrappers have nothing left to guard and are dropped rather than ported as
+     * `coalesce` noise.
+     */
+    const rows = await getDb()
+      .select({
+        oxyUserId: posts.oxyUserId,
+        raw: sql`sum(
+          ${posts.statsLikesCount} + ${posts.statsBoostsCount} + ${posts.statsCommentsCount}
+          + ${posts.statsViewsCount} + ${posts.statsSharesCount}
+        )`.mapWith(Number),
+        postCount: sql`count(*)`.mapWith(Number),
+        lastPost: sql<Date>`max(${posts.createdAt})`,
+      })
+      .from(posts)
+      .where(
+        and(
+          isNotNull(posts.oxyUserId),
+          eq(posts.status, 'published'),
+          eq(posts.visibility, 'public'),
           // Exclude boosts: a boost carries no original engagement of its own.
-          type: { $ne: 'boost' },
-          createdAt: { $gte: since },
-        },
-      },
-      {
-        $group: {
-          _id: '$oxyUserId',
-          raw: {
-            $sum: {
-              $add: [
-                { $ifNull: ['$stats.likesCount', 0] },
-                { $ifNull: ['$stats.boostsCount', 0] },
-                { $ifNull: ['$stats.commentsCount', 0] },
-                { $ifNull: ['$stats.viewsCount', 0] },
-                { $ifNull: ['$stats.sharesCount', 0] },
-              ],
-            },
-          },
-          postCount: { $sum: 1 },
-          lastPost: { $max: '$createdAt' },
-        },
-      },
-    ]);
+          ne(posts.type, 'boost'),
+          gte(posts.createdAt, since),
+        ),
+      )
+      .groupBy(posts.oxyUserId);
 
-    return rows
-      .filter((r) => typeof r._id === 'string' && r._id.length > 0)
-      .map((r) => ({
-        oxyUserId: r._id,
-        raw: r.raw ?? 0,
-        postCount: r.postCount ?? 0,
+    // `flatMap` rather than `filter`+`map`: it narrows `oxy_user_id` from
+    // `string | null` to `string` without a cast. The empty-string check stays —
+    // the column is nullable and the WHERE only excludes NULL.
+    return rows.flatMap((r) => {
+      const oxyUserId = r.oxyUserId;
+      if (typeof oxyUserId !== 'string' || oxyUserId.length === 0) return [];
+      return [{
+        oxyUserId,
+        raw: r.raw,
+        postCount: r.postCount,
         lastPostMs: r.lastPost ? new Date(r.lastPost).getTime() : now,
-      }));
+      }];
+    });
   }
 
   /** Compute the normalized [0,1] interest score for one author aggregate. */

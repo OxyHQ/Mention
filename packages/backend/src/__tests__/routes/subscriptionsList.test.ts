@@ -1,27 +1,34 @@
-import express, { type NextFunction, type Response } from 'express';
-import request from 'supertest';
-import { Types } from 'mongoose';
-import { describe, expect, it, beforeEach, vi } from 'vitest';
-import type { OxyAuthRequest } from '@oxyhq/core/server';
-import type { CachedUserSummary } from '../../services/userSummaryCache';
-
 /**
- * `GET /subscriptions` — the list endpoint behind the activity-subscriptions
- * screen. Two things it must never get wrong:
+ * `/subscriptions` against real rows — the activity-subscriptions API.
+ *
+ * Three things it must never get wrong:
  *
  *  - **Identity.** Rows carry the canonical Oxy `PostUser`, passed through
  *    unchanged. An author Oxy could not resolve arrives DEGRADED (empty
  *    username, `'Unknown user'`) — a raw `oxyUserId` must never reach a client
  *    as a handle, because `/@<id>` is not a profile.
- *  - **Paging.** `createdAt` is not unique, so the cursor is a COMPOUND keyset
- *    (`createdAt` + `_id`). Without the tie-break, two subscriptions made in the
- *    same millisecond straddle the page boundary and one of them is silently
- *    dropped — the case this suite pins explicitly.
+ *  - **Paging.** `created_at` is not unique, so the cursor is a COMPOUND keyset
+ *    (`created_at` + `id`). Without the tie-break, two subscriptions made in the
+ *    same millisecond straddle the page boundary and one is silently dropped —
+ *    pinned explicitly below against rows that really do share an instant.
+ *  - **The cursor accepts BOTH live id shapes.** The `ObjectId.isValid` check the
+ *    Mongo version ran on the id half fails open (⇒ page one), so keeping it
+ *    would have made every post-cutover scroll loop over the first page forever.
+ *
+ * Only the Oxy identity resolver is stubbed; the subscriptions themselves are
+ * real Postgres rows.
  */
 
-const { mockResolveUserSummaries, mockFind } = vi.hoisted(() => ({
+import express, { type NextFunction, type Response } from 'express';
+import request from 'supertest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { randomUUID } from 'node:crypto';
+import { inArray } from 'drizzle-orm';
+import type { OxyAuthRequest } from '@oxyhq/core/server';
+import type { CachedUserSummary } from '../../services/userSummaryCache';
+
+const { mockResolveUserSummaries } = vi.hoisted(() => ({
   mockResolveUserSummaries: vi.fn(),
-  mockFind: vi.fn(),
 }));
 
 vi.mock('../../services/PostHydrationService', async () => {
@@ -31,98 +38,29 @@ vi.mock('../../services/PostHydrationService', async () => {
   return { resolveUserSummaries: mockResolveUserSummaries, degradedActorSummary };
 });
 
-vi.mock('../../models/PostSubscription', () => {
-  const model = { find: (...args: unknown[]) => mockFind(...args) };
-  return { default: model, PostSubscription: model };
-});
-
-vi.mock('../../utils/logger', () => ({
-  logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
-}));
-
+import { closePostgres, connectPostgres, type Database } from '../../db/postgres';
+import { uuidv7 } from '../../db/schema/columns';
+import { postSubscriptions } from '../../db/schema/engagement';
 import subscriptionsRouter from '../../routes/subscriptions';
 
-const VIEWER_ID = 'viewer-1';
+let db: Database;
+const createdSubscriberIds: string[] = [];
 
-interface SubscriptionDoc {
-  _id: Types.ObjectId;
-  subscriberId: string;
-  authorId: string;
-  createdAt: Date;
+function subscriberId(): string {
+  const id = `oxy-subscriber-${randomUUID()}`;
+  createdSubscriberIds.push(id);
+  return id;
 }
 
-function buildApp(authenticated = true): express.Express {
+function buildApp(viewer: string | undefined): express.Express {
   const app = express();
   app.use(express.json());
   app.use((req: OxyAuthRequest, _res: Response, next: NextFunction) => {
-    if (authenticated) req.user = { id: VIEWER_ID };
+    if (viewer) req.user = { id: viewer };
     next();
   });
   app.use('/subscriptions', subscriptionsRouter);
   return app;
-}
-
-/** Values the handler compares on: `Date` by time, `ObjectId` by hex. */
-function order(value: unknown): number | string {
-  if (value instanceof Date) return value.getTime();
-  return String(value);
-}
-
-function compare(a: unknown, b: unknown): number {
-  const [x, y] = [order(a), order(b)];
-  if (x === y) return 0;
-  return x < y ? -1 : 1;
-}
-
-/** Just the operators this handler builds: equality, `$or`, and `$lt`. */
-function matches(doc: SubscriptionDoc, query: Record<string, unknown>): boolean {
-  return Object.entries(query).every(([key, condition]) => {
-    if (key === '$or') {
-      return (
-        Array.isArray(condition) &&
-        condition.some((sub) => matches(doc, sub as Record<string, unknown>))
-      );
-    }
-    const value = doc[key as keyof SubscriptionDoc];
-    if (condition && typeof condition === 'object' && '$lt' in condition) {
-      return compare(value, (condition as { $lt: unknown }).$lt) < 0;
-    }
-    return compare(value, condition) === 0;
-  });
-}
-
-/** Records the limit the handler asked for so the overfetch can be asserted. */
-let requestedLimit: number | undefined;
-
-function seedSubscriptions(docs: SubscriptionDoc[]): void {
-  requestedLimit = undefined;
-  mockFind.mockImplementation((query: Record<string, unknown>) => {
-    const filtered = docs.filter((doc) => matches(doc, query));
-    let sortSpec: Record<string, 1 | -1> = {};
-    let limitN: number | undefined;
-    const builder = {
-      sort(spec: Record<string, 1 | -1>) {
-        sortSpec = spec;
-        return builder;
-      },
-      limit(n: number) {
-        limitN = n;
-        requestedLimit = n;
-        return builder;
-      },
-      lean() {
-        const sorted = [...filtered].sort((a, b) => {
-          for (const [key, direction] of Object.entries(sortSpec)) {
-            const result = compare(a[key as keyof SubscriptionDoc], b[key as keyof SubscriptionDoc]);
-            if (result !== 0) return result * direction;
-          }
-          return 0;
-        });
-        return Promise.resolve(limitN === undefined ? sorted : sorted.slice(0, limitN));
-      },
-    };
-    return builder;
-  });
 }
 
 function summary(id: string, displayName: string, avatar: string): CachedUserSummary {
@@ -138,37 +76,52 @@ function summary(id: string, displayName: string, avatar: string): CachedUserSum
   };
 }
 
-function doc(authorId: string, createdAt: string, id: string): SubscriptionDoc {
-  return {
-    _id: new Types.ObjectId(id),
-    subscriberId: VIEWER_ID,
+/** Seed a subscription with an explicit `created_at`, so ties are deliberate. */
+async function seed(subscriber: string, authorId: string, createdAt: string, id = uuidv7()) {
+  await db.insert(postSubscriptions).values({
+    id,
+    subscriberId: subscriber,
     authorId,
     createdAt: new Date(createdAt),
-  };
+  });
+  return id;
 }
 
-const ID_A = '000000000000000000000001';
-const ID_B = '000000000000000000000002';
-const ID_C = '000000000000000000000003';
+const authorIds = (body: { subscriptions: { author: { id: string } }[] }) =>
+  body.subscriptions.map((entry) => entry.author.id);
+
+beforeAll(async () => {
+  db = await connectPostgres();
+});
+
+beforeEach(() => {
+  mockResolveUserSummaries.mockReset();
+  mockResolveUserSummaries.mockResolvedValue(new Map<string, CachedUserSummary>());
+});
+
+afterEach(async () => {
+  if (createdSubscriberIds.length > 0) {
+    await db
+      .delete(postSubscriptions)
+      .where(inArray(postSubscriptions.subscriberId, createdSubscriberIds));
+    createdSubscriberIds.length = 0;
+  }
+});
+
+afterAll(async () => {
+  await closePostgres();
+});
 
 describe('GET /subscriptions', () => {
-  beforeEach(() => {
-    mockResolveUserSummaries.mockReset();
-    mockFind.mockReset();
-    mockResolveUserSummaries.mockResolvedValue(new Map<string, CachedUserSummary>());
-  });
-
   it('rejects an anonymous viewer', async () => {
-    seedSubscriptions([]);
-    const res = await request(buildApp(false)).get('/subscriptions');
+    const res = await request(buildApp(undefined)).get('/subscriptions');
     expect(res.status).toBe(401);
   });
 
   it('hydrates authors into the canonical Oxy user, newest first', async () => {
-    seedSubscriptions([
-      doc('author-old', '2026-07-01T00:00:00.000Z', ID_A),
-      doc('author-new', '2026-07-02T00:00:00.000Z', ID_B),
-    ]);
+    const viewer = subscriberId();
+    await seed(viewer, 'author-old', '2026-07-01T00:00:00.000Z');
+    await seed(viewer, 'author-new', '2026-07-02T00:00:00.000Z');
     mockResolveUserSummaries.mockResolvedValue(
       new Map([
         ['author-old', summary('author-old', 'Ada', 'file-ada')],
@@ -176,7 +129,7 @@ describe('GET /subscriptions', () => {
       ]),
     );
 
-    const res = await request(buildApp()).get('/subscriptions');
+    const res = await request(buildApp(viewer)).get('/subscriptions');
 
     expect(res.status).toBe(200);
     // ONE batched identity call for the page, not one per row.
@@ -210,11 +163,22 @@ describe('GET /subscriptions', () => {
     expect(res.body.nextCursor).toBeUndefined();
   });
 
+  it('never returns another viewer’s subscriptions', async () => {
+    const viewer = subscriberId();
+    const stranger = subscriberId();
+    await seed(viewer, 'author-mine', '2026-07-01T00:00:00.000Z');
+    await seed(stranger, 'author-theirs', '2026-07-02T00:00:00.000Z');
+
+    const res = await request(buildApp(viewer)).get('/subscriptions');
+    expect(authorIds(res.body)).toEqual(['author-mine']);
+  });
+
   it('degrades an unresolvable author instead of emitting its id as a handle', async () => {
-    seedSubscriptions([doc('ghost-id', '2026-07-01T00:00:00.000Z', ID_A)]);
+    const viewer = subscriberId();
+    await seed(viewer, 'ghost-id', '2026-07-01T00:00:00.000Z');
     mockResolveUserSummaries.mockResolvedValue(new Map<string, CachedUserSummary>());
 
-    const res = await request(buildApp()).get('/subscriptions');
+    const res = await request(buildApp(viewer)).get('/subscriptions');
 
     expect(res.status).toBe(200);
     const [row] = res.body.subscriptions;
@@ -225,10 +189,11 @@ describe('GET /subscriptions', () => {
   });
 
   it('still returns the page when identity resolution fails outright', async () => {
-    seedSubscriptions([doc('author-a', '2026-07-01T00:00:00.000Z', ID_A)]);
+    const viewer = subscriberId();
+    await seed(viewer, 'author-a', '2026-07-01T00:00:00.000Z');
     mockResolveUserSummaries.mockRejectedValue(new Error('oxy unreachable'));
 
-    const res = await request(buildApp()).get('/subscriptions');
+    const res = await request(buildApp(viewer)).get('/subscriptions');
 
     expect(res.status).toBe(200);
     expect(res.body.subscriptions).toHaveLength(1);
@@ -237,24 +202,20 @@ describe('GET /subscriptions', () => {
 
   it('pages with a compound cursor, so a same-millisecond tie is never dropped', async () => {
     // B and C share a createdAt to the millisecond — the exact case a bare
-    // `createdAt` cursor loses.
+    // `createdAt` cursor loses. Their ids are ORDERED, so the expected page
+    // contents are a fact about the keyset rather than about id generation.
+    const viewer = subscriberId();
     const sameInstant = '2026-07-02T00:00:00.000Z';
-    seedSubscriptions([
-      doc('author-a', '2026-07-03T00:00:00.000Z', ID_A),
-      doc('author-b', sameInstant, ID_B),
-      doc('author-c', sameInstant, ID_C),
-    ]);
+    const [idB, idC] = [uuidv7(), uuidv7()].sort();
+    await seed(viewer, 'author-a', '2026-07-03T00:00:00.000Z');
+    await seed(viewer, 'author-b', sameInstant, idB);
+    await seed(viewer, 'author-c', sameInstant, idC);
 
-    const app = buildApp();
+    const app = buildApp(viewer);
     const first = await request(app).get('/subscriptions').query({ limit: 2 });
 
     expect(first.status).toBe(200);
-    // limit + 1: the extra row is what proves there IS a next page.
-    expect(requestedLimit).toBe(3);
-    expect(first.body.subscriptions.map((s: { author: { id: string } }) => s.author.id)).toEqual([
-      'author-a',
-      'author-c',
-    ]);
+    expect(authorIds(first.body)).toEqual(['author-a', 'author-c']);
     expect(typeof first.body.nextCursor).toBe('string');
 
     const second = await request(app)
@@ -263,33 +224,129 @@ describe('GET /subscriptions', () => {
 
     expect(second.status).toBe(200);
     // No overlap with page 1 and no gap: the tied row survives the boundary.
-    expect(second.body.subscriptions.map((s: { author: { id: string } }) => s.author.id)).toEqual([
-      'author-b',
-    ]);
+    expect(authorIds(second.body)).toEqual(['author-b']);
     expect(second.body.nextCursor).toBeUndefined();
   });
 
-  it('ignores a malformed cursor instead of erroring', async () => {
-    seedSubscriptions([doc('author-a', '2026-07-01T00:00:00.000Z', ID_A)]);
+  it('pages a uuid v7 cursor, which every post-cutover row carries', async () => {
+    // The regression the deleted `ObjectId.isValid` check would cause: a v7 id
+    // fails the 24-hex test, the cursor is discarded, and the client re-reads
+    // page one forever without a single error anywhere.
+    const viewer = subscriberId();
+    await seed(viewer, 'author-a', '2026-07-03T00:00:00.000Z');
+    await seed(viewer, 'author-b', '2026-07-02T00:00:00.000Z');
 
-    for (const cursor of ['nonsense', '_', 'abc_def', `${Date.now()}_not-an-object-id`, '123']) {
-      const res = await request(buildApp()).get('/subscriptions').query({ cursor });
+    const app = buildApp(viewer);
+    const first = await request(app).get('/subscriptions').query({ limit: 1 });
+    expect(first.body.nextCursor).toMatch(/^\d+_[0-9a-f]{8}-[0-9a-f]{4}-7/);
+
+    const second = await request(app)
+      .get('/subscriptions')
+      .query({ limit: 1, cursor: first.body.nextCursor });
+    expect(authorIds(second.body)).toEqual(['author-b']);
+  });
+
+  it('pages an ObjectId-hex cursor, which every pre-cutover row keeps', async () => {
+    const viewer = subscriberId();
+    await seed(viewer, 'author-a', '2026-07-03T00:00:00.000Z', '000000000000000000000002');
+    await seed(viewer, 'author-b', '2026-07-02T00:00:00.000Z', '000000000000000000000001');
+
+    const app = buildApp(viewer);
+    const first = await request(app).get('/subscriptions').query({ limit: 1 });
+    expect(first.body.nextCursor).toBe('1783036800000_000000000000000000000002');
+
+    const second = await request(app)
+      .get('/subscriptions')
+      .query({ limit: 1, cursor: first.body.nextCursor });
+    expect(authorIds(second.body)).toEqual(['author-b']);
+  });
+
+  it('ignores a malformed cursor instead of erroring', async () => {
+    const viewer = subscriberId();
+    await seed(viewer, 'author-a', '2026-07-01T00:00:00.000Z');
+
+    for (const cursor of ['nonsense', '_', 'abc_def', `${Date.now()}_`, '123']) {
+      const res = await request(buildApp(viewer)).get('/subscriptions').query({ cursor });
       expect(res.status).toBe(200);
       expect(res.body.subscriptions).toHaveLength(1);
     }
   });
 
   it('defaults to 50 rows and clamps an oversized limit to 100', async () => {
-    seedSubscriptions([]);
-    const app = buildApp();
+    const viewer = subscriberId();
+    for (let index = 0; index < 3; index += 1) {
+      await seed(viewer, `author-${index}`, `2026-07-0${index + 1}T00:00:00.000Z`);
+    }
+    const app = buildApp(viewer);
 
-    await request(app).get('/subscriptions');
-    expect(requestedLimit).toBe(51);
+    // The clamp is only observable through the page it produces, so the row
+    // counts are the assertion rather than the number the handler computed.
+    expect((await request(app).get('/subscriptions')).body.subscriptions).toHaveLength(3);
+    expect(
+      (await request(app).get('/subscriptions').query({ limit: 5000 })).body.subscriptions,
+    ).toHaveLength(3);
+    expect(
+      (await request(app).get('/subscriptions').query({ limit: -3 })).body.subscriptions,
+    ).toHaveLength(1);
+    expect(
+      (await request(app).get('/subscriptions').query({ limit: 2 })).body.subscriptions,
+    ).toHaveLength(2);
+  });
+});
 
-    await request(app).get('/subscriptions').query({ limit: 5000 });
-    expect(requestedLimit).toBe(101);
+describe('subscribe / unsubscribe / status', () => {
+  it('is idempotent and never writes a second row', async () => {
+    const viewer = subscriberId();
+    const app = buildApp(viewer);
 
-    await request(app).get('/subscriptions').query({ limit: -3 });
-    expect(requestedLimit).toBe(2);
+    await request(app).post('/subscriptions/author-1').expect(200);
+    await request(app).post('/subscriptions/author-1').expect(200);
+
+    const rows = await db
+      .select()
+      .from(postSubscriptions)
+      .where(inArray(postSubscriptions.subscriberId, [viewer]));
+    expect(rows).toHaveLength(1);
+  });
+
+  it('reports status, then clears it on unsubscribe', async () => {
+    const viewer = subscriberId();
+    const app = buildApp(viewer);
+
+    expect((await request(app).get('/subscriptions/author-1/status')).body).toEqual({
+      subscribed: false,
+    });
+    await request(app).post('/subscriptions/author-1').expect(200);
+    expect((await request(app).get('/subscriptions/author-1/status')).body).toEqual({
+      subscribed: true,
+    });
+    await request(app).delete('/subscriptions/author-1').expect(200);
+    expect((await request(app).get('/subscriptions/author-1/status')).body).toEqual({
+      subscribed: false,
+    });
+  });
+
+  it('refuses a self-subscription', async () => {
+    const viewer = subscriberId();
+    await request(buildApp(viewer)).post(`/subscriptions/${viewer}`).expect(400);
+    const rows = await db
+      .select()
+      .from(postSubscriptions)
+      .where(inArray(postSubscriptions.subscriberId, [viewer]));
+    expect(rows).toEqual([]);
+  });
+
+  it('unsubscribes only the caller’s own row', async () => {
+    const viewer = subscriberId();
+    const stranger = subscriberId();
+    await seed(stranger, 'author-1', '2026-07-01T00:00:00.000Z');
+
+    await request(buildApp(viewer)).delete('/subscriptions/author-1').expect(200);
+
+    const rows = await db
+      .select()
+      .from(postSubscriptions)
+      .where(inArray(postSubscriptions.subscriberId, [stranger]));
+    expect(rows).toHaveLength(1);
   });
 });

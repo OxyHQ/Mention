@@ -65,16 +65,40 @@ export default defineConfig({
         // the numerator. Leaving the old floors would have handed the suite
         // three points of silent headroom a real regression could hide in.
         //
-        // Nudged DOWN by a tenth of a point when the engagement services moved
-        // to Postgres, and the reason is worth stating rather than absorbing:
-        // their Mongoose models (`models/EngagementOutbox.ts`,
+        // Two later ports moved these in OPPOSITE directions, and both reasons
+        // are worth keeping because the numbers alone explain neither.
+        //
+        // DOWN a tenth of a point when the engagement services moved to
+        // Postgres: their Mongoose models (`models/EngagementOutbox.ts`,
         // `models/PostRecentReplier.ts`) are no longer executed by any test —
         // they survive only for the historical Mongo migrations — so their
         // declarations moved from the covered column to the uncovered one.
-        statements: 64.1,
-        branches: 57.08,
-        functions: 69.06,
-        lines: 65.37,
+        //
+        // UP, by considerably more, with the long-tail query port (lists,
+        // starter packs, discovery, notifications, feeds, statistics). The
+        // mock-based suites those files carried asserted that a query was
+        // BUILT; rewriting them against real Postgres rows executes the query
+        // bodies for the first time, which is where the jump comes from.
+        //
+        // These are the values measured on the MERGED tree, not either branch's
+        // own figure — the two ports were measured independently and neither
+        // number describes the result of putting them together. The long-tail
+        // branch in particular was cut before the posts port landed, so its own
+        // figures were taken against a tree without it.
+        //
+        // They are the observed MINIMUM over ten runs, not a single reading, and
+        // the difference matters: nine runs measured 69.01/61.53/74.23/70.29 and
+        // one landed a few hundredths lower on all four at once. Nothing in the
+        // source changed between them, so the suite does not execute quite the
+        // same set of lines every time — plausibly a detached/fire-and-forget
+        // path that usually settles before the run ends, though which one has
+        // not been isolated. Pinning the modal value instead would hand CI a
+        // roughly 1-in-10 red build with no defect behind it, and a gate that
+        // cries wolf gets disabled by whoever hits it next.
+        statements: 68.99,
+        branches: 61.51,
+        functions: 74.16,
+        lines: 70.28,
         // The five engagement files below. Their BRANCH floors are a few points
         // lower than the Mongoose-era ones, and that is a deliberate trade the
         // numbers alone do not explain: the suites those figures came from

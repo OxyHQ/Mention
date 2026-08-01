@@ -14,13 +14,13 @@
  *    excluded, unused packs excluded, dedupe by CURATOR, bounded curator count,
  *    clamped score) and is authoritative for ANY accessor, so it is fully
  *    unit-testable with mocks.
- *  - The ACCESSOR ({@link mongoStarterPackCurationDeps}) is the only place that
- *    knows about Mongo. Its aggregation pre-applies the same predicates purely as
- *    an INDEX-SERVED WORK BOUND (it must never return MORE than the policy would
+ *  - The ACCESSOR ({@link starterPackCurationDeps}) is the only place that knows
+ *    about the database. Its query pre-applies the same predicates purely as an
+ *    INDEX-SERVED WORK BOUND (it must never return MORE than the policy would
  *    keep per author); the policy re-applies them regardless.
  *
- * COST: per BATCH of authors — never per post and never per author — one Mongo
- * aggregation plus one batched curator follower-count resolution (a Redis MGET, and
+ * COST: per BATCH of authors — never per post and never per author — one SQL
+ * statement plus one batched curator follower-count resolution (a Redis MGET, and
  * a single bulk Oxy call only for curators not yet cached). It runs ONLY on the
  * user-summary cache-fill path (`PostHydrationService.resolveUserSummaries`), so a
  * warm feed pays nothing and the RANKING path pays nothing at all.
@@ -30,8 +30,9 @@
  */
 
 import { MtnConfig } from '@mention/shared-types';
-import type { PipelineStage } from 'mongoose';
-import StarterPack from '../models/StarterPack';
+import { and, eq, gte, inArray, lte, ne, sql } from 'drizzle-orm';
+import { getDb } from '../db/postgres';
+import { starterPackMembers, starterPacks } from '../db/schema/lists';
 import { resolveCuratorFollowerCounts } from './curatorFollowerCounts';
 import { logger } from '../utils/logger';
 
@@ -193,73 +194,84 @@ export async function computeStarterPackScores(
   return scores;
 }
 
-/** One author's bounded curator list as returned by the Mongo aggregation. */
-interface AggregatedCurationRow {
-  _id: string;
-  curators: Array<{ curatorId: string; useCount: number }>;
-}
-
 /**
- * The Mongo aggregation pipeline behind {@link mongoStarterPackCurationDeps}.
+ * The bounded set of curation edges for a batch of authors — ONE statement.
  *
- * Exported so its stages can be asserted in a unit test without a live database.
- * It mirrors the policy rules ONLY as a work bound — it must never return more
- * than the policy would keep, and the policy re-applies every rule regardless:
+ * Mongo needed six aggregation stages here (`$match` → `$project`/`$unwind` over
+ * the member ARRAY → `$match` → `$group` → `$group` with `$topN`), because the
+ * membership it had to join against lived INSIDE the pack document. As a
+ * junction table the whole thing is an ordinary join plus a window function:
  *
- *  1. `$match`   — packs containing any of these authors, already crowd-validated
- *                  (`useCount >= minUseCount`). Index-served by
- *                  `{ memberOxyUserIds: 1, useCount: -1 }`.
- *  2. `$unwind`  — one row per (pack, matched author), dropping members we did not
- *                  ask about via `$setIntersection`.
- *  3. `$match`   — drop SELF-OWNED packs (`curator !== author`).
- *  4. `$group`   — dedupe by CURATOR, keeping their best (max-`useCount`) pack.
- *  5. `$group`   — keep only each author's top `maxCuratorsPerAuthor` curators by
- *                  usage (`$topN`, MongoDB 5.2+), which caps the rows this ever
- *                  returns at `maxCuratorsPerAuthor · authors`.
+ *  - `eligible` — packs that contain one of these authors and are already
+ *    crowd-validated (`use_count >= minUseCount`), with SELF-OWNED packs dropped
+ *    (`curator <> author`), and one row per (author, curator) holding that
+ *    curator's BEST pack. `max(use_count)` is the port of the first `$group`,
+ *    and it is well-defined because `packWeight` is monotonic in `use_count` for
+ *    a FIXED curator.
+ *  - `ranked` — `row_number()` per author, so at most `maxCuratorsPerAuthor`
+ *    curators per author ever leave the database. That is the port of `$topN`,
+ *    and its ORDER BY reproduces `{ useCount: -1, '_id.curatorId': 1 }` exactly:
+ *    without the `curator_id` tiebreak, two curators on the same `use_count` are
+ *    ordered arbitrarily, so WHICH of them survives the bound would differ
+ *    between two identical requests.
+ *
+ * This is a WORK BOUND, not the policy. {@link computeStarterPackScores}
+ * re-applies every rule to whatever comes back.
  */
-export function buildCurationPipeline(authorIds: string[]): PipelineStage[] {
-  return [
-    {
-      $match: {
-        memberOxyUserIds: { $in: authorIds },
-        useCount: { $gte: CURATION.minUseCount },
-      },
-    },
-    {
-      $project: {
-        _id: 0,
-        curatorId: '$ownerOxyUserId',
-        useCount: 1,
-        authorId: { $setIntersection: ['$memberOxyUserIds', authorIds] },
-      },
-    },
-    { $unwind: '$authorId' },
-    { $match: { $expr: { $ne: ['$authorId', '$curatorId'] } } },
-    {
-      $group: {
-        _id: { authorId: '$authorId', curatorId: '$curatorId' },
-        useCount: { $max: '$useCount' },
-      },
-    },
-    {
-      $group: {
-        _id: '$_id.authorId',
-        curators: {
-          $topN: {
-            n: CURATION.maxCuratorsPerAuthor,
-            // Deterministic: usage first, curator id as the tie-break.
-            sortBy: { useCount: -1, '_id.curatorId': 1 },
-            output: { curatorId: '$_id.curatorId', useCount: '$useCount' },
-          },
-        },
-      },
-    },
-  ];
+async function loadCurationEdges(authorIds: string[]): Promise<CurationEdge[]> {
+  const db = getDb();
+
+  const eligible = db.$with('eligible').as(
+    db
+      .select({
+        authorId: starterPackMembers.oxyUserId,
+        curatorId: starterPacks.ownerOxyUserId,
+        useCount: sql<number>`max(${starterPacks.useCount})`.as('use_count'),
+      })
+      .from(starterPackMembers)
+      .innerJoin(starterPacks, eq(starterPacks.id, starterPackMembers.packId))
+      .where(
+        and(
+          // `inArray`, never `= any(${authorIds})`: a raw JS array interpolated
+          // into `sql` binds as a ROW constructor, which Postgres rejects.
+          inArray(starterPackMembers.oxyUserId, authorIds),
+          gte(starterPacks.useCount, CURATION.minUseCount),
+          ne(starterPacks.ownerOxyUserId, starterPackMembers.oxyUserId),
+        ),
+      )
+      .groupBy(starterPackMembers.oxyUserId, starterPacks.ownerOxyUserId),
+  );
+
+  const ranked = db.$with('ranked').as(
+    db
+      .select({
+        authorId: eligible.authorId,
+        curatorId: eligible.curatorId,
+        useCount: eligible.useCount,
+        rank: sql<number>`row_number() over (partition by ${eligible.authorId} order by ${eligible.useCount} desc, ${eligible.curatorId} asc)`.as(
+          'rank',
+        ),
+      })
+      .from(eligible),
+  );
+
+  // `rank` is deliberately not selected out: `row_number()` is a bigint, which
+  // postgres.js hands back as a STRING, and it is only ever needed inside the
+  // predicate below.
+  return db
+    .with(eligible, ranked)
+    .select({
+      authorId: ranked.authorId,
+      curatorId: ranked.curatorId,
+      useCount: ranked.useCount,
+    })
+    .from(ranked)
+    .where(lte(ranked.rank, CURATION.maxCuratorsPerAuthor));
 }
 
 /**
- * The production accessors: starter packs from Mongo, curator follower counts from
- * the DEDICATED curator-follower resolver (`services/curatorFollowerCounts.ts` —
+ * The production accessors: curation edges from Postgres, curator follower counts
+ * from the DEDICATED curator-follower resolver (`services/curatorFollowerCounts.ts` —
  * its own Redis cache + one bulk Oxy call for the misses).
  *
  * That resolver deliberately does NOT go through the shared `usersummary:` identity
@@ -270,18 +282,8 @@ export function buildCurationPipeline(authorIds: string[]): PipelineStage[] {
  * and therefore still AMPLIFIES — which is the entire point of weighting an
  * endorsement by the curator's audience.
  */
-export const mongoStarterPackCurationDeps: StarterPackCurationDeps = {
-  async loadCurationEdges(authorIds: string[]): Promise<CurationEdge[]> {
-    const rows = await StarterPack.aggregate<AggregatedCurationRow>(buildCurationPipeline(authorIds));
-    const edges: CurationEdge[] = [];
-    for (const row of rows) {
-      for (const curator of row.curators) {
-        edges.push({ authorId: row._id, curatorId: curator.curatorId, useCount: curator.useCount });
-      }
-    }
-    return edges;
-  },
-
+export const starterPackCurationDeps: StarterPackCurationDeps = {
+  loadCurationEdges,
   loadCuratorFollowerCounts(curatorIds: string[]): Promise<Map<string, number>> {
     return resolveCuratorFollowerCounts(curatorIds);
   },

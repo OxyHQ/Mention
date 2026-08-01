@@ -18,10 +18,28 @@
  * a feed, a search, or a notification list.
  */
 
-import UserSettings from '../../models/UserSettings';
-import { MuteWord } from '../../models/MuteWord';
+import { eq } from 'drizzle-orm';
+import { getDb } from '../../db/postgres';
+import { muteWords } from '../../db/schema/engagement';
+import { userSettings } from '../../db/schema/userProfile';
 import { logger } from '../../utils/logger';
-import type { MuteActorTarget, MuteTarget, MuteWordRule } from './muteWordMatcher';
+import type { MuteTarget, MuteWordRule } from './muteWordMatcher';
+
+/** The `mute_words.targets` element values, as `mute_words_targets_check` allows. */
+const MUTE_TARGETS: readonly MuteTarget[] = ['content', 'tag'];
+
+/**
+ * Narrow one stored `targets` element.
+ *
+ * `targets` is a `text[]`, so drizzle hands it back as `string[]`: the element
+ * CHECK (`mute_words_targets_check`) bounds the VALUES but cannot narrow the
+ * TYPE. This filter is how the matcher's input is typed without a cast — it is
+ * not a second line of defence, and it can never actually drop an element while
+ * the constraint holds.
+ */
+function isMuteTarget(value: string): value is MuteTarget {
+  return (MUTE_TARGETS as readonly string[]).includes(value);
+}
 
 /**
  * The viewer's "show sensitive/NSFW content" opt-in. `false` for anonymous
@@ -31,19 +49,16 @@ import type { MuteActorTarget, MuteTarget, MuteWordRule } from './muteWordMatche
 export async function loadShowSensitiveContent(userId: string | undefined): Promise<boolean> {
   if (!userId) return false;
   try {
-    const doc = await UserSettings.findOne({ oxyUserId: userId }, { 'privacy.showSensitiveContent': 1 }).lean();
-    return doc?.privacy?.showSensitiveContent === true;
+    const [row] = await getDb()
+      .select({ showSensitiveContent: userSettings.privacyShowSensitiveContent })
+      .from(userSettings)
+      .where(eq(userSettings.oxyUserId, userId))
+      .limit(1);
+    return row?.showSensitiveContent === true;
   } catch (error) {
     logger.warn('[viewerSafety] Failed to load showSensitiveContent preference', error);
     return false;
   }
-}
-
-/** Lean projection of a `MuteWord` row — exactly the fields the matcher reads. */
-interface MuteWordLean {
-  value: string;
-  targets: MuteTarget[];
-  actorTarget?: MuteActorTarget;
 }
 
 /**
@@ -51,21 +66,26 @@ interface MuteWordLean {
  * {@link ./muteWordMatcher.compileMuteWords} consumes. One indexed query per
  * request — no N+1.
  *
- * Returns `[]` for anonymous viewers or on any load failure. `actorTarget` defaults
- * to `'all'` so a legacy row written before the field existed applies to every
- * author, matching the model default.
+ * Returns `[]` for anonymous viewers or on any load failure. `actorTarget` is
+ * `NOT NULL DEFAULT 'all'` in the schema, so a row written before the field
+ * existed still reads as applying to every author — the same answer Mongoose's
+ * `?? 'all'` produced, now guaranteed by the column rather than the reader.
  */
 export async function loadMuteWords(userId: string | undefined): Promise<MuteWordRule[]> {
   if (!userId) return [];
   try {
-    const docs = await MuteWord.find(
-      { userId },
-      { value: 1, targets: 1, actorTarget: 1 },
-    ).lean<MuteWordLean[]>();
-    return docs.map((doc) => ({
-      value: doc.value,
-      targets: doc.targets,
-      actorTarget: doc.actorTarget ?? 'all',
+    const rows = await getDb()
+      .select({
+        value: muteWords.value,
+        targets: muteWords.targets,
+        actorTarget: muteWords.actorTarget,
+      })
+      .from(muteWords)
+      .where(eq(muteWords.userId, userId));
+    return rows.map((row) => ({
+      value: row.value,
+      targets: row.targets.filter(isMuteTarget),
+      actorTarget: row.actorTarget,
     }));
   } catch (error) {
     logger.warn('[viewerSafety] Failed to load muted words', error);
