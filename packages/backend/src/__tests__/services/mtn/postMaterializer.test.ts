@@ -351,6 +351,31 @@ describe('projectRecord — the record owns some of the content, not all of it',
     expect([...(post?.mentions ?? [])].sort()).toEqual(['mentioned-user-a', 'mentioned-user-b']);
   });
 
+  it('PRESERVES a collaborator, which the record does not carry either', async () => {
+    // A post record names only its SUBJECT, so rewriting the authorship from it
+    // revokes every collaborator on every re-projection — which is what the
+    // Mongoose version did, and what `replacePostContent` deliberately refuses to
+    // do for the same reason. Found by mutation-testing the refresh path: deleting
+    // the authorship rewrite made nothing go red, because nothing had a
+    // collaborator to lose.
+    await seedPost(POST_RKEY, SUBJECT_OXY_ID, {
+      authorship: [
+        { oxyUserId: SUBJECT_OXY_ID, role: 'owner', status: 'accepted' },
+        { oxyUserId: 'collaborator-1', role: 'collaborator', status: 'accepted' },
+      ],
+    });
+
+    await projectRecord(envelope(MENTION_POST_COLLECTION, POST_RKEY, postRecord));
+
+    const post = await readPost(POST_RKEY);
+    expect(post?.authorship).toEqual([
+      { oxyUserId: SUBJECT_OXY_ID, role: 'owner', status: 'accepted' },
+      { oxyUserId: 'collaborator-1', role: 'collaborator', status: 'accepted' },
+    ]);
+    // …and the body still updated, so this is not passing by doing nothing.
+    expect(post?.content.variants?.[0]?.text).toBe('a body');
+  });
+
   it('PRESERVES an attached article, which the record does not carry', async () => {
     await seedPost(POST_RKEY, SUBJECT_OXY_ID, {
       content: {

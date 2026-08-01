@@ -54,12 +54,13 @@
  * happens in ONE transaction for that reason: a partially materialized post is
  * worse than an absent one, because the ingest is idempotent and would skip it.
  *
- * **The owner scope is now the upsert's own predicate.** Mongo relied on the
- * `_id` unique index to reject an upsert that missed the owner filter, and read
- * the duplicate-key error as "someone else owns this rkey". Postgres states it
- * directly: `ON CONFLICT (id) DO UPDATE … WHERE posts.oxy_user_id = $owner`
- * updates nothing when the row belongs to another account, and the empty
- * `RETURNING` is the mismatch.
+ * **The owner scope is now a read, a comparison and a branch.** Mongo relied on
+ * the `_id` unique index to reject an upsert that missed the owner filter, and
+ * read the duplicate-key error as "someone else owns this rkey". Here the row is
+ * loaded first and its owner compared before anything is written; the
+ * duplicate-key path survives only as the race handler, where a concurrent
+ * projection took the id between the read and the insert and the owner is
+ * re-checked on the re-read.
  *
  * **A reply whose parent is not here yet links to nothing rather than to a
  * dangling id.** `posts.parent_post_id` / `thread_id` are real foreign keys, so
@@ -110,7 +111,6 @@ import {
   deletePostRecord,
   insertPostRecord,
   loadPostRecord,
-  replacePostAuthorship,
   replacePostContent,
   updatePostRecord,
 } from '../../db/posts/postRepository';
@@ -510,10 +510,17 @@ function mergeRecordContent(
  * `mentions` are carried across because `replacePostContent` rewrites that table
  * from its argument, and a chain record carries no mention allowlist — passing
  * an empty list would silently strip an existing post's resolved @mentions.
+ *
+ * AUTHORSHIP is not rewritten either, and that is the same rule rather than an
+ * omission. A post record carries only its subject; rewriting the authorship
+ * from it would REVOKE every collaborator on every re-projection, which is what
+ * the Mongoose version did (`$set: { authorship: buildAuthorship(subject, []) }`)
+ * and what `replacePostContent` deliberately refuses to do for the same reason.
+ * The owner is already established: the caller only reaches here after matching
+ * `existing.oxyUserId` against the record's subject.
  */
 async function refreshProjectedPost(
   existing: PostRecord,
-  oxyUserId: string,
   content: StoredPostContent,
   patch: { hashtags: string[]; language: string | null; threadId: string | null },
   classification: Partial<PostRecordClassification> | undefined,
@@ -528,7 +535,6 @@ async function refreshProjectedPost(
     ...(classification === undefined ? {} : { postClassification: classification }),
   });
   await replacePostContent(existing.id, content, existing.mentions);
-  await replacePostAuthorship(existing.id, buildAuthorship(oxyUserId, []));
 }
 
 /**
@@ -589,7 +595,7 @@ async function projectPost(
   });
 
   if (existing) {
-    await refreshProjectedPost(existing, oxyUserId, content, { hashtags, language, threadId }, baseline?.classification);
+    await refreshProjectedPost(existing, content, { hashtags, language, threadId }, baseline?.classification);
   } else {
     try {
       await insertPostRecord({
@@ -621,7 +627,7 @@ async function projectPost(
       if (!raced || raced.oxyUserId !== oxyUserId) {
         return { ok: false, reason: 'record_owner_mismatch' };
       }
-      await refreshProjectedPost(raced, oxyUserId, content, { hashtags, language, threadId }, baseline?.classification);
+      await refreshProjectedPost(raced, content, { hashtags, language, threadId }, baseline?.classification);
     }
   }
 
@@ -691,8 +697,10 @@ async function projectRepost(
     if (existing.type !== PostType.BOOST || existing.boostOf !== boostOf) {
       return { ok: false, reason: 'repost_subject_mismatch' };
     }
-    await replacePostAuthorship(rkey, buildAuthorship(oxyUserId, []));
-    // The delete-then-insert is what makes a re-projection leave no stale body.
+    // Authorship is not rewritten — the owner was already established by the
+    // check above, and the record does not own that list (see
+    // {@link refreshProjectedPost}). The delete-then-insert is what makes a
+    // re-projection leave no stale body behind.
     await replacePostContent(rkey, { variants: [] }, existing.mentions);
     return { ok: true, kind: 'repost', id: rkey };
   }
