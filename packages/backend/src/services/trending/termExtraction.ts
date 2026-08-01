@@ -87,6 +87,20 @@ export const TREND_TERM_STOPWORDS: ReadonlySet<string> = new Set([
   'der', 'die', 'das', 'und', 'ist', 'nicht', 'ein', 'eine', 'mit', 'auf',
   'für', 'fur', 'von', 'dem', 'den', 'des', 'auch', 'sich', 'aber', 'wie',
   'noch', 'nur', 'schon', 'sind', 'wird', 'werden', 'haben', 'kann',
+  // German pronouns, modals and particles. The list was English-heavy, and a
+  // live batch showed what that costs: `ich`, `danke` and `dir` were reported
+  // as trends, and a dump of stored terms was thick with `wenn`, `jetzt`,
+  // `bitte` and `könnte`. Closed-class in German exactly as in English, so
+  // naming them all is safe.
+  'ich', 'mich', 'mir', 'dich', 'dir', 'ihm', 'ihn', 'ihnen', 'uns', 'euch',
+  'wir', 'ihr', 'sie', 'wenn', 'dann', 'jetzt', 'immer', 'wieder', 'sehr',
+  'mehr', 'viel', 'ganz', 'etwas', 'nichts', 'alles', 'jede', 'jeder', 'kein',
+  'keine', 'könnte', 'konnte', 'muss', 'müssen', 'mussen', 'soll', 'sollte',
+  'will', 'wollen', 'darf', 'dürfen', 'durfen', 'mag', 'möchte', 'mochte',
+  'hat', 'hatte', 'habe', 'war', 'waren', 'wurde', 'worden', 'bin', 'bist',
+  'sein', 'seine', 'ihre', 'mein', 'meine', 'dein', 'deine', 'danke', 'bitte',
+  'oder', 'weil', 'dass', 'damit', 'durch', 'gegen', 'ohne', 'über', 'uber',
+  'unter', 'zwischen', 'nach', 'vor', 'bei', 'zum', 'zur', 'als', 'man',
 ]);
 
 /**
@@ -276,9 +290,23 @@ export function collectTrendPhrases(text: string | null | undefined): string[] {
   return phrases;
 }
 
-/** Lowercase and strip leading/trailing apostrophes, which are punctuation here. */
+/**
+ * Lowercase, strip apostrophes at the EDGES (punctuation), and reduce an
+ * English contraction to the word it is built on.
+ *
+ * `i'll`, `there's` and `don't` reached the stored term lists intact, because
+ * an interior apostrophe is part of the token. Every one of them is a pronoun
+ * or auxiliary glued to another — the stop-word list holds the base word, and
+ * cutting at the apostrophe is what lets it do its job. It also folds `it's`
+ * onto `it` rather than leaving two spellings of one function word.
+ *
+ * The cut is at the FIRST apostrophe, so a possessive (`orioles'`) and a name
+ * that contains one (`o'brien`) behave differently on purpose: the possessive
+ * loses nothing, and `o'brien` reduces to `o`, which the length floor then
+ * drops — a name lost, but a name that no burst can be built on anyway.
+ */
 function normalizeToken(raw: string): string {
-  return raw.toLowerCase().replace(/^'+|'+$/g, '');
+  return raw.toLowerCase().replace(/^'+|'+$/g, '').split("'")[0];
 }
 
 /**

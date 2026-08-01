@@ -57,9 +57,11 @@ export const keywordsSource: SourceModule = {
 
     ChronoCursor.applyToQuery(match, ctx.cursor);
 
+    // Sorted on the CURSOR's axis. See `trendTermsSource` below for why `_id`
+    // alone is not merely a different order but a skipped page boundary.
     return (await Post.find(match)
       .select(FEED_FIELDS)
-      .sort({ _id: -1 })
+      .sort({ createdAt: -1, _id: -1 })
       .limit(cap)
       .maxTimeMS(5000)
       .lean()) as unknown as CandidatePost[];
@@ -124,9 +126,10 @@ export const accountsSource: SourceModule = {
     };
     ChronoCursor.applyToQuery(match, ctx.cursor);
 
+    // Sorted on the CURSOR's axis, same rule as the two sources above.
     return (await Post.find(match)
       .select(FEED_FIELDS)
-      .sort({ _id: -1 })
+      .sort({ createdAt: -1, _id: -1 })
       .limit(cap)
       .maxTimeMS(5000)
       .lean()) as unknown as CandidatePost[];
@@ -355,9 +358,12 @@ export const mutualsSource: SourceModule = {
     };
     ChronoCursor.applyToQuery(match, ctx.cursor);
 
+    // Sorted on the CURSOR's axis, same rule as every source above. Mutuals
+    // include federated authors, so this one is exposed to the skipped-page
+    // boundary exactly like the rest.
     return (await Post.find(match)
       .select(FEED_FIELDS)
-      .sort({ _id: -1 })
+      .sort({ createdAt: -1, _id: -1 })
       .limit(cap)
       .maxTimeMS(5000)
       .lean()) as unknown as CandidatePost[];

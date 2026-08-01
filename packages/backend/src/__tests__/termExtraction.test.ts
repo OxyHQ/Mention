@@ -179,6 +179,29 @@ describe('extractTrendTerms — what is dropped', () => {
     expect(terms).toHaveLength(0);
   });
 
+  it('drops closed-class words in the languages this network actually carries', () => {
+    // A live dump of stored terms was thick with these. `ich`, `danke` and
+    // `dir` had already reached the rendered trending list.
+    expect(extractTrendTerms({ text: 'ich danke dir sehr' })).toEqual([]);
+    expect(extractTrendTerms({ text: 'wenn du jetzt bitte' })).toEqual([]);
+  });
+
+  it('reduces an English contraction to the word the stop list holds', () => {
+    // `i'll` and `there's` survived whole, because an interior apostrophe is
+    // part of the token. Cut at the apostrophe, each falls to the stop list or
+    // the length floor — while the ordinary words beside them stay, which is
+    // the point: this trims function words, it does not thin the vocabulary.
+    const terms = extractTrendTerms({ text: "i'll give there's always" });
+    expect(terms).not.toContain("i'll");
+    expect(terms).not.toContain("there's");
+    expect(terms).toContain('give');
+  });
+
+  it('keeps a German content word standing beside the function words', () => {
+    const terms = extractTrendTerms({ text: 'ich bin bei der Datenschutzbehörde' });
+    expect(terms).toContain('datenschutzbehörde');
+  });
+
   it('drops question words and modals, which reached the live list as trends', () => {
     // `Why` and `Will` were rendered as trending topics on 2026-08-01.
     expect(extractTrendTerms({ text: 'why will they do this' })).toEqual([]);
