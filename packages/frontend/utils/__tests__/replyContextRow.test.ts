@@ -39,7 +39,7 @@ function post(replyContext?: HydratedPost['replyContext']): HydratedPost {
   return { id: 'p1', replyContext } as unknown as HydratedPost;
 }
 
-const PLAIN = { isNested: false, isThreadChild: false };
+const PLAIN = { isNested: false };
 
 describe('resolveReplyContextRow', () => {
     it('renders nothing for a post that is not a reply', () => {
@@ -81,25 +81,31 @@ describe('resolveReplyContextRow', () => {
         expect(row?.authorHandle).toBeUndefined();
     });
 
-    it('stays silent when the parent is the row directly above', () => {
-        // The parent is prepended into the same slice, or is the previous post of
-        // the author's own thread. Announcing it would repeat what the thread line
-        // already shows — and on a self-thread it would read "Replying to
-        // @themselves" on every post after the first.
+    it('still names the parent when it is prepended directly above', () => {
+        // A feed `replyContext` slice renders [parent, reply]. The header is NOT
+        // suppressed there: it names a DIFFERENT author, which is the informative
+        // case and the whole substance of the bug. Redundant context is cheap;
+        // missing context is what was broken.
         const row = resolveReplyContextRow({
             post: post({ parentAuthor: PARENT_AUTHOR }),
             isNested: false,
-            isThreadChild: true,
         });
 
-        expect(row).toBeNull();
+        expect(row).toEqual({ authorHandle: 'parenthandle', label: 'parenthandle' });
+    });
+
+    it('renders nothing for a self-thread continuation', () => {
+        // The SERVER omits `replyContext` for a reply to its own author's post,
+        // so a continuation reaches the renderer with nothing to show. This
+        // asserts the client honours that rather than inventing a header — see
+        // postHydrationReplyContext.test.ts for the server half.
+        expect(resolveReplyContextRow({ post: post(undefined), ...PLAIN })).toBeNull();
     });
 
     it('stays silent inside a quote card', () => {
         const row = resolveReplyContextRow({
             post: post({ parentAuthor: PARENT_AUTHOR }),
             isNested: true,
-            isThreadChild: false,
         });
 
         expect(row).toBeNull();

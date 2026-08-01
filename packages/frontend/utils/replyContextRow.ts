@@ -18,8 +18,6 @@ export interface ReplyContextRowInput {
   post: HydratedPost | HydratedPostSummary | null | undefined;
   /** This row is a quote card inside another post. */
   isNested: boolean;
-  /** The row directly above IS this post's parent, drawn connected. */
-  isThreadChild: boolean;
 }
 
 export interface ReplyContextRow {
@@ -39,22 +37,29 @@ export interface ReplyContextRow {
 }
 
 /**
- * `null` when no row should render. Two suppressions, both meaning "the context
- * is already in front of you":
+ * `null` when no row should render.
  *
- *  - `isThreadChild` — the parent is the row immediately above. This is also
- *    what keeps a SELF-THREAD quiet: every continuation of an author's own
- *    thread is technically a reply to their previous post, so without this each
- *    one would announce "Replying to @themselves".
- *  - `isNested` — a quote card is context for the post around it; a reply header
- *    inside one describes a relationship the reader did not ask about.
+ * The SELF-THREAD case is not decided here: the server omits `replyContext`
+ * entirely for a reply to its own author's post, because only the server holds
+ * both authoritative author ids (a post's DTO `user.id` is a degraded, post-id
+ * based placeholder for orphan federated posts, so comparing here would silently
+ * never match on exactly those). A continuation therefore arrives with nothing to
+ * render, and its thread connector plus "Show this thread" carry the meaning.
+ *
+ * The one suppression left is `isNested`: a quote card is context for the post
+ * around it, and a reply header inside one describes a relationship the reader
+ * did not ask about.
+ *
+ * Note what is deliberately NOT suppressed: a reply whose parent is prepended
+ * directly above it still renders the header. It names a DIFFERENT author, and
+ * naming them is the entire point — redundant context is cheap, missing context
+ * is the bug.
  */
 export function resolveReplyContextRow({
   post,
   isNested,
-  isThreadChild,
 }: ReplyContextRowInput): ReplyContextRow | null {
-  if (isNested || isThreadChild) return null;
+  if (isNested) return null;
 
   const replyContext = post?.replyContext;
   if (!replyContext) return null;

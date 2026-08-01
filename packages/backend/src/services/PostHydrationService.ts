@@ -882,7 +882,7 @@ export class PostHydrationService {
     // Everything else is independent and can run concurrently.
     const [
       ,
-      { userMap, recentReplierMap, replyParentAuthorIdByPostId },
+      { userMap, recentReplierMap, replyParentAuthorIdByPostId, selfContinuationPostIds },
       pollMap,
       authorPrivacyMap,
       linkPreviewMap,
@@ -910,6 +910,7 @@ export class PostHydrationService {
           userMap: uMap,
           recentReplierMap: rMap,
           replyParentAuthorIdByPostId: replyParents.parentAuthorIdByPostId,
+          selfContinuationPostIds: replyParents.selfContinuationPostIds,
         };
       })(),
       this.buildPollMap(postsForHydration),
@@ -943,6 +944,7 @@ export class PostHydrationService {
           resolvedMap,
           quoteCountMap,
           replyParentAuthorIdByPostId,
+          selfContinuationPostIds,
         })
       )
     );
@@ -1821,30 +1823,46 @@ export class PostHydrationService {
    * a private profile yields NO entry, so the reply still reports itself as a
    * reply but names nobody — never a header naming the author of a post this
    * viewer was refused.
+   *
+   * `selfContinuationPostIds` is the SELF-THREAD decision, made here rather than
+   * in the renderer for two reasons. It is the only place that holds both
+   * authoritative author ids (`post.oxyUserId` and the parent's), and the DTO's
+   * `user.id` is NOT a safe substitute: an orphan federated post carries a
+   * degraded author summary whose `id` is the POST id (see `degradedActorSummary`
+   * in `buildPostSummary`), so a renderer-side comparison would silently never
+   * match for exactly those posts.
    */
   private async buildReplyParentAuthorMap(
     nodes: HydratedGraphNode[],
     viewerContext: ViewerContext,
-  ): Promise<{ parentAuthorIdByPostId: Map<string, string>; parentAuthorIds: Set<string> }> {
+  ): Promise<{
+    parentAuthorIdByPostId: Map<string, string>;
+    parentAuthorIds: Set<string>;
+    selfContinuationPostIds: Set<string>;
+  }> {
     const parentAuthorIdByPostId = new Map<string, string>();
     const parentAuthorIds = new Set<string>();
+    const selfContinuationPostIds = new Set<string>();
 
     // `isReplyPost` is the ONE definition of the concept (see utils/postReply):
     // it counts a federated reply whose `inReplyTo` never resolved into a local
     // `parentPostId`. Such a reply has no parent to name but is still a reply,
     // and `buildPostSummary` emits its marker off the same predicate.
     const parentIdByPostId = new Map<string, string>();
+    const replyAuthorIdByPostId = new Map<string, string>();
     for (const { post } of nodes) {
       if (!post || !isReplyPost(post)) continue;
       const postId = this.resolveId(post);
       const parentId = post.parentPostId ? String(post.parentPostId) : '';
       if (postId && parentId) {
         parentIdByPostId.set(postId, parentId);
+        // The raw `oxyUserId`, not the DTO's `user.id` — see the note above.
+        replyAuthorIdByPostId.set(postId, post.oxyUserId ? String(post.oxyUserId) : '');
       }
     }
 
     if (parentIdByPostId.size === 0) {
-      return { parentAuthorIdByPostId, parentAuthorIds };
+      return { parentAuthorIdByPostId, parentAuthorIds, selfContinuationPostIds };
     }
 
     // Parents already collected into the graph (a reply-context slice prepends
@@ -1882,6 +1900,19 @@ export class PostHydrationService {
       // nobody to name — the reply keeps its marker and drops the handle.
       if (!parentAuthorId) continue;
 
+      // A reply to one's OWN post is a self-thread continuation, which every
+      // client renders as a thread (connector line + "Show this thread"), never
+      // as a reply header — "Replying to @themselves" on every post after the
+      // first is noise, and self-threads are a very common shape. Classified
+      // here, where both ids are authoritative; `buildPostSummary` then omits
+      // `replyContext` for these posts entirely, so the renderer needs no rule
+      // and cannot mistake a self-continuation for an unnamed reply.
+      const replyAuthorId = replyAuthorIdByPostId.get(postId);
+      if (replyAuthorId && replyAuthorId === parentAuthorId) {
+        selfContinuationPostIds.add(postId);
+        continue;
+      }
+
       const readable = this.canViewerReadPost(
         parent,
         parentAuthorId,
@@ -1895,7 +1926,7 @@ export class PostHydrationService {
       parentAuthorIds.add(parentAuthorId);
     }
 
-    return { parentAuthorIdByPostId, parentAuthorIds };
+    return { parentAuthorIdByPostId, parentAuthorIds, selfContinuationPostIds };
   }
 
   /**
@@ -1941,8 +1972,10 @@ export class PostHydrationService {
     quoteCountMap: Map<string, number> | undefined;
     /** Reply post id → its parent's author id, for the posts whose parent this viewer may read. */
     replyParentAuthorIdByPostId: Map<string, string>;
+    /** Replies to their OWN author's post — self-thread continuations, which carry no reply context. */
+    selfContinuationPostIds: Set<string>;
   }): Promise<HydratedPostSummary | null> {
-    const { post, viewerContext, pollMap, userMap, mentionCache, linkPreviewMap, authorPrivacyMap, recentReplierMap, orphanAuthorMap, resolvedMap, quoteCountMap, replyParentAuthorIdByPostId } = params;
+    const { post, viewerContext, pollMap, userMap, mentionCache, linkPreviewMap, authorPrivacyMap, recentReplierMap, orphanAuthorMap, resolvedMap, quoteCountMap, replyParentAuthorIdByPostId, selfContinuationPostIds } = params;
 
     const postId = this.resolveId(post);
     if (!postId) return null;
@@ -2099,8 +2132,10 @@ export class PostHydrationService {
       // sliced feed, flat feed, search, saved, thread view — can say "Replying
       // to @…" from the DTO alone. `isReplyPost` is the single definition, so a
       // federated reply whose `inReplyTo` never resolved is still marked; it just
-      // names nobody. See `PostReplyContext`.
-      ...(isReplyPost(post) ? { replyContext } : {}),
+      // names nobody. Self-thread continuations are the one exclusion — they are
+      // replies, but they are rendered as a THREAD, not as reply context. See
+      // `PostReplyContext`.
+      ...(isReplyPost(post) && !selfContinuationPostIds.has(postId) ? { replyContext } : {}),
     };
   }
 

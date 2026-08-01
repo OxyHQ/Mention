@@ -197,6 +197,118 @@ describe('PostHydrationService — reply context on the flat (slice-free) path',
     expect(hydrated.replyContext?.parentAuthor).toBeUndefined();
   });
 
+  it('marks a reply whose parent link never resolved with an EXPLICIT empty context', async () => {
+    // Spelled out separately from the assertion above because this is the shape
+    // most likely to regress silently: if `replyContext` came back `undefined`
+    // here the post would pass as a thread ROOT and render as an ordinary
+    // top-level post — the original bug, in the one case that cannot be spotted
+    // by looking at `parentPostId`.
+    const federatedReply = makePostRow('650000000000000000000038', REPLY_AUTHOR_ID, {
+      parentPostId: null,
+      federation: {
+        activityId: 'https://remote.example/users/someone/statuses/9',
+        inReplyTo: 'https://remote.example/users/someone/statuses/8',
+      },
+    });
+
+    const [hydrated] = await service.hydratePosts([federatedReply], { viewerId: VIEWER_ID });
+
+    expect(hydrated.replyContext).toEqual({});
+    expect(hydrated.replyContext).not.toBeUndefined();
+  });
+
+  it('omits reply context entirely for a self-thread continuation', async () => {
+    // Replying to one's OWN post is a thread, not reply context. Emitting it
+    // would put "Replying to @themselves" on every post of every self-thread.
+    const ownParent = makePostRow(PARENT_ID, REPLY_AUTHOR_ID);
+    postFind.mockImplementation(() => [ownParent]);
+
+    const continuation = makePostRow(REPLY_ID, REPLY_AUTHOR_ID, { parentPostId: PARENT_ID });
+
+    const [hydrated] = await service.hydratePosts([continuation], { viewerId: VIEWER_ID });
+
+    expect(hydrated.replyContext).toBeUndefined();
+  });
+
+  it('keeps reply context when the SAME page holds both a self-thread and a real reply', async () => {
+    // The suppression is per-post, not per-page: one self-continuation must not
+    // silence a genuine reply hydrated alongside it.
+    const ownParent = makePostRow('650000000000000000000041', REPLY_AUTHOR_ID);
+    const continuation = makePostRow('650000000000000000000042', REPLY_AUTHOR_ID, {
+      parentPostId: '650000000000000000000041',
+    });
+    const realReply = makePostRow('650000000000000000000043', REPLY_AUTHOR_ID, {
+      parentPostId: PARENT_ID,
+    });
+    postFind.mockImplementation(() => [PARENT_ROW]);
+
+    const hydrated = await service.hydratePosts(
+      [ownParent, continuation, realReply],
+      { viewerId: VIEWER_ID },
+    );
+
+    const byId = new Map(hydrated.map((post) => [post.id, post]));
+    expect(byId.get('650000000000000000000042')?.replyContext).toBeUndefined();
+    expect(byId.get('650000000000000000000043')?.replyContext?.parentAuthor?.username)
+      .toBe('parenthandle');
+  });
+
+  it('cannot detect a self-thread when the federated parent was never linked', async () => {
+    // KNOWN LIMIT, asserted so it is visible rather than a surprise.
+    //
+    // The self-thread suppression compares two authoritative `oxyUserId`s. An
+    // unlinked federated reply has no local parent at all, so there is no second
+    // id to compare and the post renders the generic "Replying to a post" rather
+    // than nothing. It can never render "Replying to @themselves" — it names
+    // nobody — so the failure mode is a redundant row, not a wrong one.
+    //
+    // Deliberately NOT closed by sniffing `federation.inReplyTo` for the author's
+    // own actor URI: that shape is Mastodon-specific (Pleroma `/objects/<uuid>`,
+    // Lemmy `/comment/<id>`, PeerTube `/videos/watch/<uuid>` do not follow it),
+    // and a false positive would suppress a GENUINE reply to someone else —
+    // strictly worse than the redundant row it would remove.
+    //
+    // Narrow in practice: a federated self-thread's parent is by the same remote
+    // actor, so the outbox import that brought in the continuation normally
+    // brought in its root too (`resolveThreadLink` walks and backfills). The
+    // unlinked case is far more common for CROSS-author replies, where the parent
+    // lives on an instance we never fetched — and those SHOULD show the row.
+    const unlinkedSelfContinuation = makePostRow('650000000000000000000044', REPLY_AUTHOR_ID, {
+      parentPostId: null,
+      federation: {
+        activityId: 'https://remote.example/users/self/statuses/2',
+        inReplyTo: 'https://remote.example/users/self/statuses/1',
+      },
+    });
+
+    const [hydrated] = await service.hydratePosts([unlinkedSelfContinuation], { viewerId: VIEWER_ID });
+
+    expect(hydrated.replyContext).toEqual({});
+    expect(hydrated.replyContext?.parentAuthor).toBeUndefined();
+  });
+
+  it('DOES suppress a federated self-thread once its parent is linked', async () => {
+    // The counterpart to the limit above: the moment `parentPostId` resolves,
+    // the comparison has both ids and federated self-threads behave exactly like
+    // native ones. This is the common case.
+    const federatedOwnParent = makePostRow('650000000000000000000045', REPLY_AUTHOR_ID, {
+      federation: { activityId: 'https://remote.example/users/self/statuses/1' },
+    });
+    postFind.mockImplementation(() => [federatedOwnParent]);
+
+    const continuation = makePostRow('650000000000000000000046', REPLY_AUTHOR_ID, {
+      parentPostId: '650000000000000000000045',
+      federation: {
+        activityId: 'https://remote.example/users/self/statuses/2',
+        inReplyTo: 'https://remote.example/users/self/statuses/1',
+      },
+    });
+
+    const [hydrated] = await service.hydratePosts([continuation], { viewerId: VIEWER_ID });
+
+    expect(hydrated.replyContext).toBeUndefined();
+  });
+
   it('leaves a thread root with no reply context at all', async () => {
     const root = makePostRow(ROOT_ID, REPLY_AUTHOR_ID, { parentPostId: null, threadId: 'thread-1' });
 

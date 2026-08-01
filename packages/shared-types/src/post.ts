@@ -927,10 +927,22 @@ export interface PostMetadataState {
  * insights, the scheduled-post preview, the thread view — had no access to it,
  * so a reply on those surfaces was indistinguishable from a top-level post.
  *
- * Present on EVERY post that is a reply, decided by the server's one definition
+ * Present on every post that is a reply, decided by the server's one definition
  * of the concept (`isReplyPost`), which counts a federated reply whose
  * `inReplyTo` never resolved locally. `parentAuthor` is therefore optional and
  * the empty object is meaningful: "this is a reply, but we cannot say to whom".
+ *
+ * ONE exclusion: a reply to its OWN author's post — a self-thread continuation —
+ * carries no `replyContext` at all. It is a reply, but it is rendered as a
+ * THREAD (connector line, "Show this thread"), and a "Replying to @themselves"
+ * header on every post after the first is noise on a very common shape. The
+ * server decides this because only it holds both authoritative author ids: a
+ * post's `user.id` is a degraded, post-id based placeholder for orphan federated
+ * posts, so a client-side comparison would silently never match on exactly those.
+ *
+ * Note this is narrower than "present iff the post is a reply" — consumers that
+ * need the raw fact should read {@link HydratedPostSummary.parentPostId}. What
+ * this field answers is "does this row need to tell the reader what it answers".
  *
  * The local parent id is NOT repeated here — it is already
  * {@link HydratedPostSummary.parentPostId}, and one value with two spellings is
