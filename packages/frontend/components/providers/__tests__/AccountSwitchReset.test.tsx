@@ -12,6 +12,7 @@ import { useExternalEmbedsStore } from '@/stores/externalEmbedsStore';
 import { useLiveRoomsStore } from '@/stores/liveRoomsStore';
 import { useTrendsStore } from '@/stores/trendsStore';
 import { clearAllFeedMemoryCaches } from '@/stores/feedScrollStore';
+import { resetEngagementInvalidation } from '@/stores/engagementInvalidation';
 import { setFeedViewerRequestScope } from '@/services/feedService';
 import { searchService } from '@/services/searchService';
 import { socketService } from '@/services/socketService';
@@ -108,6 +109,10 @@ jest.mock('@/stores/feedScrollStore', () => ({
   clearAllFeedMemoryCaches: jest.fn(),
 }));
 
+jest.mock('@/stores/engagementInvalidation', () => ({
+  resetEngagementInvalidation: jest.fn(),
+}));
+
 jest.mock('@/services/feedService', () => ({
   setFeedViewerRequestScope: jest.fn(),
 }));
@@ -141,6 +146,7 @@ const mockGetLiveRoomsState = useLiveRoomsStore.getState as jest.Mock;
 const mockGetTrendsState = useTrendsStore.getState as jest.Mock;
 const mockSetReaderLanguages = jest.fn();
 const mockClearFeedMemory = clearAllFeedMemoryCaches as jest.Mock;
+const mockResetEngagementInvalidation = resetEngagementInvalidation as jest.Mock;
 const mockSetFeedViewerRequestScope =
   setFeedViewerRequestScope as jest.Mock;
 const mockClearSearchHistory = searchService.clearSearchHistory as jest.Mock;
@@ -250,6 +256,7 @@ describe('AccountSwitchReset identity boundary', () => {
     expect(mockResetRecommendationFilters).toHaveBeenCalledWith('viewer-a');
     expect(mockResetPrivacySettingsCache).toHaveBeenCalledWith('viewer-a');
     expect(mockClearFeedMemory).toHaveBeenCalledTimes(1);
+    expect(mockResetEngagementInvalidation).toHaveBeenCalledTimes(1);
     expect(mockResetAppearance).toHaveBeenCalledTimes(1);
     expect(mockResetTheme).toHaveBeenCalledTimes(1);
     expect(mockClearSearchHistory).toHaveBeenCalledWith('viewer-a');

@@ -19,6 +19,7 @@ import { createLogger } from '@oxyhq/core/logger';
 import { feedService, type ExtendedFeedRequest } from '../services/feedService';
 import { markLocalAction } from '../services/echoGuard';
 import { publishNewLocalPost, publishRemovedLocalPost } from '@/stores/feedScrollStore';
+import { invalidateEngagementLists } from '@/stores/engagementInvalidation';
 
 // ── Database imports ─────────────────────────────────────────────
 import {
@@ -987,6 +988,7 @@ export const usePostsStore = create<PostsStoreState>()(
           if (previousPost) get().updatePostEverywhere(postId, () => previousPost!);
           throw new Error('Failed to boost');
         }
+        invalidateEngagementLists('boost');
       } catch (error) {
         if (!isCurrentViewerStateEpoch(operationEpoch)) return;
         if (previousPost) get().updatePostEverywhere(postId, () => previousPost!);
@@ -1020,6 +1022,7 @@ export const usePostsStore = create<PostsStoreState>()(
           if (previousPost) get().updatePostEverywhere(postId, () => previousPost!);
           throw new Error('Failed to unboost');
         }
+        invalidateEngagementLists('boost');
       } catch (error) {
         if (!isCurrentViewerStateEpoch(operationEpoch)) return;
         if (previousPost) get().updatePostEverywhere(postId, () => previousPost!);
@@ -1060,6 +1063,7 @@ export const usePostsStore = create<PostsStoreState>()(
           throw new Error('Failed to like');
         }
         syncVoteStateFromServer(get, postId, response.data);
+        invalidateEngagementLists('like');
       } catch (error) {
         if (!isCurrentViewerStateEpoch(operationEpoch)) return;
         if (previousPost) get().updatePostEverywhere(postId, () => previousPost!);
@@ -1104,6 +1108,7 @@ export const usePostsStore = create<PostsStoreState>()(
           throw new Error('Failed to unlike');
         }
         syncVoteStateFromServer(get, postId, response.data);
+        invalidateEngagementLists('like');
       } catch (error) {
         if (!isCurrentViewerStateEpoch(operationEpoch)) return;
         if (previousPost) get().updatePostEverywhere(postId, () => previousPost!);
@@ -1153,6 +1158,9 @@ export const usePostsStore = create<PostsStoreState>()(
           throw new Error('Failed to downvote');
         }
         syncVoteStateFromServer(get, postId, response.data);
+        // A downvote clears any like the viewer had on this post, so it changes
+        // the likes list exactly as an unlike does.
+        invalidateEngagementLists('like');
       } catch (error) {
         if (!isCurrentViewerStateEpoch(operationEpoch)) return;
         if (previousPost) get().updatePostEverywhere(postId, () => previousPost!);
@@ -1201,6 +1209,7 @@ export const usePostsStore = create<PostsStoreState>()(
           if (previousPost) get().updatePostEverywhere(postId, () => previousPost!);
           throw new Error('Failed to save');
         }
+        invalidateEngagementLists('save');
       } catch (error) {
         if (!isCurrentViewerStateEpoch(operationEpoch)) return;
         if (previousPost) get().updatePostEverywhere(postId, () => previousPost!);
@@ -1249,6 +1258,7 @@ export const usePostsStore = create<PostsStoreState>()(
           if (previousPost) get().updatePostEverywhere(postId, () => previousPost!);
           throw new Error('Failed to unsave');
         }
+        invalidateEngagementLists('save');
       } catch (error) {
         if (!isCurrentViewerStateEpoch(operationEpoch)) return;
         if (previousPost) get().updatePostEverywhere(postId, () => previousPost!);

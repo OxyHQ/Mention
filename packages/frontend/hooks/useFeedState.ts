@@ -27,6 +27,7 @@ import {
     subscribeToRemovedLocalPosts,
     type FeedMemoryCacheEntry,
 } from '@/stores/feedScrollStore';
+import { isFeedCacheStale } from '@/stores/engagementInvalidation';
 
 // Re-export so callers that already imported from here keep working.
 export { resolveUseMemoryFeed } from '@/utils/feedMemoryMode';
@@ -333,6 +334,9 @@ export function useFeedState({
                     interstitials: existing?.interstitials ?? localInterstitialsRef.current,
                     hasMore: existing?.hasMore ?? localHasMore,
                     nextCursor: existing?.nextCursor ?? localNextCursor,
+                    // Prepending the viewer's own new post does not make this
+                    // slice any fresher than the read it came from.
+                    retainedAt: existing?.retainedAt ?? 0,
                 });
             }
         });
@@ -446,9 +450,9 @@ export function useFeedState({
     // remount can warm-start from it. No-op outside memory mode (SQLite retains
     // its own data). Called after every successful memory-mode state update.
     const retainMemoryCache = useCallback(
-        (entry: FeedMemoryCacheEntry) => {
+        (entry: Omit<FeedMemoryCacheEntry, 'retainedAt'>) => {
             if (!useMemoryFeed) return;
-            setFeedMemoryCache(feedScrollKey, entry);
+            setFeedMemoryCache(feedScrollKey, { ...entry, retainedAt: Date.now() });
         },
         [useMemoryFeed, feedScrollKey]
     );
@@ -501,7 +505,12 @@ export function useFeedState({
                 const ui = usePostsStore.getState().feedUI[feedKey];
                 const hasDbData = hasFeedData(feedKey);
 
-                if (hasDbData && ui?.lastUpdated && ui.lastUpdated > 0) {
+                if (
+                    hasDbData
+                    && ui?.lastUpdated
+                    && ui.lastUpdated > 0
+                    && !isFeedCacheStale(feedTypeToCheck, userId, currentUserId, ui.lastUpdated)
+                ) {
                     logger.debug('Skipping — feed has SQLite cache');
                     isFetchingRef.current = false;
                     return;
@@ -528,17 +537,28 @@ export function useFeedState({
             // pages > 1) with just page 1, losing the user's scroll context.
             // The seed is consumed once so a later forceRefresh still refetches.
             //
-            // EXCEPTION — replies feeds always revalidate. A thread's replies
+            // FIRST EXCEPTION — replies feeds always revalidate. A thread's replies
             // list seeds instantly from `localItems` (no flash) but must then
             // fetch fresh so server-side changes (new/deleted/duplicate replies)
             // show on SPA navigation, not only on a hard reload that wipes the
             // memory store. Freshness wins over scroll preservation here, and a
             // replies list has no deep-scroll/pagination context worth keeping.
-            if (useMemoryFeed && !forceRefresh && seededCacheRef.current && type !== 'replies') {
-                logger.debug('Skipping — memory feed warm-started from cache');
+            //
+            // SECOND EXCEPTION — a slice that predates an engagement the viewer
+            // has since made. Liking, boosting and saving change which posts these
+            // lists CONTAIN, and no optimistic update can know the server's paging
+            // or ordering. The seed still renders (no flash), but the fetch below
+            // has to run or the list keeps showing its pre-write membership until
+            // a reload. See `stores/engagementInvalidation`.
+            const seeded = seededCacheRef.current;
+            if (useMemoryFeed && !forceRefresh && seeded && type !== 'replies') {
                 seededCacheRef.current = undefined;
-                isFetchingRef.current = false;
-                return;
+                if (!isFeedCacheStale(feedTypeToCheck, userId, currentUserId, seeded.retainedAt)) {
+                    logger.debug('Skipping — memory feed warm-started from cache');
+                    isFetchingRef.current = false;
+                    return;
+                }
+                logger.debug('Warm cache predates an engagement write — revalidating');
             }
 
             try {

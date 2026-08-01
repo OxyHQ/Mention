@@ -3,7 +3,11 @@ import TestRenderer, { act } from 'react-test-renderer';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { HydratedPost } from '@mention/shared-types';
 import enMessages from '@/locales/en.json';
-import { QUERY_CLIENT_CONFIG } from '@/components/providers/constants';
+import { queryClient } from '@/lib/queryClient';
+import {
+  invalidateEngagementLists,
+  resetEngagementInvalidation,
+} from '@/stores/engagementInvalidation';
 
 /**
  * Saving a post and then OPENING the saved screen must show that post.
@@ -184,15 +188,20 @@ jest.mock('@/services/feedService', () => ({
   },
 }));
 
-// `savePost` is the real store's contract: it awaits the server write. The
-// store itself is SQLite-backed, so only that boundary is replaced.
+// The real store's contract, reduced to the two things this screen depends on:
+// the write is awaited, and a write that lands reports the list it changed. The
+// store itself is SQLite-backed, so only that boundary is replaced; that it
+// really makes this call is asserted against the actual store in
+// `stores/__tests__/engagementInvalidationWiring.test.ts`.
 const mockPostsStore = {
   cachePosts: jest.fn(),
   savePost: jest.fn(async ({ postId }: { postId: string }) => {
     mockServerSaved = [postId, ...mockServerSaved];
+    invalidateEngagementLists('save');
   }),
   unsavePost: jest.fn(async ({ postId }: { postId: string }) => {
     mockServerSaved = mockServerSaved.filter((id) => id !== postId);
+    invalidateEngagementLists('save');
   }),
 };
 
@@ -229,17 +238,16 @@ async function settle(client: QueryClient, tries = 25): Promise<void> {
   throw new Error('React Query never settled');
 }
 
-const clients: QueryClient[] = [];
 const renderers: TestRenderer.ReactTestRenderer[] = [];
 
 /**
- * The app's own client, built from the REAL shared config. Replacing its
- * defaults here would remove the thing this file exists to protect.
+ * The app's OWN client — the module singleton `app/_layout.tsx` mounts, built
+ * from the real shared defaults. Substituting a client with test defaults would
+ * remove the thing this file exists to protect, and a second client would not be
+ * the one `postsStore` invalidates.
  */
-function makeAppClient(): QueryClient {
-  const client = new QueryClient(QUERY_CLIENT_CONFIG);
-  clients.push(client);
-  return client;
+function appClient(): QueryClient {
+  return queryClient;
 }
 
 /** Open the saved screen, as a navigation would: a fresh mount. */
@@ -303,6 +311,7 @@ beforeAll(() => {
 
 beforeEach(() => {
   jest.clearAllMocks();
+  resetEngagementInvalidation();
   mockServerSaved = [];
 });
 
@@ -312,16 +321,15 @@ afterEach(() => {
       renderer.unmount();
     });
   }
-  // The real config keeps a 30-minute garbage-collection timer on every cached
-  // query. Clearing the client disarms them so they cannot outlive the run.
-  for (const client of clients.splice(0)) {
-    client.clear();
-  }
+  // One shared client across the file, as in the app. Clearing it isolates the
+  // cases from each other and disarms the real config's 30-minute
+  // garbage-collection timers, which would otherwise outlive the run.
+  queryClient.clear();
 });
 
 describe('saved screen revalidation after a save', () => {
   it('shows a post saved from the feed on the next visit, with no reload', async () => {
-    const client = makeAppClient();
+    const client = appClient();
     mockServerSaved = ['post-existing'];
 
     // First visit: the viewer already has one saved post.
@@ -341,7 +349,7 @@ describe('saved screen revalidation after a save', () => {
   });
 
   it('drops a post unsaved from the feed on the next visit, with no reload', async () => {
-    const client = makeAppClient();
+    const client = appClient();
     mockServerSaved = ['post-a', 'post-b'];
 
     const firstVisit = await openSavedScreen(client);
@@ -375,7 +383,7 @@ describe('saved screen revalidation after a save', () => {
   });
 
   it('serves the cached list without a request when nothing invalidated it', async () => {
-    const client = makeAppClient();
+    const client = appClient();
     mockServerSaved = ['post-existing'];
 
     const firstVisit = await openSavedScreen(client);

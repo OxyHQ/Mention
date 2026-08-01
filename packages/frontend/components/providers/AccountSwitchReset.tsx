@@ -19,6 +19,7 @@ import { useExternalEmbedsStore } from '@/stores/externalEmbedsStore';
 import { useLiveRoomsStore } from '@/stores/liveRoomsStore';
 import { useTrendsStore } from '@/stores/trendsStore';
 import { clearAllFeedMemoryCaches } from '@/stores/feedScrollStore';
+import { resetEngagementInvalidation } from '@/stores/engagementInvalidation';
 import { setFeedViewerRequestScope } from '@/services/feedService';
 import { searchService } from '@/services/searchService';
 import { socketService } from '@/services/socketService';
@@ -116,6 +117,9 @@ export function AccountSwitchReset({
     useLiveRoomsStore.getState().resetViewerState();
     useTrendsStore.getState().resetViewerState();
     clearAllFeedMemoryCaches();
+    // The previous viewer's engagements say nothing about the next viewer's
+    // lists, and every cache they could have marked stale is gone anyway.
+    resetEngagementInvalidation();
 
     resetAppearance();
     resetTheme();
