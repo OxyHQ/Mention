@@ -1,4 +1,6 @@
-// This route file exists for URL routing but rendering is handled by _layout.tsx
+import React from 'react';
+import ProfileScreen from '@/components/ProfileScreen';
+
 export default function ProfileListsRoute() {
-    return null;
+    return <ProfileScreen tab="lists" />;
 }

@@ -1,4 +1,6 @@
-// Route file for profile feeds tab — rendering handled by _layout.tsx via ProfileScreen
-export default function FeedsTab() {
-  return null;
+import React from 'react';
+import ProfileScreen from '@/components/ProfileScreen';
+
+export default function ProfileFeedsRoute() {
+    return <ProfileScreen tab="feeds" />;
 }
