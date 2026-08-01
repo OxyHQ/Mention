@@ -884,8 +884,33 @@ export const createThread = async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ message: 'Unauthorized' });
     }
 
-    if (req.body.status || req.body.scheduledFor) {
+    // Scheduling is a BEAST-mode capability, and the mode is the whole reason.
+    // Beast posts are independent — nothing chains to anything — so scheduling
+    // them is n independent scheduled posts, which the publisher already knows
+    // how to do one at a time. A THREAD is a chain: each continuation is created
+    // with its predecessor as `parentPostId`, so publishing them separately would
+    // let a reply go live before the post it replies to. Until that ordering is
+    // solved, thread mode keeps refusing.
+    const wantsSchedule = Boolean(req.body.status || req.body.scheduledFor);
+    if (wantsSchedule && req.body.mode !== 'beast') {
       return res.status(400).json({ message: 'Scheduling threads is not supported yet' });
+    }
+
+    let threadScheduledFor: Date | null = null;
+    if (wantsSchedule) {
+      // The SAME two checks `POST /posts` applies, deliberately: a beast batch
+      // must not be schedulable on terms a single post is not.
+      if (!req.body.scheduledFor) {
+        return res.status(400).json({ message: 'scheduledFor is required when scheduling a post' });
+      }
+      const parsed = new Date(req.body.scheduledFor);
+      if (Number.isNaN(parsed.getTime())) {
+        return res.status(400).json({ message: 'Invalid scheduled time' });
+      }
+      if (parsed.getTime() <= Date.now()) {
+        return res.status(400).json({ message: 'Scheduled time must be in the future' });
+      }
+      threadScheduledFor = parsed;
     }
 
     // Collaborative authorship is a single-post feature; a thread has no single
@@ -1064,6 +1089,12 @@ export const createThread = async (req: AuthRequest, res: Response) => {
         // previous post (sequential thread), with a shared threadId root.
         // For beast mode: all posts are independent.
         ...(isThreadContinuation ? { parentPostId: previousPostId, threadId: mainPostId } : {}),
+        // Every post of a scheduled beast batch carries the SAME time — the
+        // author picked one moment for the set, not n moments. Each is then an
+        // ordinary scheduled post, published independently by the sweep.
+        ...(threadScheduledFor
+          ? { status: 'scheduled' as const, scheduledFor: threadScheduledFor }
+          : {}),
         skipNotifications: true,
         skipSocketEmit: true,
         skipFederationDelivery: true,
@@ -1093,8 +1124,13 @@ export const createThread = async (req: AuthRequest, res: Response) => {
 
       // Mentions per post in thread. Read the reconciled persisted allowlist,
       // never the raw request metadata: an orphan id must not notify anyone.
+      // A SCHEDULED post has not gone out, so nobody has been mentioned yet —
+      // `publishScheduledPost` runs this same notification stage at the moment it
+      // does. Notifying here would point people at a post they cannot read.
       try {
-        const persistedMentions = Array.isArray(post.mentions) ? post.mentions : [];
+        const persistedMentions = threadScheduledFor
+          ? []
+          : Array.isArray(post.mentions) ? post.mentions : [];
         if (persistedMentions.length > 0) {
           await createMentionNotifications(
             persistedMentions,
@@ -1137,10 +1173,13 @@ export const createThread = async (req: AuthRequest, res: Response) => {
 
     logger.info(`Created ${createdPosts.length} posts in ${mode} mode`);
 
-    // Emit real-time feed update for new thread posts
+    // Emit real-time feed update for new thread posts. A SCHEDULED batch emits
+    // nothing: the posts are not readable yet, so pushing them into live feeds
+    // would show subscribers a post the ACL then refuses. Each one emits for
+    // itself when the publisher runs it.
     try {
       const io = getRuntimeSocketServer();
-      if (io && createdPosts.length > 0) {
+      if (io && !threadScheduledFor && createdPosts.length > 0) {
         // Emit the first post (main post) to feeds
         const mainPost = createdPosts[0];
         io.emit('feed:updated', {
@@ -2245,6 +2284,69 @@ export const getDrafts = async (req: AuthRequest, res: Response) => {
   } catch (error) {
     logger.error('Error fetching drafts', error);
     res.status(500).json({ message: 'Error fetching drafts' });
+  }
+};
+
+/**
+ * Publish one of the caller's scheduled posts immediately.
+ *
+ * Publishing early is NOT a reschedule to now — that would leave the post to the
+ * next 60s sweep — and it is not a status flip either, because a scheduled post
+ * has not federated, has not emitted its MTN record and has notified nobody, all
+ * of which `PostCreationService.publishScheduledPost` does. So this reaches that
+ * exact method rather than reimplementing publishing in a controller; the post
+ * takes the identical pipeline, only sooner.
+ *
+ * Ownership and the publish decision are both server-side and both inside ONE
+ * atomic claim: the update filters on `oxyUserId` AND `status: 'scheduled'`, so a
+ * non-owner cannot publish someone else's post, and nothing can publish twice —
+ * not even the sweep running concurrently, which selects on the same filter.
+ */
+export const publishScheduledPostNow = async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    const published = await postCreationService.claimAndPublishScheduledPost({
+      postId: String(req.params.id),
+      ownerId: userId,
+    });
+
+    if (!published) {
+      // The claim missed. Tell the OWNER why — a post of theirs that already
+      // went out is a different situation from one that never existed — but only
+      // after proving ownership, so this can never confirm the existence of
+      // someone else's post.
+      const own = await Post.findOne({ _id: req.params.id, oxyUserId: userId })
+        .select('_id status')
+        .lean();
+      if (own && (own.status ?? 'published') === 'published') {
+        return res.status(409).json({ message: 'This post has already been published' });
+      }
+      return res.status(404).json({ message: 'Post not found' });
+    }
+
+    const hydratedPosts = await postHydrationService.hydratePosts([published.toObject()], {
+      viewerId: userId,
+      oxyClient: createScopedOxyClient(req),
+      requestLanguages: requestLanguageCandidates(req),
+      maxDepth: 1,
+      includeLinkMetadata: true,
+    });
+    if (hydratedPosts.length === 0) {
+      logger.error('Failed to hydrate a just-published scheduled post', {
+        postId: String(published._id),
+        userId,
+      });
+      return res.status(500).json({ message: 'Error publishing scheduled post' });
+    }
+
+    res.json(hydratedPosts[0]);
+  } catch (error) {
+    logger.error('Error publishing scheduled post', error);
+    res.status(500).json({ message: 'Error publishing scheduled post' });
   }
 };
 
