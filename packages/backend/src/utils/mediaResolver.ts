@@ -23,7 +23,9 @@ import { logger } from './logger';
  *        Oxy API origin) → returned verbatim (already servable by us).
  *      - otherwise (a federated/external CDN) → wrapped behind our own
  *        `/media/proxy` (and `/media/poster` for the poster), so the browser
- *        sees same-origin, cacheable, range-seekable bytes.
+ *        sees same-origin, cacheable, range-seekable bytes. The display URLs
+ *        additionally carry a `variant`, which the proxy honours by redirecting
+ *        to the sized Oxy render once the remote bytes have been mirrored.
  *  - anything else → treated as an Oxy file id and turned into a CDN/stream URL
  *    via the SDK's synchronous `getFileDownloadUrl` (pure URL construction, no
  *    network), with image variants for image thumbnails/fullscreen, the dedicated
@@ -49,8 +51,9 @@ export interface ResolvedMedia {
   posterUrl?: string;
   /**
    * Large display variant URL for fullscreen viewers (the lightbox) when one can
-   * be derived. Sized for the on-open upgrade, NOT the raw original. Only emitted
-   * for Oxy file ids — federated/proxied media has no variant system.
+   * be derived. Sized for the on-open upgrade, NOT the raw original — for either
+   * an Oxy file id or federated media, which reaches the same Oxy variant
+   * pipeline through the proxy once its bytes have been mirrored.
    */
   fullUrl?: string;
 }
@@ -156,9 +159,20 @@ function isAbsoluteHttpUrl(ref: string): boolean {
   return /^https?:\/\//i.test(ref);
 }
 
-/** Build a `${PUBLIC_BASE}${path}?url=<encoded ref>` URL. */
-function buildProxyUrl(path: string, ref: string): string {
-  return `${getPublicBase()}${path}?url=${encodeURIComponent(ref)}`;
+/**
+ * Build a `${PUBLIC_BASE}${path}?url=<encoded ref>` URL, optionally asking the
+ * proxy for a sized `variant` of the remote image.
+ *
+ * The variant is a REQUEST, not a promise: `/media/proxy` honours it only once
+ * the remote bytes have been mirrored into Oxy (whose variant pipeline does the
+ * actual resizing), and otherwise streams the original. Emitting it regardless is
+ * what makes a thumbnail request distinguishable from a full-size one in the
+ * first place — without it the proxy cannot tell the two apart and has no choice
+ * but to serve the original to both.
+ */
+function buildProxyUrl(path: string, ref: string, variant?: string): string {
+  const base = `${getPublicBase()}${path}?url=${encodeURIComponent(ref)}`;
+  return variant ? `${base}&variant=${encodeURIComponent(variant)}` : base;
 }
 
 /**
@@ -184,12 +198,17 @@ export function resolveMediaRef(ref: string | null | undefined): ResolvedMedia {
         return { url: ref };
       }
 
-      // Federated/external media: serve it through our own proxy.
-      const proxied = buildProxyUrl(MEDIA_PROXY_PATH, ref);
+      // Federated/external media: serve it through our own proxy, asking for the
+      // SAME sized variants the Oxy branch below uses. `thumbUrl` must never be
+      // the full-size URL: a feed card renders it directly, so pointing it at the
+      // original makes every media post download a multi-megabyte file to fill a
+      // ≤320px box. `url` stays un-varianted — it is the raw original and, for a
+      // federated video, the playable source.
       return {
-        url: proxied,
-        thumbUrl: proxied,
+        url: buildProxyUrl(MEDIA_PROXY_PATH, ref),
+        thumbUrl: buildProxyUrl(MEDIA_PROXY_PATH, ref, MEDIA_VARIANT_THUMB),
         posterUrl: buildProxyUrl(MEDIA_POSTER_PATH, ref),
+        fullUrl: buildProxyUrl(MEDIA_PROXY_PATH, ref, MEDIA_VARIANT_FULL),
       };
     }
 
@@ -220,8 +239,10 @@ export function resolveMediaRef(ref: string | null | undefined): ResolvedMedia {
  * federated avatar takes once Oxy has mirrored it at resolve/hydration time — the
  * avatar variant is attached directly to the URL rather than serving the
  * no-variant original or needlessly double-proxying our own CDN. For a genuinely
- * external/federated CDN it is the proxied URL. Returns `undefined` when the
- * reference is empty so callers can omit the field.
+ * external/federated CDN it is the proxied URL, carrying that same avatar
+ * variant so the proxy can serve a small square render instead of the remote
+ * original. Returns `undefined` when the reference is empty so callers can omit
+ * the field.
  */
 export function resolveAvatarUrl(ref?: string | null): string | undefined {
   if (!ref || typeof ref !== 'string') {
@@ -243,8 +264,16 @@ export function resolveAvatarUrl(ref?: string | null): string | undefined {
         return attachCdnVariant(ref, MEDIA_VARIANT_AVATAR);
       }
       // Defer to the shared resolver for own-origin passthrough / proxy wrapping.
+      // A genuinely-external avatar must ask the proxy for the AVATAR variant
+      // specifically: `resolveMediaRef`'s `thumbUrl` is sized for a post media
+      // card (`w320`), which is several times larger than any avatar is ever
+      // rendered. Own-origin refs resolve to a bare `url` with no variant to
+      // attach, so the fallback below covers them.
       const resolved = resolveMediaRef(ref);
-      return (resolved.thumbUrl || resolved.url) || undefined;
+      if (resolved.thumbUrl) {
+        return buildProxyUrl(MEDIA_PROXY_PATH, ref, MEDIA_VARIANT_AVATAR);
+      }
+      return resolved.url || undefined;
     }
     // Oxy file id → square avatar crop.
     return getServiceOxyClient().getFileDownloadUrl(ref, MEDIA_VARIANT_AVATAR) || undefined;
