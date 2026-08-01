@@ -1,14 +1,25 @@
-import type { TrendEventInput } from "@mention/shared-types";
+import type { PostUser, TrendCategory, TrendEventInput, TrendStatus } from "@mention/shared-types";
 import { logger } from '@oxyhq/core/logger';
 import { authenticatedClient, publicClient } from "@/utils/api";
 
 export interface TrendingTopic {
   type: string;
+  /** The term — the retrieval key. Render `displayName`, not this. */
   name: string;
+  /** Human label. Absent on rows written before trends were labelled. */
+  displayName?: string;
+  category?: TrendCategory;
   description: string;
   score: number;
   volume: number;
+  /** Distinct authors. Absent on rows that predate the field. */
+  authorCount?: number;
   momentum: number;
+  /** ISO onset of the current run. Absent on rows that predate onset tracking. */
+  startedAt?: string;
+  status?: TrendStatus;
+  /** Server-resolved faces. Absent when none resolved. */
+  actors?: PostUser[];
   rank: number;
   calculatedAt: string;
 }

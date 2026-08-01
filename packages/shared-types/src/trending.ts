@@ -27,6 +27,57 @@ export type TrendEventName = 'click' | 'seen';
 export type TrendEventType = 'hashtag' | 'topic' | 'entity';
 
 /**
+ * The category taxonomy a trend is filed under — the coarse hint shown beneath
+ * its label ("Sports", "Politics").
+ *
+ * Closed and small BECAUSE it is generated. The labeller is asked to pick from
+ * this list rather than to describe the trend freely: an open vocabulary
+ * produces a different word for the same idea on every batch, and a client
+ * cannot translate what it has never seen. `other` is the honest answer when
+ * nothing fits, and is what any unrecognised value degrades to — see
+ * {@link normalizeTrendCategory}.
+ *
+ * Declared here rather than in `MtnConfig` so the runtime list and the type stay
+ * one declaration; the config references it.
+ */
+export const TREND_CATEGORIES = [
+  'news',
+  'politics',
+  'sports',
+  'pop-culture',
+  'video-games',
+  'science',
+  'other',
+] as const;
+
+export type TrendCategory = (typeof TREND_CATEGORIES)[number];
+
+/**
+ * Narrow an arbitrary string to a {@link TrendCategory}, degrading to `other`.
+ *
+ * The input is model output, so "unrecognised" is a routine outcome and not an
+ * error: a labeller that answers `Entertainment` instead of `pop-culture` must
+ * cost the trend its category, never its place in the list.
+ */
+export function normalizeTrendCategory(value: string | undefined | null): TrendCategory {
+  if (!value) return 'other';
+  const normalized = value.trim().toLowerCase();
+  return (TREND_CATEGORIES as readonly string[]).includes(normalized)
+    ? (normalized as TrendCategory)
+    : 'other';
+}
+
+/**
+ * Whether a trend is bursting hard enough to be called out.
+ *
+ * One value, not a scale: `hot` is a claim that something is happening right
+ * now, and its absence is the ordinary case. The client derives everything else
+ * it shows (a `new` badge, an age) from the trend's `startedAt` — a second
+ * stored status would be a second thing that can disagree with the timestamp.
+ */
+export type TrendStatus = 'hot';
+
+/**
  * Where the trend was rendered. Each surface has a different cost and a
  * different denominator, so they are counted apart rather than summed:
  *  - `widget` — the right-rail trends widget

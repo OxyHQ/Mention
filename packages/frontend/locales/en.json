@@ -1667,5 +1667,27 @@
       }
     },
     "searchPlaceholder": "Search saved posts"
+  },
+  "trend": {
+    "trendingLabel": "Trending",
+    "typeEntity": "Entity",
+    "typeTopic": "Topic",
+    "badge": {
+      "hot": "Hot",
+      "new": "New",
+      "hoursAgo": "{{count}}h",
+      "daysAgo": "{{count}}d"
+    },
+    "peopleCount": "{{formatted}} people",
+    "postCount": "{{formatted}} posts",
+    "category": {
+      "news": "News",
+      "politics": "Politics",
+      "sports": "Sports",
+      "pop-culture": "Entertainment",
+      "video-games": "Video Games",
+      "science": "Science",
+      "other": ""
+    }
   }
 }

@@ -65,6 +65,53 @@ export const keywordsSource: SourceModule = {
   },
 };
 
+/**
+ * `trendTerms`: the posts behind ONE trend — what a reader lands on after
+ * pressing it.
+ *
+ * Matched against the SAME three fields the detection batch counts over
+ * (`postClassification.trendTerms`, `hashtags`, `postClassification.topics`),
+ * because the alternative is the worst possible outcome for this screen: a term
+ * reported as trending whose feed comes back empty, or worse, missing exactly
+ * the posts that made it trend. The union is not a fallback here — it is the
+ * definition of the term, and it has to be the same definition on both sides.
+ *
+ * The `$or` is nested under `$and` so the cursor's own `$or` (added by
+ * {@link ChronoCursor.applyToQuery}) cannot clobber it — the same shape, and for
+ * the same reason, as the topic timeline.
+ */
+export const trendTermsSource: SourceModule = {
+  id: 'trendTerms',
+  kind: 'source',
+  userComposable: true,
+  gather: async (ctx, params, cap) => {
+    const term = typeof params.term === 'string' ? params.term.trim().toLowerCase() : '';
+    if (!term) return [];
+
+    const match: Record<string, unknown> = {
+      $and: [
+        {
+          $or: [
+            { 'postClassification.trendTerms': term },
+            { hashtags: term },
+            { 'postClassification.topics': term },
+          ],
+        },
+      ],
+      visibility: 'public',
+      status: 'published',
+    };
+    ChronoCursor.applyToQuery(match, ctx.cursor);
+
+    return (await Post.find(match)
+      .select(FEED_FIELDS)
+      .sort({ _id: -1 })
+      .limit(cap)
+      .maxTimeMS(5000)
+      .lean()) as unknown as CandidatePost[];
+  },
+};
+
 /** `accounts`: posts from an explicit author-id list (custom feeds). */
 export const accountsSource: SourceModule = {
   id: 'accounts',
@@ -323,6 +370,7 @@ export const mutualsSource: SourceModule = {
 
 export const userSourceModules: SourceModule[] = [
   keywordsSource,
+  trendTermsSource,
   accountsSource,
   authoredSource,
   savedSource,

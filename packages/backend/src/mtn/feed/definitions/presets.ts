@@ -429,6 +429,32 @@ export function hashtagDefinition(tag: string): FeedDefinition {
   };
 }
 
+/**
+ * Trend feed — the posts behind one trending term (chronological).
+ *
+ * This is what makes a trend a destination rather than a label. Pressing a trend
+ * used to run a hashtag search, which found only the posts that spelled the term
+ * with a `#` — a strict subset of what made it trend, and empty for a trend
+ * detected purely from prose. The feed matches the term the same way detection
+ * counted it.
+ *
+ * `title` is the raw term on purpose: the human label lives on the trend row and
+ * the screen already has it, whereas this definition is reachable from a
+ * descriptor alone and must not invent a name it cannot know.
+ */
+export function trendDefinition(term: string): FeedDefinition {
+  const normalized = term.toLowerCase();
+  return {
+    id: `trend|${normalized}`,
+    title: normalized,
+    mode: 'chronological',
+    sources: [enabled('trendTerms', { term: normalized })],
+    signals: [],
+    filters: [enabled('safety')],
+    execution: { threadGrouping: true, replyContext: false, hydrateMaxDepth: 0 },
+  };
+}
+
 /** Topic feed — posts classified under a topic slug (chronological). */
 export function topicDefinition(slug: string): FeedDefinition {
   return {

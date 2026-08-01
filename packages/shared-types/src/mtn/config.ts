@@ -6,6 +6,7 @@
  */
 
 import type { FeedInterstitialKind } from '../feed';
+import { TREND_CATEGORIES } from '../trending';
 
 export const MtnConfig = {
   // --- Ranking weights ---
@@ -667,6 +668,144 @@ export const MtnConfig = {
        */
       minPoints: 6,
     },
+
+    /**
+     * TERM EXTRACTION — the Stage-A ingest step that decides what a post is
+     * ABOUT, in the vocabulary trending measures.
+     *
+     * Bounds only. The extractor holds the linguistics (stop words, tokenizing,
+     * phrase runs); everything here is a size limit, so tuning how much a post
+     * may contribute never means editing the algorithm.
+     */
+    terms: {
+      /**
+       * Shortest token kept. Two-letter tokens are overwhelmingly particles,
+       * initials and units that survive stop-word filtering in every language
+       * at once, and they cannot carry a trend on their own.
+       */
+      minTokenLength: 3,
+      /**
+       * Longest token kept. Above this a "word" is a URL fragment, a base64
+       * blob or a keysmash — never something a reader would recognise as a
+       * topic — and it would otherwise bloat the stored array and its index.
+       */
+      maxTokenLength: 32,
+      /**
+       * Longest PHRASE, in tokens. Two is what the shape of real trends asks
+       * for: a person (`todd blanche`), an event (`kremer trade`), a tag
+       * (`frightclub`). Three-token phrases multiply the candidate space
+       * without adding trends that the two-token prefix does not already carry.
+       */
+      maxPhraseTokens: 2,
+      /**
+       * Terms stored per post. A cap is what keeps the multikey index bounded:
+       * without one, a single long post writes hundreds of index entries. Terms
+       * are emitted in reading order, so the cap keeps the opening of the post —
+       * which is where its subject almost always is.
+       */
+      maxTermsPerPost: 12,
+    },
+
+    /**
+     * DETECTION — how the 30-minute batch decides what is trending.
+     *
+     * The measurement is a BURST, not a total: a term's rate over the recent
+     * window is compared against the rate implied by its own trailing window,
+     * and the score is how far the observation sits above what that baseline
+     * predicts. This is the whole reason a permanently-popular hashtag stops
+     * outranking real news — it is enormous but perfectly steady, so it predicts
+     * itself and scores ~0.
+     */
+    detection: {
+      /**
+       * Trailing window that establishes the BASELINE rate, and over which
+       * `volume` is counted. Also the window the sparkline is drawn over, so a
+       * point and its axis describe the same span.
+       */
+      windowMs: 24 * 60 * 60 * 1000,
+      /**
+       * The RECENT window whose rate is tested against the baseline. A quarter
+       * of the trailing window: long enough that a handful of posts does not
+       * swing the rate, short enough that a story breaking now is visible within
+       * one or two batches.
+       */
+      recentWindowMs: 6 * 60 * 60 * 1000,
+      /**
+       * Distinct AUTHORS a term needs before it can trend at all. The floor is
+       * on people, not posts, because posts are the thing a single account can
+       * manufacture: fifty posts from one author is not a trend, and counting
+       * posts alone made that indistinguishable from fifty people agreeing.
+       */
+      minAuthors: 3,
+      /** Posts a term needs in the trailing window. Guards the rate estimate
+       * itself: below a handful of observations the burst statistic is noise. */
+      minVolume: 3,
+      /**
+       * How far above its own baseline a term must sit to be reported, in
+       * standard deviations of the Poisson count it is compared against.
+       * Everything below this is ordinary fluctuation of an ordinary term.
+       */
+      minBurstScore: 1.5,
+      /**
+       * Burst score at which a trend is marked `hot`. Deliberately far above
+       * {@link minBurstScore}: `hot` is a claim that something is happening
+       * right now, and a badge that lights up for every third row says nothing.
+       */
+      hotBurstScore: 6,
+      /**
+       * How long a trend is considered NEW after it first appeared, for the
+       * client's badge. Past it the client shows the trend's age instead.
+       */
+      newTrendMaxAgeMs: 2 * 60 * 60 * 1000,
+      /**
+       * Gap tolerated when reconstructing when a trend STARTED. A term that
+       * drops out of one or two batches and returns is the same run, not a new
+       * one — trends hover around the reporting threshold, and treating every
+       * dip as a fresh start would reset the age of a day-old story to zero and
+       * relight its `new` badge. Three batch intervals.
+       */
+      onsetGapToleranceMs: 90 * 60 * 1000,
+      /**
+       * How far back the onset reconstruction looks. Bounds the history scan;
+       * a run older than this reports its start clamped to the lookback, which
+       * only affects the age label of a trend that has been running for a week
+       * and is a bound the reader cannot mistake for a fresh start.
+       */
+      onsetLookbackMs: 7 * 24 * 60 * 60 * 1000,
+      /** Trends stored per batch. Bounds the batch write and every read below it. */
+      maxTrends: 30,
+      /**
+       * Representative authors kept per trend — the faces shown beside it. Small
+       * on purpose: they are evidence that real accounts are behind the trend,
+       * not a directory of them.
+       */
+      maxActors: 5,
+    },
+
+    /**
+     * LABELLING — turning a detected term into something a human recognises.
+     *
+     * A term is a retrieval key (`orioles`); a label is what the story is
+     * (`Kremer Trade`). They are different strings for a good reason: the key
+     * has to match what people wrote, and the label has to read like a headline.
+     * Only the label is ever shown.
+     */
+    labeling: {
+      /**
+       * Terms sent for labelling per batch. Only terms that have never been
+       * labelled are sent — an existing label is REUSED — so this bounds the
+       * cost of a batch where many trends are new at once, which is exactly the
+       * batch during which a big story breaks.
+       */
+      maxPerBatch: 12,
+      /**
+       * The category taxonomy offered to the labeller. Declared once in
+       * `trending.ts` (with the matching type and the degrade-to-`other`
+       * narrowing) and referenced here, so the list a prompt is built from and
+       * the list a client can render can never drift apart.
+       */
+      categories: TREND_CATEGORIES,
+    },
   },
 
   /** Videos (Reels) feed — metadata-backed filters (no runtime probing). */
@@ -691,6 +830,7 @@ export const MtnConfig = {
       custom: 10000,
       hashtag: 15000,
       topic: 15000,
+      trend: 15000,
       list: 10000,
       feedgen: 5000,
       trending: 15000,

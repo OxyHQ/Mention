@@ -23,6 +23,14 @@ interface TrendApiItem {
   updatedAt?: string;
   /** Recent `volume` history, oldest first. Absent when the server has too little. */
   series?: unknown;
+  /** Human label. Absent on rows written before trends were labelled. */
+  displayName?: string;
+  category?: Trend['category'];
+  /** ISO onset of the current run. Absent on rows that predate onset tracking. */
+  startedAt?: string;
+  status?: Trend['status'];
+  authorCount?: number;
+  actors?: Trend['actors'];
 }
 
 /**
@@ -132,6 +140,15 @@ export const useTrendsStore = create<TrendsStore>()(
               id: trendIdentity(type, item.name),
               type,
               text: item.name,
+              // Resolved ONCE, here, so every surface renders a label and none
+              // needs its own fallback — the way a raw slug reaches a reader is
+              // one renderer forgetting to write the same `||` as the others.
+              displayName: item.displayName?.trim() || item.name,
+              ...(item.category ? { category: item.category } : {}),
+              ...(item.startedAt ? { startedAt: item.startedAt } : {}),
+              ...(item.status ? { status: item.status } : {}),
+              ...(typeof item.authorCount === 'number' ? { authorCount: item.authorCount } : {}),
+              ...(item.actors?.length ? { actors: item.actors } : {}),
               hashtag: item.type === 'hashtag' ? `#${item.name}` : item.name,
               description: item.description || '',
               score: item.score || 0,
@@ -164,6 +181,8 @@ export const useTrendsStore = create<TrendsStore>()(
                 !b ||
                 a.id !== b.id ||
                 a.score !== b.score ||
+                a.displayName !== b.displayName ||
+                a.status !== b.status ||
                 a.direction !== b.direction ||
                 a.recId !== b.recId ||
                 a.series?.join() !== b.series?.join()

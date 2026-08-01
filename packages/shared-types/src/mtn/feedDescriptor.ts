@@ -42,6 +42,7 @@ export type FeedDescriptor =
   | `custom|${string}`
   | `hashtag|${string}`
   | `topic|${string}`
+  | `trend|${string}`
   | `list|${string}`
   | `feedgen|${string}`;
 
@@ -60,6 +61,7 @@ export type FeedDescriptorSource =
   | 'custom'
   | 'hashtag'
   | 'topic'
+  | 'trend'
   | 'list'
   | 'feedgen';
 
@@ -111,7 +113,9 @@ export function isValidFeedDescriptor(value: string): value is FeedDescriptor {
       (params.length === 1 || isAuthorFeedFilter(params[1]))
     );
   }
-  if (['custom', 'hashtag', 'topic', 'list', 'feedgen'].includes(source)) {
+  // `trend` takes a term that may legitimately contain spaces (`trend|todd
+  // blanche`), which the `|`-delimited split leaves in one param untouched.
+  if (['custom', 'hashtag', 'topic', 'trend', 'list', 'feedgen'].includes(source)) {
     return params.length === 1 && isNonEmptyParam(params[0]);
   }
   return false;

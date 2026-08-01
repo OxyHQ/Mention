@@ -140,6 +140,12 @@ export async function backfillPostLanguages(
             update: {
               $set: {
                 'postClassification.languages': signals.languages,
+                // Written alongside the languages because this update also
+                // stamps `version`: a row claiming the current baseline version
+                // while missing a field that version defines is worse than an
+                // un-backfilled row, since the version is exactly what readers
+                // use to decide whether to trust the subdoc.
+                'postClassification.trendTerms': signals.trendTerms,
                 'postClassification.version': signals.version,
                 language: signals.languages[0],
               },

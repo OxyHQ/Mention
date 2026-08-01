@@ -14,7 +14,21 @@ import { isNsfwHashtag } from './contentClassification/nsfw';
 import { SENSITIVE_EXCLUDE_MATCH } from '../mtn/feed/feedSafety';
 import { mintTrendRecId } from './trending/trendTelemetry';
 import { buildTrendSeries } from './trending/trendSeries';
+import {
+  rankTrendCandidates,
+  resolveTrendStartedAt,
+  type ScoredTrend,
+  type TrendCandidate,
+} from './trending/trendScoring';
+import {
+  fallbackTrendLabel,
+  isTrendLabellingAvailable,
+  labelTrends,
+  type TrendLabel,
+} from './trending/trendLabeling';
 import { metrics } from '../utils/metrics';
+import { isFallbackUserSummary, resolveUserSummaries } from './PostHydrationService';
+import type { PostUser, TrendCategory, TrendStatus } from '@mention/shared-types';
 
 /**
  * How long the current batch's `recId` is memoized in process. Far shorter than
@@ -23,14 +37,77 @@ import { metrics } from '../utils/metrics';
  */
 const CURRENT_REC_ID_TTL_MS = 30_000;
 
+/**
+ * Time budget for the candidate aggregation. Generous because it groups a day of
+ * posts across every term at once and runs on a 30-minute schedule off the
+ * request path — but bounded, so a pathological batch fails and is retried
+ * rather than pinning a connection indefinitely.
+ */
+const TREND_AGGREGATION_MAX_TIME_MS = 30_000;
+
+/**
+ * Posts sampled per term as naming evidence. Three is enough for a labeller to
+ * see what a burst is about and small enough that the whole labelling step stays
+ * a handful of indexed lookups.
+ */
+const TREND_EXCERPTS_PER_TERM = 3;
+
+/** Time budget for one excerpt lookup. Missing evidence costs a label, not the batch. */
+const TREND_EXCERPT_MAX_TIME_MS = 2_000;
+
 interface TrendItem {
   type: TrendingType;
+  /** The term (retrieval key). */
   name: string;
+  /** What a reader sees. Never the bare term unless labelling produced nothing better. */
+  displayName: string;
+  category: TrendCategory;
   description: string;
   score: number;
+  burstScore: number;
   volume: number;
+  authorCount: number;
   momentum: number;
+  startedAt: Date;
+  status?: TrendStatus;
+  actorIds: string[];
   topicId?: string;
+}
+
+/**
+ * One term as the aggregation measured it: the numbers the scorer needs, plus
+ * the two facts only the aggregation can know — who posted it, and whether the
+ * term arrived mostly as a hashtag (which is all `type` means now).
+ */
+interface TermCandidate {
+  measurement: TrendCandidate;
+  actorIds: string[];
+  /** Posts on which the term appeared as a hashtag. Decides `type`, never the score. */
+  hashtagVolume: number;
+  /**
+   * Posts on which the term appeared as a CLASSIFIED topic slug. Gates the topic
+   * registry lookup: only a term the classifier itself produced may be resolved
+   * there, because `resolveNames` writes through to the shared registry.
+   */
+  topicVolume: number;
+}
+
+/**
+ * Which of the three `TrendingType` values a row gets.
+ *
+ * Provenance only — how the term was WRITTEN, not how it was scored. It exists
+ * because `GET /trending?type=` is a public filter and because a term backed by
+ * a real Topic document routes to a topic page. The hashtag test is a majority:
+ * a term most of whose posts spelled it with a `#` is a hashtag; a term people
+ * mostly just wrote is an entity.
+ */
+function resolveTrendType(input: {
+  hasTopic: boolean;
+  hashtagVolume: number;
+  volume: number;
+}): TrendingType {
+  if (input.hasTopic) return TrendingType.TOPIC;
+  return input.hashtagVolume * 2 >= input.volume ? TrendingType.HASHTAG : TrendingType.ENTITY;
 }
 
 /**
@@ -46,10 +123,16 @@ interface TrendingBatchWrite {
 }
 
 /**
- * Identity of a trend within a batch, matching the `{ name, calculatedAt, type }`
- * uniqueness key. Used to key the volume series, because a name that trends as
- * both a hashtag and a topic is two series, not one — pushing both into a single
- * array would draw a sparkline that alternates between two unrelated measurements.
+ * Identity of a ROW within a batch, matching the `{ name, calculatedAt, type }`
+ * uniqueness key. Used when naming a row the database refused, so the log points
+ * at the exact document.
+ *
+ * NOT used to key the volume series any more. It could not be: a term is now
+ * measured once (the hashtag and topic lanes were merged into one term space),
+ * so a name appears at most once per batch, while its `type` is provenance that
+ * can legitimately flip between batches as the mix of posts spelling it with a
+ * `#` shifts. Keying a series on the pair would cut one continuous history in
+ * two at the moment of a flip and drop both halves below the drawing floor.
  */
 function trendKey(name: string, type: TrendingType): string {
   return `${type}:${name}`;
@@ -65,7 +148,20 @@ function trendKey(name: string, type: TrendingType): string {
  * History trends (`getTrendingHistory`) never carry one at all; see
  * {@link TrendingService.loadVolumeSeries}.
  */
-export type TrendWithSeries = TrendingRecord & { series?: number[] };
+export type TrendWithSeries = TrendingRecord & {
+  series?: number[];
+  /**
+   * The stored `actorIds` resolved to renderable users — the faces shown beside
+   * the trend.
+   *
+   * Resolved SERVER-SIDE, on the same cached batch path post authors use, so a
+   * trends list costs no per-actor round trip from the client and identity stays
+   * on one authority. Absent (rather than empty) when nothing resolved, and ids
+   * that resolve to the degraded fallback are dropped: a nameless avatar is
+   * worse evidence than no avatar.
+   */
+  actors?: PostUser[];
+};
 
 class TrendingService {
   private calculationInterval: NodeJS.Timeout | null = null;
@@ -93,14 +189,6 @@ class TrendingService {
   // Three cadences: one missed run is a blip (a leader handover, a slow Mongo),
   // three in a row is the job not landing, which is what went unnoticed for a day.
   private readonly STALE_BATCH_AFTER_MS = this.CALCULATION_INTERVAL * 3;
-
-  /**
-   * Relevance contributed by a canonical topic ref that carries no `relevance`
-   * (AI/rule topics are slug-only). Mid-scale on the 1..10 relevance axis so a
-   * slug-only topic counts toward trending without dominating the relevance-aware
-   * scoring; matches the neutral "present but unweighted" intent.
-   */
-  private static readonly DEFAULT_TOPIC_RELEVANCE = 5;
 
   /**
    * Initialize the service and start periodic calculations.
@@ -153,36 +241,24 @@ class TrendingService {
       logger.info('[Trending] Starting trending calculation');
 
       const calculatedAt = new Date();
-      const hashtagTrends = await this.aggregateHashtags();
-      const topicTrends = await this.aggregateTopics();
 
-      // Resolve topic names to Topic documents (topics + entities only, not hashtags)
-      const topicEntries = topicTrends.map(t => ({
-        name: t.name,
-        type: t.type === TrendingType.ENTITY ? TopicType.ENTITY : TopicType.TOPIC,
-      }));
-      const topicMap = await topicService.resolveNames(topicEntries);
+      // ONE term space. Hashtags, extracted words and classified topic slugs are
+      // all just terms, counted the same way, competing in the same list — see
+      // `aggregateTermCandidates`.
+      const candidates = await this.aggregateTermCandidates(calculatedAt);
+      const ranked = rankTrendCandidates(candidates.map((candidate) => candidate.measurement));
 
-      // Attach topicIds to trend items
-      for (const trend of topicTrends) {
-        const topicDoc = topicMap.get(trend.name.toLowerCase());
-        if (topicDoc) {
-          trend.topicId = topicDoc._id.toString();
-        }
-      }
+      const allTrends: TrendItem[] = await this.buildTrendItems(ranked, candidates, calculatedAt);
 
-      const allTrends: TrendItem[] = [...hashtagTrends, ...topicTrends];
-
-      // Generate AI summary from top trend names
-      const topTopicNames = topicTrends.slice(0, 10).map(t => t.name);
-      const topHashtagNames = hashtagTrends.slice(0, 10).map(h => `#${h.name}`);
-      const popularityUpdates = topicTrends
-        .filter(t => t.topicId)
-        .map(t => ({ topicId: t.topicId!, trendingScore: t.score }));
+      const popularityUpdates = allTrends
+        .filter((trend) => trend.topicId)
+        .map((trend) => ({ topicId: trend.topicId as string, trendingScore: trend.score }));
 
       // Run AI summary generation, trend persistence, and popularity updates in parallel
       const [summary, write] = await Promise.all([
-        this.generateSummary([...topTopicNames, ...topHashtagNames]),
+        // The summary reads the LABELS, not the terms: it is prose for a human,
+        // and `orioles, frightclub` describes the index rather than the day.
+        this.generateSummary(allTrends.slice(0, 10).map((trend) => trend.displayName)),
         this.saveTrendingBatch(allTrends, calculatedAt),
         topicService.updatePopularityFromTrending(popularityUpdates),
       ]);
@@ -215,7 +291,8 @@ class TrendingService {
       await TrendBatch.create({ calculatedAt, summary });
 
       logger.info(
-        `[Trending] Saved batch: ${hashtagTrends.length} hashtags + ${topicTrends.length} topics (${popularityUpdates.length} topic popularities updated)`,
+        `[Trending] Saved batch: ${allTrends.length} trends from ${candidates.length} candidate terms ` +
+          `(${popularityUpdates.length} topic popularities updated)`,
       );
 
       await this.invalidateCache();
@@ -237,165 +314,338 @@ class TrendingService {
   }
 
   /**
-   * Aggregate trending hashtags from recent posts in a single pipeline.
+   * Measure every candidate term over the trailing window, in ONE pipeline.
+   *
+   * ## One term space
+   *
+   * A term is drawn from the union of three fields on the post:
+   * `postClassification.trendTerms` (the words the post's own text is about),
+   * the canonical `hashtags`, and `postClassification.topics`. They are UNIONED
+   * rather than counted in separate lanes because they are three ways of
+   * learning the same fact — that this post is about `fifa` — and the previous
+   * design's separate hashtag and topic lanes are precisely why the list read as
+   * a hashtag ranking: the lane that was cheapest to fill decided the output.
+   *
+   * The union also makes the corpus work TODAY rather than after a backfill: a
+   * post written before term extraction has no `trendTerms`, and still
+   * contributes through its hashtags and classified topics.
+   *
+   * ## What is counted
+   *
+   * `volume` and `recentVolume` are post counts; `authorCount` is DISTINCT
+   * authors, which is the number the reporting floor is applied to. Counting
+   * posts alone cannot tell fifty people agreeing from one account posting fifty
+   * times, and those are opposite facts.
+   *
+   * `hashtagVolume` / `topicVolume` are provenance, not ranking: they only
+   * decide the row's `type` (and which terms may be looked up in the topic
+   * registry). Nothing about the score depends on how the term was written.
    */
-  private async aggregateHashtags(): Promise<TrendItem[]> {
-    const now = new Date();
-    const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-    const sixHoursAgo = new Date(now.getTime() - 6 * 60 * 60 * 1000);
+  private async aggregateTermCandidates(now: Date): Promise<TermCandidate[]> {
+    const { windowMs, recentWindowMs, minVolume, maxActors } = MtnConfig.trending.detection;
+    const windowStart = new Date(now.getTime() - windowMs);
+    const recentStart = new Date(now.getTime() - recentWindowMs);
 
-    const hashtagCounts = await Post.aggregate([
-      {
-        $match: {
-          createdAt: { $gte: oneDayAgo },
-          hashtags: { $exists: true, $ne: [] },
-          status: 'published',
-          visibility: PostVisibility.PUBLIC,
-          boostOf: { $exists: false },
-          // Sensitive/NSFW-flagged posts never feed trending counts.
-          ...SENSITIVE_EXCLUDE_MATCH,
-        },
-      },
-      { $unwind: '$hashtags' },
-      {
-        $group: {
-          _id: '$hashtags',
-          count24h: { $sum: 1 },
-          count6h: {
-            $sum: { $cond: [{ $gte: ['$createdAt', sixHoursAgo] }, 1, 0] },
+    const rows = await Post.aggregate<{
+      _id: string;
+      volume: number;
+      recentVolume: number;
+      hashtagVolume: number;
+      topicVolume: number;
+      authorCount: number;
+      actorIds: string[];
+    }>(
+      [
+        {
+          $match: {
+            createdAt: { $gte: windowStart },
+            status: 'published',
+            visibility: PostVisibility.PUBLIC,
+            boostOf: { $exists: false },
+            // Sensitive/NSFW-flagged posts never feed trending counts.
+            ...SENSITIVE_EXCLUDE_MATCH,
           },
         },
-      },
-    ]);
+        {
+          $addFields: {
+            _terms: {
+              $setUnion: [
+                { $ifNull: ['$postClassification.trendTerms', []] },
+                { $ifNull: ['$hashtags', []] },
+                { $ifNull: ['$postClassification.topics', []] },
+              ],
+            },
+          },
+        },
+        { $match: { '_terms.0': { $exists: true } } },
+        { $unwind: '$_terms' },
+        {
+          $group: {
+            _id: '$_terms',
+            volume: { $sum: 1 },
+            recentVolume: { $sum: { $cond: [{ $gte: ['$createdAt', recentStart] }, 1, 0] } },
+            hashtagVolume: {
+              $sum: { $cond: [{ $in: ['$_terms', { $ifNull: ['$hashtags', []] }] }, 1, 0] },
+            },
+            topicVolume: {
+              $sum: {
+                $cond: [{ $in: ['$_terms', { $ifNull: ['$postClassification.topics', []] }] }, 1, 0],
+              },
+            },
+            authors: { $addToSet: '$oxyUserId' },
+          },
+        },
+        // Cheapest possible narrowing before the per-term projections below.
+        { $match: { volume: { $gte: minVolume } } },
+        {
+          $addFields: {
+            // Legacy orphan federated posts carry a null author. They are real
+            // posts and count toward volume, but they cannot testify to WHO is
+            // posting, so they must not inflate the distinct-author floor —
+            // which would be the one way to walk straight past it.
+            authors: { $filter: { input: '$authors', cond: { $ne: ['$$this', null] } } },
+          },
+        },
+        {
+          $project: {
+            volume: 1,
+            recentVolume: 1,
+            hashtagVolume: 1,
+            topicVolume: 1,
+            authorCount: { $size: '$authors' },
+            actorIds: { $slice: ['$authors', maxActors] },
+          },
+        },
+      ],
+      // The group spans a day of posts across every term at once; spilling is
+      // strictly better than failing the batch on a busy instance.
+      { allowDiskUse: true, maxTimeMS: TREND_AGGREGATION_MAX_TIME_MS },
+    );
 
-    const trends: TrendItem[] = hashtagCounts
-      // Drop blocklisted NSFW/adult hashtags even if they appear on
-      // non-sensitive posts (case-insensitive, normalized in isNsfwHashtag).
-      .filter(item => !isNsfwHashtag(item._id))
-      .map(item => {
-        const hashtagName = item._id.toLowerCase();
-        const volume24h = item.count24h;
-        const volume6h = item.count6h;
-
-        const momentum = volume24h > 0 ? (volume6h * 4) / volume24h : 0;
-        const score = volume24h * (1 + momentum * 0.5);
-
-        return {
-          type: TrendingType.HASHTAG,
-          name: hashtagName,
-          description: '',
-          score,
-          volume: volume24h,
-          momentum: Math.min(momentum, 1),
-        };
-      });
-
-    trends.sort((a, b) => b.score - a.score);
-    return trends;
+    return rows
+      // Blocklisted NSFW/adult terms never trend, whatever their numbers.
+      .filter((row) => !isNsfwHashtag(row._id))
+      .map((row) => ({
+        measurement: {
+          term: row._id,
+          volume: row.volume,
+          recentVolume: row.recentVolume,
+          authorCount: row.authorCount,
+        },
+        actorIds: row.actorIds ?? [],
+        hashtagVolume: row.hashtagVolume,
+        topicVolume: row.topicVolume,
+      }));
   }
 
   /**
-   * Aggregate trending topics from per-post classified topics.
+   * Turn scored terms into the rows a batch stores: label, category, onset,
+   * provenance type and registry linkage.
    *
-   * Reads the canonical `postClassification.topicRefs` when present and FALLS
-   * BACK to the slug-only `postClassification.topics` per post (`$ifNull` on a
-   * non-empty topicRefs array). The slug list is the rule-based Stage-A baseline
-   * every classified post carries; each slug string is normalized to
-   * `{ name: <slug> }` so the unwind/group reads `name` uniformly. The window is
-   * keyed on the post's `createdAt` so both sources share one time basis. Slug
-   * topics carry no `relevance`/`type`, so missing relevance contributes
-   * {@link TrendingService.DEFAULT_TOPIC_RELEVANCE} and missing type defaults to
-   * a TOPIC — never an `entity`. Posts with neither topic source contribute
-   * nothing (the unified source is `[]`).
+   * Everything expensive here is scoped to the trends that actually made the
+   * cut (at most `MtnConfig.trending.detection.maxTrends`), never to the
+   * candidate space — which is the whole corpus's vocabulary.
    */
-  private async aggregateTopics(): Promise<TrendItem[]> {
-    const now = new Date();
-    const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-    const sixHoursAgo = new Date(now.getTime() - 6 * 60 * 60 * 1000);
+  private async buildTrendItems(
+    ranked: readonly ScoredTrend[],
+    candidates: readonly TermCandidate[],
+    calculatedAt: Date,
+  ): Promise<TrendItem[]> {
+    if (ranked.length === 0) return [];
 
-    const topicCounts = await Post.aggregate([
-      {
-        $match: {
-          createdAt: { $gte: oneDayAgo },
-          status: 'published',
-          visibility: PostVisibility.PUBLIC,
-          boostOf: { $exists: false },
-          // At least one topic source must be present.
-          $or: [
-            { 'postClassification.topicRefs': { $exists: true, $ne: [] } },
-            { 'postClassification.topics': { $exists: true, $ne: [] } },
-          ],
-          // Sensitive/NSFW-flagged posts never feed trending topics.
-          ...SENSITIVE_EXCLUDE_MATCH,
-        },
-      },
-      {
-        // Prefer the canonical topicRefs; fall back to the slug-only
-        // `postClassification.topics`, mapping each slug string to a `{ name }`
-        // shape so the downstream unwind/group reads `name` uniformly. `$ifNull`
-        // returns the first non-null operand, and the size guard makes an empty
-        // topicRefs array fall through to the slug list.
-        $addFields: {
-          _topicSource: {
-            $cond: [
-              { $gt: [{ $size: { $ifNull: ['$postClassification.topicRefs', []] } }, 0] },
-              '$postClassification.topicRefs',
-              {
-                $map: {
-                  input: { $ifNull: ['$postClassification.topics', []] },
-                  as: 'name',
-                  in: { name: '$$name' },
-                },
-              },
-            ],
-          },
-        },
-      },
-      { $unwind: '$_topicSource' },
-      {
-        $group: {
-          _id: {
-            name: '$_topicSource.name',
-            // Canonical refs may omit `type`; default to 'topic' (never entity).
-            type: { $ifNull: ['$_topicSource.type', 'topic'] },
-          },
-          // Canonical refs may omit `relevance`; default to a neutral value so a
-          // slug-only topic still contributes to the trending volume/score.
-          totalRelevance: {
-            $sum: { $ifNull: ['$_topicSource.relevance', TrendingService.DEFAULT_TOPIC_RELEVANCE] },
-          },
-          postCount: { $sum: 1 },
-          recentCount: {
-            $sum: { $cond: [{ $gte: ['$createdAt', sixHoursAgo] }, 1, 0] },
-          },
-        },
-      },
-      {
-        $match: { postCount: { $gte: 2 } },
-      },
+    const byTerm = new Map(candidates.map((candidate) => [candidate.measurement.term, candidate]));
+    const terms = ranked.map((trend) => trend.term);
+
+    const appearances = await this.loadTrendAppearances(terms, calculatedAt);
+    const startedAt = new Map(
+      terms.map((term) => [term, resolveTrendStartedAt(appearances.get(term) ?? [], calculatedAt)]),
+    );
+
+    // Only terms the CLASSIFIER produced are looked up in the topic registry.
+    // `resolveNames` is a write-through registry call, so handing it arbitrary
+    // words extracted from prose would fill the shared Topic registry with this
+    // instance's vocabulary — a side effect trending has no business causing.
+    const topicTerms = terms.filter((term) => (byTerm.get(term)?.topicVolume ?? 0) > 0);
+    const [labels, topicMap] = await Promise.all([
+      this.resolveTrendLabels(ranked, startedAt),
+      topicService.resolveNames(topicTerms.map((name) => ({ name, type: TopicType.TOPIC }))),
     ]);
 
-    const trends: TrendItem[] = topicCounts
-      // Drop blocklisted NSFW/adult topic slugs from trending topics.
-      .filter(item => !isNsfwHashtag(item._id.name))
-      .map(item => {
-        const momentum = item.postCount > 0
-          ? Math.min((item.recentCount * 4) / item.postCount, 1)
-          : 0;
-        const score = item.totalRelevance * (1 + momentum * 0.5);
+    return ranked.map((trend) => {
+      const candidate = byTerm.get(trend.term);
+      const topicDoc = topicMap.get(trend.term.toLowerCase());
+      const label = labels.get(trend.term) ?? fallbackTrendLabel(trend.term);
 
-        return {
-          type: item._id.type === 'topic' ? TrendingType.TOPIC : TrendingType.ENTITY,
-          name: item._id.name,
-          description: '',
-          score,
-          volume: item.postCount,
-          momentum,
-        };
-      });
+      return {
+        type: resolveTrendType({
+          hasTopic: Boolean(topicDoc),
+          hashtagVolume: candidate?.hashtagVolume ?? 0,
+          volume: trend.volume,
+        }),
+        name: trend.term,
+        displayName: label.displayName,
+        category: label.category,
+        description: '',
+        score: trend.score,
+        burstScore: trend.burstScore,
+        volume: trend.volume,
+        authorCount: trend.authorCount,
+        momentum: trend.momentum,
+        startedAt: startedAt.get(trend.term) ?? calculatedAt,
+        ...(trend.status ? { status: trend.status } : {}),
+        actorIds: candidate?.actorIds ?? [],
+        ...(topicDoc ? { topicId: topicDoc._id.toString() } : {}),
+      };
+    });
+  }
 
-    trends.sort((a, b) => b.score - a.score);
-    return trends.slice(0, 15);
+  /**
+   * The batch timestamps each term has appeared in, within the onset lookback —
+   * the input {@link resolveTrendStartedAt} reconstructs a run from.
+   *
+   * Served by the `{ name: 1, calculatedAt: 1, type: 1 }` index (an exact
+   * prefix), the same one the sparkline's range scan uses. Fail-soft: without
+   * history every trend simply starts now, which is what a first-ever batch
+   * genuinely means.
+   */
+  private async loadTrendAppearances(
+    terms: readonly string[],
+    calculatedAt: Date,
+  ): Promise<Map<string, Date[]>> {
+    const byTerm = new Map<string, Date[]>();
+    if (terms.length === 0) return byTerm;
+
+    try {
+      const cutoff = new Date(calculatedAt.getTime() - MtnConfig.trending.detection.onsetLookbackMs);
+      const rows = await Trending.find(
+        { name: { $in: [...terms] }, calculatedAt: { $gte: cutoff } },
+        { name: 1, calculatedAt: 1 },
+      ).lean<Array<{ name: string; calculatedAt: Date }>>();
+
+      for (const row of rows) {
+        const existing = byTerm.get(row.name);
+        if (existing) existing.push(row.calculatedAt);
+        else byTerm.set(row.name, [row.calculatedAt]);
+      }
+    } catch (error) {
+      logger.warn('[Trending] Onset history lookup failed; trends will start now', { error });
+    }
+
+    return byTerm;
+  }
+
+  /**
+   * A label per ranked term: reused when the CURRENT run already has one,
+   * generated for the rest.
+   *
+   * Reuse is scoped to the run (`calculatedAt >= startedAt`) and that boundary
+   * is the whole point. Within a run the story is the same story, so renaming it
+   * under a reader mid-scroll would be a bug; across runs the term is about
+   * something new — `orioles` was a trade last week and is a no-hitter today —
+   * so carrying the old headline forward would be worse than having none.
+   */
+  private async resolveTrendLabels(
+    ranked: readonly ScoredTrend[],
+    startedAt: ReadonlyMap<string, Date>,
+  ): Promise<Map<string, TrendLabel>> {
+    const labels = new Map<string, TrendLabel>();
+
+    try {
+      const earliestRun = Math.min(
+        ...ranked.map((trend) => startedAt.get(trend.term)?.getTime() ?? Date.now()),
+      );
+      const rows = await Trending.find(
+        {
+          name: { $in: ranked.map((trend) => trend.term) },
+          calculatedAt: { $gte: new Date(earliestRun) },
+          displayName: { $exists: true },
+        },
+        { name: 1, displayName: 1, category: 1, calculatedAt: 1 },
+      )
+        .sort({ calculatedAt: -1 })
+        .lean<Array<{ name: string; displayName: string; category?: TrendCategory; calculatedAt: Date }>>();
+
+      for (const row of rows) {
+        // Sorted newest-first, so the first row seen for a term is its latest
+        // label; the per-term run boundary is re-checked here because the query
+        // could only narrow to the EARLIEST run across all of them.
+        if (labels.has(row.name)) continue;
+        const runStart = startedAt.get(row.name);
+        if (runStart && row.calculatedAt < runStart) continue;
+        labels.set(row.name, { displayName: row.displayName, category: row.category ?? 'other' });
+      }
+    } catch (error) {
+      logger.warn('[Trending] Label reuse lookup failed; relabelling from scratch', { error });
+    }
+
+    const unlabelled = ranked
+      .filter((trend) => !labels.has(trend.term))
+      .slice(0, MtnConfig.trending.labeling.maxPerBatch);
+
+    // Gathering evidence for a labeller that cannot run would be several indexed
+    // queries per term, every 30 minutes, forever.
+    if (unlabelled.length === 0 || !isTrendLabellingAvailable()) {
+      for (const trend of ranked) {
+        if (!labels.has(trend.term)) labels.set(trend.term, fallbackTrendLabel(trend.term));
+      }
+      return labels;
+    }
+
+    const requests = await Promise.all(
+      unlabelled.map(async (trend) => ({
+        term: trend.term,
+        excerpts: await this.loadTermExcerpts(trend.term),
+      })),
+    );
+
+    for (const [term, label] of await labelTrends(requests)) {
+      labels.set(term, label);
+    }
+
+    // Anything past the per-batch labelling cap still needs a presentable name.
+    for (const trend of ranked) {
+      if (!labels.has(trend.term)) labels.set(trend.term, fallbackTrendLabel(trend.term));
+    }
+
+    return labels;
+  }
+
+  /**
+   * A few recent posts carrying the term, as naming evidence.
+   *
+   * The term alone cannot name a story — `orioles` does not contain the words
+   * "Kremer Trade" — so this is what makes a generated label better than string
+   * formatting. Matched across the same three fields the term space is built
+   * from, so a term that arrived as a hashtag or a topic slug still finds its
+   * posts. Fail-soft: no excerpts simply means a weaker label.
+   */
+  private async loadTermExcerpts(term: string): Promise<string[]> {
+    try {
+      const posts = await Post.find(
+        {
+          $or: [
+            { 'postClassification.trendTerms': term },
+            { hashtags: term },
+            { 'postClassification.topics': term },
+          ],
+          status: 'published',
+          visibility: PostVisibility.PUBLIC,
+          ...SENSITIVE_EXCLUDE_MATCH,
+        },
+        { 'content.variants.text': 1 },
+      )
+        .sort({ createdAt: -1 })
+        .limit(TREND_EXCERPTS_PER_TERM)
+        .maxTimeMS(TREND_EXCERPT_MAX_TIME_MS)
+        .lean<Array<{ content?: { variants?: Array<{ text?: string }> } }>>();
+
+      return posts
+        .map((post) => post.content?.variants?.[0]?.text?.trim() ?? '')
+        .filter((text) => text.length > 0);
+    } catch (error) {
+      logger.warn('[Trending] Excerpt lookup failed; labelling without evidence', { term, error });
+      return [];
+    }
   }
 
   /**
@@ -457,10 +707,17 @@ class TrendingService {
     const docs = sorted.map((item, index) => ({
       type: item.type,
       name: item.name,
+      displayName: item.displayName,
+      category: item.category,
       description: item.description,
       score: item.score,
+      burstScore: item.burstScore,
       volume: item.volume,
+      authorCount: item.authorCount,
       momentum: item.momentum,
+      startedAt: item.startedAt,
+      ...(item.status ? { status: item.status } : {}),
+      ...(item.actorIds.length > 0 ? { actorIds: item.actorIds } : {}),
       rank: index + 1,
       ...(item.topicId ? { topicId: item.topicId } : {}),
       calculatedAt,
@@ -543,14 +800,24 @@ class TrendingService {
       .lean() as unknown as TrendingRecord[];
 
     // Only reached on a cache MISS. The entry below is warmed right after each
-    // recalculation (see warmDefaultCache), so this aggregation runs on the order
-    // of once per 30-minute batch per requested shape — not once per reader.
-    const series = await this.loadVolumeSeries(trending);
+    // recalculation (see warmDefaultCache), so these run on the order of once per
+    // 30-minute batch per requested shape — not once per reader.
+    const [series, actors] = await Promise.all([
+      this.loadVolumeSeries(trending),
+      this.loadTrendActors(trending),
+    ]);
 
     const result = {
       trending: trending.map((trend): TrendWithSeries => {
-        const points = series.get(trendKey(trend.name, trend.type));
-        return points ? { ...trend, series: points } : trend;
+        const points = series.get(trend.name);
+        const faces = trend.actorIds
+          ?.map((actorId) => actors.get(actorId))
+          .filter((user): user is PostUser => Boolean(user));
+        return {
+          ...trend,
+          ...(points ? { series: points } : {}),
+          ...(faces && faces.length > 0 ? { actors: faces } : {}),
+        };
       }),
       summary: latestBatch.summary || '',
       recId: mintTrendRecId(latestBatch.calculatedAt),
@@ -568,27 +835,30 @@ class TrendingService {
   }
 
   /**
-   * Recent `volume` history for the given trends, keyed by {@link trendKey}.
+   * Recent `volume` history for the given trends, keyed by TERM.
    *
-   * The `Trending` collection is the ONLY per-(name, type) time series that
-   * exists: the job appends a full batch every 30 minutes and keeps 90 days, and
-   * the unique `{ name: 1, calculatedAt: 1, type: 1 }` index serves this range
-   * scan directly. (The obvious-looking alternative, `TopicStats`, holds one
+   * The `Trending` collection is the ONLY per-term time series that exists: the
+   * job appends a full batch every 30 minutes and keeps 90 days, and the unique
+   * `{ name: 1, calculatedAt: 1, type: 1 }` index serves this range scan
+   * directly. (The obvious-looking alternative, `TopicStats`, holds one
    * current-value row per topic and no history whatsoever.) The `$sort` uses that
    * index's exact key order, so the planner can stream straight into `$group` —
    * `$push` accumulates in arrival order, which is what puts each series' volumes
    * in time order.
    *
-   * Keyed on (name, type), NOT on name. A name that trends as both a hashtag and
-   * a classified topic is two independent measurements of two different things;
-   * grouping them under the name alone would interleave them into one array and
-   * draw a sparkline that zig-zags between two unrelated quantities.
+   * Keyed on the NAME alone. It used to be keyed on (name, type), because a name
+   * could be measured twice in one batch — once as a hashtag, once as a topic —
+   * and interleaving two unrelated quantities would have drawn a zig-zag. Those
+   * lanes are gone: a term is measured once, and `type` is now provenance that
+   * can flip between batches as the mix of posts spelling it with a `#` shifts.
+   * Keeping `type` in the key would therefore cut one continuous history in two
+   * at the flip and drop both halves below the drawing floor.
    *
    * A name absent from a batch contributes NO point rather than a zero: it means
-   * the trend fell out of the window that batch, and only for hashtags does that
-   * strictly imply zero posts (topics need two). Guessing which would be exactly
-   * the kind of invented data this feature exists to avoid, so short runs are
-   * simply dropped by the floor in {@link buildTrendSeries}.
+   * the trend fell out of the reporting threshold that batch, which is not the
+   * same as nobody posting it. Guessing would be exactly the kind of invented
+   * data this feature exists to avoid, so short runs are simply dropped by the
+   * floor in {@link buildTrendSeries}.
    *
    * DELIBERATELY NOT wired into `getTrendingHistory`. That route is an archive of
    * what trended on days past, and the series here is anchored to `now` — a row
@@ -601,35 +871,62 @@ class TrendingService {
    * Fail-soft: an aggregation failure costs the sparkline, never the trend list.
    */
   private async loadVolumeSeries(
-    trends: Array<Pick<TrendingRecord, 'name' | 'type'>>,
+    trends: Array<Pick<TrendingRecord, 'name'>>,
   ): Promise<Map<string, number[]>> {
     const byTrend = new Map<string, number[]>();
     if (trends.length === 0) return byTrend;
 
-    // The `$match` narrows on name alone (the index's leading field); the group
-    // then splits each name back into its per-type series.
+    // The `$match` narrows on name — the index's leading field — and the group
+    // collapses each name's batches into one series in time order.
     const names = [...new Set(trends.map((trend) => trend.name))];
 
     try {
       const cutoff = new Date(Date.now() - MtnConfig.trending.series.windowMs);
-      const rows = await Trending.aggregate<{
-        _id: { name: string; type: TrendingType };
-        volumes: number[];
-      }>([
+      const rows = await Trending.aggregate<{ _id: string; volumes: number[] }>([
         { $match: { name: { $in: names }, calculatedAt: { $gte: cutoff } } },
-        { $sort: { name: 1, calculatedAt: 1, type: 1 } },
-        { $group: { _id: { name: '$name', type: '$type' }, volumes: { $push: '$volume' } } },
+        { $sort: { name: 1, calculatedAt: 1 } },
+        { $group: { _id: '$name', volumes: { $push: '$volume' } } },
       ]);
 
       for (const row of rows) {
         const series = buildTrendSeries(row.volumes);
-        if (series) byTrend.set(trendKey(row._id.name, row._id.type), series);
+        if (series) byTrend.set(row._id, series);
       }
     } catch (error) {
       logger.warn('[Trending] Volume series lookup failed:', error);
     }
 
     return byTrend;
+  }
+
+  /**
+   * Resolve the stored actor ids of a page of trends into renderable users.
+   *
+   * ONE batched call for the whole page (at most `limit × maxActors` ids), on
+   * the same Redis-backed resolver feed hydration uses — never a per-trend or
+   * per-actor fetch, which is the N+1 this resolver exists to collapse.
+   *
+   * Fail-soft: a resolution failure costs the faces, never the trends. Degraded
+   * (unresolvable) ids are dropped rather than rendered, on the same rule the
+   * rest of the app follows — an avatar with no identity behind it is not
+   * evidence that people are posting, which is the only thing these faces claim.
+   */
+  private async loadTrendActors(
+    trends: readonly Pick<TrendingRecord, 'actorIds'>[],
+  ): Promise<Map<string, PostUser>> {
+    const resolved = new Map<string, PostUser>();
+    const actorIds = [...new Set(trends.flatMap((trend) => trend.actorIds ?? []))];
+    if (actorIds.length === 0) return resolved;
+
+    try {
+      for (const [actorId, summary] of await resolveUserSummaries(actorIds)) {
+        if (!isFallbackUserSummary(summary.user)) resolved.set(actorId, summary.user);
+      }
+    } catch (error) {
+      logger.warn('[Trending] Actor resolution failed; trends will render without faces', { error });
+    }
+
+    return resolved;
   }
 
   /**

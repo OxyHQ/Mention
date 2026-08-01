@@ -490,6 +490,23 @@ export interface PostClassification {
    * {@link Post.hashtags} so ranking/discovery read one canonical form.
    */
   hashtagsNorm?: string[];
+  /**
+   * Stage-A. Candidate TREND TERMS extracted from the post's own text: unigrams
+   * and adjacent-word phrases, lowercased and stop-word-filtered, with any `#`
+   * marker stripped so a hashtag and the bare word collapse to ONE term
+   * (`#FIFA`, `#fifa` and `FIFA` are all `fifa`).
+   *
+   * This is what makes trend detection a property of what people WROTE rather
+   * than of who happened to type a `#`. Trending unions this with
+   * {@link PostClassification.hashtagsNorm} and {@link PostClassification.topics}
+   * into a single term space, so a burst is measured the same way whichever form
+   * it arrived in.
+   *
+   * Absent on posts that predate term extraction; the union above is what keeps
+   * detection working (on hashtags and topic slugs alone) for those, and the
+   * corpus self-heals as new posts land.
+   */
+  trendTerms?: string[];
   /** Stage-A. Whether the content is marked sensitive/NSFW (pass-through). */
   sensitive?: boolean;
   /**

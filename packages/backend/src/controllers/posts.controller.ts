@@ -1390,6 +1390,7 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
         languages: signals.languages,
         region: signals.region,
         hashtagsNorm: signals.hashtagsNorm,
+        trendTerms: signals.trendTerms,
         sensitive: signals.sensitive,
         scores: signals.scores,
         version: signals.version,

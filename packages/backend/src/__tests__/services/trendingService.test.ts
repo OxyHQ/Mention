@@ -1,16 +1,19 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
- * Unit coverage for {@link TrendingService} NSFW/sensitive exclusion.
+ * Unit coverage for {@link TrendingService}'s candidate aggregation — the ONE
+ * pipeline that measures every term.
  *
  * The Post model, topic resolution, redis, sockets, and the AI summary are all
- * mocked so the suite is pure (no DB / network). We drive the two aggregation
- * methods (`aggregateHashtags`, `aggregateTopics`) and assert:
- *   (a) sensitive posts are excluded at the aggregation `$match` (so their
- *       hashtags/topics never count toward trending);
- *   (b) blocklisted NSFW hashtags/topics are dropped from the results even when
- *       returned from non-sensitive posts;
- *   (c) ordinary hashtags/topics still trend.
+ * mocked so the suite is pure (no DB / network). What is asserted here is the
+ * shape of the pipeline itself and the post-aggregation filtering:
+ *   (a) sensitive posts are excluded at the `$match` (so their terms never
+ *       count toward trending);
+ *   (b) the term space is the UNION of extracted terms, hashtags and classified
+ *       topic slugs — the property that stops trending being a hashtag ranking;
+ *   (c) distinct authors are counted, and a null author cannot inflate them;
+ *   (d) blocklisted NSFW terms are dropped even when they arrive from
+ *       non-sensitive posts, while ordinary terms survive.
  */
 
 const mocks = vi.hoisted(() => ({
@@ -45,204 +48,150 @@ vi.mock('../../utils/redis', () => ({
 }));
 vi.mock('../../models/TrendBatch', () => ({ __esModule: true, default: { create: vi.fn(), findOne: vi.fn(), deleteMany: vi.fn() } }));
 vi.mock('../../utils/socket', () => ({ emitTrendsUpdated: vi.fn() }));
-vi.mock('../../utils/alia', () => ({ aliaChat: vi.fn(), isAliaEnabled: () => false }));
+vi.mock('../../utils/alia', () => ({ aliaChat: vi.fn(), aliaJSON: vi.fn(), isAliaEnabled: () => false }));
 vi.mock('../../services/TopicService', () => ({
   topicService: { resolveNames: vi.fn().mockResolvedValue(new Map()), updatePopularityFromTrending: vi.fn() },
 }));
 
 import { trendingService } from '../../services/TrendingService';
 
-// `aggregateHashtags` / `aggregateTopics` are private; reach them through a typed
-// index signature rather than `as any` so the tests stay type-safe.
+// `aggregateTermCandidates` is private; reach it through a typed index signature
+// rather than `as any` so the tests stay type-safe.
 type PrivateTrending = {
-  aggregateHashtags(): Promise<Array<{ name: string; volume: number }>>;
-  aggregateTopics(): Promise<Array<{ name: string; volume: number }>>;
+  aggregateTermCandidates(now: Date): Promise<Array<{ measurement: { term: string; volume: number } }>>;
 };
 const svc = trendingService as unknown as PrivateTrending;
+
+/** A row shaped exactly as the pipeline's final `$project` emits one. */
+function row(term: string, volume: number) {
+  return {
+    _id: term,
+    volume,
+    recentVolume: volume,
+    hashtagVolume: 0,
+    topicVolume: 0,
+    authorCount: 5,
+    actorIds: ['a', 'b'],
+  };
+}
+
+const stage = (pipeline: Array<Record<string, unknown>>, key: string) =>
+  pipeline.find((entry) => key in entry) as Record<string, Record<string, unknown>>;
 
 beforeEach(() => {
   vi.clearAllMocks();
 });
 
-describe('TrendingService.aggregateHashtags — NSFW/sensitive exclusion', () => {
+describe('aggregateTermCandidates — what is allowed to count', () => {
   it('excludes sensitive posts at the aggregation $match (all three flags)', async () => {
     mocks.postAggregate.mockResolvedValue([]);
 
-    await svc.aggregateHashtags();
+    await svc.aggregateTermCandidates(new Date());
 
-    const pipeline = mocks.postAggregate.mock.calls[0][0];
-    const match = pipeline.find((stage: Record<string, unknown>) => '$match' in stage).$match;
+    const match = stage(mocks.postAggregate.mock.calls[0][0], '$match').$match;
     expect(match.status).toBe('published');
     expect(match.visibility).toBe('public');
     expect(match.boostOf).toEqual({ $exists: false });
     expect(match['postClassification.sensitive']).toEqual({ $ne: true });
     expect(match['metadata.isSensitive']).toEqual({ $ne: true });
     expect(match['federation.sensitive']).toEqual({ $ne: true });
+    expect(match.createdAt).toHaveProperty('$gte');
   });
 
-  it('drops blocklisted NSFW hashtags but keeps normal hashtags trending', async () => {
-    // Aggregation already filtered out sensitive posts; these counts come from
-    // non-sensitive posts. NSFW slugs must still be dropped post-aggregation.
+  it('drops blocklisted NSFW terms but keeps ordinary ones', async () => {
+    // The aggregation already filtered out sensitive POSTS; these counts come
+    // from non-sensitive ones. The blocklisted slugs must still be dropped.
     mocks.postAggregate.mockResolvedValue([
-      { _id: 'technology', count24h: 50, count6h: 20 },
-      { _id: 'NSFW', count24h: 999, count6h: 500 },
-      { _id: 'Sexy', count24h: 800, count6h: 400 },
-      { _id: 'onlyfans', count24h: 700, count6h: 300 },
-      { _id: 'art', count24h: 30, count6h: 10 },
+      row('technology', 50),
+      row('nsfw', 999),
+      row('sexy', 800),
+      row('onlyfans', 700),
+      row('art', 30),
     ]);
 
-    const result = await svc.aggregateHashtags();
-    const names = result.map(t => t.name);
+    const terms = (await svc.aggregateTermCandidates(new Date())).map((c) => c.measurement.term);
 
-    expect(names).toContain('technology');
-    expect(names).toContain('art');
-    expect(names).not.toContain('nsfw');
-    expect(names).not.toContain('sexy');
-    expect(names).not.toContain('onlyfans');
-    // Only the two clean hashtags survive.
-    expect(result).toHaveLength(2);
+    expect(terms).toContain('technology');
+    expect(terms).toContain('art');
+    expect(terms).not.toContain('nsfw');
+    expect(terms).not.toContain('sexy');
+    expect(terms).not.toContain('onlyfans');
+    expect(terms).toHaveLength(2);
   });
 });
 
-describe('TrendingService.aggregateTopics — NSFW/sensitive exclusion', () => {
-  it('excludes sensitive posts at the aggregation $match', async () => {
+describe('aggregateTermCandidates — ONE term space', () => {
+  it('unions extracted terms, hashtags and classified topic slugs', async () => {
     mocks.postAggregate.mockResolvedValue([]);
 
-    await svc.aggregateTopics();
+    await svc.aggregateTermCandidates(new Date());
 
-    const pipeline = mocks.postAggregate.mock.calls[0][0];
-    const matchStages = pipeline.filter((stage: Record<string, unknown>) => '$match' in stage);
-    const firstMatch = matchStages[0].$match;
-    expect(firstMatch.status).toBe('published');
-    expect(firstMatch.visibility).toBe('public');
-    expect(firstMatch.boostOf).toEqual({ $exists: false });
-    expect(firstMatch['postClassification.sensitive']).toEqual({ $ne: true });
-    expect(firstMatch['metadata.isSensitive']).toEqual({ $ne: true });
-    expect(firstMatch['federation.sensitive']).toEqual({ $ne: true });
+    const addFields = stage(mocks.postAggregate.mock.calls[0][0], '$addFields').$addFields;
+    expect(addFields._terms).toEqual({
+      $setUnion: [
+        { $ifNull: ['$postClassification.trendTerms', []] },
+        { $ifNull: ['$hashtags', []] },
+        { $ifNull: ['$postClassification.topics', []] },
+      ],
+    });
   });
 
-  it('drops blocklisted NSFW topics but keeps normal topics trending', async () => {
-    mocks.postAggregate.mockResolvedValue([
-      { _id: { name: 'tech', type: 'topic' }, totalRelevance: 10, postCount: 5, recentCount: 3 },
-      { _id: { name: 'porn', type: 'topic' }, totalRelevance: 99, postCount: 50, recentCount: 30 },
-      { _id: { name: 'hentai', type: 'topic' }, totalRelevance: 80, postCount: 40, recentCount: 20 },
-      { _id: { name: 'science', type: 'topic' }, totalRelevance: 8, postCount: 4, recentCount: 2 },
-    ]);
+  it('groups on the unified term, so a hashtag and the bare word are ONE candidate', async () => {
+    mocks.postAggregate.mockResolvedValue([]);
 
-    const result = await svc.aggregateTopics();
-    const names = result.map(t => t.name);
+    await svc.aggregateTermCandidates(new Date());
 
-    expect(names).toContain('tech');
-    expect(names).toContain('science');
-    expect(names).not.toContain('porn');
-    expect(names).not.toContain('hentai');
-    expect(result).toHaveLength(2);
+    const pipeline = mocks.postAggregate.mock.calls[0][0];
+    expect(stage(pipeline, '$unwind').$unwind).toBe('$_terms');
+    expect(stage(pipeline, '$group').$group._id).toBe('$_terms');
   });
 });
 
-describe('TrendingService.aggregateTopics — canonical topicRefs source with slug-topics fallback', () => {
-  it('prefers postClassification.topicRefs and falls back to postClassification.topics per post', async () => {
+describe('aggregateTermCandidates — authors are people, not posts', () => {
+  it('collects DISTINCT authors rather than counting posts', async () => {
     mocks.postAggregate.mockResolvedValue([]);
 
-    await svc.aggregateTopics();
+    await svc.aggregateTermCandidates(new Date());
 
-    const pipeline = mocks.postAggregate.mock.calls[0][0];
+    const group = stage(mocks.postAggregate.mock.calls[0][0], '$group').$group;
+    expect(group.authors).toEqual({ $addToSet: '$oxyUserId' });
+  });
 
-    // The match requires at least one of the two topic sources to be present.
-    const firstMatch = pipeline.find((s: Record<string, unknown>) => '$match' in s).$match;
-    expect(firstMatch.$or).toEqual([
-      { 'postClassification.topicRefs': { $exists: true, $ne: [] } },
-      { 'postClassification.topics': { $exists: true, $ne: [] } },
-    ]);
-    // The window is keyed on the post createdAt (shared time basis for both sources).
-    expect(firstMatch.createdAt).toHaveProperty('$gte');
+  it('filters null authors out before the count, so orphan posts cannot inflate it', async () => {
+    mocks.postAggregate.mockResolvedValue([]);
 
-    // An $addFields stage computes the unified `_topicSource`: topicRefs when
-    // non-empty, else the slug-only `postClassification.topics` mapped to `{ name }`.
-    const addFields = pipeline.find((s: Record<string, unknown>) => '$addFields' in s).$addFields;
-    expect(addFields._topicSource.$cond[1]).toBe('$postClassification.topicRefs');
-    expect(addFields._topicSource.$cond[2]).toEqual({
-      $map: {
-        input: { $ifNull: ['$postClassification.topics', []] },
-        as: 'name',
-        in: { name: '$$name' },
-      },
+    await svc.aggregateTermCandidates(new Date());
+
+    const pipeline = mocks.postAggregate.mock.calls[0][0] as Array<Record<string, unknown>>;
+    const filterStage = pipeline.find(
+      (entry) => '$addFields' in entry && 'authors' in (entry.$addFields as Record<string, unknown>),
+    ) as { $addFields: { authors: unknown } };
+    expect(filterStage.$addFields.authors).toEqual({
+      $filter: { input: '$authors', cond: { $ne: ['$$this', null] } },
     });
 
-    // The unwind + group read the unified source, defaulting absent type/relevance.
-    const unwind = pipeline.find((s: Record<string, unknown>) => '$unwind' in s).$unwind;
-    expect(unwind).toBe('$_topicSource');
-    const group = pipeline.find((s: Record<string, unknown>) => '$group' in s).$group;
-    expect(group._id.name).toBe('$_topicSource.name');
-    expect(group._id.type).toEqual({ $ifNull: ['$_topicSource.type', 'topic'] });
-    // Slug-only refs (no relevance) contribute the neutral default relevance.
-    expect(group.totalRelevance.$sum.$ifNull[0]).toBe('$_topicSource.relevance');
-    expect(typeof group.totalRelevance.$sum.$ifNull[1]).toBe('number');
+    // …and the count is taken from the FILTERED array, not the raw one.
+    const project = pipeline.filter((entry) => '$project' in entry).at(-1) as {
+      $project: Record<string, unknown>;
+    };
+    expect(project.$project.authorCount).toEqual({ $size: '$authors' });
   });
 });
 
-describe('TrendingService.getTrendingHistory — windowed aggregation', () => {
-  const NINETY_DAYS_MS = 90 * 24 * 60 * 60 * 1000;
+describe('aggregateTermCandidates — provenance is carried, not scored', () => {
+  it('counts how often the term arrived as a hashtag and as a topic slug', async () => {
+    mocks.postAggregate.mockResolvedValue([]);
 
-  it('matches calculatedAt >= (now - 90d) as the FIRST stage of BOTH aggregations', async () => {
-    mocks.redisGet.mockResolvedValue(null); // force a cache miss so it aggregates
-    mocks.trendingAggregate
-      .mockResolvedValueOnce([{ _id: '2026-07-01' }]) // distinct days
-      .mockResolvedValueOnce([{ date: '2026-07-01', trends: [] }]); // grouped
+    await svc.aggregateTermCandidates(new Date());
 
-    await trendingService.getTrendingHistory(1, 10);
-
-    // Distinct-days pipeline: leading $match on calculatedAt.
-    const daysPipeline = mocks.trendingAggregate.mock.calls[0][0];
-    expect('$match' in daysPipeline[0]).toBe(true);
-    expect(daysPipeline[0].$match.calculatedAt).toHaveProperty('$gte');
-    const daysCutoff = daysPipeline[0].$match.calculatedAt.$gte as Date;
-    expect(daysCutoff).toBeInstanceOf(Date);
-    expect(Math.abs(daysCutoff.getTime() - (Date.now() - NINETY_DAYS_MS))).toBeLessThan(5000);
-
-    // Grouped pipeline: leading $match on calculatedAt BEFORE the $addFields day derivation.
-    const groupedPipeline = mocks.trendingAggregate.mock.calls[1][0];
-    expect('$match' in groupedPipeline[0]).toBe(true);
-    expect(groupedPipeline[0].$match.calculatedAt).toHaveProperty('$gte');
-    expect('$addFields' in groupedPipeline[1]).toBe(true);
-  });
-});
-
-describe('TrendingService.getTrendingHistory — Redis caching', () => {
-  it('returns the cached payload on a hit and never runs an aggregation', async () => {
-    const cached = { days: [{ date: '2026-07-01', trends: [] }], page: 1, totalPages: 1 };
-    mocks.redisGet.mockResolvedValue(JSON.stringify(cached));
-
-    const result = await trendingService.getTrendingHistory(1, 10);
-
-    expect(result).toEqual(cached);
-    expect(mocks.trendingAggregate).not.toHaveBeenCalled();
-    expect(mocks.redisSetEx).not.toHaveBeenCalled();
-  });
-
-  it('writes the computed history to cache (key page:limit, ~5m TTL) on a miss', async () => {
-    mocks.redisGet.mockResolvedValue(null);
-    mocks.trendingAggregate
-      .mockResolvedValueOnce([{ _id: '2026-07-01' }])
-      .mockResolvedValueOnce([{ date: '2026-07-01', trends: [] }]);
-
-    await trendingService.getTrendingHistory(1, 5);
-
-    expect(mocks.redisSetEx).toHaveBeenCalledTimes(1);
-    const [key, ttl] = mocks.redisSetEx.mock.calls[0];
-    expect(key).toBe('trending:history:1:5');
-    expect(ttl).toBe(300);
-  });
-
-  it('does not throw when the cache read fails (fail-soft) and still aggregates', async () => {
-    mocks.redisGet.mockRejectedValue(new Error('redis down'));
-    mocks.trendingAggregate
-      .mockResolvedValueOnce([{ _id: '2026-07-01' }])
-      .mockResolvedValueOnce([{ date: '2026-07-01', trends: [] }]);
-
-    const result = await trendingService.getTrendingHistory(1, 10);
-
-    expect(result.days).toHaveLength(1);
-    expect(mocks.trendingAggregate).toHaveBeenCalledTimes(2);
+    const group = stage(mocks.postAggregate.mock.calls[0][0], '$group').$group;
+    expect(group.hashtagVolume).toEqual({
+      $sum: { $cond: [{ $in: ['$_terms', { $ifNull: ['$hashtags', []] }] }, 1, 0] },
+    });
+    expect(group.topicVolume).toEqual({
+      $sum: {
+        $cond: [{ $in: ['$_terms', { $ifNull: ['$postClassification.topics', []] }] }, 1, 0],
+      },
+    });
   });
 });

@@ -1459,5 +1459,27 @@
       }
     },
     "searchPlaceholder": "Cerca nei salvati"
+  },
+  "trend": {
+    "trendingLabel": "Di tendenza",
+    "typeEntity": "Entità",
+    "typeTopic": "Argomento",
+    "badge": {
+      "hot": "Caldo",
+      "new": "Nuovo",
+      "hoursAgo": "{{count}} h fa",
+      "daysAgo": "{{count}} g fa"
+    },
+    "peopleCount": "{{formatted}} persone",
+    "postCount": "{{formatted}} post",
+    "category": {
+      "news": "Notizie",
+      "politics": "Politica",
+      "sports": "Sport",
+      "pop-culture": "Intrattenimento",
+      "video-games": "Videogiochi",
+      "science": "Scienza",
+      "other": ""
+    }
   }
 }

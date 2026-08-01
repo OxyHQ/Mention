@@ -10,10 +10,6 @@ import { reportTrendEvent } from '@/utils/feedTelemetry';
  * resolved by `navigateToTrend` so the link a user shares lands on the same place.
  */
 export function buildTrendUrl(trend: Trend): string {
-  if (trend.type === 'hashtag') {
-    const tag = (trend.hashtag || trend.text).replace(/^#/, '');
-    return `${WEB_BASE_URL}/hashtag/${encodeURIComponent(tag)}`;
-  }
   return `${WEB_BASE_URL}/trend/${encodeURIComponent(trend.text)}`;
 }
 
@@ -46,16 +42,23 @@ export function useTrendNavigation() {
       ...(trend.recId ? { recId: trend.recId } : {}),
     });
 
-    if (trend.type === 'hashtag') {
-      const tag = (trend.hashtag || trend.text).replace(/^#/, '');
-      router.push(`/hashtag/${encodeURIComponent(tag)}`);
-    } else {
-      const params = new URLSearchParams();
-      if (trend.description) params.set('description', trend.description);
-      params.set('type', trend.type);
-      const query = params.toString();
-      router.push(`/trend/${encodeURIComponent(trend.text)}${query ? `?${query}` : ''}`);
+    // EVERY trend opens the trend feed, including one whose term people mostly
+    // spelled with a `#`. The hashtag screen matches the `#` form only, which is
+    // a strict subset of what made the term trend — sending a hashtag-shaped
+    // trend there hid exactly the prose posts that the burst was measured from.
+    // `/hashtag/<tag>` still exists and is still where a tag INSIDE a post goes;
+    // it is simply not what a trend means any more.
+    const params = new URLSearchParams();
+    // The label is carried so the screen can title itself correctly on the first
+    // frame. It is an optimization, not the source of truth: a cold deep link
+    // arrives without it and the screen falls back to the term.
+    if (trend.displayName && trend.displayName !== trend.text) {
+      params.set('label', trend.displayName);
     }
+    if (trend.category) params.set('category', trend.category);
+    if (trend.description) params.set('description', trend.description);
+    const query = params.toString();
+    router.push(`/trend/${encodeURIComponent(trend.text)}${query ? `?${query}` : ''}`);
   }, [router]);
 
   return { navigateToTrend };

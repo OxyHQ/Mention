@@ -4,19 +4,22 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
  * Coverage for the trending batch WRITE — the path that froze `GET /trending` on
  * one batch for over a day while answering HTTP 200 the whole time.
  *
- * Two independent defects met there, and both are pinned here:
+ * Two independent defects met there:
  *
  *   1. Batch uniqueness was keyed on `{ name, calculatedAt }`, so a name trending
  *      as BOTH a hashtag and a classified topic (observed in production for
- *      `business`) was a duplicate. The key now includes `type`; the model and
- *      migration suites assert the index itself, and the tests below assert that
- *      the batch really does carry both rows rather than collapsing them.
+ *      `business`) was a duplicate that aborted the write. That collision is now
+ *      impossible at the source rather than tolerated: hashtags and topics were
+ *      merged into ONE term space, so a term is measured once and appears at most
+ *      once per batch. The first test below pins THAT — the property the widened
+ *      index used to protect.
  *
  *   2. The insert was ORDERED and its rejection propagated, so one bad row
  *      discarded every row after it AND skipped `TrendBatch.create` — and since
  *      `getTrending` derives its timestamp from `TrendBatch`, the endpoint went on
  *      serving the last complete batch forever. The insert is now unordered and
- *      the outcome is reported rather than swallowed.
+ *      the outcome is reported rather than swallowed. That defect is independent
+ *      of what produced the rows, so its coverage is unchanged.
  */
 
 const mocks = vi.hoisted(() => ({
@@ -68,7 +71,7 @@ vi.mock('../../utils/redis', () => ({
   }),
 }));
 vi.mock('../../utils/socket', () => ({ emitTrendsUpdated: vi.fn() }));
-vi.mock('../../utils/alia', () => ({ aliaChat: vi.fn(), isAliaEnabled: () => false }));
+vi.mock('../../utils/alia', () => ({ aliaChat: vi.fn(), aliaJSON: vi.fn(), isAliaEnabled: () => false }));
 vi.mock('../../services/TopicService', () => ({
   topicService: {
     resolveNames: vi.fn().mockResolvedValue(new Map()),
@@ -83,8 +86,11 @@ import { metrics } from '../../utils/metrics';
 interface InsertedDoc {
   type: string;
   name: string;
+  displayName: string;
   rank: number;
   volume: number;
+  authorCount: number;
+  startedAt: Date;
 }
 
 /** Stand-in for a Mongoose query chain ending in `.lean()`. */
@@ -99,21 +105,20 @@ function leanChain(value: unknown) {
 }
 
 /**
- * Drive the aggregations so the batch contains `business` as BOTH a hashtag and a
- * classified topic — the exact production collision.
+ * Drive the single candidate aggregation with four bursting terms — including
+ * `business`, which arrives as BOTH a hashtag and a classified topic on the same
+ * posts. That used to produce two colliding rows; it must now produce one.
+ *
+ * Every term's volume sits entirely in the recent window so all four clear the
+ * burst floor; what is under test here is the WRITE, not the scoring.
  */
-function stageCollidingBatch(): void {
-  mocks.postAggregate
-    // aggregateHashtags
-    .mockResolvedValueOnce([
-      { _id: 'ai', count24h: 40, count6h: 20 },
-      { _id: 'business', count24h: 30, count6h: 10 },
-    ])
-    // aggregateTopics
-    .mockResolvedValueOnce([
-      { _id: { name: 'business', type: 'topic' }, totalRelevance: 20, postCount: 4, recentCount: 2 },
-      { _id: { name: 'politics', type: 'topic' }, totalRelevance: 15, postCount: 3, recentCount: 1 },
-    ]);
+function stageBatch(): void {
+  mocks.postAggregate.mockResolvedValue([
+    { _id: 'ai', volume: 40, recentVolume: 40, hashtagVolume: 40, topicVolume: 0, authorCount: 9, actorIds: ['u1'] },
+    { _id: 'business', volume: 30, recentVolume: 30, hashtagVolume: 30, topicVolume: 30, authorCount: 7, actorIds: ['u2'] },
+    { _id: 'politics', volume: 20, recentVolume: 20, hashtagVolume: 0, topicVolume: 20, authorCount: 6, actorIds: ['u3'] },
+    { _id: 'kremer trade', volume: 12, recentVolume: 12, hashtagVolume: 0, topicVolume: 0, authorCount: 5, actorIds: ['u4'] },
+  ]);
 }
 
 function insertedDocs(): InsertedDoc[] {
@@ -136,19 +141,21 @@ beforeEach(() => {
 });
 
 describe('TrendingService.calculateTrending — a name that is both a hashtag and a topic', () => {
-  it('writes BOTH rows and publishes the batch', async () => {
-    stageCollidingBatch();
+  it('writes it ONCE and publishes the batch', async () => {
+    stageBatch();
     mocks.trendingInsertMany.mockImplementation((docs: InsertedDoc[]) => Promise.resolve(docs));
 
     await trendingService.calculateTrending();
 
     const docs = insertedDocs();
+    // `business` was written with a `#` on some posts and classified as a topic
+    // on the same ones. That is one subject, so it is one row carrying the whole
+    // count — not two rows splitting it, which is what used to collide.
     const business = docs.filter((doc) => doc.name === 'business');
-    expect(business.map((doc) => doc.type).sort()).toEqual(['hashtag', 'topic']);
-    // They are distinct measurements, so they keep distinct volumes — nothing is
-    // deduped or merged on the way to the database.
-    expect(new Set(business.map((doc) => doc.volume)).size).toBe(2);
+    expect(business).toHaveLength(1);
+    expect(business[0].volume).toBe(30);
     expect(docs).toHaveLength(4);
+    expect(new Set(docs.map((doc) => doc.name)).size).toBe(docs.length);
 
     // The batch record is what `getTrending` reads its timestamp from. Before the
     // fix this was never reached, which is what froze the endpoint.
@@ -156,8 +163,24 @@ describe('TrendingService.calculateTrending — a name that is both a hashtag an
     expect(metrics.getCounter('trending_calculation_total', { result: 'success' })).toBe(1);
   });
 
+  it('carries a human label and an onset on every row', async () => {
+    stageBatch();
+    mocks.trendingInsertMany.mockImplementation((docs: InsertedDoc[]) => Promise.resolve(docs));
+
+    await trendingService.calculateTrending();
+
+    for (const doc of insertedDocs()) {
+      // Labelling is unconfigured in this suite, so every row gets the
+      // deterministic label — which must still be present and presentable.
+      expect(doc.displayName).toBeTruthy();
+      expect(doc.displayName).not.toBe(doc.name);
+      expect(doc.startedAt).toBeInstanceOf(Date);
+      expect(doc.authorCount).toBeGreaterThan(0);
+    }
+  });
+
   it('inserts UNORDERED, so one rejected row cannot discard the rest', async () => {
-    stageCollidingBatch();
+    stageBatch();
     mocks.trendingInsertMany.mockImplementation((docs: InsertedDoc[]) => Promise.resolve(docs));
 
     await trendingService.calculateTrending();
@@ -179,7 +202,7 @@ describe('TrendingService.calculateTrending — partial batch write', () => {
   }
 
   it('still publishes the batch, and names the rejected rows at error level', async () => {
-    stageCollidingBatch();
+    stageBatch();
     // Reject one row. `docs` is score-sorted, so address it by position.
     mocks.trendingInsertMany.mockRejectedValue(bulkWriteError([1]));
 
@@ -202,7 +225,7 @@ describe('TrendingService.calculateTrending — partial batch write', () => {
   });
 
   it('refuses to publish a batch the database accepted nothing from', async () => {
-    stageCollidingBatch();
+    stageBatch();
     mocks.trendingInsertMany.mockRejectedValue(bulkWriteError([0, 1, 2, 3]));
 
     await expect(trendingService.calculateTrending()).rejects.toThrow('inserted 0 of 4 rows');
@@ -214,7 +237,7 @@ describe('TrendingService.calculateTrending — partial batch write', () => {
   });
 
   it('propagates an error that is not a per-document write report', async () => {
-    stageCollidingBatch();
+    stageBatch();
     mocks.trendingInsertMany.mockRejectedValue(new Error('connection closed'));
 
     await expect(trendingService.calculateTrending()).rejects.toThrow('connection closed');
@@ -260,36 +283,34 @@ describe('TrendingService.getTrending — batch staleness is observable', () => 
   });
 });
 
-describe('TrendingService.getTrending — volume series are per (name, type)', () => {
-  it('gives a hashtag and a topic of the same name their own series', async () => {
+describe('TrendingService.getTrending — volume series are per TERM', () => {
+  it('gives each term one continuous series', async () => {
     const calculatedAt = new Date();
     mocks.trendBatchFindOne.mockReturnValue(leanChain({ calculatedAt, summary: '' }));
     mocks.trendingFind.mockReturnValue(
       leanChain([
         { name: 'business', type: 'hashtag', score: 10, rank: 1, volume: 30 },
-        { name: 'business', type: 'topic', score: 9, rank: 2, volume: 4 },
+        { name: 'politics', type: 'entity', score: 9, rank: 2, volume: 4 },
       ]),
     );
     mocks.trendingAggregate.mockResolvedValue([
-      { _id: { name: 'business', type: 'hashtag' }, volumes: [10, 20, 30, 40, 50, 60] },
-      { _id: { name: 'business', type: 'topic' }, volumes: [1, 2, 3, 4, 5, 6] },
+      { _id: 'business', volumes: [10, 20, 30, 40, 50, 60] },
+      { _id: 'politics', volumes: [1, 2, 3, 4, 5, 6] },
     ]);
 
     const result = await trendingService.getTrending(20);
 
-    const hashtag = result.trending.find((trend) => trend.type === 'hashtag');
-    const topic = result.trending.find((trend) => trend.type === 'topic');
-    expect(hashtag?.series).toBeDefined();
-    expect(topic?.series).toBeDefined();
-    // Two different measurements, so two different curves — never one interleaved
-    // array handed to both rows.
-    expect(hashtag?.series).not.toEqual(topic?.series);
-    expect(Math.max(...(hashtag?.series ?? []))).toBeGreaterThan(
-      Math.max(...(topic?.series ?? [])),
+    const business = result.trending.find((trend) => trend.name === 'business');
+    const politics = result.trending.find((trend) => trend.name === 'politics');
+    expect(business?.series).toBeDefined();
+    expect(politics?.series).toBeDefined();
+    expect(business?.series).not.toEqual(politics?.series);
+    expect(Math.max(...(business?.series ?? []))).toBeGreaterThan(
+      Math.max(...(politics?.series ?? [])),
     );
   });
 
-  it('groups the series by name AND type, and sorts on the index key order', async () => {
+  it('groups the series by NAME alone, so a provenance flip cannot cut a history in two', async () => {
     const calculatedAt = new Date();
     mocks.trendBatchFindOne.mockReturnValue(leanChain({ calculatedAt, summary: '' }));
     mocks.trendingFind.mockReturnValue(
@@ -302,14 +323,13 @@ describe('TrendingService.getTrending — volume series are per (name, type)', (
     const pipeline = mocks.trendingAggregate.mock.calls[0][0];
     const sort = pipeline.find((stage: Record<string, unknown>) => '$sort' in stage).$sort;
     const group = pipeline.find((stage: Record<string, unknown>) => '$group' in stage).$group;
-    // The sort must match the unique index key order or the planner adds a
-    // blocking SORT stage in front of the group.
+    // A prefix of the `{ name, calculatedAt, type }` unique index, so the planner
+    // still streams straight into the group with no blocking SORT.
     expect(Object.entries(sort)).toEqual([
       ['name', 1],
       ['calculatedAt', 1],
-      ['type', 1],
     ]);
-    expect(group._id).toEqual({ name: '$name', type: '$type' });
+    expect(group._id).toBe('$name');
   });
 });
 

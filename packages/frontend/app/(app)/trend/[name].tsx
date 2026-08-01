@@ -13,31 +13,38 @@ import { SEO } from '@/components/SEO';
 import { PanelStickyHeader } from '@/components/shell/PanelChrome';
 
 export default function TrendScreen() {
-    const { name, description, type } = useLocalSearchParams<{
+    const { name, label, category, description } = useLocalSearchParams<{
         name: string;
+        label?: string;
+        category?: string;
         description?: string;
-        type?: string;
     }>();
     const safeBack = useSafeBack();
     const { t } = useTranslation();
 
-    const topicName = name || '';
+    // The TERM is what the feed matches on; the LABEL is what a reader sees.
+    // A cold deep link (`/trend/orioles` pasted into a browser) carries no
+    // label, so the term stands in — never a fabricated one.
+    const term = name || '';
+    const heading = label?.trim() || term;
     const topicDescription = description || '';
-    const topicType = type || 'topic';
 
-    const filters = useMemo(() => ({ topic: topicName }), [topicName]);
+    // `trend|<term>`, NOT `topic|<term>`: the trend feed matches the same union
+    // of extracted terms, hashtags and topic slugs that detection counted, so a
+    // trend detected purely from prose still opens onto its posts.
+    const filters = useMemo(() => ({ trend: term }), [term]);
 
-    const typeLabel = topicType === 'entity'
-        ? t('trend.typeEntity', { defaultValue: 'Entity' })
-        : t('trend.typeTopic', { defaultValue: 'Topic' });
+    const categoryLabel = category
+        ? t(`trend.category.${category}`, { defaultValue: '' })
+        : '';
 
     const listHeader = useMemo(() => (
         <View className="px-4 pb-2">
             <ThemedText className="text-xs text-muted-foreground font-medium uppercase tracking-wide mb-1 font-primary">
-                {t('trend.trendingLabel', { defaultValue: `Trending ${typeLabel}` })}
+                {categoryLabel || t('trend.trendingLabel', { defaultValue: 'Trending' })}
             </ThemedText>
             <ThemedText type="title" className="text-[28px] font-bold mb-1 font-primary">
-                {topicName}
+                {heading}
             </ThemedText>
             {topicDescription ? (
                 <ThemedText className="text-sm text-muted-foreground font-primary">
@@ -45,15 +52,15 @@ export default function TrendScreen() {
                 </ThemedText>
             ) : null}
         </View>
-    ), [topicName, topicDescription, typeLabel, t]);
+    ), [heading, topicDescription, categoryLabel, t]);
 
     return (
         <SafeAreaView className="flex-1" edges={['top']}>
             <SEO
-                title={t('seo.trend.title', { topic: topicName, defaultValue: `${topicName} - Mention` })}
+                title={t('seo.trend.title', { topic: heading, defaultValue: `${heading} - Mention` })}
                 description={t('seo.trend.description', {
-                    topic: topicName,
-                    defaultValue: `Posts about ${topicName} on Mention`,
+                    topic: heading,
+                    defaultValue: `Posts about ${heading} on Mention`,
                 })}
             />
             {/* PanelStickyHeader owns the web sticky position/inset + opaque
@@ -63,7 +70,7 @@ export default function TrendScreen() {
             <PanelStickyHeader level={0}>
                 <Header
                     options={{
-                        title: topicName,
+                        title: heading,
                         leftComponents: [
                             <IconButton key="back" variant="icon" onPress={safeBack}>
                                 <BackArrowIcon size={20} className="text-foreground" />
@@ -74,7 +81,7 @@ export default function TrendScreen() {
                 />
             </PanelStickyHeader>
             <Feed
-                type="topic"
+                type="trend"
                 filters={filters}
                 listHeaderComponent={listHeader}
             />

@@ -249,6 +249,7 @@ interface RawPostClassificationSeed {
   languages: string[];
   region?: string;
   hashtagsNorm: string[];
+  trendTerms: string[];
   sensitive: boolean;
   /** Deterministic spam/quality/toxicity scores (0..1); AI batch overwrites later. */
   scores: PostClassificationScores;
@@ -291,6 +292,7 @@ export class OutboxSyncService {
         languages: signals.languages,
         region: signals.region,
         hashtagsNorm: signals.hashtagsNorm,
+        trendTerms: signals.trendTerms,
         sensitive: signals.sensitive ?? input.sensitive,
         scores: signals.scores,
         version: signals.version,
@@ -304,6 +306,10 @@ export class OutboxSyncService {
         topics: [],
         languages: [],
         hashtagsNorm: input.hashtags,
+        // The hashtags ARE terms (the extractor would have emitted them
+        // verbatim); what is lost on this path is the prose half, which is the
+        // honest consequence of the extractor having thrown.
+        trendTerms: input.hashtags,
         sensitive: input.sensitive,
         // Neutral, valid scores so ranking treats a defensive-fallback post as
         // unremarkable (not spam, mid quality) rather than skewing it.

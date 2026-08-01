@@ -22,6 +22,13 @@ export interface FeedFilters extends SharedFeedFilters {
     customFeedId?: string;
     hashtag?: string;
     topic?: string;
+    /**
+     * A trending TERM, for the per-trend feed (`trend|<term>`). Distinct from
+     * `topic`: a topic is a classified slug from a fixed taxonomy, while a term
+     * is whatever people are writing right now — often a phrase, and usually not
+     * in the taxonomy at all.
+     */
+    trend?: string;
     /** Reply ordering, as the replies feed sends it to the API. */
     sort?: string;
     [key: string]: string | boolean | undefined;

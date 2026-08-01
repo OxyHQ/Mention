@@ -9,6 +9,9 @@
  *   - region: best-effort, nullable (from a federated instance domain or locale)
  *   - hashtagsNorm: canonical hashtags via the shared post-hashtag normalizer
  *     (NOT a parallel normalizer), with the alias map applied
+ *   - trendTerms: the words and adjacent-word phrases the post is about, with
+ *     the `#` marker stripped so a hashtag and the bare word are ONE term — the
+ *     vocabulary trend detection counts in
  *   - topics: rule-based, behind the {@link TopicClassifier} interface so an
  *     AI/embedding classifier can replace it later with no call-site change
  *   - sensitive: pass-through of the provided flag
@@ -24,6 +27,7 @@
 
 import { detectAll as detectAllLanguages } from 'tinyld/light';
 import { normalizePostHashtags } from '../utils/textProcessing';
+import { extractTrendTerms } from './trending/termExtraction';
 import { HASHTAG_ALIASES } from './contentClassification/taxonomy';
 import { isNsfwHashtag } from './contentClassification/nsfw';
 import { deriveRegion } from './contentClassification/region';
@@ -75,8 +79,18 @@ import {
  * scores; note that until the backfill runs, existing baseline-only v4 posts fall
  * below the provenance bar and read as NEUTRAL in ranking (AI-`classified` posts
  * are trusted via status and are unaffected).
+ *
+ * v6: TREND TERMS. Every post now carries `postClassification.trendTerms` — the
+ * unigrams and adjacent-word phrases its own text is about, with the `#` marker
+ * stripped so a hashtag and the bare word are one term (see
+ * {@link ./trending/termExtraction}). This is what lets trending measure a burst
+ * in PROSE instead of ranking whoever typed a `#`. Bumped so the version-gated
+ * backfill populates the field across the existing corpus; until it runs,
+ * trending still sees those posts through the hashtag/topic half of its term
+ * union, so the only cost of an un-backfilled post is that its untagged prose
+ * does not count yet.
  */
-export const BASELINE_CLASSIFIER_VERSION = 5;
+export const BASELINE_CLASSIFIER_VERSION = 6;
 
 /**
  * Minimum number of non-whitespace characters required before attempting
@@ -168,6 +182,13 @@ export interface BaselineSignals {
   languages: string[];
   region?: string;
   hashtagsNorm: string[];
+  /**
+   * Candidate TREND TERMS from the post's own text — the vocabulary trending
+   * counts in, stored as `postClassification.trendTerms`. Empty for a post with
+   * no usable text (media-only, emoji-only), which is the honest outcome: such a
+   * post is about nothing the term space can name.
+   */
+  trendTerms: string[];
   topics: string[];
   sensitive?: boolean;
   /**
@@ -230,6 +251,12 @@ export class BaselineContentClassifier {
       hashtagsNorm,
     });
 
+    // Trend terms come from the ORIGINAL-case text: the extractor reads case to
+    // tell an acronym (`EU`, `AI`) from a two-letter particle, which is the one
+    // place capitalization carries meaning here. The canonical hashtags are
+    // passed too, so a tag that never appeared in the visible body still counts.
+    const trendTerms = extractTrendTerms({ text: input.text, hashtags: hashtagsNorm });
+
     // Deterministic spam/quality/toxicity from the ORIGINAL-case text (caps ratio
     // needs case) and the canonical hashtag count (so the heuristics agree with
     // the rest of the classifier on what counts as a hashtag). The federated-origin
@@ -256,6 +283,7 @@ export class BaselineContentClassifier {
       languages,
       region,
       hashtagsNorm,
+      trendTerms,
       topics,
       sensitive,
       scores,

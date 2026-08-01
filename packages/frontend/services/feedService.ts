@@ -327,6 +327,21 @@ class FeedService {
             });
           }
 
+          // Handle the per-trend feed — the posts behind one trending term.
+          //
+          // Routed through the MTN descriptor API rather than a legacy REST path
+          // (as hashtag/topic above still are) because the term space it matches
+          // exists only on that engine: `trend|<term>` unions the extracted
+          // terms, hashtags and topic slugs exactly as detection counted them,
+          // which is what stops a trend from opening an empty screen.
+          if (request.type === 'trend' && request.filters?.trend) {
+            return await this.getMtnFeed(`trend|${request.filters.trend}`, {
+              cursor: request.cursor,
+              limit: request.limit || 20,
+              signal: options?.signal,
+            });
+          }
+
           // Handle custom feed
           if (request.type === 'custom' && request.filters?.customFeedId) {
             const feedId = request.filters.customFeedId;

@@ -110,3 +110,11 @@ export const MIGRATION_MTN_EVENT_IDEMPOTENCY_INDEX =
  */
 export const MIGRATION_TRENDING_NAME_TYPE_UNIQUE_INDEX =
   '0013-trending-name-type-unique-index';
+
+/**
+ * Create the multikey `trend_terms_idx` on `posts` so trend detection and the
+ * `trend|<term>` feed can both reach a term without a collection scan.
+ * Production disables Mongoose auto-indexing, so this migration is the schema
+ * authority. See {@link ./0014-post-trend-terms-index}.
+ */
+export const MIGRATION_POST_TREND_TERMS_INDEX = '0014-post-trend-terms-index';
