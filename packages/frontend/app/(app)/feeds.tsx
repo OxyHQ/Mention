@@ -16,6 +16,7 @@ import { useTranslation } from 'react-i18next';
 import { router, useFocusEffect } from 'expo-router';
 import { PRESET_FEEDS, type PresetFeed } from '@mention/shared-types/mtn/presetFeeds';
 import { useTrendsStore } from '@/stores/trendsStore';
+import { reportTrendEvent } from '@/utils/feedTelemetry';
 import type { Trend } from '@/interfaces/Trend';
 
 import { Header } from '@/components/Header';
@@ -50,6 +51,9 @@ const IS_WEB = Platform.OS === 'web';
  * the day's churn pushing the curated shelf off the screen.
  */
 const TREND_FEED_LIMIT = 5;
+
+/** Pin key for a trend row. Keyed on the TERM, which is what the descriptor addresses. */
+const trendKey = (trend: Trend): string => `trend:${trend.text}`;
 
 const PRESET_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
   for_you: 'sparkles',
@@ -325,8 +329,23 @@ const FeedsScreen: React.FC = () => {
     [trends, hiddenTrendIds],
   );
 
+  /*
+   * A trend opens and pins exactly like every other row here: through the shared
+   * viewer, addressed by its descriptor. `navigateToTrend` is the RICH screen
+   * (header, category, generated summary) reached from the widget and search;
+   * this is the feeds directory, where a row's job is to open the feed itself.
+   * Both request the identical descriptor, so they are two presentations of one
+   * feed rather than two feeds.
+   */
   const openTrend = useCallback(
-    (trend: Trend) => {
+    (trend: Trend, rank: number) => {
+      reportTrendEvent({
+        event: 'click',
+        type: trend.type,
+        surface: 'feeds',
+        rank,
+        ...(trend.recId ? { recId: trend.recId } : {}),
+      });
       router.push({
         pathname: '/feeds/view',
         params: { descriptor: `trend|${trend.text}`, title: trend.displayName },
@@ -337,7 +356,7 @@ const FeedsScreen: React.FC = () => {
 
   const toggleTrend = useCallback(
     (trend: Trend) => {
-      const key = `trend:${trend.text}`;
+      const key = trendKey(trend);
       if (isPinned(key)) unpin(key);
       else pin({ key, descriptor: `trend|${trend.text}` });
     },
@@ -409,7 +428,7 @@ const FeedsScreen: React.FC = () => {
           <Text className="text-[15px] font-bold text-foreground mt-6 mb-1">
             {t('feeds.trending.title')}
           </Text>
-          {trendFeeds.map((trend) => (
+          {trendFeeds.map((trend, index) => (
             <TrendFeedRow
               key={trend.id}
               trend={trend}
@@ -418,9 +437,9 @@ const FeedsScreen: React.FC = () => {
                   ? t('feeds.trending.people', { count: trend.authorCount })
                   : t('feeds.trending.subtitle')
               }
-              pinned={isPinned(`trend:${trend.text}`)}
+              pinned={isPinned(trendKey(trend))}
               canEdit={canEdit}
-              onOpen={() => openTrend(trend)}
+              onOpen={() => openTrend(trend, index + 1)}
               onTogglePin={() => toggleTrend(trend)}
             />
           ))}

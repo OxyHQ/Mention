@@ -136,16 +136,13 @@ export const useTrendsStore = create<TrendsStore>()(
       hiddenTrendIds: [],
 
       setReaderLanguages: (languages: readonly string[]) => {
-        // Normalized the same way the server normalizes the query parameter, so
-        // `es-ES` and `es` are one value and the comparison below cannot see a
-        // change that is not one.
-        const next = [
-          ...new Set(
-            languages
-              .map((tag) => tag.trim().toLowerCase().split('-')[0])
-              .filter((base) => /^[a-z]{2}$/.test(base)),
-          ),
-        ].sort();
+        // Deduped and sorted, NOT normalized: `GET /trending` reduces the tags
+        // itself because the value becomes part of a shared cache key, and one
+        // authority for a key beats two copies of the rule. All this comparison
+        // owes is stability — it decides whether to refetch, and the worst case
+        // of holding `es-ES` where the server sees `es` is one redundant
+        // refetch on an identity change.
+        const next = [...new Set(languages.map((tag) => tag.trim()).filter(Boolean))].sort();
         if (next.join(',') === get().readerLanguages.join(',')) return;
         set({ readerLanguages: next });
         // The list already on screen was ordered for the previous reader.

@@ -1,3 +1,6 @@
+import { mkdtempSync, readFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import mongoose from 'mongoose';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -82,6 +85,8 @@ const mocks = vi.hoisted(() => {
           return values.some((value) => Array.isArray(value) && value.length === operand);
         case '$gt':
           return values.some((value) => String(value) > String(operand));
+        case '$lte':
+          return values.some((value) => String(value) <= String(operand));
         case '$regex':
           return values.some((value) => typeof value === 'string' && (operand as RegExp).test(value));
         default:
@@ -107,8 +112,31 @@ const mocks = vi.hoisted(() => {
       return conditionMatches(fieldValues(row, key.split('.')), condition);
     });
 
+  /**
+   * The default `bulkWrite`: record the ops and apply them to the store.
+   *
+   * Named and re-installed in `beforeEach` because `mockClear()` resets CALLS but
+   * NOT implementations — a test that overrides this (the cursor test does) would
+   * otherwise silently disarm the store-applying behaviour for every test that
+   * runs after it, making the suite order-dependent.
+   */
+  const defaultBulkWrite = async (ops: BulkOp[]): Promise<{ modifiedCount: number }> => {
+    store.ops.push(...ops);
+    for (const op of ops) {
+      const target = store.posts.find((row) => row._id.equals(op.updateOne.filter._id));
+      if (!target) continue;
+      const set = op.updateOne.update.$set;
+      if (Array.isArray(set.mentions)) target.mentions = set.mentions as string[];
+      if (Array.isArray(set['content.variants'])) {
+        target.content = { ...target.content, variants: set['content.variants'] as StoredVariant[] };
+      }
+    }
+    return { modifiedCount: ops.length };
+  };
+
   return {
     store,
+    defaultBulkWrite,
     signedFetch: vi.fn(),
     findExistingActor: vi.fn(),
     getOrFetchActor: vi.fn(),
@@ -132,19 +160,7 @@ const mocks = vi.hoisted(() => {
         };
         return chain;
       }),
-      bulkWrite: vi.fn(async (ops: BulkOp[]) => {
-        store.ops.push(...ops);
-        for (const op of ops) {
-          const target = store.posts.find((row) => row._id.equals(op.updateOne.filter._id));
-          if (!target) continue;
-          const set = op.updateOne.update.$set;
-          if (Array.isArray(set.mentions)) target.mentions = set.mentions as string[];
-          if (Array.isArray(set['content.variants'])) {
-            target.content = { ...target.content, variants: set['content.variants'] as StoredVariant[] };
-          }
-        }
-        return { modifiedCount: ops.length };
-      }),
+      bulkWrite: vi.fn(defaultBulkWrite),
     },
   };
 });
@@ -259,7 +275,10 @@ beforeEach(() => {
   store.ops = [];
   postModel.countDocuments.mockClear();
   postModel.find.mockClear();
-  postModel.bulkWrite.mockClear();
+  // `mockImplementation`, not `mockClear` — a test that overrides the write
+  // behaviour must not leak it into whatever runs next.
+  postModel.bulkWrite.mockReset();
+  postModel.bulkWrite.mockImplementation(mocks.defaultBulkWrite);
   mocks.signedFetch.mockReset();
   mocks.getOrFetchActor.mockReset();
   mocks.findExistingActor.mockReset();
@@ -639,6 +658,213 @@ describe('repairFederatedMentions', () => {
       oid('2').toString(),
     ]);
     expect(store.posts[2].mentions).toEqual([]);
+  });
+});
+
+/**
+ * The resume cursor, and why it exists.
+ *
+ * The candidate filter only stops matching a post once it is REPAIRED — an
+ * `unresolved`, `gone` or `fetchFailed` post writes nothing and keeps matching,
+ * at the LOWEST ids. Without `afterId`, chunk N+1 re-fetches chunk N's entire
+ * stuck head: outbound requests to other people's servers that cannot produce a
+ * repair. Measured on the real corpus: chunk 1 scanned 20,000 and left 9,466
+ * stuck (47%).
+ */
+describe('repairFederatedMentions — resume cursor and shard bounds', () => {
+  /** A post that can never be repaired: nothing resolves, so it stays a candidate. */
+  function stuckPost(id: string): StoredPost {
+    return damagedPost(id, `https://stuck.example/users/x/statuses/${id}`);
+  }
+
+  it('reports the last scanned _id so the next chunk can start past it', async () => {
+    store.posts = [damagedPost('1'), damagedPost('2'), damagedPost('3')];
+
+    const summary = await repairFederatedMentions({ limit: 2, batchSize: 1, noteTimeoutMs: 1_000 });
+
+    expect(summary.lastScannedId).toBe(oid('2').toString());
+  });
+
+  it('reports a null cursor when it scanned nothing', async () => {
+    store.posts = [];
+    const summary = await repairFederatedMentions({ noteTimeoutMs: 1_000 });
+    expect(summary.lastScannedId).toBeNull();
+  });
+
+  it('STARTS PAST a seeded afterId, leaving everything at or below it alone', async () => {
+    store.posts = [stuckPost('1'), stuckPost('2'), damagedPost('3')];
+    // Nothing resolves for the stuck two, so a from-the-beginning run would
+    // re-fetch both before reaching post 3.
+    mocks.signedFetch.mockImplementation(async (url: string) =>
+      url.includes('stuck.example')
+        ? new Response(null, { status: 503 })
+        : apResponse(SAME_INSTANCE_NOTE),
+    );
+
+    const summary = await repairFederatedMentions({
+      afterId: oid('2').toString(),
+      noteTimeoutMs: 1_000,
+    });
+
+    // Only post 3 is in range: one fetch, one repair, zero wasted requests.
+    expect(summary.candidates).toBe(1);
+    expect(summary.scanned).toBe(1);
+    expect(summary.repaired).toBe(1);
+    expect(mocks.signedFetch).toHaveBeenCalledTimes(1);
+    expect(mocks.signedFetch.mock.calls[0][0]).not.toContain('stuck.example');
+  });
+
+  it('preserves today’s from-the-beginning behaviour when no afterId is given', async () => {
+    store.posts = [stuckPost('1'), stuckPost('2'), damagedPost('3')];
+    mocks.signedFetch.mockImplementation(async (url: string) =>
+      url.includes('stuck.example')
+        ? new Response(null, { status: 503 })
+        : apResponse(SAME_INSTANCE_NOTE),
+    );
+
+    const summary = await repairFederatedMentions({ noteTimeoutMs: 1_000 });
+
+    // All three scanned — this is the wasteful shape the cursor exists to avoid,
+    // and it must remain the default so an existing invocation is unchanged.
+    expect(summary.scanned).toBe(3);
+    expect(summary.fetchFailed).toBe(2);
+    expect(mocks.signedFetch).toHaveBeenCalledTimes(3);
+  });
+
+  it('chains cleanly: afterId is EXCLUSIVE, so nothing is skipped or repeated', async () => {
+    store.posts = [damagedPost('1'), damagedPost('2'), damagedPost('3'), damagedPost('4')];
+
+    const first = await repairFederatedMentions({ limit: 2, batchSize: 2, noteTimeoutMs: 1_000 });
+    const second = await repairFederatedMentions({
+      afterId: first.lastScannedId ?? undefined,
+      limit: 2,
+      batchSize: 2,
+      noteTimeoutMs: 1_000,
+    });
+
+    expect(first.repaired + second.repaired).toBe(4);
+    // Every post visited exactly once across the two chunks.
+    expect(store.ops.map((op) => op.updateOne.filter._id.toString())).toEqual([
+      oid('1').toString(),
+      oid('2').toString(),
+      oid('3').toString(),
+      oid('4').toString(),
+    ]);
+  });
+
+  it('honours an INCLUSIVE beforeId, so parallel shards cannot overlap', async () => {
+    store.posts = [damagedPost('1'), damagedPost('2'), damagedPost('3')];
+
+    // A generous limit: without a range bound this shard would run past its
+    // territory into the next one's.
+    const summary = await repairFederatedMentions({
+      beforeId: oid('2').toString(),
+      limit: 100,
+      noteTimeoutMs: 1_000,
+    });
+
+    expect(summary.candidates).toBe(2);
+    expect(summary.scanned).toBe(2);
+    expect(store.posts[2].mentions).toEqual([]);
+  });
+
+  it('keeps the shard upper bound across MULTIPLE pages, not just the first', async () => {
+    // The in-run cursor must merge into the range, never replace it — otherwise a
+    // shard loses its ceiling after page one.
+    store.posts = [damagedPost('1'), damagedPost('2'), damagedPost('3'), damagedPost('4')];
+
+    const summary = await repairFederatedMentions({
+      beforeId: oid('2').toString(),
+      batchSize: 1,
+      limit: 100,
+      noteTimeoutMs: 1_000,
+    });
+
+    expect(summary.scanned).toBe(2);
+    expect(store.posts[2].mentions).toEqual([]);
+    expect(store.posts[3].mentions).toEqual([]);
+  });
+
+  it.each([
+    ['too short', 'abc'],
+    ['12 characters (accepted by ObjectId.isValid, but not what was typed)', 'abcdefghijkl'],
+    ['non-hex', 'zzzzzzzzzzzzzzzzzzzzzzzz'],
+    ['25 characters', '68a1f3c4b5d6e7f809a1b2c3d'],
+  ])('REFUSES a malformed afterId (%s) rather than rescanning from zero', async (_label, value) => {
+    store.posts = [damagedPost('1')];
+
+    // The dangerous failure is a silent fallback: it would look exactly like a
+    // successful run while re-fetching the whole stuck head.
+    await expect(repairFederatedMentions({ afterId: value })).rejects.toThrow(
+      /afterId must be a 24-character hex ObjectId/,
+    );
+    expect(mocks.signedFetch).not.toHaveBeenCalled();
+    expect(postModel.countDocuments).not.toHaveBeenCalled();
+  });
+
+  it('REFUSES a malformed beforeId too', async () => {
+    await expect(repairFederatedMentions({ beforeId: 'nope' })).rejects.toThrow(
+      /beforeId must be a 24-character hex ObjectId/,
+    );
+  });
+
+  it('treats an absent or blank bound as no bound at all', async () => {
+    store.posts = [damagedPost('1')];
+
+    const summary = await repairFederatedMentions({
+      afterId: '   ',
+      beforeId: undefined,
+      noteTimeoutMs: 1_000,
+    });
+
+    expect(summary.scanned).toBe(1);
+  });
+
+  it('persists the cursor after EVERY page, so a run that dies is still resumable', async () => {
+    const cursorFile = path.join(
+      mkdtempSync(path.join(tmpdir(), 'repair-cursor-')),
+      'repair.cursor',
+    );
+    store.posts = [damagedPost('1'), damagedPost('2'), damagedPost('3')];
+
+    // One post per page, and the cursor is read back mid-run: a summary-only
+    // cursor would still be empty here, which is exactly the case a dying run hits.
+    const seen: string[] = [];
+    postModel.bulkWrite.mockImplementation(async (ops) => {
+      seen.push(readFileSync(cursorFile, 'utf8').trim());
+      return { modifiedCount: ops.length };
+    });
+
+    const summary = await repairFederatedMentions({
+      cursorFile,
+      batchSize: 1,
+      noteTimeoutMs: 1_000,
+    });
+
+    // The final flush happens after the last page, so every page's cursor was on
+    // disk before the run ended.
+    expect(readFileSync(cursorFile, 'utf8').trim()).toBe(oid('3').toString());
+    expect(summary.lastScannedId).toBe(oid('3').toString());
+    expect(seen.length).toBeGreaterThan(0);
+  });
+
+  it('does not abort the sweep when the cursor file cannot be written', async () => {
+    store.posts = [damagedPost('1')];
+
+    // An unwritable path must cost a warning, not the run — the repair itself is
+    // still correct and the cursor is still on the returned summary.
+    const summary = await repairFederatedMentions({
+      cursorFile: '/proc/definitely/not/writable/repair.cursor',
+      noteTimeoutMs: 1_000,
+    });
+
+    expect(summary.repaired).toBe(1);
+    expect(summary.lastScannedId).toBe(oid('1').toString());
+    expect(
+      warnCalls().some(
+        ([message]) => message === '[repairFederatedMentions] could not persist the resume cursor',
+      ),
+    ).toBe(true);
   });
 });
 

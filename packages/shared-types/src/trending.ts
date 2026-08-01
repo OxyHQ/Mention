@@ -91,13 +91,15 @@ export type TrendStatus = 'hot';
  *    recommendation, which is why history trends carry no `recId`)
  *  - `search` — the search screen's idle suggestions
  *  - `interstitial` — the in-feed trending card
+ *  - `feeds` — the trending section of the feeds directory
  */
 export type TrendEventSurface =
   | 'widget'
   | 'explore'
   | 'search'
   | 'interstitial'
-  | 'history';
+  | 'history'
+  | 'feeds';
 
 export interface TrendEventInput {
   event: TrendEventName;

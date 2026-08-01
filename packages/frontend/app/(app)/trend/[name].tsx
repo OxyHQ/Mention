@@ -10,6 +10,7 @@ import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { useTranslation } from 'react-i18next';
 import Feed from '@/components/Feed/Feed';
+import type { FeedType } from '@mention/shared-types';
 import { SEO } from '@/components/SEO';
 import { PanelStickyHeader } from '@/components/shell/PanelChrome';
 import { trendingService } from '@/services/trendingService';
@@ -53,10 +54,17 @@ export default function TrendScreen() {
         refetchOnWindowFocus: false,
     });
 
-    // `trend|<term>`, NOT `topic|<term>`: the trend feed matches the same union
-    // of extracted terms, hashtags and topic slugs that detection counted, so a
-    // trend detected purely from prose still opens onto its posts.
-    const filters = useMemo(() => ({ trend: term }), [term]);
+    /*
+     * `trend|<term>`, NOT `topic|<term>`: the trend feed matches the same union
+     * of extracted terms, hashtags and topic slugs that detection counted, so a
+     * trend detected purely from prose still opens onto its posts.
+     *
+     * Passed as a DESCRIPTOR, the same way every other parametrized feed is
+     * addressed. A second addressing shape (a `type` plus a matching filter)
+     * would be a second thing to keep in step for no gain — this screen and the
+     * feeds directory now request the identical feed the identical way.
+     */
+    const feedType = useMemo(() => `trend|${term}` as FeedType, [term]);
 
     const categoryLabel = category
         ? t(`trend.category.${category}`, { defaultValue: '' })
@@ -105,8 +113,7 @@ export default function TrendScreen() {
                 />
             </PanelStickyHeader>
             <Feed
-                type="trend"
-                filters={filters}
+                type={feedType}
                 listHeaderComponent={listHeader}
             />
         </SafeAreaView>

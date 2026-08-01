@@ -20,6 +20,7 @@
 import mongoose from 'mongoose';
 import { Post } from '../models/Post';
 import { logger } from '../utils/logger';
+import { trendTermMatch } from '../services/trending/termSpace';
 
 /** Posts sampled. Enough to see a pattern, small enough to read. */
 const DEFAULT_LIMIT = 10;
@@ -54,16 +55,10 @@ async function main(): Promise<void> {
     dbName: `mention-${process.env.NODE_ENV || 'development'}`,
   });
 
-  // The SAME union the detection batch counts over, so this sees exactly what
-  // that sees — the point is to find WHICH of the three carries the term.
+  // Shares the batch's own definition, so this cannot look somewhere the real
+  // thing does not — the point is to find WHICH field carries the term.
   const posts = await Post.find(
-    {
-      $or: [
-        { 'postClassification.trendTerms': term },
-        { hashtags: term },
-        { 'postClassification.topics': term },
-      ],
-    },
+    trendTermMatch(term),
     {
       createdAt: 1,
       oxyUserId: 1,

@@ -13,6 +13,7 @@ import { buildAuthorFeedMatch } from '../../../../utils/postAuthorship';
 import { FEED_FIELDS } from '../../FeedAPI';
 import { ChronoCursor } from '../../CursorBuilder';
 import { notAReplyClause, restrictToReplies, restrictToRoots } from '../../../../utils/postReply';
+import { trendTermMatch } from '../../../../services/trending/termSpace';
 import type { AuthorFeedFilter } from '@mention/shared-types';
 import type { CandidatePost, FeedEngineContext, SourceModule } from '../types';
 
@@ -69,16 +70,10 @@ export const keywordsSource: SourceModule = {
  * `trendTerms`: the posts behind ONE trend — what a reader lands on after
  * pressing it.
  *
- * Matched against the SAME three fields the detection batch counts over
- * (`postClassification.trendTerms`, `hashtags`, `postClassification.topics`),
- * because the alternative is the worst possible outcome for this screen: a term
- * reported as trending whose feed comes back empty, or worse, missing exactly
- * the posts that made it trend. The union is not a fallback here — it is the
- * definition of the term, and it has to be the same definition on both sides.
- *
- * The `$or` is nested under `$and` so the cursor's own `$or` (added by
- * {@link ChronoCursor.applyToQuery}) cannot clobber it — the same shape, and for
- * the same reason, as the topic timeline.
+ * Matched with {@link trendTermMatch} — the SAME definition the detection batch
+ * counts over, shared rather than restated. A feed that matched less than
+ * detection counted would open a reported trend onto a screen missing exactly
+ * the posts that made it trend, which is why the two must not be able to drift.
  */
 export const trendTermsSource: SourceModule = {
   id: 'trendTerms',
@@ -89,15 +84,9 @@ export const trendTermsSource: SourceModule = {
     if (!term) return [];
 
     const match: Record<string, unknown> = {
-      $and: [
-        {
-          $or: [
-            { 'postClassification.trendTerms': term },
-            { hashtags: term },
-            { 'postClassification.topics': term },
-          ],
-        },
-      ],
+      // Nested under `$and` so the cursor's own `$or` (added by
+      // `ChronoCursor.applyToQuery`) cannot clobber it.
+      $and: [trendTermMatch(term)],
       visibility: 'public',
       status: 'published',
     };

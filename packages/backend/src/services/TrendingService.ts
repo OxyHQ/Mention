@@ -10,6 +10,7 @@ import { aliaChat, isAliaEnabled } from '../utils/alia';
 import { topicService } from './TopicService';
 import { isNsfwHashtag } from './contentClassification/nsfw';
 import { isTrendStopWord } from './trending/termExtraction';
+import { trendTermMatch, trendTermUnionExpression } from './trending/termSpace';
 // Trending shares the SINGLE canonical sensitive-exclusion clause with every
 // feed (For You, Explore, ranking). Adding a new gate updates trending too.
 import { SENSITIVE_EXCLUDE_MATCH } from '../mtn/feed/feedSafety';
@@ -494,17 +495,7 @@ class TrendingService {
             },
           },
         },
-        {
-          $addFields: {
-            _terms: {
-              $setUnion: [
-                { $ifNull: ['$postClassification.trendTerms', []] },
-                { $ifNull: ['$hashtags', []] },
-                { $ifNull: ['$postClassification.topics', []] },
-              ],
-            },
-          },
-        },
+        { $addFields: { _terms: trendTermUnionExpression() } },
         { $match: { '_terms.0': { $exists: true } } },
         { $unwind: '$_terms' },
         {
@@ -796,11 +787,7 @@ class TrendingService {
     try {
       const posts = await Post.find(
         {
-          $or: [
-            { 'postClassification.trendTerms': term },
-            { hashtags: term },
-            { 'postClassification.topics': term },
-          ],
+          ...trendTermMatch(term),
           status: 'published',
           visibility: PostVisibility.PUBLIC,
           ...SENSITIVE_EXCLUDE_MATCH,

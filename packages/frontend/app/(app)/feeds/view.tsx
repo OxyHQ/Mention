@@ -29,23 +29,35 @@ import type { FeedType } from '@mention/shared-types/feed';
  * `<Feed>` is the single scroll owner here — the same window-virtualizer web
  * path the home screen uses — so there is no second top-level virtualizer.
  */
+/** Descriptors that carry their own content and need no preset entry. */
+const PASS_THROUGH_DESCRIPTOR_PREFIXES = ['feedgen|', 'trend|'] as const;
+
 export default function PresetFeedViewScreen() {
     const { descriptor, title } = useLocalSearchParams<{ descriptor: string; title: string }>();
     const safeBack = useSafeBack();
     const { t } = useTranslation();
     const { canUsePrivateApi, isPrivateApiPending } = useAuth();
 
-    // A feed-generator descriptor (`feedgen|<uri>`) is served straight through the
-    // MTN engine — it is not a preset and never viewer-gated (a public algorithm).
-    const isFeedGenerator = typeof descriptor === 'string' && descriptor.startsWith('feedgen|');
+    /*
+     * A PARAMETRIZED descriptor carries its own content in the descriptor
+     * itself, so it needs no preset lookup and no auth gate: `feedgen|<uri>` is
+     * a public algorithm, `trend|<term>` is the posts behind one trend. Both go
+     * straight through the MTN engine, which resolves any descriptor it owns.
+     *
+     * One list rather than one branch per prefix — a trend that only opened
+     * from its own screen would be a feed everywhere except where feeds live.
+     */
+    const isPassThrough =
+        typeof descriptor === 'string' &&
+        PASS_THROUGH_DESCRIPTOR_PREFIXES.some((prefix) => descriptor.startsWith(prefix));
 
     // Resolve the preset from the shared catalog to get its label + auth flag.
     // Every remaining preset descriptor (for_you / following / trending /
     // explore / mutuals / friends_popular) is a plain, non-parametrized token
     // that is also a valid `FeedType`, so it maps straight onto `<Feed type>`.
     const preset = useMemo(
-        () => (isFeedGenerator ? undefined : PRESET_FEEDS.find((p) => p.descriptor === descriptor)),
-        [descriptor, isFeedGenerator],
+        () => (isPassThrough ? undefined : PRESET_FEEDS.find((p) => p.descriptor === descriptor)),
+        [descriptor, isPassThrough],
     );
 
     const headerTitle = title || (preset ? t(preset.labelKey) : t('feeds.untitled', { defaultValue: 'Feed' }));
@@ -56,9 +68,9 @@ export default function PresetFeedViewScreen() {
     const gated = Boolean(preset?.requiresAuth) && !canUsePrivateApi;
 
     const renderBody = () => {
-        // A feed generator carries its content path in the descriptor itself, so it
-        // renders straight through the engine (no preset lookup, no auth gate).
-        if (isFeedGenerator) {
+        // Carries its content in the descriptor, so it renders straight through
+        // the engine (no preset lookup, no auth gate).
+        if (isPassThrough) {
             return <Feed type={descriptor as FeedType} />;
         }
         if (!preset) {

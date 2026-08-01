@@ -42,9 +42,9 @@ jest.mock('@oxyhq/services/ui/client', () => ({
   useAuth: jest.fn(),
 }));
 
-// The provider reads the account's declared locales through the SDK helper —
-// the same one the backend reads them with. Mocked to its identity behaviour so
-// this suite keeps testing the identity boundary rather than locale parsing.
+// The provider reads the account's declared locales through the SDK. Mocked to
+// its identity behaviour, like every other SDK boundary in this suite, so the
+// barrel (and the crypto polyfill behind it) stays out of the module graph.
 jest.mock('@oxyhq/core', () => ({
   getUserLanguages: (user: { languages?: string[] } | null | undefined) => user?.languages ?? [],
 }));

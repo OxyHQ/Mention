@@ -116,7 +116,6 @@ export function resolveFeedDescriptor(
     if (userId) return `author|${userId}`;
     if (filters?.hashtag) return `hashtag|${filters.hashtag}`;
     if (filters?.topic) return `topic|${filters.topic}`;
-    if (filters?.trend) return `trend|${filters.trend}`;
     if (filters?.customFeedId) return `custom|${filters.customFeedId}`;
     return type;
 }

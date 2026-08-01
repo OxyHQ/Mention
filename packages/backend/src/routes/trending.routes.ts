@@ -6,6 +6,7 @@ import { config } from '../config';
 import { cachePublicMedium } from '../middleware/cacheControl';
 import { feedIPRateLimiter } from '../middleware/security';
 import { parseTrendEvent, recordTrendEvent } from '../services/trending/trendTelemetry';
+import { getBaseLanguage } from '@oxyhq/core';
 import { queryInt, queryString } from '../utils/queryParams';
 
 const router = Router();
@@ -110,7 +111,10 @@ function parseLanguages(raw: unknown): string[] {
     ...new Set(
       value
         .split(',')
-        .map((tag) => tag.trim().toLowerCase().split('-')[0])
+        // The SDK's own reducer, the same one ranking compares languages with —
+        // `es-ES` and `es-MX` are one Spanish, and a second hand-rolled copy of
+        // that rule is a second place for it to drift.
+        .map((tag) => getBaseLanguage(tag))
         .filter((base) => /^[a-z]{2}$/.test(base)),
     ),
   ]

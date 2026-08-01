@@ -30,18 +30,6 @@ export interface TrendingDay {
 }
 
 class TrendingService {
-  async getTrending(limit: number = 20, type?: string): Promise<TrendingTopic[]> {
-    try {
-      const params: Record<string, string | number> = { limit };
-      if (type) params.type = type;
-
-      const res = await authenticatedClient.get<{ trending?: TrendingTopic[] }>("/trending", { params });
-      return res.data.trending || [];
-    } catch (error) {
-      logger.warn("Failed fetching trending", { error });
-      return [];
-    }
-  }
 
   async getTrendingHistory(page: number = 1, limit: number = 10): Promise<{
     days: TrendingDay[];
