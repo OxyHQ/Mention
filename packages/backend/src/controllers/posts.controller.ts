@@ -1290,11 +1290,42 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
       return res.status(404).json({ message: 'Post not found' });
     }
 
-    // Enforce 30-minute edit window
-    const EDIT_WINDOW_MS = 30 * 60 * 1000; // 30 minutes
-    const createdAt = new Date(post.createdAt).getTime();
-    if (Date.now() - createdAt > EDIT_WINDOW_MS) {
-      return res.status(403).json({ message: 'Edit window has expired. Posts can only be edited within 30 minutes of creation.' });
+    // The 30-minute edit window exists because READERS have already seen a
+    // published post: rewriting one indefinitely is a trust problem, so the
+    // author gets a short grace period and no more.
+    //
+    // A SCHEDULED post has no readers. It has not published, has not federated,
+    // and has emitted no MTN record — so the window's reason simply does not
+    // apply, while the window itself would make a post scheduled for next
+    // Tuesday uneditable thirty minutes after it was written. Hence the
+    // carve-out. It is decided from the status STORED in Mongo and read in this
+    // request; nothing the client sends can select it.
+    const editingScheduledPost = (post.status ?? 'published') === 'scheduled';
+    if (!editingScheduledPost) {
+      const EDIT_WINDOW_MS = 30 * 60 * 1000; // 30 minutes
+      const createdAt = new Date(post.createdAt).getTime();
+      if (Date.now() - createdAt > EDIT_WINDOW_MS) {
+        return res.status(403).json({ message: 'Edit window has expired. Posts can only be edited within 30 minutes of creation.' });
+      }
+    }
+
+    // Rescheduling. Only a post that is still scheduled can be moved — sending a
+    // time for a published post is a client bug, not a silent no-op. The new
+    // time may be EARLIER or later; the only bound is that it is still ahead,
+    // since the publisher sweeps for `scheduledFor <= now` and a past time would
+    // mean "publish on the next tick" while reading as a schedule.
+    if (req.body.scheduledFor !== undefined) {
+      if (!editingScheduledPost) {
+        return res.status(400).json({ message: 'Only a scheduled post can be rescheduled' });
+      }
+      const nextScheduledFor = new Date(req.body.scheduledFor);
+      if (Number.isNaN(nextScheduledFor.getTime())) {
+        return res.status(400).json({ message: 'scheduledFor must be a valid date' });
+      }
+      if (nextScheduledFor.getTime() <= Date.now()) {
+        return res.status(400).json({ message: 'scheduledFor must be in the future' });
+      }
+      post.scheduledFor = nextScheduledFor;
     }
 
     // Support both flat body fields and nested content object from frontend
@@ -1526,6 +1557,25 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
     );
     if (collaboratorIds && collaboratorIds.length > 0) {
       await postCollaborationService.attachCollaborators(post, userId, collaboratorIds);
+    }
+
+    // An edit that started under the scheduled carve-out must not land on a post
+    // that went live while it was being assembled — the publisher sweeps every
+    // 60s, and the body above does its own I/O (article save, collaborator
+    // resolution). Re-read the STORED status as late as possible and refuse
+    // rather than write, so a just-published post cannot be edited without its
+    // 30-minute window. This narrows the window to the gap between this read and
+    // the save; it does not close it, because `save()` cannot carry a filter.
+    // The residual exposure is bounded: `status` is not among the modified paths,
+    // so the save can never revert a publish, and the federation/MTN gates below
+    // re-read the status themselves.
+    if (editingScheduledPost) {
+      const stillScheduled = await Post.exists({ _id: post._id, status: 'scheduled' });
+      if (!stillScheduled) {
+        return res.status(409).json({
+          message: 'This post published while you were editing it. Reload it to edit within the 30-minute window.',
+        });
+      }
     }
 
     await post.save();
@@ -2198,7 +2248,21 @@ export const getDrafts = async (req: AuthRequest, res: Response) => {
   }
 };
 
-// Get scheduled posts
+/**
+ * The caller's own pending scheduled posts, soonest first.
+ *
+ * Hydrated like every other post listing, so the composer can PREVIEW one
+ * through the same renderer the feed uses — media resolved to display URLs,
+ * author, poll, quote and language variants all built by the one service that
+ * knows how. Serving raw lean documents here (as this did) forced the client to
+ * reimplement a slice of hydration, which drifts the moment either side changes.
+ *
+ * Access control is enforced TWICE, both server-side: the query is scoped to
+ * `oxyUserId`, and `PostHydrationService` — the single ACL authority — drops any
+ * post whose `status` is not `published` for a viewer who does not own it. A
+ * non-owner therefore cannot obtain a scheduled post here even if the query
+ * scoping were ever loosened.
+ */
 export const getScheduledPosts = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?.id;
@@ -2213,12 +2277,20 @@ export const getScheduledPosts = async (req: AuthRequest, res: Response) => {
       .sort({ scheduledFor: 1 })
       .lean();
 
-    res.json(scheduledPosts);
+    const hydratedPosts = await postHydrationService.hydratePosts(scheduledPosts, {
+      viewerId: userId,
+      oxyClient: createScopedOxyClient(req),
+      requestLanguages: requestLanguageCandidates(req),
+      maxDepth: 1,
+      includeLinkMetadata: true,
+    });
+
+    res.json({ posts: hydratedPosts });
   } catch (error) {
     logger.error('Error fetching scheduled posts', error);
     res.status(500).json({ message: 'Error fetching scheduled posts' });
   }
-}; 
+};
 
 // Get nearby posts based on location
 export const getNearbyPosts = async (req: AuthRequest, res: Response) => {

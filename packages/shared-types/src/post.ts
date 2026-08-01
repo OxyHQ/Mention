@@ -706,6 +706,12 @@ export interface UpdatePostRequest {
   hashtags?: string[];
   /** Invite collaborators when editing a solo post within the 30-minute window. */
   collaboratorIds?: string[];
+  /**
+   * Move a still-SCHEDULED post to another time, ISO-8601. Accepted only while
+   * the stored post is `scheduled`, and only for a time still ahead; earlier is
+   * allowed. Omitted, the existing schedule stands.
+   */
+  scheduledFor?: string;
 }
 
 export interface PostFeed {
@@ -779,6 +785,15 @@ export interface PostEditSource {
   mentionUsers: PostUser[];
   authorship?: PostAuthorshipEntry[];
   parentPostId?: string;
+  /**
+   * The post's publication state. The composer needs it to know it is editing
+   * something that has NOT gone out yet: a scheduled post is exempt from the
+   * 30-minute edit window and can still be moved to another time, so the screen
+   * must not tell the author about a deadline that does not apply to them.
+   */
+  status?: PostPublicationStatus;
+  /** When a `scheduled` post is due to publish, ISO-8601. */
+  scheduledFor?: string;
 }
 
 export interface HydratedAuthor extends PostUser {
@@ -890,6 +905,13 @@ export interface PostMetadataState {
   createdAt: string;
   updatedAt: string;
   status?: PostPublicationStatus;
+  /**
+   * When a `scheduled` post is due to publish, ISO-8601. Present ONLY on a post
+   * that carries one, which in practice means `status === 'scheduled'` — and
+   * hydration drops an unpublished post for everyone except its owner and its
+   * accepted/pending collaborators, so this never reaches a third party.
+   */
+  scheduledFor?: string;
 }
 
 export interface HydratedPostSummary {

@@ -1,14 +1,17 @@
 import React, { useCallback, useState } from 'react';
+import { useRouter } from 'expo-router';
 import { View, Text, TouchableOpacity } from 'react-native';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';
 import { CloseIcon } from '@/assets/icons/close-icon';
+import type { HydratedPost } from '@mention/shared-types';
 import type { Draft } from '@/hooks/useDrafts';
 import { useScheduledPosts } from '@/hooks/useScheduledPosts';
 import DraftsList from './DraftsList';
 import ScheduledPostsList from './ScheduledPostsList';
+import ScheduledPostPreview from './ScheduledPostPreview';
 
 export type UnpublishedTab = 'drafts' | 'scheduled';
 
@@ -71,6 +74,10 @@ const TabButton: React.FC<TabButtonProps> = ({ label, count, isActive, onPress }
  *
  * The scheduled query lives here, not in the list, so the tab can show its count
  * (and warm the cache) while the drafts tab is the one on screen.
+ *
+ * Previewing a scheduled post REPLACES the sheet's body rather than opening a
+ * second sheet on top of this one: the preview is a deeper level of the same
+ * shelf, and stacking sheets buys nothing but a second dismiss gesture.
  */
 const UnpublishedSheet: React.FC<UnpublishedSheetProps> = ({
   onClose,
@@ -78,11 +85,50 @@ const UnpublishedSheet: React.FC<UnpublishedSheetProps> = ({
   currentDraftId,
 }) => {
   const { t } = useTranslation();
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState<UnpublishedTab>('drafts');
+  const [previewPostId, setPreviewPostId] = useState<string | null>(null);
   const { scheduledPosts, isLoading, isError, refetch, cancelScheduledPost } = useScheduledPosts();
 
   const showDrafts = useCallback(() => setActiveTab('drafts'), []);
   const showScheduled = useCallback(() => setActiveTab('scheduled'), []);
+
+  const openPreview = useCallback((post: HydratedPost) => setPreviewPostId(post.id), []);
+  const closePreview = useCallback(() => setPreviewPostId(null), []);
+
+  /**
+   * Editing reuses the composer's OWN edit route rather than the drafts loader.
+   * `onLoadDraft` restores a LOCAL draft — a different shape, with no post id —
+   * so saving it would create a second post and leave the scheduled one behind.
+   * `/compose?editPostId=` already loads a server post through
+   * `GET /posts/:id/edit-source` and saves through `PUT /posts/:id`, which is
+   * exactly the update this needs.
+   */
+  const editPost = useCallback((post: HydratedPost) => {
+    onClose();
+    router.push(`/compose?editPostId=${encodeURIComponent(post.id)}`);
+  }, [onClose, router]);
+
+  // Held by ID, not by value: a refetch (or the cancel that drops a row) must be
+  // able to take the preview down or refresh it, which a captured object could
+  // not do — it would keep rendering a post the server no longer has.
+  const previewPost = previewPostId === null
+    ? undefined
+    : scheduledPosts.find((post) => post.id === previewPostId);
+
+  if (previewPost) {
+    return (
+      <View className="flex-1 max-h-[600px] bg-background">
+        <ScheduledPostPreview
+          post={previewPost}
+          onBack={closePreview}
+          onEdit={() => editPost(previewPost)}
+          onCancel={cancelScheduledPost}
+          onCancelled={closePreview}
+        />
+      </View>
+    );
+  }
 
   return (
     <View className="flex-1 max-h-[600px] bg-background">
@@ -121,6 +167,8 @@ const UnpublishedSheet: React.FC<UnpublishedSheetProps> = ({
           isLoading={isLoading}
           isError={isError}
           onRetry={refetch}
+          onPreview={openPreview}
+          onEdit={editPost}
           onCancel={cancelScheduledPost}
         />
       )}

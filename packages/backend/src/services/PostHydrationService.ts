@@ -85,6 +85,7 @@ interface RawPost {
   tags?: string[];
   visibility?: string;
   status?: string;
+  scheduledFor?: unknown;
   language?: string;
   createdAt?: unknown;
   updatedAt?: unknown;
@@ -1862,6 +1863,15 @@ export class PostHydrationService {
 
     // Only include essential metadata for feed performance
     const includeFullMetadata = (params.viewerContext as ExtendedViewerContext).includeFullMetadata !== false;
+    // Guarded rather than converted inline like `createdAt`: this field is
+    // optional, so an unparseable value is reachable, and `toISOString()` throws
+    // on one — which would fail the whole hydration, not just this field.
+    const scheduledAt = post.scheduledFor
+      ? new Date(post.scheduledFor as string | number | Date)
+      : null;
+    const scheduledFor = scheduledAt && !Number.isNaN(scheduledAt.getTime())
+      ? scheduledAt.toISOString()
+      : undefined;
     const metadata = {
       visibility: (post.visibility ?? PostVisibility.PUBLIC) as PostVisibility,
       replyPermission: post.replyPermission as import('@mention/shared-types').ReplyPermission[] | undefined,
@@ -1883,6 +1893,11 @@ export class PostHydrationService {
       createdAt: new Date((post.createdAt || post.date || Date.now()) as string | number | Date).toISOString(),
       updatedAt: new Date((post.updatedAt || post.createdAt || Date.now()) as string | number | Date).toISOString(),
       status: post.status as 'draft' | 'published' | 'scheduled' | undefined,
+      // Only a scheduled post carries one, and the ACL above already dropped
+      // every unpublished post for anyone but its owner/collaborators — so this
+      // is emitted unconditionally rather than gated on `status`, which would
+      // only duplicate that check somewhere it could drift.
+      scheduledFor,
     };
 
     // Always replace mentions in text if they exist, regardless of includeFullMetadata

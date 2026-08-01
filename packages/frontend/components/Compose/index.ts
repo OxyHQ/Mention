@@ -16,6 +16,7 @@ export { ComposeAltButton } from "./ComposeAltButton";
 export { default as QuoteCard } from "./QuoteCard";
 export { default as DraftsList } from "./DraftsList";
 export { default as ScheduledPostsList } from "./ScheduledPostsList";
+export { default as ScheduledPostPreview } from "./ScheduledPostPreview";
 
 // Re-export existing sheets
 export { default as AltTextSheet } from "./AltTextSheet";

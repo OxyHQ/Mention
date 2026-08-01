@@ -1,22 +1,23 @@
 import React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import type { HydratedPost } from '@mention/shared-types';
 
 /**
  * The scheduled-post queue is the one composer surface that lives on the SERVER
- * while its neighbour (drafts) lives on the device, and the three ways that goes
- * wrong are all invisible from reading the code:
+ * while its neighbour (drafts) lives on the device, and the ways that goes wrong
+ * are all invisible from reading the code:
  *
- *  1. Nobody calls the endpoint. That is the bug this hook exists to fix — the
- *     route has shipped and been routed for a long time with no caller — so the
+ *  1. Nobody calls the endpoint. That is the bug this hook exists to fix, so the
  *     request itself is asserted, by path.
  *  2. The list is cached on a key that is not viewer-scoped, and B is served A's
  *     unpublished posts after an account switch. The key is asserted directly,
  *     and a second viewer must not read the first one's answer.
- *  3. The response is bound to as if it were a hydrated post DTO. It is not:
- *     `GET /posts/scheduled` returns RAW lean Mongo documents, so the id is
- *     `_id` and the body is `content.variants[0].text` with no resolved
- *     `content.text` anywhere. The normalization is asserted field by field.
+ *  3. The client re-derives what the server already resolved. `GET /posts/scheduled`
+ *     now serves the SAME hydrated DTO the feed gets, precisely so the preview can
+ *     render through the feed's own `PostItem`; a hook that reshaped it would
+ *     reintroduce the drift the hydration change removed. The DTO is asserted to
+ *     arrive untouched.
  *
  * The real `QueryClient` runs here — only the HTTP boundary and the SDK modules
  * that ship untranspiled TS are mocked, so the cache key, the enablement gate
@@ -47,7 +48,7 @@ jest.mock('@oxyhq/services/ui/client', () => ({ useAuth: () => mockAuth }));
 
 import { useScheduledPosts } from '../useScheduledPosts';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
-import type { ScheduledPost } from '../useScheduledPosts';
+import { scheduledPostFixture } from '@/__fixtures__/scheduledPost';
 
 type Hook = ReturnType<typeof useScheduledPosts>;
 let latest: Hook | null = null;
@@ -93,48 +94,54 @@ function rerender(client: QueryClient) {
 }
 
 /**
- * Let the query/mutation work settle. React Query batches its subscriber
- * notifications onto a MACROtask, so flushing microtasks alone leaves the cache
- * updated and the component not yet re-rendered.
+ * Advance the world until `predicate` holds.
+ *
+ * CONDITION-based on purpose. The previous helper here flushed a FIXED number of
+ * ticks (one microtask + one macrotask) and then let the assertions run, which
+ * made every case in this file a race: react-query resolves a query across
+ * several ticks and notifies its subscribers on a MACROtask, so on a slower or
+ * more contended machine the probe had simply not re-rendered yet and the value
+ * under assertion read `undefined`. It passed locally and took CI red.
+ *
+ * The iteration cap is a FAILURE ceiling, not the wait — it exists so a
+ * condition that never becomes true reports itself by name instead of hanging
+ * until jest's timeout, and it is far beyond what any of these cases need. What
+ * makes the test deterministic is that nothing after the call runs until the
+ * condition is actually true.
  */
-async function settle() {
-  await act(async () => {
-    await Promise.resolve();
-    await new Promise((resolve) => setTimeout(resolve, 0));
-  });
+async function waitUntil(predicate: () => boolean, description: string): Promise<void> {
+  const FAILURE_CEILING = 500;
+  for (let attempt = 0; attempt < FAILURE_CEILING; attempt += 1) {
+    if (predicate()) return;
+    await act(async () => {
+      await Promise.resolve();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+  }
+  throw new Error(`waitUntil never saw: ${description}`);
 }
 
-/**
- * Exactly the shape `res.json(await Post.find(...).lean())` puts on the wire:
- * `_id`, no `id`, the body only inside `content.variants[0].text`, and no author
- * object at all.
- */
-const RAW_DOCUMENTS = [
-  {
-    _id: 'post-soon',
-    scheduledFor: '2026-08-02T09:30:00.000Z',
-    createdAt: '2026-08-01T09:00:00.000Z',
-    content: {
-      variants: [
-        { tag: 'en-US', source: 'author', text: '  Ship the scheduled queue  ' },
-        { tag: 'es-ES', source: 'author', text: 'Publicar la cola programada' },
-      ],
-      media: [
-        { id: 'media-1', type: 'image' },
-        { id: 'media-2', type: 'image' },
-      ],
-    },
-  },
-  {
-    _id: 'post-poll',
-    scheduledFor: '2026-08-05T18:00:00.000Z',
-    createdAt: '2026-08-01T09:05:00.000Z',
-    content: {
-      variants: [{ tag: 'en-US', source: 'author', text: '' }],
-      pollId: 'poll-9',
-      article: { title: '  Long read  ', body: 'body' },
-    },
-  },
+/** The ids the hook is currently handing its caller. */
+function renderedIds(): string[] {
+  return (latest?.scheduledPosts ?? []).map((post) => post.id);
+}
+
+/** React-query's own verdict for one viewer's entry — the thing to key a wait
+ *  on when the expected result is EMPTY and no rendered value can signal it. */
+function queryStatus(client: QueryClient, viewerId: string): string | undefined {
+  return client.getQueryState(viewerQueryKeys.scheduledPosts(viewerId))?.status;
+}
+
+/** The ids sitting in one viewer's cache entry. */
+function cachedIds(client: QueryClient, viewerId: string): string[] | undefined {
+  return client
+    .getQueryData<HydratedPost[]>(viewerQueryKeys.scheduledPosts(viewerId))
+    ?.map((post) => post.id);
+}
+
+const HYDRATED_POSTS = [
+  scheduledPostFixture({ id: 'post-soon', scheduledFor: new Date('2026-08-02T09:30:00.000Z') }),
+  scheduledPostFixture({ id: 'post-poll', scheduledFor: new Date('2026-08-05T18:00:00.000Z') }),
 ];
 
 describe('useScheduledPosts', () => {
@@ -149,7 +156,7 @@ describe('useScheduledPosts', () => {
     mockAuth.user = { id: 'viewer-1' };
     mockAuth.isAuthenticated = true;
     mockAuth.canUsePrivateApi = true;
-    mockGet.mockResolvedValue({ data: RAW_DOCUMENTS });
+    mockGet.mockResolvedValue({ data: { posts: HYDRATED_POSTS } });
     mockDelete.mockResolvedValue({ data: { message: 'Post deleted successfully' } });
   });
 
@@ -167,14 +174,13 @@ describe('useScheduledPosts', () => {
 
   it('reads GET /posts/scheduled and caches it under the viewer-scoped key', async () => {
     const client = renderProbe();
-    await settle();
+    await waitUntil(
+      () => cachedIds(client, 'viewer-1')?.length === 2,
+      "viewer-1's queue to land in the cache",
+    );
 
     expect(mockGet).toHaveBeenCalledWith('/posts/scheduled');
-
-    const cached = client.getQueryData<ScheduledPost[]>(
-      viewerQueryKeys.scheduledPosts('viewer-1'),
-    );
-    expect(cached?.map((post) => post.id)).toEqual(['post-soon', 'post-poll']);
+    expect(cachedIds(client, 'viewer-1')).toEqual(['post-soon', 'post-poll']);
     // Spelled out, so renaming the factory cannot quietly move the key back into
     // a shared namespace while the assertion above still passes.
     expect(viewerQueryKeys.scheduledPosts('viewer-1')).toEqual([
@@ -185,42 +191,27 @@ describe('useScheduledPosts', () => {
     ]);
   });
 
-  it('projects the raw lean document, not a hydrated post DTO', async () => {
+  it('serves the hydrated DTO through untouched, so the preview renders the real post', async () => {
     renderProbe();
-    await settle();
+    await waitUntil(() => renderedIds().length === 2, 'the queue to reach the caller');
 
-    expect(latest!.scheduledPosts[0]).toEqual({
-      id: 'post-soon',
-      // From `content.variants[0].text`, trimmed. There is no `content.text` on
-      // this route, so a hook that read one would produce '' here.
-      text: 'Ship the scheduled queue',
-      scheduledFor: new Date('2026-08-02T09:30:00.000Z'),
-      mediaCount: 2,
-      hasPoll: false,
-      articleTitle: null,
-    });
-    expect(latest!.scheduledPosts[1]).toEqual({
-      id: 'post-poll',
-      text: '',
-      scheduledFor: new Date('2026-08-05T18:00:00.000Z'),
-      mediaCount: 0,
-      hasPoll: true,
-      articleTitle: 'Long read',
-    });
+    // Identity, not deep-equality: any client-side reshaping would produce a new
+    // object here and quietly become a second, drifting source of truth for what
+    // a post looks like.
+    expect(latest!.scheduledPosts[0]).toBe(HYDRATED_POSTS[0]);
+    expect(latest!.scheduledPosts[0].content.text).toBe('Ship the scheduled queue');
+    expect(latest!.scheduledPosts[0].user.username).toBe('author');
   });
 
-  it('survives a document with no usable scheduledFor instead of rendering an invalid date', async () => {
-    mockGet.mockResolvedValue({
-      data: [
-        { _id: 'post-broken', content: { variants: [{ text: 'no time' }] } },
-        { _id: 'post-garbage', scheduledFor: 'not-a-date', content: {} },
-      ],
-    });
+  it('tolerates a response with no posts array instead of rendering undefined', async () => {
+    mockGet.mockResolvedValue({ data: {} });
 
-    renderProbe();
-    await settle();
+    const client = renderProbe();
+    // The expected result is empty, so no rendered value can mark the arrival —
+    // key the wait off the query's own status instead of a tick count.
+    await waitUntil(() => queryStatus(client, 'viewer-1') === 'success', 'the read to succeed');
 
-    expect(latest!.scheduledPosts.map((post) => post.scheduledFor)).toEqual([null, null]);
+    expect(latest!.scheduledPosts).toEqual([]);
   });
 
   it('does not read the private endpoint while the bearer is unusable, and reads once it lands', async () => {
@@ -229,9 +220,6 @@ describe('useScheduledPosts', () => {
     mockAuth.canUsePrivateApi = false;
 
     const client = renderProbe();
-    await settle();
-
-    expect(mockGet).not.toHaveBeenCalled();
     expect(latest!.scheduledPosts).toEqual([]);
 
     // The session resolves — the same thing a slow cold boot does.
@@ -239,20 +227,27 @@ describe('useScheduledPosts', () => {
     mockAuth.isAuthenticated = true;
     mockAuth.canUsePrivateApi = true;
     rerender(client);
-    await settle();
+    await waitUntil(() => mockGet.mock.calls.length > 0, 'the read to fire once the session lands');
 
+    // EXACTLY one: a read that had also fired while anonymous would show two
+    // here. Asserting the absence directly could only ever be a race, because a
+    // request that has not happened yet is indistinguishable from one that never
+    // will.
+    expect(mockGet).toHaveBeenCalledTimes(1);
     expect(mockGet).toHaveBeenCalledWith('/posts/scheduled');
   });
 
   it('never serves one viewer the queue cached for another', async () => {
     const client = renderProbe();
-    await settle();
-    expect(latest!.scheduledPosts).toHaveLength(2);
+    await waitUntil(() => renderedIds().length === 2, "viewer-1's queue");
 
-    mockGet.mockResolvedValue({ data: [] });
+    mockGet.mockResolvedValue({ data: { posts: [] } });
     mockAuth.user = { id: 'viewer-2' };
     rerender(client);
-    await settle();
+    await waitUntil(
+      () => queryStatus(client, 'viewer-2') === 'success',
+      "viewer-2's own read to succeed",
+    );
 
     // B reads its OWN key rather than inheriting the two posts already cached
     // for A, which is the whole point of the viewer prefix.
@@ -265,62 +260,57 @@ describe('useScheduledPosts', () => {
 
   it('cancels through DELETE /posts/:id and revalidates against the server', async () => {
     const client = renderProbe();
-    await settle();
+    await waitUntil(() => renderedIds().length === 2, 'the queue to load');
 
     // The server now holds only the other post.
-    mockGet.mockResolvedValue({ data: [RAW_DOCUMENTS[1]] });
+    mockGet.mockResolvedValue({ data: { posts: [HYDRATED_POSTS[1]] } });
 
     await act(async () => {
       await latest!.cancelScheduledPost('post-soon');
     });
-    await settle();
+    await waitUntil(
+      () => mockGet.mock.calls.length === 2 && queryStatus(client, 'viewer-1') === 'success',
+      'the revalidating read to come back',
+    );
 
     expect(mockDelete).toHaveBeenCalledWith('/posts/post-soon');
-    expect(mockGet).toHaveBeenCalledTimes(2);
-    expect(
-      client
-        .getQueryData<ScheduledPost[]>(viewerQueryKeys.scheduledPosts('viewer-1'))
-        ?.map((post) => post.id),
-    ).toEqual(['post-poll']);
+    expect(cachedIds(client, 'viewer-1')).toEqual(['post-poll']);
   });
 
   it('removes the cancelled row before the revalidating read answers', async () => {
     const client = renderProbe();
-    await settle();
+    await waitUntil(() => renderedIds().length === 2, 'the queue to load');
 
     // The revalidation never comes back, so the local cache write is the ONLY
     // thing that can take the row off screen. Without it the user watches a
-    // cancelled post sit in the list until the network decides otherwise.
+    // cancelled post sit in the list until the network decides otherwise — and
+    // this wait would run out its ceiling and say so.
     mockGet.mockReturnValue(new Promise(() => {}));
 
     await act(async () => {
       await latest!.cancelScheduledPost('post-soon');
     });
-    await settle();
+    await waitUntil(
+      () => cachedIds(client, 'viewer-1')?.length === 1,
+      'the cancelled row to leave the cache without the network',
+    );
 
-    expect(
-      client
-        .getQueryData<ScheduledPost[]>(viewerQueryKeys.scheduledPosts('viewer-1'))
-        ?.map((post) => post.id),
-    ).toEqual(['post-poll']);
+    expect(cachedIds(client, 'viewer-1')).toEqual(['post-poll']);
   });
 
   it('surfaces a failed cancel to the caller and keeps the row', async () => {
     mockDelete.mockRejectedValue(new Error('404 from the API'));
     const client = renderProbe();
-    await settle();
+    await waitUntil(() => renderedIds().length === 2, 'the queue to load');
 
     await act(async () => {
       await expect(latest!.cancelScheduledPost('post-soon')).rejects.toThrow('404 from the API');
     });
-    await settle();
 
+    // Nothing to wait for: the rejection is already awaited, and the cache write
+    // lives in `onSuccess`, which a rejected mutation never runs.
     // A row the server refused to delete must stay visible — silently dropping
     // it would tell the user a post was cancelled when it will still publish.
-    expect(
-      client
-        .getQueryData<ScheduledPost[]>(viewerQueryKeys.scheduledPosts('viewer-1'))
-        ?.map((post) => post.id),
-    ).toEqual(['post-soon', 'post-poll']);
+    expect(cachedIds(client, 'viewer-1')).toEqual(['post-soon', 'post-poll']);
   });
 });

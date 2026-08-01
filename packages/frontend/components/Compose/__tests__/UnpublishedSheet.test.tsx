@@ -12,6 +12,8 @@ import UnpublishedSheet from '../UnpublishedSheet';
  * the list still perfectly correct.
  */
 
+const mockRouterPush = jest.fn();
+
 const mockScheduled: {
   scheduledPosts: { id: string }[];
   isLoading: boolean;
@@ -25,6 +27,8 @@ const mockScheduled: {
   refetch: jest.fn(),
   cancelScheduledPost: jest.fn(),
 };
+
+jest.mock('expo-router', () => ({ useRouter: () => ({ push: mockRouterPush }) }));
 
 jest.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -69,15 +73,78 @@ jest.mock('../DraftsList', () => {
 
 jest.mock('../ScheduledPostsList', () => {
   const react = jest.requireActual('react');
-  const { Text: RNText } = jest.requireActual('react-native');
-  return { __esModule: true, default: () => react.createElement(RNText, null, 'SCHEDULED PANEL') };
+  const { Text: RNText, TouchableOpacity, View } = jest.requireActual('react-native');
+  return {
+    __esModule: true,
+    default: (props: {
+      posts: { id: string }[];
+      onPreview: (post: unknown) => void;
+      onEdit: (post: unknown) => void;
+    }) =>
+      react.createElement(
+        View,
+        null,
+        react.createElement(
+          TouchableOpacity,
+          {
+            key: 'row',
+            accessibilityRole: 'button',
+            accessibilityLabel: 'row',
+            onPress: () => props.onPreview(props.posts[0]),
+          },
+          react.createElement(RNText, null, 'SCHEDULED PANEL'),
+        ),
+        react.createElement(TouchableOpacity, {
+          key: 'edit',
+          accessibilityRole: 'button',
+          accessibilityLabel: 'edit-row',
+          onPress: () => props.onEdit(props.posts[0]),
+        }),
+      ),
+  };
 });
 
-function renderSheet() {
+jest.mock('../ScheduledPostPreview', () => {
+  const react = jest.requireActual('react');
+  const { Text: RNText, TouchableOpacity, View } = jest.requireActual('react-native');
+  return {
+    __esModule: true,
+    default: (props: { post: { id: string }; onBack: () => void; onEdit: () => void }) =>
+      react.createElement(
+        View,
+        null,
+        react.createElement(
+          TouchableOpacity,
+          {
+            key: 'back',
+            accessibilityRole: 'button',
+            accessibilityLabel: 'back',
+            onPress: props.onBack,
+          },
+          react.createElement(RNText, null, `PREVIEW ${props.post.id}`),
+        ),
+        react.createElement(TouchableOpacity, {
+          key: 'edit',
+          accessibilityRole: 'button',
+          accessibilityLabel: 'edit-preview',
+          onPress: props.onEdit,
+        }),
+      ),
+  };
+});
+
+function renderSheet(
+  overrides: Partial<React.ComponentProps<typeof UnpublishedSheet>> = {},
+) {
   let tree: TestRenderer.ReactTestRenderer | undefined;
   act(() => {
     tree = TestRenderer.create(
-      <UnpublishedSheet onClose={() => {}} onLoadDraft={() => {}} currentDraftId={null} />,
+      <UnpublishedSheet
+        onClose={() => {}}
+        onLoadDraft={() => {}}
+        currentDraftId={null}
+        {...overrides}
+      />,
     );
   });
   if (!tree) throw new Error('UnpublishedSheet failed to render');
@@ -94,6 +161,17 @@ function textContent(tree: TestRenderer.ReactTestRenderer): string {
       typeof child === 'string' || typeof child === 'number')
     .map(String)
     .join(' | ');
+}
+
+function press(tree: TestRenderer.ReactTestRenderer, label: string) {
+  const button = tree.root.find(
+    (node) =>
+      node.props.accessibilityRole === 'button' &&
+      node.props.accessibilityLabel === label,
+  );
+  act(() => {
+    button.props.onPress();
+  });
 }
 
 function pressTab(tree: TestRenderer.ReactTestRenderer, label: string) {
@@ -139,6 +217,76 @@ describe('UnpublishedSheet', () => {
     const rendered = textContent(tree);
     expect(rendered).toContain('SCHEDULED PANEL');
     expect(rendered).not.toContain('DRAFTS PANEL');
+
+    act(() => tree.unmount());
+  });
+
+  it('opens the preview for the tapped post, and comes back to the list', () => {
+    mockScheduled.scheduledPosts = [{ id: 'post-soon' }];
+    const tree = renderSheet();
+
+    pressTab(tree, 'Scheduled');
+    press(tree, 'row');
+    expect(textContent(tree)).toContain('PREVIEW post-soon');
+    // The list is REPLACED, not stacked behind a second sheet.
+    expect(textContent(tree)).not.toContain('SCHEDULED PANEL');
+
+    press(tree, 'back');
+    expect(textContent(tree)).toContain('SCHEDULED PANEL');
+
+    act(() => tree.unmount());
+  });
+
+  it('takes the preview down when the previewed post leaves the queue', () => {
+    mockScheduled.scheduledPosts = [{ id: 'post-soon' }];
+    const tree = renderSheet();
+
+    pressTab(tree, 'Scheduled');
+    press(tree, 'row');
+    expect(textContent(tree)).toContain('PREVIEW post-soon');
+
+    // A cancel (or a refetch that no longer has it) drops the post. Holding the
+    // preview by VALUE would keep rendering a post the server no longer has.
+    mockScheduled.scheduledPosts = [];
+    act(() => {
+      tree.update(
+        <UnpublishedSheet onClose={() => {}} onLoadDraft={() => {}} currentDraftId={null} />,
+      );
+    });
+
+    expect(textContent(tree)).not.toContain('PREVIEW post-soon');
+    expect(textContent(tree)).toContain('SCHEDULED PANEL');
+
+    act(() => tree.unmount());
+  });
+
+  it('opens the composer on the post\'s OWN edit route, and closes the sheet', () => {
+    mockScheduled.scheduledPosts = [{ id: 'post-soon' }];
+    const onClose = jest.fn();
+    const tree = renderSheet({ onClose });
+
+    pressTab(tree, 'Scheduled');
+    press(tree, 'edit-row');
+
+    // `/compose?editPostId=` — the composer's SERVER-post edit route, which
+    // loads through `edit-source` and saves through `PUT /posts/:id`. Routing it
+    // at the local-draft loader instead would create a second post and strand
+    // the scheduled one.
+    expect(mockRouterPush).toHaveBeenCalledWith('/compose?editPostId=post-soon');
+    expect(onClose).toHaveBeenCalledTimes(1);
+
+    act(() => tree.unmount());
+  });
+
+  it('edits from inside the preview too, on the same route', () => {
+    mockScheduled.scheduledPosts = [{ id: 'post-soon' }];
+    const tree = renderSheet();
+
+    pressTab(tree, 'Scheduled');
+    press(tree, 'row');
+    press(tree, 'edit-preview');
+
+    expect(mockRouterPush).toHaveBeenCalledWith('/compose?editPostId=post-soon');
 
     act(() => tree.unmount());
   });

@@ -1,79 +1,27 @@
 import { useCallback } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@oxyhq/services/ui/client';
-import type { StoredPostContent } from '@mention/shared-types';
+import type { HydratedPost } from '@mention/shared-types';
 import { api } from '@/utils/api';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 
 const SCHEDULED_STALE_TIME = 30_000;
 
 /**
- * ONE document as `GET /posts/scheduled` actually serves it.
- *
- * Unlike every other post read in the app, this endpoint returns RAW lean Mongo
- * documents — `res.json(scheduledPosts)` straight out of `Post.find(...).lean()`
- * — so it is deliberately NOT the hydrated post DTO the rest of the API serves:
- *
- * - the id is `_id` (lean bypasses the schema's `id` virtual),
- * - the body lives in `content.variants[0].text`; there is no resolved
- *   `content.text`, because resolving a variant per reader is something
- *   `PostHydrationService` does and this route does not call it,
- * - there is no `user` / author object, no counts, and no viewer state.
- *
- * That is fine for this surface: the author is by definition the viewer, and the
- * list only needs a preview plus the time. Anything richer (a real post card,
- * media thumbnails, the poll) would need the route to hydrate first.
+ * `GET /posts/scheduled` serves the same hydrated DTO every other post listing
+ * serves, so a scheduled post can be PREVIEWED through the feed's own renderer
+ * rather than a client-side approximation that drifts from it. The server
+ * enforces the ACL twice: the query is scoped to the caller's `oxyUserId`, and
+ * `PostHydrationService` drops any non-`published` post for a viewer who does
+ * not own it.
  */
-interface ScheduledPostDocument {
-  _id?: string;
-  content?: StoredPostContent;
-  scheduledFor?: string;
-  createdAt?: string;
-}
-
-/** A scheduled post as this app renders it. */
-export interface ScheduledPost {
-  id: string;
-  /** The primary variant's body, empty when the post is media/poll-only. */
-  text: string;
-  /** `null` when the stored document carries no usable `scheduledFor`. */
-  scheduledFor: Date | null;
-  mediaCount: number;
-  hasPoll: boolean;
-  /** The article headline, when the post is long-form. */
-  articleTitle: string | null;
-}
-
-function parseScheduledFor(value: string | undefined): Date | null {
-  if (!value) return null;
-  const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime()) ? null : parsed;
-}
-
-/**
- * Projects one raw document onto {@link ScheduledPost}.
- *
- * `variants[0]` is the primary rendition (see `StoredPostContent`), read here
- * directly because there is no resolver on this path — the viewer IS the author,
- * so the primary is the body they wrote.
- */
-function normalizeScheduledPost(document: ScheduledPostDocument): ScheduledPost {
-  const content = document.content;
-  const articleTitle = content?.article?.title?.trim();
-
-  return {
-    id: document._id ?? '',
-    text: content?.variants?.[0]?.text?.trim() ?? '',
-    scheduledFor: parseScheduledFor(document.scheduledFor),
-    mediaCount: content?.media?.length ?? 0,
-    hasPoll: Boolean(content?.poll ?? content?.pollId),
-    articleTitle: articleTitle ? articleTitle : null,
-  };
+interface ScheduledPostsResponse {
+  posts?: HydratedPost[];
 }
 
 export interface UseScheduledPostsResult {
   /** The viewer's pending scheduled posts, soonest first (the server's order). */
-  scheduledPosts: ScheduledPost[];
+  scheduledPosts: HydratedPost[];
   /** True only while the first authenticated fetch is in flight. */
   isLoading: boolean;
   isError: boolean;
@@ -102,11 +50,11 @@ export function useScheduledPosts(): UseScheduledPostsResult {
 
   const enabled = isAuthenticated && Boolean(viewerId) && canUsePrivateApi;
 
-  const query = useQuery<ScheduledPost[]>({
+  const query = useQuery<HydratedPost[]>({
     queryKey,
     queryFn: async () => {
-      const { data } = await api.get<ScheduledPostDocument[]>('/posts/scheduled');
-      return Array.isArray(data) ? data.map(normalizeScheduledPost) : [];
+      const { data } = await api.get<ScheduledPostsResponse>('/posts/scheduled');
+      return Array.isArray(data?.posts) ? data.posts : [];
     },
     enabled,
     staleTime: SCHEDULED_STALE_TIME,
@@ -117,7 +65,7 @@ export function useScheduledPosts(): UseScheduledPostsResult {
       await api.delete(`/posts/${postId}`);
     },
     onSuccess: (_result, postId) => {
-      queryClient.setQueryData<ScheduledPost[]>(queryKey, (previous) =>
+      queryClient.setQueryData<HydratedPost[]>(queryKey, (previous) =>
         previous?.filter((post) => post.id !== postId),
       );
       queryClient.invalidateQueries({ queryKey });

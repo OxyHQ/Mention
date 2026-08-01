@@ -44,7 +44,7 @@ export const getPostEditSource = async (
 
   try {
     const post = await Post.findOne({ _id: postId, oxyUserId: userId })
-      .select('_id content mentions authorship parentPostId')
+      .select('_id content mentions authorship parentPostId status scheduledFor')
       .lean();
     if (!post) {
       return res.status(404).json({ message: 'Post not found' });
@@ -95,6 +95,11 @@ export const getPostEditSource = async (
         ? { authorship: post.authorship as PostAuthorshipEntry[] }
         : {}),
       ...(post.parentPostId ? { parentPostId: String(post.parentPostId) } : {}),
+      // The composer needs the publication state to know whether the 30-minute
+      // edit window applies at all, and the time so it can restore the schedule
+      // instead of silently dropping it when the author saves.
+      ...(post.status ? { status: post.status } : {}),
+      ...(post.scheduledFor ? { scheduledFor: new Date(post.scheduledFor).toISOString() } : {}),
     };
     return res.json(response);
   } catch (error) {

@@ -198,6 +198,11 @@ const ComposeScreenBody = () => {
   const replyToPostId = initialIntent.replyToPostId;
   const [isEditMode, setIsEditMode] = useState(false);
   const [editLoading, setEditLoading] = useState(false);
+  // The post under edit has NOT published yet. Server-decided (`edit-source`
+  // reports the stored status), because it governs two things the composer must
+  // not guess: that the 30-minute edit window does not apply, and that saving
+  // has to carry the schedule forward rather than drop it.
+  const [editingScheduledPost, setEditingScheduledPost] = useState(false);
   const [editCollabEligible, setEditCollabEligible] = useState(false);
   const [replyToPost, setReplyToPost] = useState<HydratedPost | null>(null);
   const [replyLoading, setReplyLoading] = useState(false);
@@ -900,6 +905,17 @@ const ComposeScreenBody = () => {
           !source.parentPostId &&
           !(source.authorship?.some((entry) => entry.role === 'collaborator'));
         setEditCollabEligible(soloForCollab);
+        // Restore the pending publish time so the schedule pill shows it and a
+        // save re-sends it. A post whose stored time no longer parses keeps the
+        // composer's empty schedule rather than an Invalid Date.
+        const stillScheduled = source.status === 'scheduled';
+        setEditingScheduledPost(stillScheduled);
+        if (stillScheduled && source.scheduledFor) {
+          const publishAt = new Date(source.scheduledFor);
+          if (!Number.isNaN(publishAt.getTime())) {
+            setScheduledAt(publishAt);
+          }
+        }
       } catch (e) {
         logger.error('Failed to load post for editing', e);
         toast(t('Failed to load post for editing'), { type: 'error' });
@@ -908,7 +924,7 @@ const ComposeScreenBody = () => {
       }
     })();
     return () => { cancelled = true; };
-  }, [editPostId, loadVariantsFromPost, setMediaIds, t]);
+  }, [editPostId, loadVariantsFromPost, setMediaIds, setScheduledAt, t]);
 
   // Load parent post when in reply mode
   useEffect(() => {
@@ -1054,6 +1070,9 @@ const ComposeScreenBody = () => {
           hashtags: mainPost.hashtags || [],
           collaboratorIds: collaborators.map((c) => c.id),
           variantContent: mainVariantContent,
+          // Only a still-scheduled post may carry a time; the API rejects one on
+          // a published post rather than silently ignoring it.
+          scheduledAt: editingScheduledPost ? scheduledAtValue : undefined,
         }));
         // Propagate the edited post to the shared post cache so the feed, profile
         // and detail reflect the change immediately (the same store every new post
@@ -2014,7 +2033,11 @@ const ComposeScreenBody = () => {
             {/* Editing indicator */}
             {isEditMode && (
               <View className="px-4 py-2 bg-secondary border-b border-border">
-                <Text className="text-primary text-[13px] font-semibold">{editLoading ? t('Loading post...') : t('Editing post - changes must be saved within 30 minutes of creation')}</Text>
+                <Text className="text-primary text-[13px] font-semibold">{editLoading
+                  ? t('Loading post...')
+                  : editingScheduledPost
+                    ? t('compose.scheduled.editingNotice', { defaultValue: 'Editing a scheduled post — nobody has seen it yet, so there is no time limit. You can change when it publishes.' })
+                    : t('Editing post - changes must be saved within 30 minutes of creation')}</Text>
               </View>
             )}
 
