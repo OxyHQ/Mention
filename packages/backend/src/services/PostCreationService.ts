@@ -28,8 +28,7 @@ import type { ReplyContext } from './mtn/mentionRecordBuilders';
 import { postCollaborationService } from './PostCollaborationService';
 import { getOwnerId, hasPendingCollabInvites } from '../utils/postAuthorship';
 import { mediaMetadataService } from './MediaMetadataService';
-import { enqueueMediaMetadataEnrich } from './mediaMetadataEnrichJob';
-import { warmLinkPreviewForTextDetached } from '../utils/linkPreviewWarm';
+import { enrichIngestedPosts } from './postEnrichment';
 import {
   applyDetectedPrimaryTag,
   authorVariants,
@@ -386,12 +385,18 @@ class PostCreationService {
     await post.save();
     await recordRecentReplierForPost(post);
 
-    const savedMedia = post.content?.media;
-    if (Array.isArray(savedMedia) && mediaMetadataService.needsOxyRetry(savedMedia as MediaItem[])) {
-      void enqueueMediaMetadataEnrich(String(post._id));
-    }
-
     const isPublished = (post.status ?? 'published') === 'published';
+
+    // Post-ingest enrichment, converged with the outbox backfill's raw-insert
+    // route on one entry point (see `services/postEnrichment/`). Deferred while
+    // the post is still scheduled: a scheduled post has no readers yet, and
+    // `publishScheduledPost` runs the same step when it goes live. That gate is
+    // also why link previews were silently missing for every scheduled post —
+    // the old per-call-site fan-out skipped the warm here and the publish step
+    // never had one.
+    if (isPublished) {
+      enrichIngestedPosts([post]);
+    }
 
     if (
       params.autoAcceptCollaboratorIds &&
@@ -424,14 +429,7 @@ class PostCreationService {
     }
 
     if (isScheduled || params.skipNotifications) {
-      if (isPublished) {
-        warmLinkPreviewForTextDetached(primaryText);
-      }
       return post;
-    }
-
-    if (isPublished) {
-      warmLinkPreviewForTextDetached(primaryText);
     }
 
     await this.runPostSideEffects(post, {
@@ -459,6 +457,11 @@ class PostCreationService {
     post.status = 'published';
     await post.save();
     await recordRecentReplierForPost(post);
+
+    // The post is only now visible to readers, so this is where its enrichment
+    // belongs — `create()` deliberately skipped it while the post was scheduled.
+    // The SAME entry point the immediate create and the federated backfill use.
+    enrichIngestedPosts([post]);
 
     const ownerId = getOwnerId(post.authorship ?? []) ?? null;
     const hasPendingInvites = hasPendingCollabInvites(post.authorship ?? []);

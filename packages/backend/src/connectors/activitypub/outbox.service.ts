@@ -8,14 +8,12 @@ import {
 } from './constants';
 import { Types } from 'mongoose';
 import { PostVisibility } from '@mention/shared-types';
-import type { MediaItem } from '@mention/shared-types';
 import { extractApLanguage, extractApLanguages } from './apLanguage';
 import { buildFederatedNoteContent, buildFederatedNoteVariants } from './apPostContent';
 import { normalizeMentionIds } from '../../utils/textProcessing';
 import { postTextHasHttpLink } from '../../utils/postSearchMetadata';
 import { getPostCreator } from '../../services/serviceRegistry';
-import { mediaMetadataService } from '../../services/MediaMetadataService';
-import { enqueueMediaMetadataEnrich } from '../../services/mediaMetadataEnrichJob';
+import { enrichIngestedPosts, type IngestedPost } from '../../services/postEnrichment';
 import { baselineContentClassifier } from '../../services/BaselineContentClassifier';
 import {
   SPAM_QUALITY_CONFIG,
@@ -951,21 +949,18 @@ export class OutboxSyncService {
           }
         });
 
-        // Oxy derives intrinsic media metadata (width/height/durationSec) by
-        // probing the asset asynchronously, so the inline `enrichFromOxy` that
-        // ran while materializing this media almost always beat the probe and
-        // came back empty. Schedule the retry that actually collects it.
+        // Post-ingest enrichment for the page just stored. This path bypasses
+        // `PostCreationService` on purpose (raw docs, no Mongoose middleware),
+        // so it cannot inherit enrichment from there — but it does NOT get its
+        // own copy of each enrichment either. Both routes converge on the one
+        // entry point, which is what stops the next enrichment from being
+        // remembered on the native route and forgotten on this one (see
+        // `services/postEnrichment/` for the times that already happened).
         //
-        // This path builds posts through a RAW `Post.collection.insertMany`,
-        // bypassing `PostCreationService` — which is where every other ingest
-        // route picks up this enqueue. Without it, outbox-backfilled posts (the
-        // bulk of federated video) never get a second attempt at all, and their
-        // media stays permanently dimension- and duration-less.
-        for (const doc of newDocs) {
-          const media = (doc.content as { media?: MediaItem[] } | undefined)?.media;
-          if (!Array.isArray(media) || !mediaMetadataService.needsOxyRetry(media)) continue;
-          void enqueueMediaMetadataEnrich(String(doc._id));
-        }
+        // Passed as a page rather than post-by-post so an enrichment can
+        // coalesce across the batch — the link-preview warm dedupes a URL shared
+        // by several notes into a single resolve.
+        enrichIngestedPosts(newDocs as unknown as IngestedPost[]);
       }
 
       // Link federated replies into their threads. Done AFTER the insert so a

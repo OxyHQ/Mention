@@ -3,10 +3,15 @@ import { extractUrls } from './extractUrls';
 import { logger } from './logger';
 
 /**
- * Ask Oxy to resolve (and cache) every previewable URL in post text
- * synchronously. Mirrors the composer `getLinkPreview(url, { wait: true })` warm
- * so hydration can attach the post's `linkPreviews` on the first render
- * (MCP/API paths included).
+ * Ask Oxy to resolve every previewable URL in post text SYNCHRONOUSLY, so the
+ * response being built right now can carry the post's `linkPreviews`. Mirrors
+ * the composer's `getLinkPreview(url, { wait: true })`.
+ *
+ * This is response completeness, NOT post-ingest enrichment — the caller awaits
+ * it before hydrating its own reply, and only the author of that request
+ * benefits. Enriching a STORED post for every later reader is a different job
+ * with a different shape (batched, detached, and run by every storage route):
+ * see `services/postEnrichment/`. Do not add a new enrichment here.
  */
 export async function warmLinkPreviewForText(text: string | undefined): Promise<void> {
   if (!text || typeof text !== 'string') return;
@@ -34,9 +39,4 @@ export async function warmLinkPreviewForText(text: string | undefined): Promise<
       });
     }
   });
-}
-
-/** Fire-and-forget warm for post-create side effects. */
-export function warmLinkPreviewForTextDetached(text: string | undefined): void {
-  void warmLinkPreviewForText(text);
 }
