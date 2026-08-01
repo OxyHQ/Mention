@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useCallback } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -15,6 +15,8 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { useTranslation } from 'react-i18next';
 import { router, useFocusEffect } from 'expo-router';
 import { PRESET_FEEDS, type PresetFeed } from '@mention/shared-types/mtn/presetFeeds';
+import { useTrendsStore } from '@/stores/trendsStore';
+import type { Trend } from '@/interfaces/Trend';
 
 import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';
@@ -40,6 +42,15 @@ const IS_WEB = Platform.OS === 'web';
  * feeds screen renders with Ionicons (its existing icon set), so this maps the
  * small, fixed preset set rather than pulling in a second icon library.
  */
+/**
+ * Live trends offered on this screen.
+ *
+ * A handful, not the whole batch: this is a DIRECTORY, and the trending page is
+ * one tap away for the rest. Enough to answer "is anything happening?" without
+ * the day's churn pushing the curated shelf off the screen.
+ */
+const TREND_FEED_LIMIT = 5;
+
 const PRESET_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
   for_you: 'sparkles',
   following: 'people',
@@ -122,6 +133,61 @@ const PresetRow = ({
           </Text>
           <Text className="text-[13px] leading-[18px] text-muted-foreground" numberOfLines={2}>
             {t(preset.descriptionKey)}
+          </Text>
+        </View>
+      </TouchableOpacity>
+      {canEdit ? <PinButton pinned={pinned} onPress={onTogglePin} /> : null}
+    </View>
+  );
+};
+
+/**
+ * A live trend, offered as a feed.
+ *
+ * Rendered BELOW the curated presets on purpose: curated feeds are the editorial
+ * shelf and these are what happens to be loud today, so they are an addition to
+ * the directory rather than a competitor for its top.
+ *
+ * Pinnable like anything else, and that is not a slip. Unlike Bluesky's — where
+ * a trend is a frozen record that stops meaning anything once the moment passes
+ * — our `trend|<term>` is a live query over the term with no time window. Pin
+ * `trend|fifa` and it keeps working long after FIFA stops trending, as "posts
+ * about fifa". The trend is what surfaced it; the feed outlives it.
+ */
+const TrendFeedRow = ({
+  trend,
+  subtitle,
+  pinned,
+  canEdit,
+  onOpen,
+  onTogglePin,
+}: {
+  trend: Trend;
+  subtitle: string;
+  pinned: boolean;
+  canEdit: boolean;
+  onOpen: () => void;
+  onTogglePin: () => void;
+}) => {
+  const theme = useTheme();
+  return (
+    <View style={[styles.feedRow, { borderBottomColor: theme.colors.border }]}>
+      <TouchableOpacity
+        className="flex-1 flex-row items-center gap-3"
+        onPress={onOpen}
+        activeOpacity={0.7}
+        accessibilityRole="button"
+        accessibilityLabel={trend.displayName}
+      >
+        <View className="w-9 h-9 rounded-full items-center justify-center bg-secondary">
+          <Ionicons name="trending-up" size={20} color={theme.colors.primary} />
+        </View>
+        <View className="flex-1 gap-0.5">
+          <Text className="text-[15px] font-semibold text-foreground" numberOfLines={1}>
+            {trend.displayName}
+          </Text>
+          <Text className="text-[13px] leading-[18px] text-muted-foreground" numberOfLines={1}>
+            {subtitle}
           </Text>
         </View>
       </TouchableOpacity>
@@ -238,6 +304,46 @@ const FeedsScreen: React.FC = () => {
     [canUsePrivateApi],
   );
 
+  /*
+   * Live trends, offered as feeds under the curated shelf.
+   *
+   * Read from the store rather than fetched: every other trending surface
+   * already shares it, so this screen costs no request, inherits the reader's
+   * language ordering, and honours the trends they hid.
+   */
+  const trends = useTrendsStore((state) => state.trends);
+  const hiddenTrendIds = useTrendsStore((state) => state.hiddenTrendIds);
+  const fetchTrends = useTrendsStore((state) => state.fetchTrends);
+  const hasFetchedTrends = useTrendsStore((state) => state.hasFetched);
+
+  useEffect(() => {
+    if (!hasFetchedTrends) void fetchTrends();
+  }, [fetchTrends, hasFetchedTrends]);
+
+  const trendFeeds = useMemo(
+    () => trends.filter((trend) => !hiddenTrendIds.includes(trend.id)).slice(0, TREND_FEED_LIMIT),
+    [trends, hiddenTrendIds],
+  );
+
+  const openTrend = useCallback(
+    (trend: Trend) => {
+      router.push({
+        pathname: '/feeds/view',
+        params: { descriptor: `trend|${trend.text}`, title: trend.displayName },
+      });
+    },
+    [],
+  );
+
+  const toggleTrend = useCallback(
+    (trend: Trend) => {
+      const key = `trend:${trend.text}`;
+      if (isPinned(key)) unpin(key);
+      else pin({ key, descriptor: `trend|${trend.text}` });
+    },
+    [isPinned, pin, unpin],
+  );
+
   const togglePreset = useCallback(
     (preset: PresetFeed) => {
       if (isPinned(preset.id)) unpin(preset.id);
@@ -296,6 +402,30 @@ const FeedsScreen: React.FC = () => {
           t={t}
         />
       ))}
+
+      {/* Live trends — under the curated shelf, never above it. */}
+      {trendFeeds.length > 0 ? (
+        <>
+          <Text className="text-[15px] font-bold text-foreground mt-6 mb-1">
+            {t('feeds.trending.title')}
+          </Text>
+          {trendFeeds.map((trend) => (
+            <TrendFeedRow
+              key={trend.id}
+              trend={trend}
+              subtitle={
+                trend.authorCount
+                  ? t('feeds.trending.people', { count: trend.authorCount })
+                  : t('feeds.trending.subtitle')
+              }
+              pinned={isPinned(`trend:${trend.text}`)}
+              canEdit={canEdit}
+              onOpen={() => openTrend(trend)}
+              onTogglePin={() => toggleTrend(trend)}
+            />
+          ))}
+        </>
+      ) : null}
 
       {/* Discover feeds */}
       <Text className="text-[15px] font-bold text-foreground mt-6 mb-1">

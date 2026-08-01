@@ -1246,6 +1246,12 @@
         "reviews": "Reseñas"
       },
       "reviewPlaceholder": "Cuenta qué te parece este feed (opcional)"
+    },
+    "trending": {
+      "title": "En tendencia ahora",
+      "subtitle": "Una conversación en marcha",
+      "people_one": "{{count}} persona publicando",
+      "people_other": "{{count}} personas publicando"
     }
   },
   "connections": {

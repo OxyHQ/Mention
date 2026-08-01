@@ -1395,6 +1395,12 @@
         "reviews": "Reviews"
       },
       "reviewPlaceholder": "Share what you think about this feed (optional)"
+    },
+    "trending": {
+      "title": "Trending now",
+      "subtitle": "A live conversation",
+      "people_one": "{{count}} person posting",
+      "people_other": "{{count}} people posting"
     }
   },
   "connections": {
