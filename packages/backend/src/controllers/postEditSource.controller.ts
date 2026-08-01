@@ -1,18 +1,17 @@
 import type { Response } from 'express';
-import mongoose from 'mongoose';
+import { and, eq } from 'drizzle-orm';
 import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
 import type {
-  PostAuthorshipEntry,
   PostContent,
   PostEditSource,
   PostUser,
-  StoredPostContent,
 } from '@mention/shared-types/post';
 import {
   mentionTextsFromContent,
   reconcileMentionIds,
 } from '@mention/shared-types/mentions';
-import { Post } from '../models/Post';
+import { posts } from '../db/schema/posts';
+import { findPostRecords, CHRONO_DESC } from '../db/posts/postRepository';
 import { authorVariants } from '../services/postVariants';
 import {
   isFallbackUserSummary,
@@ -27,6 +26,20 @@ import { logger } from '../utils/logger';
  * Markdown links and may select a reader-language rendition. Reversing that DTO
  * would have to guess both ids and the primary body. This owner-only endpoint
  * instead returns the persisted author variants and an exact mention allowlist.
+ *
+ * ## Two things the Postgres port removed
+ *
+ * **The `ObjectId.isValid` guard is gone.** It existed only to dodge a Mongoose
+ * `CastError`, and the id column is `text` now: a uuid v7 matches its row, a
+ * pre-cutover ObjectId hex matches its row, and an id that is neither matches
+ * nothing — which is already the 404 the guard was standing in for. Keeping it
+ * would 404 every post created after the cutover.
+ *
+ * **The legacy top-level `content.text` fallback is gone.** It read a field the
+ * stored shape has not had since renditions became the only home of the body;
+ * `StoredPostContent` does not declare it, and the column does not exist. A post
+ * with no author variant now correctly reports an empty body rather than reading
+ * a field that cannot be there.
  */
 export const getPostEditSource = async (
   req: AuthRequest,
@@ -38,29 +51,25 @@ export const getPostEditSource = async (
   }
 
   const postId = String(req.params.id);
-  if (!mongoose.Types.ObjectId.isValid(postId)) {
-    return res.status(404).json({ message: 'Post not found' });
-  }
 
   try {
-    const post = await Post.findOne({ _id: postId, oxyUserId: userId })
-      .select('_id content mentions authorship parentPostId')
-      .lean();
+    // Ownership is part of the PREDICATE, not a check after the read: a post
+    // this viewer does not own must be indistinguishable from one that does not
+    // exist, or the endpoint becomes a post-existence oracle for ids the viewer
+    // has no claim on.
+    const [post] = await findPostRecords(
+      and(eq(posts.id, postId), eq(posts.oxyUserId, userId)),
+      { orderBy: CHRONO_DESC, limit: 1 },
+    );
     if (!post) {
       return res.status(404).json({ message: 'Post not found' });
     }
 
-    const storedContent = (post.content ?? {}) as StoredPostContent;
-    const variants = authorVariants(storedContent);
-    const legacyText =
-      typeof (storedContent as StoredPostContent & { text?: unknown }).text === 'string'
-        ? String((storedContent as StoredPostContent & { text?: string }).text)
-        : '';
-
+    const variants = authorVariants(post.content);
     const content: PostContent = {
-      text: variants[0]?.text ?? legacyText,
+      text: variants[0]?.text ?? '',
       ...(variants.length > 0 ? { variants } : {}),
-      ...(Array.isArray(storedContent.media) ? { media: storedContent.media } : {}),
+      ...(post.content.media ? { media: post.content.media } : {}),
     };
     const mentions = reconcileMentionIds(
       mentionTextsFromContent(content),
@@ -87,14 +96,12 @@ export const getPostEditSource = async (
     }
 
     const response: PostEditSource = {
-      id: String(post._id),
+      id: post.id,
       content,
       mentions,
       mentionUsers,
-      ...(Array.isArray(post.authorship)
-        ? { authorship: post.authorship as PostAuthorshipEntry[] }
-        : {}),
-      ...(post.parentPostId ? { parentPostId: String(post.parentPostId) } : {}),
+      ...(post.authorship.length > 0 ? { authorship: post.authorship } : {}),
+      ...(post.parentPostId ? { parentPostId: post.parentPostId } : {}),
     };
     return res.json(response);
   } catch (error) {

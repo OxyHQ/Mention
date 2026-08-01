@@ -1,173 +1,255 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+/**
+ * `GET /posts/:id/edit-source`, against real rows.
+ *
+ * ## Why this suite was rewritten rather than translated
+ *
+ * The previous version mocked `Post.findOne` and asserted that the controller
+ * had CALLED it with `{ _id, oxyUserId }`. The ownership case went further and
+ * had the MOCK implement the security property — its `lean()` returned `null`
+ * when the filter named a different viewer — so the test proved that the mock
+ * honoured ownership, not that the query did. Delete the `oxyUserId` clause from
+ * the real query and that suite stayed green: `findOne` would still have been
+ * called with an object containing the key the assertion looked for, because the
+ * assertion compared the argument, and the fake would still have returned `null`
+ * for the viewer it was told to refuse.
+ *
+ * Here the boundary is a real row owned by someone else, read through the real
+ * predicate. Remove the ownership clause and the draft comes back with a 200.
+ */
+
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Response } from 'express';
 import type { OxyAuthRequest } from '@oxyhq/core/server';
+import { eq } from 'drizzle-orm';
+import { PostType, PostVisibility } from '@mention/shared-types';
 
-const { findOne, resolveUserSummaries } = vi.hoisted(() => ({
-  findOne: vi.fn(),
-  resolveUserSummaries: vi.fn(),
-}));
+const { resolveUserSummaries } = vi.hoisted(() => ({ resolveUserSummaries: vi.fn() }));
 
-vi.mock('../../models/Post', () => ({
-  Post: { findOne },
-}));
-
+// Oxy owns identity and is reached over HTTP; the ROW is what this suite is
+// about, so the identity resolver is the one thing still doubled.
 vi.mock('../../services/PostHydrationService', () => ({
   resolveUserSummaries,
   isFallbackUserSummary: (user: { username?: string }) => !user.username,
 }));
 
-vi.mock('../../utils/logger', () => ({
-  logger: {
-    warn: vi.fn(),
-    error: vi.fn(),
-  },
-}));
-
+import { closePostgres, connectPostgres, type Database } from '../../db/postgres';
+import { posts } from '../../db/schema/posts';
+import { insertPostRecord } from '../../db/posts/postRepository';
 import { getPostEditSource } from '../../controllers/postEditSource.controller';
 
-const POST_ID = '507f1f77bcf86cd799439011';
+const OWNER = 'oxy-edit-source-owner';
+const OTHER = 'oxy-edit-source-other';
+
+let db: Database;
 
 function responseDouble() {
-  const response = {
-    status: vi.fn(),
-    json: vi.fn(),
-  };
+  const response = { status: vi.fn(), json: vi.fn() };
   response.status.mockReturnValue(response);
   response.json.mockReturnValue(response);
   return response;
 }
 
-function request(userId?: string): OxyAuthRequest {
+function request(postId: string, userId?: string): OxyAuthRequest {
   return {
-    params: { id: POST_ID },
+    params: { id: postId },
     user: userId ? { id: userId } : undefined,
   } as unknown as OxyAuthRequest;
 }
 
+beforeAll(async () => {
+  db = await connectPostgres();
+});
+
 beforeEach(() => {
   vi.clearAllMocks();
+  resolveUserSummaries.mockResolvedValue(new Map());
+});
+
+afterEach(async () => {
+  await db.delete(posts).where(eq(posts.oxyUserId, OWNER));
+  await db.delete(posts).where(eq(posts.oxyUserId, OTHER));
+});
+
+afterAll(async () => {
+  await closePostgres();
 });
 
 describe('getPostEditSource', () => {
-  it('requires an authenticated owner', async () => {
+  it('requires an authenticated caller', async () => {
     const res = responseDouble();
-    await getPostEditSource(request(), res as unknown as Response);
+    await getPostEditSource(request('any-id'), res as unknown as Response);
     expect(res.status).toHaveBeenCalledWith(401);
-    expect(findOne).not.toHaveBeenCalled();
   });
 
-  it('returns raw author bodies and drops orphan mention ids', async () => {
-    const doc = {
-      _id: POST_ID,
+  it('returns the raw author bodies and drops orphan mention ids', async () => {
+    const post = await insertPostRecord({
+      oxyUserId: OWNER,
+      authorship: [{ oxyUserId: OWNER, role: 'owner', status: 'accepted' }],
+      type: PostType.IMAGE,
+      visibility: PostVisibility.PUBLIC,
+      status: 'published',
       content: {
         variants: [
-          {
-            source: 'author',
-            tag: 'en',
-            text: 'Hello [mention:alice-id]',
-          },
-          {
-            source: 'author',
-            tag: 'es',
-            text: 'Hola [mention:bob-id]',
-          },
-          {
-            source: 'machine',
-            tag: 'it',
-            text: 'Ciao [mention:machine-id]',
-          },
+          { source: 'author', tag: 'en', text: 'Hello [mention:alice-id]' },
+          { source: 'author', tag: 'es', text: 'Hola [mention:bob-id]' },
+          { source: 'machine', tag: 'it', text: 'Ciao [mention:machine-id]' },
         ],
         media: [{ id: 'media-1', type: 'image' }],
       },
+      // `orphan-id` and `machine-id` are declared but appear in no AUTHOR body,
+      // so the reconciled allowlist must drop them: an orphan id would otherwise
+      // survive an edit and notify somebody the post never mentioned.
       mentions: ['orphan-id', 'bob-id', 'alice-id', 'machine-id'],
-      authorship: [{ oxyUserId: 'owner', role: 'owner', status: 'accepted' }],
-      parentPostId: null,
-    };
-    findOne.mockReturnValue({
-      select: () => ({ lean: async () => doc }),
     });
+
     resolveUserSummaries.mockResolvedValue(
       new Map([
-        [
-          'alice-id',
-          {
-            user: {
-              id: 'alice-id',
-              username: 'alice',
-              name: { displayName: 'Alice' },
-            },
-          },
-        ],
-        [
-          'bob-id',
-          {
-            user: {
-              id: 'bob-id',
-              username: '',
-              name: { displayName: 'Unknown user' },
-            },
-          },
-        ],
+        ['alice-id', { user: { id: 'alice-id', username: 'alice', name: { displayName: 'Alice' } } }],
+        // An unresolvable mention degrades to an EMPTY username and is skipped —
+        // the ghost-handle rule: never render a raw id as a handle.
+        ['bob-id', { user: { id: 'bob-id', username: '', name: { displayName: 'Unknown user' } } }],
       ]),
     );
 
     const res = responseDouble();
-    await getPostEditSource(request('owner'), res as unknown as Response);
+    await getPostEditSource(request(post.id, OWNER), res as unknown as Response);
 
-    expect(findOne).toHaveBeenCalledWith({ _id: POST_ID, oxyUserId: 'owner' });
+    expect(res.status).not.toHaveBeenCalled();
     expect(res.json).toHaveBeenCalledWith({
-      id: POST_ID,
+      id: post.id,
       content: {
         text: 'Hello [mention:alice-id]',
+        // MACHINE renditions are excluded: an edit surface must show only what
+        // the author actually wrote.
         variants: [
-          {
-            source: 'author',
-            tag: 'en',
-            text: 'Hello [mention:alice-id]',
-          },
-          {
-            source: 'author',
-            tag: 'es',
-            text: 'Hola [mention:bob-id]',
-          },
+          { source: 'author', tag: 'en', text: 'Hello [mention:alice-id]' },
+          { source: 'author', tag: 'es', text: 'Hola [mention:bob-id]' },
         ],
         media: [{ id: 'media-1', type: 'image' }],
       },
       mentions: ['alice-id', 'bob-id'],
-      mentionUsers: [
-        {
-          id: 'alice-id',
-          username: 'alice',
-          name: { displayName: 'Alice' },
-        },
-      ],
-      authorship: [{ oxyUserId: 'owner', role: 'owner', status: 'accepted' }],
+      mentionUsers: [{ id: 'alice-id', username: 'alice', name: { displayName: 'Alice' } }],
+      authorship: [{ oxyUserId: OWNER, role: 'owner', status: 'accepted' }],
     });
   });
 
+  /**
+   * THE security case, and the reason the suite runs on real rows.
+   *
+   * Mutation: drop `eq(posts.oxyUserId, userId)` from the controller's predicate
+   * and this goes red with a 200 and the draft's body in the response — the
+   * mocked version stayed green under exactly that change.
+   */
   it("does not reveal another owner's draft", async () => {
-    const ownerDraft = {
-      _id: POST_ID,
+    const draft = await insertPostRecord({
+      oxyUserId: OTHER,
+      authorship: [{ oxyUserId: OTHER, role: 'owner', status: 'accepted' }],
+      type: PostType.TEXT,
+      visibility: PostVisibility.PRIVATE,
       status: 'draft',
-      oxyUserId: 'owner',
-      content: { text: 'private draft [mention:alice-id]' },
+      content: { variants: [{ source: 'author', text: 'private draft [mention:alice-id]' }] },
       mentions: ['alice-id'],
-    };
-    findOne.mockImplementation((filter: Record<string, unknown>) => ({
-      select: () => ({
-        // Model the security boundary: an unscoped lookup would find the draft,
-        // while the viewer-scoped lookup must not.
-        lean: async () =>
-          filter.oxyUserId === 'viewer' ? null : ownerDraft,
-      }),
-    }));
-    const res = responseDouble();
-    await getPostEditSource(request('viewer'), res as unknown as Response);
-
-    expect(findOne).toHaveBeenCalledWith({
-      _id: POST_ID,
-      oxyUserId: 'viewer',
     });
+
+    const res = responseDouble();
+    await getPostEditSource(request(draft.id, OWNER), res as unknown as Response);
+
     expect(res.status).toHaveBeenCalledWith(404);
+    expect(res.json).toHaveBeenCalledWith({ message: 'Post not found' });
+  });
+
+  it('serves the owner their own draft, so the 404 above is not vacuous', async () => {
+    const draft = await insertPostRecord({
+      oxyUserId: OWNER,
+      authorship: [{ oxyUserId: OWNER, role: 'owner', status: 'accepted' }],
+      type: PostType.TEXT,
+      visibility: PostVisibility.PRIVATE,
+      status: 'draft',
+      content: { variants: [{ source: 'author', text: 'my draft' }] },
+    });
+
+    const res = responseDouble();
+    await getPostEditSource(request(draft.id, OWNER), res as unknown as Response);
+
+    expect(res.status).not.toHaveBeenCalled();
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({ id: draft.id, content: expect.objectContaining({ text: 'my draft' }) }),
+    );
+  });
+
+  it('404s an id of a shape no row has, without a CastError', async () => {
+    // The `ObjectId.isValid` guard is gone. A malformed id simply matches no row,
+    // which is the same 404 the guard was standing in for — and a uuid v7, which
+    // the guard would have rejected outright, now resolves normally.
+    const res = responseDouble();
+    await getPostEditSource(request('not-an-id-of-any-shape', OWNER), res as unknown as Response);
+    expect(res.status).toHaveBeenCalledWith(404);
+  });
+
+  it('serves a post whose id is a uuid v7', async () => {
+    const post = await insertPostRecord({
+      oxyUserId: OWNER,
+      authorship: [{ oxyUserId: OWNER, role: 'owner', status: 'accepted' }],
+      type: PostType.TEXT,
+      visibility: PostVisibility.PUBLIC,
+      status: 'published',
+      content: { variants: [{ source: 'author', text: 'post-cutover' }] },
+    });
+    // Every post created after the cutover carries one; the deleted guard would
+    // have 404'd all of them.
+    expect(post.id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+
+    const res = responseDouble();
+    await getPostEditSource(request(post.id, OWNER), res as unknown as Response);
+    expect(res.status).not.toHaveBeenCalled();
+  });
+
+  it('reports the parent id for a reply', async () => {
+    const parent = await insertPostRecord({
+      oxyUserId: OWNER,
+      authorship: [{ oxyUserId: OWNER, role: 'owner', status: 'accepted' }],
+      type: PostType.TEXT,
+      visibility: PostVisibility.PUBLIC,
+      status: 'published',
+      content: { variants: [{ source: 'author', text: 'root' }] },
+    });
+    const reply = await insertPostRecord({
+      oxyUserId: OWNER,
+      authorship: [{ oxyUserId: OWNER, role: 'owner', status: 'accepted' }],
+      type: PostType.TEXT,
+      visibility: PostVisibility.PUBLIC,
+      status: 'published',
+      parentPostId: parent.id,
+      content: { variants: [{ source: 'author', text: 'reply' }] },
+    });
+
+    const res = responseDouble();
+    await getPostEditSource(request(reply.id, OWNER), res as unknown as Response);
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({ parentPostId: parent.id }),
+    );
+  });
+
+  it('still serves the source when identity resolution fails', async () => {
+    // The ids and placeholders are what preserve the edit; Oxy being unreachable
+    // must degrade the display, never make the body unreadable.
+    const post = await insertPostRecord({
+      oxyUserId: OWNER,
+      authorship: [{ oxyUserId: OWNER, role: 'owner', status: 'accepted' }],
+      type: PostType.TEXT,
+      visibility: PostVisibility.PUBLIC,
+      status: 'published',
+      content: { variants: [{ source: 'author', text: 'hi [mention:alice-id]' }] },
+      mentions: ['alice-id'],
+    });
+    resolveUserSummaries.mockRejectedValue(new Error('oxy unreachable'));
+
+    const res = responseDouble();
+    await getPostEditSource(request(post.id, OWNER), res as unknown as Response);
+
+    expect(res.status).not.toHaveBeenCalled();
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({ mentions: ['alice-id'], mentionUsers: [] }),
+    );
   });
 });

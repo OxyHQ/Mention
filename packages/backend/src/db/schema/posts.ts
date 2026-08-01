@@ -203,20 +203,42 @@ export const posts = pgTable(
     /**
      * The post this one replies to.
      *
-     * ESCALATED, not settled. Today Mongo leaves an orphaned reply pointing at a
-     * dead id, and root feeds exclude it because `notAReplyClause()` tests
-     * `parentPostId: null`. `SET NULL` therefore PROMOTES an orphaned reply into
-     * a root post and it starts appearing in For You / Following / Explore;
-     * `CASCADE` instead deletes reply subtrees that survive today. Neither is a
-     * faithful port, and the choice is a product decision rather than a schema
-     * one.
+     * `ON DELETE SET NULL`, and that is now SAFE because it is no longer the
+     * thing root-feed membership is read from — see {@link isReply} directly
+     * below, which is the discriminator this column's escalation asked for.
      *
-     * `SET NULL` is used because it loses no rows and is repairable, while
-     * CASCADE destroys user content irreversibly. The query phase MUST make root
-     * feed membership stop depending on `parent_post_id IS NULL` alone before
-     * this ships — see the migration report.
+     * The escalation, for the record: `SET NULL` PROMOTES an orphaned reply into
+     * a root post wherever "is this a root?" is answered by
+     * `parent_post_id IS NULL`, and `CASCADE` instead deletes reply subtrees that
+     * survive today. `SET NULL` is kept because it loses no rows and is
+     * repairable while CASCADE destroys user content irreversibly; the promotion
+     * is closed by storing the answer instead of inferring it.
      */
     parentPostId: text().references((): AnyPgColumn => posts.id, { onDelete: 'set null' }),
+
+    /**
+     * Whether this post was WRITTEN as a reply. The root-vs-reply
+     * discriminator — stored, never inferred.
+     *
+     * Set once by the writer from the post's own intent and never updated, so
+     * `ON DELETE SET NULL` clearing `parent_post_id` cannot change it: an
+     * orphaned reply stays a reply and stays out of For You / Following /
+     * Explore, which is the behaviour Mongo had and the condition the schema's
+     * `SET NULL` choice was accepted under.
+     *
+     * It also SUBSUMES the second encoding of the same fact. `utils/postReply.ts`
+     * already had to ask this question as a disjunction — `parentPostId` for a
+     * native reply, `federation.inReplyTo` for a federated reply whose parent
+     * Mention never imported — because either alone misclassifies posts in both
+     * directions. One column answers for both, so the query layer stops
+     * re-deriving the concept per call site.
+     *
+     * The CHECKs below make the storage direction unrepresentable rather than
+     * conventional: a row that HAS a parent (in either encoding) and claims not
+     * to be a reply fails the insert. The converse — `is_reply` with no parent
+     * link — is legal and is exactly the two orphan states.
+     */
+    isReply: boolean().notNull().default(false),
 
     /**
      * The root of a self-thread. SET NULL for the same reason as `quote_of`: the
@@ -250,6 +272,24 @@ export const posts = pgTable(
     metadataAuthorBlocked: boolean().notNull().default(false),
     metadataAuthorMuted: boolean().notNull().default(false),
     metadataHideEngagementCounts: boolean().notNull().default(false),
+
+    /**
+     * The collaborative-post federation lifecycle, and a REAL gap in the first
+     * schema pass rather than a new feature.
+     *
+     * `PostMetadata` declares both, `PostCollaborationService` writes both, and
+     * `maybeFederateOnResolve` READS both to decide whether a post fans out to
+     * the fediverse — so dropping them silently breaks the two guarantees that
+     * path exists for: an invitee must never be leaked to the fediverse before
+     * consenting (`collab_federation_deferred`), and a solo post that already
+     * federated at creation must not federate a second time when a later invite
+     * resolves (`federation_delivered`).
+     *
+     * `NOT NULL DEFAULT false` is the faithful port: Mongo stored them as ABSENT
+     * or `true`, and every reader tests truthiness.
+     */
+    metadataCollabFederationDeferred: boolean().notNull().default(false),
+    metadataFederationDelivered: boolean().notNull().default(false),
 
     // ── `federation` subdocument (federated posts only) ──
     /** The inbound AP activity URI. Globally unique where present. */
@@ -427,6 +467,21 @@ export const posts = pgTable(
         and ${t.locationLongitude} between -180 and 180)`
     ),
 
+    // The reply discriminator can never DISAGREE with a parent link that is
+    // actually present. Written as two implications rather than an equivalence
+    // because the reverse is legitimate: `is_reply` with neither link is an
+    // orphan — a native reply whose parent was deleted (`ON DELETE SET NULL`
+    // fired) or a federated reply whose parent Mention never imported — and both
+    // must remain storable.
+    check(
+      'posts_reply_discriminator_check',
+      sql`${t.parentPostId} is null or ${t.isReply}`
+    ),
+    check(
+      'posts_federated_reply_discriminator_check',
+      sql`${t.federationInReplyTo} is null or ${t.isReply}`
+    ),
+
     // Federation dedup. Mongo's `{unique: true, sparse: true}`; a Postgres
     // partial unique index is the exact analogue, and NULLs are distinct here
     // anyway so local posts are unaffected.
@@ -438,6 +493,14 @@ export const posts = pgTable(
     // Named after the manifest entries so a DBA reading `pg_indexes` and a
     // developer reading the migration see the same names.
     index('post_public_chrono_v1').on(t.visibility, t.status, t.createdAt.desc(), t.id.desc()),
+    // The root-feed predicate, which is now a column test rather than the
+    // `parent_post_id IS NULL` + `federation.inReplyTo` disjunction it used to
+    // be. Partial rather than a fourth key column: every root feed fixes
+    // `is_reply = false`, so the index is the size of the root set and the
+    // manifest-named index above keeps serving the queries it was named for.
+    index('posts_roots_chrono_idx')
+      .on(t.visibility, t.status, t.createdAt.desc(), t.id.desc())
+      .where(sql`${t.isReply} = false`),
     index('post_replies_chrono_v1').on(
       t.parentPostId,
       t.visibility,
