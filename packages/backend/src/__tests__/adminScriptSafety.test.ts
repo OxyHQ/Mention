@@ -7,7 +7,11 @@ import {
 } from '../scripts/lib/adminScriptSafety';
 
 const SCRIPT_NAME = 'purgeGoneFederatedActors';
-const READ_ONLY_SCRIPTS = new Set(['evalFeedQuality.ts']);
+const READ_ONLY_SCRIPTS = new Set([
+  'evalFeedQuality.ts',
+  // Prints what a term's posts store; makes no write of any kind.
+  'inspectTrendTerms.ts',
+]);
 
 describe('assertAdminMutationAllowed', () => {
   it('allows a dry run without confirmation', () => {

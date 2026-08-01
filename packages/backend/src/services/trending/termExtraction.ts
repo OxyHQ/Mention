@@ -20,6 +20,7 @@
  */
 
 import { MtnConfig } from '@mention/shared-types';
+import { stripMentionPlaceholders } from '@mention/shared-types/mentions';
 
 /**
  * Function words dropped before phrases are built, unioned across the languages
@@ -119,6 +120,14 @@ const SEGMENT_BOUNDARY = /[^\p{L}\p{N}' ]+/u;
 /** Strips URLs, @mentions and the `#` marker (keeping the tag's word). */
 const URL_PATTERN = /https?:\/\/\S+|www\.\S+/gi;
 const MENTION_PATTERN = /@[\p{L}\p{N}_.-]+(?:@[\p{L}\p{N}.-]+)?/gu;
+
+/*
+ * NOTE on ordering: `stripMentionPlaceholders` runs FIRST, before any pattern
+ * below. A native mention is stored as `[mention:<id>]` — the display form with
+ * an `@handle` only exists after hydration — so nothing here would ever see it,
+ * and the tokenizer would split the placeholder into the literal word `mention`
+ * plus a user id and count both as things people were talking about.
+ */
 
 /**
  * A rendered federated mention: `[Display Name](handle@instance.tld)`.
@@ -220,7 +229,7 @@ export function collectTrendPhrases(text: string | null | undefined): string[] {
     phrases.push(phrase);
   };
 
-  const cleaned = (text ?? '')
+  const cleaned = stripMentionPlaceholders(text ?? '')
     // Mention links first: they are the shape most likely to contain something
     // that looks like prose, so removing them whole has to happen before the
     // generic link rule salvages their label.

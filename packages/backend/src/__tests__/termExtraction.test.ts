@@ -111,6 +111,52 @@ describe('extractTrendTerms — federated mentions never become topics', () => {
   });
 });
 
+describe('extractTrendTerms — stored mention placeholders', () => {
+  /*
+   * A native mention is STORED as `[mention:<id>]` and only becomes `@handle`
+   * at hydration. Reading the stored text as prose therefore yields the literal
+   * word `mention` plus a user id — which is how this instance's own name
+   * became the network's biggest trend, carried by every post that replied to
+   * anybody (86 posts, 37 distinct authors, and the word in none of them).
+   */
+  it('never emits the word from a stored placeholder', () => {
+    const terms = extractTrendTerms({
+      text: '[mention:6a3a96a7272930c46a7881d0] Wenn Du von 2,5 Jahren ausgehst',
+    });
+    expect(terms).not.toContain('mention');
+  });
+
+  it('never emits the user id either', () => {
+    const terms = extractTrendTerms({
+      text: '[mention:6a3a96a7272930c46a7881d0] hello there',
+    });
+    expect(terms).not.toContain('6a3a96a7272930c46a7881d0');
+  });
+
+  it('keeps the words the author actually wrote', () => {
+    const terms = extractTrendTerms({
+      text: '[mention:6a3a96a7272930c46a7881d0] the Orioles traded Dean Kremer',
+    });
+    expect(terms).toContain('dean kremer');
+    expect(terms).toContain('orioles');
+  });
+
+  it('does not fuse the words either side of a placeholder', () => {
+    // Replaced with a space, not nothing: `carbon [mention:x] span` must not
+    // become the phrase `carbon span`.
+    const terms = extractTrendTerms({ text: 'carbon [mention:abc123] span' });
+    expect(terms).not.toContain('carbon span');
+  });
+
+  it('handles several placeholders in one post', () => {
+    const terms = extractTrendTerms({
+      text: '[mention:aaa111] [mention:bbb222] talking about Kremer',
+    });
+    expect(terms).not.toContain('mention');
+    expect(terms).toContain('kremer');
+  });
+});
+
 describe('extractTrendTerms — what is dropped', () => {
   it('drops URLs entirely', () => {
     const terms = extractTrendTerms({ text: 'read https://example.com/article-about-fifa now' });

@@ -65,6 +65,26 @@ export function isMentionBroadcast(distinctMentionCount: number): boolean {
 /**
  * Extract placeholder ids in first-occurrence order, without duplicates.
  */
+/**
+ * Remove every `[mention:<id>]` placeholder from stored post text.
+ *
+ * A mention is STORED as a placeholder and rendered into a display form only at
+ * hydration, so any consumer that reads the raw text sees `[mention:<id>]` and
+ * not the `@handle` a reader sees. Anything that treats that text as prose must
+ * strip it first, or it reads the literal word `mention` and a user id as if
+ * the author had written them.
+
+ * That is not hypothetical: trend extraction tokenized the placeholder and made
+ * `mention` — this instance's own name — the network's biggest trending term,
+ * carried by every post that replied to anybody.
+ *
+ * Replaces with a space rather than nothing, so the words either side of a
+ * placeholder do not fuse into one.
+ */
+export function stripMentionPlaceholders(text: string): string {
+  return text.replace(MENTION_PLACEHOLDER_PATTERN, ' ');
+}
+
 export function extractMentionIds(text: string): string[] {
   if (!text) return [];
 
