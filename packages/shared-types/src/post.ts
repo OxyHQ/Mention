@@ -914,6 +914,40 @@ export interface PostMetadataState {
   scheduledFor?: string;
 }
 
+/**
+ * "This post is a reply, and this is what it answers."
+ *
+ * The SINGLE carrier of reply context. It rides on the POST, not on the feed
+ * slice that happens to contain it, because a post is a reply as a property of
+ * itself — independent of which surface renders it. Before this existed the only
+ * carrier was `FeedSliceReason.replyContext`, which the server emits solely for
+ * feeds whose definition opted in (`execution.replyContext`) and never at all on
+ * the response paths that return no slices (the popular fallback, ordered feeds,
+ * feed generators). Every other surface that renders a post — search, saved,
+ * insights, the scheduled-post preview, the thread view — had no access to it,
+ * so a reply on those surfaces was indistinguishable from a top-level post.
+ *
+ * Present on EVERY post that is a reply, decided by the server's one definition
+ * of the concept (`isReplyPost`), which counts a federated reply whose
+ * `inReplyTo` never resolved locally. `parentAuthor` is therefore optional and
+ * the empty object is meaningful: "this is a reply, but we cannot say to whom".
+ *
+ * The local parent id is NOT repeated here — it is already
+ * {@link HydratedPostSummary.parentPostId}, and one value with two spellings is
+ * how carriers drift apart. This object answers only "to WHOM", which nothing
+ * else on the DTO carries.
+ */
+export interface PostReplyContext {
+  /**
+   * The parent's author. Absent when the parent is not held locally (an
+   * unresolved federated `inReplyTo`), AND when the viewer's own ACL denies the
+   * parent — naming the author of a post this viewer was just refused would leak
+   * both its existence and its writer, so the same gate that drops a post from a
+   * response drops its authorship here.
+   */
+  parentAuthor?: PostUser;
+}
+
 export interface HydratedPostSummary {
   id: string;
   content: PostContent;
@@ -935,6 +969,13 @@ export interface HydratedPostSummary {
   permissions: PostPermissions;
   metadata: PostMetadataState;
   parentPostId?: string;
+  /**
+   * Set on every post that IS a reply, on every surface, whatever the feed did
+   * with slicing. Its PRESENCE is the reply marker — which `parentPostId` alone
+   * cannot be, because a federated reply whose `inReplyTo` never resolved is a
+   * reply with no local parent. See {@link PostReplyContext}.
+   */
+  replyContext?: PostReplyContext;
 }
 
 export interface HydratedBoostContext {

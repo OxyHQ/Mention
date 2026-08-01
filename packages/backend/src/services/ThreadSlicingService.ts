@@ -13,13 +13,11 @@ import {
   FeedSliceReason,
   HydratedPost,
   MtnConfig,
-  PostUser,
   PostVisibility,
 } from '@mention/shared-types';
 import { Post } from '../models/Post';
 import { logger } from '../utils/logger';
 import { isReplyPost } from '../utils/postReply';
-import { resolveUserSummaries } from './PostHydrationService';
 
 export interface ThreadSlicingOptions {
   enableThreadGrouping: boolean;
@@ -109,18 +107,13 @@ class ThreadSlicingService {
       }
     }
 
-    // Reply-context slices render a "Replying to @<parent author>" header. The
-    // parent author's canonical display name/handle/avatar is owned by Oxy and
-    // is NOT present on the raw lean parent doc (only `oxyUserId` is). Slicing
-    // runs before PostHydrationService resolves authors, so resolve the parent
-    // authors here through the SAME canonical path hydration uses
-    // (`resolveUserSummaries`: batched Redis read + one bulk Oxy fetch for
-    // misses). Parent authors are almost always already-warm feed authors, so
-    // this typically adds no Oxy round-trip. Without this the header rendered a
-    // blank display name. Never hand-recompute names — use the resolved summary.
-    const parentAuthorSummaries = opts.enableReplyContext
-      ? await this.resolveReplyContextAuthors(posts, parentPostMap, postById)
-      : new Map<string, PostUser>();
+    // The slicer no longer resolves parent AUTHORS. "Replying to @<parent
+    // author>" is rendered from the reply's own `replyContext` on the post DTO,
+    // which PostHydrationService fills for every post on every surface — so
+    // resolving them a second time here would be a duplicate carrier for one
+    // fact, and only for the handful of feeds whose definition opts into reply
+    // slicing. Slicing keeps the job nothing else can do: prepending the parent
+    // POST so the pair renders as one connected thread.
 
     // Build slices in feed order
     const slices: FeedPostSlice[] = [];
@@ -166,10 +159,10 @@ class ThreadSlicingService {
       //
       // The parent is unattachable in three cases: it is already rendered higher
       // in this page, it failed the published/visibility bar, or it was never
-      // ingested. In all three the slice still carries the `replyContext` reason —
-      // that tag is what drives the "Replying to" header and the `hideReplies`
-      // tuner, so dropping it is what made a context-free reply render as an
-      // ordinary top-level post.
+      // ingested. In all three the slice still carries the `replyContext` reason,
+      // which the `hideReplies` tuner filters on. The "Replying to @…" header does
+      // NOT depend on this tag — it reads the reply's own `replyContext` on the
+      // post DTO, so a reply renders its context on feeds that never slice at all.
       if (opts.enableReplyContext && isReplyPost(post)) {
         const parentId = post.parentPostId;
         const parent = parentId ? parentPostMap.get(parentId) ?? postById.get(parentId) : undefined;
@@ -179,24 +172,10 @@ class ThreadSlicingService {
           seenPostIds.add(getPostId(attachableParent));
         }
 
-        // Resolvable whenever we hold the parent document — including when the
-        // parent is already on the page and only its POST cannot be repeated.
-        const parentAuthorId = parent?.oxyUserId ? String(parent.oxyUserId) : '';
-        const parentAuthor = parentAuthorId
-          ? parentAuthorSummaries.get(parentAuthorId) ?? {
-            // Degraded fallback carries an EMPTY username (ghost-handle rule) and
-            // no display name — never the raw id as a handle.
-            id: parentAuthorId,
-            username: '',
-            name: {},
-            avatar: null,
-          }
-          : undefined;
-
         slices.push(buildSlice(
           attachableParent ? [attachableParent, post] : [post],
           true,
-          parentAuthor ? { type: 'replyContext', parentAuthor } : { type: 'replyContext' },
+          { type: 'replyContext' },
         ));
         continue;
       }
@@ -316,45 +295,6 @@ class ThreadSlicingService {
     return result;
   }
 
-  /**
-   * Resolve canonical author summaries for every parent post that will anchor a
-   * reply-context slice ("Replying to @…"). Returns a map keyed by the parent's
-   * `oxyUserId` → the canonical Oxy {@link PostUser} (`name.displayName`,
-   * `username`, `avatar`). Uses {@link resolveUserSummaries} — the same
-   * batched/Redis-cached path PostHydrationService uses — so authors already in
-   * the feed cost nothing extra and the result never blanks for an existing
-   * parent author.
-   */
-  private async resolveReplyContextAuthors(
-    posts: RawPost[],
-    parentPostMap: Map<string, RawPost>,
-    postById: Map<string, RawPost>,
-  ): Promise<Map<string, PostUser>> {
-    const authorIds = new Set<string>();
-
-    for (const post of posts) {
-      if (!post.parentPostId) continue;
-      const parent = parentPostMap.get(post.parentPostId) || postById.get(post.parentPostId);
-      const authorId = parent?.oxyUserId ? String(parent.oxyUserId) : '';
-      if (authorId) {
-        authorIds.add(authorId);
-      }
-    }
-
-    if (authorIds.size === 0) {
-      return new Map<string, PostUser>();
-    }
-
-    // `resolveUserSummaries` returns raw Oxy users and already enriches any
-    // degraded FEDERATED parent author from the FederatedActor record, so a
-    // "Replying to @…" header never blanks for a known federated author.
-    const resolved = await resolveUserSummaries([...authorIds]);
-    const summaries = new Map<string, PostUser>();
-    for (const [userId, value] of resolved) {
-      summaries.set(userId, value.user);
-    }
-    return summaries;
-  }
 }
 
 function getPostId(post: RawPost): string {

@@ -52,6 +52,11 @@ export function toFeedItem(
     permissions: post.permissions,
     metadata: post.metadata,
     parentPostId: post.parentPostId,
+    // Carried through explicitly, like every other field here. Drop it and a post
+    // that came off this converter renders as a top-level post while the same
+    // post rendered straight from the API shows "Replying to @…" — the local
+    // cache would be the only surface silently missing its reply context.
+    replyContext: post.replyContext,
     originalPost,
     quotedPost,
     boost,

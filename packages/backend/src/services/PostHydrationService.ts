@@ -1,4 +1,4 @@
-import { FeedPostSlice, FeedSliceItem, HydratedPost, HydratedPostSummary, HydratedBoostContext, HydratedAuthor, PostUser, PostAttachmentBundle, PostEngagementSummary, PostLinkPreview, PostPermissions, PostViewerState, PostVisibility, PostAuthorshipEntry, MEDIA_VARIANT_THUMB } from '@mention/shared-types';
+import { FeedPostSlice, FeedSliceItem, HydratedPost, HydratedPostSummary, HydratedBoostContext, HydratedAuthor, PostUser, PostAttachmentBundle, PostEngagementSummary, PostLinkPreview, PostPermissions, PostReplyContext, PostViewerState, PostVisibility, PostAuthorshipEntry, MEDIA_VARIANT_THUMB } from '@mention/shared-types';
 import { Post, type PostFederationData } from '../models/Post';
 import Poll from '../models/Poll';
 import Like from '../models/Like';
@@ -34,6 +34,7 @@ import {
   normalizeAuthorship,
 } from '../utils/postAuthorship';
 import { normalizeMentionIds } from '../utils/textProcessing';
+import { isReplyPost } from '../utils/postReply';
 import { degradedActorSummary } from '../utils/degradedActorSummary';
 import {
   readerVariants,
@@ -189,6 +190,21 @@ const DEFAULT_PRIVACY = {
   hideReplyCounts: false,
   hideSaveCounts: false,
 };
+
+/**
+ * The projection for a reply's PARENT, fetched only to answer "whom does this
+ * reply answer" (see `buildReplyParentAuthorMap`). Deliberately minimal: the
+ * parent's body is never rendered from here, so this carries the author link and
+ * nothing beyond the fields the ACL itself reads.
+ *
+ * Every field is load-bearing. `status` and `visibility` are what
+ * `canViewerReadPost` gates on — leave either unprojected and it reads
+ * `undefined`, defaults to published/public, and the gate silently stops
+ * gating. `authorship` carries the collaborator entries that let a viewer
+ * legitimately see their own unpublished post, and `federation` is what marks a
+ * parent as federated (hence public by definition).
+ */
+const REPLY_PARENT_PROJECTION = '_id oxyUserId authorship federation status visibility';
 
 /**
  * Build the cached identity ({@link CachedUserSummary}: raw Oxy user + the
@@ -866,7 +882,7 @@ export class PostHydrationService {
     // Everything else is independent and can run concurrently.
     const [
       ,
-      { userMap, recentReplierMap },
+      { userMap, recentReplierMap, replyParentAuthorIdByPostId },
       pollMap,
       authorPrivacyMap,
       linkPreviewMap,
@@ -875,10 +891,26 @@ export class PostHydrationService {
     ] = await Promise.all([
       this.populateViewerInteractions(postIds, viewerContext),
       (async () => {
-        const replierAggResult = await this.loadRecentReplierProjection(postIds);
-        const uMap = await this.buildUserMap(postsForHydration, replierAggResult.allReplierIds);
+        // The reply-parent lookup runs BESIDE the replier projection, not after
+        // it: both only need the collected graph, and both feed the SAME user
+        // batch below. So resolving "whom does each reply answer" adds no Oxy
+        // round trip and no latency of its own — the parent authors are merged
+        // into the one `buildUserMap` call the rest of hydration already makes.
+        const [replierAggResult, replyParents] = await Promise.all([
+          this.loadRecentReplierProjection(postIds),
+          this.buildReplyParentAuthorMap(postsForHydration, viewerContext),
+        ]);
+        const extraUserIds = new Set(replierAggResult.allReplierIds);
+        for (const parentAuthorId of replyParents.parentAuthorIds) {
+          extraUserIds.add(parentAuthorId);
+        }
+        const uMap = await this.buildUserMap(postsForHydration, extraUserIds);
         const rMap = this.buildReplierAvatarsFromUserMap(replierAggResult.perPostRepliers, uMap);
-        return { userMap: uMap, recentReplierMap: rMap };
+        return {
+          userMap: uMap,
+          recentReplierMap: rMap,
+          replyParentAuthorIdByPostId: replyParents.parentAuthorIdByPostId,
+        };
       })(),
       this.buildPollMap(postsForHydration),
       this.buildAuthorPrivacyMap(postsForHydration, viewerContext),
@@ -910,6 +942,7 @@ export class PostHydrationService {
           orphanAuthorMap,
           resolvedMap,
           quoteCountMap,
+          replyParentAuthorIdByPostId,
         })
       )
     );
@@ -1006,20 +1039,17 @@ export class PostHydrationService {
           ? slice._sliceKey
           : recalculated.map((i) => i.post.id).join('+');
 
-        // A `replyContext` reason describes the parent that anchors the slice
-        // ("Replying to @…"), and such a slice is exactly [parent, reply]. When
-        // the per-viewer ACL above drops the parent, the reason is left
-        // describing an item the response no longer carries — so it goes with its
-        // anchor instead of naming the author of a post this viewer was denied.
-        const reason = slice.reason?.type === 'replyContext'
-          && hydratedItems.length !== slice.items.length
-          ? undefined
-          : slice.reason;
-
+        // The reason SURVIVES an ACL-dropped parent. It used to be stripped,
+        // because it carried `parentAuthor` and would then have named the author
+        // of a post this viewer was just denied — but the author now lives on the
+        // reply's own `replyContext`, gated by the same ACL, so there is nothing
+        // left here to leak. Stripping it was also losing the only thing the
+        // reason still asserts: that this item is a reply, which the `hideReplies`
+        // tuner filters on. A viewer hiding replies would have been served the
+        // ones whose parent they could not read.
         result.push({
           ...slice,
           _sliceKey: sliceKey,
-          reason,
           items: recalculated,
         });
       }
@@ -1705,6 +1735,170 @@ export class PostHydrationService {
   }
 
   /**
+   * May this viewer read this post at all?
+   *
+   * The single post-level ACL. Privacy checks apply to LOCAL posts only —
+   * federated posts are public by definition. Hydration is used for
+   * globally-broadcast DTOs and for nested quote/boost references fetched by id,
+   * so the gate lives here rather than relying on every caller to pre-filter.
+   *
+   * Extracted from {@link buildPostSummary} (whose behaviour is unchanged) so
+   * that {@link buildReplyParentAuthorMap} can ask the identical question about a
+   * reply's PARENT. A reply's "Replying to @…" header names the parent's author,
+   * which must not reveal the author — or the existence — of a post this viewer
+   * would be refused. Answering that with a second, hand-rolled visibility check
+   * is exactly how the two would drift apart; there is one gate and both call it.
+   */
+  private canViewerReadPost(
+    post: RawPost,
+    authorId: string,
+    authorship: PostAuthorshipEntry[],
+    isFederatedPost: boolean,
+    viewerContext: ViewerContext,
+  ): boolean {
+    if (isFederatedPost) return true;
+
+    const viewerEntry = getViewerEntry(authorship, viewerContext.viewerId);
+    // Pending collaborators may PREVIEW the post they were invited to (so the
+    // collab-invite UI can render the actual content before they accept),
+    // alongside the owner and accepted collaborators. All three bypass the
+    // unpublished/private/followers-only/restricted ACL checks below.
+    const viewerOwnsPost =
+      viewerContext.viewerId === authorId ||
+      (viewerEntry?.role === 'collaborator' &&
+        (viewerEntry.status === 'accepted' || viewerEntry.status === 'pending'));
+
+    if ((post.status ?? 'published') !== 'published' && !viewerOwnsPost) {
+      return false;
+    }
+
+    const visibility = (post.visibility ?? PostVisibility.PUBLIC) as PostVisibility;
+    if (visibility === PostVisibility.PRIVATE && !viewerOwnsPost) {
+      return false;
+    }
+
+    if (visibility === PostVisibility.FOLLOWERS_ONLY && !viewerOwnsPost) {
+      if (!viewerContext.viewerId || !viewerContext.follows.has(authorId)) {
+        return false;
+      }
+    }
+
+    if (viewerContext.restrictedIds.has(authorId) && !viewerOwnsPost) {
+      return false;
+    }
+
+    // Filter posts from private/followers_only profiles. Own posts are always
+    // visible; public profiles pass through.
+    if (viewerContext.privateProfileIds.has(authorId) && !viewerOwnsPost) {
+      if (!viewerContext.viewerId || !viewerContext.follows.has(authorId)) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  /**
+   * For every post in the graph that IS a reply, the Oxy id of the author it
+   * answers — when we hold that parent AND this viewer may read it.
+   *
+   * This is what makes reply context a property of the POST rather than of the
+   * feed slice that happens to carry it. Every surface hydrates, so every surface
+   * gets it: the feeds whose definition never opted into reply-context slicing,
+   * the paths that emit no slices at all (the popular fallback, ordered feeds),
+   * and the non-feed screens (search, saved, insights, the thread view) that
+   * render a bare `HydratedPost`.
+   *
+   * Costs nothing when the page holds no replies — the common case for a
+   * discovery lane — and at most ONE extra indexed `_id` lookup otherwise. The
+   * authors themselves are NOT resolved here: their ids are merged into the
+   * single {@link buildUserMap} batch the rest of hydration already runs, so a
+   * parent author who is also a post author on the page costs no second fetch and
+   * no second Oxy round trip.
+   *
+   * Membership of the returned map is the ACL decision. A parent that is absent,
+   * unpublished, private, followers-only to a non-follower, restricted, or behind
+   * a private profile yields NO entry, so the reply still reports itself as a
+   * reply but names nobody — never a header naming the author of a post this
+   * viewer was refused.
+   */
+  private async buildReplyParentAuthorMap(
+    nodes: HydratedGraphNode[],
+    viewerContext: ViewerContext,
+  ): Promise<{ parentAuthorIdByPostId: Map<string, string>; parentAuthorIds: Set<string> }> {
+    const parentAuthorIdByPostId = new Map<string, string>();
+    const parentAuthorIds = new Set<string>();
+
+    // `isReplyPost` is the ONE definition of the concept (see utils/postReply):
+    // it counts a federated reply whose `inReplyTo` never resolved into a local
+    // `parentPostId`. Such a reply has no parent to name but is still a reply,
+    // and `buildPostSummary` emits its marker off the same predicate.
+    const parentIdByPostId = new Map<string, string>();
+    for (const { post } of nodes) {
+      if (!post || !isReplyPost(post)) continue;
+      const postId = this.resolveId(post);
+      const parentId = post.parentPostId ? String(post.parentPostId) : '';
+      if (postId && parentId) {
+        parentIdByPostId.set(postId, parentId);
+      }
+    }
+
+    if (parentIdByPostId.size === 0) {
+      return { parentAuthorIdByPostId, parentAuthorIds };
+    }
+
+    // Parents already collected into the graph (a reply-context slice prepends
+    // its parent, and a thread's own posts sit beside each other) are reused
+    // rather than re-fetched.
+    const knownById = new Map<string, RawPost>();
+    for (const { post } of nodes) {
+      const id = this.resolveId(post);
+      if (id) knownById.set(id, post);
+    }
+
+    const missingIds = [...new Set(parentIdByPostId.values())].filter((id) => !knownById.has(id));
+    if (missingIds.length > 0) {
+      try {
+        const parents = await Post.find({ _id: { $in: missingIds } })
+          .select(REPLY_PARENT_PROJECTION)
+          .lean();
+        for (const parent of parents) {
+          const parentPost = parent as unknown as RawPost;
+          const id = this.resolveId(parentPost);
+          if (id) knownById.set(id, parentPost);
+        }
+      } catch (error) {
+        // Soft-fail: replies still report themselves as replies, just unnamed.
+        logger.warn('[PostHydration] Failed to load reply parents:', error);
+      }
+    }
+
+    for (const [postId, parentId] of parentIdByPostId) {
+      const parent = knownById.get(parentId);
+      if (!parent) continue;
+
+      const parentAuthorId = parent.oxyUserId ? String(parent.oxyUserId) : '';
+      // An orphan federated parent carries no Oxy author link, so there is
+      // nobody to name — the reply keeps its marker and drops the handle.
+      if (!parentAuthorId) continue;
+
+      const readable = this.canViewerReadPost(
+        parent,
+        parentAuthorId,
+        normalizeAuthorship(parent.authorship as PostAuthorshipEntry[] | undefined),
+        !!parent.federation,
+        viewerContext,
+      );
+      if (!readable) continue;
+
+      parentAuthorIdByPostId.set(postId, parentAuthorId);
+      parentAuthorIds.add(parentAuthorId);
+    }
+
+    return { parentAuthorIdByPostId, parentAuthorIds };
+  }
+
+  /**
    * Phase 2: Build replier avatar map using the already-populated userMap.
    * No additional user profile fetches needed.
    */
@@ -1745,8 +1939,10 @@ export class PostHydrationService {
     resolvedMap: Map<string, ResolvedVariant>;
     /** Undefined unless the caller passed `includeQuoteCounts` — see {@link HydrationOptions}. */
     quoteCountMap: Map<string, number> | undefined;
+    /** Reply post id → its parent's author id, for the posts whose parent this viewer may read. */
+    replyParentAuthorIdByPostId: Map<string, string>;
   }): Promise<HydratedPostSummary | null> {
-    const { post, viewerContext, pollMap, userMap, mentionCache, linkPreviewMap, authorPrivacyMap, recentReplierMap, orphanAuthorMap, resolvedMap, quoteCountMap } = params;
+    const { post, viewerContext, pollMap, userMap, mentionCache, linkPreviewMap, authorPrivacyMap, recentReplierMap, orphanAuthorMap, resolvedMap, quoteCountMap, replyParentAuthorIdByPostId } = params;
 
     const postId = this.resolveId(post);
     if (!postId) return null;
@@ -1774,47 +1970,8 @@ export class PostHydrationService {
 
     const authorship = normalizeAuthorship(post.authorship as PostAuthorshipEntry[] | undefined);
 
-    // Privacy checks only apply to local users (federated posts are public by definition).
-    // Hydration can be used for globally-broadcast DTOs and for nested quote/boost
-    // references fetched by id, so enforce post-level ACL here instead of relying
-    // on callers to pre-filter every referenced post.
-    if (!isFederatedPost) {
-      const viewerEntry = getViewerEntry(authorship, viewerContext.viewerId);
-      // Pending collaborators may PREVIEW the post they were invited to (so the
-      // collab-invite UI can render the actual content before they accept),
-      // alongside the owner and accepted collaborators. All three bypass the
-      // unpublished/private/followers-only/restricted ACL checks below.
-      const viewerOwnsPost =
-        viewerContext.viewerId === authorId ||
-        (viewerEntry?.role === 'collaborator' &&
-          (viewerEntry.status === 'accepted' || viewerEntry.status === 'pending'));
-
-      if ((post.status ?? 'published') !== 'published' && !viewerOwnsPost) {
-        return null;
-      }
-
-      const visibility = (post.visibility ?? PostVisibility.PUBLIC) as PostVisibility;
-      if (visibility === PostVisibility.PRIVATE && !viewerOwnsPost) {
-        return null;
-      }
-
-      if (visibility === PostVisibility.FOLLOWERS_ONLY && !viewerOwnsPost) {
-        if (!viewerContext.viewerId || !viewerContext.follows.has(authorId)) {
-          return null;
-        }
-      }
-
-      if (viewerContext.restrictedIds.has(authorId) && !viewerOwnsPost) {
-        return null;
-      }
-
-      // Filter posts from private/followers_only profiles. Own posts are always
-      // visible; public profiles pass through.
-      if (viewerContext.privateProfileIds.has(authorId) && !viewerOwnsPost) {
-        if (!viewerContext.viewerId || !viewerContext.follows.has(authorId)) {
-          return null;
-        }
-      }
+    if (!this.canViewerReadPost(post, authorId, authorship, isFederatedPost, viewerContext)) {
+      return null;
     }
 
     // `resolveUserSummaries` always populates an entry for every requested id
@@ -1917,6 +2074,13 @@ export class PostHydrationService {
     const viewerEntry = getViewerEntry(authorship, viewerContext.viewerId);
     const includeAuthorship = viewerEntry != null;
 
+    // Empty when the parent is absent, unreadable by this viewer, or an orphan
+    // federated post with no Oxy author — the post is still marked as a reply,
+    // it simply names nobody.
+    const parentAuthorId = replyParentAuthorIdByPostId.get(postId);
+    const parentAuthor = parentAuthorId ? userMap.get(parentAuthorId) : undefined;
+    const replyContext: PostReplyContext = parentAuthor ? { parentAuthor } : {};
+
     return {
       id: postId,
       content: content ?? { text: finalText },
@@ -1931,6 +2095,12 @@ export class PostHydrationService {
       metadata,
       // Include parentPostId for thread hierarchy in replies
       ...(post.parentPostId ? { parentPostId: String(post.parentPostId) } : {}),
+      // The reply marker rides on the POST, so every surface that renders one —
+      // sliced feed, flat feed, search, saved, thread view — can say "Replying
+      // to @…" from the DTO alone. `isReplyPost` is the single definition, so a
+      // federated reply whose `inReplyTo` never resolved is still marked; it just
+      // names nobody. See `PostReplyContext`.
+      ...(isReplyPost(post) ? { replyContext } : {}),
     };
   }
 

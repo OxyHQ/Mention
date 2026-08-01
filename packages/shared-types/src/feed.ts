@@ -98,14 +98,20 @@ export type FeedSliceReason =
    * item when it is available; when it is not — already rendered higher in the
    * page, unpublished, or (for a federated reply whose `inReplyTo` never
    * resolved) absent from our database entirely — the slice carries the reply
-   * alone and `parentAuthor` is omitted.
+   * alone.
    *
-   * The reason is present either way: it is what marks the item as a reply for
-   * the renderer's "Replying to" header and for the `hideReplies` tuner, so a
-   * missing parent must never downgrade the slice to an untagged one — that is
-   * precisely what made context-free replies render as ordinary top-level posts.
+   * This reason is a GROUPING fact: "the parent was prepended into this slice".
+   * It is NOT how the renderer learns that a post is a reply, and it does not
+   * name the parent's author — that is {@link HydratedPost.replyContext}, which
+   * rides on the post and therefore reaches every surface, including the feeds
+   * whose definition never opts into reply-context slicing and the response
+   * paths that emit no slices at all. Keeping the author here as well would be a
+   * second carrier for one fact, and the two would drift.
+   *
+   * The reason is still present when no parent could be prepended, because the
+   * `hideReplies` tuner filters on it.
    */
-  | { type: 'replyContext'; parentAuthor?: PostUser }
+  | { type: 'replyContext' }
   | { type: 'selfThread' };
 
 export interface FeedPostSlice {

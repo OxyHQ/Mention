@@ -1,26 +1,27 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { PostVisibility, type PostUser } from '@mention/shared-types';
-import type { CachedUserSummary } from '../../services/userSummaryCache';
+import { PostVisibility } from '@mention/shared-types';
 
 /**
- * Regression harness for the blank reply-context author bug (M9).
+ * What thread slicing owns for a reply, and what it must NOT own.
  *
- * A `replyContext` slice renders a "Replying to @<parent author>" header from
- * `slice.reason.parentAuthor`. Thread slicing runs on RAW lean post docs BEFORE
- * `PostHydrationService` resolves authors, so the parent's canonical
- * `name.displayName` / handle / avatar are NOT present on the lean doc (only
- * `oxyUserId` is). The old code read `parent.user` (undefined on a lean doc) and
- * serialized `displayName: ''` / `handle: ''` → the header rendered a bare "@".
+ * OWNS: tagging the slice `replyContext` and PREPENDING the parent post so the
+ * pair renders as one connected thread. Nothing else can do that — it is a
+ * decision about the shape of the page.
  *
- * The fix resolves parent authors through the SAME canonical path hydration
- * uses (`resolveUserSummaries`). These tests assert the reply-context author
- * carries the resolved summary and NEVER blanks for an existing parent author.
+ * DOES NOT OWN: whom the reply answers. That is `post.replyContext.parentAuthor`,
+ * filled by `PostHydrationService` for every post on every surface (see
+ * `postHydrationReplyContext.test.ts`). The slicer used to resolve parent authors
+ * too, which made the "Replying to @…" header reachable ONLY through a slice —
+ * so it never appeared on the feeds whose definition does not opt into reply
+ * slicing, nor on the response paths that emit no slices at all, nor on the
+ * screens that render a bare post. Two carriers for one fact, and only one of
+ * them reached most of the app.
+ *
+ * The reason is still emitted when no parent can be prepended, because the
+ * `hideReplies` tuner filters on it.
  */
 
-const { resolveUserSummaries, postFind } = vi.hoisted(() => ({
-  resolveUserSummaries: vi.fn(),
-  postFind: vi.fn(),
-}));
+const { postFind } = vi.hoisted(() => ({ postFind: vi.fn() }));
 
 // A chainable Mongoose query stub: every builder method returns `this`; `.lean()`
 // resolves the provided rows.
@@ -39,13 +40,6 @@ vi.mock('../../models/Post', () => ({
   },
 }));
 
-// Mock only the boundary the slicer now depends on. `resolveUserSummaries` is
-// the canonical, batched/Redis-cached author resolver exported by
-// PostHydrationService; mocking it keeps this a pure unit test of the slicer.
-vi.mock('../../services/PostHydrationService', () => ({
-  resolveUserSummaries: (...args: unknown[]) => resolveUserSummaries(...args),
-}));
-
 import { threadSlicingService } from '../../services/ThreadSlicingService';
 
 const PARENT_ID = '650000000000000000000001';
@@ -53,21 +47,7 @@ const REPLY_ID = '650000000000000000000002';
 const PARENT_AUTHOR_ID = 'oxy-parent-author';
 const REPLY_AUTHOR_ID = 'oxy-reply-author';
 
-function summary(id: string, username: string, displayName: string): CachedUserSummary {
-  return {
-    user: {
-      id,
-      username,
-      name: { displayName },
-      avatar: `${id}-avatar`,
-      verified: false,
-    },
-    followerCount: 0,
-  };
-}
-
 beforeEach(() => {
-  resolveUserSummaries.mockReset();
   postFind.mockReset();
   // Parent is NOT in the feed → fetchParentPosts queries Mongo for it.
   postFind.mockImplementation(() => [
@@ -81,14 +61,8 @@ beforeEach(() => {
   ]);
 });
 
-describe('ThreadSlicingService reply-context parent author', () => {
-  it('populates parentAuthor from the resolved canonical summary (not blank)', async () => {
-    resolveUserSummaries.mockResolvedValue(
-      new Map<string, CachedUserSummary>([
-        [PARENT_AUTHOR_ID, summary(PARENT_AUTHOR_ID, 'parenthandle', 'Parent Display Name')],
-      ]),
-    );
-
+describe('ThreadSlicingService reply-context slices', () => {
+  it('prepends the parent post and carries an author-free reason', async () => {
     const reply = {
       _id: REPLY_ID,
       oxyUserId: REPLY_AUTHOR_ID,
@@ -104,48 +78,15 @@ describe('ThreadSlicingService reply-context parent author', () => {
 
     const replyContextSlice = slices.find((s) => s.reason?.type === 'replyContext');
     expect(replyContextSlice).toBeDefined();
-    const reason = replyContextSlice?.reason;
-    expect(reason?.type).toBe('replyContext');
-    if (reason?.type !== 'replyContext') throw new Error('expected replyContext reason');
+    // The parent is prepended: [parent, reply]. This is the slicer's real job.
+    expect(replyContextSlice?.items.map((item) => String(item.post.id ?? (item.post as unknown as { _id: string })._id)))
+      .toEqual([PARENT_ID, REPLY_ID]);
 
-    expect(reason.parentAuthor).toBeDefined();
-    const parentAuthor = reason.parentAuthor as PostUser;
-    expect(parentAuthor.name.displayName).toBe('Parent Display Name');
-    expect(parentAuthor.username).toBe('parenthandle');
-    expect(parentAuthor.name.displayName).not.toBe('');
-    expect(parentAuthor.id).toBe(PARENT_AUTHOR_ID);
-
-    // The slicer must resolve the PARENT author id through the canonical path.
-    expect(resolveUserSummaries).toHaveBeenCalledTimes(1);
-    expect(resolveUserSummaries.mock.calls[0][0]).toContain(PARENT_AUTHOR_ID);
-  });
-
-  it('emits the degraded (ghost-handle-safe) parent author when it cannot be resolved', async () => {
-    // Author resolution returns nothing (e.g. Oxy lookup miss + no FederatedActor).
-    resolveUserSummaries.mockResolvedValue(new Map<string, CachedUserSummary>());
-
-    const reply = {
-      _id: REPLY_ID,
-      oxyUserId: REPLY_AUTHOR_ID,
-      parentPostId: PARENT_ID,
-      content: { text: 'a reply' },
-    };
-
-    const { slices } = await threadSlicingService.sliceFeed([reply], {
-      enableThreadGrouping: false,
-      enableReplyContext: true,
-      maxSliceSize: 3,
-    });
-
-    const reason = slices.find((s) => s.reason?.type === 'replyContext')?.reason;
-    if (reason?.type !== 'replyContext') throw new Error('expected replyContext reason');
-
-    // Ghost-handle rule: an unresolvable parent carries an EMPTY username and no
-    // display name — NEVER the raw oxyUserId as a handle. The renderer then
-    // suppresses the "@<handle>" line instead of showing a fake handle.
-    expect(reason.parentAuthor?.id).toBe(PARENT_AUTHOR_ID);
-    expect(reason.parentAuthor?.username).toBe('');
-    expect(reason.parentAuthor?.name.displayName).toBeUndefined();
+    // EXACT shape, not a subset: the reason carries the tag and NOTHING else.
+    // An added `parentAuthor` here would mean the author is being resolved twice
+    // — once into the slice for a few feeds, once onto the post for all of them —
+    // which is the duplication this test exists to prevent.
+    expect(replyContextSlice?.reason).toEqual({ type: 'replyContext' });
   });
 });
 
@@ -156,10 +97,8 @@ describe('ThreadSlicingService reply-context parent author', () => {
  * with `federation.inReplyTo` intact and `parentPostId` left NULL.
  *
  * The slicer used to test `post.parentPostId` and therefore classified those as
- * thread ROOTS: no `replyContext` reason, so the renderer's "Replying to" header
- * never fired and the `hideReplies` tuner (which filters on that same reason)
- * never saw them either. A context-free reply — "@someone thank you!" — rendered
- * as an ordinary top-level post.
+ * thread ROOTS: no `replyContext` reason, so the `hideReplies` tuner (which
+ * filters on that reason) never saw them either.
  */
 describe('ThreadSlicingService replies without a local parent link', () => {
   const FEDERATED_REPLY_ID = '650000000000000000000201';
@@ -167,10 +106,9 @@ describe('ThreadSlicingService replies without a local parent link', () => {
   beforeEach(() => {
     // No parent to fetch: there is no local id to query for.
     postFind.mockImplementation(() => []);
-    resolveUserSummaries.mockResolvedValue(new Map<string, CachedUserSummary>());
   });
 
-  it('tags an unlinked federated reply as replyContext, with no parentAuthor', async () => {
+  it('tags an unlinked federated reply as replyContext', async () => {
     const reply = {
       _id: FEDERATED_REPLY_ID,
       oxyUserId: REPLY_AUTHOR_ID,
@@ -186,13 +124,7 @@ describe('ThreadSlicingService replies without a local parent link', () => {
     });
 
     expect(slices).toHaveLength(1);
-    const reason = slices[0].reason;
-    if (reason?.type !== 'replyContext') {
-      throw new Error(`expected replyContext reason, got ${String(reason?.type)}`);
-    }
-    // Nobody to name — but the slice still declares itself a reply, which is what
-    // the header and the hideReplies tuner key off.
-    expect(reason.parentAuthor).toBeUndefined();
+    expect(slices[0].reason).toEqual({ type: 'replyContext' });
     // The reply is alone in the slice: there is no parent post to prepend.
     expect(slices[0].items).toHaveLength(1);
     // No parent id exists, so the slicer must not have gone looking for one.
@@ -220,12 +152,6 @@ describe('ThreadSlicingService replies without a local parent link', () => {
   });
 
   it('still tags a reply whose parent was already rendered higher in the page', async () => {
-    resolveUserSummaries.mockResolvedValue(
-      new Map<string, CachedUserSummary>([
-        [PARENT_AUTHOR_ID, summary(PARENT_AUTHOR_ID, 'parenthandle', 'Parent Display Name')],
-      ]),
-    );
-
     const parent = {
       _id: PARENT_ID,
       oxyUserId: PARENT_AUTHOR_ID,
@@ -249,21 +175,14 @@ describe('ThreadSlicingService replies without a local parent link', () => {
 
     expect(slices).toHaveLength(2);
     const replySlice = slices[1];
-    const reason = replySlice.reason;
-    if (reason?.type !== 'replyContext') {
-      throw new Error(`expected replyContext reason, got ${String(reason?.type)}`);
-    }
+    expect(replySlice.reason).toEqual({ type: 'replyContext' });
     expect(replySlice.items).toHaveLength(1);
-    // The parent doc IS in hand here, so the author still resolves — only the
-    // POST cannot be repeated.
-    expect(reason.parentAuthor?.username).toBe('parenthandle');
   });
 });
 
 describe('ThreadSlicingService thread children visibility', () => {
   it('fetches self-thread children only when public and published', async () => {
     postFind.mockImplementation(() => []);
-    resolveUserSummaries.mockResolvedValue(new Map<string, CachedUserSummary>());
 
     const root = {
       _id: '650000000000000000000101',
