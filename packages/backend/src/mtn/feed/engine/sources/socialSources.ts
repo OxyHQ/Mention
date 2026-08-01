@@ -10,7 +10,19 @@
  */
 
 import { PostType, PostVisibility, MtnConfig } from '@mention/shared-types';
-import { and, desc, eq, gte, inArray, isNotNull, isNull, or, sql, type SQL } from 'drizzle-orm';
+import {
+  and,
+  arrayOverlaps,
+  desc,
+  eq,
+  gte,
+  inArray,
+  isNotNull,
+  isNull,
+  or,
+  sql,
+  type SQL,
+} from 'drizzle-orm';
 import { getDb } from '../../../../db/postgres';
 import {
   entityFollows,
@@ -21,12 +33,11 @@ import {
   posts,
   starterPackMembers,
 } from '../../../../db/schema';
-import { candidatePostColumns, loadCandidatePosts } from '../../../../db/feed/candidatePost';
+import { assemblePostRecords } from '../../../../db/posts/postRepository';
 import { chronoCursorSql, chronoOrderBy } from '../../CursorBuilder';
 import { discoverySafeSql } from '../../feedSafety';
 import { logger } from '../../../../utils/logger';
-import { notABoostSql } from '../../../../utils/feedQueryBuilder';
-import { isReplySql, notAReplySql } from '../../../../utils/postReply';
+import { notABoostSql, rankingWeight } from '../../../../utils/feedQueryBuilder';
 import type { CandidatePost, SourceModule } from '../types';
 
 /**
@@ -47,12 +58,12 @@ async function fetchChrono(
 
   const db = getDb();
   const rows = await db
-    .select(candidatePostColumns)
+    .select()
     .from(posts)
     .where(and(...where))
     .orderBy(...chronoOrderBy())
     .limit(cap);
-  return loadCandidatePosts(db, rows);
+  return assemblePostRecords(rows, db);
 }
 
 /** Fetch posts by id, preserving the given id order (used by the pre-ranked sources). */
@@ -60,13 +71,13 @@ async function fetchPostsByIds(ids: string[]): Promise<CandidatePost[]> {
   if (ids.length === 0) return [];
   const db = getDb();
   const rows = await db
-    .select(candidatePostColumns)
+    .select()
     .from(posts)
     .where(inArray(posts.id, ids));
-  const loaded = await loadCandidatePosts(db, rows);
+  const loaded: CandidatePost[] = await assemblePostRecords(rows, db);
   const order = new Map(ids.map((id, i) => [id, i]));
   return loaded.sort(
-    (a, b) => (order.get(String(a._id)) ?? 0) - (order.get(String(b._id)) ?? 0),
+    (a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0),
   );
 }
 
@@ -103,9 +114,9 @@ async function fetchPostsByIds(ids: string[]): Promise<CandidatePost[]> {
 export function socialEngagementScoreSql(): SQL<number> {
   const cfg = MtnConfig.ranking.engagement;
   return sql<number>`(
-    ${posts.statsLikesCount} * ${cfg.likeWeight}
-    + ${posts.statsBoostsCount} * ${cfg.boostWeight}
-    + ${posts.statsCommentsCount} * ${cfg.commentWeight}
+    ${posts.statsLikesCount} * ${rankingWeight(cfg.likeWeight)}
+    + ${posts.statsBoostsCount} * ${rankingWeight(cfg.boostWeight)}
+    + ${posts.statsCommentsCount} * ${rankingWeight(cfg.commentWeight)}
   )::double precision`;
 }
 
@@ -185,12 +196,12 @@ export const friendsEngagedSource: SourceModule = {
       );
     }
 
-    const rows = await db.select(candidatePostColumns).from(posts).where(and(...conditions));
-    const candidates = await loadCandidatePosts(db, rows);
+    const rows = await db.select().from(posts).where(and(...conditions));
+    const candidates: CandidatePost[] = await assemblePostRecords(rows, db);
 
     return candidates
       .map((post) => {
-        post.finalScore = friendCountByPost.get(String(post._id)) ?? 0;
+        post.finalScore = friendCountByPost.get(post.id) ?? 0;
         return post;
       })
       .sort((a, b) => {
@@ -249,7 +260,7 @@ export const repliesFromFollowsSource: SourceModule = {
         inArray(posts.oxyUserId, followingIds),
         eq(posts.visibility, PostVisibility.PUBLIC),
         eq(posts.status, 'published'),
-        isReplySql(),
+        eq(posts.isReply, true),
       ],
       ctx.cursor,
       cap,
@@ -350,7 +361,13 @@ export const hashtagFollowsSource: SourceModule = {
     return fetchChrono(
       [
         // Array OVERLAP — the analogue of Mongo's `$in` against a multikey field.
-        sql`coalesce(${posts.hashtags} && ${tags}::text[], false)`,
+        //
+        // Through `arrayOverlaps`, never a raw `${tags}::text[]`: a JS array
+        // interpolated into a `sql` template binds as a ROW CONSTRUCTOR
+        // (`($1, $2)`), which Postgres refuses to cast to `text[]`, so the query
+        // THROWS rather than matching nothing. `coalesce(…, false)` stays
+        // because `hashtags` is nullable and `NULL && ARRAY[…]` is NULL.
+        sql`coalesce(${arrayOverlaps(posts.hashtags, tags)}, false)`,
         eq(posts.visibility, PostVisibility.PUBLIC),
         eq(posts.status, 'published'),
       ],
@@ -603,7 +620,7 @@ export const newVoicesSource: SourceModule = {
           eq(posts.status, 'published'),
           gte(posts.createdAt, windowStart),
           discoverySafeSql(),
-          notAReplySql(),
+          eq(posts.isReply, false),
           notABoostSql(),
           isNotNull(posts.oxyUserId),
         ),
@@ -642,7 +659,7 @@ export const topRepliesSource: SourceModule = {
           eq(posts.status, 'published'),
           gte(posts.createdAt, windowStart),
           discoverySafeSql(),
-          isReplySql(),
+          eq(posts.isReply, true),
         ),
       )
       .orderBy(desc(engagementScore), desc(posts.id))

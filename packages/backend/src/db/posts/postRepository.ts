@@ -10,17 +10,26 @@
  *
  * ## Three traps this module is written against, each already paid for
  *
- * 1. **A correlated predicate that silently matches nothing.** The schema
- *    conventions warn that a drizzle column interpolated into `sql` renders BARE
- *    when its table is not in that statement's `FROM`, so the predicate compares
- *    two columns of the subquery's own table and returns `[]` with no error.
- *    MEASURED at the drizzle-orm this package pins (0.45.2), that does not
- *    reproduce — a raw `sql` template, a builder `.where()`, and a drizzle
- *    subquery all render `"posts"."id"`. It is still avoided structurally: every
- *    read below is a plain `select().from().where(inArray(...))` with the
- *    correlation done in TypeScript, and the one hand-written correlated
- *    predicate (`authoredBy`) qualifies both sides explicitly so it does not
- *    depend on that version's behaviour.
+ * 1. **A correlated predicate that silently matches nothing.** A drizzle column
+ *    interpolated into `sql` renders BARE when its table is not in that
+ *    statement's `FROM`, so the predicate compares two columns of the
+ *    subquery's own table and returns `[]` with no error.
+ *
+ *    This DOES reproduce at the pinned drizzle-orm (0.45.2) — an earlier note
+ *    here said otherwise, and it was measuring the wrong shapes. What is safe is
+ *    a reference inside a BUILDER `.where()` or a drizzle subquery, where the
+ *    outer table is part of the statement drizzle is composing. What breaks is a
+ *    raw `sql` template that writes its own `FROM`: rendering
+ *    ``sql`select … from user_link_metadata where ${a.userId} = ${b.id}` ``
+ *    emits `where "user_id" = "id"`, both bare, and `"id"` then binds to the
+ *    subquery's own table. That is what shipped in the sibling oxy-api port and
+ *    read follow counts as zero on every public profile.
+ *
+ *    It is avoided structurally rather than by discipline: every read below is a
+ *    plain `select().from().where(inArray(...))` with the correlation done in
+ *    TypeScript, and the one correlated predicate (`authoredBy`) delegates to
+ *    `followedAuthorsSql`, which builds its subquery through drizzle's own
+ *    `exists()` — verified by rendering, not assumed.
  * 2. **A raw JS array bound into `sql` becomes a ROW constructor**, so
  *    `= any(${arr})` and `<> all(${arr})` are both wrong. Every set membership
  *    below goes through `inArray`.
@@ -49,7 +58,7 @@ import type {
   ReplyPermission,
   StoredPostContent,
 } from '@mention/shared-types';
-import { qualified } from '../casing';
+import { followedAuthorsSql } from '../../utils/postAuthorship';
 import { getDb, type DatabaseOrTransaction } from '../postgres';
 import { uuidv7 } from '../schema/columns';
 import { posts } from '../schema/posts';
@@ -1219,28 +1228,22 @@ export async function findBoostedPostIds(
  * ordering.
  */
 export function authoredBy(oxyUserId: string): SQL {
-  // `qualified()` here is belt-and-braces, and the reason is MEASURED rather
-  // than assumed — the schema conventions warn that a bare interpolated column
-  // renders unqualified when its table is absent from that statement's `FROM`,
-  // which inside this subquery would bind `${posts.id}` to `post_authorships.id`
-  // and silently return no rows.
+  // ONE implementation, in `utils/postAuthorship.ts`. This function and
+  // `followedAuthorsSql` were written independently by two batches for the same
+  // predicate — the feed needs the N-author form, the repository needed the
+  // single-author form — and two spellings of an `$elemMatch` port is precisely
+  // the shape that drifts: one of them gains the `status = 'accepted'` guard and
+  // the other does not, and a PENDING collaborator invite leaks onto a profile.
   //
-  // That does NOT reproduce at the drizzle-orm this package pins (0.45.2):
-  // rendering `${posts.id}` inside a raw `sql` template, inside a builder
-  // `.where()`, and inside a drizzle subquery all emit `"posts"."id"`. Removing
-  // `qualified()` from this function is therefore a no-op today, and a mutation
-  // test proves exactly that rather than going red.
-  //
-  // It stays because it is the only spelling that does not DEPEND on that
-  // behaviour: the qualification is then a property of this code rather than of
-  // the version resolved in `node_modules`, and the failure it guards against is
-  // an empty author feed with no error at all.
-  return sql`exists (
-    select 1 from ${postAuthorships}
-    where ${qualified(postAuthorships.postId)} = ${qualified(posts.id)}
-      and ${qualified(postAuthorships.oxyUserId)} = ${oxyUserId}
-      and ${qualified(postAuthorships.status)} = 'accepted'
-  )`;
+  // A note on the qualification argument the deleted body carried: it claimed
+  // the bare-column trap "does NOT reproduce at drizzle-orm 0.45.2". That is
+  // true for the three shapes it measured, but NOT for the shape the schema
+  // conventions actually warn about — a raw `sql` template whose subquery names
+  // its own `FROM`, where both identifiers render bare. `followedAuthorsSql`
+  // sidesteps the question entirely by building the subquery through drizzle's
+  // own `exists()`, which qualifies unconditionally; that is verified by
+  // rendering, not assumed.
+  return followedAuthorsSql([oxyUserId]);
 }
 
 /** Descending chronological keyset — the sort every post list in this app uses. */

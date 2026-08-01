@@ -56,7 +56,7 @@ const service = new FeedRankingService();
 /** A minimal lean-Post-like object sufficient for the scoring code paths. */
 function makePost(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
-    _id: 'post-1',
+    id: 'post-1',
     oxyUserId: 'author-1',
     createdAt: new Date(), // very recent → recency ~1.0
     type: 'text',
@@ -72,7 +72,7 @@ async function scoreWith(
   post: Record<string, unknown>,
   context: Parameters<FeedRankingService['calculatePostScore']>[2] = {},
 ): Promise<number> {
-  const engagementScoreCache = new Map<string, number>([[String(post._id), 1]]);
+  const engagementScoreCache = new Map<string, number>([[String(post.id), 1]]);
   return service.calculatePostScore(post, undefined, { ...context, engagementScoreCache });
 }
 
@@ -367,10 +367,10 @@ describe('FeedRankingService sensitive/NSFW hard exclusion (belt-and-suspenders)
     // Both posts carry identical real engagement so a positive base score exists;
     // the ONLY differentiator is the NSFW hashtag, which must zero the score.
     const stats = { likesCount: 10, boostsCount: 5, commentsCount: 3, viewsCount: 100 };
-    const clean = makePost({ _id: 'clean-1', oxyUserId: 'a', hashtags: ['tech'], stats: { ...stats } });
-    const nsfw = makePost({ _id: 'nsfw-1', oxyUserId: 'b', hashtags: ['NSFW'], stats: { ...stats } });
+    const clean = makePost({ id: 'clean-1', oxyUserId: 'a', hashtags: ['tech'], stats: { ...stats } });
+    const nsfw = makePost({ id: 'nsfw-1', oxyUserId: 'b', hashtags: ['NSFW'], stats: { ...stats } });
     const ranked = await service.rankPosts([clean, nsfw], undefined, {});
-    const byId = new Map(ranked.map((p: Record<string, unknown>) => [String(p._id), p.finalScore as number]));
+    const byId = new Map(ranked.map((p: Record<string, unknown>) => [String(p.id), p.finalScore as number]));
     expect(byId.get('nsfw-1')).toBe(0);
     expect(byId.get('clean-1') ?? 0).toBeGreaterThan(0);
   });
@@ -412,10 +412,10 @@ describe('FeedRankingService sensitive/NSFW exclusion is VIEWER-CONDITIONAL (sho
     // userId would lazy-load following/behavior from the server singleton); the
     // sensitive zeroing depends on showSensitiveContent, not on userId.
     const stats = { likesCount: 10, boostsCount: 5, commentsCount: 3, viewsCount: 100 };
-    const clean = makePost({ _id: 'clean-1', oxyUserId: 'a', hashtags: ['tech'], stats: { ...stats } });
-    const nsfw = makePost({ _id: 'nsfw-1', oxyUserId: 'b', hashtags: ['NSFW'], stats: { ...stats } });
+    const clean = makePost({ id: 'clean-1', oxyUserId: 'a', hashtags: ['tech'], stats: { ...stats } });
+    const nsfw = makePost({ id: 'nsfw-1', oxyUserId: 'b', hashtags: ['NSFW'], stats: { ...stats } });
     const ranked = await service.rankPosts([clean, nsfw], undefined, { showSensitiveContent: true });
-    const byId = new Map(ranked.map((p: Record<string, unknown>) => [String(p._id), p.finalScore as number]));
+    const byId = new Map(ranked.map((p: Record<string, unknown>) => [String(p.id), p.finalScore as number]));
     expect(byId.get('nsfw-1') ?? 0).toBeGreaterThan(0);
     expect(byId.get('clean-1') ?? 0).toBeGreaterThan(0);
   });
@@ -517,7 +517,7 @@ describe('FeedRankingService canonical topics (postClassification.topicRefs → 
 
   /** Score a post AS the viewer with a userBehavior that has a preferred topic. */
   async function scoreAsViewer(post: Record<string, unknown>): Promise<number> {
-    const engagementScoreCache = new Map<string, number>([[String(post._id), 1]]);
+    const engagementScoreCache = new Map<string, number>([[String(post.id), 1]]);
     return service.calculatePostScore(post, VIEWER, {
       userBehavior: {
         // preferredTopics drives the personalization topic-match gate; the actual
@@ -619,7 +619,7 @@ describe('FeedRankingService language personalization (ANY-overlap on postClassi
         hiddenTopics: new Set<string>(),
         preferredTopicIds: new Set<string>(),
       },
-      engagementScoreCache: new Map<string, number>([[String(post._id), 1]]),
+      engagementScoreCache: new Map<string, number>([[String(post.id), 1]]),
     });
   }
 
@@ -677,11 +677,11 @@ describe('FeedRankingService federated-boost dampening (Phase 2)', () => {
     // boostWeight (2.5), so its engagement — and thus its final score — is lower.
     // No engagementScoreCache is passed, so real engagement math runs.
     const nativeBoosts = makePost({
-      _id: 'native-boosts',
+      id: 'native-boosts',
       stats: { likesCount: 0, boostsCount: 5, federatedBoostsCount: 0, commentsCount: 0, viewsCount: 0 },
     });
     const federatedBoosts = makePost({
-      _id: 'federated-boosts',
+      id: 'federated-boosts',
       stats: { likesCount: 0, boostsCount: 5, federatedBoostsCount: 5, commentsCount: 0, viewsCount: 0 },
     });
 
@@ -696,11 +696,11 @@ describe('FeedRankingService federated-boost dampening (Phase 2)', () => {
     // A post with boostsCount but federatedBoostsCount omitted (the pre-backfill
     // state) scores identically to one with federatedBoostsCount explicitly 0.
     const absent = makePost({
-      _id: 'fed-absent',
+      id: 'fed-absent',
       stats: { likesCount: 1, boostsCount: 4, commentsCount: 0, viewsCount: 0 },
     });
     const explicitZero = makePost({
-      _id: 'fed-zero',
+      id: 'fed-zero',
       stats: { likesCount: 1, boostsCount: 4, federatedBoostsCount: 0, commentsCount: 0, viewsCount: 0 },
     });
 
@@ -726,14 +726,14 @@ describe('FeedRankingService recalibrated diversity penalties', () => {
     // Identical, non-zero engagement so the multiplicative base score is > 0 and
     // the ONLY difference between the two is the same-author diversity penalty.
     const stats = { likesCount: 10, boostsCount: 0, commentsCount: 0, viewsCount: 0 };
-    const first = makePost({ _id: 'a1', oxyUserId: 'author-A', createdAt: now, stats: { ...stats } });
-    const second = makePost({ _id: 'a2', oxyUserId: 'author-A', createdAt: now, stats: { ...stats } });
+    const first = makePost({ id: 'a1', oxyUserId: 'author-A', createdAt: now, stats: { ...stats } });
+    const second = makePost({ id: 'a2', oxyUserId: 'author-A', createdAt: now, stats: { ...stats } });
 
     const ranked = await service.rankPosts([first, second], undefined, {
       authorFollowerCounts: new Map(),
     });
 
-    const byId = new Map(ranked.map((p: Record<string, unknown>) => [String(p._id), p]));
+    const byId = new Map(ranked.map((p: Record<string, unknown>) => [String(p.id), p]));
     const firstScore = byId.get('a1')?.finalScore as number;
     const secondScore = byId.get('a2')?.finalScore as number;
 

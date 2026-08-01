@@ -18,9 +18,12 @@
  */
 
 import type { HydratedPost } from '@mention/shared-types';
-import { FeedAPI, FeedAPIResponse, FeedFetchOptions, FeedContext, FEED_FIELDS } from '../FeedAPI';
-import { FeedGenerator } from '../../../models/FeedGenerator';
-import { Post } from '../../../models/Post';
+import { and, eq, inArray, isNotNull } from 'drizzle-orm';
+import { FeedAPI, FeedAPIResponse, FeedFetchOptions, FeedContext } from '../FeedAPI';
+import { getDb } from '../../../db/postgres';
+import { feedGenerators, posts } from '../../../db/schema';
+import { assemblePostRecords } from '../../../db/posts/postRepository';
+import type { PostRecord } from '../../../db/posts/postRecord';
 import { getFeed, importPostViews, type AtprotoPostView } from '../../../connectors/atproto/post.mapper';
 import { postHydrationService } from '../../../services/PostHydrationService';
 import { logger } from '../../../utils/logger';
@@ -37,7 +40,7 @@ const EMPTY_RESPONSE: FeedAPIResponse = {
 };
 
 /** A lean `Post` document ordered by the remote generator's ranking. */
-type OrderedPostDoc = { federation?: { activityId?: string } } & Record<string, unknown>;
+type OrderedPostDoc = PostRecord;
 
 export class FeedGeneratorFeed implements FeedAPI {
   readonly descriptor;
@@ -113,10 +116,12 @@ export class FeedGeneratorFeed implements FeedAPI {
    * rather than an error (a stale `feedgen|<uri>` link can never break the engine).
    */
   private async isAtprotoBacked(): Promise<boolean> {
-    const generator = await FeedGenerator.findOne({ uri: this.generatorUri })
-      .select('source.network')
-      .lean<{ source?: { network?: string } } | null>();
-    if (generator?.source?.network === 'atproto') return true;
+    const [generator] = await getDb()
+      .select({ sourceNetwork: feedGenerators.sourceNetwork })
+      .from(feedGenerators)
+      .where(eq(feedGenerators.uri, this.generatorUri))
+      .limit(1);
+    if (generator?.sourceNetwork === 'atproto') return true;
     logger.info('[FeedGeneratorFeed] no atproto-backed generator for descriptor', { uri: this.generatorUri });
     return false;
   }
@@ -130,9 +135,14 @@ export class FeedGeneratorFeed implements FeedAPI {
     const uris = await importPostViews(postViews);
     if (uris.length === 0) return [];
 
-    const docs = await Post.find({ 'federation.activityId': { $in: uris } })
-      .select(FEED_FIELDS)
-      .lean<OrderedPostDoc[]>();
+    const db = getDb();
+    const rows = await db
+      .select()
+      .from(posts)
+      .where(
+        and(isNotNull(posts.federationActivityId), inArray(posts.federationActivityId, uris)),
+      );
+    const docs = await assemblePostRecords(rows, db);
 
     const byUri = new Map<string, OrderedPostDoc>();
     for (const doc of docs) {

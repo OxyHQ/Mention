@@ -11,15 +11,14 @@
  */
 
 import { PostVisibility, MtnConfig } from '@mention/shared-types';
-import { and, arrayOverlaps, desc, eq, gte, isNotNull, ne, or, sql, type SQL } from 'drizzle-orm';
+import { and, arrayOverlaps, eq, gte, inArray, isNotNull, ne, or, sql, type SQL } from 'drizzle-orm';
 import { getDb } from '../../../../db/postgres';
 import { authorFollowerSnapshots, posts } from '../../../../db/schema';
-import { candidatePostColumns, loadCandidatePosts } from '../../../../db/feed/candidatePost';
+import { assemblePostRecords } from '../../../../db/posts/postRepository';
 import { chronoCursorSql, chronoOrderBy } from '../../CursorBuilder';
 import { discoverySafeSql } from '../../feedSafety';
 import { logger } from '../../../../utils/logger';
 import { notABoostSql } from '../../../../utils/feedQueryBuilder';
-import { notAReplySql } from '../../../../utils/postReply';
 import type { CandidatePost, FeedEngineContext, SourceModule } from '../types';
 
 /**
@@ -197,12 +196,12 @@ export const moreLikeThisSource: SourceModule = {
     const poolSize = Math.min(cap * MORE_LIKE_THIS_POOL_MULTIPLIER, MORE_LIKE_THIS_MAX_POOL);
     const db = getDb();
     const rows = await db
-      .select(candidatePostColumns)
+      .select()
       .from(posts)
       .where(and(...conditions))
       .orderBy(...chronoOrderBy())
       .limit(poolSize);
-    const candidates = await loadCandidatePosts(db, rows);
+    const candidates: CandidatePost[] = await assemblePostRecords(rows, db);
 
     const topicSet = new Set(seed.topics);
     const tagSet = new Set(seed.hashtags);
@@ -291,7 +290,7 @@ export const nearbySource: SourceModule = {
       const point = sql`ST_MakePoint(${lng}, ${lat})::geography`;
 
       const rows = await db
-        .select(candidatePostColumns)
+        .select()
         .from(posts)
         .where(
           and(
@@ -304,7 +303,7 @@ export const nearbySource: SourceModule = {
         )
         .orderBy(sql`${posts.geo} <-> ${point}`)
         .limit(cap);
-      return loadCandidatePosts(db, rows);
+      return assemblePostRecords(rows, db);
     }
 
     const region =
@@ -321,12 +320,12 @@ export const nearbySource: SourceModule = {
     if (keyset) conditions.push(keyset);
 
     const rows = await db
-      .select(candidatePostColumns)
+      .select()
       .from(posts)
       .where(and(...conditions))
       .orderBy(...chronoOrderBy())
       .limit(cap);
-    return loadCandidatePosts(db, rows);
+    return assemblePostRecords(rows, db);
   },
 };
 
@@ -410,23 +409,28 @@ export const risingCreatorsSource: SourceModule = {
 
     const poolSize = Math.min(cap * RISING_CREATORS_POST_MULTIPLIER, MORE_LIKE_THIS_MAX_POOL);
     const rows = await db
-      .select(candidatePostColumns)
+      .select()
       .from(posts)
       .where(
         and(
           isNotNull(posts.oxyUserId),
-          sql`${posts.oxyUserId} = any(${authorIds})`,
+          // `inArray`, never `= any(${authorIds})`: a raw JS array interpolated
+          // into `sql` binds as a ROW CONSTRUCTOR (`($1, $2)`), and Postgres
+          // rejects it with `op ANY/ALL (array) requires array on right side`.
+          // This one shipped here and was caught by `feedPredicates.test.ts`
+          // hitting the identical mistake in its own fixture helper.
+          inArray(posts.oxyUserId, authorIds),
           eq(posts.visibility, PostVisibility.PUBLIC),
           eq(posts.status, 'published'),
           gte(posts.createdAt, windowStart),
           discoverySafeSql(),
-          notAReplySql(),
+          eq(posts.isReply, false),
           notABoostSql(),
         ),
       )
       .orderBy(...chronoOrderBy())
       .limit(poolSize);
-    const candidates = await loadCandidatePosts(db, rows);
+    const candidates: CandidatePost[] = await assemblePostRecords(rows, db);
 
     return candidates
       .map((post) => {

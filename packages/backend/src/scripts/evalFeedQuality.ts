@@ -32,7 +32,8 @@
  *   bun packages/backend/dist/src/scripts/evalFeedQuality.js --languages en,es --sample 300
  */
 
-import type { FeedInteractionEventName, PostClassification, PostContent } from '@mention/shared-types';
+import type { FeedInteractionEventName, PostContent } from '@mention/shared-types';
+import type { PostRecordClassification } from '../db/posts/postRecord';
 import { resolveVariant } from '../services/postVariants';
 import type { FeedTuning } from '@mention/shared-types';
 import { getBaseLanguage } from '@oxyhq/core';
@@ -161,7 +162,7 @@ export interface EvalReport {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function field<T = unknown>(post: CandidatePost, key: string): T | undefined {
-  return (post as Record<string, unknown>)[key] as T | undefined;
+  return (post as unknown as Record<string, unknown>)[key] as T | undefined;
 }
 
 function readString(value: unknown): string | undefined {
@@ -226,8 +227,8 @@ export function withClassification(
   post: CandidatePost,
   signals: ReturnType<BaselineContentClassifier['classify']>,
 ): CandidatePost {
-  const existing = post.postClassification ?? {};
-  const classification: Partial<PostClassification> & { topics?: string[] } = {
+  const existing = post.postClassification;
+  const classification: PostRecordClassification = {
     ...existing,
     status: 'baseline',
     version: signals.version,
@@ -319,7 +320,7 @@ export async function runFeedQualityEval(deps: FeedQualityEvalDeps): Promise<Eva
 
     const trusted = readTrustedScores(evaluated);
     rows.push({
-      id: String(candidate.post._id),
+      id: String(candidate.post.id),
       source: candidate.source,
       label: candidate.label,
       acct: candidate.acct,
@@ -495,7 +496,7 @@ export function assembleCandidates(
   const byId = new Map<string, EvalCandidate>();
 
   for (const labeled of labeledPosts) {
-    const id = String(labeled.post._id);
+    const id = String(labeled.post.id);
     if (!id) continue;
     byId.set(id, {
       post: labeled.post,
@@ -508,7 +509,7 @@ export function assembleCandidates(
   }
 
   const addUnlabeled = (post: CandidatePost, source: EvalCandidateSource): void => {
-    const id = String(post._id);
+    const id = String(post.id);
     if (!id || byId.has(id)) return; // labeled (or an earlier source) wins
     const actorUri = federationActorUri(post);
     byId.set(id, { post, source, actor: actorUri ? actorByUri.get(actorUri) : undefined });

@@ -8,15 +8,26 @@
  */
 
 import { MtnConfig } from '@mention/shared-types';
-import { and, desc, eq, gte, lte, notInArray, sql, type SQL } from 'drizzle-orm';
+import {
+  and,
+  arrayOverlaps,
+  desc,
+  eq,
+  getTableColumns,
+  gte,
+  lt,
+  lte,
+  notInArray,
+  sql,
+  type SQL,
+} from 'drizzle-orm';
 import { getDb } from '../../../../db/postgres';
 import { posts } from '../../../../db/schema';
-import { candidatePostColumns, loadCandidatePosts } from '../../../../db/feed/candidatePost';
-import { FeedQueryBuilder, authorNotInSql, notABoostSql } from '../../../../utils/feedQueryBuilder';
+import { assemblePostRecords } from '../../../../db/posts/postRepository';
+import { FeedQueryBuilder, authorNotInSql, notABoostSql, rankingWeight } from '../../../../utils/feedQueryBuilder';
 import { fetchWithRecencyFallback } from '../../../../utils/feedUtils';
 import { ScoreCursor, chronoOrderBy, type ScoreCursorData } from '../../CursorBuilder';
 import { discoverySafeSql, filterDiscoverable } from '../../feedSafety';
-import { notAReplySql } from '../../../../utils/postReply';
 import type { CandidatePost, FeedEngineContext, SourceModule } from '../types';
 
 /**
@@ -67,10 +78,10 @@ import type { CandidatePost, FeedEngineContext, SourceModule } from '../types';
 export function engagementScoreSql(): SQL<number> {
   const cfg = MtnConfig.ranking.engagement;
   return sql<number>`(
-    ${posts.statsLikesCount} * ${cfg.likeWeight}
-    + greatest(0, ${posts.statsBoostsCount} - ${posts.statsFederatedBoostsCount}) * ${cfg.boostWeight}
-    + ${posts.statsFederatedBoostsCount} * ${cfg.federatedBoostWeight}
-    + ${posts.statsCommentsCount} * ${cfg.commentWeight}
+    ${posts.statsLikesCount} * ${rankingWeight(cfg.likeWeight)}
+    + greatest(0, ${posts.statsBoostsCount} - ${posts.statsFederatedBoostsCount}) * ${rankingWeight(cfg.boostWeight)}
+    + ${posts.statsFederatedBoostsCount} * ${rankingWeight(cfg.federatedBoostWeight)}
+    + ${posts.statsCommentsCount} * ${rankingWeight(cfg.commentWeight)}
   )::double precision`;
 }
 
@@ -103,12 +114,12 @@ async function selectCandidates(
 ): Promise<CandidatePost[]> {
   const db = getDb();
   const rows = await db
-    .select(candidatePostColumns)
+    .select()
     .from(posts)
     .where(where)
     .orderBy(...orderBy)
     .limit(limit);
-  return loadCandidatePosts(db, rows);
+  return assemblePostRecords(rows, db);
 }
 
 /** `videos`: ranked candidate query for video posts (wraps `buildVideosQuery`). */
@@ -183,29 +194,40 @@ function resolveExploreRelevance(ctx: FeedEngineContext): SQL {
 
   const factors: SQL[] = [];
 
-  // `&&` is array OVERLAP, the direct analogue of Mongo's
-  // `$setIntersection(...) > 0`. `coalesce(…, false)` is required because both
-  // classification arrays are NULLABLE and `NULL && ARRAY[…]` is NULL: without
-  // it the CASE falls to its ELSE for every unclassified post, which happens to
-  // be the same neutral `1` — but it would silently become a row-dropping bug
-  // the moment this expression is reused in a WHERE rather than a CASE.
+  // `arrayOverlaps` is array OVERLAP (`&&`), the direct analogue of Mongo's
+  // `$setIntersection(...) > 0`. It goes through drizzle's OPERATOR rather than a
+  // hand-written `${topics}::text[]`, because a bare JS array interpolated into a
+  // `sql` template is bound as one untyped parameter and postgres.js stringifies
+  // it to `tech,news` — which Postgres rejects with `malformed array literal`.
+  // The operator maps the value through the COLUMN, which knows to emit
+  // `{"tech","news"}`.
+  //
+  // `coalesce(…, false)` is required because both classification arrays are
+  // NULLABLE and `NULL && ARRAY[…]` is NULL: without it the CASE falls to its
+  // ELSE for every unclassified post, which happens to be the same neutral `1` —
+  // but it would silently become a row-dropping bug the moment this expression is
+  // reused in a WHERE rather than a CASE.
+  //
+  // Every multiplier goes through `rankingWeight` for the reason given there: a
+  // bare `${1.25}` next to the integer literal `1` in the same CASE is resolved
+  // as `integer` and Postgres rejects the value at execution time.
   if (topics.length > 0) {
-    factors.push(sql`(case when coalesce(${posts.classificationTopics} && ${topics}::text[], false)
-      then ${cfg.topicMatch} else 1 end)`);
+    factors.push(sql`(case when coalesce(${arrayOverlaps(posts.classificationTopics, topics)}, false)
+      then ${rankingWeight(cfg.topicMatch)} else 1 end)`);
   }
 
   if (languages.length > 0) {
-    factors.push(sql`(case when coalesce(${posts.classificationLanguages} && ${languages}::text[], false)
-      then ${cfg.languageMatch} else 1 end)`);
+    factors.push(sql`(case when coalesce(${arrayOverlaps(posts.classificationLanguages, languages)}, false)
+      then ${rankingWeight(cfg.languageMatch)} else 1 end)`);
   }
 
   if (region) {
     factors.push(sql`(case when ${posts.classificationRegion} = ${region}
-      then ${cfg.regionMatch} else 1 end)`);
+      then ${rankingWeight(cfg.regionMatch)} else 1 end)`);
   }
 
   const product = sql.join(factors, sql` * `);
-  return sql`least(${cfg.maxBoost}, (${product}))::double precision`;
+  return sql`least(${rankingWeight(cfg.maxBoost)}, (${product}))::double precision`;
 }
 
 /**
@@ -217,10 +239,18 @@ function resolveExploreRelevance(ctx: FeedEngineContext): SQL {
  * expression by hand invites the copies to drift, and wrapping every query in a
  * derived table to expose the alias buries the predicate a reader needs to see.
  * Reusing one JS value makes drift unrepresentable.
+ *
+ * `now.toISOString()` rather than `now`, and the trailing cast does NOT make the
+ * raw form safe: a JS `Date` interpolated into a `sql` template reaches
+ * postgres.js as an unmapped value and throws
+ * `TypeError: The "string" argument must be of type string … Received an
+ * instance of Date` before a byte is sent. Drizzle's own comparison operators
+ * (`lt`, `gte`, …) map a Date through the COLUMN and are unaffected — it is only
+ * a hand-written template that has to spell the conversion out.
  */
 function exploreFinalScoreSql(now: Date, relevance: SQL): SQL<number> {
   const halfLifeHours = MtnConfig.ranking.recency.halfLifeMs / (1000 * 60 * 60);
-  const ageHours = sql`(extract(epoch from (${now}::timestamptz - ${posts.createdAt})) / 3600.0)`;
+  const ageHours = sql`(extract(epoch from (${now.toISOString()}::timestamptz - ${posts.createdAt})) / 3600.0)`;
   const recencyDecay = sql`power(0.5, ${ageHours} / ${halfLifeHours})`;
   const engagementBase = sql`(1 + ln(1 + ${engagementScoreSql()}))`;
   return sql<number>`(${engagementBase} * ${recencyDecay} * ${relevance})::double precision`;
@@ -257,7 +287,7 @@ export const exploreSource: SourceModule = {
       gte(posts.createdAt, trendingCutoff),
       lte(posts.createdAt, rankingCeiling),
       discoverySafeSql(),
-      notAReplySql(),
+      eq(posts.isReply, false),
       notABoostSql(),
     ];
 
@@ -285,13 +315,13 @@ export const exploreSource: SourceModule = {
 
     const db = getDb();
     const rows = await db
-      .select({ ...candidatePostColumns, finalScore })
+      .select({ ...getTableColumns(posts), finalScore })
       .from(posts)
       .where(and(...conditions))
       .orderBy(desc(finalScore), desc(posts.id))
       .limit(cap + 1);
 
-    const candidates = await loadCandidatePosts(db, rows);
+    const candidates: CandidatePost[] = await assemblePostRecords(rows, db);
     return candidates.map((candidate, index) => {
       candidate.finalScore = rows[index].finalScore;
       return candidate;
@@ -371,13 +401,13 @@ function popularOrder(engagementScore: SQL<number>): SQL[] {
 async function runPopular(where: SQL, engagementScore: SQL<number>, cap: number): Promise<CandidatePost[]> {
   const db = getDb();
   const rows = await db
-    .select({ ...candidatePostColumns, engagementScore })
+    .select({ ...getTableColumns(posts), engagementScore })
     .from(posts)
     .where(where)
     .orderBy(...popularOrder(engagementScore))
     .limit(cap);
 
-  const candidates = await loadCandidatePosts(db, rows);
+  const candidates: CandidatePost[] = await assemblePostRecords(rows, db);
   return candidates.map((candidate, index) => {
     candidate.engagementScore = rows[index].engagementScore;
     return candidate;
@@ -402,6 +432,15 @@ async function runPopular(where: SQL, engagementScore: SQL<number>, cap: number)
  * that single page instead of filtering on an axis it is not sorted by —
  * precisely the defect this replaces: an id filter under an engagement sort both
  * repeats high-engagement posts and permanently skips newer, less-engaged ones.
+ *
+ * The two `created_at` comparisons go through drizzle's OPERATORS rather than
+ * being written into the template as `${boundaryAt}`. A JS `Date` interpolated
+ * into a `sql` template reaches postgres.js unmapped and throws
+ * `TypeError: The "string" argument must be of type string … Received an
+ * instance of Date` — client-side, before anything is sent, so no cast can save
+ * it. `lt`/`eq` map the Date through the column that knows its type. This is a
+ * page-TWO-only path, which is why a shape assertion never saw it: page one
+ * builds no keyset at all.
  */
 function popularKeysetSql(engagementScore: SQL<number>, parsed?: ScoreCursorData): SQL | undefined {
   if (!parsed || !parsed.fromPopularFallback) return undefined;
@@ -411,8 +450,12 @@ function popularKeysetSql(engagementScore: SQL<number>, parsed?: ScoreCursorData
   const boundaryAt = new Date(parsed.tiebreakAt);
   return sql`(
     ${engagementScore} < ${parsed.score}
-    or (${engagementScore} = ${parsed.score} and ${posts.createdAt} < ${boundaryAt})
-    or (${engagementScore} = ${parsed.score} and ${posts.createdAt} = ${boundaryAt} and ${posts.id} < ${parsed.id})
+    or (${engagementScore} = ${parsed.score} and ${lt(posts.createdAt, boundaryAt)})
+    or (
+      ${engagementScore} = ${parsed.score}
+      and ${eq(posts.createdAt, boundaryAt)}
+      and ${lt(posts.id, parsed.id)}
+    )
   )`;
 }
 

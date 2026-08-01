@@ -4,7 +4,7 @@
  */
 
 import { isAuthorFeedFilter, PostType, PostVisibility } from '@mention/shared-types';
-import { and, desc, eq, inArray, lt, or, sql, type SQL } from 'drizzle-orm';
+import { and, arrayOverlaps, desc, eq, inArray, lt, or, sql, type SQL } from 'drizzle-orm';
 import { getDb } from '../../../../db/postgres';
 import {
   bookmarks,
@@ -16,12 +16,11 @@ import {
   userSettings,
 } from '../../../../db/schema';
 import type { PgColumn } from 'drizzle-orm/pg-core';
-import { candidatePostColumns, loadCandidatePosts } from '../../../../db/feed/candidatePost';
+import { assemblePostRecords } from '../../../../db/posts/postRepository';
 import { ProfileVisibility, requiresAccessCheck } from '../../../../utils/privacyHelpers';
 import { authorFeedSql } from '../../../../utils/postAuthorship';
 import { ChronoCursor, chronoCursorSql, chronoOrderBy } from '../../CursorBuilder';
 import { notABoostSql } from '../../../../utils/feedQueryBuilder';
-import { isReplySql, notAReplySql } from '../../../../utils/postReply';
 import type { AuthorFeedFilter } from '@mention/shared-types';
 import type { CandidatePost, FeedEngineContext, SourceModule } from '../types';
 
@@ -36,12 +35,12 @@ async function fetchChrono(
 
   const db = getDb();
   const rows = await db
-    .select(candidatePostColumns)
+    .select()
     .from(posts)
     .where(and(...where))
     .orderBy(...chronoOrderBy())
     .limit(cap);
-  return loadCandidatePosts(db, rows);
+  return assemblePostRecords(rows, db);
 }
 
 /** Escape a literal for embedding in a POSIX regular expression. */
@@ -81,13 +80,18 @@ export const keywordsSource: SourceModule = {
             ),
           )}`,
       );
+      // `arrayOverlaps`, never a raw `${array}::text[]`: a JS array interpolated
+      // into a `sql` template binds as a ROW CONSTRUCTOR (`($1, $2)`), which
+      // Postgres refuses to cast to `text[]` — so the whole query THROWS at
+      // runtime rather than matching nothing. `coalesce(…, false)` stays because
+      // `hashtags` is nullable and `NULL && ARRAY[…]` is NULL.
       alternatives.push(
-        sql`coalesce(${posts.hashtags} && ${keywords.map((k) => k.toLowerCase())}::text[], false)`,
+        sql`coalesce(${arrayOverlaps(posts.hashtags, keywords.map((k) => k.toLowerCase()))}, false)`,
       );
     }
 
     if (hashtags.length > 0) {
-      alternatives.push(sql`coalesce(${posts.hashtags} && ${hashtags}::text[], false)`);
+      alternatives.push(sql`coalesce(${arrayOverlaps(posts.hashtags, hashtags)}, false)`);
     }
 
     conditions.push(or(...alternatives) as SQL);
@@ -142,16 +146,16 @@ function buildAuthoredConditions(authorId: string, filter: AuthorFeedFilter): SQ
     case 'posts':
       // Boosts are top-level posts, so they surface on the main tab too — the
       // definition hydrates at depth 1 so the boosted original renders.
-      conditions.push(notAReplySql());
+      conditions.push(eq(posts.isReply, false));
       break;
     case 'replies':
-      conditions.push(isReplySql());
+      conditions.push(eq(posts.isReply, true));
       break;
     case 'boosts':
       conditions.push(sql`${posts.boostOf} is not null`);
       break;
     case 'media':
-      conditions.push(hasMediaSql(), notAReplySql(), notABoostSql());
+      conditions.push(hasMediaSql(), eq(posts.isReply, false), notABoostSql());
       break;
     case 'likes':
       break;
@@ -250,7 +254,7 @@ async function gatherAuthorLikes(authorId: string, ctx: FeedEngineContext): Prom
   const likedPostIds = page.map((row) => row.postId);
 
   const rows = await db
-    .select(candidatePostColumns)
+    .select()
     .from(posts)
     .where(
       and(
@@ -259,9 +263,9 @@ async function gatherAuthorLikes(authorId: string, ctx: FeedEngineContext): Prom
         buildVisibleLikedPostSql(ctx),
       ),
     );
-  const loaded = await loadCandidatePosts(db, rows);
+  const loaded: CandidatePost[] = await assemblePostRecords(rows, db);
 
-  const postMap = new Map(loaded.map((post) => [String(post._id), post]));
+  const postMap = new Map(loaded.map((post) => [post.id, post]));
   const ordered = likedPostIds
     .map((id) => postMap.get(id))
     .filter((post): post is CandidatePost => Boolean(post));
@@ -327,12 +331,12 @@ export const savedSource: SourceModule = {
     const postIds = page.map((row) => row.postId);
 
     const rows = await db
-      .select(candidatePostColumns)
+      .select()
       .from(posts)
       .where(and(inArray(posts.id, postIds), eq(posts.status, 'published')));
-    const loaded = await loadCandidatePosts(db, rows);
+    const loaded: CandidatePost[] = await assemblePostRecords(rows, db);
 
-    const postMap = new Map(loaded.map((post) => [String(post._id), post]));
+    const postMap = new Map(loaded.map((post) => [post.id, post]));
     const ordered = postIds
       .map((id) => postMap.get(id))
       .filter((post): post is CandidatePost => Boolean(post));

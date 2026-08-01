@@ -45,13 +45,12 @@ import { MtnConfig, PostVisibility } from '@mention/shared-types';
 import { and, arrayOverlaps, desc, eq, gte, type SQL } from 'drizzle-orm';
 import { getDb } from '../../../db/postgres';
 import { posts } from '../../../db/schema';
-import { candidatePostColumns, loadCandidatePosts } from '../../../db/feed/candidatePost';
+import { assemblePostRecords } from '../../../db/posts/postRepository';
 import { ContentAffinityService } from '../../../services/ContentAffinityService';
 import { sensitiveExcludeSql, isSensitivePost } from '../feedSafety';
 import { logger } from '../../../utils/logger';
 import { followedAuthorsSql } from '../../../utils/postAuthorship';
 import { excludeSeenSql, notABoostSql } from '../../../utils/feedQueryBuilder';
-import { notAReplySql } from '../../../utils/postReply';
 import { engagementScoreSql } from '../engine/sources/discoverySources';
 import type { CandidatePost as EngineCandidatePost } from '../engine/types';
 import type { OxyClient } from '../../../utils/privacyHelpers';
@@ -130,7 +129,7 @@ async function runSource(
   try {
     const db = getDb();
     const rows = await db
-      .select(candidatePostColumns)
+      .select()
       .from(posts)
       .where(and(...conditions))
       // `created_at` leads; the id is the uniqueness tiebreak that makes the
@@ -138,7 +137,7 @@ async function runSource(
       // `chronoOrderBy` in `CursorBuilder.ts`.
       .orderBy(desc(posts.createdAt), desc(posts.id))
       .limit(cap);
-    return loadCandidatePosts(db, rows);
+    return assemblePostRecords(rows, db);
   } catch (error) {
     logger.warn(`[ForYouCandidates] source "${label}" failed; skipping`, error);
     return [];
@@ -335,15 +334,15 @@ export async function gatherTrendingLane(params: GatherForYouCandidatesParams): 
     const engagementScore = engagementScoreSql();
     const conditions = withDiscoverySafety([
       ...buildBaseConditions(params.seenPostIds, recencyStart()),
-      notAReplySql(),
+      eq(posts.isReply, false),
     ]);
     const rows = await db
-      .select(candidatePostColumns)
+      .select()
       .from(posts)
       .where(and(...conditions))
       .orderBy(desc(engagementScore), desc(posts.createdAt), desc(posts.id))
       .limit(cfg.perSource.trending);
-    return loadCandidatePosts(db, rows);
+    return assemblePostRecords(rows, db);
   } catch (error) {
     logger.warn('[ForYouCandidates] source "trending" failed; skipping', error);
     return [];
@@ -407,7 +406,7 @@ export async function gatherForYouCandidates(
   for (const posts_ of sources) {
     for (const post of posts_) {
       if (merged.size >= cfg.maxPool) break;
-      const id = post?._id?.toString();
+      const id = post?.id;
       if (!id || merged.has(id)) continue;
       // SFW guard: drop sensitive/NSFW from ALL sources.
       if (isSensitivePost(post)) continue;

@@ -94,6 +94,32 @@ export function authorNotInSql(ids: readonly string[]): SQL | undefined {
   return or(isNull(posts.oxyUserId), notInArray(posts.oxyUserId, [...ids])) as SQL;
 }
 
+/**
+ * Render a ranking weight as a SQL `double precision` LITERAL.
+ *
+ * Not a bound parameter, and this is not a style choice. Drizzle infers a bound
+ * parameter's type from the expression it sits next to, so
+ * `${posts.statsBoostsCount} * ${2.5}` declares `$n` as `int4` — from the
+ * COLUMN — and Postgres then rejects the value with
+ * `invalid input syntax for type integer: "2.5"`. Every ranking weight is
+ * fractional, so the whole composite fails at RUNTIME while compiling and
+ * type-checking perfectly.
+ *
+ * The cast has to be on the LITERAL rather than on the surrounding expression:
+ * a parameter's type is fixed at Parse time, before any outer `::double
+ * precision` is reached.
+ *
+ * `sql.raw` is safe here and only here because the input is a number from a
+ * compile-time config object, never user input — and the guard makes that a
+ * checked property rather than an assumption.
+ */
+export function rankingWeight(value: number): SQL {
+  if (!Number.isFinite(value)) {
+    throw new Error(`Ranking weight must be a finite number, received ${String(value)}`);
+  }
+  return sql.raw(`${value}::double precision`);
+}
+
 export class FeedQueryBuilder {
   /**
    * Content predicate for the Videos (Reels) feed.

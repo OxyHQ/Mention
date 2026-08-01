@@ -1,96 +1,324 @@
-import { describe, it, expect } from 'vitest';
-import { MtnConfig, PostVisibility } from '@mention/shared-types';
-import { FeedQueryBuilder } from '../utils/feedQueryBuilder';
+/**
+ * The Videos feed's METADATA OPTIONS — orientation and minimum duration —
+ * against a real database, plus the portrait-first ordering the Reels surface
+ * depends on.
+ *
+ * ## Why the old shape had to go
+ *
+ * This suite used to assert the `$elemMatch` sub-object `buildVideosQuery`
+ * produced (`elemMatch.orientation === 'portrait'`, `$or` containing
+ * `{durationSec: {$gte: 20}}`). There is no query object any more, and even when
+ * there was, the shape could not answer the only question that matters: does a
+ * landscape clip appear in a portrait feed?
+ *
+ * The portrait-first ORDERING case was worse. It defined its own comparator
+ * inside the test and then sorted three literals with it — a closed loop that
+ * would stay green if `FeedEngine` stopped preferring portrait entirely. It is
+ * replaced by a run of the real engine over the real `videos` source, with
+ * ranking pinned to a TIE so the portrait preference is the only thing that can
+ * decide the order.
+ *
+ * ## Division of labour with its two sibling files
+ *
+ * - `videosFeed.test.ts` pins the BASE predicate (public / published / not a
+ *   boost / a video row with real dimensions).
+ * - `videosQueryUnknownMetadata.test.ts` pins the "unknown is not a value" rule
+ *   that governs an ABSENT duration or orientation.
+ * - This file pins what the OPTIONS do when the metadata IS present, and the
+ *   ordering that follows.
+ */
 
-describe('FeedQueryBuilder.buildVideosQuery metadata filters', () => {
-  // Duration APPLIES WHEN KNOWN and abstains when absent; dimensions stay required.
-  // Measured in production 2026-07-30: `durationSec` is present on 5.9% of the 9,465
-  // posts carrying a video item, and on 0% of the last day's arrivals — the whole
-  // video corpus is federated and Mastodon does not advertise duration. Requiring the
-  // field did not enforce a 20-second policy, it discarded 94% of the corpus and
-  // enforced the policy on the remainder (shipped pool: 147 posts).
-  it('requires dimensions, and applies the duration minimum only where duration is known', () => {
-    const query = FeedQueryBuilder.buildVideosQuery([]);
-    const and = query.$and as Array<Record<string, unknown>>;
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { and, eq, inArray } from 'drizzle-orm';
+import { MtnConfig, PostType, PostVisibility } from '@mention/shared-types';
+import type { MediaItem } from '@mention/shared-types';
 
-    const mediaClause = and.find((c) => typeof c['content.media'] === 'object');
-    expect(mediaClause).toBeDefined();
+// Collaborator substitutions, NOT query-shape mocks: ranking is pinned to a tie
+// so the portrait preference is measurable, slicing is one-slice-per-post so a
+// row maps to a row, and hydration would otherwise reach Oxy over the network.
+// Every id asserted below is a real row read back out of Postgres.
+const rankPosts = vi.fn(async (candidates: Array<Record<string, unknown>>) => {
+  for (const candidate of candidates) candidate.finalScore = 1;
+  return candidates;
+});
+vi.mock('../services/FeedRankingService', () => ({
+  feedRankingService: { rankPosts: (...args: unknown[]) => rankPosts(...(args as Parameters<typeof rankPosts>)) },
+}));
 
-    const elemMatch = (mediaClause?.['content.media'] as { $elemMatch: Record<string, unknown> }).$elemMatch;
-    expect(elemMatch).toEqual({
-      type: 'video',
-      $or: [
-        { durationSec: { $gte: MtnConfig.videosFeed.minDurationSec } },
-        { durationSec: { $exists: false } },
-      ],
-      orientation: MtnConfig.videosFeed.defaultOrientation,
-      width: { $gt: 0 },
-      height: { $gt: 0 },
-    });
+vi.mock('../services/ThreadSlicingService', () => ({
+  threadSlicingService: {
+    sliceFeed: vi.fn(async (candidates: Array<{ id: string }>) => ({
+      slices: candidates.map((post) => ({
+        _sliceKey: post.id,
+        items: [{ post, isThreadParent: false, isThreadChild: false, isThreadLastChild: false }],
+        isIncompleteThread: false,
+      })),
+      additionalPostIds: [],
+    })),
+  },
+}));
+
+vi.mock('../services/PostHydrationService', () => ({
+  postHydrationService: {
+    hydrateSlices: vi.fn(async (slices: unknown[]) => slices),
+    hydratePosts: vi.fn(async (records: unknown[]) => records),
+  },
+  resolveUserSummaries: vi.fn(async () => new Map()),
+}));
+
+import { closePostgres, connectPostgres, type Database } from '../db/postgres';
+import { posts } from '../db/schema/posts';
+import { CHRONO_DESC, findPostRecords, insertPostRecord } from '../db/posts/postRepository';
+import type { PostRecordInput } from '../db/posts/postRecord';
+import { FeedQueryBuilder, type VideosQueryOptions } from '../utils/feedQueryBuilder';
+import { videosSource } from '../mtn/feed/engine/sources/discoverySources';
+import { FeedEngine } from '../mtn/feed/engine/FeedEngine';
+import { FeedModuleRegistry } from '../mtn/feed/engine/FeedModuleRegistry';
+import type { FeedDefinition, FeedEngineContext } from '../mtn/feed/engine/types';
+
+let db: Database;
+
+/** Unique to this file: the suite runs in parallel against ONE database. */
+const AUTHOR = 'videos-metadata-author';
+/** A second author so `diversifyByAuthor` cannot be what decides the order. */
+const OTHER_AUTHOR = 'videos-metadata-author-2';
+
+function video(overrides: Partial<MediaItem> & { id: string }): MediaItem {
+  return { type: 'video', width: 1080, height: 1920, ...overrides };
+}
+
+async function create(
+  media: MediaItem[],
+  overrides: Partial<PostRecordInput> = {},
+): Promise<string> {
+  const input: PostRecordInput = {
+    oxyUserId: AUTHOR,
+    authorship: [{ oxyUserId: AUTHOR, role: 'owner', status: 'accepted' }],
+    type: PostType.VIDEO,
+    visibility: PostVisibility.PUBLIC,
+    status: 'published',
+    content: { variants: [{ source: 'author', text: 'clip' }], media },
+    ...overrides,
+  };
+  const record = await insertPostRecord(input);
+  return record.id;
+}
+
+/** Ids the predicate admits, scoped to this file's authors. */
+async function admitted(options: VideosQueryOptions): Promise<string[]> {
+  const records = await findPostRecords(
+    and(
+      FeedQueryBuilder.buildVideosQuery([], options),
+      inArray(posts.oxyUserId, [AUTHOR, OTHER_AUTHOR]),
+    ),
+    { orderBy: CHRONO_DESC },
+  );
+  return records.map((record) => record.id).sort();
+}
+
+beforeAll(async () => {
+  db = await connectPostgres();
+});
+
+afterEach(async () => {
+  vi.clearAllMocks();
+  await db.delete(posts).where(inArray(posts.oxyUserId, [AUTHOR, OTHER_AUTHOR]));
+});
+
+afterAll(async () => {
+  await closePostgres();
+});
+
+describe('the orientation option', () => {
+  /**
+   * Four posts, one per stored orientation plus one with none, inserted once per
+   * case so each assertion is an exact set over a KNOWN universe. A predicate
+   * that admits too much and a predicate that admits too little both fail.
+   */
+  async function orientationFixtures() {
+    return {
+      portrait: await create([video({ id: 'm-portrait', orientation: 'portrait', durationSec: 30 })]),
+      landscape: await create([
+        video({ id: 'm-landscape', width: 1920, height: 1080, orientation: 'landscape', durationSec: 30 }),
+      ]),
+      square: await create([
+        video({ id: 'm-square', width: 1080, height: 1080, orientation: 'square', durationSec: 30 }),
+      ]),
+      unset: await create([video({ id: 'm-unset', durationSec: 30 })]),
+    };
+  }
+
+  it('defaults to portrait — the Reels surface is portrait-first', async () => {
+    const { portrait } = await orientationFixtures();
+    expect(MtnConfig.videosFeed.defaultOrientation).toBe('portrait');
+    expect(await admitted({})).toEqual([portrait]);
   });
 
-  // `'all'` is the one setting whose NAME promises no filtering, so it must emit no
-  // clause. `{$exists: true}` was still a filter: it silently required orientation to
-  // have been persisted.
-  it('applies orientation=all by not filtering on orientation at all', () => {
-    const query = FeedQueryBuilder.buildVideosQuery([], { orientation: 'all' });
-    const and = query.$and as Array<Record<string, unknown>>;
-    const mediaClause = and.find((c) => typeof c['content.media'] === 'object');
-    const elemMatch = (mediaClause?.['content.media'] as { $elemMatch: Record<string, unknown> }).$elemMatch;
-    expect(elemMatch.orientation).toBeUndefined();
+  it.each(['portrait', 'landscape', 'square'] as const)(
+    'restricts to %s when asked for it explicitly',
+    async (orientation) => {
+      const fixtures = await orientationFixtures();
+      expect(await admitted({ orientation })).toEqual([fixtures[orientation]]);
+    },
+  );
+
+  it("applies NO orientation filter for 'all', including to a video that has none", async () => {
+    /**
+     * `'all'` is the one setting whose NAME promises there is no filter, so the
+     * post whose orientation was never persisted has to come back too. The
+     * regression this replaces emitted `{$exists: true}` for `'all'` — still a
+     * filter, and one that quietly required the column to be populated.
+     */
+    const { portrait, landscape, square, unset } = await orientationFixtures();
+    expect(await admitted({ orientation: 'all' })).toEqual(
+      [portrait, landscape, square, unset].sort(),
+    );
   });
 
-  it('applies orientation and minDuration overrides', () => {
-    const query = FeedQueryBuilder.buildVideosQuery([], {
-      orientation: 'portrait',
-      minDurationSec: 30,
-    });
-    const and = query.$and as Array<Record<string, unknown>>;
+  it("still requires real dimensions under 'all', which the player needs for layout", async () => {
+    const sized = await create([video({ id: 'm-sized', orientation: 'landscape', width: 1920, height: 1080 })]);
+    await create([{ id: 'm-no-width', type: 'video', height: 1080, orientation: 'landscape' }]);
+    await create([{ id: 'm-no-height', type: 'video', width: 1920, orientation: 'landscape' }]);
+    await create([{ id: 'm-no-dimensions', type: 'video', orientation: 'landscape' }]);
 
-    const mediaClause = and.find((c) => typeof c['content.media'] === 'object');
-    expect(mediaClause).toBeDefined();
-    const elemMatch = (mediaClause?.['content.media'] as { $elemMatch: Record<string, unknown> }).$elemMatch;
-    expect(elemMatch.orientation).toBe('portrait');
-    expect(elemMatch.$or).toContainEqual({ durationSec: { $gte: 30 } });
-  });
-
-  it('keeps public published non-boost base match', () => {
-    const query = FeedQueryBuilder.buildVideosQuery([]);
-    expect(query.visibility).toBe(PostVisibility.PUBLIC);
-    expect(query.status).toBe('published');
+    expect(await admitted({ orientation: 'all' })).toEqual([sized]);
   });
 });
 
-describe('videos portrait-first sort predicate', () => {
-  function hasPortraitVideo(post: { content?: { media?: Array<{ type?: string; orientation?: string }> } }): boolean {
-    const media = post.content?.media;
-    return Array.isArray(media)
-      && media.some((item) => item.type === 'video' && item.orientation === 'portrait');
-  }
+describe('the minimum-duration option', () => {
+  it('carries the configured minimum through rather than a hardcoded one', async () => {
+    const tenSeconds = await create([video({ id: 'm-10s', orientation: 'portrait', durationSec: 10 })]);
+    const thirtySeconds = await create([video({ id: 'm-30s', orientation: 'portrait', durationSec: 30 })]);
 
-  it('detects portrait from stored orientation field', () => {
-    expect(hasPortraitVideo({
-      content: { media: [{ type: 'video', orientation: 'portrait' }] },
-    })).toBe(true);
-    expect(hasPortraitVideo({
-      content: { media: [{ type: 'video', orientation: 'landscape' }] },
-    })).toBe(false);
+    expect(await admitted({ minDurationSec: 7 })).toEqual([tenSeconds, thirtySeconds].sort());
+    expect(await admitted({ minDurationSec: 20 })).toEqual([thirtySeconds]);
+    expect(await admitted({ minDurationSec: 40 })).toEqual([]);
   });
 
-  it('sorts portrait candidates before landscape at equal score', () => {
-    const posts = [
-      { id: 'a', finalScore: 10, content: { media: [{ type: 'video', orientation: 'landscape' }] } },
-      { id: 'b', finalScore: 10, content: { media: [{ type: 'video', orientation: 'portrait' }] } },
-      { id: 'c', finalScore: 5, content: { media: [{ type: 'video', orientation: 'landscape' }] } },
-    ];
+  it('treats the minimum as inclusive at the boundary', async () => {
+    const exactly = await create([
+      video({ id: 'm-exact', orientation: 'portrait', durationSec: MtnConfig.videosFeed.minDurationSec }),
+    ]);
+    const justUnder = await create([
+      video({
+        id: 'm-under',
+        orientation: 'portrait',
+        durationSec: MtnConfig.videosFeed.minDurationSec - 0.5,
+      }),
+    ]);
 
-    const sorted = [...posts].sort((a, b) => {
-      const aPortrait = hasPortraitVideo(a) ? 1 : 0;
-      const bPortrait = hasPortraitVideo(b) ? 1 : 0;
-      if (bPortrait !== aPortrait) return bPortrait - aPortrait;
-      return b.finalScore - a.finalScore;
+    const ids = await admitted({});
+    expect(ids).toEqual([exactly]);
+    expect(ids).not.toContain(justUnder);
+  });
+
+  it('keeps the public / published / non-boost base match under any override', async () => {
+    // The options widen the CONTENT predicate; they must never relax the base.
+    const visible = await create([video({ id: 'm-ok', durationSec: 30 })]);
+    await create([video({ id: 'm-private', durationSec: 30 })], { visibility: PostVisibility.PRIVATE });
+    await create([video({ id: 'm-draft', durationSec: 30 })], { status: 'draft' });
+    const original = await create([video({ id: 'm-original', durationSec: 30 })]);
+    await create([video({ id: 'm-boost', durationSec: 30 })], {
+      type: PostType.BOOST,
+      boostOf: original,
     });
 
-    expect(sorted.map((p) => p.id)).toEqual(['b', 'a', 'c']);
+    expect(await admitted({ orientation: 'all', minDurationSec: 1 })).toEqual(
+      [visible, original].sort(),
+    );
+  });
+});
+
+describe('portrait-first ordering on the served page', () => {
+  /**
+   * Shaped like `videosDefinition`. `id: 'videos'` is load-bearing — the
+   * portrait preference in `FeedEngine.finalizeRanked` is keyed on it, so a feed
+   * that renamed itself would silently lose the preference, and this fixture
+   * would catch that.
+   */
+  const definition: FeedDefinition = {
+    id: 'videos',
+    title: 'Videos',
+    mode: 'ranked',
+    sources: [{ module: 'videos', enabled: true }],
+    signals: [],
+    filters: [],
+    execution: { threadGrouping: false, replyContext: false, hydrateMaxDepth: 0 },
+  };
+
+  async function emittedIds(mine: readonly string[]): Promise<string[]> {
+    const registry = new FeedModuleRegistry();
+    registry.register(videosSource);
+    const page = await new FeedEngine(registry).run(
+      definition,
+      { videoFilters: { orientation: 'all' } } as FeedEngineContext,
+      { limit: 50 },
+    );
+    // Restricted to this file's fixtures: a concurrent suite's video posts are
+    // legitimately in the same feed, and they are not what is under test.
+    return page.slices
+      .flatMap((slice) => slice.items.map((item) => item.post.id))
+      .filter((id) => mine.includes(id));
+  }
+
+  /**
+   * THE PORTRAIT POST IS INSERTED FIRST, AND THAT ORDER IS THE ENTIRE TEST.
+   *
+   * On a ranking tie `finalizeRanked` falls through to
+   * `readCandidateId(b).localeCompare(readCandidateId(a))` — DESCENDING id — and
+   * ids are uuid v7, so the later insert wins. Insert the portrait clip last and
+   * the id tiebreak alone produces `[portrait, landscape]`: the assertion passes
+   * whether or not the portrait preference exists, which is worth nothing.
+   * Mutation-tested — renaming the definition away from `videos` (the id the
+   * preference is keyed on) had to make this go RED, and with the fixtures in
+   * this order it does.
+   */
+  it('emits a portrait clip before a landscape one when ranking ties', async () => {
+    const portrait = await create([video({ id: 'm-port', orientation: 'portrait', durationSec: 30 })]);
+    const landscape = await create(
+      [video({ id: 'm-land', width: 1920, height: 1080, orientation: 'landscape', durationSec: 30 })],
+      { oxyUserId: OTHER_AUTHOR, authorship: [{ oxyUserId: OTHER_AUTHOR, role: 'owner', status: 'accepted' }] },
+    );
+
+    // The id tiebreak alone would say `[landscape, portrait]`.
+    expect(await emittedIds([portrait, landscape])).toEqual([portrait, landscape]);
+    expect(rankPosts).toHaveBeenCalled();
+  });
+
+  it('does not treat a portrait IMAGE as a portrait video', async () => {
+    // `hasPortraitVideo` requires BOTH `type: 'video'` and the orientation. A
+    // post carrying a portrait image alongside a landscape clip is landscape as
+    // far as the Reels surface is concerned — so the genuinely portrait clip
+    // still leads despite being the OLDER id.
+    const trulyPortrait = await create([video({ id: 'm-tall-video', orientation: 'portrait', durationSec: 30 })]);
+    const imagePlusLandscape = await create(
+      [
+        video({ id: 'm-wide', width: 1920, height: 1080, orientation: 'landscape', durationSec: 30 }),
+        { id: 'm-tall-photo', type: 'image', width: 1080, height: 1920, orientation: 'portrait' },
+      ],
+      { oxyUserId: OTHER_AUTHOR, authorship: [{ oxyUserId: OTHER_AUTHOR, role: 'owner', status: 'accepted' }] },
+    );
+
+    expect(await emittedIds([trulyPortrait, imagePlusLandscape])).toEqual([
+      trulyPortrait,
+      imagePlusLandscape,
+    ]);
+  });
+});
+
+describe('the videos source composes the predicate with the discovery safety gate', () => {
+  it('withholds a sensitive video from the ranked pool', async () => {
+    // The source ANDs `discoverySafeSql()` onto the content predicate. Asserting
+    // it here rather than in `feedSafety`'s own suite is deliberate: the question
+    // is whether THIS source wired the gate up, which a safety-module test cannot
+    // answer.
+    const safe = await create([video({ id: 'm-safe', orientation: 'portrait', durationSec: 30 })]);
+    const sensitive = await create([video({ id: 'm-nsfw', orientation: 'portrait', durationSec: 30 })], {
+      metadata: { isSensitive: true },
+    });
+
+    const pool = await videosSource.gather({} as FeedEngineContext, {}, 500);
+    const mine = pool.map((candidate) => candidate.id).filter((id) => [safe, sensitive].includes(id));
+    expect(mine).toEqual([safe]);
   });
 });

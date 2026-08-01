@@ -92,8 +92,9 @@ function seedParent(status: 'draft' | 'published' | 'scheduled') {
 }
 
 const reply = {
-  _id: REPLY_ID,
+  id: REPLY_ID,
   oxyUserId: REPLY_AUTHOR_ID,
+  isReply: true,
   parentPostId: PARENT_ID,
   visibility: PostVisibility.PUBLIC,
   status: 'published',
@@ -108,10 +109,16 @@ async function sliceReply() {
   });
 }
 
-/** The post ids the slicer actually put in a slice. */
+/**
+ * The post ids the slicer actually put in a slice.
+ *
+ * Read off `id`, the ported field, for BOTH the feed candidate and the parent
+ * the slicer fetched itself — a Mongo `_id` that never became an `id` is
+ * precisely the defect this reads through.
+ */
 function slicedPostIds(slices: { items: { post: unknown }[] }[]): string[] {
   return slices.flatMap((slice) =>
-    slice.items.map((item) => String((item.post as { _id: unknown })._id)),
+    slice.items.map((item) => String((item.post as { id: unknown }).id)),
   );
 }
 
@@ -154,8 +161,8 @@ describe('ThreadSlicingService reply-context parent publication', () => {
 
     const parent = slices
       .flatMap((slice) => slice.items)
-      .map((item) => item.post as unknown as { _id: unknown; status?: string })
-      .find((post) => String(post._id) === PARENT_ID);
+      .map((item) => item.post as unknown as { id: unknown; status?: string })
+      .find((post) => String(post.id) === PARENT_ID);
 
     expect(parent).toBeDefined();
     expect(parent?.status).toBe('published');

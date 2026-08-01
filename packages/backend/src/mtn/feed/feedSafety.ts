@@ -34,6 +34,37 @@ import { posts } from '../../db/schema';
 import { NSFW_HASHTAGS, isNsfwHashtag } from '../../services/contentClassification/nsfw';
 
 /**
+ * Mongo `$match` clauses — RETAINED ONLY for the consumers that are still on
+ * Mongoose, and deleted by the batch that ports them.
+ *
+ * `routes/search.ts` and `services/TrendingService.ts` still issue Mongo
+ * queries. A helper that spans an unfinished, deliberately BATCHED cutover has
+ * to speak both stores for exactly as long as that is true, and the alternative
+ * — each of those files inlining its own copy of the sensitive-flag rule — is
+ * how this module came to exist in the first place (`ForYouFeed.fetchPopular`
+ * shipped without the filter and leaked NSFW into For You).
+ *
+ * The three flags are stated ONCE per store, immediately adjacent, so a reviewer
+ * comparing them sees both in one screen.
+ */
+export const SENSITIVE_EXCLUDE_MATCH: Readonly<Record<string, unknown>> = Object.freeze({
+  'postClassification.sensitive': { $ne: true },
+  'metadata.isSensitive': { $ne: true },
+  'federation.sensitive': { $ne: true },
+});
+
+/** Mongo counterpart of {@link nsfwHashtagExcludeSql}. See above for its lifetime. */
+export const NSFW_HASHTAG_EXCLUDE_MATCH: Readonly<Record<string, unknown>> = Object.freeze({
+  hashtags: { $nin: Array.from(NSFW_HASHTAGS) },
+});
+
+/** Mongo counterpart of {@link discoverySafeSql}. See above for its lifetime. */
+export const DISCOVERY_SAFE_MATCH: Readonly<Record<string, unknown>> = Object.freeze({
+  ...SENSITIVE_EXCLUDE_MATCH,
+  ...NSFW_HASHTAG_EXCLUDE_MATCH,
+});
+
+/**
  * SQL predicate excluding classifier/metadata/federation-flagged sensitive posts.
  * Compose at the call site: `and(eq(posts.visibility, 'public'), sensitiveExcludeSql())`.
  *

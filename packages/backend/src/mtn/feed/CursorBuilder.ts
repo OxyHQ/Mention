@@ -225,6 +225,28 @@ export const ChronoCursor = {
     return id;
   },
 
+  /**
+   * Apply the cursor to a MONGO match object.
+   *
+   * RETAINED ONLY for `connectors/activitypub/routes/ap.routes.ts`, which still
+   * pages the outbox with Mongoose, and deleted by the batch that ports it. The
+   * Postgres keyset is {@link chronoCursorSql}; nothing new should reach for
+   * this.
+   */
+  applyToQuery(match: Record<string, unknown>, cursor?: string): void {
+    const parsed = this.parse(cursor);
+    if (!parsed) return;
+    if (parsed.ts) {
+      const createdAtFilter = new Date(parsed.ts);
+      match.$or = [
+        { createdAt: { $lt: createdAtFilter } },
+        { createdAt: createdAtFilter, _id: { $lt: parsed.id } },
+      ];
+    } else {
+      match._id = { $lt: parsed.id };
+    }
+  },
+
   parse(cursor?: string): { id: string; ts?: number } | undefined {
     if (!cursor) return undefined;
 

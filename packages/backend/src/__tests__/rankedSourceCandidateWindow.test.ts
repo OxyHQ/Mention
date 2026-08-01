@@ -1,62 +1,82 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
-import mongoose from 'mongoose';
-
 /**
- * `videos` and `media` are RANKED sources: they hand the engine an unordered
- * candidate POOL, and the engine ranks it in process (`FeedRankingService`) and
- * paginates the RESULT by a score window. They are not pre-scored like `explore`,
- * and they are not chronological like `following` — so nothing about their output
- * is ordered by `_id`.
+ * The RANKED sources' candidate window (`videos`, `media`), against a real
+ * database.
  *
- * These tests pin the two halves of that contract, which are two different
- * questions and need two different kinds of evidence:
+ * `videos` and `media` hand the engine an unordered candidate POOL. The engine
+ * ranks it in process (`FeedRankingService`) and paginates the RESULT by a score
+ * window (`FeedEngine.finalizeRanked`). They are not pre-scored like `explore`
+ * and not chronological like `following`, so NOTHING about their output is
+ * ordered by id — and `posts.id` is not even a time order any more: it is `text`
+ * holding either a 24-char ObjectId hex or a uuid v7.
  *
- *  1. THE SOURCE MUST NOT NARROW THE POOL ON `_id`. A candidate that legitimately
+ * Two halves of one contract, which are two different questions:
+ *
+ *  1. THE SOURCE MUST NOT NARROW THE POOL ON `id`. A candidate that legitimately
  *     belongs on page two — it scored BELOW the cursor, so the engine's score
- *     window admits it — must still be IN the pool the engine gets. An `_id`
- *     bound drops it before ranking ever sees it, and because the bound only ever
- *     moves down, it can never come back in that session.
- *
+ *     window admits it — must still be IN the pool the engine gets. An id bound
+ *     drops it before ranking ever sees it, and because the bound only ever moves
+ *     down it can never come back in that session.
  *  2. THE ENGINE MAKES PROGRESS WITHOUT THAT BOUND. Every item the engine emits
  *     scores at or above the page's cursor anchor, so the score window excludes
  *     the whole emitted page by construction — even from a source that ignores
- *     the cursor entirely and re-offers the identical pool every time. So the
- *     `_id` bound cannot be load-bearing for forward progress.
+ *     the cursor entirely and re-offers the identical pool every time. The id
+ *     bound therefore cannot be what was driving forward progress.
  *
- * For You is the in-repo precedent for both: its lanes
- * (`GatherForYouCandidatesParams`) take a seen set and NO cursor, and it
- * paginates purely on the engine's score window.
+ * ## Why this is a row question now, and what the predecessor could not see
+ *
+ * The predecessor walked the built Mongo `$match` looking for `_id` range
+ * operators, and carried a hand-written `admitsId()` that RE-IMPLEMENTED Mongo's
+ * comparison semantics in TypeScript in order to judge them. Both techniques are
+ * gone. There is no query object to inspect, and an interpreter of one could only
+ * ever agree with itself: it cannot see a predicate Postgres evaluates
+ * differently (a NULL-propagating `NOT IN`, an `EXISTS` correlated to the wrong
+ * table) and it cannot see a pool that came back short for any other reason. The
+ * only honest question left is WHICH ROWS COME BACK, so every assertion below is
+ * an EXACT id set.
+ *
+ * ## Isolation
+ *
+ * Test files run in parallel workers against ONE database and these sources scan
+ * globally, so a concurrent suite's video posts are legitimately in the result.
+ * Every assertion therefore restricts the result to this file's own fixture ids.
+ * That is not a weakening: the fixtures' own keys never change, so a row this
+ * file created going missing — which is the entire failure mode — still shows up
+ * as a wrong set.
  */
 
-const findCalls: Array<Record<string, unknown>> = [];
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { eq, inArray } from 'drizzle-orm';
+import { PostType, PostVisibility } from '@mention/shared-types';
+import type { MediaItem } from '@mention/shared-types';
 
-vi.mock('../models/Post', () => ({
-  Post: {
-    find: vi.fn((match: Record<string, unknown>) => {
-      findCalls.push(match);
-      return {
-        select: () => ({
-          sort: () => ({ limit: () => ({ maxTimeMS: () => ({ lean: () => Promise.resolve([]) }) }) }),
-        }),
-      };
-    }),
-    aggregate: vi.fn(() => ({ option: () => Promise.resolve([]) })),
-  },
-}));
-
-const rankPosts = vi.fn(async (posts: Array<Record<string, unknown>>) => {
-  for (const p of posts) p.finalScore = (p._testScore as number | undefined) ?? 0;
-  return posts;
+/**
+ * Deterministic stand-in for `FeedRankingService`: LIKES ARE THE SCORE.
+ *
+ * The real service reads `UserBehavior` from Mongo and the viewer's follow graph
+ * from Oxy, so it cannot run here — but the stand-in scores off a REAL column on
+ * the record rather than a private marker hung on the fixture, so the pool it
+ * ranks is the one Postgres returned and the tie it produces is a property of
+ * the rows.
+ */
+const rankByLikes = vi.fn(async (candidates: CandidatePost[]): Promise<CandidatePost[]> => {
+  for (const candidate of candidates) candidate.finalScore = candidate.stats.likesCount;
+  return candidates;
 });
+// The factory is hoisted above every declaration in this file, so `rankByLikes`
+// is referenced from inside a function body — naming it directly as the property
+// value reads it during hoisting and dies with "Cannot access before
+// initialization".
 vi.mock('../services/FeedRankingService', () => ({
-  feedRankingService: { rankPosts: (...args: unknown[]) => rankPosts(...(args as Parameters<typeof rankPosts>)) },
+  feedRankingService: { rankPosts: (candidates: CandidatePost[]) => rankByLikes(candidates) },
 }));
 
+// One single-item slice per candidate, order preserved: the real slicer runs its
+// own Mongo queries for thread children, and grouping is not what is under test.
 vi.mock('../services/ThreadSlicingService', () => ({
   threadSlicingService: {
-    sliceFeed: vi.fn(async (posts: Array<Record<string, unknown>>) => ({
-      slices: posts.map((post) => ({
-        _sliceKey: String(post._id),
+    sliceFeed: vi.fn(async (candidates: CandidatePost[]) => ({
+      slices: candidates.map((post) => ({
+        _sliceKey: post.id,
         items: [{ post, isThreadParent: false, isThreadChild: false, isThreadLastChild: false }],
         isIncompleteThread: false,
       })),
@@ -65,20 +85,18 @@ vi.mock('../services/ThreadSlicingService', () => ({
   },
 }));
 
+// Hydration is the one collaborator that would reach Oxy over the network. It is
+// a pass-through, so every id asserted below is a real row read out of Postgres.
 vi.mock('../services/PostHydrationService', () => ({
   postHydrationService: {
-    hydrateSlices: vi.fn(async (slices: Array<{ items: Array<{ post: Record<string, unknown> }> }>) => {
-      for (const slice of slices) for (const item of slice.items) item.post.id = String(item.post._id);
-      return slices;
-    }),
-    hydratePosts: vi.fn(async (posts: Array<Record<string, unknown>>) => {
-      for (const p of posts) p.id = String(p._id);
-      return posts;
-    }),
+    hydrateSlices: vi.fn(async (slices: unknown[]) => slices),
+    hydratePosts: vi.fn(async (records: unknown[]) => records),
   },
   resolveUserSummaries: vi.fn(async () => new Map()),
 }));
 
+// An empty seen set on every page, so the pool the engine sees is never narrowed
+// by anything except the thing under test.
 vi.mock('../services/FeedSeenPostsService', () => ({
   feedSeenPostsService: {
     getSeenPostIds: vi.fn(async () => []),
@@ -86,139 +104,200 @@ vi.mock('../services/FeedSeenPostsService', () => ({
   },
 }));
 
+import { closePostgres, connectPostgres, type Database } from '../db/postgres';
+import { posts } from '../db/schema/posts';
+import { insertPostRecord } from '../db/posts/postRepository';
+import type { PostRecordInput } from '../db/posts/postRecord';
 import { ScoreCursor } from '../mtn/feed/CursorBuilder';
 import { videosSource, mediaSource } from '../mtn/feed/engine/sources/discoverySources';
 import { FeedEngine } from '../mtn/feed/engine/FeedEngine';
 import { FeedModuleRegistry } from '../mtn/feed/engine/FeedModuleRegistry';
-import type { CandidatePost, FeedDefinition, FeedEngineContext, SourceModule } from '../mtn/feed/engine/types';
+import type {
+  CandidatePost,
+  FeedDefinition,
+  FeedEngineContext,
+  SourceModule,
+} from '../mtn/feed/engine/types';
 
-/** ObjectIds ordered by construction, so "newer" is unambiguous. */
-const oid = (n: number) => new mongoose.Types.ObjectId(`5f${n.toString().padStart(22, '0')}`);
+let db: Database;
+const created: string[] = [];
 
 /**
- * The page-one anchor: the LOWEST-scoring slice of the emitted page, which is what
- * the engine cursors on. Its position in `_id` order is unrelated to its position
- * in score order — that is the whole point.
+ * Well above any page these tests ask for, so a missing row can never be
+ * explained by the fetch limit.
  */
-const ANCHOR_ID = oid(500);
-/**
- * A candidate that belongs on page TWO: NEWER than the anchor (higher `_id`) but
- * lower-scoring, so page one never emitted it and the engine's score window admits
- * it. For a federated post this is the common case, not a corner case — its `_id`
- * is its IMPORT time, so a post backfilled minutes ago carries a near-maximal
- * `_id` no matter when it was actually written.
- */
-const PAGE_TWO_CANDIDATE_ID = oid(900);
+const CAP = 500;
 
-function context(overrides: Partial<FeedEngineContext> = {}): FeedEngineContext {
-  return { currentUserId: 'viewer', ...overrides } as FeedEngineContext;
+/** Every field the default videos predicate requires; also satisfies `media`. */
+const PORTRAIT_VIDEO: MediaItem = {
+  id: 'ranked-window-video',
+  type: 'video',
+  width: 1080,
+  height: 1920,
+  durationSec: 30,
+  orientation: 'portrait',
+};
+
+/**
+ * A distinct author per fixture, deliberately.
+ *
+ * `diversifyByAuthor` reorders a page to space same-author slices apart, so a
+ * pool written by one author would let the reranker — not the score window —
+ * decide which rows land on page one, and the pagination assertions below would
+ * be measuring the wrong thing.
+ */
+function authorFor(index: number): string {
+  return `ranked-window-author-${index}`;
 }
 
-/**
- * Every `_id` RANGE bound in a built match, at any nesting depth (these builders
- * push their clauses into `$and`). `$nin` is not a range — excluding a bounded id
- * list is exactly how the seen set works and is not what is under test here.
- */
-function idRangeBounds(node: unknown): Array<Record<string, unknown>> {
-  const found: Array<Record<string, unknown>> = [];
-  const walk = (value: unknown, key?: string): void => {
-    if (Array.isArray(value)) {
-      for (const entry of value) walk(entry);
-      return;
-    }
-    if (!value || typeof value !== 'object') return;
-    const record = value as Record<string, unknown>;
-    if (key === '_id' && ('$lt' in record || '$lte' in record || '$gt' in record || '$gte' in record)) {
-      found.push(record);
-    }
-    for (const [childKey, child] of Object.entries(record)) walk(child, childKey);
+async function create(index: number, likes: number): Promise<string> {
+  const author = authorFor(index);
+  const input: PostRecordInput = {
+    oxyUserId: author,
+    authorship: [{ oxyUserId: author, role: 'owner', status: 'accepted' }],
+    type: PostType.VIDEO,
+    visibility: PostVisibility.PUBLIC,
+    status: 'published',
+    content: { variants: [{ source: 'author', text: 'clip' }], media: [PORTRAIT_VIDEO] },
   };
-  walk(node);
-  return found;
+  const record = await insertPostRecord(input);
+  created.push(record.id);
+  // `stats` is owned by the engagement batch and is not part of
+  // `PostRecordInput`, so a ranking fixture writes the column directly.
+  await db.update(posts).set({ statsLikesCount: likes }).where(eq(posts.id, record.id));
+  return record.id;
 }
 
-/** Whether the built match would let a candidate id through its `_id` range bounds. */
-function admitsId(match: Record<string, unknown>, id: mongoose.Types.ObjectId): boolean {
-  return idRangeBounds(match).every((bound) => {
-    const lt = bound.$lt;
-    const lte = bound.$lte;
-    const gt = bound.$gt;
-    const gte = bound.$gte;
-    if (lt instanceof mongoose.Types.ObjectId && !(id < lt)) return false;
-    if (lte instanceof mongoose.Types.ObjectId && !(id <= lte)) return false;
-    if (gt instanceof mongoose.Types.ObjectId && !(id > gt)) return false;
-    if (gte instanceof mongoose.Types.ObjectId && !(id >= gte)) return false;
-    return true;
-  });
+/** The ids `source` returns, restricted to this file's rows, in source order. */
+async function gatherMine(
+  source: SourceModule,
+  ctx: FeedEngineContext,
+  fixtures: readonly string[],
+): Promise<string[]> {
+  const candidates = await source.gather({ ...ctx, pageLimit: CAP }, {}, CAP);
+  return candidates.map((candidate) => candidate.id).filter((id) => fixtures.includes(id));
 }
 
-beforeEach(() => {
-  vi.clearAllMocks();
-  findCalls.length = 0;
+beforeAll(async () => {
+  db = await connectPostgres();
 });
 
-describe('the idRangeBounds probe itself', () => {
-  it('finds a bound nested inside $and, and reports the candidate it would exclude', () => {
-    const match = { $and: [{ _id: { $lt: ANCHOR_ID } }] };
-    expect(idRangeBounds(match)).toHaveLength(1);
-    expect(admitsId(match, PAGE_TWO_CANDIDATE_ID)).toBe(false);
-    expect(admitsId(match, oid(1))).toBe(true);
-  });
+afterEach(async () => {
+  vi.clearAllMocks();
+  if (created.length > 0) {
+    await db.delete(posts).where(inArray(posts.id, created));
+    created.length = 0;
+  }
+});
 
-  it('does not mistake the seen-set exclusion for a range bound', () => {
-    expect(idRangeBounds({ $and: [{ _id: { $nin: [ANCHOR_ID] } }] })).toHaveLength(0);
-  });
+afterAll(async () => {
+  await closePostgres();
 });
 
 describe.each([
   ['videos', videosSource],
   ['media', mediaSource],
-])('%s candidate window', (_id, source: SourceModule) => {
-  /** A cursor of the shape the ranked engine mints for these feeds. */
-  const rankedCursor = ScoreCursor.build(7.5, ANCHOR_ID.toString());
+])('the %s candidate window', (_name, source: SourceModule) => {
+  /**
+   * Five posts, created oldest-first, so ids ascend with insertion (uuid v7 is
+   * monotonic).
+   *
+   * The ANCHOR is the middle row and carries the HIGHEST engagement — a page-one
+   * cursor anchor is the lowest-scoring slice of the page, and its position in id
+   * order is unrelated to its position in score order. Two rows sit above it in
+   * id order and two below, so an id bound in EITHER direction is visible here.
+   */
+  async function fixtures(): Promise<{ ids: string[]; anchor: string; pageTwoCandidate: string }> {
+    const ids = [
+      await create(0, 4),
+      await create(1, 3),
+      await create(2, 9),
+      await create(3, 2),
+      await create(4, 1),
+    ];
+    return { ids, anchor: ids[2], pageTwoCandidate: ids[4] };
+  }
 
-  it('keeps a lower-scoring but newer candidate in the pool the engine ranks', async () => {
-    await source.gather(context({ cursor: rankedCursor }), {}, 10);
+  it('keeps a lower-scoring but NEWER candidate in the pool the engine ranks', async () => {
+    const { ids, anchor, pageTwoCandidate } = await fixtures();
 
-    expect(findCalls).toHaveLength(1);
-    // The engine's score window is what decides whether this candidate is emitted.
-    // The source must not have already thrown it away on an axis nothing sorts by.
-    expect(admitsId(findCalls[0], PAGE_TWO_CANDIDATE_ID)).toBe(true);
+    // The vacuity floor. Without rows on both sides of the anchor, an id bound in
+    // one direction would leave the pool untouched and this case would pass
+    // against the very defect it exists to catch.
+    expect(ids.some((id) => id > anchor)).toBe(true);
+    expect(ids.some((id) => id < anchor)).toBe(true);
+    expect(pageTwoCandidate > anchor).toBe(true);
+
+    const cursor = ScoreCursor.build(7.5, anchor);
+    const pool = await gatherMine(source, { currentUserId: 'viewer', cursor }, ids);
+
+    // The engine's score window is what decides whether these are emitted. The
+    // source must not have thrown any of them away on an axis nothing sorts by.
+    expect(pool.sort()).toEqual([...ids].sort());
+    // Stated separately so a failure names the row that matters: for a federated
+    // post this is the common case, not a corner case — its id is its IMPORT
+    // time, so a post backfilled minutes ago carries a near-maximal id however
+    // old it actually is.
+    expect(pool).toContain(pageTwoCandidate);
   });
 
   it('narrows the pool by nothing but the seen set', async () => {
-    const seen = oid(42).toString();
-    await source.gather(context({ cursor: rankedCursor, seenPostIds: [seen] }), {}, 10);
+    const { ids, anchor } = await fixtures();
+    const seen = [ids[0], ids[4]];
 
-    expect(idRangeBounds(findCalls[0])).toHaveLength(0);
-    expect(JSON.stringify(findCalls[0])).toContain(seen);
+    const cursor = ScoreCursor.build(7.5, anchor);
+    const pool = await gatherMine(source, { currentUserId: 'viewer', cursor, seenPostIds: seen }, ids);
+
+    // EXACTLY the seen rows are missing. Excluding a bounded id list is how the
+    // seen set works and is not what is under test; anything else missing is.
+    expect(pool.sort()).toEqual(ids.filter((id) => !seen.includes(id)).sort());
   });
 
   it('ignores a cursor minted by the popular fallback too', async () => {
-    // `neverBlank` can hand the ranked source a cursor built from the POPULAR
-    // ordering, whose id and score come from a different axis entirely. Applying
-    // that id as an `_id` bound is the same defect with a worse provenance.
-    const fallbackCursor = ScoreCursor.build(31, ANCHOR_ID.toString(), {
+    /**
+     * `neverBlank` can hand a ranked source a cursor built from the POPULAR
+     * ordering, whose score and id come from a different axis entirely. Applying
+     * that id as an id bound is the same defect with a worse provenance — and
+     * applying its SCORE as an engagement bound is a second one: a fallback
+     * anchor of 0 admits nothing at all.
+     */
+    const { ids, anchor } = await fixtures();
+    const fallbackCursor = ScoreCursor.build(0, anchor, {
       asOf: Date.now(),
       tiebreakAt: Date.now(),
+      fromPopularFallback: true,
     });
-    await source.gather(context({ cursor: fallbackCursor }), {}, 10);
 
-    expect(idRangeBounds(findCalls[0])).toHaveLength(0);
+    const pool = await gatherMine(source, { currentUserId: 'viewer', cursor: fallbackCursor }, ids);
+
+    expect(pool.sort()).toEqual([...ids].sort());
   });
 });
 
-describe('score-window pagination without an _id bound', () => {
+describe('score-window pagination without an id bound', () => {
   /**
-   * A source that ignores the cursor and re-offers the identical pool on every
-   * page — the worst case for "removing the `_id` bound stalls the feed". If the
-   * engine still advances against THIS source, the bound cannot be what was
+   * The worst case for "removing the id bound stalls the feed": a source that
+   * ignores the cursor and re-offers the IDENTICAL pool on every page. If the
+   * engine still advances against this, the bound cannot have been what was
    * driving progress.
+   *
+   * The pool is read out of Postgres through the real `videosSource` and then
+   * replayed verbatim. Replaying rather than re-querying is what makes the page
+   * assertions exact: the engine gathers `limit × candidateMultiplier`
+   * candidates ordered globally by recency, and this database is shared with
+   * every other test file, so a live re-query would page over other suites'
+   * rows.
    */
-  function poolSource(posts: CandidatePost[]): SourceModule {
-    return { id: 'videos', kind: 'source', userComposable: false, gather: async () => posts };
+  function replaySource(pool: readonly CandidatePost[]): SourceModule {
+    return {
+      id: 'videos',
+      kind: 'source',
+      userComposable: false,
+      gather: async () => [...pool],
+    };
   }
 
+  /** Shaped like `videosDefinition`, minus the popular fallback (not under test here). */
   const rankedDefinition: FeedDefinition = {
     id: 'videos',
     title: 'Videos',
@@ -229,50 +308,75 @@ describe('score-window pagination without an _id bound', () => {
     execution: { seenPosts: true, threadGrouping: true, replyContext: false, hydrateMaxDepth: 0 },
   };
 
-  function pool(): CandidatePost[] {
-    // Score DESCENDING in `_id` ASCENDING order, so the page-one anchor is the
-    // OLDEST `_id` of the emitted page and every remaining candidate is NEWER than
-    // it. An `_id: { $lt: anchor }` window would leave page two with nothing.
-    return Array.from({ length: 9 }, (_v, i) => ({
-      _id: oid(i + 1),
-      oxyUserId: `author-${i + 1}`,
-      createdAt: new Date(2026, 0, i + 1),
-      _testScore: 100 - i,
-    })) as unknown as CandidatePost[];
+  /**
+   * Six posts that all carry the SAME engagement, so the ranking stand-in scores
+   * them identically and the leading sort key TIES across the whole pool.
+   *
+   * That tie is the point. The engine breaks it on id descending
+   * (`readCandidateId(b).localeCompare(readCandidateId(a))`) and its score window
+   * continues on the same key (`postId < cursor.id`). With distinct scores both
+   * halves are unreachable, and a keyset missing its tiebreak walks a distinctly
+   * keyed pool perfectly — so only tied rows can tell the two apart.
+   */
+  async function tiedPool(): Promise<{ ids: string[]; pool: CandidatePost[] }> {
+    const ids: string[] = [];
+    for (let index = 0; index < 6; index += 1) ids.push(await create(index, 7));
+
+    const candidates = await videosSource.gather({ pageLimit: CAP }, {}, CAP);
+    const pool = candidates.filter((candidate) => ids.includes(candidate.id));
+    expect(pool).toHaveLength(ids.length);
+    // Highest id first — the order the engine's tiebreak must reproduce.
+    return { ids: [...ids].sort().reverse(), pool };
   }
 
-  it('emits a disjoint second page from a source that re-offers the same pool', async () => {
+  function runEngine(pool: readonly CandidatePost[]) {
     const registry = new FeedModuleRegistry();
-    registry.register(poolSource(pool()));
+    registry.register(replaySource(pool));
     const engine = new FeedEngine(registry);
+    return (cursor: string | undefined) =>
+      engine.run(rankedDefinition, { currentUserId: 'viewer' }, { limit: 3, cursor });
+  }
 
-    const first = await engine.run(rankedDefinition, context(), { limit: 3 });
-    const firstIds = first.slices.flatMap((s) => s.items.map((i) => String(i.post.id)));
-    expect(firstIds).toHaveLength(3);
+  it('serves two adjacent pages that neither overlap nor gap', async () => {
+    const { ids, pool } = await tiedPool();
+    const run = runEngine(pool);
+
+    const first = await run(undefined);
+    const firstIds = first.items.map((item) => item.id);
+    // The three highest ids, in id-descending order: the tiebreak, asserted.
+    expect(firstIds).toEqual(ids.slice(0, 3));
     expect(first.nextCursor).toBeDefined();
 
-    const second = await engine.run(rankedDefinition, context(), { limit: 3, cursor: first.nextCursor });
-    const secondIds = second.slices.flatMap((s) => s.items.map((i) => String(i.post.id)));
+    const second = await run(first.nextCursor);
+    const secondIds = second.items.map((item) => item.id);
 
-    expect(secondIds).toHaveLength(3);
+    // NO OVERLAP: page two re-offered every row page one showed, and the score
+    // window excluded them on its own.
     expect(secondIds.filter((id) => firstIds.includes(id))).toEqual([]);
+    // NO GAP: the two pages together are exactly the fixture set, in order. This
+    // is the assertion a score-only window fails — every row ties, so it either
+    // re-serves page one or admits nothing.
+    expect(secondIds).toEqual(ids.slice(3));
+    expect([...firstIds, ...secondIds]).toEqual(ids);
   });
 
-  it('walks the whole pool to exhaustion, never repeating and never stalling', async () => {
-    const registry = new FeedModuleRegistry();
-    registry.register(poolSource(pool()));
-    const engine = new FeedEngine(registry);
+  it('walks the tied pool to exhaustion, never repeating and never stalling', async () => {
+    const { ids, pool } = await tiedPool();
+    const run = runEngine(pool);
 
-    const seen: string[] = [];
+    const served: string[] = [];
     let cursor: string | undefined;
-    for (let page = 0; page < 5; page += 1) {
-      const response = await engine.run(rankedDefinition, context(), { limit: 3, cursor });
-      seen.push(...response.slices.flatMap((s) => s.items.map((i) => String(i.post.id))));
+    // The bound exists so a stalled walk fails as an assertion rather than as a
+    // hang; reaching it is itself a failure, which the length check states.
+    for (let page = 0; page < 10; page += 1) {
+      const response = await run(cursor);
+      served.push(...response.items.map((item) => item.id));
       cursor = response.nextCursor;
       if (!cursor) break;
     }
 
-    expect(seen).toHaveLength(9);
-    expect(new Set(seen).size).toBe(9);
+    expect(served).toEqual(ids);
+    expect(new Set(served).size).toBe(ids.length);
+    expect(cursor).toBeUndefined();
   });
 });
