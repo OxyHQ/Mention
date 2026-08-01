@@ -31,11 +31,9 @@ Run backend tests from the package root: `cd packages/backend && bun run test` (
 
 `check`, `lint` and `test` fan out with `bun run --parallel` (Foreman-style, one prefix per script). `check` keeps three ordered stages because the middle one is a real dependency: workspace validators → `build` → type-checks, since every `tsc --noEmit` compiles against shared-types' built `dist`. `lint:frontend` (`expo lint`) runs after the parallel group rather than inside it — it is the heaviest single job and there is nothing to overlap it with. Local A/B, warm, three alternating runs: 11.8s sequential → 7.4s parallel.
 
+**A `doctor` failure SIGINTs the rest of `check:workspace`.** `doctor` fails on a Node version mismatch alone (it pins the exact version Jest/Expo need), and because the group runs in parallel the runner kills every sibling that has not already finished — so someone on a different Node sees `doctor` exit 1 plus a handful of `Signaled: SIGINT` lines and reasonably reads it as several broken validators. They are not broken, and WHICH ones get killed varies run to run purely on which happened to finish first. Re-run the survivors individually (`validate:workflows`, `validate:lockfile`, `validate:i18n`, `validate:logger`, `audit:security`) before believing any of them failed.
+
 **The backend and MCP run on Bun, not Node** (`CMD ["bun", …]` in both images), so both are typed with `"types": ["node", "bun"]` and `Bun.*` is fair game in their source. `@types/bun` is catalogued at the exact version `packageManager` names, and doctor fails if the two drift — type definitions for a different Bun than the one shipping is a silent way to be wrong. The frontend is Metro/Node and stays Node-typed.
-
-**NEVER `git stash` in this repo.** The stash stack is repo-GLOBAL, not per-worktree, and this checkout routinely has dozens of worktrees with concurrent sessions writing in them. Two ways that bites, both observed: stashing in an already-clean tree saves nothing, so the matching `pop` takes *someone else's* `stash@{0}` and drops their work into your worktree (seen: an unrelated session's search-screen changes landing mid-measurement, with conflicts); and your own stash is equally poppable by anyone else. The instinct that triggers it is innocent — "let me set my changes aside to measure a clean baseline" — which is exactly why it needs a rule rather than care. Use a second worktree, a branch, or `git diff > /tmp/patch` instead. If you already popped someone else's: a CONFLICTED pop does NOT drop the entry, so the stash survives — restore the conflicted files to HEAD, clear the merge state, then verify `stash@{0}` is still on the stack with its original contents before assuming the other session is unharmed.
-
-**`doctor` failing takes the whole `check:workspace` group down with it.** It runs in the `bun run --parallel` group, and its failure SIGINTs the other five validators mid-run, so a single environmental mismatch (e.g. a local Node that is not the pinned version — CI pins it, laptops drift) prints as five broken validators plus `exited with code 130`. Read the actual doctor line before believing the repo is broken; to check the rest, run `validate:workflows`, `validate:lockfile`, `validate:i18n`, `validate:logger` and `audit:security` individually.
 
 **`bun install` refuses to RESOLVE a dependency published in the last week** (`minimumReleaseAge` in `bunfig.toml`), which is where a compromised release is most likely to still be live. It applies to resolution only, never to a frozen install: `bun install --frozen-lockfile` (CI's `quality` job, both image builds) installs an already-locked fresh package with no complaint even on a cold manifest cache — 1588 packages, measured in CI with the quarantine active. **Resolution on a cold cache is judged afresh for EVERY dependency, including ones already in the lockfile**, so any step that re-resolves must opt out: `.github/scripts/verify-lockfile.sh` passes `--minimum-release-age=0` because reproducing an existing lockfile is not the moment the decision gets made. A warm manifest cache hides this — the first local run of that script passed and CI failed on `@playwright/test@1.62.0` — so verify a resolution-path change against a cold cache or against CI, not locally. First-party packages are excluded by EXACT name, because a scope glob (`"@oxyhq/*"`) parses fine and silently matches nothing; a new first-party dependency must be added to `minimumReleaseAgeExcludes` or its first install fails loudly. Deliberate one-off override: `bun install --minimum-release-age=0`.
 
@@ -48,6 +46,18 @@ Bun built-ins that look like they could delete a dependency here, and cannot —
 - **The global virtual store is unreachable** while `linker = "hoisted"`, which Metro requires (see `bunfig.toml`).
 
 **Rebuild `shared-types` before believing a red typecheck or build.** `@mention/shared-types` is consumed through its BUILT `dist`, so after any rebase/checkout that pulls in a shared-types change, every other package still compiles against the previous build and reports the newly-landed symbols as missing — `TS2305: has no exported member 'X'`, in files you never touched. It reads exactly like someone else's broken commit, and has been reported as "N pre-existing errors" more than once. `bun run --cwd packages/shared-types build` first; only a failure that survives that is real.
+
+## Worktrees — never `git stash` in this checkout
+
+This repo is worked from ~70 linked worktrees at once, and **the stash stack belongs to the REPOSITORY, not to your worktree**. Three facts compose into taking someone else's work:
+
+1. `git stash` pushes onto one stack shared by every worktree, so `stash@{0}` is usually another session's.
+2. A worktree whose work is already COMMITTED has nothing to stash, so `git stash -u` creates no entry — and says so quietly, exit 0.
+3. `git stash pop` then pops whatever is on top of that shared stack into YOUR tree, auto-merging what it can and conflicting on the rest, in files you never touched.
+
+The instinct that triggers it is tidiness: stash → measure something against a clean tree → pop. Don't. To compare against another commit, add a SEPARATE worktree (`git worktree add --detach <path> <commit-ish>`), or read the other version straight out of the object store (`git show <commit>:<path>`), which needs no working tree and no shared state at all.
+
+If it already happened: a CONFLICTED pop does not drop the entry, so the other session's work is still on the stack and recovery is possible. Restore your own files (`git checkout HEAD -- <paths>`, then `git reset`), then VERIFY the entry survived — `git stash list` and `git stash show --stat stash@{0}` against what it should contain — before calling the repair done.
 
 ## Bumping an Oxy SDK package (CRITICAL — `bun add` reports success and changes nothing)
 
@@ -310,6 +320,19 @@ Oxy owns preview resolution/cache; hydration batches through
 `OxyServices.getLinkPreviews`, while post-create warming lives in
 `packages/backend/src/utils/linkPreviewWarm.ts`. Any feed-side function touching
 remote URLs must be detached before the feed response returns.
+
+## Stale-after-write — the frontend has TWO post-list caches
+
+A write that changes which posts a LIST contains has to reach both, and neither can see the other:
+
+- **React Query** owns the saved screen (`app/(app)/saved.tsx`).
+- **The feed store** owns every `<Feed>` surface, the profile likes and boosts tabs included, and warm-starts a remount from the slice retained in `stores/feedScrollStore` instead of refetching page 1 — which is what stops a deep-scrolled feed resetting on every navigation. It has no staleness notion of its own: absent a signal it serves that slice until a full reload.
+
+`stores/engagementInvalidation.ts` is the single authority that records a list changed, and `postsStore` reports every engagement write the server accepts. **Do not invalidate from the hooks** — `usePostVote` and `app/(app)/videos.tsx` write through the store without touching `usePostSave`/`usePostLike`/`usePostBoost`, so a hook-level invalidation silently misses two call sites.
+
+Each cache then honours that one signal in its OWN terms: React Query invalidates its family, a feed compares its slice's `retainedAt` against the write. The seam is real and worth knowing before debugging — a change on the React Query side cannot fix a feed surface or vice versa, so a fix verified on one surface proves nothing about the other. In particular there is NO query key for a likes or boosts list (`viewerQueryKeys` has none), so those surfaces are unreachable from React Query entirely; anyone reaching for `invalidateQueries` there is about to write a no-op.
+
+Client-wide `refetchOnMount` must stay at the library default. Pinned to `false` it makes React Query's half of the signal inert: an invalidated query that is not mounted at the moment of the write never revalidates on its next mount, which is every case that matters. `staleTime` — the client default and the shorter one each screen declares — is the lever for cheap revisits.
 
 ## Feed Interstitials (Recommendation Cards)
 
