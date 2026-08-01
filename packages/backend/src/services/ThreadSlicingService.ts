@@ -18,6 +18,7 @@ import {
 } from '@mention/shared-types';
 import { Post } from '../models/Post';
 import { logger } from '../utils/logger';
+import { isReplyPost } from '../utils/postReply';
 import { resolveUserSummaries } from './PostHydrationService';
 
 export interface ThreadSlicingOptions {
@@ -133,7 +134,7 @@ class ThreadSlicingService {
       seenPostIds.add(postId);
 
       // Try self-thread grouping: root post with thread children by the same author
-      if (opts.enableThreadGrouping && post.threadId && !post.parentPostId) {
+      if (opts.enableThreadGrouping && post.threadId && !isReplyPost(post)) {
         const children = threadChildrenMap.get(post.threadId);
         if (children && children.length > 0) {
           const sliceItems: RawPost[] = [post];
@@ -156,36 +157,48 @@ class ThreadSlicingService {
         }
       }
 
-      // Try reply context injection: if this post is a reply, prepend the parent
-      if (opts.enableReplyContext && post.parentPostId) {
+      // Reply context: a reply is ALWAYS tagged `replyContext`, and its parent is
+      // prepended when we actually hold it.
+      //
+      // The reply test is `isReplyPost`, NOT `post.parentPostId` — a federated
+      // reply whose `inReplyTo` never resolved carries no local parent link and
+      // would otherwise be classified as a thread root (see `utils/postReply`).
+      //
+      // The parent is unattachable in three cases: it is already rendered higher
+      // in this page, it failed the published/visibility bar, or it was never
+      // ingested. In all three the slice still carries the `replyContext` reason —
+      // that tag is what drives the "Replying to" header and the `hideReplies`
+      // tuner, so dropping it is what made a context-free reply render as an
+      // ordinary top-level post.
+      if (opts.enableReplyContext && isReplyPost(post)) {
         const parentId = post.parentPostId;
-        const parent = parentPostMap.get(parentId) || postById.get(parentId);
+        const parent = parentId ? parentPostMap.get(parentId) ?? postById.get(parentId) : undefined;
+        const attachableParent =
+          parent && !seenPostIds.has(getPostId(parent)) ? parent : undefined;
+        if (attachableParent) {
+          seenPostIds.add(getPostId(attachableParent));
+        }
 
-        if (parent && !seenPostIds.has(getPostId(parent))) {
-          seenPostIds.add(getPostId(parent));
-
-          const parentAuthorId = parent.oxyUserId ? String(parent.oxyUserId) : '';
-          const resolved = parentAuthorId ? parentAuthorSummaries.get(parentAuthorId) : undefined;
-
-          slices.push(buildSlice([parent, post], true, {
-            type: 'replyContext',
+        // Resolvable whenever we hold the parent document — including when the
+        // parent is already on the page and only its POST cannot be repeated.
+        const parentAuthorId = parent?.oxyUserId ? String(parent.oxyUserId) : '';
+        const parentAuthor = parentAuthorId
+          ? parentAuthorSummaries.get(parentAuthorId) ?? {
             // Degraded fallback carries an EMPTY username (ghost-handle rule) and
             // no display name — never the raw id as a handle.
-            parentAuthor: resolved ?? {
-              id: parentAuthorId,
-              username: '',
-              name: {},
-              avatar: null,
-            },
-          }));
-          continue;
-        }
+            id: parentAuthorId,
+            username: '',
+            name: {},
+            avatar: null,
+          }
+          : undefined;
 
-        // Parent already shown or not found — still mark as reply context (incomplete)
-        if (post.parentPostId) {
-          slices.push(buildSlice([post], true));
-          continue;
-        }
+        slices.push(buildSlice(
+          attachableParent ? [attachableParent, post] : [post],
+          true,
+          parentAuthor ? { type: 'replyContext', parentAuthor } : { type: 'replyContext' },
+        ));
+        continue;
       }
 
       // Default: single-post slice

@@ -8,6 +8,7 @@ import { FeedType, PostType, PostVisibility, MtnConfig } from '@mention/shared-t
 import mongoose from 'mongoose';
 import { ContentLabel } from '../models/ContentLabel';
 import { parseFeedCursor } from './feedUtils';
+import { notAReplyClause, restrictToReplies, restrictToRoots } from './postReply';
 
 export interface FeedQueryOptions {
   type: FeedType;
@@ -66,7 +67,7 @@ export class FeedQueryBuilder {
     switch (type) {
       case 'posts':
         query.type = { $in: [PostType.TEXT, PostType.IMAGE, PostType.VIDEO, PostType.POLL] };
-        query.parentPostId = null;
+        restrictToRoots(query);
         query.boostOf = null;
         break;
       case 'media': {
@@ -79,13 +80,13 @@ export class FeedQueryBuilder {
             { 'content.files.0': { $exists: true } },
             { 'media.0': { $exists: true } }
           ] },
-          { $or: [{ parentPostId: null }, { parentPostId: { $exists: false } }] },
+          notAReplyClause(),
           { $or: [{ boostOf: null }, { boostOf: { $exists: false } }] }
         ];
         break;
       }
       case 'replies':
-        query.parentPostId = { $ne: null };
+        restrictToReplies(query);
         break;
       case 'boosts':
         query.boostOf = { $ne: null };
@@ -190,7 +191,7 @@ export class FeedQueryBuilder {
     }
     
     if (filters.includeReplies === false) {
-      query.parentPostId = { $exists: false };
+      restrictToRoots(query);
     }
     if (filters.includeBoosts === false) {
       query.boostOf = { $exists: false };
@@ -505,7 +506,7 @@ export class FeedQueryBuilder {
       visibility: PostVisibility.PUBLIC,
       status: 'published',
       $and: [
-        { $or: [{ parentPostId: null }, { parentPostId: { $exists: false } }] },
+        notAReplyClause(),
         { $or: [{ boostOf: null }, { boostOf: { $exists: false } }] }
       ]
     };
@@ -534,7 +535,7 @@ export class FeedQueryBuilder {
           { 'content.files.0': { $exists: true } },
           { 'media.0': { $exists: true } }
         ] },
-        { $or: [{ parentPostId: null }, { parentPostId: { $exists: false } }] },
+        notAReplyClause(),
         { $or: [{ boostOf: null }, { boostOf: { $exists: false } }] }
       ]
     };

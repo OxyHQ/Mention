@@ -13,6 +13,7 @@ import { detectBotShape } from '../../../../services/contentClassification/botSi
 import { readTrustedScores } from '../../../../services/contentClassification/trustedScores';
 import { SPAM_QUALITY_CONFIG, visibleText } from '../../../../services/contentClassification/spamQuality';
 import { resolveVariant } from '../../../../services/postVariants';
+import { isReplyClause, isReplyPost, notAReplyClause } from '../../../../utils/postReply';
 import { feedModuleRegistry, FeedModuleRegistry } from '../FeedModuleRegistry';
 import type { CandidatePost, FeedEngineContext, FilterModule } from '../types';
 
@@ -255,16 +256,16 @@ export const noBoostsFilter: FilterModule = {
   },
 };
 
-/** `noReplies`: excludes replies (posts with a parent). */
+/**
+ * `noReplies`: excludes replies (posts with a parent) — locally linked or known
+ * only by their federated `inReplyTo` IRI. See `utils/postReply`.
+ */
 export const noRepliesFilter: FilterModule = {
   id: 'noReplies',
   kind: 'filter',
   userComposable: true,
-  clause: () => ({ $or: [{ parentPostId: null }, { parentPostId: { $exists: false } }] }),
-  keep: (post) => {
-    const parent = field(post, 'parentPostId');
-    return parent === undefined || parent === null;
-  },
+  clause: () => notAReplyClause(),
+  keep: (post) => !isReplyPost(post),
 };
 
 /** `mediaOnly`: keeps only posts carrying media. */
@@ -402,16 +403,16 @@ export const originalOnlyFilter: FilterModule = {
   },
 };
 
-/** `onlyReplies`: keep only replies (posts with a parent). */
+/**
+ * `onlyReplies`: keep only replies (posts with a parent) — locally linked or
+ * known only by their federated `inReplyTo` IRI. See `utils/postReply`.
+ */
 export const onlyRepliesFilter: FilterModule = {
   id: 'onlyReplies',
   kind: 'filter',
   userComposable: true,
-  clause: () => ({ parentPostId: { $ne: null } }),
-  keep: (post) => {
-    const parent = field(post, 'parentPostId');
-    return parent !== undefined && parent !== null;
-  },
+  clause: () => isReplyClause(),
+  keep: (post) => isReplyPost(post),
 };
 
 /** `minEngagement`: keep posts meeting every provided engagement threshold. */

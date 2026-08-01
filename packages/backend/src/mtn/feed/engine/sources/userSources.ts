@@ -12,6 +12,7 @@ import { ProfileVisibility, requiresAccessCheck } from '../../../../utils/privac
 import { buildAuthorFeedMatch } from '../../../../utils/postAuthorship';
 import { FEED_FIELDS } from '../../FeedAPI';
 import { ChronoCursor } from '../../CursorBuilder';
+import { notAReplyClause, restrictToReplies, restrictToRoots } from '../../../../utils/postReply';
 import type { AuthorFeedFilter } from '@mention/shared-types';
 import type { CandidatePost, FeedEngineContext, SourceModule } from '../types';
 
@@ -101,10 +102,10 @@ function buildAuthoredQuery(authorId: string, filter: AuthorFeedFilter, cursor?:
     case 'posts':
       // Boosts are top-level posts, so they surface on the main tab too — the
       // definition hydrates at depth 1 so the boosted original renders.
-      query.parentPostId = null;
+      restrictToRoots(query);
       break;
     case 'replies':
-      query.parentPostId = { $ne: null };
+      restrictToReplies(query);
       break;
     case 'boosts':
       query.boostOf = { $ne: null };
@@ -120,7 +121,7 @@ function buildAuthoredQuery(authorId: string, filter: AuthorFeedFilter, cursor?:
             { 'content.attachments': { $elemMatch: { type: 'media' } } },
           ],
         },
-        { $or: [{ parentPostId: null }, { parentPostId: { $exists: false } }] },
+        notAReplyClause(),
         { $or: [{ boostOf: null }, { boostOf: { $exists: false } }] },
       ];
       break;

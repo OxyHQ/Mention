@@ -108,7 +108,8 @@ describe('ThreadSlicingService reply-context parent author', () => {
     expect(reason?.type).toBe('replyContext');
     if (reason?.type !== 'replyContext') throw new Error('expected replyContext reason');
 
-    const parentAuthor: PostUser = reason.parentAuthor;
+    expect(reason.parentAuthor).toBeDefined();
+    const parentAuthor = reason.parentAuthor as PostUser;
     expect(parentAuthor.name.displayName).toBe('Parent Display Name');
     expect(parentAuthor.username).toBe('parenthandle');
     expect(parentAuthor.name.displayName).not.toBe('');
@@ -142,9 +143,120 @@ describe('ThreadSlicingService reply-context parent author', () => {
     // Ghost-handle rule: an unresolvable parent carries an EMPTY username and no
     // display name — NEVER the raw oxyUserId as a handle. The renderer then
     // suppresses the "@<handle>" line instead of showing a fake handle.
-    expect(reason.parentAuthor.id).toBe(PARENT_AUTHOR_ID);
-    expect(reason.parentAuthor.username).toBe('');
-    expect(reason.parentAuthor.name.displayName).toBeUndefined();
+    expect(reason.parentAuthor?.id).toBe(PARENT_AUTHOR_ID);
+    expect(reason.parentAuthor?.username).toBe('');
+    expect(reason.parentAuthor?.name.displayName).toBeUndefined();
+  });
+});
+
+/**
+ * A federated reply is linked into its thread only if the outbox connector can
+ * resolve — or bounded-backfill — its parent (`outbox.service.ts`,
+ * `if (!link) continue`). When the parent is unreachable the reply is stored
+ * with `federation.inReplyTo` intact and `parentPostId` left NULL.
+ *
+ * The slicer used to test `post.parentPostId` and therefore classified those as
+ * thread ROOTS: no `replyContext` reason, so the renderer's "Replying to" header
+ * never fired and the `hideReplies` tuner (which filters on that same reason)
+ * never saw them either. A context-free reply — "@someone thank you!" — rendered
+ * as an ordinary top-level post.
+ */
+describe('ThreadSlicingService replies without a local parent link', () => {
+  const FEDERATED_REPLY_ID = '650000000000000000000201';
+
+  beforeEach(() => {
+    // No parent to fetch: there is no local id to query for.
+    postFind.mockImplementation(() => []);
+    resolveUserSummaries.mockResolvedValue(new Map<string, CachedUserSummary>());
+  });
+
+  it('tags an unlinked federated reply as replyContext, with no parentAuthor', async () => {
+    const reply = {
+      _id: FEDERATED_REPLY_ID,
+      oxyUserId: REPLY_AUTHOR_ID,
+      parentPostId: null,
+      federation: { inReplyTo: 'https://remote.example/users/someone/statuses/1' },
+      content: { text: '@someone thank you!' },
+    };
+
+    const { slices } = await threadSlicingService.sliceFeed([reply], {
+      enableThreadGrouping: true,
+      enableReplyContext: true,
+      maxSliceSize: 3,
+    });
+
+    expect(slices).toHaveLength(1);
+    const reason = slices[0].reason;
+    if (reason?.type !== 'replyContext') {
+      throw new Error(`expected replyContext reason, got ${String(reason?.type)}`);
+    }
+    // Nobody to name — but the slice still declares itself a reply, which is what
+    // the header and the hideReplies tuner key off.
+    expect(reason.parentAuthor).toBeUndefined();
+    // The reply is alone in the slice: there is no parent post to prepend.
+    expect(slices[0].items).toHaveLength(1);
+    // No parent id exists, so the slicer must not have gone looking for one.
+    expect(postFind).not.toHaveBeenCalled();
+  });
+
+  it('does not treat an unlinked federated reply as a self-thread root', async () => {
+    const reply = {
+      _id: FEDERATED_REPLY_ID,
+      oxyUserId: REPLY_AUTHOR_ID,
+      parentPostId: null,
+      // A stale/backfilled threadId must not promote a reply to a thread root.
+      threadId: 'thread-9',
+      federation: { inReplyTo: 'https://remote.example/users/someone/statuses/1' },
+      content: { text: 'a federated reply' },
+    };
+
+    const { slices } = await threadSlicingService.sliceFeed([reply], {
+      enableThreadGrouping: true,
+      enableReplyContext: true,
+      maxSliceSize: 3,
+    });
+
+    expect(slices[0].reason?.type).toBe('replyContext');
+  });
+
+  it('still tags a reply whose parent was already rendered higher in the page', async () => {
+    resolveUserSummaries.mockResolvedValue(
+      new Map<string, CachedUserSummary>([
+        [PARENT_AUTHOR_ID, summary(PARENT_AUTHOR_ID, 'parenthandle', 'Parent Display Name')],
+      ]),
+    );
+
+    const parent = {
+      _id: PARENT_ID,
+      oxyUserId: PARENT_AUTHOR_ID,
+      parentPostId: null,
+      content: { text: 'parent body' },
+    };
+    const reply = {
+      _id: REPLY_ID,
+      oxyUserId: REPLY_AUTHOR_ID,
+      parentPostId: PARENT_ID,
+      content: { text: 'a reply' },
+    };
+
+    // Parent first: it is consumed as its own slice, so the reply cannot prepend
+    // it again — the case that previously produced an untagged bare slice.
+    const { slices } = await threadSlicingService.sliceFeed([parent, reply], {
+      enableThreadGrouping: false,
+      enableReplyContext: true,
+      maxSliceSize: 3,
+    });
+
+    expect(slices).toHaveLength(2);
+    const replySlice = slices[1];
+    const reason = replySlice.reason;
+    if (reason?.type !== 'replyContext') {
+      throw new Error(`expected replyContext reason, got ${String(reason?.type)}`);
+    }
+    expect(replySlice.items).toHaveLength(1);
+    // The parent doc IS in hand here, so the author still resolves — only the
+    // POST cannot be repeated.
+    expect(reason.parentAuthor?.username).toBe('parenthandle');
   });
 });
 

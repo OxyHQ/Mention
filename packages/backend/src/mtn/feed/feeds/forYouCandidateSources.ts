@@ -52,6 +52,7 @@ import { SENSITIVE_EXCLUDE_MATCH, isSensitivePost } from '../feedSafety';
 import { logger } from '../../../utils/logger';
 import { buildFollowedAuthorsMatch } from '../../../utils/postAuthorship';
 import { FEED_FIELDS } from '../FeedAPI';
+import { restrictToRoots } from '../../../utils/postReply';
 import { engagementScoreExpr } from '../engine/sources/discoverySources';
 import type { CandidatePost as EngineCandidatePost } from '../engine/types';
 import type { OxyClient } from '../../../utils/privacyHelpers';
@@ -320,7 +321,7 @@ export async function gatherTrendingLane(params: GatherForYouCandidatesParams): 
   try {
     const base = buildBaseMatch(toObjectIds(params.seenPostIds), recencyStart());
     const match = withDiscoverySafety(base);
-    match.parentPostId = { $in: [null, undefined] };
+    restrictToRoots(match);
     return await Post.aggregate<CandidatePost>([
       { $match: match },
       // Shared composite (single source of truth) — the federated boost subset is

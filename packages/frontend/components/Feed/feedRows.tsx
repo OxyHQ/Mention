@@ -412,7 +412,18 @@ export function renderFeedRow(row: FeedRow, { router, threadLineColor, feedDescr
 
     const showThreadLink = row.isIncompleteThread && row.isThreadLastChild;
     const showMoreReplies = row.isIncompleteThread && row.truncatedChildCount > 0;
-    const replyContextAuthor = row.isThreadChild && row.sliceReason?.type === 'replyContext'
+    // In a `replyContext` slice the REPLY is always the LAST item — the parent,
+    // when the server holds it, is prepended. `!isThreadParent` is exactly "last
+    // item of the slice" for both shapes the server emits: the 2-item
+    // [parent, reply] and the 1-item [reply] it falls back to when the parent is
+    // unavailable (already on the page, unpublished, or — for a federated reply
+    // whose `inReplyTo` never resolved — absent from the database).
+    //
+    // Keying on `isThreadChild` (index > 0) instead SKIPPED the 1-item shape, so
+    // a context-free reply rendered as an ordinary top-level post.
+    const isReplyContextRow = !row.isThreadParent && row.sliceReason?.type === 'replyContext';
+    // Present only when the server could resolve whom the reply answers.
+    const replyContextAuthor = !row.isThreadParent && row.sliceReason?.type === 'replyContext'
         ? row.sliceReason.parentAuthor
         : undefined;
     const nestPadding = row.nestingDepth > 0 ? { paddingLeft: 16 * row.nestingDepth } : undefined;
@@ -437,6 +448,7 @@ export function renderFeedRow(row: FeedRow, { router, threadLineColor, feedDescr
                 isThreadLastChild={row.isThreadLastChild}
                 attachedBelow={showThreadLink}
                 nestingDepth={row.nestingDepth}
+                isReplyContext={boostedOriginal ? false : isReplyContextRow}
                 replyContextAuthor={boostedOriginal ? undefined : replyContextAuthor}
                 repostedBy={boostedOriginal ? boostCtx?.actor : undefined}
                 feedDescriptor={feedDescriptor}

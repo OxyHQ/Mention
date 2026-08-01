@@ -93,7 +93,19 @@ export interface FeedSliceItem {
 
 export type FeedSliceReason =
   | { type: 'boost'; actor: PostUser }
-  | { type: 'replyContext'; parentAuthor: PostUser }
+  /**
+   * The slice's LAST item is a reply. The parent post is prepended as the first
+   * item when it is available; when it is not — already rendered higher in the
+   * page, unpublished, or (for a federated reply whose `inReplyTo` never
+   * resolved) absent from our database entirely — the slice carries the reply
+   * alone and `parentAuthor` is omitted.
+   *
+   * The reason is present either way: it is what marks the item as a reply for
+   * the renderer's "Replying to" header and for the `hideReplies` tuner, so a
+   * missing parent must never downgrade the slice to an untagged one — that is
+   * precisely what made context-free replies render as ordinary top-level posts.
+   */
+  | { type: 'replyContext'; parentAuthor?: PostUser }
   | { type: 'selfThread' };
 
 export interface FeedPostSlice {

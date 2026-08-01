@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import mongoose from 'mongoose';
 import { PostType, PostVisibility } from '@mention/shared-types';
+import { isReplyClause } from '../utils/postReply';
 
 /**
  * Unit tests for the social-graph SOURCE modules (mutuals upgrade + the new
@@ -167,7 +168,12 @@ describe('repliesFromFollows source', () => {
     await repliesFromFollowsSource.gather({ currentUserId: 'viewer', followingIds: ['f1'] }, {}, 30);
     const match = findCalls[0];
     expect(match.oxyUserId).toEqual({ $in: ['f1'] });
-    expect(match.parentPostId).toEqual({ $ne: null });
+    // "Is a reply" consults BOTH parent encodings, so a federated reply whose
+    // parent was never linked locally is still selected (`utils/postReply`). The
+    // constraint rides `$and`, never `$or`, because `ChronoCursor.applyToQuery`
+    // ASSIGNS `match.$or` for the keyset cursor and would otherwise drop it.
+    expect(match.$or).toBeUndefined();
+    expect(match.$and).toEqual([isReplyClause()]);
   });
 
   it('returns [] with no follows', async () => {

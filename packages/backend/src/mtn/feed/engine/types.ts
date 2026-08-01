@@ -51,6 +51,18 @@ export type CandidatePost = Record<string, unknown> & Omit<FeedSafetyPostShape, 
     /** Legacy extracted topics — used by related sources when topicRefs absent. */
     topics?: string[];
   };
+  /**
+   * The federation subdocument. `FeedSafetyPostShape` contributes its SAFETY
+   * fields (`sensitive`, `spoilerText`); this adds `inReplyTo`, the AP parent
+   * IRI the reply predicate reads (`utils/postReply`).
+   *
+   * It belongs on the candidate type because `FEED_FIELDS` projects the whole
+   * `federation` subdocument, so the IRI is present at runtime — and it is the
+   * ONLY parent link a federated reply has when its parent could not be resolved
+   * at ingest. Omitting it from the type is what let the safety-only shape stand
+   * in for the full subdocument.
+   */
+  federation?: FeedSafetyPostShape['federation'] & { inReplyTo?: string | null };
 };
 
 export type ModuleKind = 'source' | 'signal' | 'filter';

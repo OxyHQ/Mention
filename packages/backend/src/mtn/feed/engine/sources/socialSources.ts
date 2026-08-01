@@ -19,6 +19,7 @@ import { FEED_FIELDS } from '../../FeedAPI';
 import { ChronoCursor } from '../../CursorBuilder';
 import { DISCOVERY_SAFE_MATCH } from '../../feedSafety';
 import { logger } from '../../../../utils/logger';
+import { notAReplyClause, restrictToReplies } from '../../../../utils/postReply';
 import type { CandidatePost, SourceModule } from '../types';
 
 /**
@@ -184,16 +185,17 @@ export const repliesFromFollowsSource: SourceModule = {
     const followingIds = ctx.followingIds ?? [];
     if (followingIds.length === 0) return [];
 
-    return fetchChrono(
-      {
-        oxyUserId: { $in: followingIds },
-        parentPostId: { $ne: null },
-        visibility: PostVisibility.PUBLIC,
-        status: 'published',
-      },
-      ctx.cursor,
-      cap,
-    );
+    // `restrictToReplies` appends to `$and`, never to `$or`: `fetchChrono` runs
+    // `ChronoCursor.applyToQuery`, which ASSIGNS `match.$or` for the keyset
+    // cursor and would otherwise silently drop the reply constraint on page 2+.
+    const match: Record<string, unknown> = {
+      oxyUserId: { $in: followingIds },
+      visibility: PostVisibility.PUBLIC,
+      status: 'published',
+    };
+    restrictToReplies(match);
+
+    return fetchChrono(match, ctx.cursor, cap);
   },
 };
 
@@ -446,7 +448,7 @@ export const newVoicesSource: SourceModule = {
       createdAt: { $gte: windowStart },
       ...DISCOVERY_SAFE_MATCH,
       $and: [
-        { $or: [{ parentPostId: null }, { parentPostId: { $exists: false } }] },
+        notAReplyClause(),
         { $or: [{ boostOf: null }, { boostOf: { $exists: false } }] },
       ],
     };
@@ -485,12 +487,12 @@ export const topRepliesSource: SourceModule = {
   gather: async (_ctx, _params, cap) => {
     const windowStart = new Date(Date.now() - MtnConfig.feed.candidateSources.recencyWindowMs);
     const match: Record<string, unknown> = {
-      parentPostId: { $ne: null },
       visibility: PostVisibility.PUBLIC,
       status: 'published',
       createdAt: { $gte: windowStart },
       ...DISCOVERY_SAFE_MATCH,
     };
+    restrictToReplies(match);
 
     const ranked = await Post.aggregate<{ _id: unknown }>([
       { $match: match },

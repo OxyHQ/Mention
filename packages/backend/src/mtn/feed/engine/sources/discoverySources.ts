@@ -15,6 +15,7 @@ import { fetchWithRecencyFallback } from '../../../../utils/feedUtils';
 import { FEED_FIELDS } from '../../FeedAPI';
 import { ScoreCursor, type ScoreCursorData } from '../../CursorBuilder';
 import { DISCOVERY_SAFE_MATCH, filterDiscoverable } from '../../feedSafety';
+import { notAReplyClause } from '../../../../utils/postReply';
 import type { CandidatePost, FeedEngineContext, SourceModule } from '../types';
 
 /**
@@ -228,7 +229,7 @@ export const exploreSource: SourceModule = {
       createdAt: { $gte: trendingCutoff, $lte: rankingCeiling },
       ...DISCOVERY_SAFE_MATCH,
       $and: [
-        { $or: [{ parentPostId: null }, { parentPostId: { $exists: false } }] },
+        notAReplyClause(),
         { $or: [{ boostOf: null }, { boostOf: { $exists: false } }] },
       ],
     };

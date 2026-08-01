@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import mongoose from 'mongoose';
 import { PostVisibility } from '@mention/shared-types';
+import { notAReplyClause } from '../utils/postReply';
 
 /**
  * Unit tests for the engine SOURCE modules — each must reproduce the query of
@@ -227,14 +228,17 @@ describe('keywords source', () => {
 });
 
 describe('authored source', () => {
-  it('posts filter queries the author with parentPostId null', async () => {
+  it('posts filter excludes replies under BOTH parent encodings', async () => {
     findRouter = () => [makePost(6)];
     await authoredSource.gather({ currentUserId: 'viewer' }, { authorId: 'a6', filter: 'posts' }, 31);
     const match = findCalls[0];
     expect(match).toMatchObject({
       authorship: { $elemMatch: { oxyUserId: 'a6', status: 'accepted' } },
-      parentPostId: null,
     });
+    // A `parentPostId`-only exclusion let a federated reply whose parent was
+    // never linked locally through as if it were a thread root
+    // (`utils/postReply`).
+    expect(match.$and).toEqual([notAReplyClause()]);
   });
 
   it('boosts filter queries the author\'s boosts', async () => {
@@ -295,7 +299,7 @@ describe('authored source', () => {
   it('an unknown filter degrades to posts rather than erroring', async () => {
     findRouter = () => [makePost(10)];
     await authoredSource.gather({ currentUserId: 'viewer' }, { authorId: 'a10', filter: 'bogus' }, 31);
-    expect(findCalls[0]).toMatchObject({ parentPostId: null });
+    expect(findCalls[0].$and).toEqual([notAReplyClause()]);
   });
 
   describe('profile visibility gate', () => {

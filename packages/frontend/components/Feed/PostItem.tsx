@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useContext, useState, lazy, Suspense } from 'react';
+import React, { useCallback, useMemo, useContext, useState, lazy, Suspense, Fragment } from 'react';
 import { StyleSheet, View, Pressable, TouchableOpacity, Text, GestureResponderEvent } from 'react-native';
 import { useRouter, usePathname } from 'expo-router';
 import type {
@@ -83,10 +83,24 @@ interface PostItemProps {
      */
     attachedBelow?: boolean;
     /**
-     * When this row is a reply surfaced into a feed for context (slice reason
-     * `replyContext`), the parent author it replies to. Renders a muted
-     * "Replying to @handle" row in the avatar-gutter lane above the header,
-     * mirroring the Pinned row layout (Bluesky-style context rows, all muted).
+     * Whether this row is a reply surfaced into a feed (slice reason
+     * `replyContext`). Renders a muted "Replying to …" row in the avatar-gutter
+     * lane above the header, mirroring the Pinned row layout (Bluesky-style
+     * context rows, all muted).
+     *
+     * Kept SEPARATE from {@link replyContextAuthor} because the two answer
+     * different questions: this one is "is it a reply", which the server always
+     * knows, and the other is "to whom", which it may not. Deriving the row from
+     * the author alone silently hid the marker whenever the parent could not be
+     * resolved — making a context-free reply indistinguishable from a top-level
+     * post.
+     */
+    isReplyContext?: boolean;
+    /**
+     * The parent author, when the server could resolve it. Absent when the parent
+     * post is not in the database — e.g. a federated reply whose `inReplyTo`
+     * never resolved. The row then reads as a reply without naming a recipient
+     * rather than disappearing.
      */
     replyContextAuthor?: PostUser;
     /**
@@ -151,6 +165,7 @@ const PostItem: React.FC<PostItemProps> = ({
     isThreadChild = false,
     isThreadLastChild = false,
     attachedBelow = false,
+    isReplyContext = false,
     replyContextAuthor,
     repostedBy,
     isPostDetail: isPostDetailProp = false,
@@ -685,18 +700,28 @@ const PostItem: React.FC<PostItemProps> = ({
             </View>,
         );
     }
-    if (replyContextHandle) {
-        contextRows.push(
-            <ProfileHoverCard key="reply" username={replyContextAuthorHandle}>
-                <View className="flex-row items-center" style={{ height: POST_CONTEXT_ROW_HEIGHT }}>
-                    <View className="-ml-4 mr-[3px]">
-                        <Ionicons name="return-down-forward-outline" size={13} color={theme.colors.textSecondary} />
-                    </View>
-                    <Text className="text-muted-foreground text-[13px] font-semibold" numberOfLines={1}>
-                        {t('post.replyingTo', { defaultValue: 'Replying to' })} @{replyContextHandle}
-                    </Text>
+    if (isReplyContext || replyContextHandle) {
+        // Named when the parent author resolved; otherwise the row still states
+        // that this is a reply — the alternative (rendering nothing) is what made
+        // a context-free reply read as an ordinary top-level post.
+        const replyRow = (
+            <View className="flex-row items-center" style={{ height: POST_CONTEXT_ROW_HEIGHT }}>
+                <View className="-ml-4 mr-[3px]">
+                    <Ionicons name="return-down-forward-outline" size={13} color={theme.colors.textSecondary} />
                 </View>
-            </ProfileHoverCard>,
+                <Text className="text-muted-foreground text-[13px] font-semibold" numberOfLines={1}>
+                    {replyContextHandle
+                        ? `${t('post.replyingTo', { defaultValue: 'Replying to' })} @${replyContextHandle}`
+                        : t('post.replyingToUnknown', { defaultValue: 'Replying to a post' })}
+                </Text>
+            </View>
+        );
+        // The hover card previews a real handle. Without one there is nobody to
+        // fetch, so the row renders as plain text instead of a dead target.
+        contextRows.push(
+            replyContextAuthorHandle
+                ? <ProfileHoverCard key="reply" username={replyContextAuthorHandle}>{replyRow}</ProfileHoverCard>
+                : <Fragment key="reply">{replyRow}</Fragment>,
         );
     }
 
