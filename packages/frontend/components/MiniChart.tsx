@@ -27,11 +27,17 @@ const MiniChart: React.FC<MiniChartProps> = ({
 }) => {
     const theme = useTheme();
     
-    // Use provided colors or theme defaults
-    const defaultBarColor = barColor || theme.colors.primary + '40';
+    // Use provided colors or theme defaults.
+    //
+    // The defaults are real theme roles, NOT `theme.colors.primary` with a hex
+    // alpha suffix: that token resolves to an `rgb(...)` string, so appending
+    // `40`/`20`/`60` produced a malformed colour react-native-web read back as
+    // fully opaque primary — every bar, filled or empty, painted the same solid
+    // colour as today's bar, so the chart carried no information at all.
+    const defaultBarColor = barColor || theme.colors.primarySubtle;
     const defaultTodayColor = todayColor || theme.colors.primary;
-    const defaultEmptyColor = emptyColor || theme.colors.primary + '20';
-    const defaultLabelColor = labelColor || theme.colors.primary + '60';
+    const defaultEmptyColor = emptyColor || theme.colors.contrast50;
+    const defaultLabelColor = labelColor || theme.colors.textSecondary;
     const defaultTodayLabelColor = todayLabelColor || theme.colors.primary;
     
     // Ensure we always have 7 values

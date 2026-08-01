@@ -123,10 +123,13 @@ const DraftsList: React.FC<DraftsListProps> = ({ onLoadDraft, onPreviewDraft, cu
     const isCurrentDraft = item.id === currentDraftId;
     const isDeleting = deletingId === item.id;
 
+    // The current-draft tint is `bg-primary/10`, not
+    // `theme.colors.primary + '15'`: that token is an `rgb(...)` string, so a
+    // hex-alpha suffix reads back fully opaque and the row the user is editing
+    // paints solid primary under its own foreground text.
     return (
       <View
-        className="flex-row items-center px-4 py-3 bg-background border-b border-border"
-        style={isCurrentDraft ? { backgroundColor: theme.colors.primary + '15' } : undefined}
+        className={`flex-row items-center px-4 py-3 border-b border-border ${isCurrentDraft ? 'bg-primary/10' : 'bg-background'}`}
       >
         <TouchableOpacity
           className="flex-1 flex-row items-center"

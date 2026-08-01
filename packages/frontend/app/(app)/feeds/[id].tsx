@@ -234,7 +234,7 @@ const FeedInfoContent = React.memo(function FeedInfoContent({
       <View className="flex-row gap-2.5 pt-1">
         <TouchableOpacity
           className="flex-1 h-10 rounded-lg flex-row items-center justify-center gap-1.5"
-          style={{ backgroundColor: theme.colors.backgroundSecondary || theme.colors.border + '40' }}
+          style={{ backgroundColor: theme.colors.backgroundSecondary }}
           onPress={onToggleSubscribe}
           disabled={isSubscribing}
           activeOpacity={0.7}
@@ -258,7 +258,7 @@ const FeedInfoContent = React.memo(function FeedInfoContent({
         </TouchableOpacity>
         <TouchableOpacity
           className="flex-1 h-10 rounded-lg flex-row items-center justify-center gap-1.5"
-          style={{ backgroundColor: isPinned ? theme.colors.primary : (theme.colors.backgroundSecondary || theme.colors.border + '40') }}
+          style={{ backgroundColor: isPinned ? theme.colors.primary : theme.colors.backgroundSecondary }}
           onPress={onTogglePin}
           activeOpacity={0.7}
         >
@@ -280,7 +280,7 @@ const FeedInfoContent = React.memo(function FeedInfoContent({
       {isOwner ? (
         <TouchableOpacity
           className="h-10 rounded-lg flex-row items-center justify-center gap-1.5"
-          style={{ backgroundColor: theme.colors.backgroundSecondary || theme.colors.border + '40' }}
+          style={{ backgroundColor: theme.colors.backgroundSecondary }}
           onPress={() => {
             onClose();
             onEdit();
@@ -300,7 +300,7 @@ const FeedInfoContent = React.memo(function FeedInfoContent({
         </Text>
         <TouchableOpacity
           className="px-3 h-8 rounded-lg items-center justify-center"
-          style={{ backgroundColor: theme.colors.backgroundSecondary || theme.colors.border + '40' }}
+          style={{ backgroundColor: theme.colors.backgroundSecondary }}
           activeOpacity={0.7}
           onPress={() => {
             toast('Report submitted', { type: 'info' });

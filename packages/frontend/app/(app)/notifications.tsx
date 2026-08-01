@@ -408,7 +408,11 @@ const NotificationsScreen: React.FC = () => {
     }, [t, handleBoundaryError, handleMarkAsRead, handleDelete]);
 
     const emptyStateConfig = useMemo(() => {
-        const iconBg = `${theme.colors.border}33`;
+        // `contrast50` is the theme's real muted surface. It is NOT
+        // `${theme.colors.border}33`: `border` resolves to an `rgb(...)` string,
+        // so the hex-alpha suffix produced a malformed colour react-native-web
+        // read back as a fully opaque border-coloured disc behind the icon.
+        const iconBg = theme.colors.contrast50;
         const iconColor = theme.colors.textSecondary;
         switch (activeTab) {
             case 'mentions':

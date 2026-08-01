@@ -2125,7 +2125,7 @@ const ComposeScreenBody = () => {
                 {/* Connector line below main avatar — thread mode only; see
                     `showThreadTimeline`. */}
                 {showThreadTimeline ? (
-                  <View style={[styles.itemConnectorLine, { left: TIMELINE_LINE_OFFSET, backgroundColor: `${theme.colors.primary}30` }]} />
+                  <View className="bg-primary/20" style={styles.itemConnectorLine} />
                 ) : null}
                 <View style={styles.composerWithTimeline}>
                   <PostHeader
@@ -2553,7 +2553,7 @@ const ComposeScreenBody = () => {
               >
                 {/* Connector line above add button's avatar — thread mode only. */}
                 {showThreadTimeline ? (
-                  <View style={[styles.itemConnectorLineAbove, { left: TIMELINE_LINE_OFFSET, backgroundColor: `${theme.colors.primary}30` }]} />
+                  <View className="bg-primary/20" style={styles.itemConnectorLineAbove} />
                 ) : null}
                 <View style={[styles.headerRow, { paddingHorizontal: HPAD }]}>
                   <TouchableOpacity activeOpacity={0.7}>
@@ -3294,8 +3294,14 @@ const styles = StyleSheet.create({
   threadContainer: {
     position: 'relative',
   },
+  // The connector's COLOUR is not here: it is the `bg-primary/20` className on
+  // every connector <View>. `theme.colors.primary` resolves to `rgb(0 98 157)`,
+  // so the `${primary}30` this used to interpolate was a malformed colour
+  // string that react-native-web read back as FULLY OPAQUE — a solid primary bar
+  // between the avatars instead of the faint 19% line the suffix asked for.
   itemConnectorLine: {
     position: 'absolute',
+    left: TIMELINE_LINE_OFFSET,
     top: 60, // below avatar: 12px pad + 40px avatar + 8px gap
     bottom: 0,
     width: 2,
@@ -3304,6 +3310,7 @@ const styles = StyleSheet.create({
   },
   itemConnectorLineAbove: {
     position: 'absolute',
+    left: TIMELINE_LINE_OFFSET,
     top: 0,
     height: 4, // from container top to 8px before avatar (12px pad - 8px gap)
     width: 2,

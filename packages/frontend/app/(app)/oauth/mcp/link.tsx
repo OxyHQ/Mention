@@ -148,8 +148,7 @@ function LinkBody({ token }: { token: string }) {
           <Avatar source={currentUserProfile.avatar} size={72} variant={MEDIA_VARIANT_VIDEO_POSTER} />
         ) : (
           <View
-            className="w-[72px] h-[72px] rounded-full items-center justify-center"
-            style={{ backgroundColor: colors.primary + '1A' }}
+            className="w-[72px] h-[72px] rounded-full items-center justify-center bg-primary/10"
           >
             <Icon name="person-outline" size={34} color={colors.primary} />
           </View>

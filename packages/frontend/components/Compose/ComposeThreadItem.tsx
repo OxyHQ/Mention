@@ -29,7 +29,7 @@ import type { ComposerMediaItem } from '@/utils/composeUtils';
 import type { MentionTextValue } from '@/utils/mentions';
 import { HIT_SLOP_SM } from '@/styles/hitSlop';
 
-import { HPAD, BOTTOM_LEFT_PAD, TIMELINE_LINE_OFFSET } from './composeLayout';
+import { HPAD, BOTTOM_LEFT_PAD } from './composeLayout';
 
 /**
  * The exact slice of the composer's stylesheet this row renders with. The
@@ -197,17 +197,6 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(({
    */
   const showTimeline = postingMode === 'thread';
 
-  // Memoize connector line styles
-  const connectorAboveStyle = useMemo(() => [
-    styles.itemConnectorLineAbove,
-    { left: TIMELINE_LINE_OFFSET, backgroundColor: `${theme.colors.primary}30` },
-  ], [styles.itemConnectorLineAbove, theme.colors.primary]);
-
-  const connectorBelowStyle = useMemo(() => [
-    styles.itemConnectorLine,
-    { left: TIMELINE_LINE_OFFSET, backgroundColor: `${theme.colors.primary}30` },
-  ], [styles.itemConnectorLine, theme.colors.primary]);
-
   const containerStyle = useMemo(() => [
     styles.postContainer,
     !isFocused && styles.unfocusedItem,
@@ -226,8 +215,14 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(({
     <View style={containerStyle}>
       {showTimeline ? (
         <>
-          <View style={connectorAboveStyle} />
-          <View style={connectorBelowStyle} />
+          {/* The connector's colour is the className, never an interpolated
+              hex-alpha suffix on `theme.colors.primary` — that token resolves to
+              `rgb(0 98 157)`, so `${primary}30` yields a malformed string
+              react-native-web reads back as FULLY OPAQUE, painting a solid bar
+              instead of the faint line. Geometry (incl. `left`) lives in the
+              composer's own sheet entries. */}
+          <View className="bg-primary/20" style={styles.itemConnectorLineAbove} />
+          <View className="bg-primary/20" style={styles.itemConnectorLine} />
         </>
       ) : null}
       <View style={styles.threadItemWithTimeline}>

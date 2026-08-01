@@ -154,14 +154,24 @@ function renderItem(postingMode: 'thread' | 'beast') {
   return tree;
 }
 
-/** How many Views were styled with the given sentinel connector style. */
+/** Every View styled with the given sentinel connector style. */
+function connectors(tree: TestRenderer.ReactTestRenderer, marker: object) {
+  return tree.root.findAllByType(View).filter((node) => {
+    const style = node.props.style;
+    return Array.isArray(style) ? style.includes(marker) : style === marker;
+  });
+}
+
 function connectorCount(tree: TestRenderer.ReactTestRenderer, marker: object): number {
-  return tree.root
-    .findAllByType(View)
-    .filter((node) => {
-      const style = node.props.style;
-      return Array.isArray(style) ? style.includes(marker) : style === marker;
-    }).length;
+  return connectors(tree, marker).length;
+}
+
+/** Every `backgroundColor` this node declares in inline style, flattened. */
+function inlineBackgroundColors(style: unknown): unknown[] {
+  const entries = Array.isArray(style) ? style : [style];
+  return entries
+    .filter((entry): entry is Record<string, unknown> => typeof entry === 'object' && entry !== null)
+    .flatMap((entry) => ('backgroundColor' in entry ? [entry.backgroundColor] : []));
 }
 
 describe('ComposeThreadItem — the timeline between avatars', () => {
@@ -184,6 +194,33 @@ describe('ComposeThreadItem — the timeline between avatars', () => {
 
     expect(connectorCount(tree, CONNECTOR_ABOVE)).toBe(0);
     expect(connectorCount(tree, CONNECTOR_BELOW)).toBe(0);
+
+    act(() => tree.unmount());
+  });
+
+  /**
+   * The connector is a HINT, not a rule: it should read as a faint tether
+   * between avatars. It used to interpolate `` `${theme.colors.primary}30` ``
+   * into inline style, which is not a colour at all — Bloom resolves `primary`
+   * to `rgb(0 98 157)`, so the suffix produced `'rgb(0 98 157)30'`, and
+   * react-native-web's own normaliser drops the trailing digits and paints the
+   * base colour at FULL opacity (verified: `processColor` returns `#ff00629d`
+   * for that string, byte-identical to unsuffixed primary). The line rendered as
+   * a solid saturated bar down the composer.
+   *
+   * So the tint must come from the NativeWind opacity class, which composites
+   * through the CSS pipeline, and the connector must declare NO inline
+   * background colour — an inline one would win over the class and put the bug
+   * straight back.
+   */
+  it('tints the connector with an opacity CLASS and no inline background', () => {
+    const tree = renderItem('thread');
+
+    for (const marker of [CONNECTOR_ABOVE, CONNECTOR_BELOW]) {
+      const [node] = connectors(tree, marker);
+      expect(node.props.className).toMatch(/\bbg-primary\/\d+\b/);
+      expect(inlineBackgroundColors(node.props.style)).toEqual([]);
+    }
 
     act(() => tree.unmount());
   });

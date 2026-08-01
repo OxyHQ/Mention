@@ -196,8 +196,7 @@ export default function ConnectedAiScreen() {
         ) : connections.length === 0 ? (
           <View className="px-6 py-10 items-center gap-3">
             <View
-              className="w-16 h-16 rounded-full items-center justify-center"
-              style={{ backgroundColor: colors.primary + '1A' }}
+              className="w-16 h-16 rounded-full items-center justify-center bg-primary/10"
             >
               <Icon name="sparkles-outline" size={32} color={colors.primary} />
             </View>

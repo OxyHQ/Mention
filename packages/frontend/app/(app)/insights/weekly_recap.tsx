@@ -253,7 +253,11 @@ const WeeklyRecapScreen: React.FC = () => {
             <ThemedView className="flex-1">
                 {renderHeader()}
                 <View className="flex-1 items-center justify-center p-6">
-                    <AnalyticsIcon size={64} color={theme.colors.text + '60'} />
+                    {/* `textTertiary` is the theme's real de-emphasised ink.
+                        `theme.colors.text + '60'` was a malformed colour (the
+                        token is `rgb(...)`), so the empty-state glyph painted at
+                        full foreground strength — louder than the message. */}
+                    <AnalyticsIcon size={64} color={theme.colors.textTertiary} />
                     <Text className="text-base mt-3 text-muted-foreground">
                         {t('insights.weeklyRecap.noDataAvailable')}
                     </Text>

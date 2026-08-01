@@ -171,16 +171,14 @@ function ConsentBody({ params }: { params: Required<Pick<McpAuthorizeParams, 'cl
             <Avatar source={currentUserProfile.avatar} size={56} variant={MEDIA_VARIANT_VIDEO_POSTER} />
           ) : (
             <View
-              className="w-14 h-14 rounded-full items-center justify-center"
-              style={{ backgroundColor: colors.primary + '1A' }}
+              className="w-14 h-14 rounded-full items-center justify-center bg-primary/10"
             >
               <Icon name="person-outline" size={26} color={colors.primary} />
             </View>
           )}
           <Icon name="swap-horizontal" size={22} color={colors.textSecondary} />
           <View
-            className="w-14 h-14 rounded-full items-center justify-center"
-            style={{ backgroundColor: colors.primary + '1A' }}
+            className="w-14 h-14 rounded-full items-center justify-center bg-primary/10"
           >
             <Icon name="sparkles" size={26} color={colors.primary} />
           </View>

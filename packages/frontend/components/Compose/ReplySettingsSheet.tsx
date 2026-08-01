@@ -49,7 +49,13 @@ const ReplySettingsSheet: React.FC<ReplySettingsSheetProps> = ({
   const isNobody = replyPermission.includes('nobody');
   const isGranular = !isAnyone && !isNobody;
 
-  const panelActiveBg = theme.colors.primary + '12';
+  // The engine's real subtle-primary surface, NOT `theme.colors.primary + '12'`:
+  // that token is an `rgb(...)` string, so the hex-alpha suffix produced a
+  // malformed colour react-native-web read back as fully opaque primary — a
+  // saturated panel under `theme.colors.text`, i.e. the selected reply option
+  // was the hardest one to read. `primarySubtle` is a container tone the colour
+  // engine derives to sit under foreground text in both light and dark.
+  const panelActiveBg = theme.colors.primarySubtle;
   const panelInactiveBg = theme.colors.backgroundTertiary;
   const mutedTextColor = theme.colors.textSecondary;
   const indicatorBorderColor = theme.colors.border;
