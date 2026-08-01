@@ -30,6 +30,16 @@ export const FOREIGN_KEY_VIOLATION = '23503';
 export const CHECK_VIOLATION = '23514';
 /** Postgres `generated_always` — an attempt to write a GENERATED column. */
 export const GENERATED_ALWAYS = '428C9';
+/**
+ * Postgres `serialization_failure` and `deadlock_detected` — the two concurrency
+ * outcomes a fresh transaction resolves and the same transaction cannot.
+ *
+ * They are the reason a retry loop must restart the TRANSACTION rather than
+ * re-run a statement: both abort the whole transaction, so anything issued after
+ * one inside the same block fails with `25P02` instead of the real cause.
+ */
+export const SERIALIZATION_FAILURE = '40001';
+export const DEADLOCK_DETECTED = '40P01';
 
 /**
  * Depth ceiling on the `cause` walk. A cyclic chain is not something any driver

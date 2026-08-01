@@ -1,4 +1,18 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+/**
+ * The concrete engagement dispatcher: what each event kind actually delivers,
+ * and the interval loop that drains them.
+ *
+ * The MTN, federation and notification effects stay mocked — they are other
+ * services' contracts and are tested there. What is REAL here is Postgres,
+ * because `handleEngagementOutboxEvent` now READS the post's authorship instead
+ * of trusting a snapshot the event carried. `engagement_outbox.payload` used to
+ * hold a `Mixed` copy of the authorship array; the column is dropped and the
+ * rows in `post_authorships` are the authority, so a test that mocked that read
+ * away would be asserting nothing about the only thing this port changed here.
+ */
+
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { eq, inArray } from 'drizzle-orm';
 
 const mocks = vi.hoisted(() => ({
   emitLikeCreatedStrict: vi.fn(),
@@ -41,6 +55,9 @@ vi.mock('../../utils/logger', () => ({
   },
 }));
 
+import { closePostgres, connectPostgres, type Database } from '../../db/postgres';
+import { postAuthorships } from '../../db/schema/postContent';
+import { posts } from '../../db/schema/posts';
 import {
   EngagementOutboxDispatcher,
   handleEngagementOutboxEvent,
@@ -50,22 +67,46 @@ import {
   type EngagementOutboxEvent,
 } from '../../services/EngagementOutboxService';
 
+let db: Database;
+const createdPostIds: string[] = [];
+
+/** A post with an owner and one accepted collaborator, both notification recipients. */
+async function seedCollaborativePost(): Promise<string> {
+  const [post] = await db
+    .insert(posts)
+    .values({ oxyUserId: 'owner-1' })
+    .returning({ id: posts.id });
+  if (!post) throw new Error('Failed to seed a post');
+  createdPostIds.push(post.id);
+  await db.insert(postAuthorships).values([
+    { postId: post.id, oxyUserId: 'owner-1', role: 'owner', status: 'accepted' },
+    {
+      postId: post.id,
+      oxyUserId: 'collaborator-1',
+      role: 'collaborator',
+      status: 'accepted',
+      invitedAt: new Date('2026-07-26T10:00:00.000Z'),
+      respondedAt: new Date('2026-07-26T10:05:00.000Z'),
+    },
+    { postId: post.id, oxyUserId: 'invitee-1', role: 'collaborator', status: 'pending' },
+  ]);
+  return post.id;
+}
+
 function event(
   kind: EngagementOutboxEvent['kind'],
+  postId: string,
   overrides: Partial<EngagementOutboxEvent['payload']> = {},
 ): EngagementOutboxEvent {
   return {
-    _id: `engagement:${kind}:relation-1:v1`,
+    id: `engagement:${kind}:relation-1:v1`,
     kind,
     revision: 1,
     payload: {
       actorOxyUserId: 'actor-1',
-      postId: '507f1f77bcf86cd799439011',
+      postId,
       relationshipId: 'relation-1',
       postOwnerOxyUserId: 'owner-1',
-      postAuthorship: [
-        { oxyUserId: 'owner-1', role: 'owner', status: 'accepted' },
-      ],
       federationActivityId: 'https://remote.example/post/1',
       ...overrides,
     },
@@ -76,61 +117,134 @@ function event(
   };
 }
 
-describe('handleEngagementOutboxEvent', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    mocks.emitLikeCreatedStrict.mockResolvedValue(undefined);
-    mocks.emitTombstoneStrict.mockResolvedValue(undefined);
-    mocks.emitBookmarkCreatedStrict.mockResolvedValue(undefined);
-    mocks.federateAsResolvedActorAndWait.mockResolvedValue(undefined);
-    mocks.createPostAuthorNotificationsStrict.mockResolvedValue(undefined);
-    vi.mocked(dispatchEngagementOutbox).mockResolvedValue({
-      processed: 0,
-      failed: 0,
-    });
-  });
+beforeAll(async () => {
+  db = await connectPostgres();
+});
 
+beforeEach(() => {
+  vi.clearAllMocks();
+  mocks.emitLikeCreatedStrict.mockResolvedValue(undefined);
+  mocks.emitTombstoneStrict.mockResolvedValue(undefined);
+  mocks.emitBookmarkCreatedStrict.mockResolvedValue(undefined);
+  mocks.federateAsResolvedActorAndWait.mockResolvedValue(undefined);
+  mocks.createPostAuthorNotificationsStrict.mockResolvedValue(undefined);
+  vi.mocked(dispatchEngagementOutbox).mockResolvedValue({ processed: 0, failed: 0 });
+});
+
+afterEach(async () => {
+  if (createdPostIds.length > 0) {
+    await db.delete(posts).where(inArray(posts.id, createdPostIds));
+    createdPostIds.length = 0;
+  }
+});
+
+afterAll(async () => {
+  await closePostgres();
+});
+
+describe('handleEngagementOutboxEvent', () => {
   it('delivers like MTN, notification and federation effects', async () => {
+    const postId = await seedCollaborativePost();
     mocks.federateAsResolvedActorAndWait.mockImplementationOnce(
       async (_actorId, _description, buildEvent) => {
         expect(buildEvent('alice')).toEqual({
           kind: 'post.like',
-          like: {
-            _id: 'relation-1',
-            postId: '507f1f77bcf86cd799439011',
-          },
+          like: { _id: 'relation-1', postId },
           actorOxyUserId: 'actor-1',
           actorUsername: 'alice',
         });
       },
     );
-    await handleEngagementOutboxEvent(event('post.like'));
+
+    await handleEngagementOutboxEvent(event('post.like', postId));
 
     expect(mocks.emitLikeCreatedStrict).toHaveBeenCalledWith({
       likerOxyUserId: 'actor-1',
       likeRkey: 'relation-1',
-      likedPostId: '507f1f77bcf86cd799439011',
+      likedPostId: postId,
       likedPostOwnerOxyUserId: 'owner-1',
       idempotencyKey: 'engagement:post.like:relation-1:v1',
       issuedAt: new Date(0),
     });
-    expect(mocks.createPostAuthorNotificationsStrict).toHaveBeenCalledOnce();
     expect(mocks.federateAsResolvedActorAndWait).toHaveBeenCalledOnce();
   });
 
+  it('reads the authorship from post_authorships rather than from the event', async () => {
+    /**
+     * The behaviour the dropped `payload.postAuthorship` column moved. The
+     * notification fan-out sees the membership as it stands NOW: owner and
+     * accepted collaborator, and an invitee who has not answered yet is not one
+     * of them.
+     */
+    const postId = await seedCollaborativePost();
+
+    await handleEngagementOutboxEvent(event('post.like', postId));
+
+    expect(mocks.createPostAuthorNotificationsStrict).toHaveBeenCalledWith(
+      [
+        { oxyUserId: 'owner-1', role: 'owner', status: 'accepted' },
+        {
+          oxyUserId: 'collaborator-1',
+          role: 'collaborator',
+          status: 'accepted',
+          invitedAt: '2026-07-26T10:00:00.000Z',
+          respondedAt: '2026-07-26T10:05:00.000Z',
+        },
+        { oxyUserId: 'invitee-1', role: 'collaborator', status: 'pending' },
+      ],
+      {
+        actorId: 'actor-1',
+        type: 'like',
+        entityId: postId,
+        entityType: 'post',
+      },
+    );
+  });
+
+  it('sees a collaborator who accepted after the event was written', async () => {
+    const postId = await seedCollaborativePost();
+    await db
+      .update(postAuthorships)
+      .set({ status: 'accepted', respondedAt: new Date('2026-07-27T00:00:00.000Z') })
+      .where(eq(postAuthorships.oxyUserId, 'invitee-1'));
+
+    await handleEngagementOutboxEvent(event('post.like', postId));
+
+    const [authorship] = vi.mocked(mocks.createPostAuthorNotificationsStrict).mock.calls[0] ?? [];
+    expect(authorship).toContainEqual(
+      expect.objectContaining({ oxyUserId: 'invitee-1', status: 'accepted' }),
+    );
+  });
+
+  it('answers with an empty authorship for a post that has none', async () => {
+    const [post] = await db.insert(posts).values({}).returning({ id: posts.id });
+    if (!post) throw new Error('Failed to seed a post');
+    createdPostIds.push(post.id);
+
+    await handleEngagementOutboxEvent(event('post.like', post.id));
+
+    expect(mocks.createPostAuthorNotificationsStrict).toHaveBeenCalledWith(
+      [],
+      expect.anything(),
+    );
+  });
+
   it('surfaces a durable federation queue failure so the event remains retryable', async () => {
+    const postId = await seedCollaborativePost();
     mocks.federateAsResolvedActorAndWait.mockRejectedValueOnce(
       new Error('delivery queue unavailable'),
     );
 
     await expect(
-      handleEngagementOutboxEvent(event('post.like')),
+      handleEngagementOutboxEvent(event('post.like', postId)),
     ).rejects.toThrow('delivery queue unavailable');
   });
 
   it('retracts the prior like when an upvote becomes a downvote', async () => {
+    const postId = await seedCollaborativePost();
+
     await handleEngagementOutboxEvent(
-      event('post.downvote', { previousValue: 1, value: -1 }),
+      event('post.downvote', postId, { previousValue: 1, value: -1 }),
     );
 
     expect(mocks.emitTombstoneStrict).toHaveBeenCalledOnce();
@@ -139,8 +253,10 @@ describe('handleEngagementOutboxEvent', () => {
   });
 
   it('does not publish a new downvote to MTN or federation', async () => {
+    const postId = await seedCollaborativePost();
+
     await handleEngagementOutboxEvent(
-      event('post.downvote', {
+      event('post.downvote', postId, {
         previousValue: null,
         value: -1,
         federationActivityId: undefined,
@@ -152,9 +268,11 @@ describe('handleEngagementOutboxEvent', () => {
   });
 
   it('does not federate a local-only like without a federation activity id', async () => {
-    await handleEngagementOutboxEvent(event('post.like', {
-      federationActivityId: undefined,
-    }));
+    const postId = await seedCollaborativePost();
+
+    await handleEngagementOutboxEvent(
+      event('post.like', postId, { federationActivityId: undefined }),
+    );
 
     expect(mocks.emitLikeCreatedStrict).toHaveBeenCalledOnce();
     expect(mocks.createPostAuthorNotificationsStrict).toHaveBeenCalledOnce();
@@ -162,27 +280,28 @@ describe('handleEngagementOutboxEvent', () => {
   });
 
   it('delivers unlike tombstones and treats undownvote as a local no-op', async () => {
-    await handleEngagementOutboxEvent(event('post.unlike'));
-    await handleEngagementOutboxEvent(event('post.undownvote'));
+    const postId = await seedCollaborativePost();
+
+    await handleEngagementOutboxEvent(event('post.unlike', postId));
+    await handleEngagementOutboxEvent(event('post.undownvote', postId));
 
     expect(mocks.emitTombstoneStrict).toHaveBeenCalledOnce();
     expect(mocks.emitTombstoneStrict).toHaveBeenCalledWith(
-      expect.objectContaining({
-        subjectUri: 'mtn://actor-1/likes/relation-1',
-      }),
+      expect.objectContaining({ subjectUri: 'mtn://actor-1/likes/relation-1' }),
     );
     expect(mocks.federateAsResolvedActorAndWait).toHaveBeenCalledOnce();
   });
 
   it('persists save and unsave records under the relationship key', async () => {
-    await handleEngagementOutboxEvent(event('post.save'));
-    await handleEngagementOutboxEvent(event('post.unsave'));
+    const postId = await seedCollaborativePost();
 
-    expect(mocks.emitBookmarkCreatedStrict).toHaveBeenCalledOnce();
+    await handleEngagementOutboxEvent(event('post.save', postId));
+    await handleEngagementOutboxEvent(event('post.unsave', postId));
+
     expect(mocks.emitBookmarkCreatedStrict).toHaveBeenCalledWith({
       ownerOxyUserId: 'actor-1',
       bookmarkRkey: 'relation-1',
-      bookmarkedPostId: '507f1f77bcf86cd799439011',
+      bookmarkedPostId: postId,
       bookmarkedPostOwnerOxyUserId: 'owner-1',
       idempotencyKey: 'engagement:post.save:relation-1:v1',
       issuedAt: new Date(0),
@@ -194,12 +313,16 @@ describe('handleEngagementOutboxEvent', () => {
       idempotencyKey: 'engagement:post.unsave:relation-1:v1',
       issuedAt: new Date(0),
     });
+    // A save is nobody else's business: no notification, no federation.
+    expect(mocks.createPostAuthorNotificationsStrict).not.toHaveBeenCalled();
+    expect(mocks.federateAsResolvedActorAndWait).not.toHaveBeenCalled();
   });
 
   it('surfaces a downstream failure so the claim is retried', async () => {
+    const postId = await seedCollaborativePost();
     mocks.emitLikeCreatedStrict.mockRejectedValueOnce(new Error('MTN unavailable'));
 
-    await expect(handleEngagementOutboxEvent(event('post.like'))).rejects.toThrow(
+    await expect(handleEngagementOutboxEvent(event('post.like', postId))).rejects.toThrow(
       'MTN unavailable',
     );
     expect(mocks.createPostAuthorNotificationsStrict).not.toHaveBeenCalled();
@@ -207,17 +330,9 @@ describe('handleEngagementOutboxEvent', () => {
 });
 
 describe('EngagementOutboxDispatcher lifecycle', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    vi.mocked(dispatchEngagementOutbox).mockResolvedValue({
-      processed: 0,
-      failed: 0,
-    });
-  });
-
   it('contains a claim failure instead of creating an unhandled timer rejection', async () => {
     vi.mocked(dispatchEngagementOutbox).mockRejectedValueOnce(
-      new Error('Mongo unavailable'),
+      new Error('Postgres unavailable'),
     );
     const dispatcher = new EngagementOutboxDispatcher();
 
@@ -226,7 +341,7 @@ describe('EngagementOutboxDispatcher lifecycle', () => {
 
     expect(mocks.loggerError).toHaveBeenCalledWith(
       '[EngagementOutbox] dispatch tick failed',
-      { error: 'Mongo unavailable' },
+      { error: 'Postgres unavailable' },
     );
   });
 
