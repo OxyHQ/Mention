@@ -75,7 +75,7 @@
  * answer the caller was written for.
  */
 
-import { and, eq, inArray } from 'drizzle-orm';
+import { eq, inArray } from 'drizzle-orm';
 import type { SignedRecordEnvelope } from '@oxyhq/contracts';
 import {
   MENTION_POST_COLLECTION,
@@ -100,18 +100,20 @@ import {
   type MediaItem,
   type PostContentVariant,
 } from '@mention/shared-types';
+import type { StoredPostContent } from '@mention/shared-types';
 import { PostType, PostVisibility } from '@mention/shared-types';
-import { getDb, type Transaction } from '../../db/postgres';
-import { uuidv7 } from '../../db/schema/columns';
+import { getDb, type DatabaseOrTransaction } from '../../db/postgres';
+import { isUniqueViolation } from '../../db/pgErrors';
 import { posts } from '../../db/schema/posts';
+import type { PostRecord, PostRecordClassification } from '../../db/posts/postRecord';
 import {
-  postAuthorships,
-  postContentVariants,
-  postMedia,
-  postSources,
-  postVariantAltTexts,
-  postVariantMedia,
-} from '../../db/schema/postContent';
+  deletePostRecord,
+  insertPostRecord,
+  loadPostRecord,
+  replacePostAuthorship,
+  replacePostContent,
+  updatePostRecord,
+} from '../../db/posts/postRepository';
 import { POST_CLASSIFICATION_PENDING } from '../../models/Post';
 import { logger } from '../../utils/logger';
 import { getServiceOxyClient } from '../../utils/oxyHelpers';
@@ -366,46 +368,21 @@ function rkeyFromMtnUri(uri: string): string | null {
 }
 
 /**
- * Which of `ids` name a post that exists.
+ * The Stage-A classification a post record produces, plus its primary language.
  *
- * `posts.parent_post_id`, `thread_id` and `boost_of` are real foreign keys, so an
- * id that names no row cannot be stored at all — the insert would fail and take
- * the whole projection with it. Resolving first turns "the parent is not here
- * yet" from a hard error into a decision each caller makes explicitly.
+ * `PostRecordClassification` requires `status`, `attempts`, `sentiment`,
+ * `intent`, `scores` and `confidence` because the columns are `NOT NULL`; the
+ * baseline supplies the first two and the scores, and leaves the AI-only fields
+ * at their neutral defaults.
  */
-async function existingPostIds(tx: Transaction, ids: string[]): Promise<Set<string>> {
-  const unique = [...new Set(ids.filter((id) => id.length > 0))];
-  if (unique.length === 0) return new Set();
-  const rows = await tx
-    .select({ id: posts.id })
-    .from(posts)
-    .where(inArray(posts.id, unique));
-  return new Set(rows.map((row) => row.id));
-}
-
-/** The classification columns a Stage-A baseline writes, plus the primary language. */
-interface ClassificationColumns {
-  classificationTopics: string[];
-  classificationLanguages: string[];
-  classificationRegion: string | null;
-  classificationHashtagsNorm: string[];
-  classificationSensitive: boolean | null;
-  classificationVersion: number;
-  classificationStatus: typeof POST_CLASSIFICATION_PENDING;
-  classificationAttempts: number;
-  classificationClassifiedAt: Date;
-  classificationScoreToxicity: number;
-  classificationScoreConstructiveness: number;
-  classificationScoreSpam: number;
-  classificationScoreQuality: number;
-  classificationScoreControversy: number;
-  classificationScoreNegativity: number;
+interface BaselineClassification {
+  classification: Partial<PostRecordClassification>;
   /** `languages[0]` — overrides the record's own primary when the classifier resolved one. */
   language?: string;
 }
 
 /**
- * Build the Stage-A classification columns for a post record, MIRRORING
+ * Build the Stage-A classification for a post record, MIRRORING
  * `PostCreationService.applyBaselineClassification` EXACTLY so a materialized
  * post's classification is identical to a natively-created one.
  *
@@ -413,7 +390,7 @@ interface ClassificationColumns {
  * can never fail projection — the caller then leaves the column defaults in place
  * (mirrors PostCreationService).
  */
-function buildClassificationColumns(record: MentionPostRecord): ClassificationColumns | null {
+function buildBaselineClassification(record: MentionPostRecord): BaselineClassification | null {
   try {
     const signals = baselineContentClassifier.classify({
       text: record.text,
@@ -426,32 +403,29 @@ function buildClassificationColumns(record: MentionPostRecord): ClassificationCo
       // native: no `sensitive`/`instanceDomain` source flag to thread through.
     });
 
-    const columns: ClassificationColumns = {
-      classificationTopics: signals.topics,
-      classificationLanguages: signals.languages,
-      classificationRegion: signals.region ?? null,
-      classificationHashtagsNorm: signals.hashtagsNorm,
-      classificationSensitive: signals.sensitive ?? null,
-      classificationVersion: signals.version,
-      classificationStatus: POST_CLASSIFICATION_PENDING,
-      classificationAttempts: 0,
-      classificationClassifiedAt: new Date(signals.classifiedAt),
-      classificationScoreToxicity: signals.scores.toxicity,
-      classificationScoreConstructiveness: signals.scores.constructiveness,
-      classificationScoreSpam: signals.scores.spam,
-      classificationScoreQuality: signals.scores.quality,
-      classificationScoreControversy: signals.scores.controversy,
-      classificationScoreNegativity: signals.scores.negativity,
+    const result: BaselineClassification = {
+      classification: {
+        status: POST_CLASSIFICATION_PENDING,
+        attempts: 0,
+        topics: signals.topics,
+        languages: signals.languages,
+        region: signals.region,
+        hashtagsNorm: signals.hashtagsNorm,
+        sensitive: signals.sensitive,
+        version: signals.version,
+        scores: signals.scores,
+        classifiedAt: new Date(signals.classifiedAt),
+      },
     };
 
     // Keep the top-level AP `post.language` in sync with the resolved primary
     // (`languages[0]`), exactly as PostCreationService does.
     const primaryLanguage = signals.languages[0];
     if (primaryLanguage != null) {
-      columns.language = primaryLanguage;
+      result.language = primaryLanguage;
     }
 
-    return columns;
+    return result;
   } catch (error) {
     // Never fail projection on classification — leave the column defaults.
     logger.warn('PostMaterializer: baseline classification failed; projecting without Stage-A signals', error);
@@ -459,94 +433,112 @@ function buildClassificationColumns(record: MentionPostRecord): ClassificationCo
   }
 }
 
-/** Replace a post's authorship rows with the record owner's sole `owner` entry. */
-async function writeAuthorship(tx: Transaction, postId: string, oxyUserId: string): Promise<void> {
-  await tx.delete(postAuthorships).where(eq(postAuthorships.postId, postId));
-  await tx.insert(postAuthorships).values(
-    buildAuthorship(oxyUserId, []).map((entry) => ({
-      postId,
-      oxyUserId: entry.oxyUserId,
-      role: entry.role,
-      status: entry.status,
-      invitedAt: entry.invitedAt ? new Date(entry.invitedAt) : null,
-      respondedAt: entry.respondedAt ? new Date(entry.respondedAt) : null,
-    })),
-  );
-}
-
-/** The `variantCreatedAt` of a rendition, or NULL when the string is not a date. */
-function variantDate(value: string | undefined): Date | null {
-  if (!value) return null;
-  const parsed = new Date(value);
-  return Number.isFinite(parsed.getTime()) ? parsed : null;
-}
-
 /**
- * Replace a post's body — its variants, each variant's media override and each
- * variant's localized alt map — in one pass.
+ * Which of `ids` name a post that exists here.
  *
- * ALWAYS replaces, even with an empty list, so a re-projection can never leave a
- * stale rendition of a body the chain has since changed. Variant ids are minted
- * here rather than read back from the insert, so the children can be written in
- * ONE statement instead of one round trip per rendition.
+ * `posts.parent_post_id`, `thread_id` and `boost_of` are real foreign keys, so an
+ * id that names no row cannot be stored at all — the insert would fail and take
+ * the whole projection with it. Resolving first turns "the parent is not here
+ * yet" from a hard error into a decision each caller makes explicitly.
  */
-async function writeVariants(
-  tx: Transaction,
-  postId: string,
-  variants: PostContentVariant[],
-): Promise<void> {
-  // The children cascade from `post_content_variants`, so one delete clears all three.
-  await tx.delete(postContentVariants).where(eq(postContentVariants.postId, postId));
-  if (variants.length === 0) return;
-
-  const variantIds = variants.map(() => uuidv7());
-  await tx.insert(postContentVariants).values(
-    variants.map((variant, position) => ({
-      id: variantIds[position],
-      postId,
-      position,
-      tag: variant.tag ?? null,
-      source: variant.source,
-      body: variant.text,
-      articleTitle: variant.article?.title ?? null,
-      articleBody: variant.article?.body ?? null,
-      articleExcerpt: variant.article?.excerpt ?? null,
-      variantCreatedAt: variantDate(variant.createdAt),
-    })),
-  );
-
-  const overrideMedia = variants.flatMap((variant, index) =>
-    (variant.media ?? []).map((item, position) => ({
-      variantId: variantIds[index],
-      position,
-      mediaId: item.id,
-      type: item.type,
-      alt: item.alt ?? null,
-    })),
-  );
-  if (overrideMedia.length > 0) {
-    await tx.insert(postVariantMedia).values(overrideMedia);
-  }
-
-  const altTexts = variants.flatMap((variant, index) =>
-    Object.entries(variant.alt ?? {}).map(([mediaId, description]) => ({
-      variantId: variantIds[index],
-      mediaId,
-      description,
-    })),
-  );
-  if (altTexts.length > 0) {
-    await tx.insert(postVariantAltTexts).values(altTexts);
-  }
+async function existingPostIds(
+  ids: readonly (string | null)[],
+  db: DatabaseOrTransaction = getDb(),
+): Promise<Set<string>> {
+  const unique = [...new Set(ids.filter((id): id is string => typeof id === 'string' && id.length > 0))];
+  if (unique.length === 0) return new Set();
+  const rows = await db.select({ id: posts.id }).from(posts).where(inArray(posts.id, unique));
+  return new Set(rows.map((row) => row.id));
 }
 
 /**
- * Project an `app.mention.feed.post` record into a `posts` row and its child
- * rows, confined to `{ id: rkey, oxy_user_id }`.
+ * The content graph a post record owns, laid over whatever the post already has.
  *
- * `post_media` is replaced ONLY when the record's content-addressed `embed`
- * RESOLVES to ≥1 live MediaItem ({@link resolveEmbedItemsToMedia}); an empty
- * resolution leaves the existing media untouched (zero-regression guard).
+ * The record owns the body, the shared media set, the source links and the
+ * shared location — and NOTHING else. `replacePostContent` writes the whole
+ * graph, so an existing post's poll, article, event, room and podcast have to be
+ * carried across explicitly or a re-projection would clear them; the Mongo
+ * version got that for free from a dotted `$set` and it is the single easiest
+ * thing to lose in this port.
+ *
+ * `media` is overridden ONLY when the record's content-addressed embed resolved
+ * to ≥1 live item — the zero-regression guard. An empty resolution (no embed, or
+ * blobs not mirrored here yet) leaves the post's existing media alone.
+ */
+function mergeRecordContent(
+  existing: StoredPostContent | undefined,
+  parts: {
+    variants: PostContentVariant[];
+    media: MediaItem[];
+    sources?: MentionPostRecord['sources'];
+    location?: MentionPostRecord['location'];
+  },
+): StoredPostContent {
+  const content: StoredPostContent = { ...(existing ?? {}), variants: parts.variants };
+
+  if (parts.media.length > 0) {
+    content.media = parts.media;
+  }
+
+  if (Array.isArray(parts.sources) && parts.sources.length > 0) {
+    content.sources = parts.sources.map((source) =>
+      source.title ? { url: source.url, title: source.title } : { url: source.url },
+    );
+  }
+
+  if (parts.location) {
+    content.location = {
+      type: 'Point',
+      coordinates: [parts.location.coordinates[0], parts.location.coordinates[1]],
+    };
+  }
+
+  return content;
+}
+
+/**
+ * Refresh an EXISTING post row from a record, without touching its birth facts.
+ *
+ * `type`, `parent_post_id`, `is_reply`, `boost_of` and `created_at` are written
+ * once and never rewritten here — a re-projection is an idempotent replay or an
+ * edit, and neither reparents a post, changes what kind of post it is, or
+ * re-dates it. That is a deliberate NARROWING of the Mongoose version, which
+ * `$set` all five on every projection: the wide version let a later record
+ * re-pin an old post to the top of every chronological feed, which is the same
+ * shape as the future-`createdAt` bug `recordCreatedAt` exists to stop.
+ *
+ * `mentions` are carried across because `replacePostContent` rewrites that table
+ * from its argument, and a chain record carries no mention allowlist — passing
+ * an empty list would silently strip an existing post's resolved @mentions.
+ */
+async function refreshProjectedPost(
+  existing: PostRecord,
+  oxyUserId: string,
+  content: StoredPostContent,
+  patch: { hashtags: string[]; language: string | null; threadId: string | null },
+  classification: Partial<PostRecordClassification> | undefined,
+): Promise<void> {
+  await updatePostRecord(existing.id, {
+    hashtags: patch.hashtags,
+    language: patch.language,
+    // Only ever ADDS the link: a thread root that has not been materialized yet
+    // resolves to null, and clearing a link the post already has would orphan it
+    // from its own thread.
+    ...(patch.threadId === null ? {} : { threadId: patch.threadId }),
+    ...(classification === undefined ? {} : { postClassification: classification }),
+  });
+  await replacePostContent(existing.id, content, existing.mentions);
+  await replacePostAuthorship(existing.id, buildAuthorship(oxyUserId, []));
+}
+
+/**
+ * Project an `app.mention.feed.post` record into a `posts` row and every child
+ * row it owns, confined to `{ id: rkey, oxy_user_id }`.
+ *
+ * The owner scope is the whole reason this is a read-then-branch rather than a
+ * blind upsert: an `rkey` is a key in the SUBJECT's namespace, so a genuinely
+ * signed record whose author knows another user's post id must fail closed
+ * (`record_owner_mismatch`) instead of rewriting that user's post.
  */
 async function projectPost(
   rkey: string,
@@ -560,144 +552,90 @@ async function projectPost(
   const declaredParentId = record.reply ? rkeyFromMtnUri(record.reply.parent) : null;
   const declaredThreadId = record.reply ? rkeyFromMtnUri(record.reply.root) : null;
 
-  const tags = Array.isArray(record.tags) ? [...record.tags] : [];
-
   // ONE content-address lookup for the whole record: the shared embed, every
   // variant's media override, and the blob keys of every variant's `alt` map.
-  // Outside the transaction — it is a network call, not a write.
   const fileIdBySha256 = await resolveRecordFileIds(record);
   const media = resolveEmbedItemsToMedia(record.embed, fileIdBySha256);
   const variants = buildVariantsFromRecord(record, fileIdBySha256, createdAt);
-  const classification = buildClassificationColumns(record);
+  const baseline = buildBaselineClassification(record);
 
   // The record's `langs` are BCP-47 (`es-ES`) while the top-level `language` is a
   // BASE subtag (the classifier's alphabet), so normalize rather than storing a
   // regional tag in a field the ranking layer reads as a base code. The
   // classifier's own resolved primary wins when it produced one.
-  const recordPrimary = toBaseLanguage(record.langs?.[0]);
-  const language = classification?.language ?? recordPrimary ?? null;
+  const language = baseline?.language ?? toBaseLanguage(record.langs?.[0]) ?? null;
+  const hashtags = Array.isArray(record.tags) ? [...record.tags] : [];
 
-  return getDb().transaction(async (tx) => {
-    const linkable = await existingPostIds(tx, [declaredParentId ?? '', declaredThreadId ?? '']);
-    const parentPostId = declaredParentId && linkable.has(declaredParentId) ? declaredParentId : null;
-    const threadId = declaredThreadId && linkable.has(declaredThreadId) ? declaredThreadId : null;
-    if (declaredParentId && !parentPostId) {
-      logger.info('PostMaterializer: reply parent is not materialized here; leaving the reply unlinked', {
-        rkey,
-        parentPostId: declaredParentId,
-      });
-    }
+  const linkable = await existingPostIds([declaredParentId, declaredThreadId]);
+  const parentPostId = declaredParentId && linkable.has(declaredParentId) ? declaredParentId : null;
+  const threadId = declaredThreadId && linkable.has(declaredThreadId) ? declaredThreadId : null;
+  if (declaredParentId && !parentPostId) {
+    logger.info('PostMaterializer: reply parent is not materialized here; leaving the reply unlinked', {
+      rkey,
+      parentPostId: declaredParentId,
+    });
+  }
 
-    const owned = {
-      oxyUserId,
-      type: PostType.TEXT,
-      hashtags: tags,
-      parentPostId,
-      threadId,
-      language,
-      createdAt,
-      updatedAt: new Date(),
-      ...(classification === null
-        ? {}
-        : {
-            classificationTopics: classification.classificationTopics,
-            classificationLanguages: classification.classificationLanguages,
-            classificationRegion: classification.classificationRegion,
-            classificationHashtagsNorm: classification.classificationHashtagsNorm,
-            classificationSensitive: classification.classificationSensitive,
-            classificationVersion: classification.classificationVersion,
-            classificationStatus: classification.classificationStatus,
-            classificationAttempts: classification.classificationAttempts,
-            classificationClassifiedAt: classification.classificationClassifiedAt,
-            classificationScoreToxicity: classification.classificationScoreToxicity,
-            classificationScoreConstructiveness: classification.classificationScoreConstructiveness,
-            classificationScoreSpam: classification.classificationScoreSpam,
-            classificationScoreQuality: classification.classificationScoreQuality,
-            classificationScoreControversy: classification.classificationScoreControversy,
-            classificationScoreNegativity: classification.classificationScoreNegativity,
-          }),
-      // A coordinate pair is all-or-nothing (`posts_content_location_pair_check`),
-      // and the geography point is GENERATED from these two columns — there is no
-      // hand-written point to disagree with them.
-      ...(record.location
-        ? {
-            contentLocationLongitude: record.location.coordinates[0],
-            contentLocationLatitude: record.location.coordinates[1],
-          }
-        : {}),
-    };
+  const existing = await loadPostRecord(rkey);
+  if (existing && existing.oxyUserId !== oxyUserId) {
+    return { ok: false, reason: 'record_owner_mismatch' };
+  }
 
-    // OWNER-SCOPED upsert: `DO UPDATE … WHERE posts.oxy_user_id = $owner` updates
-    // nothing when the rkey already belongs to someone else, and the empty
-    // RETURNING is how that is detected — atomically failing closed instead of
-    // overwriting the other user's post.
-    const [upserted] = await tx
-      .insert(posts)
-      .values({
-        id: rkey,
-        // Only on INSERT — an existing post keeps whatever visibility/status it has.
-        visibility: PostVisibility.PUBLIC,
-        status: 'published',
-        ...owned,
-      })
-      .onConflictDoUpdate({
-        target: posts.id,
-        set: owned,
-        setWhere: eq(posts.oxyUserId, oxyUserId),
-      })
-      .returning({ id: posts.id });
-
-    if (!upserted) {
-      // The transaction has written nothing else yet, so returning here leaves no
-      // partial row behind.
-      return { ok: false, reason: 'record_owner_mismatch' };
-    }
-
-    await writeAuthorship(tx, rkey, oxyUserId);
-    await writeVariants(tx, rkey, variants);
-
-    // Only replace the shared media set when ≥1 blob resolved — an empty result
-    // (no embed, or blobs not yet in our S3) is intentionally SKIPPED so the
-    // upsert never clobbers an existing post's fileId media to empty.
-    if (media.length > 0) {
-      await tx.delete(postMedia).where(eq(postMedia.postId, rkey));
-      await tx.insert(postMedia).values(
-        media.map((item, position) => ({
-          postId: rkey,
-          position,
-          mediaId: item.id,
-          type: item.type,
-          alt: item.alt ?? null,
-        })),
-      );
-    }
-
-    // Source links: only when the record carries them, mirroring the Mongo `$set`
-    // — an absent `sources` leaves the existing list alone.
-    if (Array.isArray(record.sources) && record.sources.length > 0) {
-      await tx.delete(postSources).where(eq(postSources.postId, rkey));
-      await tx.insert(postSources).values(
-        record.sources.map((source, position) => ({
-          postId: rkey,
-          position,
-          url: source.url,
-          title: source.title ?? null,
-        })),
-      );
-    }
-
-    if (parentPostId) {
-      await recordRecentReplierForPost({
-        parentPostId,
-        oxyUserId,
-        createdAt,
-        visibility: PostVisibility.PUBLIC,
-        status: 'published',
-      });
-    }
-
-    return { ok: true, kind: 'post', id: rkey };
+  const content = mergeRecordContent(existing?.content, {
+    variants,
+    media,
+    sources: record.sources,
+    location: record.location,
   });
+
+  if (existing) {
+    await refreshProjectedPost(existing, oxyUserId, content, { hashtags, language, threadId }, baseline?.classification);
+  } else {
+    try {
+      await insertPostRecord({
+        id: rkey,
+        oxyUserId,
+        authorship: buildAuthorship(oxyUserId, []),
+        type: PostType.TEXT,
+        visibility: PostVisibility.PUBLIC,
+        status: 'published',
+        language: language ?? undefined,
+        hashtags,
+        parentPostId,
+        threadId,
+        // The record SAYS it is a reply even when its parent is not here, and
+        // the stored discriminator has to hold that or the reply is promoted
+        // into For You / Following / Explore. See `PostRecordInput.declaredReply`.
+        declaredReply: Boolean(record.reply),
+        content,
+        createdAt,
+        updatedAt: createdAt,
+        ...(baseline === null ? {} : { postClassification: baseline.classification }),
+      });
+    } catch (error) {
+      // A concurrent projection of the SAME rkey took the id first. Re-read and
+      // take the update path, which owner-checks again — so a race with another
+      // subject still fails closed rather than being reported as our own write.
+      if (!isUniqueViolation(error)) throw error;
+      const raced = await loadPostRecord(rkey);
+      if (!raced || raced.oxyUserId !== oxyUserId) {
+        return { ok: false, reason: 'record_owner_mismatch' };
+      }
+      await refreshProjectedPost(raced, oxyUserId, content, { hashtags, language, threadId }, baseline?.classification);
+    }
+  }
+
+  if (parentPostId) {
+    await recordRecentReplierForPost({
+      parentPostId,
+      oxyUserId,
+      createdAt,
+      visibility: PostVisibility.PUBLIC,
+      status: 'published',
+    });
+  }
+
+  return { ok: true, kind: 'post', id: rkey };
 }
 
 /** Project an `app.mention.feed.like` record into a `Like` row (upsert by id). */
@@ -742,44 +680,46 @@ async function projectRepost(
   const boostOf = rkeyFromMtnUri(record.subject);
   if (!boostOf) return { ok: false, reason: 'unresolvable_repost_subject' };
 
-  return getDb().transaction(async (tx) => {
-    const existing = await existingPostIds(tx, [boostOf]);
-    if (!existing.has(boostOf)) {
-      return { ok: false, reason: 'unmaterialized_repost_subject' };
+  const existing = await loadPostRecord(rkey);
+  if (existing && existing.oxyUserId !== oxyUserId) {
+    return { ok: false, reason: 'record_owner_mismatch' };
+  }
+
+  if (existing) {
+    // A birth fact cannot change: an rkey that already names a post of some other
+    // shape is a conflict, not something to rewrite into a boost.
+    if (existing.type !== PostType.BOOST || existing.boostOf !== boostOf) {
+      return { ok: false, reason: 'repost_subject_mismatch' };
     }
-
-    const owned = {
-      oxyUserId,
-      type: PostType.BOOST,
-      boostOf,
-      createdAt,
-      updatedAt: new Date(),
-    };
-
-    const [upserted] = await tx
-      .insert(posts)
-      .values({
-        id: rkey,
-        visibility: PostVisibility.PUBLIC,
-        status: 'published',
-        ...owned,
-      })
-      .onConflictDoUpdate({
-        target: posts.id,
-        set: owned,
-        setWhere: eq(posts.oxyUserId, oxyUserId),
-      })
-      .returning({ id: posts.id });
-
-    if (!upserted) return { ok: false, reason: 'record_owner_mismatch' };
-
-    await writeAuthorship(tx, rkey, oxyUserId);
-    // A boost has no rendition at all; the delete is what makes a re-projection
-    // over a former post row leave no stale body behind.
-    await writeVariants(tx, rkey, []);
-
+    await replacePostAuthorship(rkey, buildAuthorship(oxyUserId, []));
+    // The delete-then-insert is what makes a re-projection leave no stale body.
+    await replacePostContent(rkey, { variants: [] }, existing.mentions);
     return { ok: true, kind: 'repost', id: rkey };
-  });
+  }
+
+  if (!(await existingPostIds([boostOf])).has(boostOf)) {
+    return { ok: false, reason: 'unmaterialized_repost_subject' };
+  }
+
+  try {
+    await insertPostRecord({
+      id: rkey,
+      oxyUserId,
+      authorship: buildAuthorship(oxyUserId, []),
+      type: PostType.BOOST,
+      visibility: PostVisibility.PUBLIC,
+      status: 'published',
+      boostOf,
+      content: { variants: [] },
+      createdAt,
+      updatedAt: createdAt,
+    });
+  } catch (error) {
+    if (!isUniqueViolation(error)) throw error;
+    return { ok: false, reason: 'record_owner_mismatch' };
+  }
+
+  return { ok: true, kind: 'repost', id: rkey };
 }
 
 /** Project an `app.mention.feed.bookmark` record into a `Bookmark` row (upsert). */
@@ -833,10 +773,7 @@ async function projectTombstone(
       // A post or boost: delete it by id. The owner predicate prevents a valid
       // chain for account A from deleting account B's post by guessing its rkey.
       // Child rows (authorship, variants, media, sources) cascade.
-      const [deleted] = await getDb()
-        .delete(posts)
-        .where(and(eq(posts.id, rkey), eq(posts.oxyUserId, ownerOxyUserId)))
-        .returning({ id: posts.id, parentPostId: posts.parentPostId });
+      const deleted = await deletePostRecord(rkey, eq(posts.oxyUserId, ownerOxyUserId));
       if (deleted) {
         await repairRecentRepliersAfterPostDelete({
           postId: rkey,
@@ -866,9 +803,9 @@ async function projectTombstone(
 
 /**
  * Project a VERIFIED `app.mention.feed.*` signed record into the feed-readable
- * store. Idempotent (keyed by `rkey`), zero-regression (the post upsert writes
- * only owned fields and preserves existing media), and NEVER throws — every
- * failure is returned as `{ ok: false, reason }`.
+ * store. Idempotent (keyed by `rkey`), zero-regression (an existing post keeps
+ * the media, mentions and attachments the record does not own), and NEVER throws
+ * — every failure is returned as `{ ok: false, reason }`.
  *
  * The caller MUST pass a record whose signature/chain has already been verified
  * (by the protocol engine on the ingest/backfill side); this function validates

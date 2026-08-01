@@ -68,7 +68,18 @@ let db: Database;
 const createdPostIds: string[] = [];
 
 async function seedPost(values: Partial<typeof posts.$inferInsert> = {}): Promise<string> {
-  const [post] = await db.insert(posts).values(values).returning({ id: posts.id });
+  const [post] = await db
+    .insert(posts)
+    .values({
+      // `posts_reply_discriminator_check` refuses a row that HAS a parent link
+      // and claims not to be a reply. A raw insert bypasses the one place that
+      // derivation lives (`derivesReplyIntent`, via
+      // `postRepository.insertPostRecord`), so the fixture states what the live
+      // writer would have derived. Overridable, so a test can still pin it.
+      isReply: values.parentPostId != null,
+      ...values,
+    })
+    .returning({ id: posts.id });
   if (!post) throw new Error('Failed to seed a post');
   createdPostIds.push(post.id);
   return post.id;
