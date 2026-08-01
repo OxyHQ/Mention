@@ -126,3 +126,11 @@ export const MIGRATION_POST_TREND_TERMS_INDEX = '0014-post-trend-terms-index';
  * migration is the schema authority. See {@link ./0015-trend-summary-indexes}.
  */
 export const MIGRATION_TREND_SUMMARY_INDEXES = '0015-trend-summary-indexes';
+
+/**
+ * Create the UNIQUE `{script, scope}` identity of an administrative sweep's
+ * resume cursor, so one shard scope can only ever have one recorded position.
+ * Production disables Mongoose auto-indexing, so this migration is the schema
+ * authority. See {@link ./0016-admin-script-cursor-index}.
+ */
+export const MIGRATION_ADMIN_SCRIPT_CURSOR_INDEX = '0016-admin-script-cursor-index';
