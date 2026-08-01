@@ -1,4 +1,5 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { eq } from 'drizzle-orm';
 
 /**
  * MTN Protocol — B3 node→Mention INGEST (MentionNodeSyncService.ingestFromNode).
@@ -18,9 +19,17 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
  *    proceeds);
  *  - an unreachable node leaves state stale WITHOUT throwing.
  *
- * `NodeClient`, every model, `verifyAndStoreRecord`, `projectRecord`, the repo-log
- * head, the signer, and the logger are mocked — no DB, no network. The real
- * `@oxyhq/contracts` envelope schema validates crafted envelopes.
+ * `NodeClient`, `MentionUserNode`, `MentionNodeIngestWitness`,
+ * `verifyAndStoreRecord`, `projectRecord`, the repo-log head, the signer, and the
+ * logger are mocked — no network. The real `@oxyhq/contracts` envelope schema
+ * validates crafted envelopes.
+ *
+ * **The MTN chain is NOT mocked.** `currentKeyValue` (the LWW frontier read) and
+ * `storeForkMirror` (the fork archive write) run against real
+ * `mention_signed_records` rows, because "did the loser get stored" and "is the
+ * existing value really newer" are questions about a ROW — the previous mock could
+ * only report that a query object had been constructed, which is true whether or
+ * not the query is right.
  */
 
 const mockHead = vi.fn();
@@ -34,8 +43,6 @@ const mockSignMessage = vi.fn();
 const mockComputeRecordId = vi.fn();
 const mockNodeFindOne = vi.fn();
 const mockNodeUpdateOne = vi.fn();
-const mockSignedRecordFindOne = vi.fn();
-const mockSignedRecordCreate = vi.fn();
 const mockWitnessCreate = vi.fn();
 
 // NodeClient is mocked to a stub that returns the canned head/log/push responses.
@@ -76,23 +83,25 @@ vi.mock('../../../models/MentionUserNode', () => ({
     updateOne: (...a: unknown[]) => mockNodeUpdateOne(...a),
   },
 }));
-vi.mock('../../../models/MentionSignedRecord', () => ({
-  __esModule: true,
-  MTN_CHAIN_STATUS: {
-    CANONICAL: 'canonical',
-    CONFLICT: 'conflict',
-  },
-  default: {
-    findOne: (...a: unknown[]) => mockSignedRecordFindOne(...a),
-    create: (...a: unknown[]) => mockSignedRecordCreate(...a),
-  },
-}));
 vi.mock('../../../models/MentionNodeIngestWitness', () => ({
   __esModule: true,
   default: { create: (...a: unknown[]) => mockWitnessCreate(...a) },
 }));
 
+import { closePostgres, connectPostgres, type Database } from '../../../db/postgres';
+import { mentionSignedRecords } from '../../../db/schema/mtn';
+import { MTN_CHAIN_STATUS } from '../../../services/mtn/MentionRecordStore';
 import { ingestFromNode, exportToNode } from '../../../services/mtn/MentionNodeSyncService';
+
+let db: Database;
+
+/** Every ledger row this suite left behind, newest first. */
+async function ledgerRows() {
+  return db
+    .select()
+    .from(mentionSignedRecords)
+    .where(eq(mentionSignedRecords.oxyUserId, OXY_USER_ID));
+}
 
 const OXY_USER_ID = '650000000000000000000abc';
 const SUBJECT_DID = `did:web:oxy.so:u:${OXY_USER_ID}`;
@@ -122,18 +131,6 @@ function envelope(seq: number, overrides: Record<string, unknown> = {}): Record<
 function selectLean(value: unknown) {
   return { select: () => ({ lean: () => Promise.resolve(value) }) };
 }
-/** Chainable `.sort().lean()`. */
-function sortLean(value: unknown) {
-  const query = {
-    read: vi.fn(),
-    sort: vi.fn(),
-    lean: vi.fn(() => Promise.resolve(value)),
-  };
-  query.read.mockReturnValue(query);
-  query.sort.mockReturnValue(query);
-  return query;
-}
-
 /** The update arg (`{ $set, $unset, ... }`) of a Mongo-static mock's last call. */
 function lastUpdate(mock: { mock: { calls: unknown[][] } }): {
   $set?: Record<string, unknown>;
@@ -144,17 +141,24 @@ function lastUpdate(mock: { mock: { calls: unknown[][] } }): {
   return (last?.[1] ?? {}) as { $set?: Record<string, unknown>; $unset?: Record<string, unknown> };
 }
 
-beforeEach(() => {
+beforeAll(async () => {
+  db = await connectPostgres();
+});
+
+afterAll(async () => {
+  await closePostgres();
+});
+
+beforeEach(async () => {
   vi.clearAllMocks();
   process.env.MENTION_PRIVATE_KEY = 'aa'.repeat(32);
   process.env.MENTION_PUBLIC_KEY = PUBLIC_KEY;
+  await db.delete(mentionSignedRecords).where(eq(mentionSignedRecords.oxyUserId, OXY_USER_ID));
 
   mockNodeFindOne.mockReturnValue(selectLean({ endpoint: 'https://node.example.com', cursor: undefined }));
   mockGetHead.mockResolvedValue(null); // local head -1
   mockGetPublicLogSince.mockResolvedValue([]); // export: nothing to push by default
   mockNodeUpdateOne.mockResolvedValue({ modifiedCount: 1 });
-  mockSignedRecordFindOne.mockReturnValue(sortLean(null));
-  mockSignedRecordCreate.mockResolvedValue({});
   mockWitnessCreate.mockResolvedValue({});
   mockSignMessage.mockResolvedValue('witness-sig');
   mockProjectRecord.mockResolvedValue({ ok: true, kind: 'post', id: 'r' });
@@ -166,9 +170,10 @@ beforeEach(() => {
   }));
 });
 
-afterEach(() => {
+afterEach(async () => {
   delete process.env.MENTION_PRIVATE_KEY;
   delete process.env.MENTION_PUBLIC_KEY;
+  await db.delete(mentionSignedRecords).where(eq(mentionSignedRecords.oxyUserId, OXY_USER_ID));
 });
 
 describe('ingestFromNode — happy path', () => {
@@ -218,7 +223,7 @@ describe('ingestFromNode — bad-signature rejection', () => {
     expect(mockVerifyAndStore).toHaveBeenCalledTimes(1);
     expect(mockProjectRecord).not.toHaveBeenCalled(); // not materialized
     expect(mockWitnessCreate).not.toHaveBeenCalled(); // not witnessed
-    expect(mockSignedRecordCreate).not.toHaveBeenCalled(); // no fork mirror
+    expect(await ledgerRows()).toEqual([]); // no fork mirror
     const update = mockNodeUpdateOne.mock.calls[0];
     expect(update[1].$set.lastError).toContain('rejected:bad_signature');
   });
@@ -254,24 +259,74 @@ describe('ingestFromNode — bad-signature rejection', () => {
 
 describe('ingestFromNode — last-writer-wins', () => {
   it('keeps the existing higher-issuedAt record and skips the incoming loser', async () => {
+    const incoming = envelope(1);
     mockHead.mockResolvedValueOnce({ seq: 1, headRecordId: 'h', recordCount: 2 });
-    mockLog.mockResolvedValueOnce({ records: [envelope(1)], count: 1, head: null });
+    mockLog.mockResolvedValueOnce({ records: [incoming], count: 1, head: null });
     mockVerifyAndStore.mockResolvedValueOnce({ ok: false, reason: 'stale_issued_at' });
-    // The existing materialized value for the key has a STRICTLY higher issuedAt.
-    const currentValueQuery = sortLean({
+    // A REAL existing row for the SAME (nsid, rkey) key with a strictly higher
+    // issuedAt. The frontier read has to find it by key — a filter that misses
+    // silently adopts the loser and rewrites the user's post with older content.
+    await db.insert(mentionSignedRecords).values({
+      subjectDid: SUBJECT_DID,
+      oxyUserId: OXY_USER_ID,
+      type: 'app_record',
+      envelope: { ...incoming, issuedAt: 1_700_000_000_999 } as never,
+      publicKey: PUBLIC_KEY,
+      verified: true,
       recordId: 'rid-existing',
-      envelope: { issuedAt: 1_700_000_000_999 },
+      chainStatus: MTN_CHAIN_STATUS.CANONICAL,
+      nsid: String(incoming.collection),
+      rkey: String(incoming.rkey),
     });
-    mockSignedRecordFindOne.mockReturnValueOnce(currentValueQuery);
 
     await ingestFromNode(OXY_USER_ID);
 
-    expect(mockSignedRecordCreate).not.toHaveBeenCalled(); // loser NOT stored
+    // The loser is NOT stored: the ledger still holds only the incumbent.
+    expect((await ledgerRows()).map((row) => row.recordId)).toEqual(['rid-existing']);
     expect(mockProjectRecord).not.toHaveBeenCalled(); // not materialized
     expect(mockWitnessCreate).not.toHaveBeenCalled();
-    expect(currentValueQuery.read).toHaveBeenCalledWith('primary');
     // Clean skip → cursor stamped, lastError cleared.
     expect(mockNodeUpdateOne.mock.calls[0][1].$unset).toEqual({ lastError: '' });
+  });
+
+  it('preserves a genuine chain fork as a non-chained archive and materializes it', async () => {
+    const forked = envelope(1);
+    mockHead.mockResolvedValueOnce({ seq: 1, headRecordId: 'h', recordCount: 2 });
+    mockLog.mockResolvedValueOnce({ records: [forked], count: 1, head: null });
+    mockVerifyAndStore.mockResolvedValueOnce({ ok: false, reason: 'chain_fork' });
+
+    await ingestFromNode(OXY_USER_ID);
+
+    const rows = await ledgerRows();
+    expect(rows).toHaveLength(1);
+    // Off the linear chain — no seq/prev — but addressable for its key, so the
+    // fork still wins per-key materialization.
+    expect(rows[0]).toMatchObject({
+      recordId: 'rid-1',
+      chainStatus: MTN_CHAIN_STATUS.CONFLICT,
+      seq: null,
+      prev: null,
+      nsid: forked.collection,
+      rkey: forked.rkey,
+    });
+    expect(mockProjectRecord).toHaveBeenCalledTimes(1);
+    expect(mockWitnessCreate).toHaveBeenCalledTimes(1);
+  });
+
+  it('is idempotent when the same fork is re-pulled', async () => {
+    const forked = envelope(1);
+    mockHead.mockResolvedValue({ seq: 1, headRecordId: 'h', recordCount: 2 });
+    mockLog.mockResolvedValue({ records: [forked], count: 1, head: null });
+    mockVerifyAndStore.mockResolvedValue({ ok: false, reason: 'chain_fork' });
+
+    await ingestFromNode(OXY_USER_ID);
+    await ingestFromNode(OXY_USER_ID);
+
+    // The unique content-address index makes the second pull a no-op rather than
+    // a duplicate archive — and it must not re-materialize or re-witness either.
+    expect(await ledgerRows()).toHaveLength(1);
+    expect(mockProjectRecord).toHaveBeenCalledTimes(1);
+    expect(mockWitnessCreate).toHaveBeenCalledTimes(1);
   });
 });
 

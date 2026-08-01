@@ -68,17 +68,23 @@ let db: Database;
 const createdPostIds: string[] = [];
 
 async function seedPost(values: Partial<typeof posts.$inferInsert> = {}): Promise<string> {
-  // `posts_reply_discriminator_check` refuses a row that carries a parent link
-  // with `is_reply` false, so a fixture setting only `parentPostId` is not a
-  // post the application could ever have written: the live path derives the
-  // flag (`derivesReplyIntent`, `db/posts/postRepository.ts`) and never writes
-  // one without the other. Derive it the same way here — and only when the case
-  // did not ask for a value, because the reverse state is legitimate and must
-  // stay stageable: `is_reply` with no parent is an ORPHAN, a reply whose
-  // parent was deleted or never imported.
   const [post] = await db
     .insert(posts)
-    .values({ isReply: values.parentPostId != null, ...values })
+    .values({
+      // `posts_reply_discriminator_check` refuses a row that HAS a parent link
+      // and claims not to be a reply, so a fixture setting only `parentPostId`
+      // is not a post the application could ever have written. A raw insert
+      // bypasses the one place that derivation lives (`derivesReplyIntent`, via
+      // `postRepository.insertPostRecord`), so the fixture states what the live
+      // writer would have derived.
+      //
+      // The spread comes after, so a case can still pin the flag — and one may
+      // need to, because the reverse state is legitimate: `is_reply` with no
+      // parent is an ORPHAN, a reply whose parent was deleted (`ON DELETE SET
+      // NULL`) or, when federated, never imported.
+      isReply: values.parentPostId != null,
+      ...values,
+    })
     .returning({ id: posts.id });
   if (!post) throw new Error('Failed to seed a post');
   createdPostIds.push(post.id);

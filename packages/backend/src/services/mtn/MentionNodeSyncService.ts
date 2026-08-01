@@ -83,11 +83,13 @@ import {
   mentionPostRecordSchema,
 } from '@mention/shared-types';
 import MentionUserNode from '../../models/MentionUserNode';
-import MentionSignedRecord, {
-  MTN_CHAIN_STATUS,
-} from '../../models/MentionSignedRecord';
 import MentionNodeIngestWitness from '../../models/MentionNodeIngestWitness';
+import { and, desc, eq } from 'drizzle-orm';
+import { getDb } from '../../db/postgres';
+import { isUniqueViolation } from '../../db/pgErrors';
+import { mentionSignedRecords } from '../../db/schema/mtn';
 import { logger } from '../../utils/logger';
+import { MTN_CHAIN_STATUS } from './MentionRecordStore';
 import { getHead, getPublicLogSince } from './MentionRepoLogService';
 import { verifyAndStoreRecord } from './MentionRecordService';
 import { projectRecord } from './PostMaterializer';
@@ -247,15 +249,22 @@ async function currentKeyValue(
   nsid: string,
   rkey: string,
 ): Promise<{ issuedAt: number; recordId: string } | null> {
-  const row = await MentionSignedRecord.findOne({
-    oxyUserId,
-    nsid,
-    rkey,
-    verified: true,
-  })
-    .read('primary')
-    .sort({ createdAt: -1 })
-    .lean<{ recordId?: string; envelope?: { issuedAt?: number } } | null>();
+  const [row] = await getDb()
+    .select({
+      recordId: mentionSignedRecords.recordId,
+      envelope: mentionSignedRecords.envelope,
+    })
+    .from(mentionSignedRecords)
+    .where(
+      and(
+        eq(mentionSignedRecords.oxyUserId, oxyUserId),
+        eq(mentionSignedRecords.nsid, nsid),
+        eq(mentionSignedRecords.rkey, rkey),
+        eq(mentionSignedRecords.verified, true),
+      ),
+    )
+    .orderBy(desc(mentionSignedRecords.createdAt))
+    .limit(1);
   if (!row || typeof row.envelope?.issuedAt !== 'number' || typeof row.recordId !== 'string') {
     return null;
   }
@@ -280,13 +289,15 @@ function incomingWinsLww(
  * Persist a forked / tie-breaking envelope as a NON-chained mirror row. It keeps
  * the AtProto `(nsid, rkey)` materialization fields and `recordId` (so it becomes
  * the current value for its key by `createdAt`) but deliberately carries NO `seq`
- * — the authentic linear chain (and its unique `(oxyUserId, seq)` index) is left
+ * — the authentic linear chain (and its unique `(oxy_user_id, seq)` index) is left
  * untouched, so both the existing chain row AND this fork branch persist. The
- * unique `recordId` index makes a re-ingested fork idempotent.
+ * unique `record_id` index makes a re-ingested fork idempotent, and it is named
+ * on the duplicate check so an unrelated future index cannot be mistaken for
+ * "already stored".
  */
 async function storeForkMirror(env: SignedRecordEnvelope, oxyUserId: string, recordId: string): Promise<boolean> {
   try {
-    await MentionSignedRecord.create({
+    await getDb().insert(mentionSignedRecords).values({
       subjectDid: env.subject,
       oxyUserId,
       type: env.type,
@@ -296,12 +307,12 @@ async function storeForkMirror(env: SignedRecordEnvelope, oxyUserId: string, rec
       chainStatus: MTN_CHAIN_STATUS.CONFLICT,
       // No `seq`/`prev` — intentionally off the linear chain (fork archive).
       recordId,
-      nsid: env.version === 2 ? env.collection : undefined,
-      rkey: env.version === 2 ? env.rkey : undefined,
+      nsid: env.version === 2 ? env.collection : null,
+      rkey: env.version === 2 ? env.rkey : null,
     });
     return true;
   } catch (err) {
-    if (typeof err === 'object' && err !== null && (err as { code?: number }).code === 11000) {
+    if (isUniqueViolation(err, 'mention_signed_records_record_id_key')) {
       return false; // already stored (idempotent re-pull)
     }
     throw err;

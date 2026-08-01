@@ -86,19 +86,27 @@ export default defineConfig({
         // branch in particular was cut before the posts port landed, so its own
         // figures were taken against a tree without it.
         //
-        // They are the observed MINIMUM over ten runs, not a single reading, and
-        // the difference matters: nine runs measured 69.01/61.53/74.23/70.29 and
-        // one landed a few hundredths lower on all four at once. Nothing in the
-        // source changed between them, so the suite does not execute quite the
-        // same set of lines every time — plausibly a detached/fire-and-forget
-        // path that usually settles before the run ends, though which one has
-        // not been isolated. Pinning the modal value instead would hand CI a
-        // roughly 1-in-10 red build with no defect behind it, and a gate that
-        // cries wolf gets disabled by whoever hits it next.
-        statements: 68.99,
-        branches: 61.51,
-        functions: 74.16,
-        lines: 70.28,
+        // They are the COLD-CACHE figures, and that distinction is load-bearing
+        // rather than pedantic. This suite does not execute the same set of
+        // lines on every run: with `node_modules/.vite` populated it measures
+        // 69.16/61.84/74.41/70.42, and with that directory removed it measures
+        // 69.14/61.83/74.33/70.41 — reproduced deliberately, twice each way, so
+        // it is deterministic and not a flake. CI always runs cold, so the cold
+        // figures are the ones a build actually has to clear; pinning the warm
+        // ones red-fails every CI run with no defect behind it.
+        //
+        // The whole difference is FIVE statements and THREE functions in
+        // `services/TrendingService.ts` (86.84% functions warm, 78.94% cold) —
+        // a path whose execution depends on how long the suite has been
+        // running, so those three functions are never exercised on the machine
+        // that gates merges. That is a real gap in that file's tests, not a
+        // property of the coverage tool, and it belongs to whoever next touches
+        // `TrendingService` — its 30s `CURRENT_REC_ID_TTL_MS` memoization is the
+        // place to start.
+        statements: 69.14,
+        branches: 61.83,
+        functions: 74.33,
+        lines: 70.41,
         // The five engagement files below. Their BRANCH floors are a few points
         // lower than the Mongoose-era ones, and that is a deliberate trade the
         // numbers alone do not explain: the suites those figures came from

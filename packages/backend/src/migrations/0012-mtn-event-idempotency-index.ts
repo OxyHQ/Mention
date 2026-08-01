@@ -7,14 +7,27 @@ import {
   MTN_REPO_HEAD_OWNER_INDEX,
   MTN_SEQUENCE_INDEX,
 } from '../indexes/manifest';
-import {
-  MENTION_SIGNED_RECORD_COLLECTION,
-  MTN_CHAIN_STATUS,
-} from '../models/MentionSignedRecord';
-import { MENTION_REPO_HEAD_COLLECTION } from '../models/MentionRepoHead';
 import { logger } from '../utils/logger';
 import { MIGRATION_MTN_EVENT_IDEMPOTENCY_INDEX } from './constants';
 import type { Migration, MigrationContext } from './runner';
+
+/**
+ * The legacy MONGO collection names and chain-status literals this migration
+ * operates on.
+ *
+ * They are declared here rather than imported because the MTN chain now lives in
+ * Postgres (`mention_signed_records` / `mention_repo_heads`) and the Mongoose
+ * models are gone. A landed migration is frozen history: it repairs the indexes
+ * of the pre-cutover Mongo collections, so it must keep naming what those
+ * collections were called at the time and must NOT follow a live constant that
+ * could be renamed underneath it.
+ */
+export const MENTION_SIGNED_RECORD_COLLECTION = 'mentionsignedrecords';
+export const MENTION_REPO_HEAD_COLLECTION = 'mentionrepoheads';
+export const MTN_CHAIN_STATUS = {
+  CANONICAL: 'canonical',
+  CONFLICT: 'conflict',
+} as const;
 
 interface MongoIndexInfo {
   name: string;

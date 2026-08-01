@@ -186,9 +186,28 @@ export interface PostRecord {
  * `isReply` is deliberately NOT part of it: it is derived once, in
  * `postRepository.insertPost`, from the parent links the caller passed. Letting a
  * writer set it independently would reintroduce exactly the disagreement the
- * CHECK constraints exist to make unrepresentable.
+ * CHECK constraints exist to make unrepresentable. {@link declaredReply} is not
+ * that — see its own note.
  */
 export interface PostRecordInput {
+  /**
+   * The post SAYS it is a reply in an encoding this table stores no link for.
+   *
+   * The MTN chain is the case that needs it: a signed
+   * `app.mention.feed.post` record carries `reply.parent` as an `mtn://` URI, and
+   * when that parent is not materialized here `parent_post_id` must stay NULL
+   * (it is a real foreign key). Neither of the two link columns then holds
+   * anything, so `derivesReplyIntent` alone would classify a reply as a root and
+   * put it in For You / Following / Explore — the exact promotion `is_reply`
+   * exists to prevent, arriving through a third door.
+   *
+   * This is NOT a second discriminator and NOT a writer-settable `isReply`:
+   * `derivesReplyIntent` still owns the derivation, and this only ever ORs
+   * `true` into it. It cannot produce the state the CHECKs forbid (a parent link
+   * present while `is_reply` is false), and `is_reply` with no link is already
+   * legal — it is precisely the orphan state the column was designed to hold.
+   */
+  declaredReply?: boolean;
   /** Supply to preserve a pre-cutover id; otherwise a uuid v7 is generated. */
   id?: string;
   oxyUserId: string | null;
@@ -219,17 +238,24 @@ export interface PostRecordInput {
 }
 
 /**
- * Whether the post carries a parent link in EITHER encoding.
+ * Whether the post was written as a reply — in any encoding.
  *
  * The single place the reply intent is derived, so the writer and the CHECK
  * constraints cannot disagree about what "has a parent" means. Consumers read
  * the stored {@link PostRecord.isReply} instead of calling this.
+ *
+ * Three inputs, one answer: a stored parent link, a federated `inReplyTo` whose
+ * parent was never imported, and {@link PostRecordInput.declaredReply} for a
+ * chain record whose parent is not materialized here. All three are the same
+ * fact; the column is still the only discriminator anything READS.
  */
 export function derivesReplyIntent(input: {
   parentPostId?: string | null;
   federation?: { inReplyTo?: string };
+  declaredReply?: boolean;
 }): boolean {
   if (input.parentPostId != null && input.parentPostId !== '') return true;
   const inReplyTo = input.federation?.inReplyTo;
-  return typeof inReplyTo === 'string' && inReplyTo.length > 0;
+  if (typeof inReplyTo === 'string' && inReplyTo.length > 0) return true;
+  return input.declaredReply === true;
 }

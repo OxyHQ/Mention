@@ -42,6 +42,7 @@ import {
   text,
   uniqueIndex,
 } from 'drizzle-orm/pg-core';
+import type { SignedRecordEnvelope } from '@oxyhq/contracts';
 import { createdAt, generatedId, inList, timestamptz, updatedAt } from './columns';
 
 /** `MTN_CHAIN_STATUS` — local fork classification, outside the signed envelope. */
@@ -75,8 +76,18 @@ export const mentionSignedRecords = pgTable(
     oxyUserId: text().notNull(),
     /** The open envelope `type` (Mention signs v2 records as `app_record`). */
     type: text().notNull(),
-    /** The complete signed envelope, stored verbatim. See the module docblock. */
-    envelope: jsonb().notNull(),
+    /**
+     * The complete signed envelope, stored verbatim. See the module docblock.
+     *
+     * `$type` is TYPE-LEVEL ONLY — it emits no DDL and changes no SQL. It is
+     * here because a bare `jsonb()` infers `unknown`, and every reader of this
+     * column then needs a cast to get back the shape the writer put in. The
+     * value is contract-validated (`@oxyhq/contracts`) and signature-verified by
+     * the protocol engine BEFORE it reaches this column, so the declaration
+     * states a guarantee the write path already enforces rather than asserting
+     * an unchecked one at each read.
+     */
+    envelope: jsonb().$type<SignedRecordEnvelope>().notNull(),
     /** The secp256k1 public key that signed it (a current VM at write time). */
     publicKey: text().notNull(),
     verified: boolean().notNull().default(false),
