@@ -175,7 +175,8 @@ export function rankTrendCandidates(candidates: readonly TrendCandidate[]): Scor
  * one of them is refused by the floors.
  *
  * So when fewer than `minTrends` terms are genuinely bursting, the rest of the
- * list is filled by VOLUME. Those rows make a weaker claim — "people are
+ * list is filled by VOLUME — and only by terms with enough of it to be worth
+ * the claim (`minPopularVolume`, higher than the burst path's floor). Those rows make a weaker claim — "people are
  * posting about this", not "this is spiking" — and they carry it honestly in
  * their own numbers: a topped-up row has a `burstScore` below the reporting
  * bar and never a `hot` status, so nothing downstream can mistake one for a
@@ -190,12 +191,21 @@ export function topUpWithPopular(
   candidates: readonly TrendCandidate[],
   bursting: readonly ScoredTrend[],
 ): ScoredTrend[] {
-  const { windowMs, recentWindowMs, minTrends, maxTrends } = MtnConfig.trending.detection;
+  const { windowMs, recentWindowMs, minTrends, maxTrends, minPopularVolume } =
+    MtnConfig.trending.detection;
   if (bursting.length >= minTrends) return [...bursting];
 
   const alreadyListed = new Set(bursting.map((trend) => trend.term));
   const popular = candidates
-    .filter((candidate) => !alreadyListed.has(candidate.term) && clearsFloors(candidate))
+    .filter(
+      (candidate) =>
+        !alreadyListed.has(candidate.term) &&
+        // A HIGHER volume bar than the burst path: see `minPopularVolume`. A
+        // term that is not spiking has only its size to argue with, so a small
+        // one has no argument at all.
+        candidate.volume >= minPopularVolume &&
+        clearsFloors(candidate),
+    )
     .map((candidate): ScoredTrend => {
       const expected = candidate.volume * (recentWindowMs / windowMs);
       return {

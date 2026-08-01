@@ -779,6 +779,23 @@ export const MtnConfig = {
        */
       minTrends: 5,
       /**
+       * Posts a term needs before POPULARITY alone can put it on the list —
+       * deliberately higher than {@link minVolume}.
+       *
+       * The two paths make different claims and so need different evidence. A
+       * burst can be small, because the shape of the spike is the signal: four
+       * of five posts arriving in the last few hours means something even at
+       * five posts. "People are posting about this" means nothing at five
+       * posts — it is just five posts.
+       *
+       * Live batch, 2026-08-01: `came` reached the widget with a volume of 3
+       * and a NEGATIVE burst score. No statistical guard can save a list at
+       * that size, and no stop-word list will ever contain every inflected
+       * form of every common verb. The honest fix is to require the popular
+       * path to actually be popular.
+       */
+      minPopularVolume: 10,
+      /**
        * How far above its own baseline a term must sit to be reported, in
        * standard deviations of the Poisson count it is compared against.
        * Everything below this is ordinary fluctuation of an ordinary term.

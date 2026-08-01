@@ -17,6 +17,7 @@ const {
   maxPostsPerAuthor,
   maxDocumentFrequency,
   minTrends,
+  minPopularVolume,
   hotBurstScore,
   onsetGapToleranceMs,
 } = MtnConfig.trending.detection;
@@ -255,6 +256,12 @@ describe('topUpWithPopular — never blank, never lax', () => {
     const bursts = Array.from({ length: minTrends }, (_, i) => bursting(50 + i, `burst${i}`));
     const ranked = rankTrendCandidates(bursts);
     expect(topUpWithPopular(bursts, ranked)).toEqual(ranked);
+  });
+
+  it('refuses to fill the list with terms too small to be called popular', () => {
+    // Live batch: `came` reached the widget with 3 posts and a negative burst
+    // score. Not spiking and not popular is not a trend by either definition.
+    expect(topUpWithPopular([popular(minPopularVolume - 1, 'came')], [])).toEqual([]);
   });
 
   it('fills an empty list from the most-posted terms', () => {
