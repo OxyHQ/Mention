@@ -1,14 +1,16 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
- * Scheduling a BEAST batch, and why thread mode still refuses.
+ * Scheduling a batch, in either composer mode.
  *
  * Beast posts are independent — nothing chains to anything — so scheduling them
  * is n independent scheduled posts, each published on its own by the 60s sweep.
  * A THREAD is a chain: every continuation is created with its predecessor as
- * `parentPostId`, so publishing them separately could put a reply on screen
- * before the post it answers. The mode is the whole discriminator, which is why
- * it is asserted from both sides here.
+ * `parentPostId`. That difference is real, but it is NOT this controller's to
+ * resolve — the publish path owns it (`claimAndPublishScheduledPost` refuses a
+ * post whose parent has not published; `ScheduledPostPublisher` walks the chain
+ * parent-first), which is why both modes schedule here on identical terms and
+ * with one shared time.
  *
  * The second half is about what must NOT happen at schedule time. A scheduled
  * post is not readable yet, so anything that tells a READER about it — the
@@ -127,7 +129,13 @@ describe('createThread — scheduling a beast batch', () => {
     ]);
   });
 
-  it('still REFUSES to schedule a thread, because a reply could precede its parent', async () => {
+  /**
+   * A scheduled THREAD is created exactly like an immediate one — the chain is
+   * built here (each continuation carries its predecessor as `parentPostId`) and
+   * the ordering of the eventual publication is the publish path's problem. One
+   * shared time is what lets the sweep pick the whole chain up on one tick.
+   */
+  it('schedules a THREAD too, chained and at one shared time', async () => {
     const { res, payload } = buildResponse();
     await createThread(
       buildRequest({
@@ -138,9 +146,17 @@ describe('createThread — scheduling a beast batch', () => {
       res as never,
     );
 
-    expect(payload.status).toBe(400);
-    expect(payload.value?.message).toBe('Scheduling threads is not supported yet');
-    expect(hoisted.create).not.toHaveBeenCalled();
+    expect(payload.status).toBe(201);
+    expect(creationSchedules()).toEqual([
+      { status: 'scheduled', scheduledFor: new Date(FUTURE) },
+      { status: 'scheduled', scheduledFor: new Date(FUTURE) },
+    ]);
+    // The chain survives scheduling: the continuation still replies to the root,
+    // which is exactly what the publisher orders by.
+    const [, continuation] = hoisted.create.mock.calls.map(
+      ([params]: [Record<string, unknown>]) => params,
+    );
+    expect(continuation.parentPostId).toBeTruthy();
   });
 
   it('publishes a beast batch immediately when no time was picked', async () => {

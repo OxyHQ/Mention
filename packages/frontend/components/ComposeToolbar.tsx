@@ -40,7 +40,6 @@ interface ComposeToolbarProps {
     hasRoom?: boolean;
     hasPodcast?: boolean;
     hasSchedule?: boolean;
-    scheduleEnabled?: boolean;
     /** The post already carries more than one language. */
     hasLanguages?: boolean;
     /** False once the post holds the maximum author languages. */
@@ -80,7 +79,6 @@ const ComposeToolbar = memo<ComposeToolbarProps>(({
     hasRoom = false,
     hasPodcast = false,
     hasSchedule = false,
-    scheduleEnabled = true,
     scheduledLabel,
     hasLanguages = false,
     languageEnabled = true,
@@ -96,7 +94,7 @@ const ComposeToolbar = memo<ComposeToolbarProps>(({
         handler?.();
     }, [haptic]);
 
-    const scheduleColor = (disabled || !scheduleEnabled)
+    const scheduleColor = disabled
         ? theme.colors.textTertiary
         : hasSchedule
             ? theme.colors.primary
@@ -282,7 +280,6 @@ const ComposeToolbar = memo<ComposeToolbarProps>(({
                     className={scheduledLabel
                         ? 'flex-row items-center gap-1.5 px-2.5 py-1 rounded-full bg-primary/10'
                         : 'p-1'}
-                    style={!scheduleEnabled ? { opacity: 0.6 } : undefined}
                     accessibilityRole="button"
                     // The label carries the STATE, not just the action: a screen
                     // reader has no colour or chip shape to go on.

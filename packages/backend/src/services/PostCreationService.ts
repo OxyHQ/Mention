@@ -36,6 +36,7 @@ import {
   declaredBaseLanguages,
 } from './postVariants';
 import { recordRecentReplierForPost } from './PostRecentReplierService';
+import { parentHasPublished } from './scheduledChain';
 
 export interface CreatePostParams {
   oxyUserId: string | null;
@@ -461,13 +462,35 @@ class PostCreationService {
    * `ownerId` narrows the claim to one author for the request path. The sweep
    * omits it, since it publishes on nobody's behalf.
    *
-   * Returns `null` when the post was not claimable — gone, not this owner's, or
-   * already published — leaving the caller to tell those apart if it needs to.
+   * **A continuation is refused while its parent is still unpublished.** A
+   * scheduled thread's posts are replies to one another, so publishing one out
+   * of turn puts an answer on screen ahead of the post it answers — a broken
+   * thread real readers can see, with no way to reorder it afterwards. The check
+   * lives HERE, at the one chokepoint both the sweep and the author's "publish
+   * now" go through, so the invariant does not depend on any caller ordering its
+   * work correctly; `ScheduledPostPublisher` orders the chain as well, but that
+   * is for liveness, not for safety. Why a pre-check needs no transaction is in
+   * `services/scheduledChain.ts`: `scheduled -> published` is one-way, so the
+   * reading can only err toward waiting.
+   *
+   * Returns `null` when the post was not claimable — gone, not this owner's,
+   * already published, or still behind its parent — leaving the caller to tell
+   * those apart if it needs to.
    */
   async claimAndPublishScheduledPost(params: {
     postId: string;
     ownerId?: string;
   }): Promise<IPost | null> {
+    const pending = await Post.findById(params.postId).select('parentPostId').lean<{
+      parentPostId?: string | null;
+    }>();
+    if (!pending) {
+      return null;
+    }
+    if (!(await parentHasPublished(pending))) {
+      return null;
+    }
+
     const claimed = await Post.findOneAndUpdate(
       {
         _id: params.postId,

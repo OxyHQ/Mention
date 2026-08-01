@@ -473,18 +473,6 @@ const ComposeScreenBody = () => {
   const [threadEventDraftDescription, setThreadEventDraftDescription] = useState('');
 
   /**
-   * What can be scheduled: a single post, or a BEAST batch of any size.
-   *
-   * Beast posts are independent — nothing replies to anything — so scheduling
-   * them is n independent scheduled posts, which the publisher already handles
-   * one at a time. A THREAD is a chain: each continuation is created as a reply
-   * to the one before it, so publishing them separately could put a reply on
-   * screen before the post it answers. That is the only case left out, and it is
-   * left out for that reason, not because of the item count.
-   */
-  const scheduleEnabled = postingMode === 'beast' || threadItems.length === 0;
-
-  /**
    * The vertical line running between the avatars. It means "this post continues
    * the one above it" — a THREAD. Beast posts are independent and only share the
    * composer, so a line there would draw a relationship the posts will not have.
@@ -493,7 +481,6 @@ const ComposeScreenBody = () => {
 
   // Schedule manager
   const scheduleManager = useScheduleManager({
-    scheduleEnabled,
     bottomSheet,
     t,
     toast,
@@ -971,10 +958,6 @@ const ComposeScreenBody = () => {
 
   const handlePost = async () => {
     if (isPosting || !user) return;
-    if (scheduledAt && !scheduleEnabled) {
-      toast(t('compose.schedule.threadsUnsupported', { defaultValue: 'Scheduling threads is not supported yet' }), { type: 'error' });
-      return;
-    }
 
     const scheduledAtValue = scheduledAt;
     const wasScheduled = Boolean(scheduledAtValue);
@@ -1961,12 +1944,6 @@ const ComposeScreenBody = () => {
     bottomSheet.openBottomSheet(true);
   }, [replyPermission, quotesDisabled, bottomSheet]);
 
-  useEffect(() => {
-    if (!scheduleEnabled && scheduledAt) {
-      clearSchedule({ silent: true });
-    }
-  }, [scheduleEnabled, scheduledAt, clearSchedule]);
-
   return (
     <>
       <SEO
@@ -2432,7 +2409,6 @@ const ComposeScreenBody = () => {
                       hasRoom={hasRoomContent}
                       hasPodcast={hasPodcastContent}
                       hasSchedule={Boolean(scheduledAt)}
-                      scheduleEnabled={scheduleEnabled}
                       hasSourceErrors={invalidSources}
                       disabled={isPosting}
                     />

@@ -16,12 +16,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
  */
 const hoisted = vi.hoisted(() => ({
   findOneAndUpdate: vi.fn(),
+  findById: vi.fn(),
   publishScheduledPost: vi.fn(),
 }));
 
 vi.mock('../../models/Post', async (importOriginal) => ({
   ...(await importOriginal<Record<string, unknown>>()),
-  Post: { findOneAndUpdate: hoisted.findOneAndUpdate },
+  Post: { findOneAndUpdate: hoisted.findOneAndUpdate, findById: hoisted.findById },
 }));
 
 vi.mock('../../runtime/socketServer', () => ({ getRuntimeSocketServer: () => undefined }));
@@ -38,7 +39,18 @@ const STRANGER = 'oxy-someone-else';
  * the claim relies on.
  */
 function stubStore(initialStatus: 'scheduled' | 'published', ownerId = OWNER) {
-  const doc = { _id: POST_ID, oxyUserId: ownerId, status: initialStatus };
+  const doc: { _id: string; oxyUserId: string; status: string; parentPostId: string | null } = {
+    _id: POST_ID,
+    oxyUserId: ownerId,
+    status: initialStatus,
+    parentPostId: null,
+  };
+  // The claim reads the post's parent before it writes (a continuation may not
+  // publish ahead of its parent); these cases are about a post with no parent,
+  // so the read resolves to the one document.
+  hoisted.findById.mockImplementation((id: unknown) => ({
+    select: () => ({ lean: async () => (String(id) === doc._id ? doc : null) }),
+  }));
   hoisted.findOneAndUpdate.mockImplementation(async (filter: Record<string, unknown>) => {
     const statusMatches = filter.status === undefined || filter.status === doc.status;
     const ownerMatches = filter.oxyUserId === undefined || filter.oxyUserId === doc.oxyUserId;

@@ -1,5 +1,5 @@
 import { Response } from 'express';
-import { Post, POST_CLASSIFICATION_PENDING } from '../models/Post';
+import { Post, POST_CLASSIFICATION_PENDING, type IPost } from '../models/Post';
 import { baselineContentClassifier } from '../services/BaselineContentClassifier';
 import Poll from '../models/Poll';
 import Like from '../models/Like';
@@ -63,6 +63,7 @@ import {
   updateBookmarkFolderForViewer,
 } from '../services/BookmarkFolderService';
 import { repairRecentRepliersAfterPostDelete } from '../services/PostRecentReplierService';
+import { loadScheduledChain } from '../services/scheduledChain';
 
 // Constants from centralized config
 const MAX_SOURCES = config.posts.maxSources;
@@ -884,17 +885,17 @@ export const createThread = async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ message: 'Unauthorized' });
     }
 
-    // Scheduling is a BEAST-mode capability, and the mode is the whole reason.
-    // Beast posts are independent — nothing chains to anything — so scheduling
-    // them is n independent scheduled posts, which the publisher already knows
-    // how to do one at a time. A THREAD is a chain: each continuation is created
-    // with its predecessor as `parentPostId`, so publishing them separately would
-    // let a reply go live before the post it replies to. Until that ordering is
-    // solved, thread mode keeps refusing.
+    // Both modes are schedulable, and they are schedulable for different
+    // reasons. Beast posts are independent — nothing chains to anything — so
+    // scheduling them is n independent scheduled posts. A THREAD is a chain:
+    // each continuation is created with its predecessor as `parentPostId`, so
+    // publishing them separately could let a reply go live before the post it
+    // answers. That is not solved here but in the publish path, where it belongs:
+    // `claimAndPublishScheduledPost` refuses a post whose parent has not
+    // published, and `ScheduledPostPublisher` walks each chain parent-first and
+    // stops at its first failure. See `services/scheduledChain.ts` for why the
+    // invariant survives a partial failure.
     const wantsSchedule = Boolean(req.body.status || req.body.scheduledFor);
-    if (wantsSchedule && req.body.mode !== 'beast') {
-      return res.status(400).json({ message: 'Scheduling threads is not supported yet' });
-    }
 
     let threadScheduledFor: Date | null = null;
     if (wantsSchedule) {
@@ -1089,9 +1090,11 @@ export const createThread = async (req: AuthRequest, res: Response) => {
         // previous post (sequential thread), with a shared threadId root.
         // For beast mode: all posts are independent.
         ...(isThreadContinuation ? { parentPostId: previousPostId, threadId: mainPostId } : {}),
-        // Every post of a scheduled beast batch carries the SAME time — the
-        // author picked one moment for the set, not n moments. Each is then an
-        // ordinary scheduled post, published independently by the sweep.
+        // Every post of a scheduled batch carries the SAME time — the author
+        // picked one moment for the set, not n moments. For a beast batch each
+        // is then an ordinary scheduled post published independently; for a
+        // thread the shared time is what lets the sweep pick the whole chain up
+        // on one tick and publish it in order.
         ...(threadScheduledFor
           ? { status: 'scheduled' as const, scheduledFor: threadScheduledFor }
           : {}),
@@ -1353,6 +1356,7 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
     // time may be EARLIER or later; the only bound is that it is still ahead,
     // since the publisher sweeps for `scheduledFor <= now` and a past time would
     // mean "publish on the next tick" while reading as a schedule.
+    let rescheduledTo: Date | null = null;
     if (req.body.scheduledFor !== undefined) {
       if (!editingScheduledPost) {
         return res.status(400).json({ message: 'Only a scheduled post can be rescheduled' });
@@ -1365,6 +1369,7 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
         return res.status(400).json({ message: 'scheduledFor must be in the future' });
       }
       post.scheduledFor = nextScheduledFor;
+      rescheduledTo = nextScheduledFor;
     }
 
     // Support both flat body fields and nested content object from frontend
@@ -1619,6 +1624,26 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
 
     await post.save();
 
+    // A scheduled THREAD has one publish moment, not one per post: its
+    // continuations are replies to each other and the author picked a time for
+    // the thread, so moving any member moves the whole chain. Leaving the others
+    // behind would not break the ordering invariant — a continuation whose
+    // parent is still scheduled simply waits — but it would show the author a
+    // queue with three different times for one thread and publish it in dribs.
+    // After the save, so a failed edit cannot move anything.
+    if (rescheduledTo) {
+      const chain = await loadScheduledChain(String(post._id), userId);
+      if (chain.ok) {
+        const others = chain.postIds.filter((id) => id !== String(post._id));
+        if (others.length > 0) {
+          await Post.updateMany(
+            { _id: { $in: others }, oxyUserId: userId, status: 'scheduled' },
+            { $set: { scheduledFor: rescheduledTo } },
+          );
+        }
+      }
+    }
+
     const isPublished = (post.status ?? 'published') === 'published';
     if (isPublished && collaboratorIds && collaboratorIds.length > 0) {
       const autoAcceptIds = await resolveMcpAutoAcceptIds(req, collaboratorIds);
@@ -1773,6 +1798,15 @@ export const deletePost = async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ message: 'Unauthorized' });
     }
 
+    // Cancelling a SCHEDULED post takes its scheduled continuations with it, and
+    // the ids are collected BEFORE the delete, while the chain is still walkable.
+    // A thread's continuations exist only as replies to their predecessor: once
+    // the parent is gone they can never publish (the claim refuses a post whose
+    // parent has not published) and nobody can see them either, so leaving them
+    // behind would be a silent black hole in the author's queue rather than a
+    // cancellation. Empty for a published post and for a lone scheduled one.
+    const cancelledContinuations = await scheduledContinuationIds(String(req.params.id), userId);
+
     const post = await Post.findOneAndDelete({ _id: req.params.id, oxyUserId: userId });
     if (!post) {
       return res.status(404).json({ message: 'Post not found' });
@@ -1839,12 +1873,68 @@ export const deletePost = async (req: AuthRequest, res: Response) => {
       logger.error('Error during cascading post cleanup', cleanupError);
     }
 
+    await deleteScheduledContinuations(cancelledContinuations, userId);
+
     res.json({ message: 'Post deleted successfully' });
   } catch (error) {
     logger.error('Error deleting post', error);
     res.status(500).json({ message: 'Error deleting post' });
   }
 };
+
+/**
+ * The scheduled posts that would be orphaned by cancelling `postId` — its own
+ * scheduled descendants, never `postId` itself.
+ *
+ * Returns nothing unless `postId` is itself a scheduled post of `ownerId`:
+ * deleting a PUBLISHED post leaves its replies standing (they are real posts
+ * people have seen), and only an unpublished chain is the author's to withdraw.
+ */
+async function scheduledContinuationIds(postId: string, ownerId: string): Promise<string[]> {
+  const target = await Post.findOne({ _id: postId, oxyUserId: ownerId })
+    .select('status')
+    .lean<{ status?: string }>();
+  if (!target || (target.status ?? 'published') !== 'scheduled') {
+    return [];
+  }
+  const chain = await loadScheduledChain(postId, ownerId);
+  if (!chain.ok) {
+    return [];
+  }
+  // The chain walks up to its root as well; only what publishes AFTER this post
+  // depends on it.
+  const index = chain.postIds.indexOf(postId);
+  return index === -1 ? [] : chain.postIds.slice(index + 1);
+}
+
+/**
+ * Delete cancelled continuations and the only two records a never-published post
+ * can own: its article and its poll.
+ *
+ * Everything else `deletePost` cleans up needs a reader — likes, bookmarks,
+ * subscriptions, mention notifications — and a scheduled post has none by
+ * construction (it never federated, emitted no MTN record, and `createThread`
+ * withholds its mention notifications until publish). Best-effort: a
+ * cancellation that removed the posts has done the part the author asked for.
+ */
+async function deleteScheduledContinuations(postIds: string[], ownerId: string): Promise<void> {
+  if (postIds.length === 0) return;
+  try {
+    const posts = await Post.find({ _id: { $in: postIds }, oxyUserId: ownerId, status: 'scheduled' })
+      .select('_id content')
+      .lean<{ _id: unknown; content?: StoredPostContent }[]>();
+    const articleIds = posts.flatMap((p) => (p.content?.article?.articleId ? [p.content.article.articleId] : []));
+    const pollIds = posts.flatMap((p) => (p.content?.pollId ? [p.content.pollId] : []));
+
+    await Post.deleteMany({ _id: { $in: posts.map((p) => p._id) } });
+    await Promise.allSettled([
+      articleIds.length > 0 ? ArticleModel.deleteMany({ _id: { $in: articleIds } }).exec() : Promise.resolve(),
+      pollIds.length > 0 ? Poll.deleteMany({ _id: { $in: pollIds } }).exec() : Promise.resolve(),
+    ]);
+  } catch (error) {
+    logger.error('Error cancelling scheduled thread continuations', error);
+  }
+}
 
 /**
  * Apply an idempotent vote command. The relationship, counters and durable
@@ -2301,6 +2391,12 @@ export const getDrafts = async (req: AuthRequest, res: Response) => {
  * atomic claim: the update filters on `oxyUserId` AND `status: 'scheduled'`, so a
  * non-owner cannot publish someone else's post, and nothing can publish twice —
  * not even the sweep running concurrently, which selects on the same filter.
+ *
+ * **Publishing one post of a scheduled THREAD publishes the thread.** Its posts
+ * are replies to one another, so there is no coherent way to send just one:
+ * ahead of its parent is a reply to something nobody can see, and behind its
+ * continuations is a thread that stops mid-sentence until its original time
+ * comes round. The chain is the unit, and it goes out in order, root first.
  */
 export const publishScheduledPostNow = async (req: AuthRequest, res: Response) => {
   try {
@@ -2309,10 +2405,27 @@ export const publishScheduledPostNow = async (req: AuthRequest, res: Response) =
       return res.status(401).json({ message: 'Unauthorized' });
     }
 
-    const published = await postCreationService.claimAndPublishScheduledPost({
-      postId: String(req.params.id),
-      ownerId: userId,
-    });
+    const targetId = String(req.params.id);
+    const chain = await loadScheduledChain(targetId, userId);
+    if (!chain.ok) {
+      return res.status(409).json({
+        message: 'This post continues a thread that has not been published yet.',
+      });
+    }
+
+    // Root first, and stop at the first post that does not go out — the same
+    // rule the sweep follows, for the same reason. A post left behind stays
+    // scheduled and publishes at its own time, still in order.
+    let published: IPost | null = null;
+    for (const postId of chain.postIds) {
+      const result = await postCreationService.claimAndPublishScheduledPost({ postId, ownerId: userId });
+      if (postId === targetId) {
+        published = result;
+      }
+      if (result === null) {
+        break;
+      }
+    }
 
     if (!published) {
       // The claim missed. Tell the OWNER why — a post of theirs that already

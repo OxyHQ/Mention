@@ -25,6 +25,8 @@ vi.mock('../../runtime/socketServer', () => ({
 const hoisted = vi.hoisted(() => ({
   findOne: vi.fn(),
   exists: vi.fn(),
+  chainRows: [] as { _id: string; oxyUserId: string; status: string; parentPostId: string | null }[],
+  updateMany: vi.fn(),
   hydratePosts: vi.fn(),
   createScopedOxyClient: vi.fn(),
   resolveUserSummaries: vi.fn(),
@@ -40,10 +42,39 @@ const hoisted = vi.hoisted(() => ({
 // from the real module — a bare object mock silently drops them and every
 // saving case 500s inside the handler's own try/catch, which reads exactly like
 // the edit having been refused.
-vi.mock('../../models/Post', async (importOriginal) => ({
-  ...(await importOriginal<Record<string, unknown>>()),
-  Post: { findOne: hoisted.findOne, exists: hoisted.exists },
-}));
+vi.mock('../../models/Post', async (importOriginal) => {
+  // `loadScheduledChain` reads the rest of the thread; these three answer it from
+  // `hoisted.chainRows`, which is empty for every case that is about one post.
+  const chainable = (rows: unknown[]) => {
+    const self: Record<string, unknown> = {};
+    self.select = () => self;
+    self.sort = () => self;
+    self.lean = async () => rows;
+    return self;
+  };
+  return {
+    ...(await importOriginal<Record<string, unknown>>()),
+    Post: {
+      findOne: hoisted.findOne,
+      exists: hoisted.exists,
+      updateMany: hoisted.updateMany,
+      findById: (id: unknown) => ({
+        select: () => ({
+          lean: async () => hoisted.chainRows.find((row) => row._id === String(id)) ?? null,
+        }),
+      }),
+      find: (filter: Record<string, unknown>) =>
+        chainable(
+          hoisted.chainRows.filter(
+            (row) =>
+              row.parentPostId === filter.parentPostId &&
+              row.oxyUserId === filter.oxyUserId &&
+              row.status === filter.status,
+          ),
+        ),
+    },
+  };
+});
 
 vi.mock('../../utils/oxyHelpers', () => ({
   createScopedOxyClient: hoisted.createScopedOxyClient,
@@ -148,6 +179,8 @@ beforeEach(() => {
   hoisted.hydratePosts.mockResolvedValue([{ id: POST_ID }]);
   hoisted.resolveCollaboratorRefs.mockResolvedValue(undefined);
   hoisted.exists.mockResolvedValue({ _id: POST_ID });
+  hoisted.chainRows = [];
+  hoisted.updateMany.mockResolvedValue({ modifiedCount: 0 });
 });
 
 describe('updatePost — the 30-minute window still binds a PUBLISHED post', () => {
@@ -298,5 +331,82 @@ describe('updatePost — a SCHEDULED post is exempt', () => {
 
     expect(hoisted.exists).not.toHaveBeenCalled();
     expect(post.save).toHaveBeenCalled();
+  });
+});
+
+/**
+ * A scheduled THREAD has ONE publish moment, not one per post.
+ *
+ * Its continuations are replies to one another and the author picked a time for
+ * the thread, so moving any member moves the chain. Leaving the others behind
+ * would not break the ordering invariant — a continuation whose parent is still
+ * scheduled simply waits for it — but it would show the author a queue with
+ * three different times for one thread and then publish it in dribs.
+ */
+describe('updatePost — rescheduling moves the whole thread', () => {
+  function seedChain() {
+    hoisted.chainRows = [
+      { _id: POST_ID, oxyUserId: USER_ID, status: 'scheduled', parentPostId: null },
+      { _id: 'c1', oxyUserId: USER_ID, status: 'scheduled', parentPostId: POST_ID },
+      { _id: 'c2', oxyUserId: USER_ID, status: 'scheduled', parentPostId: 'c1' },
+    ];
+  }
+
+  it('carries the continuations to the new time', async () => {
+    seedChain();
+    const post = postStub({ status: 'scheduled', scheduledFor: new Date(Date.now() + HOUR_MS) });
+    hoisted.findOne.mockResolvedValue(post);
+    const later = new Date(Date.now() + 4 * HOUR_MS);
+    const { res } = buildResponse();
+
+    await updatePost(buildRequest({ scheduledFor: later.toISOString() }) as never, res as never);
+
+    expect(hoisted.updateMany).toHaveBeenCalledTimes(1);
+    const [filter, update] = hoisted.updateMany.mock.calls[0];
+    expect(filter._id.$in).toEqual(['c1', 'c2']);
+    expect(update.$set.scheduledFor.toISOString()).toBe(later.toISOString());
+  });
+
+  it('scopes the move to the caller\'s own still-scheduled posts', async () => {
+    seedChain();
+    const post = postStub({ status: 'scheduled', scheduledFor: new Date(Date.now() + HOUR_MS) });
+    hoisted.findOne.mockResolvedValue(post);
+    const { res } = buildResponse();
+
+    await updatePost(
+      buildRequest({ scheduledFor: new Date(Date.now() + 2 * HOUR_MS).toISOString() }) as never,
+      res as never,
+    );
+
+    const [filter] = hoisted.updateMany.mock.calls[0];
+    expect(filter.oxyUserId).toBe(USER_ID);
+    expect(filter.status).toBe('scheduled');
+  });
+
+  it('moves nothing for a lone scheduled post', async () => {
+    hoisted.chainRows = [
+      { _id: POST_ID, oxyUserId: USER_ID, status: 'scheduled', parentPostId: null },
+    ];
+    const post = postStub({ status: 'scheduled', scheduledFor: new Date(Date.now() + HOUR_MS) });
+    hoisted.findOne.mockResolvedValue(post);
+    const { res } = buildResponse();
+
+    await updatePost(
+      buildRequest({ scheduledFor: new Date(Date.now() + 2 * HOUR_MS).toISOString() }) as never,
+      res as never,
+    );
+
+    expect(hoisted.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('moves nothing when the edit changed no time at all', async () => {
+    seedChain();
+    const post = postStub({ status: 'scheduled', scheduledFor: new Date(Date.now() + HOUR_MS) });
+    hoisted.findOne.mockResolvedValue(post);
+    const { res } = buildResponse();
+
+    await updatePost(buildRequest({ content: { text: 'reworded' } }) as never, res as never);
+
+    expect(hoisted.updateMany).not.toHaveBeenCalled();
   });
 });
