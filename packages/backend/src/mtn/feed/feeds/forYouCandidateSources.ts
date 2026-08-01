@@ -26,6 +26,9 @@
  *   7. GLOBAL     — DISCOVERY: recent public posts (the old behavior), SMALL cap,
  *      for serendipity.
  *
+ * ROOTS: every lane draws from {@link buildBaseMatch}, which admits thread ROOTS
+ * only — see its doc for why that constraint belongs there and nowhere else.
+ *
  * SAFETY: For You is the curated algorithmic feed and must be uniformly SFW.
  * The DISCOVERY sources (topics, language, region, trending, global) EXCLUDE
  * sensitive / NSFW content at the query level, and a single sensitive/NSFW guard
@@ -52,7 +55,7 @@ import { SENSITIVE_EXCLUDE_MATCH, isSensitivePost } from '../feedSafety';
 import { logger } from '../../../utils/logger';
 import { buildFollowedAuthorsMatch } from '../../../utils/postAuthorship';
 import { FEED_FIELDS } from '../FeedAPI';
-import { restrictToRoots } from '../../../utils/postReply';
+import { notAReplyClause } from '../../../utils/postReply';
 import { engagementScoreExpr } from '../engine/sources/discoverySources';
 import type { CandidatePost as EngineCandidatePost } from '../engine/types';
 import type { OxyClient } from '../../../utils/privacyHelpers';
@@ -101,15 +104,39 @@ function toObjectIds(ids: string[]): mongoose.Types.ObjectId[] {
 }
 
 /**
- * Base match shared by every source: public, published, NOT a boost (boosts are
- * an intentionally-empty mirror shape; they are surfaced via the original), not
- * already seen, and within the recency window.
+ * Base match shared by every source: public, published, a thread ROOT rather than
+ * a reply, NOT a boost (boosts are an intentionally-empty mirror shape; they are
+ * surfaced via the original), not already seen, and within the recency window.
+ *
+ * THE ROOT CONSTRAINT LIVES HERE, not in the individual lanes. For You is the
+ * curated algorithmic feed, and a reply read outside its thread is close to
+ * meaningless — "thank you!", "same", "@someone yes" — so the pool it ranks over
+ * must be thread roots. Stating that once, in the definition all eight lanes
+ * already funnel through, is what makes the rule true of the whole feed: it was
+ * previously applied by ONE lane (trending) and the other seven inherited nothing,
+ * so a reply excluded from trending re-entered through following, topics,
+ * language, region, affinity, subscribed lists or global. Measured against
+ * production on 2026-08-01, replies were 9,330 of the 19,798 public published
+ * posts in the 7-day window — 47.1% of the universe the pool is drawn from.
+ *
+ * {@link notAReplyClause} is the shared definition rather than a local
+ * `parentPostId: null`: a federated reply whose parent never resolved carries only
+ * `federation.inReplyTo`, and reading the local link alone would let exactly those
+ * back in (see `utils/postReply`).
+ *
+ * This does NOT touch the chronological Following / List / Topic timelines
+ * (`engine/sources/forYouSources.ts`), which build their own matches — seeing
+ * replies from accounts you deliberately follow is the conventional behaviour and
+ * is deliberately kept. Self-threads also survive: `ThreadSlicingService` pulls a
+ * root's children with its OWN query, so the root entering this pool is enough to
+ * render the whole chain.
  */
 function buildBaseMatch(
   seenObjectIds: mongoose.Types.ObjectId[],
   since: Date,
 ): Record<string, unknown> {
   const and: Record<string, unknown>[] = [
+    notAReplyClause(),
     { $or: [{ boostOf: null }, { boostOf: { $exists: false } }] },
   ];
   if (seenObjectIds.length > 0) {
@@ -321,7 +348,6 @@ export async function gatherTrendingLane(params: GatherForYouCandidatesParams): 
   try {
     const base = buildBaseMatch(toObjectIds(params.seenPostIds), recencyStart());
     const match = withDiscoverySafety(base);
-    restrictToRoots(match);
     return await Post.aggregate<CandidatePost>([
       { $match: match },
       // Shared composite (single source of truth) — the federated boost subset is

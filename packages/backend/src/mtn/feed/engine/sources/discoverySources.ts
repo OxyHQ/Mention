@@ -301,8 +301,17 @@ export const exploreSource: SourceModule = {
 
 /**
  * `popular`: For You anonymous + never-blank fallback — engagement-sorted recent
- * public posts, SFW for safe-for-work viewers. Reproduced from the legacy
- * `ForYouFeed.fetchPopular`.
+ * public thread-root posts, SFW for safe-for-work viewers. Reproduced from the
+ * legacy `ForYouFeed.fetchPopular`.
+ *
+ * This is the WHOLE feed for an anonymous For You viewer (`FeedEngine.run` serves
+ * it directly when there is no `currentUserId`) and the never-blank tail for an
+ * authenticated one, so it answers to the same editorial rule as the ranked lanes:
+ * roots only. It stated that rule by omission — it hand-built its match and simply
+ * never asked the question — which is why a signed-out reader of For You saw a
+ * pool that was 47.1% replies while the ranked path did not. It now uses the same
+ * {@link notAReplyClause} the `explore` source above it does, so the two discovery
+ * surfaces in this file cannot drift on what a reply is.
  */
 export const popularSource: SourceModule = {
   id: 'popular',
@@ -313,7 +322,10 @@ export const popularSource: SourceModule = {
       visibility: 'public',
       status: 'published',
       ...DISCOVERY_SAFE_MATCH,
-      $and: [{ $or: [{ boostOf: null }, { boostOf: { $exists: false } }] }],
+      $and: [
+        notAReplyClause(),
+        { $or: [{ boostOf: null }, { boostOf: { $exists: false } }] },
+      ],
     };
 
     // Exclude what the viewer has already been shown. The video and media
