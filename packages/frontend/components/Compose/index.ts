@@ -14,10 +14,12 @@ export { LocationDisplay } from "./LocationDisplay";
 export { default as AttachmentCarouselItem } from "./AttachmentCarouselItem";
 export { ComposeAltButton } from "./ComposeAltButton";
 export { default as QuoteCard } from "./QuoteCard";
+export { default as DraftsList } from "./DraftsList";
+export { default as ScheduledPostsList } from "./ScheduledPostsList";
 
 // Re-export existing sheets
 export { default as AltTextSheet } from "./AltTextSheet";
-export { default as DraftsSheet } from "./DraftsSheet";
+export { default as UnpublishedSheet } from "./UnpublishedSheet";
 export { default as EmojiPickerSheet } from "./EmojiPickerSheet";
 export { default as GifPickerSheet } from "./GifPickerSheet";
 export { default as PodcastPickerSheet } from "./PodcastPickerSheet";

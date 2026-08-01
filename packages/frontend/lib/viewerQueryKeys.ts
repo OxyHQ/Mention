@@ -61,6 +61,15 @@ export const viewerQueryKeys = {
     'pinned',
     profileId,
   ] as const,
+  /**
+   * The viewer's own not-yet-published scheduled posts. Strictly private: the
+   * list is the caller's alone, so it can never be shared across viewers the way
+   * a public post detail can.
+   */
+  scheduledPosts: (viewerId: ViewerId) => [
+    ...viewerQueryKeys.postsRoot(viewerId),
+    'scheduled',
+  ] as const,
   feedsRoot: (viewerId: ViewerId) => [
     ...viewerQueryKeys.all(viewerId),
     'feeds',

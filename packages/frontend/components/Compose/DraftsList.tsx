@@ -2,9 +2,6 @@ import React, { useState, useCallback } from 'react';
 import { View, Text, TouchableOpacity, FlatList } from 'react-native';
 import { Loading } from '@oxyhq/bloom/loading';
 import { useTheme } from '@oxyhq/bloom/theme';
-import { Header } from '@/components/Header';
-import { IconButton } from '@/components/ui/Button';
-import { CloseIcon } from '@/assets/icons/close-icon';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useTranslation } from 'react-i18next';
 import { DraftsIcon } from '@/assets/icons/drafts';
@@ -14,15 +11,19 @@ import { confirmDialog } from '@/utils/alerts';
 import { createLogger } from '@oxyhq/core/logger';
 import { HIT_SLOP_LG } from '@/styles/hitSlop';
 
-const logger = createLogger('DraftsSheet');
+const logger = createLogger('DraftsList');
 
-interface DraftsSheetProps {
-  onClose: () => void;
+interface DraftsListProps {
   onLoadDraft: (draft: Draft) => void;
   currentDraftId: string | null;
 }
 
-const DraftsSheet: React.FC<DraftsSheetProps> = ({ onClose, onLoadDraft, currentDraftId }) => {
+/**
+ * The composer's LOCAL drafts. They never reach the server — `useDrafts`
+ * persists them per viewer on the device — which is why this list needs no
+ * network state beyond its own storage read.
+ */
+const DraftsList: React.FC<DraftsListProps> = ({ onLoadDraft, currentDraftId }) => {
   const theme = useTheme();
   const { t } = useTranslation();
   const { drafts, isLoading, deleteDraft, loadDrafts } = useDrafts();
@@ -196,67 +197,34 @@ const DraftsSheet: React.FC<DraftsSheetProps> = ({ onClose, onLoadDraft, current
 
   if (isLoading) {
     return (
-      <View className="flex-1 max-h-[600px] bg-background">
-        <Header
-          options={{
-            title: t('compose.drafts'),
-            rightComponents: [
-              <IconButton variant="icon"
-                key="close"
-                onPress={onClose}
-              >
-                <CloseIcon size={20} className="text-foreground" />
-              </IconButton>,
-            ],
-          }}
-          hideBottomBorder={true}
-          disableSticky={true}
-        />
-        <View className="flex-1 justify-center items-center py-12">
-          <Loading className="text-primary" size="large" />
-        </View>
+      <View className="flex-1 justify-center items-center py-12">
+        <Loading className="text-primary" size="large" />
+      </View>
+    );
+  }
+
+  if (drafts.length === 0) {
+    return (
+      <View className="flex-1 justify-center items-center py-12 px-8">
+        <DraftsIcon size={64} className="text-muted-foreground" />
+        <Text className="mt-6 text-xl font-semibold text-foreground">
+          {t('compose.noDrafts')}
+        </Text>
+        <Text className="mt-2 text-base text-center text-muted-foreground">
+          {t('compose.noDraftsDescription')}
+        </Text>
       </View>
     );
   }
 
   return (
-    <View className="flex-1 max-h-[600px] bg-background">
-      <Header
-        options={{
-          title: t('compose.drafts'),
-          rightComponents: [
-            <IconButton variant="icon"
-              key="close"
-              onPress={onClose}
-            >
-              <CloseIcon size={20} className="text-foreground" />
-            </IconButton>,
-          ],
-        }}
-        hideBottomBorder={true}
-        disableSticky={true}
-      />
-
-      {drafts.length === 0 ? (
-        <View className="flex-1 justify-center items-center py-12 px-8">
-          <DraftsIcon size={64} className="text-muted-foreground" />
-          <Text className="mt-6 text-xl font-semibold text-foreground">
-            {t('compose.noDrafts')}
-          </Text>
-          <Text className="mt-2 text-base text-center text-muted-foreground">
-            {t('compose.noDraftsDescription')}
-          </Text>
-        </View>
-      ) : (
-        <FlatList
-          data={drafts}
-          renderItem={renderDraftItem}
-          keyExtractor={(item) => item.id}
-          className="flex-1"
-        />
-      )}
-    </View>
+    <FlatList
+      data={drafts}
+      renderItem={renderDraftItem}
+      keyExtractor={(item) => item.id}
+      className="flex-1"
+    />
   );
 };
 
-export default DraftsSheet;
+export default DraftsList;

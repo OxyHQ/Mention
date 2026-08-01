@@ -19,6 +19,8 @@ import { StatusBar } from 'expo-status-bar';
 import * as ExpoLocation from 'expo-location';
 import { ThemedView } from '@/components/ThemedView';
 import { SafeAreaView } from '@/lib/SafeAreaViewInterop';
+import { useQueryClient } from '@tanstack/react-query';
+import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { useLocalSearchParams } from 'expo-router';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { Avatar } from '@oxyhq/bloom/avatar';
@@ -151,7 +153,7 @@ import {
 // Keep this in sync with PostItem constants
 import { HPAD, AVATAR_SIZE, BOTTOM_LEFT_PAD, TIMELINE_LINE_OFFSET } from '@/components/Compose/composeLayout';
 // Lazy load sheets - only loaded when user opens them
-const DraftsSheet = lazy(() => import('@/components/Compose/DraftsSheet'));
+const UnpublishedSheet = lazy(() => import('@/components/Compose/UnpublishedSheet'));
 const GifPickerSheet = lazy(() => import('@/components/Compose/GifPickerSheet'));
 const AltTextSheet = lazy(() => import('@/components/Compose/AltTextSheet'));
 const LanguagePickerSheet = lazy(() => import('@/components/Compose/LanguagePickerSheet'));
@@ -180,6 +182,7 @@ const ComposeScreenBody = () => {
   const keyboardVisible = useKeyboardVisibility();
   const bottomBarVisible = isAuthenticated && !isScreenNotMobile && !keyboardVisible;
   const { createPost, createThread, createReply, cachePosts } = usePostsStore();
+  const queryClient = useQueryClient();
   const { t, i18n } = useTranslation();
   const rawParams = useLocalSearchParams() as ComposeIntentRawParams;
   // Parse once per route entry. Re-running on every param tick would re-apply
@@ -1070,6 +1073,15 @@ const ComposeScreenBody = () => {
       if (currentDraftId) {
         await deleteDraft(currentDraftId);
         setCurrentDraftId(null);
+      }
+
+      // A scheduled post lands in the queue instead of a feed, so nothing else
+      // revalidates it — drop the cached list so the Unpublished sheet shows the
+      // post the user just scheduled rather than the pre-schedule snapshot.
+      if (wasScheduled) {
+        queryClient.invalidateQueries({
+          queryKey: viewerQueryKeys.scheduledPosts(user?.id),
+        });
       }
 
       const successMessage = replyToPostId
@@ -1978,7 +1990,7 @@ const ComposeScreenBody = () => {
                   onPress={() => {
                     bottomSheet.setBottomSheetContent(
                       <Suspense fallback={null}>
-                        <DraftsSheet
+                        <UnpublishedSheet
                           onClose={() => bottomSheet.openBottomSheet(false)}
                           onLoadDraft={loadDraft}
                           currentDraftId={currentDraftId}
