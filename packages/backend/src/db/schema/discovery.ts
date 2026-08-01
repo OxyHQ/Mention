@@ -178,8 +178,21 @@ export const authorFollowerSnapshots = pgTable(
  * id, so a GIF posted by N users maps to one row and one pair of shared file ids.
  *
  * Mongo's `$text` index over `searchTerms` + `title` becomes a GENERATED
- * `tsvector` + GIN, weighted A/B to reproduce Mongo's 5:1 `searchTerms`:`title`
- * ratio.
+ * `tsvector` + GIN. Mongo's 5:1 `searchTerms`:`title` ratio is reproduced by
+ * `GIF_RANK_WEIGHTS` in `services/gifLibrary/gifLibraryService.ts` — NOT by the
+ * `setweight` calls below, which do not both do what they read as.
+ *
+ * The `setweight(…, 'A')` on the `searchTerms` half is a **no-op**:
+ * `array_to_tsvector` emits lexemes with no positions, a weight label lives on a
+ * position, so there is nothing to label and those lexemes stay in the default D
+ * bucket. Measured, not reasoned — on PostgreSQL 17.5,
+ * `setweight(array_to_tsvector(array['alpha','beta']),'A')` renders
+ * `'alpha' 'beta'` unchanged, while `setweight(to_tsvector('simple','alpha beta'),'B')`
+ * renders `'alpha':1B 'beta':2B`. The live buckets are therefore **D and B**, and
+ * `GIF_RANK_WEIGHTS` is `{D,C,B,A} = {1.0, 0, 0.2, 0}` for exactly that reason:
+ * 1.0/0.2 = 5. Read that constant's docblock before touching either half — the
+ * two are one decision split across two files, and the A label reading as live
+ * here is what would invert the ordering if someone "tidied" the weights.
  *
  * The two halves use DIFFERENT functions, and the reason is volatility rather
  * than taste. `array_to_string(text[], text)` is STABLE, so
