@@ -1,8 +1,17 @@
 import React from "react";
 import { View, Text, TextInput, TouchableOpacity } from "react-native";
+// Imported from the COMPONENT module, not the package barrel. The barrel also
+// re-exports `parseExpensiMark`, and Metro bundles a module's whole static
+// import graph — so the bare specifier drags `expensify-common` (jQuery,
+// localforage, a git-sourced `simply-deferred`) into the compose chunk even
+// though nothing calls it. Measured on a production `expo export`: the barrel
+// import put `ExpensiMark`, `jquery` and `localforage` in the shipped bundle;
+// this one does not.
+import MarkdownTextInput, { type MarkdownStyle } from '@expensify/react-native-live-markdown/src/MarkdownTextInput';
 import { Dialog } from '@oxyhq/bloom/dialog';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { useTranslation } from "react-i18next";
+import { parseArticleMarkdown } from '@/utils/markdownRanges';
 
 interface ArticleEditorProps {
     visible: boolean;
@@ -31,6 +40,13 @@ interface ArticleEditorProps {
  * that is the native shape for a writing surface, and a wide centered card on a
  * desktop, where prose reads better than a 460px drawer.
  *
+ * The body is a LIVE markdown surface (`MarkdownTextInput` from
+ * `@expensify/react-native-live-markdown`): headings, emphasis, code, quotes and
+ * links format as they are typed. It edits the SAME plain string as before —
+ * markdown is a way of reading the text, not a different storage format — so
+ * every article already written in the old plain field opens unchanged, and
+ * nothing is rewritten on save.
+ *
  * Every value is controlled by the composer, which owns the draft: this
  * component holds no copy of the title or body, so opening, typing, closing and
  * reopening cannot lose them.
@@ -46,6 +62,46 @@ export const ArticleEditor: React.FC<ArticleEditorProps> = ({
 }) => {
     const theme = useTheme();
     const { t } = useTranslation();
+
+    // Themed from bloom's palette rather than hardcoded, so the editor tracks
+    // the reader's colour scheme like every other Mention surface. Memoized
+    // because the library re-applies the whole style set whenever this changes.
+    const markdownStyle = React.useMemo<MarkdownStyle>(() => ({
+        syntax: { color: theme.colors.textTertiary },
+        emoji: { fontSize: 20, fontFamily: 'System' },
+        link: { color: theme.colors.primary },
+        h1: { fontSize: 24 },
+        blockquote: {
+            borderColor: theme.colors.border,
+            borderWidth: 3,
+            marginLeft: 0,
+            paddingLeft: 10,
+        },
+        code: {
+            fontFamily: 'monospace',
+            fontSize: 14,
+            color: theme.colors.text,
+            backgroundColor: theme.colors.secondary,
+        },
+        pre: {
+            fontFamily: 'monospace',
+            fontSize: 14,
+            color: theme.colors.text,
+            backgroundColor: theme.colors.secondary,
+        },
+        mentionHere: { color: theme.colors.primary, backgroundColor: 'transparent' },
+        mentionUser: { color: theme.colors.primary, backgroundColor: 'transparent' },
+        mentionReport: { color: theme.colors.primary, backgroundColor: 'transparent' },
+        inlineImage: {
+            minWidth: 40,
+            minHeight: 40,
+            maxWidth: 200,
+            maxHeight: 200,
+            marginTop: 4,
+            marginBottom: 0,
+            borderRadius: 8,
+        },
+    }), [theme]);
 
     const saveAction = (
         <TouchableOpacity
@@ -86,16 +142,19 @@ export const ArticleEditor: React.FC<ArticleEditorProps> = ({
                     maxLength={280}
                 />
 
-                <TextInput
+                <MarkdownTextInput
                     className="min-h-[240px] rounded-[14px] border-[1.5px] border-border bg-secondary px-4 py-3 text-[15px] text-foreground"
                     style={{ textAlignVertical: "top" }}
                     placeholder={t("compose.article.bodyPlaceholder", {
-                        defaultValue: "Start writing…",
+                        defaultValue: "Start writing in markdown…",
                     })}
                     placeholderTextColor={theme.colors.textSecondary}
                     value={body}
                     onChangeText={onBodyChange}
+                    parser={parseArticleMarkdown}
+                    markdownStyle={markdownStyle}
                     multiline
+                    testID="articleBodyInput"
                 />
             </View>
         </Dialog>

@@ -443,15 +443,59 @@ class PostCreationService {
   }
 
   /**
+   * CLAIM a scheduled post, then publish it.
+   *
+   * The claim is the point. `publishScheduledPost` flips the status on a
+   * document it was handed, so two callers holding the same document both run
+   * the whole pipeline — federating twice, writing two MTN records, notifying
+   * twice. That is reachable in practice: the 60s sweep may load a due post
+   * moments before its author taps "post now".
+   *
+   * `findOneAndUpdate` filtered on `status: 'scheduled'` is the mutual
+   * exclusion. Exactly one caller can match and flip; every later one matches
+   * nothing and gets `null`, because the winner already moved the post out of
+   * the filter — the SAME filter the sweep selects on, so the sweep is excluded
+   * too. `publishScheduledPost` then re-sets the status it already holds, which
+   * is a no-op, and runs the side effects exactly once.
+   *
+   * `ownerId` narrows the claim to one author for the request path. The sweep
+   * omits it, since it publishes on nobody's behalf.
+   *
+   * Returns `null` when the post was not claimable — gone, not this owner's, or
+   * already published — leaving the caller to tell those apart if it needs to.
+   */
+  async claimAndPublishScheduledPost(params: {
+    postId: string;
+    ownerId?: string;
+  }): Promise<IPost | null> {
+    const claimed = await Post.findOneAndUpdate(
+      {
+        _id: params.postId,
+        status: 'scheduled',
+        ...(params.ownerId ? { oxyUserId: params.ownerId } : {}),
+      },
+      { $set: { status: 'published' } },
+      { new: true },
+    );
+    if (!claimed) {
+      return null;
+    }
+    return this.publishScheduledPost(claimed);
+  }
+
+  /**
    * Publish a post that was created with `status: 'scheduled'` once its
    * `scheduledFor` time has arrived. Flips the status to `published`, then runs
    * the SAME publish pipeline a fresh published post runs in `create()`:
    * collaborator invites, the MTN dual-write, notifications, the real-time feed
    * emit, and (deferred until every collaborator has resolved) federation.
    *
-   * Driven by {@link ScheduledPostPublisher} (leader-gated). Every side effect
-   * is isolated so one stage's failure never aborts the others; the caller
-   * further isolates each post so one post never sinks the batch.
+   * Reached only through {@link claimAndPublishScheduledPost}, which is what
+   * guarantees one publish per post: this method flips the status on a document
+   * it was HANDED, so calling it directly with a stale copy would run the whole
+   * pipeline a second time. Every side effect is isolated so one stage's failure
+   * never aborts the others; the caller further isolates each post so one post
+   * never sinks the batch.
    */
   async publishScheduledPost(post: IPost): Promise<IPost> {
     post.status = 'published';

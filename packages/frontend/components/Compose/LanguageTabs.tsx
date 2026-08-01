@@ -2,20 +2,16 @@ import React, { memo, useCallback } from 'react';
 import { ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '@oxyhq/bloom/theme';
-import { Plus } from '@/assets/icons/plus-icon';
 import { describeContentLanguage } from '@/constants/contentLanguages';
 
 interface LanguageTabsProps {
   primaryTag: string;
   variantTags: readonly string[];
   activeTag: string;
-  /** False once the post already carries the maximum author languages. */
-  canAdd: boolean;
   /** Switch the whole composer — every item — to another language. */
   onSelect: (tag: string) => void;
   /** Pressing the ALREADY-ACTIVE tab: change its language, or remove it. */
   onEdit: (tag: string) => void;
-  onAdd: () => void;
   disabled?: boolean;
 }
 
@@ -63,15 +59,19 @@ const LanguageTab = memo(function LanguageTab({
             })
           : language.nativeName
       }
-      className="flex-row items-center gap-1.5 px-3 py-1.5 rounded-full border"
-      style={{
-        borderColor: isActive ? theme.colors.primary : theme.colors.border,
-        backgroundColor: isActive ? `${theme.colors.primary}1A` : 'transparent',
-      }}
+      // The active tint is `bg-primary/10`, NOT `${theme.colors.primary}1A`:
+      // this theme's `primary` is `rgb(0 98 157)`, so appending hex alpha to it
+      // gives a string react-native-web reads back as FULLY OPAQUE primary —
+      // primary text on a primary pill, i.e. an active tab whose language name
+      // is invisible. A type-check and a jest label assertion both pass.
+      className={`flex-row items-center gap-1.5 px-3 py-1.5 rounded-full border ${
+        isActive ? 'bg-primary/10' : ''
+      }`}
+      style={{ borderColor: isActive ? theme.colors.primary : theme.colors.border }}
     >
       <Text
-        className="text-[13px] font-semibold"
-        style={{ color: isActive ? theme.colors.primary : theme.colors.textSecondary }}
+        className={`text-[13px] font-semibold ${isActive ? 'text-primary' : ''}`}
+        style={isActive ? undefined : { color: theme.colors.textSecondary }}
         numberOfLines={1}
       >
         {language.nativeName}
@@ -87,27 +87,31 @@ const LanguageTab = memo(function LanguageTab({
 });
 
 /**
- * The composer's language tabs.
+ * The composer's language tabs — how the author moves BETWEEN the languages a
+ * post already has.
  *
  * They are composer-WIDE: switching tab switches every item (the main post and
  * each thread item) to that language, which is what the (item × language) buffer
  * means in the UI. The primary tab is marked with a dot — it is the body that
  * federates, gets signed onto the chain, and that every other language inherits
  * its media and article from.
+ *
+ * ADDING a language is not here — it is an attachment like any other and lives
+ * in the toolbar (`ComposeToolbar`'s `onLanguagePress`). Everything else stays,
+ * INCLUDING the lone primary tab of a single-language post: tapping it is how
+ * the author changes what language the post declares, which decides who the feed
+ * serves it to and what federates. It is not the reader-side `PostLanguageChip`,
+ * which correctly hides below two renditions because it only switches between
+ * bodies that already exist.
  */
 const LanguageTabs = memo(function LanguageTabs({
   primaryTag,
   variantTags,
   activeTag,
-  canAdd,
   onSelect,
   onEdit,
-  onAdd,
   disabled,
 }: LanguageTabsProps) {
-  const { t } = useTranslation();
-  const theme = useTheme();
-
   return (
     <ScrollView
       horizontal
@@ -134,22 +138,6 @@ const LanguageTabs = memo(function LanguageTabs({
           disabled={disabled}
         />
       ))}
-      {canAdd ? (
-        <TouchableOpacity
-          onPress={onAdd}
-          disabled={disabled}
-          activeOpacity={0.75}
-          accessibilityRole="button"
-          accessibilityLabel={t('compose.languages.add', { defaultValue: 'Add a language' })}
-          className="flex-row items-center gap-1 px-3 py-1.5 rounded-full border border-dashed"
-          style={{ borderColor: theme.colors.border }}
-        >
-          <Plus size={14} color={theme.colors.textSecondary} />
-          <Text className="text-[13px] font-medium" style={{ color: theme.colors.textSecondary }}>
-            {t('compose.languages.add', { defaultValue: 'Add a language' })}
-          </Text>
-        </TouchableOpacity>
-      ) : null}
     </ScrollView>
   );
 });

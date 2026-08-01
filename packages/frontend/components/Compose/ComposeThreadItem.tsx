@@ -189,6 +189,14 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(({
   const handleSensitiveToggle = useCallback(() => onSensitiveToggle(threadId), [threadId, onSensitiveToggle]);
   const handleTextInputRef = useCallback((el: MentionTextInputHandle | null) => textInputRef(threadId, el), [threadId, textInputRef]);
 
+  /**
+   * The line between avatars says "this post continues the one above it", which
+   * is true in THREAD mode and false in beast mode, where every post is
+   * independent and just happens to be composed alongside the others. Drawing it
+   * there claims a relationship the posts will not have once they go out.
+   */
+  const showTimeline = postingMode === 'thread';
+
   // Memoize connector line styles
   const connectorAboveStyle = useMemo(() => [
     styles.itemConnectorLineAbove,
@@ -216,8 +224,12 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(({
 
   return (
     <View style={containerStyle}>
-      <View style={connectorAboveStyle} />
-      <View style={connectorBelowStyle} />
+      {showTimeline ? (
+        <>
+          <View style={connectorAboveStyle} />
+          <View style={connectorBelowStyle} />
+        </>
+      ) : null}
       <View style={styles.threadItemWithTimeline}>
         <View style={headerRowStyle}>
           <TouchableOpacity activeOpacity={0.7}>

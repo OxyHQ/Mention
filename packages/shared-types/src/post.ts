@@ -696,6 +696,14 @@ export interface CreateThreadPostRequest {
 export interface CreateThreadRequest {
   mode: 'thread' | 'beast'; // thread = linked posts, beast = separate posts
   posts: CreateThreadPostRequest[];
+  /**
+   * ISO time to publish the whole batch at, instead of immediately. BEAST mode
+   * only — the server refuses it in thread mode, where each continuation is
+   * created as a reply to the one before it and publishing them separately would
+   * let a reply precede the post it answers. One time covers every post: the
+   * author picked a moment for the set.
+   */
+  scheduledFor?: string;
 }
 
 export interface UpdatePostRequest {
