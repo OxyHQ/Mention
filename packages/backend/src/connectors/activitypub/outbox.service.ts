@@ -5,6 +5,7 @@ import { extractActorUriFromActivityId } from '@oxyhq/federation';
 import {
   FEDERATION_MAX_CONTENT_LENGTH,
   AP_CONTENT_TYPE,
+  isBlockedDomain,
 } from './constants';
 import { Types } from 'mongoose';
 import { PostVisibility } from '@mention/shared-types';
@@ -128,6 +129,7 @@ export type OutboxHttpFailureReason = `outbox-http-${number}`;
 
 export type OutboxSyncFailureReason =
   | 'missing-outbox'
+  | 'blocked-domain'
   | 'non-empty-outbox-without-items'
   | 'no-candidates'
   | 'pagination-failed'
@@ -363,6 +365,29 @@ export class OutboxSyncService {
     actor: Pick<IFederatedActor, 'outboxUrl' | 'acct' | 'uri'> & { oxyUserId?: string; type?: string },
     limitOrOptions: number | OutboxSyncOptions = 20,
   ): Promise<OutboxSyncResult> {
+    // Instance domain policy on the PULL path.
+    //
+    // The inbound dispatcher stops a suspended instance PUSHING to us; this stops
+    // us PULLING from it. Every outbox sync — the scheduled followed-actor sweep,
+    // the recent-post backfill, the profile-view refresh, and the post-Accept
+    // backfill — converges here, and each of them loads its actor straight from
+    // Mongo, so none of them passes through the resolver's policy check.
+    //
+    // Cooldown is deliberately NOT stamped and the reason is NOT permanently
+    // unavailable: the outbox is fine, our policy refused it. Unblocking the
+    // domain must resume syncing without first clearing state written while it
+    // was blocked.
+    let actorHost: string;
+    try {
+      actorHost = new URL(actor.uri).hostname.toLowerCase();
+    } catch {
+      // An actor URI we cannot parse has no host to check against the policy, so
+      // it fails closed rather than being pulled from unchecked.
+      return { syncedCount: 0, shouldStampCooldown: false, reason: 'blocked-domain' };
+    }
+    if (isBlockedDomain(actorHost)) {
+      return { syncedCount: 0, shouldStampCooldown: false, reason: 'blocked-domain' };
+    }
     if (!actor.outboxUrl) {
       return { syncedCount: 0, shouldStampCooldown: false, reason: 'missing-outbox' };
     }

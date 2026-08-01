@@ -6,6 +6,7 @@ import FederatedFollow from '../../models/FederatedFollow';
 import { Post } from '../../models/Post';
 import {
   FEDERATION_MAX_CONTENT_LENGTH,
+  isBlockedDomain,
   resolveOxyUser,
 } from './constants';
 import { PostType } from '@mention/shared-types';
@@ -939,6 +940,11 @@ async function bridgeFollowEdge(
  * app-specific is wired here.
  */
 const inboundDispatcher = createInboundDispatcher({
+  // Mention's instance domain policy (own AP domains + Oxy identity apex +
+  // `FEDERATION_BLOCKED_DOMAINS`). The engine applies it to the verified origin of
+  // every inbound activity, so suspending an instance here actually stops it
+  // syncing INTO Mention rather than only stopping us from fetching from it.
+  isBlockedDomain,
   // Validate the untrusted activity against Mention's zod inbound schema, then
   // normalize the primary type (some servers send `type` as an array). The engine
   // owns the drop-with-warn behaviour; this only reports the verdict + summary.
