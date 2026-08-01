@@ -15,8 +15,6 @@ const logger = createLogger('DraftsList');
 
 interface DraftsListProps {
   onLoadDraft: (draft: Draft) => void;
-  /** Show how this draft will look once posted. */
-  onPreviewDraft: (draft: Draft) => void;
   currentDraftId: string | null;
 }
 
@@ -25,7 +23,7 @@ interface DraftsListProps {
  * persists them per viewer on the device — which is why this list needs no
  * network state beyond its own storage read.
  */
-const DraftsList: React.FC<DraftsListProps> = ({ onLoadDraft, onPreviewDraft, currentDraftId }) => {
+const DraftsList: React.FC<DraftsListProps> = ({ onLoadDraft, currentDraftId }) => {
   const theme = useTheme();
   const { t } = useTranslation();
   const { drafts, isLoading, deleteDraft, loadDrafts } = useDrafts();
@@ -178,17 +176,6 @@ const DraftsList: React.FC<DraftsListProps> = ({ onLoadDraft, onPreviewDraft, cu
           <Ionicons name="chevron-forward" size={20} color={theme.colors.textSecondary} />
         </TouchableOpacity>
         <TouchableOpacity
-          className="p-1 mr-1"
-          onPress={() => onPreviewDraft(item)}
-          disabled={isDeleting}
-          hitSlop={HIT_SLOP_LG}
-          activeOpacity={0.7}
-          accessibilityRole="button"
-          accessibilityLabel={t('compose.draftPreviewA11y', { defaultValue: 'Preview draft' })}
-        >
-          <Ionicons name="eye-outline" size={18} color={theme.colors.textSecondary} />
-        </TouchableOpacity>
-        <TouchableOpacity
           className="p-1"
           onPress={() => {
             logger.debug(`Delete button pressed for draft: ${item.id}`);
@@ -206,7 +193,7 @@ const DraftsList: React.FC<DraftsListProps> = ({ onLoadDraft, onPreviewDraft, cu
         </TouchableOpacity>
       </View>
     );
-  }, [theme, currentDraftId, deletingId, handleLoadDraft, handleDeleteDraft, onPreviewDraft, formatDate, getDraftPreview, t]);
+  }, [theme, currentDraftId, deletingId, handleLoadDraft, handleDeleteDraft, formatDate, getDraftPreview, t]);
 
   if (isLoading) {
     return (

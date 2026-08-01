@@ -47,6 +47,7 @@ import { DotIcon } from '@/assets/icons/dot-icon';
 import { PollIcon } from '@/assets/icons/poll-icon';
 import { ChevronRightIcon } from '@/assets/icons/chevron-right-icon';
 import { HideIcon } from '@/assets/icons/hide-icon';
+import { CalendarIcon } from '@/assets/icons/calendar-icon';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
 import { Dialog, useDialogControl } from '@oxyhq/bloom/dialog';
 import { useIsScreenNotMobile } from '@/hooks/useOptimizedMediaQuery';
@@ -472,24 +473,7 @@ const ComposeScreenBody = () => {
   const [threadEventDraftLocation, setThreadEventDraftLocation] = useState('');
   const [threadEventDraftDescription, setThreadEventDraftDescription] = useState('');
 
-  /**
-   * What can be scheduled: a single post, or a BEAST batch of any size.
-   *
-   * Beast posts are independent — nothing replies to anything — so scheduling
-   * them is n independent scheduled posts, which the publisher already handles
-   * one at a time. A THREAD is a chain: each continuation is created as a reply
-   * to the one before it, so publishing them separately could put a reply on
-   * screen before the post it answers. That is the only case left out, and it is
-   * left out for that reason, not because of the item count.
-   */
-  const scheduleEnabled = postingMode === 'beast' || threadItems.length === 0;
-
-  /**
-   * The vertical line running between the avatars. It means "this post continues
-   * the one above it" — a THREAD. Beast posts are independent and only share the
-   * composer, so a line there would draw a relationship the posts will not have.
-   */
-  const showThreadTimeline = postingMode === 'thread';
+  const scheduleEnabled = postingMode === 'thread' && threadItems.length === 0;
 
   // Schedule manager
   const scheduleManager = useScheduleManager({
@@ -1100,11 +1084,7 @@ const ComposeScreenBody = () => {
       } else {
         await createThread({
           mode: postingMode,
-          posts: allPosts,
-          // One time for the whole batch. The per-post builders also carry it,
-          // but `POST /posts/thread` reads it from the TOP level — the schedule
-          // belongs to the batch, not to any one post in it.
-          ...(scheduledAtValue ? { scheduledFor: scheduledAtValue.toISOString() } : {}),
+          posts: allPosts
         });
       }
 
@@ -1885,6 +1865,10 @@ const ComposeScreenBody = () => {
     setIsSensitive(prev => !prev);
   }, []);
 
+  const handleClearSchedule = useCallback(() => {
+    clearSchedule();
+  }, [clearSchedule]);
+
   const closeThreadArticleEditor = useCallback(() => {
     setEditingThreadArticleId(null);
   }, []);
@@ -2113,8 +2097,10 @@ const ComposeScreenBody = () => {
                 primaryTag={variants.primaryTag}
                 variantTags={variants.variantTags}
                 activeTag={activeTag}
+                canAdd={canAddLanguage(variants)}
                 onSelect={setActiveTag}
                 onEdit={handleEditLanguage}
+                onAdd={handleAddLanguage}
                 disabled={isPosting}
               />
 
@@ -2122,11 +2108,8 @@ const ComposeScreenBody = () => {
                 <>
               {/* Main composer */}
               <View style={[styles.postContainer, focusedItemId !== MAIN_ITEM_ID && threadItems.length > 0 && styles.unfocusedItem]}>
-                {/* Connector line below main avatar — thread mode only; see
-                    `showThreadTimeline`. */}
-                {showThreadTimeline ? (
-                  <View style={[styles.itemConnectorLine, { left: TIMELINE_LINE_OFFSET, backgroundColor: `${theme.colors.primary}30` }]} />
-                ) : null}
+                {/* Connector line below main avatar */}
+                <View style={[styles.itemConnectorLine, { left: TIMELINE_LINE_OFFSET, backgroundColor: `${theme.colors.primary}30` }]} />
                 <View style={styles.composerWithTimeline}>
                   <PostHeader
                     paddingHorizontal={HPAD}
@@ -2410,18 +2393,11 @@ const ComposeScreenBody = () => {
                       onGifPress={handleMainGifPress}
                       onEmojiPress={handleMainEmojiPress}
                       onSchedulePress={handleSchedulePress}
-                      scheduledLabel={scheduledAt ? formatScheduledLabel(scheduledAt) : undefined}
                       onSourcesPress={openSourcesSheet}
                       onArticlePress={openArticleEditor}
                       onEventPress={openEventEditor}
                       onRoomPress={handleMainRoomPress}
                       onPodcastPress={openPodcastPicker}
-                      // Only the MAIN toolbar: languages are composer-wide, so a
-                      // per-item copy would offer to add a language to one post
-                      // of a set that shares them all.
-                      onLanguagePress={handleAddLanguage}
-                      hasLanguages={variants.variantTags.length > 0}
-                      languageEnabled={canAddLanguage(variants)}
                       hasLocation={!!location}
                       isGettingLocation={isGettingLocation}
                       hasPoll={showPollCreator}
@@ -2437,6 +2413,25 @@ const ComposeScreenBody = () => {
                       disabled={isPosting}
                     />
                   </View>
+
+                  {scheduledAt && (
+                    <View
+                      className="border-border bg-secondary"
+                      style={styles.scheduleInfoContainer}
+                    >
+                      <CalendarIcon size={14} className="text-primary" />
+                      <Text className="text-foreground" style={styles.scheduleInfoText}
+                      >
+                        {t('compose.schedule.set', {
+                          defaultValue: 'Scheduled for {{time}}',
+                          time: formatScheduledLabel(scheduledAt)
+                        })}
+                      </Text>
+                      <TouchableOpacity onPress={handleClearSchedule} style={styles.scheduleInfoClearButton}>
+                        <Text className="text-primary" style={styles.scheduleInfoClearText}>{t('compose.schedule.clear', { defaultValue: 'Clear' })}</Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
 
                   {/* Poll Creator */}
                   {showPollCreator && (
@@ -2551,10 +2546,8 @@ const ComposeScreenBody = () => {
                   }
                 }}
               >
-                {/* Connector line above add button's avatar — thread mode only. */}
-                {showThreadTimeline ? (
-                  <View style={[styles.itemConnectorLineAbove, { left: TIMELINE_LINE_OFFSET, backgroundColor: `${theme.colors.primary}30` }]} />
-                ) : null}
+                {/* Connector line above add button's avatar */}
+                <View style={[styles.itemConnectorLineAbove, { left: TIMELINE_LINE_OFFSET, backgroundColor: `${theme.colors.primary}30` }]} />
                 <View style={[styles.headerRow, { paddingHorizontal: HPAD }]}>
                   <TouchableOpacity activeOpacity={0.7}>
                     <Avatar
@@ -3492,6 +3485,29 @@ const styles = StyleSheet.create({
   },
   modeToggle: {
     marginHorizontal: 20,
+  },
+  scheduleInfoContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginTop: 12,
+    alignSelf: 'flex-start',
+  },
+  scheduleInfoText: {
+    flex: 1,
+    fontSize: 13,
+  },
+  scheduleInfoClearButton: {
+    paddingHorizontal: 6,
+    paddingVertical: 4,
+  },
+  scheduleInfoClearText: {
+    fontSize: 12,
+    fontWeight: '600',
   },
   scheduleSheetContainer: {
     paddingHorizontal: 20,

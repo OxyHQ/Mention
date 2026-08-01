@@ -9,9 +9,9 @@ import { postCreationService } from './PostCreationService';
  * WITHOUT running any publish side-effects (collaborator invites, MTN dual-write,
  * notifications, real-time feed emit, federation) — those are all deferred to the
  * moment it actually goes live. This publisher sweeps for due scheduled posts and
- * drives each one through `PostCreationService.claimAndPublishScheduledPost`,
- * which claims the post out of `status: 'scheduled'` and then runs the exact same
- * publish pipeline a fresh post runs.
+ * drives each one through `PostCreationService.publishScheduledPost`, which flips
+ * the status to `published` and runs the exact same publish pipeline a fresh
+ * post runs.
  *
  * Driven on a 60s cadence by {@link FeedJobScheduler}, which is itself only
  * started on the elected scheduler leader — so this sweep runs on exactly one
@@ -47,26 +47,15 @@ class ScheduledPostPublisher {
         return 0;
       }
 
-      // Claim each post before publishing it. The sweep is leader-gated, so it
-      // never races ITSELF — but it does race the author, who can publish the
-      // same post early from the composer between this `find` and the write
-      // below. The claim is a conditional update on `status: 'scheduled'`, so
-      // whichever side gets there first is the only one that publishes.
       const results = await Promise.allSettled(
-        duePosts.map((post) =>
-          postCreationService.claimAndPublishScheduledPost({ postId: String(post._id) }),
-        ),
+        duePosts.map((post) => postCreationService.publishScheduledPost(post)),
       );
 
       let published = 0;
       for (let i = 0; i < results.length; i++) {
         const result = results[i];
         if (result.status === 'fulfilled') {
-          // `null` means someone else claimed it first (the author publishing
-          // early). Not an error, and not this sweep's to count.
-          if (result.value !== null) {
-            published += 1;
-          }
+          published += 1;
         } else {
           logger.error('ScheduledPostPublisher: failed to publish scheduled post', {
             postId: String(duePosts[i]?._id),

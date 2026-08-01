@@ -88,7 +88,6 @@ function renderPreview(
         post={post()}
         onBack={() => {}}
         onEdit={() => {}}
-        onPublishNow={async () => {}}
         onCancel={async () => {}}
         onCancelled={() => {}}
         {...overrides}
@@ -238,55 +237,6 @@ describe('ScheduledPostPreview', () => {
     // Declining must not navigate away — the count is unchanged from the first,
     // confirmed cancel.
     expect(onCancelled).toHaveBeenCalledTimes(1);
-
-    act(() => tree.unmount());
-  });
-
-  it('publishes early only after confirming, and leaves the preview when it works', async () => {
-    const onPublishNow = jest.fn().mockResolvedValue(undefined);
-    const onCancelled = jest.fn();
-    const tree = renderPreview({ onPublishNow, onCancelled });
-
-    press(tree, 'Post now');
-    await act(async () => { await Promise.resolve(); });
-
-    // Publishing early is one-way and PUBLIC — it federates and notifies — so it
-    // asks first, like cancelling does.
-    expect(mockConfirm).toHaveBeenCalledTimes(1);
-    expect(onPublishNow).toHaveBeenCalledWith('post-soon');
-    expect(mockToast).toHaveBeenCalledWith('Post published', { type: 'success' });
-    expect(onCancelled).toHaveBeenCalledTimes(1);
-
-    act(() => tree.unmount());
-  });
-
-  it('publishes nothing when the confirmation is declined', async () => {
-    mockConfirm.mockResolvedValue(false);
-    const onPublishNow = jest.fn().mockResolvedValue(undefined);
-    const onCancelled = jest.fn();
-    const tree = renderPreview({ onPublishNow, onCancelled });
-
-    press(tree, 'Post now');
-    await act(async () => { await Promise.resolve(); });
-
-    expect(onPublishNow).not.toHaveBeenCalled();
-    expect(onCancelled).not.toHaveBeenCalled();
-
-    act(() => tree.unmount());
-  });
-
-  it('reports a refused publish instead of pretending the post went out', async () => {
-    const onPublishNow = jest.fn().mockRejectedValue(new Error('409 already published'));
-    const onCancelled = jest.fn();
-    const tree = renderPreview({ onPublishNow, onCancelled });
-
-    press(tree, 'Post now');
-    await act(async () => { await Promise.resolve(); });
-
-    expect(mockToast).toHaveBeenCalledWith('Could not publish the post', { type: 'error' });
-    // Staying put matters: the row is still in the queue, so leaving would tell
-    // the author it published when it did not.
-    expect(onCancelled).not.toHaveBeenCalled();
 
     act(() => tree.unmount());
   });

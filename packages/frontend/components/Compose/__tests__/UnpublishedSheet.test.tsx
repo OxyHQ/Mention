@@ -67,22 +67,8 @@ jest.mock('@/hooks/useScheduledPosts', () => ({
 
 jest.mock('../DraftsList', () => {
   const react = jest.requireActual('react');
-  const { Text: RNText, TouchableOpacity, View } = jest.requireActual('react-native');
-  return {
-    __esModule: true,
-    default: (props: { onPreviewDraft: (draft: { id: string }) => void }) =>
-      react.createElement(
-        View,
-        null,
-        react.createElement(RNText, null, 'DRAFTS PANEL'),
-        react.createElement(TouchableOpacity, {
-          key: 'preview',
-          accessibilityRole: 'button',
-          accessibilityLabel: 'draft-row',
-          onPress: () => props.onPreviewDraft({ id: 'draft-1' }),
-        }),
-      ),
-  };
+  const { Text: RNText } = jest.requireActual('react-native');
+  return { __esModule: true, default: () => react.createElement(RNText, null, 'DRAFTS PANEL') };
 });
 
 jest.mock('../ScheduledPostsList', () => {
@@ -113,35 +99,6 @@ jest.mock('../ScheduledPostsList', () => {
           accessibilityRole: 'button',
           accessibilityLabel: 'edit-row',
           onPress: () => props.onEdit(props.posts[0]),
-        }),
-      ),
-  };
-});
-
-jest.mock('../DraftPreview', () => {
-  const react = jest.requireActual('react');
-  const { Text: RNText, TouchableOpacity, View } = jest.requireActual('react-native');
-  return {
-    __esModule: true,
-    default: (props: { draft: { id: string }; onBack: () => void; onEdit: () => void }) =>
-      react.createElement(
-        View,
-        null,
-        react.createElement(
-          TouchableOpacity,
-          {
-            key: 'back',
-            accessibilityRole: 'button',
-            accessibilityLabel: 'draft-back',
-            onPress: props.onBack,
-          },
-          react.createElement(RNText, null, `DRAFT PREVIEW ${props.draft.id}`),
-        ),
-        react.createElement(TouchableOpacity, {
-          key: 'edit',
-          accessibilityRole: 'button',
-          accessibilityLabel: 'draft-edit',
-          onPress: props.onEdit,
         }),
       ),
   };
@@ -339,36 +296,6 @@ describe('UnpublishedSheet', () => {
     const tree = renderSheet();
 
     expect(textContent(tree)).toContain('3');
-
-    act(() => tree.unmount());
-  });
-
-  it('previews a DRAFT from the drafts tab, and comes back to the list', () => {
-    const tree = renderSheet();
-
-    press(tree, 'draft-row');
-    expect(textContent(tree)).toContain('DRAFT PREVIEW draft-1');
-    // Replaced, not stacked — the same shape the scheduled preview uses.
-    expect(textContent(tree)).not.toContain('DRAFTS PANEL');
-
-    press(tree, 'draft-back');
-    expect(textContent(tree)).toContain('DRAFTS PANEL');
-
-    act(() => tree.unmount());
-  });
-
-  it('loads the previewed draft into the composer, leaving the preview first', () => {
-    const onLoadDraft = jest.fn();
-    const tree = renderSheet({ onLoadDraft });
-
-    press(tree, 'draft-row');
-    press(tree, 'draft-edit');
-
-    expect(onLoadDraft).toHaveBeenCalledTimes(1);
-    expect(onLoadDraft.mock.calls[0][0].id).toBe('draft-1');
-    // Leaving the preview matters: the composer is behind this sheet, so staying
-    // would leave the user looking at a preview of what they are now editing.
-    expect(textContent(tree)).not.toContain('DRAFT PREVIEW');
 
     act(() => tree.unmount());
   });

@@ -7,7 +7,6 @@ import {
   updatePost,
   updatePostSettings,
   deletePost,
-  publishScheduledPostNow,
   likePost,
   unlikePost,
   savePost,
@@ -146,8 +145,6 @@ router.post('/:id/collaborators/decline', declineCollabInvite);
 router.post('/:id/collaborators/stop-sharing', stopCollabSharing);
 router.put('/:id', ...postWriteRateLimiters, updatePost);
 router.patch('/:id/settings', updatePostSettings);
-// Publish one of the caller's own scheduled posts ahead of its time.
-router.post('/:id/publish', publishScheduledPostNow);
 router.delete('/:id', deletePost);
 router.post('/:id/like', likePost);
 router.delete('/:id/like', unlikePost);

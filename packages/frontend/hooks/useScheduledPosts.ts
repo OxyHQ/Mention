@@ -28,8 +28,6 @@ export interface UseScheduledPostsResult {
   refetch: () => void;
   /** Cancel one scheduled post — it is deleted, never published. */
   cancelScheduledPost: (postId: string) => Promise<void>;
-  /** Publish one scheduled post immediately, ahead of its time. */
-  publishScheduledPostNow: (postId: string) => Promise<void>;
 }
 
 /**
@@ -74,29 +72,10 @@ export function useScheduledPosts(): UseScheduledPostsResult {
     },
   });
 
-  const publishMutation = useMutation<void, unknown, string>({
-    mutationFn: async (postId: string) => {
-      await api.post(`/posts/${postId}/publish`);
-    },
-    onSuccess: (_result, postId) => {
-      // It left the queue by publishing rather than by deletion, but the queue
-      // is "posts still waiting", so the row goes either way.
-      queryClient.setQueryData<HydratedPost[]>(queryKey, (previous) =>
-        previous?.filter((post) => post.id !== postId),
-      );
-      queryClient.invalidateQueries({ queryKey });
-    },
-  });
-
   const { mutateAsync: cancel } = cancelMutation;
   const cancelScheduledPost = useCallback(async (postId: string) => {
     await cancel(postId);
   }, [cancel]);
-
-  const { mutateAsync: publishNow } = publishMutation;
-  const publishScheduledPostNow = useCallback(async (postId: string) => {
-    await publishNow(postId);
-  }, [publishNow]);
 
   return {
     scheduledPosts: enabled ? query.data ?? [] : [],
@@ -104,6 +83,5 @@ export function useScheduledPosts(): UseScheduledPostsResult {
     isError: query.isError,
     refetch: query.refetch,
     cancelScheduledPost,
-    publishScheduledPostNow,
   };
 }

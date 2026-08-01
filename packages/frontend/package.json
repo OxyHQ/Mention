@@ -33,9 +33,7 @@
     ],
     "moduleNameMapper": {
       "^@oxyhq/services/ui/client$": "<rootDir>/../../node_modules/@oxyhq/services/lib/commonjs/ui/client.js",
-      "^@oxyhq/core/logger$": "<rootDir>/../../node_modules/@oxyhq/core/dist/cjs/logger/index.js",
-      "^@expensify/react-native-live-markdown$": "<rootDir>/__mocks__/@expensify/react-native-live-markdown.tsx",
-      "^@expensify/react-native-live-markdown/src/MarkdownTextInput$": "<rootDir>/__mocks__/@expensify/markdown-text-input.tsx"
+      "^@oxyhq/core/logger$": "<rootDir>/../../node_modules/@oxyhq/core/dist/cjs/logger/index.js"
     },
     "collectCoverageFrom": [
       "**/*.{ts,tsx}",
@@ -84,7 +82,6 @@
   "dependencies": {
     "@alia.onl/sdk": "^5.0.0",
     "@babel/plugin-transform-export-namespace-from": "^7.29.7",
-    "@expensify/react-native-live-markdown": "0.1.333",
     "@expo/vector-icons": "^15.1.1",
     "@floating-ui/react-dom": "^2.1.9",
     "@livekit/react-native": "^2.11.1",

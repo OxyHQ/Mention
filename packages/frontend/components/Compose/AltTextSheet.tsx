@@ -128,21 +128,15 @@ const AltTextSheet: React.FC<AltTextSheetProps> = ({
                   activeOpacity={0.75}
                   accessibilityRole="tab"
                   accessibilityState={{ selected: isActive }}
-                  // `bg-primary/10`, not `${theme.colors.primary}1A`. Bloom
-                  // resolves ACCENT tokens to `rgb(0 98 157)` (the tonal engine
-                  // derives them; only the STATUS_COLORS family stays hex), so
-                  // appending hex alpha yields a malformed colour that
-                  // react-native-web renders as the OPAQUE token — measured here
-                  // at contrast 1.00, primary text on primary, the language name
-                  // fully invisible.
-                  className={`flex-row items-center gap-1.5 px-3 py-1.5 rounded-full border ${
-                    isActive ? 'bg-primary/10' : ''
-                  }`}
-                  style={{ borderColor: isActive ? theme.colors.primary : theme.colors.border }}
+                  className="flex-row items-center gap-1.5 px-3 py-1.5 rounded-full border"
+                  style={{
+                    borderColor: isActive ? theme.colors.primary : theme.colors.border,
+                    backgroundColor: isActive ? `${theme.colors.primary}1A` : 'transparent',
+                  }}
                 >
                   <Text
-                    className={`text-[13px] font-semibold ${isActive ? 'text-primary' : ''}`}
-                    style={isActive ? undefined : { color: theme.colors.textSecondary }}
+                    className="text-[13px] font-semibold"
+                    style={{ color: isActive ? theme.colors.primary : theme.colors.textSecondary }}
                   >
                     {describeContentLanguage(tag).nativeName}
                   </Text>

@@ -1,8 +1,6 @@
 import React from 'react';
 import { Modal, TextInput } from 'react-native';
 import TestRenderer, { act } from 'react-test-renderer';
-import MarkdownTextInput from '@expensify/react-native-live-markdown/src/MarkdownTextInput';
-import { parseArticleMarkdown } from '@/utils/markdownRanges';
 import { ArticleEditor } from '../ArticleEditor';
 
 /**
@@ -17,10 +15,6 @@ import { ArticleEditor } from '../ArticleEditor';
  *  2. The composer owns the draft. Opening, typing, closing and reopening must
  *     show the same title and body; a migration that moved either into local
  *     state would silently lose someone's article.
- *  3. The BODY is the live-markdown surface, and the title is not. The library's
- *     `parser` prop is required, so a body wired to a plain `TextInput` would
- *     still compile and still look right in a screenshot while formatting
- *     nothing.
  */
 
 const mockDialogProps: Record<string, unknown>[] = [];
@@ -182,42 +176,5 @@ describe('ArticleEditor surface', () => {
     ]);
 
     act(() => tree?.unmount());
-  });
-
-  it('edits the body through the live-markdown surface, with our grammar', () => {
-    const tree = renderEditor();
-
-    const markdown = tree.root.findAllByType(MarkdownTextInput);
-    expect(markdown).toHaveLength(1);
-    // The parser is REQUIRED by the library, so its presence proves nothing on
-    // its own — it has to be ours, or the body formats by somebody else's rules
-    // (and drags `expensify-common` into the bundle with them).
-    expect(markdown[0].props.parser).toBe(parseArticleMarkdown);
-    expect(markdown[0].props.multiline).toBe(true);
-    expect(markdown[0].props.value).toBe('A long body that must survive a round trip.');
-
-    act(() => tree.unmount());
-  });
-
-  it('leaves the TITLE a plain field — a headline is not a markdown document', () => {
-    const tree = renderEditor();
-
-    const plain = tree.root
-      .findAllByType(TextInput)
-      .filter((node) => node.props.value === 'On scheduling');
-    expect(plain).toHaveLength(1);
-    expect(plain[0].props.parser).toBeUndefined();
-
-    act(() => tree.unmount());
-  });
-
-  it('themes the markdown from bloom rather than hardcoding colours', () => {
-    const tree = renderEditor();
-
-    const style = tree.root.findByType(MarkdownTextInput).props.markdownStyle;
-    expect(style.link.color).toBe('#7c3aed');
-    expect(style.syntax.color).toBe('#999');
-
-    act(() => tree.unmount());
   });
 });

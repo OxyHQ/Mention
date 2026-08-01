@@ -1,5 +1,5 @@
 import React, { memo, useCallback, useMemo } from 'react';
-import { View, Text, ScrollView } from 'react-native';
+import { View, ScrollView } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { Loading } from '@oxyhq/bloom/loading';
 import { useTheme } from '@oxyhq/bloom/theme';
@@ -28,8 +28,6 @@ interface ComposeToolbarProps {
     onEventPress?: () => void;
     onRoomPress?: () => void;
     onPodcastPress?: () => void;
-    /** Add another language to the post — composer-wide, so main toolbar only. */
-    onLanguagePress?: () => void;
     hasLocation?: boolean;
     isGettingLocation?: boolean;
     hasPoll?: boolean;
@@ -41,17 +39,6 @@ interface ComposeToolbarProps {
     hasPodcast?: boolean;
     hasSchedule?: boolean;
     scheduleEnabled?: boolean;
-    /** The post already carries more than one language. */
-    hasLanguages?: boolean;
-    /** False once the post holds the maximum author languages. */
-    languageEnabled?: boolean;
-    /**
-     * The chosen publish time, already formatted. Present ⇒ the schedule control
-     * IS the indicator: it shows the time inline instead of a separate card
-     * explaining it. Absent ⇒ the post goes out now and the control is the bare
-     * icon.
-     */
-    scheduledLabel?: string;
     hasSourceErrors?: boolean;
     disabled?: boolean;
 }
@@ -69,7 +56,6 @@ const ComposeToolbar = memo<ComposeToolbarProps>(({
     onEventPress,
     onRoomPress,
     onPodcastPress,
-    onLanguagePress,
     hasLocation = false,
     isGettingLocation = false,
     hasPoll = false,
@@ -81,9 +67,6 @@ const ComposeToolbar = memo<ComposeToolbarProps>(({
     hasPodcast = false,
     hasSchedule = false,
     scheduleEnabled = true,
-    scheduledLabel,
-    hasLanguages = false,
-    languageEnabled = true,
     hasSourceErrors = false,
     disabled = false,
 }) => {
@@ -242,72 +225,19 @@ const ComposeToolbar = memo<ComposeToolbarProps>(({
                 </PressableScale>
             )}
 
-            {onLanguagePress && (
-                <PressableScale
-                    onPress={withHaptic(onLanguagePress)}
-                    disabled={disabled || !languageEnabled}
-                    className="p-1"
-                    accessibilityRole="button"
-                    accessibilityLabel={t('compose.languages.add', { defaultValue: 'Add a language' })}
-                >
-                    {/* The SAME icon the post component marks a translation
-                        with, in the same two states: `PostActions` renders
-                        `isTranslated ? 'language' : 'language-outline'` tinted
-                        primary or secondary. Here "carries another language" is
-                        the authoring side of that same fact, so the control that
-                        writes one and the badge that reads one look alike. */}
-                    <Ionicons
-                        name={hasLanguages ? 'language' : 'language-outline'}
-                        size={20}
-                        color={disabled || !languageEnabled
-                            ? theme.colors.textTertiary
-                            : hasLanguages
-                                ? theme.colors.primary
-                                : theme.colors.textSecondary}
-                    />
-                </PressableScale>
-            )}
-
             {onSchedulePress && (
                 <PressableScale
                     onPress={withHaptic(onSchedulePress)}
                     disabled={disabled}
-                    // The tint is `bg-primary/10`, NOT a hand-built
-                    // `${theme.colors.primary}1A`: this theme's `primary` is
-                    // `rgb(0 98 157)`, so appending hex alpha to it yields a
-                    // string react-native-web parses back to FULLY OPAQUE
-                    // primary — which paints primary text on a primary pill and
-                    // hides the time completely. Caught in a browser, invisible
-                    // to jest.
-                    className={scheduledLabel
-                        ? 'flex-row items-center gap-1.5 px-2.5 py-1 rounded-full bg-primary/10'
-                        : 'p-1'}
+                    className="p-1"
                     style={!scheduleEnabled ? { opacity: 0.6 } : undefined}
-                    accessibilityRole="button"
-                    // The label carries the STATE, not just the action: a screen
-                    // reader has no colour or chip shape to go on.
-                    accessibilityLabel={scheduledLabel
-                        ? t('compose.schedule.chipA11y', {
-                            defaultValue: 'Scheduled for {{time}}. Tap to change.',
-                            time: scheduledLabel,
-                        })
-                        : t('compose.schedule.a11y', { defaultValue: 'Schedule this post' })}
                 >
                     <View style={{ opacity: disabled ? 0.3 : 1 }}>
                         <CalendarIcon
                             size={20}
-                            color={scheduledLabel ? theme.colors.primary : scheduleColor}
+                            color={scheduleColor}
                         />
                     </View>
-                    {scheduledLabel ? (
-                        <Text
-                            className="text-primary text-[13px] font-semibold"
-                            style={{ opacity: disabled ? 0.3 : 1 }}
-                            numberOfLines={1}
-                        >
-                            {scheduledLabel}
-                        </Text>
-                    ) : null}
                 </PressableScale>
             )}
 
