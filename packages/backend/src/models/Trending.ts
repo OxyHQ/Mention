@@ -51,6 +51,15 @@ export interface TrendingRecord {
   /** Coarse taxonomy hint shown under the label. Absent on pre-label rows. */
   category?: TrendCategory;
   /**
+   * The primary languages of the posts behind this term (ISO 639-1).
+   *
+   * A trend is not language-neutral — `noticia` is a Spanish story and reading
+   * it in an Italian list is noise — so the languages travel with the row and
+   * the reader's own are matched against them. Absent on rows written before
+   * trending measured language, which simply match every reader.
+   */
+  languages?: string[];
+  /**
    * Which labelling rules produced {@link displayName}. A label from older rules
    * is re-derived rather than carried forward for the rest of the run.
    */
@@ -121,6 +130,10 @@ const TrendingSchema = new Schema({
   },
   labelVersion: {
     type: Number,
+  },
+  languages: {
+    type: [String],
+    default: undefined,
   },
   description: {
     type: String,

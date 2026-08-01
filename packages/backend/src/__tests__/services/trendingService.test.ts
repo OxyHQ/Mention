@@ -18,19 +18,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   postAggregate: vi.fn(),
-  postCountDocuments: vi.fn(),
   trendingAggregate: vi.fn(),
   redisGet: vi.fn(),
   redisSetEx: vi.fn(),
 }));
 
-vi.mock('../../models/Post', () => ({
-  Post: {
-    aggregate: mocks.postAggregate,
-    // The corpus size behind the vocabulary ceiling; chained `.maxTimeMS()`.
-    countDocuments: (...args: unknown[]) => mocks.postCountDocuments(...args),
-  },
-}));
+vi.mock('../../models/Post', () => ({ Post: { aggregate: mocks.postAggregate } }));
 
 // Trending pulls in a handful of side-effecting collaborators we don't exercise
 // here; stub them so the singleton imports cleanly and the methods stay pure.
@@ -79,24 +72,59 @@ function row(term: string, volume: number) {
     topicVolume: 0,
     authorCount: 5,
     actorIds: ['a', 'b'],
+    languages: ['en'],
   };
+}
+
+
+/**
+ * `Post.aggregate` now serves TWO pipelines: the per-language corpus counts and
+ * the term candidates. They are told apart by SHAPE rather than by call order,
+ * so inserting a query on either side cannot silently hand a test the wrong
+ * result — the failure that would produce (a corpus made of term rows) is
+ * exactly the kind that still passes an assertion.
+ */
+function isCorpusPipeline(pipeline: Array<Record<string, unknown>>): boolean {
+  return pipeline.some(
+    (entry) => '$group' in entry && (entry.$group as { _id?: unknown })._id === '$language',
+  );
+}
+
+/** The pipeline the term candidates were gathered with. */
+function termPipeline(): Array<Record<string, unknown>> {
+  const call = mocks.postAggregate.mock.calls.find(
+    ([pipeline]) => !isCorpusPipeline(pipeline as Array<Record<string, unknown>>),
+  );
+  if (!call) throw new Error('the term aggregation never ran');
+  return call[0] as Array<Record<string, unknown>>;
 }
 
 const stage = (pipeline: Array<Record<string, unknown>>, key: string) =>
   pipeline.find((entry) => key in entry) as Record<string, Record<string, unknown>>;
 
+/** Drive the term pipeline while the corpus pipeline answers its own counts. */
+function stageTerms(rows: unknown[]): void {
+  mocks.postAggregate.mockImplementation((pipeline: Array<Record<string, unknown>>) =>
+    Promise.resolve(isCorpusPipeline(pipeline) ? [{ _id: 'en', count: 1_000 }] : rows),
+  );
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
-  mocks.postCountDocuments.mockReturnValue({ maxTimeMS: () => Promise.resolve(1_000) });
+  stageTerms([]);
+  // The per-language corpus sizes behind the vocabulary ceiling. The candidate
+  // aggregation and this one share a mock, so the first call answers the
+  // language counts and the pipeline result is set per test.
+  mocks.postAggregate.mockResolvedValue([]);
 });
 
 describe('aggregateTermCandidates — what is allowed to count', () => {
   it('excludes sensitive posts at the aggregation $match (all three flags)', async () => {
-    mocks.postAggregate.mockResolvedValue([]);
+    stageTerms([]);
 
     await svc.aggregateTermCandidates(new Date());
 
-    const match = stage(mocks.postAggregate.mock.calls[0][0], '$match').$match;
+    const match = stage(termPipeline(), '$match').$match;
     expect(match.status).toBe('published');
     expect(match.visibility).toBe('public');
     expect(match.boostOf).toEqual({ $exists: false });
@@ -109,7 +137,7 @@ describe('aggregateTermCandidates — what is allowed to count', () => {
   it('drops blocklisted NSFW terms but keeps ordinary ones', async () => {
     // The aggregation already filtered out sensitive POSTS; these counts come
     // from non-sensitive ones. The blocklisted slugs must still be dropped.
-    mocks.postAggregate.mockResolvedValue([
+    stageTerms([
       row('technology', 50),
       row('nsfw', 999),
       row('sexy', 800),
@@ -130,11 +158,11 @@ describe('aggregateTermCandidates — what is allowed to count', () => {
 
 describe('aggregateTermCandidates — ONE term space', () => {
   it('unions extracted terms, hashtags and classified topic slugs', async () => {
-    mocks.postAggregate.mockResolvedValue([]);
+    stageTerms([]);
 
     await svc.aggregateTermCandidates(new Date());
 
-    const addFields = stage(mocks.postAggregate.mock.calls[0][0], '$addFields').$addFields;
+    const addFields = stage(termPipeline(), '$addFields').$addFields;
     expect(addFields._terms).toEqual({
       $setUnion: [
         { $ifNull: ['$postClassification.trendTerms', []] },
@@ -145,11 +173,11 @@ describe('aggregateTermCandidates — ONE term space', () => {
   });
 
   it('groups on the unified term, so a hashtag and the bare word are ONE candidate', async () => {
-    mocks.postAggregate.mockResolvedValue([]);
+    stageTerms([]);
 
     await svc.aggregateTermCandidates(new Date());
 
-    const pipeline = mocks.postAggregate.mock.calls[0][0];
+    const pipeline = termPipeline();
     expect(stage(pipeline, '$unwind').$unwind).toBe('$_terms');
     expect(stage(pipeline, '$group').$group._id).toBe('$_terms');
   });
@@ -157,20 +185,20 @@ describe('aggregateTermCandidates — ONE term space', () => {
 
 describe('aggregateTermCandidates — authors are people, not posts', () => {
   it('collects DISTINCT authors rather than counting posts', async () => {
-    mocks.postAggregate.mockResolvedValue([]);
+    stageTerms([]);
 
     await svc.aggregateTermCandidates(new Date());
 
-    const group = stage(mocks.postAggregate.mock.calls[0][0], '$group').$group;
+    const group = stage(termPipeline(), '$group').$group;
     expect(group.authors).toEqual({ $addToSet: '$oxyUserId' });
   });
 
   it('filters null authors out before the count, so orphan posts cannot inflate it', async () => {
-    mocks.postAggregate.mockResolvedValue([]);
+    stageTerms([]);
 
     await svc.aggregateTermCandidates(new Date());
 
-    const pipeline = mocks.postAggregate.mock.calls[0][0] as Array<Record<string, unknown>>;
+    const pipeline = termPipeline() as Array<Record<string, unknown>>;
     const filterStage = pipeline.find(
       (entry) => '$addFields' in entry && 'authors' in (entry.$addFields as Record<string, unknown>),
     ) as { $addFields: { authors: unknown } };
@@ -188,11 +216,11 @@ describe('aggregateTermCandidates — authors are people, not posts', () => {
 
 describe('aggregateTermCandidates — provenance is carried, not scored', () => {
   it('counts how often the term arrived as a hashtag and as a topic slug', async () => {
-    mocks.postAggregate.mockResolvedValue([]);
+    stageTerms([]);
 
     await svc.aggregateTermCandidates(new Date());
 
-    const group = stage(mocks.postAggregate.mock.calls[0][0], '$group').$group;
+    const group = stage(termPipeline(), '$group').$group;
     expect(group.hashtagVolume).toEqual({
       $sum: { $cond: [{ $in: ['$_terms', { $ifNull: ['$hashtags', []] }] }, 1, 0] },
     });

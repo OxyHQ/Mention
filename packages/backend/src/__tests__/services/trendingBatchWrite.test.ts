@@ -24,7 +24,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   postAggregate: vi.fn(),
-  postCountDocuments: vi.fn(),
   trendingInsertMany: vi.fn(),
   trendingFind: vi.fn(),
   trendingAggregate: vi.fn(),
@@ -36,13 +35,7 @@ const mocks = vi.hoisted(() => ({
   redisSetEx: vi.fn(),
 }));
 
-vi.mock('../../models/Post', () => ({
-  Post: {
-    aggregate: mocks.postAggregate,
-    // The corpus size behind the vocabulary ceiling; chained `.maxTimeMS()`.
-    countDocuments: (...args: unknown[]) => mocks.postCountDocuments(...args),
-  },
-}));
+vi.mock('../../models/Post', () => ({ Post: { aggregate: mocks.postAggregate } }));
 
 vi.mock('../../models/Trending', () => ({
   __esModule: true,
@@ -124,12 +117,25 @@ function stageBatch(): void {
   // path, so they must clear the concentration ceiling rather than being
   // refused by it (a term averaging more than a few posts per author is not a
   // conversation — that is `clearsFloors`' job and is covered in its own suite).
-  mocks.postAggregate.mockResolvedValue([
-    { _id: 'ai', volume: 40, recentVolume: 40, hashtagVolume: 40, topicVolume: 0, authorCount: 24, actorIds: ['u1'] },
-    { _id: 'business', volume: 30, recentVolume: 30, hashtagVolume: 30, topicVolume: 30, authorCount: 18, actorIds: ['u2'] },
-    { _id: 'politics', volume: 20, recentVolume: 20, hashtagVolume: 0, topicVolume: 20, authorCount: 12, actorIds: ['u3'] },
-    { _id: 'kremer trade', volume: 12, recentVolume: 12, hashtagVolume: 0, topicVolume: 0, authorCount: 8, actorIds: ['u4'] },
-  ]);
+  const terms = [
+    { _id: 'ai', volume: 40, recentVolume: 40, hashtagVolume: 40, topicVolume: 0, authorCount: 24, actorIds: ['u1'], languages: ['en'] },
+    { _id: 'business', volume: 30, recentVolume: 30, hashtagVolume: 30, topicVolume: 30, authorCount: 18, actorIds: ['u2'], languages: ['en'] },
+    { _id: 'politics', volume: 20, recentVolume: 20, hashtagVolume: 0, topicVolume: 20, authorCount: 12, actorIds: ['u3'], languages: ['en'] },
+    { _id: 'kremer trade', volume: 12, recentVolume: 12, hashtagVolume: 0, topicVolume: 0, authorCount: 8, actorIds: ['u4'], languages: ['en'] },
+  ];
+  // `Post.aggregate` serves TWO pipelines now. They are told apart by SHAPE, not
+  // by call order: answering the corpus query with term rows would leave the
+  // vocabulary ceiling quietly disabled here, and every assertion below would
+  // still pass — a check that cannot tell success from failure.
+  mocks.postAggregate.mockImplementation((pipeline: Array<Record<string, unknown>>) =>
+    Promise.resolve(
+      pipeline.some(
+        (entry) => '$group' in entry && (entry.$group as { _id?: unknown })._id === '$language',
+      )
+        ? [{ _id: 'en', count: 100_000 }]
+        : terms,
+    ),
+  );
 }
 
 function insertedDocs(): InsertedDoc[] {
@@ -138,9 +144,7 @@ function insertedDocs(): InsertedDoc[] {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  // A large corpus so the fixtures' volumes are a negligible SHARE of it: this
-  // suite exercises the write path, and the vocabulary ceiling has its own.
-  mocks.postCountDocuments.mockReturnValue({ maxTimeMS: () => Promise.resolve(100_000) });
+
   metrics.reset();
   // Every read path is a cache miss so the real queries run.
   mocks.redisGet.mockResolvedValue(null);
@@ -294,6 +298,54 @@ describe('TrendingService.getTrending — batch staleness is observable', () => 
     await trendingService.getTrending(20);
 
     expect(vi.mocked(logger.error)).not.toHaveBeenCalled();
+  });
+});
+
+describe('TrendingService.getTrending — the reader\'s language orders, never filters', () => {
+  function stageRows(rows: Array<Record<string, unknown>>): void {
+    mocks.trendBatchFindOne.mockReturnValue(leanChain({ calculatedAt: new Date(), summary: '' }));
+    mocks.trendingFind.mockReturnValue(leanChain(rows));
+    mocks.trendingAggregate.mockResolvedValue([]);
+  }
+
+  const row = (name: string, languages: string[] | undefined, score: number) => ({
+    name, type: 'entity', score, rank: 1, volume: 20,
+    ...(languages ? { languages } : {}),
+  });
+
+  it('puts the trends a reader can read first', async () => {
+    stageRows([row('notizie', ['it'], 100), row('noticia', ['es'], 50)]);
+
+    const result = await trendingService.getTrending(20, undefined, ['es']);
+
+    // Spanish first even though the Italian trend scored twice as high.
+    expect(result.trending.map((trend) => trend.name)).toEqual(['noticia', 'notizie']);
+  });
+
+  it('still returns the rest — a quiet language is never an empty widget', async () => {
+    stageRows([row('notizie', ['it'], 100), row('nachrichten', ['de'], 90)]);
+
+    const result = await trendingService.getTrending(20, undefined, ['es']);
+
+    expect(result.trending.map((trend) => trend.name)).toEqual(['notizie', 'nachrichten']);
+  });
+
+  it('treats a trend with no recorded language as readable', async () => {
+    // Written before trending measured language, or carried by posts whose
+    // language never resolved. Unknown is not foreign.
+    stageRows([row('notizie', ['it'], 100), row('legacy', undefined, 50)]);
+
+    const result = await trendingService.getTrending(20, undefined, ['es']);
+
+    expect(result.trending[0].name).toBe('legacy');
+  });
+
+  it('leaves the order alone when the reader offers no language', async () => {
+    stageRows([row('notizie', ['it'], 100), row('noticia', ['es'], 50)]);
+
+    const result = await trendingService.getTrending(20, undefined, []);
+
+    expect(result.trending.map((trend) => trend.name)).toEqual(['notizie', 'noticia']);
   });
 });
 

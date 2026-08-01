@@ -76,6 +76,7 @@ interface TrendItem {
   startedAt: Date;
   status?: TrendStatus;
   actorIds: string[];
+  languages: string[];
   topicId?: string;
 }
 
@@ -95,6 +96,8 @@ interface TermCandidate {
    * there, because `resolveNames` writes through to the shared registry.
    */
   topicVolume: number;
+  /** Primary languages of the posts behind the term (ISO 639-1). */
+  languages: string[];
 }
 
 /**
@@ -113,6 +116,73 @@ function resolveTrendType(input: {
 }): TrendingType {
   if (input.hasTopic) return TrendingType.TOPIC;
   return input.hashtagVolume * 2 >= input.volume ? TrendingType.HASHTAG : TrendingType.ENTITY;
+}
+
+/**
+ * How much wider the trend query reaches when a reader's languages have to be
+ * matched. Three pages' worth: enough that a reader whose language is a
+ * minority here still gets a full list of it, small enough to stay one indexed
+ * read.
+ */
+const LANGUAGE_OVERFETCH = 3;
+
+/**
+ * Move the trends a reader can READ to the front, without removing any.
+ *
+ * A filter would be the obvious thing and is wrong: on a network where one
+ * language dominates, filtering leaves speakers of every other language with an
+ * empty widget — the failure the never-blank rule exists to prevent, arriving by
+ * a different road. Ordering gives a reader their own language first and still
+ * shows them what the rest of the network is talking about.
+ *
+ * A trend with NO recorded language (written before trending measured it, or
+ * carried by posts whose language never resolved) is treated as matching: its
+ * language is unknown, not foreign, and hiding it would be a claim nobody made.
+ *
+ * Stable: the incoming order is score order, and terms that match equally keep
+ * it.
+ */
+function orderByLanguageMatch(
+  trends: readonly TrendingRecord[],
+  languages: readonly string[],
+): TrendingRecord[] {
+  if (languages.length === 0) return [...trends];
+
+  const wanted = new Set(languages);
+  const matches = (trend: TrendingRecord): boolean =>
+    !trend.languages?.length || trend.languages.some((language) => wanted.has(language));
+
+  const readable: TrendingRecord[] = [];
+  const rest: TrendingRecord[] = [];
+  for (const trend of trends) (matches(trend) ? readable : rest).push(trend);
+  return [...readable, ...rest];
+}
+
+/**
+ * The corpus a term could plausibly have appeared in.
+ *
+ * The sum of the corpora of the languages it WAS written in — not the whole
+ * window. A term seen only in Spanish posts is measured against Spanish, so its
+ * share means the same thing whether Spanish is most of this network or a
+ * tenth of it. That invariance is the entire point: without it the ceiling is
+ * strict for the majority language and nearly inert for every other one.
+ *
+ * A term whose posts carry no resolved language falls back to the whole window,
+ * which is the honest denominator when the language is unknown.
+ */
+function corpusSizeFor(
+  languages: readonly string[],
+  corpusByLanguage: ReadonlyMap<string | null, number>,
+): number {
+  let total = 0;
+  for (const count of corpusByLanguage.values()) total += count;
+  if (languages.length === 0) return total;
+
+  let scoped = 0;
+  for (const language of languages) scoped += corpusByLanguage.get(language) ?? 0;
+  // A language the corpus count never saw leaves `scoped` at 0; the window
+  // total is a safer denominator than dividing by nothing.
+  return scoped > 0 ? scoped : total;
 }
 
 /**
@@ -371,7 +441,13 @@ class TrendingService {
         $not: { $gte: MtnConfig.feed.discoveryGate.spamRejectThreshold },
       },
     };
-    const windowPostCount = await this.countWindowPosts(windowMatch);
+    // Corpus size PER LANGUAGE, not just in total. The share-of-corpus ceiling
+    // is only meaningful against the corpus a term could have appeared in: a
+    // Spanish function word is common among Spanish posts and rare against a
+    // corpus dominated by another language, so a global denominator makes the
+    // guard systematically weaker for every minority language — exactly where a
+    // hand-written stop-word list is already weakest.
+    const corpusByLanguage = await this.countWindowPostsByLanguage(windowMatch);
 
     const rows = await Post.aggregate<{
       _id: string;
@@ -381,6 +457,7 @@ class TrendingService {
       topicVolume: number;
       authorCount: number;
       actorIds: string[];
+      languages: string[];
     }>(
       [
         {
@@ -436,6 +513,11 @@ class TrendingService {
               },
             },
             authors: { $addToSet: '$oxyUserId' },
+            // The post's PRIMARY language (the top-level AP field, which is
+            // `postClassification.languages[0]`). A scalar, so the set needs no
+            // flattening; a post with no resolved language contributes null and
+            // is filtered out below.
+            languages: { $addToSet: '$language' },
           },
         },
         // Cheapest possible narrowing before the per-term projections below.
@@ -447,6 +529,7 @@ class TrendingService {
             // posting, so they must not inflate the distinct-author floor —
             // which would be the one way to walk straight past it.
             authors: { $filter: { input: '$authors', cond: { $ne: ['$$this', null] } } },
+            languages: { $filter: { input: '$languages', cond: { $ne: ['$$this', null] } } },
           },
         },
         {
@@ -457,6 +540,7 @@ class TrendingService {
             topicVolume: 1,
             authorCount: { $size: '$authors' },
             actorIds: { $slice: ['$authors', maxActors] },
+            languages: 1,
           },
         },
       ],
@@ -468,21 +552,26 @@ class TrendingService {
     return rows
       // Blocklisted NSFW/adult terms never trend, whatever their numbers.
       .filter((row) => !isNsfwHashtag(row._id))
-      .map((row) => ({
-        measurement: {
-          term: row._id,
-          volume: row.volume,
-          recentVolume: row.recentVolume,
-          authorCount: row.authorCount,
-          // Set only when the corpus size is known. Absent means "not
-          // measured", which the ceiling treats as passing — losing the guard
-          // is the right cost of a failed count, losing the term is not.
-          ...(windowPostCount ? { documentFrequency: row.volume / windowPostCount } : {}),
-        },
-        actorIds: row.actorIds ?? [],
-        hashtagVolume: row.hashtagVolume,
-        topicVolume: row.topicVolume,
-      }));
+      .map((row) => {
+        const languages = row.languages ?? [];
+        const corpus = corpusSizeFor(languages, corpusByLanguage);
+        return {
+          measurement: {
+            term: row._id,
+            volume: row.volume,
+            recentVolume: row.recentVolume,
+            authorCount: row.authorCount,
+            // Set only when the corpus size is known. Absent means "not
+            // measured", which the ceiling treats as passing — losing the guard
+            // is the right cost of a failed count, losing the term is not.
+            ...(corpus ? { documentFrequency: row.volume / corpus } : {}),
+          },
+          actorIds: row.actorIds ?? [],
+          hashtagVolume: row.hashtagVolume,
+          topicVolume: row.topicVolume,
+          languages,
+        };
+      });
   }
 
   /**
@@ -493,13 +582,20 @@ class TrendingService {
    * ceiling, which is a weaker list for one batch. Throwing instead would trade
    * the whole batch for one guard.
    */
-  private async countWindowPosts(match: Record<string, unknown>): Promise<number | null> {
+  private async countWindowPostsByLanguage(
+    match: Record<string, unknown>,
+  ): Promise<Map<string | null, number>> {
+    const byLanguage = new Map<string | null, number>();
     try {
-      return await Post.countDocuments(match).maxTimeMS(TREND_AGGREGATION_MAX_TIME_MS);
+      const rows = await Post.aggregate<{ _id: string | null; count: number }>(
+        [{ $match: match }, { $group: { _id: '$language', count: { $sum: 1 } } }],
+        { maxTimeMS: TREND_AGGREGATION_MAX_TIME_MS },
+      );
+      for (const row of rows) byLanguage.set(row._id, row.count);
     } catch (error) {
       logger.warn('[Trending] Corpus size lookup failed; vocabulary ceiling skipped', { error });
-      return null;
     }
+    return byLanguage;
   }
 
   /**
@@ -558,6 +654,7 @@ class TrendingService {
         startedAt: startedAt.get(trend.term) ?? calculatedAt,
         ...(trend.status ? { status: trend.status } : {}),
         actorIds: candidate?.actorIds ?? [],
+        languages: candidate?.languages ?? [],
         ...(topicDoc ? { topicId: topicDoc._id.toString() } : {}),
       };
     });
@@ -773,6 +870,7 @@ class TrendingService {
       startedAt: item.startedAt,
       ...(item.status ? { status: item.status } : {}),
       ...(item.actorIds.length > 0 ? { actorIds: item.actorIds } : {}),
+      ...(item.languages.length > 0 ? { languages: item.languages } : {}),
       rank: index + 1,
       ...(item.topicId ? { topicId: item.topicId } : {}),
       calculatedAt,
@@ -819,8 +917,14 @@ class TrendingService {
   public async getTrending(
     limit: number = 20,
     type?: TrendingType,
+    languages: readonly string[] = [],
   ): Promise<{ trending: TrendWithSeries[]; summary: string; recId?: string }> {
-    const cacheKey = `trending:latest:${limit}:${type || 'all'}`;
+    // The reader's languages are part of the cache IDENTITY, not of a per-user
+    // personalization: the route takes them as a query parameter precisely so
+    // this stays a public, shared, CDN-cacheable read. The set is normalized and
+    // sorted by the caller, so `es,en` and `en,es` are one entry rather than two.
+    const languageKey = languages.length > 0 ? languages.join(',') : 'any';
+    const cacheKey = `trending:latest:${limit}:${type || 'all'}:${languageKey}`;
     const redis = await getRedisClient();
 
     if (redis) {
@@ -849,10 +953,16 @@ class TrendingService {
     };
     if (type) query.type = type;
 
-    const trending = await Trending.find(query)
-      .sort({ score: -1, rank: 1 })
-      .limit(limit)
-      .lean() as unknown as TrendingRecord[];
+    // Overfetched, then ordered by language match below: the reader's languages
+    // decide the ORDER, never membership, so a quiet language cannot leave
+    // somebody with an empty list.
+    const trending = orderByLanguageMatch(
+      (await Trending.find(query)
+        .sort({ score: -1, rank: 1 })
+        .limit(limit * LANGUAGE_OVERFETCH)
+        .lean()) as unknown as TrendingRecord[],
+      languages,
+    ).slice(0, limit);
 
     // Only reached on a cache MISS. The entry below is warmed right after each
     // recalculation (see warmDefaultCache), so these run on the order of once per

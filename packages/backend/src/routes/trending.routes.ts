@@ -26,6 +26,11 @@ const MAX_TRENDING_HISTORY_LIMIT = 20;
  * Query params:
  *   limit  — max items (1-50, default 20)
  *   type   — filter by type: hashtag, topic, entity (default: all)
+ *   lang   — the reader's content languages (e.g. `es-ES,en`). ORDERS the list,
+ *            never filters it, so a reader whose language is quiet here still
+ *            sees what the rest of the network is talking about. Part of the
+ *            cache key, which is why it is a query parameter rather than
+ *            something read from the session — see `getTrending`.
  */
 router.get('/', cachePublicMedium, async (req: Request, res: Response) => {
   try {
@@ -35,7 +40,7 @@ router.get('/', cachePublicMedium, async (req: Request, res: Response) => {
     const rawType = queryString(req.query.type);
     const typeFilter = Object.values(TrendingType).find((trendingType) => trendingType === rawType);
 
-    const result = await trendingService.getTrending(limitNum, typeFilter);
+    const result = await trendingService.getTrending(limitNum, typeFilter, parseLanguages(req.query.lang));
 
     res.json({
       trending: result.trending,
@@ -82,6 +87,36 @@ router.get('/history', cachePublicMedium, async (req: Request, res: Response) =>
     });
   }
 });
+
+/** Languages accepted per request. A reader has a few; a caller minting cache keys has many. */
+const MAX_TREND_LANGUAGES = 4;
+
+/**
+ * Parse `?lang=es-ES,en` into normalized, bounded ISO 639-1 base subtags.
+ *
+ * Normalized HARD, and every step of it is a cache concern rather than a
+ * cosmetic one: the value becomes part of a shared cache key, so `es-ES,en`,
+ * `EN,es` and `es,en,es` must all collapse to the same entry. Sorting,
+ * deduping and capping are what stop an arbitrary query string from minting
+ * unbounded cache entries.
+ *
+ * Anything unrecognisable degrades to "no preference", which orders nothing and
+ * is exactly what an anonymous reader gets.
+ */
+function parseLanguages(raw: unknown): string[] {
+  const value = queryString(raw);
+  if (!value) return [];
+  return [
+    ...new Set(
+      value
+        .split(',')
+        .map((tag) => tag.trim().toLowerCase().split('-')[0])
+        .filter((base) => /^[a-z]{2}$/.test(base)),
+    ),
+  ]
+    .sort()
+    .slice(0, MAX_TREND_LANGUAGES);
+}
 
 /** Longest term accepted. Anything longer is not a term this instance stored. */
 const MAX_TREND_TERM_LENGTH = 80;
