@@ -51,6 +51,18 @@ export const TREND_TERM_STOPWORDS: ReadonlySet<string> = new Set([
   'here', 'much', 'more', 'most', 'even', 'well', 'want', 'need', 'make', 'made',
   'know', 'think', 'people', 'time', 'good', 'today', 'yeah', 'okay', 'https',
   'http', 'www', 'com',
+  // Question words, modals and auxiliaries. Closed-class: a language gains new
+  // nouns constantly and new modals almost never, so these can be listed
+  // exhaustively and will never accidentally exclude a subject. `why` and
+  // `will` both reached the live trending list before this line existed.
+  'why', 'whom', 'whose', 'which', 'will', 'shall', 'must', 'might', 'may',
+  'does', 'doing', 'done', 'didnt', 'doesnt', 'isnt', 'arent', 'wasnt',
+  'werent', 'hasnt', 'havent', 'couldnt', 'wouldnt', 'shouldnt', 'youre',
+  'theyre', 'weve', 'youve', 'theyve', 'ill', 'ive', 'youll', 'theyll',
+  'mine', 'yours', 'ours', 'theirs', 'himself', 'herself', 'itself',
+  'myself', 'yourself', 'themselves', 'anyone', 'someone', 'everyone',
+  'nobody', 'anything', 'everything', 'nothing', 'somewhere', 'anywhere',
+  'everywhere',
   // Spanish
   'que', 'los', 'las', 'del', 'por', 'con', 'una', 'uno', 'para', 'como', 'pero',
   'sus', 'les', 'más', 'mas', 'este', 'esta', 'esto', 'esos', 'esas', 'ese',

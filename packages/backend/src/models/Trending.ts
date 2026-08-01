@@ -50,6 +50,11 @@ export interface TrendingRecord {
   displayName?: string;
   /** Coarse taxonomy hint shown under the label. Absent on pre-label rows. */
   category?: TrendCategory;
+  /**
+   * Which labelling rules produced {@link displayName}. A label from older rules
+   * is re-derived rather than carried forward for the rest of the run.
+   */
+  labelVersion?: number;
   description: string;
   score: number;
   /** Posts carrying the term in the trailing window. */
@@ -113,6 +118,9 @@ const TrendingSchema = new Schema({
   category: {
     type: String,
     enum: TREND_CATEGORIES,
+  },
+  labelVersion: {
+    type: Number,
   },
   description: {
     type: String,

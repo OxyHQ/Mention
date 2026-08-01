@@ -15,6 +15,7 @@ const {
   minAuthors,
   minVolume,
   maxPostsPerAuthor,
+  maxDocumentFrequency,
   minTrends,
   hotBurstScore,
   onsetGapToleranceMs,
@@ -199,6 +200,46 @@ describe('clearsFloors — concentration', () => {
   it('still applies the author and volume floors', () => {
     expect(clearsFloors({ term: 'thin', volume: minVolume - 1, recentVolume: 1, authorCount: 9 })).toBe(false);
     expect(clearsFloors({ term: 'few', volume: 9, recentVolume: 9, authorCount: minAuthors - 1 })).toBe(false);
+  });
+});
+
+describe('clearsFloors — vocabulary is not a subject', () => {
+  /*
+   * From the live widget, 2026-08-01: `why`, `will` and `mention` were reported
+   * as trends. The first two are function words and the third is this
+   * instance's own name; none is a subject, and all three cleared every other
+   * floor because a handful of people each said them once.
+   *
+   * The share-of-corpus ceiling refuses them WITHOUT knowing which words exist,
+   * in which language, or how `mention` got into the vocabulary in the first
+   * place — a question that is still open.
+   */
+  it('refuses a term carried by a large share of everything posted', () => {
+    expect(clearsFloors({
+      term: 'mention', volume: 40, recentVolume: 20, authorCount: 13,
+      documentFrequency: maxDocumentFrequency + 0.01,
+    })).toBe(false);
+  });
+
+  it('accepts the same numbers when the term is rare in the corpus', () => {
+    expect(clearsFloors({
+      term: 'kremer', volume: 40, recentVolume: 20, authorCount: 13,
+      documentFrequency: maxDocumentFrequency / 10,
+    })).toBe(true);
+  });
+
+  it('passes a candidate whose frequency was never measured', () => {
+    // Absent must mean "not measured", never "delete the term".
+    expect(clearsFloors({ term: 'x', volume: 12, recentVolume: 6, authorCount: 5 })).toBe(true);
+  });
+
+  it('keeps the ceiling out of the way of a genuinely huge story', () => {
+    // A real story is enormous in absolute terms and still a small share of a
+    // day's posting; the ceiling must not be what stops it.
+    expect(clearsFloors({
+      term: 'fifa', volume: 1_897, recentVolume: 900, authorCount: 800,
+      documentFrequency: 0.02,
+    })).toBe(true);
   });
 });
 

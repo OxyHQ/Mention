@@ -741,6 +741,21 @@ export const MtnConfig = {
        * itself: below a handful of observations the burst statistic is noise. */
       minVolume: 3,
       /**
+       * VOCABULARY CEILING: the share of ALL posts in the window a term may
+       * appear in before it is treated as vocabulary rather than a subject.
+       *
+       * A stop-word list can only ever hold the words somebody thought of, in
+       * the languages somebody speaks. This asks the corpus instead: a term
+       * carried by a large fraction of everything posted is how this network
+       * talks, not what it is talking about — and that holds in any language,
+       * for slang, and for whatever the next surprise is.
+       *
+       * It is also what refuses `mention` (40 posts, 13 authors on the live
+       * list) without anybody having to work out which code path put this
+       * instance's own name into the vocabulary in the first place.
+       */
+      maxDocumentFrequency: 0.03,
+      /**
        * CONCENTRATION CEILING: posts per distinct author a term may average
        * before it is refused entirely.
        *

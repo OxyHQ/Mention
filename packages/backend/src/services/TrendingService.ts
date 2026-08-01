@@ -21,7 +21,12 @@ import {
   type ScoredTrend,
   type TrendCandidate,
 } from './trending/trendScoring';
-import { deriveTrendLabel, fallbackTrendLabel, type TrendLabel } from './trending/trendLabeling';
+import {
+  deriveTrendLabel,
+  fallbackTrendLabel,
+  TREND_LABEL_VERSION,
+  type TrendLabel,
+} from './trending/trendLabeling';
 import { resolveTrendSummary, type TrendSummaryResult } from './trending/trendSummary';
 import { metrics } from '../utils/metrics';
 import { isFallbackUserSummary, resolveUserSummaries } from './PostHydrationService';
@@ -352,6 +357,22 @@ class TrendingService {
     const windowStart = new Date(now.getTime() - windowMs);
     const recentStart = new Date(now.getTime() - recentWindowMs);
 
+    // Everything the window held, so a term's SHARE of it can be computed —
+    // the measurement that tells a subject from vocabulary. Counted with the
+    // same match the terms are counted under, or the ratio would compare a
+    // term against a corpus it was never drawn from.
+    const windowMatch = {
+      createdAt: { $gte: windowStart },
+      status: 'published',
+      visibility: PostVisibility.PUBLIC,
+      boostOf: { $exists: false },
+      ...SENSITIVE_EXCLUDE_MATCH,
+      'postClassification.scores.spam': {
+        $not: { $gte: MtnConfig.feed.discoveryGate.spamRejectThreshold },
+      },
+    };
+    const windowPostCount = await this.countWindowPosts(windowMatch);
+
     const rows = await Post.aggregate<{
       _id: string;
       volume: number;
@@ -363,6 +384,7 @@ class TrendingService {
     }>(
       [
         {
+          // The SAME match the window count above used — see `windowMatch`.
           $match: {
             createdAt: { $gte: windowStart },
             status: 'published',
@@ -452,11 +474,32 @@ class TrendingService {
           volume: row.volume,
           recentVolume: row.recentVolume,
           authorCount: row.authorCount,
+          // Set only when the corpus size is known. Absent means "not
+          // measured", which the ceiling treats as passing — losing the guard
+          // is the right cost of a failed count, losing the term is not.
+          ...(windowPostCount ? { documentFrequency: row.volume / windowPostCount } : {}),
         },
         actorIds: row.actorIds ?? [],
         hashtagVolume: row.hashtagVolume,
         topicVolume: row.topicVolume,
       }));
+  }
+
+  /**
+   * How many posts the window held — the denominator of a term's share of the
+   * corpus.
+   *
+   * Fail-soft to `null`: without it every candidate simply skips the vocabulary
+   * ceiling, which is a weaker list for one batch. Throwing instead would trade
+   * the whole batch for one guard.
+   */
+  private async countWindowPosts(match: Record<string, unknown>): Promise<number | null> {
+    try {
+      return await Post.countDocuments(match).maxTimeMS(TREND_AGGREGATION_MAX_TIME_MS);
+    } catch (error) {
+      logger.warn('[Trending] Corpus size lookup failed; vocabulary ceiling skipped', { error });
+      return null;
+    }
   }
 
   /**
@@ -580,6 +623,10 @@ class TrendingService {
           name: { $in: ranked.map((trend) => trend.term) },
           calculatedAt: { $gte: new Date(earliestRun) },
           displayName: { $exists: true },
+          // Only a label THESE rules produced may be carried forward. An older
+          // one is re-derived, so a rules fix reaches a run already in progress
+          // instead of waiting for it to end.
+          labelVersion: TREND_LABEL_VERSION,
         },
         { name: 1, displayName: 1, category: 1, calculatedAt: 1 },
       )

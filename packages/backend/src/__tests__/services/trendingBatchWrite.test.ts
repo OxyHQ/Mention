@@ -24,6 +24,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   postAggregate: vi.fn(),
+  postCountDocuments: vi.fn(),
   trendingInsertMany: vi.fn(),
   trendingFind: vi.fn(),
   trendingAggregate: vi.fn(),
@@ -35,7 +36,13 @@ const mocks = vi.hoisted(() => ({
   redisSetEx: vi.fn(),
 }));
 
-vi.mock('../../models/Post', () => ({ Post: { aggregate: mocks.postAggregate } }));
+vi.mock('../../models/Post', () => ({
+  Post: {
+    aggregate: mocks.postAggregate,
+    // The corpus size behind the vocabulary ceiling; chained `.maxTimeMS()`.
+    countDocuments: (...args: unknown[]) => mocks.postCountDocuments(...args),
+  },
+}));
 
 vi.mock('../../models/Trending', () => ({
   __esModule: true,
@@ -131,6 +138,9 @@ function insertedDocs(): InsertedDoc[] {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  // A large corpus so the fixtures' volumes are a negligible SHARE of it: this
+  // suite exercises the write path, and the vocabulary ceiling has its own.
+  mocks.postCountDocuments.mockReturnValue({ maxTimeMS: () => Promise.resolve(100_000) });
   metrics.reset();
   // Every read path is a cache miss so the real queries run.
   mocks.redisGet.mockResolvedValue(null);

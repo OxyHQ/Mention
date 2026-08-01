@@ -129,6 +129,16 @@ describe('extractTrendTerms — what is dropped', () => {
     expect(terms).toHaveLength(0);
   });
 
+  it('drops question words and modals, which reached the live list as trends', () => {
+    // `Why` and `Will` were rendered as trending topics on 2026-08-01.
+    expect(extractTrendTerms({ text: 'why will they do this' })).toEqual([]);
+    const terms = extractTrendTerms({ text: 'which one shall we pick' });
+    expect(terms).not.toContain('which');
+    expect(terms).not.toContain('shall');
+    // …and a content word in the same sentence still survives.
+    expect(terms).toContain('pick');
+  });
+
   it('drops a token longer than the maximum', () => {
     const long = 'a'.repeat(MtnConfig.trending.terms.maxTokenLength + 1);
     expect(extractTrendTerms({ text: `about ${long} here` })).not.toContain(long);

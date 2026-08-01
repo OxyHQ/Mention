@@ -41,6 +41,16 @@ export interface TrendCandidate {
   recentVolume: number;
   /** DISTINCT authors behind those posts — the floor is on people, not posts. */
   authorCount: number;
+  /**
+   * Share of ALL posts in the window carrying this term, 0..1.
+   *
+   * The measurement that separates a subject from vocabulary without a word
+   * list: whatever a network says constantly is how it talks, not what it is
+   * talking about. Absent (`undefined`) means "not measured", which is treated
+   * as passing — a caller that cannot supply it must not have its terms
+   * silently deleted.
+   */
+  documentFrequency?: number;
 }
 
 /** A candidate that cleared the floors, with everything the row needs. */
@@ -109,6 +119,10 @@ export function scoreTrendCandidate(candidate: TrendCandidate): ScoredTrend | nu
  *    the half the author floor misses: two accounts alternating all day clear
  *    "how many people" trivially, and Mention's own list was topped by exactly
  *    that shape (see the config note for the measurements).
+ *  - `maxDocumentFrequency` — is this a subject, or just how the network talks?
+ *    A term carried by a large share of EVERYTHING posted is vocabulary. This
+ *    is the floor a stop-word list can never be: it needs no word to have been
+ *    thought of, in no particular language.
  *
  * Shared with the popularity top-up on purpose. The top-up relaxes the BURST
  * bar — the claim that something is spiking — and nothing else; relaxing the
@@ -116,11 +130,14 @@ export function scoreTrendCandidate(candidate: TrendCandidate): ScoredTrend | nu
  * keep out, which is the failure mode a never-blank list invites.
  */
 export function clearsFloors(candidate: TrendCandidate): boolean {
-  const { minVolume, minAuthors, maxPostsPerAuthor } = MtnConfig.trending.detection;
+  const { minVolume, minAuthors, maxPostsPerAuthor, maxDocumentFrequency } =
+    MtnConfig.trending.detection;
 
   if (candidate.volume < minVolume) return false;
   if (candidate.authorCount < minAuthors) return false;
-  return candidate.volume <= candidate.authorCount * maxPostsPerAuthor;
+  if (candidate.volume > candidate.authorCount * maxPostsPerAuthor) return false;
+  // Measured only; an unmeasured frequency passes rather than deleting the term.
+  return (candidate.documentFrequency ?? 0) <= maxDocumentFrequency;
 }
 
 /**

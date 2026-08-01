@@ -18,12 +18,19 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   postAggregate: vi.fn(),
+  postCountDocuments: vi.fn(),
   trendingAggregate: vi.fn(),
   redisGet: vi.fn(),
   redisSetEx: vi.fn(),
 }));
 
-vi.mock('../../models/Post', () => ({ Post: { aggregate: mocks.postAggregate } }));
+vi.mock('../../models/Post', () => ({
+  Post: {
+    aggregate: mocks.postAggregate,
+    // The corpus size behind the vocabulary ceiling; chained `.maxTimeMS()`.
+    countDocuments: (...args: unknown[]) => mocks.postCountDocuments(...args),
+  },
+}));
 
 // Trending pulls in a handful of side-effecting collaborators we don't exercise
 // here; stub them so the singleton imports cleanly and the methods stay pure.
@@ -80,6 +87,7 @@ const stage = (pipeline: Array<Record<string, unknown>>, key: string) =>
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.postCountDocuments.mockReturnValue({ maxTimeMS: () => Promise.resolve(1_000) });
 });
 
 describe('aggregateTermCandidates — what is allowed to count', () => {

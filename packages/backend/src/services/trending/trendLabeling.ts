@@ -34,6 +34,23 @@ import type { TrendCategory } from '@mention/shared-types';
 import { ruleBasedTopicClassifier } from '../contentClassification/TopicClassifier';
 import { collectTrendPhrases } from './termExtraction';
 
+/**
+ * Version of the labelling rules.
+ *
+ * Stored beside every label so a run can tell a label THESE rules produced from
+ * one an older build left behind. Without it, a label is reused for the life of
+ * a run — which is the right default, since renaming a live story mid-scroll is
+ * a bug — and a rules fix therefore does not reach any trend already running.
+ * That is not hypothetical: `POLITICS` stayed on the live list after the fix
+ * that would have written `Politics`, because its run had started first.
+ *
+ * Bump whenever a change would produce a different string for the same posts.
+ *
+ * v2: a corpus spelling is preferred only when it adds capitalization and is
+ * not shouted (see {@link presentableSurfaceForm}).
+ */
+export const TREND_LABEL_VERSION = 2;
+
 /** What a trend is shown as. */
 export interface TrendLabel {
   /** Human-readable name — the only string a reader sees. */
