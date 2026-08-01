@@ -72,6 +72,14 @@ jobs:
           NODE_ENV: production
           EXPO_PUBLIC_ENV: production
           EXPO_PUBLIC_API_URL: https://api.mention.earth
+          # Mention's PRODUCTION Oxy client id. `packages/frontend/config.ts`
+          # falls back to a committed id when this is unset, so a local build
+          # runs unconfigured — which is why it must be injected here: without
+          # it the deployed bundle authenticates against the wrong Oxy
+          # application, with nothing empty and nothing erroring. Public by
+          # design (it travels inside the bundle); it lives in a secret only so
+          # environments can differ, not because it is confidential.
+          EXPO_PUBLIC_OXY_CLIENT_ID: ${{ secrets.EXPO_PUBLIC_OXY_CLIENT_ID }}
 
       - name: Validate static hosting contract
         run: bun .github/scripts/validate-frontend-static-output.mjs packages/frontend/dist
