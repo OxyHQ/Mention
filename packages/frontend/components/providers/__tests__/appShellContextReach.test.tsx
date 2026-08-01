@@ -57,6 +57,15 @@ jest.mock('react-native-popup-menu', () => ({
 
 jest.mock('expo-status-bar', () => ({ StatusBar: () => null }));
 
+// The boot visual AppProviders hands to AccountSwitchReset as its `fallback`.
+// A leaf like the others above: it reaches straight into Bloom's ESM-only theme
+// and preset-vars entries, which have no host environment here. Its CONTENT is
+// irrelevant to context reach — what this suite pins is the provider nesting.
+jest.mock('@/components/AppSplashScreen', () => ({
+  __esModule: true,
+  default: () => null,
+}));
+
 // Reanimated's real entry pulls in the worklets native module, which has no host
 // here. Same minimal stub the LayoutScroll/BottomBarVisibility suites use.
 jest.mock('react-native-reanimated', () => ({

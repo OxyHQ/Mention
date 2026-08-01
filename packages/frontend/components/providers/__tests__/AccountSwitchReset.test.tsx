@@ -1,4 +1,5 @@
 import React from 'react';
+import { View } from 'react-native';
 import TestRenderer, { act } from 'react-test-renderer';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@oxyhq/services/ui/client';
@@ -153,11 +154,23 @@ function Probe({ viewerId }: { viewerId: string | null }) {
   return null;
 }
 
+// Stands in for the boot visual (<AppSplashScreen/>) that the real tree passes
+// as `fallback`. Rendered as a host element so "did the gate paint anything?"
+// is asserted against the actual output tree, not just a spy.
+const BOOT_VISUAL_ID = 'boot-visual';
+function BootVisual() {
+  return <View testID={BOOT_VISUAL_ID} />;
+}
+
 const renderBoundary = () => (
-  <AccountSwitchReset>
+  <AccountSwitchReset fallback={<BootVisual />}>
     <Probe viewerId={mockUser?.id ?? null} />
   </AccountSwitchReset>
 );
+
+/** Is the boot visual present in the rendered output? */
+const bootVisualShown = (renderer: TestRenderer.ReactTestRenderer) =>
+  renderer.root.findAllByProps({ testID: BOOT_VISUAL_ID }).length > 0;
 
 describe('AccountSwitchReset identity boundary', () => {
   beforeAll(() => {
@@ -371,6 +384,69 @@ describe('AccountSwitchReset identity boundary', () => {
     const clearOrder = mockQueryClientClear.mock.invocationCallOrder[0];
     const firstBRenderOrder = mockChildRender.mock.invocationCallOrder[0];
     expect(clearOrder).toBeLessThan(firstBRenderOrder);
+
+    act(() => {
+      renderer!.unmount();
+    });
+  });
+
+  /*
+   * This gate sits ABOVE the root layout's own splash branch, so whatever it
+   * renders while closed IS the entire screen. Returning nothing here is what
+   * produced the multi-second blank boot: on a returning viewer whose warm
+   * access token has expired the device-secret mint is a real network
+   * round-trip, and `isAuthResolved` stays false for its whole duration. These
+   * cover the boot visual across every reason the gate stays closed, while the
+   * suite above keeps proving descendants stay unmounted.
+   */
+  it('renders the boot visual instead of nothing while auth restoration is unresolved', () => {
+    mockIsAuthResolved = false;
+    mockUser = null;
+
+    let renderer: TestRenderer.ReactTestRenderer;
+    act(() => {
+      renderer = TestRenderer.create(renderBoundary());
+    });
+
+    // Something is on screen...
+    expect(renderer!.toJSON()).not.toBeNull();
+    expect(bootVisualShown(renderer!)).toBe(true);
+    // ...but it is emphatically NOT the app: descendants stay unmounted, so the
+    // route tree cannot render and no (auth)↔(app) swap can run yet.
+    expect(mockChildRender).not.toHaveBeenCalled();
+    expect(mockClaimViewerCache).not.toHaveBeenCalled();
+
+    mockIsAuthResolved = true;
+    mockUser = { id: 'viewer-a' };
+    act(() => {
+      renderer!.update(renderBoundary());
+    });
+
+    // Once resolved the app takes over and the boot visual is gone.
+    expect(mockChildRender).toHaveBeenLastCalledWith('viewer-a');
+    expect(bootVisualShown(renderer!)).toBe(false);
+
+    act(() => {
+      renderer!.unmount();
+    });
+  });
+
+  it('renders the boot visual instead of nothing while the persisted cache is untrusted', () => {
+    mockClaimViewerCache.mockReturnValue({
+      reset: true,
+      previousViewerId: 'viewer-a',
+      trusted: false,
+    });
+    mockUser = { id: 'viewer-b' };
+
+    let renderer: TestRenderer.ReactTestRenderer;
+    act(() => {
+      renderer = TestRenderer.create(renderBoundary());
+    });
+
+    expect(renderer!.toJSON()).not.toBeNull();
+    expect(bootVisualShown(renderer!)).toBe(true);
+    expect(mockChildRender).not.toHaveBeenCalled();
 
     act(() => {
       renderer!.unmount();

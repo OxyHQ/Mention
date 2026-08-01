@@ -15,6 +15,7 @@ import { StatusBar } from 'expo-status-bar';
 import { OxyProvider } from '@oxyhq/services/ui/client';
 import { OxyServices } from '@oxyhq/core';
 import { AppErrorBoundary } from '@/components/AppErrorBoundary';
+import AppSplashScreen from '@/components/AppSplashScreen';
 import { AccountSwitchReset } from '@/components/providers/AccountSwitchReset';
 import { AppShellProviders } from '@/components/providers/AppShellProviders';
 import { BottomSheetProvider } from '@/context/BottomSheetContext';
@@ -93,7 +94,16 @@ export const AppProviders = memo(function AppProviders({
             queryClient={queryClient}
             backgroundSession
           >
-            <AccountSwitchReset>
+            {/*
+             * The boot visual, held up for exactly as long as AccountSwitchReset
+             * keeps account-dependent descendants unmounted. It must be supplied
+             * HERE rather than below, because this gate is above the root
+             * layout's own splash branch — anything the root renders is already
+             * a descendant of it, so during the auth window the root's splash
+             * cannot paint at all. Static (no `startFade`), so it holds at full
+             * opacity until the gate opens and the root takes over.
+             */}
+            <AccountSwitchReset fallback={<AppSplashScreen />}>
               <I18nextProvider i18n={i18n}>
                 {/*
                  * `LayoutScrollProvider` and `AppShellProviders` sit ABOVE

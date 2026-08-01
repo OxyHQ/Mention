@@ -40,11 +40,22 @@ import { resetCurrentUserPrivacySettingsCache } from '@/hooks/usePrivacySettings
  * descendants stay unmounted. The layout effect first proves that persisted
  * post/feed data belongs to the resolved identity (or wipes it), then clears
  * process-local private state before descendants can mount.
+ *
+ * `fallback` is what covers the screen for exactly as long as descendants are
+ * held back, and it is REQUIRED: this gate sits ABOVE the root layout's own
+ * splash branch, so whatever it renders IS the whole screen. Rendering nothing
+ * here is what produced a multi-second blank boot — on a returning viewer whose
+ * warm access token has expired, the device-secret mint is a real network
+ * round-trip, and `isAuthResolved` stays false (so `viewerId` stays null) for
+ * its whole duration, bounded only by the SDK's 12s cold-boot deadline. The
+ * fallback keeps the boot visual up across that window instead.
  */
 export function AccountSwitchReset({
   children,
+  fallback,
 }: {
   children?: React.ReactNode;
+  fallback: React.ReactNode;
 }) {
   const { user, isAuthenticated, isAuthResolved } = useAuth();
   const queryClient = useQueryClient();
@@ -173,5 +184,5 @@ export function AccountSwitchReset({
     clearRuntimeState,
   ]);
 
-  return viewerId && readyViewerId === viewerId ? <>{children}</> : null;
+  return viewerId && readyViewerId === viewerId ? <>{children}</> : <>{fallback}</>;
 }
