@@ -103,9 +103,16 @@ export const trendTermsSource: SourceModule = {
     };
     ChronoCursor.applyToQuery(match, ctx.cursor);
 
+    // `{ createdAt, _id }`, matching the `ChronoCursor` keyset — never `_id`
+    // alone. A federated post's import-time `_id` bears no relation to the
+    // `createdAt` it was written at, so an `_id` sort behind a `createdAt`
+    // cursor does not merely misorder: it permanently SKIPS backfilled posts at
+    // every page boundary. This feed is mostly federated posts, so it is the
+    // worst possible place for that. (Same rule as the `authored` source; see
+    // AGENTS.md § Profile feed.)
     return (await Post.find(match)
       .select(FEED_FIELDS)
-      .sort({ _id: -1 })
+      .sort({ createdAt: -1, _id: -1 })
       .limit(cap)
       .maxTimeMS(5000)
       .lean()) as unknown as CandidatePost[];
