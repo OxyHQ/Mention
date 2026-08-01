@@ -30,12 +30,16 @@ export type TrendEventType = 'hashtag' | 'topic' | 'entity';
  * The category taxonomy a trend is filed under — the coarse hint shown beneath
  * its label ("Sports", "Politics").
  *
- * Closed and small BECAUSE it is generated. The labeller is asked to pick from
- * this list rather than to describe the trend freely: an open vocabulary
- * produces a different word for the same idea on every batch, and a client
- * cannot translate what it has never seen. `other` is the honest answer when
- * nothing fits, and is what any unrecognised value degrades to — see
- * {@link normalizeTrendCategory}.
+ * Closed and small because a client has to be able to TRANSLATE it: a category
+ * is rendered from a fixed string table per locale, so a vocabulary that could
+ * grow at runtime would surface untranslated words to readers. `other` is the
+ * honest answer when nothing fits — it renders as no category at all rather
+ * than as the word "Other" — and is what any unrecognised value degrades to
+ * (see {@link normalizeTrendCategory}).
+ *
+ * The server derives a category by mapping its rule-based topic slugs onto this
+ * list, so the taxonomy a post is classified under and the one a trend is shown
+ * under stay a single evolution point.
  *
  * Declared here rather than in `MtnConfig` so the runtime list and the type stay
  * one declaration; the config references it.
@@ -46,6 +50,7 @@ export const TREND_CATEGORIES = [
   'sports',
   'pop-culture',
   'video-games',
+  'tech',
   'science',
   'other',
 ] as const;

@@ -783,6 +783,46 @@ export const MtnConfig = {
     },
 
     /**
+     * SUMMARIES — the one place a model is allowed to run, and only for trends
+     * readers actually open.
+     *
+     * A trend's NAME is derived deterministically for every trend of every
+     * batch (see `services/trending/trendLabeling.ts`). A summary is different:
+     * it is prose explaining what happened, it is only worth anything on the
+     * screen a reader lands on after pressing a trend, and it costs a
+     * generation. Generating one per trend per batch would mean paying
+     * continuously for text almost nobody reads — at 30 trends every 30
+     * minutes, over a thousand generations a day whether or not a single person
+     * opens one.
+     *
+     * So demand pays for it: the summary is generated the first time a trend
+     * crosses {@link minViews} opens, ONCE per run, and served from storage
+     * forever after.
+     */
+    summary: {
+      /**
+       * Opens a trend needs before its summary is generated.
+       *
+       * The threshold IS the cost control, and it is per-run rather than
+       * per-batch: a trend that runs all day is summarised once, not
+       * forty-eight times. Set it to a number a curious reader can reach and an
+       * indifferent one cannot.
+       */
+      minViews: 25,
+      /**
+       * How long the view counter lives. Comfortably longer than a typical run
+       * so the opens that accumulate over an evening still add up, and short
+       * enough that a term returning weeks later starts counting afresh.
+       */
+      viewWindowMs: 48 * 60 * 60 * 1000,
+      /**
+       * Longest summary kept. Two sentences of context under a headline — past
+       * this it stops being a caption and becomes an article nobody asked for.
+       */
+      maxLength: 280,
+    },
+
+    /**
      * LABELLING — turning a detected term into something a human recognises.
      *
      * A term is a retrieval key (`orioles`); a label is what the story is

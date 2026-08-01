@@ -25,6 +25,7 @@ import { migrationEngagementOutboxIndexes } from './0011-engagement-outbox-index
 import { migrationMtnEventIdempotencyIndex } from './0012-mtn-event-idempotency-index';
 import { migrationTrendingNameTypeUniqueIndex } from './0013-trending-name-type-unique-index';
 import { migrationPostTrendTermsIndex } from './0014-post-trend-terms-index';
+import { migrationTrendSummaryIndexes } from './0015-trend-summary-indexes';
 import { MIGRATIONS_COLLECTION } from './constants';
 
 export interface Migration {
@@ -75,6 +76,7 @@ const MIGRATIONS: readonly Migration[] = [
   migrationMtnEventIdempotencyIndex,
   migrationTrendingNameTypeUniqueIndex,
   migrationPostTrendTermsIndex,
+  migrationTrendSummaryIndexes,
 ];
 
 export async function getPendingMigrationIds(): Promise<string[]> {

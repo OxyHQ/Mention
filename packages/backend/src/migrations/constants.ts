@@ -118,3 +118,11 @@ export const MIGRATION_TRENDING_NAME_TYPE_UNIQUE_INDEX =
  * authority. See {@link ./0014-post-trend-terms-index}.
  */
 export const MIGRATION_POST_TREND_TERMS_INDEX = '0014-post-trend-terms-index';
+
+/**
+ * Create the `TrendSummary` indexes: the UNIQUE `{term, runStartedAt}` identity
+ * that makes on-demand summary generation idempotent, plus the TTL that keeps
+ * the collection bounded. Production disables Mongoose auto-indexing, so this
+ * migration is the schema authority. See {@link ./0015-trend-summary-indexes}.
+ */
+export const MIGRATION_TREND_SUMMARY_INDEXES = '0015-trend-summary-indexes';

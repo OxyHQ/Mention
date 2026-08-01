@@ -112,8 +112,7 @@ export interface TrendTermInput {
  * make the cap keep whichever terms happen to be alphabetically early.
  */
 export function extractTrendTerms(input: TrendTermInput): string[] {
-  const { minTokenLength, maxTokenLength, maxPhraseTokens, maxTermsPerPost } =
-    MtnConfig.trending.terms;
+  const { minTokenLength, maxTokenLength, maxTermsPerPost } = MtnConfig.trending.terms;
 
   const terms: string[] = [];
   const seen = new Set<string>();
@@ -124,7 +123,43 @@ export function extractTrendTerms(input: TrendTermInput): string[] {
     terms.push(term);
   };
 
-  const cleaned = (input.text ?? '')
+  for (const phrase of collectTrendPhrases(input.text)) push(phrase);
+
+  // Caller-supplied hashtags last: a tag that never appeared in the visible text
+  // (the composer's own tag field, or a federated `tag` array) is still a term,
+  // but the body is what the post is about, so the cap protects the body first.
+  for (const hashtag of input.hashtags ?? []) {
+    const token = normalizeToken(hashtag);
+    if (token && isKeepableToken(hashtag, token, minTokenLength, maxTokenLength)) {
+      push(token);
+    }
+  }
+
+  return terms;
+}
+
+/**
+ * Every phrase a text yields, deduplicated and in reading order — UNCAPPED.
+ *
+ * Split out from {@link extractTrendTerms} because labelling needs the full set
+ * rather than a post's first dozen: it counts how many posts of a trend share a
+ * phrase, and a cap applied per post would silently bias that count toward
+ * whatever happened to be written early. Same tokenizing and the same stop
+ * words either way, so the two can never disagree about what a phrase IS.
+ */
+export function collectTrendPhrases(text: string | null | undefined): string[] {
+  const { minTokenLength, maxTokenLength, maxPhraseTokens } = MtnConfig.trending.terms;
+
+  const phrases: string[] = [];
+  const seen = new Set<string>();
+
+  const push = (phrase: string): void => {
+    if (seen.has(phrase)) return;
+    seen.add(phrase);
+    phrases.push(phrase);
+  };
+
+  const cleaned = (text ?? '')
     .replace(URL_PATTERN, ' ')
     .replace(MENTION_PATTERN, ' ')
     // The `#` marker goes, the word stays: this single character is the whole
@@ -159,17 +194,7 @@ export function extractTrendTerms(input: TrendTermInput): string[] {
     flush();
   }
 
-  // Caller-supplied hashtags last: a tag that never appeared in the visible text
-  // (the composer's own tag field, or a federated `tag` array) is still a term,
-  // but the body is what the post is about, so the cap protects the body first.
-  for (const hashtag of input.hashtags ?? []) {
-    const token = normalizeToken(hashtag);
-    if (token && isKeepableToken(hashtag, token, minTokenLength, maxTokenLength)) {
-      push(token);
-    }
-  }
-
-  return terms;
+  return phrases;
 }
 
 /** Lowercase and strip leading/trailing apostrophes, which are punctuation here. */

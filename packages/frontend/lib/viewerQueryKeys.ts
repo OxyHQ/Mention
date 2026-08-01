@@ -33,6 +33,11 @@ export const publicQueryKeys = {
     'marketplace-categories',
   ] as const,
   trendingHistory: () => [...PUBLIC_ROOT, 'trending-history'] as const,
+  /**
+   * The generated summary of one trend, keyed by its TERM (the stable identity)
+   * rather than by its label, which can change between runs.
+   */
+  trendSummary: (term: string) => [...PUBLIC_ROOT, 'trend-summary', term] as const,
 };
 
 /**

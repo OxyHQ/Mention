@@ -56,7 +56,6 @@ export function useTrendNavigation() {
       params.set('label', trend.displayName);
     }
     if (trend.category) params.set('category', trend.category);
-    if (trend.description) params.set('description', trend.description);
     const query = params.toString();
     router.push(`/trend/${encodeURIComponent(trend.text)}${query ? `?${query}` : ''}`);
   }, [router]);

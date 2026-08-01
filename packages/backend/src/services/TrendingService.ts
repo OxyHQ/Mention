@@ -20,12 +20,8 @@ import {
   type ScoredTrend,
   type TrendCandidate,
 } from './trending/trendScoring';
-import {
-  fallbackTrendLabel,
-  isTrendLabellingAvailable,
-  labelTrends,
-  type TrendLabel,
-} from './trending/trendLabeling';
+import { deriveTrendLabel, fallbackTrendLabel, type TrendLabel } from './trending/trendLabeling';
+import { resolveTrendSummary, type TrendSummaryResult } from './trending/trendSummary';
 import { metrics } from '../utils/metrics';
 import { isFallbackUserSummary, resolveUserSummaries } from './PostHydrationService';
 import type { PostUser, TrendCategory, TrendStatus } from '@mention/shared-types';
@@ -46,11 +42,14 @@ const CURRENT_REC_ID_TTL_MS = 30_000;
 const TREND_AGGREGATION_MAX_TIME_MS = 30_000;
 
 /**
- * Posts sampled per term as naming evidence. Three is enough for a labeller to
- * see what a burst is about and small enough that the whole labelling step stays
- * a handful of indexed lookups.
+ * Posts sampled per term as naming evidence.
+ *
+ * Twelve, not three: the labeller asks which phrase MOST of the posts share, and
+ * a majority of three is two — a coincidence, not a consensus. Twelve is a
+ * single indexed lookup with a text-only projection, and it only runs for terms
+ * that have no label yet.
  */
-const TREND_EXCERPTS_PER_TERM = 3;
+const TREND_EXCERPTS_PER_TERM = 12;
 
 /** Time budget for one excerpt lookup. Missing evidence costs a label, not the batch. */
 const TREND_EXCERPT_MAX_TIME_MS = 2_000;
@@ -582,25 +581,12 @@ class TrendingService {
       .filter((trend) => !labels.has(trend.term))
       .slice(0, MtnConfig.trending.labeling.maxPerBatch);
 
-    // Gathering evidence for a labeller that cannot run would be several indexed
-    // queries per term, every 30 minutes, forever.
-    if (unlabelled.length === 0 || !isTrendLabellingAvailable()) {
-      for (const trend of ranked) {
-        if (!labels.has(trend.term)) labels.set(trend.term, fallbackTrendLabel(trend.term));
-      }
-      return labels;
-    }
-
-    const requests = await Promise.all(
-      unlabelled.map(async (trend) => ({
-        term: trend.term,
-        excerpts: await this.loadTermExcerpts(trend.term),
-      })),
+    await Promise.all(
+      unlabelled.map(async (trend) => {
+        const excerpts = await this.loadTermExcerpts(trend.term);
+        labels.set(trend.term, deriveTrendLabel({ term: trend.term, excerpts }));
+      }),
     );
-
-    for (const [term, label] of await labelTrends(requests)) {
-      labels.set(term, label);
-    }
 
     // Anything past the per-batch labelling cap still needs a presentable name.
     for (const trend of ranked) {
@@ -897,6 +883,44 @@ class TrendingService {
     }
 
     return byTrend;
+  }
+
+  /**
+   * The on-demand summary for a trend a reader just opened.
+   *
+   * The run is read from the STORED row for the current batch, never from the
+   * request: it is the identity a summary is generated and cached under, so a
+   * caller-supplied one would let anyone mint unlimited cache keys — and with
+   * them, unlimited generations — for a single term. The same lookup is what
+   * restricts generation to terms that are actually trending right now.
+   *
+   * Excerpts are passed as a THUNK so the query only runs when a generation is
+   * actually due: the overwhelming majority of calls are a single indexed read
+   * that finds an existing summary, or a counter increment below the threshold.
+   */
+  public async getTrendSummary(term: string): Promise<TrendSummaryResult> {
+    const normalized = term.trim().toLowerCase();
+    if (!normalized) return {};
+
+    const latestBatch = await TrendBatch.findOne()
+      .sort({ calculatedAt: -1 })
+      .select({ calculatedAt: 1 })
+      .lean();
+    if (!latestBatch) return {};
+
+    const row = await Trending.findOne(
+      { name: normalized, calculatedAt: latestBatch.calculatedAt },
+      { startedAt: 1 },
+    ).lean<{ startedAt?: Date } | null>();
+    // Not in the current batch, or written before onset tracking: either way
+    // there is no run to attribute a summary to, so there is nothing to do.
+    if (!row?.startedAt) return {};
+
+    return resolveTrendSummary({
+      term: normalized,
+      runStartedAt: row.startedAt,
+      loadExcerpts: () => this.loadTermExcerpts(normalized),
+    });
   }
 
   /**

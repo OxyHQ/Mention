@@ -3,27 +3,36 @@
  *
  * A term is a RETRIEVAL key: it has to match the words people typed, so it is
  * lowercase, often a fragment, and sometimes not even the subject (`orioles`
- * for a trade involving a pitcher named Kremer). A LABEL is what the story is —
- * `Kremer Trade` — and it is the only one of the two a reader ever sees. They
- * are different strings on purpose, and conflating them is what makes a
+ * for a trade involving a pitcher named Kremer). A LABEL is what the story is.
+ * They are different strings on purpose, and conflating them is what makes a
  * trending list read like a log of tokens.
  *
- * Two properties matter more than the labels themselves:
+ * ## No model runs here
  *
- *  - **Fail-soft.** No key configured, model down, malformed answer, unknown
- *    category — every one of those costs a nicer label and nothing else. The
- *    deterministic fallback always produces something presentable, so a
- *    labelling outage can never empty or break the trending list.
- *  - **Stable.** A term that already carries a label KEEPS it. Re-asking every
- *    30 minutes would rename a live story under a reader mid-scroll, and would
- *    spend the batch's whole labelling budget re-deciding questions that were
- *    already answered.
+ * This is entirely deterministic — no network, no key, no spend — and it runs on
+ * every trend of every batch. That is a deliberate reversal: an earlier version
+ * asked a model to name each new trend, which meant paying for a generation
+ * every time a term crossed the threshold, forever, whether or not a single
+ * reader ever looked at it. Generated prose now happens ON DEMAND and only for
+ * trends people actually open (see {@link ./trendSummary}).
+ *
+ * The two rules below are worth stating because they are what makes a
+ * deterministic label good enough to be the default:
+ *
+ *  - **Casing comes from the corpus, not from a rule.** The stored term is
+ *    lowercase, so title-casing it yields `Fifa`. Reading back the surface form
+ *    people actually typed yields `FIFA` — and `FrightClub`, and `iPhone`.
+ *    Nothing needs to know what an acronym is.
+ *  - **A shared phrase beats the term.** When most posts about `orioles` say
+ *    `Dean Kremer`, that phrase is what the story is, and it is a phrase people
+ *    genuinely wrote rather than a summary of them. The term stays the key; the
+ *    phrase becomes the name.
  */
 
-import { MtnConfig, normalizeTrendCategory } from '@mention/shared-types';
+import { normalizeTrendCategory } from '@mention/shared-types';
 import type { TrendCategory } from '@mention/shared-types';
-import { aliaJSON, isAliaEnabled } from '../../utils/alia';
-import { logger } from '../../utils/logger';
+import { ruleBasedTopicClassifier } from '../contentClassification/TopicClassifier';
+import { collectTrendPhrases } from './termExtraction';
 
 /** What a trend is shown as. */
 export interface TrendLabel {
@@ -33,128 +42,208 @@ export interface TrendLabel {
   category: TrendCategory;
 }
 
-/** One term plus the evidence a labeller needs to name it. */
-export interface TrendLabelRequest {
+/** A term plus the posts that carry it — everything labelling reads. */
+export interface TrendLabelInput {
   term: string;
-  /**
-   * A few posts that carry the term. The term ALONE is not enough to name a
-   * story — `orioles` cannot become `Kremer Trade` without reading what people
-   * wrote — so the excerpts are the whole reason this produces better labels
-   * than string formatting can.
-   */
-  excerpts: string[];
+  /** Sample post texts, ORIGINAL case (the casing is half the signal). */
+  excerpts: readonly string[];
 }
 
-/** Longest excerpt sent per post. Bounds the prompt; a lede is enough to name a story. */
-const MAX_EXCERPT_LENGTH = 240;
+/**
+ * Share of the sampled posts a phrase must appear in before it may replace the
+ * term as the label.
+ *
+ * A majority, deliberately. Below it, a phrase describes one strand of the
+ * conversation rather than the story, and naming the whole trend after it would
+ * be worse than the plain term — a reader cannot tell a confident label from a
+ * lucky one, so the bar has to be where a wrong answer is rare.
+ */
+const PHRASE_MIN_COVERAGE = 0.5;
 
-/** Longest label accepted back. Anything longer is a sentence, not a name. */
+/** A phrase must also appear in at least this many posts, whatever the share. */
+const PHRASE_MIN_POSTS = 2;
+
+/** Longest label. Beyond this it is a sentence, not a name. */
 const MAX_DISPLAY_NAME_LENGTH = 48;
 
 /**
- * The deterministic label: the term itself, title-cased, filed under `other`.
+ * Rule-topic slug → trend category.
  *
- * Used for every term when labelling is unavailable, and for any single term the
- * model declined to name. It is deliberately dull rather than clever — a
- * fabricated category or an invented headline would be a worse failure than a
- * plain one, because nothing downstream could tell it from a real answer.
+ * The rule classifier's vocabulary is 21 slugs tuned for ranking; a category is
+ * a one-word hint under a headline. Several slugs therefore collapse onto one
+ * category, and a few honestly map to nothing — `business`, `finance` and
+ * `lgbtq` are absent on purpose rather than forced into a bucket that would
+ * misdescribe them, and they degrade to `other` (which renders as no category
+ * at all, not as the word "Other").
+ */
+const TOPIC_SLUG_TO_CATEGORY: Readonly<Record<string, TrendCategory>> = {
+  news: 'news',
+  politics: 'politics',
+  sports: 'sports',
+  gaming: 'video-games',
+  tech: 'tech',
+  ai: 'tech',
+  science: 'science',
+  health: 'science',
+  education: 'science',
+  entertainment: 'pop-culture',
+  music: 'pop-culture',
+  memes: 'pop-culture',
+  art: 'pop-culture',
+  design: 'pop-culture',
+  photography: 'pop-culture',
+  fashion: 'pop-culture',
+  food: 'pop-culture',
+  travel: 'pop-culture',
+};
+
+/**
+ * The label for a term with no evidence behind it: the term, title-cased.
+ *
+ * Reached when the excerpt lookup failed or returned nothing. Deliberately dull
+ * — a fabricated name would be indistinguishable downstream from a real one.
  */
 export function fallbackTrendLabel(term: string): TrendLabel {
   return { displayName: titleCase(term), category: 'other' };
 }
 
 /**
- * Whether generated labels are available at all.
+ * Derive a trend's label and category from the posts behind it.
  *
- * Exposed so a caller can skip GATHERING the evidence a labeller would need.
- * `labelTrends` already no-ops without a key, but the excerpts are several
- * indexed queries per term, and collecting them to feed a call that will not
- * happen is pure waste on a job that runs every 30 minutes forever.
+ * Pure and total: always answers, never throws, never calls anything.
  */
-export function isTrendLabellingAvailable(): boolean {
-  return isAliaEnabled();
+export function deriveTrendLabel(input: TrendLabelInput): TrendLabel {
+  const term = input.term.trim().toLowerCase();
+  if (!term) return fallbackTrendLabel(input.term);
+
+  const excerpts = input.excerpts.filter((excerpt) => excerpt.trim().length > 0);
+  if (excerpts.length === 0) return fallbackTrendLabel(term);
+
+  const phrase = findDefiningPhrase(term, excerpts);
+  const name = surfaceForm(phrase ?? term, excerpts) ?? titleCase(phrase ?? term);
+
+  return {
+    displayName: name.length > MAX_DISPLAY_NAME_LENGTH ? titleCase(term) : name,
+    category: deriveCategory(term, excerpts),
+  };
 }
 
 /**
- * Label the given terms, returning one entry per REQUESTED term.
+ * The phrase most of the posts share, when there is one.
  *
- * Total by construction: a caller can always read a label out of the result, so
- * no call site needs its own fallback branch (and none can forget one). The
- * request list is expected to be pre-filtered to terms that have no label yet
- * and capped by the caller at `MtnConfig.trending.labeling.maxPerBatch`.
+ * Counts each phrase ONCE PER POST (coverage), never per occurrence: a single
+ * post repeating a name ten times would otherwise outvote ten posts that agree,
+ * which is the same "posts are not people" mistake the author floor exists to
+ * prevent one level up.
+ *
+ * A phrase that merely restates the term is rejected — `orioles` naming itself
+ * `Orioles` is what the surface-form step already does, and a phrase containing
+ * the term (`orioles trade`) adds a word without adding a subject.
  */
-export async function labelTrends(
-  requests: readonly TrendLabelRequest[],
-): Promise<Map<string, TrendLabel>> {
-  const labels = new Map<string, TrendLabel>();
-  for (const request of requests) {
-    labels.set(request.term, fallbackTrendLabel(request.term));
-  }
+function findDefiningPhrase(term: string, excerpts: readonly string[]): string | null {
+  const coverage = new Map<string, number>();
 
-  if (requests.length === 0 || !isAliaEnabled()) return labels;
-
-  try {
-    const answer = await aliaJSON<{ trends?: Array<{ term?: string; displayName?: string; category?: string }> }>(
-      [
-        {
-          role: 'system',
-          content:
-            'You name trending topics for a social network. For each term you are given, ' +
-            'return the short human-readable name of the STORY the posts are about — like a ' +
-            'headline subject, not a summary. Prefer proper names and events over the raw ' +
-            'term. Keep it under 5 words, in the language the posts are written in. ' +
-            `Also classify it into exactly one of: ${MtnConfig.trending.labeling.categories.join(', ')}. ` +
-            'Return ONLY JSON: {"trends":[{"term":"<the term you were given>",' +
-            '"displayName":"<name>","category":"<category>"}]}',
-        },
-        {
-          role: 'user',
-          content: JSON.stringify({
-            trends: requests.map((request) => ({
-              term: request.term,
-              posts: request.excerpts.map((excerpt) => excerpt.slice(0, MAX_EXCERPT_LENGTH)),
-            })),
-          }),
-        },
-      ],
-      { temperature: 0.2 },
-    );
-
-    for (const entry of answer.trends ?? []) {
-      // Matched back by TERM, never by position: a model that drops, reorders or
-      // invents an entry would otherwise attach a label to the wrong trend, and
-      // a wrong label is indistinguishable from a right one downstream.
-      const term = typeof entry.term === 'string' ? entry.term.trim().toLowerCase() : '';
-      if (!term || !labels.has(term)) continue;
-
-      const displayName = sanitizeDisplayName(entry.displayName);
-      if (!displayName) continue;
-
-      labels.set(term, { displayName, category: normalizeTrendCategory(entry.category) });
+  for (const excerpt of excerpts) {
+    for (const phrase of collectTrendPhrases(excerpt)) {
+      // Multi-word only: a single co-occurring word is far too weak a signal to
+      // rename a trend after (`trade`, `source`, `season`).
+      if (!phrase.includes(' ')) continue;
+      if (phrase === term || phrase.includes(term)) continue;
+      coverage.set(phrase, (coverage.get(phrase) ?? 0) + 1);
     }
-  } catch (error) {
-    // Warn, not error: the batch is unaffected and every term already holds its
-    // deterministic label. Visible in diagnostics, invisible to the reader.
-    logger.warn('[Trending] Labelling failed; using deterministic labels', { error });
   }
 
-  return labels;
-}
+  const minPosts = Math.max(PHRASE_MIN_POSTS, Math.ceil(excerpts.length * PHRASE_MIN_COVERAGE));
 
-/** Accept a model-supplied name, or nothing. Never repairs — only rejects. */
-function sanitizeDisplayName(value: unknown): string | null {
-  if (typeof value !== 'string') return null;
-  const trimmed = value.trim().replace(/\s+/g, ' ');
-  if (!trimmed || trimmed.length > MAX_DISPLAY_NAME_LENGTH) return null;
-  return trimmed;
+  let best: string | null = null;
+  let bestCount = 0;
+  for (const [phrase, count] of coverage) {
+    if (count < minPosts) continue;
+    // Ties break on the phrase itself so a batch is a pure function of its
+    // input — never on Map insertion order, which follows whichever post the
+    // database happened to return first.
+    if (count > bestCount || (count === bestCount && best !== null && phrase < best)) {
+      best = phrase;
+      bestCount = count;
+    }
+  }
+
+  return best;
 }
 
 /**
- * Title-case a term for display (`todd blanche` → `Todd Blanche`).
+ * How people actually spell this phrase, taken from the posts themselves.
  *
+ * The most frequent surface form wins, so `FIFA` beats `fifa` when four posts
+ * shout it and one does not. Returns `null` when the phrase never appears
+ * verbatim — which happens for a term that only ever arrived through a
+ * caller-supplied hashtag array, never in a visible body.
+ */
+function surfaceForm(phrase: string, excerpts: readonly string[]): string | null {
+  // Word-boundary match on the phrase, tolerating the `#` marker and any run of
+  // whitespace between its words — the same text the tokenizer read, before it
+  // lowercased anything.
+  const pattern = new RegExp(
+    `(?<![\\p{L}\\p{N}])#?${phrase.split(' ').map(escapeRegExp).join('\\s+')}(?![\\p{L}\\p{N}])`,
+    'giu',
+  );
+
+  const counts = new Map<string, number>();
+  for (const excerpt of excerpts) {
+    for (const match of excerpt.matchAll(pattern)) {
+      const surface = match[0].replace(/^#/, '').replace(/\s+/g, ' ');
+      counts.set(surface, (counts.get(surface) ?? 0) + 1);
+    }
+  }
+
+  let best: string | null = null;
+  let bestCount = 0;
+  for (const [surface, count] of counts) {
+    if (count > bestCount || (count === bestCount && best !== null && surface < best)) {
+      best = surface;
+      bestCount = count;
+    }
+  }
+
+  return best;
+}
+
+/**
+ * Categorise the trend with the SAME rule classifier every post already runs
+ * through at ingest.
+ *
+ * Reusing it rather than adding a second classifier means a trend and the posts
+ * inside it can never disagree about what they are about, and the taxonomy has
+ * exactly one place to evolve.
+ */
+function deriveCategory(term: string, excerpts: readonly string[]): TrendCategory {
+  const slugs = ruleBasedTopicClassifier.classify({
+    text: excerpts.join(' \n ').toLowerCase(),
+    // The TERM is passed as a hashtag because that is what it is: a normalized,
+    // `#`-stripped token, the exact shape the classifier's hashtag rules key on.
+    // Withholding it would throw away the single most on-topic token available —
+    // a trend on `esports` would be classified purely from the prose around it.
+    hashtagsNorm: [term],
+  });
+
+  for (const slug of slugs) {
+    const category = TOPIC_SLUG_TO_CATEGORY[slug];
+    if (category) return normalizeTrendCategory(category);
+  }
+  return 'other';
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
+ * Title-case a phrase for display (`todd blanche` → `Todd Blanche`).
+ *
+ * The last resort, used only when the phrase never appeared in any post body.
  * Word-by-word and nothing else: no small-word rules, no acronym repair. The
- * input is already lowercase, so `EU` cannot be recovered, and inventing a rule
- * that guesses would be wrong on exactly the terms it was written for.
+ * input is already lowercase, so `EU` cannot be recovered — and a rule that
+ * guessed would be wrong on exactly the terms it was written for.
  */
 function titleCase(term: string): string {
   return term

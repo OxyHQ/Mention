@@ -60,6 +60,33 @@ class TrendingService {
   }
 
   /**
+   * The generated summary for a trend, if it has earned one
+   * (`GET /trending/summary`).
+   *
+   * Calling this IS the demand signal — the server counts the open and only
+   * generates a summary once a trend has been opened enough times. So it is
+   * called on the trend screen and NOWHERE else: firing it from a list would
+   * count opens that never happened and pay for prose nobody asked for.
+   *
+   * Public client, same as the event report: `/trending` is public and this
+   * screen renders for signed-out visitors.
+   *
+   * Swallows its own failures — a missing summary is the ordinary case, so a
+   * failed lookup must be indistinguishable from one that simply has none.
+   */
+  async getTrendSummary(term: string): Promise<string | undefined> {
+    try {
+      const res = await publicClient.get<{ description?: string }>("/trending/summary", {
+        params: { term },
+      });
+      return res.data.description;
+    } catch (error) {
+      logger.debug("Failed to fetch trend summary", { term, error });
+      return undefined;
+    }
+  }
+
+  /**
    * Report a trend impression or press (`POST /trending/events`).
    *
    * Sent on the PUBLIC client on purpose: `/trending` is public, the right-rail

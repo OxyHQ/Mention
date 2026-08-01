@@ -83,6 +83,50 @@ router.get('/history', cachePublicMedium, async (req: Request, res: Response) =>
   }
 });
 
+/** Longest term accepted. Anything longer is not a term this instance stored. */
+const MAX_TREND_TERM_LENGTH = 80;
+
+/**
+ * The generated summary for one trend, if it has earned one.
+ * GET /api/trending/summary?term=<term>
+ * PUBLIC ROUTE - No authentication required
+ *
+ * This request IS the demand signal: opening a trend counts as one view, and a
+ * summary is generated only once a trend has been opened
+ * `MtnConfig.trending.summary.minViews` times — then stored and served from
+ * storage for the rest of that run. It is the one endpoint in this feature that
+ * can cause a model call, which is why the spend bounds live one layer down in
+ * `services/trending/trendSummary.ts` rather than here.
+ *
+ * NOT CDN-cached (unlike the two GETs above), for two independent reasons: the
+ * counter would stop counting behind a cache, and the response legitimately
+ * changes the moment the threshold is crossed.
+ *
+ * Rate-limited by IP with the same limiter the events endpoint uses. An
+ * unauthenticated endpoint that can trigger paid work needs a bound even though
+ * the threshold and the per-run uniqueness already cap the damage.
+ *
+ * An unknown term, a term that is not currently trending, or one stored before
+ * onset tracking all answer `{}` — indistinguishable on purpose, since the
+ * difference is of no use to a caller and enumerating it is of use to an abuser.
+ */
+router.get('/summary', feedIPRateLimiter, async (req: Request, res: Response) => {
+  try {
+    const term = queryString(req.query.term)?.trim() ?? '';
+    if (!term || term.length > MAX_TREND_TERM_LENGTH) {
+      res.json({});
+      return;
+    }
+
+    res.json(await trendingService.getTrendSummary(term));
+  } catch (error) {
+    // A summary is decoration on a screen that renders fine without one, so a
+    // failure here answers empty rather than failing the request.
+    logger.warn('Error resolving trend summary', { error, query: req.query });
+    res.json({});
+  }
+});
+
 /**
  * Report what a viewer did with a trend.
  * POST /api/trending/events
