@@ -120,7 +120,8 @@ export function deriveTrendLabel(input: TrendLabelInput): TrendLabel {
   if (excerpts.length === 0) return fallbackTrendLabel(term);
 
   const phrase = findDefiningPhrase(term, excerpts);
-  const name = surfaceForm(phrase ?? term, excerpts) ?? titleCase(phrase ?? term);
+  const subject = phrase ?? term;
+  const name = presentableSurfaceForm(subject, excerpts) ?? titleCase(subject);
 
   return {
     displayName: name.length > MAX_DISPLAY_NAME_LENGTH ? titleCase(term) : name,
@@ -172,12 +173,49 @@ function findDefiningPhrase(term: string, excerpts: readonly string[]): string |
 }
 
 /**
- * How people actually spell this phrase, taken from the posts themselves.
+ * The corpus spelling of a phrase, but only when it is worth preferring over
+ * title case.
  *
- * The most frequent surface form wins, so `FIFA` beats `fifa` when four posts
- * shout it and one does not. Returns `null` when the phrase never appears
- * verbatim — which happens for a term that only ever arrived through a
- * caller-supplied hashtag array, never in a visible body.
+ * Reading casing back from the corpus is what recovers `FIFA` and `FrightClub`
+ * without anything knowing what an acronym is. Shipped unfiltered, though, it
+ * also faithfully reproduces two things nobody wants to read — both observed on
+ * the first live batch:
+ *
+ *  - `POLITICS`, because the word's most common appearance is inside a shouted
+ *    hashtag tail. A label is a headline, not a transcription of the loudest
+ *    poster.
+ *  - `mention`, because the word is usually written mid-sentence in lower case,
+ *    so the corpus form carries no capitalization to prefer at all.
+ *
+ * So a surface form is used only when it says something title case cannot: it
+ * contains a capital, and it is not simply SHOUTED. An all-caps form survives
+ * only while it is short enough to plausibly be an acronym — a crude test, but
+ * one that separates `FIFA`, `NASA` and `UNESCO` from `POLITICS` and `NOTICIAS`
+ * without a dictionary, and its failure mode is a correctly-capitalised word.
+ */
+function presentableSurfaceForm(phrase: string, excerpts: readonly string[]): string | null {
+  const surface = surfaceForm(phrase, excerpts);
+  if (!surface) return null;
+
+  const letters = surface.replace(/[^\p{L}]/gu, '');
+  if (!letters) return null;
+  // No capital anywhere: title case is strictly more presentable.
+  if (letters === letters.toLowerCase()) return null;
+  // Shouted, and too long to be an acronym.
+  if (letters === letters.toUpperCase() && letters.length > ACRONYM_MAX_LENGTH) return null;
+
+  return surface;
+}
+
+/** Longest all-caps form still treated as an acronym rather than shouting. */
+const ACRONYM_MAX_LENGTH = 6;
+
+/**
+ * The most frequent way this phrase is spelled across the posts.
+ *
+ * Returns `null` when the phrase never appears verbatim — which happens for a
+ * term that only ever arrived through a caller-supplied hashtag array, never in
+ * a visible body.
  */
 function surfaceForm(phrase: string, excerpts: readonly string[]): string | null {
   // Word-boundary match on the phrase, tolerating the `#` marker and any run of

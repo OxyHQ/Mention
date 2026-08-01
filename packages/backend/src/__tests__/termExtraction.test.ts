@@ -61,6 +61,52 @@ describe('extractTrendTerms — phrases', () => {
   });
 });
 
+describe('extractTrendTerms — federated mentions never become topics', () => {
+  /*
+   * A federated reply is stored as `[Display Name](handle@instance.tld)`. Both
+   * halves are somebody's identity, and neither is a topic. Every string below
+   * is a real post that reached the live trending list through this hole.
+   */
+  it('drops the recipient handle', () => {
+    const terms = extractTrendTerms({ text: '[@Zaph y](weedbunt@posting.onl) i doooo #gangsta' });
+    expect(terms).not.toContain('weedbunt');
+    expect(terms).not.toContain('posting');
+    expect(terms).not.toContain('onl');
+    // …while the author's own words survive.
+    expect(terms).toContain('gangsta');
+  });
+
+  it('drops the recipient display name', () => {
+    const terms = extractTrendTerms({
+      text: '[@Its Not EZ Growing Colder](tergiversatrix@darkprism.christmas) me',
+    });
+    expect(terms).toEqual([]);
+  });
+
+  it("drops this instance's OWN domain, which is how `mention` came to trend", () => {
+    const terms = extractTrendTerms({ text: '[@nate](nate@mention.earth) thanks for the reply' });
+    expect(terms).not.toContain('mention');
+    expect(terms).not.toContain('earth');
+    expect(terms).not.toContain('nate');
+    expect(terms).toEqual(['thanks', 'reply']);
+  });
+
+  it('drops a bare handle written in prose, leaving no orphaned local part', () => {
+    // The `@mention` rule alone would eat `@example.com` and leave `someone`.
+    expect(extractTrendTerms({ text: 'contact me at someone@example.com about FIFA' }))
+      .toEqual(['contact', 'fifa']);
+  });
+
+  it('keeps the LABEL of an ordinary markdown link but not its target', () => {
+    const terms = extractTrendTerms({
+      text: 'read [this great piece](https://example.com/a/b) about FIFA corruption',
+    });
+    expect(terms).toContain('great piece');
+    expect(terms).toContain('fifa corruption');
+    expect(terms).not.toContain('example');
+  });
+});
+
 describe('extractTrendTerms — what is dropped', () => {
   it('drops URLs entirely', () => {
     const terms = extractTrendTerms({ text: 'read https://example.com/article-about-fifa now' });

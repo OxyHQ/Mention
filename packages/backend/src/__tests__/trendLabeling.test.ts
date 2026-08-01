@@ -63,6 +63,27 @@ describe('deriveTrendLabel — casing comes from the corpus', () => {
   });
 });
 
+describe('deriveTrendLabel — a corpus spelling has to earn its place', () => {
+  it('does NOT shout back a word the posts happen to shout', () => {
+    // Live batch, 2026-08-01: the term `politics` shipped as "POLITICS",
+    // because its commonest appearance is inside an all-caps hashtag tail.
+    const posts = ['#POLITICS today', 'more #POLITICS', 'the #POLITICS of it'];
+    expect(deriveTrendLabel({ term: 'politics', excerpts: posts }).displayName).toBe('Politics');
+  });
+
+  it('still keeps a genuine acronym, which is short enough not to read as shouting', () => {
+    const posts = ['FIFA again', 'FIFA once more', 'and FIFA'];
+    expect(deriveTrendLabel({ term: 'fifa', excerpts: posts }).displayName).toBe('FIFA');
+  });
+
+  it('title-cases a term nobody ever capitalised', () => {
+    // Live batch: `mention` shipped lower case because it is written
+    // mid-sentence — the corpus form carried nothing worth preferring.
+    const posts = ['i will mention it later', 'did you mention that', 'a mention of it'];
+    expect(deriveTrendLabel({ term: 'mention', excerpts: posts }).displayName).toBe('Mention');
+  });
+});
+
 describe('deriveTrendLabel — a shared phrase beats the term', () => {
   it('names the trend after the phrase most posts share', () => {
     // The term is `orioles`; what the posts are ABOUT is Dean Kremer.
@@ -78,7 +99,7 @@ describe('deriveTrendLabel — a shared phrase beats the term', () => {
       'orioles stadium renovation approved',
       'orioles minor league affiliate moving',
     ];
-    expect(deriveTrendLabel({ term: 'orioles', excerpts: posts }).displayName).toBe('orioles');
+    expect(deriveTrendLabel({ term: 'orioles', excerpts: posts }).displayName).toBe('Orioles');
   });
 
   it('never renames a trend after a phrase that merely restates it', () => {
@@ -87,7 +108,7 @@ describe('deriveTrendLabel — a shared phrase beats the term', () => {
       'orioles trade rumours were true, orioles trade done',
       'another orioles trade for the orioles trade pile',
     ];
-    expect(deriveTrendLabel({ term: 'orioles', excerpts: posts }).displayName).toBe('orioles');
+    expect(deriveTrendLabel({ term: 'orioles', excerpts: posts }).displayName).toBe('Orioles');
   });
 
   it('counts a phrase once per post, so one loud post cannot outvote the rest', () => {
@@ -97,7 +118,7 @@ describe('deriveTrendLabel — a shared phrase beats the term', () => {
       'dean kremer traded again apparently',
       'dean kremer to the twins',
     ];
-    expect(deriveTrendLabel({ term: 'orioles', excerpts: posts }).displayName).toBe('dean kremer');
+    expect(deriveTrendLabel({ term: 'orioles', excerpts: posts }).displayName).toBe('Dean Kremer');
   });
 });
 

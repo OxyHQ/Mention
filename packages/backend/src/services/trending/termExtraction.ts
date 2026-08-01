@@ -92,6 +92,39 @@ const SEGMENT_BOUNDARY = /[^\p{L}\p{N}' ]+/u;
 const URL_PATTERN = /https?:\/\/\S+|www\.\S+/gi;
 const MENTION_PATTERN = /@[\p{L}\p{N}_.-]+(?:@[\p{L}\p{N}.-]+)?/gu;
 
+/**
+ * A rendered federated mention: `[Display Name](handle@instance.tld)`.
+ *
+ * Removed WHOLE — label and target — and this is the single most important
+ * thing this module strips. A federated reply is stored in exactly this shape,
+ * and neither half is a topic: the label is somebody's display name and the
+ * target is their handle plus their server. Left in, every reply donated its
+ * recipient to the trending vocabulary, and the terms that reached the live
+ * list were other people's handles (`weedbunt`, `tergiversatrix`), their
+ * display names (`ez growing colder`) and instance domains — including
+ * `mention`, harvested from `@someone@mention.earth`, which is how this
+ * instance's own domain came to trend on it.
+ *
+ * The `@` on the target is optional because the stored form omits it.
+ */
+const MENTION_LINK_PATTERN = /\[[^\]\n]*\]\(\s*@?[\p{L}\p{N}_.-]+@[\p{L}\p{N}.-]+\s*\)/gu;
+
+/**
+ * Any other markdown link: the LABEL is kept (it is prose the author wrote) and
+ * the target is dropped, because a URL's path segments are not words anybody
+ * said.
+ */
+const MARKDOWN_LINK_PATTERN = /\[([^\]\n]*)\]\([^)\n]*\)/gu;
+
+/**
+ * A bare `handle@instance.tld` with no leading `@` and no markdown around it.
+ *
+ * The same leak by another route — a handle pasted into prose, or a mention
+ * whose markdown did not survive whatever rewrote the text. Also catches email
+ * addresses, which are likewise not topics.
+ */
+const BARE_HANDLE_PATTERN = /(?<![\p{L}\p{N}])[\p{L}\p{N}_.-]+@[\p{L}\p{N}.-]+/gu;
+
 /** A token below the length floor survives only as an ALL-CAPS acronym. */
 const MIN_ACRONYM_LENGTH = 2;
 
@@ -160,7 +193,16 @@ export function collectTrendPhrases(text: string | null | undefined): string[] {
   };
 
   const cleaned = (text ?? '')
+    // Mention links first: they are the shape most likely to contain something
+    // that looks like prose, so removing them whole has to happen before the
+    // generic link rule salvages their label.
+    .replace(MENTION_LINK_PATTERN, ' ')
+    .replace(MARKDOWN_LINK_PATTERN, '$1 ')
     .replace(URL_PATTERN, ' ')
+    // Bare handles BEFORE `@mention`s: the `@mention` pattern would otherwise
+    // match the `@instance.tld` half of `someone@instance.tld` and leave the
+    // orphaned local part behind as a word.
+    .replace(BARE_HANDLE_PATTERN, ' ')
     .replace(MENTION_PATTERN, ' ')
     // The `#` marker goes, the word stays: this single character is the whole
     // difference between `#fifa` and `fifa`, and collapsing it here is what puts
