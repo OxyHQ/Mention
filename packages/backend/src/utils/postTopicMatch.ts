@@ -1,3 +1,7 @@
+import { and, arrayContains, eq, exists, or, sql, type SQL } from 'drizzle-orm';
+import { getDb } from '../db/postgres';
+import { postClassificationTopicRefs, posts } from '../db/schema';
+
 /**
  * Canonical "posts associated with a topic slug" match clause.
  *
@@ -26,11 +30,66 @@
 export function buildTopicSlugMatch(slug: string): {
   $or: Array<Record<string, string>>;
 } {
-  const normalized = slug.toLowerCase();
+  const normalized = normalizeTopicSlug(slug);
   return {
     $or: [
       { 'postClassification.topicRefs.name': normalized },
       { 'postClassification.topics': normalized },
     ],
   };
+}
+
+/**
+ * The one normalization rule, extracted so the two encodings below cannot
+ * disagree about it.
+ *
+ * This is the part most likely to drift — it is a single `toLowerCase()` that
+ * looks too trivial to share, and a topic page that silently returns nothing
+ * because one side lowercased and the other did not is precisely the failure
+ * this module was created to end.
+ */
+export function normalizeTopicSlug(slug: string): string {
+  return slug.toLowerCase();
+}
+
+/**
+ * SQL encoding of the SAME rule as {@link buildTopicSlugMatch}.
+ *
+ * ## Why both encodings exist right now
+ *
+ * The migration is batched, and this module is read from BOTH sides of the
+ * in-flight boundary: the feed sources (ported here) and
+ * `posts.controller.ts` `buildPostsByTopicFilter` (not yet ported). A helper
+ * that spans an unfinished cutover has to speak both stores for exactly as long
+ * as that is true.
+ *
+ * The Mongo form is therefore NOT a shim to keep around: it is deleted by
+ * whichever batch ports `posts.controller.ts`, and this comment is the note
+ * telling that batch to do it. What makes the interim safe is that the two
+ * encodings share {@link normalizeTopicSlug} and are asserted to select the same
+ * posts by test — the fields themselves are the whole content of the rule and
+ * are stated once per store.
+ *
+ * `= ANY(array)` is the array-membership test for the slug-only `text[]` column
+ * — the direct analogue of Mongo matching an array field by element equality.
+ * Written through `arrayContains` rather than a hand-rolled `= any(${slug})`,
+ * because a raw JS value interpolated on the right of `ANY` binds as a ROW
+ * constructor and Postgres rejects it.
+ */
+export function topicSlugSql(slug: string): SQL {
+  const normalized = normalizeTopicSlug(slug);
+  return or(
+    exists(
+      getDb()
+        .select({ one: sql`1` })
+        .from(postClassificationTopicRefs)
+        .where(
+          and(
+            eq(postClassificationTopicRefs.postId, posts.id),
+            eq(postClassificationTopicRefs.name, normalized),
+          ),
+        ),
+    ),
+    arrayContains(posts.classificationTopics, [normalized]),
+  ) as SQL;
 }

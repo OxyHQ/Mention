@@ -1,71 +1,112 @@
 /**
- * Social-graph + content source modules (Phase 2).
+ * Social-graph + content source modules.
  *
  * Each is a {@link SourceModule} producing a bounded candidate set derived from
  * the viewer's follow / engagement graph or from content classification. They
- * follow the Phase 1 authoring pattern exactly: a single Mongo query selecting
- * `FEED_FIELDS`, chronological `_id`-sort + `ChronoCursor` for timeline sources,
- * `.maxTimeMS(5000)`, capped to `cap`, and soft-failing to `[]`. No new ranking
- * or hydration logic lives here — the engine wraps them.
+ * follow one authoring pattern: a single query selecting the candidate column
+ * set, `(created_at DESC, id DESC)` + `chronoCursorSql` for timeline sources,
+ * capped to `cap`, and soft-failing to `[]`. No ranking or hydration logic lives
+ * here — the engine wraps them.
  */
 
-import mongoose from 'mongoose';
 import { PostType, PostVisibility, MtnConfig } from '@mention/shared-types';
-import { Post } from '../../../../models/Post';
-import Like from '../../../../models/Like';
-import { EntityFollow } from '../../../../models/EntityFollow';
-import { StarterPack } from '../../../../models/StarterPack';
-import { FEED_FIELDS } from '../../FeedAPI';
-import { ChronoCursor } from '../../CursorBuilder';
-import { DISCOVERY_SAFE_MATCH } from '../../feedSafety';
+import { and, desc, eq, gte, inArray, isNotNull, isNull, or, sql, type SQL } from 'drizzle-orm';
+import { getDb } from '../../../../db/postgres';
+import {
+  entityFollows,
+  likes,
+  postContentVariants,
+  postMentions,
+  postSources,
+  posts,
+  starterPackMembers,
+} from '../../../../db/schema';
+import { candidatePostColumns, loadCandidatePosts } from '../../../../db/feed/candidatePost';
+import { chronoCursorSql, chronoOrderBy } from '../../CursorBuilder';
+import { discoverySafeSql } from '../../feedSafety';
 import { logger } from '../../../../utils/logger';
-import { notAReplyClause, restrictToReplies } from '../../../../utils/postReply';
+import { notABoostSql } from '../../../../utils/feedQueryBuilder';
+import { isReplySql, notAReplySql } from '../../../../utils/postReply';
 import type { CandidatePost, SourceModule } from '../types';
 
 /**
  * A "new voice" author must have at most this many recent posts to qualify as
  * low-volume in the local approximation. True account-age / follower-count
- * gating is Phase-4-blocked (needs Oxy user data).
+ * gating requires Oxy user data and is out of scope here.
  */
 const NEW_VOICE_MAX_RECENT_POSTS = 20;
 
 /** Chronological fetch shared by the timeline-style social sources. */
-async function fetchChrono(match: Record<string, unknown>, cursor: string | undefined, cap: number): Promise<CandidatePost[]> {
-  ChronoCursor.applyToQuery(match, cursor);
-  return await Post.find(match)
-    .select(FEED_FIELDS)
-    .sort({ _id: -1 })
-    .limit(cap)
-    .maxTimeMS(5000)
-    .lean<CandidatePost[]>();
+async function fetchChrono(
+  conditions: SQL[],
+  cursor: string | undefined,
+  cap: number,
+): Promise<CandidatePost[]> {
+  const keyset = await chronoCursorSql(cursor);
+  const where = keyset ? [...conditions, keyset] : conditions;
+
+  const db = getDb();
+  const rows = await db
+    .select(candidatePostColumns)
+    .from(posts)
+    .where(and(...where))
+    .orderBy(...chronoOrderBy())
+    .limit(cap);
+  return loadCandidatePosts(db, rows);
 }
 
-/** Fetch posts by id, preserving the given id order (used by the pre-ranked aggregate sources). */
-async function fetchPostsByIds(ids: mongoose.Types.ObjectId[]): Promise<CandidatePost[]> {
+/** Fetch posts by id, preserving the given id order (used by the pre-ranked sources). */
+async function fetchPostsByIds(ids: string[]): Promise<CandidatePost[]> {
   if (ids.length === 0) return [];
-  const posts = await Post.find({ _id: { $in: ids } })
-    .select(FEED_FIELDS)
-    .maxTimeMS(5000)
-    .lean<CandidatePost[]>();
-  const order = new Map(ids.map((id, i) => [String(id), i]));
-  return posts.sort((a, b) => (order.get(String(a._id)) ?? 0) - (order.get(String(b._id)) ?? 0));
+  const db = getDb();
+  const rows = await db
+    .select(candidatePostColumns)
+    .from(posts)
+    .where(inArray(posts.id, ids));
+  const loaded = await loadCandidatePosts(db, rows);
+  const order = new Map(ids.map((id, i) => [id, i]));
+  return loaded.sort(
+    (a, b) => (order.get(String(a._id)) ?? 0) - (order.get(String(b._id)) ?? 0),
+  );
 }
 
-/** Standard engagement composite (mirrors the discovery aggregations). */
-function engagementScoreExpr() {
+/**
+ * The UNSPLIT engagement composite — likes + ALL boosts + comments, with no
+ * native/federated distinction.
+ *
+ * ## This DIVERGES from `engagementScoreSql`, and the divergence is PRESERVED
+ *
+ * `discoverySources.engagementScoreSql` splits the boost term: the native subset
+ * (`boosts − federatedBoosts`) is weighted at `boostWeight` (2.5) and the
+ * federated subset at `federatedBoostWeight` (0.5), because — per the config's
+ * own comment — "a handful of federated boosts routinely made low-quality
+ * off-instance posts look trending". This one weights every boost at 2.5.
+ *
+ * In Mongo these were two same-named functions in two files, one exported and
+ * one private, and nothing indicated they disagreed. The port keeps the
+ * BEHAVIOUR and removes the disguise: two differently-named expressions, each
+ * stating what it is, with `socialEngagementScoreSql.test.ts` asserting they
+ * produce DIFFERENT scores for a post carrying federated boosts. That test is
+ * the tripwire — the divergence can no longer be spread by copy-paste or
+ * "unified" by accident, in either direction.
+ *
+ * WHY NOT RECONCILE, given `topReplies` is a discovery surface and this looks
+ * like drift rather than intent: unifying changes the ORDER `topReplies`
+ * returns. A store migration whose contract is "the wire format must not change"
+ * is the wrong place to re-tune ranking — the change would ship inside a
+ * hundred-file diff with no way to attribute a ranking regression to it. It is
+ * a one-line change once someone owns the ranking question; the test names this
+ * function so that person finds it.
+ *
+ * Only `topRepliesSource` uses it.
+ */
+export function socialEngagementScoreSql(): SQL<number> {
   const cfg = MtnConfig.ranking.engagement;
-  return {
-    $add: [
-      { $multiply: [{ $ifNull: ['$stats.likesCount', 0] }, cfg.likeWeight] },
-      { $multiply: [{ $ifNull: ['$stats.boostsCount', 0] }, cfg.boostWeight] },
-      { $multiply: [{ $ifNull: ['$stats.commentsCount', 0] }, cfg.commentWeight] },
-    ],
-  };
-}
-
-/** Escape a domain for safe embedding in a RegExp. */
-function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return sql<number>`(
+    ${posts.statsLikesCount} * ${cfg.likeWeight}
+    + ${posts.statsBoostsCount} * ${cfg.boostWeight}
+    + ${posts.statsCommentsCount} * ${cfg.commentWeight}
+  )::double precision`;
 }
 
 /**
@@ -84,28 +125,44 @@ export const friendsEngagedSource: SourceModule = {
     if (followingIds.length === 0) return [];
 
     const windowStart = new Date(Date.now() - MtnConfig.feed.candidateSources.recencyWindowMs);
+    const db = getDb();
 
-    const likeGroups = await Like.aggregate<{ _id: unknown; friendCount: number }>([
-      { $match: { userId: { $in: followingIds }, value: 1, createdAt: { $gte: windowStart } } },
-      { $group: { _id: '$postId', friendCount: { $sum: 1 } } },
-      { $sort: { friendCount: -1 } },
-      { $limit: cap },
-    ]).option({ maxTimeMS: 5000 });
+    // GROUP BY on the likes table — the direct port of the `$group` pipeline.
+    const likeGroups = await db
+      .select({ postId: likes.postId, friendCount: sql<number>`count(*)::int` })
+      .from(likes)
+      .where(
+        and(
+          inArray(likes.userId, followingIds),
+          eq(likes.value, 1),
+          gte(likes.createdAt, windowStart),
+        ),
+      )
+      .groupBy(likes.postId)
+      .orderBy(desc(sql`count(*)`))
+      .limit(cap);
 
-    const boostDocs = await Post.find({
-      type: PostType.BOOST,
-      oxyUserId: { $in: followingIds },
-      createdAt: { $gte: windowStart },
-    })
-      .select('boostOf')
-      .limit(cap)
-      .maxTimeMS(5000)
-      .lean<Array<{ boostOf?: string }>>();
+    const boostDocs = await db
+      .select({ boostOf: posts.boostOf })
+      .from(posts)
+      .where(
+        and(
+          eq(posts.type, PostType.BOOST),
+          inArray(posts.oxyUserId, followingIds),
+          gte(posts.createdAt, windowStart),
+          isNotNull(posts.boostOf),
+        ),
+      )
+      .limit(cap);
 
     const friendCountByPost = new Map<string, number>();
     for (const group of likeGroups) {
-      const id = group._id ? String(group._id) : '';
-      if (id) friendCountByPost.set(id, (friendCountByPost.get(id) ?? 0) + group.friendCount);
+      if (group.postId) {
+        friendCountByPost.set(
+          group.postId,
+          (friendCountByPost.get(group.postId) ?? 0) + group.friendCount,
+        );
+      }
     }
     for (const boost of boostDocs) {
       if (boost.boostOf) {
@@ -114,25 +171,24 @@ export const friendsEngagedSource: SourceModule = {
     }
     if (friendCountByPost.size === 0) return [];
 
-    const objectIds = Array.from(friendCountByPost.keys())
-      .filter((id) => mongoose.Types.ObjectId.isValid(id))
-      .map((id) => new mongoose.Types.ObjectId(id));
-    if (objectIds.length === 0) return [];
+    const conditions: SQL[] = [
+      inArray(posts.id, Array.from(friendCountByPost.keys())),
+      eq(posts.visibility, PostVisibility.PUBLIC),
+      eq(posts.status, 'published'),
+      notABoostSql(),
+    ];
+    if (ctx.currentUserId) {
+      // Nullable author column: `<>` alone is NULL-propagating and would drop
+      // every author-less post. See `authorNotInSql` for the full explanation.
+      conditions.push(
+        or(isNull(posts.oxyUserId), sql`${posts.oxyUserId} <> ${ctx.currentUserId}`) as SQL,
+      );
+    }
 
-    const match: Record<string, unknown> = {
-      _id: { $in: objectIds },
-      visibility: PostVisibility.PUBLIC,
-      status: 'published',
-      $and: [{ $or: [{ boostOf: null }, { boostOf: { $exists: false } }] }],
-    };
-    if (ctx.currentUserId) match.oxyUserId = { $ne: ctx.currentUserId };
+    const rows = await db.select(candidatePostColumns).from(posts).where(and(...conditions));
+    const candidates = await loadCandidatePosts(db, rows);
 
-    const posts = await Post.find(match)
-      .select(FEED_FIELDS)
-      .maxTimeMS(5000)
-      .lean<CandidatePost[]>();
-
-    return posts
+    return candidates
       .map((post) => {
         post.finalScore = friendCountByPost.get(String(post._id)) ?? 0;
         return post;
@@ -161,18 +217,21 @@ export const quotesSource: SourceModule = {
     const authorIds = Array.isArray(params.authorIds) ? (params.authorIds as string[]) : [];
     if (!postId && authorIds.length === 0) return [];
 
-    const match: Record<string, unknown> = { visibility: PostVisibility.PUBLIC, status: 'published' };
-    const conditions: Record<string, unknown>[] = [];
-    if (postId) conditions.push({ quoteOf: postId });
-    if (authorIds.length > 0) conditions.push({ quoteOf: { $ne: null }, oxyUserId: { $in: authorIds } });
-
-    if (conditions.length === 1) {
-      Object.assign(match, conditions[0]);
-    } else {
-      match.$and = [{ $or: conditions }];
+    const alternatives: SQL[] = [];
+    if (postId) alternatives.push(eq(posts.quoteOf, postId));
+    if (authorIds.length > 0) {
+      alternatives.push(and(isNotNull(posts.quoteOf), inArray(posts.oxyUserId, authorIds)) as SQL);
     }
 
-    return fetchChrono(match, ctx.cursor, cap);
+    return fetchChrono(
+      [
+        eq(posts.visibility, PostVisibility.PUBLIC),
+        eq(posts.status, 'published'),
+        or(...alternatives) as SQL,
+      ],
+      ctx.cursor,
+      cap,
+    );
   },
 };
 
@@ -185,17 +244,16 @@ export const repliesFromFollowsSource: SourceModule = {
     const followingIds = ctx.followingIds ?? [];
     if (followingIds.length === 0) return [];
 
-    // `restrictToReplies` appends to `$and`, never to `$or`: `fetchChrono` runs
-    // `ChronoCursor.applyToQuery`, which ASSIGNS `match.$or` for the keyset
-    // cursor and would otherwise silently drop the reply constraint on page 2+.
-    const match: Record<string, unknown> = {
-      oxyUserId: { $in: followingIds },
-      visibility: PostVisibility.PUBLIC,
-      status: 'published',
-    };
-    restrictToReplies(match);
-
-    return fetchChrono(match, ctx.cursor, cap);
+    return fetchChrono(
+      [
+        inArray(posts.oxyUserId, followingIds),
+        eq(posts.visibility, PostVisibility.PUBLIC),
+        eq(posts.status, 'published'),
+        isReplySql(),
+      ],
+      ctx.cursor,
+      cap,
+    );
   },
 };
 
@@ -214,27 +272,40 @@ export const boostsFromFollowsSource: SourceModule = {
     if (followingIds.length === 0) return [];
 
     return fetchChrono(
-      { type: PostType.BOOST, oxyUserId: { $in: followingIds }, status: 'published' },
+      [
+        eq(posts.type, PostType.BOOST),
+        inArray(posts.oxyUserId, followingIds),
+        eq(posts.status, 'published'),
+      ],
       ctx.cursor,
       cap,
     );
   },
 };
 
-/** `mentionsOfMe`: posts whose `mentions` array contains the viewer. */
+/** `mentionsOfMe`: posts whose mention set contains the viewer. */
 export const mentionsOfMeSource: SourceModule = {
   id: 'mentionsOfMe',
   kind: 'source',
   userComposable: false,
   gather: async (ctx, _params, cap) => {
-    if (!ctx.currentUserId) return [];
+    const viewerId = ctx.currentUserId;
+    if (!viewerId) return [];
+
+    // `mentions` became a junction table, so Mongo's `{ mentions: viewerId }`
+    // array-element match becomes a correlated EXISTS. Built through the query
+    // builder so `post_mentions.post_id = posts.id` renders qualified.
+    const mentioned = sql`exists ${getDb()
+      .select({ one: sql`1` })
+      .from(postMentions)
+      .where(and(eq(postMentions.postId, posts.id), eq(postMentions.oxyUserId, viewerId)))}`;
 
     return fetchChrono(
-      {
-        mentions: ctx.currentUserId,
-        visibility: { $in: [PostVisibility.PUBLIC, PostVisibility.FOLLOWERS_ONLY] },
-        status: 'published',
-      },
+      [
+        mentioned,
+        inArray(posts.visibility, [PostVisibility.PUBLIC, PostVisibility.FOLLOWERS_ONLY]),
+        eq(posts.status, 'published'),
+      ],
       ctx.cursor,
       cap,
     );
@@ -243,14 +314,12 @@ export const mentionsOfMeSource: SourceModule = {
 
 /**
  * `hashtagFollows`: posts carrying any hashtag the viewer follows (resolved via
- * `EntityFollow` `entityType:'hashtag'`).
+ * `entity_follows` `entityType:'hashtag'`).
  *
  * The stored ids go into the query AS-IS. `POST /entity-follows` canonicalizes a
  * followed tag with `normalizeHashtag` — the same function that derives
- * `Post.hashtags` — so the two are the same string by construction. Normalizing
- * again here would be a second rule free to drift from that one; it used to
- * lowercase, which silently did not match the punctuation-stripping the write
- * path now applies.
+ * `posts.hashtags` — so the two are the same string by construction. Normalizing
+ * again here would be a second rule free to drift from that one.
  */
 export const hashtagFollowsSource: SourceModule = {
   id: 'hashtagFollows',
@@ -261,10 +330,16 @@ export const hashtagFollowsSource: SourceModule = {
 
     let tags: string[] = [];
     try {
-      tags = await EntityFollow.distinct('entityId', {
-        userId: ctx.currentUserId,
-        entityType: 'hashtag',
-      });
+      const rows = await getDb()
+        .selectDistinct({ entityId: entityFollows.entityId })
+        .from(entityFollows)
+        .where(
+          and(
+            eq(entityFollows.userId, ctx.currentUserId),
+            eq(entityFollows.entityType, 'hashtag'),
+          ),
+        );
+      tags = rows.map((row) => row.entityId);
     } catch (error) {
       logger.warn('[hashtagFollows source] Failed to load followed hashtags', error);
       return [];
@@ -273,7 +348,12 @@ export const hashtagFollowsSource: SourceModule = {
     if (tags.length === 0) return [];
 
     return fetchChrono(
-      { hashtags: { $in: tags }, visibility: PostVisibility.PUBLIC, status: 'published' },
+      [
+        // Array OVERLAP — the analogue of Mongo's `$in` against a multikey field.
+        sql`coalesce(${posts.hashtags} && ${tags}::text[], false)`,
+        eq(posts.visibility, PostVisibility.PUBLIC),
+        eq(posts.status, 'published'),
+      ],
       ctx.cursor,
       cap,
     );
@@ -287,12 +367,20 @@ export const starterPackSource: SourceModule = {
   userComposable: true,
   gather: async (ctx, params, cap) => {
     const packId = typeof params.packId === 'string' ? params.packId : '';
-    if (!packId || !mongoose.Types.ObjectId.isValid(packId)) return [];
+    if (!packId) return [];
 
+    // Members are a junction TABLE here, not the embedded id array Mongo held —
+    // `CONVENTIONS.md` makes an array of ids a real table so it can be joined,
+    // constrained and indexed. So this is a member query, not a pack lookup:
+    // reading the pack row would return no members at all.
     let memberIds: string[] = [];
     try {
-      const pack = await StarterPack.findById(packId).lean();
-      memberIds = pack?.memberOxyUserIds ?? [];
+      const rows = await getDb()
+        .select({ oxyUserId: starterPackMembers.oxyUserId })
+        .from(starterPackMembers)
+        .where(eq(starterPackMembers.packId, packId))
+        .orderBy(starterPackMembers.position);
+      memberIds = rows.map((row) => row.oxyUserId);
     } catch (error) {
       logger.warn('[starterPack source] Failed to load starter pack', { packId, error });
       return [];
@@ -300,7 +388,11 @@ export const starterPackSource: SourceModule = {
     if (memberIds.length === 0) return [];
 
     return fetchChrono(
-      { oxyUserId: { $in: memberIds }, visibility: PostVisibility.PUBLIC, status: 'published' },
+      [
+        inArray(posts.oxyUserId, memberIds),
+        eq(posts.visibility, PostVisibility.PUBLIC),
+        eq(posts.status, 'published'),
+      ],
       ctx.cursor,
       cap,
     );
@@ -310,7 +402,13 @@ export const starterPackSource: SourceModule = {
 /**
  * `onThisDay`: nostalgia — the viewer's own posts (or the viewer + their follows
  * when `params.scope === 'follows'`) from earlier years on today's month/day.
- * Uses a `$expr` month/day match, so it is bounded by the author-id filter.
+ *
+ * `extract(... from created_at)` is the port of Mongo's `$month`/`$dayOfMonth`
+ * `$expr`. Both stores evaluate it per row, so it is bounded by the author-id
+ * filter exactly as before — the timestamps are `timestamptz`, so the extraction
+ * runs in the session time zone; `at time zone 'utc'` pins it to the same UTC
+ * calendar day Mongo's operators used, which is also what the JS side computes
+ * with `getUTCMonth`/`getUTCDate`.
  */
 export const onThisDaySource: SourceModule = {
   id: 'onThisDay',
@@ -320,25 +418,25 @@ export const onThisDaySource: SourceModule = {
     if (!ctx.currentUserId) return [];
 
     const scope = params.scope === 'follows' ? 'follows' : 'self';
-    const authorClause: Record<string, unknown> =
+    const authorIds =
       scope === 'follows'
-        ? { oxyUserId: { $in: Array.from(new Set([ctx.currentUserId, ...(ctx.followingIds ?? [])])) } }
-        : { oxyUserId: ctx.currentUserId };
+        ? Array.from(new Set([ctx.currentUserId, ...(ctx.followingIds ?? [])]))
+        : [ctx.currentUserId];
 
     const now = new Date();
-    const match: Record<string, unknown> = {
-      ...authorClause,
-      status: 'published',
-      $expr: {
-        $and: [
-          { $eq: [{ $month: '$createdAt' }, now.getUTCMonth() + 1] },
-          { $eq: [{ $dayOfMonth: '$createdAt' }, now.getUTCDate()] },
-          { $lt: [{ $year: '$createdAt' }, now.getUTCFullYear()] },
-        ],
-      },
-    };
+    const utc = sql`(${posts.createdAt} at time zone 'utc')`;
 
-    return fetchChrono(match, ctx.cursor, cap);
+    return fetchChrono(
+      [
+        inArray(posts.oxyUserId, authorIds),
+        eq(posts.status, 'published'),
+        sql`extract(month from ${utc}) = ${now.getUTCMonth() + 1}`,
+        sql`extract(day from ${utc}) = ${now.getUTCDate()}`,
+        sql`extract(year from ${utc}) < ${now.getUTCFullYear()}`,
+      ],
+      ctx.cursor,
+      cap,
+    );
   },
 };
 
@@ -349,7 +447,11 @@ export const questionsSource: SourceModule = {
   userComposable: true,
   gather: async (ctx, _params, cap) =>
     fetchChrono(
-      { 'postClassification.intent': 'question', visibility: PostVisibility.PUBLIC, status: 'published' },
+      [
+        eq(posts.classificationIntent, 'question'),
+        eq(posts.visibility, PostVisibility.PUBLIC),
+        eq(posts.status, 'published'),
+      ],
       ctx.cursor,
       cap,
     ),
@@ -362,11 +464,14 @@ export const newsSource: SourceModule = {
   userComposable: true,
   gather: async (ctx, _params, cap) =>
     fetchChrono(
-      {
-        visibility: PostVisibility.PUBLIC,
-        status: 'published',
-        $and: [{ $or: [{ 'postClassification.intent': 'news' }, { 'postClassification.topics': 'news' }] }],
-      },
+      [
+        eq(posts.visibility, PostVisibility.PUBLIC),
+        eq(posts.status, 'published'),
+        or(
+          eq(posts.classificationIntent, 'news'),
+          sql`coalesce(${posts.classificationTopics} @> array['news']::text[], false)`,
+        ) as SQL,
+      ],
       ctx.cursor,
       cap,
     ),
@@ -376,10 +481,15 @@ export const newsSource: SourceModule = {
  * `instance`: posts from a specific fediverse instance (`params.domain`), or
  * local-only posts when `params.domain === 'local'`.
  *
- * NOTE (data-model gap): Post has no indexed `federation.instanceDomain` field —
- * only `federation.actorUri`. Remote-instance matching therefore uses an anchored
- * host-prefix regex on `federation.actorUri` (correct but not index-served).
- * Phase-4 optimization: denormalize + index `federation.instanceDomain` at ingest.
+ * DATA-MODEL GAP (carried over): there is no denormalized instance-domain
+ * column, only `federation_actor_uri`, so remote matching is an anchored
+ * host-prefix match — correct but not index-served. The fix is to persist and
+ * index the domain at ingest.
+ *
+ * `local` keys off `federation_actor_uri IS NULL`. In Mongo the whole
+ * `federation` subdocument was absent for a local post; here the columns are
+ * individually null, and the actor URI is the one every federated ingest path
+ * writes.
  */
 export const instanceSource: SourceModule = {
   id: 'instance',
@@ -389,25 +499,38 @@ export const instanceSource: SourceModule = {
     const domain = typeof params.domain === 'string' ? params.domain.trim().toLowerCase() : '';
     if (!domain) return [];
 
-    const match: Record<string, unknown> = { visibility: PostVisibility.PUBLIC, status: 'published' };
+    const conditions: SQL[] = [
+      eq(posts.visibility, PostVisibility.PUBLIC),
+      eq(posts.status, 'published'),
+    ];
+
     if (domain === 'local') {
-      match.$and = [{ $or: [{ federation: null }, { federation: { $exists: false } }] }];
+      conditions.push(isNull(posts.federationActorUri));
     } else {
-      match['federation.actorUri'] = new RegExp(`^https?://${escapeRegExp(domain)}(?::\\d+)?/`, 'i');
+      // `~*` is a case-insensitive POSIX regex, the direct analogue of the
+      // JavaScript `RegExp(..., 'i')` this replaces. The pattern is anchored so
+      // `evil-example.com` cannot match a request for `example.com`.
+      const pattern = `^https?://${escapeRegexLiteral(domain)}(:[0-9]+)?/`;
+      conditions.push(sql`${posts.federationActorUri} ~* ${pattern}`);
     }
-    return fetchChrono(match, ctx.cursor, cap);
+
+    return fetchChrono(conditions, ctx.cursor, cap);
   },
 };
+
+/** Escape a literal for embedding in a POSIX regular expression. */
+function escapeRegexLiteral(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
 
 /**
  * `links`: posts linking to a specific domain (`params.domain`) — "news from
  * domain X".
  *
- * NOTE (data-model gap): Post has no indexed link-host field; link previews are
- * cached in Redis, not stored on the post. Matching therefore scans the cited
- * `content.sources[].url` and inline `content.text` links with a host-boundary
- * regex (correct but not index-served). Phase-4 optimization: persist + index a
- * normalized `content.linkHosts` array at ingest.
+ * DATA-MODEL GAP (carried over): there is no persisted link-host column, so this
+ * scans the cited `post_sources.url` and the inline body of every content
+ * variant with a host-boundary regex — correct but not index-served. The fix is
+ * to persist and index a normalized link-host set at ingest.
  */
 export const linksSource: SourceModule = {
   id: 'links',
@@ -417,24 +540,46 @@ export const linksSource: SourceModule = {
     const domain = typeof params.domain === 'string' ? params.domain.trim().toLowerCase() : '';
     if (!domain) return [];
 
-    const hostRegex = new RegExp(`https?://(?:[a-z0-9-]+\\.)*${escapeRegExp(domain)}(?:[/:?#]|\\s|$)`, 'i');
-    const match: Record<string, unknown> = {
-      visibility: PostVisibility.PUBLIC,
-      status: 'published',
-      $and: [{ $or: [{ 'content.sources.url': hostRegex }, { 'content.variants.text': hostRegex }] }],
-    };
-    return fetchChrono(match, ctx.cursor, cap);
+    const pattern = `https?://([a-z0-9-]+\\.)*${escapeRegexLiteral(domain)}([/:?#]|\\s|$)`;
+    const db = getDb();
+
+    const inSources = sql`exists ${db
+      .select({ one: sql`1` })
+      .from(postSources)
+      .where(and(eq(postSources.postId, posts.id), sql`${postSources.url} ~* ${pattern}`))}`;
+
+    const inBody = sql`exists ${db
+      .select({ one: sql`1` })
+      .from(postContentVariants)
+      .where(
+        and(eq(postContentVariants.postId, posts.id), sql`${postContentVariants.body} ~* ${pattern}`),
+      )}`;
+
+    return fetchChrono(
+      [
+        eq(posts.visibility, PostVisibility.PUBLIC),
+        eq(posts.status, 'published'),
+        or(inSources, inBody) as SQL,
+      ],
+      ctx.cursor,
+      cap,
+    );
   },
 };
 
 /**
  * `newVoices`: cold-start discovery of accounts new to the network.
  *
- * NOTE (data-model gap): true "new account" detection (account creation age +
- * follower count) requires Oxy user data and is Phase-4-blocked. This local
- * approximation surfaces LOW-VOLUME authors active in the recency window (few
- * recent posts), earliest-arriving first — a bounded proxy. Fetches each
- * qualifying author's latest post. Always SFW for safe-for-work viewers.
+ * DATA-MODEL GAP (carried over): true "new account" detection (creation age +
+ * follower count) requires Oxy user data. This local approximation surfaces
+ * LOW-VOLUME authors active in the recency window, earliest-arriving first, and
+ * fetches each qualifying author's latest post. Always SFW.
+ *
+ * `max(id)` picked the latest post in Mongo because an ObjectId encodes its
+ * creation time. It does not here (see `chronoOrderBy`), so "latest" is resolved
+ * with `DISTINCT ON` over the real `(created_at DESC, id DESC)` order — which is
+ * also strictly more correct for federated posts, whose import-time id bears no
+ * relation to when they were written.
  */
 export const newVoicesSource: SourceModule = {
   id: 'newVoices',
@@ -442,43 +587,43 @@ export const newVoicesSource: SourceModule = {
   userComposable: true,
   gather: async (_ctx, _params, cap) => {
     const windowStart = new Date(Date.now() - MtnConfig.feed.candidateSources.recencyWindowMs);
-    const match: Record<string, unknown> = {
-      visibility: PostVisibility.PUBLIC,
-      status: 'published',
-      createdAt: { $gte: windowStart },
-      ...DISCOVERY_SAFE_MATCH,
-      $and: [
-        notAReplyClause(),
-        { $or: [{ boostOf: null }, { boostOf: { $exists: false } }] },
-      ],
-    };
+    const db = getDb();
 
-    const groups = await Post.aggregate<{ latestPostId: unknown }>([
-      { $match: match },
-      {
-        $group: {
-          _id: '$oxyUserId',
-          latestPostId: { $max: '$_id' },
-          recentCount: { $sum: 1 },
-          firstPostAt: { $min: '$createdAt' },
-        },
-      },
-      { $match: { recentCount: { $lte: NEW_VOICE_MAX_RECENT_POSTS } } },
-      { $sort: { firstPostAt: -1 } },
-      { $limit: cap },
-    ]).option({ maxTimeMS: 5000 });
+    const groups = await db
+      .select({
+        oxyUserId: posts.oxyUserId,
+        latestPostId: sql<string>`(array_agg(${posts.id} order by ${posts.createdAt} desc, ${posts.id} desc))[1]`,
+        recentCount: sql<number>`count(*)::int`,
+        firstPostAt: sql<Date>`min(${posts.createdAt})`,
+      })
+      .from(posts)
+      .where(
+        and(
+          eq(posts.visibility, PostVisibility.PUBLIC),
+          eq(posts.status, 'published'),
+          gte(posts.createdAt, windowStart),
+          discoverySafeSql(),
+          notAReplySql(),
+          notABoostSql(),
+          isNotNull(posts.oxyUserId),
+        ),
+      )
+      .groupBy(posts.oxyUserId)
+      .having(sql`count(*) <= ${NEW_VOICE_MAX_RECENT_POSTS}`)
+      .orderBy(desc(sql`min(${posts.createdAt})`))
+      .limit(cap);
 
-    const ids = groups
-      .map((g) => g.latestPostId)
-      .filter((id): id is mongoose.Types.ObjectId => id instanceof mongoose.Types.ObjectId);
-    return fetchPostsByIds(ids);
+    return fetchPostsByIds(groups.map((group) => group.latestPostId).filter(Boolean));
   },
 };
 
 /**
  * `topReplies`: the highest-engagement replies in the recency window ("best
- * replies"). Aggregates an engagement composite to rank, then fetches the ranked
- * posts preserving that order. Always SFW for safe-for-work viewers.
+ * replies"). Ranks with the composite, then fetches the ranked posts preserving
+ * that order. Always SFW.
+ *
+ * Uses {@link socialEngagementScoreSql} — the UNSPLIT composite. That is a
+ * deliberate divergence from the discovery lanes; see its doc.
  */
 export const topRepliesSource: SourceModule = {
   id: 'topReplies',
@@ -486,36 +631,33 @@ export const topRepliesSource: SourceModule = {
   userComposable: true,
   gather: async (_ctx, _params, cap) => {
     const windowStart = new Date(Date.now() - MtnConfig.feed.candidateSources.recencyWindowMs);
-    const match: Record<string, unknown> = {
-      visibility: PostVisibility.PUBLIC,
-      status: 'published',
-      createdAt: { $gte: windowStart },
-      ...DISCOVERY_SAFE_MATCH,
-    };
-    restrictToReplies(match);
+    const engagementScore = socialEngagementScoreSql();
 
-    const ranked = await Post.aggregate<{ _id: unknown }>([
-      { $match: match },
-      { $addFields: { engagementScore: engagementScoreExpr() } },
-      { $sort: { engagementScore: -1, _id: -1 } },
-      { $limit: cap },
-      { $project: { _id: 1 } },
-    ]).option({ maxTimeMS: 5000 });
+    const ranked = await getDb()
+      .select({ id: posts.id })
+      .from(posts)
+      .where(
+        and(
+          eq(posts.visibility, PostVisibility.PUBLIC),
+          eq(posts.status, 'published'),
+          gte(posts.createdAt, windowStart),
+          discoverySafeSql(),
+          isReplySql(),
+        ),
+      )
+      .orderBy(desc(engagementScore), desc(posts.id))
+      .limit(cap);
 
-    const ids = ranked
-      .map((r) => r._id)
-      .filter((id): id is mongoose.Types.ObjectId => id instanceof mongoose.Types.ObjectId);
-    return fetchPostsByIds(ids);
+    return fetchPostsByIds(ranked.map((row) => row.id));
   },
 };
 
 /**
  * `friendsOfFriends`: posts by accounts the viewer's follows follow (but the
  * viewer does not) — social-graph expansion. `ctx.fofIds` is populated by the
- * controller (via the Oxy follows-of-follows endpoint, guarded optional call)
- * ONLY for the Friends-of-Friends feed; returns `[]` when it is empty (any other
- * context, or a viewer whose network yields none). PUBLIC-only — FoF authors are
- * NOT the viewer's followers, so followers-only posts are excluded.
+ * controller ONLY for the Friends-of-Friends feed; returns `[]` when it is empty.
+ * PUBLIC-only — FoF authors are NOT the viewer's followers, so followers-only
+ * posts are excluded.
  */
 export const friendsOfFriendsSource: SourceModule = {
   id: 'friendsOfFriends',
@@ -526,7 +668,11 @@ export const friendsOfFriendsSource: SourceModule = {
     if (fofIds.length === 0) return [];
 
     return fetchChrono(
-      { oxyUserId: { $in: fofIds }, visibility: PostVisibility.PUBLIC, status: 'published' },
+      [
+        inArray(posts.oxyUserId, fofIds),
+        eq(posts.visibility, PostVisibility.PUBLIC),
+        eq(posts.status, 'published'),
+      ],
       ctx.cursor,
       cap,
     );
@@ -534,16 +680,24 @@ export const friendsOfFriendsSource: SourceModule = {
 };
 
 /**
- * `curated`: editorially-promoted posts (`curated === true`). The `curated` flag
- * is sparse on Post; no writer ships in Phase 2 (admin setter deferred), so this
- * source is inert until posts are promoted.
+ * `curated`: editorially-promoted posts (`curated = true`). The column is
+ * nullable with a partial index (only curated posts carry it), so this is an
+ * equality test rather than a truthiness one.
  */
 export const curatedSource: SourceModule = {
   id: 'curated',
   kind: 'source',
   userComposable: true,
   gather: async (ctx, _params, cap) =>
-    fetchChrono({ curated: true, visibility: PostVisibility.PUBLIC, status: 'published' }, ctx.cursor, cap),
+    fetchChrono(
+      [
+        eq(posts.curated, true),
+        eq(posts.visibility, PostVisibility.PUBLIC),
+        eq(posts.status, 'published'),
+      ],
+      ctx.cursor,
+      cap,
+    ),
 };
 
 export const socialSourceModules: SourceModule[] = [

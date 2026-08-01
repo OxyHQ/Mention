@@ -1,25 +1,25 @@
 /**
- * Infra-heavier "related / discovery" source modules (Phase 4).
+ * Infra-heavier "related / discovery" source modules.
  *
  * These need more than a lean single-index query: overlap-based similarity
  * (`moreLikeThis`), geo/region proximity (`nearby`), and follower-growth ranking
- * (`risingCreators`, backed by a periodic snapshot job). They follow the Phase 1/2
- * authoring pattern exactly — a bounded query selecting `FEED_FIELDS`,
- * `.maxTimeMS(5000)`, capped to `cap`, soft-failing to `[]` — and never
- * reimplement ranking/hydration (the engine wraps them). SFW gating uses the
- * shared {@link DISCOVERY_SAFE_MATCH} unless the viewer opted into sensitive
- * content.
+ * (`risingCreators`, backed by a periodic snapshot job). They follow the same
+ * authoring pattern as the other sources — a bounded query selecting the
+ * candidate column set, capped to `cap`, soft-failing to `[]` — and never
+ * reimplement ranking/hydration. SFW gating uses the shared
+ * {@link discoverySafeSql} unless the viewer opted into sensitive content.
  */
 
-import mongoose from 'mongoose';
 import { PostVisibility, MtnConfig } from '@mention/shared-types';
-import { Post } from '../../../../models/Post';
-import { AuthorFollowerSnapshot } from '../../../../models/AuthorFollowerSnapshot';
-import { FEED_FIELDS } from '../../FeedAPI';
-import { ChronoCursor } from '../../CursorBuilder';
-import { DISCOVERY_SAFE_MATCH } from '../../feedSafety';
+import { and, arrayOverlaps, desc, eq, gte, isNotNull, ne, or, sql, type SQL } from 'drizzle-orm';
+import { getDb } from '../../../../db/postgres';
+import { authorFollowerSnapshots, posts } from '../../../../db/schema';
+import { candidatePostColumns, loadCandidatePosts } from '../../../../db/feed/candidatePost';
+import { chronoCursorSql, chronoOrderBy } from '../../CursorBuilder';
+import { discoverySafeSql } from '../../feedSafety';
 import { logger } from '../../../../utils/logger';
-import { notAReplyClause } from '../../../../utils/postReply';
+import { notABoostSql } from '../../../../utils/feedQueryBuilder';
+import { notAReplySql } from '../../../../utils/postReply';
 import type { CandidatePost, FeedEngineContext, SourceModule } from '../types';
 
 /**
@@ -32,7 +32,7 @@ const MORE_LIKE_THIS_POOL_MULTIPLIER = 4;
 /** Hard ceiling on the `moreLikeThis` candidate pool (memory + sort bound). */
 const MORE_LIKE_THIS_MAX_POOL = 500;
 
-/** Cap on the number of seed topics/hashtags fed into the `$in` match. */
+/** Cap on the number of seed topics/hashtags fed into the overlap match. */
 const MAX_SEED_TERMS = 20;
 
 /** Normalize a loose string array: lowercase, trim empties, dedupe, cap length. */
@@ -54,7 +54,7 @@ interface MoreLikeThisSeed {
   hashtags: string[];
   authorId: string;
   /** The seed post's id to exclude from results (only on the postId-driven path). */
-  excludeId: mongoose.Types.ObjectId | null;
+  excludeId: string | null;
 }
 
 /**
@@ -62,14 +62,12 @@ interface MoreLikeThisSeed {
  * read the seed post's topics/hashtags/author. Without this gate a viewer could
  * pass a PRIVATE / FOLLOWERS_ONLY post's id and infer its classification from the
  * returned "related" posts (the results are public/SFW, but the SEED's attributes
- * would leak). Mirrors the post-visibility rule used elsewhere:
- * PUBLIC is open; the viewer's own posts are always allowed; FOLLOWERS_ONLY
- * requires the viewer to follow the author; everything else is denied.
+ * would leak). PUBLIC is open; the viewer's own posts are always allowed;
+ * FOLLOWERS_ONLY requires the viewer to follow the author; everything else is
+ * denied.
  *
  * NOTE: block / restrict relationships are not resolved onto the feed engine
- * context pre-hydration, so this enforces post VISIBILITY only. A viewer blocked
- * by the seed's author could still seed on that author's PUBLIC post — consistent
- * with the public/SFW nature of the results.
+ * context pre-hydration, so this enforces post VISIBILITY only.
  */
 function isSeedAuthorized(visibility: unknown, seedAuthorId: string, ctx: FeedEngineContext): boolean {
   if (visibility === PostVisibility.PUBLIC) return true;
@@ -84,9 +82,12 @@ function isSeedAuthorized(visibility: unknown, seedAuthorId: string, ctx: FeedEn
  * Resolve the similarity seed from params. `postId` loads the seed post and reads
  * its classification topics / hashtags / author; otherwise the seed is taken
  * directly from `{ topics, hashtags, authorId }` (builder-composable, no lookup).
- * Returns `null` when a `postId` was given but is invalid / not found, or when the
- * viewer is not authorized to view that seed post (see {@link isSeedAuthorized}).
- * The direct builder path performs no lookup and cannot leak.
+ * Returns `null` when a `postId` was given but is not found, or when the viewer
+ * is not authorized to view that seed post.
+ *
+ * The Mongo original guarded the lookup with `ObjectId.isValid`. That guard is
+ * DELETED per `db/ids.ts`: it existed only to dodge a `CastError`, and a text id
+ * naming no row already produces the `null` this returns.
  */
 async function resolveSeed(
   params: Record<string, unknown>,
@@ -95,26 +96,32 @@ async function resolveSeed(
   const postId = typeof params.postId === 'string' ? params.postId : '';
 
   if (postId) {
-    if (!mongoose.Types.ObjectId.isValid(postId)) return null;
     let seedPost:
-      | { postClassification?: { topics?: unknown }; hashtags?: unknown; oxyUserId?: unknown; visibility?: unknown }
-      | null;
+      | { topics: string[] | null; hashtags: string[] | null; oxyUserId: string | null; visibility: string }
+      | undefined;
     try {
-      seedPost = await Post.findById(postId)
-        .select('postClassification.topics hashtags oxyUserId visibility')
-        .lean();
+      [seedPost] = await getDb()
+        .select({
+          topics: posts.classificationTopics,
+          hashtags: posts.hashtags,
+          oxyUserId: posts.oxyUserId,
+          visibility: posts.visibility,
+        })
+        .from(posts)
+        .where(eq(posts.id, postId))
+        .limit(1);
     } catch (error) {
       logger.warn('[moreLikeThis source] Failed to load seed post', { postId, error });
       return null;
     }
     if (!seedPost) return null;
-    const authorId = typeof seedPost.oxyUserId === 'string' ? seedPost.oxyUserId : '';
+    const authorId = seedPost.oxyUserId ?? '';
     if (!isSeedAuthorized(seedPost.visibility, authorId, ctx)) return null;
     return {
-      topics: normalizeTerms(seedPost.postClassification?.topics, MAX_SEED_TERMS),
+      topics: normalizeTerms(seedPost.topics, MAX_SEED_TERMS),
       hashtags: normalizeTerms(seedPost.hashtags, MAX_SEED_TERMS),
       authorId,
-      excludeId: new mongoose.Types.ObjectId(postId),
+      excludeId: postId,
     };
   }
 
@@ -167,31 +174,35 @@ export const moreLikeThisSource: SourceModule = {
     if (!seed) return [];
     if (seed.topics.length === 0 && seed.hashtags.length === 0 && !seed.authorId) return [];
 
-    const orConditions: Record<string, unknown>[] = [];
-    if (seed.topics.length > 0) orConditions.push({ 'postClassification.topics': { $in: seed.topics } });
-    if (seed.hashtags.length > 0) orConditions.push({ hashtags: { $in: seed.hashtags } });
-    if (seed.authorId) orConditions.push({ oxyUserId: seed.authorId });
+    const alternatives: SQL[] = [];
+    if (seed.topics.length > 0) {
+      alternatives.push(arrayOverlaps(posts.classificationTopics, seed.topics));
+    }
+    if (seed.hashtags.length > 0) {
+      alternatives.push(arrayOverlaps(posts.hashtags, seed.hashtags));
+    }
+    if (seed.authorId) alternatives.push(eq(posts.oxyUserId, seed.authorId));
 
     const windowStart = new Date(Date.now() - MtnConfig.feed.candidateSources.recencyWindowMs);
-    const match: Record<string, unknown> = {
-      visibility: PostVisibility.PUBLIC,
-      status: 'published',
-      createdAt: { $gte: windowStart },
-      ...DISCOVERY_SAFE_MATCH,
-      $and: [
-        { $or: orConditions },
-        { $or: [{ boostOf: null }, { boostOf: { $exists: false } }] },
-      ],
-    };
-    if (seed.excludeId) match._id = { $ne: seed.excludeId };
+    const conditions: SQL[] = [
+      eq(posts.visibility, PostVisibility.PUBLIC),
+      eq(posts.status, 'published'),
+      gte(posts.createdAt, windowStart),
+      discoverySafeSql(),
+      or(...alternatives) as SQL,
+      notABoostSql(),
+    ];
+    if (seed.excludeId) conditions.push(ne(posts.id, seed.excludeId));
 
     const poolSize = Math.min(cap * MORE_LIKE_THIS_POOL_MULTIPLIER, MORE_LIKE_THIS_MAX_POOL);
-    const candidates = await Post.find(match)
-      .select(FEED_FIELDS)
-      .sort({ _id: -1 })
-      .limit(poolSize)
-      .maxTimeMS(5000)
-      .lean<CandidatePost[]>();
+    const db = getDb();
+    const rows = await db
+      .select(candidatePostColumns)
+      .from(posts)
+      .where(and(...conditions))
+      .orderBy(...chronoOrderBy())
+      .limit(poolSize);
+    const candidates = await loadCandidatePosts(db, rows);
 
     const topicSet = new Set(seed.topics);
     const tagSet = new Set(seed.hashtags);
@@ -214,6 +225,9 @@ const NEARBY_DEFAULT_RADIUS_KM = 50;
 /** Hard ceiling on the `nearby` search radius (km). */
 const NEARBY_MAX_RADIUS_KM = 500;
 
+/** Metres per kilometre — PostGIS geography distances are in metres. */
+const METRES_PER_KM = 1000;
+
 /** Coerce a loose value to a finite number, or `null`. Accepts numeric strings. */
 function toFiniteNumber(value: unknown): number | null {
   if (typeof value === 'number' && Number.isFinite(value)) return value;
@@ -233,24 +247,40 @@ function clamp(value: number, min: number, max: number): number {
  *
  * When valid `{ lat, lng }` are supplied, returns public SFW posts within
  * `radiusKm` (default {@link NEARBY_DEFAULT_RADIUS_KM}, clamped to
- * {@link NEARBY_MAX_RADIUS_KM}) via a `$near` geo query on the Post `location`
- * GeoJSON point (2dsphere-indexed), ordered by ascending distance.
+ * {@link NEARBY_MAX_RADIUS_KM}), ordered by ascending distance.
  *
- * DATA CAVEAT: post `location` coordinates are SPARSE today (only posts that
- * explicitly attach a creation location carry them), so the geo path can return
- * little. When no coordinates are given (or they are out of range) the source
- * falls back to the viewer's learned `postClassification.region` match — a coarse
- * "content from your region" approximation that keeps the feed non-empty until
- * location data improves. Returns `[]` when neither is available.
+ * ## The PostGIS port of `$near`
+ *
+ * `$near` did two things at once — bound the radius AND order by distance — so
+ * both are stated explicitly here:
+ *
+ *  - `ST_DWithin(geo, point, metres)` is the radius bound. It is the
+ *    index-usable spelling; `ST_Distance(...) <= metres` computes a distance for
+ *    every row in the table and cannot use the GiST index.
+ *  - `geo <-> point` is the KNN distance operator, also GiST-accelerated, and is
+ *    what makes the ordering "nearest first" rather than an unordered set.
+ *
+ * `posts.geo` is `GENERATED ALWAYS AS ST_MakePoint(longitude, latitude)` — note
+ * LONGITUDE FIRST, which is also the argument order used here. A transposed pair
+ * yields a plausible point in the wrong hemisphere rather than an error, so the
+ * test for this asserts an independently checkable real-world distance rather
+ * than merely that a row came back.
+ *
+ * DATA CAVEAT: post coordinates are SPARSE (only posts that explicitly attach a
+ * creation location carry them), so the geo path can return little. When no
+ * coordinates are given (or they are out of range) the source falls back to the
+ * viewer's learned region match — a coarse "content from your region"
+ * approximation that keeps the feed non-empty. Returns `[]` when neither is
+ * available.
  */
 export const nearbySource: SourceModule = {
   id: 'nearby',
   kind: 'source',
   userComposable: true,
   gather: async (ctx, params, cap) => {
-    const safety = DISCOVERY_SAFE_MATCH;
     const lat = toFiniteNumber(params.lat);
     const lng = toFiniteNumber(params.lng);
+    const db = getDb();
 
     if (lat !== null && lng !== null && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
       const radiusKm = clamp(
@@ -258,44 +288,45 @@ export const nearbySource: SourceModule = {
         1,
         NEARBY_MAX_RADIUS_KM,
       );
-      const match: Record<string, unknown> = {
-        visibility: PostVisibility.PUBLIC,
-        status: 'published',
-        ...safety,
-        // `$near` requires the `location` 2dsphere index and orders results by
-        // ascending distance, so no additional sort is applied.
-        location: {
-          $near: {
-            $geometry: { type: 'Point', coordinates: [lng, lat] },
-            $maxDistance: radiusKm * 1000,
-          },
-        },
-        $and: [{ $or: [{ boostOf: null }, { boostOf: { $exists: false } }] }],
-      };
-      return await Post.find(match)
-        .select(FEED_FIELDS)
-        .limit(cap)
-        .maxTimeMS(5000)
-        .lean<CandidatePost[]>();
+      const point = sql`ST_MakePoint(${lng}, ${lat})::geography`;
+
+      const rows = await db
+        .select(candidatePostColumns)
+        .from(posts)
+        .where(
+          and(
+            eq(posts.visibility, PostVisibility.PUBLIC),
+            eq(posts.status, 'published'),
+            discoverySafeSql(),
+            notABoostSql(),
+            sql`ST_DWithin(${posts.geo}, ${point}, ${radiusKm * METRES_PER_KM})`,
+          ),
+        )
+        .orderBy(sql`${posts.geo} <-> ${point}`)
+        .limit(cap);
+      return loadCandidatePosts(db, rows);
     }
 
     const region =
       typeof ctx.viewerRegion === 'string' && ctx.viewerRegion.trim() ? ctx.viewerRegion : '';
     if (!region) return [];
 
-    const match: Record<string, unknown> = {
-      'postClassification.region': region,
-      visibility: PostVisibility.PUBLIC,
-      status: 'published',
-      ...safety,
-    };
-    ChronoCursor.applyToQuery(match, ctx.cursor);
-    return await Post.find(match)
-      .select(FEED_FIELDS)
-      .sort({ _id: -1 })
-      .limit(cap)
-      .maxTimeMS(5000)
-      .lean<CandidatePost[]>();
+    const keyset = await chronoCursorSql(ctx.cursor);
+    const conditions: SQL[] = [
+      eq(posts.classificationRegion, region),
+      eq(posts.visibility, PostVisibility.PUBLIC),
+      eq(posts.status, 'published'),
+      discoverySafeSql(),
+    ];
+    if (keyset) conditions.push(keyset);
+
+    const rows = await db
+      .select(candidatePostColumns)
+      .from(posts)
+      .where(and(...conditions))
+      .orderBy(...chronoOrderBy())
+      .limit(cap);
+    return loadCandidatePosts(db, rows);
   },
 };
 
@@ -316,21 +347,19 @@ const RISING_CREATORS_MAX_AUTHORS = 100;
 /** Overfetch factor for the rising authors' recent posts (in-memory rate re-rank). */
 const RISING_CREATORS_POST_MULTIPLIER = 3;
 
-/** A grouped follower-count row (first/last snapshot within the window) per author. */
-interface SnapshotGroup {
-  _id: unknown;
-  first: number;
-  last: number;
-}
-
 /**
  * `risingCreators`: creators gaining followers fastest right now.
  *
- * Reads {@link AuthorFollowerSnapshot} (populated by the leader-gated
+ * Reads `author_follower_snapshots` (populated by the leader-gated
  * `followerSnapshotJob`), computes each author's follower-growth delta over the
  * window (last − first snapshot), ranks by growth RATE (smoothed so up-and-comers
  * beat already-huge accounts), and returns those authors' recent public SFW
  * top-level posts, scored (`finalScore`) by their author's growth rate.
+ *
+ * `$first`/`$last` after a `$sort` become `array_agg(... ORDER BY ...)` picking
+ * element 1 — the aggregate carries its own ordering, so unlike the Mongo
+ * pipeline this does not depend on a preceding sort stage that a later edit
+ * could remove.
  *
  * INFRA CAVEAT: inert until the snapshot job has recorded at least two samples
  * spanning the window for some authors — with no snapshots (or no positive
@@ -342,20 +371,19 @@ export const risingCreatorsSource: SourceModule = {
   userComposable: true,
   gather: async (_ctx, _params, cap) => {
     const windowStart = new Date(Date.now() - RISING_CREATORS_WINDOW_MS);
+    const db = getDb();
 
-    let groups: SnapshotGroup[];
+    let groups: Array<{ oxyUserId: string; first: number; last: number }>;
     try {
-      groups = await AuthorFollowerSnapshot.aggregate<SnapshotGroup>([
-        { $match: { at: { $gte: windowStart } } },
-        { $sort: { at: 1 } },
-        {
-          $group: {
-            _id: '$oxyUserId',
-            first: { $first: '$followerCount' },
-            last: { $last: '$followerCount' },
-          },
-        },
-      ]).option({ maxTimeMS: 5000 });
+      groups = await db
+        .select({
+          oxyUserId: authorFollowerSnapshots.oxyUserId,
+          first: sql<number>`(array_agg(${authorFollowerSnapshots.followerCount} order by ${authorFollowerSnapshots.at} asc))[1]`,
+          last: sql<number>`(array_agg(${authorFollowerSnapshots.followerCount} order by ${authorFollowerSnapshots.at} desc))[1]`,
+        })
+        .from(authorFollowerSnapshots)
+        .where(gte(authorFollowerSnapshots.at, windowStart))
+        .groupBy(authorFollowerSnapshots.oxyUserId);
     } catch (error) {
       logger.warn('[risingCreators source] Failed to aggregate follower snapshots', error);
       return [];
@@ -367,7 +395,7 @@ export const risingCreatorsSource: SourceModule = {
         const last = typeof group.last === 'number' ? group.last : 0;
         const delta = last - first;
         return {
-          id: group._id ? String(group._id) : '',
+          id: group.oxyUserId,
           delta,
           rate: delta / Math.max(first, RISING_FOLLOWER_SMOOTHING),
         };
@@ -380,27 +408,27 @@ export const risingCreatorsSource: SourceModule = {
     const rateById = new Map(ranked.map((group) => [group.id, group.rate]));
     const authorIds = ranked.map((group) => group.id);
 
-    const match: Record<string, unknown> = {
-      oxyUserId: { $in: authorIds },
-      visibility: PostVisibility.PUBLIC,
-      status: 'published',
-      createdAt: { $gte: windowStart },
-      ...DISCOVERY_SAFE_MATCH,
-      $and: [
-        notAReplyClause(),
-        { $or: [{ boostOf: null }, { boostOf: { $exists: false } }] },
-      ],
-    };
-
     const poolSize = Math.min(cap * RISING_CREATORS_POST_MULTIPLIER, MORE_LIKE_THIS_MAX_POOL);
-    const posts = await Post.find(match)
-      .select(FEED_FIELDS)
-      .sort({ _id: -1 })
-      .limit(poolSize)
-      .maxTimeMS(5000)
-      .lean<CandidatePost[]>();
+    const rows = await db
+      .select(candidatePostColumns)
+      .from(posts)
+      .where(
+        and(
+          isNotNull(posts.oxyUserId),
+          sql`${posts.oxyUserId} = any(${authorIds})`,
+          eq(posts.visibility, PostVisibility.PUBLIC),
+          eq(posts.status, 'published'),
+          gte(posts.createdAt, windowStart),
+          discoverySafeSql(),
+          notAReplySql(),
+          notABoostSql(),
+        ),
+      )
+      .orderBy(...chronoOrderBy())
+      .limit(poolSize);
+    const candidates = await loadCandidatePosts(db, rows);
 
-    return posts
+    return candidates
       .map((post) => {
         post.finalScore = typeof post.oxyUserId === 'string' ? rateById.get(post.oxyUserId) ?? 0 : 0;
         return post;

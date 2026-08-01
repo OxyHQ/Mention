@@ -9,11 +9,10 @@
  * term — updates every feed at once, and no surface can silently diverge.
  *
  * Two equivalent forms are exported so callers use whichever fits their data path:
- *   - Mongo `$match` clauses ({@link SENSITIVE_EXCLUDE_MATCH},
- *     {@link NSFW_HASHTAG_EXCLUDE_MATCH}, {@link DISCOVERY_SAFE_MATCH}) for
- *     query/aggregation-level exclusion, and
+ *   - SQL predicates ({@link sensitiveExcludeSql}, {@link nsfwHashtagExcludeSql},
+ *     {@link discoverySafeSql}) for query-level exclusion, and
  *   - the in-memory predicate ({@link isSfw} / {@link isDiscoverable}) +
- *     {@link filterDiscoverable} for filtering already-fetched lean documents.
+ *     {@link filterDiscoverable} for filtering already-fetched rows.
  *
  * A third export, {@link requiresContentWarning}, widens the gate for surfaces that
  * cannot render a warning at all (OpenGraph unfurls, plain-text notification
@@ -22,48 +21,61 @@
  *
  * Both forms encode the SAME definition of "sensitive": a post is sensitive when
  * ANY of the three independent flags is set — the unified classifier verdict
- * (`postClassification.sensitive`), the legacy content-warning flag
- * (`metadata.isSensitive`), or the federated actor's own sensitivity flag
- * (`federation.sensitive`) — OR it carries an NSFW/adult hashtag
- * ({@link isNsfwHashtag}). The Mongo NSFW-hashtag clause keys off the stored
- * canonical `hashtags` array; the predicate additionally covers any caller-shaped
- * post the same way.
+ * (`classification_sensitive`), the legacy content-warning flag
+ * (`metadata_is_sensitive`), or the federated actor's own sensitivity flag
+ * (`federation_sensitive`) — OR it carries an NSFW/adult hashtag
+ * ({@link isNsfwHashtag}). The SQL NSFW-hashtag predicate keys off the stored
+ * canonical `hashtags` array; the in-memory predicate additionally covers any
+ * caller-shaped post the same way.
  */
 
+import { arrayOverlaps, sql, type SQL } from 'drizzle-orm';
+import { posts } from '../../db/schema';
 import { NSFW_HASHTAGS, isNsfwHashtag } from '../../services/contentClassification/nsfw';
 
 /**
- * Canonical Mongo `$match` clause excluding classifier/metadata/federation-flagged
- * sensitive posts. Spread into a query or `$match` stage:
- * `{ visibility: 'public', ...SENSITIVE_EXCLUDE_MATCH }`. Frozen so a consumer
- * cannot mutate the shared object.
+ * SQL predicate excluding classifier/metadata/federation-flagged sensitive posts.
+ * Compose at the call site: `and(eq(posts.visibility, 'public'), sensitiveExcludeSql())`.
+ *
+ * `IS DISTINCT FROM TRUE` rather than `<> true` or `= false`, because two of the
+ * three columns are NULLABLE and `<>` against NULL yields NULL, which drops the
+ * row. Mongo's `$ne: true` matched null / missing / false alike, and
+ * `IS DISTINCT FROM` is the total predicate that reproduces it exactly.
  */
-export const SENSITIVE_EXCLUDE_MATCH: Readonly<Record<string, unknown>> = Object.freeze({
-  'postClassification.sensitive': { $ne: true },
-  'metadata.isSensitive': { $ne: true },
-  'federation.sensitive': { $ne: true },
-});
+export function sensitiveExcludeSql(): SQL {
+  return sql`(
+    ${posts.classificationSensitive} is distinct from true
+    and ${posts.metadataIsSensitive} is distinct from true
+    and ${posts.federationSensitive} is distinct from true
+  )`;
+}
 
 /**
- * Canonical Mongo `$match` clause excluding posts whose stored `hashtags` array
- * contains an NSFW/adult-blocklisted tag. Hashtags are stored canonically
- * (lowercase, `#`-stripped), matching the blocklist slugs, so a `$nin` over the
- * blocklist is exact. Frozen so the embedded array can't be mutated.
+ * SQL predicate excluding posts whose stored `hashtags` array contains an
+ * NSFW/adult-blocklisted tag. Hashtags are stored canonically (lowercase,
+ * `#`-stripped), matching the blocklist slugs, so array overlap is exact.
+ *
+ * `coalesce(…, false)` is load-bearing and is the whole reason this is a
+ * function rather than `not(arrayOverlaps(...))`: `hashtags` is NULLABLE
+ * (`default: undefined` in Mongo meant "absent", which the schema preserves as a
+ * column with no default), and `NULL && ARRAY[…]` is NULL, so a bare `NOT`
+ * evaluates to NULL and Postgres drops the row. Mongo's `$nin` INCLUDED
+ * documents missing the field. Without the coalesce every post that never got a
+ * hashtag — the overwhelming majority — silently vanishes from every discovery
+ * feed, with no error.
  */
-export const NSFW_HASHTAG_EXCLUDE_MATCH: Readonly<Record<string, unknown>> = Object.freeze({
-  hashtags: { $nin: Array.from(NSFW_HASHTAGS) },
-});
+export function nsfwHashtagExcludeSql(): SQL {
+  return sql`not coalesce(${arrayOverlaps(posts.hashtags, Array.from(NSFW_HASHTAGS))}, false)`;
+}
 
 /**
- * The combined discovery-safety Mongo `$match` clause: excludes BOTH
+ * The combined discovery-safety SQL predicate: excludes BOTH
  * classifier/metadata/federation-flagged sensitive content AND NSFW-hashtag
- * posts. Spread into any discovery query/aggregation `$match`:
- * `{ visibility: 'public', ...DISCOVERY_SAFE_MATCH }`.
+ * posts. Use in any discovery query.
  */
-export const DISCOVERY_SAFE_MATCH: Readonly<Record<string, unknown>> = Object.freeze({
-  ...SENSITIVE_EXCLUDE_MATCH,
-  ...NSFW_HASHTAG_EXCLUDE_MATCH,
-});
+export function discoverySafeSql(): SQL {
+  return sql`(${sensitiveExcludeSql()} and ${nsfwHashtagExcludeSql()})`;
+}
 
 /**
  * The minimal post shape the in-memory predicate reads. A lean Mongo document

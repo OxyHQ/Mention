@@ -1,20 +1,53 @@
 /**
- * User-oriented source modules — wrap the Hashtag, Author, and Saved feed
- * queries plus the `accounts` (custom-feed author list) source and the
- * `mutuals` placeholder. Each reproduces the pre-existing feed's exact query.
+ * User-oriented source modules — the Hashtag, Author, and Saved feed queries
+ * plus the `accounts` (custom-feed author list) source and `mutuals`.
  */
 
-import mongoose from 'mongoose';
 import { isAuthorFeedFilter, PostType, PostVisibility } from '@mention/shared-types';
-import { Post } from '../../../../models/Post';
-import UserSettings from '../../../../models/UserSettings';
+import { and, desc, eq, inArray, lt, or, sql, type SQL } from 'drizzle-orm';
+import { getDb } from '../../../../db/postgres';
+import {
+  bookmarks,
+  likes,
+  postAttachments,
+  postContentVariants,
+  postMedia,
+  posts,
+  userSettings,
+} from '../../../../db/schema';
+import type { PgColumn } from 'drizzle-orm/pg-core';
+import { candidatePostColumns, loadCandidatePosts } from '../../../../db/feed/candidatePost';
 import { ProfileVisibility, requiresAccessCheck } from '../../../../utils/privacyHelpers';
-import { buildAuthorFeedMatch } from '../../../../utils/postAuthorship';
-import { FEED_FIELDS } from '../../FeedAPI';
-import { ChronoCursor } from '../../CursorBuilder';
-import { notAReplyClause, restrictToReplies, restrictToRoots } from '../../../../utils/postReply';
+import { authorFeedSql } from '../../../../utils/postAuthorship';
+import { ChronoCursor, chronoCursorSql, chronoOrderBy } from '../../CursorBuilder';
+import { notABoostSql } from '../../../../utils/feedQueryBuilder';
+import { isReplySql, notAReplySql } from '../../../../utils/postReply';
 import type { AuthorFeedFilter } from '@mention/shared-types';
 import type { CandidatePost, FeedEngineContext, SourceModule } from '../types';
+
+/** Run a chronological post scan with the shared keyset + order. */
+async function fetchChrono(
+  conditions: SQL[],
+  cursor: string | undefined,
+  cap: number,
+): Promise<CandidatePost[]> {
+  const keyset = await chronoCursorSql(cursor);
+  const where = keyset ? [...conditions, keyset] : conditions;
+
+  const db = getDb();
+  const rows = await db
+    .select(candidatePostColumns)
+    .from(posts)
+    .where(and(...where))
+    .orderBy(...chronoOrderBy())
+    .limit(cap);
+  return loadCandidatePosts(db, rows);
+}
+
+/** Escape a literal for embedding in a POSIX regular expression. */
+function escapeRegexLiteral(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
 
 /** `keywords`: posts matching hashtags (Hashtag feed) and/or content keywords (custom). */
 export const keywordsSource: SourceModule = {
@@ -29,39 +62,37 @@ export const keywordsSource: SourceModule = {
 
     if (hashtags.length === 0 && keywords.length === 0) return [];
 
-    const match: Record<string, unknown> = { visibility: 'public', status: 'published' };
-    const conditions: Record<string, unknown>[] = [];
+    const conditions: SQL[] = [eq(posts.visibility, 'public'), eq(posts.status, 'published')];
+    const alternatives: SQL[] = [];
 
     if (keywords.length > 0) {
-      const regexes = keywords.map((k) => new RegExp(k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'));
-      conditions.push({
-        $or: [
-          { 'content.variants.text': { $in: regexes } },
-          { hashtags: { $in: keywords.map((k) => k.toLowerCase()) } },
-        ],
-      });
+      // One alternation matching any keyword, rather than N separate EXISTS
+      // scans over the same child table. `~*` is the case-insensitive POSIX
+      // regex — the direct analogue of the JS `RegExp(..., 'i')` this replaces.
+      const pattern = keywords.map(escapeRegexLiteral).join('|');
+      alternatives.push(
+        sql`exists ${getDb()
+          .select({ one: sql`1` })
+          .from(postContentVariants)
+          .where(
+            and(
+              eq(postContentVariants.postId, posts.id),
+              sql`${postContentVariants.body} ~* ${pattern}`,
+            ),
+          )}`,
+      );
+      alternatives.push(
+        sql`coalesce(${posts.hashtags} && ${keywords.map((k) => k.toLowerCase())}::text[], false)`,
+      );
     }
 
     if (hashtags.length > 0) {
-      // Single hashtag matches the multikey `hashtags` array directly (mirrors
-      // the legacy HashtagFeed); multiple hashtags use `$in`.
-      conditions.push(hashtags.length === 1 ? { hashtags: hashtags[0] } : { hashtags: { $in: hashtags } });
+      alternatives.push(sql`coalesce(${posts.hashtags} && ${hashtags}::text[], false)`);
     }
 
-    if (conditions.length === 1) {
-      Object.assign(match, conditions[0]);
-    } else if (conditions.length > 1) {
-      match.$and = conditions;
-    }
+    conditions.push(or(...alternatives) as SQL);
 
-    ChronoCursor.applyToQuery(match, ctx.cursor);
-
-    return (await Post.find(match)
-      .select(FEED_FIELDS)
-      .sort({ _id: -1 })
-      .limit(cap)
-      .maxTimeMS(5000)
-      .lean()) as unknown as CandidatePost[];
+    return fetchChrono(conditions, ctx.cursor, cap);
   },
 };
 
@@ -74,134 +105,170 @@ export const accountsSource: SourceModule = {
     const authorIds = Array.isArray(params.authorIds) ? (params.authorIds as string[]) : [];
     if (authorIds.length === 0) return [];
 
-    const match: Record<string, unknown> = {
-      oxyUserId: { $in: authorIds },
-      visibility: 'public',
-      status: 'published',
-    };
-    ChronoCursor.applyToQuery(match, ctx.cursor);
-
-    return (await Post.find(match)
-      .select(FEED_FIELDS)
-      .sort({ _id: -1 })
-      .limit(cap)
-      .maxTimeMS(5000)
-      .lean()) as unknown as CandidatePost[];
+    return fetchChrono(
+      [
+        inArray(posts.oxyUserId, authorIds),
+        eq(posts.visibility, 'public'),
+        eq(posts.status, 'published'),
+      ],
+      ctx.cursor,
+      cap,
+    );
   },
 };
 
+/** "This post carries media", in the three shapes `mediaOnlyFilter.keep` recognizes. */
+function hasMediaSql(): SQL {
+  const db = getDb();
+  return or(
+    inArray(posts.type, [PostType.IMAGE, PostType.VIDEO]),
+    sql`exists ${db.select({ one: sql`1` }).from(postMedia).where(eq(postMedia.postId, posts.id))}`,
+    sql`exists ${db
+      .select({ one: sql`1` })
+      .from(postAttachments)
+      .where(and(eq(postAttachments.postId, posts.id), eq(postAttachments.type, 'media')))}`,
+  ) as SQL;
+}
+
 /** Author query: posts owned by or accepted-collaborated by the profile user. */
-function buildAuthoredQuery(authorId: string, filter: AuthorFeedFilter, cursor?: string): Record<string, unknown> {
-  const query: Record<string, unknown> = {
-    ...buildAuthorFeedMatch(authorId),
-    visibility: PostVisibility.PUBLIC,
-    status: 'published',
-  };
+function buildAuthoredConditions(authorId: string, filter: AuthorFeedFilter): SQL[] {
+  const conditions: SQL[] = [
+    authorFeedSql(authorId),
+    eq(posts.visibility, PostVisibility.PUBLIC),
+    eq(posts.status, 'published'),
+  ];
 
   switch (filter) {
     case 'posts':
       // Boosts are top-level posts, so they surface on the main tab too — the
       // definition hydrates at depth 1 so the boosted original renders.
-      restrictToRoots(query);
+      conditions.push(notAReplySql());
       break;
     case 'replies':
-      restrictToReplies(query);
+      conditions.push(isReplySql());
       break;
     case 'boosts':
-      query.boostOf = { $ne: null };
+      conditions.push(sql`${posts.boostOf} is not null`);
       break;
     case 'media':
-      // The three media shapes `mediaOnlyFilter.keep` recognizes, so the query
-      // and the in-memory predicate agree on what "has media" means.
-      query.$and = [
-        {
-          $or: [
-            { type: { $in: [PostType.IMAGE, PostType.VIDEO] } },
-            { 'content.media.0': { $exists: true } },
-            { 'content.attachments': { $elemMatch: { type: 'media' } } },
-          ],
-        },
-        notAReplyClause(),
-        { $or: [{ boostOf: null }, { boostOf: { $exists: false } }] },
-      ];
+      conditions.push(hasMediaSql(), notAReplySql(), notABoostSql());
       break;
     case 'likes':
       break;
   }
 
-  ChronoCursor.applyToQuery(query, cursor);
-  return query;
+  return conditions;
 }
 
 /**
  * Whether the viewer may see the profile's feed at all.
  *
  * A private / followers-only profile is gated on the viewer following it — the
- * same check the profile screen enforces, applied here so it holds for EVERY
- * tab (posts, replies, media, boosts, likes) rather than the posts themselves
+ * same check the profile screen enforces, applied here so it holds for EVERY tab
+ * (posts, replies, media, boosts, likes) rather than the posts themselves
  * leaking through their own `visibility: public` flag. Returning `false` yields
  * an empty feed, which is exactly what a viewer without access must see.
  */
 async function canViewAuthorFeed(ctx: FeedEngineContext, authorId: string): Promise<boolean> {
   if (ctx.currentUserId === authorId) return true;
-  const settings = await UserSettings.findOne(
-    { oxyUserId: authorId },
-    { 'privacy.profileVisibility': 1 },
-  ).lean();
-  const profileVisibility = settings?.privacy?.profileVisibility ?? ProfileVisibility.PUBLIC;
+  const [settings] = await getDb()
+    .select({ profileVisibility: userSettings.privacyProfileVisibility })
+    .from(userSettings)
+    .where(eq(userSettings.oxyUserId, authorId))
+    .limit(1);
+  const profileVisibility = settings?.profileVisibility ?? ProfileVisibility.PUBLIC;
   if (!requiresAccessCheck(profileVisibility)) return true;
   if (!ctx.currentUserId) return false;
   return (ctx.followingIds ?? []).includes(authorId);
 }
 
-function buildVisibleLikedPostMatch(ctx: FeedEngineContext): Record<string, unknown> {
+/** Which liked posts the viewer is allowed to see, by post visibility. */
+function buildVisibleLikedPostSql(ctx: FeedEngineContext): SQL {
   const viewerId = ctx.currentUserId;
-  const followAuthorizedIds = Array.from(new Set([viewerId, ...(ctx.followingIds ?? [])].filter(Boolean)));
+  if (!viewerId) return eq(posts.visibility, PostVisibility.PUBLIC);
 
-  if (!viewerId) {
-    return { visibility: PostVisibility.PUBLIC };
-  }
+  const followAuthorizedIds = Array.from(
+    new Set([viewerId, ...(ctx.followingIds ?? [])].filter(Boolean)),
+  );
 
-  return {
-    $or: [
-      { visibility: PostVisibility.PUBLIC },
-      { oxyUserId: { $in: followAuthorizedIds }, visibility: PostVisibility.FOLLOWERS_ONLY },
-      { oxyUserId: viewerId, visibility: PostVisibility.PRIVATE },
-    ],
-  };
+  return or(
+    eq(posts.visibility, PostVisibility.PUBLIC),
+    and(
+      inArray(posts.oxyUserId, followAuthorizedIds),
+      eq(posts.visibility, PostVisibility.FOLLOWERS_ONLY),
+    ),
+    and(eq(posts.oxyUserId, viewerId), eq(posts.visibility, PostVisibility.PRIVATE)),
+  ) as SQL;
+}
+
+/**
+ * Keyset over a RELATIONSHIP table (likes, bookmarks) whose own
+ * `(created_at, id)` is the feed's order.
+ *
+ * These sources page over the relationship, not the post, so their cursor
+ * anchors a `likes`/`bookmarks` row. The Mongo original filtered `_id < cursor`
+ * while SORTING by `createdAt` — two different axes, which only appeared to work
+ * because an ObjectId encodes creation time. Neither half survives here (`id` is
+ * `text`, see `chronoOrderBy`), so the port pages on the axis it actually sorts
+ * by.
+ */
+function relationshipKeyset(
+  createdAtColumn: PgColumn,
+  idColumn: PgColumn,
+  cursor: string | undefined,
+): SQL | undefined {
+  const parsed = ChronoCursor.parse(cursor);
+  if (!parsed?.ts) return undefined;
+  const boundaryAt = new Date(parsed.ts);
+  return or(
+    lt(createdAtColumn, boundaryAt),
+    and(eq(createdAtColumn, boundaryAt), lt(idColumn, parsed.id)),
+  ) as SQL;
 }
 
 /** The viewer's liked posts, in like order, for the ORDERED Author-likes feed. */
 async function gatherAuthorLikes(authorId: string, ctx: FeedEngineContext): Promise<CandidatePost[]> {
   const pageLimit = ctx.pageLimit ?? 30;
+  const db = getDb();
 
-  const Like = (await import('../../../../models/Like')).default;
-  const likes = await Like.find({ userId: authorId, value: 1 })
-    .sort({ createdAt: -1 })
-    .limit(pageLimit + 1)
-    .select('postId')
-    .lean();
-  const likedPostIds = likes.map((l) => l.postId);
-  if (likedPostIds.length === 0) return [];
+  const keyset = relationshipKeyset(likes.createdAt, likes.id, ctx.cursor);
+  const likeRows = await db
+    .select({ id: likes.id, postId: likes.postId, createdAt: likes.createdAt })
+    .from(likes)
+    .where(
+      and(
+        ...[eq(likes.userId, authorId), eq(likes.value, 1), ...(keyset ? [keyset] : [])],
+      ),
+    )
+    .orderBy(desc(likes.createdAt), desc(likes.id))
+    .limit(pageLimit + 1);
 
-  const hasMore = likedPostIds.length > pageLimit;
-  const ids = hasMore ? likedPostIds.slice(0, pageLimit) : likedPostIds;
+  if (likeRows.length === 0) return [];
 
-  const posts = await Post.find({
-    _id: { $in: ids },
-    status: 'published',
-    ...buildVisibleLikedPostMatch(ctx),
-  })
-    .select(FEED_FIELDS)
-    .lean();
+  const hasMore = likeRows.length > pageLimit;
+  const page = hasMore ? likeRows.slice(0, pageLimit) : likeRows;
+  const likedPostIds = page.map((row) => row.postId);
 
-  const postMap = new Map(posts.map((p) => [String(p._id), p]));
-  const ordered = ids
-    .map((id) => postMap.get(String(id)))
-    .filter((p): p is NonNullable<typeof p> => Boolean(p)) as unknown as CandidatePost[];
+  const rows = await db
+    .select(candidatePostColumns)
+    .from(posts)
+    .where(
+      and(
+        inArray(posts.id, likedPostIds),
+        eq(posts.status, 'published'),
+        buildVisibleLikedPostSql(ctx),
+      ),
+    );
+  const loaded = await loadCandidatePosts(db, rows);
+
+  const postMap = new Map(loaded.map((post) => [String(post._id), post]));
+  const ordered = likedPostIds
+    .map((id) => postMap.get(id))
+    .filter((post): post is CandidatePost => Boolean(post));
 
   if (hasMore && ordered.length > 0) {
-    ordered[ordered.length - 1]._feedCursor = ChronoCursor.build(likes[pageLimit - 1]._id.toString());
+    const anchor = page[page.length - 1];
+    ordered[ordered.length - 1]._feedCursor = ChronoCursor.build(anchor.id, anchor.createdAt);
   }
   return ordered;
 }
@@ -226,24 +293,16 @@ export const authoredSource: SourceModule = {
       return gatherAuthorLikes(authorId, ctx);
     }
 
-    const query = buildAuthoredQuery(authorId, filter, ctx.cursor);
-    // Sorted by `createdAt` — NOT `_id` — to match the chronological keyset
-    // `ChronoCursor` writes into the query (and the engine's own re-sort). A
-    // federated post's import-time `_id` bears no relation to its remote
-    // `createdAt`, so an `_id` sort here silently drops backfilled posts that
-    // fall on the wrong side of the cursor's `createdAt` boundary. `_id` is the
-    // tiebreaker, mirroring the cursor's compound comparison. Backed by
-    // `{ 'authorship.oxyUserId': 1, 'authorship.status': 1, createdAt: -1 }`.
-    return (await Post.find(query)
-      .select(FEED_FIELDS)
-      .sort({ createdAt: -1, _id: -1 })
-      .limit(cap)
-      .maxTimeMS(5000)
-      .lean()) as unknown as CandidatePost[];
+    // Sorted by `created_at` — never by id — to match the chronological keyset.
+    // A federated post's import-time id bears no relation to its remote
+    // `createdAt`, so an id sort behind a `createdAt` cursor permanently skips
+    // backfilled posts at the page boundary (the "boost disappears from the
+    // profile feed" bug).
+    return fetchChrono(buildAuthoredConditions(authorId, filter), ctx.cursor, cap);
   },
 };
 
-/** `saved`: the viewer's bookmarks in bookmark order (ORDERED). Wraps `SavedFeed`. */
+/** `saved`: the viewer's bookmarks in bookmark order (ORDERED). */
 export const savedSource: SourceModule = {
   id: 'saved',
   kind: 'source',
@@ -251,40 +310,36 @@ export const savedSource: SourceModule = {
   gather: async (ctx) => {
     if (!ctx.currentUserId) return [];
     const pageLimit = ctx.pageLimit ?? 30;
+    const db = getDb();
 
-    const Bookmark = (await import('../../../../models/Bookmark')).default;
-    const bookmarkQuery: Record<string, unknown> = { userId: ctx.currentUserId };
-    if (ctx.cursor && mongoose.Types.ObjectId.isValid(ctx.cursor)) {
-      bookmarkQuery._id = { $lt: new mongoose.Types.ObjectId(ctx.cursor) };
-    }
+    const keyset = relationshipKeyset(bookmarks.createdAt, bookmarks.id, ctx.cursor);
+    const bookmarkRows = await db
+      .select({ id: bookmarks.id, postId: bookmarks.postId, createdAt: bookmarks.createdAt })
+      .from(bookmarks)
+      .where(and(...[eq(bookmarks.userId, ctx.currentUserId), ...(keyset ? [keyset] : [])]))
+      .orderBy(desc(bookmarks.createdAt), desc(bookmarks.id))
+      .limit(pageLimit + 1);
 
-    const bookmarks = await Bookmark.find(bookmarkQuery)
-      .sort({ createdAt: -1 })
-      .limit(pageLimit + 1)
-      .lean();
+    if (bookmarkRows.length === 0) return [];
 
-    const hasMore = bookmarks.length > pageLimit;
-    const bookmarksToProcess = hasMore ? bookmarks.slice(0, pageLimit) : bookmarks;
+    const hasMore = bookmarkRows.length > pageLimit;
+    const page = hasMore ? bookmarkRows.slice(0, pageLimit) : bookmarkRows;
+    const postIds = page.map((row) => row.postId);
 
-    const postIds = bookmarksToProcess.map((b) => b.postId).filter(Boolean);
-    if (postIds.length === 0) return [];
+    const rows = await db
+      .select(candidatePostColumns)
+      .from(posts)
+      .where(and(inArray(posts.id, postIds), eq(posts.status, 'published')));
+    const loaded = await loadCandidatePosts(db, rows);
 
-    const posts = await Post.find({ _id: { $in: postIds }, status: 'published' })
-      .select(FEED_FIELDS)
-      .lean();
-
-    const postMap = new Map<string, (typeof posts)[number]>();
-    for (const post of posts) postMap.set(post._id.toString(), post);
+    const postMap = new Map(loaded.map((post) => [String(post._id), post]));
     const ordered = postIds
-      .map((id) => postMap.get(id.toString()))
-      .filter((p): p is NonNullable<typeof p> => Boolean(p)) as unknown as CandidatePost[];
+      .map((id) => postMap.get(id))
+      .filter((post): post is CandidatePost => Boolean(post));
 
     if (hasMore && ordered.length > 0) {
-      const lastBookmark = bookmarksToProcess[bookmarksToProcess.length - 1];
-      ordered[ordered.length - 1]._feedCursor = ChronoCursor.build(
-        lastBookmark._id.toString(),
-        lastBookmark.createdAt,
-      );
+      const anchor = page[page.length - 1];
+      ordered[ordered.length - 1]._feedCursor = ChronoCursor.build(anchor.id, anchor.createdAt);
     }
     return ordered;
   },
@@ -292,10 +347,9 @@ export const savedSource: SourceModule = {
 
 /**
  * `mutuals`: the viewer's mutual-follow authors, chronological. `ctx.mutualIds`
- * is populated by the controller (Oxy mutual ids ∪ federated mutuals) only for
- * the Mutuals feed; returns `[]` when it is empty (any non-Mutuals context, or a
- * viewer with no mutuals). Mutuals may show PUBLIC + FOLLOWERS_ONLY posts (a
- * mutual is, by definition, a follower).
+ * is populated by the controller only for the Mutuals feed; returns `[]` when it
+ * is empty. Mutuals may show PUBLIC + FOLLOWERS_ONLY posts (a mutual is, by
+ * definition, a follower).
  */
 export const mutualsSource: SourceModule = {
   id: 'mutuals',
@@ -305,19 +359,15 @@ export const mutualsSource: SourceModule = {
     const mutualIds = ctx.mutualIds ?? [];
     if (mutualIds.length === 0) return [];
 
-    const match: Record<string, unknown> = {
-      oxyUserId: { $in: mutualIds },
-      visibility: { $in: [PostVisibility.PUBLIC, PostVisibility.FOLLOWERS_ONLY] },
-      status: 'published',
-    };
-    ChronoCursor.applyToQuery(match, ctx.cursor);
-
-    return (await Post.find(match)
-      .select(FEED_FIELDS)
-      .sort({ _id: -1 })
-      .limit(cap)
-      .maxTimeMS(5000)
-      .lean()) as unknown as CandidatePost[];
+    return fetchChrono(
+      [
+        inArray(posts.oxyUserId, mutualIds),
+        inArray(posts.visibility, [PostVisibility.PUBLIC, PostVisibility.FOLLOWERS_ONLY]),
+        eq(posts.status, 'published'),
+      ],
+      ctx.cursor,
+      cap,
+    );
   },
 };
 
