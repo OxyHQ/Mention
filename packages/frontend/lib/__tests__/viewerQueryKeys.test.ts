@@ -122,6 +122,7 @@ describe('viewer-scoped private cache', () => {
       publicQueryKeys.feedModules(),
       publicQueryKeys.marketplaceCategories(),
       publicQueryKeys.trendingHistory(),
+      publicQueryKeys.trendSummary('kremer trade'),
     ];
 
     keys.forEach((key) => {
