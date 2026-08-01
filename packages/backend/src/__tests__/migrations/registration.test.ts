@@ -24,7 +24,7 @@ const MIGRATION_FILE = /^(\d{4}-[a-z0-9-]+)\.ts$/;
  * stopped matching would otherwise "pass" against an empty set, which is the
  * failure mode a filesystem-scanning test is most prone to.
  */
-const VACUITY_FLOOR = 16;
+const VACUITY_FLOOR = 17;
 
 const migrationFiles = readdirSync(MIGRATIONS_DIR)
   .map((entry) => MIGRATION_FILE.exec(entry))

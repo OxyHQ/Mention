@@ -134,3 +134,12 @@ export const MIGRATION_TREND_SUMMARY_INDEXES = '0015-trend-summary-indexes';
  * authority. See {@link ./0016-admin-script-cursor-index}.
  */
 export const MIGRATION_ADMIN_SCRIPT_CURSOR_INDEX = '0016-admin-script-cursor-index';
+
+/**
+ * Create the `RepairFetchFailure` indexes: the UNIQUE `{script, postId}` identity
+ * that keeps the re-fetch failure log bounded by distinct failing posts, plus the
+ * `{script, reason}` index serving the targeted-retry query it exists for.
+ * Production disables Mongoose auto-indexing, so this migration is the schema
+ * authority. See {@link ./0017-repair-fetch-failure-indexes}.
+ */
+export const MIGRATION_REPAIR_FETCH_FAILURE_INDEXES = '0017-repair-fetch-failure-indexes';

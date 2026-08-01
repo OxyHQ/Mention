@@ -38,6 +38,15 @@ interface StoredCursor {
   completedAt: Date | null;
 }
 
+/** A stored `repairfetchfailures` row — why one post's re-fetch failed. */
+interface StoredFailure {
+  script: string;
+  postId: string;
+  reason: string;
+  status?: number;
+  failedAt: Date;
+}
+
 /** A stored post row as `.lean()` hands it to the script. */
 interface StoredPost {
   _id: mongoose.Types.ObjectId;
@@ -67,7 +76,18 @@ const mocks = vi.hoisted(() => {
     cursorWrites: { scope: string; cursor: string; scanned: number; completed: boolean }[];
     /** Set to make the next cursor write fail, like a database blip would. */
     cursorWriteError: Error | null;
-  } = { posts: [], ops: [], cursors: [], cursorWrites: [], cursorWriteError: null };
+    failureLog: StoredFailure[];
+    /** Set to make the next failure-log write fail. */
+    failureLogWriteError: Error | null;
+  } = {
+    posts: [],
+    ops: [],
+    cursors: [],
+    cursorWrites: [],
+    cursorWriteError: null,
+    failureLog: [],
+    failureLogWriteError: null,
+  };
 
   /**
    * Read every value a dotted filter key reaches, fanning out through arrays the
@@ -203,12 +223,43 @@ const mocks = vi.hoisted(() => {
         return { deletedCount: 1 };
       }),
     },
+    /**
+     * A minimal `repairfetchfailures` collection with the model's UPSERT
+     * semantics, so the bound the collection relies on — one row per distinct
+     * failing post, not one per failure — is actually exercised rather than
+     * asserted about a mock that appends unconditionally.
+     */
+    failureModel: {
+      bulkWrite: vi.fn(async (ops: {
+        updateOne: {
+          filter: { script: string; postId: string };
+          update: { $set: Omit<StoredFailure, 'script' | 'postId'> };
+          upsert?: boolean;
+        };
+      }[]) => {
+        if (store.failureLogWriteError) throw store.failureLogWriteError;
+        for (const op of ops) {
+          const { filter, update, upsert } = op.updateOne;
+          const existing = store.failureLog.find(
+            (row) => row.script === filter.script && row.postId === filter.postId,
+          );
+          if (existing) Object.assign(existing, update.$set);
+          // `upsert` is HONOURED rather than assumed: a mock that inserted
+          // regardless could not tell an upsert from a plain update, which is
+          // precisely the property the bounded collection depends on.
+          else if (upsert) store.failureLog.push({ ...filter, ...update.$set });
+        }
+        return { upsertedCount: ops.length };
+      }),
+    },
   };
 });
 
 vi.mock('../../models/Post', () => ({ Post: mocks.postModel }));
 
 vi.mock('../../models/AdminScriptCursor', () => ({ AdminScriptCursor: mocks.cursorModel }));
+
+vi.mock('../../models/RepairFetchFailure', () => ({ RepairFetchFailure: mocks.failureModel }));
 
 vi.mock('../../connectors/activitypub/helpers', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../connectors/activitypub/helpers')>()),
@@ -321,6 +372,9 @@ beforeEach(() => {
   store.cursors = [];
   store.cursorWrites = [];
   store.cursorWriteError = null;
+  store.failureLog = [];
+  store.failureLogWriteError = null;
+  mocks.failureModel.bulkWrite.mockClear();
   postModel.countDocuments.mockClear();
   postModel.find.mockClear();
   postModel.bulkWrite.mockClear();
@@ -918,6 +972,125 @@ describe('resume cursor', () => {
 });
 
 /**
+ * The per-post failure log, which is what makes retrying the transient tail
+ * cheap enough to ever be worth doing.
+ *
+ * The candidate filter cannot tell a briefly-unreachable origin from a mentioned
+ * actor we have never stored or an origin that answered 410. Measured on the
+ * real corpus, that is 5,691 retryable posts inside 46,291 candidates — so
+ * retrying THROUGH the filter costs ~40,600 requests to other people's servers
+ * that cannot produce a repair, and the correct decision was not to. These rows
+ * are what turn that into an indexed query instead.
+ */
+describe('re-fetch failure log', () => {
+  /** An origin that is briefly unreachable — the retryable shape. */
+  function rateLimited(): Response {
+    return new Response('<html>rate limited</html>', {
+      status: 429,
+      headers: { 'content-type': 'text/html; charset=utf-8' },
+    });
+  }
+
+  it('records every failed post with the reason and status a retry selects on', async () => {
+    store.posts = [damagedPost('1'), damagedPost('2')];
+    mocks.signedFetch.mockImplementation(async () => rateLimited());
+
+    const summary = await repairFederatedMentions({ noteTimeoutMs: 1_000 });
+
+    expect(summary.fetchFailed).toBe(2);
+    expect(store.failureLog).toEqual([
+      {
+        script: SCRIPT_NAME,
+        postId: oid('1').toString(),
+        reason: 'httpStatus',
+        // 429 is worth coming back to; 403 would not be. Dropping the status
+        // would make a polite retry indistinguishable from an impolite one.
+        status: 429,
+        failedAt: expect.any(Date),
+      },
+      {
+        script: SCRIPT_NAME,
+        postId: oid('2').toString(),
+        reason: 'httpStatus',
+        status: 429,
+        failedAt: expect.any(Date),
+      },
+    ]);
+  });
+
+  it('records ALL failures, not just the bounded reading sample', async () => {
+    store.posts = Array.from({ length: 5 }, (_, index) => damagedPost(String(index + 1)));
+    mocks.signedFetch.mockImplementation(async () => rateLimited());
+
+    const summary = await repairFederatedMentions({ failureSampleSize: 2, noteTimeoutMs: 1_000 });
+
+    // A log capped at the sample size would be targeting two posts, not a tail.
+    expect(summary.failures).toHaveLength(2);
+    expect(store.failureLog).toHaveLength(5);
+  });
+
+  it('keeps one row per post however many runs re-fail it', async () => {
+    store.posts = [damagedPost('1')];
+    mocks.signedFetch.mockImplementation(async () => rateLimited());
+
+    await repairFederatedMentions({ resetCursor: true, noteTimeoutMs: 1_000 });
+    await repairFederatedMentions({ resetCursor: true, noteTimeoutMs: 1_000 });
+
+    // Upserted, not appended: the collection is bounded by DISTINCT failing
+    // posts, and the targeting query cannot return the same post twice.
+    expect(store.failureLog).toHaveLength(1);
+  });
+
+  it('records nothing at all under a DRY RUN', async () => {
+    store.posts = [damagedPost('1')];
+    mocks.signedFetch.mockImplementation(async () => rateLimited());
+
+    const summary = await repairFederatedMentions({ dryRun: true, noteTimeoutMs: 1_000 });
+
+    expect(summary.fetchFailed).toBe(1);
+    // A dry run promises to write NOTHING. Rows left behind by a preview are the
+    // same broken promise as a cursor quietly advanced by one.
+    expect(store.failureLog).toEqual([]);
+    expect(mocks.failureModel.bulkWrite).not.toHaveBeenCalled();
+  });
+
+  it('records the page\'s failures BEFORE advancing the cursor past them', async () => {
+    store.posts = [damagedPost('1'), damagedPost('2')];
+    mocks.signedFetch.mockImplementation(async () => rateLimited());
+    const order: string[] = [];
+    mocks.failureModel.bulkWrite.mockImplementationOnce(async () => {
+      order.push('failures');
+      return { upsertedCount: 1 };
+    });
+    mocks.cursorModel.updateOne.mockImplementationOnce(async () => {
+      order.push('cursor');
+      return { acknowledged: true };
+    });
+
+    await repairFederatedMentions({ batchSize: 1, noteTimeoutMs: 1_000 });
+
+    // If the cursor advanced first and the task were killed, a resumed run would
+    // start PAST posts whose failures were never recorded — losing them from the
+    // targeting set for good. This way the worst case is a re-walked page, which
+    // the repair is idempotent against.
+    expect(order).toEqual(['failures', 'cursor']);
+  });
+
+  it('counts failures it could not record, and fails the run for them', async () => {
+    store.posts = [damagedPost('1'), damagedPost('2')];
+    mocks.signedFetch.mockImplementation(async () => rateLimited());
+    store.failureLogWriteError = new Error('connection reset by peer');
+
+    const summary = await repairFederatedMentions({ noteTimeoutMs: 1_000 });
+
+    expect(summary.failuresNotRecorded).toBe(2);
+    // Costs this run nothing; costs the next one the only cheap route back to
+    // those posts.
+    expect(() => assertRepairRunComplete(summary)).toThrow('failuresNotRecorded=2');
+  });
+});
+
+/**
  * Which counters reach the completion guard, and in which bucket. The guard's own
  * threshold arithmetic is covered by `adminRunTolerance.test.ts`; this pins the
  * WIRING, which is the part specific to this sweep and the part a future edit
@@ -950,6 +1123,7 @@ describe('assertRepairRunComplete', () => {
       resumed: false,
       resumedFromScanned: 0,
       cursorWriteFailures: 0,
+      failuresNotRecorded: 0,
       samples: [],
       failures: [],
       ...overrides,
@@ -1010,6 +1184,12 @@ describe('assertRepairRunComplete', () => {
     // re-fetches the whole stuck head from other people's servers.
     expect(() => assertRepairRunComplete(summaryOf({ cursorWriteFailures: 1 }))).toThrow(
       'cursorNotPersisted=1',
+    );
+  });
+
+  it('fails on a single failure it could not record for a later retry', () => {
+    expect(() => assertRepairRunComplete(summaryOf({ failuresNotRecorded: 1 }))).toThrow(
+      'failuresNotRecorded=1',
     );
   });
 

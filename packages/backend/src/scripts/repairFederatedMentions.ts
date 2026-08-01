@@ -167,6 +167,31 @@
  *   the cursor (so a preview shows what the next live run would do) but never
  *   writes one, so previewing 50 posts can never make a live run skip them.
  *
+ * RETRYING THE TRANSIENT TAIL (what the failure log is for)
+ *   The candidate filter cannot tell a post whose origin was briefly unreachable
+ *   from one whose mentioned actor is not in our index, or whose origin answered
+ *   410. Measured on 2026-08-01, the completed sweep left 46,291 candidates of
+ *   which only 5,691 were transient failures — so retrying them THROUGH THE
+ *   FILTER means ~40,600 requests to other people's servers that cannot produce a
+ *   repair, and the right call was to not retry at all.
+ *
+ *   So every failed re-fetch is recorded per post, with its reason and HTTP
+ *   status, to {@link RepairFetchFailure} (`repairfetchfailures`, upserted on
+ *   `(script, postId)`, so it stays bounded by the number of distinct failing
+ *   posts). The retryable set is one indexed query:
+ *
+ *     db.repairfetchfailures.find({
+ *       script: 'repairFederatedMentions',
+ *       reason: { $in: ['timeout', 'transport', 'httpStatus'] },
+ *     })
+ *
+ *   Two things a consumer must do, neither of which this script does for it.
+ *   INTERSECT the ids with the live candidate filter — a row records that a fetch
+ *   failed at `failedAt`, not that the post is still broken, and a later run or
+ *   the live outbox self-heal may have fixed it since. And READ THE STATUS before
+ *   going back: 429 and 5xx are worth retrying, 401/403 are a server telling you
+ *   not to return.
+ *
  * PARALLEL SHARDS
  *   Compute the boundary ids ONCE, then give each task a half-open range. The
  *   upper bound is what makes shards safe: `REPAIR_LIMIT` bounds WORK, not RANGE,
@@ -205,6 +230,10 @@ import {
   readAdminScriptCursor,
   recordAdminScriptCursor,
 } from './lib/adminScriptCursor';
+import {
+  recordRepairFetchFailures,
+  type RepairFetchFailureRecord,
+} from './lib/repairFetchFailureLog';
 
 /** This sweep's own name — the mutation-guard token and the cursor's key. */
 export const SCRIPT_NAME = 'repairFederatedMentions';
@@ -416,7 +445,18 @@ export interface RepairFederatedMentionsSummary {
    * the failure this whole mechanism exists to prevent.
    */
   cursorWriteFailures: number;
+  /**
+   * Failed re-fetches this run could not record for a later targeted retry.
+   * STRICT for the same reason as {@link cursorWriteFailures}: losing them costs
+   * this run nothing and the next one everything, since the only way back to
+   * those posts is then re-walking the whole corpus.
+   */
+  failuresNotRecorded: number;
   samples: RepairSample[];
+  /**
+   * A BOUNDED sample of failures, for in-process review. Every failure is
+   * recorded in full to {@link RepairFetchFailure}; this is the reading copy.
+   */
   failures: RepairFailure[];
 }
 
@@ -835,6 +875,7 @@ export async function repairFederatedMentions(
     resumed: Boolean(resumeId),
     resumedFromScanned: resumeFrom?.scanned ?? 0,
     cursorWriteFailures: 0,
+    failuresNotRecorded: 0,
     samples: [],
     failures: [],
   };
@@ -846,6 +887,10 @@ export async function repairFederatedMentions(
   let remaining = options.limit;
   let lastId: mongoose.Types.ObjectId | null = null;
   let pendingOps: mongoose.AnyBulkWriteOperation<typeof Post>[] = [];
+  // EVERY failure of the current page, unlike `summary.failures`, which is a
+  // bounded reading sample. A targeted retry needs all of them or it is not
+  // targeting the tail, it is targeting twenty posts.
+  let pendingFailures: RepairFetchFailureRecord[] = [];
 
   // A dry run stages every operation exactly as a real one does — it just never
   // hands them to Mongo. That is the guarantee: what it reports is what a real
@@ -877,6 +922,26 @@ export async function repairFederatedMentions(
       completed,
     });
     if (!persisted) summary.cursorWriteFailures += 1;
+  };
+
+  /**
+   * Record this page's failed re-fetches, so the transient tail is reachable
+   * later without re-walking the corpus.
+   *
+   * A DRY RUN writes nothing here either — it promises to write NOTHING, and a
+   * preview quietly leaving rows behind would be the same broken promise as one
+   * quietly advancing the cursor.
+   */
+  const recordFailures = async (): Promise<void> => {
+    if (pendingFailures.length === 0) return;
+    if (dryRun) {
+      pendingFailures = [];
+      return;
+    }
+    if (!(await recordRepairFetchFailures(SCRIPT_NAME, pendingFailures))) {
+      summary.failuresNotRecorded += pendingFailures.length;
+    }
+    pendingFailures = [];
   };
 
   // Forward-only cursor. The repair only ever removes a post from the matching
@@ -966,6 +1031,11 @@ export async function repairFederatedMentions(
           summary.fetchFailed += 1;
           if (prepared.failure) {
             summary.fetchFailedByReason[prepared.failure.reason] += 1;
+            pendingFailures.push({
+              postId: prepared.failure.id,
+              reason: prepared.failure.reason,
+              status: prepared.failure.status,
+            });
             if (summary.failures.length < failureSampleSize) {
               summary.failures.push(prepared.failure);
             }
@@ -985,6 +1055,12 @@ export async function repairFederatedMentions(
     // resume cursor is a run that DIES mid-sweep, and a dying run never reaches
     // its final summary.
     summary.lastScannedId = lastId.toString();
+    // Failures BEFORE the cursor, and the order is not cosmetic. If the cursor
+    // advanced first and the process died, a resumed run would start past posts
+    // whose failures were never recorded — losing them from the targeting set
+    // permanently. This way the worst case is a page re-walked, which the repair
+    // is idempotent against.
+    await recordFailures();
     await persistCursor(summary.lastScannedId, false);
 
     // Counters ride in the structured CONTEXT, never interpolated into the
@@ -1050,11 +1126,12 @@ const REMOTE_UNAVAILABLE_TOLERANCE = 0.1;
  * outcomes, not failures. They are reported in the summary and deliberately never
  * handed to the guard at all.
  *
- * A cursor that did not persist is likewise never tolerated. It costs the run
- * nothing at the time — every post it scanned was still repaired — which is
- * exactly why it has to fail here: the damage lands on the NEXT run, which
- * silently restarts at the beginning and re-fetches the whole stuck head from
- * other people's servers.
+ * A cursor that did not persist is likewise never tolerated, nor is a failed
+ * re-fetch this run could not record. Both cost the run nothing at the time —
+ * every post it scanned was still repaired — which is exactly why they have to
+ * fail here: the damage lands on the NEXT run, which either restarts at the
+ * beginning or can no longer find the transient tail, and in both cases pays for
+ * it in requests to other people's servers.
  */
 export function assertRepairRunComplete(summary: RepairFederatedMentionsSummary): void {
   const byReason = summary.fetchFailedByReason;
@@ -1069,6 +1146,7 @@ export function assertRepairRunComplete(summary: RepairFederatedMentionsSummary)
       skippedNoSource: summary.skippedNoSource,
       skippedEmptyBody: summary.skippedEmptyBody,
       cursorNotPersisted: summary.cursorWriteFailures,
+      failuresNotRecorded: summary.failuresNotRecorded,
       // Vacuity guard: every `fetchFailed` must land in exactly one reason
       // bucket. If a future path ever increments the total without classifying
       // it, the difference surfaces here and fails the run STRICTLY, rather than
@@ -1153,6 +1231,7 @@ async function main(): Promise<void> {
       resumed: summary.resumed,
       shardScannedTotal: summary.resumedFromScanned + summary.scanned,
       cursorWriteFailures: summary.cursorWriteFailures,
+      failuresNotRecorded: summary.failuresNotRecorded,
       durationMs: Date.now() - startedAt,
     });
 
