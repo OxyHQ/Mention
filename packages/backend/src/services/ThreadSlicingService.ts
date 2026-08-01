@@ -17,8 +17,8 @@ import {
   PostVisibility,
 } from '@mention/shared-types';
 import { Post } from '../models/Post';
+import { derivesReplyIntent } from '../db/posts/postRecord';
 import { logger } from '../utils/logger';
-import { isReplyPost } from '../utils/postReply';
 import { resolveUserSummaries } from './PostHydrationService';
 
 export interface ThreadSlicingOptions {
@@ -29,14 +29,44 @@ export interface ThreadSlicingOptions {
 }
 
 interface RawPost {
-  // Feed candidates come from several ranked sources with differently-typed ids
-  // (ObjectId, string, or an opaque `{ toString() }`); only `getPostId` reads it.
-  _id: unknown;
-  id?: string;
-  oxyUserId?: string;
-  parentPostId?: string;
-  threadId?: string;
+  id: string;
+  /** Nullable column, not merely optional — see `PostRecord`. */
+  oxyUserId?: string | null;
+  /** Written as a reply. STORED, never inferred from `parentPostId`. */
+  isReply: boolean;
+  parentPostId?: string | null;
+  threadId?: string | null;
   createdAt?: string | Date;
+}
+
+/**
+ * A lean document from THIS service's own two Mongo queries, as a {@link RawPost}.
+ *
+ * `models/Post` is still Mongoose, so it yields `_id` and has no stored
+ * `is_reply`; `RawPost` speaks the ported vocabulary. Bridging them with a bare
+ * cast produced objects whose `id` was `undefined`, and the damage was silent:
+ * `_sliceKey` became `"undefined+…"`, `additionalPostIds` handed hydration an
+ * `undefined` id, and the `seenPostIds` guard deduped every fetched parent
+ * against the single key `undefined` — so on a page with two replies to two
+ * DIFFERENT parents, only the first reply got its parent prepended.
+ *
+ * Deriving `isReply` is correct only because these documents predate the stored
+ * column; it goes through the shared {@link derivesReplyIntent} so the two
+ * encodings of "has a parent" cannot drift from the writer's definition.
+ */
+function toRawPost(doc: {
+  _id: unknown;
+  parentPostId?: string | null;
+  federation?: { inReplyTo?: string } | null;
+}): RawPost {
+  return {
+    ...(doc as unknown as RawPost),
+    id: String(doc._id),
+    isReply: derivesReplyIntent({
+      parentPostId: doc.parentPostId ?? null,
+      federation: doc.federation ?? undefined,
+    }),
+  };
 }
 
 const DEFAULT_OPTIONS: ThreadSlicingOptions = {
@@ -134,7 +164,7 @@ class ThreadSlicingService {
       seenPostIds.add(postId);
 
       // Try self-thread grouping: root post with thread children by the same author
-      if (opts.enableThreadGrouping && post.threadId && !isReplyPost(post)) {
+      if (opts.enableThreadGrouping && post.threadId && !post.isReply) {
         const children = threadChildrenMap.get(post.threadId);
         if (children && children.length > 0) {
           const sliceItems: RawPost[] = [post];
@@ -162,7 +192,7 @@ class ThreadSlicingService {
       //
       // The reply test is `isReplyPost`, NOT `post.parentPostId` — a federated
       // reply whose `inReplyTo` never resolved carries no local parent link and
-      // would otherwise be classified as a thread root (see `utils/postReply`).
+      // would otherwise be classified as a thread root (the stored `isReply`).
       //
       // The parent is unattachable in three cases: it is already rendered higher
       // in this page, it failed the published/visibility bar, or it was never
@@ -170,7 +200,7 @@ class ThreadSlicingService {
       // that tag is what drives the "Replying to" header and the `hideReplies`
       // tuner, so dropping it is what made a context-free reply render as an
       // ordinary top-level post.
-      if (opts.enableReplyContext && isReplyPost(post)) {
+      if (opts.enableReplyContext && post.isReply) {
         const parentId = post.parentPostId;
         const parent = parentId ? parentPostMap.get(parentId) ?? postById.get(parentId) : undefined;
         const attachableParent =
@@ -251,12 +281,13 @@ class ThreadSlicingService {
       // Group children by threadId
       for (const child of children) {
         const tid = child.threadId as string;
-        if (!result.has(tid)) {
-          result.set(tid, []);
+        let arr = result.get(tid);
+        if (!arr) {
+          arr = [];
+          result.set(tid, arr);
         }
-        const arr = result.get(tid)!;
         if (arr.length < maxSliceSize - 1) {
-          arr.push(child as unknown as RawPost);
+          arr.push(toRawPost(child));
         }
       }
     } catch (err) {
@@ -306,8 +337,8 @@ class ThreadSlicingService {
         .lean();
 
       for (const parent of parents) {
-        const parentId = parent._id.toString();
-        result.set(parentId, parent as unknown as RawPost);
+        const raw = toRawPost(parent);
+        result.set(raw.id, raw);
       }
     } catch (err) {
       logger.error('[ThreadSlicing] Error fetching parent posts', err);
@@ -358,7 +389,7 @@ class ThreadSlicingService {
 }
 
 function getPostId(post: RawPost): string {
-  return post.id || (post._id != null ? String(post._id) : '');
+  return post.id;
 }
 
 /**

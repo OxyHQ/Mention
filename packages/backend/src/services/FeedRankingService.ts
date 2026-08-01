@@ -163,7 +163,7 @@ export class FeedRankingService {
 
     const optIn: OptInSignalContext = { enabledSignals };
     const postIds = (): string[] =>
-      posts.map((p) => (p?._id != null ? String(p._id) : '')).filter((id) => id.length > 0);
+      posts.map((p) => p?.id ?? '').filter((id) => id.length > 0);
 
     if (enabledSignals.has('verifiedBoost')) {
       optIn.authorVerified = authorVerified;
@@ -525,7 +525,7 @@ export class FeedRankingService {
     // approximate prefilter and per-post scoring share one computation per post.
     const engagementScoreCache = new Map<string, number>();
     for (const post of posts) {
-      const postId = post._id?.toString() || '';
+      const postId = post.id ?? '';
       if (!engagementScoreCache.has(postId)) {
         engagementScoreCache.set(postId, engagementScore(post));
       }
@@ -537,7 +537,7 @@ export class FeedRankingService {
       logger.debug(`Using approximate ranking for large candidate set (${posts.length} posts)`);
       // Quick pre-ranking based on engagement score only (fast approximation)
       const quickScores = posts.map((post, index) => {
-        const postId = post._id?.toString() || '';
+        const postId = post.id ?? '';
         const engagementScoreValue = engagementScoreCache.get(postId) || 0;
         // Simple recency boost
         const createdMs = new Date(post.createdAt ?? NaN).getTime();

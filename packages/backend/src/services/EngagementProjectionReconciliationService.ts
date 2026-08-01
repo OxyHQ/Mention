@@ -43,6 +43,7 @@ import { getDb, type Transaction } from '../db/postgres';
 import {
   DEADLOCK_DETECTED,
   SERIALIZATION_FAILURE,
+  isForeignKeyViolation,
   isUniqueViolation,
   sqlStateOf,
 } from '../db/pgErrors';
@@ -67,6 +68,9 @@ export interface EngagementProjectionReconciliationResult {
 /** One page of candidate ids, strictly after `afterId` in primary-key order. */
 type CandidatePage = (afterId: string | null) => Promise<string[]>;
 
+/** The projection's own parent link — the ONE foreign key a concurrent delete can break. */
+const RECENT_REPLIERS_POST_FK = 'post_recent_repliers_post_id_posts_id_fk';
+
 /**
  * The concurrency outcomes a fresh transaction resolves.
  *
@@ -74,9 +78,27 @@ type CandidatePage = (afterId: string | null) => Promise<string[]>;
  * `error.code` directly matches nothing, because the SQLSTATE lives on `cause`.
  * A unique violation counts because a concurrent reply writer can insert the
  * projection row between this transaction's delete and its insert.
+ *
+ * A foreign-key violation on `post_recent_repliers.post_id` counts for the
+ * mirror-image reason: the candidate ids are chosen BEFORE the transaction, so a
+ * post can be deleted between being selected and having its projection written,
+ * and the insert then references a row that no longer exists. That is work which
+ * became moot, not a repair that failed — and the retry provably converges
+ * rather than hitting the same error, because the delete already did both halves
+ * of the cleanup itself: `posts.parent_post_id` is `ON DELETE SET NULL`, so the
+ * replies no longer name the dead parent and the recompute finds nothing to
+ * insert, and `post_recent_repliers.post_id` is `ON DELETE CASCADE`, so the rows
+ * this transaction wanted to replace are already gone.
+ *
+ * It is matched by CONSTRAINT NAME, never by SQLSTATE alone. This service writes
+ * one other foreign key (`bookmarks`), and a violation there would mean the
+ * sweep is counting against a table it should not be — a bug to surface, not a
+ * race to absorb. A bare `23503` check would retry it three times and then
+ * report the same failure with the cause buried.
  */
-function isRetryableTransactionError(error: unknown): boolean {
+export function isRetryableTransactionError(error: unknown): boolean {
   if (isUniqueViolation(error)) return true;
+  if (isForeignKeyViolation(error, RECENT_REPLIERS_POST_FK)) return true;
   const sqlState = sqlStateOf(error);
   return sqlState === SERIALIZATION_FAILURE || sqlState === DEADLOCK_DETECTED;
 }

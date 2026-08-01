@@ -1,5 +1,8 @@
 import type { PostAuthorshipEntry, PostAuthorRole, PostAuthorStatus } from '@mention/shared-types';
 import { MAX_POST_COLLABORATORS } from '@mention/shared-types';
+import { and, eq, exists, inArray, sql, type SQL } from 'drizzle-orm';
+import { getDb } from '../db/postgres';
+import { postAuthorships, posts } from '../db/schema';
 
 export type { PostAuthorshipEntry, PostAuthorRole, PostAuthorStatus };
 
@@ -105,14 +108,45 @@ export function collectAuthorshipUserIds(authorship: PostAuthorshipEntry[] | und
   return [...ids];
 }
 
-export function buildAuthorFeedMatch(authorId: string): Record<string, unknown> {
-  return {
-    authorship: { $elemMatch: { oxyUserId: authorId, status: 'accepted' } },
-  };
+/**
+ * "This post is authored by one of `authorIds`" — the port of Mongo's
+ * `authorship: { $elemMatch: { oxyUserId: { $in: … }, status: 'accepted' } }`.
+ *
+ * `$elemMatch` means the two conditions must hold on the SAME array element, and
+ * a correlated `EXISTS` over the `post_authorships` child table is that exact
+ * semantics — a plain join would let a post match by pairing one collaborator's
+ * id with a DIFFERENT entry's `accepted` status, which is the bug `$elemMatch`
+ * exists to prevent and the reason this is not written as a join.
+ *
+ * `status = 'accepted'` is what keeps a PENDING collaborator invite off the
+ * feed: an invitee must never appear as an author until they consent.
+ *
+ * Built through drizzle's query builder so the correlated
+ * `post_authorships.post_id = posts.id` renders FULLY QUALIFIED. Hand-writing it
+ * inside a `sql` template is the documented way to get two bare column names
+ * that both resolve against the subquery's own table, matching nothing and
+ * raising nothing (`db/casing.ts`).
+ *
+ * Returns a predicate matching NOTHING for an empty id list, which is the honest
+ * answer and matches Mongo's `$in: []`.
+ */
+export function followedAuthorsSql(authorIds: readonly string[]): SQL {
+  if (authorIds.length === 0) return sql`false`;
+  return exists(
+    getDb()
+      .select({ one: sql`1` })
+      .from(postAuthorships)
+      .where(
+        and(
+          eq(postAuthorships.postId, posts.id),
+          eq(postAuthorships.status, 'accepted'),
+          inArray(postAuthorships.oxyUserId, [...authorIds]),
+        ),
+      ),
+  );
 }
 
-export function buildFollowedAuthorsMatch(authorIds: string[]): Record<string, unknown> {
-  return {
-    authorship: { $elemMatch: { oxyUserId: { $in: authorIds }, status: 'accepted' } },
-  };
+/** Single-author form of {@link followedAuthorsSql} — the profile feed's match. */
+export function authorFeedSql(authorId: string): SQL {
+  return followedAuthorsSql([authorId]);
 }

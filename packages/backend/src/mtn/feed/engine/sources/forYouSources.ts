@@ -8,13 +8,14 @@
  * (`timeline` / `listId` / `slug`). No new query logic is introduced here.
  */
 
-import mongoose from 'mongoose';
 import { PostVisibility } from '@mention/shared-types';
-import { Post } from '../../../../models/Post';
-import { buildFollowedAuthorsMatch } from '../../../../utils/postAuthorship';
-import { buildTopicSlugMatch } from '../../../../utils/postTopicMatch';
-import { FEED_FIELDS } from '../../FeedAPI';
-import { ChronoCursor } from '../../CursorBuilder';
+import { and, eq, inArray, or, type SQL } from 'drizzle-orm';
+import { getDb } from '../../../../db/postgres';
+import { accountListMembers, posts } from '../../../../db/schema';
+import { assemblePostRecords } from '../../../../db/posts/postRepository';
+import { followedAuthorsSql } from '../../../../utils/postAuthorship';
+import { topicSlugSql } from '../../../../utils/postTopicMatch';
+import { chronoCursorSql, chronoOrderBy } from '../../CursorBuilder';
 import { logger } from '../../../../utils/logger';
 import type { CandidatePost, FeedEngineContext, SourceModule } from '../types';
 import {
@@ -37,39 +38,30 @@ import {
  * subscription is feed-inclusion, never a follow relationship). Extracted here
  * so the `following` source and the legacy `FollowingFeed` share one definition.
  */
-export function buildFollowingVisibilityMatch(
+export function buildFollowingVisibilitySql(
   currentUserId: string,
   followingIds: string[] = [],
   subscribedListMemberIds: string[] = [],
-): Record<string, unknown> {
+): SQL {
   const followAuthorizedIds = Array.from(new Set([currentUserId, ...followingIds]));
   const publicOnlyListIds = Array.from(
     new Set(subscribedListMemberIds.filter((id) => id !== currentUserId && !followAuthorizedIds.includes(id))),
   );
 
-  if (publicOnlyListIds.length === 0) {
-    return {
-      ...buildFollowedAuthorsMatch(followAuthorizedIds),
-      visibility: { $in: [PostVisibility.PUBLIC, PostVisibility.FOLLOWERS_ONLY] },
-    };
-  }
+  const followed = and(
+    followedAuthorsSql(followAuthorizedIds),
+    inArray(posts.visibility, [PostVisibility.PUBLIC, PostVisibility.FOLLOWERS_ONLY]),
+  ) as SQL;
 
-  return {
-    $and: [
-      {
-        $or: [
-          {
-            ...buildFollowedAuthorsMatch(followAuthorizedIds),
-            visibility: { $in: [PostVisibility.PUBLIC, PostVisibility.FOLLOWERS_ONLY] },
-          },
-          {
-            ...buildFollowedAuthorsMatch(publicOnlyListIds),
-            visibility: PostVisibility.PUBLIC,
-          },
-        ],
-      },
-    ],
-  };
+  if (publicOnlyListIds.length === 0) return followed;
+
+  return or(
+    followed,
+    and(
+      followedAuthorsSql(publicOnlyListIds),
+      eq(posts.visibility, PostVisibility.PUBLIC),
+    ) as SQL,
+  ) as SQL;
 }
 
 /** Translate the engine context into For You lane params (null when anonymous). */
@@ -86,52 +78,70 @@ function forYouParams(ctx: FeedEngineContext): GatherForYouCandidatesParams | nu
   };
 }
 
+/** Run a chronological post scan with the shared keyset + order. */
+async function fetchChrono(
+  conditions: SQL[],
+  cursor: string | undefined,
+  cap: number,
+): Promise<CandidatePost[]> {
+  const keyset = await chronoCursorSql(cursor);
+  const where = keyset ? [...conditions, keyset] : conditions;
+
+  const db = getDb();
+  const rows = await db
+    .select()
+    .from(posts)
+    .where(and(...where))
+    .orderBy(...chronoOrderBy())
+    .limit(cap);
+  return assemblePostRecords(rows, db);
+}
+
 /** CHRONOLOGICAL Following-feed query (public/followers-only + subscribed lists). */
 async function gatherFollowingTimeline(ctx: FeedEngineContext, cap: number): Promise<CandidatePost[]> {
   const { currentUserId, followingIds, subscribedListMemberIds } = ctx;
   if (!currentUserId || (!followingIds?.length && !subscribedListMemberIds?.length)) return [];
 
-  const match: Record<string, unknown> = {
-    ...buildFollowingVisibilityMatch(currentUserId, followingIds, subscribedListMemberIds),
-    status: 'published',
-  };
-  ChronoCursor.applyToQuery(match, ctx.cursor);
-
-  return await Post.find(match)
-    .select(FEED_FIELDS)
-    .sort({ _id: -1 })
-    .limit(cap)
-    .maxTimeMS(5000)
-    .lean<CandidatePost[]>();
+  return fetchChrono(
+    [
+      buildFollowingVisibilitySql(currentUserId, followingIds, subscribedListMemberIds),
+      eq(posts.status, 'published'),
+    ],
+    ctx.cursor,
+    cap,
+  );
 }
 
-/** CHRONOLOGICAL List-feed query (posts from an AccountList's members). */
+/**
+ * CHRONOLOGICAL List-feed query (posts from an AccountList's members).
+ *
+ * Members are a junction TABLE, not the embedded id array Mongo held, so this
+ * reads `account_list_members` rather than the list row.
+ */
 async function gatherListTimeline(listId: string, ctx: FeedEngineContext, cap: number): Promise<CandidatePost[]> {
   let memberIds: string[] = [];
   try {
-    const { AccountList } = await import('../../../../models/AccountList.js');
-    if (!mongoose.Types.ObjectId.isValid(listId)) return [];
-    const list = await AccountList.findById(listId).lean();
-    memberIds = list?.memberOxyUserIds || [];
-  } catch {
-    logger.warn('[lists source] Failed to load list', { listId });
+    const rows = await getDb()
+      .select({ oxyUserId: accountListMembers.oxyUserId })
+      .from(accountListMembers)
+      .where(eq(accountListMembers.listId, listId))
+      .orderBy(accountListMembers.position);
+    memberIds = rows.map((row) => row.oxyUserId);
+  } catch (error) {
+    logger.warn('[lists source] Failed to load list', { listId, error });
     return [];
   }
   if (!memberIds.length) return [];
 
-  const match: Record<string, unknown> = {
-    oxyUserId: { $in: memberIds },
-    visibility: 'public',
-    status: 'published',
-  };
-  ChronoCursor.applyToQuery(match, ctx.cursor);
-
-  return await Post.find(match)
-    .select(FEED_FIELDS)
-    .sort({ _id: -1 })
-    .limit(cap)
-    .maxTimeMS(5000)
-    .lean<CandidatePost[]>();
+  return fetchChrono(
+    [
+      inArray(posts.oxyUserId, memberIds),
+      eq(posts.visibility, 'public'),
+      eq(posts.status, 'published'),
+    ],
+    ctx.cursor,
+    cap,
+  );
 }
 
 /**
@@ -145,19 +155,11 @@ async function gatherListTimeline(listId: string, ctx: FeedEngineContext, cap: n
  * cursor `$or` that {@link ChronoCursor.applyToQuery} may add cannot clobber it.
  */
 async function gatherTopicTimeline(slug: string, ctx: FeedEngineContext, cap: number): Promise<CandidatePost[]> {
-  const match: Record<string, unknown> = {
-    $and: [buildTopicSlugMatch(slug)],
-    visibility: 'public',
-    status: 'published',
-  };
-  ChronoCursor.applyToQuery(match, ctx.cursor);
-
-  return await Post.find(match)
-    .select(FEED_FIELDS)
-    .sort({ _id: -1 })
-    .limit(cap)
-    .maxTimeMS(5000)
-    .lean<CandidatePost[]>();
+  return fetchChrono(
+    [topicSlugSql(slug), eq(posts.visibility, 'public'), eq(posts.status, 'published')],
+    ctx.cursor,
+    cap,
+  );
 }
 
 /**

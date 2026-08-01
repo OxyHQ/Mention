@@ -9,60 +9,42 @@
  * For You ranking — is preserved.
  */
 
-import type { HydratedPost, PostClassification, SlicedFeedResponse } from '@mention/shared-types';
+import type { HydratedPost, SlicedFeedResponse } from '@mention/shared-types';
 import type { FeedContext } from '../FeedAPI';
-import type { FeedSafetyPostShape } from '../feedSafety';
+import type { PostRecord } from '../../../db/posts/postRecord';
 import type { OxyClient } from '../../../utils/privacyHelpers';
 
 /**
- * A lean candidate post as returned by a source before hydration (a lean Post
- * doc). Sources may attach engine bookkeeping fields (`finalScore` for
- * pre-scored sources, `_feedCursor` for ordered sources); those are read only by
- * the engine and left opaque otherwise.
+ * A candidate post as returned by a source, before hydration.
  *
- * Extends {@link FeedSafetyPostShape} so safety filters can call
- * `isSensitivePost(post)` without casting.
+ * It IS a {@link PostRecord} — the one assembled shape `db/posts/postRepository`
+ * produces — plus the engine's own bookkeeping fields. That identity is the
+ * point: a second post shape assembled by a second module is exactly what the
+ * migration contract forbids, and it is how two readers end up disagreeing about
+ * whether `federation` is absent or present-and-empty (a question three separate
+ * predicates key on).
+ *
+ * The bookkeeping fields below live on the CANDIDATE only and must never leak
+ * into the hydrated {@link HydratedPost} — hydration builds a fresh DTO.
  */
-export type CandidatePost = Record<string, unknown> & Omit<FeedSafetyPostShape, 'postClassification'> & {
-  _id: unknown;
-  oxyUserId?: string;
-  createdAt?: Date | string;
+export type CandidatePost = PostRecord & {
   /** Pre-scored sources (e.g. Explore's aggregation) attach the ranked score. */
   finalScore?: number;
   /**
-   * The engagement-sorted popular sources attach the score they sorted on, so the
-   * caller can mint a keyset cursor on the SAME axis. Without it a popular page
-   * can only be continued by `_id`, which is not the axis it is ordered by.
+   * The engagement-sorted popular sources attach the score they sorted on, so
+   * the caller can mint a keyset cursor on the SAME axis. Without it a popular
+   * page can only be continued by id, which is not the axis it is ordered by.
    */
   engagementScore?: number;
   /** Ordered sources (Saved, Author-likes) attach the next-page cursor token. */
   _feedCursor?: string;
   /**
-   * DISCOVERY marker (Phase 4a). Stamped `true` by the engine on candidates that
-   * came from a NON-trusted (discovery) source and passed the definition's
+   * DISCOVERY marker. Stamped `true` by the engine on candidates that came from
+   * a NON-trusted (discovery) source and passed the definition's
    * `discoveryFilters`. Read by the discovery-gate lane-scoping and the
-   * `languageMismatchPenalty` ranking signal. Opaque engine bookkeeping — like
-   * `finalScore` / `_feedCursor` it lives on the lean candidate ONLY and MUST NOT
-   * leak into the hydrated {@link HydratedPost} (hydration builds a fresh DTO).
+   * `languageMismatchPenalty` ranking signal.
    */
   _discovery?: boolean;
-  /** Classification fields used by sources, ranking, and safety filters. */
-  postClassification?: Partial<PostClassification> & {
-    /** Legacy extracted topics — used by related sources when topicRefs absent. */
-    topics?: string[];
-  };
-  /**
-   * The federation subdocument. `FeedSafetyPostShape` contributes its SAFETY
-   * fields (`sensitive`, `spoilerText`); this adds `inReplyTo`, the AP parent
-   * IRI the reply predicate reads (`utils/postReply`).
-   *
-   * It belongs on the candidate type because `FEED_FIELDS` projects the whole
-   * `federation` subdocument, so the IRI is present at runtime — and it is the
-   * ONLY parent link a federated reply has when its parent could not be resolved
-   * at ingest. Omitting it from the type is what let the safety-only shape stand
-   * in for the full subdocument.
-   */
-  federation?: FeedSafetyPostShape['federation'] & { inReplyTo?: string | null };
 };
 
 export type ModuleKind = 'source' | 'signal' | 'filter';
@@ -173,8 +155,17 @@ export interface FilterModule {
    * leave this unset. Undefined is treated as "not user-composable".
    */
   userComposable?: boolean;
-  /** Optional Mongo clause merged into source queries via the shared base match. */
-  clause?(ctx: FeedEngineContext, params: Record<string, unknown>): Record<string, unknown> | undefined;
+  /**
+   * DELETED, not ported: every `FilterModule` used to also carry a Mongo
+   * `clause` "merged into source queries via the shared base match". Nothing in
+   * the codebase ever read it — filters are applied exclusively through
+   * `keep()` on the merged candidate pool — so the eight clause bodies were
+   * unreachable Mongo query objects. Carrying them into Postgres would have
+   * meant eight hand-translated predicates that still nothing evaluates, which
+   * is strictly worse than none: a reader would reasonably assume the filter is
+   * pushed down to SQL when it is not. A filter that should narrow the QUERY
+   * belongs in the source's own predicate, where it is visibly wired up.
+   */
   /** Optional in-memory predicate applied to the merged candidate pool. */
   keep?(post: CandidatePost, ctx: FeedEngineContext, params: Record<string, unknown>): boolean;
 }

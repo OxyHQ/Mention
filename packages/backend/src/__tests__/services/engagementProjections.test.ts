@@ -52,11 +52,15 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { eq, inArray, sql } from 'drizzle-orm';
 
+import { isForeignKeyViolation } from '../../db/pgErrors';
 import { closePostgres, connectPostgres, type Database } from '../../db/postgres';
 import { bookmarks } from '../../db/schema/engagement';
 import { postRecentRepliers } from '../../db/schema/postContent';
 import { posts } from '../../db/schema/posts';
-import { reconcileEngagementProjections } from '../../services/EngagementProjectionReconciliationService';
+import {
+  isRetryableTransactionError,
+  reconcileEngagementProjections,
+} from '../../services/EngagementProjectionReconciliationService';
 import {
   loadRecentReplierIds,
   recordRecentReplierForPost,
@@ -642,6 +646,52 @@ describe('the reconciliation sweep — recent repliers', () => {
     });
 
     await expect(reconcileEngagementProjections()).rejects.toThrow();
+  });
+
+  /**
+   * A post deleted between being SELECTED as a candidate and having its
+   * projection written is a race the sweep must absorb, and it is not
+   * hypothetical: it took down a full suite run here, because the sweep is
+   * GLOBAL and every parallel test file is a concurrent post writer and deleter.
+   * In production the same window is any user deleting a post, or a moderation
+   * enforcement removing one, while the sweep is mid-batch — and absorbing it
+   * must NOT widen into absorbing foreign-key failures generally, since a
+   * violation on any OTHER relation means the sweep is writing somewhere it
+   * should not be.
+   *
+   * The errors below are REAL driver errors provoked against the live schema,
+   * never hand-built objects: the constraint NAME is the load-bearing part of
+   * the fix, so a test asserting against a literal it made up itself would pass
+   * just as happily with a typo in the service.
+   */
+  it('retries a projection whose post was deleted mid-sweep, but not any other broken link', async () => {
+    const missingPostId = '019fbe00-0000-7000-8000-00000000dead';
+
+    const projectionFk = await db
+      .insert(postRecentRepliers)
+      .values({ postId: missingPostId, oxyUserId: 'ghost', repliedAt: new Date() })
+      .then(() => null)
+      .catch((error: unknown) => error);
+
+    // `userId`, not `oxyUserId` — `bookmarks` names that column differently from
+    // every other engagement table. Getting it wrong does NOT fail to compile:
+    // drizzle's `.values()` ignores a key that is not a column, so the insert
+    // simply omitted a NOT NULL field and raised 23502 instead of the 23503 this
+    // case is about, and the precondition below is what caught it.
+    const bookmarkFk = await db
+      .insert(bookmarks)
+      .values({ postId: missingPostId, userId: 'ghost' })
+      .then(() => null)
+      .catch((error: unknown) => error);
+
+    // Both must actually be foreign-key failures, or the assertions below prove
+    // nothing about the discrimination between them — an insert that failed for
+    // some other reason would make the second one pass for free.
+    expect(isForeignKeyViolation(projectionFk)).toBe(true);
+    expect(isForeignKeyViolation(bookmarkFk)).toBe(true);
+
+    expect(isRetryableTransactionError(projectionFk)).toBe(true);
+    expect(isRetryableTransactionError(bookmarkFk)).toBe(false);
   });
 
   it('keeps one entry per author at their newest reply, capped at three', async () => {

@@ -86,27 +86,29 @@ export default defineConfig({
         // branch in particular was cut before the posts port landed, so its own
         // figures were taken against a tree without it.
         //
-        // They are the COLD-CACHE figures, and that distinction is load-bearing
-        // rather than pedantic. This suite does not execute the same set of
-        // lines on every run: with `node_modules/.vite` populated it measures
-        // 69.16/61.84/74.41/70.42, and with that directory removed it measures
-        // 69.14/61.83/74.33/70.41 — reproduced deliberately, twice each way, so
-        // it is deterministic and not a flake. CI always runs cold, so the cold
-        // figures are the ones a build actually has to clear; pinning the warm
-        // ones red-fails every CI run with no defect behind it.
+        // They are the observed MINIMUM of COLD-CACHE runs, and both halves of
+        // that are load-bearing rather than pedantic.
         //
-        // The whole difference is FIVE statements and THREE functions in
-        // `services/TrendingService.ts` (86.84% functions warm, 78.94% cold) —
-        // a path whose execution depends on how long the suite has been
-        // running, so those three functions are never exercised on the machine
-        // that gates merges. That is a real gap in that file's tests, not a
-        // property of the coverage tool, and it belongs to whoever next touches
-        // `TrendingService` — its 30s `CURRENT_REC_ID_TTL_MS` memoization is the
-        // place to start.
-        statements: 69.14,
-        branches: 61.83,
-        functions: 74.33,
-        lines: 70.41,
+        // COLD, because this suite does not execute the same set of lines with a
+        // populated `node_modules/.vite` as without one — measured on the tree
+        // before the feed port, warm 69.16/61.84/74.41/70.42 against cold
+        // 69.14/61.83/74.33/70.41, reproduced deliberately twice each way. The
+        // entire difference was five statements and three functions in
+        // `services/TrendingService.ts`: a path whose execution depends on how
+        // long the suite has been running, so those functions are never
+        // exercised on the machine that gates merges. That is a real gap in that
+        // file's tests, and it belongs to whoever next touches it — the 30s
+        // `CURRENT_REC_ID_TTL_MS` memoization is the place to start. CI always
+        // runs cold, so cold is what a build actually has to clear.
+        //
+        // MINIMUM, because the feed port added around twenty test files that
+        // write and delete posts concurrently, and cold runs now spread a couple
+        // of hundredths (four measured: 69.45–69.47 statements). Pinning a single
+        // reading would red-fail CI on the low end with no defect behind it.
+        statements: 69.45,
+        branches: 62.3,
+        functions: 74.63,
+        lines: 70.73,
         // The five engagement files below. Their BRANCH floors are a few points
         // lower than the Mongoose-era ones, and that is a deliberate trade the
         // numbers alone do not explain: the suites those figures came from

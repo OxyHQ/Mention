@@ -32,7 +32,7 @@ import { topicService } from './TopicService';
 import { isNsfwHashtag } from './contentClassification/nsfw';
 // Trending shares the SINGLE canonical sensitive-exclusion clause with every
 // feed (For You, Explore, ranking). Adding a new gate updates trending too.
-import { SENSITIVE_EXCLUDE_SQL } from '../mtn/feed/feedSafety';
+import { sensitiveExcludeSql } from '../mtn/feed/feedSafety';
 import { mintTrendRecId } from './trending/trendTelemetry';
 import { buildTrendSeries } from './trending/trendSeries';
 import { metrics } from '../utils/metrics';
@@ -338,7 +338,7 @@ class TrendingService {
       eq(posts.status, 'published'),
       eq(posts.visibility, PostVisibility.PUBLIC),
       isNull(posts.boostOf),
-      SENSITIVE_EXCLUDE_SQL,
+      sensitiveExcludeSql(),
     );
   }
 

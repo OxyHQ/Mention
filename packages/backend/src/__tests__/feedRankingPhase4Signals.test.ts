@@ -33,7 +33,7 @@ const R = MtnConfig.ranking.optInSignals;
 
 function makePost(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
-    _id: 'post-1',
+    id: 'post-1',
     oxyUserId: 'author-1',
     createdAt: new Date(),
     type: 'text',
@@ -48,7 +48,7 @@ async function scoreWith(
   post: Record<string, unknown>,
   context: Parameters<FeedRankingService['calculatePostScore']>[2] = {},
 ): Promise<number> {
-  const engagementScoreCache = new Map<string, number>([[String(post._id), 1]]);
+  const engagementScoreCache = new Map<string, number>([[String(post.id), 1]]);
   return service.calculatePostScore(post, undefined, { ...context, engagementScoreCache });
 }
 

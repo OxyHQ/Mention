@@ -55,7 +55,7 @@ export function engagementScore(post: RankablePost): number {
  * cache-or-compute branch exactly.
  */
 export function resolveEngagementScore(post: RankablePost, ctx: SignalContext): number {
-  const postId = post._id?.toString() || '';
+  const postId = post.id ?? '';
   const cache = ctx.engagementScoreCache;
   if (cache && cache.has(postId)) {
     const cached = cache.get(postId);

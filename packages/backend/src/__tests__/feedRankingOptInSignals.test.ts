@@ -35,7 +35,7 @@ const R = MtnConfig.ranking.optInSignals;
 
 function makePost(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
-    _id: 'post-1',
+    id: 'post-1',
     oxyUserId: 'author-1',
     createdAt: new Date(),
     type: 'text',
@@ -51,7 +51,7 @@ async function scoreWith(
   post: Record<string, unknown>,
   context: Parameters<FeedRankingService['calculatePostScore']>[2] = {},
 ): Promise<number> {
-  const engagementScoreCache = new Map<string, number>([[String(post._id), 1]]);
+  const engagementScoreCache = new Map<string, number>([[String(post.id), 1]]);
   return service.calculatePostScore(post, undefined, { ...context, engagementScoreCache });
 }
 
@@ -165,11 +165,11 @@ describe('penalizeSeen scorer', () => {
   });
 
   it('is neutral for a post the viewer has NOT seen', () => {
-    expect(service.calculatePenalizeSeen(makePost({ _id: 'p1' }), new Set(['other']))).toBe(1.0);
+    expect(service.calculatePenalizeSeen(makePost({ id: 'p1' }), new Set(['other']))).toBe(1.0);
   });
 
   it('penalizes a post the viewer has already seen', () => {
-    expect(service.calculatePenalizeSeen(makePost({ _id: 'p1' }), new Set(['p1']))).toBe(
+    expect(service.calculatePenalizeSeen(makePost({ id: 'p1' }), new Set(['p1']))).toBe(
       R.penalizeSeen.penalty,
     );
   });
@@ -194,41 +194,41 @@ describe('verifiedBoost scorer', () => {
 
 describe('dwellTime scorer', () => {
   it('is neutral (1.0) when there is no dwell data', () => {
-    expect(service.calculateDwellTimeBoost(makePost({ _id: 'p1' }), undefined)).toBe(1.0);
-    expect(service.calculateDwellTimeBoost(makePost({ _id: 'p1' }), new Map())).toBe(1.0);
+    expect(service.calculateDwellTimeBoost(makePost({ id: 'p1' }), undefined)).toBe(1.0);
+    expect(service.calculateDwellTimeBoost(makePost({ id: 'p1' }), new Map())).toBe(1.0);
   });
 
   it('is neutral for a post whose average dwell is below the threshold', () => {
     const below = R.dwellTime.thresholdMs - 1;
-    expect(service.calculateDwellTimeBoost(makePost({ _id: 'p1' }), new Map([['p1', below]]))).toBe(1.0);
+    expect(service.calculateDwellTimeBoost(makePost({ id: 'p1' }), new Map([['p1', below]]))).toBe(1.0);
   });
 
   it('boosts a high-dwell post, scaled and capped at maxBoost', () => {
     // At the threshold → base boost.
     expect(
-      service.calculateDwellTimeBoost(makePost({ _id: 'p1' }), new Map([['p1', R.dwellTime.thresholdMs]])),
+      service.calculateDwellTimeBoost(makePost({ id: 'p1' }), new Map([['p1', R.dwellTime.thresholdMs]])),
     ).toBeCloseTo(R.dwellTime.boost, 5);
     // Far above the threshold → clamped to maxBoost.
     expect(
-      service.calculateDwellTimeBoost(makePost({ _id: 'p1' }), new Map([['p1', R.dwellTime.thresholdMs * 100]])),
+      service.calculateDwellTimeBoost(makePost({ id: 'p1' }), new Map([['p1', R.dwellTime.thresholdMs * 100]])),
     ).toBeCloseTo(R.dwellTime.maxBoost, 5);
   });
 });
 
 describe('socialProof scorer', () => {
   it('is neutral (1.0) when there is no network-engager data', () => {
-    expect(service.calculateSocialProofBoost(makePost({ _id: 'p1' }), undefined)).toBe(1.0);
-    expect(service.calculateSocialProofBoost(makePost({ _id: 'p1' }), new Map())).toBe(1.0);
-    expect(service.calculateSocialProofBoost(makePost({ _id: 'p1' }), new Map([['p1', 0]]))).toBe(1.0);
+    expect(service.calculateSocialProofBoost(makePost({ id: 'p1' }), undefined)).toBe(1.0);
+    expect(service.calculateSocialProofBoost(makePost({ id: 'p1' }), new Map())).toBe(1.0);
+    expect(service.calculateSocialProofBoost(makePost({ id: 'p1' }), new Map([['p1', 0]]))).toBe(1.0);
   });
 
   it('boosts by the number of network engagers, capped at maxBoost', () => {
     const { perEngager, maxBoost } = R.socialProof;
-    expect(service.calculateSocialProofBoost(makePost({ _id: 'p1' }), new Map([['p1', 2]]))).toBeCloseTo(
+    expect(service.calculateSocialProofBoost(makePost({ id: 'p1' }), new Map([['p1', 2]]))).toBeCloseTo(
       1 + 2 * perEngager,
       5,
     );
-    expect(service.calculateSocialProofBoost(makePost({ _id: 'p1' }), new Map([['p1', 1000]]))).toBeCloseTo(
+    expect(service.calculateSocialProofBoost(makePost({ id: 'p1' }), new Map([['p1', 1000]]))).toBeCloseTo(
       maxBoost,
       5,
     );
@@ -320,7 +320,7 @@ describe('opt-in signals are OFF unless the definition enables them (no regressi
   });
 
   it('enabling penalizeSeen downranks a seen post', async () => {
-    const post = makePost({ _id: 'seen-1' });
+    const post = makePost({ id: 'seen-1' });
     const off = await scoreWith(post, { seenPostIdsSet: new Set(['seen-1']) });
     const on = await scoreWith(post, {
       enabledSignals: new Set(['penalizeSeen']),
@@ -338,7 +338,7 @@ describe('opt-in signals are OFF unless the definition enables them (no regressi
   });
 
   it('enabling dwellTime lifts a high-dwell post', async () => {
-    const post = makePost({ _id: 'p1' });
+    const post = makePost({ id: 'p1' });
     const dwell = new Map([['p1', R.dwellTime.thresholdMs]]);
     const off = await scoreWith(post, { dwellAverages: dwell });
     const on = await scoreWith(post, { enabledSignals: new Set(['dwellTime']), dwellAverages: dwell });
@@ -346,7 +346,7 @@ describe('opt-in signals are OFF unless the definition enables them (no regressi
   });
 
   it('enabling socialProof lifts a network-engaged post', async () => {
-    const post = makePost({ _id: 'p1' });
+    const post = makePost({ id: 'p1' });
     const network = new Map([['p1', 2]]);
     const off = await scoreWith(post, { networkEngagerCounts: network });
     const on = await scoreWith(post, { enabledSignals: new Set(['socialProof']), networkEngagerCounts: network });

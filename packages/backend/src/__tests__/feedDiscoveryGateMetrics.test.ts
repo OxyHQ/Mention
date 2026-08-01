@@ -1,5 +1,4 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import mongoose from 'mongoose';
 import { MtnConfig } from '@mention/shared-types';
 
 /**
@@ -25,7 +24,7 @@ vi.mock('../services/ThreadSlicingService', () => ({
   threadSlicingService: {
     sliceFeed: vi.fn(async (posts: Array<Record<string, unknown>>) => ({
       slices: posts.map((post) => ({
-        _sliceKey: String(post._id),
+        _sliceKey: String(post.id),
         items: [{ post, isThreadParent: false, isThreadChild: false, isThreadLastChild: false }],
         isIncompleteThread: false,
       })),
@@ -35,14 +34,8 @@ vi.mock('../services/ThreadSlicingService', () => ({
 }));
 vi.mock('../services/PostHydrationService', () => ({
   postHydrationService: {
-    hydrateSlices: vi.fn(async (slices: Array<{ items: Array<{ post: Record<string, unknown> }> }>) => {
-      for (const slice of slices) for (const item of slice.items) item.post.id = String(item.post._id);
-      return slices;
-    }),
-    hydratePosts: vi.fn(async (posts: Array<Record<string, unknown>>) => {
-      for (const p of posts) p.id = String(p._id);
-      return posts;
-    }),
+    hydrateSlices: vi.fn(async (slices: unknown[]) => slices),
+    hydratePosts: vi.fn(async (posts: unknown[]) => posts),
   },
   resolveUserSummaries: vi.fn(async () => new Map()),
 }));
@@ -65,22 +58,37 @@ import type {
   FilterModule,
   SourceModule,
 } from '../mtn/feed/engine/types';
+import { feedCandidate } from './fixtures/feedCandidate';
 
-const oid = (n: number) => new mongoose.Types.ObjectId(`5f${n.toString().padStart(22, '0')}`);
+/** A pre-cutover ObjectId-hex id — see `feedEngine.test.ts` on why not `post-N`. */
+const id = (n: number) => `5f${n.toString().padStart(22, '0')}`;
 
-function makePost(n: number, extra: Record<string, unknown> = {}): CandidatePost {
-  return { _id: oid(n), oxyUserId: `author-${n}`, createdAt: new Date(2020, 0, n), ...extra };
+/** The hashtag the fake gate filter rejects — a REAL field, not a private marker. */
+const JUNK_TAG = 'gatejunk';
+
+function makePost(n: number, overrides: Partial<CandidatePost> = {}): CandidatePost {
+  return feedCandidate({
+    id: id(n),
+    oxyUserId: `author-${n}`,
+    createdAt: new Date(2020, 0, n),
+    ...overrides,
+  });
+}
+
+/** A candidate the fake gate filter rejects. */
+function junkPost(n: number, overrides: Partial<CandidatePost> = {}): CandidatePost {
+  return makePost(n, { hashtags: [JUNK_TAG], ...overrides });
 }
 
 function source(id: string, posts: CandidatePost[], trusted = false): SourceModule {
   return { id, kind: 'source', userComposable: false, trusted, gather: async () => posts };
 }
 
-/** Gate filter (id `gate`) that rejects candidates flagged `_junk`. */
+/** Gate filter (id `gate`) that rejects junk-tagged candidates. */
 const gateFilter: FilterModule = {
   id: 'gate',
   kind: 'filter',
-  keep: (post) => (post as Record<string, unknown>)._junk !== true,
+  keep: (post) => !post.hashtags.includes(JUNK_TAG),
 };
 
 function def(sources: FeedDefinition['sources']): FeedDefinition {
@@ -123,59 +131,59 @@ function ctx(bucket?: DiscoveryGateBucket): FeedEngineContext {
   return { currentUserId: 'v', discoveryGateBucket: bucket };
 }
 
-const idsOf = () => capturedPool.map((p) => String(p._id));
+const idsOf = () => capturedPool.map((p) => String(p.id));
 
 describe('feed_discovery_gated_total', () => {
   it('counts a rejection with reason=filter-id, source=lane, shadow=false when enforcing', async () => {
     setShadow(false);
-    registry.register(source('disc', [makePost(1, { _junk: true }), makePost(2)]));
+    registry.register(source('disc', [junkPost(1), makePost(2)]));
 
     await engine.run(def([{ module: 'disc', enabled: true }]), ctx(), { limit: 30 });
 
     expect(metrics.getCounter(FEED_METRICS.discoveryGated, { reason: 'gate', source: 'disc', shadow: 'false' })).toBe(1);
     // Enforced: the junk candidate was dropped.
-    expect(idsOf()).not.toContain(oid(1).toString());
+    expect(idsOf()).not.toContain(id(1));
   });
 
   it('counts with shadow=true and drops nothing in global shadow mode', async () => {
     setShadow(true);
-    registry.register(source('disc', [makePost(1, { _junk: true }), makePost(2)]));
+    registry.register(source('disc', [junkPost(1), makePost(2)]));
 
     await engine.run(def([{ module: 'disc', enabled: true }]), ctx(), { limit: 30 });
 
     expect(metrics.getCounter(FEED_METRICS.discoveryGated, { reason: 'gate', source: 'disc', shadow: 'true' })).toBe(1);
-    expect(idsOf()).toContain(oid(1).toString()); // measure-only: kept
+    expect(idsOf()).toContain(id(1)); // measure-only: kept
   });
 
   it('never counts or gates a TRUSTED lane', async () => {
     setShadow(false);
-    registry.register(source('trusted', [makePost(1, { _junk: true })], true));
+    registry.register(source('trusted', [junkPost(1)], true));
 
     await engine.run(def([{ module: 'trusted', enabled: true }]), ctx(), { limit: 30 });
 
     expect(metrics.getCounter(FEED_METRICS.discoveryGated, { reason: 'gate', source: 'trusted', shadow: 'false' })).toBe(0);
-    expect(idsOf()).toContain(oid(1).toString());
+    expect(idsOf()).toContain(id(1));
   });
 });
 
 describe('A/B enforcement via ctx.discoveryGateBucket', () => {
   it('gate-off forces measure-only (kept, shadow=true) even when config enforces', async () => {
     setShadow(false); // config would enforce
-    registry.register(source('disc', [makePost(1, { _junk: true }), makePost(2)]));
+    registry.register(source('disc', [junkPost(1), makePost(2)]));
 
     await engine.run(def([{ module: 'disc', enabled: true }]), ctx('gate-off'), { limit: 30 });
 
-    expect(idsOf()).toContain(oid(1).toString()); // not dropped
+    expect(idsOf()).toContain(id(1)); // not dropped
     expect(metrics.getCounter(FEED_METRICS.discoveryGated, { reason: 'gate', source: 'disc', shadow: 'true' })).toBe(1);
   });
 
   it('gate-on enforces (dropped, shadow=false)', async () => {
     setShadow(false);
-    registry.register(source('disc', [makePost(1, { _junk: true }), makePost(2)]));
+    registry.register(source('disc', [junkPost(1), makePost(2)]));
 
     await engine.run(def([{ module: 'disc', enabled: true }]), ctx('gate-on'), { limit: 30 });
 
-    expect(idsOf()).not.toContain(oid(1).toString()); // dropped
+    expect(idsOf()).not.toContain(id(1)); // dropped
     expect(metrics.getCounter(FEED_METRICS.discoveryGated, { reason: 'gate', source: 'disc', shadow: 'false' })).toBe(1);
   });
 });

@@ -69,7 +69,9 @@ function summary(id: string, username: string, displayName: string): CachedUserS
 beforeEach(() => {
   resolveUserSummaries.mockReset();
   postFind.mockReset();
-  // Parent is NOT in the feed → fetchParentPosts queries Mongo for it.
+  // Parent is NOT in the feed → fetchParentPosts queries Mongo for it. The rows
+  // carry `_id` because `models/Post` is still Mongoose; normalizing them onto
+  // the ported `RawPost` (`id`, stored `isReply`) is the slicer's job.
   postFind.mockImplementation(() => [
     {
       _id: PARENT_ID,
@@ -90,8 +92,9 @@ describe('ThreadSlicingService reply-context parent author', () => {
     );
 
     const reply = {
-      _id: REPLY_ID,
+      id: REPLY_ID,
       oxyUserId: REPLY_AUTHOR_ID,
+      isReply: true,
       parentPostId: PARENT_ID,
       content: { text: 'a reply' },
     };
@@ -125,8 +128,9 @@ describe('ThreadSlicingService reply-context parent author', () => {
     resolveUserSummaries.mockResolvedValue(new Map<string, CachedUserSummary>());
 
     const reply = {
-      _id: REPLY_ID,
+      id: REPLY_ID,
       oxyUserId: REPLY_AUTHOR_ID,
+      isReply: true,
       parentPostId: PARENT_ID,
       content: { text: 'a reply' },
     };
@@ -146,6 +150,53 @@ describe('ThreadSlicingService reply-context parent author', () => {
     expect(reason.parentAuthor?.id).toBe(PARENT_AUTHOR_ID);
     expect(reason.parentAuthor?.username).toBe('');
     expect(reason.parentAuthor?.name.displayName).toBeUndefined();
+  });
+
+  it('prepends the parent of EVERY reply on the page, not just the first', async () => {
+    /**
+     * `models/Post` is still Mongoose, so a fetched parent arrives with `_id`
+     * and has to be normalized onto the ported `RawPost` (`id`, stored
+     * `isReply`). While that normalization was a bare cast, every fetched
+     * parent's `id` was `undefined`: `_sliceKey` read `"undefined+<reply>"`,
+     * `additionalPostIds` handed hydration an `undefined` id, and — because the
+     * `seenPostIds` guard then deduped BOTH parents against the single key
+     * `undefined` — the second reply silently lost its "Replying to" context.
+     *
+     * Two replies to two DIFFERENT parents is the smallest case that shows it.
+     */
+    const SECOND_PARENT_ID = '650000000000000000000003';
+    const SECOND_REPLY_ID = '650000000000000000000004';
+    postFind.mockImplementation(() => [
+      { _id: PARENT_ID, oxyUserId: PARENT_AUTHOR_ID, content: { text: 'first parent' } },
+      { _id: SECOND_PARENT_ID, oxyUserId: 'oxy-second-parent-author', content: { text: 'second parent' } },
+    ]);
+    resolveUserSummaries.mockResolvedValue(new Map<string, CachedUserSummary>());
+
+    const { slices, additionalPostIds } = await threadSlicingService.sliceFeed(
+      [
+        {
+          id: REPLY_ID,
+          oxyUserId: REPLY_AUTHOR_ID,
+          isReply: true,
+          parentPostId: PARENT_ID,
+          content: { text: 'first reply' },
+        },
+        {
+          id: SECOND_REPLY_ID,
+          oxyUserId: REPLY_AUTHOR_ID,
+          isReply: true,
+          parentPostId: SECOND_PARENT_ID,
+          content: { text: 'second reply' },
+        },
+      ],
+      { enableThreadGrouping: false, enableReplyContext: true, maxSliceSize: 3 },
+    );
+
+    expect(slices.map((slice) => slice._sliceKey)).toEqual([
+      `${PARENT_ID}+${REPLY_ID}`,
+      `${SECOND_PARENT_ID}+${SECOND_REPLY_ID}`,
+    ]);
+    expect([...additionalPostIds].sort()).toEqual([PARENT_ID, SECOND_PARENT_ID].sort());
   });
 });
 
@@ -172,8 +223,11 @@ describe('ThreadSlicingService replies without a local parent link', () => {
 
   it('tags an unlinked federated reply as replyContext, with no parentAuthor', async () => {
     const reply = {
-      _id: FEDERATED_REPLY_ID,
+      id: FEDERATED_REPLY_ID,
       oxyUserId: REPLY_AUTHOR_ID,
+      // STORED, and true precisely because `federation.inReplyTo` is the only
+      // encoding of the parent this post has.
+      isReply: true,
       parentPostId: null,
       federation: { inReplyTo: 'https://remote.example/users/someone/statuses/1' },
       content: { text: '@someone thank you!' },
@@ -201,8 +255,9 @@ describe('ThreadSlicingService replies without a local parent link', () => {
 
   it('does not treat an unlinked federated reply as a self-thread root', async () => {
     const reply = {
-      _id: FEDERATED_REPLY_ID,
+      id: FEDERATED_REPLY_ID,
       oxyUserId: REPLY_AUTHOR_ID,
+      isReply: true,
       parentPostId: null,
       // A stale/backfilled threadId must not promote a reply to a thread root.
       threadId: 'thread-9',
@@ -227,14 +282,16 @@ describe('ThreadSlicingService replies without a local parent link', () => {
     );
 
     const parent = {
-      _id: PARENT_ID,
+      id: PARENT_ID,
       oxyUserId: PARENT_AUTHOR_ID,
+      isReply: false,
       parentPostId: null,
       content: { text: 'parent body' },
     };
     const reply = {
-      _id: REPLY_ID,
+      id: REPLY_ID,
       oxyUserId: REPLY_AUTHOR_ID,
+      isReply: true,
       parentPostId: PARENT_ID,
       content: { text: 'a reply' },
     };
@@ -266,8 +323,9 @@ describe('ThreadSlicingService thread children visibility', () => {
     resolveUserSummaries.mockResolvedValue(new Map<string, CachedUserSummary>());
 
     const root = {
-      _id: '650000000000000000000101',
+      id: '650000000000000000000101',
       oxyUserId: 'oxy-thread-author',
+      isReply: false,
       parentPostId: undefined,
       threadId: 'thread-1',
       visibility: PostVisibility.PUBLIC,
