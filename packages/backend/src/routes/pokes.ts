@@ -1,6 +1,8 @@
 import { Router, Response } from 'express';
 import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
-import Poke from '../models/Poke';
+import { and, desc, eq, inArray } from 'drizzle-orm';
+import { getDb } from '../db/postgres';
+import { pokes } from '../db/schema/engagement';
 import { createNotification } from '../utils/notificationUtils';
 import { logger } from '../utils/logger';
 import { getServiceOxyClient } from '../utils/oxyHelpers';
@@ -37,10 +39,6 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
 }
 
-function isDuplicateKeyError(error: unknown): boolean {
-  return isRecord(error) && error.code === 11000;
-}
-
 function extractUsersFromResult(result: unknown, key: 'followers' | 'following'): User[] {
   const list = isRecord(result) ? result[key] : result;
   return Array.isArray(list) ? list.filter((user): user is User => isRecord(user) && typeof user.id === 'string') : [];
@@ -53,20 +51,32 @@ router.get('/received', async (req: AuthRequest, res: Response) => {
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ message: 'Unauthorized' });
 
-    const pokes = await Poke.find({ pokedId: userId }).sort({ createdAt: -1 }).limit(POKES_LIMIT).lean();
-    const pokerIds = pokes.map((p) => p.pokerId);
-    const pokedBackDocs = pokerIds.length > 0
-      ? await Poke.find({ pokerId: userId, pokedId: { $in: pokerIds } }).select('pokedId').lean()
+    const db = getDb();
+    // Ordered by `created_at` descending to match `pokes_poked_id_created_at_idx`
+    // exactly, as Mongo did. This is a bounded list, not a paginated one — there
+    // is no cursor to straddle, so no tiebreak column is owed.
+    const received = await db
+      .select()
+      .from(pokes)
+      .where(eq(pokes.pokedId, userId))
+      .orderBy(desc(pokes.createdAt))
+      .limit(POKES_LIMIT);
+    const pokerIds = received.map((p) => p.pokerId);
+    const pokedBackRows = pokerIds.length > 0
+      ? await db
+          .select({ pokedId: pokes.pokedId })
+          .from(pokes)
+          .where(and(eq(pokes.pokerId, userId), inArray(pokes.pokedId, pokerIds)))
       : [];
 
-    const pokedBackSet = new Set(pokedBackDocs.map((p) => p.pokedId));
+    const pokedBackSet = new Set(pokedBackRows.map((p) => p.pokedId));
     const profiles = await resolveUsers(pokerIds);
 
-    const items = pokes.flatMap((p) => {
+    const items = received.flatMap((p) => {
       const user = profiles.get(p.pokerId);
       return user
         ? [{
-            id: p._id,
+            id: p.id,
             user: toUserSummary(user),
             pokeCount: 1,
             pokedBack: pokedBackSet.has(p.pokerId),
@@ -87,15 +97,20 @@ router.get('/sent', async (req: AuthRequest, res: Response) => {
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ message: 'Unauthorized' });
 
-    const pokes = await Poke.find({ pokerId: userId }).sort({ createdAt: -1 }).limit(POKES_LIMIT).lean();
-    const pokedIds = pokes.map((p) => p.pokedId);
+    const sent = await getDb()
+      .select()
+      .from(pokes)
+      .where(eq(pokes.pokerId, userId))
+      .orderBy(desc(pokes.createdAt))
+      .limit(POKES_LIMIT);
+    const pokedIds = sent.map((p) => p.pokedId);
     const profiles = await resolveUsers(pokedIds);
 
-    const items = pokes.flatMap((p) => {
+    const items = sent.flatMap((p) => {
       const user = profiles.get(p.pokedId);
       return user
         ? [{
-            id: p._id,
+            id: p.id,
             user: toUserSummary(user),
             createdAt: p.createdAt,
           }]
@@ -135,7 +150,10 @@ router.get('/suggested', async (req: AuthRequest, res: Response) => {
     // Bound the poke-state lookup to the suggestion candidates instead of the
     // caller's entire poke history.
     const existingPokes = candidatePool.length > 0
-      ? await Poke.find({ pokerId: userId, pokedId: { $in: candidatePool } }).select('pokedId').lean()
+      ? await getDb()
+          .select({ pokedId: pokes.pokedId })
+          .from(pokes)
+          .where(and(eq(pokes.pokerId, userId), inArray(pokes.pokedId, candidatePool)))
       : [];
     const alreadyPokedIds = new Set(existingPokes.map((p) => p.pokedId));
 
@@ -159,12 +177,19 @@ router.get('/suggested', async (req: AuthRequest, res: Response) => {
 router.get('/:userId/status', async (req: AuthRequest, res: Response) => {
   try {
     const pokerId = req.user?.id;
-    const { userId } = req.params;
+    // Express 5 types every path param `string | string[]`; a non-string is
+    // treated as ABSENT (the 400 below) rather than coerced, because `String([x])`
+    // would silently manufacture a plausible id for a `text` column to match.
+    const userId = typeof req.params.userId === 'string' ? req.params.userId : undefined;
     if (!pokerId) return res.status(401).json({ message: 'Unauthorized' });
     if (!userId) return res.status(400).json({ message: 'userId is required' });
 
-    const exists = await Poke.exists({ pokerId, pokedId: userId });
-    return res.json({ poked: !!exists });
+    const [existing] = await getDb()
+      .select({ id: pokes.id })
+      .from(pokes)
+      .where(and(eq(pokes.pokerId, pokerId), eq(pokes.pokedId, userId)))
+      .limit(1);
+    return res.json({ poked: !!existing });
   } catch (error) {
     logger.error('[Pokes] Error checking poke status:', { userId: req.user?.id, targetId: req.params.userId, error });
     return res.status(500).json({ message: 'Error checking poke status' });
@@ -175,33 +200,39 @@ router.get('/:userId/status', async (req: AuthRequest, res: Response) => {
 router.post('/:userId', async (req: AuthRequest, res: Response) => {
   try {
     const pokerId = req.user?.id;
-    const { userId } = req.params;
+    // Express 5 types every path param `string | string[]`; a non-string is
+    // treated as ABSENT (the 400 below) rather than coerced, because `String([x])`
+    // would silently manufacture a plausible id for a `text` column to match.
+    const userId = typeof req.params.userId === 'string' ? req.params.userId : undefined;
     if (!pokerId) return res.status(401).json({ message: 'Unauthorized' });
     if (!userId) return res.status(400).json({ message: 'userId is required' });
     if (userId === pokerId) return res.status(400).json({ message: 'Cannot poke yourself' });
 
-    const result = await Poke.updateOne(
-      { pokerId, pokedId: userId },
-      { $setOnInsert: { pokerId, pokedId: userId } },
-      { upsert: true }
-    );
+    // One active poke per ORDERED pair — `pokes_poker_id_poked_id_key` is
+    // directional, so A→B and B→A are two rows. `ON CONFLICT DO NOTHING` on that
+    // pair replaces the Mongo upsert AND its duplicate-key rescue in one
+    // statement: a re-poke returns the same `{poked: true}` without a second row
+    // and, crucially, without a second notification. An empty `returning()` is
+    // what says "already poked", the same fact `upsertedCount` carried.
+    const inserted = await getDb()
+      .insert(pokes)
+      .values({ pokerId, pokedId: userId })
+      .onConflictDoNothing({ target: [pokes.pokerId, pokes.pokedId] })
+      .returning({ id: pokes.id });
 
     // Only send notification when a new poke was created (not on duplicate)
-    if (result.upsertedCount === 1) {
+    if (inserted.length === 1) {
       await createNotification({
-        recipientId: String(userId),
-        actorId: String(pokerId),
+        recipientId: userId,
+        actorId: pokerId,
         type: 'poke',
-        entityId: String(pokerId),
+        entityId: pokerId,
         entityType: 'profile',
       });
     }
 
     return res.json({ poked: true });
   } catch (error) {
-    if (isDuplicateKeyError(error)) {
-      return res.json({ poked: true });
-    }
     logger.error('[Pokes] Error poking user:', { userId: req.user?.id, targetId: req.params.userId, error });
     return res.status(500).json({ message: 'Error poking user' });
   }
@@ -211,11 +242,16 @@ router.post('/:userId', async (req: AuthRequest, res: Response) => {
 router.delete('/:userId', async (req: AuthRequest, res: Response) => {
   try {
     const pokerId = req.user?.id;
-    const { userId } = req.params;
+    // Express 5 types every path param `string | string[]`; a non-string is
+    // treated as ABSENT (the 400 below) rather than coerced, because `String([x])`
+    // would silently manufacture a plausible id for a `text` column to match.
+    const userId = typeof req.params.userId === 'string' ? req.params.userId : undefined;
     if (!pokerId) return res.status(401).json({ message: 'Unauthorized' });
     if (!userId) return res.status(400).json({ message: 'userId is required' });
 
-    await Poke.deleteOne({ pokerId, pokedId: userId });
+    await getDb()
+      .delete(pokes)
+      .where(and(eq(pokes.pokerId, pokerId), eq(pokes.pokedId, userId)));
     return res.json({ poked: false });
   } catch (error) {
     logger.error('[Pokes] Error undoing poke:', { userId: req.user?.id, targetId: req.params.userId, error });

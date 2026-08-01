@@ -26,7 +26,7 @@ import { getNormalizedUserHandle, getUserLanguages } from '@oxyhq/core';
 import type { LinkPreview } from '@oxyhq/contracts';
 import { assignThreadState } from './ThreadSlicingService';
 import { mget as mgetUserSummaries, mset as msetUserSummaries, CachedUserSummary } from './userSummaryCache';
-import { computeStarterPackScores, mongoStarterPackCurationDeps } from './starterPackCuration';
+import { computeStarterPackScores, starterPackCurationDeps } from './starterPackCuration';
 import {
   collectAuthorshipUserIds,
   getHeaderAuthorshipEntries,
@@ -331,7 +331,7 @@ async function applyStarterPackScores(freshlyResolved: Map<string, CachedUserSum
 
   const scores = await computeStarterPackScores(
     Array.from(freshlyResolved.keys()),
-    mongoStarterPackCurationDeps,
+    starterPackCurationDeps,
   );
   for (const [userId, score] of scores) {
     const summary = freshlyResolved.get(userId);

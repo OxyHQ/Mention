@@ -30,6 +30,10 @@
  * post the same way.
  */
 
+import { sql, type SQL } from 'drizzle-orm';
+import { qualified } from '../../db/casing';
+import { inList } from '../../db/schema/columns';
+import { posts } from '../../db/schema/posts';
 import { NSFW_HASHTAGS, isNsfwHashtag } from '../../services/contentClassification/nsfw';
 
 /**
@@ -64,6 +68,50 @@ export const DISCOVERY_SAFE_MATCH: Readonly<Record<string, unknown>> = Object.fr
   ...SENSITIVE_EXCLUDE_MATCH,
   ...NSFW_HASHTAG_EXCLUDE_MATCH,
 });
+
+/**
+ * The Postgres form of {@link SENSITIVE_EXCLUDE_MATCH}, for `posts`.
+ *
+ * `is not true` rather than `= false` is the whole translation of Mongo's
+ * `$ne: true`: two of the three columns are NULLABLE (a post that was never
+ * classified, a local post with no federation subdocument), and `<> true` is NULL
+ * for a NULL input, so a `where` built that way would silently DROP every
+ * unclassified post from every discovery surface. `is not true` is TRUE for both
+ * `false` and NULL, which is exactly the set `$ne: true` matched.
+ *
+ * Every column reference is `qualified()`, and these are the clauses where that
+ * matters most: they are SHARED, so unlike a predicate written inline they have
+ * no idea what statement they will end up in. Measured against drizzle 0.45.2,
+ * an interpolated column loses its table prefix in exactly one position — the
+ * SELECT LIST of a single-table select — and whether a query is single-table is
+ * a property that flips the moment someone adds or removes a join. Qualifying
+ * makes the rendering independent of all that. The cost is that these clauses
+ * only work against `posts` UNALIASED, which is how every caller uses it.
+ */
+export const SENSITIVE_EXCLUDE_SQL: SQL = sql`${qualified(posts.classificationSensitive)} is not true
+  and ${qualified(posts.metadataIsSensitive)} is not true
+  and ${qualified(posts.federationSensitive)} is not true`;
+
+/**
+ * The Postgres form of {@link NSFW_HASHTAG_EXCLUDE_MATCH}, for `posts`.
+ *
+ * `&&` is array OVERLAP, so `not (hashtags && blocklist)` is "no stored hashtag is
+ * on the blocklist" — Mongo's `$nin` over a multikey field. The `is null` arm is
+ * not defensive noise: `posts.hashtags` is nullable, `NULL && anything` is NULL,
+ * and `not NULL` is NULL, so without it a post that carries no hashtags at all
+ * would fail the predicate and vanish from discovery. Mongo's `$nin` matched
+ * exactly those documents.
+ *
+ * The blocklist is rendered as SQL literals from the same `NSFW_HASHTAGS` set the
+ * in-memory predicate reads, so the two cannot drift. `inList` is safe here for
+ * the same reason it is safe in the schema's CHECK constraints: the values are a
+ * locally-declared set of identifier-shaped literals, never a runtime value.
+ */
+export const NSFW_HASHTAG_EXCLUDE_SQL: SQL = sql`(${qualified(posts.hashtags)} is null
+  or not (${qualified(posts.hashtags)} && array[${sql.raw(inList([...NSFW_HASHTAGS]))}]::text[]))`;
+
+/** The Postgres form of {@link DISCOVERY_SAFE_MATCH}, for `posts`. */
+export const DISCOVERY_SAFE_SQL: SQL = sql`${SENSITIVE_EXCLUDE_SQL} and ${NSFW_HASHTAG_EXCLUDE_SQL}`;
 
 /**
  * The minimal post shape the in-memory predicate reads. A lean Mongo document

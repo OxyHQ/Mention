@@ -64,10 +64,17 @@ export default defineConfig({
         // full the moment it is imported, so ~2,500 lines of declarations joined
         // the numerator. Leaving the old floors would have handed the suite
         // three points of silent headroom a real regression could hide in.
-        statements: 64.19,
-        branches: 57.14,
-        functions: 69.05,
-        lines: 65.47,
+        //
+        // Raised again by the long-tail query port (lists, starter packs,
+        // discovery, notifications, feeds, statistics). The mock-based suites
+        // those files carried asserted that a query was BUILT; rewriting them
+        // against real Postgres rows executes the query bodies for the first
+        // time, which is where the jump comes from. Same reasoning as above:
+        // banking it as headroom would let a later regression hide inside it.
+        statements: 68.87,
+        branches: 60.8,
+        functions: 73.78,
+        lines: 70.16,
         'src/services/PostEngagementCommandService.ts': {
           statements: 95.62,
           branches: 91.07,

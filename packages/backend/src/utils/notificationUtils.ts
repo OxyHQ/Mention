@@ -1,4 +1,10 @@
-import Notification from '../models/Notification';
+import { and, eq } from 'drizzle-orm';
+import { getDb } from '../db/postgres';
+import {
+  notifications,
+  type NOTIFICATION_ENTITY_TYPES,
+  type NOTIFICATION_TYPES,
+} from '../db/schema/discovery';
 import { getServiceOxyClient } from './oxyHelpers';
 import { getRuntimeSocketServer } from '../runtime/socketServer';
 import { formatPushForNotification, sendPushToUser } from './push';
@@ -13,14 +19,77 @@ import {
 export interface CreateNotificationData {
   recipientId: string;
   actorId: string;
-  type: 'like' | 'reply' | 'mention' | 'follow' | 'boost' | 'quote' | 'welcome' | 'post' | 'poke' | 'collab_invite' | 'collab_accepted' | 'collab_declined';
+  /** Derived from the CHECK's own tuple, so the writer cannot drift from it. */
+  type: (typeof NOTIFICATION_TYPES)[number];
   entityId: string;
-  entityType: 'post' | 'reply' | 'profile';
+  entityType: (typeof NOTIFICATION_ENTITY_TYPES)[number];
+}
+
+/**
+ * A notification row exactly as it goes on the wire — the response DTO, the
+ * socket payload, and nothing else.
+ *
+ * `_id` survives the port because the frontend's own contract requires it
+ * (`ZRawNotification` in `frontend/types/validation.ts` declares `_id` and
+ * `entityId` as required strings), and a port changes no response body. The
+ * value is the same one Mongo held: the backfill copies `_id` verbatim into the
+ * `text` primary key. Mongoose's `__v` is dropped — no client reads it and
+ * `CONVENTIONS.md` forbids the column.
+ */
+export interface SerializedNotification {
+  _id: string;
+  recipientId: string;
+  actorId: string;
+  type: (typeof NOTIFICATION_TYPES)[number];
+  entityId: string;
+  entityType: (typeof NOTIFICATION_ENTITY_TYPES)[number];
+  read: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+/** The one row → wire mapping, shared by the writer and the read routes. */
+export function serializeNotification(
+  row: typeof notifications.$inferSelect,
+): SerializedNotification {
+  return {
+    _id: row.id,
+    recipientId: row.recipientId,
+    actorId: row.actorId,
+    type: row.type,
+    entityId: row.entityId,
+    entityType: row.entityType,
+    read: row.read,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+  };
 }
 
 /**
  * Creates a notification for a user action
  * Handles duplicate prevention and emits real-time events
+ *
+ * ## The unique index IS the idempotency
+ *
+ * `notifications_dedup_key` — `(recipient_id, actor_id, type, entity_id)` — is
+ * what makes a second like from the same actor on the same post unable to mint a
+ * second row. Mongo expressed that as read-then-write, which two concurrent
+ * callers could both pass; `ON CONFLICT DO NOTHING` on the same four columns is
+ * atomic, so the loser is told it lost instead of raising a duplicate-key error
+ * the caller would have had to translate.
+ *
+ * The conflict target is the COLUMN LIST rather than a bare `onConflictDoNothing()`
+ * deliberately: an unqualified form would also swallow a future unique index on
+ * this table, silently turning an unrelated constraint into "already notified".
+ *
+ * Whether a row was INSERTED is what gates the socket emit and the push — a
+ * repeated like must not re-notify. `returning()` answers that with no `xmax`
+ * trick: an empty result means the row already existed.
+ *
+ * The self-notification guard moved AHEAD of the dedupe read, because the insert
+ * would otherwise create the very row the guard exists to prevent. The order is
+ * behaviour-preserving: a self-notification can never have been written, so the
+ * branch Mongo evaluated first was unreachable for exactly these rows.
  */
 export const createNotification = async (
   data: CreateNotificationData,
@@ -28,29 +97,48 @@ export const createNotification = async (
   throwOnPersistenceError: boolean = false,
 ): Promise<void> => {
   try {
-    // Check if notification already exists to prevent duplicates
-    const existingNotification = await Notification.findOne({
-      recipientId: data.recipientId,
-      actorId: data.actorId,
-      type: data.type,
-      entityId: data.entityId,
-    });
-
-    if (existingNotification) {
-      // Update timestamp if notification already exists
-      await Notification.findByIdAndUpdate(existingNotification._id, {
-        createdAt: new Date(),
-      });
-      return;
-    }
-
     // Don't create notification if actor and recipient are the same
     if (data.actorId === data.recipientId) {
       return;
     }
 
-    const notification = new Notification(data);
-    await notification.save();
+    const db = getDb();
+    const [notification] = await db
+      .insert(notifications)
+      .values({
+        recipientId: data.recipientId,
+        actorId: data.actorId,
+        type: data.type,
+        entityId: data.entityId,
+        entityType: data.entityType,
+      })
+      .onConflictDoNothing({
+        target: [
+          notifications.recipientId,
+          notifications.actorId,
+          notifications.type,
+          notifications.entityId,
+        ],
+      })
+      .returning();
+
+    if (!notification) {
+      // Already notified: refresh the timestamp so the existing row floats back
+      // to the top of the recipient's list, exactly as before. `updated_at` moves
+      // with it via the column's own `$onUpdate`, matching Mongoose's timestamps.
+      await db
+        .update(notifications)
+        .set({ createdAt: new Date() })
+        .where(
+          and(
+            eq(notifications.recipientId, data.recipientId),
+            eq(notifications.actorId, data.actorId),
+            eq(notifications.type, data.type),
+            eq(notifications.entityId, data.entityId),
+          ),
+        );
+      return;
+    }
 
   // Emit real-time notification if requested with actor profile data
     const io = emitEvent ? getRuntimeSocketServer() : undefined;
@@ -67,7 +155,7 @@ export const createNotification = async (
         // ignore actor resolution failures
       }
       const payload = {
-        ...notification.toObject(),
+        ...serializeNotification(notification),
         actorId_populated: toPopulatedActor(actor, data.actorId),
       };
       const notificationsNamespace = io.of('/notifications');

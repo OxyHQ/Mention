@@ -1,15 +1,16 @@
 import express, { Response } from 'express';
 import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
-import { config } from '../config';
-import AccountList, { IAccountList } from '../models/AccountList';
-import { Post } from '../models/Post';
+import { and, asc, desc, eq, ilike, inArray, or, sql, type SQL } from 'drizzle-orm';
 import mongoose from 'mongoose';
+import { config } from '../config';
+import { getDb, type DatabaseOrTransaction, type Transaction } from '../db/postgres';
+import { accountListMembers, accountLists } from '../db/schema/lists';
+import { Post } from '../models/Post';
 import { feedController } from '../controllers/feed.controller';
 import { endorsementSignalService } from '../services/EndorsementSignalService';
 import { canViewList } from '../services/listAccess';
 import { logger } from '../utils/logger';
 import { queryInt, queryString } from '../utils/queryParams';
-import { escapeRegex } from '../utils/textProcessing';
 import { feedIPRateLimiter, feedRateLimiter } from '../middleware/security';
 
 const router = express.Router();
@@ -35,6 +36,17 @@ const MAX_TIMELINE_PAGE_SIZE = 100;
 const MAX_LIST_PAGE_SIZE = 100;
 
 /**
+ * Escape the characters `LIKE` treats as wildcards.
+ *
+ * The Mongo version escaped REGEX metacharacters, which is the wrong alphabet
+ * here: `%` and `_` are what `ILIKE` reads as patterns, and leaving them live
+ * turns the search box into a way to match every list the viewer can see.
+ */
+function likeContains(term: string): string {
+  return `%${term.replace(/[\\%_]/g, (char) => `\\${char}`)}%`;
+}
+
+/**
  * Fire-and-forget endorsement re-sync for a list whose membership changed.
  * Never blocks or fails the request — Oxy reputation signals are eventually
  * consistent (the outbox retries on failure).
@@ -56,18 +68,114 @@ function syncListMembershipChange(
     .catch((error) => logger.warn('[Lists] endorsement membership sync failed', error));
 }
 
-type LeanAccountList = Pick<
-  IAccountList,
-  'ownerOxyUserId' | 'title' | 'description' | 'isPublic' | 'memberOxyUserIds' | 'subscriberCount' | 'createdAt' | 'updatedAt'
-> & { _id: mongoose.Types.ObjectId; subscriberCount?: number };
+/** An account list exactly as it goes on the wire. */
+interface SerializedList {
+  _id: string;
+  id: string;
+  ownerOxyUserId: string;
+  title: string;
+  description?: string;
+  isPublic: boolean;
+  /** The membership junction, flattened back into the array the client reads. */
+  memberOxyUserIds: string[];
+  subscriberCount: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
 
 /**
- * Normalize a lean AccountList so `subscriberCount` is always present.
- * Lists created before the field existed lack it in MongoDB; `.lean()` bypasses
- * schema defaults, so default it to 0 here for a stable DTO shape.
+ * Re-assemble the response body a Mongoose document produced.
+ *
+ * `_id` is still emitted alongside `id` because the client reads
+ * `created?._id || created?.id` (`services/listsService.ts`), and a port changes
+ * no response body. An absent `description` is OMITTED rather than sent as
+ * `null`: Mongoose left it `undefined`, which `JSON.stringify` drops, and
+ * drizzle's `null` would serialize as `"description": null` — a different body
+ * for the same absent value, and exactly what an `if (list.description)` check
+ * on the client would start rendering as an empty field.
  */
-function serializeList(list: LeanAccountList): LeanAccountList & { subscriberCount: number } {
-  return { ...list, subscriberCount: list.subscriberCount ?? 0 };
+function serializeList(
+  row: typeof accountLists.$inferSelect,
+  memberOxyUserIds: string[],
+): SerializedList {
+  return {
+    _id: row.id,
+    id: row.id,
+    ownerOxyUserId: row.ownerOxyUserId,
+    title: row.title,
+    ...(row.description === null ? {} : { description: row.description }),
+    isPublic: row.isPublic,
+    memberOxyUserIds,
+    subscriberCount: row.subscriberCount,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+  };
+}
+
+/**
+ * The member ids a client sent, in the order they sent them: non-empty strings
+ * only, deduplicated.
+ *
+ * Mongo stored the raw array, so a repeated id simply sat there twice. The
+ * junction's `(list_id, oxy_user_id)` unique constraint refuses that outright,
+ * so the duplicate is collapsed HERE — keeping the first occurrence, which is
+ * what preserves the arrangement the owner chose. A non-string could never name
+ * an Oxy account, and Mongoose's cast would have turned an object into
+ * `"[object Object]"` rather than rejecting it, so those are dropped too.
+ */
+function normalizeMemberIds(input: unknown): string[] {
+  if (!Array.isArray(input)) return [];
+  const seen = new Set<string>();
+  for (const value of input) {
+    if (typeof value === 'string' && value.length > 0) seen.add(value);
+  }
+  return Array.from(seen);
+}
+
+/** Members of the given lists, keyed by list id, each in the owner's order. */
+async function loadMembersByList(
+  db: DatabaseOrTransaction,
+  listIds: string[],
+): Promise<Map<string, string[]>> {
+  const grouped = new Map<string, string[]>();
+  if (listIds.length === 0) return grouped;
+
+  // `inArray`, never a hand-built `= any(${ids})`: a raw JS array interpolated
+  // into `sql` binds as a ROW constructor, and Postgres rejects it at runtime.
+  const rows = await db
+    .select({ listId: accountListMembers.listId, oxyUserId: accountListMembers.oxyUserId })
+    .from(accountListMembers)
+    .where(inArray(accountListMembers.listId, listIds))
+    .orderBy(asc(accountListMembers.listId), asc(accountListMembers.position));
+
+  for (const row of rows) {
+    const bucket = grouped.get(row.listId);
+    if (bucket) bucket.push(row.oxyUserId);
+    else grouped.set(row.listId, [row.oxyUserId]);
+  }
+  return grouped;
+}
+
+/**
+ * Rewrite a list's membership so it is exactly `memberIds`, in that order.
+ *
+ * DELETE-then-INSERT, two statements inside the caller's transaction. That is
+ * not laziness about the incremental case: `(list_id, position)` is UNIQUE, so
+ * any attempt to REORDER in place (`update … set position = …`) collides with a
+ * row that still holds the target position — Postgres checks a unique constraint
+ * per statement, not at commit, so even a single multi-row `UPDATE` fails. The
+ * delete happens first, in its own statement, so the insert sees no old rows at
+ * all and `position` runs 0…n-1 with nothing to collide with.
+ *
+ * The append-only cases (`POST /:id/members`) route through here too, and pay
+ * only a rewrite of rows nothing references by id.
+ */
+async function replaceMembers(tx: Transaction, listId: string, memberIds: string[]): Promise<void> {
+  await tx.delete(accountListMembers).where(eq(accountListMembers.listId, listId));
+  if (memberIds.length === 0) return;
+  await tx.insert(accountListMembers).values(
+    memberIds.map((oxyUserId, position) => ({ listId, oxyUserId, position })),
+  );
 }
 
 // Create list (accounts)
@@ -76,20 +184,31 @@ router.post('/', async (req: AuthRequest, res: Response) => {
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ error: 'Authentication required' });
 
-    const { title, description, isPublic = true, memberOxyUserIds = [] } = req.body || {};
+    const { title, description, isPublic = true, memberOxyUserIds } = req.body || {};
     if (!title) return res.status(400).json({ error: 'Title is required' });
 
-    const list = await AccountList.create({
-      ownerOxyUserId: userId,
-      title: String(title),
-      description: description ? String(description) : undefined,
-      isPublic: !!isPublic,
-      memberOxyUserIds: Array.isArray(memberOxyUserIds) ? memberOxyUserIds : [],
+    const members = normalizeMemberIds(memberOxyUserIds);
+    const list = await getDb().transaction(async (tx) => {
+      const [row] = await tx
+        .insert(accountLists)
+        .values({
+          ownerOxyUserId: userId,
+          title: String(title),
+          // NULL, never `''` — an empty string is a VALUE, and the client's
+          // `if (list.description)` would then render an empty field instead of
+          // none. Mongoose stored `undefined` for exactly this.
+          description: description ? String(description) : null,
+          isPublic: !!isPublic,
+        })
+        .returning();
+      await replaceMembers(tx, row.id, members);
+      return row;
     });
 
-    syncListEndorsements(String(list._id));
-    res.status(201).json(list);
+    syncListEndorsements(list.id);
+    res.status(201).json(serializeList(list, members));
   } catch (error) {
+    logger.error('[Lists] Failed to create list', { userId: req.user?.id, error });
     res.status(500).json({ error: 'Failed to create list' });
   }
 });
@@ -99,55 +218,75 @@ router.get('/', async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ error: 'Authentication required' });
-    const { mine, publicOnly } = req.query;
-    const q: Record<string, unknown> = {};
-    if (mine === 'true') q.ownerOxyUserId = userId;
-    if (publicOnly === 'true') q.isPublic = true;
-    // Visibility gate: without an explicit filter the viewer sees their OWN lists
-    // plus every public list. The search term (below) narrows within that gate —
-    // it never widens it, so a non-owner still can't reach a private list.
-    if (!mine && !publicOnly) q.$or = [{ ownerOxyUserId: userId }, { isPublic: true }];
+    const mine = queryString(req.query.mine);
+    const publicOnly = queryString(req.query.publicOnly);
 
-    // Filter by `search` (name/description, case-insensitive). Previously ignored —
-    // the search tab received every accessible list unfiltered. Regex-ESCAPED so a
-    // raw query can't be interpreted as a pattern (regex injection / backtracking).
+    // Visibility gate, applied UNCONDITIONALLY: the viewer sees their OWN lists
+    // plus every public list. It used to be skipped whenever `mine` or
+    // `publicOnly` was present but not the literal `'true'` — so `?mine=false`
+    // (and `?mine[]=true`, which arrives as an array) produced an unfiltered
+    // query that returned every private list in the database. `mine=true` and
+    // `publicOnly=true` still NARROW within the gate; nothing widens it.
+    const conditions: Array<SQL | undefined> = [
+      or(eq(accountLists.ownerOxyUserId, userId), eq(accountLists.isPublic, true)),
+    ];
+    if (mine === 'true') conditions.push(eq(accountLists.ownerOxyUserId, userId));
+    if (publicOnly === 'true') conditions.push(eq(accountLists.isPublic, true));
+
+    // Filter by `search` (title/description, case-insensitive). LIKE-ESCAPED so a
+    // raw query can't be read as a wildcard and match everything.
     const search = queryString(req.query.search)?.trim();
     if (search) {
-      const searchRegex = new RegExp(escapeRegex(search), 'i');
-      const searchCondition = { $or: [{ title: searchRegex }, { description: searchRegex }] };
-      if (q.$or) {
-        // Combine the visibility OR with the search OR under $and so both must hold.
-        q.$and = [{ $or: q.$or }, searchCondition];
-        delete q.$or;
-      } else {
-        q.$or = searchCondition.$or;
-      }
+      const pattern = likeContains(search);
+      conditions.push(
+        or(ilike(accountLists.title, pattern), ilike(accountLists.description, pattern)) as SQL,
+      );
     }
+    const where = and(...conditions);
 
     // Opt-in pagination: `?limit` present ⇒ page (offset/limit, over-fetching one
     // row to detect `hasMore`); absent ⇒ the historical "return every accessible
-    // list" the lists screen / add-to-list sheet depend on. `_id` breaks
-    // `updatedAt` ties so offsets never shuffle rows between pages.
+    // list" the lists screen / add-to-list sheet depend on. `id` breaks
+    // `updated_at` ties so the order is TOTAL and offsets never shuffle rows
+    // between pages.
     const rawLimit = queryInt(req.query.limit);
     const offset = Math.max(0, queryInt(req.query.offset) ?? 0);
-    let listQuery = AccountList.find(q).sort({ updatedAt: -1, _id: -1 });
-    let pageLimit: number | undefined;
-    if (rawLimit !== undefined) {
-      pageLimit = Math.min(Math.max(1, rawLimit), MAX_LIST_PAGE_SIZE);
-      listQuery = listQuery.skip(offset).limit(pageLimit + 1);
-    }
-    const fetched = await listQuery.lean<LeanAccountList[]>();
+    const pageLimit =
+      rawLimit === undefined ? undefined : Math.min(Math.max(1, rawLimit), MAX_LIST_PAGE_SIZE);
+
+    const db = getDb();
+    const baseQuery = db
+      .select()
+      .from(accountLists)
+      .where(where)
+      .orderBy(desc(accountLists.updatedAt), desc(accountLists.id));
+    const fetched =
+      pageLimit === undefined ? await baseQuery : await baseQuery.limit(pageLimit + 1).offset(offset);
+
     const hasMore = pageLimit !== undefined && fetched.length > pageLimit;
     const page = hasMore ? fetched.slice(0, pageLimit) : fetched;
-    const serialized = page.map(serializeList);
+    const membersByList = await loadMembersByList(db, page.map((row) => row.id));
+    const serialized = page.map((row) => serializeList(row, membersByList.get(row.id) ?? []));
 
-    const total = pageLimit !== undefined ? await AccountList.countDocuments(q) : serialized.length;
+    let total = serialized.length;
+    if (pageLimit !== undefined) {
+      // `::int` so postgres.js hands back a NUMBER: a bare `count(*)` is a
+      // bigint, which the driver returns as a STRING, and `total` would silently
+      // change type on the wire.
+      const [counted] = await db
+        .select({ total: sql<number>`count(*)::int` })
+        .from(accountLists)
+        .where(where);
+      total = counted.total;
+    }
+
     res.json({
       items: serialized,
       total,
       pagination: { offset, limit: pageLimit ?? serialized.length, hasMore },
     });
   } catch (error) {
+    logger.error('[Lists] Failed to list lists', { userId: req.user?.id, error });
     res.status(500).json({ error: 'Failed to list lists' });
   }
 });
@@ -156,36 +295,99 @@ router.get('/', async (req: AuthRequest, res: Response) => {
 router.get('/:id', async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?.id;
-    const list = await AccountList.findById(req.params.id).lean<LeanAccountList>();
+    const db = getDb();
+    const [list] = await db
+      .select()
+      .from(accountLists)
+      .where(eq(accountLists.id, String(req.params.id)))
+      .limit(1);
     if (!list) return res.status(404).json({ error: 'List not found' });
     if (!canViewList(list, userId)) return res.status(403).json({ error: 'Not allowed' });
-    res.json(serializeList(list));
+    const members = await loadMembersByList(db, [list.id]);
+    res.json(serializeList(list, members.get(list.id) ?? []));
   } catch (error) {
+    logger.error('[Lists] Failed to get list', { userId: req.user?.id, listId: String(req.params.id), error });
     res.status(500).json({ error: 'Failed to get list' });
   }
 });
+
+/**
+ * The outcome of a write that first has to find the list and check its owner.
+ *
+ * Returned rather than thrown so the transaction is not used for control flow:
+ * a `throw` here would roll back a transaction that had done nothing wrong and
+ * arrive at the catch block as an indistinguishable 500.
+ */
+type ListWriteOutcome =
+  | { kind: 'notFound' }
+  | { kind: 'forbidden' }
+  | { kind: 'ok'; list: typeof accountLists.$inferSelect; previousMemberIds: string[]; memberIds: string[] };
 
 // Update list
 router.put('/:id', async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?.id;
-    const list = await AccountList.findById(req.params.id);
-    if (!list) return res.status(404).json({ error: 'List not found' });
-    if (list.ownerOxyUserId !== userId) return res.status(403).json({ error: 'Not allowed' });
     const { title, description, isPublic, memberOxyUserIds } = req.body || {};
-    if (title !== undefined) list.title = String(title);
-    if (description !== undefined) list.description = String(description);
-    if (isPublic !== undefined) list.isPublic = !!isPublic;
-    const previousMemberIds = [...(list.memberOxyUserIds || [])];
-    if (Array.isArray(memberOxyUserIds)) list.memberOxyUserIds = memberOxyUserIds;
-    await list.save();
-    if (Array.isArray(memberOxyUserIds)) {
-      syncListMembershipChange(String(list._id), list.ownerOxyUserId, previousMemberIds, list.memberOxyUserIds || []);
+    const replacesMembers = Array.isArray(memberOxyUserIds);
+
+    const outcome = await getDb().transaction<ListWriteOutcome>(async (tx) => {
+      const [existing] = await tx
+        .select()
+        .from(accountLists)
+        .where(eq(accountLists.id, String(req.params.id)))
+        .limit(1);
+      if (!existing) return { kind: 'notFound' };
+      if (existing.ownerOxyUserId !== userId) return { kind: 'forbidden' };
+
+      const members = await loadMembersByList(tx, [existing.id]);
+      const previousMemberIds = members.get(existing.id) ?? [];
+      const memberIds = replacesMembers ? normalizeMemberIds(memberOxyUserIds) : previousMemberIds;
+
+      // Built from LITERAL keys only. Drizzle keys `set()` by column PROPERTY
+      // name and silently ignores an unknown one — writing nothing and throwing
+      // nothing — so an update object assembled from request keys would be a
+      // dropped write nobody notices.
+      await tx
+        .update(accountLists)
+        .set({
+          ...(title === undefined ? {} : { title: String(title) }),
+          ...(description === undefined ? {} : { description: description ? String(description) : null }),
+          ...(isPublic === undefined ? {} : { isPublic: !!isPublic }),
+          // Always stamped, matching Mongoose's `save()`: the previous route
+          // bumped `updatedAt` on every PUT whether or not a field changed, and
+          // `updated_at` is the sort key `GET /lists` pages on.
+          updatedAt: new Date(),
+        })
+        .where(eq(accountLists.id, existing.id));
+
+      if (replacesMembers) {
+        await replaceMembers(tx, existing.id, memberIds);
+      }
+
+      const [list] = await tx
+        .select()
+        .from(accountLists)
+        .where(eq(accountLists.id, existing.id))
+        .limit(1);
+      return { kind: 'ok', list, previousMemberIds, memberIds };
+    });
+
+    if (outcome.kind === 'notFound') return res.status(404).json({ error: 'List not found' });
+    if (outcome.kind === 'forbidden') return res.status(403).json({ error: 'Not allowed' });
+
+    if (replacesMembers) {
+      syncListMembershipChange(
+        outcome.list.id,
+        outcome.list.ownerOxyUserId,
+        outcome.previousMemberIds,
+        outcome.memberIds,
+      );
     } else {
-      syncListEndorsements(String(list._id));
+      syncListEndorsements(outcome.list.id);
     }
-    res.json(list);
+    res.json(serializeList(outcome.list, outcome.memberIds));
   } catch (error) {
+    logger.error('[Lists] Failed to update list', { userId: req.user?.id, listId: String(req.params.id), error });
     res.status(500).json({ error: 'Failed to update list' });
   }
 });
@@ -194,60 +396,123 @@ router.put('/:id', async (req: AuthRequest, res: Response) => {
 router.delete('/:id', async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?.id;
-    const list = await AccountList.findById(req.params.id);
-    if (!list) return res.status(404).json({ error: 'List not found' });
-    if (list.ownerOxyUserId !== userId) return res.status(403).json({ error: 'Not allowed' });
-    // Capture members BEFORE delete so we can retract their endorsements.
-    const ownerId = list.ownerOxyUserId;
-    const memberIds = [...(list.memberOxyUserIds || [])];
-    const listId = String(list._id);
-    await list.deleteOne();
+    const outcome = await getDb().transaction<ListWriteOutcome>(async (tx) => {
+      const [existing] = await tx
+        .select()
+        .from(accountLists)
+        .where(eq(accountLists.id, String(req.params.id)))
+        .limit(1);
+      if (!existing) return { kind: 'notFound' };
+      if (existing.ownerOxyUserId !== userId) return { kind: 'forbidden' };
+
+      // Capture members BEFORE the delete so their endorsements can be retracted;
+      // `account_list_members` cascades with the list and is gone afterwards.
+      const members = await loadMembersByList(tx, [existing.id]);
+      await tx.delete(accountLists).where(eq(accountLists.id, existing.id));
+      const memberIds = members.get(existing.id) ?? [];
+      return { kind: 'ok', list: existing, previousMemberIds: memberIds, memberIds };
+    });
+
+    if (outcome.kind === 'notFound') return res.status(404).json({ error: 'List not found' });
+    if (outcome.kind === 'forbidden') return res.status(403).json({ error: 'Not allowed' });
+
     void endorsementSignalService
-      .syncScopeRemoval('accountList', listId, ownerId, memberIds)
-    .catch((error) => logger.warn('[Lists] endorsement retraction failed', error));
+      .syncScopeRemoval('accountList', outcome.list.id, outcome.list.ownerOxyUserId, outcome.memberIds)
+      .catch((error) => logger.warn('[Lists] endorsement retraction failed', error));
     res.json({ success: true });
   } catch (error) {
+    logger.error('[Lists] Failed to delete list', { userId: req.user?.id, listId: String(req.params.id), error });
     res.status(500).json({ error: 'Failed to delete list' });
   }
 });
 
-// Add/remove members
+// Add members
 router.post('/:id/members', async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?.id;
     const { userIds } = req.body || {};
-    const list = await AccountList.findById(req.params.id);
-    if (!list) return res.status(404).json({ error: 'List not found' });
-    if (list.ownerOxyUserId !== userId) return res.status(403).json({ error: 'Not allowed' });
-    const set = new Set([...(list.memberOxyUserIds || []), ...(Array.isArray(userIds) ? userIds : [])]);
-    list.memberOxyUserIds = Array.from(set);
-    await list.save();
-    syncListEndorsements(String(list._id));
-    res.json(list);
+
+    const outcome = await getDb().transaction<ListWriteOutcome>(async (tx) => {
+      const [existing] = await tx
+        .select()
+        .from(accountLists)
+        .where(eq(accountLists.id, String(req.params.id)))
+        .limit(1);
+      if (!existing) return { kind: 'notFound' };
+      if (existing.ownerOxyUserId !== userId) return { kind: 'forbidden' };
+
+      const members = await loadMembersByList(tx, [existing.id]);
+      const previousMemberIds = members.get(existing.id) ?? [];
+      // Existing members keep their positions and the new ones are APPENDED —
+      // the same result `new Set([...existing, ...incoming])` produced.
+      const memberIds = Array.from(
+        new Set([...previousMemberIds, ...normalizeMemberIds(userIds)]),
+      );
+      await replaceMembers(tx, existing.id, memberIds);
+      return { kind: 'ok', list: existing, previousMemberIds, memberIds };
+    });
+
+    if (outcome.kind === 'notFound') return res.status(404).json({ error: 'List not found' });
+    if (outcome.kind === 'forbidden') return res.status(403).json({ error: 'Not allowed' });
+
+    syncListEndorsements(outcome.list.id);
+    res.json(serializeList(outcome.list, outcome.memberIds));
   } catch (error) {
+    logger.error('[Lists] Failed to add members', { userId: req.user?.id, listId: String(req.params.id), error });
     res.status(500).json({ error: 'Failed to add members' });
   }
 });
 
+// Remove members
 router.delete('/:id/members', async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?.id;
     const { userIds } = req.body || {};
-    const list = await AccountList.findById(req.params.id);
-    if (!list) return res.status(404).json({ error: 'List not found' });
-    if (list.ownerOxyUserId !== userId) return res.status(403).json({ error: 'Not allowed' });
-    const previousMemberIds = [...(list.memberOxyUserIds || [])];
-    const toRemove = new Set(Array.isArray(userIds) ? userIds : []);
-    list.memberOxyUserIds = (list.memberOxyUserIds || []).filter(id => !toRemove.has(id));
-    await list.save();
-    syncListMembershipChange(String(list._id), list.ownerOxyUserId, previousMemberIds, list.memberOxyUserIds || []);
-    res.json(list);
+
+    const outcome = await getDb().transaction<ListWriteOutcome>(async (tx) => {
+      const [existing] = await tx
+        .select()
+        .from(accountLists)
+        .where(eq(accountLists.id, String(req.params.id)))
+        .limit(1);
+      if (!existing) return { kind: 'notFound' };
+      if (existing.ownerOxyUserId !== userId) return { kind: 'forbidden' };
+
+      const members = await loadMembersByList(tx, [existing.id]);
+      const previousMemberIds = members.get(existing.id) ?? [];
+      const toRemove = new Set(normalizeMemberIds(userIds));
+      const memberIds = previousMemberIds.filter((id) => !toRemove.has(id));
+      await replaceMembers(tx, existing.id, memberIds);
+      return { kind: 'ok', list: existing, previousMemberIds, memberIds };
+    });
+
+    if (outcome.kind === 'notFound') return res.status(404).json({ error: 'List not found' });
+    if (outcome.kind === 'forbidden') return res.status(403).json({ error: 'Not allowed' });
+
+    syncListMembershipChange(
+      outcome.list.id,
+      outcome.list.ownerOxyUserId,
+      outcome.previousMemberIds,
+      outcome.memberIds,
+    );
+    res.json(serializeList(outcome.list, outcome.memberIds));
   } catch (error) {
+    logger.error('[Lists] Failed to remove members', { userId: req.user?.id, listId: String(req.params.id), error });
     res.status(500).json({ error: 'Failed to remove members' });
   }
 });
 
-// Timeline of a list (chronological posts from members)
+/**
+ * Timeline of a list (chronological posts from members).
+ *
+ * The LIST half is Postgres; the POST half is still Mongo, and deliberately so.
+ * `Post` and the hydration path it feeds (`feedController.transformPostsWithProfiles`
+ * → `PostHydrationService`) belong to a different batch of this migration and
+ * still read Mongo documents, so selecting posts from Postgres here would hand
+ * hydration rows of a shape it cannot read. This is an entity boundary, not a
+ * half-ported entity: every `account_lists` access in this file is Postgres.
+ * When posts move, this query moves with them.
+ */
 router.get('/:id/timeline', ...timelineRateLimiters, async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?.id;
@@ -255,11 +520,32 @@ router.get('/:id/timeline', ...timelineRateLimiters, async (req: AuthRequest, re
     // Bounded positive integer: the page's last row is read by index below, so a
     // NaN / zero / negative limit would index outside the page.
     const limit = Math.min(Math.max(queryInt(req.query.limit) || DEFAULT_TIMELINE_PAGE_SIZE, 1), MAX_TIMELINE_PAGE_SIZE);
-    const list = await AccountList.findById(req.params.id).lean();
+    const listId = String(req.params.id);
+    const db = getDb();
+    const [list] = await db
+      .select({ isPublic: accountLists.isPublic, ownerOxyUserId: accountLists.ownerOxyUserId })
+      .from(accountLists)
+      .where(eq(accountLists.id, listId))
+      .limit(1);
     if (!list) return res.status(404).json({ error: 'List not found' });
     if (!canViewList(list, userId)) return res.status(403).json({ error: 'Not allowed' });
 
-    const q: Record<string, unknown> = { oxyUserId: { $in: list.memberOxyUserIds || [] }, visibility: 'public' };
+    // The list MEMBERSHIP is Postgres (this batch owns `account_list_members`);
+    // the POSTS are deliberately still Mongo, and that split is safe because ids
+    // are preserved verbatim across the migration, so a member id from one store
+    // names the same author in the other.
+    //
+    // The posts half is NOT this batch's to move. `transformPostsWithProfiles`
+    // hands its rows straight to `PostHydrationService.hydratePosts`, so the row
+    // SHAPE is part of the posts/hydration batch's contract — porting the query
+    // here in isolation would feed Drizzle rows to a hydrator written for Mongo
+    // documents and produce empty posts rather than an error. It moves when that
+    // batch's hydrator does.
+    const members = await loadMembersByList(db, [listId]);
+    const q: Record<string, unknown> = {
+      oxyUserId: { $in: members.get(listId) ?? [] },
+      visibility: 'public',
+    };
     if (cursor) q._id = { $lt: new mongoose.Types.ObjectId(cursor) };
     const docs = await Post.find(q).sort({ createdAt: -1 }).limit(limit + 1).lean();
     const hasMore = docs.length > limit;
@@ -270,6 +556,7 @@ router.get('/:id/timeline', ...timelineRateLimiters, async (req: AuthRequest, re
     // `date`); the previous `p.date` read was always undefined under the loose cast.
     res.json({ items: transformed.map((p) => ({ id: p.id, type: 'post', data: p, createdAt: p.metadata?.createdAt, updatedAt: p.metadata?.updatedAt })), hasMore, nextCursor, totalCount: transformed.length });
   } catch (error) {
+    logger.error('[Lists] Failed to load list timeline', { userId: req.user?.id, listId: String(req.params.id), error });
     res.status(500).json({ error: 'Failed to load list timeline' });
   }
 });

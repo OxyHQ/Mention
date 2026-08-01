@@ -1,17 +1,34 @@
+/**
+ * `GET /notifications` — the two per-viewer safety gates, end to end.
+ *
+ * Four clauses are documented in `AGENTS.md` and each one is separately easy to
+ * get backwards, so each has a test that fails if it is:
+ *
+ *  1. a sensitivity-gated post WITHHOLDS the preview/embed but KEEPS the row —
+ *     the viewer still learns someone replied;
+ *  2. a muted post is REMOVED entirely — blanking the text would still announce
+ *     the interaction and invite a tap through to the muted content;
+ *  3. neither applies to a post the viewer AUTHORED (`viewerState.isOwner` /
+ *     `isCollaborator`) — a mute must never hide engagement on your own work;
+ *  4. `unreadCount` is a separate aggregate and still counts a removed row.
+ *
+ * Unlike the suite this replaced, the viewer's preferences are REAL rows:
+ * `user_settings.privacy_show_sensitive_content` and `mute_words` are written to
+ * Postgres and read back through `services/safety/viewerSafety`, so a broken
+ * loader fails here instead of being mocked away.
+ */
+
 import express from 'express';
-import mongoose from 'mongoose';
 import request from 'supertest';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { randomUUID } from 'node:crypto';
+import { inArray } from 'drizzle-orm';
 
 const mocks = vi.hoisted(() => ({
-  notificationFind: vi.fn(),
-  notificationCountDocuments: vi.fn(),
   postFind: vi.fn(),
   hydratePosts: vi.fn(),
   getUsersByIds: vi.fn(),
   createScopedOxyClient: vi.fn(),
-  loadShowSensitiveContent: vi.fn(),
-  loadMuteWords: vi.fn(),
   loadFollowedAuthorIds: vi.fn(),
 }));
 
@@ -19,20 +36,7 @@ vi.mock('../../middleware/rateLimiter', () => ({
   apiRateLimiter: (_req: unknown, _res: unknown, next: () => void) => next(),
 }));
 
-vi.mock('../../models/Notification', () => ({
-  default: {
-    find: mocks.notificationFind,
-    countDocuments: mocks.notificationCountDocuments,
-  },
-}));
-
-vi.mock('../../models/Post', () => ({
-  default: { find: mocks.postFind },
-}));
-
-vi.mock('../../models/PushToken', () => ({
-  default: { deleteOne: vi.fn(), findOneAndUpdate: vi.fn() },
-}));
+vi.mock('../../models/Post', () => ({ default: { find: mocks.postFind } }));
 
 vi.mock('../../services/PostHydrationService', () => ({
   postHydrationService: { hydratePosts: mocks.hydratePosts },
@@ -47,53 +51,81 @@ vi.mock('../../utils/mediaResolver', () => ({
   resolveAvatarUrl: (value?: string) => value,
 }));
 
-vi.mock('../../utils/push', () => ({ sendPushToUser: vi.fn() }));
-
-vi.mock('../../services/safety/viewerSafety', () => ({
-  loadShowSensitiveContent: mocks.loadShowSensitiveContent,
-  loadMuteWords: mocks.loadMuteWords,
+vi.mock('../../utils/push', () => ({
+  sendPushToUser: vi.fn(),
+  formatPushForNotification: vi.fn(),
 }));
 
+// The follow GRAPH is Oxy's plus the federated union; only the mute rule that
+// consults it is under test here.
 vi.mock('../../services/viewerFollowGraph', () => ({
   loadFollowedAuthorIds: mocks.loadFollowedAuthorIds,
 }));
 
+import { closePostgres, connectPostgres, type Database } from '../../db/postgres';
+import { uuidv7 } from '../../db/schema/columns';
+import { notifications } from '../../db/schema/discovery';
+import { muteWords } from '../../db/schema/engagement';
+import { userSettings } from '../../db/schema/userProfile';
 import notificationsRouter from '../../routes/notifications';
 
-const ENTITY_ID = new mongoose.Types.ObjectId('507f1f77bcf86cd799439011');
-const NOTIFICATION_ID = new mongoose.Types.ObjectId('507f1f77bcf86cd799439012');
+let db: Database;
+const createdViewerIds: string[] = [];
+
+const ENTITY_ID = '507f1f77bcf86cd799439011';
 const SENSITIVE_TEXT = 'graphic description nobody asked to read';
 const MUTED_TEXT = 'massive spoilers for the finale';
 
 type NotificationType = 'like' | 'reply' | 'mention' | 'post';
 
-function mockNotificationPage(type: NotificationType) {
-  const row = {
-    _id: NOTIFICATION_ID,
-    recipientId: 'viewer-1',
+function viewerId(): string {
+  const id = `oxy-safety-viewer-${randomUUID()}`;
+  createdViewerIds.push(id);
+  return id;
+}
+
+async function seedNotification(viewer: string, type: NotificationType) {
+  await db.insert(notifications).values({
+    // A fresh id per row: suites share one database and run in parallel, so a
+    // fixed primary key collides across files rather than across tests.
+    id: uuidv7(),
+    recipientId: viewer,
     actorId: 'actor-1',
     type,
     entityType: type === 'reply' ? 'reply' : 'post',
     entityId: ENTITY_ID,
     read: false,
-    createdAt: new Date('2026-01-01T00:00:00.000Z'),
-  };
-  const lean = vi.fn().mockResolvedValue([row]);
-  const limit = vi.fn().mockReturnValue({ lean });
-  const sort = vi.fn().mockReturnValue({ limit });
-  mocks.notificationFind.mockReturnValue({ sort });
-  mocks.notificationCountDocuments.mockResolvedValue(1);
+  });
+}
+
+/** The viewer's stored sensitive-content opt-in — a real `user_settings` row. */
+async function optIntoSensitiveContent(viewer: string) {
+  await db.insert(userSettings).values({
+    oxyUserId: viewer,
+    privacyShowSensitiveContent: true,
+  });
+}
+
+/** A real `mute_words` row, read back by `loadMuteWords`. */
+async function seedMuteWord(
+  viewer: string,
+  value: string,
+  targets: string[],
+  actorTarget: 'all' | 'exclude-following' = 'all',
+) {
+  await db.insert(muteWords).values({ userId: viewer, value, targets, actorTarget });
 }
 
 /** The RAW referenced post row — where every sensitivity signal actually lives. */
 function mockRawPost(fields: Record<string, unknown>) {
-  const lean = vi.fn().mockResolvedValue([{ _id: ENTITY_ID, oxyUserId: 'actor-1', ...fields }]);
-  mocks.postFind.mockReturnValue({ lean });
+  mocks.postFind.mockReturnValue({
+    lean: vi.fn().mockResolvedValue([{ _id: ENTITY_ID, oxyUserId: 'actor-1', ...fields }]),
+  });
 }
 
 function mockHydrated(text: string, overrides: Record<string, unknown> = {}) {
   mocks.hydratePosts.mockResolvedValue([{
-    id: String(ENTITY_ID),
+    id: ENTITY_ID,
     content: { text },
     metadata: {},
     user: { id: 'actor-1' },
@@ -102,34 +134,50 @@ function mockHydrated(text: string, overrides: Record<string, unknown> = {}) {
   }]);
 }
 
-function makeApp() {
+function makeApp(viewer: string) {
   const app = express();
   app.use((req, _res, next) => {
-    (req as typeof req & { user: { id: string } }).user = { id: 'viewer-1' };
+    (req as typeof req & { user: { id: string } }).user = { id: viewer };
     next();
   });
   app.use('/', notificationsRouter);
   return app;
 }
 
+beforeAll(async () => {
+  db = await connectPostgres();
+});
+
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.getUsersByIds.mockResolvedValue([]);
-  mocks.createScopedOxyClient.mockReturnValue({ scope: 'viewer-1' });
-  mocks.loadShowSensitiveContent.mockResolvedValue(false);
-  mocks.loadMuteWords.mockResolvedValue([]);
+  mocks.createScopedOxyClient.mockReturnValue({ scope: 'viewer' });
   mocks.loadFollowedAuthorIds.mockResolvedValue(new Set<string>());
-  mockNotificationPage('reply');
   mockRawPost({});
   mockHydrated('an ordinary reply');
 });
 
+afterEach(async () => {
+  if (createdViewerIds.length > 0) {
+    await db.delete(notifications).where(inArray(notifications.recipientId, createdViewerIds));
+    await db.delete(muteWords).where(inArray(muteWords.userId, createdViewerIds));
+    await db.delete(userSettings).where(inArray(userSettings.oxyUserId, createdViewerIds));
+    createdViewerIds.length = 0;
+  }
+});
+
+afterAll(async () => {
+  await closePostgres();
+});
+
 describe('GET /notifications sensitive-content gating', () => {
   it('withholds the preview text of a sensitive reply from a viewer who has not opted in', async () => {
+    const viewer = viewerId();
+    await seedNotification(viewer, 'reply');
     mockRawPost({ metadata: { isSensitive: true } });
     mockHydrated(SENSITIVE_TEXT);
 
-    const res = await request(makeApp()).get('/').expect(200);
+    const res = await request(makeApp(viewer)).get('/').expect(200);
 
     // The notification itself survives — the viewer still learns someone replied.
     expect(res.body.notifications).toHaveLength(1);
@@ -139,50 +187,58 @@ describe('GET /notifications sensitive-content gating', () => {
   });
 
   it('withholds the preview of a post carrying a federated content warning', async () => {
+    const viewer = viewerId();
+    await seedNotification(viewer, 'reply');
     mockRawPost({ federation: { spoilerText: 'CW: injury' } });
     mockHydrated(SENSITIVE_TEXT);
 
-    const res = await request(makeApp()).get('/').expect(200);
+    const res = await request(makeApp(viewer)).get('/').expect(200);
 
     expect(res.body.notifications[0].preview).toBeUndefined();
     expect(JSON.stringify(res.body)).not.toContain(SENSITIVE_TEXT);
   });
 
   it('withholds the preview of a post tagged with an NSFW hashtag', async () => {
+    const viewer = viewerId();
+    await seedNotification(viewer, 'reply');
     mockRawPost({ hashtags: ['nsfw'] });
     mockHydrated(SENSITIVE_TEXT);
 
-    const res = await request(makeApp()).get('/').expect(200);
+    const res = await request(makeApp(viewer)).get('/').expect(200);
 
     expect(res.body.notifications[0].preview).toBeUndefined();
   });
 
   it('shows the preview once the viewer has opted into sensitive content', async () => {
-    mocks.loadShowSensitiveContent.mockResolvedValue(true);
+    const viewer = viewerId();
+    await optIntoSensitiveContent(viewer);
+    await seedNotification(viewer, 'reply');
     mockRawPost({ metadata: { isSensitive: true } });
     mockHydrated(SENSITIVE_TEXT);
 
-    const res = await request(makeApp()).get('/').expect(200);
+    const res = await request(makeApp(viewer)).get('/').expect(200);
 
     expect(res.body.notifications[0].preview).toBe(SENSITIVE_TEXT);
   });
 
   it('still previews the viewer’s OWN sensitive post, which is no surprise to its author', async () => {
-    mockNotificationPage('like');
+    const viewer = viewerId();
+    await seedNotification(viewer, 'like');
     mockRawPost({ metadata: { isSensitive: true } });
     mockHydrated(SENSITIVE_TEXT, { viewerState: { isOwner: true, isCollaborator: false } });
 
-    const res = await request(makeApp()).get('/').expect(200);
+    const res = await request(makeApp(viewer)).get('/').expect(200);
 
     expect(res.body.notifications[0].preview).toBe(SENSITIVE_TEXT);
   });
 
   it('drops the embedded post of a sensitive `post` notification, not just the preview', async () => {
-    mockNotificationPage('post');
+    const viewer = viewerId();
+    await seedNotification(viewer, 'post');
     mockRawPost({ metadata: { isSensitive: true } });
     mockHydrated(SENSITIVE_TEXT);
 
-    const res = await request(makeApp()).get('/').expect(200);
+    const res = await request(makeApp(viewer)).get('/').expect(200);
 
     expect(res.body.notifications[0].post).toBeUndefined();
     expect(JSON.stringify(res.body)).not.toContain(SENSITIVE_TEXT);
@@ -191,63 +247,99 @@ describe('GET /notifications sensitive-content gating', () => {
 
 describe('GET /notifications muted words', () => {
   it('removes a reply notification whose post contains a term the viewer muted', async () => {
-    mocks.loadMuteWords.mockResolvedValue([
-      { value: 'spoilers', targets: ['content', 'tag'], actorTarget: 'all' },
-    ]);
+    const viewer = viewerId();
+    await seedNotification(viewer, 'reply');
+    await seedMuteWord(viewer, 'spoilers', ['content', 'tag']);
     mockHydrated(MUTED_TEXT);
 
-    const res = await request(makeApp()).get('/').expect(200);
+    const res = await request(makeApp(viewer)).get('/').expect(200);
 
     expect(res.body.notifications).toEqual([]);
     expect(JSON.stringify(res.body)).not.toContain('spoilers');
   });
 
+  it('still counts a removed notification in unreadCount', async () => {
+    // `unreadCount` is a separate aggregate over the recipient's unread rows;
+    // muting is a READ-time rule and does not un-write the row it hides.
+    const viewer = viewerId();
+    await seedNotification(viewer, 'reply');
+    await seedMuteWord(viewer, 'spoilers', ['content']);
+    mockHydrated(MUTED_TEXT);
+
+    const res = await request(makeApp(viewer)).get('/').expect(200);
+
+    expect(res.body.notifications).toEqual([]);
+    expect(res.body.unreadCount).toBe(1);
+  });
+
   it('removes a mention notification whose post carries a muted hashtag', async () => {
-    mockNotificationPage('mention');
-    mocks.loadMuteWords.mockResolvedValue([
-      { value: 'politics', targets: ['tag'], actorTarget: 'all' },
-    ]);
+    const viewer = viewerId();
+    await seedNotification(viewer, 'mention');
+    await seedMuteWord(viewer, 'politics', ['tag']);
     mockHydrated('election night', { metadata: { hashtags: ['Politics'] } });
 
-    const res = await request(makeApp()).get('/').expect(200);
+    const res = await request(makeApp(viewer)).get('/').expect(200);
 
     expect(res.body.notifications).toEqual([]);
   });
 
   it('keeps a like on the viewer’s OWN post even when it matches their muted word', async () => {
-    mockNotificationPage('like');
-    mocks.loadMuteWords.mockResolvedValue([
-      { value: 'spoilers', targets: ['content'], actorTarget: 'all' },
-    ]);
+    const viewer = viewerId();
+    await seedNotification(viewer, 'like');
+    await seedMuteWord(viewer, 'spoilers', ['content']);
     mockHydrated(MUTED_TEXT, { viewerState: { isOwner: true, isCollaborator: false } });
 
-    const res = await request(makeApp()).get('/').expect(200);
+    const res = await request(makeApp(viewer)).get('/').expect(200);
 
     expect(res.body.notifications).toHaveLength(1);
     expect(res.body.notifications[0].type).toBe('like');
   });
 
+  it('keeps a boost on a post the viewer COLLABORATED on', async () => {
+    const viewer = viewerId();
+    await seedNotification(viewer, 'like');
+    await seedMuteWord(viewer, 'spoilers', ['content']);
+    mockHydrated(MUTED_TEXT, { viewerState: { isOwner: false, isCollaborator: true } });
+
+    const res = await request(makeApp(viewer)).get('/').expect(200);
+
+    expect(res.body.notifications).toHaveLength(1);
+  });
+
   it('keeps a reply from a followed author when the muted word excludes follows', async () => {
-    mocks.loadMuteWords.mockResolvedValue([
-      { value: 'spoilers', targets: ['content'], actorTarget: 'exclude-following' },
-    ]);
+    const viewer = viewerId();
+    await seedNotification(viewer, 'reply');
+    await seedMuteWord(viewer, 'spoilers', ['content'], 'exclude-following');
     mocks.loadFollowedAuthorIds.mockResolvedValue(new Set(['actor-1']));
     mockHydrated(MUTED_TEXT);
 
-    const res = await request(makeApp()).get('/').expect(200);
+    const res = await request(makeApp(viewer)).get('/').expect(200);
 
-    expect(mocks.loadFollowedAuthorIds).toHaveBeenCalledWith('viewer-1', { scope: 'viewer-1' });
+    expect(mocks.loadFollowedAuthorIds).toHaveBeenCalledWith(viewer, { scope: 'viewer' });
     expect(res.body.notifications).toHaveLength(1);
   });
 
   it('does not pay for the follow-graph lookup when no muted word needs it', async () => {
-    mocks.loadMuteWords.mockResolvedValue([
-      { value: 'spoilers', targets: ['content'], actorTarget: 'all' },
-    ]);
+    const viewer = viewerId();
+    await seedNotification(viewer, 'reply');
+    await seedMuteWord(viewer, 'spoilers', ['content']);
     mockHydrated('an ordinary reply');
 
-    await request(makeApp()).get('/').expect(200);
+    await request(makeApp(viewer)).get('/').expect(200);
 
     expect(mocks.loadFollowedAuthorIds).not.toHaveBeenCalled();
+  });
+
+  it('leaves an unmuted viewer’s notifications alone', async () => {
+    // The vacuity floor: every case above must not be passing because the page
+    // is empty for everyone.
+    const viewer = viewerId();
+    await seedNotification(viewer, 'reply');
+    mockHydrated(MUTED_TEXT);
+
+    const res = await request(makeApp(viewer)).get('/').expect(200);
+
+    expect(res.body.notifications).toHaveLength(1);
+    expect(res.body.notifications[0].preview).toBe(MUTED_TEXT);
   });
 });

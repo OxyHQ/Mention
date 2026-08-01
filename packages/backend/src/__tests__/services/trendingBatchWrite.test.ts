@@ -1,334 +1,508 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-
 /**
- * Coverage for the trending batch WRITE — the path that froze `GET /trending` on
- * one batch for over a day while answering HTTP 200 the whole time.
+ * The trending batch WRITE and the reads that hang off it, against real rows.
  *
- * Two independent defects met there, and both are pinned here:
+ * This is the path that froze `GET /trending` on one batch for over a day while
+ * answering HTTP 200 the whole time, and two independent defects met there:
  *
  *   1. Batch uniqueness was keyed on `{ name, calculatedAt }`, so a name trending
  *      as BOTH a hashtag and a classified topic (observed in production for
- *      `business`) was a duplicate. The key now includes `type`; the model and
- *      migration suites assert the index itself, and the tests below assert that
- *      the batch really does carry both rows rather than collapsing them.
+ *      `business`) was a duplicate. The key now carries `type`.
  *
  *   2. The insert was ORDERED and its rejection propagated, so one bad row
- *      discarded every row after it AND skipped `TrendBatch.create` — and since
- *      `getTrending` derives its timestamp from `TrendBatch`, the endpoint went on
- *      serving the last complete batch forever. The insert is now unordered and
- *      the outcome is reported rather than swallowed.
+ *      discarded every row after it AND skipped the `trend_batches` write — and
+ *      since `getTrending` derives its timestamp from that table, the endpoint
+ *      went on serving the last complete batch forever.
+ *
+ * Both are asserted against what is STORED, not against the shape of a call. The
+ * suite this replaces mocked `insertMany` and checked that `{ ordered: false }`
+ * was passed; it could not have noticed that a Postgres multi-row INSERT is
+ * all-or-nothing and that the resilience has to be written out by hand.
+ *
+ * The wire format is the other subject. `_id`, an OMITTED `topicId`, and `Date`
+ * (not string) timestamps are what Mongoose's `.lean()` produced, and the
+ * frontend consumes this response directly.
  */
 
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { randomUUID } from 'node:crypto';
+import { asc, eq, inArray, lt } from 'drizzle-orm';
+
+import { TrendingType } from '../../models/Trending';
+
 const mocks = vi.hoisted(() => ({
-  postAggregate: vi.fn(),
-  trendingInsertMany: vi.fn(),
-  trendingFind: vi.fn(),
-  trendingAggregate: vi.fn(),
-  trendingDeleteMany: vi.fn(),
-  trendBatchCreate: vi.fn(),
-  trendBatchFindOne: vi.fn(),
-  trendBatchDeleteMany: vi.fn(),
-  redisGet: vi.fn(),
-  redisSetEx: vi.fn(),
+  resolveNames: vi.fn(),
+  updatePopularityFromTrending: vi.fn(),
+  emitTrendsUpdated: vi.fn(),
 }));
 
-vi.mock('../../models/Post', () => ({ Post: { aggregate: mocks.postAggregate } }));
-
-vi.mock('../../models/Trending', () => ({
-  __esModule: true,
-  default: {
-    collection: {},
-    insertMany: mocks.trendingInsertMany,
-    find: mocks.trendingFind,
-    findOne: vi.fn(),
-    aggregate: mocks.trendingAggregate,
-    deleteMany: mocks.trendingDeleteMany,
-  },
-  TrendingType: { HASHTAG: 'hashtag', TOPIC: 'topic', ENTITY: 'entity' },
-  TRENDING_TTL_SECONDS: 90 * 24 * 60 * 60,
-}));
-
-vi.mock('../../models/TrendBatch', () => ({
-  __esModule: true,
-  default: {
-    create: mocks.trendBatchCreate,
-    findOne: mocks.trendBatchFindOne,
-    deleteMany: mocks.trendBatchDeleteMany,
-  },
-}));
-
-vi.mock('../../utils/redis', () => ({
-  getRedisClient: () => ({
-    isReady: true,
-    get: mocks.redisGet,
-    setEx: mocks.redisSetEx,
-    set: vi.fn(),
-    del: vi.fn(),
-    keys: vi.fn().mockResolvedValue([]),
-  }),
-}));
-vi.mock('../../utils/socket', () => ({ emitTrendsUpdated: vi.fn() }));
+// Redis absent: every cache branch short-circuits, so a read here always hits the
+// database and a stale cache entry can never make an assertion pass.
+vi.mock('../../utils/redis', () => ({ getRedisClient: () => null }));
+vi.mock('../../utils/socket', () => ({ emitTrendsUpdated: mocks.emitTrendsUpdated }));
 vi.mock('../../utils/alia', () => ({ aliaChat: vi.fn(), isAliaEnabled: () => false }));
 vi.mock('../../services/TopicService', () => ({
   topicService: {
-    resolveNames: vi.fn().mockResolvedValue(new Map()),
-    updatePopularityFromTrending: vi.fn().mockResolvedValue(undefined),
+    resolveNames: mocks.resolveNames,
+    updatePopularityFromTrending: mocks.updatePopularityFromTrending,
   },
 }));
 
+import { closePostgres, connectPostgres, type Database } from '../../db/postgres';
+import { trendBatches, trending } from '../../db/schema/discovery';
+import { posts } from '../../db/schema/posts';
 import { trendingService } from '../../services/TrendingService';
-import { logger } from '../../utils/logger';
-import { metrics } from '../../utils/metrics';
 
-interface InsertedDoc {
-  type: string;
+interface TrendItemInput {
+  type: 'hashtag' | 'topic' | 'entity';
   name: string;
-  rank: number;
+  description: string;
+  score: number;
   volume: number;
-}
-
-/** Stand-in for a Mongoose query chain ending in `.lean()`. */
-function leanChain(value: unknown) {
-  const chain = {
-    sort: () => chain,
-    limit: () => chain,
-    select: () => chain,
-    lean: () => Promise.resolve(value),
-  };
-  return chain;
+  momentum: number;
+  topicId?: string;
 }
 
 /**
- * Drive the aggregations so the batch contains `business` as BOTH a hashtag and a
- * classified topic — the exact production collision.
+ * `saveTrendingBatch` and `cleanupOldTrends` are private; reach them through a
+ * typed structural view rather than `as any`, so the tests stay type-checked.
  */
-function stageCollidingBatch(): void {
-  mocks.postAggregate
-    // aggregateHashtags
-    .mockResolvedValueOnce([
-      { _id: 'ai', count24h: 40, count6h: 20 },
-      { _id: 'business', count24h: 30, count6h: 10 },
-    ])
-    // aggregateTopics
-    .mockResolvedValueOnce([
-      { _id: { name: 'business', type: 'topic' }, totalRelevance: 20, postCount: 4, recentCount: 2 },
-      { _id: { name: 'politics', type: 'topic' }, totalRelevance: 15, postCount: 3, recentCount: 1 },
-    ]);
+type PrivateTrending = {
+  saveTrendingBatch(
+    items: TrendItemInput[],
+    calculatedAt: Date,
+  ): Promise<{ insertedCount: number; rejected: string[] }>;
+  cleanupOldTrends(): Promise<void>;
+};
+const svc = trendingService as unknown as PrivateTrending;
+
+let db: Database;
+const createdPostIds: string[] = [];
+const createdBatchStamps: Date[] = [];
+
+function uniqueName(prefix: string): string {
+  return `${prefix}-${randomUUID().slice(0, 8)}`;
 }
 
-function insertedDocs(): InsertedDoc[] {
-  return mocks.trendingInsertMany.mock.calls[0][0] as InsertedDoc[];
+function item(overrides: Partial<TrendItemInput> & { name: string }): TrendItemInput {
+  return {
+    type: 'hashtag',
+    description: '',
+    score: 10,
+    volume: 5,
+    momentum: 0.5,
+    ...overrides,
+  };
 }
 
-beforeEach(() => {
+/** A batch stamp unique to this test, tracked so the rows can be removed after. */
+function batchStamp(offsetMs = 0): Date {
+  const at = new Date(Date.now() + offsetMs);
+  createdBatchStamps.push(at);
+  return at;
+}
+
+async function seedPost(hashtags: string[]): Promise<void> {
+  const [row] = await db
+    .insert(posts)
+    .values({
+      status: 'published',
+      visibility: 'public',
+      createdAt: new Date(Date.now() - 60 * 60 * 1000),
+      hashtags,
+    })
+    .returning({ id: posts.id });
+  createdPostIds.push(row.id);
+}
+
+beforeAll(async () => {
+  db = await connectPostgres();
+});
+
+afterEach(async () => {
   vi.clearAllMocks();
-  metrics.reset();
-  // Every read path is a cache miss so the real queries run.
-  mocks.redisGet.mockResolvedValue(null);
-  mocks.redisSetEx.mockResolvedValue('OK');
-  // `warmDefaultCache` re-enters getTrending after the write.
-  mocks.trendBatchFindOne.mockReturnValue(leanChain({ calculatedAt: new Date(), summary: '' }));
-  mocks.trendingFind.mockReturnValue(leanChain([]));
-  mocks.trendingAggregate.mockResolvedValue([]);
-  mocks.trendingDeleteMany.mockResolvedValue({ deletedCount: 0 });
-  mocks.trendBatchDeleteMany.mockResolvedValue({ deletedCount: 0 });
-  mocks.trendBatchCreate.mockResolvedValue({});
+  if (createdBatchStamps.length > 0) {
+    await db.delete(trending).where(inArray(trending.calculatedAt, createdBatchStamps));
+    await db.delete(trendBatches).where(inArray(trendBatches.calculatedAt, createdBatchStamps));
+    createdBatchStamps.length = 0;
+  }
+  if (createdPostIds.length > 0) {
+    await db.delete(posts).where(inArray(posts.id, createdPostIds));
+    createdPostIds.length = 0;
+  }
 });
 
-describe('TrendingService.calculateTrending — a name that is both a hashtag and a topic', () => {
-  it('writes BOTH rows and publishes the batch', async () => {
-    stageCollidingBatch();
-    mocks.trendingInsertMany.mockImplementation((docs: InsertedDoc[]) => Promise.resolve(docs));
+afterAll(async () => {
+  await closePostgres();
+});
 
-    await trendingService.calculateTrending();
+describe('saveTrendingBatch — a collision costs ONE trend, never the batch', () => {
+  it('stores a hashtag and a topic that share a name as TWO rows in one batch', async () => {
+    /**
+     * THE regression. Keyed on `{name, calculatedAt}` these two are duplicates;
+     * with `type` in the key they are what they actually are — a hashtag someone
+     * typed and a topic the classifier inferred, routing to different screens.
+     */
+    const name = uniqueName('business');
+    const at = batchStamp();
 
-    const docs = insertedDocs();
-    const business = docs.filter((doc) => doc.name === 'business');
-    expect(business.map((doc) => doc.type).sort()).toEqual(['hashtag', 'topic']);
-    // They are distinct measurements, so they keep distinct volumes — nothing is
-    // deduped or merged on the way to the database.
-    expect(new Set(business.map((doc) => doc.volume)).size).toBe(2);
-    expect(docs).toHaveLength(4);
+    const write = await svc.saveTrendingBatch(
+      [item({ name, type: 'hashtag', score: 20 }), item({ name, type: 'topic', score: 10 })],
+      at,
+    );
 
-    // The batch record is what `getTrending` reads its timestamp from. Before the
-    // fix this was never reached, which is what froze the endpoint.
-    expect(mocks.trendBatchCreate).toHaveBeenCalledOnce();
-    expect(metrics.getCounter('trending_calculation_total', { result: 'success' })).toBe(1);
+    expect(write).toEqual({ insertedCount: 2, rejected: [] });
+    const stored = await db.select().from(trending).where(eq(trending.calculatedAt, at));
+    expect(stored.map((row) => row.type).sort()).toEqual(['hashtag', 'topic']);
+    // Rank is assigned over the score-sorted batch, which is what makes
+    // `(score desc, rank asc)` a total order inside one batch.
+    expect(stored.find((row) => row.type === 'hashtag')?.rank).toBe(1);
+    expect(stored.find((row) => row.type === 'topic')?.rank).toBe(2);
   });
 
-  it('inserts UNORDERED, so one rejected row cannot discard the rest', async () => {
-    stageCollidingBatch();
-    mocks.trendingInsertMany.mockImplementation((docs: InsertedDoc[]) => Promise.resolve(docs));
+  it('keeps every OTHER row when one collides, and NAMES the one it dropped', async () => {
+    /**
+     * A Postgres multi-row INSERT is all-or-nothing, so `on conflict do nothing`
+     * is what preserves the unordered-insert guarantee. Without it, the duplicate
+     * below takes the two good trends down with it and the caller — which
+     * publishes the batch only if something landed — stops publishing entirely.
+     */
+    const duplicated = uniqueName('dupe');
+    const survivorA = uniqueName('survivor-a');
+    const survivorB = uniqueName('survivor-b');
+    const at = batchStamp();
 
-    await trendingService.calculateTrending();
+    await svc.saveTrendingBatch([item({ name: duplicated, score: 99 })], at);
 
-    expect(mocks.trendingInsertMany).toHaveBeenCalledWith(expect.any(Array), { ordered: false });
+    const write = await svc.saveTrendingBatch(
+      [
+        item({ name: survivorA, score: 30 }),
+        item({ name: duplicated, score: 20 }),
+        item({ name: survivorB, score: 10 }),
+      ],
+      at,
+    );
+
+    expect(write.insertedCount).toBe(2);
+    expect(write.rejected).toEqual([`hashtag:${duplicated}`]);
+    const stored = await db.select().from(trending).where(eq(trending.calculatedAt, at));
+    expect(stored.map((row) => row.name).sort()).toEqual([duplicated, survivorA, survivorB].sort());
+  });
+
+  it('tolerates the same (name, type) appearing TWICE inside one batch', async () => {
+    // Two hashtags that lowercase to one name — the shape `aggregateHashtags`
+    // can still produce, since it groups on the stored casing and lowercases
+    // afterwards. Mongo errored on the second; `DO NOTHING` also sees rows this
+    // very command inserted, so it is skipped instead.
+    const name = uniqueName('collide');
+    const at = batchStamp();
+
+    const write = await svc.saveTrendingBatch(
+      [item({ name, score: 30 }), item({ name, score: 20 })],
+      at,
+    );
+
+    expect(write.insertedCount).toBe(1);
+    // Reported per ROW, not per distinct key: the second measurement really was
+    // dropped, and `insertedCount + rejected.length` must still account for the
+    // whole batch.
+    expect(write.rejected).toEqual([`hashtag:${name}`]);
+  });
+
+  it('accounts for every row it was given, accepted or rejected', async () => {
+    // The invariant behind the error log: a partial batch can never look whole.
+    const clash = uniqueName('accounting');
+    const fresh = uniqueName('accounting-fresh');
+    const at = batchStamp();
+    await svc.saveTrendingBatch([item({ name: clash })], at);
+
+    const batch = [item({ name: clash }), item({ name: fresh }), item({ name: clash })];
+    const write = await svc.saveTrendingBatch(batch, at);
+
+    expect(write.insertedCount + write.rejected.length).toBe(batch.length);
+    expect(write.rejected).toEqual([`hashtag:${clash}`, `hashtag:${clash}`]);
+  });
+
+  it('reports an empty batch without touching the database', async () => {
+    expect(await svc.saveTrendingBatch([], batchStamp())).toEqual({
+      insertedCount: 0,
+      rejected: [],
+    });
+  });
+
+  it('stores topicId when a trend resolved to a registry topic, and NULL otherwise', async () => {
+    const linked = uniqueName('linked');
+    const unlinked = uniqueName('unlinked');
+    const at = batchStamp();
+
+    await svc.saveTrendingBatch(
+      [item({ name: linked, type: 'topic', topicId: 'oxy-topic-42' }), item({ name: unlinked })],
+      at,
+    );
+
+    const stored = await db.select().from(trending).where(eq(trending.calculatedAt, at));
+    const byName = new Map(stored.map((row) => [row.name, row]));
+    expect(byName.get(linked)?.topicId).toBe('oxy-topic-42');
+    expect(byName.get(unlinked)?.topicId).toBeNull();
   });
 });
 
-describe('TrendingService.calculateTrending — partial batch write', () => {
-  /** What an unordered bulk write raises when it refuses individual documents. */
-  function bulkWriteError(indexes: number[]): Error {
-    const error = new Error('E11000 duplicate key error') as Error & {
-      code: number;
-      writeErrors: Array<{ index: number }>;
-    };
-    error.code = 11000;
-    error.writeErrors = indexes.map((index) => ({ index }));
-    return error;
+describe('getTrending — the wire format is the contract', () => {
+  async function publishBatch(names: string[], at: Date, summary = 'a summary'): Promise<void> {
+    await svc.saveTrendingBatch(
+      names.map((name, index) => item({ name, score: 100 - index, volume: 10 - index })),
+      at,
+    );
+    await db.insert(trendBatches).values({ calculatedAt: at, summary });
   }
 
-  it('still publishes the batch, and names the rejected rows at error level', async () => {
-    stageCollidingBatch();
-    // Reject one row. `docs` is score-sorted, so address it by position.
-    mocks.trendingInsertMany.mockRejectedValue(bulkWriteError([1]));
+  it('emits _id, Date timestamps, and OMITS topicId when there is none', async () => {
+    /**
+     * Mongoose's `.lean()` gave an ObjectId `_id` that JSON-serialized to a
+     * string, `Date` instants, and NO `topicId` key at all when the field was
+     * unset. Postgres would happily hand back `null` for that last one and a raw
+     * timestamp STRING for the first two if the query bypassed drizzle's mappers.
+     */
+    const name = uniqueName('wire');
+    const at = batchStamp();
+    await publishBatch([name], at, 'the summary');
+
+    const result = await trendingService.getTrending(500);
+    const trend = result.trending.find((row) => row.name === name);
+
+    expect(trend).toBeDefined();
+    expect(typeof trend?._id).toBe('string');
+    expect(trend?._id.length).toBeGreaterThan(0);
+    expect(trend?.calculatedAt).toBeInstanceOf(Date);
+    expect(trend?.updatedAt).toBeInstanceOf(Date);
+    expect(trend).not.toHaveProperty('topicId');
+    // Mongo bookkeeping that no reader ever looked at must not reappear.
+    expect(trend).not.toHaveProperty('__v');
+    expect(Object.keys(trend ?? {}).sort()).toEqual([
+      '_id', 'calculatedAt', 'description', 'momentum', 'name', 'rank', 'score', 'type', 'updatedAt', 'volume',
+    ]);
+    expect(result.summary).toBe('the summary');
+    expect(result.recId).toEqual(expect.any(String));
+  });
+
+  it('carries topicId as a string when the trend resolved one', async () => {
+    const name = uniqueName('wire-topic');
+    const at = batchStamp();
+    await svc.saveTrendingBatch([item({ name, type: 'topic', topicId: 'oxy-topic-7' })], at);
+    await db.insert(trendBatches).values({ calculatedAt: at, summary: '' });
+
+    const result = await trendingService.getTrending(500);
+    const trend = result.trending.find((row) => row.name === name);
+
+    expect(trend?.topicId).toBe('oxy-topic-7');
+  });
+
+  it('serves the LATEST batch and can filter it by type', async () => {
+    const older = uniqueName('older');
+    const newer = uniqueName('newer');
+    const newerTopic = uniqueName('newer-topic');
+    await publishBatch([older], batchStamp(-60_000));
+
+    const latest = batchStamp();
+    await svc.saveTrendingBatch(
+      [item({ name: newer, score: 50 }), item({ name: newerTopic, type: 'topic', score: 40 })],
+      latest,
+    );
+    await db.insert(trendBatches).values({ calculatedAt: latest, summary: '' });
+
+    const all = await trendingService.getTrending(500);
+    expect(all.trending.map((row) => row.name)).toContain(newer);
+    expect(all.trending.map((row) => row.name)).not.toContain(older);
+
+    // The route hands the ENUM member through, not the plain stored string.
+    const hashtagsOnly = await trendingService.getTrending(500, TrendingType.HASHTAG);
+    expect(hashtagsOnly.trending.map((row) => row.name)).toContain(newer);
+    expect(hashtagsOnly.trending.map((row) => row.name)).not.toContain(newerTopic);
+  });
+
+  it('does not surface a trend from a batch that was never published', async () => {
+    // Vacuity floor: the reads above must not be passing because everything
+    // passes. These rows exist but no `trend_batches` row points at them.
+    const orphan = uniqueName('orphan');
+    await svc.saveTrendingBatch([item({ name: orphan })], batchStamp(60_000));
+
+    const result = await trendingService.getTrending(500);
+    expect(result.trending.map((row) => row.name)).not.toContain(orphan);
+  });
+});
+
+describe('loadVolumeSeries — one series per (name, type), in time order', () => {
+  it('reads volumes ordered by batch time, keyed by name AND type', async () => {
+    /**
+     * Mongo's array happened to be in time order because the planner streamed a
+     * matching index; `array_agg(... order by calculated_at)` states it. The
+     * per-type split is the other half: a name that trends as both a hashtag and
+     * a topic is two measurements, and merging them draws a sparkline that
+     * alternates between two unrelated quantities.
+     */
+    const name = uniqueName('series');
+    const volumes = [3, 9, 4, 7, 5, 8];
+    for (const [index, volume] of volumes.entries()) {
+      const at = batchStamp(-(volumes.length - index) * 60_000);
+      await svc.saveTrendingBatch(
+        [
+          item({ name, volume, score: 50 }),
+          item({ name, type: 'topic', volume: volume * 10, score: 40 }),
+        ],
+        at,
+      );
+      if (index === volumes.length - 1) {
+        await db.insert(trendBatches).values({ calculatedAt: at, summary: '' });
+      }
+    }
+
+    const result = await trendingService.getTrending(500);
+    const hashtagTrend = result.trending.find((row) => row.name === name && row.type === 'hashtag');
+    const topicTrend = result.trending.find((row) => row.name === name && row.type === 'topic');
+
+    expect(hashtagTrend?.series).toEqual(volumes);
+    expect(topicTrend?.series).toEqual(volumes.map((v) => v * 10));
+  });
+
+  it('omits the series entirely for a trend with too little history', async () => {
+    // Absence is the honest answer and the client draws nothing. A padded or
+    // flattened stand-in would be invented data.
+    const name = uniqueName('short');
+    const at = batchStamp();
+    await svc.saveTrendingBatch([item({ name })], at);
+    await db.insert(trendBatches).values({ calculatedAt: at, summary: '' });
+
+    const result = await trendingService.getTrending(500);
+    const trend = result.trending.find((row) => row.name === name);
+
+    expect(trend).toBeDefined();
+    expect(trend).not.toHaveProperty('series');
+  });
+});
+
+describe('getTrendingHistory — one row per (day, name, type)', () => {
+  it("collapses a day's batches to the highest score per trend", async () => {
+    const name = uniqueName('archived');
+    const first = batchStamp(-120_000);
+    const second = batchStamp(-60_000);
+
+    await svc.saveTrendingBatch([item({ name, score: 10, volume: 1 })], first);
+    await svc.saveTrendingBatch([item({ name, score: 40, volume: 4 })], second);
+
+    const history = await trendingService.getTrendingHistory(1, 20);
+    const mine = history.days.flatMap((day) => day.trends).filter((trend) => trend.name === name);
+
+    expect(mine).toHaveLength(1);
+    expect(mine[0].score).toBe(40);
+    expect(mine[0].volume).toBe(4);
+    // The wire shape matches `getTrending`'s exactly.
+    expect(mine[0].calculatedAt).toBeInstanceOf(Date);
+    expect(mine[0]).not.toHaveProperty('topicId');
+    expect(mine[0]).not.toHaveProperty('__v');
+  });
+
+  it('cuts a day to a DETERMINISTIC top 20 when scores tie', async () => {
+    /**
+     * The truncation needs a strict total order or the same request answers
+     * differently twice — the archive equivalent of a page that duplicates and
+     * skips rows. Twenty-one trends, all on the same score: `score desc, id desc`
+     * is what decides which twenty survive, and `id` is the only part of that
+     * which can break the tie. Without it the surviving set is whatever the
+     * planner happened to emit.
+     */
+    const marker = uniqueName('tied');
+    const at = batchStamp();
+    const names = Array.from({ length: 21 }, (_, index) => `${marker}-${index}`);
+    await svc.saveTrendingBatch(names.map((name) => item({ name, score: 5 })), at);
+
+    const stored = await db.select().from(trending).where(eq(trending.calculatedAt, at));
+    const expected = stored
+      .sort((a, b) => (a.id < b.id ? 1 : -1))
+      .slice(0, 20)
+      .map((row) => row.name);
+
+    const history = await trendingService.getTrendingHistory(1, 20);
+    const returned = history.days
+      .flatMap((day) => day.trends)
+      .filter((trend) => trend.name.startsWith(marker))
+      .map((trend) => trend.name);
+
+    expect(returned).toHaveLength(20);
+    expect(returned).toEqual(expected);
+  });
+
+  it('keeps a hashtag and a topic of the same name as two archived trends', async () => {
+    const name = uniqueName('archived-both');
+    const at = batchStamp();
+    await svc.saveTrendingBatch(
+      [item({ name, score: 30 }), item({ name, type: 'topic', score: 20 })],
+      at,
+    );
+
+    const history = await trendingService.getTrendingHistory(1, 20);
+    const mine = history.days.flatMap((day) => day.trends).filter((trend) => trend.name === name);
+
+    expect(mine.map((trend) => trend.type).sort()).toEqual(['hashtag', 'topic']);
+  });
+});
+
+describe('calculateTrending — end to end', () => {
+  it('publishes the batch only after its rows exist, and broadcasts', async () => {
+    /**
+     * The ordering that the frozen-endpoint incident turned on: `trend_batches`
+     * is what `getTrending` reads its timestamp from, so it must be written after
+     * the rows it points at. A batch row pointing at nothing blanks the widget.
+     */
+    const tag = uniqueName('e2e');
+    mocks.resolveNames.mockResolvedValue(new Map());
+    mocks.updatePopularityFromTrending.mockResolvedValue(undefined);
+    for (let i = 0; i < 3; i += 1) await seedPost([tag]);
 
     await trendingService.calculateTrending();
 
-    expect(mocks.trendBatchCreate).toHaveBeenCalledOnce();
-    expect(metrics.getCounter('trending_calculation_total', { result: 'partial' })).toBe(1);
-    expect(metrics.getCounter('trending_calculation_total', { result: 'success' })).toBe(0);
+    const [batch] = await db
+      .select()
+      .from(trendBatches)
+      .orderBy(asc(trendBatches.calculatedAt))
+      .limit(1);
+    expect(batch).toBeDefined();
+    createdBatchStamps.push(batch.calculatedAt);
 
-    const report = vi
-      .mocked(logger.error)
-      .mock.calls.find(([message]) => message === '[Trending] Batch stored with rejected rows');
-    expect(report).toBeDefined();
-    const detail = report?.[1] as { inserted: number; expected: number; rejected: string[] };
-    expect(detail.inserted).toBe(3);
-    expect(detail.expected).toBe(4);
-    expect(detail.rejected).toHaveLength(1);
-    // The rejected row is named as `type:name`, not as an opaque index.
-    expect(detail.rejected[0]).toMatch(/^(hashtag|topic|entity):/);
-  });
+    const result = await trendingService.getTrending(500);
+    const trend = result.trending.find((row) => row.name === tag);
+    expect(trend?.volume).toBe(3);
+    expect(mocks.emitTrendsUpdated).toHaveBeenCalledTimes(1);
 
-  it('refuses to publish a batch the database accepted nothing from', async () => {
-    stageCollidingBatch();
-    mocks.trendingInsertMany.mockRejectedValue(bulkWriteError([0, 1, 2, 3]));
-
-    await expect(trendingService.calculateTrending()).rejects.toThrow('inserted 0 of 4 rows');
-
-    // Publishing here would point readers at rows that do not exist and blank the
-    // widget; continuing to serve the previous batch is the better failure.
-    expect(mocks.trendBatchCreate).not.toHaveBeenCalled();
-    expect(metrics.getCounter('trending_calculation_total', { result: 'failure' })).toBe(1);
-  });
-
-  it('propagates an error that is not a per-document write report', async () => {
-    stageCollidingBatch();
-    mocks.trendingInsertMany.mockRejectedValue(new Error('connection closed'));
-
-    await expect(trendingService.calculateTrending()).rejects.toThrow('connection closed');
-
-    expect(mocks.trendBatchCreate).not.toHaveBeenCalled();
-    expect(metrics.getCounter('trending_calculation_total', { result: 'failure' })).toBe(1);
+    // The memoized current-batch token comes from the same row.
+    expect(await trendingService.getCurrentRecId()).toEqual(expect.any(String));
   });
 });
 
-describe('TrendingService.getTrending — batch staleness is observable', () => {
-  const THREE_CADENCES_MS = 3 * 30 * 60 * 1000;
+describe('cleanupOldTrends', () => {
+  it('removes trends AND their batch rows past the retention window, and keeps recent ones', async () => {
+    const oldName = uniqueName('ancient');
+    const freshName = uniqueName('fresh');
+    const old = batchStamp(-100 * 24 * 60 * 60 * 1000);
+    const fresh = batchStamp();
 
-  it('reports the age of the batch it serves', async () => {
-    const calculatedAt = new Date(Date.now() - 10 * 60 * 1000);
-    mocks.trendBatchFindOne.mockReturnValue(leanChain({ calculatedAt, summary: '' }));
-    mocks.trendingFind.mockReturnValue(leanChain([]));
+    await svc.saveTrendingBatch([item({ name: oldName })], old);
+    await db.insert(trendBatches).values({ calculatedAt: old, summary: '' });
+    await svc.saveTrendingBatch([item({ name: freshName })], fresh);
+    await db.insert(trendBatches).values({ calculatedAt: fresh, summary: '' });
 
-    await trendingService.getTrending(20);
+    await svc.cleanupOldTrends();
 
-    expect(metrics.getGauge('trending_batch_age_seconds')).toBeGreaterThanOrEqual(595);
-    expect(metrics.getGauge('trending_batch_age_seconds')).toBeLessThanOrEqual(605);
-  });
+    const remaining = await db
+      .select()
+      .from(trending)
+      .where(inArray(trending.calculatedAt, [old, fresh]));
+    expect(remaining.map((row) => row.name)).toEqual([freshName]);
 
-  it('logs at error level once the served batch outlives three cadences', async () => {
-    const calculatedAt = new Date(Date.now() - THREE_CADENCES_MS - 60_000);
-    mocks.trendBatchFindOne.mockReturnValue(leanChain({ calculatedAt, summary: '' }));
-    mocks.trendingFind.mockReturnValue(leanChain([]));
-
-    await trendingService.getTrending(20);
-
-    expect(vi.mocked(logger.error).mock.calls.map(([message]) => message)).toContain(
-      '[Trending] Serving a stale batch — recalculation is not landing',
-    );
-  });
-
-  it('stays quiet for a fresh batch', async () => {
-    mocks.trendBatchFindOne.mockReturnValue(leanChain({ calculatedAt: new Date(), summary: '' }));
-    mocks.trendingFind.mockReturnValue(leanChain([]));
-
-    await trendingService.getTrending(20);
-
-    expect(vi.mocked(logger.error)).not.toHaveBeenCalled();
-  });
-});
-
-describe('TrendingService.getTrending — volume series are per (name, type)', () => {
-  it('gives a hashtag and a topic of the same name their own series', async () => {
-    const calculatedAt = new Date();
-    mocks.trendBatchFindOne.mockReturnValue(leanChain({ calculatedAt, summary: '' }));
-    mocks.trendingFind.mockReturnValue(
-      leanChain([
-        { name: 'business', type: 'hashtag', score: 10, rank: 1, volume: 30 },
-        { name: 'business', type: 'topic', score: 9, rank: 2, volume: 4 },
-      ]),
-    );
-    mocks.trendingAggregate.mockResolvedValue([
-      { _id: { name: 'business', type: 'hashtag' }, volumes: [10, 20, 30, 40, 50, 60] },
-      { _id: { name: 'business', type: 'topic' }, volumes: [1, 2, 3, 4, 5, 6] },
-    ]);
-
-    const result = await trendingService.getTrending(20);
-
-    const hashtag = result.trending.find((trend) => trend.type === 'hashtag');
-    const topic = result.trending.find((trend) => trend.type === 'topic');
-    expect(hashtag?.series).toBeDefined();
-    expect(topic?.series).toBeDefined();
-    // Two different measurements, so two different curves — never one interleaved
-    // array handed to both rows.
-    expect(hashtag?.series).not.toEqual(topic?.series);
-    expect(Math.max(...(hashtag?.series ?? []))).toBeGreaterThan(
-      Math.max(...(topic?.series ?? [])),
-    );
-  });
-
-  it('groups the series by name AND type, and sorts on the index key order', async () => {
-    const calculatedAt = new Date();
-    mocks.trendBatchFindOne.mockReturnValue(leanChain({ calculatedAt, summary: '' }));
-    mocks.trendingFind.mockReturnValue(
-      leanChain([{ name: 'business', type: 'hashtag', score: 10, rank: 1, volume: 30 }]),
-    );
-    mocks.trendingAggregate.mockResolvedValue([]);
-
-    await trendingService.getTrending(20);
-
-    const pipeline = mocks.trendingAggregate.mock.calls[0][0];
-    const sort = pipeline.find((stage: Record<string, unknown>) => '$sort' in stage).$sort;
-    const group = pipeline.find((stage: Record<string, unknown>) => '$group' in stage).$group;
-    // The sort must match the unique index key order or the planner adds a
-    // blocking SORT stage in front of the group.
-    expect(Object.entries(sort)).toEqual([
-      ['name', 1],
-      ['calculatedAt', 1],
-      ['type', 1],
-    ]);
-    expect(group._id).toEqual({ name: '$name', type: '$type' });
-  });
-});
-
-describe('TrendingService.getTrendingHistory — a trend is a (name, type) pair there too', () => {
-  it('collapses each day to one row per (name, type), not per name', async () => {
-    mocks.trendingAggregate
-      .mockResolvedValueOnce([{ _id: '2026-07-28' }])
-      .mockResolvedValueOnce([{ date: '2026-07-28', trends: [] }]);
-
-    await trendingService.getTrendingHistory(1, 10);
-
-    const grouped = mocks.trendingAggregate.mock.calls[1][0];
-    const dedupe = grouped.find(
-      (stage: Record<string, unknown>) =>
-        '$group' in stage &&
-        '$first' in ((stage.$group as { doc?: Record<string, unknown> }).doc ?? {}),
-    ).$group;
-    // Keying the collapse on day and name alone would silently drop whichever of
-    // the two scored lower when a name trended as both a hashtag and a topic.
-    expect(dedupe._id).toEqual({ day: '$day', name: '$name', type: '$type' });
+    const remainingBatches = await db
+      .select()
+      .from(trendBatches)
+      .where(inArray(trendBatches.calculatedAt, [old, fresh]));
+    expect(remainingBatches.map((row) => row.calculatedAt.getTime())).toEqual([fresh.getTime()]);
+    // The sweep is bounded by the retention cutoff, not by "everything old".
+    expect(await db.select().from(trending).where(lt(trending.calculatedAt, old))).toEqual([]);
   });
 });
