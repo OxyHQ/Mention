@@ -16,6 +16,7 @@ import { OxyProvider } from '@oxyhq/services/ui/client';
 import { OxyServices } from '@oxyhq/core';
 import { AppErrorBoundary } from '@/components/AppErrorBoundary';
 import { AccountSwitchReset } from '@/components/providers/AccountSwitchReset';
+import { AppShellProviders } from '@/components/providers/AppShellProviders';
 import { BottomSheetProvider } from '@/context/BottomSheetContext';
 import { HomeRefreshProvider } from '@/context/HomeRefreshContext';
 import { LayoutScrollProvider } from '@/context/LayoutScrollContext';
@@ -94,35 +95,60 @@ export const AppProviders = memo(function AppProviders({
           >
             <AccountSwitchReset>
               <I18nextProvider i18n={i18n}>
-                <BottomSheetProvider>
-                  <MenuProvider>
-                    <AppErrorBoundary
-                      onError={handleBoundaryError}
-                    >
-                      <LiveRoomControllerProvider>
-                        <LayoutScrollProvider>
-                          <HomeRefreshProvider>
-                            {children}
-                            <StatusBar style="auto" />
-                            {/*
-                             * No <ToastOutlet /> here on purpose. Bloom's toast
-                             * stack must be mounted exactly once — every mount
-                             * subscribes to the same store and renders the same
-                             * rows, so a second outlet shows every toast twice.
-                             * OxyProvider above already mounts one at the app
-                             * root, and it carries Bloom's defaults.
-                             */}
-                            <ConfirmPromptProvider />
-                            <ActionMenuHost />
-                            <ContentDialogHost />
-                            <FediverseInfoDialogProvider />
-                          </HomeRefreshProvider>
-                        </LayoutScrollProvider>
-                        <LiveFeatureHost />
-                      </LiveRoomControllerProvider>
-                    </AppErrorBoundary>
-                  </MenuProvider>
-                </BottomSheetProvider>
+                {/*
+                 * `LayoutScrollProvider` and `AppShellProviders` sit ABOVE
+                 * `BottomSheetProvider` — and above this component's own
+                 * `children` — on purpose, and moving either back down
+                 * reintroduces a crash.
+                 *
+                 * Two surfaces render content far above where its JSX was
+                 * written, and React resolves context by RENDER position:
+                 * `BottomSheetProvider` parks whatever `setBottomSheetContent`
+                 * is handed in state and renders it beside its own children, and
+                 * bloom's NATIVE portal group re-parents `<Portal>` children onto
+                 * the `<Outlet/>` that `app/_layout.tsx` mounts among the
+                 * children below. Both land at THIS depth. While the app-shell
+                 * contexts lived in `app/(app)/_layout.tsx`, anything either
+                 * surface rendered was outside all of them — the composer's GIF
+                 * picker asked for the video playback authority from inside a
+                 * sheet and threw.
+                 *
+                 * `AppShellProviders` needs `LayoutScrollProvider` above it
+                 * (`BottomBarVisibilityProvider` reads the shared scroll
+                 * position), which is why that one moved up too. The tree below
+                 * is unchanged.
+                 */}
+                <LayoutScrollProvider>
+                  <AppShellProviders>
+                    <BottomSheetProvider>
+                      <MenuProvider>
+                        <AppErrorBoundary
+                          onError={handleBoundaryError}
+                        >
+                          <LiveRoomControllerProvider>
+                            <HomeRefreshProvider>
+                              {children}
+                              <StatusBar style="auto" />
+                              {/*
+                               * No <ToastOutlet /> here on purpose. Bloom's toast
+                               * stack must be mounted exactly once — every mount
+                               * subscribes to the same store and renders the same
+                               * rows, so a second outlet shows every toast twice.
+                               * OxyProvider above already mounts one at the app
+                               * root, and it carries Bloom's defaults.
+                               */}
+                              <ConfirmPromptProvider />
+                              <ActionMenuHost />
+                              <ContentDialogHost />
+                              <FediverseInfoDialogProvider />
+                            </HomeRefreshProvider>
+                            <LiveFeatureHost />
+                          </LiveRoomControllerProvider>
+                        </AppErrorBoundary>
+                      </MenuProvider>
+                    </BottomSheetProvider>
+                  </AppShellProviders>
+                </LayoutScrollProvider>
               </I18nextProvider>
             </AccountSwitchReset>
           </OxyProvider>
