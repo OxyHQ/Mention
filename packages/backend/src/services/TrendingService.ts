@@ -232,6 +232,19 @@ function trendKey(name: string, type: TrendingType): string {
  * History trends (`getTrendingHistory`) never carry one at all; see
  * {@link TrendingService.loadVolumeSeries}.
  */
+/**
+ * What `GET /trending/summary` answers: how to PRESENT one trend.
+ *
+ * Named for what it is rather than for the summary alone, because the summary
+ * is the optional part — a trend has a name and a category from the moment it
+ * is detected, and only earns prose once enough readers open it.
+ */
+export type TrendDetail = TrendSummaryResult & {
+  /** The trend's label, as the batch derived it. Absent when not currently trending. */
+  displayName?: string;
+  category?: TrendCategory;
+};
+
 export type TrendWithSeries = TrendingRecord & {
   series?: number[];
   /**
@@ -1073,6 +1086,17 @@ class TrendingService {
   }
 
   /**
+   * Everything the trend screen needs to present a term: what it is called, how
+   * it is filed, and its summary if it has earned one.
+   *
+   * The presentation travels in the RESPONSE rather than in the URL. A label
+   * passed as a query parameter would make `/trend/politics` and
+   * `/trend/politics?label=Politics` two addresses for one resource, freeze a
+   * shared link's title at the moment it was copied — so it lies the next time
+   * the term is relabelled — and let anyone hand a reader a fabricated name.
+   * The row this reads is the same one the `startedAt` lookup already fetches,
+   * so carrying the label costs nothing.
+   *
    * The on-demand summary for a trend a reader just opened.
    *
    * The run is read from the STORED row for the current batch, never from the
@@ -1085,7 +1109,7 @@ class TrendingService {
    * actually due: the overwhelming majority of calls are a single indexed read
    * that finds an existing summary, or a counter increment below the threshold.
    */
-  public async getTrendSummary(term: string): Promise<TrendSummaryResult> {
+  public async getTrendSummary(term: string): Promise<TrendDetail> {
     const normalized = term.trim().toLowerCase();
     if (!normalized) return {};
 
@@ -1097,17 +1121,23 @@ class TrendingService {
 
     const row = await Trending.findOne(
       { name: normalized, calculatedAt: latestBatch.calculatedAt },
-      { startedAt: 1 },
-    ).lean<{ startedAt?: Date } | null>();
+      { startedAt: 1, displayName: 1, category: 1 },
+    ).lean<{ startedAt?: Date; displayName?: string; category?: TrendCategory } | null>();
     // Not in the current batch, or written before onset tracking: either way
     // there is no run to attribute a summary to, so there is nothing to do.
     if (!row?.startedAt) return {};
 
-    return resolveTrendSummary({
+    const summary = await resolveTrendSummary({
       term: normalized,
       runStartedAt: row.startedAt,
       loadExcerpts: () => this.loadTermExcerpts(normalized),
     });
+
+    return {
+      ...summary,
+      ...(row.displayName ? { displayName: row.displayName } : {}),
+      ...(row.category ? { category: row.category } : {}),
+    };
   }
 
   /**

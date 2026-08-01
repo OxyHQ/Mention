@@ -14,22 +14,27 @@ import type { FeedType } from '@mention/shared-types';
 import { SEO } from '@/components/SEO';
 import { PanelStickyHeader } from '@/components/shell/PanelChrome';
 import { trendingService } from '@/services/trendingService';
+import { useTrendsStore } from '@/stores/trendsStore';
 import { publicQueryKeys } from '@/lib/viewerQueryKeys';
 
 export default function TrendScreen() {
-    const { name, label, category } = useLocalSearchParams<{
-        name: string;
-        label?: string;
-        category?: string;
-    }>();
+    // The TERM is the whole address. Everything shown about the trend is
+    // resolved from it, never carried alongside it.
+    const { name } = useLocalSearchParams<{ name: string }>();
     const safeBack = useSafeBack();
     const { t } = useTranslation();
 
-    // The TERM is what the feed matches on; the LABEL is what a reader sees.
-    // A cold deep link (`/trend/orioles` pasted into a browser) carries no
-    // label, so the term stands in — never a fabricated one.
     const term = name || '';
-    const heading = label?.trim() || term;
+
+    /*
+     * The label comes from the live trends the app already holds when the term
+     * is one of them — instant, and correct by construction because it is the
+     * same state every other surface renders. A cold deep link has no such
+     * entry and falls back to the fetched detail, then to the term itself.
+     */
+    const listed = useTrendsStore((state) =>
+        state.trends.find((trend) => trend.text === term),
+    );
 
     /*
      * The generated explanation of what is happening — the ONE place this
@@ -45,9 +50,9 @@ export default function TrendScreen() {
      * Absent is the ordinary answer (below the threshold, or no key configured),
      * and the screen is complete without it.
      */
-    const { data: summary } = useQuery({
+    const { data: detail } = useQuery({
         queryKey: publicQueryKeys.trendSummary(term),
-        queryFn: () => trendingService.getTrendSummary(term),
+        queryFn: () => trendingService.getTrendDetail(term),
         enabled: term.length > 0,
         staleTime: 0,
         refetchOnMount: 'always',
@@ -66,6 +71,9 @@ export default function TrendScreen() {
      */
     const feedType = useMemo(() => `trend|${term}` as FeedType, [term]);
 
+    const heading = listed?.displayName || detail?.displayName || term;
+    const summary = detail?.description;
+    const category = listed?.category ?? detail?.category;
     const categoryLabel = category
         ? t(`trend.category.${category}`, { defaultValue: '' })
         : '';

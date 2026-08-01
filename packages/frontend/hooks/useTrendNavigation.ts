@@ -42,22 +42,20 @@ export function useTrendNavigation() {
       ...(trend.recId ? { recId: trend.recId } : {}),
     });
 
-    // EVERY trend opens the trend feed, including one whose term people mostly
-    // spelled with a `#`. The hashtag screen matches the `#` form only, which is
-    // a strict subset of what made the term trend — sending a hashtag-shaped
-    // trend there hid exactly the prose posts that the burst was measured from.
-    // `/hashtag/<tag>` still exists and is still where a tag INSIDE a post goes;
-    // it is simply not what a trend means any more.
-    const params = new URLSearchParams();
-    // The label is carried so the screen can title itself correctly on the first
-    // frame. It is an optimization, not the source of truth: a cold deep link
-    // arrives without it and the screen falls back to the term.
-    if (trend.displayName && trend.displayName !== trend.text) {
-      params.set('label', trend.displayName);
-    }
-    if (trend.category) params.set('category', trend.category);
-    const query = params.toString();
-    router.push(`/trend/${encodeURIComponent(trend.text)}${query ? `?${query}` : ''}`);
+    /*
+     * EVERY trend opens the trend feed, including one whose term people mostly
+     * spelled with a `#`. The hashtag screen matches the `#` form only, which
+     * is a strict subset of what made the term trend, so sending a
+     * hashtag-shaped trend there hid exactly the prose posts the burst was
+     * measured from. `/hashtag/<tag>` is still where a tag INSIDE a post goes.
+     *
+     * The TERM is the whole address. Carrying the label alongside it would give
+     * one resource two URLs, freeze a shared link's title at the moment it was
+     * copied — so it lies once the term is relabelled — and let a crafted URL
+     * show a reader a name the server never chose. The screen resolves the
+     * presentation from the term.
+     */
+    router.push(`/trend/${encodeURIComponent(trend.text)}`);
   }, [router]);
 
   return { navigateToTrend };

@@ -24,6 +24,20 @@ export interface TrendingTopic {
   calculatedAt: string;
 }
 
+/**
+ * How the trend screen presents a term.
+ *
+ * Fetched rather than passed through the URL: a label in a query parameter
+ * gives one resource two addresses, freezes a shared link's title at the moment
+ * it was copied, and lets anyone hand a reader a name the server never chose.
+ */
+export interface TrendDetail {
+  displayName?: string;
+  category?: TrendCategory;
+  /** Absent until the trend has been opened enough times to earn one. */
+  description?: string;
+}
+
 export interface TrendingDay {
   date: string;
   trends: TrendingTopic[];
@@ -48,8 +62,8 @@ class TrendingService {
   }
 
   /**
-   * The generated summary for a trend, if it has earned one
-   * (`GET /trending/summary`).
+   * How to PRESENT one trend: its label, its category, and the generated
+   * summary if it has earned one (`GET /trending/summary`).
    *
    * Calling this IS the demand signal — the server counts the open and only
    * generates a summary once a trend has been opened enough times. So it is
@@ -62,15 +76,13 @@ class TrendingService {
    * Swallows its own failures — a missing summary is the ordinary case, so a
    * failed lookup must be indistinguishable from one that simply has none.
    */
-  async getTrendSummary(term: string): Promise<string | undefined> {
+  async getTrendDetail(term: string): Promise<TrendDetail> {
     try {
-      const res = await publicClient.get<{ description?: string }>("/trending/summary", {
-        params: { term },
-      });
-      return res.data.description;
+      const res = await publicClient.get<TrendDetail>("/trending/summary", { params: { term } });
+      return res.data ?? {};
     } catch (error) {
-      logger.debug("Failed to fetch trend summary", { term, error });
-      return undefined;
+      logger.debug("Failed to fetch trend detail", { term, error });
+      return {};
     }
   }
 
