@@ -17,6 +17,7 @@ import { buildTrendSeries } from './trending/trendSeries';
 import {
   rankTrendCandidates,
   resolveTrendStartedAt,
+  topUpWithPopular,
   type ScoredTrend,
   type TrendCandidate,
 } from './trending/trendScoring';
@@ -245,7 +246,13 @@ class TrendingService {
       // all just terms, counted the same way, competing in the same list — see
       // `aggregateTermCandidates`.
       const candidates = await this.aggregateTermCandidates(calculatedAt);
-      const ranked = rankTrendCandidates(candidates.map((candidate) => candidate.measurement));
+      const measurements = candidates.map((candidate) => candidate.measurement);
+      // Bursts first; then, only if too few things are genuinely spiking, fill
+      // out the list by volume. The top-up relaxes the burst bar and nothing
+      // else — every floor still applies — so a quiet network gets a list that
+      // says "people are posting about this" instead of an empty widget that
+      // reads as broken.
+      const ranked = topUpWithPopular(measurements, rankTrendCandidates(measurements));
 
       const allTrends: TrendItem[] = await this.buildTrendItems(ranked, candidates, calculatedAt);
 
@@ -363,6 +370,21 @@ class TrendingService {
             boostOf: { $exists: false },
             // Sensitive/NSFW-flagged posts never feed trending counts.
             ...SENSITIVE_EXCLUDE_MATCH,
+            // Nor do posts the deterministic classifier already scored as spam,
+            // at the SAME threshold the discovery gate uses — one authority for
+            // "this is junk in discovery", rather than a second number here
+            // that could drift from it.
+            //
+            // Worth being precise about what this does and does not buy: it
+            // catches RSS/bridge mirrors and link-only news bots, which is a
+            // real class. It did NOT catch the account that topped this
+            // instance's list — a `mastodon.social` Person posting real prose
+            // with eleven boilerplate hashtags, which scores nowhere near
+            // spam. The guard that catches THAT is the concentration ceiling in
+            // `clearsFloors`. This clause is the cheap complement, not the fix.
+            'postClassification.scores.spam': {
+              $not: { $gte: MtnConfig.feed.discoveryGate.spamRejectThreshold },
+            },
           },
         },
         {

@@ -113,11 +113,15 @@ function leanChain(value: unknown) {
  * burst floor; what is under test here is the WRITE, not the scoring.
  */
 function stageBatch(): void {
+  // Author counts are generous on purpose: these fixtures exercise the WRITE
+  // path, so they must clear the concentration ceiling rather than being
+  // refused by it (a term averaging more than a few posts per author is not a
+  // conversation — that is `clearsFloors`' job and is covered in its own suite).
   mocks.postAggregate.mockResolvedValue([
-    { _id: 'ai', volume: 40, recentVolume: 40, hashtagVolume: 40, topicVolume: 0, authorCount: 9, actorIds: ['u1'] },
-    { _id: 'business', volume: 30, recentVolume: 30, hashtagVolume: 30, topicVolume: 30, authorCount: 7, actorIds: ['u2'] },
-    { _id: 'politics', volume: 20, recentVolume: 20, hashtagVolume: 0, topicVolume: 20, authorCount: 6, actorIds: ['u3'] },
-    { _id: 'kremer trade', volume: 12, recentVolume: 12, hashtagVolume: 0, topicVolume: 0, authorCount: 5, actorIds: ['u4'] },
+    { _id: 'ai', volume: 40, recentVolume: 40, hashtagVolume: 40, topicVolume: 0, authorCount: 24, actorIds: ['u1'] },
+    { _id: 'business', volume: 30, recentVolume: 30, hashtagVolume: 30, topicVolume: 30, authorCount: 18, actorIds: ['u2'] },
+    { _id: 'politics', volume: 20, recentVolume: 20, hashtagVolume: 0, topicVolume: 20, authorCount: 12, actorIds: ['u3'] },
+    { _id: 'kremer trade', volume: 12, recentVolume: 12, hashtagVolume: 0, topicVolume: 0, authorCount: 8, actorIds: ['u4'] },
   ]);
 }
 

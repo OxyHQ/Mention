@@ -67,17 +67,14 @@ export interface ScoredTrend extends TrendCandidate {
 /**
  * Score one candidate, or return `null` when it does not clear the floors.
  *
- * The three floors are independent and each rules out a different failure:
- * `minVolume` rules out a rate estimated from too few observations to mean
- * anything, `minAuthors` rules out one account posting fifty times, and
- * `minBurstScore` rules out ordinary fluctuation of an ordinary term.
+ * The shared floors ({@link clearsFloors}) rule out a term nobody could call a
+ * conversation; `minBurstScore` then rules out ordinary fluctuation of an
+ * ordinary term. Only the second of those is relaxed by the popularity top-up.
  */
 export function scoreTrendCandidate(candidate: TrendCandidate): ScoredTrend | null {
-  const { windowMs, recentWindowMs, minVolume, minAuthors, minBurstScore, hotBurstScore } =
-    MtnConfig.trending.detection;
+  const { windowMs, recentWindowMs, minBurstScore, hotBurstScore } = MtnConfig.trending.detection;
 
-  if (candidate.volume < minVolume) return null;
-  if (candidate.authorCount < minAuthors) return null;
+  if (!clearsFloors(candidate)) return null;
 
   // What the trailing rate predicts for the recent window, if the term were
   // arriving uniformly. `volume` includes `recentVolume`, so this is the term's
@@ -100,6 +97,33 @@ export function scoreTrendCandidate(candidate: TrendCandidate): ScoredTrend | nu
 }
 
 /**
+ * The floors every reported trend clears, however it got onto the list.
+ *
+ * Three independent questions, and a term has to answer all of them:
+ *
+ *  - `minVolume` — are there enough observations for any of this to mean
+ *    anything?
+ *  - `minAuthors` — how many PEOPLE? One account posting fifty times and fifty
+ *    people agreeing are opposite facts that a post count cannot tell apart.
+ *  - `maxPostsPerAuthor` — is anyone saying it more than a few times? This is
+ *    the half the author floor misses: two accounts alternating all day clear
+ *    "how many people" trivially, and Mention's own list was topped by exactly
+ *    that shape (see the config note for the measurements).
+ *
+ * Shared with the popularity top-up on purpose. The top-up relaxes the BURST
+ * bar — the claim that something is spiking — and nothing else; relaxing the
+ * floors too would let the fallback readmit precisely what the floors exist to
+ * keep out, which is the failure mode a never-blank list invites.
+ */
+export function clearsFloors(candidate: TrendCandidate): boolean {
+  const { minVolume, minAuthors, maxPostsPerAuthor } = MtnConfig.trending.detection;
+
+  if (candidate.volume < minVolume) return false;
+  if (candidate.authorCount < minAuthors) return false;
+  return candidate.volume <= candidate.authorCount * maxPostsPerAuthor;
+}
+
+/**
  * Score every candidate and return the survivors, best first, capped at
  * `MtnConfig.trending.detection.maxTrends`.
  *
@@ -119,6 +143,61 @@ export function rankTrendCandidates(candidates: readonly TrendCandidate[]): Scor
     (a, b) => b.score - a.score || b.volume - a.volume || a.term.localeCompare(b.term),
   );
   return scored.slice(0, MtnConfig.trending.detection.maxTrends);
+}
+
+/**
+ * Fill a thin batch out with the terms people are simply posting about most.
+ *
+ * ## Why a fallback exists at all
+ *
+ * A burst statistic answers "is anything spiking?", and on a small or quiet
+ * network the honest answer is routinely "no" — which renders as an empty
+ * widget, indistinguishable from the feature being broken. That is not a
+ * hypothetical: the first batch this shipped against reported nothing, because
+ * the network's loudest terms were one news account and two GIF bots and every
+ * one of them is refused by the floors.
+ *
+ * So when fewer than `minTrends` terms are genuinely bursting, the rest of the
+ * list is filled by VOLUME. Those rows make a weaker claim — "people are
+ * posting about this", not "this is spiking" — and they carry it honestly in
+ * their own numbers: a topped-up row has a `burstScore` below the reporting
+ * bar and never a `hot` status, so nothing downstream can mistake one for a
+ * burst.
+ *
+ * What is NOT relaxed is every floor in {@link clearsFloors}. A fallback that
+ * dropped those would refill the list with exactly the single-account output
+ * the floors were added to remove — the old behaviour, reintroduced through the
+ * back door and harder to see.
+ */
+export function topUpWithPopular(
+  candidates: readonly TrendCandidate[],
+  bursting: readonly ScoredTrend[],
+): ScoredTrend[] {
+  const { windowMs, recentWindowMs, minTrends, maxTrends } = MtnConfig.trending.detection;
+  if (bursting.length >= minTrends) return [...bursting];
+
+  const alreadyListed = new Set(bursting.map((trend) => trend.term));
+  const popular = candidates
+    .filter((candidate) => !alreadyListed.has(candidate.term) && clearsFloors(candidate))
+    .map((candidate): ScoredTrend => {
+      const expected = candidate.volume * (recentWindowMs / windowMs);
+      return {
+        ...candidate,
+        // The real measurement, reported as measured even though it is below
+        // the bar. Writing a zero here would be inventing a number, and the
+        // stored row is what a later batch reads back.
+        burstScore: expected > 0 ? (candidate.recentVolume - expected) / Math.sqrt(expected) : 0,
+        // Ranked among themselves by size, which is the only claim they make.
+        score: candidate.volume,
+        momentum: expected > 0 ? Math.min(candidate.recentVolume / expected, 1) : 0,
+      };
+    })
+    .sort((a, b) => b.volume - a.volume || a.term.localeCompare(b.term));
+
+  // Bursting trends keep the top of the list: a real spike outranks a big
+  // steady term even when the steady one is far larger, which is the whole
+  // point of the burst statistic and must survive the fallback.
+  return [...bursting, ...popular.slice(0, minTrends - bursting.length)].slice(0, maxTrends);
 }
 
 /**

@@ -1,14 +1,24 @@
 import { describe, it, expect } from 'vitest';
 import { MtnConfig } from '@mention/shared-types';
 import {
+  clearsFloors,
   rankTrendCandidates,
   resolveTrendStartedAt,
   scoreTrendCandidate,
+  topUpWithPopular,
   type TrendCandidate,
 } from '../services/trending/trendScoring';
 
-const { windowMs, recentWindowMs, minAuthors, minVolume, hotBurstScore, onsetGapToleranceMs } =
-  MtnConfig.trending.detection;
+const {
+  windowMs,
+  recentWindowMs,
+  minAuthors,
+  minVolume,
+  maxPostsPerAuthor,
+  minTrends,
+  hotBurstScore,
+  onsetGapToleranceMs,
+} = MtnConfig.trending.detection;
 
 /** Share of a term's trailing window that the recent window covers (0.25). */
 const RECENT_SHARE = recentWindowMs / windowMs;
@@ -19,17 +29,21 @@ const RECENT_SHARE = recentWindowMs / windowMs;
  * perennial hashtag, and it must never trend however large it is.
  */
 function steady(volume: number, term = 'steady'): TrendCandidate {
-  return {
-    term,
-    volume,
-    recentVolume: Math.round(volume * RECENT_SHARE),
-    authorCount: Math.max(minAuthors, 10),
-  };
+  return { term, volume, recentVolume: Math.round(volume * RECENT_SHARE), authorCount: authorsFor(volume) };
+}
+
+/**
+ * Enough distinct authors to clear the concentration ceiling for this volume.
+ * The fixtures here are about the BURST statistic, so they must not
+ * accidentally be refused for looking like one account shouting.
+ */
+function authorsFor(volume: number): number {
+  return Math.max(minAuthors, Math.ceil(volume / maxPostsPerAuthor));
 }
 
 /** A candidate whose entire volume arrived inside the recent window. */
 function bursting(volume: number, term = 'burst'): TrendCandidate {
-  return { term, volume, recentVolume: volume, authorCount: Math.max(minAuthors, 10) };
+  return { term, volume, recentVolume: volume, authorCount: authorsFor(volume) };
 }
 
 describe('scoreTrendCandidate — the burst, not the size', () => {
@@ -67,7 +81,7 @@ describe('scoreTrendCandidate — floors', () => {
 
   it('accepts the same burst once enough distinct authors carry it', () => {
     expect(
-      scoreTrendCandidate({ term: 'real', volume: 500, recentVolume: 500, authorCount: minAuthors }),
+      scoreTrendCandidate({ term: 'real', volume: 500, recentVolume: 500, authorCount: authorsFor(500) }),
     ).not.toBeNull();
   });
 
@@ -152,5 +166,97 @@ describe('resolveTrendStartedAt', () => {
     const ascending = [minutesAgo(90), minutesAgo(60), minutesAgo(30)];
     const shuffled = [minutesAgo(30), minutesAgo(90), minutesAgo(60)];
     expect(resolveTrendStartedAt(shuffled, now)).toEqual(resolveTrendStartedAt(ascending, now));
+  });
+});
+
+describe('clearsFloors — concentration', () => {
+  /*
+   * The three terms below are the ACTUAL top of Mention's trending list on
+   * 2026-08-01, with their real post and author counts. Every one of them is a
+   * handful of accounts posting repeatedly, and every one of them has to be
+   * refused — that list is what this whole guard was written for.
+   */
+  it('refuses one account posting a term twenty times', () => {
+    // #noticia — 20 posts, all from tierrasapiens@mastodon.social.
+    expect(clearsFloors({ term: 'noticia', volume: 20, recentVolume: 20, authorCount: 1 })).toBe(false);
+  });
+
+  it('refuses two accounts alternating all day', () => {
+    // #cartoon — 40 posts from simpsonsgifs + futuramagifs. It clears a volume
+    // floor easily and would clear a two-author floor too; the ratio is what
+    // gives it away.
+    expect(clearsFloors({ term: 'cartoon', volume: 40, recentVolume: 12, authorCount: 2 })).toBe(false);
+  });
+
+  it('accepts the same volume when it comes from many people', () => {
+    expect(clearsFloors({ term: 'real', volume: 40, recentVolume: 12, authorCount: 20 })).toBe(true);
+  });
+
+  it('accepts a conversation where a few people said it twice', () => {
+    expect(clearsFloors({ term: 'chat', volume: 12, recentVolume: 6, authorCount: 4 })).toBe(true);
+  });
+
+  it('still applies the author and volume floors', () => {
+    expect(clearsFloors({ term: 'thin', volume: minVolume - 1, recentVolume: 1, authorCount: 9 })).toBe(false);
+    expect(clearsFloors({ term: 'few', volume: 9, recentVolume: 9, authorCount: minAuthors - 1 })).toBe(false);
+  });
+});
+
+describe('topUpWithPopular — never blank, never lax', () => {
+  const popular = (volume: number, term: string): TrendCandidate => ({
+    term,
+    volume,
+    recentVolume: Math.round(volume * RECENT_SHARE),
+    authorCount: authorsFor(volume),
+  });
+
+  it('leaves a full list of bursts alone', () => {
+    const bursts = Array.from({ length: minTrends }, (_, i) => bursting(50 + i, `burst${i}`));
+    const ranked = rankTrendCandidates(bursts);
+    expect(topUpWithPopular(bursts, ranked)).toEqual(ranked);
+  });
+
+  it('fills an empty list from the most-posted terms', () => {
+    const candidates = [popular(30, 'a'), popular(20, 'b'), popular(10, 'c')];
+    const filled = topUpWithPopular(candidates, []);
+    expect(filled.map((t) => t.term)).toEqual(['a', 'b', 'c']);
+  });
+
+  it('keeps bursts above topped-up rows, however much bigger those are', () => {
+    const burst = bursting(12, 'spiking');
+    const candidates = [burst, popular(5_000, 'huge')];
+    const filled = topUpWithPopular(candidates, rankTrendCandidates([burst]));
+    expect(filled[0].term).toBe('spiking');
+    expect(filled[1].term).toBe('huge');
+  });
+
+  it('never claims a topped-up row is hot or bursting', () => {
+    const filled = topUpWithPopular([popular(500, 'steady')], []);
+    expect(filled[0].status).toBeUndefined();
+    expect(filled[0].burstScore).toBeLessThan(MtnConfig.trending.detection.minBurstScore);
+  });
+
+  it('applies EVERY floor to the rows it adds', () => {
+    // The exact shapes the floors exist to refuse must not come back in
+    // through the fallback — that would be the old behaviour, restored quietly.
+    const filled = topUpWithPopular(
+      [
+        { term: 'noticia', volume: 20, recentVolume: 5, authorCount: 1 },
+        { term: 'cartoon', volume: 40, recentVolume: 12, authorCount: 2 },
+      ],
+      [],
+    );
+    expect(filled).toEqual([]);
+  });
+
+  it('never duplicates a term already reported as a burst', () => {
+    const burst = bursting(12, 'spiking');
+    const filled = topUpWithPopular([burst], rankTrendCandidates([burst]));
+    expect(filled.filter((t) => t.term === 'spiking')).toHaveLength(1);
+  });
+
+  it('stops at minTrends rather than filling to the cap', () => {
+    const candidates = Array.from({ length: minTrends + 10 }, (_, i) => popular(100 - i, `t${i}`));
+    expect(topUpWithPopular(candidates, [])).toHaveLength(minTrends);
   });
 });

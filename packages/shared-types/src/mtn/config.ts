@@ -741,6 +741,29 @@ export const MtnConfig = {
        * itself: below a handful of observations the burst statistic is noise. */
       minVolume: 3,
       /**
+       * CONCENTRATION CEILING: posts per distinct author a term may average
+       * before it is refused entirely.
+       *
+       * The author floor asks "how many people?", which one prolific account
+       * walks past the moment a second one joins it. This asks the other half —
+       * "is anyone saying this more than a few times?" — and it is the guard
+       * that actually matches how automated posting looks on this network.
+       *
+       * Measured on Mention's own trending list, 2026-08-01: `#noticia` was 20
+       * posts from ONE account, `#ultimanoticia` 10 from the same one, and
+       * `#cartoon` 40 posts from TWO accounts alternating. Those three were the
+       * top of the list. Every real conversation has the opposite shape — many
+       * people saying something once or twice — so a ceiling of four separates
+       * them cleanly without needing to identify anybody as a bot.
+       */
+      maxPostsPerAuthor: 4,
+      /**
+       * How many trends a batch tries to report before it is willing to fall
+       * back on popularity (see `topUpWithPopular`). A list of one or two is
+       * not a list, so the top-up fills toward this and stops.
+       */
+      minTrends: 5,
+      /**
        * How far above its own baseline a term must sit to be reported, in
        * standard deviations of the Poisson count it is compared against.
        * Everything below this is ordinary fluctuation of an ordinary term.
