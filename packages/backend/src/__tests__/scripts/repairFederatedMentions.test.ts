@@ -176,9 +176,19 @@ vi.mock('../../connectors/shared/federatedMedia', () => ({
   })),
 }));
 
-import { buildCandidateFilter, repairFederatedMentions } from '../../scripts/repairFederatedMentions';
+import {
+  buildCandidateFilter,
+  repairFederatedMentions,
+  resolveSourceUrl,
+} from '../../scripts/repairFederatedMentions';
+import { logger } from '../../utils/logger';
 
 const { store, postModel } = mocks;
+
+/** The `logger.warn` calls the run emitted, as `[message, context]` pairs. */
+function warnCalls(): [string, Record<string, unknown>][] {
+  return vi.mocked(logger.warn).mock.calls as [string, Record<string, unknown>][];
+}
 
 const oid = (suffix: string): mongoose.Types.ObjectId =>
   new mongoose.Types.ObjectId(`00000000000000000000000${suffix}`);
@@ -210,18 +220,26 @@ const DAMAGED_TEXT = '@indigoparadox No, none of that.';
 /** What the repair must land on: the internal placeholder hydration renders. */
 const REPAIRED_TEXT = `[mention:${MENTIONED_OXY_ID}] No, none of that.`;
 
-const SOURCE_URL = 'https://mastodon.social/@Gargron/117016521955489722';
+/** The ActivityPub OBJECT ID — the URL that answers `application/activity+json`. */
+const OBJECT_ID = SAME_INSTANCE_NOTE.id;
+/** The HUMAN web page permalink — serves HTML on plenty of servers. */
+const WEB_PAGE_URL = 'https://mastodon.social/@Gargron/117016521955489722';
 
-/** A damaged, repairable post (the primary fixture). */
-function damagedPost(id: string, url = SOURCE_URL): StoredPost {
+/**
+ * A damaged, repairable post (the primary fixture). Every fixture carries BOTH
+ * `activityId` and `url` on purpose: preferring the web page is what made a
+ * production dry run reject 40 of 50 fetches on content-type, so "both present"
+ * is the case that has to keep choosing the object id.
+ */
+function damagedPost(id: string, activityId = OBJECT_ID): StoredPost {
   return {
     _id: oid(id),
     mentions: [],
     content: { variants: [{ source: 'author', tag: 'en', text: DAMAGED_TEXT }] },
     federation: {
-      activityId: SAME_INSTANCE_NOTE.id,
+      activityId,
       actorUri: 'https://mastodon.social/users/Gargron',
-      url,
+      url: WEB_PAGE_URL,
     },
   };
 }
@@ -243,6 +261,7 @@ beforeEach(() => {
   mocks.signedFetch.mockReset();
   mocks.getOrFetchActor.mockReset();
   mocks.findExistingActor.mockReset();
+  vi.mocked(logger.warn).mockClear();
 
   // The mentioned actor IS already stored — the only shape the lookup-only
   // resolver can resolve.
@@ -283,7 +302,45 @@ describe('buildCandidateFilter', () => {
   });
 });
 
+describe('resolveSourceUrl', () => {
+  it('prefers the ActivityPub object id over the human web page', () => {
+    // `federation.url` is Mastodon's `/@user/<id>` permalink, which a great many
+    // servers serve as HTML whatever the `Accept` header says. `activityId` IS
+    // the AP object — the URL federation itself dereferences.
+    expect(
+      resolveSourceUrl({
+        _id: oid('1'),
+        federation: { activityId: OBJECT_ID, url: WEB_PAGE_URL },
+      }),
+    ).toEqual({ url: OBJECT_ID, kind: 'activityId' });
+  });
+
+  it('falls back to the web page url only when the object id is absent', () => {
+    expect(resolveSourceUrl({ _id: oid('1'), federation: { url: WEB_PAGE_URL } })).toEqual({
+      url: WEB_PAGE_URL,
+      kind: 'url',
+    });
+  });
+
+  it('returns null when the post carries neither', () => {
+    expect(resolveSourceUrl({ _id: oid('1'), federation: {} })).toBeNull();
+    expect(resolveSourceUrl({ _id: oid('1') })).toBeNull();
+  });
+});
+
 describe('repairFederatedMentions', () => {
+  it('dereferences the object id, never the human web page, when both are present', async () => {
+    store.posts = [damagedPost('1')];
+
+    const summary = await repairFederatedMentions({ noteTimeoutMs: 1_000 });
+
+    expect(summary.repaired).toBe(1);
+    expect(mocks.signedFetch).toHaveBeenCalledTimes(1);
+    expect(mocks.signedFetch.mock.calls[0][0]).toBe(OBJECT_ID);
+    // The regression that failed 40 of 50 posts in production.
+    expect(mocks.signedFetch).not.toHaveBeenCalledWith(WEB_PAGE_URL, expect.anything());
+  });
+
   it('re-links a same-instance mention the old ingest stripped to dead text', async () => {
     store.posts = [damagedPost('1')];
 
@@ -364,10 +421,10 @@ describe('repairFederatedMentions', () => {
   });
 
   it('skips a 410 Gone origin without aborting the run or deleting the post', async () => {
-    const goneUrl = 'https://dead.example/notes/gone';
-    store.posts = [damagedPost('1'), damagedPost('2', goneUrl)];
+    const goneObjectId = 'https://dead.example/users/x/statuses/gone';
+    store.posts = [damagedPost('1'), damagedPost('2', goneObjectId)];
     mocks.signedFetch.mockImplementation(async (url: string) =>
-      url === goneUrl ? new Response(null, { status: 410 }) : apResponse(SAME_INSTANCE_NOTE),
+      url === goneObjectId ? new Response(null, { status: 410 }) : apResponse(SAME_INSTANCE_NOTE),
     );
 
     const summary = await repairFederatedMentions({ noteTimeoutMs: 1_000 });
@@ -385,10 +442,10 @@ describe('repairFederatedMentions', () => {
   });
 
   it('leaves a transiently unreachable origin for a later re-run', async () => {
-    const deadUrl = 'https://offline.example/notes/1';
-    store.posts = [damagedPost('1'), damagedPost('2', deadUrl)];
+    const deadObjectId = 'https://offline.example/users/x/statuses/1';
+    store.posts = [damagedPost('1'), damagedPost('2', deadObjectId)];
     mocks.signedFetch.mockImplementation(async (url: string) => {
-      if (url === deadUrl) throw new Error('ECONNREFUSED');
+      if (url === deadObjectId) throw new Error('ECONNREFUSED');
       return apResponse(SAME_INSTANCE_NOTE);
     });
 
@@ -427,6 +484,106 @@ describe('repairFederatedMentions', () => {
     expect(store.ops).toHaveLength(1);
     expect(Object.keys(store.ops[0].updateOne.update.$set)).toEqual(['mentions']);
     expect(store.ops[0].updateOne.update.$set.mentions).toEqual([MENTIONED_OXY_ID]);
+  });
+
+  it('logs ONE structured warn naming the URL, the field it came from, and the cause', async () => {
+    // The production dry run could not be diagnosed at all: the failure warn
+    // carried only the error, so nothing said WHICH url was attempted or WHAT
+    // the origin served. This is the regression test for that.
+    store.posts = [damagedPost('1')];
+    mocks.signedFetch.mockImplementation(async () => {
+      throw new Error('ActivityPub response has unsupported content-type: text/html');
+    });
+
+    const summary = await repairFederatedMentions({ noteTimeoutMs: 1_000 });
+
+    expect(summary.fetchFailed).toBe(1);
+
+    const failures = warnCalls().filter(
+      ([message]) => message === '[repairFederatedMentions] source re-fetch failed',
+    );
+    expect(failures).toHaveLength(1);
+    expect(failures[0][1]).toEqual({
+      source: OBJECT_ID,
+      sourceKind: 'activityId',
+      reason: 'transport',
+      status: undefined,
+      contentType: undefined,
+      // The media type the transport observed, so the operator sees "HTML" and
+      // not merely "not JSON".
+      detail: 'ActivityPub response has unsupported content-type: text/html',
+    });
+  });
+
+  it('surfaces the HTTP status and the served media type on a bad status', async () => {
+    store.posts = [damagedPost('1')];
+    mocks.signedFetch.mockImplementation(
+      async () =>
+        new Response('<html>rate limited</html>', {
+          status: 429,
+          headers: { 'content-type': 'text/html; charset=utf-8' },
+        }),
+    );
+
+    const summary = await repairFederatedMentions({ noteTimeoutMs: 1_000 });
+
+    expect(summary.fetchFailedByReason).toEqual({
+      timeout: 0,
+      transport: 0,
+      httpStatus: 1,
+      nonObjectPayload: 0,
+      malformedJson: 0,
+    });
+    const [, context] = warnCalls().find(
+      ([message]) => message === '[repairFederatedMentions] source re-fetch failed',
+    ) as [string, Record<string, unknown>];
+    expect(context.status).toBe(429);
+    // Parameters dropped — the family is what identifies the problem.
+    expect(context.contentType).toBe('text/html');
+  });
+
+  it('returns the exact post and URL of each failure for in-process review', async () => {
+    const deadObjectId = 'https://offline.example/users/x/statuses/1';
+    store.posts = [damagedPost('1', deadObjectId)];
+    mocks.signedFetch.mockImplementation(async () => {
+      throw new Error('ECONNREFUSED');
+    });
+
+    const summary = await repairFederatedMentions({ noteTimeoutMs: 1_000 });
+
+    // The log reduces a URL to its host and redacts a 24-hex ObjectId outright,
+    // so the returned record is the only place carrying both in full.
+    expect(summary.failures).toEqual([
+      {
+        id: oid('1').toString(),
+        source: deadObjectId,
+        sourceKind: 'activityId',
+        reason: 'transport',
+        status: undefined,
+        contentType: undefined,
+        detail: 'ECONNREFUSED',
+      },
+    ]);
+  });
+
+  it('classifies a JSON body that is not an object, and caps collected failures', async () => {
+    store.posts = [damagedPost('1'), damagedPost('2', 'https://a.example/users/x/statuses/2')];
+    mocks.signedFetch.mockImplementation(
+      async () =>
+        new Response('["not an object"]', {
+          status: 200,
+          headers: { 'content-type': 'application/activity+json' },
+        }),
+    );
+
+    const summary = await repairFederatedMentions({ noteTimeoutMs: 1_000, failureSampleSize: 1 });
+
+    expect(summary.fetchFailed).toBe(2);
+    expect(summary.fetchFailedByReason.nonObjectPayload).toBe(2);
+    // Counted in full, collected up to the cap.
+    expect(summary.failures).toHaveLength(1);
+    expect(summary.failures[0].reason).toBe('nonObjectPayload');
+    expect(summary.failures[0].contentType).toBe('application/activity+json');
   });
 
   it('counts a note whose mentions resolve to nobody as unresolved, writing nothing', async () => {

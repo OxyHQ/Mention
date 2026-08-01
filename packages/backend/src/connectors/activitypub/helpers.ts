@@ -38,8 +38,13 @@ export const ACTIVITYPUB_FETCH_DEADLINE_MS = 15_000;
 /** Maximum silence between ActivityPub response-body chunks. */
 export const ACTIVITYPUB_BODY_IDLE_TIMEOUT_MS = 5_000;
 
+/** The media-type family of a `content-type` header: parameters dropped, lowercased. */
+function contentTypeFamily(raw: string | null): string {
+  return raw?.split(';', 1)[0]?.trim().toLowerCase() ?? '';
+}
+
 function activityPubJsonContentType(raw: string | null): boolean {
-  const family = raw?.split(';', 1)[0]?.trim().toLowerCase() ?? '';
+  const family = contentTypeFamily(raw);
   return family === 'application/json'
     || family === 'application/activity+json'
     || family === 'application/ld+json'
@@ -166,7 +171,16 @@ export async function singleHopToResponse(result: SingleHopResult): Promise<Resp
   if (result.status >= 200 && result.status < 300
       && !activityPubJsonContentType(headers.get('content-type'))) {
     result.response.destroy();
-    throw new Error('ActivityPub response has unsupported content-type');
+    // NAME the offending media type. Without it the rejection reads only as
+    // "not JSON", and every diagnosis of a bulk sweep costs a code change plus a
+    // redeploy to find out whether the origin served HTML, an error page, or
+    // nothing at all. Only the media-type FAMILY is interpolated (parameters
+    // dropped, lowercased, length-capped), so no remote-controlled payload rides
+    // into the message.
+    const family = contentTypeFamily(headers.get('content-type'));
+    throw new Error(
+      `ActivityPub response has unsupported content-type: ${family ? family.slice(0, 64) : '(none)'}`,
+    );
   }
 
   const declaredLength = Number(headers.get('content-length'));

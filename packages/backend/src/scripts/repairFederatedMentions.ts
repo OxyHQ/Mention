@@ -43,7 +43,11 @@
  * WHAT IT DOES PER CANDIDATE
  *   Re-fetches the source Note over the project's SIGNED, SSRF-safe transport
  *   (`signedFetch` — DNS-pinned, per-hop re-signed, deadline-bounded; never a
- *   bare `fetch`), then re-runs the SHARED ingest helpers on the returned HTML:
+ *   bare `fetch`) at `federation.activityId`, the ActivityPub OBJECT ID — never
+ *   preferring `federation.url`, the human web page (see {@link resolveSourceUrl}
+ *   for why: the first production dry run had 40 of 50 fetches rejected on
+ *   content-type because the web page answers HTML). Then it re-runs the SHARED
+ *   ingest helpers on the returned HTML:
  *   `resolveInboundMentionsExisting` → `applyMentionPlaceholders` →
  *   `buildFederatedNoteVariants`. The re-derived body text is applied onto the
  *   STORED variants via `repairVariantText`, so the language tags / `source` a
@@ -62,9 +66,20 @@
  *   `unchanged`         re-mapping matched what is stored; nothing written
  *   `unresolved`        no mention resolved to an already-known identity
  *   `gone`              origin answered 404/410 — SKIPPED, never deleted
- *   `fetchFailed`       transient failure / timeout — left for a later re-run
- *   `skippedNoSource`   no `federation.url` or `federation.activityId` to fetch
+ *   `fetchFailed`       transient failure / timeout — left for a later re-run,
+ *                       split by cause in `fetchFailedByReason` (`timeout`,
+ *                       `transport`, `httpStatus`, `nonObjectPayload`,
+ *                       `malformedJson`) and detailed per post in `failures[]`
+ *   `skippedNoSource`   no `federation.activityId` or `federation.url` to fetch
  *   `skippedEmptyBody`  re-derive produced no body; an existing body is NEVER blanked
+ *
+ * DIAGNOSING A RUN
+ *   Every failed re-fetch emits ONE structured warn carrying the attempted URL,
+ *   which `federation` field it came from, the failure class, the HTTP status and
+ *   the media type the origin actually served. The backend logger reduces a URL
+ *   to its host (path redacted) and redacts a 24-hex ObjectId outright, so the
+ *   LOG identifies the failing instance and the RETURNED `failures[]` identifies
+ *   the exact post and URL — see the review command at the bottom.
  *
  * SAFETY / SHAPE
  *   - Idempotent + re-runnable: a repaired post gains a non-empty `mentions`
@@ -89,8 +104,11 @@
  *   REPAIR_CONCURRENCY=8      posts re-fetched in parallel (clamped to 32)
  *   REPAIR_LIMIT=<n>          cap total posts scanned (canary budget)
  *   REPAIR_ACTOR_URI=<uri>    restrict to one `federation.actorUri`
- *   REPAIR_NOTE_TIMEOUT_MS    per-note fetch budget (default 20000)
+ *   REPAIR_NOTE_TIMEOUT_MS    per-note fetch budget (default 20000; note the
+ *                             transport's own `ACTIVITYPUB_FETCH_DEADLINE_MS` of
+ *                             15000 is the tighter, inner bound)
  *   REPAIR_SAMPLE_SIZE=5      before/after samples collected under DRY_RUN
+ *   REPAIR_FAILURE_SAMPLE_SIZE=20  failure records collected on the summary
  *
  * RUN AS A FARGATE ONE-SHOT (dry run FIRST):
  *   DRY_RUN=true REPAIR_LIMIT=50 \
@@ -98,10 +116,11 @@
  *   CONFIRM_ADMIN_MUTATION=repairFederatedMentions \
  *     bun packages/backend/dist/src/scripts/repairFederatedMentions.js
  *
- * REVIEW THE ACTUAL BEFORE/AFTER BODIES (they are returned, never logged):
+ * REVIEW THE BODIES AND THE FAILING URLS (returned in full, never logged in full):
  *   bun -e "const m=require('./packages/backend/dist/src/scripts/repairFederatedMentions');\
  *   const g=require('mongoose');(async()=>{await g.connect(process.env.MONGODB_URI);\
- *   console.dir((await m.repairFederatedMentions({dryRun:true,limit:20})).samples,{depth:null});\
+ *   const s=await m.repairFederatedMentions({dryRun:true,limit:50});\
+ *   console.dir({samples:s.samples,failures:s.failures},{depth:null});\
  *   await g.disconnect();})()"
  */
 
@@ -133,6 +152,13 @@ const DEFAULT_NOTE_TIMEOUT_MS = 20_000;
 /** Before/after samples a DRY RUN collects. */
 const DEFAULT_SAMPLE_SIZE = 5;
 
+/**
+ * Failure records collected on the returned summary. Higher than the body
+ * sample budget on purpose: a sweep is diagnosed from its failures, and the
+ * first production dry run failed 40 of 50 posts.
+ */
+const DEFAULT_FAILURE_SAMPLE_SIZE = 20;
+
 /** HTTP statuses that mean the remote object is permanently gone. */
 const GONE_STATUS_CODES = new Set([404, 410]);
 
@@ -155,7 +181,7 @@ type RepairOutcome =
   | 'skipped-empty-body';
 
 /** The lean Post fields the repair reads. */
-interface CandidatePostRow {
+export interface CandidatePostRow {
   _id: mongoose.Types.ObjectId;
   mentions?: string[] | null;
   content?: {
@@ -197,6 +223,39 @@ export interface RepairSample {
   mentions: string[];
 }
 
+/** Which `federation` field the attempted source URL came from. */
+export type SourceKind = 'activityId' | 'url';
+
+/** How a source re-fetch failed. Reported per post and tallied per run. */
+export type FetchFailureReason =
+  | 'timeout'
+  | 'transport'
+  | 'httpStatus'
+  | 'nonObjectPayload'
+  | 'malformedJson';
+
+/**
+ * One failed re-fetch, collected on the returned summary.
+ *
+ * RETURNED in full; the run also emits ONE structured warn per failure, but the
+ * backend logger redacts a URL down to its host and redacts a 24-hex ObjectId
+ * outright, so the log tells you WHICH INSTANCE is failing and this tells you
+ * exactly WHICH POST and WHICH URL. Reviewed in-process — see the header docblock.
+ */
+export interface RepairFailure {
+  id: string;
+  /** The URL that was attempted, unredacted. */
+  source: string;
+  sourceKind: SourceKind;
+  reason: FetchFailureReason;
+  /** HTTP status, when the transport got far enough to see one. */
+  status?: number;
+  /** The media-type family the origin actually served, when observable. */
+  contentType?: string;
+  /** Short human detail (the transport error message, etc.). */
+  detail: string;
+}
+
 export interface RepairFederatedMentionsOptions {
   /** Resolve + report, write nothing. */
   dryRun?: boolean;
@@ -212,6 +271,8 @@ export interface RepairFederatedMentionsOptions {
   noteTimeoutMs?: number;
   /** How many before/after samples a dry run collects. */
   sampleSize?: number;
+  /** How many failure records the run collects. */
+  failureSampleSize?: number;
 }
 
 export interface RepairFederatedMentionsSummary {
@@ -228,36 +289,66 @@ export interface RepairFederatedMentionsSummary {
   skippedEmptyBody: number;
   /** Documents Mongo reported as modified (always 0 under DRY_RUN). */
   written: number;
+  /** `fetchFailed` split by cause — the first thing to read after a bad run. */
+  fetchFailedByReason: Record<FetchFailureReason, number>;
   samples: RepairSample[];
+  failures: RepairFailure[];
+}
+
+/** Everything known about a failed re-fetch, before a post id is attached. */
+interface ApFetchFailure {
+  kind: 'error';
+  reason: FetchFailureReason;
+  status?: number;
+  contentType?: string;
+  detail: string;
 }
 
 /** Outcome of re-fetching a post's source AP object. */
 type ApFetchOutcome =
   | { kind: 'ok'; object: Record<string, unknown> }
-  | { kind: 'gone' }
-  | { kind: 'error' };
+  | { kind: 'gone'; status: number }
+  | ApFetchFailure;
+
+/** The message of an unknown thrown value, without leaking a stack into a field. */
+function describeError(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
+/** The media-type family a response declared, for diagnostics (parameters dropped). */
+function responseContentType(res: Response): string | undefined {
+  const raw = res.headers.get('content-type');
+  return raw ? raw.split(';', 1)[0].trim().toLowerCase() : undefined;
+}
 
 /**
  * Re-fetch a post's source AP object over the signed, SSRF-safe transport,
  * classifying the result so the caller can tell a permanently-removed object
- * (`gone`, skip forever) from a transient failure (`error`, retry on a later
- * run). Never throws — mirrors `reingestEmptyFederatedPosts` / `reingestBlueskyPosts`.
+ * (`gone`, skip forever) from a failure (retry on a later run) — and, when it is
+ * a failure, WHY.
+ *
+ * Never throws, and never logs: the caller owns the single structured warn, so
+ * the attempted URL (which only it knows) rides in the same record as the cause.
  */
 async function fetchApObject(url: string): Promise<ApFetchOutcome> {
   let res: Response;
   try {
     res = await signedFetch(url, AP_CONTENT_TYPE);
   } catch (err) {
-    logger.warn('[repairFederatedMentions] ActivityPub fetch failed', { error: err });
-    return { kind: 'error' };
+    // Includes the transport's own content-type rejection, whose message names
+    // the offending media type (see `singleHopToResponse`).
+    return { kind: 'error', reason: 'transport', detail: describeError(err) };
   }
 
-  if (GONE_STATUS_CODES.has(res.status)) return { kind: 'gone' };
+  if (GONE_STATUS_CODES.has(res.status)) return { kind: 'gone', status: res.status };
   if (!res.ok) {
-    logger.warn('[repairFederatedMentions] ActivityPub fetch returned an error status', {
+    return {
+      kind: 'error',
+      reason: 'httpStatus',
       status: res.status,
-    });
-    return { kind: 'error' };
+      contentType: responseContentType(res),
+      detail: `origin answered HTTP ${res.status}`,
+    };
   }
 
   try {
@@ -265,13 +356,23 @@ async function fetchApObject(url: string): Promise<ApFetchOutcome> {
     // so no `any` leaks into the caller.
     const object: unknown = await res.json();
     if (!object || typeof object !== 'object' || Array.isArray(object)) {
-      logger.warn('[repairFederatedMentions] ActivityPub fetch returned a non-object payload');
-      return { kind: 'error' };
+      return {
+        kind: 'error',
+        reason: 'nonObjectPayload',
+        status: res.status,
+        contentType: responseContentType(res),
+        detail: 'payload parsed but was not a JSON object',
+      };
     }
     return { kind: 'ok', object: object as Record<string, unknown> };
   } catch (err) {
-    logger.warn('[repairFederatedMentions] ActivityPub payload parsing failed', { error: err });
-    return { kind: 'error' };
+    return {
+      kind: 'error',
+      reason: 'malformedJson',
+      status: res.status,
+      contentType: responseContentType(res),
+      detail: describeError(err),
+    };
   }
 }
 
@@ -315,6 +416,30 @@ interface PreparedRepair {
   outcome: RepairOutcome;
   op?: mongoose.AnyBulkWriteOperation<typeof Post>;
   sample?: RepairSample;
+  failure?: RepairFailure;
+}
+
+/**
+ * Choose which URL to dereference for a post's source Note.
+ *
+ * `federation.activityId` FIRST: it IS the ActivityPub object id — the URL
+ * federation itself delivers against and the one an AP server is obliged to
+ * serve as `application/activity+json`. `federation.url` is the HUMAN web page
+ * (Mastodon's `/@user/<id>` permalink); a great many servers serve HTML there
+ * whatever the `Accept` header says, which is exactly how the first production
+ * dry run had 40 of 50 fetches rejected on content-type.
+ *
+ * The candidate filter already REQUIRES `federation.activityId`, so `url` is a
+ * pure fallback for a row whose id is somehow unusable, never the normal path.
+ */
+export function resolveSourceUrl(
+  post: CandidatePostRow,
+): { url: string; kind: SourceKind } | null {
+  const activityId = post.federation?.activityId;
+  if (activityId) return { url: activityId, kind: 'activityId' };
+  const url = post.federation?.url;
+  if (url) return { url, kind: 'url' };
+  return null;
 }
 
 /**
@@ -326,19 +451,50 @@ async function prepareRepair(
   post: CandidatePostRow,
   noteTimeoutMs: number,
 ): Promise<PreparedRepair> {
-  const sourceUrl = post.federation?.url || post.federation?.activityId;
-  if (!sourceUrl) return { outcome: 'skipped-no-source' };
+  const source = resolveSourceUrl(post);
+  if (!source) return { outcome: 'skipped-no-source' };
 
   // The fetch is READ-ONLY, so abandoning it on the deadline is safe. The live
   // write below is never raced against a timer it could not cancel.
-  const fetched = await runWithTimeout(fetchApObject(sourceUrl), noteTimeoutMs);
-  if (fetched === null) {
-    logger.warn('[repairFederatedMentions] source re-fetch timed out; skipping', {
-      durationMs: noteTimeoutMs,
+  const fetched: ApFetchOutcome = (await runWithTimeout(
+    fetchApObject(source.url),
+    noteTimeoutMs,
+  )) ?? {
+    kind: 'error',
+    reason: 'timeout',
+    detail: `re-fetch exceeded ${noteTimeoutMs}ms`,
+  };
+
+  if (fetched.kind === 'error') {
+    // ONE structured warn, carrying everything a production sweep needs to
+    // diagnose itself WITHOUT a code change and a redeploy: which URL was
+    // attempted, which federation field it came from, the failure class, the
+    // HTTP status, and the media type the origin actually served. The logger
+    // reduces the URL to its host (path redacted), which is the right
+    // granularity — the failing INSTANCE — and the untouched URL plus the post
+    // id ride on `summary.failures` for in-process review.
+    logger.warn('[repairFederatedMentions] source re-fetch failed', {
+      source: source.url,
+      sourceKind: source.kind,
+      reason: fetched.reason,
+      status: fetched.status,
+      contentType: fetched.contentType,
+      detail: fetched.detail,
     });
-    return { outcome: 'fetch-failed' };
+    return {
+      outcome: 'fetch-failed',
+      failure: {
+        id: post._id.toString(),
+        source: source.url,
+        sourceKind: source.kind,
+        reason: fetched.reason,
+        status: fetched.status,
+        contentType: fetched.contentType,
+        detail: fetched.detail,
+      },
+    };
   }
-  if (fetched.kind === 'error') return { outcome: 'fetch-failed' };
+
   // Content-bearing: the local copy still renders and may carry local
   // engagement, so a removed upstream is never a reason to touch it.
   if (fetched.kind === 'gone') return { outcome: 'gone' };
@@ -406,6 +562,7 @@ export async function repairFederatedMentions(
   const concurrency = Math.min(Math.max(1, options.concurrency ?? DEFAULT_CONCURRENCY), MAX_CONCURRENCY);
   const noteTimeoutMs = options.noteTimeoutMs ?? DEFAULT_NOTE_TIMEOUT_MS;
   const sampleSize = options.sampleSize ?? DEFAULT_SAMPLE_SIZE;
+  const failureSampleSize = options.failureSampleSize ?? DEFAULT_FAILURE_SAMPLE_SIZE;
 
   const baseFilter = buildCandidateFilter(options.actorUri);
   const candidates = await Post.countDocuments(baseFilter);
@@ -428,7 +585,15 @@ export async function repairFederatedMentions(
     skippedNoSource: 0,
     skippedEmptyBody: 0,
     written: 0,
+    fetchFailedByReason: {
+      timeout: 0,
+      transport: 0,
+      httpStatus: 0,
+      nonObjectPayload: 0,
+      malformedJson: 0,
+    },
     samples: [],
+    failures: [],
   };
   if (candidates === 0) {
     logger.info('[repairFederatedMentions] nothing to do');
@@ -492,7 +657,17 @@ export async function repairFederatedMentions(
         logger.warn('[repairFederatedMentions] post repair failed; skipping', {
           error: result.reason,
         });
-        prepared = { outcome: 'fetch-failed' };
+        const source = resolveSourceUrl(page[i]);
+        prepared = {
+          outcome: 'fetch-failed',
+          failure: {
+            id: page[i]._id.toString(),
+            source: source?.url ?? '',
+            sourceKind: source?.kind ?? 'activityId',
+            reason: 'transport',
+            detail: describeError(result.reason),
+          },
+        };
       }
 
       switch (prepared.outcome) {
@@ -517,6 +692,12 @@ export async function repairFederatedMentions(
           break;
         case 'fetch-failed':
           summary.fetchFailed += 1;
+          if (prepared.failure) {
+            summary.fetchFailedByReason[prepared.failure.reason] += 1;
+            if (summary.failures.length < failureSampleSize) {
+              summary.failures.push(prepared.failure);
+            }
+          }
           break;
         case 'skipped-no-source':
           summary.skippedNoSource += 1;
@@ -575,12 +756,17 @@ async function main(): Promise<void> {
       actorUri: process.env.REPAIR_ACTOR_URI?.trim() || undefined,
       noteTimeoutMs: parsePositiveInt(process.env.REPAIR_NOTE_TIMEOUT_MS, DEFAULT_NOTE_TIMEOUT_MS),
       sampleSize: parsePositiveInt(process.env.REPAIR_SAMPLE_SIZE, DEFAULT_SAMPLE_SIZE),
+      failureSampleSize: parsePositiveInt(
+        process.env.REPAIR_FAILURE_SAMPLE_SIZE,
+        DEFAULT_FAILURE_SAMPLE_SIZE,
+      ),
     });
 
     // ONE machine-readable summary record for a Fargate one-shot's log scrape:
     // pino emits exactly one JSON line per call, so the structured context IS
-    // the scrapeable line. The before/after samples are deliberately NOT logged
-    // (see {@link RepairSample}); only how many were collected.
+    // the scrapeable line. `fetchFailedByReason` is what turns a bad run into a
+    // diagnosis without a redeploy. The before/after samples are deliberately
+    // NOT logged (see {@link RepairSample}); only how many were collected.
     logger.info('[repairFederatedMentions] summary', {
       dryRun: summary.dryRun,
       total: summary.candidates,
@@ -590,6 +776,7 @@ async function main(): Promise<void> {
       unresolved: summary.unresolved,
       gone: summary.gone,
       fetchFailed: summary.fetchFailed,
+      fetchFailedByReason: summary.fetchFailedByReason,
       skippedNoSource: summary.skippedNoSource,
       skippedEmptyBody: summary.skippedEmptyBody,
       written: summary.written,
