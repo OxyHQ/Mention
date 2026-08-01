@@ -89,6 +89,22 @@ export const TREND_TERM_STOPWORDS: ReadonlySet<string> = new Set([
 ]);
 
 /**
+ * Whether a stored term is nothing but stop words.
+ *
+ * Applied at DETECTION as well as at extraction (see the trending batch), so a
+ * term stored under an older word list cannot keep trending until the window
+ * rolls past it.
+ *
+ * A phrase counts only when EVERY word in it is a stop word: `will` is noise,
+ * `will smith` is a person, and a phrase is exactly where a stop word stops
+ * being one.
+ */
+export function isTrendStopWord(term: string): boolean {
+  const words = term.split(' ').filter((word) => word.length > 0);
+  return words.length > 0 && words.every((word) => TREND_TERM_STOPWORDS.has(word));
+}
+
+/**
  * Splits text into SEGMENTS at anything that is not a letter, digit, apostrophe
  * or space. Punctuation, emoji and symbols all end a segment, which is what
  * stops a phrase from being built across a comma or a line break — `Kremer,

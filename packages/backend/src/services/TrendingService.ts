@@ -9,6 +9,7 @@ import { emitTrendsUpdated } from '../utils/socket';
 import { aliaChat, isAliaEnabled } from '../utils/alia';
 import { topicService } from './TopicService';
 import { isNsfwHashtag } from './contentClassification/nsfw';
+import { isTrendStopWord } from './trending/termExtraction';
 // Trending shares the SINGLE canonical sensitive-exclusion clause with every
 // feed (For You, Explore, ranking). Adding a new gate updates trending too.
 import { SENSITIVE_EXCLUDE_MATCH } from '../mtn/feed/feedSafety';
@@ -559,6 +560,18 @@ class TrendingService {
     return rows
       // Blocklisted NSFW/adult terms never trend, whatever their numbers.
       .filter((row) => !isNsfwHashtag(row._id))
+      // Stop words are filtered AGAIN here, not only at extraction.
+      //
+      // Extraction runs once, when a post arrives, so a term stored before a
+      // word joined the list keeps counting for as long as the window holds it
+      // — `why` and `will` stayed on the live list after the change that was
+      // supposed to remove them, and would have kept their place for a day.
+      // Filtering at detection makes the list retroactive the moment the batch
+      // runs, and makes it impossible for the version of the word list that
+      // happened to be deployed when a post arrived to decide what trends now.
+      // The extraction-time filter still earns its place: it keeps the stored
+      // arrays and their index small. This is the one that decides.
+      .filter((row) => !isTrendStopWord(row._id))
       .map((row) => {
         const languages = row.languages ?? [];
         const corpus = corpusSizeFor(languages, corpusByLanguage);

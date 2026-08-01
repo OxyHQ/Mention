@@ -265,7 +265,8 @@ describe('topUpWithPopular — never blank, never lax', () => {
   });
 
   it('fills an empty list from the most-posted terms', () => {
-    const candidates = [popular(30, 'a'), popular(20, 'b'), popular(10, 'c')];
+    // Each clears `minPopularVolume` — the popular path's own, higher bar.
+    const candidates = [popular(30, 'a'), popular(20, 'b'), popular(15, 'c')];
     const filled = topUpWithPopular(candidates, []);
     expect(filled.map((t) => t.term)).toEqual(['a', 'b', 'c']);
   });

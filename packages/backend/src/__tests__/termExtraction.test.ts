@@ -1,6 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import { MtnConfig } from '@mention/shared-types';
-import { extractTrendTerms, TREND_TERM_STOPWORDS } from '../services/trending/termExtraction';
+import {
+  extractTrendTerms,
+  isTrendStopWord,
+  TREND_TERM_STOPWORDS,
+} from '../services/trending/termExtraction';
 
 // Trend-term extraction — the Stage-A step that decides what vocabulary a post
 // contributes to trending.
@@ -192,5 +196,37 @@ describe('extractTrendTerms — the tests above are not vacuous', () => {
   it('extracts something from ordinary prose', () => {
     expect(extractTrendTerms({ text: 'Orioles trading Dean Kremer to Minnesota Twins' }).length)
       .toBeGreaterThan(3);
+  });
+});
+
+describe('isTrendStopWord — the detection-time filter', () => {
+  /*
+   * Extraction runs once, when a post arrives. Detection runs every batch. Only
+   * the second can decide what trends TODAY, which is why the same word list is
+   * applied twice: `why` and `will` outlived the change that added them to it,
+   * because their posts were already stored.
+   */
+  it('refuses a term that is nothing but a stop word', () => {
+    expect(isTrendStopWord('why')).toBe(true);
+    expect(isTrendStopWord('will')).toBe(true);
+  });
+
+  it('keeps a phrase where a stop word is only part of it', () => {
+    // A stop word stops being one the moment it is part of a name.
+    expect(isTrendStopWord('will smith')).toBe(false);
+    expect(isTrendStopWord('why files')).toBe(false);
+  });
+
+  it('keeps an ordinary term', () => {
+    expect(isTrendStopWord('orioles')).toBe(false);
+    expect(isTrendStopWord('dean kremer')).toBe(false);
+  });
+
+  it('refuses a phrase made entirely of stop words', () => {
+    expect(isTrendStopWord('why will')).toBe(true);
+  });
+
+  it('says nothing about an empty term', () => {
+    expect(isTrendStopWord('')).toBe(false);
   });
 });

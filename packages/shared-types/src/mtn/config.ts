@@ -737,9 +737,17 @@ export const MtnConfig = {
        * posts alone made that indistinguishable from fifty people agreeing.
        */
       minAuthors: 3,
-      /** Posts a term needs in the trailing window. Guards the rate estimate
-       * itself: below a handful of observations the burst statistic is noise. */
-      minVolume: 3,
+      /**
+       * Posts a term needs in the trailing window.
+       *
+       * Guards the rate estimate itself, and the bar is set by what a wrong
+       * answer looks like rather than by statistical confidence. `why` (5
+       * posts, 3 authors) and `will` (4, 4) were textbook bursts — four of
+       * five posts arriving recently is 2.5 standard deviations, impeccable
+       * arithmetic — and neither is a trend. Below this many observations the
+       * statistic is measuring a coincidence precisely.
+       */
+      minVolume: 8,
       /**
        * VOCABULARY CEILING: the share of ALL posts in the window a term may
        * appear in before it is treated as vocabulary rather than a subject.
@@ -794,7 +802,7 @@ export const MtnConfig = {
        * form of every common verb. The honest fix is to require the popular
        * path to actually be popular.
        */
-      minPopularVolume: 10,
+      minPopularVolume: 15,
       /**
        * How far above its own baseline a term must sit to be reported, in
        * standard deviations of the Poisson count it is compared against.
