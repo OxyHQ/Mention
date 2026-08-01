@@ -29,12 +29,14 @@ import { runWithTimeout } from './helpers';
  * user's profile via `getNormalizedUserHandle`, exactly like a native mention.
  *
  * Anchor↔tag matching is BY HREF (never the ambiguous bare `@username` text): the
- * anchor's `href` is compared against two deterministic candidates per resolved
- * tag — the actor URI itself (Pleroma, and our own round-tripped posts) and the
- * reconstructed human profile URL `https://<domain>/@<user>` derived from the tag
- * `name` (Mastodon/Misskey, whose in-content anchor points at the profile page,
- * not the actor URI). An anchor that matches neither is left untouched and degrades
- * to the prior bare-text behavior rather than mis-linking.
+ * anchor's `href` is compared against the deterministic candidates each resolved
+ * tag implies — the actor URI itself (Pleroma, and our own round-tripped posts)
+ * and the reconstructed human profile URLs `https://<domain>/@<user>`
+ * (Mastodon/Misskey, whose in-content anchor points at the profile page, not the
+ * actor URI). See {@link reconstructProfileHrefs} for why the domain must come
+ * from the actor URI's origin and not only from the tag `name`. An anchor that
+ * matches none is left untouched and degrades to the prior bare-text behavior
+ * rather than mis-linking.
  */
 
 /** One `Mention` entry extracted from an AP object's `tag` array. */
@@ -96,21 +98,51 @@ function normalizeActorHref(href: string): string {
 }
 
 /**
- * Reconstruct the human profile URL (`https://<domain>/@<user>`) from a tag `name`
- * of the form `@user@domain`. This is the in-content anchor href Mastodon and
- * Misskey emit (their anchor points at the profile page, not the actor URI), so it
- * is the candidate that lets those servers' anchors match their own `Mention` tag.
- * Returns `undefined` when the name is absent or not a `user@domain` handle.
+ * Reconstruct the human profile URL(s) (`https://<domain>/@<user>`) a `Mention`
+ * tag implies. This is the in-content anchor href Mastodon and Misskey emit
+ * (their anchor points at the profile page, not the actor URI), so it is the
+ * candidate that lets those servers' anchors match their own `Mention` tag.
+ *
+ * The domain comes from TWO independent places, because the tag `name` alone is
+ * not enough: Mastodon writes `name` RELATIVE TO THE AUTHOR, so a mention of
+ * someone on the author's own instance is the BARE `@user` with no `@domain`
+ * suffix — only a cross-instance mention carries `@user@domain`. Deriving the
+ * domain solely from `name` therefore produced NO candidate at all for the most
+ * common shape of all (two users of the same remote instance talking to each
+ * other): the anchor matched nothing, stayed raw, and `htmlToPlainText` stripped
+ * it to dead `@user` text with no domain and no link.
+ *
+ * So the username is taken from `name` (never guessed from the href path, which
+ * carries an opaque id on servers like Misskey) and paired with the domain from
+ * `name` when it has one AND with the tag href's own origin. Both are emitted;
+ * an extra candidate that no anchor uses is inert, since matching is by exact
+ * normalized href.
+ *
+ * Returns an empty array when the name is absent or carries no usable username.
  */
-function reconstructProfileHref(name: string | undefined): string | undefined {
-  if (!name) return undefined;
-  const cleaned = name.replace(/^@+/, '');
+function reconstructProfileHrefs(tag: InboundMentionTag): string[] {
+  const cleaned = (tag.name ?? '').replace(/^@+/, '').trim();
+  if (!cleaned) return [];
+
   const at = cleaned.indexOf('@');
-  if (at <= 0 || at === cleaned.length - 1) return undefined;
-  const local = cleaned.slice(0, at);
-  const domain = cleaned.slice(at + 1);
-  if (!local || !domain) return undefined;
-  return `https://${domain}/@${local}`;
+  const local = at === -1 ? cleaned : cleaned.slice(0, at);
+  const nameDomain = at === -1 ? undefined : cleaned.slice(at + 1) || undefined;
+  if (!local) return [];
+
+  const hrefs: string[] = [];
+  if (nameDomain) hrefs.push(`https://${nameDomain}/@${local}`);
+
+  // The actor URI's own origin — the instance that actually serves the profile
+  // page, and the only source of the domain when `name` is the bare form.
+  let actorOrigin: string | undefined;
+  try {
+    actorOrigin = new URL(tag.href).origin;
+  } catch {
+    actorOrigin = undefined;
+  }
+  if (actorOrigin) hrefs.push(`${actorOrigin}/@${local}`);
+
+  return hrefs;
 }
 
 /**
@@ -272,8 +304,9 @@ async function buildResolvedInboundMentions(
         // the `https://bsky.app/profile/<did|handle>` web-profile forms Bridgy Fed
         // uses in-content.
         anchorMap.set(normalizeActorHref(tag.href), resolved.oxyUserId);
-        const profileHref = reconstructProfileHref(tag.name);
-        if (profileHref) anchorMap.set(normalizeActorHref(profileHref), resolved.oxyUserId);
+        for (const profileHref of reconstructProfileHrefs(tag)) {
+          anchorMap.set(normalizeActorHref(profileHref), resolved.oxyUserId);
+        }
         for (const bridged of bridgedMentionAnchorHrefs(tag)) {
           anchorMap.set(normalizeActorHref(bridged), resolved.oxyUserId);
         }
