@@ -29,6 +29,15 @@ interface StoredVariant {
   tag?: string;
 }
 
+/** A stored `adminscriptcursors` row — where one shard scope got to. */
+interface StoredCursor {
+  script: string;
+  scope: string;
+  cursor: string;
+  scanned: number;
+  completedAt: Date | null;
+}
+
 /** A stored post row as `.lean()` hands it to the script. */
 interface StoredPost {
   _id: mongoose.Types.ObjectId;
@@ -50,7 +59,15 @@ interface BulkOp {
 }
 
 const mocks = vi.hoisted(() => {
-  const store: { posts: StoredPost[]; ops: BulkOp[] } = { posts: [], ops: [] };
+  const store: {
+    posts: StoredPost[];
+    ops: BulkOp[];
+    cursors: StoredCursor[];
+    /** Every cursor value written, in order — the per-page persistence itself. */
+    cursorWrites: { scope: string; cursor: string; scanned: number; completed: boolean }[];
+    /** Set to make the next cursor write fail, like a database blip would. */
+    cursorWriteError: Error | null;
+  } = { posts: [], ops: [], cursors: [], cursorWrites: [], cursorWriteError: null };
 
   /**
    * Read every value a dotted filter key reaches, fanning out through arrays the
@@ -82,6 +99,8 @@ const mocks = vi.hoisted(() => {
           return values.some((value) => Array.isArray(value) && value.length === operand);
         case '$gt':
           return values.some((value) => String(value) > String(operand));
+        case '$lte':
+          return values.some((value) => String(value) <= String(operand));
         case '$regex':
           return values.some((value) => typeof value === 'string' && (operand as RegExp).test(value));
         default:
@@ -146,10 +165,50 @@ const mocks = vi.hoisted(() => {
         return { modifiedCount: ops.length };
       }),
     },
+    /**
+     * A minimal `adminscriptcursors` collection, so the REAL cursor helper runs
+     * against it rather than being stubbed out. Mocking the helper instead would
+     * leave the wiring — which scope a run reads, when it writes, whether a dry
+     * run writes at all — untested, and that wiring is the entire fix.
+     */
+    cursorModel: {
+      findOne: vi.fn((filter: { script: string; scope: string }) => ({
+        lean: async () =>
+          store.cursors.find(
+            (row) => row.script === filter.script && row.scope === filter.scope,
+          ) ?? null,
+      })),
+      updateOne: vi.fn(async (
+        filter: { script: string; scope: string },
+        update: { $set: Omit<StoredCursor, 'script' | 'scope'> },
+      ) => {
+        if (store.cursorWriteError) throw store.cursorWriteError;
+        store.cursorWrites.push({
+          scope: filter.scope,
+          cursor: update.$set.cursor,
+          scanned: update.$set.scanned,
+          completed: update.$set.completedAt !== null,
+        });
+        const existing = store.cursors.find(
+          (row) => row.script === filter.script && row.scope === filter.scope,
+        );
+        if (existing) Object.assign(existing, update.$set);
+        else store.cursors.push({ ...filter, ...update.$set });
+        return { acknowledged: true };
+      }),
+      deleteOne: vi.fn(async (filter: { script: string; scope: string }) => {
+        store.cursors = store.cursors.filter(
+          (row) => !(row.script === filter.script && row.scope === filter.scope),
+        );
+        return { deletedCount: 1 };
+      }),
+    },
   };
 });
 
 vi.mock('../../models/Post', () => ({ Post: mocks.postModel }));
+
+vi.mock('../../models/AdminScriptCursor', () => ({ AdminScriptCursor: mocks.cursorModel }));
 
 vi.mock('../../connectors/activitypub/helpers', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../connectors/activitypub/helpers')>()),
@@ -179,8 +238,10 @@ vi.mock('../../connectors/shared/federatedMedia', () => ({
 import {
   assertRepairRunComplete,
   buildCandidateFilter,
+  buildCursorScope,
   repairFederatedMentions,
   resolveSourceUrl,
+  SCRIPT_NAME,
   type RepairFederatedMentionsSummary,
 } from '../../scripts/repairFederatedMentions';
 import { logger } from '../../utils/logger';
@@ -257,9 +318,15 @@ function apResponse(body: unknown): Response {
 beforeEach(() => {
   store.posts = [];
   store.ops = [];
+  store.cursors = [];
+  store.cursorWrites = [];
+  store.cursorWriteError = null;
   postModel.countDocuments.mockClear();
   postModel.find.mockClear();
   postModel.bulkWrite.mockClear();
+  mocks.cursorModel.findOne.mockClear();
+  mocks.cursorModel.updateOne.mockClear();
+  mocks.cursorModel.deleteOne.mockClear();
   mocks.signedFetch.mockReset();
   mocks.getOrFetchActor.mockReset();
   mocks.findExistingActor.mockReset();
@@ -643,6 +710,214 @@ describe('repairFederatedMentions', () => {
 });
 
 /**
+ * The resume cursor, which is the difference between a killed sweep being
+ * continued and being restarted.
+ *
+ * Restarting is not merely slower: the candidate filter only stops matching a
+ * post once it is REPAIRED, so every `unresolved`, `gone` and `fetchFailed` post
+ * keeps matching forever at the LOWEST ids. Measured in production on
+ * 2026-08-01, a restart re-walked a 9,466-post stuck head for 51 repairs (0.5%)
+ * — nine thousand requests to other people's servers that could not succeed.
+ * Every assertion below is ultimately about that: `signedFetch` call counts are
+ * requests to somebody else's server.
+ *
+ * The cursor is exercised through a mocked `AdminScriptCursor` COLLECTION rather
+ * than a mocked helper, so the wiring under test — which scope a run reads, when
+ * it writes, and whether a dry run writes at all — actually runs.
+ */
+describe('resume cursor', () => {
+  /** An id with hex LETTERS in it, so case canonicalisation is observable. */
+  const LETTERED_ID = '65fdc8c8c8c8c8c8c8c8c8c8';
+
+  /** A stored cursor for `scope`, as a killed run would have left it. */
+  function storedCursor(scope: string, cursor: string, scanned: number): StoredCursor {
+    return { script: SCRIPT_NAME, scope, cursor, scanned, completedAt: null };
+  }
+
+  it('records the cursor after EVERY page, not once at the end', async () => {
+    store.posts = [damagedPost('1'), damagedPost('2'), damagedPost('3')];
+
+    const summary = await repairFederatedMentions({ batchSize: 1, noteTimeoutMs: 1_000 });
+
+    // A run that dies never reaches its final summary, so a cursor written only
+    // at the end could not survive the one case it exists for.
+    expect(store.cursorWrites).toEqual([
+      { scope: summary.cursorScope, cursor: oid('1').toString(), scanned: 1, completed: false },
+      { scope: summary.cursorScope, cursor: oid('2').toString(), scanned: 2, completed: false },
+      { scope: summary.cursorScope, cursor: oid('3').toString(), scanned: 3, completed: false },
+      // The empty page that ends the sweep: the range is exhausted, so the scope
+      // is stamped finished rather than merely paused.
+      { scope: summary.cursorScope, cursor: oid('3').toString(), scanned: 3, completed: true },
+    ]);
+    expect(store.cursors).toEqual([{
+      script: SCRIPT_NAME,
+      scope: summary.cursorScope,
+      cursor: oid('3').toString(),
+      scanned: 3,
+      completedAt: expect.any(Date),
+    }]);
+  });
+
+  it('leaves the scope unfinished when the run stopped on its limit', async () => {
+    store.posts = [damagedPost('1'), damagedPost('2'), damagedPost('3')];
+
+    await repairFederatedMentions({ limit: 2, batchSize: 1, noteTimeoutMs: 1_000 });
+
+    // Stopping on a budget is not finishing, and a scope wrongly stamped
+    // complete would read as "nothing left to do" forever.
+    expect(store.cursorWrites.map((write) => write.completed)).toEqual([false, false]);
+    expect(store.cursors[0]).toMatchObject({ cursor: oid('2').toString(), completedAt: null });
+  });
+
+  it('resumes past everything the previous run visited instead of restarting', async () => {
+    store.posts = [damagedPost('1'), damagedPost('2'), damagedPost('3')];
+    store.cursors = [storedCursor(buildCursorScope({}), oid('2').toString(), 2)];
+
+    const summary = await repairFederatedMentions({ noteTimeoutMs: 1_000 });
+
+    expect(summary.resumed).toBe(true);
+    expect(summary.resumedFromScanned).toBe(2);
+    expect(summary.scanned).toBe(1);
+    // Counted within the resumed range, so the run reports the work it has LEFT.
+    expect(summary.candidates).toBe(1);
+    expect(store.ops.map((op) => op.updateOne.filter._id.toString())).toEqual([
+      oid('3').toString(),
+    ]);
+    // The whole point: the stuck head is not re-fetched from its origin.
+    expect(mocks.signedFetch).toHaveBeenCalledTimes(1);
+    expect(store.posts[0].mentions).toEqual([]);
+  });
+
+  it('reads the cursor under a DRY RUN but never advances it', async () => {
+    store.posts = [damagedPost('1'), damagedPost('2'), damagedPost('3')];
+    store.cursors = [storedCursor(buildCursorScope({}), oid('1').toString(), 1)];
+
+    const summary = await repairFederatedMentions({ dryRun: true, noteTimeoutMs: 1_000 });
+
+    // Reading is what makes a preview show what the next LIVE run would do.
+    expect(summary.resumed).toBe(true);
+    expect(summary.scanned).toBe(2);
+    // Writing would make that live run skip exactly the posts just previewed.
+    expect(store.cursorWrites).toEqual([]);
+    expect(store.cursors[0]).toMatchObject({ cursor: oid('1').toString(), scanned: 1 });
+  });
+
+  it('keeps each shard scope separate, so parallel shards never resume each other', async () => {
+    store.posts = [damagedPost('1'), damagedPost('2'), damagedPost('3'), damagedPost('4')];
+    // Shard A — ids up to 2 — has already finished its territory.
+    store.cursors = [{
+      ...storedCursor(buildCursorScope({ beforeId: oid('2') }), oid('2').toString(), 2),
+      completedAt: new Date(),
+    }];
+
+    // Shard B — ids 3 and 4 — must be untouched by any of that.
+    const summary = await repairFederatedMentions({
+      afterId: oid('2').toString(),
+      beforeId: oid('4').toString(),
+      noteTimeoutMs: 1_000,
+    });
+
+    expect(summary.resumed).toBe(false);
+    expect(summary.scanned).toBe(2);
+    expect(store.ops.map((op) => op.updateOne.filter._id.toString())).toEqual([
+      oid('3').toString(),
+      oid('4').toString(),
+    ]);
+    expect(store.cursors).toHaveLength(2);
+    expect(store.cursorWrites.every((write) => write.scope === summary.cursorScope)).toBe(true);
+  });
+
+  it('separates shards that differ only in their upper bound', async () => {
+    store.posts = [damagedPost('1'), damagedPost('2'), damagedPost('3'), damagedPost('4')];
+    // A narrow shard covering ids up to 2 has run to the end of its range.
+    store.cursors = [storedCursor(
+      buildCursorScope({ beforeId: oid('2') }),
+      oid('2').toString(),
+      2,
+    )];
+
+    // A WIDER shard from the same lower bound is a different territory. Sharing
+    // a scope with the narrow one would make it skip ids 1 and 2 outright —
+    // invisible in every counter, because it would report a clean resumed run.
+    const summary = await repairFederatedMentions({
+      beforeId: oid('4').toString(),
+      noteTimeoutMs: 1_000,
+    });
+
+    expect(summary.resumed).toBe(false);
+    expect(summary.scanned).toBe(4);
+  });
+
+  it('treats a differently-spelled bound as the SAME shard, not a second one', async () => {
+    store.posts = [damagedPost('1')];
+
+    const canonical = await repairFederatedMentions({
+      afterId: LETTERED_ID,
+      dryRun: true,
+      noteTimeoutMs: 1_000,
+    });
+    const spelledDifferently = await repairFederatedMentions({
+      afterId: `  ${LETTERED_ID.toUpperCase()}  `,
+      dryRun: true,
+      noteTimeoutMs: 1_000,
+    });
+
+    // Two spellings of one shard resolving to two scopes would leave each
+    // re-walking the other's ground while both looked resumed.
+    expect(spelledDifferently.cursorScope).toBe(canonical.cursorScope);
+    // Vacuity floor: the scope really carries the canonicalised bound, rather
+    // than both spellings collapsing to some constant.
+    expect(canonical.cursorScope).toContain(LETTERED_ID);
+  });
+
+  it('refuses to run when the stored cursor lies outside the declared range', async () => {
+    store.posts = [damagedPost('1'), damagedPost('2'), damagedPost('3')];
+    const scope = buildCursorScope({ afterId: oid('1'), beforeId: oid('2') });
+    store.cursors = [storedCursor(scope, oid('3').toString(), 3)];
+
+    // Resuming from it would either skip a stretch of the corpus or re-walk a
+    // neighbouring shard, and both are invisible in the counters.
+    await expect(repairFederatedMentions({
+      afterId: oid('1').toString(),
+      beforeId: oid('2').toString(),
+      noteTimeoutMs: 1_000,
+    })).rejects.toThrow(/outside this run's declared _id range/);
+    expect(mocks.signedFetch).not.toHaveBeenCalled();
+  });
+
+  it('starts the shard again, once, when the cursor is explicitly reset', async () => {
+    store.posts = [damagedPost('1'), damagedPost('2'), damagedPost('3')];
+    store.cursors = [storedCursor(buildCursorScope({}), oid('2').toString(), 2)];
+
+    const summary = await repairFederatedMentions({ resetCursor: true, noteTimeoutMs: 1_000 });
+
+    expect(summary.resumed).toBe(false);
+    expect(summary.resumedFromScanned).toBe(0);
+    expect(summary.scanned).toBe(3);
+    expect(mocks.cursorModel.deleteOne).toHaveBeenCalledWith({
+      script: SCRIPT_NAME,
+      scope: summary.cursorScope,
+    });
+  });
+
+  it('counts a cursor write that did not land, and fails the run for it', async () => {
+    store.posts = [damagedPost('1')];
+    store.cursorWriteError = new Error('connection reset by peer');
+
+    const summary = await repairFederatedMentions({ noteTimeoutMs: 1_000 });
+
+    // The sweep itself is unharmed — a database blip must not kill a six-hour
+    // run that is repairing posts correctly.
+    expect(summary.repaired).toBe(1);
+    expect(summary.written).toBe(1);
+    // But it is never swallowed: the damage lands on the NEXT run, which would
+    // silently restart at the beginning.
+    expect(summary.cursorWriteFailures).toBe(2);
+    expect(() => assertRepairRunComplete(summary)).toThrow('cursorNotPersisted=2');
+  });
+});
+
+/**
  * Which counters reach the completion guard, and in which bucket. The guard's own
  * threshold arithmetic is covered by `adminRunTolerance.test.ts`; this pins the
  * WIRING, which is the part specific to this sweep and the part a future edit
@@ -670,6 +945,11 @@ describe('assertRepairRunComplete', () => {
       skippedNoSource: 0,
       skippedEmptyBody: 0,
       written: 0,
+      lastScannedId: null,
+      cursorScope: buildCursorScope({}),
+      resumed: false,
+      resumedFromScanned: 0,
+      cursorWriteFailures: 0,
       samples: [],
       failures: [],
       ...overrides,
@@ -721,6 +1001,15 @@ describe('assertRepairRunComplete', () => {
   it('fails on a single candidate with no source URL — the filter guarantees one', () => {
     expect(() => assertRepairRunComplete(summaryOf({ skippedNoSource: 1 }))).toThrow(
       'skippedNoSource=1',
+    );
+  });
+
+  it('fails on a single cursor write that did not persist', () => {
+    // Costs this run nothing — which is exactly why it must fail here. The
+    // damage lands on the NEXT run, which restarts at the beginning and
+    // re-fetches the whole stuck head from other people's servers.
+    expect(() => assertRepairRunComplete(summaryOf({ cursorWriteFailures: 1 }))).toThrow(
+      'cursorNotPersisted=1',
     );
   });
 

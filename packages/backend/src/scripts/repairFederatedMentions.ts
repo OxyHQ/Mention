@@ -109,15 +109,14 @@
  *   REPAIR_BATCH_SIZE=500     posts per `_id` page
  *   REPAIR_CONCURRENCY=8      posts re-fetched in parallel (clamped to 32)
  *   REPAIR_LIMIT=<n>          cap total posts scanned (canary budget)
- *   REPAIR_AFTER_ID=<oid>     resume/shard lower bound, EXCLUSIVE. Set it to the
- *                             previous run's `lastScannedId` to chain chunks;
- *                             without it EVERY run restarts at the lowest `_id`
- *                             and re-fetches the whole stuck head (see below).
- *                             A malformed value ABORTS — never a silent rescan.
+ *   REPAIR_AFTER_ID=<oid>     shard lower bound, EXCLUSIVE — where this shard's
+ *                             territory STARTS. Resuming does not use it: that is
+ *                             automatic (see RESUMING below). A malformed value
+ *                             ABORTS — never a silent rescan.
  *   REPAIR_BEFORE_ID=<oid>    shard upper bound, INCLUSIVE. Only needed for
- *                             PARALLEL shards; sequential chaining does not use it.
- *   REPAIR_CURSOR_FILE=<path> persist the resume cursor here after every page, so
- *                             a run that dies mid-sweep is resumable
+ *                             PARALLEL shards; a single sequential sweep has none.
+ *   REPAIR_RESET_CURSOR=true  forget this shard's recorded progress and start
+ *                             again at the declared bound (see RESUMING below)
  *   REPAIR_ACTOR_URI=<uri>    restrict to one `federation.actorUri`
  *   REPAIR_NOTE_TIMEOUT_MS    per-note fetch budget (default 20000; note the
  *                             transport's own `ACTIVITYPUB_FETCH_DEADLINE_MS` of
@@ -131,22 +130,42 @@
  *   CONFIRM_ADMIN_MUTATION=repairFederatedMentions \
  *     bun packages/backend/dist/src/scripts/repairFederatedMentions.js
  *
- * CHAINING BOUNDED CHUNKS (the reason `REPAIR_AFTER_ID` exists)
+ * RESUMING (why the cursor lives in MongoDB)
  *   The candidate filter only stops matching a post once it is REPAIRED. An
  *   `unresolved`, `gone` or `fetchFailed` post writes nothing and keeps matching
- *   forever — and those sit at the LOWEST ids. So without a resume cursor, chunk
- *   N+1 re-fetches the entire stuck head of chunk N: thousands of requests to
- *   other people's servers that cannot produce a repair. Measured: chunk 1
- *   scanned 20,000 and left 9,466 stuck (47%), so chunk 2's yield would have
- *   halved while still spending its full fetch budget.
+ *   forever — and those sit at the LOWEST ids. So a run that restarts at the
+ *   beginning re-fetches the entire stuck head of the previous one: thousands of
+ *   requests to other people's servers that cannot produce a repair. Measured in
+ *   production on 2026-08-01: a `REPAIR_LIMIT=20000` chunk left 9,466 stuck, and
+ *   the unbounded run that followed re-walked all of it — 9,500 posts scanned for
+ *   51 repairs (0.5%), against 70% for that run overall.
  *
- *     CURSOR=/var/run/repair.cursor
- *     REPAIR_CURSOR_FILE=$CURSOR REPAIR_LIMIT=20000 \
- *       CONFIRM_ADMIN_MUTATION=repairFederatedMentions \
+ *   So the cursor has to survive the run, and this script is only ever executed
+ *   as a ONE-SHOT FARGATE TASK: the container filesystem dies with the task, so
+ *   a cursor written to a path is gone exactly when it is needed. It cannot go
+ *   to CloudWatch either — the backend logger rewrites every 24-hex ObjectId to
+ *   `[REDACTED]` and redacts any key ending in `id` (see
+ *   `__tests__/utils/loggerSanitization.test.ts`), so a logged cursor is
+ *   unreadable whatever it is called, and evading that would mean defeating a
+ *   privacy control on purpose. It is therefore persisted to MongoDB, the one
+ *   durable place this script already holds a connection to, after EVERY page —
+ *   see {@link AdminScriptCursor}.
+ *
+ *   Resuming is consequently AUTOMATIC and needs no operator bookkeeping: run
+ *   the same command again and it continues past everything the previous run
+ *   visited, stuck posts included.
+ *
+ *     REPAIR_LIMIT=20000 CONFIRM_ADMIN_MUTATION=repairFederatedMentions \
  *       bun .../repairFederatedMentions.js
- *     REPAIR_AFTER_ID=$(cat $CURSOR) REPAIR_CURSOR_FILE=$CURSOR REPAIR_LIMIT=20000 \
- *       CONFIRM_ADMIN_MUTATION=repairFederatedMentions \
+ *     # the SAME command again — it resumes, it does not restart:
+ *     REPAIR_LIMIT=20000 CONFIRM_ADMIN_MUTATION=repairFederatedMentions \
  *       bun .../repairFederatedMentions.js
+ *
+ *   Progress is recorded per SHARD SCOPE — the range and actor a run declares —
+ *   so parallel shards never read or overwrite each other's cursor, and a
+ *   deliberate re-sweep of a scope is `REPAIR_RESET_CURSOR=true`. A DRY RUN reads
+ *   the cursor (so a preview shows what the next live run would do) but never
+ *   writes one, so previewing 50 posts can never make a live run skip them.
  *
  * PARALLEL SHARDS
  *   Compute the boundary ids ONCE, then give each task a half-open range. The
@@ -166,7 +185,6 @@
  *   await g.disconnect();})()"
  */
 
-import { renameSync, writeFileSync } from 'node:fs';
 import mongoose from 'mongoose';
 import { PostType, type MediaItem, type PostContentVariant } from '@mention/shared-types';
 import { Post } from '../models/Post';
@@ -182,6 +200,14 @@ import {
   assertAdminRunComplete,
   closeAdminScriptResources,
 } from './lib/adminScriptLifecycle';
+import {
+  clearAdminScriptCursor,
+  readAdminScriptCursor,
+  recordAdminScriptCursor,
+} from './lib/adminScriptCursor';
+
+/** This sweep's own name — the mutation-guard token and the cursor's key. */
+export const SCRIPT_NAME = 'repairFederatedMentions';
 
 /** Posts scanned per `_id` page when the caller supplies no batch size. */
 const DEFAULT_PAGE_SIZE = 500;
@@ -301,15 +327,13 @@ export interface RepairFailure {
 
 export interface RepairFederatedMentionsOptions {
   /**
-   * Resume/shard lower bound, EXCLUSIVE: only posts with `_id > afterId`.
+   * Shard lower bound, EXCLUSIVE: only posts with `_id > afterId`. Where this
+   * shard's TERRITORY starts, together with {@link beforeId} — not where the run
+   * picks up, which the stored cursor decides on its own.
    *
-   * Without it every invocation restarts at the lowest `_id`. That matters
-   * because the candidate filter only stops matching a post once it is REPAIRED
-   * — an `unresolved`, `gone` or `fetchFailed` post writes nothing and keeps
-   * matching forever, at the lowest ids. So a second bounded chunk re-fetches the
-   * whole stuck head of the previous one: thousands of requests to other people's
-   * servers that cannot produce a repair. Measured on the real corpus: chunk 1
-   * scanned 20,000 and left 9,466 stuck (47%).
+   * It is also half of the cursor's scope key, so two shards can record their
+   * progress independently and re-running one shard's exact command resumes THAT
+   * shard.
    */
   afterId?: string;
   /**
@@ -320,20 +344,19 @@ export interface RepairFederatedMentionsOptions {
    * than its limit keeps walking forward into the next shard's range and
    * re-fetches it. Bounding the range makes a shard's territory a property of the
    * range itself, so N tasks can never overlap however the candidate set shifts
-   * under them. Sequential chaining does not need it.
+   * under them. A single sequential sweep has no upper bound at all.
    */
   beforeId?: string;
   /**
-   * Where to persist the resume cursor, rewritten after EVERY page.
+   * Forget this shard's recorded progress and start again at `afterId`.
    *
-   * A cursor reported only in the final summary cannot survive the case that
-   * needs it most — a run that DIES mid-sweep never prints a summary at all. And
-   * the cursor cannot go in the log: the backend logger redacts a 24-hex
-   * ObjectId under every key (verified), so a logged cursor reads `[REDACTED]`.
-   * A file is durable, survives the process, and keeps the id out of CloudWatch.
+   * Resuming is otherwise automatic, which is what makes a died-mid-sweep run
+   * recoverable in a one-shot task. A deliberate re-sweep of ground already
+   * covered therefore has to be asked for, and it is worth asking twice: every
+   * post re-walked is another request to somebody else's server.
    */
-  cursorFile?: string;
-  /** Resolve + report, write nothing. */
+  resetCursor?: boolean;
+  /** Resolve + report, write nothing — including no cursor. */
   dryRun?: boolean;
   /** Posts per `_id` page. */
   batchSize?: number;
@@ -370,12 +393,29 @@ export interface RepairFederatedMentionsSummary {
   /**
    * The `_id` of the LAST post this run scanned, or `null` if it scanned none.
    *
-   * The resume cursor: pass it as the next run's `afterId` and the next chunk
-   * starts past everything this one already visited, stuck posts included.
-   * RETURNED (and written to `cursorFile` when set) rather than logged — the
-   * backend logger redacts a 24-hex ObjectId under every key.
+   * The resume cursor. Persisted to MongoDB under {@link cursorScope} after every
+   * page and RETURNED here — never logged, because the backend logger redacts a
+   * 24-hex ObjectId under every key.
    */
   lastScannedId: string | null;
+  /**
+   * The shard territory this run recorded its progress under, derived from the
+   * DECLARED bounds so it is stable across resumes of the same shard.
+   */
+  cursorScope: string;
+  /** Whether the lower bound came from a stored cursor rather than `afterId`. */
+  resumed: boolean;
+  /**
+   * Posts this scope had already scanned before this invocation. Added to
+   * {@link scanned} it gives the shard's running total.
+   */
+  resumedFromScanned: number;
+  /**
+   * Cursor writes that did not land. STRICT: any at all fails the run, because a
+   * sweep whose cursor stopped persisting is a sweep that cannot be resumed —
+   * the failure this whole mechanism exists to prevent.
+   */
+  cursorWriteFailures: number;
   samples: RepairSample[];
   failures: RepairFailure[];
 }
@@ -484,27 +524,24 @@ export function buildCandidateFilter(actorUri?: string): Record<string, unknown>
 }
 
 /**
- * Write the resume cursor to `path`, atomically, if the caller asked for one.
+ * The key a run records its progress under: the territory it DECLARED, never the
+ * position it has reached.
  *
- * Written via a temp file plus `rename` so a run killed mid-write leaves the
- * PREVIOUS cursor intact rather than a truncated id — resuming from a torn value
- * would either skip a stretch of the corpus or throw on the next parse.
- *
- * Best-effort by design: an unwritable path must not abort a sweep that is
- * otherwise repairing posts correctly. It is logged as a warning, and the cursor
- * is still on the returned summary.
+ * Built from the CANONICAL parsed bounds rather than the raw strings, so
+ * `REPAIR_AFTER_ID=" 65FD… "` and `65fd…` are one shard rather than two that
+ * silently re-walk each other's ground. Every component is always present, so no
+ * two different shards can spell the same scope.
  */
-function persistCursor(path: string | undefined, cursor: string): void {
-  if (!path) return;
-  try {
-    const temporary = `${path}.tmp`;
-    writeFileSync(temporary, `${cursor}\n`, 'utf8');
-    renameSync(temporary, path);
-  } catch (err) {
-    logger.warn('[repairFederatedMentions] could not persist the resume cursor', {
-      error: err,
-    });
-  }
+export function buildCursorScope(scope: {
+  afterId?: mongoose.Types.ObjectId;
+  beforeId?: mongoose.Types.ObjectId;
+  actorUri?: string;
+}): string {
+  return [
+    `after:${scope.afterId?.toString() ?? ''}`,
+    `before:${scope.beforeId?.toString() ?? ''}`,
+    `actor:${scope.actorUri?.trim() ?? ''}`,
+  ].join('|');
 }
 
 /** A 24-character hex ObjectId — the only shape a range bound may take. */
@@ -533,6 +570,24 @@ function parseIdBound(name: string, value: string | undefined): mongoose.Types.O
     );
   }
   return new mongoose.Types.ObjectId(trimmed);
+}
+
+/**
+ * Whether an id sits in the half-open range `(after, before]` a run declared.
+ *
+ * Compared as canonical lowercase hex, which orders identically to the 12 bytes
+ * Mongo compares — `toString()` always yields that form, so the two can never
+ * disagree about which side of a bound an id falls on.
+ */
+function isWithinRange(
+  id: mongoose.Types.ObjectId,
+  after: mongoose.Types.ObjectId | undefined,
+  before: mongoose.Types.ObjectId | undefined,
+): boolean {
+  const value = id.toString();
+  if (after && value <= after.toString()) return false;
+  if (before && value > before.toString()) return false;
+  return true;
 }
 
 /** Order-independent equality of two string arrays (treated as sets/bags). */
@@ -706,26 +761,53 @@ export async function repairFederatedMentions(
   const afterId = parseIdBound('afterId', options.afterId);
   const beforeId = parseIdBound('beforeId', options.beforeId);
 
-  // `afterId` is EXCLUSIVE and `beforeId` INCLUSIVE, so chaining is exactly
-  // `afterId = <previous run's lastScannedId>` — no gap, no overlap — and
-  // parallel shards partition as (b[k-1], b[k]].
+  // Keyed on the DECLARED territory, so the same shard command always addresses
+  // the same recorded progress however far into its range it has got.
+  const cursorScope = buildCursorScope({ afterId, beforeId, actorUri: options.actorUri });
+  if (options.resetCursor) await clearAdminScriptCursor(SCRIPT_NAME, cursorScope);
+  const resumeFrom = options.resetCursor
+    ? null
+    : await readAdminScriptCursor(SCRIPT_NAME, cursorScope);
+
+  // A stored cursor is only ever written from a post this scope actually
+  // scanned, so it must lie inside the declared range. If it does not, the state
+  // and the bounds disagree and resuming would either skip a stretch of the
+  // corpus or re-walk somebody else's shard — both invisible. Abort instead.
+  const resumeId = resumeFrom ? parseIdBound('storedCursor', resumeFrom.cursor) : undefined;
+  if (resumeId && !isWithinRange(resumeId, afterId, beforeId)) {
+    throw new Error(
+      "the stored resume cursor lies outside this run's declared _id range. "
+        + 'Refusing to run: resuming from it would skip or duplicate a stretch of the corpus. '
+        + 'Re-run with resetCursor to start this shard again.',
+    );
+  }
+
+  // `afterId` is EXCLUSIVE and `beforeId` INCLUSIVE, so a resume is exactly
+  // `$gt = <last scanned id>` — no gap, no overlap — and parallel shards
+  // partition as (b[k-1], b[k]].
+  const lowerBound = resumeId ?? afterId;
   const idRange: Record<string, mongoose.Types.ObjectId> = {};
-  if (afterId) idRange.$gt = afterId;
+  if (lowerBound) idRange.$gt = lowerBound;
   if (beforeId) idRange.$lte = beforeId;
   const hasIdRange = Object.keys(idRange).length > 0;
 
   const baseFilter = buildCandidateFilter(options.actorUri);
   if (hasIdRange) baseFilter._id = { ...idRange };
 
-  // Counted WITHIN the range, so a shard reports its own territory rather than
-  // the whole corpus.
+  // Counted WITHIN the range, so a shard reports the work it has LEFT rather
+  // than the whole corpus or ground it has already covered.
   const candidates = await Post.countDocuments(baseFilter);
   logger.info('[repairFederatedMentions] candidate posts selected', {
     count: candidates,
     dryRun,
     concurrency,
     narrowedScope: Boolean(options.actorUri),
-    resumed: Boolean(afterId),
+    // The cursor itself cannot be logged (24-hex ObjectIds are redacted under
+    // every key), so what rides here is where the bound CAME FROM and how far
+    // this scope had already got. Both are on the returned summary too.
+    resumed: Boolean(resumeId),
+    resumedFromScanned: resumeFrom?.scanned ?? 0,
+    scopeCompletedEarlier: Boolean(resumeFrom?.completedAt),
     rangeBounded: Boolean(beforeId),
   });
 
@@ -749,6 +831,10 @@ export async function repairFederatedMentions(
       malformedJson: 0,
     },
     lastScannedId: null,
+    cursorScope,
+    resumed: Boolean(resumeId),
+    resumedFromScanned: resumeFrom?.scanned ?? 0,
+    cursorWriteFailures: 0,
     samples: [],
     failures: [],
   };
@@ -775,6 +861,24 @@ export async function repairFederatedMentions(
     pendingOps = [];
   };
 
+  /**
+   * Record where this scope has got to, so a task that is killed mid-sweep can
+   * be resumed rather than restarted.
+   *
+   * A DRY RUN never writes one. A preview that advanced the real cursor would
+   * make the next live run skip exactly the posts it previewed — the invisible
+   * kind of wrong, and the reason this is a guard rather than an optimization.
+   */
+  const persistCursor = async (cursor: string, completed: boolean): Promise<void> => {
+    if (dryRun) return;
+    const persisted = await recordAdminScriptCursor(SCRIPT_NAME, cursorScope, {
+      cursor,
+      scanned: summary.resumedFromScanned + summary.scanned,
+      completed,
+    });
+    if (!persisted) summary.cursorWriteFailures += 1;
+  };
+
   // Forward-only cursor. The repair only ever removes a post from the matching
   // set (it fills in `mentions`, which the filter selects on), so no page is
   // revisited and none is skipped.
@@ -795,7 +899,13 @@ export async function repairFederatedMentions(
       .limit(pageLimit)
       .lean<CandidatePostRow[]>();
 
-    if (page.length === 0) break;
+    // An empty page means this scope's range is exhausted — the one exit that
+    // means FINISHED, as opposed to stopping on a limit or dying mid-page. Stamp
+    // it so a later run can tell the difference.
+    if (page.length === 0) {
+      if (lastId) await persistCursor(lastId.toString(), true);
+      break;
+    }
 
     // The page is already sliced to at most the remaining budget, so repairing
     // the WHOLE page in a bounded pool can never overshoot the limit.
@@ -875,7 +985,7 @@ export async function repairFederatedMentions(
     // resume cursor is a run that DIES mid-sweep, and a dying run never reaches
     // its final summary.
     summary.lastScannedId = lastId.toString();
-    persistCursor(options.cursorFile, summary.lastScannedId);
+    await persistCursor(summary.lastScannedId, false);
 
     // Counters ride in the structured CONTEXT, never interpolated into the
     // message — the backend logging policy (and its test,
@@ -939,6 +1049,12 @@ const REMOTE_UNAVAILABLE_TOLERANCE = 0.1;
  * actor — the lookup-only resolver working as designed) are TERMINAL, EXPECTED
  * outcomes, not failures. They are reported in the summary and deliberately never
  * handed to the guard at all.
+ *
+ * A cursor that did not persist is likewise never tolerated. It costs the run
+ * nothing at the time — every post it scanned was still repaired — which is
+ * exactly why it has to fail here: the damage lands on the NEXT run, which
+ * silently restarts at the beginning and re-fetches the whole stuck head from
+ * other people's servers.
  */
 export function assertRepairRunComplete(summary: RepairFederatedMentionsSummary): void {
   const byReason = summary.fetchFailedByReason;
@@ -946,12 +1062,13 @@ export function assertRepairRunComplete(summary: RepairFederatedMentionsSummary)
   const malformedPayload = byReason.nonObjectPayload + byReason.malformedJson;
 
   assertAdminRunComplete(
-    'repairFederatedMentions',
+    SCRIPT_NAME,
     {
       remoteUnavailable,
       malformedPayload,
       skippedNoSource: summary.skippedNoSource,
       skippedEmptyBody: summary.skippedEmptyBody,
+      cursorNotPersisted: summary.cursorWriteFailures,
       // Vacuity guard: every `fetchFailed` must land in exactly one reason
       // bucket. If a future path ever increments the total without classifying
       // it, the difference surfaces here and fails the run STRICTLY, rather than
@@ -987,7 +1104,7 @@ async function main(): Promise<void> {
   const dryRun = process.env.DRY_RUN === 'true';
 
   try {
-    assertAdminMutationAllowed({ scriptName: 'repairFederatedMentions', dryRun });
+    assertAdminMutationAllowed({ scriptName: SCRIPT_NAME, dryRun });
     await mongoose.connect(mongoUri, { dbName });
     logger.info('[repairFederatedMentions] connected to MongoDB', { dryRun });
 
@@ -995,7 +1112,7 @@ async function main(): Promise<void> {
       dryRun,
       afterId: process.env.REPAIR_AFTER_ID,
       beforeId: process.env.REPAIR_BEFORE_ID,
-      cursorFile: process.env.REPAIR_CURSOR_FILE?.trim() || undefined,
+      resetCursor: process.env.REPAIR_RESET_CURSOR === 'true',
       batchSize: parsePositiveInt(process.env.REPAIR_BATCH_SIZE, DEFAULT_PAGE_SIZE),
       concurrency: parsePositiveInt(process.env.REPAIR_CONCURRENCY, DEFAULT_CONCURRENCY),
       limit: process.env.REPAIR_LIMIT ? parsePositiveInt(process.env.REPAIR_LIMIT, 0) : undefined,
@@ -1029,11 +1146,13 @@ async function main(): Promise<void> {
       sampled: summary.samples.length,
       // The cursor ITSELF cannot go here: the backend logger redacts a 24-hex
       // ObjectId under every key (verified empirically), so it would read
-      // `[REDACTED]`. What CAN be reported is whether more work remains and
-      // whether a resume cursor was persisted — read the id from `cursorFile`
-      // or from the returned summary.
+      // `[REDACTED]`. What CAN be reported is whether more work remains and how
+      // far this shard has now got in total — the id lives in MongoDB, which is
+      // where the next run reads it from without an operator in the loop.
       hasMore: summary.scanned < summary.candidates,
-      cursorPersisted: Boolean(process.env.REPAIR_CURSOR_FILE?.trim() && summary.lastScannedId),
+      resumed: summary.resumed,
+      shardScannedTotal: summary.resumedFromScanned + summary.scanned,
+      cursorWriteFailures: summary.cursorWriteFailures,
       durationMs: Date.now() - startedAt,
     });
 

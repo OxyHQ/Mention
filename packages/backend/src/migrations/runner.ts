@@ -26,6 +26,7 @@ import { migrationMtnEventIdempotencyIndex } from './0012-mtn-event-idempotency-
 import { migrationTrendingNameTypeUniqueIndex } from './0013-trending-name-type-unique-index';
 import { migrationPostTrendTermsIndex } from './0014-post-trend-terms-index';
 import { migrationTrendSummaryIndexes } from './0015-trend-summary-indexes';
+import { migrationAdminScriptCursorIndex } from './0016-admin-script-cursor-index';
 import { MIGRATIONS_COLLECTION } from './constants';
 
 export interface Migration {
@@ -77,7 +78,20 @@ const MIGRATIONS: readonly Migration[] = [
   migrationTrendingNameTypeUniqueIndex,
   migrationPostTrendTermsIndex,
   migrationTrendSummaryIndexes,
+  migrationAdminScriptCursorIndex,
 ];
+
+/**
+ * The ordered ids this runner will apply.
+ *
+ * Exported so that a migration which was WRITTEN but never registered here is a
+ * test failure rather than a discovery months later. That mistake is silent by
+ * construction: nothing imports the file, nothing runs it, and in production —
+ * where `autoIndex`/`autoCreate` are off — the index it was meant to create
+ * simply does not exist while every query still works, more slowly or without
+ * the constraint it was supposed to enforce.
+ */
+export const MIGRATION_IDS: readonly string[] = MIGRATIONS.map((migration) => migration.id);
 
 export async function getPendingMigrationIds(): Promise<string[]> {
   const db = mongoose.connection.db;
