@@ -766,11 +766,23 @@ export const MtnConfig = {
        * talks, not what it is talking about — and that holds in any language,
        * for slang, and for whatever the next surprise is.
        *
-       * It is also what refuses `mention` (40 posts, 13 authors on the live
-       * list) without anybody having to work out which code path put this
-       * instance's own name into the vocabulary in the first place.
+       * SCALE-SENSITIVE, and the first value chosen was wrong for this network.
+       * 3% was intuition borrowed from Bluesky's size, where a huge story like
+       * `fifa` (1,897 posts) is still a hundredth of a percent of the day. On a
+       * network whose busiest term of the day is twenty posts, a legitimate
+       * trend IS several percent of everything — so 3% deleted `politics` (11
+       * posts, 4 authors) as vocabulary and emptied the list.
+       *
+       * A quarter is the level at which the claim actually holds: a term
+       * carried by one post in four is how the network talks, whatever it is.
+       * Real vocabulary sits far above it and real subjects far below, so the
+       * gap between them is what makes the number safe rather than tuned.
+       *
+       * The stop-word list, not this, is what removes function words — they are
+       * refused by NAME at any frequency. This exists for the terms no list
+       * anticipates.
        */
-      maxDocumentFrequency: 0.03,
+      maxDocumentFrequency: 0.25,
       /**
        * CONCENTRATION CEILING: posts per distinct author a term may average
        * before it is refused entirely.
