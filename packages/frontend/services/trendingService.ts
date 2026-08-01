@@ -1,21 +1,6 @@
 import type { PostUser, TrendCategory, TrendEventInput, TrendStatus } from "@mention/shared-types";
 import { logger } from '@oxyhq/core/logger';
-import i18n from "i18next";
 import { authenticatedClient, publicClient } from "@/utils/api";
-
-/**
- * The reader's language as an ISO 639-1 base subtag, or `''` when there is
- * none to offer.
- *
- * Read from i18n rather than from a profile so it works for a signed-out
- * visitor too, and reduced to the base subtag because that is what the server
- * matches on — `es-ES` and `es-MX` read the same Spanish trend, and keeping the
- * region would split one cache entry into many for no gain.
- */
-function getReaderLanguage(): string {
-  const base = (i18n.language || '').trim().toLowerCase().split('-')[0];
-  return /^[a-z]{2}$/.test(base) ? base : '';
-}
 
 export interface TrendingTopic {
   type: string;
@@ -49,12 +34,6 @@ class TrendingService {
     try {
       const params: Record<string, string | number> = { limit };
       if (type) params.type = type;
-      // The reader's language ORDERS the list (it never filters it), and it
-      // travels as a query parameter so `/trending` stays a shared, cacheable
-      // public read rather than becoming per-viewer. The app's own language is
-      // the one signal available to every reader, signed in or not.
-      const language = getReaderLanguage();
-      if (language) params.lang = language;
 
       const res = await authenticatedClient.get<{ trending?: TrendingTopic[] }>("/trending", { params });
       return res.data.trending || [];

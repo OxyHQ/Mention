@@ -111,10 +111,17 @@ interface TermCandidate {
  */
 function resolveTrendType(input: {
   hasTopic: boolean;
+  topicVolume: number;
   hashtagVolume: number;
   volume: number;
 }): TrendingType {
-  if (input.hasTopic) return TrendingType.TOPIC;
+  // A term the CLASSIFIER produced is a topic, whether or not the shared Topic
+  // registry resolved a document for it. Those are two different facts and only
+  // the first is about what the term IS: registry resolution is a remote call
+  // that can return nothing for a slug this instance classifies perfectly well,
+  // and gating the type on it filed `politics` as an `entity` on the live list.
+  // The registry linkage still rides separately, in `topicId`.
+  if (input.hasTopic || input.topicVolume > 0) return TrendingType.TOPIC;
   return input.hashtagVolume * 2 >= input.volume ? TrendingType.HASHTAG : TrendingType.ENTITY;
 }
 
@@ -639,6 +646,7 @@ class TrendingService {
       return {
         type: resolveTrendType({
           hasTopic: Boolean(topicDoc),
+          topicVolume: candidate?.topicVolume ?? 0,
           hashtagVolume: candidate?.hashtagVolume ?? 0,
           volume: trend.volume,
         }),

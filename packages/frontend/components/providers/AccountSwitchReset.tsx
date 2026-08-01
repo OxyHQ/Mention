@@ -1,11 +1,15 @@
 import React, {
   useCallback,
+  useEffect,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
 } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@oxyhq/services/ui/client';
+import { getUserLanguages } from '@oxyhq/core';
+import i18n from 'i18next';
 import { useBloomTheme } from '@oxyhq/bloom/theme';
 import { useAppearanceStore } from '@/stores/appearanceStore';
 import { usePostsStore } from '@/stores/postsStore';
@@ -49,6 +53,27 @@ export function AccountSwitchReset({
     (state) => state.resetViewerState,
   );
   const prevViewerIdRef = useRef<string | null>(null);
+
+  /*
+   * The reader's content languages, pushed to the trends store from the one
+   * place that already knows who is reading.
+   *
+   * The ACCOUNT's declared locales first (`getUserLanguages` — the same helper
+   * the backend reads them with, so a bilingual reader gets both languages
+   * ordered first rather than only the one the app happens to be in), with the
+   * interface language behind them so a signed-out visitor still gets one.
+   *
+   * `i18n.language` is read rather than subscribed to: this fires on every
+   * identity change, and a language switch already remounts the tree.
+   */
+  const readerLanguages = useMemo(
+    () => [...(isAuthenticated && user ? getUserLanguages(user) : []), i18n.language ?? ''],
+    [isAuthenticated, user],
+  );
+
+  useEffect(() => {
+    useTrendsStore.getState().setReaderLanguages(readerLanguages);
+  }, [readerLanguages]);
 
   const userId = user?.id?.trim() || null;
   const viewerId = !isAuthResolved

@@ -181,6 +181,24 @@ describe('TrendingService.calculateTrending — a name that is both a hashtag an
     expect(metrics.getCounter('trending_calculation_total', { result: 'success' })).toBe(1);
   });
 
+  it('files a classifier-produced term as a topic even when the registry is silent', async () => {
+    stageBatch();
+    mocks.trendingInsertMany.mockImplementation((docs: InsertedDoc[]) => Promise.resolve(docs));
+
+    await trendingService.calculateTrending();
+
+    // `resolveNames` is mocked to resolve nothing — the shared Topic registry is
+    // a remote call that can legitimately answer for no slug. `politics` and
+    // `business` still arrived through `postClassification.topics`, so they are
+    // topics; only the registry LINKAGE is missing, and that rides in `topicId`.
+    const byName = new Map(insertedDocs().map((doc) => [doc.name, doc.type]));
+    expect(byName.get('politics')).toBe('topic');
+    expect(byName.get('business')).toBe('topic');
+    // A term nobody classified is still judged on how it was written.
+    expect(byName.get('ai')).toBe('hashtag');
+    expect(byName.get('kremer trade')).toBe('entity');
+  });
+
   it('carries a human label and an onset on every row', async () => {
     stageBatch();
     mocks.trendingInsertMany.mockImplementation((docs: InsertedDoc[]) => Promise.resolve(docs));

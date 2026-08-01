@@ -42,6 +42,13 @@ jest.mock('@oxyhq/services/ui/client', () => ({
   useAuth: jest.fn(),
 }));
 
+// The provider reads the account's declared locales through the SDK helper —
+// the same one the backend reads them with. Mocked to its identity behaviour so
+// this suite keeps testing the identity boundary rather than locale parsing.
+jest.mock('@oxyhq/core', () => ({
+  getUserLanguages: (user: { languages?: string[] } | null | undefined) => user?.languages ?? [],
+}));
+
 jest.mock('@oxyhq/bloom/theme', () => ({
   useBloomTheme: jest.fn(),
 }));
@@ -131,6 +138,7 @@ const mockGetExternalEmbedsState =
   useExternalEmbedsStore.getState as jest.Mock;
 const mockGetLiveRoomsState = useLiveRoomsStore.getState as jest.Mock;
 const mockGetTrendsState = useTrendsStore.getState as jest.Mock;
+const mockSetReaderLanguages = jest.fn();
 const mockClearFeedMemory = clearAllFeedMemoryCaches as jest.Mock;
 const mockSetFeedViewerRequestScope =
   setFeedViewerRequestScope as jest.Mock;
@@ -195,6 +203,9 @@ describe('AccountSwitchReset identity boundary', () => {
     });
     mockGetTrendsState.mockReturnValue({
       resetViewerState: mockResetTrends,
+      // The provider also pushes the reader's content languages, which order
+      // the trending list server-side.
+      setReaderLanguages: mockSetReaderLanguages,
     });
     mockClearSearchHistory.mockResolvedValue(undefined);
   });

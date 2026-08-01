@@ -66,6 +66,16 @@ interface TrendsStore {
   hasFetched: boolean;
   error: string | null;
   hiddenTrendIds: string[];
+  /**
+   * The reader's content languages (ISO 639-1), which ORDER the list server-side.
+   *
+   * Held in the store rather than passed per call because the poll refetches on
+   * its own — a per-call argument would give the first fetch the reader's
+   * languages and every refresh after it none.
+   */
+  readerLanguages: string[];
+  /** Set by the identity boundary; refetches when the set actually changes. */
+  setReaderLanguages: (languages: readonly string[]) => void;
   fetchTrends: (opts?: { silent?: boolean }) => Promise<void>;
   resyncAfterReconnect: () => void;
   startPolling: () => number;
@@ -118,18 +128,40 @@ let nextPollSubscriptionId = 1;
 export const useTrendsStore = create<TrendsStore>()(
     (set, get) => ({
       trends: [],
+      readerLanguages: [],
       summary: '',
       isLoading: false,
       hasFetched: false,
       error: null,
       hiddenTrendIds: [],
 
+      setReaderLanguages: (languages: readonly string[]) => {
+        // Normalized the same way the server normalizes the query parameter, so
+        // `es-ES` and `es` are one value and the comparison below cannot see a
+        // change that is not one.
+        const next = [
+          ...new Set(
+            languages
+              .map((tag) => tag.trim().toLowerCase().split('-')[0])
+              .filter((base) => /^[a-z]{2}$/.test(base)),
+          ),
+        ].sort();
+        if (next.join(',') === get().readerLanguages.join(',')) return;
+        set({ readerLanguages: next });
+        // The list already on screen was ordered for the previous reader.
+        void get().fetchTrends({ silent: true });
+      },
+
       fetchTrends: async (opts?: { silent?: boolean }) => {
         const operationEpoch = viewerEpoch;
         const silent = !!opts?.silent;
         if (!silent) set({ isLoading: true, error: null });
         try {
-          const response = await api.get<TrendsApiResponse>('/trending', { limit: 10 });
+          const languages = get().readerLanguages;
+          const response = await api.get<TrendsApiResponse>('/trending', {
+            limit: 10,
+            ...(languages.length > 0 ? { lang: languages.join(',') } : {}),
+          });
           if (operationEpoch !== viewerEpoch) return;
           const items: TrendApiItem[] = response.data.trending || [];
           const recId = response.data.recId;
