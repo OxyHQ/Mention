@@ -34,9 +34,12 @@ const PARENT_AUTHOR: PostUser = {
   avatar: null,
 };
 
-function post(replyContext?: HydratedPost['replyContext']): HydratedPost {
-  // Only `replyContext` is read; a full DTO would be noise.
-  return { id: 'p1', replyContext } as unknown as HydratedPost;
+function post(
+  replyContext?: HydratedPost['replyContext'],
+  parentPostId?: string,
+): HydratedPost {
+  // Only `replyContext` and `parentPostId` are read; a full DTO would be noise.
+  return { id: 'p1', replyContext, parentPostId } as unknown as HydratedPost;
 }
 
 const PLAIN = { isNested: false };
@@ -94,12 +97,23 @@ describe('resolveReplyContextRow', () => {
         expect(row).toEqual({ authorHandle: 'parenthandle', label: 'parenthandle' });
     });
 
-    it('renders nothing for a self-thread continuation', () => {
-        // The SERVER omits `replyContext` for a reply to its own author's post,
-        // so a continuation reaches the renderer with nothing to show. This
-        // asserts the client honours that rather than inventing a header — see
-        // postHydrationReplyContext.test.ts for the server half.
-        expect(resolveReplyContextRow({ post: post(undefined), ...PLAIN })).toBeNull();
+    it('renders nothing for a self-thread continuation, on a FLAT surface', () => {
+        // The exact hole a position-based rule leaves. A self-thread continuation
+        // IS a reply — it carries `parentPostId` — and the server omits
+        // `replyContext` for it. On a flat surface (search, saved, insights, the
+        // scheduled preview, any feed the server returned without slices) there is
+        // no thread grouping to lean on, so the client must honour that omission
+        // rather than reconstructing a header from `parentPostId`.
+        //
+        // Deliberately NOT `post(undefined)`: that would be the "not a reply" case
+        // above wearing a different name, and would pass no matter what this
+        // function did with a parent link.
+        const row = resolveReplyContextRow({
+            post: post(undefined, 'the-authors-own-previous-post'),
+            ...PLAIN,
+        });
+
+        expect(row).toBeNull();
     });
 
     it('stays silent inside a quote card', () => {
