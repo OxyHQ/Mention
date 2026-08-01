@@ -10,7 +10,7 @@
       "packages/*"
     ],
     "catalog": {
-      "@oxyhq/bloom": "^0.72.2",
+      "@oxyhq/bloom": "^0.73.0",
       "@oxyhq/contracts": "^0.20.0",
       "@oxyhq/core": "^16.0.0",
       "@oxyhq/services": "^25.0.1",
