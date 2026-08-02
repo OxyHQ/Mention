@@ -47,7 +47,6 @@ const h = vi.hoisted(() => ({
   fetchUpstreamFollowingRedirects: vi.fn(),
   persistRemoteMedia: vi.fn(),
   recordAccess: vi.fn(),
-  userSettingsUpdateOne: vi.fn(),
   likeCreate: vi.fn(),
   likeFindOneAndDelete: vi.fn(),
   getServiceOxyClient: vi.fn(),
@@ -75,8 +74,6 @@ vi.mock('../../models/FederationDeliveryQueue', () => ({
 vi.mock('../../models/Like', () => ({
   default: { create: h.likeCreate, findOneAndDelete: h.likeFindOneAndDelete },
 }));
-
-vi.mock('../../models/UserSettings', () => ({ default: { updateOne: h.userSettingsUpdateOne } }));
 
 vi.mock('../../utils/oxyHelpers', () => ({ getServiceOxyClient: h.getServiceOxyClient }));
 
@@ -141,6 +138,7 @@ import '../../services/PostCreationService';
 import { activityPubConnector as federationService } from '../../connectors/activitypub/ActivityPubConnector';
 import backfillFederatedThreadLinks from '../../scripts/backfillFederatedThreadLinks';
 import { insertPostRecord } from '../../db/posts/postRepository';
+import { withDeadlockRetry } from '../helpers/serviceFixtures';
 import { PostType, PostVisibility } from '@mention/shared-types';
 
 const scope = federationScope('federation-thread-linking');
@@ -173,14 +171,28 @@ async function rowByActivityId(activityId: string) {
  * Two passes because these rows point at each other: the first clears every
  * link, so the second can delete them in any order without tripping a foreign
  * key or being silently set-null'd out from under itself.
+ *
+ * Both passes go through {@link withDeadlockRetry}, and that is not belt-and-
+ * braces. `posts` self-references itself four times — `parent_post_id`,
+ * `thread_id` and `quote_of` are `ON DELETE SET NULL`, `boost_of` cascades — so
+ * a bulk delete takes locks well beyond the rows it names, and ten suites write
+ * and delete `posts` concurrently against one database. Measured here: a plain
+ * delete lost a `40P01` on roughly one full run in three, and it surfaced as
+ * THIS suite failing in a test that had nothing to do with cleanup. The shared
+ * `serviceFixtures` helpers have carried this retry from the start; this file
+ * predates them and had its own cleanup, which is how it missed it.
  */
 async function clearScopePosts(): Promise<void> {
   const db = getDb();
-  await db
-    .update(posts)
-    .set({ parentPostId: null, threadId: null, boostOf: null, quoteOf: null })
-    .where(like(posts.federationActivityId, `${scope.origin}%`));
-  await db.delete(posts).where(like(posts.federationActivityId, `${scope.origin}%`));
+  await withDeadlockRetry(() =>
+    db
+      .update(posts)
+      .set({ parentPostId: null, threadId: null, boostOf: null, quoteOf: null })
+      .where(like(posts.federationActivityId, `${scope.origin}%`)),
+  );
+  await withDeadlockRetry(() =>
+    db.delete(posts).where(like(posts.federationActivityId, `${scope.origin}%`)),
+  );
 }
 
 function jsonResponse(body: unknown, init: ResponseInit = {}): Response {
@@ -254,7 +266,6 @@ beforeEach(async () => {
   h.assertSafePublicUrl.mockResolvedValue({ ok: true, ip: '93.184.216.34', family: 4 });
   h.persistRemoteMedia.mockResolvedValue({ ok: false, permanent: false });
   h.recordAccess.mockResolvedValue(undefined);
-  h.userSettingsUpdateOne.mockResolvedValue({ modifiedCount: 1 });
   h.likeCreate.mockResolvedValue({ _id: 'like_1' });
   h.likeFindOneAndDelete.mockReturnValue({ lean: vi.fn().mockResolvedValue(null) });
   h.getServiceOxyClient.mockReturnValue({
