@@ -116,6 +116,16 @@ export interface AuditFinding {
 const SAMPLE_LIMIT = 5;
 
 /**
+ * How many colliding GROUPS get a finding of their own.
+ *
+ * A report bound, not a check bound — every group is tested for resolution
+ * whatever this says, and the count beyond it is reported rather than dropped.
+ * Exported so a test can build one more group than the cap without restating
+ * the number, which is how the previous cap went unnoticed: nothing named it.
+ */
+export const COLLISION_GROUPS_REPORTED = 50;
+
+/**
  * Which STRICT prefixes of a dotted path hold an ARRAY in this collection.
  *
  * Asked of the DATA rather than declared on the plan, because the plan already
@@ -716,17 +726,41 @@ export async function auditUniqueness(
         { $group: { _id: groupKey, count: { $sum: 1 }, ids: { $push: '$_id' } } },
         { $match: { count: { $gt: 1 } } },
         // `count` alone is a TIE among every group of the same size, and the
-        // `$limit` below then keeps an arbitrary 50 of them — so an operator
+        // truncation below then keeps an arbitrary 50 of them — so an operator
         // fixes the reported collisions, re-runs, and is handed a DIFFERENT 50
         // with no indication that the first report was a sample. `_id` is the
         // group key and is unique per group, so appending it makes the order
         // total and the truncation reproducible.
         { $sort: { count: -1, _id: 1 } },
-        { $limit: 50 },
       ])
       .toArray();
 
-    for (const group of groups) {
+    // Every group is CHECKED; only the first {@link COLLISION_GROUPS_REPORTED}
+    // are described. The truncation used to live in the pipeline as a `$limit`,
+    // which made the VERDICT a sample too: 519 of production's 569 colliding
+    // `federatedactors` groups were never looked at, so the audit could have
+    // passed while an unexamined group collided at INSERT time — a `23505`
+    // hours into a run, which is the outcome this whole phase exists to
+    // prevent. What the cap is for is REPORT SIZE, and that is all it now does.
+    //
+    // The memory this costs is the ids of colliding rows only, and a collection
+    // where that is large is a collection this audit refuses anyway.
+    const truncated = groups.slice(COLLISION_GROUPS_REPORTED);
+    let unresolvedBeyondReport = 0;
+    let documentsBeyondReport = 0;
+    const unresolvedSampleIds: string[] = [];
+    for (const group of truncated) {
+      const ids = (Array.isArray(group.ids) ? group.ids : []).map((value: unknown) => String(value));
+      documentsBeyondReport += typeof group.count === 'number' ? group.count : ids.length;
+      const resolved =
+        audit.resolvedBy !== undefined &&
+        resolutions.resolvesUniquenessGroup(audit.resolvedBy, ids);
+      if (resolved) continue;
+      unresolvedBeyondReport += 1;
+      if (unresolvedSampleIds.length < SAMPLE_LIMIT) unresolvedSampleIds.push(...ids.slice(0, 2));
+    }
+
+    for (const group of groups.slice(0, COLLISION_GROUPS_REPORTED)) {
       const ids = (Array.isArray(group.ids) ? group.ids : []).map((value: unknown) =>
         String(value)
       );
@@ -753,6 +787,41 @@ export async function auditUniqueness(
         documents: typeof group.count === 'number' ? group.count : ids.length,
         sampleIds: ids.slice(0, SAMPLE_LIMIT),
         ...(resolvedBy === undefined ? {} : { resolvedBy }),
+      });
+    }
+
+    // The report says how much of itself it is. A sample cap presented as a
+    // total is how a floor becomes a fact: production holds 569 colliding
+    // `federated_actors_uri_key` groups over 1,156 documents, and the report
+    // said fifty — an operator reading it would have sized a cutover blocker at
+    // a ninth of its real extent.
+    if (truncated.length > 0) {
+      const total = groups.length;
+      const shownDocuments = groups
+        .slice(0, COLLISION_GROUPS_REPORTED)
+        .reduce((sum, group) => sum + (typeof group.count === 'number' ? group.count : 0), 0);
+      findings.push({
+        collection: plan.collection,
+        kind: 'uniqueness',
+        detail:
+          `${audit.index}: ${COLLISION_GROUPS_REPORTED} of ${total} colliding group(s) ` +
+          `are described above (${shownDocuments} of ` +
+          `${shownDocuments + documentsBeyondReport} document(s)). The remaining ` +
+          `${truncated.length} were CHECKED but not listed` +
+          (unresolvedBeyondReport === 0
+            ? ' — every one of them is answered by a documented resolution rule, so ' +
+              'this is a report-length notice and nothing more.'
+            : `, and ${unresolvedBeyondReport} of them is NOT answered by any rule. ` +
+              'Those would collide at INSERT time — read this as the true size of ' +
+              'the problem, not as the fifty above.'),
+        documents: documentsBeyondReport,
+        sampleIds: unresolvedSampleIds.slice(0, SAMPLE_LIMIT),
+        // Carrying the rule is what makes this non-blocking, and it is attached
+        // ONLY when every unlisted group is genuinely answered — the same
+        // fail-closed test each listed group gets, applied to the remainder.
+        ...(unresolvedBeyondReport === 0 && audit.resolvedBy !== undefined
+          ? { resolvedBy: audit.resolvedBy }
+          : {}),
       });
     }
   }
