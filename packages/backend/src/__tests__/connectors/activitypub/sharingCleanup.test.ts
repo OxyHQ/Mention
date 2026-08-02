@@ -236,6 +236,28 @@ describe('runSharingCleanup', () => {
     expect(await survivingActorUris()).toEqual([]);
   });
 
+  it('never deletes another local user\'s follow row for the same remote actor', async () => {
+    // The scope the ID-scoped delete protects. Both users are followed by the
+    // SAME remote actor, and only one of them is running a cleanup — a delete
+    // keyed on the actor (or on anything other than the row ids this run
+    // enumerated) takes the other user's follower with it, silently.
+    const OTHER_USER = scope.user('other');
+    await seedInboundFollows([ACTOR_URI_1]);
+    await seedFollow(scope, {
+      localUserId: OTHER_USER,
+      remoteActorUri: ACTOR_URI_1,
+      direction: 'inbound',
+      status: 'accepted',
+    });
+    await seedRemoteActors([{ uri: ACTOR_URI_1, oxyUserId: 'remote-oxy-1' }]);
+
+    await runSharingCleanup(OXY_USER_ID, USERNAME);
+
+    const surviving = await readFollows(scope);
+    expect(surviving).toHaveLength(1);
+    expect(surviving[0]).toMatchObject({ localUserId: OTHER_USER, remoteActorUri: ACTOR_URI_1 });
+  });
+
   it('on partial bridge failure: deletes ONLY the bridged/unbridgeable rows (ID-scoped) and THROWS so the job retries', async () => {
     await seedInboundFollows([ACTOR_URI_1, ACTOR_URI_2]);
     await seedRemoteActors([
