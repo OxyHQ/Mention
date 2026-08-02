@@ -28,6 +28,7 @@
 import type { PgColumn, PgTable, UpdateDeleteAction } from 'drizzle-orm/pg-core';
 import { getTableColumns, getTableName } from 'drizzle-orm';
 import { sqlColumnName } from '../casing';
+import { repairFetchFailures } from './adminScripts';
 import {
   blockedDomainPurgeRuns,
   blockedDomainPurges,
@@ -553,6 +554,19 @@ export const ID_COLUMNS_WITHOUT_FOREIGN_KEY: readonly IdColumnWithoutForeignKey[
       'The grouping token for every domain swept by one run, half of this ' +
       "table's `(domain, run_id)` unique key. Same reason as above: the run has " +
       'no row of its own anywhere, so nothing exists to reference.',
+  },
+  {
+    table: repairFetchFailures,
+    column: repairFetchFailures.postId,
+    reason:
+      'Deliberately unconstrained, and the deletion semantics are the reason. A ' +
+      'row is EVIDENCE that a re-fetch failed at a moment, not a pointer to live ' +
+      'content — so it must outlive the post if the post is later deleted. A ' +
+      'foreign key with CASCADE would erase the record of the failure along with ' +
+      'its subject, and SET NULL cannot apply to a NOT NULL column that IS the ' +
+      'identifier. The consumer already tolerates a stale id: it intersects these ' +
+      "with the sweep's live candidate filter rather than trusting them alone, " +
+      'which is what keeps a dangling row costing nothing beyond being skipped.',
   },
 ];
 

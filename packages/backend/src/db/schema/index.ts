@@ -14,6 +14,7 @@
  * keys, expiry, protected columns — are in `CONVENTIONS.md`. Read it before
  * adding a table.
  */
+export * from './adminScripts';
 export * from './articles';
 export * from './blocklist';
 export * from './discovery';

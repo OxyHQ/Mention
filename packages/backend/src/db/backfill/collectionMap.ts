@@ -64,6 +64,7 @@ import * as schema from '../schema';
 import type { CollectionPlan, ExcludedCollection } from './plan';
 import { planTables, tableName } from './plan';
 import { CONTENT_PLANS } from './plans/content';
+import { ADMIN_SCRIPT_PLANS } from './plans/adminScripts';
 import { BLOCKLIST_PLANS } from './plans/blocklist';
 import { DISCOVERY_PLANS } from './plans/discovery';
 import { ENGAGEMENT_PLANS } from './plans/engagement';
@@ -143,6 +144,7 @@ export const COLLECTION_PLANS: readonly CollectionPlan[] = [
   ...LIST_PLANS,
   ...MCP_PLANS,
   ...BLOCKLIST_PLANS,
+  ...ADMIN_SCRIPT_PLANS,
   ...MODERATION_PLANS,
   ...USER_PROFILE_PLANS,
 ];
