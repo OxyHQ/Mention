@@ -540,7 +540,7 @@ export class LabelService {
        */
       const deduped = new Map<string, LabelActionPreference>();
       for (const action of incoming) {
-        deduped.set(`${action.labelerId} ${action.labelSlug}`, action);
+        deduped.set(`${action.labelerId}\u0000${action.labelSlug}`, action);
       }
 
       await tx.insert(userSettingsLabelActions).values(
