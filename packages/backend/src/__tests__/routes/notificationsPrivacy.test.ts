@@ -215,7 +215,11 @@ describe('GET /notifications post privacy', () => {
     const viewer = viewerId();
     const postId = await seedReferencedPost(RAW_PRIVATE_TEXT);
     await seedNotification(viewer, postId);
-    mocks.hydratePosts.mockRejectedValue(new Error('privacy authority unavailable'));
+    // `…Once`, deliberately: `vi.clearAllMocks()` clears recorded CALLS and not
+    // implementations, so a durable rejection here would silently 500 every
+    // test declared after this one — as a page of unrelated failures that all
+    // look like the route being broken.
+    mocks.hydratePosts.mockRejectedValueOnce(new Error('privacy authority unavailable'));
 
     const response = await request(makeApp(viewer)).get('/').expect(500);
 
