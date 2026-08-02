@@ -29,12 +29,20 @@ import {
  *   their owners never made. Same discipline as `./federationBlockPolicy` —
  *   committed, reviewed, reasons written down, git as the audit trail.
  *
- *   oxy-api keeps its OWN list for the same reason. `PUT /users/resolve` binds an
- *   actor URI's host to the domain being claimed, and a bridged identity is the
- *   one legitimate exception, so it decides for itself rather than believing us.
- *   The two lists are deliberately separate and fail CLOSED in both directions:
- *   a bridge here that oxy-api does not trust simply has its resolve refused and
- *   the actor keeps its bridge identity.
+ *   oxy-api keeps its OWN list, in `packages/api/src/config/federationBridgeTrust.ts`.
+ *   `PUT /users/resolve` binds an actor URI's host to the domain being claimed,
+ *   and a bridged identity is the one legitimate exception — so oxy-api
+ *   ADJUDICATES what this file merely DERIVES, and an adjudicator reading the
+ *   applicant's own list is taking their word rather than deciding.
+ *
+ *   ⚠ THAT SECOND LIST IS NOT DUPLICATION. DO NOT CONSOLIDATE THEM. Kept
+ *   separate, drift fails CLOSED both ways: a bridge listed here that oxy-api
+ *   does not trust simply has its resolve refused and the actor keeps its bridge
+ *   identity; one trusted there that nothing here derives for does nothing at
+ *   all. Neither direction can produce an accepted attribution nobody reviewed,
+ *   which is the whole point. Merge the two and one side's list becomes the
+ *   other's authority, so a single unreviewed entry starts re-attributing real
+ *   people's writing. The redundancy IS the safety mechanism.
  *
  * A WRONG ENTRY MISATTRIBUTES SOMEBODY'S WRITING
  *
