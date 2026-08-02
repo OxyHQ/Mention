@@ -34,12 +34,20 @@ vi.mock('../../../connectors/identity', () => ({
 }));
 
 import {
+  ACTOR_UPSERT_FAILED_METRIC,
+  atprotoIdentityHandle,
   fetchAndUpsertAtprotoProfile,
   mapProfileToNormalizedActor,
   splitHandle,
 } from '../../../connectors/atproto/profile.mapper';
+import { metrics } from '../../../utils/metrics';
 
 const DID = 'did:plc:ewvi7nxzyoun6zhxrhs64oiz';
+/**
+ * A second, distinct DID whose handle is ALSO unresolved — the only fixture that
+ * can see the constraint, since the first account of its kind never collides.
+ */
+const DID_TWO = 'did:plc:hcn5qmsrdmaiubq36lgy7ptm';
 
 const PROFILE = {
   did: DID,
@@ -54,7 +62,7 @@ const PROFILE = {
 };
 
 beforeEach(async () => {
-  await clearFederationScope(scope, [DID]);
+  await clearFederationScope(scope, [DID, DID_TWO]);
   vi.clearAllMocks();
   mocks.resolveFederatedActorIdentity.mockResolvedValue('oxy-alice');
 });
@@ -140,6 +148,34 @@ describe('mapProfileToNormalizedActor', () => {
     expect(mapProfileToNormalizedActor({ handle: 'a.b' })).toBeNull();
     expect(mapProfileToNormalizedActor({ did: DID })).toBeNull();
   });
+
+  // `handle.invalid` is the AppView's ERROR STRING for a failed handle↔DID
+  // verification, identical for every affected account — so it identifies
+  // nobody, and every key derived from it collides.
+  it('identifies an unresolved-handle actor by its DID, never by the sentinel', () => {
+    const actor = mapProfileToNormalizedActor({ ...PROFILE, handle: 'handle.invalid' });
+    expect(actor).toMatchObject({
+      externalId: DID,
+      handle: DID,
+      // oxy-api's `normalizeFederatedResolveUsername` splits on the FIRST `@`, so
+      // the DID's colons ride in the local part and the binding still resolves to
+      // `bsky.social`.
+      federatedUsername: `${DID}@bsky.social`,
+      instanceDomain: 'bsky.social',
+    });
+    // The sentinel must not survive anywhere on the DTO — a copy left in one
+    // field is a copy some future derivation reads.
+    expect(JSON.stringify(actor)).not.toContain('handle.invalid');
+  });
+
+  it('leaves a real handle alone (the substitution is not a blanket rewrite)', () => {
+    expect(mapProfileToNormalizedActor(PROFILE)?.handle).toBe('alice.bsky.social');
+    expect(atprotoIdentityHandle('alice.bsky.social', DID)).toBe('alice.bsky.social');
+    // Case and surrounding space are the same failed verification, so they are
+    // the same sentinel.
+    expect(atprotoIdentityHandle('Handle.Invalid', DID)).toBe(DID);
+    expect(atprotoIdentityHandle(' handle.invalid ', DID)).toBe(DID);
+  });
 });
 
 describe('splitHandle', () => {
@@ -223,6 +259,69 @@ describe('fetchAndUpsertAtprotoProfile', () => {
     const actor = await fetchAndUpsertAtprotoProfile('ghost.example');
     expect(actor).toBeNull();
   });
+
+  /**
+   * The SECOND unresolved-handle account is the whole test.
+   *
+   * The first always succeeds — there is nothing for it to collide with — so a
+   * single-account fixture passes with the bug fully present and proves nothing.
+   * `federated_actors_acct_key` and `federated_actors_domain_username_key` only
+   * fire on the second, and this is what they used to do to it: `upsertActor`
+   * raises, `upsertAtprotoActor` catches, `fedActor` stays null, no row is
+   * written, no `oxyUserId` is stamped, and the no-orphan rule then drops every
+   * post that account ever made — at `warn`, from a detached ingest path.
+   *
+   * Production held 21 rows sharing `acct: 'handle.invalid'`, written in one
+   * 38-minute window on 2026-07-17 while Mongo had no unique index to refuse
+   * them. Under the Postgres constraints, 20 of those 21 accounts would simply
+   * not exist.
+   */
+  it('stores a SECOND unresolved-handle account rather than losing it to the acct constraint', async () => {
+    await clearFederationScope(scope, [DID, DID_TWO]);
+    metrics.reset();
+
+    mocks.resolveFederatedActorIdentity.mockImplementation(
+      (actor: { externalId: string }) => Promise.resolve(`oxy-${actor.externalId}`),
+    );
+
+    mocks.xrpcGet.mockResolvedValue({ ...PROFILE, did: DID, handle: 'handle.invalid' });
+    const first = await fetchAndUpsertAtprotoProfile(DID);
+    mocks.xrpcGet.mockResolvedValue({ ...PROFILE, did: DID_TWO, handle: 'handle.invalid' });
+    const second = await fetchAndUpsertAtprotoProfile(DID_TWO);
+
+    // FIRST, and on its own line, the claim this test exists for: the second
+    // account EXISTS. Asserted before anything about its columns, because with
+    // the sentinel restored the row is simply absent and an assertion about its
+    // `acct` would fail one step too early — reporting a wrong value where the
+    // actual defect is a missing account, which is a different and much smaller
+    // bug than the one being guarded.
+    const secondRow = await readActor(DID_TWO);
+    expect(secondRow, 'the second unresolved-handle account was not stored at all').not.toBeNull();
+
+    // Both rows are keyed on their own DID — the identity that is actually
+    // unique — and neither carries the sentinel.
+    expect(await readActor(DID)).toMatchObject({ protocol: 'atproto', acct: DID, username: DID });
+    expect(secondRow).toMatchObject({ protocol: 'atproto', acct: DID_TWO, username: DID_TWO });
+
+    // Both resolve an Oxy user. Half a fix would stop here: Oxy's own unique
+    // username index refuses a second `handle.invalid@bsky.social` just as the
+    // acct constraint does, so the two must reach oxy-api under DISTINCT
+    // federated usernames or the account is still unmintable. In production only
+    // 1 of the 21 ever got an `oxyUserId`, which is that half failing.
+    expect(await readActor(DID)).toMatchObject({ oxyUserId: `oxy-${DID}` });
+    expect(await readActor(DID_TWO)).toMatchObject({ oxyUserId: `oxy-${DID_TWO}` });
+    expect(second?.oxyUserId).toBe(`oxy-${DID_TWO}`);
+    expect(first?.oxyUserId).toBe(`oxy-${DID}`);
+    expect(mocks.resolveFederatedActorIdentity.mock.calls.map(([a]) => a.federatedUsername)).toEqual([
+      `${DID}@bsky.social`,
+      `${DID_TWO}@bsky.social`,
+    ]);
+
+    // And nothing was swallowed on the way. Asserted rather than assumed,
+    // because a row can also go missing without an exception — this separates
+    // "the constraint refused it" from "the write never happened".
+    expect(metrics.getCounter(ACTOR_UPSERT_FAILED_METRIC, { protocol: 'atproto', reason: 'federated_actors_acct_key' })).toBe(0);
+  });
 });
 
 beforeAll(async () => {
@@ -230,7 +329,7 @@ beforeAll(async () => {
 });
 
 afterEach(async () => {
-  await clearFederationScope(scope, [DID]);
+  await clearFederationScope(scope, [DID, DID_TWO]);
 });
 
 afterAll(async () => {
