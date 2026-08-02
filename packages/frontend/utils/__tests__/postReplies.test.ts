@@ -1,5 +1,5 @@
 import type { HydratedPostSummary, ReplyPermission } from '@mention/shared-types';
-import { postAcceptsReplies } from '@/utils/postReplies';
+import { postAcceptsReplies, reportableReplyPermission } from '@/utils/postReplies';
 
 /**
  * The rule two surfaces read — the feed row's action bar and the post detail's
@@ -57,5 +57,53 @@ describe('postAcceptsReplies', () => {
   it('refuses when there is no post at all', () => {
     expect(postAcceptsReplies(null)).toBe(false);
     expect(postAcceptsReplies(undefined)).toBe(false);
+  });
+});
+
+/**
+ * The narrower question the post detail's copy asks. Where `postAcceptsReplies`
+ * treats the two refusals as interchangeable — an affordance that would fail is
+ * hidden either way — this one must keep them apart, because only ONE of them is
+ * a decision worth reporting to a reader.
+ */
+describe('reportableReplyPermission', () => {
+  it('passes the author\'s own restriction through', () => {
+    expect(reportableReplyPermission(makePost({ replyPermission: ['nobody'] }))).toEqual(['nobody']);
+    expect(reportableReplyPermission(makePost({ replyPermission: ['following'] }))).toEqual([
+      'following',
+    ]);
+  });
+
+  it('reports nothing on a CHANNEL post, whose ["nobody"] is not a choice', () => {
+    // The server persists this on every channel post as defence in depth. Read
+    // off `metadata` alone it is indistinguishable from an author who closed
+    // replies, which is exactly the sentence a channel must not carry.
+    expect(
+      reportableReplyPermission(
+        makePost({
+          channel: { id: 'channel-1', handle: 'news', title: 'News', signPosts: false },
+          replyPermission: ['nobody'],
+        }),
+      ),
+    ).toBeUndefined();
+  });
+
+  it('reports nothing on a channel post whatever its permission says', () => {
+    // Not just the `nobody` spelling: a channel takes no replies structurally,
+    // so no value of this field is ever the reader's business.
+    expect(
+      reportableReplyPermission(
+        makePost({
+          channel: { id: 'channel-1', handle: 'news', title: 'News', signPosts: true },
+          replyPermission: ['anyone'],
+        }),
+      ),
+    ).toBeUndefined();
+  });
+
+  it('reports nothing for a post that set no permission, or no post at all', () => {
+    expect(reportableReplyPermission(makePost({}))).toBeUndefined();
+    expect(reportableReplyPermission(null)).toBeUndefined();
+    expect(reportableReplyPermission(undefined)).toBeUndefined();
   });
 });

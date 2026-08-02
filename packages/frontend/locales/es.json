@@ -428,6 +428,7 @@
   "settings.privacy.failedToLoadMutedWords": "No se pudieron cargar las palabras silenciadas",
   "common.remove": "Eliminar",
   "common.tryAgain": "Reintentar",
+  "common.loadMore": "Cargar más",
   "common.saving": "Guardando...",
   "settings.sections.preferences": "Preferencias",
   "Select your preferred language": "Selecciona tu idioma preferido",

@@ -97,6 +97,11 @@ export function toFeedItem(
     // `post.user` to "Unknown user" on a channel post because the CHANNEL is the
     // signature. Lose the channel and the post renders as an unknown author
     // instead — the anonymity holds, but the identity meant to replace it is gone.
+    //
+    // And the damage compounds, because the channel's CONSEQUENCES persist while
+    // the channel itself does not: `replyPermission: ['nobody']` lives in
+    // `metadata` and survives this converter, so the post also announces
+    // "Replies are off" with nothing left on it to explain why.
     lane: post.lane,
     channel: post.channel,
     originalPost,
