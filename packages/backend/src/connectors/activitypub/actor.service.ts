@@ -1,7 +1,7 @@
 import sanitizeHtml from 'sanitize-html';
 import { decode as decodeEntities } from 'he';
 import { normalizeInlineText } from '@oxyhq/core';
-import { deriveBridgedNetworkIdentity, type NormalizedExternalActor } from '@oxyhq/federation';
+import type { NormalizedExternalActor } from '@oxyhq/federation';
 import {
   createActorResolver,
   type FederatedActorStore,
@@ -12,6 +12,7 @@ import {
 import { logger } from '../../utils/logger';
 import FederatedActor, { type IFederatedActor } from '../../models/FederatedActor';
 import { FEDERATION_ENABLED, isBlockedDomain } from './constants';
+import { federationBridges } from './federationBridgePolicy';
 import { htmlToPlainText } from '../../utils/federation/htmlToPlainText';
 import { fetchUpstreamSingleHop } from '../../utils/safeUpstreamFetch';
 import {
@@ -146,8 +147,23 @@ export async function resolveFederatedActorIdentity(
         uri: { $ne: actor.externalId },
         oxyUserId: { $exists: true, $ne: null },
       },
-      { uri: 1, oxyUserId: 1 },
-    ).lean<Pick<IFederatedActor, 'uri' | 'oxyUserId'>>();
+      { uri: 1, domain: 1, oxyUserId: 1 },
+    ).lean<Pick<IFederatedActor, 'uri' | 'domain' | 'oxyUserId'>>();
+
+    // A valid collision has EXACTLY ONE actor per bridge domain. A bridge holds
+    // one actor per upstream handle, so two actors on the SAME domain deriving to
+    // one identity is impossible under a correct rule — it means the derivation is
+    // broken, most likely yielding a constant, and merging on it would collapse
+    // every actor on that domain into one person. Refuse and say so; never merge.
+    const bridgeDomain = actor.handle.slice(actor.handle.lastIndexOf('@') + 1);
+    if (owner && owner.domain === bridgeDomain) {
+      logger.error(
+        '[FedSync] two actors on one bridge domain derive the same identity — '
+        + 'the derivation rule is broken; refusing to merge',
+        { actor: actor.externalId, owner: owner.uri, networkAcct: actor.federatedUsername },
+      );
+      return null;
+    }
 
     if (owner?.oxyUserId) {
       // Identifiers ride in the structured payload, never interpolated into the
@@ -184,16 +200,16 @@ export const actorService = createActorResolver<IFederatedActor>({
   firstStringUrl,
   // A bridge republishes another network's accounts under its own hostname, so an
   // actor from one is stored under the network it actually came from —
-  // `@wired@x.com`, not `@wired@bird.makeup`. The policy lives in
-  // `@oxyhq/federation` because oxy-api's `PUT /users/resolve` has to agree with
-  // it: that endpoint binds an actor URI's host to the domain being claimed, and
-  // a bridged identity is the one legitimate exception. Only the IDENTITY moves —
-  // `acct`, `uri` and the stored `domain` keep addressing the bridge, so the
-  // domain policy and every moderation consumer are unaffected.
+  // `@wired@x.com`, not `@wired@bird.makeup`. The MECHANISM is shared
+  // (`@oxyhq/federation`); the reviewed entries are Mention's own moderation
+  // policy in `./federationBridgePolicy`, and oxy-api keeps its own list for the
+  // resolve-side trust decision. Only the IDENTITY moves — `acct`, `uri` and the
+  // stored `domain` keep addressing the bridge, so the domain policy and every
+  // moderation consumer are unaffected.
   //
   // `isBlockedDomain` is evaluated by the resolver well before this runs, and a
   // blocked host never reaches it.
-  deriveNetworkIdentity: deriveBridgedNetworkIdentity,
+  deriveNetworkIdentity: federationBridges.deriveNetworkIdentity,
   store,
   identity: {
     resolveExternalUser: (actor, opts) => resolveFederatedActorIdentity(actor, opts),

@@ -20,6 +20,7 @@ const mocks = vi.hoisted(() => ({
   actorFindOne: vi.fn(),
   loggerInfo: vi.fn(),
   loggerWarn: vi.fn(),
+  loggerError: vi.fn(),
 }));
 
 vi.mock('../../../connectors/identity', () => ({
@@ -38,7 +39,7 @@ vi.mock('../../../connectors/activitypub/constants', () => ({
 }));
 
 vi.mock('../../../utils/logger', () => ({
-  logger: { info: mocks.loggerInfo, warn: mocks.loggerWarn, error: vi.fn(), debug: vi.fn() },
+  logger: { info: mocks.loggerInfo, warn: mocks.loggerWarn, error: mocks.loggerError, debug: vi.fn() },
 }));
 
 import { resolveFederatedActorIdentity } from '../../../connectors/activitypub/actor.service';
@@ -81,7 +82,7 @@ beforeEach(() => {
 
 describe('resolveFederatedActorIdentity — merging bridged duplicates', () => {
   it('adopts the Oxy user of the row that already holds the same bridged identity', async () => {
-    findOneReturns({ uri: 'https://bird.makeup/users/wired', oxyUserId: 'existing-user' });
+    findOneReturns({ uri: 'https://bird.makeup/users/wired', domain: 'bird.makeup', oxyUserId: 'existing-user' });
 
     await expect(resolveFederatedActorIdentity(bridged())).resolves.toBe('existing-user');
     // The decisive assertion: no SECOND identity is minted for the same person.
@@ -109,14 +110,45 @@ describe('resolveFederatedActorIdentity — merging bridged duplicates', () => {
   });
 
   it('ignores a matching row that has no Oxy user to adopt', async () => {
-    findOneReturns({ uri: 'https://bird.makeup/users/wired', oxyUserId: null });
+    findOneReturns({ uri: 'https://bird.makeup/users/wired', domain: 'bird.makeup', oxyUserId: null });
 
     await expect(resolveFederatedActorIdentity(bridged())).resolves.toBe('minted-user');
     expect(mocks.resolveOxyExternalUser).toHaveBeenCalledTimes(1);
   });
 
+  /**
+   * A valid within-network collision has EXACTLY ONE actor per bridge domain: a
+   * bridge holds one actor per upstream handle, so two actors on the same domain
+   * deriving to one identity is impossible under a correct rule. It means the
+   * derivation is broken — most likely returning a constant — and merging on it
+   * would collapse every actor on that domain onto one person. The cheapest
+   * guard against the worst outcome.
+   */
+  it('refuses outright when the colliding row is on the SAME bridge domain', async () => {
+    findOneReturns({
+      uri: 'https://mastox.eu/users/someone-else',
+      domain: 'mastox.eu',
+      oxyUserId: 'existing-user',
+    });
+
+    await expect(resolveFederatedActorIdentity(bridged())).resolves.toBeNull();
+    expect(mocks.resolveOxyExternalUser).not.toHaveBeenCalled();
+    expect(mocks.loggerError).toHaveBeenCalled();
+  });
+
+  it('still merges across DIFFERENT bridge domains, which is the valid case', async () => {
+    findOneReturns({
+      uri: 'https://bird.makeup/users/wired',
+      domain: 'bird.makeup',
+      oxyUserId: 'existing-user',
+    });
+
+    await expect(resolveFederatedActorIdentity(bridged())).resolves.toBe('existing-user');
+    expect(mocks.loggerError).not.toHaveBeenCalled();
+  });
+
   it('records the merge, so an attribution decision is never silent', async () => {
-    findOneReturns({ uri: 'https://bird.makeup/users/wired', oxyUserId: 'existing-user' });
+    findOneReturns({ uri: 'https://bird.makeup/users/wired', domain: 'bird.makeup', oxyUserId: 'existing-user' });
     await resolveFederatedActorIdentity(bridged());
 
     // Identifiers belong in the structured payload, not the message — the backend
