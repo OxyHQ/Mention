@@ -14,7 +14,7 @@ import {
 import mongoose, { FilterQuery } from 'mongoose';
 import { IPost } from '../models/Post';
 import { getRuntimeOxyClient } from '../runtime/oxyClient';
-import { getRuntimeSocketServer } from '../runtime/socketServer';
+import { emitPostEngagement, POST_ENGAGEMENT_EVENTS } from '../services/postEngagementBroadcast';
 import { userPreferenceService, readInteractionSurface } from '../services/UserPreferenceService';
 import { affinityEventService } from '../services/AffinityEventService';
 import { postHydrationService } from '../services/PostHydrationService';
@@ -422,10 +422,12 @@ class FeedController {
           .catch(() => undefined);
       }
 
-      // Update parent post comment count
-      await Post.findByIdAndUpdate(postId, {
+      // Update parent post comment count. Read back with `new: true` so the
+      // broadcast below carries the number the database now holds rather than a
+      // count this request computed and hoped was still current.
+      const updatedParent = await Post.findByIdAndUpdate(postId, {
         $inc: { 'stats.commentsCount': 1 }
-      }, { maxTimeMS: FEED_CONSTANTS.QUERY_TIMEOUT_MS });
+      }, { new: true, maxTimeMS: FEED_CONSTANTS.QUERY_TIMEOUT_MS });
 
       // Outbound federation: deliver the reply as a Create(Note) with `inReplyTo`
       // + a parent-author Mention to the replier's remote followers AND (when the
@@ -446,11 +448,16 @@ class FeedController {
         includeLinkMetadata: true,
       });
 
-      // Emit real-time update to post room only (not all clients)
-      getRuntimeSocketServer()?.to(`post:${postId}`).emit('post:replied', {
+      // Only the parent's new reply count goes to the room. `hydratedReply` was
+      // built for the REPLIER's viewer context and stays in the HTTP response,
+      // where exactly one person reads it; broadcasting it would hand every other
+      // room member the replier's own viewer state, and no client reads it there.
+      emitPostEngagement({
+        event: POST_ENGAGEMENT_EVENTS.REPLIED,
         postId,
-        reply: hydratedReply,
-        timestamp: new Date().toISOString()
+        authorOxyUserId: updatedParent?.oxyUserId?.toString?.(),
+        counts: { replies: updatedParent?.stats?.commentsCount },
+        actorId: currentUserId,
       });
 
       res.status(201).json({
@@ -580,15 +587,17 @@ class FeedController {
         includeLinkMetadata: true,
       });
 
-      // Emit real-time update to post room only (not all clients)
-      getRuntimeSocketServer()?.to(`post:${originalPostId}`).emit('post:boosted', {
-        originalPostId,
+      // Everyone watching the ORIGINAL gets its new boost count. The hydrated
+      // boost itself is deliberately NOT broadcast: it was hydrated for the
+      // booster's viewer context, so its `viewerState` describes the booster, and
+      // sending it to a room would tell every other member what the booster has
+      // liked and saved. Nothing on the client reads it — the count is the point.
+      emitPostEngagement({
+        event: POST_ENGAGEMENT_EVENTS.BOOSTED,
         postId: originalPostId,
-        boost: hydratedBoost,
-        boostsCount: updatedPost?.stats?.boostsCount,
-        userId: currentUserId,
+        authorOxyUserId: updatedPost?.oxyUserId?.toString?.(),
+        counts: { boosts: updatedPost?.stats?.boostsCount },
         actorId: currentUserId,
-        timestamp: new Date().toISOString()
       });
 
       res.status(201).json({
@@ -662,16 +671,13 @@ class FeedController {
         { new: true, maxTimeMS: FEED_CONSTANTS.QUERY_TIMEOUT_MS }
       );
 
-      // Emit real-time update to post room only (not all clients)
       const boostOriginalId = boost.boostOf ? String(boost.boostOf) : '';
-      getRuntimeSocketServer()?.to(`post:${boostOriginalId}`).emit('post:unboosted', {
-        originalPostId: boost.boostOf,
-        postId: boost.boostOf,
-        boostId: boost._id,
-        boostsCount: updatedPost?.stats?.boostsCount,
-        userId: currentUserId,
+      emitPostEngagement({
+        event: POST_ENGAGEMENT_EVENTS.UNBOOSTED,
+        postId: boostOriginalId,
+        authorOxyUserId: updatedPost?.oxyUserId?.toString?.(),
+        counts: { boosts: updatedPost?.stats?.boostsCount },
         actorId: currentUserId,
-        timestamp: new Date().toISOString()
       });
 
       res.json({

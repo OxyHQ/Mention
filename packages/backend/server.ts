@@ -32,6 +32,7 @@ import {
   registerSocketPresence,
   type AuthenticatedPresenceSocket as AuthenticatedSocket,
 } from './src/services/SocketPresenceLifecycle';
+import { registerContentRoomHandlers } from './src/services/ContentRoomLifecycle';
 import { engagementOutboxDispatcher } from './src/services/EngagementOutboxDispatcher';
 import { moderationOutboxDispatcher } from './src/services/moderation/ModerationOutboxDispatcher';
 
@@ -327,36 +328,6 @@ notificationsNamespace.on("connection", (socket: AuthenticatedSocket) => {
   });
 });
 
-function registerContentRoomHandlers(socket: AuthenticatedSocket): void {
-  socket.on("joinPost", socketRateLimiter.wrap(socket, 'joinPost', (postId: string) => {
-    if (!postId || typeof postId !== 'string') return;
-    socket.join(`post:${postId}`);
-  }));
-
-  socket.on("leavePost", socketRateLimiter.wrap(socket, 'leavePost', (postId: string) => {
-    if (!postId || typeof postId !== 'string') return;
-    socket.leave(`post:${postId}`);
-  }));
-
-  socket.on("joinFeed", socketRateLimiter.wrap(socket, 'joinFeed', (data: { feedType?: string }) => {
-    const feedType = data?.feedType;
-    if (feedType && typeof feedType === 'string') {
-      socket.join(`feed:${feedType}`);
-    }
-    const selfId = socket.user?.id;
-    if (selfId) socket.join(`feed:user:${selfId}`);
-  }));
-
-  socket.on("leaveFeed", socketRateLimiter.wrap(socket, 'leaveFeed', (data: { feedType?: string }) => {
-    const feedType = data?.feedType;
-    if (feedType && typeof feedType === 'string') {
-      socket.leave(`feed:${feedType}`);
-    }
-    const selfId = socket.user?.id;
-    if (selfId) socket.leave(`feed:user:${selfId}`);
-  }));
-}
-
 // Configure postsNamespace events
 postsNamespace.on("connection", (socket: AuthenticatedSocket) => {
   logger.info('Client connected to posts namespace');
@@ -370,7 +341,7 @@ postsNamespace.on("connection", (socket: AuthenticatedSocket) => {
   socket.on("error", (error: Error) => {
     logger.error("Posts socket error", error);
   });
-  registerContentRoomHandlers(socket);
+  registerContentRoomHandlers(socket, socketRateLimiter);
 
   socket.on("disconnect", (reason: DisconnectReason) => {
     socketRateLimiter.cleanup(socket.id);
@@ -426,7 +397,7 @@ io.on("connection", (socket: AuthenticatedSocket) => {
       socket.disconnect();
     }
   });
-  registerContentRoomHandlers(socket);
+  registerContentRoomHandlers(socket, socketRateLimiter);
 
   socket.on("disconnect", (reason: DisconnectReason, description?: unknown) => {
     socketRateLimiter.cleanup(socket.id);
