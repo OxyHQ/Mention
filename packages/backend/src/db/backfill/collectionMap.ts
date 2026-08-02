@@ -68,6 +68,7 @@ import { ENGAGEMENT_PLANS } from './plans/engagement';
 import { FEDERATION_PLANS } from './plans/federation';
 import { FEED_PLANS } from './plans/feeds';
 import { GATE_PLANS } from './plans/gates';
+import { LIST_PLANS } from './plans/lists';
 import { MTN_PLANS } from './plans/mtn';
 import { OUTBOX_PLANS } from './plans/outbox';
 import { POLL_PLANS } from './plans/polls';
@@ -133,6 +134,7 @@ export const COLLECTION_PLANS: readonly CollectionPlan[] = [
   ...POST_PLANS,
   ...FEDERATION_PLANS,
   ...FEED_PLANS,
+  ...LIST_PLANS,
 ];
 
 /**
