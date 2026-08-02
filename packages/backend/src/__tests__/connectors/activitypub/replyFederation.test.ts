@@ -32,13 +32,11 @@ const {
   enqueueDelivery,
   isFediverseSharingEnabled,
   getUserById,
-  postFindByIdLean,
   insertMany,
 } = vi.hoisted(() => ({
   enqueueDelivery: vi.fn(),
   isFediverseSharingEnabled: vi.fn(),
   getUserById: vi.fn(),
-  postFindByIdLean: vi.fn(),
   insertMany: vi.fn(),
 }));
 
@@ -53,9 +51,6 @@ vi.mock('../../../connectors/activitypub/crypto', () => ({ getPublicKey: vi.fn()
 vi.mock('../../../queue/producers', () => ({ enqueueDelivery, enqueueInboxActivity: vi.fn() }));
 vi.mock('../../../models/FederationDeliveryQueue', () => ({
   default: { insertMany, create: vi.fn() },
-}));
-vi.mock('../../../models/Post', () => ({
-  Post: { findById: () => ({ select: () => ({ lean: () => postFindByIdLean() }) }) },
 }));
 vi.mock('../../../utils/safeUpstreamFetch', () => ({ fetchUpstreamSingleHop: vi.fn() }));
 vi.mock('@oxyhq/core/server', async (importOriginal) => ({
@@ -74,7 +69,9 @@ import {
   federationScope,
   seedActor,
   seedFollowerWithInbox,
+  seedPost,
 } from '../../helpers/federationFixtures';
+import type { PostRecord } from '../../../db/posts/postRecord';
 import { followService } from '../../../connectors/activitypub/follow.service';
 
 const ISO = '2024-05-06T07:08:09.000Z';
@@ -84,14 +81,14 @@ const AP_PUBLIC = 'https://www.w3.org/ns/activitystreams#Public';
 
 /** A reply post as the seam hands it to `federateNewPost`. */
 function replyPost(parentPostId: string | undefined): {
-  _id: string;
+  id: string;
   parentPostId?: string;
   content: { variants: Array<{ source: 'author'; text: string; tag: string }> };
   createdAt: string;
   visibility: string;
 } {
   return {
-    _id: 'reply1',
+    id: 'reply1',
     ...(parentPostId ? { parentPostId } : {}),
     content: { variants: [{ source: 'author', text: 'threaded response', tag: 'en' }] },
     createdAt: ISO,
@@ -123,6 +120,9 @@ const PARENT_ACCT = `bob@${scope.domain}`;
 /** The replier's follower inbox for the test currently running. */
 let followerInbox: string;
 
+/** The FEDERATED parent row for the test currently running. */
+let parent: PostRecord;
+
 const USER_AUTHOR_OXY = scope.user('author-oxy');
 
 const USER_REPLIER_OXY = scope.user('replier-oxy');
@@ -136,7 +136,6 @@ beforeEach(async () => {
   await clearFederationScope(scope);
   enqueueDelivery.mockResolvedValue(true);
   isFediverseSharingEnabled.mockResolvedValue(true);
-  postFindByIdLean.mockResolvedValue(null);
   getUserById.mockResolvedValue({ id: 'u', username: 'bob' });
 });
 
@@ -150,9 +149,11 @@ afterAll(async () => {
 
 describe('federateNewPost — reply to a FEDERATED parent', () => {
   beforeEach(async () => {
-    // The parent post is a federated (remote) Note.
-    postFindByIdLean.mockResolvedValue({
-      oxyUserId: 'parent-owner',
+    // The parent post is a federated (remote) Note — a REAL mirrored row, so
+    // `resolveFederationTarget` genuinely reads `federation.activity_id` off it
+    // rather than being handed the answer.
+    parent = await seedPost(scope, {
+      oxyUserId: scope.user('parent-owner'),
       federation: { activityId: PARENT_NOTE, actorUri: PARENT_ACTOR },
     });
     // The parent author's actor row → its inbox + acct. The `acct` is what the
@@ -169,7 +170,7 @@ describe('federateNewPost — reply to a FEDERATED parent', () => {
   });
 
   it('emits a Create(Note) with inReplyTo = the parent activityId + a parent-author Mention', async () => {
-    await followService.federateNewPost(replyPost('parent1'), USER_REPLIER_OXY, 'alice');
+    await followService.federateNewPost(replyPost(parent.id), USER_REPLIER_OXY, 'alice');
 
     const activity = deliveredActivity();
     expect(activity.type).toBe('Create');
@@ -196,7 +197,7 @@ describe('federateNewPost — reply to a FEDERATED parent', () => {
   });
 
   it('delivers to the replier followers AND the parent author inbox (deduped)', async () => {
-    await followService.federateNewPost(replyPost('parent1'), USER_REPLIER_OXY, 'alice');
+    await followService.federateNewPost(replyPost(parent.id), USER_REPLIER_OXY, 'alice');
 
     expect(deliveredInboxes().sort()).toEqual([followerInbox, PARENT_INBOX].sort());
   });
@@ -205,15 +206,16 @@ describe('federateNewPost — reply to a FEDERATED parent', () => {
 describe('federateNewPost — reply to a LOCAL parent', () => {
   it('emits a locally-minted inReplyTo + local Mention and adds NO extra inbox', async () => {
     // A local parent: no federation block, resolved to its owner username.
-    postFindByIdLean.mockResolvedValue({ oxyUserId: 'local-parent-owner', federation: undefined });
-    getUserById.mockResolvedValue({ id: 'local-parent-owner', username: 'bob' });
+    const owner = scope.user('local-parent-owner');
+    const localParent = await seedPost(scope, { oxyUserId: owner });
+    getUserById.mockResolvedValue({ id: owner, username: 'bob' });
     const followerInbox = await seedFollowerWithInbox(scope, USER_REPLIER_OXY, { username: 'x' });
 
-    await followService.federateNewPost(replyPost('parent1'), USER_REPLIER_OXY, 'alice');
+    await followService.federateNewPost(replyPost(localParent.id), USER_REPLIER_OXY, 'alice');
 
-    expect(getUserById).toHaveBeenCalledWith('local-parent-owner');
+    expect(getUserById).toHaveBeenCalledWith(owner);
     const note = deliveredNote();
-    expect(note.inReplyTo).toBe('https://mention.earth/ap/users/bob/posts/parent1');
+    expect(note.inReplyTo).toBe(`https://mention.earth/ap/users/bob/posts/${localParent.id}`);
     expect(note.tag).toContainEqual({
       type: 'Mention',
       href: 'https://mention.earth/ap/users/bob',
@@ -240,24 +242,24 @@ describe('federateNewPost — top-level (non-reply) post', () => {
     // No hashtags + no reply Mention → no tag array at all.
     expect(note.tag).toBeUndefined();
     expect(note.cc).toEqual([ALICE_FOLLOWERS]);
-    // A top-level post never resolves a parent.
-    expect(postFindByIdLean).not.toHaveBeenCalled();
     expect(deliveredInboxes()).toEqual([followerInbox]);
   });
 });
 
 describe('federateNewPost — parent unresolvable (fail-soft)', () => {
   it('still federates the reply as a normal Note (no inReplyTo), never throwing', async () => {
-    // The parent post cannot be found.
-    postFindByIdLean.mockResolvedValue(null);
-    await seedFollowerWithInbox(scope, USER_REPLIER_OXY, { username: 'x' });
+    // The parent post cannot be found: no row carries this id.
+    followerInbox = await seedFollowerWithInbox(scope, USER_REPLIER_OXY, { username: 'x' });
 
     await expect(
-      followService.federateNewPost(replyPost('ghost-parent'), USER_REPLIER_OXY, 'alice'),
+      followService.federateNewPost(
+        replyPost('019fffff-ffff-7fff-bfff-ffffffffffff'),
+        USER_REPLIER_OXY,
+        'alice',
+      ),
     ).resolves.toBeUndefined();
 
     // It attempted to resolve the parent, found nothing, and fell back cleanly.
-    expect(postFindByIdLean).toHaveBeenCalled();
     const note = deliveredNote();
     expect(note.inReplyTo).toBeUndefined();
     expect(note.tag).toBeUndefined();
