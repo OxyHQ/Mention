@@ -3601,7 +3601,7 @@ const styles = StyleSheet.create({
  * session, so mount the (hook-heavy) composer body only once auth has resolved
  * and a private bearer is available — otherwise show a spinner during the SSO
  * cold boot, or an `OxyAuthPrompt` for a signed-out viewer. Mirrors the
- * settings-screen pattern (settings/fediverse.tsx) and prevents the composer
+ * settings-screen pattern (settings/fediverse/index.tsx) and prevents the composer
  * from running its submit path with no session.
  */
 const ComposeScreen = () => {

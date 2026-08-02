@@ -497,7 +497,7 @@ const NotificationsScreen: React.FC = () => {
         // Auth cold-boot: the SSO restore can take several seconds. Show a
         // spinner until auth is resolved, then either prompt to sign in or
         // render the list — gated on `canUsePrivateApi`, never bare
-        // `isAuthenticated` (pattern from settings/fediverse.tsx).
+        // `isAuthenticated` (pattern from settings/fediverse/index.tsx).
         if (!isAuthResolved || isPrivateApiPending) {
             return (
                 <ThemedView className="flex-1 justify-center items-center">

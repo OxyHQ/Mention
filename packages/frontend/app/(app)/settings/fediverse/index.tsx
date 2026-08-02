@@ -26,10 +26,15 @@ import { createLogger } from '@oxyhq/core/logger';
 const logger = createLogger('FediverseSettings');
 
 /**
- * Fediverse-sharing controls. Mounted only once auth is resolved and a private
- * bearer is available, so it reads the current sharing flag straight off the
- * resolved user (no fetch, no effect). Turning sharing off requires a confirm;
- * both directions optimistically update and revert if the Oxy write fails.
+ * The one door to everything fediverse in settings: sharing, the language your
+ * posts are published under, your node, and how to read the moderation policy.
+ * Anything federation-related that grows a screen of its own belongs under
+ * `settings/fediverse/`, not beside this row in the settings index.
+ *
+ * Mounted only once auth is resolved and a private bearer is available, so it
+ * reads the current sharing flag straight off the resolved user (no fetch, no
+ * effect). Turning sharing off requires a confirm; both directions
+ * optimistically update and revert if the Oxy write fails.
  */
 function FediverseSharingBody() {
   const { t } = useTranslation();
@@ -169,6 +174,15 @@ function FediverseSharingBody() {
           title={t('fediverse.settings.preferredLanguage.title', { defaultValue: 'Preferred language' })}
           description={preferredLabel}
           onPress={openPreferredLanguagePicker}
+        />
+      </SettingsListGroup>
+
+      <SettingsListGroup>
+        <SettingsListItem
+          icon={<RowIcon name="cube-outline" />}
+          title={t('settings.node.title', { defaultValue: 'Your Mention node' })}
+          description={t('settings.node.description', { defaultValue: 'Your own copy of your signed posts' })}
+          onPress={() => router.push('/settings/fediverse/node')}
         />
       </SettingsListGroup>
 
