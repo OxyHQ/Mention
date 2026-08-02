@@ -1,8 +1,6 @@
 import mongoose, { Schema, Document } from 'mongoose';
+import { FEED_CATEGORIES, type FeedCategory } from '@mention/shared-types';
 import type { FeedDefinition, ModuleRef } from '../mtn/feed/engine/types';
-
-export const FEED_CATEGORIES = ['news', 'tech', 'culture', 'finance', 'health', 'sports', 'entertainment', 'other'] as const;
-export type FeedCategory = typeof FEED_CATEGORIES[number];
 
 /**
  * The stored subset of a {@link FeedDefinition}: the composable module lists the

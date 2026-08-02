@@ -53,7 +53,16 @@ import { optionalDate, timestamps, updatedOnly } from './timestamps';
 const trendingPlan: CollectionPlan = {
   collection: 'trendings',
   table: trending,
-  enumAudits: [{ path: 'type', column: trending.type }],
+  enumAudits: [
+    { path: 'type', column: trending.type },
+    // Both NULLABLE, and both closed sets the CHECKs constrain. `category` is
+    // the one vocabulary in this table that Mongo and Postgres import from the
+    // SAME `@mention/shared-types` constant, so it cannot drift — but the DATA
+    // can still hold a value from before a narrowing, which is the only thing
+    // an audit ever measured.
+    { path: 'category', column: trending.category },
+    { path: 'status', column: trending.status },
+  ],
   numericAudits: [
     {
       path: 'volume',

@@ -26,20 +26,22 @@ import {
   text,
   unique,
 } from 'drizzle-orm/pg-core';
+import { FEED_CATEGORIES } from '@mention/shared-types';
 import { createdAt, generatedId, inList, timestamptz, updatedAt } from './columns';
 import { accountLists } from './lists';
 
-/** `FEED_CATEGORIES` (`models/CustomFeed.ts`). */
-export const FEED_CATEGORIES = [
-  'news',
-  'tech',
-  'culture',
-  'finance',
-  'health',
-  'sports',
-  'entertainment',
-  'other',
-] as const;
+/**
+ * `custom_feeds.category` takes `FEED_CATEGORIES` from `@mention/shared-types`,
+ * which owns it — see the import above. It is NOT redeclared here.
+ *
+ * It used to exist as three independent copies (this file,
+ * `models/CustomFeed.ts`, and shared-types), identical in every member. That is
+ * the PRECONDITION for the `BLOCKLIST_SOURCE_OUTCOMES` defect rather than a
+ * mitigation of it: three lists that agree today stay agreeing only while
+ * somebody remembers all three exist. The counter-example is one table over —
+ * `trending.category` reads the single `TREND_CATEGORIES` constant on BOTH
+ * sides and therefore cannot drift at all, with no gate required.
+ */
 
 /** `FeedDefinition.mode` — ranked or chronological. */
 export const FEED_MODES = ['ranked', 'chronological'] as const;

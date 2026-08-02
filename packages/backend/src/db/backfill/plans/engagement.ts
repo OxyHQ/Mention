@@ -270,11 +270,12 @@ const muteWordsPlan: CollectionPlan = {
   collection: 'mutewords',
   table: muteWords,
   enumAudits: [
-    // `targets` is an ARRAY of enum values and this audit checks a scalar path,
-    // so it is deliberately NOT audited here — `distinct` on an array path
-    // returns the ELEMENTS, which happens to be exactly right, so it is
-    // included and reads each element against the column's own allowed set.
     { path: 'actorTarget', column: muteWords.actorTarget, absentAs: 'all' },
+    // `targets` is an ARRAY of enum values, and `distinct` on an array path
+    // returns the ELEMENTS — exactly the set `mute_words_targets_check`
+    // constrains. It reads the allowed set off the base column, which is why
+    // that column carries `text({ enum })` rather than a bare `text()`.
+    { path: 'targets', column: muteWords.targets },
   ],
   uniquenessAudits: [
     {
