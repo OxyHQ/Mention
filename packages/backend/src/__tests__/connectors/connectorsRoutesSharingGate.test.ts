@@ -106,7 +106,16 @@ app.use('/federation', connectorsRoutes);
 const TARGET_ACTOR_URI = 'https://remote.example/users/bob';
 const DISABLED_BODY = { error: 'Fediverse sharing is disabled' };
 
-beforeEach(() => {
+beforeAll(async () => {
+  await connectPostgres();
+});
+
+afterAll(async () => {
+  await closePostgres();
+});
+
+beforeEach(async () => {
+  await clearFederationScope(scope);
   vi.clearAllMocks();
   connectorFor.mockReturnValue({ deliver });
   deliver.mockResolvedValue(undefined);
@@ -181,4 +190,8 @@ describe('POST /federation/unfollow — fediverseSharing gate', () => {
     expect(deliver).not.toHaveBeenCalled();
     expect(getUserById).not.toHaveBeenCalled();
   });
+});
+
+afterEach(async () => {
+  await clearFederationScope(scope);
 });

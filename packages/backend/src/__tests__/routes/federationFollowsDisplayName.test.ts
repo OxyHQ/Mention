@@ -1,6 +1,16 @@
 import express from 'express';
 import request from 'supertest';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { closePostgres, connectPostgres } from '../../db/postgres';
+import {
+  clearFederationScope,
+  federationScope,
+  seedActor,
+  seedFollow,
+} from '../helpers/federationFixtures';
+
+const scope = federationScope('federation-follows-display-name');
 
 /**
  * Contract test for `GET /federation/following` and `GET /federation/followers`.
@@ -12,9 +22,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
  * user is missing from the response, the route falls back to the `@<acct>` handle.
  */
 
-const { followFind, actorFind, getUsersByIds } = vi.hoisted(() => ({
-  followFind: vi.fn(),
-  actorFind: vi.fn(),
+const { getUsersByIds } = vi.hoisted(() => ({
   getUsersByIds: vi.fn(),
 }));
 
@@ -24,8 +32,11 @@ const { followFind, actorFind, getUsersByIds } = vi.hoisted(() => ({
 // profileDesign.test.ts.
 vi.mock('../../runtime/oxyClient', () => ({ getRuntimeOxyClient: () => ({}) }));
 
+// The viewer id the routes filter their follow rows by. It has to be the SCOPE's
+// local user now that the query is real: the previous fake ignored the filter
+// entirely and returned its rows to whoever asked.
 vi.mock('@oxyhq/core/server', () => ({
-  getRequiredOxyUserId: () => 'local-user-1',
+  getRequiredOxyUserId: () => `oxy-local-federation-follows-display-name`,
 }));
 
 vi.mock('../../connectors/activitypub/constants', () => ({
@@ -85,14 +96,6 @@ function leanable(rows: unknown[]) {
   return { lean: async () => rows };
 }
 
-vi.mock('../../models/FederatedFollow', () => ({
-  default: { find: (...args: unknown[]) => leanable(followFind(...args)) },
-}));
-
-vi.mock('../../models/FederatedActor', () => ({
-  default: { find: (...args: unknown[]) => leanable(actorFind(...args)) },
-}));
-
 import federationApiRoutes from '../../connectors/connectors.routes';
 
 interface FollowResult {
@@ -114,20 +117,43 @@ function oxyUser(id: string, displayName: string) {
   return { id, username: `${id}-handle`, name: { displayName }, verified: false };
 }
 
-beforeEach(() => {
+/** One remote actor + the viewer's edge to it, as real rows. */
+async function seedFollowedActor(
+  username: string,
+  oxyUserId: string,
+  options: { direction?: 'inbound' | 'outbound'; status?: 'accepted' | 'pending'; avatarUrl?: string } = {},
+): Promise<string> {
+  const uri = `${scope.origin}/users/${username}`;
+  await seedActor(scope, { username, uri, oxyUserId, avatarUrl: options.avatarUrl ?? null });
+  await seedFollow(scope, {
+    remoteActorUri: uri,
+    direction: options.direction ?? 'outbound',
+    status: options.status ?? 'accepted',
+  });
+  return uri;
+}
+
+beforeAll(async () => {
+  await connectPostgres();
+});
+
+beforeEach(async () => {
   vi.clearAllMocks();
+  await clearFederationScope(scope);
+});
+
+afterEach(async () => {
+  await clearFederationScope(scope);
+});
+
+afterAll(async () => {
+  await closePostgres();
 });
 
 describe('GET /federation/following — Oxy name.displayName', () => {
   it('returns the Oxy name.displayName for each followed remote actor', async () => {
-    followFind.mockReturnValue([
-      { remoteActorUri: 'https://remote.example/users/alice', status: 'accepted' },
-      { remoteActorUri: 'https://remote.example/users/bob', status: 'pending' },
-    ]);
-    actorFind.mockReturnValue([
-      { uri: 'https://remote.example/users/alice', username: 'alice', domain: 'remote.example', acct: 'alice@remote.example', oxyUserId: 'oxy-alice', avatarUrl: 'a.png' },
-      { uri: 'https://remote.example/users/bob', username: 'bob', domain: 'remote.example', acct: 'bob@remote.example', oxyUserId: 'oxy-bob', avatarUrl: 'b.png' },
-    ]);
+    const aliceUri = await seedFollowedActor('alice', 'oxy-alice', { avatarUrl: 'a.png' });
+    const bobUri = await seedFollowedActor('bob', 'oxy-bob', { status: 'pending', avatarUrl: 'b.png' });
     getUsersByIds.mockResolvedValue([
       oxyUser('oxy-alice', 'Alice Clean'),
       oxyUser('oxy-bob', 'Bob Clean'),
@@ -139,43 +165,33 @@ describe('GET /federation/following — Oxy name.displayName', () => {
     const byUri = new Map(
       (res.body.following as FollowResult[]).map((f) => [f.actorUri, f]),
     );
-    expect(byUri.get('https://remote.example/users/alice')?.displayName).toBe('Alice Clean');
-    expect(byUri.get('https://remote.example/users/bob')?.displayName).toBe('Bob Clean');
-    expect(byUri.get('https://remote.example/users/alice')?.isFollowing).toBe(true);
-    expect(byUri.get('https://remote.example/users/bob')?.isFollowPending).toBe(true);
+    expect(byUri.get(aliceUri)?.displayName).toBe('Alice Clean');
+    expect(byUri.get(bobUri)?.displayName).toBe('Bob Clean');
+    expect(byUri.get(aliceUri)?.isFollowing).toBe(true);
+    expect(byUri.get(bobUri)?.isFollowPending).toBe(true);
   });
 
   it('falls back to the @acct handle when the Oxy user is missing from the response', async () => {
-    followFind.mockReturnValue([
-      { remoteActorUri: 'https://remote.example/users/ghost', status: 'accepted' },
-    ]);
-    actorFind.mockReturnValue([
-      { uri: 'https://remote.example/users/ghost', username: 'ghost', domain: 'remote.example', acct: 'ghost@remote.example', oxyUserId: 'oxy-ghost' },
-    ]);
+    await seedFollowedActor('ghost', 'oxy-ghost');
     // Oxy returns no user for oxy-ghost.
     getUsersByIds.mockResolvedValue([]);
 
     const res = await request(app).get('/federation/following').expect(200);
 
     const [first] = res.body.following as FollowResult[];
-    expect(first.displayName).toBe('@ghost@remote.example');
+    expect(first.displayName).toBe(`@ghost@${scope.domain}`);
   });
 });
 
 describe('GET /federation/followers — Oxy name.displayName', () => {
   it('returns the Oxy name.displayName for each remote follower', async () => {
-    followFind.mockReturnValue([
-      { remoteActorUri: 'https://remote.example/users/carol', status: 'accepted' },
-    ]);
-    actorFind.mockReturnValue([
-      { uri: 'https://remote.example/users/carol', username: 'carol', domain: 'remote.example', acct: 'carol@remote.example', oxyUserId: 'oxy-carol', avatarUrl: 'c.png' },
-    ]);
+    await seedFollowedActor('carol', 'oxy-carol', { direction: 'inbound', avatarUrl: 'c.png' });
     getUsersByIds.mockResolvedValue([oxyUser('oxy-carol', 'Carol Clean')]);
 
     const res = await request(app).get('/federation/followers').expect(200);
 
     const [first] = res.body.followers as FollowResult[];
     expect(first.displayName).toBe('Carol Clean');
-    expect(first.fullHandle).toBe('@carol@remote.example');
+    expect(first.fullHandle).toBe(`@carol@${scope.domain}`);
   });
 });
