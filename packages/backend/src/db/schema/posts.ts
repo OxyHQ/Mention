@@ -178,8 +178,19 @@ export const posts = pgTable(
      * Who may reply/quote. Mongo stored an enum ARRAY with `default: ['anyone']`;
      * the CHECK below constrains the ELEMENTS, which a scalar enum column could
      * not express.
+     *
+     * The vocabulary rides on the BASE column (`text({ enum })...array()`, the
+     * shape `reports.categories` uses) rather than living only in the CHECK. It
+     * emits the same `text[]` DDL either way — drizzle-kit records both spellings
+     * as a bare `"type": "text[]"` — but `allowedValues()` reads
+     * `baseColumn.enumValues`, so the bare spelling made the pre-flight
+     * `EnumAudit` on this column THROW ("has no enumValues") and abort the whole
+     * `posts` audit at its eleventh entry, taking the ten after it with it.
      */
-    replyPermission: text().array().notNull().default(sql`array['anyone']::text[]`),
+    replyPermission: text({ enum: REPLY_PERMISSIONS })
+      .array()
+      .notNull()
+      .default(sql`array['anyone']::text[]`),
 
     reviewReplies: boolean().notNull().default(false),
     quotesDisabled: boolean().notNull().default(false),

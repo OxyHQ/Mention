@@ -22,7 +22,6 @@ import {
   customFeedSourceLists,
   customFeedTopics,
   customFeeds,
-  FEED_CATEGORIES,
   feedGenerators,
   feedLikes,
   feedReviews,
@@ -37,7 +36,7 @@ import { feedEngine } from '../mtn/feed/engine/FeedEngine';
 import { resolveUserSummaries, degradedActorSummary } from '../services/PostHydrationService';
 import { createScopedOxyClient, getServiceOxyClient } from '../utils/oxyHelpers';
 import type { CachedUserSummary } from '../services/userSummaryCache';
-import type { PostUser } from '@mention/shared-types';
+import { FEED_CATEGORIES, type PostUser } from '@mention/shared-types';
 import { logger } from '../utils/logger';
 import { queryInt, queryString } from '../utils/queryParams';
 

@@ -176,6 +176,11 @@ export const mutes = pgTable(
  * `targets` stays a `text[]`: it is a small unordered set of two possible
  * values, never joined and never queried by element in SQL (the matcher loads
  * the whole row). `MuteWord` has no expiry field, so there is no sweep entry.
+ *
+ * Its vocabulary rides on the BASE column rather than living only in the CHECK,
+ * for the reason spelled out on `posts.reply_permission`: `allowedValues()`
+ * reads `baseColumn.enumValues`, so the bare `text().array()` spelling is not
+ * auditable at all — and the DDL is identical.
  */
 export const muteWords = pgTable(
   'mute_words',
@@ -184,7 +189,10 @@ export const muteWords = pgTable(
     /** An Oxy account id — no foreign key. */
     userId: text().notNull(),
     value: text().notNull(),
-    targets: text().array().notNull().default(sql`array[]::text[]`),
+    targets: text({ enum: MUTE_WORD_TARGETS })
+      .array()
+      .notNull()
+      .default(sql`array[]::text[]`),
     actorTarget: text({ enum: MUTE_WORD_ACTOR_TARGETS }).notNull().default('all'),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
