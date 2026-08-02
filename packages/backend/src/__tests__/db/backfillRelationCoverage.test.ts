@@ -19,11 +19,15 @@
  * Every fixture id here is prefixed `bfc-` and nothing in this file writes a row.
  */
 
-import { describe, expect, it } from 'vitest';
-import { getTableConfig } from 'drizzle-orm/pg-core';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { MongoMemoryServer } from 'mongodb-memory-server';
+import { MongoClient, ObjectId, type Db } from 'mongodb';
+import { sql } from 'drizzle-orm';
+import { getTableConfig, pgTable, text } from 'drizzle-orm/pg-core';
 import { connectPostgres, closePostgres, type Database } from '../../db/postgres';
 import {
   assertNotVacuous,
+  auditReferentialIntegrity,
   deployedForeignKeys,
   reconcileRelations,
   referentialRelations,
@@ -32,7 +36,14 @@ import {
   type ReferentialIntegrityReport,
 } from '../../db/backfill/referentialIntegrity';
 import { COLLECTION_PLANS, allSchemaTables } from '../../db/backfill/collectionMap';
-import { planTables, tableName } from '../../db/backfill/plan';
+import { planTables, tableName, type CollectionPlan } from '../../db/backfill/plan';
+import { buildRow } from '../../db/backfill/rowBuilder';
+import { mongoSourceFromDb, type MongoSource } from '../../db/backfill/mongoSource';
+import {
+  createResolutionContext,
+  planResolutions,
+  ResolutionLog,
+} from '../../db/backfill/resolutions';
 
 /** The tables the CURRENT plan set writes — the audit's claimed scope. */
 function plannedTables(): Set<string> {
@@ -63,6 +74,251 @@ const deployedFixture = (
   tableName: string,
   targetTableName = 'bfc-target'
 ): DeployedRelation => ({ constraint, tableName, targetTableName });
+
+/**
+ * Two throwaway child tables of `posts`, and the difference between them is the
+ * whole point of the end-to-end section below.
+ *
+ * `bfw_blind` is created in Postgres WITH a foreign key that its drizzle
+ * declaration does NOT carry — which is exactly the real-world defect this
+ * audit exists to notice: a constraint a migration added by hand, or one the
+ * drizzle metadata lost. Its shortfall therefore comes from the DERIVATION
+ * PATH, not from handing `reconcileRelations` a short list, so the case drives
+ * the real composition rather than re-testing the unit.
+ *
+ * `bfw_seen` declares the same relation on both sides and is the control: the
+ * audit must NOT refuse it, or the gate fires on a healthy schema.
+ */
+const bfwParent = pgTable('bfw_parent', { id: text().primaryKey() });
+
+const bfwBlind = pgTable('bfw_blind', {
+  id: text().primaryKey(),
+  // NO `.references()` — the drizzle metadata is deliberately blind to the
+  // constraint the DDL below creates.
+  parentId: text(),
+});
+
+const bfwSeen = pgTable('bfw_seen', {
+  id: text().primaryKey(),
+  parentId: text().references(() => bfwParent.id, { onDelete: 'cascade' }),
+});
+
+/**
+ * The parent is a THROWAWAY table too, not `posts`, and that is not cosmetic.
+ *
+ * `create table … references posts(id)` takes a SHARE ROW EXCLUSIVE lock on
+ * `posts`, and so does the matching `drop table`. Every other file that writes a
+ * post then blocks behind this file's DDL — measured: pointing these at `posts`
+ * turned four cases across three files red with second-long waits, in files that
+ * had not changed. Referencing a table only this file knows about touches no
+ * shared object at all.
+ */
+const SEEN_CONSTRAINT = 'bfw_seen_parent_id_bfw_parent_id_fk';
+/** The same shape, on the table drizzle cannot see. */
+const BLIND_CONSTRAINT = 'bfw_blind_parent_id_bfw_parent_id_fk';
+
+function planFor(table: typeof bfwBlind | typeof bfwSeen, collection: string): CollectionPlan {
+  return {
+    collection,
+    table,
+    transform: (doc, emit) => {
+      emit(
+        table,
+        buildRow(table, { id: String(doc._id), parentId: null }, String(doc._id))
+      );
+    },
+  };
+}
+
+let mongod: MongoMemoryServer;
+let mongoClient: MongoClient;
+let mongo: Db;
+let source: MongoSource;
+
+async function resolutions() {
+  return createResolutionContext(await planResolutions(source), new ResolutionLog());
+}
+
+beforeAll(async () => {
+  mongod = await MongoMemoryServer.create();
+  mongoClient = await MongoClient.connect(mongod.getUri());
+  mongo = mongoClient.db('backfill_coverage_test');
+  source = mongoSourceFromDb(mongo, async () => {
+    await mongoClient.close();
+  });
+}, 120_000);
+
+afterAll(async () => {
+  await mongoClient.close();
+  await mongod.stop();
+});
+
+/**
+ * Create the two throwaway tables, run `body`, and drop them again.
+ *
+ * They are created INSIDE each case rather than in `beforeAll` on purpose: the
+ * `deployed.length === declared` assertion in this same file counts every
+ * foreign key in the database, and a table that outlived its case would break
+ * it. Cases within one file run serially, so create-and-drop keeps them
+ * invisible to every other assertion here — and this file is the only one that
+ * creates a table, so no other file can see them either.
+ */
+async function withThrowawayTables(db: Database, body: () => Promise<void>): Promise<void> {
+  await db.execute(sql`create table if not exists bfw_parent (id text primary key)`);
+  await db.execute(sql`
+    create table if not exists bfw_blind (
+      id text primary key,
+      parent_id text,
+      constraint ${sql.identifier(BLIND_CONSTRAINT)}
+        foreign key (parent_id) references bfw_parent(id) on delete cascade
+    )
+  `);
+  await db.execute(sql`
+    create table if not exists bfw_seen (
+      id text primary key,
+      parent_id text,
+      constraint ${sql.identifier(SEEN_CONSTRAINT)}
+        foreign key (parent_id) references bfw_parent(id) on delete cascade
+    )
+  `);
+  try {
+    await body();
+  } finally {
+    await db.execute(sql`drop table if exists bfw_blind`);
+    await db.execute(sql`drop table if exists bfw_seen`);
+    await db.execute(sql`drop table if exists bfw_parent`);
+    for (const name of await mongo.listCollections({}, { nameOnly: true }).toArray()) {
+      await mongo.collection(name.name).deleteMany({});
+    }
+  }
+}
+
+/**
+ * `auditReferentialIntegrity`, driven end to end against a real database.
+ *
+ * The section that closes the hole every case above leaves open. Those exercise
+ * `deployedForeignKeys` and `reconcileRelations` directly, and `assertNotVacuous`
+ * on hand-built reports — so the LOGIC is verified, but nothing asserted that
+ * the audit PERFORMS the composition. Replacing its internal
+ * `await deployedForeignKeys(db)` with the derived set — literally making the
+ * checker grade itself, the exact defect this whole file exists to prevent —
+ * left all ten of them passing.
+ *
+ * That matters more here than anywhere else in the backfill, because this
+ * check's entire job is to be the one thing that survives the code being wrong.
+ * If the call can be deleted silently, it is decoration on the axis it was built
+ * for.
+ */
+describe('auditReferentialIntegrity, end to end', () => {
+  /**
+   * The plan set carries BOTH tables, and that is load-bearing rather than
+   * incidental.
+   *
+   * A blind-only plan set derives ZERO relations, so `relationsInspected === 0`
+   * fires first and the coverage check is never reached — the case would pass
+   * on the wrong error, which is exactly what the first draft did until the
+   * message assertion below caught it. Pairing the blind table with a table the
+   * derivation CAN see puts `relationsInspected` at 1 and leaves the coverage
+   * check as the only thing that can refuse the run.
+   */
+  async function seedBoth(): Promise<void> {
+    await mongo.collection('bfwblind').insertOne({ _id: new ObjectId() });
+    await mongo.collection('bfwseen').insertOne({ _id: new ObjectId() });
+  }
+
+  const blindAndSeen = () => [
+    { plan: planFor(bfwSeen, 'bfwseen'), documents: 1 },
+    { plan: planFor(bfwBlind, 'bfwblind'), documents: 1 },
+  ];
+
+  it('REFUSES a run whose derivation is blind to a constraint Postgres has', async () => {
+    const db: Database = await connectPostgres();
+    await withThrowawayTables(db, async () => {
+      await seedBoth();
+
+      // The shortfall is real and comes from the derivation: `bfw_blind` IS in
+      // the plan set (so the constraint is in scope), Postgres HAS the foreign
+      // key, and `getTableConfig(bfwBlind).foreignKeys` is empty.
+      await expect(
+        auditReferentialIntegrity(db, source, blindAndSeen(), await resolutions())
+      ).rejects.toThrow(VacuousReferentialIntegrityError);
+    });
+  });
+
+  it('names the constraint it could not derive, and refuses for THAT reason', async () => {
+    const db: Database = await connectPostgres();
+    await withThrowawayTables(db, async () => {
+      await seedBoth();
+
+      let thrown: unknown;
+      try {
+        await auditReferentialIntegrity(db, source, blindAndSeen(), await resolutions());
+      } catch (error) {
+        thrown = error;
+      }
+      const message = (thrown as Error | undefined)?.message ?? '';
+      expect(message).toContain(BLIND_CONSTRAINT);
+      // And NOT one of the earlier floors — a refusal is only evidence for this
+      // check if it is this check that refused.
+      expect(message).not.toContain('no foreign key was derived at all');
+      expect(message).toContain('1 of 2');
+    });
+  });
+
+  it('does NOT refuse when the derivation and the database agree', async () => {
+    const db: Database = await connectPostgres();
+    await withThrowawayTables(db, async () => {
+      await mongo.collection('bfwseen').insertOne({ _id: new ObjectId() });
+
+      const report = await auditReferentialIntegrity(
+        db,
+        source,
+        [{ plan: planFor(bfwSeen, 'bfwseen'), documents: 1 }],
+        await resolutions()
+      );
+
+      // The control. A gate that fired here would fire on every healthy schema.
+      expect(report.coverage?.missing).toEqual([]);
+      expect(report.coverage?.deployedInScope).toBe(1);
+      expect(report.coverage?.derived).toBe(1);
+      expect(report.findings.filter((f) => f.kind === 'undetected-relation')).toEqual([]);
+    });
+  });
+
+  /**
+   * The three ORIGINAL vacuity checks were unwired in exactly the same way —
+   * asserted only on hand-built reports, with nothing driving the audit. Two of
+   * them are reachable and are driven here.
+   *
+   * `collectionsInspected === 0` is NOT separately reachable and is left
+   * unwired deliberately rather than faked: it requires an empty `planned`,
+   * which makes `relationsInspected` zero first, so the earlier check always
+   * fires. Saying so is better than a case that appears to cover it.
+   */
+  it('refuses a run that derived no foreign key at all', async () => {
+    const db: Database = await connectPostgres();
+    await expect(
+      auditReferentialIntegrity(db, source, [], await resolutions())
+    ).rejects.toThrow(/no foreign key was derived at all/);
+  });
+
+  it('refuses a run that read no document', async () => {
+    const db: Database = await connectPostgres();
+    await withThrowawayTables(db, async () => {
+      // A plan with a real relation, over an EMPTY collection: relations and
+      // collections are both non-zero, so this reaches the third check rather
+      // than the first.
+      await expect(
+        auditReferentialIntegrity(
+          db,
+          source,
+          [{ plan: planFor(bfwSeen, 'bfwseen'), documents: 0 }],
+          await resolutions()
+        )
+      ).rejects.toThrow(/no document was read/);
+    });
+  });
+});
 
 describe('the deployed foreign-key set', () => {
   it('reads every foreign key the migrations created', async () => {
