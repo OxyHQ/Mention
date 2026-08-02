@@ -45,23 +45,50 @@ import { planTables, tableName } from './plan';
 /**
  * Every collection that moves, and what it becomes.
  *
- * EMPTY pending two things, both of which are decisions rather than work:
+ * EMPTY pending TEN collections that hold real production data and have no
+ * table in this schema. Every one is a decision someone has to make, not work
+ * anyone can just do — a plan cannot name a table that does not exist.
  *
- * 1. **The seven-collection schema gap.** `drizzle/foundation` branched at
- *    `f4386de5`; `main` has since landed `adminscriptcursors`,
- *    `repairfetchfailures`, `trendsummaries`, `blockeddomainpurges`,
- *    `blockeddomainpurgeruns`, `blocklistproposals` and `blocklistproposalruns`
- *    — live collections with models and writers on `main` and NO table here.
- *    They are not exclusions: `blocklistproposals` and `blockeddomainpurges`
- *    carry hand-made moderation decisions. Until they have tables, a plan for
- *    them cannot be written and `discover()` will (correctly) hard-fail on
- *    them.
- * 2. **A live-collection census.** This map is derived from CODE, and code
- *    cannot see a collection whose writer was deleted — `analytics` below is
- *    the one already known, and a read-only `db.listCollections()` against
- *    `mention-production` is what would find the rest.
+ * Counts are from a read-only census of `mention-production` on 2026-08-02
+ * (`listCollections` + `countDocuments`, zero writes).
  *
- * Writing plans before either is settled would mean guessing, and a plan that
+ * **Group 1 — landed on `main` after this branch point** (`f4386de5`).
+ * `drizzle/foundation` cut before them, so they have models and writers on
+ * `main` and no table here:
+ *
+ * | collection | documents |
+ * |---|---|
+ * | `blocklistproposals` | 751 |
+ * | `blockeddomainpurges` | 118 |
+ * | `blockeddomainpurgeruns` | 35 |
+ * | `adminscriptcursors` | 4 |
+ * | `repairfetchfailures` | 0 |
+ * | `trendsummaries` | 0 |
+ * | `blocklistproposalruns` | 0 |
+ *
+ * These are emphatically NOT exclusions: 751 blocklist proposals and 118
+ * blocked-domain purge records are hand-made moderation decisions, and a zero
+ * today is not a zero at cutover — `repairfetchfailures` fills the moment the
+ * repair sweep next fails.
+ *
+ * **Group 2 — the MCP surface, which this map originally MISSED.** Its models
+ * live in `src/mcp/models/`, not `src/models/`, so an inventory that walked
+ * only the latter never saw them. They are live, not deleted:
+ *
+ * | collection | model | documents |
+ * |---|---|---|
+ * | `mcpconnections` | `McpConnection` (470296b7) | 13 |
+ * | `mcpregisteredclients` | `McpRegisteredClient` (07bcdb85) | 8 |
+ * | `mcpauthcodes` | `McpAuthCode` (470296b7) | 0 |
+ *
+ * `mcpconnections` carries the bundle graph every linked Claude account
+ * resolves through (`packages/backend/src/mcp/middleware/mcpAuth.ts`); losing
+ * it signs every MCP user out with no way back. `mcpregisteredclients` is the
+ * DCR registry. `mcpauthcodes` is single-use and short-lived, so it is the one
+ * of the three that could defensibly be excluded — but that is still a
+ * decision, and it needs writing down either way.
+ *
+ * Writing plans before these have tables would mean guessing, and a plan that
  * is wrong about which table a collection feeds is worse than a missing one:
  * the missing one fails loudly at `discover()`.
  */
@@ -97,7 +124,7 @@ export const NOT_MIGRATED: readonly ExcludedCollection[] = [
       'thirty seconds after it is written.',
   },
 
-  // --- a model deleted long before the Postgres port ------------------------
+  // --- models deleted by the ce333c92 privacy/performance cleanup ----------
   {
     collection: 'analytics',
     reason:
@@ -105,11 +132,93 @@ export const NOT_MIGRATED: readonly ExcludedCollection[] = [
       'privacy, and deployments"). The only surviving reference in the whole ' +
       'repository is src/migrations/0001-repost-to-boost.ts:78, which rewrites ' +
       '`stats.engagement.reposts` → `.boosts` on whatever rows remain — a ' +
-      'migration that has already run. There is no model, no reader, no writer ' +
-      'and no table. This is the one collection here whose emptiness has NOT ' +
-      'been confirmed against production: it is excluded because nothing reads ' +
-      'it, and a census should still report its document count so the exclusion ' +
-      'is made with the number in view.',
+      'migration that has already run. No model, no reader, no writer, no ' +
+      'table. MEASURED EMPTY: 0 documents in mention-production, 2026-08-02.',
+  },
+  {
+    collection: 'blocks',
+    reason:
+      'The `Block` model was deleted by the same ce333c92 cleanup. Blocking is ' +
+      "Oxy's — Mention reads the block graph through the SDK and stores no " +
+      'copy of it, which is why there is no `blocks` table and why the feed ' +
+      "safety modules never query one. 0 documents, 2026-08-02; the graph's " +
+      'real home is unaffected by this migration.',
+  },
+  {
+    collection: 'restricts',
+    reason:
+      'The `Restrict` model, deleted alongside `Block` in ce333c92, for the ' +
+      'same reason: restriction is an Oxy privacy setting, not Mention state. ' +
+      '0 documents, 2026-08-02.',
+  },
+
+  // --- superseded aggregates ------------------------------------------------
+  {
+    collection: 'hashtags',
+    reason:
+      'The `Hashtag` model was DELETED in f399537c ("Complete performance ' +
+      'security and legacy cleanup"). It was a denormalized per-tag aggregate; ' +
+      'hashtags now live ON the post as `Post.hashtags: string[]` (canonical ' +
+      'lowercase, no `#`, deduped — models/Post.ts:53) and reach Postgres as ' +
+      '`posts.hashtags`, which IS migrated. Nothing reads the collection: every ' +
+      'surviving `Hashtag` reference in the repository is either the ' +
+      "ActivityPub `type: 'Hashtag'` tag object or the NSFW constant list, " +
+      'neither of which touches Mongo. 1,677 documents, 2026-08-02 — by far the ' +
+      'largest exclusion here, and the reason it is safe is that every one of ' +
+      'those rows is derivable from the posts that produced it.',
+  },
+  {
+    collection: 'externalfeeds',
+    reason:
+      'The `ExternalFeed` stub was REPLACED by native `FeedGenerator` records ' +
+      'in 18e469f5 / 6afc97aa ("sync Bluesky feeds as native FeedGenerators", ' +
+      '#456), which deleted the model. Its successor `feedgenerators` → ' +
+      '`feed_generators` IS migrated, and the sync repopulates from Bluesky ' +
+      'rather than from these rows. 322 documents, 2026-08-02: a spent source ' +
+      'whose data already exists in the collection that replaced it, so ' +
+      'copying it would double-migrate.',
+  },
+
+  // --- live rooms moved to Syra (530e2b0f, #315) ---------------------------
+  {
+    collection: 'rooms',
+    reason:
+      "Live rooms left Mention: 530e2b0f migrated them from Agora to SYRA's " +
+      'backend (#315) and deleted the `Room` model. Mention owns the room ' +
+      'EXPERIENCE (`LiveRoomContext`, the room UI, `lib/syraApi.ts`) but ' +
+      'persists no room document — rooms are served by `@syra.fm/sdk` against ' +
+      "SYRA's API, not `api.mention.earth`. 6 documents, 2026-08-02: residue " +
+      'of the pre-migration Agora implementation. Copying them into a Mention ' +
+      'table would create a second, stale authority for state another service ' +
+      'owns.',
+  },
+  {
+    collection: 'recordings',
+    reason:
+      'Room recordings, deleted with the rest of the Agora implementation in ' +
+      '530e2b0f. The `Recording` model was added by a0e8e795 for Agora cloud ' +
+      'recording, which Mention no longer performs. 18 documents, 2026-08-02.',
+  },
+  {
+    collection: 'houses',
+    reason:
+      'The `House` model (a room grouping) was added with Rooms in a6b44e76 ' +
+      'and deleted with them in 530e2b0f. 1 document, 2026-08-02.',
+  },
+  {
+    collection: 'series',
+    reason:
+      'The `Series` model (a recurring-room schedule) was added with Rooms in ' +
+      'a6b44e76 and deleted with them in 530e2b0f. 0 documents, 2026-08-02.',
+  },
+  {
+    collection: 'spaces',
+    reason:
+      'DOUBLY dead: `Space` was renamed to `Room` by f1fcd225 ("complete ' +
+      'Spaces-to-Rooms refactoring"), and Rooms then left for Syra in ' +
+      '530e2b0f. These 13 documents (2026-08-02) predate a rename that itself ' +
+      'predates the feature leaving the product. There has been no `Space` ' +
+      'model and no reader for either shape since.',
   },
 ];
 
