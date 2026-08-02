@@ -632,7 +632,17 @@
     "previous": "Video precedente",
     "next": "Video successivo",
     "picture_in_picture": "Picture in picture",
-    "picture_in_picture_failed": "Impossibile avviare Picture in picture"
+    "picture_in_picture_failed": "Impossibile avviare Picture in picture",
+    "replies": "Risposte",
+    "addComment": "Aggiungi un commento...",
+    "like": "Mi piace",
+    "unlike": "Non mi piace più",
+    "comment": "Commenta",
+    "boost": "Rilancia",
+    "unboost": "Annulla rilancio",
+    "save": "Salva",
+    "unsave": "Rimuovi dai salvati",
+    "share": "Condividi"
   },
   "common": {
     "unknown": "sconosciuto",

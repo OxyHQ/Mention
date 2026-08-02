@@ -17,6 +17,7 @@ import { useAppearanceStore, type ProfileMedia, type UserAppearance } from '@/st
 import { useProfileSongPreview } from '@/hooks/useProfileSongPreview';
 import { useInfiniteCatalogSearch, ResultsFooter } from '@/hooks/useInfiniteCatalogSearch';
 import { createLogger } from '@oxyhq/core/logger';
+import { formatDuration } from '@/utils/formatDuration';
 import { SongPreviewButton } from './SongPreviewButton';
 import { HIT_SLOP_MD } from '@/styles/hitSlop';
 
@@ -70,13 +71,6 @@ interface PodcastSelection {
 interface MediaPickerSheetProps {
   currentMedia: ProfileMedia | null;
   onClose: () => void;
-}
-
-function formatStartTime(totalSec: number): string {
-  const safe = Math.max(0, Math.floor(totalSec));
-  const minutes = Math.floor(safe / 60);
-  const seconds = safe % 60;
-  return `${minutes}:${seconds.toString().padStart(2, '0')}`;
 }
 
 function songSelectionFromMedia(media: ProfileMedia | null): SongSelection | null {
@@ -521,7 +515,7 @@ export const MediaPickerSheet = memo(function MediaPickerSheet({
           {maxStartSec > 0 && (
             <View className="flex-row items-center justify-between mt-3">
               <Text className="text-muted-foreground text-[13px]">
-                {t('profile.media.song.startsAt', { time: formatStartTime(startSec) })}
+                {t('profile.media.song.startsAt', { time: formatDuration(startSec) })}
               </Text>
               <View className="flex-row items-center gap-3">
                 <Pressable
@@ -536,7 +530,7 @@ export const MediaPickerSheet = memo(function MediaPickerSheet({
                   <Text className="text-foreground text-lg font-semibold leading-none">{'−'}</Text>
                 </Pressable>
                 <Text className="text-foreground text-[15px] font-semibold tabular-nums">
-                  {formatStartTime(startSec)}
+                  {formatDuration(startSec)}
                 </Text>
                 <Pressable
                   onPress={incrementStart}

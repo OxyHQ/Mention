@@ -54,6 +54,25 @@ describe('friends_of_friends definition', () => {
   });
 });
 
+describe('author definition', () => {
+  it('the videos tab composes the videoOnly filter', async () => {
+    const def = await resolveDefinition('author|u1|videos');
+    expect(def!.sources.map((s) => s.module)).toEqual(['authored']);
+    expect(def!.sources[0].params).toMatchObject({ authorId: 'u1', filter: 'videos' });
+    expect(def!.filters.map((f) => f.module)).toEqual(['videoOnly']);
+  });
+
+  it('the media tab still composes mediaOnly, not videoOnly', async () => {
+    const def = await resolveDefinition('author|u1|media');
+    expect(def!.filters.map((f) => f.module)).toEqual(['mediaOnly']);
+  });
+
+  it('every author variant hydrates boosts at depth 1', async () => {
+    const def = await resolveDefinition('author|u1|videos');
+    expect(def!.execution?.hydrateMaxDepth).toBe(1);
+  });
+});
+
 describe('resolveDefinition still returns null for unknown descriptors', () => {
   it('unknown → null', async () => {
     expect(await resolveDefinition('nonsense' as FeedDescriptor)).toBeNull();

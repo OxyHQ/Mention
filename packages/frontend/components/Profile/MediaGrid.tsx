@@ -10,7 +10,7 @@ import { EmptyState } from '@/components/common/EmptyState';
 import type { FeedItem } from '@/db';
 import type { HydratedPostSummary, MediaItem } from '@mention/shared-types';
 import VideoPosterCell from '@/components/common/VideoPosterCell';
-import { isVideoMediaRef } from '@/utils/mediaTypes';
+import { isVideoMediaRef, readMediaDurationSec } from '@/utils/mediaTypes';
 import { useProfileMediaFeed } from './useProfileMediaFeed';
 import { ProfileGridList, type ProfileGridEntry } from './ProfileGridList';
 
@@ -30,6 +30,15 @@ interface MediaGridEntry extends ProfileGridEntry {
     uri: string;
     isVideo: boolean;
     isCarousel: boolean;
+    /**
+     * Play count of the post this cell's media came from — set on video entries
+     * only, so the type says outright that image cells carry neither of these.
+     * Per-POST, so two videos in one post repeat it, exactly as `isCarousel`
+     * already paints on every one of a post's cells.
+     */
+    views?: number | null;
+    /** Duration of THIS item's video, in seconds. Per-item, so per-cell correct. */
+    durationSec?: number;
 }
 
 const CAROUSEL_ICON_SIZE = 12;
@@ -60,7 +69,7 @@ const MediaGrid: React.FC<MediaGridProps> = ({
     const theme = useTheme();
     const { t } = useTranslation();
     const {
-        mediaFeed,
+        primaryFeed,
         postsFeed,
         items,
         loadMore,
@@ -69,7 +78,7 @@ const MediaGrid: React.FC<MediaGridProps> = ({
     const mediaItems = useMemo<MediaGridEntry[]>(() => {
         const out: MediaGridEntry[] = [];
 
-        const pushUris = (targetId: string, sources: MediaItem[]) => {
+        const pushUris = (post: HydratedPostSummary, targetId: string, sources: MediaItem[]) => {
             const seen = new Set<string>();
 
             sources.forEach((ref, idx) => {
@@ -87,7 +96,18 @@ const MediaGrid: React.FC<MediaGridProps> = ({
                     // poster still produces a placeholder cell, so a video entry is
                     // always valid.
                     const posterUri = resolveVideoPosterUri(ref);
-                    out.push({ postId: targetId, uri: posterUri ?? '', isVideo: true, isCarousel: sources.length > 1, mediaIndex: idx });
+                    out.push({
+                        postId: targetId,
+                        uri: posterUri ?? '',
+                        isVideo: true,
+                        isCarousel: sources.length > 1,
+                        mediaIndex: idx,
+                        // `post`, not the outer feed item: for a boost/quote with no
+                        // media of its own the media belongs to the ORIGINAL, and the
+                        // count has to describe the video being shown.
+                        views: post.engagement?.views,
+                        durationSec: readMediaDurationSec(ref),
+                    });
                     return;
                 }
 
@@ -102,7 +122,7 @@ const MediaGrid: React.FC<MediaGridProps> = ({
             // (url/thumbUrl/posterUrl) — the single source for grid thumbnails.
             const media = post.content?.media;
             if (!Array.isArray(media) || media.length === 0) return;
-            pushUris(targetId, media);
+            pushUris(post, targetId, media);
         };
 
         for (const rawPost of items) {
@@ -140,7 +160,9 @@ const MediaGrid: React.FC<MediaGridProps> = ({
                         posterUri={item.uri || undefined}
                         size={itemSize}
                         placeholderColor={theme.colors.textSecondary}
-                        badge="center"
+                        views={item.views}
+                        durationSec={item.durationSec}
+                        scrim
                     />
                 ) : (
                     <Image
@@ -165,7 +187,7 @@ const MediaGrid: React.FC<MediaGridProps> = ({
     }, [router, theme.colors.textSecondary]);
 
     // Loading state first; if no items yet and feeds are still loading, show spinner
-    const isLoading = (!mediaFeed && !postsFeed) || mediaFeed?.isLoading || postsFeed?.isLoading;
+    const isLoading = (!primaryFeed && !postsFeed) || primaryFeed?.isLoading || postsFeed?.isLoading;
     const emptyContent = isLoading && mediaItems.length === 0
         ? (
             <View className="items-center justify-center p-8">

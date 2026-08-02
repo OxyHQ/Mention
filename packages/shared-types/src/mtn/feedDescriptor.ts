@@ -10,13 +10,14 @@
  * profile screen, so every one of them must resolve to an author feed —
  * `author|<oxyUserId>|<filter>`.
  */
-export type AuthorFeedFilter = 'posts' | 'replies' | 'media' | 'likes' | 'boosts';
+export type AuthorFeedFilter = 'posts' | 'replies' | 'media' | 'videos' | 'likes' | 'boosts';
 
 /** {@link AuthorFeedFilter} as a runtime list, in profile-tab order. */
 export const AUTHOR_FEED_FILTERS: readonly AuthorFeedFilter[] = [
   'posts',
   'replies',
   'media',
+  'videos',
   'likes',
   'boosts',
 ];

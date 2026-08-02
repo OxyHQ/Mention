@@ -148,7 +148,7 @@ Feeds live in `backend/src/mtn/` — ForYou, Following, Author, Hashtag, Explore
 
 #### Profile feed = the `author` descriptor
 
-The profile feed is NOT a separate endpoint — it is `GET /feed/mtn?descriptor=author|<oxyUserId>|<tab>`, served by the same engine as every other feed. There is no `/feed/user/:userId`. `<tab>` ∈ `AuthorFeedFilter` (`posts` | `replies` | `media` | `likes` | `boosts` — one per profile tab; unknown ⇒ `posts`). Frontend entry point: `feedService.getUserFeed`.
+The profile feed is NOT a separate endpoint — it is `GET /feed/mtn?descriptor=author|<oxyUserId>|<tab>`, served by the same engine as every other feed. There is no `/feed/user/:userId`. `<tab>` ∈ `AuthorFeedFilter` (`posts` | `replies` | `media` | `videos` | `likes` | `boosts` — one per profile tab; unknown ⇒ `posts`). Frontend entry point: `feedService.getUserFeed`.
 
 - **Cursor/sort axis:** the `authored` source sorts `{ createdAt: -1, _id: -1 }` to match the `ChronoCursor` keyset. Never sort an author query by `_id`: a federated post's import-time `_id` bears no relation to its remote `createdAt`, so an `_id` sort behind a `createdAt` cursor permanently skips backfilled posts at the page boundary (this is the "boost disappears from the profile feed" bug).
 - **Profile-visibility gate** lives in the `authored` source (`canViewAuthorFeed`) and covers EVERY tab: a private / followers-only profile returns an empty feed to a non-follower. Post-level `visibility: public` is not sufficient — profile visibility is a separate setting.

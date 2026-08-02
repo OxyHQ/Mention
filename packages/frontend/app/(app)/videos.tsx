@@ -37,6 +37,7 @@ import { BottomSheetContext } from '@/context/BottomSheetContext';
 import { VideoReplies } from '@/components/videos/VideoReplies';
 import { HIT_SLOP_LG } from '@/styles/hitSlop';
 import { useVideoPipSession } from '@/hooks/useVideoPipSession';
+import { useReelImpressions } from '@/hooks/useReelImpressions';
 import { useMediaSessionTransport, type MediaSessionTrack } from '@/hooks/useMediaSessionTransport';
 import { usePipTransportActions } from '@/hooks/usePipTransportActions';
 import { usePipAspectRatio } from '@/hooks/usePipAspectRatio';
@@ -284,6 +285,7 @@ interface VideoItemProps {
     onLike: (postId: string, isLiked: boolean) => void;
     onComment: (postId: string) => void;
     onBoost: (postId: string, isBoosted: boolean) => void;
+    onSave: (postId: string, isSaved: boolean) => void;
     onShare: (post: VideoPost) => void;
     formatCompactNumber: (count: number) => string;
     muted: boolean;
@@ -326,6 +328,10 @@ interface ActiveVideoSurfaceProps {
     isActive: boolean;
     // See VideoItemProps.screenFocused — only play when active AND focused.
     screenFocused: boolean;
+    // How much of the surface's bottom edge the floating BottomBar covers. The
+    // scrubber is the overlay's SIBLING, so it does not inherit the overlay's
+    // own bottom padding and has to lift itself clear of the bar.
+    bottomBarHeight: number;
     // Viewport height: one slide tall, so it also yields this surface's centre-Y
     // for the visibility report to the playback authority.
     windowHeight: number;
@@ -362,6 +368,7 @@ const ActiveVideoSurface = memo<ActiveVideoSurfaceProps>(({
     intrinsicSize,
     isActive,
     screenFocused,
+    bottomBarHeight,
     windowHeight,
     muted,
     onMutedChange,
@@ -927,7 +934,10 @@ const ActiveVideoSurface = memo<ActiveVideoSurfaceProps>(({
 
             {showScrubber && (
                 <View
-                    style={styles.scrubberHitArea}
+                    // Lifted clear of the floating BottomBar: pinned to the
+                    // surface's own bottom edge the whole 16px band sits UNDER
+                    // the bar, which takes every touch meant for the track.
+                    style={[styles.scrubberHitArea, { bottom: bottomBarHeight }]}
                     // Vertical only on purpose: the track's x maps to seek
                     // position, so widening it horizontally would make the
                     // touch-to-time mapping lie past both ends.
@@ -965,6 +975,7 @@ const VideoItem = memo<VideoItemProps>(({
     onLike,
     onComment,
     onBoost,
+    onSave,
     onShare,
     formatCompactNumber,
     muted,
@@ -1013,9 +1024,6 @@ const VideoItem = memo<VideoItemProps>(({
     }, [item.id, item.viewerState.isLiked, onLike]);
 
     const canRenderPlayer = isNear && !videoError && item.videoUrl.length > 0;
-    // Actions + follow always overlay the video, on every breakpoint — desktop
-    // matches mobile (there is no separate rail).
-    const showOnVideoActions = true;
     const showOnVideoFollow = Boolean(item.user?.id) && item.user?.id !== viewerId;
     const showCaptionToggle = postText.length > CAPTION_EXPAND_MIN_CHARS;
 
@@ -1034,6 +1042,7 @@ const VideoItem = memo<VideoItemProps>(({
                     intrinsicSize={item.intrinsicSize}
                     isActive={isActive}
                     screenFocused={screenFocused}
+                    bottomBarHeight={bottomBarHeight}
                     windowHeight={windowHeight}
                     muted={muted}
                     onMutedChange={onMutedChange}
@@ -1143,45 +1152,51 @@ const VideoItem = memo<VideoItemProps>(({
                     </View>
                 </View>
 
-                {showOnVideoActions && (
-                    <View style={styles.rightActions} pointerEvents="box-none">
-                        <ActionButton
-                            icon={item.viewerState.isLiked ? 'heart' : 'heart-outline'}
-                            count={item.engagement.likes ?? 0}
-                            isActive={item.viewerState.isLiked}
-                            activeColor={LIKE_ACTIVE_COLOR}
-                            onPress={() => onLike(item.id, item.viewerState.isLiked)}
-                            formatCompactNumber={formatCompactNumber}
-                        />
-                        <ActionButton
-                            icon="chatbubble-outline"
-                            count={item.engagement.replies ?? 0}
-                            onPress={() => onComment(item.id)}
-                            formatCompactNumber={formatCompactNumber}
-                        />
-                        <ActionButton
-                            icon={item.viewerState.isBoosted ? 'repeat' : 'repeat-outline'}
-                            count={item.engagement.boosts ?? 0}
-                            isActive={item.viewerState.isBoosted}
-                            activeColor={BOOST_ACTIVE_COLOR}
-                            onPress={() => onBoost(item.id, item.viewerState.isBoosted)}
-                            formatCompactNumber={formatCompactNumber}
-                        />
-                        <ActionButton
-                            icon="share-outline"
-                            count={0}
-                            onPress={() => onShare(item)}
-                            formatCompactNumber={formatCompactNumber}
-                            hideCount={true}
-                        />
-                        <View style={styles.viewCount} pointerEvents="none">
-                            <Ionicons name="eye-outline" size={26} color="white" style={styles.actionIcon} />
-                            <Text style={styles.actionCount}>
-                                {formatCompactNumber(item.engagement.views ?? 0)}
-                            </Text>
-                        </View>
-                    </View>
-                )}
+                <View style={styles.rightActions} pointerEvents="box-none">
+                    <ActionButton
+                        icon={item.viewerState.isLiked ? 'heart' : 'heart-outline'}
+                        count={item.engagement.likes ?? 0}
+                        isActive={item.viewerState.isLiked}
+                        activeColor={LIKE_ACTIVE_COLOR}
+                        onPress={() => onLike(item.id, item.viewerState.isLiked)}
+                        formatCompactNumber={formatCompactNumber}
+                        accessibilityLabel={t(item.viewerState.isLiked ? 'videos.unlike' : 'videos.like')}
+                    />
+                    <ActionButton
+                        icon="chatbubble-outline"
+                        count={item.engagement.replies ?? 0}
+                        onPress={() => onComment(item.id)}
+                        formatCompactNumber={formatCompactNumber}
+                        accessibilityLabel={t('videos.comment')}
+                    />
+                    <ActionButton
+                        icon={item.viewerState.isBoosted ? 'repeat' : 'repeat-outline'}
+                        count={item.engagement.boosts ?? 0}
+                        isActive={item.viewerState.isBoosted}
+                        activeColor={BOOST_ACTIVE_COLOR}
+                        onPress={() => onBoost(item.id, item.viewerState.isBoosted)}
+                        formatCompactNumber={formatCompactNumber}
+                        accessibilityLabel={t(item.viewerState.isBoosted ? 'videos.unboost' : 'videos.boost')}
+                    />
+                    {/* Saved state is carried by the filled icon alone — a reel's
+                        rail has no brand colour for it, and inventing one would
+                        put a fourth accent over the video. */}
+                    <ActionButton
+                        icon={item.viewerState.isSaved ? 'bookmark' : 'bookmark-outline'}
+                        count={item.engagement.saves ?? 0}
+                        onPress={() => onSave(item.id, item.viewerState.isSaved)}
+                        formatCompactNumber={formatCompactNumber}
+                        accessibilityLabel={t(item.viewerState.isSaved ? 'videos.unsave' : 'videos.save')}
+                    />
+                    <ActionButton
+                        icon="share-outline"
+                        count={0}
+                        onPress={() => onShare(item)}
+                        formatCompactNumber={formatCompactNumber}
+                        hideCount={true}
+                        accessibilityLabel={t('videos.share')}
+                    />
+                </View>
             </View>
         </View>
     );
@@ -1200,13 +1215,22 @@ interface ActionButtonProps {
     onPress: () => void;
     formatCompactNumber: (count: number) => string;
     hideCount?: boolean;
+    // Required: the icon carries the whole meaning of these buttons, and the
+    // count beside it reads as the label to a screen reader otherwise ("4.2K").
+    accessibilityLabel: string;
 }
 
-const ActionButton = memo<ActionButtonProps>(({ icon, count, isActive, activeColor, onPress, formatCompactNumber, hideCount = false }) => (
-    <Pressable style={styles.actionButton} onPress={onPress} hitSlop={HIT_SLOP_LG}>
+const ActionButton = memo<ActionButtonProps>(({ icon, count, isActive, activeColor, onPress, formatCompactNumber, hideCount = false, accessibilityLabel }) => (
+    <Pressable
+        style={styles.actionButton}
+        onPress={onPress}
+        hitSlop={HIT_SLOP_LG}
+        accessibilityRole="button"
+        accessibilityLabel={accessibilityLabel}
+    >
         <Ionicons
             name={icon}
-            size={28}
+            size={30}
             color={isActive && activeColor ? activeColor : 'white'}
             style={styles.actionIcon}
         />
@@ -1253,13 +1277,13 @@ export default function VideosScreen() {
     const params = useLocalSearchParams<{ postId?: string; mediaIndex?: string }>();
     const { oxyServices, user, canUsePrivateApi, isAuthResolved, isAuthenticated } = useAuth();
     const viewerId = user?.id;
-    const { likePost, unlikePost, boostPost, unboostPost, getPostById } = usePostsStore();
+    const { likePost, unlikePost, boostPost, unboostPost, savePost, unsavePost, getPostById } = usePostsStore();
     // Desktop (>=990) gate. Actions + follow now overlay the video on every
     // breakpoint (matching mobile); `isDesktop` only decides how the comment
     // button behaves — a no-op on desktop (replies are already open in the
     // RightBar) vs. opening the bottom sheet on mobile.
     const isDesktop = useIsRightBarVisible();
-    const { setRailState } = useVideosRail();
+    const { setRailState, requestComposerFocus } = useVideosRail();
     const { openBottomSheet, setBottomSheetContent } = useContext(BottomSheetContext);
 
     const [posts, setPosts] = useState<VideoPost[]>([]);
@@ -1667,11 +1691,6 @@ export default function VideosScreen() {
         onEnded: handleSessionEnded,
         loadMore: handleLoadMore,
         hasMore,
-        // The reel fetches with exactly these feed types, so its impressions are
-        // attributed to the same descriptor the feed was served under.
-        feedDescriptor: resolveFeedDescriptor(activeFeed),
-        impressionResetKey: viewerId,
-        canReportImpressions: canUsePrivateApi,
     });
 
     const sessionSource = useMemo<PlayableSource | undefined>(
@@ -1766,8 +1785,11 @@ export default function VideosScreen() {
 
     const handleComment = useCallback((postId: string) => {
         if (isDesktop) {
-            // The replies column (RightBar) is always visible on desktop —
-            // there's nothing to open/toggle here.
+            // The replies column (RightBar) is already showing this post, so
+            // there is nothing to open — but a button that paints and then does
+            // nothing observable is a dead button. Put the caret in that
+            // column's composer instead, which is what the press was asking for.
+            requestComposerFocus();
             return;
         }
         setBottomSheetContent(
@@ -1779,7 +1801,7 @@ export default function VideosScreen() {
             { scrollable: false },
         );
         openBottomSheet(true);
-    }, [isDesktop, setBottomSheetContent, openBottomSheet, handleCommentPosted]);
+    }, [isDesktop, requestComposerFocus, setBottomSheetContent, openBottomSheet, handleCommentPosted]);
 
     const handleBoost = useCallback(async (postId: string, isBoosted: boolean) => {
         try {
@@ -1808,6 +1830,40 @@ export default function VideosScreen() {
             toast(t('common.error'), { type: 'error' });
         }
     }, [boostPost, unboostPost, t]);
+
+    // Same optimistic shape as like/boost: the store's own update lands on its
+    // copy of the post, which this screen's local `posts` state never reads, so
+    // the rail's icon only flips if the screen updates itself.
+    const handleSave = useCallback(async (postId: string, isSaved: boolean) => {
+        try {
+            if (isSaved) {
+                await unsavePost({ postId });
+            } else {
+                // Attributed to the reel surface, not to the active tab's feed
+                // descriptor: a save made here means "more videos like this"
+                // whichever feed served it, and `following` is not classified as
+                // a video-first surface (see `isVideoSurface`).
+                await savePost({ postId }, 'videos');
+            }
+            setPosts(prev => prev.map(p =>
+                p.id === postId
+                    ? {
+                        ...p,
+                        viewerState: { ...p.viewerState, isSaved: !isSaved },
+                        engagement: {
+                            ...p.engagement,
+                            saves: Math.max(
+                                0,
+                                (p.engagement.saves ?? 0) + (isSaved ? -1 : 1),
+                            ),
+                        },
+                    }
+                    : p
+            ));
+        } catch {
+            toast(t('common.error'), { type: 'error' });
+        }
+    }, [savePost, unsavePost, t]);
 
     const handleShare = useCallback(async (post: VideoPost) => {
         try {
@@ -1945,6 +2001,22 @@ export default function VideosScreen() {
         [isFocused, activeVideoPost],
     );
 
+    // Report what is being watched. The screen owns this — not the surfaces and
+    // not the PiP session — because the two things a reel can be watching (the
+    // pager's slide, the OS window's cursor) have to share ONE tracker to dedupe
+    // against each other. See `useReelImpressions`.
+    useReelImpressions({
+        pipOwnerId,
+        pipPlayingId: pipPlaying?.id,
+        screenFocused: isFocused,
+        activePostId: activeVideoPost?.id,
+        // The reel fetches with exactly these feed types, so its impressions are
+        // attributed to the same descriptor the feed was served under.
+        feedDescriptor: resolveFeedDescriptor(activeFeed),
+        impressionResetKey: viewerId,
+        canReportImpressions: canUsePrivateApi,
+    });
+
     // Publish the active post + the comment-posted callback so the RightBar
     // replies panel tracks whichever video is currently active and can bump the
     // comment count after a reply posts. Engagement itself lives on the on-video
@@ -1967,6 +2039,7 @@ export default function VideosScreen() {
             onLike={handleLike}
             onComment={handleComment}
             onBoost={handleBoost}
+            onSave={handleSave}
             onShare={handleShare}
             formatCompactNumber={formatCompactNumber}
             muted={globalMuted}
@@ -1982,7 +2055,7 @@ export default function VideosScreen() {
             onSessionEnd={endPipSession}
             onRegisterTransportSeek={registerTransportSeek}
         />
-    ), [currentVisibleIndex, isFocused, theme, handleLike, handleComment, handleBoost, handleShare, globalMuted, handleMuteChange, bottomBarHeight, t, WINDOW_HEIGHT, viewerId, pipOwnerId, sessionSource, startPipSession, endPipSession, registerTransportSeek]);
+    ), [currentVisibleIndex, isFocused, theme, handleLike, handleComment, handleBoost, handleSave, handleShare, globalMuted, handleMuteChange, bottomBarHeight, t, WINDOW_HEIGHT, viewerId, pipOwnerId, sessionSource, startPipSession, endPipSession, registerTransportSeek]);
 
     const keyExtractor = useCallback((item: VideoPost) => item.id, []);
 
@@ -2063,6 +2136,7 @@ export default function VideosScreen() {
                                         onLike={handleLike}
                                         onComment={handleComment}
                                         onBoost={handleBoost}
+                                        onSave={handleSave}
                                         onShare={handleShare}
                                         formatCompactNumber={formatCompactNumber}
                                         muted={globalMuted}
@@ -2179,7 +2253,6 @@ interface VideosStyles {
     actionButton: ViewStyle;
     actionIcon: TextStyle;
     actionCount: TextStyle;
-    viewCount: ViewStyle;
     bottomInfo: ViewStyle;
     userInfo: ViewStyle;
     userHeaderRow: ViewStyle;
@@ -2299,7 +2372,7 @@ const styles = StyleSheet.create<VideosStyles>({
         position: 'absolute',
         left: 0,
         right: 0,
-        bottom: 0,
+        // `bottom` is supplied at the use site — it tracks the BottomBar's height.
         height: 16,
         justifyContent: 'flex-end',
         zIndex: 7,
@@ -2379,36 +2452,33 @@ const styles = StyleSheet.create<VideosStyles>({
     rightActions: {
         justifyContent: 'flex-end',
         alignItems: 'center',
-        gap: 24,
+        gap: 16,
         zIndex: 6,
-        paddingRight: 4,
+        paddingRight: 8,
     },
     actionButton: {
         alignItems: 'center',
         justifyContent: 'center',
-        gap: 4,
-        minWidth: 40,
+        gap: 2,
+        minWidth: 36,
     },
     actionIcon: {
         ...TEXT_SHADOW_STRONG,
     },
     actionCount: {
         color: '#FFFFFF',
-        fontSize: 12,
+        fontSize: 11,
         fontWeight: '600',
         ...TEXT_SHADOW_MEDIUM,
         marginTop: 0,
         textAlign: 'center',
     },
-    viewCount: {
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 4,
-        minWidth: 40,
-    },
     bottomInfo: {
         flex: 1,
         justifyContent: 'flex-end',
+        // Gutter between the caption and the rail. Unaffected by the rail's
+        // compaction: a 36px button plus 8px of padding is the same 44px box the
+        // old 40 + 4 made, so the clearance is exactly what it was.
         marginRight: 70,
         maxWidth: '70%',
         zIndex: 6,

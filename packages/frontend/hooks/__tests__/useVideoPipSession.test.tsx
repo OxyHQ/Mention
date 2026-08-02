@@ -4,24 +4,14 @@ import TestRenderer, { act } from 'react-test-renderer';
 import { useVideoPipSession, type VideoPipSession } from '../useVideoPipSession';
 
 /**
- * The session's own decision logic: who owns it, where its cursor goes, when it
- * pages, and what it reports. These tests say NOTHING about Picture-in-Picture
- * itself — no OS window, no player, no source swap is reachable from jest — only
- * that the rules the screen drives those things with are the intended ones.
+ * The session's own decision logic: who owns it, where its cursor goes, and when
+ * it pages. These tests say NOTHING about Picture-in-Picture itself — no OS
+ * window, no player, no source swap is reachable from jest — only that the rules
+ * the screen drives those things with are the intended ones.
+ *
+ * Impressions are NOT here: the screen reports them for both of its watched-video
+ * sources through one shared tracker (see `useReelImpressions`).
  */
-
-// Prefixed `mock` so the hoisted `jest.mock` factory may reference it.
-const mockImpressions: Array<[event: 'visible' | 'hidden', postUri: string]> = [];
-const mockTracker = {
-    current: {
-        setVisible: (postUri: string) => { mockImpressions.push(['visible', postUri]); },
-        setHidden: (postUri: string) => { mockImpressions.push(['hidden', postUri]); },
-    },
-};
-
-jest.mock('@/utils/feedTelemetry', () => ({
-    useFeedImpressionTracker: () => mockTracker,
-}));
 
 interface Item {
     id: string;
@@ -34,14 +24,7 @@ const onEnded = jest.fn();
 const loadMore = jest.fn();
 
 function Probe({ items, hasMore }: { items: readonly Item[]; hasMore: boolean }) {
-    session = useVideoPipSession({
-        items,
-        onEnded,
-        loadMore,
-        hasMore,
-        feedDescriptor: 'videos',
-        canReportImpressions: true,
-    });
+    session = useVideoPipSession({ items, onEnded, loadMore, hasMore });
     return null;
 }
 
@@ -62,7 +45,6 @@ function live(): VideoPipSession<Item> {
 
 beforeEach(() => {
     session = null;
-    mockImpressions.length = 0;
     onEnded.mockClear();
     loadMore.mockClear();
 });
@@ -187,34 +169,29 @@ describe('PiP session — top-up', () => {
     });
 });
 
-describe('PiP session — impressions', () => {
-    it('reports the real post id of whatever the session is playing', () => {
+describe('PiP session — what is playing', () => {
+    it('has nothing playing until a session opens, and nothing again after it closes', () => {
         render();
-        act(() => live().start('b'));
-        expect(mockImpressions).toEqual([['visible', 'b']]);
+        expect(live().playing).toBeNull();
 
-        act(() => live().goToNext());
-        expect(mockImpressions).toEqual([
-            ['visible', 'b'],
-            ['hidden', 'b'],
-            ['visible', 'c'],
-        ]);
+        act(() => live().start('b'));
+        expect(live().playing).toEqual({ id: 'b' });
 
         act(() => live().end('b'));
-        expect(mockImpressions).toEqual([
-            ['visible', 'b'],
-            ['hidden', 'b'],
-            ['visible', 'c'],
-            ['hidden', 'c'],
-        ]);
+        expect(live().playing).toBeNull();
     });
 
-    it('reports nothing at all while no session is open', () => {
+    it('reports no item for a cursor that points outside the loaded list', () => {
+        // The screen reads `playing` to decide what to report an impression for,
+        // so a cursor left pointing past a rebuilt (shorter) list must yield null
+        // rather than the nearest item.
         const renderer = render();
+        act(() => live().start('e'));
         act(() => {
-            renderer.unmount();
+            renderer.update(<Probe items={[{ id: 'a' }, { id: 'b' }]} hasMore={false} />);
         });
 
-        expect(mockImpressions).toEqual([]);
+        expect(live().ownerId).toBe('e');
+        expect(live().playing).toBeNull();
     });
 });
