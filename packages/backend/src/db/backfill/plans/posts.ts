@@ -56,19 +56,25 @@
  *
  * ## What is NOT carried, stated rather than skipped
  *
- * `metadata.pollId` exists in Mongo and has NO column: the schema kept only
- * `content.pollId`. That is a schema decision this file does not relitigate, but
- * it is a DUPLICATE of a field rather than a derived one, so the two can
- * legitimately disagree and dropping the wrong one loses a poll link. This
- * transform reads `content.pollId` only. Whether any document carries
- * `metadata.pollId` WITHOUT `content.pollId` is an open question that needs a
- * production count before the cutover:
+ * `metadata.pollId` exists in the Mongoose schema and has NO column: the schema
+ * kept only `content.pollId`. It is a DUPLICATE of a field rather than a derived
+ * one, so the two could legitimately disagree and dropping the wrong one would
+ * lose a poll link. This transform reads `content.pollId` only.
+ *
+ * **SETTLED against production, 2026-08-02 — zero posts carry the field at
+ * all.** Not "zero disagree": zero of 577,091 posts in `mention-production` have
+ * `metadata.pollId` present, with or without `content.pollId`. So the schema
+ * does not need the column and no fallback was ever warranted.
  *
  *     db.posts.countDocuments({'metadata.pollId': {$exists: true},
- *                              'content.pollId': {$exists: false}})
+ *                              'content.pollId': {$exists: false}})   // 0
+ *     db.posts.countDocuments({'metadata.pollId': {$exists: true}})   // 0
  *
- * A non-zero answer means the schema needs the column, not that this transform
- * needs a fallback — inventing one here would hide the disagreement.
+ * The query stays as the record of HOW this was decided, because the reasoning
+ * outlives the number: a non-zero answer would have meant the SCHEMA needed the
+ * column, not that this transform needed a fallback. Coalescing two fields that
+ * can disagree hides the disagreement instead of resolving it, and the way to
+ * settle which of two duplicates is authoritative is a count, not a guess.
  */
 
 import { posts } from '../../schema/posts';
