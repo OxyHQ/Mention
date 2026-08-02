@@ -34,11 +34,25 @@
  * ## Four self-referencing columns, and the runner handles them
  *
  * `boostOf`, `quoteOf`, `parentPostId` and `threadId` all reference `posts.id`,
- * and Postgres checks each IMMEDIATELY. The transform emits them normally; the
- * runner's pass A writes NULL and pass B re-streams and fills them once every
- * row exists (`order.ts` derives the set from the foreign keys). Nothing here
- * needs to know — but a reader wondering why a reply's parent link survives an
- * `_id`-ordered stream should look there.
+ * and Postgres checks each IMMEDIATELY — none of the constraints is
+ * `DEFERRABLE`. The transform emits them normally; the runner's pass A writes
+ * NULL and pass B re-streams and fills them once every row exists, with the
+ * column set DERIVED from the foreign keys rather than listed (`order.ts`).
+ *
+ * The two-pass shape is not merely convenient, and `threadId` is what proves
+ * it. A batch inserts rows in `_id` order, so it is tempting to imagine some
+ * within-batch ordering that satisfies the references directly — sort the
+ * parents first, insert roots before replies. That cannot work here: **a
+ * thread's root is frequently NOT the lowest `_id` among its members** once
+ * federated replies are interleaved, because a federated post's import-time
+ * `_id` bears no relation to the remote `createdAt` that decides which post is
+ * the root. The same fact makes an `_id` sort wrong for the author feed.
+ * `boostOf` and `quoteOf` are worse still — either can point at a post imported
+ * months later. So a row naming a row the same batch is inserting is not a case
+ * to order around; it is a case to defer, which is what pass B does.
+ *
+ * Nothing in this file needs to know that — but a reader wondering why a
+ * reply's parent link survives an `_id`-ordered stream should look there.
  *
  * ## What is NOT carried, stated rather than skipped
  *
