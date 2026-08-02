@@ -268,14 +268,28 @@ class PostCreationService {
     const primaryText = inputVariants[0]?.text ?? content.text ?? '';
 
     // Defense-in-depth against blank federated posts. `buildFederatedNoteContent`
-    // is the PRIMARY guard on the ingest paths, but the outbox backfill batch-
-    // inserts rows directly and bypasses this method entirely,
-    // so a federated Note that reaches `create` must never persist an empty body:
-    // no text, no media, no attachments, no poll, and no content-warning summary
-    // is a blank post with nothing to render. Reject it loudly rather than store a
-    // ghost. Native (non-federated) posts are unaffected — this only guards the
-    // federated branch.
-    if (params.federation != null) {
+    // is the PRIMARY guard on the ingest paths, so a federated Note that reaches
+    // `create` must never persist an empty body: no text, no media, no
+    // attachments, no poll, and no content-warning summary is a blank post with
+    // nothing to render. Reject it loudly rather than store a ghost. Native
+    // (non-federated) posts are unaffected — this only guards the federated branch.
+    //
+    // A BOOST is exempt, and the exemption is load-bearing rather than a
+    // loophole. A `type:'boost'` post carries an intentionally empty body and
+    // renders entirely from `boostOf` — that is the same shape a native repost
+    // stores. Without this clause the guard matched every inbound Announce:
+    // `importAnnounce` builds exactly `{ content: { text: '' }, boostOf,
+    // federation }`, the throw was swallowed by that method's `catch` into a
+    // `logger.warn`, and it returned `false`. The visible result was that NO
+    // federated boost has ever imported — no boost row, `stats.boostsCount` and
+    // `stats.federatedBoostsCount` never moving — with nothing above WARN to say
+    // so. The same creator serves the outbox-backfill boost path, so both were
+    // affected.
+    //
+    // `boostOf` cannot dangle: it carries a foreign key to `posts.id`, and
+    // `importAnnounce` verifies the original is published and public first, so
+    // "has a boostOf" really does mean "has something to render".
+    if (params.federation != null && params.boostOf == null) {
       const hasText = primaryText.trim().length > 0;
       const hasMedia = Array.isArray(content.media) && content.media.length > 0;
       const hasAttachments = Array.isArray(content.attachments) && content.attachments.length > 0;
