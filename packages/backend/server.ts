@@ -39,7 +39,10 @@ import { engagementOutboxDispatcher } from './src/services/EngagementOutboxDispa
 import { moderationOutboxDispatcher } from './src/services/moderation/ModerationOutboxDispatcher';
 
 // Models
-import Notification from "./src/models/Notification";
+import {
+  markAllNotificationsRead,
+  markNotificationRead,
+} from "./src/services/notificationReadState";
 import {
   clearRuntimeSocketServer,
   setRuntimeSocketServer,
@@ -295,11 +298,12 @@ notificationsNamespace.on("connection", (socket: AuthenticatedSocket) => {
   socket.on("markNotificationRead", socketRateLimiter.wrap(socket, 'markNotificationRead', async ({ notificationId }: { notificationId?: string }) => {
     try {
       if (!socket.user?.id) return;
-      const notification = await Notification.findOneAndUpdate(
-        { _id: notificationId, recipientId: userId },
-        { read: true },
-        { new: true }
-      ).populate("actorId", "username name avatar");
+      if (!notificationId) return;
+      // Postgres, through the SAME helper the REST route uses. This used to
+      // write the Mongoose model, which nothing has read since notifications
+      // moved — so a notification marked read over the socket came back unread
+      // on the next load, for every user, with nothing in any log.
+      const notification = await markNotificationRead(userId, notificationId);
       if (notification) {
         notificationsNamespace
           .to(userRoom)
@@ -313,7 +317,7 @@ notificationsNamespace.on("connection", (socket: AuthenticatedSocket) => {
   socket.on("markAllNotificationsRead", socketRateLimiter.wrap(socket, 'markAllNotificationsRead', async () => {
     try {
       if (!socket.user?.id) return;
-      await Notification.updateMany({ recipientId: userId }, { read: true });
+      await markAllNotificationsRead(userId);
       notificationsNamespace.to(userRoom).emit("allNotificationsRead");
     } catch (error) {
       logger.error("Error marking all notifications as read", error);

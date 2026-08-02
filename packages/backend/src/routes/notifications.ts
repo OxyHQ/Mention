@@ -23,6 +23,12 @@ import {
   type NotificationActorProfile as ActorProfile,
 } from '../utils/notificationActor';
 import { serializeNotification } from '../utils/notificationUtils';
+import {
+  SYSTEM_ACTOR,
+  enrichNotificationActor,
+  markAllNotificationsRead,
+  markNotificationRead,
+} from '../services/notificationReadState';
 import { requiresContentWarning } from '../mtn/feed/feedSafety';
 import { loadMuteWords, loadShowSensitiveContent } from '../services/safety/viewerSafety';
 import {
@@ -56,18 +62,6 @@ const POST_PREVIEW_TYPES = new Set(['like', 'reply', 'mention', 'boost', 'quote'
 // fallback). Covers the GET list/DB-access handlers flagged by CodeQL
 // (js/missing-rate-limiting) plus unread-count, mark-read, and push-token.
 router.use(apiRateLimiter);
-
-/**
- * Minimal read-surface of an actor profile consumed by `toPopulatedActor`.
- * `getUsersByIds`/`getUserById` return full `User` objects (assignable to this),
- * while the synthetic `system` actor only needs these fields.
- */
-const SYSTEM_ACTOR: ActorProfile = {
-  id: 'system',
-  username: 'system',
-  name: { displayName: 'System' },
-  avatar: undefined,
-};
 
 /**
  * Narrow a raw request-body value to one of a column's allowed literals.
@@ -367,32 +361,6 @@ router.get("/", async (req: AuthRequest, res: Response) => {
 // realtime notification to any recipient with an attacker-chosen
 // type/entityId (a phishing/harassment vector).
 
-/**
- * Enrich a single notification with its actor profile the SAME way the GET list
- * handler does. `actorId` holds an Oxy user id, NOT a relation, so the actor must
- * be resolved through Oxy. Returns the wire DTO with `actorId_populated`
- * attached (matching the GET list shape); on a lookup failure the notification is
- * returned unenriched so the read-state write is never blocked.
- */
-const enrichNotificationActor = async (notification: typeof notifications.$inferSelect) => {
-  const actorId = notification.actorId;
-  let actor: ActorProfile | undefined;
-  if (actorId === 'system') {
-    actor = SYSTEM_ACTOR;
-  } else if (actorId) {
-    try {
-      const [profile] = await getServiceOxyClient().getUsersByIds([actorId]);
-      if (profile?.id) actor = profile;
-    } catch (e) {
-      logger.warn('[Notifications] Failed to resolve actor profile:', e);
-    }
-  }
-  return {
-    ...serializeNotification(notification),
-    actorId_populated: toPopulatedActor(actor, actorId),
-  };
-};
-
 // Mark notification as read
 // Shared handler to mark notification as read
 const markAsReadHandler = async (req: AuthRequest, res: Response) => {
@@ -402,21 +370,11 @@ const markAsReadHandler = async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ message: "Unauthorized" });
     }
 
-    // Recipient scoping is inside the UPDATE's own predicate, not a read followed
-    // by a write: an id that names someone else's notification updates no row and
-    // answers 404, with no window in which the ownership that was checked is not
-    // the ownership that was written.
-    const [notification] = await getDb()
-      .update(notifications)
-      .set({ read: true })
-      .where(and(eq(notifications.id, pathId(req.params.id)), eq(notifications.recipientId, userId)))
-      .returning();
+    const enriched = await markNotificationRead(userId, pathId(req.params.id));
 
-    if (!notification) {
+    if (!enriched) {
       return res.status(404).json({ message: "Notification not found" });
     }
-
-    const enriched = await enrichNotificationActor(notification);
 
     const io = req.app.get('notificationsNamespace') as Server;
     io.to(`user:${userId}`).emit('notificationUpdated', enriched);
@@ -439,10 +397,7 @@ const markAllAsReadHandler = async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ message: "Unauthorized" });
     }
 
-    await getDb()
-      .update(notifications)
-      .set({ read: true })
-      .where(eq(notifications.recipientId, userId));
+    await markAllNotificationsRead(userId);
 
     const io = req.app.get('notificationsNamespace') as Server;
     io.to(`user:${userId}`).emit('allNotificationsRead');
