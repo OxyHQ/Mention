@@ -93,6 +93,7 @@ import { posts } from '../../db/schema/posts';
 import { userSettings } from '../../db/schema/userProfile';
 import { clearPostScope, postScope, seedPost } from '../helpers/postFixtures';
 import type { PostRecordInput } from '../../db/posts/postRecord';
+import { BASELINE_CLASSIFIER_VERSION } from '../../services/BaselineContentClassifier';
 import searchRoutes from '../../routes/search';
 
 const scope = postScope('search-posts');
@@ -545,15 +546,20 @@ describe('GET /search — operators', () => {
   });
 
   it('filters by any of the post\'s detected languages, not only the primary', async () => {
+    // The classifier VERSION is stamped deliberately. `backfillPostLanguages`
+    // is a corpus-wide sweep with no scope, and its own suite runs it for real
+    // in the same database — an unstamped row is one of the states it selects,
+    // so it would re-derive these languages out from under this assertion.
+    const stamped = { version: BASELINE_CLASSIFIER_VERSION };
     const bilingual = await seedPost(scope, {
       content: body('bilingual'),
       language: 'en',
-      postClassification: { languages: ['en', 'es'] },
+      postClassification: { ...stamped, languages: ['en', 'es'] },
     });
     await seedPost(scope, {
       content: body('monolingual'),
       language: 'en',
-      postClassification: { languages: ['en'] },
+      postClassification: { ...stamped, languages: ['en'] },
     });
 
     expect(await idsFor({ query: TERM, language: 'es' })).toEqual([bilingual.id]);

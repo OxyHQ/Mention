@@ -6,7 +6,13 @@ import {
   federationScope,
   seedActor,
   seedFollow,
+  seedPost,
 } from '../../helpers/federationFixtures';
+import { asc, eq } from 'drizzle-orm';
+import { getDb } from '../../../db/postgres';
+import { postContentVariants } from '../../../db/schema/postContent';
+import { posts } from '../../../db/schema/posts';
+import type { PostRecord } from '../../../db/posts/postRecord';
 
 const scope = federationScope('inbound-update-security');
 
@@ -30,16 +36,24 @@ const scope = federationScope('inbound-update-security');
 
 const ACTOR_URI = `${scope.origin}/users/bob`;
 const OTHER_ACTOR_URI = `${scope.origin}/users/mallory`;
-const OWNER_OXY_ID = 'oxy_bob';
+const OWNER_OXY_ID = scope.user('bob');
+
+/** The post under edit for the test currently running. */
+let edited: PostRecord;
+
+/** The stored renditions, which is where a federated body actually lives. */
+async function storedVariants(postId: string): Promise<Array<{ tag: string | null; body: string }>> {
+  return getDb()
+    .select({ tag: postContentVariants.tag, body: postContentVariants.body })
+    .from(postContentVariants)
+    .where(eq(postContentVariants.postId, postId))
+    .orderBy(asc(postContentVariants.position));
+}
 
 const mocks = vi.hoisted(() => ({
   getPublicKey: vi.fn(),
   signViaOxy: vi.fn(),
   signRequest: vi.fn(),
-  postFindOne: vi.fn(),
-  postExists: vi.fn(),
-  postUpdateOne: vi.fn(),
-  postDeleteOne: vi.fn(),
   likeCreate: vi.fn(),
   likeFindOneAndDelete: vi.fn(),
   postCreatorCreate: vi.fn(),
@@ -72,16 +86,6 @@ vi.mock('../../../connectors/activitypub/crypto', () => ({
 vi.mock('../../../models/FederationDeliveryQueue', () => ({
   default: {},
   getNextRetryTime: vi.fn(),
-}));
-
-vi.mock('../../../models/Post', () => ({
-  POST_CLASSIFICATION_PENDING: 'pending',
-  Post: {
-    findOne: mocks.postFindOne,
-    exists: mocks.postExists,
-    updateOne: mocks.postUpdateOne,
-    deleteOne: mocks.postDeleteOne,
-  },
 }));
 
 vi.mock('../../../models/Like', () => ({
@@ -159,9 +163,16 @@ beforeEach(async () => {
   // id when the edited post has none.
   await seedActor(scope, { username: 'bob', uri: ACTOR_URI, oxyUserId: OWNER_OXY_ID, lastFetchedAt: new Date() });
   await seedFollow(scope, { remoteActorUri: ACTOR_URI, direction: 'outbound', status: 'accepted' });
-  // The edited post is found (scoped lookup) and belongs to a local-linked owner.
-  mocks.postFindOne.mockReturnValue({ lean: vi.fn().mockResolvedValue({ oxyUserId: OWNER_OXY_ID }) });
-  mocks.postUpdateOne.mockResolvedValue({ modifiedCount: 1 });
+  // The post being edited, as a REAL row owned by the SENDING actor. The
+  // ownership scope is the security property here, and it is only expressible
+  // against a row: the previous stub answered every lookup with the same
+  // document whatever the filter said, so an unscoped write was indistinguishable
+  // from a scoped one.
+  edited = await seedPost(scope, {
+    oxyUserId: OWNER_OXY_ID,
+    content: { variants: [{ source: 'author', text: 'original', tag: 'en' }] },
+    federation: { activityId: EDITED_NOTE_ID, actorUri: ACTOR_URI },
+  });
 });
 
 afterEach(async () => {
@@ -173,48 +184,36 @@ afterAll(async () => {
 });
 
 describe('handleUpdate — NoSQL-injection safety + ownership scope', () => {
-  it('recovers a contentMap-only edit and scopes both queries to the sending actor', async () => {
+  it('recovers a contentMap-only edit into the stored renditions', async () => {
     await inboxProcessingService.processInboxActivity(updateActivity(), ACTOR_URI);
 
-    // The lookup is scoped by BOTH the activity id and the sending actor (and reads
-    // the fields the edit needs: owner id, prior mentions, and reply-ness).
-    expect(mocks.postFindOne).toHaveBeenCalledWith(
-      { 'federation.activityId': EDITED_NOTE_ID, 'federation.actorUri': ACTOR_URI },
-      { oxyUserId: 1, mentions: 1, parentPostId: 1 },
-    );
-
-    expect(mocks.postUpdateOne).toHaveBeenCalledTimes(1);
-    const [filter, update] = mocks.postUpdateOne.mock.calls[0] as [
-      Record<string, unknown>,
-      { $set: Record<string, unknown> },
-    ];
-    // Ownership scope: the write can only match the sender's OWN post.
-    expect(filter).toEqual({
-      'federation.activityId': EDITED_NOTE_ID,
-      'federation.actorUri': ACTOR_URI,
-    });
-    // Body recovered from the contentMap variant (empty top-level content) and
-    // stored in its only home — the renditions.
-    expect(update.$set['content.variants']).toEqual([
-      { tag: 'es', source: 'author', text: 'texto editado' },
-    ]);
+    // Body recovered from the contentMap variant (top-level `content` is empty)
+    // and written to its only home — the renditions. The original body is GONE
+    // rather than merged: an edit replaces wholesale.
+    expect(await storedVariants(edited.id)).toEqual([{ tag: 'es', body: 'texto editado' }]);
+    const [row] = await getDb()
+      .select({ isEdited: posts.isEdited })
+      .from(posts)
+      .where(eq(posts.id, edited.id));
+    expect(row.isEdited).toBe(true);
   });
 
   it('scopes the update to the sending actor so a replayed activityId cannot overwrite another actor’s post', async () => {
-    // A different verified sender replays the SAME note id.
+    // A DIFFERENT verified sender replays the same note id. Without the
+    // `federation.actor_uri` half of the predicate this matches the original
+    // author's row — a remote server rewriting somebody else's post — and the
+    // only way to see that is to read the row back afterwards.
     await inboxProcessingService.processInboxActivity(
       updateActivity({ attributedTo: OTHER_ACTOR_URI }),
       OTHER_ACTOR_URI,
     );
 
-    expect(mocks.postUpdateOne).toHaveBeenCalledTimes(1);
-    const [filter] = mocks.postUpdateOne.mock.calls[0] as [Record<string, unknown>];
-    // The filter carries the REPLAYER's actorUri, so it only ever matches that
-    // actor's own post — never the original author's row.
-    expect(filter).toEqual({
-      'federation.activityId': EDITED_NOTE_ID,
-      'federation.actorUri': OTHER_ACTOR_URI,
-    });
+    expect(await storedVariants(edited.id)).toEqual([{ tag: 'en', body: 'original' }]);
+    const [row] = await getDb()
+      .select({ isEdited: posts.isEdited })
+      .from(posts)
+      .where(eq(posts.id, edited.id));
+    expect(row.isEdited).toBe(false);
   });
 
   it('ignores an Update whose object.id is not a string (no updateOne, no injectable filter)', async () => {
@@ -226,6 +225,6 @@ describe('handleUpdate — NoSQL-injection safety + ownership scope', () => {
       ACTOR_URI,
     );
 
-    expect(mocks.postUpdateOne).not.toHaveBeenCalled();
+    expect(await storedVariants(edited.id)).toEqual([{ tag: 'en', body: 'original' }]);
   });
 });
