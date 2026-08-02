@@ -71,7 +71,10 @@ vi.mock('../../scripts/lib/adminScriptLifecycle', async (importOriginal) => ({
 }));
 
 const mongoose = (await import('mongoose')).default;
-const { closePostgres, connectPostgres } = await import('../../db/postgres');
+const { eq, inArray } = await import('drizzle-orm');
+const { closePostgres, connectPostgres, getDb } = await import('../../db/postgres');
+const { likes: pgLikes } = await import('../../db/schema/engagement');
+const { posts: pgPosts } = await import('../../db/schema/posts');
 const { Post } = await import('../../models/Post');
 const { default: Like } = await import('../../models/Like');
 const { default: Notification } = await import('../../models/Notification');
@@ -80,6 +83,7 @@ const { default: FederatedFollow } = await import('../../models/FederatedFollow'
 const { default: FederatedMediaCache } = await import('../../models/FederatedMediaCache');
 const { default: ContentLabel } = await import('../../models/ContentLabel');
 const { AdminScriptCursor } = await import('../../models/AdminScriptCursor');
+const { withDeadlockRetry } = await import('../helpers/serviceFixtures');
 const { POST_REFERENCE_PROBE_NAMES } = await import('../../scripts/lib/adminDeletionPreflight');
 const { FEDERATION_DOMAIN } = await import('../../connectors/activitypub/constants');
 const {
@@ -119,10 +123,31 @@ beforeAll(async () => {
 }, 180_000);
 
 afterAll(async () => {
+  await clearPostgresFixtures();
   await closePostgres();
   await mongoose.disconnect();
   await server.stop();
 });
+
+/**
+ * Drop this file's Postgres rows.
+ *
+ * Mongo is a per-file in-memory server, so its teardown can be a bare
+ * `deleteMany`. Postgres is NOT — one database serves every test file in the
+ * run — so this is scoped to the two account ids, `oxy-local` and `oxy-blocked`,
+ * which are used by this file and no other (checked).
+ *
+ * Retried, because both statements are bulk writes against `posts` while other
+ * suites are writing it concurrently, and `posts` self-references itself four
+ * times. An unretried bulk delete there loses a `40P01` often enough to look
+ * like a flaky assertion somewhere else in the file.
+ */
+async function clearPostgresFixtures(): Promise<void> {
+  const accounts = ['oxy-local', 'oxy-blocked'];
+  const db = getDb();
+  await withDeadlockRetry(() => db.delete(pgLikes).where(inArray(pgLikes.userId, accounts)));
+  await withDeadlockRetry(() => db.delete(pgPosts).where(inArray(pgPosts.oxyUserId, accounts)));
+}
 
 beforeEach(async () => {
   h.deletedFileIds.length = 0;
@@ -132,6 +157,7 @@ beforeEach(async () => {
     [Post, Like, Notification, FederatedActor, FederatedFollow, FederatedMediaCache, ContentLabel,
       AdminScriptCursor].map((model) => model.deleteMany({})),
   );
+  await clearPostgresFixtures();
 });
 
 afterEach(() => {
@@ -245,11 +271,34 @@ async function seed(): Promise<Seeded> {
   ] as never);
 
   await Like.collection.insertMany([
-    // A local user's like ON blocked content — dies with the post.
+    // A local user's like ON blocked content — dies with the post. Mongo, because
+    // the lane that removes it is the one still deleting Mongo posts.
     { _id: new mongoose.Types.ObjectId(), userId: 'oxy-local', postId: ids.blockedPost, value: 1 },
-    // The blocked actor's like on a SURVIVING local post — counter teardown.
-    { _id: new mongoose.Types.ObjectId(), userId: 'oxy-blocked', postId: ids.localPost, value: 1 },
   ] as never);
+
+  // The blocked actor's like on a SURVIVING local post — the counter teardown,
+  // and the one lane that is fully ported.
+  //
+  // Seeded in POSTGRES, with the local post present in BOTH stores under the
+  // SAME id. That is not a convenience: it is the dual-run's actual shape.
+  // `posts.id` is `text` holding the 24-character ObjectId hex for every
+  // pre-cutover post, so a Mongo `_id` and its Postgres `posts.id` are the same
+  // string — which is exactly what lets a script holding a Mongo id reach the
+  // Postgres row. A fixture that seeded only Mongo could not tell a teardown
+  // that works from one that silently matches nothing.
+  await getDb().insert(pgPosts).values({
+    id: ids.localPost.toString(),
+    oxyUserId: 'oxy-local',
+    status: 'published',
+    visibility: 'public',
+    statsLikesCount: 1,
+    createdAt: new Date(),
+  });
+  await getDb().insert(pgLikes).values({
+    userId: 'oxy-blocked',
+    postId: ids.localPost.toString(),
+    value: 1,
+  });
 
   await Notification.collection.insertMany([
     {
@@ -484,36 +533,36 @@ describe('purgeBlockedDomainContent — the boost policy', () => {
 
 describe('purgeBlockedDomainContent — the engagement policy', () => {
   /**
-   * KNOWN GAP — marked `it.fails` so it is visible, not skipped.
+   * Previously `it.fails`: the teardown was SPLIT across two stores — the script
+   * found the blocked actor's engagement by reading the MONGO `Like`
+   * collection, while `materializeEngagementTombstone` deletes from the POSTGRES
+   * `likes` table. Every row came back `changed: false`, the page was recorded
+   * as residue, and a local author kept a like count no record explained.
    *
-   * The counter-preserving teardown is SPLIT across two stores. This script
-   * still finds the blocked actor's engagement by reading the MONGO `Like`
-   * collection, but `materializeEngagementTombstone` — the writer that removes
-   * the row and moves the counter in one transaction — operates on the POSTGRES
-   * `likes` table. So the Mongo row it found is never removed, and a local
-   * author is left looking at a like count no record explains: exactly the
-   * outcome this case was written to prevent.
-   *
-   * It cannot be fixed here. `likes.post_id` carries a foreign key to
-   * `posts.id`, so a Postgres like can only exist for a Postgres post — and
-   * this script's posts are Mongo documents. Closing it means porting the
-   * script's post handling, which is roughly twenty models and its own piece of
-   * work.
-   *
-   * `it.fails` rather than `skip`: a skipped case is a check that has stopped
-   * distinguishing anything, while this one goes RED the moment the gap closes
-   * and forces whoever closes it back here.
+   * Both halves name Postgres now. The assertions below read the store that
+   * actually holds the answer, which is the part a Mongo-only version of this
+   * case could not do: the counter lives on `posts.stats_likes_count` and
+   * `updateCounters` moves it in the same transaction as the delete, so the
+   * Mongo document's `stats.likesCount` was never going to move and asserting
+   * on it would have measured nothing.
    */
-  it.fails('tears a blocked actor\'s like off a surviving post AND moves its counter', async () => {
+  it('tears a blocked actor\'s like off a surviving post AND moves its counter', async () => {
     const ids = await seed();
 
     const report = await run();
 
-    expect(await Like.countDocuments({ userId: 'oxy-blocked' })).toBe(0);
+    const remaining = await getDb()
+      .select({ postId: pgLikes.postId })
+      .from(pgLikes)
+      .where(eq(pgLikes.userId, 'oxy-blocked'));
+    expect(remaining).toEqual([]);
     // A bulk delete would leave the local author looking at a like count no
     // record explains. The counter moves in lockstep instead.
-    const local = await Post.findById(ids.localPost).lean();
-    expect(local?.stats?.likesCount).toBe(0);
+    const [local] = await getDb()
+      .select({ likesCount: pgPosts.statsLikesCount })
+      .from(pgPosts)
+      .where(eq(pgPosts.id, ids.localPost.toString()));
+    expect(local?.likesCount).toBe(0);
     expect(report.totals.likesByBlockedActors).toBe(1);
     expect(report.issues.engagementResidue).toBe(0);
   });

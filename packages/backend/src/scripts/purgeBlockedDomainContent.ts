@@ -135,9 +135,12 @@
 import { createHash } from 'node:crypto';
 import mongoose from 'mongoose';
 import type { FilterQuery, Model } from 'mongoose';
+import { count, eq } from 'drizzle-orm';
 import { PostType } from '@mention/shared-types';
 import { config } from '../config';
 import { connectToDatabase } from '../utils/database';
+import { getDb } from '../db/postgres';
+import { bookmarks, likes } from '../db/schema/engagement';
 import { Post } from '../models/Post';
 import Like from '../models/Like';
 import Bookmark from '../models/Bookmark';
@@ -854,6 +857,21 @@ async function purgePostBatch(
 
   // Engagement and side tables FIRST, so nothing can be left pointing at a post
   // id that no longer resolves if the run dies mid-batch.
+  //
+  // These two stay on MONGO, unlike `purgeActorEngagement` above, and the
+  // difference is not an oversight. That lane is about a post that SURVIVES, so
+  // both stores agree the post is there and the tombstone is correct in either.
+  // This lane is about a post this script REMOVED — and it removes it from Mongo
+  // only, because the post deletion itself is not ported. The Postgres row
+  // survives, so deleting its Postgres likes here would strip engagement from a
+  // post that is still live in the store the feeds actually read.
+  //
+  // What that leaves is bounded and belongs to the post deletion, not here:
+  // pre-cutover Mongo rows are cleaned up, and the Postgres rows go when the
+  // Postgres post does (`likes.post_id` and `bookmarks.post_id` are both
+  // `ON DELETE CASCADE`, so porting the deletion closes this with no lane of its
+  // own). Nothing new accumulates either way — no code path creates a Mongo
+  // `Like` or `Bookmark` any more.
   record(
     report, domain, 'likesOnRemovedPosts',
     await countOrDelete(Like, { postId: { $in: removedIds } }, options.dryRun),
@@ -1023,11 +1041,6 @@ interface ActorRow {
   oxyUserId?: string;
 }
 
-/** The only field the engagement teardown reads off a `Like`/`Bookmark` row. */
-interface EngagementRow {
-  postId: mongoose.Types.ObjectId | string;
-}
-
 /**
  * Tear down the engagement a blocked actor left on posts that SURVIVE, through
  * the counter-preserving teardown rather than a bulk delete.
@@ -1037,6 +1050,27 @@ interface EngagementRow {
  * own post, with no record left to explain it. `materializeEngagementTombstone`
  * removes the row and moves the counter in one transaction, exactly as an
  * `Undo(Like)` from that instance would have.
+ *
+ * ## The read and the write must name the SAME store
+ *
+ * This lane used to page the MONGO `Like`/`Bookmark` collections and hand each
+ * row to a tombstone that operates on the POSTGRES `likes`/`bookmarks` tables.
+ * The delete matched nothing, `changed` came back false for every row, and the
+ * loop recorded the whole page as `engagementResidue` — so a blocked instance's
+ * like survived on a local author's post and their like count stayed inflated,
+ * which is the exact outcome the counter-preserving teardown exists to prevent.
+ *
+ * It reads Postgres now, because that is where the rows ARE: no code path
+ * creates a Mongo `Like` or `Bookmark` any more (checked — the only writer of
+ * either relationship is `PostEngagementCommandService`, and it writes
+ * Postgres), so the Mongo collections hold pre-cutover rows that the backfill
+ * carries across and nothing adds to.
+ *
+ * This works during the dual-run precisely because `posts.id` is `text` holding
+ * the 24-character ObjectId hex for every pre-cutover post: a Mongo `_id` and
+ * its Postgres `posts.id` are the same string, so a like the blocked actor left
+ * on a post this script sees in Mongo is reachable in Postgres under the id the
+ * script already has.
  */
 async function purgeActorEngagement(
   oxyUserId: string,
@@ -1045,25 +1079,42 @@ async function purgeActorEngagement(
   domain: string,
   issues: RunIssues,
 ): Promise<void> {
-  // Each lane closes over its own concrete model: a `Like | Bookmark` union is
-  // not callable as one query builder, and narrowing per call site keeps both
-  // lanes honest about which collection they read.
+  const db = getDb();
+  // Each lane closes over its own concrete table: `likes` and `bookmarks` are
+  // separate drizzle tables rather than one union, and narrowing per call site
+  // keeps both lanes honest about which one they read.
   const lanes = [
     {
       kind: 'like' as const,
       countKey: 'likesByBlockedActors' as const,
-      count: () => Like.countDocuments({ userId: oxyUserId }).exec(),
-      page: () => Like.find({ userId: oxyUserId }, { postId: 1 })
-        .limit(ENGAGEMENT_PAGE_SIZE)
-        .lean<EngagementRow[]>(),
+      count: async () => {
+        const [row] = await db
+          .select({ total: count() })
+          .from(likes)
+          .where(eq(likes.userId, oxyUserId));
+        return row?.total ?? 0;
+      },
+      page: () => db
+        .select({ postId: likes.postId })
+        .from(likes)
+        .where(eq(likes.userId, oxyUserId))
+        .limit(ENGAGEMENT_PAGE_SIZE),
     },
     {
       kind: 'bookmark' as const,
       countKey: 'bookmarksByBlockedActors' as const,
-      count: () => Bookmark.countDocuments({ userId: oxyUserId }).exec(),
-      page: () => Bookmark.find({ userId: oxyUserId }, { postId: 1 })
-        .limit(ENGAGEMENT_PAGE_SIZE)
-        .lean<EngagementRow[]>(),
+      count: async () => {
+        const [row] = await db
+          .select({ total: count() })
+          .from(bookmarks)
+          .where(eq(bookmarks.userId, oxyUserId));
+        return row?.total ?? 0;
+      },
+      page: () => db
+        .select({ postId: bookmarks.postId })
+        .from(bookmarks)
+        .where(eq(bookmarks.userId, oxyUserId))
+        .limit(ENGAGEMENT_PAGE_SIZE),
     },
   ];
 
@@ -1081,7 +1132,7 @@ async function purgeActorEngagement(
       for (const row of page) {
         const { changed } = await materializeEngagementTombstone({
           kind,
-          postId: String(row.postId),
+          postId: row.postId,
           userId: oxyUserId,
         });
         if (changed) removedInPage += 1;
