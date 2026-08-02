@@ -1929,20 +1929,19 @@
       "all": "Todos"
     },
     "legend": {
-      "solid": "Línea continua: los dos términos se han unido en una historia.",
-      "dashed": "Línea discontinua: relacionados, pero sin unir.",
-      "size": "El tamaño del círculo es cuántas publicaciones llevan el término.",
-      "truncated": "Se han dejado fuera {{count}} relaciones más."
+      "truncated": "Se han dejado fuera {{count}} relaciones más.",
+      "branch": "Sangrado bajo un término: los términos que se han unido a él — una historia, una fila en la lista.",
+      "related": "Rama discontinua: comparte publicaciones con el término de arriba, pero no se unió."
     },
     "node": {
-      "counts": "{{posts}} publicaciones · {{authors}} autores distintos",
-      "languages": "Idiomas: {{list}}",
-      "regions": "Regiones: {{list}}",
-      "story": "Forma parte de la historia: {{story}}"
+      "counts": "{{posts}} publicaciones · {{authors}} autores distintos"
     },
     "edge": {
-      "merged": "Unido con {{term}} — {{posts}} publicaciones en común",
       "related": "Relacionado con {{term}} — {{posts}} publicaciones en común, sin unir"
+    },
+    "sections": {
+      "stories": "Historias unidas",
+      "ungrouped": "Términos por su cuenta"
     }
   }
 }

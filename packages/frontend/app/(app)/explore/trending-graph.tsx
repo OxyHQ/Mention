@@ -1,64 +1,39 @@
-import React, { useCallback, useMemo, useState } from 'react';
-import { Pressable, ScrollView, Text, View, useWindowDimensions } from 'react-native';
-import Svg, { Circle, Line, Text as SvgText } from 'react-native-svg';
+import React, { useMemo, useState } from 'react';
+import { Pressable, ScrollView, Text, View } from 'react-native';
 import { SpinnerIcon } from '@oxyhq/bloom/loading';
-import { useTheme } from '@oxyhq/bloom/theme';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import type { TrendGraphEdgeDTO, TrendGraphNodeDTO } from '@mention/shared-types';
 
 import { trendingService } from '@/services/trendingService';
 import { publicQueryKeys } from '@/lib/viewerQueryKeys';
-import { layoutGraph } from '@/utils/forceLayout';
+import { buildTrendTree, type TrendTreeNode } from '@/utils/trendGraphTree';
 import { useTrendNavigation } from '@/hooks/useTrendNavigation';
 
 /**
  * Explore › Trend relations (route `/explore/trending-graph`).
  *
- * The list answers what is trending. This answers why it looks the way it does:
- * which terms share posts, which of them the detector merged into one story,
- * and — the interesting ones — which pairs are related and were NOT merged.
+ * The list answers what is trending. This answers why it looks that way: which
+ * terms the detector merged into one story, and which pairs share posts and
+ * were NOT merged.
  *
- * It is a GRAPH and deliberately not an org chart. Co-occurrence is symmetric:
- * it can say `Kyiv` and `Ukraine` belong together, never that one is a kind of
- * the other. Drawing a hierarchy would be inventing a direction the measurement
- * does not contain, so the picture shows what the data is — nodes, weighted
- * links, and clusters.
+ * Rendered as an indented TREE rather than a scatter of nodes, because the
+ * relation being drawn is genuinely directed. Co-occurrence itself is symmetric
+ * and could not justify a hierarchy — but clustering produces a representative
+ * per story, and "the row this term is reported under" is a real parent. The
+ * shape claims exactly that and nothing more.
+ *
+ * Plain views and borders, no canvas: the tree reflows at any width, wraps its
+ * labels, and scrolls with the page, which a fixed-size drawing cannot.
  */
 
-/** The graph is a small, slow-moving artefact; the batch behind it runs every 30 minutes. */
+/** The graph is a slow-moving artefact — the batch behind it runs every 30 minutes. */
 const GRAPH_STALE_TIME_MS = 5 * 60_000;
-
-/** Drawing box. Height is capped so the graph never pushes its own legend off-screen. */
-const MIN_CANVAS = 280;
-const MAX_CANVAS = 560;
-
-/** Node radius range, in points. */
-const MIN_RADIUS = 6;
-const MAX_RADIUS = 22;
-
-/**
- * A stable hue per story, so the same cluster keeps its colour across renders
- * and across filters. Derived from the story's own key rather than its position
- * in the list, which changes whenever a filter changes.
- */
-function hueFor(story: string): number {
-  let hash = 0;
-  for (let index = 0; index < story.length; index++) {
-    hash = (hash * 31 + story.charCodeAt(index)) % 360;
-  }
-  return hash;
-}
 
 export default function TrendingGraphScreen() {
   const { t } = useTranslation();
-  const theme = useTheme();
-  const { width } = useWindowDimensions();
-  const { navigateToTerm } = useTrendNavigation();
 
   const [language, setLanguage] = useState<string | null>(null);
   const [region, setRegion] = useState<string | null>(null);
-  const [selected, setSelected] = useState<string | null>(null);
 
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: publicQueryKeys.trendGraph(language, region),
@@ -70,63 +45,9 @@ export default function TrendingGraphScreen() {
     staleTime: GRAPH_STALE_TIME_MS,
   });
 
-  const size = Math.max(MIN_CANVAS, Math.min(MAX_CANVAS, width - 32));
-
-  const nodes = useMemo(() => data?.nodes ?? [], [data]);
-  const edges = useMemo(() => data?.edges ?? [], [data]);
-
-  const maxVolume = useMemo(
-    () => nodes.reduce((highest, node) => Math.max(highest, node.volume), 1),
-    [nodes],
-  );
-  const maxPosts = useMemo(
-    () => edges.reduce((highest, edge) => Math.max(highest, edge.posts), 1),
-    [edges],
-  );
-
-  const positions = useMemo(() => {
-    const placed = layoutGraph(
-      nodes.map((node) => ({ id: node.term, weight: node.volume / maxVolume })),
-      edges.map((edge) => ({
-        source: edge.a,
-        target: edge.b,
-        strength: edge.posts / maxPosts,
-      })),
-    );
-    return new Map(placed.map((position) => [position.id, position]));
-  }, [nodes, edges, maxVolume, maxPosts]);
-
-  // Inset by the largest radius so a big node on the boundary is never clipped.
-  const toPoint = useCallback(
-    (term: string) => {
-      const position = positions.get(term);
-      if (!position) return null;
-      const inset = MAX_RADIUS + 2;
-      const span = size - inset * 2;
-      return { x: inset + position.x * span, y: inset + position.y * span };
-    },
-    [positions, size],
-  );
-
-  const radiusFor = useCallback(
-    (node: TrendGraphNodeDTO) =>
-      MIN_RADIUS + (MAX_RADIUS - MIN_RADIUS) * Math.sqrt(node.volume / maxVolume),
-    [maxVolume],
-  );
-
-  const colorFor = useCallback(
-    (node: TrendGraphNodeDTO) =>
-      node.story ? `hsl(${hueFor(node.story)}, 62%, 55%)` : theme.colors.textSecondary,
-    [theme.colors.textSecondary],
-  );
-
-  const selectedNode = useMemo(
-    () => nodes.find((node) => node.term === selected) ?? null,
-    [nodes, selected],
-  );
-  const selectedEdges = useMemo(
-    () => (selected ? edges.filter((edge) => edge.a === selected || edge.b === selected) : []),
-    [edges, selected],
+  const tree = useMemo(
+    () => buildTrendTree(data?.nodes ?? [], data?.edges ?? []),
+    [data],
   );
 
   if (isLoading) {
@@ -154,8 +75,10 @@ export default function TrendingGraphScreen() {
     );
   }
 
+  const isEmpty = tree.stories.length === 0 && tree.ungrouped.length === 0;
+
   return (
-    <ScrollView className="flex-1" contentContainerClassName="p-4 gap-4">
+    <ScrollView className="flex-1" contentContainerClassName="p-4 gap-5 pb-16">
       <View className="gap-1">
         <Text className="text-2xl font-bold text-foreground">{t('trendGraph.title')}</Text>
         <Text className="text-sm text-muted-foreground">{t('trendGraph.subtitle')}</Text>
@@ -169,9 +92,9 @@ export default function TrendingGraphScreen() {
         onSelect={setLanguage}
       />
       {/*
-        Region is rendered only when the data has any. `postClassification.region`
-        is sparse, and an always-visible filter with nothing in it would read as
-        a broken control rather than as an absent signal.
+        Region renders only when the data has any. `postClassification.region` is
+        sparse, and an always-present filter with nothing in it reads as a broken
+        control rather than as an absent signal.
       */}
       {(data?.availableRegions.length ?? 0) > 0 && (
         <FilterRow
@@ -183,112 +106,159 @@ export default function TrendingGraphScreen() {
         />
       )}
 
-      {nodes.length === 0 ? (
+      {isEmpty ? (
         <Text className="py-8 text-center text-muted-foreground">{t('trendGraph.empty')}</Text>
       ) : (
-        <View className="items-center">
-          <Svg width={size} height={size}>
-            {edges.map((edge) => {
-              const from = toPoint(edge.a);
-              const to = toPoint(edge.b);
-              if (!from || !to) return null;
-              const involvesSelection = selected === edge.a || selected === edge.b;
-              return (
-                <Line
-                  key={`${edge.a}|${edge.b}`}
-                  x1={from.x}
-                  y1={from.y}
-                  x2={to.x}
-                  y2={to.y}
-                  stroke={theme.colors.textSecondary}
-                  strokeWidth={1 + 3 * (edge.posts / maxPosts)}
-                  // A merged pair is drawn solid and a near miss dashed, so the
-                  // question the graph exists to answer is visible without
-                  // pressing anything.
-                  strokeDasharray={edge.linked ? undefined : '4 4'}
-                  opacity={selected && !involvesSelection ? 0.12 : edge.linked ? 0.55 : 0.3}
-                />
-              );
-            })}
-            {nodes.map((node) => {
-              const point = toPoint(node.term);
-              if (!point) return null;
-              const isSelected = node.term === selected;
-              return (
-                <React.Fragment key={node.term}>
-                  <Circle
-                    cx={point.x}
-                    cy={point.y}
-                    r={radiusFor(node)}
-                    fill={colorFor(node)}
-                    stroke={isSelected ? theme.colors.text : 'transparent'}
-                    strokeWidth={isSelected ? 2 : 0}
-                    opacity={selected && !isSelected ? 0.45 : 1}
-                    onPress={() => setSelected(isSelected ? null : node.term)}
-                  />
-                  <SvgText
-                    x={point.x}
-                    y={point.y + radiusFor(node) + 11}
-                    fontSize={10}
-                    textAnchor="middle"
-                    fill={theme.colors.text}
-                    opacity={selected && !isSelected ? 0.4 : 0.9}
-                    onPress={() => setSelected(isSelected ? null : node.term)}
-                  >
-                    {node.displayName ?? node.term}
-                  </SvgText>
-                </React.Fragment>
-              );
-            })}
-          </Svg>
-        </View>
+        <>
+          {tree.stories.length > 0 && (
+            <View className="gap-3">
+              <Text className="text-xs uppercase text-muted-foreground">
+                {t('trendGraph.sections.stories')}
+              </Text>
+              {tree.stories.map((story) => (
+                <TreeBranch key={story.node.term} entry={story} isStory />
+              ))}
+            </View>
+          )}
+
+          {tree.ungrouped.length > 0 && (
+            <View className="gap-3">
+              <Text className="text-xs uppercase text-muted-foreground">
+                {t('trendGraph.sections.ungrouped')}
+              </Text>
+              {tree.ungrouped.map((entry) => (
+                <TreeBranch key={entry.node.term} entry={entry} isStory={false} />
+              ))}
+            </View>
+          )}
+        </>
       )}
 
-      <View className="gap-1">
-        <Text className="text-xs text-muted-foreground">{t('trendGraph.legend.solid')}</Text>
-        <Text className="text-xs text-muted-foreground">{t('trendGraph.legend.dashed')}</Text>
-        <Text className="text-xs text-muted-foreground">{t('trendGraph.legend.size')}</Text>
+      <View className="gap-1 border-t border-border pt-3">
+        <Text className="text-xs text-muted-foreground">{t('trendGraph.legend.branch')}</Text>
+        <Text className="text-xs text-muted-foreground">{t('trendGraph.legend.related')}</Text>
         {data?.droppedEdges ? (
           <Text className="text-xs text-muted-foreground">
             {t('trendGraph.legend.truncated', { count: data.droppedEdges })}
           </Text>
         ) : null}
       </View>
+    </ScrollView>
+  );
+}
 
-      {selectedNode ? (
-        <View className="gap-2 rounded-2xl bg-muted p-4">
-          <Pressable accessibilityRole="button" onPress={() => navigateToTerm(selectedNode.term, 'graph')}>
-            <Text className="text-lg font-semibold text-foreground">
-              {selectedNode.displayName ?? selectedNode.term}
-            </Text>
-          </Pressable>
-          <Text className="text-sm text-muted-foreground">
-            {t('trendGraph.node.counts', {
-              posts: selectedNode.volume,
-              authors: selectedNode.authorCount,
-            })}
-          </Text>
-          {selectedNode.languages.length > 0 ? (
-            <Text className="text-sm text-muted-foreground">
-              {t('trendGraph.node.languages', { list: selectedNode.languages.join(', ') })}
-            </Text>
-          ) : null}
-          {selectedNode.regions.length > 0 ? (
-            <Text className="text-sm text-muted-foreground">
-              {t('trendGraph.node.regions', { list: selectedNode.regions.join(', ') })}
-            </Text>
-          ) : null}
-          {selectedNode.story ? (
-            <Text className="text-sm text-muted-foreground">
-              {t('trendGraph.node.story', { story: selectedNode.story })}
-            </Text>
-          ) : null}
-          {selectedEdges.map((edge) => (
-            <EdgeRow key={`${edge.a}|${edge.b}`} edge={edge} term={selectedNode.term} />
+/**
+ * One root and everything under it.
+ *
+ * The connector is a left border on the children's container plus a short
+ * horizontal rule per row — the two together read as the elbow of a tree at any
+ * width, and neither needs a measured position, so the whole branch reflows and
+ * wraps like ordinary text.
+ */
+function TreeBranch({ entry, isStory }: { entry: TrendTreeNode; isStory: boolean }) {
+  const { t } = useTranslation();
+  const { navigateToTerm } = useTrendNavigation();
+
+  return (
+    <View className="rounded-2xl bg-muted p-3">
+      <Pressable
+        accessibilityRole="button"
+        onPress={() => navigateToTerm(entry.node.term, 'graph')}
+        className="gap-0.5"
+      >
+        <Text className="text-base font-semibold text-foreground">
+          {entry.node.displayName ?? entry.node.term}
+        </Text>
+        <Text className="text-xs text-muted-foreground">
+          {t('trendGraph.node.counts', {
+            posts: entry.node.volume,
+            authors: entry.node.authorCount,
+          })}
+          {entry.node.languages.length > 0 ? ` · ${entry.node.languages.join(', ')}` : ''}
+          {entry.node.regions.length > 0 ? ` · ${entry.node.regions.join(', ')}` : ''}
+        </Text>
+      </Pressable>
+
+      {isStory && entry.children.length > 0 ? (
+        <View className="mt-2 border-l border-border pl-3">
+          {entry.children.map((child) => (
+            <TreeRow
+              key={child.node.term}
+              term={child.node.term}
+              label={child.node.displayName ?? child.node.term}
+              detail={t('trendGraph.node.counts', {
+                posts: child.node.volume,
+                authors: child.node.authorCount,
+              })}
+              related={child.related}
+            />
           ))}
         </View>
       ) : null}
-    </ScrollView>
+
+      {entry.related.length > 0 ? (
+        <View className="mt-2 border-l border-dashed border-border pl-3">
+          {entry.related.map((relation) => (
+            <RelatedRow key={relation.term} term={relation.term} posts={relation.posts} label={relation.displayName} />
+          ))}
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+/** A merged term, with its own near misses beneath it. */
+function TreeRow({
+  term,
+  label,
+  detail,
+  related,
+}: {
+  term: string;
+  label: string;
+  detail: string;
+  related: TrendTreeNode['related'];
+}) {
+  const { navigateToTerm } = useTrendNavigation();
+
+  return (
+    <View className="py-1">
+      <Pressable
+        accessibilityRole="button"
+        onPress={() => navigateToTerm(term, 'graph')}
+        className="flex-row items-center gap-2"
+      >
+        <View className="h-px w-3 bg-border" />
+        <Text className="shrink text-sm text-foreground">{label}</Text>
+        <Text className="shrink-0 text-xs text-muted-foreground">{detail}</Text>
+      </Pressable>
+      {related.length > 0 ? (
+        <View className="ml-3 border-l border-dashed border-border pl-3">
+          {related.map((relation) => (
+            <RelatedRow key={relation.term} term={relation.term} posts={relation.posts} label={relation.displayName} />
+          ))}
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+/** A term that shares posts with its parent and was NOT merged into it. */
+function RelatedRow({ term, posts, label }: { term: string; posts: number; label?: string }) {
+  const { t } = useTranslation();
+  const { navigateToTerm } = useTrendNavigation();
+
+  return (
+    <Pressable
+      accessibilityRole="button"
+      onPress={() => navigateToTerm(term, 'graph')}
+      className="flex-row items-center gap-2 py-0.5"
+    >
+      <View className="h-px w-3 bg-border opacity-60" />
+      <Text className="shrink text-xs text-muted-foreground">
+        {t('trendGraph.edge.related', { term: label ?? term, posts })}
+      </Text>
+    </Pressable>
   );
 }
 
@@ -329,20 +299,5 @@ function FilterRow({
         })}
       </ScrollView>
     </View>
-  );
-}
-
-/** One relation of the selected term, said in words rather than only drawn. */
-function EdgeRow({ edge, term }: { edge: TrendGraphEdgeDTO; term: string }) {
-  const { t } = useTranslation();
-  const other = edge.a === term ? edge.b : edge.a;
-
-  return (
-    <Text className="text-sm text-foreground">
-      {t(edge.linked ? 'trendGraph.edge.merged' : 'trendGraph.edge.related', {
-        term: other,
-        posts: edge.posts,
-      })}
-    </Text>
   );
 }
