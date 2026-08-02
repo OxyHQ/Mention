@@ -6,6 +6,7 @@ import { config } from '../config';
 import { cachePublicMedium } from '../middleware/cacheControl';
 import { feedIPRateLimiter } from '../middleware/security';
 import { parseTrendEvent, recordTrendEvent } from '../services/trending/trendTelemetry';
+import { loadTrendGraph } from '../services/trending/trendGraphQuery';
 import { getBaseLanguage } from '@oxyhq/core';
 import { queryInt, queryString } from '../utils/queryParams';
 
@@ -203,5 +204,39 @@ router.post(
     res.json({ success: true });
   },
 );
+
+/**
+ * The co-occurrence graph behind the current batch.
+ *
+ * Public and cached like the list itself — it is the same measurement, shown as
+ * structure instead of as a ranking. `language` and `region` scope it; the
+ * response carries the values its own data supports so a client never offers a
+ * filter that can only return nothing.
+ *
+ * 200 with empty arrays when no batch has produced a graph yet — a fresh
+ * instance, or one with clustering switched off. That is an ordinary state and
+ * not an error, and a 404 here would make a client treat it as a broken route.
+ */
+router.get('/graph', cachePublicMedium, async (req: Request, res: Response) => {
+  try {
+    const graph = await loadTrendGraph({
+      language: queryString(req.query.language) || undefined,
+      region: queryString(req.query.region) || undefined,
+    });
+
+    res.json(
+      graph ?? {
+        calculatedAt: new Date(0).toISOString(),
+        nodes: [],
+        edges: [],
+        availableLanguages: [],
+        availableRegions: [],
+      },
+    );
+  } catch (error) {
+    logger.error('[Trending] Failed to serve the co-occurrence graph', error);
+    res.status(500).json({ error: 'Failed to load trend graph' });
+  }
+});
 
 export default router;

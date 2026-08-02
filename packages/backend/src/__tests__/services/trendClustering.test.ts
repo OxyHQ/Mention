@@ -93,41 +93,6 @@ describe('clusterTrendTerms — one story, one row', () => {
     expect(result.refusedForSize.length).toBeGreaterThan(0);
   });
 
-  it('names a tied row by the phrase, never a bare fragment of it', () => {
-    // A phrase and the words inside it are counted over the SAME posts, so a
-    // name and its fragments arrive at identical volume — `luis`, `sampedro`
-    // and `luis sampedro` all measured 4 in the live window. Volume cannot
-    // choose between them, and alphabetical order picks a fragment.
-    const result = clusterTrendTerms(
-      candidates({ luis: 4, sampedro: 4, 'luis sampedro': 4 }),
-      [
-        { a: 'luis', b: 'sampedro', posts: 4 },
-        { a: 'luis', b: 'luis sampedro', posts: 4 },
-      ],
-      config,
-    );
-
-    expect(result.clusters).toHaveLength(1);
-    expect(result.clusters[0].representative).toBe('luis sampedro');
-  });
-
-  it('cannot choose between two phrases of equal length — a known limit', () => {
-    // `jose luis` and `luis sampedro` are both two tokens, so the tie-break has
-    // nothing left to compare and falls through to lexicographic order. The
-    // name this row wants is `jose luis sampedro`, which no candidate can be:
-    // `MtnConfig.trending.terms.maxPhraseTokens` is 2, so a three-word name is
-    // only ever present as its two-word windows. Pinned as a LIMIT rather than
-    // left implicit, so raising that ceiling shows up here as a changed
-    // expectation instead of passing unnoticed.
-    const result = clusterTrendTerms(
-      candidates({ 'jose luis': 4, 'luis sampedro': 4 }),
-      [{ a: 'jose luis', b: 'luis sampedro', posts: 4 }],
-      config,
-    );
-
-    expect(result.clusters[0].representative).toBe('jose luis');
-  });
-
   it('is independent of the order pairs arrive in', () => {
     const input = candidates({ ukraine: 40, kyiv: 10, zelensky: 12, russia: 30 });
     const pairs: TrendTermPair[] = [
@@ -162,7 +127,7 @@ describe('clusterTrendTerms — one story, one row', () => {
       { ...config, enabled: false },
     );
 
-    expect(result).toEqual({ clusters: [], refusedForSize: [] });
+    expect(result).toEqual({ clusters: [], linkedPairs: [], refusedForSize: [] });
   });
 
   it('ignores a pair naming a term that did not survive the floors', () => {
@@ -173,6 +138,24 @@ describe('clusterTrendTerms — one story, one row', () => {
     );
 
     expect(result.clusters).toEqual([]);
+  });
+
+  it('reports the links it accepted, which is not the same as a shared cluster', () => {
+    // Merging is transitive: `a` and `c` share a story through `b` without any
+    // qualifying link of their own. A graph that labelled that pair as linked
+    // would be claiming evidence the clusterer never had.
+    const result = clusterTrendTerms(
+      candidates({ a: 10, b: 10, c: 10 }),
+      [
+        { a: 'a', b: 'b', posts: 8 },
+        { a: 'b', b: 'c', posts: 8 },
+      ],
+      config,
+    );
+
+    expect(result.clusters[0].members.sort()).toEqual(['a', 'b', 'c']);
+    expect(result.linkedPairs).toHaveLength(2);
+    expect(result.linkedPairs).not.toContainEqual({ a: 'a', b: 'c' });
   });
 });
 

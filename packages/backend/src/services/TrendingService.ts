@@ -16,6 +16,12 @@ import {
   clusterTrendTerms,
   type TrendTermPair,
 } from './trending/trendClustering';
+import {
+  buildTrendGraph,
+  saveTrendGraph,
+  type TrendGraphNodeInput,
+  type TrendGraphSnapshot,
+} from './trending/trendGraph';
 // Trending shares the SINGLE canonical sensitive-exclusion clause with every
 // feed (For You, Explore, ranking). Adding a new gate updates trending too.
 import { SENSITIVE_EXCLUDE_MATCH } from '../mtn/feed/feedSafety';
@@ -107,6 +113,8 @@ interface TermCandidate {
   topicVolume: number;
   /** Primary languages of the posts behind the term (ISO 639-1). */
   languages: string[];
+  /** Coarse regions of those posts, where known. Frequently empty — the field is sparse. */
+  regions: string[];
   /**
    * Every term this row reports, the representative first.
    *
@@ -116,6 +124,24 @@ interface TermCandidate {
    * only ever said `Kyiv` is the whole point of having merged them.
    */
   members: string[];
+}
+
+/** What one aggregation pass produces: the rows to rank, and the graph behind them. */
+interface TermCandidateResult {
+  candidates: TermCandidate[];
+  /** `null` when clustering is disabled — no co-occurrence query ran, so there are no edges. */
+  graph: TrendGraphSnapshot | null;
+}
+
+/** The four fields the graph needs out of a per-term measurement. */
+function graphNodes(candidates: readonly TermCandidate[]): TrendGraphNodeInput[] {
+  return candidates.map((candidate) => ({
+    term: candidate.measurement.term,
+    volume: candidate.measurement.volume,
+    authorCount: candidate.measurement.authorCount,
+    languages: candidate.languages,
+    regions: candidate.regions,
+  }));
 }
 
 /**
@@ -358,7 +384,7 @@ class TrendingService {
       // ONE term space. Hashtags, extracted words and classified topic slugs are
       // all just terms, counted the same way, competing in the same list — see
       // `aggregateTermCandidates`.
-      const candidates = await this.aggregateTermCandidates(calculatedAt);
+      const { candidates, graph } = await this.aggregateTermCandidates(calculatedAt);
       const measurements = candidates.map((candidate) => candidate.measurement);
       // Bursts first; then, only if too few things are genuinely spiking, fill
       // out the list by volume. The top-up relaxes the burst bar and nothing
@@ -379,6 +405,7 @@ class TrendingService {
         // and `orioles, frightclub` describes the index rather than the day.
         this.generateSummary(allTrends.slice(0, 10).map((trend) => trend.displayName)),
         this.saveTrendingBatch(allTrends, calculatedAt),
+        saveTrendGraph(graph),
         topicService.updatePopularityFromTrending(popularityUpdates),
       ]);
 
@@ -460,7 +487,7 @@ class TrendingService {
    * decide the row's `type` (and which terms may be looked up in the topic
    * registry). Nothing about the score depends on how the term was written.
    */
-  private async aggregateTermCandidates(now: Date): Promise<TermCandidate[]> {
+  private async aggregateTermCandidates(now: Date): Promise<TermCandidateResult> {
     const { windowMs, recentWindowMs } = MtnConfig.trending.detection;
     const windowStart = new Date(now.getTime() - windowMs);
     const recentStart = new Date(now.getTime() - recentWindowMs);
@@ -509,7 +536,10 @@ class TrendingService {
     );
 
     const clustering = MtnConfig.trending.clustering;
-    if (!clustering.enabled || solo.length === 0) return solo;
+    // No graph when clustering is off: the co-occurrence query is the only
+    // thing that produces edges, and running it to serve a picture nothing else
+    // uses would be paying for a feature that is switched off.
+    if (!clustering.enabled || solo.length === 0) return { candidates: solo, graph: null };
 
     // Pass two, only when co-occurrence actually found a story spread across
     // several names. Re-counting rather than adding the members' volumes up is
@@ -520,7 +550,7 @@ class TrendingService {
       windowMatch,
       solo.map((candidate) => candidate.measurement.term),
     );
-    const { clusters, refusedForSize } = clusterTrendTerms(
+    const { clusters, linkedPairs, refusedForSize } = clusterTrendTerms(
       solo.map((candidate) => ({
         term: candidate.measurement.term,
         volume: candidate.measurement.volume,
@@ -537,7 +567,12 @@ class TrendingService {
         pairs: refusedForSize.slice(0, 10),
       });
     }
-    if (clusters.length === 0) return solo;
+    if (clusters.length === 0) {
+      // Edges but no stories is a real and informative state — it says the
+      // network is talking about several separate things — so the graph is
+      // still worth keeping.
+      return { candidates: solo, graph: buildTrendGraph(now, graphNodes(solo), pairs, [], new Map()) };
+    }
 
     const aliases = buildClusterMap(clusters);
     const membersOf = new Map(clusters.map((cluster) => [cluster.representative, cluster.members]));
@@ -561,7 +596,15 @@ class TrendingService {
       (candidate) =>
         !survived.has(candidate.measurement.term) && !aliases.has(candidate.measurement.term),
     );
-    return [...merged, ...orphaned];
+    return {
+      candidates: [...merged, ...orphaned],
+      // Built from the SOLO measurements, not the merged ones: an edge's two
+      // ratios are `posts` over each endpoint's OWN volume, and a merged row
+      // reports the story's volume instead. Reading a cluster total as a term
+      // total is how a graph ends up drawing links that do not follow from its
+      // own numbers.
+      graph: buildTrendGraph(now, graphNodes(solo), pairs, linkedPairs, aliases),
+    };
   }
 
   /**
@@ -591,6 +634,7 @@ class TrendingService {
       authorCount: number;
       actorIds: string[];
       languages: string[];
+      regions: string[];
     }>(
       [
         {
@@ -622,6 +666,10 @@ class TrendingService {
             // flattening; a post with no resolved language contributes null and
             // is filtered out below.
             languages: { $addToSet: '$language' },
+            // Coarse region, where the classifier resolved one. Sparse by
+            // design, which is why the graph's region filter is built from what
+            // the data actually contains rather than from a fixed list.
+            regions: { $addToSet: '$postClassification.region' },
           },
         },
         // Cheapest possible narrowing before the per-term projections below.
@@ -634,6 +682,7 @@ class TrendingService {
             // which would be the one way to walk straight past it.
             authors: { $filter: { input: '$authors', cond: { $ne: ['$$this', null] } } },
             languages: { $filter: { input: '$languages', cond: { $ne: ['$$this', null] } } },
+            regions: { $filter: { input: '$regions', cond: { $ne: ['$$this', null] } } },
           },
         },
         {
@@ -645,6 +694,7 @@ class TrendingService {
             authorCount: { $size: '$authors' },
             actorIds: { $slice: ['$authors', maxActors] },
             languages: 1,
+            regions: 1,
           },
         },
       ],
@@ -686,6 +736,7 @@ class TrendingService {
           hashtagVolume: row.hashtagVolume,
           topicVolume: row.topicVolume,
           languages,
+          regions: row.regions ?? [],
           // A term that was never merged reports itself, so every downstream
           // reader can treat `members` as the row's term list without first
           // asking whether clustering ran.

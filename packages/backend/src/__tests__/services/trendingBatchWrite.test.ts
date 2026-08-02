@@ -51,6 +51,16 @@ vi.mock('../../models/Trending', () => ({
   TRENDING_TTL_SECONDS: 90 * 24 * 60 * 60,
 }));
 
+// The batch also writes the co-occurrence graph. Unmocked, the model reaches a
+// mongoose connection this suite does not have and every test here waits out
+// the command buffer instead of failing — 5s timeouts in tests about something
+// else entirely.
+vi.mock('../../models/TrendGraph', () => ({
+  __esModule: true,
+  default: { updateOne: vi.fn().mockResolvedValue({ acknowledged: true }) },
+  TREND_GRAPH_TTL_SECONDS: 7 * 24 * 60 * 60,
+}));
+
 vi.mock('../../models/TrendBatch', () => ({
   __esModule: true,
   default: {

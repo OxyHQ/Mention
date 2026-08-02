@@ -59,7 +59,9 @@ import { trendTermMatch } from '../../services/trending/termSpace';
 // `aggregateTermCandidates` is private; reach it through a typed index signature
 // rather than `as any` so the tests stay type-safe.
 type PrivateTrending = {
-  aggregateTermCandidates(now: Date): Promise<Array<{ measurement: { term: string; volume: number } }>>;
+  aggregateTermCandidates(
+    now: Date,
+  ): Promise<{ candidates: Array<{ measurement: { term: string; volume: number } }> }>;
 };
 const svc = trendingService as unknown as PrivateTrending;
 
@@ -146,7 +148,9 @@ describe('aggregateTermCandidates — what is allowed to count', () => {
       row('art', 30),
     ]);
 
-    const terms = (await svc.aggregateTermCandidates(new Date())).map((c) => c.measurement.term);
+    const terms = (await svc.aggregateTermCandidates(new Date())).candidates.map(
+      (c) => c.measurement.term,
+    );
 
     expect(terms).toContain('technology');
     expect(terms).toContain('art');
