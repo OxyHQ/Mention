@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { View, TextInput, Pressable, StyleSheet } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '@oxyhq/bloom/theme';
@@ -12,6 +12,12 @@ interface InlineReplyComposerProps {
    * local comment count (see Global Constraints — postsStore's optimistic
    * update does not reach the Videos screen's separate local state). */
   onPosted: () => void;
+  /**
+   * A CHANGE in this value takes the caret. Deliberately not a boolean: the
+   * desktop comment button can be pressed twice in a row for the same video, and
+   * both presses have to land.
+   */
+  focusNonce?: number;
 }
 
 /**
@@ -19,12 +25,23 @@ interface InlineReplyComposerProps {
  * Deliberately narrower than the full `/compose` screen (no media, mentions,
  * or hashtags) — matches Reels' plain-text comment box.
  */
-export function InlineReplyComposer({ postId, onPosted }: InlineReplyComposerProps) {
+export function InlineReplyComposer({ postId, onPosted, focusNonce = 0 }: InlineReplyComposerProps) {
   const { t } = useTranslation();
   const theme = useTheme();
   const createReply = usePostsStore((s) => s.createReply);
   const [text, setText] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const inputRef = useRef<TextInput | null>(null);
+
+  // Only a change taken while this composer was mounted counts. Seeding the ref
+  // with the value at mount is what stops a remount — leaving /videos and coming
+  // back — from stealing the caret on a nonce raised by a press long gone.
+  const handledFocusNonceRef = useRef(focusNonce);
+  useEffect(() => {
+    if (handledFocusNonceRef.current === focusNonce) return;
+    handledFocusNonceRef.current = focusNonce;
+    inputRef.current?.focus();
+  }, [focusNonce]);
 
   const handleSubmit = useCallback(async () => {
     const trimmed = text.trim();
@@ -44,9 +61,10 @@ export function InlineReplyComposer({ postId, onPosted }: InlineReplyComposerPro
   return (
     <View style={styles.row} className="border-t border-border bg-background">
       <TextInput
+        ref={inputRef}
         value={text}
         onChangeText={setText}
-        placeholder={t('videos.addComment', { defaultValue: 'Add a comment...' })}
+        placeholder={t('videos.addComment')}
         placeholderTextColor={theme.colors.textSecondary}
         style={[styles.input, { color: theme.colors.text }]}
         multiline

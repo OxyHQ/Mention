@@ -3,11 +3,10 @@ import { eq } from 'drizzle-orm';
 import { PostType, PostVisibility } from '@mention/shared-types';
 
 /**
- * View telemetry eligibility, against REAL ROWS.
+ * View telemetry eligibility and counting, against REAL ROWS.
  *
- * The previous version stubbed `Post.exists` / `Post.updateOne` and asserted the
- * FILTER OBJECTS. Two things it could not see, both of which this port
- * introduces:
+ * The previous version stubbed `Post.exists` / `Post.findOneAndUpdate` and
+ * asserted the FILTER OBJECTS. Three things it could not see:
  *
  *  - the id-shape pre-check is GONE. It used to reject anything that was not a
  *    valid ObjectId; `posts.id` is `text` holding an ObjectId hex before the
@@ -18,6 +17,10 @@ import { PostType, PostVisibility } from '@mention/shared-types';
  *  - the visibility/status predicate is on BOTH the eligibility read and the
  *    increment. A forged `postUri` for a private, followers-only or draft post
  *    must allocate no dedupe key and move no counter.
+ *  - the RETURNED number is the post-increment total. Mongo needed `new: true`
+ *    for that and a mock could only assert the option was passed; `RETURNING`
+ *    gives the value the row actually holds, so the test compares the returned
+ *    number against the stored one instead of against a mock's script.
  */
 const mocks = vi.hoisted(() => ({ redisSet: vi.fn() }));
 
@@ -99,8 +102,8 @@ describe('feedViewCounter', () => {
     await expect(isPostEligibleForViewTelemetry(postId)).resolves.toBe(true);
   });
 
-  it('does not allocate a Redis dedupe key or increment for a nonexistent post', async () => {
-    await expect(recordDedupedView('not-a-post-at-all', 'attacker_oxy_user')).resolves.toBe(false);
+  it('does not allocate a Redis dedupe key or count for a nonexistent post', async () => {
+    await expect(recordDedupedView('not-a-post-at-all', 'attacker_oxy_user')).resolves.toBeNull();
 
     expect(mocks.redisSet).not.toHaveBeenCalled();
   });
@@ -114,7 +117,7 @@ describe('feedViewCounter', () => {
     await expect(isPostEligibleForViewTelemetry(followersOnly)).resolves.toBe(false);
     await expect(isPostEligibleForViewTelemetry(draft)).resolves.toBe(false);
 
-    await expect(recordDedupedView(followersOnly, 'attacker_oxy_user')).resolves.toBe(false);
+    await expect(recordDedupedView(followersOnly, 'attacker_oxy_user')).resolves.toBeNull();
     expect(mocks.redisSet).not.toHaveBeenCalled();
     expect(await viewsCountOf(followersOnly)).toBe(0);
   });
@@ -122,7 +125,7 @@ describe('feedViewCounter', () => {
   it('increments the real counter for an eligible post, once the dedupe key is claimed', async () => {
     const postId = await seed();
 
-    await expect(recordDedupedView(postId, 'viewer_oxy_user')).resolves.toBe(true);
+    await expect(recordDedupedView(postId, 'viewer_oxy_user')).resolves.toBe(1);
 
     expect(mocks.redisSet).toHaveBeenCalledWith(`viewseen:${postId}:viewer_oxy_user`, '1', {
       NX: true,
@@ -131,13 +134,30 @@ describe('feedViewCounter', () => {
     expect(await viewsCountOf(postId)).toBe(1);
   });
 
-  it('counts nothing when the dedupe key was already claimed', async () => {
+  it('returns the POST-increment total, not the value the row held before', async () => {
+    // The distinction is invisible from a moving number alone: a pre-increment
+    // answer still climbs, it is just always one view behind the view it reports
+    // — the exact staleness this return value exists to remove. Comparing the
+    // returned number against the STORED one after the write is what separates
+    // them, and it needs a count above 1 to be able to differ at all.
     const postId = await seed();
+
+    await recordDedupedView(postId, 'viewer_one');
+    await recordDedupedView(postId, 'viewer_two');
+    const returned = await recordDedupedView(postId, 'viewer_three');
+
+    expect(returned).toBe(3);
+    expect(returned).toBe(await viewsCountOf(postId));
+  });
+
+  it('reports no count when the dedupe window already claimed this viewer', async () => {
     // `SET … NX` answers null when the key exists — the second view of the same
-    // (post, viewer) pair inside the window.
+    // (post, viewer) pair inside the window. It must neither increment nor report
+    // a number, or a client would paint a "+1" the server never performed.
+    const postId = await seed();
     mocks.redisSet.mockResolvedValue(null);
 
-    await expect(recordDedupedView(postId, 'viewer_oxy_user')).resolves.toBe(false);
+    await expect(recordDedupedView(postId, 'viewer_oxy_user')).resolves.toBeNull();
 
     expect(await viewsCountOf(postId)).toBe(0);
   });

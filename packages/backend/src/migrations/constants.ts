@@ -110,3 +110,74 @@ export const MIGRATION_MTN_EVENT_IDEMPOTENCY_INDEX =
  */
 export const MIGRATION_TRENDING_NAME_TYPE_UNIQUE_INDEX =
   '0013-trending-name-type-unique-index';
+
+/**
+ * Create the multikey `trend_terms_idx` on `posts` so trend detection and the
+ * `trend|<term>` feed can both reach a term without a collection scan.
+ * Production disables Mongoose auto-indexing, so this migration is the schema
+ * authority. See {@link ./0014-post-trend-terms-index}.
+ */
+export const MIGRATION_POST_TREND_TERMS_INDEX = '0014-post-trend-terms-index';
+
+/**
+ * Create the `TrendSummary` indexes: the UNIQUE `{term, runStartedAt}` identity
+ * that makes on-demand summary generation idempotent, plus the TTL that keeps
+ * the collection bounded. Production disables Mongoose auto-indexing, so this
+ * migration is the schema authority. See {@link ./0015-trend-summary-indexes}.
+ */
+export const MIGRATION_TREND_SUMMARY_INDEXES = '0015-trend-summary-indexes';
+
+/**
+ * Create the UNIQUE `{script, scope}` identity of an administrative sweep's
+ * resume cursor, so one shard scope can only ever have one recorded position.
+ * Production disables Mongoose auto-indexing, so this migration is the schema
+ * authority. See {@link ./0016-admin-script-cursor-index}.
+ */
+export const MIGRATION_ADMIN_SCRIPT_CURSOR_INDEX = '0016-admin-script-cursor-index';
+
+/**
+ * Create the `RepairFetchFailure` indexes: the UNIQUE `{script, postId}` identity
+ * that keeps the re-fetch failure log bounded by distinct failing posts, plus the
+ * `{script, reason}` index serving the targeted-retry query it exists for.
+ * Production disables Mongoose auto-indexing, so this migration is the schema
+ * authority. See {@link ./0017-repair-fetch-failure-indexes}.
+ */
+export const MIGRATION_REPAIR_FETCH_FAILURE_INDEXES = '0017-repair-fetch-failure-indexes';
+
+/**
+ * Create the `BlockedDomainPurge` ledger indexes: the UNIQUE `{domain}` identity
+ * the policy reconciliation addresses one row by, plus the `{state, claimedAt}`
+ * index its stale-claim re-arm sweep reads. Production disables Mongoose
+ * auto-indexing, so this migration is the schema authority.
+ * See {@link ./0018-blocked-domain-purge-indexes}.
+ */
+export const MIGRATION_BLOCKED_DOMAIN_PURGE_INDEXES = '0018-blocked-domain-purge-indexes';
+
+/**
+ * Create the `BlockedDomainPurgeRun` history indexes: the UNIQUE
+ * `{domain, runId}` identity that stops a retried or resumed run appending a
+ * duplicate row and inflating a per-domain total, plus `{domain, runAt}` serving
+ * both queries a transparency surface needs (latest run, and every run to sum).
+ * Production disables Mongoose auto-indexing, so this migration is the schema
+ * authority. See {@link ./0019-blocked-domain-purge-run-indexes}.
+ */
+export const MIGRATION_BLOCKED_DOMAIN_PURGE_RUN_INDEXES = '0019-blocked-domain-purge-run-indexes';
+
+/**
+ * Create the `BlocklistProposal` review-queue indexes: the UNIQUE `{domain}`
+ * identity that keeps one row per domain — and with it the second defence that
+ * stops a DECLINED domain being resurrected by a concurrent sweep — plus
+ * `{status, firstProposedAt}` serving the queue itself, oldest unanswered first.
+ * Production disables Mongoose auto-indexing, so this migration is the schema
+ * authority. See {@link ./0020-blocklist-proposal-indexes}.
+ */
+export const MIGRATION_BLOCKLIST_PROPOSAL_INDEXES = '0020-blocklist-proposal-indexes';
+
+/**
+ * Create the `BlocklistProposalRun` history indexes: the UNIQUE `{runId}`
+ * identity, plus `{startedAt}` — the scheduler's only query, and what makes a
+ * weekly sweep survive a service that restarts far more often than weekly.
+ * Production disables Mongoose auto-indexing, so this migration is the schema
+ * authority. See {@link ./0021-blocklist-proposal-run-indexes}.
+ */
+export const MIGRATION_BLOCKLIST_PROPOSAL_RUN_INDEXES = '0021-blocklist-proposal-run-indexes';

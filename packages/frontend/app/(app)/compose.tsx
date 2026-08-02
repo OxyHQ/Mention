@@ -19,6 +19,8 @@ import { StatusBar } from 'expo-status-bar';
 import * as ExpoLocation from 'expo-location';
 import { ThemedView } from '@/components/ThemedView';
 import { SafeAreaView } from '@/lib/SafeAreaViewInterop';
+import { useQueryClient } from '@tanstack/react-query';
+import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { useLocalSearchParams } from 'expo-router';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { Avatar } from '@oxyhq/bloom/avatar';
@@ -33,7 +35,7 @@ import { toast } from '@oxyhq/bloom/toast';
 import { usePostsStore } from '@/stores/postsStore';
 import { feedService } from '@/services/feedService';
 import type { CreatePostRequest, HydratedPost } from '@mention/shared-types';
-import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
+import { MAX_POST_COLLABORATORS, MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import { useTheme } from '@oxyhq/bloom/theme';
 import MentionTextInput, { MentionTextInputHandle } from '@/components/MentionTextInput';
 import { SEO } from '@/components/SEO';
@@ -45,7 +47,6 @@ import { DotIcon } from '@/assets/icons/dot-icon';
 import { PollIcon } from '@/assets/icons/poll-icon';
 import { ChevronRightIcon } from '@/assets/icons/chevron-right-icon';
 import { HideIcon } from '@/assets/icons/hide-icon';
-import { CalendarIcon } from '@/assets/icons/calendar-icon';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
 import { Dialog, useDialogControl } from '@oxyhq/bloom/dialog';
 import { useIsScreenNotMobile } from '@/hooks/useOptimizedMediaQuery';
@@ -139,6 +140,7 @@ import type { ThreadItem } from '@/hooks/useThreadManager';
 import { useQuoteManager } from '@/hooks/useQuoteManager';
 import QuoteCard from '@/components/Compose/QuoteCard';
 import CollaboratorPicker, { type CollaboratorUser } from '@/components/Compose/CollaboratorPicker';
+import ComposeScheduleIndicator from '@/components/Compose/ComposeScheduleIndicator';
 import {
   areMentionDataEqual,
   mergeMentionData,
@@ -151,7 +153,7 @@ import {
 // Keep this in sync with PostItem constants
 import { HPAD, AVATAR_SIZE, BOTTOM_LEFT_PAD, TIMELINE_LINE_OFFSET } from '@/components/Compose/composeLayout';
 // Lazy load sheets - only loaded when user opens them
-const DraftsSheet = lazy(() => import('@/components/Compose/DraftsSheet'));
+const UnpublishedSheet = lazy(() => import('@/components/Compose/UnpublishedSheet'));
 const GifPickerSheet = lazy(() => import('@/components/Compose/GifPickerSheet'));
 const AltTextSheet = lazy(() => import('@/components/Compose/AltTextSheet'));
 const LanguagePickerSheet = lazy(() => import('@/components/Compose/LanguagePickerSheet'));
@@ -180,6 +182,7 @@ const ComposeScreenBody = () => {
   const keyboardVisible = useKeyboardVisibility();
   const bottomBarVisible = isAuthenticated && !isScreenNotMobile && !keyboardVisible;
   const { createPost, createThread, createReply, cachePosts } = usePostsStore();
+  const queryClient = useQueryClient();
   const { t, i18n } = useTranslation();
   const rawParams = useLocalSearchParams() as ComposeIntentRawParams;
   // Parse once per route entry. Re-running on every param tick would re-apply
@@ -195,10 +198,18 @@ const ComposeScreenBody = () => {
   const replyToPostId = initialIntent.replyToPostId;
   const [isEditMode, setIsEditMode] = useState(false);
   const [editLoading, setEditLoading] = useState(false);
+  // The post under edit has NOT published yet. Server-decided (`edit-source`
+  // reports the stored status), because it governs two things the composer must
+  // not guess: that the 30-minute edit window does not apply, and that saving
+  // has to carry the schedule forward rather than drop it.
+  const [editingScheduledPost, setEditingScheduledPost] = useState(false);
   const [editCollabEligible, setEditCollabEligible] = useState(false);
   const [replyToPost, setReplyToPost] = useState<HydratedPost | null>(null);
   const [replyLoading, setReplyLoading] = useState(false);
   const [collaborators, setCollaborators] = useState<CollaboratorUser[]>([]);
+  // The collaborator search is opened from the attachment row's people icon, so
+  // its open/closed state belongs to the composer rather than to the picker.
+  const [collaboratorSearchOpen, setCollaboratorSearchOpen] = useState(false);
 
   // Use custom hooks for state management
   const mediaManager = useMediaManager();
@@ -465,11 +476,25 @@ const ComposeScreenBody = () => {
   const [threadEventDraftLocation, setThreadEventDraftLocation] = useState('');
   const [threadEventDraftDescription, setThreadEventDraftDescription] = useState('');
 
-  const scheduleEnabled = postingMode === 'thread' && threadItems.length === 0;
+  /**
+   * The vertical line running between the avatars. It means "this post continues
+   * the one above it" — a THREAD. Beast posts are independent and only share the
+   * composer, so a line there would draw a relationship the posts will not have.
+   */
+  const showThreadTimeline = postingMode === 'thread';
+
+  /**
+   * Whether this post can name collaborators at all. A reply and a thread are
+   * authored solo, and an edit only qualifies while the stored post is still a
+   * solo one (`editCollabEligible`, server-decided). Gates BOTH the people icon
+   * in the attachment row and the picker it opens, so the icon can never open a
+   * panel that will not render.
+   */
+  const collaboratorsEligible =
+    !replyToPostId && threadItems.length === 0 && (!isEditMode || editCollabEligible);
 
   // Schedule manager
   const scheduleManager = useScheduleManager({
-    scheduleEnabled,
     bottomSheet,
     t,
     toast,
@@ -897,6 +922,17 @@ const ComposeScreenBody = () => {
           !source.parentPostId &&
           !(source.authorship?.some((entry) => entry.role === 'collaborator'));
         setEditCollabEligible(soloForCollab);
+        // Restore the pending publish time so the schedule pill shows it and a
+        // save re-sends it. A post whose stored time no longer parses keeps the
+        // composer's empty schedule rather than an Invalid Date.
+        const stillScheduled = source.status === 'scheduled';
+        setEditingScheduledPost(stillScheduled);
+        if (stillScheduled && source.scheduledFor) {
+          const publishAt = new Date(source.scheduledFor);
+          if (!Number.isNaN(publishAt.getTime())) {
+            setScheduledAt(publishAt);
+          }
+        }
       } catch (e) {
         logger.error('Failed to load post for editing', e);
         toast(t('Failed to load post for editing'), { type: 'error' });
@@ -905,7 +941,7 @@ const ComposeScreenBody = () => {
       }
     })();
     return () => { cancelled = true; };
-  }, [editPostId, loadVariantsFromPost, setMediaIds, t]);
+  }, [editPostId, loadVariantsFromPost, setMediaIds, setScheduledAt, t]);
 
   // Load parent post when in reply mode
   useEffect(() => {
@@ -936,10 +972,6 @@ const ComposeScreenBody = () => {
 
   const handlePost = async () => {
     if (isPosting || !user) return;
-    if (scheduledAt && !scheduleEnabled) {
-      toast(t('compose.schedule.threadsUnsupported', { defaultValue: 'Scheduling threads is not supported yet' }), { type: 'error' });
-      return;
-    }
 
     const scheduledAtValue = scheduledAt;
     const wasScheduled = Boolean(scheduledAtValue);
@@ -1051,6 +1083,9 @@ const ComposeScreenBody = () => {
           hashtags: mainPost.hashtags || [],
           collaboratorIds: collaborators.map((c) => c.id),
           variantContent: mainVariantContent,
+          // Only a still-scheduled post may carry a time; the API rejects one on
+          // a published post rather than silently ignoring it.
+          scheduledAt: editingScheduledPost ? scheduledAtValue : undefined,
         }));
         // Propagate the edited post to the shared post cache so the feed, profile
         // and detail reflect the change immediately (the same store every new post
@@ -1062,7 +1097,11 @@ const ComposeScreenBody = () => {
       } else {
         await createThread({
           mode: postingMode,
-          posts: allPosts
+          posts: allPosts,
+          // One time for the whole batch. The per-post builders also carry it,
+          // but `POST /posts/thread` reads it from the TOP level — the schedule
+          // belongs to the batch, not to any one post in it.
+          ...(scheduledAtValue ? { scheduledFor: scheduledAtValue.toISOString() } : {}),
         });
       }
 
@@ -1070,6 +1109,15 @@ const ComposeScreenBody = () => {
       if (currentDraftId) {
         await deleteDraft(currentDraftId);
         setCurrentDraftId(null);
+      }
+
+      // A scheduled post lands in the queue instead of a feed, so nothing else
+      // revalidates it — drop the cached list so the Unpublished sheet shows the
+      // post the user just scheduled rather than the pre-schedule snapshot.
+      if (wasScheduled) {
+        queryClient.invalidateQueries({
+          queryKey: viewerQueryKeys.scheduledPosts(user?.id),
+        });
       }
 
       const successMessage = replyToPostId
@@ -1514,6 +1562,12 @@ const ComposeScreenBody = () => {
     openScheduleSheet(ScheduleSheet);
   }, [openScheduleSheet]);
 
+  // The people icon toggles the search, so a second press closes what the first
+  // one opened rather than leaving the only exit inside the panel.
+  const handleCollaboratorsPress = useCallback(() => {
+    setCollaboratorSearchOpen((open) => !open);
+  }, []);
+
   // Main post toolbar handlers — stable references for memoized ComposeToolbar
   const handleMainGifPress = useCallback(() => {
     bottomSheet.setBottomSheetContent(
@@ -1834,10 +1888,6 @@ const ComposeScreenBody = () => {
     setIsSensitive(prev => !prev);
   }, []);
 
-  const handleClearSchedule = useCallback(() => {
-    clearSchedule();
-  }, [clearSchedule]);
-
   const closeThreadArticleEditor = useCallback(() => {
     setEditingThreadArticleId(null);
   }, []);
@@ -1914,12 +1964,6 @@ const ComposeScreenBody = () => {
     bottomSheet.openBottomSheet(true);
   }, [replyPermission, quotesDisabled, bottomSheet]);
 
-  useEffect(() => {
-    if (!scheduleEnabled && scheduledAt) {
-      clearSchedule({ silent: true });
-    }
-  }, [scheduleEnabled, scheduledAt, clearSchedule]);
-
   return (
     <>
       <SEO
@@ -1978,7 +2022,7 @@ const ComposeScreenBody = () => {
                   onPress={() => {
                     bottomSheet.setBottomSheetContent(
                       <Suspense fallback={null}>
-                        <DraftsSheet
+                        <UnpublishedSheet
                           onClose={() => bottomSheet.openBottomSheet(false)}
                           onLoadDraft={loadDraft}
                           currentDraftId={currentDraftId}
@@ -2002,7 +2046,11 @@ const ComposeScreenBody = () => {
             {/* Editing indicator */}
             {isEditMode && (
               <View className="px-4 py-2 bg-secondary border-b border-border">
-                <Text className="text-primary text-[13px] font-semibold">{editLoading ? t('Loading post...') : t('Editing post - changes must be saved within 30 minutes of creation')}</Text>
+                <Text className="text-primary text-[13px] font-semibold">{editLoading
+                  ? t('Loading post...')
+                  : editingScheduledPost
+                    ? t('compose.scheduled.editingNotice', { defaultValue: 'Editing a scheduled post — nobody has seen it yet, so there is no time limit. You can change when it publishes.' })
+                    : t('Editing post - changes must be saved within 30 minutes of creation')}</Text>
               </View>
             )}
 
@@ -2062,10 +2110,8 @@ const ComposeScreenBody = () => {
                 primaryTag={variants.primaryTag}
                 variantTags={variants.variantTags}
                 activeTag={activeTag}
-                canAdd={canAddLanguage(variants)}
                 onSelect={setActiveTag}
                 onEdit={handleEditLanguage}
-                onAdd={handleAddLanguage}
                 disabled={isPosting}
               />
 
@@ -2073,8 +2119,11 @@ const ComposeScreenBody = () => {
                 <>
               {/* Main composer */}
               <View style={[styles.postContainer, focusedItemId !== MAIN_ITEM_ID && threadItems.length > 0 && styles.unfocusedItem]}>
-                {/* Connector line below main avatar */}
-                <View style={[styles.itemConnectorLine, { left: TIMELINE_LINE_OFFSET, backgroundColor: `${theme.colors.primary}30` }]} />
+                {/* Connector line below main avatar — thread mode only; see
+                    `showThreadTimeline`. */}
+                {showThreadTimeline ? (
+                  <View className="bg-primary/20" style={styles.itemConnectorLine} />
+                ) : null}
                 <View style={styles.composerWithTimeline}>
                   <PostHeader
                     paddingHorizontal={HPAD}
@@ -2089,6 +2138,16 @@ const ComposeScreenBody = () => {
                     onPressUser={() => { }}
                     onPressAvatar={() => { }}
                     disableHoverCard
+                    // The header's time slot says when the post goes out: "now"
+                    // until a time is picked, then the time itself. Passed ONLY
+                    // while scheduled, so the unscheduled row is untouched.
+                    timeSlot={scheduledAt ? (
+                      <ComposeScheduleIndicator
+                        scheduledLabel={formatScheduledLabel(scheduledAt)}
+                        onPress={handleSchedulePress}
+                        disabled={isPosting}
+                      />
+                    ) : undefined}
                   >
                     <MentionTextInput
                       ref={mainTextInputRef}
@@ -2103,10 +2162,6 @@ const ComposeScreenBody = () => {
                       autoFocus
                     />
                   </PostHeader>
-
-                  {(!replyToPostId && threadItems.length === 0 && (!isEditMode || editCollabEligible)) && (
-                    <CollaboratorPicker selected={collaborators} onChange={setCollaborators} />
-                  )}
 
                   {/* Attachments row (poll + article + media + link) */}
                   {attachmentOrder.length > 0 ? (
@@ -2363,6 +2418,18 @@ const ComposeScreenBody = () => {
                       onEventPress={openEventEditor}
                       onRoomPress={handleMainRoomPress}
                       onPodcastPress={openPodcastPicker}
+                      // Only the MAIN toolbar: languages are composer-wide, so a
+                      // per-item copy would offer to add a language to one post
+                      // of a set that shares them all.
+                      onLanguagePress={handleAddLanguage}
+                      hasLanguages={variants.variantTags.length > 0}
+                      languageEnabled={canAddLanguage(variants)}
+                      // Also main-toolbar only, and omitted outright where the
+                      // post cannot take collaborators — a reply, a thread, or
+                      // an edit of an already-collaborative post.
+                      onCollaboratorsPress={collaboratorsEligible ? handleCollaboratorsPress : undefined}
+                      hasCollaborators={collaborators.length > 0}
+                      collaboratorsEnabled={collaborators.length < MAX_POST_COLLABORATORS}
                       hasLocation={!!location}
                       isGettingLocation={isGettingLocation}
                       hasPoll={showPollCreator}
@@ -2373,29 +2440,21 @@ const ComposeScreenBody = () => {
                       hasRoom={hasRoomContent}
                       hasPodcast={hasPodcastContent}
                       hasSchedule={Boolean(scheduledAt)}
-                      scheduleEnabled={scheduleEnabled}
                       hasSourceErrors={invalidSources}
                       disabled={isPosting}
                     />
                   </View>
 
-                  {scheduledAt && (
-                    <View
-                      className="border-border bg-secondary"
-                      style={styles.scheduleInfoContainer}
-                    >
-                      <CalendarIcon size={14} className="text-primary" />
-                      <Text className="text-foreground" style={styles.scheduleInfoText}
-                      >
-                        {t('compose.schedule.set', {
-                          defaultValue: 'Scheduled for {{time}}',
-                          time: formatScheduledLabel(scheduledAt)
-                        })}
-                      </Text>
-                      <TouchableOpacity onPress={handleClearSchedule} style={styles.scheduleInfoClearButton}>
-                        <Text className="text-primary" style={styles.scheduleInfoClearText}>{t('compose.schedule.clear', { defaultValue: 'Clear' })}</Text>
-                      </TouchableOpacity>
-                    </View>
+                  {/* Collaborators — chosen from the attachment row's people
+                      icon, so the panel it opens sits with the other editors
+                      that row spawns rather than above it. */}
+                  {collaboratorsEligible && (
+                    <CollaboratorPicker
+                      selected={collaborators}
+                      onChange={setCollaborators}
+                      expanded={collaboratorSearchOpen}
+                      onExpandedChange={setCollaboratorSearchOpen}
+                    />
                   )}
 
                   {/* Poll Creator */}
@@ -2511,8 +2570,10 @@ const ComposeScreenBody = () => {
                   }
                 }}
               >
-                {/* Connector line above add button's avatar */}
-                <View style={[styles.itemConnectorLineAbove, { left: TIMELINE_LINE_OFFSET, backgroundColor: `${theme.colors.primary}30` }]} />
+                {/* Connector line above add button's avatar — thread mode only. */}
+                {showThreadTimeline ? (
+                  <View className="bg-primary/20" style={styles.itemConnectorLineAbove} />
+                ) : null}
                 <View style={[styles.headerRow, { paddingHorizontal: HPAD }]}>
                   <TouchableOpacity activeOpacity={0.7}>
                     <Avatar
@@ -3252,8 +3313,14 @@ const styles = StyleSheet.create({
   threadContainer: {
     position: 'relative',
   },
+  // The connector's COLOUR is not here: it is the `bg-primary/20` className on
+  // every connector <View>. `theme.colors.primary` resolves to `rgb(0 98 157)`,
+  // so the `${primary}30` this used to interpolate was a malformed colour
+  // string that react-native-web read back as FULLY OPAQUE — a solid primary bar
+  // between the avatars instead of the faint 19% line the suffix asked for.
   itemConnectorLine: {
     position: 'absolute',
+    left: TIMELINE_LINE_OFFSET,
     top: 60, // below avatar: 12px pad + 40px avatar + 8px gap
     bottom: 0,
     width: 2,
@@ -3262,6 +3329,7 @@ const styles = StyleSheet.create({
   },
   itemConnectorLineAbove: {
     position: 'absolute',
+    left: TIMELINE_LINE_OFFSET,
     top: 0,
     height: 4, // from container top to 8px before avatar (12px pad - 8px gap)
     width: 2,
@@ -3450,29 +3518,6 @@ const styles = StyleSheet.create({
   },
   modeToggle: {
     marginHorizontal: 20,
-  },
-  scheduleInfoContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 12,
-    borderWidth: 1,
-    marginTop: 12,
-    alignSelf: 'flex-start',
-  },
-  scheduleInfoText: {
-    flex: 1,
-    fontSize: 13,
-  },
-  scheduleInfoClearButton: {
-    paddingHorizontal: 6,
-    paddingVertical: 4,
-  },
-  scheduleInfoClearText: {
-    fontSize: 12,
-    fontWeight: '600',
   },
   scheduleSheetContainer: {
     paddingHorizontal: 20,

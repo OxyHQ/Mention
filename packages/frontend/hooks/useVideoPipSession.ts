@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useState } from 'react';
-import { useFeedImpressionTracker } from '@/utils/feedTelemetry';
 
 /**
  * The Picture-in-Picture **session**: what the reel becomes once the OS lifts one
@@ -13,17 +12,19 @@ import { useFeedImpressionTracker } from '@/utils/feedTelemetry';
  * player (`player.replaceAsync`), and the playback authority keeps the owner
  * playing through `ownsSession` even though the pager never moved.
  *
- * Two things stop working while the app is backgrounded, and the session owns
- * both because nothing else is running:
+ * **Pagination** stops working while the app is backgrounded, and the session
+ * owns it because nothing else is running: the list pages by scrolling — the
+ * document scroll listener on web, `onEndReached` on native — and nothing
+ * scrolls in a background tab or a backgrounded app, so the session tops itself
+ * up as its cursor approaches the end of the loaded set.
  *
- * - **Pagination.** The list pages by scrolling — the document scroll listener
- *   on web, `onEndReached` on native — and nothing scrolls in a background tab
- *   or a backgrounded app, so the session tops itself up as its cursor
- *   approaches the end of the loaded set.
- * - **Impressions.** Neither the web `IntersectionObserver` nor the list's
- *   viewability callback runs, so the session reports what it is playing itself,
- *   through the SAME tracker every feed uses — with the real post id, never a
- *   synthesised one.
+ * What the session does NOT own is impressions. The viewability callbacks are
+ * just as dead in a background tab, but the SCREEN reports for both of its
+ * watched-video sources through one shared tracker (`useReelImpressions`),
+ * reading `playing` from here. A tracker of its own would dedupe separately, so
+ * entering PiP on the video already being watched would emit a SECOND impression
+ * of it — carrying only the dwell since the window opened, which is short enough
+ * to land as a skip.
  *
  * On exit the caller re-syncs the pager to the cursor, so coming back to the app
  * lands on the video that was actually being watched.
@@ -54,12 +55,6 @@ export interface UseVideoPipSessionOptions<T extends VideoPipSessionItem> {
   loadMore: () => void;
   /** Whether another page exists at all. */
   hasMore: boolean;
-  /** Feed the session's impressions are attributed to. */
-  feedDescriptor: string;
-  /** A change starts a fresh impression session (a reload, a new viewer). */
-  impressionResetKey?: string | number;
-  /** Whether impressions may be POSTed at all (the private-API / auth gate). */
-  canReportImpressions: boolean;
 }
 
 export interface VideoPipSession<T extends VideoPipSessionItem> {
@@ -86,9 +81,6 @@ export function useVideoPipSession<T extends VideoPipSessionItem>({
   onEnded,
   loadMore,
   hasMore,
-  feedDescriptor,
-  impressionResetKey,
-  canReportImpressions,
 }: UseVideoPipSessionOptions<T>): VideoPipSession<T> {
   const [session, setSession] = useState<SessionState | null>(null);
 
@@ -133,23 +125,6 @@ export function useVideoPipSession<T extends VideoPipSessionItem>({
   }, [needsTopUp, loadMore]);
 
   const playing = session === null ? null : items.at(session.cursor) ?? null;
-
-  // Report the impression for whatever the OS window is showing. Visible while
-  // it is the session's subject, hidden when the cursor moves on or the session
-  // closes — the same visible/hidden contract the feeds report, so the dwell and
-  // the once-per-post dedupe come out identical.
-  const impressionTracker = useFeedImpressionTracker(
-    feedDescriptor,
-    impressionResetKey,
-    canReportImpressions,
-  );
-  const playingId = playing?.id;
-  useEffect(() => {
-    if (playingId === undefined) return;
-    const tracker = impressionTracker.current;
-    tracker.setVisible(playingId);
-    return () => tracker.setHidden(playingId);
-  }, [playingId, impressionTracker]);
 
   return {
     ownerId: session?.ownerId ?? null,

@@ -113,6 +113,8 @@ export interface PostRecordClassification {
   languages?: string[];
   region?: string;
   hashtagsNorm?: string[];
+  /** The term space trend detection measures over. Stage A only. */
+  trendTerms?: string[];
   sensitive?: boolean;
   version?: number;
   sentiment: 'positive' | 'neutral' | 'negative' | 'mixed';

@@ -9,8 +9,8 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { EmptyState } from '@/components/common/EmptyState';
 import type { FeedItem } from '@/db';
 import type { HydratedPostSummary, MediaItem } from '@mention/shared-types';
-import VideoPosterCell from '@/components/common/VideoPosterCell';
-import { isVideoMediaRef } from '@/utils/mediaTypes';
+import LiveVideoPosterCell from './LiveVideoPosterCell';
+import { isVideoMediaRef, readMediaDurationSec } from '@/utils/mediaTypes';
 import { useProfileMediaFeed } from './useProfileMediaFeed';
 import { ProfileGridList, type ProfileGridEntry } from './ProfileGridList';
 
@@ -30,6 +30,24 @@ interface MediaGridEntry extends ProfileGridEntry {
     uri: string;
     isVideo: boolean;
     isCarousel: boolean;
+    /**
+     * Play count of the post this cell's media came from — set on video entries
+     * only, so the type says outright that image cells carry neither of these.
+     * Per-POST, so two videos in one post repeat it, exactly as `isCarousel`
+     * already paints on every one of a post's cells. Fetch-time value: the cell
+     * prefers the live count from the shared cache when the post is in it.
+     */
+    views?: number | null;
+    /**
+     * The post {@link MediaGridEntry.views} describes, which is NOT always
+     * {@link ProfileGridEntry.postId}: a boost/quote with no media of its own
+     * borrows the ORIGINAL's media, and `postId` stays the outer post so the tap
+     * still opens what the viewer sees on the profile. Subscribing to `postId`
+     * there would paint the BOOST's count under the original's video.
+     */
+    viewsPostId?: string;
+    /** Duration of THIS item's video, in seconds. Per-item, so per-cell correct. */
+    durationSec?: number;
 }
 
 const CAROUSEL_ICON_SIZE = 12;
@@ -40,10 +58,15 @@ const WINDOW_SIZE = 7;
 // fallback `url`).
 const resolveImageUri = (ref: MediaItem): string | undefined => ref.thumbUrl || ref.url || undefined;
 
-// Static video poster from the server-resolved media object (`posterUrl`,
-// fallback `thumbUrl`). Undefined → icon placeholder; a 404/error from the URL
-// is handled by the cell's own image-error fallback.
-const resolveVideoPosterUri = (ref: MediaItem): string | undefined => ref.posterUrl || ref.thumbUrl || undefined;
+// Static video still from the server-resolved media object (`thumbUrl`, fallback
+// `posterUrl`). `thumbUrl` comes FIRST because a grid cell is ~130px and
+// `posterUrl` is sized for a full-width player — an order of magnitude more
+// bytes than this surface can show. Both fields are a still image for a video of
+// EITHER origin (the resolver points a federated video's `thumbUrl` at its
+// extracted poster, not at the proxied video), so this order is safe.
+// Undefined → icon placeholder; a 404/error from the URL is handled by the
+// cell's own image-error fallback.
+const resolveVideoPosterUri = (ref: MediaItem): string | undefined => ref.thumbUrl || ref.posterUrl || undefined;
 
 const MediaGrid: React.FC<MediaGridProps> = ({
     userId,
@@ -60,7 +83,7 @@ const MediaGrid: React.FC<MediaGridProps> = ({
     const theme = useTheme();
     const { t } = useTranslation();
     const {
-        mediaFeed,
+        primaryFeed,
         postsFeed,
         items,
         loadMore,
@@ -69,7 +92,7 @@ const MediaGrid: React.FC<MediaGridProps> = ({
     const mediaItems = useMemo<MediaGridEntry[]>(() => {
         const out: MediaGridEntry[] = [];
 
-        const pushUris = (targetId: string, sources: MediaItem[]) => {
+        const pushUris = (post: HydratedPostSummary, targetId: string, sources: MediaItem[]) => {
             const seen = new Set<string>();
 
             sources.forEach((ref, idx) => {
@@ -87,7 +110,20 @@ const MediaGrid: React.FC<MediaGridProps> = ({
                     // poster still produces a placeholder cell, so a video entry is
                     // always valid.
                     const posterUri = resolveVideoPosterUri(ref);
-                    out.push({ postId: targetId, uri: posterUri ?? '', isVideo: true, isCarousel: sources.length > 1, mediaIndex: idx });
+                    out.push({
+                        postId: targetId,
+                        uri: posterUri ?? '',
+                        isVideo: true,
+                        isCarousel: sources.length > 1,
+                        mediaIndex: idx,
+                        // `post`, not the outer feed item: for a boost/quote with no
+                        // media of its own the media belongs to the ORIGINAL, and the
+                        // count has to describe the video being shown. The live
+                        // subscription has to follow that same post, hence the id.
+                        views: post.engagement?.views,
+                        viewsPostId: post.id ? String(post.id) : undefined,
+                        durationSec: readMediaDurationSec(ref),
+                    });
                     return;
                 }
 
@@ -102,7 +138,7 @@ const MediaGrid: React.FC<MediaGridProps> = ({
             // (url/thumbUrl/posterUrl) — the single source for grid thumbnails.
             const media = post.content?.media;
             if (!Array.isArray(media) || media.length === 0) return;
-            pushUris(targetId, media);
+            pushUris(post, targetId, media);
         };
 
         for (const rawPost of items) {
@@ -136,11 +172,14 @@ const MediaGrid: React.FC<MediaGridProps> = ({
         return (
             <TouchableOpacity activeOpacity={0.8} style={{ width: itemSize, height: itemSize }} onPress={handlePress}>
                 {item.isVideo ? (
-                    <VideoPosterCell
+                    <LiveVideoPosterCell
                         posterUri={item.uri || undefined}
                         size={itemSize}
                         placeholderColor={theme.colors.textSecondary}
-                        badge="center"
+                        viewsPostId={item.viewsPostId}
+                        fallbackViews={item.views}
+                        durationSec={item.durationSec}
+                        scrim
                     />
                 ) : (
                     <Image
@@ -165,7 +204,7 @@ const MediaGrid: React.FC<MediaGridProps> = ({
     }, [router, theme.colors.textSecondary]);
 
     // Loading state first; if no items yet and feeds are still loading, show spinner
-    const isLoading = (!mediaFeed && !postsFeed) || mediaFeed?.isLoading || postsFeed?.isLoading;
+    const isLoading = (!primaryFeed && !postsFeed) || primaryFeed?.isLoading || postsFeed?.isLoading;
     const emptyContent = isLoading && mediaItems.length === 0
         ? (
             <View className="items-center justify-center p-8">

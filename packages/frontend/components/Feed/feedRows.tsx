@@ -412,20 +412,12 @@ export function renderFeedRow(row: FeedRow, { router, threadLineColor, feedDescr
 
     const showThreadLink = row.isIncompleteThread && row.isThreadLastChild;
     const showMoreReplies = row.isIncompleteThread && row.truncatedChildCount > 0;
-    // In a `replyContext` slice the REPLY is always the LAST item — the parent,
-    // when the server holds it, is prepended. `!isThreadParent` is exactly "last
-    // item of the slice" for both shapes the server emits: the 2-item
-    // [parent, reply] and the 1-item [reply] it falls back to when the parent is
-    // unavailable (already on the page, unpublished, or — for a federated reply
-    // whose `inReplyTo` never resolved — absent from the database).
-    //
-    // Keying on `isThreadChild` (index > 0) instead SKIPPED the 1-item shape, so
-    // a context-free reply rendered as an ordinary top-level post.
-    const isReplyContextRow = !row.isThreadParent && row.sliceReason?.type === 'replyContext';
-    // Present only when the server could resolve whom the reply answers.
-    const replyContextAuthor = !row.isThreadParent && row.sliceReason?.type === 'replyContext'
-        ? row.sliceReason.parentAuthor
-        : undefined;
+    // No reply-context plumbing here on purpose. "Replying to @…" is a property of
+    // the POST (`post.replyContext`, filled for every reply during hydration), and
+    // `PostItem` reads it directly — so it renders the same on this row, on a flat
+    // row the server never sliced, and on the screens that call `PostItem` without
+    // going through here at all. Deriving it from `row.sliceReason` is what tied
+    // the header to the handful of feeds whose definition opts into reply slicing.
     const nestPadding = row.nestingDepth > 0 ? { paddingLeft: 16 * row.nestingDepth } : undefined;
 
     // PURE repost (boost): render the ORIGINAL post directly (its author, content,
@@ -448,8 +440,6 @@ export function renderFeedRow(row: FeedRow, { router, threadLineColor, feedDescr
                 isThreadLastChild={row.isThreadLastChild}
                 attachedBelow={showThreadLink}
                 nestingDepth={row.nestingDepth}
-                isReplyContext={boostedOriginal ? false : isReplyContextRow}
-                replyContextAuthor={boostedOriginal ? undefined : replyContextAuthor}
                 repostedBy={boostedOriginal ? boostCtx?.actor : undefined}
                 feedDescriptor={feedDescriptor}
                 sliceKey={row.sliceKey}

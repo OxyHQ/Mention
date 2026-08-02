@@ -64,6 +64,26 @@ describe('ActivityPub remote JSON transport limits', () => {
     expect(stream.destroyed).toBe(true);
   });
 
+  it('NAMES the offending media type, dropping its parameters', async () => {
+    // Without the media type in the message a bulk sweep can only report "not
+    // JSON", and every diagnosis costs a code change plus a redeploy.
+    const stream = new PassThrough();
+    stream.end('<html>not an actor</html>');
+
+    await expect(singleHopToResponse(singleHop(stream, {
+      'content-type': 'text/html; charset=utf-8',
+    }))).rejects.toThrow('unsupported content-type: text/html');
+  });
+
+  it('reports a MISSING content-type as (none) rather than an empty string', async () => {
+    const stream = new PassThrough();
+    stream.end('not json');
+
+    await expect(singleHopToResponse(singleHop(stream, {}))).rejects.toThrow(
+      'unsupported content-type: (none)',
+    );
+  });
+
   it('rejects an oversized declared content length before reading', async () => {
     const stream = new PassThrough();
 

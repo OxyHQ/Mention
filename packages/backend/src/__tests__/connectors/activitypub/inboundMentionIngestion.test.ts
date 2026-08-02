@@ -338,3 +338,129 @@ afterEach(async () => {
 afterAll(async () => {
   await closePostgres();
 });
+
+/**
+ * The broadcast rule, applied on the NOTE'S count rather than on the local subset.
+ *
+ * The measured pile-up (annihilation.social, 1,870 posts, 28.9 mentions/post) is 76
+ * REMOTE authors talking to each other; the one local user who gets pulled in is a
+ * single id inside a 29-name list. Judging the fan-out by the list
+ * `createMentionNotifications` receives would read that as "one mention, notify" and
+ * ring them once per post, thousands of times — which is the exact failure this cap
+ * exists to stop. So the inbox must pass the note's TOTAL resolved mention count.
+ */
+describe('handleCreate — broadcast notes notify nobody', () => {
+  /**
+   * A note naming `remoteCount` remote users plus the one local user, alice.
+   * `alicePosition` places her tag in the note's declaration order, which is what
+   * the per-post ceiling keeps by.
+   *
+   * The scope is cleared and re-seeded rather than added to, because the outer
+   * `beforeEach` already seeded two actors under this scope and the actor rows
+   * carry unique `(domain, username)` and `acct` constraints — seeding on top of
+   * them would collide rather than accumulate.
+   */
+  async function broadcastActivity(
+    remoteCount: number,
+    alicePosition: 'first' | 'last' = 'last',
+  ): Promise<Record<string, unknown>> {
+    const remotes = Array.from({ length: remoteCount }, (_, i) => ({
+      uri: `${REMOTE}/users/r${i}`,
+      oxyId: `oxy_r${i}`,
+    }));
+    await clearFederationScope(scope);
+    await seedActors({
+      [AUTHOR_URI]: AUTHOR_OXY_ID,
+      ...Object.fromEntries(remotes.map((r) => [r.uri, r.oxyId])),
+    });
+    // Re-seeded with the actors: `handleCreate`'s follower gate reads it.
+    await seedFollow(scope, { remoteActorUri: AUTHOR_URI, direction: 'outbound', status: 'accepted' });
+
+    const aliceAnchor = `<a href="${LOCAL_MENTION_PROFILE}" class="u-url mention">@alice</a>`;
+    const aliceTag = {
+      type: 'Mention',
+      href: LOCAL_MENTION_ACTOR_URI,
+      name: '@alice@mention.earth',
+    };
+    const remoteAnchors = remotes.map(
+      (_r, i) => `<a href="${REMOTE}/@r${i}" class="u-url mention">@r${i}</a>`,
+    );
+    const remoteTags = remotes.map((r, i) => ({
+      type: 'Mention',
+      href: r.uri,
+      name: `@r${i}@remote.example`,
+    }));
+
+    const anchors = alicePosition === 'first'
+      ? [aliceAnchor, ...remoteAnchors]
+      : [...remoteAnchors, aliceAnchor];
+    const tags = alicePosition === 'first' ? [aliceTag, ...remoteTags] : [...remoteTags, aliceTag];
+    return createActivity(`<p>${anchors.join(' ')}</p>`, tags);
+  }
+
+  beforeEach(() => {
+    mocks.getProfileByUsername.mockResolvedValue({ _id: LOCAL_MENTION_OXY_ID, username: 'alice' });
+  });
+
+  it('notifies the one local user when the note is AT the notification cap (8 total)', async () => {
+    await inboxProcessingService.processInboxActivity(await broadcastActivity(7), AUTHOR_URI);
+
+    expect(createdPost().mentions).toHaveLength(8);
+    expect(mocks.createMentionNotifications).toHaveBeenCalledWith(
+      [LOCAL_MENTION_OXY_ID],
+      CREATED_POST_ID,
+      AUTHOR_OXY_ID,
+      'post',
+    );
+  });
+
+  it('notifies NOBODY one over the cap (9 total), even though only ONE is local', async () => {
+    await inboxProcessingService.processInboxActivity(await broadcastActivity(8), AUTHOR_URI);
+
+    // Stored and rendered exactly as before — only the interrupt is withheld.
+    expect(createdPost().mentions).toHaveLength(9);
+    expect(createdPost().mentions).toContain(LOCAL_MENTION_OXY_ID);
+    expect(mocks.createMentionNotifications).not.toHaveBeenCalled();
+    expect(mocks.loggerWarn).toHaveBeenCalledWith(
+      '[Federation] suppressed mention notifications for a broadcast note',
+      { mentioned: 9, local: 1 },
+    );
+  });
+
+  it('stays silent at the measured pile-up shape even when the local user survives truncation', async () => {
+    // 29 mentions — the measured mean — with alice declared FIRST, so the per-post
+    // ceiling keeps her. The note is still a broadcast, so nobody is notified: the
+    // suppression is the mention COUNT's doing, not an artifact of her being cut.
+    await inboxProcessingService.processInboxActivity(
+      await broadcastActivity(28, 'first'),
+      AUTHOR_URI,
+    );
+
+    expect(createdPost().mentions).toHaveLength(16);
+    expect(createdPost().mentions).toContain(LOCAL_MENTION_OXY_ID);
+    expect(mocks.createMentionNotifications).not.toHaveBeenCalled();
+    expect(mocks.loggerWarn).toHaveBeenCalledWith(
+      '[Federation] suppressed mention notifications for a broadcast note',
+      { mentioned: 16, local: 1 },
+    );
+  });
+
+  it('truncates the surplus out of the stored list, and says so', async () => {
+    // Same 29-mention note with alice declared LAST: she falls outside the per-post
+    // ceiling and is dropped wholesale — no stored id, so no rendered link and no
+    // entry in her mentions feed either. That is the containment working as designed
+    // on a broadcast, and it is logged with both counts rather than dropped quietly.
+    await inboxProcessingService.processInboxActivity(
+      await broadcastActivity(28, 'last'),
+      AUTHOR_URI,
+    );
+
+    expect(createdPost().mentions).toHaveLength(16);
+    expect(createdPost().mentions).not.toContain(LOCAL_MENTION_OXY_ID);
+    expect(mocks.createMentionNotifications).not.toHaveBeenCalled();
+    expect(mocks.loggerWarn).toHaveBeenCalledWith(
+      '[Federation] truncated inbound mentions above the per-post ceiling',
+      { mentioned: 29, kept: 16 },
+    );
+  });
+});

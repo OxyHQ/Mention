@@ -6,14 +6,12 @@ import type { BottomSheetContextProps } from '@/context/BottomSheetContext';
 import { addMinutes } from '@/utils/dateUtils';
 
 interface UseScheduleManagerProps {
-  scheduleEnabled: boolean;
   bottomSheet: BottomSheetContextProps;
   t: TFunction;
   toast: typeof toastFn;
 }
 
 export const useScheduleManager = ({
-  scheduleEnabled,
   bottomSheet,
   t,
   toast,
@@ -79,11 +77,6 @@ export const useScheduleManager = ({
   }, [t]);
 
   const openScheduleSheet = useCallback((ScheduleSheetComponent: React.ComponentType<ScheduleSheetProps>) => {
-    if (!scheduleEnabled) {
-      toast(t('compose.schedule.singlePostOnly', { defaultValue: 'Scheduling is only available for single posts' }), { type: 'info' });
-      return;
-    }
-
     const options = getScheduleOptions();
 
     bottomSheet.setBottomSheetContent(
@@ -100,11 +93,8 @@ export const useScheduleManager = ({
     );
     bottomSheet.openBottomSheet(true);
   }, [
-    scheduleEnabled,
     scheduledAt,
     bottomSheet,
-    t,
-    toast,
     formatScheduledLabel,
     handleScheduleSelect,
     handleScheduleClear,

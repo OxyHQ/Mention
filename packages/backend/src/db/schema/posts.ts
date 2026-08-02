@@ -374,6 +374,14 @@ export const posts = pgTable(
     classificationRegion: text(),
     /** Canonical hashtags in the classification's own normalization. */
     classificationHashtagsNorm: text().array(),
+    /**
+     * The words and phrases trend detection measures over — the term space a
+     * burst is counted in, distinct from `hashtags` because a trend can be a
+     * bare term nobody hashtagged. Stage A derives it; `TrendingService` reads
+     * it back with an array-overlap predicate, so it is GIN-indexed alongside
+     * the other multikey arrays.
+     */
+    classificationTrendTerms: text().array(),
     classificationSensitive: boolean(),
     /**
      * The deterministic ruleset version that produced the Stage-A baseline.
@@ -568,6 +576,7 @@ export const posts = pgTable(
     index('posts_hashtags_gin').using('gin', t.hashtags),
     index('posts_classification_topics_gin').using('gin', t.classificationTopics),
     index('posts_classification_languages_gin').using('gin', t.classificationLanguages),
+    index('posts_classification_trend_terms_gin').using('gin', t.classificationTrendTerms),
     index('posts_classification_region_idx').on(t.classificationRegion, t.createdAt.desc()),
     // The classification batch queue drains oldest-first within one status.
     index('posts_classification_queue_idx').on(t.classificationStatus, t.createdAt),

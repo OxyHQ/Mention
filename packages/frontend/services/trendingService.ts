@@ -1,16 +1,41 @@
-import type { TrendEventInput } from "@mention/shared-types";
+import type { PostUser, TrendCategory, TrendEventInput, TrendStatus } from "@mention/shared-types";
 import { logger } from '@oxyhq/core/logger';
 import { authenticatedClient, publicClient } from "@/utils/api";
 
 export interface TrendingTopic {
   type: string;
+  /** The term — the retrieval key. Render `displayName`, not this. */
   name: string;
+  /** Human label. Absent on rows written before trends were labelled. */
+  displayName?: string;
+  category?: TrendCategory;
   description: string;
   score: number;
   volume: number;
+  /** Distinct authors. Absent on rows that predate the field. */
+  authorCount?: number;
   momentum: number;
+  /** ISO onset of the current run. Absent on rows that predate onset tracking. */
+  startedAt?: string;
+  status?: TrendStatus;
+  /** Server-resolved faces. Absent when none resolved. */
+  actors?: PostUser[];
   rank: number;
   calculatedAt: string;
+}
+
+/**
+ * How the trend screen presents a term.
+ *
+ * Fetched rather than passed through the URL: a label in a query parameter
+ * gives one resource two addresses, freezes a shared link's title at the moment
+ * it was copied, and lets anyone hand a reader a name the server never chose.
+ */
+export interface TrendDetail {
+  displayName?: string;
+  category?: TrendCategory;
+  /** Absent until the trend has been opened enough times to earn one. */
+  description?: string;
 }
 
 export interface TrendingDay {
@@ -19,18 +44,6 @@ export interface TrendingDay {
 }
 
 class TrendingService {
-  async getTrending(limit: number = 20, type?: string): Promise<TrendingTopic[]> {
-    try {
-      const params: Record<string, string | number> = { limit };
-      if (type) params.type = type;
-
-      const res = await authenticatedClient.get<{ trending?: TrendingTopic[] }>("/trending", { params });
-      return res.data.trending || [];
-    } catch (error) {
-      logger.warn("Failed fetching trending", { error });
-      return [];
-    }
-  }
 
   async getTrendingHistory(page: number = 1, limit: number = 10): Promise<{
     days: TrendingDay[];
@@ -45,6 +58,31 @@ class TrendingService {
     } catch (error) {
       logger.warn("Failed fetching trending history", { error });
       return { days: [], page, totalPages: 0 };
+    }
+  }
+
+  /**
+   * How to PRESENT one trend: its label, its category, and the generated
+   * summary if it has earned one (`GET /trending/summary`).
+   *
+   * Calling this IS the demand signal — the server counts the open and only
+   * generates a summary once a trend has been opened enough times. So it is
+   * called on the trend screen and NOWHERE else: firing it from a list would
+   * count opens that never happened and pay for prose nobody asked for.
+   *
+   * Public client, same as the event report: `/trending` is public and this
+   * screen renders for signed-out visitors.
+   *
+   * Swallows its own failures — a missing summary is the ordinary case, so a
+   * failed lookup must be indistinguishable from one that simply has none.
+   */
+  async getTrendDetail(term: string): Promise<TrendDetail> {
+    try {
+      const res = await publicClient.get<TrendDetail>("/trending/summary", { params: { term } });
+      return res.data ?? {};
+    } catch (error) {
+      logger.debug("Failed to fetch trend detail", { term, error });
+      return {};
     }
   }
 

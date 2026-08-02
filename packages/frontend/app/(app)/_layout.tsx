@@ -17,7 +17,6 @@ import { RightBar } from "@/components/RightBar";
 import { SideBar } from "@/components/SideBar";
 import { SignInBanner } from "@/components/SignInBanner";
 import WelcomeModalGate from '@/components/WelcomeModalGate';
-import { AppShellProviders } from '@/components/providers/AppShellProviders';
 
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { useKeyboardVisibility } from "@/hooks/useKeyboardVisibility";
@@ -117,8 +116,13 @@ export default function AppLayout() {
     </>
   );
 
+  // The app-shell contexts this subtree reads (screen color, videos rail, video
+  // playback, drawer, bottom-bar visibility) are mounted by <AppShellProviders>
+  // up in `components/providers/AppProviders.tsx`. They CANNOT live here: bottom
+  // sheets and bloom's native portal outlet render their content above this
+  // route, so anything mounted at this depth is invisible to them.
   return (
-    <AppShellProviders>
+    <>
       {/* Connection loss shows as a Bloom toast — see @oxyhq/bloom/connection-status.
           It replaced an app-local banner that pushed the whole screen down. */}
       <ConnectionStatusToasts />
@@ -170,6 +174,6 @@ export default function AppLayout() {
       {!isScreenNotMobile && <DrawerOverlay />}
       <WelcomeModalGate appIsReady={true} />
       {Platform.OS === 'web' && <KeyboardShortcutsHost />}
-    </AppShellProviders>
+    </>
   );
 }

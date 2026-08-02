@@ -190,6 +190,12 @@ interface BuildEditPostParams {
   hashtags: string[];
   collaboratorIds?: string[];
   variantContent?: PostContentVariant[] | null;
+  /**
+   * The publish time when the post being edited is still SCHEDULED. Sent on
+   * every such save, not only when it changed, so a save can never be the thing
+   * that quietly drops a schedule.
+   */
+  scheduledAt?: Date | null;
 }
 
 /**
@@ -201,7 +207,7 @@ interface BuildEditPostParams {
  * multilingual post would silently strip every language but the primary.
  */
 export const buildEditPost = (params: BuildEditPostParams): UpdatePostRequest => {
-  const { postContent, mediaIds, mentions, hashtags, collaboratorIds, variantContent } = params;
+  const { postContent, mediaIds, mentions, hashtags, collaboratorIds, variantContent, scheduledAt } = params;
   const mentionIds = reconcileMentionIds(
     [
       postContent,
@@ -223,6 +229,7 @@ export const buildEditPost = (params: BuildEditPostParams): UpdatePostRequest =>
     hashtags,
     mentions: mentionIds,
     ...(collaboratorIds && collaboratorIds.length > 0 ? { collaboratorIds } : {}),
+    ...(scheduledAt ? { scheduledFor: scheduledAt.toISOString() } : {}),
   };
 };
 

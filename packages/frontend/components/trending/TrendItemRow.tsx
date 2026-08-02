@@ -3,9 +3,20 @@ import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native
 import Ionicons from '@expo/vector-icons/Ionicons';
 import Svg, { Defs, LinearGradient, Polygon, Polyline, Stop } from 'react-native-svg';
 import { useTheme } from '@oxyhq/bloom/theme';
+import { AvatarGroup } from '@oxyhq/bloom/avatar-group';
+import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
+import { MtnConfig } from '@mention/shared-types';
+import { getNormalizedUserHandle } from '@oxyhq/core';
 import { formatCompactNumber } from '@/utils/formatNumber';
 import type { Trend } from '@/interfaces/Trend';
 import { HIT_SLOP_LG } from '@/styles/hitSlop';
+
+const MS_PER_HOUR = 60 * 60 * 1000;
+const HOURS_PER_DAY = 24;
+
+/** Faces shown beside a trend. Matches what the server stores per trend. */
+const TREND_FACE_SIZE = 18;
 
 /**
  * One trend, shared by every surface that lists them (the right-rail widget,
@@ -144,21 +155,71 @@ const Sparkline = memo(function Sparkline({
   );
 });
 
-function getTrendLabel(trend: Trend): string {
-  if (trend.type === 'hashtag' && trend.volume > 0) {
-    return `Trending · ${formatCompactNumber(trend.volume)} posts`;
+/**
+ * The line above the name: what KIND of thing this is, and how big it is.
+ *
+ * Reads the CATEGORY rather than the row's `type`, because `type` is provenance
+ * (was it spelled with a `#`) and a reader has no use for that — "Sports" says
+ * something, "Trending hashtag" says how the data was stored. Falls back to a
+ * bare "Trending" when nothing was assigned; never invents a category.
+ *
+ * The count is DISTINCT AUTHORS when known, not posts: it is the number the
+ * trend actually qualified on, and "312 people" is a far stronger claim than
+ * "312 posts", which one account could have written.
+ */
+function getTrendLabel(trend: Trend, t: TFunction): string {
+  const category = trend.category
+    ? t(`trend.category.${trend.category}`, { defaultValue: '' })
+    : '';
+  const kind = category || t('trend.trendingLabel', { defaultValue: 'Trending' });
+
+  if (trend.authorCount && trend.authorCount > 0) {
+    return `${kind} · ${t('trend.peopleCount', {
+      count: trend.authorCount,
+      formatted: formatCompactNumber(trend.authorCount),
+      defaultValue: `${formatCompactNumber(trend.authorCount)} people`,
+    })}`;
   }
-  if (trend.type === 'entity') return 'Trending';
-  if (trend.type === 'topic') return 'Trending topic';
-  return 'Trending';
+  if (trend.volume > 0) {
+    return `${kind} · ${t('trend.postCount', {
+      count: trend.volume,
+      formatted: formatCompactNumber(trend.volume),
+      defaultValue: `${formatCompactNumber(trend.volume)} posts`,
+    })}`;
+  }
+  return kind;
 }
 
-function getTrendDisplayName(trend: Trend): string {
-  if (trend.type === 'hashtag') {
-    const tag = trend.hashtag || trend.text;
-    return `#${tag?.replace(/^#/, '')}`;
+/**
+ * How long this run of the trend has been going, as a badge.
+ *
+ * `hot` outranks age: it is the stronger claim and the two would otherwise
+ * compete for the same corner. Below the `new` window the badge is the age
+ * itself, which is more informative than a second adjective — and a trend with
+ * no `startedAt` (written before onset tracking) gets NO badge rather than a
+ * guessed one.
+ */
+function getTrendBadge(trend: Trend, t: TFunction): { text: string; tone: 'hot' | 'new' | 'age' } | null {
+  if (trend.status === 'hot') {
+    return { text: t('trend.badge.hot', { defaultValue: 'Hot' }), tone: 'hot' };
   }
-  return trend.text;
+  if (!trend.startedAt) return null;
+
+  const startedAt = Date.parse(trend.startedAt);
+  if (Number.isNaN(startedAt)) return null;
+
+  const ageMs = Date.now() - startedAt;
+  if (ageMs < 0) return null;
+  if (ageMs < MtnConfig.trending.detection.newTrendMaxAgeMs) {
+    return { text: t('trend.badge.new', { defaultValue: 'New' }), tone: 'new' };
+  }
+
+  const hours = Math.floor(ageMs / MS_PER_HOUR);
+  if (hours < HOURS_PER_DAY) {
+    return { text: t('trend.badge.hoursAgo', { count: hours, defaultValue: `${hours}h` }), tone: 'age' };
+  }
+  const days = Math.floor(hours / HOURS_PER_DAY);
+  return { text: t('trend.badge.daysAgo', { count: days, defaultValue: `${days}d` }), tone: 'age' };
 }
 
 interface TrendItemRowProps {
@@ -187,9 +248,25 @@ export const TrendItemRow = memo(function TrendItemRow({
   ordinal,
 }: TrendItemRowProps) {
   const theme = useTheme();
+  const { t } = useTranslation();
   const isLarge = size === 'large';
   const series = trend.series && trend.series.length >= MIN_POLYLINE_POINTS ? trend.series : null;
   const directionIcon = series ? null : DIRECTION_ICON[trend.direction || 'flat'];
+  const badge = getTrendBadge(trend, t);
+  // Faces are evidence that real accounts are behind the trend, so they only
+  // appear where there is room to read them alongside everything else.
+  const faces = useMemo(
+    () =>
+      isLarge
+        ? (trend.actors ?? []).map((actor) => ({
+            id: actor.id,
+            uri: actor.avatar,
+            displayName: actor.name?.displayName,
+            username: getNormalizedUserHandle(actor) ?? undefined,
+          }))
+        : [],
+    [isLarge, trend.actors],
+  );
 
   return (
     <TouchableOpacity
@@ -216,9 +293,34 @@ export const TrendItemRow = memo(function TrendItemRow({
           </Text>
         ) : null}
         <View className="flex-1 mr-3">
-          <Text className={`text-muted-foreground ${isLarge ? 'text-[13px]' : 'text-[12px]'} mb-0.5`}>
-            {getTrendLabel(trend)}
-          </Text>
+          <View className="flex-row items-center mb-0.5">
+            <Text className={`text-muted-foreground ${isLarge ? 'text-[13px]' : 'text-[12px]'}`}>
+              {getTrendLabel(trend, t)}
+            </Text>
+            {badge ? (
+              <View
+                className={`ml-2 rounded-full px-1.5 py-0.5 ${
+                  badge.tone === 'hot'
+                    ? 'bg-destructive/10'
+                    : badge.tone === 'new'
+                      ? 'bg-primary/10'
+                      : 'bg-muted'
+                }`}
+              >
+                <Text
+                  className={`text-[11px] font-semibold ${
+                    badge.tone === 'hot'
+                      ? 'text-destructive'
+                      : badge.tone === 'new'
+                        ? 'text-primary'
+                        : 'text-muted-foreground'
+                  }`}
+                >
+                  {badge.text}
+                </Text>
+              </View>
+            ) : null}
+          </View>
           {/*
             Wraps to a second line rather than truncating at one: the leading
             ordinal takes horizontal space away from the title, and the widget
@@ -230,7 +332,7 @@ export const TrendItemRow = memo(function TrendItemRow({
             className={`text-foreground font-bold ${isLarge ? 'text-[16px]' : 'text-[14px]'}`}
             numberOfLines={2}
           >
-            {getTrendDisplayName(trend)}
+            {trend.displayName || trend.text}
           </Text>
           {trend.description ? (
             <Text
@@ -239,6 +341,11 @@ export const TrendItemRow = memo(function TrendItemRow({
             >
               {trend.description}
             </Text>
+          ) : null}
+          {faces.length > 0 ? (
+            <View className="mt-1.5 flex-row">
+              <AvatarGroup items={faces} size={TREND_FACE_SIZE} max={faces.length} />
+            </View>
           ) : null}
         </View>
         {series ? (

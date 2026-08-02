@@ -331,7 +331,16 @@ export const exploreSource: SourceModule = {
 
 /**
  * `popular`: For You anonymous + never-blank fallback — engagement-sorted recent
- * public posts, SFW for safe-for-work viewers.
+ * public thread-root posts, SFW for safe-for-work viewers.
+ *
+ * This is the WHOLE feed for an anonymous For You viewer (`FeedEngine.run` serves
+ * it directly when there is no `currentUserId`) and the never-blank tail for an
+ * authenticated one, so it answers to the same editorial rule as the ranked lanes:
+ * roots only. It stated that rule by omission — it hand-built its match and simply
+ * never asked the question — which is why a signed-out reader of For You saw a
+ * pool that was 47.1% replies while the ranked path did not. It now reads the same
+ * stored `is_reply` column the `explore` source above it does, so the two
+ * discovery surfaces in this file cannot drift on what a reply is.
  */
 export const popularSource: SourceModule = {
   id: 'popular',
@@ -342,6 +351,7 @@ export const popularSource: SourceModule = {
       eq(posts.visibility, 'public'),
       eq(posts.status, 'published'),
       discoverySafeSql(),
+      eq(posts.isReply, false),
       notABoostSql(),
     ];
 

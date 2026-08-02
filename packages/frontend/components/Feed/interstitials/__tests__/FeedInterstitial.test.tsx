@@ -417,7 +417,9 @@ function similarAccounts(count: number): User[] {
 const TREND_REC_ID = 'm3rkq9x2';
 
 /**
- * `count` trends: #topic1, #topic2, … (`t1`, `t2`, …).
+ * `count` trends labelled "Topic 1", "Topic 2", … over terms `topic1`, `topic2`
+ * (`t1`, `t2`, …). The label and the term differ on purpose: a row paints the
+ * label, so a test asserting the term would pass on a row that renders neither.
  *
  * `rank` deliberately starts at 11 — it is the rank across the WHOLE unfiltered
  * batch, which is exactly what a row must NOT paint, so a row that leaked it
@@ -429,6 +431,7 @@ function trendItems(count: number): Trend[] {
     id: `t${index + 1}`,
     type: 'hashtag' as const,
     text: `topic${index + 1}`,
+    displayName: `Topic ${index + 1}`,
     hashtag: `#topic${index + 1}`,
     description: '',
     score: 100 - index,
@@ -1215,7 +1218,9 @@ describe('TrendingTopicsInterstitial', () => {
     const text = renderedText(renderer);
 
     expect(text).toContain(TITLES.trendingTopics);
-    expect(text).toContain('#topic1');
+    // The LABEL, not the term: a row must never paint a raw slug at a reader.
+    expect(text).toContain('Topic 1');
+    expect(text).not.toContain('#topic1');
     expect(text).toEqual(expect.arrayContaining(['1', '2', '3']));
     // The fixture's ranks are 11, 12, 13. A row painting `trend.rank` would put
     // them on screen — which is the bug this replaces, since a hidden trend
@@ -1232,9 +1237,9 @@ describe('TrendingTopicsInterstitial', () => {
     const renderer = await renderBand(<TrendingTopicsInterstitial {...inFeed} ordinal={0} />);
     const text = renderedText(renderer);
 
-    expect(text).not.toContain('#topic2');
+    expect(text).not.toContain('Topic 2');
     // Backfilled, not shrunk: the fourth trend takes the hidden one's place.
-    expect(text).toContain('#topic4');
+    expect(text).toContain('Topic 4');
     expect(trendRowPressables(renderer)).toHaveLength(3);
   });
 
@@ -1340,7 +1345,7 @@ describe('FeedInterstitial', () => {
     const text = renderedText(renderer);
 
     expect(text).toContain(TITLES.trendingTopics);
-    expect(text).toContain('#topic1');
+    expect(text).toContain('Topic 1');
     expect(text).not.toContain(TITLES.suggestedUsers);
     expect(text).not.toContain(TITLES.suggestedFeeds);
   });

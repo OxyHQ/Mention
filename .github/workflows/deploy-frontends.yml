@@ -72,6 +72,16 @@ jobs:
           NODE_ENV: production
           EXPO_PUBLIC_ENV: production
           EXPO_PUBLIC_API_URL: https://api.mention.earth
+          # Mention's PRODUCTION Oxy client id. `packages/frontend/config.ts`
+          # falls back to a committed id when this is unset, so a local build
+          # runs unconfigured — which is why it must be injected here: without
+          # it the deployed bundle authenticates against the wrong Oxy
+          # application, with nothing empty and nothing erroring. A repo
+          # VARIABLE, not a secret: the id ships inside the bundle, so it is
+          # public by construction and a secret would only hide it from the UI.
+          # The backend's MENTION_OXY_CLIENT_ID stays a secret because it rides
+          # the SSM sync pipeline in deploy-aws.yml, which is built for secrets.
+          EXPO_PUBLIC_OXY_CLIENT_ID: ${{ vars.EXPO_PUBLIC_OXY_CLIENT_ID }}
 
       - name: Validate static hosting contract
         run: bun .github/scripts/validate-frontend-static-output.mjs packages/frontend/dist
@@ -120,7 +130,7 @@ jobs:
       # still cheap to abandon. A failure here fails the job before the promotion
       # step below, so production is never touched.
       - name: Set up the pinned Node runtime for the browser gate
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: ${{ env.NODE_VERSION }}
 

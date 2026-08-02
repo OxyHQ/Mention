@@ -21,6 +21,16 @@ AWS_ACCOUNT_ID="${AWS_ACCOUNT_ID:-}"
 AWS_PARTITION="${AWS_PARTITION:-aws}"
 POST_DEPLOY_SMOKE_SCRIPT="${POST_DEPLOY_SMOKE_SCRIPT:-}"
 POST_DEPLOY_TASK_COMMAND_JSON="${POST_DEPLOY_TASK_COMMAND_JSON:-}"
+# Exit code a smoke script uses to say "this failed, and rolling back cannot fix
+# it" — a check that crosses a boundary this deploy does not own (a CDN in front
+# of the origin, another service the route consults). Reverting the image for one
+# of those trades a working deployment for an outage somebody else is already
+# fixing, so the release stands and the job goes red instead.
+#
+# Every OTHER non-zero code still rolls back, so a smoke script that does not opt
+# into the protocol keeps the previous all-or-nothing behaviour.
+SMOKE_NO_ROLLBACK_EXIT=75
+smoke_reported_external_failure=false
 DEPLOY_HEAD_GUARD_SCRIPT="${DEPLOY_HEAD_GUARD_SCRIPT:-.github/scripts/require-current-main.sh}"
 
 if ! [[ "$MAX_WAIT_SECS" =~ ^[0-9]+$ ]] || (( MAX_WAIT_SECS < 1 )); then
@@ -64,7 +74,7 @@ if ! jq -e '
     (
       .value
       | type == "string" and
-        test("^arn:aws(-[a-z]+)?:ssm:[a-z0-9-]+:[0-9]{12}:parameter/[A-Za-z0-9_.\\-/]+$")
+        test("^arn:aws(-[a-z]+)?:ssm:[a-z0-9-]+:[0-9]{12}:parameter/[A-Za-z0-9_./-]+$")
     )
   )
 ' <<<"$TASK_SECRET_OVERRIDES_JSON" >/dev/null; then
@@ -349,8 +359,13 @@ if [[ -n "$INTERNAL_METRICS_PARAMETER" ]]; then
       echo "::error::AWS_ACCOUNT_ID must be a 12-digit account id when INTERNAL_METRICS_PARAMETER is a parameter name."
       exit 1
     fi
+    # The hyphen is LAST on purpose. This is a POSIX bracket expression, where a
+    # backslash is an ordinary character rather than an escape, so the `\-/` that
+    # reads as an escaped hyphen in PCRE is really a reversed `\`-to-`/` range and
+    # the class then matches no hyphen at all. Every `/oxy/<app>/...` parameter
+    # path whose app name contains one was silently rejected.
     if [[ ! "$AWS_PARTITION" =~ ^aws(-[a-z]+)?$ ||
-          ! "$INTERNAL_METRICS_PARAMETER" =~ ^/[A-Za-z0-9_.\-/]+$ ]]; then
+          ! "$INTERNAL_METRICS_PARAMETER" =~ ^/[A-Za-z0-9_./-]+$ ]]; then
       echo "::error::AWS partition or INTERNAL_METRICS_PARAMETER name is invalid."
       exit 1
     fi
@@ -508,7 +523,16 @@ echo "ECS rollout reached a healthy steady state at $new_task_definition"
 
 if [[ -n "$POST_DEPLOY_SMOKE_SCRIPT" ]]; then
   echo "Running post-deploy smoke checks with $POST_DEPLOY_SMOKE_SCRIPT"
-  if ! bash "$POST_DEPLOY_SMOKE_SCRIPT"; then
+  smoke_exit=0
+  bash "$POST_DEPLOY_SMOKE_SCRIPT" || smoke_exit=$?
+  if (( smoke_exit == SMOKE_NO_ROLLBACK_EXIT )); then
+    # The smoke script attributed every failure to something outside the image.
+    # The release keeps going — including the reconciliation task below, which
+    # would otherwise be skipped over a fault it has nothing to do with — and the
+    # job fails at the end so the failure is still paged rather than swallowed.
+    echo "::error::Post-deploy smoke checks failed only checks that a rollback cannot repair. $APP stays on $new_task_definition; investigate the dependency named above."
+    smoke_reported_external_failure=true
+  elif (( smoke_exit != 0 )); then
     echo "::error::Post-deploy smoke checks failed."
     if rollback_service; then
       echo "::warning::Rollback completed after smoke failure."
@@ -529,6 +553,11 @@ if [[ -n "$POST_DEPLOY_TASK_COMMAND_JSON" ]]; then
     fi
     exit 1
   fi
+fi
+
+if [[ "$smoke_reported_external_failure" == "true" ]]; then
+  echo "::error::$APP is deployed and live at $new_task_definition, but its post-deploy smoke checks are still failing on a dependency. Nothing was rolled back; this release needs a human."
+  exit 1
 fi
 
 echo "Deployed $APP at $new_task_definition"

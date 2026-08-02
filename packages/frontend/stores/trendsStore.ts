@@ -23,6 +23,14 @@ interface TrendApiItem {
   updatedAt?: string;
   /** Recent `volume` history, oldest first. Absent when the server has too little. */
   series?: unknown;
+  /** Human label. Absent on rows written before trends were labelled. */
+  displayName?: string;
+  category?: Trend['category'];
+  /** ISO onset of the current run. Absent on rows that predate onset tracking. */
+  startedAt?: string;
+  status?: Trend['status'];
+  authorCount?: number;
+  actors?: Trend['actors'];
 }
 
 /**
@@ -58,6 +66,16 @@ interface TrendsStore {
   hasFetched: boolean;
   error: string | null;
   hiddenTrendIds: string[];
+  /**
+   * The reader's content languages (ISO 639-1), which ORDER the list server-side.
+   *
+   * Held in the store rather than passed per call because the poll refetches on
+   * its own — a per-call argument would give the first fetch the reader's
+   * languages and every refresh after it none.
+   */
+  readerLanguages: string[];
+  /** Set by the identity boundary; refetches when the set actually changes. */
+  setReaderLanguages: (languages: readonly string[]) => void;
   fetchTrends: (opts?: { silent?: boolean }) => Promise<void>;
   resyncAfterReconnect: () => void;
   startPolling: () => number;
@@ -110,18 +128,37 @@ let nextPollSubscriptionId = 1;
 export const useTrendsStore = create<TrendsStore>()(
     (set, get) => ({
       trends: [],
+      readerLanguages: [],
       summary: '',
       isLoading: false,
       hasFetched: false,
       error: null,
       hiddenTrendIds: [],
 
+      setReaderLanguages: (languages: readonly string[]) => {
+        // Deduped and sorted, NOT normalized: `GET /trending` reduces the tags
+        // itself because the value becomes part of a shared cache key, and one
+        // authority for a key beats two copies of the rule. All this comparison
+        // owes is stability — it decides whether to refetch, and the worst case
+        // of holding `es-ES` where the server sees `es` is one redundant
+        // refetch on an identity change.
+        const next = [...new Set(languages.map((tag) => tag.trim()).filter(Boolean))].sort();
+        if (next.join(',') === get().readerLanguages.join(',')) return;
+        set({ readerLanguages: next });
+        // The list already on screen was ordered for the previous reader.
+        void get().fetchTrends({ silent: true });
+      },
+
       fetchTrends: async (opts?: { silent?: boolean }) => {
         const operationEpoch = viewerEpoch;
         const silent = !!opts?.silent;
         if (!silent) set({ isLoading: true, error: null });
         try {
-          const response = await api.get<TrendsApiResponse>('/trending', { limit: 10 });
+          const languages = get().readerLanguages;
+          const response = await api.get<TrendsApiResponse>('/trending', {
+            limit: 10,
+            ...(languages.length > 0 ? { lang: languages.join(',') } : {}),
+          });
           if (operationEpoch !== viewerEpoch) return;
           const items: TrendApiItem[] = response.data.trending || [];
           const recId = response.data.recId;
@@ -132,6 +169,15 @@ export const useTrendsStore = create<TrendsStore>()(
               id: trendIdentity(type, item.name),
               type,
               text: item.name,
+              // Resolved ONCE, here, so every surface renders a label and none
+              // needs its own fallback — the way a raw slug reaches a reader is
+              // one renderer forgetting to write the same `||` as the others.
+              displayName: item.displayName?.trim() || item.name,
+              ...(item.category ? { category: item.category } : {}),
+              ...(item.startedAt ? { startedAt: item.startedAt } : {}),
+              ...(item.status ? { status: item.status } : {}),
+              ...(typeof item.authorCount === 'number' ? { authorCount: item.authorCount } : {}),
+              ...(item.actors?.length ? { actors: item.actors } : {}),
               hashtag: item.type === 'hashtag' ? `#${item.name}` : item.name,
               description: item.description || '',
               score: item.score || 0,
@@ -164,6 +210,8 @@ export const useTrendsStore = create<TrendsStore>()(
                 !b ||
                 a.id !== b.id ||
                 a.score !== b.score ||
+                a.displayName !== b.displayName ||
+                a.status !== b.status ||
                 a.direction !== b.direction ||
                 a.recId !== b.recId ||
                 a.series?.join() !== b.series?.join()

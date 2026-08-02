@@ -497,6 +497,59 @@ describe('the authored source (the profile feed)', () => {
     expect(idsOf(gathered)).toEqual([typedMedia.id, withMediaRow.id, withAttachment.id]);
   });
 
+  /**
+   * The profile VIDEOS tab is deliberately narrower than the media tab and wider
+   * than the global videos feed.
+   *
+   * Narrower than `media`: only the two shapes `videoOnlyFilter.keep`
+   * recognizes, with no attachment branch — an attachment-only post would be
+   * fetched and then dropped by the filter, paying for a page that arrives
+   * short. Wider than `FeedQueryBuilder.buildVideosQuery`, which additionally
+   * gates on duration and orientation: a profile grid shows the author's videos,
+   * not a reel lane's selection of them, so a two-second landscape clip belongs
+   * here and not there.
+   */
+  it('keeps both video shapes on the videos tab, and no attachment, reply or boost', async () => {
+    const typedVideo = await create({ oxyUserId: AUTHOR, createdAt: at(0), type: PostType.VIDEO });
+    const withVideoRow = await create({
+      oxyUserId: AUTHOR,
+      createdAt: at(-1_000),
+      content: {
+        variants: [{ source: 'author', text: 'clip' }],
+        // Short and landscape on purpose: the reel lane would reject both, and
+        // the profile grid must not.
+        media: [{ id: 'feedsrc-video', type: 'video', width: 40, height: 20, durationSec: 2 }],
+      },
+    });
+    await create({
+      oxyUserId: AUTHOR,
+      createdAt: at(-2_000),
+      content: {
+        variants: [{ source: 'author', text: 'clip' }],
+        attachments: [{ type: 'media', id: 'feedsrc-video', mediaType: 'video' }],
+      },
+    });
+    await create({ oxyUserId: AUTHOR, createdAt: at(-3_000), type: PostType.IMAGE });
+    await create({
+      oxyUserId: AUTHOR,
+      type: PostType.VIDEO,
+      parentPostId: typedVideo.id,
+    });
+    await create({
+      oxyUserId: AUTHOR,
+      type: PostType.BOOST,
+      boostOf: typedVideo.id,
+      content: { variants: [] },
+    });
+
+    const gathered = await authoredSource.gather(
+      { currentUserId: VIEWER },
+      { authorId: AUTHOR, filter: 'videos' },
+      31,
+    );
+    expect(idsOf(gathered)).toEqual([typedVideo.id, withVideoRow.id]);
+  });
+
   it('degrades an unrecognized filter to the posts tab rather than erroring', async () => {
     const root = await create({ oxyUserId: AUTHOR, createdAt: at(0) });
     await create({ oxyUserId: AUTHOR, parentPostId: root.id });

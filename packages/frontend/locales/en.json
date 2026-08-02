@@ -634,6 +634,38 @@
   "compose.drafts": "Drafts",
   "compose.noDrafts": "No drafts yet",
   "compose.noDraftsDescription": "Your saved drafts will appear here",
+  "compose.unpublished": "Unpublished",
+  "compose.scheduled.tab": "Scheduled",
+  "compose.scheduled.empty": "No scheduled posts",
+  "compose.scheduled.emptyDescription": "Posts you schedule will wait here until it is time to publish them.",
+  "compose.scheduled.unknownTime": "Time unavailable",
+  "compose.scheduled.publishNow": "Post now",
+  "compose.scheduled.publishNowConfirm": "This post goes out immediately instead of at its scheduled time.",
+  "compose.scheduled.published": "Post published",
+  "compose.scheduled.publishError": "Could not publish the post",
+  "compose.draftPreviewTitle": "Draft preview",
+  "compose.draftPreviewA11y": "Preview draft",
+  "compose.draftPreviewEdit": "Continue writing",
+  "compose.draftPreviewThread": "First post of {{count}} more in this thread",
+  "compose.schedule.a11y": "Schedule this post",
+  "compose.schedule.chipA11y": "Scheduled for {{time}}. Tap to change.",
+  "compose.scheduled.edit": "Edit scheduled post",
+  "compose.scheduled.editingNotice": "Editing a scheduled post — nobody has seen it yet, so there is no time limit. You can change when it publishes.",
+  "common.edit": "Edit",
+  "compose.scheduled.previewTitle": "Preview",
+  "compose.scheduled.previewA11y": "Preview scheduled post",
+  "compose.scheduled.publishesAt": "Publishes {{time}}",
+  "compose.scheduled.publishing": "Publishing now…",
+  "compose.scheduled.pastDueNotice": "Its time has passed — it may already be live. Reopen this list to refresh.",
+  "compose.scheduled.cancelConfirmPastDue": "Its time has passed, so it may already have been published. Either way this post will be deleted.",
+  "common.back": "Back",
+  "compose.scheduled.cancelTitle": "Cancel scheduled post",
+  "compose.scheduled.cancelConfirm": "This post will be deleted and never published.",
+  "compose.scheduled.cancelConfirmAction": "Cancel post",
+  "compose.scheduled.cancelled": "Scheduled post cancelled",
+  "compose.scheduled.cancelError": "Failed to cancel the scheduled post",
+  "compose.scheduled.loadError": "We couldn't load your scheduled posts",
+  "common.retry": "Retry",
   "compose.draftLoaded": "Draft loaded",
   "compose.deleteDraft": "Delete draft",
   "compose.deleteDraftConfirm": "Are you sure you want to delete this draft?",
@@ -712,7 +744,17 @@
     "previous": "Previous video",
     "next": "Next video",
     "picture_in_picture": "Picture in Picture",
-    "picture_in_picture_failed": "Couldn't start Picture in Picture"
+    "picture_in_picture_failed": "Couldn't start Picture in Picture",
+    "replies": "Replies",
+    "addComment": "Add a comment...",
+    "like": "Like",
+    "unlike": "Unlike",
+    "comment": "Comment",
+    "boost": "Boost",
+    "unboost": "Undo boost",
+    "save": "Save",
+    "unsave": "Remove from saved",
+    "share": "Share"
   },
   "common": {
     "unknown": "unknown",
@@ -1383,6 +1425,12 @@
         "reviews": "Reviews"
       },
       "reviewPlaceholder": "Share what you think about this feed (optional)"
+    },
+    "trending": {
+      "title": "Trending now",
+      "subtitle": "A live conversation",
+      "people_one": "{{count}} person posting",
+      "people_other": "{{count}} people posting"
     }
   },
   "connections": {
@@ -1667,5 +1715,68 @@
       }
     },
     "searchPlaceholder": "Search saved posts"
+  },
+  "trend": {
+    "trendingLabel": "Trending",
+    "typeEntity": "Entity",
+    "typeTopic": "Topic",
+    "badge": {
+      "hot": "Hot",
+      "new": "New",
+      "hoursAgo": "{{count}}h",
+      "daysAgo": "{{count}}d"
+    },
+    "peopleCount": "{{formatted}} people",
+    "postCount": "{{formatted}} posts",
+    "category": {
+      "news": "News",
+      "politics": "Politics",
+      "sports": "Sports",
+      "pop-culture": "Entertainment",
+      "video-games": "Video Games",
+      "science": "Science",
+      "other": ""
+    }
+  },
+  "transparency": {
+    "title": "Transparency",
+    "heading": "Who we federate with",
+    "intro": "Mention is part of the fediverse — a network of independently run social sites that pass posts and follows between one another. Anyone can run one, and that openness is the point. It also means some are run by people who host things we will not carry.",
+    "introSource": "This page lists every instance Mention refuses to exchange with, and why. It is rendered from the same list the server enforces, so it cannot quietly fall out of date.",
+    "whatItDoes": {
+      "title": "What a block does",
+      "body": "Nothing from a blocked instance reaches Mention. Posts, follows, likes and boosts it sends are refused as they arrive, we stop fetching its accounts and timelines, and its accounts can no longer be found or followed from here.",
+      "bluntness": "It applies to a whole site, not to the individual people on it. That is a blunt instrument, so we would rather use it rarely and explain it every time.",
+      "scope": "Each entry names one server and covers exactly that name. A subdomain is a different server — a block on example.com does not extend to social.example.com — so each one is decided on its own and appears here in its own right.",
+      "limits": "Worth knowing: a block governs what reaches Mention. Anything you post publicly here stays public and can still be read from anywhere, including the instances on this list."
+    },
+    "howWeDecide": {
+      "title": "How a decision is taken",
+      "corroboration": "Most fediverse servers publish the instances they have blocked, as open data. We read several of those lists and look for the same decision reached independently by more than one of them before treating it as a signal — one server’s list is one server’s opinion, and some published blocks are contested.",
+      "judgement": "Corroboration is not the decision. Before anything is added we look at what we actually hold from that instance and what a block would cost the people here, and a person makes the call. Where another server’s published decision is what prompted ours, it is named below.",
+      "audit": "The list lives in Mention’s source code, so every entry arrives as a reviewed change carrying a date and a written reason — and can be argued with, or undone. We publish ours as open data at /federation/blocked-domains, the same way we read everyone else’s."
+    },
+    "list": {
+      "title": "Instances we do not federate with",
+      "count_one": "{{count}} instance is blocked.",
+      "count_other": "{{count}} instances are blocked.",
+      "empty": "No instances are blocked. Mention federates with the whole network today; if that changes, every decision will appear here with its reason and the date it took effect.",
+      "error": "This list could not be loaded right now. It is served at /federation/blocked-domains if you would rather read it directly."
+    },
+    "severity": {
+      "suspend": "Not federated"
+    },
+    "blockMeta": "{{category}} · Blocked since {{since}}",
+    "corroboratedBy": "Also published by {{sources}}",
+    "decidedHere": "Decided from reports and moderation on Mention.",
+    "operationalBlock": "Blocked urgently by an operator, ahead of a written policy entry. Its reason has not been published yet.",
+    "category": {
+      "childSafety": "Child safety",
+      "hateSpeech": "Hate speech",
+      "harassment": "Targeted harassment",
+      "spam": "Spam",
+      "malware": "Malware or phishing",
+      "unmoderated": "Unmoderated"
+    }
   }
 }

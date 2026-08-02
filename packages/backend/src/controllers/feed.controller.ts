@@ -10,7 +10,6 @@ import {
 } from '@mention/shared-types';
 import {
   mentionTextsFromContent,
-  reconcileMentionIds,
 } from '@mention/shared-types/mentions';
 import { posts as postsTable } from '../db/schema/posts';
 import {
@@ -23,7 +22,7 @@ import {
 } from '../db/posts/postRepository';
 import { POST_CLASSIFICATION_PENDING, type PostRecord } from '../db/posts/postRecord';
 import { getRuntimeOxyClient } from '../runtime/oxyClient';
-import { getRuntimeSocketServer } from '../runtime/socketServer';
+import { emitPostEngagement, POST_ENGAGEMENT_EVENTS } from '../services/postEngagementBroadcast';
 import { userPreferenceService, readInteractionSurface } from '../services/UserPreferenceService';
 import { affinityEventService } from '../services/AffinityEventService';
 import { postHydrationService } from '../services/PostHydrationService';
@@ -34,7 +33,7 @@ import { logger } from '../utils/logger';
 import { validateAndNormalizeLimit, FEED_CONSTANTS } from '../utils/feedUtils';
 import { ChronoCursor, chronoCursorSql, chronoOrderBy, ScoreCursor } from '../mtn/feed/CursorBuilder';
 import { rankingWeight } from '../utils/feedQueryBuilder';
-import { mergeHashtags } from '../utils/textProcessing';
+import { mergeHashtags, reconcileMentionIdsForPost } from '../utils/textProcessing';
 import { normalizeMediaItems } from '../utils/mediaInput';
 import { queryString } from '../utils/queryParams';
 import { buildAuthorship } from '../utils/postAuthorship';
@@ -272,6 +271,26 @@ class FeedController {
         return res.status(400).json({ error: 'Content and post ID are required' });
       }
 
+      /**
+       * `postId` arrives as JSON, so it can be an OBJECT, and it reaches both the
+       * parent lookup below and the counter update further down.
+       *
+       * Under Mongo that was a real hole — measured against mongod, not assumed:
+       * `{ $ne: null }` cast cleanly as a query operator on an ObjectId path and
+       * MATCHED an arbitrary post, and `findByIdAndUpdate` given the same value
+       * mutated one. Every id below is a BOUND PARAMETER against a `text` column
+       * now, so an operator object can no longer become a predicate — but a
+       * non-string still has no business being interpolated as one, and the type
+       * check costs nothing.
+       *
+       * The id-SHAPE check (`isValidObjectId`) is deliberately NOT carried over:
+       * `posts.id` holds pre-cutover ObjectId hex AND post-cutover uuid v7, so it
+       * would 400 every post this instance has minted since the cutover.
+       */
+      if (typeof postId !== 'string') {
+        return res.status(400).json({ error: 'Invalid post ID' });
+      }
+
       // Fetch parent post to check reply permissions
       const parentPost = await loadPostRecord(postId);
       if (!parentPost) {
@@ -343,7 +362,7 @@ class FeedController {
 
       // Create reply post
       const mergedTags = mergeHashtags(replyContent?.text || '', hashtags);
-      const reconciledMentions = reconcileMentionIds(
+      const reconciledMentions = reconcileMentionIdsForPost(
         mentionTextsFromContent(replyContent),
         mentions,
       );
@@ -383,6 +402,7 @@ class FeedController {
           languages: signals.languages,
           region: signals.region,
           hashtagsNorm: signals.hashtagsNorm,
+          trendTerms: signals.trendTerms,
           sensitive: signals.sensitive,
           scores: signals.scores,
           version: signals.version,
@@ -452,8 +472,11 @@ class FeedController {
           .catch(() => undefined);
       }
 
-      // Update parent post comment count
-      await bumpPostCounters(postId, { comments: 1 });
+      // Update parent post comment count. `bumpPostCounters` is one
+      // `UPDATE … RETURNING`, so the broadcast below carries the number the
+      // database now holds rather than a count this request computed and hoped
+      // was still current.
+      const updatedParent = await bumpPostCounters(postId, { comments: 1 });
 
       // Outbound federation: deliver the reply as a Create(Note) with `inReplyTo`
       // + a parent-author Mention to the replier's remote followers AND (when the
@@ -474,11 +497,16 @@ class FeedController {
         includeLinkMetadata: true,
       });
 
-      // Emit real-time update to post room only (not all clients)
-      getRuntimeSocketServer()?.to(`post:${postId}`).emit('post:replied', {
+      // Only the parent's new reply count goes to the room. `hydratedReply` was
+      // built for the REPLIER's viewer context and stays in the HTTP response,
+      // where exactly one person reads it; broadcasting it would hand every other
+      // room member the replier's own viewer state, and no client reads it there.
+      emitPostEngagement({
+        event: POST_ENGAGEMENT_EVENTS.REPLIED,
         postId,
-        reply: hydratedReply,
-        timestamp: new Date().toISOString()
+        ...(updatedParent?.oxyUserId ? { authorOxyUserId: updatedParent.oxyUserId } : {}),
+        counts: { replies: updatedParent?.commentsCount },
+        actorId: currentUserId,
       });
 
       res.status(201).json({
@@ -511,6 +539,20 @@ class FeedController {
         return res.status(400).json({ error: 'Original post ID is required' });
       }
 
+      // A client-supplied id reaches three queries here. The TYPE check stays and
+      // is the whole guard now: `postId` arrives as JSON, so it can be an OBJECT,
+      // and an object is what Mongo would have cast into a query operator that
+      // matched an arbitrary post. Every id below is a BOUND PARAMETER against a
+      // `text` column, so an operator object can no longer become a predicate —
+      // but a non-string still has no business being interpolated as one.
+      //
+      // The id-SHAPE check (`isValidObjectId`) is deliberately NOT carried over:
+      // `posts.id` holds pre-cutover ObjectId hex AND post-cutover uuid v7, so it
+      // would 400 every post this instance has minted since the cutover.
+      if (typeof originalPostId !== 'string') {
+        return res.status(400).json({ error: 'Invalid post ID' });
+      }
+
       const originalPost = await loadPostRecord(originalPostId);
       const shareValidation = validatePublicShareTarget(originalPost, { action: 'boost' });
       if (!shareValidation.ok) {
@@ -534,7 +576,7 @@ class FeedController {
       // original owns its own attachments), so the field is dropped rather than
       // half-resolved.
       const boostContent: PostContent = { ...(content ?? { text: '' }), podcast: undefined };
-      const reconciledMentions = reconcileMentionIds(
+      const reconciledMentions = reconcileMentionIdsForPost(
         mentionTextsFromContent(boostContent),
         mentions,
       );
@@ -599,15 +641,17 @@ class FeedController {
         includeLinkMetadata: true,
       });
 
-      // Emit real-time update to post room only (not all clients)
-      getRuntimeSocketServer()?.to(`post:${originalPostId}`).emit('post:boosted', {
-        originalPostId,
+      // Everyone watching the ORIGINAL gets its new boost count. The hydrated
+      // boost itself is deliberately NOT broadcast: it was hydrated for the
+      // booster's viewer context, so its `viewerState` describes the booster, and
+      // sending it to a room would tell every other member what the booster has
+      // liked and saved. Nothing on the client reads it — the count is the point.
+      emitPostEngagement({
+        event: POST_ENGAGEMENT_EVENTS.BOOSTED,
         postId: originalPostId,
-        boost: hydratedBoost,
-        boostsCount: updatedStats?.boostsCount,
-        userId: currentUserId,
+        ...(updatedStats?.oxyUserId ? { authorOxyUserId: updatedStats.oxyUserId } : {}),
+        counts: { boosts: updatedStats?.boostsCount },
         actorId: currentUserId,
-        timestamp: new Date().toISOString()
       });
 
       res.status(201).json({
@@ -687,16 +731,13 @@ class FeedController {
         ? await bumpPostCounters(boost.boostOf, { boosts: -1 })
         : null;
 
-      // Emit real-time update to post room only (not all clients)
       const boostOriginalId = boost.boostOf ?? '';
-      getRuntimeSocketServer()?.to(`post:${boostOriginalId}`).emit('post:unboosted', {
-        originalPostId: boost.boostOf,
-        postId: boost.boostOf,
-        boostId: boost.id,
-        boostsCount: updatedStats?.boostsCount,
-        userId: currentUserId,
+      emitPostEngagement({
+        event: POST_ENGAGEMENT_EVENTS.UNBOOSTED,
+        postId: boostOriginalId,
+        ...(updatedStats?.oxyUserId ? { authorOxyUserId: updatedStats.oxyUserId } : {}),
+        counts: { boosts: updatedStats?.boostsCount },
         actorId: currentUserId,
-        timestamp: new Date().toISOString()
       });
 
       res.json({

@@ -27,6 +27,62 @@ export type TrendEventName = 'click' | 'seen';
 export type TrendEventType = 'hashtag' | 'topic' | 'entity';
 
 /**
+ * The category taxonomy a trend is filed under — the coarse hint shown beneath
+ * its label ("Sports", "Politics").
+ *
+ * Closed and small because a client has to be able to TRANSLATE it: a category
+ * is rendered from a fixed string table per locale, so a vocabulary that could
+ * grow at runtime would surface untranslated words to readers. `other` is the
+ * honest answer when nothing fits — it renders as no category at all rather
+ * than as the word "Other" — and is what any unrecognised value degrades to
+ * (see {@link normalizeTrendCategory}).
+ *
+ * The server derives a category by mapping its rule-based topic slugs onto this
+ * list, so the taxonomy a post is classified under and the one a trend is shown
+ * under stay a single evolution point.
+ *
+ * Declared here rather than in `MtnConfig` so the runtime list and the type stay
+ * one declaration; the config references it.
+ */
+export const TREND_CATEGORIES = [
+  'news',
+  'politics',
+  'sports',
+  'pop-culture',
+  'video-games',
+  'tech',
+  'science',
+  'other',
+] as const;
+
+export type TrendCategory = (typeof TREND_CATEGORIES)[number];
+
+/**
+ * Narrow an arbitrary string to a {@link TrendCategory}, degrading to `other`.
+ *
+ * The input is model output, so "unrecognised" is a routine outcome and not an
+ * error: a labeller that answers `Entertainment` instead of `pop-culture` must
+ * cost the trend its category, never its place in the list.
+ */
+export function normalizeTrendCategory(value: string | undefined | null): TrendCategory {
+  if (!value) return 'other';
+  const normalized = value.trim().toLowerCase();
+  return (TREND_CATEGORIES as readonly string[]).includes(normalized)
+    ? (normalized as TrendCategory)
+    : 'other';
+}
+
+/**
+ * Whether a trend is bursting hard enough to be called out.
+ *
+ * One value, not a scale: `hot` is a claim that something is happening right
+ * now, and its absence is the ordinary case. The client derives everything else
+ * it shows (a `new` badge, an age) from the trend's `startedAt` — a second
+ * stored status would be a second thing that can disagree with the timestamp.
+ */
+export type TrendStatus = 'hot';
+
+/**
  * Where the trend was rendered. Each surface has a different cost and a
  * different denominator, so they are counted apart rather than summed:
  *  - `widget` — the right-rail trends widget
@@ -35,13 +91,15 @@ export type TrendEventType = 'hashtag' | 'topic' | 'entity';
  *    recommendation, which is why history trends carry no `recId`)
  *  - `search` — the search screen's idle suggestions
  *  - `interstitial` — the in-feed trending card
+ *  - `feeds` — the trending section of the feeds directory
  */
 export type TrendEventSurface =
   | 'widget'
   | 'explore'
   | 'search'
   | 'interstitial'
-  | 'history';
+  | 'history'
+  | 'feeds';
 
 export interface TrendEventInput {
   event: TrendEventName;

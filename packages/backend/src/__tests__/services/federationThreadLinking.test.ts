@@ -483,6 +483,93 @@ describe('outbox backfill — bounded ancestor backfill', () => {
     expect(immediateParent).toBeDefined();
     expect(reply?.parentPostId).toBe(immediateParent?.id);
   });
+
+  /**
+   * How much of a thread ONE ingest pass will pull.
+   *
+   * `MAX_ANCESTOR_DEPTH` (30) is the pre-existing and still the BINDING bound on
+   * live thread ingest: `handleCreate` is the only live entry point that walks a
+   * reply chain (via `ensureFederatedReplyLink`), each level has exactly one
+   * `inReplyTo`, so the walk is linear and one inbound reply materialises at most
+   * that many ancestors. Nothing walks `replies`/`context` collections, so there is
+   * no descendant fan-out at all; the outbox path is separately bounded by its own
+   * candidate limit, page budget and per-page inspection cap.
+   *
+   * The measured pile-up (annihilation.social, 1,820 ancestors) is far past this,
+   * which is exactly why it needs pinning at the boundary rather than at a "no
+   * runaway" order of magnitude: these assert the number of ancestors ACTUALLY
+   * MATERIALISED, so a regression that loosens the walk shows up as a count, not as
+   * a hang.
+   */
+  describe('per-pass ancestor materialisation boundary', () => {
+    /**
+     * `length` ancestors above the inbound reply, ending at a real root. Returns the
+     * fetch mock so the caller can count on-demand ancestor fetches.
+     */
+    const finiteChain = (length: number) => {
+      // statuses/1 is the root; statuses/N replies to statuses/N-1. The inbound
+      // reply is statuses/(length + 1), so `length` ancestors sit above it.
+      const fetchMock = vi.fn(async (url: string) => {
+        const n = Number(url.match(/\/statuses\/(\d+)$/)?.[1]);
+        if (!Number.isFinite(n)) throw new Error(`unexpected fetch ${url}`);
+        return jsonResponse({
+          id: url,
+          type: 'Note',
+          attributedTo: ACTOR_URI,
+          content: `<p>ancestor ${n}</p>`,
+          ...(n > 1 ? { inReplyTo: `${ACTOR_URI}/statuses/${n - 1}` } : {}),
+          to: ['https://www.w3.org/ns/activitystreams#Public'],
+        });
+      });
+      vi.stubGlobal('fetch', fetchMock);
+      return fetchMock;
+    };
+
+    /** Ancestor posts written to the store by this pass (excludes the reply itself). */
+    const materialisedAncestors = (replyActivityId: string): number =>
+      h.postCreatorCreate.mock.calls.filter(
+        (c) => (c[0].federation as { activityId?: string })?.activityId !== replyActivityId,
+      ).length;
+
+    it('pulls a whole 30-ancestor chain — AT the depth cap nothing is left behind', async () => {
+      const fetchMock = finiteChain(30);
+
+      await federationService.processInboxActivity(
+        replyCreateActivity('31', `${ACTOR_URI}/statuses/30`),
+        ACTOR_URI,
+      );
+
+      expect(materialisedAncestors(`${ACTOR_URI}/statuses/31`)).toBe(30);
+      expect(fetchMock).toHaveBeenCalledTimes(30);
+      // Reached the real root, so the reply carries the true thread id.
+      const root = h.findByActivityId(`${ACTOR_URI}/statuses/1`);
+      expect(root).toBeTruthy();
+      const reply = h.findByActivityId(`${ACTOR_URI}/statuses/31`);
+      expect(reply?.threadId).toBe(root?._id);
+    });
+
+    it('stops at 30 on a 31-ancestor chain — the reply still lands, unlinked above', async () => {
+      const fetchMock = finiteChain(31);
+
+      await federationService.processInboxActivity(
+        replyCreateActivity('32', `${ACTOR_URI}/statuses/31`),
+        ACTOR_URI,
+      );
+
+      // One over the chain length the cap allows: the 31st ancestor (the real root,
+      // statuses/1) is never fetched and never written.
+      expect(materialisedAncestors(`${ACTOR_URI}/statuses/32`)).toBe(30);
+      expect(fetchMock).toHaveBeenCalledTimes(30);
+      expect(fetchMock).not.toHaveBeenCalledWith(`${ACTOR_URI}/statuses/1`, expect.anything());
+      expect(h.findByActivityId(`${ACTOR_URI}/statuses/1`)).toBeUndefined();
+
+      // Best-effort, never a dropped post: the reply exists and is linked to its
+      // immediate parent, rooted at the deepest ancestor the pass did reach.
+      const reply = h.findByActivityId(`${ACTOR_URI}/statuses/32`);
+      expect(reply?.parentPostId).toBe(h.findByActivityId(`${ACTOR_URI}/statuses/31`)?._id);
+      expect(reply?.threadId).toBe(h.findByActivityId(`${ACTOR_URI}/statuses/2`)?._id);
+    });
+  });
 });
 
 describe('reconciliation script — backfillFederatedThreadLinks', () => {

@@ -3,6 +3,7 @@ import { createDomainPolicy, createUrlBuilders } from '@oxyhq/federation';
 import { config } from '../../config';
 import { logger } from '../../utils/logger';
 import { getServiceOxyClient } from '../../utils/oxyHelpers';
+import { getBlockedDomainPolicy, resolveFederationBlocks } from './federationBlockPolicy';
 
 export const FEDERATION_DOMAIN = config.federation.domain;
 export const ACTOR_DOMAIN = config.federation.actorDomain;
@@ -40,9 +41,25 @@ export const OXY_IDENTITY_APEX = (
 export const FEDERATION_ENABLED = config.federation.enabled;
 export const FEDERATION_MAX_CONTENT_LENGTH = config.federation.maxContentLength;
 export const FEDERATION_DELIVERY_RETRIES = config.federation.deliveryRetries;
-const FEDERATION_BLOCKED_DOMAINS = new Set(
+/**
+ * Every moderation block in force, in the exact form the public transparency
+ * page renders — the committed policy file unioned with the
+ * `FEDERATION_BLOCKED_DOMAINS` emergency lever. See
+ * {@link ./federationBlockPolicy} for why the list is committed rather than
+ * configured.
+ */
+export const FEDERATION_BLOCKS = resolveFederationBlocks(
+  getBlockedDomainPolicy(),
   config.federation.blockedDomains,
 );
+
+/**
+ * The enforced set, DERIVED from the published list rather than assembled beside
+ * it. That derivation is what makes the transparency page structurally unable to
+ * disagree with the server: a domain can only be blocked here by first being
+ * published there.
+ */
+const FEDERATION_BLOCKED_DOMAINS = new Set(FEDERATION_BLOCKS.map((block) => block.domain));
 
 export const AP_CONTENT_TYPE = 'application/activity+json';
 export const AP_ACCEPT_TYPES = [
@@ -93,9 +110,13 @@ export function hashtagUrl(tag: string): string {
 /**
  * Mention's per-instance domain policy, bound via the shared `@oxyhq/federation`
  * factory. `isBlockedDomain` rejects our own ActivityPub domains, the Oxy identity
- * apex (both publish our own users), and any configured `FEDERATION_BLOCKED_DOMAINS`;
- * `extractLocalPostId` recognises our own AP post URIs. The URI/domain LOGIC lives
- * in the engine; this module owns the domain configuration.
+ * apex (both publish our own users), and every published moderation block
+ * ({@link FEDERATION_BLOCKS}); `extractLocalPostId` recognises our own AP post
+ * URIs. The URI/domain LOGIC lives in the engine; this module owns the domain
+ * configuration.
+ *
+ * The first two are NOT moderation decisions and are deliberately absent from the
+ * published list — see the note in `./federationBlockPolicy`.
  */
 const domainPolicy = createDomainPolicy({
   domain: FEDERATION_DOMAIN,

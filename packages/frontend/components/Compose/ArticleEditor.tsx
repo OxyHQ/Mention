@@ -1,19 +1,8 @@
 import React from "react";
-import {
-    View,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    Modal,
-    KeyboardAvoidingView,
-    ScrollView,
-    Platform,
-} from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { View, Text, TextInput, TouchableOpacity } from "react-native";
+import { Dialog } from '@oxyhq/bloom/dialog';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { useTranslation } from "react-i18next";
-import { IconButton } from '@/components/ui/Button';
-import { CloseIcon } from "@/assets/icons/close-icon";
 
 interface ArticleEditorProps {
     visible: boolean;
@@ -25,6 +14,27 @@ interface ArticleEditorProps {
     onClose: () => void;
 }
 
+/**
+ * The long-form writing surface behind the composer's "article" attachment.
+ *
+ * It renders through bloom's `Dialog`, NOT a hand-rolled RN `<Modal>`. That is a
+ * layering decision rather than a styling one: a raw `Modal` gets its own native
+ * window, which sits outside any ordering the design system can apply, so an
+ * overlay opened from inside it — a confirm prompt, a picker — has no way to
+ * paint above it. Everything on bloom's surface stack orders against everything
+ * else; a bare `Modal` orders against nothing.
+ *
+ * The Dialog also owns what this component used to hand-roll: the safe-area
+ * insets, the keyboard-avoiding behaviour while a long body is being typed, the
+ * scroll container, and the header with its close affordance. `placement` is the
+ * app's usual dialog-to-sheet pair — a near-full-height sheet on a phone, where
+ * that is the native shape for a writing surface, and a wide centered card on a
+ * desktop, where prose reads better than a 460px drawer.
+ *
+ * Every value is controlled by the composer, which owns the draft: this
+ * component holds no copy of the title or body, so opening, typing, closing and
+ * reopening cannot lose them.
+ */
 export const ArticleEditor: React.FC<ArticleEditorProps> = ({
     visible,
     title,
@@ -36,68 +46,58 @@ export const ArticleEditor: React.FC<ArticleEditorProps> = ({
 }) => {
     const theme = useTheme();
     const { t } = useTranslation();
-    const insets = useSafeAreaInsets();
+
+    const saveAction = (
+        <TouchableOpacity
+            onPress={onSave}
+            className="px-4 py-2 rounded-full bg-primary"
+            activeOpacity={0.85}
+            accessibilityRole="button"
+        >
+            <Text className="text-sm font-semibold" style={{ color: theme.colors.card }}>
+                {t("common.save")}
+            </Text>
+        </TouchableOpacity>
+    );
 
     return (
-        <Modal
-            visible={visible}
-            animationType="slide"
-            presentationStyle="fullScreen"
-            onRequestClose={onClose}
+        <Dialog
+            open={visible}
+            onClose={onClose}
+            placement={{ base: 'bottom', md: 'center' }}
+            maxWidth={720}
+            maxHeightRatio={0.92}
+            header={{
+                title: t("compose.article.editorTitle", { defaultValue: "Write article" }),
+                largeTitle: false,
+                right: saveAction,
+            }}
+            testID="articleEditorDialog"
         >
-            <View
-                className="flex-1 bg-background"
-                style={{ paddingTop: insets.top, paddingBottom: insets.bottom, paddingLeft: insets.left, paddingRight: insets.right }}
-            >
-                <View className="flex-row items-center px-4 py-2 min-h-[48px] border-b border-border">
-                    <IconButton variant="icon" onPress={onClose} className="mr-1.5 z-[1]">
-                        <CloseIcon size={20} className="text-foreground" />
-                    </IconButton>
-                    <Text className="absolute left-0 right-0 text-center text-lg font-bold text-foreground pointer-events-none">
-                        {t("compose.article.editorTitle", { defaultValue: "Write article" })}
-                    </Text>
-                    <TouchableOpacity
-                        onPress={onSave}
-                        className="px-4 py-2 rounded-full bg-primary ml-auto"
-                        activeOpacity={0.85}
-                    >
-                        <Text className="text-sm font-semibold" style={{ color: theme.colors.card }}>
-                            {t("common.save")}
-                        </Text>
-                    </TouchableOpacity>
-                </View>
+            <View className="gap-4 pb-6">
+                <TextInput
+                    className="text-lg font-bold rounded-[14px] border-[1.5px] border-border bg-secondary px-4 py-3 text-foreground"
+                    placeholder={t("compose.article.titlePlaceholder", {
+                        defaultValue: "Article title",
+                    })}
+                    placeholderTextColor={theme.colors.textSecondary}
+                    value={title}
+                    onChangeText={onTitleChange}
+                    maxLength={280}
+                />
 
-                <KeyboardAvoidingView
-                    className="flex-1"
-                    behavior={Platform.OS === "ios" ? "padding" : undefined}
-                    keyboardVerticalOffset={Platform.OS === "ios" ? 24 : 0}
-                >
-                    <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 24, paddingBottom: 40, gap: 16 }} keyboardShouldPersistTaps="handled">
-                        <TextInput
-                            className="text-lg font-bold rounded-[14px] border-[1.5px] border-border bg-secondary px-4 py-3 text-foreground"
-                            placeholder={t("compose.article.titlePlaceholder", {
-                                defaultValue: "Article title",
-                            })}
-                            placeholderTextColor={theme.colors.textSecondary}
-                            value={title}
-                            onChangeText={onTitleChange}
-                            maxLength={280}
-                        />
-
-                        <TextInput
-                            className="min-h-[240px] rounded-[14px] border-[1.5px] border-border bg-secondary px-4 py-3 text-[15px] text-foreground"
-                            style={{ textAlignVertical: "top" }}
-                            placeholder={t("compose.article.bodyPlaceholder", {
-                                defaultValue: "Start writing…",
-                            })}
-                            placeholderTextColor={theme.colors.textSecondary}
-                            value={body}
-                            onChangeText={onBodyChange}
-                            multiline
-                        />
-                    </ScrollView>
-                </KeyboardAvoidingView>
+                <TextInput
+                    className="min-h-[240px] rounded-[14px] border-[1.5px] border-border bg-secondary px-4 py-3 text-[15px] text-foreground"
+                    style={{ textAlignVertical: "top" }}
+                    placeholder={t("compose.article.bodyPlaceholder", {
+                        defaultValue: "Start writing…",
+                    })}
+                    placeholderTextColor={theme.colors.textSecondary}
+                    value={body}
+                    onChangeText={onBodyChange}
+                    multiline
+                />
             </View>
-        </Modal>
+        </Dialog>
     );
 };

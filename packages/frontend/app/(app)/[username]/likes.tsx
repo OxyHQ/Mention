@@ -1,5 +1,6 @@
-// This route file exists for URL routing but rendering is handled by _layout.tsx
-export default function ProfileLikesRoute() {
-    return null;
-}
+import React from 'react';
+import ProfileScreen from '@/components/ProfileScreen';
 
+export default function ProfileLikesRoute() {
+    return <ProfileScreen tab="likes" />;
+}

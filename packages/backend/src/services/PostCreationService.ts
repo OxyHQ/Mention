@@ -1,4 +1,8 @@
+import { eq } from 'drizzle-orm';
+import { getDb } from '../db/postgres';
+import { posts } from '../db/schema/posts';
 import {
+  claimScheduledPost,
   insertPostRecord,
   loadPostRecord,
   loadPostRecords,
@@ -21,8 +25,8 @@ import {
 } from '@mention/shared-types';
 import {
   mentionTextsFromContent,
-  reconcileMentionIds,
 } from '@mention/shared-types/mentions';
+import { reconcileMentionIdsForPost } from '../utils/textProcessing';
 import {
   createMentionNotifications,
   createBatchNotifications,
@@ -40,10 +44,10 @@ import type { ReplyContext } from './mtn/mentionRecordBuilders';
 import { postCollaborationService } from './PostCollaborationService';
 import { getOwnerId, hasPendingCollabInvites } from '../utils/postAuthorship';
 import { mediaMetadataService } from './MediaMetadataService';
-import { enqueueMediaMetadataEnrich } from './mediaMetadataEnrichJob';
-import { warmLinkPreviewForTextDetached } from '../utils/linkPreviewWarm';
+import { enrichIngestedPosts } from './postEnrichment';
 import { authorVariants, declaredBaseLanguages, toStoredContent } from './postVariants';
 import { recordRecentReplierForPost } from './PostRecentReplierService';
+import { parentHasPublished } from './scheduledChain';
 
 export interface CreatePostParams {
   oxyUserId: string | null;
@@ -181,6 +185,7 @@ class PostCreationService {
           languages: signals.languages,
           region: signals.region,
           hashtagsNorm: signals.hashtagsNorm,
+          trendTerms: signals.trendTerms,
           sensitive: signals.sensitive,
           scores: signals.scores,
           version: signals.version,
@@ -341,7 +346,7 @@ class PostCreationService {
       content: storedContent,
       // Reconciled from the FINALIZED stored bodies. Incoming metadata alone must
       // never create a notification recipient.
-      mentions: reconcileMentionIds(mentionTextsFromContent(storedContent), params.mentions),
+      mentions: reconcileMentionIdsForPost(mentionTextsFromContent(storedContent), params.mentions),
       metadata: {
         ...(params.metadata ?? {}),
         ...(deferCollabFederation ? { collabFederationDeferred: true } : {}),
@@ -358,12 +363,18 @@ class PostCreationService {
     let post = await insertPostRecord(input);
     await recordRecentReplierForPost(post);
 
-    const savedMedia = post.content.media;
-    if (Array.isArray(savedMedia) && mediaMetadataService.needsOxyRetry(savedMedia)) {
-      void enqueueMediaMetadataEnrich(post.id);
-    }
-
     const isPublished = post.status === 'published';
+
+    // Post-ingest enrichment, converged with the outbox backfill's raw-insert
+    // route on one entry point (see `services/postEnrichment/`). Deferred while
+    // the post is still scheduled: a scheduled post has no readers yet, and
+    // `publishScheduledPost` runs the same step when it goes live. That gate is
+    // also why link previews were silently missing for every scheduled post —
+    // the old per-call-site fan-out skipped the warm here and the publish step
+    // never had one.
+    if (isPublished) {
+      enrichIngestedPosts([post]);
+    }
 
     if (
       params.autoAcceptCollaboratorIds &&
@@ -395,14 +406,7 @@ class PostCreationService {
     }
 
     if (isScheduled || params.skipNotifications) {
-      if (isPublished) {
-        warmLinkPreviewForTextDetached(primaryText);
-      }
       return post;
-    }
-
-    if (isPublished) {
-      warmLinkPreviewForTextDetached(primaryText);
     }
 
     return this.runPostSideEffects(post, {
@@ -414,20 +418,80 @@ class PostCreationService {
   }
 
   /**
+   * CLAIM a scheduled post, then publish it.
+   *
+   * The claim is the point. `publishScheduledPost` flips the status on a
+   * document it was handed, so two callers holding the same document both run
+   * the whole pipeline — federating twice, writing two MTN records, notifying
+   * twice. That is reachable in practice: the 60s sweep may load a due post
+   * moments before its author taps "post now".
+   *
+   * The conditional UPDATE in {@link claimScheduledPost} is the mutual exclusion
+   * — see its docblock for why one statement is enough. `publishScheduledPost`
+   * then re-sets the status it already holds, which is a no-op, and runs the side
+   * effects exactly once.
+   *
+   * **A continuation is refused while its parent is still unpublished.** A
+   * scheduled thread's posts are replies to one another, so publishing one out
+   * of turn puts an answer on screen ahead of the post it answers — a broken
+   * thread real readers can see, with no way to reorder it afterwards. The check
+   * lives HERE, at the one chokepoint both the sweep and the author's "publish
+   * now" go through, so the invariant does not depend on any caller ordering its
+   * work correctly; `ScheduledPostPublisher` orders the chain as well, but that
+   * is for liveness, not for safety. Why a pre-check needs no transaction is in
+   * `services/scheduledChain.ts`: `scheduled -> published` is one-way, so the
+   * reading can only err toward waiting.
+   *
+   * Returns `null` when the post was not claimable — gone, not this owner's,
+   * already published, or still behind its parent — leaving the caller to tell
+   * those apart if it needs to.
+   */
+  async claimAndPublishScheduledPost(params: {
+    postId: string;
+    ownerId?: string;
+  }): Promise<PostRecord | null> {
+    const [pending] = await getDb()
+      .select({ parentPostId: posts.parentPostId })
+      .from(posts)
+      .where(eq(posts.id, params.postId))
+      .limit(1);
+    if (!pending) {
+      return null;
+    }
+    if (!(await parentHasPublished(pending))) {
+      return null;
+    }
+
+    const claimed = await claimScheduledPost(params.postId, params.ownerId);
+    if (!claimed) {
+      return null;
+    }
+    return this.publishScheduledPost(claimed);
+  }
+
+  /**
    * Publish a post that was created with `status: 'scheduled'` once its
    * `scheduledFor` time has arrived. Flips the status to `published`, then runs
    * the SAME publish pipeline a fresh published post runs in `create()`:
    * collaborator invites, the MTN dual-write, notifications, the real-time feed
    * emit, and (deferred until every collaborator has resolved) federation.
    *
-   * Driven by {@link ScheduledPostPublisher} (leader-gated). Every side effect
-   * is isolated so one stage's failure never aborts the others; the caller
-   * further isolates each post so one post never sinks the batch.
+   * Reached only through {@link claimAndPublishScheduledPost}, which is what
+   * guarantees one publish per post: this method flips the status on a document
+   * it was HANDED, so calling it directly with a stale copy would run the whole
+   * pipeline a second time. Every side effect is isolated so one stage's failure
+   * never aborts the others; the caller further isolates each post so one post
+   * never sinks the batch.
    */
   async publishScheduledPost(post: PostRecord): Promise<PostRecord> {
     await updatePostRecord(post.id, { status: 'published' });
     const published: PostRecord = { ...post, status: 'published' };
     await recordRecentReplierForPost(published);
+
+    // The post is only now visible to readers, so this is where its enrichment
+    // belongs — `create()` deliberately skipped it while the post was scheduled.
+    // The SAME entry point the immediate create and the federated backfill use.
+    enrichIngestedPosts([published]);
 
     const ownerId = getOwnerId(published.authorship) ?? null;
     const hasPendingInvites = hasPendingCollabInvites(published.authorship);

@@ -96,12 +96,15 @@ const ActionChips = React.memo(
           return (
             <TouchableOpacity
               key={value}
+              // The active fill is `bg-primary/10`, NOT `${theme.colors.primary}18`:
+              // that token resolves to `rgb(0 98 157)`, so the hex-alpha suffix is a
+              // malformed colour react-native-web reads as fully opaque — the chip
+              // painted solid primary under its own `text-primary` label, so the
+              // selected action was the one word you could not read.
+              className={cn(isActive && 'bg-primary/10')}
               style={[
                 styles.actionChip,
-                {
-                  borderColor: isActive ? theme.colors.primary : theme.colors.border,
-                  backgroundColor: isActive ? `${theme.colors.primary}18` : 'transparent',
-                },
+                { borderColor: isActive ? theme.colors.primary : theme.colors.border },
               ]}
               onPress={() => onActionChange(labelSlug, value)}
               activeOpacity={0.7}
@@ -389,15 +392,14 @@ const LabelerDetailScreen: React.FC = () => {
                       </Text>
                       <View className="flex-row gap-1.5 items-center">
                         <SeverityBadge severity={severity} />
+                        {/* Same defect as the action chip above: an interpolated
+                            hex alpha on the `rgb(...)` primary token painted this
+                            badge solid primary under its own `text-primary`
+                            label. Tint and hairline both come from classes. */}
                         {ld.defaultAction && (
                           <View
-                            style={[
-                              styles.badge,
-                              {
-                                backgroundColor: `${theme.colors.primary}15`,
-                                borderColor: `${theme.colors.primary}40`,
-                              },
-                            ]}
+                            className="bg-primary/10 border-primary/25"
+                            style={styles.badge}
                           >
                             <Text className="text-[11px] font-semibold text-primary">
                               {ld.defaultAction}

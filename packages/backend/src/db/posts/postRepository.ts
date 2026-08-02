@@ -570,6 +570,7 @@ function assembleRecord(row: PostRow, children: PostChildRows): PostRecord {
       languages: optional(row.classificationLanguages),
       region: optional(row.classificationRegion),
       hashtagsNorm: optional(row.classificationHashtagsNorm),
+      trendTerms: optional(row.classificationTrendTerms),
       sensitive: optional(row.classificationSensitive),
       version: optional(row.classificationVersion),
       sentiment: row.classificationSentiment,
@@ -644,6 +645,47 @@ export async function loadPostRecord(
 ): Promise<PostRecord | null> {
   const [record] = await loadPostRecords([postId], db);
   return record ?? null;
+}
+
+/**
+ * Flip ONE still-scheduled post to `published`, and return it only to the caller
+ * that won the flip.
+ *
+ * This is a CLAIM, not an update: the publish pipeline behind it federates,
+ * writes an MTN record and notifies, so two callers holding the same post must
+ * not both run it. That is reachable in practice — the 60s sweep may load a due
+ * post moments before its author taps "post now".
+ *
+ * `status = 'scheduled'` in the WHERE is the mutual exclusion. The UPDATE takes a
+ * row lock, so a second caller blocks until the first commits and then re-checks
+ * the predicate against the COMMITTED row, which no longer says `scheduled` —
+ * it matches nothing and gets `null`. That is the same filter the sweep selects
+ * on, so the sweep is excluded too. No advisory lock and no explicit transaction
+ * are needed for this: a single UPDATE statement is already atomic.
+ *
+ * `ownerId` narrows the claim to one author for the request path. The sweep omits
+ * it, since it publishes on nobody's behalf.
+ *
+ * Returns the whole record so the caller can run the pipeline without a second
+ * read. `RETURNING id` then assembling is deliberate — a post is nine tables and
+ * `RETURNING *` would still only give one of them.
+ */
+export async function claimScheduledPost(
+  postId: string,
+  ownerId: string | undefined,
+  db: DatabaseOrTransaction = getDb(),
+): Promise<PostRecord | null> {
+  const [claimed] = await db
+    .update(posts)
+    .set({ status: 'published' })
+    .where(and(
+      eq(posts.id, postId),
+      eq(posts.status, 'scheduled'),
+      ...(ownerId ? [eq(posts.oxyUserId, ownerId)] : []),
+    ))
+    .returning({ id: posts.id });
+  if (!claimed) return null;
+  return loadPostRecord(claimed.id, db);
 }
 
 /**
@@ -756,6 +798,7 @@ function toPostInsert(input: PostRecordInput, id: string): PostInsert {
     classificationLanguages: classification?.languages ?? null,
     classificationRegion: classification?.region ?? null,
     classificationHashtagsNorm: classification?.hashtagsNorm ?? null,
+    classificationTrendTerms: classification?.trendTerms ?? null,
     classificationSensitive: classification?.sensitive ?? null,
     classificationVersion: classification?.version ?? null,
     classificationSentiment: classification?.sentiment ?? 'neutral',
@@ -1012,6 +1055,7 @@ export async function updatePostRecord(
     classificationLanguages: classification?.languages,
     classificationRegion: classification?.region,
     classificationHashtagsNorm: classification?.hashtagsNorm,
+    classificationTrendTerms: classification?.trendTerms,
     classificationSensitive: classification?.sensitive,
     classificationVersion: classification?.version,
     classificationSentiment: classification?.sentiment,
@@ -1123,12 +1167,17 @@ export interface PostCounterDelta {
  * double unboost drove `stats.boostsCount` negative in Mongo, and a negative
  * count is both nonsense on the wire and a ranking input that pushes a post below
  * every post with no engagement at all.
+ *
+ * The AUTHOR comes back with the counters, on the same round trip, because the
+ * realtime broadcast needs both: whose privacy settings decide what may be sent,
+ * and what the numbers now are. Reading the author separately would be a second
+ * query that could answer about a different version of the row.
  */
 export async function bumpPostCounters(
   postId: string,
   delta: PostCounterDelta,
   db: DatabaseOrTransaction = getDb(),
-): Promise<PostStats | null> {
+): Promise<(PostStats & { oxyUserId: string | null }) | null> {
   // `PgUpdateSetSource`, not `Partial<PostInsert>`: each value here is a SQL
   // EXPRESSION (`greatest(0, col + n)`) rather than a literal, which the insert
   // type's `number` columns reject.
@@ -1155,6 +1204,7 @@ export async function bumpPostCounters(
     .set(values)
     .where(eq(posts.id, postId))
     .returning({
+      oxyUserId: posts.oxyUserId,
       likesCount: posts.statsLikesCount,
       downvotesCount: posts.statsDownvotesCount,
       boostsCount: posts.statsBoostsCount,

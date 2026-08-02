@@ -81,6 +81,7 @@ export function assembleActorRecord(row: ActorRow): FederatedActorRecord {
     username: row.username,
     domain: row.domain,
     acct: row.acct,
+    networkAcct: optional(row.networkAcct),
     summary: optional(row.summary),
     avatarUrl: optional(row.avatarUrl),
     headerUrl: optional(row.headerUrl),
@@ -239,6 +240,71 @@ export async function findActorByAcct(
   return row ? assembleActorRecord(row) : null;
 }
 
+/** The three columns the duplicate-identity merge decides on. */
+export interface IdentityOwnerActor {
+  uri: string;
+  domain: string;
+  oxyUserId: string;
+}
+
+/**
+ * The OTHER actor row that already holds `federatedUsername` as its identity, if
+ * one exists — the lookup behind `resolveFederatedActorIdentity`'s merge.
+ *
+ * Two shapes have to match or the merge cannot see across them, and the pair it
+ * most needs to see across is a Bluesky account held NATIVELY over atproto and
+ * AGAIN over ActivityPub through a bridge:
+ *
+ * - a BRIDGED row carries the identity explicitly in `network_acct`;
+ * - every other row's identity IS `username@domain`, which is how the atproto
+ *   connector stores a Bluesky account without ever writing `network_acct`.
+ *
+ * `network_acct is null` is the faithful translation of Mongo's
+ * `{ $exists: false }` here because {@link upsertActor} writes the column as NULL
+ * when the caller has no value — absent and null are the same state by
+ * construction, so there is no third case to miss.
+ *
+ * `uri <> :uri` is total: `uri` is `NOT NULL`, so the comparison can never
+ * evaluate to NULL and silently drop the row it is meant to exclude. `oxy_user_id
+ * is not null` is the whole of Mongo's `{ $exists: true, $ne: null }` — a row
+ * with no Oxy user has no identity to lend.
+ */
+export async function findIdentityOwnerActor(
+  params: { federatedUsername: string; excludeUri: string },
+  db: DatabaseOrTransaction = getDb(),
+): Promise<IdentityOwnerActor | null> {
+  const atIndex = params.federatedUsername.indexOf('@');
+  const shapes: SQL[] = [eq(federatedActors.networkAcct, params.federatedUsername)];
+  if (atIndex > 0 && atIndex < params.federatedUsername.length - 1) {
+    shapes.push(
+      and(
+        isNull(federatedActors.networkAcct),
+        eq(federatedActors.username, params.federatedUsername.slice(0, atIndex)),
+        eq(federatedActors.domain, params.federatedUsername.slice(atIndex + 1)),
+      ) as SQL,
+    );
+  }
+
+  const [row] = await db
+    .select({
+      uri: federatedActors.uri,
+      domain: federatedActors.domain,
+      oxyUserId: federatedActors.oxyUserId,
+    })
+    .from(federatedActors)
+    .where(and(
+      or(...shapes),
+      ne(federatedActors.uri, params.excludeUri),
+      isNotNull(federatedActors.oxyUserId),
+    ))
+    .limit(1);
+
+  // `oxy_user_id` is nullable on the column but `IS NOT NULL` above has already
+  // decided it; narrow rather than assert so the type follows the predicate.
+  if (!row || row.oxyUserId === null) return null;
+  return { uri: row.uri, domain: row.domain, oxyUserId: row.oxyUserId };
+}
+
 /** What a maintenance sweep narrows its scan to. Every field is ANDed. */
 export interface ActorScanFilter {
   protocol?: FederatedActorRecord['protocol'];
@@ -393,6 +459,13 @@ export interface ActorUpsertColumns {
   username: string;
   domain: string;
   acct: string;
+  /**
+   * Only a BRIDGED actor carries one. Absent means "not bridged", and the upsert
+   * writes it as NULL for exactly that reason: a row that STOPPED being bridged
+   * — a bridge dropped from the policy, or an actor that no longer satisfies its
+   * rule — must not keep claiming an identity it no longer derives.
+   */
+  networkAcct?: string;
   summary?: string;
   avatarUrl?: string;
   headerUrl?: string;
@@ -454,6 +527,7 @@ export async function upsertActor(
     username: columns.username,
     domain: columns.domain,
     acct: columns.acct,
+    networkAcct: columns.networkAcct ?? null,
     summary: columns.summary ?? null,
     avatarUrl: columns.avatarUrl ?? null,
     headerUrl: columns.headerUrl ?? null,

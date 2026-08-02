@@ -85,6 +85,12 @@ export interface FederatedActorRecord {
   domain: string;
   /** `<username>@<domain>` — the webfinger handle. */
   acct: string;
+  /**
+   * The `<handle>@<network-domain>` identity a BRIDGED actor was re-labelled
+   * onto (`wired@x.com`). Absent for every ordinary actor, whose identity IS its
+   * acct — see the column comment in `schema/federation.ts`.
+   */
+  networkAcct?: string;
   summary?: string;
   avatarUrl?: string;
   headerUrl?: string;

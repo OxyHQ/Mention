@@ -19,7 +19,7 @@ export interface FeedBoost extends HydratedPost {
 }
 
 // Feed types and actions
-export type FeedType = 'posts' | 'media' | 'replies' | 'quotes' | 'likes' | 'boosts' | 'mixed' | 'for_you' | 'following' | 'saved' | 'explore' | 'videos' | 'custom' | 'hashtag' | 'topic' | 'trending' | 'mutuals' | 'friends_popular' | 'friends_of_friends';
+export type FeedType = 'posts' | 'media' | 'replies' | 'quotes' | 'likes' | 'boosts' | 'mixed' | 'for_you' | 'following' | 'saved' | 'explore' | 'videos' | 'custom' | 'hashtag' | 'topic' | 'trend' | 'trending' | 'mutuals' | 'friends_popular' | 'friends_of_friends';
 
 export type PostAction = 'reply' | 'boost' | 'like' | 'share';
 
@@ -98,14 +98,20 @@ export type FeedSliceReason =
    * item when it is available; when it is not — already rendered higher in the
    * page, unpublished, or (for a federated reply whose `inReplyTo` never
    * resolved) absent from our database entirely — the slice carries the reply
-   * alone and `parentAuthor` is omitted.
+   * alone.
    *
-   * The reason is present either way: it is what marks the item as a reply for
-   * the renderer's "Replying to" header and for the `hideReplies` tuner, so a
-   * missing parent must never downgrade the slice to an untagged one — that is
-   * precisely what made context-free replies render as ordinary top-level posts.
+   * This reason is a GROUPING fact: "the parent was prepended into this slice".
+   * It is NOT how the renderer learns that a post is a reply, and it does not
+   * name the parent's author — that is {@link HydratedPost.replyContext}, which
+   * rides on the post and therefore reaches every surface, including the feeds
+   * whose definition never opts into reply-context slicing and the response
+   * paths that emit no slices at all. Keeping the author here as well would be a
+   * second carrier for one fact, and the two would drift.
+   *
+   * The reason is still present when no parent could be prepended, because the
+   * `hideReplies` tuner filters on it.
    */
-  | { type: 'replyContext'; parentAuthor?: PostUser }
+  | { type: 'replyContext' }
   | { type: 'selfThread' };
 
 export interface FeedPostSlice {
@@ -230,6 +236,32 @@ export interface FeedInteractionInput {
  */
 export interface FeedInteractionBatchInput {
   interactions: FeedInteractionInput[];
+}
+
+/**
+ * Post id → the post's NEW `viewsCount`, as the server holds it after the write.
+ *
+ * Only ever carries posts whose count the request actually moved. That is the
+ * whole point: the client cannot derive this number. Whether an impression
+ * counts is decided entirely server-side (a 24h per-viewer dedupe window, the
+ * self-view guard, and the public+published eligibility filter), so a client
+ * that optimistically incremented would be wrong in exactly the cases the
+ * server declined — and a wrong count never self-corrects, while a late one
+ * does.
+ */
+export type FeedPostViewCounts = Record<string, number>;
+
+/**
+ * The response body of `POST /feed/mtn/interactions`.
+ *
+ * `viewCounts` is ADDITIVE: `success` keeps its previous meaning, so a client
+ * that ignores the new field behaves exactly as it did before. It is absent
+ * (rather than `{}`) when nothing was counted, which is the common case — a
+ * batch is mostly re-reported impressions inside the dedupe window.
+ */
+export interface FeedInteractionBatchResponse {
+  success: boolean;
+  viewCounts?: FeedPostViewCounts;
 }
 
 /**

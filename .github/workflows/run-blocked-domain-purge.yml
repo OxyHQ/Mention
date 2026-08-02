@@ -1,0 +1,333 @@
+name: Purge blocked-domain data from the platform
+
+# Drives `purgeBlockedDomainPlatformData` — the PLATFORM half of a blocked-domain
+# purge. `purgeBlockedDomainContent` already removes what MENTION holds; the
+# federated identities, the avatars Oxy fetched and the media Mention mirrored
+# into Oxy's file store are Oxy rows, reachable only through
+# `POST /federation/domain-purge`. This workflow is what actually calls it.
+#
+# The capability existed on both sides with nothing driving it, because the
+# script cannot run anywhere else: the database is on a PRIVATE VPC address and
+# the call needs the oxy-api service credential, which lives in the task
+# definition. So it runs as an ECS Fargate one-shot, exactly like
+# `run-federated-text-backfill.yml`, and for the same two reasons:
+#
+# 1. In-VPC, or it reaches neither Mongo nor the credential.
+# 2. From `main` only. The task reuses the live service's role, secrets, subnets
+#    and security groups, so accepting an arbitrary ref here would turn a branch
+#    workflow into production code execution.
+#
+# WHAT GETS DELETED IS DECIDED IN GIT, NOT HERE
+#   Every domain comes from the committed `federationBlockPolicy` — the same
+#   accessor the enforcement predicate and the public transparency page read.
+#   There is no list in this file. `FEDERATION_BLOCKED_DOMAINS` (the env-var
+#   emergency lever) is deliberately NOT included: it stops new content instantly,
+#   but erasing an instance's history from a shared platform waits for a reviewed
+#   entry with an author and a diff.
+#
+# TWO GATES, AND THE SECOND ONE IS NOT IN THIS REPO
+#   A real run needs `confirm_write` here AND `FEDERATION_DOMAIN_PURGE_ENABLED=true`
+#   on the oxy-api deployment, which answers 409 otherwise. Arming the endpoint is
+#   an operator decision made over in OxyHQServices, on purpose — this workflow
+#   cannot talk itself into a deletion.
+#
+# ALWAYS PLAN FIRST (`dry_run=true`, the default). `dryRun` is the ONLY field the
+# script derives from the mode, so the numbers a plan reports are the numbers the
+# execute acts on, request for request. Read `localFollowersAffected` first: it is
+# the inbound follows from real local people, and the only counter that is a cost
+# rather than inventory.
+#
+# Start with ONE domain (`purge_domain`) before sweeping the whole policy.
+#
+# Ingest is live and the corpus grows while a purge runs, so this is expected to
+# be re-run rather than ticked off. Progress is recorded per domain in Mongo, so a
+# killed run resumes; a re-run costs one short pass per finished domain and still
+# catches actors ingested since.
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Report what WOULD be deleted, delete nothing'
+        required: true
+        type: boolean
+        default: true
+      confirm_write:
+        description: 'For a real deletion, enter: PURGE BLOCKED DOMAINS'
+        required: false
+        type: string
+      purge_domain:
+        description: 'Restrict to ONE domain (must be in the committed policy). Recommended for the first run.'
+        required: false
+        type: string
+      batch_limit:
+        description: 'Actors per request (1-1000)'
+        required: false
+        type: string
+        default: '200'
+      reset_cursor:
+        description: 'Ignore recorded progress and sweep each domain from the top'
+        required: false
+        type: boolean
+        default: false
+
+concurrency:
+  # Two purges walking the same domains at once would fight over the cursor rows.
+  group: purge-blocked-domain-platform-data
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: us-west-2
+  APP: mention
+  CLUSTER: oxy-cluster
+  SERVICE: mention
+  DOCKERFILE: packages/backend/Dockerfile
+  DEPLOY_SHA: ${{ github.sha }}
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  purge:
+    if: github.ref == 'refs/heads/main'
+    # Same arch as the deployed image — the service runs linux/arm64.
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ env.DEPLOY_SHA }}
+          fetch-depth: 2
+
+      - name: Verify current main before building
+        run: bash .github/scripts/require-current-main.sh
+
+      - name: Configure AWS credentials (OIDC, no stored keys)
+        uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6
+        with:
+          role-to-assume: arn:aws:iam::237343248947:role/oxy-github-deploy
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to ECR
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@d539f0932e70871a027e9d5a9d8fc38589180a64 # v2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+
+      - name: Build and push the purge image (its own tag; never `latest`)
+        id: build
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: .
+          file: ${{ env.DOCKERFILE }}
+          platforms: linux/arm64
+          push: true
+          tags: ${{ steps.ecr.outputs.registry }}/oxy/${{ env.APP }}:purge-blockeddomains-${{ env.DEPLOY_SHA }}
+          cache-from: type=gha,scope=mention-backend
+          provenance: true
+          sbom: true
+
+      - name: Audit final purge runtime image
+        env:
+          IMAGE_URI: ${{ steps.ecr.outputs.registry }}/oxy/${{ env.APP }}@${{ steps.build.outputs.digest }}
+          EXPECTED_RUNTIME_ENTRY: packages/backend/dist/server.js
+          EXPECTED_WORKSPACE_PACKAGES: '@mention/backend,@mention/shared-types'
+          EXPECTED_RUNTIME_COMMANDS: 'bun,busybox'
+        run: bash .github/scripts/audit-runtime-image.sh
+
+      - name: Re-verify current main before the production one-shot
+        run: bash .github/scripts/require-current-main.sh
+
+      - name: Run the purge as an ECS one-shot task
+        env:
+          IMAGE: ${{ steps.ecr.outputs.registry }}/oxy/${{ env.APP }}@${{ steps.build.outputs.digest }}
+          DRY_RUN: ${{ inputs.dry_run }}
+          CONFIRM_WRITE: ${{ inputs.confirm_write }}
+          PURGE_DOMAIN: ${{ inputs.purge_domain }}
+          BATCH_LIMIT: ${{ inputs.batch_limit }}
+          RESET_CURSOR: ${{ inputs.reset_cursor }}
+        run: |
+          set -euo pipefail
+          MAX_WAIT_SECS=3600
+          POLL_INTERVAL=15
+          PURGE_TASK_DEF=""
+          TASK_ARN=""
+          TASK_STOPPED=true
+
+          cleanup() {
+            local exit_status=$?
+            trap - EXIT
+            if [[ "$TASK_STOPPED" != "true" && -n "$TASK_ARN" ]]; then
+              echo "::warning::Purge task $TASK_ARN may still be running; the deploy role cannot call ecs:StopTask. Verify it in ECS."
+            fi
+            if [[ -n "$PURGE_TASK_DEF" ]]; then
+              aws ecs deregister-task-definition \
+                --task-definition "$PURGE_TASK_DEF" \
+                >/dev/null 2>&1 || true
+            fi
+            exit "$exit_status"
+          }
+          trap cleanup EXIT
+
+          if [[ "$DRY_RUN" != "true" &&
+                "$CONFIRM_WRITE" != "PURGE BLOCKED DOMAINS" ]]; then
+            echo "::error::A deletion run requires the exact confirmation phrase."
+            exit 1
+          fi
+
+          # Reject a malformed batch size here rather than spending a build and a
+          # Fargate start to have the endpoint answer 400.
+          if [[ ! "$BATCH_LIMIT" =~ ^[0-9]+$ ]] || (( BATCH_LIMIT < 1 || BATCH_LIMIT > 1000 )); then
+            echo "::error::batch_limit must be an integer between 1 and 1000."
+            exit 1
+          fi
+
+          # A hostname, or empty. Anything else is a typo, and the script would
+          # reject it after the task has already started.
+          if [[ -n "$PURGE_DOMAIN" && ! "$PURGE_DOMAIN" =~ ^[a-z0-9.-]+$ ]]; then
+            echo "::error::purge_domain must be a bare hostname."
+            exit 1
+          fi
+
+          # Take the task definition and network config from the LIVE service, so
+          # the one-shot runs with the same secrets, roles, subnets and security
+          # groups the backend already runs with. Nothing is hardcoded, and nothing
+          # drifts when the service is redeployed.
+          SERVICE_JSON=$(aws ecs describe-services \
+            --cluster "$CLUSTER" --services "$SERVICE" \
+            --query 'services[0]' --output json)
+          if [[ "$(jq -r '.status // "NONE"' <<<"$SERVICE_JSON")" != "ACTIVE" ]]; then
+            echo "::error::The production ECS service is not active."
+            exit 1
+          fi
+
+          LIVE_TASK_DEF=$(echo "$SERVICE_JSON" | jq -r '.taskDefinition')
+          SUBNETS=$(echo "$SERVICE_JSON" | jq -r '.networkConfiguration.awsvpcConfiguration.subnets | join(",")')
+          SEC_GROUPS=$(echo "$SERVICE_JSON" | jq -r '.networkConfiguration.awsvpcConfiguration.securityGroups | join(",")')
+          # Mirror the service's public-IP setting: the cluster's subnets are
+          # public with NO NAT gateway, so a task without a public IP cannot
+          # even pull its image from ECR.
+          ASSIGN_IP=$(echo "$SERVICE_JSON" | jq -r '.networkConfiguration.awsvpcConfiguration.assignPublicIp')
+
+          echo "live task definition: $LIVE_TASK_DEF"
+
+          # A throwaway revision that differs from the live one ONLY by the image.
+          # The service keeps running its own revision; this one exists so the task
+          # can run a branch image without touching the live service.
+          aws ecs describe-task-definition --task-definition "$LIVE_TASK_DEF" \
+            --query 'taskDefinition' --output json > live-taskdef.json
+
+          CONTAINER=$(jq -r '.containerDefinitions[0].name' live-taskdef.json)
+
+          jq --arg img "$IMAGE" '
+            .containerDefinitions[0].image = $img
+            | del(.taskDefinitionArn, .revision, .status, .requiresAttributes,
+                  .compatibilities, .registeredAt, .registeredBy, .deregisteredAt)
+          ' live-taskdef.json > purge-taskdef.json
+
+          PURGE_TASK_DEF=$(aws ecs register-task-definition \
+            --cli-input-json file://purge-taskdef.json \
+            --query 'taskDefinition.taskDefinitionArn' --output text)
+
+          echo "purge task definition: $PURGE_TASK_DEF"
+
+          # The booleans go through verbatim. `readBooleanEnv` in the script takes
+          # "true"/"false" and "1"/"0" alike and THROWS on anything else, so a
+          # value that arrives mangled stops the run rather than resolving to an
+          # answer nobody chose — and the ECS console then shows the operator the
+          # same word they typed here.
+          OVERRIDES=$(jq -nc \
+            --arg name "$CONTAINER" \
+            --arg dry "$DRY_RUN" \
+            --arg domain "$PURGE_DOMAIN" \
+            --arg limit "$BATCH_LIMIT" \
+            --arg reset "$RESET_CURSOR" \
+            '{containerOverrides:[{
+               name: $name,
+               command: [
+                 "busybox","timeout","-s","TERM","-k","30","3300",
+                 "bun","packages/backend/dist/src/scripts/purgeBlockedDomainPlatformData.js"
+               ],
+               environment: (
+                 [
+                   {name:"DRY_RUN", value:$dry},
+                   {name:"CONFIRM_ADMIN_MUTATION", value:"purgeBlockedDomainPlatformData"},
+                   {name:"PURGE_BATCH_LIMIT", value:$limit},
+                   {name:"RESET_CURSOR", value:$reset}
+                 ]
+                 # Omitted entirely when blank: an empty PURGE_DOMAIN would be a
+                 # domain that is not in the policy, not "every domain".
+                 + (if $domain == "" then [] else [{name:"PURGE_DOMAIN", value:$domain}] end)
+               )
+             }]}')
+
+          RUN_TASK_JSON=$(aws ecs run-task \
+            --cluster "$CLUSTER" \
+            --task-definition "$PURGE_TASK_DEF" \
+            --launch-type FARGATE \
+            --network-configuration "awsvpcConfiguration={subnets=[$SUBNETS],securityGroups=[$SEC_GROUPS],assignPublicIp=$ASSIGN_IP}" \
+            --overrides "$OVERRIDES" \
+            --started-by "gh-purge-blocked")
+
+          if [[ "$(jq '.failures | length' <<<"$RUN_TASK_JSON")" != "0" ]]; then
+            echo "::error::ECS refused to start the purge task."
+            jq '.failures' <<<"$RUN_TASK_JSON"
+            exit 1
+          fi
+          TASK_ARN=$(jq -r '.tasks[0].taskArn // empty' <<<"$RUN_TASK_JSON")
+          if [[ -z "$TASK_ARN" ]]; then
+            echo "::error::ECS returned no purge task ARN."
+            exit 1
+          fi
+          TASK_STOPPED=false
+
+          echo "task: $TASK_ARN"
+          echo "Waiting for the task to stop…"
+          ELAPSED=0
+          while (( ELAPSED < MAX_WAIT_SECS )); do
+            LAST_STATUS=$(aws ecs describe-tasks \
+              --cluster "$CLUSTER" \
+              --tasks "$TASK_ARN" \
+              --query 'tasks[0].lastStatus' \
+              --output text)
+            echo "($ELAPSED s) purge task status=$LAST_STATUS"
+            if [[ "$LAST_STATUS" == "STOPPED" ]]; then
+              TASK_STOPPED=true
+              break
+            fi
+            sleep "$POLL_INTERVAL"
+            ELAPSED=$((ELAPSED + POLL_INTERVAL))
+          done
+
+          if [[ "$TASK_STOPPED" != "true" ]]; then
+            echo "::error::Purge exceeded ${MAX_WAIT_SECS}s. The deploy role cannot call ecs:StopTask; task $TASK_ARN may still be running and must be checked in ECS."
+            exit 1
+          fi
+
+          TASK_ID="${TASK_ARN##*/}"
+          LOG_OPTS=$(jq -r '.containerDefinitions[0].logConfiguration.options' live-taskdef.json)
+          LOG_GROUP=$(echo "$LOG_OPTS" | jq -r '."awslogs-group"')
+          LOG_PREFIX=$(echo "$LOG_OPTS" | jq -r '."awslogs-stream-prefix"')
+
+          echo "──────── purge output ────────"
+          aws logs get-log-events \
+            --log-group-name "$LOG_GROUP" \
+            --log-stream-name "$LOG_PREFIX/$CONTAINER/$TASK_ID" \
+            --start-from-head \
+            --query 'events[].message' --output text || echo "(no logs retrieved)"
+          echo "──────────────────────────────"
+
+          EXIT_CODE=$(aws ecs describe-tasks --cluster "$CLUSTER" --tasks "$TASK_ARN" \
+            --query 'tasks[0].containers[0].exitCode' --output text)
+          REASON=$(aws ecs describe-tasks --cluster "$CLUSTER" --tasks "$TASK_ARN" \
+            --query 'tasks[0].stoppedReason' --output text)
+
+          echo "exit code: $EXIT_CODE  (stopped reason: $REASON)"
+
+          # A purge whose result you cannot see is a purge you have not run.
+          if [ "$EXIT_CODE" != "0" ]; then
+            echo "::error::Purge task exited with $EXIT_CODE"
+            exit 1
+          fi

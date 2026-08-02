@@ -22,6 +22,20 @@
       "when": 1785656123834,
       "tag": "0002_post_cursor_ms_precision",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1785675946096,
+      "tag": "0003_post_trend_terms",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1785678555752,
+      "tag": "0004_trend_labels_and_bridged_identity",
+      "breakpoints": true
     }
   ]
 }

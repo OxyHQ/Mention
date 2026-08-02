@@ -1,11 +1,15 @@
 import React, {
   useCallback,
+  useEffect,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
 } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@oxyhq/services/ui/client';
+import { getUserLanguages } from '@oxyhq/core';
+import i18n from 'i18next';
 import { useBloomTheme } from '@oxyhq/bloom/theme';
 import { useAppearanceStore } from '@/stores/appearanceStore';
 import { usePostsStore } from '@/stores/postsStore';
@@ -15,6 +19,8 @@ import { useExternalEmbedsStore } from '@/stores/externalEmbedsStore';
 import { useLiveRoomsStore } from '@/stores/liveRoomsStore';
 import { useTrendsStore } from '@/stores/trendsStore';
 import { clearAllFeedMemoryCaches } from '@/stores/feedScrollStore';
+import { resetEngagementInvalidation } from '@/stores/engagementInvalidation';
+import { resetSafetyInvalidation } from '@/stores/safetyInvalidation';
 import { setFeedViewerRequestScope } from '@/services/feedService';
 import { searchService } from '@/services/searchService';
 import { socketService } from '@/services/socketService';
@@ -36,11 +42,22 @@ import { resetCurrentUserPrivacySettingsCache } from '@/hooks/usePrivacySettings
  * descendants stay unmounted. The layout effect first proves that persisted
  * post/feed data belongs to the resolved identity (or wipes it), then clears
  * process-local private state before descendants can mount.
+ *
+ * `fallback` is what covers the screen for exactly as long as descendants are
+ * held back, and it is REQUIRED: this gate sits ABOVE the root layout's own
+ * splash branch, so whatever it renders IS the whole screen. Rendering nothing
+ * here is what produced a multi-second blank boot — on a returning viewer whose
+ * warm access token has expired, the device-secret mint is a real network
+ * round-trip, and `isAuthResolved` stays false (so `viewerId` stays null) for
+ * its whole duration, bounded only by the SDK's 12s cold-boot deadline. The
+ * fallback keeps the boot visual up across that window instead.
  */
 export function AccountSwitchReset({
   children,
+  fallback,
 }: {
   children?: React.ReactNode;
+  fallback: React.ReactNode;
 }) {
   const { user, isAuthenticated, isAuthResolved } = useAuth();
   const queryClient = useQueryClient();
@@ -49,6 +66,27 @@ export function AccountSwitchReset({
     (state) => state.resetViewerState,
   );
   const prevViewerIdRef = useRef<string | null>(null);
+
+  /*
+   * The reader's content languages, pushed to the trends store from the one
+   * place that already knows who is reading.
+   *
+   * The ACCOUNT's declared locales first (`getUserLanguages` — the same helper
+   * the backend reads them with, so a bilingual reader gets both languages
+   * ordered first rather than only the one the app happens to be in), with the
+   * interface language behind them so a signed-out visitor still gets one.
+   *
+   * `i18n.language` is read rather than subscribed to: this fires on every
+   * identity change, and a language switch already remounts the tree.
+   */
+  const readerLanguages = useMemo(
+    () => [...(isAuthenticated && user ? getUserLanguages(user) : []), i18n.language ?? ''],
+    [isAuthenticated, user],
+  );
+
+  useEffect(() => {
+    useTrendsStore.getState().setReaderLanguages(readerLanguages);
+  }, [readerLanguages]);
 
   const userId = user?.id?.trim() || null;
   const viewerId = !isAuthResolved
@@ -80,6 +118,12 @@ export function AccountSwitchReset({
     useLiveRoomsStore.getState().resetViewerState();
     useTrendsStore.getState().resetViewerState();
     clearAllFeedMemoryCaches();
+    // The previous viewer's engagements say nothing about the next viewer's
+    // lists, and every cache they could have marked stale is gone anyway. The
+    // same holds for the safety rules they changed — muted words and the
+    // sensitive-content toggle are per-account.
+    resetEngagementInvalidation();
+    resetSafetyInvalidation();
 
     resetAppearance();
     resetTheme();
@@ -148,5 +192,5 @@ export function AccountSwitchReset({
     clearRuntimeState,
   ]);
 
-  return viewerId && readyViewerId === viewerId ? <>{children}</> : null;
+  return viewerId && readyViewerId === viewerId ? <>{children}</> : <>{fallback}</>;
 }

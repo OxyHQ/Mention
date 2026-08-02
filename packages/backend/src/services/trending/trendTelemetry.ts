@@ -67,6 +67,7 @@ const TREND_SURFACES: Record<TrendEventSurface, true> = {
   search: true,
   interstitial: true,
   history: true,
+  feeds: true,
 };
 
 /**

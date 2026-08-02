@@ -86,11 +86,13 @@ export const ReportModal: React.FC<ReportModalProps> = ({
                         return (
                             <TouchableOpacity
                                 key={category.id}
-                                className="flex-row items-center py-3.5 px-4 rounded-xl"
+                                // The selected tint is `bg-primary/10`, never
+                                // `theme.colors.primary + '20'`: the token is an
+                                // `rgb(...)` string, so a hex-alpha suffix makes a
+                                // malformed colour react-native-web reads as fully
+                                // opaque primary — a solid card behind the label.
+                                className={`flex-row items-center py-3.5 px-4 rounded-xl ${isSelected ? 'bg-primary/10' : 'bg-card'}`}
                                 style={{
-                                    backgroundColor: isSelected
-                                        ? theme.colors.primary + '20'
-                                        : theme.colors.card,
                                     borderColor: isSelected
                                         ? theme.colors.primary
                                         : theme.colors.border,

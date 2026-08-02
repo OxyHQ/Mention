@@ -411,6 +411,7 @@ function buildBaselineClassification(record: MentionPostRecord): BaselineClassif
         languages: signals.languages,
         region: signals.region,
         hashtagsNorm: signals.hashtagsNorm,
+        trendTerms: signals.trendTerms,
         sensitive: signals.sensitive,
         version: signals.version,
         scores: signals.scores,

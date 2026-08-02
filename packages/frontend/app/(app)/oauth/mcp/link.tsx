@@ -7,7 +7,7 @@ import { useTheme } from '@oxyhq/bloom/theme';
 import { useAuth, OxyAuthPrompt } from '@oxyhq/services/ui/client';
 import { getNormalizedUserHandle } from '@oxyhq/core';
 import { Avatar } from '@oxyhq/bloom/avatar';
-import { MEDIA_VARIANT_VIDEO_POSTER } from '@mention/shared-types/post';
+import { MEDIA_VARIANT_AVATAR_LG } from '@mention/shared-types/post';
 import { ThemedView } from '@/components/ThemedView';
 import { Header } from '@/components/Header';
 import { IconButton, Button } from '@/components/ui/Button';
@@ -145,11 +145,10 @@ function LinkBody({ token }: { token: string }) {
     >
       <View className="items-center gap-3">
         {currentUserProfile ? (
-          <Avatar source={currentUserProfile.avatar} size={72} variant={MEDIA_VARIANT_VIDEO_POSTER} />
+          <Avatar source={currentUserProfile.avatar} size={72} variant={MEDIA_VARIANT_AVATAR_LG} />
         ) : (
           <View
-            className="w-[72px] h-[72px] rounded-full items-center justify-center"
-            style={{ backgroundColor: colors.primary + '1A' }}
+            className="w-[72px] h-[72px] rounded-full items-center justify-center bg-primary/10"
           >
             <Icon name="person-outline" size={34} color={colors.primary} />
           </View>
