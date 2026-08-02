@@ -37,6 +37,7 @@ import {
 } from './postVariants';
 import { recordRecentReplierForPost } from './PostRecentReplierService';
 import { parentHasPublished } from './scheduledChain';
+import { assertLaneAssignable } from '../utils/laneAssignment';
 
 export interface CreatePostParams {
   oxyUserId: string | null;
@@ -46,6 +47,15 @@ export interface CreatePostParams {
   threadId?: string | null;
   quoteOf?: string | null;
   boostOf?: string | null;
+  /**
+   * The author's own lane for this post — local curation only: it never
+   * federates, never enters an MTN record, and never changes distribution.
+   * Validated by {@link assertLaneAssignable} before the document is built, so a
+   * lane belonging to somebody else, or one attached to a reply or a boost, is
+   * REFUSED rather than silently dropped (an author told nothing would go on
+   * believing they published in a lane).
+   */
+  laneId?: string | null;
   hashtags?: string[];
   mentions?: string[];
   language?: string;
@@ -280,6 +290,17 @@ class PostCreationService {
   async create(params: CreatePostParams): Promise<IPost> {
     const isScheduled = params.status === 'scheduled';
 
+    // BEFORE anything is built or written: a lane the author does not own, or a
+    // lane on a reply/boost, must never reach storage. Enforced here rather than
+    // in the controller so no future caller can route around it; free (no query)
+    // for the posts that carry no lane, which is nearly all of them.
+    await assertLaneAssignable({
+      laneId: params.laneId,
+      authorId: params.oxyUserId,
+      parentPostId: params.parentPostId,
+      boostOf: params.boostOf,
+    });
+
     let content = params.content;
     if (Array.isArray(content.media) && content.media.length > 0) {
       const enrichedMedia = await mediaMetadataService.enrichFromOxy(content.media as MediaItem[]);
@@ -354,6 +375,13 @@ class PostCreationService {
     }
     if (params.location != null) {
       postData.location = params.location;
+    }
+    // Set only when there IS a lane — never as an explicit `null`. The
+    // `post_lane_chrono_v1` partial filter is `{ laneId: { $exists: true } }`,
+    // which a stored `null` satisfies, so writing one would index every post in
+    // the collection and defeat the whole point of the partial index.
+    if (params.laneId) {
+      postData.laneId = params.laneId;
     }
     if (params.language != null) {
       postData.language = params.language;

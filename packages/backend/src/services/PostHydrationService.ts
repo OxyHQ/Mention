@@ -1,5 +1,7 @@
 import { FeedPostSlice, FeedSliceItem, HydratedPost, HydratedPostSummary, HydratedBoostContext, HydratedAuthor, PostUser, PostAttachmentBundle, PostEngagementSummary, PostLinkPreview, PostPermissions, PostReplyContext, PostViewerState, PostVisibility, PostAuthorshipEntry, MEDIA_VARIANT_THUMB } from '@mention/shared-types';
+import type { LaneDisplayMode, LaneSummary } from '@mention/shared-types';
 import { Post, type PostFederationData } from '../models/Post';
+import { Lane } from '../models/Lane';
 import Poll from '../models/Poll';
 import Like from '../models/Like';
 import Bookmark from '../models/Bookmark';
@@ -75,6 +77,8 @@ interface RawPost {
   };
   boostOf?: unknown;
   quoteOf?: unknown;
+  /** The author's lane for this post — the `› Lane name` chip. Local curation only. */
+  laneId?: string;
   originalPostId?: unknown;
   parentPostId?: unknown;
   threadId?: unknown;
@@ -888,6 +892,7 @@ export class PostHydrationService {
       linkPreviewMap,
       orphanAuthorMap,
       quoteCountMap,
+      laneMap,
     ] = await Promise.all([
       this.populateViewerInteractions(postIds, viewerContext),
       (async () => {
@@ -924,6 +929,7 @@ export class PostHydrationService {
       options.includeQuoteCounts === true
         ? this.buildQuoteCountMap(postIds)
         : Promise.resolve(undefined),
+      this.buildLaneMap(postsForHydration),
     ]);
     const mentionCache: Map<string, PostUser> = new Map(userMap);
 
@@ -945,6 +951,7 @@ export class PostHydrationService {
           quoteCountMap,
           replyParentAuthorIdByPostId,
           selfContinuationPostIds,
+          laneMap,
         })
       )
     );
@@ -1457,6 +1464,51 @@ export class PostHydrationService {
       return map;
     } catch (error) {
       logger.error('[PostHydration] Failed to build poll map:', error);
+      return new Map();
+    }
+  }
+
+  /**
+   * The lanes of every post in the graph, in ONE indexed query keyed by lane id.
+   *
+   * Emitting it on the summary is what propagates it to `originalPost` /
+   * `quotedPost` / `boost.originalPost` for free: those are the SAME objects out
+   * of `summaryMap`, so a quoted post shows its own lane without a second pass.
+   *
+   * `displayMode` travels with the name because it is what the chip's own menu
+   * needs (an owner looking at their own post can see, and change, whether that
+   * lane shows on the profile) — it is public curation state, not a permission.
+   *
+   * Fail-soft: a lookup failure yields an empty map, so the post renders without
+   * a chip rather than not rendering at all.
+   */
+  private async buildLaneMap(nodes: HydratedGraphNode[]): Promise<Map<string, LaneSummary>> {
+    const laneIds = Array.from(
+      new Set(
+        nodes
+          .map(({ post }) => post?.laneId)
+          .filter((id): id is string => typeof id === 'string' && id.length > 0),
+      ),
+    );
+
+    if (laneIds.length === 0) {
+      return new Map();
+    }
+
+    try {
+      const lanes = await Lane.find({ _id: { $in: laneIds } })
+        .select('name displayMode')
+        .lean<Array<{ _id: unknown; name: string; displayMode: LaneDisplayMode }>>();
+
+      const map = new Map<string, LaneSummary>();
+      for (const lane of lanes) {
+        const id = lane?._id ? String(lane._id) : undefined;
+        if (!id) continue;
+        map.set(id, { id, name: lane.name, displayMode: lane.displayMode });
+      }
+      return map;
+    } catch (error) {
+      logger.error('[PostHydration] Failed to build lane map:', error);
       return new Map();
     }
   }
@@ -1974,8 +2026,10 @@ export class PostHydrationService {
     replyParentAuthorIdByPostId: Map<string, string>;
     /** Replies to their OWN author's post — self-thread continuations, which carry no reply context. */
     selfContinuationPostIds: Set<string>;
+    /** The author's lanes, keyed by lane id — the `› Lane name` chip in the name row. */
+    laneMap: Map<string, LaneSummary>;
   }): Promise<HydratedPostSummary | null> {
-    const { post, viewerContext, pollMap, userMap, mentionCache, linkPreviewMap, authorPrivacyMap, recentReplierMap, orphanAuthorMap, resolvedMap, quoteCountMap, replyParentAuthorIdByPostId, selfContinuationPostIds } = params;
+    const { post, viewerContext, pollMap, userMap, mentionCache, linkPreviewMap, authorPrivacyMap, recentReplierMap, orphanAuthorMap, resolvedMap, quoteCountMap, replyParentAuthorIdByPostId, selfContinuationPostIds, laneMap } = params;
 
     const postId = this.resolveId(post);
     if (!postId) return null;
@@ -2126,6 +2180,13 @@ export class PostHydrationService {
       viewerState,
       permissions,
       metadata,
+      // Absent when the post has no lane, and absent when its lane row is gone
+      // (the delete cascade unsets `laneId` before removing the Lane, so this is
+      // only reachable if that cascade was interrupted — a missing chip, which
+      // is harmless).
+      ...(typeof post.laneId === 'string' && laneMap.has(post.laneId)
+        ? { lane: laneMap.get(post.laneId) }
+        : {}),
       // Include parentPostId for thread hierarchy in replies
       ...(post.parentPostId ? { parentPostId: String(post.parentPostId) } : {}),
       // The reply marker rides on the POST, so every surface that renders one —

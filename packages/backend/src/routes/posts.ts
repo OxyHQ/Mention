@@ -6,6 +6,7 @@ import {
   getPostById,
   updatePost,
   updatePostSettings,
+  updatePostLane,
   deletePost,
   publishScheduledPostNow,
   likePost,
@@ -146,6 +147,9 @@ router.post('/:id/collaborators/decline', declineCollabInvite);
 router.post('/:id/collaborators/stop-sharing', stopCollabSharing);
 router.put('/:id', ...postWriteRateLimiters, updatePost);
 router.patch('/:id/settings', updatePostSettings);
+// Moving a post between the author's own lanes is NOT an edit — no window, no
+// rate limiter, no federation. See `updatePostLane`.
+router.patch('/:id/lane', updatePostLane);
 // Publish one of the caller's own scheduled posts ahead of its time.
 router.post('/:id/publish', publishScheduledPostNow);
 router.delete('/:id', deletePost);

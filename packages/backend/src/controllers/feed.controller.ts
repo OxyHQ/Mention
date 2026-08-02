@@ -70,7 +70,7 @@ type FollowerRef = string | { id?: string; _id?: string };
  */
 class FeedController {
   /** Optimized field selection for feed queries - reduces data transfer by 60-80% */
-  private readonly FEED_FIELDS = '_id oxyUserId authorship federation createdAt visibility type parentPostId boostOf quoteOf threadId content stats metadata hashtags mentions language';
+  private readonly FEED_FIELDS = '_id oxyUserId authorship federation createdAt visibility type parentPostId boostOf quoteOf laneId threadId content stats metadata hashtags mentions language';
 
   /**
    * Transform posts to include full profile data and engagement stats

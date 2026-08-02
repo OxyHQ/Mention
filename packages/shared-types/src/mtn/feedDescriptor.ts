@@ -45,6 +45,12 @@ export type FeedDescriptor =
   | `topic|${string}`
   | `trend|${string}`
   | `list|${string}`
+  /**
+   * ONE lane's tab. A single parameter — the lane id — because a lane already
+   * knows its own publisher (see {@link AuthorFeedFilter} for why a lane is NOT
+   * an author-feed filter: those are static profile tabs, a lane is dynamic).
+   */
+  | `lane|${string}`
   | `feedgen|${string}`;
 
 export type FeedDescriptorSource =
@@ -64,6 +70,7 @@ export type FeedDescriptorSource =
   | 'topic'
   | 'trend'
   | 'list'
+  | 'lane'
   | 'feedgen';
 
 export interface ParsedFeedDescriptor {
@@ -116,7 +123,7 @@ export function isValidFeedDescriptor(value: string): value is FeedDescriptor {
   }
   // `trend` takes a term that may legitimately contain spaces (`trend|todd
   // blanche`), which the `|`-delimited split leaves in one param untouched.
-  if (['custom', 'hashtag', 'topic', 'trend', 'list', 'feedgen'].includes(source)) {
+  if (['custom', 'hashtag', 'topic', 'trend', 'list', 'lane', 'feedgen'].includes(source)) {
     return params.length === 1 && isNonEmptyParam(params[0]);
   }
   return false;

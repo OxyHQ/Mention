@@ -41,6 +41,9 @@ import { warmLinkPreviewForText } from '../utils/linkPreviewWarm';
 import { authorVariants, buildPrimaryVariant, resolveVariant, validateAuthorVariants } from '../services/postVariants';
 import { postTranslationService, TranslationRequestError } from '../services/PostTranslationService';
 import { validatePublicShareTarget } from '../utils/postAccessControl';
+import { assertLaneAssignable, LaneAssignmentError } from '../utils/laneAssignment';
+import { Lane } from '../models/Lane';
+import type { LaneDisplayMode } from '@mention/shared-types';
 import { sanitizePodcast, resolvePodcastContent } from '../utils/syraPodcast';
 import {
   emitPostCreated,
@@ -393,7 +396,7 @@ export const createPost = async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ message: 'Unauthorized' });
     }
 
-    const { content, hashtags, mentions, quoted_post_id, boost_of, in_reply_to_status_id, parentPostId, threadId, contentLocation, postLocation, replyPermission, reviewReplies, quotesDisabled, status: incomingStatus, scheduledFor, collaboratorIds, collaboratorHandles } = req.body;
+    const { content, hashtags, mentions, quoted_post_id, boost_of, in_reply_to_status_id, parentPostId, threadId, contentLocation, postLocation, replyPermission, reviewReplies, quotesDisabled, status: incomingStatus, scheduledFor, collaboratorIds, collaboratorHandles, laneId } = req.body;
 
     // Transitional request aliases are measured with a bounded label so their
     // retirement is evidence-based. They never become part of the stored DTO.
@@ -723,6 +726,10 @@ export const createPost = async (req: AuthRequest, res: Response) => {
       autoAcceptCollaboratorIds,
       quoteOf: quoted_post_id || null,
       boostOf: boost_of || null,
+      // Validated inside `create` (see `assertLaneAssignable`): a lane the author
+      // does not own is a 404, and one on a reply or a boost is a 400 — both
+      // refusals, never a silent drop.
+      laneId: typeof laneId === 'string' ? laneId : null,
       parentPostId: parentPostId || in_reply_to_status_id || null,
       threadId: threadId || null,
       visibility: resolvedVisibility,
@@ -796,6 +803,9 @@ export const createPost = async (req: AuthRequest, res: Response) => {
   } catch (error) {
     if (error instanceof CollabValidationError) {
       return res.status(400).json({ message: error.message });
+    }
+    if (error instanceof LaneAssignmentError) {
+      return res.status(error.status).json({ message: error.message });
     }
     logger.error('Error creating post', error);
     res.status(500).json({ message: 'Error creating post' });
@@ -937,6 +947,33 @@ export const createThread = async (req: AuthRequest, res: Response) => {
 
     if (!Array.isArray(posts) || posts.length === 0) {
       return res.status(400).json({ message: 'Posts array is required and cannot be empty' });
+    }
+
+    // Lanes are validated for the WHOLE batch before a single post is written.
+    // The loop below creates posts one at a time, so a lane refused on entry 3
+    // would otherwise leave entries 1 and 2 already published — a half-thread
+    // nobody asked for and nobody can undo in one action.
+    //
+    // In THREAD mode only the root takes a lane: its continuations are replies,
+    // and the feed renders the whole thread as one slice anchored on that root,
+    // so the chip appears once and in the right place. A continuation that
+    // carries one is refused with the same message the shared validator would
+    // give it. In BEAST mode every entry is an independent top-level post, so
+    // every entry may carry its own lane.
+    for (let i = 0; i < posts.length; i++) {
+      const requestedLaneId = posts[i]?.laneId;
+      if (!requestedLaneId) continue;
+      if (mode === 'thread' && i > 0) {
+        return res.status(400).json({ message: 'A reply cannot be assigned to a lane' });
+      }
+      try {
+        await assertLaneAssignable({ laneId: requestedLaneId, authorId: userId });
+      } catch (laneError) {
+        if (laneError instanceof LaneAssignmentError) {
+          return res.status(laneError.status).json({ message: laneError.message });
+        }
+        throw laneError;
+      }
     }
 
     const createdPostObjects: Array<{ content?: StoredPostContent }> = [];
@@ -1086,6 +1123,9 @@ export const createThread = async (req: AuthRequest, res: Response) => {
         reviewReplies: reviewReplies || false,
         quotesDisabled: quotesDisabled || false,
         metadata: buildPostMetadata(metadata),
+        // Already validated for the whole batch above; a continuation never
+        // reaches here carrying one.
+        laneId: typeof postData.laneId === 'string' ? postData.laneId : null,
         // For thread mode: chain each continuation post to the immediately
         // previous post (sequential thread), with a shared threadId root.
         // For beast mode: all posts are independent.
@@ -1787,6 +1827,82 @@ export const updatePostSettings = async (req: AuthRequest, res: Response) => {
   } catch (error) {
     logger.error('Error updating post settings', error);
     res.status(500).json({ message: 'Error updating post settings' });
+  }
+};
+
+/**
+ * PATCH /posts/:id/lane — move one of the author's own posts between their lanes,
+ * or (with `laneId: null`) out of every lane.
+ *
+ * **There is deliberately NO edit window here, and nobody should add one by
+ * copying the 30-minute guard out of `updatePost`.** That window exists because
+ * REWRITING THE TEXT of a post people have already read is a trust problem.
+ * Moving a post between the author's own organizational carriageways changes no
+ * text: it does not federate, does not emit an MTN record, does not set
+ * `isEdited`, and does not re-classify. Pinning/unpinning already has no window
+ * for exactly the same reason, which is why this is modelled on
+ * `updatePostSettings` rather than on `updatePost`.
+ *
+ * Owner-only, and scoped by `oxyUserId` in the query, so somebody else's post is
+ * a 404 rather than a 403 that confirms it exists.
+ */
+export const updatePostLane = async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    const { laneId } = req.body;
+    if (laneId !== null && typeof laneId !== 'string') {
+      return res.status(400).json({ message: 'laneId must be a lane id or null' });
+    }
+
+    const post = await Post.findOne({ _id: req.params.id, oxyUserId: userId })
+      .select('parentPostId boostOf laneId')
+      .lean<{ _id: unknown; parentPostId?: string; boostOf?: string; laneId?: string } | null>();
+    if (!post) {
+      return res.status(404).json({ message: 'Post not found' });
+    }
+
+    // The SAME rule the create path applies, from the same definition: a lane
+    // belongs to its publisher, and replies/boosts carry none.
+    await assertLaneAssignable({
+      laneId,
+      authorId: userId,
+      parentPostId: post.parentPostId,
+      boostOf: post.boostOf,
+    });
+
+    // `$unset`, never a stored `null`: the `post_lane_chrono_v1` partial filter
+    // is `{ laneId: { $exists: true } }`, which a null satisfies — leaving a
+    // laneless post indexed forever.
+    await Post.updateOne(
+      { _id: post._id, oxyUserId: userId },
+      laneId ? { $set: { laneId } } : { $unset: { laneId: '' } },
+    );
+
+    const lane = laneId
+      ? await Lane.findById(laneId).select('name displayMode').lean<{
+        _id: unknown;
+        name: string;
+        displayMode: LaneDisplayMode;
+      } | null>()
+      : null;
+
+    return res.json({
+      message: 'Post lane updated',
+      postId: String(post._id),
+      lane: lane
+        ? { id: String(lane._id), name: lane.name, displayMode: lane.displayMode }
+        : null,
+    });
+  } catch (error) {
+    if (error instanceof LaneAssignmentError) {
+      return res.status(error.status).json({ message: error.message });
+    }
+    logger.error('Error updating post lane', error);
+    res.status(500).json({ message: 'Error updating post lane' });
   }
 };
 

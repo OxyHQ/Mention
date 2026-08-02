@@ -54,7 +54,7 @@ const DEFAULT_OPTIONS: ThreadSlicingOptions = {
  * `'published'`, and never fires — an inert ACL rather than an enforced one.
  */
 const SLICE_POST_PROJECTION =
-  '_id oxyUserId authorship federation createdAt parentPostId threadId content status stats metadata hashtags mentions language visibility type boostOf quoteOf';
+  '_id oxyUserId authorship federation createdAt parentPostId threadId content status stats metadata hashtags mentions language visibility type boostOf quoteOf laneId';
 
 class ThreadSlicingService {
   /**

@@ -472,6 +472,29 @@ export function topicDefinition(slug: string): FeedDefinition {
   };
 }
 
+/**
+ * Lane feed — ONE lane's own tab (chronological).
+ *
+ * `title` is deliberately not the lane's name: this definition is reachable from
+ * a descriptor alone, the screen already has the name, and inventing one it
+ * cannot know is how a stale label ends up on a renamed lane. Same reasoning as
+ * {@link trendDefinition}.
+ *
+ * `hydrateMaxDepth: 0` — a lane holds original posts only (replies and boosts are
+ * refused a lane at the write boundary), so there is no boost body to embed.
+ */
+export function laneDefinition(laneId: string): FeedDefinition {
+  return {
+    id: `lane|${laneId}`,
+    title: 'Lane',
+    mode: 'chronological',
+    sources: [enabled('lane', { laneId })],
+    signals: [],
+    filters: [enabled('safety')],
+    execution: { threadGrouping: true, replyContext: false, hydrateMaxDepth: 0 },
+  };
+}
+
 /** List feed — posts from an AccountList's members (chronological). */
 export function listDefinition(listId: string): FeedDefinition {
   return {

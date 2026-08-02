@@ -464,6 +464,9 @@ describe('reply policy — every registered source has a declared intent', () =>
     trendTerms: 'includes-replies', // must match what trend DETECTION counts
     accounts: 'includes-replies',
     authored: 'includes-replies', // per-tab: posts=roots, replies=replies, media=roots
+    // A lane holds ORIGINAL posts only — a reply is refused a lane at the write
+    // boundary — so there is nothing for a roots-only clause to exclude.
+    lane: 'includes-replies',
     saved: 'includes-replies',
     mutuals: 'includes-replies',
   };

@@ -29,6 +29,9 @@ export * from './notification';
 // List types
 export * from './list';
 
+// Lanes (a publisher's own named carriageways through their output)
+export * from './lane';
+
 // Activity subscriptions ("notify me when this account posts")
 export * from './subscription';
 

@@ -83,6 +83,14 @@ export interface FeedContext {
    * tuning, or on any load failure ⇒ the config-default gate applies unchanged.
    */
   feedTuning?: FeedTuning;
+  /**
+   * Lane ids THIS reader has silenced (`LaneMute`), resolved once per request by
+   * `loadViewerFeedContext`. Applied by `FeedEngine` as an in-memory predicate
+   * over the merged pool — see there for why it is not a `FilterModule` and not a
+   * Mongo clause. Empty / absent for anonymous readers and for the overwhelming
+   * majority of authenticated ones, in which case the predicate is never built.
+   */
+  mutedLaneIds?: string[];
 }
 
 export interface FeedAPI {
@@ -114,4 +122,4 @@ export interface FeedAPI {
  * first and falls back to the slug-only `topics`; it treats an absent /
  * un-baselined classification as NEUTRAL.
  */
-export const FEED_FIELDS = '_id oxyUserId authorship federation createdAt visibility type parentPostId boostOf quoteOf threadId content stats metadata hashtags mentions language postClassification.scores postClassification.status postClassification.version postClassification.sensitive postClassification.topics postClassification.topicRefs postClassification.languages postClassification.sentiment';
+export const FEED_FIELDS = '_id oxyUserId authorship federation createdAt visibility type parentPostId boostOf quoteOf laneId threadId content stats metadata hashtags mentions language postClassification.scores postClassification.status postClassification.version postClassification.sensitive postClassification.topics postClassification.topicRefs postClassification.languages postClassification.sentiment';

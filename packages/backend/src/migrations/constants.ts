@@ -181,3 +181,24 @@ export const MIGRATION_BLOCKLIST_PROPOSAL_INDEXES = '0020-blocklist-proposal-ind
  * authority. See {@link ./0021-blocklist-proposal-run-indexes}.
  */
 export const MIGRATION_BLOCKLIST_PROPOSAL_RUN_INDEXES = '0021-blocklist-proposal-run-indexes';
+
+/**
+ * Create the `Lane` and `LaneMute` indexes: the UNIQUE `{ownerType, ownerId,
+ * nameLower}` identity that stops one publisher owning two lanes of the same
+ * name (the create route's 409 IS that constraint — its cap check is not a
+ * lock), the `{ownerType, ownerId, displayMode}` exclusion lookup that runs on
+ * every profile feed request, and the UNIQUE `{viewerOxyUserId, laneId}` that
+ * makes muting a lane idempotent. Production disables Mongoose auto-indexing, so
+ * this migration is the schema authority. See {@link ./0022-lane-indexes}.
+ */
+export const MIGRATION_LANE_INDEXES = '0022-lane-indexes';
+
+/**
+ * Create the PARTIAL `post_lane_chrono_v1` index on `posts` so a lane's tab (and
+ * the per-lane counts the management screen aggregates) is served from the index
+ * rather than a collection scan. Kept apart from `0022` because it is the only
+ * lane index touching a large collection. Production disables Mongoose
+ * auto-indexing, so this migration is the schema authority.
+ * See {@link ./0023-post-lane-index}.
+ */
+export const MIGRATION_POST_LANE_INDEX = '0023-post-lane-index';

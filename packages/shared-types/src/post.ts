@@ -4,6 +4,7 @@
 
 import type { UserNameResponse } from '@oxyhq/contracts';
 import { GeoJSONPoint } from './common';
+import type { LaneSummary } from './lane';
 
 export enum PostType {
   TEXT = 'text',
@@ -699,6 +700,12 @@ export interface CreatePostRequest {
   status?: 'draft' | 'published' | 'scheduled';
   scheduledFor?: string;
   metadata?: CreatePostMetadata;
+  /**
+   * The author's own lane for this post — an editorial decision about original
+   * content, so the server refuses it on a reply or a boost (400). A quote takes
+   * one: it is an original post with its own body and its own profile row.
+   */
+  laneId?: string;
 }
 
 export interface CreateThreadPostRequest {
@@ -711,6 +718,13 @@ export interface CreateThreadPostRequest {
   reviewReplies?: boolean;
   quotesDisabled?: boolean;
   metadata?: CreatePostMetadata;
+  /**
+   * The lane for a thread post. A thread's continuations are REPLIES, which
+   * carry no lane, so this is honored on the thread's ROOT only — the feed
+   * renders the thread as one slice anchored on the root, which is where the
+   * chip belongs anyway.
+   */
+  laneId?: string;
 }
 
 export interface CreateThreadRequest {
@@ -740,6 +754,12 @@ export interface UpdatePostRequest {
    * allowed. Omitted, the existing schedule stands.
    */
   scheduledFor?: string;
+  /**
+   * Move the post to another of the author's lanes, or out of every lane with
+   * `null`. Served by `PATCH /posts/:id/lane`, which carries NO edit window —
+   * see that handler for why.
+   */
+  laneId?: string | null;
 }
 
 export interface PostFeed {
@@ -1008,6 +1028,15 @@ export interface HydratedPostSummary {
   viewerState: PostViewerState;
   permissions: PostPermissions;
   metadata: PostMetadataState;
+  /**
+   * The author's lane for this post, when it has one — what the name row renders
+   * as a `› Lane name` chip after the time.
+   *
+   * It rides on the DTO rather than arriving as a render prop on purpose: a
+   * recycled row that kept the previous row's lane is a class of bug the DTO
+   * makes unreachable.
+   */
+  lane?: LaneSummary;
   parentPostId?: string;
   /**
    * Set on every post that IS a reply, on every surface, whatever the feed did

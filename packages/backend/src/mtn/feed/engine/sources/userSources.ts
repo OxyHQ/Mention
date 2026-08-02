@@ -7,14 +7,16 @@
 import mongoose from 'mongoose';
 import { isAuthorFeedFilter, PostType, PostVisibility } from '@mention/shared-types';
 import { Post } from '../../../../models/Post';
+import { Lane } from '../../../../models/Lane';
 import UserSettings from '../../../../models/UserSettings';
 import { ProfileVisibility, requiresAccessCheck } from '../../../../utils/privacyHelpers';
 import { buildAuthorFeedMatch } from '../../../../utils/postAuthorship';
+import { excludedDisplayModesForTab, loadExcludedLaneIds } from '../../../../services/laneVisibility';
 import { FEED_FIELDS } from '../../FeedAPI';
 import { ChronoCursor } from '../../CursorBuilder';
 import { notAReplyClause, restrictToReplies, restrictToRoots } from '../../../../utils/postReply';
 import { trendTermMatch } from '../../../../services/trending/termSpace';
-import type { AuthorFeedFilter } from '@mention/shared-types';
+import type { AuthorFeedFilter, LaneDisplayMode, LaneOwnerType } from '@mention/shared-types';
 import type { CandidatePost, FeedEngineContext, SourceModule } from '../types';
 
 /** `keywords`: posts matching hashtags (Hashtag feed) and/or content keywords (custom). */
@@ -137,12 +139,28 @@ export const accountsSource: SourceModule = {
 };
 
 /** Author query: posts owned by or accepted-collaborated by the profile user. */
-function buildAuthoredQuery(authorId: string, filter: AuthorFeedFilter, cursor?: string): Record<string, unknown> {
+function buildAuthoredQuery(
+  authorId: string,
+  filter: AuthorFeedFilter,
+  excludedLaneIds: readonly string[],
+  cursor?: string,
+): Record<string, unknown> {
   const query: Record<string, unknown> = {
     ...buildAuthorFeedMatch(authorId),
     visibility: PostVisibility.PUBLIC,
     status: 'published',
   };
+
+  // The author's own curation (see `services/laneVisibility` for which modes are
+  // excluded from which tab). A KEY OF ITS OWN, so it coexists with the `$and`
+  // the `media`/`videos` branches below assign, and — critically — never touches
+  // `match.$or`, which `ChronoCursor.applyToQuery` ASSIGNS: a filter written
+  // there would work on page one and silently stop working on every page after.
+  // `$nin` also matches documents with no `laneId`, so a post outside every lane
+  // passes with no extra clause.
+  if (excludedLaneIds.length > 0) {
+    query.laneId = { $nin: excludedLaneIds };
+  }
 
   switch (filter) {
     case 'posts':
@@ -285,10 +303,17 @@ export const authoredSource: SourceModule = {
     if (!(await canViewAuthorFeed(ctx, authorId))) return [];
 
     if (filter === 'likes') {
+      // The likes tab lists OTHER people's posts, so the profile owner's own
+      // lane curation has no bearing on it.
       return gatherAuthorLikes(authorId, ctx);
     }
 
-    const query = buildAuthoredQuery(authorId, filter, ctx.cursor);
+    const excludedLaneIds = await loadExcludedLaneIds(
+      'user',
+      authorId,
+      excludedDisplayModesForTab(filter),
+    );
+    const query = buildAuthoredQuery(authorId, filter, excludedLaneIds, ctx.cursor);
     // Sorted by `createdAt` — NOT `_id` — to match the chronological keyset
     // `ChronoCursor` writes into the query (and the engine's own re-sort). A
     // federated post's import-time `_id` bears no relation to its remote
@@ -297,6 +322,72 @@ export const authoredSource: SourceModule = {
     // tiebreaker, mirroring the cursor's compound comparison. Backed by
     // `{ 'authorship.oxyUserId': 1, 'authorship.status': 1, createdAt: -1 }`.
     return (await Post.find(query)
+      .select(FEED_FIELDS)
+      .sort({ createdAt: -1, _id: -1 })
+      .limit(cap)
+      .maxTimeMS(5000)
+      .lean()) as unknown as CandidatePost[];
+  },
+};
+
+/**
+ * `lane`: ONE lane's own tab. Param `{ laneId }` — one parameter, because a lane
+ * already knows its publisher.
+ *
+ * TWO GATES, and the feed is a back door without either of them:
+ *
+ *  1. **The publisher's own visibility.** A private / followers-only profile
+ *     answers an empty feed to a non-follower here exactly as it does on every
+ *     other profile tab (`canViewAuthorFeed`). A lane must never become a side
+ *     entrance to a publisher the reader cannot see.
+ *  2. **`displayMode === 'tab'` and nothing else.** `mixed` has no tab of its own
+ *     (its posts are on the main one) and `hidden` is off the showcase
+ *     altogether — serving either would make this descriptor the way to read a
+ *     lane its owner took down.
+ *
+ * The query is `{ laneId }` plus the publisher's scope, deliberately NOT
+ * `buildAuthorFeedMatch`: that multikey `authorship` clause would pull the
+ * planner onto `post_author_chrono_v1` instead of `post_lane_chrono_v1`, and the
+ * literal `laneId` term is also what lets the PARTIAL index be used at all.
+ *
+ * No `restrictToRoots`: replies and boosts are refused a lane at the write
+ * boundary, so filtering them here would be code that can never match.
+ */
+export const laneSource: SourceModule = {
+  id: 'lane',
+  kind: 'source',
+  userComposable: false,
+  gather: async (ctx, params, cap) => {
+    const laneId = typeof params.laneId === 'string' ? params.laneId : '';
+    if (!laneId || !mongoose.Types.ObjectId.isValid(laneId)) return [];
+
+    const lane = await Lane.findById(laneId)
+      .select('ownerType ownerId displayMode')
+      .lean<{ ownerType: LaneOwnerType; ownerId: string; displayMode: LaneDisplayMode } | null>();
+    if (!lane) return [];
+
+    // Gate 2 first: it is free, and it is the one that makes an unlisted lane
+    // unreadable through this descriptor.
+    if (lane.displayMode !== 'tab') return [];
+
+    // Gate 1. Channels have no visibility rule of their own yet, and no post can
+    // carry a channel lane until they do, so a channel-owned lane serves nothing
+    // rather than serving unguarded.
+    if (lane.ownerType !== 'user') return [];
+    if (!(await canViewAuthorFeed(ctx, lane.ownerId))) return [];
+
+    const match: Record<string, unknown> = {
+      laneId,
+      oxyUserId: lane.ownerId,
+      visibility: PostVisibility.PUBLIC,
+      status: 'published',
+    };
+    ChronoCursor.applyToQuery(match, ctx.cursor);
+
+    // Sorted on the CURSOR's axis — `{ createdAt, _id }`, never `_id` alone —
+    // the same rule every source here follows and the same order
+    // `post_lane_chrono_v1` stores.
+    return (await Post.find(match)
       .select(FEED_FIELDS)
       .sort({ createdAt: -1, _id: -1 })
       .limit(cap)
@@ -391,6 +482,7 @@ export const userSourceModules: SourceModule[] = [
   trendTermsSource,
   accountsSource,
   authoredSource,
+  laneSource,
   savedSource,
   mutualsSource,
 ];
