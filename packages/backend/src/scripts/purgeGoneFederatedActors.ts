@@ -422,7 +422,7 @@ async function purgeAuthoredPosts(oxyUserId: string, dryRun: boolean, counts: Co
   await assertPostsSafeToDelete(
     `purgeGoneFederatedActors:${oxyUserId}:posts`,
     deletionTargets,
-    { cascadeEngagement: true },
+    { removedByCascade: ['Like.postId', 'Bookmark.postId'] },
   );
 
   // Cascade engagement on every post about to be deleted (X's posts + their boosts)

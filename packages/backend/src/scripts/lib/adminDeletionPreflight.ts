@@ -101,17 +101,71 @@ function unique(values: readonly string[]): string[] {
 }
 
 /**
- * Prove that deleting the supplied post rows will not leave a known reference
- * behind. `cascadeEngagement` is reserved for the gone-actor purge, which deletes
- * Like and Bookmark rows in the same awaited cascade before deleting the posts.
+ * Every known reference to a post, by name.
+ *
+ * A caller may declare that its own awaited cascade removes some of these (see
+ * {@link PostDeletionAcknowledgements.removedByCascade}), and the declaration is
+ * checked by the COMPILER against this list — so a probe that is renamed, or a
+ * NEW probe added here later, cannot be silently acknowledged by an existing
+ * caller. A purge that has not been taught about a new reference type fails
+ * closed on it, which is the whole point of a preflight.
+ *
+ * `Post.dependents` is deliberately absent: it is the reply/boost graph, and
+ * whether a dangling one is acceptable is a POLICY question with its own
+ * narrower option rather than something a cascade can claim to have cleaned.
  */
-export async function assertPostsSafeToDelete(
-  context: string,
-  targets: readonly PostDeletionTarget[],
-  options: { cascadeEngagement?: boolean } = {},
-): Promise<void> {
-  if (targets.length === 0) return;
+export const POST_REFERENCE_PROBE_NAMES = [
+  'Notification.entityId',
+  'Poll.postId',
+  'Article.postId',
+  'Postgate.postId/postUri',
+  'Threadgate.postId/postUri',
+  'PostRecentReplier.postId',
+  'EngagementOutbox.payload.postId',
+  'Report.reportedId(post)',
+  'ContentLabel.targetId(post)',
+  'FeedInteraction.postUri',
+  'FederationDeliveryQueue.activityJson',
+  'Like.postId',
+  'Bookmark.postId',
+] as const;
 
+export type PostReferenceProbeName = (typeof POST_REFERENCE_PROBE_NAMES)[number];
+
+/** What a caller's own cascade covers, so the preflight can stop demanding it. */
+export interface PostDeletionAcknowledgements {
+  /**
+   * Probes whose rows the caller deletes in the SAME awaited cascade, before the
+   * posts themselves. Each name must be one the module actually probes, so this
+   * reads as a manifest of what the caller cleans and breaks the build when the
+   * probe list moves under it.
+   */
+  removedByCascade?: readonly PostReferenceProbeName[];
+  /**
+   * The caller deliberately LEAVES `parentPostId` / `quoteOf` / `threadId`
+   * pointing at a removed post, because the referencing posts belong to OTHER
+   * users and deleting them would destroy their content to remove someone
+   * else's. `PostHydrationService` already tolerates all three: a reply whose
+   * parent will not load still renders and simply loses its "Replying to @…"
+   * handle, a quote resolves `quotedPost` to null and drops the quote card, and
+   * a thread context resolves to a root that no longer exists.
+   *
+   * `boostOf` is NEVER covered by this. A boost has a deliberately empty body
+   * and renders entirely from its original, so a dangling one is not degraded
+   * content — it is a placeholder card with nothing behind it. A caller that
+   * wants this allowance must still delete the boosts.
+   */
+  allowDanglingReplyReferences?: boolean;
+}
+
+/**
+ * One executable probe per {@link POST_REFERENCE_PROBE_NAMES} entry, bound to a
+ * target set. Built once and read by both the pre-delete gate and the
+ * post-delete residue check, so the two can never test different queries.
+ */
+function buildPostReferenceProbes(
+  targets: readonly PostDeletionTarget[],
+): Record<PostReferenceProbeName, () => Promise<boolean>> {
   const ids = targets.map((target) => target.id);
   const idStrings = unique(ids.map(String));
   const postKeys = unique([
@@ -119,129 +173,129 @@ export async function assertPostsSafeToDelete(
     ...targets.flatMap((target) => target.uris ?? []),
   ]);
 
+  return {
+    'Notification.entityId': () =>
+      exists(
+        Notification.exists({
+          entityType: { $in: ['post', 'reply'] },
+          entityId: { $in: ids },
+        }),
+      ),
+    'Poll.postId': () =>
+      exists(Poll.exists({ postId: { $in: [...ids, ...idStrings] } })),
+    'Article.postId': () => exists(Article.exists({ postId: { $in: idStrings } })),
+    'Postgate.postId/postUri': () =>
+      exists(
+        Postgate.exists({
+          $or: [{ postId: { $in: idStrings } }, { postUri: { $in: postKeys } }],
+        }),
+      ),
+    'Threadgate.postId/postUri': () =>
+      exists(
+        Threadgate.exists({
+          $or: [{ postId: { $in: idStrings } }, { postUri: { $in: postKeys } }],
+        }),
+      ),
+    'PostRecentReplier.postId': () =>
+      exists(PostRecentReplier.exists({ postId: { $in: idStrings } })),
+    'EngagementOutbox.payload.postId': () =>
+      exists(EngagementOutbox.exists({ 'payload.postId': { $in: idStrings } })),
+    'Report.reportedId(post)': () =>
+      exists(
+        Report.exists({
+          reportedType: ReportedType.POST,
+          reportedId: { $in: idStrings },
+        }),
+      ),
+    'ContentLabel.targetId(post)': () =>
+      exists(ContentLabel.exists({ targetType: 'post', targetId: { $in: idStrings } })),
+    'FeedInteraction.postUri': () =>
+      exists(FeedInteraction.exists({ postUri: { $in: postKeys } })),
+    'FederationDeliveryQueue.activityJson': () =>
+      exists(
+        FederationDeliveryQueue.exists({
+          $or: [
+            { 'activityJson.id': { $in: postKeys } },
+            { 'activityJson.object.id': { $in: postKeys } },
+            { 'activityJson.object': { $in: postKeys } },
+          ],
+        }),
+      ),
+    'Like.postId': () => exists(Like.exists({ postId: { $in: ids } })),
+    'Bookmark.postId': () => exists(Bookmark.exists({ postId: { $in: ids } })),
+  };
+}
+
+/**
+ * Prove that deleting the supplied post rows will not leave a known reference
+ * behind, except the ones the caller states its own cascade or its policy
+ * covers (see {@link PostDeletionAcknowledgements}).
+ */
+export async function assertPostsSafeToDelete(
+  context: string,
+  targets: readonly PostDeletionTarget[],
+  options: PostDeletionAcknowledgements = {},
+): Promise<void> {
+  if (targets.length === 0) return;
+
+  const ids = targets.map((target) => target.id);
+  const idStrings = unique(ids.map(String));
+  const acknowledged = new Set<PostReferenceProbeName>(options.removedByCascade ?? []);
+  const referenceProbes = buildPostReferenceProbes(targets);
+
+  const danglingReferenceFields = options.allowDanglingReplyReferences
+    ? [{ boostOf: { $in: idStrings } }]
+    : [
+        { boostOf: { $in: idStrings } },
+        { quoteOf: { $in: idStrings } },
+        { parentPostId: { $in: idStrings } },
+        { threadId: { $in: idStrings } },
+      ];
+
+  // The post graph is checked ALWAYS, and is the one probe no cascade may
+  // acknowledge away — only `allowDanglingReplyReferences` narrows it, and only
+  // ever to leave `boostOf` covered.
   const probes: ReferenceProbe[] = [
     {
-      name: 'Post.boostOf/quoteOf/parentPostId/threadId',
+      name: options.allowDanglingReplyReferences
+        ? 'Post.dependents(boostOf)'
+        : 'Post.dependents(boostOf/quoteOf/parentPostId/threadId)',
       hasReference: () =>
         exists(
           Post.exists({
             _id: { $nin: ids },
-            $or: [
-              { boostOf: { $in: idStrings } },
-              { quoteOf: { $in: idStrings } },
-              { parentPostId: { $in: idStrings } },
-              { threadId: { $in: idStrings } },
-            ],
-          }),
-        ),
-    },
-    {
-      name: 'Notification.entityId',
-      hasReference: () =>
-        exists(
-          Notification.exists({
-            entityType: { $in: ['post', 'reply'] },
-            entityId: { $in: ids },
-          }),
-        ),
-    },
-    {
-      name: 'Poll.postId',
-      hasReference: () =>
-        exists(Poll.exists({ postId: { $in: [...ids, ...idStrings] } })),
-    },
-    {
-      name: 'Article.postId',
-      hasReference: () => exists(Article.exists({ postId: { $in: idStrings } })),
-    },
-    {
-      name: 'Postgate.postId/postUri',
-      hasReference: () =>
-        exists(
-          Postgate.exists({
-            $or: [
-              { postId: { $in: idStrings } },
-              { postUri: { $in: postKeys } },
-            ],
-          }),
-        ),
-    },
-    {
-      name: 'Threadgate.postId/postUri',
-      hasReference: () =>
-        exists(
-          Threadgate.exists({
-            $or: [
-              { postId: { $in: idStrings } },
-              { postUri: { $in: postKeys } },
-            ],
-          }),
-        ),
-    },
-    {
-      name: 'PostRecentReplier.postId',
-      hasReference: () =>
-        exists(PostRecentReplier.exists({ postId: { $in: idStrings } })),
-    },
-    {
-      name: 'EngagementOutbox.payload.postId',
-      hasReference: () =>
-        exists(EngagementOutbox.exists({ 'payload.postId': { $in: idStrings } })),
-    },
-    {
-      name: 'Report.reportedId(post)',
-      hasReference: () =>
-        exists(
-          Report.exists({
-            reportedType: ReportedType.POST,
-            reportedId: { $in: idStrings },
-          }),
-        ),
-    },
-    {
-      name: 'ContentLabel.targetId(post)',
-      hasReference: () =>
-        exists(
-          ContentLabel.exists({
-            targetType: 'post',
-            targetId: { $in: idStrings },
-          }),
-        ),
-    },
-    {
-      name: 'FeedInteraction.postUri',
-      hasReference: () =>
-        exists(FeedInteraction.exists({ postUri: { $in: postKeys } })),
-    },
-    {
-      name: 'FederationDeliveryQueue.activityJson',
-      hasReference: () =>
-        exists(
-          FederationDeliveryQueue.exists({
-            $or: [
-              { 'activityJson.id': { $in: postKeys } },
-              { 'activityJson.object.id': { $in: postKeys } },
-              { 'activityJson.object': { $in: postKeys } },
-            ],
+            $or: danglingReferenceFields,
           }),
         ),
     },
   ];
 
-  if (!options.cascadeEngagement) {
-    probes.push(
-      {
-        name: 'Like.postId',
-        hasReference: () => exists(Like.exists({ postId: { $in: ids } })),
-      },
-      {
-        name: 'Bookmark.postId',
-        hasReference: () => exists(Bookmark.exists({ postId: { $in: ids } })),
-      },
-    );
+  for (const name of POST_REFERENCE_PROBE_NAMES) {
+    if (acknowledged.has(name)) continue;
+    probes.push({ name, hasReference: () => referenceProbes[name]() });
   }
 
   assertNoDeletionBlockers(context, await collectReferenceBlockers(probes));
+}
+
+/**
+ * Assert that a cascade which CLAIMED to remove a set of post references
+ * actually did, by re-running those probes with nothing acknowledged.
+ *
+ * Run AFTER the posts are gone, so it verifies the end state rather than a
+ * promise about it. `assertPostsSafeToDelete` can only ever check the probes a
+ * caller did NOT claim; this closes that gap without inverting the gate, and its
+ * failure is a signal to reconcile rather than a licence to keep deleting.
+ */
+export async function collectPostCascadeResidue(
+  targets: readonly PostDeletionTarget[],
+  claimed: readonly PostReferenceProbeName[],
+): Promise<string[]> {
+  if (targets.length === 0 || claimed.length === 0) return [];
+  const referenceProbes = buildPostReferenceProbes(targets);
+  return collectReferenceBlockers(
+    claimed.map((name) => ({ name, hasReference: () => referenceProbes[name]() })),
+  );
 }
 
 function actorReferenceProbes(
@@ -558,5 +612,43 @@ export async function assertActorSafeToDelete(
   const blockers = await collectReferenceBlockers(
     actorReferenceProbes(target, options.allowGoneActorCascade === true),
   );
+  assertNoDeletionBlockers(context, blockers);
+}
+
+/**
+ * Prove that deleting a `FederatedActor` ANCHOR ROW alone cannot strand a
+ * reference, for a caller that deliberately RETAINS the actor's Oxy identity.
+ *
+ * This is a strictly narrower claim than {@link assertActorSafeToDelete}, and the
+ * difference is which side of the actor the reference names. Every probe in the
+ * full check is keyed on one of two things:
+ *  - the actor's Oxy USER id — `Bookmark.userId`, `Mute.mutedId`, `Report`,
+ *    `ContentLabel`, `UserSettings`, and the rest. Those only dangle if the Oxy
+ *    `User` is DELETED; while it lives they are ordinary, valid references and
+ *    demanding their absence would block a purge that never touches it.
+ *  - the actor URI / the anchor row itself. Those dangle the moment the row goes,
+ *    whatever happens to the identity — so they are exactly what a
+ *    identity-retaining caller must still prove absent.
+ *
+ * The blocked-domain purge is the caller: it removes a blocked instance's content
+ * but makes no claim that the account ceased to exist (unlike the gone-actor
+ * purge, which re-verifies a 410 first), so it keeps the identity and only has to
+ * clear the uri-keyed references its own cascade removes.
+ */
+export async function assertActorAnchorSafeToDelete(
+  context: string,
+  target: { actorUri: string },
+): Promise<void> {
+  const { actorUri } = target;
+  const blockers = await collectReferenceBlockers([
+    {
+      name: 'Post.federation.actorUri',
+      hasReference: () => exists(Post.exists({ 'federation.actorUri': actorUri })),
+    },
+    {
+      name: 'FederatedFollow.remoteActorUri',
+      hasReference: () => exists(FederatedFollow.exists({ remoteActorUri: actorUri })),
+    },
+  ]);
   assertNoDeletionBlockers(context, blockers);
 }
