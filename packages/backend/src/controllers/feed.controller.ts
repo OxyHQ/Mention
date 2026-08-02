@@ -1097,9 +1097,25 @@ class FeedController {
           eq(postsTable.metadataIsPinned, true),
           eq(postsTable.visibility, 'public'),
         ),
-        // `updated_at` is NOT NULL, so the descending sort has no NULL ordering
-        // to disagree with Mongo about; `id` breaks a tie deterministically so
-        // two posts pinned in the same millisecond do not alternate per request.
+        /**
+         * `updated_at` is NOT NULL, so the descending sort has no NULL ordering
+         * to disagree with Mongo about; `id` breaks a tie deterministically so
+         * two posts pinned in the same millisecond do not alternate per request.
+         *
+         * MULTIPLE PINS ARE INTENDED, so this picking one is a product question
+         * and not a bug to tidy: nothing clears a previous pin, and the
+         * ActivityPub `featured` collection is an `OrderedCollection` of the
+         * user's pinned posts — plural — and emits all of them. What is
+         * undecided is which one the profile HEADER shows, and `updated_at` is
+         * only an accident of who edited last. That belongs to whoever owns the
+         * profile header.
+         *
+         * The `id` tiebreak carries the mixed-shape hazard (`text` holding
+         * ObjectId hex before the cutover and uuid v7 after, `'0' < '6'` under
+         * the collation, so it prefers the OLDER post), but it fires only when
+         * two posts are pinned within the same millisecond. Left as-is on
+         * purpose: changing which pin wins is the product decision above.
+         */
         { orderBy: [desc(postsTable.updatedAt), desc(postsTable.id)], limit: 1 },
       );
 

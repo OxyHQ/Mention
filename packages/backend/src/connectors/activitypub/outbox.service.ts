@@ -12,6 +12,7 @@ import { uuidv7 } from '../../db/schema/columns';
 import {
   bumpPostCounters,
   CHRONO_DESC,
+  UNIQUE_MATCH_NO_ORDER,
   findPostRecords,
   insertPostRecord,
   loadPostRecord,
@@ -1111,9 +1112,11 @@ export class OutboxSyncService {
     // blank an existing post's body — leave it untouched.
     if (variants.length === 0) return false;
 
+    // At most one row: `posts_federation_activity_id_key` is a partial UNIQUE
+    // index on this column, so no ORDER BY has anything to decide.
     const [stored] = await findPostRecords(
       eq(posts.federationActivityId, candidate.activityId),
-      { orderBy: CHRONO_DESC, limit: 1 },
+      { orderBy: UNIQUE_MATCH_NO_ORDER, limit: 1 },
     );
     if (!stored) return false;
     await replacePostContent(stored.id, { ...stored.content, variants }, resolved.ids);

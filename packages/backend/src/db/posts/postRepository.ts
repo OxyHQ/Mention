@@ -1401,3 +1401,20 @@ export const CHRONO_DESC: SQL[] = [
   sql`${posts.createdAt} desc nulls last`,
   sql`${posts.id} desc nulls last`,
 ];
+
+/**
+ * No ordering, because the predicate can match at most one row.
+ *
+ * {@link findPostRecords} requires `orderBy` on purpose — an unordered paged
+ * read is a bug that surfaces only as a duplicated or skipped row at a page
+ * boundary — and that requirement should not be relaxed to accommodate the
+ * handful of reads where it genuinely has nothing to decide. Those reads say so
+ * HERE instead, by name.
+ *
+ * Only correct behind a filter the database guarantees is unique: today that is
+ * `federation_activity_id`, which carries the partial unique index
+ * `posts_federation_activity_id_key`. Reaching for this because a query "should"
+ * only match one row reintroduces exactly the bug the required parameter exists
+ * to prevent — if the uniqueness is not a constraint, order the read.
+ */
+export const UNIQUE_MATCH_NO_ORDER: SQL[] = [];

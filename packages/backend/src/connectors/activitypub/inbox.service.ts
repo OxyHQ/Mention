@@ -16,6 +16,7 @@ import { posts } from '../../db/schema/posts';
 import {
   bumpPostCounters,
   CHRONO_DESC,
+  UNIQUE_MATCH_NO_ORDER,
   deletePostRecord,
   findPostRecords,
   loadPostRecord,
@@ -327,13 +328,16 @@ export class InboxProcessingService {
     // Announce id but carries the announced object.
     let boost: PostRecord | null = null;
     if (announceId) {
+      // At most one row: `federation_activity_id` carries a partial UNIQUE index
+      // (`posts_federation_activity_id_key`), so there is nothing for an ORDER BY
+      // to decide here — and a sort that decides nothing reads as though it does.
       [boost = null] = await findPostRecords(
         and(
           eq(posts.federationActivityId, announceId),
           eq(posts.federationActorUri, actorUri),
           eq(posts.type, 'boost'),
         ),
-        { orderBy: CHRONO_DESC, limit: 1 },
+        { orderBy: UNIQUE_MATCH_NO_ORDER, limit: 1 },
       );
     }
     if (!boost && announcedUri) {
@@ -802,8 +806,10 @@ export class InboxProcessingService {
         eq(posts.federationActorUri, actorUri),
       );
 
+      // At most one row — `editFilter` is scoped by `federation_activity_id`,
+      // which carries a partial UNIQUE index. No ORDER BY has anything to decide.
       const [existingPost = null] = await findPostRecords(editFilter, {
-        orderBy: CHRONO_DESC,
+        orderBy: UNIQUE_MATCH_NO_ORDER,
         limit: 1,
       });
       const ownerOxyUserId = existingPost?.oxyUserId ?? (await actorService.getOrFetchActor(actorUri))?.oxyUserId ?? null;
