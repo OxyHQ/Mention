@@ -11,7 +11,8 @@ import {
 import { describeDriverError, isUniqueViolation } from '../../db/pgErrors';
 import { metrics } from '../../utils/metrics';
 import { xrpcGet } from './xrpcClient';
-import { isUnresolvedAtprotoHandle, PUBLIC_APPVIEW } from './constants';
+import { PUBLIC_APPVIEW } from './constants';
+import { isUnresolvedAtprotoHandle } from './unresolvedHandle';
 
 /**
  * Counter a run can fail on when an actor row could not be written.
