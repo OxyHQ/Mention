@@ -30,6 +30,8 @@ import { migrationAdminScriptCursorIndex } from './0016-admin-script-cursor-inde
 import { migrationRepairFetchFailureIndexes } from './0017-repair-fetch-failure-indexes';
 import { migrationBlockedDomainPurgeIndexes } from './0018-blocked-domain-purge-indexes';
 import { migrationBlockedDomainPurgeRunIndexes } from './0019-blocked-domain-purge-run-indexes';
+import { migrationBlocklistProposalIndexes } from './0020-blocklist-proposal-indexes';
+import { migrationBlocklistProposalRunIndexes } from './0021-blocklist-proposal-run-indexes';
 import { MIGRATIONS_COLLECTION } from './constants';
 
 export interface Migration {
@@ -85,6 +87,8 @@ const MIGRATIONS: readonly Migration[] = [
   migrationRepairFetchFailureIndexes,
   migrationBlockedDomainPurgeIndexes,
   migrationBlockedDomainPurgeRunIndexes,
+  migrationBlocklistProposalIndexes,
+  migrationBlocklistProposalRunIndexes,
 ];
 
 /**

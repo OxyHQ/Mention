@@ -162,3 +162,22 @@ export const MIGRATION_BLOCKED_DOMAIN_PURGE_INDEXES = '0018-blocked-domain-purge
  * authority. See {@link ./0019-blocked-domain-purge-run-indexes}.
  */
 export const MIGRATION_BLOCKED_DOMAIN_PURGE_RUN_INDEXES = '0019-blocked-domain-purge-run-indexes';
+
+/**
+ * Create the `BlocklistProposal` review-queue indexes: the UNIQUE `{domain}`
+ * identity that keeps one row per domain — and with it the second defence that
+ * stops a DECLINED domain being resurrected by a concurrent sweep — plus
+ * `{status, firstProposedAt}` serving the queue itself, oldest unanswered first.
+ * Production disables Mongoose auto-indexing, so this migration is the schema
+ * authority. See {@link ./0020-blocklist-proposal-indexes}.
+ */
+export const MIGRATION_BLOCKLIST_PROPOSAL_INDEXES = '0020-blocklist-proposal-indexes';
+
+/**
+ * Create the `BlocklistProposalRun` history indexes: the UNIQUE `{runId}`
+ * identity, plus `{startedAt}` — the scheduler's only query, and what makes a
+ * weekly sweep survive a service that restarts far more often than weekly.
+ * Production disables Mongoose auto-indexing, so this migration is the schema
+ * authority. See {@link ./0021-blocklist-proposal-run-indexes}.
+ */
+export const MIGRATION_BLOCKLIST_PROPOSAL_RUN_INDEXES = '0021-blocklist-proposal-run-indexes';

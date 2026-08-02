@@ -92,8 +92,10 @@
  *   Individual source failures below that bar are warnings, not failures.
  *
  * ENV
- *   BLOCKLIST_SOURCES              comma-separated source hostnames
- *                                  (default: {@link DEFAULT_SOURCE_INSTANCES})
+ *   BLOCKLIST_SOURCES              comma-separated source hostnames (default:
+ *                                  every instance in
+ *                                  `connectors/activitypub/blocklistSourceRegistry`,
+ *                                  which also declares who operates each one)
  *   BLOCKLIST_MIN_SOURCES          corroboration threshold (default 2)
  *   BLOCKLIST_SOURCE_TIMEOUT_MS    per-source wall-clock budget (default 15000)
  *   BLOCKLIST_REPORT_LIMIT         candidate rows rendered (default 50)
@@ -116,6 +118,7 @@ import { FederatedActor } from '../models/FederatedActor';
 import { FederatedFollow } from '../models/FederatedFollow';
 import { signedFetch, runWithTimeout } from '../connectors/activitypub/helpers';
 import { isBlockedDomain } from '../connectors/activitypub/constants';
+import { BLOCKLIST_SOURCE_INSTANCES } from '../connectors/activitypub/blocklistSourceRegistry';
 import { getRemoteHost } from '../connectors/shared/url';
 import { DEFAULT_CONCURRENCY, MAX_CONCURRENCY, mapWithConcurrency } from '../utils/concurrency';
 import { logger } from '../utils/logger';
@@ -126,51 +129,19 @@ import {
 } from './lib/adminScriptLifecycle';
 
 /**
- * Instances polled when the operator names none.
- *
- * Every one was verified to actually serve the endpoint (HTTP 200, with
- * 403/346/573/590/376 entries respectively) — `fosstodon.org`, `hachyderm.io`,
- * `mastodon.world`, `chaos.social` and `toot.community` all answer 404: they do
- * not publish, which the run reports rather than treating as breakage.
- *
- * ONE OPERATOR PER ENTRY — THE PROPERTY THAT MAKES A COUNT MEAN ANYTHING.
- *   Corroboration across sites that share a moderation team is not corroboration;
- *   it is one decision counted twice. So each instance here is run by a DIFFERENT
- *   party, checked against `GET /api/v1/instance` rather than assumed:
- *     mastodon.social   staff@mastodon.social,  Mastodon GmbH
- *     mstdn.social      hello@mstdn.social,     stux
- *     mas.to            trumpet@mas.to,         trumpet
- *     infosec.exchange  jerry@infosec.exchange, jerry
- *     kolektiva.social  kolektiva@riseup.net,   the Kolektiva collective
- *
- *   `mastodon.online` was in this list and has been REMOVED: it self-describes as
- *   "operated by Mastodon GmbH" and its published contact account is literally
- *   `Mastodon@mastodon.social` — the same account as mastodon.social's. With both
- *   present, the default threshold of two was satisfiable by a single moderation
- *   team, which is the exact failure the threshold exists to prevent. Re-check
- *   this before adding a source: `universeodon.com` and `mastodonapp.uk` are
- *   another such pair (both `support@mastodonapp.uk`, admin `wild1145`).
- *
- * WHAT THIS STILL DOES NOT ESTABLISH
- *   Distinct operators are not necessarily distinct JUDGEMENTS. Instances do
- *   import each other's lists wholesale, so several sources can echo one origin
- *   without any of them having looked. Nothing here can detect that, and no
- *   threshold should be read as if it could — which is part of why this script
- *   only ever produces a candidate list for a human, and why the committed policy
- *   names its corroborating sources so a reader can weigh them for themselves.
- */
-export const DEFAULT_SOURCE_INSTANCES: readonly string[] = [
-  'mastodon.social',
-  'mstdn.social',
-  'mas.to',
-  'infosec.exchange',
-  'kolektiva.social',
-];
-
-/**
  * How many DISTINCT sources must block a domain before it may be presented as a
  * candidate at all. One source is an opinion; the floor is deliberately not 1
  * and a single-source hit is never rendered as a row.
+ *
+ * A SOURCE COUNT IS NOT AN OPERATOR COUNT, and this threshold is the weaker of
+ * the two on purpose: two sites sharing a moderation team clear it while
+ * corroborating nothing. It is a cheap prefilter that keeps a domain nobody
+ * blocks twice out of the expensive footprint queries. The decision threshold is
+ * applied to OPERATORS, downstream, by
+ * `services/federation/BlocklistProposalService` against
+ * {@link BLOCKLIST_SOURCE_REGISTRY} — and because a domain's operator count can
+ * never exceed its source count, filtering here can never drop something that
+ * would have cleared there.
  */
 export const DEFAULT_MIN_SOURCES = 2;
 
@@ -809,7 +780,7 @@ export async function reportFederationBlocklistCandidates(
   options: ReportFederationBlocklistOptions = {},
 ): Promise<BlocklistIntelReport> {
   const sources = [...new Set(
-    (options.sources ?? DEFAULT_SOURCE_INSTANCES)
+    (options.sources ?? BLOCKLIST_SOURCE_INSTANCES)
       .map((source) => normalizePublishedDomain(source))
       .filter((source): source is string => source !== null),
   )];

@@ -611,6 +611,19 @@ function startSchedulers(): void {
   } catch (error) {
     logger.warn("Failed to start moderation reconciliation job", error);
   }
+
+  // Blocklist proposal sweep (leader-gated): reads the blocklists other
+  // instances publish and leaves newly corroborated domains in a review queue.
+  // It PROPOSES only — it cannot block anything, by construction (see
+  // services/federation/BlocklistProposalService). Due-ness lives in the run
+  // history, not in this timer, so a weekly sweep still happens on a service
+  // that redeploys daily.
+  try {
+    const { blocklistProposalScheduler } = require("./src/services/federation/BlocklistProposalScheduler");
+    blocklistProposalScheduler.start();
+  } catch (error) {
+    logger.warn("Failed to start blocklist proposal scheduler", error);
+  }
 }
 
 /**
@@ -677,6 +690,13 @@ function stopSchedulers(): void {
     moderationReconciliationJob.stop();
   } catch (error) {
     logger.warn("Failed to stop moderation reconciliation job", error);
+  }
+
+  try {
+    const { blocklistProposalScheduler } = require("./src/services/federation/BlocklistProposalScheduler");
+    blocklistProposalScheduler.stop();
+  } catch (error) {
+    logger.warn("Failed to stop blocklist proposal scheduler", error);
   }
 }
 
