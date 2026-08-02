@@ -107,7 +107,7 @@ import {
   subdocuments,
   type MongoDocument,
 } from '../values';
-import { timestamps } from './timestamps';
+import { timestampsCreatedFromId } from './timestamps';
 
 /** Every classification score is a probability; the CHECK is `between 0 and 1`. */
 const SCORE_PATHS = [
@@ -360,7 +360,10 @@ const postsPlan: CollectionPlan = {
           classificationAttempts: int(doc, 'postClassification.attempts') ?? 0,
           classificationClassifiedAt: date(doc, 'postClassification.classifiedAt'),
 
-          ...timestamps(doc),
+          // DERIVED from `_id` when absent — six production posts have no
+          // `createdAt` at all, and this column is NOT NULL with a DEFAULT, so
+          // the silent outcome is `now()`. See `timestampsCreatedFromId`.
+          ...timestampsCreatedFromId(doc),
         },
         postId
       )
