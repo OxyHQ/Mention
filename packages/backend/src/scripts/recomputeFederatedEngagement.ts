@@ -23,11 +23,10 @@
  *   node dist/scripts/recomputeFederatedEngagement.js
  */
 
-import mongoose from 'mongoose';
 import { and, asc, count, eq, gt, inArray, isNotNull } from 'drizzle-orm';
 import { connectPostgres, getDb } from '../db/postgres';
+import { likes } from '../db/schema/engagement';
 import { posts } from '../db/schema/posts';
-import Like from '../models/Like';
 import { logger } from '../utils/logger';
 import { assertAdminMutationAllowed } from './lib/adminScriptSafety';
 import { closeAdminScriptResources } from './lib/adminScriptLifecycle';
@@ -51,12 +50,22 @@ interface RealCounts {
 async function computeRealCounts(postIds: string[]): Promise<Map<string, RealCounts>> {
   const db = getDb();
   const [likeRows, boostRows, commentRows] = await Promise.all([
-    // Likes: native Like rows (upvotes) for this post. Still Mongo — the `Like`
-    // model belongs to the engagement batch.
-    Like.aggregate<{ _id: string; count: number }>([
-      { $match: { postId: { $in: postIds }, value: 1 } },
-      { $group: { _id: '$postId', count: { $sum: 1 } } },
-    ]),
+    // Likes: native like rows (upvotes) for this post.
+    //
+    // This read was Mongo until it became a DEAD-STORE read.
+    // `PostEngagementCommandService` has written `likes` to Postgres since
+    // `28f4c6bd`, so nothing has written the Mongo collection since — and this
+    // script does not merely READ stale, it recomputes counters and writes them
+    // onto live posts. Left as it was, running it rewrote every federated post's
+    // engagement to its value as of that commit, with no error anywhere.
+    //
+    // `value: 1` is the upvote half of the same `LIKE_VALUES` domain the CHECK
+    // constrains; a downvote is a real row and must NOT be counted here.
+    db
+      .select({ id: likes.postId, count: count() })
+      .from(likes)
+      .where(and(inArray(likes.postId, postIds), eq(likes.value, 1)))
+      .groupBy(likes.postId),
     // Boosts: native boost posts referencing this post.
     db
       .select({ id: posts.boostOf, count: count() })
@@ -80,7 +89,7 @@ async function computeRealCounts(postIds: string[]): Promise<Map<string, RealCou
     return created;
   };
   for (const row of likeRows) {
-    if (row._id) entry(String(row._id)).likesCount = row.count;
+    if (row.id) entry(row.id).likesCount = row.count;
   }
   for (const row of boostRows) {
     if (row.id) entry(row.id).boostsCount = row.count;
@@ -93,8 +102,6 @@ async function computeRealCounts(postIds: string[]): Promise<Map<string, RealCou
 
 async function recomputeFederatedEngagement(): Promise<void> {
   const startedAt = Date.now();
-  const mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/mention';
-  const dbName = `mention-${process.env.NODE_ENV || 'development'}`;
   const dryRun = process.argv.includes('--dry-run');
 
   try {
@@ -102,11 +109,12 @@ async function recomputeFederatedEngagement(): Promise<void> {
       scriptName: 'recomputeFederatedEngagement',
       dryRun,
     });
-    // BOTH stores: the posts are Postgres, the `Like` rows this reconciles
-    // against are still Mongo (the engagement batch owns that model).
+    // ONE store now. Every record this reconciles against — posts, boosts,
+    // replies and likes — is Postgres, so the Mongo connection is gone rather
+    // than left open: an unused connection to a store nothing reads is how the
+    // next reader concludes a read from it would still be valid.
     await connectPostgres();
-    await mongoose.connect(mongoUri, { dbName });
-    logger.info('[recomputeFederatedEngagement] connected to PostgreSQL + MongoDB', { dryRun });
+    logger.info('[recomputeFederatedEngagement] connected to PostgreSQL', { dryRun });
 
     // `is not null`, never `<> null`: Mongo's `$ne: null` also matched an ABSENT
     // field, while SQL's `<>` against NULL matches nothing — the literal
@@ -200,7 +208,6 @@ async function recomputeFederatedEngagement(): Promise<void> {
     process.exit(1);
   } finally {
     await closeAdminScriptResources().catch(() => undefined);
-    await mongoose.disconnect().catch(() => undefined);
   }
 }
 

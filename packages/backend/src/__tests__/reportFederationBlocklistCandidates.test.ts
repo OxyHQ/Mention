@@ -1,43 +1,35 @@
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import mongoose from 'mongoose';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { inArray } from 'drizzle-orm';
+import { closePostgres, connectPostgres, getDb } from '../db/postgres';
+import { federatedActors, federatedFollows } from '../db/schema/federation';
+import { posts } from '../db/schema/posts';
+import { insertPostRecord } from '../db/posts/postRepository';
+import { PostType, PostVisibility } from '@mention/shared-types';
 
 /**
- * Offline, model-level tests for the federation blocklist INTELLIGENCE report.
+ * Tests for the federation blocklist INTELLIGENCE report.
  *
- * `signedFetch` (the SSRF-safe transport the AP connector uses) and the three
- * models the report reads are mocked over small in-memory stores, so the REAL
- * source polling, corroboration threshold, severity separation and local-impact
- * counting run WITHOUT MongoDB or a network — mirroring the convention from
- * `backfillFederatedBoostCounts.test.ts` (the repo has no `mongodb-memory-server`
- * and globally mocks mongoose).
+ * `signedFetch` (the SSRF-safe transport the AP connector uses) and the local
+ * block policy are mocked, so the REAL source polling, corroboration threshold
+ * and severity separation run without a network. The FOOTPRINT reads are not
+ * mocked: they run against real Postgres rows.
+ *
+ * That changed when the reads moved off Mongo. The three models used to be
+ * mocked over in-memory stores with hand-rolled `_id` pagination, and a mocked
+ * model answers whatever the mock was told — an assertion could read "the
+ * footprint counted this actor" while observing only that a fake had been
+ * called. The footprint is the number a human reads as measured evidence that
+ * blocking a domain costs nothing, so it is the last thing that should be
+ * checked against a fake.
  *
  * The transport is mocked at the MODULE, not injected, so these tests exercise
  * the same `signedFetch` call the production path makes — including the 404
  * "this instance does not publish" branch, which is the one a hand-rolled
  * `fetch` seam would let drift.
  */
-
-interface StoredActor {
-  _id: mongoose.Types.ObjectId;
-  domain: string;
-  oxyUserId?: string | null;
-}
-
-interface StoredFollow {
-  _id: mongoose.Types.ObjectId;
-  localUserId: string;
-  remoteActorUri: string;
-  direction: 'outbound' | 'inbound';
-  status: 'accepted' | 'pending';
-}
-
-interface StoredPost {
-  _id: mongoose.Types.ObjectId;
-  oxyUserId: string;
-}
 
 /** What a mocked source answers when polled. */
 type SourceResponse =
@@ -48,15 +40,9 @@ type SourceResponse =
 
 const h = vi.hoisted(() => {
   const state: {
-    actors: StoredActor[];
-    follows: StoredFollow[];
-    posts: StoredPost[];
     responses: Map<string, SourceResponse>;
     blockedLocally: Set<string>;
   } = {
-    actors: [],
-    follows: [],
-    posts: [],
     responses: new Map(),
     blockedLocally: new Set(),
   };
@@ -64,10 +50,6 @@ const h = vi.hoisted(() => {
     state,
     signedFetch: vi.fn(),
     isBlockedDomain: vi.fn(),
-    actorFind: vi.fn(),
-    actorAggregate: vi.fn(),
-    followFind: vi.fn(),
-    postCountDocuments: vi.fn(),
   };
 });
 
@@ -82,18 +64,6 @@ vi.mock('../connectors/activitypub/constants', () => ({
   isBlockedDomain: h.isBlockedDomain,
 }));
 
-vi.mock('../models/FederatedActor', () => ({
-  FederatedActor: { find: h.actorFind, aggregate: h.actorAggregate },
-}));
-
-vi.mock('../models/FederatedFollow', () => ({
-  FederatedFollow: { find: h.followFind },
-}));
-
-vi.mock('../models/Post', () => ({
-  Post: { countDocuments: h.postCountDocuments },
-}));
-
 import {
   buildCorroboration,
   buildDigestIndex,
@@ -106,11 +76,72 @@ import {
   type SourcePollResult,
 } from '../scripts/reportFederationBlocklistCandidates';
 
-/** Ascending, stable ids so the paged cursors in the script behave like Mongo's. */
+/**
+ * Ascending, stable ids so the keyset pagination in the script is exercised in a
+ * known order — the script pages by `id`, so a random id would make the page
+ * boundaries untestable rather than merely arbitrary.
+ */
 let idCounter = 0;
-function nextId(): mongoose.Types.ObjectId {
+function nextId(): string {
   idCounter += 1;
-  return new mongoose.Types.ObjectId(idCounter.toString(16).padStart(24, '0'));
+  return `${SCOPE}${idCounter.toString().padStart(6, '0')}`;
+}
+
+/**
+ * Per-file id prefix. Vitest runs files in parallel against ONE database, so
+ * every row this suite writes is namespaced and every cleanup is scoped to that
+ * namespace — never "delete all actors".
+ */
+const SCOPE = 'rfbc-';
+
+const seededActorIds: string[] = [];
+const seededFollowIds: string[] = [];
+const seededPostIds: string[] = [];
+
+async function seedActor(domain: string, oxyUserId: string | null): Promise<void> {
+  const id = nextId();
+  seededActorIds.push(id);
+  await getDb()
+    .insert(federatedActors)
+    .values({
+      id,
+      uri: `https://${domain}/users/${id}`,
+      username: id,
+      domain,
+      acct: `${id}@${domain}`,
+      oxyUserId,
+    });
+}
+
+async function seedFollow(
+  localUserId: string,
+  remoteActorUri: string,
+  direction: 'outbound' | 'inbound',
+  status: 'accepted' | 'pending',
+): Promise<void> {
+  const id = nextId();
+  seededFollowIds.push(id);
+  await getDb()
+    .insert(federatedFollows)
+    .values({ id, localUserId, remoteActorUri, direction, status });
+}
+
+/**
+ * A real `posts` row, through the repository rather than a raw insert: the
+ * footprint counts posts BY AUTHOR, and `authorship` is what an author query
+ * matches on. A hand-built row could satisfy `oxy_user_id` and still not be
+ * findable the way production finds it.
+ */
+async function seedPost(oxyUserId: string): Promise<void> {
+  const record = await insertPostRecord({
+    oxyUserId,
+    authorship: [{ oxyUserId, role: 'owner', status: 'accepted' }],
+    type: PostType.TEXT,
+    visibility: PostVisibility.PRIVATE,
+    status: 'published',
+    content: { variants: [{ source: 'author', text: 'rfbc', tag: 'en' }] },
+  });
+  seededPostIds.push(record.id);
 }
 
 /** A Mastodon `/api/v1/instance/domain_blocks` entry. */
@@ -123,33 +154,36 @@ function block(
   return { domain, severity, comment, digest };
 }
 
-/** Page a store by the ascending `_id` cursor the script uses. */
-function pageBy<T extends { _id: mongoose.Types.ObjectId }>(
-  rows: T[],
-  query: { _id?: { $gt?: mongoose.Types.ObjectId } },
-  limit: number,
-): T[] {
-  const gt = query._id?.$gt;
-  return rows
-    .filter((row) => !gt || row._id.toString() > gt.toString())
-    .sort((a, b) => a._id.toString().localeCompare(b._id.toString()))
-    .slice(0, limit);
-}
+beforeAll(async () => {
+  await connectPostgres();
+}, 60_000);
 
-beforeEach(() => {
+afterAll(async () => {
+  await closePostgres();
+});
+
+beforeEach(async () => {
+  // Scoped teardown, in dependency order. Ids rather than a predicate: these
+  // tables carry no column holding this suite's name.
+  const db = getDb();
+  if (seededPostIds.length > 0) {
+    await db.delete(posts).where(inArray(posts.id, seededPostIds));
+    seededPostIds.length = 0;
+  }
+  if (seededFollowIds.length > 0) {
+    await db.delete(federatedFollows).where(inArray(federatedFollows.id, seededFollowIds));
+    seededFollowIds.length = 0;
+  }
+  if (seededActorIds.length > 0) {
+    await db.delete(federatedActors).where(inArray(federatedActors.id, seededActorIds));
+    seededActorIds.length = 0;
+  }
   idCounter = 0;
-  h.state.actors = [];
-  h.state.follows = [];
-  h.state.posts = [];
   h.state.responses = new Map();
   h.state.blockedLocally = new Set();
 
   h.signedFetch.mockReset();
   h.isBlockedDomain.mockReset();
-  h.actorFind.mockReset();
-  h.actorAggregate.mockReset();
-  h.followFind.mockReset();
-  h.postCountDocuments.mockReset();
 
   h.signedFetch.mockImplementation(async (url: string) => {
     const source = new URL(url).host;
@@ -166,36 +200,6 @@ beforeEach(() => {
 
   h.isBlockedDomain.mockImplementation((domain: string) => h.state.blockedLocally.has(domain));
 
-  h.actorAggregate.mockImplementation(async () => {
-    const counts = new Map<string, number>();
-    for (const actor of h.state.actors) {
-      counts.set(actor.domain, (counts.get(actor.domain) ?? 0) + 1);
-    }
-    return [...counts].map(([domain, actors]) => ({ _id: domain, actors }));
-  });
-
-  h.actorFind.mockImplementation((query: { domain: string; _id?: { $gt?: mongoose.Types.ObjectId } }) => ({
-    sort: () => ({
-      limit: (n: number) => ({
-        lean: async () =>
-          pageBy(h.state.actors.filter((actor) => actor.domain === query.domain), query, n),
-      }),
-    }),
-  }));
-
-  h.followFind.mockImplementation((query: { status: string; _id?: { $gt?: mongoose.Types.ObjectId } }) => ({
-    sort: () => ({
-      limit: (n: number) => ({
-        lean: async () =>
-          pageBy(h.state.follows.filter((follow) => follow.status === query.status), query, n),
-      }),
-    }),
-  }));
-
-  h.postCountDocuments.mockImplementation(async (query: { oxyUserId: { $in: string[] } }) => {
-    const authors = new Set(query.oxyUserId.$in);
-    return h.state.posts.filter((post) => authors.has(post.oxyUserId)).length;
-  });
 });
 
 describe('parseDomainBlocks', () => {
@@ -413,51 +417,22 @@ describe('reportFederationBlocklistCandidates', () => {
     }
 
     // loud.example: two actors, three posts, one local follower relationship.
-    h.state.actors = [
-      { _id: nextId(), domain: 'loud.example', oxyUserId: 'author-1' },
-      { _id: nextId(), domain: 'loud.example', oxyUserId: 'author-2' },
-      // An actor that never resolved to an Oxy user: no posts attributable.
-      { _id: nextId(), domain: 'loud.example', oxyUserId: null },
-      { _id: nextId(), domain: 'unrelated.example', oxyUserId: 'author-3' },
-    ];
-    h.state.posts = [
-      { _id: nextId(), oxyUserId: 'author-1' },
-      { _id: nextId(), oxyUserId: 'author-1' },
-      { _id: nextId(), oxyUserId: 'author-2' },
-      { _id: nextId(), oxyUserId: 'author-3' },
-    ];
-    h.state.follows = [
-      {
-        _id: nextId(),
-        localUserId: 'local-1',
-        remoteActorUri: 'https://loud.example/users/one',
-        direction: 'outbound',
-        status: 'accepted',
-      },
-      {
-        _id: nextId(),
-        localUserId: 'local-2',
-        remoteActorUri: 'https://loud.example/users/two',
-        direction: 'outbound',
-        status: 'accepted',
-      },
-      // Inbound: a remote account there follows one of our users.
-      {
-        _id: nextId(),
-        localUserId: 'local-3',
-        remoteActorUri: 'https://loud.example/users/three',
-        direction: 'inbound',
-        status: 'accepted',
-      },
-      // Pending, so not a follow anyone would lose.
-      {
-        _id: nextId(),
-        localUserId: 'local-4',
-        remoteActorUri: 'https://loud.example/users/four',
-        direction: 'outbound',
-        status: 'pending',
-      },
-    ];
+    await seedActor('loud.example', 'rfbc-author-1');
+    await seedActor('loud.example', 'rfbc-author-2');
+    // An actor that never resolved to an Oxy user: no posts attributable.
+    await seedActor('loud.example', null);
+    await seedActor('unrelated.example', 'rfbc-author-3');
+
+    await seedPost('rfbc-author-1');
+    await seedPost('rfbc-author-1');
+    await seedPost('rfbc-author-2');
+    await seedPost('rfbc-author-3');
+    await seedFollow('local-1', 'https://loud.example/users/one', 'outbound', 'accepted');
+    await seedFollow('local-2', 'https://loud.example/users/two', 'outbound', 'accepted');
+    // Inbound: a remote account there follows one of our users.
+    await seedFollow('local-3', 'https://loud.example/users/three', 'inbound', 'accepted');
+    // Pending, so not a follow anyone would lose.
+    await seedFollow('local-4', 'https://loud.example/users/four', 'outbound', 'pending');
 
     const report = await reportFederationBlocklistCandidates({ sources });
 
@@ -487,15 +462,7 @@ describe('reportFederationBlocklistCandidates', () => {
     }
     // No FederatedActor row for pruned.example at all — but a local user still
     // follows an account there, and that follow is still a loss.
-    h.state.follows = [
-      {
-        _id: nextId(),
-        localUserId: 'local-1',
-        remoteActorUri: 'https://pruned.example/users/gone',
-        direction: 'outbound',
-        status: 'accepted',
-      },
-    ];
+    await seedFollow('local-1', 'https://pruned.example/users/gone', 'outbound', 'accepted');
 
     const report = await reportFederationBlocklistCandidates({ sources });
 
