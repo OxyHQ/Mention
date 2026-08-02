@@ -25,12 +25,27 @@
  *    post this file wrote, and the emission log is filtered to those.
  *  - Cases are GROUPED so the sweep runs a handful of times rather than once per
  *    assertion. A full pass assembles every candidate's nine-table record and
- *    emits for each, against a database several other suites are writing to
- *    concurrently; one sweep per case timed out on exactly that.
+ *    emits for each, so one sweep per assertion is a lot of work for nothing.
+ *
+ * ## The keyset cursor, and why one case reproduces it without running the sweep
+ *
+ * This sweep pages on `(created_at, id)` ascending, and it did not terminate on
+ * a row whose `created_at` came from the database clock: `timestamptz` carries
+ * microseconds, a JS `Date` carries milliseconds, so the cursor compared against
+ * a value smaller than the row that produced it and matched its own anchor
+ * forever. Fixed at the source — `columns.ts` now defaults to
+ * `date_trunc('milliseconds', now())`, with a CHECK on `posts` so it cannot come
+ * back — and the fixtures here use the database clock again precisely so the
+ * ordinary cases exercise it.
+ *
+ * The last case still reproduces the PREDICATE directly rather than relying on
+ * the sweep to hang: a non-terminating sweep can only be observed as a test
+ * timeout, which names nothing, and racing it would leave an uncancellable loop
+ * hammering the database.
  */
 
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { eq } from 'drizzle-orm';
+import { and, asc, eq, gt, or } from 'drizzle-orm';
 import { PostType, PostVisibility } from '@mention/shared-types';
 
 /** A full corpus sweep against a database other suites are writing to. */
@@ -78,6 +93,8 @@ vi.mock('../../utils/logger', () => ({
 
 import { closePostgres, connectPostgres, getDb } from '../../db/postgres';
 import { mentionSignedRecords } from '../../db/schema/mtn';
+import { posts } from '../../db/schema/posts';
+import { findPostRecords } from '../../db/posts/postRepository';
 import type { PostRecord, PostRecordInput } from '../../db/posts/postRecord';
 import { clearPostScope, postScope, seedPost } from '../helpers/postFixtures';
 import backfillMtnRecords from '../../scripts/backfill-mtn-records';
@@ -122,7 +139,16 @@ async function writeChainRow(postId: string): Promise<void> {
   });
 }
 
-/** A candidate post: local, published, public, non-boost, with an author. */
+/**
+ * A candidate post: local, published, public, non-boost, with an author.
+ *
+ * `createdAt` is left to the DATABASE CLOCK on purpose — that is the shape every
+ * production row has, and it is the shape that used to hang this sweep (see the
+ * last case in this file). While the defect was live these fixtures had to pin
+ * an explicit millisecond timestamp to avoid hanging the whole run; letting the
+ * default back in is what makes the ordinary cases cover the fix too, rather
+ * than leaving one test carrying it alone.
+ */
 async function seedCandidate(overrides: Partial<PostRecordInput> = {}): Promise<PostRecord> {
   const owner = (overrides.oxyUserId ?? AUTHOR) as string;
   return seedPost(scope, {
@@ -268,4 +294,45 @@ describe('backfillMtnRecords', () => {
     await expect(backfillMtnRecords()).rejects.toThrow(/run incomplete: failed=[1-9]/);
     expect(await hasChainRow(post.id)).toBe(false);
   }, SWEEP_TIMEOUT_MS);
+
+  it('advances its cursor past a post whose createdAt came from the DATABASE CLOCK', async () => {
+    // The paging cursor is `(created_at, id)` ascending, carried between pages as
+    // the last row's values. `created_at` is `timestamptz` — MICROSECOND
+    // precision — and a JS `Date` holds milliseconds, so the round trip TRUNCATES
+    // it: a row stored at `…179527` comes back as `…179`, and the next page's
+    // `created_at > '…179'` is TRUE for that same row. The cursor never advances
+    // and the sweep never terminates.
+    //
+    // Reproduced with the script's own predicate rather than by running it,
+    // deliberately: a non-terminating sweep can only be observed as a test
+    // timeout, which names nothing, and racing it would leave an uncancellable
+    // loop hammering the database for the rest of the run.
+    //
+    // Every OTHER fixture in this file pins a millisecond-precision `createdAt`
+    // to stay clear of this. `defaultNow()` is what production rows carry.
+    const post = await seedPost(scope, {
+      oxyUserId: AUTHOR,
+      authorship: [{ oxyUserId: AUTHOR, role: 'owner', status: 'accepted' }],
+    });
+    const [record] = await findPostRecords(eq(posts.id, post.id), {
+      orderBy: [asc(posts.createdAt), asc(posts.id)],
+      limit: 1,
+    });
+
+    const nextPage = await findPostRecords(
+      and(
+        eq(posts.id, post.id),
+        or(
+          gt(posts.createdAt, record.createdAt),
+          and(eq(posts.createdAt, record.createdAt), gt(posts.id, record.id)),
+        ),
+      ),
+      { orderBy: [asc(posts.createdAt), asc(posts.id)], limit: 1 },
+    );
+
+    expect(
+      nextPage.map((row) => row.id),
+      'a keyset cursor taken from a row must EXCLUDE that row from the next page',
+    ).toEqual([]);
+  });
 });

@@ -47,6 +47,18 @@
  * and (incidentally) improves `FeedRankingService` author-diversity dedup. Counts,
  * content, `parentPostId`, and all continuations are deliberately left untouched.
  *
+ * ## RUN ORDER — `migrateThreadFanToChain` MUST have run BEFORE this script
+ *
+ * Not a preference, and not recoverable. Stamping a root puts it INTO its own
+ * thread group carrying a NULL `parent_post_id` against a non-null `thread_id`,
+ * which that script counts as a non-fan member — and its `count(*) filter (…) = 0`
+ * gate then drops the thread permanently. Run this one first and every broken
+ * fan in the corpus is disqualified from repair for good, with no error and
+ * nothing in either summary to say so.
+ *
+ * Pinned by `__tests__/scripts/migrateThreadFanToChain.test.ts`
+ * ("can no longer repair a fan whose root was already stamped with a threadId").
+ *
  * Runnable as a Fargate one-shot post-deploy (DRY_RUN first):
  *   DRY_RUN=true bun packages/backend/dist/src/scripts/backfillThreadRootThreadId.js
  *   bun packages/backend/dist/src/scripts/backfillThreadRootThreadId.js

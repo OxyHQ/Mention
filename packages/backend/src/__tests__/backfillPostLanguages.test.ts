@@ -87,6 +87,27 @@ describe('backfillPostLanguages', () => {
     expect(after?.language).toBe(after?.languages?.[0]);
   });
 
+  it('re-derives a post that has languages but NO stamped version', async () => {
+    // The `classification_version IS NULL` arm on its own. Removing it survives
+    // a fixture whose languages are also absent — the first arm covers that —
+    // so the state has to be languages PRESENT, version NULL: a row a
+    // pre-versioning writer left behind, whose scores nothing may trust.
+    // (Mutation-tested: dropping the arm passes without this case.)
+    const id = await seedUnclassified({
+      content: { variants: [{ source: 'author', text: SPANISH, tag: 'es' }] },
+      postClassification: { languages: ['xx'] },
+    });
+    const before = await classificationOf(id);
+    expect(before?.languages).toEqual(['xx']);
+    expect(before?.version).toBeNull();
+
+    await backfillPostLanguages({ batchSize: 100 });
+
+    const after = await classificationOf(id);
+    expect(after?.languages).toContain('es');
+    expect(after?.version).toBe(BASELINE_CLASSIFIER_VERSION);
+  });
+
   it('re-derives a post stamped by an OLDER classifier version', async () => {
     const id = await seedUnclassified({
       content: { variants: [{ source: 'author', text: SPANISH, tag: 'es' }] },

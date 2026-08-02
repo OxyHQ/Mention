@@ -107,8 +107,8 @@
  */
 
 import mongoose from 'mongoose';
-import type { FilterQuery, Model } from 'mongoose';
-import { and, count, eq, inArray, or, sql } from 'drizzle-orm';
+import { and, count, eq, inArray, or, sql, type SQL } from 'drizzle-orm';
+import type { PgColumn, PgTable } from 'drizzle-orm/pg-core';
 import { PostType } from '@mention/shared-types';
 import { connectToDatabase } from '../utils/database';
 import { connectPostgres, getDb } from '../db/postgres';
@@ -121,22 +121,21 @@ import {
 } from '../db/federation/actorRepository';
 import { posts } from '../db/schema/posts';
 import { postAuthorships, postMentions } from '../db/schema/postContent';
-import Like from '../models/Like';
-import Bookmark from '../models/Bookmark';
+import { bookmarks, entityFollows, likes } from '../db/schema/engagement';
+import { authorFollowerSnapshots, notifications } from '../db/schema/discovery';
+import { userBehaviors, userSettings } from '../db/schema/userProfile';
+import { userFeedPreferences } from '../db/schema/feeds';
 import { deleteFollowsFor, findFollows } from '../db/federation/followRepository';
-import { EntityFollow } from '../models/EntityFollow';
-import Notification from '../models/Notification';
-import UserSettings from '../models/UserSettings';
-import UserBehavior from '../models/UserBehavior';
-import UserFeedPreference from '../models/UserFeedPreference';
-import { AuthorFollowerSnapshot } from '../models/AuthorFollowerSnapshot';
 import {
   deleteActorKeyPair,
   hasActorKeyPair,
 } from '../db/federation/actorKeyPairRepository';
-import MentionUserNode from '../models/MentionUserNode';
-import MentionNodeIngestWitness from '../models/MentionNodeIngestWitness';
-import { mentionRepoHeads, mentionSignedRecords } from '../db/schema/mtn';
+import {
+  mentionNodeIngestWitnesses,
+  mentionRepoHeads,
+  mentionSignedRecords,
+  mentionUserNodes,
+} from '../db/schema/mtn';
 import { deleteFederatedActorIdentity } from '../connectors/identity';
 import type { DeleteActorIdentityOutcome } from '@oxyhq/federation/node';
 import { signedFetch } from '../connectors/activitypub/helpers';
@@ -342,14 +341,39 @@ function withActorTimeout<T>(work: Promise<T>, ms: number): Promise<T> {
 // --- Mongo count-or-delete helpers -------------------------------------------
 
 /**
- * Count (under `--dry-run`) or delete (live) documents matching `filter`, returning
- * the affected-document count either way. The single chokepoint that keeps dry-run
+ * Count (under `--dry-run`) or delete (live) the rows matching `where`, returning
+ * the affected-row count either way. The single chokepoint that keeps dry-run
  * strictly read-only: NOTHING destructive runs when `dryRun` is set.
+ *
+ * ## Why this replaced a Mongoose `countOrDelete`
+ *
+ * Every table below moved to Postgres in an earlier batch, and this cascade kept
+ * deleting from the Mongo collection of the same name — a `deleteMany` against a
+ * collection nothing writes any more, which reports success having removed
+ * nothing. That is worse than an unfinished port, because
+ * `assertActorSafeToDelete` WAIVES the matching reference probes for this caller
+ * (`allowGoneActorCascade`) precisely ON THE STRENGTH of this cascade. The gate
+ * therefore did not block and the cascade did not clean: a purge completed,
+ * reported real counts, and left the actor's likes, entity follows,
+ * notifications, settings and follower snapshots behind, pointing at an identity
+ * that no longer exists. Confirmed against a real row before the fix.
+ *
+ * `returning` is what makes the live count real — a delete without it hands back
+ * a driver result whose shape is the driver's business, and a wrong read of it
+ * would silently report 0 purged rows on a successful purge.
  */
-async function countOrDelete<T>(model: Model<T>, filter: FilterQuery<T>, dryRun: boolean): Promise<number> {
-  if (dryRun) return model.countDocuments(filter).exec();
-  const res = await model.deleteMany(filter).exec();
-  return res.deletedCount;
+async function countOrDelete(
+  table: PgTable,
+  idColumn: PgColumn,
+  where: SQL,
+  dryRun: boolean,
+): Promise<number> {
+  const db = getDb();
+  if (dryRun) {
+    const [row] = await db.select({ total: count() }).from(table).where(where);
+    return row?.total ?? 0;
+  }
+  return (await db.delete(table).where(where).returning({ id: idColumn })).length;
 }
 
 /**
@@ -459,8 +483,16 @@ async function purgeAuthoredPosts(oxyUserId: string, dryRun: boolean, counts: Co
 
   // Cascade engagement on every post about to be deleted (X's posts + their boosts)
   // FIRST, so no Like/Bookmark is left pointing at a deleted post.
-  counts.likesOnAuthored = await countOrDelete(Like, { postId: { $in: allDeletedIds } }, dryRun);
-  counts.bookmarksOnAuthored = await countOrDelete(Bookmark, { postId: { $in: allDeletedIds } }, dryRun);
+  // Both tables carry `ON DELETE CASCADE` to `posts.id`, so the rows would go
+  // with the posts anyway. Removing them FIRST is still what the step is for: it
+  // is the difference between a cascade nobody chose and one this script states,
+  // and the reported count is a count of rows that actually existed.
+  counts.likesOnAuthored = await countOrDelete(
+    likes, likes.id, inArray(likes.postId, allDeletedIds), dryRun,
+  );
+  counts.bookmarksOnAuthored = await countOrDelete(
+    bookmarks, bookmarks.id, inArray(bookmarks.postId, allDeletedIds), dryRun,
+  );
   // Then the posts themselves: the boosts, then X's authored posts. Every child
   // row goes with them by `ON DELETE CASCADE`, so there is no per-table cleanup
   // to keep in step here.
@@ -495,7 +527,9 @@ async function purgeConfirmedGone(actor: ActorRow, flags: Flags): Promise<ActorP
   if (oxyUserId) {
     await purgeAuthoredPosts(oxyUserId, flags.dryRun, counts); // 1
     counts.mentionsDelinked = await delinkMentions(oxyUserId, flags.dryRun); // 2
-    counts.likesByActor = await countOrDelete(Like, { userId: oxyUserId }, flags.dryRun); // 3
+    counts.likesByActor = await countOrDelete(
+      likes, likes.id, eq(likes.userId, oxyUserId), flags.dryRun,
+    ); // 3
   }
 
   // 4. Federated follow edges — uri-keyed, so this runs even without an owner id.
@@ -506,22 +540,52 @@ async function purgeConfirmedGone(actor: ActorRow, flags: Flags): Promise<ActorP
     : await deleteFollowsFor({ remoteActorUri: actor.uri });
 
   if (oxyUserId) {
-    counts.entityFollows = await countOrDelete(EntityFollow, { userId: oxyUserId }, flags.dryRun); // 5
+    counts.entityFollows = await countOrDelete(
+      entityFollows, entityFollows.id, eq(entityFollows.userId, oxyUserId), flags.dryRun,
+    ); // 5
     counts.notifications = await countOrDelete(
-      Notification,
-      { $or: [{ recipientId: oxyUserId }, { actorId: oxyUserId }] },
+      notifications,
+      notifications.id,
+      or(
+        eq(notifications.recipientId, oxyUserId),
+        eq(notifications.actorId, oxyUserId),
+      ) as SQL,
       flags.dryRun,
     ); // 6
     // 7. Defensive local-only rows, each keyed on oxyUserId. Blocks are not
     // duplicated here: Oxy owns them and deletes them with the identity below.
-    counts.userSettings = await countOrDelete(UserSettings, { oxyUserId }, flags.dryRun);
-    counts.userBehavior = await countOrDelete(UserBehavior, { oxyUserId }, flags.dryRun);
-    counts.userFeedPreference = await countOrDelete(UserFeedPreference, { oxyUserId }, flags.dryRun);
-    counts.authorFollowerSnapshots = await countOrDelete(AuthorFollowerSnapshot, { oxyUserId }, flags.dryRun);
+    //
+    // FOUR of these tables have no Postgres WRITER yet — `user_behaviors`,
+    // `user_feed_preferences`, `mention_user_nodes` and
+    // `mention_node_ingest_witnesses` — so each of these steps removes nothing
+    // today. They are ported anyway rather than skipped: an inert step that is
+    // correct costs one query, while a skipped one becomes the same silent gap
+    // the day their writers land, and nothing would flag it. Read their
+    // emptiness as "not yet written", never as coverage.
+    counts.userSettings = await countOrDelete(
+      userSettings, userSettings.id, eq(userSettings.oxyUserId, oxyUserId), flags.dryRun,
+    );
+    counts.userBehavior = await countOrDelete(
+      userBehaviors, userBehaviors.id, eq(userBehaviors.oxyUserId, oxyUserId), flags.dryRun,
+    );
+    counts.userFeedPreference = await countOrDelete(
+      userFeedPreferences,
+      userFeedPreferences.id,
+      eq(userFeedPreferences.oxyUserId, oxyUserId),
+      flags.dryRun,
+    );
+    counts.authorFollowerSnapshots = await countOrDelete(
+      authorFollowerSnapshots,
+      authorFollowerSnapshots.id,
+      eq(authorFollowerSnapshots.oxyUserId, oxyUserId),
+      flags.dryRun,
+    );
     counts.actorKeyPairs = flags.dryRun
       ? ((await hasActorKeyPair(oxyUserId)) ? 1 : 0)
       : await deleteActorKeyPair(oxyUserId);
-    counts.mentionUserNodes = await countOrDelete(MentionUserNode, { oxyUserId }, flags.dryRun);
+    counts.mentionUserNodes = await countOrDelete(
+      mentionUserNodes, mentionUserNodes.id, eq(mentionUserNodes.oxyUserId, oxyUserId), flags.dryRun,
+    );
     // The MTN chain lives in Postgres. Same contract as `countOrDelete`: a dry run
     // COUNTS and writes nothing; a live run deletes and reports how many rows went.
     // `returning` is what makes the live count real — a delete with no `returning`
@@ -553,7 +617,12 @@ async function purgeConfirmedGone(actor: ActorRow, flags: Flags): Promise<ActorP
             .where(eq(mentionSignedRecords.oxyUserId, oxyUserId))
             .returning({ id: mentionSignedRecords.id })
         ).length;
-    counts.mentionNodeIngestWitnesses = await countOrDelete(MentionNodeIngestWitness, { oxyUserId }, flags.dryRun);
+    counts.mentionNodeIngestWitnesses = await countOrDelete(
+      mentionNodeIngestWitnesses,
+      mentionNodeIngestWitnesses.id,
+      eq(mentionNodeIngestWitnesses.oxyUserId, oxyUserId),
+      flags.dryRun,
+    );
   }
 
   // Dry-run never touches the Oxy identity or the anchor — report what WOULD happen.

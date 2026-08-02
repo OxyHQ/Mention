@@ -11,6 +11,7 @@
  */
 
 import { randomFillSync } from 'node:crypto';
+import { sql } from 'drizzle-orm';
 import type { PgColumn } from 'drizzle-orm/pg-core';
 import { customType, text, timestamp } from 'drizzle-orm/pg-core';
 
@@ -45,24 +46,69 @@ export type SelectedRow<T extends Record<string, PgColumn>> = {
 export const timestamptz = () => timestamp({ withTimezone: true, mode: 'date' });
 
 /**
+ * `now()`, truncated to the precision a JavaScript `Date` can hold.
+ *
+ * ## Why the default is not plain `now()`
+ *
+ * `timestamptz` carries MICROSECONDS; a JS `Date` carries milliseconds. So a
+ * value written by `now()` does not survive the round trip: a row stored at
+ * `…179527` is read back as `…179`, and any keyset cursor built from that read
+ * is comparing against a value SMALLER than the row it came from.
+ *
+ * Both directions break, and one of them had already shipped:
+ *
+ *  - ASC (`created_at > cursor`) matches the cursor's OWN row, so the page never
+ *    advances. `backfill-mtn-records` looped forever on its first page —
+ *    observed as `scanned 1/1, 2/1, 3/1 …` with a single post in the table.
+ *  - DESC (`created_at < cursor`) excludes the anchor correctly but also every
+ *    row between the truncated millisecond and the anchor's true microsecond, so
+ *    rows sharing a millisecond with a page boundary are skipped silently.
+ *
+ * ## Why here, and not at each cursor
+ *
+ * Fixing it per keyset leaves the trap armed for the next one anyone writes, and
+ * the alternative — truncating inside the comparison — cannot be done without
+ * also truncating the ORDER BY, which makes all THIRTEEN `created_at DESC`
+ * indexes on `posts` unusable and turns every feed page into a full sort.
+ * Removing the precision at the source costs nothing and fixes every keyset,
+ * present and future.
+ *
+ * It is also the more honest value. `MIGRATION-CONTRACT.md` treats a Mongo
+ * `Date` as an absolute UTC instant, and Mongo stores those at MILLISECOND
+ * precision — so every backfilled row already ends in `000`, and only rows
+ * written by this default were inventing precision nothing downstream can
+ * represent.
+ *
+ * This is the third defect of one shape: assuming a stored value round-trips
+ * through a JavaScript type unchanged. The other two were `order by id desc`
+ * across two id shapes, and a non-deterministic `randomUserColor()` in a
+ * transform. Reach for this whenever a stored value becomes a comparison bound.
+ */
+const nowAtJsPrecision = sql`date_trunc('milliseconds', now())`;
+
+/**
  * `created_at` — set by the database on insert, never updated.
  *
  * Both Mongoose shapes (`timestamps: true` and a hand-declared
  * `createdAt: { type: Date, default: Date.now }`) map here: the distinction is a
  * Mongoose implementation detail with no Postgres counterpart.
  */
-export const createdAt = () => timestamptz().notNull().defaultNow();
+export const createdAt = () => timestamptz().notNull().default(nowAtJsPrecision);
 
 /**
  * `updated_at` — maintained by the APPLICATION on every `db.update()`, matching
  * what Mongoose did. Deliberately not a trigger: a trigger is invisible in this
  * schema, and it would also fire during backfill/maintenance writes and
  * overwrite the historical value the migration exists to preserve.
+ *
+ * `$onUpdate` already produces a JS `Date`, so only the INSERT default needed
+ * the truncation above — but both halves have to agree, or a row's `updated_at`
+ * changes precision the first time it is touched.
  */
 export const updatedAt = () =>
   timestamptz()
     .notNull()
-    .defaultNow()
+    .default(nowAtJsPrecision)
     .$onUpdate(() => new Date());
 
 /** Bytes in a UUID. */

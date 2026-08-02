@@ -23,7 +23,7 @@
  */
 
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { inArray } from 'drizzle-orm';
+import { eq, inArray } from 'drizzle-orm';
 
 vi.mock('../../utils/logger', () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
@@ -56,6 +56,28 @@ async function seedThreadPost(
 }
 
 /**
+ * A broken fan's ROOT, given a parent post of its own.
+ *
+ * The parent is protection against a SIBLING SUITE, not part of the fixture's
+ * meaning. `backfillThreadRootThreadId` is another corpus-wide one-shot with its
+ * own file, vitest runs files in parallel against one database, and a root it
+ * stamps stops being a broken fan: the root joins its own thread group with
+ * `parent_post_id` NULL while `thread_id` is set, which is one non-fan member,
+ * so the `HAVING … = 0` gate skips the thread and this file fails intermittently
+ * (measured — it did). A root that is itself a reply is invisible to that
+ * script's fifth guard and provably irrelevant to this one: `loadRootAuthors`
+ * reads only `id` and `oxy_user_id`, and no predicate here mentions the root's
+ * parent link.
+ *
+ * That interference is REAL beyond the test harness — see the ordering case at
+ * the end of this file.
+ */
+async function seedFanRoot(author: string, overrides: Partial<PostRecordInput> = {}) {
+  const anchor = await seedThreadPost(author, { createdAt: minute(0) });
+  return seedThreadPost(author, { parentPostId: anchor.id, ...overrides });
+}
+
+/**
  * A root plus `count` continuations in the BROKEN shape: every continuation
  * points its `parentPostId` at the root, which is what the old `createThread`
  * produced.
@@ -67,7 +89,7 @@ async function seedFan(options: {
   continuationOverrides?: Array<Partial<PostRecordInput>>;
   root?: Partial<PostRecordInput>;
 }): Promise<{ rootId: string; continuationIds: string[] }> {
-  const root = await seedThreadPost(options.author ?? AUTHOR, options.root);
+  const root = await seedFanRoot(options.author ?? AUTHOR, options.root);
   const continuationIds: string[] = [];
   for (let i = 0; i < options.count; i += 1) {
     const post = await seedThreadPost(options.continuationAuthors?.[i] ?? options.author ?? AUTHOR, {
@@ -124,7 +146,7 @@ describe('migrateThreadFanToChain', () => {
     // with creation order: uuid v7 sorts BELOW ObjectId hex under text
     // collation, so an id-ordered re-chain produces a different (wrong) chain
     // here — while a same-shape fixture cannot tell the two apart.
-    const root = await seedThreadPost(AUTHOR);
+    const root = await seedFanRoot(AUTHOR);
     const first = await seedThreadPost(AUTHOR, {
       id: '65fdc8c8c8c8c8c8c8c8c8f1',
       parentPostId: root.id,
@@ -202,7 +224,7 @@ describe('migrateThreadFanToChain', () => {
     // One member already points at a sibling rather than the root, so the group
     // is not a pure fan. That is the interrupted-run state, and the safe
     // direction is to leave it — a wrong linear re-chain is unrecoverable.
-    const root = await seedThreadPost(AUTHOR);
+    const root = await seedFanRoot(AUTHOR);
     const first = await seedThreadPost(AUTHOR, {
       parentPostId: root.id,
       threadId: root.id,
@@ -263,6 +285,35 @@ describe('migrateThreadFanToChain', () => {
 
     const parents = await parentsOf(continuationIds);
     for (const id of continuationIds) expect(parents.get(id)).toBe(rootId);
+  });
+
+  it('can no longer repair a fan whose root was already stamped with a threadId', async () => {
+    // An OPERATIONAL ORDERING CONSTRAINT, not a bug in either script, and the
+    // only place it is written down. `backfillThreadRootThreadId` stamps
+    // `thread_id = <own id>` on a self-thread root; that root then joins its own
+    // group carrying a NULL `parent_post_id` against a non-null `thread_id`,
+    // which is one non-fan member, and the `HAVING … = 0` gate drops the thread
+    // for good. So the fan repair has to run FIRST — afterwards there is nothing
+    // that can put a stamped fan back together.
+    const root = await seedThreadPost(AUTHOR, { threadId: undefined });
+    const first = await seedThreadPost(AUTHOR, {
+      parentPostId: root.id,
+      threadId: root.id,
+      createdAt: minute(1),
+    });
+    const second = await seedThreadPost(AUTHOR, {
+      parentPostId: root.id,
+      threadId: root.id,
+      createdAt: minute(2),
+    });
+    // What the root-stamping one-shot would have done to this root.
+    await getDb().update(posts).set({ threadId: root.id }).where(eq(posts.id, root.id));
+
+    await migrateThreadFanToChain();
+
+    const parents = await parentsOf([first.id, second.id]);
+    expect(parents.get(first.id)).toBe(root.id);
+    expect(parents.get(second.id)).toBe(root.id);
   });
 
   it('writes nothing in DRY_RUN mode', async () => {

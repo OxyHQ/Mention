@@ -301,11 +301,20 @@ describe('GET /search — order and pagination', () => {
       await seedPost(scope, { id, content: body('paged'), createdAt: SAME });
     }
 
-    // Page size THREE, not two, and that is load-bearing. At two, page one ends
-    // on `65fd…c8` — a valid ObjectId — and page two needs no cursor at all, so
-    // the walk never asks the encoder to describe a uuid and passes against an
-    // encoder that cannot. At three the first page ends on a uuid, which is the
-    // anchor every page after the cutover actually has.
+    // Page size THREE, not two, and the ordering of these ids is LOAD-BEARING —
+    // reshuffle either and the test silently stops testing anything.
+    //
+    // `id DESC` puts both ObjectIds ahead of both uuids. At a page size of two,
+    // page one therefore ends on `65fd…c8`, a valid ObjectId, and page two needs
+    // no cursor at all — so the walk never asks the encoder to describe a uuid
+    // and passes green against an encoder that cannot. (Measured: it did.) At
+    // three, the first page ends on a uuid, which is the anchor every page after
+    // the cutover actually has.
+    //
+    // The assertion below states that as a fact rather than trusting the
+    // arithmetic, so a future fixture change cannot quietly restore the blind
+    // spot: whatever the page size and whatever ids are used, page one must end
+    // on a POST-CUTOVER id or this test is not exercising the thing it names.
     const seen: string[] = [];
     let cursor: string | undefined;
     for (let page = 0; page < 5; page += 1) {
@@ -314,7 +323,14 @@ describe('GET /search — order and pagination', () => {
         limit: 3,
         ...(cursor ? { cursor } : {}),
       });
-      seen.push(...body_.posts.map((post) => post.id));
+      const pageIds = body_.posts.map((post) => post.id);
+      if (page === 0) {
+        expect(
+          pageIds[pageIds.length - 1],
+          'page one must END on a uuid, or the cursor is never asked to encode one',
+        ).toMatch(/^[0-9a-f]{8}-/);
+      }
+      seen.push(...pageIds);
       if (!body_.hasMore) break;
       expect(body_.nextCursor).toBeTruthy();
       cursor = body_.nextCursor;

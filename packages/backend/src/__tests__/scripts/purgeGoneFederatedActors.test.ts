@@ -59,27 +59,14 @@ const h = vi.hoisted(() => {
     actors: ActorRow[];
     signed: SignedConfig;
     oxyOutcome: OxyOutcome;
+    /** Mention rows still present when the Oxy identity delete was issued. */
+    refsAtOxyDelete: number | null;
   } = {
     actors: [],
     signed: { status: 410, ok: false, statusText: 'Gone' },
     oxyOutcome: 'deleted',
+    refsAtOxyDelete: null,
   };
-
-  // A count query that is both directly awaitable (the driver's `countDocuments`)
-  // and `.exec()`-able (the `countOrDelete` helper's dry-run path).
-  const countQuery = (n: number): Promise<number> & { exec: () => Promise<number> } =>
-    Object.assign(Promise.resolve(n), { exec: async () => n });
-
-  // A simple model: `deleteMany` (records order) + `countDocuments`.
-  const makeSimple = (label: string) => ({
-    deleteMany: vi.fn((_filter: unknown) => ({
-      exec: async () => {
-        callLog.push(label);
-        return { deletedCount: 1 };
-      },
-    })),
-    countDocuments: vi.fn((_filter: unknown) => countQuery(1)),
-  });
 
   const federatedActor = {
     countActors: vi.fn(async () => state.actors.length),
@@ -113,6 +100,11 @@ const h = vi.hoisted(() => {
 
   const oxyDelete = vi.fn(async (_id: string): Promise<OxyOutcome> => {
     callLog.push('oxy-delete');
+    // The ORDER assertion, taken from real rows rather than from labels: at the
+    // moment the irreversible Oxy call happens, every Mention reference must
+    // already be gone. `snapshotMentionRefs` is a function declaration below, so
+    // it is hoisted into scope here.
+    state.refsAtOxyDelete = await snapshotMentionRefs();
     return state.oxyOutcome;
   });
 
@@ -129,16 +121,6 @@ const h = vi.hoisted(() => {
     oxyDelete,
     signedFetch,
     closeAdminScriptResources: vi.fn(async () => undefined),
-    like: makeSimple('Like'),
-    bookmark: makeSimple('Bookmark'),
-    entityFollow: makeSimple('EntityFollow'),
-    notification: makeSimple('Notification'),
-    userSettings: makeSimple('UserSettings'),
-    userBehavior: makeSimple('UserBehavior'),
-    userFeedPreference: makeSimple('UserFeedPreference'),
-    authorFollowerSnapshot: makeSimple('AuthorFollowerSnapshot'),
-    mentionUserNode: makeSimple('MentionUserNode'),
-    mentionNodeIngestWitness: makeSimple('MentionNodeIngestWitness'),
   };
 });
 
@@ -171,16 +153,6 @@ vi.mock('../../db/federation/actorKeyPairRepository', () => ({
   hasActorKeyPair: h.actorKeyPairRepo.hasActorKeyPair,
   deleteActorKeyPair: h.actorKeyPairRepo.deleteActorKeyPair,
 }));
-vi.mock('../../models/Like', () => ({ default: h.like }));
-vi.mock('../../models/Bookmark', () => ({ default: h.bookmark }));
-vi.mock('../../models/EntityFollow', () => ({ EntityFollow: h.entityFollow }));
-vi.mock('../../models/Notification', () => ({ default: h.notification }));
-vi.mock('../../models/UserSettings', () => ({ default: h.userSettings }));
-vi.mock('../../models/UserBehavior', () => ({ default: h.userBehavior }));
-vi.mock('../../models/UserFeedPreference', () => ({ default: h.userFeedPreference }));
-vi.mock('../../models/AuthorFollowerSnapshot', () => ({ AuthorFollowerSnapshot: h.authorFollowerSnapshot }));
-vi.mock('../../models/MentionUserNode', () => ({ default: h.mentionUserNode }));
-vi.mock('../../models/MentionNodeIngestWitness', () => ({ default: h.mentionNodeIngestWitness }));
 
 vi.mock('mongoose', async () => {
   const actual = await vi.importActual<typeof import('mongoose')>('mongoose');
@@ -188,12 +160,142 @@ vi.mock('mongoose', async () => {
 });
 
 import { closePostgres, connectPostgres, getDb } from '../../db/postgres';
-import { bookmarks, likes } from '../../db/schema/engagement';
-import { mentionRepoHeads, mentionSignedRecords } from '../../db/schema/mtn';
+import { bookmarks, entityFollows, likes } from '../../db/schema/engagement';
+import { authorFollowerSnapshots, notifications } from '../../db/schema/discovery';
+import { userBehaviors, userSettings } from '../../db/schema/userProfile';
+import { userFeedPreferences } from '../../db/schema/feeds';
+import {
+  mentionNodeIngestWitnesses,
+  mentionRepoHeads,
+  mentionSignedRecords,
+  mentionUserNodes,
+} from '../../db/schema/mtn';
 import { posts } from '../../db/schema/posts';
+import { uuidv7 } from '../../db/schema/columns';
 import { loadPostRecord } from '../../db/posts/postRepository';
 import { clearPostScope, postScope, seedPost } from '../helpers/postFixtures';
 import purgeGoneFederatedActors from '../../scripts/purgeGoneFederatedActors';
+
+/**
+ * Every table the gone-actor cascade CLAIMS to clear for the purged owner, with
+ * the predicate that finds its rows.
+ *
+ * One list, used by the seeder, the "everything went" assertion and the
+ * ordering snapshot alike — so a table can never be seeded and then quietly left
+ * out of the check, which is the shape of the bug this suite exists for.
+ */
+const OWNER_SCOPED_TABLES = [
+  { name: 'likes', table: likes, id: likes.id, where: () => eq(likes.userId, OWNER) },
+  {
+    name: 'entity_follows',
+    table: entityFollows,
+    id: entityFollows.id,
+    where: () => eq(entityFollows.userId, OWNER),
+  },
+  {
+    name: 'notifications',
+    table: notifications,
+    id: notifications.id,
+    where: () => eq(notifications.recipientId, OWNER),
+  },
+  {
+    name: 'user_settings',
+    table: userSettings,
+    id: userSettings.id,
+    where: () => eq(userSettings.oxyUserId, OWNER),
+  },
+  {
+    name: 'author_follower_snapshots',
+    table: authorFollowerSnapshots,
+    id: authorFollowerSnapshots.id,
+    where: () => eq(authorFollowerSnapshots.oxyUserId, OWNER),
+  },
+  // The four with no Postgres WRITER yet. Seeded anyway: the step has to be
+  // proven correct now, or the day a writer lands nothing flags that the purge
+  // never covered it. Their emptiness in production is "not yet written", never
+  // coverage.
+  {
+    name: 'user_behaviors',
+    table: userBehaviors,
+    id: userBehaviors.id,
+    where: () => eq(userBehaviors.oxyUserId, OWNER),
+  },
+  {
+    name: 'user_feed_preferences',
+    table: userFeedPreferences,
+    id: userFeedPreferences.id,
+    where: () => eq(userFeedPreferences.oxyUserId, OWNER),
+  },
+  {
+    name: 'mention_user_nodes',
+    table: mentionUserNodes,
+    id: mentionUserNodes.id,
+    where: () => eq(mentionUserNodes.oxyUserId, OWNER),
+  },
+  {
+    name: 'mention_node_ingest_witnesses',
+    table: mentionNodeIngestWitnesses,
+    id: mentionNodeIngestWitnesses.id,
+    where: () => eq(mentionNodeIngestWitnesses.oxyUserId, OWNER),
+  },
+] as const;
+
+/** How many owner-scoped rows survive, per table. */
+async function survivingRefsByTable(): Promise<Record<string, number>> {
+  const out: Record<string, number> = {};
+  for (const entry of OWNER_SCOPED_TABLES) {
+    const rows = await getDb().select({ id: entry.id }).from(entry.table).where(entry.where());
+    out[entry.name] = rows.length;
+  }
+  return out;
+}
+
+/** The total, for the ordering snapshot taken inside the Oxy-delete double. */
+async function snapshotMentionRefs(): Promise<number> {
+  const byTable = await survivingRefsByTable();
+  return Object.values(byTable).reduce((total, n) => total + n, 0);
+}
+
+/** One row in every table the cascade is responsible for. */
+async function seedOwnerScopedRefs(postId: string): Promise<void> {
+  const db = getDb();
+  await db.insert(likes).values({ userId: OWNER, postId });
+  await db.insert(entityFollows).values({
+    userId: OWNER, entityType: 'hashtag', entityId: `purge-${scope.name}`,
+  });
+  await db.insert(notifications).values({
+    id: uuidv7(),
+    recipientId: OWNER,
+    actorId: BOOSTER,
+    type: 'like',
+    entityType: 'post',
+    entityId: postId,
+    read: false,
+  });
+  await db.insert(userSettings).values({ oxyUserId: OWNER });
+  await db.insert(authorFollowerSnapshots).values({ oxyUserId: OWNER, followerCount: 3 });
+  await db.insert(userBehaviors).values({ oxyUserId: OWNER });
+  await db.insert(userFeedPreferences).values({ oxyUserId: OWNER });
+  await db.insert(mentionUserNodes).values({
+    oxyUserId: OWNER,
+    endpoint: `https://node.${scope.name}.test`,
+    nodePublicKey: '04abc',
+  });
+  await db.insert(mentionNodeIngestWitnesses).values({
+    oxyUserId: OWNER,
+    recordId: `witness-${scope.name}`,
+    witnessSignature: 'sig',
+    ingestedAt: 1_700_000_000_000,
+  });
+}
+
+/** Remove anything this suite wrote outside `posts` / the chain. */
+async function clearOwnerScopedRefs(): Promise<void> {
+  const db = getDb();
+  for (const entry of OWNER_SCOPED_TABLES) {
+    await db.delete(entry.table).where(entry.where());
+  }
+}
 
 const scope = postScope('purge-gone-actors');
 /** The purged actor's Oxy id. Namespaced: the REAL preflight probes shared tables. */
@@ -328,10 +430,12 @@ beforeEach(async () => {
   await getDb().delete(mentionSignedRecords).where(eq(mentionSignedRecords.oxyUserId, OWNER));
   await getDb().delete(mentionRepoHeads).where(eq(mentionRepoHeads.oxyUserId, OWNER));
   await getDb().delete(bookmarks).where(eq(bookmarks.userId, OWNER));
+  await clearOwnerScopedRefs();
   h.callLog.length = 0;
   h.state.actors = [];
   h.state.signed = { status: 410, ok: false, statusText: 'Gone' };
   h.state.oxyOutcome = 'deleted';
+  h.state.refsAtOxyDelete = null;
   vi.spyOn(process, 'exit').mockImplementation((code) => {
     throw new Error(`unexpected process.exit(${String(code)})`);
   });
@@ -344,27 +448,42 @@ afterEach(async () => {
   await getDb().delete(mentionSignedRecords).where(eq(mentionSignedRecords.oxyUserId, OWNER));
   await getDb().delete(mentionRepoHeads).where(eq(mentionRepoHeads.oxyUserId, OWNER));
   await getDb().delete(bookmarks).where(eq(bookmarks.userId, OWNER));
+  await clearOwnerScopedRefs();
   await clearPostScope(scope);
 });
 
 describe('purgeGoneFederatedActors', () => {
-  it('cascades a confirmed-gone actor in order: Mention refs → Oxy identity → FederatedActor anchor', async () => {
+  it('removes EVERY Mention reference before the irreversible Oxy identity delete', async () => {
+    // The ordering guarantee, observed on REAL ROWS rather than on a call log.
+    // A label pushed by a double proves the double was called; this proves the
+    // rows were actually gone at the moment the Oxy call went out — which is the
+    // only moment at which "the cascade ran first" means anything, because after
+    // it the identity cannot be brought back.
     h.state.actors = [makeActor()];
-    await seedPostGraph();
+    const graph = await seedPostGraph();
+    await seedOwnerScopedRefs(graph.bystander);
+    expect(await snapshotMentionRefs()).toBe(OWNER_SCOPED_TABLES.length);
 
     await run();
 
-    // Step 1 (posts) → 2 (mentions) → 4 (follows) → 5-7 → 8 (oxy) → 9 (anchor).
-    expectOrder(h.callLog, [
-      'Bookmark',
-      'FederatedFollow',
-      'EntityFollow',
-      'Notification',
-      'UserSettings',
-      'MentionNodeIngestWitness',
-      'oxy-delete',
-      'FederatedActor.deleteOne',
-    ]);
+    expect(h.state.refsAtOxyDelete).toBe(0);
+    // …and the anchor had NOT yet been dropped when that snapshot was taken.
+    expectOrder(h.callLog, ['FederatedFollow', 'oxy-delete', 'FederatedActor.deleteOne']);
+  });
+
+  it('clears every owner-scoped table the cascade is responsible for', async () => {
+    // One assertion over the whole registry, so a failure NAMES the table that
+    // was left behind instead of stopping at the first.
+    h.state.actors = [makeActor()];
+    const graph = await seedPostGraph();
+    await seedOwnerScopedRefs(graph.bystander);
+
+    await run();
+
+    const remaining = await survivingRefsByTable();
+    expect(remaining).toEqual(
+      Object.fromEntries(OWNER_SCOPED_TABLES.map((entry) => [entry.name, 0])),
+    );
   });
 
   it('deletes the actor’s posts and their boosts, and nothing else', async () => {
@@ -487,20 +606,21 @@ describe('purgeGoneFederatedActors', () => {
   it('--dry-run performs ZERO destructive work (no delete, no tombstone clear, no oxy-api call)', async () => {
     h.state.actors = [makeActor()];
     const graph = await seedPostGraph();
+    await seedOwnerScopedRefs(graph.bystander);
     await seedChain();
 
     await run(['--dry-run']);
 
-    // No deleteMany / updateMany / deleteOne / updateOne ever executed.
+    // No destructive statement ever executed.
     expect(h.callLog).toEqual([]);
     // …and every row a live run would remove is still there.
     expect(await chainRowCounts()).toEqual([1, 1]);
     expect(await survivingPostIds([graph.authored, graph.boost, graph.bystander])).toHaveLength(3);
+    expect(await snapshotMentionRefs()).toBe(OWNER_SCOPED_TABLES.length);
     expect(h.oxyDelete).not.toHaveBeenCalled();
     expect(h.federatedActor.deleteActorsByUris).not.toHaveBeenCalled();
     expect(h.federatedActor.updateActorSuspended).not.toHaveBeenCalled();
     // It still COUNTS what it would delete (read-only), so the summary is accurate.
-    expect(h.like.countDocuments).toHaveBeenCalled();
     expect(h.federatedFollowRepo.findFollows).toHaveBeenCalled();
   });
 
@@ -553,15 +673,16 @@ describe('purgeGoneFederatedActors', () => {
 });
 
 /**
- * Rows the cascade CLAIMS to remove, whose tables moved to Postgres while the
- * cascade still deletes from the Mongo collection of the same name.
+ * The engagement rows the WAIVED preflight probes stop guarding.
  *
- * This is separated from the cases above because it is a FINDING about the
- * script, not a property it currently holds: `assertActorSafeToDelete` waives
- * the matching probes for this caller precisely because the cascade is supposed
- * to remove them, so nothing blocks the purge and nothing removes the rows.
+ * `assertActorSafeToDelete` skips `likes.user_id` and its neighbours for this
+ * caller specifically (`allowGoneActorCascade`) ON THE STRENGTH of the cascade
+ * removing them. While the cascade still deleted from the Mongo collections of
+ * the same name, that waiver guarded nothing and the rows survived a completed
+ * purge — verified against a real row before the fix. These cases are what keep
+ * the two halves honest about each other.
  */
-describe('purgeGoneFederatedActors — Postgres rows the cascade leaves behind', () => {
+describe('purgeGoneFederatedActors — the rows the preflight stops guarding', () => {
   it('removes the purged actor’s own likes', async () => {
     h.state.actors = [makeActor()];
     const graph = await seedPostGraph();
@@ -569,10 +690,24 @@ describe('purgeGoneFederatedActors — Postgres rows the cascade leaves behind',
 
     await run();
 
-    const remaining = await getDb()
-      .select({ id: likes.id })
-      .from(likes)
-      .where(eq(likes.userId, OWNER));
-    expect(remaining).toEqual([]);
+    expect(await getDb().select({ id: likes.id }).from(likes).where(eq(likes.userId, OWNER)))
+      .toEqual([]);
+  });
+
+  it('removes likes and bookmarks left on the posts it deletes', async () => {
+    // These two ride an `ON DELETE CASCADE` to `posts.id`, so they would go
+    // anyway — the step exists so the cascade is one this script STATES and
+    // counts, rather than one nobody chose.
+    h.state.actors = [makeActor()];
+    const graph = await seedPostGraph();
+    await getDb().insert(likes).values({ userId: BOOSTER, postId: graph.authored });
+    await getDb().insert(bookmarks).values({ userId: BOOSTER, postId: graph.authored });
+
+    await run();
+
+    expect(await getDb().select({ id: likes.id }).from(likes).where(eq(likes.userId, BOOSTER)))
+      .toEqual([]);
+    expect(await getDb().select({ id: bookmarks.id }).from(bookmarks).where(eq(bookmarks.userId, BOOSTER)))
+      .toEqual([]);
   });
 });

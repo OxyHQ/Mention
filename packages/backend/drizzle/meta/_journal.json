@@ -15,6 +15,13 @@
       "when": 1785575653415,
       "tag": "0001_posts_reply_discriminator",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1785656123834,
+      "tag": "0002_post_cursor_ms_precision",
+      "breakpoints": true
     }
   ]
 }

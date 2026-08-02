@@ -400,6 +400,27 @@ export const posts = pgTable(
     updatedAt: updatedAt(),
   },
   (t) => [
+    /**
+     * `created_at` never carries precision a JavaScript `Date` cannot hold.
+     *
+     * This is the KEYSET axis — thirteen indexes below lead with it, and every
+     * chronological cursor in the codebase is built by reading this column into
+     * a `Date` and comparing against the result. `timestamptz` stores
+     * microseconds and a `Date` holds milliseconds, so a value with microseconds
+     * compares SMALLER than the row it came from: an ASC keyset then matches its
+     * own anchor and pages forever (`backfill-mtn-records` did), and a DESC one
+     * silently skips rows sharing the anchor's millisecond.
+     *
+     * `columns.ts` removes the precision at the source, in the DEFAULT. This
+     * constraint is what stops it coming back: a future writer reaching for raw
+     * `now()` fails loudly here instead of arming the same trap for whichever
+     * keyset is written next. Every current writer is either that default or an
+     * explicit JS `Date`, so nothing legitimate is rejected.
+     */
+    check(
+      'posts_created_at_ms_precision_check',
+      sql`${t.createdAt} = date_trunc('milliseconds', ${t.createdAt})`
+    ),
     check('posts_type_check', sql`${t.type} in (${sql.raw(inList(POST_TYPES))})`),
     check(
       'posts_visibility_check',

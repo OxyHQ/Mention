@@ -49,6 +49,19 @@
  * `threadId`, and the root post) untouched. Engagement-count reconciliation is a
  * separate concern owned by `recomputeFederatedEngagement.ts`.
  *
+ * ## RUN ORDER — this script MUST run BEFORE `backfillThreadRootThreadId`
+ *
+ * Not a preference, and not recoverable. That script stamps
+ * `thread_id = <own id>` on a self-thread ROOT; the root then joins its own
+ * thread group carrying a NULL `parent_post_id` against a non-null `thread_id`,
+ * which is one non-fan member, and the `count(*) filter (…) = 0` gate below
+ * drops the thread permanently. Run them the other way round and every broken
+ * fan in the corpus is disqualified from repair for good, with no error and
+ * nothing in either summary to say so.
+ *
+ * Pinned by `__tests__/scripts/migrateThreadFanToChain.test.ts`
+ * ("can no longer repair a fan whose root was already stamped with a threadId").
+ *
  * Runnable as a Fargate one-shot post-deploy (DRY_RUN first):
  *   DRY_RUN=true bun packages/backend/dist/src/scripts/migrateThreadFanToChain.js
  *   bun packages/backend/dist/src/scripts/migrateThreadFanToChain.js
