@@ -14,6 +14,8 @@ import { FEED_FIELDS } from '../../FeedAPI';
 import { ChronoCursor } from '../../CursorBuilder';
 import { notAReplyClause, restrictToReplies, restrictToRoots } from '../../../../utils/postReply';
 import { trendTermMatch } from '../../../../services/trending/termSpace';
+import Trending from '../../../../models/Trending';
+import { logger } from '../../../../utils/logger';
 import type { AuthorFeedFilter } from '@mention/shared-types';
 import type { CandidatePost, FeedEngineContext, SourceModule } from '../types';
 
@@ -76,7 +78,36 @@ export const keywordsSource: SourceModule = {
  * counts over, shared rather than restated. A feed that matched less than
  * detection counted would open a reported trend onto a screen missing exactly
  * the posts that made it trend, which is why the two must not be able to drift.
+ *
+ * That is also why the descriptor's term is not the end of it: a row may stand
+ * for several terms after co-occurrence merged them, and those live on the trend
+ * document rather than in the descriptor — a descriptor carrying the whole list
+ * would go stale the moment the next batch reshaped the story.
  */
+/**
+ * Every term the trend named `term` stands for — itself, plus anything merged
+ * into it.
+ *
+ * Reads the most recent row for the name, served by the `{ name, calculatedAt,
+ * type }` index as an exact prefix. Fail-soft to the bare term: a lookup that
+ * finds nothing is the ordinary case for an unmerged trend, and a lookup that
+ * throws should cost the extra posts, never the feed.
+ */
+async function resolveTrendTerms(term: string): Promise<string[]> {
+  try {
+    const row = await Trending.findOne({ name: term })
+      .select({ terms: 1 })
+      .sort({ calculatedAt: -1 })
+      .maxTimeMS(1000)
+      .lean<{ terms?: string[] } | null>();
+    const terms = row?.terms ?? [];
+    return terms.length > 1 ? terms : [term];
+  } catch (error) {
+    logger.warn('[Feed] Trend term lookup failed; matching the bare term', { term, error });
+    return [term];
+  }
+}
+
 export const trendTermsSource: SourceModule = {
   id: 'trendTerms',
   kind: 'source',
@@ -88,7 +119,7 @@ export const trendTermsSource: SourceModule = {
     const match: Record<string, unknown> = {
       // Nested under `$and` so the cursor's own `$or` (added by
       // `ChronoCursor.applyToQuery`) cannot clobber it.
-      $and: [trendTermMatch(term)],
+      $and: [trendTermMatch(await resolveTrendTerms(term))],
       visibility: 'public',
       status: 'published',
     };

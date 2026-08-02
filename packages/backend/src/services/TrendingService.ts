@@ -11,6 +11,11 @@ import { topicService } from './TopicService';
 import { isNsfwHashtag } from './contentClassification/nsfw';
 import { isTrendStopWord } from './trending/termExtraction';
 import { trendCandidateUnionExpression, trendTermMatch } from './trending/termSpace';
+import {
+  buildClusterMap,
+  clusterTrendTerms,
+  type TrendTermPair,
+} from './trending/trendClustering';
 // Trending shares the SINGLE canonical sensitive-exclusion clause with every
 // feed (For You, Explore, ranking). Adding a new gate updates trending too.
 import { SENSITIVE_EXCLUDE_MATCH } from '../mtn/feed/feedSafety';
@@ -66,6 +71,8 @@ interface TrendItem {
   type: TrendingType;
   /** The term (retrieval key). */
   name: string;
+  /** Every term the row stands for, `name` first. One element unless merged. */
+  terms: string[];
   /** What a reader sees. Never the bare term unless labelling produced nothing better. */
   displayName: string;
   category: TrendCategory;
@@ -100,6 +107,15 @@ interface TermCandidate {
   topicVolume: number;
   /** Primary languages of the posts behind the term (ISO 639-1). */
   languages: string[];
+  /**
+   * Every term this row reports, the representative first.
+   *
+   * One element for a term that stands alone; several when co-occurrence
+   * showed `Ukraine`, `Kyiv` and `Zelensky` to be one story. Persisted, because
+   * the row's feed has to match all of them: opening `Ukraine` onto posts that
+   * only ever said `Kyiv` is the whole point of having merged them.
+   */
+  members: string[];
 }
 
 /**
@@ -445,7 +461,7 @@ class TrendingService {
    * registry). Nothing about the score depends on how the term was written.
    */
   private async aggregateTermCandidates(now: Date): Promise<TermCandidate[]> {
-    const { windowMs, recentWindowMs, minVolume, maxActors } = MtnConfig.trending.detection;
+    const { windowMs, recentWindowMs } = MtnConfig.trending.detection;
     const windowStart = new Date(now.getTime() - windowMs);
     const recentStart = new Date(now.getTime() - recentWindowMs);
 
@@ -458,7 +474,19 @@ class TrendingService {
       status: 'published',
       visibility: PostVisibility.PUBLIC,
       boostOf: { $exists: false },
+      // Sensitive/NSFW-flagged posts never feed trending counts.
       ...SENSITIVE_EXCLUDE_MATCH,
+      // Nor do posts the deterministic classifier already scored as spam, at the
+      // SAME threshold the discovery gate uses — one authority for "this is junk
+      // in discovery", rather than a second number here that could drift from it.
+      //
+      // Worth being precise about what this does and does not buy: it catches
+      // RSS/bridge mirrors and link-only news bots, which is a real class. It did
+      // NOT catch the account that topped this instance's list — a
+      // `mastodon.social` Person posting real prose with eleven boilerplate
+      // hashtags, which scores nowhere near spam. The guard that catches THAT is
+      // the concentration ceiling in `clearsFloors`. This clause is the cheap
+      // complement, not the fix.
       'postClassification.scores.spam': {
         $not: { $gte: MtnConfig.feed.discoveryGate.spamRejectThreshold },
       },
@@ -470,6 +498,89 @@ class TrendingService {
     // guard systematically weaker for every minority language — exactly where a
     // hand-written stop-word list is already weakest.
     const corpusByLanguage = await this.countWindowPostsByLanguage(windowMatch);
+
+    // Pass one: every term the authors themselves wrote, counted alone.
+    const solo = await this.aggregateTermRows(
+      windowMatch,
+      recentStart,
+      corpusByLanguage,
+      trendCandidateUnionExpression(),
+      new Map(),
+    );
+
+    const clustering = MtnConfig.trending.clustering;
+    if (!clustering.enabled || solo.length === 0) return solo;
+
+    // Pass two, only when co-occurrence actually found a story spread across
+    // several names. Re-counting rather than adding the members' volumes up is
+    // the whole reason this is a second query: a post saying both `Ukraine` and
+    // `Kyiv` is ONE post, and a sum would report it as two — inflating the very
+    // number the reporting floors are applied to.
+    const pairs = await this.loadTermPairs(
+      windowMatch,
+      solo.map((candidate) => candidate.measurement.term),
+    );
+    const { clusters, refusedForSize } = clusterTrendTerms(
+      solo.map((candidate) => ({
+        term: candidate.measurement.term,
+        volume: candidate.measurement.volume,
+      })),
+      pairs,
+      clustering,
+    );
+    if (refusedForSize.length > 0) {
+      // A refused merge leaves a story split across rows, which on the screen is
+      // indistinguishable from clustering never having run. Said out loud, a
+      // ceiling that is too tight is visible as itself.
+      logger.info('[Trending] Cluster merges declined for size', {
+        count: refusedForSize.length,
+        pairs: refusedForSize.slice(0, 10),
+      });
+    }
+    if (clusters.length === 0) return solo;
+
+    const aliases = buildClusterMap(clusters);
+    const membersOf = new Map(clusters.map((cluster) => [cluster.representative, cluster.members]));
+    logger.info('[Trending] Merged co-occurring terms into stories', {
+      clusters: clusters.length,
+      merged: aliases.size,
+    });
+
+    const merged = await this.aggregateTermRows(
+      windowMatch,
+      recentStart,
+      corpusByLanguage,
+      this.clusteredTermsExpression(aliases),
+      membersOf,
+    );
+    // A cluster whose representative failed the floors it passed alone would
+    // take its members down with it, so a merge can never LOSE a row: anything
+    // pass two dropped is restored from pass one.
+    const survived = new Set(merged.map((candidate) => candidate.measurement.term));
+    const orphaned = solo.filter(
+      (candidate) =>
+        !survived.has(candidate.measurement.term) && !aliases.has(candidate.measurement.term),
+    );
+    return [...merged, ...orphaned];
+  }
+
+  /**
+   * One counting pass over the window, grouped by whatever `termsExpression`
+   * says a post's terms are.
+   *
+   * Shared by both passes so clustering cannot introduce a second, subtly
+   * different definition of volume, recency, authorship or language — the
+   * numbers the floors and the burst statistic are applied to. The only thing
+   * that differs between the two calls is what a term IS.
+   */
+  private async aggregateTermRows(
+    windowMatch: Record<string, unknown>,
+    recentStart: Date,
+    corpusByLanguage: Map<string | null, number>,
+    termsExpression: Record<string, unknown>,
+    membersOf: ReadonlyMap<string, string[]>,
+  ): Promise<TermCandidate[]> {
+    const { minVolume, maxActors } = MtnConfig.trending.detection;
 
     const rows = await Post.aggregate<{
       _id: string;
@@ -483,32 +594,13 @@ class TrendingService {
     }>(
       [
         {
-          // The SAME match the window count above used — see `windowMatch`.
-          $match: {
-            createdAt: { $gte: windowStart },
-            status: 'published',
-            visibility: PostVisibility.PUBLIC,
-            boostOf: { $exists: false },
-            // Sensitive/NSFW-flagged posts never feed trending counts.
-            ...SENSITIVE_EXCLUDE_MATCH,
-            // Nor do posts the deterministic classifier already scored as spam,
-            // at the SAME threshold the discovery gate uses — one authority for
-            // "this is junk in discovery", rather than a second number here
-            // that could drift from it.
-            //
-            // Worth being precise about what this does and does not buy: it
-            // catches RSS/bridge mirrors and link-only news bots, which is a
-            // real class. It did NOT catch the account that topped this
-            // instance's list — a `mastodon.social` Person posting real prose
-            // with eleven boilerplate hashtags, which scores nowhere near
-            // spam. The guard that catches THAT is the concentration ceiling in
-            // `clearsFloors`. This clause is the cheap complement, not the fix.
-            'postClassification.scores.spam': {
-              $not: { $gte: MtnConfig.feed.discoveryGate.spamRejectThreshold },
-            },
-          },
+          // Literally the same object the corpus count used, rather than a copy
+          // of it: the share-of-corpus ratio is only meaningful when numerator
+          // and denominator are drawn from one population, and two spellings of
+          // "the same match" is how they stop being.
+          $match: windowMatch,
         },
-        { $addFields: { _terms: trendCandidateUnionExpression() } },
+        { $addFields: { _terms: termsExpression } },
         { $match: { '_terms.0': { $exists: true } } },
         { $unwind: '$_terms' },
         {
@@ -594,8 +686,90 @@ class TrendingService {
           hashtagVolume: row.hashtagVolume,
           topicVolume: row.topicVolume,
           languages,
+          // A term that was never merged reports itself, so every downstream
+          // reader can treat `members` as the row's term list without first
+          // asking whether clustering ran.
+          members: membersOf.get(row._id) ?? [row._id],
         };
       });
+  }
+
+  /**
+   * The candidate terms of a post with every clustered member rewritten to the
+   * term its row is reported under.
+   *
+   * `$setUnion` over the mapped array is doing real work, not tidying: a post
+   * saying both `Ukraine` and `Kyiv` yields the representative twice, and the
+   * `$unwind` that follows would count that one post twice against the story.
+   */
+  private clusteredTermsExpression(aliases: ReadonlyMap<string, string>): Record<string, unknown> {
+    const branches = [...aliases.entries()]
+      .filter(([member, representative]) => member !== representative)
+      .map(([member, representative]) => ({
+        case: { $eq: ['$$term', member] },
+        then: representative,
+      }));
+    if (branches.length === 0) return trendCandidateUnionExpression();
+
+    return {
+      $setUnion: [
+        {
+          $map: {
+            input: trendCandidateUnionExpression(),
+            as: 'term',
+            in: { $switch: { branches, default: '$$term' } },
+          },
+        },
+      ],
+    };
+  }
+
+  /**
+   * How many posts each PAIR of candidate terms appears in together.
+   *
+   * Restricted to terms that already cleared the volume floor, which is what
+   * keeps this cheap: the pair count is quadratic in the terms one post carries,
+   * and a post carries very few candidate terms once ordinary vocabulary is out
+   * of the space. `minPairPosts` is applied here rather than in memory so the
+   * long tail of pairs that met once never leaves the database.
+   *
+   * Fail-soft: without pairs nothing merges and every term reports alone, which
+   * is exactly the behaviour before clustering existed.
+   */
+  private async loadTermPairs(
+    windowMatch: Record<string, unknown>,
+    terms: readonly string[],
+  ): Promise<TrendTermPair[]> {
+    if (terms.length < 2) return [];
+
+    try {
+      const rows = await Post.aggregate<{ _id: { a: string; b: string }; posts: number }>(
+        [
+          { $match: windowMatch },
+          {
+            $addFields: {
+              _terms: { $setIntersection: [trendCandidateUnionExpression(), terms] },
+            },
+          },
+          // Index 1 exists only when the post carries at least two of them —
+          // the cheapest possible way to drop every post that can form no pair.
+          { $match: { '_terms.1': { $exists: true } } },
+          { $project: { _a: '$_terms', _b: '$_terms' } },
+          { $unwind: '$_a' },
+          { $unwind: '$_b' },
+          // Each unordered pair once, and never a term with itself.
+          { $match: { $expr: { $lt: ['$_a', '$_b'] } } },
+          { $group: { _id: { a: '$_a', b: '$_b' }, posts: { $sum: 1 } } },
+          { $match: { posts: { $gte: MtnConfig.trending.clustering.minPairPosts } } },
+        ],
+        { allowDiskUse: true, maxTimeMS: TREND_AGGREGATION_MAX_TIME_MS },
+      );
+
+      return rows.map((row) => ({ a: row._id.a, b: row._id.b, posts: row.posts }));
+    } catch (error) {
+      logger.warn('[Trending] Co-occurrence lookup failed; terms report individually', { error });
+      return [];
+    }
   }
 
   /**
@@ -668,6 +842,7 @@ class TrendingService {
           volume: trend.volume,
         }),
         name: trend.term,
+        terms: candidate?.members ?? [trend.term],
         displayName: label.displayName,
         category: label.category,
         description: '',
@@ -880,6 +1055,10 @@ class TrendingService {
     const docs = sorted.map((item, index) => ({
       type: item.type,
       name: item.name,
+      // Only when the row actually stands for more than its own name: storing
+      // `[name]` on every unmerged row would grow the collection to record a
+      // fact the absent field already states.
+      ...(item.terms.length > 1 ? { terms: item.terms } : {}),
       displayName: item.displayName,
       category: item.category,
       description: item.description,

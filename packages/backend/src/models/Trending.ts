@@ -40,6 +40,20 @@ export interface TrendingRecord {
    */
   name: string;
   /**
+   * Every term this row stands for, {@link TrendingRecord.name} first.
+   *
+   * A story arrives as several names at once, and co-occurrence merges them into
+   * one row — so the row's feed has to match all of them. Without this the
+   * merge would be actively harmful: `Ukraine` would absorb `Kyiv`'s evidence
+   * into its score and then open onto a screen missing every post that only
+   * said `Kyiv`.
+   *
+   * OPTIONAL for the same reason `displayName` is: 90 days of rows predate
+   * clustering. Readers fall back to `[name]`, which is what an unmerged row
+   * means anyway.
+   */
+  terms?: string[];
+  /**
    * What a reader is shown ("Kremer Trade" for the term `orioles`).
    *
    * OPTIONAL only because the collection retains 90 days of rows written before
@@ -116,6 +130,10 @@ const TrendingSchema = new Schema({
   name: {
     type: String,
     required: true,
+  },
+  terms: {
+    type: [String],
+    default: undefined,
   },
   // Required for every NEW row: a trend a reader cannot read is not a trend.
   // Pre-existing rows predate labels and simply lack it (Mongoose validates on

@@ -52,13 +52,22 @@ export const TREND_TERM_FIELDS = [
 ] as const;
 
 /**
- * Match posts carrying `term`, as a query fragment.
+ * Match posts carrying ANY of `terms`, as a query fragment.
+ *
+ * Takes a list because a trend can stand for several terms at once: co-occurrence
+ * merges `Ukraine`, `Kyiv` and `Zelensky` into one row, and the row's feed has to
+ * show the posts of all three — a merge that concentrated their evidence into one
+ * score and then opened onto only one of them would be strictly worse than not
+ * merging.
  *
  * Returned as a bare `$or` so a caller can nest it wherever its own query
  * needs — the feed nests it under `$and` so a cursor's `$or` cannot clobber it.
  */
-export function trendTermMatch(term: string): { $or: Record<string, string>[] } {
-  return { $or: TREND_TERM_FIELDS.map((field) => ({ [field]: term })) };
+export function trendTermMatch(
+  terms: string | readonly string[],
+): { $or: Record<string, { $in: string[] }>[] } {
+  const list = typeof terms === 'string' ? [terms] : [...terms];
+  return { $or: TREND_TERM_FIELDS.map((field) => ({ [field]: { $in: list } })) };
 }
 
 /**

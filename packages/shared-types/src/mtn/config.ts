@@ -878,6 +878,69 @@ export const MtnConfig = {
     },
 
     /**
+     * CLUSTERING — one story, one row.
+     *
+     * A story arrives as several names at once. `Ukraine`, `Zelensky`, `Kyiv`
+     * and `Russia` are four candidates competing for four slots, each holding a
+     * quarter of the evidence for the same event — which also suppresses the
+     * burst statistic that decides whether anything is happening at all, since
+     * a rate split four ways clears no bar. Merging them concentrates the
+     * signal and spends one row on what is one subject.
+     *
+     * The measure is CO-OCCURRENCE — how often two terms appear in the same
+     * post — and it is deliberately not a synonym table. A table has to be
+     * written in advance, in every language, for stories that have not happened
+     * yet, and it is exactly the hand-maintained list this system keeps
+     * refusing to grow. Two terms belonging to one story is a fact already
+     * present in the posts.
+     */
+    clustering: {
+      /**
+       * Off switch. Clustering changes what a row MEANS — one story rather than
+       * one word — so it must be possible to turn back off in one edit without
+       * unpicking the pipeline.
+       */
+      enabled: true,
+      /**
+       * Posts two terms must SHARE before their link is considered at all.
+       *
+       * Ratios computed over one or two posts are noise: two rare terms that
+       * happen to meet once score a perfect 1.0 in both directions. This is the
+       * evidence floor for the link itself, the same role `minVolume` plays for
+       * a term.
+       */
+      minPairPosts: 3,
+      /**
+       * How tightly the DEPENDENT term must bring the other: the larger of the
+       * two directional ratios.
+       *
+       * `Kyiv` almost never appears without `Ukraine`, and that asymmetry is
+       * the signal — a subordinate name belongs to the story it cannot be
+       * mentioned without.
+       */
+      strongLinkRatio: 0.6,
+      /**
+       * How much the DOMINANT term must return: the smaller of the two ratios.
+       *
+       * Required in BOTH directions on purpose. One direction alone merges any
+       * niche term into whatever broad term it happens to accompany, and a
+       * single common word shared by two unrelated stories would fuse them. A
+       * dominant term does not have to bring the other back often — only often
+       * enough to show they are the same conversation.
+       */
+      weakLinkRatio: 0.2,
+      /**
+       * Ceiling on how many terms one row may absorb.
+       *
+       * Merging is transitive, so a chain of individually reasonable links can
+       * walk a cluster across unrelated stories. A cluster that wants to be
+       * bigger than this is evidence the links are too loose, not that the
+       * story is: the merge is refused and reported rather than trusted.
+       */
+      maxClusterSize: 6,
+    },
+
+    /**
      * SUMMARIES — the one place a model is allowed to run, and only for trends
      * readers actually open.
      *
@@ -1062,6 +1125,23 @@ export const MtnConfig = {
 } as const;
 
 export type MtnConfigType = typeof MtnConfig;
+
+/**
+ * The clustering knobs, named so the pure clusterer can take them as an
+ * argument rather than importing the whole config — which is what keeps it
+ * testable against values no deployment uses.
+ *
+ * Declared rather than derived from {@link MtnConfig}: `as const` would freeze
+ * `enabled` to the literal `true`, and a test that cannot express the disabled
+ * case cannot check the off switch works.
+ */
+export interface MtnTrendClusteringConfig {
+  enabled: boolean;
+  minPairPosts: number;
+  strongLinkRatio: number;
+  weakLinkRatio: number;
+  maxClusterSize: number;
+}
 
 /**
  * Classify an originating feed surface (a feed-descriptor string, e.g. `videos`,
