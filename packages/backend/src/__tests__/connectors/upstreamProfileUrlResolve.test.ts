@@ -141,9 +141,13 @@ describe('GET /federation/resolve — a pasted profile URL', () => {
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({
       network: 'activitypub',
-      handle: 'elonmusk@bird.makeup',
+      // The account, not the bridge it was reached through. `externalId` keeps
+      // the protocol id, which is what the follow is addressed to.
+      handle: 'elonmusk@x.com',
+      externalId: 'https://bird.makeup/users/elonmusk',
       oxyUserId: 'oxy-user-1',
     });
+    expect(res.body.handle).not.toContain('bird.makeup');
     expect(resolve).toHaveBeenCalledWith('elonmusk@bird.makeup');
   });
 
@@ -168,7 +172,9 @@ describe('GET /federation/resolve — a pasted profile URL', () => {
     const res = await request(app).get('/federation/resolve').query({ handle: 'https://x.com/elonmusk' });
 
     expect(res.status).toBe(200);
-    expect(res.body.handle).toBe('elonmusk@mastox.eu');
+    // Which bridge answered is an implementation detail of how we reached the
+    // account, and it must not reach the reader as the account's name.
+    expect(res.body.handle).toBe('elonmusk@x.com');
     expect(resolve.mock.calls.map(([acct]) => acct)).toEqual(['elonmusk@bird.makeup', 'elonmusk@mastox.eu']);
   });
 
@@ -222,8 +228,33 @@ describe('GET /federation/resolve — a pasted profile URL', () => {
       .query({ handle: '@alice@mastodon.social' });
 
     expect(res.status).toBe(200);
+    expect(res.body.handle).toBe('alice@mastodon.social');
     expect(resolve).toHaveBeenCalledWith('@alice@mastodon.social');
     expect(classifyQuery).toHaveBeenCalledWith('@alice@mastodon.social');
+  });
+
+  it('returns the stored identity for an atproto handle, not the DNS handle it was queried by', async () => {
+    // Not a bridge case, and it was wrong in the same way: a default Bluesky
+    // handle ADDRESSES `alice.bsky.social` and is STORED as `alice@bsky.social`,
+    // so returning the address left the resolved row unable to match the Oxy row
+    // for the same person — a duplicate in the results for every default-handle
+    // Bluesky account already ingested.
+    resolve.mockResolvedValue({
+      network: 'atproto' as const,
+      externalId: 'did:plc:z72i7hdynmk6r22z27h6tvur',
+      handle: 'alice.bsky.social',
+      federatedUsername: 'alice@bsky.social',
+      instanceDomain: 'bsky.social',
+      oxyUserId: 'oxy-user-2',
+    });
+
+    const res = await request(app).get('/federation/resolve').query({ handle: 'alice.bsky.social' });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({
+      handle: 'alice@bsky.social',
+      externalId: 'did:plc:z72i7hdynmk6r22z27h6tvur',
+    });
   });
 
   it('still answers 404 for a local username without asking a connector', async () => {

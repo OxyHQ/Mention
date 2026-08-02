@@ -59,7 +59,16 @@ export interface ExternalActorResolution {
   network: ExternalNetwork;
   /** Canonical protocol id: an ActivityPub actor URI, or an atproto DID. Used as the follow target. */
   externalId: string;
-  /** Fediverse-style handle (`user@domain` for ActivityPub; the atproto handle/DID otherwise). */
+  /**
+   * The account's IDENTITY as `local@domain` — the same username Oxy stores it
+   * under, so it is both what a reader should see and the `/@handle` the profile
+   * screen resolves.
+   *
+   * NOT the protocol address it was reached at, which is `externalId`'s job and
+   * can name something else entirely: a bridged account arrives at
+   * `elonmusk@bird.makeup` but IS `elonmusk@x.com`, and an atproto account
+   * arrives at `alice.bsky.social` but is stored as `alice@bsky.social`.
+   */
   handle: string;
   /** Canonical Oxy display name, when resolved. */
   displayName?: string;

@@ -320,7 +320,18 @@ router.get('/resolve', async (req: AuthRequest, res: Response) => {
     return res.json({
       network: actor.network,
       externalId: actor.externalId,
-      handle: actor.handle,
+      // The IDENTITY, never the protocol address. `handle` is the account this
+      // row IS — the same `local@domain` the ingest just stored in Oxy — while
+      // `externalId` stays the protocol id the follow is addressed to. The two
+      // differ for exactly the actors this lane exists to reach: a bridged actor's
+      // protocol acct names the BRIDGE (`elonmusk@bird.makeup`), so returning it
+      // renders a reader the hostname a copy happened to arrive through instead
+      // of the account that wrote the posts, and — because the client dedupes the
+      // resolved actor against the people results BY HANDLE — leaves it sitting
+      // next to the Oxy row for the same person as a visible twin. An atproto
+      // actor's differs too (`alice.bsky.social` addresses, `alice@bsky.social`
+      // identifies), and had the same duplicate-row consequence.
+      handle: actor.federatedUsername,
       displayName: actor.displayName,
       avatarUrl: actor.avatarUrl,
       oxyUserId: actor.oxyUserId,

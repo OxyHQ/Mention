@@ -272,10 +272,10 @@ function toProfileCardData(user: SearchUserResult): ProfileCardData | null {
 
 /**
  * A cross-network actor resolved by `GET /federation/resolve`, as a normal people
- * row. Its handle is already network-qualified (`user@domain` for ActivityPub,
- * the DNS handle for atproto), so it carries no `instance`: the handle passes
- * through `getNormalizedUserHandle` unchanged, which is exactly the `/@handle`
- * the federated profile screen resolves.
+ * row. Its handle is the account's IDENTITY as Oxy stores it (`local@domain`,
+ * never the protocol address it was reached at), so it carries no `instance`: the
+ * handle passes through `getNormalizedUserHandle` unchanged, which is exactly the
+ * `/@handle` the federated profile screen resolves.
  *
  * The id is the Oxy user once the actor has been minted there, and the protocol
  * id (actor URI / DID) until then — the row's only id-keyed control is its follow
@@ -292,28 +292,27 @@ function externalActorToProfileCardData(actor: ExternalActorResolution): Profile
 }
 
 /**
- * The handles a people result can be recognized by when deduping the resolved
- * cross-network actor against it.
+ * Whether a people result IS the resolved cross-network actor.
  *
- * Oxy stores a federated account under `local@instance` — `usatoday@flipboard.com`
- * (ActivityPub) or `alice.bsky.social@bsky.social` (atproto) — while a resolve
- * returns the network-native handle: `usatoday@flipboard.com` for ActivityPub, the
- * bare `alice.bsky.social` for atproto. So a federated row also answers to its
- * handle's local part; a local row never does (its username is not an address).
+ * One comparison, because both sides now name the same thing: Oxy stores a
+ * federated account under `local@instance` and the resolve returns that identity
+ * verbatim. It used to return the PROTOCOL ADDRESS instead — the bridge host for a
+ * bridged account, the bare DNS handle for a Bluesky one — which matches no Oxy
+ * row, so the resolved actor was appended NEXT TO the people result for the same
+ * person as a visible twin.
+ *
+ * The escape hatch that used to sit here (a federated row also answering to its
+ * handle's LOCAL PART) papered over the Bluesky half of that and could not reach
+ * the bridged half at all. It is now unreachable rather than merely unnecessary:
+ * every identity the resolve can return carries a domain, and a local part never
+ * does, so the two can no longer be equal — and keeping a branch that only ever
+ * matches a bare word against a whole handle is a false positive waiting for the
+ * next change to the wire shape.
  */
-function profileIdentityKeys(profile: ProfileCardData): string[] {
-    const handle = getNormalizedUserHandle(profile)?.toLowerCase();
-    if (!handle) return [];
-    const at = handle.indexOf("@");
-    if (!profile.isFederated || at <= 0) return [handle];
-    return [handle, handle.slice(0, at)];
-}
-
-/** Whether a people result IS the resolved cross-network actor. */
 function isSameActor(profile: ProfileCardData, actor: ExternalActorResolution): boolean {
     if (actor.oxyUserId && profile.id === actor.oxyUserId) return true;
     const actorHandle = actor.handle.trim().replace(/^@+/, "").toLowerCase();
-    return actorHandle.length > 0 && profileIdentityKeys(profile).includes(actorHandle);
+    return actorHandle.length > 0 && getNormalizedUserHandle(profile)?.toLowerCase() === actorHandle;
 }
 
 function toFeedCardData(feed: SearchFeedResult): FeedCardData | null {

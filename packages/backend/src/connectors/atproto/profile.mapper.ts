@@ -107,7 +107,13 @@ export function mapProfileToNormalizedActor(profile: AtprotoProfileView): Normal
     displayName: displayName || undefined,
     avatarUrl: profile.avatar || undefined,
     bannerUrl: profile.banner || undefined,
-    bio: bio || undefined,
+    // Empty is an ANSWER — "this account has no bio" — and it has to travel as
+    // one. `PUT /users/resolve` writes `bio` only when the key is a string, and
+    // `undefined` does not survive `JSON.stringify`, so mapping an empty bio to
+    // `undefined` says "leave whatever you have" instead. An author who DELETES
+    // their Bluesky bio would keep the old one on their Oxy profile forever, no
+    // matter how many times we re-resolved them.
+    bio,
     followersCount: typeof profile.followersCount === 'number' ? profile.followersCount : undefined,
     followingCount: typeof profile.followsCount === 'number' ? profile.followsCount : undefined,
     postsCount: typeof profile.postsCount === 'number' ? profile.postsCount : undefined,
