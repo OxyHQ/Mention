@@ -101,6 +101,10 @@ export const TREND_TERM_STOPWORDS: ReadonlySet<string> = new Set([
   'sein', 'seine', 'ihre', 'mein', 'meine', 'dein', 'deine', 'danke', 'bitte',
   'oder', 'weil', 'dass', 'damit', 'durch', 'gegen', 'ohne', 'über', 'uber',
   'unter', 'zwischen', 'nach', 'vor', 'bei', 'zum', 'zur', 'als', 'man',
+  // `mal` reached the live list: a particle in German ("just", "times") and an
+  // adverb in French ("badly"). A word that is closed-class in two of the
+  // languages this network carries cannot be a subject in either.
+  'mal', 'eben', 'halt', 'gern', 'gerne', 'toll', 'super',
 ]);
 
 /**
