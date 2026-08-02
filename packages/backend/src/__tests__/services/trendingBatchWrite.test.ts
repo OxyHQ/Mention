@@ -128,9 +128,9 @@ function stageBatch(): void {
   // refused by it (a term averaging more than a few posts per author is not a
   // conversation — that is `clearsFloors`' job and is covered in its own suite).
   const terms = [
-    { _id: 'ai', volume: 40, recentVolume: 40, hashtagVolume: 40, topicVolume: 0, authorCount: 24, actorIds: ['u1'], languages: ['en'] },
-    { _id: 'business', volume: 30, recentVolume: 30, hashtagVolume: 30, topicVolume: 30, authorCount: 18, actorIds: ['u2'], languages: ['en'] },
-    { _id: 'politics', volume: 20, recentVolume: 20, hashtagVolume: 0, topicVolume: 20, authorCount: 12, actorIds: ['u3'], languages: ['en'] },
+    { _id: 'orioles', volume: 40, recentVolume: 40, hashtagVolume: 40, topicVolume: 0, authorCount: 24, actorIds: ['u1'], languages: ['en'] },
+    { _id: 'kremer', volume: 30, recentVolume: 30, hashtagVolume: 30, topicVolume: 30, authorCount: 18, actorIds: ['u2'], languages: ['en'] },
+    { _id: 'zelensky', volume: 20, recentVolume: 20, hashtagVolume: 0, topicVolume: 20, authorCount: 12, actorIds: ['u3'], languages: ['en'] },
     { _id: 'kremer trade', volume: 12, recentVolume: 12, hashtagVolume: 0, topicVolume: 0, authorCount: 8, actorIds: ['u4'], languages: ['en'] },
   ];
   // `Post.aggregate` serves TWO pipelines now. They are told apart by SHAPE, not
@@ -179,9 +179,9 @@ describe('TrendingService.calculateTrending — a name that is both a hashtag an
     // `business` was written with a `#` on some posts and classified as a topic
     // on the same ones. That is one subject, so it is one row carrying the whole
     // count — not two rows splitting it, which is what used to collide.
-    const business = docs.filter((doc) => doc.name === 'business');
-    expect(business).toHaveLength(1);
-    expect(business[0].volume).toBe(30);
+    const kremer = docs.filter((doc) => doc.name === 'kremer');
+    expect(kremer).toHaveLength(1);
+    expect(kremer[0].volume).toBe(30);
     expect(docs).toHaveLength(4);
     expect(new Set(docs.map((doc) => doc.name)).size).toBe(docs.length);
 
@@ -202,10 +202,10 @@ describe('TrendingService.calculateTrending — a name that is both a hashtag an
     // `business` still arrived through `postClassification.topics`, so they are
     // topics; only the registry LINKAGE is missing, and that rides in `topicId`.
     const byName = new Map(insertedDocs().map((doc) => [doc.name, doc.type]));
-    expect(byName.get('politics')).toBe('topic');
-    expect(byName.get('business')).toBe('topic');
+    expect(byName.get('zelensky')).toBe('topic');
+    expect(byName.get('kremer')).toBe('topic');
     // A term nobody classified is still judged on how it was written.
-    expect(byName.get('ai')).toBe('hashtag');
+    expect(byName.get('orioles')).toBe('hashtag');
     expect(byName.get('kremer trade')).toBe('entity');
   });
 
@@ -383,24 +383,24 @@ describe('TrendingService.getTrending — volume series are per TERM', () => {
     mocks.trendBatchFindOne.mockReturnValue(leanChain({ calculatedAt, summary: '' }));
     mocks.trendingFind.mockReturnValue(
       leanChain([
-        { name: 'business', type: 'hashtag', score: 10, rank: 1, volume: 30 },
-        { name: 'politics', type: 'entity', score: 9, rank: 2, volume: 4 },
+        { name: 'kremer', type: 'hashtag', score: 10, rank: 1, volume: 30 },
+        { name: 'zelensky', type: 'entity', score: 9, rank: 2, volume: 4 },
       ]),
     );
     mocks.trendingAggregate.mockResolvedValue([
-      { _id: 'business', volumes: [10, 20, 30, 40, 50, 60] },
-      { _id: 'politics', volumes: [1, 2, 3, 4, 5, 6] },
+      { _id: 'kremer', volumes: [10, 20, 30, 40, 50, 60] },
+      { _id: 'zelensky', volumes: [1, 2, 3, 4, 5, 6] },
     ]);
 
     const result = await trendingService.getTrending(20);
 
-    const business = result.trending.find((trend) => trend.name === 'business');
-    const politics = result.trending.find((trend) => trend.name === 'politics');
-    expect(business?.series).toBeDefined();
-    expect(politics?.series).toBeDefined();
-    expect(business?.series).not.toEqual(politics?.series);
-    expect(Math.max(...(business?.series ?? []))).toBeGreaterThan(
-      Math.max(...(politics?.series ?? [])),
+    const kremer = result.trending.find((trend) => trend.name === 'kremer');
+    const zelensky = result.trending.find((trend) => trend.name === 'zelensky');
+    expect(kremer?.series).toBeDefined();
+    expect(zelensky?.series).toBeDefined();
+    expect(kremer?.series).not.toEqual(zelensky?.series);
+    expect(Math.max(...(kremer?.series ?? []))).toBeGreaterThan(
+      Math.max(...(zelensky?.series ?? [])),
     );
   });
 
@@ -408,7 +408,7 @@ describe('TrendingService.getTrending — volume series are per TERM', () => {
     const calculatedAt = new Date();
     mocks.trendBatchFindOne.mockReturnValue(leanChain({ calculatedAt, summary: '' }));
     mocks.trendingFind.mockReturnValue(
-      leanChain([{ name: 'business', type: 'hashtag', score: 10, rank: 1, volume: 30 }]),
+      leanChain([{ name: 'kremer', type: 'hashtag', score: 10, rank: 1, volume: 30 }]),
     );
     mocks.trendingAggregate.mockResolvedValue([]);
 

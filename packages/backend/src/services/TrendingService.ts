@@ -9,6 +9,7 @@ import { emitTrendsUpdated } from '../utils/socket';
 import { aliaChat, isAliaEnabled } from '../utils/alia';
 import { topicService } from './TopicService';
 import { isNsfwHashtag } from './contentClassification/nsfw';
+import { isTopicSlug } from './contentClassification/taxonomy';
 import { isTrendStopWord } from './trending/termExtraction';
 import { trendCandidateUnionExpression, trendTermMatch } from './trending/termSpace';
 import {
@@ -751,6 +752,17 @@ class TrendingService {
       // The extraction-time filter still earns its place: it keeps the stored
       // arrays and their index small. This is the one that decides.
       .filter((row) => !isTrendStopWord(row._id))
+      // A term that IS one of our own category names is a shelf label, not a
+      // thing on the shelf. `postClassification.topics` stopped proposing
+      // candidates for exactly this reason, but the same words also arrive as
+      // hashtags an author typed — `#news` reached the live list with fifteen
+      // authors and named a row "News · News" — so the rule belongs on the term
+      // itself rather than on one of the fields it can travel in.
+      //
+      // Not a word list: it is the taxonomy already maintained for labelling,
+      // read as a stop-list for candidacy. A category gained or renamed there
+      // changes this with it.
+      .filter((row) => !isTopicSlug(row._id))
       .map((row) => {
         const languages = row.languages ?? [];
         const corpus = corpusSizeFor(languages, corpusByLanguage);

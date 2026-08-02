@@ -152,7 +152,7 @@ describe('aggregateTermCandidates — what is allowed to count', () => {
       row('nsfw', 999),
       row('sexy', 800),
       row('onlyfans', 700),
-      row('art', 30),
+      row('orioles', 30),
     ]);
 
     const terms = (await svc.aggregateTermCandidates(new Date())).candidates.map(
@@ -160,7 +160,10 @@ describe('aggregateTermCandidates — what is allowed to count', () => {
     );
 
     expect(terms).toContain('technology');
-    expect(terms).toContain('art');
+    // `orioles` rather than `art` as the innocuous control: `art` is a category
+    // name in the taxonomy and is now refused as a shelf label, which would
+    // make this fixture pass for the wrong reason.
+    expect(terms).toContain('orioles');
     expect(terms).not.toContain('nsfw');
     expect(terms).not.toContain('sexy');
     expect(terms).not.toContain('onlyfans');

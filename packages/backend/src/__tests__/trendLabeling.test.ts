@@ -127,8 +127,12 @@ describe('deriveTrendLabel — a shared phrase beats the term', () => {
 
 describe('deriveTrendLabel — category', () => {
   it('maps a rule-classifier slug onto its trend category', () => {
+    // `politics`, not `news`: `senate` carries all three posts and "breaking
+    // news" carries one. This fixture expected `news` while the category was
+    // the FIRST slug the classifier returned — which is its rule array's line
+    // order — so it was pinning the tiebreak that filed `Trump` under Science.
     const posts = ['breaking news the senate voted today', 'the senate bill passed', 'senate news'];
-    expect(deriveTrendLabel({ term: 'senate', excerpts: posts }).category).toBe('news');
+    expect(deriveTrendLabel({ term: 'senate', excerpts: posts }).category).toBe('politics');
   });
 
   it('renames the classifier vocabulary to the client-facing one', () => {
@@ -193,5 +197,39 @@ describe('fallbackTrendLabel', () => {
       displayName: 'Todd Blanche',
       category: 'other',
     });
+  });
+});
+
+describe('deriveCategory — evidence, not file order', () => {
+  it('files a term under the topic MOST of its posts support', () => {
+    // `Trump` was filed under Science on the live list: one post said "climate
+    // change" and the science rule sits two lines above the politics rule in
+    // the taxonomy, so the first-match tiebreak was really the file's line
+    // order.
+    const label = deriveTrendLabel({
+      term: 'trump',
+      excerpts: [
+        'the election result is disputed in congress',
+        'senate hearing on the campaign trail today',
+        'a post about climate change and the election',
+      ],
+    });
+
+    expect(label.category).toBe('politics');
+  });
+
+  it('lets the term its own mapping outrank whatever its posts mention', () => {
+    // The term is the most on-topic token there is; the prose is context
+    // around it, and a trend on `esports` must not be filed under Finance
+    // because its posts discuss the market.
+    const label = deriveTrendLabel({
+      term: 'esports',
+      excerpts: [
+        'the stock market reaction to inflation was brutal',
+        'the stock market reaction to inflation was brutal',
+      ],
+    });
+
+    expect(label.category).not.toBe('finance');
   });
 });
