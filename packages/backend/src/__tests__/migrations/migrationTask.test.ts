@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => ({
   assertMongoTransactionalTopology: vi.fn(),
   runMigrations: vi.fn(),
   reconcileBlockedDomainPurges: vi.fn(),
+  loadBlockedDomainPolicy: vi.fn(),
 }));
 
 vi.mock('../../utils/database', () => ({
@@ -21,19 +22,35 @@ vi.mock('../../utils/mongoTopology', () => ({
 
 /**
  * The blocked-domain reconciliation is a COLLABORATOR of the migration task, not
- * the subject of this file, and it is mocked for the same reason `runMigrations`
- * is: this file asserts which connection options the task opens, nothing more.
+ * the subject of it, so it is mocked for the same reason `runMigrations` is.
  *
- * Leaving it real made the suite fail the moment the committed blocklist became
- * non-empty — not because reconciling is slow, but because there is no database
- * here (`__tests__/setup.ts` no-ops `mongoose.connect`), so the first model call
- * sat in Mongoose's buffer until it gave up. Measured: the test took 10.01s, one
- * `bufferTimeoutMS`, of which zero was real work; the task's own fail-soft catch
- * then swallowed the error and the assertions passed. A 5s default turned that
- * into a timeout that reads like a performance regression and is not one.
+ * WHY THIS FILE BROKE WHEN THE BLOCKLIST GAINED ENTRIES, AND WHAT THE 10s WAS
+ *
+ * `reconcileBlockedDomains` returns early on an EMPTY policy, so while the
+ * committed blocklist was empty this path was never reached and nobody noticed
+ * it was unmocked. The moment the policy had entries, the reconciler ran here —
+ * against no database, because `__tests__/setup.ts` no-ops `mongoose.connect`.
+ * The first model call therefore sat in Mongoose's buffer until
+ * `bufferTimeoutMS` (default 10000ms, mongoose 8.24.1) gave up and threw; the
+ * task's fail-soft catch swallowed that, so with a longer ceiling the test
+ * PASSED — in 10.01s, of which zero was work.
+ *
+ * That fixed ~10s is a property of running with no connection, NOT of the
+ * reconciler and NOT of the deploy. Measured against a real server, a
+ * first-ever reconciliation of 118 domains on a freshly-indexed empty
+ * collection takes 82ms. In production `runMigrationTask` calls
+ * `connectToDatabase` before it reconciles, so nothing ever buffers.
+ *
+ * The lesson worth keeping is the coverage one rather than the timing one: a
+ * branch guarded by "is the policy empty" was invisible until data made it
+ * reachable. Hence the wiring tests below, which exercise it deliberately.
  */
 vi.mock('../../services/federation/BlockedDomainPurgeReconciler', () => ({
   reconcileBlockedDomainPurges: mocks.reconcileBlockedDomainPurges,
+}));
+
+vi.mock('../../services/federation/blockedDomainPolicySource', () => ({
+  loadBlockedDomainPolicy: mocks.loadBlockedDomainPolicy,
 }));
 
 import {
@@ -49,6 +66,7 @@ describe('migration task database isolation', () => {
     mocks.reconcileBlockedDomainPurges.mockReset().mockResolvedValue({
       runId: 'test', purged: [], held: [], failed: [], departed: [], breaches: [], removed: null,
     });
+    mocks.loadBlockedDomainPolicy.mockReset().mockReturnValue([]);
   });
 
   it('uses a bounded migration-only pool and a 15-minute socket timeout', async () => {
@@ -90,5 +108,51 @@ describe('migration task database isolation', () => {
 
     await expect(runMigrationTask()).rejects.toThrow('standalone topology');
     expect(mocks.runMigrations).not.toHaveBeenCalled();
+  });
+
+  it('does not reconcile blocked domains when the policy names none', async () => {
+    mocks.loadBlockedDomainPolicy.mockReturnValue([]);
+
+    await runMigrationTask();
+
+    // The branch that hid this whole path from the suite until the blocklist
+    // gained entries. Asserted deliberately now, rather than relied upon.
+    expect(mocks.reconcileBlockedDomainPurges).not.toHaveBeenCalled();
+  });
+
+  it('reconciles blocked domains once the policy names some', async () => {
+    mocks.loadBlockedDomainPolicy.mockReturnValue([{
+  domain: 'spam.example',
+  severity: 'suspend' as const,
+  category: 'spam' as const,
+  reason: 'test',
+  since: '2026-01-01',
+  corroboratingSources: [] as readonly string[],
+}]);
+
+    await runMigrationTask();
+
+    expect(mocks.reconcileBlockedDomainPurges).toHaveBeenCalledOnce();
+    const input = mocks.reconcileBlockedDomainPurges.mock.calls[0][0];
+    expect(input.policyEntries).toHaveLength(1);
+    expect(input.policyEntries[0].domain).toBe('spam.example');
+  });
+
+  it('completes the migration task even when reconciliation throws', async () => {
+    mocks.loadBlockedDomainPolicy.mockReturnValue([{
+  domain: 'spam.example',
+  severity: 'suspend' as const,
+  category: 'spam' as const,
+  reason: 'test',
+  since: '2026-01-01',
+  corroboratingSources: [] as readonly string[],
+}]);
+    mocks.reconcileBlockedDomainPurges.mockRejectedValue(new Error('reconcile exploded'));
+
+    // Fail-soft on purpose: this runs inside the deploy one-shot, and a content
+    // cleanup problem must never stop a release from shipping. Failing to delete
+    // is the safe direction; blocking the deploy is not.
+    await expect(runMigrationTask()).resolves.toBeUndefined();
+    expect(mocks.runMigrations).toHaveBeenCalledOnce();
   });
 });
