@@ -593,7 +593,15 @@ class TrendingService {
         languages: sql<string[]>`coalesce(array_agg(distinct ${posts.language}) filter (where ${posts.language} is not null), array[]::text[])`,
       })
       .from(posts)
-      .innerJoin(sql`lateral unnest(${trendTermUnionSql()}) as trend_term(term)`, sql`true`)
+      // `select distinct` inside the lateral, not a bare `unnest`: the union is
+      // a CONCATENATION of three arrays, so a post that carries the term both as
+      // a hashtag and as an extracted term would unnest twice and be counted
+      // twice. Mongo's `$setUnion` deduplicated per document; this is where that
+      // property lives now.
+      .innerJoin(
+        sql`lateral (select distinct unnest(${trendTermUnionSql()}) as term) as trend_term`,
+        sql`true`,
+      )
       .where(windowMatch)
       .groupBy(sql`trend_term.term`)
       // Cheapest possible narrowing before anything per-term runs.

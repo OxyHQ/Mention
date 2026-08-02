@@ -25,6 +25,7 @@
 
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { randomUUID } from 'node:crypto';
+import { MtnConfig } from '@mention/shared-types';
 import { asc, eq, inArray, lt } from 'drizzle-orm';
 
 import { TrendingType } from '../../models/Trending';
@@ -116,13 +117,16 @@ function batchStamp(offsetMs = 0): Date {
   return at;
 }
 
-async function seedPost(hashtags: string[]): Promise<void> {
+async function seedPost(hashtags: string[], author?: string): Promise<void> {
   const [row] = await db
     .insert(posts)
     .values({
       status: 'published',
       visibility: 'public',
-      createdAt: new Date(Date.now() - 60 * 60 * 1000),
+      // Inside the six-hour RECENT window, so the term bursts against its own
+      // trailing rate rather than sitting flat.
+      createdAt: new Date(Date.now() - 30 * 60 * 1000),
+      oxyUserId: author ?? null,
       hashtags,
     })
     .returning({ id: posts.id });
@@ -292,9 +296,22 @@ describe('getTrending — the wire format is the contract', () => {
     expect(trend).not.toHaveProperty('topicId');
     // Mongo bookkeeping that no reader ever looked at must not reappear.
     expect(trend).not.toHaveProperty('__v');
+    // The whole key set, pinned: a NULL column must be OMITTED rather than
+    // emitted as `null` (the SDK's zod parse rejects a null where it expects
+    // "not there"), so a key appearing here is a claim that the row really
+    // carries a value.
     expect(Object.keys(trend ?? {}).sort()).toEqual([
-      '_id', 'calculatedAt', 'description', 'momentum', 'name', 'rank', 'score', 'type', 'updatedAt', 'volume',
+      '_id', 'authorCount', 'burstScore', 'calculatedAt', 'category', 'description',
+      'displayName', 'momentum', 'name', 'rank', 'score', 'startedAt', 'type',
+      'updatedAt', 'volume',
     ]);
+    // `actorIds` and `languages` are absent here BECAUSE the fixture's are
+    // empty: `saveTrendingBatch` writes an empty list as NULL rather than as
+    // `[]`, so the DTO omits the key. That is the same "absent, never null"
+    // rule as `topicId`, and it is why an empty sample cannot be mistaken for a
+    // resolved-to-nobody one.
+    expect(trend).not.toHaveProperty('actorIds');
+    expect(trend).not.toHaveProperty('languages');
     expect(result.summary).toBe('the summary');
     expect(result.recId).toEqual(expect.any(String));
   });
@@ -445,14 +462,16 @@ describe('getTrending — the reader\'s language orders, never filters', () => {
     return trends.map((trend) => trend.name).filter((name) => names.includes(name));
   }
 
-  it('puts the trends a reader can read first', async () => {
+  it('puts the trends a reader can read ahead of the ones they cannot', async () => {
     const { es, it, none } = await publishLanguageBatch();
 
     const result = await trendingService.getTrending(500, undefined, ['es']);
 
-    // `es` scored LAST and still leads: the reorder beat the score, which is the
-    // whole assertion. A trend with no recorded language matches every reader.
-    expect(ordered(result.trending, [es, it, none])[0]).toBe(es);
+    // `it` scored HIGHEST and is now last: the reorder beat the score, which is
+    // the whole assertion. A trend with NO recorded language is readable by
+    // everyone — it predates trending measuring language — so it stays in the
+    // leading group, and within a group the score order survives.
+    expect(ordered(result.trending, [es, it, none])).toEqual([none, es, it]);
   });
 
   it('still returns the rest — a quiet language is never an empty widget', async () => {
@@ -549,7 +568,21 @@ describe('calculateTrending — end to end', () => {
     const tag = uniqueName('e2e');
     mocks.resolveNames.mockResolvedValue(new Map());
     mocks.updatePopularityFromTrending.mockResolvedValue(undefined);
-    for (let i = 0; i < 3; i += 1) await seedPost([tag]);
+
+    /**
+     * The detection floors, satisfied as DATA rather than stubbed: `minVolume`
+     * posts by `minAuthors`-or-more distinct authors, all inside the recent
+     * window so the burst statistic clears `minBurstScore`.
+     *
+     * The filler is the share-of-corpus ceiling (`maxDocumentFrequency`). Five
+     * posts in a corpus of five is 100% of the window, which is how a term
+     * proves it is VOCABULARY rather than a subject — so the term needs a
+     * network around it to be a trend at all. Sibling suites' rows only enlarge
+     * the denominator further, which is the safe direction.
+     */
+    const authors = MtnConfig.trending.detection.minAuthors + 2;
+    for (let i = 0; i < authors; i += 1) await seedPost([tag], `${tag}-author-${i}`);
+    for (let i = 0; i < 4 * authors; i += 1) await seedPost([uniqueName('filler')]);
 
     await trendingService.calculateTrending();
 
@@ -563,7 +596,7 @@ describe('calculateTrending — end to end', () => {
 
     const result = await trendingService.getTrending(500);
     const trend = result.trending.find((row) => row.name === tag);
-    expect(trend?.volume).toBe(3);
+    expect(trend?.volume).toBe(authors);
     expect(mocks.emitTrendsUpdated).toHaveBeenCalledTimes(1);
 
     // The memoized current-batch token comes from the same row.
