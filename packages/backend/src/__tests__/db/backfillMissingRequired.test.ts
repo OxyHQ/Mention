@@ -34,7 +34,7 @@ import { MongoClient, ObjectId, type Db } from 'mongodb';
 import { auditEnums } from '../../db/backfill/audit';
 import { mongoSourceFromDb, type MongoSource } from '../../db/backfill/mongoSource';
 import { COLLECTION_PLANS } from '../../db/backfill/collectionMap';
-import { tableName } from '../../db/backfill/plan';
+import { tableName, type CollectionPlan } from '../../db/backfill/plan';
 import { posts as postsTable } from '../../db/schema/posts';
 
 let mongod: MongoMemoryServer;
@@ -205,19 +205,47 @@ describe('auditMissingRequired, through auditEnums, on an array-nested path', ()
 });
 
 describe('auditMissingRequired on a field of the DOCUMENT', () => {
-  it('still reports an absent top-level field, array-valued or not', async () => {
-    // `replyPermission` is array-VALUED and lands on `posts` itself, so one row
-    // is emitted per document whatever the field holds — `$exists:false` is the
-    // right question and 147,198 production posts answer yes to it. The fix
-    // must not widen its way past this.
+  /**
+   * The same fixture, audited by a plan that declares NO substitute.
+   *
+   * The real `posts` plan declares `absentAs: 'anyone'` on this path, which
+   * short-circuits the probe before it runs — correct, and it is why the
+   * production finding goes away. But that would also hide a fix that widened
+   * the array branch to swallow array-VALUED columns, so the branch decision is
+   * asserted against a plan built here, where nothing can declare it away.
+   */
+  const undeclared: CollectionPlan = {
+    ...planFor('posts'),
+    enumAudits: [{ path: 'replyPermission', column: postsTable.replyPermission }],
+  };
+
+  it('still reports an absent top-level field that happens to be array-VALUED', async () => {
+    // `replyPermission` holds an array and lands on `posts` itself, so one row
+    // is emitted per document whatever the field contains — `{$exists:false}`
+    // is the right question and 147,198 production posts answer yes to it. What
+    // makes a path ambiguous is an array BETWEEN the document and the leaf,
+    // never an array AT the leaf.
     await mongo.collection('posts').insertMany([
       { _id: id('f1'), content: { text: 'no replyPermission' } },
       { _id: id('f2'), replyPermission: REPLY_PERMISSION, content: { text: 'has one' } },
     ]);
 
-    const finding = findingFor(await auditEnums(source, planFor('posts')), 'replyPermission');
+    const finding = findingFor(await auditEnums(source, undeclared), 'replyPermission');
 
     expect(finding?.documents).toBe(1);
     expect(finding?.sampleIds).toEqual([String(id('f1'))]);
+  });
+
+  it('is silenced on the REAL plan, which declares the substitute the transform applies', async () => {
+    // Not a weaker assertion than the one above — a different one. The probe
+    // still finds the document; the plan states that the transform fills the
+    // value in, so it is not a row Postgres would ever see missing.
+    await mongo.collection('posts').insertMany([
+      { _id: id('f3'), content: { text: 'no replyPermission' } },
+    ]);
+
+    const audit = planFor('posts').enumAudits?.find((entry) => entry.path === 'replyPermission');
+    expect(audit?.absentAs).toBe('anyone');
+    expect(findingFor(await auditEnums(source, planFor('posts')), 'replyPermission')).toBeUndefined();
   });
 });

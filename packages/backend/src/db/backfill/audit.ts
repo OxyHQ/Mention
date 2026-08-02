@@ -236,6 +236,14 @@ function missingWithinStructure(
  *  - a CHILD table is "filled from this collection's subdocument arrays"
  *    ({@link CollectionPlan.childTables}), so a row exists only where an element
  *    does — see {@link missingWithinStructure}.
+ *
+ * **Do not widen the second branch to cover array-VALUED columns.** The two are
+ * easy to conflate and are not the same question: `posts.replyPermission` holds
+ * an array and lives on `posts` itself, so one row is emitted per document
+ * whatever the field contains and `{$exists:false}` is exactly right — 147,198
+ * production posts answer yes to it and every one is a real `23502` were the
+ * transform not substituting. What makes a path ambiguous is an array BETWEEN
+ * the document and the leaf, never an array AT the leaf.
  */
 async function auditMissingRequired(
   source: MongoSource,
