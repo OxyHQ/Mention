@@ -104,6 +104,7 @@ jobs:
       - name: Sync GitHub secrets to SSM
         env:
           ALIA_API_KEY: ${{ secrets.ALIA_API_KEY }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
           FIREBASE_SERVICE_ACCOUNT_BASE64: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_BASE64 }}
           FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
           INTERNAL_METRICS_TOKEN: ${{ secrets.INTERNAL_METRICS_TOKEN }}
@@ -122,7 +123,7 @@ jobs:
           REDIS_URI: ${{ secrets.REDIS_URI }}
           REDIS_URL: ${{ secrets.REDIS_URL }}
           SSM_SECRET_ALLOWLIST: >-
-            ALIA_API_KEY FIREBASE_SERVICE_ACCOUNT_BASE64 FIREBASE_PROJECT_ID
+            ALIA_API_KEY DATABASE_URL FIREBASE_SERVICE_ACCOUNT_BASE64 FIREBASE_PROJECT_ID
             INTERNAL_METRICS_TOKEN KLIPY_APP_KEY MENTION_OXY_CLIENT_ID
             MENTION_DID MENTION_PRIVATE_KEY MENTION_PUBLIC_KEY MONGODB_URI
             OXY_SERVICE_API_KEY OXY_SERVICE_API_SECRET OXY_SERVICE_TOKEN
@@ -185,8 +186,19 @@ jobs:
           IMAGE_URI: ${{ env.ECR_REGISTRY }}/oxy/${{ env.APP }}@${{ steps.build.outputs.digest }}
           RUN_MIGRATIONS: 'true'
           INTERNAL_METRICS_PARAMETER: /oxy/mention/INTERNAL_METRICS_TOKEN
+          # The task definition this deploy registers is derived from the LIVE one,
+          # not from Terraform — `terraform-uswest2` is many revisions behind and
+          # its `image` is `:latest`, so applying it would replace the
+          # digest-pinned image this pipeline runs. Anything that must reach
+          # production therefore goes HERE as well as in the Terraform record.
+          #
+          # DATABASE_URL: the Mongo->Postgres port requires it at boot. Added
+          # ahead of the port so the wiring is proven against an image that
+          # ignores the variable; a missing parameter would otherwise surface as
+          # `ResourceInitializationError: unable to pull secrets` during a cutover.
           TASK_SECRET_OVERRIDES_JSON: >-
-            {"MENTION_MCP_JWT_SECRET":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/mention/MENTION_MCP_JWT_SECRET"}
+            {"MENTION_MCP_JWT_SECRET":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/mention/MENTION_MCP_JWT_SECRET",
+             "DATABASE_URL":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/mention/DATABASE_URL"}
           POST_DEPLOY_TASK_COMMAND_JSON: >-
             ["bun","packages/backend/dist/scripts/reconcile-engagement-projections.js"]
           POST_DEPLOY_SMOKE_SCRIPT: .github/scripts/smoke-mention.sh
