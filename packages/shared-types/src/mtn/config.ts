@@ -8,6 +8,29 @@
 import type { FeedInterstitialKind } from '../feed';
 import { TREND_CATEGORIES } from '../trending';
 
+/**
+ * The trailing window trending measures over.
+ *
+ * Declared once because TWO places must agree: the detection window that
+ * `volume` is counted across, and the sparkline's span. The rule used to live
+ * in a comment — "a point and its axis describe the same span" — and a
+ * first-match edit moved one of them without the other inside an hour. A
+ * comment cannot hold an invariant that a constant can.
+ *
+ * 48 hours, MEASURED against the live corpus (2026-08-03): 24 hours held 547
+ * posts and FOUR terms with three or more distinct authors, two of them stop
+ * words — the whole trending universe was two candidates, so the list was empty
+ * and the widget that renders it disappeared. 48 hours held 1950 posts and 25
+ * candidates, among them `gaza`, `israel`, `palestine`, `caturday`,
+ * `pastpuzzle` and `theater`.
+ *
+ * The cost in precision about WHEN is smaller than it looks: `recentWindowMs`
+ * still decides what counts as happening now, and this is the BASELINE that
+ * recent rate is compared against — a wider baseline makes a genuine spike
+ * stand out more, not less.
+ */
+const TREND_WINDOW_MS = 48 * 60 * 60 * 1000;
+
 export const MtnConfig = {
   // --- Ranking weights ---
   ranking: {
@@ -655,23 +678,7 @@ export const MtnConfig = {
        * cadence, and it matches the window `volume` itself is counted over, so a
        * point and its axis describe the same span.
        */
-      /*
-       * WIDENED from 24h after measuring what each window actually contains
-       * (2026-08-03, live corpus): 24 hours held 547 posts and FOUR terms with
-       * three or more distinct authors, two of which were stop words — the
-       * whole trending universe was two candidates, so the list was empty and
-       * the widget that renders it disappeared. 48 hours held 1950 posts and 25
-       * candidates, among them `gaza`, `israel`, `palestine`, `caturday`,
-       * `pastpuzzle` and `theater`: an actual list.
-       *
-       * The cost is precision about WHEN, and it is smaller than it looks:
-       * `recentWindowMs` still decides what counts as happening now, and this
-       * window is the BASELINE that recent rate is compared against. A wider
-       * baseline makes a genuine spike stand out more, not less. On a network
-       * this size, a day is not enough time for enough people to say the same
-       * thing.
-       */
-      windowMs: 48 * 60 * 60 * 1000,
+      windowMs: TREND_WINDOW_MS,
       /**
        * Points on the wire after downsampling. Fixed so the response size and the
        * SVG geometry are constant no matter how many batches a name appears in
@@ -754,7 +761,7 @@ export const MtnConfig = {
        * `volume` is counted. Also the window the sparkline is drawn over, so a
        * point and its axis describe the same span.
        */
-      windowMs: 24 * 60 * 60 * 1000,
+      windowMs: TREND_WINDOW_MS,
       /**
        * The RECENT window whose rate is tested against the baseline. A quarter
        * of the trailing window: long enough that a handful of posts does not
