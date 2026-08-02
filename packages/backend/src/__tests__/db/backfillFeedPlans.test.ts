@@ -206,6 +206,64 @@ describe('the stored definition', () => {
   });
 });
 
+describe('an interrupted copy', () => {
+  /**
+   * The property that makes a five-table fan-out resumable, tested as the
+   * PARTIAL state rather than as a repeat of a complete one.
+   *
+   * `copyCollection` loads one table at a time and deliberately does not wrap
+   * the batch in a transaction, so a crash midway leaves a feed with some of
+   * its children on disk. The existing idempotence cases copy twice from a
+   * COMPLETE state, which does not exercise that at all — this simulates the
+   * crash by planting only the parent row, then runs the copy and asserts it
+   * converges rather than duplicating.
+   *
+   * The convergence rests on child ids being a pure function of the source. A
+   * random id would insert a SECOND copy of every child that had already
+   * landed, and `ON CONFLICT DO NOTHING` would report success either way.
+   */
+  it('converges from a half-written feed instead of duplicating its children', async () => {
+    const id = new ObjectId();
+    await mongo.collection('customfeeds').insertOne({
+      _id: id,
+      ownerOxyUserId: OWNER,
+      title: 'bfg feed',
+      memberOxyUserIds: ['bfg-a', 'bfg-b'],
+      topicIds: ['bfg-t1'],
+      definition: { mode: 'ranked', sources: [{ module: 'bfg.source.a', enabled: true }] },
+    });
+
+    // The crash: parent and ONE child table landed, the rest did not.
+    await copy('customfeeds');
+    await getDb()
+      .delete(customFeedMembers)
+      .where(eq(customFeedMembers.feedId, id.toHexString()));
+    await getDb()
+      .delete(customFeedTopics)
+      .where(eq(customFeedTopics.feedId, id.toHexString()));
+
+    // The resume: the interrupted batch never advanced the checkpoint, so the
+    // whole document is re-read and every table re-emitted.
+    await copy('customfeeds');
+
+    const feedId = id.toHexString();
+    const db = getDb();
+    // The missing children are restored…
+    expect(await db.select().from(customFeedMembers).where(eq(customFeedMembers.feedId, feedId)))
+      .toHaveLength(2);
+    expect(await db.select().from(customFeedTopics).where(eq(customFeedTopics.feedId, feedId)))
+      .toHaveLength(1);
+    // …and the one that survived is NOT duplicated.
+    expect(
+      await db
+        .select()
+        .from(customFeedDefinitionModules)
+        .where(eq(customFeedDefinitionModules.feedId, feedId))
+    ).toHaveLength(1);
+    expect(await db.select().from(customFeeds).where(eq(customFeeds.id, feedId))).toHaveLength(1);
+  });
+});
+
 describe('the denormalized counters', () => {
   it('copies them verbatim rather than recomputing from the rows', async () => {
     const id = new ObjectId();

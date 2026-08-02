@@ -47,13 +47,52 @@
  *   That run pays for the referential pass twice, and that is the correct
  *   trade: the alternative is destroying rows on a guess.
  *
+ * ## What an interrupted run leaves behind — read this before hand-repairing
+ *
+ * A document that produces rows in several tables is **not** written
+ * atomically. `copyCollection` loads one table at a time (COPY → staging →
+ * `INSERT … ON CONFLICT DO NOTHING`) and deliberately does NOT wrap the batch
+ * in one transaction: the FK order already guarantees a parent lands before its
+ * child, and a batch-wide transaction would hold every table's locks for the
+ * whole batch while buying nothing. So a crash midway through a batch can leave
+ * a `custom_feeds` row with its definition modules and no members, or a `posts`
+ * row with media and no mentions, ON DISK.
+ *
+ * **That partial state cannot survive a resume, and no checkpoint needs
+ * repairing by hand.** The checkpoint is written only AFTER every table in the
+ * batch is loaded, so an interrupted batch never advanced it; the resume
+ * re-reads from the last COMPLETED batch's `_id` and re-emits every row of
+ * every document in the interrupted one. The rows that already landed become
+ * no-ops and the missing ones are written.
+ *
+ * What actually carries that convergence is worth stating precisely, because
+ * the obvious answer is wrong. The loader's `ON CONFLICT DO NOTHING` names **no
+ * conflict target**, so it fires on ANY unique constraint — and every child
+ * table in this schema has a NATURAL unique key (`(post_id, position)`,
+ * `(feed_id, oxy_user_id)`, `(preference_id, key)`, …). Those keys are what
+ * make the re-emitted rows no-ops, and they would do so even if the ids were
+ * random. Measured, not reasoned: making `childRowId` non-deterministic leaves
+ * the convergence test green.
+ *
+ * The derived id's determinism is therefore the SECOND line, not the first —
+ * and it is the only line for any future child table added without a natural
+ * unique key, where a random id would turn a partial batch into a duplicated
+ * one with `ON CONFLICT DO NOTHING` reporting success either way. That is why
+ * `src/__tests__/db/backfillChildKeys.test.ts` asserts every child table has
+ * one rather than leaving it to whoever adds the next.
+ *
+ * The transient partial is acceptable because nothing reads Postgres during the
+ * cutover copy. If that ever stops being true, this is the paragraph to revisit.
+ *
  * ## Safety
  *
  * - MongoDB access is read-only BY CONSTRUCTION (`mongoSource.ts` hands out a
  *   Proxy that throws on anything but a read).
  * - Every insert is `ON CONFLICT DO NOTHING`, so an interrupted run resumes.
  *   That is idempotence, NOT convergence — see `db/backfill/reset.ts`; a fresh
- *   run into a non-empty target is refused rather than mixed.
+ *   run into a non-empty target is refused rather than mixed, because filling
+ *   gaps without refreshing rows would leave one table holding two points in
+ *   time.
  * - Checkpoints live in Postgres (`mention_backfill_checkpoints`), so a resumed
  *   run needs no file to have survived the task that wrote it.
  */
