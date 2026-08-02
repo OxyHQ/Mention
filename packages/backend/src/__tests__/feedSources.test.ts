@@ -76,10 +76,11 @@ const settingsOwners: string[] = [];
 /**
  * Lanes and channels the suite created, cleaned in the same `afterEach`.
  *
- * ORDER MATTERS on the way out: `posts.channel_id` is `ON DELETE CASCADE`, so a
- * channel deleted before its posts takes them with it — and a post the suite
- * believes it deleted itself is a post whose absence proves nothing. Posts go
- * first, then lanes and channels.
+ * Posts go first, then lanes and channels. That order USED to be load-bearing:
+ * `posts.channel_id` was `ON DELETE CASCADE`, so a channel deleted before its
+ * posts took them with it — and a post the suite believes it deleted itself is
+ * a post whose absence proves nothing. Migration `0012` made that column
+ * `ON DELETE SET NULL`, so the hazard is gone and the order is now only tidy.
  */
 const laneIds: string[] = [];
 const channelIds: string[] = [];

@@ -34,20 +34,28 @@
 import mongoose from 'mongoose';
 import { logger } from '../utils/logger';
 import { MIGRATION_LANE_INDEXES } from './constants';
-import { Lane } from '../models/Lane';
-import { LaneMute } from '../models/LaneMute';
 import type { Migration } from './runner';
+
+/**
+ * Named here rather than read off a Mongoose model, because lanes now live in
+ * Postgres (`lanes`, `lane_mutes`) and the models are gone. A landed migration
+ * is frozen history: it repairs the indexes of a PRE-CUTOVER Mongo collection,
+ * so it must keep naming what that collection was called at the time and must
+ * not follow a live constant that could be renamed underneath it.
+ */
+const LANE_COLLECTION = 'lanes';
+const LANE_MUTE_COLLECTION = 'lanemutes';
 
 export const migrationLaneIndexes: Migration = {
   id: MIGRATION_LANE_INDEXES,
 
   async run(db: mongoose.mongo.Db): Promise<void> {
-    const lanes = db.collection(Lane.collection.collectionName);
+    const lanes = db.collection(LANE_COLLECTION);
     await lanes.createIndex({ ownerType: 1, ownerId: 1, createdAt: -1 });
     await lanes.createIndex({ ownerType: 1, ownerId: 1, nameLower: 1 }, { unique: true });
     await lanes.createIndex({ ownerType: 1, ownerId: 1, displayMode: 1 });
 
-    const mutes = db.collection(LaneMute.collection.collectionName);
+    const mutes = db.collection(LANE_MUTE_COLLECTION);
     await mutes.createIndex({ viewerOxyUserId: 1, laneId: 1 }, { unique: true });
     await mutes.createIndex({ viewerOxyUserId: 1, createdAt: -1 });
 

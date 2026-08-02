@@ -554,8 +554,9 @@ export const laneSource: SourceModule = {
  * `channel`: ONE channel's page. Param `{ channelId }`.
  *
  * This is the ONLY surface a channel post is reachable from in a feed. Every
- * author-relationship query excludes it unconditionally
- * (`EXCLUDE_CHANNEL_POSTS`), which is the whole point: a channel post belongs to
+ * author-relationship query excludes it unconditionally (the
+ * `isNull(posts.channelId)` term inside `followedAuthorsSql`,
+ * `utils/postAuthorship`), which is the whole point: a channel post belongs to
  * the channel, and what appears on the writer's profile is a BOOST of it, if they
  * made one.
  *

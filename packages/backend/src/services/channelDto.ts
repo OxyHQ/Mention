@@ -14,46 +14,41 @@ import type {
   Channel as ChannelDTO,
   ChannelViewerState,
 } from '@mention/shared-types';
+import type { ChannelRow } from '../db/channels/channelRepository';
 
-/** Shape of a `Channel` document as the read paths load it back. */
-export interface ChannelLean {
-  _id: unknown;
-  handle: string;
-  title: string;
-  description?: string;
-  avatar?: string;
-  banner?: string;
-  ownerOxyUserId: string;
-  visibility: string;
-  signPosts?: boolean;
-  followerCount?: number;
-  memberCount?: number;
-  postCount?: number;
-  createdAt: Date;
-  updatedAt: Date;
-}
-
+/**
+ * Serialize one channel row.
+ *
+ * Every optional DTO field is OMITTED rather than sent as `null`: Postgres hands
+ * back `null` for an unset `text` column where Mongo simply left the key out,
+ * and `Channel.description` is `string | undefined`. Emitting the `null` would
+ * typecheck nowhere and render as the string "null" in any client that trusts
+ * truthiness less than the type.
+ *
+ * `visibility` is the STORED value rather than a literal. `ChannelVisibility`
+ * has one member today, so the column's type is that one member and this reads
+ * as a constant — but it is the row that decides, so a second level added to the
+ * enum reaches the wire without anyone having to remember this line exists.
+ */
 export function serializeChannel(
-  doc: ChannelLean,
+  row: ChannelRow,
   viewerState?: ChannelViewerState,
 ): ChannelDTO {
   return {
-    id: String(doc._id),
-    handle: doc.handle,
-    title: doc.title,
-    ...(doc.description ? { description: doc.description } : {}),
-    ...(doc.avatar ? { avatar: doc.avatar } : {}),
-    ...(doc.banner ? { banner: doc.banner } : {}),
-    ownerOxyUserId: doc.ownerOxyUserId,
-    // The stored value is the authority; the cast is safe because the schema enum
-    // is the same list the DTO type is built from.
-    visibility: 'public',
-    signPosts: doc.signPosts === true,
-    followerCount: doc.followerCount ?? 0,
-    memberCount: doc.memberCount ?? 0,
-    postCount: doc.postCount ?? 0,
-    createdAt: doc.createdAt.toISOString(),
-    updatedAt: doc.updatedAt.toISOString(),
+    id: row.id,
+    handle: row.handle,
+    title: row.title,
+    ...(row.description ? { description: row.description } : {}),
+    ...(row.avatar ? { avatar: row.avatar } : {}),
+    ...(row.banner ? { banner: row.banner } : {}),
+    ownerOxyUserId: row.ownerOxyUserId,
+    visibility: row.visibility,
+    signPosts: row.signPosts,
+    followerCount: row.followerCount,
+    memberCount: row.memberCount,
+    postCount: row.postCount,
+    createdAt: row.createdAt.toISOString(),
+    updatedAt: row.updatedAt.toISOString(),
     ...(viewerState ? { viewerState } : {}),
   };
 }

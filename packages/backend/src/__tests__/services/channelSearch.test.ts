@@ -1,225 +1,352 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import mongoose, { type PipelineStage } from 'mongoose';
-
 /**
- * Finding a channel by name.
+ * Finding a channel by name, against real rows.
  *
- * The pipeline is asserted STAGE BY STAGE rather than through its results,
- * because the properties that matter are properties of the query Mongo is asked
- * to run: a `visibility` filter applied after the fact would produce identical
- * results today (one visibility value exists) and leak on the day a second one
- * does, and an unescaped term produces identical results for every query that
- * happens to contain no metacharacter.
+ * The old suite asserted the Mongo pipeline STAGE BY STAGE and said in its own
+ * docblock that the ordering "is verified against a real mongod separately — a
+ * mock cannot evaluate `$switch` or `$regexMatch`". It never was. The port makes
+ * that unnecessary: every ranking case below is decided by Postgres evaluating
+ * the real `case` expression, so the relevance order is a fact about the query
+ * rather than about the shape of an object handed to a mock.
  *
- * The ordering the pipeline expresses is verified against a real mongod
- * separately — a mock cannot evaluate `$switch` or `$regexMatch`.
+ * Each ranking fixture is arranged so **`follower_count` would produce the
+ * OPPOSITE order**. Without that the tiers and the tiebreak are indistinguishable
+ * and every case passes on the wrong reason.
+ *
+ * ## Two properties are deliberately not covered, and neither can be today
+ *
+ *  - **`visibility` is a WHERE clause rather than a post-filter.**
+ *    `CHANNEL_VISIBILITIES` has one member and `channels_visibility_check`
+ *    refuses anything else, so no fixture can produce a row the clause would
+ *    exclude. The reason the clause exists is the day a second tier is added; a
+ *    case seeded then is what will make it observable.
+ *  - **`statement_timeout`.** It bounds a query slow enough to hit it, and this
+ *    table holds tens of rows.
  */
 
-const aggregate = vi.fn();
-const option = vi.fn();
-const exec = vi.fn();
+import { randomUUID } from 'node:crypto';
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { inArray } from 'drizzle-orm';
+import { MAX_CHANNEL_DESCRIPTION_LENGTH } from '@mention/shared-types';
 
-vi.mock('../../models/Channel', () => ({
-  Channel: { aggregate: (...args: unknown[]) => aggregate(...args) },
-}));
-
+import { closePostgres, connectPostgres, getDb } from '../../db/postgres';
+import { channels } from '../../db/schema/channels';
 import {
   CHANNEL_SEARCH_RANK,
   MAX_CHANNEL_SEARCH_OFFSET,
   searchChannels,
 } from '../../services/channelSearch';
 
-/** A lean `Channel` row, as the aggregation hands one back. */
-function channelRow(overrides: Record<string, unknown> = {}) {
-  return {
-    _id: 'channel-1',
-    handle: 'weather',
-    title: 'Weather',
-    ownerOxyUserId: 'owner-1',
-    visibility: 'public',
-    signPosts: true,
-    followerCount: 12,
-    memberCount: 2,
-    postCount: 40,
-    createdAt: new Date('2026-01-01T00:00:00.000Z'),
-    updatedAt: new Date('2026-01-02T00:00:00.000Z'),
-    ...overrides,
-  };
+const run = randomUUID().replace(/-/g, '').slice(0, 8);
+const createdChannelIds: string[] = [];
+let handleSeq = 0;
+
+/**
+ * A term no other suite's channel can contain, so a global search over a shared
+ * table still answers about this file's rows only.
+ */
+function uniqueTerm(): string {
+  return `t${run}${(handleSeq += 1).toString().padStart(3, '0')}`;
 }
 
-/** The pipeline the last call handed to `Channel.aggregate`. */
-function lastPipeline(): PipelineStage[] {
-  return aggregate.mock.calls[aggregate.mock.calls.length - 1][0] as PipelineStage[];
+async function seedChannel(
+  overrides: Partial<typeof channels.$inferInsert> = {},
+): Promise<typeof channels.$inferSelect> {
+  const handle = overrides.handle ?? `c${run}${(handleSeq += 1).toString().padStart(3, '0')}`;
+  const [row] = await getDb()
+    .insert(channels)
+    .values({
+      handle,
+      handleLower: handle.toLowerCase(),
+      title: 'a channel',
+      ownerOxyUserId: `owner-${run}`,
+      ...overrides,
+    })
+    .returning();
+  createdChannelIds.push(row.id);
+  return row;
 }
 
-function stage<T = Record<string, unknown>>(operator: string): T {
-  const found = lastPipeline().find((entry) => operator in entry);
-  if (!found) throw new Error(`no ${operator} stage in the pipeline`);
-  return (found as Record<string, T>)[operator];
-}
-
-beforeEach(() => {
-  vi.clearAllMocks();
-  aggregate.mockReturnValue({ option, exec });
-  option.mockReturnValue({ exec });
-  exec.mockResolvedValue([]);
+beforeAll(async () => {
+  await connectPostgres();
 });
 
-describe('searchChannels', () => {
-  it('asks Mongo for public channels only, as a match clause', async () => {
-    await searchChannels('weather', { limit: 20, offset: 0 });
+afterEach(async () => {
+  if (createdChannelIds.length > 0) {
+    await getDb().delete(channels).where(inArray(channels.id, createdChannelIds.splice(0)));
+  }
+});
 
-    expect(stage('$match')).toMatchObject({ visibility: 'public' });
+afterAll(async () => {
+  await closePostgres();
+});
+
+describe('searchChannels — what it matches', () => {
+  it('matches the handle, the title and the description', async () => {
+    const term = uniqueTerm();
+    const byHandle = await seedChannel({ handle: `x${term}` });
+    const byTitle = await seedChannel({ title: `About ${term}` });
+    const byDescription = await seedChannel({ description: `Covering ${term} daily` });
+
+    const page = await searchChannels(term, { limit: 20, offset: 0 });
+
+    expect(page.items.map((item) => item.id).sort()).toEqual(
+      [byHandle.id, byTitle.id, byDescription.id].sort(),
+    );
   });
 
-  it('escapes the term before it reaches a regex', async () => {
-    await searchChannels('we.*ther', { limit: 20, offset: 0 });
+  it('is case-insensitive on all three fields', async () => {
+    const term = uniqueTerm();
+    const channel = await seedChannel({ title: `About ${term.toUpperCase()}` });
 
-    // EVERY regex position in the whole pipeline, not just the `$match` ones: an
-    // escaped `$match` in front of an unescaped `$regexMatch` would still hand a
-    // user-supplied pattern to the ranking stage.
-    const patterns = [...JSON.stringify(lastPipeline()).matchAll(/"(?:\$regex|regex)":"(.*?)","/g)]
-      .map((occurrence) => occurrence[1]);
-    expect(patterns).toEqual(Array(5).fill('we\\\\.\\\\*ther'));
+    const page = await searchChannels(term.toUpperCase(), { limit: 20, offset: 0 });
 
-    // The one place the RAW term survives is the exact-handle tier, which is a
-    // literal string equality and not a pattern — `.*` there matches the channel
-    // literally handled `we.*ther`, which cannot exist, rather than every channel.
-    const branches = stage<{ searchRank: { $switch: { branches: Array<{ case: unknown }> } } }>('$addFields')
-      .searchRank.$switch.branches;
-    expect(branches[0].case).toEqual({ $eq: ['$handleLower', 'we.*ther'] });
+    expect(page.items.map((item) => item.id)).toEqual([channel.id]);
   });
 
-  it('matches handle, title and description', async () => {
-    await searchChannels('weather', { limit: 20, offset: 0 });
+  it('escapes the LIKE wildcards rather than letting them match everything', async () => {
+    // The Mongo version escaped REGEX metacharacters; the alphabet changed with
+    // the port and `%` is the one that matters — unescaped it is a
+    // match-everything wildcard, which is the same hole in a different spelling.
+    const channel = await seedChannel({ title: `About ${uniqueTerm()}` });
 
-    const match = stage<{ $or: Array<Record<string, unknown>> }>('$match');
-    expect(match.$or.map((clause) => Object.keys(clause)[0])).toEqual([
-      'handleLower',
-      'title',
-      'description',
+    for (const wildcard of ['%', '_', '%%%']) {
+      const page = await searchChannels(wildcard, { limit: 50, offset: 0 });
+      expect(page.items.map((item) => item.id)).not.toContain(channel.id);
+    }
+  });
+
+  it('finds a literal wildcard when a channel really contains one', async () => {
+    // The control for the case above: escaping must make `%` searchable, not
+    // unsearchable.
+    const term = uniqueTerm();
+    const channel = await seedChannel({ title: `100% ${term}` });
+
+    const page = await searchChannels(`100% ${term}`, { limit: 20, offset: 0 });
+
+    expect(page.items.map((item) => item.id)).toEqual([channel.id]);
+  });
+
+  it('returns nothing for a blank term — a search box nobody typed in asked nothing', async () => {
+    await seedChannel({ title: `About ${uniqueTerm()}` });
+
+    expect(await searchChannels('', { limit: 20, offset: 0 })).toEqual({
+      items: [],
+      hasMore: false,
+    });
+    expect(await searchChannels('   ', { limit: 20, offset: 0 })).toEqual({
+      items: [],
+      hasMore: false,
+    });
+  });
+
+  it('truncates a term longer than the longest field it could match', async () => {
+    // Discriminating BECAUSE the description is exactly as long as the cap: the
+    // term matches once its tail is cut and matches nothing if it is not, so the
+    // truncation is observable in the RESULT rather than only in the work saved.
+    const term = uniqueTerm();
+    const description = term.padEnd(MAX_CHANNEL_DESCRIPTION_LENGTH, 'a');
+    const channel = await seedChannel({ description });
+
+    const page = await searchChannels(description + 'z'.repeat(100), { limit: 20, offset: 0 });
+
+    expect(description).toHaveLength(MAX_CHANNEL_DESCRIPTION_LENGTH);
+    expect(page.items.map((item) => item.id)).toEqual([channel.id]);
+  });
+});
+
+describe('searchChannels — relevance', () => {
+  /**
+   * One channel per tier, with `follower_count` DESCENDING in the opposite
+   * direction — so an implementation that ranked by followers alone would return
+   * the exact reverse of the expected order.
+   */
+  async function seedOneOfEachTier(term: string) {
+    const exactHandle = await seedChannel({ handle: term, followerCount: 1 });
+    const handleSubstring = await seedChannel({ handle: `x${term}y`, followerCount: 2 });
+    const title = await seedChannel({ title: `About ${term}`, followerCount: 3 });
+    const description = await seedChannel({
+      description: `Covering ${term}`,
+      followerCount: 4,
+    });
+    return { exactHandle, handleSubstring, title, description };
+  }
+
+  it('ranks an exact handle above a handle substring, a title, then a description', async () => {
+    const term = uniqueTerm();
+    const tiers = await seedOneOfEachTier(term);
+
+    const page = await searchChannels(term, { limit: 20, offset: 0 });
+
+    expect(page.items.map((item) => item.id)).toEqual([
+      tiers.exactHandle.id,
+      tiers.handleSubstring.id,
+      tiers.title.id,
+      tiers.description.id,
     ]);
   });
 
-  it('ranks an exact handle above a handle substring, a title, then a description', async () => {
-    await searchChannels('Weather', { limit: 20, offset: 0 });
-
-    const branches = stage<{ searchRank: { $switch: { branches: Array<{ case: unknown; then: number }>; default: number } } }>('$addFields')
-      .searchRank.$switch;
-
-    // LITERAL values, deliberately, not `CHANNEL_SEARCH_RANK.*`: asserting the
-    // constants against themselves passes however they are reordered, and a
-    // `$sort` reads the emitted numbers, not the names. Verified by mutation —
-    // swapping the constants leaves this the only assertion that fails.
-    expect(branches.branches.map((branch) => branch.then)).toEqual([0, 1, 2]);
-    expect(branches.default).toBe(3);
-
-    // ...and the emitted numbers are what the named tiers mean, so a caller
-    // reading `CHANNEL_SEARCH_RANK` is reading the real order.
+  it('the tiers are the ones the exported constant names', async () => {
+    // The constant is what a caller reads to reason about the order; a rank
+    // table that stopped agreeing with the query would be a silent lie.
     expect(CHANNEL_SEARCH_RANK.exactHandle).toBeLessThan(CHANNEL_SEARCH_RANK.handle);
     expect(CHANNEL_SEARCH_RANK.handle).toBeLessThan(CHANNEL_SEARCH_RANK.title);
     expect(CHANNEL_SEARCH_RANK.title).toBeLessThan(CHANNEL_SEARCH_RANK.description);
-
-    // The best tier is the one whose case is the exact-handle comparison, against
-    // the canonical (lowercased) handle — the only spelling `handleLower` holds.
-    expect(branches.branches[0].case).toEqual({ $eq: ['$handleLower', 'weather'] });
   });
 
-  it('sorts by rank, then followers, then _id — a total order, so offsets never repeat a row', async () => {
-    await searchChannels('weather', { limit: 20, offset: 0 });
+  it('breaks a tier tie by follower count', async () => {
+    const term = uniqueTerm();
+    const popular = await seedChannel({ title: `About ${term}`, followerCount: 90 });
+    const quiet = await seedChannel({ title: `Also about ${term}`, followerCount: 5 });
 
-    expect(stage('$sort')).toEqual({ searchRank: 1, followerCount: -1, _id: -1 });
+    const page = await searchChannels(term, { limit: 20, offset: 0 });
+
+    expect(page.items.map((item) => item.id)).toEqual([popular.id, quiet.id]);
   });
 
-  it('bounds the read: skip, overfetch by exactly one, and a time limit', async () => {
-    await searchChannels('weather', { limit: 20, offset: 40 });
+  it('breaks a follower tie by id, so the order is TOTAL and an offset page never repeats a row', async () => {
+    const term = uniqueTerm();
+    const first = await seedChannel({ title: `About ${term}`, followerCount: 7 });
+    const second = await seedChannel({ title: `Also ${term}`, followerCount: 7 });
 
-    expect(stage<number>('$skip')).toBe(40);
-    expect(stage<number>('$limit')).toBe(21);
-    expect(option).toHaveBeenCalledWith({ maxTimeMS: 3_000 });
+    const all = await searchChannels(term, { limit: 20, offset: 0 });
+    const pageOne = await searchChannels(term, { limit: 1, offset: 0 });
+    const pageTwo = await searchChannels(term, { limit: 1, offset: 1 });
+
+    // Descending id, which is what the query orders by — the values are `text`,
+    // so this is a stable collation order rather than a chronological one.
+    const expected = [first.id, second.id].sort().reverse();
+    expect(all.items.map((item) => item.id)).toEqual(expected);
+    expect(pageOne.items.map((item) => item.id)).toEqual([expected[0]]);
+    expect(pageTwo.items.map((item) => item.id)).toEqual([expected[1]]);
   });
+});
 
-  it('reports hasMore from the overfetched row and does not return it', async () => {
-    exec.mockResolvedValue([
-      channelRow({ _id: 'a' }),
-      channelRow({ _id: 'b' }),
-      channelRow({ _id: 'c' }),
-    ]);
+describe('searchChannels — paging', () => {
+  it('overfetches by exactly one and does not return the extra row', async () => {
+    const term = uniqueTerm();
+    await seedChannel({ title: `About ${term}`, followerCount: 3 });
+    await seedChannel({ title: `About ${term} too`, followerCount: 2 });
 
-    const page = await searchChannels('weather', { limit: 2, offset: 0 });
+    const page = await searchChannels(term, { limit: 1, offset: 0 });
 
+    expect(page.items).toHaveLength(1);
     expect(page.hasMore).toBe(true);
-    expect(page.items.map((item) => item.id)).toEqual(['a', 'b']);
   });
 
   it('reports hasMore false when the page is not full', async () => {
-    exec.mockResolvedValue([channelRow({ _id: 'a' })]);
+    const term = uniqueTerm();
+    await seedChannel({ title: `About ${term}` });
 
-    const page = await searchChannels('weather', { limit: 2, offset: 0 });
+    const page = await searchChannels(term, { limit: 20, offset: 0 });
 
-    expect(page.hasMore).toBe(false);
     expect(page.items).toHaveLength(1);
+    expect(page.hasMore).toBe(false);
   });
 
+  it('reports hasMore false when the page is EXACTLY full', async () => {
+    const term = uniqueTerm();
+    await seedChannel({ title: `About ${term}`, followerCount: 2 });
+    await seedChannel({ title: `Also ${term}`, followerCount: 1 });
+
+    const page = await searchChannels(term, { limit: 2, offset: 0 });
+
+    expect(page.items).toHaveLength(2);
+    expect(page.hasMore).toBe(false);
+  });
+
+  it('offsets into the ranked order', async () => {
+    const term = uniqueTerm();
+    await seedChannel({ title: `About ${term}`, followerCount: 3 });
+    const middle = await seedChannel({ title: `Also ${term}`, followerCount: 2 });
+    await seedChannel({ title: `Third ${term}`, followerCount: 1 });
+
+    const page = await searchChannels(term, { limit: 1, offset: 1 });
+
+    expect(page.items.map((item) => item.id)).toEqual([middle.id]);
+  });
+
+  it('exports the offset ceiling the route clamps to', async () => {
+    // The ceiling is the CALLER's to enforce and `routes/channels.routes.ts`
+    // does; this module publishes the number so there is only one of it.
+    expect(MAX_CHANNEL_SEARCH_OFFSET).toBeGreaterThan(0);
+  });
+});
+
+describe('searchChannels — exclusions', () => {
+  it('leaves out the excluded channels', async () => {
+    const term = uniqueTerm();
+    const excluded = await seedChannel({ title: `About ${term}`, followerCount: 2 });
+    const kept = await seedChannel({ title: `Also ${term}`, followerCount: 1 });
+
+    const page = await searchChannels(term, {
+      limit: 20,
+      offset: 0,
+      excludeChannelIds: [excluded.id],
+    });
+
+    expect(page.items.map((item) => item.id)).toEqual([kept.id]);
+  });
+
+  it('CONTROL: excludes nothing when the caller excludes nothing', async () => {
+    const term = uniqueTerm();
+    const channel = await seedChannel({ title: `About ${term}` });
+
+    for (const excludeChannelIds of [undefined, []]) {
+      const page = await searchChannels(term, { limit: 20, offset: 0, excludeChannelIds });
+      expect(page.items.map((item) => item.id)).toEqual([channel.id]);
+    }
+  });
+});
+
+describe('searchChannels — the DTO', () => {
   it('serializes through the shared channel DTO', async () => {
-    exec.mockResolvedValue([channelRow({ description: 'Forecasts', avatar: 'file-1' })]);
+    const term = uniqueTerm();
+    const channel = await seedChannel({
+      title: `About ${term}`,
+      description: 'A description',
+      signPosts: true,
+      followerCount: 12,
+      memberCount: 2,
+      postCount: 40,
+    });
 
-    const page = await searchChannels('weather', { limit: 20, offset: 0 });
+    const [item] = (await searchChannels(term, { limit: 20, offset: 0 })).items;
 
-    expect(page.items[0]).toEqual({
-      id: 'channel-1',
-      handle: 'weather',
-      title: 'Weather',
-      description: 'Forecasts',
-      avatar: 'file-1',
-      ownerOxyUserId: 'owner-1',
+    expect(item).toEqual({
+      id: channel.id,
+      handle: channel.handle,
+      title: `About ${term}`,
+      description: 'A description',
+      ownerOxyUserId: `owner-${run}`,
       visibility: 'public',
       signPosts: true,
       followerCount: 12,
       memberCount: 2,
       postCount: 40,
-      createdAt: '2026-01-01T00:00:00.000Z',
-      updatedAt: '2026-01-02T00:00:00.000Z',
+      createdAt: channel.createdAt.toISOString(),
+      updatedAt: channel.updatedAt.toISOString(),
     });
-    // A search result is nobody's own relationship to a channel — the viewer
-    // state comes from the channel's own page, which loads it.
-    expect(page.items[0]).not.toHaveProperty('viewerState');
   });
 
-  it('returns nothing for a blank term without touching the database', async () => {
-    const page = await searchChannels('   ', { limit: 20, offset: 0 });
+  it('omits an absent description rather than sending null', async () => {
+    // Postgres answers `null` where Mongo left the key out, and
+    // `Channel.description` is `string | undefined`.
+    const term = uniqueTerm();
+    await seedChannel({ title: `About ${term}` });
 
-    expect(page).toEqual({ items: [], hasMore: false });
-    expect(aggregate).not.toHaveBeenCalled();
+    const [item] = (await searchChannels(term, { limit: 20, offset: 0 })).items;
+
+    expect(item).not.toHaveProperty('description');
+    expect(item).not.toHaveProperty('avatar');
+    expect(item).not.toHaveProperty('banner');
   });
 
-  it('truncates an absurdly long term rather than matching on it', async () => {
-    await searchChannels('a'.repeat(5_000), { limit: 20, offset: 0 });
+  it('never carries a viewerState — search is reader-agnostic', async () => {
+    const term = uniqueTerm();
+    await seedChannel({ title: `About ${term}` });
 
-    const match = stage<{ $or: Array<Record<string, { $regex: string }>> }>('$match');
-    expect(match.$or[0].handleLower.$regex.length).toBe(300);
-  });
+    const [item] = (await searchChannels(term, { limit: 20, offset: 0 })).items;
 
-  it('leaves out the excluded channels, in the same clause as the visibility gate', async () => {
-    const excluded = new mongoose.Types.ObjectId();
-    await searchChannels('weather', { limit: 20, offset: 0, excludeChannelIds: [excluded] });
-
-    expect(stage('$match')).toMatchObject({ _id: { $nin: [excluded] } });
-  });
-
-  it('CONTROL: no exclusion clause when the caller excludes nothing', async () => {
-    await searchChannels('weather', { limit: 20, offset: 0, excludeChannelIds: [] });
-
-    expect(stage('$match')).not.toHaveProperty('_id');
-  });
-
-  it('CONTROL: the offset ceiling is the caller\'s to enforce, and the route does', async () => {
-    // `searchChannels` trusts the bounds it is given — the clamp lives at the
-    // HTTP boundary, where the untrusted value arrives. This asserts the constant
-    // the route clamps to is exported and non-trivial, so the two cannot drift
-    // apart silently.
-    expect(MAX_CHANNEL_SEARCH_OFFSET).toBeGreaterThan(0);
-    await searchChannels('weather', { limit: 20, offset: MAX_CHANNEL_SEARCH_OFFSET });
-    expect(stage<number>('$skip')).toBe(MAX_CHANNEL_SEARCH_OFFSET);
+    expect(item).not.toHaveProperty('viewerState');
   });
 });

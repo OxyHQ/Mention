@@ -54,22 +54,24 @@ export interface IPost extends Document {
   boostOf?: string; // original post id
   quoteOf?: string; // quoted post id
   /**
-   * The author's own lane for this post, when it has one — see `models/Lane`.
+   * The author's own lane for this post, when it has one — see `lanes` in
+   * `db/schema/channels.ts`.
    * Purely local curation: it never federates, never enters an MTN record, and
    * never changes who the post reaches. Only ORIGINAL local posts carry one
    * (replies and boosts are refused at the write boundary).
    */
   laneId?: string;
   /**
-   * The channel this post was published TO, when it has one — see `models/Channel`.
+   * The channel this post was published TO, when it has one — see `channels` in
+   * `db/schema/channels.ts`.
    *
    * A lane is a lens; a channel is a DESTINATION. A post that carries one belongs
    * to the channel and only to the channel: it is excluded unconditionally from
-   * every author-relationship query (see `EXCLUDE_CHANNEL_POSTS` in
-   * `utils/postAuthorship`), and it accepts no replies (see
-   * `utils/channelReplyGate`). There is deliberately no companion boolean — the
-   * presence of this field IS the rule, which is what keeps the exclusion a flat
-   * conjunctive term rather than a disjunction `ChronoCursor` would clobber.
+   * every author-relationship query (the `isNull(posts.channelId)` term inside
+   * `followedAuthorsSql`, `utils/postAuthorship`), and it accepts no replies
+   * (see `utils/channelReplyGate`). There is deliberately no companion boolean —
+   * the presence of this field IS the rule, which is what keeps the exclusion a
+   * flat conjunctive term rather than a disjunction `ChronoCursor` would clobber.
    */
   channelId?: string;
   parentPostId?: string; // for replies
