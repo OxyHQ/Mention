@@ -65,6 +65,7 @@ import type { CollectionPlan, ExcludedCollection } from './plan';
 import { planTables, tableName } from './plan';
 import { DISCOVERY_PLANS } from './plans/discovery';
 import { ENGAGEMENT_PLANS } from './plans/engagement';
+import { FEDERATION_PLANS } from './plans/federation';
 import { GATE_PLANS } from './plans/gates';
 import { MTN_PLANS } from './plans/mtn';
 import { OUTBOX_PLANS } from './plans/outbox';
@@ -129,6 +130,7 @@ export const COLLECTION_PLANS: readonly CollectionPlan[] = [
   ...GATE_PLANS,
   ...POLL_PLANS,
   ...POST_PLANS,
+  ...FEDERATION_PLANS,
 ];
 
 /**
