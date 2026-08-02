@@ -1,10 +1,11 @@
 import React, { useCallback, useEffect, useMemo } from 'react';
-import { View, Text, SectionList, type SectionListData } from 'react-native';
+import { View, Text, Pressable, SectionList, type SectionListData } from 'react-native';
 import { SpinnerIcon } from '@oxyhq/bloom/loading';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
+import { useRouter } from 'expo-router';
 
 import { trendingService, type TrendingTopic, type TrendingDay } from '@/services/trendingService';
 import { TrendItemRow } from '@/components/trending/TrendItemRow';
@@ -97,6 +98,7 @@ function topicToTrend(topic: TrendingTopic): Trend {
 export default function ExploreTrendingScreen() {
   const theme = useTheme();
   const { t } = useTranslation();
+  const router = useRouter();
   const { navigateToTrend } = useTrendNavigation();
   const handleMenuPress = useTrendItemMenu();
 
@@ -209,16 +211,28 @@ export default function ExploreTrendingScreen() {
     [theme],
   );
 
-  const renderHeader = useCallback(() => {
-    if (!summary) return null;
-    return (
-      <View className="px-4 pt-3 pb-1">
+  // The relation graph explains this list, so its way in belongs ON the list.
+  // Rendered unconditionally: an entry point that appears only when there
+  // happens to be a summary is an entry point most readers never see.
+  const renderHeader = useCallback(() => (
+    <View className="px-4 pt-3 pb-1 gap-2">
+      {summary ? (
         <Text className="text-muted-foreground" style={{ fontSize: FONT_SIZES.sm, lineHeight: 18 }}>
           {summary}
         </Text>
-      </View>
-    );
-  }, [summary]);
+      ) : null}
+      <Pressable
+        accessibilityRole="button"
+        onPress={() => router.push('/explore/trending-graph')}
+        className="flex-row items-center gap-1 self-start"
+      >
+        <Ionicons name="git-network-outline" size={14} color={theme.colors.primary} />
+        <Text className="text-primary" style={{ fontSize: FONT_SIZES.sm }}>
+          {t('trendGraph.openLink')}
+        </Text>
+      </Pressable>
+    </View>
+  ), [summary, router, theme, t]);
 
   const renderFooter = useCallback(() => {
     if (!historyQuery.isFetchingNextPage) return null;

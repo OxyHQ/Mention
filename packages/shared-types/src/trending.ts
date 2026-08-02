@@ -24,7 +24,21 @@
 export type TrendEventName = 'click' | 'seen';
 
 /** The kind of thing trending; mirrors `Trending.type` on the server. */
-export type TrendEventType = 'hashtag' | 'topic' | 'entity';
+export type TrendEventType =
+  | 'hashtag'
+  | 'topic'
+  | 'entity'
+  /**
+   * A measured term that is not a classified row.
+   *
+   * The relation graph opens terms most of which never became trends, so they
+   * have no provenance to report. A real member of the union rather than an
+   * absent field: `type` is a metric label, and a surface that could omit it
+   * would silently create an unlabelled series — while guessing one of the
+   * other three would put an invented value in the metric, which is worse than
+   * saying plainly that there is none.
+   */
+  | 'unclassified';
 
 /**
  * The category taxonomy a trend is filed under — the coarse hint shown beneath
@@ -99,7 +113,9 @@ export type TrendEventSurface =
   | 'search'
   | 'interstitial'
   | 'history'
-  | 'feeds';
+  | 'feeds'
+  /** The relation graph, where a term is opened from a node rather than a row. */
+  | 'graph';
 
 export interface TrendEventInput {
   event: TrendEventName;

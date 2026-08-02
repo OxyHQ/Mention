@@ -27,19 +27,31 @@ export function buildTrendUrl(trend: Trend): string {
 export function useTrendNavigation() {
   const router = useRouter();
 
-  const navigateToTrend = useCallback((
-    trend: Trend,
+  /**
+   * Open a term, for a surface that has a term and not a `Trend`.
+   *
+   * The relation graph is that surface: a node is a measured term, and most
+   * nodes never became trends at all — they have no `type`, no score and no
+   * label. Assembling a `Trend` around one to reach the navigation would mean
+   * inventing every one of those fields, so the primitive takes what the caller
+   * genuinely has. `navigateToTrend` is this plus the fields a real row adds.
+   */
+  const navigateToTerm = useCallback((
+    term: string,
     surface: TrendEventSurface,
-    rank?: number,
+    extra: { type?: Trend['type']; rank?: number; recId?: string } = {},
   ) => {
-    if (!trend.text?.trim()) return;
+    if (!term.trim()) return;
 
     reportTrendEvent({
       event: 'click',
-      type: trend.type,
+      // `unclassified` for a graph node — a term the detector measured but never
+      // filed as a row. Naming that plainly keeps the metric honest; guessing
+      // one of the other three would label it with a value nothing produced.
+      type: extra.type ?? 'unclassified',
       surface,
-      ...(rank !== undefined ? { rank } : {}),
-      ...(trend.recId ? { recId: trend.recId } : {}),
+      ...(extra.rank !== undefined ? { rank: extra.rank } : {}),
+      ...(extra.recId ? { recId: extra.recId } : {}),
     });
 
     /*
@@ -55,8 +67,20 @@ export function useTrendNavigation() {
      * show a reader a name the server never chose. The screen resolves the
      * presentation from the term.
      */
-    router.push(`/trend/${encodeURIComponent(trend.text)}`);
+    router.push(`/trend/${encodeURIComponent(term)}`);
   }, [router]);
 
-  return { navigateToTrend };
+  const navigateToTrend = useCallback((
+    trend: Trend,
+    surface: TrendEventSurface,
+    rank?: number,
+  ) => {
+    navigateToTerm(trend.text, surface, {
+      type: trend.type,
+      ...(rank !== undefined ? { rank } : {}),
+      ...(trend.recId ? { recId: trend.recId } : {}),
+    });
+  }, [navigateToTerm]);
+
+  return { navigateToTrend, navigateToTerm };
 }

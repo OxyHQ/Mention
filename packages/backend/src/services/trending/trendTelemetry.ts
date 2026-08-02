@@ -54,6 +54,7 @@ const TREND_TYPES: Record<TrendEventType, true> = {
   hashtag: true,
   topic: true,
   entity: true,
+  unclassified: true,
 };
 
 const TREND_EVENTS: Record<TrendEventName, true> = {
@@ -68,6 +69,7 @@ const TREND_SURFACES: Record<TrendEventSurface, true> = {
   interstitial: true,
   history: true,
   feeds: true,
+  graph: true,
 };
 
 /**
