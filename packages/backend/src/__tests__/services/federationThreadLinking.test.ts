@@ -1,5 +1,29 @@
 import { PassThrough } from 'node:stream';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { closePostgres, connectPostgres } from '../../db/postgres';
+import {
+  clearFederationScope,
+  federationScope,
+  seedActor,
+  seedFollow,
+} from '../helpers/federationFixtures';
+
+const scope = federationScope('federation-thread-linking');
+
+beforeAll(async () => {
+  await connectPostgres();
+});
+
+// Cleanup runs in `beforeEach`, NOT `afterEach`, and that is load-bearing here:
+// the reconciliation-script suite drives the REAL script, whose
+// `closeAdminScriptResources()` closes the Postgres pool on purpose (a Fargate
+// one-shot has to exit). An `afterEach` that queried afterwards would throw
+// "PostgreSQL is not connected" from the hook rather than the test.
+afterAll(async () => {
+  await closePostgres();
+});
+
 
 /**
  * Thread-linking tests for federated reply import.
@@ -185,11 +209,6 @@ const h = vi.hoisted(() => {
   const getPublicKey = vi.fn();
   const signRequest = vi.fn();
   const signViaOxy = vi.fn();
-  const actorFindOne = vi.fn();
-  const actorFind = vi.fn();
-  const actorFindOneAndUpdate = vi.fn();
-  const actorUpdateOne = vi.fn();
-  const followExists = vi.fn();
   const assertSafePublicUrl = vi.fn();
   const fetchUpstreamSingleHop = vi.fn();
   const fetchUpstreamFollowingRedirects = vi.fn();
@@ -218,11 +237,6 @@ const h = vi.hoisted(() => {
     getPublicKey,
     signRequest,
     signViaOxy,
-    actorFindOne,
-    actorFind,
-    actorFindOneAndUpdate,
-    actorUpdateOne,
-    followExists,
     assertSafePublicUrl,
     fetchUpstreamSingleHop,
     fetchUpstreamFollowingRedirects,
@@ -239,15 +253,6 @@ vi.mock('../../connectors/activitypub/crypto', () => ({
   getPublicKey: h.getPublicKey,
   signViaOxy: h.signViaOxy,
   signRequest: h.signRequest,
-}));
-
-vi.mock('../../models/FederatedActor', () => ({
-  default: {
-    findOne: h.actorFindOne,
-    find: h.actorFind,
-    findOneAndUpdate: h.actorFindOneAndUpdate,
-    updateOne: h.actorUpdateOne,
-  },
 }));
 
 vi.mock('../../models/FederatedFollow', () => ({
@@ -326,7 +331,7 @@ function jsonResponse(body: unknown, init: ResponseInit = {}): Response {
   });
 }
 
-const ACTOR_URI = 'https://mastodon.social/users/alice';
+const ACTOR_URI = `${scope.origin}/users/alice`;
 
 /** A Create activity wrapping a Note (optionally a reply). */
 function replyCreateActivity(id: string, inReplyTo?: string) {
@@ -348,7 +353,7 @@ function replyCreateActivity(id: string, inReplyTo?: string) {
   };
 }
 
-beforeEach(() => {
+beforeEach(async () => {
   vi.clearAllMocks();
   h.reset();
 
@@ -359,19 +364,16 @@ beforeEach(() => {
   h.signViaOxy.mockResolvedValue('signature');
   h.signRequest.mockResolvedValue({ Signature: 'signature' });
 
-  // Default: the outbox owner is a known, fresh federated actor.
-  h.actorFindOne.mockReturnValue({
-    lean: vi.fn().mockResolvedValue({
-      uri: ACTOR_URI,
-      oxyUserId: 'oxy_alice',
-      lastFetchedAt: new Date(),
-    }),
+  // Default: the outbox owner is a known, fresh federated actor followed by a
+  // local user, so both the resolution and the follower gate pass.
+  await clearFederationScope(scope);
+  await seedActor(scope, {
+    username: 'alice',
+    uri: ACTOR_URI,
+    oxyUserId: 'oxy_alice',
+    lastFetchedAt: new Date(),
   });
-  h.actorFind.mockReturnValue({ lean: vi.fn().mockResolvedValue([]) });
-  h.actorFindOneAndUpdate.mockResolvedValue({ _id: 'actor_1' });
-  h.actorUpdateOne.mockResolvedValue({ modifiedCount: 1 });
-
-  h.followExists.mockResolvedValue({ _id: 'follow_1' });
+  await seedFollow(scope, { remoteActorUri: ACTOR_URI, direction: 'outbound', status: 'accepted' });
   h.assertSafePublicUrl.mockResolvedValue({ ok: true, ip: '93.184.216.34', family: 4 });
   h.persistRemoteMedia.mockResolvedValue({ ok: false, permanent: false });
   h.recordAccess.mockResolvedValue(undefined);
