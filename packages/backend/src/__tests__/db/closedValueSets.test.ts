@@ -1,4 +1,4 @@
-import { readdirSync } from 'node:fs';
+import { appendFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { describe, expect, it } from 'vitest';
@@ -80,11 +80,23 @@ import { allowedValues } from '../../db/backfill/plan';
  * so `assertHistoryIsAvailable` refuses instead. CI must check out with
  * `fetch-depth: 0` for the job that runs it.
  *
- * The pre-flight `EnumAudit` in `backfill/audit.ts` remains the referent of last
- * resort — it reads the accepted set off the drizzle column and `distinct()`s
+ * ## This file has planned obsolescence, and prints its own coverage
+ *
+ * Everything it compares depends on a Mongoose model existing somewhere. When
+ * Mongo is switched off and the collection plans are deleted, there is nothing
+ * left to compare and this file should be deleted with them — the state to fear
+ * is the one just before that, a test protecting nothing and reading as green.
+ * So the coverage numbers are PRINTED on every run rather than described in a
+ * comment. See the `reports how much it still covers` case for the full
+ * argument, including why the git-history path stops that decay being a
+ * schedule.
+ *
+ * The pre-flight `EnumAudit` in `backfill/audit.ts` is what inherits the
+ * guarantee — it reads the accepted set off the drizzle column and `distinct()`s
  * the real collection before a single row is inserted. It is a genuine external
  * referent that only speaks during the cutover, which is the whole reason this
- * file exists beside it rather than instead of it.
+ * file exists beside it rather than instead of it. Anything printed as EXEMPT
+ * here is something production, not CI, has to answer for.
  */
 
 /** A closed set found on a column, keyed the way a failure message names it. */
@@ -347,6 +359,76 @@ function resolve(set: ClosedSet): readonly (string | number)[] | undefined {
   if (!source) return undefined;
   return VOCABULARIES.get(`${source.collection}:${source.path}`);
 }
+
+describe('this gate reports how much it still covers', () => {
+  /**
+   * COVERAGE IS PRINTED, because this file has PLANNED OBSOLESCENCE.
+   *
+   * Every set it compares depends on a Mongoose model existing somewhere — the
+   * working tree or git history. The port is deleting those models, and when
+   * Mongo is finally switched off the collection plans go too. At that point
+   * there is nothing left to compare and this file should be DELETED alongside
+   * them, not left green and empty.
+   *
+   * The danger is the state just before that: a test that protects nothing and
+   * reads as passing, arrived at entirely legitimately. So the numbers go in the
+   * OUTPUT rather than in a comment — a human reading a green run sees what the
+   * run actually measured, and sees it move.
+   *
+   * **The git-history path is what stops the decay being a schedule.** With the
+   * hand-maintained exemption list this file started with, coverage really would
+   * have fallen to zero one deletion at a time. Reading the deleted model out of
+   * the commit that removed it keeps the comparison alive, so today's numbers do
+   * not drop when `callsites-pg` deletes the next model — they move from `live`
+   * to `history`, which is why both are printed separately.
+   *
+   * What DOES decay, slowly and visibly: a historical model file whose own
+   * imports have since been deleted stops loading (`Topic.ts` already has).
+   * `could load every deleted model whose collection a plan still reads` turns
+   * that into a hard failure the moment it happens to a collection the backfill
+   * still copies — so the decay is loud, not silent.
+   *
+   * **What inherits the guarantee is the pre-flight `EnumAudit`** in
+   * `backfill/audit.ts`: it reads the accepted set off the drizzle column and
+   * `distinct()`s the real collection before a single row is copied. Anything
+   * this file cannot reach is something PRODUCTION, not CI, must answer for —
+   * which makes the uncompared list below an input to the cutover checklist
+   * rather than an apology.
+   */
+  it('accounts for every closed set as compared or explicitly exempt', () => {
+    const compared = CLOSED_SETS.filter((set) => resolve(set));
+    const exempt = CLOSED_SETS.filter((set) => NO_MONGOOSE_ENUM[set.key] || POSTGRES_ONLY[set.key]);
+    const viaHistory = compared.filter((set) =>
+      FROM_HISTORY.has(SOURCES.get(set.key)?.collection ?? '')
+    );
+
+    const summary =
+      `closed value sets: ${CLOSED_SETS.length} total — ${compared.length} compared ` +
+      `(${compared.length - viaHistory.length} live models, ${viaHistory.length} recovered from ` +
+      `git history), ${exempt.length} exempt with a named reason.\n` +
+      "Exempt, and therefore production's to answer for at cutover:\n" +
+      exempt.map((set) => `  - ${set.key}`).join('\n');
+
+    // `process.stdout.write`, not `console.log`: vitest's DEFAULT reporter — the
+    // one CI runs — swallows `console` output from a PASSING file, which is
+    // exactly the run this number needs to be visible on. Measured, not assumed:
+    // under `--reporter=default` the line never appeared, under `verbose` it did.
+    process.stdout.write(`\n${summary}\n\n`);
+
+    // And onto the job summary in CI, the same channel the bundle report already
+    // uses, so a green run puts the number in front of a person rather than
+    // burying it in a log nobody opens.
+    const stepSummary = process.env.GITHUB_STEP_SUMMARY;
+    if (stepSummary) {
+      appendFileSync(stepSummary, `\n### Closed value sets\n\n${summary}\n`, 'utf8');
+    }
+
+    // Not a threshold — thresholds rot in both directions. This says only that
+    // nothing fell out of BOTH buckets, so a set can never go uncounted while
+    // the printed total keeps looking healthy.
+    expect(compared.length + exempt.length).toBe(CLOSED_SETS.length);
+  });
+});
 
 describe('the walk found the sets it is supposed to find', () => {
   it.each(SEMANTIC_FLOOR)('resolves $key on both sides', ({ key, postgres, mongoose: expected }) => {
