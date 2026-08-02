@@ -416,6 +416,22 @@ export const posts = pgTable(
      * `now()` fails loudly here instead of arming the same trap for whichever
      * keyset is written next. Every current writer is either that default or an
      * explicit JS `Date`, so nothing legitimate is rejected.
+     *
+     * ## Why the DEFAULT changed everywhere but this CHECK is only on `posts`
+     *
+     * Deliberate asymmetry, not an oversight — do not read it as one, and do not
+     * copy it to every table on the assumption it was forgotten. The default is
+     * shared because it costs nothing and a table with no keyset today may grow
+     * one tomorrow. The CONSTRAINT is narrow because it is a live rule on the
+     * hottest write path in the schema, and it earns that only where the failure
+     * it prevents is real: `posts` is the table every chronological cursor pages
+     * over, and the one whose ASC keyset actually hung production code.
+     *
+     * The bar for adding it to a second table is the same: that table gets a
+     * `(created_at, …)` keyset something reads a `Date` out of. Adding it
+     * everywhere else buys a constraint check per insert against a defect that
+     * cannot occur there, and a check nobody can name the failure for is the
+     * kind that gets deleted by whoever next hits it.
      */
     check(
       'posts_created_at_ms_precision_check',

@@ -40,7 +40,7 @@
 import express from 'express';
 import request from 'supertest';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { eq, inArray } from 'drizzle-orm';
+import { eq, inArray, sql } from 'drizzle-orm';
 import { PostType, PostVisibility } from '@mention/shared-types';
 
 const mocks = vi.hoisted(() => ({
@@ -91,7 +91,8 @@ import { closePostgres, connectPostgres, getDb } from '../../db/postgres';
 import { muteWords } from '../../db/schema/engagement';
 import { posts } from '../../db/schema/posts';
 import { userSettings } from '../../db/schema/userProfile';
-import { clearPostScope, postScope, seedPost } from '../helpers/postFixtures';
+import { clearPostScope, postScope, seedPost, track } from '../helpers/postFixtures';
+import { insertPostRecord } from '../../db/posts/postRepository';
 import type { PostRecordInput } from '../../db/posts/postRecord';
 import { BASELINE_CLASSIFIER_VERSION } from '../../services/BaselineContentClassifier';
 import searchRoutes from '../../routes/search';
@@ -338,6 +339,86 @@ describe('GET /search — order and pagination', () => {
 
     expect(seen).toEqual([...ids].sort().reverse());
     expect(new Set(seen).size).toBe(ids.length);
+  });
+
+  it('refuses to store a created_at carrying precision a JS Date cannot hold', async () => {
+    // This is what CLOSES the DESC skip, and it closes it by making the state
+    // unrepresentable rather than by handling it.
+    //
+    // The skip: `timestamptz` carries microseconds and a `Date` carries
+    // milliseconds, so a cursor read back from a row was SMALLER than the row.
+    // On this DESC keyset that correctly excluded the anchor — and also excluded
+    // every row between the truncated millisecond and the anchor's true
+    // microsecond, which is a page boundary quietly losing rows rather than
+    // looping. Nothing surfaces; the results are simply short.
+    //
+    // `posts_created_at_ms_precision_check` is why a stored value can no longer
+    // sit between two milliseconds, so the window the skip needed does not
+    // exist. Asserted here rather than inferred from the constraint's presence.
+    const post = await seedPost(scope, { content: body('precision') });
+
+    const failure = await getDb()
+      .execute(
+        sql`update ${posts} set created_at = created_at + interval '527 microseconds' where id = ${post.id}`,
+      )
+      .then(() => undefined, (error: unknown) => error);
+
+    expect(failure, 'the write must be REFUSED, not silently accepted').toBeDefined();
+    // The CONSTRAINT NAME, not the message: drizzle wraps the driver error in a
+    // "Failed query: …" of its own, so matching the message text asserts
+    // drizzle's formatting rather than which rule rejected the row.
+    expect((failure as { cause?: { constraint_name?: string } })?.cause?.constraint_name)
+      .toBe('posts_created_at_ms_precision_check');
+  });
+
+  it('walks a page boundary that falls INSIDE one millisecond', async () => {
+    // Two rows written in ONE transaction share `created_at` exactly —
+    // `now()` is `transaction_timestamp()`, not `clock_timestamp()` (probed
+    // against the server, not assumed). So this is the real, reachable state of
+    // a page boundary landing between two rows the timestamp cannot separate,
+    // and the `id DESC` tie-break is the only thing carrying the walk.
+    //
+    // Page size ONE, so the boundary falls between the two of them rather than
+    // around them.
+    const created: string[] = [];
+    await getDb().transaction(async (tx) => {
+      for (let index = 0; index < 3; index += 1) {
+        const record = await insertPostRecord({
+          oxyUserId: scope.user('author'),
+          authorship: [{ oxyUserId: scope.user('author'), role: 'owner', status: 'accepted' }],
+          type: PostType.TEXT,
+          visibility: PostVisibility.PUBLIC,
+          status: 'published',
+          content: body(`sameinstant ${index}`),
+        }, tx);
+        created.push(record.id);
+        track(scope, record.id);
+      }
+    });
+
+    // The precondition this test rests on. Without it the walk below would be an
+    // ordinary pagination test wearing a boundary's clothes.
+    const stamps = await getDb()
+      .select({ createdAt: posts.createdAt })
+      .from(posts)
+      .where(inArray(posts.id, created));
+    expect(new Set(stamps.map((row) => row.createdAt.toISOString())).size).toBe(1);
+
+    const seen: string[] = [];
+    let cursor: string | undefined;
+    for (let page = 0; page < 5; page += 1) {
+      const body_: SearchBody = await search({
+        query: `${TERM} sameinstant`,
+        limit: 1,
+        ...(cursor ? { cursor } : {}),
+      });
+      seen.push(...body_.posts.map((post) => post.id));
+      if (!body_.hasMore) break;
+      cursor = body_.nextCursor;
+    }
+
+    expect(seen.sort()).toEqual([...created].sort());
+    expect(new Set(seen).size).toBe(created.length);
   });
 
   it('reports hasMore only when a further page exists', async () => {

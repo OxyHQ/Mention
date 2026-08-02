@@ -1,3 +1,36 @@
+-- `created_at` / `updated_at` default to `date_trunc('milliseconds', now())`
+-- instead of `now()`, and `posts.created_at` gains a CHECK enforcing it.
+--
+-- WHY: `timestamptz` carries MICROSECONDS and a JavaScript `Date` carries
+-- milliseconds, so a value written by `now()` does not survive the round trip.
+-- Every chronological cursor in this codebase is built by reading the column
+-- into a `Date` and comparing against the result, so the bound came out SMALLER
+-- than the row it was taken from. Both directions were broken:
+--
+--   * ASC  (`created_at > cursor`) matched the cursor's OWN row — the page never
+--     advanced. `backfill-mtn-records` looped forever on its first page.
+--   * DESC (`created_at < cursor`) excluded the anchor but ALSO every row
+--     between the truncated millisecond and the anchor's true microsecond, so a
+--     page boundary lost rows in silence. Measured: three posts written in one
+--     transaction, page size one, walked to completion — one row came back.
+--
+-- Fixed at the source rather than at each cursor. Truncating inside the
+-- comparison was the alternative and is not viable: it needs the ORDER BY
+-- truncated too, which makes all thirteen `created_at DESC` indexes on `posts`
+-- unusable and turns every feed page into a full sort.
+--
+-- No data is lost. `MIGRATION-CONTRACT.md` treats a Mongo `Date` as an absolute
+-- UTC instant, and Mongo stores those at MILLISECOND precision — every
+-- backfilled row already ends in `000`. Only `now()` was fabricating a
+-- distinction no reader can observe.
+--
+-- THE CLASS, because naming it is what stops the fourth: this is the third
+-- defect tonight from assuming a stored value round-trips through a JavaScript
+-- type unchanged. The others were `order by id desc` across two id shapes
+-- (ObjectId hex and uuid v7 interleave under text collation), and
+-- `randomUserColor()` making a transform non-deterministic. Whenever a stored
+-- value becomes a comparison bound, ask what the JS type cannot hold.
+
 ALTER TABLE "articles" ALTER COLUMN "created_at" SET DEFAULT date_trunc('milliseconds', now());--> statement-breakpoint
 ALTER TABLE "articles" ALTER COLUMN "updated_at" SET DEFAULT date_trunc('milliseconds', now());--> statement-breakpoint
 ALTER TABLE "gifs" ALTER COLUMN "created_at" SET DEFAULT date_trunc('milliseconds', now());--> statement-breakpoint
