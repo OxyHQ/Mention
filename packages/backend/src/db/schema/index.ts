@@ -21,6 +21,7 @@ export * from './federation';
 export * from './feeds';
 export * from './gates';
 export * from './lists';
+export * from './mcp';
 export * from './moderation';
 export * from './mtn';
 export * from './outbox';

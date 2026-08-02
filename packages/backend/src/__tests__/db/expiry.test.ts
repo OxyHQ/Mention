@@ -7,6 +7,8 @@
  * which is exactly the obligation Mongo's TTL index carried implicitly.
  */
 
+import { readFileSync, readdirSync } from 'node:fs';
+import { join, sep } from 'node:path';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { getTableName, inArray, sql } from 'drizzle-orm';
 import { closePostgres, connectPostgres, type Database } from '../../db/postgres';
@@ -66,24 +68,75 @@ describe('the retention constants still equal the Mongoose models\'', () => {
   });
 });
 
+/** Every `.ts` under `directory`, walked — never a directory someone named. */
+function tsFilesUnder(directory: string): string[] {
+  const found: string[] = [];
+  for (const entry of readdirSync(directory, { withFileTypes: true })) {
+    const path = join(directory, entry.name);
+    if (entry.isDirectory()) found.push(...tsFilesUnder(path));
+    else if (entry.name.endsWith('.ts')) found.push(path);
+  }
+  return found;
+}
+
 describe('the sweep registry', () => {
   it('covers every model that had a Mongo TTL index', () => {
-    // Eight: the seven enumerated by reading every `expireAfterSeconds` in
-    // `src/models/`, plus `trend_summaries`, which was born on Postgres and
-    // therefore never had a Mongo TTL index to be found that way. A vacuity
-    // floor as much as a count: a broken registry export would make every
-    // assertion below iterate nothing.
-    expect(EXPIRY_SWEEP_TARGETS).toHaveLength(8);
+    // The list is EXACT rather than a floor, because a table that lost its
+    // sweep grows forever with nothing to notice.
     expect(EXPIRY_SWEEP_TARGETS.map((target) => getTableName(target.table)).sort()).toEqual([
       'author_follower_snapshots',
       'engagement_outbox',
       'feed_interactions',
+      'mcp_auth_codes',
       'moderation_events',
       'moderation_outbox',
       'notifications',
       'trend_summaries',
       'trending',
     ]);
+  });
+
+  it('has one entry per model that declares a Mongo TTL index, found by WALKING', () => {
+    // This case exists because the list above was wrong, and wrong in a way that
+    // repeats. Its comment used to read "the seven enumerated by reading every
+    // `expireAfterSeconds` in `src/models/`" — and `McpAuthCode` declares one in
+    // `src/mcp/models/`, so the enumeration that produced "seven" could not see
+    // it. That is the SAME directory blind spot that hid all three MCP
+    // collections from the migration's own collection map, found twice in two
+    // different tools.
+    //
+    // So the count is DERIVED by walking the tree rather than restated. A model
+    // that gains a TTL index in a directory nobody thought of now fails here
+    // instead of silently never being swept.
+    const ttlModels = tsFilesUnder(join(__dirname, '..', '..'))
+      .filter((file) => file.includes(`${sep}models${sep}`))
+      // A TEST that mentions the option is not a model that declares one, and
+      // one such file lives under a `models` directory.
+      .filter((file) => !file.includes(`${sep}__tests__${sep}`))
+      .filter((file) => readFileSync(file, 'utf8').includes('expireAfterSeconds'));
+
+    // `trend_summaries` is in the registry AND has a Mongo model, so the two
+    // sides line up one-for-one today. The assertion is the equality, not a
+    // number, so neither side can drift without naming which files disagree.
+    expect(
+      ttlModels.map((file) => file.slice(file.lastIndexOf(sep) + 1)).sort(),
+      'Mongo models declaring a TTL index'
+    ).toStrictEqual([
+      'AuthorFollowerSnapshot.ts',
+      'EngagementOutbox.ts',
+      'FeedInteraction.ts',
+      'McpAuthCode.ts',
+      'ModerationEvent.ts',
+      'ModerationOutbox.ts',
+      'Notification.ts',
+      'TrendSummary.ts',
+      'Trending.ts',
+    ]);
+    expect(EXPIRY_SWEEP_TARGETS).toHaveLength(ttlModels.length);
+
+    // Vacuity floor: a walk that found nothing would satisfy an equality
+    // between two empty lists.
+    expect(ttlModels.length).toBeGreaterThan(5);
   });
 
   it('gives every entry a reason', () => {

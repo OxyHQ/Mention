@@ -70,6 +70,7 @@ import { FEDERATION_PLANS } from './plans/federation';
 import { FEED_PLANS } from './plans/feeds';
 import { GATE_PLANS } from './plans/gates';
 import { LIST_PLANS } from './plans/lists';
+import { MCP_PLANS } from './plans/mcp';
 import { MODERATION_PLANS } from './plans/moderation';
 import { MTN_PLANS } from './plans/mtn';
 import { OUTBOX_PLANS } from './plans/outbox';
@@ -139,6 +140,7 @@ export const COLLECTION_PLANS: readonly CollectionPlan[] = [
   ...FEDERATION_PLANS,
   ...FEED_PLANS,
   ...LIST_PLANS,
+  ...MCP_PLANS,
   ...MODERATION_PLANS,
   ...USER_PROFILE_PLANS,
 ];

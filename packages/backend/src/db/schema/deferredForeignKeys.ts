@@ -28,6 +28,7 @@
 import type { PgColumn, PgTable, UpdateDeleteAction } from 'drizzle-orm/pg-core';
 import { getTableColumns, getTableName } from 'drizzle-orm';
 import { sqlColumnName } from '../casing';
+import { mcpAuthCodes, mcpConnections, mcpRegisteredClients } from './mcp';
 import { entityFollows } from './engagement';
 import { actorKeyPairs, federatedActors, federatedMediaCache } from './federation';
 import { gifs } from './discovery';
@@ -113,6 +114,10 @@ const OXY_ACCOUNT_COLUMN_NAMES: ReadonlySet<string> = new Set([
   'payload_actor_oxy_user_id',
   'payload_post_owner_oxy_user_id',
   'pending_remove_owner_id',
+  // The bundle's ACTIVE account, stored on the primary connection row. An
+  // Oxy account id like every other name here, so it belongs to the
+  // predicate rather than the individually-reasoned list below.
+  'active_oxy_user_id',
 ]);
 
 /**
@@ -481,6 +486,41 @@ export const ID_COLUMNS_WITHOUT_FOREIGN_KEY: readonly IdColumnWithoutForeignKey[
     table: pushTokens,
     column: pushTokens.deviceId,
     reason: 'A client-supplied device id. Not the primary key of any row.',
+  },
+  {
+    table: mcpConnections,
+    column: mcpConnections.clientId,
+    reason:
+      'An OAuth `client_id`, not a row id. It names a client that may be either ' +
+      'statically configured (`mcp/config/mcpClients.ts`, which has no table at ' +
+      'all) or dynamically registered (`mcp_registered_clients`), so no single ' +
+      'table could be the referent — and a constraint pointing at the registered ' +
+      'half would refuse every connection made by a configured client.',
+  },
+  {
+    table: mcpConnections,
+    column: mcpConnections.bundleId,
+    reason:
+      'The id of a BUNDLE, which is not a table: a bundle exists only as the set ' +
+      'of connections sharing this value, with `is_bundle_primary` marking the ' +
+      'one whose OAuth grant the client refreshes. There is nothing to reference ' +
+      'because the grouping IS the rows.',
+  },
+  {
+    table: mcpAuthCodes,
+    column: mcpAuthCodes.clientId,
+    reason:
+      'The same OAuth `client_id` as on `mcp_connections`, and unconstrained for ' +
+      'the same reason: a code may be issued to a configured client that has no ' +
+      'row anywhere.',
+  },
+  {
+    table: mcpRegisteredClients,
+    column: mcpRegisteredClients.clientId,
+    reason:
+      'The client identifier this table MINTS — its own natural key, carried ' +
+      'under a unique index. It is id-shaped by name only; there is no other ' +
+      'table for it to point at, because this is the one that defines it.',
   },
 ];
 
