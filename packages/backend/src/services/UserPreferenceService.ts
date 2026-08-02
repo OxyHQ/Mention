@@ -1,5 +1,7 @@
 import UserBehavior, { IUserBehavior } from '../models/UserBehavior';
-import { Post } from '../models/Post';
+import { eq } from 'drizzle-orm';
+import { posts } from '../db/schema/posts';
+import { CHRONO_DESC, findPostRecords, loadPostRecord } from '../db/posts/postRepository';
 import Like from '../models/Like';
 import Bookmark from '../models/Bookmark';
 import mongoose, { HydratedDocument } from 'mongoose';
@@ -25,7 +27,7 @@ export interface InteractionContext {
  * {@link UserPreferenceService['getCanonicalTopics']}'s tolerant reader.
  */
 interface InteractionPost {
-  oxyUserId?: string;
+  oxyUserId?: string | null;
   type?: string;
   language?: string;
   hashtags?: string[];
@@ -116,7 +118,7 @@ export class UserPreferenceService {
         type: interactionType,
       });
 
-      const post = await Post.findById(postId).lean();
+      const post = await loadPostRecord(postId);
       if (!post) {
         logger.warn('[UserPreference] post not found; skipping interaction');
         return;
@@ -666,10 +668,12 @@ export class UserPreferenceService {
       }
 
       // Get all user's posts (to infer preferences)
-      const userPosts = await Post.find({ oxyUserId: userId }).lean();
+      const userPosts = await findPostRecords(eq(posts.oxyUserId, userId), {
+        orderBy: CHRONO_DESC,
+      });
       for (const post of userPosts) {
         // User creating posts with certain hashtags = interest
-        if (post.hashtags && post.hashtags.length > 0) {
+        if (post.hashtags.length > 0) {
           for (const hashtag of post.hashtags) {
             this.updateTopicPreference(
               userBehavior,

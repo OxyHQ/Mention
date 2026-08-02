@@ -3,11 +3,10 @@ import type {
   NetworkConnector,
   NormalizedExternalActor,
   LocalNetworkEvent,
-  LocalPostEventPayload,
 } from '@oxyhq/federation';
 import { logger } from '../utils/logger';
 import { isFediverseSharingEnabled } from '../services/fediverseSharing';
-import type { PostFederator } from '../services/serviceRegistry';
+import type { FederatablePost, PostFederator } from '../services/serviceRegistry';
 
 /**
  * Optional capability implemented by connectors whose normal `deliver` path is
@@ -142,13 +141,21 @@ export class ConnectorRegistry implements PostFederator {
    * depends on via `serviceRegistry`.
    */
   async federateNewPost(
-    post: LocalPostEventPayload<PostContent>,
+    post: FederatablePost,
     senderOxyUserId: string,
     senderUsername: string,
   ): Promise<void> {
     await this.deliver({
       kind: 'post.create',
-      post,
+      // The app→SDK half of the id translation described on
+      // {@link FederatablePost}. `createdAt` is widened the same way: a
+      // `PostRecord` carries an instant, the event carries the ISO string every
+      // connector puts on the wire as `published`.
+      post: {
+        ...post,
+        _id: post.id,
+        createdAt: post.createdAt instanceof Date ? post.createdAt.toISOString() : post.createdAt,
+      },
       actorOxyUserId: senderOxyUserId,
       actorUsername: senderUsername,
     });

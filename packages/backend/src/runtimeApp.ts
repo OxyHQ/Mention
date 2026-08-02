@@ -8,7 +8,9 @@ import { RedisStore } from './middleware/rateLimitStore';
 import { bruteForceProtection } from './middleware/security';
 import { createOptionalAuth } from './middleware/optionalAuth';
 import { requestObservability } from './middleware/requestObservability';
-import { Post } from './models/Post';
+import { count } from 'drizzle-orm';
+import { getDb } from './db/postgres';
+import { posts } from './db/schema/posts';
 import { setRuntimeOxyClient } from './runtime/oxyClient';
 import { globalErrorHandler } from './utils/error';
 import { isAllowedOrigin } from './utils/allowedOrigins';
@@ -34,7 +36,17 @@ export function createRuntimeApp() {
     federationDomain: config.federationDomain,
     isAllowedOrigin,
     ...appRoutePredicates,
-    countLocalPosts: () => Post.estimatedDocumentCount(),
+    countLocalPosts: async () => {
+      // `count(*)` rather than an estimate. Mongo's `estimatedDocumentCount`
+      // read collection metadata for free; the Postgres analogue
+      // (`pg_class.reltuples`) is only as fresh as the last autovacuum and
+      // reports 0 on a table that has never been analyzed — which is exactly
+      // what a freshly-migrated instance looks like. This value is a nodeinfo
+      // statistic read at most once per request from a cached surface, so an
+      // exact count is affordable and honest.
+      const [row] = await getDb().select({ count: count() }).from(posts);
+      return row?.count ?? 0;
+    },
     logger,
     middleware: {
       requestObservability,

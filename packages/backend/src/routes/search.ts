@@ -1,6 +1,9 @@
 import express, { Response } from "express";
-import mongoose from "mongoose";
-import Post from "../models/Post";
+import { and, arrayContains, desc, eq, exists, gte, lte, lt, or, sql, type SQL } from 'drizzle-orm';
+import { getDb } from '../db/postgres';
+import { posts } from '../db/schema/posts';
+import { postAuthorships, postContentVariants, postMedia, postMentions } from '../db/schema/postContent';
+import { findPostRecords } from '../db/posts/postRepository';
 import { logger } from '../utils/logger';
 import { postHydrationService } from '../services/PostHydrationService';
 import { createScopedOxyClient } from '../utils/oxyHelpers';
@@ -10,7 +13,7 @@ import { getRuntimeOxyClient } from '../runtime/oxyClient';
 import { queryInt } from '../utils/queryParams';
 import { PostVisibility } from '@mention/shared-types';
 import { decodeSearchCursor, encodeSearchCursor } from '../utils/searchCursor';
-import { DISCOVERY_SAFE_MATCH } from '../mtn/feed/feedSafety';
+import { discoverySafeSql } from '../mtn/feed/feedSafety';
 import { loadMuteWords, loadShowSensitiveContent } from '../services/safety/viewerSafety';
 import {
   NO_FOLLOWED_AUTHORS,
@@ -21,37 +24,27 @@ import { loadFollowedAuthorIds } from '../services/viewerFollowGraph';
 
 const router = express.Router();
 
+/**
+ * "The post has at least one media row", optionally of one type.
+ *
+ * An EXISTS over `post_media`, which is what Mongo's `content.media.0` /
+ * `content.media.type` probes meant against the embedded array.
+ */
+function mediaExists(type?: 'image' | 'video' | 'gif'): SQL {
+  return exists(
+    getDb()
+      .select({ one: sql`1` })
+      .from(postMedia)
+      .where(and(
+        eq(postMedia.postId, posts.id),
+        ...(type ? [eq(postMedia.type, type)] : []),
+      )),
+  ) as SQL;
+}
+
 /** Search result page size. */
 const DEFAULT_SEARCH_LIMIT = 20;
 const MAX_SEARCH_LIMIT = 100;
-const SEARCH_HYDRATION_PROJECTION = [
-  '_id',
-  'oxyUserId',
-  'authorship',
-  'content',
-  'metadata',
-  'federation',
-  'postClassification.languages',
-  'stats',
-  'boostOf',
-  'quoteOf',
-  'originalPostId',
-  'parentPostId',
-  'threadId',
-  'replyPermission',
-  'reviewReplies',
-  'quotesDisabled',
-  'hashtags',
-  'mentions',
-  'tags',
-  'visibility',
-  'status',
-  'language',
-  'createdAt',
-  'updatedAt',
-  'date',
-].join(' ');
-
 /**
  * Parse search operators from query string.
  * Supported operators:
@@ -196,19 +189,33 @@ router.get("/", async (req: AuthRequest, res: Response) => {
       const operators = parseSearchOperators(rawQuery);
 
       // Build query with filters
-      const filter: Record<string, unknown> = {
-        visibility: PostVisibility.PUBLIC,
-        status: 'published',
-        // Sensitive/NSFW exclusion happens in the QUERY (not post-hoc) so a safe-mode
-        // viewer's page is filled with results they can actually see. Same clause the
-        // ranked/discovery feeds use — `mtn/feed/feedSafety` is the one definition of
-        // "sensitive", never re-implemented here.
-        ...(showSensitiveContent ? {} : DISCOVERY_SAFE_MATCH),
-      };
+      const conditions: SQL[] = [
+        eq(posts.visibility, PostVisibility.PUBLIC),
+        eq(posts.status, 'published'),
+      ];
+      // Sensitive/NSFW exclusion happens in the QUERY (not post-hoc) so a safe-mode
+      // viewer's page is filled with results they can actually see. Same clause the
+      // ranked/discovery feeds use — `mtn/feed/feedSafety` is the one definition of
+      // "sensitive", never re-implemented here.
+      if (!showSensitiveContent) conditions.push(discoverySafeSql());
 
-      // Use the Post text index instead of scanning every variant with a regex.
+      // The GIN-indexed `search_vector` on the renditions — the port of the Mongo
+      // text index, and there for the same reason: never a regex scan over every
+      // variant. `websearch_to_tsquery` is the parser whose input language matches
+      // what a user types (quoted phrases, `or`, a leading `-`), and unlike
+      // `to_tsquery` it cannot raise a syntax error on arbitrary input.
       if (operators.textQuery) {
-        filter.$text = { $search: operators.textQuery };
+        conditions.push(
+          exists(
+            getDb()
+              .select({ one: sql`1` })
+              .from(postContentVariants)
+              .where(and(
+                eq(postContentVariants.postId, posts.id),
+                sql`${postContentVariants.searchVector} @@ websearch_to_tsquery('english', ${operators.textQuery})`,
+              )),
+          ) as SQL,
+        );
       }
 
       // --- Operator-based filters ---
@@ -221,12 +228,18 @@ router.get("/", async (req: AuthRequest, res: Response) => {
           res.json({ posts: [], hasMore: false });
           return;
         }
-        filter.authorship = {
-          $elemMatch: {
-            oxyUserId: authorId,
-            status: 'accepted',
-          },
-        };
+        conditions.push(
+          exists(
+            getDb()
+              .select({ one: sql`1` })
+              .from(postAuthorships)
+              .where(and(
+                eq(postAuthorships.postId, posts.id),
+                eq(postAuthorships.oxyUserId, authorId),
+                eq(postAuthorships.status, 'accepted'),
+              )),
+          ) as SQL,
+        );
       }
 
       // to:username — posts MENTIONING that user (`to:me` = the viewer).
@@ -240,7 +253,17 @@ router.get("/", async (req: AuthRequest, res: Response) => {
           res.json({ posts: [], hasMore: false });
           return;
         }
-        filter.mentions = mentionedId;
+        conditions.push(
+          exists(
+            getDb()
+              .select({ one: sql`1` })
+              .from(postMentions)
+              .where(and(
+                eq(postMentions.postId, posts.id),
+                eq(postMentions.oxyUserId, mentionedId),
+              )),
+          ) as SQL,
+        );
       }
 
       // since: / until: operators
@@ -248,7 +271,7 @@ router.get("/", async (req: AuthRequest, res: Response) => {
       const effectiveDateTo = operators.until || (typeof dateTo === 'string' ? dateTo : undefined);
 
       if (effectiveDateFrom || effectiveDateTo) {
-        const createdAtFilter: { $gte?: Date; $lte?: Date } = {};
+        const dateBounds: SQL[] = [];
         let fromDate: Date | undefined;
         let toDate: Date | undefined;
 
@@ -257,14 +280,14 @@ router.get("/", async (req: AuthRequest, res: Response) => {
           if (isNaN(fromDate.getTime())) {
             return res.status(400).json({ message: 'Invalid dateFrom format' });
           }
-          createdAtFilter.$gte = fromDate;
+          dateBounds.push(gte(posts.createdAt, fromDate));
         }
         if (effectiveDateTo) {
           toDate = new Date(effectiveDateTo);
           if (isNaN(toDate.getTime())) {
             return res.status(400).json({ message: 'Invalid dateTo format' });
           }
-          createdAtFilter.$lte = toDate;
+          dateBounds.push(lte(posts.createdAt, toDate));
         }
 
         // Validate date range span
@@ -281,44 +304,39 @@ router.get("/", async (req: AuthRequest, res: Response) => {
         }
 
         // Only attach the date filter when at least one valid bound was parsed.
-        if (Object.keys(createdAtFilter).length > 0) {
-          filter.createdAt = createdAtFilter;
-        }
+        conditions.push(...dateBounds);
       }
 
       // Engagement filters - operators take precedence over query params
       const effectiveMinLikes = operators.minLikes ?? (typeof minLikes === 'string' ? parseInt(minLikes, 10) : undefined);
       if (effectiveMinLikes !== undefined && !isNaN(effectiveMinLikes) && effectiveMinLikes >= 0) {
-        filter['stats.likesCount'] = { $gte: effectiveMinLikes };
+        conditions.push(gte(posts.statsLikesCount, effectiveMinLikes));
       }
 
       const effectiveMinBoosts = operators.minBoosts ?? (typeof minBoosts === 'string' ? parseInt(minBoosts, 10) : undefined);
       if (effectiveMinBoosts !== undefined && !isNaN(effectiveMinBoosts) && effectiveMinBoosts >= 0) {
-        filter['stats.boostsCount'] = { $gte: effectiveMinBoosts };
+        conditions.push(gte(posts.statsBoostsCount, effectiveMinBoosts));
       }
 
       // Media filters - operators take precedence
       if (operators.hasMedia || hasMedia === 'true') {
-        filter['content.media.0'] = { $exists: true };
+        conditions.push(mediaExists());
       }
 
       // has:links operator - match URLs in post text
       if (operators.hasLinks) {
-        filter.hasLinks = true;
+        conditions.push(eq(posts.hasLinks, true));
       }
 
-      if (mediaType && typeof mediaType === 'string') {
-        const validMediaTypes = ['image', 'video', 'gif'];
-        if (validMediaTypes.includes(mediaType)) {
-          filter['content.media.type'] = mediaType;
-        }
+      if (mediaType === 'image' || mediaType === 'video' || mediaType === 'gif') {
+        conditions.push(mediaExists(mediaType));
       }
 
       // Language filter — match the canonical multi-language array (multikey
       // index). Mongo matches an array field by element equality, so the scalar
       // matches any post whose `postClassification.languages` contains it.
       if (language && typeof language === 'string') {
-        filter['postClassification.languages'] = language;
+        conditions.push(arrayContains(posts.classificationLanguages, [language]));
       }
 
       // Cursor-based pagination
@@ -330,41 +348,34 @@ router.get("/", async (req: AuthRequest, res: Response) => {
           return res.status(400).json({ message: 'Invalid search cursor' });
         }
 
-        const cursorClause = {
-          $or: [
-            { createdAt: { $lt: decodedCursor.createdAt } },
-            {
-              createdAt: decodedCursor.createdAt,
-              _id: { $lt: new mongoose.Types.ObjectId(decodedCursor.id) },
-            },
-          ],
-        };
-        const andClauses = Array.isArray(filter.$and) ? filter.$and : [];
-        filter.$and = [...andClauses, cursorClause];
+        // The keyset matches the `(created_at DESC, id DESC)` sort below exactly.
+        // The id bound is a plain `text` comparison and no longer has to parse as
+        // an ObjectId — which is what stopped it working the moment ids became
+        // uuid v7.
+        conditions.push(
+          or(
+            lt(posts.createdAt, decodedCursor.createdAt),
+            and(eq(posts.createdAt, decodedCursor.createdAt), lt(posts.id, decodedCursor.id)),
+          ) as SQL,
+        );
       }
 
       // Validate and normalize limit (max 100)
       const limitNum = Math.min(Math.max(queryInt(req.query.limit) || DEFAULT_SEARCH_LIMIT, 1), MAX_SEARCH_LIMIT);
 
       // Execute query with lean() for read-only performance
-      const posts = await Post.find(filter)
-        .select(SEARCH_HYDRATION_PROJECTION)
-        .sort({ createdAt: -1, _id: -1 })
-        .limit(limitNum + 1) // Fetch one extra to check if there are more
-        .maxTimeMS(config.search.maxTimeMS)
-        .lean();
+      const page = await findPostRecords(and(...conditions), {
+        orderBy: [desc(posts.createdAt), desc(posts.id)],
+        limit: limitNum + 1, // Fetch one extra to check if there are more
+      });
 
       // Check if there are more results
-      const hasMoreResults = posts.length > limitNum;
-      const postsToReturn = hasMoreResults ? posts.slice(0, limitNum) : posts;
+      const hasMoreResults = page.length > limitNum;
+      const postsToReturn = hasMoreResults ? page.slice(0, limitNum) : page;
 
       // Calculate next cursor
-      const nextCursor = hasMoreResults && postsToReturn.length > 0
-        ? encodeSearchCursor(
-          postsToReturn[postsToReturn.length - 1].createdAt,
-          postsToReturn[postsToReturn.length - 1]._id.toString(),
-        )
-        : undefined;
+      const anchor = hasMoreResults ? postsToReturn[postsToReturn.length - 1] : undefined;
+      const nextCursor = anchor ? encodeSearchCursor(anchor.createdAt, anchor.id) : undefined;
 
       // Hydrate posts with viewer-scoped state and embedded quoted/boost
       // originals. Pass the request's oxyClient so viewer-scoped fields

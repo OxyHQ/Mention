@@ -108,7 +108,7 @@
 
 import mongoose from 'mongoose';
 import type { FilterQuery, Model } from 'mongoose';
-import { count, eq } from 'drizzle-orm';
+import { and, count, eq, inArray, or, sql } from 'drizzle-orm';
 import { PostType } from '@mention/shared-types';
 import { connectToDatabase } from '../utils/database';
 import { connectPostgres, getDb } from '../db/postgres';
@@ -119,7 +119,8 @@ import {
   updateActorSuspended,
   type ActorScanFilter,
 } from '../db/federation/actorRepository';
-import { Post } from '../models/Post';
+import { posts } from '../db/schema/posts';
+import { postAuthorships, postMentions } from '../db/schema/postContent';
 import Like from '../models/Like';
 import Bookmark from '../models/Bookmark';
 import { deleteFollowsFor, findFollows } from '../db/federation/followRepository';
@@ -356,9 +357,24 @@ async function countOrDelete<T>(model: Model<T>, filter: FilterQuery<T>, dryRun:
  * posts that WOULD be modified; live it `$pull`s and returns the modified count.
  */
 async function delinkMentions(oxyUserId: string, dryRun: boolean): Promise<number> {
-  if (dryRun) return Post.countDocuments({ mentions: oxyUserId }).exec();
-  const res = await Post.updateMany({ mentions: oxyUserId }, { $pull: { mentions: oxyUserId } }).exec();
-  return res.modifiedCount;
+  // `post_mentions` is a child TABLE, so de-linking is a delete of the rows
+  // naming this user rather than a `$pull` on an embedded array. The dry-run
+  // count is of POSTS, not rows, matching what the live branch reports — the
+  // unique `(post_id, oxy_user_id)` index makes the two equal, and counting
+  // distinct posts says so rather than relying on it.
+  const db = getDb();
+  if (dryRun) {
+    const [row] = await db
+      .select({ count: sql<number>`count(distinct ${postMentions.postId})::int` })
+      .from(postMentions)
+      .where(eq(postMentions.oxyUserId, oxyUserId));
+    return row?.count ?? 0;
+  }
+  const deleted = await db
+    .delete(postMentions)
+    .where(eq(postMentions.oxyUserId, oxyUserId))
+    .returning({ postId: postMentions.postId });
+  return new Set(deleted.map((row) => row.postId)).size;
 }
 
 // --- per-actor re-verify + cascade -------------------------------------------
@@ -395,37 +411,43 @@ async function verifyStillGone(uri: string): Promise<Verdict> {
  * for step 1 of {@link purgeActor}.
  */
 async function purgeAuthoredPosts(oxyUserId: string, dryRun: boolean, counts: CollectionCounts): Promise<void> {
-  const authored = await Post.find(
-    {
-      $or: [
-        { oxyUserId },
-        { authorship: { $elemMatch: { oxyUserId, role: 'owner' } } },
-      ],
-    },
-    { _id: 1, federation: 1 },
-  ).lean<Array<{
-    _id: mongoose.Types.ObjectId;
-    federation?: { activityId?: string; url?: string };
-  }>>();
+  const db = getDb();
+  const postSummary = {
+    id: posts.id,
+    activityId: posts.federationActivityId,
+    url: posts.federationUrl,
+  } as const;
+
+  const authored = await db
+    .select(postSummary)
+    .from(posts)
+    .where(or(
+      eq(posts.oxyUserId, oxyUserId),
+      // The OWNER entry in the authorship table — the authority the denormalized
+      // `oxy_user_id` merely projects, so a post whose projection was never
+      // written is still found.
+      sql`exists (
+        select 1 from ${postAuthorships}
+        where ${postAuthorships.postId} = ${posts.id}
+          and ${postAuthorships.oxyUserId} = ${oxyUserId}
+          and ${postAuthorships.role} = 'owner'
+      )`,
+    ));
   if (authored.length === 0) return;
 
-  const authoredIds = authored.map((p) => p._id);
-  const authoredIdStrings = authoredIds.map((id) => id.toString());
+  const authoredIds = authored.map((p) => p.id);
 
-  // Boosts (by ANYONE) of X's posts — `boostOf` stores the original id as a string.
-  const boosts = await Post.find(
-    { type: PostType.BOOST, boostOf: { $in: authoredIdStrings } },
-    { _id: 1, federation: 1 },
-  ).lean<Array<{
-    _id: mongoose.Types.ObjectId;
-    federation?: { activityId?: string; url?: string };
-  }>>();
-  const boostIds = boosts.map((p) => p._id);
+  // Boosts (by ANYONE) of X's posts.
+  const boosts = await db
+    .select(postSummary)
+    .from(posts)
+    .where(and(eq(posts.type, PostType.BOOST), inArray(posts.boostOf, authoredIds)));
+  const boostIds = boosts.map((p) => p.id);
   const allDeletedIds = [...authoredIds, ...boostIds];
 
   const deletionTargets: PostDeletionTarget[] = [...authored, ...boosts].map((post) => ({
-    id: post._id,
-    uris: [post.federation?.activityId, post.federation?.url].filter(
+    id: post.id,
+    uris: [post.activityId, post.url].filter(
       (value): value is string => typeof value === 'string' && value.length > 0,
     ),
   }));
@@ -439,9 +461,15 @@ async function purgeAuthoredPosts(oxyUserId: string, dryRun: boolean, counts: Co
   // FIRST, so no Like/Bookmark is left pointing at a deleted post.
   counts.likesOnAuthored = await countOrDelete(Like, { postId: { $in: allDeletedIds } }, dryRun);
   counts.bookmarksOnAuthored = await countOrDelete(Bookmark, { postId: { $in: allDeletedIds } }, dryRun);
-  // Then the posts themselves: the boosts, then X's authored posts.
-  counts.boostsOfAuthored = dryRun ? boostIds.length : await countOrDelete(Post, { _id: { $in: boostIds } }, false);
-  counts.authoredPosts = dryRun ? authoredIds.length : await countOrDelete(Post, { _id: { $in: authoredIds } }, false);
+  // Then the posts themselves: the boosts, then X's authored posts. Every child
+  // row goes with them by `ON DELETE CASCADE`, so there is no per-table cleanup
+  // to keep in step here.
+  counts.boostsOfAuthored = dryRun
+    ? boostIds.length
+    : (await db.delete(posts).where(inArray(posts.id, boostIds)).returning({ id: posts.id })).length;
+  counts.authoredPosts = dryRun
+    ? authoredIds.length
+    : (await db.delete(posts).where(inArray(posts.id, authoredIds)).returning({ id: posts.id })).length;
 }
 
 /**

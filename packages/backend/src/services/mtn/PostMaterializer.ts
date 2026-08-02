@@ -114,7 +114,7 @@ import {
   replacePostContent,
   updatePostRecord,
 } from '../../db/posts/postRepository';
-import { POST_CLASSIFICATION_PENDING } from '../../models/Post';
+import { POST_CLASSIFICATION_PENDING } from '../../db/posts/postRecord';
 import { logger } from '../../utils/logger';
 import { getServiceOxyClient } from '../../utils/oxyHelpers';
 import { parseUserDid } from './mentionDid';

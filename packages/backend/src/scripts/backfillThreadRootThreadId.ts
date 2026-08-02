@@ -52,17 +52,15 @@
  *   bun packages/backend/dist/src/scripts/backfillThreadRootThreadId.js
  */
 
-import mongoose from 'mongoose';
-import { Post } from '../models/Post';
-import { connectToDatabase } from '../utils/database';
+import { and, eq, inArray, isNotNull, isNull, sql } from 'drizzle-orm';
+import { connectPostgres, getDb } from '../db/postgres';
+import { posts } from '../db/schema/posts';
 import { logger } from '../utils/logger';
+import { closeAdminScriptResources } from './lib/adminScriptLifecycle';
 import { assertAdminMutationAllowed } from './lib/adminScriptSafety';
 
 /** Root posts fetched per `$in` chunk when verifying ownership / current state. */
 const ROOT_FETCH_CHUNK_SIZE = 500;
-
-/** `threadId` stamp writes flushed per `bulkWrite` chunk. */
-const BULK_CHUNK_SIZE = 500;
 
 /** Candidate groups reported per progress line. */
 const PROGRESS_EVERY = 500;
@@ -79,11 +77,11 @@ interface CandidateThreadGroup {
 
 /** Minimal root-post projection used to qualify a stamp. */
 interface RootRow {
-  _id: mongoose.Types.ObjectId;
-  oxyUserId?: string;
-  parentPostId?: string | null;
-  threadId?: string | null;
-  federation?: { activityId?: string };
+  id: string;
+  oxyUserId: string | null;
+  parentPostId: string | null;
+  threadId: string | null;
+  federationActivityId: string | null;
 }
 
 /**
@@ -93,29 +91,33 @@ interface RootRow {
  * NOT members of these groups when their own `threadId` is null (the broken case),
  * so the group's author set reflects the continuations.
  */
-function buildCandidatePipeline(): mongoose.PipelineStage[] {
-  return [
-    {
-      $match: {
-        threadId: { $ne: null },
-        // Native posts only — federated posts carry `federation.activityId`.
-        'federation.activityId': { $exists: false },
-      },
-    },
-    {
-      $group: {
-        _id: '$threadId',
-        count: { $sum: 1 },
-        authors: { $addToSet: '$oxyUserId' },
-      },
-    },
-    {
-      $match: {
-        // Exactly one distinct author (a second author would expose `authors.1`).
-        'authors.1': { $exists: false },
-      },
-    },
-  ];
+async function loadCandidateGroups(): Promise<CandidateThreadGroup[]> {
+  const rows = await getDb()
+    .select({
+      threadId: posts.threadId,
+      count: sql<number>`count(*)::int`,
+      authors: sql<string[]>`array_agg(distinct ${posts.oxyUserId})`,
+    })
+    .from(posts)
+    .where(and(
+      // `is not null`, never `<> null`: Mongo's `$ne: null` also matched a
+      // MISSING field, while SQL's `<>` against NULL matches nothing.
+      isNotNull(posts.threadId),
+      // Native posts only — federated posts carry a federation activity id.
+      isNull(posts.federationActivityId),
+    ))
+    .groupBy(posts.threadId)
+    // Exactly one distinct author. `array_agg(distinct …)` drops NULLs, so a
+    // group of author-less posts yields an EMPTY array rather than `[null]` —
+    // hence `= 1` rather than `<= 1`, which would admit a group with no author
+    // at all and stamp a thread nobody owns.
+    .having(sql`count(distinct ${posts.oxyUserId}) = 1`);
+
+  return rows.flatMap((row) =>
+    row.threadId
+      ? [{ _id: row.threadId, count: row.count, authors: row.authors }]
+      : [],
+  );
 }
 
 /**
@@ -125,18 +127,23 @@ function buildCandidatePipeline(): mongoose.PipelineStage[] {
  */
 async function loadRoots(threadIds: string[]): Promise<Map<string, RootRow>> {
   const rootById = new Map<string, RootRow>();
-  const validObjectIds = threadIds
-    .filter((id) => mongoose.Types.ObjectId.isValid(id))
-    .map((id) => new mongoose.Types.ObjectId(id));
-
-  for (let i = 0; i < validObjectIds.length; i += ROOT_FETCH_CHUNK_SIZE) {
-    const chunk = validObjectIds.slice(i, i + ROOT_FETCH_CHUNK_SIZE);
-    const roots = await Post.find(
-      { _id: { $in: chunk } },
-      { _id: 1, oxyUserId: 1, parentPostId: 1, threadId: 1, federation: 1 },
-    ).lean<RootRow[]>();
+  // No id-shape filter: `posts.id` is `text`, so an id of any shape is a
+  // parameter that matches no row. The ObjectId filter this replaces would have
+  // dropped every thread rooted on a post created since the cutover.
+  for (let i = 0; i < threadIds.length; i += ROOT_FETCH_CHUNK_SIZE) {
+    const chunk = threadIds.slice(i, i + ROOT_FETCH_CHUNK_SIZE);
+    const roots = await getDb()
+      .select({
+        id: posts.id,
+        oxyUserId: posts.oxyUserId,
+        parentPostId: posts.parentPostId,
+        threadId: posts.threadId,
+        federationActivityId: posts.federationActivityId,
+      })
+      .from(posts)
+      .where(inArray(posts.id, chunk));
     for (const root of roots) {
-      rootById.set(root._id.toString(), root);
+      rootById.set(root.id, root);
     }
   }
 
@@ -150,10 +157,10 @@ async function backfillThreadRootThreadId(): Promise<void> {
   });
   const startedAt = Date.now();
 
-  await connectToDatabase();
-  logger.info(`[backfillThreadRootThreadId] connected to MongoDB; DRY_RUN=${DRY_RUN}`);
+  await connectPostgres();
+  logger.info(`[backfillThreadRootThreadId] connected to PostgreSQL; DRY_RUN=${DRY_RUN}`);
 
-  const candidates = await Post.aggregate<CandidateThreadGroup>(buildCandidatePipeline());
+  const candidates = await loadCandidateGroups();
   logger.info(
     `[backfillThreadRootThreadId] ${candidates.length} candidate single-author native thread groups`,
   );
@@ -173,18 +180,6 @@ async function backfillThreadRootThreadId(): Promise<void> {
   let skippedRootHasParent = 0;
   let skippedRootAlreadyStamped = 0;
   let skippedOwnership = 0;
-  let pendingOps: mongoose.AnyBulkWriteOperation<typeof Post>[] = [];
-
-  const flush = async (): Promise<void> => {
-    if (pendingOps.length === 0) return;
-    if (DRY_RUN) {
-      pendingOps = [];
-      return;
-    }
-    const result = await Post.bulkWrite(pendingOps, { ordered: false });
-    rootsStampedWritten += result.modifiedCount;
-    pendingOps = [];
-  };
 
   for (const group of candidates) {
     groupsScanned += 1;
@@ -199,18 +194,18 @@ async function backfillThreadRootThreadId(): Promise<void> {
       continue;
     }
     // ...be native (federated threads are structured via inReplyTo, not threadId).
-    if (root.federation?.activityId !== undefined) {
+    if (root.federationActivityId !== null) {
       skippedRootFederated += 1;
       continue;
     }
     // ...be a true top-level post (the head of the thread, not itself a reply).
-    if (root.parentPostId !== null && root.parentPostId !== undefined) {
+    if (root.parentPostId !== null) {
       skippedRootHasParent += 1;
       continue;
     }
     // ...currently lack a threadId (idempotency: a root already carrying one — e.g.
     // a post created after the forward fix — is left untouched).
-    if (root.threadId !== null && root.threadId !== undefined) {
+    if (root.threadId !== null) {
       skippedRootAlreadyStamped += 1;
       continue;
     }
@@ -222,15 +217,13 @@ async function backfillThreadRootThreadId(): Promise<void> {
     }
 
     rootsStampedPlanned += 1;
-    pendingOps.push({
-      updateOne: {
-        filter: { _id: root._id },
-        update: { $set: { threadId: root._id.toString() } },
-      },
-    });
-
-    if (pendingOps.length >= BULK_CHUNK_SIZE) {
-      await flush();
+    if (!DRY_RUN) {
+      const stamped = await getDb()
+        .update(posts)
+        .set({ threadId: root.id })
+        .where(eq(posts.id, root.id))
+        .returning({ id: posts.id });
+      rootsStampedWritten += stamped.length;
     }
 
     if (groupsScanned % PROGRESS_EVERY === 0) {
@@ -239,8 +232,6 @@ async function backfillThreadRootThreadId(): Promise<void> {
       );
     }
   }
-
-  await flush();
 
   const elapsedSeconds = Math.round((Date.now() - startedAt) / 1000);
   logger.info(
@@ -256,13 +247,13 @@ async function backfillThreadRootThreadId(): Promise<void> {
 async function run(): Promise<void> {
   try {
     await backfillThreadRootThreadId();
-    await mongoose.disconnect();
+    await closeAdminScriptResources();
     // Exit explicitly: imported model/service modules may hold open handles
     // (Redis/BullMQ singletons) that would otherwise keep the process alive.
     process.exit(0);
   } catch (error) {
     logger.error('[backfillThreadRootThreadId] failed', error);
-    await mongoose.disconnect().catch(() => undefined);
+    await closeAdminScriptResources().catch(() => undefined);
     process.exit(1);
   }
 }

@@ -1,46 +1,64 @@
-import type { Types } from 'mongoose';
-import { eq } from 'drizzle-orm';
-import { Post } from '../../models/Post';
-import Like from '../../models/Like';
-import Bookmark from '../../models/Bookmark';
-import Notification from '../../models/Notification';
-import Poll from '../../models/Poll';
-import Article from '../../models/Article';
-import { Postgate } from '../../models/Postgate';
-import { Threadgate } from '../../models/Threadgate';
-import PostRecentReplier from '../../models/PostRecentReplier';
-import EngagementOutbox from '../../models/EngagementOutbox';
-import Report, { ReportedType } from '../../models/Report.model';
-import ContentLabel from '../../models/ContentLabel';
-import { FeedInteraction } from '../../models/FeedInteraction';
+import {
+  and,
+  arrayContains,
+  eq,
+  exists,
+  inArray,
+  ne,
+  notInArray,
+  or,
+  sql,
+  type SQL,
+} from 'drizzle-orm';
+import type { PgColumn, PgTable } from 'drizzle-orm/pg-core';
+import { articles } from '../../db/schema/articles';
+import { authorFollowerSnapshots, notifications, pushTokens } from '../../db/schema/discovery';
+import {
+  bookmarks,
+  entityFollows,
+  likes,
+  muteWords,
+  mutes,
+  pokes,
+  postSubscriptions,
+} from '../../db/schema/engagement';
+import {
+  customFeedMembers,
+  customFeeds,
+  feedGenerators,
+  feedInteractions,
+  feedLikes,
+  feedReviews,
+  userFeedPreferences,
+} from '../../db/schema/feeds';
+import { postgates, threadgates } from '../../db/schema/gates';
+import {
+  accountListMembers,
+  accountLists,
+  starterPackMembers,
+  starterPackUses,
+  starterPacks,
+} from '../../db/schema/lists';
+import {
+  mentionNodeIngestWitnesses,
+  mentionRepoHeads,
+  mentionSignedRecords,
+  mentionUserNodes,
+} from '../../db/schema/mtn';
+import { contentLabels, labelers, reports } from '../../db/schema/moderation';
+import { endorsementOutbox, engagementOutbox } from '../../db/schema/outbox';
+import { pollVotes, polls } from '../../db/schema/polls';
+import { postAuthorships, postMentions, postRecentRepliers } from '../../db/schema/postContent';
+import { posts } from '../../db/schema/posts';
+import { userBehaviorAuthors, userBehaviors, userSettings } from '../../db/schema/userProfile';
+import { ReportedType } from '../../models/Report.model';
 import {
   hasDeliveriesFromSender,
   hasDeliveriesReferencingObjects,
 } from '../../db/federation/deliveryQueueRepository';
-import Mute from '../../models/Mute';
-import { MuteWord } from '../../models/MuteWord';
-import FeedLike from '../../models/FeedLike';
-import FeedReview from '../../models/FeedReview';
-import PostSubscription from '../../models/PostSubscription';
-import PushToken from '../../models/PushToken';
-import Poke from '../../models/Poke';
-import AccountList from '../../models/AccountList';
-import CustomFeed from '../../models/CustomFeed';
-import StarterPack from '../../models/StarterPack';
-import { FeedGenerator } from '../../models/FeedGenerator';
-import Labeler from '../../models/Labeler';
-import EndorsementOutbox from '../../models/EndorsementOutbox';
-import UserBehavior from '../../models/UserBehavior';
 import { existsFollow } from '../../db/federation/followRepository';
-import { EntityFollow } from '../../models/EntityFollow';
-import UserSettings from '../../models/UserSettings';
-import UserFeedPreference from '../../models/UserFeedPreference';
-import { AuthorFollowerSnapshot } from '../../models/AuthorFollowerSnapshot';
 import { hasActorKeyPair } from '../../db/federation/actorKeyPairRepository';
-import MentionUserNode from '../../models/MentionUserNode';
-import MentionNodeIngestWitness from '../../models/MentionNodeIngestWitness';
 import { getDb } from '../../db/postgres';
-import { mentionRepoHeads, mentionSignedRecords } from '../../db/schema/mtn';
 
 export interface ReferenceProbe {
   name: string;
@@ -48,8 +66,37 @@ export interface ReferenceProbe {
 }
 
 export interface PostDeletionTarget {
-  id: Types.ObjectId | string;
+  id: string;
   uris?: readonly string[];
+}
+
+/**
+ * Whether ANY row of `table` matches `where` — the Postgres analogue of
+ * `Model.exists`, and the only shape a reference probe needs.
+ *
+ * EVERY probe in this file goes through this or `postExists`. That is the whole
+ * repair: each probe used to ask a Mongoose model whose collection moved to
+ * Postgres in an earlier batch and which nothing has written since, so it
+ * answered "no reference" for every input — the preflight cleared EVERY
+ * deletion, silently, in the permissive direction. A gate that fails open is
+ * worse than an absent one, because the operator believes it ran.
+ *
+ * It surfaced only because post ids became uuid v7 and several Mongoose paths
+ * are typed `ObjectId`, which turned the silence into a CastError. The columns
+ * here are all `text`, so they hold either id space.
+ */
+async function anyRow(
+  table: PgTable,
+  idColumn: PgColumn,
+  where: SQL | undefined,
+): Promise<boolean> {
+  const [row] = await getDb().select({ id: idColumn }).from(table).where(where).limit(1);
+  return row !== undefined;
+}
+
+/** `anyRow` for the posts table itself, which every actor probe also needs. */
+async function postExists(where: SQL | undefined): Promise<boolean> {
+  return anyRow(posts, posts.id, where);
 }
 
 export interface ActorDeletionTarget {
@@ -96,10 +143,6 @@ export function assertNoDeletionBlockers(
   }
 }
 
-async function exists(query: PromiseLike<unknown>): Promise<boolean> {
-  return Boolean(await query);
-}
-
 function unique(values: readonly string[]): string[] {
   return [...new Set(values.filter((value) => value.length > 0))];
 }
@@ -116,8 +159,7 @@ export async function assertPostsSafeToDelete(
 ): Promise<void> {
   if (targets.length === 0) return;
 
-  const ids = targets.map((target) => target.id);
-  const idStrings = unique(ids.map(String));
+  const idStrings = unique(targets.map((target) => target.id));
   const postKeys = unique([
     ...idStrings,
     ...targets.flatMap((target) => target.uris ?? []),
@@ -125,97 +167,101 @@ export async function assertPostsSafeToDelete(
 
   const probes: ReferenceProbe[] = [
     {
-      name: 'Post.boostOf/quoteOf/parentPostId/threadId',
+      name: 'posts.boost_of/quote_of/parent_post_id/thread_id',
       hasReference: () =>
-        exists(
-          Post.exists({
-            _id: { $nin: ids },
-            $or: [
-              { boostOf: { $in: idStrings } },
-              { quoteOf: { $in: idStrings } },
-              { parentPostId: { $in: idStrings } },
-              { threadId: { $in: idStrings } },
-            ],
-          }),
+        postExists(
+          and(
+            notInArray(posts.id, idStrings),
+            or(
+              inArray(posts.boostOf, idStrings),
+              inArray(posts.quoteOf, idStrings),
+              inArray(posts.parentPostId, idStrings),
+              inArray(posts.threadId, idStrings),
+            ),
+          ),
         ),
     },
     {
-      name: 'Notification.entityId',
+      name: 'notifications.entity_id',
       hasReference: () =>
-        exists(
-          Notification.exists({
-            entityType: { $in: ['post', 'reply'] },
-            entityId: { $in: ids },
-          }),
+        anyRow(
+          notifications,
+          notifications.id,
+          and(
+            inArray(notifications.entityType, ['post', 'reply']),
+            inArray(notifications.entityId, idStrings),
+          ),
         ),
     },
     {
-      name: 'Poll.postId',
-      hasReference: () =>
-        exists(Poll.exists({ postId: { $in: [...ids, ...idStrings] } })),
+      name: 'polls.post_id',
+      hasReference: () => anyRow(polls, polls.id, inArray(polls.postId, idStrings)),
     },
     {
-      name: 'Article.postId',
-      hasReference: () => exists(Article.exists({ postId: { $in: idStrings } })),
+      name: 'articles.post_id',
+      hasReference: () => anyRow(articles, articles.id, inArray(articles.postId, idStrings)),
     },
     {
-      name: 'Postgate.postId/postUri',
+      name: 'postgates.post_id/post_uri',
       hasReference: () =>
-        exists(
-          Postgate.exists({
-            $or: [
-              { postId: { $in: idStrings } },
-              { postUri: { $in: postKeys } },
-            ],
-          }),
+        anyRow(
+          postgates,
+          postgates.id,
+          or(inArray(postgates.postId, idStrings), inArray(postgates.postUri, postKeys)),
         ),
     },
     {
-      name: 'Threadgate.postId/postUri',
+      name: 'threadgates.post_id/post_uri',
       hasReference: () =>
-        exists(
-          Threadgate.exists({
-            $or: [
-              { postId: { $in: idStrings } },
-              { postUri: { $in: postKeys } },
-            ],
-          }),
+        anyRow(
+          threadgates,
+          threadgates.id,
+          or(inArray(threadgates.postId, idStrings), inArray(threadgates.postUri, postKeys)),
         ),
     },
     {
-      name: 'PostRecentReplier.postId',
+      name: 'post_recent_repliers.post_id',
       hasReference: () =>
-        exists(PostRecentReplier.exists({ postId: { $in: idStrings } })),
-    },
-    {
-      name: 'EngagementOutbox.payload.postId',
-      hasReference: () =>
-        exists(EngagementOutbox.exists({ 'payload.postId': { $in: idStrings } })),
-    },
-    {
-      name: 'Report.reportedId(post)',
-      hasReference: () =>
-        exists(
-          Report.exists({
-            reportedType: ReportedType.POST,
-            reportedId: { $in: idStrings },
-          }),
+        anyRow(
+          postRecentRepliers,
+          postRecentRepliers.id,
+          inArray(postRecentRepliers.postId, idStrings),
         ),
     },
     {
-      name: 'ContentLabel.targetId(post)',
+      name: 'engagement_outbox.payload_post_id',
       hasReference: () =>
-        exists(
-          ContentLabel.exists({
-            targetType: 'post',
-            targetId: { $in: idStrings },
-          }),
+        anyRow(
+          engagementOutbox,
+          engagementOutbox.id,
+          inArray(engagementOutbox.payloadPostId, idStrings),
         ),
     },
     {
-      name: 'FeedInteraction.postUri',
+      name: 'reports.reported_id(post)',
       hasReference: () =>
-        exists(FeedInteraction.exists({ postUri: { $in: postKeys } })),
+        anyRow(
+          reports,
+          reports.id,
+          and(
+            eq(reports.reportedType, ReportedType.POST),
+            inArray(reports.reportedId, idStrings),
+          ),
+        ),
+    },
+    {
+      name: 'content_labels.target_id(post)',
+      hasReference: () =>
+        anyRow(
+          contentLabels,
+          contentLabels.id,
+          and(eq(contentLabels.targetType, 'post'), inArray(contentLabels.targetId, idStrings)),
+        ),
+    },
+    {
+      name: 'feed_interactions.post_uri',
+      hasReference: () =>
+        anyRow(feedInteractions, feedInteractions.id, inArray(feedInteractions.postUri, postKeys)),
     },
     {
       // The probe NAME follows the storage: a blocker message has to name
@@ -227,13 +273,18 @@ export async function assertPostsSafeToDelete(
 
   if (!options.cascadeEngagement) {
     probes.push(
+      // These two now carry a real `ON DELETE CASCADE` to `posts.id`, so the
+      // reference cannot be left DANGLING — which makes the probe MORE
+      // load-bearing, not less. Under Mongo an unblocked delete left a visible
+      // orphan; under Postgres it destroys the engagement row silently. The
+      // caller's `cascadeEngagement` opt-out stays the only way past it.
       {
-        name: 'Like.postId',
-        hasReference: () => exists(Like.exists({ postId: { $in: ids } })),
+        name: 'likes.post_id',
+        hasReference: () => anyRow(likes, likes.id, inArray(likes.postId, idStrings)),
       },
       {
-        name: 'Bookmark.postId',
-        hasReference: () => exists(Bookmark.exists({ postId: { $in: ids } })),
+        name: 'bookmarks.post_id',
+        hasReference: () => anyRow(bookmarks, bookmarks.id, inArray(bookmarks.postId, idStrings)),
       },
     );
   }
@@ -252,154 +303,187 @@ function actorReferenceProbes(
   if (oxyUserId) {
     probes.push(
       {
-        name: 'Bookmark.userId',
-        hasReference: () => exists(Bookmark.exists({ userId: oxyUserId })),
+        name: 'bookmarks.user_id',
+        hasReference: () => anyRow(bookmarks, bookmarks.id, eq(bookmarks.userId, oxyUserId)),
       },
       {
-        name: 'Mute.userId/mutedId',
+        name: 'mutes.user_id/muted_id',
         hasReference: () =>
-          exists(Mute.exists({ $or: [{ userId: oxyUserId }, { mutedId: oxyUserId }] })),
+          anyRow(mutes, mutes.id, or(eq(mutes.userId, oxyUserId), eq(mutes.mutedId, oxyUserId))),
       },
       {
-        name: 'MuteWord.userId',
-        hasReference: () => exists(MuteWord.exists({ userId: oxyUserId })),
+        name: 'mute_words.user_id',
+        hasReference: () => anyRow(muteWords, muteWords.id, eq(muteWords.userId, oxyUserId)),
       },
       {
-        name: 'FeedInteraction.userId',
-        hasReference: () => exists(FeedInteraction.exists({ userId: oxyUserId })),
-      },
-      {
-        name: 'FeedLike.userId',
-        hasReference: () => exists(FeedLike.exists({ userId: oxyUserId })),
-      },
-      {
-        name: 'FeedReview.reviewerId',
-        hasReference: () => exists(FeedReview.exists({ reviewerId: oxyUserId })),
-      },
-      {
-        name: 'PostSubscription.subscriberId/authorId',
+        name: 'feed_interactions.user_id',
         hasReference: () =>
-          exists(
-            PostSubscription.exists({
-              $or: [{ subscriberId: oxyUserId }, { authorId: oxyUserId }],
-            }),
+          anyRow(feedInteractions, feedInteractions.id, eq(feedInteractions.userId, oxyUserId)),
+      },
+      {
+        name: 'feed_likes.user_id',
+        hasReference: () => anyRow(feedLikes, feedLikes.id, eq(feedLikes.userId, oxyUserId)),
+      },
+      {
+        name: 'feed_reviews.reviewer_id',
+        hasReference: () =>
+          anyRow(feedReviews, feedReviews.id, eq(feedReviews.reviewerId, oxyUserId)),
+      },
+      {
+        name: 'post_subscriptions.subscriber_id/author_id',
+        hasReference: () =>
+          anyRow(
+            postSubscriptions,
+            postSubscriptions.id,
+            or(
+              eq(postSubscriptions.subscriberId, oxyUserId),
+              eq(postSubscriptions.authorId, oxyUserId),
+            ),
           ),
       },
       {
-        name: 'PushToken.userId',
-        hasReference: () => exists(PushToken.exists({ userId: oxyUserId })),
+        name: 'push_tokens.user_id',
+        hasReference: () => anyRow(pushTokens, pushTokens.id, eq(pushTokens.userId, oxyUserId)),
       },
       {
-        name: 'Poke.pokerId/pokedId',
+        name: 'pokes.poker_id/poked_id',
         hasReference: () =>
-          exists(Poke.exists({ $or: [{ pokerId: oxyUserId }, { pokedId: oxyUserId }] })),
+          anyRow(pokes, pokes.id, or(eq(pokes.pokerId, oxyUserId), eq(pokes.pokedId, oxyUserId))),
       },
       {
-        name: 'Report.reporter/reportedId(user)',
+        name: 'reports.reporter/reported_id(user)',
         hasReference: () =>
-          exists(
-            Report.exists({
-              $or: [
-                { reporter: oxyUserId },
-                { reportedType: ReportedType.USER, reportedId: oxyUserId },
-              ],
-            }),
+          anyRow(
+            reports,
+            reports.id,
+            or(
+              eq(reports.reporter, oxyUserId),
+              and(
+                eq(reports.reportedType, ReportedType.USER),
+                eq(reports.reportedId, oxyUserId),
+              ),
+            ),
           ),
       },
       {
-        name: 'Poll.createdBy/options.votes',
+        // Mongo embedded the ballots in `options.votes`; they are their own
+        // table now, so the second arm is an EXISTS rather than a dotted path.
+        name: 'polls.created_by/poll_votes.user_id',
         hasReference: () =>
-          exists(
-            Poll.exists({
-              $or: [{ createdBy: oxyUserId }, { 'options.votes': oxyUserId }],
-            }),
+          anyRow(
+            polls,
+            polls.id,
+            or(
+              eq(polls.createdBy, oxyUserId),
+              exists(
+                getDb()
+                  .select({ one: sql`1` })
+                  .from(pollVotes)
+                  .where(and(eq(pollVotes.pollId, polls.id), eq(pollVotes.userId, oxyUserId))),
+              ),
+            ),
           ),
       },
       {
-        name: 'Article.createdBy',
-        hasReference: () => exists(Article.exists({ createdBy: oxyUserId })),
+        name: 'articles.created_by',
+        hasReference: () => anyRow(articles, articles.id, eq(articles.createdBy, oxyUserId)),
       },
       {
-        name: 'Postgate.createdBy',
-        hasReference: () => exists(Postgate.exists({ createdBy: oxyUserId })),
+        name: 'postgates.created_by',
+        hasReference: () => anyRow(postgates, postgates.id, eq(postgates.createdBy, oxyUserId)),
       },
       {
-        name: 'Threadgate.createdBy',
-        hasReference: () => exists(Threadgate.exists({ createdBy: oxyUserId })),
-      },
-      {
-        name: 'PostRecentReplier.repliers.oxyUserId',
+        name: 'threadgates.created_by',
         hasReference: () =>
-          exists(PostRecentReplier.exists({ 'repliers.oxyUserId': oxyUserId })),
+          anyRow(threadgates, threadgates.id, eq(threadgates.createdBy, oxyUserId)),
       },
       {
-        name: 'EngagementOutbox.payload actor/owner/authorship',
+        name: 'post_recent_repliers.oxy_user_id',
         hasReference: () =>
-          exists(
-            EngagementOutbox.exists({
-              $or: [
-                { 'payload.actorOxyUserId': oxyUserId },
-                { 'payload.postOwnerOxyUserId': oxyUserId },
-                { 'payload.postAuthorship.oxyUserId': oxyUserId },
-              ],
-            }),
+          anyRow(
+            postRecentRepliers,
+            postRecentRepliers.id,
+            eq(postRecentRepliers.oxyUserId, oxyUserId),
           ),
       },
       {
-        name: 'AccountList owner/member',
+        // Mongo's third arm, `payload.postAuthorship.oxyUserId`, has NO column:
+        // that snapshot was dropped as reconstructible from `post_authorships`,
+        // which the `posts non-owner authorship` probe below already covers.
+        name: 'engagement_outbox.payload actor/owner',
         hasReference: () =>
-          exists(
-            AccountList.exists({
-              $or: [
-                { ownerOxyUserId: oxyUserId },
-                { memberOxyUserIds: oxyUserId },
-              ],
-            }),
+          anyRow(
+            engagementOutbox,
+            engagementOutbox.id,
+            or(
+              eq(engagementOutbox.payloadActorOxyUserId, oxyUserId),
+              eq(engagementOutbox.payloadPostOwnerOxyUserId, oxyUserId),
+            ),
           ),
       },
       {
-        name: 'CustomFeed owner/member',
-        hasReference: () =>
-          exists(
-            CustomFeed.exists({
-              $or: [
-                { ownerOxyUserId: oxyUserId },
-                { memberOxyUserIds: oxyUserId },
-              ],
-            }),
+        // The member arrays became junction tables, so "owner or member" is a
+        // union of two probes rather than one `$or` on a document.
+        name: 'account_lists owner/member',
+        hasReference: async () =>
+          (await anyRow(
+            accountLists,
+            accountLists.id,
+            eq(accountLists.ownerOxyUserId, oxyUserId),
+          )) ||
+          anyRow(
+            accountListMembers,
+            accountListMembers.id,
+            eq(accountListMembers.oxyUserId, oxyUserId),
           ),
       },
       {
-        name: 'StarterPack owner/member/usedBy',
-        hasReference: () =>
-          exists(
-            StarterPack.exists({
-              $or: [
-                { ownerOxyUserId: oxyUserId },
-                { memberOxyUserIds: oxyUserId },
-                { usedByOxyUserIds: oxyUserId },
-              ],
-            }),
+        name: 'custom_feeds owner/member',
+        hasReference: async () =>
+          (await anyRow(customFeeds, customFeeds.id, eq(customFeeds.ownerOxyUserId, oxyUserId))) ||
+          anyRow(
+            customFeedMembers,
+            customFeedMembers.id,
+            eq(customFeedMembers.oxyUserId, oxyUserId),
           ),
       },
       {
-        name: 'FeedGenerator.createdBy',
-        hasReference: () => exists(FeedGenerator.exists({ createdBy: oxyUserId })),
+        name: 'starter_packs owner/member/used_by',
+        hasReference: async () =>
+          (await anyRow(
+            starterPacks,
+            starterPacks.id,
+            eq(starterPacks.ownerOxyUserId, oxyUserId),
+          )) ||
+          (await anyRow(
+            starterPackMembers,
+            starterPackMembers.id,
+            eq(starterPackMembers.oxyUserId, oxyUserId),
+          )) ||
+          anyRow(starterPackUses, starterPackUses.id, eq(starterPackUses.oxyUserId, oxyUserId)),
       },
       {
-        name: 'Labeler.creatorId',
-        hasReference: () => exists(Labeler.exists({ creatorId: oxyUserId })),
-      },
-      {
-        name: 'ContentLabel user/createdBy',
+        name: 'feed_generators.created_by',
         hasReference: () =>
-          exists(
-            ContentLabel.exists({
-              $or: [
-                { createdBy: oxyUserId },
-                { targetType: 'user', targetId: oxyUserId },
-              ],
-            }),
+          anyRow(feedGenerators, feedGenerators.id, eq(feedGenerators.createdBy, oxyUserId)),
+      },
+      {
+        name: 'labelers.creator_id',
+        hasReference: () => anyRow(labelers, labelers.id, eq(labelers.creatorId, oxyUserId)),
+      },
+      {
+        name: 'content_labels created_by/target_id(user)',
+        hasReference: () =>
+          anyRow(
+            contentLabels,
+            contentLabels.id,
+            or(
+              eq(contentLabels.createdBy, oxyUserId),
+              and(
+                eq(contentLabels.targetType, 'user'),
+                eq(contentLabels.targetId, oxyUserId),
+              ),
+            ),
           ),
       },
       {
@@ -407,43 +491,65 @@ function actorReferenceProbes(
         hasReference: () => hasDeliveriesFromSender(oxyUserId),
       },
       {
-        name: 'EndorsementOutbox pending owner/member',
+        name: 'endorsement_outbox pending owner/member',
         hasReference: () =>
-          exists(
-            EndorsementOutbox.exists({
-              $or: [
-                { pendingRemoveOwnerId: oxyUserId },
-                { pendingRemoveMemberIds: oxyUserId },
-              ],
-            }),
+          anyRow(
+            endorsementOutbox,
+            endorsementOutbox.id,
+            or(
+              eq(endorsementOutbox.pendingRemoveOwnerId, oxyUserId),
+              arrayContains(endorsementOutbox.pendingRemoveMemberIds, [oxyUserId]),
+            ),
           ),
       },
       {
-        name: 'UserBehavior references from another viewer',
+        // `preferredAuthors` became a child table; the three negative-signal
+        // arrays stayed `text[]`, so they are containment tests (`@>`), not
+        // equality — an `eq` against an array column matches nothing at all.
+        name: 'user_behaviors references from another viewer',
         hasReference: () =>
-          exists(
-            UserBehavior.exists({
-              oxyUserId: { $ne: oxyUserId },
-              $or: [
-                { 'preferredAuthors.authorId': oxyUserId },
-                { hiddenAuthors: oxyUserId },
-                { mutedAuthors: oxyUserId },
-                { blockedAuthors: oxyUserId },
-              ],
-            }),
+          anyRow(
+            userBehaviors,
+            userBehaviors.id,
+            and(
+              ne(userBehaviors.oxyUserId, oxyUserId),
+              or(
+                exists(
+                  getDb()
+                    .select({ one: sql`1` })
+                    .from(userBehaviorAuthors)
+                    .where(
+                      and(
+                        eq(userBehaviorAuthors.behaviorId, userBehaviors.id),
+                        eq(userBehaviorAuthors.authorId, oxyUserId),
+                      ),
+                    ),
+                ),
+                arrayContains(userBehaviors.hiddenAuthors, [oxyUserId]),
+                arrayContains(userBehaviors.mutedAuthors, [oxyUserId]),
+                arrayContains(userBehaviors.blockedAuthors, [oxyUserId]),
+              ),
+            ),
           ),
       },
       {
-        name: 'Post non-owner authorship/federation.actorUri',
+        name: 'posts non-owner authorship/federation.actor_uri',
         hasReference: () =>
-          exists(
-            Post.exists({
-              oxyUserId: { $ne: oxyUserId },
-              $or: [
-                { 'authorship.oxyUserId': oxyUserId },
-                { 'federation.actorUri': actorUri },
-              ],
-            }),
+          postExists(
+            and(
+              ne(posts.oxyUserId, oxyUserId),
+              or(
+                // The authorship AUTHORITY is a child table, so "someone else's
+                // post lists this user as a collaborator" is an EXISTS over it —
+                // not a dotted path on the post row.
+                sql`exists (
+                  select 1 from ${postAuthorships}
+                  where ${postAuthorships.postId} = ${posts.id}
+                    and ${postAuthorships.oxyUserId} = ${oxyUserId}
+                )`,
+                eq(posts.federationActorUri, actorUri),
+              ),
+            ),
           ),
       },
       {
@@ -453,8 +559,8 @@ function actorReferenceProbes(
     );
   } else {
     probes.push({
-      name: 'Post.federation.actorUri without linked Oxy identity',
-      hasReference: () => exists(Post.exists({ 'federation.actorUri': actorUri })),
+      name: 'posts.federation_actor_uri without linked Oxy identity',
+      hasReference: () => postExists(eq(posts.federationActorUri, actorUri)),
     });
   }
 
@@ -470,87 +576,105 @@ function actorReferenceProbes(
   if (oxyUserId) {
     probes.push(
       {
-        name: 'Post owner/authorship/mentions',
+        name: 'posts owner/authorship/mentions',
         hasReference: () =>
-          exists(
-            Post.exists({
-              $or: [
-                { oxyUserId },
-                { 'authorship.oxyUserId': oxyUserId },
-                { mentions: oxyUserId },
-              ],
-            }),
+          postExists(
+            or(
+              eq(posts.oxyUserId, oxyUserId),
+              sql`exists (
+                select 1 from ${postAuthorships}
+                where ${postAuthorships.postId} = ${posts.id}
+                  and ${postAuthorships.oxyUserId} = ${oxyUserId}
+              )`,
+              sql`exists (
+                select 1 from ${postMentions}
+                where ${postMentions.postId} = ${posts.id}
+                  and ${postMentions.oxyUserId} = ${oxyUserId}
+              )`,
+            ),
           ),
       },
       {
-        name: 'Like.userId',
-        hasReference: () => exists(Like.exists({ userId: oxyUserId })),
+        name: 'likes.user_id',
+        hasReference: () => anyRow(likes, likes.id, eq(likes.userId, oxyUserId)),
       },
       {
-        name: 'EntityFollow.userId',
-        hasReference: () => exists(EntityFollow.exists({ userId: oxyUserId })),
-      },
-      {
-        name: 'Notification recipient/actor',
+        name: 'entity_follows.user_id',
         hasReference: () =>
-          exists(
-            Notification.exists({
-              $or: [{ recipientId: oxyUserId }, { actorId: oxyUserId }],
-            }),
+          anyRow(entityFollows, entityFollows.id, eq(entityFollows.userId, oxyUserId)),
+      },
+      {
+        name: 'notifications recipient/actor',
+        hasReference: () =>
+          anyRow(
+            notifications,
+            notifications.id,
+            or(
+              eq(notifications.recipientId, oxyUserId),
+              eq(notifications.actorId, oxyUserId),
+            ),
           ),
       },
       {
-        name: 'UserSettings.oxyUserId',
-        hasReference: () => exists(UserSettings.exists({ oxyUserId })),
+        name: 'user_settings.oxy_user_id',
+        hasReference: () => anyRow(userSettings, userSettings.id, eq(userSettings.oxyUserId, oxyUserId)),
       },
       {
-        name: 'UserBehavior.oxyUserId',
-        hasReference: () => exists(UserBehavior.exists({ oxyUserId })),
+        name: 'user_behaviors.oxy_user_id',
+        hasReference: () =>
+          anyRow(userBehaviors, userBehaviors.id, eq(userBehaviors.oxyUserId, oxyUserId)),
       },
       {
-        name: 'UserFeedPreference.oxyUserId',
-        hasReference: () => exists(UserFeedPreference.exists({ oxyUserId })),
+        name: 'user_feed_preferences.oxy_user_id',
+        hasReference: () =>
+          anyRow(
+            userFeedPreferences,
+            userFeedPreferences.id,
+            eq(userFeedPreferences.oxyUserId, oxyUserId),
+          ),
       },
       {
-        name: 'AuthorFollowerSnapshot.oxyUserId',
-        hasReference: () => exists(AuthorFollowerSnapshot.exists({ oxyUserId })),
+        name: 'author_follower_snapshots.oxy_user_id',
+        hasReference: () =>
+          anyRow(
+            authorFollowerSnapshots,
+            authorFollowerSnapshots.id,
+            eq(authorFollowerSnapshots.oxyUserId, oxyUserId),
+          ),
       },
       {
         name: 'actor_key_pairs.oxy_user_id',
         hasReference: () => hasActorKeyPair(oxyUserId),
       },
+      // The probe NAME follows the storage throughout: a blocker message has to
+      // name something an operator can go and look at.
       {
-        name: 'MentionUserNode.oxyUserId',
-        hasReference: () => exists(MentionUserNode.exists({ oxyUserId })),
+        name: 'mention_user_nodes.oxy_user_id',
+        hasReference: () =>
+          anyRow(mentionUserNodes, mentionUserNodes.id, eq(mentionUserNodes.oxyUserId, oxyUserId)),
       },
-      // The MTN chain moved to Postgres, so these two probes are `SELECT … LIMIT 1`
-      // rather than a Mongoose `exists`. The probe NAME follows the storage: a
-      // blocker message has to name something an operator can go and look at.
       {
         name: 'mention_repo_heads.oxy_user_id',
-        hasReference: async () => {
-          const [row] = await getDb()
-            .select({ id: mentionRepoHeads.id })
-            .from(mentionRepoHeads)
-            .where(eq(mentionRepoHeads.oxyUserId, oxyUserId))
-            .limit(1);
-          return row !== undefined;
-        },
+        hasReference: () =>
+          anyRow(mentionRepoHeads, mentionRepoHeads.id, eq(mentionRepoHeads.oxyUserId, oxyUserId)),
       },
       {
         name: 'mention_signed_records.oxy_user_id',
-        hasReference: async () => {
-          const [row] = await getDb()
-            .select({ id: mentionSignedRecords.id })
-            .from(mentionSignedRecords)
-            .where(eq(mentionSignedRecords.oxyUserId, oxyUserId))
-            .limit(1);
-          return row !== undefined;
-        },
+        hasReference: () =>
+          anyRow(
+            mentionSignedRecords,
+            mentionSignedRecords.id,
+            eq(mentionSignedRecords.oxyUserId, oxyUserId),
+          ),
       },
       {
-        name: 'MentionNodeIngestWitness.oxyUserId',
-        hasReference: () => exists(MentionNodeIngestWitness.exists({ oxyUserId })),
+        name: 'mention_node_ingest_witnesses.oxy_user_id',
+        hasReference: () =>
+          anyRow(
+            mentionNodeIngestWitnesses,
+            mentionNodeIngestWitnesses.id,
+            eq(mentionNodeIngestWitnesses.oxyUserId, oxyUserId),
+          ),
       },
     );
   }

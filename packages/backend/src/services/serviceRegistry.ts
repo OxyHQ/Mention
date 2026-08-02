@@ -1,5 +1,5 @@
 import type { MediaItem } from '@mention/shared-types';
-import type { IPost } from '../models/Post';
+import type { PostRecord } from '../db/posts/postRecord';
 import type { CreatePostParams } from './PostCreationService';
 
 /**
@@ -21,27 +21,40 @@ import type { CreatePostParams } from './PostCreationService';
 
 /** The subset of `PostCreationService` a connector depends on. */
 export interface PostCreator {
-  create(params: CreatePostParams): Promise<IPost>;
+  create(params: CreatePostParams): Promise<PostRecord>;
+}
+
+/**
+ * The post fields outbound federation reads. A {@link PostRecord} satisfies it.
+ *
+ * It says `id`, not `_id`, because that is what a Mention post row's primary key
+ * is called. `@oxyhq/federation`'s `LocalPostEventPayload` still says `_id` — it
+ * is a shared package written against Mongo documents — so `ConnectorRegistry`
+ * translates once when it builds the event, and `ActivityPubConnector` translates
+ * back once when it hands the payload to the Note builders. Two lines, both at
+ * the app↔SDK boundary, and nothing above or below them carries the foreign
+ * spelling.
+ */
+export interface FederatablePost {
+  id: string;
+  content: { text?: string; media?: MediaItem[] };
+  hashtags?: string[];
+  mentions?: string[];
+  visibility: string;
+  createdAt: string | Date;
+  // A boost carries an empty body; the connector re-routes it to an Announce
+  // rather than a blank Create(Note). Threaded through so the seam preserves it.
+  boostOf?: string | null;
+  // A reply carries the parent's Post id; the connector emits `inReplyTo` + a
+  // parent-author Mention and delivers to the parent author's inbox. Threaded
+  // through so the seam preserves it (the `POST /posts` reply path).
+  parentPostId?: string | null;
 }
 
 /** The subset of the connector registry that `PostCreationService` depends on. */
 export interface PostFederator {
   federateNewPost(
-    post: {
-      _id: unknown;
-      content: { text?: string; media?: MediaItem[] };
-      hashtags?: string[];
-      mentions?: string[];
-      visibility: string;
-      createdAt: string;
-      // A boost carries an empty body; the connector re-routes it to an Announce
-      // rather than a blank Create(Note). Threaded through so the seam preserves it.
-      boostOf?: string | null;
-      // A reply carries the parent's Post id; the connector emits `inReplyTo` + a
-      // parent-author Mention and delivers to the parent author's inbox. Threaded
-      // through so the seam preserves it (the `POST /posts` reply path).
-      parentPostId?: string | null;
-    },
+    post: FederatablePost,
     senderOxyUserId: string,
     senderUsername: string,
   ): Promise<void>;

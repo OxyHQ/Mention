@@ -1,7 +1,6 @@
-import mongoose from 'mongoose';
 import { LanguageTagSchema } from '@oxyhq/crowdsource-contracts';
-import type { PostAuthorshipEntry, StoredPostContent } from '@mention/shared-types';
-import Post from '../../../models/Post';
+import { loadPostRecord } from '../../../db/posts/postRepository';
+import type { PostRecord } from '../../../db/posts/postRecord';
 import { config } from '../../../config';
 import { getOwnerId, normalizeAuthorship } from '../../../utils/postAuthorship';
 import { getPrimaryVariant } from '../../postVariants';
@@ -64,21 +63,14 @@ import type {
  */
 
 /** A lean post, projected to exactly what a snapshot needs. */
-interface SnapshotPost {
-  _id: mongoose.Types.ObjectId;
-  content?: StoredPostContent;
-  authorship?: PostAuthorshipEntry[];
-  oxyUserId?: string;
-  parentPostId?: string;
-  quoteOf?: string;
-  language?: string;
-  createdAt?: Date | string;
-  metadata?: { isSensitive?: boolean };
-  federation?: { url?: string; sensitive?: boolean };
-}
-
-const SNAPSHOT_PROJECTION =
-  'content authorship oxyUserId parentPostId quoteOf language createdAt metadata.isSensitive federation.url federation.sensitive';
+/**
+ * The post fields an evidence snapshot reads.
+ *
+ * A structural alias of {@link PostRecord} rather than a projection type: the
+ * record is assembled whole, and naming a narrower shape here would only invite
+ * a future field to be read without being declared.
+ */
+type SnapshotPost = PostRecord;
 
 /**
  * §5.2's `sensitivity` hint for a post carrying a content warning.
@@ -92,7 +84,7 @@ const AUTHOR_DECLARED_SENSITIVITY = 'author_marked_sensitive';
 
 /** Whether the post carries a content warning from its author or its origin. */
 function isMarkedSensitive(post: SnapshotPost): boolean {
-  return post.metadata?.isSensitive === true || post.federation?.sensitive === true;
+  return post.metadata.isSensitive === true || post.federation?.sensitive === true;
 }
 
 /** Text length CrowdSource accepts inline. Beyond it the material is truncated. */
@@ -168,10 +160,7 @@ function mediaOnlySubjectResource(post: SnapshotPost): ModerationResource {
 }
 
 async function loadPost(postId: string): Promise<SnapshotPost | null> {
-  if (!mongoose.isValidObjectId(postId)) return null;
-  return await Post.findById(postId)
-    .select(SNAPSHOT_PROJECTION)
-    .lean<SnapshotPost | null>();
+  return loadPostRecord(postId);
 }
 
 /**
@@ -203,7 +192,7 @@ async function contextResource(
 
 /** Where Mention's own users see the post. Never fetched by a jury (§5.1). */
 function permalink(post: SnapshotPost): string {
-  return post.federation?.url ?? `${config.web.origin}/p/${post._id.toHexString()}`;
+  return post.federation?.url ?? `${config.web.origin}/p/${post.id}`;
 }
 
 export function createPostSubjectProvider(input: {
@@ -218,7 +207,7 @@ export function createPostSubjectProvider(input: {
       const post = await loadPost(reportedId);
       if (!post) return null;
 
-      const ownerId = getOwnerId(normalizeAuthorship(post.authorship)) ?? post.oxyUserId;
+      const ownerId = getOwnerId(normalizeAuthorship(post.authorship)) ?? post.oxyUserId ?? undefined;
       const body = postText(post);
 
       const context: ModerationContextResource[] = [];
@@ -226,7 +215,7 @@ export function createPostSubjectProvider(input: {
         [post.parentPostId, 'parent'],
         [post.quoteOf, 'quoted'],
       ] as const) {
-        const resource = await contextResource(id, role);
+        const resource = await contextResource(id ?? undefined, role);
         if (resource) context.push(resource);
       }
 
@@ -247,7 +236,7 @@ export function createPostSubjectProvider(input: {
 
       return {
         subject: {
-          externalId: post._id.toHexString(),
+          externalId: post.id,
           type: input.subjectType,
           permalink: permalink(post),
           ...(ownerId === undefined ? {} : { author: { oxyUserId: ownerId } }),

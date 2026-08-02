@@ -48,6 +48,7 @@
  */
 
 import { and, asc, desc, eq, inArray, sql, type SQL } from 'drizzle-orm';
+import type { PgUpdateSetSource } from 'drizzle-orm/pg-core';
 import { PostType, PostVisibility } from '@mention/shared-types';
 import type {
   MediaItem,
@@ -55,6 +56,7 @@ import type {
   PostAuthorshipEntry,
   PostContentVariant,
   PostSourceLink,
+  PostStats,
   ReplyPermission,
   StoredPostContent,
 } from '@mention/shared-types';
@@ -1025,6 +1027,80 @@ export async function updatePostRecord(
 
   if (Object.keys(values).length === 0) return;
   await db.update(posts).set(values).where(eq(posts.id, postId));
+}
+
+/**
+ * The denormalized counters a caller outside `PostEngagementCommandService` moves.
+ *
+ * Likes, downvotes and saves are deliberately ABSENT: those three are maintained
+ * transactionally with the `likes`/`bookmarks` rows they project, and a second
+ * door onto them is how a projection starts disagreeing with its authority.
+ * These four have no relationship table of their own — a reply, a boost and a
+ * view are counted where they happen.
+ */
+export interface PostCounterDelta {
+  comments?: number;
+  boosts?: number;
+  /** Of {@link boosts}, the subset that arrived as an inbound AP Announce. */
+  federatedBoosts?: number;
+  views?: number;
+}
+
+/**
+ * Apply counter deltas to a post and return the counters as they now stand, or
+ * `null` when no row matched.
+ *
+ * One statement — the increment, the clamp and the read-back are the same
+ * `UPDATE … RETURNING`, so no window exists in which a response could report a
+ * value another transaction has already moved.
+ *
+ * The `greatest(0, …)` clamp is a DELIBERATE difference from the Mongo `$inc` it
+ * replaces, and matches what `PostEngagementCommandService` already chose: a
+ * double unboost drove `stats.boostsCount` negative in Mongo, and a negative
+ * count is both nonsense on the wire and a ranking input that pushes a post below
+ * every post with no engagement at all.
+ */
+export async function bumpPostCounters(
+  postId: string,
+  delta: PostCounterDelta,
+  db: DatabaseOrTransaction = getDb(),
+): Promise<PostStats | null> {
+  // `PgUpdateSetSource`, not `Partial<PostInsert>`: each value here is a SQL
+  // EXPRESSION (`greatest(0, col + n)`) rather than a literal, which the insert
+  // type's `number` columns reject.
+  const values: PgUpdateSetSource<typeof posts> = {
+    ...(delta.comments
+      ? { statsCommentsCount: sql`greatest(0, ${posts.statsCommentsCount} + ${delta.comments})` }
+      : {}),
+    ...(delta.boosts
+      ? { statsBoostsCount: sql`greatest(0, ${posts.statsBoostsCount} + ${delta.boosts})` }
+      : {}),
+    ...(delta.federatedBoosts
+      ? {
+        statsFederatedBoostsCount: sql`greatest(0, ${posts.statsFederatedBoostsCount} + ${delta.federatedBoosts})`,
+      }
+      : {}),
+    ...(delta.views
+      ? { statsViewsCount: sql`greatest(0, ${posts.statsViewsCount} + ${delta.views})` }
+      : {}),
+  };
+  if (Object.keys(values).length === 0) return null;
+
+  const [row] = await db
+    .update(posts)
+    .set(values)
+    .where(eq(posts.id, postId))
+    .returning({
+      likesCount: posts.statsLikesCount,
+      downvotesCount: posts.statsDownvotesCount,
+      boostsCount: posts.statsBoostsCount,
+      federatedBoostsCount: posts.statsFederatedBoostsCount,
+      commentsCount: posts.statsCommentsCount,
+      viewsCount: posts.statsViewsCount,
+      sharesCount: posts.statsSharesCount,
+      savesCount: posts.statsSavesCount,
+    });
+  return row ?? null;
 }
 
 /**

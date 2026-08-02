@@ -21,7 +21,9 @@
  */
 
 import type { User } from '@oxyhq/core';
-import { Post } from '../models/Post';
+import { and, gte, isNull, lt } from 'drizzle-orm';
+import { getDb } from '../db/postgres';
+import { posts } from '../db/schema/posts';
 import type { FederatedActorRecord } from '../db/federation/actorRecord';
 import {
   findActorByOxyUserId,
@@ -313,19 +315,20 @@ class FederatedProfileSync {
         }
 
         // Backfill oxyUserId on any posts that were stored without it. The match is
-        // a `/`-terminated RANGE over `federation.activityId` (the same form the
-        // sibling read in `connectors.routes.ts` uses), never a `$regex` built from
+        // a `/`-terminated RANGE over `federation.activity_id` (the same form the
+        // sibling read in `connectors.routes.ts` uses), never a pattern built from
         // the actor URI: an unescaped prefix would let `@bob` claim `@bobsmith`'s
-        // orphaned posts, and any `.`/`*`/`+`/`(`/`?` surviving URL normalization
-        // would become a mongod-evaluated pattern over an unindexable scan.
+        // orphaned posts, and any regex/LIKE metacharacter surviving URL
+        // normalization would widen the match over an unindexable scan.
         if (syncedCount > 0) {
-          await Post.updateMany(
-            {
-              'federation.activityId': { $gte: `${actor.uri}/`, $lt: `${actor.uri}/\uffff` },
-              oxyUserId: null,
-            },
-            { $set: { oxyUserId: syncUserId } },
-          );
+          await getDb()
+            .update(posts)
+            .set({ oxyUserId: syncUserId })
+            .where(and(
+              gte(posts.federationActivityId, `${actor.uri}/`),
+              lt(posts.federationActivityId, `${actor.uri}/\uffff`),
+              isNull(posts.oxyUserId),
+            ));
         }
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);

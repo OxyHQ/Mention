@@ -1,4 +1,6 @@
-import { Post } from '../models/Post';
+import { and, asc, eq, lte } from 'drizzle-orm';
+import { findPostRecords } from '../db/posts/postRepository';
+import { posts } from '../db/schema/posts';
 import { logger } from '../utils/logger';
 import { postCreationService } from './PostCreationService';
 
@@ -36,12 +38,13 @@ class ScheduledPostPublisher {
     }
     this.running = true;
     try {
-      const duePosts = await Post.find({
-        status: 'scheduled',
-        scheduledFor: { $lte: now },
-      })
-        .sort({ scheduledFor: 1 })
-        .limit(this.BATCH_SIZE);
+      // `scheduled_for` is NOT NULL for every row this predicate can match (the
+      // partial index `posts_scheduled_idx` is built on exactly this status), so
+      // the ascending sort has no NULL ordering to disagree with Mongo about.
+      const duePosts = await findPostRecords(
+        and(eq(posts.status, 'scheduled'), lte(posts.scheduledFor, now)),
+        { orderBy: [asc(posts.scheduledFor)], limit: this.BATCH_SIZE },
+      );
 
       if (duePosts.length === 0) {
         return 0;
@@ -58,7 +61,7 @@ class ScheduledPostPublisher {
           published += 1;
         } else {
           logger.error('ScheduledPostPublisher: failed to publish scheduled post', {
-            postId: String(duePosts[i]?._id),
+            postId: duePosts[i]?.id,
             error: result.reason,
           });
         }

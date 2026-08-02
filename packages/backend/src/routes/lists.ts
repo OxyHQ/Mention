@@ -1,11 +1,12 @@
 import express, { Response } from 'express';
 import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
 import { and, asc, desc, eq, ilike, inArray, or, sql, type SQL } from 'drizzle-orm';
-import mongoose from 'mongoose';
 import { config } from '../config';
 import { getDb, type DatabaseOrTransaction, type Transaction } from '../db/postgres';
 import { accountListMembers, accountLists } from '../db/schema/lists';
-import { Post } from '../models/Post';
+import { posts } from '../db/schema/posts';
+import { findPostRecords } from '../db/posts/postRepository';
+import { ChronoCursor, chronoCursorSql, chronoOrderBy } from '../mtn/feed/CursorBuilder';
 import { feedController } from '../controllers/feed.controller';
 import { endorsementSignalService } from '../services/EndorsementSignalService';
 import { canViewList } from '../services/listAccess';
@@ -530,27 +531,27 @@ router.get('/:id/timeline', ...timelineRateLimiters, async (req: AuthRequest, re
     if (!list) return res.status(404).json({ error: 'List not found' });
     if (!canViewList(list, userId)) return res.status(403).json({ error: 'Not allowed' });
 
-    // The list MEMBERSHIP is Postgres (this batch owns `account_list_members`);
-    // the POSTS are deliberately still Mongo, and that split is safe because ids
-    // are preserved verbatim across the migration, so a member id from one store
-    // names the same author in the other.
-    //
-    // The posts half is NOT this batch's to move. `transformPostsWithProfiles`
-    // hands its rows straight to `PostHydrationService.hydratePosts`, so the row
-    // SHAPE is part of the posts/hydration batch's contract — porting the query
-    // here in isolation would feed Drizzle rows to a hydrator written for Mongo
-    // documents and produce empty posts rather than an error. It moves when that
-    // batch's hydrator does.
     const members = await loadMembersByList(db, [listId]);
-    const q: Record<string, unknown> = {
-      oxyUserId: { $in: members.get(listId) ?? [] },
-      visibility: 'public',
-    };
-    if (cursor) q._id = { $lt: new mongoose.Types.ObjectId(cursor) };
-    const docs = await Post.find(q).sort({ createdAt: -1 }).limit(limit + 1).lean();
+    const memberIds = members.get(listId) ?? [];
+    // Chronological keyset, matching the cursor it hands back. The `_id`-bound
+    // page it replaces agreed with its `createdAt` sort only by accident — an
+    // ObjectId encoded its creation time — and stopped agreeing the moment ids
+    // became uuid v7.
+    const keyset = await chronoCursorSql(cursor);
+    const scope = and(
+      inArray(posts.oxyUserId, memberIds),
+      eq(posts.visibility, 'public'),
+    ) as SQL;
+    const docs = memberIds.length === 0
+      ? []
+      : await findPostRecords(keyset ? and(scope, keyset) : scope, {
+        orderBy: chronoOrderBy(),
+        limit: limit + 1,
+      });
     const hasMore = docs.length > limit;
     const toReturn = hasMore ? docs.slice(0, limit) : docs;
-    const nextCursor = hasMore ? String(docs[limit - 1]._id) : undefined;
+    const anchor = hasMore ? toReturn[limit - 1] : undefined;
+    const nextCursor = anchor ? ChronoCursor.build(anchor.id, anchor.createdAt) : undefined;
     const transformed = await feedController.transformPostsWithProfiles(toReturn, userId);
     // Date lives on the hydrated post's `metadata` (HydratedPost has no top-level
     // `date`); the previous `p.date` read was always undefined under the loose cast.

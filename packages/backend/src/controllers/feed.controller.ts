@@ -1,5 +1,5 @@
 import { Response } from 'express';
-import { Post, POST_CLASSIFICATION_PENDING } from '../models/Post';
+import { and, desc, eq, inArray, isNotNull, notInArray, sql, type SQL } from 'drizzle-orm';
 import {
   CreateReplyRequest,
   CreateBoostRequest,
@@ -12,8 +12,16 @@ import {
   mentionTextsFromContent,
   reconcileMentionIds,
 } from '@mention/shared-types/mentions';
-import mongoose, { FilterQuery } from 'mongoose';
-import { IPost } from '../models/Post';
+import { posts as postsTable } from '../db/schema/posts';
+import {
+  bumpPostCounters,
+  CHRONO_DESC,
+  deletePostRecord,
+  findPostRecords,
+  insertPostRecord,
+  loadPostRecord,
+} from '../db/posts/postRepository';
+import { POST_CLASSIFICATION_PENDING, type PostRecord } from '../db/posts/postRecord';
 import { getRuntimeOxyClient } from '../runtime/oxyClient';
 import { getRuntimeSocketServer } from '../runtime/socketServer';
 import { userPreferenceService, readInteractionSurface } from '../services/UserPreferenceService';
@@ -23,17 +31,16 @@ import UserSettings from '../models/UserSettings';
 import { checkFollowAccess, extractFollowingIds, requiresAccessCheck, ProfileVisibility, OxyClient } from '../utils/privacyHelpers';
 import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
 import { logger } from '../utils/logger';
-import {
-  validateAndNormalizeLimit,
-  parseFeedCursor,
-  FEED_CONSTANTS
-} from '../utils/feedUtils';
+import { validateAndNormalizeLimit, FEED_CONSTANTS } from '../utils/feedUtils';
+import { ChronoCursor, chronoCursorSql, chronoOrderBy, ScoreCursor } from '../mtn/feed/CursorBuilder';
+import { rankingWeight } from '../utils/feedQueryBuilder';
 import { mergeHashtags } from '../utils/textProcessing';
 import { normalizeMediaItems } from '../utils/mediaInput';
 import { queryString } from '../utils/queryParams';
 import { buildAuthorship } from '../utils/postAuthorship';
 import { validatePublicShareTarget } from '../utils/postAccessControl';
 import { baselineContentClassifier } from '../services/BaselineContentClassifier';
+import { toStoredContent } from '../services/postVariants';
 import { createScopedOxyClient } from '../utils/oxyHelpers';
 import { federateAsResolvedActor } from '../connectors/outboundFederation';
 import {
@@ -55,6 +62,36 @@ import { UserPrivacyManager } from '../mtn/UserPrivacyManager';
 const MAX_THREAD_CONTINUATION_DEPTH = 50;
 
 /**
+ * The `sort=best` ranking of a replies page: likes, plus boosts weighted 2×,
+ * plus replies weighted 1.5×.
+ *
+ * Declared ONCE, as both a SQL expression and the identical arithmetic in
+ * TypeScript, because the page's ORDER BY and its outgoing cursor have to agree
+ * on the number to the last bit — a cursor minted from a differently-rounded
+ * score bounds the next page in the wrong place and drops or repeats rows.
+ *
+ * Every weight goes through `rankingWeight`: drizzle infers a bound parameter's
+ * type from the column beside it, so a bare `${2.5}` next to an integer column
+ * is declared `int4` and Postgres rejects it at runtime while type-checking
+ * perfectly. The whole-number weight would survive that; spelling one of the two
+ * differently is how the next fractional weight added here fails in production.
+ */
+const REPLY_BOOST_WEIGHT = 2;
+const REPLY_COMMENT_WEIGHT = 1.5;
+
+const REPLY_ENGAGEMENT_SCORE = sql<number>`(
+  ${postsTable.statsLikesCount}
+  + ${postsTable.statsBoostsCount} * ${rankingWeight(REPLY_BOOST_WEIGHT)}
+  + ${postsTable.statsCommentsCount} * ${rankingWeight(REPLY_COMMENT_WEIGHT)}
+)`;
+
+function replyEngagementScore(post: PostRecord): number {
+  return post.stats.likesCount
+    + post.stats.boostsCount * REPLY_BOOST_WEIGHT
+    + post.stats.commentsCount * REPLY_COMMENT_WEIGHT;
+}
+
+/**
  * A follower/mention reference may arrive as a bare user-id string or as a
  * populated object carrying `id`/`_id`. Used when checking reply permissions.
  */
@@ -70,9 +107,6 @@ type FollowerRef = string | { id?: string; _id?: string };
  * @class FeedController
  */
 class FeedController {
-  /** Optimized field selection for feed queries - reduces data transfer by 60-80% */
-  private readonly FEED_FIELDS = '_id oxyUserId authorship federation createdAt visibility type parentPostId boostOf quoteOf threadId content stats metadata hashtags mentions language';
-
   /**
    * Transform posts to include full profile data and engagement stats
    * 
@@ -189,20 +223,18 @@ class FeedController {
    * reply-addressing branch of `federateNewPost`. A pending-review (private) reply
    * carries `visibility: private`, so the connector skips it.
    */
-  private federateReply(reply: IPost, replierOxyUserId: string): void {
-    // `createdAt` is a Mongoose timestamp (a Date at runtime, though typed as
-    // string on IPost); normalize to a canonical ISO 8601 string for the wire.
-    const createdAt = new Date(reply.createdAt).toISOString();
+  private federateReply(reply: PostRecord, replierOxyUserId: string): void {
+    const createdAt = reply.createdAt.toISOString();
     federateAsResolvedActor(replierOxyUserId, 'reply', (username) => ({
       kind: 'post.create',
       post: {
-        _id: reply._id,
+        _id: reply.id,
         content: reply.content,
         hashtags: reply.hashtags,
         mentions: reply.mentions,
         visibility: reply.visibility,
         createdAt,
-        parentPostId: reply.parentPostId ? String(reply.parentPostId) : null,
+        parentPostId: reply.parentPostId,
       },
       actorOxyUserId: replierOxyUserId,
       actorUsername: username,
@@ -241,18 +273,16 @@ class FeedController {
       }
 
       // Fetch parent post to check reply permissions
-      const parentPost = await Post.findById(postId)
-        .maxTimeMS(FEED_CONSTANTS.QUERY_TIMEOUT_MS)
-        .lean();
+      const parentPost = await loadPostRecord(postId);
       if (!parentPost) {
         return res.status(404).json({ error: 'Post not found' });
       }
 
       // Check reply permissions
-      const permissions: string[] = parentPost.replyPermission || ['anyone'];
+      const permissions: string[] = parentPost.replyPermission;
 
       if (!permissions.includes('anyone')) {
-        const parentAuthorId = parentPost.oxyUserId ? String(parentPost.oxyUserId) : undefined;
+        const parentAuthorId = parentPost.oxyUserId ?? undefined;
 
         // If replying to own post, always allow
         if (parentAuthorId === currentUserId) {
@@ -288,7 +318,7 @@ class FeedController {
                     break;
                   }
                   case 'mentioned': {
-                    canReply = (parentPost.mentions || []).some((m: FollowerRef) => {
+                    canReply = parentPost.mentions.some((m: FollowerRef) => {
                       const mentionId = typeof m === 'string' ? m : (m.id || m._id);
                       return mentionId === currentUserId || String(mentionId) === String(currentUserId);
                     });
@@ -331,43 +361,24 @@ class FeedController {
         }
       }
 
-      // If reviewReplies is enabled, set visibility to pending or use a flag
-      // For now, we'll still create it but mark it for review
-      const reply = new Post({
-        oxyUserId: currentUserId,
-        authorship: buildAuthorship(currentUserId, []),
-        type: PostType.TEXT,
-        content: replyContent,
-        visibility: parentPost.reviewReplies ? PostVisibility.PRIVATE : PostVisibility.PUBLIC,
-        parentPostId: postId,
-        threadId: parentPost.threadId || parentPost._id.toString(),
-        hashtags: mergedTags,
-        mentions: reconciledMentions,
-        stats: {
-          likesCount: 0,
-          boostsCount: 0,
-          commentsCount: 0,
-          viewsCount: 0,
-          sharesCount: 0,
-          savesCount: 0,
-        }
-      });
-
-      // Stage-A deterministic classification. This native reply path saves the
-      // doc directly (not via PostCreationService), so populate the baseline
-      // fields here while keeping `status: 'pending'` so the AI batch still
+      // Stage-A deterministic classification. This native reply path writes the
+      // row directly (not via PostCreationService), so the baseline fields are
+      // computed here while `status` stays `pending` so the AI batch still
       // enriches it. Best-effort: never block the reply on classification.
+      let classification: PostRecord['postClassification'] | undefined;
+      let primaryLanguage: string | undefined;
       try {
         const signals = baselineContentClassifier.classify({
           text: replyContent?.text,
           hashtags: mergedTags,
         });
-        // `attempts` is internal bookkeeping (not on the PostClassification type);
-        // the subschema default seeds it to 0 for the unset path. The subdoc
-        // carries ONLY the multi-language `languages` array; the primary
-        // (`languages[0]`) is written to the top-level AP `post.language`.
-        reply.postClassification = {
+        // The classification carries ONLY the multi-language `languages` array;
+        // the primary (`languages[0]`) is written to the top-level AP
+        // `post.language`. `attempts` is internal bookkeeping and starts at the
+        // column default.
+        classification = {
           status: POST_CLASSIFICATION_PENDING,
+          attempts: 0,
           topics: signals.topics,
           languages: signals.languages,
           region: signals.region,
@@ -375,17 +386,36 @@ class FeedController {
           sensitive: signals.sensitive,
           scores: signals.scores,
           version: signals.version,
+          sentiment: 'neutral',
+          intent: 'other',
+          confidence: 0,
           classifiedAt: new Date(signals.classifiedAt),
         };
-        const primaryLanguage = signals.languages[0];
-        if (primaryLanguage != null) {
-          reply.language = primaryLanguage;
-        }
+        primaryLanguage = signals.languages[0];
       } catch (classifyError) {
         logger.warn('createReply: baseline classification failed; saving with default pending', classifyError);
       }
 
-      await reply.save();
+      // If reviewReplies is enabled, set visibility to pending or use a flag
+      // For now, we'll still create it but mark it for review
+      const reply = await insertPostRecord({
+        oxyUserId: currentUserId,
+        authorship: buildAuthorship(currentUserId, []),
+        type: PostType.TEXT,
+        // The body's ONLY home is the primary rendition. This path used to write
+        // `content.text` straight through, which Mongo tolerated as an undeclared
+        // field; `posts` has no text column, so the conversion is what keeps the
+        // reply from being stored blank.
+        content: toStoredContent(replyContent, primaryLanguage),
+        status: 'published',
+        visibility: parentPost.reviewReplies ? PostVisibility.PRIVATE : PostVisibility.PUBLIC,
+        parentPostId: postId,
+        threadId: parentPost.threadId ?? parentPost.id,
+        hashtags: mergedTags,
+        mentions: reconciledMentions,
+        ...(primaryLanguage != null ? { language: primaryLanguage } : {}),
+        ...(classification ? { postClassification: classification } : {}),
+      });
       await recordRecentReplierForPost(reply);
 
       // MTN dual-write: a reply emits an `app.mention.feed.post` record with the
@@ -394,12 +424,12 @@ class FeedController {
       // itself when it IS the root). Resolve the root owner with a lean lookup
       // only when the root differs from the parent. Best-effort, never blocks.
       try {
-        const rootId = parentPost.threadId ? String(parentPost.threadId) : String(parentPost._id);
-        const parentOwner = parentPost.oxyUserId ? String(parentPost.oxyUserId) : undefined;
-        let rootOwner = rootId === String(parentPost._id) ? parentOwner : undefined;
-        if (!rootOwner && rootId) {
-          const rootPost = await Post.findById(rootId).select('oxyUserId').lean();
-          rootOwner = rootPost?.oxyUserId ? String(rootPost.oxyUserId) : undefined;
+        const rootId = parentPost.threadId ?? parentPost.id;
+        const parentOwner = parentPost.oxyUserId ?? undefined;
+        let rootOwner = rootId === parentPost.id ? parentOwner : undefined;
+        if (!rootOwner) {
+          const rootPost = await loadPostRecord(rootId);
+          rootOwner = rootPost?.oxyUserId ?? undefined;
         }
         const replyContext =
           parentOwner && rootOwner
@@ -415,17 +445,15 @@ class FeedController {
 
       // Affinity graph: the replier expresses affinity toward the parent post's
       // author. Fire-and-forget — buffering must never block or fail the reply.
-      const parentAuthorId = parentPost.oxyUserId ? String(parentPost.oxyUserId) : undefined;
+      const parentAuthorId = parentPost.oxyUserId ?? undefined;
       if (parentAuthorId) {
         void affinityEventService
-          .record({ fromUserId: currentUserId, toUserId: parentAuthorId, type: 'reply', eventId: `reply:${String(reply._id)}` })
+          .record({ fromUserId: currentUserId, toUserId: parentAuthorId, type: 'reply', eventId: `reply:${reply.id}` })
           .catch(() => undefined);
       }
 
       // Update parent post comment count
-      await Post.findByIdAndUpdate(postId, {
-        $inc: { 'stats.commentsCount': 1 }
-      }, { maxTimeMS: FEED_CONSTANTS.QUERY_TIMEOUT_MS });
+      await bumpPostCounters(postId, { comments: 1 });
 
       // Outbound federation: deliver the reply as a Create(Note) with `inReplyTo`
       // + a parent-author Mention to the replier's remote followers AND (when the
@@ -439,7 +467,7 @@ class FeedController {
       // carry the author summary and engagement shape (and, when the reply is a
       // quote, the embedded quoted card) — matching the feed/detail DTO instead
       // of a raw `.toObject()`.
-      const [hydratedReply] = await postHydrationService.hydratePosts([reply.toObject()], {
+      const [hydratedReply] = await postHydrationService.hydratePosts([reply], {
         viewerId: currentUserId,
         oxyClient: createScopedOxyClient(req),
         maxDepth: 1,
@@ -483,20 +511,17 @@ class FeedController {
         return res.status(400).json({ error: 'Original post ID is required' });
       }
 
-      const originalPost = await Post.findById(originalPostId)
-        .maxTimeMS(FEED_CONSTANTS.QUERY_TIMEOUT_MS)
-        .lean();
+      const originalPost = await loadPostRecord(originalPostId);
       const shareValidation = validatePublicShareTarget(originalPost, { action: 'boost' });
       if (!shareValidation.ok) {
         return res.status(shareValidation.status).json({ error: shareValidation.message });
       }
 
       // Check if user already boosted this
-      const existingBoost = await Post.findOne({
-        oxyUserId: currentUserId,
-        boostOf: originalPostId
-      })
-        .maxTimeMS(FEED_CONSTANTS.QUERY_TIMEOUT_MS);
+      const [existingBoost] = await findPostRecords(
+        and(eq(postsTable.oxyUserId, currentUserId), eq(postsTable.boostOf, originalPostId)),
+        { orderBy: CHRONO_DESC, limit: 1 },
+      );
 
       if (existingBoost) {
         return res.status(400).json({ error: 'You have already boosted this content' });
@@ -504,36 +529,34 @@ class FeedController {
 
       // Create boost
       const mergedTags = mergeHashtags(content?.text || '', hashtags);
-      const boostContent = content || { text: '' };
+      // `CreateBoostRequest.content` is the client's INPUT shape, whose `podcast`
+      // carries only an id. A boost never denormalizes a show (the boosted
+      // original owns its own attachments), so the field is dropped rather than
+      // half-resolved.
+      const boostContent: PostContent = { ...(content ?? { text: '' }), podcast: undefined };
       const reconciledMentions = reconcileMentionIds(
         mentionTextsFromContent(boostContent),
         mentions,
       );
 
-      const boost = new Post({
+      const boost = await insertPostRecord({
         oxyUserId: currentUserId,
         authorship: buildAuthorship(currentUserId, []),
         type: PostType.BOOST,
-        content: boostContent,
+        // A bare boost has an empty body, so this yields no rendition at all —
+        // which is the point: `boostOf` is what hydration renders. A boost with
+        // commentary keeps its words as the primary rendition, as before.
+        content: toStoredContent(boostContent, undefined),
+        status: 'published',
         visibility: PostVisibility.PUBLIC,
         boostOf: originalPostId,
         hashtags: mergedTags,
         mentions: reconciledMentions,
-        stats: {
-          likesCount: 0,
-          boostsCount: 0,
-          commentsCount: 0,
-          viewsCount: 0,
-          sharesCount: 0,
-          savesCount: 0,
-        }
       });
-
-      await boost.save();
 
       // MTN dual-write: a boost emits an `app.mention.feed.repost` record whose
       // subject is the boosted original's MTN URI. Best-effort, never blocks.
-      await emitRepostCreated(boost, String(originalPostId), originalPost?.oxyUserId?.toString?.());
+      await emitRepostCreated(boost, originalPostId, originalPost?.oxyUserId ?? undefined);
 
       // Outbound federation: announce the boost to the booster's remote
       // followers (and, if the original is federated, its author's instance).
@@ -541,26 +564,22 @@ class FeedController {
       if (boost.federation == null) {
         this.federateBoostChange(
           'post.boost',
-          { _id: boost._id, boostOf: String(originalPostId), createdAt: boost.createdAt },
+          { _id: boost.id, boostOf: originalPostId, createdAt: boost.createdAt },
           currentUserId,
         );
       }
 
       // Affinity graph: the booster expresses affinity toward the boosted post's
       // author. Fire-and-forget — buffering must never block or fail the boost.
-      const boostedAuthorId = originalPost?.oxyUserId?.toString?.();
+      const boostedAuthorId = originalPost?.oxyUserId ?? undefined;
       if (boostedAuthorId) {
         void affinityEventService
-          .record({ fromUserId: currentUserId, toUserId: boostedAuthorId, type: 'boost', eventId: `boost:${String(boost._id)}` })
+          .record({ fromUserId: currentUserId, toUserId: boostedAuthorId, type: 'boost', eventId: `boost:${boost.id}` })
           .catch(() => undefined);
       }
 
       // Update original post boost count and get the updated count
-      const updatedPost = await Post.findByIdAndUpdate(
-        originalPostId,
-        { $inc: { 'stats.boostsCount': 1 } },
-        { new: true, maxTimeMS: FEED_CONSTANTS.QUERY_TIMEOUT_MS }
-      );
+      const updatedStats = await bumpPostCounters(originalPostId, { boosts: 1 });
 
       // Record interaction for user preference learning
       try {
@@ -573,7 +592,7 @@ class FeedController {
       // for its rendered content. Hydrate at maxDepth 1 so the response + socket
       // payload carry the embedded original, the author summary, and the engagement
       // shape — matching the feed/detail DTO instead of a raw `.toObject()`.
-      const [hydratedBoost] = await postHydrationService.hydratePosts([boost.toObject()], {
+      const [hydratedBoost] = await postHydrationService.hydratePosts([boost], {
         viewerId: currentUserId,
         oxyClient: createScopedOxyClient(req),
         maxDepth: 1,
@@ -585,7 +604,7 @@ class FeedController {
         originalPostId,
         postId: originalPostId,
         boost: hydratedBoost,
-        boostsCount: updatedPost?.stats?.boostsCount,
+        boostsCount: updatedStats?.boostsCount,
         userId: currentUserId,
         actorId: currentUserId,
         timestamp: new Date().toISOString()
@@ -623,11 +642,19 @@ class FeedController {
       }
 
       // Interpret :postId as the ORIGINAL post ID for unboost operations.
-      // Find and delete the boost document created by the current user that points to this original.
-      const boost = await Post.findOneAndDelete({
-        oxyUserId: currentUserId,
-        boostOf: postId
-      }, { maxTimeMS: FEED_CONSTANTS.QUERY_TIMEOUT_MS });
+      // Find and delete the boost row created by the current user that points to
+      // this original. Read-then-delete rather than one statement: the delete has
+      // to answer with the row's own id and `createdAt` for the MTN tombstone and
+      // the `Undo(Announce)`, and `deletePostRecord` reads it back for exactly
+      // that reason. The delete is still conditioned on the owner, so a concurrent
+      // unboost loses the race and 404s rather than deleting twice.
+      const [existing] = await findPostRecords(
+        and(eq(postsTable.oxyUserId, currentUserId), eq(postsTable.boostOf, postId)),
+        { orderBy: CHRONO_DESC, limit: 1 },
+      );
+      const boost = existing
+        ? await deletePostRecord(existing.id, eq(postsTable.oxyUserId, currentUserId))
+        : null;
 
       if (!boost) {
         return res.status(404).json({ error: 'Boost not found' });
@@ -638,8 +665,8 @@ class FeedController {
       if (boost.federation == null && boost.oxyUserId) {
         await emitTombstone({
           authorOxyUserId: boost.oxyUserId,
-          tombstoneRkey: String(boost._id),
-          subjectUri: repostRecordUri(boost.oxyUserId, String(boost._id)),
+          tombstoneRkey: boost.id,
+          subjectUri: repostRecordUri(boost.oxyUserId, boost.id),
         });
       }
 
@@ -650,25 +677,23 @@ class FeedController {
       if (boost.federation == null && boost.boostOf) {
         this.federateBoostChange(
           'post.unboost',
-          { _id: boost._id, boostOf: String(boost.boostOf), createdAt: boost.createdAt },
+          { _id: boost.id, boostOf: boost.boostOf, createdAt: boost.createdAt },
           currentUserId,
         );
       }
 
       // Update original post boost count and get the updated count
-      const updatedPost = await Post.findByIdAndUpdate(
-        boost.boostOf,
-        { $inc: { 'stats.boostsCount': -1 } },
-        { new: true, maxTimeMS: FEED_CONSTANTS.QUERY_TIMEOUT_MS }
-      );
+      const updatedStats = boost.boostOf
+        ? await bumpPostCounters(boost.boostOf, { boosts: -1 })
+        : null;
 
       // Emit real-time update to post room only (not all clients)
-      const boostOriginalId = boost.boostOf ? String(boost.boostOf) : '';
+      const boostOriginalId = boost.boostOf ?? '';
       getRuntimeSocketServer()?.to(`post:${boostOriginalId}`).emit('post:unboosted', {
         originalPostId: boost.boostOf,
         postId: boost.boostOf,
-        boostId: boost._id,
-        boostsCount: updatedPost?.stats?.boostsCount,
+        boostId: boost.id,
+        boostsCount: updatedStats?.boostsCount,
         userId: currentUserId,
         actorId: currentUserId,
         timestamp: new Date().toISOString()
@@ -705,26 +730,31 @@ class FeedController {
    * caller must already have verified `root` is a self-thread root
    * (`root.threadId === String(root._id)`).
    */
-  private getSelfThreadContinuations(root: Pick<IPost, 'oxyUserId' | 'threadId'>) {
-    return Post.find({
-      threadId: String(root.threadId),
-      oxyUserId: root.oxyUserId,
-      parentPostId: { $ne: null, $exists: true },
-      visibility: PostVisibility.PUBLIC,
-      status: 'published',
-    })
-      .select(this.FEED_FIELDS)
-      .sort({ createdAt: 1 })
-      .limit(MAX_THREAD_CONTINUATION_DEPTH)
-      .maxTimeMS(FEED_CONSTANTS.QUERY_TIMEOUT_MS)
-      .lean();
+  private getSelfThreadContinuations(
+    root: Pick<PostRecord, 'id' | 'oxyUserId' | 'threadId'>,
+  ): Promise<PostRecord[]> {
+    if (!root.threadId || !root.oxyUserId) return Promise.resolve([]);
+    return findPostRecords(
+      and(
+        eq(postsTable.threadId, root.threadId),
+        eq(postsTable.oxyUserId, root.oxyUserId),
+        // `is not null`, never `<> null`: Mongo's `$ne: null` also matched a
+        // MISSING field, while SQL's `<>` against NULL evaluates to NULL and
+        // matches nothing — so the literal translation would return an empty
+        // spine and silently collapse every self-thread into a bare root.
+        isNotNull(postsTable.parentPostId),
+        eq(postsTable.visibility, 'public'),
+        eq(postsTable.status, 'published'),
+      ),
+      { orderBy: chronoOrderBy('asc'), limit: MAX_THREAD_CONTINUATION_DEPTH },
+    );
   }
 
   async getRepliesFeed(req: AuthRequest, res: Response) {
     try {
       // Only reachable through `GET /feed/replies/:parentId`, so the parent id is
       // always present on the path.
-      const parentId = req.params.parentId;
+      const parentId = String(req.params.parentId);
 
       const currentUserId = req.user?.id;
       const limit = validateAndNormalizeLimit(req.query.limit, FEED_CONSTANTS.DEFAULT_LIMIT);
@@ -734,16 +764,11 @@ class FeedController {
       // Detect whether the parent is a self-thread ROOT. A self-thread root anchors
       // its own id as `threadId` (see createThread); for such a post the replies feed
       // must surface external replies to ANY node of the OP's continuation spine
-      // (root … cN) — Bluesky behavior — not just the root's direct children. The
-      // findById is guarded on a valid ObjectId so a non-ObjectId parentId (and any
-      // non-root post) simply skips spine expansion and keeps the single-parent query.
-      const parent = mongoose.isValidObjectId(parentId)
-        ? await Post.findById(parentId)
-          .select('_id oxyUserId threadId')
-          .maxTimeMS(FEED_CONSTANTS.QUERY_TIMEOUT_MS)
-          .lean()
-        : null;
-      const isSelfThreadRoot = !!parent?.threadId && String(parent.threadId) === String(parent._id);
+      // (root … cN) — Bluesky behavior — not just the root's direct children. An
+      // unknown parent id simply reads as no row, so spine expansion is skipped and
+      // the single-parent query stands.
+      const parent = await loadPostRecord(parentId);
+      const isSelfThreadRoot = parent?.threadId === parent?.id;
 
       // The OP's own continuations are rendered as the connected spine on the client,
       // so they must NOT also appear as replies. Each continuation hangs off another
@@ -751,64 +776,55 @@ class FeedController {
       // otherwise match the expanded parent filter, so exclude them by id. The root
       // has no parentPostId and can never appear as a reply.
       const continuationIds = isSelfThreadRoot && parent
-        ? (await this.getSelfThreadContinuations(parent)).map((c) => String(c._id))
+        ? (await this.getSelfThreadContinuations(parent)).map((c) => c.id)
         : [];
 
-      const query: FilterQuery<IPost> = {
-        parentPostId: continuationIds.length > 0
-          ? { $in: [String(parentId), ...continuationIds] }
-          : String(parentId),
-        visibility: PostVisibility.PUBLIC,
-        status: 'published',
-      };
-
-      const idConditions: { $nin?: mongoose.Types.ObjectId[]; $lt?: mongoose.Types.ObjectId } = {};
+      const conditions: SQL[] = [
+        continuationIds.length > 0
+          ? inArray(postsTable.parentPostId, [parentId, ...continuationIds])
+          : eq(postsTable.parentPostId, parentId),
+        eq(postsTable.visibility, 'public'),
+        eq(postsTable.status, 'published'),
+      ];
       if (continuationIds.length > 0) {
-        idConditions.$nin = continuationIds.map((cid) => new mongoose.Types.ObjectId(cid));
-      }
-      if (cursor) {
-        const cursorId = parseFeedCursor(cursor);
-        if (cursorId) idConditions.$lt = cursorId;
-      }
-      if (idConditions.$nin || idConditions.$lt) {
-        query._id = idConditions;
+        conditions.push(notInArray(postsTable.id, continuationIds));
       }
 
-      const feedFieldsProject = Object.fromEntries(
-        this.FEED_FIELDS.split(' ').map(f => [f, 1])
-      );
-
-      let posts;
+      // `best` ranks by engagement and pages on `(score, id)`, which is a COMPLETE
+      // keyset because `id` is unique — ties in score get an arbitrary but stable
+      // order and no row is skipped or repeated. `newest`/`oldest` page on the
+      // chronological keyset in their OWN direction. What none of them does any
+      // more is bound on `_id` alone behind a `createdAt` sort, which is what the
+      // Mongo version did in all three modes: harmless while an ObjectId encoded
+      // its own creation time, silently skipping and repeating rows the moment
+      // ids became uuid v7.
+      let orderBy: SQL[];
       if (sort === 'best') {
-        posts = await Post.aggregate([
-          { $match: query },
-          {
-            $addFields: {
-              engagementScore: {
-                $add: [
-                  { $ifNull: ['$stats.likesCount', 0] },
-                  { $multiply: [{ $ifNull: ['$stats.boostsCount', 0] }, 2] },
-                  { $multiply: [{ $ifNull: ['$stats.commentsCount', 0] }, 1.5] },
-                ],
-              },
-            },
-          },
-          { $sort: { engagementScore: -1, createdAt: -1 } },
-          { $limit: limit + 1 },
-          { $project: feedFieldsProject },
-        ]).option({ maxTimeMS: FEED_CONSTANTS.QUERY_TIMEOUT_MS });
+        const cursorScore = ScoreCursor.parse(cursor);
+        orderBy = [desc(REPLY_ENGAGEMENT_SCORE), desc(postsTable.id)];
+        if (cursorScore && Number.isFinite(cursorScore.score)) {
+          // The bound is CAST rather than compared bare: a parameter beside an
+          // expression of unknown type is declared `text` by Postgres, and
+          // `double precision < text` has no operator.
+          const bound = sql`cast(${cursorScore.score} as double precision)`;
+          conditions.push(
+            sql`(${REPLY_ENGAGEMENT_SCORE} < ${bound} or (${REPLY_ENGAGEMENT_SCORE} = ${bound} and ${postsTable.id} < ${cursorScore.id}))`,
+          );
+        }
       } else {
-        const sortOrder = sort === 'oldest' ? 1 : -1;
-        posts = await Post.find(query)
-          .select(this.FEED_FIELDS)
-          .sort({ createdAt: sortOrder })
-          .limit(limit + 1)
-          .maxTimeMS(FEED_CONSTANTS.QUERY_TIMEOUT_MS)
-          .lean();
+        const direction = sort === 'oldest' ? 'asc' : 'desc';
+        orderBy = chronoOrderBy(direction);
+        const keyset = await chronoCursorSql(cursor, direction);
+        if (keyset) conditions.push(keyset);
       }
 
-      const hasMore = posts.length > limit;
-      const slicedPosts = hasMore ? posts.slice(0, limit) : posts;
+      const page = await findPostRecords(and(...conditions), {
+        orderBy,
+        limit: limit + 1,
+      });
+
+      const hasMore = page.length > limit;
+      const slicedPosts = hasMore ? page.slice(0, limit) : page;
       const requestOxyClient = createScopedOxyClient(req);
 
       let filteredPosts = slicedPosts;
@@ -831,7 +847,12 @@ class FeedController {
         includeLinkMetadata: true,
       });
       const items = hydratedReplies.filter((post) => post?.id && post.user?.id);
-      const nextCursor = hasMore && slicedPosts.length > 0 ? String(slicedPosts[slicedPosts.length - 1]._id) : undefined;
+      const anchor = hasMore ? slicedPosts[slicedPosts.length - 1] : undefined;
+      const nextCursor = anchor
+        ? (sort === 'best'
+          ? ScoreCursor.build(replyEngagementScore(anchor), anchor.id)
+          : ChronoCursor.build(anchor.id, anchor.createdAt))
+        : undefined;
 
       return res.json({ items, hasMore, nextCursor });
     } catch (error) {
@@ -846,40 +867,37 @@ class FeedController {
    * returns a feed page (same `{items, hasMore, nextCursor}` contract as the
    * replies feed) rather than the user list that backs likes/boosts.
    *
-   * Ordered and paged on `_id` alone, NOT on `createdAt`: a federated quote
-   * carries the REMOTE authoring time, so a `createdAt` sort behind an `_id`
-   * cursor silently skips backfilled rows at every page boundary (the same
-   * keyset mismatch that once dropped boosts from profile feeds). Insertion
-   * order is the one axis that is consistent for both native and imported
-   * quotes, and for native quotes it IS chronological.
+   * Ordered and paged on the SAME two keys — `(created_at DESC, id DESC)` — which
+   * is what the old `_id`-only keyset was really reaching for. It ordered by
+   * insertion because a `createdAt` sort behind an `_id` cursor skips backfilled
+   * rows at every page boundary, and that mismatch is the defect, not the
+   * `createdAt` axis. With the id no longer encoding its own creation time
+   * (ObjectId hex for pre-cutover rows, uuid v7 after), insertion order is not
+   * even recoverable from the key any more, so the two-key keyset is the only
+   * form that is both chronological and complete.
    */
   async getQuotesFeed(req: AuthRequest, res: Response) {
     try {
-      const postId = req.params.postId;
+      const postId = String(req.params.postId);
       const currentUserId = req.user?.id;
       const limit = validateAndNormalizeLimit(req.query.limit, FEED_CONSTANTS.DEFAULT_LIMIT);
       const cursor = queryString(req.query.cursor);
 
-      const query: FilterQuery<IPost> = {
-        quoteOf: String(postId),
-        visibility: PostVisibility.PUBLIC,
-        status: 'published',
-      };
+      const conditions: SQL[] = [
+        eq(postsTable.quoteOf, postId),
+        eq(postsTable.visibility, 'public'),
+        eq(postsTable.status, 'published'),
+      ];
+      const keyset = await chronoCursorSql(cursor);
+      if (keyset) conditions.push(keyset);
 
-      if (cursor) {
-        const cursorId = parseFeedCursor(cursor);
-        if (cursorId) query._id = { $lt: cursorId };
-      }
+      const page = await findPostRecords(and(...conditions), {
+        orderBy: chronoOrderBy(),
+        limit: limit + 1,
+      });
 
-      const posts = await Post.find(query)
-        .select(this.FEED_FIELDS)
-        .sort({ _id: -1 })
-        .limit(limit + 1)
-        .maxTimeMS(FEED_CONSTANTS.QUERY_TIMEOUT_MS)
-        .lean();
-
-      const hasMore = posts.length > limit;
-      const slicedPosts = hasMore ? posts.slice(0, limit) : posts;
+      const hasMore = page.length > limit;
+      const slicedPosts = hasMore ? page.slice(0, limit) : page;
       const requestOxyClient = createScopedOxyClient(req);
 
       let filteredPosts = slicedPosts;
@@ -900,9 +918,8 @@ class FeedController {
         includeLinkMetadata: true,
       });
       const items = hydrated.filter((post) => post?.id && post.user?.id);
-      const nextCursor = hasMore && slicedPosts.length > 0
-        ? String(slicedPosts[slicedPosts.length - 1]._id)
-        : undefined;
+      const anchor = hasMore ? slicedPosts[slicedPosts.length - 1] : undefined;
+      const nextCursor = anchor ? ChronoCursor.build(anchor.id, anchor.createdAt) : undefined;
 
       return res.json({ items, hasMore, nextCursor });
     } catch (error) {
@@ -929,8 +946,8 @@ class FeedController {
    */
   async getThreadContinuations(req: AuthRequest, res: Response) {
     try {
-      const rootId = req.params.rootId;
-      if (!rootId || !mongoose.isValidObjectId(rootId)) {
+      const rootId = String(req.params.rootId ?? '');
+      if (!rootId) {
         return res.json({ items: [] });
       }
 
@@ -940,10 +957,7 @@ class FeedController {
       // points at itself — the canonical self-thread root signature. A mid-thread
       // continuation has `threadId === <root id> !== <its own id>`, so this guard
       // correctly yields an empty spine when the focused post is not the root.
-      const root = await Post.findById(rootId)
-        .select('_id oxyUserId threadId visibility status')
-        .maxTimeMS(FEED_CONSTANTS.QUERY_TIMEOUT_MS)
-        .lean();
+      const root = await loadPostRecord(rootId);
 
       if (
         !root ||
@@ -951,7 +965,7 @@ class FeedController {
         root.status !== 'published' ||
         !root.oxyUserId ||
         !root.threadId ||
-        String(root.threadId) !== String(root._id)
+        root.threadId !== root.id
       ) {
         return res.json({ items: [] });
       }
@@ -987,16 +1001,14 @@ class FeedController {
    */
   async getFeedItemById(req: AuthRequest, res: Response) {
     try {
-      const { id } = req.params;
+      const id = String(req.params.id ?? '');
       const currentUserId = req.user?.id;
 
       if (!id) {
         return res.status(400).json({ error: 'Post ID is required' });
       }
 
-      const post = await Post.findById(id)
-        .maxTimeMS(FEED_CONSTANTS.QUERY_TIMEOUT_MS)
-        .lean();
+      const post = await loadPostRecord(id);
       if (!post) {
         return res.status(404).json({ error: 'Post not found' });
       }
@@ -1044,11 +1056,17 @@ class FeedController {
         }
       }
 
-      const pinnedPost = await Post.findOne({
-        oxyUserId: userId,
-        'metadata.isPinned': true,
-        visibility: PostVisibility.PUBLIC,
-      }).sort({ updatedAt: -1 }).lean();
+      const [pinnedPost] = await findPostRecords(
+        and(
+          eq(postsTable.oxyUserId, userId),
+          eq(postsTable.metadataIsPinned, true),
+          eq(postsTable.visibility, 'public'),
+        ),
+        // `updated_at` is NOT NULL, so the descending sort has no NULL ordering
+        // to disagree with Mongo about; `id` breaks a tie deterministically so
+        // two posts pinned in the same millisecond do not alternate per request.
+        { orderBy: [desc(postsTable.updatedAt), desc(postsTable.id)], limit: 1 },
+      );
 
       if (!pinnedPost) {
         return res.json({ item: null });

@@ -20,7 +20,7 @@
  */
 
 import type { ServiceAssetMetadata } from '@oxyhq/core';
-import type { IPost } from '../../models/Post';
+import type { PostRecord } from '../../db/posts/postRecord';
 import {
   canonicalizeLanguageTag,
   createPostUri,
@@ -68,13 +68,13 @@ function buildReplyRef(reply: ReplyContext | undefined): MtnReplyRef | undefined
   };
 }
 
-function buildSources(post: IPost): MtnSourceLink[] | undefined {
+function buildSources(post: PostRecord): MtnSourceLink[] | undefined {
   const sources = post.content?.sources;
   if (!Array.isArray(sources) || sources.length === 0) return undefined;
   return sources.map((s) => (s.title ? { url: s.url, title: s.title } : { url: s.url }));
 }
 
-function buildLocation(post: IPost): MtnGeoPoint | undefined {
+function buildLocation(post: PostRecord): MtnGeoPoint | undefined {
   const loc = post.content?.location;
   if (!loc || loc.type !== 'Point' || !Array.isArray(loc.coordinates) || loc.coordinates.length !== 2) {
     return undefined;
@@ -82,7 +82,7 @@ function buildLocation(post: IPost): MtnGeoPoint | undefined {
   return { type: 'Point', coordinates: [loc.coordinates[0], loc.coordinates[1]] };
 }
 
-function buildLangs(post: IPost): string[] | undefined {
+function buildLangs(post: PostRecord): string[] | undefined {
   // What the AUTHOR actually declared, in the precise BCP-47 tags they wrote in
   // (`es-ES`, not `es`), primary first. This is the highest-fidelity source and
   // it is what lets a materializing reader reproduce the post's primary tag
@@ -183,7 +183,7 @@ function buildEmbedFromMedia(
  * is always honest — it never carries a fileId where a `sha256` belongs — and
  * the dual-write stays best-effort: a missing blob NEVER blocks the post.
  */
-export async function resolvePostRecordEmbeds(post: IPost): Promise<PostRecordEmbeds> {
+export async function resolvePostRecordEmbeds(post: PostRecord): Promise<PostRecordEmbeds> {
   const empty: PostRecordEmbeds = { variantEmbeds: new Map(), sha256ByFileId: new Map() };
 
   const sharedMedia = Array.isArray(post.content?.media) ? post.content.media : [];
@@ -242,7 +242,7 @@ export async function resolvePostRecordEmbeds(post: IPost): Promise<PostRecordEm
     // Best-effort: a failed asset-metadata lookup must never block emitting the
     // record. The federation credential may not yet have the `files:read` scope.
     logger.warn('mentionRecordBuilders: resolvePostRecordEmbeds failed; emitting record without media embed', {
-      postId: String(post._id),
+      postId: post.id,
       mediaCount: fileIds.size,
       error: error instanceof Error ? error.message : String(error),
     });
@@ -266,7 +266,7 @@ export async function resolvePostRecordEmbeds(post: IPost): Promise<PostRecordEm
  * whose media did not resolve is dropped rather than emitted against a key no
  * reader can match.
  */
-function buildRecordVariants(post: IPost, embeds: PostRecordEmbeds): MentionPostVariant[] | undefined {
+function buildRecordVariants(post: PostRecord, embeds: PostRecordEmbeds): MentionPostVariant[] | undefined {
   const authored = authorVariants(post.content);
   if (authored.length === 0) return undefined;
 
@@ -342,7 +342,7 @@ function buildVariantArticle(variant: PostContentVariant): MentionPostVariant['a
  * versions.
  */
 export function buildPostRecord(
-  post: IPost,
+  post: PostRecord,
   options: { reply?: ReplyContext; facets?: MtnFacet[]; embeds?: PostRecordEmbeds } = {},
 ): MentionPostRecord {
   const embeds: PostRecordEmbeds = options.embeds ?? {

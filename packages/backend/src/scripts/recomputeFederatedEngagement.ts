@@ -24,45 +24,71 @@
  */
 
 import mongoose from 'mongoose';
-import { Post } from '../models/Post';
+import { and, asc, count, eq, gt, inArray, isNotNull } from 'drizzle-orm';
+import { connectPostgres, getDb } from '../db/postgres';
+import { posts } from '../db/schema/posts';
 import Like from '../models/Like';
 import { logger } from '../utils/logger';
 import { assertAdminMutationAllowed } from './lib/adminScriptSafety';
+import { closeAdminScriptResources } from './lib/adminScriptLifecycle';
 
-/** Posts scanned per page (stable `_id` cursor pagination). */
+/** Posts scanned per page (stable `id` cursor pagination). */
 const PAGE_SIZE = 500;
 
-/** Counter writes flushed per bulkWrite chunk. */
-const BULK_CHUNK_SIZE = 500;
-
-interface FederatedPostRow {
-  _id: mongoose.Types.ObjectId;
-  stats?: {
-    likesCount?: number;
-    boostsCount?: number;
-    commentsCount?: number;
-  };
-}
-
-/**
- * Count the real records that back each engagement counter for a single post.
- */
-async function computeRealCounts(postId: mongoose.Types.ObjectId): Promise<{
+interface RealCounts {
   likesCount: number;
   boostsCount: number;
   commentsCount: number;
-}> {
-  const postIdString = postId.toString();
-  const [likesCount, boostsCount, commentsCount] = await Promise.all([
-    // Likes: native Like docs (upvotes) for this post.
-    Like.countDocuments({ postId, value: 1 }),
-    // Boosts: native boost Posts referencing this post. `boostOf` is stored as a
-    // string id, so match the stringified _id.
-    Post.countDocuments({ boostOf: postIdString, type: 'boost' }),
-    // Comments: reply Posts whose parent is this post.
-    Post.countDocuments({ parentPostId: postIdString }),
+}
+
+/**
+ * Count the real records that back each engagement counter, for a WHOLE PAGE.
+ *
+ * Three grouped aggregates rather than three counts per post: the Mongo version
+ * issued `3 × PAGE_SIZE` round trips per page, and this sweep is designed to walk
+ * the entire federated corpus.
+ */
+async function computeRealCounts(postIds: string[]): Promise<Map<string, RealCounts>> {
+  const db = getDb();
+  const [likeRows, boostRows, commentRows] = await Promise.all([
+    // Likes: native Like rows (upvotes) for this post. Still Mongo — the `Like`
+    // model belongs to the engagement batch.
+    Like.aggregate<{ _id: string; count: number }>([
+      { $match: { postId: { $in: postIds }, value: 1 } },
+      { $group: { _id: '$postId', count: { $sum: 1 } } },
+    ]),
+    // Boosts: native boost posts referencing this post.
+    db
+      .select({ id: posts.boostOf, count: count() })
+      .from(posts)
+      .where(and(inArray(posts.boostOf, postIds), eq(posts.type, 'boost')))
+      .groupBy(posts.boostOf),
+    // Comments: reply posts whose parent is this post.
+    db
+      .select({ id: posts.parentPostId, count: count() })
+      .from(posts)
+      .where(inArray(posts.parentPostId, postIds))
+      .groupBy(posts.parentPostId),
   ]);
-  return { likesCount, boostsCount, commentsCount };
+
+  const counts = new Map<string, RealCounts>();
+  const entry = (id: string): RealCounts => {
+    const existing = counts.get(id);
+    if (existing) return existing;
+    const created = { likesCount: 0, boostsCount: 0, commentsCount: 0 };
+    counts.set(id, created);
+    return created;
+  };
+  for (const row of likeRows) {
+    if (row._id) entry(String(row._id)).likesCount = row.count;
+  }
+  for (const row of boostRows) {
+    if (row.id) entry(row.id).boostsCount = row.count;
+  }
+  for (const row of commentRows) {
+    if (row.id) entry(row.id).commentsCount = row.count;
+  }
+  return counts;
 }
 
 async function recomputeFederatedEngagement(): Promise<void> {
@@ -76,17 +102,22 @@ async function recomputeFederatedEngagement(): Promise<void> {
       scriptName: 'recomputeFederatedEngagement',
       dryRun,
     });
+    // BOTH stores: the posts are Postgres, the `Like` rows this reconciles
+    // against are still Mongo (the engagement batch owns that model).
+    await connectPostgres();
     await mongoose.connect(mongoUri, { dbName });
-    logger.info('[recomputeFederatedEngagement] connected to MongoDB', { dryRun });
+    logger.info('[recomputeFederatedEngagement] connected to PostgreSQL + MongoDB', { dryRun });
 
-    const totalCount = await Post.countDocuments({
-      'federation.activityId': { $exists: true, $ne: null },
-    });
+    // `is not null`, never `<> null`: Mongo's `$ne: null` also matched an ABSENT
+    // field, while SQL's `<>` against NULL matches nothing — the literal
+    // translation would find zero federated posts and report a clean run.
+    const federatedFilter = isNotNull(posts.federationActivityId);
+    const [totals] = await getDb().select({ count: count() }).from(posts).where(federatedFilter);
+    const totalCount = totals?.count ?? 0;
     logger.info(`[recomputeFederatedEngagement] ${totalCount} federated posts to scan`);
 
     if (totalCount === 0) {
       logger.info('[recomputeFederatedEngagement] nothing to do');
-      await mongoose.disconnect();
       return;
     }
 
@@ -94,43 +125,35 @@ async function recomputeFederatedEngagement(): Promise<void> {
     let changed = 0;
     let updated = 0;
     let totalDriftCorrected = 0;
-    let lastId: mongoose.Types.ObjectId | null = null;
-    let pendingOps: mongoose.AnyBulkWriteOperation<typeof Post>[] = [];
+    let lastId: string | null = null;
+    const db = getDb();
 
-    const flush = async (): Promise<void> => {
-      if (pendingOps.length === 0) return;
-      if (dryRun) {
-        pendingOps = [];
-        return;
-      }
-      const result = await Post.bulkWrite(pendingOps, { ordered: false });
-      updated += result.modifiedCount;
-      pendingOps = [];
-    };
-
-    // Stable cursor: page by ascending _id over the federated-post set. The set
-    // is immutable for this run because only stats.* is mutated.
+    // Stable cursor: page by ascending id over the federated-post set. The set is
+    // immutable for this run because only the counters are mutated.
     for (;;) {
-      const pageFilter: Record<string, unknown> = {
-        'federation.activityId': { $exists: true, $ne: null },
-      };
-      if (lastId) {
-        pageFilter._id = { $gt: lastId };
-      }
-
-      const page = await Post.find(pageFilter, { _id: 1, stats: 1 })
-        .sort({ _id: 1 })
-        .limit(PAGE_SIZE)
-        .lean<FederatedPostRow[]>();
+      const page = await db
+        .select({
+          id: posts.id,
+          likesCount: posts.statsLikesCount,
+          boostsCount: posts.statsBoostsCount,
+          commentsCount: posts.statsCommentsCount,
+        })
+        .from(posts)
+        .where(lastId ? and(federatedFilter, gt(posts.id, lastId)) : federatedFilter)
+        .orderBy(asc(posts.id))
+        .limit(PAGE_SIZE);
 
       if (page.length === 0) break;
 
+      const realByPost = await computeRealCounts(page.map((row) => row.id));
+
       for (const post of page) {
-        const real = await computeRealCounts(post._id);
+        const real = realByPost.get(post.id)
+          ?? { likesCount: 0, boostsCount: 0, commentsCount: 0 };
         const current = {
-          likesCount: post.stats?.likesCount ?? 0,
-          boostsCount: post.stats?.boostsCount ?? 0,
-          commentsCount: post.stats?.commentsCount ?? 0,
+          likesCount: post.likesCount,
+          boostsCount: post.boostsCount,
+          commentsCount: post.commentsCount,
         };
 
         const drift =
@@ -141,35 +164,29 @@ async function recomputeFederatedEngagement(): Promise<void> {
         if (drift > 0) {
           changed += 1;
           totalDriftCorrected += drift;
-          pendingOps.push({
-            updateOne: {
-              filter: { _id: post._id },
-              update: {
-                $set: {
-                  'stats.likesCount': real.likesCount,
-                  'stats.boostsCount': real.boostsCount,
-                  'stats.commentsCount': real.commentsCount,
-                },
-              },
-            },
-          });
-        }
-
-        if (pendingOps.length >= BULK_CHUNK_SIZE) {
-          await flush();
+          if (!dryRun) {
+            const corrected = await db
+              .update(posts)
+              .set({
+                statsLikesCount: real.likesCount,
+                statsBoostsCount: real.boostsCount,
+                statsCommentsCount: real.commentsCount,
+              })
+              .where(eq(posts.id, post.id))
+              .returning({ id: posts.id });
+            updated += corrected.length;
+          }
         }
       }
 
       scanned += page.length;
-      lastId = page[page.length - 1]._id;
+      lastId = page[page.length - 1].id;
       logger.info(
         `[recomputeFederatedEngagement] progress: scanned ${scanned}/${totalCount}, ` +
           `${dryRun ? 'would-correct' : 'corrected'} ${dryRun ? changed : updated}, ` +
           `drift ${dryRun ? 'found' : 'removed'} ${totalDriftCorrected}`,
       );
     }
-
-    await flush();
 
     const elapsedSeconds = Math.round((Date.now() - startedAt) / 1000);
     logger.info(
@@ -178,11 +195,12 @@ async function recomputeFederatedEngagement(): Promise<void> {
         `total drift ${dryRun ? 'found' : 'removed'} ${totalDriftCorrected} (${elapsedSeconds}s)`,
     );
 
-    await mongoose.disconnect();
   } catch (error) {
     logger.error('[recomputeFederatedEngagement] failed', error);
-    await mongoose.disconnect();
     process.exit(1);
+  } finally {
+    await closeAdminScriptResources().catch(() => undefined);
+    await mongoose.disconnect().catch(() => undefined);
   }
 }
 

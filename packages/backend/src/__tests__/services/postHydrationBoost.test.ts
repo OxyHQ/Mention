@@ -1,14 +1,17 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { PostType, PostVisibility } from '@mention/shared-types';
 
 import { closePostgres, connectPostgres } from '../../db/postgres';
 import {
   clearFederationScope,
   federationScope,
   seedActor,
+  seedPost,
 } from '../../__tests__/helpers/federationFixtures';
 
 const scope = federationScope('hydration-boost');
 import type { CachedUserSummary } from '../../services/userSummaryCache';
+import type { PostRecord, PostRecordInput } from '../../db/posts/postRecord';
 
 /**
  * Determinism harness for the "boost disappears from a profile feed a few
@@ -27,20 +30,26 @@ import type { CachedUserSummary } from '../../services/userSummaryCache';
  * AND identical for an anonymous viewer (fetch 1) vs. an authenticated viewer
  * (fetch 2). If the embedding ever differs, that non-determinism is the root
  * cause of the time-based disappearance.
+ *
+ * ## Why the reference fetch is a REAL query now
+ *
+ * It used to be a `Post.find` double routed by query SHAPE — the test inspected
+ * `query._id.$in` and decided what to hand back. That could not distinguish the
+ * depth-1 reference fetch working from it silently matching nothing, which is
+ * exactly the bug this file exists to catch: a boost whose original is not
+ * fetched renders blank, and a stubbed fetch always fetches. The originals are
+ * rows now, and the ACL cases (private, followers-only, `publicReferencesOnly`)
+ * are decided by the database predicate rather than by the test modelling it.
  */
 
-const BOOST_ID = '650000000000000000000001';
-const ORIGINAL_ID = '650000000000000000000002';
-const BOOSTER_OXY_ID = 'oxy-booster';
-const ORIGINAL_AUTHOR_OXY_ID = 'oxy-original-author';
-const VIEWER_ID = 'oxy-viewer';
+const BOOSTER_OXY_ID = scope.user('booster');
+const ORIGINAL_AUTHOR_OXY_ID = scope.user('original-author');
+const VIEWER_ID = scope.user('viewer');
 
-const { getUserById, getUsersByIds, cacheStore, postFind, postFindOne } = vi.hoisted(() => ({
+const { getUserById, getUsersByIds, cacheStore } = vi.hoisted(() => ({
   getUserById: vi.fn(),
   getUsersByIds: vi.fn(),
   cacheStore: new Map<string, CachedUserSummary>(),
-  postFind: vi.fn(),
-  postFindOne: vi.fn(),
 }));
 
 vi.mock('../../runtime/oxyClient', () => ({
@@ -69,9 +78,9 @@ vi.mock('../../utils/privacyHelpers', () => ({
   extractFollowersIds: vi.fn(() => []),
 }));
 
-// A chainable Mongoose query stub. `.select().sort().limit().maxTimeMS().lean()`
-// all return `this`; `.lean()` resolves the provided rows (an array, or `null`
-// for the `findOne` paths that return a single doc / no doc).
+// A chainable Mongoose query stub for the collections this file does not own —
+// polls, likes, bookmarks, settings, starter packs. Each returns nothing, which
+// is the state the assertions below assume.
 function chainable(rows: unknown[] | null) {
   const q: Record<string, unknown> = {};
   for (const m of ['select', 'sort', 'limit', 'maxTimeMS']) {
@@ -82,12 +91,6 @@ function chainable(rows: unknown[] | null) {
   return q;
 }
 
-vi.mock('../../models/Post', () => ({
-  Post: {
-    find: (...args: unknown[]) => chainable(postFind(...args)),
-    findOne: (...args: unknown[]) => chainable(postFindOne(...args)),
-  },
-}));
 vi.mock('../../models/Poll', () => ({ default: { find: () => chainable([]) } }));
 vi.mock('../../models/Like', () => ({ default: { find: () => chainable([]) } }));
 vi.mock('../../models/Bookmark', () => ({ default: { find: () => chainable([]) } }));
@@ -101,10 +104,6 @@ vi.mock('../../models/StarterPack', () => ({
   default: { aggregate: async () => [] },
 }));
 
-// FederatedActor lookup, shared by two paths: the degraded-author enrichment
-// (keyed by `oxyUserId`) and the orphan-federated-author resolution (keyed by
-// unresolved federated author degrades to a neutral "Unknown user" (but its
-// content STILL renders — orphans are no longer dropped).
 vi.mock('../../services/userSummaryCache', () => ({
   mget: vi.fn(async (ids: string[]) => {
     const hits = new Map<string, CachedUserSummary>();
@@ -132,40 +131,33 @@ function makeOxyUser(id: string, username: string, displayName: string) {
   };
 }
 
-/** The boost row (depth 0): empty content, references the original via boostOf. */
-function boostRow() {
-  return {
-    _id: BOOST_ID,
-    oxyUserId: BOOSTER_OXY_ID,
-    authorship: [{ oxyUserId: BOOSTER_OXY_ID, role: 'owner', status: 'accepted' }],
-    type: 'boost',
-    boostOf: ORIGINAL_ID,
-    // A boost has no body of its own, so it carries no rendition at all.
-    content: {},
-    stats: { likesCount: 0, boostsCount: 1, commentsCount: 0, downvotesCount: 0, viewsCount: 0 },
-    metadata: { createdAt: new Date('2024-01-01T00:00:00Z') },
-    createdAt: new Date('2024-01-01T00:00:00Z'),
-    visibility: 'public',
-    hashtags: [],
-    mentions: [],
-  };
-}
-
 /** The boosted original (depth 1): a normal note with real content. */
-function originalRow() {
-  return {
-    _id: ORIGINAL_ID,
+async function seedOriginal(overrides: Partial<PostRecordInput> = {}): Promise<PostRecord> {
+  return seedPost(scope, {
     oxyUserId: ORIGINAL_AUTHOR_OXY_ID,
     authorship: [{ oxyUserId: ORIGINAL_AUTHOR_OXY_ID, role: 'owner', status: 'accepted' }],
-    type: 'post',
+    type: PostType.TEXT,
+    visibility: PostVisibility.PUBLIC,
+    status: 'published',
     content: { variants: [{ tag: 'en', source: 'author', text: 'the original note body' }] },
-    stats: { likesCount: 5, boostsCount: 2, commentsCount: 1, downvotesCount: 0, viewsCount: 9 },
-    metadata: { createdAt: new Date('2023-12-31T00:00:00Z') },
     createdAt: new Date('2023-12-31T00:00:00Z'),
-    visibility: 'public',
-    hashtags: [],
-    mentions: [],
-  };
+    ...overrides,
+  });
+}
+
+/** The boost row (depth 0): empty content, references the original via boostOf. */
+async function seedBoost(originalId: string | null): Promise<PostRecord> {
+  return seedPost(scope, {
+    oxyUserId: BOOSTER_OXY_ID,
+    authorship: [{ oxyUserId: BOOSTER_OXY_ID, role: 'owner', status: 'accepted' }],
+    type: PostType.BOOST,
+    visibility: PostVisibility.PUBLIC,
+    status: 'published',
+    // A boost has no body of its own, so it carries no rendition at all.
+    content: {},
+    boostOf: originalId,
+    createdAt: new Date('2024-01-01T00:00:00Z'),
+  });
 }
 
 describe('PostHydrationService — boost original embedding is deterministic', () => {
@@ -180,89 +172,74 @@ describe('PostHydrationService — boost original embedding is deterministic', (
   });
 
   beforeEach(async () => {
-    await clearFederationScope(scope);
     cacheStore.clear();
     getUserById.mockReset();
     getUsersByIds.mockReset();
-    postFind.mockReset();
-    postFindOne.mockReset();
-    // No federated actor rows unless a test opts in.
 
     // Both authors resolve via the bulk Oxy fetch.
     getUsersByIds.mockResolvedValue([
       makeOxyUser(BOOSTER_OXY_ID, 'booster', 'Booster'),
       makeOxyUser(ORIGINAL_AUTHOR_OXY_ID, 'author', 'Author'),
     ]);
-
-    // The ONLY `Post.find` call that must return rows in this flow is the
-    // depth-1 reference fetch (`_id: { $in: [ORIGINAL_ID] }`) inside
-    // collectPostsWithDepth. The viewer-interaction boosts query
-    // (`oxyUserId: viewerId, boostOf: { $in }`) and the recent-replier
-    // aggregation must NOT match the original. Route by query shape.
-    postFind.mockImplementation((query: Record<string, unknown> | undefined) => {
-      const idIn = (query?._id as { $in?: unknown[] } | undefined)?.$in;
-      if (Array.isArray(idIn) && idIn.some((v) => String(v) === ORIGINAL_ID)) {
-        return [originalRow()];
-      }
-      return [];
-    });
+    service = new PostHydrationService();
   });
 
-  async function hydrateBoost(viewerId?: string) {
-    return service.hydratePosts([boostRow()], {
+  afterEach(async () => {
+    await clearFederationScope(scope);
+  });
+
+  async function hydrate(post: PostRecord, viewerId?: string, maxDepth = 1) {
+    return service.hydratePosts([post], {
       viewerId,
-      maxDepth: 1,
+      maxDepth,
       includeLinkMetadata: false,
       includeFullMetadata: false,
     });
   }
 
   it('embeds the boosted original on EVERY repeated anonymous fetch', async () => {
-    service = new PostHydrationService();
+    const original = await seedOriginal();
+    const boost = await seedBoost(original.id);
+
     for (let i = 0; i < 25; i++) {
-      const [hydrated] = await hydrateBoost(undefined);
+      const [hydrated] = await hydrate(boost, undefined);
       expect(hydrated, `iteration ${i}: boost post missing`).toBeTruthy();
       expect(hydrated.boost, `iteration ${i}: boost context missing`).toBeTruthy();
-      expect(hydrated.boost?.originalPost?.id, `iteration ${i}: original not embedded`).toBe(ORIGINAL_ID);
-      expect(hydrated.originalPost?.id).toBe(ORIGINAL_ID);
+      expect(hydrated.boost?.originalPost?.id, `iteration ${i}: original not embedded`).toBe(original.id);
+      expect(hydrated.originalPost?.id).toBe(original.id);
     }
   });
 
   it('embeds the boosted original identically for anon (fetch 1) and authed (fetch 2)', async () => {
-    service = new PostHydrationService();
+    const original = await seedOriginal();
+    const boost = await seedBoost(original.id);
 
-    const [anon] = await hydrateBoost(undefined);
-    const [authed] = await hydrateBoost(VIEWER_ID);
+    const [anon] = await hydrate(boost, undefined);
+    const [authed] = await hydrate(boost, VIEWER_ID);
 
-    expect(anon.boost?.originalPost?.id).toBe(ORIGINAL_ID);
-    expect(authed.boost?.originalPost?.id).toBe(ORIGINAL_ID);
+    expect(anon.boost?.originalPost?.id).toBe(original.id);
+    expect(authed.boost?.originalPost?.id).toBe(original.id);
   });
 
   it('embeds the boosted original on EVERY repeated authenticated fetch', async () => {
-    service = new PostHydrationService();
+    const original = await seedOriginal();
+    const boost = await seedBoost(original.id);
+
     for (let i = 0; i < 25; i++) {
-      const [hydrated] = await hydrateBoost(VIEWER_ID);
-      expect(hydrated.boost?.originalPost?.id, `iteration ${i}: original not embedded (authed)`).toBe(ORIGINAL_ID);
+      const [hydrated] = await hydrate(boost, VIEWER_ID);
+      expect(hydrated.boost?.originalPost?.id, `iteration ${i}: original not embedded (authed)`).toBe(original.id);
     }
   });
 
   it('does not embed a non-public referenced original for an anonymous/global broadcast viewer', async () => {
-    service = new PostHydrationService();
-
-    postFind.mockImplementation((query: Record<string, unknown> | undefined) => {
-      const idIn = (query?._id as { $in?: unknown[] } | undefined)?.$in;
-      if (Array.isArray(idIn) && idIn.some((v) => String(v) === ORIGINAL_ID)) {
-        return [{
-          ...originalRow(),
-          visibility: 'private',
-          status: 'draft',
-          content: { variants: [{ tag: 'en', source: 'author', text: 'private draft secret' }] },
-        }];
-      }
-      return [];
+    const original = await seedOriginal({
+      visibility: PostVisibility.PRIVATE,
+      status: 'draft',
+      content: { variants: [{ tag: 'en', source: 'author', text: 'private draft secret' }] },
     });
+    const boost = await seedBoost(original.id);
 
-    const [hydrated] = await hydrateBoost(undefined);
+    const [hydrated] = await hydrate(boost, undefined);
 
     expect(hydrated, 'public boost should still hydrate').toBeTruthy();
     expect(hydrated.boost).toBeNull();
@@ -270,17 +247,21 @@ describe('PostHydrationService — boost original embedding is deterministic', (
   });
 
   it('surfaces an "unavailable" boost context when the boosted original is gone (deleted/never-imported)', async () => {
-    service = new PostHydrationService();
-
-    // The boosted original does not exist: its forced depth-1 reference fetch
-    // returns no row. Instead of a blank card the boost must carry an
-    // `unavailable` marker (with a null originalPost) — at EVERY maxDepth, since
-    // most feed paths hydrate boosts at maxDepth:0.
-    postFind.mockReturnValue([]);
+    // The boosted original does not exist. Instead of a blank card the boost must
+    // carry an `unavailable` marker (with a null originalPost) — at EVERY
+    // maxDepth, since most feed paths hydrate boosts at maxDepth:0.
+    //
+    // `boostOf` is a real foreign key with `ON DELETE CASCADE`, so a dangling id
+    // cannot be stored: the boost is seeded pointing at a real original which is
+    // then deleted, which is how this state arises in production.
+    const original = await seedOriginal();
+    const boost = await seedBoost(original.id);
+    const { deletePostRecord } = await import('../../db/posts/postRepository');
+    await deletePostRecord(original.id, undefined);
     getUsersByIds.mockResolvedValue([makeOxyUser(BOOSTER_OXY_ID, 'booster', 'Booster')]);
 
     for (const depth of [0, 1, 2]) {
-      const [hydrated] = await service.hydratePosts([boostRow()], {
+      const [hydrated] = await service.hydratePosts([{ ...boost, boostOf: original.id }], {
         viewerId: undefined,
         maxDepth: depth,
         includeLinkMetadata: false,
@@ -295,21 +276,14 @@ describe('PostHydrationService — boost original embedding is deterministic', (
   });
 
   it('keeps boost null — never "unavailable" — when the original EXISTS but is hidden from the viewer', async () => {
-    service = new PostHydrationService();
-
     // The original is present (fetched into the graph) but private, so it is
     // excluded for an anonymous viewer. The boost must stay `null` (its existence
     // is never revealed) and must NOT be flagged `unavailable` — that marker is
     // reserved for genuinely-gone originals.
-    postFind.mockImplementation((query: Record<string, unknown> | undefined) => {
-      const idIn = (query?._id as { $in?: unknown[] } | undefined)?.$in;
-      if (Array.isArray(idIn) && idIn.some((v) => String(v) === ORIGINAL_ID)) {
-        return [{ ...originalRow(), visibility: 'private', status: 'published' }];
-      }
-      return [];
-    });
+    const original = await seedOriginal({ visibility: PostVisibility.PRIVATE, status: 'published' });
+    const boost = await seedBoost(original.id);
 
-    const [hydrated] = await hydrateBoost(undefined);
+    const [hydrated] = await hydrate(boost, undefined);
 
     expect(hydrated).toBeTruthy();
     expect(hydrated.boost).toBeNull();
@@ -317,27 +291,19 @@ describe('PostHydrationService — boost original embedding is deterministic', (
   });
 
   it('allows a referenced followers-only original only for an authenticated follower viewer', async () => {
-    service = new PostHydrationService();
-
-    postFind.mockImplementation((query: Record<string, unknown> | undefined) => {
-      const idIn = (query?._id as { $in?: unknown[] } | undefined)?.$in;
-      if (Array.isArray(idIn) && idIn.some((v) => String(v) === ORIGINAL_ID)) {
-        return [{
-          ...originalRow(),
-          visibility: 'followers_only',
-          status: 'published',
-        }];
-      }
-      return [];
+    const original = await seedOriginal({
+      visibility: PostVisibility.FOLLOWERS_ONLY,
+      status: 'published',
     });
+    const boost = await seedBoost(original.id);
 
     const { extractFollowingIds } = await import('../../utils/privacyHelpers');
     vi.mocked(extractFollowingIds).mockReturnValueOnce([ORIGINAL_AUTHOR_OXY_ID]);
 
-    const [hydrated] = await hydrateBoost(VIEWER_ID);
+    const [hydrated] = await hydrate(boost, VIEWER_ID);
 
-    expect(hydrated.boost?.originalPost?.id).toBe(ORIGINAL_ID);
-    expect(hydrated.originalPost?.id).toBe(ORIGINAL_ID);
+    expect(hydrated.boost?.originalPost?.id).toBe(original.id);
+    expect(hydrated.originalPost?.id).toBe(original.id);
   });
 
   // The core root-cause assertion: a boost's original is part of the boost's
@@ -346,49 +312,38 @@ describe('PostHydrationService — boost original embedding is deterministic', (
   // on this; without the forced-boost-original collection the boost rendered
   // blank.
   it('embeds the boosted original even at maxDepth: 0 (the bug class)', async () => {
-    service = new PostHydrationService();
+    const original = await seedOriginal();
+    const boost = await seedBoost(original.id);
+
     for (const depth of [0, 1, 2]) {
-      const [hydrated] = await service.hydratePosts([boostRow()], {
-        viewerId: undefined,
-        maxDepth: depth,
-        includeLinkMetadata: false,
-        includeFullMetadata: false,
-      });
-      expect(hydrated.boost?.originalPost?.id, `maxDepth ${depth}: boost original missing`).toBe(ORIGINAL_ID);
-      expect(hydrated.originalPost?.id, `maxDepth ${depth}: top-level originalPost missing`).toBe(ORIGINAL_ID);
+      const [hydrated] = await hydrate(boost, undefined, depth);
+      expect(hydrated.boost?.originalPost?.id, `maxDepth ${depth}: boost original missing`).toBe(original.id);
+      expect(hydrated.originalPost?.id, `maxDepth ${depth}: top-level originalPost missing`).toBe(original.id);
     }
   });
 
   it('renders a federated boost original that has no oxyUserId in a degraded form (legacy orphan)', async () => {
-    service = new PostHydrationService();
-
     // A LEGACY orphan: a federated original ingested before the federated-actor →
     // Oxy-user link was enforced, so its `oxyUserId` is null. It is NO LONGER
     // dropped — its content must render so the boost is not blank. With no
     // `actorUri` (a brid.gy/Bluesky-style note carrying only an `activityId`) and
     // no FederatedActor row, the author degrades to a neutral "Unknown user"
     // marked federated with the origin instance — never a fabricated handle.
-    postFind.mockImplementation((query: Record<string, unknown> | undefined) => {
-      const idIn = (query?._id as { $in?: unknown[] } | undefined)?.$in;
-      if (Array.isArray(idIn) && idIn.some((v) => String(v) === ORIGINAL_ID)) {
-        return [{
-          ...originalRow(),
-          oxyUserId: null,
-          authorship: [],
-          federation: { activityId: 'https://zpravobot.news/users/TerribleMaps/statuses/123' },
-        }];
-      }
-      return [];
+    const original = await seedOriginal({
+      oxyUserId: null,
+      authorship: [],
+      federation: { activityId: 'https://zpravobot.news/users/TerribleMaps/statuses/123' },
     });
+    const boost = await seedBoost(original.id);
     // Only the booster resolves; the original's author does not exist in Oxy.
     getUsersByIds.mockResolvedValue([makeOxyUser(BOOSTER_OXY_ID, 'booster', 'Booster')]);
 
-    const [hydrated] = await hydrateBoost(undefined);
+    const [hydrated] = await hydrate(boost, undefined);
 
     expect(hydrated).toBeTruthy();
     // The boost original now embeds, with its real content shown.
-    expect(hydrated.boost?.originalPost?.id).toBe(ORIGINAL_ID);
-    expect(hydrated.originalPost?.id).toBe(ORIGINAL_ID);
+    expect(hydrated.boost?.originalPost?.id).toBe(original.id);
+    expect(hydrated.originalPost?.id).toBe(original.id);
     expect(hydrated.boost?.originalPost?.content?.text).toBe('the original note body');
     // The author is the neutral, un-tappable "Unknown user" (ghost-handle rule:
     // empty handle), marked federated with the origin instance.
@@ -402,21 +357,13 @@ describe('PostHydrationService — boost original embedding is deterministic', (
   });
 
   it('renders an orphan federated boost original with its real handle from the FederatedActor record', async () => {
-    service = new PostHydrationService();
-
     const ACTOR_URI = 'https://mastodon.online/users/kaleidotrope';
-    postFind.mockImplementation((query: Record<string, unknown> | undefined) => {
-      const idIn = (query?._id as { $in?: unknown[] } | undefined)?.$in;
-      if (Array.isArray(idIn) && idIn.some((v) => String(v) === ORIGINAL_ID)) {
-        return [{
-          ...originalRow(),
-          oxyUserId: null,
-          authorship: [],
-          federation: { activityId: `${ACTOR_URI}/statuses/9`, actorUri: ACTOR_URI },
-        }];
-      }
-      return [];
+    const original = await seedOriginal({
+      oxyUserId: null,
+      authorship: [],
+      federation: { activityId: `${ACTOR_URI}/statuses/9`, actorUri: ACTOR_URI },
     });
+    const boost = await seedBoost(original.id);
     getUsersByIds.mockResolvedValue([makeOxyUser(BOOSTER_OXY_ID, 'booster', 'Booster')]);
     // The orphan-author resolution looks the actor up by `uri`.
     await seedActor(scope, {
@@ -427,7 +374,7 @@ describe('PostHydrationService — boost original embedding is deterministic', (
       avatarUrl: 'https://mastodon.online/a.png',
     });
 
-    const [hydrated] = await hydrateBoost(undefined);
+    const [hydrated] = await hydrate(boost, undefined);
 
     const originalUser = hydrated.boost?.originalPost?.user;
     expect(hydrated.boost?.originalPost?.content?.text).toBe('the original note body');
@@ -441,29 +388,20 @@ describe('PostHydrationService — boost original embedding is deterministic', (
   });
 
   it('hydrates a bare orphan federated post viewed directly (not dropped from the depth-0 set)', async () => {
-    service = new PostHydrationService();
-
-    const orphanRow = {
-      ...originalRow(),
+    const orphan = await seedOriginal({
       oxyUserId: null,
       authorship: [],
-      federation: { activityId: 'https://bsky.brid.gy/convert/ap/at://did:plc:abc/app.bsky.feed.post/xyz' },
-    };
-    // Only the depth-1 reference fetch returns rows; the orphan is the depth-0
-    // input, so no reference lookup is needed here.
-    postFind.mockReturnValue([]);
+      federation: {
+        activityId: 'https://bsky.brid.gy/convert/ap/at://did:plc:abc/app.bsky.feed.post/xyz',
+      },
+    });
     getUsersByIds.mockResolvedValue([]);
 
-    const [hydrated] = await service.hydratePosts([orphanRow], {
-      viewerId: undefined,
-      maxDepth: 0,
-      includeLinkMetadata: false,
-      includeFullMetadata: false,
-    });
+    const [hydrated] = await hydrate(orphan, undefined, 0);
 
     // The orphan is NOT filtered out of the initial depth-0 set — it renders.
     expect(hydrated).toBeTruthy();
-    expect(hydrated.id).toBe(ORIGINAL_ID);
+    expect(hydrated.id).toBe(orphan.id);
     expect(hydrated.content?.text).toBe('the original note body');
     expect(hydrated.user?.username).toBe('');
     expect(hydrated.user?.name?.displayName).toBe('Unknown user');
@@ -472,21 +410,13 @@ describe('PostHydrationService — boost original embedding is deterministic', (
   });
 
   it('renders the Oxy name.displayName for a resolved federated boost original', async () => {
-    service = new PostHydrationService();
-
-    const FEDERATED_AUTHOR_OXY_ID = 'oxy-terrible-maps';
-    postFind.mockImplementation((query: Record<string, unknown> | undefined) => {
-      const idIn = (query?._id as { $in?: unknown[] } | undefined)?.$in;
-      if (Array.isArray(idIn) && idIn.some((v) => String(v) === ORIGINAL_ID)) {
-        return [{
-          ...originalRow(),
-          oxyUserId: FEDERATED_AUTHOR_OXY_ID,
-          authorship: [{ oxyUserId: FEDERATED_AUTHOR_OXY_ID, role: 'owner', status: 'accepted' }],
-          federation: { activityId: 'https://zpravobot.news/users/TerribleMaps/statuses/123' },
-        }];
-      }
-      return [];
+    const FEDERATED_AUTHOR_OXY_ID = scope.user('terrible-maps');
+    const original = await seedOriginal({
+      oxyUserId: FEDERATED_AUTHOR_OXY_ID,
+      authorship: [{ oxyUserId: FEDERATED_AUTHOR_OXY_ID, role: 'owner', status: 'accepted' }],
+      federation: { activityId: 'https://zpravobot.news/users/TerribleMaps/statuses/123' },
     });
+    const boost = await seedBoost(original.id);
 
     // The federated author is now a real, resolved Oxy user. Oxy owns the clean
     // `name.displayName`, which is the SOLE name source — Mention never reads a
@@ -506,9 +436,9 @@ describe('PostHydrationService — boost original embedding is deterministic', (
       },
     ]);
 
-    const [hydrated] = await hydrateBoost(undefined);
+    const [hydrated] = await hydrate(boost, undefined);
 
-    expect(hydrated.boost?.originalPost?.id).toBe(ORIGINAL_ID);
+    expect(hydrated.boost?.originalPost?.id).toBe(original.id);
     // The Oxy `name.displayName` — the single source of truth.
     expect(hydrated.boost?.originalPost?.user?.name?.displayName).toBe('Terrible Maps');
     expect(hydrated.boost?.originalPost?.user?.isFederated).toBe(true);
@@ -518,51 +448,27 @@ describe('PostHydrationService — boost original embedding is deterministic', (
   });
 
   it('still drops a NATIVE post with no author (a genuine data error, not a federated orphan)', async () => {
-    service = new PostHydrationService();
-
     // A native (non-federated) post with a null author is a real data error — the
     // degraded-render path is scoped to FEDERATED orphans only, so this stays
     // dropped and never surfaces a nameless row.
-    const nativeNullAuthor = {
-      ...originalRow(),
-      oxyUserId: null,
-      authorship: [],
-      // No `federation` subdoc → native.
-    };
-    postFind.mockReturnValue([]);
+    const nativeNullAuthor = await seedOriginal({ oxyUserId: null, authorship: [] });
     getUsersByIds.mockResolvedValue([]);
 
-    const hydrated = await service.hydratePosts([nativeNullAuthor], {
-      viewerId: undefined,
-      maxDepth: 0,
-      includeLinkMetadata: false,
-      includeFullMetadata: false,
-    });
+    const hydrated = await hydrate(nativeNullAuthor, undefined, 0);
 
     expect(hydrated).toEqual([]);
   });
 
   it('does not embed non-public boost originals when publicReferencesOnly is enabled', async () => {
-    service = new PostHydrationService();
+    // The original EXISTS and is private. Under `publicReferencesOnly` the
+    // reference query itself refuses it, so it must not be embedded into a public
+    // actor-posts response. The database decides this now; the previous version
+    // asserted the query object carried `{status, visibility}` and then modelled
+    // the exclusion by hand, which could not fail if the predicate were dropped.
+    const original = await seedOriginal({ visibility: PostVisibility.PRIVATE, status: 'draft' });
+    const boost = await seedBoost(original.id);
 
-    postFind.mockImplementation((query: Record<string, unknown> | undefined) => {
-      const idIn = (query?._id as { $in?: unknown[] } | undefined)?.$in;
-      if (!Array.isArray(idIn) || !idIn.some((v) => String(v) === ORIGINAL_ID)) {
-        return [];
-      }
-
-      expect(query).toMatchObject({
-        status: 'published',
-        visibility: 'public',
-      });
-
-      // Model the database predicate: a private/draft original does not match
-      // the public-reference query and therefore must not be embedded into the
-      // public actor-posts response.
-      return [];
-    });
-
-    const [hydrated] = await service.hydratePosts([boostRow()], {
+    const [hydrated] = await service.hydratePosts([boost], {
       viewerId: undefined,
       maxDepth: 1,
       publicReferencesOnly: true,
@@ -574,5 +480,4 @@ describe('PostHydrationService — boost original embedding is deterministic', (
     expect(hydrated.boost).toBeNull();
     expect(hydrated.originalPost).toBeNull();
   });
-
 });

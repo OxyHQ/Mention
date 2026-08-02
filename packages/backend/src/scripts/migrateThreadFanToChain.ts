@@ -54,10 +54,11 @@
  *   bun packages/backend/dist/src/scripts/migrateThreadFanToChain.js
  */
 
-import mongoose from 'mongoose';
-import { Post } from '../models/Post';
-import { connectToDatabase } from '../utils/database';
+import { and, eq, inArray, isNotNull, isNull, sql } from 'drizzle-orm';
+import { connectPostgres, getDb } from '../db/postgres';
+import { posts } from '../db/schema/posts';
 import { logger } from '../utils/logger';
+import { closeAdminScriptResources } from './lib/adminScriptLifecycle';
 import { assertAdminMutationAllowed } from './lib/adminScriptSafety';
 
 /**
@@ -70,9 +71,6 @@ const MIN_CONTINUATIONS_FOR_REPAIR = 2;
 /** Root posts fetched per `$in` chunk when verifying thread ownership. */
 const ROOT_FETCH_CHUNK_SIZE = 500;
 
-/** `parentPostId` re-link writes flushed per `bulkWrite` chunk. */
-const BULK_CHUNK_SIZE = 500;
-
 /** Candidate threads reported per progress line. */
 const PROGRESS_EVERY = 500;
 
@@ -80,8 +78,9 @@ const DRY_RUN = process.env.DRY_RUN === 'true';
 
 /** One continuation of a candidate thread, as collected by the aggregation. */
 interface ContinuationRow {
-  id: mongoose.Types.ObjectId;
+  id: string;
   parentPostId: string | null;
+  createdAt: Date;
 }
 
 /** A candidate broken-fan thread group from the aggregation. */
@@ -93,50 +92,55 @@ interface CandidateThreadGroup {
   continuations: ContinuationRow[];
 }
 
-/** Minimal root-post projection used to verify thread ownership. */
-interface RootRow {
-  _id: mongoose.Types.ObjectId;
-  oxyUserId?: string;
-}
-
 /**
  * Find candidate broken-fan threads: NATIVE, single-author, pure-fan groups (every
  * member's `parentPostId === threadId`) with 2+ continuations. Root ownership is
  * verified separately. Already-chained or partially-chained threads are not pure
- * fans, so the pipeline never returns them (idempotency at the source).
+ * fans, so the query never returns them (idempotency at the source).
  */
-function buildCandidatePipeline(): mongoose.PipelineStage[] {
-  return [
-    {
-      $match: {
-        threadId: { $ne: null },
-        // Native posts only — federated posts carry `federation.activityId`.
-        'federation.activityId': { $exists: false },
-      },
-    },
-    {
-      $group: {
-        _id: '$threadId',
-        count: { $sum: 1 },
-        authors: { $addToSet: '$oxyUserId' },
-        // Members whose parentPostId does NOT equal the threadId (i.e. nested /
-        // non-fan). A genuine broken fan has zero of these.
-        nonFanCount: {
-          $sum: { $cond: [{ $eq: ['$parentPostId', '$threadId'] }, 0, 1] },
-        },
-        continuations: { $push: { id: '$_id', parentPostId: '$parentPostId' } },
-      },
-    },
-    {
-      $match: {
-        count: { $gte: MIN_CONTINUATIONS_FOR_REPAIR },
-        // Pure fan: every member points at the root.
-        nonFanCount: 0,
-        // Exactly one distinct author (a second author would expose `authors.1`).
-        'authors.1': { $exists: false },
-      },
-    },
-  ];
+async function loadCandidateGroups(): Promise<CandidateThreadGroup[]> {
+  const rows = await getDb()
+    .select({
+      threadId: posts.threadId,
+      count: sql<number>`count(*)::int`,
+      authors: sql<string[]>`array_agg(distinct ${posts.oxyUserId})`,
+      // Members whose parent does NOT point at the root — i.e. already chained.
+      // A genuine broken fan has zero of these.
+      nonFanCount: sql<number>`count(*) filter (
+        where ${posts.parentPostId} is distinct from ${posts.threadId}
+      )::int`,
+      continuations: sql<ContinuationRow[]>`json_agg(json_build_object(
+        'id', ${posts.id},
+        'parentPostId', ${posts.parentPostId},
+        'createdAt', ${posts.createdAt}
+      ))`,
+    })
+    .from(posts)
+    .where(and(
+      // `is not null`, never `<> null`: `$ne: null` matched a MISSING field too,
+      // while SQL's `<>` against NULL matches nothing.
+      isNotNull(posts.threadId),
+      // Native posts only — federated posts carry a federation activity id.
+      isNull(posts.federationActivityId),
+    ))
+    .groupBy(posts.threadId)
+    .having(sql`count(*) >= ${MIN_CONTINUATIONS_FOR_REPAIR}
+      and count(*) filter (where ${posts.parentPostId} is distinct from ${posts.threadId}) = 0
+      and count(distinct ${posts.oxyUserId}) = 1`);
+
+  return rows.flatMap((row) =>
+    row.threadId
+      ? [{
+        _id: row.threadId,
+        count: row.count,
+        authors: row.authors,
+        continuations: row.continuations.map((entry) => ({
+          ...entry,
+          createdAt: new Date(entry.createdAt),
+        })),
+      }]
+      : [],
+  );
 }
 
 /**
@@ -145,32 +149,40 @@ function buildCandidatePipeline(): mongoose.PipelineStage[] {
  * Threads whose root is missing, federated, or absent from this map fail ownership
  * verification and are skipped.
  */
-async function loadRootAuthors(threadIds: string[]): Promise<Map<string, string | undefined>> {
-  const rootAuthorById = new Map<string, string | undefined>();
-  const validObjectIds = threadIds
-    .filter((id) => mongoose.Types.ObjectId.isValid(id))
-    .map((id) => new mongoose.Types.ObjectId(id));
-
-  for (let i = 0; i < validObjectIds.length; i += ROOT_FETCH_CHUNK_SIZE) {
-    const chunk = validObjectIds.slice(i, i + ROOT_FETCH_CHUNK_SIZE);
-    const roots = await Post.find(
-      { _id: { $in: chunk }, 'federation.activityId': { $exists: false } },
-      { _id: 1, oxyUserId: 1 },
-    ).lean<RootRow[]>();
+async function loadRootAuthors(threadIds: string[]): Promise<Map<string, string | null>> {
+  const rootAuthorById = new Map<string, string | null>();
+  // No id-shape filter: `posts.id` is `text`, so an id of any shape is a
+  // parameter that matches no row.
+  for (let i = 0; i < threadIds.length; i += ROOT_FETCH_CHUNK_SIZE) {
+    const chunk = threadIds.slice(i, i + ROOT_FETCH_CHUNK_SIZE);
+    const roots = await getDb()
+      .select({ id: posts.id, oxyUserId: posts.oxyUserId })
+      .from(posts)
+      .where(and(inArray(posts.id, chunk), isNull(posts.federationActivityId)));
     for (const root of roots) {
-      rootAuthorById.set(root._id.toString(), root.oxyUserId);
+      rootAuthorById.set(root.id, root.oxyUserId);
     }
   }
 
   return rootAuthorById;
 }
 
-/** Stable creation-order sort: ascending ObjectId hex compares as creation order. */
-function byIdAscending(a: ContinuationRow, b: ContinuationRow): number {
-  const aId = a.id.toString();
-  const bId = b.id.toString();
-  if (aId < bId) return -1;
-  if (aId > bId) return 1;
+/**
+ * Creation order, by `created_at` with the id as a stable tiebreak.
+ *
+ * NOT by id. The previous sort relied on "ascending ObjectId hex compares as
+ * creation order", which was true of ObjectIds and is not true of `posts.id`:
+ * it holds a 24-char ObjectId hex for pre-cutover rows and a uuid v7 after, and
+ * the two spaces interleave under text collation (`'0' < '6'`). A thread with
+ * members on both sides of the cutover would be re-chained in the wrong order —
+ * which is the exact defect this script exists to repair, reintroduced by the
+ * repair itself.
+ */
+function byCreationOrder(a: ContinuationRow, b: ContinuationRow): number {
+  const delta = a.createdAt.getTime() - b.createdAt.getTime();
+  if (delta !== 0) return delta;
+  if (a.id < b.id) return -1;
+  if (a.id > b.id) return 1;
   return 0;
 }
 
@@ -181,10 +193,10 @@ async function migrateThreadFanToChain(): Promise<void> {
   });
   const startedAt = Date.now();
 
-  await connectToDatabase();
-  logger.info(`[migrateThreadFanToChain] connected to MongoDB; DRY_RUN=${DRY_RUN}`);
+  await connectPostgres();
+  logger.info(`[migrateThreadFanToChain] connected to PostgreSQL; DRY_RUN=${DRY_RUN}`);
 
-  const candidates = await Post.aggregate<CandidateThreadGroup>(buildCandidatePipeline());
+  const candidates = await loadCandidateGroups();
   logger.info(
     `[migrateThreadFanToChain] ${candidates.length} candidate broken-fan threads (native, single-author, pure fan, ${MIN_CONTINUATIONS_FOR_REPAIR}+ continuations)`,
   );
@@ -201,18 +213,6 @@ async function migrateThreadFanToChain(): Promise<void> {
   let threadsSkippedOwnership = 0;
   let postsRelinkPlanned = 0;
   let postsRelinkWritten = 0;
-  let pendingOps: mongoose.AnyBulkWriteOperation<typeof Post>[] = [];
-
-  const flush = async (): Promise<void> => {
-    if (pendingOps.length === 0) return;
-    if (DRY_RUN) {
-      pendingOps = [];
-      return;
-    }
-    const result = await Post.bulkWrite(pendingOps, { ordered: false });
-    postsRelinkWritten += result.modifiedCount;
-    pendingOps = [];
-  };
 
   for (const group of candidates) {
     threadsScanned += 1;
@@ -223,19 +223,19 @@ async function migrateThreadFanToChain(): Promise<void> {
     // by the SAME single author as the continuations. Excludes "user replied to
     // someone else's post N times" and missing/federated roots.
     const rootAuthor = rootAuthorById.get(threadId);
-    if (rootAuthor === undefined || rootAuthor !== author) {
+    if (rootAuthor == null || rootAuthor !== author) {
       threadsSkippedOwnership += 1;
       continue;
     }
 
-    const continuations = [...group.continuations].sort(byIdAscending);
+    const continuations = [...group.continuations].sort(byCreationOrder);
 
     let threadHasRelink = false;
     for (let k = 0; k < continuations.length; k++) {
       const current = continuations[k];
       // First continuation correctly replies to the root; each subsequent one
       // should reply to the immediately-previous continuation.
-      const correctParent = k === 0 ? threadId : continuations[k - 1].id.toString();
+      const correctParent = k === 0 ? threadId : continuations[k - 1].id;
 
       // Idempotent: only write posts whose parentPostId is wrong. (For an
       // untouched fan this is exactly continuations[1..n-1].)
@@ -243,15 +243,13 @@ async function migrateThreadFanToChain(): Promise<void> {
 
       threadHasRelink = true;
       postsRelinkPlanned += 1;
-      pendingOps.push({
-        updateOne: {
-          filter: { _id: current.id },
-          update: { $set: { parentPostId: correctParent } },
-        },
-      });
-
-      if (pendingOps.length >= BULK_CHUNK_SIZE) {
-        await flush();
+      if (!DRY_RUN) {
+        const relinked = await getDb()
+          .update(posts)
+          .set({ parentPostId: correctParent })
+          .where(eq(posts.id, current.id))
+          .returning({ id: posts.id });
+        postsRelinkWritten += relinked.length;
       }
     }
 
@@ -266,8 +264,6 @@ async function migrateThreadFanToChain(): Promise<void> {
     }
   }
 
-  await flush();
-
   const elapsedSeconds = Math.round((Date.now() - startedAt) / 1000);
   logger.info(
     `[migrateThreadFanToChain] done${DRY_RUN ? ' (DRY_RUN — no writes)' : ''}: ` +
@@ -281,13 +277,13 @@ async function migrateThreadFanToChain(): Promise<void> {
 async function run(): Promise<void> {
   try {
     await migrateThreadFanToChain();
-    await mongoose.disconnect();
+    await closeAdminScriptResources();
     // Exit explicitly: imported model/service modules may hold open handles
     // (Redis/BullMQ singletons) that would otherwise keep the process alive.
     process.exit(0);
   } catch (error) {
     logger.error('[migrateThreadFanToChain] failed', error);
-    await mongoose.disconnect().catch(() => undefined);
+    await closeAdminScriptResources().catch(() => undefined);
     process.exit(1);
   }
 }

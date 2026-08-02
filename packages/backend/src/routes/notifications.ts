@@ -9,7 +9,7 @@ import {
   PUSH_TOKEN_PLATFORMS,
   PUSH_TOKEN_TYPES,
 } from '../db/schema/discovery';
-import Post from "../models/Post";
+import { loadPostRecords } from '../db/posts/postRepository';
 import { Server } from 'socket.io';
 import { sendPushToUser } from '../utils/push';
 import { logger } from '../utils/logger';
@@ -202,20 +202,17 @@ router.get("/", async (req: AuthRequest, res: Response) => {
     /** Referenced posts the viewer muted — their notifications are dropped below. */
     const mutedPostIds = new Set<string>();
     if (referencedPostIds.length > 0) {
-      // Fetch full lean docs (no field projection): `hydratePosts` reads
-      // `boostOf`/`quoteOf` (nested embeds), `parentPostId`/`threadId`/`type`
-      // (thread + type flags) and `visibility`/`status` (publication controls).
-      // The POSTS themselves are deliberately still read from Mongo — `posts`
-      // and `PostHydrationService` belong to the posts batch, and handing this
-      // ACL decision to a table that batch has not filled yet would withhold
-      // every preview rather than fail.
-      const posts = await Post.find({ _id: { $in: referencedPostIds } }).lean();
+      // Whole records: `hydratePosts` reads `boostOf`/`quoteOf` (nested embeds),
+      // `parentPostId`/`threadId`/`type` (thread + type flags) and
+      // `visibility`/`status` (publication controls), and `requiresContentWarning`
+      // below reads every sensitivity signal the row carries.
+      const posts = await loadPostRecords(referencedPostIds.map(String));
 
       // Sensitivity is read off the RAW rows, which carry every signal (the classifier
       // verdict, the legacy flag, the federated flag/CW, the hashtags) — the hydrated
       // DTO deliberately exposes only a subset.
       const gatedPostIds = new Set(
-        posts.filter((post) => requiresContentWarning(post)).map((post) => String(post._id)),
+        posts.filter((post) => requiresContentWarning(post)).map((post) => post.id),
       );
 
       const scopedOxyClient = createScopedOxyClient(req);

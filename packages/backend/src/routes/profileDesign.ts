@@ -1,6 +1,8 @@
 import { Router, Response } from 'express';
 import UserSettings, { type ProfileMedia } from '../models/UserSettings';
-import Post from '../models/Post';
+import { and, eq, sql } from 'drizzle-orm';
+import { getDb } from '../db/postgres';
+import { posts } from '../db/schema/posts';
 import { extractPublicProfileData, redactedProfileDesign } from '../utils/userSettings';
 import { sendErrorResponse, sendSuccessResponse, validateRequired } from '../utils/apiHelpers';
 import { canViewProfileDesign, ProfileVisibility } from '../utils/privacyHelpers';
@@ -74,30 +76,29 @@ router.get('/:userId', async (req: AuthRequest, res: Response) => {
     //   `parentPostId: null` matches null OR a missing field in MongoDB.
     // - boostsCount: documents authored as boosts (type=boost, boostOf set).
     // - repliesCount: the inverse of postsCount — posts that ARE replies.
-    const [postsCount, boostsCount, repliesCount] = await Promise.all([
-      Post.countDocuments({
-        oxyUserId: userId,
-        visibility: PostVisibility.PUBLIC,
-        status: 'published',
-        parentPostId: null,
-      }),
-      Post.countDocuments({
-        oxyUserId: userId,
-        visibility: PostVisibility.PUBLIC,
-        status: 'published',
-        type: PostType.BOOST,
-      }),
-      Post.countDocuments({
-        oxyUserId: userId,
-        visibility: PostVisibility.PUBLIC,
-        status: 'published',
-        parentPostId: { $ne: null },
-      }),
-    ]);
+    // ONE grouped pass over the author's public published posts, `filter`-ed per
+    // bucket, rather than three COUNTs over the same index range.
+    const authored = and(
+      eq(posts.oxyUserId, userId),
+      eq(posts.visibility, PostVisibility.PUBLIC),
+      eq(posts.status, 'published'),
+    );
+    const [counts] = await getDb()
+      .select({
+        // The STORED discriminator, not `parent_post_id IS NULL`: an orphaned
+        // reply (parent deleted, `ON DELETE SET NULL` fired) is still a reply and
+        // must not be counted as a top-level post here while the author feed's
+        // `posts` tab — which reads the same column — leaves it out.
+        postsCount: sql<number>`count(*) filter (where ${posts.isReply} = false)::int`,
+        boostsCount: sql<number>`count(*) filter (where ${posts.type} = ${PostType.BOOST})::int`,
+        repliesCount: sql<number>`count(*) filter (where ${posts.isReply})::int`,
+      })
+      .from(posts)
+      .where(authored);
 
-    response.postsCount = postsCount;
-    response.boostsCount = boostsCount;
-    response.repliesCount = repliesCount;
+    response.postsCount = counts?.postsCount ?? 0;
+    response.boostsCount = counts?.boostsCount ?? 0;
+    response.repliesCount = counts?.repliesCount ?? 0;
 
     // Include privacy info in response
     if (doc?.privacy?.profileVisibility) {

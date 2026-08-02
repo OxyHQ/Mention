@@ -1,5 +1,10 @@
 import type { PostAuthorshipEntry } from '@mention/shared-types';
-import { Post, IPost } from '../models/Post';
+import {
+  loadPostRecord,
+  replacePostAuthorship,
+  updatePostRecord,
+} from '../db/posts/postRepository';
+import type { PostRecord } from '../db/posts/postRecord';
 import { createNotification } from '../utils/notificationUtils';
 import { getServiceOxyClient } from '../utils/oxyHelpers';
 import { postHydrationService } from './PostHydrationService';
@@ -101,10 +106,19 @@ class PostCollaborationService {
 
   /**
    * Attach collaborator invites to an existing solo post (edit-within-window flow).
-   * Mutates `post.authorship` in memory — the caller persists via `post.save()`.
+   *
+   * Persists the new authorship itself rather than handing the caller a mutated
+   * object to save: `post_authorships` allows exactly one `owner` row, so the
+   * only correct write is the transactional delete-then-insert in
+   * {@link replacePostAuthorship} — a caller assembling its own update would
+   * either violate that index or silently write the list twice.
    */
-  async attachCollaborators(post: IPost, ownerId: string, collaboratorIds: string[]): Promise<void> {
-    if (collaboratorIds.length === 0) return;
+  async attachCollaborators(
+    post: PostRecord,
+    ownerId: string,
+    collaboratorIds: string[],
+  ): Promise<PostRecord> {
+    if (collaboratorIds.length === 0) return post;
 
     const authorship = normalizeAuthorship(post.authorship);
     if (hasCollaborators(authorship)) {
@@ -124,20 +138,24 @@ class PostCollaborationService {
       throw new CollabValidationError('Only top-level posts can have collaborators');
     }
 
-    post.authorship = [...authorship, ...collaboratorIds.map((id) => buildCollaboratorEntry(id))];
-    post.markModified('authorship');
+    const updated = [...authorship, ...collaboratorIds.map((id) => buildCollaboratorEntry(id))];
+    await replacePostAuthorship(post.id, updated);
 
-    const meta = (post.metadata ?? {}) as Record<string, unknown>;
     // Solo posts federate immediately at creation. Converting them to collab via
     // edit must not schedule a second delivery when invites resolve.
-    if (!meta.federationDelivered) {
-      post.metadata = { ...meta, collabFederationDeferred: true };
-      post.markModified('metadata');
+    if (post.metadata.federationDelivered) {
+      return { ...post, authorship: updated };
     }
+    await updatePostRecord(post.id, { metadata: { collabFederationDeferred: true } });
+    return {
+      ...post,
+      authorship: updated,
+      metadata: { ...post.metadata, collabFederationDeferred: true },
+    };
   }
 
-  async notifyPendingInvites(post: IPost, ownerId: string): Promise<void> {
-    const pending = getPendingCollaborators(post.authorship ?? []);
+  async notifyPendingInvites(post: PostRecord, ownerId: string): Promise<void> {
+    const pending = getPendingCollaborators(post.authorship);
     if (pending.length === 0) return;
 
     await Promise.allSettled(
@@ -146,7 +164,7 @@ class PostCollaborationService {
           recipientId: entry.oxyUserId,
           actorId: ownerId,
           type: 'collab_invite',
-          entityId: String(post._id),
+          entityId: post.id,
           entityType: 'post',
         }),
       ),
@@ -158,7 +176,7 @@ class PostCollaborationService {
    * bundle accounts). One save, owner notifications per accept, then deferred
    * federation if every invite is resolved.
    */
-  async autoAcceptInvites(post: IPost, userIds: ReadonlySet<string>): Promise<IPost> {
+  async autoAcceptInvites(post: PostRecord, userIds: ReadonlySet<string>): Promise<PostRecord> {
     if (userIds.size === 0) return post;
 
     const authorship = normalizeAuthorship(post.authorship);
@@ -184,9 +202,8 @@ class PostCollaborationService {
 
     if (!changed) return post;
 
-    post.authorship = authorship;
-    post.markModified('authorship');
-    await post.save();
+    await replacePostAuthorship(post.id, authorship);
+    const accepted: PostRecord = { ...post, authorship };
 
     if (notificationsToSend.length > 0) {
       await Promise.allSettled(
@@ -195,20 +212,19 @@ class PostCollaborationService {
             recipientId,
             actorId,
             type: 'collab_accepted',
-            entityId: String(post._id),
+            entityId: post.id,
             entityType: 'post',
           }),
         ),
       );
     }
 
-    await this.emitPostUpdate(post);
-    await this.maybeFederateOnResolve(post);
-    return post;
+    await this.emitPostUpdate(accepted);
+    return this.maybeFederateOnResolve(accepted);
   }
 
-  private async loadPost(postId: string): Promise<IPost> {
-    const post = await Post.findById(postId);
+  private async loadPost(postId: string): Promise<PostRecord> {
+    const post = await loadPostRecord(postId);
     if (!post) {
       throw new CollabStateError('Post not found');
     }
@@ -226,34 +242,37 @@ class PostCollaborationService {
    * build the actor. Best-effort and fully isolated — a federation failure never
    * fails the accept/decline response.
    */
-  private async maybeFederateOnResolve(post: IPost): Promise<void> {
-    if (post.federation != null) return;
-    if ((post.status ?? 'published') !== 'published') return;
-    if (hasPendingCollabInvites(post.authorship ?? [])) return;
+  private async maybeFederateOnResolve(post: PostRecord): Promise<PostRecord> {
+    if (post.federation != null) return post;
+    if (post.status !== 'published') return post;
+    if (hasPendingCollabInvites(post.authorship)) return post;
+    if (!post.metadata.collabFederationDeferred) return post;
 
-    const meta = (post.metadata ?? {}) as Record<string, unknown>;
-    if (!meta.collabFederationDeferred) return;
-
-    const ownerId = getOwnerId(post.authorship ?? []);
-    if (!ownerId) return;
+    const ownerId = getOwnerId(post.authorship);
+    if (!ownerId) return post;
 
     try {
       const owner = await getServiceOxyClient().getUserById(ownerId);
-      if (!owner.username) return;
+      if (!owner.username) return post;
       await getPostFederator().federateNewPost(post, ownerId, owner.username);
-      post.metadata = { ...(post.metadata ?? {}), federationDelivered: true, collabFederationDeferred: false };
-      post.markModified('metadata');
-      await post.save();
+      await updatePostRecord(post.id, {
+        metadata: { federationDelivered: true, collabFederationDeferred: false },
+      });
+      return {
+        ...post,
+        metadata: { ...post.metadata, federationDelivered: true, collabFederationDeferred: false },
+      };
     } catch (error) {
       logger.warn('PostCollaborationService: deferred federation on invite resolve failed', { error });
+      return post;
     }
   }
 
-  private async emitPostUpdate(post: IPost): Promise<void> {
+  private async emitPostUpdate(post: PostRecord): Promise<void> {
     try {
       const io = getRuntimeSocketServer();
       if (!io) return;
-      const [hydratedPost] = await postHydrationService.hydratePosts([post.toObject()], {
+      const [hydratedPost] = await postHydrationService.hydratePosts([post], {
         viewerId: undefined,
         oxyClient: getServiceOxyClient(),
         maxDepth: 1,
@@ -271,24 +290,50 @@ class PostCollaborationService {
     }
   }
 
-  async accept(postId: string, userId: string): Promise<IPost> {
+  /**
+   * Flip ONE collaborator entry's status and persist the whole list.
+   *
+   * The three viewer-driven transitions (accept / decline / stop sharing) differ
+   * only in the status they write and the notification they send, so they share
+   * this body — three near-identical copies of a delete-then-insert authorship
+   * write is how one of them ends up missing the `respondedAt` stamp.
+   */
+  private async transitionViewerEntry(
+    postId: string,
+    userId: string,
+    from: PostAuthorshipEntry['status'],
+    to: PostAuthorshipEntry['status'],
+    notFoundMessage: string,
+  ): Promise<PostRecord> {
     const post = await this.loadPost(postId);
-    const entry = getViewerEntry(post.authorship ?? [], userId);
-    if (!entry || entry.role !== 'collaborator' || entry.status !== 'pending') {
-      throw new CollabStateError('No pending collaboration invite for this post');
+    const authorship = normalizeAuthorship(post.authorship);
+    const entry = getViewerEntry(authorship, userId);
+    if (!entry || entry.role !== 'collaborator' || entry.status !== from) {
+      throw new CollabStateError(notFoundMessage);
     }
 
-    entry.status = 'accepted';
+    entry.status = to;
     entry.respondedAt = new Date().toISOString();
-    await post.save();
+    await replacePostAuthorship(post.id, authorship);
+    return { ...post, authorship };
+  }
 
-    const ownerId = getOwnerId(post.authorship ?? []);
+  async accept(postId: string, userId: string): Promise<PostRecord> {
+    const post = await this.transitionViewerEntry(
+      postId,
+      userId,
+      'pending',
+      'accepted',
+      'No pending collaboration invite for this post',
+    );
+
+    const ownerId = getOwnerId(post.authorship);
     if (ownerId && ownerId !== userId) {
       await createNotification({
         recipientId: ownerId,
         actorId: userId,
         type: 'collab_accepted',
-        entityId: String(post._id),
+        entityId: post.id,
         entityType: 'post',
       });
     }
@@ -296,28 +341,25 @@ class PostCollaborationService {
     await this.emitPostUpdate(post);
     // The accept may have resolved the LAST pending invite — deliver the deferred
     // federation now that every collaborator has consented.
-    await this.maybeFederateOnResolve(post);
-    return post;
+    return this.maybeFederateOnResolve(post);
   }
 
-  async decline(postId: string, userId: string): Promise<IPost> {
-    const post = await this.loadPost(postId);
-    const entry = getViewerEntry(post.authorship ?? [], userId);
-    if (!entry || entry.role !== 'collaborator' || entry.status !== 'pending') {
-      throw new CollabStateError('No pending collaboration invite for this post');
-    }
+  async decline(postId: string, userId: string): Promise<PostRecord> {
+    const post = await this.transitionViewerEntry(
+      postId,
+      userId,
+      'pending',
+      'declined',
+      'No pending collaboration invite for this post',
+    );
 
-    entry.status = 'declined';
-    entry.respondedAt = new Date().toISOString();
-    await post.save();
-
-    const ownerId = getOwnerId(post.authorship ?? []);
+    const ownerId = getOwnerId(post.authorship);
     if (ownerId && ownerId !== userId) {
       await createNotification({
         recipientId: ownerId,
         actorId: userId,
         type: 'collab_declined',
-        entityId: String(post._id),
+        entityId: post.id,
         entityType: 'post',
       });
     }
@@ -326,26 +368,23 @@ class PostCollaborationService {
     // A decline can also resolve the last pending invite — the post is still a
     // valid owner post and must not stay stuck un-federated, so trigger the
     // deferred federation once no invite remains pending.
-    await this.maybeFederateOnResolve(post);
-    return post;
+    return this.maybeFederateOnResolve(post);
   }
 
-  async stopSharing(postId: string, userId: string): Promise<IPost> {
-    const post = await this.loadPost(postId);
-    const entry = getViewerEntry(post.authorship ?? [], userId);
-    if (!entry || entry.role !== 'collaborator' || entry.status !== 'accepted') {
-      throw new CollabStateError('You are not an active collaborator on this post');
-    }
-
-    entry.status = 'stopped';
-    entry.respondedAt = new Date().toISOString();
-    await post.save();
+  async stopSharing(postId: string, userId: string): Promise<PostRecord> {
+    const post = await this.transitionViewerEntry(
+      postId,
+      userId,
+      'accepted',
+      'stopped',
+      'You are not an active collaborator on this post',
+    );
     await this.emitPostUpdate(post);
     return post;
   }
 
-  getOwnerEntry(post: IPost): PostAuthorshipEntry | undefined {
-    return getOwner(post.authorship ?? []);
+  getOwnerEntry(post: PostRecord): PostAuthorshipEntry | undefined {
+    return getOwner(post.authorship);
   }
 }
 

@@ -1,4 +1,4 @@
-import mongoose from 'mongoose';
+import { and, eq } from 'drizzle-orm';
 import { createInboundDispatcher } from '@oxyhq/federation/node';
 import { logger } from '../../utils/logger';
 import { findActorByUri } from '../../db/federation/actorRepository';
@@ -11,13 +11,23 @@ import {
   markOutboundRejected,
   upsertInboundAccepted,
 } from '../../db/federation/followRepository';
-import { Post } from '../../models/Post';
+import { getDb } from '../../db/postgres';
+import { posts } from '../../db/schema/posts';
+import {
+  bumpPostCounters,
+  CHRONO_DESC,
+  deletePostRecord,
+  findPostRecords,
+  loadPostRecord,
+  replacePostContent,
+  updatePostRecord,
+} from '../../db/posts/postRepository';
+import type { PostRecord } from '../../db/posts/postRecord';
 import {
   FEDERATION_MAX_CONTENT_LENGTH,
   resolveOxyUser,
 } from './constants';
 import { PostType } from '@mention/shared-types';
-import type { PostAuthorshipEntry } from '@mention/shared-types';
 import { extractApLanguage, extractApLanguages } from './apLanguage';
 import { getPostCreator } from '../../services/serviceRegistry';
 import { pollVoteService } from '../../services/PollVoteService';
@@ -156,10 +166,7 @@ export class InboxProcessingService {
    * an Undo is teardown, not new engagement, and must always converge.
    */
   private async isLocalPostOwnerSharingEnabled(postId: string): Promise<boolean> {
-    const post = await Post.findOne(
-      { _id: postId },
-      { oxyUserId: 1, federation: 1 },
-    ).lean<{ oxyUserId?: string | null; federation?: unknown } | null>();
+    const post = await loadPostRecord(postId);
     if (!post || post.federation != null || !post.oxyUserId) return true;
     return isFediverseSharingEnabled(post.oxyUserId);
   }
@@ -198,10 +205,7 @@ export class InboxProcessingService {
     entityType: 'post' | 'reply',
   ): Promise<void> {
     try {
-      const post = await Post.findOne(
-        { _id: postId },
-        { authorship: 1, federation: 1 },
-      ).lean<{ authorship?: PostAuthorshipEntry[]; federation?: unknown } | null>();
+      const post = await loadPostRecord(postId);
       if (!post || post.federation != null) return;
 
       const { createPostAuthorNotifications } = await import('../../utils/notificationUtils');
@@ -321,30 +325,30 @@ export class InboxProcessingService {
     // only by id would let one remote actor retract another actor's boost.
     // Fall back to (boostOf, author, actorUri) when the Undo omits the original
     // Announce id but carries the announced object.
-    let boost: { _id: mongoose.Types.ObjectId; boostOf?: string } | null = null;
+    let boost: PostRecord | null = null;
     if (announceId) {
-      boost = await Post.findOne(
-        {
-          'federation.activityId': announceId,
-          'federation.actorUri': actorUri,
-          type: 'boost',
-        },
-        { _id: 1, boostOf: 1 },
-      ).lean<{ _id: mongoose.Types.ObjectId; boostOf?: string } | null>();
+      [boost = null] = await findPostRecords(
+        and(
+          eq(posts.federationActivityId, announceId),
+          eq(posts.federationActorUri, actorUri),
+          eq(posts.type, 'boost'),
+        ),
+        { orderBy: CHRONO_DESC, limit: 1 },
+      );
     }
     if (!boost && announcedUri) {
       const originalPostId = await resolvePostIdFromObjectUri(announcedUri);
       const boosterOxyUserId = await actorService.resolveActorOxyUserId(actorUri);
       if (originalPostId && boosterOxyUserId) {
-        boost = await Post.findOne(
-          {
-            boostOf: originalPostId,
-            oxyUserId: boosterOxyUserId,
-            'federation.actorUri': actorUri,
-            type: 'boost',
-          },
-          { _id: 1, boostOf: 1 },
-        ).lean<{ _id: mongoose.Types.ObjectId; boostOf?: string } | null>();
+        [boost = null] = await findPostRecords(
+          and(
+            eq(posts.boostOf, originalPostId),
+            eq(posts.oxyUserId, boosterOxyUserId),
+            eq(posts.federationActorUri, actorUri),
+            eq(posts.type, 'boost'),
+          ),
+          { orderBy: CHRONO_DESC, limit: 1 },
+        );
       }
     }
 
@@ -352,24 +356,14 @@ export class InboxProcessingService {
 
     // Keep the ownership predicate on the destructive write as a final
     // fail-closed guard against a concurrent mutation between lookup/delete.
-    const deleted = await Post.deleteOne({
-      _id: boost._id,
-      'federation.actorUri': actorUri,
-    });
-    if (deleted.deletedCount !== 1) return;
-    await Post.updateOne(
-      { _id: boost.boostOf, 'stats.boostsCount': { $gt: 0 } },
-      { $inc: { 'stats.boostsCount': -1 } },
-    );
-    // The federated Announce incremented both counters in lockstep at import, so
-    // mirror the decrement here. Guarded independently (its own `$gt: 0` filter,
-    // a separate updateOne) so it never underflows AND never blocks the
-    // boostsCount decrement above — federatedBoostsCount can legitimately lag
-    // boostsCount on posts that predate the field until the backfill runs.
-    await Post.updateOne(
-      { _id: boost.boostOf, 'stats.federatedBoostsCount': { $gt: 0 } },
-      { $inc: { 'stats.federatedBoostsCount': -1 } },
-    );
+    const deleted = await deletePostRecord(boost.id, eq(posts.federationActorUri, actorUri));
+    if (!deleted) return;
+    // Both counters move in lockstep, because the federated Announce incremented
+    // both at import. `bumpPostCounters` clamps at zero, which is what the two
+    // separate `$gt: 0`-filtered updates were expressing — and it does so in ONE
+    // statement, so `federatedBoostsCount` lagging on a pre-field post can no
+    // longer leave the two decrements half-applied.
+    await bumpPostCounters(boost.boostOf, { boosts: -1, federatedBoosts: -1 });
     logger.debug('[Federation] processed Announce undo');
   }
 
@@ -406,9 +400,8 @@ export class InboxProcessingService {
     // The `inReplyTo` must resolve to a LOCAL post that actually carries a poll.
     const postId = await resolvePostIdFromObjectUri(inReplyToUri);
     if (!postId) return false;
-    const post = await Post.findOne({ _id: postId }, { 'content.pollId': 1 })
-      .lean<{ content?: { pollId?: string } } | null>();
-    const pollId = post?.content?.pollId;
+    const post = await loadPostRecord(postId);
+    const pollId = post?.content.pollId;
     if (!pollId) return false; // reply to a non-poll post → let the normal path handle it
 
     // Unambiguously a vote on our poll from here — consume it regardless of outcome.
@@ -485,7 +478,11 @@ export class InboxProcessingService {
     }
 
     // Dedup by activityId
-    const existingPost = await Post.exists({ 'federation.activityId': note.id });
+    const [existingPost] = await getDb()
+      .select({ id: posts.id })
+      .from(posts)
+      .where(eq(posts.federationActivityId, note.id))
+      .limit(1);
     if (existingPost) return;
 
     // The Oxy link is MANDATORY: a federated post must carry a real Oxy author,
@@ -620,7 +617,7 @@ export class InboxProcessingService {
         threadLink.parentPostId,
         authorOxyUserId,
         'reply',
-        String(createdPost._id),
+        createdPost.id,
         'reply',
       );
     }
@@ -633,7 +630,7 @@ export class InboxProcessingService {
       await this.notifyLocalMentionedUsers(
         mentionResult.localIds,
         authorOxyUserId,
-        String(createdPost._id),
+        createdPost.id,
         threadLink?.parentPostId ? 'reply' : 'post',
       );
     }
@@ -651,18 +648,19 @@ export class InboxProcessingService {
     // the actor URI stamped when the post was ingested, using the actor whose
     // HTTP signature was verified rather than trusting activity.actor or a
     // best-effort actor-cache lookup.
-    const ownershipFilter = {
-      'federation.activityId': objectId,
-      'federation.actorUri': actorUri,
-    };
-    const post = await Post.findOne(ownershipFilter, { _id: 1 }).lean();
+    const ownedByActor = and(
+      eq(posts.federationActivityId, objectId),
+      eq(posts.federationActorUri, actorUri),
+    );
+    const [post] = await getDb()
+      .select({ id: posts.id })
+      .from(posts)
+      .where(ownedByActor)
+      .limit(1);
     if (!post) return;
 
-    const deleted = await Post.deleteOne({
-      _id: post._id,
-      'federation.actorUri': actorUri,
-    });
-    if (deleted.deletedCount !== 1) return;
+    const deleted = await deletePostRecord(post.id, eq(posts.federationActorUri, actorUri));
+    if (!deleted) return;
     logger.debug('[Federation] deleted federated post');
   }
 
@@ -787,10 +785,11 @@ export class InboxProcessingService {
       }
 
       // `object.id` is raw, remote-controlled AP JSON. Require a real string
-      // BEFORE it flows into any Mongo filter: a non-string value (e.g.
-      // `{ $gt: '' }`) would turn the equality match into an operator query
-      // matching arbitrary posts (NoSQL injection). This proven-string barrier
-      // is also the recognized CodeQL sanitizer for the query taint.
+      // BEFORE it becomes a query value. It is a bound parameter here rather
+      // than an interpolated document, so the NoSQL-operator-injection shape
+      // (`{ $gt: '' }` widening an equality match) is no longer expressible at
+      // all — but the barrier stays because a non-string id is meaningless
+      // regardless of store, and it is the recognized CodeQL sanitizer.
       const objectActivityId = object.id;
       if (typeof objectActivityId !== 'string' || objectActivityId.length === 0) return;
 
@@ -798,18 +797,15 @@ export class InboxProcessingService {
       // by both the activity id AND `federation.actorUri` (stamped at create on
       // the inbox Create + outbox backfill paths) so a remote server cannot
       // overwrite another actor's post by replaying its activityId.
-      const editFilter = {
-        'federation.activityId': objectActivityId,
-        'federation.actorUri': actorUri,
-      };
+      const editFilter = and(
+        eq(posts.federationActivityId, objectActivityId),
+        eq(posts.federationActorUri, actorUri),
+      );
 
-      const existingPost = await Post.findOne(editFilter, {
-        oxyUserId: 1,
-        mentions: 1,
-        parentPostId: 1,
-      }).lean<
-        { _id: mongoose.Types.ObjectId; oxyUserId?: string | null; mentions?: unknown; parentPostId?: string | null } | null
-      >();
+      const [existingPost = null] = await findPostRecords(editFilter, {
+        orderBy: CHRONO_DESC,
+        limit: 1,
+      });
       const ownerOxyUserId = existingPost?.oxyUserId ?? (await actorService.getOrFetchActor(actorUri))?.oxyUserId ?? null;
 
       // Re-resolve the edited Note's @mentions the SAME way as fresh ingest so an
@@ -834,38 +830,48 @@ export class InboxProcessingService {
         ? (built.media.some((m) => m.type === 'video') ? PostType.VIDEO : PostType.IMAGE)
         : PostType.TEXT;
 
-      const setOps: Record<string, unknown> = {
-        hashtags: built.hashtags,
-        type: derivedType,
-        'federation.sensitive': built.sensitive,
-        'metadata.isSensitive': built.sensitive,
-        'metadata.isEdited': true,
-        updatedAt: new Date(),
-      };
-      const unsetOps: Record<string, ''> = {};
-      if (built.media.length > 0) setOps['content.media'] = built.media;
-      else unsetOps['content.media'] = '';
-      if (built.attachments.length > 0) setOps['content.attachments'] = built.attachments;
-      else unsetOps['content.attachments'] = '';
-      if (built.summary !== undefined) setOps['federation.spoilerText'] = built.summary;
-      else unsetOps['federation.spoilerText'] = '';
+      if (!existingPost) return;
 
-      // The body. Variants are REPLACED wholesale by the edit, never merged.
-      // Three consequences, all intended: the new body lands, a language the
-      // author dropped from the edit disappears with it, and any machine
-      // translation cached against the OLD body is discarded — a translation of
-      // text that no longer exists is worse than no translation.
-      if (built.variants.length > 0) setOps['content.variants'] = built.variants;
-      else unsetOps['content.variants'] = '';
+      // The body and every array the edit carries are REPLACED wholesale, never
+      // merged — which is what the `$set`/`$unset` pair expressed and what
+      // `replacePostContent` does natively (it deletes the child rows and
+      // re-inserts them in one transaction). Three consequences, all intended:
+      // the new body lands, a language the author dropped from the edit
+      // disappears with it, and any machine translation cached against the OLD
+      // body is discarded — a translation of text that no longer exists is worse
+      // than no translation.
+      //
+      // `isEdited` is the top-level column. Mongo wrote `metadata.isEdited`, a
+      // loose key on a `Mixed` bag that `PostMetadata` never declared and no
+      // reader consulted; the schema has one edited flag and this is it.
+      await updatePostRecord(existingPost.id, {
+        hashtags: built.hashtags,
+        isEdited: true,
+        metadata: { isSensitive: built.sensitive },
+      });
+      await getDb()
+        .update(posts)
+        .set({
+          type: derivedType,
+          federationSensitive: built.sensitive,
+          federationSpoilerText: built.summary ?? null,
+          updatedAt: new Date(),
+        })
+        .where(eq(posts.id, existingPost.id));
 
       // The edit's mention allowlist REPLACES the old one wholesale, mirroring the
       // body: dropping a mention from the text drops it from `mentions` too, so the
       // stored ids always match the `[mention:<id>]` placeholders now in the body.
-      setOps.mentions = mentionResult.ids;
-
-      const update: Record<string, unknown> = { $set: setOps };
-      if (Object.keys(unsetOps).length > 0) update.$unset = unsetOps;
-      await Post.updateOne(editFilter, update);
+      await replacePostContent(
+        existingPost.id,
+        {
+          ...existingPost.content,
+          variants: built.variants.length > 0 ? built.variants : undefined,
+          media: built.media.length > 0 ? built.media : undefined,
+          attachments: built.attachments.length > 0 ? built.attachments : undefined,
+        },
+        mentionResult.ids,
+      );
       logger.debug('[Federation] updated federated post');
 
       // Notify only NEWLY-added local mentions (diff against the post's prior
@@ -879,7 +885,7 @@ export class InboxProcessingService {
           await this.notifyLocalMentionedUsers(
             newLocalIds,
             ownerOxyUserId,
-            String(existingPost._id),
+            existingPost.id,
             existingPost.parentPostId ? 'reply' : 'post',
           );
         }

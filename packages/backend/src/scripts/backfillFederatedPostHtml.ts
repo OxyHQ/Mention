@@ -44,7 +44,10 @@
  */
 
 import mongoose from 'mongoose';
-import { Post } from '../models/Post';
+import { and, asc, count, eq, isNull, ne } from 'drizzle-orm';
+import { connectPostgres, getDb } from '../db/postgres';
+import { posts as postsTable } from '../db/schema/posts';
+import { findPostRecords } from '../db/posts/postRepository';
 import { findActorsByUris } from '../db/federation/actorRepository';
 import { findFollows } from '../db/federation/followRepository';
 import { followService, type NoteSourcePost } from '../connectors/activitypub/follow.service';
@@ -164,8 +167,11 @@ async function backfillFederatedPostHtml(): Promise<void> {
     scriptName: 'backfillFederatedPostHtml',
     dryRun,
   });
+  // BOTH stores: the posts are Postgres, while the follower/actor rows this
+  // script resolves inboxes from are still Mongo models the federation batch owns.
+  await connectPostgres();
   await mongoose.connect(mongoUri, { dbName });
-  logger.info('[backfillFederatedPostHtml] connected to MongoDB');
+  logger.info('[backfillFederatedPostHtml] connected to PostgreSQL + MongoDB');
 
   try {
     // Resolve the owner username SERVER-SIDE from the authoritative oxyUserId (the
@@ -197,17 +203,25 @@ async function backfillFederatedPostHtml(): Promise<void> {
 
     // 2. BASE SCOPE: the owner's local-origin, published, PUBLIC, top-level
     //    (non-reply) ORIGINAL posts — no boosts. Identical to the redeliver script.
-    const postFilter = {
-      oxyUserId: targetUserId,
-      federation: null, // local origin (missing or null federation subdoc)
-      status: 'published',
-      visibility: PostVisibility.PUBLIC,
-      parentPostId: null, // top-level only — EXCLUDE replies
-      boostOf: null, // not a boost (mirrors native repost exclusion)
-      type: { $ne: 'boost' },
-    } as const;
+    // `is_reply = false`, not `parent_post_id IS NULL`: `parent_post_id` is
+    // `ON DELETE SET NULL`, so an orphaned reply has a null parent while remaining
+    // a reply, and re-delivering it as a top-level Note is exactly the mistake the
+    // stored discriminator exists to prevent.
+    const postFilter = and(
+      eq(postsTable.oxyUserId, targetUserId),
+      isNull(postsTable.federationActivityId), // local origin
+      eq(postsTable.status, 'published'),
+      eq(postsTable.visibility, PostVisibility.PUBLIC),
+      eq(postsTable.isReply, false),
+      isNull(postsTable.boostOf),
+      ne(postsTable.type, 'boost'),
+    );
 
-    const totalMatched = await Post.countDocuments(postFilter);
+    const [totals] = await getDb()
+      .select({ count: count() })
+      .from(postsTable)
+      .where(postFilter);
+    const totalMatched = totals?.count ?? 0;
 
     // SAFETY CAP: never scan an unbounded set. Take the OLDEST `maxPosts`; the rest
     // (the newest) are skipped by the cap and reported.
@@ -219,10 +233,10 @@ async function backfillFederatedPostHtml(): Promise<void> {
       );
     }
 
-    const scanned = await Post.find(postFilter)
-      .sort({ createdAt: 1, _id: 1 })
-      .limit(maxPosts)
-      .lean<BackfillablePost[]>();
+    const scanned: BackfillablePost[] = await findPostRecords(postFilter, {
+      orderBy: [asc(postsTable.createdAt), asc(postsTable.id)],
+      limit: maxPosts,
+    });
 
     // LINE-BREAK FILTER: of the scanned set, keep only posts whose primary body
     // actually has a line break — the ONLY posts whose rendering an Update fixes.

@@ -5,7 +5,7 @@ import { getFirebaseConfig } from '../config';
 import { getDb } from '../db/postgres';
 import { pushTokens } from '../db/schema/discovery';
 import { resolveVariant } from '../services/postVariants';
-import Post from '../models/Post';
+import { loadPostRecord } from '../db/posts/postRepository';
 import { getServiceOxyClient } from './oxyHelpers';
 import { logger } from './logger';
 
@@ -172,7 +172,7 @@ export async function formatPushForNotification(n: PushNotificationSource) {
   // half-migrated table here would produce an empty preview rather than an error.
   try {
     if (n.type === 'post' && n.entityType === 'post' && n.entityId) {
-      const post = await Post.findById(n.entityId, { 'content.variants': 1 }).lean();
+      const post = await loadPostRecord(String(n.entityId));
       if (post) {
         // The primary rendition — a push has no viewer language context.
         const text: string = resolveVariant(post.content).text;

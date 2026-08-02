@@ -5,11 +5,29 @@
  * AT Protocol equivalent: app.bsky.feed.sendInteractions
  */
 
-import mongoose from 'mongoose';
 import { MtnConfig, PostVisibility } from '@mention/shared-types';
 import type { FeedInteractionEventName } from '@mention/shared-types';
 import { logger } from '../../utils/logger';
-import { Post } from '../../models/Post';
+import { and, eq, sql } from 'drizzle-orm';
+import { getDb } from '../../db/postgres';
+import { posts } from '../../db/schema/posts';
+
+/**
+ * Whether the post came from another instance — the impression-origin label.
+ *
+ * Tests the SAME disjunction `assemblePostRecords` uses to decide whether a
+ * record carries a `federation` object at all, rather than any single column: a
+ * federated post that arrived without an `activity_id` would otherwise be
+ * labelled `local` and quietly skew the federated-vs-local denominator.
+ */
+const IS_FEDERATED = sql<boolean>`(
+  ${posts.federationActivityId} is not null
+  or ${posts.federationActorUri} is not null
+  or ${posts.federationInReplyTo} is not null
+  or ${posts.federationUrl} is not null
+  or ${posts.federationSensitive} is not null
+  or ${posts.federationSpoilerText} is not null
+)`;
 import { recordDedupedView } from '../../services/feedViewCounter';
 import { recordDwell } from '../../services/dwellAggregate';
 import { userPreferenceService } from '../../services/UserPreferenceService';
@@ -90,18 +108,26 @@ export async function trackFeedInteraction(interaction: FeedInteractionData): Pr
  */
 export async function applyImpressionSignals(interaction: FeedInteractionData): Promise<void> {
   const postId = interaction.postUri;
-  if (!postId || !mongoose.isValidObjectId(postId)) {
-    return; // Not a local post id — nothing to count or learn from.
+  if (!postId) {
+    return; // Nothing to count or learn from.
   }
 
   // Client telemetry is untrusted: only derive view/preference side effects for
   // real public, published local posts. Resolving the post here also yields its
-  // author (self-pumping guard below) and its `federation` subdoc (the impression
-  // origin label). A single lean read.
-  const post = await Post.findOne(
-    { _id: postId, visibility: PostVisibility.PUBLIC, status: 'published' },
-    { oxyUserId: 1, federation: 1 },
-  ).lean();
+  // author (self-pumping guard below) and its federation columns (the impression
+  // origin label). The id is a bound parameter against a `text` column, so a
+  // `postUri` that is not a local post id — a federated URI, or anything else a
+  // client invents — simply matches no row; the ObjectId pre-check this replaces
+  // would have discarded every post created since the cutover instead.
+  const [post] = await getDb()
+    .select({ oxyUserId: posts.oxyUserId, isFederated: IS_FEDERATED })
+    .from(posts)
+    .where(and(
+      eq(posts.id, postId),
+      eq(posts.visibility, PostVisibility.PUBLIC),
+      eq(posts.status, 'published'),
+    ))
+    .limit(1);
   if (!post) {
     return;
   }
@@ -117,7 +143,7 @@ export async function applyImpressionSignals(interaction: FeedInteractionData): 
 
   // Online metric: a genuine third-party impression, split by federated vs local
   // origin (the denominator for engagement- and report-per-impression).
-  recordImpression(interaction.feedDescriptor, originForFederation(post.federation));
+  recordImpression(interaction.feedDescriptor, originForFederation(post.isFederated || null));
 
   // 1. Deduped real view count. Returns true ONLY for the first view of this
   //    (post, viewer) pair within the window (no-op without Redis / on duplicate).
@@ -156,14 +182,15 @@ export async function applyImpressionSignals(interaction: FeedInteractionData): 
 export async function recordReportSignal(interaction: FeedInteractionData): Promise<void> {
   const postId = interaction.postUri;
   let federation: unknown;
-  if (postId && mongoose.Types.ObjectId.isValid(postId)) {
-    // `postUri` is client-supplied: query with a CONSTRUCTED ObjectId so no
-    // user-shaped value can reach the query as an operator.
-    const post = await Post.findOne(
-      { _id: new mongoose.Types.ObjectId(postId) },
-      { federation: 1 },
-    ).lean();
-    federation = post?.federation;
+  if (postId) {
+    // `postUri` is client-supplied and is bound as a PARAMETER, so no
+    // user-shaped value can alter the query's structure.
+    const [post] = await getDb()
+      .select({ isFederated: IS_FEDERATED })
+      .from(posts)
+      .where(eq(posts.id, postId))
+      .limit(1);
+    federation = post?.isFederated || null;
   }
   recordReport(interaction.feedDescriptor, originForFederation(federation));
 }

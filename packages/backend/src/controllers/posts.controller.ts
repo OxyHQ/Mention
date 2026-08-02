@@ -1,5 +1,31 @@
 import { Response } from 'express';
-import { Post, POST_CLASSIFICATION_PENDING } from '../models/Post';
+import {
+  and,
+  arrayContains,
+  asc,
+  eq,
+  exists,
+  ilike,
+  inArray,
+  or,
+  sql,
+  type SQL,
+} from 'drizzle-orm';
+import type { AnyPgColumn } from 'drizzle-orm/pg-core';
+import { getDb } from '../db/postgres';
+import { posts as postsTable } from '../db/schema/posts';
+import { postContentVariants } from '../db/schema/postContent';
+import {
+  CHRONO_DESC,
+  deletePostRecord,
+  findPostRecords,
+  loadPostRecord,
+  replacePostContent,
+  updatePostRecord,
+  type PostRecordPatch,
+} from '../db/posts/postRepository';
+import { POST_CLASSIFICATION_PENDING, type PostRecord } from '../db/posts/postRecord';
+import { ChronoCursor, chronoCursorSql, chronoOrderBy } from '../mtn/feed/CursorBuilder';
 import { baselineContentClassifier } from '../services/BaselineContentClassifier';
 import Poll from '../models/Poll';
 import Like from '../models/Like';
@@ -16,6 +42,7 @@ import {
   StoredPostContent,
   PostContentVariant,
   PostUser,
+  ReplyPermission,
   toBaseLanguages,
 } from '@mention/shared-types';
 import {
@@ -34,7 +61,7 @@ import { mergeHashtags } from '../utils/textProcessing';
 import { createScopedOxyClient } from '../utils/oxyHelpers';
 import { extractFollowingIds } from '../utils/privacyHelpers';
 import { queryInt, queryString } from '../utils/queryParams';
-import { buildTopicSlugMatch } from '../utils/postTopicMatch';
+import { topicSlugSql } from '../utils/postTopicMatch';
 import { requestLanguageCandidates } from '../utils/viewerLanguage';
 import { getRuntimeSocketServer } from '../runtime/socketServer';
 import { normalizeMediaItems, type NormalizedMediaItem } from '../utils/mediaInput';
@@ -81,6 +108,31 @@ const DEFAULT_PAGE_SIZE = config.posts.defaultPageSize;
 const MAX_PAGE_SIZE = config.posts.maxPageSize;
 const DEFAULT_NEARBY_RADIUS_METERS = config.posts.defaultNearbyRadiusMeters;
 const MAX_NEARBY_POSTS = config.posts.maxNearbyPosts;
+/**
+ * The both-location proximity read is allowed a wider page than the
+ * single-location one, because a post can qualify through either point and the
+ * union is therefore sparser per unit of scan. It was a bare `75` inline.
+ */
+const MAX_NEARBY_BOTH_LOCATIONS_POSTS = 75;
+
+/**
+ * The radius bound, as the index-usable spelling.
+ *
+ * `ST_DWithin(geo, point, metres)` is what the GiST index on the generated
+ * `geography` column answers; `ST_Distance(...) <= metres` computes a distance
+ * for every row in the table and cannot use it. `ST_MakePoint` takes LONGITUDE
+ * FIRST, which is also the order the generated columns are built in — a
+ * transposed pair yields a plausible point in the wrong hemisphere rather than
+ * an error, so the order is stated once, here.
+ */
+function withinRadius(
+  geoColumn: AnyPgColumn,
+  longitude: number,
+  latitude: number,
+  radiusMeters: number,
+): SQL {
+  return sql`ST_DWithin(${geoColumn}, ST_MakePoint(${longitude}, ${latitude})::geography, ${radiusMeters})`;
+}
 const MAX_AREA_POSTS = config.posts.maxAreaPosts;
 const DEFAULT_LIKES_LIMIT = config.posts.defaultLikesLimit;
 const MAX_TEXT_LENGTH = config.posts.maxTextLength;
@@ -681,7 +733,7 @@ export const createPost = async (req: AuthRequest, res: Response) => {
     const postMetadata = buildPostMetadata(req.body.metadata);
 
     if (quoted_post_id) {
-      const quotedPost = await Post.findById(quoted_post_id).maxTimeMS(5000).lean();
+      const quotedPost = await loadPostRecord(String(quoted_post_id));
       const quoteValidation = validatePublicShareTarget(quotedPost, { action: 'quote' });
       if (!quoteValidation.ok) {
         return res.status(quoteValidation.status).json({ message: quoteValidation.message });
@@ -689,7 +741,7 @@ export const createPost = async (req: AuthRequest, res: Response) => {
     }
 
     if (boost_of) {
-      const boostedPost = await Post.findById(boost_of).maxTimeMS(5000).lean();
+      const boostedPost = await loadPostRecord(String(boost_of));
       const boostValidation = validatePublicShareTarget(boostedPost, { action: 'boost' });
       if (!boostValidation.ok) {
         return res.status(boostValidation.status).json({ message: boostValidation.message });
@@ -737,7 +789,7 @@ export const createPost = async (req: AuthRequest, res: Response) => {
 
     if (pendingArticleDoc) {
       try {
-        pendingArticleDoc.postId = String(post._id);
+        pendingArticleDoc.postId = post.id;
         await pendingArticleDoc.save();
       } catch (articleError) {
         logger.error('Failed to save article content', articleError);
@@ -746,7 +798,7 @@ export const createPost = async (req: AuthRequest, res: Response) => {
 
     if (!isScheduled && pollId) {
       try {
-        await Poll.findByIdAndUpdate(pollId, { postId: String(post._id) });
+        await Poll.findByIdAndUpdate(pollId, { postId: post.id });
       } catch (pollUpdateError) {
         logger.error('Failed to update poll postId', pollUpdateError);
       }
@@ -765,14 +817,14 @@ export const createPost = async (req: AuthRequest, res: Response) => {
 
       for (const { targetPostId, type } of affinityTargets) {
         void (async () => {
-          const target = await Post.findById(targetPostId).select('oxyUserId').lean();
-          const targetAuthorId = target?.oxyUserId?.toString?.();
+          const target = await loadPostRecord(targetPostId);
+          const targetAuthorId = target?.oxyUserId;
           if (!targetAuthorId) return;
           await affinityEventService.record({
             fromUserId: userId,
             toUserId: targetAuthorId,
             type,
-            eventId: `${type}:${String(post._id)}`,
+            eventId: `${type}:${post.id}`,
           });
         })().catch(() => undefined);
       }
@@ -780,7 +832,7 @@ export const createPost = async (req: AuthRequest, res: Response) => {
 
     await warmLinkPreviewForText(resolveVariant(post.content).text);
 
-    const [hydratedPost] = await postHydrationService.hydratePosts([post.toObject()], {
+    const [hydratedPost] = await postHydrationService.hydratePosts([post], {
       viewerId: userId,
       oxyClient: createScopedOxyClient(req),
       requestLanguages: requestLanguageCandidates(req),
@@ -809,7 +861,7 @@ export const acceptCollabInvite = async (req: AuthRequest, res: Response) => {
     if (!userId) return res.status(401).json({ message: 'Unauthorized' });
 
     const post = await postCollaborationService.accept(String(req.params.id), userId);
-    const [hydratedPost] = await postHydrationService.hydratePosts([post.toObject()], {
+    const [hydratedPost] = await postHydrationService.hydratePosts([post], {
       viewerId: userId,
       oxyClient: createScopedOxyClient(req),
       requestLanguages: requestLanguageCandidates(req),
@@ -837,7 +889,7 @@ export const declineCollabInvite = async (req: AuthRequest, res: Response) => {
     // which flips the invite notification from actionable buttons to a resolved
     // state. For a private/followers-only post the decliner loses view access, so
     // hydration yields no post and the client simply drops the actionable UI.
-    const [hydratedPost] = await postHydrationService.hydratePosts([post.toObject()], {
+    const [hydratedPost] = await postHydrationService.hydratePosts([post], {
       viewerId: userId,
       oxyClient: createScopedOxyClient(req),
       requestLanguages: requestLanguageCandidates(req),
@@ -860,7 +912,7 @@ export const stopCollabSharing = async (req: AuthRequest, res: Response) => {
     if (!userId) return res.status(401).json({ message: 'Unauthorized' });
 
     const post = await postCollaborationService.stopSharing(String(req.params.id), userId);
-    const [hydratedPost] = await postHydrationService.hydratePosts([post.toObject()], {
+    const [hydratedPost] = await postHydrationService.hydratePosts([post], {
       viewerId: userId,
       oxyClient: createScopedOxyClient(req),
       requestLanguages: requestLanguageCandidates(req),
@@ -914,7 +966,7 @@ export const createThread = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ message: 'Posts array is required and cannot be empty' });
     }
 
-    const createdPostObjects: Array<{ content?: StoredPostContent }> = [];
+    const createdPostObjects: PostRecord[] = [];
     let mainPostId: string | null = null;
     let previousPostId: string | null = null;
 
@@ -1070,7 +1122,7 @@ export const createThread = async (req: AuthRequest, res: Response) => {
         skipFederationDelivery: true,
       });
 
-      // Thread mode: the ROOT post (i === 0) anchors the thread on its OWN _id so
+      // Thread mode: the ROOT post (i === 0) anchors the thread on its OWN id so
       // the whole self-thread — root included — shares one threadId. This is what
       // lets ThreadSlicingService recognise the root (threadId set, no
       // parentPostId) and pull its same-author continuations into a single
@@ -1078,14 +1130,15 @@ export const createThread = async (req: AuthRequest, res: Response) => {
       // as loose posts. The id is only available after creation, so anchor it with
       // a follow-up update. (This native self-thread marker is NOT part of the MTN
       // post record — the root's signed record is correctly a top-level post.)
+      let anchored = post;
       if (mode === 'thread' && i === 0 && posts.length > 1) {
-        post.threadId = String(post._id);
-        await post.save();
+        await updatePostRecord(post.id, { threadId: post.id });
+        anchored = { ...post, threadId: post.id };
       }
 
       if (pendingArticleDoc) {
         try {
-          pendingArticleDoc.postId = String(post._id);
+          pendingArticleDoc.postId = anchored.id;
           await pendingArticleDoc.save();
         } catch (articleError) {
           logger.error('Failed to save article content (thread)', articleError);
@@ -1095,11 +1148,10 @@ export const createThread = async (req: AuthRequest, res: Response) => {
       // Mentions per post in thread. Read the reconciled persisted allowlist,
       // never the raw request metadata: an orphan id must not notify anyone.
       try {
-        const persistedMentions = Array.isArray(post.mentions) ? post.mentions : [];
-        if (persistedMentions.length > 0) {
+        if (anchored.mentions.length > 0) {
           await createMentionNotifications(
-            persistedMentions,
-            post._id.toString(),
+            anchored.mentions,
+            anchored.id,
             userId,
             'post'
           );
@@ -1110,22 +1162,22 @@ export const createThread = async (req: AuthRequest, res: Response) => {
 
       // Update poll's postId
       if (pollId) {
-        await Poll.findByIdAndUpdate(pollId, { postId: String(post._id) });
+        await Poll.findByIdAndUpdate(pollId, { postId: anchored.id });
       }
 
       // Store the first post ID as the main post for thread linking
       if (i === 0) {
-        mainPostId = String(post._id);
+        mainPostId = anchored.id;
       }
 
       // Track the latest post so the next iteration chains onto it
-      previousPostId = String(post._id);
+      previousPostId = anchored.id;
 
-      createdPostObjects.push(post.toObject());
+      createdPostObjects.push(anchored);
     }
 
     await Promise.all(
-      createdPostObjects.map((p) => warmLinkPreviewForText(resolveVariant(p.content ?? {}).text)),
+      createdPostObjects.map((p) => warmLinkPreviewForText(resolveVariant(p.content).text)),
     );
 
     const createdPosts = await postHydrationService.hydratePosts(createdPostObjects, {
@@ -1174,11 +1226,10 @@ export const getPosts = async (req: AuthRequest, res: Response) => {
     const limit = Math.min(queryInt(req.query.limit) || DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE);
     const currentUserId = req.user?.id;
 
-    const posts = await Post.find({ visibility: 'public', status: 'published' })
-      .sort({ createdAt: -1 })
-      .skip((page - 1) * limit)
-      .limit(limit)
-      .lean();
+    const posts = await findPostRecords(
+      and(eq(postsTable.visibility, 'public'), eq(postsTable.status, 'published')),
+      { orderBy: CHRONO_DESC, limit, offset: (page - 1) * limit },
+    );
 
     const hydratedPosts = await postHydrationService.hydratePosts(posts, {
       viewerId: currentUserId,
@@ -1204,15 +1255,13 @@ export const getPosts = async (req: AuthRequest, res: Response) => {
 export const getPostById = async (req: AuthRequest, res: Response) => {
   try {
     const currentUserId = req.user?.id;
-    // This route is public (anonymous discovery), so a malformed id must 404
-    // rather than throw a CastError → 500. Post ids are Mongo ObjectIds.
+    // This route is public (anonymous discovery). No id-shape guard: `posts.id`
+    // is `text` holding an ObjectId hex for pre-cutover rows and a uuid v7 for
+    // everything after, so a validity check would 404 every post created since
+    // the cutover. An unknown id simply matches no row, which is the same 404.
     const postId = String(req.params.id);
-    if (!mongoose.Types.ObjectId.isValid(postId)) {
-      return res.status(404).json({ message: 'Post not found' });
-    }
 
-    const post = await Post.findById(postId)
-      .lean();
+    const post = await loadPostRecord(postId);
 
     if (!post) {
       return res.status(404).json({ message: 'Post not found' });
@@ -1286,17 +1335,26 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ message: 'Unauthorized' });
     }
 
-    const post = await Post.findOne({ _id: req.params.id, oxyUserId: userId });
-    if (!post) {
+    const loaded = await loadPostRecord(String(req.params.id));
+    if (!loaded || loaded.oxyUserId !== userId) {
       return res.status(404).json({ message: 'Post not found' });
     }
 
     // Enforce 30-minute edit window
     const EDIT_WINDOW_MS = 30 * 60 * 1000; // 30 minutes
-    const createdAt = new Date(post.createdAt).getTime();
-    if (Date.now() - createdAt > EDIT_WINDOW_MS) {
+    if (Date.now() - loaded.createdAt.getTime() > EDIT_WINDOW_MS) {
       return res.status(403).json({ message: 'Edit window has expired. Posts can only be edited within 30 minutes of creation.' });
     }
+
+    // The edit is assembled as PLAIN VALUES and written once at the end, rather
+    // than mutated onto a live document and saved. `content` is a graph across
+    // six child tables whose `position` columns are densely unique, so the only
+    // correct write is `replacePostContent`'s transactional delete-then-insert —
+    // there is no per-field `markModified` to reach for, and a half-applied edit
+    // would leave a post with some of its renditions.
+    const post = loaded;
+    const content: StoredPostContent = { ...post.content };
+    const patch: PostRecordPatch = {};
 
     // Support both flat body fields and nested content object from frontend
     const contentObj = req.body.content;
@@ -1306,7 +1364,7 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
     // The media set the variants localize: the incoming one when this edit
     // replaces it, otherwise the set already on the post.
     const normalizedMedia = media !== undefined ? normalizeMediaItems(media) : undefined;
-    const sharedMediaIds = (normalizedMedia ?? post.content.media ?? []).map((item) => String(item.id));
+    const sharedMediaIds = (normalizedMedia ?? content.media ?? []).map((item) => String(item.id));
 
     let authorLanguageVariants: PostContentVariant[] | undefined;
     if (contentObj?.variants !== undefined) {
@@ -1317,7 +1375,7 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
       authorLanguageVariants = variantResult.variants;
     }
 
-    const existingAuthorVariants = authorVariants(post.content);
+    const existingAuthorVariants = authorVariants(content);
     const currentText = existingAuthorVariants[0]?.text;
 
     // The new primary body: the first author variant's when this edit supplies
@@ -1333,24 +1391,19 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
     const textChanged = text !== undefined && currentText !== text;
 
     // Save the old primary body to edit history before modifying
+    let nextHashtags = post.hashtags;
     if (textChanged) {
-      if (!post.editHistory) {
-        post.editHistory = [];
-      }
-      if (currentText) {
-        post.editHistory.push(currentText);
-      }
-      post.isEdited = true;
-    }
-
-    if (textChanged) {
+      patch.editHistory = currentText
+        ? [...post.editHistory, currentText]
+        : [...post.editHistory];
+      patch.isEdited = true;
       // Re-extract hashtags when the body changes
-      post.hashtags = mergeHashtags(text || '', hashtags || post.hashtags);
+      nextHashtags = mergeHashtags(text || '', hashtags || post.hashtags);
+      patch.hashtags = nextHashtags;
     }
 
     if (normalizedMedia !== undefined) {
-      post.content.media = normalizedMedia;
-      post.markModified('content.media');
+      content.media = normalizedMedia;
     }
 
     if (authorLanguageVariants !== undefined || textChanged) {
@@ -1373,54 +1426,58 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
 
       const signals = baselineContentClassifier.classify({
         text: text ?? currentText,
-        hashtags: post.hashtags,
+        hashtags: nextHashtags,
         languages: toBaseLanguages(declaredVariants.map((variant) => variant.tag)),
-        sensitive: post.federation?.sensitive ?? post.metadata?.isSensitive,
+        sensitive: post.federation?.sensitive ?? post.metadata.isSensitive,
         isFederated: post.federation != null,
       });
-      // Replace the whole subdoc: a fresh Stage-A baseline with status reset to
-      // `pending`. Omitted paths (`topicRefs`, `attempts`, the Stage-B AI fields)
-      // fall back to their schema defaults on cast — clearing stale AI topicRefs
-      // and resetting the retry counter — so the AI batch reprocesses cleanly.
-      // The subdoc carries ONLY the multi-language `languages` array; the primary
-      // (`languages[0]`) is written to the top-level AP `post.language`.
-      post.postClassification = {
+      // A fresh Stage-A baseline with status reset to `pending`, and the Stage-B
+      // fields reset WITH it: `attempts` back to 0, the AI `scores`/`sentiment`/
+      // `intent`/`confidence` replaced by the deterministic ones, `topicRefs`
+      // cleared. Mongo got that for free by replacing the whole subdocument and
+      // letting the schema defaults refill it; here every reset field is named,
+      // because `updatePostRecord` MERGES a partial and would otherwise leave the
+      // previous body's AI topics attached to the new one.
+      patch.postClassification = {
         status: POST_CLASSIFICATION_PENDING,
+        attempts: 0,
         topics: signals.topics,
+        topicRefs: [],
         languages: signals.languages,
         region: signals.region,
         hashtagsNorm: signals.hashtagsNorm,
         sensitive: signals.sensitive,
         scores: signals.scores,
         version: signals.version,
+        sentiment: 'neutral',
+        intent: 'other',
+        confidence: 0,
         classifiedAt: new Date(signals.classifiedAt),
       };
       const primaryLanguage = signals.languages[0];
       if (primaryLanguage != null) {
-        post.language = primaryLanguage;
+        patch.language = primaryLanguage;
       }
-      post.markModified('postClassification');
 
       // Rewrite the renditions. Every branch drops the machine translations: they
       // translate a body that no longer exists, and serving one would show a reader
       // the post as it used to be.
-      post.content.variants = rewriteEditedVariants({
+      content.variants = rewriteEditedVariants({
         authorLanguageVariants,
         existingAuthorVariants,
         text,
         detectedPrimary: primaryLanguage,
       });
-      post.markModified('content.variants');
     }
 
     // Handle content location updates (user's shared location)
     if (contentLocation !== undefined) {
       if (contentLocation === null) {
         // Remove content location
-        post.content.location = undefined;
+        content.location = undefined;
       } else if (contentLocation.latitude !== undefined && contentLocation.longitude !== undefined) {
         // Update content location
-        post.content.location = {
+        content.location = {
           type: 'Point',
           coordinates: [contentLocation.longitude, contentLocation.latitude], // GeoJSON format: [lng, lat]
           address: contentLocation.address || undefined
@@ -1431,11 +1488,14 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
     // Handle post location updates (creation location metadata)
     if (postLocation !== undefined) {
       if (postLocation === null) {
-        // Remove post location
-        post.location = undefined;
+        // Remove post location. `null` is the ERASURE, distinct from the
+        // `undefined` that means "this edit does not mention the location" —
+        // `updatePostRecord` reads the two differently and would keep the old
+        // coordinates for `undefined`.
+        patch.location = null;
       } else if (postLocation.latitude !== undefined && postLocation.longitude !== undefined) {
         // Update post location
-        post.location = {
+        patch.location = {
           type: 'Point',
           coordinates: [postLocation.longitude, postLocation.latitude], // GeoJSON format: [lng, lat]
           address: postLocation.address || undefined
@@ -1448,19 +1508,15 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
       if (sourcesErr) {
         return res.status(400).json({ message: sourcesErr });
       }
-      if (sanitized.length) {
-        post.content.sources = sanitized;
-      } else {
-        post.content.sources = undefined;
-      }
+      content.sources = sanitized.length ? sanitized : undefined;
     }
 
     if (req.body.article !== undefined) {
       const sanitizedArticle = sanitizeArticle(req.body.article);
-      const existingArticleId = post.content?.article?.articleId;
+      const existingArticleId = content.article?.articleId;
       if (sanitizedArticle) {
         let articleDoc: IArticle | null = existingArticleId ? await ArticleModel.findOne({ _id: existingArticleId }).exec() : null;
-        const previousArticle = post.content?.article || {};
+        const previousArticle = content.article || {};
 
         if (articleDoc) {
           if (sanitizedArticle.title !== undefined) {
@@ -1469,17 +1525,17 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
           if (sanitizedArticle.body !== undefined) {
             articleDoc.body = sanitizedArticle.body || undefined;
           }
-          articleDoc.postId = String(post._id);
+          articleDoc.postId = post.id;
         } else {
           articleDoc = new ArticleModel({
             createdBy: userId,
-            postId: String(post._id),
+            postId: post.id,
             title: sanitizedArticle.title || undefined,
             body: sanitizedArticle.body || undefined,
           });
         }
         await articleDoc.save();
-        post.content.article = {
+        content.article = {
           articleId: articleDoc._id.toString(),
           title: sanitizedArticle.title !== undefined ? sanitizedArticle.title : previousArticle.title,
           excerpt: sanitizedArticle.body !== undefined
@@ -1490,32 +1546,27 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
         if (existingArticleId) {
           await ArticleModel.deleteOne({ _id: existingArticleId }).exec();
         }
-        post.content.article = undefined;
+        content.article = undefined;
       }
     }
     const attachmentUpdateInput = req.body.content?.attachments ?? req.body.attachments ?? req.body.attachmentOrder;
     const updatedAttachments = buildOrderedAttachments({
-      rawAttachments: attachmentUpdateInput ?? post.content.attachments,
-      media: Array.isArray(post.content.media) ? post.content.media : [],
-      includePoll: Boolean(post.content?.pollId),
-      includeArticle: Boolean(post.content.article),
-      includeEvent: Boolean(post.content?.event),
-      includeRoom: Boolean(post.content?.room),
-      includeLocation: Boolean(post.content.location),
-      includeSources: Boolean(post.content.sources && post.content.sources.length),
-      includePodcast: Boolean(post.content?.podcast)
+      rawAttachments: attachmentUpdateInput ?? content.attachments,
+      media: Array.isArray(content.media) ? content.media : [],
+      includePoll: Boolean(content.pollId),
+      includeArticle: Boolean(content.article),
+      includeEvent: Boolean(content.event),
+      includeRoom: Boolean(content.room),
+      includeLocation: Boolean(content.location),
+      includeSources: Boolean(content.sources && content.sources.length),
+      includePodcast: Boolean(content.podcast)
     });
 
-    if (updatedAttachments) {
-      post.content.attachments = updatedAttachments;
-    } else {
-      post.content.attachments = undefined;
-    }
-    post.markModified('content.attachments');
+    content.attachments = updatedAttachments ?? undefined;
 
-    if (hashtags !== undefined) post.hashtags = mergeHashtags('', hashtags || []);
-    post.mentions = reconcileMentionIds(
-      mentionTextsFromContent(post.content),
+    if (hashtags !== undefined) patch.hashtags = mergeHashtags('', hashtags || []);
+    const nextMentions = reconcileMentionIds(
+      mentionTextsFromContent(content),
       mentions !== undefined ? mentions : post.mentions,
     );
 
@@ -1524,19 +1575,35 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
       Array.isArray(req.body.collaboratorIds) ? req.body.collaboratorIds : undefined,
       Array.isArray(req.body.collaboratorHandles) ? req.body.collaboratorHandles : undefined,
     );
+
+    await updatePostRecord(post.id, patch);
+    await replacePostContent(post.id, content, nextMentions);
+
+    let edited: PostRecord = {
+      ...post,
+      ...(patch.isEdited !== undefined ? { isEdited: patch.isEdited } : {}),
+      ...(patch.editHistory !== undefined ? { editHistory: patch.editHistory } : {}),
+      ...(patch.hashtags !== undefined ? { hashtags: patch.hashtags } : {}),
+      ...(patch.language ? { language: patch.language } : {}),
+      ...(patch.postClassification !== undefined
+        ? { postClassification: { ...post.postClassification, ...patch.postClassification } }
+        : {}),
+      ...(patch.location !== undefined ? { location: patch.location ?? undefined } : {}),
+      content,
+      mentions: nextMentions,
+    };
+
     if (collaboratorIds && collaboratorIds.length > 0) {
-      await postCollaborationService.attachCollaborators(post, userId, collaboratorIds);
+      edited = await postCollaborationService.attachCollaborators(edited, userId, collaboratorIds);
     }
 
-    await post.save();
-
-    const isPublished = (post.status ?? 'published') === 'published';
+    const isPublished = edited.status === 'published';
     if (isPublished && collaboratorIds && collaboratorIds.length > 0) {
       const autoAcceptIds = await resolveMcpAutoAcceptIds(req, collaboratorIds);
       if (autoAcceptIds && autoAcceptIds.length > 0) {
-        await postCollaborationService.autoAcceptInvites(post, new Set(autoAcceptIds));
+        edited = await postCollaborationService.autoAcceptInvites(edited, new Set(autoAcceptIds));
       }
-      await postCollaborationService.notifyPendingInvites(post, userId);
+      await postCollaborationService.notifyPendingInvites(edited, userId);
     }
 
     // MTN dual-write: an edit re-emits the `app.mention.feed.post` record under
@@ -1544,8 +1611,8 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
     // is last-writer-wins by chain order, so the new record supersedes the old
     // version. Only LOCAL posts emit (an edited federated post never had a record;
     // the 30-minute edit window above only applies to owner-scoped native posts).
-    if (post.federation == null && post.oxyUserId) {
-      await emitPostCreated(post);
+    if (edited.federation == null && edited.oxyUserId) {
+      await emitPostCreated(edited);
     }
 
     // Outbound federation: an edit re-federates the Note as an ActivityPub
@@ -1554,23 +1621,23 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
     // survive. Local + published + public non-boost only; the same gates as
     // creation. Username resolved server-side from the authoritative oxyUserId.
     if (
-      post.federation == null &&
-      post.oxyUserId &&
-      !post.boostOf &&
-      post.visibility === PostVisibility.PUBLIC &&
-      (post.status ?? 'published') === 'published'
+      edited.federation == null &&
+      edited.oxyUserId &&
+      !edited.boostOf &&
+      edited.visibility === PostVisibility.PUBLIC &&
+      edited.status === 'published'
     ) {
-      const editorOxyUserId = String(post.oxyUserId);
+      const editorOxyUserId = edited.oxyUserId;
       federateAsResolvedActor(editorOxyUserId, 'post update', (username) => ({
         kind: 'post.update',
         post: {
-          _id: post._id,
-          content: post.content,
-          hashtags: post.hashtags,
-          mentions: post.mentions,
-          visibility: post.visibility,
-          createdAt: new Date(post.createdAt).toISOString(),
-          parentPostId: post.parentPostId ? String(post.parentPostId) : null,
+          _id: edited.id,
+          content: edited.content,
+          hashtags: edited.hashtags,
+          mentions: edited.mentions,
+          visibility: edited.visibility,
+          createdAt: edited.createdAt.toISOString(),
+          parentPostId: edited.parentPostId,
         },
         actorOxyUserId: editorOxyUserId,
         actorUsername: username,
@@ -1582,13 +1649,13 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
     // hand-build a `user` object here (that would leak the raw oxyUserId as the
     // display name and break the profile-identity contract). If hydration fails
     // for this just-saved, owner-scoped post, treat it as a server-side error.
-    const hydrated = await postHydrationService.hydratePosts([post.toObject()], {
+    const hydrated = await postHydrationService.hydratePosts([edited], {
       viewerId: userId,
       oxyClient: createScopedOxyClient(req),
       requestLanguages: requestLanguageCandidates(req),
     });
     if (hydrated.length === 0) {
-      logger.error('Failed to hydrate edited post', { postId: String(post._id), userId });
+      logger.error('Failed to hydrate edited post', { postId: edited.id, userId });
       return res.status(500).json({ message: 'Error updating post' });
     }
     res.json(hydrated[0]);
@@ -1612,25 +1679,28 @@ export const updatePostSettings = async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ message: 'Unauthorized' });
     }
 
-    const post = await Post.findOne({ _id: req.params.id, oxyUserId: userId });
-    if (!post) {
+    const post = await loadPostRecord(String(req.params.id));
+    if (!post || post.oxyUserId !== userId) {
       return res.status(404).json({ message: 'Post not found' });
     }
 
     const { isPinned, hideEngagementCounts, replyPermission, reviewReplies, quotesDisabled } = req.body;
 
+    const patch: PostRecordPatch = {};
+    const metadata: NonNullable<PostRecordPatch['metadata']> = {};
+
     if (isPinned !== undefined) {
       if (typeof isPinned !== 'boolean') {
         return res.status(400).json({ message: 'isPinned must be a boolean' });
       }
-      post.metadata.isPinned = isPinned;
+      metadata.isPinned = isPinned;
     }
 
     if (hideEngagementCounts !== undefined) {
       if (typeof hideEngagementCounts !== 'boolean') {
         return res.status(400).json({ message: 'hideEngagementCounts must be a boolean' });
       }
-      post.metadata.hideEngagementCounts = hideEngagementCounts;
+      metadata.hideEngagementCounts = hideEngagementCounts;
     }
 
     if (replyPermission !== undefined) {
@@ -1642,33 +1712,33 @@ export const updatePostSettings = async (req: AuthRequest, res: Response) => {
       if (!allValid) {
         return res.status(400).json({ message: `replyPermission values must be one of: ${validPermissions.join(', ')}` });
       }
-      post.replyPermission = replyPermission;
+      patch.replyPermission = replyPermission as ReplyPermission[];
     }
 
     if (reviewReplies !== undefined) {
       if (typeof reviewReplies !== 'boolean') {
         return res.status(400).json({ message: 'reviewReplies must be a boolean' });
       }
-      post.reviewReplies = reviewReplies;
+      patch.reviewReplies = reviewReplies;
     }
 
     if (quotesDisabled !== undefined) {
       if (typeof quotesDisabled !== 'boolean') {
         return res.status(400).json({ message: 'quotesDisabled must be a boolean' });
       }
-      post.quotesDisabled = quotesDisabled;
+      patch.quotesDisabled = quotesDisabled;
     }
 
-    post.markModified('metadata');
-    await post.save();
+    if (Object.keys(metadata).length > 0) patch.metadata = metadata;
+    await updatePostRecord(post.id, patch);
 
     res.json({
       message: 'Post settings updated',
-      isPinned: post.metadata.isPinned,
-      hideEngagementCounts: post.metadata.hideEngagementCounts,
-      replyPermission: post.replyPermission,
-      reviewReplies: post.reviewReplies,
-      quotesDisabled: post.quotesDisabled,
+      isPinned: metadata.isPinned ?? post.metadata.isPinned,
+      hideEngagementCounts: metadata.hideEngagementCounts ?? post.metadata.hideEngagementCounts,
+      replyPermission: patch.replyPermission ?? post.replyPermission,
+      reviewReplies: patch.reviewReplies ?? post.reviewReplies,
+      quotesDisabled: patch.quotesDisabled ?? post.quotesDisabled,
     });
   } catch (error) {
     logger.error('Error updating post settings', error);
@@ -1684,12 +1754,18 @@ export const deletePost = async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ message: 'Unauthorized' });
     }
 
-    const post = await Post.findOneAndDelete({ _id: req.params.id, oxyUserId: userId });
+    // The owner check is part of the DELETE's own predicate, not a read-then-
+    // delete gap: two concurrent requests cannot both observe the row and both
+    // proceed to the cascade.
+    const post = await deletePostRecord(
+      String(req.params.id),
+      eq(postsTable.oxyUserId, userId),
+    );
     if (!post) {
       return res.status(404).json({ message: 'Post not found' });
     }
 
-    const postId = post._id.toString();
+    const postId = post.id;
     await repairRecentRepliersAfterPostDelete({
       postId,
       parentPostId: post.parentPostId,
@@ -1715,9 +1791,9 @@ export const deletePost = async (req: AuthRequest, res: Response) => {
       post.federation == null &&
       post.oxyUserId &&
       post.visibility === PostVisibility.PUBLIC &&
-      (post.status ?? 'published') === 'published'
+      post.status === 'published'
     ) {
-      const deleterOxyUserId = String(post.oxyUserId);
+      const deleterOxyUserId = post.oxyUserId;
       federateAsResolvedActor(deleterOxyUserId, 'post delete', (username) => ({
         kind: 'post.delete',
         post: { _id: postId },
@@ -1730,11 +1806,11 @@ export const deletePost = async (req: AuthRequest, res: Response) => {
     try {
       await Promise.allSettled([
         // Delete associated article
-        post.content?.article?.articleId
+        post.content.article?.articleId
           ? ArticleModel.deleteOne({ _id: post.content.article.articleId }).exec()
           : Promise.resolve(),
         // Delete associated poll
-        post.content?.pollId
+        post.content.pollId
           ? Poll.deleteOne({ _id: post.content.pollId }).exec()
           : Promise.resolve(),
         // Delete likes for this post
@@ -1930,13 +2006,11 @@ export const getSavedPosts = async (req: AuthRequest, res: Response) => {
       .sort({ createdAt: -1 })
       .lean();
 
-    const postIds = savedPosts.map(saved => saved.postId);
+    const postIds = savedPosts.map((saved) => String(saved.postId));
 
     // Build query for posts
     // Don't filter by visibility - users should be able to see their saved posts regardless of visibility
-    const postQuery: Record<string, unknown> = {
-      _id: { $in: postIds }
-    };
+    const conditions: SQL[] = [inArray(postsTable.id, postIds)];
 
     // Add search filter if provided
     if (searchQuery && searchQuery.trim()) {
@@ -1944,15 +2018,25 @@ export const getSavedPosts = async (req: AuthRequest, res: Response) => {
       logger.debug('Applying saved-post search filter', {
         queryLength: trimmedQuery.length,
       });
-      // Use MongoDB $regex for partial text matching (case-insensitive).
-      // Escape special regex characters but allow partial matching. The bodies live
-      // in the (multikey) renditions, so this matches a saved post by ANY language
-      // the author wrote it in.
-      const escapedQuery = trimmedQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      postQuery['content.variants.text'] = {
-        $regex: escapedQuery,
-        $options: 'i' // case-insensitive
-      };
+      // Case-insensitive substring match over the renditions, which is where the
+      // bodies live — so a saved post matches by ANY language the author wrote it
+      // in. `ILIKE` with the term escaped for its own wildcards (`%`, `_`,
+      // backslash), which is the direct analogue of Mongo's escaped `$regex`:
+      // without it a saved search for `100%` would match every saved post.
+      const escaped = trimmedQuery.replace(/[\\%_]/g, (char) => `\\${char}`);
+      conditions.push(
+        exists(
+          getDb()
+            .select({ one: sql`1` })
+            .from(postContentVariants)
+            .where(
+              and(
+                eq(postContentVariants.postId, postsTable.id),
+                ilike(postContentVariants.body, `%${escaped}%`),
+              ),
+            ),
+        ),
+      );
       logger.debug('Built saved-post query', {
         savedPostCount: postIds.length,
         hasSearchFilter: true,
@@ -1960,11 +2044,13 @@ export const getSavedPosts = async (req: AuthRequest, res: Response) => {
     }
 
     // Get the actual posts
-    const posts = await Post.find(postQuery)
-      .sort({ createdAt: -1 })
-      .skip((page - 1) * limit)
-      .limit(limit)
-      .lean();
+    const posts = postIds.length === 0
+      ? []
+      : await findPostRecords(and(...conditions), {
+        orderBy: CHRONO_DESC,
+        limit,
+        offset: (page - 1) * limit,
+      });
 
     const hydratedPosts = await postHydrationService.hydratePosts(posts, {
       viewerId: userId,
@@ -2055,22 +2141,23 @@ export const moveBookmarkToFolderByPostId = async (
     id: String(req.params.postId ?? ''),
   });
 
-// Get posts by hashtag
-export function buildPostsByHashtagFilter(
-  hashtag: string,
-  cursor?: string,
-): Record<string, unknown> {
-  const filter: Record<string, unknown> = {
-    hashtags: { $in: [hashtag.toLowerCase()] },
-    status: 'published',
-    visibility: PostVisibility.PUBLIC,
-  };
-
-  if (cursor) {
-    filter._id = { $lt: cursor };
-  }
-
-  return filter;
+/**
+ * The hashtag discovery predicate.
+ *
+ * Exported (with {@link buildPostsByTopicFilter}) so the visibility scope can be
+ * asserted without booting the controller's server import chain. Both return a
+ * predicate only — the cursor is applied by the handler, because the chronological
+ * keyset needs an `await` (a legacy cursor carrying no timestamp is resolved by
+ * one primary-key lookup) and a pure builder cannot make it.
+ */
+export function buildPostsByHashtagFilter(hashtag: string): SQL {
+  return and(
+    // `@>` on the `text[]`, GIN-indexed — the analogue of Mongo matching a
+    // multikey array by element equality.
+    arrayContains(postsTable.hashtags, [hashtag.toLowerCase()]),
+    eq(postsTable.status, 'published'),
+    eq(postsTable.visibility, 'public'),
+  ) as SQL;
 }
 
 export const getPostsByHashtag = async (req: AuthRequest, res: Response) => {
@@ -2079,18 +2166,16 @@ export const getPostsByHashtag = async (req: AuthRequest, res: Response) => {
     const cursor = queryString(req.query.cursor);
     const limit = Math.min(queryInt(req.query.limit) || DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE);
 
-    const filter = buildPostsByHashtagFilter(hashtag, cursor);
-
-    const posts = await Post.find(filter)
-      .sort({ createdAt: -1 })
-      .limit(limit + 1)
-      .lean();
+    const keyset = await chronoCursorSql(cursor);
+    const posts = await findPostRecords(
+      keyset ? and(buildPostsByHashtagFilter(hashtag), keyset) : buildPostsByHashtagFilter(hashtag),
+      { orderBy: chronoOrderBy(), limit: limit + 1 },
+    );
 
     const hasMore = posts.length > limit;
     const postsToReturn = hasMore ? posts.slice(0, limit) : posts;
-    const nextCursor = hasMore && postsToReturn.length > 0
-      ? postsToReturn[postsToReturn.length - 1]._id.toString()
-      : undefined;
+    const anchor = hasMore ? postsToReturn[postsToReturn.length - 1] : undefined;
+    const nextCursor = anchor ? ChronoCursor.build(anchor.id, anchor.createdAt) : undefined;
 
     const hydratedPosts = await postHydrationService.hydratePosts(postsToReturn, {
       viewerId: req.user?.id,
@@ -2121,19 +2206,12 @@ export const getPostsByHashtag = async (req: AuthRequest, res: Response) => {
  * lookup is lowercased for index efficiency. Exported for unit testing the canonical `$or`
  * contract without booting the controller's server import chain.
  */
-export function buildPostsByTopicFilter(
-  topicName: string,
-  cursor?: string,
-): Record<string, unknown> {
-  const filter: Record<string, unknown> = {
-    ...buildTopicSlugMatch(topicName),
-    status: 'published',
-    visibility: PostVisibility.PUBLIC,
-  };
-  if (cursor) {
-    filter._id = { $lt: cursor };
-  }
-  return filter;
+export function buildPostsByTopicFilter(topicName: string): SQL {
+  return and(
+    topicSlugSql(topicName),
+    eq(postsTable.status, 'published'),
+    eq(postsTable.visibility, 'public'),
+  ) as SQL;
 }
 
 // Get posts by classified topic or entity name
@@ -2143,18 +2221,16 @@ export const getPostsByTopic = async (req: AuthRequest, res: Response) => {
     const cursor = queryString(req.query.cursor);
     const limit = Math.min(queryInt(req.query.limit) || DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE);
 
-    const filter = buildPostsByTopicFilter(topicName, cursor);
-
-    const posts = await Post.find(filter)
-      .sort({ createdAt: -1 })
-      .limit(limit + 1)
-      .lean();
+    const keyset = await chronoCursorSql(cursor);
+    const posts = await findPostRecords(
+      keyset ? and(buildPostsByTopicFilter(topicName), keyset) : buildPostsByTopicFilter(topicName),
+      { orderBy: chronoOrderBy(), limit: limit + 1 },
+    );
 
     const hasMore = posts.length > limit;
     const postsToReturn = hasMore ? posts.slice(0, limit) : posts;
-    const nextCursor = hasMore && postsToReturn.length > 0
-      ? postsToReturn[postsToReturn.length - 1]._id.toString()
-      : undefined;
+    const anchor = hasMore ? postsToReturn[postsToReturn.length - 1] : undefined;
+    const nextCursor = anchor ? ChronoCursor.build(anchor.id, anchor.createdAt) : undefined;
 
     const hydratedPosts = await postHydrationService.hydratePosts(postsToReturn, {
       viewerId: req.user?.id,
@@ -2184,12 +2260,14 @@ export const getDrafts = async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ message: 'Unauthorized' });
     }
 
-    const drafts = await Post.find({
-      oxyUserId: userId,
-      status: 'draft'
-    })
-      .sort({ created_at: -1 })
-      .lean();
+    // Sorted on `created_at`, which is what the Mongoose call MEANT: it passed
+    // the snake_case column name, which Mongo treats as an absent field and
+    // therefore as no sort at all. The column exists here, so the intended order
+    // is finally the one served.
+    const drafts = await findPostRecords(
+      and(eq(postsTable.oxyUserId, userId), eq(postsTable.status, 'draft')),
+      { orderBy: CHRONO_DESC },
+    );
 
     res.json(drafts);
   } catch (error) {
@@ -2206,12 +2284,10 @@ export const getScheduledPosts = async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ message: 'Unauthorized' });
     }
 
-    const scheduledPosts = await Post.find({
-      oxyUserId: userId,
-      status: 'scheduled'
-    })
-      .sort({ scheduledFor: 1 })
-      .lean();
+    const scheduledPosts = await findPostRecords(
+      and(eq(postsTable.oxyUserId, userId), eq(postsTable.status, 'scheduled')),
+      { orderBy: [asc(postsTable.scheduledFor), asc(postsTable.id)] },
+    );
 
     res.json(scheduledPosts);
   } catch (error) {
@@ -2237,7 +2313,6 @@ export const getNearbyPosts = async (req: AuthRequest, res: Response) => {
     const radiusMeters = rawRadius === undefined
       ? DEFAULT_NEARBY_RADIUS_METERS
       : Number.parseInt(rawRadius, 10);
-    const locationField = locationType === 'post' ? 'location' : 'content.location';
 
     if (Number.isNaN(latitude) || Number.isNaN(longitude) || Number.isNaN(radiusMeters)) {
       return res.status(400).json({ message: 'Invalid latitude, longitude, or radius' });
@@ -2247,23 +2322,18 @@ export const getNearbyPosts = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ message: 'locationType must be either "content" or "post"' });
     }
 
-    // MongoDB geospatial query to find posts within radius
-    const posts = await Post.find({
-      visibility: 'public',
-      status: 'published',
-      [locationField]: {
-        $near: {
-          $geometry: {
-            type: 'Point',
-            coordinates: [longitude, latitude] // GeoJSON format: [lng, lat]
-          },
-          $maxDistance: radiusMeters
-        }
-      }
-    })
-      .sort({ createdAt: -1 })
-      .limit(MAX_NEARBY_POSTS)
-      .lean();
+    const geoColumn = locationType === 'post' ? postsTable.geo : postsTable.contentGeo;
+    const posts = await findPostRecords(
+      and(
+        eq(postsTable.visibility, 'public'),
+        eq(postsTable.status, 'published'),
+        withinRadius(geoColumn, longitude, latitude, radiusMeters),
+      ),
+      // Chronological, not nearest-first: `$near` sorts by distance, but the
+      // Mongoose call overrode that with its own `createdAt` sort, so the
+      // distance ordering was already discarded before this port.
+      { orderBy: CHRONO_DESC, limit: MAX_NEARBY_POSTS },
+    );
 
     const hydratedPosts = await postHydrationService.hydratePosts(posts, {
       viewerId: req.user?.id,
@@ -2305,7 +2375,6 @@ export const getPostsInArea = async (req: AuthRequest, res: Response) => {
     const southLat = Number.parseFloat(south);
     const eastLng = Number.parseFloat(east);
     const westLng = Number.parseFloat(west);
-    const locationField = locationType === 'post' ? 'location' : 'content.location';
 
     if (Number.isNaN(northLat) || Number.isNaN(southLat) || Number.isNaN(eastLng) || Number.isNaN(westLng)) {
       return res.status(400).json({ message: 'Invalid bounding box coordinates' });
@@ -2315,22 +2384,20 @@ export const getPostsInArea = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ message: 'locationType must be either "content" or "post"' });
     }
 
-    // MongoDB geospatial query to find posts within bounding box
-    const posts = await Post.find({
-      visibility: 'public',
-      status: 'published',
-      [locationField]: {
-        $geoWithin: {
-          $box: [
-            [westLng, southLat], // bottom-left corner [lng, lat]
-            [eastLng, northLat]  // top-right corner [lng, lat]
-          ]
-        }
-      }
-    })
-      .sort({ createdAt: -1 })
-      .limit(MAX_AREA_POSTS)
-      .lean();
+    const geoColumn = locationType === 'post' ? postsTable.geo : postsTable.contentGeo;
+    // `ST_MakeEnvelope(west, south, east, north, 4326)` — the same corner order
+    // as Mongo's `$box`, and the same SRID the generated points carry. Cast to
+    // `geography` so the comparison is against the column's own type; the `&&`
+    // bounding-box operator is what the GiST index answers.
+    const envelope = sql`ST_MakeEnvelope(${westLng}, ${southLat}, ${eastLng}, ${northLat}, 4326)::geography`;
+    const posts = await findPostRecords(
+      and(
+        eq(postsTable.visibility, 'public'),
+        eq(postsTable.status, 'published'),
+        sql`${geoColumn} is not null and ${geoColumn} && ${envelope}`,
+      ),
+      { orderBy: CHRONO_DESC, limit: MAX_AREA_POSTS },
+    );
 
     const hydratedPosts = await postHydrationService.hydratePosts(posts, {
       viewerId: req.user?.id,
@@ -2364,7 +2431,7 @@ export const getPostLikes = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ message: 'Post ID is required' });
     }
 
-    const query: Record<string, unknown> = { postId: id };
+    const query: Record<string, unknown> = { postId: String(id) };
     if (cursor) {
       query._id = { $lt: new mongoose.Types.ObjectId(cursor) };
     }
@@ -2453,7 +2520,7 @@ export const getKnownPostLikers = async (req: AuthRequest, res: Response) => {
     // `string | string[]`; a repeated param collapses to a comma-joined string,
     // which fails the id check below exactly like any other malformed value.
     const id = String(req.params.id ?? '');
-    if (!mongoose.Types.ObjectId.isValid(id)) {
+    if (!id) {
       return res.status(400).json({ message: 'Post ID is required' });
     }
 
@@ -2471,7 +2538,7 @@ export const getKnownPostLikers = async (req: AuthRequest, res: Response) => {
 
     const filter = {
       userId: { $in: followingIds },
-      postId: new mongoose.Types.ObjectId(id),
+      postId: id,
       value: 1,
     };
 
@@ -2505,25 +2572,36 @@ export const getPostBoosts = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ message: 'Post ID is required' });
     }
 
-    const query: Record<string, unknown> = { boostOf: id, visibility: PostVisibility.PUBLIC };
-    if (cursor) {
-      query._id = { $lt: new mongoose.Types.ObjectId(cursor) };
-    }
+    // Chronological, matching the cursor it hands back. `_id DESC` used to be
+    // both the order and the keyset, which agreed with each other while an
+    // ObjectId encoded its creation time; with `posts.id` holding an ObjectId hex
+    // for pre-cutover rows and a uuid v7 after, `id` order is neither
+    // chronological nor stable across the boundary.
+    const keyset = await chronoCursorSql(cursor);
+    const conditions: SQL[] = [
+      eq(postsTable.boostOf, String(id)),
+      eq(postsTable.visibility, 'public'),
+    ];
+    if (keyset) conditions.push(keyset);
 
-    const boosts = await Post.find(query)
-      .sort({ _id: -1 })
-      .limit(limit + 1)
-      .select('oxyUserId createdAt')
-      .lean();
+    const boosts = await getDb()
+      .select({ id: postsTable.id, oxyUserId: postsTable.oxyUserId, createdAt: postsTable.createdAt })
+      .from(postsTable)
+      .where(and(...conditions))
+      .orderBy(...chronoOrderBy())
+      .limit(limit + 1);
 
     const hasMore = boosts.length > limit;
     const boostsToReturn = hasMore ? boosts.slice(0, limit) : boosts;
-    const nextCursor = hasMore ? boosts[limit - 1]._id.toString() : undefined;
+    const boostAnchor = hasMore ? boostsToReturn[limit - 1] : undefined;
+    const nextCursor = boostAnchor
+      ? ChronoCursor.build(boostAnchor.id, boostAnchor.createdAt)
+      : undefined;
 
     // Get unique user IDs, then resolve actor summaries through the same shared
     // resolver PostHydrationService uses (canonical `name.displayName`, batched
     // bulk fetch, Redis-cached) instead of N hand-built per-id Oxy reads.
-    const userIds = [...new Set(boostsToReturn.map(boost => boost.oxyUserId).filter((id): id is string => typeof id === 'string'))];
+    const userIds = [...new Set(boostsToReturn.map(boost => boost.oxyUserId).filter((value): value is string => typeof value === 'string'))];
     const summaries = await resolveUserSummaries(userIds);
     const users = userIds.map((userId) => mapActorSummary(userId, summaries.get(userId)?.user));
 
@@ -2559,38 +2637,18 @@ export const getNearbyPostsBothLocations = async (req: AuthRequest, res: Respons
       return res.status(400).json({ message: 'Invalid latitude, longitude, or radius' });
     }
 
-    // MongoDB geospatial query to find posts within radius for either location type
-    const posts = await Post.find({
-      visibility: 'public',
-      status: 'published',
-      $or: [
-        {
-          'content.location': {
-            $near: {
-              $geometry: {
-                type: 'Point',
-                coordinates: [longitude, latitude] // GeoJSON format: [lng, lat]
-              },
-              $maxDistance: radiusMeters
-            }
-          }
-        },
-        {
-          'location': {
-            $near: {
-              $geometry: {
-                type: 'Point',
-                coordinates: [longitude, latitude] // GeoJSON format: [lng, lat]
-              },
-              $maxDistance: radiusMeters
-            }
-          }
-        }
-      ]
-    })
-      .sort({ createdAt: -1 })
-      .limit(75) // Slightly higher limit since we're querying both location types
-      .lean();
+    const posts = await findPostRecords(
+      and(
+        eq(postsTable.visibility, 'public'),
+        eq(postsTable.status, 'published'),
+        or(
+          withinRadius(postsTable.contentGeo, longitude, latitude, radiusMeters),
+          withinRadius(postsTable.geo, longitude, latitude, radiusMeters),
+        ) as SQL,
+      ),
+      // Slightly higher limit since we're querying both location types
+      { orderBy: CHRONO_DESC, limit: MAX_NEARBY_BOTH_LOCATIONS_POSTS },
+    );
 
     const currentUserId = req.user?.id;
     const hydratedPosts = await postHydrationService.hydratePosts(posts, {
@@ -2617,44 +2675,38 @@ export const getNearbyPostsBothLocations = async (req: AuthRequest, res: Respons
 // Get location statistics for analytics
 export const getLocationStats = async (_req: AuthRequest, res: Response) => {
   try {
-    // Count posts with content locations (user shared)
-    const contentLocationCount = await Post.countDocuments({
-      visibility: 'public',
-      status: 'published',
-      'content.location': { $exists: true, $ne: null }
-    });
+    // ONE grouped pass rather than five COUNTs over the same public/published
+    // scan: each column is `NOT NULL`-tested inline. The pair CHECKs make
+    // longitude and latitude present together, so testing one coordinate answers
+    // for the point.
+    const publicPublished = and(
+      eq(postsTable.visibility, 'public'),
+      eq(postsTable.status, 'published'),
+    );
+    const hasContentLocation = sql`${postsTable.contentLocationLatitude} is not null`;
+    const hasPostLocation = sql`${postsTable.locationLatitude} is not null`;
+    const [counts] = await getDb()
+      .select({
+        total: sql<number>`count(*)::int`,
+        withContentLocation: sql<number>`count(*) filter (where ${hasContentLocation})::int`,
+        withPostLocation: sql<number>`count(*) filter (where ${hasPostLocation})::int`,
+        withBothLocations: sql<number>`count(*) filter (where ${hasContentLocation} and ${hasPostLocation})::int`,
+        withAnyLocation: sql<number>`count(*) filter (where ${hasContentLocation} or ${hasPostLocation})::int`,
+      })
+      .from(postsTable)
+      .where(publicPublished);
 
-    // Count posts with post locations (creation metadata)
-    const postLocationCount = await Post.countDocuments({
-      visibility: 'public',
-      status: 'published',
-      'location': { $exists: true, $ne: null }
-    });
-
-    // Count posts with both location types
-    const bothLocationsCount = await Post.countDocuments({
-      visibility: 'public',
-      status: 'published',
-      'content.location': { $exists: true, $ne: null },
-      'location': { $exists: true, $ne: null }
-    });
-
-    // Get total post count for percentage calculation
-    const totalPosts = await Post.countDocuments({ visibility: 'public', status: 'published' });
+    const totalPosts = counts?.total ?? 0;
+    const contentLocationCount = counts?.withContentLocation ?? 0;
+    const postLocationCount = counts?.withPostLocation ?? 0;
+    const bothLocationsCount = counts?.withBothLocations ?? 0;
 
     res.json({
       total: totalPosts,
       withContentLocation: contentLocationCount,
       withPostLocation: postLocationCount,
       withBothLocations: bothLocationsCount,
-      withAnyLocation: await Post.countDocuments({
-        visibility: 'public',
-        status: 'published',
-        $or: [
-          { 'content.location': { $exists: true, $ne: null } },
-          { 'location': { $exists: true, $ne: null } }
-        ]
-      }),
+      withAnyLocation: counts?.withAnyLocation ?? 0,
       percentages: {
         contentLocation: totalPosts > 0 ? ((contentLocationCount / totalPosts) * 100).toFixed(2) : '0.00',
         postLocation: totalPosts > 0 ? ((postLocationCount / totalPosts) * 100).toFixed(2) : '0.00',
@@ -2715,9 +2767,7 @@ export const translatePost = async (req: AuthRequest, res: Response): Promise<vo
     const { id } = req.params;
     const { targetLanguage, force } = req.body;
 
-    const post = await Post.findById(id)
-      .select('_id oxyUserId authorship content visibility status federation createdAt')
-      .lean();
+    const post = await loadPostRecord(String(id));
     if (!post) {
       res.status(404).json({ message: 'Post not found' });
       return;
@@ -2737,10 +2787,9 @@ export const translatePost = async (req: AuthRequest, res: Response): Promise<vo
       return;
     }
 
-    const content: StoredPostContent = post.content ?? {};
     const translated = await postTranslationService.translatePost(
-      String(post._id),
-      content,
+      post.id,
+      post.content,
       targetLanguage,
       { force: force === true },
     );

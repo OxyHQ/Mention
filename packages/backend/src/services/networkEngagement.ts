@@ -1,6 +1,8 @@
 import mongoose from 'mongoose';
 import Like from '../models/Like';
-import { Post } from '../models/Post';
+import { and, eq, inArray } from 'drizzle-orm';
+import { getDb } from '../db/postgres';
+import { posts } from '../db/schema/posts';
 import { logger } from '../utils/logger';
 
 /**
@@ -62,16 +64,17 @@ export async function getNetworkEngagerCounts(
     }
 
     // Boosts are native `type:'boost'` posts referencing the original via `boostOf`.
-    const boosts = await Post.find({
-      type: 'boost',
-      boostOf: { $in: boundedPostIds },
-      oxyUserId: { $in: boundedEngagers },
-    })
-      .select('boostOf oxyUserId')
-      .lean();
+    const boosts = await getDb()
+      .select({ boostOf: posts.boostOf, oxyUserId: posts.oxyUserId })
+      .from(posts)
+      .where(and(
+        eq(posts.type, 'boost'),
+        inArray(posts.boostOf, boundedPostIds),
+        inArray(posts.oxyUserId, boundedEngagers),
+      ));
     for (const boost of boosts) {
       if (boost.boostOf && boost.oxyUserId) {
-        add(String(boost.boostOf), String(boost.oxyUserId));
+        add(boost.boostOf, boost.oxyUserId);
       }
     }
   } catch (error) {

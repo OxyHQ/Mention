@@ -1,14 +1,22 @@
 import { FeedPostSlice, FeedSliceItem, HydratedPost, HydratedPostSummary, HydratedBoostContext, HydratedAuthor, PostUser, PostAttachmentBundle, PostEngagementSummary, PostLinkPreview, PostPermissions, PostViewerState, PostVisibility, PostAuthorshipEntry, MEDIA_VARIANT_THUMB } from '@mention/shared-types';
-import { Post, type PostFederationData } from '../models/Post';
-import Poll from '../models/Poll';
-import Like from '../models/Like';
-import Bookmark from '../models/Bookmark';
+import { and, asc, eq, inArray, type SQL } from 'drizzle-orm';
+import { getDb } from '../db/postgres';
+import { bookmarks as bookmarksTable, likes as likesTable } from '../db/schema/engagement';
+import { pollOptions, pollVotes, polls as pollsTable } from '../db/schema/polls';
+import { posts } from '../db/schema/posts';
+import { userSettings } from '../db/schema/userProfile';
+import {
+  CHRONO_DESC,
+  countQuotesOf,
+  findBoostedPostIds,
+  findPostRecords,
+} from '../db/posts/postRepository';
+import type { PostRecordFederation } from '../db/posts/postRecord';
 import type { FederatedActorRecord } from '../db/federation/actorRecord';
 import {
   findActorsByOxyUserIds,
   findActorsByUris,
 } from '../db/federation/actorRepository';
-import { UserSettings } from '../models/UserSettings';
 import { actorService } from '../connectors/activitypub/actor.service';
 import { FEDERATION_ENABLED } from '../connectors/activitypub/constants';
 import { deriveBridgyActorUri } from '../connectors/activitypub/bridgy';
@@ -62,7 +70,7 @@ interface RawPost {
   content?: Partial<StoredPostContent>;
   metadata?: Partial<PostMetadata>;
   /** AP federation metadata (federated posts only); `spoilerText` is the CW label. */
-  federation?: PostFederationData;
+  federation?: PostRecordFederation;
   /**
    * Stage-A classification subdoc. Only the canonical multi-language array is
    * read during hydration (surfaced to the DTO as `metadata.languages`).
@@ -722,7 +730,7 @@ function scheduleOrphanActorSync(actorUris: Set<string>): void {
  * to key on).
  */
 export async function resolveOrphanFederatedAuthors(
-  orphans: Array<{ postId: string; federation: PostFederationData }>,
+  orphans: Array<{ postId: string; federation: PostRecordFederation }>,
 ): Promise<Map<string, PostUser>> {
   const result = new Map<string, PostUser>();
   if (orphans.length === 0) return result;
@@ -1084,27 +1092,24 @@ export class PostHydrationService {
     // This avoids a separate query in buildAuthorPrivacyMap
     if (authorIds.length > 0) {
       try {
-        const allAuthorSettings = await UserSettings.find({
-          oxyUserId: { $in: authorIds },
-        }).lean();
+        const allAuthorSettings = await this.loadPrivacySettings(authorIds);
 
         // Pre-populate author privacy map for reuse in buildAuthorPrivacyMap
         const authorPrivacyCache = new Map<string, typeof DEFAULT_PRIVACY>();
-        for (const s of allAuthorSettings) {
-          const authorId = String(s.oxyUserId);
+        for (const row of allAuthorSettings) {
+          const authorId = row.oxyUserId;
 
           // Track private profiles
-          const vis = s.privacy?.profileVisibility;
-          if (vis === 'private' || vis === 'followers_only') {
+          if (row.profileVisibility === 'private' || row.profileVisibility === 'followers_only') {
             context.privateProfileIds.add(authorId);
           }
 
           // Cache engagement privacy for buildAuthorPrivacyMap
           authorPrivacyCache.set(authorId, {
-            hideLikeCounts: Boolean(s.privacy?.hideLikeCounts),
-            hideShareCounts: Boolean(s.privacy?.hideShareCounts),
-            hideReplyCounts: Boolean(s.privacy?.hideReplyCounts),
-            hideSaveCounts: Boolean(s.privacy?.hideSaveCounts),
+            hideLikeCounts: row.hideLikeCounts,
+            hideShareCounts: row.hideShareCounts,
+            hideReplyCounts: row.hideReplyCounts,
+            hideSaveCounts: row.hideSaveCounts,
           });
         }
 
@@ -1136,13 +1141,13 @@ export class PostHydrationService {
     restrictedIds.forEach((id) => context.restrictedIds.add(String(id)));
 
     try {
-      const settings = await UserSettings.findOne({ oxyUserId: viewerId }).lean();
-      if (settings?.privacy) {
+      const [settings] = await this.loadPrivacySettings([viewerId]);
+      if (settings) {
         context.privacyPreferences = {
-          hideLikeCounts: Boolean(settings.privacy.hideLikeCounts),
-          hideShareCounts: Boolean(settings.privacy.hideShareCounts),
-          hideReplyCounts: Boolean(settings.privacy.hideReplyCounts),
-          hideSaveCounts: Boolean(settings.privacy.hideSaveCounts),
+          hideLikeCounts: settings.hideLikeCounts,
+          hideShareCounts: settings.hideShareCounts,
+          hideReplyCounts: settings.hideReplyCounts,
+          hideSaveCounts: settings.hideSaveCounts,
         };
       }
     } catch (error) {
@@ -1261,16 +1266,19 @@ export class PostHydrationService {
       }
 
       const nextIds = Array.from(nextIdMap.keys());
-      const referenceQuery: Record<string, unknown> = { _id: { $in: nextIds } };
+      const referenceScope: SQL[] = [inArray(posts.id, nextIds)];
       if (publicReferencesOnly) {
-        referenceQuery.status = 'published';
-        referenceQuery.visibility = PostVisibility.PUBLIC;
+        referenceScope.push(eq(posts.status, 'published'));
+        referenceScope.push(eq(posts.visibility, PostVisibility.PUBLIC));
       }
 
       try {
-        const fetched = await Post.find(referenceQuery)
-          .select('-metadata.likedBy -metadata.savedBy')
-          .lean();
+        // Ordered because `findPostRecords` requires it, not because the caller
+        // cares: the results are re-keyed by id into `nextIdMap` immediately
+        // below, so the query's own order never reaches a reader.
+        const fetched = await findPostRecords(and(...referenceScope), {
+          orderBy: CHRONO_DESC,
+        });
 
         currentLevel = fetched.map((post) => ({
           post: post as unknown as RawPost,
@@ -1336,6 +1344,39 @@ export class PostHydrationService {
     return '';
   }
 
+  /**
+   * The privacy columns of `user_settings` for a set of accounts.
+   *
+   * ONE reader for every site that needs them (author privacy, profile
+   * visibility, the viewer's own preference), because the Mongoose model these
+   * replaced was consulted from four places and each rebuilt the same defaults.
+   * A row's ABSENCE is meaningful — it means "never saved settings" — so the
+   * caller applies `DEFAULT_PRIVACY` rather than this returning a padded map.
+   */
+  private async loadPrivacySettings(oxyUserIds: string[]): Promise<
+    Array<{
+      oxyUserId: string;
+      profileVisibility: string | null;
+      hideLikeCounts: boolean;
+      hideShareCounts: boolean;
+      hideReplyCounts: boolean;
+      hideSaveCounts: boolean;
+    }>
+  > {
+    if (oxyUserIds.length === 0) return [];
+    return getDb()
+      .select({
+        oxyUserId: userSettings.oxyUserId,
+        profileVisibility: userSettings.privacyProfileVisibility,
+        hideLikeCounts: userSettings.privacyHideLikeCounts,
+        hideShareCounts: userSettings.privacyHideShareCounts,
+        hideReplyCounts: userSettings.privacyHideReplyCounts,
+        hideSaveCounts: userSettings.privacyHideSaveCounts,
+      })
+      .from(userSettings)
+      .where(inArray(userSettings.oxyUserId, oxyUserIds));
+  }
+
   private async populateViewerInteractions(postIds: string[], viewerContext: ViewerContext): Promise<void> {
     const viewerId = viewerContext.viewerId;
     if (!viewerId || postIds.length === 0) {
@@ -1343,32 +1384,33 @@ export class PostHydrationService {
     }
 
     try {
-      const [likes, bookmarks, boosts] = await Promise.all([
-        Like.find({ userId: viewerId, postId: { $in: postIds } }).select('postId value').lean(),
-        Bookmark.find({ userId: viewerId, postId: { $in: postIds } }).select('postId').lean(),
-        Post.find({ oxyUserId: viewerId, boostOf: { $in: postIds } }).select('boostOf').lean(),
+      const db = getDb();
+      const [likeRows, bookmarkRows, boosts] = await Promise.all([
+        db
+          .select({ postId: likesTable.postId, value: likesTable.value })
+          .from(likesTable)
+          .where(and(eq(likesTable.userId, viewerId), inArray(likesTable.postId, postIds))),
+        db
+          .select({ postId: bookmarksTable.postId })
+          .from(bookmarksTable)
+          .where(and(eq(bookmarksTable.userId, viewerId), inArray(bookmarksTable.postId, postIds))),
+        findBoostedPostIds(viewerId, postIds),
       ]);
 
-      likes.forEach((like) => {
-        const id = like?.postId ? String(like.postId) : undefined;
-        if (!id) return;
-        const value = like.value ?? 1;
-        if (value === 1) {
-          viewerContext.likedPosts.add(id);
-        } else {
-          viewerContext.downvotedPosts.add(id);
-        }
-      });
+      // `value` is `1` or `-1` and NOT NULL, so a downvote is the only way into
+      // the second bucket — the Mongo read defaulted a missing value to 1.
+      for (const like of likeRows) {
+        if (like.value === 1) viewerContext.likedPosts.add(like.postId);
+        else viewerContext.downvotedPosts.add(like.postId);
+      }
 
-      bookmarks.forEach((bookmark) => {
-        const id = bookmark?.postId ? String(bookmark.postId) : undefined;
-        if (id) viewerContext.savedPosts.add(id);
-      });
+      for (const bookmark of bookmarkRows) {
+        viewerContext.savedPosts.add(bookmark.postId);
+      }
 
-      boosts.forEach((boost) => {
-        const id = boost?.boostOf ? String(boost.boostOf) : undefined;
-        if (id) viewerContext.boostedPosts.add(id);
-      });
+      for (const boostedId of boosts) {
+        viewerContext.boostedPosts.add(boostedId);
+      }
     } catch (error) {
       logger.error('[PostHydration] Failed to populate viewer interactions:', error);
     }
@@ -1389,33 +1431,59 @@ export class PostHydrationService {
     }
 
     try {
-      const polls = await Poll.find({ _id: { $in: pollIds } }).lean();
+      // Three tables where Mongo had one document: the options are their own
+      // rows (ordered by `position`, which is what preserves the order the
+      // author wrote them in) and each ballot is a row rather than an id inside
+      // `options[].votes`. The wire shape is unchanged — `votes` is a count per
+      // option INDEX and `userVotes` maps a voter to the index they chose — so
+      // the index has to come from `position`, never from array arrival order.
+      const db = getDb();
+      const [pollRows, optionRows, voteRows] = await Promise.all([
+        db
+          .select({ id: pollsTable.id, question: pollsTable.question, endsAt: pollsTable.endsAt })
+          .from(pollsTable)
+          .where(inArray(pollsTable.id, pollIds)),
+        db
+          .select({ id: pollOptions.id, pollId: pollOptions.pollId, text: pollOptions.text })
+          .from(pollOptions)
+          .where(inArray(pollOptions.pollId, pollIds))
+          .orderBy(asc(pollOptions.pollId), asc(pollOptions.position)),
+        db
+          .select({ pollId: pollVotes.pollId, optionId: pollVotes.optionId, userId: pollVotes.userId })
+          .from(pollVotes)
+          .where(inArray(pollVotes.pollId, pollIds)),
+      ]);
+
+      const optionsByPoll = new Map<string, Array<{ id: string; text: string }>>();
+      for (const option of optionRows) {
+        const existing = optionsByPoll.get(option.pollId);
+        if (existing) existing.push({ id: option.id, text: option.text });
+        else optionsByPoll.set(option.pollId, [{ id: option.id, text: option.text }]);
+      }
+
       const map = new Map<string, Record<string, unknown>>();
+      for (const poll of pollRows) {
+        const options = optionsByPoll.get(poll.id) ?? [];
+        const indexByOptionId = new Map(options.map((option, index) => [option.id, index]));
 
-      polls.forEach((poll) => {
-        const id = poll?._id ? String(poll._id) : undefined;
-        if (!id) return;
+        const votes: Record<string, number> = {};
+        const userVotes: Record<string, string> = {};
+        for (let index = 0; index < options.length; index += 1) votes[String(index)] = 0;
+        for (const vote of voteRows) {
+          const index = vote.pollId === poll.id ? indexByOptionId.get(vote.optionId) : undefined;
+          if (index === undefined) continue;
+          votes[String(index)] = (votes[String(index)] ?? 0) + 1;
+          userVotes[vote.userId] = String(index);
+        }
 
-        map.set(id, {
+        map.set(poll.id, {
           question: poll.question,
-          options: poll.options.map((opt) => opt.text),
-          endTime: poll.endsAt?.toISOString?.() ?? poll.endsAt ?? new Date().toISOString(),
-          votes: poll.options.reduce((acc: Record<string, number>, opt, index) => {
-            acc[String(index)] = Array.isArray(opt.votes) ? opt.votes.length : 0;
-            return acc;
-          }, {}),
-          userVotes: poll.options.reduce((acc: Record<string, string>, opt, index) => {
-            if (Array.isArray(opt.votes)) {
-              opt.votes.forEach((userId) => {
-                if (userId) {
-                  acc[String(userId)] = String(index);
-                }
-              });
-            }
-            return acc;
-          }, {}),
+          options: options.map((option) => option.text),
+          endTime: poll.endsAt.toISOString(),
+          votes,
+          userVotes,
         });
-      });
+      }
 
       return map;
     } catch (error) {
@@ -1466,7 +1534,7 @@ export class PostHydrationService {
   private async buildOrphanFederatedAuthorMap(
     nodes: HydratedGraphNode[],
   ): Promise<Map<string, PostUser>> {
-    const orphans: Array<{ postId: string; federation: PostFederationData }> = [];
+    const orphans: Array<{ postId: string; federation: PostRecordFederation }> = [];
     for (const { post } of nodes) {
       if (post?.oxyUserId || !post?.federation) continue;
       const postId = this.resolveId(post);
@@ -1620,14 +1688,13 @@ export class PostHydrationService {
 
       // Fetch only missing authors
       try {
-        const settings = await UserSettings.find({ oxyUserId: { $in: missingIds } }).lean();
+        const settings = await this.loadPrivacySettings(missingIds);
         for (const setting of settings) {
-          const authorId = String(setting.oxyUserId);
-          cached.set(authorId, {
-            hideLikeCounts: Boolean(setting.privacy?.hideLikeCounts),
-            hideShareCounts: Boolean(setting.privacy?.hideShareCounts),
-            hideReplyCounts: Boolean(setting.privacy?.hideReplyCounts),
-            hideSaveCounts: Boolean(setting.privacy?.hideSaveCounts),
+          cached.set(setting.oxyUserId, {
+            hideLikeCounts: setting.hideLikeCounts,
+            hideShareCounts: setting.hideShareCounts,
+            hideReplyCounts: setting.hideReplyCounts,
+            hideSaveCounts: setting.hideSaveCounts,
           });
         }
         for (const id of missingIds) {
@@ -1651,14 +1718,13 @@ export class PostHydrationService {
     }
 
     try {
-      const settings = await UserSettings.find({ oxyUserId: { $in: authorIds } }).lean();
+      const settings = await this.loadPrivacySettings(authorIds);
       settings.forEach((setting) => {
-        const authorId = String(setting.oxyUserId);
-        privacyMap.set(authorId, {
-          hideLikeCounts: Boolean(setting.privacy?.hideLikeCounts),
-          hideShareCounts: Boolean(setting.privacy?.hideShareCounts),
-          hideReplyCounts: Boolean(setting.privacy?.hideReplyCounts),
-          hideSaveCounts: Boolean(setting.privacy?.hideSaveCounts),
+        privacyMap.set(setting.oxyUserId, {
+          hideLikeCounts: setting.hideLikeCounts,
+          hideShareCounts: setting.hideShareCounts,
+          hideReplyCounts: setting.hideReplyCounts,
+          hideSaveCounts: setting.hideSaveCounts,
         });
       });
 
@@ -2231,13 +2297,8 @@ export class PostHydrationService {
     const counts = new Map<string, number>();
     if (postIds.length === 0) return counts;
 
-    const rows = await Post.aggregate<{ _id: string; count: number }>([
-      { $match: { quoteOf: { $in: postIds } } },
-      { $group: { _id: '$quoteOf', count: { $sum: 1 } } },
-    ]);
-
-    for (const row of rows) {
-      if (row?._id) counts.set(String(row._id), row.count);
+    for (const [postId, count] of await countQuotesOf(postIds)) {
+      counts.set(postId, count);
     }
     return counts;
   }

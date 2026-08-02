@@ -4,7 +4,9 @@ import {
   type StoredPostContent,
   type PostContentVariant,
 } from '@mention/shared-types';
-import { Post } from '../models/Post';
+import { asc, eq, inArray } from 'drizzle-orm';
+import { getDb } from '../db/postgres';
+import { postContentVariants } from '../db/schema/postContent';
 import { config } from '../config';
 import { logger } from '../utils/logger';
 import { aliaChat } from '../utils/alia';
@@ -304,25 +306,68 @@ class PostTranslationService {
   }
 
   /**
-   * Replace this language's machine variant with the fresh one. Two updates
-   * because MongoDB cannot `$pull` and `$push` the same array in a single
-   * operation; both are awaited so an immediate re-read of the post already sees
-   * the new rendition. Bypasses the document hooks by design: a machine variant
-   * cannot change the primary body, the hashtags, or the classification.
+   * Replace this language's machine variant with the fresh one.
+   *
+   * ONE transaction: the delete and the insert are the two halves of a REPLACE,
+   * and `post_content_variants` carries a dense `UNIQUE (post_id, position)`, so
+   * a reader that observed the gap between them would see a post with a hole in
+   * its rendition list. The Mongo version needed two round trips only because a
+   * `$pull` and a `$push` cannot name the same array in one update.
+   *
+   * A machine variant is APPENDED after the author's own — `variants[0]` stays
+   * the primary — and it never touches the body, the hashtags or the
+   * classification.
    */
   private async upsertMachineVariant(
     postId: string,
     tag: string,
     variant: PostContentVariant,
   ): Promise<void> {
-    await Post.updateOne(
-      { _id: postId },
-      { $pull: { 'content.variants': { tag, source: 'machine' } } },
-    );
-    await Post.updateOne(
-      { _id: postId },
-      { $push: { 'content.variants': variant } },
-    );
+    await getDb().transaction(async (tx) => {
+      const existing = await tx
+        .select({
+          id: postContentVariants.id,
+          position: postContentVariants.position,
+          tag: postContentVariants.tag,
+          source: postContentVariants.source,
+        })
+        .from(postContentVariants)
+        .where(eq(postContentVariants.postId, postId))
+        .orderBy(asc(postContentVariants.position));
+
+      const survivors = existing.filter(
+        (row) => !(row.tag === tag && row.source === 'machine'),
+      );
+      const stale = existing.filter((row) => row.tag === tag && row.source === 'machine');
+      if (stale.length > 0) {
+        await tx
+          .delete(postContentVariants)
+          .where(inArray(postContentVariants.id, stale.map((row) => row.id)));
+      }
+
+      // Renumber whatever survived so `position` stays dense before the append —
+      // otherwise removing a middle variant leaves a hole the new row cannot
+      // occupy without colliding with the tail.
+      for (const [index, row] of survivors.entries()) {
+        if (row.position === index) continue;
+        await tx
+          .update(postContentVariants)
+          .set({ position: index })
+          .where(eq(postContentVariants.id, row.id));
+      }
+
+      await tx.insert(postContentVariants).values({
+        postId,
+        position: survivors.length,
+        tag: variant.tag ?? null,
+        source: variant.source,
+        body: variant.text,
+        articleTitle: variant.article?.title ?? null,
+        articleBody: variant.article?.body ?? null,
+        articleExcerpt: variant.article?.excerpt ?? null,
+        variantCreatedAt: variant.createdAt ? new Date(variant.createdAt) : null,
+      });
+    });
   }
 }
 

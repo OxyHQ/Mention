@@ -5,6 +5,7 @@ import {
   toBaseLanguages,
   type MediaItem,
   type PostArticleContent,
+  type PostContent,
   type PostContentVariant,
   type StoredPostContent,
 } from '@mention/shared-types';
@@ -138,6 +139,51 @@ export function applyDetectedPrimaryTag(
   const canonical = canonicalizeLanguageTag(detected);
   if (!canonical) return variants;
   return [{ ...primary, tag: canonical }, ...variants.slice(1)];
+}
+
+/**
+ * The API's content shape → the STORED one: renditions only.
+ *
+ * The single conversion, shared by every write path (`PostCreationService`, the
+ * `POST /feed/reply` and `POST /feed/boost` paths). Two of those wrote
+ * `content.text` straight to storage while Mongo tolerated an undeclared field;
+ * `posts` has no text column at all, so a second spelling of this would not be a
+ * duplicate — it would be a post stored with no body.
+ *
+ * When the author declared variants, those ARE the renditions (the primary
+ * inherits the detected tag if it declared none). Otherwise the single body
+ * becomes the primary variant. A post with no body at all — a boost — keeps no
+ * variant.
+ *
+ * The post-level facts are copied by an explicit whitelist, not a spread of the
+ * request: `text` (and the hydration-only `textLang`) must NOT reach storage,
+ * and everything below is deliberately not per-language — a poll's votes must
+ * aggregate (two polls would split the count), and a location or a citation is a
+ * fact about the post, not about a language.
+ */
+export function toStoredContent(
+  content: PostContent,
+  primaryLanguage: string | undefined,
+): StoredPostContent {
+  const declared = authorVariants(content);
+  const primary = buildPrimaryVariant(content.text, primaryLanguage);
+  const variants = declared.length > 0
+    ? applyDetectedPrimaryTag(declared, primaryLanguage)
+    : (primary ? [primary] : []);
+
+  return {
+    ...(variants.length > 0 ? { variants } : {}),
+    media: content.media,
+    article: content.article,
+    poll: content.poll,
+    pollId: content.pollId,
+    location: content.location,
+    sources: content.sources,
+    event: content.event,
+    room: content.room,
+    podcast: content.podcast,
+    attachments: content.attachments,
+  };
 }
 
 /**

@@ -16,8 +16,10 @@ import {
   PostUser,
   PostVisibility,
 } from '@mention/shared-types';
-import { Post } from '../models/Post';
-import { derivesReplyIntent } from '../db/posts/postRecord';
+import { and, asc, eq, inArray, isNotNull, or, type SQL } from 'drizzle-orm';
+import { posts as postsTable } from '../db/schema/posts';
+import { CHRONO_DESC, findPostRecords } from '../db/posts/postRepository';
+import type { PostRecord } from '../db/posts/postRecord';
 import { logger } from '../utils/logger';
 import { resolveUserSummaries } from './PostHydrationService';
 
@@ -54,19 +56,10 @@ interface RawPost {
  * column; it goes through the shared {@link derivesReplyIntent} so the two
  * encodings of "has a parent" cannot drift from the writer's definition.
  */
-function toRawPost(doc: {
-  _id: unknown;
-  parentPostId?: string | null;
-  federation?: { inReplyTo?: string } | null;
-}): RawPost {
-  return {
-    ...(doc as unknown as RawPost),
-    id: String(doc._id),
-    isReply: derivesReplyIntent({
-      parentPostId: doc.parentPostId ?? null,
-      federation: doc.federation ?? undefined,
-    }),
-  };
+function toRawPost(record: PostRecord): RawPost {
+  // `isReply` is READ, no longer re-derived: it is a stored column now, and it is
+  // the only answer that survives `ON DELETE SET NULL` clearing a parent link.
+  return record as unknown as RawPost;
 }
 
 const DEFAULT_OPTIONS: ThreadSlicingOptions = {
@@ -85,8 +78,6 @@ const DEFAULT_OPTIONS: ThreadSlicingOptions = {
  * leave the field unprojected and that guard reads `undefined`, defaults to
  * `'published'`, and never fires — an inert ACL rather than an enforced one.
  */
-const SLICE_POST_PROJECTION =
-  '_id oxyUserId authorship federation createdAt parentPostId threadId content status stats metadata hashtags mentions language visibility type boostOf quoteOf';
 
 class ThreadSlicingService {
   /**
@@ -259,28 +250,36 @@ class ThreadSlicingService {
 
     if (threadRoots.size === 0) return result;
 
-    // Build $or conditions for each thread
-    const orConditions = Array.from(threadRoots.entries()).map(([threadId, oxyUserId]) => ({
-      threadId,
-      oxyUserId,
-      parentPostId: { $ne: null, $exists: true },
-    }));
+    // One (thread, author) pair per root, OR-ed together.
+    const threadConditions = Array.from(threadRoots.entries()).map(([threadId, oxyUserId]) =>
+      and(
+        eq(postsTable.threadId, threadId),
+        eq(postsTable.oxyUserId, oxyUserId),
+        // `is not null`, NOT `<> null`: Mongo's `$ne: null` also matched a missing
+        // field, while SQL's `<>` against NULL is NULL and matches nothing — the
+        // literal translation would return no continuations at all and silently
+        // un-thread every self-thread in the feed.
+        isNotNull(postsTable.parentPostId),
+      ) as SQL,
+    );
 
     try {
-      const children = await Post.find({
-        visibility: PostVisibility.PUBLIC,
-        status: 'published',
-        $or: orConditions,
-      })
-        .select(SLICE_POST_PROJECTION)
-        .sort({ createdAt: 1 })
-        .limit(threadRoots.size * (maxSliceSize - 1))
-        .maxTimeMS(3000)
-        .lean();
+      const children = await findPostRecords(
+        and(
+          eq(postsTable.visibility, PostVisibility.PUBLIC),
+          eq(postsTable.status, 'published'),
+          or(...threadConditions),
+        ),
+        {
+          orderBy: [asc(postsTable.createdAt), asc(postsTable.id)],
+          limit: threadRoots.size * (maxSliceSize - 1),
+        },
+      );
 
       // Group children by threadId
       for (const child of children) {
-        const tid = child.threadId as string;
+        const tid = child.threadId;
+        if (!tid) continue;
         let arr = result.get(tid);
         if (!arr) {
           arr = [];
@@ -322,19 +321,21 @@ class ThreadSlicingService {
     const uniqueParentIds = [...new Set(missingParentIds)];
 
     try {
-      const parents = await Post.find({
-        _id: { $in: uniqueParentIds },
-        // A reply-context parent is injected into whatever feed the reply landed
-        // in, so it must clear the same publication bar as every feed candidate:
-        // a draft or scheduled parent must never be rendered as reply context.
-        // `visibility` is deliberately NOT filtered here — hydration re-checks
-        // post ACL per viewer, and a followers-only parent that a follower IS
-        // entitled to see must still reach them.
-        status: 'published',
-      })
-        .select(SLICE_POST_PROJECTION)
-        .maxTimeMS(3000)
-        .lean();
+      const parents = await findPostRecords(
+        and(
+          inArray(postsTable.id, uniqueParentIds),
+          // A reply-context parent is injected into whatever feed the reply landed
+          // in, so it must clear the same publication bar as every feed candidate:
+          // a draft or scheduled parent must never be rendered as reply context.
+          // `visibility` is deliberately NOT filtered here — hydration re-checks
+          // post ACL per viewer, and a followers-only parent that a follower IS
+          // entitled to see must still reach them.
+          eq(postsTable.status, 'published'),
+        ),
+        // Re-keyed by id below, so the order is required by the signature rather
+        // than observed by anything.
+        { orderBy: CHRONO_DESC },
+      );
 
       for (const parent of parents) {
         const raw = toRawPost(parent);

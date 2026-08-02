@@ -76,6 +76,18 @@ export interface PostRecordFederation {
   spoilerText?: string;
 }
 
+/** The Stage-A → Stage-B lifecycle of `postClassification`. */
+export type PostClassificationStatus = 'pending' | 'baseline' | 'classified' | 'failed';
+
+/**
+ * The status every ingest chokepoint stamps: Stage A ran, Stage B has not.
+ *
+ * Named rather than inlined because the AI batch's "not yet enriched" queue
+ * SELECTS on it — a writer and a reader spelling the same literal independently
+ * is how a post silently stops being picked up for enrichment.
+ */
+export const POST_CLASSIFICATION_PENDING: PostClassificationStatus = 'pending';
+
 /** One resolved entry of `postClassification.topicRefs`. */
 export interface PostRecordTopicRef {
   name: string;
@@ -91,7 +103,7 @@ export interface PostRecordTopicRef {
  * removes the "is the subdoc there at all?" branch every Mongo reader carried.
  */
 export interface PostRecordClassification {
-  status: 'pending' | 'baseline' | 'classified' | 'failed';
+  status: PostClassificationStatus;
   attempts: number;
   /** Slug-only topic list (Stage A + B). */
   topics?: string[];

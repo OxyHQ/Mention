@@ -4,7 +4,7 @@ import {
   findActorsByOxyUserIds,
 } from '../../db/federation/actorRepository';
 import type { FederatedActorRecord } from '../../db/federation/actorRecord';
-import { Post } from '../../models/Post';
+import { loadPostRecord } from '../../db/posts/postRepository';
 import Poll from '../../models/Poll';
 import { AP_CONTEXT } from '@oxyhq/federation';
 import {
@@ -122,12 +122,12 @@ function buildNoteAttachment(item: MediaItem | undefined | null): Record<string,
 }
 
 /**
- * The post fields the Note builder reads. A lean `Post` document satisfies it —
+ * The post fields the Note builder reads. A {@link PostRecord} satisfies it —
  * every caller (push delivery, the outbox page, the per-post dereference route)
  * already has one, so nothing re-fetches.
  */
 export interface NoteSourcePost {
-  _id: unknown;
+  id: string;
   content: PostContent;
   hashtags?: string[];
   mentions?: string[];
@@ -446,7 +446,7 @@ export class FollowService {
     quote?: NoteQuoteContext,
   ): Record<string, unknown> {
     const actor = actorUrl(username);
-    const postId = String(post._id);
+    const postId = post.id;
     const noteId = `${actor}/posts/${postId}`;
     // Emit a canonical ISO 8601 `published` regardless of whether the caller
     // passed a Mongoose `Date` (outbox/dereference) or an ISO string (push).
@@ -612,7 +612,7 @@ export class FollowService {
     // below and federates as a normal Note.)
     if (post.boostOf) {
       await this.federateBoost(
-        { _id: post._id, boostOf: String(post.boostOf), createdAt: post.createdAt },
+        { _id: post.id, boostOf: String(post.boostOf), createdAt: post.createdAt },
         senderOxyUserId,
         senderUsername,
       );
@@ -815,7 +815,7 @@ export class FollowService {
     for (const post of posts) {
       const ids = normalizeMentionIds(post.mentions);
       if (ids.length === 0) continue;
-      perPostIds.set(String(post._id), ids);
+      perPostIds.set(post.id, ids);
       allIds.push(...ids);
     }
     if (allIds.length === 0) return result;
@@ -882,8 +882,8 @@ export class FollowService {
       if (!pollId) continue;
       const key = String(pollId);
       const bucket = pollIdToPostIds.get(key);
-      if (bucket) bucket.push(String(post._id));
-      else pollIdToPostIds.set(key, [String(post._id)]);
+      if (bucket) bucket.push(post.id);
+      else pollIdToPostIds.set(key, [post.id]);
     }
     if (pollIdToPostIds.size === 0) return result;
 
@@ -945,7 +945,7 @@ export class FollowService {
     for (const post of posts) {
       const quoteId = post.quoteOf ? String(post.quoteOf) : undefined;
       if (!quoteId) continue;
-      const postId = String(post._id);
+      const postId = post.id;
       const bucket = quoteIdToPostIds.get(quoteId);
       if (bucket) bucket.push(postId);
       else quoteIdToPostIds.set(quoteId, [postId]);
@@ -984,7 +984,7 @@ export class FollowService {
    * Returns null when the original is missing or its author cannot be resolved.
    */
   private async resolveFederationTarget(originalPostId: string): Promise<FederationTarget | null> {
-    const original = await Post.findById(originalPostId).select('oxyUserId federation').lean();
+    const original = await loadPostRecord(originalPostId);
     if (!original) return null;
 
     const activityId = original.federation?.activityId;
@@ -1194,7 +1194,7 @@ export class FollowService {
    * {@link federateNewPost}; best-effort.
    */
   async federateDelete(
-    post: { _id: unknown },
+    post: { id: string },
     deleterOxyUserId: string,
     deleterUsername: string,
   ): Promise<void> {
@@ -1202,7 +1202,7 @@ export class FollowService {
     if (!(await isFediverseSharingEnabled(deleterOxyUserId))) return;
 
     try {
-      const activity = this.buildDeleteActivity(deleterUsername, String(post._id));
+      const activity = this.buildDeleteActivity(deleterUsername, post.id);
       await deliveryService.deliverToFollowers(activity, deleterOxyUserId, deleterUsername);
     } catch (err) {
       logger.error('Failed to federate post delete:', err);

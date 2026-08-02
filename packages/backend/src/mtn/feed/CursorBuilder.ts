@@ -25,7 +25,7 @@
 import { isLiveEntityId } from '../../db/ids';
 import { getDb } from '../../db/postgres';
 import { posts } from '../../db/schema';
-import { and, desc, eq, lt, or, type SQL } from 'drizzle-orm';
+import { and, asc, desc, eq, gt, lt, or, type SQL } from 'drizzle-orm';
 
 // --- Score-based cursor (for ranked feeds: for_you, explore) ---
 
@@ -225,28 +225,6 @@ export const ChronoCursor = {
     return id;
   },
 
-  /**
-   * Apply the cursor to a MONGO match object.
-   *
-   * RETAINED ONLY for `connectors/activitypub/routes/ap.routes.ts`, which still
-   * pages the outbox with Mongoose, and deleted by the batch that ports it. The
-   * Postgres keyset is {@link chronoCursorSql}; nothing new should reach for
-   * this.
-   */
-  applyToQuery(match: Record<string, unknown>, cursor?: string): void {
-    const parsed = this.parse(cursor);
-    if (!parsed) return;
-    if (parsed.ts) {
-      const createdAtFilter = new Date(parsed.ts);
-      match.$or = [
-        { createdAt: { $lt: createdAtFilter } },
-        { createdAt: createdAtFilter, _id: { $lt: parsed.id } },
-      ];
-    } else {
-      match._id = { $lt: parsed.id };
-    }
-  },
-
   parse(cursor?: string): { id: string; ts?: number } | undefined {
     if (!cursor) return undefined;
 
@@ -294,7 +272,10 @@ export const ChronoCursor = {
  * that no longer exists — a deleted anchor cannot bound anything, and page one
  * is the correct answer rather than an empty page forever.
  */
-export async function chronoCursorSql(cursor?: string): Promise<SQL | undefined> {
+export async function chronoCursorSql(
+  cursor?: string,
+  direction: ChronoDirection = 'desc',
+): Promise<SQL | undefined> {
   const parsed = ChronoCursor.parse(cursor);
   if (!parsed) return undefined;
 
@@ -311,11 +292,20 @@ export async function chronoCursorSql(cursor?: string): Promise<SQL | undefined>
     boundaryAt = anchor.createdAt;
   }
 
+  const beyond = direction === 'asc' ? gt : lt;
   return or(
-    lt(posts.createdAt, boundaryAt),
-    and(eq(posts.createdAt, boundaryAt), lt(posts.id, parsed.id)),
+    beyond(posts.createdAt, boundaryAt),
+    and(eq(posts.createdAt, boundaryAt), beyond(posts.id, parsed.id)),
   ) as SQL;
 }
+
+/**
+ * Which way a chronological page runs. Every feed reads newest-first; the
+ * replies list is the one surface a reader can flip to oldest-first, and the
+ * keyset has to flip WITH it — a descending bound behind an ascending sort
+ * re-serves page one forever.
+ */
+export type ChronoDirection = 'asc' | 'desc';
 
 /**
  * The chronological order every keyset above is paired with.
@@ -324,8 +314,10 @@ export async function chronoCursorSql(cursor?: string): Promise<SQL | undefined>
  * defect that made federated posts vanish at page boundaries when an `_id` sort
  * sat behind a `createdAt` cursor.
  */
-export function chronoOrderBy(): SQL[] {
-  return [desc(posts.createdAt), desc(posts.id)];
+export function chronoOrderBy(direction: ChronoDirection = 'desc'): SQL[] {
+  return direction === 'asc'
+    ? [asc(posts.createdAt), asc(posts.id)]
+    : [desc(posts.createdAt), desc(posts.id)];
 }
 
 /**

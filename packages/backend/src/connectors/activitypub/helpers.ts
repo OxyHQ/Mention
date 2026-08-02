@@ -1,6 +1,7 @@
-import mongoose from 'mongoose';
+import { and, eq } from 'drizzle-orm';
 import { logger } from '../../utils/logger';
-import { Post } from '../../models/Post';
+import { getDb } from '../../db/postgres';
+import { posts } from '../../db/schema/posts';
 import { createSignedFetch, type SignedFetch } from '@oxyhq/federation/node';
 import { getPublicKey, signViaOxy } from './crypto';
 import {
@@ -619,26 +620,49 @@ export function mapApVisibility(to?: unknown, cc?: unknown): PostVisibility {
 }
 
 /**
- * Resolve an ActivityPub object URI to a local Post `_id`, handling both:
+ * Resolve an ActivityPub object URI to a local post id, handling both:
  *  - a local post (our own AP note URI → `<...>/posts/<postId>`), and
  *  - an imported federated post (matched by `federation.activityId`).
  *
- * Returns the Post `_id` as a string, or null when no such post exists here.
+ * Returns the post id as a string, or null when no such post exists here.
+ *
+ * ## There is no id-SHAPE guard, and adding one back would be a silent outage
+ *
+ * This used to gate the local branch on `ObjectId.isValid(localPostId)`. That
+ * check was a cheap way to avoid a Mongo CastError, and it is now the opposite
+ * of cheap: `posts.id` is `text` holding a 24-char ObjectId hex for pre-cutover
+ * rows and a uuid v7 for everything created after, so an ObjectId test rejects
+ * every post this instance has made since the cutover.
+ *
+ * Thirteen call sites hang off this one function — `handleLike`,
+ * `handleUndoLike`, `handleAnnounce`, `handleUndoAnnounce`, `handlePollVote`,
+ * `handleCreate`'s quote resolution, `importAnnounce`, `resolveThreadLink`,
+ * `ensureFederatedReplyLink` — and every one of them treats `null` as "we do not
+ * have that post". So the failure would have been: every reply, like, boost and
+ * quote the fediverse aimed at one of our own recent posts stops resolving, with
+ * no error, no log, and no exception anywhere. A `text` column needs no guard —
+ * an id of any shape simply matches no row.
  */
 export async function resolvePostIdFromObjectUri(objectUri: string): Promise<string | null> {
+  const db = getDb();
   const localPostId = extractLocalPostIdFromApUri(objectUri);
-  if (localPostId && mongoose.Types.ObjectId.isValid(localPostId)) {
-    const local = await Post.findOne({
-      _id: localPostId,
-      status: 'published',
-      visibility: PostVisibility.PUBLIC,
-    }, { _id: 1 }).lean();
-    if (local) return String(local._id);
+  if (localPostId) {
+    const [local] = await db
+      .select({ id: posts.id })
+      .from(posts)
+      .where(and(
+        eq(posts.id, localPostId),
+        eq(posts.status, 'published'),
+        eq(posts.visibility, PostVisibility.PUBLIC),
+      ))
+      .limit(1);
+    if (local) return local.id;
   }
 
-  const imported = await Post.findOne(
-    { 'federation.activityId': objectUri },
-    { _id: 1 },
-  ).lean();
-  return imported ? String(imported._id) : null;
+  const [imported] = await db
+    .select({ id: posts.id })
+    .from(posts)
+    .where(eq(posts.federationActivityId, objectUri))
+    .limit(1);
+  return imported ? imported.id : null;
 }

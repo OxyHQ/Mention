@@ -1,7 +1,13 @@
 import { Router, Response } from 'express';
 import UserSettings, { type ProfileMedia } from '../models/UserSettings';
 import UserBehavior from '../models/UserBehavior';
-import Post from '../models/Post';
+import { and, eq } from 'drizzle-orm';
+import { posts } from '../db/schema/posts';
+import { findPostRecords } from '../db/posts/postRepository';
+import { ChronoCursor, chronoCursorSql, chronoOrderBy } from '../mtn/feed/CursorBuilder';
+
+/** Posts assembled per page while streaming a user's data export. */
+const EXPORT_PAGE_SIZE = 200;
 import Bookmark from '../models/Bookmark';
 import Like from '../models/Like';
 // Block and Restrict routes removed - frontend should use Oxy services directly
@@ -482,8 +488,24 @@ router.post('/export', async (req: AuthRequest, res: Response) => {
   try {
     writeLine('meta', { exportedAt: new Date().toISOString(), userId: oxyUserId });
 
-    for await (const post of Post.find({ oxyUserId }).sort({ createdAt: -1 }).lean().cursor()) {
-      writeLine('post', post);
+    // Paged rather than streamed through a cursor: the export is a bounded
+    // walk over one author's posts, and each page is assembled from nine tables,
+    // so a keyset page is both the cheapest correct shape and the one that keeps
+    // a single reader's memory flat.
+    let exportCursor: string | undefined;
+    for (;;) {
+      const keyset = await chronoCursorSql(exportCursor);
+      const scope = eq(posts.oxyUserId, oxyUserId);
+      const page = await findPostRecords(keyset ? and(scope, keyset) : scope, {
+        orderBy: chronoOrderBy(),
+        limit: EXPORT_PAGE_SIZE,
+      });
+      for (const post of page) {
+        writeLine('post', post);
+      }
+      if (page.length < EXPORT_PAGE_SIZE) break;
+      const last = page[page.length - 1];
+      exportCursor = ChronoCursor.build(last.id, last.createdAt);
     }
     for await (const bookmark of Bookmark.find({ userId: oxyUserId }).sort({ createdAt: -1 }).lean().cursor()) {
       writeLine('bookmark', bookmark);
